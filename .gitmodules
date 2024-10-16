@@ -1,0 +1,3 @@
+[submodule "3rdParty/nodeeditor"]
+	path = 3rdParty/nodeeditor
+	url = https://github.com/bwll1989/nodeeditor.git

@@ -1,0 +1,31 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>icons/history.png</file>
+    <file>icons/json.png</file>
+    <file>icons/lan.png</file>
+    <file>icons/lan-disconnect.png</file>
+    <file>icons/lan-connect.png</file>
+    <file>icons/csv.png</file>
+    <file>icons/tags.png</file>
+    <file>icons/plugin.png</file>
+    <file>icons/plugin.svg</file>
+    <file>icons/plugins.png</file>
+    <file>icons/plugins.svg</file>
+    <file>icons/debug.png</file>
+    <file>icons/error.png</file>
+    <file>icons/info.png</file>
+    <file>icons/trace.png</file>
+    <file>icons/warn.png</file>
+    <file>icons/critical.png</file>
+  </qresource>
+  <qresource prefix="images">
+    <file>images/loading.png</file>
+  </qresource>
+  <qresource prefix="styles">
+    <file>DefaultStyle.json</file>
+  </qresource>
+  <qresource prefix="docs">
+    <file>README.txt</file>
+  </qresource>
+
+</RCC>
