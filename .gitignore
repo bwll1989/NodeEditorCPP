@@ -3,11 +3,9 @@
 /cmake-build-release
 /.idea
 /src/Nodes/PythonNode/pybind11
+/3rdParty/QtAwesome
 /3rdParty/asiosdk
-/3rdParty/eigen-3.4.0/bench
-/3rdParty/eigen-3.4.0/cmake
 /3rdParty/eigen-3.4.0
-/3rdParty/ffmpeg-master-latest-win64-gpl-shared
 /3rdParty/ffmpeg-n6.1.1-win64-gpl-shared-6.1
 /3rdParty/LuaBridge-2.8
 /3rdParty/libpd
@@ -18,6 +16,8 @@
 /3rdParty/QHotkey-master
 /3rdParty/Qt-Advanced-Docking-System
 /3rdParty/qtpropertybrowser
-/3rdParty/rtaudio-6.0.1
 /3rdParty/TimelineV2-master
+/3rdParty/Qt-Advanced-Docking-System/
+/3rdParty/libpd/
 /3rdParty
+3rdParty/QtAwesome
