@@ -5,3 +5,4 @@
 /.idea
 /3rdParty
 /3rdParty
+/src/Nodes/PythonNode/pybind11
