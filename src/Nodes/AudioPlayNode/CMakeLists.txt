@@ -9,7 +9,7 @@ set(MAKE_CXX_STANDARD_REQUIRED ON)
 set(portaudio_DIR "${DEPENDS_DIR}/portaudio/install/lib/cmake/portaudio")
 find_package(portaudio CONFIG REQUIRED)
 message("-- Found portaudio ${portaudio_DIR}")
-set(SndFile_DIR "${DEPENDS_DIR}/libsndfile/cmake")
+set(SndFile_DIR "${DEPENDS_DIR}/libsndfile/install/cmake")
 find_package(SndFile REQUIRED)
 message("-- Found SndFile ${SndFile_DIR}")
 add_library(${Module_Name} SHARED

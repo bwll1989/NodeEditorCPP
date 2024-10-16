@@ -37,6 +37,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
     ads::CDockManager::setAutoHideConfigFlags(ads::CDockManager::DefaultAutoHideConfig);
 
 
+
 }
 void MainWindow::init()
 {

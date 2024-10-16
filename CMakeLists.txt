@@ -18,8 +18,8 @@ set(CMAKE_PREFIX_PATH ${DEPENDS_DIR})
 set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}")
 add_definitions(-DQT_MESSAGELOGCONTEXT)
 
-set(Spdlog_INCLUDE_DIRS "${DEPENDS_DIR}/spdlog/INSTALL/include" )
-set(Spdlog_LIBRARIES "${DEPENDS_DIR}/spdlog/INSTALL/lib/libspdlog.a")
+set(Spdlog_INCLUDE_DIRS "${DEPENDS_DIR}/spdlog/build/install/include" )
+set(Spdlog_LIBRARIES "${DEPENDS_DIR}/spdlog/build/install/lib/libspdlog.a")
 INCLUDE_DIRECTORIES(${Spdlog_INCLUDE_DIRS})
 message("--Found spdlog ${Spdlog_LIBRARIES}")
 
@@ -47,8 +47,8 @@ set(QHotKey_LIBRARIES "${DEPENDS_DIR}/QHotkey-master/install/lib/libqhotkey.a")
 message("-- Found QHotkey ${QHotKey_INCLUDE_DIRS}")
 #添加QHotKey库
 
-set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/install/include" )
-set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/install/bin/libqt6advanceddocking.dll")
+set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/build/install/include" )
+set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/build/install/bin/libqt6advanceddocking.dll")
 INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
 message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
 

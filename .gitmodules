@@ -1,3 +1,16 @@
 [submodule "3rdParty/nodeeditor"]
 	path = 3rdParty/nodeeditor
 	url = https://github.com/bwll1989/nodeeditor.git
+[submodule "3rdParty/Qt-Advanced-Docking-System"]
+	path = 3rdParty/Qt-Advanced-Docking-System
+	url = https://github.com/bwll1989/nodeeditor.git
+[submodule "3rdParty/QtAwesome"]
+	path = 3rdParty/QtAwesome
+	url = https://github.com/gamecreature/QtAwesome.git
+[submodule "3rdParty/spdlog"]
+	path = 3rdParty/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "3rdParty/libsndfile"]
+	path = 3rdParty/libsndfile
+	url = https://github.com/https://github.com/libsndfile/libsndfile.git
+	

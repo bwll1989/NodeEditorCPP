@@ -3,7 +3,7 @@ project(AudioDeviceInNode)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(portaudio_DIR "${CMAKE_SOURCE_DIR}/3rdParty/portaudio/install/lib/cmake/portaudio")
-find_package(portaudio REQUIRED)
+find_package(portaudio CONFIG REQUIRED)
 add_library(AudioDeviceInNode SHARED
         AudioDeviceInDataModel.hpp
         AudioDeviceInInterface.hpp
