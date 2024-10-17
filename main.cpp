@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
     ExternalControler controller(&mainWindow,Extra_Control_Port);
 
-
+    mainWindow.restoreVisualState();
     if(argc > 1)
  //    设置文件双击打开
     {

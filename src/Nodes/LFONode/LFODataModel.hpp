@@ -14,7 +14,6 @@
 #include "LFOInterface.hpp"
 #include "QtMath"
 #include "QDebug"
-#include "spdlog/spdlog.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -169,7 +168,7 @@ public slots:
             case TriangleWave:
                 value = generateTriangleWave(m_amplitude,m_frequency,m_time,m_phase);
 //                qInfo() << "Selected Triangle Wave"<<value;
-                spdlog::debug("Testing debug");
+                qDebug("Testing debug");
                 break;
         }
 

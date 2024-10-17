@@ -30,7 +30,13 @@
 #include <QMessageBox>
 
 CodeEditor::CodeEditor(QWidget* parent):
-        code("print(\"Lua version: \" .. _VERSION)"),
+        code("-- Write the Lua code here, and be careful not to use an endless loop like while(true).\n\n"
+           "fruits = {\"banana\",\"orange\",\"apple\"}\n"
+           "function test()\n"
+           "    return \"Lua version: \" .. _VERSION\n"
+           "end\n"
+           "print(test())\n"
+           "print(fruits[1])"),
         m_setupLayout(nullptr),
         m_styleCombobox(nullptr),
         m_readOnlyCheckBox(nullptr),

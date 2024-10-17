@@ -10,6 +10,7 @@ extern "C" {
 #include "lauxlib.h"
 }
 #include "LuaBridge/LuaBridge.h"
+#include "iostream"
 static int luaPrint(lua_State* L) {
     int nargs = lua_gettop(L);
     QString output;
@@ -43,108 +44,91 @@ static int luaPrint(lua_State* L) {
     qDebug() << output;
     return 0;
 }
-//lua_pushcfunction(L, luaPrint);
-//lua_setglobal(L, "print");
-
-
-
-LuaThread::LuaThread(QObject *parent)
-        : QThread(parent),
-          m_running(false),
-          m_stopRequested(false),
-          m_interruptRequested(false),
-          L(nullptr)
-{
+static int luaErrorHandler(lua_State* L) {
+    // 使用 debug.traceback 获取堆栈信息
+    const char* msg = lua_tostring(L, 1);
+    if (msg != nullptr) {
+        luaL_traceback(L, L, msg, 1);
+    } else {
+        lua_pushliteral(L, "(no error message)");
+    }
+    return 1;
 }
+LuaThread::LuaThread(const QString& scriptContent, QObject* parent)
+    : QThread(parent), scriptContent(scriptContent) {}
 
 LuaThread::~LuaThread() {
-    stop();
-    wait();
-}
-
-void LuaThread::executeLuaScript(const QString &script) {
-    QMutexLocker locker(&m_mutex);
-
-    if (m_running) {
-        m_interruptRequested = true;  // 标记请求中断当前脚本
-    }
-
-    m_script = script;
-
-    if (!m_running) {
-        m_running = true;
-        m_stopRequested = false;
-        m_interruptRequested = false;
-        start();  // 启动线程
-    } else {
-        m_condition.wakeOne();  // 如果线程已经在运行，唤醒线程执行新的脚本
+    if (luaState) {
+        lua_close(luaState);
     }
 }
 
-void LuaThread::stop() {
-    QMutexLocker locker(&m_mutex);
-    if (m_running) {
-        m_stopRequested = true;
-        m_interruptRequested = true;  // 请求中断当前脚本
-        m_condition.wakeOne();        // 唤醒线程进行停止处理
-    }
-}
-
-bool LuaThread::isRunningScript() const {
-    return m_running;
-}
 
 void LuaThread::run() {
-    while (!m_stopRequested) {
-        m_mutex.lock();
-        if (m_script.isEmpty()) {
-            m_condition.wait(&m_mutex);  // 如果没有新的脚本，等待
+    // 初始化Lua状态机
+    luaState = luaL_newstate();
+    luaL_openlibs(luaState);  // 打开标准库
+    lua_pushcfunction(luaState, luaPrint);
+    lua_setglobal(luaState, "print");
+    // 尝试加载 Lua 脚本，并返回错误信息
+    switch (luaL_loadstring(luaState, scriptContent.toStdString().c_str())) {
+        case LUA_ERRSYNTAX: {
+            qDebug()<<getError(lua_tostring(luaState,1));
+            lua_pop(luaState, 1);  // 清除栈上的错误信息
+            return;
         }
-        QString scriptToRun = m_script;
-        m_script.clear();
-        m_mutex.unlock();
+        case LUA_YIELD: {
+            qDebug()<<getError(lua_tostring(luaState,1));
+            lua_pop(luaState, 1);  // 清除栈上的错误信息
+            return;
+        }
+        case LUA_ERRRUN: {
+             qDebug()<<getError(lua_tostring(luaState,1));
+            lua_pop(luaState, 1);  // 清除栈上的错误信息
+            return;
+        }
+        case LUA_ERRERR: {
+            qDebug()<<getError(lua_tostring(luaState,1));
+            lua_pop(luaState, 1);  // 清除栈上的错误信息
+            return;
+        }
+        case LUA_ERRMEM: {
+             qDebug()<<getError(lua_tostring(luaState,1));
+            lua_pop(luaState, 1);  // 清除栈上的错误信息
+            return;
+        }
 
-        if (!scriptToRun.isEmpty()) {
-            runLuaScript();  // 执行 Lua 脚本
-        }
-
-        QMutexLocker locker(&m_mutex);
-        if (m_script.isEmpty()) {
-            m_running = false;  // 如果没有新的脚本，标记停止运行
-            break;
-        }
     }
+    // 尝试运行lua脚本，并返回错误信息
+    if (lua_pcall(luaState, 0, LUA_MULTRET, 0)!=LUA_OK) {
+        qDebug()<<getError(lua_tostring(luaState,1));
+        lua_pop(luaState, 1);  // 清除栈上的错误信息
+
+    }
+
 }
 
-void LuaThread::runLuaScript() {
-    L = luaL_newstate();
-    luaL_openlibs(L);
-lua_pushcfunction(L, luaPrint);
-lua_setglobal(L, "print");
-    // 注册中断检查函数
-    lua_register(L, "checkForInterruption", checkForInterruption);
+QString LuaThread::getError(const char* error){
+    std::string errorString(error);
+    // 查找分隔符位置
+    size_t firstColon = errorString.find(":");  // 第一个冒号（chunk 名称和行号之间）
+    size_t secondColon = errorString.find(":", firstColon + 1);  // 第二个冒号（行号和错误信息之间）
 
-    int loadStatus = luaL_loadstring(L, m_script.toStdString().c_str());
-    if (loadStatus == LUA_OK) {
-        int execStatus = lua_pcall(L, 0, LUA_MULTRET, 0);
-        if (execStatus != LUA_OK) {
-            qDebug() << "Error executing Lua script:" << lua_tostring(L, -1);
-        }
-    } else {
-        qDebug() << "Error loading Lua script:" << lua_tostring(L, -1);
-    }
+    // 提取行号，位于第一个冒号和第二个冒号之间
+    QString lineNumber = (firstColon != std::string::npos && secondColon != std::string::npos)
+                             ? QString::fromStdString(errorString.substr(firstColon + 1, secondColon - firstColon - 1)).trimmed()
+                             : "Unknown";
 
-    lua_close(L);
-    L = nullptr;
-}
+    // 提取错误类型，位于第二个冒号之后
+    QString errorType = (secondColon != std::string::npos)
+                            ? QString::fromStdString(errorString.substr(secondColon + 2)).trimmed()
+                            : "Unknown";
 
-int LuaThread::checkForInterruption(lua_State *L) {
-    LuaThread *thread = static_cast<LuaThread *>(lua_getextraspace(L));
-
-    if (thread->m_interruptRequested) {
-        return luaL_error(L, "Script interrupted by a new request.");
-    }
-    return 0;  // 返回 0 表示没有中断
+    // 拼接成包含函数名、行号和错误信息的 QString
+    QString finalErrorString = QString(" line %1 has error %2")
+                                   .arg(lineNumber)
+                                   .arg(errorType);
+    return finalErrorString;
 }
 
 

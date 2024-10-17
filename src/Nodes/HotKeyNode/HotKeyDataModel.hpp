@@ -32,7 +32,7 @@ public:
         OutPortCount=5;
         CaptionVisible=true;
         Caption="HotKey";
-        WidgetEmbeddable= true;
+        WidgetEmbeddable= false;
         Resizable=false;
         PortEditable= false;
 

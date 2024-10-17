@@ -16,34 +16,18 @@ extern "C" {
 #include "lualib.h"
 }
 
-class LuaThread : public QThread
-{
-Q_OBJECT
-
+class LuaThread : public QThread {
+    Q_OBJECT
 public:
-    LuaThread(QObject *parent = nullptr);
-    ~LuaThread();
-
-    void executeLuaScript(const QString &script);
-    void stop();  // 用于停止线程
-    bool isRunningScript() const;
-
+    LuaThread(const QString& scriptContent, QObject* parent = nullptr);
+    // 重写析构函数以确保正确退出线程
+    ~LuaThread() ;
+    QString getError(const char* err);
 protected:
-    void run() override;
+    void run() override ;
 
 private:
-    QString m_script;
-    QMutex m_mutex;
-    QWaitCondition m_condition;
-    std::atomic<bool> m_running;
-    std::atomic<bool> m_stopRequested;
-    std::atomic<bool> m_interruptRequested;  // 用于中断当前的 Lua 脚本
-
-    lua_State *L;  // Lua 状态机
-
-    void runLuaScript();
-    static int checkForInterruption(lua_State *L);  // 检查中断请求并抛出错误
+    lua_State* luaState = nullptr;  // Lua的状态机
+    QString scriptContent;  // Lua脚本的内容
 };
-
-
 #endif //NODEEDITORCPP_LUATHREAD_H

@@ -13,47 +13,7 @@
 #include "LuaThread.h"
 #include <QtCore/qglobal.h>
 
-extern "C" {
-#include "lua.h"
-#include "lualib.h"
-#include "lauxlib.h"
-}
 
-
-// 自定义的 Lua print 函数
-//static int luaPrint(lua_State* L) {
-//    int nargs = lua_gettop(L);
-//    QString output;
-//    for (int i = 1; i <= nargs; ++i) {
-//        if (i > 1) output += " ";
-//        if (lua_isstring(L, i)) {
-//            output += QString::fromUtf8(lua_tostring(L, i));
-//        }
-//        else if (lua_isnumber(L, i)) {
-//            output += QString::number(lua_tonumber(L, i));
-//        }
-//        else if (lua_isboolean(L, i)) {
-//            output += lua_toboolean(L, i) ? "true" : "false";
-//        }
-//        else if (lua_isnil(L,i)) {
-//            output += "nil";
-//        }
-//        else if (lua_isuserdata(L,i)) {
-//            output += "userdata";
-//        }
-//        else if(lua_iscfunction(L,i)){
-//            output += "function";
-//        }
-//        else if(lua_istable(L,i)){
-//            output += "table";
-//        }
-//        else {
-//            output += "Unsupported type";
-//        }
-//    }
-//    qDebug() << output;
-//    return 0;
-//}
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -78,7 +38,7 @@ public:
         WidgetEmbeddable=false;
         Resizable=false;
         connect(widget->codeWidget->run,SIGNAL(clicked(bool)),this,SLOT(onButtonClicked(bool)));
-        luaEngine = new LuaThread();
+
 //        luaEngine->start();
     }
     ~LuaDataModel()
@@ -192,7 +152,8 @@ private Q_SLOTS:
 
     void loadScripts(QString code="print(\"Lua version: \" .. _VERSION)")
     {
-        luaEngine->executeLuaScript(code);
+        luaEngine = new LuaThread(code);
+        luaEngine->start();
     }
 
 private:

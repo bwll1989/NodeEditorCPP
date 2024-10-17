@@ -153,7 +153,7 @@ void MainWindow::init()
     connect(menuBar->clearAction, &QAction::triggered, logTable, &LogWidget::clearTableWidget);
 //    导入文件，视图回到中心
     connect(scene, &CustomFlowGraphicsScene::sceneLoaded, view, &CustomGraphicsView::centerScene);
-    restoreVisualState();
+
     // 恢复布局
     setAcceptDrops(true);
 
