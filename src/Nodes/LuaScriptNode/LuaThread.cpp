@@ -44,25 +44,57 @@ static int luaPrint(lua_State* L) {
     qDebug() << output;
     return 0;
 }
-static int luaErrorHandler(lua_State* L) {
-    // 使用 debug.traceback 获取堆栈信息
-    const char* msg = lua_tostring(L, 1);
-    if (msg != nullptr) {
-        luaL_traceback(L, L, msg, 1);
-    } else {
-        lua_pushliteral(L, "(no error message)");
-    }
-    return 1;
-}
-LuaThread::LuaThread(const QString& scriptContent, QObject* parent)
-    : QThread(parent), scriptContent(scriptContent) {}
 
+// 将 std::unordered_map<unsigned int, QVariant> 转换为 Lua table
+static void pushUnorderedMapToLua(lua_State* L, const std::unordered_map<unsigned int, QVariant>& map) {
+    // 创建一个新的 Lua table
+    lua_newtable(L);
+    // 遍历 unordered_map 并将每个键值对添加到 Lua table
+    for (const auto& pair : map) {
+        // 将键压入 Lua 栈 (unsigned int 键)
+        lua_pushinteger(L, pair.first);
+
+        // 处理 QVariant 类型并将值压入 Lua 栈
+        const QVariant& value = pair.second;
+        switch (value.typeId()) {
+            case QVariant::Int:
+                lua_pushinteger(L, value.toInt());
+                break;
+            case QVariant::Double:
+                lua_pushnumber(L, value.toDouble());
+                break;
+            case QVariant::String:
+                lua_pushstring(L, value.toString().toUtf8().constData());
+                break;
+            case QVariant::Bool:
+                lua_pushboolean(L, value.toBool());
+                break;
+            // 可以添加更多类型的处理
+            default:
+                lua_pushnil(L); // 对于不支持的类型，推入 nil
+            break;
+        }
+
+        // 将键值对添加到 table
+        lua_settable(L, -3); // -3 表示 table 在栈中的索引
+    }
+}
+
+
+LuaThread::LuaThread(const QString &script,
+                    std::unordered_map<unsigned int, QVariant> in_dictionary,
+                    unsigned int inCount,
+                    unsigned int outCount,
+                    QtNodes::NodeDelegateModel *ptr
+                    ,QObject *parent):
+                    scriptContent(script),
+                    Inputs(in_dictionary),
+                    inputsCount(inCount),
+                    outputsCount(outCount),
+                    nodeInstance(ptr){}
 LuaThread::~LuaThread() {
-    if (luaState) {
-        lua_close(luaState);
-    }
-}
 
+}
 
 void LuaThread::run() {
     // 初始化Lua状态机
@@ -70,6 +102,32 @@ void LuaThread::run() {
     luaL_openlibs(luaState);  // 打开标准库
     lua_pushcfunction(luaState, luaPrint);
     lua_setglobal(luaState, "print");
+    lua_pushinteger(luaState, inputsCount);
+    lua_setglobal(luaState, "InputsCount");
+    // 在 Lua 中将其命名为 InputsCountt
+    lua_pushinteger(luaState, outputsCount);
+    lua_setglobal(luaState, "OutputsCount");
+    // 在 Lua 中将其命名为 OutputsCount
+    pushUnorderedMapToLua(luaState,Inputs);
+    // 将 Lua table 存入一个全局变量
+    lua_setglobal(luaState, "NodeInputs");
+
+    // luabridge::getGlobalNamespace(luaState)
+    //     .beginClass<QtNodes::NodeDelegateModel>("MyClass")
+    //         .addConstructor<void(*)()>()
+    //         .addFunction("myMethod", &QtNodes::NodeDelegateModel::test)
+    //     .endClass();
+    //
+    // // 创建 MyClass 实例并传递给 Lua
+    // QtNodes::NodeDelegateModel** instancePtr = static_cast<QtNodes::NodeDelegateModel**>(lua_newuserdata(luaState, sizeof(QtNodes::NodeDelegateModel*)));
+    // *instancePtr = nodeInstance;
+    //
+    // // 设置元表
+    // luaL_getmetatable(luaState, "MyClass");
+    // lua_setmetatable(luaState, -2); // 将元表应用于 userdata
+    //
+    // // 设置为全局变量
+    // lua_setglobal(luaState, "myClass");
     // 尝试加载 Lua 脚本，并返回错误信息
     switch (luaL_loadstring(luaState, scriptContent.toStdString().c_str())) {
         case LUA_ERRSYNTAX: {
@@ -107,7 +165,7 @@ void LuaThread::run() {
     }
 
 }
-
+// 将lua中的异常提示解析出来
 QString LuaThread::getError(const char* error){
     std::string errorString(error);
     // 查找分隔符位置

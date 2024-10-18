@@ -37,9 +37,8 @@ public:
         Caption="Lua Script";
         WidgetEmbeddable=false;
         Resizable=false;
-        connect(widget->codeWidget->run,SIGNAL(clicked(bool)),this,SLOT(onButtonClicked(bool)));
-
-//        luaEngine->start();
+        PortEditable=true;
+        connect(widget->codeWidget->run,SIGNAL(clicked(bool)),this,SLOT(onButtonClicked()));
     }
     ~LuaDataModel()
     {
@@ -48,8 +47,9 @@ public:
 //        }
         widget->deleteLater();
     }
-public:
-
+    void test() {
+        qDebug() << "test";
+    }
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
         QString in = "➩";
@@ -65,7 +65,6 @@ public:
         return "";
     }
 
-public:
     unsigned int nPorts(PortType portType) const override
     {
         unsigned int result = 1;
@@ -89,21 +88,21 @@ public:
     {
 //        Q_UNUSED(portIndex)
         Q_UNUSED(portType)
-        switch (portIndex) {
-            case 0:
-                return StringData().type();
-                break;
-            case 1:
-                return BoolData().type();
-                break;
-            case 2:
-                return IntData().type();
-                break;
-            case 3:
-                return FloatData().type();
-                break;
-        }
-        return BoolData().type();
+        // switch (portIndex) {
+        //     case 0:
+        //         return StringData().type();
+        //         break;
+        //     case 1:
+        //         return BoolData().type();
+        //         break;
+        //     case 2:
+        //         return IntData().type();
+        //         break;
+        //     case 3:
+        //         return FloatData().type();
+        //         break;
+        // }
+        return VariantData().type();
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
@@ -112,7 +111,14 @@ public:
         return std::make_shared<StringData>("_lineEdit->text()");
     }
 
-    void setInData(std::shared_ptr<NodeData>, PortIndex const) override {}
+    void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
+        if (auto d = std::dynamic_pointer_cast<VariantData>(data))
+        {
+            in_dictionary[portIndex] = d->NodeValues;
+            onButtonClicked();
+            Q_EMIT dataUpdated(0);
+        }
+    }
 
     QWidget *embeddedWidget() override
     {
@@ -142,9 +148,9 @@ public:
     }
 private Q_SLOTS:
 
-    void onButtonClicked(bool const &string)
+    void onButtonClicked()
     {
-        Q_UNUSED(string);
+
         script=widget->codeWidget->saveCode();
         loadScripts(script);
         Q_EMIT dataUpdated(0);
@@ -152,12 +158,14 @@ private Q_SLOTS:
 
     void loadScripts(QString code="print(\"Lua version: \" .. _VERSION)")
     {
-        luaEngine = new LuaThread(code);
+        luaEngine = new LuaThread(code,in_dictionary,InPortCount,OutPortCount,this);
         luaEngine->start();
     }
 
 private:
     QString script;
+    unordered_map<unsigned int, QVariant> in_dictionary;
+    unordered_map<unsigned int, QVariant> out_dictionary;
     LuaScriptInterface *widget=new LuaScriptInterface();
     LuaThread *luaEngine;
 };
