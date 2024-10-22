@@ -30,16 +30,20 @@
 #include <QMessageBox>
 
 CodeEditor::CodeEditor(QWidget* parent):
-        code("-- Write the Lua code here, and be careful not to use an endless loop like while(true).\n"
-                "-- NodeInputs is a table to store Node inputs \n"
-                "-- InputsCount is Node inputs count\n"
-                "-- OutputsCount is Node outputs count\n"
-                "fruits = {\"banana\",\"orange\",\"apple\"}\n"
-                "function test()\n"
-                "    return \"Lua version: \" .. _VERSION\n"
-                "end\n"
-                "print(test())\n"
-                "print(fruits[1])"),
+code(R"(-- Write the Lua code here, and be careful not to use an endless loop like while(true).
+-- Node:inputCount() to get input count
+-- Node:outputCount() to get output count
+-- Node:setPortValue(index,value) set output value,value need use QVarinat(value) convert Lua to C++
+-- Node:getPortValue(index) set output value,if you want use this data in lua,you need use toBool()/toString()/toInt()/toDouble() convert c++ to lua
+
+
+fruits = {"banana","orange","apple"}
+function test()
+    return "Lua version: " .. _VERSION
+end
+print(Node:inputCount())
+Node:setPortValue(0,QVariant("test")))"),
+
         m_setupLayout(nullptr),
         m_styleCombobox(nullptr),
         m_readOnlyCheckBox(nullptr),
@@ -114,7 +118,7 @@ void CodeEditor::createWidgets()
     hBox->addWidget(setupGroup);
     m_setupLayout = new QVBoxLayout();
     setupGroup->setLayout(m_setupLayout);
-    setupGroup->setMaximumWidth(300);
+    setupGroup->setMaximumWidth(100);
     // CodeEditor
     m_codeEditor = new QCodeEditor(this);
     hBox->addWidget(m_codeEditor);

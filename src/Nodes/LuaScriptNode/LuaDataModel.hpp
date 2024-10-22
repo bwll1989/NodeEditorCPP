@@ -8,19 +8,15 @@
 #include <QtNodes/NodeDelegateModel>
 #include "QThread"
 #include <iostream>
-#include <QtWidgets/QLineEdit>
 #include "LuaScriptInterface.hpp"
 #include "LuaThread.h"
 #include <QtCore/qglobal.h>
-
+#include "LuaModifier.hpp"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-class QLineEdit;
-
-
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 class LuaDataModel : public NodeDelegateModel
@@ -46,9 +42,6 @@ public:
 //            luaThread->stop();
 //        }
         widget->deleteLater();
-    }
-    void test() {
-        qDebug() << "test";
     }
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
@@ -86,29 +79,14 @@ public:
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
-//        Q_UNUSED(portIndex)
         Q_UNUSED(portType)
-        // switch (portIndex) {
-        //     case 0:
-        //         return StringData().type();
-        //         break;
-        //     case 1:
-        //         return BoolData().type();
-        //         break;
-        //     case 2:
-        //         return IntData().type();
-        //         break;
-        //     case 3:
-        //         return FloatData().type();
-        //         break;
-        // }
         return VariantData().type();
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
-        Q_UNUSED(portIndex)
-        return std::make_shared<StringData>("_lineEdit->text()");
+        // Q_UNUSED(portIndex)
+        return std::make_shared<VariantData>(out_dictionary[portIndex]);
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
@@ -158,14 +136,51 @@ private Q_SLOTS:
 
     void loadScripts(QString code="print(\"Lua version: \" .. _VERSION)")
     {
-        luaEngine = new LuaThread(code,in_dictionary,InPortCount,OutPortCount,this);
+        luaEngine = new LuaThread(code,this);
         luaEngine->start();
     }
+public:
+    void test() {
+        qDebug() << "test";
+    }
+    unsigned int getInputCount() {
+        return InPortCount;
+    }
+    unsigned int getOutputCount() {
+        return OutPortCount;
+    }
+
+    LuaQVariant getPortValue(unsigned int index) {
+            return LuaQVariant(in_dictionary[index]);
+    }
+    void setPortValue(unsigned int index,const LuaQVariant& value) {
+        try {
+            out_dictionary[index]=value.getVariant();
+            Q_EMIT dataUpdated(index);
+        } catch (...) {
+            qWarning() << "setPortValue error";
+        }
+    }
+
 
 private:
-    QString script;
     unordered_map<unsigned int, QVariant> in_dictionary;
     unordered_map<unsigned int, QVariant> out_dictionary;
+    QString script;
     LuaScriptInterface *widget=new LuaScriptInterface();
     LuaThread *luaEngine;
 };
+
+static void registerLuaNode(lua_State* L) {
+    using namespace luabridge;
+    getGlobalNamespace(L)
+        .beginClass<LuaDataModel>("LuaDataModel")  //多个类注册需要加一个namespace（test）
+        .addConstructor<void(*)()>()                    //无参构造函数的注册
+        .addFunction("test", &LuaDataModel::test)  //注册test、方法到lua（addStaticFunction静态函数注册也类似）
+        .addFunction("inputCount", &LuaDataModel::getInputCount)//注册获取输入接口数量的方法到lua
+        .addFunction("outputCount", &LuaDataModel::getOutputCount)//注册获取输出接口数量的方法到lua
+        .addFunction("getPortValue", &LuaDataModel::getPortValue)//注册获取输入接口值的方法到lua
+        .addFunction("setPortValue", &LuaDataModel::setPortValue)//注册设置输出接口值的方法到lua
+        // .addFunction("setValue", &LuaDataModel::luaSetValue)
+        .endClass();
+}

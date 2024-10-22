@@ -3,6 +3,8 @@
 //
 
 #include "LuaThread.h"
+
+#include "LuaDataModel.hpp"
 #include "qdebug.h"
 extern "C" {
 #include "lua.h"
@@ -11,86 +13,44 @@ extern "C" {
 }
 #include "LuaBridge/LuaBridge.h"
 #include "iostream"
-static int luaPrint(lua_State* L) {
-    int nargs = lua_gettop(L);
-    QString output;
-    for (int i = 1; i <= nargs; ++i) {
-        if (i > 1) output += " ";
-        if (lua_isstring(L, i)) {
-            output += QString::fromUtf8(lua_tostring(L, i));
-        }
-        else if (lua_isnumber(L, i)) {
-            output += QString::number(lua_tonumber(L, i));
-        }
-        else if (lua_isboolean(L, i)) {
-            output += lua_toboolean(L, i) ? "true" : "false";
-        }
-        else if (lua_isnil(L,i)) {
-            output += "nil";
-        }
-        else if (lua_isuserdata(L,i)) {
-            output += "userdata";
-        }
-        else if(lua_iscfunction(L,i)){
-            output += "function";
-        }
-        else if(lua_istable(L,i)){
-            output += "table";
-        }
-        else {
-            output += "Unsupported type";
-        }
-    }
-    qDebug() << output;
-    return 0;
-}
+// 函数：将 QVariant 转换为 Lua 支持的类型并推送到 Lua 栈上
+void QVariantToLua(lua_State* L, const QVariant& variant) {
+    using namespace luabridge;
 
-// 将 std::unordered_map<unsigned int, QVariant> 转换为 Lua table
-static void pushUnorderedMapToLua(lua_State* L, const std::unordered_map<unsigned int, QVariant>& map) {
-    // 创建一个新的 Lua table
-    lua_newtable(L);
-    // 遍历 unordered_map 并将每个键值对添加到 Lua table
-    for (const auto& pair : map) {
-        // 将键压入 Lua 栈 (unsigned int 键)
-        lua_pushinteger(L, pair.first);
-
-        // 处理 QVariant 类型并将值压入 Lua 栈
-        const QVariant& value = pair.second;
-        switch (value.typeId()) {
-            case QVariant::Int:
-                lua_pushinteger(L, value.toInt());
-                break;
-            case QVariant::Double:
-                lua_pushnumber(L, value.toDouble());
-                break;
-            case QVariant::String:
-                lua_pushstring(L, value.toString().toUtf8().constData());
-                break;
-            case QVariant::Bool:
-                lua_pushboolean(L, value.toBool());
-                break;
-            // 可以添加更多类型的处理
-            default:
-                lua_pushnil(L); // 对于不支持的类型，推入 nil
-            break;
-        }
-
-        // 将键值对添加到 table
-        lua_settable(L, -3); // -3 表示 table 在栈中的索引
+    switch (variant.typeId()) {
+        case QVariant::Int:
+            lua_pushinteger(L, variant.toInt());  // 推送 int 到 Lua 栈
+        break;
+        case QVariant::Double:
+            lua_pushnumber(L, variant.toDouble());  // 推送 double 到 Lua 栈
+        break;
+        case QVariant::String:
+            lua_pushstring(L, variant.toString().toStdString().c_str());  // 推送 string 到 Lua 栈
+        break;
+        case QVariant::Bool:
+            lua_pushboolean(L, variant.toBool());  // 推送 bool 到 Lua 栈
+        break;
+        // 根据需要添加更多类型支持
+        default:
+            lua_pushnil(L);  // 未知类型推送 nil 到 Lua 栈
+        std::cerr << "Unsupported QVariant type\n";
     }
 }
-
+// C++ 注册到 Lua 的函数，接受参数并返回 QVariant
+static QVariant getSomeValue(int input) {
+    if (input == 1) {
+        return QVariant(42);  // 返回 int
+    } else if (input == 2) {
+        return QVariant(3.14);  // 返回 double
+    } else {
+        return QVariant("Hello from C++!");  // 返回 QString
+    }
+}
 
 LuaThread::LuaThread(const QString &script,
-                    std::unordered_map<unsigned int, QVariant> in_dictionary,
-                    unsigned int inCount,
-                    unsigned int outCount,
-                    QtNodes::NodeDelegateModel *ptr
+                    QObject *ptr
                     ,QObject *parent):
                     scriptContent(script),
-                    Inputs(in_dictionary),
-                    inputsCount(inCount),
-                    outputsCount(outCount),
                     nodeInstance(ptr){}
 LuaThread::~LuaThread() {
 
@@ -102,32 +62,20 @@ void LuaThread::run() {
     luaL_openlibs(luaState);  // 打开标准库
     lua_pushcfunction(luaState, luaPrint);
     lua_setglobal(luaState, "print");
-    lua_pushinteger(luaState, inputsCount);
-    lua_setglobal(luaState, "InputsCount");
-    // 在 Lua 中将其命名为 InputsCountt
-    lua_pushinteger(luaState, outputsCount);
-    lua_setglobal(luaState, "OutputsCount");
-    // 在 Lua 中将其命名为 OutputsCount
-    pushUnorderedMapToLua(luaState,Inputs);
-    // 将 Lua table 存入一个全局变量
-    lua_setglobal(luaState, "NodeInputs");
-
     // luabridge::getGlobalNamespace(luaState)
-    //     .beginClass<QtNodes::NodeDelegateModel>("MyClass")
-    //         .addConstructor<void(*)()>()
-    //         .addFunction("myMethod", &QtNodes::NodeDelegateModel::test)
-    //     .endClass();
-    //
-    // // 创建 MyClass 实例并传递给 Lua
-    // QtNodes::NodeDelegateModel** instancePtr = static_cast<QtNodes::NodeDelegateModel**>(lua_newuserdata(luaState, sizeof(QtNodes::NodeDelegateModel*)));
-    // *instancePtr = nodeInstance;
-    //
-    // // 设置元表
-    // luaL_getmetatable(luaState, "MyClass");
-    // lua_setmetatable(luaState, -2); // 将元表应用于 userdata
-    //
-    // // 设置为全局变量
-    // lua_setglobal(luaState, "myClass");
+    //      .addFunction("getSomeValue", [](lua_State* L) {
+    //          int input = luabridge::Stack<int>::get(L, 1);  // 从 Lua 获取第一个参数
+    //          QVariant value = getSomeValue(input);          // 调用 C++ 函数返回 QVariant
+    //          QVariantToLua(L, value);                       // 将 QVariant 转换并推送到 Lua 栈上
+    //          return 1;  // 返回一个值
+    //      });
+    registerLuaQVariant(luaState);
+    // 注册 LuaDataModel 类到 Lua
+    registerLuaNode(luaState);
+    // 创建 userdata 并将 Qt 实例压入 Lua
+    auto instancePtr = static_cast<LuaDataModel*>(nodeInstance);
+    luabridge::setGlobal(luaState,instancePtr,"Node");
+
     // 尝试加载 Lua 脚本，并返回错误信息
     switch (luaL_loadstring(luaState, scriptContent.toStdString().c_str())) {
         case LUA_ERRSYNTAX: {
@@ -161,7 +109,6 @@ void LuaThread::run() {
     if (lua_pcall(luaState, 0, LUA_MULTRET, 0)!=LUA_OK) {
         qDebug()<<getError(lua_tostring(luaState,1));
         lua_pop(luaState, 1);  // 清除栈上的错误信息
-
     }
 
 }

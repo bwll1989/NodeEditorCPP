@@ -27,7 +27,8 @@ set(SOURCE_FILES "./resources/resources.qrc"
         LuaScriptInterface.hpp
         LuaDataModel.hpp
         CodeEditor.cpp
-        CodeEditor.h)
+        CodeEditor.h
+        LuaModifier.hpp)
 add_library(${Module_Name} SHARED
         ${SOURCE_FILES}
 
