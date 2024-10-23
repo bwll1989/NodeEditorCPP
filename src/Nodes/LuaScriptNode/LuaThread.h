@@ -25,7 +25,9 @@ public:
         QObject* parent = nullptr);
     // 重写析构函数以确保正确退出线程
     ~LuaThread() ;
+    void init();
     QString getError(const char* err);
+    void setCode(QString code);
 protected:
     void run() override ;
 

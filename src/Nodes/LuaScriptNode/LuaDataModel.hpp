@@ -25,7 +25,7 @@ class LuaDataModel : public NodeDelegateModel
 
 public:
 
-    LuaDataModel()
+    LuaDataModel():widget(new LuaScriptInterface())
     {
         InPortCount =4;
         OutPortCount=1;
@@ -35,13 +35,15 @@ public:
         Resizable=false;
         PortEditable=true;
         connect(widget->codeWidget->run,SIGNAL(clicked(bool)),this,SLOT(onButtonClicked()));
+
     }
     ~LuaDataModel()
     {
-//       if(luaThread){
-//            luaThread->stop();
-//        }
+       if(luaEngine!=nullptr){
+           luaEngine->deleteLater();
+        }
         widget->deleteLater();
+
     }
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
@@ -86,13 +88,13 @@ public:
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         // Q_UNUSED(portIndex)
-        return std::make_shared<VariantData>(out_dictionary[portIndex]);
+        return std::make_shared<VariantData>(out_dictionary[portIndex].getVariant());
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
         if (auto d = std::dynamic_pointer_cast<VariantData>(data))
         {
-            in_dictionary[portIndex] = d->NodeValues;
+            in_dictionary[portIndex].setVariant( d->NodeValues);
             onButtonClicked();
             Q_EMIT dataUpdated(0);
         }
@@ -136,8 +138,16 @@ private Q_SLOTS:
 
     void loadScripts(QString code="print(\"Lua version: \" .. _VERSION)")
     {
-        luaEngine = new LuaThread(code,this);
+        if (!luaEngine) {
+            luaEngine = new LuaThread(code,this);
+
+        }
+
+        luaEngine->setCode(code);
+
+
         luaEngine->start();
+
     }
 public:
     void test() {
@@ -150,10 +160,15 @@ public:
         return OutPortCount;
     }
 
-    LuaQVariant getPortValue(unsigned int index) {
-            return LuaQVariant(in_dictionary[index]);
+    LuaQVariant getPortValue(const std::string& portType, unsigned int index) {
+        if(portType == "In") {
+            return in_dictionary[index];
+        }
+        return out_dictionary[index];
     }
+
     void setPortValue(unsigned int index,const LuaQVariant& value) {
+
         try {
             out_dictionary[index]=value.getVariant();
             Q_EMIT dataUpdated(index);
@@ -164,23 +179,24 @@ public:
 
 
 private:
-    unordered_map<unsigned int, QVariant> in_dictionary;
-    unordered_map<unsigned int, QVariant> out_dictionary;
+    unordered_map<unsigned int, LuaQVariant> in_dictionary;
+    // 输入值存储
+    unordered_map<unsigned int, LuaQVariant> out_dictionary;
+    // 输出值存储
     QString script;
-    LuaScriptInterface *widget=new LuaScriptInterface();
-    LuaThread *luaEngine;
+    LuaScriptInterface *widget;
+    LuaThread *luaEngine=nullptr;
 };
-
+// 注册类到lua
 static void registerLuaNode(lua_State* L) {
     using namespace luabridge;
     getGlobalNamespace(L)
         .beginClass<LuaDataModel>("LuaDataModel")  //多个类注册需要加一个namespace（test）
         .addConstructor<void(*)()>()                    //无参构造函数的注册
-        .addFunction("test", &LuaDataModel::test)  //注册test、方法到lua（addStaticFunction静态函数注册也类似）
         .addFunction("inputCount", &LuaDataModel::getInputCount)//注册获取输入接口数量的方法到lua
         .addFunction("outputCount", &LuaDataModel::getOutputCount)//注册获取输出接口数量的方法到lua
-        .addFunction("getPortValue", &LuaDataModel::getPortValue)//注册获取输入接口值的方法到lua
-        .addFunction("setPortValue", &LuaDataModel::setPortValue)//注册设置输出接口值的方法到lua
+        .addFunction("getValue", &LuaDataModel::getPortValue)//注册获取输入接口值的方法到lua
+        .addFunction("setValue", &LuaDataModel::setPortValue)//注册设置输出接口值的方法到lua
         // .addFunction("setValue", &LuaDataModel::luaSetValue)
         .endClass();
 }

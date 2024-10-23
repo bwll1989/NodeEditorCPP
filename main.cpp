@@ -20,24 +20,10 @@ void setupApp(){
     QApplication::setApplicationVersion(PRODUCT_VERSION);
     QApplication::setOrganizationName(COMPANY_NAME);
     QApplication::setOrganizationDomain("www.qt.com");
-    // 获取当前的环境变量
-//    QString path = QString::fromLocal8Bit(getenv("PATH"));
-//
-//    // 在 PATH 前添加自定义 DLL 路径
-//    path.prepend(LUA_PATH);
-//    // 使用 _putenv 设置新的 PATH
-//    _putenv(("PATH=" + path).toLocal8Bit().data());
-    //设置软件信息
 }
 
 int main(int argc, char *argv[])
 {
-    // 启用从应用程序的工作目录加载 DLL
-//    SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
-
-    // 添加多个 DLL 目录
-//    AddDllDirectory(L"./lua");
-//    SetDllDirectory(L"./lua");
 
     QApplication app(argc, argv);
 

@@ -28,7 +28,7 @@ class BoolSourceDataModel : public NodeDelegateModel
 
 public:
 
-    BoolSourceDataModel(){
+    BoolSourceDataModel():button(new QPushButton("0")){
         InPortCount =1;
         OutPortCount=1;
         CaptionVisible=true;
@@ -154,7 +154,7 @@ private Q_SLOTS:
 
 private:
 
-    QPushButton *button=new QPushButton("0");
+    QPushButton *button;
 
 
 };

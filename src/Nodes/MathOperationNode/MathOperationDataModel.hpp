@@ -115,7 +115,6 @@ public:
         }
         if (auto textData = std::dynamic_pointer_cast<VariantData>(data)) {
             in_dictionary[portIndex]=textData->NodeValues;
-            qDebug()<<widget->currentIndex();
             for(auto kv:in_dictionary){
                 if(kv.first!=portIndex){
 

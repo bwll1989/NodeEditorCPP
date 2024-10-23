@@ -13,70 +13,41 @@ extern "C" {
 }
 #include "LuaBridge/LuaBridge.h"
 #include "iostream"
-// 函数：将 QVariant 转换为 Lua 支持的类型并推送到 Lua 栈上
-void QVariantToLua(lua_State* L, const QVariant& variant) {
-    using namespace luabridge;
-
-    switch (variant.typeId()) {
-        case QVariant::Int:
-            lua_pushinteger(L, variant.toInt());  // 推送 int 到 Lua 栈
-        break;
-        case QVariant::Double:
-            lua_pushnumber(L, variant.toDouble());  // 推送 double 到 Lua 栈
-        break;
-        case QVariant::String:
-            lua_pushstring(L, variant.toString().toStdString().c_str());  // 推送 string 到 Lua 栈
-        break;
-        case QVariant::Bool:
-            lua_pushboolean(L, variant.toBool());  // 推送 bool 到 Lua 栈
-        break;
-        // 根据需要添加更多类型支持
-        default:
-            lua_pushnil(L);  // 未知类型推送 nil 到 Lua 栈
-        std::cerr << "Unsupported QVariant type\n";
-    }
-}
-// C++ 注册到 Lua 的函数，接受参数并返回 QVariant
-static QVariant getSomeValue(int input) {
-    if (input == 1) {
-        return QVariant(42);  // 返回 int
-    } else if (input == 2) {
-        return QVariant(3.14);  // 返回 double
-    } else {
-        return QVariant("Hello from C++!");  // 返回 QString
-    }
-}
 
 LuaThread::LuaThread(const QString &script,
-                    QObject *ptr
-                    ,QObject *parent):
+                    QObject *ptr,
+                    QObject *parent):
                     scriptContent(script),
-                    nodeInstance(ptr){}
+                    nodeInstance(ptr) {
+    init();
+}
 LuaThread::~LuaThread() {
 
 }
 
-void LuaThread::run() {
+void LuaThread::init() {
     // 初始化Lua状态机
     luaState = luaL_newstate();
-    luaL_openlibs(luaState);  // 打开标准库
+    // 打开标准库
+    luaL_openlibs(luaState);
+    // 注册print函数
     lua_pushcfunction(luaState, luaPrint);
     lua_setglobal(luaState, "print");
-    // luabridge::getGlobalNamespace(luaState)
-    //      .addFunction("getSomeValue", [](lua_State* L) {
-    //          int input = luabridge::Stack<int>::get(L, 1);  // 从 Lua 获取第一个参数
-    //          QVariant value = getSomeValue(input);          // 调用 C++ 函数返回 QVariant
-    //          QVariantToLua(L, value);                       // 将 QVariant 转换并推送到 Lua 栈上
-    //          return 1;  // 返回一个值
-    //      });
+    //注册QVariant转换类
     registerLuaQVariant(luaState);
     // 注册 LuaDataModel 类到 Lua
     registerLuaNode(luaState);
-    // 创建 userdata 并将 Qt 实例压入 Lua
+    // 创建 userdata 并将 LuaDataModel 实例压入 Lua
     auto instancePtr = static_cast<LuaDataModel*>(nodeInstance);
+    //设置c++类实例全局名称为Node
     luabridge::setGlobal(luaState,instancePtr,"Node");
+    // 尝试加载 Lua 脚本，解析返回的错误信息
+}
+void LuaThread::setCode(QString code) {
+    scriptContent=code;
+}
+void LuaThread::run() {
 
-    // 尝试加载 Lua 脚本，并返回错误信息
     switch (luaL_loadstring(luaState, scriptContent.toStdString().c_str())) {
         case LUA_ERRSYNTAX: {
             qDebug()<<getError(lua_tostring(luaState,1));

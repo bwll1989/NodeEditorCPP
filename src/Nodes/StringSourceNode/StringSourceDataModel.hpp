@@ -28,7 +28,7 @@ class TextSourceDataModel : public NodeDelegateModel
 
 public:
 
-    TextSourceDataModel(){
+    TextSourceDataModel():_lineEdit(new QLineEdit("")){
         InPortCount =1;
         OutPortCount=1;
         CaptionVisible=true;
@@ -144,6 +144,6 @@ private Q_SLOTS:
     }
 
 private:
-    QLineEdit *_lineEdit=new QLineEdit("");
+    QLineEdit *_lineEdit;
 
 };

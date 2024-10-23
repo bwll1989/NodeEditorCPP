@@ -31,18 +31,23 @@
 
 CodeEditor::CodeEditor(QWidget* parent):
 code(R"(-- Write the Lua code here, and be careful not to use an endless loop like while(true).
--- Node:inputCount() to get input count
--- Node:outputCount() to get output count
--- Node:setPortValue(index,value) set output value,value need use QVarinat(value) convert Lua to C++
--- Node:getPortValue(index) set output value,if you want use this data in lua,you need use toBool()/toString()/toInt()/toDouble() convert c++ to lua
-
+-- function about lua read/write Node
+-- Node:inputCount()/Node:inputCount()outputCount() get Node input or output port count
+-- Node:getValue("In"/"Out",index) read Node input or output value ,return type is Variant
+-- Node:setValue(index,data) write Node output value ,data type is Variant
+-- Data type about Variant
+-- Variant is a converty class,between C++ and lua,any community about c++ and lua must us this class to converty
+-- Variant(arg) to instantiation a Variant
+-- Variant:setValue(arg)/Variant:value to write/read value in lua.in most time setValue(arg) is not need
+-- Variant:type() get Variant value C++ type,use for debug
+-- Variant:toInt()/ Variant:toBool()/ Variant:toDouble()/ Variant:toString() to convert Variant to specified lua type
 
 fruits = {"banana","orange","apple"}
 function test()
     return "Lua version: " .. _VERSION
 end
-print(Node:inputCount())
-Node:setPortValue(0,QVariant("test")))"),
+print(Node:getValue("In",0):value())
+Node:setValue(0,Variant(test())))"),
 
         m_setupLayout(nullptr),
         m_styleCombobox(nullptr),

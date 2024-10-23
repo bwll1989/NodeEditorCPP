@@ -14,103 +14,170 @@ extern "C" {
 class LuaQVariant {
 public:
     LuaQVariant() = default;
-
+    ~LuaQVariant() = default;
     // 使用 int 构造
     LuaQVariant(const int value) {
         variant_=QVariant::fromValue(value);
     }
 
-    // 使用 double 构造
+    // 使用 double 构造，C++中使用
     LuaQVariant(const double value) : variant_(value) {
         variant_=QVariant::fromValue(value);
     }
-    // 使用 bool 构造
+    // 使用 bool 构造，C++中使用
     LuaQVariant(const bool value){
         variant_=QVariant::fromValue(value);
     }
-
-    // 使用 QString 构造
+    // 使用 QString 构造，C++中使用
     LuaQVariant(const std::string& value)  {
         variant_=QVariant::fromValue(QString::fromStdString(value));
     }
-
-    // 从 QVariant 构造
+    // 从 QVariant 构造，C++中使用
     LuaQVariant(const QVariant& variant) : variant_(variant) {}
-
-    // 转换为 int
+    // Lua传入的构造函数，自动处理Lua中的类型，lua中调用
+    LuaQVariant(lua_State* L) {
+        setValue(L);  // 调用setValue来处理初始化时的类型
+    }
+    // 使用 typeId 来根据类型推送值到 Lua，lua中调用
+    void getValue(lua_State* L) const {
+        int type = variant_.typeId();  // 获取 QVariant 的类型 ID
+        switch (type) {
+            case QMetaType::Int:
+                lua_pushinteger(L, variant_.toInt());
+            break;
+            case QMetaType::Double:
+                lua_pushnumber(L, variant_.toDouble());
+            break;
+            case QMetaType::Bool:
+                lua_pushboolean(L, variant_.toBool());
+            break;
+            case QMetaType::QString:
+                lua_pushstring(L, variant_.toString().toUtf8().constData());
+            break;
+            case QMetaType::Float:
+                lua_pushnumber(L, static_cast<double>(variant_.toFloat()));
+            break;
+            default:
+                lua_pushnil(L);  // 未知或不支持的类型，返回 nil
+            break;
+        }
+    }
+    // 转换为 int,c++和lua均可调用
     int toInt() const {
         if (variant_.canConvert<int>()) {
             return variant_.toInt();
         }
         return 0;
     }
-
+    // 转换为 bool,c++和lua均可调用
     bool toBool() const {
         if (variant_.canConvert<bool>()) {
             return variant_.toBool();
         }
         return false;
     }
-    // 转换为 double
+    // 转换为 double,c++和lua均可调用
     double toDouble() const {
         if (variant_.canConvert<double>()) {
             return variant_.toDouble();
         }
         return 0.0;
     }
-
-
-    // 转换为 string (QString)
+    // 转换为 string (QString),c++和lua均可调用
     std::string toString() const {
         if (variant_.canConvert<QString>()) {
             return variant_.toString().toStdString();
         }
         return "";
     }
-
-    // 获取内部的 QVariant
-    const QVariant& getVariant() const {
+    // 允许在Lua中设置QVariant的值,用于在lua调用时实例化类
+    void setValue(lua_State* L) {
+        // 使用lua_gettop确保有足够的参数传入
+        int args = lua_gettop(L);
+        if (args < 1) {
+            std::cout << "No arguments provided!" << std::endl;
+            variant_ = QVariant();  // 空值
+            return;
+        }
+        if (lua_isinteger(L, 2)) {
+            lua_Integer intValue = luaL_checkinteger(L, 2);
+            variant_ = QVariant(static_cast<int>(intValue));
+            // std::cout << "Integer value set: " << intValue << std::endl;  // 调试输出
+        } else if (lua_isnumber(L, 2)) {
+            lua_Number numValue = luaL_checknumber(L, 2);
+            variant_ = QVariant(static_cast<double>(numValue));
+            // std::cout << "Double value set: " << numValue << std::endl;  // 调试输出
+        } else if (lua_isboolean(L, 2)) {
+            int boolValue = lua_toboolean(L, 2);
+            variant_ = QVariant(static_cast<bool>(boolValue));
+            // std::cout << "Boolean value set: " << boolValue << std::endl;  // 调试输出
+        } else if (lua_isstring(L, 2)) {
+            const char* strValue = luaL_checkstring(L, 2);
+            variant_ = QVariant(QString::fromUtf8(strValue));
+            // std::cout << "String value set: " << strValue << std::endl;  // 调试输出
+        } else {
+            std::cout << "Unrecognized type, empty QVariant set." << std::endl;
+            variant_ = QVariant();  // 未知类型，设置为空值
+        }
+    }
+    // 使用 typeId 来根据类型推送值到 Lua
+    int getValue(lua_State* L) {
+        int type = variant_.typeId();  // 获取 QVariant 的类型 ID
+        switch (type) {
+            case QMetaType::Int:
+                lua_pushinteger(L, variant_.toInt());
+            break;
+            case QMetaType::Double:
+                lua_pushnumber(L, variant_.toDouble());
+            break;
+            case QMetaType::Bool:
+                lua_pushboolean(L, variant_.toBool());
+            break;
+            case QMetaType::QString:
+                lua_pushstring(L, variant_.toString().toUtf8().constData());
+            break;
+            case QMetaType::Float:
+                lua_pushnumber(L, static_cast<double>(variant_.toFloat()));
+            break;
+            default:
+                lua_pushnil(L);  // 未知或不支持的类型，返回 nil
+            break;
+        }
+        return 1;  // 返回一个值
+    }
+    //获取内部QVariant的typeId,lua中调用
+     std::string getType() const {
+        return variant_.typeName();
+    }
+    // 获取内部的 QVariant，C++中调用
+    QVariant getVariant() const {
         return variant_;
     }
+    void setVariant(const QVariant& val) {
+        variant_=val;
+    }
 
-    // 支持从不同类型创建QVariant
-    static LuaQVariant fromInt(int value) { return LuaQVariant(value); }
-    static LuaQVariant fromBool(bool value) { return LuaQVariant(value); }
-    static LuaQVariant fromDouble(double value) { return LuaQVariant(value); }
-    static LuaQVariant fromString(const QString& value) { return LuaQVariant(value); }
 private:
     QVariant variant_;  // 内部的 QVariant 实例
 };
+// 注册QVariant转换类到lua
 static void registerLuaQVariant(lua_State* L) {
     using namespace luabridge;
     getGlobalNamespace(L)
-       .beginClass<LuaQVariant>("QVariant")
-       .addConstructor<void(*)()>()  // 默认构造函数
-       .addConstructor<void(*)(int)>()  // 支持 int 构造
-       .addConstructor<void(*)(double)>()  // 支持 double 构造
-        .addConstructor<void(*)(bool)>()  // 支持 bool 构造
-       .addConstructor<void(*)(const std::string&)>()  // 支持 string 构造
-    // 静态函数用于从其他类型创建QVariant
-        .addStaticFunction("fromInt", &LuaQVariant::fromInt)
-        .addStaticFunction("fromBool", &LuaQVariant::fromBool)
-        .addStaticFunction("fromDouble", &LuaQVariant::fromDouble)
-        .addStaticFunction("fromString", &LuaQVariant::fromString)
+       .beginClass<LuaQVariant>("Variant")
+        .addConstructor<void(*)(lua_State*)>()  // Lua传递的参数
+        .addFunction("setValue", &LuaQVariant::setValue)  // 注册setValue函数
+        .addFunction("value", &LuaQVariant::getValue)
+        .addFunction("type", &LuaQVariant::getType)
             // 类型转换方法
        .addFunction("toInt", &LuaQVariant::toInt)
         .addFunction("toBool", &LuaQVariant::toBool)
        .addFunction("toDouble", &LuaQVariant::toDouble)
        .addFunction("toString", &LuaQVariant::toString)
-
        .endClass();
 }
 
-
-//
-// void registerQVariant(lua_State* L) {
-//
-//
-// }
-
+//注册全局打印函数，用于将lua中的print重定向到qDebug
 static int luaPrint(lua_State* L) {
     int nargs = lua_gettop(L);
     QString output;

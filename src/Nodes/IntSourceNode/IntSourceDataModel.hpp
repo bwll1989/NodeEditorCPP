@@ -29,7 +29,7 @@ class IntSourceDataModel : public NodeDelegateModel
 
 public:
 
-    IntSourceDataModel(){
+    IntSourceDataModel():widget(new IntSourceInterface()){
         InPortCount =1;
         OutPortCount=1;
         CaptionVisible=true;
@@ -153,6 +153,6 @@ private Q_SLOTS:
     }
 
 private:
-    IntSourceInterface *widget=new IntSourceInterface();
+    IntSourceInterface *widget;
 
 };
