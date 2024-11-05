@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -46,46 +46,14 @@ public:
 
 public:
 
-
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = "In "+QString::number(portIndex);
-        QString out = "Out "+QString::number(portIndex);
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
-    }
-
-public:
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
-        switch (portType) {
-            case PortType::In:
-                result = InPortCount;
-                break;
-            case PortType::Out:
-                result = OutPortCount;
-            default:
-                break;
-        }
-        return result;
-    }
-
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
         Q_UNUSED(portIndex)
         switch (portType) {
             case PortType::In:
-                return BoolData().type();
+                return VariableData().type();
             case PortType::Out:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::None:
                 break;
             default:
@@ -93,34 +61,27 @@ public:
         }
         // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return BoolData().type();
+        return VariableData().type();
 
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariantData>(button->isChecked());
+        return std::make_shared<VariableData>(button->isChecked());
     }
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
+
         if (data== nullptr){
             return;
         }
-        if (auto textData = std::dynamic_pointer_cast<VariantData>(data)) {
-            if (textData->NodeValues.canConvert<bool>()) {
-                button->setChecked(textData->NodeValues.toBool());
-                button->setText(button->isChecked()? "1":"0");
-            } else {
-                button->setChecked(false);
-            }
-        } else if (auto boolData = std::dynamic_pointer_cast<BoolData>(data)) {
-            button->setChecked(boolData->NodeValues);
-            button->setText(button->isChecked()? "1":"0");
+        auto textData = std::dynamic_pointer_cast<VariableData>(data);
+        if (textData->value().canConvert<bool>()) {
+            button->setChecked(textData->value().toBool());
         } else {
             button->setChecked(false);
-
         }
-
+        button->setText(button->isChecked()? "1":"0");
         Q_EMIT dataUpdated(portIndex);
     }
 
@@ -147,7 +108,6 @@ private Q_SLOTS:
 
     void onTextEdited(bool const &string)
     {
-
         button->setText(QString::number(string));
         Q_EMIT dataUpdated(0);
     }

@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -90,9 +90,9 @@ public:
         Q_UNUSED(portIndex)
         switch (portType) {
             case PortType::In:
-                return BoolData().type();
+                return VariableData().type();
             case PortType::Out:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::None:
                 break;
             default:
@@ -100,7 +100,7 @@ public:
         }
         // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return BoolData().type();
+        return VariableData().type();
 
     }
 
@@ -113,13 +113,13 @@ public:
         if (data== nullptr){
             return;
         }
-        if (auto textData = std::dynamic_pointer_cast<VariantData>(data)) {
-            if (textData->NodeValues.canConvert<bool>()) {
-                qDebug()<<textData->NodeValues.toBool();
+        if (auto textData = std::dynamic_pointer_cast<VariableData>(data)) {
+            if (textData->value().canConvert<bool>()) {
+                qDebug()<<textData->value().toBool();
             } else {
 
             }
-        } else if (auto boolData = std::dynamic_pointer_cast<BoolData>(data)) {
+        } else if (auto boolData = std::dynamic_pointer_cast<VariableData>(data)) {
 
         } else {
 

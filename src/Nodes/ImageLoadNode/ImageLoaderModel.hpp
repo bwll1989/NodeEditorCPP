@@ -1,152 +1,113 @@
 #pragma once
+
 #include <iostream>
+
 #include <QtCore/QObject>
 #include <QtWidgets/QLabel>
+
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
-#include "Nodes/NodeDataList.hpp"
+
+#include "DataTypes/NodeDataList.hpp"
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
-//#include "opencv2/core/core.hpp"
-//#include "opencv2/imgproc/imgproc.hpp"
-//#include "opencv2/highgui/highgui.hpp"
-//#include "opencv2/highgui/highgui_c.h"
-//#include "opencv2/opencv.hpp"
-#include <QtCore/qglobal.h>
-#if defined(UNTITLED_LIBRARY)
-#  define UNTITLED_EXPORT Q_DECL_EXPORT
-#else
-#  define UNTITLED_EXPORT Q_DECL_IMPORT
-#endif
-using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
-using QtNodes::PortIndex;
-using QtNodes::PortType;
-//using namespace cv;
-/// The model dictates the number of inputs and outputs for the Node.
-/// In this example it has no logic.
-class UNTITLED_EXPORT ImageLoaderModel : public NodeDelegateModel
+class ImageLoaderModel : public NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    ImageLoaderModel() : _label(new QLabel("Double click to load image"))
-    {
+    ImageLoaderModel() : _label(new QLabel("Double click to load image")) {
         _label->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
-
         QFont f = _label->font();
         f.setBold(true);
         f.setItalic(true);
         _label->setFont(f);
-
         _label->setMinimumSize(200, 200);
-        _label->setMaximumSize(500, 300);
-
+        //_label->setMaximumSize(500, 300);
         _label->installEventFilter(this);
-        Caption="Image Input";
+        InPortCount =0;
+        OutPortCount=1;
+        CaptionVisible=false;
+        Caption="Image source";
+        WidgetEmbeddable= true;
+        Resizable=false;
+        PortEditable= false;
     }
+    ~ImageLoaderModel() override = default;
 
-    ~ImageLoaderModel() override= default;
 
 public:
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = "In "+QString::number(portIndex);
-        QString out = "Out "+QString::number(portIndex);
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
+    NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override{
+        return ImageData().type();
     }
 
-public:
-    virtual QString modelName() const { return QString("Source Image"); }
-
-    unsigned int nPorts(PortType const portType) const override
-    {
-        unsigned int result = 1;
-
-        switch (portType) {
-            case PortType::In:
-                result = 0;
-                break;
-
-            case PortType::Out:
-                result = 1;
-
-            default:
-                break;
-        }
-
-        return result;
+    std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex port) override{
+        return m_outImageData;
     }
 
-    NodeDataType dataType(PortType const portType, PortIndex const portIndex) const override
-    {
-        Q_UNUSED(portIndex);
-        Q_UNUSED(portType);
-        return PixmapData().type();
-    }
-
-    std::shared_ptr<NodeData> outData(PortIndex const port) override
-    {
-        Q_UNUSED(port);
-        return std::make_shared<PixmapData>(_pixmap);
-    }
-
-    void setInData(std::shared_ptr<NodeData>, PortIndex const portIndex) override {}
+    void setInData(std::shared_ptr<QtNodes::NodeData>, QtNodes::PortIndex const portIndex) override {}
 
     QWidget *embeddedWidget() override { return _label; }
 
-    bool resizable() const override { return true; }
+    QJsonObject save() const override{
+        QJsonObject modelJson = NodeDelegateModel::save();
+        if (m_outImageData && !m_path.isEmpty()) {
+            modelJson["path"] = m_path;
+        }
+        return modelJson;
+    }
+
+    void load(QJsonObject const& jsonObj) override{
+        const QJsonValue path = jsonObj["path"];
+        if (!path.isUndefined()) {
+            m_path = path.toString();
+            loadImage();
+        }
+    }
 
 protected:
-    bool eventFilter(QObject *object, QEvent *event) override
-    {
+    bool eventFilter(QObject *object, QEvent *event) override{
         if (object == _label) {
-            int w = _label->width();
-            int h = _label->height();
+            const int w = _label->width();
+            const int h = _label->height();
 
-            if (event->type() == QEvent::MouseButtonPress ) {
-                QString fileName = QFileDialog::getOpenFileName(nullptr,
-                                                                tr("Open Image"),
-                                                                QDir::homePath(),
-                                                                tr("Image Files (*.png *.jpg *.bmp)"));
-//                cv::Mat img;
-//                img=cv::imread(fileName.toStdString());
-//                namedWindow("opencv test",CV_WINDOW_NORMAL);
-//                imshow("opencv_test",img);
-//                waitKey(0);
-                _pixmap = QPixmap(fileName);
-
-                _label->setPixmap(_pixmap.scaled(w, h, Qt::KeepAspectRatio));
-
-                Q_EMIT dataUpdated(0);
-
+            if (event->type() == QEvent::MouseButtonPress) {
+                m_path = QFileDialog::getOpenFileName(nullptr,
+                                                      tr("Open Image"),
+                                                      QDir::homePath(),
+                                                      tr("Image Files (*.png *.jpg *.bmp)"));
+                if (!m_path.isEmpty())
+                    loadImage();
                 return true;
             } else if (event->type() == QEvent::Resize) {
-                if (!_pixmap.isNull())
-                    _label->setPixmap(_pixmap.scaled(w, h, Qt::KeepAspectRatio));
-            } else if (event->type() == QEvent::ContextMenu){
-
-                _label->setContextMenuPolicy(Qt::ActionsContextMenu);
-
+                if (m_outImageData && !m_outImageData->image().isNull())
+                    _label->setPixmap(m_outImageData->pixmap().scaled(w, h, Qt::KeepAspectRatio));
             }
-
         }
 
         return false;
     }
 
 private:
+    void loadImage(){
+        if (!m_path.isEmpty()) {
+            m_outImageData = std::make_shared<ImageData>(m_path);
+            if (m_outImageData && !m_outImageData->image().isNull()) {
+                _label->setPixmap(m_outImageData->pixmap().scaled(_label->width(), _label->height(), Qt::KeepAspectRatio));
+            }
+        } else {
+            m_outImageData.reset();
+            _label->clear();
+        }
+        emit dataUpdated(0);
+    }
+
+private:
     QLabel *_label;
 
-    QPixmap _pixmap;
+    QString m_path;
+    std::shared_ptr<ImageData> m_outImageData;
 };

@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "Logic Operation"
 #define PLUGIN_VERSION "20240410"
 #define PLUGIN_DESCRIBE "逻辑运算"
-#define PLUGIN_TAG "Math"
+#define PLUGIN_TAG "Data"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

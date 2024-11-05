@@ -10,7 +10,7 @@
 #include "Widget/PortEditWidget/PortEditAddRemoveWidget.hpp"
 #include <QJsonArray>
 #include <QToolBox>
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 using QtNodes::InvalidNodeId;
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeDataType;
@@ -50,7 +50,6 @@ std::unordered_set<ConnectionId> CustomDataFlowGraphModel::connections(NodeId no
                                                                  PortType portType,
                                                                  PortIndex portIndex) const
 {
-//    qDebug()<<nodeId;
     std::unordered_set<ConnectionId> result;
 
     std::copy_if(_connectivity.begin(),
@@ -109,7 +108,6 @@ NodeId CustomDataFlowGraphModel::addNode(QString const nodeType)
         _models[newId] = std::move(model);
 
         Q_EMIT nodeCreated(newId);
-//        qDebug()<<"add node ID:"+QString::number(newId);
         return newId;
     }
 
@@ -265,8 +263,8 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             break;
 
         case NodeRole::Widget: {
-            auto l = model->embeddedWidget();
-            result = QVariant::fromValue(l);
+            auto w = model->embeddedWidget();
+            result = QVariant::fromValue(w);
             break;
         }
         case NodeRole::PortEditable: {
@@ -311,9 +309,7 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             break;
         case NodeRole::Position: {
             _nodeGeometryData[nodeId].pos = value.value<QPointF>();
-
             Q_EMIT nodePositionUpdated(nodeId);
-
             result = true;
         } break;
 
@@ -362,7 +358,10 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
 
         case NodeRole::WidgetEmbeddable: {
             {
-                _models[nodeId]->WidgetEmbeddable = value.value<bool>();
+                auto it = _models.find(nodeId);
+                auto &model = it->second;
+                model->WidgetEmbeddable=value.toBool();
+                model->embeddedWidgetSizeUpdated();
                 Q_EMIT nodeUpdated(nodeId);
             }
             result = true;

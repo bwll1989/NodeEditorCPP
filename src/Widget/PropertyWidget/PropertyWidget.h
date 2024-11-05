@@ -6,7 +6,7 @@
 #define NODEEDITORCPP_PROPERTYWIDGET_H
 #include "QWidget"
 #include "QLabel"
-#include "src/Widget/NodeWidget/CustomDataFlowGraphModel.h"
+#include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
 class PropertyWidget: public QWidget
 {
     Q_OBJECT

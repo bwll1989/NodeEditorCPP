@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 #include "z_libpd.h"

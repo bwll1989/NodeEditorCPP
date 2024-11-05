@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -47,51 +47,14 @@ public:
 
     virtual ~LogicOperationDataModel() override{}
 
-public:
-
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = "➩";
-        QString out = "➩";
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
-    }
-
-public:
-    unsigned int nPorts(PortType portType) const override {
-        {
-            unsigned int result = 1;
-
-            switch (portType) {
-                case PortType::In:
-                    result = InPortCount;
-                    break;
-
-                case PortType::Out:
-                    result = OutPortCount;
-
-                default:
-                    break;
-            }
-            return result;
-        }
-    }
-
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
         switch (portType) {
             case PortType::In:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::Out:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::None:
                 break;
             default:
@@ -99,13 +62,13 @@ public:
         }
         // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return BoolData().type();
+        return VariableData().type();
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const port) override
     {
         Q_UNUSED(port);
-        return std::make_shared<VariantData>(val);
+        return std::make_shared<VariableData>(val);
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
@@ -114,33 +77,9 @@ public:
         if (data== nullptr){
             return;
         }
-        if (auto textData = std::dynamic_pointer_cast<VariantData>(data)) {
-            in_dictionary[portIndex]=textData->NodeValues;
-            qDebug()<<widget->currentIndex();
-            for(auto kv:in_dictionary){
-                if(kv.first!=portIndex){
-
-                    switch (widget->currentIndex()) {
-                        case 0:
-                            val=textData->NodeValues.toString()==kv.second.toString();
-                            break;
-                        case 1:
-                            val=textData->NodeValues.toBool()||kv.second.toBool();
-                            break;
-                        case 2:
-                            val=textData->NodeValues.toString()!=kv.second.toString();
-                            break;
-                        case 3:
-                            val=std::max(textData->NodeValues.toFloat(),kv.second.toFloat());
-                            break;
-                        case 4:
-                            val=std::min(textData->NodeValues.toFloat(),kv.second.toFloat());
-                            break;
-
-                    }
-
-                }
-            }
+        if (auto textData = std::dynamic_pointer_cast<VariableData>(data)) {
+            in_dictionary[portIndex]=textData->value();
+            methodChanged();
 
         }
 //        method->setText(QString::number(val));

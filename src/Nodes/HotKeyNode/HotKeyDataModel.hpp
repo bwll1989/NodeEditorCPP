@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -85,47 +85,14 @@ private slots:
 
 public:
 
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = "➩";
-        QString out = "➩";
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
-    }
-
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
-
-        switch (portType) {
-            case PortType::In:
-                result = InPortCount;
-                break;
-
-            case PortType::Out:
-                result = OutPortCount;
-
-            default:
-                break;
-        }
-        return result;
-    }
-
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
         Q_UNUSED(portIndex)
         switch (portType) {
             case PortType::In:
-                return VariantData().type();
+                return VariantData(bool()).type();
             case PortType::Out:
-                return VariantData().type();
+                return VariantData(bool()).type();
             case PortType::None:
                 break;
             default:

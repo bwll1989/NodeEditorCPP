@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include "TCPClientInterface.hpp"
 #include <iostream>

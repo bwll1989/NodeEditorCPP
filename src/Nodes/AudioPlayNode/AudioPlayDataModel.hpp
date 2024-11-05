@@ -7,7 +7,7 @@
 #include <iostream>
 #include <QPushButton>
 #include "QLayout"
-#include "../NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "AudioPlayInterface.hpp"
 #include "QFileDialog"
 #include "sndfile.h"
@@ -40,10 +40,9 @@ class AudioPlayDataModel : public NodeDelegateModel
 {
     Q_OBJECT
 public:
-    AudioPlayDataModel():Data(std::make_shared<AudioNodeData>()) {
+    AudioPlayDataModel():Data(std::make_shared<AudioData>()) {
         InPortCount =3;
         OutPortCount=1;
-        CaptionVisible= false;
         Caption="Audio Play";
         WidgetEmbeddable=false;
         PortEditable= false;
@@ -69,20 +68,6 @@ public:
         widget->deleteLater();
     }
 public:
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = " "+QString::number(portIndex);
-        QString out = QString::number(portIndex)+"  ";
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
-    }
     unsigned int nPorts(PortType portType) const override
     {
 
@@ -106,17 +91,17 @@ public:
             case PortType::In:
                 switch (portIndex) {
                     case 0:
-                        return BoolData().type();
+                        return VariableData().type();
                     case 1:
-                        return StringData().type();
+                        return VariableData().type();
                     case 2:
-                        return FloatData().type();
+                        return VariableData().type();
                 }
                 break;
 
 
             case PortType::Out:
-                return AudioNodeData().type();
+                return AudioData().type();
                 break;
 
             case PortType::None:
@@ -142,8 +127,8 @@ public:
                     if (d->NodeValues.canConvert<bool>()) {
                         play = d->NodeValues == true;
                     }
-                } else if (auto d = std::dynamic_pointer_cast<BoolData>(data)) {
-                    play = d->NodeValues;
+                } else if (auto d = std::dynamic_pointer_cast<VariableData>(data)) {
+                    play = d->value().toBool();
                 }
 
                 if (play) {
@@ -156,9 +141,9 @@ public:
                 return;
             }
             case 1: {
-                auto d = std::dynamic_pointer_cast<StringData>(data);
+                auto d = std::dynamic_pointer_cast<VariableData>(data);
                 if (d != nullptr) {
-                   Data->NodeValues.path=d->NodeValues;
+                   Data->NodeValues.path=d->value().toString();
                 }
             }
             case 2:{
@@ -419,7 +404,7 @@ private:
 
 
 
-    std::shared_ptr<AudioNodeData> Data;
+    std::shared_ptr<AudioData> Data;
 
     AudioPlayInterface *widget=new AudioPlayInterface();
 //    界面控件

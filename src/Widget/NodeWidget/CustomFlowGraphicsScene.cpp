@@ -114,7 +114,8 @@ CustomFlowGraphicsScene::CustomFlowGraphicsScene(CustomDataFlowGraphModel &graph
         item->setText(0, assoc.first);
         item->setIcon(0,QIcon(":/icons/icons/plugin.png"));
     }
-
+    treeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    treeView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     treeView->expandAll();
 
     connect(treeView,
@@ -212,15 +213,8 @@ CustomFlowGraphicsScene::CustomFlowGraphicsScene(CustomDataFlowGraphModel &graph
     if (!item) {
         auto menu= createSceneMenu(event->scenePos());
         menu->exec(event->screenPos());}
-    else if(event->modifiers()==Qt::ControlModifier){
+    else
+        QGraphicsScene::mouseDoubleClickEvent(event);
 
-            auto ngo = qgraphicsitem_cast<NodeGraphicsObject *>(item);
-            if (ngo != nullptr) {
-                emit portEdit(ngo->nodeId());
-            }
-        }else{
-
-            QGraphicsScene::mouseDoubleClickEvent(event);
-        }
 
 }

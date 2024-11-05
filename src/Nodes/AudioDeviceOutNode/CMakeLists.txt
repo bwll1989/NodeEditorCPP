@@ -3,16 +3,18 @@ set(Module_Name "AudioDeviceOutNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(portaudio_DIR "${CMAKE_SOURCE_DIR}/3rdParty/portaudio/install/lib/cmake/portaudio")
-
-find_package(portaudio CONFIG REQUIRED)
-message("-- Found portaudio ${portaudio_DIR}")
 add_library(${Module_Name} SHARED
         AudioDeviceOutDataModel.hpp
         AudioDeviceOutInterface.hpp
         AudioOutputSelector.hpp
         PluginDefinition.cpp
-        PluginDefinition.hpp)
+        PluginDefinition.hpp
+        ../../Common/GUI/QJsonModel/QJsonModel.hpp
+        ../../Common/GUI/QJsonModel/QJsonModel.cpp
+        ../../Common/GUI/QJsonModel/details/QUtf8.hpp
+        ../../Common/Devices/AudioPipe/AudioPipe.cpp
+        ../../Common/Devices/AudioPipe/AudioPipe.h
+)
 
 target_link_libraries(${Module_Name}
         PUBLIC

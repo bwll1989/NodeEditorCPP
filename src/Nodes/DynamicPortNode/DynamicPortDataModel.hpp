@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -42,44 +42,14 @@ public:
 
 public:
 
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = " "+QString::number(portIndex);
-        QString out = QString::number(portIndex)+"  ";
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
-    }
-public:
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
-        switch (portType) {
-            case PortType::In:
-                result = InPortCount;
-                break;
-            case PortType::Out:
-                result = OutPortCount;
-            default:
-                break;
-        }
-        return result;
-    }
-
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
-        Q_UNUSED(portIndex)
+
         switch (portType) {
             case PortType::In:
-                return BoolData().type();
+                return VariableData().type();
             case PortType::Out:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::None:
                 break;
             default:
@@ -87,7 +57,7 @@ public:
         }
         // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return BoolData().type();
+        return VariantData(QVariant()).type();
 
     }
 
@@ -100,18 +70,7 @@ public:
         if (data== nullptr){
             return;
         }
-        if (auto textData = std::dynamic_pointer_cast<VariantData>(data)) {
-            if (textData->NodeValues.canConvert<bool>()) {
 
-            } else {
-
-            }
-        } else if (auto boolData = std::dynamic_pointer_cast<BoolData>(data)) {
-
-        } else {
-
-
-        }
 
         Q_EMIT dataUpdated(portIndex);
     }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -34,7 +34,7 @@ public:
         OutPortCount=3;
         CaptionVisible=true;
         Caption="LFO";
-        WidgetEmbeddable= true;
+        WidgetEmbeddable= false;
         Resizable=false;
         PortEditable= false;
         connect(timer, &QTimer::timeout, this, &LFODataModel::generateWave);
@@ -51,49 +51,14 @@ public:
 
     }
 
-public:
-
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = "➩";
-        QString out = "➩";
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
-    }
-
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
-
-        switch (portType) {
-            case PortType::In:
-                result = InPortCount;
-                break;
-
-            case PortType::Out:
-                result = OutPortCount;
-
-            default:
-                break;
-        }
-        return result;
-    }
-
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
         Q_UNUSED(portIndex)
         switch (portType) {
             case PortType::In:
-                return VariantData().type();
+                return VariantData(int()).type();
             case PortType::Out:
-                return VariantData().type();
+                return VariantData(int()).type();
             case PortType::None:
                 break;
             default:

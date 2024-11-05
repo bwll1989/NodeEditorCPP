@@ -16,8 +16,10 @@
 #include <QMimeData>
 #include <QWidgetAction>
 #include <QLineEdit>
+#include <QTimer>
 #include "Common/GUI/Elements/MartixWidget/MatrixWidget.h"
 #include "Eigen/Core"
+#include "Widget/StatusBar/StatusBar.h"
 #define ConsoleDisplay false
 #define PropertytDisplay true
 #define ToolsDisplay true
@@ -36,7 +38,10 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
 
     ads::CDockManager::setAutoHideConfigFlags(ads::CDockManager::DefaultAutoHideConfig);
 
-
+    setStatusBar(statusBar);
+    timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, &MainWindow::updateCpuUsage);
+    timer->start(1000);
 
 }
 void MainWindow::init()
@@ -78,14 +83,14 @@ void MainWindow::init()
     m_DockManager->addDockWidget(ads::BottomDockWidgetArea, nodeListWidget);
     menuBar->views->addAction(nodeListWidget->toggleViewAction());
 
-    auto *propertyWidget = new ads::CDockWidget("组件属性");
-    propertyWidget->setObjectName("NodeProperty");
-    propertyWidget->setIcon(awesome->icon("fa-solid fa-chart-gantt"));
-    property=new PropertyWidget(model);
-    propertyWidget->setWidget(property);
-    m_DockManager->addDockWidget(ads::LeftDockWidgetArea, propertyWidget);
-    menuBar->views->addAction(propertyWidget->toggleViewAction());
-    emit initStatus("Initialization node property editor");
+    // auto *propertyWidget = new ads::CDockWidget("组件属性");
+    // propertyWidget->setObjectName("NodeProperty");
+    // propertyWidget->setIcon(awesome->icon("fa-solid fa-chart-gantt"));
+    // property=new PropertyWidget(model);
+    // propertyWidget->setWidget(property);
+    // m_DockManager->addDockWidget(ads::LeftDockWidgetArea, propertyWidget);
+    // menuBar->views->addAction(propertyWidget->toggleViewAction());
+    // emit initStatus("Initialization node property editor");
 
     auto *portEdits = new ads::CDockWidget("端口编辑");
     portEdits->setObjectName("NodePortEdit");
@@ -144,10 +149,10 @@ void MainWindow::init()
     // 插件管理器
     connect(menuBar->pluginsFloderAction, &QAction::triggered, pluginsManagerDlg,&PluginsManagerWidget::openPluginsFolder);
     //鼠标点击时显示属性
-    connect(scene, &CustomFlowGraphicsScene::nodeClicked, property,&PropertyWidget::update);
+    // connect(scene, &CustomFlowGraphicsScene::nodeClicked, property,&PropertyWidget::update);
     connect(scene, &CustomFlowGraphicsScene::nodeClicked,portEdit,&PortEditWidget::update);
     //    节点删除时更新属性显示
-    connect(model,&CustomDataFlowGraphModel::nodeDeleted, property,&PropertyWidget::update);
+    // connect(model,&CustomDataFlowGraphModel::nodeDeleted, property,&PropertyWidget::update);
     connect(model,&CustomDataFlowGraphModel::nodeDeleted,portEdit,&PortEditWidget::update);
     //    日志清空功能
     connect(menuBar->clearAction, &QAction::triggered, logTable, &LogWidget::clearTableWidget);
@@ -313,6 +318,34 @@ void MainWindow::restoreVisualState()
              emit initStatus("loading layout failure");
         }
     }
+}
+
+void MainWindow::updateCpuUsage() {
+    // 获取当前进程的 CPU 使用率
+    double cpuUsage = getCpuUsage(); // 自定义函数获取 CPU 使用率
+    statusBar->updateProgress(static_cast<int>(cpuUsage));
+}
+
+double MainWindow::getCpuUsage() {
+    // 获取当前进程的 CPU 使用率
+    HANDLE hProcess = GetCurrentProcess(); // 获取当前进程句柄
+    FILETIME ftCreation, ftExit, ftKernel, ftUser;
+    ULARGE_INTEGER ulKernel, ulUser;
+
+    // 获取进程的时间信息
+    if (GetProcessTimes(hProcess, &ftCreation, &ftExit, &ftKernel, &ftUser)) {
+        ulKernel.QuadPart = ftKernel.dwHighDateTime;
+        ulKernel.QuadPart <<= 32;
+        ulKernel.QuadPart |= ftKernel.dwLowDateTime;
+        ulUser.QuadPart = ftUser.dwHighDateTime;
+        ulUser.QuadPart <<= 32;
+        ulUser.QuadPart |= ftUser.dwLowDateTime;
+
+        // 计算 CPU 使用率
+        double total = (ulKernel.QuadPart + ulUser.QuadPart) / 10000.0; // 转换为毫秒
+        return (total / (GetTickCount() / 10.0)); // 计算占用率
+    }
+    return 0.0; // 如果获取失败，返回 0
 }
 //退出确认
 void MainWindow::closeEvent(QCloseEvent *event) {

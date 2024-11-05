@@ -14,22 +14,21 @@ public:
 //        frame->setLayout(layout);
 
         QStringList headers = {"Property", "Value"};
-        treeWidget->setHeaderLabels(headers);
+
         namelabel->setAlignment(Qt::AlignCenter);
-        device_selector->addItem("NO DEVICES");
-        layout->addWidget(namelabel);
-        layout->addWidget(device_selector);
-        layout->addWidget(treeWidget);
-        treeWidget->setColumnCount(2);
+        device_selector->addItem("Default DEVICES");
+        layout->addWidget(device_selector,1);
+        layout->addWidget(treeWidget,3);
+
 
 //        layout->addWidget(button);
 //        button->setFlat(true);
     }
 public:
 
-    QLayout *layout=new QVBoxLayout(this);
+    QVBoxLayout *layout=new QVBoxLayout(this);
     QLabel *namelabel=new QLabel("");
-    QTreeWidget *treeWidget=new QTreeWidget(this);
+     QTreeView *treeWidget=new  QTreeView(this);
     QComboBox *device_selector=new QComboBox();
 //    QPushButton *button=new QPushButton("test");
 

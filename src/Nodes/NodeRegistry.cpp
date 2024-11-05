@@ -19,7 +19,7 @@
 //#include "Nodes/TextDisplayNode/TextDisplayDataModel.hpp"
 //#include "Nodes/TextSourceNode/TextSourceDataModel.hpp"
 //#include "Nodes/ImageLoadNode/ImageLoaderModel.hpp"
-//#include "Nodes/ImageShowNode/ImageShowModel.hpp"
+//#include "Nodes/ImageShowNode/GroupModel.hpp"
 ////#include "Nodes/PythonNode/PythonNodeModel.hpp"
 //#include "Nodes/AudioDeviceOutNode/AudioDeviceOutDataModel.hpp"
 //#include "Nodes/AudioPlayNode/AudioPlayDataModel.hpp"

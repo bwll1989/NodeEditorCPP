@@ -7,29 +7,31 @@
 #include <iostream>
 #include <QPushButton>
 #include "QLayout"
-#include "../NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 #include "AudioDeviceOutInterface.hpp"
 #include <portaudio.h>
-
+#include "Common/GUI/QJsonModel/QJsonModel.hpp"
+#include "QThread"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 
-/// The model dictates the number of inputs and outputs for the Node.
-/// In this example it has no logic.
+
+
+
 class AudioDeviceOutDataModel : public NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    AudioDeviceOutDataModel():Data(std::make_shared<AudioNodeData2>()) {
-        InPortCount =1;
+    AudioDeviceOutDataModel():AudioData(std::make_shared<AudioData2>()) {
+        InPortCount =2;
         OutPortCount=0;
-        CaptionVisible= false;
+        CaptionVisible= true;
         Caption="Audio Device Out";
-        WidgetEmbeddable=false;
+        WidgetEmbeddable=true;
         PortEditable= true;
         Resizable=false;
         getDeviceList();
@@ -40,50 +42,13 @@ public:
 
 public:
 
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = " "+QString::number(portIndex);
-        QString out = QString::number(portIndex)+"  ";
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
-    }
-
-    unsigned int nPorts(PortType portType) const override
-    {
-
-        unsigned int result = 1;
-
-        switch (portType) {
-            case PortType::In:
-                result = InPortCount;
-                break;
-
-            case PortType::Out:
-                result = OutPortCount;
-
-            default:
-                break;
-        }
-        return result;
-    }
-
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
         switch (portType) {
             case PortType::In:
-                return Data->type();
-         
+                return AudioData->type();
             case PortType::Out:
-
                 break;
-
             case PortType::None:
                 break;
         }
@@ -95,18 +60,22 @@ public:
     std::shared_ptr<NodeData> outData(PortIndex port) override
     {
         Q_UNUSED(port)
-        return Data;
+        return AudioData;
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        auto d = std::dynamic_pointer_cast<AudioNodeData2>(data);
+        auto d = std::dynamic_pointer_cast<AudioData2>(data);
 
         if(d!= nullptr){
-
+            AudioData = d;
+            startProcessing();
         }
-        Q_EMIT dataUpdated(0);
+
+
+        // Q_EMIT dataUpdated(0);
+
     }
 
     QWidget *embeddedWidget() override
@@ -166,59 +135,89 @@ public slots:
     }
     void selectDevice(const QString device)
     {
-        widget->treeWidget->clear();
-//        qDebug()<<device<<device.section(':', 0, 0).toInt();
         int deviceIndex=device.section(':', 0, 0).toInt();
         const PaDeviceInfo *deviceInfo = Pa_GetDeviceInfo(deviceIndex);
         const PaHostApiInfo *hostApiInfo = Pa_GetHostApiInfo(deviceInfo->hostApi);
-
-        // 添加设备名称
-        QTreeWidgetItem *nameItem = new QTreeWidgetItem(widget->treeWidget);
-        nameItem->setText(0, "Device Name");
-        nameItem->setText(1, deviceInfo->name);
-
-        // 添加驱动类型
-        QTreeWidgetItem *driverItem = new QTreeWidgetItem(widget->treeWidget);
-        driverItem->setText(0, "Driver Type");
-        driverItem->setText(1, hostApiInfo->name);
-//
-//        // 添加最大输出通道数
-        QTreeWidgetItem *maxOutputChannelsItem = new QTreeWidgetItem(widget->treeWidget);
-        maxOutputChannelsItem->setText(0, "Max Output Channels");
-        maxOutputChannelsItem->setText(1, QString::number(deviceInfo->maxOutputChannels));
-//
-        // 添加最大输入通道数
-        QTreeWidgetItem *maxInputChannelsItem = new QTreeWidgetItem(widget->treeWidget);
-        maxInputChannelsItem->setText(0, "Max Input Channels");
-        maxInputChannelsItem->setText(1, QString::number(deviceInfo->maxInputChannels));
-
-        // 添加默认采样率
-        QTreeWidgetItem *defaultSampleRateItem = new QTreeWidgetItem(widget->treeWidget);
-        defaultSampleRateItem->setText(0, "Default Sample Rate");
-        defaultSampleRateItem->setText(1, QString::number(deviceInfo->defaultSampleRate));
-
-        // 检查是否为默认输入设备
         PaDeviceIndex defaultInputDevice = Pa_GetDefaultInputDevice();
-        QTreeWidgetItem *isDefaultInputDeviceItem = new QTreeWidgetItem(widget->treeWidget);
-        isDefaultInputDeviceItem->setText(0, "Is Default Input Device");
-        isDefaultInputDeviceItem->setText(1, (deviceIndex == defaultInputDevice) ? "Yes" : "No");
-
-        // 检查是否为默认输出设备
         PaDeviceIndex defaultOutputDevice = Pa_GetDefaultOutputDevice();
-        QTreeWidgetItem *isDefaultOutputDeviceItem = new QTreeWidgetItem(widget->treeWidget);
-        isDefaultOutputDeviceItem->setText(0, "Is Default Output Device");
-        isDefaultOutputDeviceItem->setText(1, (deviceIndex == defaultOutputDevice) ? "Yes" : "No");
-        // 展开所有项
-        widget->treeWidget->expandAll();
+        auto res= new QJsonObject();
+        res->insert("Device Name",deviceInfo->name);
+        res->insert("Driver Type",hostApiInfo->name);
+        res->insert("Is Default Output Device",(deviceIndex == defaultOutputDevice) ? "Yes" : "No");
+        res->insert("Max Output Channels",deviceInfo->maxOutputChannels);
+        res->insert("Default Sample Rate",deviceInfo->defaultSampleRate);
+        res->insert("Is Default Output Device",(deviceIndex == defaultOutputDevice) ? "Yes" : "No");
+        res->insert("Is Default Input Device",(deviceIndex == defaultInputDevice) ? "Yes" : "No");
+        // res->insert("Initialize PortAudio OK",initializePortAudio()?true:false);
+        info=new QJsonModel(*res);
+        widget->treeWidget->setModel(info);
+        initializePortAudio();
     }
 
+    bool initializePortAudio() {
+        PaError err = Pa_Initialize();
+        if (err != paNoError) {
+            qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
+            return false;
+        }
+        outputParameters.device = Pa_GetDefaultOutputDevice();
+        outputParameters.channelCount = 2;
+        outputParameters.sampleFormat = paInt16; // 假设输出是16位整数
+        outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
+        outputParameters.hostApiSpecificStreamInfo = nullptr;
+        return true;
+    }
+
+    bool startProcessing() {
+        PaError err;
+
+        err = Pa_OpenStream(&paStream,
+                            nullptr, // 输入流
+                            &outputParameters,
+                            48000, // 采样率
+                            paFramesPerBufferUnspecified, // 帧缓冲区大小
+                            paClipOff, // 不进行剪切
+                            audioCallback, // 回调函数
+                            AudioData->pipe); // 用户数据
+        if (err != paNoError) {
+            qWarning() << "Error opening stream:" << Pa_GetErrorText(err);
+            return false;
+        }
+
+        err = Pa_StartStream(paStream);
+        if (err != paNoError) {
+            qWarning() << "Error starting stream:" << Pa_GetErrorText(err);
+            return false;
+        }
+
+        return true;
+    }
 private:
-    std::shared_ptr<AudioNodeData2> Data;
-
+    PaStreamParameters outputParameters;
+    bool isRunning=false;
+    std::shared_ptr<AudioData2> AudioData;
+    PaStream *paStream;
     AudioDeviceOutInterface *widget=new AudioDeviceOutInterface();
+    QJsonModel *info;
+    /// The model dictates the number of inputs and outputs for the Node.
+    /// In this example it has no logic.
+    /// static int audioCallback(const void* inputBuffer, void* outputBuffer, unsigned long framesPerBuffer,
+    static int audioCallback(const void* inputBuffer, void* outputBuffer, unsigned long framesPerBuffer,
+                             const PaStreamCallbackTimeInfo* timeInfo, PaStreamCallbackFlags statusFlags, void* userData) {
+        AudioPipe* audioProcessor = static_cast<AudioPipe*>(userData);
+        std::vector<uint8_t> audioData = audioProcessor->popAudioData();
 
+        // 如果有数据，拷贝到输出缓冲区
+        if (!audioData.empty()) {
+            size_t numSamples = audioData.size() / sizeof(int16_t); // 16-bit 整数
+            memcpy(outputBuffer, audioData.data(), numSamples);
+            return paContinue; // 继续流
+        }
 
-
+        // 如果没有数据，可以填充零以避免播放噪音
+        memset(outputBuffer, 0, framesPerBuffer * sizeof(int16_t)); // 假设是16-bit
+        return paContinue; // 继续流
+    }
 };
 
 //==============================================================================

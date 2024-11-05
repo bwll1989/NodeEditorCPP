@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(${Module_Name} SHARED
         ImageShowModel.hpp
+        ImageShowModel.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets

@@ -3,8 +3,7 @@
 
 #include <QtCore/QObject>
 
-#include "Nodes/NodeDataList.hpp"
-
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include "IntSourceInterface.hpp"
 #include <iostream>
@@ -39,48 +38,15 @@ public:
         connect(widget->intDisplay, &IntSlider::valueUpdated, this, &IntSourceDataModel::onIntEdited);
     }
 
-public:
-
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = "➩";
-        QString out = "➩";
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
-    }
-
-public:
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
-
-        switch (portType) {
-            case PortType::In:
-                result =InPortCount;
-                break;
-            case PortType::Out:
-                result = OutPortCount;
-            default:
-                break;
-        }
-        return result;
-    }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
         Q_UNUSED(portIndex)
         switch (portType) {
             case PortType::In:
-                return IntData().type();
+                return VariableData().type();
             case PortType::Out:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::None:
                 break;
             default:
@@ -88,36 +54,31 @@ public:
         }
         // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return IntData().type();
+        return VariableData().type();
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariantData>(widget->intDisplay->getVal());
+        return std::make_shared<VariableData>(widget->intDisplay->getVal());
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
         {
             Q_UNUSED(portIndex);
             if (data== nullptr){
+                widget->intDisplay->setVal(0);
                 return;
             }
-            if (auto textData = std::dynamic_pointer_cast<VariantData>(data)) {
-                if (textData->NodeValues.canConvert<int>()) {
+            auto textData = std::dynamic_pointer_cast<VariableData>(data);
+            if (textData->value().canConvert<int>()) {
 
-                    widget->intDisplay->setVal(textData->NodeValues.toInt());
-                } else {
-
-                    widget->intDisplay->setVal(0);
-                }
-            } else if (auto Data = std::dynamic_pointer_cast<IntData>(data)) {
-
-                widget->intDisplay->setVal(Data->NodeValues);
+                widget->intDisplay->setVal(textData->value().toInt());
             } else {
 
                 widget->intDisplay->setVal(0);
             }
+
             widget->adjustSize();
             Q_EMIT dataUpdated(0);
 

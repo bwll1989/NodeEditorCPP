@@ -6,10 +6,10 @@
 #define NODEEDITORCPP_NODELISTWIDGET_H
 #include "QWidget"
 #include "QVBoxLayout"
-#include "src/Widget/NodeWidget/CustomDataFlowGraphModel.h"
+#include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
 #include "draggabletreewidget.hpp"
-#include "src/Widget/NodeWidget/CustomGraphicsView.h"
-#include "src//Widget/NodeWidget/CustomFlowGraphicsScene.h"
+#include "Widget/NodeWidget/CustomGraphicsView.h"
+#include "Widget/NodeWidget/CustomFlowGraphicsScene.h"
 class NodeListWidget: public QWidget{
 Q_OBJECT
 

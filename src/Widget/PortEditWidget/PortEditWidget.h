@@ -6,7 +6,7 @@
 #define NODEEDITORCPP_PORTEDITWIDGET_H
 #include "QWidget"
 #include "QLabel"
-#include "src/Widget/NodeWidget/CustomDataFlowGraphModel.h"
+#include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
 #include "QVBoxLayout"
 class PortEditWidget:public QWidget
 {

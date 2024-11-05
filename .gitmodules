@@ -14,3 +14,6 @@
 	path = 3rdParty/libsndfile
 	url = https://github.com/https://github.com/libsndfile/libsndfile.git
 	
+[submodule "qtpropertybrowser"]
+	path = 3rdParty/qtpropertybrowser
+	url = https://github.com/AubrCool/qtpropertybrowser.git

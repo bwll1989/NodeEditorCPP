@@ -6,10 +6,6 @@ set(MAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC On)
 set(CMAKE_AUTORCC ON)
 #添加QtNodes库目录
-set(QCodeEditor_INCLUDE "${DEPENDS_DIR}/QCodeEditor/include")
-INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
-set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/build/libQCodeEditor.a")
-message("-- Found QCodeEditor ${QCodeEditor_INCLUDE}")
 
 set(LuaBridge_INCLUDE "${DEPENDS_DIR}/LuaBridge-2.8/Source")
 INCLUDE_DIRECTORIES(${LuaBridge_INCLUDE})

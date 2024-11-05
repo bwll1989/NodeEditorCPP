@@ -13,9 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "Float Input"
-#define PLUGIN_VERSION "20240410"
-#define PLUGIN_DESCRIBE "小数输入"
-#define PLUGIN_TAG "Math"
+#define PLUGIN_VERSION "202401101"
+#define PLUGIN_DESCRIBE "浮点输入"
+#define PLUGIN_TAG "Data"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

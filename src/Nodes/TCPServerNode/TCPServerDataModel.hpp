@@ -2,7 +2,7 @@
 
 
 #include <QtCore/QObject>
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 #include "QThread"
 #include <QtNodes/NodeDelegateModel>
 #include "TCPServerInterface.hpp"

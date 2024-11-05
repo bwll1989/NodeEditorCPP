@@ -16,11 +16,13 @@ static void setStyle()
       "SelectedHaloColor": "deepskyblue",
       "HoveredColor": "deepskyblue",
 
-      "LineWidth": 2.0,
-      "ConstructionLineWidth": 1.0,
-      "PointDiameter": 2.0,
+      "LineWidth": 3.0,
+      "ConstructionLineWidth": 2.0,
+      "PointDiameter": 8.0,
 
-      "UseDataDefinedColors": true
+      "UseDataDefinedColors": true,
+      "InArrow" : true,
+       "OutArrow" : false
     }
   }
   )");
@@ -47,7 +49,7 @@ static void setStyle()
     "PenWidth": 1.0,
     "HoveredPenWidth": 2,
 
-    "ConnectionPointDiameter": 8.0,
+    "ConnectionPointDiameter": 10.0,
 
     "Opacity": 0.95
   }

@@ -11,66 +11,67 @@ extern "C" {
 #include <libswresample/swresample.h>
 #include <libavutil/avutil.h>
 }
-
+#include <iostream>
 #include <QObject>
 #include <QThread>
 #include <QMutex>
 #include <QWaitCondition>
 #include <portaudio.h>
-
-
+#include <Common/Devices/AudioPipe/AudioPipe.h>
 class AudioDecoder : public QThread {
 Q_OBJECT
 
 public:
 
-    explicit AudioDecoder(QObject *parent = nullptr): QThread(parent), packet(nullptr),
-                                                     resampledBuffer(nullptr), paStream(nullptr),
+    explicit AudioDecoder(AudioPipe *audio,QObject *parent = nullptr): QThread(parent), packet(nullptr),
+                                                     resampledBuffer(nullptr),
+                                                        audioProcessor(audio),
+    // paStream(nullptr),
                                                      isPlaying(false) {}
     ~AudioDecoder(){
         stopPlay();
-        cleanupPortAudio();
+        // cleanupPortAudio();
         cleanupFFmpeg();
     }
 
-    bool loadFile(const QString &filePath){
-        if(!initializeFFmpeg(filePath))
-        {
-            return false;
-        }
-        qDebug()<<"initializeFFmpeg OK";
-        if(!initializePortAudio())
-        {
-            return false;
-        }
-        qDebug()<<"initializePortAudio OK";
-
-        return true;
-    }
-    bool initializePortAudio() {
-        PaError err = Pa_Initialize();
-        if (err != paNoError) {
-            qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
-            return false;
-        }
-        PaStreamParameters outputParameters;
-        outputParameters.device = Pa_GetDefaultOutputDevice();
-        outputParameters.channelCount = codecContext->ch_layout.nb_channels;
-        outputParameters.sampleFormat = paInt16; // 假设输出是16位整数
-        outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
-        outputParameters.hostApiSpecificStreamInfo = nullptr;
-        err = Pa_OpenStream(&paStream, nullptr, &outputParameters, 48000, paFramesPerBufferUnspecified, paNoFlag, nullptr, nullptr);
-        if (err != paNoError) {
-            qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
-            return false;
-        }
-        err = Pa_StartStream(paStream);
-        if (err != paNoError) {
-            qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
-            return false;
-        }
-        return true;
-    }
+    // bool loadFile(const QString &filePath){
+    //     if(!initializeFFmpeg(filePath))
+    //     {
+    //         return false;
+    //     }
+    //     qDebug()<<"initializeFFmpeg OK";
+    //     // if(!initializePortAudio())
+    //     // {
+    //     //     return false;
+    //     // }
+    //     // qDebug()<<"initializePortAudio OK";
+    //
+    //     return true;
+    // }
+    // bool initializePortAudio() {
+    //     PaError err = Pa_Initialize();
+    //     if (err != paNoError) {
+    //         qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
+    //         return false;
+    //     }
+    //     PaStreamParameters outputParameters;
+    //     outputParameters.device = Pa_GetDefaultOutputDevice();
+    //     outputParameters.channelCount = codecContext->ch_layout.nb_channels;
+    //     outputParameters.sampleFormat = paInt16; // 假设输出是16位整数
+    //     outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
+    //     outputParameters.hostApiSpecificStreamInfo = nullptr;
+    //     err = Pa_OpenStream(&paStream, nullptr, &outputParameters, 48000, paFramesPerBufferUnspecified, paNoFlag, nullptr, nullptr);
+    //     if (err != paNoError) {
+    //         qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
+    //         return false;
+    //     }
+    //     err = Pa_StartStream(paStream);
+    //     if (err != paNoError) {
+    //         qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
+    //         return false;
+    //     }
+    //     return true;
+    // }
     QJsonObject* initializeFFmpeg(const QString &filePath){
         formatContext= nullptr;
         codecContext= nullptr;
@@ -148,10 +149,11 @@ public:
         res->insert("channels",QString::number(codecContext->ch_layout.nb_channels));
         res->insert("sample_rate",QString::number(codecContext->sample_rate));
         res->insert("codec",codec->name);
+        res->insert("frame_rate",codec->name);
         return res;
     }
-    void startPlay(){
 
+    void startPlay(){
         QMutexLocker locker(&mutex);
         isPlaying = true;
         start();
@@ -201,11 +203,26 @@ protected:
 
                     if (samplesResampled < 0) {
                         qWarning() << "Error during resampling.";
+                        delete[] outputBuffer; // 确保释放内存
                         continue;
                     }
 
+                    while (audioProcessor->cacheSize() >= audioProcessor->maxQueueSize) {
+                        QThread::msleep(10); // 稍微休眠以避免占用 CPU
+                    }
+
+                    // 现在可以安全地推送数据
+
+                    audioProcessor->pushAudioData(outputBuffer,samplesResampled * sizeof(int16_t));
+
+                    // try {
+                    //     audioProcessor->pushAudioData(outputBuffer,samplesResampled * sizeof(int16_t));
+                    // } catch (const std::exception& e) {
+                    //     qWarning() << "Exception caught:" << e.what();
+                    // }
+                    // qDebug()<< " samplesResampled:"<<samplesResampled;
                     // 将重采样的数据传递给 PortAudio
-                    Pa_WriteStream(paStream, outputBuffer, samplesResampled);
+                    // Pa_WriteStream(paStream, outputBuffer, samplesResampled);
                 }
             }
             av_packet_unref(&packet);
@@ -216,25 +233,25 @@ protected:
         swr_free(&swrContext);
         avcodec_free_context(&codecContext);
         avformat_close_input(&formatContext);
-
         if (outputBuffer) {
             av_freep(&outputBuffer);
         }
 
-        Pa_StopStream(paStream);
-        Pa_CloseStream(paStream);
+        // Pa_StopStream(paStream);
+        // Pa_CloseStream(paStream);
+
     }
 
 private:
-
-    void cleanupPortAudio(){
-        if (paStream) {
-            Pa_StopStream(paStream);
-            Pa_CloseStream(paStream);
-            Pa_Terminate();
-            paStream = nullptr;
-        }
-    }
+    //
+    // void cleanupPortAudio(){
+    //     if (paStream) {
+    //         Pa_StopStream(paStream);
+    //         Pa_CloseStream(paStream);
+    //         Pa_Terminate();
+    //         paStream = nullptr;
+    //     }
+    // }
 
     void cleanupFFmpeg(){
         if (swrContext) {
@@ -255,8 +272,10 @@ private:
         if (resampledBuffer) {
             av_free(resampledBuffer);
         }
-    }
 
+    }
+    // 创建一个音频缓存（假设我们需要缓存所有重采样数据）
+    AudioPipe* audioProcessor;
     AVFormatContext *formatContext= nullptr;
     AVCodecContext *codecContext= nullptr;
     const AVCodec *codec;
@@ -267,8 +286,7 @@ private:
     int audioStreamIndex=-1;
     int64_t decodedFrames;
     uint8_t *resampledBuffer;
-    PaStream *paStream;
-
+    // PaStream *paStream;
     QMutex mutex;
     QWaitCondition condition;
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Nodes/NodeDataList.hpp"
+#include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -50,50 +50,14 @@ public:
     }
 
 
-
-public:
-
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = "➩";
-        QString out = "➩";
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
-    }
-
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
-
-        switch (portType) {
-            case PortType::In:
-                result = InPortCount;
-                break;
-
-            case PortType::Out:
-                result = OutPortCount;
-
-            default:
-                break;
-        }
-        return result;
-    }
-
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
         Q_UNUSED(portIndex)
         switch (portType) {
             case PortType::In:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::Out:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::None:
                 break;
             default:
@@ -101,7 +65,7 @@ public:
         }
         // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return VariantData().type();
+        return VariableData().type();
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const port) override
@@ -116,7 +80,7 @@ public:
         if (data== nullptr){
             return;
         }
-        if ((inData = std::dynamic_pointer_cast<VariantData>(data))) {
+        if ((inData = std::dynamic_pointer_cast<VariableData>(data))) {
             if(timer->isActive())
             {
                 timer->stop();
@@ -155,6 +119,6 @@ public:
         Q_EMIT dataUpdated(0);
     }
     DelayInterface *widget=new DelayInterface();
-    shared_ptr<VariantData> inData;
+    shared_ptr<VariableData> inData;
     QTimer *timer=new QTimer();
 };

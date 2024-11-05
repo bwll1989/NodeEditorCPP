@@ -13,9 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "Int Input"
-#define PLUGIN_VERSION "20240410"
+#define PLUGIN_VERSION "20241101"
 #define PLUGIN_DESCRIBE "整数输入"
-#define PLUGIN_TAG "Math"
+#define PLUGIN_TAG "Data"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

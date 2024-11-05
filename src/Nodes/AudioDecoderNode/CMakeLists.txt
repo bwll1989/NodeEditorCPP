@@ -4,14 +4,6 @@ project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(portaudio_DIR "${DEPENDS_DIR}/portaudio/install/lib/cmake/portaudio")
-find_package(portaudio CONFIG REQUIRED)
-message("-- Found portaudio ${portaudio_DIR}")
-#set(SndFile_DIR "${DEPENDS_DIR}/libsndfile/install/lib/cmake/SndFile")
-#find_package(SndFile REQUIRED)
-#message("-- Found SndFile ${SndFile_DIR}")
-
-
 add_library(${Module_Name} SHARED
         AudioDecoderDataModel.hpp
         AudioDecoderInterface.hpp
@@ -20,7 +12,9 @@ add_library(${Module_Name} SHARED
         PluginDefinition.hpp
         ../../Common/GUI/QJsonModel/QJsonModel.hpp
         ../../Common/GUI/QJsonModel/QJsonModel.cpp
-        ../../Common/GUI/QJsonModel/details/QUtf8.hpp)
+        ../../Common/GUI/QJsonModel/details/QUtf8.hpp
+        ../../Common/Devices/AudioPipe/AudioPipe.cpp
+        ../../Common/Devices/AudioPipe/AudioPipe.h)
 
 target_link_libraries(${Module_Name}
         Qt${QT_VERSION_MAJOR}::Widgets
