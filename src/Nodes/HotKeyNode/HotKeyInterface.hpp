@@ -22,6 +22,11 @@ public:
     explicit HotKeyInterface(QWidget *parent = nullptr){
 
 //        this->setStyleSheet("QFrame{background-color:transparent}");
+        item_1->setObjectName("item_1");
+        item_2->setObjectName("item_2");
+        item_3->setObjectName("item_3");
+        item_4->setObjectName("item_4");
+        item_5->setObjectName("item_5");
         main_layout->addWidget(item_1);
         main_layout->addWidget(item_2);
         main_layout->addWidget(item_3);

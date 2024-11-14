@@ -22,12 +22,12 @@ class ScaleImageModel final : public QtNodes::NodeDelegateModel {
 public:
     ScaleImageModel() {
         InPortCount =2;
-        OutPortCount=2;
+        OutPortCount=1;
         CaptionVisible=true;
         Caption="Scale Image";
         WidgetEmbeddable=true;
         Resizable=false;
-        PortEditable=true;
+        PortEditable=false;
         this->installEventFilter(this);
 
     };
@@ -49,8 +49,6 @@ public:
                 switch (portIndex) {
                     case 0:
                         return ImageData().type();
-                    case 1:
-                        return VariableData().type();
                     default:
                         return ImageData().type();
                 }

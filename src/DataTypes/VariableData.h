@@ -7,69 +7,65 @@
 #define VARIBALEDATA_H
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
-class VariableData : public NodeData
-{
+class VariableData : public NodeData {
 public:
-    VariableData() : NodeValues(new QVariantMap()) {}
-    explicit VariableData(QVariantMap *val) : NodeValues(val) {}
+    VariableData() : NodeValues() {}
+
+    explicit VariableData(QVariantMap* val) : NodeValues(*val) {}
+
+    explicit VariableData(const QVariantMap &val) : NodeValues(val) {}
+
     explicit VariableData(const QJsonObject* val) {
-        // 将 QJsonObject 转换为 QVariantMap
         for (const QString& key : val->keys()) {
-            NodeValues->insert(key, val->value(key).toVariant());
+            NodeValues.insert(key, val->value(key).toVariant());
         }
     }
 
-    explicit VariableData(QVariant val) {
-        NodeValues = new QVariantMap();
-        NodeValues->insert("variable", val);
-
+    explicit VariableData(const QVariant &val) {
+        NodeValues.insert("default", val);
     }
 
-    ~VariableData() {
-        delete NodeValues;
-    }
     void insert(const QString &key, const QVariant &value) {
-        NodeValues->insert(key, value);
+        NodeValues.insert(key, value);
     }
+
     NodeDataType type() const override {
-        if(isEmpty())
-            return NodeDataType{"variable", "var"};
-        return NodeDataType{"variable",value().typeName()};
+        return isEmpty()
+            ? NodeDataType{"default", "Info"}
+        : NodeDataType{"default", value().typeName()};
     }
 
-
+    bool hasKey(const QString &key) const {
+        return NodeValues.contains(key);
+    }
 
     bool isEmpty() const {
-        if (NodeValues == nullptr || NodeValues->isEmpty()) {
-            return true;
-            }
-        return false;
+        return NodeValues.isEmpty();
     }
 
-    QVariant value(const QString key="variable") const {
-        if (isEmpty()|| !NodeValues->contains(key)) {
-            return QVariant();
-        }
-        return NodeValues->value(key);  // 确保返回 QVariant 类型
+    QVariant value(const QString &key = "default") const {
+        return hasKey(key) ? NodeValues.value(key) : QVariant();
     }
 
     QVariantMap getMap() const {
-        return *NodeValues;
+        return NodeValues;
     }
+
     std::unique_ptr<QJsonObject> json() const {
         auto jsonObject = std::make_unique<QJsonObject>();
-        for (auto it = NodeValues->begin(); it != NodeValues->end(); ++it) {
+        for (auto it = NodeValues.begin(); it != NodeValues.end(); ++it) {
             jsonObject->insert(it.key(), QJsonValue::fromVariant(it.value()));
         }
 
         if (isEmpty()) {
-            jsonObject->insert("variable", QJsonValue::fromVariant(""));
+            jsonObject->insert("default", QJsonValue::fromVariant(""));
         }
 
-        return jsonObject;  // 返回智能指针，避免手动释放
+        return jsonObject;
     }
-    private:
-    QVariantMap *NodeValues;
+
+private:
+    QVariantMap NodeValues;
 };
 
 #endif //VARIBALEDATA_H

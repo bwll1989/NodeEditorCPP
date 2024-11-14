@@ -28,6 +28,7 @@ void UdpSocket::processPendingDatagrams()
         QHostAddress sender;
         quint16 senderPort;
         this->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        emit arrayMsg(datagram);
         emit recMsg(QString::fromUtf8(datagram));
         // 发送回显数据到客户端
 //            QByteArray response = "Echo: " + datagram;
@@ -44,10 +45,12 @@ void UdpSocket::startSocket(const QString &dstHost,int dstPort)
     {
 
         emit isReady(true);
+        qDebug()<<"UDP Socket is ready";
         emit recMsg("UDP Socket is ready!");
     }else
     {
         emit isReady(false);
+        qDebug()<<"Error! please check port or host!"<<dstHost<<dstPort;
         emit recMsg("Error! please check port or host!");
 
     }

@@ -19,7 +19,7 @@ public:
         InPortCount =1;
         OutPortCount=1;
         CaptionVisible=true;
-        Caption="Size";
+        Caption="Size Source";
         WidgetEmbeddable= true;
         PortEditable= false;
         Resizable= true;

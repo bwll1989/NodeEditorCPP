@@ -29,6 +29,8 @@ signals:
 
     void recMsg(const QString &Msg);
 
+    void arrayMsg(QByteArray datagram);
+
 private:
     QHostAddress  host;
     quint16 port;

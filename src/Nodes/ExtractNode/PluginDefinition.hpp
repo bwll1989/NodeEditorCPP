@@ -13,7 +13,7 @@
 #endif
 
 #define PLUGIN_NAME "Extract"
-#define PLUGIN_VERSION "20240410"
+#define PLUGIN_VERSION "20241104"
 #define PLUGIN_DESCRIBE "数据选择"
 #define PLUGIN_TAG "Data"
 class DLL_EXPORT Plugin

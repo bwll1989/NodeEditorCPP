@@ -12,7 +12,7 @@
 #include "Widget/CurveWidget/CurveEditor.h"
 #include "Widget/ConsoleWidget/LogWidget.h"
 #include "Widget/ConsoleWidget/LogHandler.h"
-#include "qt6advanceddocking/DockManager.h"
+#include "DockManager.h"
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
 #include "Widget/NodeWidget/CustomFlowGraphicsScene.h"
 #include "Widget/NodeWidget/CustomGraphicsView.h"

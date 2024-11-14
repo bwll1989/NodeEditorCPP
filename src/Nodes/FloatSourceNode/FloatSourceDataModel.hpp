@@ -33,7 +33,7 @@ public:
         InPortCount =1;
         OutPortCount=1;
         CaptionVisible=true;
-        Caption="Float Input";
+        Caption="Float Source";
         WidgetEmbeddable= true;
         Resizable=false;
         connect(widget->floatDisplay, &DoubleSlider::valueUpdated, this, &FloatSourceDataModel::onFloatEdited);

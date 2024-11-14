@@ -32,7 +32,7 @@ public:
         InPortCount =1;
         OutPortCount=1;
         CaptionVisible=true;
-        Caption="Int Input";
+        Caption="Int Source";
         WidgetEmbeddable=true;
         Resizable=false;
         connect(widget->intDisplay, &IntSlider::valueUpdated, this, &IntSourceDataModel::onIntEdited);

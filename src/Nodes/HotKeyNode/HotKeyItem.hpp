@@ -25,9 +25,10 @@ public:
         boolDisplay->setCheckable(true);
         boolDisplay->setChecked(false);
         boolDisplay->setStyleSheet(boolDisplay->isChecked() ? "QPushButton{background-color: #00FF00;}" : "QPushButton{background-color: #FF0000;}");
-        main_layout->addWidget(EnableButton,2);
-        main_layout->addWidget(Editor,4);
+        main_layout->addWidget(EnableButton,1);
+        main_layout->addWidget(Editor,3);
         main_layout->addWidget(boolDisplay,1);
+        main_layout->addWidget(resetButton,1);
         main_layout->setContentsMargins(4,2,4,4);
         this->setLayout(main_layout);
 //        connect(this->EnableButton, &QCheckBox::toggled,
@@ -36,6 +37,8 @@ public:
                 this, &HotKeyItem::valueDisplay);
         connect(this->EnableButton, &QCheckBox::toggled,
                 this->hotkey, &QHotkey::setRegistered);
+        connect(this->resetButton, &QPushButton::clicked,
+            this,&HotKeyItem::valueReset);
         connect(this->Editor, &QKeySequenceEdit::keySequenceChanged,
                 this, &HotKeyItem::setShortcut);
     }
@@ -75,6 +78,7 @@ public:
     QCheckBox *EnableButton=new QCheckBox("HotKey");
     QKeySequenceEdit *Editor=new QKeySequenceEdit();
     QPushButton *boolDisplay=new QPushButton(" ");
+    QPushButton *resetButton=new QPushButton("reset");
     int Count=0;
     QHotkey *hotkey=new QHotkey(this);
 

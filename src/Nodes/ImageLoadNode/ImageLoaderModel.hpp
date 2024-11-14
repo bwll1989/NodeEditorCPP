@@ -30,7 +30,7 @@ public:
         _label->installEventFilter(this);
         InPortCount =0;
         OutPortCount=1;
-        CaptionVisible=false;
+        CaptionVisible=true;
         Caption="Image source";
         WidgetEmbeddable= true;
         Resizable=false;

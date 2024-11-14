@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "CaptureModel.h"
+#include "CaptureModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 

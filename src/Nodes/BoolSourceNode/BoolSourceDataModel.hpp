@@ -32,7 +32,7 @@ public:
         InPortCount =1;
         OutPortCount=1;
         CaptionVisible=true;
-        Caption="Bool Input";
+        Caption="Bool Source";
         WidgetEmbeddable=true;
         Resizable=false;
         button->setCheckable(true);

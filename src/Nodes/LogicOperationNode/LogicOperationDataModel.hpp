@@ -41,6 +41,7 @@ public:
 //        method->setStyleSheet("QComboBox{background-color: transparent;}");
         widget->addItems(*methods);
 //        method->setFlat(true);
+        val=QVariant(false);
         connect(widget,&QComboBox::currentIndexChanged,this,&LogicOperationDataModel::methodChanged);
 
     }
@@ -73,7 +74,6 @@ public:
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
     {
-
         if (data== nullptr){
             return;
         }
@@ -82,8 +82,6 @@ public:
             methodChanged();
 
         }
-//        method->setText(QString::number(val));
-//        method->setStyleSheet(val ? "QComboBox{background-color: #00FF00;}" : "QPushButton{background-color: #FF0000;}");
 
         Q_EMIT dataUpdated(0);
     }
@@ -103,10 +101,22 @@ public:
                         val=in_dictionary[0].toString()!=kv.second.toString();
                         break;
                     case 3:
-                        val=std::max(in_dictionary[0].toFloat(),kv.second.toFloat());
+                        val=qMax(in_dictionary[0].toDouble(),kv.second.toDouble());
                         break;
                     case 4:
-                        val=std::min(in_dictionary[0].toFloat(),kv.second.toFloat());
+                        val=qMin(in_dictionary[0].toDouble(),kv.second.toDouble());
+                        break;
+                    case 5:
+                        val=in_dictionary[0].toFloat()<kv.second.toFloat();
+                        break;
+                    case 6:
+                        val=in_dictionary[0].toFloat()<=kv.second.toFloat();
+                        break;
+                    case 7:
+                        val=in_dictionary[0].toFloat()>kv.second.toFloat();
+                        break;
+                    case 8:
+                        val=in_dictionary[0].toFloat()>=kv.second.toFloat();
                         break;
 
                 }
@@ -121,7 +131,7 @@ public:
 private:
 
     QComboBox *widget=new QComboBox();
-    QStringList *methods=new QStringList {"AND","OR","NOT","MAX","MIN","ABS"};
+    QStringList *methods=new QStringList {"AND","OR","NOT","MAX","MIN","<","<=",">",">="};
     std::unordered_map<unsigned int, QVariant> in_dictionary;
     QVariant val;
 };

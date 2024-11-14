@@ -12,8 +12,8 @@
 #endif
 
 #define PLUGIN_NAME "ImageInfoNode"
-#define PLUGIN_VERSION "20240730"
-#define PLUGIN_DESCRIBE "延时"
+#define PLUGIN_VERSION "20241107"
+#define PLUGIN_DESCRIBE "图片信息"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin
     : public QObject

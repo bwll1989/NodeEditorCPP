@@ -7,7 +7,7 @@
 #include <qtreeview.h>
 #include <QtNodes/NodeDelegateModel>
 #include "DataTypes/NodeDataList.hpp"
-#include "QJsonModel/QJsonModel.hpp"
+#include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -25,7 +25,7 @@ public:
         WidgetEmbeddable= true;
         Resizable=false;
         PortEditable= false;
-        m_widget->setStyleSheet("QTreeView::item { padding: 4px; }");
+
     };
 
     ~ImageInfoModel() override{};
@@ -75,7 +75,7 @@ public:
 
     QWidget* embeddedWidget() override {
 
-        return m_widget;
+        return widget;
     }
 
 private:
@@ -94,17 +94,16 @@ private:
         } else {
             m_proprtyData=std::make_shared<VariableData>();
             m_outImageData = std::make_shared<ImageData>(imageLock->image());
-             m_proprtyData->insert("isNull",imageLock->image().isNull());
-             m_proprtyData->insert("isGrayScale",imageLock->image().isGrayscale());
-             m_proprtyData->insert("hasAlpha",imageLock->image().hasAlphaChannel());
-             m_proprtyData->insert("Format",formatToString(imageLock->image().format()));
-             m_proprtyData->insert("Width",imageLock->image().size().width());
-             m_proprtyData->insert("Height",imageLock->image().size().height());
-
+            m_proprtyData->insert("isNull",imageLock->image().isNull());
+            m_proprtyData->insert("isGrayScale",imageLock->image().isGrayscale());
+            m_proprtyData->insert("hasAlpha",imageLock->image().hasAlphaChannel());
+            m_proprtyData->insert("Format",formatToString(imageLock->image().format()));
+            m_proprtyData->insert("Width",imageLock->image().size().width());
+            m_proprtyData->insert("Height",imageLock->image().size().height());
+            m_proprtyData->insert("Size",imageLock->image().size());
+            m_proprtyData->insert("Rect",imageLock->image().rect());
         }
-        auto da=m_proprtyData->json();
-        result=new QJsonModel(*da);
-        m_widget->setModel(result);
+        widget-> buildPropertiesFromMap(m_proprtyData->getMap());
 
         emit dataUpdated(0);
         emit dataUpdated(1);
@@ -143,10 +142,7 @@ private:
     }
 
 private:
-
-    QTreeView* m_widget = new QTreeView();
-    QJsonObject *res;
-    QJsonModel *result;
+    QPropertyBrowser *widget=new QPropertyBrowser();
     // in
     std::weak_ptr<ImageData> m_inImageData;
     // out
@@ -154,9 +150,7 @@ private:
     // 0
     std::shared_ptr<ImageData> m_outImageData;
     // // 1
-    // std::shared_ptr<ImageFormatData> m_outFormat;
-    // // 2
-    // std::shared_ptr<VariantData> m_outSize;
+
 };
 
 

@@ -12,10 +12,10 @@
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "String Input"
+#define PLUGIN_NAME "String Source"
 #define PLUGIN_VERSION "20240410"
 #define PLUGIN_DESCRIBE "文本输入"
-#define PLUGIN_TAG "Math"
+#define PLUGIN_TAG "Data"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

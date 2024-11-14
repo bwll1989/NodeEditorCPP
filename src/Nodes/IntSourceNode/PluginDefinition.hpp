@@ -12,7 +12,7 @@
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "Int Input"
+#define PLUGIN_NAME "Int Source"
 #define PLUGIN_VERSION "20241101"
 #define PLUGIN_DESCRIBE "整数输入"
 #define PLUGIN_TAG "Data"

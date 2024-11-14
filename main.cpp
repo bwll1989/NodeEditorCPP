@@ -7,7 +7,7 @@
 #include "Widget/SplashWidget/CustomSplashScreen.h"
 #include "Widget/ExternalControl/ExternalControler.h"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
-#define Extra_Control_Port 8990
+#define Extra_Control_Port 8991
 #define PRODUCT_VERSION        "1.0"   // 产品版本
 #define COMPANY_NAME           "Bwll"
 #define PRODUCT_NAME          "NodeEditorCPP" // 产品名称
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     mainWindow.initNodelist();
     mainWindow.setWindowTitle("NodeEditorCPP");
 
-    ExternalControler controller(&mainWindow,Extra_Control_Port);
+
 
     mainWindow.restoreVisualState();
     if(argc > 1)
@@ -61,5 +61,7 @@ int main(int argc, char *argv[])
     }
     mainWindow.showMaximized();
     // 默认最大化显示
+     ExternalControler controller(&mainWindow,Extra_Control_Port);
+    // controller.show();
     return app.exec();
 }

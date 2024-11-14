@@ -37,7 +37,6 @@ public:
         WidgetEmbeddable=true;
         Resizable=false;
 //        qDebug()<<Data->NodeValues.toString();
-        widget->setStyleSheet("QTreeView::item { padding: 4px; }");
 
     }
 

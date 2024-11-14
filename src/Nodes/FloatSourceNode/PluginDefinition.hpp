@@ -12,8 +12,8 @@
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "Float Input"
-#define PLUGIN_VERSION "202401101"
+#define PLUGIN_NAME "Float Source"
+#define PLUGIN_VERSION "20241107"
 #define PLUGIN_DESCRIBE "浮点输入"
 #define PLUGIN_TAG "Data"
 class DLL_EXPORT Plugin

@@ -22,7 +22,7 @@ target_link_libraries(${Module_Name} PRIVATE
 set(QRC_FILES
         res.qrc
 )
-target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY)
+target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins")
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES LINKER_LANGUAGE C
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}

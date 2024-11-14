@@ -28,7 +28,7 @@ class HotKeyDataModel : public NodeDelegateModel
 public:
     HotKeyDataModel()
     {
-        InPortCount =1;
+        InPortCount =0;
         OutPortCount=5;
         CaptionVisible=true;
         Caption="HotKey";
@@ -40,48 +40,24 @@ public:
 //                this->widget, &HotKeyInterface::increase_1);
 
         connect(this->widget->item_1->hotkey, &QHotkey::activated,
-                this, &HotKeyDataModel::hotkeyChanged_1);
+            [this]() { hotkeyChanged(0); });
         connect(this->widget->item_2->hotkey, &QHotkey::activated,
-               this, &HotKeyDataModel::hotkeyChanged_2);
+                [this]() { hotkeyChanged(1); });
         connect(this->widget->item_3->hotkey, &QHotkey::activated,
-                this, &HotKeyDataModel::hotkeyChanged_3);
+                [this]() { hotkeyChanged(2); });
         connect(this->widget->item_4->hotkey, &QHotkey::activated,
-                this, &HotKeyDataModel::hotkeyChanged_4);
+                [this]() { hotkeyChanged(3); });
         connect(this->widget->item_5->hotkey, &QHotkey::activated,
-                this, &HotKeyDataModel::hotkeyChanged_5);
+                [this]() { hotkeyChanged(4); });
 
     }
 
-    virtual ~HotKeyDataModel() override{
-        deleteLater();
+    virtual ~HotKeyDataModel() override=default;
 
-    }
 private slots:
-    void hotkeyChanged_1()
-    {
-        out_dictionary[0]=this->widget->item_1->boolDisplay->isChecked();
-        Q_EMIT dataUpdated(0);
-    };
-    void hotkeyChanged_2()
-    {
-        out_dictionary[1]=this->widget->item_1->boolDisplay->isChecked();
-        Q_EMIT dataUpdated(1);
-    };
-    void hotkeyChanged_3()
-    {
-        out_dictionary[2]=this->widget->item_1->boolDisplay->isChecked();
-        Q_EMIT dataUpdated(2);
-    };
-    void hotkeyChanged_4()
-    {
-        out_dictionary[3]=this->widget->item_1->boolDisplay->isChecked();
-        Q_EMIT dataUpdated(3);
-    };
-    void hotkeyChanged_5()
-    {
-        out_dictionary[4]=this->widget->item_1->boolDisplay->isChecked();
-        Q_EMIT dataUpdated(4);
-    };
+    void hotkeyChanged(int port) {
+        Q_EMIT dataUpdated(port);
+    }
 
 public:
 
@@ -90,9 +66,9 @@ public:
         Q_UNUSED(portIndex)
         switch (portType) {
             case PortType::In:
-                return VariantData(bool()).type();
+                return VariableData().type();
             case PortType::Out:
-                return VariantData(bool()).type();
+                return VariableData().type();
             case PortType::None:
                 break;
             default:
@@ -100,13 +76,23 @@ public:
         }
         // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return VariantData().type();
+        return VariableData().type();
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const port) override
     {
 //        Q_UNUSED(port);
-        return  std::make_shared<VariantData>(out_dictionary[port]);
+        //
+        // da->insert("count",)
+        auto item = this->widget->findChild<HotKeyItem*>(QString("item_%1").arg(port + 1));
+
+        auto da=std::make_shared<VariableData>(QVariant(item->boolDisplay->isChecked()));
+        da->insert("count",item->boolDisplay->text().toInt());
+        return da;
+        // auto ptr = std::make_shared<VariableData>(QVariant(this->widget->item_1->boolDisplay->isChecked()));
+
+
+
 
     }
 
@@ -116,9 +102,9 @@ public:
         if (data== nullptr){
             return;
         }
-        if ((inData = std::dynamic_pointer_cast<VariantData>(data))) {
-
-        }
+        // if ((inData = std::dynamic_pointer_cast<VariableData>(data))) {
+        //
+        // }
     }
 
     QJsonObject save() const override
@@ -158,7 +144,6 @@ public:
 
         QJsonValue v1 = p["hotkey1"];
         if (!v1.isUndefined()&&v1.isObject()) {
-            qDebug()<<v1["enable"].toBool();
             widget->item_1->Editor->setKeySequence(QKeySequence(v1["value"].toString()));
             widget->item_1->EnableButton->setChecked(v1["enable"].toBool());
 
@@ -195,9 +180,5 @@ public:
     }
 
 private:
-
     HotKeyInterface *widget=new HotKeyInterface();
-    shared_ptr<VariantData> inData;
-    unordered_map<unsigned int, QVariant> out_dictionary;
-
 };

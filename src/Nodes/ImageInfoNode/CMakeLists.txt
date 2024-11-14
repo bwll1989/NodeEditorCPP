@@ -13,13 +13,12 @@ set(CMAKE_AUTORCC ON)
 
 add_library(${Module_Name} SHARED
         ImageInfoModel.hpp
-        ../../Common/GUI/QJsonModel/QJsonModel.hpp
-        ../../Common/GUI/QJsonModel/QJsonModel.cpp
-        ../../Common/GUI/QJsonModel/details/QUtf8.hpp
+        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
+        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         PluginDefinition.cpp
         PluginDefinition.hpp)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES})
-target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY)
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} ${Qtpropertybrowser_LIBRARIES})
+target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins")
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES LINKER_LANGUAGE C
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}

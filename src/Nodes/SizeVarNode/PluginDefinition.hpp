@@ -11,10 +11,10 @@
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "SizeVarNode"
+#define PLUGIN_NAME "Size Source"
 #define PLUGIN_VERSION "20241103"
 #define PLUGIN_DESCRIBE "尺寸变量"
-#define PLUGIN_TAG "Data"
+#define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

@@ -19,19 +19,18 @@ add_library(${Module_Name} SHARED
 target_link_libraries(${Module_Name}
         Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
-#        SndFile::sndfile
-        avcodec-60
-        avdevice-60
-        avfilter-9
-        avformat-60
-        avutil-58
-        postproc-57
-        swresample-4
-        swscale-7
-        portaudio
+        avcodec
+        avdevice
+        avfilter
+        avformat
+        avutil
+        postproc
+        swresample
+        swscale
+        ${portaudio_LIBRARIES}
 )
 
-target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY)
+target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins")
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES LINKER_LANGUAGE C
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}

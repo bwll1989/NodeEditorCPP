@@ -5,89 +5,100 @@
 #include "QPropertyBrowser.h"
 
 QPropertyBrowser::QPropertyBrowser(QWidget* parent) : QWidget(parent) {
-    // 初始化属性管理器和编辑器工厂
-    m_propertyManager = new QtVariantPropertyManager(this);
-    m_editorFactory = new QtVariantEditorFactory(this);
 
     // 创建属性浏览器并添加到布局中
-    m_propertyBrowser = new QtTreePropertyBrowser(this);
-    m_propertyBrowser->setFactoryForManager(m_propertyManager, m_editorFactory);
-
+    initializeBranches();
     // 设置布局
     layout = new QVBoxLayout(this);
     layout->addWidget(m_propertyBrowser);
     setLayout(layout);
-
-
 }
 
-void QPropertyBrowser::addProperties() {
-    // 添加一个字符串属性
-    QtVariantProperty* nameProperty = m_propertyManager->addProperty(QVariant::String, "Name");
-    nameProperty->setValue("Default Name");
-    m_propertyBrowser->addProperty(nameProperty);
+void QPropertyBrowser::initializeBranches() {
+    // 初始化属性管理器和编辑器工厂
+    m_propertyManager = new QtVariantPropertyManager(this);
+    m_editorFactory = new QtVariantEditorFactory(this);
+    m_propertyBrowser = new QtTreePropertyBrowser(this);
+    m_propertyBrowser->setFactoryForManager(m_propertyManager, m_editorFactory);
+    VaribaleItem = m_propertyManager->addProperty(QtVariantPropertyManager::groupTypeId(),
+                         QLatin1String(" Variable"));
+    m_propertyBrowser->addProperty(VaribaleItem);
 
-    // 添加一个整数属性
-    QtVariantProperty* ageProperty = m_propertyManager->addProperty(QVariant::Int, "Age");
-    ageProperty->setValue(30);
-    ageProperty->setAttribute("minimum", 0);  // 设置最小值
-    ageProperty->setAttribute("maximum", 100); // 设置最大值
-    m_propertyBrowser->addProperty(ageProperty);
+    NodeItem = m_propertyManager->addProperty(QtVariantPropertyManager::groupTypeId(),
+                     QLatin1String("Property"));
+    m_propertyBrowser->addProperty(NodeItem);
+    connect(m_propertyManager, SIGNAL(valueChanged(QtProperty *, const QVariant &)),
+               this, SLOT(onNodeItemValueChanged(QtProperty *, const QVariant &)));
 
-    // 添加一个布尔属性
-    QtVariantProperty* isEnabledProperty = m_propertyManager->addProperty(QVariant::Bool, "Is Enabled");
-    isEnabledProperty->setValue(true);
-    m_propertyBrowser->addProperty(isEnabledProperty);
+    // connect(m_propertyManager, &QtVariantPropertyManager::valueChanged,
+    //         this, &QPropertyBrowser::onNodeItemValueChanged);
+    // 此种方式会出现找不到信号，原因未知
+}
+
+void QPropertyBrowser::addFixedProperties(int propertyType, const QString &name,const QVariant &value) {
+
+    QtVariantProperty* nameProperty = m_propertyManager->addProperty(propertyType, name);
+    nameProperty->setValue(value);
+    NodeItem->addSubProperty(nameProperty);
+    m_propertyManager->setAttribute(nameProperty, "readOnly", false);
+
 }
 // 根据 QVariantMap 构建属性
 void QPropertyBrowser::buildPropertiesFromMap(const QVariantMap& map) {
-    m_propertyBrowser->clear();  // 清空当前属性
-    addPropertiesFromMap(map, nullptr);  // 递归添加属性
+    // m_propertyBrowser->clear();  // 清空当前属性
+    addPropertiesFromMap(map, VaribaleItem);  // 递归添加属性
 }
 
 void QPropertyBrowser::addPropertiesFromMap(const QVariantMap& map, QtVariantProperty* parentProperty,bool readOnly) {
-        for (auto it = map.constBegin(); it != map.constEnd(); ++it) {
+    if(parentProperty) {
+        QList<QtProperty*> subProperties = parentProperty->subProperties();
+        for (QtProperty* prop : subProperties) {
+            parentProperty->removeSubProperty(prop);
+        }
+
+    }
+
+    for (auto it = map.constBegin(); it != map.constEnd(); ++it) {
             const QString& key = it.key();
             const QVariant& value = it.value();
-
             QtVariantProperty* property = nullptr;
-
             switch (value.typeId()) {
-                case QVariant::String:
-                    property = m_propertyManager->addProperty(QVariant::String, key);
+                case QMetaType::QString:
+                    property = m_propertyManager->addProperty(QMetaType::QString, key);
                     property->setValue(value.toString());
                     break;
-                case QVariant::Int:
-                    property = m_propertyManager->addProperty(QVariant::Int, key);
+                case QMetaType::Int:
+                    property = m_propertyManager->addProperty(QMetaType::Int, key);
                     property->setValue(value.toInt());
                     break;
-                case QVariant::Bool:
-                    property = m_propertyManager->addProperty(QVariant::Bool, key);
+                case QMetaType::Bool:
+                    property = m_propertyManager->addProperty(QMetaType::Bool, key);
                     property->setValue(value.toBool());
                     break;
-                case QVariant::Double:
-                    property = m_propertyManager->addProperty(QVariant::Double, key);
+                case QMetaType::Double:
+                    property = m_propertyManager->addProperty(QMetaType::Double, key);
                     property->setValue(value.toDouble());
+
                     break;
-                case QVariant::Size: {
-                    property = m_propertyManager->addProperty(QVariant::Size, key);
+                case QMetaType::QSize: {
+                    property = m_propertyManager->addProperty(QMetaType::QSize, key);
                     QSize size = value.toSize();
                     property->setValue(size);
                     break;
                 }
-                case QVariant::Rect: {
-                    property = m_propertyManager->addProperty(QVariant::Rect, key);
+                case QMetaType::QRect: {
+                    property = m_propertyManager->addProperty(QMetaType::QRect, key);
                     QRect rect = value.toRect();
                     property->setValue(rect);
                     break;
                 }
-                case QVariant::RectF: {
+                case QMetaType::QRectF: {
                     property = m_propertyManager->addProperty(QVariant::RectF, key);
                     QRectF rectF = value.toRectF();
                     property->setValue(rectF);
                     break;
                 }
-                case QVariant::Point: {
+                case QMetaType::QPoint: {
                     property = m_propertyManager->addProperty(QVariant::Point, key);
                     QPoint point = value.toPoint();
                     property->setValue(point);
@@ -126,6 +137,7 @@ QVariantMap QPropertyBrowser::exportToMap() const {
     }
     return map;
 }
+
 QVariant QPropertyBrowser::exportProperty(QtProperty* property) const {
     QVariant value;
 
@@ -142,4 +154,14 @@ QVariant QPropertyBrowser::exportProperty(QtProperty* property) const {
     }
 
     return value;
+}
+
+void QPropertyBrowser::onNodeItemValueChanged(QtProperty* property, const QVariant& value) {
+    // 检查是否为 m_nodeItem 的子属性
+    if (NodeItem->subProperties().contains(property)) {
+        // qDebug() << "NodeItem property changed:" << property->propertyName() << "New value:" << value.toString();
+
+        // 这里可以执行具体的逻辑处理，比如发出自定义信号或更新界面等
+        emit nodeItemValueChanged(property->propertyName(), value);
+    }
 }

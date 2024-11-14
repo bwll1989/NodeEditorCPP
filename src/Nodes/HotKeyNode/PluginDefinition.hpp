@@ -12,7 +12,7 @@
 #endif
 
 #define PLUGIN_NAME "HotKey"
-#define PLUGIN_VERSION "20240730"
+#define PLUGIN_VERSION "20241107"
 #define PLUGIN_DESCRIBE "热键"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin

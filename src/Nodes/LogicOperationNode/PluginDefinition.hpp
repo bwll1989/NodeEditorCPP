@@ -13,7 +13,7 @@
 #endif
 
 #define PLUGIN_NAME "Logic Operation"
-#define PLUGIN_VERSION "20240410"
+#define PLUGIN_VERSION "20241107"
 #define PLUGIN_DESCRIBE "逻辑运算"
 #define PLUGIN_TAG "Data"
 class DLL_EXPORT Plugin

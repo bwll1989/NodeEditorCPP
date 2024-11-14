@@ -20,15 +20,22 @@ class QPropertyBrowser : public QWidget {
 public:
     QPropertyBrowser(QWidget* parent = nullptr);
 
-    void addProperties();
+    void initializeBranches();
     void buildPropertiesFromMap(const QVariantMap& map);
+    void addFixedProperties(int propertyType, const QString &name = QString(),const QVariant &value=QVariant());
     QVariantMap exportToMap() const;
-private:
-    void addPropertiesFromMap(const QVariantMap& map, QtVariantProperty* parentProperty,bool readOnly=true);
-    QVariant exportProperty(QtProperty* property) const ;
     QtTreePropertyBrowser* m_propertyBrowser;
     QtVariantPropertyManager* m_propertyManager;
     QtVariantEditorFactory* m_editorFactory;
+signals:
+    void nodeItemValueChanged(const QString& propertyName, const QVariant& newValue);  // 自定义信号
+private slots:
+    void onNodeItemValueChanged(QtProperty* property,const QVariant& value);
+private:
+    void addPropertiesFromMap(const QVariantMap& map, QtVariantProperty* parentProperty,bool readOnly=true);
+    QVariant exportProperty(QtProperty* property) const ;
+    QtVariantProperty * VaribaleItem ;
+    QtVariantProperty * NodeItem;
     QVBoxLayout* layout;
 };
 

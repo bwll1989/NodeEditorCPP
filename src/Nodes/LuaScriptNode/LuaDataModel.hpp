@@ -32,7 +32,7 @@ public:
         CaptionVisible=true;
         Caption="Lua Script";
         WidgetEmbeddable=false;
-        Resizable=false;
+        Resizable=true;
         PortEditable=true;
         connect(widget->codeWidget->run,SIGNAL(clicked(bool)),this,SLOT(onButtonClicked()));
 

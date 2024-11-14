@@ -35,67 +35,51 @@ public:
     QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override{
         switch (portType) {
             case QtNodes::PortType::In:
-                return RectData().type();
+                return VariableData().type();
             case QtNodes::PortType::Out:
                 switch (portIndex) {
                     case 0:
                         return RectData().type();
                     case 1:
-                        return PointData().type();
+                        return VariableData().type();
                     default:
                         return VariantData().type();
                 }
             default:
-                return VariantData().type();
+                return VariableData().type();
         }
     }
 
     void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{
         // if the input data is a rect, update the m_outRectValue and the ui
-        if (auto rectData = std::dynamic_pointer_cast<RectData>(nodeData)) {
-            m_inRectData = rectData;
-            m_outRect = rectData->rect();
-            m_outRectsData = rectData;
-            if (m_ui) {
-                // disable the widgets
-                m_ui->sb_x->setEnabled(false);
-                m_ui->sb_y->setEnabled(false);
-                m_ui->sb_width->setEnabled(false);
-                m_ui->sb_height->setEnabled(false);
-                // block signals to avoid infinite loop
-                QSignalBlocker blocker(m_ui->sb_x);
-                QSignalBlocker blocker2(m_ui->sb_y);
-                QSignalBlocker blocker3(m_ui->sb_width);
-                QSignalBlocker blocker4(m_ui->sb_height);
-                m_ui->sb_x->setValue(m_outRect.x());
-                m_ui->sb_y->setValue(m_outRect.y());
-                m_ui->sb_width->setValue(m_outRect.width());
-                m_ui->sb_height->setValue(m_outRect.height());
-            }
+        if (auto rectData = std::dynamic_pointer_cast<VariableData>(nodeData)) {
+            m_inData = rectData;
+            if(m_inData.lock()->hasKey("Rect"))
+                m_outRect = rectData->value("Rect").toRect();
         }
         else {
-            m_inRectData.reset();
+            m_inData.reset();
             m_outRect = QRect(0, 0, 0, 0);
             m_outRectsData = std::make_shared<RectData>(m_outRect);
-            if (m_ui) {
-                // enable the widgets
-                m_ui->sb_x->setEnabled(true);
-                m_ui->sb_y->setEnabled(true);
-                m_ui->sb_width->setEnabled(true);
-                m_ui->sb_height->setEnabled(true);
-                // block signals to avoid infinite loop
-                QSignalBlocker blocker(m_ui->sb_x);
-                QSignalBlocker blocker2(m_ui->sb_y);
-                QSignalBlocker blocker3(m_ui->sb_width);
-                QSignalBlocker blocker4(m_ui->sb_height);
-                m_ui->sb_x->setValue(m_outRect.x());
-                m_ui->sb_y->setValue(m_outRect.y());
-                m_ui->sb_width->setValue(m_outRect.width());
-                m_ui->sb_height->setValue(m_outRect.height());
             }
+        if (m_ui) {
+            // enable the widgets
+            m_ui->sb_x->setEnabled(true);
+            m_ui->sb_y->setEnabled(true);
+            m_ui->sb_width->setEnabled(true);
+            m_ui->sb_height->setEnabled(true);
+            // block signals to avoid infinite loop
+            QSignalBlocker blocker(m_ui->sb_x);
+            QSignalBlocker blocker2(m_ui->sb_y);
+            QSignalBlocker blocker3(m_ui->sb_width);
+            QSignalBlocker blocker4(m_ui->sb_height);
+            m_ui->sb_x->setValue(m_outRect.x());
+            m_ui->sb_y->setValue(m_outRect.y());
+            m_ui->sb_width->setValue(m_outRect.width());
+            m_ui->sb_height->setValue(m_outRect.height());
+            emit dataUpdated(0);
         }
-        emit dataUpdated(0);
-        updateCenter();
+        updateProperty();
     }
 
     std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override{
@@ -103,9 +87,9 @@ public:
             case 0:
                 return m_outRectsData;
             case 1:
-                return m_outCenterData;
+                return m_outPropertyData;
             default:
-                return std::make_shared<VariantData>();
+                return std::make_shared<VariableData>();
         }
     }
 
@@ -137,7 +121,7 @@ public:
                     case 0:
                         return "Rect";
                     case 1:
-                        return "Center";
+                        return "Info";
                     default:
                         return QString();
                 }
@@ -156,17 +140,24 @@ private slots:
         m_outRect = QRect(x, y, width, height);
         m_outRectsData = std::make_shared<RectData>(m_outRect);
         emit dataUpdated(0);
-        updateCenter();
+        updateProperty();
     }
 
-    void updateCenter(){
-        m_outCenterData = std::make_shared<PointData>(m_outRect.center());
+    void updateProperty(){
         if (m_ui) {
             // block signals to avoid infinite loop
             QSignalBlocker blocker(m_ui->sb_center_x);
             QSignalBlocker blocker2(m_ui->sb_center_y);
             m_ui->sb_center_x->setValue(m_outRect.center().x());
             m_ui->sb_center_y->setValue(m_outRect.center().y());
+            m_outPropertyData = std::make_shared<VariableData>();
+            m_outPropertyData->insert("Rect", m_outRect);
+            m_outPropertyData->insert("Center", m_outRect.center());
+            m_outPropertyData->insert("Size", m_outRect.size());
+            m_outPropertyData->insert("topLeft", m_outRect.topLeft());
+            m_outPropertyData->insert("topRight", m_outRect.topRight());
+            m_outPropertyData->insert("bottomLeft", m_outRect.bottomLeft());
+            m_outPropertyData->insert("bottomRight", m_outRect.bottomRight());
         }
         emit dataUpdated(1);
     }
@@ -176,13 +167,13 @@ private:
     std::unique_ptr<Ui::RectForm> m_ui;
     // in
     // 0
-    std::weak_ptr<RectData> m_inRectData;
+    std::weak_ptr<VariableData> m_inData;
     //out
     // 0
     QRect m_outRect;
     std::shared_ptr<RectData> m_outRectsData;
     // 1
-    std::shared_ptr<PointData> m_outCenterData;
+    std::shared_ptr<VariableData> m_outPropertyData;
 
 };
 

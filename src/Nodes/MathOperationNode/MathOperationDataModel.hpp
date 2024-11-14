@@ -38,6 +38,7 @@ public:
         Resizable=false;
         PortEditable= false;
         widget->addItems(*methods);
+        val=QVariant(0.0);
         connect(widget,&QComboBox::currentIndexChanged,this,&MathOperationDataModel::methodChanged);
 
     }
@@ -76,32 +77,6 @@ public:
         }
         if (auto textData = std::dynamic_pointer_cast<VariableData>(data)) {
             in_dictionary[portIndex]=textData->value();
-            // for(auto kv:in_dictionary){
-            //     if(kv.first!=portIndex){
-            //
-            //         switch (widget->currentIndex()) {
-            //             case 0:
-            //                 val=textData->value().toFloat()+kv.second.toFloat();
-            //                 break;
-            //             case 1:
-            //                 val=textData->value().toFloat()-kv.second.toFloat();
-            //                 break;
-            //             case 2:
-            //                 val=textData->value().toFloat()*kv.second.toFloat();
-            //                 break;
-            //             case 3:
-            //                 val=textData->value().toFloat()/kv.second.toFloat();
-            //                 break;
-            //             case 4:
-            //                 val=fmod(textData->value().toFloat(),kv.second.toFloat());
-            //                 break;
-            //             case 5:
-            //                 val=pow(textData->value().toFloat(),kv.second.toFloat());
-            //                 break;
-            //         }
-            //
-            //     }
-            // }
             methodChanged();
         }
 //        method->setText(QString::number(val));
@@ -116,22 +91,22 @@ public:
             if(kv.first!=0){
                 switch (widget->currentIndex()) {
                     case 0:
-                        val=in_dictionary[0].toFloat()+kv.second.toFloat();
+                        val=in_dictionary[0].toDouble()+kv.second.toDouble();
                         break;
                     case 1:
-                        val=in_dictionary[0].toFloat()-kv.second.toFloat();
+                        val=in_dictionary[0].toDouble()-kv.second.toDouble();
                         break;
                     case 2:
-                        val=in_dictionary[0].toFloat()*kv.second.toFloat();
+                        val=in_dictionary[0].toDouble()*kv.second.toDouble();
                         break;
                     case 3:
-                        val=in_dictionary[0].toFloat()/kv.second.toFloat();
+                        val=in_dictionary[0].toDouble()/kv.second.toDouble();
                         break;
                     case 4:
-                        val=fmod(in_dictionary[0].toFloat(),kv.second.toFloat());
+                        val=fmod(in_dictionary[0].toDouble(),kv.second.toDouble());
                         break;
                     case 5:
-                        val=pow(in_dictionary[0].toFloat(),kv.second.toFloat());
+                        val=pow(in_dictionary[0].toDouble(),kv.second.toDouble());
                         break;
                 }
 

@@ -12,7 +12,7 @@
 #endif
 
 
-#define PLUGIN_NAME "Bool Input"
+#define PLUGIN_NAME "Bool Source"
 #define PLUGIN_VERSION "20240410"
 #define PLUGIN_DESCRIBE "布尔值输入"
 #define PLUGIN_TAG "Data"
