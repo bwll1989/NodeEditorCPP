@@ -13,21 +13,13 @@
 #include "tinyosc.h"
 ExternalControler::ExternalControler(MainWindow *widget, quint16 port, QWidget *parent) {
     // 创建 UDP 套接字并绑定到指定端口
-   OSC_Receiver=new OSCReceiver(port);
-    initUI();
-    // 连接 readyRead 信号到 processPendingDatagrams 函数
+    OSC_Receiver=new OSCReceiver(port);
     connect(OSC_Receiver, &OSCReceiver::receiveOSC, this, &ExternalControler::hasOSC);
 }
 
 void ExternalControler::hasOSC(const QVariantMap &data) {
-    qDebug() << "Receive Osc Message:"<<data;
-    widget->buildPropertiesFromMap(data);
-}
-
-void ExternalControler::initUI() {
-    layout = new QVBoxLayout(this);
-    widget=new QPropertyBrowser();
-    this->setLayout(layout);
-    layout->addWidget(widget);
+    qDebug() << "Osc Message:"<<data;
+    // 连接 readyRead 信号到 processPendingDatagrams 函数
 
 }
+

@@ -57,6 +57,25 @@ void UdpSocket::startSocket(const QString &dstHost,int dstPort)
 
 }
 
+void UdpSocket::startListen(){
+    close();
+
+    if(this->bind(host, port))
+    {
+
+        emit isReady(true);
+        qDebug()<<"UDP Socket is ready";
+        emit recMsg("UDP Socket is ready!");
+    }else
+    {
+        emit isReady(false);
+        qDebug()<<"Error! please check port or host!"<<host<<port;
+        emit recMsg("Error! please check port or host!");
+
+    }
+
+}
+
 void UdpSocket::sendMessage(const QString &message)
 {
     this->writeDatagram(message.toUtf8(),host,port);

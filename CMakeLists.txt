@@ -105,6 +105,10 @@ message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
 set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc")
 include_directories(${tinyosc_DIR})
 message("-- Found tinyosc ${tinyosc_DIR}")
+
+set(Libltc_DIR "D:/19_NodeEditorCPP/NodeEditorCPP-MSVC/3rdParty/libltc_cmake")
+INCLUDE_DIRECTORIES("${Libltc_DIR}/src")
+set(Libltc_LIBRARIES "${Libltc_DIR}/build/Release/libltc.lib")
 #set(Python3_ROOT_DIR "${CMAKE_BINARY_DIR}/Python312" )
 #set(PYTHON_EXECUTABLE "${CMAKE_BINARY_DIR}/Python312/python.exe")
 #set(pybind11_DIR "${CMAKE_BINARY_DIR}/Python312/Lib/site-packages/pybind11/share/cmake/pybind11")
@@ -116,7 +120,7 @@ message("-- Found tinyosc ${tinyosc_DIR}")
 #include_directories(${Python3_INCLUDE_DIRS})
 #include_directories(${pybind11_INCLUDE_DIRS})
 #分组模块
-add_subdirectory(src/Nodes/GroupNode)
+add_subdirectory(src/Nodes/TimeCodeSourceNode)
 #字符串输入模块
 add_subdirectory(src/Nodes/StringSourceNode)
 add_subdirectory(src/Nodes/DataInfoNode)
@@ -176,6 +180,7 @@ add_subdirectory(src/Nodes/SizeVarNode)
 add_subdirectory(src/Nodes/RectVarNode)
 add_subdirectory(src/Nodes/MergeNode)
 add_subdirectory(src/Nodes/OscInNode)
+add_subdirectory(src/Nodes/OscOutNode)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/cmake-build-debug")
 set(CALC_SOURCE_FILES
         main.cpp
@@ -251,6 +256,8 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/AudioPipe/AudioPipe.h
         src/Common/Devices/OSCReceiver/OSCReceiver.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.h
+        src/Common/Devices/OSCSender/OSCSender.cpp
+        src/Common/Devices/OSCSender/OSCSender.h
         src/DataTypes/DecimalData.h
         src/DataTypes/TextData.h
         src/DataTypes/FloatData.h
@@ -315,6 +322,7 @@ target_link_libraries(NodeEditorCPP
             ${QtAwesome_LIBRARIES}
             ${QCodeEditor_LIBRARIES}
             ${Qtpropertybrowser_LIBRARIES}
+            ${Libltc_LIBRARIES}
             Eigen3::Eigen
             AudioDeviceOutNode
             AudioDecoderNode
@@ -340,7 +348,7 @@ target_link_libraries(NodeEditorCPP
             LFONode
             QMLNode
             HotKeyNode
-            GroupNode
+            TimeCodeSourceNode
             ImageScaleNode
             CameraNode
             CaptureNode
@@ -353,6 +361,7 @@ target_link_libraries(NodeEditorCPP
             ExtractNode
             MergeNode
             OscInNode
+            OscOutNode
 
 )
 

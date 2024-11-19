@@ -5,28 +5,29 @@
 #ifndef NODEEDITORCPP_OSCRECEIVER_H
 #define NODEEDITORCPP_OSCRECEIVER_H
 #include <QObject>
-
-#include "Common/Devices/UdpSocket/UdpSocket.h"
+#include "QThread"
+#include <QtNetwork/QUdpSocket>
 class OSCReceiver:public QObject {
-        Q_OBJECT
+    Q_OBJECT
+public:
+    explicit OSCReceiver(quint16 port = 6000, QObject *parent = nullptr);
+    ~OSCReceiver();
 
-        public:
-        explicit OSCReceiver(quint16 port = 12345, QObject *parent = nullptr);
-        ~OSCReceiver();
-        void setPort(const int &port = 12345);
-    signals:
-        void receiveOSC(QVariantMap &data);
-        void receiveData(QString data);
-        // void portChanged(const int &port);
+signals:
+    void receiveOSC(QVariantMap &data);
 
-    private slots:
-        void processPendingDatagrams(QByteArray datagram);  // 处理接收到的UDP数据
-
-
-    private:
-        UdpSocket *m_udpSocket;  // 用于接收 UDP 数据的套接字
-        QVariantMap *result;
-    };
+public slots:
+    void processPendingDatagrams();  // 处理接收到的UDP数据
+    void setPort(const int &port);
+    void initializeSocket();
+    void cleanup();
+private:
+    quint16 mPort;
+    QString mHost;
+    QThread *mThread;
+    QUdpSocket *mSocket;
+    QVariantMap result;
+};
 
 
 #endif //NODEEDITORCPP_EXTERNALCONTROLER_H

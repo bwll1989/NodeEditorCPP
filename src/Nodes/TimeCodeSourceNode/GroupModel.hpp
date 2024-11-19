@@ -33,8 +33,8 @@ class UNTITLED_EXPORT GroupNode : public NodeDelegateModel
 public:
     GroupNode(): _label(new QWidget())
     {
-        InPortCount =0;
-        OutPortCount=0;
+        InPortCount =1;
+        OutPortCount=1;
         CaptionVisible=true;
         WidgetEmbeddable= true;
         Resizable=true;
@@ -49,7 +49,7 @@ public:
         _label->setMinimumSize(300, 300);
 
         _label->installEventFilter(this);
-        Caption="Group";
+        Caption="TimeCode Source";
     }
 
     ~GroupNode() override= default;

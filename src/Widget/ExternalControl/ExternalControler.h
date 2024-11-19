@@ -15,10 +15,8 @@
 class MainWindow;
 class ExternalControler:public QWidget {
         Q_OBJECT
-
     public:
         explicit ExternalControler(MainWindow *widget, quint16 port = 12345, QWidget *parent = nullptr);
-        void initUI();
     private slots:
         void hasOSC(const QVariantMap &data);  // 处理接收到的UDP数据
         // void handleJsonMessage(const QJsonObject &json);  // 处理解析后的JSON消息
@@ -27,7 +25,6 @@ class ExternalControler:public QWidget {
         MainWindow *m_widget;  // 控制的 QWidget 对象
         OSCReceiver *OSC_Receiver;
         QVBoxLayout *layout;
-        QPropertyBrowser *widget;
         // QtVariantPropertyManager *variantManager;
 
     };

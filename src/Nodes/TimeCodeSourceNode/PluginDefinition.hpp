@@ -5,13 +5,13 @@
 #include <QtNodes/PluginInterface>
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef GroupNode_EXPORTS
+#ifdef TimeCodeSourceNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "Group"
+#define PLUGIN_NAME "TimeCode Source"
 #define PLUGIN_VERSION "20240410"
 #define PLUGIN_DESCRIBE "分组"
 #define PLUGIN_TAG "Other"

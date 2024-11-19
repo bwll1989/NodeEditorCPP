@@ -13,7 +13,7 @@
 #endif
 
 #define PLUGIN_NAME "Merge"
-#define PLUGIN_VERSION "20241108"
+#define PLUGIN_VERSION "20241119"
 #define PLUGIN_DESCRIBE "数据合并"
 #define PLUGIN_TAG "Data"
 class DLL_EXPORT Plugin

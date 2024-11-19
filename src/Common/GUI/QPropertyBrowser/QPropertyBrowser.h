@@ -24,6 +24,8 @@ public:
     void buildPropertiesFromMap(const QVariantMap& map);
     void addFixedProperties(int propertyType, const QString &name = QString(),const QVariant &value=QVariant());
     QVariantMap exportToMap() const;
+    QVariant getProperties( const QString &name);
+    void setProperty(const QString &name,const QVariant &val);
     QtTreePropertyBrowser* m_propertyBrowser;
     QtVariantPropertyManager* m_propertyManager;
     QtVariantEditorFactory* m_editorFactory;

@@ -23,6 +23,8 @@ public slots:
 
     void sendMessage(const QString &message);
 
+    void startListen();
+
 signals:
 
     void isReady(const bool &isready);

@@ -6,56 +6,88 @@
 #include <QJsonObject>
 #include <QByteArray>
 #include <QHostAddress>
-#include "Common/Devices/UdpSocket/UdpSocket.h"
 #include "tinyosc.h"
-OSCReceiver::OSCReceiver( quint16 port, QObject *parent) {
-    // 创建 UDP 套接字并绑定到指定端口
+#include <QThread>
 
-    m_udpSocket = new UdpSocket("127.0.0.1",port);
-    // 连接 readyRead 信号到 processPendingDatagrams 函数
-    connect(m_udpSocket, &UdpSocket::arrayMsg, this, &OSCReceiver::processPendingDatagrams);
+OSCReceiver::OSCReceiver(quint16 port, QObject *parent)
+        : QObject(parent), mPort(port), mHost("0.0.0.0"), mSocket(nullptr) {
+    // 启动线程
+    qRegisterMetaType<QVariantMap >("QVariantMap&");
+    //注册信号传递数值类型
+    mThread = new QThread(this);
+    this->moveToThread(mThread);
+    connect(mThread, &QThread::started, this, &OSCReceiver::initializeSocket);
+    connect(mThread, &QThread::finished, this, &OSCReceiver::cleanup);
+
+    mThread->start();
 }
-
 
 OSCReceiver::~OSCReceiver() {
-    m_udpSocket->close();
-    delete m_udpSocket;
+    mThread->quit();
+    mThread->wait();
 }
-void OSCReceiver::processPendingDatagrams(QByteArray datagram) {
+
+void OSCReceiver::initializeSocket() {
+    mSocket = new QUdpSocket(this);
+
+    if (mSocket->bind(QHostAddress(mHost), mPort)) {
+        connect(mSocket, &QUdpSocket::readyRead, this, &OSCReceiver::processPendingDatagrams);
+    } else {
+        qWarning() << "Failed to bind to port" << mPort;
+    }
+}
+
+void OSCReceiver::cleanup() {
+    if (mSocket) {
+        mSocket->close();
+        mSocket->deleteLater();
+        mSocket = nullptr;
+    }
+}
+
+void OSCReceiver::processPendingDatagrams() {
+    while (mSocket && mSocket->hasPendingDatagrams()) {
+        QByteArray datagram;
+        datagram.resize(mSocket->pendingDatagramSize());
+
+        QHostAddress sender;
+        quint16 senderPort;
+        mSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+
         // 使用 tinyosc 解析 OSC 数据
         tosc_message oscMessage;
         if (tosc_parseMessage(&oscMessage, datagram.data(), datagram.size()) == 0) {
-            // 获取 OSC 地址
-            result=new QVariantMap();
             const char *address = tosc_getAddress(&oscMessage);
-            result->insert("address",address);
-            // 获取参数格式字符串
-            const char *format = tosc_getFormat(&oscMessage);
+            result.insert("address", address);
 
-            // 根据格式解析参数
+            const char *format = tosc_getFormat(&oscMessage);
             for (int i = 0; format[i] != '\0'; i++) {
                 const char type = format[i];
                 if (type == 'f') {
                     double value = tosc_getNextFloat(&oscMessage);
-                    result->insert("type","Float");
-                    result->insert("default",static_cast<double>(value));
+                    result.insert("type", "Float");
+                    result.insert("default", value);
                 } else if (type == 'i') {
                     int32_t value = tosc_getNextInt32(&oscMessage);
-                    result->insert("type","Int");
-                    result->insert("default",QVariant::fromValue(value));
+                    result.insert("type", "Int");
+                    result.insert("default", QVariant::fromValue(value));
                 } else if (type == 's') {
                     const char *value = tosc_getNextString(&oscMessage);
-                    result->insert("type","String");
-                    result->insert("default",value);
+                    result.insert("type", "String");
+                    result.insert("default", value);
                 }
             }
-            emit receiveOSC(*result);
-
+            emit receiveOSC(result);
         }
-
+    }
 }
 
 void OSCReceiver::setPort(const int &port) {
-    qDebug()<<3;
-    m_udpSocket->startSocket("0.0.0.0",port);
+    if (mSocket) {
+        mSocket->close();
+    }
+    mPort = port;
+    if (mSocket) {
+        mSocket->bind(QHostAddress(mHost), mPort);
+    }
 }

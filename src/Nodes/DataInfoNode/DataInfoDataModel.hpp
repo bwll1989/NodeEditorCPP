@@ -35,7 +35,7 @@ public:
         CaptionVisible=true;
         Caption="Data Info";
         WidgetEmbeddable=true;
-        Resizable=false;
+        Resizable= true;
 //        qDebug()<<Data->NodeValues.toString();
 
     }

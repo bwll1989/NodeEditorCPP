@@ -14,15 +14,10 @@ class OscInInterface: public QWidget{
     Q_OBJECT
 public:
     explicit OscInInterface(QWidget *parent = nullptr){
-//        frame->setLayout(layout);
-//        this->setStyleSheet("QFrame{background-color:transparent}");
-
-
         main_layout=new QVBoxLayout();
         browser=new QPropertyBrowser(this);
         browser->addFixedProperties(QVariant::Int,"Port",6000);
         main_layout->addWidget(browser,0);
-
         main_layout->setContentsMargins(0,0,0,0);
         connect(browser,&QPropertyBrowser::nodeItemValueChanged,this,&OscInInterface::valueChanged);
         this->setLayout(main_layout);

@@ -54,6 +54,7 @@ void QPropertyBrowser::addPropertiesFromMap(const QVariantMap& map, QtVariantPro
         QList<QtProperty*> subProperties = parentProperty->subProperties();
         for (QtProperty* prop : subProperties) {
             parentProperty->removeSubProperty(prop);
+            delete prop; // 确保删除对象
         }
 
     }
@@ -164,4 +165,40 @@ void QPropertyBrowser::onNodeItemValueChanged(QtProperty* property, const QVaria
         // 这里可以执行具体的逻辑处理，比如发出自定义信号或更新界面等
         emit nodeItemValueChanged(property->propertyName(), value);
     }
+}
+
+QVariant QPropertyBrowser::getProperties( const QString &name) {
+    QVariant result;
+    for (QtProperty *property : NodeItem->subProperties()) {
+        // 检查子属性的名称是否匹配
+        if (property->propertyName() == name) {
+            // 将属性的值设置为传入的 value
+            QtVariantProperty *variantProperty = dynamic_cast<QtVariantProperty*>(property);
+            result = variantProperty->value();
+
+        }
+
+    }
+    return result;
+}
+
+void QPropertyBrowser::setProperty(const QString &name,const QVariant &val) {
+//遍历子属性，检查是否已存在同名属性
+    for (QtProperty *child: NodeItem->subProperties()) {
+        if (child->propertyName() == name) {
+            // 将 QtProperty 转换为 QtVariantProperty
+            QtVariantProperty *existingProperty = dynamic_cast<QtVariantProperty *>(child);
+            if (existingProperty) {
+                existingProperty->setValue(val); // 更新现有属性值
+            } else {
+                qWarning() << "Existing property is not a QtVariantProperty";
+            }
+            return;
+        }
+    }
+    //属性不存在，新增一个
+    QtVariantProperty *nameProperty = m_propertyManager->addProperty(val.typeId(), name);
+    nameProperty->setValue(val);
+    emit nodeItemValueChanged(name,val);
+    NodeItem->addSubProperty(nameProperty);
 }

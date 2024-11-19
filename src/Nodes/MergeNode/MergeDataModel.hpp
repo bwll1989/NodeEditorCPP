@@ -83,7 +83,6 @@ public:
             in_dictionary[portIndex]=std::dynamic_pointer_cast<VariableData>(data);
             processAll();
             Q_EMIT dataUpdated(0);
-
         }
     }
 

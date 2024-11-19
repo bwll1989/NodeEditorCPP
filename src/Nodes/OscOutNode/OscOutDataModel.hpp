@@ -6,8 +6,8 @@
 #include <iostream>
 #include <QPushButton>
 #include <QtCore/qglobal.h>
-#include "Common/Devices/OSCReceiver/OSCReceiver.h"
-#include "OscInInterface.hpp"
+#include "Common/Devices/OSCSender/OSCSender.h"
+#include "OscOutInterface.hpp"
 #include <QVariantMap>
 #include "QThread"
 using QtNodes::ConnectionPolicy;
@@ -19,16 +19,17 @@ using QtNodes::PortType;
 
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class OscInDataModel : public NodeDelegateModel
+class OscOutDataModel : public NodeDelegateModel
 {
 
+    Q_OBJECT
 public:
-    OscInDataModel()
+    OscOutDataModel()
     {
-        InPortCount =0;
-        OutPortCount=1;
+        InPortCount =1;
+        OutPortCount=0;
         CaptionVisible=true;
-        Caption="OSC Source";
+        Caption="OSC Output";
         WidgetEmbeddable=true;
         Resizable=false;
         inData=std::make_shared<VariableData>();
@@ -36,18 +37,17 @@ public:
 
     }
 
-    virtual ~OscInDataModel() override {
-//        OSC_Receiver->deleteLater();
-        delete OSC_Receiver;
-        delete widget;
+    virtual ~OscOutDataModel() override {
+
     }
 
     void setup() {
 
-        OSC_Receiver=new OSCReceiver(6000);
-        widget=new OscInInterface();
-        connect(OSC_Receiver, &OSCReceiver::receiveOSC, this, &OscInDataModel::getOsc);
-        connect(widget,&OscInInterface::portChanged,OSC_Receiver,&OSCReceiver::setPort);
+        OSC_Sender=new OSCSender();
+        widget=new OscOutInterface();
+        connect(widget,&OscOutInterface::hostChanged,OSC_Sender,&OSCSender::setHost);
+        connect(this,&OscOutDataModel::onHasOSC,OSC_Sender,&OSCSender::sendMessage);
+
 
     }
 
@@ -76,13 +76,21 @@ public:
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
     {
+
         Q_UNUSED(portIndex);
+        if (data== nullptr){
+            return;
+        }
+        auto textData = std::dynamic_pointer_cast<VariableData>(data);
+        auto da=textData->getMap();
+        emit onHasOSC(da);
     }
 
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
         modelJson1["Port"] = widget->browser->getProperties("Port").toInt();
+        modelJson1["Host"] = widget->browser->getProperties("Host").toString();
         QJsonObject modelJson  = NodeDelegateModel::save();
         modelJson["values"]=modelJson1;
         return modelJson;
@@ -93,24 +101,18 @@ public:
         QJsonValue v = p["values"];
         if (!v.isUndefined()&&v.isObject()) {
             widget->browser->setProperty("Port",v["Port"].toInt());
+            widget->browser->setProperty("Host",v["Host"].toString());
         }
     }
-    QWidget *embeddedWidget() override {
 
+    QWidget *embeddedWidget() override {
         return widget;
     }
-private Q_SLOTS:
-    void getOsc(const QVariantMap &data) {
-        inData->insert(data["address"].toString(),data["default"]);
-
-        widget->browser->buildPropertiesFromMap(inData->getMap());
-        Q_EMIT dataUpdated(0);
-    }
+Q_SIGNALS:
+    void onHasOSC(QVariantMap &data);
 private:
-
     std::shared_ptr<VariableData> inData;
-
-    OSCReceiver *OSC_Receiver;
-    OscInInterface *widget;
+    OSCSender *OSC_Sender;
+    OscOutInterface *widget;
 
 };
