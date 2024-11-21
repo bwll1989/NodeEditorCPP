@@ -51,12 +51,7 @@ void QPropertyBrowser::buildPropertiesFromMap(const QVariantMap& map) {
 
 void QPropertyBrowser::addPropertiesFromMap(const QVariantMap& map, QtVariantProperty* parentProperty,bool readOnly) {
     if(parentProperty) {
-        QList<QtProperty*> subProperties = parentProperty->subProperties();
-        for (QtProperty* prop : subProperties) {
-            parentProperty->removeSubProperty(prop);
-            delete prop; // 确保删除对象
-        }
-
+        qDeleteAll(parentProperty->subProperties());
     }
 
     for (auto it = map.constBegin(); it != map.constEnd(); ++it) {
@@ -94,27 +89,32 @@ void QPropertyBrowser::addPropertiesFromMap(const QVariantMap& map, QtVariantPro
                     break;
                 }
                 case QMetaType::QRectF: {
-                    property = m_propertyManager->addProperty(QVariant::RectF, key);
+                    property = m_propertyManager->addProperty(QtVariantPropertyManager::groupTypeId(), key);
                     QRectF rectF = value.toRectF();
                     property->setValue(rectF);
                     break;
                 }
                 case QMetaType::QPoint: {
-                    property = m_propertyManager->addProperty(QVariant::Point, key);
+                    property = m_propertyManager->addProperty(QtVariantPropertyManager::groupTypeId(), key);
                     QPoint point = value.toPoint();
                     property->setValue(point);
                     break;
                 }
-                case QVariant::Map: {
+                case QMetaType::QVariantMap: {
                     // 使用 QVariant::Invalid 表示组属性
-                    property = m_propertyManager->addProperty(QVariant::Invalid, key);
+                    property = m_propertyManager->addProperty(QtVariantPropertyManager::groupTypeId(), key);
                     QVariantMap childMap = value.toMap();
                     addPropertiesFromMap(childMap, property, readOnly);  // 递归添加子属性
                     break;
                 }
+                case QMetaType::QByteArray: {
+                    property = m_propertyManager->addProperty(QMetaType::QString, key);
+                    property->setValue(value.toByteArray());
+                    break;
+                }
                 default:
                     // 对于不支持的类型，显示数据类型信息
-                    property = m_propertyManager->addProperty(QVariant::String, key);
+                    property = m_propertyManager->addProperty(QMetaType::QString, key);
                     property->setValue(QString("Unsupported Type: %1").arg(value.typeName()));
                     break;
             }
@@ -141,9 +141,8 @@ QVariantMap QPropertyBrowser::exportToMap() const {
 
 QVariant QPropertyBrowser::exportProperty(QtProperty* property) const {
     QVariant value;
-
     if (QtVariantProperty* variantProperty = dynamic_cast<QtVariantProperty*>(property)) {
-        if (variantProperty->valueType() == QVariant::Map) {
+        if (variantProperty->valueType() == QMetaType::QVariantMap) {
             QVariantMap map;
             for (QtProperty* subProperty : property->subProperties()) {
                 map.insert(subProperty->propertyName(), exportProperty(subProperty));
@@ -182,23 +181,26 @@ QVariant QPropertyBrowser::getProperties( const QString &name) {
     return result;
 }
 
-void QPropertyBrowser::setProperty(const QString &name,const QVariant &val) {
-//遍历子属性，检查是否已存在同名属性
-    for (QtProperty *child: NodeItem->subProperties()) {
+void QPropertyBrowser::setProperty(const QString& name, const QVariant& val) {
+    QtProperty* existingProperty = nullptr;
+    for (QtProperty* child : NodeItem->subProperties()) {
         if (child->propertyName() == name) {
-            // 将 QtProperty 转换为 QtVariantProperty
-            QtVariantProperty *existingProperty = dynamic_cast<QtVariantProperty *>(child);
-            if (existingProperty) {
-                existingProperty->setValue(val); // 更新现有属性值
-            } else {
-                qWarning() << "Existing property is not a QtVariantProperty";
-            }
-            return;
+            existingProperty = child;
+            break;
         }
     }
-    //属性不存在，新增一个
-    QtVariantProperty *nameProperty = m_propertyManager->addProperty(val.typeId(), name);
-    nameProperty->setValue(val);
-    emit nodeItemValueChanged(name,val);
-    NodeItem->addSubProperty(nameProperty);
+
+    if (existingProperty) {
+        if (QtVariantProperty* variantProperty = dynamic_cast<QtVariantProperty*>(existingProperty)) {
+            variantProperty->setValue(val);
+            emit nodeItemValueChanged(name,val);
+        } else {
+            qWarning() << "Existing property is not a QtVariantProperty";
+        }
+    } else {
+        QtVariantProperty* newProperty = m_propertyManager->addProperty(val.typeId(), name);
+        newProperty->setValue(val);
+        NodeItem->addSubProperty(newProperty);
+        emit nodeItemValueChanged(name,val);
+    }
 }

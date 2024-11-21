@@ -13,7 +13,12 @@
 [submodule "3rdParty/libsndfile"]
 	path = 3rdParty/libsndfile
 	url = https://github.com/https://github.com/libsndfile/libsndfile.git
-	
 [submodule "qtpropertybrowser"]
 	path = 3rdParty/qtpropertybrowser
 	url = https://github.com/AubrCool/qtpropertybrowser.git
+[submodule "tinyosc"]
+	path = 3rdParty/tinyosc
+	url = https://github.com/mhroth/tinyosc.git
+[submodule "libltc"]
+    path = 3rdParty/libltc_cmake
+    url = https://github.com/bwll1989/libltc_cmake.git

@@ -20,4 +20,8 @@
 /3rdParty/Qt-Advanced-Docking-System/
 /3rdParty/libpd/
 /3rdParty
+
+/cmake-build-release1
+/src/Nodes/TimeCode
+/3rdParty
 /3rdParty

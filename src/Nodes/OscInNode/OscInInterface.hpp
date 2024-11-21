@@ -16,7 +16,7 @@ public:
     explicit OscInInterface(QWidget *parent = nullptr){
         main_layout=new QVBoxLayout();
         browser=new QPropertyBrowser(this);
-        browser->addFixedProperties(QVariant::Int,"Port",6000);
+        browser->addFixedProperties(QMetaType::Int,"Port",6000);
         main_layout->addWidget(browser,0);
         main_layout->setContentsMargins(0,0,0,0);
         connect(browser,&QPropertyBrowser::nodeItemValueChanged,this,&OscInInterface::valueChanged);
@@ -33,7 +33,7 @@ public slots:
 public:
     QVBoxLayout *main_layout;
     QPropertyBrowser *browser;
-    QtVariantProperty *item;
+
 
 
 };

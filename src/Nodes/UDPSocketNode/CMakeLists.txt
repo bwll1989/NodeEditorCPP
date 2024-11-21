@@ -8,10 +8,13 @@ add_library(${Module_Name} SHARED
         UDPSocketDataModel.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
+        UDPSocketInterface.hpp
+        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
+        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         ../../Common/Devices/UdpSocket/UdpSocket.h
         ../../Common/Devices/UdpSocket/UdpSocket.cpp)
 
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} Qt${QT_VERSION_MAJOR}::Network)
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} Qt${QT_VERSION_MAJOR}::Network ${Qtpropertybrowser_LIBRARIES})
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins")

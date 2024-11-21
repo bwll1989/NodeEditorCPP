@@ -23,16 +23,14 @@ OSCSender::OSCSender(QString dstHost,quint16 port, QObject *parent):
 }
 
 OSCSender::~OSCSender() {
+    cleanup();
     mThread->quit();
     mThread->wait();
 }
 
 void OSCSender::initializeSocket() {
     mSocket = new QUdpSocket(this);
-
-    if (mSocket->bind(QHostAddress(mHost), mPort)) {
-    } else {
-        qWarning() << "Failed to bind to port" << mPort;
+    if (mSocket->bind(QHostAddress("0.0.0.0"), mPort)) {
     }
 }
 void OSCSender::cleanup() {
@@ -49,7 +47,10 @@ void OSCSender::setHost(QString address,int port) {
     }
     mPort = port;
     if (mSocket) {
-        mSocket->bind(QHostAddress(mHost), mPort);
+        if (mSocket->bind(QHostAddress("0.0.0.0"), mPort)){
+        } else {
+            qWarning() << "Failed to bind to port" << mPort;
+        }
     }
 }
 
@@ -109,9 +110,10 @@ bool OSCSender::sendMessage(QVariantMap &data){
         }
 
         // 通过 QUdpSocket 发送数据
+
         qint64 bytesSent = mSocket->writeDatagram(buffer, len, QHostAddress(mHost), mPort);
         if (bytesSent < 0) {
-            qWarning() << "Failed to send OSC message for address" << address << "via QUdpSocket.";
+            qWarning() << "Failed to send OSC message for address" << address << "via QUdpSocket."<<mHost;
             return false;
         }
     }

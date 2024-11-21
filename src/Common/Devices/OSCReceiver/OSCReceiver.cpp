@@ -32,8 +32,6 @@ void OSCReceiver::initializeSocket() {
 
     if (mSocket->bind(QHostAddress(mHost), mPort)) {
         connect(mSocket, &QUdpSocket::readyRead, this, &OSCReceiver::processPendingDatagrams);
-    } else {
-        qWarning() << "Failed to bind to port" << mPort;
     }
 }
 

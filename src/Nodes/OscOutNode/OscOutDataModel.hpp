@@ -48,7 +48,6 @@ public:
         connect(widget,&OscOutInterface::hostChanged,OSC_Sender,&OSCSender::setHost);
         connect(this,&OscOutDataModel::onHasOSC,OSC_Sender,&OSCSender::sendMessage);
 
-
     }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override

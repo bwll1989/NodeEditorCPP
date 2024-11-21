@@ -19,7 +19,6 @@ class QPropertyBrowser : public QWidget {
 
 public:
     QPropertyBrowser(QWidget* parent = nullptr);
-
     void initializeBranches();
     void buildPropertiesFromMap(const QVariantMap& map);
     void addFixedProperties(int propertyType, const QString &name = QString(),const QVariant &value=QVariant());

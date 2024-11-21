@@ -107,7 +107,7 @@ private slots:
         Q_EMIT dataUpdated(0);
     }
 private:
-       QLineEdit *widget=new QLineEdit();
+       QLineEdit *widget=new QLineEdit("default");
        std::shared_ptr<VariableData> m_proprtyData;
 
 

@@ -4,80 +4,68 @@
 
 #include "UdpSocket.h"
 
-UdpSocket::UdpSocket(QString dstHost, int dstPort, QObject *parent): QUdpSocket(parent)
+UdpSocket::UdpSocket(QString dstHost, int dstPort, QObject *parent): QObject(parent), mPort(dstPort), mHost(dstHost), mSocket(nullptr)
 {
+    // 启动线程
+//    qRegisterMetaType<QVariantMap >("QVariantMap&");
+    //注册信号传递数值类型
+    mThread = new QThread(this);
+    this->moveToThread(mThread);
+    connect(mThread, &QThread::started, this, &UdpSocket::initializeSocket);
+    connect(mThread, &QThread::finished, this, &UdpSocket::cleanup);
 
-    host=QHostAddress(dstHost);
-    port=dstPort;
-    startSocket(dstHost,port);
-    connect(this,&QUdpSocket::readyRead, this, &UdpSocket::processPendingDatagrams);
+    mThread->start();
 }
 
 UdpSocket::~UdpSocket()
 {
-    close();
-    deleteLater();
+    mThread->quit();
+    mThread->wait();
 }
+void UdpSocket::initializeSocket() {
+    mSocket = new QUdpSocket(this);
+    connect(mSocket, &QUdpSocket::readyRead, this, &UdpSocket::processPendingDatagrams);
+    if (mSocket->bind(QHostAddress("0.0.0.0"), mPort,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)) {
+    }
+}
+void UdpSocket::cleanup() {
+    if (mSocket) {
+        mSocket->deleteLater();
+        mSocket = nullptr;
+    }
+}
+void UdpSocket::setHost(QString address,int port) {
+    mHost=address;
+    if (mSocket) {
+        mSocket->close();
+    }
+    mPort = port;
+    if (mSocket) {
+        mSocket->bind(QHostAddress("0.0.0.0"), mPort);
 
+    }
+}
 void UdpSocket::processPendingDatagrams()
 {
-    while (this->hasPendingDatagrams()) {
+    while (mSocket->hasPendingDatagrams()) {
         QByteArray datagram;
-        datagram.resize(this->pendingDatagramSize());
+        datagram.resize(mSocket->pendingDatagramSize());
 
         QHostAddress sender;
         quint16 senderPort;
-        this->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        mSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
         emit arrayMsg(datagram);
-        emit recMsg(QString::fromUtf8(datagram));
+//        emit recMsg(QString::fromUtf8(datagram));
         // 发送回显数据到客户端
 //            QByteArray response = "Echo: " + datagram;
 //            this->writeDatagram(response, sender, senderPort);
     }
 }
 
-void UdpSocket::startSocket(const QString &dstHost,int dstPort)
-{
-    close();
-    host=QHostAddress(dstHost);
-    port=dstPort;
-    if(this->bind(host, dstPort))
-    {
 
-        emit isReady(true);
-        qDebug()<<"UDP Socket is ready";
-        emit recMsg("UDP Socket is ready!");
-    }else
-    {
-        emit isReady(false);
-        qDebug()<<"Error! please check port or host!"<<dstHost<<dstPort;
-        emit recMsg("Error! please check port or host!");
-
-    }
-
-}
-
-void UdpSocket::startListen(){
-    close();
-
-    if(this->bind(host, port))
-    {
-
-        emit isReady(true);
-        qDebug()<<"UDP Socket is ready";
-        emit recMsg("UDP Socket is ready!");
-    }else
-    {
-        emit isReady(false);
-        qDebug()<<"Error! please check port or host!"<<host<<port;
-        emit recMsg("Error! please check port or host!");
-
-    }
-
-}
 
 void UdpSocket::sendMessage(const QString &message)
 {
-    this->writeDatagram(message.toUtf8(),host,port);
+    mSocket->writeDatagram(message.toUtf8(),QHostAddress(mHost),mPort);
 }
 

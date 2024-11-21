@@ -16,7 +16,6 @@
 #include <QThread>
 #include "Common/Devices/UdpSocket/UdpSocket.h"
 
-
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -26,55 +25,32 @@ class QLineEdit;
 class UDPSocketDataModel : public NodeDelegateModel
 {
     Q_OBJECT
-
 public:
 
     UDPSocketDataModel(){
-        // 在新线程中启动服务器
         InPortCount =1;
         OutPortCount=1;
         PortEditable=true;
         CaptionVisible=true;
         Caption=PLUGIN_NAME;
         WidgetEmbeddable= false;
-        Resizable=false;
-        client->moveToThread(clientThread);
-        connect(widget->send, &QPushButton::clicked, this,&UDPSocketDataModel::sendMessage,Qt::QueuedConnection);
+        Resizable=true;
+        inData=std::make_shared<VariableData>();
+//        connect(widget->send, &QPushButton::clicked, this,&UDPSocketDataModel::sendMessage,Qt::QueuedConnection);
         connect(this, &UDPSocketDataModel::sendUDPMessage, client, &UdpSocket::sendMessage, Qt::QueuedConnection);
-        connect(widget->IP,&QLineEdit::editingFinished,this,&UDPSocketDataModel::hostChange,Qt::QueuedConnection);
-        connect(widget->Port,&QSpinBox::valueChanged,this,&UDPSocketDataModel::hostChange,Qt::QueuedConnection);
-        connect(client, &UdpSocket::recMsg, this, &UDPSocketDataModel::recMsg, Qt::QueuedConnection);
-        connect(client, &UdpSocket::isReady, widget->send, &QPushButton::setEnabled, Qt::QueuedConnection);
-        connect(this, &UDPSocketDataModel::startUDPSocket, client, &UdpSocket::startSocket, Qt::QueuedConnection);
-        clientThread->start();
+////        connect(widget->IP,&QLineEdit::editingFinished,this,&UDPSocketDataModel::hostChange,Qt::QueuedConnection);
+////        connect(widget->Port,&QSpinBox::valueChanged,this,&UDPSocketDataModel::hostChange,Qt::QueuedConnection);
+        connect(widget,&UDPSocketInterface::hostChanged,client, &UdpSocket::setHost,Qt::QueuedConnection);
+        connect(client, &UdpSocket::arrayMsg, this, &UDPSocketDataModel::recMsg, Qt::QueuedConnection);
+//        connect(client, &UdpSocket::isReady, widget->send, &QPushButton::setEnabled, Qt::QueuedConnection);
+////        connect(this, &UDPSocketDataModel::startUDPSocket, client, &UdpSocket::setHost, Qt::QueuedConnection);
     }
     ~UDPSocketDataModel(){
-        emit stopUDPSocket();
-        if(clientThread->isRunning()){
-            clientThread->quit();
-            clientThread->wait();
-        }
 
+        client->cleanup();
         delete client;
-        delete clientThread;
-
+//        delete clientThread;
         widget->deleteLater();
-    }
-public:
-
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = "➩";
-        QString out = "➩";
-        switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-        }
-        return "";
     }
 
 public:
@@ -105,36 +81,43 @@ public:
             case PortType::In:
                 switch (portIndex) {
                     case 0:
-                        return VariantData().type();
+                        return VariableData().type();
                 }
                 break;
             case PortType::Out:
-                return VariantData().type();
+                return VariableData().type();
                 break;
 
             case PortType::None:
                 break;
         }
-        return VariantData().type();
+        return VariableData().type();
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariantData>(message);
+        return inData;
     }
 
-    void setInData(std::shared_ptr<NodeData>, PortIndex const) override {}
+    void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
+        if (data== nullptr){
+            return;
+        }
+        auto Da = std::dynamic_pointer_cast<VariableData>(data);
+        emit sendUDPMessage(Da->value().toString());
+    }
 
     QWidget *embeddedWidget() override
     {
-        return widget;}
+        return widget;
+    }
 
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
-        modelJson1["Port"] = widget->Port->value();
-        modelJson1["IP"] = widget->IP->text();
+//        modelJson1["Port"] = widget->Port->value();
+//        modelJson1["IP"] = widget->IP->text();
         QJsonObject modelJson  = NodeDelegateModel::save();
         modelJson["values"]=modelJson1;
         return modelJson;
@@ -144,41 +127,35 @@ public:
     {
         QJsonValue v = p["values"];
         if (!v.isUndefined()&&v.isObject()) {
-            widget->IP->setText(v["IP"].toString());
-            widget->Port->setValue(v["Port"].toInt());
+//            widget->IP->setText(v["IP"].toString());
+//            widget->Port->setValue(v["Port"].toInt());
 
         }
     }
 
 public slots:
 //    收到信息时
-    void recMsg(const QString &msg)
+    void recMsg(const QByteArray msg)
     {
-        widget->receiveBox->append(msg);
-        widget->receiveBox->update();
-        message.setValue(msg);
+        inData->insert("default",msg.toHex());
         Q_EMIT dataUpdated(0);
     }
 
-    void sendMessage(){
+//    void sendMessage(){
+//
+//
+//        QString msg="";
+//        emit sendUDPMessage(msg);
+//    }
 
-        QString msg=widget->sendBox->text();
 
-        emit sendUDPMessage(msg);
-    }
-
-    void hostChange()
-    {
-        emit startUDPSocket(widget->IP->text(),widget->Port->value());
-    }
 signals:
-//    关闭信号
-    void stopUDPSocket();
     void sendUDPMessage(const QString &message);
     void startUDPSocket(const QString &host,int port);
 private:
     UDPSocketInterface *widget=new UDPSocketInterface();
     UdpSocket *client=new UdpSocket();
-    QThread *clientThread=new QThread();
-    QVariant message;
+//    QVariant message;
+    std::shared_ptr<VariableData> inData;
+
 };

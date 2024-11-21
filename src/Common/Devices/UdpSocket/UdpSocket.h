@@ -4,26 +4,24 @@
 
 #ifndef NODEEDITORCPP_UDPSOCKET_H
 #define NODEEDITORCPP_UDPSOCKET_H
-
+#include <QObject>
 #include <QtNetwork/QUdpSocket>
-
-class UdpSocket : public QUdpSocket
+#include <QThread>
+class UdpSocket : public QObject
 {
     Q_OBJECT
 
 public:
     explicit UdpSocket(QString dstHost="127.0.0.1", int dstPort=2001, QObject *parent = nullptr);
-
     ~UdpSocket();
 
 public slots:
     void processPendingDatagrams();
-
-    void startSocket(const QString &dstHost,int dstPort);
-
+    void initializeSocket();
+    void setHost(QString address,int port);
+    void cleanup();
     void sendMessage(const QString &message);
 
-    void startListen();
 
 signals:
 
@@ -34,8 +32,11 @@ signals:
     void arrayMsg(QByteArray datagram);
 
 private:
-    QHostAddress  host;
-    quint16 port;
+    quint16 mPort;
+    QString mHost;
+    QThread *mThread;
+    QUdpSocket *mSocket;
+
 };
 
 
