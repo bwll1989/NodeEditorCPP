@@ -30,7 +30,7 @@ OSCReceiver::~OSCReceiver() {
 void OSCReceiver::initializeSocket() {
     mSocket = new QUdpSocket(this);
 
-    if (mSocket->bind(QHostAddress(mHost), mPort)) {
+    if (mSocket->bind(QHostAddress(mHost), mPort,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)) {
         connect(mSocket, &QUdpSocket::readyRead, this, &OSCReceiver::processPendingDatagrams);
     }
 }

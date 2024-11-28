@@ -8,6 +8,7 @@
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
 #include "QTimer"
+#include "QThread"
 class TcpClient : public QObject
 {
     Q_OBJECT
@@ -44,7 +45,7 @@ private:
     QString host;
     int port;
     bool isConnected= false;
-
+    QThread *mThread;
 };
 
 

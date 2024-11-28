@@ -6,8 +6,8 @@
 #include <iostream>
 #include <QPushButton>
 #include <QtCore/qglobal.h>
-#include "Common/Devices/OSCReceiver/OSCReceiver.h"
-#include "OscInInterface.hpp"
+#include "Common/Devices/ArtnetReceiver/ArtnetReceiver.h"
+#include "ArtnetInInterface.hpp"
 #include <QVariantMap>
 #include "QThread"
 using QtNodes::ConnectionPolicy;
@@ -19,16 +19,16 @@ using QtNodes::PortType;
 
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class OscInDataModel : public NodeDelegateModel
+class ArtnetInDataModel : public NodeDelegateModel
 {
 
 public:
-    OscInDataModel()
+    ArtnetInDataModel()
     {
         InPortCount =0;
         OutPortCount=1;
         CaptionVisible=true;
-        Caption="OSC Source";
+        Caption="Artnet Source";
         WidgetEmbeddable=true;
         Resizable=false;
         inData=std::make_shared<VariableData>();
@@ -36,7 +36,7 @@ public:
 
     }
 
-    virtual ~OscInDataModel() override {
+    virtual ~ArtnetInDataModel() override {
 //        OSC_Receiver->deleteLater();
         delete OSC_Receiver;
         delete widget;
@@ -44,10 +44,8 @@ public:
 
     void setup() {
 
-        OSC_Receiver=new OSCReceiver(6000);
-        widget=new OscInInterface();
-        connect(OSC_Receiver, &OSCReceiver::receiveOSC, this, &OscInDataModel::getOsc);
-        connect(widget,&OscInInterface::portChanged,OSC_Receiver,&OSCReceiver::setPort);
+        connect(OSC_Receiver, &ArtnetReceiver::receiveOSC, this, &ArtnetInDataModel::getOsc);
+        connect(widget,&ArtnetInInterface::UniverseChanged,OSC_Receiver,&ArtnetReceiver::universeFilter);
 
     }
 
@@ -71,7 +69,7 @@ public:
     std::shared_ptr<NodeData> outData(PortIndex const port) override
     {
         Q_UNUSED(port);
-        return std::make_shared<VariableData>(widget->browser->exportToMap());
+        return inData;
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
@@ -82,7 +80,7 @@ public:
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
-        modelJson1["Port"] = widget->browser->getProperties("Port").toInt();
+        modelJson1["Universe"] = widget->browser->getProperties("Universe").toInt();
         QJsonObject modelJson  = NodeDelegateModel::save();
         modelJson["values"]=modelJson1;
         return modelJson;
@@ -92,7 +90,7 @@ public:
     {
         QJsonValue v = p["values"];
         if (!v.isUndefined()&&v.isObject()) {
-            widget->browser->setProperty("Port",v["Port"].toInt());
+            widget->browser->setProperty("Universe",v["Universe"].toInt());
         }
     }
     QWidget *embeddedWidget() override {
@@ -101,16 +99,16 @@ public:
     }
 private Q_SLOTS:
     void getOsc(const QVariantMap &data) {
-        inData->insert(data["address"].toString(),data["default"]);
-
-        widget->browser->buildPropertiesFromMap(inData->getMap());
+//        inData->insert(data["address"].toString(),data["default"]);
+        widget->browser->buildPropertiesFromMap(data);
         Q_EMIT dataUpdated(0);
     }
 private:
 
     std::shared_ptr<VariableData> inData;
 
-    OSCReceiver *OSC_Receiver;
-    OscInInterface *widget;
+    ArtnetReceiver * OSC_Receiver=new ArtnetReceiver();
+
+    ArtnetInInterface * widget=new ArtnetInInterface();
 
 };

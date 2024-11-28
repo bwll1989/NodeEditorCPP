@@ -131,9 +131,13 @@ void QPropertyBrowser::addPropertiesFromMap(const QVariantMap& map, QtVariantPro
             }
         }
     }
+
 QVariantMap QPropertyBrowser::exportToMap() const {
     QVariantMap map;
-    for (QtProperty* property : m_propertyBrowser->properties()) {
+    for (QtProperty* property : NodeItem->subProperties()) {
+        map.insert(property->propertyName(), exportProperty(property));
+    }
+    for (QtProperty* property : VaribaleItem->subProperties()) {
         map.insert(property->propertyName(), exportProperty(property));
     }
     return map;

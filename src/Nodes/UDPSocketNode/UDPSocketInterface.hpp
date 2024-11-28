@@ -53,9 +53,7 @@ public slots:
 public:
 
     QVBoxLayout *main_layout=new QVBoxLayout(this);
-//    QTextBrowser *receiveBox=new QTextBrowser();
-//    QLineEdit* sendBox=new QLineEdit();
-//    QPushButton* send=new QPushButton("Send");
+
     QPropertyBrowser *browser;
 
 };

@@ -30,7 +30,7 @@ OSCSender::~OSCSender() {
 
 void OSCSender::initializeSocket() {
     mSocket = new QUdpSocket(this);
-    if (mSocket->bind(QHostAddress("0.0.0.0"), mPort)) {
+    if (mSocket->bind(QHostAddress::AnyIPv4, 0,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)) {
     }
 }
 void OSCSender::cleanup() {
@@ -42,16 +42,16 @@ void OSCSender::cleanup() {
 }
 void OSCSender::setHost(QString address,int port) {
     mHost=address;
-    if (mSocket) {
-        mSocket->close();
-    }
+//    if (mSocket) {
+//        mSocket->close();
+//    }
     mPort = port;
-    if (mSocket) {
-        if (mSocket->bind(QHostAddress("0.0.0.0"), mPort)){
-        } else {
-            qWarning() << "Failed to bind to port" << mPort;
-        }
-    }
+//    if (mSocket) {
+//        if (mSocket->bind(QHostAddress::AnyIPv4, 0,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)){
+//        } else {
+//            qWarning() << "Failed to bind to port" << mPort;
+//        }
+//    }
 }
 
 

@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "BoolSourceDataModel.hpp"
+#include "ArtnetInDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,6 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<VST3PluginDataModel>(PLUGIN_TAG);
+    reg->registerModel<ArtnetInDataModel>(PLUGIN_TAG);
 }
-

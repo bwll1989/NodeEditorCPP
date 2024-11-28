@@ -21,14 +21,14 @@ class QLineEdit;
 class QPushButton;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class BoolSourceDataModel : public NodeDelegateModel
+class VST3PluginDataModel : public NodeDelegateModel
 {
     Q_OBJECT
 
 
 public:
 
-    BoolSourceDataModel():button(new QPushButton("0")){
+    VST3PluginDataModel(): button(new QPushButton("0")){
         InPortCount =1;
         OutPortCount=1;
         CaptionVisible=true;
@@ -37,9 +37,9 @@ public:
         Resizable=false;
         button->setCheckable(true);
         button->setChecked(false);
-        connect(button, &QPushButton::clicked, this, &BoolSourceDataModel::onTextEdited);
+        connect(button, &QPushButton::clicked, this, &VST3PluginDataModel::onTextEdited);
     }
-    ~BoolSourceDataModel(){
+    ~VST3PluginDataModel(){
         delete button;
 
     }

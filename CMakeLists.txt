@@ -4,8 +4,6 @@ cmake_minimum_required(VERSION 3.5)
 #set(CMAKE_TOOLCHAIN_FILE "C:/Users/bwll1/scoop/apps/vcpkg/2024.07.12/scripts/buildsystems/vcpkg.cmake"
 #        CACHE STRING "Vcpkg toolchain file")
 ##设置VCPKG
-
-
 project(NodeEditorCPP VERSION 1.1 LANGUAGES CXX)
 set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_AUTOUIC ON)
@@ -13,6 +11,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL") # 或 MultiThreaded
 enable_language(C)
 set(DEPENDS_DIR "${CMAKE_SOURCE_DIR}/3rdParty")
 set(CMAKE_PREFIX_PATH ${DEPENDS_DIR})
@@ -31,7 +30,6 @@ set(Spdlog_LIBRARIES "${DEPENDS_DIR}/spdlog/build/Release/spdlog.lib")
 INCLUDE_DIRECTORIES(${Spdlog_INCLUDE_DIRS})
 message("--Found spdlog ${Spdlog_LIBRARIES}")
 
-
 #set(Libpd_INCLUDE_DIRS "${DEPENDS_DIR}/libpd/libpd_wrapper" )
 #INCLUDE_DIRECTORIES(${Libpd_INCLUDE_DIRS})
 #set(Libpd_LIBRARIES "${DEPENDS_DIR}/libpd/build/liblibpd.dll")
@@ -47,9 +45,13 @@ set(QtNodes_DIR "${DEPENDS_DIR}/nodeeditor/include")
 set(QtNodes_LIBRARIES "${DEPENDS_DIR}/nodeeditor/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Release/lib/QtNodes.lib")
 #find_package(QtNodes REQUIRED)
 INCLUDE_DIRECTORIES(${QtNodes_DIR})
-
 message("-- Found QtNodes ${QtNodes_DIR}")
 #添加QtNodes库
+
+set(SDL2_INCLUDE_DIR "${DEPENDS_DIR}/SDL2-2.30.9/include")
+set(SDL2_LIBRARIES "${DEPENDS_DIR}/SDL2-2.30.9/lib/x64/SDL2.lib")
+INCLUDE_DIRECTORIES(${SDL2_INCLUDE_DIR} )
+link_libraries(${SDL2_LIBRARIES})
 
 set(QHotKey_INCLUDE_DIRS "${DEPENDS_DIR}/QHotkey-master/install/include" )
 INCLUDE_DIRECTORIES(${QHotKey_INCLUDE_DIRS} )
@@ -57,11 +59,25 @@ set(QHotKey_LIBRARIES "${DEPENDS_DIR}/QHotkey-master/build/Release/qhotkey.lib")
 message("-- Found QHotkey ${QHotKey_INCLUDE_DIRS}")
 #添加QHotKey库
 
+# VST3 SDK
+#SET(vstsdk_VERSION 3.7.11)
+set(VST3_DIR "${DEPENDS_DIR}/vst3sdk")
+set(VST3_LIBRARIES_DIR "${VST3_DIR}/build/Desktop_Qt_6_5_3_MSVC2019_64bit-Release/lib")
+add_subdirectory(${VST3_DIR})
+include_directories(${VST3_DIR})
+link_directories(${VST3_LIBRARIES_DIR})
+#smtg_enable_vst3_sdk()
+
+# 包含头文件路径
+#include(cmake/custom_functions.cmake)
+#add_subdirectory(modules)
+#add_subdirectory(external_modules)
+
 set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/src" )
 set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/build/x64/lib/Release/qt6advanceddocking.lib")
 INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
 message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
-
+#添加ADS
 set(QtAwesome_INCLUDE_DIRS "${DEPENDS_DIR}/QtAwesome")
 set(QtAwesome_LIBRARIES "${DEPENDS_DIR}/QtAwesome/build/Release/QtAwesome.lib")
 INCLUDE_DIRECTORIES(${QtAwesome_INCLUDE_DIRS})
@@ -106,7 +122,7 @@ set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc")
 include_directories(${tinyosc_DIR})
 message("-- Found tinyosc ${tinyosc_DIR}")
 
-set(Libltc_DIR "D:/19_NodeEditorCPP/NodeEditorCPP-MSVC/3rdParty/libltc_cmake")
+set(Libltc_DIR "D:/19_NodeEditorCPP/NodeEditorCPP/3rdParty/libltc_cmake")
 INCLUDE_DIRECTORIES("${Libltc_DIR}/src")
 set(Libltc_LIBRARIES "${Libltc_DIR}/build/Release/libltc.lib")
 #set(Python3_ROOT_DIR "${CMAKE_BINARY_DIR}/Python312" )
@@ -181,8 +197,13 @@ add_subdirectory(src/Nodes/RectVarNode)
 add_subdirectory(src/Nodes/MergeNode)
 add_subdirectory(src/Nodes/OscInNode)
 add_subdirectory(src/Nodes/OscOutNode)
+add_subdirectory(src/Nodes/ArtnetInNode)
+add_subdirectory(src/Nodes/VST3PluginNode)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/cmake-build-debug")
 set(CALC_SOURCE_FILES
+#        ${SDK_ROOT}/public.sdk/source/vst/hosting/plugprovider.cpp
+#        ${SDK_ROOT}/public.sdk/source/vst/hosting/plugprovider.h
+        ${VST3_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
         main.cpp
         3rdParty/tinyosc/tinyosc.c
         3rdParty/tinyosc/tinyosc.h
@@ -258,6 +279,8 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/OSCReceiver/OSCReceiver.h
         src/Common/Devices/OSCSender/OSCSender.cpp
         src/Common/Devices/OSCSender/OSCSender.h
+        src/Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
+        src/Common/Devices/ArtnetReceiver/ArtnetReceiver.h
         src/DataTypes/DecimalData.h
         src/DataTypes/TextData.h
         src/DataTypes/FloatData.h
@@ -292,6 +315,7 @@ else()
     else()
         add_executable(NodeEditorCPP
                 ${CALC_SOURCE_FILES}
+                ${editorhost_sources}
                 res/res.rc
         )
     endif()
@@ -312,8 +336,10 @@ target_link_libraries(NodeEditorCPP
             Qt${QT_VERSION_MAJOR}::Concurrent
             Qt${QT_VERSION_MAJOR}::Multimedia
             Qt${QT_VERSION_MAJOR}::MultimediaWidgets
-
             ${QtNodes_LIBRARIES}
+            sdk
+            vstgui_support
+            sdk_hosting
 #            ${Log4Qt_LIBRARIES}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
@@ -323,6 +349,7 @@ target_link_libraries(NodeEditorCPP
             ${QCodeEditor_LIBRARIES}
             ${Qtpropertybrowser_LIBRARIES}
             ${Libltc_LIBRARIES}
+            ${SDL2_LIBRARIES}
             Eigen3::Eigen
             AudioDeviceOutNode
             AudioDecoderNode
@@ -362,8 +389,11 @@ target_link_libraries(NodeEditorCPP
             MergeNode
             OscInNode
             OscOutNode
+            ArtnetInNode
+            VST3PluginNode
 
 )
+
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an

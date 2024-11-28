@@ -97,7 +97,8 @@ public:
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return inData;
+//        return inData;
+        return std::make_shared<VariableData>(widget->browser->exportToMap());
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
@@ -116,8 +117,8 @@ public:
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
-//        modelJson1["Port"] = widget->Port->value();
-//        modelJson1["IP"] = widget->IP->text();
+        modelJson1["Port"] = widget->browser->getProperties("Port").toInt();
+        modelJson1["Host"] = widget->browser->getProperties("Host").toString();
         QJsonObject modelJson  = NodeDelegateModel::save();
         modelJson["values"]=modelJson1;
         return modelJson;
@@ -127,9 +128,8 @@ public:
     {
         QJsonValue v = p["values"];
         if (!v.isUndefined()&&v.isObject()) {
-//            widget->IP->setText(v["IP"].toString());
-//            widget->Port->setValue(v["Port"].toInt());
-
+            widget->browser->setProperty("Port",v["Port"].toInt());
+            widget->browser->setProperty("Host",v["Host"].toString());
         }
     }
 
@@ -138,16 +138,9 @@ public slots:
     void recMsg(const QByteArray msg)
     {
         inData->insert("default",msg.toHex());
+        widget->browser->buildPropertiesFromMap(inData->getMap());
         Q_EMIT dataUpdated(0);
     }
-
-//    void sendMessage(){
-//
-//
-//        QString msg="";
-//        emit sendUDPMessage(msg);
-//    }
-
 
 signals:
     void sendUDPMessage(const QString &message);

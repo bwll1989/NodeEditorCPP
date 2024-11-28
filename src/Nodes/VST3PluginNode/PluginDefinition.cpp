@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "BoolSourceDataModel.hpp"
+#include "VST3PluginDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 

@@ -25,7 +25,7 @@ UdpSocket::~UdpSocket()
 void UdpSocket::initializeSocket() {
     mSocket = new QUdpSocket(this);
     connect(mSocket, &QUdpSocket::readyRead, this, &UdpSocket::processPendingDatagrams);
-    if (mSocket->bind(QHostAddress("0.0.0.0"), mPort,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)) {
+    if (mSocket->bind(QHostAddress::AnyIPv4, mPort,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)) {
     }
 }
 void UdpSocket::cleanup() {
@@ -41,7 +41,7 @@ void UdpSocket::setHost(QString address,int port) {
     }
     mPort = port;
     if (mSocket) {
-        mSocket->bind(QHostAddress("0.0.0.0"), mPort);
+        mSocket->bind(QHostAddress::AnyIPv4, mPort,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint);
 
     }
 }

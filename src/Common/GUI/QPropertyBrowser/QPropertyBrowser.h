@@ -25,6 +25,7 @@ public:
     QVariantMap exportToMap() const;
     QVariant getProperties( const QString &name);
     void setProperty(const QString &name,const QVariant &val);
+//    QVariantMap exportFlatProperties(QtProperty* property) const;
     QtTreePropertyBrowser* m_propertyBrowser;
     QtVariantPropertyManager* m_propertyManager;
     QtVariantEditorFactory* m_editorFactory;
