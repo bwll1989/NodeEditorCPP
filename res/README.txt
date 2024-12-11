@@ -11,5 +11,9 @@
 *** https://github.com/gabime/spdlog
 * QCodeEditor : 代码编辑器框架
 *** https://github.com/Megaxela/QCodeEditor/tree/master
-* 1Qt-Advanced-Docking-System : 高级布局系统
+* Qt-Advanced-Docking-System : 高级布局系统
 *** https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System
+* mlt framework:MLT 多媒体框架
+*** https://github.com/mltframework/mlt
+*Vst3(only MSVC):
+***https://github.com/steinbergmedia/vst3sdk

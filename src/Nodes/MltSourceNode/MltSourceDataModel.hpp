@@ -1,18 +1,14 @@
 #pragma once
-
-
 #include <QtCore/QObject>
-
 #include "DataTypes/NodeDataList.hpp"
-
 #include <QtNodes/NodeDelegateModel>
-
 #include <iostream>
 #include <QtWidgets/QLineEdit>
-
 #include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
-
+#include <mlt++/Mlt.h>
+#include "widgets/MLTPlayerWidget.h"
+using namespace Mlt;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -21,27 +17,30 @@ class QLineEdit;
 class QPushButton;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class BoolPluginDataModel : public NodeDelegateModel
+class MltPluginDataModel : public NodeDelegateModel
 {
     Q_OBJECT
-
-
 public:
-
-    BoolPluginDataModel(): button(new QPushButton("0")){
-        InPortCount =1;
+    MltPluginDataModel(): button(new QPushButton("0")),button1(new QPushButton("1")){
+        widget=new QWidget();
+        InPortCount =0;
         OutPortCount=1;
         CaptionVisible=true;
-        Caption="Bool Source";
+        Caption="Mlt Source";
         WidgetEmbeddable=true;
-        Resizable=false;
+        Resizable=true;
         button->setCheckable(true);
         button->setChecked(false);
-        connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);
+        player=new MLTPlayerWidget();
+        QVBoxLayout *lay=new QVBoxLayout(widget);
+        lay->addWidget(button,0);
+        lay->addWidget(button1,1);
+//        widget->setLayout(&lay);
+        connect(button, &QPushButton::clicked, this, &MltPluginDataModel::test);
+        connect(button1, &QPushButton::clicked, player, &MLTPlayerWidget::updatePlayer);
     }
-    ~BoolPluginDataModel(){
+    ~MltPluginDataModel(){
         delete button;
-
     }
 
 public:
@@ -102,7 +101,11 @@ public:
             button->setText(v["val"].toString());
         }
     }
-    QWidget *embeddedWidget() override{return button;}
+    QWidget *embeddedWidget() override{
+
+
+        return widget;
+    }
 
 private Q_SLOTS:
 
@@ -111,10 +114,14 @@ private Q_SLOTS:
         button->setText(QString::number(string));
         Q_EMIT dataUpdated(0);
     }
+    void test() {
+        player->show();
+    }
 
 private:
-
+    QWidget *widget;
     QPushButton *button;
-
+    QPushButton *button1;
+    MLTPlayerWidget *player;
 
 };

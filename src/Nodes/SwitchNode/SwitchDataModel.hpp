@@ -10,7 +10,7 @@
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 
-#include <QtWidgets/QPushButton>
+#include <QtWidgets/QSpinBox>
 #include <QtCore/qglobal.h>
 
 using QtNodes::NodeData;
@@ -21,28 +21,25 @@ class QLineEdit;
 class QPushButton;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class BoolPluginDataModel : public NodeDelegateModel
+class SwitchDataModel : public NodeDelegateModel
 {
     Q_OBJECT
 
 
 public:
 
-    BoolPluginDataModel(): button(new QPushButton("0")){
-        InPortCount =1;
+    SwitchDataModel(){
+        InPortCount =5;
         OutPortCount=1;
         CaptionVisible=true;
-        Caption="Bool Source";
+        Caption= PLUGIN_NAME;
         WidgetEmbeddable=true;
         Resizable=false;
-        button->setCheckable(true);
-        button->setChecked(false);
-        connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);
+        PortEditable= true;
+        index=new QSpinBox();
+        connect(index,&QSpinBox::valueChanged, this, &SwitchDataModel::onIndexEdited);
     }
-    ~BoolPluginDataModel(){
-        delete button;
-
-    }
+    ~SwitchDataModel(){    }
 
 public:
 
@@ -68,28 +65,39 @@ public:
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariableData>(button->isChecked());
+        return  in_dictionary[index->value()];
     }
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
 
         if (data== nullptr){
             return;
         }
+
         auto textData = std::dynamic_pointer_cast<VariableData>(data);
-        if (textData->value().canConvert<bool>()) {
-            button->setChecked(textData->value().toBool());
-        } else {
-            button->setChecked(false);
+        if(portIndex==0){
+            index->setValue(textData->value().toInt());
         }
-        button->setText(button->isChecked()? "1":"0");
-        Q_EMIT dataUpdated(portIndex);
+        else{
+            in_dictionary[portIndex-1]=std::dynamic_pointer_cast<VariableData>(textData);
+            for(unsigned int i = 0; i < OutPortCount; ++i){
+                Q_EMIT dataUpdated(i);
+            }
+        }
+
     }
 
+    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+    {
+        if(portType==PortType::In&&portIndex==0){
+            return "index";
+        }
 
+        return "info";
+    }
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
-        modelJson1["val"] = QString::number(button->isChecked());
+        modelJson1["val"] = index->value();
         QJsonObject modelJson  = NodeDelegateModel::save();
         modelJson["values"]=modelJson1;
         return modelJson;
@@ -98,23 +106,23 @@ public:
     {
         QJsonValue v = p["values"];
         if (!v.isUndefined()&&v.isObject()) {
-            button->setChecked(v["val"].toBool(false));
-            button->setText(v["val"].toString());
+//            button->setChecked(v["val"].toBool(false));
+            index->setValue(v["val"].toInt());
         }
     }
-    QWidget *embeddedWidget() override{return button;}
+    QWidget *embeddedWidget() override{return index;}
 
 private Q_SLOTS:
 
-    void onTextEdited(bool const &string)
+    void onIndexEdited(int const &string)
     {
-        button->setText(QString::number(string));
+
         Q_EMIT dataUpdated(0);
     }
 
 private:
 
-    QPushButton *button;
-
+    QSpinBox *index;
+    std::unordered_map<unsigned int,  std::shared_ptr<VariableData>> in_dictionary;
 
 };

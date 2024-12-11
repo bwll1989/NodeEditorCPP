@@ -2,9 +2,8 @@
 // Created by Administrator on 2023/12/13.
 //
 #pragma once
-
-#include <QPushButton>
 #include "QWidget"
+#include <QPushButton>
 #include "QComboBox"
 #include "QLayout"
 #include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
@@ -22,7 +21,7 @@ public:
         main_layout->addWidget(SelectVST,1);
         main_layout->addWidget(ShowController,1);
         main_layout->addWidget(LoadPreset,1);
-        main_layout->addWidget(browser,8);
+        main_layout->addWidget(browser,4);
         ShowController->setEnabled(false);
 //        main_layout->addWidget(frame,4);
         this->setLayout(main_layout);

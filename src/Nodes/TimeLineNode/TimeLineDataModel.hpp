@@ -35,7 +35,7 @@ public:
         CaptionVisible=true;
         Caption=PLUGIN_NAME;
         WidgetEmbeddable= false;
-        Resizable= false;
+        Resizable= true;
         PortEditable=true;
 
 //        widget->model->createTrack(MediaType::CONTROL);

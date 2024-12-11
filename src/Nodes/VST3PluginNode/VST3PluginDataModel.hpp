@@ -2,7 +2,6 @@
 #include <QtCore/QObject>
 #include "DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
-#include <iostream>
 #include <QtCore/qglobal.h>
 #include <cstdio>
 #include <iostream>
@@ -10,29 +9,17 @@
 #include "windows.h"
 #include <wtypes.h>
 #endif
-#include "public.sdk/samples/vst-hosting/editorhost/source/editorhost.h"
-#include "public.sdk/samples/vst-hosting/editorhost/source/platform/appinit.h"
-#include "public.sdk/samples/vst-hosting/editorhost/source/platform/iapplication.h"
-#include "public.sdk/samples/vst-hosting/editorhost/source/platform/iwindow.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "public.sdk/source/vst/hosting/module.h"
 #include "public.sdk/source/vst/hosting/plugprovider.h"
-#include "public.sdk/source/vst/utility/optional.h"
-#include <QWindow>
-#include "pluginterfaces/base/funknown.h"
 #include "pluginterfaces/gui/iplugview.h"
 #include <pluginterfaces/vst/ivstcomponent.h>
-#include <pluginterfaces/vst/ivstunits.h>
-#include "pluginterfaces/gui/iplugviewcontentscalesupport.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
-#include "pluginterfaces/vst/vsttypes.h"
-//#include "base/source/fcommandline.h"
 #include "base/source/fdebug.h"
 #include <QFileDialog>
 #include "VST3PluginInterface.hpp"
-#include "public.sdk/source/main/pluginfactory_constexpr.h"
-#include "WindowContainer.h"
+#include "Container.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -80,13 +67,23 @@ public slots:
     }
     void showController()
     {
-        view = owned (editController->createView (Vst::ViewType::kEditor));
-        window = std::make_shared<WindowContainer>(view);
-        window->setWindowTitle( module->getFactory ().info().vendor().c_str());
-//        window->setParent(widget->windowHandle());
-        window->show();
 
+        if (window && window->isVisible()) {
+            // 如果窗口已经显示，不做任何操作
+            window->close();
+            return;
+        }
+
+        // 如果 window 已经存在并且关闭，则重新创建
+
+        view = owned(editController->createView(Vst::ViewType::kEditor));
+        view->addRef();
+        window = std::make_shared<Container>(view);
+
+        window->setWindowTitle(module->getFactory().info().vendor().c_str());
+        window->show();
     }
+
 public:
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -143,14 +140,30 @@ public:
 
 
     void loadPlugin(const QString& pluginPath) {
+        if (window && window->isVisible()) {
+            // 如果窗口已经显示，不做任何操作
+            window->close();
+        }
+        if(!module){
+            module.reset();
+            pluginContext.reset();
+            plugProvider.reset();
+            vstPlug.reset();
+            editController.reset();
+            audioEffect.reset();
+            view.reset();
+            window.reset();
+        }
         std::string error;
-        auto PluginContext = owned(NEW Steinberg::Vst::HostApplication());
-        Vst::PluginContextFactory::instance ().setPluginContext (PluginContext);
-        VST3::Optional<VST3::UID> uid;
-        module =VST3::Hosting::Module::create(pluginPath.toStdString().c_str(), error);
+        if (!pluginContext) {
+            pluginContext = owned(NEW Steinberg::Vst::HostApplication());
+            Vst::PluginContextFactory::instance().setPluginContext(pluginContext);
+        }
+
+        module =VST3::Hosting::Module::create(pluginPath.toStdString(), error);
 //        IPtr<Steinberg::Vst::PlugProvider> plugProvider {nullptr};
         if (!module) {
-            qWarning() << "Failed to load module from path: " << pluginPath ;
+            qWarning() << "Failed to load module from path: " << error ;
             return ;
         }
         const auto& factory = module->getFactory();
@@ -167,26 +180,25 @@ public:
         {
             if (classInfo.category () == kVstAudioEffectClass)
                 plugProvider = owned (new Steinberg::Vst::PlugProvider (factory, classInfo, true));
-            if (plugProvider->initialize () == false)
+            if (!plugProvider->initialize()) {
                 plugProvider = nullptr;
+                return;
+            }
             break;
 
         }
-        if (!plugProvider)
-        {
-            qDebug()<< "No VST3 Audio Module Class found in file ";
-            return;
-        }
         editController = plugProvider->getController ();
-        vstPlug=plugProvider->getComponent();
         if (!editController)
         {
             qDebug()<<"No EditController found (needed for allowing editor) in file ";
             widget->ShowController->setEnabled(false);
             return ;
         }
+
+        vstPlug=plugProvider->getComponent();
+        audioEffect=FUnknownPtr<Steinberg::Vst::IAudioProcessor>(vstPlug);
         widget->ShowController->setEnabled(true);
-//        controller->release ();
+//        editController->release ();
 
 
     }
@@ -198,10 +210,9 @@ private:
     Steinberg::IPtr<Steinberg::Vst::IComponent> vstPlug = nullptr;
     Steinberg::IPtr<Steinberg::Vst::IAudioProcessor> audioEffect = nullptr;
     Steinberg::IPtr<Steinberg::Vst::IEditController> editController = nullptr;
-
     Steinberg::IPtr<Steinberg::IPlugView> view = nullptr;
     VST3PluginInterface * widget;
-//    Vst::HostApplication pluginContext;
-    std::shared_ptr<WindowContainer> window;
+    Steinberg::IPtr<Steinberg::Vst::HostApplication> pluginContext= nullptr;
+    std::shared_ptr<Container> window;
 };
 

@@ -1,6 +1,6 @@
 <RCC>
   <qresource prefix="qml">
-    <file>content/dynamicview.qml</file>
     <file>content/PetsModel.qml</file>
+    <file>content/dynamicview.qml</file>
   </qresource>
 </RCC>

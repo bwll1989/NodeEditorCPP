@@ -25,3 +25,6 @@
 /src/Nodes/TimeCode
 /3rdParty
 /3rdParty
+/cmake-build-release-mingw
+/build
+/NodeStudio

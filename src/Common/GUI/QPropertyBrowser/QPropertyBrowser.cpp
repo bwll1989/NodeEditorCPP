@@ -3,7 +3,9 @@
 //
 
 #include "QPropertyBrowser.h"
-
+#include "QJsonValue"
+#include "QJsonObject"
+#include "QJsonArray"
 QPropertyBrowser::QPropertyBrowser(QWidget* parent) : QWidget(parent) {
 
     // 创建属性浏览器并添加到布局中
@@ -47,6 +49,11 @@ void QPropertyBrowser::addFixedProperties(int propertyType, const QString &name,
 void QPropertyBrowser::buildPropertiesFromMap(const QVariantMap& map) {
     // m_propertyBrowser->clear();  // 清空当前属性
     addPropertiesFromMap(map, VaribaleItem);  // 递归添加属性
+}
+
+void QPropertyBrowser::buildPropertiesFromJson(const QJsonObject& jsonObj) {
+    // m_propertyBrowser->clear();  // 清空当前属性
+    addPropertiesFromJson(jsonObj, VaribaleItem);  // 递归添加属性
 }
 
 void QPropertyBrowser::addPropertiesFromMap(const QVariantMap& map, QtVariantProperty* parentProperty,bool readOnly) {
@@ -131,6 +138,68 @@ void QPropertyBrowser::addPropertiesFromMap(const QVariantMap& map, QtVariantPro
             }
         }
     }
+
+void QPropertyBrowser::addPropertiesFromJson(const QJsonObject& jsonObj, QtVariantProperty* parentProperty, bool readOnly) {
+    if (parentProperty) {
+        qDeleteAll(parentProperty->subProperties());
+    }
+
+    for (auto it = jsonObj.begin(); it != jsonObj.end(); ++it) {
+        const QString& key = it.key();
+        const QJsonValue& value = it.value();
+        QtVariantProperty* property = nullptr;
+
+        // 判断 QJsonValue 的类型，并根据不同类型创建属性
+        switch (value.type()) {
+            case QJsonValue::String:
+                property = m_propertyManager->addProperty(QMetaType::QString, key);
+                property->setValue(value.toString());
+                break;
+            case QJsonValue::Double:
+                property = m_propertyManager->addProperty(QMetaType::Double, key);
+                property->setValue(value.toDouble());
+                break;
+            case QJsonValue::Bool:
+                property = m_propertyManager->addProperty(QMetaType::Bool, key);
+                property->setValue(value.toBool());
+                break;
+            case QJsonValue::Array: {
+                // 对于数组类型，使用 QString 来表示
+                property = m_propertyManager->addProperty(QMetaType::QString, key);
+                QJsonArray array = value.toArray();
+                QStringList arrayStrings;
+                for (const QJsonValue& val : array) {
+                    arrayStrings.append(val.toVariant().toString());
+                }
+                property->setValue(arrayStrings.join(", "));
+                break;
+            }
+            case QJsonValue::Object: {
+                // 对于对象类型，递归处理
+                property = m_propertyManager->addProperty(QtVariantPropertyManager::groupTypeId(), key);
+                QJsonObject childObject = value.toObject();
+                addPropertiesFromJson(childObject, property, readOnly);  // 递归添加子属性
+                break;
+            }
+            default:
+                // 对于不支持的类型，显示数据类型信息
+                property = m_propertyManager->addProperty(QMetaType::QString, key);
+                property->setValue(QString("Unsupported Type: %1").arg(value.type()));
+                break;
+        }
+
+        if (property && readOnly) {
+            // 设置为只读
+            m_propertyManager->setAttribute(property, "readOnly", true);
+        }
+
+        if (parentProperty) {
+            parentProperty->addSubProperty(property);
+        } else {
+            m_propertyBrowser->addProperty(property);
+        }
+    }
+}
 
 QVariantMap QPropertyBrowser::exportToMap() const {
     QVariantMap map;

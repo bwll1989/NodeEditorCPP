@@ -7,32 +7,38 @@
 
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
-class TcpServer : public QTcpServer
+class TcpServer : public QObject
 {
     Q_OBJECT
 public:
-    explicit TcpServer(int port=2000, QObject *parent = nullptr);
-    int listenPort;
-    QList<QTcpSocket *> m_clients; // 存储所有客户端连接
+    explicit TcpServer(QString dstHost="127.0.0.1",int port=2001, QObject *parent = nullptr);
+
     ~TcpServer();
+
 public slots:
-    void stopServer();
-
-    void startServer();
-
-    void sendMessage(const QString &client,const QString &message);
-
-    void setPort(const int &port);
-
+//    void processPendingDatagrams();
+    void initializeServer();
+//    void setHost(QString address,int port);
+    void cleanup();
+    void sendMessage(const QString &message);
+    void onNewConnection();
+    void onReadyRead();
+    void onDisconnected();
+    void setHost(QString address,int port);
 signals:
-        void serverError(const QString &error);
-        void serverMessage(const QString &message);
-        void serverStoped();
-        void clientInserted(const QString &message);
-        void clientRemoved(const QString &message);
 
-protected:
-    void incomingConnection(qintptr socketDescriptor) override;
+    void isReady(const bool &isready);
+
+    void recMsg(const QVariantMap &res);
+//
+    void arrayMsg(QByteArray datagram);
+
+private:
+    quint16 mPort;
+    QString mHost;
+    QThread *mThread;
+    QTcpServer *mServer;
+    QList<QTcpSocket *> mClientSockets; // 存储所有客户端连接
 };
 
 

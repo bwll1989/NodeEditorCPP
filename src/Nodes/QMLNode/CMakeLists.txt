@@ -17,8 +17,8 @@ target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Gui
         Qt${QT_VERSION_MAJOR}::Quick
         Qt${QT_VERSION_MAJOR}::QuickWidgets
-        ${QtNodes_LIBRARIES}
-        ${Libpd_LIBRARIES})
+        ${QtNodes_LIBRARIES})
+
 set(QRC_FILES
         res.qrc
 )

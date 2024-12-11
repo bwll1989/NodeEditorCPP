@@ -1,13 +1,11 @@
 cmake_minimum_required(VERSION 3.5)
+
 set(Module_Name "VST3PluginNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)
-#添加QtNodes库目录
 set(SMTG_ADD_VST3_HOSTING_SAMPLES 0)
 set(SMTG_ADD_VST3_HOSTING_SAMPLES 0 CACHE INTERNAL "")
-
-#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-non-virtual-dtor")
 include_directories(${VST3_DIR})
 add_library(${Module_Name} SHARED
         VST3PluginDataModel.hpp
@@ -16,38 +14,32 @@ add_library(${Module_Name} SHARED
         VST3PluginInterface.hpp
         ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
-        platform/win32/platform.cpp
-        platform/win32/window.h
-        platform/win32/window.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/plugprovider.h
-        WindowContainer.cpp
-        WindowContainer.h
+        UI/WindowContainer.hpp
+        Container.cpp
+        Container.h
 )
-set(APP_PROPERTIES
-        LINK_FLAGS "/SUBSYSTEM:windows"
-)
-set_target_properties(${Module_Name}
-        PROPERTIES
-        ${APP_PROPERTIES}
-)
+#set(APP_PROPERTIES
+#        LINK_FLAGS "/SUBSYSTEM:windows"
+##)
+#set_target_properties(${Module_Name}
+#        PROPERTIES
+##        ${APP_PROPERTIES}
+#)
 #set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
 link_directories(${VST3_LIBRARIES_DIR})
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} ${Qtpropertybrowser_LIBRARIES}
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+        ${QtNodes_LIBRARIES}
+        ${Qtpropertybrowser_LIBRARIES}
+        base
+        pluginterfaces
         sdk
         sdk_common
         sdk_hosting
-        vstgui_standalone
-        vstgui_support
-        vstgui
-        vstgui_uidescription
-        base
-        ${SDL2_LIBRARIES}
-        ${editorhost_PLATFORM_LIBS}
-
 )
-target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
+target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins")
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES LINKER_LANGUAGE C
         ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}

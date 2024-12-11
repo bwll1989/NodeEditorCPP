@@ -19,7 +19,6 @@ public:
     LuaQVariant(const int value) {
         variant_=QVariant::fromValue(value);
     }
-
     // 使用 double 构造，C++中使用
     LuaQVariant(const double value) : variant_(value) {
         variant_=QVariant::fromValue(value);

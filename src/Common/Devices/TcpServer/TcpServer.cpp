@@ -3,103 +3,121 @@
 //
 
 #include "TcpServer.h"
-TcpServer::TcpServer(int port, QObject *parent) : QTcpServer(parent)
+#include "QThread"
+TcpServer::TcpServer(QString dstHost, int dstPort, QObject *parent)
+        : QObject(parent), mPort(dstPort), mHost(dstHost), mServer(nullptr)
 {
-    listenPort=port;
-    startServer();
+    mThread = new QThread(this);
+    this->moveToThread(mThread);
+    connect(mThread, &QThread::started, this, &TcpServer::initializeServer);
+    connect(mThread, &QThread::finished, this, &TcpServer::cleanup);
+
+    mThread->start();
 }
+
 TcpServer::~TcpServer()
 {
-    stopServer();
-
-    this->deleteLater();
-
+    cleanup();
 }
 
-void TcpServer::stopServer()
-{
-    for (QTcpSocket *clientSocket : m_clients) {
-        clientSocket->disconnectFromHost();
-        emit clientRemoved(clientSocket->peerAddress().toString());
-    }
-    close();
-    emit serverStoped();
+void TcpServer::initializeServer() {
+    mServer = new QTcpServer(this);
+    connect(mServer, &QTcpServer::newConnection, this, &TcpServer::onNewConnection);
 
-};
-void TcpServer::startServer()
-//    切换启动或停止客户端
-{
-//        qDebug()<<"server 进程："<<QThread::currentThreadId();
-    if(!isListening()){
-        if (!listen(QHostAddress::Any, listenPort)) {
-            qDebug() << "Error starting server:" << errorString();
-            emit serverError(errorString());
-        } else {
-//                qDebug() << "Server started on port "<<listenPort;
-        }
-    } else{
-        stopServer();
-    }};
-
-void TcpServer::sendMessage(const QString &client,const QString &message)
-{
-    QTcpSocket *clientSocket;
-    for(QTcpSocket *Socket:m_clients)
-        if(Socket->peerAddress().toString()==client){
-            clientSocket=Socket;
-            break;
-        }
-    clientSocket->write(message.toStdString().c_str());
-    clientSocket->flush();
-
-}
-void TcpServer::setPort(const int &port)
-{
-    for (QTcpSocket *clientSocket : m_clients) {
-        clientSocket->disconnectFromHost();
-        emit clientRemoved(clientSocket->peerAddress().toString());
-    }
-    close();
-//        先停止服务器
-    listenPort=port;
-//        设置端口后重新启动
-    if (!listen(QHostAddress::Any, listenPort)) {
-        emit serverError(errorString());
+    if (mServer->listen(QHostAddress(mHost), mPort)) {
+        qDebug() << "Server listening on port" << mPort;
     } else {
-        qInfo() << "Server restarted on port "<<listenPort;
+        qWarning() << "Failed to start server";
     }
 }
 
-void TcpServer:: incomingConnection(qintptr socketDescriptor)
+void TcpServer::cleanup()
 {
-    // 创建一个新的 QTcpSocket 对象来处理新的连接
-    QTcpSocket *clientSocket = new QTcpSocket(this);
-    if (!clientSocket->setSocketDescriptor(socketDescriptor)) {
-        qDebug() << "Error setting socket descriptor:" << clientSocket->errorString();
-        delete clientSocket;
-        return;
-    }
-
-    // 存储连接
-    m_clients.append(clientSocket);
-    emit clientInserted(clientSocket->peerAddress().toString());
-    // 当客户端断开连接时，删除 QTcpSocket 对象并从列表中移除
-    connect(clientSocket, &QTcpSocket::disconnected, [this, clientSocket]() {
-        //            qDebug() << "Client disconnected:" << clientSocket->peerAddress().toString();
-        m_clients.removeAll(clientSocket);
-        emit clientRemoved(clientSocket->peerAddress().toString());
-        clientSocket->deleteLater();
-    });
-
-    // 当有数据到达时，读取数据
-    connect(clientSocket, &QTcpSocket::readyRead, this, [=]() {
-        while (clientSocket->bytesAvailable() > 0) {
-            QByteArray data = clientSocket->readAll();
-            emit serverMessage(data);
-            // 向客户端发送数据
-            clientSocket->write("Hello from server!");
-            clientSocket->flush();
-
+    // 关闭所有客户端连接
+    for (QTcpSocket *clientSocket : mClientSockets) {
+        if (clientSocket->isOpen()) {
+            clientSocket->close();
         }
-    });
+        clientSocket->deleteLater();
+    }
+    mClientSockets.clear();
+    // 关闭服务器并删除
+    if (mServer) {
+        mServer->destroyed();
+        mServer->deleteLater();
+        mServer = nullptr;
+    }
+    mThread->quit();
+}
+
+void TcpServer::onNewConnection()
+{
+    QTcpSocket *clientSocket = mServer->nextPendingConnection();
+    qDebug()<<"new";
+    connect(clientSocket, &QTcpSocket::readyRead, this, &TcpServer::onReadyRead);
+    connect(clientSocket, &QTcpSocket::disconnected, this, &TcpServer::onDisconnected);
+    mClientSockets.append(clientSocket); // Store the client socket
+}
+
+void TcpServer::onReadyRead()
+{
+    for (QTcpSocket *clientSocket : mClientSockets) {
+        if (clientSocket->bytesAvailable() > 0) {
+            QByteArray data = clientSocket->readAll();
+            std::shared_ptr<QVariantMap> a=std::make_shared<QVariantMap>();
+
+            a->insert("Host", clientSocket->peerAddress().toString());
+            a->insert("Default", data);
+            emit arrayMsg(data);
+            emit recMsg(*a);
+            // 可以在此处理数据或回显
+        }
+    }
+}
+
+void TcpServer::onDisconnected()
+{
+    QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
+    if (clientSocket) {
+        mClientSockets.removeAll(clientSocket);
+        clientSocket->deleteLater();
+    }
+}
+
+void TcpServer::sendMessage(const QString &message)
+{
+    for (QTcpSocket *clientSocket : mClientSockets) {
+        clientSocket->write(message.toUtf8());
+    }
+}
+
+void TcpServer::setHost(QString address, int port) {
+    qDebug()<<"12";
+//    cleanup();
+    // 关闭所有客户端连接
+    for (QTcpSocket *clientSocket : mClientSockets) {
+        if (clientSocket->isOpen()) {
+            clientSocket->close();
+        }
+        clientSocket->deleteLater();
+    }
+    mClientSockets.clear();
+    // 关闭服务器并删除
+    if (mServer) {
+        mServer->destroyed();
+        mServer->deleteLater();
+        mServer = nullptr;
+    }
+    mPort=port;
+    mHost=address;
+    mServer = new QTcpServer(this);
+    connect(mServer, &QTcpServer::newConnection, this, &TcpServer::onNewConnection);
+
+    if (mServer->listen(QHostAddress(mHost), mPort)) {
+        qDebug() << "Server listening on port" << mPort;
+    } else {
+        qWarning() << "Failed to start server";
+    }
+    mThread->start();
+
 }

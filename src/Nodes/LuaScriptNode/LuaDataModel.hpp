@@ -82,19 +82,19 @@ public:
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
         Q_UNUSED(portType)
-        return VariantData().type();
+        return VariableData().type();
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         // Q_UNUSED(portIndex)
-        return std::make_shared<VariantData>(out_dictionary[portIndex].getVariant());
+        return std::make_shared<VariableData>(out_dictionary[portIndex].getVariant());
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
-        if (auto d = std::dynamic_pointer_cast<VariantData>(data))
+        if (auto d = std::dynamic_pointer_cast<VariableData>(data))
         {
-            in_dictionary[portIndex].setVariant( d->NodeValues);
+            in_dictionary[portIndex].setVariant( d->value());
             onButtonClicked();
             Q_EMIT dataUpdated(0);
         }

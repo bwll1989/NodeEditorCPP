@@ -1,21 +1,22 @@
 cmake_minimum_required(VERSION 3.5)
-set(Module_Name "TCPServerNode")
+set(Module_Name "MpvControllerNode")
 project(${Module_Name})
+
 set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)
-
+#添加QtNodes库目录
 add_library(${Module_Name} SHARED
-        TCPServerDataModel.hpp
-        PluginDefinition.hpp
-        PluginDefinition.cpp
-        TCPServerInterface.hpp
+        MpvControllerDataModel.hpp
+        MpvControllerInterface.hpp
         ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
-        ../../Common/Devices/TcpServer/TcpServer.cpp
-        ../../Common/Devices/TcpServer/TcpServer.h)
 
+        PluginDefinition.hpp
+        PluginDefinition.cpp
+        HttpClient.cpp
+        HttpClient.h)
+#set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} Qt${QT_VERSION_MAJOR}::Network ${Qtpropertybrowser_LIBRARIES})
-
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/plugins")
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES LINKER_LANGUAGE C
@@ -24,5 +25,4 @@ SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES LINKER_LANGUAGE C
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
         PREFIX ""
         SUFFIX ".node")
-
 
