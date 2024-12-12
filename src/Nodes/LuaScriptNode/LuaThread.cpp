@@ -34,10 +34,11 @@ void LuaThread::init() {
     lua_pushcfunction(luaState, luaPrint);
     lua_setglobal(luaState, "print");
     //注册QVariant转换类
-    registerLuaQVariant(luaState);
+//    registerLuaQVariant(luaState);
     // 注册 LuaDataModel 类到 Lua
     registerLuaNode(luaState);
     // 创建 userdata 并将 LuaDataModel 实例压入 Lua
+    registerLuaQVariantMap(luaState);
     auto instancePtr = static_cast<LuaDataModel*>(nodeInstance);
     //设置c++类实例全局名称为Node
     luabridge::setGlobal(luaState,instancePtr,"Node");

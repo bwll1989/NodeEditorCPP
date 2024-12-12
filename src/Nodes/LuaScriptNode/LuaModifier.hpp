@@ -142,6 +142,7 @@ public:
                 lua_pushnil(L);  // 未知或不支持的类型，返回 nil
             break;
         }
+
         return 1;  // 返回一个值
     }
     //获取内部QVariant的typeId,lua中调用
@@ -211,40 +212,97 @@ static int luaPrint(lua_State* L) {
     return 0;
 }
 
-// 将 std::unordered_map<unsigned int, QVariant> 转换为 Lua table
-// pushUnorderedMapToLua(luaState,Inputs);
-// // 将 Lua table 存入一个全局变量
-// lua_setglobal(luaState, "NodeInputs");
-static void pushUnorderedMapToLua(lua_State* L, const std::unordered_map<unsigned int, QVariant>& map) {
-    // 创建一个新的 Lua table
-    lua_newtable(L);
-    // 遍历 unordered_map 并将每个键值对添加到 Lua table
-    for (const auto& pair : map) {
-        // 将键压入 Lua 栈 (unsigned int 键)
-        lua_pushinteger(L, pair.first);
+class LuaQVariantMap {
+public:
+    LuaQVariantMap() = default;
 
-        // 处理 QVariant 类型并将值压入 Lua 栈
-        const QVariant& value = pair.second;
-        switch (value.typeId()) {
-            case QVariant::Int:
-                lua_pushinteger(L, value.toInt());
-                break;
-            case QVariant::Double:
-                lua_pushnumber(L, value.toDouble());
-                break;
-            case QVariant::String:
-                lua_pushstring(L, value.toString().toUtf8().constData());
-                break;
-            case QVariant::Bool:
-                lua_pushboolean(L, value.toBool());
-                break;
-            // 可以添加更多类型的处理
-            default:
-                lua_pushnil(L); // 对于不支持的类型，推入 nil
-            break;
+    LuaQVariantMap(const QVariantMap& map) : variantMap(map) {}
+
+    LuaQVariantMap(lua_State* L) {
+        if (!lua_istable(L, -1)) {
+            qDebug() << "Error: Expected a table.";
+            return;
         }
 
-        // 将键值对添加到 table
-        lua_settable(L, -3); // -3 表示 table 在栈中的索引
+        lua_pushnil(L); // 将 nil 压栈作为初始键
+        while (lua_next(L, -2)) {
+            QString key;
+            if (lua_isnumber(L, -2)) { // 键是字符串
+                key = QString::number(lua_tointeger(L, -2));
+
+                if (lua_isnumber(L, -1)) {
+                    variantMap.insert(key, lua_tonumber(L, -1));
+                } else if (lua_isboolean(L, -1)) {
+                    variantMap.insert(key, lua_toboolean(L, -1));
+                } else if (lua_isstring(L, -1)) {
+                    variantMap.insert(key, lua_tostring(L, -1));
+                }
+            }
+            else if (lua_isstring(L, -2)) { // 键是字符串
+                key = lua_tostring(L, -2);
+                if (lua_isnumber(L, -1)) {
+                    variantMap.insert(key, lua_tonumber(L, -1));
+                } else if (lua_isboolean(L, -1)) {
+                    variantMap.insert(key, lua_toboolean(L, -1));
+                } else if (lua_isstring(L, -1)) {
+                    variantMap.insert(key, lua_tostring(L, -1));
+                }
+            }
+            lua_pop(L, 1); // 弹出值，保留键
+        }
     }
+
+    int toLuaTable(lua_State* L) {
+        lua_newtable(L);
+        for (auto it = variantMap.constBegin(); it != variantMap.constEnd(); ++it) {
+            lua_pushstring(L, it.key().toUtf8().constData());
+            const QVariant& value = it.value();
+
+            switch (value.typeId()) {
+                case QMetaType::Int:
+                    lua_pushinteger(L, value.toInt());
+                    break;
+                case QMetaType::Double:
+                    lua_pushnumber(L, value.toDouble());
+                    break;
+                case QMetaType::Bool:
+                    lua_pushboolean(L, value.toBool());
+                    break;
+                case QMetaType::QString:
+                    lua_pushstring(L, value.toString().toUtf8().constData());
+                    break;
+                case QMetaType::QVariantMap: {
+                    LuaQVariantMap subMap(value.toMap());
+                    subMap.toLuaTable(L);
+                    break;
+                }
+                default:
+                    lua_pushnil(L);
+                    break;
+            }
+            lua_settable(L, -3);
+        }
+        return 1;
+    }
+    static LuaQVariantMap fromLuaTable(lua_State* L) {
+        return LuaQVariantMap(L);
+    }
+
+    static LuaQVariantMap fromQVariantMap(const QVariantMap& map) {
+        return LuaQVariantMap(map);
+    }
+
+public:
+    QVariantMap variantMap;
+};
+
+static void registerLuaQVariantMap(lua_State* L) {
+    using namespace luabridge;
+    getGlobalNamespace(L)
+            .beginClass<LuaQVariantMap>("VariantMap")
+            .addConstructor<void(*)()>()
+            .addStaticFunction("fromLuaTable", &LuaQVariantMap::fromLuaTable)
+            .addStaticFunction("fromQVariantMap", &LuaQVariantMap::fromQVariantMap)
+            .addFunction("toLuaTable", &LuaQVariantMap::toLuaTable)
+            .endClass();
 }

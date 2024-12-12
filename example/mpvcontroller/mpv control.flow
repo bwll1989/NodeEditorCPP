@@ -1,0 +1,145 @@
+{
+    "connections": [
+        {
+            "inPortIndex": 3,
+            "intNodeId": 0,
+            "outNodeId": 8,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 2,
+            "intNodeId": 0,
+            "outNodeId": 7,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 0,
+            "outNodeId": 4,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 1,
+            "intNodeId": 0,
+            "outNodeId": 6,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 5,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 1,
+            "outNodeId": 0,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
+        {
+            "id": 0,
+            "inPortCount": "4",
+            "internal-data": {
+                "InPortCount": 4,
+                "OutPortCount": 1,
+                "model-name": "Lua Script",
+                "values": {
+                    "scripts": "\n\nlocal port = Node:inputIndex()\n\nif port == 0 then\n    local out = VariantMap.fromLuaTable({default = \"fullscreen\"})\n    Node:setTableValue(0, out)\nelseif port == 1 then\n    local out = VariantMap.fromLuaTable({default = \"toggle_pause\"})\n    Node:setTableValue(0, out)\nelseif port == 2 then\n    local out = VariantMap.fromLuaTable({default = \"playlist_prev\"})\n    Node:setTableValue(0, out)\nelseif port == 3 then\n    local out = VariantMap.fromLuaTable({default = \"playlist_next\"})\n    Node:setTableValue(0, out)\nend\n\n-- local out= VariantMap.fromLuaTable(luaTable)\n"
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 24.43077333333318,
+                "y": 123.71365333333318
+            }
+        },
+        {
+            "id": 1,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Data Info"
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 748.6960000000001,
+                "y": -0.592000000000013
+            }
+        },
+        {
+            "id": 4,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Bool Source",
+                "values": {
+                    "val": "0"
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": -229,
+                "y": 41
+            }
+        },
+        {
+            "id": 5,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Mpv Controller",
+                "values": {
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 229.5066666666669,
+                "y": 250.50666666666672
+            }
+        },
+        {
+            "id": 6,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Bool Source",
+                "values": {
+                    "val": "1"
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": -239,
+                "y": 137
+            }
+        },
+        {
+            "id": 7,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Bool Source",
+                "values": {
+                    "val": "1"
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": -245,
+                "y": 233
+            }
+        },
+        {
+            "id": 8,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Bool Source",
+                "values": {
+                    "val": "0"
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": -241,
+                "y": 321
+            }
+        }
+    ]
+}
