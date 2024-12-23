@@ -12,13 +12,18 @@
 #include <QIODevice>
 #include <algorithm>
 #include <vector>
+#include <QJsonArray>
 #include "timelinetypes.h"
 #include "timelinestyle.hpp"
 class TimelineModel : public QAbstractItemModel
 {
     Q_OBJECT
 public:
-    TimelineModel(){};
+    TimelineModel(){
+        createTrack(MediaType::AUDIO);
+        createTrack(MediaType::VIDEO);
+        createTrack(MediaType::CONTROL);
+    };
 
     void addClip(int trackIndex, int in, int out,QString clipname=""){
         TrackModel* track;
@@ -647,6 +652,19 @@ public:
         //return Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled;
     }
 
+    QJsonObject save() const
+    {
+        QJsonObject modelJson;
+        QJsonArray jsonArray;
+
+        for(auto const &index:m_tracks){
+            jsonArray.append(index->save());
+        }
+
+//        sceneJson["nodes"] = nodesJsonArray;
+        modelJson["track"] = jsonArray;
+        return modelJson;
+    }
 public:
 
     std::vector<TrackModel*> m_tracks;

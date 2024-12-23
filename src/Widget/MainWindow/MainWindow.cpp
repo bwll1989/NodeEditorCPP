@@ -19,7 +19,6 @@
 #include <QTimer>
 #include "Common/GUI/Elements/MartixWidget/MatrixWidget.h"
 #include "Eigen/Core"
-#include "Widget/StatusBar/StatusBar.h"
 #define ConsoleDisplay false
 #define PropertytDisplay true
 #define ToolsDisplay true
@@ -37,11 +36,6 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
     ads::CDockManager::setConfigFlag(ads::CDockManager::OpaqueSplitterResize, true);
 
     ads::CDockManager::setAutoHideConfigFlags(ads::CDockManager::DefaultAutoHideConfig);
-
-    setStatusBar(statusBar);
-    timer = new QTimer(this);
-    connect(timer, &QTimer::timeout, this, &MainWindow::updateCpuUsage);
-    timer->start(1000);
 
 }
 void MainWindow::init()
@@ -63,12 +57,12 @@ void MainWindow::init()
     view->setObjectName("Canvas");
     view->setContextMenuPolicy(Qt::ActionsContextMenu);
     emit initStatus("Initialization view success");
-    model=new CustomDataFlowGraphModel(PluginsManager::instance()->registry());
+    dataFlowModel=new CustomDataFlowGraphModel(PluginsManager::instance()->registry());
     // std::shared_ptr<NodeDelegateModelRegistry> _register;
     // model=new CustomDataFlowGraphModel(_register);
     emit initStatus("Initialization Model success");
 
-    scene=new CustomFlowGraphicsScene(*model);
+    scene=new CustomFlowGraphicsScene(*dataFlowModel);
     view->setScene(scene);
     emit initStatus("Initialization scene success");
     NodeWidget->setWidget(view);
@@ -83,19 +77,20 @@ void MainWindow::init()
     m_DockManager->addDockWidget(ads::BottomDockWidgetArea, nodeListWidget);
     menuBar->views->addAction(nodeListWidget->toggleViewAction());
 
-    // auto *propertyWidget = new ads::CDockWidget("组件属性");
-    // propertyWidget->setObjectName("NodeProperty");
-    // propertyWidget->setIcon(awesome->icon("fa-solid fa-chart-gantt"));
+     auto *timelineWidget = new ads::CDockWidget("时间轴");
+    timelineWidget->setObjectName("timeline");
+    timelineWidget->setIcon(awesome->icon("fa-solid fa-chart-gantt"));
     // property=new PropertyWidget(model);
-    // propertyWidget->setWidget(property);
-    // m_DockManager->addDockWidget(ads::LeftDockWidgetArea, propertyWidget);
-    // menuBar->views->addAction(propertyWidget->toggleViewAction());
-    // emit initStatus("Initialization node property editor");
+    timeline=new TimeLineWidget();
+    timelineWidget->setWidget(timeline);
+     m_DockManager->addDockWidget(ads::LeftDockWidgetArea,  timelineWidget);
+     menuBar->views->addAction(timelineWidget->toggleViewAction());
+     emit initStatus("Initialization Timeline editor");
 
     auto *portEdits = new ads::CDockWidget("端口编辑");
     portEdits->setObjectName("NodePortEdit");
     portEdits->setIcon(awesome->icon("fa-solid fa-shuffle"));
-    portEdit=new PortEditWidget(model);
+    portEdit=new PortEditWidget(dataFlowModel);
     portEdits->setWidget(portEdit);
     m_DockManager->addDockWidget(ads::LeftDockWidgetArea, portEdits);
     menuBar->views->addAction(portEdits->toggleViewAction());
@@ -153,7 +148,7 @@ void MainWindow::init()
     connect(scene, &CustomFlowGraphicsScene::nodeClicked,portEdit,&PortEditWidget::update);
     //    节点删除时更新属性显示
     // connect(model,&CustomDataFlowGraphModel::nodeDeleted, property,&PropertyWidget::update);
-    connect(model,&CustomDataFlowGraphModel::nodeDeleted,portEdit,&PortEditWidget::update);
+    connect(dataFlowModel,&CustomDataFlowGraphModel::nodeDeleted,portEdit,&PortEditWidget::update);
     //    日志清空功能
     connect(menuBar->clearAction, &QAction::triggered, logTable, &LogWidget::clearTableWidget);
 //    导入文件，视图回到中心
@@ -165,7 +160,7 @@ void MainWindow::init()
 }
 //显示属性
 void MainWindow::initNodelist() {
-    nodeList=new NodeListWidget(model,view,scene);
+    nodeList=new NodeListWidget(dataFlowModel,view,scene);
     this->nodeListWidget->setWidget(nodeList);
     emit initStatus("Initialization nodes list success");
 }
@@ -179,9 +174,9 @@ void MainWindow::showAboutDialog() {
 // 锁定切换
 void MainWindow::locked_switch() {
     isLocked=!isLocked;
-    model->setNodesLocked(isLocked);
+    dataFlowModel->setNodesLocked(isLocked);
     //    显示锁定
-    model->setDetachPossible(!isLocked);
+    dataFlowModel->setDetachPossible(!isLocked);
     //    不可分离连接
 
 }
@@ -210,7 +205,7 @@ void MainWindow::dropEvent(QDropEvent *event) {
     //    场景清空
     QByteArray const wholeFile = file.readAll();
     //    读取.flow文件
-    model->load(QJsonDocument::fromJson(wholeFile).object());
+    dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object());
 
     event->acceptProposedAction();
 
@@ -230,7 +225,7 @@ void MainWindow::loadFileFromPath(QString *path) {
         //    场景清空
         QByteArray const wholeFile = file.readAll();
         //    读取.flow文件
-        model->load(QJsonDocument::fromJson(wholeFile).object());
+        dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object());
     }
 }
 //从文件管理器打开文件
@@ -251,7 +246,8 @@ void MainWindow::loadFileFromExplorer() {
         //    场景清空
         QByteArray const wholeFile = file.readAll();
         //    读取.flow文件
-        model->load(QJsonDocument::fromJson(wholeFile).object());
+        auto senceFile=QJsonDocument::fromJson(wholeFile).object();
+        dataFlowModel->load(senceFile["DataFlow"].toObject());
         emit scene->sceneLoaded();
 
 }
@@ -262,7 +258,7 @@ void MainWindow::savFileToPath(const QString *path){
             return;
         QFile file(*path);
         if (file.open(QIODevice::WriteOnly)) {
-            file.write(QJsonDocument(model->save()).toJson());
+            file.write(QJsonDocument(dataFlowModel->save()).toJson());
             file.close();
         }
     }
@@ -280,7 +276,10 @@ void MainWindow::saveFileToExplorer() {
 
         QFile file(fileName);
         if (file.open(QIODevice::WriteOnly)) {
-            file.write(QJsonDocument(model->save()).toJson());
+            QJsonObject flowJson;
+            flowJson["DataFlow"]=dataFlowModel->save();
+            flowJson["TimeLine"]=timeline->save();
+            file.write(QJsonDocument(flowJson).toJson());
             file.close();
         }
     }
@@ -320,33 +319,7 @@ void MainWindow::restoreVisualState()
     }
 }
 
-void MainWindow::updateCpuUsage() {
-    // 获取当前进程的 CPU 使用率
-    double cpuUsage = getCpuUsage(); // 自定义函数获取 CPU 使用率
-    statusBar->updateProgress(static_cast<int>(cpuUsage));
-}
 
-double MainWindow::getCpuUsage() {
-    // 获取当前进程的 CPU 使用率
-    HANDLE hProcess = GetCurrentProcess(); // 获取当前进程句柄
-    FILETIME ftCreation, ftExit, ftKernel, ftUser;
-    ULARGE_INTEGER ulKernel, ulUser;
-
-    // 获取进程的时间信息
-    if (GetProcessTimes(hProcess, &ftCreation, &ftExit, &ftKernel, &ftUser)) {
-        ulKernel.QuadPart = ftKernel.dwHighDateTime;
-        ulKernel.QuadPart <<= 32;
-        ulKernel.QuadPart |= ftKernel.dwLowDateTime;
-        ulUser.QuadPart = ftUser.dwHighDateTime;
-        ulUser.QuadPart <<= 32;
-        ulUser.QuadPart |= ftUser.dwLowDateTime;
-
-        // 计算 CPU 使用率
-        double total = (ulKernel.QuadPart + ulUser.QuadPart) / 10000.0; // 转换为毫秒
-        return (total / (GetTickCount() / 10.0)); // 计算占用率
-    }
-    return 0.0; // 如果获取失败，返回 0
-}
 //退出确认
 void MainWindow::closeEvent(QCloseEvent *event) {
     // 弹出确认对话框

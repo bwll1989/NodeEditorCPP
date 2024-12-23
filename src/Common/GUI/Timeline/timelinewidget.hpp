@@ -13,6 +13,8 @@
 #include "timelineview.hpp"
 #include "tracklistview.hpp"
 #include "timelinetypes.h"
+#include "clipmodel.hpp"
+#include "clipview.hpp"
 class timelinewidget : public QWidget{
 Q_OBJECT
 
@@ -40,7 +42,6 @@ public:
         connect(actionStart, &QAction::triggered, view, &TimelineView::timelinestart);
         toolbar->addAction(actionStart);
 
-
         QObject::connect(slider,&QSlider::valueChanged,view,&TimelineView::setScale);
         QObject::connect(view,&TimelineView::scrolled,tracklist,&TracklistView::scroll);
         QObject::connect(tracklist,&TracklistView::scrolled,view,&TimelineView::scroll);
@@ -54,13 +55,19 @@ public:
     };
     ~timelinewidget()=default;
 
-
+    QJsonObject save() const
+    {
+        QJsonObject sceneJson;
+        sceneJson["timeline"] =  model->save();
+        return sceneJson;
+    }
 public:
     QVBoxLayout *mainlayout=new QVBoxLayout(this);
     QSplitter* splitter = new QSplitter(Qt::Horizontal,this);
     TimelineModel* model = new TimelineModel();
     TimelineView* view = new TimelineView(this);
     TracklistView* tracklist = new TracklistView(this);
+
     QToolBar* toolbar = new QToolBar("zoom slider",view);
     QSlider* slider = new QSlider(Qt::Horizontal);
 };

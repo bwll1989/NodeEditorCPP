@@ -1,0 +1,156 @@
+{
+    "connections": [
+        {
+            "inPortIndex": 1,
+            "intNodeId": 8,
+            "outNodeId": 10,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 1,
+            "intNodeId": 10,
+            "outNodeId": 11,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 8,
+            "outNodeId": 5,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 1,
+            "intNodeId": 5,
+            "outNodeId": 4,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 10,
+            "outNodeId": 9,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 6,
+            "outNodeId": 8,
+            "outPortIndex": 0
+        },
+        {
+            "inPortIndex": 0,
+            "intNodeId": 5,
+            "outNodeId": 3,
+            "outPortIndex": 0
+        }
+    ],
+    "nodes": [
+        {
+            "id": 3,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Int Source",
+                "values": {
+                    "val": 500
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 19.007999999999996,
+                "y": 120.95999999999997
+            }
+        },
+        {
+            "id": 4,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Float Source",
+                "values": {
+                    "val": 0.21000000000000002
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": -58.75199999999995,
+                "y": 293.75999999999993
+            }
+        },
+        {
+            "id": 5,
+            "inPortCount": "2",
+            "internal-data": {
+                "model-name": "Math Operation"
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 614.7359999999999,
+                "y": 249.024
+            }
+        },
+        {
+            "id": 6,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Data Info"
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 1373.7599999999995,
+                "y": 235.00799999999998
+            }
+        },
+        {
+            "id": 8,
+            "inPortCount": "2",
+            "internal-data": {
+                "model-name": "Math Operation"
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 978.2639999999997,
+                "y": 430.63199999999995
+            }
+        },
+        {
+            "id": 9,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Float Source",
+                "values": {
+                    "val": 0.17000000000000007
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 13.199999999999989,
+                "y": 511.20000000000005
+            }
+        },
+        {
+            "id": 10,
+            "inPortCount": "2",
+            "internal-data": {
+                "model-name": "Logic Operation"
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 639.0719999999998,
+                "y": 590.3999999999999
+            }
+        },
+        {
+            "id": 11,
+            "inPortCount": "1",
+            "internal-data": {
+                "model-name": "Float Source",
+                "values": {
+                    "val": 0.9099999999999999
+                }
+            },
+            "outPortCount": "1",
+            "position": {
+                "x": 22.46399999999997,
+                "y": 784.5119999999998
+            }
+        }
+    ]
+}

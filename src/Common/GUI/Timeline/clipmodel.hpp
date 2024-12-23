@@ -3,13 +3,17 @@
 #include "timelinetypes.h"
 #include "QString"
 #include"timelinestyle.hpp"
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QAbstractItemModel>
 class TrackModel;
 
 
-class ClipModel
+class ClipModel : public QAbstractItemModel
 {
+    Q_OBJECT
 public:
-    ClipModel(int in, int out,QString name,TrackModel* parent,MediaType type = MediaType::CONTROL):m_pos(in),m_in(in),m_out(out),m_name(name), m_parent(parent),m_length(out),m_type(type)
+    explicit ClipModel(int in, int out,QString name,TrackModel* parent,MediaType type = MediaType::CONTROL):m_pos(in),m_in(in),m_out(out),m_name(name), m_parent(parent),m_length(out),m_type(type)
     {
         m_length=out-in;
     }
@@ -40,7 +44,22 @@ public:
     TrackModel* Parent(){
         return m_parent;
     };
+    QModelIndex index(int row, int column,const QModelIndex &parent = QModelIndex()) const override{
+        return QModelIndex();
+    };
+    QModelIndex parent(const QModelIndex &child) const override{
+        return QModelIndex();
+    }
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override{
+        return 1;
+    }
+    int columnCount(const QModelIndex &parent = QModelIndex()) const override{
+        return 1;
+    }
 
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override{
+        return QVariant();
+    }
     int pos() const{
         return m_pos;
     }
@@ -86,7 +105,34 @@ public:
     }
 
 
+    QJsonObject save() const
+    {
+        QJsonObject clipJson;
+        clipJson["pos"]=m_pos;
+        clipJson["in"]=m_in;
+        clipJson["out"]=m_out;
+        clipJson["length"]=m_length;
+        clipJson["name"]=m_name;
+        QString typeString;
+        switch (m_type) {
+            case MediaType::VIDEO:
+                typeString = "VIDEO";
+                break;
+            case MediaType::AUDIO:
+                typeString = "AUDIO";
+                break;
+            case MediaType::CONTROL:
+                typeString = "CONTROL";
+                break;
+        }
+        clipJson["type"] = typeString;
+        return clipJson;
+    }
 
+    void load() const
+    {
+
+    }
 
 
 private:

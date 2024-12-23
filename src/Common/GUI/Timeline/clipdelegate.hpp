@@ -5,19 +5,18 @@
 #include <QPainter>
 #include "timelinemodel.hpp"
 #include "timelinestyle.hpp"
-
+#include <QMouseEvent>
 #include "QHBoxLayout"
 #include "QPushButton"
 #include "QLabel"
-
+#include "QLabel"
+#include "QLineEdit"
 class ClipDelegate : public QAbstractItemDelegate
 {
     Q_OBJECT
 public:
     explicit ClipDelegate(QObject *parent = nullptr):QAbstractItemDelegate{parent}
-    {
-
-    }
+    {}
 
     ~ClipDelegate() = default;
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
@@ -76,7 +75,6 @@ public:
             int length=index.data(TimelineRoles::ClipLengthRole).value<int>();
 
             text=FramesToTimeString(length,fps);
-            qDebug()<<length;
         }
         QRect   textRect = painter->fontMetrics().boundingRect(text);
         int textOffset = textRect.height();
@@ -115,12 +113,26 @@ public:
         return option.rect.size();
     }
 
-    QWidget *createEditor(QWidget *parent,const QStyleOptionViewItem &option,const QModelIndex &index) const override{
-        QPushButton *editor = new QPushButton(parent);
-        editor->setText("test");
-        qDebug()<<"test";
+    QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
+        QWidget* editor = new QWidget(parent);
+        QHBoxLayout* layout = new QHBoxLayout(editor);
+//        QPushButton* a = new QPushButton();
+        QLineEdit* title=new QLineEdit();
+        QLabel* label=new QLabel("||");
+        title->setText("Untitled");
+        title->setStyleSheet("QLineEdit { background: rgba(255, 255, 255, 0); color: white; border: none; }");
+        title->setAlignment(Qt::AlignCenter);
+        layout->setContentsMargins(5, 5, 5, 5);
+//        a->setMaximumHeight(option.rect.height());
+//        a->setMaximumWidth(option.rect.height());
+//        a->setText("M");
+        layout->addWidget(title);
+//        layout->addWidget(a);
+        layout->addWidget(label);
+        editor->show();
+        editor->setMouseTracking(true);
         return editor;
-    }
+    };
 
     void updateEditorGeometry(QWidget *editor,const QStyleOptionViewItem &option,const QModelIndex &index) const override{
         editor->setGeometry(option.rect);
@@ -128,7 +140,25 @@ public:
         editor->clearMask();
     }
 
+    bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index) override
+    {
+        qDebug()<<"Double";
+        if (event->type() == QEvent::MouseButtonDblClick) {
+            // 处理双击事件
+            QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
+            if (option.rect.contains(mouseEvent->pos())) {
+                // 在此处理双击事件，调用自定义槽函数或信号
 
+                emit itemDoubleClicked(index);
+                return true;  // 如果处理了事件，返回true
+            }
+        }
+        return QAbstractItemDelegate::editorEvent(event, model, option, index);
+    }
+
+
+signals:
+    void itemDoubleClicked(const QModelIndex &index);  // 双击信号
 
 private:
     QWidget* m_editor;

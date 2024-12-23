@@ -4,7 +4,8 @@ cmake_minimum_required(VERSION 3.5)
 #set(CMAKE_TOOLCHAIN_FILE "C:/Users/bwll1/scoop/apps/vcpkg/2024.07.12/scripts/buildsystems/vcpkg.cmake"
 #        CACHE STRING "Vcpkg toolchain file")
 ##设置VCPKG
-project(NodeEditorCPP VERSION 1.1 LANGUAGES CXX)
+set(ProjectName "NodeLab")
+project(${ProjectName} VERSION 1.1 LANGUAGES CXX)
 set(CMAKE_BUILD_TYPE "Release")
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -91,7 +92,7 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set(Libltc_DIR "${DEPENDS_DIR}/libltc_cmake")
     set(Libltc_LIBRARIES "${Libltc_DIR}/MSVC/lib/libltc.lib")
 
-    target_link_libraries(NodeEditorCPP
+    target_link_libraries(${ProjectName}
             PUBLIC
             sdk
             vstgui_support
@@ -149,7 +150,6 @@ set(OpenCV_LIBRARIES "${DEPENDS_DIR}/opencv/build/x64/vc16/lib")
 INCLUDE_DIRECTORIES(${OpenCV_DIR})
 link_directories("${OpenCV_LIBRARIES}")
 message("-- Found OpenCV ${OpenCV_DIR}")
-
 include_directories("${DEPENDS_DIR}/qtpropertybrowser/src")
 message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
 
@@ -301,6 +301,16 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/OSCSender/OSCSender.h
         src/Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
         src/Common/Devices/ArtnetReceiver/ArtnetReceiver.h
+        src/Common/GUI/Timeline/timelinemodel.hpp
+        src/Common/GUI/Timeline/trackmodel.hpp
+        src/Common/GUI/Timeline/clipmodel.hpp
+        src/Common/GUI/Timeline/sequencemodel.hpp
+        src/Common/GUI/Timeline/timelineview.hpp
+        src/Common/GUI/Timeline/clipdelegate.hpp
+        src/Common/GUI/Timeline/tracklistview.hpp
+        src/Common/GUI/Timeline/trackdelegate.hpp
+        src/Common/GUI/Timeline/timelinetypes.h
+        src/Common/GUI/Timeline/timelinewidget.hpp
         src/DataTypes/DecimalData.h
         src/DataTypes/TextData.h
         src/DataTypes/FloatData.h
@@ -308,31 +318,31 @@ set(CALC_SOURCE_FILES
         src/DataTypes/AudioData2.h
         src/DataTypes/PixmapData.h
         src/DataTypes/AudioData.h
-        src/Widget/StatusBar/StatusBar.cpp
-        src/Widget/StatusBar/StatusBar.h
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
+        src/Widget/TimeLineWidget/TimeLineWidget.cpp
+        src/Widget/TimeLineWidget/TimeLineWidget.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
-    qt_add_executable(NodeEditorCPP
+    qt_add_executable(${ProjectName}
             MANUAL_FINALIZATION
             ${CALC_SOURCE_FILES}
     )
 
 # Define target properties for Android with Qt 6 as:
-#    set_property(TARGET NodeEditorCPP APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
+#    set_property(TARGET ${ProjectName} APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
 #                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
 # For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
 else()
     if(ANDROID)
-        add_library(NodeEditorCPP SHARED
+        add_library(${ProjectName} SHARED
                 ${CALC_SOURCE_FILES}
         )
 # Define properties for Android with Qt 5 after find_package() calls as:
 #    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     else()
-        add_executable(NodeEditorCPP
+        add_executable(${ProjectName}
                 ${CALC_SOURCE_FILES}
                 res/res.rc
         )
@@ -342,8 +352,8 @@ endif()
 set(QRC_FILES
         resources.qrc
         )
-target_compile_definitions(NodeEditorCPP PRIVATE -DNODE_EDITOR_SHARED)
-target_link_libraries(NodeEditorCPP
+target_compile_definitions(${ProjectName} PRIVATE -DNODE_EDITOR_SHARED)
+target_link_libraries(${ProjectName}
         PUBLIC
             Qt${QT_VERSION_MAJOR}::Widgets
             Qt${QT_VERSION_MAJOR}::Gui
@@ -420,26 +430,27 @@ target_link_libraries(NodeEditorCPP
 # explicit, fixed bundle identifier manually though.
 
 #if(${QT_VERSION} VERSION_LESS 6.1.0)
-#  set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.NodeEditorCPP)
+#  set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.${ProjectName})
 #endif()
-set_target_properties(NodeEditorCPP PROPERTIES
+set_target_properties(${ProjectName} PROPERTIES
     ${BUNDLE_ID_OPTION}
 #    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
 #    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
 #    MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
+    OUTPUT_NAME "${ProjectName}"
 
 )
 
 include(GNUInstallDirs)
-install(TARGETS NodeEditorCPP
+install(TARGETS ${ProjectName}
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 if(QT_VERSION_MAJOR EQUAL 6)
-    qt_finalize_executable(NodeEditorCPP)
+    qt_finalize_executable(${ProjectName})
 endif()
 if(WIN32)
     # Windows 下的处理逻辑

@@ -18,12 +18,13 @@
 #include "Widget/NodeWidget/CustomGraphicsView.h"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/MenuBarWidget/MenuBarWidget.h"
-// #include "Widget/PropertyWidget/PropertyWidget.h"
 #include "QtAwesome/QtAwesome.h"
 #include "Widget/PortEditWidget/PortEditWidget.h"
 #include "Widget/NodeListWidget/draggabletreewidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.h"
-#include "Widget/StatusBar/StatusBar.h"
+#include "Timeline/timelinewidget.hpp"
+#include "Widget/TimeLineWidget/TimeLineWidget.h"
+
 class MainWindow : public QMainWindow
 {
 Q_OBJECT
@@ -34,15 +35,14 @@ public:
     CustomGraphicsView *view;
     CustomFlowGraphicsScene *scene;
     //    CustomDataFlowModel model= CustomDataFlowModel(registerDataModels());
-    CustomDataFlowGraphModel *model;
+    CustomDataFlowGraphModel *dataFlowModel;
     PluginsManagerWidget *pluginsManagerDlg;
     // PropertyWidget *property;
     PortEditWidget *portEdit;
     ads::CDockWidget *nodeListWidget;
     bool isLocked= false;
     NodeListWidget *nodeList;
-    StatusBar *statusBar = new StatusBar(this);
-    QTimer *timer; // 定时器
+    TimeLineWidget *timeline;
 signals:
     void initStatus(const QString &message);
 public Q_SLOTS:
@@ -56,8 +56,6 @@ public Q_SLOTS:
     void loadFileFromExplorer();
     void savFileToPath(const QString *path);
     void saveFileToExplorer();
-    void updateCpuUsage();
-    double getCpuUsage();
 protected:
     virtual void closeEvent(QCloseEvent* event) override;
     virtual void dragEnterEvent(QDragEnterEvent *event) override;

@@ -10,7 +10,11 @@
 #include "clipmodel.hpp"    // 假设 ClipModel 类已经定义
 
 class clipview : public QAbstractItemView {
+    Q_OBJECT
 public:
+    explicit clipview(QWidget *parent = nullptr): QAbstractItemView{parent}{
+    }
+
     void setModel(QAbstractItemModel *model) override {
         QAbstractItemView::setModel(model);
 
@@ -19,6 +23,8 @@ public:
             clipDelegate = new ClipDelegate(this);
             setItemDelegate(clipDelegate);
         }
+
+
     }
 private:
     ClipDelegate *clipDelegate;

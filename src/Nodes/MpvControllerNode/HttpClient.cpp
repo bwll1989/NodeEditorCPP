@@ -43,7 +43,7 @@ void HttpClient::onReplyFinished(QNetworkReply *reply) {
 
         // 检查解析是否成功
         if (doc.isNull()) {
-            qDebug() << "Failed to parse JSON";
+//            qDebug() << "Failed to parse JSON";
         } else {
             // 解析成功，可以根据实际情况处理 JSON
             if (doc.isObject()) {
@@ -54,12 +54,12 @@ void HttpClient::onReplyFinished(QNetworkReply *reply) {
                 // 示例：jsonObj["key"]
             } else if (doc.isArray()) {
                 QJsonArray jsonArray = doc.array();
-                qDebug() << "Parsed JSON Array:" << jsonArray;
+//                qDebug() << "Parsed JSON Array:" << jsonArray;
                 // 可以遍历 JSON 数组
             }
         }
     } else {
-        qDebug() << "Error:" << reply->errorString();
+//        qDebug() << "Error:" << reply->errorString();
     }
 
     reply->deleteLater();  // 记得删除回复对象

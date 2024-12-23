@@ -19,16 +19,16 @@
 
 //cache rect if needed;
 struct Clip{
-    int pos;
-    int in;
-    int out;//add 1 when drawring :D
-    //int orginalIn;
-    int originalOut;
+    int start;          //    clip开始
+    int originalStart;  //clip原始开始
+    int end;            //clip 结束
+    int originalEnd;    //clip 原始结束
     int track;
+    // 轨道索引
     QString name;
-    Clip() : pos(0), in(0), out(0), originalOut(0), track(0), name("") {}
+    Clip() : start(0), originalStart(0), end(0), originalEnd(0), track(0), name("") {}
 
-    Clip(int pos,int in, int out,int track,QString n) : pos(pos),in(in),out(out),track(track), originalOut(out),name(n)
+    Clip(int pos,int in, int out,int track,QString n) : start(pos),originalStart(in),end(out),track(track), originalEnd(out),name(n)
     {}
 };
 
@@ -55,9 +55,8 @@ public:
         setMouseTracking(true);
         setAcceptDrops(true);
         connect(timer, &QTimer::timeout, this, &TimelineView::onTimeout);
+        installEventFilter(this);
     }
-
-
 
     void setModel(QAbstractItemModel *model) override
     {
@@ -153,9 +152,9 @@ private:
 
             Clip* clip = clipMap.at(index.internalId()) ;
 
-            int in = clip->in;
-            int out = clip->out +1;
-            int pos = frameToPoint(clip->pos);
+            int in = clip->originalStart;
+            int out = clip->end +1;
+            int pos = frameToPoint(clip->start);
             int track = clip->track;
 
 
@@ -207,7 +206,7 @@ private:
 
         Clip* clip = getClipFromMap(list[0].internalId());
 
-        clip->out = model()->data(list[0],TimelineRoles::ClipOutRole).toInt();
+        clip->end = model()->data(list[0],TimelineRoles::ClipOutRole).toInt();
 
         viewport()->update();;
 
@@ -254,7 +253,7 @@ private:
 
         model()->setData(list[0],newPos,TimelineRoles::ClipPosRole);
         Clip* c = getClipFromMap(list[0].internalId());
-        c->pos = model()->data(list[0],TimelineRoles::ClipPosRole).toInt();
+        c->start = model()->data(list[0],TimelineRoles::ClipPosRole).toInt();
 
 
 
@@ -325,15 +324,11 @@ public slots:
     {
         if (!model())
             return;
-
         int max = 0;
         max = getTrackWdith() -  viewport()->width();
-
-
         horizontalScrollBar()->setRange(0, max);
         verticalScrollBar()->setRange(0, model()->rowCount() * trackHeight + rulerHeight - viewport()->height());
     }
-
 
     void scrollContentsBy(int dx, int dy) override
     {
@@ -375,7 +370,6 @@ public slots:
         // 更新视口
         viewport()->update();
     }
-
 
     void addClipToMap(int row,int track)
     {
@@ -510,8 +504,6 @@ protected:
 
                 clipDelegate.paint(&painter,option,clipIndex);
 
-
-
             }
 
         }
@@ -594,7 +586,6 @@ protected:
 
     }
 
-
     void mousePressEvent(QMouseEvent *event) override
     {
         m_mouseStart = event->pos();
@@ -622,18 +613,13 @@ protected:
         //item pressed was a clip
         if(item.parent().isValid()){
             selectionModel()->select(item,QItemSelectionModel::Select);
-            m_mouseOffset.setX(frameToPoint(getClipFromMap(item.internalId())->pos) - m_mouseStart.x());
+            m_mouseOffset.setX(frameToPoint(getClipFromMap(item.internalId())->start) - m_mouseStart.x());
 
         }
         if(selectionModel()->selectedIndexes().isEmpty()){
             movePlayheadToFrame(pointToFrame(std::max(0,m_mouseEnd.x()+m_scrollOffset.x())));
             viewport()->update();
         }
-
-
-
-
-
 
         QAbstractItemView::mousePressEvent(event);
     }
@@ -646,17 +632,17 @@ protected:
                 QModelIndex clip = selectedIndexes().at(0);
 
                 Clip* c = clipMap.at(clip.internalId());
-                int in = c->in;
-                int out = c->out;
-                int pos = c->pos;
-                int length = c->originalOut;
+                int in = c->originalStart;
+                int out = c->end;
+                int pos = c->start;
+                int length = c->originalEnd;
                 if(m_mouseUnderClipEdge==hoverState::LEFT){
                     int newIn = std::clamp(in+ pointToFrame(m_mouseEnd.x() + m_scrollOffset.x()) - pos,0,out);
                     model()->setData(clip,newIn,TimelineRoles::ClipInRole);
                     //clamp to prevent clip moveing when resizing
                     moveSelectedClip(std::clamp(pointToFrame(m_mouseEnd.x() + m_scrollOffset.x()) - pos,-in,out-in),0+0,false);
                     Clip* c = getClipFromMap(clip.internalId());
-                    c->in = model()->data(clip,TimelineRoles::ClipInRole).toInt();
+                    c->originalStart = model()->data(clip,TimelineRoles::ClipInRole).toInt();
                     viewport()->update();
                 }else if(m_mouseUnderClipEdge==hoverState::RIGHT){
                     //clamped to not go over clipin or src media length
@@ -666,7 +652,7 @@ protected:
                     int newOut = out + pointToFrame(m_mouseEnd.x() + m_scrollOffset.x()) - pos+in-out;
                     model()->setData(clip,newOut,TimelineRoles::ClipOutRole);
                     Clip* c = getClipFromMap(clip.internalId());
-                    c->out = model()->data(clip,TimelineRoles::ClipOutRole).toInt();
+                    c->end = model()->data(clip,TimelineRoles::ClipOutRole).toInt();
                     viewport()->update();
                 }
 
@@ -734,48 +720,55 @@ protected:
         QAbstractItemView::leaveEvent(event);
     }
 
-    void keyPressEvent(QKeyEvent *event) override
+    bool eventFilter(QObject *watched, QEvent *event) override
     {
-        QModelIndexList list = selectionModel()->selectedIndexes();
 
-        TimelineModel* timelinemodel = (TimelineModel*)model();
+        if (event->type() == QEvent::KeyPress) {
+            QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
+            QModelIndexList list = selectionModel()->selectedIndexes();
 
-        switch (event->key()){
-            case Qt::Key_Right:
-                if(list.isEmpty())
-                    movePlayheadToFrame(timelinemodel->getPlayheadPos()+1);
-                moveSelectedClip(1,0,false);
-                viewport()->update();
-                break;
-            case Qt::Key_Left:
-                if(list.isEmpty())
-                    movePlayheadToFrame(timelinemodel->getPlayheadPos()-1);
-                moveSelectedClip(-1,0,false);
-                viewport()->update();
-                break;
-            case Qt::Key_Down :
-                moveSelectedClip(0,1,false);
-                break;
-            case Qt::Key_Up:
-                moveSelectedClip(0,-1,false);
-                break;
-            case Qt::Key_S:
-                cutClip();
-                break;
-            case Qt::Key_I:
-                timelinemodel->addClip(0,timelinemodel->getPlayheadPos(),timelinemodel->getPlayheadPos()+10,"dsad");
-                viewport()->update();
-                break;
-            case Qt::Key_Delete:
-                if(list.isEmpty())
-                    break;
-                timelinemodel->deleteClip(list[0]);
-                clipMap.erase(list[0].internalId());
-                clearSelection();
-                break;
-            defualt:
-                break;
+            TimelineModel* timelinemodel = (TimelineModel*)model();
+            if (watched == this) {
+                switch (keyEvent->key()){
+                    case Qt::Key_Right:
+                        if(list.isEmpty())
+                            movePlayheadToFrame(timelinemodel->getPlayheadPos()+1);
+                        moveSelectedClip(1,0,false);
+                        viewport()->update();
+                        return true;  // 表示事件已处理，不再向其他控件传递
+                    case Qt::Key_Left:
+                        if(list.isEmpty())
+                            movePlayheadToFrame(timelinemodel->getPlayheadPos()-1);
+                        moveSelectedClip(-1,0,false);
+                        viewport()->update();
+                        return true;  // 表示事件已处理，不再向其他控件传递
+                    case Qt::Key_Down :
+                        moveSelectedClip(0,1,false);
+                        break;
+                    case Qt::Key_Up:
+                        moveSelectedClip(0,-1,false);
+                        return true;  // 表示事件已处理，不再向其他控件传递
+                    case Qt::Key_S:
+                        cutClip();
+                        return true;  // 表示事件已处理，不再向其他控件传递
+                    case Qt::Key_I:
+                        timelinemodel->addClip(1,timelinemodel->getPlayheadPos(),timelinemodel->getPlayheadPos()+100,"dsad");
+                        viewport()->update();
+                        return true;  // 表示事件已处理，不再向其他控件传递
+                    case Qt::Key_Delete:
+                        if(list.isEmpty())
+                            break;
+                        timelinemodel->deleteClip(list[0]);
+                        clipMap.erase(list[0].internalId());
+                        clearSelection();
+                        return true;  // 表示事件已处理，不再向其他控件传递
+                    defualt:
+                        break;
+                }
+
+            }
         }
+        return QObject::eventFilter(watched, event);
     }
 
     void resizeEvent(QResizeEvent *event) override

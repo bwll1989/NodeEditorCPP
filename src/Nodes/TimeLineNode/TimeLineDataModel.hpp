@@ -13,7 +13,7 @@
 #include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
 #include <QToolBox>
-#include "src/timelinewidget.hpp"
+#include "Timeline/timelinewidget.hpp"
 using namespace std;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;

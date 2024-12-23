@@ -2,7 +2,7 @@
 #define TRACKLISTVIEW_H
 
 #include <QAbstractItemView>
-
+#include <QMenu>
 #include "trackdelegate.hpp"
 #include <QEvent>
 #include <QPaintEvent>
@@ -12,6 +12,8 @@
 #include "timelinemodel.hpp"
 #include "timelinestyle.hpp"
 #include <QTimer>
+#include <QMessageBox>
+
 class TracklistView : public QAbstractItemView
 {
     Q_OBJECT
@@ -30,15 +32,13 @@ public:
         setSelectionMode(SingleSelection);
         setSelectionBehavior(SelectItems);
         m_scrollOffset = QPoint(0,0);
-
         setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
         setVerticalScrollBarPolicy( Qt::ScrollBarAlwaysOff ) ;
 
-        setEditTriggers(EditTrigger::AllEditTriggers);
+        setEditTriggers(EditTrigger::DoubleClicked);
         setItemDelegateForColumn(0,new TrackDelegate);
-
         setMouseTracking(true);
-
+        installEventFilter(this);
     }
 
     ~TracklistView(){}
@@ -46,10 +46,7 @@ public:
     void updateScrollBars(){
         if(!model())
             return;
-
         int max =0;
-
-
         verticalScrollBar()->setRange(0,model()->rowCount() * trackHeight + rulerHeight - viewport()->height());
     }
 
@@ -140,17 +137,12 @@ protected:
     void paintEvent(QPaintEvent *event) override{
         QPainter painter(viewport());
         painter.setRenderHint(QPainter::Antialiasing,true);
-
         painter.setBrush(QBrush(bgColour));
         painter.drawRect(event->rect());
-
         painter.setBrush(QBrush(rulerColour));
         //draw tracklist
-
         int viewportWidth = viewport()->width();
-
         // QRect trackRect;
-
         QStyleOptionViewItem option;
         QAbstractItemView::initViewItemOption(&option);
         for (int i = 0; i < model()->rowCount(); ++i){
@@ -309,10 +301,46 @@ protected:
         return QRect(0, (index.row() * trackHeight) + rulerHeight, viewport()->width(), trackHeight);
     };
 
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+
+        if (event->type() == QEvent::KeyPress) {
+            QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
+
+            if (watched == this) {
+                // 处理 view1 的 keyPressEvent
+                // 注意：可以添加其他逻辑来处理特定的键盘输入
+                qDebug() << "Key pressed in view1: " << keyEvent->key();
+                return true;  // 表示事件已处理，不再向其他控件传递
+            }
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+    // 重载 contextMenuEvent 事件
+    void contextMenuEvent(QContextMenuEvent* event) override {
+        // 创建一个右键菜单
+        QMenu contextMenu(this);
+
+        // 添加菜单项
+        QAction* action1 = contextMenu.addAction("Add control track");
+        QAction* action2 = contextMenu.addAction("Add audio track");
+        QAction* action3 = contextMenu.addAction("Add video track");
+        QAction* action4 = contextMenu.addAction("Delete track");
+        // 连接菜单项的信号到槽
+        connect(action1, &QAction::triggered, this, &TracklistView::onAddControlTriggered);
+        connect(action2, &QAction::triggered, this, &TracklistView::onAddAudioTriggered);
+        connect(action3, &QAction::triggered, this, &TracklistView::onAddVideoTriggered);
+        connect(action4, &QAction::triggered, this, &TracklistView::onDeleteTriggered);
+        // 显示菜单
+        contextMenu.exec(event->globalPos());
+    }
 protected slots:
 
     void selectionChanged(const QItemSelection &selected, const QItemSelection &deselected) override{
         QAbstractItemView::selectionChanged(selected,deselected);
+        qDebug()<<"selection changed";
+
         viewport()->update();
     };
 
@@ -337,9 +365,25 @@ protected slots:
         }
 }
 
+    void onAddControlTriggered() {
+        QMessageBox::information(this, "操作 1", "你选择了操作 1");
+    }
+
+    void onAddVideoTriggered() {
+        QMessageBox::information(this, "操作 2", "你选择了操作 2");
+    }
+
+    void onAddAudioTriggered() {
+        QMessageBox::information(this, "操作 2", "你选择了操作 2");
+    }
+
+    void onDeleteTriggered() {
+        QMessageBox::information(this, "操作 2", "你选择了操作 2");
+    }
+
 private:
 
-    TrackDelegate delegate;
+//    TrackDelegate delegate;
 
     int m_time = 0;
 

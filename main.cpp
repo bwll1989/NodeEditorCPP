@@ -10,7 +10,7 @@
 #define Extra_Control_Port 8991
 #define PRODUCT_VERSION        "1.0"   // 产品版本
 #define COMPANY_NAME           "Bwll"
-#define PRODUCT_NAME          "NodeEditorCPP" // 产品名称
+#define PRODUCT_NAME          "NodeEditorLab" // 产品名称
 #define LUA_PATH                "./lua;"
 #define FILE_DESCRIPTION       "Qt Creator based on Qt 6.6 (MinGw, 64 bit)"  // 文件说明
 #define LEGAL_COPYRIGHT        "Copyright 2008-2016 The Qt Company Ltd. All rights reserved." // 版权
@@ -48,7 +48,7 @@ int main(int argc, char *argv[])
     mainWindow.pluginsManagerDlg->loadPluginsFromFolder();
     //从目录中加载所有插件
     mainWindow.initNodelist();
-    mainWindow.setWindowTitle("NodeEditorCPP");
+//    mainWindow.setWindowTitle("NodeEditorCPP");
 
     mainWindow.restoreVisualState();
     if(argc > 1)

@@ -8,7 +8,7 @@
 #include <QtNodes/NodeDelegateModel>
 #include "ExtractInterface.hpp"
 #include <iostream>
-#include <Nodes/TimeLineNode/src/timelinestyle.hpp>
+
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QSlider>
 #include <QtWidgets/QSpinBox>

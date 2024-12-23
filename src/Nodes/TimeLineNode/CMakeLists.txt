@@ -9,16 +9,16 @@ set(MAKE_CXX_STANDARD_REQUIRED ON)
 #)
 add_library(${Module_Name} SHARED
 #
-        src/timelinemodel.hpp
-        src/trackmodel.hpp
-        src/clipmodel.hpp
-        src/sequencemodel.hpp
-        src/timelineview.hpp
-        src/clipdelegate.hpp
-        src/tracklistview.hpp
-        src/trackdelegate.hpp
-        src/timelinetypes.h
-        src/timelinewidget.hpp
+        ../../Common/GUI/Timeline/timelinemodel.hpp
+        ../../Common/GUI/Timeline/trackmodel.hpp
+        ../../Common/GUI/Timeline/clipmodel.hpp
+        ../../Common/GUI/Timeline/sequencemodel.hpp
+        ../../Common/GUI/Timeline/timelineview.hpp
+        ../../Common/GUI/Timeline/clipdelegate.hpp
+        ../../Common/GUI/Timeline/tracklistview.hpp
+        ../../Common/GUI/Timeline/trackdelegate.hpp
+        ../../Common/GUI/Timeline/timelinetypes.h
+        ../../Common/GUI/Timeline/timelinewidget.hpp
         TimeLineDataModel.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp

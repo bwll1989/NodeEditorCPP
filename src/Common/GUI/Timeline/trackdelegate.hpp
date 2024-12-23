@@ -47,26 +47,19 @@ public:
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
         QWidget* editor = new QWidget(parent);
         QHBoxLayout* layout = new QHBoxLayout(editor);
-        QPushButton* a = new QPushButton();
-        QPushButton* b = new QPushButton();
+//        QPushButton* a = new QPushButton();
         QLineEdit* title=new QLineEdit();
-
-
+        QLabel* label=new QLabel("||");
         title->setText("Untitled");
         title->setStyleSheet("QLineEdit { background: rgba(255, 255, 255, 0); color: white; border: none; }");
         title->setAlignment(Qt::AlignCenter);
         layout->setContentsMargins(5, 5, 5, 5);
-        a->setMaximumHeight(option.rect.height());
-        a->setMaximumWidth(option.rect.height());
-        b->setMaximumHeight(option.rect.height()*.9);
-        b->setMaximumWidth(option.rect.height()*.9);
-
-        a->setText("M");
-        b->setText("S");
-
+//        a->setMaximumHeight(option.rect.height());
+//        a->setMaximumWidth(option.rect.height());
+//        a->setText("M");
         layout->addWidget(title);
-        layout->addWidget(a);
-        layout->addWidget(b);
+//        layout->addWidget(a);
+        layout->addWidget(label);
         editor->show();
         editor->setMouseTracking(true);
         return editor;
@@ -79,9 +72,6 @@ public:
         QRegion mask = QRegion(0,rulerHeight,option.rect.right(),option.rect.bottom()-rulerHeight);
         editor->clearMask();
     };
-
-private:
-    QWidget* m_editor;
 
 };
 
