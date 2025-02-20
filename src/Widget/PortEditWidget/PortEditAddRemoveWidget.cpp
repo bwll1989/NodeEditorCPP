@@ -37,8 +37,7 @@ PortEditAddRemoveWidget::PortEditAddRemoveWidget(NodeId nodeId, CustomDataFlowGr
 //    hl->addSpacing(5);
 //    addButtonGroupToLayout(_left ,  0);
 //    addButtonGroupToLayout(_right,  0);
-    awesome = new fa::QtAwesome(this);
-    awesome->initFontAwesome();
+   
     populateButtons(PortType::In,_model.nodeData(_nodeId,QtNodes::NodeRole::InPortCount).toInt());
     populateButtons(PortType::Out,_model.nodeData(_nodeId,QtNodes::NodeRole::OutPortCount).toInt());
 
@@ -75,12 +74,12 @@ QHBoxLayout *PortEditAddRemoveWidget::addButtonGroupToLayout(QVBoxLayout *vbl, u
     auto l = new QHBoxLayout();
     l->setContentsMargins(0, 0, 0, 0);
 
-    auto button = new QPushButton(awesome->icon("fa-regular fa-square-plus"),"add port");
+    auto button = new QPushButton(QIcon(":/icons/icons/add.png"),"add port");
 //    button->setFixedHeight(25);
     l->addWidget(button);
     connect(button, &QPushButton::clicked, this, &PortEditAddRemoveWidget::onPlusClicked);
 
-	button = new QPushButton(awesome->icon("fa-solid fa-square-minus"),"remove port");
+	button = new QPushButton(QIcon(":/icons/icons/remove.png"),"remove port");
 //    button->setFixedHeight(25);
     l->addWidget(button);
     connect(button, &QPushButton::clicked, this, &PortEditAddRemoveWidget::onMinusClicked);

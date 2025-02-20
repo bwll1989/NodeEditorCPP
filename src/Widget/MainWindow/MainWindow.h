@@ -18,13 +18,14 @@
 #include "Widget/NodeWidget/CustomGraphicsView.h"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/MenuBarWidget/MenuBarWidget.h"
-#include "QtAwesome/QtAwesome.h"
+// #include "QtAwesome/QtAwesome.h"
 #include "Widget/PortEditWidget/PortEditWidget.h"
-#include "Widget/NodeListWidget/draggabletreewidget.hpp"
-#include "Widget/NodeListWidget/NodeListWidget.h"
-#include "Timeline/timelinewidget.hpp"
-#include "Widget/TimeLineWidget/TimeLineWidget.h"
-
+#include "Widget/NodeLibraryWidget/draggabletreewidget.hpp"
+#include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
+#include "Widget/TimeLineWidget/timelinewidget.hpp"
+#include "Widget/TimeLineWidget/TimelineWidget.hpp"
+#include "Widget/ClipPropertyWidget/ClipPropertyWidget.hpp"
+#include "Widget/NodeListWidget/NodeListWidget.hpp"
 class MainWindow : public QMainWindow
 {
 Q_OBJECT
@@ -34,15 +35,22 @@ public:
     ads::CDockManager* m_DockManager;
     CustomGraphicsView *view;
     CustomFlowGraphicsScene *scene;
-    //    CustomDataFlowModel model= CustomDataFlowModel(registerDataModels());
+    // 数据流模型
     CustomDataFlowGraphModel *dataFlowModel;
     PluginsManagerWidget *pluginsManagerDlg;
-    // PropertyWidget *property;
+    // 端口编辑控件
     PortEditWidget *portEdit;
-    ads::CDockWidget *nodeListWidget;
+    // 节点库控件
+    ads::CDockWidget *nodeDockLibraryWidget;
     bool isLocked= false;
-    NodeListWidget *nodeList;
-    TimeLineWidget *timeline;
+    // 节点库
+    NodeLibraryWidget *nodeLibrary;
+    // 节点列表
+    NodeListWidget *nodeListWidget;
+    // 时间线
+    TimelineWidget *timeline;
+    // 片段属性
+    ClipPropertyWidget *clipProperty;
 signals:
     void initStatus(const QString &message);
 public Q_SLOTS:
@@ -61,7 +69,7 @@ protected:
     virtual void dragEnterEvent(QDragEnterEvent *event) override;
     virtual void dropEvent(QDropEvent *event) override;
 private:
-    fa::QtAwesome *awesome;
+    // fa::QtAwesome *awesome;
     LogWidget *logTable;
     LogHandler *log;
 };

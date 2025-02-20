@@ -4,19 +4,31 @@ cmake_minimum_required(VERSION 3.5)
 #set(CMAKE_TOOLCHAIN_FILE "C:/Users/bwll1/scoop/apps/vcpkg/2024.07.12/scripts/buildsystems/vcpkg.cmake"
 #        CACHE STRING "Vcpkg toolchain file")
 ##设置VCPKG
-set(ProjectName "NodeLab")
+set(ProjectName "NodeStudio")
 project(${ProjectName} VERSION 1.1 LANGUAGES CXX)
-set(CMAKE_BUILD_TYPE "Release")
+# set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
+
+# 设置所有目标的默认输出目录
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+
+# 设置插件的输出目录
+set(PLUGIN_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/plugins/DataFlow")
+
+# 确保插件目录存在
+file(MAKE_DIRECTORY ${PLUGIN_OUTPUT_DIRECTORY})
+
+set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 enable_language(C)
 set(DEPENDS_DIR "${CMAKE_SOURCE_DIR}/3rdParty")
 set(CMAKE_PREFIX_PATH ${DEPENDS_DIR})
-set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_BINARY_DIR}")
+
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Gui)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Devices)
@@ -35,7 +47,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/src" )
     set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MinGW-64/lib/libqtadvanceddocking.a")
 
-    set(QtAwesome_LIBRARIES "${DEPENDS_DIR}/QtAwesome/MinGW-64/lib/libQtAwesome.a")
+    # set(QtAwesome_LIBRARIES "${DEPENDS_DIR}/QtAwesome/MinGW-64/lib/libQtAwesome.a")
 
     set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/MinGW-64/lib/libQCodeEditor.a")
 
@@ -46,8 +58,10 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 
     set(Libltc_LIBRARIES "${DEPENDS_DIR}/libltc_cmake/MinGW-64/lib/liblibltc.dll.a")
 
-#    set(MLT_DIR "${DEPENDS_DIR}/mlt/lib/cmake/Mlt7")
-#    find_package(Mlt7 REQUIRED)
+#    set(MLT_DIR "${DEPENDS_DIR}/mingw-w64-x86_64/mingw-w64-x86_64-mlt-7.24.0-4-any.pkg/mingw64/lib/cmake/Mlt7")
+#    include_directories(MLT_DIR)
+    # find_package(Mlt7 REQUIRED)
+
 #    set(ossia_dir "${DEPENDS_DIR}/ossia/include")
 
     set(Libpd_INCLUDE_DIRS "${DEPENDS_DIR}/libpd/libpd_wrapper" )
@@ -56,6 +70,16 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(PureData_INCLUDE_DIRS "${DEPENDS_DIR}/libpd/pure-data/src")
     INCLUDE_DIRECTORIES(${PureData_INCLUDE_DIRS})
 
+    set(VST3_DIR "${DEPENDS_DIR}/vst3")
+    set(VST3_LIBRARIES_DIR "${VST3_DIR}/build/lib")
+    #add_subdirectory(${VST3_DIR})
+    include_directories(${VST3_DIR})
+    link_directories(${VST3_LIBRARIES_DIR})
+    
+    # set(Qtimeline_DIR "${DEPENDS_DIR}/Qtimeline")
+    # set(Qtimeline_LIBRARIES "${Qtimeline_DIR}/build/lib/libQtimeline.dll.a")
+    # include_directories(${Qtimeline_DIR})
+    # link_directories(${Qtimeline_LIBRARIES})
 
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL") # 或 MultiThreaded
@@ -80,7 +104,7 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/src" )
     set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/lib/Release/qt6advanceddocking.lib")
 
-    set(QtAwesome_LIBRARIES "${DEPENDS_DIR}/QtAwesome/MSVC/lib/QtAwesome.lib")
+    # set(QtAwesome_LIBRARIES "${DEPENDS_DIR}/QtAwesome/MSVC/lib/QtAwesome.lib")
 
     set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/MSVC/lib/QCodeEditor.lib")
 
@@ -119,8 +143,8 @@ message("-- Found QHotkey ${QHotKey_INCLUDE_DIRS}")
 INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
 message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
 #添加ADS
-set(QtAwesome_INCLUDE_DIRS "${DEPENDS_DIR}/QtAwesome")
-INCLUDE_DIRECTORIES(${QtAwesome_INCLUDE_DIRS})
+# set(QtAwesome_INCLUDE_DIRS "${DEPENDS_DIR}/QtAwesome")
+# INCLUDE_DIRECTORIES(${QtAwesome_INCLUDE_DIRS})
 #添加QtAwesome库
 #set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n6.1.1-win64-gpl-shared-6.1/include")
 #set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n6.1.1-win64-gpl-shared-6.1/lib")
@@ -160,14 +184,10 @@ message("-- Found tinyosc ${tinyosc_DIR}")
 INCLUDE_DIRECTORIES("${DEPENDS_DIR}/libltc_cmake/src")
 message("-- Found libltc ${DEPENDS_DIR}/libltc_cmake/src")
 
-set(VST3_DIR "${DEPENDS_DIR}/vst3")
-set(VST3_LIBRARIES_DIR "${VST3_DIR}/build/lib")
-#add_subdirectory(${VST3_DIR})
-include_directories(${VST3_DIR})
-link_directories(${VST3_LIBRARIES_DIR})
-add_subdirectory(src/Nodes/VST3PluginNode)
 
-include_directories(${ossia_dir})
+# add_subdirectory(src/Nodes/VST3PluginNode)
+
+#include_directories(${ossia_dir})
 #set(Python3_ROOT_DIR "${CMAKE_BINARY_DIR}/Python312" )
 #set(PYTHON_EXECUTABLE "${CMAKE_BINARY_DIR}/Python312/python.exe")
 #set(pybind11_DIR "${CMAKE_BINARY_DIR}/Python312/Lib/site-packages/pybind11/share/cmake/pybind11")
@@ -194,7 +214,7 @@ add_subdirectory(src/Nodes/TCPServerNode)       #TCP服务器模块
 add_subdirectory(src/Nodes/TCPClientNode)       #TCP客户端模块
 add_subdirectory(src/Nodes/FloatSourceNode)     #浮点输入模块
 add_subdirectory(src/Nodes/DynamicPortNode)     #动态端口模块
-add_subdirectory(src/Nodes/TimeLineNode)        #时间轴模块
+# add_subdirectory(src/Nodes/TimeLineNode)        #时间轴模块
 add_subdirectory(src/Nodes/UDPSocketNode)       #UDP模块
 add_subdirectory(src/Nodes/DelayNode)           #延迟模块
 add_subdirectory(src/Nodes/LogicOperationNode)  #逻辑操作模块
@@ -219,10 +239,10 @@ add_subdirectory(src/Nodes/MergeNode)           #数据合并
 add_subdirectory(src/Nodes/OscInNode)           #OSC输入
 add_subdirectory(src/Nodes/OscOutNode)          #OSC输出
 add_subdirectory(src/Nodes/ArtnetInNode)        #Arnet输入
-#add_subdirectory(src/Nodes/MltSourceNode)       #Mlt输入
+# add_subdirectory(src/Nodes/MltSourceNode)       #Mlt输入
 add_subdirectory(src/Nodes/MpvControllerNode)   #mpv控制
 add_subdirectory(src/Nodes/SwitchNode)          #输入切换
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/cmake-build-debug")
+
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc/tinyosc.c
@@ -255,7 +275,8 @@ set(CALC_SOURCE_FILES
         src/Widget/SplashWidget/CustomSplashScreen.h
         src/Widget/ExternalControl/ExternalControler.cpp
         src/Widget/ExternalControl/ExternalControler.h
-        src/Widget/ConsoleWidget/LogWidget.hpp
+        src/Widget/ConsoleWidget/LogWidget.h
+        src/Widget/ConsoleWidget/LogWidget.cpp
         src/Widget/ConsoleWidget/LogHandler.cpp
         src/Widget/ConsoleWidget/LogHandler.h
         src/Widget/MenuBarWidget/MenuBarWidget.cpp
@@ -264,10 +285,12 @@ set(CALC_SOURCE_FILES
         src/Widget/PropertyWidget/PropertyWidget.h
         src/Widget/PortEditWidget/PortEditWidget.cpp
         src/Widget/PortEditWidget/PortEditWidget.h
-        src/Widget/NodeListWidget/draggabletreewidget.cpp
-        src/Widget/NodeListWidget/draggabletreewidget.cpp
+        src/Widget/NodeLibraryWidget/draggabletreewidget.cpp
+        src/Widget/NodeLibraryWidget/draggabletreewidget.hpp
+        src/Widget/NodeLibraryWidget/NodeLibraryWidget.cpp
+        src/Widget/NodeLibraryWidget/NodeLibraryWidget.h
         src/Widget/NodeListWidget/NodeListWidget.cpp
-        src/Widget/NodeListWidget/NodeListWidget.h
+        src/Widget/NodeListWidget/NodeListWidget.hpp
         src/Common/GUI/QJsonModel/QJsonModel.cpp
         src/Common/GUI/QJsonModel/QJsonModel.hpp
         src/Common/GUI/QJsonModel/details/QUtf8.hpp
@@ -301,16 +324,6 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/OSCSender/OSCSender.h
         src/Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
         src/Common/Devices/ArtnetReceiver/ArtnetReceiver.h
-        src/Common/GUI/Timeline/timelinemodel.hpp
-        src/Common/GUI/Timeline/trackmodel.hpp
-        src/Common/GUI/Timeline/clipmodel.hpp
-        src/Common/GUI/Timeline/sequencemodel.hpp
-        src/Common/GUI/Timeline/timelineview.hpp
-        src/Common/GUI/Timeline/clipdelegate.hpp
-        src/Common/GUI/Timeline/tracklistview.hpp
-        src/Common/GUI/Timeline/trackdelegate.hpp
-        src/Common/GUI/Timeline/timelinetypes.h
-        src/Common/GUI/Timeline/timelinewidget.hpp
         src/DataTypes/DecimalData.h
         src/DataTypes/TextData.h
         src/DataTypes/FloatData.h
@@ -320,8 +333,30 @@ set(CALC_SOURCE_FILES
         src/DataTypes/AudioData.h
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
-        src/Widget/TimeLineWidget/TimeLineWidget.cpp
-        src/Widget/TimeLineWidget/TimeLineWidget.h
+        src/Widget/ClipPropertyWidget/ClipPropertyWidget.cpp
+        src/Widget/ClipPropertyWidget/ClipPropertyWidget.hpp
+        src/Widget/TimeLineWidget/videoplayerwidget.hpp
+        src/Widget/TimeLineWidget/AbstractClipDelegate.hpp
+        src/Widget/TimeLineWidget/AbstractClipModel.cpp
+        src/Widget/TimeLineWidget/AbstractClipModel.hpp
+        src/Widget/TimeLineWidget/clippluginterface.hpp
+        src/Widget/TimeLineWidget/pluginloader.cpp
+        src/Widget/TimeLineWidget/pluginloader.hpp
+        src/Widget/TimeLineWidget/timelinemodel.cpp
+        src/Widget/TimeLineWidget/timelinemodel.hpp
+        src/Widget/TimeLineWidget/timelinestyle.hpp
+        src/Widget/TimeLineWidget/timelinetypes.h
+        src/Widget/TimeLineWidget/timelineview.cpp
+        src/Widget/TimeLineWidget/timelineview.hpp
+        src/Widget/TimeLineWidget/timelinewidget.cpp
+        src/Widget/TimeLineWidget/timelinewidget.hpp
+        src/Widget/TimeLineWidget/trackdelegate.hpp
+        src/Widget/TimeLineWidget/tracklistview.cpp
+        src/Widget/TimeLineWidget/tracklistview.hpp
+        src/Widget/TimeLineWidget/trackmodel.hpp
+        src/Widget/TimeLineWidget/videoplayerwidget.cpp
+        src/Widget/TimeLineWidget/clipproperty.hpp
+        src/Widget/TimeLineWidget/clipproperty.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -367,17 +402,20 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::Concurrent
             Qt${QT_VERSION_MAJOR}::Multimedia
             Qt${QT_VERSION_MAJOR}::MultimediaWidgets
+            Qt${QT_VERSION_MAJOR}::OpenGL
+            Qt${QT_VERSION_MAJOR}::OpenGLWidgets
             ${QtNodes_LIBRARIES}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
             ${Libpd_LIBRARIES}
             ${QHotKey_LIBRARIES}
-            ${QtAwesome_LIBRARIES}
+            # ${QtAwesome_LIBRARIES}
             ${QCodeEditor_LIBRARIES}
             ${Qtpropertybrowser_LIBRARIES}
             ${Libltc_LIBRARIES}
+            # ${Qtimeline_LIBRARIES}
             Eigen3::Eigen
-            VST3PluginNode
+            # VST3PluginNode
             AudioDeviceOutNode
             AudioDecoderNode
             StringSourceNode
@@ -394,7 +432,7 @@ target_link_libraries(${ProjectName}
             FloatSourceNode
             DynamicPortNode
             TCPClientNode
-            TimeLineNode
+            # TimeLineNode
             UDPSocketNode
             DelayNode
             LogicOperationNode
@@ -454,6 +492,9 @@ if(QT_VERSION_MAJOR EQUAL 6)
 endif()
 if(WIN32)
     # Windows 下的处理逻辑
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin")
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin")
 elseif(UNIX)
 
 endif()

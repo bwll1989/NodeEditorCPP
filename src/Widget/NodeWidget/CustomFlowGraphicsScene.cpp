@@ -218,3 +218,10 @@ CustomFlowGraphicsScene::CustomFlowGraphicsScene(CustomDataFlowGraphModel &graph
 
 
 }
+
+void CustomFlowGraphicsScene::centerOnNode(NodeId nodeId) {
+    auto nodeItem = nodeGraphicsObject(nodeId);
+    if (nodeItem) {
+        views().first()->centerOn(nodeItem);
+    }
+}

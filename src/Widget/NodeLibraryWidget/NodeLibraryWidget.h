@@ -2,19 +2,19 @@
 // Created by bwll1 on 2024/10/5.
 //
 
-#ifndef NODEEDITORCPP_NODELISTWIDGET_H
-#define NODEEDITORCPP_NODELISTWIDGET_H
+#ifndef NODEEDITORCPP_NODELIBRARYWIDGET_H
+#define NODEEDITORCPP_NODELIBRARYWIDGET_H
 #include "QWidget"
 #include "QVBoxLayout"
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
 #include "draggabletreewidget.hpp"
 #include "Widget/NodeWidget/CustomGraphicsView.h"
 #include "Widget/NodeWidget/CustomFlowGraphicsScene.h"
-class NodeListWidget: public QWidget{
+class NodeLibraryWidget: public QWidget{
 Q_OBJECT
 
 public:
-    NodeListWidget(CustomDataFlowGraphModel *model,CustomGraphicsView *view,CustomFlowGraphicsScene *scene,QWidget *parent = nullptr);
+    NodeLibraryWidget(CustomDataFlowGraphModel *model,CustomGraphicsView *view,CustomFlowGraphicsScene *scene,QWidget *parent = nullptr);
 
     void initLayout();
 public slots:
@@ -31,4 +31,4 @@ private:
 };
 
 
-#endif //NODEEDITORCPP_NODELISTWIDGET_H
+#endif //NODEEDITORCPP_NODELIBRARYWIDGET_H

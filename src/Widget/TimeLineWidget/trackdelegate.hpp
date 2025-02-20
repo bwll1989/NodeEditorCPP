@@ -1,23 +1,21 @@
-#ifndef TRACKDELEGATE_H
-#define TRACKDELEGATE_H
+#ifndef TRACKDELEGATE_HPP
+#define TRACKDELEGATE_HPP
 
 #include <QAbstractItemDelegate>
 #include <QObject>
-#include "trackdelegate.hpp"
+
 #include<QPainter>
 #include <QPushButton>
 #include <QLayout>
 #include <QSpacerItem>
-#include <QLineEdit>
+#include "QLabel"
 #include "timelinemodel.hpp"
 #include "timelinestyle.hpp"
 class TrackDelegate : public QAbstractItemDelegate
 {
     Q_OBJECT
 public:
-    explicit TrackDelegate(QObject *parent = nullptr): QAbstractItemDelegate{parent}{
-
-    };
+    explicit TrackDelegate(QObject *parent = nullptr): QAbstractItemDelegate{parent}{};
 
 signals:
 
@@ -46,20 +44,25 @@ public:
 
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
         QWidget* editor = new QWidget(parent);
+
         QHBoxLayout* layout = new QHBoxLayout(editor);
-//        QPushButton* a = new QPushButton();
-        QLineEdit* title=new QLineEdit();
-        QLabel* label=new QLabel("||");
+        layout->setContentsMargins(0,0,0,0);
+        QLabel* title=new QLabel();
         title->setText("Untitled");
-        title->setStyleSheet("QLineEdit { background: rgba(255, 255, 255, 0); color: white; border: none; }");
+        title->setStyleSheet("QLabel { background: rgba(255, 255, 255, 0); color: white; border: none; }");
         title->setAlignment(Qt::AlignCenter);
         layout->setContentsMargins(5, 5, 5, 5);
-//        a->setMaximumHeight(option.rect.height());
-//        a->setMaximumWidth(option.rect.height());
-//        a->setText("M");
         layout->addWidget(title);
-//        layout->addWidget(a);
-        layout->addWidget(label);
+
+
+        QPushButton* muteButton = new QPushButton("M");
+        muteButton->setFixedSize((trackHeight-10)/2,(trackHeight-10)/2);
+        QPushButton* soloButton = new QPushButton("S");
+        soloButton->setFixedSize((trackHeight-10)/2,(trackHeight-10)/2);
+
+        layout->addWidget(muteButton);
+        
+        layout->addWidget(soloButton);
         editor->show();
         editor->setMouseTracking(true);
         return editor;
@@ -69,10 +72,20 @@ public:
 public:
     void updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
         editor->setGeometry(option.rect);
-        QRegion mask = QRegion(0,rulerHeight,option.rect.right(),option.rect.bottom()-rulerHeight);
+        QRegion mask = QRegion(0,rulerHeight,option.rect.right(),option.rect.bottom()-rulerHeight-zoomHeight);
         editor->clearMask();
     };
 
+    void setEditorData(QWidget *editor, const QModelIndex &index) const override {
+        QLabel *lineEdit = editor->findChild<QLabel*>();
+        if (lineEdit) {
+            QString trackType = index.data(TimelineRoles::TrackTypeRole).toString();
+            lineEdit->setText(trackType);
+        }
+        // Remove or replace the following line if not applicable
+        QAbstractItemDelegate::setEditorData(editor, index); // Call the correct base class method if needed
+    }
+
 };
 
-#endif // TRACKDELEGATE_H
+#endif // TRACKDELEGATE_HPP

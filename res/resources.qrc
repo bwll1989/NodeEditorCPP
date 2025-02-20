@@ -17,6 +17,37 @@
     <file>icons/trace.png</file>
     <file>icons/warn.png</file>
     <file>icons/critical.png</file>
+    <file>icons/clear.png</file>
+    <file>icons/property.png</file>
+    <file>icons/focus.png</file>
+    <file>icons/dashboard.png</file>
+    <file>icons/library.png</file>
+    <file>icons/lock.png</file>
+    <file>icons/track.png</file>
+    <file>icons/views.png</file>
+    <file>icons/filesearch.png</file>
+    <file>icons/save.png</file>
+    <file>icons/videos.png</file>
+    <file>icons/images.png</file>
+    <file>icons/map.png</file>
+    <file>icons/bug.png</file>
+    <file>icons/trash.png</file>
+    <file>icons/chartLine.png</file>
+    <file>icons/model_1.png</file>
+    <file>icons/portEdit.png</file>
+    <file>icons/list.png</file>
+    <file>icons/add.png</file>
+    <file>icons/remove.png</file>
+    <file>icons/open_flat.png</file>
+    <file>icons/exit.png</file>
+    <file>icons/lock.png</file>
+    <file>icons/unlock.png</file>
+    <file>icons/layout.png</file>
+    <file>icons/restore.png</file>
+    <file>icons/setting.png</file>
+    <file>icons/tools.png</file>
+    <file>icons/about.png</file>
+    <file>icons/timeline.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

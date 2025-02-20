@@ -1,83 +1,216 @@
-//
-// Created by bwll1 on 2024/10/5.
-//
+#include <QVBoxLayout>
+#include <QLineEdit>
+#include "NodeListWidget.hpp"
+#include <QMenu>
+#include <QAction>
+#include "QtNodes/internal/NodeGraphicsObject.hpp"
 
-#include <QtNodes/internal/UndoCommands.hpp>
-#include "NodeListWidget.h"
-#include "QLineEdit"
-NodeListWidget::NodeListWidget(CustomDataFlowGraphModel *model,
-                               CustomGraphicsView *view,
-                               CustomFlowGraphicsScene *scene,
-                               QWidget *parent)
-                               :_model(model),
-                               _view(view) ,
-                               _scene(scene){
-    initLayout();
-    this->update();
+using QtNodes::NodeGraphicsObject;
+
+NodeListWidget::NodeListWidget(CustomDataFlowGraphModel* model, CustomFlowGraphicsScene* scene, QWidget *parent)
+    : QWidget(parent), dataFlowModel(model), dataFlowScene(scene) {
+    searchBox = new QLineEdit(this);
+    searchBox->setPlaceholderText("Search nodes...");
+    nodeTree = new QTreeWidget(this);
+    nodeTree->setColumnCount(1);
+    nodeTree->setStyleSheet("QTreeView::item { padding: 4px; }");
+    nodeTree->setHeaderLabels(QStringList() << "Nodes");
+    auto layout = new QVBoxLayout(this);
+    layout->addWidget(searchBox);
+    layout->addWidget(nodeTree);
+    setLayout(layout);
+
+    populateNodeTree();
+
+    // Connect signals to slots
+    // node创建时，更新nodeList中的node
+    connect(dataFlowModel, &CustomDataFlowGraphModel::nodeCreated, this, &NodeListWidget::onNodeCreated);
+    // node创建时，更新nodeList中的node
+    connect(dataFlowModel, &CustomDataFlowGraphModel::nodeDeleted, this, &NodeListWidget::onNodeDeleted);
+    // node更新时，更新nodeList中的node
+    connect(dataFlowModel, &CustomDataFlowGraphModel::nodeUpdated, this, &NodeListWidget::onNodeUpdated);
+    // node位置更新时，更新nodeList中的位置
+    connect(dataFlowModel, &CustomDataFlowGraphModel::nodePositionUpdated, this, &NodeListWidget::onNodeUpdated);
+    // 搜索框文本变化时，过滤nodeList中的node
+    connect(searchBox, &QLineEdit::textChanged, this, &NodeListWidget::filterNodes);
+    connect(nodeTree, &QTreeWidget::itemSelectionChanged, this, &NodeListWidget::onTreeItemSelectionChanged);
+    connect(dataFlowScene, &CustomFlowGraphicsScene::selectionChanged, this, &NodeListWidget::onSceneSelectionChanged);
+
+    // Set context menu policy
+    nodeTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(nodeTree, &QTreeWidget::customContextMenuRequested, this, &NodeListWidget::showContextMenu);
 }
-void NodeListWidget::initLayout(){
-    mainLayout=new QVBoxLayout(this);
-//    // Add filterbox to the context menu
-    txtBox = new QLineEdit(this);
-    txtBox->setPlaceholderText(QStringLiteral("Filter"));
-    txtBox->setClearButtonEnabled(true);
-    treeView = new DraggableTreeWidget(this);
-    treeView->setStyleSheet("QTreeView::item { padding: 4px; }");
-    treeView->setHeaderHidden(true);
-    mainLayout->addWidget(txtBox);
-    mainLayout->addWidget(treeView);
-}
 
-void NodeListWidget::update(){
-    auto registry = _model->dataModelRegistry();
+void NodeListWidget::onTreeItemSelectionChanged() {
+    if (isUpdatingSelection) return;
+    
+    QList<QTreeWidgetItem*> selectedItems = nodeTree->selectedItems();
+    if (selectedItems.isEmpty()) return;
 
-    for (auto const &cat : registry->categories()) {
-        auto item = new QTreeWidgetItem(treeView);
-        item->setText(0, cat);
-        item->setIcon(0,QIcon(":/icons/icons/plugins.png"));
-        item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+    QTreeWidgetItem* item = selectedItems.first();
+    // 如果选中的是子节点，找到其父节点
+    if (item->parent()) {
+        item = item->parent();
     }
-    for (auto const &assoc : registry->registeredModelsCategoryAssociation()) {
-        QList<QTreeWidgetItem *> parent = treeView->findItems(assoc.second, Qt::MatchExactly);
+    
+    QString nodeText = item->text(0);
+    NodeId nodeId = nodeText.section(':', 0, 0).toInt();
+    
+    isUpdatingSelection = true;
+    dataFlowScene->clearSelection();
+    if (auto nodeObj = dataFlowScene->nodeGraphicsObject(nodeId)) {
+        nodeObj->setSelected(true);
+    }
+    isUpdatingSelection = false;
+}
 
-        if (parent.count() <= 0)
-            continue;
-        auto item = new QTreeWidgetItem(parent.first());
-        item->setText(0, assoc.first);
-        item->setIcon(0,QIcon(":/icons/icons/plugin.png"));
-        auto *createNodeAction = new QAction(assoc.first, this);
-        const QString &nodeType=item->text(0);
-        QObject::connect(createNodeAction, &QAction::triggered, [this, nodeType]() {
-            // Mouse position in scene coordinates.
-            QPoint globalPos = _view->mapFromGlobal(QCursor::pos());
-            if (_view->rect().contains(globalPos)) {
-                QPointF posView = _view->mapToScene(globalPos);
-                _scene->undoStack().push(new QtNodes::CreateCommand(_scene, nodeType, posView));
+void NodeListWidget::onSceneSelectionChanged() {
+    if (isUpdatingSelection) return;
+    
+    isUpdatingSelection = true;
+    nodeTree->clearSelection();
+    auto selectedNodes = dataFlowScene->selectedNodes();
+    for (NodeId nodeId : selectedNodes) {
+        if (QTreeWidgetItem* item = findNodeItem(nodeId)) {
+            item->setSelected(true);
+            nodeTree->scrollToItem(item);
+        }
+    }
+    isUpdatingSelection = false;
+}
+
+QTreeWidgetItem* NodeListWidget::findNodeItem(NodeId nodeId) {
+    for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = nodeTree->topLevelItem(i);
+        if (item->text(0).startsWith(QString::number(nodeId) + ":")) {
+            return item;
+        }
+    }
+    return nullptr;
+}
+
+void NodeListWidget::populateNodeTree() {
+    nodeTree->clear();
+    for (const auto& nodeId : dataFlowModel->allNodeIds()) {
+        QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Type).toString();
+        QTreeWidgetItem* nodeItem = new QTreeWidgetItem(nodeTree);
+        nodeItem->setIcon(0,QIcon(":/icons/icons/model_1.png"));
+        nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
+
+        // Add properties as child items
+        QTreeWidgetItem* propertyItem = new QTreeWidgetItem(nodeItem);
+        propertyItem->setIcon(0,QIcon(":/icons/icons/property.png"));
+        propertyItem->setText(0, "Property: Value");
+        nodeItem->addChild(propertyItem);
+
+        // 添加位置信息
+        QTreeWidgetItem* positionItem = new QTreeWidgetItem(nodeItem);
+        positionItem->setIcon(0,QIcon(":/icons/icons/property.png"));
+        positionItem->setText(0, QString("Position: "));
+        nodeItem->addChild(positionItem);
+    }
+}
+
+void NodeListWidget::onNodeCreated(NodeId nodeId) {
+    QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Type).toString();
+    QTreeWidgetItem* nodeItem = new QTreeWidgetItem(nodeTree);
+    nodeItem->setIcon(0,QIcon(":/icons/icons/model_1.png"));
+    nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
+
+    // Add properties as child items
+    QTreeWidgetItem* propertyItem = new QTreeWidgetItem(nodeItem);
+    propertyItem->setIcon(0,QIcon(":/icons/icons/property.png"));
+    propertyItem->setText(0, "Property: Value");
+    nodeItem->addChild(propertyItem);
+
+    // Add position as a property
+    QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
+    QTreeWidgetItem* positionItem = new QTreeWidgetItem(nodeItem);
+    positionItem->setIcon(0,QIcon(":/icons/icons/property.png"));
+    positionItem->setText(0, QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
+    nodeItem->addChild(positionItem);
+}
+
+void NodeListWidget::onNodeDeleted(NodeId nodeId) {
+    for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* nodeItem = nodeTree->topLevelItem(i);
+        if (nodeItem->text(0).startsWith(QString::number(nodeId) + ":")) {
+            delete nodeTree->takeTopLevelItem(i);
+            break;
+        }
+    }
+}
+
+void NodeListWidget::onNodeUpdated(NodeId nodeId) {
+    for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* nodeItem = nodeTree->topLevelItem(i);
+        if (nodeItem->text(0).startsWith(QString::number(nodeId) + ":")) {
+            // Update node name
+            QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Type).toString();
+            nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
+
+            // Update position
+            QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
+            for (int j = 0; j < nodeItem->childCount(); ++j) {
+                QTreeWidgetItem* childItem = nodeItem->child(j);
+                if (childItem->text(0).startsWith("Position:")) {
+                    childItem->setText(0, QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
+                    break;
+                }
             }
-        });
-        treeView->registerAction(assoc.first, createNodeAction);
+            break;
+        }
     }
-    treeView->expandAll();
-    txtBox->setFocus();
-    //Setup filtering
-    connect(txtBox, &QLineEdit::textChanged, this,&NodeListWidget::filterChanged);
 }
-void NodeListWidget::filterChanged(const QString &text){
-    QTreeWidgetItemIterator categoryIt(treeView, QTreeWidgetItemIterator::HasChildren);
-    while (*categoryIt)
-        (*categoryIt++)->setHidden(true);
-    QTreeWidgetItemIterator it(treeView, QTreeWidgetItemIterator::NoChildren);
-    while (*it) {
-        auto modelName = (*it)->text(0);
-        const bool match = (modelName.contains(text, Qt::CaseInsensitive));
-        (*it)->setHidden(!match);
-        if (match) {
-            QTreeWidgetItem *parent = (*it)->parent();
-            while (parent) {
-                parent->setHidden(false);
-                parent = parent->parent();
+
+void NodeListWidget::filterNodes(const QString& query) {
+    for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* nodeItem = nodeTree->topLevelItem(i);
+        bool matchInNode = nodeItem->text(0).contains(query, Qt::CaseInsensitive);
+        bool matchInChildren = false;
+
+        // Search through child items
+        for (int j = 0; j < nodeItem->childCount(); ++j) {
+            QTreeWidgetItem* childItem = nodeItem->child(j);
+            if (childItem->text(0).contains(query, Qt::CaseInsensitive)) {
+                matchInChildren = true;
+                childItem->setHidden(false);
+            } else {
+                childItem->setHidden(!query.isEmpty());
             }
         }
-        ++it;
+
+        // Show the node if either the node itself or any of its children match
+        nodeItem->setHidden(!(matchInNode || matchInChildren));
+        
+        // If the node matches, show all its children
+        if (matchInNode) {
+            for (int j = 0; j < nodeItem->childCount(); ++j) {
+                nodeItem->child(j)->setHidden(false);
+            }
+        }
     }
+}
+
+void NodeListWidget::showContextMenu(const QPoint &pos) {
+    QTreeWidgetItem* selectedItem = nodeTree->itemAt(pos);
+    if (!selectedItem) return;
+
+    QMenu contextMenu;
+    QAction* focusAction = contextMenu.addAction("Focus Node");
+    focusAction->setIcon(QIcon(":/icons/icons/focus.png"));
+    QAction* deleteAction = contextMenu.addAction("Delete Node");
+    deleteAction->setIcon(QIcon(":/icons/icons/clear.png"));
+    connect(deleteAction, &QAction::triggered, [this, selectedItem]() {
+        QString nodeText = selectedItem->text(0);
+        NodeId nodeId = nodeText.section(':', 0, 0).toInt();
+        dataFlowScene->undoStack().push(new QtNodes::DeleteCommand(dataFlowScene));
+    });
+    connect(focusAction, &QAction::triggered, [this, selectedItem]() {
+        QString nodeText = selectedItem->text(0);
+        NodeId nodeId = nodeText.section(':', 0, 0).toInt();
+        dataFlowScene->centerOnNode(nodeId);
+    });
+
+    contextMenu.exec(nodeTree->viewport()->mapToGlobal(pos));
 }

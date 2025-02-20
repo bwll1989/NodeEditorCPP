@@ -28,9 +28,8 @@ PluginsManagerWidget::~PluginsManagerWidget()
 void PluginsManagerWidget::initLayout()
 {
     setMinimumSize(600, 250);
-    awesome = new fa::QtAwesome(this);
-    awesome->initFontAwesome();
-    _pluginsFolder.setPath(QDir::cleanPath(QCoreApplication::applicationDirPath() + QDir::separator() + "plugins"));
+ 
+    _pluginsFolder.setPath(QDir::cleanPath(QCoreApplication::applicationDirPath() + QDir::separator() + "plugins/DataFlow"));
     QGridLayout *layout = new QGridLayout();
     setLayout(layout);
 //    layout->setContentsMargins(4,0,4,6);
@@ -49,7 +48,7 @@ void PluginsManagerWidget::initLayout()
     pluginTable->selectRow(0);
 
     // add button
-    QPushButton *addButton = new QPushButton(awesome->icon("fa-solid fa-plug-circle-plus"),"Add");
+    QPushButton *addButton = new QPushButton(QIcon(":/icons/icons/add.png"),"Add");
     layout->addWidget(addButton, 1, 0);
     connect(addButton, &QPushButton::clicked, this, [this]() {
         QString fileName =
@@ -98,7 +97,7 @@ void PluginsManagerWidget::initLayout()
     });
 
     // delete button
-    QPushButton *deleteButton = new QPushButton(awesome->icon("fa-solid fa-plug-circle-minus"),"Delete", this);
+    QPushButton *deleteButton = new QPushButton(QIcon(":/icons/icons/remove.png"),"Delete", this);
     layout->addWidget(deleteButton, 1, 1);
     connect(deleteButton, &QPushButton::clicked, this, [this, pluginTable]() {
         QItemSelectionModel *selectionModel = pluginTable->selectionModel();

@@ -10,7 +10,7 @@
 #include "Widget/ConsoleWidget/LogHandler.h"
 #include "QFile"
 #include "QTextStream"
-#include"Widget/ConsoleWidget/LogWidget.hpp"
+#include"Widget/ConsoleWidget/LogWidget.h"
 #include <QDropEvent>
 #include <QFileDialog>
 #include <QMimeData>
@@ -19,6 +19,7 @@
 #include <QTimer>
 #include "Common/GUI/Elements/MartixWidget/MatrixWidget.h"
 #include "Eigen/Core"
+#include "Widget/NodeListWidget/NodeListWidget.hpp"
 #define ConsoleDisplay false
 #define PropertytDisplay true
 #define ToolsDisplay true
@@ -40,8 +41,8 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
 }
 void MainWindow::init()
 {
-    awesome = new fa::QtAwesome(this);
-    awesome->initFontAwesome();
+    // awesome = new fa::QtAwesome(this);
+    // awesome->initFontAwesome();
 
 
     m_DockManager = new ads::CDockManager(this);
@@ -51,71 +52,73 @@ void MainWindow::init()
     emit initStatus("Initialization ADS success");
     this->setMenuBar(menuBar);
     emit initStatus("Initialization MenuBar success");
-
-    auto *NodeWidget = new ads::CDockWidget("节点编辑");
+// 节点编辑控件
+    auto *NodeDockWidget = new ads::CDockWidget("节点编辑");
+    NodeDockWidget->setIcon(QIcon(":/icons/icons/dashboard.png"));
     view = new CustomGraphicsView();
     view->setObjectName("Canvas");
     view->setContextMenuPolicy(Qt::ActionsContextMenu);
     emit initStatus("Initialization view success");
+    //初始化数据流模型
     dataFlowModel=new CustomDataFlowGraphModel(PluginsManager::instance()->registry());
-    // std::shared_ptr<NodeDelegateModelRegistry> _register;
-    // model=new CustomDataFlowGraphModel(_register);
     emit initStatus("Initialization Model success");
-
+    //初始化场景
     scene=new CustomFlowGraphicsScene(*dataFlowModel);
+    //设置场景
     view->setScene(scene);
     emit initStatus("Initialization scene success");
-    NodeWidget->setWidget(view);
-    m_DockManager->setCentralWidget(NodeWidget);
+    //设置节点编辑控件
+    NodeDockWidget->setWidget(view);
+    //添加到中心区域
+    m_DockManager->addDockWidget(ads::CenterDockWidgetArea, NodeDockWidget);
     emit initStatus("Init node editor success");
-
+// 插件管理器控件
     pluginsManagerDlg=new PluginsManagerWidget();
     emit initStatus("initialization pluginsManager");
-
-    nodeListWidget = new ads::CDockWidget("节点库");
-    nodeListWidget->setIcon(awesome->icon("fa-solid fa-rectangle-list"));
-    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, nodeListWidget);
-    menuBar->views->addAction(nodeListWidget->toggleViewAction());
-
-     auto *timelineWidget = new ads::CDockWidget("时间轴");
-    timelineWidget->setObjectName("timeline");
-    timelineWidget->setIcon(awesome->icon("fa-solid fa-chart-gantt"));
-    // property=new PropertyWidget(model);
-    timeline=new TimeLineWidget();
-    timelineWidget->setWidget(timeline);
-     m_DockManager->addDockWidget(ads::LeftDockWidgetArea,  timelineWidget);
-     menuBar->views->addAction(timelineWidget->toggleViewAction());
+// 节点库控件
+    nodeDockLibraryWidget = new ads::CDockWidget("节点库");
+    nodeDockLibraryWidget->setIcon(QIcon(":/icons/icons/library.png"));
+    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, nodeDockLibraryWidget);
+    menuBar->views->addAction(nodeDockLibraryWidget->toggleViewAction());
+// 时间轴控件
+    auto *timelineDockWidget = new ads::CDockWidget("时间轴");
+    timelineDockWidget->setObjectName("timeline");
+    timelineDockWidget->setIcon(QIcon(":/icons/icons/timeline.png"));
+    timeline=new TimelineWidget();
+    timelineDockWidget->setWidget(timeline);
+     m_DockManager->addDockWidget(ads::LeftDockWidgetArea,  timelineDockWidget);
+     menuBar->views->addAction(timelineDockWidget->toggleViewAction());
      emit initStatus("Initialization Timeline editor");
 
+// 端口编辑控件
     auto *portEdits = new ads::CDockWidget("端口编辑");
     portEdits->setObjectName("NodePortEdit");
-    portEdits->setIcon(awesome->icon("fa-solid fa-shuffle"));
+    portEdits->setIcon(QIcon(":/icons/icons/portEdit.png"));
     portEdit=new PortEditWidget(dataFlowModel);
     portEdits->setWidget(portEdit);
     m_DockManager->addDockWidget(ads::LeftDockWidgetArea, portEdits);
     menuBar->views->addAction(portEdits->toggleViewAction());
     emit initStatus("Initialization node port editor");
-
-    auto *logViewer= new ads::CDockWidget("终端显示");
+// 终端显示控件
+    auto *logDockViewer= new ads::CDockWidget("终端显示");
     logTable=new LogWidget();
     log=new LogHandler(logTable);
-    logViewer->setWidget(logTable);
-    logViewer->setIcon(awesome->icon("fa-solid fa-terminal"));
-    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, logViewer);
-    menuBar->views->addAction(logViewer->toggleViewAction());
+    logDockViewer->setWidget(logTable);
+    logDockViewer->setIcon(QIcon(":/icons/icons/bug.png"));
+    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, logDockViewer);
+    menuBar->views->addAction(logDockViewer->toggleViewAction());
     emit initStatus("Initialization console widget");
-//    initPythonInterpreter();
 
-    auto *View= new ads::CDockWidget("显示");
+    auto *DockView= new ads::CDockWidget("显示");
 //    auto *fader=new XYPad(this);
 //    auto *bar1=new BarButton(this);
 //    auto *bar2=new BarButton(this);
 
     auto *w =new MatrixWidget(6, 2);
-    View->setWidget(w);
-    View->setIcon(awesome->icon("fa-solid fa-terminal"));
-    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, View);
-    menuBar->views->addAction(View->toggleViewAction());
+    DockView->setWidget(w);
+    DockView->setIcon(QIcon(":/icons/icons/chartLine.png"));
+    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, DockView);
+    menuBar->views->addAction(DockView->toggleViewAction());
     Eigen::MatrixXd mMat(6,2);
     mMat << 0.11,0.11,
             0.3,0.5,
@@ -124,6 +127,32 @@ void MainWindow::init()
             0.5,0.8,
             0.3,0.3;
     w->setValuesFromMatrix(mMat);
+
+    // 添加片段属性面板
+    auto *clipPropertyDockWidget = new ads::CDockWidget("片段属性");
+    clipPropertyDockWidget->setObjectName("clipProperty");
+    clipPropertyDockWidget->setIcon(QIcon(":/icons/icons/property.png"));
+    clipProperty = new ClipPropertyWidget(this);
+    clipPropertyDockWidget->setWidget(clipProperty);
+    m_DockManager->addDockWidget(ads::RightDockWidgetArea, clipPropertyDockWidget);
+    menuBar->views->addAction(clipPropertyDockWidget->toggleViewAction());
+    emit initStatus("Initialization Clip Property editor");
+
+    // 连接时间线的片段选择信号到属性面板
+    connect(timeline, &TimelineWidget::clipSelected, 
+            [this](AbstractClipModel* clip) {
+                clipProperty->setClip(clip, timeline->model);
+            });
+
+    // 节点列表显示控件
+    auto *nodeListDockWidget = new ads::CDockWidget("节点列表");
+    nodeListDockWidget->setObjectName("nodeList");
+    nodeListDockWidget->setIcon(QIcon(":/icons/icons/list.png"));
+    nodeListWidget = new NodeListWidget(dataFlowModel, scene, this);
+    nodeListDockWidget->setWidget(nodeListWidget);
+    m_DockManager->addDockWidget(ads::RightDockWidgetArea, nodeListDockWidget);
+    menuBar->views->addAction(nodeListDockWidget->toggleViewAction());
+    emit initStatus("Initialization Node List Widget");
 
     connect(menuBar->saveLayout, &QAction::triggered, this, &MainWindow::saveVisualState);
     //保存布局
@@ -160,9 +189,9 @@ void MainWindow::init()
 }
 //显示属性
 void MainWindow::initNodelist() {
-    nodeList=new NodeListWidget(dataFlowModel,view,scene);
-    this->nodeListWidget->setWidget(nodeList);
-    emit initStatus("Initialization nodes list success");
+    nodeLibrary=new NodeLibraryWidget(dataFlowModel,view,scene);
+    this->nodeDockLibraryWidget->setWidget(nodeLibrary);
+    emit initStatus("Initialization nodes library success");
 }
 //软件关于
 void MainWindow::showAboutDialog() {
@@ -193,7 +222,9 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
         }
     }
 }
-//拖拽事件
+//**
+// 拖拽事件
+//**
 void MainWindow::dropEvent(QDropEvent *event) {
     const QMimeData *mimeData = event->mimeData();
     QString filePath = mimeData->urls().at(0).toLocalFile();
@@ -215,7 +246,7 @@ void MainWindow::loadFileFromPath(QString *path) {
 
     if(!path->isEmpty())
     {
-        // 将“\”转换成"/"，因为"\"系统不认
+        // 将"\"转换成"/"，因为"\"系统不认
         QFile file(path->replace("\\", "/"));
         if (!file.open(QIODevice::ReadOnly))
         {
@@ -247,7 +278,10 @@ void MainWindow::loadFileFromExplorer() {
         QByteArray const wholeFile = file.readAll();
         //    读取.flow文件
         auto senceFile=QJsonDocument::fromJson(wholeFile).object();
+        // 加载数据流
         dataFlowModel->load(senceFile["DataFlow"].toObject());
+        // 加载时间轴
+        timeline->load(senceFile["TimeLine"].toObject());
         emit scene->sceneLoaded();
 
 }
@@ -258,7 +292,10 @@ void MainWindow::savFileToPath(const QString *path){
             return;
         QFile file(*path);
         if (file.open(QIODevice::WriteOnly)) {
+            // 保存数据流
             file.write(QJsonDocument(dataFlowModel->save()).toJson());
+            // 保存时间轴
+            file.write(QJsonDocument(timeline->save()).toJson());
             file.close();
         }
     }
@@ -277,7 +314,9 @@ void MainWindow::saveFileToExplorer() {
         QFile file(fileName);
         if (file.open(QIODevice::WriteOnly)) {
             QJsonObject flowJson;
+            // 保存数据流
             flowJson["DataFlow"]=dataFlowModel->save();
+            // 保存时间轴
             flowJson["TimeLine"]=timeline->save();
             file.write(QJsonDocument(flowJson).toJson());
             file.close();
@@ -329,7 +368,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 
     if (reply == QMessageBox::Yes) {
         qDebug()<<"The program exits manually";
-        // 用户点击“是”，接受事件，应用程序关闭
+        // 用户点击"是"，接受事件，应用程序关闭
 //    结束日志记录器
         this->close();
         m_DockManager->deleteLater();
@@ -337,7 +376,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 
         event->accept();
     } else {
-        // 用户点击“否”，忽略事件，应用程序保持运行
+        // 用户点击"否"，忽略事件，应用程序保持运行
         event->ignore();
     }
 }

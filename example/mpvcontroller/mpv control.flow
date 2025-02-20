@@ -1,145 +1,171 @@
 {
-    "connections": [
-        {
-            "inPortIndex": 3,
-            "intNodeId": 0,
-            "outNodeId": 8,
-            "outPortIndex": 0
-        },
-        {
-            "inPortIndex": 2,
-            "intNodeId": 0,
-            "outNodeId": 7,
-            "outPortIndex": 0
-        },
-        {
-            "inPortIndex": 0,
-            "intNodeId": 0,
-            "outNodeId": 4,
-            "outPortIndex": 0
-        },
-        {
-            "inPortIndex": 1,
-            "intNodeId": 0,
-            "outNodeId": 6,
-            "outPortIndex": 0
-        },
-        {
-            "inPortIndex": 0,
-            "intNodeId": 5,
-            "outNodeId": 0,
-            "outPortIndex": 0
-        },
-        {
-            "inPortIndex": 0,
-            "intNodeId": 1,
-            "outNodeId": 0,
-            "outPortIndex": 0
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 2,
+                "outNodeId": 1,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 4,
+                "outNodeId": 1,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 1,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 2,
+                "intNodeId": 1,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 3,
+                "intNodeId": 1,
+                "outNodeId": 7,
+                "outPortIndex": 0
+            }
+        ],
+        "nodes": [
+            {
+                "id": 1,
+                "inPortCount": "4",
+                "internal-data": {
+                    "InPortCount": 4,
+                    "OutPortCount": 1,
+                    "model-name": "Lua Script",
+                    "values": {
+                        "scripts": "\n\nlocal port = Node:inputIndex()\n\nif port == 0 then\n    local out = VariantMap.fromLuaTable({default = \"fullscreen\"})\n    Node:setTableValue(0, out)\nelseif port == 1 then\n    local out = VariantMap.fromLuaTable({default = \"toggle_pause\"})\n    Node:setTableValue(0, out)\nelseif port == 2 then\n    local out = VariantMap.fromLuaTable({default = \"playlist_prev\"})\n    Node:setTableValue(0, out)\nelseif port == 3 then\n    local out = VariantMap.fromLuaTable({default = \"playlist_next\"})\n    Node:setTableValue(0, out)\nend\n\n-- local out= VariantMap.fromLuaTable(luaTable)\n"
+                    }
+                },
+                "outPortCount": "1",
+                "position": {
+                    "x": -498.6835276190478,
+                    "y": -102.56658285714296
+                }
+            },
+            {
+                "id": 2,
+                "inPortCount": "1",
+                "internal-data": {
+                    "model-name": "Data Info"
+                },
+                "outPortCount": "1",
+                "position": {
+                    "x": -155.28496761904745,
+                    "y": -230.53223619047623
+                }
+            },
+            {
+                "id": 3,
+                "inPortCount": "1",
+                "internal-data": {
+                    "model-name": "Bool Source",
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "outPortCount": "1",
+                "position": {
+                    "x": -842.9476342857143,
+                    "y": -191.94690285714282
+                }
+            },
+            {
+                "id": 4,
+                "inPortCount": "1",
+                "internal-data": {
+                    "model-name": "Mpv Controller",
+                    "values": {
+                    }
+                },
+                "outPortCount": "1",
+                "position": {
+                    "x": 180.97236571428584,
+                    "y": -56.59356952380938
+                }
+            },
+            {
+                "id": 5,
+                "inPortCount": "1",
+                "internal-data": {
+                    "model-name": "Bool Source",
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "outPortCount": "1",
+                "position": {
+                    "x": -852.9476342857143,
+                    "y": -95.94690285714282
+                }
+            },
+            {
+                "id": 6,
+                "inPortCount": "1",
+                "internal-data": {
+                    "model-name": "Bool Source",
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "outPortCount": "1",
+                "position": {
+                    "x": -858.9476342857143,
+                    "y": 0.053097142857183144
+                }
+            },
+            {
+                "id": 7,
+                "inPortCount": "1",
+                "internal-data": {
+                    "model-name": "Bool Source",
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "outPortCount": "1",
+                "position": {
+                    "x": -854.9476342857143,
+                    "y": 88.05309714285718
+                }
+            }
+        ]
+    },
+    "TimeLine": {
+        "timeline": {
+            "track": [
+                {
+                    "clips": [
+                    ],
+                    "id": 0,
+                    "type": "AUDIO"
+                },
+                {
+                    "clips": [
+                    ],
+                    "id": 1,
+                    "type": "VIDEO"
+                },
+                {
+                    "clips": [
+                    ],
+                    "id": 2,
+                    "type": "CONTROL"
+                }
+            ]
         }
-    ],
-    "nodes": [
-        {
-            "id": 0,
-            "inPortCount": "4",
-            "internal-data": {
-                "InPortCount": 4,
-                "OutPortCount": 1,
-                "model-name": "Lua Script",
-                "values": {
-                    "scripts": "\n\nlocal port = Node:inputIndex()\n\nif port == 0 then\n    local out = VariantMap.fromLuaTable({default = \"fullscreen\"})\n    Node:setTableValue(0, out)\nelseif port == 1 then\n    local out = VariantMap.fromLuaTable({default = \"toggle_pause\"})\n    Node:setTableValue(0, out)\nelseif port == 2 then\n    local out = VariantMap.fromLuaTable({default = \"playlist_prev\"})\n    Node:setTableValue(0, out)\nelseif port == 3 then\n    local out = VariantMap.fromLuaTable({default = \"playlist_next\"})\n    Node:setTableValue(0, out)\nend\n\n-- local out= VariantMap.fromLuaTable(luaTable)\n"
-                }
-            },
-            "outPortCount": "1",
-            "position": {
-                "x": 24.43077333333318,
-                "y": 123.71365333333318
-            }
-        },
-        {
-            "id": 1,
-            "inPortCount": "1",
-            "internal-data": {
-                "model-name": "Data Info"
-            },
-            "outPortCount": "1",
-            "position": {
-                "x": 748.6960000000001,
-                "y": -0.592000000000013
-            }
-        },
-        {
-            "id": 4,
-            "inPortCount": "1",
-            "internal-data": {
-                "model-name": "Bool Source",
-                "values": {
-                    "val": "0"
-                }
-            },
-            "outPortCount": "1",
-            "position": {
-                "x": -229,
-                "y": 41
-            }
-        },
-        {
-            "id": 5,
-            "inPortCount": "1",
-            "internal-data": {
-                "model-name": "Mpv Controller",
-                "values": {
-                }
-            },
-            "outPortCount": "1",
-            "position": {
-                "x": 229.5066666666669,
-                "y": 250.50666666666672
-            }
-        },
-        {
-            "id": 6,
-            "inPortCount": "1",
-            "internal-data": {
-                "model-name": "Bool Source",
-                "values": {
-                    "val": "1"
-                }
-            },
-            "outPortCount": "1",
-            "position": {
-                "x": -239,
-                "y": 137
-            }
-        },
-        {
-            "id": 7,
-            "inPortCount": "1",
-            "internal-data": {
-                "model-name": "Bool Source",
-                "values": {
-                    "val": "1"
-                }
-            },
-            "outPortCount": "1",
-            "position": {
-                "x": -245,
-                "y": 233
-            }
-        },
-        {
-            "id": 8,
-            "inPortCount": "1",
-            "internal-data": {
-                "model-name": "Bool Source",
-                "values": {
-                    "val": "0"
-                }
-            },
-            "outPortCount": "1",
-            "position": {
-                "x": -241,
-                "y": 321
-            }
-        }
-    ]
+    }
 }

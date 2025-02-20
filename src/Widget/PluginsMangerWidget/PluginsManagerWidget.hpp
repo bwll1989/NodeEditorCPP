@@ -4,7 +4,7 @@
 #include <QDir>
 #include <QStandardItemModel>
 #include <QtNodes/PluginsManager>
-#include "QtAwesome/QtAwesome.h"
+
 using QtNodes::PluginsManager;
 
 class PluginsManagerWidget : public QDialog
@@ -28,8 +28,7 @@ private:
 
 
 private:
-    fa::QtAwesome *awesome;
-
+   
     QDir _pluginsFolder;
 
     QStandardItemModel *_model = nullptr;

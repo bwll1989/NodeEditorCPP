@@ -7,14 +7,13 @@
 
 #include <QMenuBar>
 #include <QAction>
-#include "QtAwesome/QtAwesome.h"
+
 class MenuBarWidget:public QMenuBar {
 Q_OBJECT
 
 public:
     explicit MenuBarWidget(QWidget *parent = nullptr);
     void setupMenu();
-    fa::QtAwesome *awesome;
     QMenu *Files_menu ;
     QMenu *views;
     QAction *saveAction ;

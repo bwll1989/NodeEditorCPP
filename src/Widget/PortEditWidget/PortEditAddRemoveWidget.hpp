@@ -7,7 +7,7 @@
 #include <QWidget>
 #include <QtNodes/Definitions>
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
-#include "QtAwesome/QtAwesome.h"
+
 using QtNodes::NodeId;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
@@ -75,8 +75,8 @@ private:
      */
     std::pair<PortType, PortIndex> findWhichPortWasClicked(QObject *sender, int const buttonIndex);
 
-    fa::QtAwesome *awesome;
     NodeId const _nodeId;
+    
     CustomDataFlowGraphModel &_model;
 public:
     QVBoxLayout *_left;

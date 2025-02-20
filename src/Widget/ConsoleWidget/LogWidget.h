@@ -2,14 +2,24 @@
 #define LOGWIDGET_H
 
 #include <QTableWidget>
-#include <QTextBrowser>
 
+#include <QMenu>
+#include <QAction>
 class LogWidget : public QTableWidget
 {
-public:
-    LogWidget();
-public slots:
-    void clearTableWidget();
-};
+    Q_OBJECT
 
+public:
+
+    LogWidget();
+
+protected:
+
+    void contextMenuEvent(QContextMenuEvent *event) override;
+
+public slots:
+
+    void clearTableWidget();
+
+};
 #endif // LOGWIDGET_H

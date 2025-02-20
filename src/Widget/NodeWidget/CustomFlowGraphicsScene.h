@@ -35,6 +35,9 @@ public Q_SLOTS:
     bool load();
 
 	void test(const NodeId node);
+
+    void centerOnNode(NodeId nodeId);
+
 Q_SIGNALS:
     	void sceneLoaded();
 
