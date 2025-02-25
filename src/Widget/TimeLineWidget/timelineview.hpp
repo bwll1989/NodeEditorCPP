@@ -14,12 +14,13 @@
 #include "timelinemodel.hpp"
 #include "timelinestyle.hpp"
 #include "trackdelegate.hpp"
+#include "timelinetoolbar.hpp"
 //#include "mediaclips/mediaclipmodel.hpp"
 #include "QTimer"
 #include "QMenu"
 // #include "zoomcontroller.hpp"
 #include "AbstractClipDelegate.hpp"
-
+#include "videoplayerwidget.hpp"
 // #include "pluginloader.hpp"
 // TimelineView类继承自QAbstractItemView
 class TimelineView : public QAbstractItemView
@@ -27,33 +28,8 @@ class TimelineView : public QAbstractItemView
 Q_OBJECT
 public:
     // 构造函数，初始化视图模型
-    explicit TimelineView(TimelineModel *viewModel, QWidget *parent = nullptr)
-        : Model(viewModel), QAbstractItemView{parent}
-    {
-        setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        setVerticalScrollBarPolicy(Qt:: ScrollBarAlwaysOff);
-        setModel(Model);
-        horizontalScrollBar()->setSingleStep(10);
-        horizontalScrollBar()->setPageStep(100);
-        verticalScrollBar()->setSingleStep(trackHeight);
-        verticalScrollBar()->setPageStep(trackHeight * 5);
-        viewport()->setMinimumHeight(trackHeight + rulerHeight);
-        setMinimumHeight(trackHeight + rulerHeight);
-        QItemSelectionModel* selModel = new QItemSelectionModel(Model, this);
-        setSelectionModel(selModel);
-        setSelectionMode(QAbstractItemView::SingleSelection);
-        setSelectionBehavior(QAbstractItemView::SelectItems);
-        setMouseTracking(true);
-        // 确保有选择模型
-        setEditTriggers(QAbstractItemView::AllEditTriggers);
-        setAutoScroll(true);
-        setAutoScrollMargin(5);
-        setAcceptDrops(true);
-        connect(timer, &QTimer::timeout, this, &TimelineView::onTimeout);
-        connect(Model, &TimelineModel::timelineUpdated, this, &TimelineView::updateViewport);
-        installEventFilter(this);
-    }
-
+    explicit TimelineView(TimelineModel *viewModel, QWidget *parent = nullptr);
+    ~TimelineView() override ;
     // 返回给定索引的可视矩形
     QRect visualRect(const QModelIndex &index) const override;
     // 滚动到指定索引
@@ -62,11 +38,17 @@ public:
     // 返回给定点的索引
     QModelIndex indexAt(const QPoint &point) const override;
 
+    TimelineToolbar* toolbar;
+
+    QTimer *timer = new QTimer(this);
+
 signals:
     void scrolled(int dx,int dy);
     void timelineInfoChanged(int totalWidth, int viewportWidth, int scrollPosition);
-
+    void videoWindowClosed();
+    void currentClipChanged(AbstractClipModel* clip);
 public slots:
+    void showVideoWindow(bool show = true);
     // 更新可视区域
     void updateViewport();
     // 定时器启动
@@ -112,7 +94,7 @@ protected:
    
     void leaveEvent(QEvent *event) override;
 
-    bool eventFilter(QObject *watched, QEvent *event) override;
+    // bool eventFilter(QObject *watched, QEvent *event) override;
 
     void contextMenuEvent(QContextMenuEvent* event) override;
 
@@ -141,12 +123,13 @@ private:
     QRect itemRect(const QModelIndex &index) const;
 
     QPoint m_scrollOffset;
-    QTimer *timer = new QTimer(this);
-
+   
     int pointToFrame(int point) const;
 
     int frameToPoint(int frame) const;
 
+    
+    
     QPoint m_mouseStart;
     QPoint m_mouseEnd;
     QPoint m_mouseOffset;
@@ -154,6 +137,7 @@ private:
     bool m_playheadSelected = false;
     bool m_isDroppingMedia = false;
     QPoint m_lastDragPos;
+    VideoPlayerWidget* videoPlayer = nullptr;
     hoverState m_mouseUnderClipEdge = NONE;
 
     QModelIndex m_hoverIndex = QModelIndex();
@@ -168,6 +152,7 @@ private:
     // 移动播放头到指定帧
     void movePlayheadToFrame(int frame);
 
+    void setupVideoWindow();
 };
 
 #endif // TIMELINEVIEW_HPP

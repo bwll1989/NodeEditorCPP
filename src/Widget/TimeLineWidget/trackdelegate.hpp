@@ -72,7 +72,7 @@ public:
 public:
     void updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
         editor->setGeometry(option.rect);
-        QRegion mask = QRegion(0,rulerHeight,option.rect.right(),option.rect.bottom()-rulerHeight-zoomHeight);
+        QRegion mask = QRegion(0,rulerHeight,option.rect.right(),option.rect.bottom()-rulerHeight-toolbarHeight);
         editor->clearMask();
     };
 

@@ -20,6 +20,9 @@
 #include "Common/GUI/Elements/MartixWidget/MatrixWidget.h"
 #include "Eigen/Core"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
+#include "Widget/TimeLineWidget/timelineview.hpp"
+#include "Widget/ClipPropertyWidget/ClipPropertyWidget.hpp"
+#include "Widget/TimeLineWidget/abstractclipmodel.hpp"
 #define ConsoleDisplay false
 #define PropertytDisplay true
 #define ToolsDisplay true
@@ -58,6 +61,7 @@ void MainWindow::init()
     view = new CustomGraphicsView();
     view->setObjectName("Canvas");
     view->setContextMenuPolicy(Qt::ActionsContextMenu);
+    menuBar->views->addAction(NodeDockWidget->toggleViewAction());
     emit initStatus("Initialization view success");
     //初始化数据流模型
     dataFlowModel=new CustomDataFlowGraphModel(PluginsManager::instance()->registry());
@@ -139,10 +143,31 @@ void MainWindow::init()
     emit initStatus("Initialization Clip Property editor");
 
     // 连接时间线的片段选择信号到属性面板
-    connect(timeline, &TimelineWidget::clipSelected, 
-            [this](AbstractClipModel* clip) {
-                clipProperty->setClip(clip, timeline->model);
-            });
+     // 在适当的位置添加连接
+    connect(timeline->view, &TimelineView::currentClipChanged,[this](AbstractClipModel* clip){
+        clipProperty->setClip(clip, timeline->model);
+    });
+    // connect(timeline, &TimelineWidget::clipSelected, 
+    //         [this](AbstractClipModel* clip) {
+    //             clipProperty->setClip(clip, timeline->model);
+    //         });
+
+    // 添加舞台控件
+    auto *stageDockWidget = new ads::CDockWidget("舞台");
+    stageDockWidget->setObjectName("stage");
+    stageDockWidget->setIcon(QIcon(":/icons/icons/stage.png"));
+    stageWidget = new StageWidget();
+    stageDockWidget->setWidget(stageWidget);
+    m_DockManager->addDockWidget(ads::RightDockWidgetArea, stageDockWidget);
+    menuBar->views->addAction(stageDockWidget->toggleViewAction());
+    //从timelinemodel中获取stage
+    stageWidget->setStage(timeline->model->getStage());
+    emit initStatus("Initialization Stage");
+    // 当 stage 改变时更新
+    connect(timeline->model, &TimelineModel::stageChanged, [this]() {
+        stageWidget->setStage(timeline->model->getStage());
+    });
+    emit initStatus("Initialization Stage Widget");
 
     // 节点列表显示控件
     auto *nodeListDockWidget = new ads::CDockWidget("节点列表");
@@ -160,7 +185,9 @@ void MainWindow::init()
     //恢复布局
     connect(menuBar->aboutAction, &QAction::triggered, this, &MainWindow::showAboutDialog);
     //关于软件窗口
-    connect(menuBar->saveAction, &QAction::triggered, this, &MainWindow::saveFileToExplorer);
+    connect(menuBar->saveAsAction, &QAction::triggered, this, &MainWindow::saveFileToExplorer);
+    //另存为
+    connect(menuBar->saveAction, &QAction::triggered, this, &MainWindow::saveFileToPath);
     //保存
     connect(menuBar->loadAction, &QAction::triggered, this, &MainWindow::loadFileFromExplorer);
     // 打开
@@ -185,6 +212,8 @@ void MainWindow::init()
 
     // 恢复布局
     setAcceptDrops(true);
+
+   
 
 }
 //显示属性
@@ -242,21 +271,31 @@ void MainWindow::dropEvent(QDropEvent *event) {
 
 }
 //从路径打开文件
-void MainWindow::loadFileFromPath(QString *path) {
-
+void MainWindow::loadFileFromPath(QString *path)
+{
     if(!path->isEmpty())
     {
+        // 获取绝对路径
+        QFileInfo fileInfo(*path);
+        QString absolutePath = fileInfo.absoluteFilePath();
+        
         // 将"\"转换成"/"，因为"\"系统不认
-        QFile file(path->replace("\\", "/"));
+        absolutePath = absolutePath.replace("\\", "/");
+        
+        QFile file(absolutePath);
         if (!file.open(QIODevice::ReadOnly))
         {
-            return ;
+            QMessageBox::warning(this, tr("打开失败"),
+                tr("无法打开文件 %1:\n%2").arg(absolutePath).arg(file.errorString()));
+            return;
         }
+        
         scene->clearScene();
         //    场景清空
         QByteArray const wholeFile = file.readAll();
         //    读取.flow文件
         dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object());
+        currentProjectPath = absolutePath;
     }
 }
 //从文件管理器打开文件
@@ -282,24 +321,29 @@ void MainWindow::loadFileFromExplorer() {
         dataFlowModel->load(senceFile["DataFlow"].toObject());
         // 加载时间轴
         timeline->load(senceFile["TimeLine"].toObject());
+        // 设置当前项目路径
+        currentProjectPath=fileName;
         emit scene->sceneLoaded();
 
 }
 //保存文件到路径
-void MainWindow::savFileToPath(const QString *path){
-    if (!path->isEmpty()) {
-        if (!path->endsWith("flow", Qt::CaseInsensitive))
-            return;
-        QFile file(*path);
-        if (file.open(QIODevice::WriteOnly)) {
-            // 保存数据流
-            file.write(QJsonDocument(dataFlowModel->save()).toJson());
-            // 保存时间轴
-            file.write(QJsonDocument(timeline->save()).toJson());
-            file.close();
-        }
+void MainWindow::saveFileToPath(){
+    if(currentProjectPath.isEmpty()){
+        saveFileToExplorer();
+        return;
     }
-    return ;
+    QFile file(currentProjectPath);
+    //不存在则创建,默认覆盖
+    if (file.open(QIODevice::WriteOnly)) {
+        QJsonObject flowJson;
+        // 保存数据流
+        flowJson["DataFlow"]=dataFlowModel->save();
+        // 保存时间轴
+        flowJson["TimeLine"]=timeline->save();
+        file.write(QJsonDocument(flowJson).toJson());
+        file.close();
+    }
+    
 }
 //保存文件到资源管理器
 void MainWindow::saveFileToExplorer() {
@@ -312,6 +356,7 @@ void MainWindow::saveFileToExplorer() {
             fileName += ".flow";
 
         QFile file(fileName);
+        //不存在则创建,默认覆盖
         if (file.open(QIODevice::WriteOnly)) {
             QJsonObject flowJson;
             // 保存数据流
@@ -320,9 +365,11 @@ void MainWindow::saveFileToExplorer() {
             flowJson["TimeLine"]=timeline->save();
             file.write(QJsonDocument(flowJson).toJson());
             file.close();
+            currentProjectPath=fileName;
         }
     }
 }
+
 // 保存布局
 void MainWindow::saveVisualState()
 {

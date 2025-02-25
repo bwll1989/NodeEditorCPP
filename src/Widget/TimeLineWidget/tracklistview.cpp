@@ -59,7 +59,7 @@ void TracklistView::mousePressEvent(QMouseEvent *event) {
  */
 QModelIndex TracklistView::indexAt(const QPoint &point) const {
     // Check if the point is above the ruler or in a blank area
-    QRect rulerRect(0, 0, viewport()->width(), rulerHeight+zoomHeight);
+    QRect rulerRect(0, 0, viewport()->width(), rulerHeight+toolbarHeight);
     if (point.y() < 0 || rulerRect.contains(point)) {
         return QModelIndex(); // Return an invalid index
     }
@@ -190,7 +190,7 @@ void TracklistView::updateScrollBars(){
     if(!model())
         return;
     int max =0;
-    verticalScrollBar()->setRange(0,model()->rowCount() * trackHeight + rulerHeight+zoomHeight - viewport()->height());
+    verticalScrollBar()->setRange(0,model()->rowCount() * trackHeight + rulerHeight+toolbarHeight - viewport()->height());
 }
 
 /**
@@ -205,7 +205,7 @@ QRect TracklistView::visualRect(const QModelIndex &index) const{
 QRect TracklistView::itemRect(const QModelIndex &index) const{
     if(!index.isValid())
         return QRect();
-    return QRect(0, (index.row() * trackHeight) + rulerHeight+zoomHeight, viewport()->width(), trackHeight);
+    return QRect(0, (index.row() * trackHeight) + rulerHeight+toolbarHeight, viewport()->width(), trackHeight);
 };
 /**
  * @brief 更新编辑几何
@@ -223,9 +223,9 @@ void TracklistView::updateEditorGeometries() {
 
         QRect rect  = editor->rect();
         QPoint topInView = editor->mapToParent(rect.topLeft());
-        if(topInView.y()<rulerHeight+zoomHeight){
-            int offset = rulerHeight+zoomHeight-topInView.y();
-            editor->setMask(QRegion(0,offset,editor->width(),rulerHeight+zoomHeight));
+        if(topInView.y()<rulerHeight+toolbarHeight){
+            int offset = rulerHeight+toolbarHeight-topInView.y();
+            editor->setMask(QRegion(0,offset,editor->width(),rulerHeight+toolbarHeight));
         }
 
     }
@@ -306,9 +306,9 @@ void TracklistView::paintEvent(QPaintEvent *event) {
 
     // Draw the ruler and time display separately
     painter.setBrush(QBrush(bgColour));
-    painter.drawRect(0,0,viewportWidth,rulerHeight+zoomHeight);
+    painter.drawRect(0,0,viewportWidth,rulerHeight+toolbarHeight);
         
-    QRect ruler(0,  0, viewport()->width(), rulerHeight+zoomHeight);
+    QRect ruler(0,  0, viewport()->width(), rulerHeight+toolbarHeight);
     painter.setPen(fontColor);
     QFont font;
     font.setPixelSize(fontSize);

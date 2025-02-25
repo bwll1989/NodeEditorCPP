@@ -1,0 +1,7 @@
+<RCC>
+  <qresource prefix="qml">
+    <file>controls/TimelineStage.qml</file>
+    <file>controls/StageScreen.qml</file>
+    <file>controls/StageControlBase.qml</file>
+  </qresource>
+</RCC>

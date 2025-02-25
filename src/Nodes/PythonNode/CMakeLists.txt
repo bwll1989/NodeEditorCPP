@@ -8,7 +8,7 @@ set(QCodeEditor_INCLUDE "${DEPENDS_DIR}/QCodeEditor/include")
 INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
 set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/build/libQCodeEditor.a")
 message("-- Found QCodeEditor ${QCodeEditor_INCLUDE}")
-
+set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 
 
 

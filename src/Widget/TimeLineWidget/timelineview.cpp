@@ -2,6 +2,112 @@
 #include <QMenu>
 #include <QAction>
 
+TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
+        : Model(viewModel), QAbstractItemView{parent}
+    {
+        setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        setVerticalScrollBarPolicy(Qt:: ScrollBarAlwaysOff);
+        setModel(Model);
+        horizontalScrollBar()->setSingleStep(10);
+        horizontalScrollBar()->setPageStep(100);
+        verticalScrollBar()->setSingleStep(trackHeight);
+        verticalScrollBar()->setPageStep(trackHeight * 5);
+        viewport()->setMinimumHeight(trackHeight + rulerHeight + toolbarHeight);
+        setMinimumHeight(trackHeight + rulerHeight + toolbarHeight);
+        QItemSelectionModel* selModel = new QItemSelectionModel(Model, this);
+        setSelectionModel(selModel);
+        setSelectionMode(QAbstractItemView::SingleSelection);
+        setSelectionBehavior(QAbstractItemView::SelectItems);
+        setMouseTracking(true);
+        // 确保有选择模型
+        setEditTriggers(QAbstractItemView::AllEditTriggers);
+        setAutoScroll(true);
+        setAutoScrollMargin(5);
+        setAcceptDrops(true);
+        
+        // 创建工具栏
+        toolbar = new TimelineToolbar(this);
+        toolbar->setFixedHeight(toolbarHeight);
+        // 设置工具栏位置
+        toolbar->move(0, 0);
+        
+        // 连接工具栏信号
+        connect(toolbar, &TimelineToolbar::playClicked, this, &TimelineView::timelinestart);
+        // 连接停止按钮信号
+        connect(toolbar, &TimelineToolbar::stopClicked, [this]() {
+            if(timer->isActive()) {
+                timer->stop();
+            }
+            Model->setPlayheadPos(0);
+            viewport()->update();
+        });
+        // 连接暂停按钮信号
+        connect(toolbar, &TimelineToolbar::pauseClicked, [this]() {
+            if(timer->isActive()) {
+                timer->stop();
+            }
+        });
+        
+        // 连接输出窗口切换信号
+        connect(toolbar, &TimelineToolbar::outputWindowToggled, this, &TimelineView::showVideoWindow);
+        // 当视频窗口关闭时，更新工具栏按钮状态
+        connect(this, &TimelineView::videoWindowClosed, [this]() {
+            toolbar->m_outputAction->setChecked(false);
+        });
+        // 连接定时器超时信号
+        connect(timer, &QTimer::timeout, this, &TimelineView::onTimeout);
+        connect(Model, &TimelineModel::timelineUpdated, this, &TimelineView::updateViewport);
+        // installEventFilter(this);
+        // 创建视频播放器和窗口
+        setupVideoWindow();
+
+        // 连接工具栏的帧控制信号
+        connect(toolbar, &TimelineToolbar::prevFrameClicked, [this]() {
+            int currentFrame = Model->getPlayheadPos();
+            if (currentFrame > 0) {  // 确保不会移动到负帧
+                movePlayheadToFrame(currentFrame - 1);
+            }
+        });
+        // 连接下一帧按钮信号
+        connect(toolbar, &TimelineToolbar::nextFrameClicked, [this]() {
+            movePlayheadToFrame(Model->getPlayheadPos() + 1);
+        });
+        // 连接移动剪辑按钮信号
+        connect(toolbar, &TimelineToolbar::moveClipClicked, [this](int dx) {
+            moveSelectedClip(dx,0,false);
+        });
+        // 连接删除剪辑按钮信号
+        connect(toolbar, &TimelineToolbar::deleteClipClicked, [this]() {
+            if(selectionModel()->selectedIndexes().isEmpty())
+                return;
+            
+            QModelIndex currentIndex = selectionModel()->currentIndex();
+            Model->deleteClip(currentIndex);
+            
+            // 清除选择并发送 nullptr
+            selectionModel()->clearSelection();
+            emit currentClipChanged(nullptr);
+            
+            viewport()->update();
+        });
+
+        // 连接放大按钮信号
+        connect(toolbar, &TimelineToolbar::zoomInClicked, [this]() {
+           setScale(currentScale + 0.1);
+        });
+        // 连接缩小按钮信号
+        connect(toolbar, &TimelineToolbar::zoomOutClicked, [this]() {
+            setScale(currentScale - 0.1);
+        });
+    }
+
+TimelineView::~TimelineView()
+{
+    delete videoPlayer;
+    delete toolbar;
+    delete timer;
+
+}
 QRect TimelineView::visualRect(const QModelIndex &index) const
 {
     
@@ -10,41 +116,40 @@ QRect TimelineView::visualRect(const QModelIndex &index) const
 
  QModelIndex TimelineView::indexAt(const QPoint &point) const
     {
-        // Check if the point is within the ruler area
-        QRect rulerRect(-m_scrollOffset.x(), 0, viewport()->width() + m_scrollOffset.x(), rulerHeight);
-        // qDebug()<<"point.y()"<<point.y();
-        if (point.y() < rulerHeight) {
+        //检查位置是否在工具栏区域
+        if (point.y() < rulerHeight+toolbarHeight) {
             return QModelIndex(); // Return an invalid index if the point is in the ruler area
         }
 
-        // Iterate over each track
+        //遍历每个轨道，匹配
         for (int i = 0; i < model()->rowCount(); ++i) {
             QModelIndex trackIndex = model()->index(i, 0);
             QRect trackRect = visualRect(trackIndex);
 
-            // Check if the point is within the track's rectangle
+            //检查位置是否在轨道矩形内
             if (trackRect.contains(point)) {
-                // Iterate over each clip within the track
+                //遍历每个剪辑，匹配位置是否在剪辑矩形内
                 for (int j = 0; j < model()->rowCount(trackIndex); ++j) {
                     QModelIndex clipIndex = model()->index(j, 0, trackIndex);
                     QRect clipRect = visualRect(clipIndex);
 
-                    // Check if the point is within the clip's rectangle
+                    //检查位置是否在剪辑矩形内
                     if (clipRect.contains(point)) {
-                        return clipIndex; // Return the clip index if the point is within a clip
+                        //如果位置在剪辑矩形内，返回剪辑索引
+                        return clipIndex;
                     }
                 }
-                return trackIndex; // Return the track index if the point is within a track but not within any clip
+                //如果位置在轨道矩形内，但不在剪辑矩形内，返回轨道索引
+                return trackIndex; 
             }
         }
-
-        return QModelIndex(); // Return an invalid index if the point is not within any track or clip
+        //如果位置不在任何轨道或剪辑矩形内，返回无效索引
+        return QModelIndex(); 
     }
 
 QRect TimelineView::itemRect(const QModelIndex &index) const
 {
-    // qDebug()<<"index"<<index;
-    // 如果索引无效，返回空矩形
+
     
     if (!index.isValid()) {
     return QRect();
@@ -56,7 +161,7 @@ QRect TimelineView::itemRect(const QModelIndex &index) const
     // 如果轨道索引
     {
         // 返回轨道矩形
-        return QRect(0, (index.row() * trackHeight) + rulerHeight, trackwidth, trackHeight);
+        return QRect(0, (index.row() * trackHeight) + rulerHeight+toolbarHeight, trackwidth, trackHeight);
     }
     // 如果剪辑索引
     else{
@@ -72,7 +177,7 @@ QRect TimelineView::itemRect(const QModelIndex &index) const
             // 获取剪辑开始点x
             int clipStartX = frameToPoint(startFrame);
             // 获取剪辑开始点y
-            int clipStartY = (trackRow*trackHeight + rulerHeight);
+            int clipStartY = (trackRow*trackHeight + rulerHeight+toolbarHeight);
             // 获取剪辑宽度
             int clipWidth = frameToPoint(endFrame - startFrame);
             // 获取剪辑所在轨道行开始点
@@ -350,51 +455,49 @@ void TimelineView::showEvent(QShowEvent *event)
     QAbstractItemView::showEvent(event);
 }
 
-void TimelineView::mousePressEvent(QMouseEvent *event) 
+void TimelineView::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::RightButton) {
-        // 处理左键按下的情况
         QAbstractItemView::mousePressEvent(event);
         return;
     }
+    
     m_mouseStart = event->pos();
-    m_mouseEnd = m_mouseStart;
+    m_mouseEnd = event->pos();
     mouseHeld = true;
-    m_playheadSelected = false;
-    m_hoverIndex = QModelIndex();
 
+    // 清除当前选择
     selectionModel()->clearSelection();
+    
     // 获取播放头位置   
     int playheadPos = frameToPoint(((TimelineModel*)model())->getPlayheadPos());
     // 获取播放头矩形
     QRect playheadHitBox(QPoint(playheadPos-3,rulerHeight),QPoint(playheadPos+2,viewport()->height()));
     // 获取播放头矩形2
     QRect playheadHitBox2(QPoint(playheadPos-playheadwidth,-playheadheight + rulerHeight),QPoint(playheadPos+playheadwidth,rulerHeight));
-    // 如果鼠标点击在播放头矩形内
-    if(playheadHitBox.contains(m_mouseStart)||playheadHitBox2.contains(m_mouseStart)){
+    // 如果点击在播放头上
+    if(playheadHitBox.contains(m_mouseStart) || playheadHitBox2.contains(m_mouseStart)) {
         m_playheadSelected = true;
-        return QAbstractItemView::mousePressEvent(event);
+        return;
     }
-    // 设置播放头未选中
+    
     m_playheadSelected = false;
-    // 获取鼠标点击的索引
+    
+    // 获取点击位置的项
     QModelIndex item = indexAt(event->pos());
-    // 如果鼠标点击的索引是有效的
-    //item pressed was a clip
-    if(item.parent().isValid()){
-        selectionModel()->select(item,QItemSelectionModel::Select);
+    
+    // 如果点击到了片段
+    if(item.isValid() && item.parent().isValid()) {
+        // 设置当前项和选择
+        selectionModel()->setCurrentIndex(item, QItemSelectionModel::ClearAndSelect);
         m_mouseOffset.setX(frameToPoint(item.data(TimelineRoles::ClipInRole).toInt()) - m_mouseStart.x());
-
+    } else {
+        // 点击到空白区域或轨道
+        selectionModel()->clearSelection();
+        movePlayheadToFrame(pointToFrame(std::max(0, m_mouseEnd.x() + m_scrollOffset.x())));
     }
-    // 如果选中的索引为空   
-    if(selectionModel()->selectedIndexes().isEmpty()){
-        // 移动播放头到指定帧
-        movePlayheadToFrame(pointToFrame(std::max(0,m_mouseEnd.x()+m_scrollOffset.x())));
-        // 更新视口
-        viewport()->update();
-    }
-
-    QAbstractItemView::mousePressEvent(event);
+    
+    viewport()->update();
 }
 
 void TimelineView::mouseMoveEvent(QMouseEvent *event)
@@ -514,39 +617,36 @@ void TimelineView::dropEvent(QDropEvent *event)
     }
 }
 
-bool TimelineView::eventFilter(QObject *watched, QEvent *event)
-    {
-        
-        if (event->type() == QEvent::KeyPress) {
-            QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-            QModelIndexList list = selectionModel()->selectedIndexes();
-            TimelineModel* timelinemodel = (TimelineModel*)model();
-            if (watched == this) {
-                switch (keyEvent->key()){
-                    case Qt::Key_Right :
-                        moveSelectedClip(1,0,false);
-                        break;
-                    case Qt::Key_Left:
-                        moveSelectedClip(-1,0,false);
-                        return true;  // 表示事件已处理，不再向其他控件传递
-                    case Qt::Key_Delete:
-                        if(list.isEmpty())
-                            break;
-                        timelinemodel->deleteClip(list[0]);
-                        clearSelection();
-                        return true;  // 表示事件已处理，不再向其他控件传递
-                    defualt:
-                        break;
-                }
-
-            }
-        }
-        return QObject::eventFilter(watched, event);
-    }
+// bool TimelineView::eventFilter(QObject *watched, QEvent *event)
+// {
+//     // if (event->type() == QEvent::KeyPress) {
+//     //     QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
+//     //     QModelIndexList list = selectionModel()->selectedIndexes();
+//     //     TimelineModel* timelinemodel = (TimelineModel*)model();
+//     //     if (watched == this) {
+//     //         switch (keyEvent->key()){
+//     //             case Qt::Key_Right :
+//     //                 moveSelectedClip(1,0,false);
+//     //                 return true;  // 统一返回 true
+//     //             case Qt::Key_Left:
+//     //                 moveSelectedClip(-1,0,false);
+//     //                 return true;
+//     //             case Qt::Key_Delete:
+//     //                 if(list.isEmpty())
+//     //                     break;
+//     //                 timelinemodel->deleteClip(list[0]);
+//     //                 clearSelection();
+//     //                 return true;
+//     //             default:
+//     //                 break;
+//     //         }
+//     //     }
+//     // }
+//     // return QObject::eventFilter(watched, event);
+// }
 
 void TimelineView::paintEvent(QPaintEvent *event) 
 {
-    
     // 获取可见区域
     int trackwidth = getTrackWdith();
     QPainter painter(viewport());
@@ -561,16 +661,17 @@ void TimelineView::paintEvent(QPaintEvent *event)
 
     // 1. 绘制背景
     painter.fillRect(visibleRect, bgColour);
-    // 画轨道
+    //设置分割线颜色
     painter.setPen(seperatorColour);
+    // 画轨道
     for (int i = 0; i < model()->rowCount(); ++i) {
         QModelIndex trackIndex = model()->index(i, 0);
-        int trackSplitter = (i+1) * trackHeight + rulerHeight - m_scrollOffset.y();
+        int trackSplitter = (i+1) * trackHeight + rulerHeight + toolbarHeight - m_scrollOffset.y();
         painter.drawLine(0, trackSplitter, event->rect().width(), trackSplitter);
     }
 
         // 画垂直线
-        int lineheight = model()->rowCount() * trackHeight + rulerHeight;
+        int lineheight = model()->rowCount() * trackHeight + rulerHeight+toolbarHeight;
         int frameStep;
 
         if (timescale >= 25) {
@@ -636,7 +737,7 @@ void TimelineView::paintEvent(QPaintEvent *event)
         // 画时间轴
         painter.setPen(rulerColour);
         painter.setBrush(QBrush(bgColour));
-        painter.drawRect(-m_scrollOffset.x(),0,event->rect().width() + m_scrollOffset.x(),rulerHeight);
+        painter.drawRect(-m_scrollOffset.x(),0,event->rect().width() + m_scrollOffset.x(),rulerHeight+toolbarHeight);
 
         
         static int jump = 1;
@@ -651,11 +752,11 @@ void TimelineView::paintEvent(QPaintEvent *event)
             QRect   textRect = painter.fontMetrics().boundingRect(text);
 
             textRect.translate(-m_scrollOffset.x(), 0);
-            textRect.translate(i - textRect.width() / 2, rulerHeight - textoffset);
+            textRect.translate(i - textRect.width() / 2, rulerHeight+toolbarHeight - textoffset);
 
         
             painter.drawLine(i  - m_scrollOffset.x(),textRect.bottom(),
-                             i  - m_scrollOffset.x(),rulerHeight);
+                             i  - m_scrollOffset.x(),rulerHeight+toolbarHeight);
 
             painter.drawText(textRect, text);
         }
@@ -698,7 +799,7 @@ void TimelineView::paintEvent(QPaintEvent *event)
         int playheadPos = frameToPoint(Model->getPlayheadPos()) -m_scrollOffset.x();
         for(QPoint &p:kite){
             p.setX(p.x()+playheadPos);
-            p.setY(p.y()+rulerHeight);
+            p.setY(p.y()+rulerHeight+toolbarHeight);
         }
 
         // 设置画笔和画刷颜色
@@ -709,13 +810,30 @@ void TimelineView::paintEvent(QPaintEvent *event)
         painter.drawConvexPolygon(kite,5);
 
         // 绘制播放头竖线
-        painter.drawLine(QPoint(playheadPos,rulerHeight),QPoint(playheadPos,viewport()->height()));
+        painter.drawLine(QPoint(playheadPos,rulerHeight+toolbarHeight),QPoint(playheadPos,viewport()->height()));
+        // 2. 绘制工具栏背景和分割线
+        painter.setPen(rulerColour);
+
+        painter.drawLine(0, rulerHeight ,event->rect().width(), rulerHeight);
+
         painter.restore();  // 恢复状态
     }
 
 void TimelineView::selectionChanged(const QItemSelection &selected, const QItemSelection &deselected)
 {
-    QAbstractItemView::selectionChanged(selected,deselected);
+    QAbstractItemView::selectionChanged(selected, deselected);
+    
+    // 获取当前选中的索引
+    QModelIndex currentIndex = selectionModel()->currentIndex();
+    
+    // 发送选中片段变化信号
+    if (currentIndex.isValid() && currentIndex.parent().isValid()) {
+        auto* clip = static_cast<AbstractClipModel*>(currentIndex.internalPointer());
+        emit currentClipChanged(clip);
+    } else {
+        emit currentClipChanged(nullptr);
+    }
+    
     viewport()->update();
 }
 
@@ -759,3 +877,39 @@ void TimelineView::wheelEvent(QWheelEvent *event){
         }
         event->accept();
     }
+void TimelineView::setupVideoWindow()
+{
+    // 创建视频播放器
+    videoPlayer = new VideoPlayerWidget;
+    videoPlayer->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);  // 设置为独立窗口
+    videoPlayer->setKeepAspectRatio(true);
+    
+   
+}
+
+void TimelineView::showVideoWindow(bool show)
+{
+    if (show) {
+        if (!videoPlayer) {
+            setupVideoWindow();
+        }
+
+        videoPlayer->showFullScreen();
+        
+        // 获取所有屏幕
+        QList<QScreen*> screens = QGuiApplication::screens();
+        
+        // 如果有第二个屏幕，确保窗口在第二个屏幕上
+        if (screens.size() > 1) {
+            QScreen* secondScreen = screens[1];
+            videoPlayer->setGeometry(secondScreen->geometry());
+        }
+    } else {
+        if (videoPlayer) {
+            videoPlayer->close();  // 关闭窗口
+            delete videoPlayer;    // 销毁对象
+            videoPlayer = nullptr; // 清空指针
+            emit videoWindowClosed();
+        }
+    }
+}

@@ -15,6 +15,8 @@ void MenuBarWidget::setupMenu() {
     Files_menu = this->addMenu("文件");
     saveAction = Files_menu->addAction("保存场景");
     saveAction->setIcon(QIcon(":/icons/icons/save.png"));
+    saveAsAction = Files_menu->addAction("另存为");
+    saveAsAction->setIcon(QIcon(":/icons/icons/saveAs.png"));
     loadAction = Files_menu->addAction("打开场景");
     loadAction->setIcon(QIcon(":/icons/icons/open_flat.png"));
     Files_menu->addSeparator();

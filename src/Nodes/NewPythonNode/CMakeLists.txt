@@ -4,6 +4,7 @@ project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 pybind11_add_module(ScriptEngine ScriptInterface.cpp)
 
 #target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES}  Python3::Python ${QCodeEditor_LIBRARIES} pybind11::embed pybind11::module)

@@ -3,7 +3,7 @@ set(Module_Name "TimeLineNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)
-
+set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 #set(QRC_FILES
 #        ./resources/resource.qrc
 #)

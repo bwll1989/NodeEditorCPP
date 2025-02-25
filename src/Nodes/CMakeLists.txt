@@ -1,0 +1,45 @@
+cmake_minimum_required(VERSION 3.5)
+
+add_subdirectory(TimeCodeSourceNode)  #时间码输入
+add_subdirectory(StringSourceNode)    #字符串显示
+add_subdirectory(DataInfoNode)        #数据显示
+#add_subdirectory(PythonNode)
+#add_subdirectory(NewPythonNode)
+add_subdirectory(ImageLoadNode)       #图像导入
+add_subdirectory(ImageShowNode)       #图像显示
+#add_subdirectory(AudioPlayNode)      #音频播放模块
+add_subdirectory(BoolSourceNode)      #布尔输入模块
+add_subdirectory(IntSourceNode)       #整数输入模块
+add_subdirectory(LuaScriptNode)       #Lua脚本模块
+add_subdirectory(TCPServerNode)       #TCP服务器模块
+add_subdirectory(TCPClientNode)       #TCP客户端模块
+add_subdirectory(FloatSourceNode)     #浮点输入模块
+add_subdirectory(DynamicPortNode)     #动态端口模块
+# add_subdirectory(TimeLineNode)        #时间轴模块
+add_subdirectory(UDPSocketNode)       #UDP模块
+add_subdirectory(DelayNode)           #延迟模块
+add_subdirectory(LogicOperationNode)  #逻辑操作模块
+add_subdirectory(MathOperationNode)   #数学操作模块
+add_subdirectory(LFONode)             ##LFO模块
+add_subdirectory(QMLNode)             #QML模块
+add_subdirectory(AudioDecoderNode)    #音频解码模块
+add_subdirectory(AudioDeviceOutNode)  #音频输出模块
+add_subdirectory(HotKeyNode)          #热键模块
+add_subdirectory(ExtractNode)         #数据分离模块
+add_subdirectory(ImageInfoNode)       #图像信息
+add_subdirectory(ScaleImageNode)      #图像缩放
+add_subdirectory(CameraNode)          #摄像头输入
+add_subdirectory(CaptureNode)         #图像捕获
+add_subdirectory(ConvertImageNode)    #图像转换
+add_subdirectory(CutImageNode)        #图像切割
+add_subdirectory(DrawRectsNode)       #矩形绘图
+add_subdirectory(RectNode)            #矩形模块
+add_subdirectory(SizeVarNode)         #尺寸模块
+add_subdirectory(RectVarNode)         #矩形变量
+add_subdirectory(MergeNode)           #数据合并
+add_subdirectory(OscInNode)           #OSC输入
+add_subdirectory(OscOutNode)          #OSC输出
+add_subdirectory(ArtnetInNode)        #Arnet输入
+# add_subdirectory(MltSourceNode)       #Mlt输入
+add_subdirectory(MpvControllerNode)   #mpv控制
+add_subdirectory(SwitchNode)          #输入切换

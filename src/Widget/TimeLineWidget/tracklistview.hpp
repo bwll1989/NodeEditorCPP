@@ -28,7 +28,7 @@ public:
         horizontalScrollBar()->setPageStep(100);
         verticalScrollBar()->setSingleStep(trackHeight);
         verticalScrollBar()->setPageStep(trackHeight );
-        viewport()->setMinimumHeight(trackHeight + rulerHeight+zoomHeight);
+        viewport()->setMinimumHeight(trackHeight + rulerHeight+toolbarHeight);
         setAcceptDrops(true);
         setDragEnabled(true);
         setDragDropMode(QAbstractItemView::InternalMove);

@@ -6,6 +6,7 @@
 #define TIMELINEWIDGET_CPP
 
 #include "timelinewidget.hpp"
+#include "timelinesettingsdialog.hpp"
 
 TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent) {
     // 首先创建模型
@@ -17,12 +18,34 @@ TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent) {
     connect(model, &TimelineModel::playheadMoved, tracklist, &TracklistView::setTime);
     connect(model, &TimelineModel::tracksChanged, tracklist, &TracklistView::updateViewport);
     connect(model, &TimelineModel::tracksChanged, view, &TimelineView::updateViewport);
-    connect(tracklist, &TracklistView::viewupdate, view, &TimelineView::updateViewport);
-    // 连接选择变化信号
-    connect(view->selectionModel(), &QItemSelectionModel::currentChanged,
-            this, &TimelineWidget::onClipSelected);
-    // 创建视频播放器和窗口
-    setupVideoWindow();
+    connect(tracklist, &TracklistView::viewupdate, view, &TimelineView::updateViewport);    
+    setupConnections();
+}
+
+void TimelineWidget::setupConnections()
+{
+    // Connect toolbar settings button to show settings dialog
+    connect(view->toolbar, &TimelineToolbar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
+    
+    // Connect settings dialog changes to timeline
+   
+}
+
+void TimelineWidget::showSettingsDialog()
+{
+    if (!m_settingsDialog) {
+        m_settingsDialog = new TimelineSettingsDialog(this);
+        
+        // Connect settings changes to timeline
+        connect(m_settingsDialog, &TimelineSettingsDialog::settingsChanged, this, [this]() {
+            // 应用设置到timelineview
+            int fps = m_settingsDialog->getFPS();
+           
+            // TODO: Apply video settings
+        });
+    }
+    
+    m_settingsDialog->show();
 }
 
 QJsonObject TimelineWidget::save() {
@@ -33,12 +56,10 @@ void TimelineWidget::load(const QJsonObject& json) {
     model->load(json);
 }
 
-void TimelineWidget::start(){
-    view->timelinestart();
-}
 
 
 void TimelineWidget::createComponents() {
+    // 创建工具栏
     view = new TimelineView(model, this);
     tracklist = new TracklistView(model, this);
     
@@ -74,65 +95,11 @@ void TimelineWidget::createComponents() {
     mainlayout->addWidget(horizontalSplitter);
 }
 
-void TimelineWidget::onClipSelected(const QModelIndex& index) {
-    // 如果选中了有效的片段
-    if (index.isValid() && index.parent().isValid()) {
-        auto* clip = static_cast<AbstractClipModel*>(index.internalPointer());
-        if (clip) {
-            emit clipSelected(clip);
-        }
-    }
-}
-
-void TimelineWidget::setupVideoWindow()
-{
-    // 创建视频播放器
-    videoPlayer = new VideoPlayerWidget;
-    videoPlayer->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);  // 设置为独立窗口
-    videoPlayer->setKeepAspectRatio(true);
-    
-    // 添加 Escape 键关闭功能
-    auto* shortcut = new QShortcut(QKeySequence(Qt::Key_Escape), videoPlayer);
-    connect(shortcut, &QShortcut::activated, [this]() {
-        showVideoWindow(false);
-    });
-}
-
-void TimelineWidget::showVideoWindow(bool show)
-{
-    if (show) {
-        if (!videoPlayer) {
-            setupVideoWindow();
-        }
-
-        videoPlayer->showFullScreen();
-        
-        // 获取所有屏幕
-        QList<QScreen*> screens = QGuiApplication::screens();
-        
-        // 如果有第二个屏幕，确保窗口在第二个屏幕上
-        if (screens.size() > 1) {
-            QScreen* secondScreen = screens[1];
-            videoPlayer->setGeometry(secondScreen->geometry());
-        }
-    } else {
-        if (videoPlayer) {
-            videoPlayer->close();  // 关闭窗口
-            delete videoPlayer;    // 销毁对象
-            videoPlayer = nullptr; // 清空指针
-            emit videoWindowClosed();
-        }
-    }
-}
-
-
 TimelineWidget::~TimelineWidget()
 {
-    if (videoPlayer) {
-        videoPlayer->close();  // 确保窗口关闭
-        delete videoPlayer;
-        videoPlayer = nullptr;
-    }
+    delete view;
+    delete tracklist;
+    delete model;
 }
 
 #endif //TIMELINEV2_TIMEWIDGET_HPP

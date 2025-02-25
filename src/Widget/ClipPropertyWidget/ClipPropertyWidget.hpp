@@ -8,7 +8,7 @@
 #include <QPointer>
 #include "Widget/TimeLineWidget/AbstractClipModel.hpp"
 #include "Widget/TimeLineWidget/timelinemodel.hpp"
-
+#include "Widget/TimeLineWidget/AbstractClipDelegate.hpp"
 class ClipPropertyWidget : public QWidget
 {
     Q_OBJECT
@@ -25,7 +25,7 @@ protected:
     void setupUI();
     void updateUI();
     void connectSignals();
-
+    void setupDelegate();
 protected slots:
     void onStartFrameChanged(int value);
     void onEndFrameChanged(int value);
@@ -37,6 +37,10 @@ private:
     QSpinBox* m_endFrameSpinBox;
     QPointer<AbstractClipModel> m_currentClip;
     TimelineModel* m_model = nullptr;
+    QWidget* m_delegateWidget = nullptr;
+    QWidget* m_delegateContainer = nullptr;
+    AbstractClipDelegate* m_delegate = nullptr;
+    QSpacerItem* m_spacer = nullptr;
 };
 
 #endif // CLIPPROPERTY_HPP 

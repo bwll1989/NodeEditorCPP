@@ -12,6 +12,7 @@ set(MAKE_CXX_STANDARD_REQUIRED ON)
 #set(SndFile_DIR "${DEPENDS_DIR}/libsndfile/install/cmake")
 #find_package(SndFile REQUIRED)
 #message("-- Found SndFile ${SndFile_DIR}")
+set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 add_library(${Module_Name} SHARED
         AudioPlayDataModel.hpp
         AudioPlayInterface.hpp

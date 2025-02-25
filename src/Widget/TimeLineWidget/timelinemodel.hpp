@@ -17,6 +17,8 @@
 #include <QFile>
 #include <QJsonDocument>
 #include "pluginloader.hpp"
+#include "timelinestage.hpp"
+#include "timelinescreen.hpp"
 // TimelineModel类继承自QAbstractItemModel
 class TimelineModel : public QAbstractItemModel
 {
@@ -24,11 +26,13 @@ class TimelineModel : public QAbstractItemModel
 public:
     // 构造函数
     TimelineModel(QObject* parent = nullptr) 
-        : QAbstractItemModel(parent), m_pluginLoader(nullptr) {
+        : QAbstractItemModel(parent), m_pluginLoader(nullptr) , m_stage(new TimelineStage()) {
         m_pluginLoader = new PluginLoader();
         m_pluginLoader->loadPlugins();
+
     }
 
+    ~TimelineModel();
     void createTrack(const QString& type);
 
     // 移动播放头
@@ -74,6 +78,11 @@ public:
     PluginLoader* m_pluginLoader; // 插件加载器
 // 获取插件加载器
     PluginLoader* getPluginLoader() const ;
+
+    // 获取和设置舞台
+    TimelineStage* getStage() const { return m_stage; }
+    void setStage(TimelineStage* stage);
+
 signals:
     // 时间线更新
     void timelineUpdated();
@@ -85,6 +94,8 @@ signals:
     void playheadMoved(int frame);
     // 轨道改变
     void tracksChanged();
+    void stageChanged();
+    void screensChanged();
 
 public slots:
     // 创建轨道
@@ -102,7 +113,8 @@ private:
     int findTrackRow(TrackModel* track) const ;
     // 设置插件加载器
     void setPluginLoader(PluginLoader* loader) ;
-    
+    // 舞台对象
+    TimelineStage* m_stage;                 
 };
 
 #endif // TIMELINEMODEL_H

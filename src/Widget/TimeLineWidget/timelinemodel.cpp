@@ -252,7 +252,6 @@ void TimelineModel::createTrackForType(const QString& type) {
 }
 // 保存模型
 QJsonObject TimelineModel::save() const {
-    
     QJsonObject modelJson;
     QJsonArray trackArray;
 
@@ -263,25 +262,39 @@ QJsonObject TimelineModel::save() const {
     modelJson["tracks"] = trackArray;
     modelJson["length"] = m_length;
 
-    
+    // 保存舞台信息
+    if (m_stage) {
+        modelJson["stage"] = m_stage->save();
+    }
+
     return modelJson;
 }
 
 void TimelineModel::load(const QJsonObject &modelJson) {
     clear();
     m_length = modelJson["length"].toInt();
-    QJsonArray trackArray = modelJson["tracks"].toArray();
     
+    // 加载轨道
+    QJsonArray trackArray = modelJson["tracks"].toArray();
     for (const QJsonValue &trackValue : trackArray) {
         QJsonObject trackJson = trackValue.toObject();
         QString type = trackJson["type"].toString();
-        // 创建正确类型的轨道
         TrackModel* track = new TrackModel(trackJson["trackIndex"].toInt(), type);
         track->load(trackJson, m_pluginLoader);
         m_tracks.push_back(track);
     }
+
+    // 加载舞台信息
+    if (modelJson.contains("stage")) {
+        if (!m_stage) {
+            m_stage = new TimelineStage();
+        }
+        m_stage->load(modelJson["stage"].toObject());
+    }
+
     emit timelineUpdated();
     emit tracksChanged();
+    emit stageChanged();
 }
 // 计算时间线长度
 void TimelineModel::calculateLength()
@@ -384,4 +397,26 @@ void TimelineModel::setPluginLoader(PluginLoader* loader) {
 
 PluginLoader* TimelineModel::getPluginLoader() const {
     return m_pluginLoader;
+}
+
+
+
+// 在析构函数中清理
+TimelineModel::~TimelineModel()
+{
+    if (m_stage) {
+        delete m_stage;
+        m_stage = nullptr;
+    }
+}
+
+void TimelineModel::setStage(TimelineStage* stage)
+{
+    if (m_stage != stage) {
+        if (m_stage) {
+            delete m_stage;
+        }
+        m_stage = stage;
+        emit stageChanged();
+    }
 }

@@ -1,9 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-#-DCMAKE_TOOLCHAIN_FILE=C:/Users/bwll1/scoop/apps/vcpkg/current/scripts/buildsystems/vcpkg.cmake
-#CLION构建选项，下面set不生效时可以使用
-#set(CMAKE_TOOLCHAIN_FILE "C:/Users/bwll1/scoop/apps/vcpkg/2024.07.12/scripts/buildsystems/vcpkg.cmake"
-#        CACHE STRING "Vcpkg toolchain file")
-##设置VCPKG
+
 set(ProjectName "NodeStudio")
 project(${ProjectName} VERSION 1.1 LANGUAGES CXX)
 # set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
@@ -33,6 +29,7 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Gui)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Devices)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/DataTypes)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Clips)
 add_definitions(-DQT_MESSAGELOGCONTEXT)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     set(Spdlog_INCLUDE_DIRS "${DEPENDS_DIR}/spdlog/include" )
@@ -76,10 +73,6 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     include_directories(${VST3_DIR})
     link_directories(${VST3_LIBRARIES_DIR})
     
-    # set(Qtimeline_DIR "${DEPENDS_DIR}/Qtimeline")
-    # set(Qtimeline_LIBRARIES "${Qtimeline_DIR}/build/lib/libQtimeline.dll.a")
-    # include_directories(${Qtimeline_DIR})
-    # link_directories(${Qtimeline_LIBRARIES})
 
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL") # 或 MultiThreaded
@@ -199,50 +192,10 @@ message("-- Found libltc ${DEPENDS_DIR}/libltc_cmake/src")
 #include_directories(${Python3_INCLUDE_DIRS})
 #include_directories(${pybind11_INCLUDE_DIRS})
 #分组模块
-add_subdirectory(src/Nodes/TimeCodeSourceNode)  #时间码输入
-add_subdirectory(src/Nodes/StringSourceNode)    #字符串显示
-add_subdirectory(src/Nodes/DataInfoNode)        #数据显示
-#add_subdirectory(src/Nodes/PythonNode)
-#add_subdirectory(src/Nodes/NewPythonNode)
-add_subdirectory(src/Nodes/ImageLoadNode)       #图像导入
-add_subdirectory(src/Nodes/ImageShowNode)       #图像显示
-#add_subdirectory(src/Nodes/AudioPlayNode)      #音频播放模块
-add_subdirectory(src/Nodes/BoolSourceNode)      #布尔输入模块
-add_subdirectory(src/Nodes/IntSourceNode)       #整数输入模块
-add_subdirectory(src/Nodes/LuaScriptNode)       #Lua脚本模块
-add_subdirectory(src/Nodes/TCPServerNode)       #TCP服务器模块
-add_subdirectory(src/Nodes/TCPClientNode)       #TCP客户端模块
-add_subdirectory(src/Nodes/FloatSourceNode)     #浮点输入模块
-add_subdirectory(src/Nodes/DynamicPortNode)     #动态端口模块
-# add_subdirectory(src/Nodes/TimeLineNode)        #时间轴模块
-add_subdirectory(src/Nodes/UDPSocketNode)       #UDP模块
-add_subdirectory(src/Nodes/DelayNode)           #延迟模块
-add_subdirectory(src/Nodes/LogicOperationNode)  #逻辑操作模块
-add_subdirectory(src/Nodes/MathOperationNode)   #数学操作模块
-add_subdirectory(src/Nodes/LFONode)             ##LFO模块
-add_subdirectory(src/Nodes/QMLNode)             #QML模块
-add_subdirectory(src/Nodes/AudioDecoderNode)    #音频解码模块
-add_subdirectory(src/Nodes/AudioDeviceOutNode)  #音频输出模块
-add_subdirectory(src/Nodes/HotKeyNode)          #热键模块
-add_subdirectory(src/Nodes/ExtractNode)         #数据分离模块
-add_subdirectory(src/Nodes/ImageInfoNode)       #图像信息
-add_subdirectory(src/Nodes/ScaleImageNode)      #图像缩放
-add_subdirectory(src/Nodes/CameraNode)          #摄像头输入
-add_subdirectory(src/Nodes/CaptureNode)         #图像捕获
-add_subdirectory(src/Nodes/ConvertImageNode)    #图像转换
-add_subdirectory(src/Nodes/CutImageNode)        #图像切割
-add_subdirectory(src/Nodes/DrawRectsNode)       #矩形绘图
-add_subdirectory(src/Nodes/RectNode)            #矩形模块
-add_subdirectory(src/Nodes/SizeVarNode)         #尺寸模块
-add_subdirectory(src/Nodes/RectVarNode)         #矩形变量
-add_subdirectory(src/Nodes/MergeNode)           #数据合并
-add_subdirectory(src/Nodes/OscInNode)           #OSC输入
-add_subdirectory(src/Nodes/OscOutNode)          #OSC输出
-add_subdirectory(src/Nodes/ArtnetInNode)        #Arnet输入
-# add_subdirectory(src/Nodes/MltSourceNode)       #Mlt输入
-add_subdirectory(src/Nodes/MpvControllerNode)   #mpv控制
-add_subdirectory(src/Nodes/SwitchNode)          #输入切换
-
+# 添加Clips模块
+add_subdirectory(src/Clips)
+# 添加Nodes模块
+add_subdirectory(src/Nodes)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc/tinyosc.c
@@ -259,6 +212,7 @@ set(CALC_SOURCE_FILES
         src/Widget/CurveWidget/CurveEditor.ui
         res/res.rc
         res/resources.qrc
+        src/Widget/TimeLineWidget/timelineResource.qrc
         src/Widget/NodeWidget/CustomDataFlowGraphModel.h
         src/Widget/NodeWidget/CustomDataFlowGraphModel.cpp
         src/Widget/NodeWidget/CustomFlowGraphicsScene.cpp
@@ -357,6 +311,16 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/videoplayerwidget.cpp
         src/Widget/TimeLineWidget/clipproperty.hpp
         src/Widget/TimeLineWidget/clipproperty.cpp
+        src/Widget/TimeLineWidget/timelinetoolbar.hpp
+        src/Widget/TimeLineWidget/timelinetoolbar.cpp
+        src/Widget/TimeLineWidget/timelinesettingsdialog.hpp
+        src/Widget/TimeLineWidget/timelinesettingsdialog.cpp
+        src/Widget/StageWidget/StageWidget.hpp
+        src/Widget/StageWidget/StageWidget.cpp
+        src/Widget/TimeLineWidget/timelinestage.hpp
+        src/Widget/TimeLineWidget/timelinestage.cpp
+        src/Widget/TimeLineWidget/timelinescreen.hpp
+        src/Widget/TimeLineWidget/timelinescreen.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -386,6 +350,7 @@ endif()
 
 set(QRC_FILES
         resources.qrc
+        timelineResource.qrc
         )
 target_compile_definitions(${ProjectName} PRIVATE -DNODE_EDITOR_SHARED)
 target_link_libraries(${ProjectName}
@@ -404,61 +369,16 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::MultimediaWidgets
             Qt${QT_VERSION_MAJOR}::OpenGL
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+            ${portaudio_LIBRARIES}
             ${QtNodes_LIBRARIES}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
             ${Libpd_LIBRARIES}
             ${QHotKey_LIBRARIES}
-            # ${QtAwesome_LIBRARIES}
             ${QCodeEditor_LIBRARIES}
             ${Qtpropertybrowser_LIBRARIES}
             ${Libltc_LIBRARIES}
-            # ${Qtimeline_LIBRARIES}
             Eigen3::Eigen
-            # VST3PluginNode
-            AudioDeviceOutNode
-            AudioDecoderNode
-            StringSourceNode
-#            MltSourceNode
-#            PythonNode
-            ImageLoadNode
-            ImageShowNode
-            ImageInfoNode
-##            AudioPlayNode
-            BoolSourceNode
-            IntSourceNode
-            LuaScriptNode
-            TCPServerNode
-            FloatSourceNode
-            DynamicPortNode
-            TCPClientNode
-            # TimeLineNode
-            UDPSocketNode
-            DelayNode
-            LogicOperationNode
-            MathOperationNode
-            DataInfoNode
-            LFONode
-            QMLNode
-            HotKeyNode
-            TimeCodeSourceNode
-            ImageScaleNode
-            CameraNode
-            CaptureNode
-            ConvertImageNode
-            CutImageNode
-            DrawRectsNode
-            RectNode
-            SizeVarNode
-            RectVarNode
-            ExtractNode
-            MergeNode
-            OscInNode
-            OscOutNode
-            ArtnetInNode
-            MpvControllerNode
-            SwitchNode
-
 
 )
 

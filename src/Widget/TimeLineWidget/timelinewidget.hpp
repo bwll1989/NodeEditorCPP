@@ -30,15 +30,14 @@
 #include "timelineview.hpp"
 #include "tracklistview.hpp"
 #include "timelinetypes.h"
+#include <QWidget>
 #include <QFileDialog>
 #include <QJsonDocument>
 #include <QGuiApplication>
-#include "clipproperty.hpp"
-#include "videoplayerwidget.hpp"
-// #include "zoomcontroller.hpp"
 
-class TimelineWidget : public QWidget{
-Q_OBJECT
+
+class TimelineWidget : public QWidget {
+    Q_OBJECT
 
 public:
     explicit TimelineWidget(QWidget *parent = nullptr);
@@ -50,23 +49,21 @@ public:
     TimelineModel* model;
     TimelineView* view;
     TracklistView* tracklist;
-    VideoPlayerWidget* videoPlayer = nullptr;  // 只保留 videoPlayer
+   
 
 Q_SIGNALS:
     void initialized();
-    void videoWindowClosed();
-    void clipSelected(AbstractClipModel* clip); // Add signal for clip selection
 
 public slots:
     QJsonObject save();
     void load(const QJsonObject& json);
-    void start();
-    void onClipSelected(const QModelIndex& index);
-    void showVideoWindow(bool show = true);
+    void showSettingsDialog(); // Add new slot
+
 
 private:
     void createComponents();
-    void setupVideoWindow();
+    void setupConnections();
+    class TimelineSettingsDialog* m_settingsDialog = nullptr;
 };
 
 

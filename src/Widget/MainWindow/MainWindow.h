@@ -26,6 +26,7 @@
 #include "Widget/TimeLineWidget/TimelineWidget.hpp"
 #include "Widget/ClipPropertyWidget/ClipPropertyWidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
+#include "Widget/StageWidget/stagewidget.hpp"
 class MainWindow : public QMainWindow
 {
 Q_OBJECT
@@ -51,6 +52,8 @@ public:
     TimelineWidget *timeline;
     // 片段属性
     ClipPropertyWidget *clipProperty;
+    // 舞台控件
+    StageWidget *stageWidget;
 signals:
     void initStatus(const QString &message);
 public Q_SLOTS:
@@ -62,8 +65,9 @@ public Q_SLOTS:
     void init();
     void loadFileFromPath(QString *path);
     void loadFileFromExplorer();
-    void savFileToPath(const QString *path);
+    void saveFileToPath();
     void saveFileToExplorer();
+   
 protected:
     virtual void closeEvent(QCloseEvent* event) override;
     virtual void dragEnterEvent(QDragEnterEvent *event) override;
@@ -72,6 +76,7 @@ private:
     // fa::QtAwesome *awesome;
     LogWidget *logTable;
     LogHandler *log;
+    QString currentProjectPath;
 };
 
 

@@ -17,6 +17,7 @@ public:
     QMenu *Files_menu ;
     QMenu *views;
     QAction *saveAction ;
+    QAction *saveAsAction ;
     QAction * loadAction ;
     QAction *exitAction;
     QMenu *Edit_menu;
