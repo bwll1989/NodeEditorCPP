@@ -3,9 +3,9 @@
 #include <QObject>
 #include <QtGui>
 #include "QStyleFactory"
-#include "Widget/MainWindow/MainWindow.h"
-#include "Widget/SplashWidget/CustomSplashScreen.h"
-#include "Widget/ExternalControl/ExternalControler.h"
+#include "Widget/MainWindow/MainWindow.hpp"
+#include "Widget/SplashWidget/CustomSplashScreen.hpp"
+#include "Widget/ExternalControl/ExternalControler.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 
 // 外部控制端口号

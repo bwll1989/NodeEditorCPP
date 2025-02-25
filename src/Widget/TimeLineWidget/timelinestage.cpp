@@ -46,8 +46,10 @@ QJsonObject TimelineStage::save() const
     
     // 保存屏幕信息
     QJsonArray screensArray;
-    for (const TimelineScreen* screen : m_screens) {
-        screensArray.append(screen->save());
+    for (const auto* screen : m_screens) {
+        if (auto* timelineScreen = qobject_cast<const TimelineScreen*>(screen)) {
+            screensArray.append(timelineScreen->save());
+        }
     }
     stageJson["screens"] = screensArray;
 

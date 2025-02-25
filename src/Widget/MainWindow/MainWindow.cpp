@@ -3,14 +3,14 @@
 //
 
 #include <QMessageBox>
-#include "MainWindow.h"
+#include "MainWindow.hpp"
 #include "Nodes/NodeStyle.hpp"
 #include "Widget/CurveWidget/CurveEditor.h"
 #include "Widget/AboutWidget/AboutWidget.hpp"
-#include "Widget/ConsoleWidget/LogHandler.h"
+#include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "QFile"
 #include "QTextStream"
-#include"Widget/ConsoleWidget/LogWidget.h"
+#include"Widget/ConsoleWidget/LogWidget.hpp"
 #include <QDropEvent>
 #include <QFileDialog>
 #include <QMimeData>
@@ -21,7 +21,6 @@
 #include "Eigen/Core"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "Widget/TimeLineWidget/timelineview.hpp"
-#include "Widget/ClipPropertyWidget/ClipPropertyWidget.hpp"
 #include "Widget/TimeLineWidget/abstractclipmodel.hpp"
 #define ConsoleDisplay false
 #define PropertytDisplay true
@@ -131,26 +130,6 @@ void MainWindow::init()
             0.5,0.8,
             0.3,0.3;
     w->setValuesFromMatrix(mMat);
-
-    // 添加片段属性面板
-    auto *clipPropertyDockWidget = new ads::CDockWidget("片段属性");
-    clipPropertyDockWidget->setObjectName("clipProperty");
-    clipPropertyDockWidget->setIcon(QIcon(":/icons/icons/property.png"));
-    clipProperty = new ClipPropertyWidget(this);
-    clipPropertyDockWidget->setWidget(clipProperty);
-    m_DockManager->addDockWidget(ads::RightDockWidgetArea, clipPropertyDockWidget);
-    menuBar->views->addAction(clipPropertyDockWidget->toggleViewAction());
-    emit initStatus("Initialization Clip Property editor");
-
-    // 连接时间线的片段选择信号到属性面板
-     // 在适当的位置添加连接
-    connect(timeline->view, &TimelineView::currentClipChanged,[this](AbstractClipModel* clip){
-        clipProperty->setClip(clip, timeline->model);
-    });
-    // connect(timeline, &TimelineWidget::clipSelected, 
-    //         [this](AbstractClipModel* clip) {
-    //             clipProperty->setClip(clip, timeline->model);
-    //         });
 
     // 添加舞台控件
     auto *stageDockWidget = new ads::CDockWidget("舞台");

@@ -30,128 +30,317 @@ public:
     // 构造函数，初始化视图模型
     explicit TimelineView(TimelineModel *viewModel, QWidget *parent = nullptr);
     ~TimelineView() override ;
-    // 返回给定索引的可视矩形
+    /**
+     * 返回给定索引的可视矩形
+     * @param QModelIndex index 索引
+     * @return QRect 可视矩形
+     */
     QRect visualRect(const QModelIndex &index) const override;
-    // 滚动到指定索引
+    /**
+     * 滚动到指定索引
+     * @param QModelIndex index 索引
+     * @param ScrollHint hint 滚动提示
+     */
     void scrollTo(const QModelIndex &index, ScrollHint hint) override{};
 
-    // 返回给定点的索引
+    /**
+     * 返回给定点的索引
+     * @param QPoint point 点
+     * @return QModelIndex 索引
+     */
     QModelIndex indexAt(const QPoint &point) const override;
 
+    // 时间线工具栏
     TimelineToolbar* toolbar;
-
+    // 时间线定时器
     QTimer *timer = new QTimer(this);
 
 signals:
+    /**
+     * 滚动信号
+     * @param int dx 水平滚动
+     * @param int dy 垂直滚动
+     */
     void scrolled(int dx,int dy);
+    /**
+     * 时间线信息改变信号
+     * @param int totalWidth 总宽度
+     * @param int viewportWidth 视图宽度
+     * @param int scrollPosition 滚动位置
+     */
     void timelineInfoChanged(int totalWidth, int viewportWidth, int scrollPosition);
+    /**
+     * 视频窗口关闭信号
+     */
     void videoWindowClosed();
+    /**
+     * 当前剪辑改变信号
+     * @param AbstractClipModel* clip 当前剪辑
+     */
     void currentClipChanged(AbstractClipModel* clip);
 public slots:
+    /**
+     * 显示视频窗口
+     * @param bool show 是否显示
+     */
     void showVideoWindow(bool show = true);
-    // 更新可视区域
+    /**
+     * 更新可视区域
+     */
     void updateViewport();
-    // 定时器启动
+    /**
+     * 定时器启动
+     */
     void timelinestart();
-    // 定时器超时信号槽
+    /**
+     * 定时器超时信号槽
+     */
     void onTimeout();
-    // 滚动视图
+    /**
+     * 滚动视图
+     * @param int dx 水平滚动
+     * @param int dy 垂直滚动
+     */ 
     void scroll(int dx, int dy);
-    // 水平滚动
+    /**
+     * 水平滚动
+     * @param double dx 水平滚动
+     */
     void horizontalScroll(double dx);
-    // 更新滚动条
+    /**
+     * 更新滚动条
+     */
     void updateScrollBars();
-
+    /**
+     * 滚动内容
+     * @param int dx 水平滚动
+     * @param int dy 垂直滚动
+     */ 
     void scrollContentsBy(int dx, int dy) override;
-
+    /**
+     * 设置缩放
+     * @param double value 缩放值
+     */
     void setScale(double value);
 
-    // 在指定位置添加剪辑
+    /**
+     * 在指定位置添加剪辑
+     * @param QModelIndex index 索引
+     * @param QPoint pos 位置
+     */
     void addClipAtPosition(const QModelIndex& index, const QPoint& pos);
 
 protected:
+    /**
+     * 移动光标
+     * @param CursorAction cursorAction 光标动作
+     * @param Qt::KeyboardModifiers modifiers 键盘修饰符
+     * @return QModelIndex 索引
+     */
     QModelIndex moveCursor(CursorAction cursorAction, Qt::KeyboardModifiers modifiers) override {return QModelIndex();}
 
+    /**
+     * 水平偏移
+     * @return int 水平偏移
+     */
     int horizontalOffset() const override{return 0;}
 
+    /**
+     * 垂直偏移
+     * @return int 垂直偏移
+     */
     int verticalOffset() const override{return 0;}
 
+    /**
+     * 是否隐藏索引
+     * @param QModelIndex index 索引
+     * @return bool 是否隐藏
+     */
     bool isIndexHidden(const QModelIndex &index) const override{ return false; }
 
+    /**
+     * 设置选择
+     * @param QRect rect 矩形
+     * @param QItemSelectionModel::SelectionFlags command 命令
+     */
     void setSelection(const QRect &rect, QItemSelectionModel::SelectionFlags command) override{}
 
+    /**
+     * 设置选择区域
+     * @param QItemSelection selection 选择区域
+     * @return QRegion 区域
+     */
     QRegion visualRegionForSelection(const QItemSelection &selection) const override {return QRegion();}
 
+    /**
+     * 绘制事件
+     * @param QPaintEvent *event 绘制事件
+     */
     void paintEvent(QPaintEvent *event) override;
 
+    /**
+     * 鼠标按下事件
+     * @param QMouseEvent *event 鼠标事件
+     */
     void mousePressEvent(QMouseEvent *event) override;
 
+    /**
+     * 鼠标移动事件
+     * @param QMouseEvent *event 鼠标事件
+     */
     void mouseMoveEvent(QMouseEvent *event) override;
 
+    /**
+     * 鼠标释放事件
+     * @param QMouseEvent *event 鼠标事件
+     */
     void mouseReleaseEvent(QMouseEvent *event) override;
-    
+
+    /**
+     * 鼠标双击事件
+     * @param QMouseEvent *event 鼠标事件
+     */ 
     void mouseDoubleClickEvent(QMouseEvent *event) override;
-   
+    /**
+     * 鼠标离开事件
+     * @param QEvent *event 事件
+     */ 
     void leaveEvent(QEvent *event) override;
 
     // bool eventFilter(QObject *watched, QEvent *event) override;
 
+    /**
+     * 上下文菜单事件
+     * @param QContextMenuEvent* event 上下文菜单事件
+     */
     void contextMenuEvent(QContextMenuEvent* event) override;
 
+    /**
+     * 调整大小事件
+     * @param QResizeEvent *event 调整大小事件
+     */
     void resizeEvent(QResizeEvent *event) override;
 
+    /**
+     * 显示事件
+     * @param QShowEvent *event 显示事件
+     */
     void showEvent(QShowEvent *event) override;
 
+    /**
+     * 拖入事件
+     * @param QDragEnterEvent *event 拖入事件
+     */
     void dragEnterEvent(QDragEnterEvent *event) override;
 
+    /**
+     * 拖动移动事件
+     * @param QDragMoveEvent *event 拖动移动事件
+     */
     void dragMoveEvent(QDragMoveEvent *event) override;
 
+    /**
+     * 拖动释放事件
+     * @param QDropEvent *event 拖动释放事件
+     */
     void dropEvent(QDropEvent *event) override;
 
+    /**
+     * 滚轮事件
+     * @param QWheelEvent *event 滚轮事件
+     */
     void wheelEvent(QWheelEvent *event) override;
 
 protected slots:
-    // 选择更改
+    /**
+     * 选择更改
+     * @param QItemSelection selected 选择
+     * @param QItemSelection deselected 取消选择
+     */
     void selectionChanged(const QItemSelection &selected, const QItemSelection &deselected) override;
 
+    /**
+     * 获取索引的代理
+     * @param QModelIndex index 索引
+     * @return QAbstractItemDelegate* 代理
+     */
     QAbstractItemDelegate* itemDelegateForIndex(const QModelIndex &index) const override ;
 
 private:
-
+    // 当前缩放
     double currentScale = 1.0;
+    // 时间线模型
     TimelineModel *Model;
+    /**
+     * 获取索引的矩形
+     * @param QModelIndex index 索引
+     * @return QRect 矩形
+     */
     QRect itemRect(const QModelIndex &index) const;
-
+    // 滚动偏移
     QPoint m_scrollOffset;
-   
+    /**
+     * 点转换为帧
+     * @param int point 点
+     * @return int 帧
+     */
     int pointToFrame(int point) const;
-
-    int frameToPoint(int frame) const;
-
-    
-    
+    /**
+     * 帧转换为点
+     * @param int frame 帧
+     * @return int 点
+     */
+    int frameToPoint(int frame) const;    
+    // 鼠标开始
     QPoint m_mouseStart;
+    // 鼠标结束
     QPoint m_mouseEnd;
+    // 鼠标偏移
     QPoint m_mouseOffset;
+    // 鼠标是否按下
     bool mouseHeld = false;
+    // 播放头是否选中
     bool m_playheadSelected = false;
+    // 是否正在拖放媒体
     bool m_isDroppingMedia = false;
+    // 鼠标最后拖动位置
     QPoint m_lastDragPos;
+    // 视频播放器
     VideoPlayerWidget* videoPlayer = nullptr;
+    // 鼠标悬停状态
     hoverState m_mouseUnderClipEdge = NONE;
-
+    // 鼠标悬停索引
     QModelIndex m_hoverIndex = QModelIndex();
-
+    /**
+     * 获取轨道宽度
+     * @return int 轨道宽度
+     */
     int getTrackWdith() const;
- 
+    /**
+     * 获取播放头位置
+     * @return int 播放头位置
+     */
     int getPlayheadPos();
-
-    // 移动选定的剪辑
+    /**
+     * 设置播放头位置
+     * @param int frame 帧
+     */
+    void setPlayheadPos(int frame); 
+    /**
+     * 移动选定的剪辑
+     * @param int dx 水平移动
+     * @param int dy 垂直移动
+     * @param bool isMouse 是否鼠标移动
+     */
     void moveSelectedClip(int dx, int dy,bool isMouse = true);
-
-    // 移动播放头到指定帧
+    /**
+     * 移动播放头到指定帧
+     * @param int frame 帧
+     */
     void movePlayheadToFrame(int frame);
-
+    /**
+     * 设置视频窗口
+     */
     void setupVideoWindow();
 };
 

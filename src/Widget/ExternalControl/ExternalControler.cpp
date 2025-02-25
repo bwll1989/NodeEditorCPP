@@ -2,13 +2,13 @@
 // Created by bwll1 on 2024/9/1.
 //
 
-#include "ExternalControler.h"
+#include "ExternalControler.hpp"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QByteArray>
 #include <QHostAddress>
 #include <QJsonParseError>
-#include "Widget/MainWindow/MainWindow.h"
+#include "Widget/MainWindow/MainWindow.hpp"
 #include "Common/Devices/OSCReceiver/OSCReceiver.h"
 #include "tinyosc.h"
 ExternalControler::ExternalControler(MainWindow *widget, quint16 port, QWidget *parent) {

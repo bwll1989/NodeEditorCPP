@@ -2,13 +2,11 @@
 // Created by bwll1 on 2024/9/19.
 //
 
-#include "LogHandler.h"
+#include "LogHandler.hpp"
 #include "spdlog/sinks/rotating_file_sink.h"
 //
 // Created by bwll1 on 2024/9/18.
 
-#ifndef NODEEDITORCPP_LOGHANDLER_HPP
-#define NODEEDITORCPP_LOGHANDLER_HPP
 
 #include <QTableWidget>
 #include <QVBoxLayout>
@@ -134,4 +132,3 @@ QTableWidget* LogHandler::logTableWidget = nullptr;
 
 
 
-#endif //NODEEDITORCPP_LOGHANDLER_HPP

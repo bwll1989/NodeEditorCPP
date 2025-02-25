@@ -13,31 +13,59 @@ Q_OBJECT
 
 public:
     explicit MenuBarWidget(QWidget *parent = nullptr);
+    /**
+     * 设置菜单
+     */
     void setupMenu();
+    //文件菜单
     QMenu *Files_menu ;
+    //视图菜单
     QMenu *views;
+    //保存
     QAction *saveAction ;
+    //保存为
     QAction *saveAsAction ;
+    //加载
     QAction * loadAction ;
+    //退出
     QAction *exitAction;
+    //编辑菜单
     QMenu *Edit_menu;
+    //锁定
     QAction *lockAction ;
+    //清除
     QAction *clearAction ;
+    //设置菜单
     QMenu *Setting_menu;
+    //设置1
     QAction *Setting_1 ;
+    //设置2
     QAction *Setting_2 ;
+    //视图菜单
     QMenu *View_menu;
+    //恢复布局
     QAction *restoreLayout;
+    //保存布局
     QAction *saveLayout;
+    //插件菜单
     QMenu *Plugins_menu ;
+    //插件管理器
     QAction *pluginsManagerAction;
+    //插件文件夹
     QAction *pluginsFloderAction;
+    //创建节点
     QAction *createNodeAction;
+    //工具菜单
     QMenu *Tool_menu;
+    //工具1
     QAction *tool1Action ;
+    //工具2
     QAction *tool2Action ;
+    //关于菜单
     QMenu *About_menu;
+    //关于
     QAction *aboutAction ;
+    //关于Qt
     QAction *aboutQtAction ;
 };
 

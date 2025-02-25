@@ -14,180 +14,24 @@
 #include <QSlider>
 #include <QComboBox>
 #include <QGridLayout>
+#include <QPainter>
+#include <QResizeEvent>
+#include <QJsonObject>
 
-TimelineScreen::TimelineScreen(QQuickItem *parent)
-    : QQuickItem(parent)
-    , m_screenWidth(640)
-    , m_screenHeight(480)
-    , m_isSelected(false)
-    , m_posX(0.0)
-    , m_posY(0.0)
-    , m_rotation(0.0)
-    , m_computerName("127.0.0.1")
-    , m_enabled(true)
-    , m_redIntensity(100)
-    , m_greenIntensity(100)
-    , m_blueIntensity(100)
-    , m_gamma(2.20)
+TimelineScreen::TimelineScreen(QWidget *parent)
+    : AbstractTimelineScreen(parent)
 {
+    setAttribute(Qt::WA_OpaquePaintEvent);
 }
 
 TimelineScreen::~TimelineScreen()
 {
-    delete m_propertiesWidget;
-}
-
-QString TimelineScreen::resolution() const
-{
-    return QString("%1x%2").arg(m_screenWidth).arg(m_screenHeight);
-}
-
-void TimelineScreen::setName(const QString &name)
-{
-    if (m_name != name) {
-        m_name = name;
-        emit nameChanged();
-    }
-}
-
-void TimelineScreen::setScreenWidth(int width)
-{
-    if (m_screenWidth != width) {
-        m_screenWidth = width;
-        emit screenWidthChanged();
-        emit resolutionChanged();
-    }
-}
-
-void TimelineScreen::setScreenHeight(int height)
-{
-    if (m_screenHeight != height) {
-        m_screenHeight = height;
-        emit screenHeightChanged();
-        emit resolutionChanged();
-    }
-}
-
-void TimelineScreen::setIsSelected(bool selected)
-{
-    if (m_isSelected != selected) {
-        m_isSelected = selected;
-        emit isSelectedChanged();
-    }
-}
-
-void TimelineScreen::setPosX(qreal x)
-{
-    if (!qFuzzyCompare(m_posX, x)) {
-        m_posX = x;
-        emit posXChanged();
-    }
-}
-
-void TimelineScreen::setPosY(qreal y)
-{
-    if (!qFuzzyCompare(m_posY, y)) {
-        m_posY = y;
-        emit posYChanged();
-    }
-}
-
-void TimelineScreen::setRotation(qreal angle)
-{
-    if (!qFuzzyCompare(m_rotation, angle)) {
-        m_rotation = angle;
-        emit rotationChanged();
-    }
-}
-
-void TimelineScreen::setComputerName(const QString &name)
-{
-    if (m_computerName != name) {
-        m_computerName = name;
-        emit computerNameChanged();
-    }
-}
-
-void TimelineScreen::setEnabled(bool enabled)
-{
-    if (m_enabled != enabled) {
-        m_enabled = enabled;
-        emit enabledChanged();
-    }
-}
-
-void TimelineScreen::setRedIntensity(int value)
-{
-    if (m_redIntensity != value) {
-        
-        m_redIntensity = value;
-        emit redIntensityChanged();
-    }
-}
-
-void TimelineScreen::setGreenIntensity(int value)
-{
-    if (m_greenIntensity != value) {
-        m_greenIntensity = value;
-        emit greenIntensityChanged();
-    }
-}
-
-void TimelineScreen::setBlueIntensity(int value)
-{
-    if (m_blueIntensity != value) {
-
-        m_blueIntensity = value;
-        emit blueIntensityChanged();
-    }
-}
-
-void TimelineScreen::setGamma(double value)
-{
-    if (!qFuzzyCompare(m_gamma, value)) {
-        m_gamma = value;
-        emit gammaChanged();
-    }
+    // 基类会处理 m_propertiesWidget 的删除
 }
 
 void TimelineScreen::registerType()
 {
     qmlRegisterType<TimelineScreen>("TimelineWidget", 1, 0, "TimelineScreen");
-}
-
-QJsonObject TimelineScreen::save() const
-{
-    QJsonObject json;
-    json["name"] = m_name;
-    json["width"] = m_screenWidth;
-    json["height"] = m_screenHeight;
-    json["posX"] = m_posX;
-    json["posY"] = m_posY;
-    json["rotation"] = m_rotation;
-    json["computerName"] = m_computerName;
-    json["enabled"] = m_enabled;
-    json["redIntensity"] = m_redIntensity;
-    json["greenIntensity"] = m_greenIntensity;
-    json["blueIntensity"] = m_blueIntensity;
-    json["gamma"] = m_gamma;
-    return json;
-}
-
-void TimelineScreen::load(const QJsonObject &json)
-{
-    setName(json["name"].toString());
-    setScreenWidth(json["width"].toInt());
-    setScreenHeight(json["height"].toInt());
-    setPosX(json["posX"].toDouble());
-    setPosY(json["posY"].toDouble());
-    setRotation(json["rotation"].toDouble());
-    setComputerName(json["computerName"].toString());
-    setEnabled(json["enabled"].toBool());
-    setRedIntensity(json["redIntensity"].toInt(100));
-    setGreenIntensity(json["greenIntensity"].toInt(100));
-    setBlueIntensity(json["blueIntensity"].toInt(100));
-    setGamma(json["gamma"].toDouble(2.20));
- 
 }
 
 void TimelineScreen::createPropertiesWidget()
@@ -213,7 +57,7 @@ void TimelineScreen::createPropertiesWidget()
         auto generalLayout = new QFormLayout(generalTab);
 
         // 名称
-        auto nameEdit = new QLineEdit(m_name);
+        auto nameEdit = new QLineEdit();
         connect(nameEdit, &QLineEdit::textChanged, this, &TimelineScreen::setName);
         generalLayout->addRow(tr("名称:"), nameEdit);
 
@@ -503,25 +347,67 @@ void TimelineScreen::updatePropertyWidgets()
     }
 }
 
-void TimelineScreen::showProperties()
+void TimelineScreen::setImage(const QImage& image)
 {
-    if (!m_propertiesWidget) {
-        createPropertiesWidget();
-    }
-    m_propertiesWidget->show();
-    m_propertiesWidget->raise();
-    m_propertiesWidget->activateWindow();
+    m_currentImage = image;
+    m_displayRect = calculateDisplayRect();
+    update();
 }
 
-void TimelineScreen::hideProperties()
+void TimelineScreen::clear()
 {
-    if (m_propertiesWidget) {
-        m_propertiesWidget->hide();
+    m_currentImage = QImage();
+    update();
+}
+
+void TimelineScreen::resizeEvent(QResizeEvent* event)
+{
+    QWidget::resizeEvent(event);
+    m_displayRect = calculateDisplayRect();
+}
+
+void TimelineScreen::paintEvent(QPaintEvent* event)
+{
+    QPainter painter(this);
+    painter.fillRect(rect(), Qt::black);
+
+    if (!m_currentImage.isNull()) {
+        painter.setRenderHint(QPainter::SmoothPixmapTransform);
+        painter.drawImage(m_displayRect, m_currentImage);
     }
+}
+
+QRect TimelineScreen::getDisplayRect() const
+{
+    return m_displayRect;
+}
+
+QRect TimelineScreen::calculateDisplayRect() const
+{
+    if (m_currentImage.isNull()) {
+        return rect();
+    }
+    return QRect(QPoint(0,0), m_currentImage.size());
+}
+
+QJsonObject TimelineScreen::save() const
+{
+    return AbstractTimelineScreen::save();
+}
+
+void TimelineScreen::load(const QJsonObject &json)
+{
+    AbstractTimelineScreen::load(json);
+    // 更新属性和界面
+    onPropertyChanged();
 }
 
 void TimelineScreen::onPropertyChanged()
 {
-    // 当属性改变时更新界面
+    // 更新属性窗口
+    updatePropertyWidgets();
+    // 发送属性改变信号
     emit propertyChanged();
-} 
+    // 触发重绘
+    update();
+}

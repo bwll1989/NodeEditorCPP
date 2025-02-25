@@ -2,8 +2,8 @@
 // Created by bwll1 on 2024/9/26.
 //
 
-#ifndef NODEEDITORCPP_PROPERTYWIDGET_H
-#define NODEEDITORCPP_PROPERTYWIDGET_H
+#ifndef NODEEDITORCPP_PROPERTYWIDGET_HPP
+#define NODEEDITORCPP_PROPERTYWIDGET_HPP
 #include "QWidget"
 #include "QLabel"
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
@@ -26,4 +26,4 @@ private:
 };
 
 
-#endif //NODEEDITORCPP_PROPERTYWIDGET_H
+#endif //NODEEDITORCPP_PROPERTYWIDGET_HPP

@@ -44,25 +44,51 @@ public:
     ~TimelineWidget();
 
 public:
+    //主布局
     QVBoxLayout *mainlayout;
+    //分割器
     QSplitter* splitter = new QSplitter(Qt::Horizontal,this);
+    //模型
     TimelineModel* model;
+    //视图
     TimelineView* view;
+    //轨道列表
     TracklistView* tracklist;
    
 
 Q_SIGNALS:
+    //初始化信号
     void initialized();
 
 public slots:
+    /**
+     * 保存
+     * @return QJsonObject 保存的json对象
+     */
     QJsonObject save();
+    /**
+     * 加载
+     * @param const QJsonObject& json 加载的json对象
+     */
     void load(const QJsonObject& json);
+    /**
+     * 显示设置对话框
+     */
     void showSettingsDialog(); // Add new slot
 
 
 private:
+    /**
+     * 创建组件
+     */
     void createComponents();
+    /**
+     * 设置连接
+     */
     void setupConnections();
+    /**
+     * 设置对话框控件
+     */
     class TimelineSettingsDialog* m_settingsDialog = nullptr;
 };
 

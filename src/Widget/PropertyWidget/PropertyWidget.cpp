@@ -2,7 +2,7 @@
 // Created by bwll1 on 2024/9/26.
 //
 
-#include "PropertyWidget.h"
+#include "PropertyWidget.hpp"
 
 PropertyWidget::PropertyWidget(CustomDataFlowGraphModel *model,QWidget *parent):_model(model) {
     initLayout();

@@ -41,22 +41,18 @@ Rectangle {
             switch(event.key) {
                 case Qt.Key_Left:
                     selectedScreen.x -= 1;
-                    console.log("left");
                     event.accepted = true;
                     break;
                 case Qt.Key_Right:
                     selectedScreen.x += 1;
-                    console.log("right");
                     event.accepted = true;
                     break;
                 case Qt.Key_Up:
                     selectedScreen.y -= 1;
-                    console.log("up");
                     event.accepted = true;
                     break;
                 case Qt.Key_Down:
                     selectedScreen.y += 1;
-                    console.log("down");
                     event.accepted = true;
                     break;
                 case Qt.Key_Delete:
@@ -408,7 +404,6 @@ Rectangle {
                 name: modelData.name
                 screenWidth: modelData.screenWidth
                 screenHeight: modelData.screenHeight
-                scale: modelData.scale
                 x: modelData.posX + gridCanvas.centerX
                 y: modelData.posY + gridCanvas.centerY
                 rotation: modelData.rotation

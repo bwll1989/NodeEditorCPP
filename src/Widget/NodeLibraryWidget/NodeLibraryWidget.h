@@ -15,18 +15,32 @@ Q_OBJECT
 
 public:
     NodeLibraryWidget(CustomDataFlowGraphModel *model,CustomGraphicsView *view,CustomFlowGraphicsScene *scene,QWidget *parent = nullptr);
-
+    /**
+     * 初始化布局
+     */
     void initLayout();
 public slots:
-
+    /**
+     * 更新
+     */
     void update();
+    /**
+     * 过滤器改变
+     * @param const QString &text 文本
+     */
     void filterChanged(const QString &text);
 private:
+    //主布局
     QVBoxLayout *mainLayout;
+    //文本框
     QLineEdit *txtBox;
+    //树形视图
     DraggableTreeWidget *treeView;
+    //数据流模型
     CustomDataFlowGraphModel *_model;
+    //视图
     CustomGraphicsView *_view;
+    //场景
     CustomFlowGraphicsScene *_scene;
 };
 

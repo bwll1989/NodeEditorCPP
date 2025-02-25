@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 
 Rectangle {
     id: root
@@ -10,46 +11,84 @@ Rectangle {
         anchors.fill: parent
         clip: true
         
+        columnSpacing: 1
+        rowSpacing: 1
+        
         model: logModel
         
+        property var columnWidths: [100, 80, 150, 400]
+        
+        columnWidthProvider: function(column) {
+            return columnWidths[column]
+        }
+        
         delegate: Rectangle {
-            implicitWidth: tableView.width
             implicitHeight: 30
             color: "transparent"
             
-            Row {
-                spacing: 5
-                padding: 5
-                
-                Text {
-                    text: time
-                    color: "#cccccc"
-                    width: 100
-                }
-                
-                Text {
-                    text: type
-                    color: {
-                        switch(type) {
-                            case "Error": return "#ff6b6b"
-                            case "Warning": return "#ffd93d"
-                            default: return "#6bff6b"
+            Text {
+                anchors.fill: parent
+                anchors.margins: 5
+                text: display
+                color: {
+                    if (column === 1) { // Level column
+                        switch(display) {
+                            case "Debug": return "#6bff6b"
+                            case "Warn": return "#ffd93d"
+                            case "Critical": return "#ff6b6b"
+                            case "Info": return "#cccccc"
+                            case "Fatal": return "#ff0000"
+                            default: return "#ffffff"
                         }
                     }
-                    width: 80
+                    return "#ffffff"
                 }
+                elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
+            }
+        }
+
+        Row {
+            y: -height
+            z: 2
+            Repeater {
+                model: ["Timestamp", "Level", "File", "Message"]
                 
-                Text {
-                    text: message
-                    color: "#ffffff"
-                    width: tableView.width - 190
-                    wrapMode: Text.WordWrap
+                Rectangle {
+                    width: tableView.columnWidths[index]
+                    height: 30
+                    color: "#1a1a1a"
+                    
+                    Text {
+                        anchors.fill: parent
+                        anchors.margins: 5
+                        text: modelData
+                        color: "#ffffff"
+                        font.bold: true
+                        verticalAlignment: Text.AlignVCenter
+                    }
                 }
             }
         }
     }
 
-    function clear() {
-        logModel.clear()
+    // 右键菜单
+    Menu {
+        id: contextMenu
+        
+        MenuItem {
+            text: "Clear Log"
+            icon.source: "qrc:/icons/icons/clear.png"
+            onTriggered: logModel.clear()
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        onClicked: {
+            if (mouse.button === Qt.RightButton)
+                contextMenu.popup()
+        }
     }
 } 

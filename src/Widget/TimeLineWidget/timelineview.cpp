@@ -1,7 +1,7 @@
 #include "timelineview.hpp"
 #include <QMenu>
 #include <QAction>
-
+#include "clipproperty.hpp"
 TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         : Model(viewModel), QAbstractItemView{parent}
     {
@@ -236,6 +236,7 @@ void TimelineView::movePlayheadToFrame(int frame)
 
 void TimelineView::updateViewport(){
     updateEditorGeometries();
+    Model->calculateLength();
     updateScrollBars();
     viewport()->update();
 }
@@ -396,7 +397,19 @@ void TimelineView::mouseReleaseEvent(QMouseEvent *event)
 
 void TimelineView::mouseDoubleClickEvent(QMouseEvent *event)
 {
-    // QModelIndex index = indexAt(event->pos());
+    QModelIndex index = indexAt(event->pos());
+    if(index.isValid() && index.parent().isValid()) {
+        AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
+        if(clip) {
+            // 创建并显示属性对话框
+            auto* property = new ClipProperty(clip, Model, this);
+            // 连接更新信号
+            connect(property, &ClipProperty::propertyChanged, [this]() {
+                updateViewport();
+            });
+            property->show();  // 显示为非模态对话框
+        }
+    }
     QAbstractItemView::mouseDoubleClickEvent(event);
 }
 

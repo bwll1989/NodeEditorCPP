@@ -24,13 +24,11 @@ public:
     {}
 
     TrackModel() = default;
-
-    // 添加剪辑
-    // void addClip(ClipModel* clip){
-    //     if (clip) {
-    //         int row = m_clips.size();
-    //         m_clips.push_back(clip);
-    //         nextId++;
+    /**
+     * 添加剪辑
+     * @param int start 开始
+     * @param PluginLoader* pluginLoader 插件加载器
+     */
     void addClip(int start, PluginLoader* pluginLoader) {
         if (!pluginLoader) return;
         
@@ -41,32 +39,50 @@ public:
         }
     }
 
-    // 移除剪辑
+    /**
+     * 移除剪辑
+     * @param AbstractClipModel* clip 剪辑
+     */
     void removeClip(AbstractClipModel* clip){
         auto it = std::find(m_clips.begin(), m_clips.end(), clip);
         if(it!=m_clips.end())
             m_clips.erase(it);
     }
 
-    // 获取剪辑
+    /**
+     * 获取剪辑
+     * @return QVector<AbstractClipModel*>& 剪辑列表
+     */
     QVector<AbstractClipModel*>& getClips(){
         return m_clips;
     }
 
-    // 获取轨道类型
+    /**
+     * 获取轨道类型
+     * @return QString 轨道类型
+     */
     QString type() const{
         return m_type;
     }
 
-    // 设置轨道索引
+    /**
+     * 设置轨道索引
+     * @param int index 轨道索引
+     */
     void setTrackIndex(int index){
         m_trackIndex = index;
     }   
-    // 获取轨道索引
+    /**
+     * 获取轨道索引
+     * @return int 轨道索引
+     */
     int trackIndex() const{
         return m_trackIndex;
     }
-    // 保存轨道
+    /**
+     * 保存轨道
+     * @return QJsonObject 轨道JSON
+     */
     QJsonObject save() const
     {
         QJsonObject trackJson;
@@ -81,13 +97,19 @@ public:
 
         return trackJson;
     }
-    // 下一个ID
+    //下一个ID
     quint64 nextId = 1;
-
-    int m_trackIndex; // 轨道索引
-    QString m_type; // 轨道类型
-    QVector<AbstractClipModel*>  m_clips; // 剪辑列表
-
+    //轨道索引
+    int m_trackIndex; 
+    //轨道类型
+    QString m_type; 
+    //剪辑列表
+    QVector<AbstractClipModel*>  m_clips; 
+    /**
+     * 加载轨道
+     * @param const QJsonObject &trackJson 轨道JSON
+     * @param PluginLoader* pluginLoader 插件加载器
+     */
     void load(const QJsonObject &trackJson, PluginLoader* pluginLoader) {
         if (!pluginLoader) return;
         

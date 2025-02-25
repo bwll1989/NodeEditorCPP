@@ -1,4 +1,4 @@
-#include "LogWidget.h"
+#include "LogWidget.hpp"
 #include <QHeaderView>
 #include <QContextMenuEvent>
 

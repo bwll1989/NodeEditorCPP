@@ -2,7 +2,7 @@
 // Created by bwll1 on 2024/8/29.
 //
 
-#include "CustomSplashScreen.h"
+#include "CustomSplashScreen.hpp"
 CustomSplashScreen::CustomSplashScreen() {
     splash = new QSplashScreen(QPixmap(":/images/images/loading.png"));
     splash->show();

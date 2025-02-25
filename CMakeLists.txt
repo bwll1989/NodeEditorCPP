@@ -220,23 +220,23 @@ set(CALC_SOURCE_FILES
         src/Widget/PortEditWidget/PortEditAddRemoveWidget.hpp
         src/Widget/PortEditWidget/PortEditAddRemoveWidget.cpp
         src/Widget/AboutWidget/AboutWidget.hpp
+        src/Widget/MainWindow/MainWindow.hpp
         src/Widget/MainWindow/MainWindow.cpp
-        src/Widget/MainWindow/MainWindow.h
         src/Widget/CurveWidget/CurveEditor.cpp
         src/Widget/CurveWidget/CurveEditor.h
         src/Widget/CurveWidget/CurveEditor.ui
         src/Widget/SplashWidget/CustomSplashScreen.cpp
-        src/Widget/SplashWidget/CustomSplashScreen.h
+        src/Widget/SplashWidget/CustomSplashScreen.hpp
         src/Widget/ExternalControl/ExternalControler.cpp
-        src/Widget/ExternalControl/ExternalControler.h
-        src/Widget/ConsoleWidget/LogWidget.h
+        src/Widget/ExternalControl/ExternalControler.hpp
+        src/Widget/ConsoleWidget/LogWidget.hpp
         src/Widget/ConsoleWidget/LogWidget.cpp
         src/Widget/ConsoleWidget/LogHandler.cpp
-        src/Widget/ConsoleWidget/LogHandler.h
+        src/Widget/ConsoleWidget/LogHandler.hpp
         src/Widget/MenuBarWidget/MenuBarWidget.cpp
         src/Widget/MenuBarWidget/MenuBarWidget.h
         src/Widget/PropertyWidget/PropertyWidget.cpp
-        src/Widget/PropertyWidget/PropertyWidget.h
+        src/Widget/PropertyWidget/PropertyWidget.hpp
         src/Widget/PortEditWidget/PortEditWidget.cpp
         src/Widget/PortEditWidget/PortEditWidget.h
         src/Widget/NodeLibraryWidget/draggabletreewidget.cpp
@@ -317,6 +317,7 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/timelinesettingsdialog.cpp
         src/Widget/StageWidget/StageWidget.hpp
         src/Widget/StageWidget/StageWidget.cpp
+        src/Widget/TimeLineWidget/AbstractTimelineScreen.hpp
         src/Widget/TimeLineWidget/timelinestage.hpp
         src/Widget/TimeLineWidget/timelinestage.cpp
         src/Widget/TimeLineWidget/timelinescreen.hpp

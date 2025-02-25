@@ -1,16 +1,23 @@
 #include "clipproperty.hpp"
-
+#include <QGroupBox>
 ClipProperty::ClipProperty(AbstractClipModel* model, TimelineModel* timelineModel, QWidget *parent)
-    : QWidget(parent)
+    : QDialog(parent)
     , m_model(model)
     , m_timelineModel(timelineModel)
     , m_layout(new QVBoxLayout(this))
     , m_startFrameSpinBox(new QSpinBox(this))
     , m_endFrameSpinBox(new QSpinBox(this))
 {
+    // 设置窗口标题和属性
+    setWindowTitle(tr("Clip Properties"));
+    setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint);  // 设置窗口始终在顶端
+    
     setupUI();
     connectSignals();
     setupDelegate();
+    
+    // 设置合适的窗口大小
+    resize(300, 400);
 }
 
 void ClipProperty::setupUI()
@@ -18,27 +25,52 @@ void ClipProperty::setupUI()
     setLayout(m_layout);
     m_layout->setContentsMargins(4, 4, 4, 4);
     m_layout->setSpacing(4);
+    
+    // 创建一个容器 widget 来放置主要内容
+    auto contentWidget = new QWidget(this);
+    auto contentLayout = new QVBoxLayout(contentWidget);
+    contentLayout->setContentsMargins(0, 0, 0, 0);
+    contentLayout->setSpacing(4);
+    
+    // 1. 时间属性组
+    QGroupBox *timeGroupBox = new QGroupBox(tr("时间属性"), this);
+    QGridLayout *timeLayout = new QGridLayout(timeGroupBox);
     // 开始帧
     auto startLabel = new QLabel(tr("Start Frame:"), this);
-    m_layout->addWidget(startLabel);
+    timeLayout->addWidget(startLabel,0,0);
     
     m_startFrameSpinBox->setRange(0, 99999);
     m_startFrameSpinBox->setValue(m_model->start());
-    m_layout->addWidget(m_startFrameSpinBox);
+    timeLayout->addWidget(m_startFrameSpinBox,0,1);
 
     // 结束帧
     auto endLabel = new QLabel(tr("End Frame:"), this);
-    m_layout->addWidget(endLabel);
+    timeLayout->addWidget(endLabel,1,0);
     
     m_endFrameSpinBox->setRange(0, 99999);
     m_endFrameSpinBox->setValue(m_model->end());
-    m_layout->addWidget(m_endFrameSpinBox);
+    timeLayout->addWidget(m_endFrameSpinBox,1,1);
 
-    // 添加分隔线
-    auto line = new QFrame(this);
-    line->setFrameShape(QFrame::HLine);
-    line->setFrameShadow(QFrame::Sunken);
-    m_layout->addWidget(line);
+    m_layout->addWidget(timeGroupBox);
+
+    // 添加代理编辑器的占位符
+    if (m_delegateWidget) {
+        contentLayout->addWidget(m_delegateWidget);
+    }
+
+    // 添加弹簧以确保内容在顶部
+    contentLayout->addStretch();
+
+    // 将内容 widget 添加到主布局
+    m_layout->addWidget(contentWidget);
+
+    // 添加按钮组到主布局底部
+    m_buttonBox = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Apply | QDialogButtonBox::Cancel,
+        Qt::Horizontal,
+        this
+    );
+    m_layout->addWidget(m_buttonBox);
 }
 
 void ClipProperty::connectSignals()
@@ -53,6 +85,12 @@ void ClipProperty::connectSignals()
     // 连接模型的数据变化信号
     connect(m_model, &AbstractClipModel::dataChanged,
             this, &ClipProperty::onClipDataChanged);
+
+    // 连接按钮信号
+    connect(m_buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    connect(m_buttonBox->button(QDialogButtonBox::Apply), &QPushButton::clicked,
+            this, &ClipProperty::onApplyClicked);
 }
 
 void ClipProperty::updateUI()
@@ -102,7 +140,13 @@ void ClipProperty::setupDelegate()
         m_delegateWidget = m_delegate->createEditor(this, option, QModelIndex());
         
         if (m_delegateWidget) {
-            m_layout->addWidget(m_delegateWidget);
+            // 将代理编辑器添加到内容布局中
+            if (auto* contentWidget = findChild<QWidget*>()) {
+                if (auto* contentLayout = qobject_cast<QVBoxLayout*>(contentWidget->layout())) {
+                    // 在弹簧之前插入代理编辑器
+                    contentLayout->insertWidget(contentLayout->count() - 1, m_delegateWidget);
+                }
+            }
             
             // 设置编辑器的数据
             m_delegate->setEditorData(m_delegateWidget, QModelIndex());
@@ -111,9 +155,6 @@ void ClipProperty::setupDelegate()
             m_delegate = nullptr;
         }
     }
-    
-    // 添加弹簧以确保编辑器不会过度拉伸
-    m_layout->addStretch();
 }
 
 void ClipProperty::onStartFrameChanged(int value)
@@ -129,6 +170,18 @@ void ClipProperty::onEndFrameChanged(int value)
     if (m_model) {
         m_model->setEnd(value);
         emit propertyChanged();
+    }
+}
+
+void ClipProperty::onApplyClicked()
+{
+    // 应用当前的更改
+    onStartFrameChanged(m_startFrameSpinBox->value());
+    onEndFrameChanged(m_endFrameSpinBox->value());
+    
+    // 如果有代理编辑器，也应用其更改
+    if (m_delegateWidget && m_delegate) {
+        m_delegate->setModelData(m_delegateWidget, nullptr, QModelIndex());
     }
 }
 
