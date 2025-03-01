@@ -16,7 +16,7 @@
 #include "trackdelegate.hpp"
 #include "timelinetoolbar.hpp"
 //#include "mediaclips/mediaclipmodel.hpp"
-#include "QTimer"
+// #include "QTimer"
 #include "QMenu"
 // #include "zoomcontroller.hpp"
 #include "AbstractClipDelegate.hpp"
@@ -49,12 +49,15 @@ public:
      * @return QModelIndex 索引
      */
     QModelIndex indexAt(const QPoint &point) const override;
-
+    /**
+     * 显示剪辑属性
+     * @param QModelIndex index 片段索引
+     */
+    void showClipProperty(const QModelIndex& index);
     // 时间线工具栏
     TimelineToolbar* toolbar;
     // 时间线定时器
-    QTimer *timer = new QTimer(this);
-
+    // QTimer *timer = new QTimer(this);
 signals:
     /**
      * 滚动信号
@@ -87,21 +90,13 @@ public slots:
     /**
      * 更新可视区域
      */
-    void updateViewport();
-    /**
-     * 定时器启动
-     */
-    void timelinestart();
-    /**
-     * 定时器超时信号槽
-     */
-    void onTimeout();
+    void onUpdateViewport();
     /**
      * 滚动视图
      * @param int dx 水平滚动
      * @param int dy 垂直滚动
      */ 
-    void scroll(int dx, int dy);
+    void onScroll(int dx, int dy);
     /**
      * 水平滚动
      * @param double dx 水平滚动
@@ -250,7 +245,60 @@ protected:
      * @param QWheelEvent *event 滚轮事件
      */
     void wheelEvent(QWheelEvent *event) override;
-
+    /**
+     * 绘制垂直时间线
+     * @param QPainter* painter 绘图设备
+     * @param QRect& rect 矩形
+     */
+    void drawVerticalTimeLines(QPainter* painter, const QRect& rect);
+    /**
+     * 绘制背景
+     * @param QPainter* painter 绘图设备
+     * @param QRect& rect 矩形
+     */
+    void drawBackground(QPainter* painter, const QRect& rect);
+    /**
+     * 绘制播放头
+     * @param QPainter* painter 绘图设备
+     */
+    void drawPlayhead(QPainter* painter);
+    /**
+     * 绘制时间刻度
+     * @param QPainter* painter 绘图设备
+     * @param QRect& rect 矩形
+     */
+    void drawTimeRuler(QPainter* painter, const QRect& rect);
+    /**
+     * 绘制轨道
+     * @param QPainter* painter 绘图设备
+     */
+    void drawTracks(QPainter* painter);
+    /**
+     * 绘制时间标记
+     * @param QPainter* painter 绘图设备
+     * @param int startMarker 开始标记
+     * @param int endMarker 结束标记
+     * @param int frameStep 帧步长
+     */
+    void drawTimeMarkers(QPainter* painter, int startMarker, int endMarker, int frameStep);
+    /**
+     * 绘制剪辑
+     * @param QPainter* painter 绘图设备
+     * @param QRect& rect 矩形
+     */
+    void drawClips(QPainter* painter, const QRect& rect);
+    /**
+     * 绘制轨道分割线
+     * @param QPainter* painter 绘图设备
+     * @param QRect& rect 矩形
+     */
+    void drawTrackSplitter(QPainter* painter, const QRect& rect);
+    /**
+     * 计算帧步长
+     * @param double frameRate 帧率
+     * @return int 帧步长
+     */
+    int calculateFrameStep(double frameRate) const;
 protected slots:
     /**
      * 选择更改
@@ -305,6 +353,7 @@ private:
     bool m_isDroppingMedia = false;
     // 鼠标最后拖动位置
     QPoint m_lastDragPos;
+
     // 视频播放器
     VideoPlayerWidget* videoPlayer = nullptr;
     // 鼠标悬停状态
@@ -321,11 +370,11 @@ private:
      * @return int 播放头位置
      */
     int getPlayheadPos();
-    /**
-     * 设置播放头位置
-     * @param int frame 帧
-     */
-    void setPlayheadPos(int frame); 
+    // /**
+    //  * 设置播放头位置
+    //  * @param int frame 帧
+    //  */
+    // void setPlayheadPos(int frame); 
     /**
      * 移动选定的剪辑
      * @param int dx 水平移动
@@ -342,6 +391,12 @@ private:
      * 设置视频窗口
      */
     void setupVideoWindow();
+    // 更新帧位置
+    void onFrameChanged(qint64 frame);
+    // 播放状态改变
+    void onPlaybackStateChanged(bool isPlaying);
+
+  
 };
 
 #endif // TIMELINEVIEW_HPP

@@ -87,7 +87,7 @@ inline int playheadheight = 12; //播放头高度
 
 inline int playheadCornerHeight = playheadheight/4; //播放头圆角高度
 
-inline double fps=25.00; //帧率
+// inline double fps=25.00; //帧率
 
 inline QColor playheadColour =QColor(206, 91, 87);  // 播放头颜色即竖线
 

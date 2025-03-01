@@ -6,6 +6,9 @@
 #include <QVector>
 #include "timelinescreen.hpp"
 #include "timelinestyle.hpp"
+#include <QImage>
+#include <QPainter>
+#include "imageprovider.hpp"
 
 class TimelineStage : public QQuickItem
 {
@@ -26,6 +29,9 @@ class TimelineStage : public QQuickItem
     // 添加视图状态属性
     Q_PROPERTY(qreal zoomFactor READ zoomFactor WRITE setZoomFactor NOTIFY zoomFactorChanged)
     Q_PROPERTY(QPointF viewPosition READ viewPosition WRITE setViewPosition NOTIFY viewPositionChanged)
+
+    // New property for painting
+    Q_PROPERTY(QImage currentFrame READ currentFrame NOTIFY currentFrameChanged)
 
 public:
     explicit TimelineStage(QQuickItem *parent = nullptr);
@@ -139,6 +145,11 @@ public:
      */
     void setViewPosition(const QPointF &pos);
 
+    // New methods for painting
+    // void paintEvent(QPaintEvent* event) override;
+
+    QImage currentFrame() const { return m_currentFrame; }
+
 signals:
     /**
      * 屏幕改变信号
@@ -152,6 +163,27 @@ signals:
      * 视图位置改变信号
      */
     void viewPositionChanged();
+    /**
+     * 当前帧图像改变信号
+     */
+    void currentFrameChanged();
+
+public slots:
+    /**
+     * 更新当前帧图像
+     * @param const QImage &image 当前帧图像
+     */
+    void updateCurrentFrame(const QImage &image) {
+        if (m_currentFrame != image) {
+            m_currentFrame = image;
+            qDebug() << "TimelineStage::updateCurrentFrame - Image size:" 
+                     << image.size() << "Format:" << image.format();
+            // 更新 ImageProvider 中的图像
+            ImageProvider::instance()->updateImage(image);
+            emit currentFrameChanged();
+        }
+        update();
+    }
 
 private:
     //屏幕对象列表
@@ -160,6 +192,8 @@ private:
     qreal m_zoomFactor = 1.0;
     //视图位置
     QPointF m_viewPosition;
+    //当前帧图像
+    QImage m_currentFrame;
 };
 
 #endif // TIMELINESTAGE_HPP 

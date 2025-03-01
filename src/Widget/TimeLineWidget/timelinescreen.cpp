@@ -38,7 +38,7 @@ void TimelineScreen::createPropertiesWidget()
 {
     if (!m_propertiesWidget) {
         m_propertiesWidget = new QDialog();
-        m_propertiesWidget->setWindowTitle(tr("显示"));
+        m_propertiesWidget->setWindowTitle(tr(this->m_name.toStdString().c_str()));
         m_propertiesWidget->setMinimumWidth(300);
         
         m_propertiesWidget->setWindowFlags(
@@ -58,6 +58,7 @@ void TimelineScreen::createPropertiesWidget()
 
         // 名称
         auto nameEdit = new QLineEdit();
+        nameEdit->setText(m_name);
         connect(nameEdit, &QLineEdit::textChanged, this, &TimelineScreen::setName);
         generalLayout->addRow(tr("名称:"), nameEdit);
 

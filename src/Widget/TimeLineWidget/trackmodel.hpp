@@ -29,14 +29,19 @@ public:
      * @param int start 开始
      * @param PluginLoader* pluginLoader 插件加载器
      */
-    void addClip(int start, PluginLoader* pluginLoader) {
+    void addClip(int start, PluginLoader* pluginLoader,TimecodeType timecodeType) {
         if (!pluginLoader) return;
         
         AbstractClipModel* newClip = pluginLoader->createModelForType(m_type, start);
+        //片段长度变化时更新轨道长度
+        connect(newClip, &AbstractClipModel::lengthChanged, this, &TrackModel::calculateTrackLength);
+        newClip->setTimecodeType(timecodeType);
         if (newClip) {
             newClip->setTrackIndex(m_trackIndex);
             m_clips.push_back(newClip);
+            emit S_trackAddClip();
         }
+        calculateTrackLength();
     }
 
     /**
@@ -47,6 +52,8 @@ public:
         auto it = std::find(m_clips.begin(), m_clips.end(), clip);
         if(it!=m_clips.end())
             m_clips.erase(it);
+        emit S_trackDeleteClip();
+        calculateTrackLength();
     }
 
     /**
@@ -88,7 +95,7 @@ public:
         QJsonObject trackJson;
         trackJson["type"] = m_type;
         trackJson["trackIndex"] = m_trackIndex;
-
+        trackJson["trackLength"] = m_trackLength;
         QJsonArray clipArray;
         for (const AbstractClipModel* clip : m_clips) {
             clipArray.append(clip->save());
@@ -105,6 +112,15 @@ public:
     QString m_type; 
     //剪辑列表
     QVector<AbstractClipModel*>  m_clips; 
+    //轨道长度
+    qint64 m_trackLength;
+    /**
+     * 获取轨道长度
+     * @return qint64 轨道长度
+     */
+    qint64 getTrackLength() const {
+        return m_trackLength;
+    }
     /**
      * 加载轨道
      * @param const QJsonObject &trackJson 轨道JSON
@@ -115,20 +131,53 @@ public:
         
         m_type = trackJson["type"].toString();
         m_trackIndex = trackJson["trackIndex"].toInt();
-
+        m_trackLength = trackJson["trackLength"].toInt();
         QJsonArray clipArray = trackJson["clips"].toArray();
         for (const QJsonValue &clipValue : clipArray) {
             QJsonObject clipObject = clipValue.toObject();
             QString clipType = clipObject["type"].toString();
             int start = clipObject["start"].toInt();
             int end = clipObject["end"].toInt();
-            
+
             AbstractClipModel* clip = pluginLoader->createModelForType(clipType, start);
+            //片段长度变化时更新轨道长度
+            connect(clip, &AbstractClipModel::lengthChanged, this, &TrackModel::calculateTrackLength);
+            clip->setEnd(end);
             if (clip) {
+
                 clip->setTrackIndex(m_trackIndex);
                 clip->load(clipObject);
                 m_clips.push_back(clip);
+                emit S_trackAddClip();
             }
+        }
+        calculateTrackLength();
+    }
+
+public:
+    Q_SIGNALS:
+    /**
+     * 轨道长度变化信号
+     * @param qint64 length 轨道长度
+     */
+    void S_trackLengthChanged(qint64 length);
+
+    void S_trackAddClip();
+
+    void S_trackDeleteClip();
+
+public slots:
+     /**
+     * 计算轨道长度
+     */
+    void calculateTrackLength(){
+        qint64 length = 0;
+        for(AbstractClipModel* clip : m_clips){
+            length = qMax(length, clip->end());
+        }
+        if(length != m_trackLength){
+            m_trackLength = length;
+            emit S_trackLengthChanged(length);
         }
     }
 };

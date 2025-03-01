@@ -136,14 +136,15 @@ void MainWindow::init()
     stageDockWidget->setObjectName("stage");
     stageDockWidget->setIcon(QIcon(":/icons/icons/stage.png"));
     stageWidget = new StageWidget();
+    
     stageDockWidget->setWidget(stageWidget);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, stageDockWidget);
     menuBar->views->addAction(stageDockWidget->toggleViewAction());
     //从timelinemodel中获取stage
     stageWidget->setStage(timeline->model->getStage());
     emit initStatus("Initialization Stage");
-    // 当 stage 改变时更新
-    connect(timeline->model, &TimelineModel::stageChanged, [this]() {
+    // 当 stage初始化完成或重新设置时，更新
+    connect(timeline->model, &TimelineModel::S_stageChanged, [this]() {
         stageWidget->setStage(timeline->model->getStage());
     });
     emit initStatus("Initialization Stage Widget");
@@ -268,12 +269,15 @@ void MainWindow::loadFileFromPath(QString *path)
                 tr("无法打开文件 %1:\n%2").arg(absolutePath).arg(file.errorString()));
             return;
         }
-        
-        scene->clearScene();
         //    场景清空
-        QByteArray const wholeFile = file.readAll();
+        scene->clearScene();
         //    读取.flow文件
+        QByteArray const wholeFile = file.readAll();
+        // 加载数据流模型
         dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object());
+        // 加载时间轴模型
+        timeline->load(QJsonDocument::fromJson(wholeFile).object()["TimeLine"].toObject());
+        // 设置当前项目路径
         currentProjectPath = absolutePath;
     }
 }

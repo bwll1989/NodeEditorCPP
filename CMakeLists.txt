@@ -287,8 +287,6 @@ set(CALC_SOURCE_FILES
         src/DataTypes/AudioData.h
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
-        src/Widget/ClipPropertyWidget/ClipPropertyWidget.cpp
-        src/Widget/ClipPropertyWidget/ClipPropertyWidget.hpp
         src/Widget/TimeLineWidget/videoplayerwidget.hpp
         src/Widget/TimeLineWidget/AbstractClipDelegate.hpp
         src/Widget/TimeLineWidget/AbstractClipModel.cpp
@@ -322,6 +320,9 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/timelinestage.cpp
         src/Widget/TimeLineWidget/timelinescreen.hpp
         src/Widget/TimeLineWidget/timelinescreen.cpp
+        src/Widget/TimeLineWidget/timecodegenerator.hpp
+        src/Widget/TimeLineWidget/timecodegenerator.cpp
+        src/Widget/TimeLineWidget/imageprovider.hpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

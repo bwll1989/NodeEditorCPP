@@ -7,7 +7,7 @@
  */
 void TracklistView::onDeleteTrack() {
     if (Model&&selectionModel()->selectedIndexes().size()>=1) {
-        Model->deleteTrack(selectionModel()->selectedIndexes().first().row());
+        Model->onDeleteTrack(selectionModel()->selectedIndexes().first().row());
     }
     viewport()->update();
     emit viewupdate();  // 发送信号
@@ -26,7 +26,7 @@ void TracklistView::contextMenuEvent(QContextMenuEvent* event) {
         for (const QString& type : availableTypes) {
             QAction* addTrackAction = addTrackMenu->addAction("Add " + type + " Track");
             connect(addTrackAction, &QAction::triggered, [this, type]() {
-                Model->createTrackForType(type);
+                Model->addTrack(type);
             });
         }
 
@@ -153,7 +153,7 @@ void TracklistView::scrollContentsBy(int dx, int dy) {
     m_scrollOffset -= QPoint(dx, dy);
     QAbstractItemView::scrollContentsBy(dx, dy);
     updateEditorGeometries();
-    updateViewport();
+    onUpdateViewport();
     emit scrolled(dx,dy);
 }
 
@@ -167,17 +167,9 @@ void TracklistView::scroll(int dx, int dy){
 }
 
 /**
- * @brief 设置时间
- */
-void TracklistView::setTime(int frame){
-    m_time=frame;
-    viewport()->update();
-}
-
-/**
  * @brief 更新视图
  */
-void TracklistView::updateViewport(){
+void TracklistView::onUpdateViewport(){
     
     updateScrollBars();
     viewport()->update();
@@ -313,7 +305,11 @@ void TracklistView::paintEvent(QPaintEvent *event) {
     QFont font;
     font.setPixelSize(fontSize);
     painter.setFont(font);
-    painter.drawText(ruler,Qt::AlignCenter, FramesToTimeString(m_time,fps));
+    if(Model->getTimeDisplayFormat()==TimedisplayFormat::TimeCodeFormat){
+        painter.drawText(ruler,Qt::AlignCenter, Model->getTimecodeGenerator()->getCurrentTimecode());
+    }else{
+        painter.drawText(ruler,Qt::AlignCenter, Model->getTimecodeGenerator()->getCurrentAbsoluteTime());
+    }
     painter.restore();  // 恢复状态
 }
 
@@ -368,8 +364,8 @@ void TracklistView::dropEvent(QDropEvent *event) {
                 m_hoverIndex = QModelIndex();
 
                 // 发送信号通知更新
-                emit timelineModel->tracksChanged();
-                emit timelineModel->trackMoved(sourceRow, targetRow);
+                emit timelineModel->S_trackChanged();
+                emit timelineModel->S_trackMoved(sourceRow, targetRow);
                 
                 // 重新打开所有持久化编辑器
                 for (int i = 0; i < timelineModel->rowCount(); ++i) {

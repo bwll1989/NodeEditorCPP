@@ -83,10 +83,6 @@ private:
      */
     void createComponents();
     /**
-     * 设置连接
-     */
-    void setupConnections();
-    /**
      * 设置对话框控件
      */
     class TimelineSettingsDialog* m_settingsDialog = nullptr;

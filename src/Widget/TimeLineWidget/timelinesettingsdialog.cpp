@@ -2,14 +2,17 @@
 #include <QSettings>
 #include <QGuiApplication>
 #include <QScreen>
-TimelineSettingsDialog::TimelineSettingsDialog(QWidget* parent)
-    : QDialog(parent)
+#include <limits>
+#include "timelinetypes.h"
+#include <QMessageBox>
+
+TimelineSettingsDialog::TimelineSettingsDialog(TimelineModel* model,QWidget* parent)
+    : QDialog(parent),m_model(model)
 {
     setWindowTitle(tr("Timeline设置"));
     setModal(true);
     createUI();
     setupConnections();
-    loadSettings();
 }
 
 void TimelineSettingsDialog::createUI()
@@ -41,8 +44,20 @@ QWidget* TimelineSettingsDialog::createGeneralTab()
     auto* widget = new QWidget(this);
     auto* layout = new QFormLayout(widget);
 
-    
-
+    // FPS 设置 - 使用预定义的时间码格式
+    m_fpsCombo = new QComboBox(widget);
+    m_fpsCombo->addItem(tr("0: Film (24 fps)"), static_cast<int>(TimecodeType::Film));
+    m_fpsCombo->addItem(tr("1: NTSC (30 fps)"), static_cast<int>(TimecodeType::NTSC));
+    m_fpsCombo->addItem(tr("2: NTSC Drop Frame (29.97 fps)"), static_cast<int>(TimecodeType::NTSC_DF));
+    m_fpsCombo->addItem(tr("3: PAL (25 fps)"), static_cast<int>(TimecodeType::PAL));
+    m_fpsCombo->addItem(tr("4: HD 50 (50 fps)"), static_cast<int>(TimecodeType::HD_50));
+    m_fpsCombo->addItem(tr("5: HD 60 (60 fps)"), static_cast<int>(TimecodeType::HD_60));
+    m_fpsCombo->addItem(tr("6: HD 60 Drop Frame (59.94 fps)"), static_cast<int>(TimecodeType::HD_60_DF));
+    m_fpsCombo->addItem(tr("7: HD 100 (100 fps)"), static_cast<int>(TimecodeType::HD_100));
+    m_fpsCombo->addItem(tr("8: Game 120 (120 fps)"), static_cast<int>(TimecodeType::GAME_120));
+    m_fpsCombo->addItem(tr("9: Game 144 (144 fps)"), static_cast<int>(TimecodeType::GAME_144));
+    m_fpsCombo->addItem(tr("10: Game 240 (240 fps)"), static_cast<int>(TimecodeType::GAME_240));
+    layout->addRow(tr("帧率:"), m_fpsCombo);
     // Auto-save settings
     m_autoSaveCheckBox = new QCheckBox(tr("启用自动保存"), widget);
     layout->addRow(m_autoSaveCheckBox);
@@ -55,11 +70,9 @@ QWidget* TimelineSettingsDialog::createGeneralTab()
 
     // Time format settings
     m_timeFormatComboBox = new QComboBox(widget);
-    m_timeFormatComboBox->addItems({
-        tr("Frames"),
-        tr("Seconds"),
-        tr("Timecode (HH:MM:SS:FF)")
-    });
+    m_timeFormatComboBox->addItem(tr("0: TimeCode (HH:MM:SS:FF)"),static_cast<int>(TimedisplayFormat::TimeCodeFormat));
+    m_timeFormatComboBox->addItem(tr("1: TimeFormat (HH:MM:SS:MS)"),static_cast<int>(TimedisplayFormat::AbsoluteTimeFormat));
+    
     layout->addRow(tr("时间显示格式:"), m_timeFormatComboBox);
 
     return widget;
@@ -92,12 +105,6 @@ QWidget* TimelineSettingsDialog::createVideoTab()
 {
     auto* widget = new QWidget(this);
     auto* layout = new QFormLayout(widget);
-// FPS settings
-    m_fpsSpinBox = new QSpinBox(widget);
-    m_fpsSpinBox->setRange(1, 120);
-    m_fpsSpinBox->setValue(30);
-    m_fpsSpinBox->setSuffix(tr(" fps"));
-    layout->addRow(tr("帧率:"), m_fpsSpinBox);
     // Resolution settings
     m_displayDeviceCombo = new QComboBox(widget);
     m_displayDeviceCombo->addItems(getDisplayDeviceList());
@@ -133,25 +140,45 @@ void TimelineSettingsDialog::setupConnections()
             m_autoSaveIntervalSpinBox, &QSpinBox::setEnabled);
 }
 
-void TimelineSettingsDialog::loadSettings()
-{
-   
-}
-
 void TimelineSettingsDialog::saveSettings()
 {
+    // 获取新的时间码类型
+    TimecodeType newTimecodeType = static_cast<TimecodeType>(m_fpsCombo->currentData().toInt());
+    TimedisplayFormat newDisplayFormat = static_cast<TimedisplayFormat>(m_timeFormatComboBox->currentData().toInt());
     
-    
-    emit settingsChanged();
-}
-
-void TimelineSettingsDialog::setTimeFormat(const QString& format)
-{
-    int index = m_timeFormatComboBox->findText(format);
-    if (index >= 0) {
-        m_timeFormatComboBox->setCurrentIndex(index);
+    // 检查时间码类型是否改变
+    if (m_model->getTimecodeType() != newTimecodeType) {
+        // 显示警告对话框
+        QMessageBox::StandardButton reply = QMessageBox::warning(
+            this,
+            tr("更改时间码格式"),
+            tr("更改时间码格式将导致所有资源需要重新添加。\n是否继续？"),
+            QMessageBox::Yes | QMessageBox::No
+        );
+        
+        if (reply == QMessageBox::Yes) {
+            // 用户确认更改
+            m_model->setTimecodeType(newTimecodeType);
+            m_model->setTimeDisplayFormat(newDisplayFormat);
+            
+            // 清除模型中的所有片段
+            for(auto track:m_model->getTracks()){
+                for(auto clip:track->getClips()){
+                    track->removeClip(clip);
+                }
+            }
+            m_model->onTimelineLengthChanged();
+            emit settingsChanged();
+            accept();
+        }
+    } else {
+        // 只更改显示格式
+        m_model->setTimeDisplayFormat(newDisplayFormat);
+        emit settingsChanged();
+        accept();
     }
 }
+
 
 void TimelineSettingsDialog::setSampleRate(int rate)
 {
@@ -201,4 +228,10 @@ QStringList TimelineSettingsDialog::getDisplayDeviceList(){
         deviceList << QString("%1: %2 * %3").arg(screen->name()).arg(screen->geometry().size().width()).arg(screen->geometry().size().height());
     }
     return deviceList;
+}
+
+void TimelineSettingsDialog::syncSettings(){
+    // 同步模型中设置
+    m_fpsCombo->setCurrentIndex(static_cast<int>(m_model->getTimecodeGenerator()->getTimecodeType()));
+    m_timeFormatComboBox->setCurrentIndex(static_cast<int>(m_model->getTimeDisplayFormat()));
 }

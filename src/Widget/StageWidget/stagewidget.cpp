@@ -11,7 +11,6 @@ StageWidget::StageWidget(QWidget *parent)
     , m_stage(nullptr)
 {
     setupUI();
-    createConnections();
 }
 
 StageWidget::~StageWidget()
@@ -30,18 +29,15 @@ void StageWidget::setupUI()
     TimelineStage::registerType();
     TimelineScreen::registerType();
     
-    m_quickWidget->setSource(QUrl("qrc:/qml/controls/TimelineStage.qml"));
+   
     
     // Setup layout
     m_layout->setContentsMargins(0, 0, 0, 0);
+    m_layout->setSpacing(0);
     m_layout->addWidget(m_quickWidget);
     setLayout(m_layout);
 }
 
-void StageWidget::createConnections()
-{
-    // Add any signal connections here
-}
 
 void StageWidget::paintEvent(QPaintEvent *event)
 {
@@ -58,34 +54,12 @@ void StageWidget::resizeEvent(QResizeEvent *event)
     update();
 }
 
-void StageWidget::updateFrame(int frame)
-{
-    if (QQuickItem *rootObject = m_quickWidget->rootObject()) {
-        QMetaObject::invokeMethod(rootObject, "updateFrame",
-                                Q_ARG(QVariant, frame));
-    }
-}
-
-void StageWidget::setPlaying(bool playing)
-{
-    if (QQuickItem *rootObject = m_quickWidget->rootObject()) {
-        QMetaObject::invokeMethod(rootObject, "setPlaying",
-                                Q_ARG(QVariant, playing));
-    }
-}
-
-void StageWidget::setTotalFrames(int frames)
-{
-    if (QQuickItem *rootObject = m_quickWidget->rootObject()) {
-        rootObject->setProperty("totalFrames", frames);
-    }
-}
-
 void StageWidget::setStage(TimelineStage* stage)
 {
     if (m_stage != stage) {
         m_stage = stage;
-        // 将stage暴露给QML
+         // 将 stage 对象暴露给 QML 引擎 
         m_quickWidget->rootContext()->setContextProperty("stage", m_stage);
+        m_quickWidget->setSource(QUrl("qrc:/qml/controls/TimelineStage.qml"));
     }
 } 

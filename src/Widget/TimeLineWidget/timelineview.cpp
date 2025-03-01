@@ -2,6 +2,7 @@
 #include <QMenu>
 #include <QAction>
 #include "clipproperty.hpp"
+#include <QtMath>
 TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         : Model(viewModel), QAbstractItemView{parent}
     {
@@ -31,46 +32,46 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         // 设置工具栏位置
         toolbar->move(0, 0);
         
-        // 连接工具栏信号
-        connect(toolbar, &TimelineToolbar::playClicked, this, &TimelineView::timelinestart);
-        // 连接停止按钮信号
-        connect(toolbar, &TimelineToolbar::stopClicked, [this]() {
-            if(timer->isActive()) {
-                timer->stop();
-            }
-            Model->setPlayheadPos(0);
-            viewport()->update();
+        // 连接时间码生成器信号
+        connect(Model->getTimecodeGenerator(), &TimecodeGenerator::currentFrameChanged,
+                this, &TimelineView::onFrameChanged);
+        // 连接时间码生成器播放状态改变信号
+        connect(Model->getTimecodeGenerator(), &TimecodeGenerator::timecodePlayingChanged,
+                this, &TimelineView::onPlaybackStateChanged);
+        
+        // 连接工具栏播放按钮信号
+        connect(toolbar, &TimelineToolbar::playClicked, [this]() {
+            Model->onStartPlay();
         });
-        // 连接暂停按钮信号
+        // 连接工具栏停止按钮信号
+        connect(toolbar, &TimelineToolbar::stopClicked, [this]() {
+            Model->onStopPlay();
+        });
+        // 连接工具栏暂停按钮信号
         connect(toolbar, &TimelineToolbar::pauseClicked, [this]() {
-            if(timer->isActive()) {
-                timer->stop();
-            }
+            Model->onPausePlay();
         });
         
-        // 连接输出窗口切换信号
+        // 连接工具栏输出窗口切换信号
         connect(toolbar, &TimelineToolbar::outputWindowToggled, this, &TimelineView::showVideoWindow);
         // 当视频窗口关闭时，更新工具栏按钮状态
         connect(this, &TimelineView::videoWindowClosed, [this]() {
             toolbar->m_outputAction->setChecked(false);
         });
         // 连接定时器超时信号
-        connect(timer, &QTimer::timeout, this, &TimelineView::onTimeout);
-        connect(Model, &TimelineModel::timelineUpdated, this, &TimelineView::updateViewport);
+        // connect(Model->getTimecodeGenerator(), &TimecodeGenerator::frameChanged, this, &TimelineView::onTimeout);
+        connect(Model, &TimelineModel::S_timelineUpdated, this, &TimelineView::onUpdateViewport);
         // installEventFilter(this);
         // 创建视频播放器和窗口
         setupVideoWindow();
 
         // 连接工具栏的帧控制信号
         connect(toolbar, &TimelineToolbar::prevFrameClicked, [this]() {
-            int currentFrame = Model->getPlayheadPos();
-            if (currentFrame > 0) {  // 确保不会移动到负帧
-                movePlayheadToFrame(currentFrame - 1);
-            }
+            Model->getTimecodeGenerator()->moveToPreviousFrame();
         });
         // 连接下一帧按钮信号
         connect(toolbar, &TimelineToolbar::nextFrameClicked, [this]() {
-            movePlayheadToFrame(Model->getPlayheadPos() + 1);
+            Model->getTimecodeGenerator()->moveToNextFrame();
         });
         // 连接移动剪辑按钮信号
         connect(toolbar, &TimelineToolbar::moveClipClicked, [this](int dx) {
@@ -93,19 +94,33 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
 
         // 连接放大按钮信号
         connect(toolbar, &TimelineToolbar::zoomInClicked, [this]() {
-           setScale(currentScale + 0.1);
+       
+           setScale(1.1);
         });
         // 连接缩小按钮信号
         connect(toolbar, &TimelineToolbar::zoomOutClicked, [this]() {
-            setScale(currentScale - 0.1);
+            setScale(0.9);
         });
+        // 连接帧率改变信号,停止定时器，移动播放头到0，更新视图
+        // connect(Model, &TimelineModel::frameRateChanged, [this](int fps){
+        //     Model->setPlayheadPos(0);
+        //     // if(timer->isActive()){
+        //     //     timer->stop();
+        //     //     onTimelineStart();
+        //     // }
+           
+        //     onUpdateViewport();
+        // });
+        // 连接循环播放信号
+        connect(toolbar, &TimelineToolbar::loopToggled, 
+                Model->getTimecodeGenerator(), &TimecodeGenerator::setLooping);
     }
 
 TimelineView::~TimelineView()
 {
     delete videoPlayer;
     delete toolbar;
-    delete timer;
+    // delete timer;
 
 }
 QRect TimelineView::visualRect(const QModelIndex &index) const
@@ -219,11 +234,8 @@ void TimelineView::moveSelectedClip(int dx, int dy,bool isMouse)
     }
     // 确保不会移动到负值位置
     newPos = std::max(0, newPos);
-
     // 更新模型数据
     Model->setData(list.first(), newPos, TimelineRoles::ClipInRole);
-
-    Model->calculateLength();
     updateEditorGeometries();
     updateScrollBars();
     viewport()->update();
@@ -231,52 +243,26 @@ void TimelineView::moveSelectedClip(int dx, int dy,bool isMouse)
 
 void TimelineView::movePlayheadToFrame(int frame)
 {
-    Model->setPlayheadPos(frame);
+    // qDebug() << "movePlayheadToFrame" << frame;
+    // 直接设置时间码生成器的帧位置
+    Model->getTimecodeGenerator()->setCurrentFrame(frame);
+    // viewport()->update();
 }
 
-void TimelineView::updateViewport(){
+void TimelineView::onUpdateViewport(){
     updateEditorGeometries();
-    Model->calculateLength();
     updateScrollBars();
-    viewport()->update();
-}
-// 定时器启动
-void TimelineView::timelinestart(){
-    if(timer->isActive()){
-        timer->stop();
-    }else{
-        timer->start(40);
-    }
-};
-
-// 定时器超时信号槽
-void TimelineView::onTimeout()
-{
-   
-    int currentPos = Model->getPlayheadPos();
-    int timelineLength = Model->data(QModelIndex(), TimelineRoles::TimelineLengthRole).toInt();
-    
-    // 检查是否到达时间轴末尾
-    if (currentPos >= timelineLength) {
-        // 停止定时器
-        timer->stop();
-        // 重置游标到零位
-        Model->setPlayheadPos(0);
-    } else {
-        // 继续正常播放
-        Model->setPlayheadPos(currentPos + 1);
-    }
-    
     viewport()->update();
 }
 
 // 滚动视图
-void TimelineView::scroll(int dx, int dy){
+void TimelineView::onScroll(int dx, int dy){
     
     m_scrollOffset -= QPoint(dx, dy);
     QAbstractItemView::scrollContentsBy(dx, dy);
-    
-    updateViewport();
+    updateEditorGeometries();
+    updateScrollBars();
+    viewport()->update();
 }
 void TimelineView::horizontalScroll(double position)
 {
@@ -300,9 +286,6 @@ void TimelineView::updateScrollBars()
     max = getTrackWdith() -  viewport()->width();
     horizontalScrollBar()->setRange(0, max);
     verticalScrollBar()->setRange(0, model()->rowCount() * trackHeight + rulerHeight - viewport()->height());
-
-    // 更新ZoomController
-    emit timelineInfoChanged(getTrackWdith(), viewport()->width(), m_scrollOffset.x());
 }
 
 void TimelineView::scrollContentsBy(int dx, int dy)
@@ -310,9 +293,6 @@ void TimelineView::scrollContentsBy(int dx, int dy)
     m_scrollOffset -= QPoint(dx, dy);
     QAbstractItemView::scrollContentsBy(dx, dy);
     updateEditorGeometries();
-    
-    // 更新ZoomController
-    emit timelineInfoChanged(getTrackWdith(), viewport()->width(), m_scrollOffset.x());
 }
 
 int TimelineView::pointToFrame(int point) const
@@ -373,11 +353,11 @@ void TimelineView::addClipAtPosition(const QModelIndex& index, const QPoint& pos
     // Calculate the start frame based on the mouse position
     int startFrame = pointToFrame(pos.x() + m_scrollOffset.x());
     
-    Model->m_tracks[trackIndex]->addClip(startFrame,Model->m_pluginLoader);
-    // 计算时间线长度
-    Model->calculateLength();
+    Model->m_tracks[trackIndex]->addClip(startFrame,Model->m_pluginLoader,Model->getTimecodeType());
+    //添加完片段后重新计算总时长
+    Model->onTimelineLengthChanged();
     // 更新视图
-    updateViewport();
+    onUpdateViewport();
 }
 
 void TimelineView::mouseReleaseEvent(QMouseEvent *event)
@@ -398,18 +378,8 @@ void TimelineView::mouseReleaseEvent(QMouseEvent *event)
 void TimelineView::mouseDoubleClickEvent(QMouseEvent *event)
 {
     QModelIndex index = indexAt(event->pos());
-    if(index.isValid() && index.parent().isValid()) {
-        AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
-        if(clip) {
-            // 创建并显示属性对话框
-            auto* property = new ClipProperty(clip, Model, this);
-            // 连接更新信号
-            connect(property, &ClipProperty::propertyChanged, [this]() {
-                updateViewport();
-            });
-            property->show();  // 显示为非模态对话框
-        }
-    }
+    // 创建并显示属性对话框
+    showClipProperty(index);
     QAbstractItemView::mouseDoubleClickEvent(event);
 }
 
@@ -432,7 +402,6 @@ void TimelineView::setScale(double value)
     // 设置新的缩放比例 (value 范围是 0-1)
     timescale = (value * 99 + 1) * baseTimeScale / 100;  // 将 0-1 映射到 5%-100% 的缩放范围
     // timescale = value * baseTimeScale;
-    // 计算新的焦点位置
     timescale=qMax(1,timescale);
     int newPointFocus = frameToPoint(focusFrame);
     
@@ -459,7 +428,7 @@ void TimelineView::resizeEvent(QResizeEvent *event)
     QAbstractItemView::resizeEvent(event);
     
     // 更新ZoomController
-    emit timelineInfoChanged(getTrackWdith(), viewport()->width(), m_scrollOffset.x());
+    // emit timelineInfoChanged(getTrackWdith(), viewport()->width(), m_scrollOffset.x());
 }
 
 void TimelineView::showEvent(QShowEvent *event)
@@ -534,12 +503,12 @@ void TimelineView::mouseMoveEvent(QMouseEvent *event)
                     if(m_mouseUnderClipEdge==hoverState::LEFT){
                         int newFrame = pointToFrame(m_mouseEnd.x() + m_scrollOffset.x());
                         Model->setData(clipIndex, newFrame, TimelineRoles::ClipInRole);
-                        Model->calculateLength();
+                        // Model->onTimelineLengthChanged();
                         updateEditorGeometries();
                     }else if(m_mouseUnderClipEdge==hoverState::RIGHT){
                         int newFrame = pointToFrame(m_mouseEnd.x() + m_scrollOffset.x());
                         Model->setData(clipIndex, newFrame, TimelineRoles::ClipOutRole);
-                        Model->calculateLength();
+                        // Model->onTimelineLengthChanged();
                         updateEditorGeometries();
                     }
                 }
@@ -660,55 +629,151 @@ void TimelineView::dropEvent(QDropEvent *event)
 
 void TimelineView::paintEvent(QPaintEvent *event) 
 {
-    // 获取可见区域
-    int trackwidth = getTrackWdith();
     QPainter painter(viewport());
-    painter.save();  // 保存状态
-    QRect visibleRect = viewport()->rect();
-    int visibleLeft = m_scrollOffset.x();
-    int visibleRight = visibleLeft + visibleRect.width();
+    painter.save();
 
-    // 计算可见的帧范围
-    int startFrame = pointToFrame(visibleLeft);
-    int endFrame = pointToFrame(visibleRight) + 1;
+    // 1. 绘制基本背景和轨道分隔线
+    drawBackground(&painter, event->rect());
+    
+    // 2. 绘制垂直时间线
+    drawVerticalTimeLines(&painter, event->rect());
+    
+    // 3. 绘制轨道内容(clips)
+    drawTracks(&painter);
+    
+    // 4. 绘制时间标尺
+    drawTimeRuler(&painter, event->rect());
+    
+    // 5. 绘制播放头
+    drawPlayhead(&painter);
 
-    // 1. 绘制背景
-    painter.fillRect(visibleRect, bgColour);
-    //设置分割线颜色
-    painter.setPen(seperatorColour);
-    // 画轨道
+    painter.restore();
+}
+
+void TimelineView::drawBackground(QPainter* painter, const QRect& rect)
+{
+    // 绘制背景
+    painter->fillRect(rect, bgColour);
+    
+    // 设置分割线颜色并绘制轨道分隔线
+    painter->setPen(seperatorColour);
     for (int i = 0; i < model()->rowCount(); ++i) {
-        QModelIndex trackIndex = model()->index(i, 0);
         int trackSplitter = (i+1) * trackHeight + rulerHeight + toolbarHeight - m_scrollOffset.y();
-        painter.drawLine(0, trackSplitter, event->rect().width(), trackSplitter);
+        painter->drawLine(0, trackSplitter, rect.width(), trackSplitter);
+    }
+}
+
+void TimelineView::drawVerticalTimeLines(QPainter* painter, const QRect& rect)
+{
+    int lineheight = model()->rowCount() * trackHeight + rulerHeight + toolbarHeight;
+    
+    // 计算时间线间隔
+    double frameRate = Model->getTimecodeGenerator()->getFrameRate();
+    int frameStep = calculateFrameStep(frameRate);
+
+    // 计算起始和结束位置
+    int startMarker = static_cast<int>(pointToFrame(m_scrollOffset.x())) * timescale + 1;
+    int endMarker = rect.width() + m_scrollOffset.x();
+    startMarker = pointToFrame(startMarker);
+    startMarker -= (startMarker % frameStep);
+    startMarker = frameToPoint(startMarker);
+
+    // 绘制垂直时间线
+    for (int i = startMarker; i < endMarker; i += timescale * frameStep) {
+        painter->drawLine(i - m_scrollOffset.x(), 
+                         std::max(rulerHeight, rect.top()),
+                         i - m_scrollOffset.x(), 
+                         lineheight);
+    }
+}
+
+int TimelineView::calculateFrameStep(double frameRate) const
+{
+    if (timescale >= frameRate) {
+        return 1;  // 每帧都显示时间码
+    } else if (timescale >= frameRate / 2) {
+        return 2;  // 每2帧显示一次
+    } else if (timescale >= frameRate / 5) {
+        return 5;  // 每5帧显示一次
+    } else if (timescale >= frameRate / 10) {
+        return 10; // 每10帧显示一次
+    } else if (timescale >= frameRate / 25) {
+        return 25; // 每25帧显示一次
+    } else {
+        return qRound(frameRate); // 每秒显示一次
+    }
+}
+
+void TimelineView::drawTimeRuler(QPainter* painter, const QRect& rect)
+{
+    // 绘制标尺背景
+    painter->setPen(rulerColour);
+    painter->setBrush(QBrush(bgColour));
+    painter->drawRect(-m_scrollOffset.x(), 0, 
+                     rect.width() + m_scrollOffset.x(), 
+                     rulerHeight + toolbarHeight);
+
+    // 计算时间线间隔
+    double frameRate = Model->getTimecodeGenerator()->getFrameRate();
+    int frameStep = calculateFrameStep(frameRate);
+
+    // 计算起始和结束位置
+    int startMarker = static_cast<int>(pointToFrame(m_scrollOffset.x())) * timescale + 1;
+    int endMarker = rect.width() + m_scrollOffset.x();
+    startMarker = pointToFrame(startMarker);
+    startMarker -= (startMarker % frameStep);
+    startMarker = frameToPoint(startMarker);
+
+    // 绘制时间标记和文本
+    drawTimeMarkers(painter, startMarker, endMarker, frameStep);
+}
+
+void TimelineView::drawTimeMarkers(QPainter* painter, int startMarker, int endMarker, int frameStep)
+{
+    for (int i = startMarker; i < endMarker; i += timescale * frameStep) {
+        int number = pointToFrame(i);
+        QString text = tr("%1").arg(number);
+        QRect textRect = painter->fontMetrics().boundingRect(text);
+
+        textRect.translate(-m_scrollOffset.x(), 0);
+        textRect.translate(i - textRect.width() / 2, rulerHeight + toolbarHeight - textoffset);
+
+        painter->drawLine(i - m_scrollOffset.x(), textRect.bottom(),
+                         i - m_scrollOffset.x(), rulerHeight + toolbarHeight);
+
+        painter->drawText(textRect, text);
+    }
+}
+
+void TimelineView::drawPlayhead(QPainter* painter)
+{
+    // 绘制播放头三角形
+    QPoint kite[5] = {
+        QPoint(0,0),
+        QPoint(-playheadwidth, -playheadCornerHeight),
+        QPoint(-playheadwidth, -playheadheight),
+        QPoint(playheadwidth, -playheadheight),
+        QPoint(playheadwidth, -playheadCornerHeight)
+    };
+
+    int playheadPos = frameToPoint(Model->getPlayheadPos()) - m_scrollOffset.x();
+    
+    // 移动播放头到正确位置
+    for (QPoint &p : kite) {
+        p.setX(p.x() + playheadPos);
+        p.setY(p.y() + rulerHeight + toolbarHeight);
     }
 
-        // 画垂直线
-        int lineheight = model()->rowCount() * trackHeight + rulerHeight+toolbarHeight;
-        int frameStep;
+    // 设置画笔和画刷颜色并绘制
+    painter->setPen(playheadColour);
+    painter->setBrush(playheadColour);
+    painter->drawConvexPolygon(kite, 5);
+    painter->drawLine(QPoint(playheadPos, rulerHeight + toolbarHeight),
+                     QPoint(playheadPos, viewport()->height()));
+}
 
-        if (timescale >= 25) {
-            frameStep = 1;// Draw text at every frame
-        } else if (timescale > 15) {
-            frameStep = 5;  // Draw text every 10 frames
-        } else if (timescale > 5) {
-            frameStep = 15; // Draw text every 25 frames
-        } else {
-            frameStep = 30; // Draw text every 50 frames
-        }
-
-        int startMarker = static_cast<int>(pointToFrame(m_scrollOffset.x()))*timescale+1 ;
-        int endMarker = event->rect().width() + m_scrollOffset.x();
-        startMarker = pointToFrame(startMarker);
-        startMarker-= (startMarker%frameStep);
-        startMarker = frameToPoint(startMarker);
-
-        for (int i = startMarker; i<endMarker; i += timescale*frameStep)
-        {
-            painter.drawLine(i - m_scrollOffset.x(), std::max(rulerHeight, event->rect().top()),
-                             i - m_scrollOffset.x(), lineheight);
-        }
-
+void TimelineView::drawTracks(QPainter* painter)
+{
     for (int i = 0; i < model()->rowCount(); ++i) {
         QModelIndex trackIndex = model()->index(i, 0);
        
@@ -717,13 +782,13 @@ void TimelineView::paintEvent(QPaintEvent *event)
             QModelIndex clipIndex = model()->index(j, 0, trackIndex);
            // 设置画笔和画刷
             if (selectionModel()->isSelected(clipIndex)) {
-                painter.setBrush(ClipSelectedColor);
+                painter->setBrush(ClipSelectedColor);
                 
             } else if (m_hoverIndex == clipIndex) {
-                painter.setBrush(ClipHoverColor);
+                painter->setBrush(ClipHoverColor);
                
             } else {
-                painter.setBrush(ClipColor);
+                painter->setBrush(ClipColor);
                
             }            
             QStyleOptionViewItem option;
@@ -732,9 +797,9 @@ void TimelineView::paintEvent(QPaintEvent *event)
 
             // 使用圆角矩形绘制clip
             if(clipIndex.data(TimelineRoles::ClipShowBorderRole).toBool()){
-                painter.setPen(QPen(ClipBorderColour, ClipBorderWidth));
+                painter->setPen(QPen(ClipBorderColour, ClipBorderWidth));
                 QRect clipRect = visualRect(clipIndex).adjusted(0, clipoffset, 0, -clipoffset);
-                painter.drawRoundedRect(clipRect, clipround, clipround);  // 设置水平和垂直圆角半径为5像素
+                painter->drawRoundedRect(clipRect, clipround, clipround);  // 设置水平和垂直圆角半径为5像素
             }
             if (!indexWidget(clipIndex)&&clipIndex.data(TimelineRoles::ClipShowWidgetRole).toBool()) {
                 
@@ -742,95 +807,12 @@ void TimelineView::paintEvent(QPaintEvent *event)
             }
             else{
                 // closePersistentEditor(clipIndex);
-                itemDelegateForIndex(clipIndex)->paint(&painter, option, clipIndex);
+                itemDelegateForIndex(clipIndex)->paint(painter, option, clipIndex);
             }
            
         }
     }
-        // 画时间轴
-        painter.setPen(rulerColour);
-        painter.setBrush(QBrush(bgColour));
-        painter.drawRect(-m_scrollOffset.x(),0,event->rect().width() + m_scrollOffset.x(),rulerHeight+toolbarHeight);
-
-        
-        static int jump = 1;
-        if(  baseTimeScale%timescale == 0){
-            jump =  baseTimeScale/timescale;
-        }
-
-        for(int i = startMarker;i < endMarker; i+=timescale*frameStep){
-
-            int number = pointToFrame(i);
-            QString text     = tr("%1").arg(number);
-            QRect   textRect = painter.fontMetrics().boundingRect(text);
-
-            textRect.translate(-m_scrollOffset.x(), 0);
-            textRect.translate(i - textRect.width() / 2, rulerHeight+toolbarHeight - textoffset);
-
-        
-            painter.drawLine(i  - m_scrollOffset.x(),textRect.bottom(),
-                             i  - m_scrollOffset.x(),rulerHeight+toolbarHeight);
-
-            painter.drawText(textRect, text);
-        }
-
-//         // 画中间线
-//         for(int i = startMarker;i < endMarker; i+=timescale){
-//             int number = pointToFrame(i);
-//             int boost = 0 ;
-
-//             if (timescale > 20) {
-//                 break;  // Draw text at every frame
-//             } else if (timescale > 10) {
-//                 if(number%5==0)
-//                     continue;// skip every 5th marker
-
-//             } else if (timescale > 5) {
-//                 if(number%10==0)
-//                     continue; //skip every 10th marker
-
-//                 if(number%5==0)
-//                     boost =5; //hilight every 5th
-//             } else {
-//                 if(number%25==0)
-//                     continue; //skip every 25th marker
-
-//                 if(number%5==0)
-//                     boost =5; //hilight every 5th
-
-//             }
-// //
-//             painter.drawLine(i  - m_scrollOffset.x(),rulerHeight - textoffset +10 -boost ,
-//                              i  - m_scrollOffset.x(),rulerHeight);
-//         }
-
-//        画时间轴游标
-
-        QPoint kite[5]{
-                QPoint(0,0),QPoint(-playheadwidth,-playheadCornerHeight),QPoint(-playheadwidth,-playheadheight),QPoint(playheadwidth,-playheadheight),QPoint(playheadwidth,-playheadCornerHeight)
-        };
-        int playheadPos = frameToPoint(Model->getPlayheadPos()) -m_scrollOffset.x();
-        for(QPoint &p:kite){
-            p.setX(p.x()+playheadPos);
-            p.setY(p.y()+rulerHeight+toolbarHeight);
-        }
-
-        // 设置画笔和画刷颜色
-        painter.setPen(playheadColour);
-        painter.setBrush(playheadColour);  // 设置填充颜色
-
-        // 绘制播放头三角形
-        painter.drawConvexPolygon(kite,5);
-
-        // 绘制播放头竖线
-        painter.drawLine(QPoint(playheadPos,rulerHeight+toolbarHeight),QPoint(playheadPos,viewport()->height()));
-        // 2. 绘制工具栏背景和分割线
-        painter.setPen(rulerColour);
-
-        painter.drawLine(0, rulerHeight ,event->rect().width(), rulerHeight);
-
-        painter.restore();  // 恢复状态
-    }
+}
 
 void TimelineView::selectionChanged(const QItemSelection &selected, const QItemSelection &deselected)
 {
@@ -924,5 +906,40 @@ void TimelineView::showVideoWindow(bool show)
             videoPlayer = nullptr; // 清空指针
             emit videoWindowClosed();
         }
+    }
+}
+
+
+void TimelineView::onFrameChanged(qint64 frame)
+{
+    // qDebug() << "Frame changed:" << frame;
+    // 不再调用 movePlayheadToFrame，直接更新视图
+    viewport()->update();
+}
+
+void TimelineView::onPlaybackStateChanged(bool isPlaying)
+{
+    toolbar->setPlaybackState(isPlaying);
+    
+}
+
+void TimelineView::showClipProperty(const QModelIndex& index)
+{
+    //判断索引不为为片段时
+    if(!index.isValid() || !index.parent().isValid()){
+        return;
+    }
+    //获取片段
+    AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
+    if (!clip) return;
+    //创建属性窗口
+    auto* m_clipProperty = new ClipProperty(Model, index, this);
+    if (m_clipProperty) {
+        //连接属性窗口变化信号
+        connect(m_clipProperty, &ClipProperty::propertyChanged, [this]() {
+                onUpdateViewport();
+            });
+        //显示属性窗口
+        m_clipProperty->show();
     }
 }

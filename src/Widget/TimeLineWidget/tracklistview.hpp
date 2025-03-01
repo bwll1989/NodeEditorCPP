@@ -40,8 +40,10 @@ public:
         m_deleteTrackAction = new QAction("Delete track", this);
         m_deleteTrackAction->setShortcut(QKeySequence(Qt::Key_Delete));
         QObject::connect(m_deleteTrackAction, &QAction::triggered, this, &TracklistView::onDeleteTrack);
-        QObject::connect(Model, &TimelineModel::tracksChanged, this, &TracklistView::updateViewport);
-
+        //轨道变化后刷新显示
+        QObject::connect(Model, &TimelineModel::S_trackChanged, this, &TracklistView::onUpdateViewport);
+        //时间码更新后刷新显示
+        connect(Model->getTimecodeGenerator(), &TimecodeGenerator::currentFrameChanged, this, &TracklistView::onUpdateViewport);
         setItemDelegate(new TrackDelegate(this));
         setMouseTracking(true);
         m_scrollOffset = QPoint(0,0);
@@ -92,15 +94,11 @@ public slots:
      * @param int dy 垂直滚动
      */
     void scroll(int dx, int dy);
-    /**
-     * 设置时间
-     * @param int frame 帧
-     */
-    void setTime(int frame);
+   
     /**
      * 更新视图
      */
-    void updateViewport();
+    void onUpdateViewport();
     
 protected:
     /**
@@ -229,7 +227,6 @@ public:
      */
     QAction* m_deleteTrackAction;
 private:
-    int m_time = 0;
     //滚动偏移  
     QPoint m_scrollOffset;
     //拖动开始位置

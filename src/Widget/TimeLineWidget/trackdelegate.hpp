@@ -15,12 +15,21 @@ class TrackDelegate : public QAbstractItemDelegate
 {
     Q_OBJECT
 public:
+    /**
+     * 构造函数
+     * @param QObject *parent 父窗口
+     */
     explicit TrackDelegate(QObject *parent = nullptr): QAbstractItemDelegate{parent}{};
 
-signals:
 
     // QAbstractItemDelegate interface
 public:
+    /**
+     * 绘制
+     * @param QPainter *painter 绘图器
+     * @param const QStyleOptionViewItem &option 选项
+     * @param const QModelIndex &index 索引
+     */
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
 
         painter->setPen(fillColour);
@@ -37,11 +46,22 @@ public:
 
 
     };
-
+    /**
+     * 大小提示
+     * @param const QStyleOptionViewItem &option 选项
+     * @param const QModelIndex &index 索引
+     * @return QSize 大小
+     */
     QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override{
         return option.rect.size();
     };
-
+    /**
+     * 创建编辑器
+     * @param QWidget *parent 父窗口
+     * @param const QStyleOptionViewItem &option 选项
+     * @param const QModelIndex &index 索引
+     * @return QWidget * 编辑器
+     */
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
         QWidget* editor = new QWidget(parent);
 
@@ -70,12 +90,23 @@ public:
 
     // QAbstractItemDelegate interface
 public:
+    /**
+     * 更新编辑器几何形状
+     * @param QWidget *editor 编辑器
+     * @param const QStyleOptionViewItem &option 选项
+     * @param const QModelIndex &index 索引
+     */
     void updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
         editor->setGeometry(option.rect);
         QRegion mask = QRegion(0,rulerHeight,option.rect.right(),option.rect.bottom()-rulerHeight-toolbarHeight);
         editor->clearMask();
     };
 
+    /**
+     * 设置编辑器数据
+     * @param QWidget *editor 编辑器
+     * @param const QModelIndex &index 索引
+     */
     void setEditorData(QWidget *editor, const QModelIndex &index) const override {
         QLabel *lineEdit = editor->findChild<QLabel*>();
         if (lineEdit) {

@@ -1,16 +1,19 @@
 #include "clipproperty.hpp"
 #include <QGroupBox>
-ClipProperty::ClipProperty(AbstractClipModel* model, TimelineModel* timelineModel, QWidget *parent)
+ClipProperty::ClipProperty(TimelineModel* timelineModel, const QModelIndex& index ,QWidget *parent)
     : QDialog(parent)
-    , m_model(model)
     , m_timelineModel(timelineModel)
     , m_layout(new QVBoxLayout(this))
     , m_startFrameSpinBox(new QSpinBox(this))
     , m_endFrameSpinBox(new QSpinBox(this))
+    , m_startTimeCodeLineEdit(new QLineEdit(this))
+    , m_endTimeCodeLineEdit(new QLineEdit(this))
+    , m_currentIndex(index)
 {
     // 设置窗口标题和属性
-    setWindowTitle(tr("Clip Properties"));
-    setWindowFlags(Qt::Dialog | Qt::WindowStaysOnTopHint);  // 设置窗口始终在顶端
+    m_model = static_cast<AbstractClipModel*>(index.internalPointer());
+    setWindowTitle(tr(m_model->type().toStdString().c_str()));
+    setWindowFlags(Qt::Dialog);  // 设置窗口始终在顶端
     
     setupUI();
     connectSignals();
@@ -35,21 +38,36 @@ void ClipProperty::setupUI()
     // 1. 时间属性组
     QGroupBox *timeGroupBox = new QGroupBox(tr("时间属性"), this);
     QGridLayout *timeLayout = new QGridLayout(timeGroupBox);
-    // 开始帧
-    auto startLabel = new QLabel(tr("Start Frame:"), this);
-    timeLayout->addWidget(startLabel,0,0);
     
-    m_startFrameSpinBox->setRange(0, 99999);
+    // 开始帧显示
+    auto startLabel = new QLabel(tr("开始帧:"), this);
+    timeLayout->addWidget(startLabel, 0, 0);
+    m_startFrameSpinBox->setRange(0, 9999999);
     m_startFrameSpinBox->setValue(m_model->start());
-    timeLayout->addWidget(m_startFrameSpinBox,0,1);
-
-    // 结束帧
-    auto endLabel = new QLabel(tr("End Frame:"), this);
-    timeLayout->addWidget(endLabel,1,0);
+    timeLayout->addWidget(m_startFrameSpinBox, 0, 1);
     
-    m_endFrameSpinBox->setRange(0, 99999);
+    // 开始时间码显示
+    auto startTimeCodeLabel = new QLabel(tr("开始时间码:"), this);
+    timeLayout->addWidget(startTimeCodeLabel, 1, 0);
+    // m_startTimeCodeLineEdit = new QLineEdit(this);  // 确保在头文件中声明
+    m_startTimeCodeLineEdit->setReadOnly(true);  // 设置为只读
+    m_startTimeCodeLineEdit->setText(m_model->getStartTimeCode().toString());
+    timeLayout->addWidget(m_startTimeCodeLineEdit, 1, 1);
+    
+    // 结束帧显示
+    auto endLabel = new QLabel(tr("结束帧:"), this);
+    timeLayout->addWidget(endLabel, 2, 0);
+    m_endFrameSpinBox->setRange(0, 9999999);
     m_endFrameSpinBox->setValue(m_model->end());
-    timeLayout->addWidget(m_endFrameSpinBox,1,1);
+    timeLayout->addWidget(m_endFrameSpinBox, 2, 1);
+    
+    // 结束时间码显示
+    auto endTimeCodeLabel = new QLabel(tr("结束时间码:"), this);
+    timeLayout->addWidget(endTimeCodeLabel, 3, 0);
+    // m_endTimeCodeLineEdit = new QLineEdit(this);  // 确保在头文件中声明
+    m_endTimeCodeLineEdit->setReadOnly(true);  // 设置为只读
+    m_endTimeCodeLineEdit->setText(m_model->getEndTimeCode().toString());
+    timeLayout->addWidget(m_endTimeCodeLineEdit, 3, 1);
 
     m_layout->addWidget(timeGroupBox);
 
@@ -100,16 +118,22 @@ void ClipProperty::updateUI()
     // 更新开始帧和结束帧
     m_startFrameSpinBox->blockSignals(true);
     m_endFrameSpinBox->blockSignals(true);
-
+    
     m_startFrameSpinBox->setValue(m_model->start());
     m_endFrameSpinBox->setValue(m_model->end());
-
+    
+    // 更新时间码显示
+    if (m_startTimeCodeLineEdit && m_endTimeCodeLineEdit) {
+        m_startTimeCodeLineEdit->setText(m_model->getStartTimeCode().toString());
+        m_endTimeCodeLineEdit->setText(m_model->getEndTimeCode().toString());
+    }
+    
     m_startFrameSpinBox->blockSignals(false);
     m_endFrameSpinBox->blockSignals(false);
 
     // 如果有代理编辑器，更新代理数据
     if (m_delegateWidget && m_delegate) {
-        m_delegate->setEditorData(m_delegateWidget, QModelIndex());
+        m_delegate->setEditorData(m_delegateWidget, m_currentIndex);
     }
 }
 
@@ -133,11 +157,12 @@ void ClipProperty::setupDelegate()
     
     // 通过插件加载器获取对应的代理
     m_delegate = m_timelineModel->m_pluginLoader->createDelegateForType(clipType);
+
     if (m_delegate) {
         // 创建代理的编辑器
         QStyleOptionViewItem option;
         option.rect = QRect(0, 0, width(), 100);  // 给一个合理的初始大小
-        m_delegateWidget = m_delegate->createEditor(this, option, QModelIndex());
+        m_delegateWidget = m_delegate->createEditor(this, option, m_currentIndex);
         
         if (m_delegateWidget) {
             // 将代理编辑器添加到内容布局中
@@ -149,7 +174,7 @@ void ClipProperty::setupDelegate()
             }
             
             // 设置编辑器的数据
-            m_delegate->setEditorData(m_delegateWidget, QModelIndex());
+            m_delegate->setEditorData(m_delegateWidget, m_currentIndex);
         } else {
             delete m_delegate;  // 只有在创建编辑器失败时才删除代理
             m_delegate = nullptr;
@@ -161,6 +186,10 @@ void ClipProperty::onStartFrameChanged(int value)
 {
     if (m_model) {
         m_model->setStart(value);
+        // 更新时间码显示
+        if (m_startTimeCodeLineEdit) {
+            m_startTimeCodeLineEdit->setText(m_model->getStartTimeCode().toString());
+        }
         emit propertyChanged();
     }
 }
@@ -169,6 +198,10 @@ void ClipProperty::onEndFrameChanged(int value)
 {
     if (m_model) {
         m_model->setEnd(value);
+        // 更新时间码显示
+        if (m_endTimeCodeLineEdit) {
+            m_endTimeCodeLineEdit->setText(m_model->getEndTimeCode().toString());
+        }
         emit propertyChanged();
     }
 }
@@ -181,7 +214,9 @@ void ClipProperty::onApplyClicked()
     
     // 如果有代理编辑器，也应用其更改
     if (m_delegateWidget && m_delegate) {
-        m_delegate->setModelData(m_delegateWidget, nullptr, QModelIndex());
+        m_delegate->setModelData(m_delegateWidget, nullptr, m_currentIndex);
     }
 }
+
+
 

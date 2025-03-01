@@ -5,6 +5,8 @@
 TimelineStage::TimelineStage(QQuickItem *parent)
     : QQuickItem(parent)
 {
+    // 允许接收更新
+    setFlag(QQuickItem::ItemHasContents, true);
 }
 
 TimelineStage::~TimelineStage()
@@ -74,7 +76,11 @@ void TimelineStage::load(const QJsonObject &json)
 
 void TimelineStage::registerType()
 {
+    // 注册为 QML 类型
     qmlRegisterType<TimelineStage>("TimelineWidget", 1, 0, "TimelineStage");
+    
+    // 注册为元对象类型，允许在 QML 中使用 TimelineStage* 类型
+    qRegisterMetaType<TimelineStage*>("TimelineStage*");
 }
 
 void TimelineStage::setZoomFactor(qreal factor)
@@ -92,3 +98,4 @@ void TimelineStage::setViewPosition(const QPointF &pos)
     m_viewPosition = pos;
     emit viewPositionChanged();
 } 
+

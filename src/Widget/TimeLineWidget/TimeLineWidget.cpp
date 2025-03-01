@@ -7,44 +7,29 @@
 
 #include "timelinewidget.hpp"
 #include "timelinesettingsdialog.hpp"
-
+#include "imageprovider.hpp"
 TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent) {
     // 首先创建模型
     model = new TimelineModel();
     // 创建组件
     createComponents();
-    // 连接信号
-    connect(tracklist, &TracklistView::scrolled, view, &TimelineView::scroll);
-    connect(model, &TimelineModel::playheadMoved, tracklist, &TracklistView::setTime);
-    connect(model, &TimelineModel::tracksChanged, tracklist, &TracklistView::updateViewport);
-    connect(model, &TimelineModel::tracksChanged, view, &TimelineView::updateViewport);
-    connect(tracklist, &TracklistView::viewupdate, view, &TimelineView::updateViewport);    
-    setupConnections();
-}
-
-void TimelineWidget::setupConnections()
-{
-    // Connect toolbar settings button to show settings dialog
+    // 连接轨道列表竖向滚动到时间线竖向滚动
+    connect(tracklist, &TracklistView::scrolled, view, &TimelineView::onScroll);
+    // 连接模型轨道变化到时间线更新视图
+    connect(model, &TimelineModel::S_trackChanged, view, &TimelineView::onUpdateViewport);
+    // 连接轨道列表更新到时间线更新视图
+    connect(tracklist, &TracklistView::viewupdate, view, &TimelineView::onUpdateViewport);    
+    // 连接工具栏设置按钮到显示设置对话框
     connect(view->toolbar, &TimelineToolbar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
-    
-    // Connect settings dialog changes to timeline
-   
 }
 
 void TimelineWidget::showSettingsDialog()
 {
     if (!m_settingsDialog) {
-        m_settingsDialog = new TimelineSettingsDialog(this);
-        
-        // Connect settings changes to timeline
-        connect(m_settingsDialog, &TimelineSettingsDialog::settingsChanged, this, [this]() {
-            // 应用设置到timelineview
-            int fps = m_settingsDialog->getFPS();
-           
-            // TODO: Apply video settings
-        });
+        m_settingsDialog = new TimelineSettingsDialog(model,this);
     }
-    
+    // 同步模型中设置，保证设置对话框中的设置与模型中的设置一致
+    m_settingsDialog->syncSettings();
     m_settingsDialog->show();
 }
 
@@ -55,8 +40,6 @@ QJsonObject TimelineWidget::save() {
 void TimelineWidget::load(const QJsonObject& json) {
     model->load(json);
 }
-
-
 
 void TimelineWidget::createComponents() {
     // 创建工具栏
@@ -93,6 +76,16 @@ void TimelineWidget::createComponents() {
     
     // 添加到主布局
     mainlayout->addWidget(horizontalSplitter);
+
+    // 连接模型的帧图像更新信号到舞台
+    connect(model, &TimelineModel::frameImageUpdated,
+            model->getStage(), &TimelineStage::updateCurrentFrame);
+
+    // 注册图像提供者
+    auto engine = qmlEngine(model->getStage());
+    if (engine) {
+        engine->addImageProvider(QLatin1String("timeline"), ImageProvider::instance());
+    }
 }
 
 TimelineWidget::~TimelineWidget()
@@ -100,6 +93,7 @@ TimelineWidget::~TimelineWidget()
     delete view;
     delete tracklist;
     delete model;
+    delete m_settingsDialog;
 }
 
 #endif //TIMELINEV2_TIMEWIDGET_HPP

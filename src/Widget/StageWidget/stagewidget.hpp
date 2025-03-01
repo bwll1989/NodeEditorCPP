@@ -14,12 +14,7 @@ class StageWidget : public QWidget
 public:
     explicit StageWidget(QWidget *parent = nullptr);
     ~StageWidget() override;
-
-    // Methods to control the stage
-    void updateFrame(int frame);
-    void setPlaying(bool playing);
-    void setTotalFrames(int frames);
-    
+   
     // 设置stage
     void setStage(TimelineStage* stage);
 
@@ -29,7 +24,6 @@ protected:
 
 private:
     void setupUI();
-    void createConnections();
 
     QQuickWidget *m_quickWidget;
     QVBoxLayout *m_layout;

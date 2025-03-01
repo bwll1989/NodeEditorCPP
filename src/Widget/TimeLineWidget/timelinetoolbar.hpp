@@ -28,10 +28,12 @@ signals:
     void pauseClicked();
     /**
      * 循环点击
+     * @param bool enabled 是否启用
      */
     void loopToggled(bool enabled);
     /**
      * 输出窗口点击
+     * @param bool show 是否显示
      */
     void outputWindowToggled(bool show);
     /**
@@ -62,6 +64,12 @@ signals:
      * 缩小点击
      */
     void zoomOutClicked();
+public slots:
+    /**
+     * 设置播放状态
+     * @param bool isPlaying 是否播放
+     */
+    void setPlaybackState(bool isPlaying);
 private:
     /**
      * 创建动作

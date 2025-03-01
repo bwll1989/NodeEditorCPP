@@ -4,7 +4,7 @@ import "."  // 导入当前目录，使StageScreen可用
 
 Rectangle {
     id: root
-    color: currentStage.stageBgColor  // 使用C++定义的背景色
+    color: stage ? stage.stageBgColor : "#333333"  // 添加空检查
     width: parent ? parent.width : 800
     height: parent ? parent.height : 600
     clip: true  // Add clipping to prevent controls from drawing outside
@@ -13,15 +13,15 @@ Rectangle {
     property int totalFrames: 100
     property bool isPlaying: false
     property int screenCount: 0
-    property real zoomFactor: currentStage.zoomFactor
+    property real zoomFactor: stage ? stage.zoomFactor : 1.0  // 添加空检查
     onZoomFactorChanged: {
-        if (currentStage) {
-            currentStage.zoomFactor = zoomFactor;
+        if (stage) {
+            stage.zoomFactor = zoomFactor;
         }
     }
     
-    // 使用C++中的stage对象
-    property var currentStage: stage
+    // 使用C++中的stage对象，保持原有名称但添加空检查
+    property var currentStage: stage ? stage : null
     
     // 添加鼠标位置属性
     property point mousePos: Qt.point(0, 0)
@@ -66,6 +66,25 @@ Rectangle {
         }
     }
     
+    // 显示当前帧图像
+    Image {
+        id: frameImage
+        anchors.fill: parent
+        fillMode: Image.PreserveAspectFit
+        cache: false
+        z: 0  // 确保图像在最底层
+        
+        // 监听 currentStage 的 currentFrame 变化
+        Connections {
+            target: currentStage
+            enabled: currentStage !== null  // 添加启用条件
+            function onCurrentFrameChanged() {
+                console.log("currentFrameChanged")
+                frameImage.source = "image://timeline/" + Date.now()
+            }
+        }
+    }
+
     // Grid and guidelines
     Canvas {
         id: gridCanvas
@@ -446,32 +465,32 @@ Rectangle {
     }
 
     // 鼠标位置提示
-    Rectangle {
-        id: mousePositionTip
-        color: "#333333"
-        border.color: "#666666"
-        border.width: 1
-        radius: 5
-        width: positionText.width + 20
-        height: positionText.height + 10
-        visible: root.containsMouse
+    // Rectangle {
+    //     id: mousePositionTip
+    //     color: "#333333"
+    //     border.color: "#666666"
+    //     border.width: 1
+    //     radius: 5
+    //     width: positionText.width + 20
+    //     height: positionText.height + 10
+    //     visible: root.containsMouse
         
-        // 跟随鼠标位置
-        x: root.mousePos.x + 15
-        y: root.mousePos.y + 15
+    //     // 跟随鼠标位置
+    //     x: root.mousePos.x + 15
+    //     y: root.mousePos.y + 15
         
-        Text {
-            id: positionText
-            anchors.centerIn: parent
-            color: "#FFFFFF"
-            text: {
-                // 计算鼠标在stage坐标系中的位置
-                var stageX = Math.round((root.mousePos.x - controlsContainer.x) / root.zoomFactor - gridCanvas.centerX);
-                var stageY = Math.round((root.mousePos.y - controlsContainer.y) / root.zoomFactor - gridCanvas.centerY);
-                return "X: " + stageX + ", Y: " + stageY;
-            }
-        }
-    }
+    //     Text {
+    //         id: positionText
+    //         anchors.centerIn: parent
+    //         color: "#FFFFFF"
+    //         text: {
+    //             // 计算鼠标在stage坐标系中的位置
+    //             var stageX = Math.round((root.mousePos.x - controlsContainer.x) / root.zoomFactor - gridCanvas.centerX);
+    //             var stageY = Math.round((root.mousePos.y - controlsContainer.y) / root.zoomFactor - gridCanvas.centerY);
+    //             return "X: " + stageX + ", Y: " + stageY;
+    //         }
+    //     }
+    // }
     
     // 处理鼠标事件
     MouseArea {

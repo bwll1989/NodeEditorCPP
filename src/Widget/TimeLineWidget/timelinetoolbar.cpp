@@ -59,7 +59,6 @@ void TimelineToolbar::createActions()
     m_previousFrameAction->setIcon(QIcon(":/icons/icons/rewind-back.png"));
     m_previousFrameAction->setToolTip(tr("Previous Frame"));
     connect(m_previousFrameAction, &QAction::triggered, this, &TimelineToolbar::prevFrameClicked);
-    // connect(m_previousFrameAction, &QAction::triggered, this, &TimelineToolbar::previousFrameClicked);
 
     m_nextMediaAction = new QAction(this);
     m_nextMediaAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Right));
@@ -110,7 +109,7 @@ void TimelineToolbar::createActions()
     m_deleteClipAction->setIcon(QIcon(":/icons/icons/delete-clip.png"));
     m_deleteClipAction->setToolTip(tr("Delete Clip"));
     connect(m_deleteClipAction, &QAction::triggered, this, &TimelineToolbar::deleteClipClicked);
-    // 放大
+    // 创建缩放动作
     m_zoomInAction = new QAction(this);
     m_zoomInAction->setIcon(QIcon(":/icons/icons/zoomin.png"));
     m_zoomInAction->setToolTip(tr("Zoom In"));
@@ -144,7 +143,11 @@ void TimelineToolbar::setupUI()
     // 设置工具栏样式
     setMovable(false);
     setIconSize(QSize(toolbarButtonWidth, toolbarButtonWidth));
-
-   
-  
 } 
+
+void TimelineToolbar::setPlaybackState(bool isPlaying)
+{
+    m_isPlaying = isPlaying;
+    m_playAction->setIcon(QIcon(m_isPlaying ? ":/icons/icons/pause.png" : ":/icons/icons/play.png"));
+    m_playAction->setToolTip(m_isPlaying ? tr("Pause") : tr("Play"));
+}
