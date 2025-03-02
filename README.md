@@ -40,4 +40,4 @@
 8、timeline remote display
 
 ![capture.png](images%2Fcapture.png)
-![capture2.png](images%2Fcapture2.png)
+![capture1.png](images%2Fcapture1.png)
