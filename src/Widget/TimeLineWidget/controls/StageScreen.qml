@@ -5,12 +5,12 @@ import QtQuick.Window
 
 StageControlBase {
     id: root
-    width: screenWidth * scale
-    height: screenHeight * scale
+    width: screenWidth * root.zoomFactor
+    height: screenHeight * root.zoomFactor
     color: "transparent"  // Make background transparent
     
-    property int screenWidth: 640
-    property int screenHeight: 480
+    property int screenWidth: 1920
+    property int screenHeight: 1080
     property string resolution: screenWidth + "x" + screenHeight
     property string name: "显示 1"
     property int posX: 0

@@ -3,6 +3,7 @@
 #include <QVBoxLayout>
 #include <QQuickItem>
 #include <QQmlContext>
+#include <QDebug>
 
 StageWidget::StageWidget(QWidget *parent)
     : QWidget(parent)
@@ -58,7 +59,15 @@ void StageWidget::setStage(TimelineStage* stage)
 {
     if (m_stage != stage) {
         m_stage = stage;
-         // 将 stage 对象暴露给 QML 引擎 
+        
+        // 先注册图像提供者，再设置上下文属性
+        auto engine = m_quickWidget->engine();
+        if (engine && !engine->imageProvider("timeline")) {
+            qDebug() << "Registering timeline image provider";
+            engine->addImageProvider("timeline", ImageProvider::instance());
+        }
+        
+        // 将 stage 对象暴露给 QML 引擎 
         m_quickWidget->rootContext()->setContextProperty("stage", m_stage);
         m_quickWidget->setSource(QUrl("qrc:/qml/controls/TimelineStage.qml"));
     }

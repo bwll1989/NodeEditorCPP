@@ -139,7 +139,7 @@ public:
      * @param int currentFrame 当前帧
      * @return QVariant 当前数据
      */
-    virtual QVariant currentData(int currentFrame) const;
+    virtual QVariantMap currentData(int currentFrame) const;
 
 
 Q_SIGNALS:

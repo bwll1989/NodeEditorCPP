@@ -33,6 +33,9 @@ class TimelineStage : public QQuickItem
     // New property for painting
     Q_PROPERTY(QImage currentFrame READ currentFrame NOTIFY currentFrameChanged)
 
+    // 在 TimelineStage 类中添加属性
+    Q_PROPERTY(bool hasValidImage READ hasValidImage NOTIFY hasValidImageChanged)
+
 public:
     explicit TimelineStage(QQuickItem *parent = nullptr);
     ~TimelineStage();
@@ -150,6 +153,9 @@ public:
 
     QImage currentFrame() const { return m_currentFrame; }
 
+    // 获取是否有有效图像
+    bool hasValidImage() const { return !m_currentFrame.isNull(); }
+
 signals:
     /**
      * 屏幕改变信号
@@ -168,21 +174,37 @@ signals:
      */
     void currentFrameChanged();
 
+    // 有效图像状态改变信号
+    void hasValidImageChanged();
+
 public slots:
     /**
      * 更新当前帧图像
-     * @param const QImage &image 当前帧图像
+     * @param const QVariantMap &data 当前帧数据
      */
-    void updateCurrentFrame(const QImage &image) {
-        if (m_currentFrame != image) {
-            m_currentFrame = image;
-            qDebug() << "TimelineStage::updateCurrentFrame - Image size:" 
-                     << image.size() << "Format:" << image.format();
-            // 更新 ImageProvider 中的图像
-            ImageProvider::instance()->updateImage(image);
-            emit currentFrameChanged();
+    void updateCurrentFrame(const QList<QVariantMap> &data) {
+        bool hadValidImage = !m_currentFrame.isNull();
+        
+        if (data.isEmpty()) {
+            m_currentFrame = QImage();  // 清空图像
+            if (hadValidImage) {
+                emit hasValidImageChanged();
+            }
+            return;
         }
-        update();
+        
+        // 更新 ImageProvider 中的图像
+        ImageProvider::instance()->updateImage(data);
+        
+        // 获取更新后的图像
+        m_currentFrame = ImageProvider::instance()->getCurrentImage();
+        
+        // 如果有效图像状态改变，发出信号
+        if (hadValidImage != !m_currentFrame.isNull()) {
+            emit hasValidImageChanged();
+        }
+        
+        emit currentFrameChanged();
     }
 
 private:

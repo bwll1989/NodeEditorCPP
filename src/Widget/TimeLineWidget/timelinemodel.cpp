@@ -112,7 +112,6 @@ QVariant TimelineModel::data(const QModelIndex &index, int role) const
         
         switch (role) {
             case ClipModelRole:
-                qDebug() << "Returning clip model from TimelineModel";
                 return QVariant::fromValue(clip);
             case ClipInRole:
                 return QVariant::fromValue(clip->start());

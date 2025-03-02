@@ -41,8 +41,8 @@ public:
         // 连接播放头移动信号处理当前帧数据
         connect(m_timecodeGenerator, &TimecodeGenerator::currentFrameChanged,
             this, [this](qint64 frame) {
-                QList<QVariant> clipDataList = getCurrentClipsData(frame);
-                processCurrentFrameData(clipDataList);
+                QList<QVariantMap> clipDataList = getCurrentClipsData(frame);
+                emit frameImageUpdated(clipDataList);
             });
 
         // setStage(new TimelineStage());
@@ -202,10 +202,10 @@ public:
     /**
      * 获取当前播放头位置的所有片段数据
      * @param int currentFrame 当前帧
-     * @return QList<QVariant> 片段数据列表
+     * @return QList<QVariantMap> 片段图像数据列表
      */
-    QList<QVariant> getCurrentClipsData(int currentFrame) const {
-        QList<QVariant> clipDataList;
+    QList<QVariantMap> getCurrentClipsData(int currentFrame) const {
+        QList<QVariantMap> clipDataList;
         
         // 遍历所有轨道
         for (TrackModel* track : m_tracks) {
@@ -214,10 +214,9 @@ public:
                 // 检查当前帧是否在片段范围内
                 if (currentFrame >= clip->start() && currentFrame < clip->end()) {
                     // 获取片段在当前帧的数据
-                    QVariant data = clip->currentData(currentFrame);
-                    if (data.isValid()) {
-                        clipDataList.append(data);
-                    }
+                    QVariantMap data = clip->currentData(currentFrame);
+                    data["layer"]=track->trackIndex();
+                    clipDataList.append(data);
                 }
             }
         }
@@ -254,9 +253,9 @@ signals:
     void S_screensChanged();
     /**
      * 当前帧图像更新信号
-     * @param const QImage& image 图像
+     * @param const QVariantMap& image 图像
      */
-    void frameImageUpdated(const QImage& image);
+    void frameImageUpdated(const QList<QVariantMap>& image);
 
 public slots:
     /**
@@ -313,21 +312,20 @@ private:
     // 时间显示格式，默认显示时间码
     TimedisplayFormat m_timeDisplayFormat = TimedisplayFormat::TimeCodeFormat;
 
-    /**
-     * 处理当前帧数据
-     * @param const QList<QVariant>& dataList 数据列表
-     */
-    void processCurrentFrameData(const QList<QVariant>& dataList) {
-        for (const QVariant& data : dataList) {
-            if (data.canConvert<QImage>()) {
-                QImage image = data.value<QImage>();
-                if (!image.isNull()) {
-                    emit frameImageUpdated(image);
-                    break;  // 目前只处理第一个有效图像
-                }
-            }
-        }
-    }
+    // /**
+    //  * 处理当前帧数据
+    //  * @param const QList<QVariant>& dataList 数据列表
+    //  */
+    // void processCurrentFrameData(const QList<QVariantMap>& dataList) {
+    //     for (const QVariantMap& data : dataList) {
+    //         if (data.contains("image")) {
+    //             QImage image = data["image"].value<QImage>();
+          
+                    
+                
+    //         }
+    //     }
+    // }
 };
 
 #endif // TIMELINEMODEL_H

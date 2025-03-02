@@ -3,5 +3,6 @@
     <file>controls/TimelineStage.qml</file>
     <file>controls/StageScreen.qml</file>
     <file>controls/StageControlBase.qml</file>
+    <file>controls/StageImages.qml</file>
   </qresource>
 </RCC>

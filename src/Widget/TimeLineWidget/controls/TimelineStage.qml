@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
-import "."  // 导入当前目录，使StageScreen可用
-
+// 导入当前目录，使StageScreen可用
+import "."  
 Rectangle {
     id: root
     color: stage ? stage.stageBgColor : "#333333"  // 添加空检查
@@ -34,7 +34,7 @@ Rectangle {
     focus: true
     Keys.onPressed: function(event) {
         if (!selectedScreen) return;
-        console.log(event.key)
+        // console.log(event.key)
         
         // 添加 Control 修饰键检查
         if (event.modifiers & Qt.AltModifier) {
@@ -66,30 +66,23 @@ Rectangle {
         }
     }
     
-    // 显示当前帧图像
-    Image {
-        id: frameImage
+    // 在 TimelineStage.qml 中添加 StageImages 组件
+    StageImages {
+        id: stageImages
+        parent: controlsContainer
         anchors.fill: parent
-        fillMode: Image.PreserveAspectFit
-        cache: false
-        z: 0  // 确保图像在最底层
-        
-        // 监听 currentStage 的 currentFrame 变化
-        Connections {
-            target: currentStage
-            enabled: currentStage !== null  // 添加启用条件
-            function onCurrentFrameChanged() {
-                console.log("currentFrameChanged")
-                frameImage.source = "image://timeline/" + Date.now()
-            }
-        }
+        currentStage: root.currentStage
+        zoomFactor: root.zoomFactor
+        centerX: gridCanvas.centerX
+        centerY: gridCanvas.centerY
+        z: 1  // 图像在网格之上，但在 screen 之下
     }
 
     // Grid and guidelines
     Canvas {
         id: gridCanvas
         anchors.fill: parent
-        z: 0  // Ensure grid stays behind controls
+        z: 0  // 确保网格在最底层
         
         property int centerX: width / 2
         property int centerY: height / 2
@@ -244,7 +237,7 @@ Rectangle {
         height: root.height
         x: gridCanvas.centerX * (1 - root.zoomFactor)
         y: gridCanvas.centerY * (1 - root.zoomFactor)
-        z: 1  // Ensure controls stay above grid
+        z: 2  // 确保 screen 在最上层
         scale: root.zoomFactor
         transformOrigin: Item.TopLeft
         
@@ -412,6 +405,7 @@ Rectangle {
         id: screensContainer
         parent: controlsContainer
         anchors.fill: parent
+        z: 2  // 确保 screen 在最上层
         
         // 给Repeater添加id
         Repeater {
@@ -460,37 +454,41 @@ Rectangle {
 
                 // 添加对 modelData 的引用
                 property var modelData: model.modelData
+
+                // 确保宽度和高度正确应用缩放因子
+                width: modelData.screenWidth
+                height: modelData.screenHeight
             }
         }
     }
 
     // 鼠标位置提示
-    // Rectangle {
-    //     id: mousePositionTip
-    //     color: "#333333"
-    //     border.color: "#666666"
-    //     border.width: 1
-    //     radius: 5
-    //     width: positionText.width + 20
-    //     height: positionText.height + 10
-    //     visible: root.containsMouse
+    Rectangle {
+        id: mousePositionTip
+        color: "#333333"
+        border.color: "#666666"
+        border.width: 1
+        radius: 5
+        width: positionText.width + 20
+        height: positionText.height + 10
+        visible: root.containsMouse
         
-    //     // 跟随鼠标位置
-    //     x: root.mousePos.x + 15
-    //     y: root.mousePos.y + 15
+        // 跟随鼠标位置
+        x: root.mousePos.x + 15
+        y: root.mousePos.y + 15
         
-    //     Text {
-    //         id: positionText
-    //         anchors.centerIn: parent
-    //         color: "#FFFFFF"
-    //         text: {
-    //             // 计算鼠标在stage坐标系中的位置
-    //             var stageX = Math.round((root.mousePos.x - controlsContainer.x) / root.zoomFactor - gridCanvas.centerX);
-    //             var stageY = Math.round((root.mousePos.y - controlsContainer.y) / root.zoomFactor - gridCanvas.centerY);
-    //             return "X: " + stageX + ", Y: " + stageY;
-    //         }
-    //     }
-    // }
+        Text {
+            id: positionText
+            anchors.centerIn: parent
+            color: "#FFFFFF"
+            text: {
+                // 计算鼠标在stage坐标系中的位置
+                var stageX = Math.round((root.mousePos.x - controlsContainer.x) / root.zoomFactor - gridCanvas.centerX);
+                var stageY = Math.round((root.mousePos.y - controlsContainer.y) / root.zoomFactor - gridCanvas.centerY);
+                return "X: " + stageX + ", Y: " + stageY;
+            }
+        }
+    }
     
     // 处理鼠标事件
     MouseArea {

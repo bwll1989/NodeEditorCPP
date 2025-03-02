@@ -67,8 +67,8 @@ void AbstractClipModel::load(const QJsonObject& json) {
 
 
 
-QVariant AbstractClipModel::currentData(int currentFrame) const {
-    return QVariant();
+QVariantMap AbstractClipModel::currentData(int currentFrame) const {
+    return QVariantMap();
 }
 
 

@@ -28,8 +28,8 @@ class AbstractTimelineScreen : public QWidget
     Q_PROPERTY(double gamma READ gamma WRITE setGamma NOTIFY gammaChanged)
 public:
     explicit AbstractTimelineScreen(QWidget *parent = nullptr) : QWidget(parent)
-    , m_screenWidth(640)
-    , m_screenHeight(480)
+    , m_screenWidth(1920)
+    , m_screenHeight(1080)
     , m_isSelected(false)
     , m_posX(0.0)
     , m_posY(0.0)
