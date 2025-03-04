@@ -99,11 +99,9 @@ void ClipProperty::connectSignals()
             this, &ClipProperty::onStartFrameChanged);
     connect(m_endFrameSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &ClipProperty::onEndFrameChanged);
-            
-    // 连接模型的数据变化信号
-    connect(m_model, &AbstractClipModel::dataChanged,
-            this, &ClipProperty::onClipDataChanged);
 
+    connect(m_model, &AbstractClipModel::lengthChanged,this, &ClipProperty::onClipDataChanged);
+    connect(m_model, &AbstractClipModel::timelinePositionChanged,this, &ClipProperty::onClipDataChanged);
     // 连接按钮信号
     connect(m_buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -156,7 +154,7 @@ void ClipProperty::setupDelegate()
     QString clipType = m_model->type();
     
     // 通过插件加载器获取对应的代理
-    m_delegate = m_timelineModel->m_pluginLoader->createDelegateForType(clipType);
+    m_delegate = m_timelineModel->getPluginLoader()->createDelegateForType(clipType);
 
     if (m_delegate) {
         // 创建代理的编辑器

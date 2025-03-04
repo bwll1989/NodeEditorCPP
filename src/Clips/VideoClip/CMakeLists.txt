@@ -15,7 +15,7 @@ link_directories("${FFMPEG_LIB_DIRS}")
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 # 设置基础目录变量
-set(TIMELINE_SDK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget/TimeLineWidget)
+set(TIMELINE_SDK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget/TimeLineWidget/TimelineAbstract)
 
 # 设置源文件
 set(SOURCES
@@ -25,7 +25,7 @@ set(SOURCES
     ${TIMELINE_SDK_DIR}/AbstractClipModel.hpp
     ${TIMELINE_SDK_DIR}/AbstractClipModel.cpp
     ${TIMELINE_SDK_DIR}/AbstractClipDelegate.hpp
-    ${TIMELINE_SDK_DIR}/clippluginterface.hpp
+    ${TIMELINE_SDK_DIR}/AbstractClipInterface.hpp
 )
 
 # 创建插件库

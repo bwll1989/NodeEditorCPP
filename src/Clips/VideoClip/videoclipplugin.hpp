@@ -2,9 +2,9 @@
 #define VIDEOCLIPPLUGIN_HPP
 
 #include <QObject>
-#include "TimeLineWidget/clippluginterface.hpp"
-#include "TimeLineWidget/AbstractClipModel.hpp"
-#include "TimeLineWidget/AbstractClipDelegate.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
 #include "videoclipmodel.hpp"
 #include "videoclipdelegate.hpp"
 

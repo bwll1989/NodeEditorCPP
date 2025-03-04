@@ -5,7 +5,7 @@
 #include <QAction>
 #include <QSpinBox>
 #include <QLabel>
-#include "timelinestyle.hpp"
+#include "Widget/TimeLineWidget/TimelineMVC/timelinestyle.hpp"
 class TimelineToolbar : public QToolBar {
     Q_OBJECT
 public:

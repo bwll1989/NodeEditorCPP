@@ -4,11 +4,11 @@
 #include <QQuickItem>
 #include <QQmlEngine>
 #include <QVector>
-#include "timelinescreen.hpp"
-#include "timelinestyle.hpp"
+#include "Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.hpp"
+#include "Widget/TimeLineWidget/TimelineMVC/timelinestyle.hpp"
 #include <QImage>
 #include <QPainter>
-#include "imageprovider.hpp"
+#include "Widget/TimeLineWidget/timelineimageproducer.hpp"
 
 class TimelineStage : public QQuickItem
 {
@@ -33,8 +33,7 @@ class TimelineStage : public QQuickItem
     // New property for painting
     Q_PROPERTY(QImage currentFrame READ currentFrame NOTIFY currentFrameChanged)
 
-    // 在 TimelineStage 类中添加属性
-    Q_PROPERTY(bool hasValidImage READ hasValidImage NOTIFY hasValidImageChanged)
+    Q_PROPERTY(QPoint imagePosition READ imagePosition NOTIFY imagePositionChanged)
 
 public:
     explicit TimelineStage(QQuickItem *parent = nullptr);
@@ -153,8 +152,10 @@ public:
 
     QImage currentFrame() const { return m_currentFrame; }
 
-    // 获取是否有有效图像
-    bool hasValidImage() const { return !m_currentFrame.isNull(); }
+    // 获取图像位置
+    QPoint imagePosition() const { 
+        return TimelineImageProducer::instance()->getCurrentPosition();
+    }
 
 signals:
     /**
@@ -173,9 +174,8 @@ signals:
      * 当前帧图像改变信号
      */
     void currentFrameChanged();
-
-    // 有效图像状态改变信号
-    void hasValidImageChanged();
+    // 图像位置改变信号
+    void imagePositionChanged();
 
 public slots:
     /**
@@ -184,24 +184,16 @@ public slots:
      */
     void updateCurrentFrame(const QList<QVariantMap> &data) {
         bool hadValidImage = !m_currentFrame.isNull();
-        
-        if (data.isEmpty()) {
-            m_currentFrame = QImage();  // 清空图像
-            if (hadValidImage) {
-                emit hasValidImageChanged();
-            }
-            return;
-        }
-        
-        // 更新 ImageProvider 中的图像
-        ImageProvider::instance()->updateImage(data);
+        QPoint oldPos = imagePosition();     
+        // 无论data是否为空始终更新 TimelineImageProducer 中的图像
+        TimelineImageProducer::instance()->updateImage(data);
         
         // 获取更新后的图像
-        m_currentFrame = ImageProvider::instance()->getCurrentImage();
+        m_currentFrame = TimelineImageProducer::instance()->getCurrentImage();
         
-        // 如果有效图像状态改变，发出信号
-        if (hadValidImage != !m_currentFrame.isNull()) {
-            emit hasValidImageChanged();
+        // 如果位置改变，发出信号
+        if (oldPos != imagePosition()) {
+            emit imagePositionChanged();
         }
         
         emit currentFrameChanged();

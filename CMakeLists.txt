@@ -288,41 +288,41 @@ set(CALC_SOURCE_FILES
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         src/Widget/TimeLineWidget/videoplayerwidget.hpp
-        src/Widget/TimeLineWidget/AbstractClipDelegate.hpp
-        src/Widget/TimeLineWidget/AbstractClipModel.cpp
-        src/Widget/TimeLineWidget/AbstractClipModel.hpp
-        src/Widget/TimeLineWidget/clippluginterface.hpp
-        src/Widget/TimeLineWidget/pluginloader.cpp
-        src/Widget/TimeLineWidget/pluginloader.hpp
-        src/Widget/TimeLineWidget/timelinemodel.cpp
-        src/Widget/TimeLineWidget/timelinemodel.hpp
-        src/Widget/TimeLineWidget/timelinestyle.hpp
+        src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp
+        src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.cpp
+        src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp
+        src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp
+        src/Widget/TimeLineWidget/TimelineMVC/pluginloader.cpp
+        src/Widget/TimeLineWidget/TimelineMVC/pluginloader.hpp
+        src/Widget/TimeLineWidget/TimelineMVC/timelinemodel.cpp
+        src/Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp
+        src/Widget/TimeLineWidget/TimelineMVC/timelinestyle.hpp
         src/Widget/TimeLineWidget/timelinetypes.h
-        src/Widget/TimeLineWidget/timelineview.cpp
-        src/Widget/TimeLineWidget/timelineview.hpp
+        src/Widget/TimeLineWidget/TimelineMVC/timelineview.cpp
+        src/Widget/TimeLineWidget/TimelineMVC/timelineview.hpp
         src/Widget/TimeLineWidget/timelinewidget.cpp
         src/Widget/TimeLineWidget/timelinewidget.hpp
-        src/Widget/TimeLineWidget/trackdelegate.hpp
-        src/Widget/TimeLineWidget/tracklistview.cpp
-        src/Widget/TimeLineWidget/tracklistview.hpp
-        src/Widget/TimeLineWidget/trackmodel.hpp
+        src/Widget/TimeLineWidget/TimelineMVC/trackdelegate.hpp
+        src/Widget/TimeLineWidget/TimelineMVC/tracklistview.cpp
+        src/Widget/TimeLineWidget/TimelineMVC/tracklistview.hpp
+        src/Widget/TimeLineWidget/TimelineMVC/trackmodel.hpp
         src/Widget/TimeLineWidget/videoplayerwidget.cpp
-        src/Widget/TimeLineWidget/clipproperty.hpp
-        src/Widget/TimeLineWidget/clipproperty.cpp
+        src/Widget/TimeLineWidget/ClipPropertyWidget/clipproperty.hpp
+        src/Widget/TimeLineWidget/ClipPropertyWidget/clipproperty.cpp
         src/Widget/TimeLineWidget/timelinetoolbar.hpp
         src/Widget/TimeLineWidget/timelinetoolbar.cpp
-        src/Widget/TimeLineWidget/timelinesettingsdialog.hpp
-        src/Widget/TimeLineWidget/timelinesettingsdialog.cpp
+        src/Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.hpp
+        src/Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.cpp
         src/Widget/StageWidget/StageWidget.hpp
         src/Widget/StageWidget/StageWidget.cpp
-        src/Widget/TimeLineWidget/AbstractTimelineScreen.hpp
-        src/Widget/TimeLineWidget/timelinestage.hpp
-        src/Widget/TimeLineWidget/timelinestage.cpp
-        src/Widget/TimeLineWidget/timelinescreen.hpp
-        src/Widget/TimeLineWidget/timelinescreen.cpp
-        src/Widget/TimeLineWidget/timecodegenerator.hpp
-        src/Widget/TimeLineWidget/timecodegenerator.cpp
-        src/Widget/TimeLineWidget/imageprovider.hpp
+        src/Widget/TimeLineWidget/TimelineAbstract/AbstractTimelineScreen.hpp
+        src/Widget/TimeLineWidget/TimelineStageWidget/timelinestage.hpp
+        src/Widget/TimeLineWidget/TimelineStageWidget/timelinestage.cpp
+        src/Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.hpp
+        src/Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.cpp
+        src/Widget/TimeLineWidget/TimelineMVC/timecodegenerator.hpp
+        src/Widget/TimeLineWidget/TimelineMVC/timecodegenerator.cpp
+        src/Widget/TimeLineWidget/timelineimageproducer.hpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -371,6 +371,8 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::MultimediaWidgets
             Qt${QT_VERSION_MAJOR}::OpenGL
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+            Opengl32
+            glu32
             ${portaudio_LIBRARIES}
             ${QtNodes_LIBRARIES}
             ${Spdlog_LIBRARIES}

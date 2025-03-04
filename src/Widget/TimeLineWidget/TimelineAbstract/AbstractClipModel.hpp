@@ -4,7 +4,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtCore/QJsonObject>
-#include "timelinetypes.h"
+#include "Widget/TimeLineWidget/timelinetypes.h"
 
 class AbstractClipModel : public QObject {
     Q_OBJECT
@@ -135,26 +135,40 @@ public:
         }
     }
     /**
-     * 获取当前数据
+     * 获取当前音频数据
      * @param int currentFrame 当前帧
-     * @return QVariant 当前数据
+     * @return QVariantMap 当前音频数据
      */
-    virtual QVariantMap currentData(int currentFrame) const;
-
-
+    virtual QVariantMap currentAudioData(int currentFrame) const;
+    /**
+     * 获取当前视频数据
+     * @param int currentFrame 当前帧
+     * @return QVariantMap 当前视频数据
+     */
+    virtual QVariantMap currentVideoData(int currentFrame) const;
+    /**
+     * 获取当前控制数据
+     * @param int currentFrame 当前帧
+     * @return QVariantMap 当前控制数据
+     */
+    virtual QVariantMap currentControlData(int currentFrame) const;
 Q_SIGNALS:
     /**
      * 数据变化信号
      */
-    void dataChanged();  // 添加数据变化信号
     void lengthChanged();  // 添加长度变化信号
-    void startChanged();  // 添加开始变化信号
-    void endChanged();  // 添加结束变化信号
+//    void startChanged();  // 添加开始变化信号
+//    void endChanged();  // 添加结束变化信号
     void filePathChanged(const QString& filePath);  // 添加文件路径变化信号
-    void widthChanged(int width);  // 添加宽度变化信号
-    void heightChanged(int height);  // 添加高度变化信号
-    void posXChanged(int posX);  // 添加位置X变化信号
-    void posYChanged(int posY);  // 添加位置Y变化信号
+
+    void sizeChanged(QSize size);   //添加尺寸变化信号
+    void posChanged(QPoint position); //位置变化信号
+
+    void rotateChanged(int rotete); //旋转变化信号
+    void timelinePositionChanged(int frame); //时间轴上位置变化信号
+    void videoDataUpdate() const; //视频数据更新
+    void audioDataUpdate() const; //音频数据更新
+    void controlDataUpdate() const; //控制数据更新
 
 protected:
     // 开始

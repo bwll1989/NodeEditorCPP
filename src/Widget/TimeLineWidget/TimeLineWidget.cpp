@@ -6,17 +6,17 @@
 #define TIMELINEWIDGET_CPP
 
 #include "timelinewidget.hpp"
-#include "timelinesettingsdialog.hpp"
-#include "imageprovider.hpp"
+#include "Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.hpp"
+#include "timelineimageproducer.hpp"
 TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent) {
     // 首先创建模型
     model = new TimelineModel();
     // 创建组件
     createComponents();
     // 连接轨道列表竖向滚动到时间线竖向滚动
-    connect(tracklist, &TracklistView::scrolled, view, &TimelineView::onScroll);
+    connect(tracklist, &TracklistView::trackScrolled, view, &TimelineView::onScroll);
     // 连接模型轨道变化到时间线更新视图
-    connect(model, &TimelineModel::S_trackChanged, view, &TimelineView::onUpdateViewport);
+//    connect(model, &TimelineModel::S_trackCountChanged, view, &TimelineView::onUpdateViewport);
     // 连接轨道列表更新到时间线更新视图
     connect(tracklist, &TracklistView::viewupdate, view, &TimelineView::onUpdateViewport);    
     // 连接工具栏设置按钮到显示设置对话框
@@ -51,40 +51,40 @@ void TimelineWidget::createComponents() {
     mainlayout->setContentsMargins(0, 0, 0, 0);
     mainlayout->setSpacing(0);
     
-    // 创建水平分割器
-    auto* horizontalSplitter = new QSplitter(Qt::Horizontal, this);
+    // // 创建水平分割器
+    // auto* horizontalSplitter = new QSplitter(Qt::Horizontal, this);
     
     // 创建左侧面板（轨道列表和时间线）
-    auto* leftPanel = new QWidget(this);
-    auto* leftLayout = new QVBoxLayout(leftPanel);
-    leftLayout->setContentsMargins(0, 0, 0, 0);
-    leftLayout->setSpacing(0);
+    auto* mainwidget = new QWidget(this);
+    auto* mainLayout = new QVBoxLayout(mainwidget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
     
     splitter->addWidget(tracklist);
     splitter->addWidget(view);
     splitter->setHandleWidth(0);
-    QList<int> sizes({200,800});
+    QList<int> sizes({100,900});
     splitter->setMouseTracking(true);
     splitter->setSizes(sizes);
-    leftLayout->addWidget(splitter);
+    mainLayout->addWidget(splitter);
     
     // 添加到水平分割器
-    horizontalSplitter->addWidget(leftPanel);
+    // horizontalSplitter->addWidget(leftPanel);
     
     // 设置分割器大小
-    horizontalSplitter->setSizes({700, 300});  // 左侧面板和属性面板的初始大小比例
+    // horizontalSplitter->setSizes({700, 300});  // 左侧面板和属性面板的初始大小比例
     
     // 添加到主布局
-    mainlayout->addWidget(horizontalSplitter);
+    mainlayout->addWidget(mainwidget);
 
     // 连接模型的帧图像更新信号到舞台
-    connect(model, &TimelineModel::frameImageUpdated,
+    connect(model, &TimelineModel::S_frameImageUpdated,
             model->getStage(), &TimelineStage::updateCurrentFrame);
 
     // 注册图像提供者
     auto engine = qmlEngine(model->getStage());
     if (engine) {
-        engine->addImageProvider(QLatin1String("timeline"), ImageProvider::instance());
+        engine->addImageProvider(QLatin1String("timeline"), TimelineImageProducer::instance());
     }
 }
 

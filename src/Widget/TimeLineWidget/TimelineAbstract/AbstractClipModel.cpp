@@ -23,24 +23,23 @@ void AbstractClipModel::setStart(int start) {
     if (m_start != start) {
         m_start = start; 
         m_startTimeCode = Timecode::fromFrames(m_start, m_timecodeType);
-        emit lengthChanged();
-        emit dataChanged();
+        emit timelinePositionChanged(m_start);
+
     }
 }
 void AbstractClipModel::setEnd(int end) { 
     if (m_end != end) {
-        m_end = end; 
+        m_end = end;
         m_endTimeCode = Timecode::fromFrames(m_end, m_timecodeType);
         emit lengthChanged();
-        emit dataChanged();
+
     }
 }
 void AbstractClipModel::setTrackIndex(int index) { m_trackIndex = index; }
 void AbstractClipModel::setResizable(bool resizable) { RESIZEABLE = resizable; }
 void AbstractClipModel::setEmbedWidget(bool embedWidget) { 
     if (EMBEDWIDGET != embedWidget) {
-        EMBEDWIDGET = embedWidget; 
-        emit dataChanged();
+        EMBEDWIDGET = embedWidget;
     }
 }
 void AbstractClipModel::setShowBorder(bool showBorder) { SHOWBORDER = showBorder; }
@@ -67,10 +66,19 @@ void AbstractClipModel::load(const QJsonObject& json) {
 
 
 
-QVariantMap AbstractClipModel::currentData(int currentFrame) const {
+QVariantMap AbstractClipModel::currentVideoData(int currentFrame) const {
+
     return QVariantMap();
 }
 
+QVariantMap AbstractClipModel::currentAudioData(int currentFrame) const {
+    emit audioDataUpdate();
+    return QVariantMap();
+}
 
+QVariantMap AbstractClipModel::currentControlData(int currentFrame) const {
+    emit controlDataUpdate();
+    return QVariantMap();
+}
 
 // 如果有任何其他非内联成员函数，也可以在这里实现 

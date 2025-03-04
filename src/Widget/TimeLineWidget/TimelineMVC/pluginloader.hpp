@@ -6,7 +6,7 @@
 #include <QPluginLoader>
 #include <QDebug>
 #include <QApplication>
-#include "clippluginterface.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp"
 
 class PluginLoader : public QObject
 {

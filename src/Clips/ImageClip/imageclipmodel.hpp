@@ -1,7 +1,7 @@
 #ifndef IMAGECLIPMODEL_H
 #define IMAGECLIPMODEL_H
 
-#include "TimeLineWidget/AbstractClipModel.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 #include <QImage>
 #include <QPainter>
 #include <QFont>
@@ -19,8 +19,8 @@ public:
         : AbstractClipModel(start, end, "Image", TimecodeType::PAL, parent), 
           m_filePath(filePath), 
           m_frameRate(25.0),
-          m_width(1920), 
-          m_height(1080),
+          m_width(0), 
+          m_height(0),
           m_image(nullptr)
     {
         EMBEDWIDGET = false;
@@ -36,7 +36,7 @@ public:
         if (m_filePath != path) {
             m_filePath = path;
             loadVideoInfo(path);
-            emit dataChanged();
+            emit filePathChanged(path);
         }
     }
 
@@ -58,8 +58,6 @@ public:
     void load(const QJsonObject& json) override {
         AbstractClipModel::load(json);
         m_filePath = json["filePath"].toString();
-        m_width = json["width"].toInt();
-        m_height = json["height"].toInt();
         m_PosX = json["posX"].toInt();
         m_PosY = json["posY"].toInt();
     }
@@ -75,7 +73,7 @@ public:
         }
     }
 
-    QVariantMap currentData(int currentFrame) const override {
+    QVariantMap currentVideoData(int currentFrame) const override {
         QVariantMap data;
         data["image"] = QVariant::fromValue(*m_image);
         data["posX"] = m_PosX;
@@ -107,45 +105,28 @@ public Q_SLOTS:
     /**
      * 设置视频位置
      */
-    void setPosX(int x) { 
-        m_PosX = x; 
-        emit posXChanged(x);
+
+    /**
+     * 设置视频显示位置
+     */
+    void setPos(int x,int y) {
+        m_PosX=x;
+        m_PosY = y;
+        emit posChanged(QPoint(m_PosX,m_PosY));
     }
     /**
-     * 设置视频垂直位置
+     * 设置视频显示尺寸
      */
-    void setPosY(int y) { 
-        m_PosY = y; 
-        emit posYChanged(y);
-    }
-    /**
-     * 设置视频宽度
-     */
-    void setWidth(int width){ 
-        m_width = width; 
-        if(m_image){    
-            m_image->scaled(width, m_height, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        }
-        emit widthChanged(width);
-    }
-    /**
-     * 设置视频高度
-     */
-    void setHeight(int height) { 
-        m_height = height; 
-        if(m_image){
-            m_image->scaled(m_width, height, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-        }
-        emit heightChanged(height);
+    void setSize(int width,int height){
+        m_width = width;
+        m_height=height;
+        emit sizeChanged(QSize(m_width,m_height));
     }
 private:
     void loadVideoInfo(const QString& path) {
         m_image=new QImage(path);
         if (!m_image->isNull()) {
-            m_width = m_image->width();
-            m_height = m_image->height();
-            emit widthChanged(m_width);
-            emit heightChanged(m_height);
+            setSize(m_image->size().width(),m_image->size().height());
         }
     }
 

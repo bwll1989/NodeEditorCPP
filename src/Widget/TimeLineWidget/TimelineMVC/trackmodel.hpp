@@ -2,16 +2,20 @@
 #define TRACKMODEL_HPP
 #pragma once
 #include <QObject>
-#include "timelinetypes.h"
+#include "Widget/TimeLineWidget/timelinetypes.h"
 #include <QJsonObject>
 #include <QJsonArray>
 #include <vector>
-#include "AbstractClipModel.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 // #include "clips/VideoClip/videoclipmodel.hpp"
 // #include "clips/AudioClip/audioclipmodel.hpp"
 // #include "clips/MappingClip/mappingclipmodel.hpp"
 // #include "clips/TriggerClip/triggerclipmodel.hpp"
-#include "PluginLoader.hpp"
+#include "pluginloader.hpp"
+// #include "timelinemodel.hpp"
+
+// 前向声明 TimelineModel 类
+class TimelineModel;
 
 // TrackModel类
 class TrackModel : public QObject
@@ -20,29 +24,18 @@ Q_OBJECT
 public:
     // 构造函数
     explicit TrackModel(int number, const QString& type, QObject* parent = nullptr)
-        : m_type(type), m_trackIndex(number), QObject(parent)
-    {}
-
-    TrackModel() = default;
-    /**
-     * 添加剪辑
-     * @param int start 开始
-     * @param PluginLoader* pluginLoader 插件加载器
-     */
-    void addClip(int start, PluginLoader* pluginLoader,TimecodeType timecodeType) {
-        if (!pluginLoader) return;
-        
-        AbstractClipModel* newClip = pluginLoader->createModelForType(m_type, start);
-        //片段长度变化时更新轨道长度
-        connect(newClip, &AbstractClipModel::lengthChanged, this, &TrackModel::calculateTrackLength);
-        newClip->setTimecodeType(timecodeType);
-        if (newClip) {
-            newClip->setTrackIndex(m_trackIndex);
-            m_clips.push_back(newClip);
-            emit S_trackAddClip();
-        }
-        calculateTrackLength();
+        : QObject(parent),
+        m_type(type),
+        m_name(type),
+        m_trackIndex(number)
+    {
+        connect(this,TrackModel::S_trackAddClip,this,TrackModel::onCalculateTrackLength);
+        connect(this,TrackModel::S_trackDeleteClip,this,TrackModel::onCalculateTrackLength);
     }
+
+    
+    TrackModel() = default;
+
 
     /**
      * 移除剪辑
@@ -53,7 +46,7 @@ public:
         if(it!=m_clips.end())
             m_clips.erase(it);
         emit S_trackDeleteClip();
-        calculateTrackLength();
+
     }
 
     /**
@@ -63,7 +56,6 @@ public:
     QVector<AbstractClipModel*>& getClips(){
         return m_clips;
     }
-
     /**
      * 获取轨道类型
      * @return QString 轨道类型
@@ -71,14 +63,6 @@ public:
     QString type() const{
         return m_type;
     }
-
-    /**
-     * 设置轨道索引
-     * @param int index 轨道索引
-     */
-    void setTrackIndex(int index){
-        m_trackIndex = index;
-    }   
     /**
      * 获取轨道索引
      * @return int 轨道索引
@@ -96,6 +80,7 @@ public:
         trackJson["type"] = m_type;
         trackJson["trackIndex"] = m_trackIndex;
         trackJson["trackLength"] = m_trackLength;
+        trackJson["trackName"] = m_name;
         QJsonArray clipArray;
         for (const AbstractClipModel* clip : m_clips) {
             clipArray.append(clip->save());
@@ -104,16 +89,6 @@ public:
 
         return trackJson;
     }
-    //下一个ID
-    quint64 nextId = 1;
-    //轨道索引
-    int m_trackIndex; 
-    //轨道类型
-    QString m_type; 
-    //剪辑列表
-    QVector<AbstractClipModel*>  m_clips; 
-    //轨道长度
-    qint64 m_trackLength;
     /**
      * 获取轨道长度
      * @return qint64 轨道长度
@@ -126,12 +101,19 @@ public:
      * @param const QJsonObject &trackJson 轨道JSON
      * @param PluginLoader* pluginLoader 插件加载器
      */
+    void setName(const QString& name){
+        m_name = name;
+    }
+    QString getName() const{
+        return m_name;
+    }
     void load(const QJsonObject &trackJson, PluginLoader* pluginLoader) {
         if (!pluginLoader) return;
         
         m_type = trackJson["type"].toString();
         m_trackIndex = trackJson["trackIndex"].toInt();
         m_trackLength = trackJson["trackLength"].toInt();
+        m_name = trackJson["trackName"].toString();
         QJsonArray clipArray = trackJson["clips"].toArray();
         for (const QJsonValue &clipValue : clipArray) {
             QJsonObject clipObject = clipValue.toObject();
@@ -141,17 +123,16 @@ public:
 
             AbstractClipModel* clip = pluginLoader->createModelForType(clipType, start);
             //片段长度变化时更新轨道长度
-            connect(clip, &AbstractClipModel::lengthChanged, this, &TrackModel::calculateTrackLength);
+            connect(clip, &AbstractClipModel::lengthChanged, this, &TrackModel::onCalculateTrackLength);
             clip->setEnd(end);
             if (clip) {
 
                 clip->setTrackIndex(m_trackIndex);
                 clip->load(clipObject);
                 m_clips.push_back(clip);
-                emit S_trackAddClip();
             }
         }
-        calculateTrackLength();
+        onCalculateTrackLength();
     }
 
 public:
@@ -166,11 +147,12 @@ public:
 
     void S_trackDeleteClip();
 
+    void S_trackIndexChanged(int oldIndex, int newIndex );
 public slots:
      /**
      * 计算轨道长度
      */
-    void calculateTrackLength(){
+    void onCalculateTrackLength(){
         qint64 length = 0;
         for(AbstractClipModel* clip : m_clips){
             length = qMax(length, clip->end());
@@ -180,6 +162,45 @@ public slots:
             emit S_trackLengthChanged(length);
         }
     }
+    /**
+     * 设置轨道索引
+     * @param int index 轨道索引
+     */
+    void onSetTrackIndex(int index){
+        int oldindex=m_trackIndex;
+        m_trackIndex = index;
+        emit S_trackIndexChanged(oldindex,index);
+    }
+    /**
+     * 添加剪辑
+     * @param int start 开始
+     * @param PluginLoader* pluginLoader 插件加载器
+     */
+    void onAddClip(AbstractClipModel* newClip) {
+
+        //片段长度变化时更新轨道长度
+        connect(newClip, &AbstractClipModel::lengthChanged, this, &TrackModel::onCalculateTrackLength);
+
+        if (newClip) {
+            newClip->setTrackIndex(m_trackIndex);
+            m_clips.push_back(newClip);
+            emit S_trackAddClip();
+        }
+
+    }
+private:
+     //下一个ID
+    quint64 nextId = 1;
+    //轨道索引
+    int m_trackIndex; 
+    //轨道类型
+    QString m_type; 
+    //剪辑列表
+    QVector<AbstractClipModel*>  m_clips; 
+    //轨道长度
+    qint64 m_trackLength;
+    QString m_name;
+ 
 };
 
-#endif // TRACKMODEL_H
+#endif // TRACKMODEL_HPP

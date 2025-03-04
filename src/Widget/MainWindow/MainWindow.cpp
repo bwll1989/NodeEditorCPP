@@ -20,8 +20,8 @@
 #include "Common/GUI/Elements/MartixWidget/MatrixWidget.h"
 #include "Eigen/Core"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
-#include "Widget/TimeLineWidget/timelineview.hpp"
-#include "Widget/TimeLineWidget/abstractclipmodel.hpp"
+#include "Widget/TimeLineWidget/TimelineMVC/timelineview.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 #define ConsoleDisplay false
 #define PropertytDisplay true
 #define ToolsDisplay true
@@ -144,7 +144,7 @@ void MainWindow::init()
     stageWidget->setStage(timeline->model->getStage());
     emit initStatus("Initialization Stage");
     // 当 stage初始化完成或重新设置时，更新
-    connect(timeline->model, &TimelineModel::S_stageChanged, [this]() {
+    connect(timeline->model, &TimelineModel::S_stageInited, [this]() {
         stageWidget->setStage(timeline->model->getStage());
     });
     emit initStatus("Initialization Stage Widget");

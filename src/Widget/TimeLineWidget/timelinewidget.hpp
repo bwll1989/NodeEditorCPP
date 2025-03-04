@@ -26,9 +26,9 @@
 #include <QShortcut>
 #include <QScreen>
 #include "qtreeview.h"
-#include "timelinemodel.hpp"
-#include "timelineview.hpp"
-#include "tracklistview.hpp"
+#include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"
+#include "Widget/TimeLineWidget/TimelineMVC/timelineview.hpp"
+#include "Widget/TimeLineWidget/TimelineMVC/tracklistview.hpp"
 #include "timelinetypes.h"
 #include <QWidget>
 #include <QFileDialog>

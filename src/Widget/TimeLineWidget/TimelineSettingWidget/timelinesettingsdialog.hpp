@@ -12,8 +12,8 @@
 #include <QTabWidget>
 #include <QDoubleSpinBox>
 #include "portaudio.h"
-#include "timelinetypes.h"
-#include "timelinemodel.hpp"
+#include "Widget/TimeLineWidget/timelinetypes.h"
+#include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"
 #include <QMessageBox>
 
 class TimelineSettingsDialog : public QDialog {

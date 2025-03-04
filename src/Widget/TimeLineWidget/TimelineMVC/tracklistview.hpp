@@ -41,7 +41,9 @@ public:
         m_deleteTrackAction->setShortcut(QKeySequence(Qt::Key_Delete));
         QObject::connect(m_deleteTrackAction, &QAction::triggered, this, &TracklistView::onDeleteTrack);
         //轨道变化后刷新显示
-        QObject::connect(Model, &TimelineModel::S_trackChanged, this, &TracklistView::onUpdateViewport);
+        QObject::connect(Model, &TimelineModel::S_trackAdd, this, &TracklistView::onUpdateViewport);
+        QObject::connect(Model, &TimelineModel::S_trackDelete, this, &TracklistView::onUpdateViewport);
+        QObject::connect(Model, &TimelineModel::S_trackMoved, this, &TracklistView::onUpdateViewport);
         //时间码更新后刷新显示
         connect(Model->getTimecodeGenerator(), &TimecodeGenerator::currentFrameChanged, this, &TracklistView::onUpdateViewport);
         setItemDelegate(new TrackDelegate(this));
@@ -81,7 +83,7 @@ signals:
      * @param int dx 水平滚动   
      * @param int dy 垂直滚动
      */
-    void scrolled(int dx,int dy);
+    void trackScrolled(int dx, int dy);
     /**
      * 视图更新信号
      */

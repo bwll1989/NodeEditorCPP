@@ -4,7 +4,7 @@
 #include <QAbstractItemView>
 //#include "mediaclips/meidaclipdelegate.hpp"
 #include <unordered_map>
-#include "timelinetypes.h"
+#include "Widget/TimeLineWidget/timelinetypes.h"
 #include <QEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -14,13 +14,14 @@
 #include "timelinemodel.hpp"
 #include "timelinestyle.hpp"
 #include "trackdelegate.hpp"
-#include "timelinetoolbar.hpp"
+#include "Widget/TimeLineWidget/timelinetoolbar.hpp"
 //#include "mediaclips/mediaclipmodel.hpp"
 // #include "QTimer"
 #include "QMenu"
 // #include "zoomcontroller.hpp"
-#include "AbstractClipDelegate.hpp"
-#include "videoplayerwidget.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
+#include "Widget/TimeLineWidget/videoplayerwidget.hpp"
+#include "Widget/TimeLineWidget/ClipPropertyWidget/clipproperty.hpp"
 // #include "pluginloader.hpp"
 // TimelineView类继承自QAbstractItemView
 class TimelineView : public QAbstractItemView
@@ -374,7 +375,7 @@ private:
     //  * 设置播放头位置
     //  * @param int frame 帧
     //  */
-    // void setPlayheadPos(int frame); 
+    // void onSetPlayheadPos(int frame);
     /**
      * 移动选定的剪辑
      * @param int dx 水平移动
@@ -396,6 +397,7 @@ private:
     // 播放状态改变
     void onPlaybackStateChanged(bool isPlaying);
 
+//    ClipProperty *m_clipProperty;
   
 };
 

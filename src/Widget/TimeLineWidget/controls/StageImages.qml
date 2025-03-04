@@ -9,18 +9,17 @@ Item {
     property real zoomFactor: 1.0
     property int centerX: 0
     property int centerY: 0
-    property bool hasValidImage: false  // 添加一个属性来跟踪是否有有效图像
     
     // 显示当前帧图像
     Image {
         id: frameImage
-        // 设置初始位置
-        x: 0 + root.centerX
-        y: 0 + root.centerY
-        
+        // 设置位置 - 使用 currentStage 中的 imagePosition
+        x: (currentStage ? currentStage.imagePosition.x : 0) + root.centerX
+        y: (currentStage ? currentStage.imagePosition.y : 0) + root.centerY
+       
         // 使用图像的实际尺寸
-        width: sourceSize.width > 0 ? sourceSize.width : 1920
-        height: sourceSize.height > 0 ? sourceSize.height : 1080
+        width: sourceSize.width >= 0 ? sourceSize.width : 1920
+        height: sourceSize.height >= 0 ? sourceSize.height : 1080
         
         // 设置填充模式 - 使用 Stretch 确保图像填充整个区域
         fillMode: Image.Stretch
@@ -36,29 +35,32 @@ Item {
         z: 0  // 在 StageImages 内部，图像是唯一的元素，所以 z 值可以是 0
         
         // 只有在有有效图像时才显示
-        visible: root.hasValidImage
-        
+        visible: {
+            if (!currentStage || !currentStage.currentFrame) {
+                source = ""
+                return false
+            }
+            return !currentStage.currentFrame.isNull
+        }
+  
         // 监听 currentStage 的 currentFrame 变化
         Connections {
             target: root.currentStage
             enabled: root.currentStage !== null
+            
             function onCurrentFrameChanged() {
-                // 检查是否有有效图像
-                if (root.currentStage && root.currentStage.hasValidImage) {
-                    frameImage.source = "image://timeline/" + Date.now()
-                    root.hasValidImage = true
-                } else {
-                    root.hasValidImage = false
+                if (!root.currentStage || !root.currentStage.currentFrame || root.currentStage.currentFrame.isNull) {
+                    frameImage.source = ""
+                    return
                 }
+                frameImage.source = "image://timeline/" + Date.now()
             }
         }
-        
-        // 监听图像加载状态
-        onStatusChanged: {
-            if (status === Image.Ready) {
-                root.hasValidImage = true
-            } else if (status === Image.Error) {
-                root.hasValidImage = false
+
+        // 添加源变化处理
+        onSourceChanged: {
+            if (source == "") {
+                visible = false
             }
         }
     }

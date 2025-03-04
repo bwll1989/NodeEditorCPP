@@ -64,7 +64,7 @@ void StageWidget::setStage(TimelineStage* stage)
         auto engine = m_quickWidget->engine();
         if (engine && !engine->imageProvider("timeline")) {
             qDebug() << "Registering timeline image provider";
-            engine->addImageProvider("timeline", ImageProvider::instance());
+            engine->addImageProvider("timeline", TimelineImageProducer::instance());
         }
         
         // 将 stage 对象暴露给 QML 引擎 

@@ -1,3 +1,4 @@
+
 #include "timelinemodel.hpp"
 
 // 获取播放头位置
@@ -6,17 +7,11 @@ int TimelineModel::getPlayheadPos() const{
 }
 
 // 设置播放头位置
-void TimelineModel::setPlayheadPos(int newPlayheadPos)
+void TimelineModel::onSetPlayheadPos(int newPlayheadPos)
 {
-//    if(m_timecodeGenerator->getCurrentFrame()>=0)
-//        m_timecodeGenerator->setCurrentFrame(m_timecodeGenerator->getCurrentFrame()+newPlayheadPos);
-//    if(m_timecodeGenerator->getCurrentFrame()>m_timecodeGenerator->getMaxFrames())
-//        m_timecodeGenerator->setCurrentFrame(m_timecodeGenerator->getCurrentFrame()-newPlayheadPos);
-//    if(m_timecodeGenerator->getCurrentFrame()<0)
-//        m_timecodeGenerator->setCurrentFrame(0);
 
-//    emit S_playheadMoved(m_timecodeGenerator->getCurrentFrame());
-    emit S_timelineUpdated();
+    emit S_playheadMoved(newPlayheadPos);
+
 }
 
 QModelIndex TimelineModel::index(int row, int column, const QModelIndex &parent) const
@@ -155,6 +150,9 @@ QVariant TimelineModel::data(const QModelIndex &index, int role) const
             //获取轨道类型
             case TrackTypeRole:
                 return QVariant::fromValue(TrackTypeString(track->type()));
+            //获取轨道名称
+            case TrackNameRole:
+                return QVariant::fromValue(track->getName());
             default:
                 return QVariant();
         }
@@ -176,66 +174,85 @@ void TimelineModel::onStopPlay(){
 // 设置数据
 bool TimelineModel::setData(const QModelIndex &index, const QVariant &value, int role)
 {
-    if (!index.isValid() || !index.parent().isValid())
+    //如果索引是时间轴本身
+    if (!index.isValid()) {
         return false;
-    AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
-
-    if (!clip)
-        return false;
-
-    switch (role) {
-        // 设置剪辑开始时间
-        case TimelineRoles::ClipInRole: {
-            int newStart = value.toInt();
-            int clipLength = clip->length();
-            clip->setStart(newStart);
-            clip->setEnd(newStart + clipLength);
-            emit dataChanged(index, index);
-            onTimelineLengthChanged();
-            return true;
-        }
-        // 设置剪辑是否显示小部件
-        case TimelineRoles::ClipShowWidgetRole: {
-            bool newShowWidget = value.toBool();
-            clip->setEmbedWidget(newShowWidget);
-            emit dataChanged(index, index);
-            return true;
-        }
-        // 设置剪辑是否可调整大小
-        case TimelineRoles::ClipResizableRole: {
-            bool newResizable = value.toBool();
-            clip->setResizable(newResizable);
-            emit dataChanged(index, index);
-            return true;
-        }
-        // 设置剪辑结束时间
-        case TimelineRoles::ClipOutRole: {
-            int newEnd = value.toInt();
-            clip->setEnd(newEnd);
-            emit dataChanged(index, index);
-            onTimelineLengthChanged();  
-            return true;
-        }
-        // 设置剪辑长度
-        case TimelineRoles::ClipLengthRole: {
-            int newLength = value.toInt();
-            clip->setEnd(clip->start()+newLength);
-            emit dataChanged(index, index);
-            onTimelineLengthChanged();
-            return true;
-        }
-        // 设置剪辑是否显示边框
-        case TimelineRoles::ClipShowBorderRole: {
-            bool newShowBorder = value.toBool();
-            clip->setShowBorder(newShowBorder);
-            emit dataChanged(index, index);
-            return true;
-        }
-        // 可以添加其他角色的处理
-        default:
-            return false;
     }
+    //如果索引是轨道
+    if (index.parent().isValid()){
+            TrackModel* track = static_cast<TrackModel*>(index.internalPointer());
+            if (!track)
+                return false;
+            switch (role){
+                //设置轨道名称
+                case TimelineRoles::TrackNameRole:
+                    track->setName(value.toString());
+                    return true;
+                default:
+                    return false;
+            }
+    }else{
+        //如果索引是剪辑
+        AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
 
+        if (!clip)
+            return false;
+
+        switch (role) {
+            // 设置剪辑开始时间
+            case TimelineRoles::ClipInRole: {
+                int newStart = value.toInt();
+                clip->setStart(newStart);
+                return true;
+            }
+            case TimelineRoles::ClipPosRole:{
+                int newPos=value.toInt();
+                int clipLength = clip->length();
+                clip->setStart(newPos);
+                clip->setEnd(newPos+clipLength);
+                return true;
+            }
+            // 设置剪辑是否显示小部件
+            case TimelineRoles::ClipShowWidgetRole: {
+                bool newShowWidget = value.toBool();
+                clip->setEmbedWidget(newShowWidget);
+                return true;
+            }
+            // 设置剪辑是否可调整大小
+            case TimelineRoles::ClipResizableRole: {
+                bool newResizable = value.toBool();
+                clip->setResizable(newResizable);
+    //            emit dataChanged(index, index);
+                return true;
+            }
+            // 设置剪辑结束时间
+            case TimelineRoles::ClipOutRole: {
+                int newEnd = value.toInt();
+                clip->setEnd(newEnd);
+    //            emit dataChanged(index, index);
+    //            onTimelineLengthChanged();
+                return true;
+            }
+            // 设置剪辑长度
+            case TimelineRoles::ClipLengthRole: {
+                int newLength = value.toInt();
+                clip->setEnd(clip->start()+newLength);
+    //            emit dataChanged(index, index);
+    //            onTimelineLengthChanged();
+                return true;
+            }
+            // 设置剪辑是否显示边框
+            case TimelineRoles::ClipShowBorderRole: {
+                bool newShowBorder = value.toBool();
+                clip->setShowBorder(newShowBorder);
+    //            emit dataChanged(index, index);
+                return true;
+            }
+            // 可以添加其他角色的处理
+            default:
+                return false;
+        }
+    }
 }
 
 // 获取支持的拖放操作
@@ -258,9 +275,6 @@ void TimelineModel::clear(){
     
 }
 
-void TimelineModel::onAddTrack(const QString& type) {
-    addTrack(type);
-}
 // 保存模型
 QJsonObject TimelineModel::save() const {
     QJsonObject modelJson;
@@ -287,7 +301,7 @@ QJsonObject TimelineModel::save() const {
 void TimelineModel::load(const QJsonObject &modelJson) {
     clear();
     m_timecodeGenerator->setMaxFrames(modelJson["length"].toInt());
-    
+    emit S_timelineLengthChanged();
     // 先设置时间码类型
     TimecodeType type = static_cast<TimecodeType>(modelJson["timecodeType"].toInt());
     m_timecodeGenerator->setTimecodeType(type);
@@ -298,22 +312,24 @@ void TimelineModel::load(const QJsonObject &modelJson) {
     for (const QJsonValue &trackValue : trackArray) {
         QJsonObject trackJson = trackValue.toObject();
         QString type = trackJson["type"].toString();
-        TrackModel* track = new TrackModel(trackJson["trackIndex"].toInt(), type);
+        TrackModel* track = new TrackModel(trackJson["trackIndex"].toInt(), type,this);
         track->load(trackJson, m_pluginLoader);
         m_tracks.push_back(track);
-    }
 
+    }
+    emit S_trackAdd();
     // 加载舞台信息
     if (modelJson.contains("stage")) {
         if (!m_stage) {
             m_stage = new TimelineStage();
         }
         m_stage->load(modelJson["stage"].toObject());
+        emit S_stageInited();
     }
 
-    emit S_timelineUpdated();
-    emit S_trackChanged();
-    emit S_stageChanged();
+//    emit S_timelineUpdated();
+
+
 }
 // 计算时间线长度
 void TimelineModel::onTimelineLengthChanged()
@@ -323,8 +339,10 @@ void TimelineModel::onTimelineLengthChanged()
     for(TrackModel* track : m_tracks){
         max = qMax(max,track->getTrackLength());
     }
-   
-    m_timecodeGenerator->setMaxFrames(max);
+    if (m_timecodeGenerator->getMaxFrames()!=max) {
+        m_timecodeGenerator->setMaxFrames(max);
+        emit S_timelineLengthChanged();
+    }
 }
 
 void TimelineModel::onDeleteTrack(int trackIndex) {
@@ -339,30 +357,49 @@ void TimelineModel::onDeleteTrack(int trackIndex) {
     m_tracks.erase(m_tracks.begin() + trackIndex); // 从列表中移除轨道
     // 重新计算时间线长度
     for (int i = trackIndex; i < m_tracks.size(); ++i) {
-        m_tracks[i]->setTrackIndex(i);
+        m_tracks[i]->onSetTrackIndex(i);
     }
 
-    onTimelineLengthChanged();
     endRemoveRows(); // 结束移除行
+    emit S_trackDelete();
 
-    emit S_trackChanged();
-    emit S_timelineUpdated();
 } 
 // 创建轨道
-void TimelineModel::addTrack(const QString& type) {
+void TimelineModel::onAddTrack(const QString& type) {
     if (!m_pluginLoader) return;
         
         beginInsertRows(QModelIndex(), m_tracks.size(), m_tracks.size());
         TrackModel* track = new TrackModel(m_tracks.size(), type);
         connect(track, &TrackModel::S_trackLengthChanged, this, &TimelineModel::onTimelineLengthChanged);
-        connect(track, &TrackModel::S_trackLengthChanged, this, &TimelineModel::S_timelineUpdated);
         m_tracks.push_back(track);
         endInsertRows();
-        emit S_trackChanged();
-        emit S_timelineUpdated();
+        emit S_trackAdd();
     }
 
-void TimelineModel::deleteClip(QModelIndex clipIndex){
+void TimelineModel::onMoveTrack(int sourceRow, int targetRow) {
+    m_tracks.move(sourceRow, targetRow);
+    // 更新所有轨道的索引
+    for (int i = 0; i < m_tracks.size(); ++i) {
+        m_tracks[i]->onSetTrackIndex(i);
+    }
+    emit S_trackMoved(sourceRow,targetRow);
+}
+
+void TimelineModel::onAddClip(int trackIndex, int startFrame) {
+    AbstractClipModel* newClip = getPluginLoader()->createModelForType(getTracks()[trackIndex]->type(), startFrame);
+    newClip->setTimecodeType(getTimecodeType());
+    connect(newClip,AbstractClipModel::timelinePositionChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+//    结束时间变化时刷新显示
+    connect(newClip,AbstractClipModel::lengthChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+
+    connect(newClip,AbstractClipModel::posChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,AbstractClipModel::rotateChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,AbstractClipModel::sizeChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+
+    getTracks()[trackIndex]->onAddClip(newClip);
+    emit S_addClip();
+}
+void TimelineModel::onDeleteClip(QModelIndex clipIndex){
      if (!clipIndex.isValid() || !clipIndex.parent().isValid())
         return;
 
@@ -385,12 +422,7 @@ void TimelineModel::deleteClip(QModelIndex clipIndex){
 
     // 结束删除行
     endRemoveRows();
-
-    // 重新计算时间线长度
-    onTimelineLengthChanged();
-
-    // 发出信号通知视图更新
-    emit S_timelineUpdated();
+    emit S_deleteClip();
 }
 
 
@@ -431,14 +463,14 @@ TimelineModel::~TimelineModel()
     }
 }
 
-void TimelineModel::setStage(TimelineStage* stage)
+void TimelineModel::onSetStage(TimelineStage* stage)
 {
     if (m_stage != stage) {
         if (m_stage) {
             delete m_stage;
         }
         m_stage = stage;
-        emit S_stageChanged();
+        emit S_stageInited();
     }
 }
 
@@ -448,6 +480,10 @@ void TimelineModel::setStage(TimelineStage* stage)
 void TimelineModel::onTimecodeTypeChanged(TimecodeType type)
 {
     m_timecodeGenerator->setTimecodeType(type);
+}
+
+int TimelineModel::getTrackCount() const {
+    return m_tracks.size();
 }
 
 

@@ -11,7 +11,7 @@
 #include <QSpinBox>
 #include <QSlider>
 #include <QDoubleSpinBox>
-#include "AbstractTimelineScreen.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractTimelineScreen.hpp"
 
 class TimelineScreen : public AbstractTimelineScreen
 {

@@ -15,6 +15,7 @@ enum class ItemType {
 enum TimelineRoles {
     ClipInRole, // 剪辑开始时间
     ClipOutRole, // 剪辑结束时间
+    ClipPosRole, //剪辑位置
     ClipTimeInRole, // 剪辑时间开始
     ClipTimeOutRole, // 剪辑时间结束
     ClipLengthRole, // 剪辑长度
@@ -26,6 +27,7 @@ enum TimelineRoles {
     ClipModelRole,  // 用于获取完整的模型对象
     TrackNumberRole, // 轨道编号
     TrackTypeRole, // 轨道类型
+    TrackNameRole, // 轨道名称
     TimelineLengthRole, // 时间轴长度
    
 };

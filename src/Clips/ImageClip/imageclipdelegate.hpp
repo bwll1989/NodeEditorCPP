@@ -1,7 +1,7 @@
 #ifndef IMAGECLIPDELEGATE_H
 #define IMAGECLIPDELEGATE_H
 
-#include "TimeLineWidget/AbstractClipDelegate.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -12,7 +12,7 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QGroupBox>
-#include "TimeLineWidget/AbstractClipModel.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 #include "imageclipmodel.hpp"
 
 class ImageClipDelegate : public AbstractClipDelegate {
@@ -69,16 +69,23 @@ public:
         basicLayout->addWidget(fileNameLabel, 2, 0, 1, 2);
         // 媒体文件选择
         basicLayout->addWidget(new QLabel("媒体文件:"), 4, 0);
-        auto* mediaButton = new QPushButton("选择视频", basicGroup);
+        auto* mediaButton = new QPushButton("选择图像", basicGroup);
         basicLayout->addWidget(mediaButton, 4, 1);        
         // 连接信号槽
         connect(mediaButton, &QPushButton::clicked, [=]() {
             QString filePath = QFileDialog::getOpenFileName(editor,
-                "选择视频文件",
+                "选择图像文件",
                 "",
-                "视频文件 (*.jpg *.png *.jpeg *.bmp *.gif *.tiff *.webp);;所有文件 (*)");
+                "图像文件 (*.jpg *.png *.jpeg *.bmp *.gif *.tiff *.webp);;所有文件 (*)");
             
             if (!filePath.isEmpty()) {
+               
+                // 断开所有信号连接以避免设置初始值时触发更新
+                m_sizeXSpinBox->blockSignals(true);
+                m_sizeYSpinBox->blockSignals(true); 
+                m_xSpinBox->blockSignals(true);
+                m_ySpinBox->blockSignals(true);
+
                 m_model->setFilePath(filePath);  // 这会触发视频信息加载和长度更新
                 fileNameLabel->setText(filePath);
                 // 更新时长显示，使用时间码格式
@@ -87,6 +94,13 @@ public:
                 m_sizeYSpinBox->setValue(m_model->getHeight());
                 m_xSpinBox->setValue(m_model->getPosX());
                 m_ySpinBox->setValue(m_model->getPosY());
+
+                // 恢复信号连接
+                m_sizeXSpinBox->blockSignals(false);
+                m_sizeYSpinBox->blockSignals(false);
+                m_xSpinBox->blockSignals(false); 
+                m_ySpinBox->blockSignals(false);
+                
             }
         });
 
@@ -114,19 +128,19 @@ public:
         self->m_sizeYSpinBox->setValue(m_model->getHeight());
         basicLayout->addWidget(self->m_sizeYSpinBox, 8, 1, 1, 1);
         connect(self->m_sizeXSpinBox, &QSpinBox::valueChanged, [=]() {
-            m_model->setWidth(self->m_sizeXSpinBox->value());
+            m_model->setSize(self->m_sizeXSpinBox->value(),self->m_sizeYSpinBox->value());
         });
         connect(self->m_sizeYSpinBox, &QSpinBox::valueChanged, [=]() {
-            m_model->setHeight(self->m_sizeYSpinBox->value());
+            m_model->setSize(self->m_sizeXSpinBox->value(),self->m_sizeYSpinBox->value());
         });
         connect(self->m_xSpinBox, &QSpinBox::valueChanged, [=]() {
             if (m_model) {
-                m_model->setPosX(self->m_xSpinBox->value());
+                m_model->setPos(self->m_xSpinBox->value(),self->m_ySpinBox->value());
             }
         });
         connect(self->m_ySpinBox, &QSpinBox::valueChanged, [=]() {
             if (m_model) {
-                m_model->setPosY(self->m_ySpinBox->value());
+                m_model->setPos(self->m_xSpinBox->value(),self->m_ySpinBox->value());
             }
         });
         return editor;

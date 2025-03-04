@@ -5,20 +5,20 @@
 #include <unordered_set>
 #include <unordered_map>
 #include "trackmodel.hpp"
-#include "abstractclipmodel.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 #include <string>
 #include <QMimeData>
 #include <QIODevice>
 #include <algorithm>
 #include <vector>
 #include <QJsonArray>
-#include "timelinetypes.h"
+#include "Widget/TimeLineWidget/timelinetypes.h"
 #include "timelinestyle.hpp"
 #include <QFile>
 #include <QJsonDocument>
 #include "pluginloader.hpp"
-#include "timelinestage.hpp"
-#include "timelinescreen.hpp"
+#include "Widget/TimeLineWidget/TimelineStageWidget/timelinestage.hpp"
+#include "Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.hpp"
 #include "timecodegenerator.hpp"
 // TimelineModel类继承自QAbstractItemModel
 class TimelineModel : public QAbstractItemModel
@@ -31,40 +31,33 @@ public:
         {
         m_pluginLoader = new PluginLoader();
         m_pluginLoader->loadPlugins();
-        
         m_timecodeGenerator = new TimecodeGenerator();
         // 连接时间码生成器信号
         connect(m_timecodeGenerator, &TimecodeGenerator::currentFrameChanged,
-            this, &TimelineModel::setPlayheadPos);
+            this, &TimelineModel::onSetPlayheadPos);
         qRegisterMetaType<AbstractClipModel*>();
 
         // 连接播放头移动信号处理当前帧数据
         connect(m_timecodeGenerator, &TimecodeGenerator::currentFrameChanged,
             this, [this](qint64 frame) {
-                QList<QVariantMap> clipDataList = getCurrentClipsData(frame);
-                emit frameImageUpdated(clipDataList);
+                    onCreateCurrentVideoData(frame);
+               
             });
 
-        // setStage(new TimelineStage());
+        connect(this, &TimelineModel::S_trackMoved, this, [this](int oldindex,int newindex){
+            onCreateCurrentVideoData(this->getPlayheadPos());
+        });
+        connect(this, &TimelineModel::S_trackDelete, this, [this](){
+            onCreateCurrentVideoData(this->getPlayheadPos());
+        });
     }
 
     ~TimelineModel();
-    /**
-     * 创建轨道
-     * @param const QString& type 类型
-     */
-    void addTrack(const QString& type);
-
     /**
      * 获取播放头位置
      * @return int 播放头位置
      */
     int getPlayheadPos() const;
-    /**
-     * 设置播放头位置
-     * @param int newPlayheadPos 新的播放头位置
-     */
-    void setPlayheadPos(int newPlayheadPos);
     /**
      * 获取索引
      * @param int row 行
@@ -131,11 +124,6 @@ public:
     // 获取项目标志
     Qt::ItemFlags flags(const QModelIndex &index) const ;
     /**
-     * 删除片段
-     * @param QModelIndex clipIndex 片段索引
-     */
-    void deleteClip(QModelIndex clipIndex);
-    /**
      * 清除
      */
     void clear();
@@ -160,14 +148,6 @@ public:
      */
     QVector<TrackModel*> getTracks() const { return m_tracks; }
     /**
-     * 获取轨道
-     * @param int index 轨道索引
-     * @return TrackModel* 轨道
-     */
-    QVector<TrackModel*> m_tracks; // 轨道
-    //插件加载器
-    PluginLoader* m_pluginLoader; // 插件加载器
-    /**
      * 获取插件加载器
      * @return PluginLoader* 插件加载器
      */
@@ -177,11 +157,6 @@ public:
      * @return TimelineStage* 舞台  
      */
     TimelineStage* getStage() const { return m_stage; }
-    /**
-     * 设置舞台
-     * @param TimelineStage* stage 舞台
-     */
-    void setStage(TimelineStage* stage);
     /**
      * 获取时间码生成器
      * @return TimecodeGenerator* 时间码生成器
@@ -199,30 +174,7 @@ public:
     void setTimeDisplayFormat(TimedisplayFormat val){
         m_timeDisplayFormat=val;
     }
-    /**
-     * 获取当前播放头位置的所有片段数据
-     * @param int currentFrame 当前帧
-     * @return QList<QVariantMap> 片段图像数据列表
-     */
-    QList<QVariantMap> getCurrentClipsData(int currentFrame) const {
-        QList<QVariantMap> clipDataList;
-        
-        // 遍历所有轨道
-        for (TrackModel* track : m_tracks) {
-            // 遍历轨道中的所有片段
-            for (AbstractClipModel* clip : track->getClips()) {
-                // 检查当前帧是否在片段范围内
-                if (currentFrame >= clip->start() && currentFrame < clip->end()) {
-                    // 获取片段在当前帧的数据
-                    QVariantMap data = clip->currentData(currentFrame);
-                    data["layer"]=track->trackIndex();
-                    clipDataList.append(data);
-                }
-            }
-        }
-        
-        return clipDataList;
-    }
+   
 signals:
     /**
      * 时间线更新
@@ -242,20 +194,29 @@ signals:
     /**
      * 轨道改变
      */
-    void S_trackChanged();
+    void S_trackAdd();
+    void S_trackDelete();
     /**
-     * 舞台改变
+     * 舞台初始化信号
      */
-    void S_stageChanged();
+    void S_stageInited();
+
     /**
      * 屏幕改变
      */
-    void S_screensChanged();
+    void S_addScreen();
+    void S_deleteScreen();
     /**
      * 当前帧图像更新信号
      * @param const QVariantMap& image 图像
      */
-    void frameImageUpdated(const QList<QVariantMap>& image);
+    void S_frameImageUpdated(const QList<QVariantMap>& image) const ;
+
+    void S_timelineLengthChanged();
+
+    void S_addClip();
+
+    void S_deleteClip();
 
 public slots:
     /**
@@ -270,20 +231,6 @@ public slots:
      * 停止播放
      */
     void onStopPlay();
-    /**
-     * 移动播放头
-     * @param int dx 移动的帧数
-     */
-    /**
-     * 创建轨道
-     * @param const QString& type 类型
-     */
-    void onAddTrack(const QString& type);
-    /**
-     * 删除轨道
-     * @param int trackIndex 轨道索引
-     */
-    void onDeleteTrack(int trackIndex);
 
     /**
      * 设置时间码格式
@@ -294,7 +241,63 @@ public slots:
      * 计算时间线长度
      */
     void onTimelineLengthChanged();
+     /**
+     * 获取当前播放头位置的所有片段数据
+     * @param int currentFrame 当前帧
+     * @return QList<QVariantMap> 片段图像数据列表
+     */
+    QList<QVariantMap> onCreateCurrentVideoData(int currentFrame) const {
+        QList<QVariantMap> clipDataList;
+        
+        // 遍历所有轨道
+        for (TrackModel* track : m_tracks) {
+            // 遍历轨道中的所有片段
+            for (AbstractClipModel* clip : track->getClips()) {
+                // 检查当前帧是否在片段范围内
+                if (currentFrame >= clip->start() && currentFrame < clip->end()) {
+                    // 获取片段在当前帧的数据
+                    QVariantMap data = clip->currentVideoData(currentFrame);
+                    if(!data.isEmpty()) {
+                        clipDataList.append(data);
+                    }
+                }
+            }
+        }
+        
+        
+        emit S_frameImageUpdated(clipDataList);
+        
+        return clipDataList;
+    }
+    /**
+ * 设置播放头位置
+ * @param int newPlayheadPos 新的播放头位置
+ */
+    void onSetPlayheadPos(int newPlayheadPos);
 
+    void onAddClip(int trackIndex,int startFrame);
+    /**
+     * 删除片段
+     * @param QModelIndex clipIndex 片段索引
+     */
+    void onDeleteClip(QModelIndex clipIndex);
+    /**
+ * 设置舞台
+ * @param TimelineStage* stage 舞台
+ */
+    void onSetStage(TimelineStage* stage);
+    /**
+ * 创建轨道
+ * @param const QString& type 类型
+ */
+    void onAddTrack(const QString& type);
+    /**
+    * 删除轨道
+    * @param int trackIndex 轨道索引
+    */
+    void onDeleteTrack(int trackIndex);
+
+    void onMoveTrack(int sourceRow, int targetRow);
 private:
     // 查找片段所在轨道
     TrackModel* findParentTrackOfClip(AbstractClipModel* clip) const ;
@@ -311,21 +314,14 @@ private:
 
     // 时间显示格式，默认显示时间码
     TimedisplayFormat m_timeDisplayFormat = TimedisplayFormat::TimeCodeFormat;
-
-    // /**
-    //  * 处理当前帧数据
-    //  * @param const QList<QVariant>& dataList 数据列表
-    //  */
-    // void processCurrentFrameData(const QList<QVariantMap>& dataList) {
-    //     for (const QVariantMap& data : dataList) {
-    //         if (data.contains("image")) {
-    //             QImage image = data["image"].value<QImage>();
-          
-                    
-                
-    //         }
-    //     }
-    // }
+    //插件加载器
+    PluginLoader* m_pluginLoader; // 插件加载器
+    /**
+     * 获取轨道
+     * @param int index 轨道索引
+     * @return TrackModel* 轨道
+     */
+    QVector<TrackModel*> m_tracks; // 轨道
 };
 
 #endif // TIMELINEMODEL_H

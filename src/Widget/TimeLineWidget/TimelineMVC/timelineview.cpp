@@ -1,7 +1,6 @@
 #include "timelineview.hpp"
 #include <QMenu>
 #include <QAction>
-#include "clipproperty.hpp"
 #include <QtMath>
 TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         : Model(viewModel), QAbstractItemView{parent}
@@ -25,7 +24,7 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         setAutoScroll(true);
         setAutoScrollMargin(5);
         setAcceptDrops(true);
-        
+
         // 创建工具栏
         toolbar = new TimelineToolbar(this);
         toolbar->setFixedHeight(toolbarHeight);
@@ -58,9 +57,12 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         connect(this, &TimelineView::videoWindowClosed, [this]() {
             toolbar->m_outputAction->setChecked(false);
         });
-        // 连接定时器超时信号
-        // connect(Model->getTimecodeGenerator(), &TimecodeGenerator::frameChanged, this, &TimelineView::onTimeout);
-        connect(Model, &TimelineModel::S_timelineUpdated, this, &TimelineView::onUpdateViewport);
+
+        connect(Model, &TimelineModel::S_trackAdd, this, &TimelineView::onUpdateViewport);
+        connect(Model, &TimelineModel::S_trackDelete, this, &TimelineView::onUpdateViewport);
+        connect(Model, &TimelineModel::S_trackMoved, this, &TimelineView::onUpdateViewport);
+        connect(Model, &TimelineModel::S_addClip, this, &TimelineView::onUpdateViewport);
+
         // installEventFilter(this);
         // 创建视频播放器和窗口
         setupVideoWindow();
@@ -83,7 +85,7 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
                 return;
             
             QModelIndex currentIndex = selectionModel()->currentIndex();
-            Model->deleteClip(currentIndex);
+            Model->onDeleteClip(currentIndex);
             
             // 清除选择并发送 nullptr
             selectionModel()->clearSelection();
@@ -103,7 +105,7 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         });
         // 连接帧率改变信号,停止定时器，移动播放头到0，更新视图
         // connect(Model, &TimelineModel::frameRateChanged, [this](int fps){
-        //     Model->setPlayheadPos(0);
+        //     Model->onSetPlayheadPos(0);
         //     // if(timer->isActive()){
         //     //     timer->stop();
         //     //     onTimelineStart();
@@ -235,7 +237,7 @@ void TimelineView::moveSelectedClip(int dx, int dy,bool isMouse)
     // 确保不会移动到负值位置
     newPos = std::max(0, newPos);
     // 更新模型数据
-    Model->setData(list.first(), newPos, TimelineRoles::ClipInRole);
+    Model->setData(list.first(), newPos, TimelineRoles::ClipPosRole);
     updateEditorGeometries();
     updateScrollBars();
     viewport()->update();
@@ -326,7 +328,7 @@ void TimelineView::contextMenuEvent(QContextMenuEvent* event) {
 
         QAction* deleteClipAction = new QAction("Delete Clip", this);
         connect(deleteClipAction, &QAction::triggered, [this, index]() {
-            Model->deleteClip(index);
+            Model->onDeleteClip(index);
             selectionModel()->clearSelection();
             viewport()->update();
         });
@@ -345,17 +347,14 @@ void TimelineView::addClipAtPosition(const QModelIndex& index, const QPoint& pos
     }
 
     int trackIndex = index.row();
-    if (trackIndex < 0 || trackIndex >= Model->m_tracks.size()) {
+    if (trackIndex < 0 || trackIndex >= Model->getTrackCount()) {
         qDebug() << "Invalid track index: " << trackIndex;
         return;
     }
-
     // Calculate the start frame based on the mouse position
     int startFrame = pointToFrame(pos.x() + m_scrollOffset.x());
-    
-    Model->m_tracks[trackIndex]->addClip(startFrame,Model->m_pluginLoader,Model->getTimecodeType());
-    //添加完片段后重新计算总时长
-    Model->onTimelineLengthChanged();
+    Model->onAddClip(trackIndex,startFrame);
+
     // 更新视图
     onUpdateViewport();
 }
@@ -616,7 +615,7 @@ void TimelineView::dropEvent(QDropEvent *event)
 //     //             case Qt::Key_Delete:
 //     //                 if(list.isEmpty())
 //     //                     break;
-//     //                 timelinemodel->deleteClip(list[0]);
+//     //                 timelinemodel->onDeleteClip(list[0]);
 //     //                 clearSelection();
 //     //                 return true;
 //     //             default:
@@ -838,7 +837,7 @@ QAbstractItemDelegate* TimelineView::itemDelegateForIndex(const QModelIndex &ind
         }
 
         QString clipType = index.data(TimelineRoles::ClipTypeRole).toString();
-        return Model->m_pluginLoader->createDelegateForType(clipType);
+        return Model->getPluginLoader()->createDelegateForType(clipType);
     }
 
 void TimelineView::wheelEvent(QWheelEvent *event){
@@ -933,8 +932,8 @@ void TimelineView::showClipProperty(const QModelIndex& index)
     AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
     if (!clip) return;
     //创建属性窗口
-    auto* m_clipProperty = new ClipProperty(Model, index, this);
-    if (m_clipProperty) {
+    auto *m_clipProperty = new ClipProperty(Model, index, this);
+    if (m_clipProperty){
         //连接属性窗口变化信号
         connect(m_clipProperty, &ClipProperty::propertyChanged, [this]() {
                 onUpdateViewport();

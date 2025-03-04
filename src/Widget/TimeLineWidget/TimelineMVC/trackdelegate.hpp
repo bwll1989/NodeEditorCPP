@@ -63,26 +63,35 @@ public:
      * @return QWidget * 编辑器
      */
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
+        
         QWidget* editor = new QWidget(parent);
-
+        
         QHBoxLayout* layout = new QHBoxLayout(editor);
         layout->setContentsMargins(0,0,0,0);
-        QLabel* title=new QLabel();
-        title->setText("Untitled");
-        title->setStyleSheet("QLabel { background: rgba(255, 255, 255, 0); color: white; border: none; }");
-        title->setAlignment(Qt::AlignCenter);
-        layout->setContentsMargins(5, 5, 5, 5);
-        layout->addWidget(title);
+        // QLabel* title=new QLabel();
+        // title->setText("Untitled");
+        // title->setStyleSheet("QLabel { background: rgba(255, 255, 255, 0); color: white; border: none; }");
+        // title->setAlignment(Qt::AlignCenter);
+        // layout->setContentsMargins(5, 5, 5, 5);
+        // layout->addWidget(title);
 
-
-        QPushButton* muteButton = new QPushButton("M");
-        muteButton->setFixedSize((trackHeight-10)/2,(trackHeight-10)/2);
-        QPushButton* soloButton = new QPushButton("S");
-        soloButton->setFixedSize((trackHeight-10)/2,(trackHeight-10)/2);
-
-        layout->addWidget(muteButton);
-        
-        layout->addWidget(soloButton);
+        QLineEdit* lineEdit = new QLineEdit();
+        lineEdit->setText(index.data(TimelineRoles::TrackNameRole).toString());
+        editor->setToolTip(index.data(TimelineRoles::TrackTypeRole).toString());
+        lineEdit->setAlignment(Qt::AlignCenter);
+        lineEdit->setStyleSheet("QLineEdit { background: rgba(255, 255, 255, 0); color: white; border: none; }");
+        connect(lineEdit, &QLineEdit::textChanged, this, [this, index](const QString& text){
+            auto* track = static_cast<TrackModel*>(index.internalPointer());
+            track->setName(text);
+        });
+        layout->addWidget(lineEdit);
+        // 移动轨道按钮
+        QLabel* moveLabel = new QLabel();
+        moveLabel->setPixmap(QPixmap(":/icons/icons/move.png"));
+        moveLabel->setFixedSize(20,10);
+        moveLabel->setAlignment(Qt::AlignCenter);
+        moveLabel->setStyleSheet("QLabel { background: rgba(255, 255, 255, 0); color: white; border: none; }");
+        layout->addWidget(moveLabel);
         editor->show();
         editor->setMouseTracking(true);
         return editor;
@@ -108,13 +117,13 @@ public:
      * @param const QModelIndex &index 索引
      */
     void setEditorData(QWidget *editor, const QModelIndex &index) const override {
-        QLabel *lineEdit = editor->findChild<QLabel*>();
-        if (lineEdit) {
-            QString trackType = index.data(TimelineRoles::TrackTypeRole).toString();
-            lineEdit->setText(trackType);
-        }
-        // Remove or replace the following line if not applicable
-        QAbstractItemDelegate::setEditorData(editor, index); // Call the correct base class method if needed
+        // QLabel *lineEdit = editor->findChild<QLabel*>();
+        // if (lineEdit) {
+        //     QString trackType = index.data(TimelineRoles::TrackTypeRole).toString();
+        //     lineEdit->setText(trackType);
+        // }
+        // // Remove or replace the following line if not applicable
+        // QAbstractItemDelegate::setEditorData(editor, index); // Call the correct base class method if needed
     }
 
 };

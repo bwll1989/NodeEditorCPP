@@ -9,8 +9,6 @@ void TracklistView::onDeleteTrack() {
     if (Model&&selectionModel()->selectedIndexes().size()>=1) {
         Model->onDeleteTrack(selectionModel()->selectedIndexes().first().row());
     }
-    viewport()->update();
-    emit viewupdate();  // 发送信号
 }
 /**
  * @brief 上下文菜单事件
@@ -22,11 +20,11 @@ void TracklistView::contextMenuEvent(QContextMenuEvent* event) {
         QMenu* addTrackMenu = contextMenu.addMenu("Add Track");
         
         // Get available track types from PluginLoader
-        QStringList availableTypes = Model->m_pluginLoader->getAvailableTypes();
+        QStringList availableTypes = Model->getPluginLoader()->getAvailableTypes();
         for (const QString& type : availableTypes) {
             QAction* addTrackAction = addTrackMenu->addAction("Add " + type + " Track");
             connect(addTrackAction, &QAction::triggered, [this, type]() {
-                Model->addTrack(type);
+                Model->onAddTrack(type);
             });
         }
 
@@ -154,7 +152,7 @@ void TracklistView::scrollContentsBy(int dx, int dy) {
     QAbstractItemView::scrollContentsBy(dx, dy);
     updateEditorGeometries();
     onUpdateViewport();
-    emit scrolled(dx,dy);
+    emit trackScrolled(dx, dy);
 }
 
 /**
@@ -351,21 +349,12 @@ void TracklistView::dropEvent(QDropEvent *event) {
                     closePersistentEditor(index);
                 }
 
-                // 移动轨道
-                timelineModel->m_tracks.move(sourceRow, targetRow);
-                
-                // 更新所有轨道的索引
-                for (int i = 0; i < timelineModel->m_tracks.size(); ++i) {
-                    timelineModel->m_tracks[i]->setTrackIndex(i);
-                }
+                timelineModel->onMoveTrack(sourceRow, targetRow);
 
                 // 清除选择和悬停状态
                 selectionModel()->clearSelection();
                 m_hoverIndex = QModelIndex();
 
-                // 发送信号通知更新
-                emit timelineModel->S_trackChanged();
-                emit timelineModel->S_trackMoved(sourceRow, targetRow);
                 
                 // 重新打开所有持久化编辑器
                 for (int i = 0; i < timelineModel->rowCount(); ++i) {

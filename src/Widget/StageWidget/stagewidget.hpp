@@ -5,7 +5,7 @@
 #include <QDockWidget>
 #include <QQuickWidget>
 #include <QVBoxLayout>
-#include "../TimeLineWidget/timelinestage.hpp"
+#include "Widget/TimeLineWidget/TimelineStageWidget/timelinestage.hpp"
 
 class StageWidget : public QWidget
 {

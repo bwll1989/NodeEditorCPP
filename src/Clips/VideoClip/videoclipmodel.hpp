@@ -1,7 +1,7 @@
 #ifndef VIDEOCLIPMODEL_H
 #define VIDEOCLIPMODEL_H
 
-#include "TimeLineWidget/AbstractClipModel.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 #include <QImage>
 #include <QPainter>
 #include <QFont>
@@ -35,7 +35,7 @@ public:
         if (m_filePath != path) {
             m_filePath = path;
             loadVideoInfo(path);
-            emit dataChanged();
+            emit filePathChanged(path);
         }
     }
 
@@ -74,7 +74,7 @@ public:
         }
     }
 
-    QVariantMap currentData(int currentFrame) const override {
+    QVariantMap currentVideoData(int currentFrame) const override {
         QVariantMap data;
         // 创建一个固定的测试图像
         QImage image(m_width, m_height, QImage::Format_RGB888);
@@ -126,34 +126,24 @@ public:
      */
     int getPosY() const { return m_PosY; }
 public Q_SLOTS:
+
     /**
-     * 设置视频位置
+     * 设置视频显示位置
      */
-    void setPosX(int x) { 
-        m_PosX = x; 
-        emit posXChanged(x);
-    }
-    /**
-     * 设置视频垂直位置
-     */
-    void setPosY(int y) { 
+    void setPos(int x,int y) {
+        m_PosX=x;
         m_PosY = y; 
-        emit posYChanged(y);
+        emit posChanged(QPoint(m_PosX,m_PosY));
     }
     /**
-     * 设置视频宽度
+     * 设置视频显示尺寸
      */
-    void setWidth(int width){ 
-        m_width = width; 
-        emit widthChanged(width);
+    void setSize(int width,int height){
+        m_width = width;
+        m_height=height;
+        emit sizeChanged(QSize(m_width,m_height));
     }
-    /**
-     * 设置视频高度
-     */
-    void setHeight(int height) { 
-        m_height = height; 
-        emit heightChanged(height);
-    }
+
 private:
     void loadVideoInfo(const QString& path) {
         AVFormatContext* formatContext = nullptr;

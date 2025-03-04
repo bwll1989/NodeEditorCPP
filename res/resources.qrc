@@ -75,6 +75,7 @@
     <file>icons/delete-clip.png</file>
     <file>icons/zoomin.png</file>
     <file>icons/zoomout.png</file>
+    <file>icons/move.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

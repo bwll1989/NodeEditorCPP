@@ -1,5 +1,5 @@
 #include "timelinetoolbar.hpp"
-#include "timelinestyle.hpp"
+#include "Widget/TimeLineWidget/TimelineMVC/timelinestyle.hpp"
 #include <QStyle>
 #include <QApplication>
 

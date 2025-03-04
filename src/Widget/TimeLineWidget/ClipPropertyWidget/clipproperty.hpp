@@ -7,9 +7,9 @@
 #include <QLabel>
 #include <QSpinBox>
 #include <QDialogButtonBox>
-#include "AbstractClipModel.hpp"
-#include "AbstractClipDelegate.hpp"
-#include "timelinemodel.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
+#include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"
 #include <QLineEdit>
 #include <QModelIndex>
 

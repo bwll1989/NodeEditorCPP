@@ -1,7 +1,7 @@
 #ifndef VIDEOCLIPDELEGATE_H
 #define VIDEOCLIPDELEGATE_H
 
-#include "TimeLineWidget/AbstractClipDelegate.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -12,7 +12,7 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QGroupBox>
-#include "TimeLineWidget/AbstractClipModel.hpp"
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 #include "videoclipmodel.hpp"
 
 class VideoClipDelegate : public AbstractClipDelegate {
@@ -114,19 +114,19 @@ public:
         self->m_sizeYSpinBox->setValue(m_model->getHeight());
         basicLayout->addWidget(self->m_sizeYSpinBox, 8, 1, 1, 1);
         connect(self->m_sizeXSpinBox, &QSpinBox::valueChanged, [=]() {
-            m_model->setWidth(self->m_sizeXSpinBox->value());
+            m_model->setSize(self->m_sizeXSpinBox->value(),self->m_sizeYSpinBox->value());
         });
         connect(self->m_sizeYSpinBox, &QSpinBox::valueChanged, [=]() {
-            m_model->setHeight(self->m_sizeYSpinBox->value());
+            m_model->setSize(self->m_sizeXSpinBox->value(),self->m_sizeYSpinBox->value());
         });
         connect(self->m_xSpinBox, &QSpinBox::valueChanged, [=]() {
             if (m_model) {
-                m_model->setPosX(self->m_xSpinBox->value());
+                m_model->setPos(self->m_xSpinBox->value(),self->m_ySpinBox->value());
             }
         });
         connect(self->m_ySpinBox, &QSpinBox::valueChanged, [=]() {
             if (m_model) {
-                m_model->setPosY(self->m_ySpinBox->value());
+                m_model->setPos(self->m_xSpinBox->value(),self->m_ySpinBox->value());
             }
         });
         return editor;
