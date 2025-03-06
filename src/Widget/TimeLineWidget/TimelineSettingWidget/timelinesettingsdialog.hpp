@@ -12,7 +12,7 @@
 #include <QTabWidget>
 #include <QDoubleSpinBox>
 #include "portaudio.h"
-#include "Widget/TimeLineWidget/timelinetypes.h"
+#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"
 #include <QMessageBox>
 

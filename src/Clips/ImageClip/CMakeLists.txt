@@ -26,6 +26,7 @@ set(SOURCES
     ${TIMELINE_SDK_DIR}/AbstractClipModel.cpp
     ${TIMELINE_SDK_DIR}/AbstractClipDelegate.hpp
     ${TIMELINE_SDK_DIR}/AbstractClipInterface.hpp
+#     ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp
 )
 
 # 创建插件库
@@ -44,6 +45,8 @@ target_link_libraries(ImageClip PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
     avcodec
     avdevice
     avfilter

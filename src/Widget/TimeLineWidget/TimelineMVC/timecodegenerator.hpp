@@ -5,7 +5,7 @@
 #include <QTimer>
 #include <QMutex>
 #include <QAtomicInteger>
-#include "Widget/TimeLineWidget/timelinetypes.h"
+#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 
 class TimecodeGenerator : public QObject {
     Q_OBJECT

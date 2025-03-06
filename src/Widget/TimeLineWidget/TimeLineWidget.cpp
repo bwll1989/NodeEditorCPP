@@ -7,7 +7,7 @@
 
 #include "timelinewidget.hpp"
 #include "Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.hpp"
-#include "timelineimageproducer.hpp"
+#include "Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp"
 TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent) {
     // 首先创建模型
     model = new TimelineModel();

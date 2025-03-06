@@ -1,5 +1,5 @@
 #include "timecodegenerator.hpp"
-
+#include <QThread>
 TimecodeGenerator::TimecodeGenerator(QObject* parent)
     : QObject(parent)
     , m_currentFrame(0)
@@ -18,7 +18,17 @@ TimecodeGenerator::TimecodeGenerator(QObject* parent)
     // 设置较短的间隔以提高精度
     m_timer->setInterval(qRound(m_frameDuration / 2));
     
-    connect(m_timer, &QTimer::timeout, this, &TimecodeGenerator::onTimeout);
+    // 设置定时器优先级
+    m_timer->setTimerType(Qt::PreciseTimer);
+    
+    // 将定时器移动到高优先级线程
+    QThread* timerThread = new QThread(this);
+    timerThread->start(QThread::HighPriority);
+    m_timer->moveToThread(timerThread);
+    
+    // 使用直接连接确保及时处理定时器事件
+    connect(m_timer, &QTimer::timeout, this, &TimecodeGenerator::onTimeout, 
+            Qt::DirectConnection);
 }
 
 TimecodeGenerator::~TimecodeGenerator()
@@ -106,12 +116,28 @@ void TimecodeGenerator::onTimeout()
 {
     QMutexLocker locker(&m_mutex);
     
-    // 获取当前时间戳
+    // 使用高精度时间戳
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    
+    // 如果是第一次调用，初始化时间戳
+    if (m_lastFrameTime == 0) {
+        m_startTime = currentTime;
+        m_lastFrameTime = currentTime;
+        return;
+    }
+    
     qint64 elapsedTime = currentTime - m_lastFrameTime;
     
-    // 计算应该前进的帧数
-    int framesToAdvance = qFloor(elapsedTime / m_frameDuration);
+    // 计算理论上应该前进的帧数
+    double theoreticalFrames = elapsedTime / m_frameDuration;
+    
+    // 使用累积误差来提高精度
+    static double accumulatedError = 0.0;
+    theoreticalFrames += accumulatedError;
+    
+    // 计算实际应该前进的帧数
+    int framesToAdvance = static_cast<int>(theoreticalFrames);
+    accumulatedError = theoreticalFrames - framesToAdvance;
     
     if (framesToAdvance > 0) {
         qint64 nextFrame = m_currentFrame + framesToAdvance;
@@ -136,10 +162,11 @@ void TimecodeGenerator::onTimeout()
 
 void TimecodeGenerator::updateTimecode()
 {
-    // 先发送帧变化信号
-    emit currentFrameChanged(m_currentFrame);
-    // 再发送时间码变化信号
-    emit timecodeChanged(getCurrentTimecode());
+    // 使用队列连接发送信号，避免阻塞定时器线程
+    QMetaObject::invokeMethod(this, [this]() {
+        emit currentFrameChanged(m_currentFrame);
+        emit timecodeChanged(getCurrentTimecode());
+    }, Qt::QueuedConnection);
 }
 
 QString TimecodeGenerator::getCurrentTimecode() const

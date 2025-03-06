@@ -6,7 +6,9 @@
 #include <QPainter>
 #include <QFont>
 #include <QDebug>
-
+#include <QOpenGLTexture>
+#include <QOpenGLContext>
+#include <QOffscreenSurface>
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -21,15 +23,25 @@ public:
           m_frameRate(25.0),
           m_width(0), 
           m_height(0),
-          m_image(nullptr)
-    {
-        EMBEDWIDGET = false;
-        if (!filePath.isEmpty()) {
-            loadVideoInfo(filePath);
-        }
-    }
+          m_image(nullptr){
+             // 初始化OpenGL上下文
+        m_glContext = new QOpenGLContext();
+        m_glContext->create();
 
-    ~ImageClipModel() override = default;
+        // 创建离屏surface
+        m_surface.create();
+        
+        // 确保OpenGL上下文是当前的
+        m_glContext->makeCurrent(&m_surface);
+
+          }
+
+    ~ImageClipModel() override {
+        if (m_texture) {
+            m_texture->destroy();
+            delete m_texture;
+        }
+    };
 
     // 设置文件路径并加载视频信息
     void setFilePath(const QString& path) { 
@@ -58,8 +70,11 @@ public:
     void load(const QJsonObject& json) override {
         AbstractClipModel::load(json);
         m_filePath = json["filePath"].toString();
+        m_width = json["width"].toInt();
+        m_height = json["height"].toInt();
         m_PosX = json["posX"].toInt();
         m_PosY = json["posY"].toInt();
+        m_image = new QImage(m_filePath);
     }
 
     QVariant data(int role) const override {
@@ -76,6 +91,7 @@ public:
     QVariantMap currentVideoData(int currentFrame) const override {
         QVariantMap data;
         data["image"] = QVariant::fromValue(*m_image);
+        data["texture"] = QVariant::fromValue(m_texture);
         data["posX"] = m_PosX;
         data["posY"] = m_PosY;
         data["width"] = m_width;
@@ -126,7 +142,35 @@ private:
     void loadVideoInfo(const QString& path) {
         m_image=new QImage(path);
         if (!m_image->isNull()) {
+            if (m_texture) {
+                m_texture->destroy();
+                delete m_texture;
+            }
+            // 创建纹理前检查图像是否有效
+            if (m_image && !m_image->isNull()) {
+              
+                if (!m_glContext) {
+                    qDebug() << "No valid OpenGL context found";
+                    return;
+                }
+              
+                m_texture = new QOpenGLTexture(*m_image);
+                if (m_texture && m_texture->isCreated()) {
+                    // 设置纹理过滤参数
+                    m_texture->setMinificationFilter(QOpenGLTexture::Linear);
+                    m_texture->setMagnificationFilter(QOpenGLTexture::Linear);
+                    m_texture->setWrapMode(QOpenGLTexture::ClampToEdge);
+                } else {
+                    qDebug() << "Failed to create texture";
+                    delete m_texture;
+                    m_texture = nullptr;
+                }
+            } else {
+                qDebug() << "Invalid image for texture creation";
+            }
+            qDebug()<<m_texture->isCreated();
             setSize(m_image->size().width(),m_image->size().height());
+          
         }
     }
 
@@ -137,6 +181,9 @@ private:
     int m_PosX;
     int m_PosY;
     QImage* m_image;
+    QOpenGLTexture* m_texture;
+    QOpenGLContext* m_glContext;
+    QOffscreenSurface m_surface;
 };
 
 #endif // IMAGECLIPMODEL_H 

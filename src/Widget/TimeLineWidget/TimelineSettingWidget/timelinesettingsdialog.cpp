@@ -3,7 +3,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <limits>
-#include "Widget/TimeLineWidget/timelinetypes.h"
+#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include <QMessageBox>
 
 TimelineSettingsDialog::TimelineSettingsDialog(TimelineModel* model,QWidget* parent)

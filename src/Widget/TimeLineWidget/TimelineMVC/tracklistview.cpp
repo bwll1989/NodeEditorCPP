@@ -7,7 +7,20 @@
  */
 void TracklistView::onDeleteTrack() {
     if (Model&&selectionModel()->selectedIndexes().size()>=1) {
-        Model->onDeleteTrack(selectionModel()->selectedIndexes().first().row());
+        // 获取要删除的行号
+        int deleteRow = selectionModel()->selectedIndexes().first().row();
+        
+        // 关闭要删除的编辑器
+        QModelIndex deleteIndex = Model->index(deleteRow, 0);
+        closePersistentEditor(deleteIndex);
+        
+        Model->onDeleteTrack(deleteRow);
+        
+        // 只需要重新打开删除行之后的编辑器
+        for (int i = deleteRow; i < Model->rowCount(); ++i) {
+            QModelIndex index = Model->index(i, 0);
+            openPersistentEditor(index);
+        }
     }
 }
 /**
@@ -314,6 +327,7 @@ void TracklistView::paintEvent(QPaintEvent *event) {
 void TracklistView::dragEnterEvent(QDragEnterEvent *event) {
     // 检查是否是我们的自定义MIME类型
     if (event->mimeData()->hasFormat("application/x-track-index")) {
+        
         event->acceptProposedAction();
     }
 }
@@ -341,29 +355,20 @@ void TracklistView::dropEvent(QDropEvent *event) {
 
         // 只在源和目标不同且都有效时进行移动
         if (sourceRow != targetRow && targetRow >= 0 && sourceRow >= 0) {
-            TimelineModel* timelineModel = qobject_cast<TimelineModel*>(model());
-            if (timelineModel) {
-                // 关闭所有持久化编辑器
-                for (int i = 0; i < timelineModel->rowCount(); ++i) {
-                    QModelIndex index = timelineModel->index(i, 0);
-                    closePersistentEditor(index);
-                }
-
-                timelineModel->onMoveTrack(sourceRow, targetRow);
-
+            
+            if (Model) {
+                // 关闭受影响的持久化编辑器
+                closePersistentEditor(Model->index(sourceRow, 0));
+                closePersistentEditor(Model->index(targetRow, 0));
+                Model->onMoveTrack(sourceRow, targetRow);
                 // 清除选择和悬停状态
                 selectionModel()->clearSelection();
                 m_hoverIndex = QModelIndex();
-
-                
-                // 重新打开所有持久化编辑器
-                for (int i = 0; i < timelineModel->rowCount(); ++i) {
-                    QModelIndex index = timelineModel->index(i, 0);
-                    openPersistentEditor(index);
-                }
-
+                // 重新打开受影响的持久化编辑器
+                openPersistentEditor(Model->index(sourceRow, 0));
+                openPersistentEditor(Model->index(targetRow, 0));
                 // 更新编辑器几何形状和视图
-                updateEditorGeometries();
+                // updateEditorGeometries();
                 viewport()->update();
 
                 emit viewupdate();  // 发送信号

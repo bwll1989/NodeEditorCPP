@@ -353,6 +353,7 @@ void TimelineView::addClipAtPosition(const QModelIndex& index, const QPoint& pos
     }
     // Calculate the start frame based on the mouse position
     int startFrame = pointToFrame(pos.x() + m_scrollOffset.x());
+    
     Model->onAddClip(trackIndex,startFrame);
 
     // 更新视图

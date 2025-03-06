@@ -178,20 +178,7 @@ bool TimelineModel::setData(const QModelIndex &index, const QVariant &value, int
     if (!index.isValid()) {
         return false;
     }
-    //如果索引是轨道
     if (index.parent().isValid()){
-            TrackModel* track = static_cast<TrackModel*>(index.internalPointer());
-            if (!track)
-                return false;
-            switch (role){
-                //设置轨道名称
-                case TimelineRoles::TrackNameRole:
-                    track->setName(value.toString());
-                    return true;
-                default:
-                    return false;
-            }
-    }else{
         //如果索引是剪辑
         AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
 
@@ -212,46 +199,60 @@ bool TimelineModel::setData(const QModelIndex &index, const QVariant &value, int
                 clip->setEnd(newPos+clipLength);
                 return true;
             }
-            // 设置剪辑是否显示小部件
+                // 设置剪辑是否显示小部件
             case TimelineRoles::ClipShowWidgetRole: {
                 bool newShowWidget = value.toBool();
                 clip->setEmbedWidget(newShowWidget);
                 return true;
             }
-            // 设置剪辑是否可调整大小
+                // 设置剪辑是否可调整大小
             case TimelineRoles::ClipResizableRole: {
                 bool newResizable = value.toBool();
                 clip->setResizable(newResizable);
-    //            emit dataChanged(index, index);
+                //            emit dataChanged(index, index);
                 return true;
             }
-            // 设置剪辑结束时间
+                // 设置剪辑结束时间
             case TimelineRoles::ClipOutRole: {
                 int newEnd = value.toInt();
                 clip->setEnd(newEnd);
-    //            emit dataChanged(index, index);
-    //            onTimelineLengthChanged();
+                //            emit dataChanged(index, index);
+                //            onTimelineLengthChanged();
                 return true;
             }
-            // 设置剪辑长度
+                // 设置剪辑长度
             case TimelineRoles::ClipLengthRole: {
                 int newLength = value.toInt();
                 clip->setEnd(clip->start()+newLength);
-    //            emit dataChanged(index, index);
-    //            onTimelineLengthChanged();
+                //            emit dataChanged(index, index);
+                //            onTimelineLengthChanged();
                 return true;
             }
-            // 设置剪辑是否显示边框
+                // 设置剪辑是否显示边框
             case TimelineRoles::ClipShowBorderRole: {
                 bool newShowBorder = value.toBool();
                 clip->setShowBorder(newShowBorder);
-    //            emit dataChanged(index, index);
+                //            emit dataChanged(index, index);
                 return true;
             }
-            // 可以添加其他角色的处理
+                // 可以添加其他角色的处理
             default:
                 return false;
         }
+
+    }else{
+        TrackModel* track = static_cast<TrackModel*>(index.internalPointer());
+        if (!track)
+            return false;
+        switch (role){
+            //设置轨道名称
+            case TimelineRoles::TrackNameRole:
+                track->setName(value.toString());
+                return true;
+            default:
+                return false;
+        }
+
     }
 }
 
@@ -283,8 +284,17 @@ QJsonObject TimelineModel::save() const {
     modelJson["timecodeType"] = static_cast<int>(timecodeType);
     modelJson["displayFormat"] = static_cast<int>(m_timeDisplayFormat);
     modelJson["isLooping"] = m_timecodeGenerator->isLooping();
-    for (const TrackModel* track : m_tracks) {
-        trackArray.append(track->save());
+    //轮询所有轨道
+    for (TrackModel* track : m_tracks) {
+        QJsonObject trackJson = track->save();
+        QJsonArray clipArray;
+        QVector<AbstractClipModel*> clips = track->getClips();
+        //轮询轨道下所有片段
+        for (AbstractClipModel* clip : clips) {
+            clipArray.append(clip->save());
+        }
+        trackJson["clips"] = clipArray;
+        trackArray.append(trackJson);
     }
     
     modelJson["tracks"] = trackArray;
@@ -313,9 +323,15 @@ void TimelineModel::load(const QJsonObject &modelJson) {
         QJsonObject trackJson = trackValue.toObject();
         QString type = trackJson["type"].toString();
         TrackModel* track = new TrackModel(trackJson["trackIndex"].toInt(), type,this);
-        track->load(trackJson, m_pluginLoader);
-        m_tracks.push_back(track);
-
+        onAddTrack(track);
+        QJsonArray clipArray = trackJson["clips"].toArray();
+        for(const QJsonValue &clipValue : clipArray){
+            QJsonObject clipJson = clipValue.toObject();
+            AbstractClipModel* clip = getPluginLoader()->createModelForType(clipJson["type"].toString(), clipJson["start"].toInt());
+            clip->setTrackIndex(track->trackIndex());
+            clip->load(clipJson);
+            onAddClip(clip);
+        }
     }
     emit S_trackAdd();
     // 加载舞台信息
@@ -327,7 +343,7 @@ void TimelineModel::load(const QJsonObject &modelJson) {
         emit S_stageInited();
     }
 
-//    emit S_timelineUpdated();
+   emit S_timelineUpdated();
 
 
 }
@@ -364,7 +380,7 @@ void TimelineModel::onDeleteTrack(int trackIndex) {
     emit S_trackDelete();
 
 } 
-// 创建轨道
+// 通过类型名创建轨道
 void TimelineModel::onAddTrack(const QString& type) {
     if (!m_pluginLoader) return;
         
@@ -375,6 +391,19 @@ void TimelineModel::onAddTrack(const QString& type) {
         endInsertRows();
         emit S_trackAdd();
     }
+
+void TimelineModel::onAddTrack(TrackModel* track) {
+    auto trackIndex =track->trackIndex();
+    beginInsertRows(QModelIndex(), trackIndex, trackIndex);
+    m_tracks.insert(trackIndex, track);
+    connect(track, &TrackModel::S_trackLengthChanged, this, &TimelineModel::onTimelineLengthChanged);
+    // Update indices of tracks after insertion point
+    for (int i = trackIndex + 1; i < m_tracks.size(); ++i) {
+        m_tracks[i]->onSetTrackIndex(i);
+    }
+    endInsertRows();
+    emit S_trackAdd();
+}
 
 void TimelineModel::onMoveTrack(int sourceRow, int targetRow) {
     m_tracks.move(sourceRow, targetRow);
@@ -399,6 +428,19 @@ void TimelineModel::onAddClip(int trackIndex, int startFrame) {
     getTracks()[trackIndex]->onAddClip(newClip);
     emit S_addClip();
 }
+//通过片段模型添加片段
+void TimelineModel::onAddClip(AbstractClipModel* newClip){
+    newClip->setTimecodeType(getTimecodeType());
+    connect(newClip,AbstractClipModel::timelinePositionChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+//    结束时间变化时刷新显示
+    connect(newClip,AbstractClipModel::lengthChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,AbstractClipModel::posChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,AbstractClipModel::rotateChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,AbstractClipModel::sizeChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    getTracks()[newClip->trackIndex()]->onAddClip(newClip);
+    emit S_addClip();
+}
+
 void TimelineModel::onDeleteClip(QModelIndex clipIndex){
      if (!clipIndex.isValid() || !clipIndex.parent().isValid())
         return;

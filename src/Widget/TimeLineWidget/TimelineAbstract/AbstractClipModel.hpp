@@ -4,7 +4,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtCore/QJsonObject>
-#include "Widget/TimeLineWidget/timelinetypes.h"
+#include "timelinetypes.h"
 
 class AbstractClipModel : public QObject {
     Q_OBJECT
@@ -14,8 +14,8 @@ public:
         {
             // 是否可调整大小
             RESIZEABLE = true;
-            // 是否显示小部件
-            EMBEDWIDGET = true;
+            // 是否在片段中嵌入编辑器
+            EMBEDWIDGET = false;
             // 是否显示边框
             SHOWBORDER = true;
         }
@@ -157,15 +157,14 @@ Q_SIGNALS:
      * 数据变化信号
      */
     void lengthChanged();  // 添加长度变化信号
-//    void startChanged();  // 添加开始变化信号
-//    void endChanged();  // 添加结束变化信号
+
     void filePathChanged(const QString& filePath);  // 添加文件路径变化信号
 
     void sizeChanged(QSize size);   //添加尺寸变化信号
     void posChanged(QPoint position); //位置变化信号
 
     void rotateChanged(int rotete); //旋转变化信号
-    void timelinePositionChanged(int frame); //时间轴上位置变化信号
+    void timelinePositionChanged(int frame); //时间轴上位置变化信号，即开始时间
     void videoDataUpdate() const; //视频数据更新
     void audioDataUpdate() const; //音频数据更新
     void controlDataUpdate() const; //控制数据更新

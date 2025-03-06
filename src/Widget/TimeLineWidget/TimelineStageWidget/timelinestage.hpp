@@ -8,7 +8,7 @@
 #include "Widget/TimeLineWidget/TimelineMVC/timelinestyle.hpp"
 #include <QImage>
 #include <QPainter>
-#include "Widget/TimeLineWidget/timelineimageproducer.hpp"
+#include "Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp"
 
 class TimelineStage : public QQuickItem
 {
@@ -202,8 +202,8 @@ public slots:
 private:
     //屏幕对象列表
     QVector<TimelineScreen*> m_screens;
-    //缩放因子
-    qreal m_zoomFactor = 1.0;
+    //初始缩放因子
+    qreal m_zoomFactor = 0.2;
     //视图位置
     QPointF m_viewPosition;
     //当前帧图像

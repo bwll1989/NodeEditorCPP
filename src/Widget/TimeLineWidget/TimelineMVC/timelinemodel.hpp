@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <vector>
 #include <QJsonArray>
-#include "Widget/TimeLineWidget/timelinetypes.h"
+#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include "timelinestyle.hpp"
 #include <QFile>
 #include <QJsonDocument>
@@ -43,11 +43,16 @@ public:
                     onCreateCurrentVideoData(frame);
                
             });
-
+        //轨道移动后更新当前帧数据
         connect(this, &TimelineModel::S_trackMoved, this, [this](int oldindex,int newindex){
             onCreateCurrentVideoData(this->getPlayheadPos());
         });
+        //删除轨道后更新当前帧数据
         connect(this, &TimelineModel::S_trackDelete, this, [this](){
+            onCreateCurrentVideoData(this->getPlayheadPos());
+        });
+        //删除片段后更新当前帧数据
+        connect(this, &TimelineModel::S_deleteClip, this, [this](){
             onCreateCurrentVideoData(this->getPlayheadPos());
         });
     }
@@ -274,8 +279,10 @@ public slots:
  * @param int newPlayheadPos 新的播放头位置
  */
     void onSetPlayheadPos(int newPlayheadPos);
-
+    //通过轨道索引和开始帧添加片段
     void onAddClip(int trackIndex,int startFrame);
+    //通过片段模型添加片段
+    void onAddClip(AbstractClipModel* clip);
     /**
      * 删除片段
      * @param QModelIndex clipIndex 片段索引
@@ -291,6 +298,8 @@ public slots:
  * @param const QString& type 类型
  */
     void onAddTrack(const QString& type);
+    //通过片段模型添加轨道
+    void onAddTrack(TrackModel* track);
     /**
     * 删除轨道
     * @param int trackIndex 轨道索引

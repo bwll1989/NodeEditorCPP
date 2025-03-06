@@ -109,7 +109,7 @@ protected:
      * @param Qt::KeyboardModifiers modifiers 键盘修饰符
      * @return QModelIndex 索引
      */
-    QModelIndex moveCursor(CursorAction cursorAction, Qt::KeyboardModifiers modifiers) override {return QModelIndex();}
+    QModelIndex moveCursor(CursorAction cursorAction, Qt::KeyboardModifiers modifiers) override { return QModelIndex();}
     /**
      * 水平偏移
      * @return int 水平偏移

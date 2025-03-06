@@ -50,8 +50,7 @@ QJsonObject AbstractClipModel::save() const {
     clipJson["end"] = m_end;
     clipJson["type"] = m_type;
     clipJson["track"] = m_trackIndex;
-    clipJson["resizable"] = RESIZEABLE;
-    clipJson["embedWidget"] = EMBEDWIDGET;
+
     return clipJson;
 }
 
@@ -60,8 +59,6 @@ void AbstractClipModel::load(const QJsonObject& json) {
     m_end = json["end"].toInt();
     m_type = json["type"].toString();
     m_trackIndex = json["track"].toInt();
-    RESIZEABLE = json.value("resizable").toBool(true);
-    EMBEDWIDGET = json.value("embedWidget").toBool(true);
 }
 
 

@@ -297,7 +297,7 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/TimelineMVC/timelinemodel.cpp
         src/Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp
         src/Widget/TimeLineWidget/TimelineMVC/timelinestyle.hpp
-        src/Widget/TimeLineWidget/timelinetypes.h
+        src/Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h
         src/Widget/TimeLineWidget/TimelineMVC/timelineview.cpp
         src/Widget/TimeLineWidget/TimelineMVC/timelineview.hpp
         src/Widget/TimeLineWidget/timelinewidget.cpp
@@ -309,8 +309,8 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/videoplayerwidget.cpp
         src/Widget/TimeLineWidget/ClipPropertyWidget/clipproperty.hpp
         src/Widget/TimeLineWidget/ClipPropertyWidget/clipproperty.cpp
-        src/Widget/TimeLineWidget/timelinetoolbar.hpp
-        src/Widget/TimeLineWidget/timelinetoolbar.cpp
+        src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.hpp
+        src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.cpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.cpp
         src/Widget/StageWidget/StageWidget.hpp
@@ -322,7 +322,7 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.cpp
         src/Widget/TimeLineWidget/TimelineMVC/timecodegenerator.hpp
         src/Widget/TimeLineWidget/TimelineMVC/timecodegenerator.cpp
-        src/Widget/TimeLineWidget/timelineimageproducer.hpp
+        src/Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

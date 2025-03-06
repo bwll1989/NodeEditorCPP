@@ -4,7 +4,7 @@
 #include <QAbstractItemView>
 //#include "mediaclips/meidaclipdelegate.hpp"
 #include <unordered_map>
-#include "Widget/TimeLineWidget/timelinetypes.h"
+#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include <QEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -14,7 +14,7 @@
 #include "timelinemodel.hpp"
 #include "timelinestyle.hpp"
 #include "trackdelegate.hpp"
-#include "Widget/TimeLineWidget/timelinetoolbar.hpp"
+#include "Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.hpp"
 //#include "mediaclips/mediaclipmodel.hpp"
 // #include "QTimer"
 #include "QMenu"

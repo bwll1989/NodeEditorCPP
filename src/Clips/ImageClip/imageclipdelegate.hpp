@@ -83,23 +83,19 @@ public:
                 // 断开所有信号连接以避免设置初始值时触发更新
                 m_sizeXSpinBox->blockSignals(true);
                 m_sizeYSpinBox->blockSignals(true); 
-                m_xSpinBox->blockSignals(true);
-                m_ySpinBox->blockSignals(true);
-
+             
                 m_model->setFilePath(filePath);  // 这会触发视频信息加载和长度更新
                 fileNameLabel->setText(filePath);
                 // 更新时长显示，使用时间码格式
                 durationBox->setText(FramesToTimeString(m_model->length(), m_model->getFrameRate()));
                 m_sizeXSpinBox->setValue(m_model->getWidth());
                 m_sizeYSpinBox->setValue(m_model->getHeight());
-                m_xSpinBox->setValue(m_model->getPosX());
-                m_ySpinBox->setValue(m_model->getPosY());
+                
 
                 // 恢复信号连接
                 m_sizeXSpinBox->blockSignals(false);
                 m_sizeYSpinBox->blockSignals(false);
-                m_xSpinBox->blockSignals(false); 
-                m_ySpinBox->blockSignals(false);
+             
                 
             }
         });

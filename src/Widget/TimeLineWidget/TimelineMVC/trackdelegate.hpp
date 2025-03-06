@@ -87,8 +87,8 @@ public:
         layout->addWidget(lineEdit);
         // 移动轨道按钮
         QLabel* moveLabel = new QLabel();
-        moveLabel->setPixmap(QPixmap(":/icons/icons/move.png"));
-        moveLabel->setFixedSize(20,10);
+        moveLabel->setFixedSize(20,20);
+        moveLabel->setPixmap(QPixmap(":/icons/icons/move.png").scaled(moveLabel->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation));
         moveLabel->setAlignment(Qt::AlignCenter);
         moveLabel->setStyleSheet("QLabel { background: rgba(255, 255, 255, 0); color: white; border: none; }");
         layout->addWidget(moveLabel);

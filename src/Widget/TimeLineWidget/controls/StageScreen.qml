@@ -128,13 +128,13 @@ StageControlBase {
             Text {
                 text: root.name
                 color: "#FFFFFF"
-                font.pixelSize: 12
+                font.pixelSize: 25
             }
             
             Text {
                 text: root.positionText
                 color: "#AAAAAA"
-                font.pixelSize: 10
+                font.pixelSize: 20
             }
         }
         
@@ -145,7 +145,7 @@ StageControlBase {
             anchors.margins: 5
             text: resolution
             color: "#ffffff"
-            font.pixelSize: 10
+            font.pixelSize: 20
         }
     }
     

@@ -29,7 +29,7 @@
 #include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"
 #include "Widget/TimeLineWidget/TimelineMVC/timelineview.hpp"
 #include "Widget/TimeLineWidget/TimelineMVC/tracklistview.hpp"
-#include "timelinetypes.h"
+#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include <QWidget>
 #include <QFileDialog>
 #include <QJsonDocument>

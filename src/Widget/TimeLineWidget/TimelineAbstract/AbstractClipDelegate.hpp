@@ -3,7 +3,7 @@
 
 #include <QAbstractItemDelegate>
 #include <QPainter>
-#include "Widget/TimeLineWidget/timelinetypes.h"
+#include "timelinetypes.h"
 #include "Widget/TimeLineWidget/TimelineMVC/timelinestyle.hpp"
 #include <QPushButton>
 #include <QFileDialog>

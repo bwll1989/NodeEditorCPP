@@ -13,7 +13,7 @@ Rectangle {
     property int totalFrames: 100
     property bool isPlaying: false
     property int screenCount: 0
-    property real zoomFactor: stage ? stage.zoomFactor : 1.0  // 添加空检查
+    property real zoomFactor: stage ? stage.zoomFactor : 0.5  // 设置默认缩放为 0.5
     onZoomFactorChanged: {
         if (stage) {
             stage.zoomFactor = zoomFactor;
@@ -93,40 +93,40 @@ Rectangle {
             var ctx = getContext("2d");
             ctx.reset();
             
-            // Draw grid
-            ctx.strokeStyle = "#252525";
-            ctx.lineWidth = 1;
+            // // Draw grid
+            // ctx.strokeStyle = "#252525";
+            // ctx.lineWidth = 1;
             
-            // Calculate grid size based on zoom
-            var gridSize = 50 * root.zoomFactor;
+            // // Calculate grid size based on zoom
+            // var gridSize = 50 * root.zoomFactor;
             
-            // Calculate visible area boundaries
-            var startX = -controlsContainer.x / root.zoomFactor;
-            var startY = -controlsContainer.y / root.zoomFactor;
-            var endX = (width - controlsContainer.x) / root.zoomFactor;
-            var endY = (height - controlsContainer.y) / root.zoomFactor;
+            // // Calculate visible area boundaries
+            // var startX = -controlsContainer.x / root.zoomFactor;
+            // var startY = -controlsContainer.y / root.zoomFactor;
+            // var endX = (width - controlsContainer.x) / root.zoomFactor;
+            // var endY = (height - controlsContainer.y) / root.zoomFactor;
             
-            // Adjust grid starting positions
-            var firstX = Math.floor(startX / gridSize) * gridSize;
-            var firstY = Math.floor(startY / gridSize) * gridSize;
+            // // Adjust grid starting positions
+            // var firstX = Math.floor(startX / gridSize) * gridSize;
+            // var firstY = Math.floor(startY / gridSize) * gridSize;
             
-            // Draw vertical lines
-            for(var x = firstX; x <= endX; x += gridSize) {
-                var screenX = x * root.zoomFactor + controlsContainer.x;
-                ctx.beginPath();
-                ctx.moveTo(screenX, 0);
-                ctx.lineTo(screenX, height);
-                ctx.stroke();
-            }
+            // // Draw vertical lines
+            // for(var x = firstX; x <= endX; x += gridSize) {
+            //     var screenX = x * root.zoomFactor + controlsContainer.x;
+            //     ctx.beginPath();
+            //     ctx.moveTo(screenX, 0);
+            //     ctx.lineTo(screenX, height);
+            //     ctx.stroke();
+            // }
             
-            // Draw horizontal lines
-            for(var y = firstY; y <= endY; y += gridSize) {
-                var screenY = y * root.zoomFactor + controlsContainer.y;
-                ctx.beginPath();
-                ctx.moveTo(0, screenY);
-                ctx.lineTo(width, screenY);
-                ctx.stroke();
-            }
+            // // Draw horizontal lines
+            // for(var y = firstY; y <= endY; y += gridSize) {
+            //     var screenY = y * root.zoomFactor + controlsContainer.y;
+            //     ctx.beginPath();
+            //     ctx.moveTo(0, screenY);
+            //     ctx.lineTo(width, screenY);
+            //     ctx.stroke();
+            // }
             
             // Draw center crosshair
             ctx.strokeStyle = "#404040";

@@ -2,18 +2,12 @@
 #define TRACKMODEL_HPP
 #pragma once
 #include <QObject>
-#include "Widget/TimeLineWidget/timelinetypes.h"
+#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include <QJsonObject>
 #include <QJsonArray>
 #include <vector>
 #include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
-// #include "clips/VideoClip/videoclipmodel.hpp"
-// #include "clips/AudioClip/audioclipmodel.hpp"
-// #include "clips/MappingClip/mappingclipmodel.hpp"
-// #include "clips/TriggerClip/triggerclipmodel.hpp"
 #include "pluginloader.hpp"
-// #include "timelinemodel.hpp"
-
 // 前向声明 TimelineModel 类
 class TimelineModel;
 
@@ -81,12 +75,6 @@ public:
         trackJson["trackIndex"] = m_trackIndex;
         trackJson["trackLength"] = m_trackLength;
         trackJson["trackName"] = m_name;
-        QJsonArray clipArray;
-        for (const AbstractClipModel* clip : m_clips) {
-            clipArray.append(clip->save());
-        }
-        trackJson["clips"] = clipArray;
-
         return trackJson;
     }
     /**
@@ -114,25 +102,7 @@ public:
         m_trackIndex = trackJson["trackIndex"].toInt();
         m_trackLength = trackJson["trackLength"].toInt();
         m_name = trackJson["trackName"].toString();
-        QJsonArray clipArray = trackJson["clips"].toArray();
-        for (const QJsonValue &clipValue : clipArray) {
-            QJsonObject clipObject = clipValue.toObject();
-            QString clipType = clipObject["type"].toString();
-            int start = clipObject["start"].toInt();
-            int end = clipObject["end"].toInt();
-
-            AbstractClipModel* clip = pluginLoader->createModelForType(clipType, start);
-            //片段长度变化时更新轨道长度
-            connect(clip, &AbstractClipModel::lengthChanged, this, &TrackModel::onCalculateTrackLength);
-            clip->setEnd(end);
-            if (clip) {
-
-                clip->setTrackIndex(m_trackIndex);
-                clip->load(clipObject);
-                m_clips.push_back(clip);
-            }
-        }
-        onCalculateTrackLength();
+      
     }
 
 public:
@@ -180,7 +150,7 @@ public slots:
 
         //片段长度变化时更新轨道长度
         connect(newClip, &AbstractClipModel::lengthChanged, this, &TrackModel::onCalculateTrackLength);
-
+        // connect(newClip, &AbstractClipModel::timelinePositionChanged, this, &TrackModel::onTimelinePositionChanged);
         if (newClip) {
             newClip->setTrackIndex(m_trackIndex);
             m_clips.push_back(newClip);
