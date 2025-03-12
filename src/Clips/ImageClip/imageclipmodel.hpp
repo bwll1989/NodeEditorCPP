@@ -92,6 +92,7 @@ public:
         QVariantMap data;
         data["image"] = QVariant::fromValue(*m_image);
         data["texture"] = QVariant::fromValue(m_texture);
+        data["filePath"] = m_filePath;
         data["posX"] = m_PosX;
         data["posY"] = m_PosY;
         data["width"] = m_width;

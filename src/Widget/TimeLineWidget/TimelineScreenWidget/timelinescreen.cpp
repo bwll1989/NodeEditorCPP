@@ -18,15 +18,22 @@
 #include <QResizeEvent>
 #include <QJsonObject>
 
+#include <QGuiApplication>
 TimelineScreen::TimelineScreen(QWidget *parent)
     : AbstractTimelineScreen(parent)
 {
     setAttribute(Qt::WA_OpaquePaintEvent);
+    setupVideoWindow();
 }
 
 TimelineScreen::~TimelineScreen()
 {
     // 基类会处理 m_propertiesWidget 的删除
+    if (m_videoPlayer) {
+        m_videoPlayer->close();
+        delete m_videoPlayer;
+        m_videoPlayer = nullptr;
+    }
 }
 
 void TimelineScreen::registerType()
@@ -79,9 +86,14 @@ void TimelineScreen::createPropertiesWidget()
         auto statusValue = new QLabel(tr("离线"));
         statusValue->setStyleSheet("QLabel { color: red; }");
         auto testButton = new QPushButton(tr("连接测试"));
+        auto showVideoButton = new QPushButton(tr("显示窗口"));
+        showVideoButton->setCheckable(true);
+        connect(showVideoButton, &QPushButton::clicked, this, &TimelineScreen::showVideoWindow);
+        
         statusLayout->addWidget(statusLabel);
         statusLayout->addWidget(statusValue);
         statusLayout->addWidget(testButton);
+        statusLayout->addWidget(showVideoButton);
         generalLayout->addRow("", statusLayout);      
 
         // 显示分辨率组
@@ -309,6 +321,43 @@ void TimelineScreen::createPropertiesWidget()
         connect(this, &TimelineScreen::greenIntensityChanged, this, &TimelineScreen::updatePropertyWidgets);
         connect(this, &TimelineScreen::blueIntensityChanged, this, &TimelineScreen::updatePropertyWidgets);
         connect(this, &TimelineScreen::gammaChanged, this, &TimelineScreen::updatePropertyWidgets);
+    }
+}
+
+void TimelineScreen::setupVideoWindow()
+{
+    // 创建视频播放器
+    m_videoPlayer = new VideoPlayerWidget;
+    m_videoPlayer->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);  // 设置为独立窗口
+    m_videoPlayer->setKeepAspectRatio(true);
+    
+   
+}
+
+void TimelineScreen::showVideoWindow(bool show)
+{
+    if (show) {
+        if (!m_videoPlayer) {
+            setupVideoWindow();
+        }
+
+        m_videoPlayer->showFullScreen();
+        
+        // 获取所有屏幕
+        QList<QScreen*> screens = QGuiApplication::screens();
+        
+        // 如果有第二个屏幕，确保窗口在第二个屏幕上
+        if (screens.size() > 1) {
+            QScreen* secondScreen = screens[1];
+            m_videoPlayer->setGeometry(secondScreen->geometry());
+        }
+    } else {
+        if (m_videoPlayer) {
+            m_videoPlayer->close();  // 关闭窗口
+            delete m_videoPlayer;    // 销毁对象
+            m_videoPlayer = nullptr; // 清空指针
+  
+        }
     }
 }
 

@@ -146,6 +146,11 @@ set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-
 include_directories(${FFMPEG_INCLUDE_DIRS})
 link_directories("${FFMPEG_LIB_DIRS}")
 #
+# set(GStreamer_INCLUDE_DIRS "${DEPENDS_DIR}/gstreamer/1.0/mingw_x86_64/include")
+# set(GStreamer_LIB_DIRS "${DEPENDS_DIR}/gstreamer/1.0/mingw_x86_64/lib")
+# include_directories(${GStreamer_INCLUDE_DIRS})
+# link_directories("${GStreamer_LIB_DIRS}")
+# message("-- Found GStreamer ${GStreamer_INCLUDE_DIRS}")
 
 set(QCodeEditor_INCLUDE "${DEPENDS_DIR}/QCodeEditor/include")
 INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})

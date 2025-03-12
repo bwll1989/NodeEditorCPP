@@ -20,7 +20,6 @@
 #include "QMenu"
 // #include "zoomcontroller.hpp"
 #include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
-#include "Widget/TimeLineWidget/videoplayerwidget.hpp"
 #include "Widget/TimeLineWidget/ClipPropertyWidget/clipproperty.hpp"
 // #include "pluginloader.hpp"
 // TimelineView类继承自QAbstractItemView
@@ -83,11 +82,7 @@ signals:
      */
     void currentClipChanged(AbstractClipModel* clip);
 public slots:
-    /**
-     * 显示视频窗口
-     * @param bool show 是否显示
-     */
-    void showVideoWindow(bool show = true);
+    
     /**
      * 更新可视区域
      */
@@ -388,10 +383,7 @@ private:
      * @param int frame 帧
      */
     void movePlayheadToFrame(int frame);
-    /**
-     * 设置视频窗口
-     */
-    void setupVideoWindow();
+    
     // 更新帧位置
     void onFrameChanged(qint64 frame);
     // 播放状态改变

@@ -12,7 +12,7 @@
 #include <QSlider>
 #include <QDoubleSpinBox>
 #include "Widget/TimeLineWidget/TimelineAbstract/AbstractTimelineScreen.hpp"
-
+#include "Widget/TimeLineWidget/videoplayerwidget.hpp"
 class TimelineScreen : public AbstractTimelineScreen
 {
     Q_OBJECT
@@ -36,6 +36,16 @@ public:
      * 注册类型
      */
     static void registerType();
+
+    /**
+     * 设置视频窗口
+     */
+    void setupVideoWindow();
+    /**
+     * 显示视频窗口
+     * @param bool show 是否显示
+     */
+    void showVideoWindow(bool show = true);
 
 protected:
     /**
@@ -83,6 +93,10 @@ private:
      * @return QRect 显示矩形
      */
     QRect calculateDisplayRect() const;
+    /**
+     * 视频播放器
+     */
+    VideoPlayerWidget* m_videoPlayer;
 };
 
 #endif // TIMELINESCREEN_HPP 
