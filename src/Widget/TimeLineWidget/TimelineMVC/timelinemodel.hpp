@@ -259,7 +259,7 @@ public slots:
             // 遍历轨道中的所有片段
             for (AbstractClipModel* clip : track->getClips()) {
                 // 检查当前帧是否在片段范围内
-                if (currentFrame >= clip->start() && currentFrame < clip->end()) {
+                if (currentFrame >= clip->start() && currentFrame <= clip->end()) {
                     // 获取片段在当前帧的数据
                     QVariantMap data = clip->currentVideoData(currentFrame);
                     if(!data.isEmpty()) {

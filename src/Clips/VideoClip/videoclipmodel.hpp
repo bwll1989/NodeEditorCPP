@@ -6,6 +6,12 @@
 #include <QPainter>
 #include <QFont>
 #include <QDebug>
+#include <QFileDialog>
+#include <QVBoxLayout>
+#include <QGroupBox>
+#include <QGridLayout>
+#include <QLabel>
+#include <QPushButton>
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -28,7 +34,12 @@ public:
         }
     }
 
-    ~VideoClipModel() override = default;
+    ~VideoClipModel() override {
+       m_sender.stop();
+       m_sender.close();
+       m_sender.disconnect();
+       delete m_propertyWidget;
+    }
 
     // 设置文件路径并加载视频信息
     void setFilePath(const QString& path) { 
@@ -125,6 +136,94 @@ public:
      * 获取视频垂直位置
      */
     int getPosY() const { return m_PosY; }
+    /**
+     * 获取视频属性窗口
+     */
+    QWidget* propertyWidget() const override {
+        if(!m_propertyWidget){
+            m_propertyWidget = new QWidget();
+            QVBoxLayout* mainLayout = new QVBoxLayout(m_propertyWidget);
+            mainLayout->setContentsMargins(5, 5, 5, 5);
+            mainLayout->setSpacing(4);
+             // 基本设置组
+            auto* basicGroup = new QGroupBox("文件属性", editor);
+            auto* basicLayout = new QGridLayout(basicGroup);
+            // 时间相关控件
+            basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
+            auto* durationBox = new QLineEdit(basicGroup);
+            durationBox->setReadOnly(true);
+            // 将帧数转换为时间码格式显示
+            durationBox->setText(FramesToTimeString(length(), getFrameRate()));
+            basicLayout->addWidget(durationBox, 1, 1);
+            // 文件名显示
+            auto* fileNameLabel = new QLineEdit(filePath(), basicGroup);
+            fileNameLabel->setReadOnly(true);
+            basicLayout->addWidget(fileNameLabel, 2, 0, 1, 2);
+            // 媒体文件选择
+            basicLayout->addWidget(new QLabel("媒体文件:"), 4, 0);
+            auto* mediaButton = new QPushButton("选择视频", basicGroup);
+            basicLayout->addWidget(mediaButton, 4, 1);        
+            // 连接信号槽
+            connect(mediaButton, &QPushButton::clicked, [=]() {
+                QString filePath = QFileDialog::getOpenFileName(editor,
+                    "选择视频文件",
+                    "",
+                    "视频文件 (*.mp4 *.avi *.mkv *.mov);;所有文件 (*)");
+                
+                if (!filePath.isEmpty()) {
+                    setFilePath(filePath);  // 这会触发视频信息加载和长度更新
+                    fileNameLabel->setText(filePath);
+                    // 更新时长显示，使用时间码格式
+                    durationBox->setText(FramesToTimeString(length(), getFrameRate()));
+                    m_sizeXSpinBox->setValue(getWidth());
+                    m_sizeYSpinBox->setValue(getHeight());
+                    m_xSpinBox->setValue(getPosX());
+                    m_ySpinBox->setValue(getPosY());
+                }
+            });
+
+            mainLayout->addWidget(basicGroup);
+
+            basicLayout->addWidget(new QLabel("水平位置:"), 5, 0,1,1);
+            m_xSpinBox->setRange(-9999, 9999);
+            m_xSpinBox->setValue(getPosX());
+            basicLayout->addWidget(m_xSpinBox, 5, 1,1,1);
+            
+            basicLayout->addWidget(new QLabel("垂直位置:"), 6, 0,1,1);
+            m_ySpinBox->setRange(-9999, 9999);
+            m_ySpinBox->setValue(getPosY());
+            basicLayout->addWidget(m_ySpinBox, 6, 1,1,1);        
+            mainLayout->addWidget(basicGroup);
+            // 添加一个按钮，用于设置大小
+            auto* setSizeXLabel = new QLabel("宽度", basicGroup);
+            basicLayout->addWidget(setSizeXLabel, 7, 0, 1, 1);
+            m_sizeXSpinBox->setRange(0, 9999);
+            m_sizeXSpinBox->setValue(getWidth());
+            basicLayout->addWidget(m_sizeXSpinBox, 7, 1, 1, 1);
+            auto* setSizeYLabel = new QLabel("高度", basicGroup);
+            basicLayout->addWidget(setSizeYLabel, 8, 0, 1, 1);
+            m_sizeYSpinBox->setRange(0, 9999);
+            m_sizeYSpinBox->setValue(getHeight());
+            basicLayout->addWidget(m_sizeYSpinBox, 8, 1, 1, 1);
+            connect(m_sizeXSpinBox, &QSpinBox::valueChanged, [=]() {
+                setSize(m_sizeXSpinBox->value(),m_sizeYSpinBox->value());
+            });
+            connect(m_sizeYSpinBox, &QSpinBox::valueChanged, [=]() {
+            setSize(m_sizeXSpinBox->value(),m_sizeYSpinBox->value());
+            });
+            connect(m_xSpinBox, &QSpinBox::valueChanged, [=]() {
+            
+                setPos(m_xSpinBox->value(),m_ySpinBox->value());
+                
+            });
+            connect(m_ySpinBox, &QSpinBox::valueChanged, [=]() {
+                if (m_model) {
+                    setPos(m_xSpinBox->value(),m_ySpinBox->value());
+                }
+            });
+            }
+        return m_propertyWidget;
+    }
 public Q_SLOTS:
 
     /**
@@ -194,6 +293,11 @@ private:
     int m_height;
     int m_PosX;
     int m_PosY;
+    QSpinBox* m_xSpinBox;
+    QSpinBox* m_ySpinBox;
+    QSpinBox* m_sizeXSpinBox;
+    QSpinBox* m_sizeYSpinBox;
+    QWidget* m_propertyWidget;
 };
 
 #endif // VIDEOCLIPMODEL_H 

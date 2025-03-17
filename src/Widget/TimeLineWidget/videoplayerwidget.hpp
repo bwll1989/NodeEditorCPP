@@ -8,11 +8,23 @@
 #include <QImage>
 #include <QMatrix4x4>
 #include <QVector>
+#include <QTimer>
+#include <QMutex>
+#include <QThread>
+#include <QMouseEvent>
+#include <QFileDialog>
 
 // 如果使用 Qt6
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 #include <QOpenGLFunctions_3_3_Core>
 #endif
+
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libswscale/swscale.h>
+#include <libavdevice/avdevice.h>
+}
 
 class VideoPlayerWidget : public QOpenGLWidget, protected QOpenGLFunctions
 {
@@ -20,6 +32,11 @@ class VideoPlayerWidget : public QOpenGLWidget, protected QOpenGLFunctions
 public:
     explicit VideoPlayerWidget(QWidget* parent = nullptr);
     ~VideoPlayerWidget() override;
+
+    void openFile(const QString& filePath);
+    void play();
+    void pause();
+    void stop();
 
     // 更新视频帧
     void updateFrame(const QImage& frame);
@@ -32,32 +49,33 @@ protected:
     void initializeGL() override;
     void paintGL() override;
     void resizeGL(int w, int h) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
 
 private:
     void setupShaders();
     void setupVertexBuffers();
-    void updateTextureCoords();
-    void loadDefaultImage();
+    void updateTexture(const QImage& frame);
+    void decodeVideo();
 
-private:
     QOpenGLShaderProgram* m_program;
     QOpenGLTexture* m_texture;
-    
-    // 顶点和纹理坐标
     QVector<GLfloat> m_vertices;
     QVector<GLfloat> m_texCoords;
-    
-    // 着色器属性位置
     GLuint m_posAttr;
     GLuint m_texAttr;
     GLuint m_matrixUniform;
-    
-    // 变换矩阵
     QMatrix4x4 m_projection;
-    
-    // 当前帧
+
+    AVFormatContext* m_formatCtx;
+    AVCodecContext* m_codecCtx;
+    AVFrame* m_frame;
+    AVPacket* m_packet;
+    SwsContext* m_swsCtx;
+    int m_videoStreamIndex;
     QImage m_currentFrame;
-    bool m_frameUpdated;
+    QTimer* m_timer;
+    QMutex m_mutex;
+    bool m_isPlaying;
     
     // 保持宽高比
     bool m_keepAspectRatio;

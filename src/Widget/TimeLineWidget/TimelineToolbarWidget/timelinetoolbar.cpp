@@ -82,11 +82,11 @@ void TimelineToolbar::createActions()
     m_settingsAction->setToolTip(tr("Settings"));
     connect(m_settingsAction, &QAction::triggered, this, &TimelineToolbar::settingsClicked);
     
-    // m_outputAction = new QAction(this);
-    // m_outputAction->setIcon(QIcon(":/icons/icons/views.png"));
-    // m_outputAction->setToolTip(tr("Output Window"));
-    // m_outputAction->setCheckable(true);
-    // connect(m_outputAction, &QAction::toggled, this, &TimelineToolbar::outputWindowToggled);
+    m_outputAction = new QAction(this);
+    m_outputAction->setIcon(QIcon(":/icons/icons/views.png"));
+    m_outputAction->setToolTip(tr("Output Window"));
+    m_outputAction->setCheckable(true);
+    connect(m_outputAction, &QAction::toggled, this, &TimelineToolbar::outputWindowToggled);
     
     m_moveClipLeftAction = new QAction(this);
     m_moveClipLeftAction->setShortcut(QKeySequence(Qt::Key_Left));
@@ -133,7 +133,7 @@ void TimelineToolbar::setupUI()
     addAction(m_fullscreenAction);
     addAction(m_settingsAction);
     addAction(m_loopAction);
-    // addAction(m_outputAction);
+    addAction(m_outputAction);
     addSeparator();
     addAction(m_moveClipLeftAction);
     addAction(m_moveClipRightAction);

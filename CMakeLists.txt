@@ -376,6 +376,14 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::MultimediaWidgets
             Qt${QT_VERSION_MAJOR}::OpenGL
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+            avcodec
+            avdevice
+            avfilter
+            avformat
+            avutil
+            postproc
+            swresample
+            swscale
             Opengl32
             glu32
             ${portaudio_LIBRARIES}

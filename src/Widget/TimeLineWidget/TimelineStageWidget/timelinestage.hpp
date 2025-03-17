@@ -183,20 +183,20 @@ public slots:
      * @param const QVariantMap &data 当前帧数据
      */
     void updateCurrentFrame(const QList<QVariantMap> &data) {
-        bool hadValidImage = !m_currentFrame.isNull();
-        QPoint oldPos = imagePosition();     
-        // 无论data是否为空始终更新 TimelineImageProducer 中的图像
-        TimelineImageProducer::instance()->updateImage(data);
+        // bool hadValidImage = !m_currentFrame.isNull();
+        // QPoint oldPos = imagePosition();     
+        // // 无论data是否为空始终更新 TimelineImageProducer 中的图像
+        // TimelineImageProducer::instance()->updateImage(data);
         
-        // 获取更新后的图像
-        m_currentFrame = TimelineImageProducer::instance()->getCurrentImage();
+        // // 获取更新后的图像
+        // m_currentFrame = TimelineImageProducer::instance()->getCurrentImage();
         
-        // 如果位置改变，发出信号
-        if (oldPos != imagePosition()) {
-            emit imagePositionChanged();
-        }
+        // // 如果位置改变，发出信号
+        // if (oldPos != imagePosition()) {
+        //     emit imagePositionChanged();
+        // }
         
-        emit currentFrameChanged();
+        // emit currentFrameChanged();
     }
 
 private:

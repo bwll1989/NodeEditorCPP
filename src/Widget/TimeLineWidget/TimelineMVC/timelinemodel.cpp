@@ -369,9 +369,12 @@ void TimelineModel::onDeleteTrack(int trackIndex) {
 
     beginRemoveRows(QModelIndex(), trackIndex, trackIndex); // 开始移除行
    
+    // 删除轨道上的所有片段
+    for (AbstractClipModel* clip : m_tracks[trackIndex]->getClips()) {
+        onDeleteClip(createIndex(trackIndex, 0, clip));
+    }
     delete m_tracks[trackIndex]; // 删除轨道对象
     m_tracks.erase(m_tracks.begin() + trackIndex); // 从列表中移除轨道
-    // 重新计算时间线长度
     for (int i = trackIndex; i < m_tracks.size(); ++i) {
         m_tracks[i]->onSetTrackIndex(i);
     }
@@ -460,7 +463,7 @@ void TimelineModel::onDeleteClip(QModelIndex clipIndex){
     // 从轨道中移除片段
     track->removeClip(clip);
     // 删除片段对象
-    delete clip;
+    // delete clip;
 
     // 结束删除行
     endRemoveRows();

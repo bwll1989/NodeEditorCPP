@@ -2,9 +2,9 @@
 #define TRIGGERCLIPPLUGIN_HPP
 
 #include <QObject>
-#include "TimeLineWidget/clippluginterface.hpp"
-#include "TimeLineWidget/AbstractClipModel.hpp"
-#include "TimeLineWidget/AbstractClipDelegate.hpp"
+#include "TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp"
+#include "TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
+#include "TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
 #include "triggerclipmodel.hpp"
 #include "triggerclipdelegate.hpp"
 

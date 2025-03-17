@@ -1,9 +1,9 @@
 #ifndef TRIGGERCLIPMODEL_H
 #define TRIGGERCLIPMODEL_H
 
-#include "TimeLineWidget/AbstractClipModel.hpp"
+#include "TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 #include <QJsonArray>
-
+#include "../../Common/Devices/OSCSender/OSCSender.h"
 class TriggerClipModel : public AbstractClipModel {
     Q_OBJECT
 public:
@@ -13,7 +13,7 @@ public:
     {
             // 触发器不可调整大小，不可显示小部件
        RESIZEABLE = false;
-       EMBEDWIDGET = true;
+       EMBEDWIDGET = false;
        SHOWBORDER = false;
     }
 
@@ -21,34 +21,36 @@ public:
     // 重写保存和加载函数
     QJsonObject save() const override {
         QJsonObject json = AbstractClipModel::save();
-        json["actionName"] = m_actionName;
-        json["parameters"] = m_parameters;
+
         return json;
     }
 
     void load(const QJsonObject& json) override {
         AbstractClipModel::load(json);
-        m_actionName = json["actionName"].toString();
-        m_parameters = json["parameters"].toObject();
+       
     }
 
     QVariant data(int role) const override {
-        if (role == Qt::DisplayRole) {
-            return m_actionName;
+        switch (role) {
+            case TimelineRoles::ClipModelRole:
+                return QVariant::fromValue(static_cast<AbstractClipModel*>(const_cast<TriggerClipModel*>(this)));
+            default:
+                return AbstractClipModel::data(role);
         }
-        return QVariant();
     }
+
     
-    QVariant currentData(int currentFrame) const override {
-        return QVariant();
+    QVariantMap currentControlData(int currentFrame) const override {
+        return QVariantMap();
     }
 
 Q_SIGNALS:
     void triggered(const QString& actionName, const QJsonObject& parameters);
 
 private:
-    QString m_actionName;                  // 动作名称
-    QJsonObject m_parameters;              // 动作参数
+    OSCSender* m_oscSender;
+    QString m_oscHost;
+    QString m_oscPort;
 };
 
 #endif // TRIGGERCLIPMODEL_H 

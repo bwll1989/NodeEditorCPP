@@ -5,12 +5,25 @@
 #include <QtCore/QString>
 #include <QtCore/QJsonObject>
 #include "timelinetypes.h"
-
+#include <QWidget>
+#include <QVBoxLayout>
+#include <QSpinBox>
+#include <QLineEdit>
+#include <QGroupBox>
+#include <QDialogButtonBox>
+#include <QLabel>
+#include <QDialog>
 class AbstractClipModel : public QObject {
     Q_OBJECT
 public:
     explicit AbstractClipModel(int start, int end, const QString& type, TimecodeType timecodeType=TimecodeType::PAL, QObject* parent = nullptr)
-        : QObject(parent),m_type(type), m_start(start), m_end(end), m_timecodeType(timecodeType)  
+        : QObject(parent),
+        m_type(type),
+        m_start(start),
+        m_end(end), 
+        m_timecodeType(timecodeType),
+        m_clipPropertyWidget(nullptr),
+        m_standardPropertyWidget(nullptr)
         {
             // 是否可调整大小
             RESIZEABLE = true;
@@ -50,6 +63,12 @@ public:
      * @param TimecodeType timecodeType 时间码类型
      */
     void setTimecodeType(TimecodeType timecodeType);
+
+    /**
+     * 获取时间码类型
+     * @return TimecodeType 时间码类型
+     */
+    TimecodeType getTimecodeType() const ;
     /**
      * 类型
      * @return QString 类型
@@ -152,6 +171,16 @@ public:
      * @return QVariantMap 当前控制数据
      */
     virtual QVariantMap currentControlData(int currentFrame) const;
+    /**
+     * 生成自定义的窗口，需要包含在标准属性窗口中，需用户自定义
+     * @return QWidget* 自定义窗口
+     */
+    virtual QWidget* clipPropertyWidget(){return nullptr;};
+    /**
+     * 生成标准属性窗口，其中包含自定义的属性
+     * @return QWidget* 属性窗口
+     */
+    QWidget* standardPropertyWidget();
 Q_SIGNALS:
     /**
      * 数据变化信号
@@ -190,6 +219,20 @@ protected:
     bool SHOWBORDER;
     // 时间码类型
     TimecodeType m_timecodeType;
+    // 布局
+    QVBoxLayout* m_layout;
+    //开始帧
+    QSpinBox* m_startFrameSpinBox;
+    //结束帧
+    QSpinBox* m_endFrameSpinBox;
+    //开始时间码
+    QLineEdit* m_startTimeCodeLineEdit;
+    //结束时间码
+    QLineEdit* m_endTimeCodeLineEdit;
+    // 标准属性窗口
+    QWidget* m_standardPropertyWidget;
+    // 代理窗口
+    QWidget* m_clipPropertyWidget;
 };
 
 Q_DECLARE_METATYPE(AbstractClipModel*)

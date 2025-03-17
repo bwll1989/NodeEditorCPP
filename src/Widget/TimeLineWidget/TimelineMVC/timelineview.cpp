@@ -52,11 +52,11 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         });
         
         // 连接工具栏输出窗口切换信号
-        // connect(toolbar, &TimelineToolbar::outputWindowToggled, this, &TimelineView::showVideoWindow);
+        connect(toolbar, &TimelineToolbar::outputWindowToggled, this, &TimelineView::showVideoWindow);
         // 当视频窗口关闭时，更新工具栏按钮状态
-        // connect(this, &TimelineView::videoWindowClosed, [this]() {
-        //     toolbar->m_outputAction->setChecked(false);
-        // });
+        connect(this, &TimelineView::videoWindowClosed, [this]() {
+            toolbar->m_outputAction->setChecked(false);
+        });
 
         connect(Model, &TimelineModel::S_trackAdd, this, &TimelineView::onUpdateViewport);
         connect(Model, &TimelineModel::S_trackDelete, this, &TimelineView::onUpdateViewport);
@@ -65,7 +65,7 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
 
         // installEventFilter(this);
         // 创建视频播放器和窗口
-        // setupVideoWindow();
+        setupVideoWindow();
 
         // 连接工具栏的帧控制信号
         connect(toolbar, &TimelineToolbar::prevFrameClicked, [this]() {
@@ -872,7 +872,42 @@ void TimelineView::wheelEvent(QWheelEvent *event){
         }
         event->accept();
     }
+void TimelineView::setupVideoWindow()
+{
+    // 创建视频播放器
+    videoPlayer = new VideoPlayerWidget;
+    videoPlayer->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);  // 设置为独立窗口
+    // videoPlayer->setKeepAspectRatio(true);
+    
+   
+}
 
+void TimelineView::showVideoWindow(bool show)
+{
+    if (show) {
+        if (!videoPlayer) {
+            setupVideoWindow();
+        }
+
+        videoPlayer->showFullScreen();
+        
+        // 获取所有屏幕
+        QList<QScreen*> screens = QGuiApplication::screens();
+        
+        // 如果有第二个屏幕，确保窗口在第二个屏幕上
+        if (screens.size() > 1) {
+            QScreen* secondScreen = screens[1];
+            videoPlayer->setGeometry(secondScreen->geometry());
+        }
+    } else {
+        if (videoPlayer) {
+            videoPlayer->close();  // 关闭窗口
+            delete videoPlayer;    // 销毁对象
+            videoPlayer = nullptr; // 清空指针
+            emit videoWindowClosed();
+        }
+    }
+}
 
 
 void TimelineView::onFrameChanged(qint64 frame)
@@ -897,14 +932,19 @@ void TimelineView::showClipProperty(const QModelIndex& index)
     //获取片段
     AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
     if (!clip) return;
-    //创建属性窗口
-    auto *m_clipProperty = new ClipProperty(Model, index, this);
+    //获取属性窗口
+    auto *m_clipProperty = clip->standardPropertyWidget();
     if (m_clipProperty){
-        //连接属性窗口变化信号
-        connect(m_clipProperty, &ClipProperty::propertyChanged, [this]() {
-                onUpdateViewport();
-            });
+        //连接属性窗口变化信号,当长度或开始时间码变化时更新视图
+        connect(clip, &AbstractClipModel::lengthChanged, [this]() {
+               onUpdateViewport();
+           });
+        connect(clip, &AbstractClipModel::timelinePositionChanged, [this]() {
+               onUpdateViewport();
+           });
+      
         //显示属性窗口
+        m_clipProperty->setWindowFlags(m_clipProperty->windowFlags() | Qt::WindowStaysOnTopHint);
         m_clipProperty->show();
     }
 }

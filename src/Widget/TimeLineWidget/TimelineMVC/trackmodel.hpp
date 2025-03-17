@@ -35,12 +35,21 @@ public:
      * 移除剪辑
      * @param AbstractClipModel* clip 剪辑
      */
-    void removeClip(AbstractClipModel* clip){
+    void removeClip(AbstractClipModel* clip) {
         auto it = std::find(m_clips.begin(), m_clips.end(), clip);
-        if(it!=m_clips.end())
+        if(it != m_clips.end()) {
+            // 关闭属性面板
+            if (QWidget* propertyWidget = clip->standardPropertyWidget()) {
+                propertyWidget->close();
+            }
+            
+            // 从列表中移除并删除片段
             m_clips.erase(it);
-        emit S_trackDeleteClip();
-
+            delete clip;
+            
+            // 发出信号
+            emit S_trackDeleteClip();
+        }
     }
 
     /**

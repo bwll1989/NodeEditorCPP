@@ -10,7 +10,7 @@
 #include <QLineEdit>
 #include <QHBoxLayout>
 #include <QAbstractItemView>
-
+#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 class AbstractClipDelegate : public QAbstractItemDelegate
 {
     Q_OBJECT
@@ -38,7 +38,13 @@ public:
      * @param const QModelIndex &index 索引
      * @return QWidget * 编辑器
      */
-    virtual QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override=0;
+    virtual QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override{
+    //    auto* clip = index.data(TimelineRoles::ClipModelRole).value<AbstractClipModel*>();
+    //    if(clip){
+    //     return clip->propertyWidget();
+    //    }
+        return nullptr;
+    };
     /**
      * 更新编辑器几何形状
      * @param QWidget *editor 编辑器

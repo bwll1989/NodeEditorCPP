@@ -1,7 +1,7 @@
 #ifndef TRIGGERCLIPDELEGATE_H
 #define TRIGGERCLIPDELEGATE_H
 
-#include "TimeLineWidget/AbstractClipDelegate.hpp"
+#include "TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
 #include <QComboBox>
 #include <QLabel>
 #include <QTextEdit>
@@ -15,7 +15,7 @@ public:
         painter->setRenderHint(QPainter::Antialiasing);
         
         // 计算矩形区域，使其比轨道高度小一些
-        QRect rect = option.rect.adjusted(1, trackHeight/3, -1, -trackHeight/3);
+        QRect rect = option.rect.adjusted(1, trackHeight/3, 30, -trackHeight/3);
         
         // 设置画笔和画刷
         if (option.state & QStyle::State_Selected) {
@@ -30,9 +30,9 @@ public:
         painter->setPen(QPen(ClipBorderColour, 1));
 
         // 绘制左侧竖线
-        painter->setPen(QPen(ClipBorderColour, 2));  // 稍微粗一点的线
-        painter->drawLine(option.rect.left() + 1, option.rect.top(), 
-                         option.rect.left() + 1, option.rect.bottom());
+        painter->setPen(QPen(ClipBorderColour, 4));  // 稍微粗一点的线
+        painter->drawLine(option.rect.left() + 2, option.rect.top(), 
+                         option.rect.left() + 2, option.rect.bottom());
 
         // 设置回细边框
         painter->setPen(QPen(ClipBorderColour, 1));
@@ -46,7 +46,7 @@ public:
         font.setPointSize(8);  // 设置较小的字体大小
         painter->setFont(font);
         painter->drawText(rect, Qt::AlignCenter, "Trigger");
-         painter->restore();  // 恢复状态
+        painter->restore();  // 恢复状态
     }
 
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
@@ -54,7 +54,7 @@ public:
         QVBoxLayout* layout = new QVBoxLayout(editor);
         layout->setContentsMargins(0,0,0,0);
         // Add trigger configuration widgets
-        // layout->addWidget(new QLabel("Trigger"));
+        layout->addWidget(new QLabel("Trigger"));
         // Set semi-transparent background
         QString bgColorWithAlpha = QString("background-color: rgba(%1, %2, %3, 180);")
             .arg(ClipColor.red())

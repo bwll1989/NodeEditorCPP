@@ -2,6 +2,8 @@
 #include <QOpenGLBuffer>
 #include <QPainter>
 #include <QFont>
+#include <QDebug>
+#include <QFileDialog>  // Include for file dialog
 
 // 顶点着色器
 static const char* vertexShaderSource =
@@ -26,10 +28,19 @@ VideoPlayerWidget::VideoPlayerWidget(QWidget* parent)
     : QOpenGLWidget(parent)
     , m_program(nullptr)
     , m_texture(nullptr)
-    , m_frameUpdated(false)
+    , m_formatCtx(nullptr)
+    , m_codecCtx(nullptr)
+    , m_frame(nullptr)
+    , m_packet(nullptr)
+    , m_swsCtx(nullptr)
+    , m_videoStreamIndex(-1)
+    , m_isPlaying(false)
     , m_keepAspectRatio(true)
-    , m_aspectRatio(1.0f)
 {
+    avformat_network_init();
+    m_timer = new QTimer(this);
+    connect(m_timer, &QTimer::timeout, this, &VideoPlayerWidget::decodeVideo);
+
     // 设置背景色为黑色
     setAutoFillBackground(true);
     QPalette pal = palette();
@@ -39,6 +50,8 @@ VideoPlayerWidget::VideoPlayerWidget(QWidget* parent)
     QSurfaceFormat format = QSurfaceFormat::defaultFormat();
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     setFormat(format);
+    // openFile("D:/02_Media/01_Videos/test.mp4");
+    // play();
 }
 
 VideoPlayerWidget::~VideoPlayerWidget()
@@ -47,6 +60,62 @@ VideoPlayerWidget::~VideoPlayerWidget()
     delete m_texture;
     delete m_program;
     doneCurrent();
+
+    if (m_frame) av_frame_free(&m_frame);
+    if (m_packet) av_packet_free(&m_packet);
+    if (m_codecCtx) avcodec_free_context(&m_codecCtx);
+    if (m_formatCtx) avformat_close_input(&m_formatCtx);
+    if (m_swsCtx) sws_freeContext(m_swsCtx);
+}
+
+void VideoPlayerWidget::openFile(const QString& filePath)
+{
+    avformat_open_input(&m_formatCtx, filePath.toStdString().c_str(), nullptr, nullptr);
+    avformat_find_stream_info(m_formatCtx, nullptr);
+
+    for (unsigned int i = 0; i < m_formatCtx->nb_streams; ++i) {
+        if (m_formatCtx->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+            m_videoStreamIndex = i;
+            break;
+        }
+    }
+
+    const AVCodec* codec = avcodec_find_decoder(m_formatCtx->streams[m_videoStreamIndex]->codecpar->codec_id);
+    m_codecCtx = avcodec_alloc_context3(codec);
+    avcodec_parameters_to_context(m_codecCtx, m_formatCtx->streams[m_videoStreamIndex]->codecpar);
+    avcodec_open2(m_codecCtx, codec, nullptr);
+    // Specify the hardware device type as GPU
+    AVBufferRef* hw_device_ctx = nullptr;
+    if (av_hwdevice_ctx_create(&hw_device_ctx, AV_HWDEVICE_TYPE_VAAPI, nullptr, nullptr, 0) < 0) {
+        qDebug() << "Failed to create hardware device context";
+    } else {
+        m_codecCtx->hw_device_ctx = av_buffer_ref(hw_device_ctx);
+    }
+    qDebug() << "hw_device_ctx" << m_codecCtx->hw_device_ctx->data;
+    m_frame = av_frame_alloc();
+    m_packet = av_packet_alloc();
+    m_swsCtx = sws_getContext(m_codecCtx->width, m_codecCtx->height, m_codecCtx->pix_fmt,
+                              m_codecCtx->width, m_codecCtx->height, AV_PIX_FMT_RGBA,
+                              SWS_BILINEAR, nullptr, nullptr, nullptr);
+}
+
+void VideoPlayerWidget::play()
+{
+    m_isPlaying = true;
+    m_timer->start(1000 / 30); // Assume 30 FPS for simplicity
+}
+
+void VideoPlayerWidget::pause()
+{
+    m_isPlaying = false;
+    m_timer->stop();
+}
+
+void VideoPlayerWidget::stop()
+{
+    m_isPlaying = false;
+    m_timer->stop();
+    av_seek_frame(m_formatCtx, m_videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
 }
 
 void VideoPlayerWidget::initializeGL()
@@ -57,14 +126,10 @@ void VideoPlayerWidget::initializeGL()
     setupShaders();
     setupVertexBuffers();
 
-    // 创建纹理对象
     m_texture = new QOpenGLTexture(QOpenGLTexture::Target2D);
     m_texture->setMinificationFilter(QOpenGLTexture::Linear);
     m_texture->setMagnificationFilter(QOpenGLTexture::Linear);
     m_texture->setWrapMode(QOpenGLTexture::ClampToEdge);
-
-    // 加载并显示默认图片
-    loadDefaultImage();
 }
 
 void VideoPlayerWidget::setupShaders()
@@ -98,20 +163,31 @@ void VideoPlayerWidget::setupVertexBuffers()
     };
 }
 
-void VideoPlayerWidget::updateFrame(const QImage& frame)
+void VideoPlayerWidget::decodeVideo()
 {
-    if (frame.isNull()) return;
+    if (!m_isPlaying) return;
 
-    m_currentFrame = frame.convertToFormat(QImage::Format_RGBA8888);
-    m_frameUpdated = true;
-    m_aspectRatio = static_cast<float>(frame.width()) / frame.height();
-    update();
+    if (av_read_frame(m_formatCtx, m_packet) >= 0) {
+        if (m_packet->stream_index == m_videoStreamIndex) {
+            avcodec_send_packet(m_codecCtx, m_packet);
+            if (avcodec_receive_frame(m_codecCtx, m_frame) == 0) {
+                QImage image(m_codecCtx->width, m_codecCtx->height, QImage::Format_RGBA8888);
+                uint8_t* dest[4] = { image.bits(), nullptr, nullptr, nullptr };
+                int destLinesize[4] = { static_cast<int>(image.bytesPerLine()), 0, 0, 0 };
+                sws_scale(m_swsCtx, m_frame->data, m_frame->linesize, 0, m_codecCtx->height, dest, destLinesize);
+                updateTexture(image);
+            }
+        }
+        av_packet_unref(m_packet);
+    }
 }
 
-void VideoPlayerWidget::clearFrame()
+void VideoPlayerWidget::updateTexture(const QImage& frame)
 {
-    m_currentFrame = QImage();
-    m_frameUpdated = true;
+    makeCurrent();
+    m_texture->destroy();
+    m_texture->create();
+    m_texture->setData(frame);
     update();
 }
 
@@ -119,29 +195,18 @@ void VideoPlayerWidget::paintGL()
 {
     glClear(GL_COLOR_BUFFER_BIT);
 
-    if (m_currentFrame.isNull()) return;
-
-    if (m_frameUpdated) {
-        // 更新纹理
-        m_texture->destroy();
-        m_texture->create();
-        m_texture->setData(m_currentFrame);
-        m_frameUpdated = false;
-    }
+    if (!m_texture || !m_texture->isCreated()) return;
 
     m_program->bind();
     m_texture->bind();
 
-    // 设置变换矩阵
     m_program->setUniformValue(m_matrixUniform, m_projection);
 
-    // 设置顶点属性
     m_program->enableAttributeArray(m_posAttr);
     m_program->enableAttributeArray(m_texAttr);
     m_program->setAttributeArray(m_posAttr, m_vertices.constData(), 2);
     m_program->setAttributeArray(m_texAttr, m_texCoords.constData(), 2);
 
-    // 绘制矩形
     glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 
     m_program->disableAttributeArray(m_posAttr);
@@ -151,23 +216,8 @@ void VideoPlayerWidget::paintGL()
 
 void VideoPlayerWidget::resizeGL(int w, int h)
 {
-    // 更新投影矩阵
     m_projection.setToIdentity();
-    
-    if (m_keepAspectRatio && !m_currentFrame.isNull()) {
-        float windowRatio = static_cast<float>(w) / h;
-        float imageRatio = static_cast<float>(m_currentFrame.width()) / m_currentFrame.height();
-        
-        if (windowRatio > imageRatio) {
-            // 窗口比图片更宽，垂直填充
-            float scale = imageRatio / windowRatio;
-            m_projection.scale(scale, 1.0f, 1.0f);
-        } else {
-            // 窗口比图片更高，水平填充
-            float scale = windowRatio / imageRatio;
-            m_projection.scale(1.0f, scale, 1.0f);
-        }
-    }
+    m_projection.ortho(-1, 1, -1, 1, -1, 1);
 }
 
 void VideoPlayerWidget::setKeepAspectRatio(bool keep)
@@ -178,18 +228,14 @@ void VideoPlayerWidget::setKeepAspectRatio(bool keep)
     }
 }
 
-void VideoPlayerWidget::loadDefaultImage()
+void VideoPlayerWidget::mouseDoubleClickEvent(QMouseEvent* event)
 {
+    if (event->button() == Qt::LeftButton) {
+        QString filePath = QFileDialog::getOpenFileName(this, tr("Open Video File"), "", tr("Video Files (*.mp4 *.avi *.mkv *.mov);;All Files (*)"));
+        if (!filePath.isEmpty()) {
+            openFile(filePath);
+            play();
+        }
+    }
+}
 
-    // 如果加载失败，创建一个默认的纯色图片
-    QImage *m_defaultImage = new QImage(640, 360, QImage::Format_RGB32);
-    m_defaultImage->fill(Qt::black);  // 使用黑色背景
-    
-    QPainter painter(m_defaultImage);
-    painter.setPen(Qt::white);
-    painter.setFont(QFont("Arial", 20));
-    painter.drawText(m_defaultImage->rect(), Qt::AlignCenter, "No Video");
-
-    // 更新显示
-    updateFrame(*m_defaultImage);
-} 
