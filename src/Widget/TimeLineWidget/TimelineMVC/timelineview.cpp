@@ -781,34 +781,29 @@ void TimelineView::drawTracks(QPainter* painter)
 
             QModelIndex clipIndex = model()->index(j, 0, trackIndex);
            // 设置画笔和画刷
-            if (selectionModel()->isSelected(clipIndex)) {
-                painter->setBrush(ClipSelectedColor);
-                
-            } else if (m_hoverIndex == clipIndex) {
-                painter->setBrush(ClipHoverColor);
-               
-            } else {
-                painter->setBrush(ClipColor);
-               
-            }            
-            QStyleOptionViewItem option;
-            option.rect = visualRect(clipIndex);
-            option.state = QStyle::State_Selected | QStyle::State_MouseOver;
-
+           AbstractClipModel* clip = clipIndex.data(TimelineRoles::ClipModelRole).value<AbstractClipModel*>();
+           if (clip) {
+            // 计算片段的绘制区域
+            QRect clipRect = visualRect(clipIndex).adjusted(0, clipoffset, 0, -clipoffset);
+            // 判断是否选中
+            bool selected = selectionModel()->isSelected(clipIndex);
+            // 调用片段的绘制方法
+            clip->paint(painter, clipRect, selected);
+        }
             // 使用圆角矩形绘制clip
-            if(clipIndex.data(TimelineRoles::ClipShowBorderRole).toBool()){
-                painter->setPen(QPen(ClipBorderColour, ClipBorderWidth));
-                QRect clipRect = visualRect(clipIndex).adjusted(0, clipoffset, 0, -clipoffset);
-                painter->drawRoundedRect(clipRect, clipround, clipround);  // 设置水平和垂直圆角半径为5像素
-            }
-            if (!indexWidget(clipIndex)&&clipIndex.data(TimelineRoles::ClipShowWidgetRole).toBool()) {
+            // if(clipIndex.data(TimelineRoles::ClipShowBorderRole).toBool()){
+            //     painter->setPen(QPen(ClipBorderColour, ClipBorderWidth));
+            //     QRect clipRect = visualRect(clipIndex).adjusted(0, clipoffset, 0, -clipoffset);
+            //     painter->drawRoundedRect(clipRect, clipround, clipround);  // 设置水平和垂直圆角半径为5像素
+            // }
+            // if (!indexWidget(clipIndex)&&clipIndex.data(TimelineRoles::ClipShowWidgetRole).toBool()) {
                 
-                openPersistentEditor(clipIndex);
-            }
-            else{
-                // closePersistentEditor(clipIndex);
-                itemDelegateForIndex(clipIndex)->paint(painter, option, clipIndex);
-            }
+            //     openPersistentEditor(clipIndex);
+            // }
+            // else{
+            //     // closePersistentEditor(clipIndex);
+            //     itemDelegateForIndex(clipIndex)->paint(painter, option, clipIndex);
+            // }
            
         }
     }
@@ -832,14 +827,14 @@ void TimelineView::selectionChanged(const QItemSelection &selected, const QItemS
     viewport()->update();
 }
 
-QAbstractItemDelegate* TimelineView::itemDelegateForIndex(const QModelIndex &index) const {
-        if (!index.isValid() || !index.parent().isValid()) {
-            return QAbstractItemView::itemDelegateForIndex(index);
-        }
+// QAbstractItemDelegate* TimelineView::itemDelegateForIndex(const QModelIndex &index) const {
+//         if (!index.isValid() || !index.parent().isValid()) {
+//             return QAbstractItemView::itemDelegateForIndex(index);
+//         }
 
-        QString clipType = index.data(TimelineRoles::ClipTypeRole).toString();
-        return Model->getPluginLoader()->createDelegateForType(clipType);
-    }
+//         QString clipType = index.data(TimelineRoles::ClipTypeRole).toString();
+//         return Model->getPluginLoader()->createDelegateForType(clipType);
+//     }
 
 void TimelineView::wheelEvent(QWheelEvent *event){
         if (event->modifiers() & Qt::ControlModifier) {
@@ -933,18 +928,6 @@ void TimelineView::showClipProperty(const QModelIndex& index)
     AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
     if (!clip) return;
     //获取属性窗口
-    auto *m_clipProperty = clip->standardPropertyWidget();
-    if (m_clipProperty){
-        //连接属性窗口变化信号,当长度或开始时间码变化时更新视图
-        connect(clip, &AbstractClipModel::lengthChanged, [this]() {
-               onUpdateViewport();
-           });
-        connect(clip, &AbstractClipModel::timelinePositionChanged, [this]() {
-               onUpdateViewport();
-           });
-      
-        //显示属性窗口
-        m_clipProperty->setWindowFlags(m_clipProperty->windowFlags() | Qt::WindowStaysOnTopHint);
-        m_clipProperty->show();
-    }
+    clip->showPropertyWidget();
+
 }

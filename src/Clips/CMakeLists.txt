@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.5)
 # add_subdirectory(VideoClip)
 # add_subdirectory(ImageClip)
 # add_subdirectory(MappingClip)
-# add_subdirectory(TriggerClip)
+add_subdirectory(TriggerClip)
 add_subdirectory(PlayerClip)
 # add_subdirectory(ArtnetClip)
 

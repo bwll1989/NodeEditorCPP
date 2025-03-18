@@ -39,9 +39,9 @@ public:
         auto it = std::find(m_clips.begin(), m_clips.end(), clip);
         if(it != m_clips.end()) {
             // 关闭属性面板
-            if (QWidget* propertyWidget = clip->standardPropertyWidget()) {
-                propertyWidget->close();
-            }
+            // if (QWidget* propertyWidget = clip->showPropertyWidget()) {
+            //     propertyWidget->close();
+            // }
             
             // 从列表中移除并删除片段
             m_clips.erase(it);
@@ -134,7 +134,7 @@ public slots:
     void onCalculateTrackLength(){
         qint64 length = 0;
         for(AbstractClipModel* clip : m_clips){
-            length = qMax(length, clip->end());
+            length = qMax(length, clip->end()+1);
         }
         if(length != m_trackLength){
             m_trackLength = length;

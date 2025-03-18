@@ -15,13 +15,7 @@
 #include "timelinestyle.hpp"
 #include "trackdelegate.hpp"
 #include "Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.hpp"
-//#include "mediaclips/mediaclipmodel.hpp"
-// #include "QTimer"
 #include "QMenu"
-// #include "zoomcontroller.hpp"
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
-#include "Widget/TimeLineWidget/ClipPropertyWidget/clipproperty.hpp"
-// #include "pluginloader.hpp"
 // TimelineView类继承自QAbstractItemView
 class TimelineView : public QAbstractItemView
 {
@@ -312,7 +306,7 @@ protected slots:
      * @param QModelIndex index 索引
      * @return QAbstractItemDelegate* 代理
      */
-    QAbstractItemDelegate* itemDelegateForIndex(const QModelIndex &index) const override ;
+    // QAbstractItemDelegate* itemDelegateForIndex(const QModelIndex &index) const override ;
 
 private:
     // 当前缩放

@@ -27,7 +27,6 @@ set(Devices_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/Devices)
 # 设置源文件
 set(SOURCES
     playerclipmodel.hpp
-    playerclipdelegate.hpp
     playerclipplugin.hpp
     ${Devices_DIR}/OSCSender/OSCSender.h
     ${Devices_DIR}/OSCSender/OSCSender.cpp
@@ -35,7 +34,6 @@ set(SOURCES
     ${tinyosc_DIR}/tinyosc.h
     ${TIMELINE_SDK_DIR}/AbstractClipModel.hpp
     ${TIMELINE_SDK_DIR}/AbstractClipModel.cpp
-    ${TIMELINE_SDK_DIR}/AbstractClipDelegate.hpp
     ${TIMELINE_SDK_DIR}/AbstractClipInterface.hpp
 )
 

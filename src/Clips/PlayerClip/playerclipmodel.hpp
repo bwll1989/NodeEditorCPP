@@ -10,6 +10,7 @@
 #include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include "../../Common/Devices/OSCSender/OSCSender.h"
 #include <QPushButton>
+
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -23,11 +24,10 @@ public:
           m_filePath(filePath),
           m_oscHost("127.0.0.1:8992"),
           m_playerID("player1"),
-          m_oscSender(nullptr),
           m_editor(nullptr)
     {
         EMBEDWIDGET = false;
-        
+        SHOWBORDER = false;
         setOscHost(m_oscHost);
         
         if (!filePath.isEmpty()) {
@@ -35,11 +35,9 @@ public:
         }
     }
 
-    ~PlayerClipModel() override{
-        delete m_oscSender;
+    ~PlayerClipModel() override {
         delete m_editor;
-       
-    };
+    }
 
     // 设置文件路径并加载视频信息
     void setFilePath(const QString& path) { 
@@ -91,9 +89,6 @@ public:
         QVBoxLayout* mainLayout = new QVBoxLayout(m_editor);
         mainLayout->setContentsMargins(5, 5, 5, 5);
         mainLayout->setSpacing(4);
-        // 尝试直接从 internalPointer 获取
-      
-
         // 基本设置组
         auto* basicGroup = new QGroupBox("文件属性", m_editor);
         auto* basicLayout = new QGridLayout(basicGroup);
@@ -171,10 +166,9 @@ public:
         return m_editor;
     }
 
-    QVariantMap currentVideoData(int currentFrame) const override {
-        // 错误原因:currentVideoData是const成员函数,不能在其中调用非const成员函数
-        // 需要将setFile、play、stop等函数声明为const,或者移除currentVideoData的const限定符
+    QVariantMap currentData(int currentFrame) const override {
         QVariantMap data;
+        if (!m_oscSender) return data;
 
         if(currentFrame == start()) {
             data["/"+m_playerID+"/file"] = m_filePath;
@@ -221,12 +215,11 @@ public Q_SLOTS:
         // 更新成员变量
         m_oscHost = host;
 
-        // 如果OSC发送器存在，更新它的设置
+        // 使用智能指针
         if (m_oscSender) {
             m_oscSender->setHost(newHost, port);
         } else {
-            // 如果OSC发送器不存在，创建一个新的
-            m_oscSender = new OSCSender(newHost, port, this);
+            m_oscSender.reset(new OSCSender(newHost, port, this));
         }
     }
     void setPlayerID(const QString& id) {
@@ -298,7 +291,7 @@ private:
     }
 
     QString m_filePath;
-    OSCSender* m_oscSender;
+    std::unique_ptr<OSCSender> m_oscSender; // 使用智能指针
     QString m_oscHost;
     QString m_playerID;
     QWidget* m_editor;

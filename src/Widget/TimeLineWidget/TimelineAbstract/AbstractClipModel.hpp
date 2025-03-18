@@ -5,6 +5,7 @@
 #include <QtCore/QString>
 #include <QtCore/QJsonObject>
 #include "timelinetypes.h"
+#include "../TimelineMVC/timelinestyle.hpp"
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QSpinBox>
@@ -13,6 +14,10 @@
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QDialog>
+#include <QPainter>
+#include <QRect>
+#include <QColor>
+#include <QFont>
 class AbstractClipModel : public QObject {
     Q_OBJECT
 public:
@@ -153,34 +158,33 @@ public:
                 return QVariant();
         }
     }
-    /**
-     * 获取当前音频数据
-     * @param int currentFrame 当前帧
-     * @return QVariantMap 当前音频数据
-     */
-    virtual QVariantMap currentAudioData(int currentFrame) const;
+
     /**
      * 获取当前视频数据
      * @param int currentFrame 当前帧
      * @return QVariantMap 当前视频数据
      */
-    virtual QVariantMap currentVideoData(int currentFrame) const;
+    virtual QVariantMap currentData(int currentFrame) const;
     /**
      * 获取当前控制数据
      * @param int currentFrame 当前帧
      * @return QVariantMap 当前控制数据
      */
-    virtual QVariantMap currentControlData(int currentFrame) const;
-    /**
-     * 生成自定义的窗口，需要包含在标准属性窗口中，需用户自定义
-     * @return QWidget* 自定义窗口
-     */
+
     virtual QWidget* clipPropertyWidget(){return nullptr;};
     /**
      * 生成标准属性窗口，其中包含自定义的属性
      * @return QWidget* 属性窗口
      */
-    QWidget* standardPropertyWidget();
+    void showPropertyWidget();
+    /**
+     * 绘制片段
+     * @param QPainter* painter 画笔
+     * @param const QRect& rect 绘制区域
+     * @param bool selected 是否被选中
+     */
+
+    virtual void paint(QPainter* painter, const QRect& rect, bool selected) const;
 Q_SIGNALS:
     /**
      * 数据变化信号
@@ -233,6 +237,21 @@ protected:
     QWidget* m_standardPropertyWidget;
     // 代理窗口
     QWidget* m_clipPropertyWidget;
+    /**
+
+     * 绘制背景
+
+     */
+
+    virtual void drawBackground(QPainter* painter, const QRect& rect, bool selected) const ;
+
+    /**
+
+     * 绘制标题
+
+     */
+
+    virtual void drawTitle(QPainter* painter, const QRect& rect) const ;
 };
 
 Q_DECLARE_METATYPE(AbstractClipModel*)

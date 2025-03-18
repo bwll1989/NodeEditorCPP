@@ -3,7 +3,7 @@
 
 #include <QtPlugin>
 #include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
+// #include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
 
 class ClipPlugInterface
 {
@@ -27,7 +27,7 @@ public:
      * 创建代理
      * @return AbstractClipDelegate* 代理
      */
-    virtual AbstractClipDelegate* createDelegate() = 0;
+    // virtual AbstractClipDelegate* createDelegate() = 0;
 };
 
 #define ClipPlugInterface_iid "com.timeline.ClipPlugInterface"

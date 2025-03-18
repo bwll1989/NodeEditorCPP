@@ -293,7 +293,6 @@ set(CALC_SOURCE_FILES
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         src/Widget/TimeLineWidget/videoplayerwidget.hpp
-        src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp
         src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.cpp
         src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp
         src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp
@@ -312,8 +311,6 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/TimelineMVC/tracklistview.hpp
         src/Widget/TimeLineWidget/TimelineMVC/trackmodel.hpp
         src/Widget/TimeLineWidget/videoplayerwidget.cpp
-        src/Widget/TimeLineWidget/ClipPropertyWidget/clipproperty.hpp
-        src/Widget/TimeLineWidget/ClipPropertyWidget/clipproperty.cpp
         src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.hpp
         src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.cpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.hpp

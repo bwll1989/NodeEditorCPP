@@ -419,6 +419,8 @@ void TimelineModel::onMoveTrack(int sourceRow, int targetRow) {
 
 void TimelineModel::onAddClip(int trackIndex, int startFrame) {
     AbstractClipModel* newClip = getPluginLoader()->createModelForType(getTracks()[trackIndex]->type(), startFrame);
+    connect(newClip, &AbstractClipModel::lengthChanged, [this]() {emit S_addClip();});
+    connect(newClip, &AbstractClipModel::timelinePositionChanged, [this]() {emit S_addClip();});
     newClip->setTimecodeType(getTimecodeType());
     connect(newClip,AbstractClipModel::timelinePositionChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
 //    结束时间变化时刷新显示

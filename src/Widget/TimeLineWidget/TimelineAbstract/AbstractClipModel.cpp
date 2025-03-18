@@ -3,7 +3,7 @@
 AbstractClipModel::~AbstractClipModel(){
     if (m_standardPropertyWidget) {
             m_standardPropertyWidget->close();
-            m_standardPropertyWidget->deleteLater();
+            delete m_standardPropertyWidget;
         }
 };
 // Getters
@@ -27,17 +27,38 @@ void AbstractClipModel::setTimecodeType(TimecodeType timecodeType)
 // Setters
 void AbstractClipModel::setStart(int start) { 
     if (m_start != start) {
-        m_start = start; 
-        m_startTimeCode = Timecode::fromFrames(m_start, m_timecodeType);
-        emit timelinePositionChanged(m_start);
+        if(RESIZEABLE){
+           
+            m_start = start; 
+            m_startTimeCode = Timecode::fromFrames(m_start, m_timecodeType);
+            emit timelinePositionChanged(m_start);
+        }else{
+            auto length = this->length();
+            m_start = start; 
+            m_startTimeCode = Timecode::fromFrames(m_start, m_timecodeType);
+            m_end = m_start + length;
+            m_endTimeCode = Timecode::fromFrames(m_end, m_timecodeType);
+            emit timelinePositionChanged(m_start);
+            emit lengthChanged();
+        }
 
     }
 }
 void AbstractClipModel::setEnd(int end) { 
     if (m_end != end) {
-        m_end = end;
-        m_endTimeCode = Timecode::fromFrames(m_end, m_timecodeType);
-        emit lengthChanged();
+        if(RESIZEABLE){
+            m_end = end;
+            m_endTimeCode = Timecode::fromFrames(m_end, m_timecodeType);
+            emit lengthChanged();
+        }else{
+            auto length = this->length();
+            m_end = end;
+            m_endTimeCode = Timecode::fromFrames(m_end, m_timecodeType);
+            m_start = m_end - length;
+            m_startTimeCode = Timecode::fromFrames(m_start, m_timecodeType);
+            emit lengthChanged();
+            emit timelinePositionChanged(m_start);
+        }
 
     }
 }
@@ -67,22 +88,62 @@ void AbstractClipModel::load(const QJsonObject& json) {
     m_trackIndex = json["track"].toInt();
 }
 
-QVariantMap AbstractClipModel::currentVideoData(int currentFrame) const {
+QVariantMap AbstractClipModel::currentData(int currentFrame) const {
 
     return QVariantMap();
 }
 
-QVariantMap AbstractClipModel::currentAudioData(int currentFrame) const {
-    emit audioDataUpdate();
-    return QVariantMap();
+void AbstractClipModel::paint(QPainter* painter, const QRect& rect, bool selected) const {
+
+        // 绘制背景
+
+        drawBackground(painter, rect, selected);
+
+        // 绘制标题
+
+        drawTitle(painter, rect);
+       
+
+    }
+
+void AbstractClipModel::drawBackground(QPainter* painter, const QRect& rect, bool selected) const {
+
+    painter->save();
+    // 设置背景颜色
+    QColor bgColor = selected ? ClipSelectedColor : ClipColor;
+
+    painter->setBrush(bgColor);
+    if(SHOWBORDER){
+        painter->setPen(QPen(ClipBorderColour, ClipBorderWidth));
+    }else{
+        painter->setPen(QPen(bgColor, 0));
+    }
+    // 绘制圆角矩形
+    painter->drawRoundedRect(rect, clipround, clipround);
+
+    painter->restore();
+
 }
 
-QVariantMap AbstractClipModel::currentControlData(int currentFrame) const {
-    emit controlDataUpdate();
-    return QVariantMap();
+void AbstractClipModel::drawTitle(QPainter* painter, const QRect& rect) const {
+
+    painter->save();
+    // 设置文字颜色和字体
+    painter->setPen(Qt::white);
+
+    QFont font = painter->font();
+
+    font.setPointSize(8);
+
+    painter->setFont(font);
+    // 绘制类型和标题
+    QString text = type();
+    painter->drawText(rect, Qt::AlignCenter, text);
+    painter->restore();
+
 }
 
-QWidget* AbstractClipModel::standardPropertyWidget(){
+void AbstractClipModel::showPropertyWidget(){
     if(!m_standardPropertyWidget){
         m_standardPropertyWidget = new QWidget();
         m_layout = new QVBoxLayout(m_standardPropertyWidget);
@@ -161,8 +222,8 @@ QWidget* AbstractClipModel::standardPropertyWidget(){
         // 将内容 widget 添加到主布局
         m_layout->addWidget(contentWidget);
         m_standardPropertyWidget->setWindowFlags(Qt::WindowStaysOnTopHint);
+        
     }
-    
-    return m_standardPropertyWidget;
+    m_standardPropertyWidget->show();
 }
 // 如果有任何其他非内联成员函数，也可以在这里实现 

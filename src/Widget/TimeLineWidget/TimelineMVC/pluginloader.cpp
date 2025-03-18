@@ -55,13 +55,13 @@
         return nullptr;
     }
 
-    AbstractClipDelegate* PluginLoader::createDelegateForType(const QString& type) const {
-        ClipPlugInterface* plugin = getPluginByType(type);
-        if (plugin) {
-            return plugin->createDelegate();
-        }
-        return nullptr;
-    }
+    // AbstractClipDelegate* PluginLoader::createDelegateForType(const QString& type) const {
+    //     ClipPlugInterface* plugin = getPluginByType(type);
+    //     if (plugin) {
+    //         return plugin->createDelegate();
+    //     }
+    //     return nullptr;
+    // }
 
 
 #endif // PLUGINLOADER_HPP

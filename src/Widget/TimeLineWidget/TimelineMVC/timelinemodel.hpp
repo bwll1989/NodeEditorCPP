@@ -253,7 +253,6 @@ public slots:
      */
     QList<QVariantMap> onCreateCurrentVideoData(int currentFrame) const {
         QList<QVariantMap> clipDataList;
-        
         // 遍历所有轨道
         for (TrackModel* track : m_tracks) {
             // 遍历轨道中的所有片段
@@ -261,7 +260,7 @@ public slots:
                 // 检查当前帧是否在片段范围内
                 if (currentFrame >= clip->start() && currentFrame <= clip->end()) {
                     // 获取片段在当前帧的数据
-                    QVariantMap data = clip->currentVideoData(currentFrame);
+                    QVariantMap data = clip->currentData(currentFrame);
                     if(!data.isEmpty()) {
                         clipDataList.append(data);
                     }

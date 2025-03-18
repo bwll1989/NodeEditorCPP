@@ -4,9 +4,7 @@
 #include <QObject>
 #include "TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp"
 #include "TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
-#include "TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
 #include "triggerclipmodel.hpp"
-#include "triggerclipdelegate.hpp"
 
 class TriggerClipPlugin : public QObject, public ClipPlugInterface
 {
@@ -21,10 +19,6 @@ public:
 
     AbstractClipModel* createModel(int start) override {
         return new TriggerClipModel(start, start);
-    }
-
-    AbstractClipDelegate* createDelegate() override {
-        return new TriggerClipDelegate();
     }
 };
 

@@ -43,7 +43,7 @@ public:
      * 创建指定类型的代理
      * @param const QString& type 类型
     */
-    AbstractClipDelegate* createDelegateForType(const QString& type) const;
+    // AbstractClipDelegate* createDelegateForType(const QString& type) const;
 
 signals:
     /**
