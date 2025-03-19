@@ -20,7 +20,7 @@ NodeListWidget::NodeListWidget(CustomDataFlowGraphModel* model, CustomFlowGraphi
     layout->addWidget(nodeTree);
     setLayout(layout);
 
-    populateNodeTree();
+    // populateNodeTree();
 
     // Connect signals to slots
     // node创建时，更新nodeList中的node
@@ -94,41 +94,48 @@ void NodeListWidget::populateNodeTree() {
     for (const auto& nodeId : dataFlowModel->allNodeIds()) {
         QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Type).toString();
         QTreeWidgetItem* nodeItem = new QTreeWidgetItem(nodeTree);
-        nodeItem->setIcon(0,QIcon(":/icons/icons/model_1.png"));
+        nodeItem->setIcon(0, QIcon(":/icons/icons/model_1.png"));
         nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
 
-        // Add properties as child items
-        QTreeWidgetItem* propertyItem = new QTreeWidgetItem(nodeItem);
-        propertyItem->setIcon(0,QIcon(":/icons/icons/property.png"));
-        propertyItem->setText(0, "Property: Value");
-        nodeItem->addChild(propertyItem);
+        // 添加 Properties 分组
+        QTreeWidgetItem* propertiesGroup = new QTreeWidgetItem(nodeItem);
+        propertiesGroup->setIcon(0, QIcon(":/icons/icons/property.png"));
+        propertiesGroup->setText(0, "Properties");
+        
+        // 添加位置属性到 Properties 分组
+        QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
+        QTreeWidgetItem* positionItem = new QTreeWidgetItem(propertiesGroup);
+        positionItem->setIcon(0, QIcon(":/icons/icons/property.png"));
+        positionItem->setText(0, QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
 
-        // 添加位置信息
-        QTreeWidgetItem* positionItem = new QTreeWidgetItem(nodeItem);
-        positionItem->setIcon(0,QIcon(":/icons/icons/property.png"));
-        positionItem->setText(0, QString("Position: "));
-        nodeItem->addChild(positionItem);
+        // 添加 Controls 分组
+        QTreeWidgetItem* controlsGroup = new QTreeWidgetItem(nodeItem);
+        controlsGroup->setIcon(0, QIcon(":/icons/icons/cable.png"));
+        controlsGroup->setText(0, "Controls");
     }
 }
 
 void NodeListWidget::onNodeCreated(NodeId nodeId) {
     QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Type).toString();
     QTreeWidgetItem* nodeItem = new QTreeWidgetItem(nodeTree);
-    nodeItem->setIcon(0,QIcon(":/icons/icons/model_1.png"));
+    nodeItem->setIcon(0, QIcon(":/icons/icons/model_1.png"));
     nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
 
-    // Add properties as child items
-    QTreeWidgetItem* propertyItem = new QTreeWidgetItem(nodeItem);
-    propertyItem->setIcon(0,QIcon(":/icons/icons/property.png"));
-    propertyItem->setText(0, "Property: Value");
-    nodeItem->addChild(propertyItem);
-
-    // Add position as a property
+    // 添加 Properties 分组
+    QTreeWidgetItem* propertiesGroup = new QTreeWidgetItem(nodeItem);
+    propertiesGroup->setIcon(0, QIcon(":/icons/icons/property.png"));
+    propertiesGroup->setText(0, "Properties");
+    
+    // 添加位置属性到 Properties 分组
     QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
-    QTreeWidgetItem* positionItem = new QTreeWidgetItem(nodeItem);
-    positionItem->setIcon(0,QIcon(":/icons/icons/property.png"));
+    QTreeWidgetItem* positionItem = new QTreeWidgetItem(propertiesGroup);
+    positionItem->setIcon(0, QIcon(":/icons/icons/property.png"));
     positionItem->setText(0, QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
-    nodeItem->addChild(positionItem);
+
+    // 添加 Controls 分组
+    QTreeWidgetItem* controlsGroup = new QTreeWidgetItem(nodeItem);
+    controlsGroup->setIcon(0, QIcon(":/icons/icons/cable.png"));
+    controlsGroup->setText(0, "Controls");
 }
 
 void NodeListWidget::onNodeDeleted(NodeId nodeId) {
@@ -145,16 +152,27 @@ void NodeListWidget::onNodeUpdated(NodeId nodeId) {
     for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
         QTreeWidgetItem* nodeItem = nodeTree->topLevelItem(i);
         if (nodeItem->text(0).startsWith(QString::number(nodeId) + ":")) {
-            // Update node name
+            // 更新节点名称
             QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Type).toString();
             nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
 
-            // Update position
+            // 更新位置信息
             QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
+            
+            // 查找 Properties 分组
             for (int j = 0; j < nodeItem->childCount(); ++j) {
-                QTreeWidgetItem* childItem = nodeItem->child(j);
-                if (childItem->text(0).startsWith("Position:")) {
-                    childItem->setText(0, QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
+                QTreeWidgetItem* groupItem = nodeItem->child(j);
+                if (groupItem->text(0) == "Properties") {
+                    // 更新位置属性
+                    for (int k = 0; k < groupItem->childCount(); ++k) {
+                        QTreeWidgetItem* propertyItem = groupItem->child(k);
+                        if (propertyItem->text(0).startsWith("Position:")) {
+                            propertyItem->setText(0, QString("Position: (%1, %2)")
+                                .arg(nodePosition.x())
+                                .arg(nodePosition.y()));
+                            break;
+                        }
+                    }
                     break;
                 }
             }

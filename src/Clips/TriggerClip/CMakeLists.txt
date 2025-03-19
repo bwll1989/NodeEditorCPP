@@ -18,6 +18,10 @@ set(Devices_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/Devices)
 set(SOURCES
     triggerclipmodel.hpp
     triggerclipplugin.hpp
+    OSCMessageListWidget.hpp
+    OSCMessageListWidget.cpp
+    OSCMessageItemWidget.hpp
+    OSCMessageItemWidget.cpp
     ${Devices_DIR}/OSCSender/OSCSender.h
     ${Devices_DIR}/OSCSender/OSCSender.cpp
     ${tinyosc_DIR}/tinyosc.c

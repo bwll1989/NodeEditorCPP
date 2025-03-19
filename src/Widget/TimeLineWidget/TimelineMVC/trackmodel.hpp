@@ -26,11 +26,7 @@ public:
         connect(this,TrackModel::S_trackAddClip,this,TrackModel::onCalculateTrackLength);
         connect(this,TrackModel::S_trackDeleteClip,this,TrackModel::onCalculateTrackLength);
     }
-
-    
     TrackModel() = default;
-
-
     /**
      * 移除剪辑
      * @param AbstractClipModel* clip 剪辑
@@ -159,7 +155,6 @@ public slots:
 
         //片段长度变化时更新轨道长度
         connect(newClip, &AbstractClipModel::lengthChanged, this, &TrackModel::onCalculateTrackLength);
-        // connect(newClip, &AbstractClipModel::timelinePositionChanged, this, &TrackModel::onTimelinePositionChanged);
         if (newClip) {
             newClip->setTrackIndex(m_trackIndex);
             m_clips.push_back(newClip);

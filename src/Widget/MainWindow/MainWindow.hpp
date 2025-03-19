@@ -23,7 +23,6 @@
 #include "Widget/NodeLibraryWidget/draggabletreewidget.hpp"
 #include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
 #include "Widget/TimeLineWidget/timelinewidget.hpp"
-#include "Widget/TimeLineWidget/TimelineWidget.hpp"
 // #include "Widget/ClipPropertyWidget/ClipPropertyWidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "Widget/StageWidget/stagewidget.hpp"

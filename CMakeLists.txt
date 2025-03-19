@@ -122,7 +122,7 @@ message("--Found spdlog ${Spdlog_LIBRARIES}")
 
 
 ## 查找Libpd库
-#find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Quick QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets)
+# find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Quick QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Quick QuickWidgets Widgets Network Concurrent Qml
         QmlWorkerScript
         QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets)
@@ -290,6 +290,7 @@ set(CALC_SOURCE_FILES
         src/DataTypes/AudioData2.h
         src/DataTypes/PixmapData.h
         src/DataTypes/AudioData.h
+        src/DataTypes/OSCMessage.h
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         src/Widget/TimeLineWidget/videoplayerwidget.hpp

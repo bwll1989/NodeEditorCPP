@@ -57,28 +57,37 @@ void OSCReceiver::processPendingDatagrams() {
         if (tosc_parseMessage(&oscMessage, datagram.data(), datagram.size()) == 0) {
             const char *address = tosc_getAddress(&oscMessage);
             result.insert("address", address);
+            message.address = QString(address);
+            message.port = mPort;
 
             const char *format = tosc_getFormat(&oscMessage);
+
             for (int i = 0; format[i] != '\0'; i++) {
                 const char type = format[i];
                 if (type == 'f') {
                     double value = tosc_getNextFloat(&oscMessage);
                     result.insert("type", "Float");
                     result.insert("default", value);
+                    message.value = value;
                 } else if (type == 'i') {
                     int32_t value = tosc_getNextInt32(&oscMessage);
                     result.insert("type", "Int");
                     result.insert("default", QVariant::fromValue(value));
+                    message.value = value;
                 } else if (type == 's') {
                     const char *value = tosc_getNextString(&oscMessage);
                     result.insert("type", "String");
                     result.insert("default", value);
+                    message.value = QString(value);
                 }
             }
             emit receiveOSC(result);
+            emit receiveOSCMessage(message);
         }
     }
 }
+
+
 
 void OSCReceiver::setPort(const int &port) {
     if (mSocket) {

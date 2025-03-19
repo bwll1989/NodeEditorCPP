@@ -8,11 +8,19 @@ set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 
 add_library(${Module_Name} SHARED
         BoolSourceDataModel.hpp
+        ${DEPENDS_DIR}/tinyosc/tinyosc.c
+        ${DEPENDS_DIR}/tinyosc/tinyosc.h
+        ../../Widget/ExternalControl/ExternalControler.hpp
+        ../../Widget/ExternalControl/ExternalControler.cpp
+        ../../Common/Devices/OSCReceiver/OSCReceiver.h
+        ../../Common/Devices/OSCReceiver/OSCReceiver.cpp
+        # ../../DataTypes/OSCMessage.h
+        
         PluginDefinition.hpp
         PluginDefinition.cpp)
 #set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
 
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES})
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} Qt${QT_VERSION_MAJOR}::Network)
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"

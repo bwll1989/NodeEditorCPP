@@ -27,9 +27,7 @@ public:
           m_editor(nullptr)
     {
         EMBEDWIDGET = false;
-        SHOWBORDER = false;
-        setOscHost(m_oscHost);
-        
+        SHOWBORDER = true;
         if (!filePath.isEmpty()) {
             loadVideoInfo(filePath);
         }
@@ -167,17 +165,25 @@ public:
     }
 
     QVariantMap currentData(int currentFrame) const override {
+        OSCMessage msg;
+        msg.host = m_oscHost.split(":")[0];
+        msg.port = m_oscHost.split(":")[1].toInt();
+      
         QVariantMap data;
-        if (!m_oscSender) return data;
+        // if (!m_oscSender) return data;
 
         if(currentFrame == start()) {
             data["/"+m_playerID+"/file"] = m_filePath;
-            m_oscSender->sendMessage(data);
+            msg.address = "/"+m_playerID+"/file";
+            msg.value = m_filePath;
+            OSCSender::instance()->sendOSCMessageWithQueue(msg);
             return data;
         } 
          if(currentFrame+1 == end()) {
             data["/"+m_playerID+"/stop"]=1;
-            m_oscSender->sendMessage(data);
+            msg.address = "/"+m_playerID+"/stop";
+            msg.value = 1;
+            OSCSender::instance()->sendOSCMessageWithQueue(msg);
             return data;
         } 
        
@@ -193,66 +199,68 @@ public Q_SLOTS:
             qDebug() << "Empty host string";
             return;
         }
-
         // 检查是否包含端口号
         QStringList parts = host.split(":");
         if (parts.size() != 2) {
             qDebug() << "Invalid host format. Expected format: host:port";
             return;
         }
-
         // 获取主机名和端口
         QString newHost = parts[0];
         bool ok;
         int port = parts[1].toInt(&ok);
-        
         // 验证端口号
         if (!ok || port <= 0 || port > 65535) {
             qDebug() << "Invalid port number:" << parts[1];
             return;
         }
-
         // 更新成员变量
         m_oscHost = host;
-
-        // 使用智能指针
-        if (m_oscSender) {
-            m_oscSender->setHost(newHost, port);
-        } else {
-            m_oscSender.reset(new OSCSender(newHost, port, this));
-        }
     }
     void setPlayerID(const QString& id) {
         m_playerID = id;
     }
     void play() {
-        QVariantMap data;
-       
-        data["/"+m_playerID+"/play"] = 1;
-        
-        m_oscSender->sendMessage(data);
+        OSCMessage msg;
+        msg.host = m_oscHost.split(":")[0];
+        msg.port = m_oscHost.split(":")[1].toInt();
+          msg.address = "/"+m_playerID+"/play";
+        msg.value = 1;
+        OSCSender::instance()->sendOSCMessageWithQueue(msg);
     }
 
     void stop() {
-        QVariantMap data;
-        data["/"+m_playerID+"/stop"] = 1;
-        m_oscSender->sendMessage(data);
+        OSCMessage msg;
+        msg.host = m_oscHost.split(":")[0];
+        msg.port = m_oscHost.split(":")[1].toInt();
+        msg.address = "/"+m_playerID+"/stop";
+        msg.value = 1;
+        OSCSender::instance()->sendOSCMessageWithQueue(msg);
     }
     void pause() {
-        QVariantMap data;
-        data["/"+m_playerID+"/pause"] = 1;
-        m_oscSender->sendMessage(data);
+        OSCMessage msg;
+        msg.host = m_oscHost.split(":")[0];
+        msg.port = m_oscHost.split(":")[1].toInt();
+        msg.address = "/"+m_playerID+"/pause";
+        msg.value = 1;
+        OSCSender::instance()->sendOSCMessageWithQueue(msg);
     }
+    //全屏指令
     void fullScreen(bool isFullScreen) {
-        QVariantMap data;
-        data["/"+m_playerID+"/fullscreen"] = isFullScreen;
-        m_oscSender->sendMessage(data);
+        OSCMessage msg;
+        msg.host = m_oscHost.split(":")[0];
+        msg.port = m_oscHost.split(":")[1].toInt();
+        msg.address = "/"+m_playerID+"/fullscreen";
+        msg.value = isFullScreen ? 1 : 0;
+        OSCSender::instance()->sendOSCMessageWithQueue(msg);
     }
     void setFile(const QString& filePath) {
-        m_filePath = filePath;
-        QVariantMap data;
-        data["/"+m_playerID+"/file"] = filePath;
-        m_oscSender->sendMessage(data);
+        OSCMessage msg;
+        msg.host = m_oscHost.split(":")[0];
+        msg.port = m_oscHost.split(":")[1].toInt();
+        msg.address = "/"+m_playerID+"/file";
+        msg.value = filePath;
+        OSCSender::instance()->sendOSCMessageWithQueue(msg);
     }
     
 private:
@@ -291,7 +299,6 @@ private:
     }
 
     QString m_filePath;
-    std::unique_ptr<OSCSender> m_oscSender; // 使用智能指针
     QString m_oscHost;
     QString m_playerID;
     QWidget* m_editor;

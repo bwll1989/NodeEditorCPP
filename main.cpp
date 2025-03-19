@@ -79,7 +79,7 @@ int main(int argc, char *argv[])
     mainWindow.showMaximized();
 
     // 创建外部控制器实例
-    ExternalControler controller(&mainWindow,Extra_Control_Port);
+    ExternalControler controller;
     
     // 启动应用程序事件循环
     return app.exec();

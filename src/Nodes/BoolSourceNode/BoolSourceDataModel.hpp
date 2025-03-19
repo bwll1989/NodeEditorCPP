@@ -12,7 +12,8 @@
 
 #include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
-
+// #include "../../Widget/ExternalControl/ExternalControler.hpp"
+#include "Widget/ExternalControl/ExternalControler.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -35,6 +36,7 @@ public:
         Caption="Bool Source";
         WidgetEmbeddable=true;
         Resizable=false;
+        ExternalControler::instance()->registerControl("/bool", button);
         button->setCheckable(true);
         button->setChecked(false);
         connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);

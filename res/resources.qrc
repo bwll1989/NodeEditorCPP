@@ -76,6 +76,7 @@
     <file>icons/zoomin.png</file>
     <file>icons/zoomout.png</file>
     <file>icons/move.png</file>
+    <file>icons/cable.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

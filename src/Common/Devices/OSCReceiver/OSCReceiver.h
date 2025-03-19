@@ -7,6 +7,8 @@
 #include <QObject>
 #include "QThread"
 #include <QtNetwork/QUdpSocket>
+#include "OSCMessage.h"
+#include "tinyosc.h"
 class OSCReceiver:public QObject {
     Q_OBJECT
 public:
@@ -14,10 +16,12 @@ public:
     ~OSCReceiver();
 
 signals:
-    void receiveOSC(QVariantMap &data);
+    void receiveOSCMessage(const OSCMessage& message);
+    void receiveOSC(const QVariantMap& data);
 
 public slots:
     void processPendingDatagrams();  // 处理接收到的UDP数据
+
     void setPort(const int &port);
     void initializeSocket();
     void cleanup();
@@ -27,6 +31,7 @@ private:
     QThread *mThread;
     QUdpSocket *mSocket;
     QVariantMap result;
+    OSCMessage message;
 };
 
 

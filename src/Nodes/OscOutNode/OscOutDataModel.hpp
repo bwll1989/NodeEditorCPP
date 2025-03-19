@@ -43,10 +43,13 @@ public:
 
     void setup() {
 
-        OSC_Sender=new OSCSender();
+      
         widget=new OscOutInterface();
-        connect(widget,&OscOutInterface::hostChanged,OSC_Sender,&OSCSender::setHost);
-        connect(this,&OscOutDataModel::onHasOSC,OSC_Sender,&OSCSender::sendMessage);
+        // connect(widget,&OscOutInterface::hostChanged,OSC_Sender,&OSCSender::setHost);
+        connect(this,&OscOutDataModel::onHasOSC,this,[this](OSCMessage &msg){
+            qDebug()<<"sendOSCMessageWithQueue";
+            OSCSender::instance()->sendOSCMessageWithQueue(msg);
+        });
 
     }
 
@@ -82,7 +85,12 @@ public:
         }
         auto textData = std::dynamic_pointer_cast<VariableData>(data);
         auto da=textData->getMap();
-        emit onHasOSC(da);
+        OSCMessage msg;
+        msg.host = widget->browser->getProperties("Host").toString();
+        msg.port = widget->browser->getProperties("Port").toInt();
+        msg.address = da["address"].toString();
+        msg.value = da["value"];
+        emit onHasOSC(msg);
     }
 
     QJsonObject save() const override
@@ -108,10 +116,9 @@ public:
         return widget;
     }
 Q_SIGNALS:
-    void onHasOSC(QVariantMap &data);
+    void onHasOSC(OSCMessage &data);
 private:
     std::shared_ptr<VariableData> inData;
-    OSCSender *OSC_Sender;
     OscOutInterface *widget;
 
 };
