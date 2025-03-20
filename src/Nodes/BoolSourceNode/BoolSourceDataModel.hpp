@@ -36,10 +36,15 @@ public:
         Caption="Bool Source";
         WidgetEmbeddable=true;
         Resizable=false;
-        ExternalControler::instance()->registerControl("/bool", button);
         button->setCheckable(true);
+        registerOSCControl("/bool", button);
+       
         button->setChecked(false);
         connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);
+        auto mapping = getOscMapping();
+        for(auto it:mapping){
+            qDebug() << "mapping:" << it.first;
+        }
     }
     ~BoolPluginDataModel(){
         delete button;

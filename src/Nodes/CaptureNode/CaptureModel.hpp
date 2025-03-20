@@ -67,6 +67,7 @@ public:
     QWidget* embeddedWidget() override{
         if (!m_button) {
             m_button = new QPushButton("Capture");
+            registerOSCControl("/capture",m_button);
             connect(m_button, &QPushButton::clicked, this, &CaptureModel::captureClicked);
         }
         return m_button;

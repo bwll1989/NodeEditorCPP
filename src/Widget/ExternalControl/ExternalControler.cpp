@@ -27,22 +27,41 @@ ExternalControler::ExternalControler():
 ExternalControler::~ExternalControler()
 {
     // 清理映射中的所有控件
-    controlMap.clear();
     delete OSC_Receiver;
 }
 void ExternalControler::hasOSC(const OSCMessage &message) {
-    auto it = controlMap.find(message.address);
-    if(it == controlMap.end()){
-        qDebug() << "No control found for address:" << message.address;
+    
+    auto args = message.address.split("/");
+    
+    //如果地址层级小于或大于3，则判定格式不对，不处理
+    if (args.size()!=4) {
+        qDebug() << "Invalid OSC address format:" << message.address;
         return;
     }
-
-    QWidget* widget = it->second;
-    if (!widget) {
+   
+    QWidget* widget = nullptr;
+    if(args[1]=="Dataflow"){
+        NodeId nodeId =args[2].toInt();
+        qDebug() << "nodeId:" << nodeId;
+        auto widgets = model->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
+        auto it = widgets.find("/"+args[3]);
+        if (it != widgets.end()) {
+            widget = it->second;
+        }
+    }else if(args[1]=="Timeline"){
+        qDebug() << "Timeline";
+        // NodeId nodeId =args[1].toInt();
+        // auto widgets = model->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
+        // auto it = widgets.find(message.address);
+        // if (it != widgets.end()) {
+        //     widget = it->second;
+        // }
+    }
+     if (!widget) 
+    {
         qDebug() << "Invalid widget pointer for address:" << message.address;
         return;
     }
-
     // 使用 qobject_cast 进行安全的类型检查
     if (auto* spinBox = qobject_cast<QSpinBox*>(widget)) {
         spinBox->setValue(message.value.toInt());
@@ -74,39 +93,7 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     }
 }
 
-void ExternalControler::registerControl(const QString& oscAddress, QWidget* control)
+void ExternalControler::setModel(CustomDataFlowGraphModel *model)
 {
-    if (!control) return;
-    
-    // 如果已存在相同地址的映射，先移除旧的
-    auto it = controlMap.find(oscAddress);
-    if (it != controlMap.end()) {
-        controlMap.erase(it);
-    }
-    
-    // 添加新的映射
-    controlMap[oscAddress] = control;
-}
-
-void ExternalControler::unregisterControl(const QString& oscAddress)
-{
-    auto it = controlMap.find(oscAddress);
-    if (it != controlMap.end()) {
-        controlMap.erase(it);
-    }
-}
-
-QWidget* ExternalControler::getControl(const QString& oscAddress) const
-{
-    auto it = controlMap.find(oscAddress);
-    return (it != controlMap.end()) ? it->second : nullptr;
-}
-
-QStringList ExternalControler::getRegisteredAddresses() const
-{
-    QStringList addresses;
-    for (const auto& pair : controlMap) {
-        addresses << pair.first;
-    }
-    return addresses;
+    this->model = model;
 }

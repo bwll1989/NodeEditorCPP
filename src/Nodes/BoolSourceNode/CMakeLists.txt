@@ -8,14 +8,6 @@ set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 
 add_library(${Module_Name} SHARED
         BoolSourceDataModel.hpp
-        ${DEPENDS_DIR}/tinyosc/tinyosc.c
-        ${DEPENDS_DIR}/tinyosc/tinyosc.h
-        ../../Widget/ExternalControl/ExternalControler.hpp
-        ../../Widget/ExternalControl/ExternalControler.cpp
-        ../../Common/Devices/OSCReceiver/OSCReceiver.h
-        ../../Common/Devices/OSCReceiver/OSCReceiver.cpp
-        # ../../DataTypes/OSCMessage.h
-        
         PluginDefinition.hpp
         PluginDefinition.cpp)
 #set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)

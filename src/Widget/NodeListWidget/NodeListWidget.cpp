@@ -112,6 +112,12 @@ void NodeListWidget::populateNodeTree() {
         QTreeWidgetItem* controlsGroup = new QTreeWidgetItem(nodeItem);
         controlsGroup->setIcon(0, QIcon(":/icons/icons/cable.png"));
         controlsGroup->setText(0, "Controls");
+        auto mapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
+        for(auto it:mapping){
+            QTreeWidgetItem* controlItem = new QTreeWidgetItem(controlsGroup);
+            controlItem->setIcon(0, QIcon(":/icons/icons/cable.png"));
+            controlItem->setText(0, it.first);
+        }
     }
 }
 
@@ -134,8 +140,14 @@ void NodeListWidget::onNodeCreated(NodeId nodeId) {
 
     // 添加 Controls 分组
     QTreeWidgetItem* controlsGroup = new QTreeWidgetItem(nodeItem);
-    controlsGroup->setIcon(0, QIcon(":/icons/icons/cable.png"));
-    controlsGroup->setText(0, "Controls");
+    controlsGroup->setIcon(0, QIcon(":/icons/icons/command.png"));
+    controlsGroup->setText(0, "Commands");
+    auto mapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
+    for(auto it:mapping){
+        QTreeWidgetItem* controlItem = new QTreeWidgetItem(controlsGroup);
+        controlItem->setIcon(0, QIcon(":/icons/icons/command.png"));
+        controlItem->setText(0, "Dataflow/"+QString::number(nodeId)+it.first);
+    }
 }
 
 void NodeListWidget::onNodeDeleted(NodeId nodeId) {

@@ -35,6 +35,7 @@ public:
         Caption=PLUGIN_NAME;
         WidgetEmbeddable=true;
         Resizable=false;
+        registerOSCControl("/string",_lineEdit);
         connect(_lineEdit, &QLineEdit::textEdited, this, &TextSourceDataModel::onTextEdited);
     }
 

@@ -74,7 +74,6 @@ NodeId CustomDataFlowGraphModel::addNode(QString const nodeType)
 
     if (model) {
         NodeId newId = newNodeId();
-
         connect(model.get(),
                 &NodeDelegateModel::dataUpdated,
                 [newId, this](PortIndex const portIndex) {
@@ -276,6 +275,11 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             result = QVariant::fromValue(l);
             break;
         }
+        case NodeRole::OSCAddress: {
+            result = QVariant::fromValue(model->getOscMapping());
+            // qDebug() << "getOscMapping" << model->getOscMapping().size();
+            break;
+        }
         default:
             break;
     }
@@ -367,7 +371,16 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             result = true;
         }
             break;
-
+        case NodeRole::OSCAddress:
+        {
+            auto it = _models.find(nodeId);
+            auto &model = it->second;
+            model->getWidgetFromOSCAddress(value.toString());
+            
+            Q_EMIT nodeUpdated(nodeId);
+            result = true;
+        }
+            break; 
         case NodeRole::Widget:
             break;
 

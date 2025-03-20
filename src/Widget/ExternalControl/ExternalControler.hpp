@@ -11,6 +11,7 @@
 #include <QString>
 #include <memory>
 #include "Common/Devices/OSCReceiver/OSCReceiver.h"
+#include "../NodeWidget/CustomDataFlowGraphModel.h"
 #include "OSCMessage.h"
 #include <QWidget>
 class ExternalControler:public QObject {
@@ -25,17 +26,7 @@ public:
         }
         return instance;
     }
-    // 注册控件到OSC地址映射
-    void registerControl(const QString& oscAddress, QWidget* control);
-
-    // 取消注册控件
-    void unregisterControl(const QString& oscAddress);
-
-        // 获取指定OSC地址对应的控件
-    QWidget* getControl(const QString& oscAddress) const;
-
-    // 获取所有注册的OSC地址
-    QStringList getRegisteredAddresses() const;
+    void setModel(CustomDataFlowGraphModel *model);
 private slots:
     /**
      * 处理接收到的UDP数据
@@ -49,7 +40,7 @@ private:
     ExternalControler(const ExternalControler&) = delete;
     ExternalControler& operator=(const ExternalControler&) = delete;
 private:
-    std::unordered_map<QString, QWidget*> controlMap;  // OSC地址到控件的映射
+    CustomDataFlowGraphModel *model;
     //OSC接收器
     OSCReceiver *OSC_Receiver;
     //布局
