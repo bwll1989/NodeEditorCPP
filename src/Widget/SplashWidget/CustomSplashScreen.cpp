@@ -5,6 +5,7 @@
 #include "CustomSplashScreen.hpp"
 CustomSplashScreen::CustomSplashScreen() {
     splash = new QSplashScreen(QPixmap(":/images/images/loading.png"));
+    splash->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     splash->show();
 }
 

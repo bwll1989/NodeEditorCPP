@@ -39,6 +39,11 @@ protected:
      */
     void mouseMoveEvent(QMouseEvent *event) override;
 
+    /**
+     * 开始拖拽
+     * @param Qt::DropActions supportedActions 支持的动作
+     */
+    void startDrag(QTreeWidgetItem *item);
 private:
     //动作映射
     QMap<QString, QAction *> actions_;

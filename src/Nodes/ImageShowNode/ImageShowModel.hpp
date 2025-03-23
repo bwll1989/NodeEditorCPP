@@ -23,7 +23,7 @@ public:
 public:
     QString caption() const override { return QString("Image display"); }
 
-    QString name() const override { return QString("Image display"); }
+    QString type() const override { return QString("Image display"); }
 
 public:
     virtual QString modelName() const { return QString("Resulting Image"); }

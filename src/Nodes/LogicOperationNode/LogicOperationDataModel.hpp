@@ -43,7 +43,7 @@ public:
 //        method->setFlat(true);
         val=QVariant(false);
         connect(widget,&QComboBox::currentIndexChanged,this,&LogicOperationDataModel::methodChanged);
-
+        registerOSCControl("/method",widget);
     }
 
     virtual ~LogicOperationDataModel() override{}

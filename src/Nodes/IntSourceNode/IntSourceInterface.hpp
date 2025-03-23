@@ -8,9 +8,9 @@
 #include "QPushButton"
 #include "QComboBox"
 #include "QSpinBox"
-#include "Common/GUI/qt-value-slider/intslider.hpp"
+#include <QLineEdit>
 using namespace std;
-using namespace ValueSliders;
+
 class IntSourceInterface: public QWidget{
 public:
     explicit IntSourceInterface(QWidget *parent = nullptr){
@@ -25,7 +25,7 @@ public:
 
     QVBoxLayout *main_layout=new QVBoxLayout(this);
 
-    IntSlider *intDisplay = new IntSlider("", 0, -1000, 1000, BoundMode::UPPER_LOWER);
+    QLineEdit *intDisplay = new QLineEdit();
 
 };
 

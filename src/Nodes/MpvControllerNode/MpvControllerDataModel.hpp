@@ -39,6 +39,8 @@ public:
         Resizable=true;
         client=new HttpClient();
         widget=new MpvControllerInterface();
+        registerOSCControl("/play",widget->Play);
+        registerOSCControl("/fullscreen",widget->Fullscreen);
         timer=new QTimer();
         timer->setInterval(900);
         connect(widget->Play, &QPushButton::clicked, this, &MpvControllerDataModel::onPlay);

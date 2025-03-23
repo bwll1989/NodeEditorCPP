@@ -126,6 +126,11 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
      */
     void setNodesLocked(bool b = true);
     /**
+     * 获取节点锁定
+     * @return bool 是否锁定
+     */
+    bool getNodesLocked() const;
+    /**
      * 添加连接
      * @param ConnectionId const connectionId 连接ID
      */

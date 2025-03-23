@@ -253,12 +253,6 @@ set(CALC_SOURCE_FILES
         src/Common/GUI/QJsonModel/QJsonModel.cpp
         src/Common/GUI/QJsonModel/QJsonModel.hpp
         src/Common/GUI/QJsonModel/details/QUtf8.hpp
-        src/Common/GUI/qt-value-slider/doubleslider.cpp
-        src/Common/GUI/qt-value-slider/doubleslider.hpp
-        src/Common/GUI/qt-value-slider/intslider.cpp
-        src/Common/GUI/qt-value-slider/intslider.hpp
-        src/Common/GUI/qt-value-slider/valueslider.cpp
-        src/Common/GUI/qt-value-slider/valueslider.hpp
         src/Common/GUI/Elements/XYPad/XYPad.cpp
         src/Common/GUI/Elements/XYPad/XYPad.h
         src/Common/GUI/Elements/BarButton/BarButton.cpp
@@ -269,6 +263,10 @@ set(CALC_SOURCE_FILES
         src/Common/GUI/Elements/MartixWidget/MatrixWidget.h
         src/Common/GUI/Elements/FaderWidget/FaderWidget.cpp
         src/Common/GUI/Elements/FaderWidget/FaderWidget.h
+        src/Common/GUI/OscListWidget/OSCMessageItemWidget.hpp
+        src/Common/GUI/OscListWidget/OSCMessageItemWidget.cpp
+        src/Common/GUI/OscListWidget/OSCMessageListWidget.hpp
+        src/Common/GUI/OscListWidget/OSCMessageListWidget.cpp
         src/Common/Devices/TcpServer/TcpServer.cpp
         src/Common/Devices/TcpServer/TcpServer.h
         src/Common/Devices/TcpClient/TcpClient.cpp

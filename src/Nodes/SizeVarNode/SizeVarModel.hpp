@@ -79,6 +79,7 @@ public:
         if (!m_widget) {
             m_ui = std::make_unique<Ui::SizeVarForm>();
             m_widget = new QWidget();
+          
             m_ui->setupUi(m_widget);
             // sb_width and sb_height are QSpinBox
             connect(m_ui->sb_width, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
@@ -87,6 +88,8 @@ public:
             connect(m_ui->sb_height, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
                 setOutSize(QSize(m_outSize.width(), value));
             });
+              registerOSCControl("/width",m_ui->sb_width);
+            registerOSCControl("/height",m_ui->sb_height);
             // setOutSize(QSize(0, 0));
         }
         return m_widget;}

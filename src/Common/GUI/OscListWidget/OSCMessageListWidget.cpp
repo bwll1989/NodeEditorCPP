@@ -38,7 +38,6 @@ void OSCMessageListWidget::addOSCMessage(const OSCMessage& message)
 QVector<OSCMessage> OSCMessageListWidget::getOSCMessages() const 
 {
     QVector<OSCMessage> messages;
-    qDebug() << "count: " << count();
     for (int i = 0; i < count(); ++i) {
         QListWidgetItem* currentItem = item(i);
         if (!currentItem) {
@@ -152,8 +151,30 @@ void OSCMessageListWidget::mouseMoveEvent(QMouseEvent* event)
     mimeData->setData("application/x-osc-address", itemData);
     
     QDrag* drag = new QDrag(this);
-    drag->setMimeData(mimeData);
     
+    drag->setMimeData(mimeData);
+    QPixmap pixmap(200, 30);
+    pixmap.fill(Qt::transparent);
+    
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    
+    // 绘制背景
+    QColor bgColor(40, 40, 40, 200);  // 半透明深灰色
+    painter.setBrush(bgColor);
+    painter.setPen(Qt::NoPen);
+    painter.drawRoundedRect(pixmap.rect(), 5, 5);  // 圆角矩形
+    // 绘制文本
+    painter.setPen(Qt::white);
+    QFont font = painter.font();
+    font.setPointSize(9);
+    painter.setFont(font);
+    QRect textRect = pixmap.rect().adjusted(30, 0, -8, 0);  // 图标右侧的文本区域
+    painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, message.address);
+
+    // 设置拖拽预览
+    drag->setPixmap(pixmap);
+    drag->setHotSpot(QPoint(pixmap.width()/2, pixmap.height()/2));  // 热点在中心
     if (drag->exec(Qt::MoveAction) == Qt::MoveAction) {
         delete item;
     }

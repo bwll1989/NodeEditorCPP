@@ -40,16 +40,15 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     }
    
     QWidget* widget = nullptr;
-    if(args[1]=="Dataflow"){
+    if(args[1]=="dataflow"){
         NodeId nodeId =args[2].toInt();
-        qDebug() << "nodeId:" << nodeId;
-        auto widgets = model->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
+        auto widgets = m_dataflowmodel->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
         auto it = widgets.find("/"+args[3]);
         if (it != widgets.end()) {
             widget = it->second;
         }
-    }else if(args[1]=="Timeline"){
-        qDebug() << "Timeline";
+    }else if(args[1]=="timeline"){
+        qDebug() << "timeline";
         // NodeId nodeId =args[1].toInt();
         // auto widgets = model->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
         // auto it = widgets.find(message.address);
@@ -76,11 +75,10 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
         checkBox->setChecked(message.value.toBool());
     }
     else if (auto* pushButton = qobject_cast<QPushButton*>(widget)) {
-        qDebug() << "Setting QPushButton value:" << message.value.toBool();
         pushButton->click();
     }
     else if (auto* comboBox = qobject_cast<QComboBox*>(widget)) {
-        comboBox->setCurrentText(message.value.toString());
+        comboBox->setCurrentIndex(message.value.toInt());
     }
     else if (auto* lineEdit = qobject_cast<QLineEdit*>(widget)) {
         lineEdit->setText(message.value.toString());
@@ -93,7 +91,11 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     }
 }
 
-void ExternalControler::setModel(CustomDataFlowGraphModel *model)
+void ExternalControler::setDataFlowModel(CustomDataFlowGraphModel *model)
 {
-    this->model = model;
+    this->m_dataflowmodel = model;
 }
+// void ExternalControler::setTimelineModel(TimelineModel *model)
+// {
+//     this->m_timelinemodel = model;
+// }

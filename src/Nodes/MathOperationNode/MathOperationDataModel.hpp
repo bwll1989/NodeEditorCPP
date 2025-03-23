@@ -40,7 +40,7 @@ public:
         widget->addItems(*methods);
         val=QVariant(0.0);
         connect(widget,&QComboBox::currentIndexChanged,this,&MathOperationDataModel::methodChanged);
-
+        registerOSCControl("/math",widget);
     }
 
     virtual ~MathOperationDataModel() override{}

@@ -84,7 +84,7 @@ public:
             m_ui->setupUi(m_widget);
             // connect combobox cb_aspectRatio to requestProcess
             connect(m_ui->cb_aspectRatio, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ScaleImageModel::requestProcess);
-
+            registerOSCControl("/aspectRatio",m_ui->cb_aspectRatio);
         }
         return m_widget;
     }

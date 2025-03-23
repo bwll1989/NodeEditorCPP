@@ -78,6 +78,8 @@
     <file>icons/move.png</file>
     <file>icons/cable.png</file>
     <file>icons/command.png</file>
+    <file>icons/expand.png</file>
+    <file>icons/copy.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

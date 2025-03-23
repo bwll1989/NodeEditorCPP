@@ -10,12 +10,7 @@ add_library(${Module_Name} SHARED
         FloatSourceInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/GUI/qt-value-slider/doubleslider.hpp
-        ../../Common/GUI/qt-value-slider/doubleslider.cpp
-        ../../Common/GUI/qt-value-slider/intslider.hpp
-        ../../Common/GUI/qt-value-slider/intslider.cpp
-        ../../Common/GUI/qt-value-slider/valueslider.hpp
-        ../../Common/GUI/qt-value-slider/valueslider.cpp
+       
 )
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES})

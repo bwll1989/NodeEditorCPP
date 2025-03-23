@@ -21,7 +21,7 @@ QString ConvertImageToModel::caption() const {
     return QString("Convert Image");
 }
 
-QString ConvertImageToModel::name() const {
+QString ConvertImageToModel::type() const {
     return QString("Convert Image");
 }
 

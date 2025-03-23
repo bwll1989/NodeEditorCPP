@@ -12,6 +12,7 @@
 #include <memory>
 #include "Common/Devices/OSCReceiver/OSCReceiver.h"
 #include "../NodeWidget/CustomDataFlowGraphModel.h"
+// #include "../TimelineWidget/TimelineMVC/timelinemodel.hpp"
 #include "OSCMessage.h"
 #include <QWidget>
 class ExternalControler:public QObject {
@@ -26,7 +27,8 @@ public:
         }
         return instance;
     }
-    void setModel(CustomDataFlowGraphModel *model);
+    void setDataFlowModel(CustomDataFlowGraphModel *model);
+    // void setTimelineModel(TimelineModel *model);
 private slots:
     /**
      * 处理接收到的UDP数据
@@ -40,7 +42,8 @@ private:
     ExternalControler(const ExternalControler&) = delete;
     ExternalControler& operator=(const ExternalControler&) = delete;
 private:
-    CustomDataFlowGraphModel *model;
+    CustomDataFlowGraphModel *m_dataflowmodel;
+    // TimelineModel *m_timelinemodel;
     //OSC接收器
     OSCReceiver *OSC_Receiver;
     //布局

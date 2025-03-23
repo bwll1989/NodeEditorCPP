@@ -38,6 +38,9 @@ public:
         Caption=PLUGIN_NAME;
         WidgetEmbeddable= false;
         Resizable=false;
+        registerOSCControl("/IP",widget->IP);
+        registerOSCControl("/Port",widget->Port);
+        registerOSCControl("/send",widget->send);
         client->moveToThread(clientThread);
         connect(widget->send, &QPushButton::clicked, this,&TCPClientDataModel::sendMessage,Qt::QueuedConnection);
         connect(this,&TCPClientDataModel::sendTCPMessage, client, &TcpClient::sendMessage, Qt::QueuedConnection);

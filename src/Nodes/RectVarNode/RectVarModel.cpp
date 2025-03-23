@@ -14,7 +14,7 @@ QString RectVarModel::caption() const {
     return "Rects";
 }
 
-QString RectVarModel::name() const {
+QString RectVarModel::type() const {
     return "Rects";
 }
 

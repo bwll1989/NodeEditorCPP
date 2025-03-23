@@ -44,7 +44,9 @@ public:
         connect(widget->button,&QPushButton::clicked,this,&AudioDecoderDataModel::select_audio_file,Qt::QueuedConnection);
         connect(widget->button1,&QPushButton::clicked,this,&AudioDecoderDataModel::playAudio,Qt::QueuedConnection);
         connect(widget->button2,&QPushButton::clicked,this,&AudioDecoderDataModel::stopAudio,Qt::QueuedConnection);
-
+        registerOSCControl("/play",widget->button1);
+        registerOSCControl("/stop",widget->button2);
+        registerOSCControl("/select",widget->button);
     }
 
 

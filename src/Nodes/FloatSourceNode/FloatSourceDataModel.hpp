@@ -36,8 +36,8 @@ public:
         Caption="Float Source";
         WidgetEmbeddable= true;
         Resizable=false;
-        connect(widget->floatDisplay, &DoubleSlider::valueUpdated, this, &FloatSourceDataModel::onFloatEdited);
-
+        connect(widget->floatDisplay, &QLineEdit::textChanged, this, &FloatSourceDataModel::onFloatEdited);
+        registerOSCControl("/float",widget->floatDisplay);
     }
 
 public:
@@ -63,7 +63,7 @@ public:
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariableData>(widget->floatDisplay->getVal());
+        return std::make_shared<VariableData>(widget->floatDisplay->text().toDouble());
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
@@ -76,10 +76,10 @@ public:
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
             if (textData->value().canConvert<double>()) {
 
-                widget->floatDisplay->setVal(textData->value().toDouble());
+                widget->floatDisplay->setText(QString::number(textData->value().toDouble()));
             } else {
 
-                widget->floatDisplay->setVal(0);
+                widget->floatDisplay->setText("0");
             }
             widget->adjustSize();
             Q_EMIT dataUpdated(0);
@@ -91,7 +91,7 @@ public:
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
-        modelJson1["val"] = widget->floatDisplay->getVal();
+        modelJson1["val"] = widget->floatDisplay->text().toDouble();
         QJsonObject modelJson  = NodeDelegateModel::save();
         modelJson["values"]=modelJson1;
         return modelJson;
@@ -100,7 +100,7 @@ public:
     {
         QJsonValue v = p["values"];
         if (!v.isUndefined()&&v.isObject()) {
-            widget->floatDisplay->setVal(v["val"].toDouble());
+            widget->floatDisplay->setText(QString::number(v["val"].toDouble()));
 
         }
     }
@@ -108,7 +108,7 @@ public:
     QWidget *embeddedWidget() override {return widget;}
 private Q_SLOTS:
 
-    void onFloatEdited(double const &string)
+    void onFloatEdited(QString const &string)
     {
 //        widget->currentVal->setNum(string);
 //        Q_UNUSED(string);

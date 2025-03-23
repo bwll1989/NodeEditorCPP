@@ -14,14 +14,16 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
 # 设置基础目录变量
 set(TIMELINE_SDK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget/TimeLineWidget/TimelineAbstract)
 set(Devices_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/Devices)
+set(OSCLISTWIDGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/GUI/OscListWidget)
 # 设置源文件
 set(SOURCES
     triggerclipmodel.hpp
     triggerclipplugin.hpp
-    OSCMessageListWidget.hpp
-    OSCMessageListWidget.cpp
-    OSCMessageItemWidget.hpp
-    OSCMessageItemWidget.cpp
+
+    ${OSCLISTWIDGET_DIR}/OSCMessageListWidget.hpp
+    ${OSCLISTWIDGET_DIR}/OSCMessageListWidget.cpp
+    ${OSCLISTWIDGET_DIR}/OSCMessageItemWidget.hpp
+    ${OSCLISTWIDGET_DIR}/OSCMessageItemWidget.cpp
     ${Devices_DIR}/OSCSender/OSCSender.h
     ${Devices_DIR}/OSCSender/OSCSender.cpp
     ${tinyosc_DIR}/tinyosc.c

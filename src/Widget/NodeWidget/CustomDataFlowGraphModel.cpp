@@ -74,6 +74,7 @@ NodeId CustomDataFlowGraphModel::addNode(QString const nodeType)
 
     if (model) {
         NodeId newId = newNodeId();
+        model->setNodeID(newId);
         connect(model.get(),
                 &NodeDelegateModel::dataUpdated,
                 [newId, this](PortIndex const portIndex) {
@@ -147,8 +148,6 @@ bool CustomDataFlowGraphModel::connectionPossible(ConnectionId const connectionI
         return false;
     }
 
-
-
 //    输入接口未被
 }
 
@@ -216,7 +215,7 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
 
     switch (role) {
         case NodeRole::Type:
-            result = model->name();
+            result = model->type();
             break;
 
         case NodeRole::Position:
@@ -280,6 +279,16 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             // qDebug() << "getOscMapping" << model->getOscMapping().size();
             break;
         }
+
+        case NodeRole::NodeID: {
+            result = QVariant::fromValue(model->getNodeID());
+            break;
+        }
+        case NodeRole::Remarks:{
+            result = model->getRemarks();
+            break;
+        }
+           
         default:
             break;
     }
@@ -383,7 +392,21 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             break; 
         case NodeRole::Widget:
             break;
-
+        case NodeRole::NodeID:
+        { 
+            auto it = _models.find(nodeId);
+            auto &model = it->second;
+            model->setNodeID(value.toInt());
+            break;
+        }
+        case NodeRole::Remarks:{ 
+            auto it = _models.find(nodeId);
+            auto &model = it->second;
+            model->setRemarks(value.toString());
+            Q_EMIT nodeUpdated(nodeId);
+            result = true;
+        }
+        break;
         default:
             break;
     }
@@ -514,6 +537,15 @@ QJsonObject CustomDataFlowGraphModel::saveNode(NodeId const nodeId) const
 
     nodeJson["internal-data"] = _models.at(nodeId)->save();
 
+    
+    nodeJson["type"] = _models.at(nodeId)->type();
+    // 保存备注
+    nodeJson["remarks"] = _models.at(nodeId)->getRemarks();
+
+    nodeJson["input-count"] = nodeData(nodeId, NodeRole::InPortCount).toInt();
+    nodeJson["output-count"] = nodeData(nodeId, NodeRole::OutPortCount).toInt();
+    nodeJson["port-editable"] = nodeData(nodeId, NodeRole::PortEditable).toBool();
+
     {
         QPointF const pos = nodeData(nodeId, NodeRole::Position).value<QPointF>();
 
@@ -521,8 +553,7 @@ QJsonObject CustomDataFlowGraphModel::saveNode(NodeId const nodeId) const
         posJson["x"] = pos.x();
         posJson["y"] = pos.y();
         nodeJson["position"] = posJson;
-        nodeJson["inPortCount"] = QString::number(nodeData(nodeId, NodeRole::InPortCount).value<int>());
-        nodeJson["outPortCount"] = QString::number(nodeData(nodeId, NodeRole::OutPortCount).value<int>());
+        
 
     }
 
@@ -564,7 +595,7 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
 
     QJsonObject const internalDataJson = nodeJson["internal-data"].toObject();
 
-    QString delegateModelName = internalDataJson["model-name"].toString();
+    QString delegateModelName =nodeJson["type"].toString();
 
     std::unique_ptr<NodeDelegateModel> model = _registry->create(delegateModelName);
 
@@ -574,7 +605,7 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
                 [restoredNodeId, this](PortIndex const portIndex) {
                     onOutPortDataUpdated(restoredNodeId, portIndex);
                 });
-
+        model->setNodeID(restoredNodeId);
         _models[restoredNodeId] = std::move(model);
 
         Q_EMIT nodeCreated(restoredNodeId);
@@ -584,13 +615,10 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
 
         setNodeData(restoredNodeId, NodeRole::Position, pos);
         //      设置位置
-        setNodeData(restoredNodeId,
-                NodeRole::OutPortCount,
-                nodeJson["outPortCount"].toString().toUInt());
-        setNodeData(restoredNodeId,
-                    NodeRole::InPortCount,
-                    nodeJson["inPortCount"].toString().toUInt());
-        //      设置端口数量
+        setNodeData(restoredNodeId, NodeRole::Remarks, nodeJson["remarks"].toString());
+        setNodeData(restoredNodeId, NodeRole::PortEditable, nodeJson["port-editable"].toBool());
+        setNodeData(restoredNodeId, NodeRole::InPortCount, nodeJson["input-count"].toInt());
+        setNodeData(restoredNodeId, NodeRole::OutPortCount, nodeJson["output-count"].toInt());
         _models[restoredNodeId]->load(internalDataJson);
     } else {
         throw std::logic_error(std::string("No registered model with name ") +
@@ -651,9 +679,15 @@ void CustomDataFlowGraphModel::setNodesLocked(bool b)
     _nodesLocked = b;
 
     for (NodeId nodeId : allNodeIds()) {
+        setNodeData(nodeId,NodeRole::WidgetEmbeddable,false);
         Q_EMIT nodeFlagsUpdated(nodeId);
     }
 //    qDebug()<<"set scene lock:"+QString::number(b);
+}
+
+bool CustomDataFlowGraphModel::getNodesLocked() const
+{
+    return _nodesLocked;
 }
 
 void CustomDataFlowGraphModel::addPort(NodeId nodeId, PortType portType, PortIndex portIndex)

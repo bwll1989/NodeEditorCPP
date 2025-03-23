@@ -3,7 +3,8 @@
 #include <QAction>
 #include <QMouseEvent>
 #include <QScrollBar>
-
+#include <QPixmap>
+#include <QPainter>
 
 DraggableTreeWidget::DraggableTreeWidget(QWidget *parent) : QTreeWidget(parent) {
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
@@ -15,8 +16,6 @@ void DraggableTreeWidget::mousePressEvent(QMouseEvent *event) {
     if (item && event->button() == Qt::LeftButton) {
         if (actions_.contains(item->text(0))) {
             draggedItem_ = item;
-
-            setCursor(Qt::ClosedHandCursor);
         }
     }
 }
@@ -43,3 +42,6 @@ void DraggableTreeWidget::mouseMoveEvent(QMouseEvent *event) {
     }
 }
 
+void DraggableTreeWidget::startDrag(QTreeWidgetItem *item) {
+
+}

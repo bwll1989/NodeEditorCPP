@@ -37,6 +37,7 @@ public:
         Resizable=false;
         PortEditable= true;
         index=new QSpinBox();
+        registerOSCControl("/index",index);
         connect(index,&QSpinBox::valueChanged, this, &SwitchDataModel::onIndexEdited);
     }
     ~SwitchDataModel(){    }

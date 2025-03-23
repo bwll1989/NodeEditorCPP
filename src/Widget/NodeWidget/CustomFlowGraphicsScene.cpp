@@ -208,15 +208,17 @@ CustomFlowGraphicsScene::CustomFlowGraphicsScene(CustomDataFlowGraphModel &graph
 
     void CustomFlowGraphicsScene::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) {
 
-    QPointF scenePos = event->scenePos();
-    QGraphicsItem *item = itemAt(scenePos, QTransform());
-    if (!item) {
-        auto menu= createSceneMenu(event->scenePos());
-        menu->exec(event->screenPos());}
-    else
-        QGraphicsScene::mouseDoubleClickEvent(event);
-
-
+        QPointF scenePos = event->scenePos();
+        QGraphicsItem *item = itemAt(scenePos, QTransform());
+        if(_graphModel.getNodesLocked()){
+            return;
+        }
+        if (!item) {
+            auto menu= createSceneMenu(event->scenePos());
+            menu->exec(event->screenPos());
+        }else {
+            QGraphicsScene::mouseDoubleClickEvent(event);
+        }
 }
 
 void CustomFlowGraphicsScene::centerOnNode(NodeId nodeId) {

@@ -20,7 +20,7 @@ QString DrawRectsModel::caption() const {
     return "Draw Rects";
 }
 
-QString DrawRectsModel::name() const {
+QString DrawRectsModel::type() const {
     return "Draw Rects";
 }
 

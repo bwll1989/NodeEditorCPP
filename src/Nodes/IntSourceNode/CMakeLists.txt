@@ -9,10 +9,7 @@ add_library(${Module_Name} SHARED
         IntSourceInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-        ../../Common/GUI/qt-value-slider/intslider.hpp
-        ../../Common/GUI/qt-value-slider/intslider.cpp
-        ../../Common/GUI/qt-value-slider/valueslider.hpp
-        ../../Common/GUI/qt-value-slider/valueslider.cpp)
+        )
 #set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES})
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

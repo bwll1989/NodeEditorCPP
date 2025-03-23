@@ -35,7 +35,8 @@ public:
         Caption="Int Source";
         WidgetEmbeddable=true;
         Resizable=false;
-        connect(widget->intDisplay, &IntSlider::valueUpdated, this, &IntSourceDataModel::onIntEdited);
+        registerOSCControl("/int",widget->intDisplay);
+        connect(widget->intDisplay, &QLineEdit::textChanged, this, &IntSourceDataModel::onIntEdited);
     }
 
 
@@ -60,23 +61,23 @@ public:
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariableData>(widget->intDisplay->getVal());
+        return std::make_shared<VariableData>(widget->intDisplay->text().toInt());
     }
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
         {
             Q_UNUSED(portIndex);
             if (data== nullptr){
-                widget->intDisplay->setVal(0);
+                widget->intDisplay->setText("0");
                 return;
             }
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
             if (textData->value().canConvert<int>()) {
 
-                widget->intDisplay->setVal(textData->value().toInt());
+                widget->intDisplay->setText(QString::number(textData->value().toInt()));
             } else {
 
-                widget->intDisplay->setVal(0);
+                widget->intDisplay->setText("0");
             }
 
             widget->adjustSize();
@@ -89,7 +90,7 @@ public:
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
-        modelJson1["val"] = widget->intDisplay->getVal();
+        modelJson1["val"] = widget->intDisplay->text().toInt();
         QJsonObject modelJson  = NodeDelegateModel::save();
         modelJson["values"]=modelJson1;
         return modelJson;
@@ -98,14 +99,14 @@ public:
     {
         QJsonValue v = p["values"];
         if (!v.isUndefined()&&v.isObject()) {
-            widget->intDisplay->setVal(v["val"].toInt());
+            widget->intDisplay->setText(QString::number(v["val"].toInt()));
 
         }
     }
     QWidget *embeddedWidget() override {return widget;}
 private Q_SLOTS:
 
-    void onIntEdited(int const &string)
+    void onIntEdited(QString const &string)
     {
 //        widget->currentVal->setNum(string);
 //        Q_UNUSED(string);

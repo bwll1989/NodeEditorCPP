@@ -24,7 +24,7 @@ public:
 
     QString caption() const override;
 
-    QString name() const override;
+    QString type() const override;
 
     unsigned nPorts(QtNodes::PortType portType) const override;
 

@@ -9,7 +9,7 @@ QString CutImageModel::caption() const {
     return QString("Cut Image");
 }
 
-QString CutImageModel::name() const {
+QString CutImageModel::type() const {
     return QString("Cut Image");
 }
 

@@ -7,12 +7,19 @@
 #include <QLineEdit>
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
 #include "Widget/NodeWidget/CustomFlowGraphicsScene.h"
+#include <QDrag>
+#include <QMimeData>
+#include <QMouseEvent>
+#include "OSCMessage.h"
 class NodeListWidget : public QWidget {
     Q_OBJECT
 
 public:
     explicit NodeListWidget(CustomDataFlowGraphModel* model, CustomFlowGraphicsScene* scene, QWidget *parent = nullptr);
 
+protected:
+    bool eventFilter(QObject* watched, QEvent* event) override;
+    // void mouseReleaseEvent(QMouseEvent *event) override;
 private:
     //树形视图
     QTreeWidget* nodeTree;
@@ -24,6 +31,8 @@ private:
     CustomFlowGraphicsScene* dataFlowScene;
     //是否正在更新选择
     bool isUpdatingSelection = false;
+    QPoint dragStartPosition;
+    bool isDragging = false;
     /**
      * 填充节点树
      */
@@ -62,6 +71,8 @@ private:
      * @param NodeId nodeId 节点ID
      */
     QTreeWidgetItem* findNodeItem(NodeId nodeId);
+    bool isCommand(const QTreeWidgetItem* item) const;
+    void startDrag(QTreeWidgetItem* item);
 
 private slots:
     /**

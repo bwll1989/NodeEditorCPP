@@ -94,7 +94,8 @@ public:
     }
 
     QWidget* embeddedWidget() override
-    { if (!m_widget) {
+    { 
+        if (!m_widget) {
         m_ui = std::make_unique<Ui::RectForm>();
         m_widget = new QWidget();
         m_ui->setupUi(m_widget);
@@ -102,7 +103,11 @@ public:
         connect(m_ui->sb_y, QOverload<int>::of(&QSpinBox::valueChanged), this, &RectModel::updateRectFromUI);
         connect(m_ui->sb_width, QOverload<int>::of(&QSpinBox::valueChanged), this, &RectModel::updateRectFromUI);
         connect(m_ui->sb_height, QOverload<int>::of(&QSpinBox::valueChanged), this, &RectModel::updateRectFromUI);
-    }
+        registerOSCControl("/x",m_ui->sb_x);
+        registerOSCControl("/y",m_ui->sb_y);
+        registerOSCControl("/width",m_ui->sb_width);
+        registerOSCControl("/height",m_ui->sb_height);
+        }
         return m_widget;
     }
 
