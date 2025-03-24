@@ -8,9 +8,9 @@
 #include "timelinewidget.hpp"
 #include "Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.hpp"
 #include "Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp"
-TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent) {
+TimelineWidget::TimelineWidget(TimelineModel* model,QWidget *parent) : QWidget(parent),model(model) {
     // 首先创建模型
-    model = new TimelineModel();
+    // model = new TimelineModel();
     // 创建组件
     createComponents();
     // 连接轨道列表竖向滚动到时间线竖向滚动
@@ -21,6 +21,13 @@ TimelineWidget::TimelineWidget(QWidget *parent) : QWidget(parent) {
     connect(tracklist, &TracklistView::viewupdate, view, &TimelineView::onUpdateViewport);    
     // 连接工具栏设置按钮到显示设置对话框
     connect(view->toolbar, &TimelineToolbar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
+}
+
+TimelineWidget::~TimelineWidget() {
+    delete model;
+    delete view;
+    delete tracklist;
+
 }
 
 void TimelineWidget::showSettingsDialog()
@@ -88,12 +95,6 @@ void TimelineWidget::createComponents() {
     }
 }
 
-TimelineWidget::~TimelineWidget()
-{
-    delete view;
-    delete tracklist;
-    delete model;
-    delete m_settingsDialog;
-}
+
 
 #endif //TIMELINEV2_TIMEWIDGET_HPP

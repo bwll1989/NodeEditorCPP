@@ -5,7 +5,6 @@
 #include "QStyleFactory"
 #include "Widget/MainWindow/MainWindow.hpp"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
-#include "Widget/ExternalControl/ExternalControler.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 
 // 外部控制端口号
@@ -78,10 +77,6 @@ int main(int argc, char *argv[])
     // 最大化显示主窗口
     mainWindow.showMaximized();
 
-    // 创建外部控制器实例
-    ExternalControler controller;
-    controller.setDataFlowModel(mainWindow.dataFlowModel);
-    // controller.setTimelineModel(mainWindow.timeline->model);
     // 启动应用程序事件循环
     return app.exec();
 }

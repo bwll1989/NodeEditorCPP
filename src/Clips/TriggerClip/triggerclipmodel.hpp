@@ -11,17 +11,14 @@ public:
 
 
     TriggerClipModel(int start, int end): AbstractClipModel(start, end, "Trigger"), 
-    m_editor(new QWidget()), 
+    m_editor(nullptr), 
     m_listWidget(new OSCMessageListWidget(m_editor))
     {
         RESIZEABLE = false;
         EMBEDWIDGET = false;
         SHOWBORDER = true;
+        initPropertyWidget();
     }
-
-    ~TriggerClipModel() override{
-        delete m_editor;
-    };
     // 重写保存和加载函数
     QJsonObject save() const override {
         QJsonObject json = AbstractClipModel::save();
@@ -53,7 +50,7 @@ public:
     }
 
     QWidget* clipPropertyWidget() override{
-        // m_editor = new QWidget();
+        m_editor = new QWidget();
         QVBoxLayout* mainLayout = new QVBoxLayout(m_editor);
         mainLayout->setContentsMargins(5, 5, 5, 5);
         mainLayout->setSpacing(4);

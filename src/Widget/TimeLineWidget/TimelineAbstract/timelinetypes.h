@@ -16,11 +16,8 @@ enum TimelineRoles {
     ClipInRole, // 剪辑开始时间
     ClipOutRole, // 剪辑结束时间
     ClipPosRole, //剪辑位置
-    ClipTimeInRole, // 剪辑时间开始
-    ClipTimeOutRole, // 剪辑时间结束
     ClipLengthRole, // 剪辑长度
     ClipTypeRole, // 剪辑类型
-    ClipTitle, // 剪辑标题
     ClipShowWidgetRole, // 剪辑是否显示小部件
     ClipResizableRole, // 剪辑是否可调整大小
     ClipShowBorderRole, // 剪辑是否显示边框
@@ -28,6 +25,10 @@ enum TimelineRoles {
     TrackNumberRole, // 轨道编号
     TrackTypeRole, // 轨道类型
     TrackNameRole, // 轨道名称
+    TrackModelRole, // 轨道模型
+    TrackClipsCountRole, // 轨道剪辑数量
+    TrackLengthRole, // 轨道长度
+    TrackClipsRole, // 轨道剪辑列表
     TimelineLengthRole, // 时间轴长度
    
 };

@@ -27,6 +27,12 @@ public:
         connect(this,TrackModel::S_trackDeleteClip,this,TrackModel::onCalculateTrackLength);
     }
     TrackModel() = default;
+    ~TrackModel() override{
+        for(AbstractClipModel* clip : m_clips){
+            delete clip;
+        }
+        m_clips.clear();
+    }
     /**
      * 移除剪辑
      * @param AbstractClipModel* clip 剪辑
@@ -34,12 +40,6 @@ public:
     void removeClip(AbstractClipModel* clip) {
         auto it = std::find(m_clips.begin(), m_clips.end(), clip);
         if(it != m_clips.end()) {
-            // 关闭属性面板
-            // if (QWidget* propertyWidget = clip->showPropertyWidget()) {
-            //     propertyWidget->close();
-            // }
-            
-            // 从列表中移除并删除片段
             m_clips.erase(it);
             delete clip;
             

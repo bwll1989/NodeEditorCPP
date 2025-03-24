@@ -40,8 +40,8 @@ class TimelineWidget : public QWidget {
     Q_OBJECT
 
 public:
-    explicit TimelineWidget(QWidget *parent = nullptr);
-    ~TimelineWidget();
+    explicit TimelineWidget(TimelineModel* model=nullptr,QWidget *parent = nullptr);
+    ~TimelineWidget() override;
 
 public:
     //主布局

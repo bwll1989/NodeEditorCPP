@@ -54,7 +54,7 @@ public:
         installEventFilter(this);
     }
 
-    ~TracklistView(){}
+    ~TracklistView() override=default;
     /**
      * 更新滚动条
      */

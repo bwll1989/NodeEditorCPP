@@ -175,7 +175,11 @@ void OSCMessageListWidget::mouseMoveEvent(QMouseEvent* event)
     // 设置拖拽预览
     drag->setPixmap(pixmap);
     drag->setHotSpot(QPoint(pixmap.width()/2, pixmap.height()/2));  // 热点在中心
-    if (drag->exec(Qt::MoveAction) == Qt::MoveAction) {
+    
+    Qt::DropAction defaultAction = event->modifiers() & Qt::ControlModifier ? 
+                                 Qt::CopyAction : Qt::MoveAction;
+    
+    if (drag->exec(Qt::CopyAction | Qt::MoveAction, defaultAction) == Qt::MoveAction) {
         delete item;
     }
 } 

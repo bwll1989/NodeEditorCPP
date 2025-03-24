@@ -26,11 +26,14 @@
 // #include "Widget/ClipPropertyWidget/ClipPropertyWidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "Widget/StageWidget/stagewidget.hpp"
+#include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"
+#include "Widget/ExternalControl/ExternalControler.hpp"
 class MainWindow : public QMainWindow
 {
 Q_OBJECT
 public:
     MainWindow(QWidget *parent = nullptr);
+    ~MainWindow() override;
     //菜单栏
     MenuBarWidget *menuBar;
     //dock管理器
@@ -54,6 +57,8 @@ public:
     NodeListWidget *nodeListWidget;
     // 时间线
     TimelineWidget *timeline;
+    // 时间线模型
+    TimelineModel *timelineModel;
     // 片段属性
     // ClipPropertyWidget *clipProperty;
     // 舞台控件
@@ -123,6 +128,8 @@ private:
     LogHandler *log;
     //当前项目路径
     QString currentProjectPath;
+    //外部控制器
+    ExternalControler *controller;
 };
 
 

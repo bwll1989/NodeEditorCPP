@@ -41,6 +41,17 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
     ads::CDockManager::setAutoHideConfigFlags(ads::CDockManager::DefaultAutoHideConfig);
 
 }
+MainWindow::~MainWindow()
+{
+    delete controller;
+    delete timelineModel;
+    delete timeline;
+    delete dataFlowModel;
+    delete scene;
+    delete view;
+    delete menuBar;
+    delete m_DockManager;
+}
 void MainWindow::init()
 {
     // awesome = new fa::QtAwesome(this);
@@ -84,12 +95,17 @@ void MainWindow::init()
     m_DockManager->addDockWidget(ads::BottomDockWidgetArea, nodeDockLibraryWidget);
     menuBar->views->addAction(nodeDockLibraryWidget->toggleViewAction());
 // 时间轴控件
+    // 创建时间线模型
+    timelineModel=new TimelineModel();
+    // 创建时间轴控件
     auto *timelineDockWidget = new ads::CDockWidget("时间轴");
     timelineDockWidget->setObjectName("timeline");
     timelineDockWidget->setIcon(QIcon(":/icons/icons/timeline.png"));
-    timeline=new TimelineWidget();
+    timeline=new TimelineWidget(timelineModel);
     timelineDockWidget->setWidget(timeline);
+    // 添加到左侧区域
      m_DockManager->addDockWidget(ads::LeftDockWidgetArea,  timelineDockWidget);
+     // 添加到菜单栏
      menuBar->views->addAction(timelineDockWidget->toggleViewAction());
      emit initStatus("Initialization Timeline editor");
 
@@ -158,6 +174,12 @@ void MainWindow::init()
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, nodeListDockWidget);
     menuBar->views->addAction(nodeListDockWidget->toggleViewAction());
     emit initStatus("Initialization Node List Widget");
+
+    // 外部控制器
+    controller=new ExternalControler();
+    controller->setDataFlowModel(dataFlowModel);
+    emit initStatus("Initialization External Controler");
+
 
     connect(menuBar->saveLayout, &QAction::triggered, this, &MainWindow::saveVisualState);
     //保存布局

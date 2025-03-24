@@ -106,34 +106,30 @@ QVariant TimelineModel::data(const QModelIndex &index, int role) const
         // qDebug() << "Processing role:" << role << "for clip at" << index.row();
         
         switch (role) {
-            case ClipModelRole:
+            //获取剪辑模型
+            case TimelineRoles::ClipModelRole:
                 return QVariant::fromValue(clip);
-            case ClipInRole:
+            //获取剪辑开始时间
+            case TimelineRoles::ClipInRole:
                 return QVariant::fromValue(clip->start());
             //获取剪辑结束时间
-            case ClipOutRole:
+            case TimelineRoles::ClipOutRole:
                 return QVariant::fromValue(clip->end());
             //获取剪辑长度
-            case ClipLengthRole:
+            case TimelineRoles::ClipLengthRole:
                 return QVariant::fromValue(clip->length());
             //获取剪辑类型
-            case ClipTypeRole:
+            case TimelineRoles::ClipTypeRole:
                 return QVariant::fromValue(clip->type());
             //获取剪辑是否显示小部件
-            case ClipShowWidgetRole:
+            case TimelineRoles::ClipShowWidgetRole:
                 return QVariant::fromValue(clip->isEmbedWidget());
             //获取剪辑是否可调整大小
-            case ClipResizableRole:
+            case TimelineRoles::ClipResizableRole:
                 return QVariant::fromValue(clip->isResizable());
             //获取剪辑是否显示边框
-            case ClipShowBorderRole:
+            case TimelineRoles::ClipShowBorderRole:
                 return QVariant::fromValue(clip->isShowBorder());
-            // //获取剪辑时间开始
-            // case ClipTimeInRole:
-            //     return QVariant::fromValue(FramesToTimeString(clip->start(),m_timecodeGenerator->getFrameRate()));
-            // //获取剪辑时间结束
-            // case ClipTimeOutRole:
-            //     return QVariant::fromValue(FramesToTimeString(clip->end(),m_frameRate));
             default:
                 return clip->data(role);
         }
@@ -153,6 +149,18 @@ QVariant TimelineModel::data(const QModelIndex &index, int role) const
             //获取轨道名称
             case TrackNameRole:
                 return QVariant::fromValue(track->getName());
+            //获取轨道模型
+            case TrackModelRole:
+                return QVariant::fromValue(track);
+            //获取轨道剪辑数量
+            case TrackClipsCountRole:
+                return QVariant::fromValue(track->getClips().size());
+            //获取轨道长度
+            case TrackLengthRole:
+                return QVariant::fromValue(track->getTrackLength());
+            //获取轨道剪辑列表
+            case TrackClipsRole:
+                return QVariant::fromValue(track->getClips());
             default:
                 return QVariant();
         }
@@ -368,7 +376,6 @@ void TimelineModel::onDeleteTrack(int trackIndex) {
     }
 
     beginRemoveRows(QModelIndex(), trackIndex, trackIndex); // 开始移除行
-   
     // 删除轨道上的所有片段
     for (AbstractClipModel* clip : m_tracks[trackIndex]->getClips()) {
         onDeleteClip(createIndex(trackIndex, 0, clip));
@@ -508,6 +515,15 @@ TimelineModel::~TimelineModel()
         delete m_stage;
         m_stage = nullptr;
     }
+    // for (TrackModel* track : m_tracks) {
+    //     onDeleteTrack(track->trackIndex());
+    // }
+    for (int i = 0; i < m_tracks.size(); ++i) {
+        delete m_tracks[i];
+    }
+    m_tracks.clear();
+    delete m_timecodeGenerator;
+    delete m_pluginLoader;
 }
 
 void TimelineModel::onSetStage(TimelineStage* stage)

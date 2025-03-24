@@ -20,7 +20,7 @@ class TimelineSettingsDialog : public QDialog {
     Q_OBJECT
 public:
     explicit TimelineSettingsDialog(TimelineModel* model,QWidget* parent = nullptr);
-    ~TimelineSettingsDialog() override = default;
+    ~TimelineSettingsDialog() override;
 
     // // 通用设置
     bool getAutoSave() const { return m_autoSaveCheckBox->isChecked(); }

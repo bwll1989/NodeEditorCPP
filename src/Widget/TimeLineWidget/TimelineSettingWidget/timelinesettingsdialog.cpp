@@ -15,6 +15,14 @@ TimelineSettingsDialog::TimelineSettingsDialog(TimelineModel* model,QWidget* par
     setupConnections();
 }
 
+TimelineSettingsDialog::~TimelineSettingsDialog()
+{
+    delete m_cancelButton;
+    delete m_applyButton;
+    delete m_tabWidget;
+    
+}
+
 void TimelineSettingsDialog::createUI()
 {
     auto* mainLayout = new QVBoxLayout(this);

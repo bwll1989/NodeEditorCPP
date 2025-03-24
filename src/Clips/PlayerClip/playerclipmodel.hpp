@@ -28,14 +28,13 @@ public:
     {
         EMBEDWIDGET = false;
         SHOWBORDER = true;
+        initPropertyWidget();
         if (!filePath.isEmpty()) {
             loadVideoInfo(filePath);
         }
     }
 
-    ~PlayerClipModel() override {
-        delete m_editor;
-    }
+    ~PlayerClipModel() override =default;
 
     // 设置文件路径并加载视频信息
     void setFilePath(const QString& path) { 
@@ -68,7 +67,10 @@ public:
         if(!m_filePath.isEmpty()) {
             loadVideoInfo(m_filePath);
         }
-        setOscHost(m_oscHost);
+   
+        playerNameEdit->setText(m_oscHost);
+        playerIDEdit->setText(m_playerID);
+      
     }
 
     QVariant data(int role) const override {
@@ -127,18 +129,18 @@ public:
         mainLayout->addWidget(basicGroup);
         auto* playGroup = new QGroupBox("播放器设置", m_editor);
         auto* playLayout = new QGridLayout(playGroup);
-        QLineEdit* playerName = new QLineEdit(playGroup);
-        playerName->setText(oscHost());
-        connect(playerName, &QLineEdit::editingFinished, [=]() {
-            setOscHost(playerName->text());
+        playerNameEdit = new QLineEdit(playGroup);
+        playerNameEdit->setText(oscHost());
+        connect(playerNameEdit, &QLineEdit::editingFinished, [=]() {
+            setOscHost(playerNameEdit->text());
         });
-        playLayout->addWidget(playerName, 0, 0,1,2);
-        auto* playerID = new QLineEdit(playGroup);
-        playerID->setText(this->playerID());
-        connect(playerID, &QLineEdit::editingFinished, [=]() {
-            setPlayerID(playerID->text());
+        playLayout->addWidget(playerNameEdit, 0, 0,1,2);
+        playerIDEdit = new QLineEdit(playGroup);
+        playerIDEdit->setText(this->playerID());
+        connect(playerIDEdit, &QLineEdit::editingFinished, [=]() {
+            setPlayerID(playerIDEdit->text());
         });
-        playLayout->addWidget(playerID, 0, 2,1,2);
+        playLayout->addWidget(playerIDEdit, 0, 2,1,2);
         auto* playButton = new QPushButton("播放", playGroup);
         connect(playButton, &QPushButton::clicked, [=]() {
             play();
@@ -216,6 +218,7 @@ public Q_SLOTS:
         }
         // 更新成员变量
         m_oscHost = host;
+
     }
     void setPlayerID(const QString& id) {
         m_playerID = id;
@@ -302,6 +305,8 @@ private:
     QString m_oscHost;
     QString m_playerID;
     QWidget* m_editor;
+    QLineEdit* playerNameEdit;
+    QLineEdit* playerIDEdit;
 };
 
 #endif // PLAYERCLIPMODEL_HPP 

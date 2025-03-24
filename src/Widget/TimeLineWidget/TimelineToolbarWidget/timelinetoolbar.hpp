@@ -10,7 +10,7 @@ class TimelineToolbar : public QToolBar {
     Q_OBJECT
 public:
     explicit TimelineToolbar(QWidget* parent = nullptr);
-    ~TimelineToolbar() override = default;
+    ~TimelineToolbar() override;
     QAction* m_outputAction;
 
 signals:

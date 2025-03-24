@@ -99,6 +99,8 @@ public:
      * @return bool 是否显示小部件
      */
     bool isEmbedWidget() const ;
+        // 标准属性窗口
+    QWidget* m_standardPropertyWidget;
     /**
      * 是否显示边框
      * @return bool 是否显示边框
@@ -183,7 +185,7 @@ public:
      * @param const QRect& rect 绘制区域
      * @param bool selected 是否被选中
      */
-
+    void initPropertyWidget();
     virtual void paint(QPainter* painter, const QRect& rect, bool selected) const;
 Q_SIGNALS:
     /**
@@ -233,8 +235,7 @@ protected:
     QLineEdit* m_startTimeCodeLineEdit;
     //结束时间码
     QLineEdit* m_endTimeCodeLineEdit;
-    // 标准属性窗口
-    QWidget* m_standardPropertyWidget;
+
     // 代理窗口
     QWidget* m_clipPropertyWidget;
     /**

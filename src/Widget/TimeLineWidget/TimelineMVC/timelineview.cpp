@@ -403,6 +403,7 @@ void TimelineView::setScale(double value)
     timescale = (value * 99 + 1) * baseTimeScale / 100;  // 将 0-1 映射到 5%-100% 的缩放范围
     // timescale = value * baseTimeScale;
     timescale=qMax(1,timescale);
+    qDebug()<<"timescale"<<timescale;
     int newPointFocus = frameToPoint(focusFrame);
     
     // 计算位移差异以保持焦点位置不变
@@ -827,15 +828,6 @@ void TimelineView::selectionChanged(const QItemSelection &selected, const QItemS
     viewport()->update();
 }
 
-// QAbstractItemDelegate* TimelineView::itemDelegateForIndex(const QModelIndex &index) const {
-//         if (!index.isValid() || !index.parent().isValid()) {
-//             return QAbstractItemView::itemDelegateForIndex(index);
-//         }
-
-//         QString clipType = index.data(TimelineRoles::ClipTypeRole).toString();
-//         return Model->getPluginLoader()->createDelegateForType(clipType);
-//     }
-
 void TimelineView::wheelEvent(QWheelEvent *event){
         if (event->modifiers() & Qt::ControlModifier) {
             // 缩放操作，以鼠标位置为中心
@@ -843,7 +835,7 @@ void TimelineView::wheelEvent(QWheelEvent *event){
             double delta = event->angleDelta().y() / 120.0; // 标准滚轮步长
             double scaleChange = (delta > 0 ? 1.1 : 0.9);
             currentScale = currentScale*scaleChange;
-            currentScale=qBound(0.01,currentScale,1.0);
+            currentScale=qBound(0.1,currentScale,1.0);
             setScale(currentScale);
         } else {
             // 水平滚动
@@ -872,9 +864,6 @@ void TimelineView::setupVideoWindow()
     // 创建视频播放器
     videoPlayer = new VideoPlayerWidget;
     videoPlayer->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);  // 设置为独立窗口
-    // videoPlayer->setKeepAspectRatio(true);
-    
-   
 }
 
 void TimelineView::showVideoWindow(bool show)

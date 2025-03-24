@@ -10,6 +10,14 @@ TimelineToolbar::TimelineToolbar(QWidget* parent)
     setupUI();
 }
 
+TimelineToolbar::~TimelineToolbar()
+{
+    delete m_playAction;
+    delete m_stopAction;
+    delete m_loopAction;
+    delete m_nextFrameAction;
+}
+
 void TimelineToolbar::createActions()
 {
     // 创建播放动作
