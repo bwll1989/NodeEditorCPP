@@ -7,14 +7,21 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 add_library(${Module_Name} SHARED
-        GroupModel.hpp
+        ../../Common/Devices/LtcDecoder/ltcdecoder.h
+        ../../Common/Devices/LtcDecoder/ltcdecoder.cpp
+        TimeCodeInterface.h
+        TimeCodeInterface.cpp
+        TimeCodeSource.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ltcdecoder.cpp
-        ltcdecoder.h
-        timecode_frame.h)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
-        ${QtNodes_LIBRARIES} ${Libltc_LIBRARIES})
+        ../../Common/Devices/LtcReceiver/ltcreceiver.cpp
+        ../../Common/Devices/LtcReceiver/ltcreceiver.h)
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets 
+        # Qt${QT_VERSION_MAJOR}::Multimedia
+        ${QtNodes_LIBRARIES} 
+        ${Libltc_LIBRARIES}
+        ${portaudio_LIBRARIES}
+        )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

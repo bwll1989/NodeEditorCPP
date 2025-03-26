@@ -317,7 +317,10 @@ void TracklistView::paintEvent(QPaintEvent *event) {
     font.setPixelSize(fontSize);
     painter.setFont(font);
     if(Model->getTimeDisplayFormat()==TimedisplayFormat::TimeCodeFormat){
-        painter.drawText(ruler,Qt::AlignCenter, Model->getTimecodeGenerator()->getCurrentTimecode());
+        painter.drawText(ruler,Qt::AlignCenter,QString("%1:%2:%3.%4").arg(Model->getTimecodeGenerator()->getCurrentTimecode().hours)
+                                                                    .arg(Model->getTimecodeGenerator()->getCurrentTimecode().minutes)
+                                                                    .arg(Model->getTimecodeGenerator()->getCurrentTimecode().seconds)
+                                                                    .arg(Model->getTimecodeGenerator()->getCurrentTimecode().frames));
     }else{
         painter.drawText(ruler,Qt::AlignCenter, Model->getTimecodeGenerator()->getCurrentAbsoluteTime());
     }

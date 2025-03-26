@@ -6,7 +6,8 @@
 #include <QMutex>
 #include <QAtomicInteger>
 #include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
-
+#include "TimeCodeMessage.h"
+#include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
 class TimecodeGenerator : public QObject {
     Q_OBJECT
 public:
@@ -21,16 +22,16 @@ public:
     void pause();
     // 设置当前帧
     void setCurrentFrame(qint64 frame);
+    // 设置当前时间码
+    void setCurrentTimecode(const TimeCodeFrame& timecode);
     // 获取当前帧
     qint64 getCurrentFrame() const;
-    // 设置帧率
-    void setFrameRate(double fps);
     // 获取帧率
     double getFrameRate() const;
     // 设置时间码类型
-    void setTimecodeType(TimecodeType type);
+    void setTimecodeType(TimeCodeType type);
     // 获取时间码类型
-    TimecodeType getTimecodeType() const;
+    TimeCodeType getTimecodeType() const;
     // 设置是否循环
     void setLooping(bool loop);
     // 获取是否循环
@@ -43,13 +44,25 @@ public:
      * 获取当前时间码
      * @return QString 当前时间码
      */
-    QString getCurrentTimecode() const;
+    TimeCodeFrame getCurrentTimecode() const;
     // 移动到下一帧
     void moveToNextFrame();
     // 移动到上一帧
     void moveToPreviousFrame();
     // 获取当前帧的绝对时间
     QString getCurrentAbsoluteTime() const;
+    // 设置时钟源
+    void setClockSource(ClockSource source);
+    // 获取时钟源
+    ClockSource getClockSource() const;
+
+    void initInternalClock();
+
+    void closeInternalClock();
+    
+    void initLTCClock(int deviceIndex);
+
+    void closeLTCClock();
 signals:
     /**
      * 当前帧改变
@@ -60,7 +73,7 @@ signals:
      * 时间码改变
      * @param QString timecode 时间码
      */
-    void timecodeChanged(const QString& timecode);
+    void timecodeChanged(const TimeCodeFrame& timecode);
     /**
      * 播放完成信号
      */
@@ -122,7 +135,7 @@ private:
     /**
      * 时间码类型
      */
-    TimecodeType m_timecodeType;
+    TimeCodeType m_timecodeType;
     /**
      * 是否暂停
      */
@@ -132,7 +145,15 @@ private:
     qint64 m_lastFrameTime = 0;    // 上一帧的时间戳
     double m_frameDuration = 0;    // 每帧持续时间(ms)
     // 当前时间码
-    Timecode m_currentTimecode;
+    TimeCodeFrame m_currentTimecode;
+    /**
+     * 时钟源
+     */
+    ClockSource m_clockSource;
+    /**
+     * LTC接收器
+     */
+    LTCReceiver* m_ltcReceiver;
 };
 
 #endif // TIMECODEGENERATOR_HPP 

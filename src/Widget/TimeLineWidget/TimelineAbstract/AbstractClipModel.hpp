@@ -18,10 +18,11 @@
 #include <QRect>
 #include <QColor>
 #include <QFont>
+#include "TimeCodeMessage.h"
 class AbstractClipModel : public QObject {
     Q_OBJECT
 public:
-    explicit AbstractClipModel(int start, int end, const QString& type, TimecodeType timecodeType=TimecodeType::PAL, QObject* parent = nullptr)
+    explicit AbstractClipModel(int start, int end, const QString& type, TimeCodeType timecodeType=TimeCodeType::PAL, QObject* parent = nullptr)
         : QObject(parent),
         m_type(type),
         m_start(start),
@@ -57,23 +58,23 @@ public:
      * 开始时间码
      * @return Timecode 开始时间码
      */
-    Timecode getStartTimeCode() const ;
+    TimeCodeFrame getStartTimeCode() const ;
     /**
      * 结束时间码
      * @return Timecode 结束时间码
      */
-    Timecode getEndTimeCode() const ;
+    TimeCodeFrame getEndTimeCode() const ;
     /**
      * 设置时间码类型
      * @param TimecodeType timecodeType 时间码类型
      */
-    void setTimecodeType(TimecodeType timecodeType);
+    void setTimecodeType(TimeCodeType timeCodeType);
 
     /**
      * 获取时间码类型
      * @return TimecodeType 时间码类型
      */
-    TimecodeType getTimecodeType() const ;
+    TimeCodeType getTimecodeType() const ;
     /**
      * 类型
      * @return QString 类型
@@ -208,11 +209,11 @@ protected:
     // 开始
     int m_start;
     // 开始时间码
-    Timecode m_startTimeCode;
+    TimeCodeFrame m_startTimeCode;
     // 结束
     int m_end;
     // 结束时间码
-    Timecode m_endTimeCode;
+    TimeCodeFrame m_endTimeCode;
     // 类型
     QString m_type;
     // 轨道索引
@@ -224,7 +225,7 @@ protected:
     // 是否显示边框
     bool SHOWBORDER;
     // 时间码类型
-    TimecodeType m_timecodeType;
+    TimeCodeType m_timecodeType;
     // 布局
     QVBoxLayout* m_layout;
     //开始帧

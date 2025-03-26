@@ -10,7 +10,7 @@
 #include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include "../../Common/Devices/OSCSender/OSCSender.h"
 #include <QPushButton>
-
+#include "TimeCodeMessage.h"
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -20,7 +20,7 @@ class PlayerClipModel : public AbstractClipModel {
     Q_OBJECT
 public:
     explicit PlayerClipModel(int start, int end, const QString& filePath = QString(), QObject* parent = nullptr)
-        : AbstractClipModel(start, end, "Player", TimecodeType::PAL, parent), 
+        : AbstractClipModel(start, end, "Player", TimeCodeType::PAL, parent), 
           m_filePath(filePath),
           m_oscHost("127.0.0.1:8992"),
           m_playerID("player1"),
@@ -97,7 +97,7 @@ public:
         auto* durationBox = new QLineEdit(basicGroup);
         durationBox->setReadOnly(true);
         // 将帧数转换为时间码格式显示
-        durationBox->setText(FramesToTimeString(length(), Timecode::getFrameRate(getTimecodeType())));
+        // durationBox->setText(""(length(), timecode_frames_per_sec(getTimecodeType())));
         basicLayout->addWidget(durationBox, 1, 1);
          // 文件名显示
         auto* fileNameLabel = new QLineEdit(filePath(), basicGroup);
@@ -121,7 +121,7 @@ public:
                 setFilePath(filePath);  // 这会触发视频信息加载和长度更新
                 fileNameLabel->setText(filePath);
                 // 更新时长显示，使用时间码格式
-                durationBox->setText(FramesToTimeString(length(), Timecode::getFrameRate(getTimecodeType())));
+                // durationBox->setText(FramesToTimeString(length(), getFrameRate(getTimecodeType())));
      
             }
         });
@@ -290,7 +290,7 @@ private:
                 }
 
                 // 计算总时长在timeline中的映射
-                int totalFrames = static_cast<int>(duration * Timecode::getFrameRate(m_timecodeType)); // Round to nearest frame
+                int totalFrames = static_cast<int>(duration * timecode_frames_per_sec(m_timecodeType)); // Round to nearest frame
                 if (totalFrames > 0) {
                     setEnd(start() + totalFrames);
                 }

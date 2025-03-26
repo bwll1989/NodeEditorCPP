@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "GroupModel.hpp"
+#include "TimeCodeSource.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<GroupNode>(PLUGIN_TAG);
+    reg->registerModel<TimeCodeSource>(PLUGIN_TAG);
 }

@@ -34,7 +34,7 @@ qint64 LTCDecoder::writeData(const char *data, qint64 len)
   LTCDecoder *ltc = GETLTC;
   LTCFrameExt ltc_frame;
   SMPTETimecode ltc_stime;
-  TimecodeFrame frame;
+  TimeCodeFrame frame;
 
   ltc_decoder_write(ltc, (ltcsnd_sample_t *)data, len, 0);
 
@@ -49,24 +49,23 @@ qint64 LTCDecoder::writeData(const char *data, qint64 len)
     frame.minutes = ltc_stime.mins;
     frame.seconds = ltc_stime.secs;
     frame.frames = ltc_stime.frame;
-    frame.type = TimecodeType::SMPTE30;
+    frame.type = TimeCodeType::PAL; // 默认设置为PAL
 
     if(frame.frames == 0 &&
        (last_frame == 29 || last_frame == 24 || last_frame == 23))
     {
-      // Could last_frame be the frame rate? It could very well could very well be.
-
+      // 检测帧率
       int r = last_frame + 1;
 
       if(r == frame_rate_g) // "frame rate guess"
       {
-        // Same rate twice in a row, accept it
+        // 连续两次相同的帧率，确认接受
         frame_rate = r;
         frame_rate_g = 0;
       }
       else if(r != frame_rate)
       {
-        // Possible change of frame rate, or first run
+        // 可能是帧率变化或首次运行
         if(r > frame_rate || frame_rate == 0)
         {
           frame_rate = r;
@@ -85,12 +84,22 @@ qint64 LTCDecoder::writeData(const char *data, qint64 len)
 
     last_frame = frame.frames;
 
-    if(ltc_frame.ltc.dfbit)
-      frame.type = TimecodeType::DF30;
-    else if(frame_rate == 25)
-      frame.type = TimecodeType::EBU25;
-    else if(frame_rate == 24)
-      frame.type = TimecodeType::Film24;
+    // 根据LTC信息和检测到的帧率判断时间码类型
+    if(ltc_frame.ltc.dfbit) {
+      // Drop Frame位被设置
+      if(frame_rate == 30 || frame_rate == 29)
+        frame.type = TimeCodeType::NTSC_DF;
+      else if(frame_rate == 24)
+        frame.type = TimeCodeType::Film_DF;
+    } else {
+      // 非Drop Frame
+      if(frame_rate == 30)
+        frame.type = TimeCodeType::NTSC;
+      else if(frame_rate == 25)
+        frame.type = TimeCodeType::PAL;
+      else if(frame_rate == 24)
+        frame.type = TimeCodeType::Film;
+    }
 
     emit newFrame(frame);
   }

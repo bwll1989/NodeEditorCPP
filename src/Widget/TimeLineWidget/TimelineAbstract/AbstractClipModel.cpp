@@ -45,14 +45,14 @@ int AbstractClipModel::trackIndex() const { return m_trackIndex; }
 bool AbstractClipModel::isResizable() const { return RESIZEABLE; }
 bool AbstractClipModel::isEmbedWidget() const { return EMBEDWIDGET; }
 bool AbstractClipModel::isShowBorder() const { return SHOWBORDER; }
-Timecode AbstractClipModel::getStartTimeCode() const {return m_startTimeCode;}
-Timecode AbstractClipModel::getEndTimeCode() const {return m_endTimeCode;}
-TimecodeType AbstractClipModel::getTimecodeType() const {return m_timecodeType;}
-void AbstractClipModel::setTimecodeType(TimecodeType timecodeType) 
+TimeCodeFrame AbstractClipModel::getStartTimeCode() const {return m_startTimeCode;}
+TimeCodeFrame AbstractClipModel::getEndTimeCode() const {return m_endTimeCode;}
+TimeCodeType AbstractClipModel::getTimecodeType() const {return m_timecodeType;}
+void AbstractClipModel::setTimecodeType(TimeCodeType timecodeType) 
 {
     m_timecodeType = timecodeType;
-    m_startTimeCode = Timecode::fromFrames(m_start, m_timecodeType);
-    m_endTimeCode = Timecode::fromFrames(m_end, m_timecodeType);
+    m_startTimeCode = frames_to_timecode_frame(m_start, m_timecodeType);
+    m_endTimeCode = frames_to_timecode_frame(m_end, m_timecodeType);
 }
 // Setters
 void AbstractClipModel::setStart(int start) { 
@@ -60,14 +60,14 @@ void AbstractClipModel::setStart(int start) {
         if(RESIZEABLE){
            
             m_start = start; 
-            m_startTimeCode = Timecode::fromFrames(m_start, m_timecodeType);
+            m_startTimeCode = frames_to_timecode_frame(m_start, m_timecodeType);
             emit timelinePositionChanged(m_start);
         }else{
             auto length = this->length();
             m_start = start; 
-            m_startTimeCode = Timecode::fromFrames(m_start, m_timecodeType);
+            m_startTimeCode = frames_to_timecode_frame(m_start, m_timecodeType);
             m_end = m_start + length;
-            m_endTimeCode = Timecode::fromFrames(m_end, m_timecodeType);
+            m_endTimeCode = frames_to_timecode_frame(m_end, m_timecodeType);
             emit timelinePositionChanged(m_start);
             emit lengthChanged();
         }
@@ -78,14 +78,14 @@ void AbstractClipModel::setEnd(int end) {
     if (m_end != end) {
         if(RESIZEABLE){
             m_end = end;
-            m_endTimeCode = Timecode::fromFrames(m_end, m_timecodeType);
+            m_endTimeCode = frames_to_timecode_frame(m_end, m_timecodeType);
             emit lengthChanged();
         }else{
             auto length = this->length();
             m_end = end;
-            m_endTimeCode = Timecode::fromFrames(m_end, m_timecodeType);
+            m_endTimeCode = frames_to_timecode_frame(m_end, m_timecodeType);
             m_start = m_end - length;
-            m_startTimeCode = Timecode::fromFrames(m_start, m_timecodeType);
+            m_startTimeCode = frames_to_timecode_frame(m_start, m_timecodeType);
             emit lengthChanged();
             emit timelinePositionChanged(m_start);
         }
@@ -200,7 +200,11 @@ void AbstractClipModel::initPropertyWidget(){
     connect(this, &AbstractClipModel::timelinePositionChanged, this, [this](){
         m_startFrameSpinBox->blockSignals(true);
         m_startFrameSpinBox->setValue(start());
-        m_startTimeCodeLineEdit->setText(getStartTimeCode().toString());
+        m_startTimeCodeLineEdit->setText(QString("%1:%2:%3.%4")
+                                    .arg(getStartTimeCode().hours)
+                                    .arg(getStartTimeCode().minutes)
+                                    .arg(getStartTimeCode().seconds)
+                                    .arg(getStartTimeCode().frames));
         m_startFrameSpinBox->blockSignals(false);
     });
     timeLayout->addWidget(m_startFrameSpinBox, 0, 1);
@@ -211,7 +215,11 @@ void AbstractClipModel::initPropertyWidget(){
     // m_startTimeCodeLineEdit = new QLineEdit(this);  // 确保在头文件中声明
     m_startTimeCodeLineEdit=new QLineEdit(m_standardPropertyWidget);
     m_startTimeCodeLineEdit->setReadOnly(true);  // 设置为只读
-    m_startTimeCodeLineEdit->setText(getStartTimeCode().toString());
+    m_startTimeCodeLineEdit->setText(QString("%1:%2:%3.%4")
+                                    .arg(getStartTimeCode().hours)
+                                    .arg(getStartTimeCode().minutes)
+                                    .arg(getStartTimeCode().seconds)
+                                    .arg(getStartTimeCode().frames));
     timeLayout->addWidget(m_startTimeCodeLineEdit, 1, 1);
     
     // 结束帧显示
@@ -224,7 +232,11 @@ void AbstractClipModel::initPropertyWidget(){
     connect(this, &AbstractClipModel::lengthChanged, this, [this](){
         m_endFrameSpinBox->blockSignals(true);
         m_endFrameSpinBox->setValue(end());
-        m_endTimeCodeLineEdit->setText(getEndTimeCode().toString());
+        m_endTimeCodeLineEdit->setText(QString("%1:%2:%3.%4")
+                                    .arg(getEndTimeCode().hours)
+                                    .arg(getEndTimeCode().minutes)
+                                    .arg(getEndTimeCode().seconds)
+                                    .arg(getEndTimeCode().frames));
         m_endFrameSpinBox->blockSignals(false);
     });
     timeLayout->addWidget(m_endFrameSpinBox, 2, 1);
@@ -235,7 +247,11 @@ void AbstractClipModel::initPropertyWidget(){
     // m_endTimeCodeLineEdit = new QLineEdit(this);  // 确保在头文件中声明
     m_endTimeCodeLineEdit=new QLineEdit(m_standardPropertyWidget);
     m_endTimeCodeLineEdit->setReadOnly(true);  // 设置为只读
-    m_endTimeCodeLineEdit->setText(getEndTimeCode().toString());
+    m_endTimeCodeLineEdit->setText(QString("%1:%2:%3.%4")
+                                    .arg(getEndTimeCode().hours)
+                                    .arg(getEndTimeCode().minutes)
+                                    .arg(getEndTimeCode().seconds)
+                                    .arg(getEndTimeCode().frames));
     timeLayout->addWidget(m_endTimeCodeLineEdit, 3, 1);
 
     m_layout->addWidget(timeGroupBox);

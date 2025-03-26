@@ -281,6 +281,10 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/OSCSender/OSCSender.h
         src/Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
         src/Common/Devices/ArtnetReceiver/ArtnetReceiver.h
+        src/Common/Devices/LTCDecoder/LTCDecoder.cpp
+        src/Common/Devices/LTCDecoder/LTCDecoder.h
+        src/Common/Devices/LtcReceiver/LtcReceiver.cpp
+        src/Common/Devices/LtcReceiver/LtcReceiver.h
         src/DataTypes/DecimalData.h
         src/DataTypes/TextData.h
         src/DataTypes/FloatData.h
@@ -289,6 +293,7 @@ set(CALC_SOURCE_FILES
         src/DataTypes/PixmapData.h
         src/DataTypes/AudioData.h
         src/DataTypes/OSCMessage.h
+        src/DataTypes/TimeCodeMessage.h
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         src/Widget/TimeLineWidget/videoplayerwidget.hpp

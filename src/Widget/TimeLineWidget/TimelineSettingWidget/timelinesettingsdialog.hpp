@@ -15,7 +15,8 @@
 #include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"
 #include <QMessageBox>
-
+#include <QStackedWidget>
+#include "TimeCodeMessage.h"
 class TimelineSettingsDialog : public QDialog {
     Q_OBJECT
 public:
@@ -36,8 +37,8 @@ public:
     bool getHardwareAcceleration() const { return m_hardwareAccelCheckBox->isChecked(); }
 
     // 获取当前选择的时间码类型
-    TimecodeType getTimecodeType() const {
-        return static_cast<TimecodeType>(m_fpsCombo->currentData().toInt());
+    TimeCodeType getTimecodeType() const {
+        return static_cast<TimeCodeType>(m_fpsCombo->currentData().toInt());
     }
     // 同步模型中设置
     void syncSettings();
@@ -48,9 +49,8 @@ public:
     void setSampleRate(int rate);
     void setAspectRatio(double ratio) { m_aspectRatioSpinBox->setValue(ratio); }
     void setHardwareAcceleration(bool enabled) { m_hardwareAccelCheckBox->setChecked(enabled); }
-
-    QStringList getAudioDeviceList();
     QStringList getDisplayDeviceList();
+    void initAudioDeviceList();
 signals:
     void settingsChanged();
 
@@ -70,7 +70,7 @@ private:
     QCheckBox* m_autoSaveCheckBox;
     QSpinBox* m_autoSaveIntervalSpinBox;
     QComboBox* m_timeFormatComboBox;
-
+    QComboBox* m_LtcInputDeviceCombo;
     // 音频设置中的控件
     QComboBox* m_sampleRateCombo;
     QComboBox* m_audioDeviceCombo;
@@ -86,8 +86,18 @@ private:
 
     QComboBox* m_fpsCombo;  // 帧率选择下拉框
 
+
+    QComboBox* m_timecodeTypeCombo;
+
+    QComboBox* m_clockSourceCombo;  // 时钟源选择
+
+    QStackedWidget* m_clockSettingsStack;  // 不同时钟源的设置面板
+
     TimelineModel* m_model;
-    
+    // 输出音频设备列表
+    QStringList m_outputAudioDeviceList;
+    // 输入音频设备列表
+    QStringList m_inputAudioDeviceList;
 };
 
 #endif // TIMELINESETTINGSDIALOG_HPP 

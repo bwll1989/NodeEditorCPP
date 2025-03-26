@@ -3,7 +3,7 @@
 
 #include <QIODevice>
 
-#include "timecode_frame.h"
+#include "TimeCodeMessage.h"
 
 class LTCDecoder: public QIODevice
 {
@@ -17,7 +17,7 @@ public:
   virtual qint64 writeData(const char *data, qint64 len) override;
 
 signals:
-  void newFrame(TimecodeFrame frame);
+  void newFrame(TimeCodeFrame frame);
 
 private:
   void *_private {nullptr};

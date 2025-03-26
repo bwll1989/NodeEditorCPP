@@ -1,17 +1,33 @@
 #include "timecodegenerator.hpp"
 #include <QThread>
+#include "TimeCodeMessage.h"
 TimecodeGenerator::TimecodeGenerator(QObject* parent)
     : QObject(parent)
-    , m_currentFrame(0)
+    // , m_currentFrame(0)
     , m_maxFrames(0)
     , m_isLooping(false)
-    , m_timecodeType(TimecodeType::PAL)
+    , m_timecodeType(TimeCodeType::PAL)
     , m_isPaused(false)
+    , m_clockSource(ClockSource::Internal)
+{
+    //默认初始化内部时钟
+  initInternalClock();
+}
+
+TimecodeGenerator::~TimecodeGenerator()
+{
+    if(m_timer)
+    {
+        m_timer->stop();
+        delete m_timer;
+    }
+}
+
+void TimecodeGenerator::initInternalClock()
 {
     // 创建定时器并保持在主线程
     m_timer = new QTimer(this);
-    m_frameRate = Timecode::getFrameRate(m_timecodeType);
-    m_frameDuration = 1000.0 / m_frameRate;  // 计算每帧持续时间
+    m_frameDuration = 1000.0 / timecode_frames_per_sec(m_timecodeType);  // 计算每帧持续时间
     
     // 使用高精度计时器
     m_timer->setTimerType(Qt::PreciseTimer);
@@ -31,17 +47,20 @@ TimecodeGenerator::TimecodeGenerator(QObject* parent)
             Qt::DirectConnection);
 }
 
-TimecodeGenerator::~TimecodeGenerator()
+void TimecodeGenerator::closeInternalClock()
 {
-    m_timer->stop();
-    delete m_timer;
+    if(m_timer){
+        m_timer->stop();
+        delete m_timer;
+        m_timer = nullptr;
+    }
 }
 
 void TimecodeGenerator::start()
 {
     QMutexLocker locker(&m_mutex);
     if (!m_timer->isActive() && !m_isPaused) {
-        m_timer->start(1000 / m_frameRate);
+        m_timer->start(1000 / getFrameRate());
     }
 }
 
@@ -67,20 +86,36 @@ void TimecodeGenerator::pause()
 void TimecodeGenerator::setCurrentFrame(qint64 frame)
 {
     m_currentFrame = frame;  // QAtomicInteger 是线程安全的，不需要互斥锁
+    m_currentTimecode = frames_to_timecode_frame(m_currentFrame, m_timecodeType);
     updateTimecode();
 }
 
-void TimecodeGenerator::setFrameRate(double fps)
+void TimecodeGenerator::setCurrentTimecode(const TimeCodeFrame& timecode)
 {
-    QMutexLocker locker(&m_mutex);
-    if (m_frameRate != fps) {
+    m_currentTimecode = timecode;
+    m_currentFrame = timecode_frame_to_frames(timecode, m_timecodeType);
+    updateTimecode();
+}
+
+double TimecodeGenerator::getFrameRate() const
+{
+    return timecode_frames_per_sec(m_timecodeType);
+}
+
+void TimecodeGenerator::setTimecodeType(TimeCodeType type)
+{
+   
+    if (m_timecodeType != type) {
+        m_timecodeType = type;
+
+        QMutexLocker locker(&m_mutex);
         bool wasActive = m_timer->isActive();
         if (wasActive) {
             m_timer->stop();
         }
         
-        m_frameRate = fps;
-        m_frameDuration = 1000.0 / fps;
+       
+        m_frameDuration = 1000.0 / timecode_frames_per_sec(type);
         m_timer->setInterval(qRound(m_frameDuration / 2));
         
         if (wasActive) {
@@ -91,15 +126,7 @@ void TimecodeGenerator::setFrameRate(double fps)
         
         updateTimecode();
     }
-}
-
-void TimecodeGenerator::setTimecodeType(TimecodeType type)
-{
-   
-    if (m_timecodeType != type) {
-        m_timecodeType = type;
-        setFrameRate(Timecode::getFrameRate(type));
-    }
+    
 }
 
 void TimecodeGenerator::setLooping(bool loop)
@@ -169,14 +196,10 @@ void TimecodeGenerator::updateTimecode()
     }, Qt::QueuedConnection);
 }
 
-QString TimecodeGenerator::getCurrentTimecode() const
+TimeCodeFrame TimecodeGenerator::getCurrentTimecode() const
 {
-    if (m_timecodeType == TimecodeType::NTSC_DF || 
-        m_timecodeType == TimecodeType::HD_60_DF) {
-        return Timecode::fromFramesDF(m_currentFrame, 
-            Timecode::getFrameRate(m_timecodeType)).toStringDF();
-    }
-    return Timecode::fromFrames(m_currentFrame, m_frameRate).toString();
+   
+    return m_currentTimecode;
 } 
 
 qint64 TimecodeGenerator::getCurrentFrame() const
@@ -186,6 +209,10 @@ qint64 TimecodeGenerator::getCurrentFrame() const
 
 void TimecodeGenerator::onStart()
 {
+    if(m_clockSource != ClockSource::Internal)
+    {
+        return;
+    }
     QMutexLocker locker(&m_mutex);
     if (!m_timer->isActive() && m_maxFrames > 0) {
         m_startTime = QDateTime::currentMSecsSinceEpoch();
@@ -199,6 +226,10 @@ void TimecodeGenerator::onStart()
 
 void TimecodeGenerator::onPause()
 {
+    if(m_clockSource != ClockSource::Internal)
+    {
+        return;
+    }
     QMutexLocker locker(&m_mutex);
     if (m_timer->isActive()) {
         m_timer->stop();
@@ -208,6 +239,10 @@ void TimecodeGenerator::onPause()
 
 void TimecodeGenerator::onStop()
 {   
+    if(m_clockSource != ClockSource::Internal)
+    {
+        return;
+    }
     QMutexLocker locker(&m_mutex);
     m_timer->stop();
     m_currentFrame = 0;
@@ -231,6 +266,7 @@ void TimecodeGenerator::moveToPreviousFrame()
     }
     updateTimecode();
 }
+
 qint64 TimecodeGenerator::getMaxFrames() const
 {
     return m_maxFrames;
@@ -241,21 +277,16 @@ bool TimecodeGenerator::isLooping() const
     return m_isLooping;
 }
 
-double TimecodeGenerator::getFrameRate() const
-{
-    return m_frameRate;
-}
 
-TimecodeType TimecodeGenerator::getTimecodeType() const
+TimeCodeType TimecodeGenerator::getTimecodeType() const
 {
     return m_timecodeType;
 }
 
-
 QString TimecodeGenerator::getCurrentAbsoluteTime() const
 {
     // 计算当前帧对应的总毫秒数
-    double frameTimeInMs = (static_cast<double>(m_currentFrame) / m_frameRate) * 1000.0;
+    double frameTimeInMs = (static_cast<double>(m_currentFrame) / timecode_frames_per_sec(m_timecodeType)) * 1000.0;
     
     // 计算小时、分钟、秒和毫秒
     int hours = static_cast<int>(frameTimeInMs / (1000 * 60 * 60));
@@ -277,3 +308,43 @@ QString TimecodeGenerator::getCurrentAbsoluteTime() const
         .arg(milliseconds, 3, 10, QChar('0'));
 }
 
+void TimecodeGenerator::setClockSource(ClockSource source)
+{
+    if(m_clockSource != source)
+    {
+        m_clockSource = source;
+        if(m_clockSource == ClockSource::Internal)
+        {
+            initInternalClock();
+        }
+        else
+        {
+            closeInternalClock();
+        }
+    }
+}
+
+ClockSource TimecodeGenerator::getClockSource() const
+{ 
+    return m_clockSource;
+}
+
+void TimecodeGenerator::initLTCClock(int deviceIndex)
+{
+    if(!m_ltcReceiver)
+    {
+        qDebug()<<"initLTCClock"<<deviceIndex;
+        m_ltcReceiver = new LTCReceiver();
+    }
+    m_ltcReceiver->start(deviceIndex);
+    connect(m_ltcReceiver, &LTCReceiver::newFrame, this, &TimecodeGenerator::setCurrentTimecode);
+}
+
+void TimecodeGenerator::closeLTCClock()
+{
+    if(m_ltcReceiver)
+    {
+        delete m_ltcReceiver;
+        m_ltcReceiver = nullptr;
+    }
+}

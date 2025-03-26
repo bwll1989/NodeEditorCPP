@@ -13,11 +13,10 @@
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
 #include <QtCore/qglobal.h>
-#if defined(UNTITLED_LIBRARY)
-#  define UNTITLED_EXPORT Q_DECL_EXPORT
-#else
-#  define UNTITLED_EXPORT Q_DECL_IMPORT
-#endif
+#include "TimeCodeInterface.h"
+#include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
+#include <QComboBox>
+
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -26,33 +25,40 @@ using QtNodes::PortType;
 
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class UNTITLED_EXPORT GroupNode : public NodeDelegateModel
+class TimeCodeSource : public NodeDelegateModel
 {
     Q_OBJECT
 
 public:
-    GroupNode(): _label(new QWidget())
+    TimeCodeSource()
+        : _label(new TimeCodeInterface()),
+          receiver(new LTCReceiver())
     {
-        InPortCount =1;
-        OutPortCount=1;
-        CaptionVisible=true;
-        WidgetEmbeddable= true;
-        Resizable=true;
-        PortEditable= false;
-        _label->setWindowOpacity(0.1);
-
-        QFont f = _label->font();
-        f.setBold(true);
-        f.setItalic(true);
-        _label->setFont(f);
-
-        _label->setMinimumSize(300, 300);
-
-        _label->installEventFilter(this);
-        Caption="TimeCode Source";
+        InPortCount = 1;
+        OutPortCount = 1;
+        CaptionVisible = true;
+        WidgetEmbeddable = true;
+        Resizable = true;
+        PortEditable = false;
+        Caption = "TimeCode Source";
+        
+        // 连接 Widget 的信号到 receiver
+       
+        // 连接 receiver 的信号到 Widget
+        connect(receiver, &LTCReceiver::statusChanged, _label, &TimeCodeInterface::setStatus);
+        connect(receiver, &LTCReceiver::newFrame, _label, &TimeCodeInterface::setTimeStamp);
+        connect(_label->deviceComboBox, QComboBox::currentIndexChanged, this, &TimeCodeSource::deviceChanged);
+        
     }
 
-    ~GroupNode() override= default;
+    ~TimeCodeSource()
+    {
+        if (receiver) {
+            receiver->stop();
+            delete receiver;
+        }
+        delete _label;
+    }
 
 public:
 
@@ -109,44 +115,26 @@ public:
     void setInData(std::shared_ptr<NodeData> nodeData, PortIndex const port) override
     {
         Q_UNUSED(port);
-        // _nodeData = nodeData;
-        //
-        // if (_nodeData) {
-        //     auto d = std::dynamic_pointer_cast<PixmapData>(_nodeData);
-        //
-        //     int w = _label->width();
-        //     int h = _label->height();
-        //
-        //     _label->setPixmap(d->pixmap().scaled(w, h, Qt::KeepAspectRatio));
-        // } else {
-        //     _label->setPixmap(QPixmap());
-        // }
-
         Q_EMIT dataUpdated(0);
     }
-
+   
     QWidget *embeddedWidget() override { return _label; }
 
     bool resizable() const override { return true; }
 
-protected:
-    bool eventFilter(QObject *object, QEvent *event) override
+public slots:
+    void deviceChanged()
     {
-        if (object == _label) {
-            int w = _label->width();
-            int h = _label->height();
-        qDebug() << event->type();
-            if (event->type() == QEvent::Resize) {
-                qDebug()<<"resize";
-            }
+        
+        if (receiver) {
+            receiver->start(_label->deviceComboBox->currentText().split(":")[0].toInt());
         }
-
-        return false;
     }
 
-
+protected:
+   
 private:
-    QWidget *_label;
-
+    TimeCodeInterface* _label;
+    LTCReceiver* receiver;
     std::shared_ptr<NodeData> _nodeData;
 };

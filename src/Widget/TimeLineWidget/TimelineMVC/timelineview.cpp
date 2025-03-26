@@ -859,6 +859,7 @@ void TimelineView::wheelEvent(QWheelEvent *event){
         }
         event->accept();
     }
+
 void TimelineView::setupVideoWindow()
 {
     // 创建视频播放器
@@ -892,7 +893,6 @@ void TimelineView::showVideoWindow(bool show)
         }
     }
 }
-
 
 void TimelineView::onFrameChanged(qint64 frame)
 {

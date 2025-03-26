@@ -14,12 +14,14 @@
 #include <QJsonArray>
 #include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include "timelinestyle.hpp"
+#include "ltc.h"
 #include <QFile>
 #include <QJsonDocument>
 #include "pluginloader.hpp"
 #include "Widget/TimeLineWidget/TimelineStageWidget/timelinestage.hpp"
 #include "Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.hpp"
 #include "timecodegenerator.hpp"
+#include "TimeCodeMessage.h"
 // TimelineModel类继承自QAbstractItemModel
 class TimelineModel : public QAbstractItemModel
 {
@@ -108,12 +110,12 @@ public:
      * 获取时间码格式
      * @return TimecodeType 时间码格式
      */
-    TimecodeType getTimecodeType() const { return m_timecodeGenerator->getTimecodeType(); }
+    TimeCodeType getTimecodeType() const { return m_timecodeGenerator->getTimecodeType(); }
     /**
      * 设置时间码格式
      * @param TimecodeType type 时间码格式
      */
-    void setTimecodeType(TimecodeType type){
+    void setTimecodeType(TimeCodeType type){
         m_timecodeGenerator->setTimecodeType(type);
     }
     /**
@@ -241,7 +243,7 @@ public slots:
      * 设置时间码格式
      * @param TimecodeType type 时间码格式
      */
-    void onTimecodeTypeChanged(TimecodeType type);
+    void onTimecodeTypeChanged(TimeCodeType type);
     /**
      * 计算时间线长度
      */
@@ -274,9 +276,9 @@ public slots:
         return clipDataList;
     }
     /**
- * 设置播放头位置
- * @param int newPlayheadPos 新的播放头位置
- */
+     * 设置播放头位置
+     * @param int newPlayheadPos 新的播放头位置
+     */
     void onSetPlayheadPos(int newPlayheadPos);
     //通过轨道索引和开始帧添加片段
     void onAddClip(int trackIndex,int startFrame);
@@ -288,14 +290,14 @@ public slots:
      */
     void onDeleteClip(QModelIndex clipIndex);
     /**
- * 设置舞台
- * @param TimelineStage* stage 舞台
- */
+     * 设置舞台
+     * @param TimelineStage* stage 舞台
+     */
     void onSetStage(TimelineStage* stage);
     /**
- * 创建轨道
- * @param const QString& type 类型
- */
+     * 创建轨道
+     * @param const QString& type 类型
+     */
     void onAddTrack(const QString& type);
     //通过片段模型添加轨道
     void onAddTrack(TrackModel* track);
@@ -306,6 +308,13 @@ public slots:
     void onDeleteTrack(int trackIndex);
 
     void onMoveTrack(int sourceRow, int targetRow);
+
+    void onClockSourceChanged(ClockSource source){
+        if(m_timecodeGenerator->getClockSource() != source){
+            m_timecodeGenerator->setClockSource(source);
+        
+        }
+    }
 private:
     // 查找片段所在轨道
     TrackModel* findParentTrackOfClip(AbstractClipModel* clip) const ;
@@ -330,6 +339,7 @@ private:
      * @return TrackModel* 轨道
      */
     QVector<TrackModel*> m_tracks; // 轨道
+ 
 };
 
 #endif // TIMELINEMODEL_H

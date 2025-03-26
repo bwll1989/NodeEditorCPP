@@ -1,5 +1,12 @@
 {
     "files.associations": {
-        "unordered_map": "cpp"
+        "unordered_map": "cpp",
+        "qtime": "cpp",
+        "algorithm": "cpp",
+        "xhash": "cpp",
+        "xstring": "cpp",
+        "bitset": "cpp",
+        "regex": "cpp",
+        "*.ipp": "cpp"
     }
 }
