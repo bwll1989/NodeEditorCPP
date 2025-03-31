@@ -17,6 +17,10 @@
 #include <QMessageBox>
 #include <QStackedWidget>
 #include "TimeCodeMessage.h"
+#include "LtcSettingWidget.hpp"
+#include "MtcSettingWidget.hpp"
+#include "AudioSettingWidget.hpp"
+#include "VideoSettingWidget.hpp"
 class TimelineSettingsDialog : public QDialog {
     Q_OBJECT
 public:
@@ -28,11 +32,7 @@ public:
     int getAutoSaveInterval() const { return m_autoSaveIntervalSpinBox->value(); }
     QString getTimeFormat() const { return m_timeFormatComboBox->currentText(); }
 
-    // 音频相关设置
-    int getSampleRate() const { return m_sampleRateCombo->currentText().toInt(); }
-
     // 视频相关设置
-   
     double getAspectRatio() const { return m_aspectRatioSpinBox->value(); }
     bool getHardwareAcceleration() const { return m_hardwareAccelCheckBox->isChecked(); }
 
@@ -46,22 +46,20 @@ public:
     // 设置器
     void setAutoSave(bool enabled) { m_autoSaveCheckBox->setChecked(enabled); }
     void setAutoSaveInterval(int minutes) { m_autoSaveIntervalSpinBox->setValue(minutes); }
-    void setSampleRate(int rate);
     void setAspectRatio(double ratio) { m_aspectRatioSpinBox->setValue(ratio); }
     void setHardwareAcceleration(bool enabled) { m_hardwareAccelCheckBox->setChecked(enabled); }
-    QStringList getDisplayDeviceList();
+    void initDisplayDeviceList();
     void initAudioDeviceList();
+    
 signals:
     void settingsChanged();
-
 private:
     void createUI();
     void setupConnections();
     void saveSettings();
     
     QWidget* createGeneralTab();
-    QWidget* createAudioTab();
-    QWidget* createVideoTab();
+   
 
 private:
     QTabWidget* m_tabWidget;
@@ -70,10 +68,9 @@ private:
     QCheckBox* m_autoSaveCheckBox;
     QSpinBox* m_autoSaveIntervalSpinBox;
     QComboBox* m_timeFormatComboBox;
-    QComboBox* m_LtcInputDeviceCombo;
+
     // 音频设置中的控件
-    QComboBox* m_sampleRateCombo;
-    QComboBox* m_audioDeviceCombo;
+   
 
     // 视频设置中的控件
     QComboBox* m_displayDeviceCombo;
@@ -98,6 +95,13 @@ private:
     QStringList m_outputAudioDeviceList;
     // 输入音频设备列表
     QStringList m_inputAudioDeviceList;
+    // 输出视频设备列表
+    QStringList m_outputVideoDeviceList;
+
+    LtcSettingWidget* m_ltcSettingWidget;
+    MtcSettingWidget* m_mtcSettingWidget;
+    AudioSettingWidget* m_audioSettingWidget;
+    VideoSettingWidget* m_videoSettingWidget;
 };
 
 #endif // TIMELINESETTINGSDIALOG_HPP 

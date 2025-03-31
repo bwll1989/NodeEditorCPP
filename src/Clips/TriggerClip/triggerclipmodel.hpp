@@ -19,6 +19,7 @@ public:
         SHOWBORDER = true;
         initPropertyWidget();
     }
+    virtual ~TriggerClipModel() override =default;
     // 重写保存和加载函数
     QJsonObject save() const override {
         QJsonObject json = AbstractClipModel::save();

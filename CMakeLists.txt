@@ -317,6 +317,10 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/videoplayerwidget.cpp
         src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.hpp
         src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.cpp
+        src/Widget/TimeLineWidget/TimelineSettingWidget/LtcSettingWidget.hpp
+        src/Widget/TimeLineWidget/TimelineSettingWidget/MtcSettingWidget.hpp
+        src/Widget/TimeLineWidget/TimelineSettingWidget/AudioSettingWidget.hpp
+        src/Widget/TimeLineWidget/TimelineSettingWidget/VideoSettingWidget.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.cpp
         src/Widget/StageWidget/StageWidget.hpp
@@ -326,8 +330,8 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/TimelineStageWidget/timelinestage.cpp
         src/Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.hpp
         src/Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.cpp
-        src/Widget/TimeLineWidget/TimelineMVC/timecodegenerator.hpp
-        src/Widget/TimeLineWidget/TimelineMVC/timecodegenerator.cpp
+        src/Widget/TimeLineWidget/TimeCodeGenerator/timecodegenerator.hpp
+        src/Widget/TimeLineWidget/TimeCodeGenerator/timecodegenerator.cpp
         src/Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp
 )
 

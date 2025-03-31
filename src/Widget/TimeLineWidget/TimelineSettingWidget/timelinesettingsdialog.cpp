@@ -12,6 +12,7 @@ TimelineSettingsDialog::TimelineSettingsDialog(TimelineModel* model,QWidget* par
     setWindowTitle(tr("Timeline设置"));
     setModal(true);
     initAudioDeviceList();
+    initDisplayDeviceList();
     createUI();
     setupConnections();
     
@@ -22,7 +23,6 @@ TimelineSettingsDialog::~TimelineSettingsDialog()
     delete m_cancelButton;
     delete m_applyButton;
     delete m_tabWidget;
-    
 }
 
 void TimelineSettingsDialog::createUI()
@@ -32,8 +32,10 @@ void TimelineSettingsDialog::createUI()
     // Create tab widget
     m_tabWidget = new QTabWidget(this);
     m_tabWidget->addTab(createGeneralTab(), tr("通用"));
-    m_tabWidget->addTab(createAudioTab(), tr("音频"));
-    m_tabWidget->addTab(createVideoTab(), tr("视频"));
+    m_audioSettingWidget = new AudioSettingWidget(this,m_outputAudioDeviceList);
+    m_tabWidget->addTab(m_audioSettingWidget, tr("音频"));
+    m_videoSettingWidget = new VideoSettingWidget(this,m_outputVideoDeviceList);
+    m_tabWidget->addTab(m_videoSettingWidget, tr("视频"));
     m_tabWidget->setDocumentMode(true);
     mainLayout->addWidget(m_tabWidget);
 
@@ -67,7 +69,7 @@ QWidget* TimelineSettingsDialog::createGeneralTab()
 
     // Time format settings
     m_timeFormatComboBox = new QComboBox(widget);
-    m_timeFormatComboBox->addItem(tr("0: TimeCode (HH:MM:SS:FF)"),static_cast<int>(TimedisplayFormat::TimeCodeFormat));
+    m_timeFormatComboBox->addItem(tr("0: TimeCode (HH:MM:SS.FF)"),static_cast<int>(TimedisplayFormat::TimeCodeFormat));
     m_timeFormatComboBox->addItem(tr("1: TimeFormat (HH:MM:SS:MS)"),static_cast<int>(TimedisplayFormat::AbsoluteTimeFormat));
     
     layout->addRow(tr("时间显示格式:"), m_timeFormatComboBox);
@@ -80,12 +82,12 @@ QWidget* TimelineSettingsDialog::createGeneralTab()
     m_fpsCombo->addItem(tr("4: PAL (25 fps)"), static_cast<int>(TimeCodeType::PAL));
     layout->addRow(tr("设置帧率:"), m_fpsCombo);
     m_fpsCombo->setCurrentIndex(static_cast<int>(m_model->getTimecodeGenerator()->getTimecodeType()));
+
+
     // 添加时钟源设置组
     auto* clockGroup = new QGroupBox(tr("时钟源设置"), widget);
     auto* clockLayout = new QVBoxLayout(clockGroup);
-
     // 时钟源选择
-
     m_clockSourceCombo = new QComboBox(widget);
     m_clockSourceCombo->addItem(tr("内部时钟"), static_cast<int>(ClockSource::Internal));
     m_clockSourceCombo->addItem(tr("LTC"), static_cast<int>(ClockSource::LTC));
@@ -99,22 +101,13 @@ QWidget* TimelineSettingsDialog::createGeneralTab()
     auto* internalPage = new QWidget();
     m_clockSettingsStack->addWidget(internalPage);
     // LTC设置页面
-    auto* ltcPage = new QWidget();
-   
-    // 音频设备选择
-    auto* audioDeviceLayout = new QHBoxLayout(ltcPage);
-    audioDeviceLayout->addWidget(new QLabel(tr("音频设备:")),1);
-    m_LtcInputDeviceCombo = new QComboBox(ltcPage);
-    m_LtcInputDeviceCombo->addItems(m_inputAudioDeviceList);
-    audioDeviceLayout->addWidget(m_LtcInputDeviceCombo,3);
-
-    m_clockSettingsStack->addWidget(ltcPage);
+    m_ltcSettingWidget = new LtcSettingWidget(m_inputAudioDeviceList, widget);
+    m_clockSettingsStack->addWidget(m_ltcSettingWidget);
 
     // MTC设置页面
-    auto* mtcPage = new QWidget();
-    auto* mtcLayout = new QVBoxLayout(mtcPage);
-    mtcLayout->addWidget(new QLabel(tr("MIDI设备设置")));
-    m_clockSettingsStack->addWidget(mtcPage);
+    m_mtcSettingWidget = new MtcSettingWidget(widget);
+
+    m_clockSettingsStack->addWidget(m_mtcSettingWidget);
 
     clockLayout->addWidget(m_clockSettingsStack);
     layout->addRow(clockGroup);
@@ -137,51 +130,6 @@ QWidget* TimelineSettingsDialog::createGeneralTab()
     return widget;
 }
 
-QWidget* TimelineSettingsDialog::createAudioTab()
-{
-    auto* widget = new QWidget(this);
-    auto* layout = new QFormLayout(widget);
-
-    // Sample rate settings
-    m_sampleRateCombo = new QComboBox(widget);
-    m_sampleRateCombo->addItems({
-        "44100",
-        "48000",
-        "96000",
-        "192000"
-    });
-    layout->addRow(tr("采样率:"), m_sampleRateCombo);
-
-    m_audioDeviceCombo = new QComboBox(widget);
-    m_audioDeviceCombo->addItems(m_outputAudioDeviceList);
-    layout->addRow(tr("音频输出设备:"), m_audioDeviceCombo);
-
-
-    return widget;
-}
-
-QWidget* TimelineSettingsDialog::createVideoTab()
-{
-    auto* widget = new QWidget(this);
-    auto* layout = new QFormLayout(widget);
-    // Resolution settings
-    m_displayDeviceCombo = new QComboBox(widget);
-    m_displayDeviceCombo->addItems(getDisplayDeviceList());
-    layout->addRow(tr("显示器:"), m_displayDeviceCombo);
-
-    // Aspect ratio settings
-    m_aspectRatioSpinBox = new QDoubleSpinBox(widget);
-    m_aspectRatioSpinBox->setRange(0.1, 10.0);
-    m_aspectRatioSpinBox->setValue(1.778); // 16:9
-    m_aspectRatioSpinBox->setDecimals(3);
-    layout->addRow(tr("宽高比:"), m_aspectRatioSpinBox);
-
-    // Hardware acceleration
-    m_hardwareAccelCheckBox = new QCheckBox(tr("启用硬件加速"), widget);
-    layout->addRow(m_hardwareAccelCheckBox);
-
-    return widget;
-}
 
 void TimelineSettingsDialog::setupConnections()
 {
@@ -201,12 +149,15 @@ void TimelineSettingsDialog::setupConnections()
 
 void TimelineSettingsDialog::saveSettings()
 {
-    // 获取新的时间码类型
-    TimeCodeType newTimecodeType = static_cast<TimeCodeType>(m_fpsCombo->currentData().toInt());
-    TimedisplayFormat newDisplayFormat = static_cast<TimedisplayFormat>(m_timeFormatComboBox->currentData().toInt());
+    QJsonObject setting = m_model->save();
     
-    // 检查时间码类型是否改变
-    if (m_model->getTimecodeType() != newTimecodeType) {
+    // 获取新的时间码设置
+    QJsonObject timeCodeSetting = setting["timecodeSetting"].toObject();
+    
+    // 检查时间码类型是否改变。如果改变，则需要清除模型中的所有片段
+    if (timeCodeSetting["timecodeType"].toInt() != m_fpsCombo->currentData().toInt()) {
+        timeCodeSetting["timecodeType"] = m_fpsCombo->currentData().toInt();
+        
         // 显示警告对话框
         QMessageBox::StandardButton reply = QMessageBox::warning(
             this,
@@ -215,50 +166,53 @@ void TimelineSettingsDialog::saveSettings()
             QMessageBox::Yes | QMessageBox::No
         );
         
-        if (reply == QMessageBox::Yes) {
-            // 用户确认更改
-            m_model->setTimecodeType(newTimecodeType);
-            m_model->setTimeDisplayFormat(newDisplayFormat);
-            
-            // 清除模型中的所有片段
-            for(auto track:m_model->getTracks()){
-                for(auto clip:track->getClips()){
-                    track->removeClip(clip);
-                }
-            }
-            m_model->onTimelineLengthChanged();
-            emit settingsChanged();
+        if (reply == QMessageBox::Yes) {      
+            setting["tracks"] = QJsonArray();
+        } else {
+            return; // 用户取消操作
         }
     } 
-        // 只更改显示格式
-    m_model->setTimeDisplayFormat(newDisplayFormat);
 
-    auto newClockSource = static_cast<ClockSource>(m_clockSourceCombo->currentData().toInt());
-    if (newClockSource != m_model->getTimecodeGenerator()->getClockSource()) {
-        m_model->getTimecodeGenerator()->setClockSource(newClockSource);
-        
-        // 如果时钟源改变，则需要重新初始化时钟
-        if (newClockSource == ClockSource::LTC ) {
-            
-            m_model->getTimecodeGenerator()->initLTCClock(m_LtcInputDeviceCombo->currentText().split(":")[0].toInt());
+    // 更新时间显示格式
+    setting["displayFormat"] = m_timeFormatComboBox->currentData().toInt();
+    
+    // 更新时钟源设置
+    timeCodeSetting["clockSource"] = m_clockSourceCombo->currentData().toInt();
+    
+    // 根据时钟源保存相应设置
+    if (static_cast<ClockSource>(timeCodeSetting["clockSource"].toInt()) == ClockSource::LTC) {
+
+        if (m_ltcSettingWidget) {
+            QJsonObject ltcSettings = m_ltcSettingWidget->getLtcSetting();
+
+            if (!ltcSettings.isEmpty()) {
+                timeCodeSetting["ltcSettings"] = ltcSettings;
             }
-        
-        if (newClockSource == ClockSource::MTC) {
-            // MTC相关初始化代码
         }
+    } else if (static_cast<ClockSource>(timeCodeSetting["clockSource"].toInt()) == ClockSource::MTC) {
+        qDebug() << "MTC";
+        QJsonObject mtcSettings = m_mtcSettingWidget->getMtcSetting();
+        timeCodeSetting["mtcSettings"] = mtcSettings;
     }
+    
+    // 更新时间码设置
+    setting["timecodeSetting"] = timeCodeSetting;
+    
+    // 保存音频设置
+    if (m_audioSettingWidget) {
+        setting["audioSettings"] = m_audioSettingWidget->getAudioSetting();
+    }
+    
+    // 保存视频设置
+    if (m_videoSettingWidget) {
+        setting["videoSettings"] = m_videoSettingWidget->getVideoSetting();
+    }
+    
+    // 重新加载模型
+    m_model->load(setting);
     
     emit settingsChanged();
     accept();
-    
-}
-
-void TimelineSettingsDialog::setSampleRate(int rate)
-{
-    int index = m_sampleRateCombo->findText(QString::number(rate));
-    if (index >= 0) {
-        m_sampleRateCombo->setCurrentIndex(index);
-    }
 }
 
 void TimelineSettingsDialog::initAudioDeviceList(){
@@ -320,26 +274,33 @@ void TimelineSettingsDialog::initAudioDeviceList(){
         Pa_Terminate();
     }
 
-QStringList TimelineSettingsDialog::getDisplayDeviceList(){
+void TimelineSettingsDialog::initDisplayDeviceList(){
     QStringList deviceList;
     //获取已连接的显示器
     QList<QScreen *> screens = QGuiApplication::screens();
     foreach (QScreen *screen, screens) {
         deviceList << QString("%1: %2 * %3").arg(screen->name()).arg(screen->geometry().size().width()).arg(screen->geometry().size().height());
     }
-    return deviceList;
+    m_outputVideoDeviceList = deviceList;
 }
 
 void TimelineSettingsDialog::syncSettings(){
     // 同步模型中设置
-    m_fpsCombo->setCurrentIndex(static_cast<int>(m_model->getTimecodeGenerator()->getTimecodeType()));
-    m_timeFormatComboBox->setCurrentIndex(static_cast<int>(m_model->getTimeDisplayFormat()));
-
+    QJsonObject Setting = m_model->save();
+    QJsonObject TimeCodeSetting = Setting["timecodeSetting"].toObject();
+    m_timeFormatComboBox->setCurrentIndex(static_cast<int>(Setting["displayFormat"].toInt()));
+    m_fpsCombo->setCurrentIndex(static_cast<int>(TimeCodeSetting["timecodeType"].toInt()));
     // 同步时钟源设置
-    ClockSource currentSource = m_model->getTimecodeGenerator()->getClockSource();
+    ClockSource currentSource = static_cast<ClockSource>(TimeCodeSetting["clockSource"].toInt());
     int sourceIndex = m_clockSourceCombo->findData(static_cast<int>(currentSource));
     if (sourceIndex >= 0) {
         m_clockSourceCombo->setCurrentIndex(sourceIndex);
         m_clockSettingsStack->setCurrentIndex(sourceIndex);
     }
+    // // 同步音频设置
+    // m_audioSettingWidget->setAudioSetting(TimeCodeSetting["audioSettings"].toObject());
+    // // 同步视频设置
+    // m_videoSettingWidget->setVideoSetting(TimeCodeSetting["videoSettings"].toObject());
+    // // 同步MTC设置
+    // m_mtcSettingWidget->setMtcSetting(TimeCodeSetting["mtcSettings"].toObject());
 }

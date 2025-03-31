@@ -48,7 +48,7 @@ public:
         connect(receiver, &LTCReceiver::statusChanged, _label, &TimeCodeInterface::setStatus);
         connect(receiver, &LTCReceiver::newFrame, _label, &TimeCodeInterface::setTimeStamp);
         connect(_label->deviceComboBox, QComboBox::currentIndexChanged, this, &TimeCodeSource::deviceChanged);
-        
+        connect(_label->channelComboBox, QComboBox::currentIndexChanged, receiver, &LTCReceiver::setChannel);
     }
 
     ~TimeCodeSource()
@@ -127,7 +127,7 @@ public slots:
     {
         
         if (receiver) {
-            receiver->start(_label->deviceComboBox->currentText().split(":")[0].toInt());
+            receiver->start(_label->deviceComboBox->currentText());
         }
     }
 

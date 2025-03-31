@@ -1,4 +1,4 @@
-#include "timecodegenerator.hpp"
+#include "Widget/TimeLineWidget/TimeCodeGenerator/timecodegenerator.hpp"
 #include <QThread>
 #include "TimeCodeMessage.h"
 TimecodeGenerator::TimecodeGenerator(QObject* parent)
@@ -49,7 +49,7 @@ void TimecodeGenerator::initInternalClock()
 
 void TimecodeGenerator::closeInternalClock()
 {
-    if(m_timer){
+    if(m_timer) {
         m_timer->stop();
         delete m_timer;
         m_timer = nullptr;
@@ -107,7 +107,10 @@ void TimecodeGenerator::setTimecodeType(TimeCodeType type)
    
     if (m_timecodeType != type) {
         m_timecodeType = type;
-
+        if(m_clockSource != ClockSource::Internal)
+        {
+            return;
+        }
         QMutexLocker locker(&m_mutex);
         bool wasActive = m_timer->isActive();
         if (wasActive) {
@@ -308,19 +311,46 @@ QString TimecodeGenerator::getCurrentAbsoluteTime() const
         .arg(milliseconds, 3, 10, QChar('0'));
 }
 
-void TimecodeGenerator::setClockSource(ClockSource source)
+void TimecodeGenerator::closeCurrentClockSource()
 {
-    if(m_clockSource != source)
-    {
-        m_clockSource = source;
-        if(m_clockSource == ClockSource::Internal)
-        {
-            initInternalClock();
-        }
-        else
-        {
+    // 先停止当前时钟源
+    stop();
+    
+    // 根据当前时钟源类型进行清理
+    switch (m_clockSource) {
+        case ClockSource::Internal:
             closeInternalClock();
-        }
+            break;
+        case ClockSource::LTC:
+            closeLTCClock();
+            break;
+        case ClockSource::MTC:
+            // 如果有 MTC 相关清理代码，在这里添加
+            break;
+    }
+}
+
+void TimecodeGenerator::closeLTCClock()
+{
+    if(m_ltcReceiver) {
+        m_ltcReceiver->stop();  // 确保先停止接收
+        delete m_ltcReceiver;
+        m_ltcReceiver = nullptr;
+    }
+}
+
+void TimecodeGenerator::initLTCClock(QString device, int channelIndex)
+{
+    // 确保先清理旧的接收器
+    closeLTCClock();
+    
+    // 创建新的接收器
+    m_ltcReceiver = new LTCReceiver();
+    if (m_ltcReceiver) {
+        connect(m_ltcReceiver, &LTCReceiver::newFrame, 
+                this, &TimecodeGenerator::setCurrentTimecode);
+        m_ltcReceiver->setChannel(channelIndex);
+        m_ltcReceiver->start(device);
     }
 }
 
@@ -329,22 +359,77 @@ ClockSource TimecodeGenerator::getClockSource() const
     return m_clockSource;
 }
 
-void TimecodeGenerator::initLTCClock(int deviceIndex)
+QJsonObject TimecodeGenerator::saveTimeCodeSetting()
 {
-    if(!m_ltcReceiver)
-    {
-        qDebug()<<"initLTCClock"<<deviceIndex;
-        m_ltcReceiver = new LTCReceiver();
+    QJsonObject json;
+    
+    // 保存基本设置
+    json["clockSource"] = static_cast<int>(m_clockSource);
+    json["timecodeType"] = static_cast<int>(m_timecodeType);
+
+  
+    // 保存 LTC 设置
+    if (m_clockSource == ClockSource::LTC) {
+        QJsonObject ltcSettings;
+        
+        // 保存 LTC 接收器的设置
+        ltcSettings["device"] = m_ltcReceiver->getDeviceName();
+        ltcSettings["channel"] = m_ltcReceiver->getChannel();
+        
+        json["ltcSettings"] = ltcSettings;
     }
-    m_ltcReceiver->start(deviceIndex);
-    connect(m_ltcReceiver, &LTCReceiver::newFrame, this, &TimecodeGenerator::setCurrentTimecode);
+    
+    // 保存 MTC 设置
+    if (m_clockSource == ClockSource::MTC) {
+       json["mtcSettings"] = QJsonObject();
+    }
+    
+    return json;
 }
 
-void TimecodeGenerator::closeLTCClock()
+
+void TimecodeGenerator::loadTimeCodeSetting(const QJsonObject& json)
 {
-    if(m_ltcReceiver)
-    {
-        delete m_ltcReceiver;
-        m_ltcReceiver = nullptr;
+    // 停止当前播放
+    stop();
+    
+    // 加载基本设置
+    if (json.contains("timecodeType")) {
+        setTimecodeType(static_cast<TimeCodeType>(json["timecodeType"].toInt()));
+    }
+    
+    // 加载时钟源设置
+    if (json.contains("clockSource")) {
+        ClockSource source = static_cast<ClockSource>(json["clockSource"].toInt());
+        
+        switch (source) {
+            case ClockSource::Internal:
+                if(m_clockSource != ClockSource::Internal)
+                {
+                    closeCurrentClockSource();
+                    initInternalClock();
+                    m_clockSource = source;
+                }
+                break;
+                
+            case ClockSource::LTC:
+                if(m_clockSource != ClockSource::LTC)
+                {
+                    closeCurrentClockSource();
+                    if (json.contains("ltcSettings")) {
+                        QJsonObject ltcSettings = json["ltcSettings"].toObject();
+                        QString device = ltcSettings["device"].toString();
+                        int channel = ltcSettings["channel"].toInt();
+                        initLTCClock(device, channel);
+                    }
+                }
+                break;
+                
+            case ClockSource::MTC:
+                if (json.contains("mtcSettings")) {
+                    // 初始化 MTC 设置
+                }
+                break;
+        }
     }
 }

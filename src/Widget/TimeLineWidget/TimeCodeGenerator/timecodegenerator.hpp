@@ -8,6 +8,7 @@
 #include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
 #include "TimeCodeMessage.h"
 #include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
+#include <QJsonObject>
 class TimecodeGenerator : public QObject {
     Q_OBJECT
 public:
@@ -52,7 +53,7 @@ public:
     // 获取当前帧的绝对时间
     QString getCurrentAbsoluteTime() const;
     // 设置时钟源
-    void setClockSource(ClockSource source);
+    void closeCurrentClockSource();
     // 获取时钟源
     ClockSource getClockSource() const;
 
@@ -60,9 +61,13 @@ public:
 
     void closeInternalClock();
     
-    void initLTCClock(int deviceIndex);
+    void initLTCClock(QString device,int channelIndex);
 
     void closeLTCClock();
+
+    QJsonObject  saveTimeCodeSetting();
+
+    void loadTimeCodeSetting(const QJsonObject& json);
 signals:
     /**
      * 当前帧改变
@@ -149,11 +154,11 @@ private:
     /**
      * 时钟源
      */
-    ClockSource m_clockSource;
+    ClockSource m_clockSource {ClockSource::Internal};
     /**
      * LTC接收器
      */
-    LTCReceiver* m_ltcReceiver;
+    LTCReceiver* m_ltcReceiver {nullptr};
 };
 
 #endif // TIMECODEGENERATOR_HPP 

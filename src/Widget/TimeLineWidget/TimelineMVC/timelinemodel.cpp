@@ -1,4 +1,3 @@
-
 #include "timelinemodel.hpp"
 
 // 获取播放头位置
@@ -288,11 +287,11 @@ void TimelineModel::clear(){
 QJsonObject TimelineModel::save() const {
     QJsonObject modelJson;
     QJsonArray trackArray;
-    auto timecodeType = m_timecodeGenerator->getTimecodeType();
-    modelJson["timecodeType"] = static_cast<int>(timecodeType);
+    // auto timecodeType = m_timecodeGenerator->getTimecodeType();
+    // modelJson["timecodeType"] = static_cast<int>(timecodeType);
     modelJson["displayFormat"] = static_cast<int>(m_timeDisplayFormat);
     modelJson["isLooping"] = m_timecodeGenerator->isLooping();
-    modelJson["clockSource"] = static_cast<int>(m_timecodeGenerator->getClockSource());
+    // modelJson["clockSource"] = static_cast<int>(m_timecodeGenerator->getClockSource());
     //轮询所有轨道
     for (TrackModel* track : m_tracks) {
         QJsonObject trackJson = track->save();
@@ -313,37 +312,51 @@ QJsonObject TimelineModel::save() const {
     if (m_stage) {
         modelJson["stage"] = m_stage->save();
     }
-
+    modelJson["timecodeSetting"] = m_timecodeGenerator->saveTimeCodeSetting();
     return modelJson;
 }
 
 void TimelineModel::load(const QJsonObject &modelJson) {
     clear();
+    
+    // 设置时间线长度
     m_timecodeGenerator->setMaxFrames(modelJson["length"].toInt());
     emit S_timelineLengthChanged();
-    // 先设置时间码类型
-    TimeCodeType type = static_cast<TimeCodeType>(modelJson["timecodeType"].toInt());
-    m_timecodeGenerator->setTimecodeType(type);
+    
+    // 设置循环状态
     m_timecodeGenerator->setLooping(modelJson["isLooping"].toBool());
+    
+    // 设置时间显示格式
     m_timeDisplayFormat = static_cast<TimedisplayFormat>(modelJson["displayFormat"].toInt());
-    m_timecodeGenerator->setClockSource(static_cast<ClockSource>(modelJson["clockSource"].toInt()));
+    
+    // 加载时间码设置（包括时钟源设置）
+    if (modelJson.contains("timecodeSetting")) {
+        m_timecodeGenerator->loadTimeCodeSetting(modelJson["timecodeSetting"].toObject());
+    }
+    
     // 加载轨道
     QJsonArray trackArray = modelJson["tracks"].toArray();
     for (const QJsonValue &trackValue : trackArray) {
         QJsonObject trackJson = trackValue.toObject();
         QString type = trackJson["type"].toString();
-        TrackModel* track = new TrackModel(trackJson["trackIndex"].toInt(), type,this);
+        TrackModel* track = new TrackModel(trackJson["trackIndex"].toInt(), type, this);
         onAddTrack(track);
+        
+        // 加载轨道中的片段
         QJsonArray clipArray = trackJson["clips"].toArray();
-        for(const QJsonValue &clipValue : clipArray){
+        for(const QJsonValue &clipValue : clipArray) {
             QJsonObject clipJson = clipValue.toObject();
-            AbstractClipModel* clip = getPluginLoader()->createModelForType(clipJson["type"].toString(), clipJson["start"].toInt());
+            AbstractClipModel* clip = getPluginLoader()->createModelForType(
+                clipJson["type"].toString(), 
+                clipJson["start"].toInt()
+            );
             clip->setTrackIndex(track->trackIndex());
             clip->load(clipJson);
             onAddClip(clip);
         }
     }
     emit S_trackAdd();
+    
     // 加载舞台信息
     if (modelJson.contains("stage")) {
         if (!m_stage) {
@@ -353,9 +366,7 @@ void TimelineModel::load(const QJsonObject &modelJson) {
         emit S_stageInited();
     }
 
-   emit S_timelineUpdated();
-
-
+    emit S_timelineUpdated();
 }
 // 计算时间线长度
 void TimelineModel::onTimelineLengthChanged()
@@ -549,6 +560,15 @@ void TimelineModel::onTimecodeTypeChanged(TimeCodeType type)
 
 int TimelineModel::getTrackCount() const {
     return m_tracks.size();
+}
+
+// 修改时钟源变更处理函数
+void TimelineModel::onClockSourceChanged(ClockSource source) {
+    if (m_timecodeGenerator->getClockSource() != source) {
+        QJsonObject currentSettings = m_timecodeGenerator->saveTimeCodeSetting();
+        currentSettings["clockSource"] = static_cast<int>(source);
+        m_timecodeGenerator->loadTimeCodeSetting(currentSettings);
+    }
 }
 
 

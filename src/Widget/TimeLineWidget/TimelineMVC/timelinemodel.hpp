@@ -20,7 +20,7 @@
 #include "pluginloader.hpp"
 #include "Widget/TimeLineWidget/TimelineStageWidget/timelinestage.hpp"
 #include "Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.hpp"
-#include "timecodegenerator.hpp"
+#include "Widget/TimeLineWidget/TimeCodeGenerator/timecodegenerator.hpp"
 #include "TimeCodeMessage.h"
 // TimelineModel类继承自QAbstractItemModel
 class TimelineModel : public QAbstractItemModel
@@ -309,12 +309,7 @@ public slots:
 
     void onMoveTrack(int sourceRow, int targetRow);
 
-    void onClockSourceChanged(ClockSource source){
-        if(m_timecodeGenerator->getClockSource() != source){
-            m_timecodeGenerator->setClockSource(source);
-        
-        }
-    }
+    void onClockSourceChanged(ClockSource source);
 private:
     // 查找片段所在轨道
     TrackModel* findParentTrackOfClip(AbstractClipModel* clip) const ;

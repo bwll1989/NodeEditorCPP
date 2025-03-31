@@ -1,8 +1,7 @@
 #include "TimeCodeInterface.h"
 #include "QtDebug"
 #include "portaudio.h"
-#include <QVBoxLayout>
-#include <QHBoxLayout>
+#include <QGridLayout>
 
 
 TimeCodeInterface::TimeCodeInterface(QWidget *parent)
@@ -12,28 +11,30 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     , timeCodeTypeLabel(new QLabel(this))
     , timeCodeStatusLabel(new QLabel(this))
     , timeCodeOffsetSpinBox(new QSpinBox(this))
+    , channelComboBox(new QComboBox(this))
 {
-    auto *layout = new QVBoxLayout(this);
+    auto *layout = new QGridLayout(this);
     timeCodeLabel->setAlignment(Qt::AlignCenter);
     timeCodeLabel->setFont(QFont("Arial", 12, QFont::Bold));
     timeCodeLabel->setText("00:00:00.00");
-    timeCodeLabel->setFixedWidth(100);
-    layout->addWidget(timeCodeLabel);
-    auto *deviceLayout = new QHBoxLayout();
+    layout->addWidget(timeCodeLabel,0,0,1,4);
 
-    deviceLayout->addWidget(timeCodeStatusLabel,1);
+    layout->addWidget(timeCodeStatusLabel,1,0,1,1);
     timeCodeStatusLabel->setText("no signal");
-    deviceLayout->addWidget(timeCodeTypeLabel,1);
+
+    layout->addWidget(timeCodeTypeLabel,1,1,1,1);
     timeCodeTypeLabel->setText("      ");
-    deviceLayout->addWidget(timeCodeOffsetSpinBox,1);
+
+    layout->addWidget(timeCodeOffsetSpinBox,1,2,1,2);
     timeCodeOffsetSpinBox->setRange(-100, 100);
     timeCodeOffsetSpinBox->setValue(0);
-    deviceLayout->addWidget(deviceComboBox,4);
 
-    layout->addLayout(deviceLayout);
+    layout->addWidget(deviceComboBox,2,0,1,3);
+    layout->addWidget(channelComboBox,2,3,1,1);
     deviceListInit();
     deviceComboBox->setCurrentIndex(-1);
-
+    this->setFixedSize(QSize(300,100));
+    connect(deviceComboBox,QComboBox::currentTextChanged,this,TimeCodeInterface::initChannelList);
 }   
 
 TimeCodeInterface::~TimeCodeInterface()
@@ -65,12 +66,19 @@ void TimeCodeInterface::deviceListInit(){
     deviceComboBox->addItems(deviceList);
 }
 
+void TimeCodeInterface::initChannelList(const QString &deviceName){
+    channelComboBox->clear();
+    QStringList channelList;
+    int deviceIndex = deviceName.split(":")[0].toInt();
+    auto deviceInfo = Pa_GetDeviceInfo(deviceIndex);
+    for(int i=0;i<deviceInfo->maxInputChannels;i++){
+        channelList << QString("CH%1").arg(i);
+    }
+    channelComboBox->addItems(channelList);
+}
 void TimeCodeInterface::setTimeStamp(TimeCodeFrame frame)
 {
-    qDebug() << "timeCode"<< frame.frames;
-
     frame = timecode_frame_add(frame, timeCodeOffsetSpinBox->value());
-    qDebug() << "timeCodeOffset" << frame.frames;
     QString ts = QString("%1:%2:%3.%4")
                      .arg(frame.hours, 2, 10, QLatin1Char('0'))
                      .arg(frame.minutes, 2, 10, QLatin1Char('0'))

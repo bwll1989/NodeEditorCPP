@@ -34,7 +34,7 @@ public:
         }
     }
 
-    ~PlayerClipModel() override =default;
+    virtual ~PlayerClipModel() override =default;
 
     // 设置文件路径并加载视频信息
     void setFilePath(const QString& path) { 
