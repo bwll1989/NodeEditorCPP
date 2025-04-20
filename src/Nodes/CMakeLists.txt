@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-
+add_subdirectory(VST3PluginNode)
 add_subdirectory(TimeCodeSourceNode)  #时间码输入
 add_subdirectory(StringSourceNode)    #字符串显示
 add_subdirectory(DataInfoNode)        #数据显示

@@ -31,120 +31,112 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Devices)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/DataTypes)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Clips)
 add_definitions(-DQT_MESSAGELOGCONTEXT)
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set(Spdlog_INCLUDE_DIRS "${DEPENDS_DIR}/spdlog/include" )
-    set(Spdlog_LIBRARIES "${DEPENDS_DIR}/spdlog/MinGW-64/lib/libspdlog.a")
 
-    set(QtNodes_DIR "${DEPENDS_DIR}/nodeeditor/MinGW-64/lib/cmake/QtNodes")
-    find_package(QtNodes REQUIRED)
 
-    set(QHotKey_INCLUDE_DIRS "${DEPENDS_DIR}/QHotkey-master/MinGW-64/include" )
-    set(QHotKey_LIBRARIES "${DEPENDS_DIR}/QHotkey-master/MinGW-64/lib/libqhotkey.a")
 
-    set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/src" )
-    set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MinGW-64/lib/libqtadvanceddocking.a")
 
-    # set(QtAwesome_LIBRARIES "${DEPENDS_DIR}/QtAwesome/MinGW-64/lib/libQtAwesome.a")
-
-    set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/MinGW-64/lib/libQCodeEditor.a")
-
-    set(portaudio_DIR "${DEPENDS_DIR}/portaudio/build/MinGW-64/include")
-    set(portaudio_LIBRARIES "${DEPENDS_DIR}/portaudio/build/MinGW-64/lib/libportaudio.dll.a")
-
-    set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/MinGW-64/lib/libQt6PropertyBrowser.a")
-
-    set(Libltc_LIBRARIES "${DEPENDS_DIR}/libltc_cmake/MinGW-64/lib/liblibltc.dll.a")
-
-#    set(MLT_DIR "${DEPENDS_DIR}/mingw-w64-x86_64/mingw-w64-x86_64-mlt-7.24.0-4-any.pkg/mingw64/lib/cmake/Mlt7")
-#    include_directories(MLT_DIR)
-    # find_package(Mlt7 REQUIRED)
-
-#    set(ossia_dir "${DEPENDS_DIR}/ossia/include")
-
-    set(Libpd_INCLUDE_DIRS "${DEPENDS_DIR}/libpd/libpd_wrapper" )
-    INCLUDE_DIRECTORIES(${Libpd_INCLUDE_DIRS})
-    set(Libpd_LIBRARIES "${DEPENDS_DIR}/libpd/build/libs/liblibpd-multi.dll.a")
-    set(PureData_INCLUDE_DIRS "${DEPENDS_DIR}/libpd/pure-data/src")
-    INCLUDE_DIRECTORIES(${PureData_INCLUDE_DIRS})
-
-    set(VST3_DIR "${DEPENDS_DIR}/vst3")
-    set(VST3_LIBRARIES_DIR "${VST3_DIR}/build/lib")
-    #add_subdirectory(${VST3_DIR})
-    include_directories(${VST3_DIR})
-    link_directories(${VST3_LIBRARIES_DIR})
-    
-
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL") # 或 MultiThreaded
-    add_compile_options("/permissive-")
-    add_compile_options("/Zc:__cplusplus")
-    set(Spdlog_INCLUDE_DIRS "${DEPENDS_DIR}/spdlog/include" )
-    set(Spdlog_LIBRARIES "${DEPENDS_DIR}/spdlog/MSVC/lib/spdlog.lib")
-
-    set(QtNodes_DIR "${DEPENDS_DIR}/nodeeditor/MSVC/include")
-    set(QtNodes_LIBRARIES "${DEPENDS_DIR}/nodeeditor/MSVC/lib/QtNodes.lib")
-
-    set(QHotKey_INCLUDE_DIRS "${DEPENDS_DIR}/QHotkey-master/MSVC/include" )
-    set(QHotKey_LIBRARIES "${DEPENDS_DIR}/QHotkey-master/MSVC/lib/qhotkey.lib")
-
-    set(VST3_DIR "${DEPENDS_DIR}/vst3sdk")
-    set(VST3_LIBRARIES_DIR "${VST3_DIR}/MSVC/lib")
-    add_subdirectory(${VST3_DIR})
-    include_directories(${VST3_DIR})
-    link_directories(${VST3_LIBRARIES_DIR})
-    add_subdirectory(src/Nodes/VST3PluginNode)
-
-    set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/src" )
-    set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/lib/Release/qt6advanceddocking.lib")
-
-    # set(QtAwesome_LIBRARIES "${DEPENDS_DIR}/QtAwesome/MSVC/lib/QtAwesome.lib")
-
-    set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/MSVC/lib/QCodeEditor.lib")
-
-    set(portaudio_DIR "${DEPENDS_DIR}/portaudio/build/MSVC/include")
-    set(portaudio_LIBRARIES "${DEPENDS_DIR}/portaudio/build/MSVC/lib/portaudio.lib")
-
-    set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/MSVC/lib/Qt6PropertyBrowser.lib")
-
-    set(Libltc_DIR "${DEPENDS_DIR}/libltc_cmake")
-    set(Libltc_LIBRARIES "${Libltc_DIR}/MSVC/lib/libltc.lib")
-
-    target_link_libraries(${ProjectName}
-            PUBLIC
-            sdk
-            vstgui_support
-            sdk_hosting
-            VST3PluginNode)
-endif ()
-
+# 设置Qt MSVC版本的路径
+set(CMAKE_PREFIX_PATH "C:/Qt/6.5.3/msvc2019_64") # 请根据实际安装路径修改此处
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL") # 或 MultiThreaded
+# 设置编译选项
+add_compile_options("/permissive-")
+add_compile_options("/Zc:__cplusplus")
+add_compile_options("/utf-8")
+# 设置Spdlog库
+set(Spdlog_INCLUDE_DIRS "${DEPENDS_DIR}/spdlog/include" )
+set(Spdlog_LIBRARIES "${DEPENDS_DIR}/spdlog/MSVC/lib/spdlog.lib")
 INCLUDE_DIRECTORIES(${Spdlog_INCLUDE_DIRS})
 message("--Found spdlog ${Spdlog_LIBRARIES}")
 
+# 设置QtNodes库
+set(QtNodes_DIR "${DEPENDS_DIR}/nodeeditor/MSVC/include")
+set(QtNodes_LIBRARIES "${DEPENDS_DIR}/nodeeditor/MSVC/lib/QtNodes.lib")
+INCLUDE_DIRECTORIES(${QtNodes_DIR})
+message("-- Found QtNodes ${QtNodes_DIR}")
 
-## 查找Libpd库
-# find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Quick QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Quick QuickWidgets Widgets Network Concurrent Qml
+# 设置QHotKey库
+set(QHotKey_INCLUDE_DIRS "${DEPENDS_DIR}/QHotkey-master/MSVC/include" )
+set(QHotKey_LIBRARIES "${DEPENDS_DIR}/QHotkey-master/MSVC/lib/qhotkey.lib")
+INCLUDE_DIRECTORIES(${QHotKey_INCLUDE_DIRS} )
+message("-- Found QHotkey ${QHotKey_INCLUDE_DIRS}")
+# 设置VST3库
+set(VST3_DIR "${DEPENDS_DIR}/vst3sdk")
+set(VST3_LIBRARIES_DIR "${VST3_DIR}/MSVC/lib")
+include_directories(${VST3_DIR})
+link_directories(${VST3_LIBRARIES_DIR})
+message("-- Found vst3sdk ${VST3_DIR}")
+
+# 设置ADS库
+set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/src" )
+set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/lib/Release/qt6advanceddocking.lib")
+INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
+message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
+
+# 设置QCodeEditor库
+set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/MSVC/lib/QCodeEditor.lib")
+set(QCodeEditor_INCLUDE "${DEPENDS_DIR}/QCodeEditor/include")
+INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
+message("-- Found QCodeEditor ${QCodeEditor_INCLUDE}")
+
+# 设置portaudio库
+set(portaudio_DIR "${DEPENDS_DIR}/portaudio/include")
+set(portaudio_LIBRARIES "${DEPENDS_DIR}/portaudio/build/MSVC/lib/portaudio.lib")
+INCLUDE_DIRECTORIES(${portaudio_DIR})
+message("-- Found portaudio ${portaudio_DIR}")
+
+# 设置Qtpropertybrowser库
+set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/MSVC/lib/Qt6PropertyBrowser.lib")
+include_directories("${DEPENDS_DIR}/qtpropertybrowser/src")
+message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
+
+# 设置libltc库
+set(Libltc_DIR "${DEPENDS_DIR}/libltc_cmake")
+set(Libltc_LIBRARIES "${Libltc_DIR}/MSVC/lib/libltc.lib")
+INCLUDE_DIRECTORIES("${DEPENDS_DIR}/libltc_cmake/src")
+message("-- Found libltc ${DEPENDS_DIR}/libltc_cmake/src")
+
+# 设置tinyosc库
+set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc-msvc")
+include_directories(${tinyosc_DIR})
+message("-- Found tinyosc ${tinyosc_DIR}")
+
+# 设置FFMPEG库
+set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/include")
+set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/lib")
+include_directories(${FFMPEG_INCLUDE_DIRS})
+link_directories("${FFMPEG_LIB_DIRS}")
+message("-- Found ffmpeg ${FFMPEG_INCLUDE_DIRS}")
+
+# 设置Eigen3库
+set(Eigen3_DIR "${DEPENDS_DIR}/eigen-3.4.0/INSTALL/share/eigen3/cmake")
+find_package(Eigen3 REQUIRED)
+INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
+message("-- Found Eigen3 ${EIGEN3_INCLUDE_DIR}")
+
+# 设置OpenCV库
+set(OpenCV_DIR "${DEPENDS_DIR}/opencv/build/include")
+set(OpenCV_LIBRARIES "${DEPENDS_DIR}/opencv/build/x64/vc16/lib")
+INCLUDE_DIRECTORIES(${OpenCV_DIR})
+link_directories("${OpenCV_LIBRARIES}")
+message("-- Found OpenCV ${OpenCV_DIR}")
+
+# 设置QT库
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
         QmlWorkerScript
         QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets)
 #添加QT库
-INCLUDE_DIRECTORIES(${QtNodes_DIR})
-message("-- Found QtNodes ${QtNodes_DIR}")
+
 #添加QtNodes库
-INCLUDE_DIRECTORIES(${QHotKey_INCLUDE_DIRS} )
-message("-- Found QHotkey ${QHotKey_INCLUDE_DIRS}")
-#添加QHotKey库
-INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
-message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
+
+
 #添加ADS
 # set(QtAwesome_INCLUDE_DIRS "${DEPENDS_DIR}/QtAwesome")
 # INCLUDE_DIRECTORIES(${QtAwesome_INCLUDE_DIRS})
 #添加QtAwesome库
 #set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n6.1.1-win64-gpl-shared-6.1/include")
 #set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n6.1.1-win64-gpl-shared-6.1/lib")
-set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/include")
-set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/lib")
-include_directories(${FFMPEG_INCLUDE_DIRS})
-link_directories("${FFMPEG_LIB_DIRS}")
+
 #
 # set(GStreamer_INCLUDE_DIRS "${DEPENDS_DIR}/gstreamer/1.0/mingw_x86_64/include")
 # set(GStreamer_LIB_DIRS "${DEPENDS_DIR}/gstreamer/1.0/mingw_x86_64/lib")
@@ -152,35 +144,24 @@ link_directories("${FFMPEG_LIB_DIRS}")
 # link_directories("${GStreamer_LIB_DIRS}")
 # message("-- Found GStreamer ${GStreamer_INCLUDE_DIRS}")
 
-set(QCodeEditor_INCLUDE "${DEPENDS_DIR}/QCodeEditor/include")
-INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
-message("-- Found QCodeEditor ${QCodeEditor_INCLUDE}")
 
-set(Eigen3_DIR "${DEPENDS_DIR}/eigen-3.4.0/INSTALL/share/eigen3/cmake")
-find_package(Eigen3 REQUIRED)
-INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 
-INCLUDE_DIRECTORIES(${portaudio_DIR})
-message("-- Found portaudio ${portaudio_DIR}")
+
+
+
 
 #set(SndFile_DIR "${DEPENDS_DIR}/libsndfile/install/cmake")
 #find_package(SndFile REQUIRED)
 #message("-- Found SndFile ${SndFile_DIR}")
 #
-set(OpenCV_DIR "${DEPENDS_DIR}/opencv/build/include")
-set(OpenCV_LIBRARIES "${DEPENDS_DIR}/opencv/build/x64/vc16/lib")
-INCLUDE_DIRECTORIES(${OpenCV_DIR})
-link_directories("${OpenCV_LIBRARIES}")
-message("-- Found OpenCV ${OpenCV_DIR}")
-include_directories("${DEPENDS_DIR}/qtpropertybrowser/src")
-message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
 
-set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc")
-include_directories(${tinyosc_DIR})
-message("-- Found tinyosc ${tinyosc_DIR}")
 
-INCLUDE_DIRECTORIES("${DEPENDS_DIR}/libltc_cmake/src")
-message("-- Found libltc ${DEPENDS_DIR}/libltc_cmake/src")
+
+# set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc")
+# include_directories(${tinyosc_DIR})
+# message("-- Found tinyosc ${tinyosc_DIR}")
+
+
 
 
 # add_subdirectory(src/Nodes/VST3PluginNode)
@@ -203,8 +184,8 @@ add_subdirectory(src/Clips)
 add_subdirectory(src/Nodes)
 set(CALC_SOURCE_FILES
         main.cpp
-        3rdParty/tinyosc/tinyosc.c
-        3rdParty/tinyosc/tinyosc.h
+        3rdParty/tinyosc-msvc/tinyosc.c
+        3rdParty/tinyosc-msvc/tinyosc.h
         src/DataTypes/NodeDataList.hpp
         src/Widget/NodeWidget/CustomGraphicsView.cpp
         src/Widget/NodeWidget/CustomGraphicsView.h
@@ -273,8 +254,8 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/TcpClient/TcpClient.h
         src/Common/Devices/UdpSocket/UdpSocket.cpp
         src/Common/Devices/UdpSocket/UdpSocket.h
-        src/Common/Devices/AudioPipe/AudioPipe.cpp
-        src/Common/Devices/AudioPipe/AudioPipe.h
+        # src/Common/Devices/AudioPipe/AudioPipe.cpp
+        # src/Common/Devices/AudioPipe/AudioPipe.h
         src/Common/Devices/OSCReceiver/OSCReceiver.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.h
         src/Common/Devices/OSCSender/OSCSender.cpp
@@ -391,6 +372,9 @@ target_link_libraries(${ProjectName}
             swscale
             Opengl32
             glu32
+            sdk
+            vstgui_support
+            sdk_hosting
             ${portaudio_LIBRARIES}
             ${QtNodes_LIBRARIES}
             ${Spdlog_LIBRARIES}

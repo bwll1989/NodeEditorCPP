@@ -442,13 +442,13 @@ void TimelineModel::onAddClip(int trackIndex, int startFrame) {
     connect(newClip, &AbstractClipModel::lengthChanged, [this]() {emit S_addClip();});
     connect(newClip, &AbstractClipModel::timelinePositionChanged, [this]() {emit S_addClip();});
     newClip->setTimecodeType(getTimecodeType());
-    connect(newClip,AbstractClipModel::timelinePositionChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::timelinePositionChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
 //    结束时间变化时刷新显示
-    connect(newClip,AbstractClipModel::lengthChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::lengthChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
 
-    connect(newClip,AbstractClipModel::posChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
-    connect(newClip,AbstractClipModel::rotateChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
-    connect(newClip,AbstractClipModel::sizeChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::posChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::rotateChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::sizeChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
 
     getTracks()[trackIndex]->onAddClip(newClip);
     emit S_addClip();
@@ -456,12 +456,12 @@ void TimelineModel::onAddClip(int trackIndex, int startFrame) {
 //通过片段模型添加片段
 void TimelineModel::onAddClip(AbstractClipModel* newClip){
     newClip->setTimecodeType(getTimecodeType());
-    connect(newClip,AbstractClipModel::timelinePositionChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::timelinePositionChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
 //    结束时间变化时刷新显示
-    connect(newClip,AbstractClipModel::lengthChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
-    connect(newClip,AbstractClipModel::posChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
-    connect(newClip,AbstractClipModel::rotateChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
-    connect(newClip,AbstractClipModel::sizeChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::lengthChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::posChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::rotateChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
+    connect(newClip,&AbstractClipModel::sizeChanged,this,[this]() { onCreateCurrentVideoData(this->getPlayheadPos());});
     getTracks()[newClip->trackIndex()]->onAddClip(newClip);
     emit S_addClip();
 }
@@ -564,10 +564,15 @@ int TimelineModel::getTrackCount() const {
 
 // 修改时钟源变更处理函数
 void TimelineModel::onClockSourceChanged(ClockSource source) {
-    if (m_timecodeGenerator->getClockSource() != source) {
-        QJsonObject currentSettings = m_timecodeGenerator->saveTimeCodeSetting();
-        currentSettings["clockSource"] = static_cast<int>(source);
-        m_timecodeGenerator->loadTimeCodeSetting(currentSettings);
+    try {
+        if (m_timecodeGenerator && m_timecodeGenerator->getClockSource() != source) {
+            QJsonObject currentSettings = m_timecodeGenerator->saveTimeCodeSetting();
+            currentSettings["clockSource"] = static_cast<int>(source);
+            m_timecodeGenerator->loadTimeCodeSetting(currentSettings);
+        }
+    } catch (const std::exception& e) {
+        qDebug() << "Error changing clock source:" << e.what();
+        // 可以在这里添加错误处理，比如显示错误对话框
     }
 }
 

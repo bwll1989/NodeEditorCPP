@@ -16,7 +16,7 @@ public:
     QQueue<std::vector<uint8_t>> audioQueue;
     QMutex mutex;
     QWaitCondition condition;
-    size_t maxQueueSize=100;
+    size_t maxQueueSize=5;
     void pushAudioData(const uint8_t* outputBuffer, size_t size)  ;
     size_t cacheSize();
     std::vector<uint8_t> popAudioData();

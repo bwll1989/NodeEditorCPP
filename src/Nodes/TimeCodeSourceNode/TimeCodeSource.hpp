@@ -47,8 +47,8 @@ public:
         // 连接 receiver 的信号到 Widget
         connect(receiver, &LTCReceiver::statusChanged, _label, &TimeCodeInterface::setStatus);
         connect(receiver, &LTCReceiver::newFrame, _label, &TimeCodeInterface::setTimeStamp);
-        connect(_label->deviceComboBox, QComboBox::currentIndexChanged, this, &TimeCodeSource::deviceChanged);
-        connect(_label->channelComboBox, QComboBox::currentIndexChanged, receiver, &LTCReceiver::setChannel);
+        connect(_label->deviceComboBox, &QComboBox::currentIndexChanged, this, &TimeCodeSource::deviceChanged);
+        connect(_label->channelComboBox, &QComboBox::currentIndexChanged, receiver, &LTCReceiver::setChannel);
     }
 
     ~TimeCodeSource()

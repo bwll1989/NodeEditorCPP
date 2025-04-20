@@ -2,44 +2,50 @@
     "DataFlow": {
         "connections": [
             {
+                "inPortIndex": 2,
+                "intNodeId": 4,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
                 "inPortIndex": 1,
                 "intNodeId": 1,
                 "outNodeId": 9,
                 "outPortIndex": 0
             },
             {
-                "inPortIndex": 0,
-                "intNodeId": 9,
+                "inPortIndex": 1,
+                "intNodeId": 4,
                 "outNodeId": 7,
                 "outPortIndex": 0
             },
             {
                 "inPortIndex": 0,
-                "intNodeId": 7,
-                "outNodeId": 2,
+                "intNodeId": 1,
+                "outNodeId": 5,
                 "outPortIndex": 0
             },
             {
-                "inPortIndex": 1,
-                "intNodeId": 7,
+                "inPortIndex": 3,
+                "intNodeId": 4,
                 "outNodeId": 8,
                 "outPortIndex": 0
             },
             {
                 "inPortIndex": 0,
-                "intNodeId": 1,
-                "outNodeId": 3,
-                "outPortIndex": 0
-            },
-            {
-                "inPortIndex": 0,
-                "intNodeId": 0,
+                "intNodeId": 4,
                 "outNodeId": 6,
                 "outPortIndex": 0
             },
             {
                 "inPortIndex": 0,
-                "intNodeId": 6,
+                "intNodeId": 5,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 0,
                 "outNodeId": 1,
                 "outPortIndex": 0
             }
@@ -47,25 +53,26 @@
         "nodes": [
             {
                 "id": 0,
-                "inPortCount": "1",
+                "input-count": 1,
                 "internal-data": {
-                    "model-name": "OSC Output",
                     "values": {
                         "Host": "127.0.0.1",
                         "Port": 8993
                     }
                 },
-                "outPortCount": "0",
+                "output-count": 0,
+                "port-editable": false,
                 "position": {
-                    "x": 619,
-                    "y": 48
-                }
+                    "x": 554,
+                    "y": -66.0185185185185
+                },
+                "remarks": "OSC Output",
+                "type": "OSC Output"
             },
             {
                 "id": 1,
-                "inPortCount": "5",
+                "input-count": 5,
                 "internal-data": {
-                    "model-name": "Merge",
                     "values": {
                         "key": {
                             "rows": [
@@ -83,125 +90,146 @@
                         }
                     }
                 },
-                "outPortCount": "1",
+                "output-count": 1,
+                "port-editable": true,
                 "position": {
-                    "x": 97,
-                    "y": -11
-                }
-            },
-            {
-                "id": 2,
-                "inPortCount": "1",
-                "internal-data": {
-                    "model-name": "Int Source",
-                    "values": {
-                        "val": 410
-                    }
+                    "x": 340.3333333333333,
+                    "y": 206.39814814814815
                 },
-                "outPortCount": "1",
-                "position": {
-                    "x": -661,
-                    "y": 113
-                }
+                "remarks": "Merge",
+                "type": "Merge"
             },
             {
                 "id": 3,
-                "inPortCount": "1",
+                "input-count": 1,
                 "internal-data": {
-                    "model-name": "String Source",
                     "values": {
-                        "text": "/all/stop"
+                        "text": "/player1/play"
                     }
                 },
-                "outPortCount": "1",
+                "output-count": 1,
+                "port-editable": false,
                 "position": {
-                    "x": -582,
-                    "y": -55
-                }
+                    "x": -623,
+                    "y": 231
+                },
+                "remarks": "String Source",
+                "type": "String Source"
+            },
+            {
+                "id": 4,
+                "input-count": 5,
+                "internal-data": {
+                    "values": {
+                        "val": 0
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -220,
+                    "y": 116
+                },
+                "remarks": "Switch",
+                "type": "Switch"
+            },
+            {
+                "id": 5,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 98,
+                    "y": 69
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
             },
             {
                 "id": 6,
-                "inPortCount": "1",
+                "input-count": 1,
                 "internal-data": {
-                    "model-name": "Data Info"
+                    "values": {
+                        "val": 0
+                    }
                 },
-                "outPortCount": "1",
+                "output-count": 1,
+                "port-editable": false,
                 "position": {
-                    "x": 350,
-                    "y": 92
-                }
+                    "x": -622,
+                    "y": 30
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
             },
             {
                 "id": 7,
-                "inPortCount": "2",
+                "input-count": 1,
                 "internal-data": {
-                    "model-name": "Math Operation"
+                    "values": {
+                        "text": "/player1/stop"
+                    }
                 },
-                "outPortCount": "1",
+                "output-count": 1,
+                "port-editable": false,
                 "position": {
-                    "x": -430,
-                    "y": 214
-                }
+                    "x": -625,
+                    "y": 148
+                },
+                "remarks": "String Source",
+                "type": "String Source"
             },
             {
                 "id": 8,
-                "inPortCount": "1",
+                "input-count": 1,
                 "internal-data": {
-                    "model-name": "Int Source",
                     "values": {
-                        "val": 5
+                        "text": "/player1/fullscreen"
                     }
                 },
-                "outPortCount": "1",
+                "output-count": 1,
+                "port-editable": false,
                 "position": {
-                    "x": -735,
-                    "y": 247
-                }
+                    "x": -636,
+                    "y": 312
+                },
+                "remarks": "String Source",
+                "type": "String Source"
             },
             {
                 "id": 9,
-                "inPortCount": "1",
+                "input-count": 1,
                 "internal-data": {
-                    "model-name": "Int Source",
                     "values": {
-                        "val": 1000
+                        "val": "0"
                     }
                 },
-                "outPortCount": "1",
+                "output-count": 1,
+                "port-editable": false,
                 "position": {
-                    "x": -219,
-                    "y": 251
-                }
+                    "x": -21,
+                    "y": 261
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
             }
         ]
     },
     "TimeLine": {
         "displayFormat": 0,
         "isLooping": false,
-        "length": 5056,
+        "length": 0,
         "stage": {
             "screens": [
             ]
         },
-        "timecodeType": 3,
+        "timecodeSetting": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
         "tracks": [
-            {
-                "clips": [
-                    {
-                        "end": 5055,
-                        "filePath": "D:/19_NodeEditorCPP/NodePlayerCPP/build/bin/media/Crab Rave.mp4",
-                        "oscHost": "127.0.0.1:8993",
-                        "playerID": "player1",
-                        "start": 250,
-                        "track": 0,
-                        "type": "Player"
-                    }
-                ],
-                "trackIndex": 0,
-                "trackLength": 5056,
-                "trackName": "Player",
-                "type": "Player"
-            }
         ]
     }
 }

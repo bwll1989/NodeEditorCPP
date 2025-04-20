@@ -101,27 +101,37 @@ public:
             case PortType::In:
                 switch (portIndex) {
                     case 0:
-                        return VariantData().type();
+                        return VariableData().type();
                 }
                 break;
             case PortType::Out:
-                return VariantData().type();
+                return VariableData().type();
                 break;
 
             case PortType::None:
                 break;
         }
-        return VariantData().type();
+        return VariableData().type();
     }
 
 
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariantData>(message);
+        return std::make_shared<VariableData>(message);
     }
 
-    void setInData(std::shared_ptr<NodeData>, PortIndex const) override {}
+    void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
+        Q_UNUSED(portIndex)
+        if (data == nullptr) {
+            message = QVariant();
+        } else {
+            auto textData = std::dynamic_pointer_cast<VariableData>(data);
+            if (textData->value().canConvert<QString>()) {
+                message = textData->value().toString();
+            }
+        }
+    }
 
     QWidget *embeddedWidget() override
     {
@@ -159,9 +169,8 @@ public slots:
 
     void sendMessage(){
 
-//        QString msg=widget->sendBox->text();
-//        QString client=widget->clientList->currentText();
-//        emit sendTCPMessage(client,msg);
+
+        server->sendMessage(message.toString());
     }
 
 signals:

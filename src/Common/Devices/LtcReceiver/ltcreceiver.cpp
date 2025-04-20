@@ -11,8 +11,8 @@ LTCReceiver::LTCReceiver(QObject *parent)
     return;
   }
 
-  _decoder = new LTCDecoder;
-  connect(_decoder, &LTCDecoder::newFrame, this, &LTCReceiver::newFrame);
+  _decoder = new LtcDecoder;
+  connect(_decoder, &LtcDecoder::newFrame, this, &LTCReceiver::newFrame);
 }
 
 bool LTCReceiver::isASIODevice(int deviceIndex) const

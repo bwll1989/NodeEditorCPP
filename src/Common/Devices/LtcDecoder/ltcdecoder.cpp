@@ -6,7 +6,7 @@
 #define GETLTC static_cast<LTCDecoder *>(_private)
 
 
-LTCDecoder::LTCDecoder(QObject *parent)
+LtcDecoder::LtcDecoder(QObject *parent)
   :QIODevice(parent)
 {
   int apv = 1920;
@@ -17,7 +17,7 @@ LTCDecoder::LTCDecoder(QObject *parent)
 }
 
 
-LTCDecoder::~LTCDecoder()
+LtcDecoder::~LtcDecoder()
 {
   LTCDecoder *ltc = GETLTC;
   ltc_decoder_free(ltc);
@@ -25,7 +25,7 @@ LTCDecoder::~LTCDecoder()
 }
 
 
-qint64 LTCDecoder::writeData(const char *data, qint64 len)
+qint64 LtcDecoder::writeData(const char *data, qint64 len)
 {
   static int last_frame = 0;
   static int frame_rate_g = 0;

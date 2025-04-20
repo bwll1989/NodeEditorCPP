@@ -13,8 +13,8 @@ add_library(${Module_Name} SHARED
         ../../Common/GUI/QJsonModel/QJsonModel.hpp
         ../../Common/GUI/QJsonModel/QJsonModel.cpp
         ../../Common/GUI/QJsonModel/details/QUtf8.hpp
-        ../../Common/Devices/AudioPipe/AudioPipe.cpp
-        ../../Common/Devices/AudioPipe/AudioPipe.h
+        # ../../Common/Devices/AudioPipe/AudioPipe.cpp
+        # ../../Common/Devices/AudioPipe/AudioPipe.h
 )
 
 target_link_libraries(${Module_Name}

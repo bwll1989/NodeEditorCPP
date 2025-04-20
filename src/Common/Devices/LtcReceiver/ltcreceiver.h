@@ -51,7 +51,7 @@ private:
   void setupASIOStream(PaStreamParameters& params);
 
 private:
-  LTCDecoder* _decoder {nullptr};
+  LtcDecoder* _decoder {nullptr};
   PaStream* _paStream {nullptr};
   bool _isRunning {false};
   int _selectedChannel {0};

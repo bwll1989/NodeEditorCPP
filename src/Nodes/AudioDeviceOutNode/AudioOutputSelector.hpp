@@ -19,7 +19,7 @@ extern "C" {
 #include <QThread>
 
 #define OUTPUT_CHANNELS 2
-#define SAMPLE_RATE 44100
+#define SAMPLE_RATE 48000
 #define FRAMES_PER_BUFFER 1024
 class AudioOutput : public QObject {
     Q_OBJECT

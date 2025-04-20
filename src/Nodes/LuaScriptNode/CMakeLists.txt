@@ -14,7 +14,7 @@ message("-- Found LuaBridge ${LuaBridge_INCLUDE}")
 set(LUA_INCLUDE_DIR "${DEPENDS_DIR}/Lua/install/include")
 # set(LUA_INCLUDE_DIR "${DEPENDS_DIR}/mingw-w64-x86_64/mingw-w64-x86_64-lua-5.4.7-3-any.pkg/mingw64/include")
 INCLUDE_DIRECTORIES(${LUA_INCLUDE_DIR})
-set(LUA_LIBRARIES "${DEPENDS_DIR}/Lua/install/bin/liblua54.dll")
+set(LUA_LIBRARIES "${DEPENDS_DIR}/Lua/install/lib/liblua54.lib")
 # set(LUA_LIBRARIES "${DEPENDS_DIR}/mingw-w64-x86_64/mingw-w64-x86_64-lua-5.4.7-3-any.pkg/mingw64/lib/liblua.a")
 
 # find_package(Lua REQUIRED)

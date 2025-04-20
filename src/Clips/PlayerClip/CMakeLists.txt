@@ -16,7 +16,7 @@ include_directories(${FFMPEG_INCLUDE_DIRS})
 link_directories("${FFMPEG_LIB_DIRS}")
 # 查找Qt包
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
-set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc")
+set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc-msvc")
 include_directories(${tinyosc_DIR})
 message("-- Found tinyosc ${tinyosc_DIR}")
 # 设置基础目录变量

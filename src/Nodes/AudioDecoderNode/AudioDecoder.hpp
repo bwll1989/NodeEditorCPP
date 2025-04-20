@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <QtCore/QObject>
 #include "QJsonObject"
+#include "DataTypes/AudioData2.h"  // 确保包含此头文件
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -17,61 +18,31 @@ extern "C" {
 #include <QMutex>
 #include <QWaitCondition>
 #include <portaudio.h>
-#include <Common/Devices/AudioPipe/AudioPipe.h>
+#include <QDateTime>
+// #include <Common/Devices/AudioPipe/AudioPipe.h>
+
 class AudioDecoder : public QThread {
 Q_OBJECT
 
 public:
+    explicit AudioDecoder(QObject *parent = nullptr)
+        : QThread(parent)
+        , formatContext(nullptr)
+        , codecContext(nullptr)
+        , codec(nullptr)
+        , audioFrame(nullptr)
+        , packet(nullptr)
+        , swrContext(nullptr)
+        , resampledBuffer(nullptr)
+        , audioStreamIndex(-1)
+        , isPlaying(false) {
+    }
 
-    explicit AudioDecoder(AudioPipe *audio,QObject *parent = nullptr): QThread(parent), packet(nullptr),
-                                                     resampledBuffer(nullptr),
-                                                        audioProcessor(audio),
-    // paStream(nullptr),
-                                                     isPlaying(false) {}
-    ~AudioDecoder(){
+    ~AudioDecoder() {
         stopPlay();
-        // cleanupPortAudio();
         cleanupFFmpeg();
     }
 
-    // bool loadFile(const QString &filePath){
-    //     if(!initializeFFmpeg(filePath))
-    //     {
-    //         return false;
-    //     }
-    //     qDebug()<<"initializeFFmpeg OK";
-    //     // if(!initializePortAudio())
-    //     // {
-    //     //     return false;
-    //     // }
-    //     // qDebug()<<"initializePortAudio OK";
-    //
-    //     return true;
-    // }
-    // bool initializePortAudio() {
-    //     PaError err = Pa_Initialize();
-    //     if (err != paNoError) {
-    //         qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
-    //         return false;
-    //     }
-    //     PaStreamParameters outputParameters;
-    //     outputParameters.device = Pa_GetDefaultOutputDevice();
-    //     outputParameters.channelCount = codecContext->ch_layout.nb_channels;
-    //     outputParameters.sampleFormat = paInt16; // 假设输出是16位整数
-    //     outputParameters.suggestedLatency = Pa_GetDeviceInfo(outputParameters.device)->defaultLowOutputLatency;
-    //     outputParameters.hostApiSpecificStreamInfo = nullptr;
-    //     err = Pa_OpenStream(&paStream, nullptr, &outputParameters, 48000, paFramesPerBufferUnspecified, paNoFlag, nullptr, nullptr);
-    //     if (err != paNoError) {
-    //         qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
-    //         return false;
-    //     }
-    //     err = Pa_StartStream(paStream);
-    //     if (err != paNoError) {
-    //         qWarning() << "PortAudio error: " << Pa_GetErrorText(err);
-    //         return false;
-    //     }
-    //     return true;
-    // }
     QJsonObject* initializeFFmpeg(const QString &filePath){
         formatContext= nullptr;
         codecContext= nullptr;
@@ -163,95 +134,115 @@ public:
         isPlaying = false;
         condition.wakeAll();
         wait(); // 等待线程结束
+
+         
+        // 清理解码资源
+        // cleanupFFmpeg();
+        
+        // // 重置解码器状态
+        // formatContext = nullptr;
+        // codecContext = nullptr;
+        // codec = nullptr;
+        // audioFrame = nullptr;
+        // packet = nullptr;
+        // swrContext = nullptr;
+        // audioStreamIndex = -1;
     }
     bool isPlaying;
+
+signals:
+    // 添加信号用于发送音频帧
+    void audioFrameReady(AudioFrame frame);
+
 protected:
-    void run() override{
+    void run() override {
         playAudio();
     }
-    void playAudio(){
+
+private:
+    void playAudio() {
         AVPacket packet;
         audioFrame = av_frame_alloc();
         uint8_t* outputBuffer = nullptr;
         int outputBufferSize = 0;
-
-        while ( isPlaying && av_read_frame(formatContext, &packet) >= 0) {
+        
+        // 获取原始音频参数
+        int originalSampleRate = codecContext->sample_rate;
+        int originalChannels = codecContext->ch_layout.nb_channels;
+        
+        // 计算每帧的理论持续时间（基于原始采样率）
+        const double frameTime = 1000.0 * BUFFER_SIZE / originalSampleRate; // ms
+        qint64 lastFrameTime = QDateTime::currentMSecsSinceEpoch();
+        
+        while (isPlaying && av_read_frame(formatContext, &packet) >= 0) {
             if (packet.stream_index == audioStreamIndex) {
                 if (avcodec_send_packet(codecContext, &packet) < 0) {
-                    qWarning() << "Error sending a packet for decoding.";
                     continue;
                 }
 
                 while (avcodec_receive_frame(codecContext, audioFrame) >= 0) {
-                    // 计算重采样后输出的缓冲区大小
-                    int outputBufferSamples = av_rescale_rnd(swr_get_delay(swrContext, codecContext->sample_rate) + audioFrame->nb_samples, 48000, codecContext->sample_rate, AV_ROUND_UP);
+                    // 计算重采样后的大小
+                    int outputBufferSamples = av_rescale_rnd(
+                        swr_get_delay(swrContext, originalSampleRate) + audioFrame->nb_samples,
+                        48000,  // 输出采样率固定为48000
+                        originalSampleRate,
+                        AV_ROUND_UP
+                    );
 
-                    // 为输出缓冲区分配空间
-                    if (outputBufferSize < outputBufferSamples * av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * 2)
-                    {
+                    // 确保缓冲区大小合适（考虑实际声道数）
+                    int newSize = outputBufferSamples * originalChannels * 2; // channels * 2 bytes per sample
+                    if (outputBufferSize < newSize) {
                         av_freep(&outputBuffer);
-                        outputBufferSize = outputBufferSamples * av_get_bytes_per_sample(AV_SAMPLE_FMT_S16) * 2;
+                        outputBufferSize = newSize;
                         outputBuffer = (uint8_t*)av_malloc(outputBufferSize);
                     }
 
                     // 重采样
-                    int samplesResampled = swr_convert(swrContext,
-                                                       &outputBuffer,
-                                                       outputBufferSamples,
-                                                       (const uint8_t**)audioFrame->data,
-                                                       audioFrame->nb_samples);
+                    int samplesResampled = swr_convert(
+                        swrContext,
+                        &outputBuffer,
+                        outputBufferSamples,
+                        (const uint8_t**)audioFrame->data,
+                        audioFrame->nb_samples
+                    );
 
-                    if (samplesResampled < 0) {
-                        qWarning() << "Error during resampling.";
-                        delete[] outputBuffer; // 确保释放内存
-                        continue;
+                    if (samplesResampled > 0) {
+                        int totalBytes = samplesResampled * originalChannels * 2; // channels * 2 bytes per sample
+                        
+                        AudioFrame frame;
+                        frame.data = QByteArray(reinterpret_cast<const char*>(outputBuffer), totalBytes);
+                        frame.sampleRate = 48000;  // 输出采样率固定为48000
+                        frame.channels = originalChannels;  // 使用实际声道数
+                        frame.bitsPerSample = 16;
+                        frame.timestamp = QDateTime::currentMSecsSinceEpoch();
+
+                        // 使用 DirectConnection 而不是 QueuedConnection
+                        emit audioFrameReady(frame);
+
+                        // 控制解码速度（基于原始采样率）
+                        qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+                        qint64 elapsedTime = currentTime - lastFrameTime;
+                        qint64 sleepTime = frameTime - elapsedTime;
+                        
+                        if (sleepTime > 0) {
+                            QThread::msleep(sleepTime);
+                        }
+                        
+                        lastFrameTime = QDateTime::currentMSecsSinceEpoch();
                     }
-
-                    while (audioProcessor->cacheSize() >= audioProcessor->maxQueueSize) {
-                        QThread::msleep(10); // 稍微休眠以避免占用 CPU
-                    }
-
-                    // 现在可以安全地推送数据
-
-                    audioProcessor->pushAudioData(outputBuffer,samplesResampled * sizeof(int16_t));
-
-                    // try {
-                    //     audioProcessor->pushAudioData(outputBuffer,samplesResampled * sizeof(int16_t));
-                    // } catch (const std::exception& e) {
-                    //     qWarning() << "Exception caught:" << e.what();
-                    // }
-                    // qDebug()<< " samplesResampled:"<<samplesResampled;
-                    // 将重采样的数据传递给 PortAudio
-                    // Pa_WriteStream(paStream, outputBuffer, samplesResampled);
                 }
             }
             av_packet_unref(&packet);
         }
 
         // 清理资源
-        av_frame_free(&audioFrame);
-        swr_free(&swrContext);
-        avcodec_free_context(&codecContext);
-        avformat_close_input(&formatContext);
+        if (audioFrame) {
+            av_frame_free(&audioFrame);
+        }
         if (outputBuffer) {
             av_freep(&outputBuffer);
         }
-
-        // Pa_StopStream(paStream);
-        // Pa_CloseStream(paStream);
-
     }
-
-private:
-    //
-    // void cleanupPortAudio(){
-    //     if (paStream) {
-    //         Pa_StopStream(paStream);
-    //         Pa_CloseStream(paStream);
-    //         Pa_Terminate();
-    //         paStream = nullptr;
-    //     }
-    // }
 
     void cleanupFFmpeg(){
         if (swrContext) {
@@ -274,8 +265,7 @@ private:
         }
 
     }
-    // 创建一个音频缓存（假设我们需要缓存所有重采样数据）
-    AudioPipe* audioProcessor;
+  
     AVFormatContext *formatContext= nullptr;
     AVCodecContext *codecContext= nullptr;
     const AVCodec *codec;
@@ -290,5 +280,6 @@ private:
     QMutex mutex;
     QWaitCondition condition;
 
+    static const int BUFFER_SIZE = 4096;  // 与 AudioDeviceOut 保持一致
 };
 

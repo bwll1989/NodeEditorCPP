@@ -7,8 +7,10 @@
 #include <iostream>
 
 AudioPipe::AudioPipe() {
-
+    // 初始化时确保队列为空
+    audioQueue.clear();
 }
+
 void AudioPipe::pushAudioData(const uint8_t* outputBuffer, size_t size) {
     if (outputBuffer == nullptr || size == 0) {
         qWarning() << "Invalid audio data.";
@@ -18,26 +20,35 @@ void AudioPipe::pushAudioData(const uint8_t* outputBuffer, size_t size) {
     QMutexLocker locker(&mutex);
     // 检查队列是否已满
     while (audioQueue.size() >= maxQueueSize) {
-        condition.wait(&mutex); // 等待直到有空间
+        // 队列已满，移除最旧的数据
+        if (!audioQueue.isEmpty()) {
+            audioQueue.dequeue();
+        }
+        // condition.wait(&mutex); // 等待直到有空间
     }
-    std::cout<<"push size:"<<size<<std::endl;
-    audioQueue.emplace_back(outputBuffer, outputBuffer + size); // 从 outputBuffer 创建 std::vector
-
-    condition.wakeOne(); // 唤醒等待的节点
+    
+    // 创建新的数据块并复制音频数据
+    audioQueue.enqueue(std::vector<uint8_t>(outputBuffer, outputBuffer + size));
+    
+    // 唤醒等待的消费者
+    condition.wakeOne();
 }
 
 std::vector<uint8_t> AudioPipe::popAudioData() {
-
     QMutexLocker locker(&mutex);
-    while (audioQueue.isEmpty()) {
-        condition.wait(&mutex); // 等待数据
+    
+    // 如果队列为空，返回空数据
+    if (audioQueue.isEmpty()) {
+        condition.wait(&mutex, 100); // 最多等待100ms
+        if (audioQueue.isEmpty()) {
+            return std::vector<uint8_t>();
+        }
     }
-    auto data=audioQueue.dequeue();
-    std::cout<<"take size:"<<data.size()<<std::endl;
-    return data;
+    
+    return audioQueue.dequeue();
 }
 
-size_t AudioPipe::cacheSize(){
+size_t AudioPipe::cacheSize() {
     QMutexLocker locker(&mutex);
     return audioQueue.size();
 }

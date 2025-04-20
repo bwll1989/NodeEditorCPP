@@ -34,7 +34,7 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     deviceListInit();
     deviceComboBox->setCurrentIndex(-1);
     this->setFixedSize(QSize(300,100));
-    connect(deviceComboBox,QComboBox::currentTextChanged,this,TimeCodeInterface::initChannelList);
+    connect(deviceComboBox,&QComboBox::currentTextChanged,this,&TimeCodeInterface::initChannelList);
 }   
 
 TimeCodeInterface::~TimeCodeInterface()

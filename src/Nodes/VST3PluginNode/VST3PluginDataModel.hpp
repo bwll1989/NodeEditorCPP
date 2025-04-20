@@ -91,9 +91,9 @@ public:
         Q_UNUSED(portIndex)
         switch (portType) {
             case PortType::In:
-                return VariableData().type();
+                return AudioData2().type();
             case PortType::Out:
-                return VariableData().type();
+                return AudioData2().type();
             case PortType::None:
                 break;
             default:
@@ -101,21 +101,22 @@ public:
         }
         // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return VariableData().type();
+        return AudioData2().type();
 
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariableData>();
+        return std::make_shared<AudioData2>();
     }
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
 
         if (data== nullptr){
             return;
         }
-        auto textData = std::dynamic_pointer_cast<VariableData>(data);
+        auto audioData = std::dynamic_pointer_cast<AudioData2>(data);
+      
 
         Q_EMIT dataUpdated(portIndex);
     }

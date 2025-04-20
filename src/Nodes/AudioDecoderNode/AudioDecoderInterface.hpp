@@ -20,6 +20,7 @@ public:
         main_layout->addWidget(treeWidget,1);
         main_layout->setContentsMargins(4,2,4,4);
         this->setLayout(main_layout);
+ 
 
     }
 public:

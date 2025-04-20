@@ -15,6 +15,7 @@
 #include "AudioDecoder.hpp"
 #include "QThread"
 #include "Common/GUI/QJsonModel/QJsonModel.hpp"
+#include "Widget/ExternalControl/ExternalControler.hpp"
 using namespace std;
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
@@ -40,7 +41,13 @@ public:
         WidgetEmbeddable= false;
         Resizable=false;
         PortEditable= true;
-        AudioData->pipe=pi;
+        registerOSCControl("/play", widget->button1);
+        registerOSCControl("/stop", widget->button2);
+        // AudioData->pipe=pi;
+        qRegisterMetaType<AudioFrame>("AudioFrame");
+        connect(player, &AudioDecoder::audioFrameReady,
+                this, &AudioDecoderDataModel::handleAudioFrame,
+                Qt::DirectConnection);
         connect(widget->button,&QPushButton::clicked,this,&AudioDecoderDataModel::select_audio_file,Qt::QueuedConnection);
         connect(widget->button1,&QPushButton::clicked,this,&AudioDecoderDataModel::playAudio,Qt::QueuedConnection);
         connect(widget->button2,&QPushButton::clicked,this,&AudioDecoderDataModel::stopAudio,Qt::QueuedConnection);
@@ -171,28 +178,37 @@ public
 
 //    开始播放
     void playAudio() {
-
-        if(isReady)
-            // if(isReady&&!player->initializePortAudio())
-        {
+        if (!isReady) {
+            return;
+        }
+        
+        if (AudioData) {
+            player->stopPlay(); // 先停止之前的播放
             player->startPlay();
             Q_EMIT dataUpdated(0);
         }
-
     }
 
     void stopAudio(){
         player->stopPlay();
     }
 
+private slots:
+    void handleAudioFrame(AudioFrame frame) {
+        if (AudioData) {
+            AudioData->updateAudioFrame(frame);
+            Q_EMIT dataUpdated(0);
+        }
+    }
+
 private:
-    AudioPipe *pi=new AudioPipe;
+    // AudioPipe *pi=new AudioPipe;
 
     std::shared_ptr<AudioData2> AudioData;
 
     AudioDecoderInterface *widget=new AudioDecoderInterface();
 //    界面控件
-    AudioDecoder *player=new AudioDecoder(pi);
+    AudioDecoder *player=new AudioDecoder();
     QString filePath="";
     bool isLoop=false;
     bool autoPlay=false;

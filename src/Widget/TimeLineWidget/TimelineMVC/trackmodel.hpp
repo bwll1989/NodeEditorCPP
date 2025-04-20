@@ -21,10 +21,11 @@ public:
         : QObject(parent),
         m_type(type),
         m_name(type),
-        m_trackIndex(number)
+        m_trackIndex(number),
+		m_trackLength(0) // 初始化轨道长度为0
     {
-        connect(this,TrackModel::S_trackAddClip,this,TrackModel::onCalculateTrackLength);
-        connect(this,TrackModel::S_trackDeleteClip,this,TrackModel::onCalculateTrackLength);
+        connect(this,&TrackModel::S_trackAddClip,this,&TrackModel::onCalculateTrackLength);
+        connect(this,&TrackModel::S_trackDeleteClip,this,&TrackModel::onCalculateTrackLength);
     }
     TrackModel() = default;
     ~TrackModel() override{

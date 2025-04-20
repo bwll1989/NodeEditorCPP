@@ -418,9 +418,12 @@ void TimecodeGenerator::loadTimeCodeSetting(const QJsonObject& json)
                     closeCurrentClockSource();
                     if (json.contains("ltcSettings")) {
                         QJsonObject ltcSettings = json["ltcSettings"].toObject();
+                        m_clockSource = source;
+                      
                         QString device = ltcSettings["device"].toString();
                         int channel = ltcSettings["channel"].toInt();
                         initLTCClock(device, channel);
+                        
                     }
                 }
                 break;
