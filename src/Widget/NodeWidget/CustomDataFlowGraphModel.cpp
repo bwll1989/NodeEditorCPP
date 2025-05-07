@@ -7,6 +7,7 @@
 #include <stdexcept>
 
 #include "QtNodes/internal/ConnectionIdHash.hpp"
+#include "QtNodes/internal/GroupIdUtils.hpp"
 #include "Widget/PortEditWidget/PortEditAddRemoveWidget.hpp"
 #include <QJsonArray>
 #include <QToolBox>
@@ -17,6 +18,7 @@ using QtNodes::NodeDataType;
 using QtNodes:: StyleCollection;
 using QtNodes::NodeFlag;
 using QtNodes::fromJson;
+using QtNodes::groupToJson;
 using QtNodes::NodeData;
 
 CustomDataFlowGraphModel::CustomDataFlowGraphModel(std::shared_ptr<NodeDelegateModelRegistry> registry)
@@ -44,6 +46,11 @@ std::unordered_set<ConnectionId> CustomDataFlowGraphModel::allConnectionIds(Node
                  });
 
     return result;
+}
+
+std::unordered_set<GroupId> CustomDataFlowGraphModel::allGroupIds() const
+{
+    return _groups;
 }
 
 std::unordered_set<ConnectionId> CustomDataFlowGraphModel::connections(NodeId nodeId,
@@ -168,6 +175,54 @@ void CustomDataFlowGraphModel::addConnection(ConnectionId const connectionId)
                 portDataToPropagate,
                 PortRole::Data);
 //    qDebug()<<"add connection:"+QString::number(connectionId.outNodeId)+" to "+QString::number(connectionId.inNodeId);
+}
+
+void CustomDataFlowGraphModel::addGroup(GroupId const groupId)
+{
+//    // 濡傛灉缁勮妭鐐规暟閲忓皬浜?锛屼笉鍒涘缓缁?//
+    if (groupId.nodeIds.size() ==0) {
+        //qDebug() << "Group not added: Less than 2 nodes";
+        return;
+    }
+    
+    // 妫€鏌ユ槸鍚﹀凡缁忓瓨鍦ㄥ畬鍏ㄧ浉鍚岀殑缁?
+     for (const auto& existingGroup : _groups) {
+        // 棣栧厛姣旇緝鑺傜偣鏁伴噺鏄惁鐩稿悓
+        if (existingGroup.nodeIds.size() == groupId.nodeIds.size()) {
+            // 妫€鏌ユ槸鍚﹀寘鍚畬鍏ㄧ浉鍚岀殑鑺傜偣锛堝拷鐣ラ『搴忥級
+            std::vector<NodeId> sortedNewNodes = groupId.nodeIds;
+            std::vector<NodeId> sortedExistingNodes = existingGroup.nodeIds;
+            std::sort(sortedNewNodes.begin(), sortedNewNodes.end());
+            std::sort(sortedExistingNodes.begin(), sortedExistingNodes.end());
+            
+            if (sortedNewNodes == sortedExistingNodes) {
+                qDebug() << "Group not added: Identical group already exists";
+                return;
+            }
+        }
+    }
+    
+    // 妫€鏌ョ粍閲嶅彔
+    for (const auto& existingGroup : _groups) {
+        // 璁＄畻鑺傜偣浜ら泦
+        std::vector<NodeId> intersection;
+        for (const auto& nodeId : groupId.nodeIds) {
+            if (std::find(existingGroup.nodeIds.begin(), existingGroup.nodeIds.end(), nodeId) != existingGroup.nodeIds.end()) {
+                intersection.push_back(nodeId);
+            }
+        }
+        
+        // 濡傛灉鏈変换浣曢噸鍙犺妭鐐癸紝涓嶆坊鍔犳柊缁?
+         if (!intersection.empty()) {
+            qDebug() << "Group not added: Node overlap detected";
+            return;
+        }
+    }
+
+    // 娣诲姞鏂扮粍
+//    qDebug() << "Adding group with" << groupId.nodeIds.size() << "nodes";
+    _groups.insert(groupId);
+    Q_EMIT groupCreated(groupId);
 }
 
 void CustomDataFlowGraphModel::sendConnectionCreation(ConnectionId const connectionId)
@@ -528,6 +583,26 @@ bool CustomDataFlowGraphModel::deleteNode(NodeId const nodeId)
 //    qDebug()<<"delete node ID:"+QString::number(nodeId);
     return true;
 }
+void CustomDataFlowGraphModel::updateGroup(const GroupId oldGroupId, const GroupId newGroupId)
+{
+    // 鍒犻櫎鏃х粍
+    if (auto it = _groups.find(oldGroupId); it != _groups.end()) {
+        _groups.erase(it);
+        _groups.insert(newGroupId);
+        Q_EMIT groupUpdated(oldGroupId);
+    }
+
+}
+bool CustomDataFlowGraphModel::deleteGroup(GroupId const groupId)
+{
+    auto it = _groups.find(groupId);
+    if (it!= _groups.end()) {
+        _groups.erase(it);
+        Q_EMIT groupDeleted(groupId);
+        return true;
+    }
+    return false;
+}
 
 QJsonObject CustomDataFlowGraphModel::saveNode(NodeId const nodeId) const
 {
@@ -575,7 +650,11 @@ QJsonObject CustomDataFlowGraphModel::save() const
         connJsonArray.append(toJson(cid));
     }
     sceneJson["connections"] = connJsonArray;
-//    qDebug()<<"save scene";
+    QJsonArray groupJsonArray;
+    for (auto const &gid : _groups) {
+        groupJsonArray.append(groupToJson(gid));
+    }
+    sceneJson["groups"] = groupJsonArray;
     return sceneJson;
 }
 
@@ -645,6 +724,27 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
         // Restore the connection
         addConnection(connId);
     }
+
+    // 鍔犺浇缁勪箣鍓嶏紝鍏堟敹闆嗘墍鏈夌粍淇℃伅
+    std::vector<GroupId> allGroups;
+    QJsonArray groupJsonArray = jsonDocument["groups"].toArray();
+    for (QJsonValueRef group : groupJsonArray) {
+        QJsonObject groupJson = group.toObject();
+        GroupId groupId = QtNodes::fromJsonToGroup(groupJson);
+        allGroups.push_back(groupId);
+    }
+
+    //恢复group
+    std::sort(allGroups.begin(), allGroups.end(), 
+        [](const GroupId& a, const GroupId& b) {
+            return a.nodeIds.size() > b.nodeIds.size();
+            // 闄嶅簭鎺掑垪
+        });
+
+    // 添加group
+     for (const auto& groupId : allGroups) {
+        addGroup(groupId);
+    }
 }
 
 void CustomDataFlowGraphModel::onOutPortDataUpdated(NodeId const nodeId, PortIndex const portIndex)
@@ -682,7 +782,10 @@ void CustomDataFlowGraphModel::setNodesLocked(bool b)
         setNodeData(nodeId,NodeRole::WidgetEmbeddable,false);
         Q_EMIT nodeFlagsUpdated(nodeId);
     }
-//    qDebug()<<"set scene lock:"+QString::number(b);
+    //锁定节点后也需锁定分组
+    for(GroupId groupId : allGroupIds()){
+        Q_EMIT groupFlagsUpdated(groupId);
+    }
 }
 
 bool CustomDataFlowGraphModel::getNodesLocked() const

@@ -10,7 +10,6 @@ set(CMAKE_AUTOMOC ON)
 # 自动调用moc(元对象编译器)
 set(CMAKE_AUTORCC ON)
 # 自动处理资源
-set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 add_library(${Module_Name} SHARED
         ConvertImageToForm.ui
         ConvertImageToModel.cpp

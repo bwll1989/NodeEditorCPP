@@ -5,8 +5,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
-
 set(LuaBridge_INCLUDE "${DEPENDS_DIR}/LuaBridge-2.8/Source")
 INCLUDE_DIRECTORIES(${LuaBridge_INCLUDE})
 message("-- Found LuaBridge ${LuaBridge_INCLUDE}")

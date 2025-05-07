@@ -5,7 +5,6 @@
 #include <QMessageBox>
 #include "MainWindow.hpp"
 #include "Nodes/NodeStyle.hpp"
-#include "Widget/CurveWidget/CurveEditor.h"
 #include "Widget/AboutWidget/AboutWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "QFile"
@@ -44,13 +43,10 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
 MainWindow::~MainWindow()
 {
     delete controller;
-    delete timelineModel;
     delete timeline;
     delete dataFlowModel;
     delete scene;
     delete view;
-    delete menuBar;
-    delete m_DockManager;
 }
 void MainWindow::init()
 {
@@ -128,24 +124,24 @@ void MainWindow::init()
     menuBar->views->addAction(logDockViewer->toggleViewAction());
     emit initStatus("Initialization console widget");
 
-    auto *DockView= new ads::CDockWidget("显示");
-//    auto *fader=new XYPad(this);
-//    auto *bar1=new BarButton(this);
-//    auto *bar2=new BarButton(this);
-
-    auto *w =new MatrixWidget(6, 2);
-    DockView->setWidget(w);
-    DockView->setIcon(QIcon(":/icons/icons/chartLine.png"));
-    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, DockView);
-    menuBar->views->addAction(DockView->toggleViewAction());
-    Eigen::MatrixXd mMat(6,2);
-    mMat << 0.11,0.11,
-            0.3,0.5,
-            0.8,0.3,
-            0.3,0.3,
-            0.5,0.8,
-            0.3,0.3;
-    w->setValuesFromMatrix(mMat);
+//    auto *DockView= new ads::CDockWidget("显示");
+////    auto *fader=new XYPad(this);
+////    auto *bar1=new BarButton(this);
+////    auto *bar2=new BarButton(this);
+//
+//    auto *w =new MatrixWidget(6, 2);
+//    DockView->setWidget(w);
+//    DockView->setIcon(QIcon(":/icons/icons/chartLine.png"));
+//    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, DockView);
+//    menuBar->views->addAction(DockView->toggleViewAction());
+//    Eigen::MatrixXd mMat(6,2);
+//    mMat << 0.11,0.11,
+//            0.3,0.5,
+//            0.8,0.3,
+//            0.3,0.3,
+//            0.5,0.8,
+//            0.3,0.3;
+//    w->setValuesFromMatrix(mMat);
 
     // 添加舞台控件
     auto *stageDockWidget = new ads::CDockWidget("舞台");
@@ -423,9 +419,8 @@ void MainWindow::closeEvent(QCloseEvent *event) {
         // 用户点击"是"，接受事件，应用程序关闭
 //    结束日志记录器
         this->close();
-        m_DockManager->deleteLater();
+//        m_DockManager->deleteLater();
 //    结束ADS
-
         event->accept();
     } else {
         // 用户点击"否"，忽略事件，应用程序保持运行

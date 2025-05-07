@@ -227,3 +227,4 @@ void CustomFlowGraphicsScene::centerOnNode(NodeId nodeId) {
         views().first()->centerOn(nodeItem);
     }
 }
+

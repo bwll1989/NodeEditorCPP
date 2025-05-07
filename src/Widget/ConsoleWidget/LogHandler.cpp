@@ -96,7 +96,7 @@ void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &
             logger->critical(log_msg);
             level="Fatal";
             icon=QIcon(":/icons/icons/critical.png");
-            abort();
+//            abort();
     }
 
     // 将日志显示在 QTableWidget 中

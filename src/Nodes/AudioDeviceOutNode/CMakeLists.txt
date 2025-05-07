@@ -3,7 +3,6 @@ set(Module_Name "AudioDeviceOutNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 add_library(${Module_Name} SHARED
         AudioDeviceOutDataModel.hpp
         AudioDeviceOutInterface.hpp

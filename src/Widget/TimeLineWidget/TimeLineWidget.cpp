@@ -23,12 +23,7 @@ TimelineWidget::TimelineWidget(TimelineModel* model,QWidget *parent) : QWidget(p
     connect(view->toolbar, &TimelineToolbar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
 }
 
-TimelineWidget::~TimelineWidget() {
-    delete model;
-    delete view;
-    delete tracklist;
-
-}
+TimelineWidget::~TimelineWidget() =default;
 
 void TimelineWidget::showSettingsDialog()
 {

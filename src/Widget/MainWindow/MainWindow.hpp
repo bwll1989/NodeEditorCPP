@@ -9,7 +9,6 @@
 #include <QThread>
 #include <QMainWindow>
 #include <QMenuBar>
-#include "Widget/CurveWidget/CurveEditor.h"
 #include "Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "DockManager.h"
@@ -18,12 +17,10 @@
 #include "Widget/NodeWidget/CustomGraphicsView.h"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/MenuBarWidget/MenuBarWidget.h"
-// #include "QtAwesome/QtAwesome.h"
 #include "Widget/PortEditWidget/PortEditWidget.h"
 #include "Widget/NodeLibraryWidget/draggabletreewidget.hpp"
 #include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
 #include "Widget/TimeLineWidget/timelinewidget.hpp"
-// #include "Widget/ClipPropertyWidget/ClipPropertyWidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "Widget/StageWidget/stagewidget.hpp"
 #include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"

@@ -16,10 +16,30 @@ TimecodeGenerator::TimecodeGenerator(QObject* parent)
 
 TimecodeGenerator::~TimecodeGenerator()
 {
-    if(m_timer)
-    {
+    // 确保定时器停止
+    if (m_timer) {
         m_timer->stop();
-        delete m_timer;
+
+        // 获取定时器所在线程
+        QThread* timerThread = m_timer->thread();
+
+        // 如果定时器不在主线程
+        if (timerThread && timerThread != QThread::currentThread()) {
+            // 断开所有连接，防止信号干扰
+            m_timer->disconnect();
+            disconnect(m_timer, nullptr, this, nullptr);
+
+            // 安全停止线程
+            timerThread->quit();
+            if (!timerThread->wait(1000)) { // 等待1秒线程退出
+                timerThread->terminate(); // 强制终止
+                timerThread->wait(); // 等待终止完成
+            }
+        }
+
+        // 安全删除定时器
+        m_timer->deleteLater();
+        m_timer = nullptr;
     }
 }
 
@@ -45,6 +65,7 @@ void TimecodeGenerator::initInternalClock()
     // 使用直接连接确保及时处理定时器事件
     connect(m_timer, &QTimer::timeout, this, &TimecodeGenerator::onTimeout, 
             Qt::DirectConnection);
+    connect(timerThread, &QThread::finished, timerThread, &QObject::deleteLater);
 }
 
 void TimecodeGenerator::closeInternalClock()

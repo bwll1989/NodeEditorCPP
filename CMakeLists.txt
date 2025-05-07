@@ -193,9 +193,6 @@ set(CALC_SOURCE_FILES
         src/Nodes/NodeRegistry.h
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.cpp
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.hpp
-        src/Widget/CurveWidget/CurveEditor.cpp
-        src/Widget/CurveWidget/CurveEditor.h
-        src/Widget/CurveWidget/CurveEditor.ui
         res/res.rc
         res/resources.qrc
         src/Widget/TimeLineWidget/timelineResource.qrc
@@ -208,9 +205,6 @@ set(CALC_SOURCE_FILES
         src/Widget/AboutWidget/AboutWidget.hpp
         src/Widget/MainWindow/MainWindow.hpp
         src/Widget/MainWindow/MainWindow.cpp
-        src/Widget/CurveWidget/CurveEditor.cpp
-        src/Widget/CurveWidget/CurveEditor.h
-        src/Widget/CurveWidget/CurveEditor.ui
         src/Widget/SplashWidget/CustomSplashScreen.cpp
         src/Widget/SplashWidget/CustomSplashScreen.hpp
         src/Widget/ExternalControl/ExternalControler.cpp

@@ -214,6 +214,7 @@ private:
                         frame.sampleRate = 48000;  // 输出采样率固定为48000
                         frame.channels = originalChannels;  // 使用实际声道数
                         frame.bitsPerSample = 16;
+                        
                         frame.timestamp = QDateTime::currentMSecsSinceEpoch();
 
                         // 使用 DirectConnection 而不是 QueuedConnection

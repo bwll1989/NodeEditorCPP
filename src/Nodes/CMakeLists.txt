@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
+set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 add_subdirectory(VST3PluginNode)
 add_subdirectory(TimeCodeSourceNode)  #时间码输入
 add_subdirectory(StringSourceNode)    #字符串显示
@@ -43,3 +44,5 @@ add_subdirectory(ArtnetInNode)        #Arnet输入
 # add_subdirectory(MltSourceNode)       #Mlt输入
 add_subdirectory(MpvControllerNode)   #mpv控制
 add_subdirectory(SwitchNode)          #输入切换
+add_subdirectory(NDVControlNode)       #NDV控制
+

@@ -4,120 +4,160 @@
 
 #include "TcpServer.h"
 #include "QThread"
+
+// 创建一个工作类来处理所有网络操作
+class TcpWorker : public QObject
+{
+    Q_OBJECT
+public:
+    explicit TcpWorker(QObject *parent = nullptr) : QObject(parent), mServer(nullptr) {}
+    
+    ~TcpWorker() {
+        cleanup();
+    }
+
+public slots:
+    void initialize(const QString &host, int port) {
+        cleanup(); // 确保清理旧的连接
+        
+        mServer = new QTcpServer(this);
+        connect(mServer, &QTcpServer::newConnection, this, &TcpWorker::onNewConnection);
+
+        if (mServer->listen(QHostAddress(host), port)) {
+            qDebug() << "Server listening on port" << port;
+            emit serverReady(true);
+        } else {
+            qWarning() << "Failed to start server";
+            emit serverReady(false);
+        }
+    }
+    
+    void cleanup() {
+        // 关闭所有客户端连接
+        for (QTcpSocket *clientSocket : mClientSockets) {
+           
+            if (clientSocket->isOpen()) {
+                clientSocket->close();
+            }
+      
+            clientSocket->deleteLater();
+        }
+        mClientSockets.clear();
+        
+        // 关闭服务器并删除
+        if (mServer) {
+            mServer->close();
+            mServer->deleteLater();
+            mServer = nullptr;
+        }
+    }
+    
+    void sendMessageToClients(const QString &message) {
+        for (QTcpSocket *clientSocket : mClientSockets) {
+            clientSocket->write(message.toUtf8());
+        }
+    }
+
+private slots:
+    void onNewConnection() {
+        QTcpSocket *clientSocket = mServer->nextPendingConnection();
+
+        connect(clientSocket, &QTcpSocket::readyRead, this, &TcpWorker::onReadyRead);
+        connect(clientSocket, &QTcpSocket::disconnected, this, &TcpWorker::onDisconnected);
+        mClientSockets.append(clientSocket); // Store the client socket
+    }
+    
+    void onReadyRead() {
+        for (QTcpSocket *clientSocket : mClientSockets) {
+            if (clientSocket->bytesAvailable() > 0) {
+                QByteArray data = clientSocket->readAll();
+                QVariantMap dataMap;
+                
+                dataMap.insert("Host", clientSocket->peerAddress().toString());
+                dataMap.insert("Default", data);
+                
+                emit messageReceived(data);
+                emit dataReceived(dataMap);
+            }
+        }
+    }
+    
+    void onDisconnected() {
+        QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
+        if (clientSocket) {
+            mClientSockets.removeAll(clientSocket);
+            clientSocket->deleteLater();
+        }
+    }
+
+signals:
+    void serverReady(bool ready);
+    void messageReceived(const QByteArray &data);
+    void dataReceived(const QVariantMap &data);
+
+private:
+    QTcpServer *mServer;
+    QList<QTcpSocket *> mClientSockets;
+};
+
+// TcpServer 实现
 TcpServer::TcpServer(QString dstHost, int dstPort, QObject *parent)
         : QObject(parent), mPort(dstPort), mHost(dstHost), mServer(nullptr)
 {
+    // 创建工作线程
     mThread = new QThread(this);
-    this->moveToThread(mThread);
-    connect(mThread, &QThread::started, this, &TcpServer::initializeServer);
-    connect(mThread, &QThread::finished, this, &TcpServer::cleanup);
-
+    
+    // 创建工作对象
+    TcpWorker *worker = new TcpWorker();
+    worker->moveToThread(mThread);
+    
+    // 连接信号和槽
+    connect(mThread, &QThread::started, [=]() {
+        worker->initialize(mHost, mPort);
+    });
+    connect(mThread, &QThread::finished, worker, &TcpWorker::deleteLater);
+    
+    // 连接工作对象的信号到 TcpServer 的信号
+    connect(worker, &TcpWorker::serverReady, this, &TcpServer::isReady);
+    connect(worker, &TcpWorker::messageReceived, this, &TcpServer::arrayMsg);
+    connect(worker, &TcpWorker::dataReceived, this, &TcpServer::recMsg);
+    
+    // 连接 TcpServer 的槽到工作对象的槽
+    connect(this, &TcpServer::initializeRequested, worker, &TcpWorker::initialize);
+    connect(this, &TcpServer::cleanupRequested, worker, &TcpWorker::cleanup);
+    connect(this, &TcpServer::sendMessageRequested, worker, &TcpWorker::sendMessageToClients);
+    
+    // 启动线程
     mThread->start();
 }
 
 TcpServer::~TcpServer()
 {
-    cleanup();
+    // 发送清理信号
+    emit cleanupRequested();
+    
+    // 停止线程
+    mThread->quit();
+    mThread->wait();
 }
 
 void TcpServer::initializeServer() {
-    mServer = new QTcpServer(this);
-    connect(mServer, &QTcpServer::newConnection, this, &TcpServer::onNewConnection);
-
-    if (mServer->listen(QHostAddress(mHost), mPort)) {
-        qDebug() << "Server listening on port" << mPort;
-    } else {
-        qWarning() << "Failed to start server";
-    }
+    emit initializeRequested(mHost, mPort);
 }
 
 void TcpServer::cleanup()
 {
-    // 关闭所有客户端连接
-    for (QTcpSocket *clientSocket : mClientSockets) {
-        if (clientSocket->isOpen()) {
-            clientSocket->close();
-        }
-        clientSocket->deleteLater();
-    }
-    mClientSockets.clear();
-    // 关闭服务器并删除
-    if (mServer) {
-        mServer->destroyed();
-        mServer->deleteLater();
-        mServer = nullptr;
-    }
-    mThread->quit();
-}
-
-void TcpServer::onNewConnection()
-{
-    QTcpSocket *clientSocket = mServer->nextPendingConnection();
-    qDebug()<<"new";
-    connect(clientSocket, &QTcpSocket::readyRead, this, &TcpServer::onReadyRead);
-    connect(clientSocket, &QTcpSocket::disconnected, this, &TcpServer::onDisconnected);
-    mClientSockets.append(clientSocket); // Store the client socket
-}
-
-void TcpServer::onReadyRead()
-{
-    for (QTcpSocket *clientSocket : mClientSockets) {
-        if (clientSocket->bytesAvailable() > 0) {
-            QByteArray data = clientSocket->readAll();
-            std::shared_ptr<QVariantMap> a=std::make_shared<QVariantMap>();
-
-            a->insert("Host", clientSocket->peerAddress().toString());
-            a->insert("Default", data);
-            emit arrayMsg(data);
-            emit recMsg(*a);
-            // 可以在此处理数据或回显
-        }
-    }
-}
-
-void TcpServer::onDisconnected()
-{
-    QTcpSocket *clientSocket = qobject_cast<QTcpSocket*>(sender());
-    if (clientSocket) {
-        mClientSockets.removeAll(clientSocket);
-        clientSocket->deleteLater();
-    }
+    emit cleanupRequested();
 }
 
 void TcpServer::sendMessage(const QString &message)
 {
-    for (QTcpSocket *clientSocket : mClientSockets) {
-        clientSocket->write(message.toUtf8());
-    }
+    emit sendMessageRequested(message);
 }
 
 void TcpServer::setHost(QString address, int port) {
-    qDebug()<<"12";
-//    cleanup();
-    // 关闭所有客户端连接
-    for (QTcpSocket *clientSocket : mClientSockets) {
-        if (clientSocket->isOpen()) {
-            clientSocket->close();
-        }
-        clientSocket->deleteLater();
-    }
-    mClientSockets.clear();
-    // 关闭服务器并删除
-    if (mServer) {
-        mServer->destroyed();
-        mServer->deleteLater();
-        mServer = nullptr;
-    }
-    mPort=port;
-    mHost=address;
-    mServer = new QTcpServer(this);
-    connect(mServer, &QTcpServer::newConnection, this, &TcpServer::onNewConnection);
-
-    if (mServer->listen(QHostAddress(mHost), mPort)) {
-        qDebug() << "Server listening on port" << mPort;
-    } else {
-        qWarning() << "Failed to start server";
-    }
-    mThread->start();
-
+    mHost = address;
+    mPort = port;
+    emit initializeRequested(mHost, mPort);
 }
+ #include "TcpServer.moc"

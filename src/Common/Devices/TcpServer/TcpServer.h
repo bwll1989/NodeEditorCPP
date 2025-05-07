@@ -16,22 +16,21 @@ public:
     ~TcpServer();
 
 public slots:
-//    void processPendingDatagrams();
     void initializeServer();
-//    void setHost(QString address,int port);
     void cleanup();
     void sendMessage(const QString &message);
-    void onNewConnection();
-    void onReadyRead();
-    void onDisconnected();
     void setHost(QString address,int port);
+
 signals:
-
+    // 对外信号
     void isReady(const bool &isready);
-
     void recMsg(const QVariantMap &res);
-//
     void arrayMsg(QByteArray datagram);
+    
+    // 内部信号，用于线程间通信
+    void initializeRequested(const QString &host, int port);
+    void cleanupRequested();
+    void sendMessageRequested(const QString &message);
 
 private:
     quint16 mPort;

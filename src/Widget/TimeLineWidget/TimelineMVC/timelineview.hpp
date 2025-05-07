@@ -203,7 +203,10 @@ protected:
      * @param QContextMenuEvent* event 上下文菜单事件
      */
     void contextMenuEvent(QContextMenuEvent* event) override;
-
+    bool eventFilter(QObject *watched, QEvent *event) override;
+    /**
+     * 键盘按下事件
+    void keyPressEvent(QKeyEvent *event) override;
     /**
      * 调整大小事件
      * @param QResizeEvent *event 调整大小事件

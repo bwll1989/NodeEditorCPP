@@ -97,7 +97,7 @@ void TimelineToolbar::createActions()
     connect(m_outputAction, &QAction::toggled, this, &TimelineToolbar::outputWindowToggled);
     
     m_moveClipLeftAction = new QAction(this);
-    m_moveClipLeftAction->setShortcut(QKeySequence(Qt::Key_Left));
+//    m_moveClipLeftAction->setShortcut(QKeySequence(Qt::Key_Left));
     m_moveClipLeftAction->setIcon(QIcon(":/icons/icons/move-left.png"));
     m_moveClipLeftAction->setToolTip(tr("Move Clip -1"));
     connect(m_moveClipLeftAction, &QAction::triggered, this,[this]() {
@@ -105,7 +105,7 @@ void TimelineToolbar::createActions()
     });    
 
     m_moveClipRightAction = new QAction(this);
-    m_moveClipRightAction->setShortcut(QKeySequence(Qt::Key_Right));
+//    m_moveClipRightAction->setShortcut(QKeySequence(Qt::Key_Right));
     m_moveClipRightAction->setIcon(QIcon(":/icons/icons/move-right.png"));
     m_moveClipRightAction->setToolTip(tr("Move Clip +1"));
     connect(m_moveClipRightAction, &QAction::triggered, this,[this]() {
@@ -113,7 +113,7 @@ void TimelineToolbar::createActions()
     });
     // 删除
     m_deleteClipAction = new QAction(this);
-    m_deleteClipAction->setShortcut(QKeySequence(Qt::Key_Delete));
+//    m_deleteClipAction->setShortcut(QKeySequence(Qt::Key_Delete));
     m_deleteClipAction->setIcon(QIcon(":/icons/icons/delete-clip.png"));
     m_deleteClipAction->setToolTip(tr("Delete Clip"));
     connect(m_deleteClipAction, &QAction::triggered, this, &TimelineToolbar::deleteClipClicked);

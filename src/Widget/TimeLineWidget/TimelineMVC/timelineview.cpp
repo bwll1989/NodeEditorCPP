@@ -63,7 +63,7 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         connect(Model, &TimelineModel::S_trackMoved, this, &TimelineView::onUpdateViewport);
         connect(Model, &TimelineModel::S_addClip, this, &TimelineView::onUpdateViewport);
 
-        // installEventFilter(this);
+         installEventFilter(this);
         // 创建视频播放器和窗口
         setupVideoWindow();
 
@@ -338,7 +338,23 @@ void TimelineView::contextMenuEvent(QContextMenuEvent* event) {
         QAbstractItemView::contextMenuEvent(event);
     }
 }
-
+//void TimelineView::keyPressEvent(QKeyEvent *event)
+//{
+//    if(selectionModel()->selectedIndexes().isEmpty())
+//        return;
+//    if (event->key() == Qt::Key_Delete) {
+//        // 处理删除键
+//
+//        QModelIndex currentIndex = selectionModel()->currentIndex();
+//        Model->onDeleteClip(currentIndex);
+//
+//        // 清除选择并发送 nullptr
+//        selectionModel()->clearSelection();
+//        emit currentClipChanged(nullptr);
+//        viewport()->update();
+//    }
+//
+//}
 
 void TimelineView::addClipAtPosition(const QModelIndex& index, const QPoint& pos) {
     if (!index.isValid() || index.parent().isValid()) {
@@ -403,7 +419,7 @@ void TimelineView::setScale(double value)
     timescale = (value * 99 + 1) * baseTimeScale / 100;  // 将 0-1 映射到 5%-100% 的缩放范围
     // timescale = value * baseTimeScale;
     timescale=qMax(1,timescale);
-    qDebug()<<"timescale"<<timescale;
+
     int newPointFocus = frameToPoint(focusFrame);
     
     // 计算位移差异以保持焦点位置不变
@@ -600,33 +616,36 @@ void TimelineView::dropEvent(QDropEvent *event)
     }
 }
 
-// bool TimelineView::eventFilter(QObject *watched, QEvent *event)
-// {
-//     // if (event->type() == QEvent::KeyPress) {
-//     //     QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-//     //     QModelIndexList list = selectionModel()->selectedIndexes();
-//     //     TimelineModel* timelinemodel = (TimelineModel*)model();
-//     //     if (watched == this) {
-//     //         switch (keyEvent->key()){
-//     //             case Qt::Key_Right :
-//     //                 moveSelectedClip(1,0,false);
-//     //                 return true;  // 统一返回 true
-//     //             case Qt::Key_Left:
-//     //                 moveSelectedClip(-1,0,false);
-//     //                 return true;
-//     //             case Qt::Key_Delete:
-//     //                 if(list.isEmpty())
-//     //                     break;
-//     //                 timelinemodel->onDeleteClip(list[0]);
-//     //                 clearSelection();
-//     //                 return true;
-//     //             default:
-//     //                 break;
-//     //         }
-//     //     }
-//     // }
-//     // return QObject::eventFilter(watched, event);
-// }
+ bool TimelineView::eventFilter(QObject *watched, QEvent *event)
+ {
+      if (event->type() == QEvent::KeyPress) {
+          QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
+          QModelIndexList list = selectionModel()->selectedIndexes();
+          TimelineModel* timelinemodel = (TimelineModel*)model();
+          if (watched == this) {
+              switch (keyEvent->key()){
+                  case Qt::Key_Right :
+                      moveSelectedClip(1,0,false);
+                      return true;  // 统一返回 true
+                  case Qt::Key_Left:
+                      moveSelectedClip(-1,0,false);
+                      return true;
+                  case Qt::Key_Delete: {
+                      QModelIndex currentIndex = selectionModel()->currentIndex();
+                      Model->onDeleteClip(currentIndex);
+                      // 清除选择并发送 nullptr
+                      selectionModel()->clearSelection();
+                      emit currentClipChanged(nullptr);
+                      viewport()->update();
+                      return true;
+                  }
+                  default:
+                      break;
+              }
+          }
+      }
+      return QObject::eventFilter(watched, event);
+ }
 
 void TimelineView::paintEvent(QPaintEvent *event) 
 {

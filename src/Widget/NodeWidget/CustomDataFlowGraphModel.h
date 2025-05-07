@@ -20,6 +20,7 @@ using QtNodes::AbstractGraphModel;
 using QtNodes::Serializable;
 using QtNodes::NodeDelegateModelRegistry;
 using QtNodes::NodeId;
+using QtNodes::GroupId;
 using QtNodes::ConnectionId;
 using QtNodes::PortType;
 using QtNodes::PortIndex;
@@ -67,13 +68,9 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
      * @return std::unordered_set<ConnectionId> 连接ID集合
      */
     std::unordered_set<ConnectionId> allConnectionIds(NodeId const nodeId) const override;
-    /**
-     * 连接
-     * @param NodeId nodeId 节点ID
-     * @param PortType portType 端口类型
-     * @param PortIndex portIndex 端口索引
-     * @return std::unordered_set<ConnectionId> 连接ID集合
-     */
+
+    std::unordered_set<GroupId> allGroupIds() const override;
+
     std::unordered_set<ConnectionId> connections(NodeId nodeId,
                                                  PortType portType,
                                                  PortIndex portIndex) const override;
@@ -135,11 +132,9 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
      * @param ConnectionId const connectionId 连接ID
      */
     void addConnection(ConnectionId const connectionId) override;
-    /**
-     * 节点是否存在
-     * @param NodeId const nodeId 节点ID
-     * @return bool 是否存在
-     */
+
+    void addGroup(GroupId const groupId) override;
+
     bool nodeExists(NodeId const nodeId) const override;
     /**
      * 节点数据
@@ -148,13 +143,7 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
      * @return QVariant 节点数据
      */
     QVariant nodeData(NodeId nodeId, NodeRole role) const override;
-    /**
-     * 设置节点数据
-     * @param NodeId nodeId 节点ID
-     * @param NodeRole role 节点角色
-     * @param QVariant value 节点数据
-     * @return bool 是否设置成功
-     */
+
     bool setNodeData(NodeId nodeId, NodeRole role, QVariant value) override;
     /**
      * 端口数据
@@ -194,11 +183,11 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
      * @return bool 是否删除成功
      */
     bool deleteNode(NodeId const nodeId) override;
-    /**
-     * 保存节点
-     * @param NodeId const nodeId 节点ID
-     * @return QJsonObject 节点数据
-     */
+
+    bool deleteGroup(GroupId const groupId) override;
+
+    void updateGroup(GroupId const oldGroupId,GroupId const newGroupId) override;
+
     QJsonObject saveNode(NodeId const) const override;
     /**
      * 保存
@@ -305,7 +294,9 @@ private:
     std::unordered_map<NodeId, std::unique_ptr<NodeDelegateModel>> _models;
     //连接
     std::unordered_set<ConnectionId> _connectivity;
-    //节点几何数据
+
+    std::unordered_set<GroupId> _groups;
+
     mutable std::unordered_map<NodeId, NodeGeometryData> _nodeGeometryData;
     };
 
