@@ -87,4 +87,28 @@ inline TimeCodeFrame frames_to_timecode_frame(int frames, TimeCodeType type)
   int frame_count = static_cast<int>(remaining_after_minutes - seconds * fps);
   return TimeCodeFrame{hours, minutes, seconds, frame_count, type};
 }
+
+// 将时间转为时间码
+inline TimeCodeFrame time_to_timecode_frame(double time, TimeCodeType type)
+{
+    // 获取对应类型的帧率
+    int fps = timecode_frames_per_sec(type);
+    
+    // 计算总帧数(向上取整)
+    qint64 total_frames = static_cast<qint64>(std::ceil(time * fps));
+    
+    // 使用已有的帧数转时间码函数进行转换
+    return frames_to_timecode_frame(total_frames, type);
+}
+// 将时间码转为时间
+inline double timecode_frame_to_time(TimeCodeFrame frame, TimeCodeType type)
+{
+    // 获取对应类型的帧率
+    int fps = timecode_frames_per_sec(type);
+
+    // 计算总帧数
+    qint64 total_frames = timecode_frame_to_frames(frame, type);
+    // 计算总时间
+    return static_cast<double>(total_frames) / fps;
+}
 #endif // TIMECODE_FRAME_H

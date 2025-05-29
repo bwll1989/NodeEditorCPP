@@ -4,7 +4,6 @@
 int TimelineModel::getPlayheadPos() const{
     return m_timecodeGenerator->getCurrentFrame();
 }
-
 // 设置播放头位置
 void TimelineModel::onSetPlayheadPos(int newPlayheadPos)
 {
@@ -57,7 +56,6 @@ QModelIndex TimelineModel::parent(const QModelIndex &child) const
     return QModelIndex();
 }
 
-
 int TimelineModel::rowCount(const QModelIndex &parent) const
 {
     // 如果父索引无效，返回轨道数量
@@ -81,7 +79,6 @@ int TimelineModel::columnCount(const QModelIndex &parent) const
     Q_UNUSED(parent);
     return 1; // Only one column for both tracks and clips
 }
-
 
 QVariant TimelineModel::data(const QModelIndex &index, int role) const
 {
@@ -170,13 +167,14 @@ QVariant TimelineModel::data(const QModelIndex &index, int role) const
 void TimelineModel::onStartPlay(){
     m_timecodeGenerator->onStart();
 }
+
 void TimelineModel::onPausePlay(){
     m_timecodeGenerator->onPause();
 }
+
 void TimelineModel::onStopPlay(){
     m_timecodeGenerator->onStop();
 }
-
 
 // 设置数据
 bool TimelineModel::setData(const QModelIndex &index, const QVariant &value, int role)
@@ -492,7 +490,6 @@ void TimelineModel::onDeleteClip(QModelIndex clipIndex){
     emit S_deleteClip();
 }
 
-
 TrackModel* TimelineModel::findParentTrackOfClip(AbstractClipModel* clip) const {
     for (TrackModel* track : m_tracks) {
         QVector<AbstractClipModel*>& clips = track->getClips();
@@ -518,8 +515,6 @@ void TimelineModel::setPluginLoader(PluginLoader* loader) {
 PluginLoader* TimelineModel::getPluginLoader() const {
     return m_pluginLoader;
 }
-
-
 
 // 在析构函数中清理
 TimelineModel::~TimelineModel()
@@ -549,8 +544,6 @@ void TimelineModel::onSetStage(TimelineStage* stage)
         emit S_stageInited();
     }
 }
-
-
 
 // 修改时间码类型设置
 void TimelineModel::onTimecodeTypeChanged(TimeCodeType type)

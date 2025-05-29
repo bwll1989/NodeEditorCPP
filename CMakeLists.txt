@@ -121,10 +121,10 @@ link_directories("${OpenCV_LIBRARIES}")
 message("-- Found OpenCV ${OpenCV_DIR}")
 
 # 设置QT库
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
         QmlWorkerScript
-        QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets)
+        QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
 #添加QT库
 
 #添加QtNodes库
@@ -248,8 +248,11 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/TcpClient/TcpClient.h
         src/Common/Devices/UdpSocket/UdpSocket.cpp
         src/Common/Devices/UdpSocket/UdpSocket.h
-        # src/Common/Devices/AudioPipe/AudioPipe.cpp
-        # src/Common/Devices/AudioPipe/AudioPipe.h
+        src/Common/Devices/WebSocketServer/WebSocketServer.cpp
+        src/Common/Devices/WebSocketServer/WebSocketServer.h
+        src/Common/Devices/SocketTransmitter/SocketTransmitter.hpp
+        src/Common/Devices/SocketTransmitter/SocketTransmitter.cpp
+        src/Common/Devices/AudioPipe/AudioPipe.h
         src/Common/Devices/OSCReceiver/OSCReceiver.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.h
         src/Common/Devices/OSCSender/OSCSender.cpp
@@ -271,7 +274,8 @@ set(CALC_SOURCE_FILES
         src/DataTypes/TimeCodeMessage.h
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
-        src/Widget/TimeLineWidget/videoplayerwidget.hpp
+        # src/Widget/TimeLineWidget/videoplayerwidget.hpp
+        # src/Widget/TimeLineWidget/videoplayerwidget.cpp
         src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.cpp
         src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp
         src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp
@@ -289,7 +293,6 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/TimelineMVC/tracklistview.cpp
         src/Widget/TimeLineWidget/TimelineMVC/tracklistview.hpp
         src/Widget/TimeLineWidget/TimelineMVC/trackmodel.hpp
-        src/Widget/TimeLineWidget/videoplayerwidget.cpp
         src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.hpp
         src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.cpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/LtcSettingWidget.hpp
@@ -307,6 +310,8 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.cpp
         src/Widget/TimeLineWidget/TimeCodeGenerator/timecodegenerator.hpp
         src/Widget/TimeLineWidget/TimeCodeGenerator/timecodegenerator.cpp
+        src/Widget/TimeLineWidget/TimeCodeGenerator/TimeSyncServer.hpp
+        src/Widget/TimeLineWidget/TimeCodeGenerator/TimeSyncServer.cpp
         src/Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp
 )
 
@@ -356,6 +361,7 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::MultimediaWidgets
             Qt${QT_VERSION_MAJOR}::OpenGL
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+            Qt${QT_VERSION_MAJOR}::WebSockets
             avcodec
             avdevice
             avfilter

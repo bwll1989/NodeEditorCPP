@@ -4,9 +4,8 @@
 #include <QObject>
 #include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp"
 #include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
 #include "videoclipmodel.hpp"
-#include "videoclipdelegate.hpp"
+
 
 class VideoClipPlugin : public QObject, public ClipPlugInterface
 {
@@ -23,9 +22,9 @@ public:
         return new VideoClipModel(start, start+100);
     }
 
-    AbstractClipDelegate* createDelegate() override {
-        return new VideoClipDelegate();
-    }
+    // AbstractClipDelegate* createDelegate() override {
+    //     return new PlayerClipDelegate();
+    // }
 };
 
 #endif // VIDEOCLIPPLUGIN_HPP 

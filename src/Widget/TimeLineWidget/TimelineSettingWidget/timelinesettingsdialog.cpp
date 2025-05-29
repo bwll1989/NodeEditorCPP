@@ -69,8 +69,8 @@ QWidget* TimelineSettingsDialog::createGeneralTab()
 
     // Time format settings
     m_timeFormatComboBox = new QComboBox(widget);
-    m_timeFormatComboBox->addItem(tr("0: TimeCode (HH:MM:SS.FF)"),static_cast<int>(TimedisplayFormat::TimeCodeFormat));
-    m_timeFormatComboBox->addItem(tr("1: TimeFormat (HH:MM:SS:MS)"),static_cast<int>(TimedisplayFormat::AbsoluteTimeFormat));
+    m_timeFormatComboBox->addItem(tr("0: TimeFormat (HH:MM:SS:MS)"),static_cast<int>(TimedisplayFormat::AbsoluteTimeFormat));
+    m_timeFormatComboBox->addItem(tr("1: TimeCode (HH:MM:SS.FF)"),static_cast<int>(TimedisplayFormat::TimeCodeFormat));
     
     layout->addRow(tr("时间显示格式:"), m_timeFormatComboBox);
 

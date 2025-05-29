@@ -157,8 +157,12 @@ public slots:
         //片段长度变化时更新轨道长度
         connect(newClip, &AbstractClipModel::lengthChanged, this, &TrackModel::onCalculateTrackLength);
         if (newClip) {
+            
+            qDebug() << "添加了新的剪辑"<<nextId;
             newClip->setTrackIndex(m_trackIndex);
+            newClip->setId(nextId);
             m_clips.push_back(newClip);
+            nextId++;
             emit S_trackAddClip();
         }
 

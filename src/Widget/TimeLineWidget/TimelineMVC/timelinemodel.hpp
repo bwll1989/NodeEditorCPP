@@ -29,18 +29,18 @@ class TimelineModel : public QAbstractItemModel
 public:
     // 构造函数
     TimelineModel(QObject* parent = nullptr) 
-        : QAbstractItemModel(parent), m_pluginLoader(nullptr) ,m_stage(new TimelineStage()),m_timecodeGenerator(new TimecodeGenerator(this)) 
+        : QAbstractItemModel(parent), m_pluginLoader(nullptr) ,m_stage(new TimelineStage())
         {
         m_pluginLoader = new PluginLoader();
         m_pluginLoader->loadPlugins();
-        m_timecodeGenerator = new TimecodeGenerator();
+        m_timecodeGenerator = new TimeCodeGenerator();
         // 连接时间码生成器信号
-        connect(m_timecodeGenerator, &TimecodeGenerator::currentFrameChanged,
+        connect(m_timecodeGenerator, &TimeCodeGenerator::currentFrameChanged,
             this, &TimelineModel::onSetPlayheadPos);
         qRegisterMetaType<AbstractClipModel*>();
 
         // 连接播放头移动信号处理当前帧数据
-        connect(m_timecodeGenerator, &TimecodeGenerator::currentFrameChanged,
+        connect(m_timecodeGenerator, &TimeCodeGenerator::currentFrameChanged,
             this, [this](qint64 frame) {
                     onCreateCurrentVideoData(frame);
                
@@ -168,7 +168,7 @@ public:
      * 获取时间码生成器
      * @return TimecodeGenerator* 时间码生成器
      */
-    TimecodeGenerator* getTimecodeGenerator() const { return m_timecodeGenerator; }
+    TimeCodeGenerator* getTimecodeGenerator() const { return m_timecodeGenerator; }
     /**
      * 获取时间码显示格式
      */
@@ -322,10 +322,10 @@ private:
     // 默认时间码格式
     // TimecodeType m_timecodeType = TimecodeType::PAL;
 
-    TimecodeGenerator* m_timecodeGenerator;
+    TimeCodeGenerator* m_timecodeGenerator;
 
     // 时间显示格式，默认显示时间码
-    TimedisplayFormat m_timeDisplayFormat = TimedisplayFormat::TimeCodeFormat;
+    TimedisplayFormat m_timeDisplayFormat = TimedisplayFormat::AbsoluteTimeFormat;
     //插件加载器
     PluginLoader* m_pluginLoader; // 插件加载器
     /**

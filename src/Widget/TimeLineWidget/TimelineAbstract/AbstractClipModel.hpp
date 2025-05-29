@@ -42,7 +42,10 @@ public:
      * 析构函数
      */
     virtual ~AbstractClipModel();
+    
+    qint64 id() const { return m_id; }
 
+    void setId(qint64 id) { m_id = id; }
     // Getters
     /**
      * 开始
@@ -112,22 +115,22 @@ public:
      * 设置开始
      * @param int start 开始
      */
-    void setStart(int start) ;
+    virtual void setStart(int start) ;
     /**
      * 设置结束
      * @param int end 结束
      */
-    void setEnd(int end);
+    virtual void setEnd(int end);
     /**
      * 设置轨道索引
      * @param int index 轨道索引
      */
-    void setTrackIndex(int index);
+    virtual void setTrackIndex(int index);
     /**
      * 设置是否可调整大小
      * @param bool resizable 是否可调整大小
      */
-    void setResizable(bool resizable) ;
+    virtual void setResizable(bool resizable) ;
     /**
      * 设置是否显示小部件
      * @param bool embedWidget 是否显示小部件
@@ -224,6 +227,8 @@ protected:
     bool EMBEDWIDGET;
     // 是否显示边框
     bool SHOWBORDER;
+    // 片段ID
+    qint64 m_id;
     // 时间码类型
     TimeCodeType m_timecodeType;
     // 布局

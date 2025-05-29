@@ -67,20 +67,11 @@ signals:
      */
     void timelineInfoChanged(int totalWidth, int viewportWidth, int scrollPosition);
     /**
-     * 视频窗口关闭信号
-     */
-    void videoWindowClosed();
-    /**
      * 当前剪辑改变信号
      * @param AbstractClipModel* clip 当前剪辑
      */
     void currentClipChanged(AbstractClipModel* clip);
 public slots:
-    /**
-     * 显示视频窗口
-     * @param bool show 是否显示
-     */
-    void showVideoWindow(bool show = true);
     /**
      * 更新可视区域
      */
@@ -350,9 +341,6 @@ private:
     bool m_isDroppingMedia = false;
     // 鼠标最后拖动位置
     QPoint m_lastDragPos;
-
-    // 视频播放器
-    VideoPlayerWidget* videoPlayer = nullptr;
     // 鼠标悬停状态
     hoverState m_mouseUnderClipEdge = NONE;
     // 鼠标悬停索引
@@ -384,10 +372,6 @@ private:
      * @param int frame 帧
      */
     void movePlayheadToFrame(int frame);
-    /**
-     * 设置视频窗口
-     */
-    void setupVideoWindow();
     // 更新帧位置
     void onFrameChanged(qint64 frame);
     // 播放状态改变

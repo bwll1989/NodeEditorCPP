@@ -107,7 +107,7 @@ QJsonObject AbstractClipModel::save() const {
     clipJson["end"] = m_end;
     clipJson["type"] = m_type;
     clipJson["track"] = m_trackIndex;
-
+    clipJson["ID"]=m_id;
     return clipJson;
 }
 
@@ -116,6 +116,7 @@ void AbstractClipModel::load(const QJsonObject& json) {
     m_end = json["end"].toInt();
     m_type = json["type"].toString();
     m_trackIndex = json["track"].toInt();
+    m_id = json["ID"].toInt();
 }
 
 QVariantMap AbstractClipModel::currentData(int currentFrame) const {

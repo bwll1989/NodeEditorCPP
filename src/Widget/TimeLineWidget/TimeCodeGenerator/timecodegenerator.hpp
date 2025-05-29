@@ -9,22 +9,18 @@
 #include "TimeCodeMessage.h"
 #include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
 #include <QJsonObject>
-class TimecodeGenerator : public QObject {
+#include "TimeSyncServer.hpp"
+class TimeCodeGenerator : public QObject {
     Q_OBJECT
 public:
-    explicit TimecodeGenerator(QObject* parent = nullptr);
-    ~TimecodeGenerator() override;
-
-    // 启动生成器
-    void start();
-    // 停止生成器
-    void stop();
-    // 暂停生成器
-    void pause();
+    explicit TimeCodeGenerator(QObject* parent = nullptr);
+    ~TimeCodeGenerator() override;
     // 设置当前帧
     void setCurrentFrame(qint64 frame);
-    // 设置当前时间码
+    // 从时间码设置当前时间码
     void setCurrentTimecode(const TimeCodeFrame& timecode);
+    // 从时间设置当前时间码
+    void setCurrentTimecodeFromTime(const double time);
     // 获取当前帧
     qint64 getCurrentFrame() const;
     // 获取帧率
@@ -89,11 +85,14 @@ signals:
      */
     void timecodePlayingChanged(bool isPlaying);
     
+    void startPlay();
+
+    void pausePlay();
+
+    void stopPlay();
+
+    void resumePlay();
 public slots:
-    /**
-     * 定时器超时
-     */
-    void onTimeout();
     /**
      * 开始
      */
@@ -116,7 +115,7 @@ private:
     /**
      * 定时器
      */
-    QTimer* m_timer;
+    TimeSyncServer* m_timer;
     /**
      * 互斥锁
      */
@@ -141,14 +140,6 @@ private:
      * 时间码类型
      */
     TimeCodeType m_timecodeType;
-    /**
-     * 是否暂停
-     */
-    bool m_isPaused;
-    // 添加时间戳相关成员
-    qint64 m_startTime = 0;        // 开始播放的时间戳
-    qint64 m_lastFrameTime = 0;    // 上一帧的时间戳
-    double m_frameDuration = 0;    // 每帧持续时间(ms)
     // 当前时间码
     TimeCodeFrame m_currentTimecode;
     /**

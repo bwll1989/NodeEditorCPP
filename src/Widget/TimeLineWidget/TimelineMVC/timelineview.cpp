@@ -32,10 +32,10 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         toolbar->move(0, 0);
         
         // 连接时间码生成器信号
-        connect(Model->getTimecodeGenerator(), &TimecodeGenerator::currentFrameChanged,
+        connect(Model->getTimecodeGenerator(), &TimeCodeGenerator::currentFrameChanged,
                 this, &TimelineView::onFrameChanged);
         // 连接时间码生成器播放状态改变信号
-        connect(Model->getTimecodeGenerator(), &TimecodeGenerator::timecodePlayingChanged,
+        connect(Model->getTimecodeGenerator(), &TimeCodeGenerator::timecodePlayingChanged,
                 this, &TimelineView::onPlaybackStateChanged);
         
         // 连接工具栏播放按钮信号
@@ -50,22 +50,13 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         connect(toolbar, &TimelineToolbar::pauseClicked, [this]() {
             Model->onPausePlay();
         });
-        
-        // 连接工具栏输出窗口切换信号
-        connect(toolbar, &TimelineToolbar::outputWindowToggled, this, &TimelineView::showVideoWindow);
         // 当视频窗口关闭时，更新工具栏按钮状态
-        connect(this, &TimelineView::videoWindowClosed, [this]() {
-            toolbar->m_outputAction->setChecked(false);
-        });
-
         connect(Model, &TimelineModel::S_trackAdd, this, &TimelineView::onUpdateViewport);
         connect(Model, &TimelineModel::S_trackDelete, this, &TimelineView::onUpdateViewport);
         connect(Model, &TimelineModel::S_trackMoved, this, &TimelineView::onUpdateViewport);
         connect(Model, &TimelineModel::S_addClip, this, &TimelineView::onUpdateViewport);
 
-         installEventFilter(this);
-        // 创建视频播放器和窗口
-        setupVideoWindow();
+        installEventFilter(this);
 
         // 连接工具栏的帧控制信号
         connect(toolbar, &TimelineToolbar::prevFrameClicked, [this]() {
@@ -103,24 +94,13 @@ TimelineView::TimelineView(TimelineModel *viewModel, QWidget *parent)
         connect(toolbar, &TimelineToolbar::zoomOutClicked, [this]() {
             setScale(0.9);
         });
-        // 连接帧率改变信号,停止定时器，移动播放头到0，更新视图
-        // connect(Model, &TimelineModel::frameRateChanged, [this](int fps){
-        //     Model->onSetPlayheadPos(0);
-        //     // if(timer->isActive()){
-        //     //     timer->stop();
-        //     //     onTimelineStart();
-        //     // }
-           
-        //     onUpdateViewport();
-        // });
         // 连接循环播放信号
         connect(toolbar, &TimelineToolbar::loopToggled, 
-                Model->getTimecodeGenerator(), &TimecodeGenerator::setLooping);
+                Model->getTimecodeGenerator(), &TimeCodeGenerator::setLooping);
     }
 
 TimelineView::~TimelineView()
 {
-    delete videoPlayer;
     delete toolbar;
     // delete timer;
 
@@ -878,40 +858,6 @@ void TimelineView::wheelEvent(QWheelEvent *event){
         }
         event->accept();
     }
-
-void TimelineView::setupVideoWindow()
-{
-    // 创建视频播放器
-    videoPlayer = new VideoPlayerWidget;
-    videoPlayer->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);  // 设置为独立窗口
-}
-
-void TimelineView::showVideoWindow(bool show)
-{
-    if (show) {
-        if (!videoPlayer) {
-            setupVideoWindow();
-        }
-
-        videoPlayer->showFullScreen();
-        
-        // 获取所有屏幕
-        QList<QScreen*> screens = QGuiApplication::screens();
-        
-        // 如果有第二个屏幕，确保窗口在第二个屏幕上
-        if (screens.size() > 1) {
-            QScreen* secondScreen = screens[1];
-            videoPlayer->setGeometry(secondScreen->geometry());
-        }
-    } else {
-        if (videoPlayer) {
-            videoPlayer->close();  // 关闭窗口
-            delete videoPlayer;    // 销毁对象
-            videoPlayer = nullptr; // 清空指针
-            emit videoWindowClosed();
-        }
-    }
-}
 
 void TimelineView::onFrameChanged(qint64 frame)
 {

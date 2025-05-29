@@ -45,7 +45,7 @@ public:
         QObject::connect(Model, &TimelineModel::S_trackDelete, this, &TracklistView::onUpdateViewport);
         QObject::connect(Model, &TimelineModel::S_trackMoved, this, &TracklistView::onUpdateViewport);
         //时间码更新后刷新显示
-        connect(Model->getTimecodeGenerator(), &TimecodeGenerator::currentFrameChanged, this, &TracklistView::onUpdateViewport);
+        connect(Model->getTimecodeGenerator(), &TimeCodeGenerator::currentFrameChanged, this, &TracklistView::onUpdateViewport);
         setItemDelegate(new TrackDelegate(this));
         setMouseTracking(true);
         m_scrollOffset = QPoint(0,0);
