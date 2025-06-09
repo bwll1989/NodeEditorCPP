@@ -5,24 +5,24 @@
 #include <QTimer>
 #include <QMutex>
 #include <QAtomicInteger>
-#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
+#include "TimeLineDefines.h"
 #include "TimeCodeMessage.h"
 #include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
 #include <QJsonObject>
 #include "TimeSyncServer.hpp"
-class TimeCodeGenerator : public QObject {
+class TimeLineClock : public QObject {
     Q_OBJECT
 public:
-    explicit TimeCodeGenerator(QObject* parent = nullptr);
-    ~TimeCodeGenerator() override;
+    explicit TimeLineClock(QObject* parent = nullptr);
+    ~TimeLineClock() override;
     // 设置当前帧
     void setCurrentFrame(qint64 frame);
+    // 获取当前帧
+    qint64 getCurrentFrame() const;
     // 从时间码设置当前时间码
     void setCurrentTimecode(const TimeCodeFrame& timecode);
     // 从时间设置当前时间码
     void setCurrentTimecodeFromTime(const double time);
-    // 获取当前帧
-    qint64 getCurrentFrame() const;
     // 获取帧率
     double getFrameRate() const;
     // 设置时间码类型
@@ -61,9 +61,9 @@ public:
 
     void closeLTCClock();
 
-    QJsonObject  saveTimeCodeSetting();
+    QJsonObject  save();
 
-    void loadTimeCodeSetting(const QJsonObject& json);
+    void load(const QJsonObject& json);
 signals:
     /**
      * 当前帧改变
@@ -92,6 +92,7 @@ signals:
     void stopPlay();
 
     void resumePlay();
+
 public slots:
     /**
      * 开始
@@ -106,6 +107,7 @@ public slots:
      */
     void onStop();
 
+    void onLoop(bool loop);
 private:
     /**
      * 更新时间码
@@ -145,7 +147,7 @@ private:
     /**
      * 时钟源
      */
-    ClockSource m_clockSource {ClockSource::Internal};
+    ClockSource m_clockSource;
     /**
      * LTC接收器
      */

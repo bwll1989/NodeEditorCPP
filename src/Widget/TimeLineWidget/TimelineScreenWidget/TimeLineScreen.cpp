@@ -1,4 +1,4 @@
-#include "timelinescreen.hpp"
+#include "TimeLineScreen.hpp"
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QLineEdit>
@@ -19,24 +19,24 @@
 #include <QJsonObject>
 
 #include <QGuiApplication>
-TimelineScreen::TimelineScreen(QWidget *parent)
+TimeLineScreen::TimeLineScreen(QWidget *parent)
     : AbstractTimelineScreen(parent)
 {
     setAttribute(Qt::WA_OpaquePaintEvent);
 }
 
-TimelineScreen::~TimelineScreen()
+TimeLineScreen::~TimeLineScreen()
 {
     // 基类会处理 m_propertiesWidget 的删除
  
 }
 
-void TimelineScreen::registerType()
+void TimeLineScreen::registerType()
 {
-    qmlRegisterType<TimelineScreen>("TimelineWidget", 1, 0, "TimelineScreen");
+    qmlRegisterType<TimeLineScreen>("TimelineWidget", 1, 0, "TimelineScreen");
 }
 
-void TimelineScreen::createPropertiesWidget()
+void TimeLineScreen::createPropertiesWidget()
 {
     if (!m_propertiesWidget) {
         m_propertiesWidget = new QDialog();
@@ -61,18 +61,18 @@ void TimelineScreen::createPropertiesWidget()
         // 名称
         auto nameEdit = new QLineEdit();
         nameEdit->setText(m_name);
-        connect(nameEdit, &QLineEdit::textChanged, this, &TimelineScreen::setName);
+        connect(nameEdit, &QLineEdit::textChanged, this, &TimeLineScreen::setName);
         generalLayout->addRow(tr("名称:"), nameEdit);
 
         // Computer
         auto computerEdit = new QLineEdit(m_computerName);
-        connect(computerEdit, &QLineEdit::textChanged, this, &TimelineScreen::setComputerName);
+        connect(computerEdit, &QLineEdit::textChanged, this, &TimeLineScreen::setComputerName);
         generalLayout->addRow(tr("Computer:"), computerEdit);
 
         // 启用显示复选框
         auto enabledCheckBox = new QCheckBox(tr("Use this display"));
         enabledCheckBox->setChecked(m_enabled);
-        connect(enabledCheckBox, &QCheckBox::toggled, this, &TimelineScreen::setEnabled);
+        connect(enabledCheckBox, &QCheckBox::toggled, this, &TimeLineScreen::setEnabled);
         generalLayout->addRow("", enabledCheckBox);
 
         // 连接状态
@@ -100,13 +100,13 @@ void TimelineScreen::createPropertiesWidget()
         widthSpinBox->setRange(1, 9999);
         widthSpinBox->setValue(m_screenWidth);
         connect(widthSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                this, &TimelineScreen::setScreenWidth);
+                this, &TimeLineScreen::setScreenWidth);
 
         auto heightSpinBox = new QSpinBox();
         heightSpinBox->setRange(1, 9999);
         heightSpinBox->setValue(m_screenHeight);
         connect(heightSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-                this, &TimelineScreen::setScreenHeight);
+                this, &TimeLineScreen::setScreenHeight);
 
         resLayout->addRow(tr("宽度:"), widthSpinBox);
         resLayout->addRow(tr("高度:"), heightSpinBox);
@@ -309,13 +309,13 @@ void TimelineScreen::createPropertiesWidget()
         mainLayout->addWidget(buttonBox);
 
         // 连接属性变化信号到更新槽
-        connect(this, &TimelineScreen::posXChanged, this, &TimelineScreen::updatePropertyWidgets);
-        connect(this, &TimelineScreen::posYChanged, this, &TimelineScreen::updatePropertyWidgets);
-        connect(this, &TimelineScreen::rotationChanged, this, &TimelineScreen::updatePropertyWidgets);
-        connect(this, &TimelineScreen::redIntensityChanged, this, &TimelineScreen::updatePropertyWidgets);
-        connect(this, &TimelineScreen::greenIntensityChanged, this, &TimelineScreen::updatePropertyWidgets);
-        connect(this, &TimelineScreen::blueIntensityChanged, this, &TimelineScreen::updatePropertyWidgets);
-        connect(this, &TimelineScreen::gammaChanged, this, &TimelineScreen::updatePropertyWidgets);
+        connect(this, &TimeLineScreen::posXChanged, this, &TimeLineScreen::updatePropertyWidgets);
+        connect(this, &TimeLineScreen::posYChanged, this, &TimeLineScreen::updatePropertyWidgets);
+        connect(this, &TimeLineScreen::rotationChanged, this, &TimeLineScreen::updatePropertyWidgets);
+        connect(this, &TimeLineScreen::redIntensityChanged, this, &TimeLineScreen::updatePropertyWidgets);
+        connect(this, &TimeLineScreen::greenIntensityChanged, this, &TimeLineScreen::updatePropertyWidgets);
+        connect(this, &TimeLineScreen::blueIntensityChanged, this, &TimeLineScreen::updatePropertyWidgets);
+        connect(this, &TimeLineScreen::gammaChanged, this, &TimeLineScreen::updatePropertyWidgets);
     }
 }
 
@@ -323,7 +323,7 @@ void TimelineScreen::createPropertiesWidget()
 
 
 
-void TimelineScreen::updatePropertyWidgets()
+void TimeLineScreen::updatePropertyWidgets()
 {
     if (!m_propertiesWidget || !m_propertiesWidget->isVisible()) {
         return;
@@ -359,26 +359,26 @@ void TimelineScreen::updatePropertyWidgets()
     }
 }
 
-void TimelineScreen::setImage(const QImage& image)
+void TimeLineScreen::setImage(const QImage& image)
 {
     m_currentImage = image;
     m_displayRect = calculateDisplayRect();
     update();
 }
 
-void TimelineScreen::clear()
+void TimeLineScreen::clear()
 {
     m_currentImage = QImage();
     update();
 }
 
-void TimelineScreen::resizeEvent(QResizeEvent* event)
+void TimeLineScreen::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
     m_displayRect = calculateDisplayRect();
 }
 
-void TimelineScreen::paintEvent(QPaintEvent* event)
+void TimeLineScreen::paintEvent(QPaintEvent* event)
 {
     QPainter painter(this);
     painter.fillRect(rect(), Qt::black);
@@ -389,12 +389,12 @@ void TimelineScreen::paintEvent(QPaintEvent* event)
     }
 }
 
-QRect TimelineScreen::getDisplayRect() const
+QRect TimeLineScreen::getDisplayRect() const
 {
     return m_displayRect;
 }
 
-QRect TimelineScreen::calculateDisplayRect() const
+QRect TimeLineScreen::calculateDisplayRect() const
 {
     if (m_currentImage.isNull()) {
         return rect();
@@ -402,19 +402,19 @@ QRect TimelineScreen::calculateDisplayRect() const
     return QRect(QPoint(0,0), m_currentImage.size());
 }
 
-QJsonObject TimelineScreen::save() const
+QJsonObject TimeLineScreen::save() const
 {
     return AbstractTimelineScreen::save();
 }
 
-void TimelineScreen::load(const QJsonObject &json)
+void TimeLineScreen::load(const QJsonObject &json)
 {
     AbstractTimelineScreen::load(json);
     // 更新属性和界面
     onPropertyChanged();
 }
 
-void TimelineScreen::onPropertyChanged()
+void TimeLineScreen::onPropertyChanged()
 {
     // 更新属性窗口
     updatePropertyWidgets();

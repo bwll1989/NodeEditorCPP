@@ -1,20 +1,20 @@
-#include "timelinestage.hpp"
+#include "TimeLineStage.hpp"
 #include <QJsonArray>
 #include <QJsonObject>
 
-TimelineStage::TimelineStage(QQuickItem *parent)
+TimeLineStage::TimeLineStage(QQuickItem *parent)
     : QQuickItem(parent)
 {
     // 允许接收更新
     setFlag(QQuickItem::ItemHasContents, true);
 }
 
-TimelineStage::~TimelineStage()
+TimeLineStage::~TimeLineStage()
 {
     clearScreens();
 }
 
-void TimelineStage::addScreen(TimelineScreen* screen)
+void TimeLineStage::addScreen(TimeLineScreen* screen)
 {
     if (!m_screens.contains(screen)) {
         m_screens.append(screen);
@@ -22,7 +22,7 @@ void TimelineStage::addScreen(TimelineScreen* screen)
     }
 }
 
-void TimelineStage::removeScreen(TimelineScreen* screen)
+void TimeLineStage::removeScreen(TimeLineScreen* screen)
 {
     if (m_screens.contains(screen)) {
         m_screens.removeOne(screen);
@@ -32,7 +32,7 @@ void TimelineStage::removeScreen(TimelineScreen* screen)
     }
 }
 
-void TimelineStage::clearScreens()
+void TimeLineStage::clearScreens()
 {
     // 使用 deleteLater 而不是直接删除
     for (auto* screen : m_screens) {
@@ -42,14 +42,14 @@ void TimelineStage::clearScreens()
     emit screensChanged();
 }
 
-QJsonObject TimelineStage::save() const
+QJsonObject TimeLineStage::save() const
 {
     QJsonObject stageJson;
     
     // 保存屏幕信息
     QJsonArray screensArray;
     for (const auto* screen : m_screens) {
-        if (auto* timelineScreen = qobject_cast<const TimelineScreen*>(screen)) {
+        if (auto* timelineScreen = qobject_cast<const TimeLineScreen*>(screen)) {
             screensArray.append(timelineScreen->save());
         }
     }
@@ -58,7 +58,7 @@ QJsonObject TimelineStage::save() const
     return stageJson;
 }
 
-void TimelineStage::load(const QJsonObject &json)
+void TimeLineStage::load(const QJsonObject &json)
 {
     clearScreens();
 
@@ -66,7 +66,7 @@ void TimelineStage::load(const QJsonObject &json)
     QJsonArray screensArray = json["screens"].toArray();
     for (const QJsonValue &screenValue : screensArray) {
         QJsonObject screenJson = screenValue.toObject();
-        TimelineScreen* screen = new TimelineScreen();
+        TimeLineScreen* screen = new TimeLineScreen();
         screen->load(screenJson);
         m_screens.append(screen);
     }
@@ -74,16 +74,16 @@ void TimelineStage::load(const QJsonObject &json)
     emit screensChanged();
 }
 
-void TimelineStage::registerType()
+void TimeLineStage::registerType()
 {
     // 注册为 QML 类型
-    qmlRegisterType<TimelineStage>("TimelineWidget", 1, 0, "TimelineStage");
+    qmlRegisterType<TimeLineStage>("TimelineWidget", 1, 0, "TimelineStage");
     
     // 注册为元对象类型，允许在 QML 中使用 TimelineStage* 类型
-    qRegisterMetaType<TimelineStage*>("TimelineStage*");
+    qRegisterMetaType<TimeLineStage*>("TimelineStage*");
 }
 
-void TimelineStage::setZoomFactor(qreal factor)
+void TimeLineStage::setZoomFactor(qreal factor)
 {
     if (qFuzzyCompare(m_zoomFactor, factor))
         return;
@@ -91,7 +91,7 @@ void TimelineStage::setZoomFactor(qreal factor)
     emit zoomFactorChanged();
 }
 
-void TimelineStage::setViewPosition(const QPointF &pos)
+void TimeLineStage::setViewPosition(const QPointF &pos)
 {
     if (m_viewPosition == pos)
         return;

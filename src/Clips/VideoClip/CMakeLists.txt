@@ -15,25 +15,22 @@ set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-
 include_directories(${FFMPEG_INCLUDE_DIRS})
 link_directories("${FFMPEG_LIB_DIRS}")
 # 查找Qt包
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network WebSockets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network WebSockets QuickWidgets)
 # 设置基础目录变量
 add_definitions(-DQT_MESSAGELOGCONTEXT)
-set(TIMELINE_SDK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget/TimeLineWidget/TimelineAbstract)
+set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
+set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
+INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 set(Devices_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/Devices)
 # 设置源文件
 set(SOURCES
     videoclipmodel.hpp
     videoclipplugin.hpp
-    ${Devices_DIR}/SocketTransmitter/SocketTransmitter.hpp
-    ${Devices_DIR}/SocketTransmitter/SocketTransmitter.cpp
-    ${TIMELINE_SDK_DIR}/AbstractClipModel.hpp
-    ${TIMELINE_SDK_DIR}/AbstractClipModel.cpp
-    ${TIMELINE_SDK_DIR}/AbstractClipInterface.hpp
+    ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
 )
 
 # 创建插件库
 add_library(VideoClip MODULE
-
     ${SOURCES}
 )
 
@@ -42,10 +39,12 @@ set_target_properties(VideoClip PROPERTIES
     PREFIX ""
     SUFFIX ".plugin"
 )
+
 # Windows 平台特定配置
 if(WIN32)
     target_link_libraries(VideoClip PRIVATE ws2_32)  # 添加 Winsock2 库
 endif()
+
 # 链接Qt库
 target_link_libraries(VideoClip PUBLIC
     Qt6::Core
@@ -53,6 +52,7 @@ target_link_libraries(VideoClip PUBLIC
     Qt6::Widgets
     Qt6::Network
     Qt6::WebSockets
+    Qt6::QuickWidgets
     avcodec
     avdevice
     avfilter
@@ -61,6 +61,8 @@ target_link_libraries(VideoClip PUBLIC
     postproc
     swresample
     swscale
+    ${QtTimeLine_LIBRARIES}
+    ClientController
 )
 
 # 包含目录
@@ -68,4 +70,12 @@ target_include_directories(VideoClip PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../..
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget
-) 
+    ${Devices_DIR}/Singleton
+    ${Devices_DIR}/SocketTransmitter
+)
+
+# 添加编译定义
+target_compile_definitions(VideoClip PRIVATE
+    NODE_TIMELINE_SHARED
+    NODE_TIMELINE_EXPORTS
+)

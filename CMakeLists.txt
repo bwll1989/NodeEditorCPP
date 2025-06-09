@@ -32,9 +32,6 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/DataTypes)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Clips)
 add_definitions(-DQT_MESSAGELOGCONTEXT)
 
-
-
-
 # 设置Qt MSVC版本的路径
 set(CMAKE_PREFIX_PATH "C:/Qt/6.5.3/msvc2019_64") # 请根据实际安装路径修改此处
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL") # 或 MultiThreaded
@@ -120,68 +117,23 @@ INCLUDE_DIRECTORIES(${OpenCV_DIR})
 link_directories("${OpenCV_LIBRARIES}")
 message("-- Found OpenCV ${OpenCV_DIR}")
 
+# 设置QtTimeLine库
+set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
+set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
+INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
+
 # 设置QT库
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
         QmlWorkerScript
         QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
-#添加QT库
-
-#添加QtNodes库
-
-
-#添加ADS
-# set(QtAwesome_INCLUDE_DIRS "${DEPENDS_DIR}/QtAwesome")
-# INCLUDE_DIRECTORIES(${QtAwesome_INCLUDE_DIRS})
-#添加QtAwesome库
-#set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n6.1.1-win64-gpl-shared-6.1/include")
-#set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n6.1.1-win64-gpl-shared-6.1/lib")
-
-#
-# set(GStreamer_INCLUDE_DIRS "${DEPENDS_DIR}/gstreamer/1.0/mingw_x86_64/include")
-# set(GStreamer_LIB_DIRS "${DEPENDS_DIR}/gstreamer/1.0/mingw_x86_64/lib")
-# include_directories(${GStreamer_INCLUDE_DIRS})
-# link_directories("${GStreamer_LIB_DIRS}")
-# message("-- Found GStreamer ${GStreamer_INCLUDE_DIRS}")
-
-
-
-
-
-
-
-#set(SndFile_DIR "${DEPENDS_DIR}/libsndfile/install/cmake")
-#find_package(SndFile REQUIRED)
-#message("-- Found SndFile ${SndFile_DIR}")
-#
-
-
-
-# set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc")
-# include_directories(${tinyosc_DIR})
-# message("-- Found tinyosc ${tinyosc_DIR}")
-
-
-
-
-# add_subdirectory(src/Nodes/VST3PluginNode)
-
-#include_directories(${ossia_dir})
-#set(Python3_ROOT_DIR "${CMAKE_BINARY_DIR}/Python312" )
-#set(PYTHON_EXECUTABLE "${CMAKE_BINARY_DIR}/Python312/python.exe")
-#set(pybind11_DIR "${CMAKE_BINARY_DIR}/Python312/Lib/site-packages/pybind11/share/cmake/pybind11")
-#set(PYBIND11_FINDPYTHON ON)
-#find_package(Python3 3.12.6 COMPONENTS Interpreter Development REQUIRED)
-#find_package(pybind11 REQUIRED)
-#message("-- Found Python version ${Python3_VERSION}")
-#message("-- Found Pybind11 version ${pybind11_VERSION}")
-#include_directories(${Python3_INCLUDE_DIRS})
-#include_directories(${pybind11_INCLUDE_DIRS})
 #分组模块
 # 添加Clips模块
 add_subdirectory(src/Clips)
 # 添加Nodes模块
 add_subdirectory(src/Nodes)
+
+add_subdirectory( src/Common/Devices/SocketTransmitter)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -195,7 +147,7 @@ set(CALC_SOURCE_FILES
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.hpp
         res/res.rc
         res/resources.qrc
-        src/Widget/TimeLineWidget/timelineResource.qrc
+        src/Widget/TimeLineWidget/TimeLineResource.qrc
         src/Widget/NodeWidget/CustomDataFlowGraphModel.h
         src/Widget/NodeWidget/CustomDataFlowGraphModel.cpp
         src/Widget/NodeWidget/CustomFlowGraphicsScene.cpp
@@ -250,8 +202,6 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/UdpSocket/UdpSocket.h
         src/Common/Devices/WebSocketServer/WebSocketServer.cpp
         src/Common/Devices/WebSocketServer/WebSocketServer.h
-        src/Common/Devices/SocketTransmitter/SocketTransmitter.hpp
-        src/Common/Devices/SocketTransmitter/SocketTransmitter.cpp
         src/Common/Devices/AudioPipe/AudioPipe.h
         src/Common/Devices/OSCReceiver/OSCReceiver.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.h
@@ -271,48 +221,37 @@ set(CALC_SOURCE_FILES
         src/DataTypes/PixmapData.h
         src/DataTypes/AudioData.h
         src/DataTypes/OSCMessage.h
-        src/DataTypes/TimeCodeMessage.h
+#        src/DataTypes/TimeCodeMessage.h
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         # src/Widget/TimeLineWidget/videoplayerwidget.hpp
         # src/Widget/TimeLineWidget/videoplayerwidget.cpp
-        src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.cpp
-        src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp
-        src/Widget/TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp
-        src/Widget/TimeLineWidget/TimelineMVC/pluginloader.cpp
-        src/Widget/TimeLineWidget/TimelineMVC/pluginloader.hpp
-        src/Widget/TimeLineWidget/TimelineMVC/timelinemodel.cpp
-        src/Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp
-        src/Widget/TimeLineWidget/TimelineMVC/timelinestyle.hpp
-        src/Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h
-        src/Widget/TimeLineWidget/TimelineMVC/timelineview.cpp
-        src/Widget/TimeLineWidget/TimelineMVC/timelineview.hpp
         src/Widget/TimeLineWidget/timelinewidget.cpp
         src/Widget/TimeLineWidget/timelinewidget.hpp
-        src/Widget/TimeLineWidget/TimelineMVC/trackdelegate.hpp
-        src/Widget/TimeLineWidget/TimelineMVC/tracklistview.cpp
-        src/Widget/TimeLineWidget/TimelineMVC/tracklistview.hpp
-        src/Widget/TimeLineWidget/TimelineMVC/trackmodel.hpp
-        src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.hpp
-        src/Widget/TimeLineWidget/TimelineToolbarWidget/timelinetoolbar.cpp
+        src/Widget/TimeLineWidget/TimelineScreenWidget/AbstractTimelineScreen.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/LtcSettingWidget.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/MtcSettingWidget.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/AudioSettingWidget.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/VideoSettingWidget.hpp
-        src/Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.hpp
-        src/Widget/TimeLineWidget/TimelineSettingWidget/timelinesettingsdialog.cpp
-        src/Widget/StageWidget/StageWidget.hpp
-        src/Widget/StageWidget/StageWidget.cpp
-        src/Widget/TimeLineWidget/TimelineAbstract/AbstractTimelineScreen.hpp
-        src/Widget/TimeLineWidget/TimelineStageWidget/timelinestage.hpp
-        src/Widget/TimeLineWidget/TimelineStageWidget/timelinestage.cpp
-        src/Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.hpp
-        src/Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.cpp
-        src/Widget/TimeLineWidget/TimeCodeGenerator/timecodegenerator.hpp
-        src/Widget/TimeLineWidget/TimeCodeGenerator/timecodegenerator.cpp
-        src/Widget/TimeLineWidget/TimeCodeGenerator/TimeSyncServer.hpp
-        src/Widget/TimeLineWidget/TimeCodeGenerator/TimeSyncServer.cpp
+        src/Widget/TimeLineWidget/TimelineSettingWidget/TimeLineSetting.hpp
+        src/Widget/TimeLineWidget/TimelineSettingWidget/TimeLineSetting.cpp
+        src/Widget/StageWidget/stagewidget.hpp
+        src/Widget/StageWidget/stagewidget.cpp
+        src/Widget/TimeLineWidget/TimelineStageWidget/TimeLineStage.hpp
+        src/Widget/TimeLineWidget/TimelineStageWidget/TimeLineStage.cpp
+        src/Widget/TimeLineWidget/TimelineScreenWidget/TimeLineScreen.hpp
+        src/Widget/TimeLineWidget/TimelineScreenWidget/TimeLineScreen.cpp
+        src/Widget/TimeLineWidget/TimeLineClock/TimeLineClock.hpp
+        src/Widget/TimeLineWidget/TimeLineClock/TimeLineClock.cpp
+        src/Widget/TimeLineWidget/TimeLineClock/TimeSyncServer.hpp
+        src/Widget/TimeLineWidget/TimeLineClock/TimeSyncServer.cpp
         src/Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp
+        src/Widget/TimeLineWidget/TimeLineModel.cpp
+        src/Widget/TimeLineWidget/TimeLineModel.h
+        src/Widget/TimeLineWidget/TimeLineView.cpp
+        src/Widget/TimeLineWidget/TimeLineView.h
+        src/Widget/TimeLineWidget/TrackListView.cpp
+        src/Widget/TimeLineWidget/TrackListView.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -344,7 +283,8 @@ set(QRC_FILES
         resources.qrc
         timelineResource.qrc
         )
-target_compile_definitions(${ProjectName} PRIVATE -DNODE_EDITOR_SHARED)
+target_compile_definitions(${ProjectName} PRIVATE -DNODE_EDITOR_SHARED NODE_TIMELINE_SHARED)
+target_compile_definitions(${ProjectName} PRIVATE CLIENTCONTROLLER_LIBRARY)
 target_link_libraries(${ProjectName}
         PUBLIC
             Qt${QT_VERSION_MAJOR}::Widgets
@@ -385,10 +325,11 @@ target_link_libraries(${ProjectName}
             ${Qtpropertybrowser_LIBRARIES}
             ${Libltc_LIBRARIES}
             Eigen3::Eigen
-
+            ${QtTimeLine_LIBRARIES}
+            ClientController
 )
 
-
+#add_library(singleton SHARED ${CALC_SOURCE_FILES})
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.

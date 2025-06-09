@@ -1,12 +1,12 @@
-#include "timelinesettingsdialog.hpp"
+#include "TimeLineSetting.hpp"
 #include <QSettings>
 #include <QGuiApplication>
 #include <QScreen>
 #include <limits>
-#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
+#include "timelinedefines.h"
 #include <QMessageBox>
 
-TimelineSettingsDialog::TimelineSettingsDialog(TimelineModel* model,QWidget* parent)
+TimeLineSetting::TimeLineSetting(TimeLineModel* model,QWidget* parent)
     : QDialog(parent),m_model(model)
 {
     setWindowTitle(tr("Timeline设置"));
@@ -18,14 +18,14 @@ TimelineSettingsDialog::TimelineSettingsDialog(TimelineModel* model,QWidget* par
     
 }
 
-TimelineSettingsDialog::~TimelineSettingsDialog()
+TimeLineSetting::~TimeLineSetting()
 {
     delete m_cancelButton;
     delete m_applyButton;
     delete m_tabWidget;
 }
 
-void TimelineSettingsDialog::createUI()
+void TimeLineSetting::createUI()
 {
     auto* mainLayout = new QVBoxLayout(this);
     
@@ -51,7 +51,7 @@ void TimelineSettingsDialog::createUI()
     mainLayout->addLayout(buttonLayout);
 }
 
-QWidget* TimelineSettingsDialog::createGeneralTab()
+QWidget* TimeLineSetting::createGeneralTab()
 {
     auto* widget = new QWidget(this);
     auto* layout = new QFormLayout(widget);
@@ -80,8 +80,8 @@ QWidget* TimelineSettingsDialog::createGeneralTab()
     m_fpsCombo->addItem(tr("2: NTSC (30 fps)"), static_cast<int>(TimeCodeType::NTSC));
     m_fpsCombo->addItem(tr("3: NTSC Drop Frame (29.97 fps)"), static_cast<int>(TimeCodeType::NTSC_DF));
     m_fpsCombo->addItem(tr("4: PAL (25 fps)"), static_cast<int>(TimeCodeType::PAL));
-    layout->addRow(tr("设置帧率:"), m_fpsCombo);
-    m_fpsCombo->setCurrentIndex(static_cast<int>(m_model->getTimecodeGenerator()->getTimecodeType()));
+    layout->addRow(tr("时间码格式:"), m_fpsCombo);
+    m_fpsCombo->setCurrentIndex(static_cast<int>(m_model->getClock()->getTimecodeType()));
 
 
     // 添加时钟源设置组
@@ -120,18 +120,18 @@ QWidget* TimelineSettingsDialog::createGeneralTab()
             });
 
     // 同步当前设置
-    ClockSource currentSource = m_model->getTimecodeGenerator()->getClockSource();
-    int sourceIndex = m_clockSourceCombo->findData(static_cast<int>(currentSource));
-    if (sourceIndex >= 0) {
-        m_clockSourceCombo->setCurrentIndex(sourceIndex);
-        m_clockSettingsStack->setCurrentIndex(sourceIndex);
-    }
+    // ClockSource currentSource = m_model->getTimecodeGenerator()->getClockSource();
+    // int sourceIndex = m_clockSourceCombo->findData(static_cast<int>(currentSource));
+    // if (sourceIndex >= 0) {
+    //     m_clockSourceCombo->setCurrentIndex(sourceIndex);
+    //     m_clockSettingsStack->setCurrentIndex(sourceIndex);
+    // }
 
     return widget;
 }
 
 
-void TimelineSettingsDialog::setupConnections()
+void TimeLineSetting::setupConnections()
 {
    
     connect(m_cancelButton, &QPushButton::clicked, this, &QDialog::reject);
@@ -147,12 +147,12 @@ void TimelineSettingsDialog::setupConnections()
             m_autoSaveIntervalSpinBox, &QSpinBox::setEnabled);
 }
 
-void TimelineSettingsDialog::saveSettings()
+void TimeLineSetting::saveSettings()
 {
     QJsonObject setting = m_model->save();
     
     // 获取新的时间码设置
-    QJsonObject timeCodeSetting = setting["timecodeSetting"].toObject();
+    QJsonObject timeCodeSetting = setting["clock"].toObject();
     
     // 检查时间码类型是否改变。如果改变，则需要清除模型中的所有片段
     if (timeCodeSetting["timecodeType"].toInt() != m_fpsCombo->currentData().toInt()) {
@@ -196,7 +196,7 @@ void TimelineSettingsDialog::saveSettings()
     }
     
     // 更新时间码设置
-    setting["timecodeSetting"] = timeCodeSetting;
+    setting["clock"] = timeCodeSetting;
     
     // 保存音频设置
     if (m_audioSettingWidget) {
@@ -215,7 +215,7 @@ void TimelineSettingsDialog::saveSettings()
     accept();
 }
 
-void TimelineSettingsDialog::initAudioDeviceList(){
+void TimeLineSetting::initAudioDeviceList(){
         m_outputAudioDeviceList.clear();
         m_inputAudioDeviceList.clear();
         PaError err;
@@ -274,7 +274,7 @@ void TimelineSettingsDialog::initAudioDeviceList(){
         Pa_Terminate();
     }
 
-void TimelineSettingsDialog::initDisplayDeviceList(){
+void TimeLineSetting::initDisplayDeviceList(){
     QStringList deviceList;
     //获取已连接的显示器
     QList<QScreen *> screens = QGuiApplication::screens();
@@ -284,7 +284,7 @@ void TimelineSettingsDialog::initDisplayDeviceList(){
     m_outputVideoDeviceList = deviceList;
 }
 
-void TimelineSettingsDialog::syncSettings(){
+void TimeLineSetting::syncSettings(){
     // 同步模型中设置
     QJsonObject Setting = m_model->save();
     QJsonObject TimeCodeSetting = Setting["timecodeSetting"].toObject();

@@ -1,12 +1,11 @@
-#ifndef IMAGECLIPPLUGIN_HPP
-#define IMAGECLIPPLUGIN_HPP
+#ifndef VIDEOCLIPPLUGIN_HPP
+#define VIDEOCLIPPLUGIN_HPP
 
 #include <QObject>
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp"
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
+#include "AbstractClipInterface.h"
+#include "AbstractClipModel.hpp"
 #include "imageclipmodel.hpp"
-#include "imageclipdelegate.hpp"
+
 
 class ImageClipPlugin : public QObject, public ClipPlugInterface
 {
@@ -20,12 +19,12 @@ public:
     }
 
     AbstractClipModel* createModel(int start) override {
-        return new ImageClipModel(start, start+100);
+        return new ImageClipModel(start);
     }
 
-    AbstractClipDelegate* createDelegate() override {
-        return new ImageClipDelegate();
-    }
+    // AbstractClipDelegate* createDelegate() override {
+    //     return new PlayerClipDelegate();
+    // }
 };
 
-#endif // IMAGECLIPPLUGIN_HPP 
+#endif // VIDEOCLIPPLUGIN_HPP 

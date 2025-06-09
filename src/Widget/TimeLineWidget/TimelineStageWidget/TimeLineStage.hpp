@@ -4,13 +4,13 @@
 #include <QQuickItem>
 #include <QQmlEngine>
 #include <QVector>
-#include "Widget/TimeLineWidget/TimelineScreenWidget/timelinescreen.hpp"
-#include "Widget/TimeLineWidget/TimelineMVC/timelinestyle.hpp"
+#include "Widget/TimeLineWidget/TimelineScreenWidget/TimeLineScreen.hpp"
+#include "TimeLineStyle.h"
 #include <QImage>
 #include <QPainter>
 #include "Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp"
 
-class TimelineStage : public QQuickItem
+class TimeLineStage : public QQuickItem
 {
     Q_OBJECT
 
@@ -36,19 +36,19 @@ class TimelineStage : public QQuickItem
     Q_PROPERTY(QPoint imagePosition READ imagePosition NOTIFY imagePositionChanged)
 
 public:
-    explicit TimelineStage(QQuickItem *parent = nullptr);
-    ~TimelineStage();
+    explicit TimeLineStage(QQuickItem *parent = nullptr);
+    ~TimeLineStage();
 
     /**
      * 添加屏幕
      * @param TimelineScreen* screen 屏幕
      */
-    Q_INVOKABLE void addScreen(TimelineScreen* screen);
+    Q_INVOKABLE void addScreen(TimeLineScreen* screen);
     /**
      * 删除屏幕
      * @param TimelineScreen* screen 屏幕
      */
-    Q_INVOKABLE void removeScreen(TimelineScreen* screen);
+    Q_INVOKABLE void removeScreen(TimeLineScreen* screen);
     /**
      * 清除屏幕
      */
@@ -57,7 +57,7 @@ public:
      * 获取屏幕
      * @return QVector<TimelineScreen*> 屏幕列表
      */
-    Q_INVOKABLE QVector<TimelineScreen*> getScreens() const { return m_screens; }
+    Q_INVOKABLE QVector<TimeLineScreen*> getScreens() const { return m_screens; }
 
     /**
      * 保存
@@ -201,7 +201,7 @@ public slots:
 
 private:
     //屏幕对象列表
-    QVector<TimelineScreen*> m_screens;
+    QVector<TimeLineScreen*> m_screens;
     //初始缩放因子
     qreal m_zoomFactor = 0.2;
     //视图位置

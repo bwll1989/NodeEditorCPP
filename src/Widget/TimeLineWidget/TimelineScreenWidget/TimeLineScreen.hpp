@@ -11,14 +11,14 @@
 #include <QSpinBox>
 #include <QSlider>
 #include <QDoubleSpinBox>
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractTimelineScreen.hpp"
-class TimelineScreen : public AbstractTimelineScreen
+#include "AbstractTimelineScreen.hpp"
+class TimeLineScreen : public AbstractTimelineScreen
 {
     Q_OBJECT
 
 public:
-    explicit TimelineScreen(QWidget *parent = nullptr);
-    ~TimelineScreen() override;
+    explicit TimeLineScreen(QWidget *parent = nullptr);
+    ~TimeLineScreen() override;
 
     /**
      * 保存
@@ -35,9 +35,6 @@ public:
      * 注册类型
      */
     static void registerType();
-
-
-    
 
 protected:
     /**

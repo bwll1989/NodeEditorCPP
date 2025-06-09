@@ -12,8 +12,8 @@
 #include <QTabWidget>
 #include <QDoubleSpinBox>
 #include "portaudio.h"
-#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
-#include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"
+#include "timelinedefines.h"
+#include "../TimeLineModel.h"
 #include <QMessageBox>
 #include <QStackedWidget>
 #include "TimeCodeMessage.h"
@@ -21,11 +21,11 @@
 #include "MtcSettingWidget.hpp"
 #include "AudioSettingWidget.hpp"
 #include "VideoSettingWidget.hpp"
-class TimelineSettingsDialog : public QDialog {
+class TimeLineSetting : public QDialog {
     Q_OBJECT
 public:
-    explicit TimelineSettingsDialog(TimelineModel* model,QWidget* parent = nullptr);
-    ~TimelineSettingsDialog() override;
+    explicit TimeLineSetting(TimeLineModel* model,QWidget* parent = nullptr);
+    ~TimeLineSetting() override;
 
     // // 通用设置
     bool getAutoSave() const { return m_autoSaveCheckBox->isChecked(); }
@@ -50,13 +50,13 @@ public:
     void setHardwareAcceleration(bool enabled) { m_hardwareAccelCheckBox->setChecked(enabled); }
     void initDisplayDeviceList();
     void initAudioDeviceList();
-    
+    void saveSettings();
 signals:
     void settingsChanged();
 private:
     void createUI();
     void setupConnections();
-    void saveSettings();
+
     
     QWidget* createGeneralTab();
    
@@ -90,7 +90,7 @@ private:
 
     QStackedWidget* m_clockSettingsStack;  // 不同时钟源的设置面板
 
-    TimelineModel* m_model;
+    TimeLineModel* m_model;
     // 输出音频设备列表
     QStringList m_outputAudioDeviceList;
     // 输入音频设备列表

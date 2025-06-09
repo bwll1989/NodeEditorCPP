@@ -1,17 +1,18 @@
 #ifndef VIDEOCLIPMODEL_HPP
 #define VIDEOCLIPMODEL_HPP
-
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
 #include <QImage>
 #include <QPainter>
 #include <QFont>
 #include <QDebug>
 #include <QFileDialog>
 #include <QJsonArray>
-#include "Widget/TimeLineWidget/TimelineAbstract/timelinetypes.h"
+#include "TimeLineDefines.h"
 #include <QPushButton>
+#include "AbstractClipModel.hpp"
 #include "TimeCodeMessage.h"
-#include "../../Common/Devices/SocketTransmitter/sockettransmitter.hpp"
+// #include "BaseTimeLineModel.h"
+#include "../../Common/Devices/SocketTransmitter/SocketTransmitter.h"
+
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -20,8 +21,8 @@ extern "C" {
 class VideoClipModel : public AbstractClipModel {
     Q_OBJECT
 public:
-    explicit VideoClipModel(int start, int end, const QString& filePath = QString(), QObject* parent = nullptr)
-        : AbstractClipModel(start, end, "Player", TimeCodeType::PAL, parent), 
+    explicit VideoClipModel(int start,const QString& filePath = QString(), QObject* parent = nullptr)
+        : AbstractClipModel(start, "Video", parent),
           m_filePath(filePath),
           m_editor(nullptr)
     {
@@ -31,11 +32,21 @@ public:
         if (!filePath.isEmpty()) {
             loadVideoInfo(filePath);
         }
-        m_server=SocketTransmitter::getInstance();
-       
+        m_server = getSharedInstance();
+
     }
 
-    virtual ~VideoClipModel() override =default;
+    ~VideoClipModel() override
+    {
+        QJsonDocument doc;
+        QJsonArray array;  // 创建一个JSON数组
+        QJsonObject command=save();
+        command["remove"] = true;
+        array.append(command);
+        doc.setObject(QJsonObject{{"fileList", array}}); // 正确设置JSON文档的根对象
+        m_server->enqueueJson(doc);
+        // AbstractClipModel::~AbstractClipModel();
+    }
 
     // 设置文件路径并加载视频信息
     void setFilePath(const QString& path) { 
@@ -61,11 +72,10 @@ public:
     // 重写保存和加载函数
     QJsonObject save() const override {
         QJsonObject json = AbstractClipModel::save();
-        json["Id"]=m_id;
         json["file"] = m_filePath;
         json["type"] = "Video";
-        json["startTime"] = timecode_frame_to_time(frames_to_timecode_frame(start(), m_timecodeType), m_timecodeType);
-        json["endTime"] = timecode_frame_to_time(frames_to_timecode_frame(end(), m_timecodeType), m_timecodeType);
+        // json["startTime"] = timecode_frame_to_time(frames_to_timecode_frame(start(), m_timecodeType), m_timecodeType);
+        // json["endTime"] = timecode_frame_to_time(frames_to_timecode_frame(end(), m_timecodeType), m_timecodeType);
         json["zIndex"] = layer->value();
 
         QJsonObject position;
@@ -77,6 +87,10 @@ public:
         size["width"] = width->value();
         size["height"] = height->value();
         json["size"] = size;
+        json["rotation"] = rotation->value();
+
+        json["startTime"]=timecode_frame_to_time(frames_to_timecode_frame(start(),getTimeCodeType()),getTimeCodeType());
+        json["endTime"]=timecode_frame_to_time(frames_to_timecode_frame(end(),getTimeCodeType()),getTimeCodeType());
         return json;
     }
 
@@ -99,7 +113,7 @@ public:
             height->setValue(size["height"].toInt());
         }
         m_id = json["Id"].toInt();
-
+        rotation->setValue(json["rotation"].toInt());
       
     }
 
@@ -108,13 +122,14 @@ public:
             case Qt::DisplayRole:
                 return m_filePath;
             case TimelineRoles::ClipModelRole:
-                return QVariant::fromValue(static_cast<AbstractClipModel*>(const_cast<VideoClipModel*>(this)));
+                return QVariant::fromValue(static_cast<AbstractClipModel*>(const_cast< VideoClipModel*>(this)));
             default:
                 return AbstractClipModel::data(role);
         }
     }
 
-    virtual QWidget* clipPropertyWidget() override{
+
+    QWidget* clipPropertyWidget() override{
         m_editor = new QWidget();
         QVBoxLayout* mainLayout = new QVBoxLayout(m_editor);
         mainLayout->setContentsMargins(5, 5, 5, 5);
@@ -124,11 +139,11 @@ public:
         auto* basicLayout = new QGridLayout(basicGroup);
         // 时间相关控件
         basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
-        auto* durationBox = new QLineEdit(basicGroup);
-        durationBox->setReadOnly(true);
-        // 将帧数转换为时间码格式显示
-        // durationBox->setText(""(length(), timecode_frames_per_sec(getTimecodeType())));
-        basicLayout->addWidget(durationBox, 1, 1);
+        // auto* durationBox = new QLineEdit(basicGroup);
+        // durationBox->setReadOnly(true);
+        // // 将帧数转换为时间码格式显示
+        // // durationBox->setText(""(length(), timecode_frames_per_sec(getTimecodeType())));
+        // basicLayout->addWidget(durationBox, 1, 1);
          // 文件名显示
         auto* fileNameLabel = new QLineEdit(filePath(), basicGroup);
         fileNameLabel->setReadOnly(true);
@@ -136,7 +151,7 @@ public:
         // 媒体文件选择
         basicLayout->addWidget(new QLabel("媒体文件:"), 4, 0);
         auto* mediaButton = new QPushButton("选择媒体文件", basicGroup);
-        basicLayout->addWidget(mediaButton, 4, 1);        
+        basicLayout->addWidget(mediaButton, 4, 1);
         // 连接信号槽
         connect(mediaButton, &QPushButton::clicked, [=]() {
             QString filePath = QFileDialog::getOpenFileName(m_editor,
@@ -146,13 +161,13 @@ public:
                 "音频文件 (*.mp3 *.wav *.aac *.flac);;"
                 "图片文件 (*.jpg *.jpeg *.png *.bmp);;"
                 "所有文件 (*)");
-            
+
             if (!filePath.isEmpty()) {
                 setFilePath(filePath);  // 这会触发视频信息加载和长度更新
                 fileNameLabel->setText(filePath);
                 // 更新时长显示，使用时间码格式
                 // durationBox->setText(FramesToTimeString(length(), getFrameRate(getTimecodeType())));
-     
+
             }
         });
         mainLayout->addWidget(basicGroup);
@@ -190,6 +205,12 @@ public:
         layer->setMaximum(100);
         layer->setValue(0);
         positionLayout->addWidget(layer, 5, 1);
+        rotation=new QSpinBox(positionGroup);
+        rotation->setMinimum(-180);
+        rotation->setMaximum(180);
+        rotation->setValue(0);
+        positionLayout->addWidget(new QLabel("Rotate:"), 6, 0);
+        positionLayout->addWidget(rotation, 6, 1);
         mainLayout->addWidget(positionGroup);
         // 连接信号槽
         connect(postion_x, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
@@ -205,6 +226,9 @@ public:
             onPropertyChanged();
         });
         connect(layer, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
+            onPropertyChanged();
+        });
+        connect(rotation, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
             onPropertyChanged();
         });
         return m_editor;
@@ -223,7 +247,7 @@ public:
             data["/stop"]=1;
             return data;
         }
-       
+
         return data;
     }
 
@@ -259,9 +283,8 @@ private:
                 if (duration <= 0) {
                     duration = formatContext->duration / (double)AV_TIME_BASE;
                 }
-
                 // 计算总时长在timeline中的映射
-                int totalFrames = static_cast<int>(duration * timecode_frames_per_sec(m_timecodeType)); // Round to nearest frame
+                int totalFrames = static_cast<int>(duration * timecode_frames_per_sec(getTimeCodeType())); // Round to nearest frame
                 if (totalFrames > 0) {
                     setEnd(start() + totalFrames);
                 }
@@ -283,6 +306,7 @@ private:
     QSpinBox* width;
     QSpinBox* height;
     QSpinBox* layer;
+    QSpinBox* rotation;
     SocketTransmitter* m_server;
 };
 

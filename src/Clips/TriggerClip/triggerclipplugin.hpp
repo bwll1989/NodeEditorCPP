@@ -2,8 +2,8 @@
 #define TRIGGERCLIPPLUGIN_HPP
 
 #include <QObject>
-#include "TimeLineWidget/TimelineAbstract/AbstractClipInterface.hpp"
-#include "TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
+#include "AbstractClipInterface.h"
+#include "AbstractClipModel.hpp"
 #include "triggerclipmodel.hpp"
 
 class TriggerClipPlugin : public QObject, public ClipPlugInterface
@@ -18,7 +18,7 @@ public:
     }
 
     AbstractClipModel* createModel(int start) override {
-        return new TriggerClipModel(start, start);
+        return new TriggerClipModel(start);
     }
 };
 

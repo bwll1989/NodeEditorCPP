@@ -12,14 +12,17 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/TimeLine)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
 
 # 设置基础目录变量
-set(TIMELINE_SDK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget/TimeLineWidget/TimelineAbstract)
+
 set(Devices_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/Devices)
 set(OSCLISTWIDGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/GUI/OscListWidget)
+set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
+set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
+INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 # 设置源文件
 set(SOURCES
     triggerclipmodel.hpp
     triggerclipplugin.hpp
-
+    ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
     ${OSCLISTWIDGET_DIR}/OSCMessageListWidget.hpp
     ${OSCLISTWIDGET_DIR}/OSCMessageListWidget.cpp
     ${OSCLISTWIDGET_DIR}/OSCMessageItemWidget.hpp
@@ -27,10 +30,7 @@ set(SOURCES
     ${Devices_DIR}/OSCSender/OSCSender.h
     ${Devices_DIR}/OSCSender/OSCSender.cpp
     ${tinyosc_DIR}/tinyosc.c
-    ${tinyosc_DIR}/tinyosc.h
-    ${TIMELINE_SDK_DIR}/AbstractClipModel.hpp
-    ${TIMELINE_SDK_DIR}/AbstractClipModel.cpp
-    ${TIMELINE_SDK_DIR}/AbstractClipInterface.hpp)
+    ${tinyosc_DIR}/tinyosc.h)
 
 # 创建插件库
 add_library(TriggerClip MODULE
@@ -52,6 +52,7 @@ target_link_libraries(TriggerClip PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Network
+    ${QtTimeLine_LIBRARIES}
 )
 
 # 包含目录
@@ -59,4 +60,9 @@ target_include_directories(TriggerClip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../..
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget
-) 
+)
+# 添加编译定义
+target_compile_definitions(TriggerClip PRIVATE
+        NODE_TIMELINE_SHARED
+        NODE_TIMELINE_EXPORTS
+)

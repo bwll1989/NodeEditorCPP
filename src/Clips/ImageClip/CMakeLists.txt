@@ -1,65 +1,68 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.5)
 project(ImageClip VERSION 1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_AUTOMOC ON) 
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+enable_language(C)
 # 设置输出目录
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/TimeLine)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/TimeLine)
-set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/include")
-set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/lib")
-include_directories(${FFMPEG_INCLUDE_DIRS})
-link_directories("${FFMPEG_LIB_DIRS}")
+
 # 查找Qt包
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
-
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network WebSockets QuickWidgets)
 # 设置基础目录变量
-set(TIMELINE_SDK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget/TimeLineWidget/TimelineAbstract)
-
+add_definitions(-DQT_MESSAGELOGCONTEXT)
+set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
+set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
+INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
+set(Devices_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/Devices)
 # 设置源文件
 set(SOURCES
-    imageclipmodel.hpp
-    imageclipdelegate.hpp
-    imageclipplugin.hpp
-    ${TIMELINE_SDK_DIR}/AbstractClipModel.hpp
-    ${TIMELINE_SDK_DIR}/AbstractClipModel.cpp
-    ${TIMELINE_SDK_DIR}/AbstractClipDelegate.hpp
-    ${TIMELINE_SDK_DIR}/AbstractClipInterface.hpp
-#     ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp
+        imageclipmodel.hpp
+        imageclipplugin.hpp
+        ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
 )
 
 # 创建插件库
 add_library(ImageClip MODULE
-    ${SOURCES}
+        ${SOURCES}
 )
 
 # 设置目标属性
 set_target_properties(ImageClip PROPERTIES
-    PREFIX ""
-    SUFFIX ".plugin"
+        PREFIX ""
+        SUFFIX ".plugin"
 )
-
+# Windows 平台特定配置
+if(WIN32)
+    target_link_libraries(ImageClip PRIVATE ws2_32)  # 添加 Winsock2 库
+endif()
 # 链接Qt库
-target_link_libraries(ImageClip PRIVATE
-    Qt6::Core
-    Qt6::Gui
-    Qt6::Widgets
-    Qt6::OpenGL
-    Qt6::OpenGLWidgets
-    avcodec
-    avdevice
-    avfilter
-    avformat
-    avutil
-    postproc
-    swresample
-    swscale
+target_link_libraries(ImageClip PUBLIC
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::WebSockets
+        Qt6::QuickWidgets
+        ${QtTimeLine_LIBRARIES}
+        ClientController
 )
 
 # 包含目录
-target_include_directories(ImageClip PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/../..
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget
-) 
+target_include_directories(ImageClip PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../..
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget
+        ${Devices_DIR}/Singleton
+        ${Devices_DIR}/SocketTransmitter
+)
+
+# 添加编译定义
+target_compile_definitions(ImageClip PRIVATE
+        NODE_TIMELINE_SHARED
+        NODE_TIMELINE_EXPORTS
+)

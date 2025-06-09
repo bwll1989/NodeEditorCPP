@@ -1,6 +1,5 @@
-#ifndef SOCKETTRANSMITTER_HPP
-#define SOCKETTRANSMITTER_HPP
-
+#ifndef SOCKETTRANSMITTER_H
+#define SOCKETTRANSMITTER_H
 #include <QObject>
 #include <QWebSocketServer>
 #include <QWebSocket>
@@ -8,11 +7,17 @@
 #include <QMutex>
 #include <QQueue>
 #include <QJsonDocument>
+#include <QtCore/qglobal.h>
 
-class SocketTransmitter : public QObject
+#if defined(CLIENTCONTROLLER_LIBRARY)
+#define DLL_EXPORT Q_DECL_EXPORT
+#else
+#define DLL_EXPORT Q_DECL_IMPORT
+#endif
+
+class DLL_EXPORT SocketTransmitter : public QObject
 {
     Q_OBJECT
-
 public:
     // 获取单例实例
     static SocketTransmitter* getInstance();
@@ -22,7 +27,15 @@ public:
 
     // 停止服务器
     void stopServer();
+    // 私有构造函数
+    explicit SocketTransmitter(QObject* parent = nullptr);
 
+    // SocketTransmitter(const SocketTransmitter&) = delete;
+    //
+    // SocketTransmitter& operator=(const SocketTransmitter&) = delete;
+    // 单例实例
+    static SocketTransmitter* socketInstance;
+public slots:
     // 添加JSON数据到发送队列
     void enqueueJson(const QJsonDocument& json);
 
@@ -31,9 +44,6 @@ signals:
     void newConnection(QWebSocket* socket);
 
 private:
-    // 私有构造函数
-    explicit SocketTransmitter(QObject* parent = nullptr);
-
     // WebSocket服务器
     QWebSocketServer* m_server;
 
@@ -43,11 +53,10 @@ private:
     // 发送队列
     QQueue<QJsonDocument> m_sendQueue;
 
-    // 单例实例
-    static SocketTransmitter* m_instance;
-    static QMutex m_mutex;
+    // 互斥锁
+    QMutex m_mutex;
 
-private slots:
+public slots:
     // 处理新连接
     void onNewConnection();
 
@@ -58,4 +67,7 @@ private slots:
     Q_INVOKABLE void processQueue();
 };
 
-#endif // SOCKETTRANSMITTER_HPP
+// 导出获取单例实例的函数
+DLL_EXPORT SocketTransmitter* getSharedInstance();
+
+#endif // SOCKETTRANSMITTER_H

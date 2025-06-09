@@ -8,19 +8,15 @@
 #include "Widget/AboutWidget/AboutWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "QFile"
-#include "QTextStream"
 #include"Widget/ConsoleWidget/LogWidget.hpp"
 #include <QDropEvent>
 #include <QFileDialog>
 #include <QMimeData>
 #include <QWidgetAction>
-#include <QLineEdit>
-#include <QTimer>
 #include "Common/GUI/Elements/MartixWidget/MatrixWidget.h"
 #include "Eigen/Core"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
-#include "Widget/TimeLineWidget/TimelineMVC/timelineview.hpp"
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
+#include "BaseTimeLineModel.h"
 #define ConsoleDisplay false
 #define PropertytDisplay true
 #define ToolsDisplay true
@@ -92,12 +88,14 @@ void MainWindow::init()
     menuBar->views->addAction(nodeDockLibraryWidget->toggleViewAction());
 // 时间轴控件
     // 创建时间线模型
-    timelineModel=new TimelineModel();
+    auto* model = new TimeLineModel();
+    // 创建时间线部件
+    timeline = new TimelineWidget(model);
     // 创建时间轴控件
     auto *timelineDockWidget = new ads::CDockWidget("时间轴");
     timelineDockWidget->setObjectName("timeline");
     timelineDockWidget->setIcon(QIcon(":/icons/icons/timeline.png"));
-    timeline=new TimelineWidget(timelineModel);
+    // timeline=new timelinewidget(timelineModel);
     timelineDockWidget->setWidget(timeline);
     // 添加到左侧区域
      m_DockManager->addDockWidget(ads::LeftDockWidgetArea,  timelineDockWidget);
@@ -152,13 +150,13 @@ void MainWindow::init()
     stageDockWidget->setWidget(stageWidget);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, stageDockWidget);
     menuBar->views->addAction(stageDockWidget->toggleViewAction());
-    //从timelinemodel中获取stage
-    stageWidget->setStage(timeline->model->getStage());
-    emit initStatus("Initialization Stage");
-    // 当 stage初始化完成或重新设置时，更新
-    connect(timeline->model, &TimelineModel::S_stageInited, [this]() {
-        stageWidget->setStage(timeline->model->getStage());
-    });
+    // 从timelinemodel中获取stage
+     stageWidget->setStage(timeline->model->getStage());
+     emit initStatus("Initialization Stage");
+     // 当 stage初始化完成或重新设置时，更新
+     // connect(timeline->model, &TimelineModel::S_stageInited, [this]() {
+     //     stageWidget->setStage(timeline->model->getStage());
+     // });
     emit initStatus("Initialization Stage Widget");
 
     // 节点列表显示控件
@@ -418,6 +416,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
         qDebug()<<"The program exits manually";
         // 用户点击"是"，接受事件，应用程序关闭
 //    结束日志记录器
+        saveVisualState();
         this->close();
 //        m_DockManager->deleteLater();
 //    结束ADS

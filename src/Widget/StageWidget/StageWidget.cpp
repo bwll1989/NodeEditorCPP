@@ -1,4 +1,4 @@
-#include "stagewidget.hpp"
+#include "StageWidget.hpp"
 #include <QPainter>
 #include <QVBoxLayout>
 #include <QQuickItem>
@@ -27,10 +27,8 @@ void StageWidget::setupUI()
     m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
     
     // 注册QML类型
-    TimelineStage::registerType();
-    TimelineScreen::registerType();
-    
-   
+    TimeLineStage::registerType();
+    TimeLineScreen::registerType();
     
     // Setup layout
     m_layout->setContentsMargins(0, 0, 0, 0);
@@ -55,7 +53,7 @@ void StageWidget::resizeEvent(QResizeEvent *event)
     update();
 }
 
-void StageWidget::setStage(TimelineStage* stage)
+void StageWidget::setStage(TimeLineStage* stage)
 {
     if (m_stage != stage) {
         m_stage = stage;
@@ -64,7 +62,7 @@ void StageWidget::setStage(TimelineStage* stage)
         auto engine = m_quickWidget->engine();
         if (engine && !engine->imageProvider("timeline")) {
             qDebug() << "Registering timeline image provider";
-            engine->addImageProvider("timeline", TimelineImageProducer::instance());
+            // engine->addImageProvider("timeline", TimelineImageProducer::instance());
         }
         
         // 将 stage 对象暴露给 QML 引擎 

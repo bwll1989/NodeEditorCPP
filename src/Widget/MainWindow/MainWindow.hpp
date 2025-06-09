@@ -18,12 +18,11 @@
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/MenuBarWidget/MenuBarWidget.h"
 #include "Widget/PortEditWidget/PortEditWidget.h"
-#include "Widget/NodeLibraryWidget/draggabletreewidget.hpp"
 #include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
-#include "Widget/TimeLineWidget/timelinewidget.hpp"
+#include "Widget/TimeLineWidget/TimeLineWidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
-#include "Widget/StageWidget/stagewidget.hpp"
-#include "Widget/TimeLineWidget/TimelineMVC/timelinemodel.hpp"
+#include "Widget/StageWidget/StageWidget.hpp"
+#include "Widget/TimeLineWidget/TimeLineModel.h"
 #include "Widget/ExternalControl/ExternalControler.hpp"
 class MainWindow : public QMainWindow
 {
@@ -55,7 +54,7 @@ public:
     // 时间线
     TimelineWidget *timeline;
     // 时间线模型
-    TimelineModel *timelineModel;
+    TimeLineModel *timelineModel;
     // 片段属性
     // ClipPropertyWidget *clipProperty;
     // 舞台控件

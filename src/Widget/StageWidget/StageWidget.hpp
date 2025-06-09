@@ -5,7 +5,7 @@
 #include <QDockWidget>
 #include <QQuickWidget>
 #include <QVBoxLayout>
-#include "Widget/TimeLineWidget/TimelineStageWidget/timelinestage.hpp"
+#include "Widget/TimeLineWidget/TimelineStageWidget/TimeLineStage.hpp"
 
 class StageWidget : public QWidget
 {
@@ -16,7 +16,7 @@ public:
     ~StageWidget() override;
    
     // 设置stage
-    void setStage(TimelineStage* stage);
+    void setStage(TimeLineStage* stage);
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -27,7 +27,7 @@ private:
 
     QQuickWidget *m_quickWidget;
     QVBoxLayout *m_layout;
-    TimelineStage* m_stage;
+    TimeLineStage* m_stage;
 };
 
 #endif // STAGEWIDGET_HPP

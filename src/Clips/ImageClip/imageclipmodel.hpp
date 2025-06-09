@@ -1,57 +1,68 @@
-#ifndef IMAGECLIPMODEL_H
-#define IMAGECLIPMODEL_H
-
-#include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
+#ifndef VIDEOCLIPMODEL_HPP
+#define VIDEOCLIPMODEL_HPP
 #include <QImage>
 #include <QPainter>
 #include <QFont>
 #include <QDebug>
-#include <QOpenGLTexture>
-#include <QOpenGLContext>
-#include <QOffscreenSurface>
-extern "C" {
-#include <libavformat/avformat.h>
-#include <libavcodec/avcodec.h>
-}
+#include <QFileDialog>
+#include <QJsonArray>
+#include "TimeLineDefines.h"
+#include <QPushButton>
+#include "AbstractClipModel.hpp"
+#include "TimeCodeMessage.h"
+// #include "BaseTimeLineModel.h"
+#include "../../Common/Devices/SocketTransmitter/SocketTransmitter.h"
+
 
 class ImageClipModel : public AbstractClipModel {
     Q_OBJECT
 public:
-    explicit ImageClipModel(int start, int end, const QString& filePath = QString(), QObject* parent = nullptr)
-        : AbstractClipModel(start, end, "Image", TimecodeType::PAL, parent), 
-          m_filePath(filePath), 
-          m_frameRate(25.0),
-          m_width(0), 
-          m_height(0),
-          m_image(nullptr){
-             // 初始化OpenGL上下文
-        m_glContext = new QOpenGLContext();
-        m_glContext->create();
+    explicit ImageClipModel(int start,const QString& filePath = QString(), QObject* parent = nullptr)
+        : AbstractClipModel(start, "Image", parent),
+          m_filePath(filePath),
+          m_editor(nullptr)
+    {
+        EMBEDWIDGET = false;
+        SHOWBORDER = true;
+        initPropertyWidget();
 
-        // 创建离屏surface
-        m_surface.create();
-        
-        // 确保OpenGL上下文是当前的
-        m_glContext->makeCurrent(&m_surface);
+        m_server = getSharedInstance();
+        // SocketTransmitter::getInstance();
+        qDebug() << &m_server;
 
-          }
+       
+    }
 
-    ~ImageClipModel() override {
-        if (m_texture) {
-            m_texture->destroy();
-            delete m_texture;
-        }
+     ~ImageClipModel() override
+    {
+        QJsonDocument doc;
+        QJsonArray array;  // 创建一个JSON数组
+        QJsonObject command=save();
+        command["remove"] = true;
+        array.append(command);
+        doc.setObject(QJsonObject{{"fileList", array}}); // 正确设置JSON文档的根对象
+        m_server->enqueueJson(doc);
+        // AbstractClipModel::~AbstractClipModel();
+
+
     };
 
     // 设置文件路径并加载视频信息
     void setFilePath(const QString& path) { 
         if (m_filePath != path) {
             m_filePath = path;
-            loadVideoInfo(path);
             emit filePathChanged(path);
         }
     }
 
+    void setStart(int start) override  {
+        AbstractClipModel::setStart(start);
+        onPropertyChanged();
+    }
+    void setEnd(int end) override  {
+        AbstractClipModel::setEnd(end);
+        onPropertyChanged();
+    }
     // 其他 getter/setter 保持不变
     QString filePath() const { return m_filePath; }
    
@@ -59,22 +70,47 @@ public:
     // 重写保存和加载函数
     QJsonObject save() const override {
         QJsonObject json = AbstractClipModel::save();
-        json["filePath"] = m_filePath;
-        json["width"] = m_width;
-        json["height"] = m_height;
-        json["posX"] = m_PosX;
-        json["posY"] = m_PosY;
+        json["file"] = m_filePath;
+        json["type"] = "Image";
+        // json["startTime"] = timecode_frame_to_time(frames_to_timecode_frame(start(), m_timecodeType), m_timecodeType);
+        // json["endTime"] = timecode_frame_to_time(frames_to_timecode_frame(end(), m_timecodeType), m_timecodeType);
+        json["zIndex"] = layer->value();
+
+        QJsonObject position;
+        position["x"] = postion_x->value();
+        position["y"] = postion_y->value();
+        json["position"] = position;
+
+        QJsonObject size;
+        size["width"] = width->value();
+        size["height"] = height->value();
+        json["size"] = size;
+        json["rotation"] = rotation->value();
+
+        json["startTime"]=timecode_frame_to_time(frames_to_timecode_frame(start(),getTimeCodeType()),getTimeCodeType());
+        json["endTime"]=timecode_frame_to_time(frames_to_timecode_frame(end(),getTimeCodeType()),getTimeCodeType());
         return json;
     }
 
     void load(const QJsonObject& json) override {
         AbstractClipModel::load(json);
         m_filePath = json["filePath"].toString();
-        m_width = json["width"].toInt();
-        m_height = json["height"].toInt();
-        m_PosX = json["posX"].toInt();
-        m_PosY = json["posY"].toInt();
-        m_image = new QImage(m_filePath);
+
+
+        if(json.contains("position")) {
+            QJsonObject position = json["position"].toObject();
+            postion_x->setValue(position["x"].toInt());
+            postion_y->setValue(position["y"].toInt());
+        }
+
+        if(json.contains("size")) {
+            QJsonObject size = json["size"].toObject();
+            width->setValue(size["width"].toInt());
+            height->setValue(size["height"].toInt());
+        }
+        m_id = json["Id"].toInt();
+        rotation->setValue(json["rotation"].toInt());
+      
     }
 
     QVariant data(int role) const override {
@@ -88,103 +124,148 @@ public:
         }
     }
 
-    QVariantMap currentVideoData(int currentFrame) const override {
+
+    QWidget* clipPropertyWidget() override{
+        m_editor = new QWidget();
+        QVBoxLayout* mainLayout = new QVBoxLayout(m_editor);
+        mainLayout->setContentsMargins(5, 5, 5, 5);
+        mainLayout->setSpacing(4);
+        // 基本设置组
+        auto* basicGroup = new QGroupBox("文件属性", m_editor);
+        auto* basicLayout = new QGridLayout(basicGroup);
+        // 时间相关控件
+        basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
+        // auto* durationBox = new QLineEdit(basicGroup);
+        // durationBox->setReadOnly(true);
+        // // 将帧数转换为时间码格式显示
+        // // durationBox->setText(""(length(), timecode_frames_per_sec(getTimecodeType())));
+        // basicLayout->addWidget(durationBox, 1, 1);
+         // 文件名显示
+        auto* fileNameLabel = new QLineEdit(filePath(), basicGroup);
+        fileNameLabel->setReadOnly(true);
+        basicLayout->addWidget(fileNameLabel, 2, 0, 1, 2);
+        // 媒体文件选择
+        basicLayout->addWidget(new QLabel("媒体文件:"), 4, 0);
+        auto* mediaButton = new QPushButton("选择媒体文件", basicGroup);
+        basicLayout->addWidget(mediaButton, 4, 1);
+        // 连接信号槽
+        connect(mediaButton, &QPushButton::clicked, [=]() {
+            QString filePath = QFileDialog::getOpenFileName(m_editor,
+                "选择媒体文件",
+                "",
+                "图片文件 (*.jpg *.jpeg *.png *.bmp);;");
+
+            if (!filePath.isEmpty()) {
+                setFilePath(filePath);  // 这会触发视频信息加载和长度更新
+                fileNameLabel->setText(filePath);
+                // 更新时长显示，使用时间码格式
+                // durationBox->setText(FramesToTimeString(length(), getFrameRate(getTimecodeType())));
+
+            }
+        });
+        mainLayout->addWidget(basicGroup);
+        // 添加尺寸位置参数设置
+        auto* positionGroup = new QGroupBox("位置参数", m_editor);
+        auto* positionLayout = new QGridLayout(positionGroup);
+        // 位置
+        positionLayout->addWidget(new QLabel("X:"), 1, 0);
+        postion_x = new QSpinBox(positionGroup);
+        postion_x->setMinimum(-10000);
+        postion_x->setMaximum(10000);
+        postion_x->setValue(0);
+        positionLayout->addWidget(postion_x, 1, 1);
+        positionLayout->addWidget(new QLabel("Y:"), 2, 0);
+        postion_y = new QSpinBox(positionGroup);
+        postion_y->setMinimum(-10000);
+        postion_y->setMaximum(10000);
+        postion_y->setValue(0);
+        positionLayout->addWidget(postion_y, 2, 1);
+        positionLayout->addWidget(new QLabel("Width:"), 3, 0);
+        width = new QSpinBox(positionGroup);
+        width->setMinimum(0);
+        width->setMaximum(10000);
+        width->setValue(100);
+        positionLayout->addWidget(width, 3, 1);
+        positionLayout->addWidget(new QLabel("Height:"), 4, 0);
+        height = new QSpinBox(positionGroup);
+        height->setMinimum(0);
+        height->setMaximum(10000);
+        height->setValue(100);
+        positionLayout->addWidget(height, 4, 1);
+        positionLayout->addWidget(new QLabel("Layer:"), 5, 0);
+        layer = new QSpinBox(positionGroup);
+        layer->setMinimum(-1);
+        layer->setMaximum(100);
+        layer->setValue(0);
+        positionLayout->addWidget(layer, 5, 1);
+        rotation=new QSpinBox(positionGroup);
+        rotation->setMinimum(-180);
+        rotation->setMaximum(180);
+        rotation->setValue(0);
+        positionLayout->addWidget(new QLabel("Rotate:"), 6, 0);
+        positionLayout->addWidget(rotation, 6, 1);
+        mainLayout->addWidget(positionGroup);
+        // 连接信号槽
+        connect(postion_x, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
+            onPropertyChanged();
+        });
+        connect(postion_y, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
+            onPropertyChanged();
+        });
+        connect(width, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
+            onPropertyChanged();
+        });
+        connect(height, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
+            onPropertyChanged();
+        });
+        connect(layer, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
+            onPropertyChanged();
+        });
+        connect(rotation, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
+            onPropertyChanged();
+        });
+        return m_editor;
+    }
+
+    QVariantMap currentData(int currentFrame) const override {
         QVariantMap data;
-        data["image"] = QVariant::fromValue(*m_image);
-        data["texture"] = QVariant::fromValue(m_texture);
-        data["filePath"] = m_filePath;
-        data["posX"] = m_PosX;
-        data["posY"] = m_PosY;
-        data["width"] = m_width;
-        data["height"] = m_height;
+        // if (!m_oscSender) return data;
+
+        if(currentFrame == start()) {
+            data["/file"] = m_filePath;
+
+            return data;
+        }
+         if(currentFrame+1 == end()) {
+            data["/stop"]=1;
+            return data;
+        }
+
         return data;
     }
 
-    // 获取帧率
-    double getFrameRate() const { return m_frameRate; }
-    /**
-     * 获取视频宽度
-     */
-    int getWidth() const { return m_width; }
-    /**
-     * 获取视频高度
-     */
-    int getHeight() const { return m_height; }
-    /**
-     * 获取视频水平位置
-     */
-    int getPosX() const { return m_PosX; }
-    /**
-     * 获取视频垂直位置
-     */
-    int getPosY() const { return m_PosY; }
+
 public Q_SLOTS:
-    /**
-     * 设置视频位置
-     */
-
-    /**
-     * 设置视频显示位置
-     */
-    void setPos(int x,int y) {
-        m_PosX=x;
-        m_PosY = y;
-        emit posChanged(QPoint(m_PosX,m_PosY));
+    void onPropertyChanged(){
+        QJsonDocument doc;
+        QJsonArray array;  // 创建一个JSON数组
+        array.append(save()); // 将对象添加到数组中
+        doc.setObject(QJsonObject{{"fileList", array}}); // 正确设置JSON文档的根对象
+        m_server->enqueueJson(doc);
     }
-    /**
-     * 设置视频显示尺寸
-     */
-    void setSize(int width,int height){
-        m_width = width;
-        m_height=height;
-        emit sizeChanged(QSize(m_width,m_height));
-    }
+    
 private:
-    void loadVideoInfo(const QString& path) {
-        m_image=new QImage(path);
-        if (!m_image->isNull()) {
-            if (m_texture) {
-                m_texture->destroy();
-                delete m_texture;
-            }
-            // 创建纹理前检查图像是否有效
-            if (m_image && !m_image->isNull()) {
-              
-                if (!m_glContext) {
-                    qDebug() << "No valid OpenGL context found";
-                    return;
-                }
-              
-                m_texture = new QOpenGLTexture(*m_image);
-                if (m_texture && m_texture->isCreated()) {
-                    // 设置纹理过滤参数
-                    m_texture->setMinificationFilter(QOpenGLTexture::Linear);
-                    m_texture->setMagnificationFilter(QOpenGLTexture::Linear);
-                    m_texture->setWrapMode(QOpenGLTexture::ClampToEdge);
-                } else {
-                    qDebug() << "Failed to create texture";
-                    delete m_texture;
-                    m_texture = nullptr;
-                }
-            } else {
-                qDebug() << "Invalid image for texture creation";
-            }
-            qDebug()<<m_texture->isCreated();
-            setSize(m_image->size().width(),m_image->size().height());
-          
-        }
-    }
-
     QString m_filePath;
-    double m_frameRate;
-    int m_width;
-    int m_height;
-    int m_PosX;
-    int m_PosY;
-    QImage* m_image;
-    QOpenGLTexture* m_texture;
-    QOpenGLContext* m_glContext;
-    QOffscreenSurface m_surface;
+    QWidget* m_editor;
+    QLineEdit* playerNameEdit;
+    QLineEdit* playerIDEdit;
+    QSpinBox* postion_x;
+    QSpinBox* postion_y;
+    QSpinBox* width;
+    QSpinBox* height;
+    QSpinBox* layer;
+    QSpinBox* rotation;
+    SocketTransmitter *m_server;
 };
 
-#endif // IMAGECLIPMODEL_H 
+#endif // VideoClipModel_HPP

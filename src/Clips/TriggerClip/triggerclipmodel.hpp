@@ -1,7 +1,7 @@
 #ifndef TRIGGERCLIPMODEL_H
 #define TRIGGERCLIPMODEL_H
 #include <QPushButton>
-#include "TimeLineWidget/TimelineAbstract/AbstractClipModel.hpp"
+#include "AbstractClipModel.hpp"
 #include <QJsonArray>
 #include "../../Common/Devices/OSCSender/OSCSender.h"
 #include "../../Common/GUI/OscListWidget/OSCMessageListWidget.hpp"
@@ -10,16 +10,19 @@ class TriggerClipModel : public AbstractClipModel {
 public:
 
 
-    TriggerClipModel(int start, int end): AbstractClipModel(start, end, "Trigger"), 
+    TriggerClipModel(int start): AbstractClipModel(start,"Trigger"),
     m_editor(nullptr), 
     m_listWidget(new OSCMessageListWidget(m_editor))
     {
+        setEnd(start+2);
         RESIZEABLE = false;
         EMBEDWIDGET = false;
-        SHOWBORDER = true;
+        SHOWBORDER = false;
+        // 片段正常颜色
+        ClipColor=QColor("#ff6d1f");
         initPropertyWidget();
     }
-    virtual ~TriggerClipModel() override =default;
+    ~TriggerClipModel() override =default;
     // 重写保存和加载函数
     QJsonObject save() const override {
         QJsonObject json = AbstractClipModel::save();
@@ -50,6 +53,65 @@ public:
         return QVariantMap();
     }
 
+    void initPropertyWidget() override{
+
+        m_standardPropertyWidget = new QWidget();
+        m_layout = new QVBoxLayout(m_standardPropertyWidget);
+        m_layout->setContentsMargins(4, 4, 4, 4);
+        m_layout->setSpacing(4);
+
+        // 创建一个容器 widget 来放置主要内容
+        auto contentWidget = new QWidget(m_standardPropertyWidget);
+        auto contentLayout = new QVBoxLayout(contentWidget);
+        contentLayout->setContentsMargins(0, 0, 0, 0);
+        contentLayout->setSpacing(4);
+
+        // 1. 时间属性组
+        QGroupBox *timeGroupBox = new QGroupBox(tr("时间属性"), m_standardPropertyWidget);
+        QGridLayout *timeLayout = new QGridLayout(timeGroupBox);
+
+        // 开始帧显示
+        auto startLabel = new QLabel(tr("触发帧:"), m_standardPropertyWidget);
+        timeLayout->addWidget(startLabel, 0, 0);
+        m_startFrameSpinBox=new QSpinBox(m_standardPropertyWidget);
+        m_startFrameSpinBox->setRange(0, 9999999);
+        m_startFrameSpinBox->setValue(start());
+        connect(m_startFrameSpinBox, &QSpinBox::valueChanged, this, &AbstractClipModel::setStart);
+        connect(this, &AbstractClipModel::timelinePositionChanged, this, [this](){
+            m_startFrameSpinBox->blockSignals(true);
+            m_startFrameSpinBox->setValue(start());
+            auto startTimeCode=frames_to_timecode_frame(start(),getTimeCodeType());
+            m_startTimeCodeLineEdit->setText(QString("%1:%2:%3.%4").arg(startTimeCode.hours)
+                                                                    .arg(startTimeCode.minutes)
+                                                                    .arg(startTimeCode.seconds)
+                                                                    .arg(startTimeCode.frames));
+            m_startFrameSpinBox->blockSignals(false);
+        });
+        timeLayout->addWidget(m_startFrameSpinBox, 0, 1);
+        m_startTimeCodeLineEdit=new QLineEdit(m_standardPropertyWidget);
+        m_startTimeCodeLineEdit->setReadOnly(true);  // 设置为只读
+        auto startTimeCode=frames_to_timecode_frame(start(),getTimeCodeType());
+        m_startTimeCodeLineEdit->setText(QString("%1:%2:%3.%4").arg(startTimeCode.hours)
+                                                                   .arg(startTimeCode.minutes)
+                                                                   .arg(startTimeCode.seconds)
+                                                                   .arg(startTimeCode.frames));
+        timeLayout->addWidget(m_startTimeCodeLineEdit, 0, 2);
+        m_layout->addWidget(timeGroupBox);
+
+        // 添加代理编辑器的占位符
+        if (!m_clipPropertyWidget) {
+            m_clipPropertyWidget = clipPropertyWidget();
+            contentLayout->addWidget(m_clipPropertyWidget);
+        }
+
+        // 添加弹簧以确保内容在顶部
+        contentLayout->addStretch();
+
+        // 将内容 widget 添加到主布局
+        m_layout->addWidget(contentWidget);
+        m_standardPropertyWidget->setWindowFlags(Qt::WindowStaysOnTopHint);
+
+}
     QWidget* clipPropertyWidget() override{
         m_editor = new QWidget();
         QVBoxLayout* mainLayout = new QVBoxLayout(m_editor);

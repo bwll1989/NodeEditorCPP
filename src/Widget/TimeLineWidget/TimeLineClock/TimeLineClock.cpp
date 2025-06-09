@@ -1,7 +1,7 @@
-#include "Widget/TimeLineWidget/TimeCodeGenerator/timecodegenerator.hpp"
+#include "Widget/TimeLineWidget/TimeLineClock/TimeLineClock.hpp"
 #include <QThread>
 #include "TimeCodeMessage.h"
-TimeCodeGenerator::TimeCodeGenerator(QObject* parent)
+TimeLineClock::TimeLineClock(QObject* parent)
     : QObject(parent)
     , m_currentFrame(0)
     , m_maxFrames(0)
@@ -13,7 +13,7 @@ TimeCodeGenerator::TimeCodeGenerator(QObject* parent)
   initInternalClock();
 }
 
-TimeCodeGenerator::~TimeCodeGenerator()
+TimeLineClock::~TimeLineClock()
 {
     // 确保定时器停止
     if (m_timer) {
@@ -42,7 +42,7 @@ TimeCodeGenerator::~TimeCodeGenerator()
     }
 }
 
-void TimeCodeGenerator::initInternalClock()
+void TimeLineClock::initInternalClock()
 {
     // 创建定时器并保持在主线程
     m_timer =new TimeSyncServer();
@@ -50,12 +50,12 @@ void TimeCodeGenerator::initInternalClock()
     QThread* timerThread = new QThread(this);
     timerThread->start(QThread::HighPriority);
     // 使用直接连接确保及时处理定时器事件
-    connect(m_timer, &TimeSyncServer::timeUpdated, this, &TimeCodeGenerator::setCurrentTimecodeFromTime,Qt::DirectConnection);
+    connect(m_timer, &TimeSyncServer::timeUpdated, this, &TimeLineClock::setCurrentTimecodeFromTime,Qt::DirectConnection);
     connect(timerThread, &QThread::finished, timerThread, &QObject::deleteLater);
     m_timer->moveToThread(timerThread);
 }
 
-void TimeCodeGenerator::closeInternalClock()
+void TimeLineClock::closeInternalClock()
 {
     if(m_timer) {
         m_timer->stop();
@@ -65,7 +65,7 @@ void TimeCodeGenerator::closeInternalClock()
 }
 
 
-void TimeCodeGenerator::setCurrentFrame(qint64 frame)
+void TimeLineClock::setCurrentFrame(qint64 frame)
 {
     m_currentFrame = frame;  // QAtomicInteger 是线程安全的，不需要互斥锁
     m_currentTimecode = frames_to_timecode_frame(m_currentFrame, m_timecodeType);
@@ -80,14 +80,14 @@ void TimeCodeGenerator::setCurrentFrame(qint64 frame)
 //    updateTimecode();
 }
 
-void TimeCodeGenerator::setCurrentTimecode(const TimeCodeFrame& timecode)
+void TimeLineClock::setCurrentTimecode(const TimeCodeFrame& timecode)
 {
     m_currentTimecode = timecode;
     m_currentFrame = timecode_frame_to_frames(timecode, m_timecodeType);
     updateTimecode();
 }
 
-void TimeCodeGenerator::setCurrentTimecodeFromTime(const double time)
+void TimeLineClock::setCurrentTimecodeFromTime(const double time)
 {
     m_currentTimecode = time_to_timecode_frame(time, m_timecodeType);
     
@@ -95,12 +95,12 @@ void TimeCodeGenerator::setCurrentTimecodeFromTime(const double time)
 
     updateTimecode();
 }
-double TimeCodeGenerator::getFrameRate() const
+double TimeLineClock::getFrameRate() const
 {
     return timecode_frames_per_sec(m_timecodeType);
 }
 
-void TimeCodeGenerator::setTimecodeType(TimeCodeType type)
+void TimeLineClock::setTimecodeType(TimeCodeType type)
 {
    
     if (m_timecodeType != type) {
@@ -111,17 +111,17 @@ void TimeCodeGenerator::setTimecodeType(TimeCodeType type)
     
 }
 
-void TimeCodeGenerator::setLooping(bool loop)
+void TimeLineClock::setLooping(bool loop)
 {
     m_isLooping = loop;
 }
 
-void TimeCodeGenerator::setMaxFrames(qint64 maxFrames)
+void TimeLineClock::setMaxFrames(qint64 maxFrames)
 {
     m_maxFrames = maxFrames;
 }
 
-void TimeCodeGenerator::updateTimecode()
+void TimeLineClock::updateTimecode()
 {
     // 使用队列连接发送信号，避免阻塞定时器线程
     QMetaObject::invokeMethod(this, [this]() {
@@ -130,20 +130,22 @@ void TimeCodeGenerator::updateTimecode()
     }, Qt::QueuedConnection);
 }
 
-TimeCodeFrame TimeCodeGenerator::getCurrentTimecode() const
+TimeCodeFrame TimeLineClock::getCurrentTimecode() const
 {
     return m_currentTimecode;
 } 
 
-qint64 TimeCodeGenerator::getCurrentFrame() const
+qint64 TimeLineClock::getCurrentFrame() const
 {
     return m_currentFrame;
 }
 
-void TimeCodeGenerator::onStart()
+void TimeLineClock::onStart()
 {
-    if(m_clockSource != ClockSource::Internal)
+
+    if(m_clockSource != ClockSource::Internal || m_maxFrames <= 0)
     {
+        emit timecodePlayingChanged(false);
         return;
     }
     m_timer->resume();
@@ -152,7 +154,7 @@ void TimeCodeGenerator::onStart()
     
 }
 
-void TimeCodeGenerator::onPause()
+void TimeLineClock::onPause()
 {
     if(m_clockSource != ClockSource::Internal)
     {
@@ -164,7 +166,7 @@ void TimeCodeGenerator::onPause()
     
 }
 
-void TimeCodeGenerator::onStop()
+void TimeLineClock::onStop()
 {   
     if(m_clockSource != ClockSource::Internal)
     {
@@ -176,14 +178,14 @@ void TimeCodeGenerator::onStop()
     emit timecodePlayingChanged(false);
 }
 
-void TimeCodeGenerator::moveToNextFrame()
+void TimeLineClock::moveToNextFrame()
 {
 //    QMutexLocker locker(&m_mutex);
 //    m_currentFrame++;
 //    updateTimecode();
 }
 
-void TimeCodeGenerator::moveToPreviousFrame()
+void TimeLineClock::moveToPreviousFrame()
 {
 //    QMutexLocker locker(&m_mutex);
 //    m_currentFrame--;
@@ -193,22 +195,22 @@ void TimeCodeGenerator::moveToPreviousFrame()
 //    updateTimecode();
 }
 
-qint64 TimeCodeGenerator::getMaxFrames() const
+qint64 TimeLineClock::getMaxFrames() const
 {
     return m_maxFrames;
 }   
 
-bool TimeCodeGenerator::isLooping() const
+bool TimeLineClock::isLooping() const
 {
     return m_isLooping;
 }
 
-TimeCodeType TimeCodeGenerator::getTimecodeType() const
+TimeCodeType TimeLineClock::getTimecodeType() const
 {
     return m_timecodeType;
 }
 
-QString TimeCodeGenerator::getCurrentAbsoluteTime() const
+QString TimeLineClock::getCurrentAbsoluteTime() const
 {
     // 计算当前帧对应的总毫秒数
     double frameTimeInMs = (static_cast<double>(m_currentFrame) / timecode_frames_per_sec(m_timecodeType)) * 1000.0;
@@ -233,7 +235,7 @@ QString TimeCodeGenerator::getCurrentAbsoluteTime() const
         .arg(milliseconds, 3, 10, QChar('0'));
 }
 
-void TimeCodeGenerator::closeCurrentClockSource()
+void TimeLineClock::closeCurrentClockSource()
 {
     // 根据当前时钟源类型进行清理
     switch (m_clockSource) {
@@ -249,7 +251,7 @@ void TimeCodeGenerator::closeCurrentClockSource()
     }
 }
 
-void TimeCodeGenerator::closeLTCClock()
+void TimeLineClock::closeLTCClock()
 {
     if(m_ltcReceiver) {
         m_ltcReceiver->stop();  // 确保先停止接收
@@ -258,7 +260,7 @@ void TimeCodeGenerator::closeLTCClock()
     }
 }
 
-void TimeCodeGenerator::initLTCClock(QString device, int channelIndex)
+void TimeLineClock::initLTCClock(QString device, int channelIndex)
 {
     // 确保先清理旧的接收器
     closeLTCClock();
@@ -273,12 +275,12 @@ void TimeCodeGenerator::initLTCClock(QString device, int channelIndex)
     }
 }
 
-ClockSource TimeCodeGenerator::getClockSource() const
+ClockSource TimeLineClock::getClockSource() const
 { 
     return m_clockSource;
 }
 
-QJsonObject TimeCodeGenerator::saveTimeCodeSetting()
+QJsonObject TimeLineClock::save()
 {
     QJsonObject json;
     
@@ -306,12 +308,14 @@ QJsonObject TimeCodeGenerator::saveTimeCodeSetting()
     return json;
 }
 
-void TimeCodeGenerator::loadTimeCodeSetting(const QJsonObject& json)
+void TimeLineClock::load(const QJsonObject& json)
 {
     // 停止当前播放
     // 加载基本设置
+
     if (json.contains("timecodeType")) {
         setTimecodeType(static_cast<TimeCodeType>(json["timecodeType"].toInt()));
+        qDebug()<<"timecodeType"<<json["timecodeType"].toInt();
     }
     
     // 加载时钟源设置
@@ -351,4 +355,9 @@ void TimeCodeGenerator::loadTimeCodeSetting(const QJsonObject& json)
                 break;
         }
     }
+}
+
+void TimeLineClock::onLoop(bool loop)
+{
+    m_isLooping = loop;
 }

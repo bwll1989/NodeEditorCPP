@@ -1,8 +1,14 @@
-#include "SocketTransmitter.hpp"
+#include "SocketTransmitter.h"
+#include <QGlobalStatic>
 
-// 初始化静态成员
-SocketTransmitter* SocketTransmitter::m_instance = nullptr;
-QMutex SocketTransmitter::m_mutex;
+
+// 声明全局静态实例
+SocketTransmitter* SocketTransmitter::socketInstance = nullptr;
+
+DLL_EXPORT SocketTransmitter* getSharedInstance()
+{
+    return SocketTransmitter::getInstance();
+}
 
 SocketTransmitter::SocketTransmitter(QObject* parent)
     : QObject(parent), m_server(nullptr)
@@ -15,11 +21,10 @@ SocketTransmitter::SocketTransmitter(QObject* parent)
 
 SocketTransmitter* SocketTransmitter::getInstance()
 {
-    QMutexLocker locker(&m_mutex);
-    if (!m_instance) {
-        m_instance = new SocketTransmitter;
+    if (socketInstance == nullptr) {
+        socketInstance = new SocketTransmitter();
     }
-    return m_instance;
+    return socketInstance;
 }
 
 bool SocketTransmitter::startServer(quint16 port)
