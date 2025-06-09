@@ -133,6 +133,8 @@ add_subdirectory(src/Clips)
 # 添加Nodes模块
 add_subdirectory(src/Nodes)
 
+add_subdirectory(src/Common/GUI/OscListWidget)
+
 add_subdirectory( src/Common/Devices/SocketTransmitter)
 set(CALC_SOURCE_FILES
         main.cpp
@@ -190,10 +192,10 @@ set(CALC_SOURCE_FILES
         src/Common/GUI/Elements/MartixWidget/MatrixWidget.h
         src/Common/GUI/Elements/FaderWidget/FaderWidget.cpp
         src/Common/GUI/Elements/FaderWidget/FaderWidget.h
-        src/Common/GUI/OscListWidget/OSCMessageItemWidget.hpp
-        src/Common/GUI/OscListWidget/OSCMessageItemWidget.cpp
-        src/Common/GUI/OscListWidget/OSCMessageListWidget.hpp
-        src/Common/GUI/OscListWidget/OSCMessageListWidget.cpp
+#        src/Common/GUI/OscListWidget/OSCMessageItemWidget.hpp
+#        src/Common/GUI/OscListWidget/OSCMessageItemWidget.cpp
+#        src/Common/GUI/OscListWidget/OSCMessageListWidget.hpp
+#        src/Common/GUI/OscListWidget/OSCMessageListWidget.cpp
         src/Common/Devices/TcpServer/TcpServer.cpp
         src/Common/Devices/TcpServer/TcpServer.h
         src/Common/Devices/TcpClient/TcpClient.cpp
@@ -285,6 +287,8 @@ set(QRC_FILES
         )
 target_compile_definitions(${ProjectName} PRIVATE -DNODE_EDITOR_SHARED NODE_TIMELINE_SHARED)
 target_compile_definitions(${ProjectName} PRIVATE CLIENTCONTROLLER_LIBRARY)
+target_compile_definitions(${ProjectName} PRIVATE OSCLISTWIDGET_LIBRARY)
+
 target_link_libraries(${ProjectName}
         PUBLIC
             Qt${QT_VERSION_MAJOR}::Widgets
@@ -327,6 +331,7 @@ target_link_libraries(${ProjectName}
             Eigen3::Eigen
             ${QtTimeLine_LIBRARIES}
             ClientController
+            OscListWidget
 )
 
 #add_library(singleton SHARED ${CALC_SOURCE_FILES})

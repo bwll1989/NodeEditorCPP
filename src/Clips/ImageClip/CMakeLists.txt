@@ -57,7 +57,6 @@ target_include_directories(ImageClip PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../..
         ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget
-        ${Devices_DIR}/Singleton
         ${Devices_DIR}/SocketTransmitter
 )
 

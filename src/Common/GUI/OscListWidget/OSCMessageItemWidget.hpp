@@ -6,8 +6,12 @@
 #include <QComboBox>
 #include <QHBoxLayout>
 #include "../../Common/Devices/OSCSender/OSCSender.h"
-
-class OSCMessageItemWidget : public QWidget {
+#if defined(OSCLISTWIDGET_LIBRARY)
+#define DLL_EXPORT Q_DECL_EXPORT
+#else
+#define DLL_EXPORT Q_DECL_IMPORT
+#endif
+class DLL_EXPORT OSCMessageItemWidget : public QWidget {
     Q_OBJECT
 public:
     explicit OSCMessageItemWidget(QWidget* parent = nullptr);
@@ -18,6 +22,14 @@ public:
     // 设置OSC消息
     void setMessage(const OSCMessage& message);
 
+    QVariant getValue() const;
+
+    QString getAddress() const;
+public slots:
+    // 设置值
+    void setValue(QVariant val);
+    // 设置地址
+    void setAddress(QString addr);
 signals:
     void messageChanged();
 

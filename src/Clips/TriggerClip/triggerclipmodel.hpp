@@ -4,7 +4,7 @@
 #include "AbstractClipModel.hpp"
 #include <QJsonArray>
 #include "../../Common/Devices/OSCSender/OSCSender.h"
-#include "../../Common/GUI/OscListWidget/OSCMessageListWidget.hpp"
+#include "OscListWidget/OSCMessageListWidget.hpp"
 class TriggerClipModel : public AbstractClipModel {
     Q_OBJECT
 public:
@@ -14,7 +14,7 @@ public:
     m_editor(nullptr), 
     m_listWidget(new OSCMessageListWidget(m_editor))
     {
-        setEnd(start+2);
+        setEnd(start);
         RESIZEABLE = false;
         EMBEDWIDGET = false;
         SHOWBORDER = false;

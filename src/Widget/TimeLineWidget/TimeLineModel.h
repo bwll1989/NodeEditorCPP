@@ -40,6 +40,8 @@ public slots:
     void onSetPlayheadPos(int newPlayheadPos) override;
     //时间轴长度变化槽函数
     qint64 onUpdateTimeLineLength() override;
+
+    QList<QVariantMap> onGetClipCurrentData(qint64 currentFrame) const;
 private:
     // 舞台对象
     TimeLineStage* m_stage;

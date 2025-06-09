@@ -19,7 +19,7 @@ void OSCMessageItemWidget::setupUI()
     hostEdit = new QLineEdit(this);
     hostEdit->setPlaceholderText("ip:port");
     hostEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-    hostEdit->setMinimumWidth(60);
+
     // 设置IP:Port格式验证器
     QRegularExpression rx("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}:[0-9]{1,5}$");
     hostEdit->setValidator(new QRegularExpressionValidator(rx, this));
@@ -28,19 +28,19 @@ void OSCMessageItemWidget::setupUI()
     addressEdit = new QLineEdit(this);
     addressEdit->setPlaceholderText("address");
     addressEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-    addressEdit->setMinimumWidth(60);
+
     
     // Type
     typeCombo = new QComboBox(this);
     typeCombo->addItems({"Int", "Float", "String"});
     typeCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    typeCombo->setFixedWidth(30);
+
     
     // Value
     valueEdit = new QLineEdit(this);
     valueEdit->setPlaceholderText("value");
     valueEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-    valueEdit->setMinimumWidth(60);
+
     
     layout->addWidget(hostEdit);
     layout->addWidget(addressEdit);
@@ -137,4 +137,31 @@ void OSCMessageItemWidget::setMessage(const OSCMessage& message)
         typeCombo->setCurrentText("String");
         valueEdit->setText(message.value.toString());
     }
-} 
+}
+
+QVariant OSCMessageItemWidget::getValue() const
+{
+    QString type = typeCombo->currentText();
+    if (type == "Int") {
+        return valueEdit->text().toInt();
+    } else if (type == "Float") {
+        return valueEdit->text().toDouble();
+    } else {
+        return valueEdit->text();
+    }
+}
+
+void OSCMessageItemWidget::setValue(QVariant val)
+{
+    valueEdit->setText(val.toString());
+}
+
+QString OSCMessageItemWidget::getAddress() const
+{
+    return addressEdit->text();
+}
+
+void OSCMessageItemWidget::setAddress(QString addr)
+{
+    addressEdit->setText(addr);
+}

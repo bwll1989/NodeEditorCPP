@@ -5,7 +5,7 @@
 #include "TimeLineModel.h"
 TimeLineModel::TimeLineModel(QObject* parent):m_stage(new TimeLineStage()),m_clock(new TimeLineClock(this))
 {
-
+    connect(m_clock,&TimeLineClock::currentFrameChanged,this,&TimeLineModel::onGetClipCurrentData);
 }
 TimeLineModel::~TimeLineModel()
 {
@@ -46,7 +46,6 @@ void TimeLineModel::onPausePlay()
 void TimeLineModel::onSetPlayheadPos(int frame)
 {
     getClock()->setCurrentFrame(frame);
-
 }
 
 qint64 TimeLineModel::getPlayheadPos() const
@@ -63,4 +62,23 @@ qint64 TimeLineModel::onUpdateTimeLineLength()
 TimeCodeType TimeLineModel::getTimeCodeType() const
 {
     return getClock()->getTimecodeType();
+}
+
+QList<QVariantMap> TimeLineModel::onGetClipCurrentData(qint64 currentFrame) const {
+    QList<QVariantMap> clipDataList;
+    // 遍历所有轨道
+    for (TrackData* track : getTracks()) {
+        // 遍历轨道中的所有片段
+        for (AbstractClipModel* clip : track->clips) {
+            // 检查当前帧是否在片段范围内
+            if (currentFrame >= clip->start() && currentFrame <= clip->end()) {
+                // 获取片段在当前帧的数据
+                QVariantMap data = clip->currentData(currentFrame);
+                if(!data.isEmpty()) {
+                    clipDataList.append(data);
+                }
+            }
+        }
+    }
+    return clipDataList;
 }

@@ -40,6 +40,7 @@ QVector<OSCMessage> OSCMessageListWidget::getOSCMessages() const
     QVector<OSCMessage> messages;
     for (int i = 0; i < count(); ++i) {
         QListWidgetItem* currentItem = item(i);
+
         if (!currentItem) {
             continue;
         }

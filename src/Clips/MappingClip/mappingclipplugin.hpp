@@ -1,12 +1,10 @@
-#ifndef MAPPINGCLIPPLUGIN_HPP
-#define MAPPINGCLIPPLUGIN_HPP
+#ifndef TRIGGERCLIPPLUGIN_HPP
+#define TRIGGERCLIPPLUGIN_HPP
 
 #include <QObject>
-#include "TimeLineWidget/clippluginterface.hpp"
-#include "TimeLineWidget/AbstractClipModel.hpp"
-#include "TimeLineWidget/AbstractClipDelegate.hpp"
+#include "AbstractClipInterface.h"
+#include "AbstractClipModel.hpp"
 #include "mappingclipmodel.hpp"
-#include "mappingclipdelegate.hpp"
 
 class MappingClipPlugin : public QObject, public ClipPlugInterface
 {
@@ -20,12 +18,8 @@ public:
     }
 
     AbstractClipModel* createModel(int start) override {
-        return new MappingClipModel(start, start+100);
-    }
-
-    AbstractClipDelegate* createDelegate() override {
-        return new MappingClipDelegate();
+        return new MappingClipModel(start);
     }
 };
 
-#endif // MAPPINGCLIPPLUGIN_HPP 
+#endif // TRIGGERCLIPPLUGIN_HPP 

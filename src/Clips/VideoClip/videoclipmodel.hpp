@@ -28,6 +28,7 @@ public:
     {
         EMBEDWIDGET = false;
         SHOWBORDER = true;
+        ClipColor=QColor("#6666cc");
         initPropertyWidget();
         if (!filePath.isEmpty()) {
             loadVideoInfo(filePath);

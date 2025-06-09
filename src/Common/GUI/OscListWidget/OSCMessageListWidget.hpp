@@ -13,7 +13,12 @@
 #include <QDrag>
 #include <QIcon>
 #include <QFont>
-class OSCMessageListWidget : public QListWidget {
+#if defined(OSCLISTWIDGET_LIBRARY)
+#define DLL_EXPORT Q_DECL_EXPORT
+#else
+#define DLL_EXPORT Q_DECL_IMPORT
+#endif
+class DLL_EXPORT OSCMessageListWidget : public QListWidget {
     Q_OBJECT
 public:
     explicit OSCMessageListWidget(QWidget* parent = nullptr);

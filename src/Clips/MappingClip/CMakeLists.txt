@@ -9,21 +9,24 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/TimeLine)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/TimeLine)
 
 # 查找Qt包
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
 
 # 设置基础目录变量
-set(TIMELINE_SDK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget/TimeLineWidget)
 
+set(Devices_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/Devices)
+set(GUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/GUI)
+set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
+set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
+INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 # 设置源文件
 set(SOURCES
     mappingclipmodel.hpp
-    mappingclipdelegate.hpp
     mappingclipplugin.hpp
-    ${TIMELINE_SDK_DIR}/AbstractClipModel.hpp
-    ${TIMELINE_SDK_DIR}/AbstractClipModel.cpp
-    ${TIMELINE_SDK_DIR}/AbstractClipDelegate.hpp
-    ${TIMELINE_SDK_DIR}/clippluginterface.hpp
-)
+    ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
+    ${Devices_DIR}/OSCSender/OSCSender.h
+    ${Devices_DIR}/OSCSender/OSCSender.cpp
+    ${tinyosc_DIR}/tinyosc.c
+    ${tinyosc_DIR}/tinyosc.h)
 
 # 创建插件库
 add_library(MappingClip MODULE
@@ -35,12 +38,18 @@ set_target_properties(MappingClip PROPERTIES
     PREFIX ""
     SUFFIX ".plugin"
 )
-
+# Windows 平台特定配置
+if(WIN32)
+    target_link_libraries(MappingClip PRIVATE ws2_32)  # 添加 Winsock2 库
+endif()
 # 链接Qt库
 target_link_libraries(MappingClip PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Network
+    ${QtTimeLine_LIBRARIES}
+    OscListWidget
 )
 
 # 包含目录
@@ -48,4 +57,12 @@ target_include_directories(MappingClip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../..
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget
-) 
+    ${GUI_DIR}/OscListWidget
+    ${Devices_DIR}/OSCSender
+
+)
+# 添加编译定义
+target_compile_definitions(MappingClip PRIVATE
+        NODE_TIMELINE_SHARED
+        NODE_TIMELINE_EXPORTS
+)

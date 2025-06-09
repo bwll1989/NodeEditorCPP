@@ -14,7 +14,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
 # 设置基础目录变量
 
 set(Devices_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/Devices)
-set(OSCLISTWIDGET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/GUI/OscListWidget)
+set(GUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/GUI)
 set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
 set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
 INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
@@ -23,10 +23,6 @@ set(SOURCES
     triggerclipmodel.hpp
     triggerclipplugin.hpp
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
-    ${OSCLISTWIDGET_DIR}/OSCMessageListWidget.hpp
-    ${OSCLISTWIDGET_DIR}/OSCMessageListWidget.cpp
-    ${OSCLISTWIDGET_DIR}/OSCMessageItemWidget.hpp
-    ${OSCLISTWIDGET_DIR}/OSCMessageItemWidget.cpp
     ${Devices_DIR}/OSCSender/OSCSender.h
     ${Devices_DIR}/OSCSender/OSCSender.cpp
     ${tinyosc_DIR}/tinyosc.c
@@ -53,6 +49,7 @@ target_link_libraries(TriggerClip PRIVATE
     Qt6::Widgets
     Qt6::Network
     ${QtTimeLine_LIBRARIES}
+    OscListWidget
 )
 
 # 包含目录
@@ -60,6 +57,9 @@ target_include_directories(TriggerClip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../..
     ${CMAKE_CURRENT_SOURCE_DIR}/../../Widget
+    ${GUI_DIR}/OscListWidget
+    ${Devices_DIR}/OSCSender
+
 )
 # 添加编译定义
 target_compile_definitions(TriggerClip PRIVATE
