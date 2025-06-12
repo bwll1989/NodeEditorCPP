@@ -18,12 +18,14 @@ protected:
     * @param QMouseEvent *event 鼠标事件
     */
     void mouseMoveEvent(QMouseEvent *event) override;
+    //
+    // /**
+    //  * 鼠标释放事件
+    //  * @param QMouseEvent *event 鼠标事件
+    //  */
+    // void mouseReleaseEvent(QMouseEvent *event) override;
 
-    /**
-     * 鼠标释放事件
-     * @param QMouseEvent *event 鼠标事件
-     */
-    void mouseReleaseEvent(QMouseEvent *event) override;
+    virtual QString isMimeAcceptable(const QMimeData *Mime) const override;
 private:
     void movePlayheadToFrame(int frame) override;
 

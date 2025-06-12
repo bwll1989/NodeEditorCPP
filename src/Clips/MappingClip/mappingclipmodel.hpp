@@ -17,7 +17,7 @@ public:
     {
         setEnd(start+100);
         // 片段正常颜色
-        ClipColor=QColor("#9933ff");
+        ClipColor=QColor("#b83b5e");
         initPropertyWidget();
     }
     ~MappingClipModel() override =default;

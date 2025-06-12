@@ -14,6 +14,7 @@ TimeLineView::TimeLineView(TimeLineModel* model, QWidget *parent) : BaseTimeline
             viewport()->update();  // 触发viewport的更新
         });
     connect(derivedModel->getClock(), &TimeLineClock::timecodePlayingChanged,this->toolbar,&BaseTimelineToolbar::setPlaybackState);
+    setAcceptDrops(true);
 }
 TimeLineView::~TimeLineView() = default;
 
@@ -30,87 +31,66 @@ void TimeLineView::movePlayheadToFrame(int frame)
 
 void TimeLineView::mouseMoveEvent(QMouseEvent *event)
 {
-        if (event->button() == Qt::RightButton) {
-            // 处理左键按下的情况
-            QAbstractItemView::mouseMoveEvent(event);
-            return;
-        }
-
-        if(mouseHeld){
-//            如果鼠标按住拖动
-            m_mouseEnd = event->pos();
-            if(!selectionModel()->selectedIndexes().isEmpty()&&m_mouseEnd.x()>=0){
-                QModelIndex clipIndex = selectionModel()->selectedIndexes().first();
-                AbstractClipModel* clip = static_cast<AbstractClipModel*>(clipIndex.internalPointer());
-
-                if(m_mouseUnderClipEdge==hoverState::NONE){
-                    moveSelectedClip(pointToFrame(m_mouseEnd.x()+m_mouseOffset.x()),m_mouseEnd.y()+m_mouseOffset.y());
-                }else if(clip && clip->isResizable()){
-                    if(m_mouseUnderClipEdge==hoverState::LEFT){
-                        int newFrame = pointToFrame(m_mouseEnd.x() + m_scrollOffset.x());
-                        getModel()->setData(clipIndex, newFrame, TimelineRoles::ClipInRole);
-                        // getModel()->onTimelineLengthChanged();
-                        updateEditorGeometries();
-                    }else if(m_mouseUnderClipEdge==hoverState::RIGHT){
-                        int newFrame = pointToFrame(m_mouseEnd.x() + m_scrollOffset.x());
-                        getModel()->setData(clipIndex, newFrame, TimelineRoles::ClipOutRole);
-                        // getModel()->onTimelineLengthChanged();
-                        updateEditorGeometries();
-                    }
-                }
-                viewport()->update();
-            }
-            else{
-                movePlayheadToFrame(pointToFrame(std::max(0,m_mouseEnd.x() + m_scrollOffset.x())));
-                viewport()->update();
-            }
-
-            if(m_playheadSelected){
-                auto* derivedModel = dynamic_cast<TimeLineModel*>(getModel());
-                emit derivedModel->onPausePlay();
-                movePlayheadToFrame(pointToFrame(std::max(0,m_mouseEnd.x() + m_scrollOffset.x())));
-                viewport()->update();
-            }
-            return QAbstractItemView::mouseMoveEvent(event);
-       }
-
-        QPoint pos = event->pos();
-        m_hoverIndex = indexAt(event->pos());
-        QRect rect = visualRect(m_hoverIndex);
-        m_mouseUnderClipEdge = hoverState::NONE;
-       //5 is hitbox size + -5px
-       //see if item is a clip
-        if((m_hoverIndex.isValid() && m_hoverIndex.parent().isValid())){
-            AbstractClipModel* clip = static_cast<AbstractClipModel*>(m_hoverIndex.internalPointer());
-            if(clip && clip->isResizable()){
-                if(abs(pos.x() - rect.left())<=5){
-                    m_mouseUnderClipEdge=hoverState::LEFT;
-                }else if(abs(pos.x() - rect.right())<=5){
-                    m_mouseUnderClipEdge=hoverState::RIGHT;
-                }
-            }
-       }
-        if (m_mouseUnderClipEdge != hoverState::NONE) {
-           setCursor(Qt::SizeHorCursor);
-        }else {
-           unsetCursor();
-        }
-
-       QAbstractItemView::mouseMoveEvent(event);
-    }
-
-
-void TimeLineView::mouseReleaseEvent(QMouseEvent *event)
-{
+    // 处理右键事件
     if (event->button() == Qt::RightButton) {
-        // 处理左键按下的情况
-        QAbstractItemView::mousePressEvent(event);
+        QAbstractItemView::mouseMoveEvent(event);
         return;
     }
-    mouseHeld = false;
-    m_playheadSelected = false;
-    m_mouseEnd = event->pos();
 
-    //pressed outside of selection
-    QAbstractItemView::mouseReleaseEvent(event);
+    // 处理鼠标按住拖动的情况
+    if (mouseHeld) {
+        handleMouseDrag(event);
+        return;
+    }
+
+    // 处理鼠标悬停状态
+    updateMouseHoverState(event);
+    updateCursorShape();
+
+    QAbstractItemView::mouseMoveEvent(event);
+}
+//
+//
+// void TimeLineView::mouseReleaseEvent(QMouseEvent *event)
+// {
+//     if (event->button() == Qt::RightButton) {
+//         // 处理左键按下的情况
+//         QAbstractItemView::mousePressEvent(event);
+//         return;
+//     }
+//     mouseHeld = false;
+//     m_playheadSelected = false;
+//     m_mouseEnd = event->pos();
+//
+//     //pressed outside of selection
+//     QAbstractItemView::mouseReleaseEvent(event);
+// }
+
+QString TimeLineView::isMimeAcceptable(const QMimeData *Mime) const
+{
+    // 获取拖拽的文件路径
+
+    if (Mime->hasUrls())
+    {
+        QString filePath = Mime->urls().first().toLocalFile();
+        QFileInfo fileInfo(filePath);
+        QString suffix = fileInfo.suffix().toLower();
+        // 根据后缀判断文件类型
+        if(VideoTypes.contains(suffix, Qt::CaseInsensitive)) {
+            return "Video";
+        }
+        else if(AudioTypes.contains(suffix, Qt::CaseInsensitive)) {
+            return "Audio";
+        }
+        else if(ImageTypes.contains(suffix, Qt::CaseInsensitive)) {
+            return "Image";
+        }
+        else if(ControlTypes.contains(suffix, Qt::CaseInsensitive)) {
+            return "Control";
+        }
+    }else if (Mime->hasFormat("application/x-osc-address"))
+    {
+        return "Trigger";
+    }
+    return "";
 }

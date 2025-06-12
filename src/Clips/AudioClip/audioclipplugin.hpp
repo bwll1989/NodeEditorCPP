@@ -2,11 +2,9 @@
 #define AUDIOCLIPPLUGIN_HPP
 
 #include <QObject>
-#include "TimeLineWidget/clippluginterface.hpp"
-#include "TimeLineWidget/AbstractClipModel.hpp"
-#include "TimeLineWidget/AbstractClipDelegate.hpp"
-#include "audioclipmodel.hpp"
-#include "audioclipdelegate.hpp"
+#include "AbstractClipInterface.h"
+#include "AbstractClipModel.hpp"
+#include "Audioclipmodel.hpp"
 
 class AudioClipPlugin : public QObject, public ClipPlugInterface
 {
@@ -20,12 +18,12 @@ public:
     }
 
     AbstractClipModel* createModel(int start) override {
-        return new AudioClipModel(start,start+100);
+        return new  AudioClipModel(start);
     }
 
-    AbstractClipDelegate* createDelegate() override {
-        return new AudioClipDelegate();
-    }
+    // AbstractClipDelegate* createDelegate() override {
+    //     return new PlayerClipDelegate();
+    // }
 };
 
 #endif // AUDIOCLIPPLUGIN_HPP

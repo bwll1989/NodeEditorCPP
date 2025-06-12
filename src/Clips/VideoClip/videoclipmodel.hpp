@@ -10,6 +10,7 @@
 #include <QPushButton>
 #include "AbstractClipModel.hpp"
 #include "TimeCodeMessage.h"
+#include <QSlider>
 // #include "BaseTimeLineModel.h"
 #include "../../Common/Devices/SocketTransmitter/SocketTransmitter.h"
 
@@ -115,7 +116,7 @@ public:
         }
         m_id = json["Id"].toInt();
         rotation->setValue(json["rotation"].toInt());
-      
+        layer->setValue(json["zIndex"].toInt());
     }
 
     QVariant data(int role) const override {
@@ -159,8 +160,6 @@ public:
                 "选择媒体文件",
                 "",
                 "视频文件 (*.mp4 *.avi *.mkv *.mov);;"
-                "音频文件 (*.mp3 *.wav *.aac *.flac);;"
-                "图片文件 (*.jpg *.jpeg *.png *.bmp);;"
                 "所有文件 (*)");
 
             if (!filePath.isEmpty()) {
@@ -201,9 +200,13 @@ public:
         height->setValue(100);
         positionLayout->addWidget(height, 4, 1);
         positionLayout->addWidget(new QLabel("Layer:"), 5, 0);
-        layer = new QSpinBox(positionGroup);
-        layer->setMinimum(-1);
-        layer->setMaximum(100);
+        layer = new QSlider(positionGroup);
+        layer->setOrientation(Qt::Horizontal);
+        layer->setTickInterval(1);
+        layer->setSingleStep(1);
+
+        layer->setMinimum(0);
+        layer->setMaximum(5);
         layer->setValue(0);
         positionLayout->addWidget(layer, 5, 1);
         rotation=new QSpinBox(positionGroup);
@@ -226,7 +229,7 @@ public:
         connect(height, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
             onPropertyChanged();
         });
-        connect(layer, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
+        connect(layer, QOverload<int>::of(&QSlider::valueChanged), [=]() {
             onPropertyChanged();
         });
         connect(rotation, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
@@ -306,7 +309,7 @@ private:
     QSpinBox* postion_y;
     QSpinBox* width;
     QSpinBox* height;
-    QSpinBox* layer;
+    QSlider* layer;
     QSpinBox* rotation;
     SocketTransmitter* m_server;
 };

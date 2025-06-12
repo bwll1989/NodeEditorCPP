@@ -19,7 +19,7 @@ public:
         EMBEDWIDGET = false;
         SHOWBORDER = false;
         // 片段正常颜色
-        ClipColor=QColor("#ff6d1f");
+        ClipColor=QColor("#f08a5d");
         initPropertyWidget();
     }
     ~TriggerClipModel() override =default;
@@ -144,7 +144,7 @@ public:
         painter->setRenderHint(QPainter::Antialiasing);
         // 设置画笔和画刷
         if (selected) {
-            painter->setBrush(ClipSelectedColor);
+            painter->setBrush(ClipColor.darker(150));
         } else {
             painter->setBrush(ClipColor);
         }

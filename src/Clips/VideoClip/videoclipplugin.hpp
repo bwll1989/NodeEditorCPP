@@ -6,7 +6,7 @@
 #include "AbstractClipModel.hpp"
 #include "videoclipmodel.hpp"
 
-class ImageClipPlugin : public QObject, public ClipPlugInterface
+class VideoClipPlugin : public QObject, public ClipPlugInterface
 {
     Q_OBJECT
     Q_PLUGIN_METADATA(IID "com.timeline.ClipPlugInterface")
