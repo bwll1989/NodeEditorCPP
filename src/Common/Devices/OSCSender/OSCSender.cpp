@@ -55,6 +55,7 @@ void OSCSender::setHost(QString address,int port) {
 }
 
 void OSCSender::processQueue(){
+
     // 处理队列中的消息，首先需要加锁，避免多线程冲突
     QMutexLocker locker(&m_mutex);
     //当队列不为空时，处理队列中的消息，直到队列为空

@@ -140,7 +140,7 @@ add_subdirectory(src/Nodes)
 
 add_subdirectory(src/Common/GUI/OscListWidget)
 
-add_subdirectory( src/Common/Devices/SocketTransmitter)
+add_subdirectory(src/Common/Devices/ClientController)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -209,7 +209,6 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/UdpSocket/UdpSocket.h
         src/Common/Devices/WebSocketServer/WebSocketServer.cpp
         src/Common/Devices/WebSocketServer/WebSocketServer.h
-        src/Common/Devices/AudioPipe/AudioPipe.h
         src/Common/Devices/OSCReceiver/OSCReceiver.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.h
         src/Common/Devices/OSCSender/OSCSender.cpp

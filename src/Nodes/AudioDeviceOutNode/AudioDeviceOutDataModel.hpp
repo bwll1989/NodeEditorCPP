@@ -15,7 +15,6 @@
 #include <QQueue>
 #include <QMutex>
 #include <QWaitCondition>
-#include "Widget/ExternalControl/ExternalControler.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;

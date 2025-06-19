@@ -3,6 +3,11 @@ set(Module_Name "AudioDecoderNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOUIC ON)
+# 自动处理ui文件, 自动处理ui文件是有前提的, 必须在需要编译的头文件(add_executable)中的某个头文件中包含ui_xxx.h(比如#include "ui_model002.h")
+set(CMAKE_AUTOMOC ON)
+# 自动调用moc(元对象编译器)
+set(CMAKE_AUTORCC ON)
 add_library(${Module_Name} SHARED
         AudioDecoderDataModel.hpp
         AudioDecoderInterface.hpp
@@ -16,7 +21,7 @@ add_library(${Module_Name} SHARED
         # ../../Common/Devices/AudioPipe/AudioPipe.h
         )
 
-target_link_libraries(${Module_Name}
+target_link_libraries(${Module_Name}  PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
         avcodec

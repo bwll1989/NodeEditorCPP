@@ -1,4 +1,6 @@
 #include "OSCMessageItemWidget.hpp"
+
+#include <QLabel>
 #include <QValidator>
 #include <QRegularExpressionValidator>
 
@@ -44,17 +46,26 @@ void OSCMessageItemWidget::setupUI()
     valueEdit->setPlaceholderText("value");
     valueEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 
-    
+    QLabel* moveLabel = new QLabel();
+    moveLabel->setFixedWidth(10);
+    moveLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    moveLabel->setPixmap(QPixmap(":/icons/icons/move.png").scaled(moveLabel->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation));
+    moveLabel->setAlignment(Qt::AlignCenter);
+
+
     layout->addWidget(hostEdit);
     layout->addWidget(addressEdit);
     layout->addWidget(typeCombo);
     layout->addWidget(valueEdit);
+    layout->addWidget(moveLabel);
     
     // 设置弹性布局比例
     layout->setStretch(0, 2);  // host:port
     layout->setStretch(1, 2);  // address
     layout->setStretch(2, 1);  // type (固定宽度)
     layout->setStretch(3, 2);  // value
+    layout->setStretch(4, 1);  // icon
+
 }
 
 void OSCMessageItemWidget::connectSignals()

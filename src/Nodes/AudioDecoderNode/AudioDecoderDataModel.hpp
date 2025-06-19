@@ -3,19 +3,18 @@
 #include <QtCore/QObject>
 #include <iostream>
 #include <QPushButton>
-#include "QLayout"
 #include "DataTypes/NodeDataList.hpp"
 #include "AudioDecoderInterface.hpp"
 #include "QFileDialog"
 #include <memory>
-#include "portaudio.h"
+
 #include "QtNodes/Definitions"
-#include "QMessageBox"
+
 #include "QTimer"
 #include "AudioDecoder.hpp"
 #include "QThread"
 #include "Common/GUI/QJsonModel/QJsonModel.hpp"
-#include "Widget/ExternalControl/ExternalControler.hpp"
+
 using namespace std;
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;

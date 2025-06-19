@@ -2,7 +2,7 @@
 // Created by WuBin on 24-10-31.
 //
 #include "QtNodes/NodeData"
-#include "Common/Devices/AudioPipe/AudioPipe.h"
+
 #ifndef AUDIONODEDATA_H
 #define AUDIONODEDATA_H
 using QtNodes::NodeData;

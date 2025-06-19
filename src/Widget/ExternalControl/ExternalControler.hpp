@@ -54,9 +54,6 @@ private:
     TimeLineModel *m_timelinemodel;
     //OSC接收器
     OSCReceiver *OSC_Receiver;
-
-    // QtVariantPropertyManager *variantManager;
-
 };
 
 

@@ -12,7 +12,7 @@
 #include "TimeCodeMessage.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
-#include "../../Common/Devices/SocketTransmitter/SocketTransmitter.h"
+#include "../../Common/Devices/ClientController/SocketTransmitter.h"
 
 extern "C" {
 #include <libavformat/avformat.h>
