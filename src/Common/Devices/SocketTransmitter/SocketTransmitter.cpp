@@ -5,7 +5,7 @@
 // 声明全局静态实例
 SocketTransmitter* SocketTransmitter::socketInstance = nullptr;
 
-DLL_EXPORT SocketTransmitter* getSharedInstance()
+DLL_EXPORT SocketTransmitter* getClientControlInstance()
 {
     return SocketTransmitter::getInstance();
 }

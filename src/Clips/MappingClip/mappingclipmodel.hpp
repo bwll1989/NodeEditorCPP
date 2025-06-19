@@ -45,9 +45,9 @@ public:
 
     
     QVariantMap currentData(int currentFrame) const override {
-        if(currentFrame >= m_start && currentFrame <= m_end){
-            float currentValue = static_cast<float>(currentFrame - m_start)
-                       / (m_end - m_start);  // 修正分母为时间区间长度
+        if(currentFrame >= m_start && currentFrame <= m_end && m_currentFrame!=currentFrame){
+            float value = static_cast<float>(currentFrame - m_start)/(m_end-m_start); // 修正分母为时间区间长度
+            m_currentFrame = currentFrame;
             for (int i = 0; i < m_listWidget->count(); ++i)
             {
                 QListWidgetItem* currentItem = m_listWidget->item(i);
@@ -56,12 +56,12 @@ public:
                     continue;
                 }
                 auto* widget = static_cast<OSCMessageItemWidget*>(m_listWidget->itemWidget(currentItem));
-                if (widget->getValue().toFloat() != currentValue)
-                {
-                    widget->setValue(currentValue);
-                }
+                // widget->getValue()
+                widget->getJSEngine()->globalObject().setProperty("$percent", value);
+                widget->getJSEngine()->globalObject().setProperty("$frame", m_currentFrame-m_start);
 
             }
+
             const_cast<MappingClipModel*>(this)->trigger();
         }
         return QVariantMap();
@@ -94,7 +94,7 @@ public:
 private:
     QWidget* m_editor;
     OSCMessageListWidget* m_listWidget;
-    float m_currentValue=0.0;
+    mutable int m_currentFrame;
 };
 
 #endif // MAPPINGCLIPMODEL_H

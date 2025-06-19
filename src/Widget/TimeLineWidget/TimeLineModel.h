@@ -8,6 +8,7 @@
 #include  "./TimelineStageWidget/TimeLineStage.hpp"
 #include  "TimeCodeMessage.h"
 #include "./TimeLineClock/TimeLineClock.hpp"
+#include "TimeLineDefines.h"
 class TimeLineModel : public BaseTimeLineModel {
     Q_OBJECT
 
@@ -29,6 +30,10 @@ public:
     qint64 getPlayheadPos() const override;
 
     TimeCodeType getTimeCodeType() const;
+
+    QVariant clipData(ClipId clipID, TimelineRoles role) const override;
+
+    bool setClipData(ClipId clipID, TimelineRoles role, QVariant value) override;
 public slots:
     //开始播放槽函数
     void onStartPlay() override;

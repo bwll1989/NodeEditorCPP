@@ -80,6 +80,7 @@
     <file>icons/command.png</file>
     <file>icons/expand.png</file>
     <file>icons/copy.png</file>
+    <file>icons/osc.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

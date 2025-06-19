@@ -10,6 +10,7 @@
 #include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
 #include <QJsonObject>
 #include "TimeSyncServer.hpp"
+using namespace QtTimeline;
 class TimeLineClock : public QObject {
     Q_OBJECT
 public:

@@ -68,6 +68,6 @@ public slots:
 };
 
 // 导出获取单例实例的函数
-DLL_EXPORT SocketTransmitter* getSharedInstance();
+DLL_EXPORT SocketTransmitter* getClientControlInstance();
 
 #endif // SOCKETTRANSMITTER_H

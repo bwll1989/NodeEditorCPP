@@ -12,9 +12,17 @@
 #include <memory>
 #include "Common/Devices/OSCReceiver/OSCReceiver.h"
 #include "../NodeWidget/CustomDataFlowGraphModel.h"
-// #include "../TimelineWidget/TimelineMVC/timelinemodel.hpp"
+#include "../TimeLineWidget/TimeLineModel.h"
 #include "OSCMessage.h"
 #include <QWidget>
+enum class AddressType { Dataflow, Timeline, Unknown };
+
+static AddressType getAddressType(const QString& type) {
+    if (type == "dataflow") return AddressType::Dataflow;
+    else if (type == "timeline") return AddressType::Timeline;
+    else return AddressType::Unknown;
+}
+
 class ExternalControler:public QObject {
         Q_OBJECT
 public:
@@ -28,7 +36,7 @@ public:
         return instance;
     }
     void setDataFlowModel(CustomDataFlowGraphModel *model);
-    // void setTimelineModel(TimelineModel *model);
+    void setTimelineModel(TimeLineModel *model);
 private slots:
     /**
      * 处理接收到的UDP数据
@@ -43,10 +51,9 @@ private:
     ExternalControler& operator=(const ExternalControler&) = delete;
 private:
     CustomDataFlowGraphModel *m_dataflowmodel;
-    // TimelineModel *m_timelinemodel;
+    TimeLineModel *m_timelinemodel;
     //OSC接收器
     OSCReceiver *OSC_Receiver;
-    //布局
 
     // QtVariantPropertyManager *variantManager;
 

@@ -131,8 +131,8 @@ void OSCMessageListWidget::mouseMoveEvent(QMouseEvent* event)
         return;
     }
     
-    if ((event->pos() - dragStartPosition).manhattanLength() 
-        < QApplication::startDragDistance()) {
+    if ((event->pos() - dragStartPosition).manhattanLength() < QApplication::startDragDistance())
+    {
         return;
     }
     
@@ -154,7 +154,7 @@ void OSCMessageListWidget::mouseMoveEvent(QMouseEvent* event)
     QDrag* drag = new QDrag(this);
     
     drag->setMimeData(mimeData);
-    QPixmap pixmap(200, 30);
+    QPixmap pixmap(widget->width(), widget->height());
     pixmap.fill(Qt::transparent);
     
     QPainter painter(&pixmap);
@@ -191,22 +191,8 @@ QJsonObject OSCMessageListWidget::messageToJson(const OSCMessage& message)
     messageJson["host"] = message.host;
     messageJson["port"] = message.port;
     messageJson["address"] = message.address;
-    
-    // 根据值类型保存
-    switch (message.value.typeId()) {
-        case QMetaType::Int:
-            messageJson["type"] = "Int";
-            messageJson["value"] = message.value.toInt();
-            break;
-        case QMetaType::Double:
-            messageJson["type"] = "Float";
-            messageJson["value"] = message.value.toDouble();
-            break;
-        default:
-            messageJson["type"] = "String";
-            messageJson["value"] = message.value.toString();
-    }
-    
+    messageJson["type"] = message.type;
+    messageJson["value"] = message.value.toString();
     return messageJson;
 }
 
@@ -216,18 +202,8 @@ OSCMessage OSCMessageListWidget::jsonToMessage(const QJsonObject& json)
     message.host = json["host"].toString();
     message.port = json["port"].toInt();
     message.address = json["address"].toString();
-    
-    QString type = json["type"].toString();
-    QJsonValue value = json["value"];
-    
-    if (type == "Int") {
-        message.value = value.toInt();
-    } else if (type == "Float") {
-        message.value = value.toDouble();
-    } else {
-        message.value = value.toString();
-    }
-    
+    message.type = json["type"].toString();
+    message.value = json["value"].toString();
     return message;
 }
 
@@ -243,8 +219,8 @@ QJsonObject OSCMessageListWidget::save() const
         
         auto* widget = static_cast<OSCMessageItemWidget*>(itemWidget(currentItem));
         if (!widget) continue;
-        
         OSCMessage message = widget->getMessage();
+        message.value=widget->getExpression();
         messagesArray.append(messageToJson(message));
     }
     

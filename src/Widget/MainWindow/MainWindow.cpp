@@ -5,7 +5,6 @@
 #include <QMessageBox>
 #include "MainWindow.hpp"
 #include "Nodes/NodeStyle.hpp"
-#include "Widget/AboutWidget/AboutWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "QFile"
 #include"Widget/ConsoleWidget/LogWidget.hpp"
@@ -88,9 +87,9 @@ void MainWindow::init()
     menuBar->views->addAction(nodeDockLibraryWidget->toggleViewAction());
 // 时间轴控件
     // 创建时间线模型
-    auto* model = new TimeLineModel();
+    timelineModel = new TimeLineModel();
     // 创建时间线部件
-    timeline = new TimelineWidget(model);
+    timeline = new TimelineWidget(timelineModel);
     // 创建时间轴控件
     auto *timelineDockWidget = new ads::CDockWidget("时间轴");
     timelineDockWidget->setObjectName("timeline");
@@ -172,6 +171,7 @@ void MainWindow::init()
     // 外部控制器
     controller=new ExternalControler();
     controller->setDataFlowModel(dataFlowModel);
+    controller->setTimelineModel(timelineModel);
     emit initStatus("Initialization External Controler");
 
 
@@ -179,8 +179,6 @@ void MainWindow::init()
     //保存布局
     connect(menuBar->restoreLayout, &QAction::triggered, this, &MainWindow::restoreVisualState);
     //恢复布局
-    connect(menuBar->aboutAction, &QAction::triggered, this, &MainWindow::showAboutDialog);
-    //关于软件窗口
     connect(menuBar->saveAsAction, &QAction::triggered, this, &MainWindow::saveFileToExplorer);
     //另存为
     connect(menuBar->saveAction, &QAction::triggered, this, &MainWindow::saveFileToPath);
@@ -218,13 +216,7 @@ void MainWindow::initNodelist() {
     this->nodeDockLibraryWidget->setWidget(nodeLibrary);
     emit initStatus("Initialization nodes library success");
 }
-//软件关于
-void MainWindow::showAboutDialog() {
 
-    AboutWidget aboutDialog(":/docs/README.txt");
-//    关于窗口显示文档设置
-    aboutDialog.exec();
-}
 // 锁定切换
 void MainWindow::locked_switch() {
     isLocked=!isLocked;

@@ -34,7 +34,7 @@ public:
         if (!filePath.isEmpty()) {
             loadAudioInfo(filePath);
         }
-        m_server = getSharedInstance();
+        m_server = getClientControlInstance();
 
     }
 
@@ -150,7 +150,7 @@ public:
         });
         mainLayout->addWidget(basicGroup);
         // 添加尺寸位置参数设置
-        auto* positionGroup = new QGroupBox("位置参数", m_editor);
+        auto* positionGroup = new QGroupBox("音频参数", m_editor);
         auto* positionLayout = new QGridLayout(positionGroup);
         // 位置
 
@@ -158,7 +158,8 @@ public:
         gain->setMinimum(-180);
         gain->setMaximum(180);
         gain->setValue(0);
-        positionLayout->addWidget(new QLabel("Rotate:"), 6, 0);
+        registerOSCControl("/gain",gain);
+        positionLayout->addWidget(new QLabel("gain:"), 6, 0);
         positionLayout->addWidget(gain, 6, 1);
         mainLayout->addWidget(positionGroup);
         // 连接信号槽

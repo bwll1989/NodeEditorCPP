@@ -13,7 +13,7 @@
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
 #include "../../Common/Devices/SocketTransmitter/SocketTransmitter.h"
-
+// #include "Widget/ExternalControl/ExternalControler.hpp"
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -34,7 +34,7 @@ public:
         if (!filePath.isEmpty()) {
             loadVideoInfo(filePath);
         }
-        m_server = getSharedInstance();
+        m_server = getClientControlInstance();
 
     }
 
@@ -180,24 +180,28 @@ public:
         postion_x->setMinimum(-10000);
         postion_x->setMaximum(10000);
         postion_x->setValue(0);
+        registerOSCControl("/posX", postion_x);
         positionLayout->addWidget(postion_x, 1, 1);
         positionLayout->addWidget(new QLabel("Y:"), 2, 0);
         postion_y = new QSpinBox(positionGroup);
         postion_y->setMinimum(-10000);
         postion_y->setMaximum(10000);
         postion_y->setValue(0);
+        registerOSCControl("/posY", postion_y);
         positionLayout->addWidget(postion_y, 2, 1);
         positionLayout->addWidget(new QLabel("Width:"), 3, 0);
         width = new QSpinBox(positionGroup);
         width->setMinimum(0);
         width->setMaximum(10000);
         width->setValue(100);
+        registerOSCControl("/width", width);
         positionLayout->addWidget(width, 3, 1);
         positionLayout->addWidget(new QLabel("Height:"), 4, 0);
         height = new QSpinBox(positionGroup);
         height->setMinimum(0);
         height->setMaximum(10000);
         height->setValue(100);
+        registerOSCControl("/height", height);
         positionLayout->addWidget(height, 4, 1);
         positionLayout->addWidget(new QLabel("Layer:"), 5, 0);
         layer = new QSlider(positionGroup);
@@ -208,11 +212,13 @@ public:
         layer->setMinimum(0);
         layer->setMaximum(5);
         layer->setValue(0);
+        registerOSCControl("/layer", layer);
         positionLayout->addWidget(layer, 5, 1);
         rotation=new QSpinBox(positionGroup);
         rotation->setMinimum(-180);
         rotation->setMaximum(180);
         rotation->setValue(0);
+        registerOSCControl("/rotation", rotation);
         positionLayout->addWidget(new QLabel("Rotate:"), 6, 0);
         positionLayout->addWidget(rotation, 6, 1);
         mainLayout->addWidget(positionGroup);

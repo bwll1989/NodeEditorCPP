@@ -27,10 +27,13 @@ set(SOURCES
     videoclipmodel.hpp
     videoclipplugin.hpp
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
+#        ../../Widget/ExternalControl/ExternalControler.cpp
+#       ../../Widget/ExternalControl/ExternalControler.hpp
+
 )
 
 # 创建插件库
-add_library(VideoClip MODULE
+add_library(VideoClip SHARED
     ${SOURCES}
 )
 

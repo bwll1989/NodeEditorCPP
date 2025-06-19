@@ -9,7 +9,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/TimeLine)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/TimeLine)
 
 # 查找Qt包
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Qml)
 
 # 设置基础目录变量
 
@@ -48,6 +48,7 @@ target_link_libraries(MappingClip PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Network
+    Qt${QT_VERSION_MAJOR}::Qml
     ${QtTimeLine_LIBRARIES}
     OscListWidget
 )

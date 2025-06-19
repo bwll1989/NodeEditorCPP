@@ -64,10 +64,6 @@ signals:
     void initStatus(const QString &message);
 public Q_SLOTS:
     /**
-     * 显示关于对话框
-     */
-    static void showAboutDialog();
-    /**
      * 初始化节点列表
      */
     void  initNodelist();

@@ -17,7 +17,7 @@
 #include <QComboBox>
 #include <QTextEdit>
 #include <QLineEdit>
-
+#include "OSCMessage.h"
 ExternalControler::ExternalControler():
     OSC_Receiver(new OSCReceiver(8991))
  {
@@ -40,22 +40,33 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     }
    
     QWidget* widget = nullptr;
-    if(args[1]=="dataflow"){
-        NodeId nodeId =args[2].toInt();
-        auto widgets = m_dataflowmodel->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
-        auto it = widgets.find("/"+args[3]);
-        if (it != widgets.end()) {
-            widget = it->second;
+    switch(getAddressType(args[1]))
+    {
+    case AddressType::Dataflow:
+        {
+            NodeId nodeId =args[2].toInt();
+            auto widgets = m_dataflowmodel->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
+            auto it = widgets.find("/"+args[3]);
+            if (it != widgets.end()) {
+                widget = it->second;
+            }
+            break;
         }
-    }else if(args[1]=="timeline"){
-        qDebug() << "timeline";
-        // NodeId nodeId =args[1].toInt();
-        // auto widgets = model->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
-        // auto it = widgets.find(message.address);
-        // if (it != widgets.end()) {
-        //     widget = it->second;
-        // }
+    case AddressType::Timeline:
+        {
+            ClipId clipId =args[2].toInt();
+            auto widgets= m_timelinemodel->clipData(clipId,TimelineRoles::ClipOscWidgetsRole).value<std::unordered_map<QString, QWidget*>>();
+            auto it = widgets.find("/"+args[3]);
+            if (it != widgets.end()) {
+                widget = it->second;
+            }
+            break;
+        }
+    default:
+       //其他情况
+        break;
     }
+
      if (!widget) 
     {
         qDebug() << "Invalid widget pointer for address:" << message.address;
@@ -63,6 +74,7 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     }
     // 使用 qobject_cast 进行安全的类型检查
     if (auto* spinBox = qobject_cast<QSpinBox*>(widget)) {
+
         spinBox->setValue(message.value.toInt());
     }
     else if (auto* doubleSpinBox = qobject_cast<QDoubleSpinBox*>(widget)) {
@@ -75,7 +87,10 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
         checkBox->setChecked(message.value.toBool());
     }
     else if (auto* pushButton = qobject_cast<QPushButton*>(widget)) {
-        pushButton->click();
+        if (message.value.toBool()!=pushButton->isChecked())
+        {
+            pushButton->click();
+        }
     }
     else if (auto* comboBox = qobject_cast<QComboBox*>(widget)) {
         comboBox->setCurrentIndex(message.value.toInt());
@@ -95,7 +110,9 @@ void ExternalControler::setDataFlowModel(CustomDataFlowGraphModel *model)
 {
     this->m_dataflowmodel = model;
 }
-// void ExternalControler::setTimelineModel(TimelineModel *model)
-// {
-//     this->m_timelinemodel = model;
-// }
+
+
+void ExternalControler::setTimelineModel(TimeLineModel *model)
+{
+    this->m_timelinemodel = model;
+}

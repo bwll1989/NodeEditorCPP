@@ -49,22 +49,7 @@ void TimeLineView::mouseMoveEvent(QMouseEvent *event)
 
     QAbstractItemView::mouseMoveEvent(event);
 }
-//
-//
-// void TimeLineView::mouseReleaseEvent(QMouseEvent *event)
-// {
-//     if (event->button() == Qt::RightButton) {
-//         // 处理左键按下的情况
-//         QAbstractItemView::mousePressEvent(event);
-//         return;
-//     }
-//     mouseHeld = false;
-//     m_playheadSelected = false;
-//     m_mouseEnd = event->pos();
-//
-//     //pressed outside of selection
-//     QAbstractItemView::mouseReleaseEvent(event);
-// }
+
 
 QString TimeLineView::isMimeAcceptable(const QMimeData *Mime) const
 {

@@ -6,6 +6,9 @@ OSCMessageItemWidget::OSCMessageItemWidget(QWidget* parent)
     : QWidget(parent)
 {
     setupUI();
+    engine.globalObject().setProperty("PI", M_PI);
+    engine.globalObject().setProperty("E", M_E);
+
     connectSignals();
 }
 
@@ -71,21 +74,21 @@ void OSCMessageItemWidget::updateValueWidget(const QString& type)
         delete valueEdit->validator();
     }
     
-    if (type == "Int") {
-        valueEdit->setValidator(new QIntValidator(this));
-    } else if (type == "Float") {
-        auto* validator = new QDoubleValidator(this);
-        validator->setNotation(QDoubleValidator::StandardNotation);
-        valueEdit->setValidator(validator);
-    } else {
-        valueEdit->setValidator(nullptr);
-    }
+    // if (type == "Int") {
+    //     // valueEdit->setValidator(new QIntValidator(this));
+    // } else if (type == "Float") {
+    //     auto* validator = new QDoubleValidator(this);
+    //     validator->setNotation(QDoubleValidator::StandardNotation);
+    //     valueEdit->setValidator(validator);
+    // } else {
+    //     valueEdit->setValidator(nullptr);
+    // }
 }
 
 OSCMessage OSCMessageItemWidget::getMessage() const
 {
     OSCMessage message;
-    
+
     // 解析 host:port
     QStringList hostParts = hostEdit->text().split(":");
     if (hostParts.size() == 2) {
@@ -99,16 +102,25 @@ OSCMessage OSCMessageItemWidget::getMessage() const
     
     message.address = addressEdit->text();
     
-    QString type = typeCombo->currentText();
-    if (type == "Int") {
-        bool ok;
-        int value = valueEdit->text().toInt(&ok);
-        message.value = ok ? value : 0;
-    } else if (type == "Float") {
-        bool ok;
-        double value = valueEdit->text().toDouble(&ok);
-        message.value = ok ? value : 0.0;
-    } else if (type == "String") {
+    message.type = typeCombo->currentText();
+
+    QString value = valueEdit->text();
+    if (message.type == "Int") {
+        QJSValue result = engine.evaluate("with(Math) { " + value + " }");
+        if (result.isError()) {
+            // qWarning() << "表达式错误:" << expr << "->" << result.toString();
+            message.value=0; // 回退到直接转换
+        }
+
+        message.value = result.toInt();
+    } else if (message.type == "Float") {
+        QJSValue result = engine.evaluate("with(Math) { " + value + " }");
+        if (result.isError()) {
+            // qWarning() << "表达式错误:" << expr << "->" << result.toString();
+            message.value=0.0; // 回退到直接转换
+        }
+        message.value = result.toNumber();
+    } else if (message.type == "String") {
         message.value = valueEdit->text();
     }
     
@@ -127,33 +139,18 @@ void OSCMessageItemWidget::setMessage(const OSCMessage& message)
     addressEdit->setText(message.address);
     
     // 设置类型和值
-    if (message.value.typeId() == QMetaType::Int) {
-        typeCombo->setCurrentText("Int");
-        valueEdit->setText(QString::number(message.value.toInt()));
-    } else if (message.value.typeId() == QMetaType::Double) {
-        typeCombo->setCurrentText("Float");
-        valueEdit->setText(QString::number(message.value.toDouble()));
-    } else {
-        typeCombo->setCurrentText("String");
-        valueEdit->setText(message.value.toString());
-    }
+    typeCombo->setCurrentText(message.type);
+    setExpression(message.value.toString());
 }
 
-QVariant OSCMessageItemWidget::getValue() const
+QString OSCMessageItemWidget::getExpression() const
 {
-    QString type = typeCombo->currentText();
-    if (type == "Int") {
-        return valueEdit->text().toInt();
-    } else if (type == "Float") {
-        return valueEdit->text().toDouble();
-    } else {
-        return valueEdit->text();
-    }
+    return valueEdit->text();
 }
 
-void OSCMessageItemWidget::setValue(QVariant val)
+void OSCMessageItemWidget::setExpression(QString val)
 {
-    valueEdit->setText(val.toString());
+    valueEdit->setText(val);
 }
 
 QString OSCMessageItemWidget::getAddress() const
@@ -164,4 +161,9 @@ QString OSCMessageItemWidget::getAddress() const
 void OSCMessageItemWidget::setAddress(QString addr)
 {
     addressEdit->setText(addr);
+}
+
+QJSEngine* OSCMessageItemWidget::getJSEngine()
+{
+    return &engine;
 }

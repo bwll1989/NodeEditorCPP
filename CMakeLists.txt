@@ -122,6 +122,11 @@ set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
 set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
 INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 
+# 设置TabToolbar库
+set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
+set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
+INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
+
 # 设置QT库
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
@@ -222,8 +227,7 @@ set(CALC_SOURCE_FILES
         src/DataTypes/AudioData2.h
         src/DataTypes/PixmapData.h
         src/DataTypes/AudioData.h
-        src/DataTypes/OSCMessage.h
-#        src/DataTypes/TimeCodeMessage.h
+        #        src/DataTypes/TimeCodeMessage.h
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         # src/Widget/TimeLineWidget/videoplayerwidget.hpp
@@ -330,6 +334,7 @@ target_link_libraries(${ProjectName}
             ${Libltc_LIBRARIES}
             Eigen3::Eigen
             ${QtTimeLine_LIBRARIES}
+            ${TabToolbar_LIBRARIES}
             ClientController
             OscListWidget
 )

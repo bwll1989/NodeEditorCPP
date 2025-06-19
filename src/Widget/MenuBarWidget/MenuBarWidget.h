@@ -67,6 +67,10 @@ public:
     QAction *aboutAction ;
     //关于Qt
     QAction *aboutQtAction ;
+private slots:
+    void openToolWithArgs(const QString& exePath, const QStringList& args);
+    //软件关于
+    void showAboutDialog();
 };
 
 #endif //NODEEDITORCPP_MENUBARWIDGET_H

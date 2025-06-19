@@ -5,6 +5,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QHBoxLayout>
+#include <QJSEngine>
 #include "../../Common/Devices/OSCSender/OSCSender.h"
 #if defined(OSCLISTWIDGET_LIBRARY)
 #define DLL_EXPORT Q_DECL_EXPORT
@@ -22,12 +23,14 @@ public:
     // 设置OSC消息
     void setMessage(const OSCMessage& message);
 
-    QVariant getValue() const;
+    QString getExpression() const;
 
     QString getAddress() const;
+
+    QJSEngine* getJSEngine();
 public slots:
-    // 设置值
-    void setValue(QVariant val);
+    // 设置表达式
+    void setExpression(QString val);
     // 设置地址
     void setAddress(QString addr);
 signals:
@@ -38,7 +41,8 @@ private:
     QLineEdit* addressEdit;
     QComboBox* typeCombo;
     QLineEdit* valueEdit;
-    
+    mutable QJSEngine engine;
+    mutable OSCMessage m_currentMessage;
     void setupUI();
     void connectSignals();
     void updateValueWidget(const QString& type);
