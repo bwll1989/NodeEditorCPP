@@ -25,8 +25,8 @@ void OSCMessageItemWidget::setupUI()
     hostEdit->setPlaceholderText("ip:port");
     hostEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 
-    // 设置IP:Port格式验证器
-    QRegularExpression rx("^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}:[0-9]{1,5}$");
+    // // 设置IP:Port格式验证器
+    QRegularExpression rx(R"(^((\d{1,3}\.){0,3}\d{0,3})(:\d{0,5})?$)");
     hostEdit->setValidator(new QRegularExpressionValidator(rx, this));
     
     // Address
@@ -38,7 +38,8 @@ void OSCMessageItemWidget::setupUI()
     // Type
     typeCombo = new QComboBox(this);
     typeCombo->addItems({"Int", "Float", "String"});
-    typeCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    typeCombo->setFixedWidth(70);
+    typeCombo->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Expanding);
 
     
     // Value

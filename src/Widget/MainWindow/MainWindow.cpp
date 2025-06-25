@@ -45,12 +45,11 @@ MainWindow::~MainWindow()
 }
 void MainWindow::init()
 {
-    // awesome = new fa::QtAwesome(this);
-    // awesome->initFontAwesome();
-
-
     m_DockManager = new ads::CDockManager(this);
-//    m_DockManager->setStyleSheet(" ");
+    //禁用ads内置样式表
+    m_DockManager->setStyleSheet("");
+
+    m_DockManager->setDockWidgetToolBarStyle(Qt::ToolButtonStyle::ToolButtonTextOnly,CDockWidget::eState::StateDocked);
     menuBar=new MenuBarWidget(this);
     this->setCentralWidget(m_DockManager);
     emit initStatus("Initialization ADS success");

@@ -22,10 +22,11 @@ void NodeLibraryWidget::initLayout(){
     txtBox->setPlaceholderText(QStringLiteral("Filter"));
     txtBox->setClearButtonEnabled(true);
     treeView = new DraggableTreeWidget(this);
-    treeView->setStyleSheet("QTreeView::item { padding: 4px; }");
+
     treeView->setHeaderHidden(true);
     mainLayout->addWidget(txtBox);
     mainLayout->addWidget(treeView);
+
 }
 
 void NodeLibraryWidget::update(){

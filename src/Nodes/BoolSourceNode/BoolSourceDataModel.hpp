@@ -12,8 +12,6 @@
 
 #include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
-// #include "../../Widget/ExternalControl/ExternalControler.hpp"
-#include "Widget/ExternalControl/ExternalControler.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -37,6 +35,8 @@ public:
         WidgetEmbeddable=true;
         Resizable=false;
         button->setCheckable(true);
+        button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+
         registerOSCControl("/bool", button);
         button->setChecked(false);
         connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);

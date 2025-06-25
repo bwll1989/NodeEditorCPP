@@ -86,12 +86,35 @@
     <file>images/loading.png</file>
   </qresource>
   <qresource prefix="styles">
-    <file>DefaultStyle.json</file>
+    <file>styles/DefaultStyle.json</file>
+    <file>styles/DefaultDark.qss</file>
+
   </qresource>
   <qresource prefix="docs">
     <file>README.txt</file>
   </qresource>
   <qresource prefix="/qml">
     <file>qml/LogWidget.qml</file>
+  </qresource>
+  <qresource prefix="/ads_icons">
+    <file>ads_icons/close-button.svg</file>
+    <file>ads_icons/close-button-disabled.svg</file>
+    <file>ads_icons/close-button-focused.svg</file>
+    <file>ads_icons/detach-button.svg</file>
+    <file>ads_icons/detach-button-disabled.svg</file>
+    <file>ads_icons/maximize-button.svg</file>
+    <file>ads_icons/maximize-button-focused.svg</file>
+    <file>ads_icons/minimize-button.svg</file>
+    <file>ads_icons/minimize-button-focused.svg</file>
+    <file>ads_icons/pin-button.svg</file>
+    <file>ads_icons/pin-button-big.svg</file>
+    <file>ads_icons/restore-button.svg</file>
+    <file>ads_icons/restore-button-focused.svg</file>
+    <file>ads_icons/tabs-menu-button.svg</file>
+    <file>ads_icons/vs-pin-button.svg</file>
+    <file>ads_icons/vs-pin-button-disabled.svg</file>
+    <file>ads_icons/vs-pin-button-pinned.svg</file>
+    <file>ads_icons/vs-pin-button-pinned-focused.svg</file>
+    <file>ads_icons/vs-pin-button_45.svg</file>
   </qresource>
 </RCC>

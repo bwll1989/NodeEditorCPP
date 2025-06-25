@@ -15,7 +15,16 @@
 #define LUA_PATH                "./lua;"   // Lua脚本路径
 #define FILE_DESCRIPTION       "Qt Creator based on Qt 6.6 (MinGw, 64 bit)"  // 文件说明
 #define LEGAL_COPYRIGHT        "Copyright 2008-2016 The Qt Company Ltd. All rights reserved." // 版权信息
-
+#define TEXT_COLOR QColor(119, 167, 255)
+#define MUTED_COLOR QColor(100, 100, 100)
+#define SUCCESS_COLOR QColor(16, 183, 87)
+#define ERROR_COLOR QColor(164, 66, 66)
+#define WARNING_COLOR QColor(172, 122, 57)
+#define RECV_COLOR QColor(255, 187, 255)
+#define SEND_COLOR QColor(0, 181, 149)
+#define CONNECT_COLOR QColor(105, 92, 152)
+#define ACTIVITY_COLOR QColor(200, 200, 200)
+#define BG_COLOR QColor(40, 40, 40)
 // 设置应用程序基本信息
 void setupApp(){
     QApplication::setApplicationDisplayName(PRODUCT_NAME);      // 设置显示名称
@@ -35,6 +44,31 @@ int main(int argc, char *argv[])
     setupApp();
     qApp->setStyle(QStyleFactory::create("Fusion"));           // 设置应用程序风格为Fusion
     qApp->setAttribute(static_cast<Qt::ApplicationAttribute>(Qt::WA_StyledBackground)); // 启用 QSS 样式表支持
+    //
+    // // app.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    // app.setStyleSheet(QString("QToolTip {border: 0.9px solid #3e3e42; padding: 6px; background-color: #2d2d2d; border-radius: 3px; color: #dcdcdc; font-family: 15;}"));
+
+    // QPalette pal;
+    // // 统一所有调色板角色的基础颜色
+    // pal.setColor(QPalette::Window, QColor(53,53,53));
+    // pal.setColor(QPalette::Base, QColor(53,53,53));
+    // pal.setColor(QPalette::AlternateBase, QColor(53,53,53));
+    // pal.setColor(QPalette::Button, QColor(53,53,53));
+    // pal.setColor(QPalette::ButtonText, Qt::gray);
+    // pal.setColor(QPalette::Text, Qt::white); // 取消注释确保文本可见
+    //
+    // // 先应用调色板
+    // qApp->setPalette(pal);
+
+    // 再设置样式表（后设置的样式会覆盖调色板）
+    QFile qssFile(":/styles/styles/DefaultDark.qss");
+    if(qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream stream(&qssFile);
+        qApp->setStyleSheet(stream.readAll()); // 使用qApp全局设置
+        qssFile.close();
+    } else {
+        qWarning() << "Failed to load QSS file:" << qssFile.errorString();
+    }
 
     // 创建启动画面
     CustomSplashScreen splashScreen;
@@ -42,7 +76,6 @@ int main(int argc, char *argv[])
 
     // 创建主窗口
     MainWindow mainWindow;
-    
     // 连接初始化状态信号到启动画面
     QObject::connect(&mainWindow, &MainWindow::initStatus, &splashScreen, &CustomSplashScreen::updateStatus);
     mainWindow.init();

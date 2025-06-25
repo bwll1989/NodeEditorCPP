@@ -14,6 +14,7 @@ TrackListView::TrackListView(TimeLineModel* model, QWidget *parent) : BaseTrackl
         [this](int frame) {
             viewport()->update();  // 触发viewport的更新
         });
+    // this->layout()->setContentsMargins(2, 0, 2, 2);
 }
 TrackListView::~TrackListView() = default;
 

@@ -37,7 +37,9 @@ public:
         WidgetEmbeddable= true;
         Resizable=false;
         PortEditable= false;
+
         widget->addItems(*methods);
+
         val=QVariant(0.0);
         connect(widget,&QComboBox::currentIndexChanged,this,&MathOperationDataModel::methodChanged);
         registerOSCControl("/math",widget);

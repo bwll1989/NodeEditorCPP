@@ -7,7 +7,6 @@
 
 #include <QMenuBar>
 #include <QAction>
-
 class MenuBarWidget:public QMenuBar {
 Q_OBJECT
 

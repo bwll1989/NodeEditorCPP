@@ -118,7 +118,7 @@ public:
         auto* basicGroup = new QGroupBox("文件属性", m_editor);
         auto* basicLayout = new QGridLayout(basicGroup);
         // 时间相关控件
-        basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
+        // basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
         // auto* durationBox = new QLineEdit(basicGroup);
         // durationBox->setReadOnly(true);
         // // 将帧数转换为时间码格式显示
@@ -127,7 +127,7 @@ public:
          // 文件名显示
         auto* fileNameLabel = new QLineEdit(filePath(), basicGroup);
         fileNameLabel->setReadOnly(true);
-        basicLayout->addWidget(fileNameLabel, 2, 0, 1, 2);
+        basicLayout->addWidget(fileNameLabel, 1, 0, 1, 2);
         // 媒体文件选择
         basicLayout->addWidget(new QLabel("媒体文件:"), 4, 0);
         auto* mediaButton = new QPushButton("选择媒体文件", basicGroup);

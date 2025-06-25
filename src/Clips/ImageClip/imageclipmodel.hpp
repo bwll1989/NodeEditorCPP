@@ -133,7 +133,7 @@ public:
         auto* basicGroup = new QGroupBox("文件属性", m_editor);
         auto* basicLayout = new QGridLayout(basicGroup);
         // 时间相关控件
-        basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
+        // basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
         // auto* durationBox = new QLineEdit(basicGroup);
         // durationBox->setReadOnly(true);
         // // 将帧数转换为时间码格式显示
@@ -196,9 +196,7 @@ public:
         registerOSCControl("/height",height);
         positionLayout->addWidget(height, 4, 1);
         positionLayout->addWidget(new QLabel("Layer:"), 5, 0);
-        layer = new QSlider(positionGroup);
-        layer->setOrientation(Qt::Horizontal);
-        layer->setTickInterval(1);
+        layer = new QSpinBox(positionGroup);
         layer->setSingleStep(1);
 
         layer->setMinimum(0);
@@ -226,7 +224,7 @@ public:
         connect(height, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
             onPropertyChanged();
         });
-        connect(layer, QOverload<int>::of(&QSlider::valueChanged), [=]() {
+        connect(layer, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
             onPropertyChanged();
         });
         connect(rotation, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
@@ -271,7 +269,7 @@ private:
     QSpinBox* postion_y;
     QSpinBox* width;
     QSpinBox* height;
-    QSlider* layer;
+    QSpinBox* layer;
     QSpinBox* rotation;
     SocketTransmitter *m_server;
 };

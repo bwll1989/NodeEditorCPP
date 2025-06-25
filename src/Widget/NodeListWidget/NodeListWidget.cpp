@@ -19,7 +19,7 @@ NodeListWidget::NodeListWidget(CustomDataFlowGraphModel* model, CustomFlowGraphi
     searchBox->setPlaceholderText("Search nodes...");
     nodeTree = new QTreeWidget(this);
     nodeTree->setColumnCount(1);
-    nodeTree->setStyleSheet("QTreeView::item { padding: 2px; } QTreeView::item:selected { background-color: #0078D7; }");
+
     nodeTree->setHeaderLabels(QStringList() << "Nodes");
     auto layout = new QVBoxLayout(this);
     layout->addWidget(searchBox);

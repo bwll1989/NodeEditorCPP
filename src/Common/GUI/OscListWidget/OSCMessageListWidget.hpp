@@ -45,7 +45,7 @@ protected:
     void dropEvent(QDropEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
-
+    bool eventFilter(QObject* obj, QEvent* event) override;
 private slots:
     void showContextMenu(const QPoint& pos);
     void addNewMessage();

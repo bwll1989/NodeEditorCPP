@@ -14,7 +14,7 @@ OSCMessageListWidget::OSCMessageListWidget(QWidget* parent)
     setAcceptDrops(true);
     setDragDropMode(QAbstractItemView::InternalMove);
     setSelectionMode(QAbstractItemView::SingleSelection);
-    
+    installEventFilter(this);
     // 设置右键菜单
     setContextMenuPolicy(Qt::CustomContextMenu);
     connect(this, &QListWidget::customContextMenuRequested,
@@ -65,7 +65,9 @@ void OSCMessageListWidget::showContextMenu(const QPoint& pos)
     QMenu menu(this);
     QAction* addAction = menu.addAction("Add Message");
     QAction* deleteAction = menu.addAction("Delete Message");
-    
+    QAction* clearAction = menu.addAction("Clear All Messages");
+
+    connect(clearAction, &QAction::triggered, this, &OSCMessageListWidget::clear);
     connect(addAction, &QAction::triggered, this, &OSCMessageListWidget::addNewMessage);
     connect(deleteAction, &QAction::triggered, this, &OSCMessageListWidget::deleteSelectedMessage);
     
@@ -83,6 +85,7 @@ void OSCMessageListWidget::deleteSelectedMessage()
     if (item) {
         delete item;
     }
+    clearSelection();
 }
 
 // 拖拽相关实现
@@ -114,6 +117,7 @@ void OSCMessageListWidget::dropEvent(QDropEvent* event)
         // 添加消息到列表
         addOSCMessage(message);
         event->acceptProposedAction();
+        clearSelection();
     }
 }
 
@@ -239,4 +243,19 @@ void OSCMessageListWidget::load(const QJsonObject& json)
         OSCMessage message = jsonToMessage(value.toObject());
         addOSCMessage(message);
     }
+}
+
+bool OSCMessageListWidget::eventFilter(QObject* object, QEvent* event)
+{
+    if (event->type() == QEvent::KeyPress) {
+        QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
+
+        // 处理Delete键和Backspace键
+        if ((keyEvent->key() == Qt::Key_Delete || keyEvent->key() == Qt::Key_Backspace)
+            && object == this) {
+            deleteSelectedMessage();
+            return true;
+            }
+    }
+    return QListWidget::eventFilter(object, event);
 }
