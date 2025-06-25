@@ -5,11 +5,6 @@
 #ifndef NODEEDITORCPP_LOGHANDLER_HPP
 #define NODEEDITORCPP_LOGHANDLER_HPP
 
-
-//
-// Created by bwll1 on 2024/9/18.
-//
-
 #include <QTextBrowser>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -21,10 +16,11 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/daily_file_sink.h>
 #include <mutex>
+#include "LogWidget.hpp"
 
 class LogHandler {
 public:
-    LogHandler(QTableWidget *tableWidget) ;
+    LogHandler(LogWidget *tableWidget);
 
     ~LogHandler();
 
@@ -33,6 +29,7 @@ public:
      * @return bool 是否初始化成功
      */
     bool initLogHandler();
+    
     /**
      * 自定义消息处理器
      * @param QtMsgType type 消息类型
@@ -49,17 +46,17 @@ private:
      * @param const QIcon &icon 图标
      * @param const QString &logMessage 日志消息
      */
-    static void appendLogToTable(const QString &timestamp, const QString &level,const QIcon &icon,const QString &logMessage) ;
+    static void appendLogToTable(const QString &timestamp, const QString &level, const QIcon &icon, const QString &logMessage);
+    
     /**
      * spdlog 日志器
      */
     static std::shared_ptr<spdlog::logger> logger;
+    
     /**
      * 日志表格
      */
-    static QTableWidget *logTableWidget;
+    static LogWidget *logTableWidget;
 };
-
-
 
 #endif //NODEEDITORCPP_LOGHANDLER_HPP
