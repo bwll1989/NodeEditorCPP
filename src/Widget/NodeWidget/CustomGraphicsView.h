@@ -11,11 +11,19 @@ class CustomGraphicsView: public GraphicsView{
 public:
     CustomGraphicsView(QWidget *parent = nullptr);
 protected:
-    /**
-     * 拖入事件
-     */
     void dragEnterEvent(QDragEnterEvent *event) override;
-
+    /**
+     * 移动事件
+     */
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    /**
+     * 离开事件
+     */
+    void dragLeaveEvent(QDragLeaveEvent *event) override;
+    /**
+     * 放置事件
+     */
+    void dropEvent(QDropEvent *event) override;
 };
 
 

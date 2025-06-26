@@ -8,13 +8,11 @@
 #include "QVBoxLayout"
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
 #include "draggabletreewidget.hpp"
-#include "Widget/NodeWidget/CustomGraphicsView.h"
-#include "Widget/NodeWidget/CustomFlowGraphicsScene.h"
 class NodeLibraryWidget: public QWidget{
 Q_OBJECT
 
 public:
-    NodeLibraryWidget(CustomDataFlowGraphModel *model,CustomGraphicsView *view,CustomFlowGraphicsScene *scene,QWidget *parent = nullptr);
+    NodeLibraryWidget(CustomDataFlowGraphModel *model,QWidget *parent = nullptr);
     /**
      * 初始化布局
      */
@@ -38,10 +36,7 @@ private:
     DraggableTreeWidget *treeView;
     //数据流模型
     CustomDataFlowGraphModel *_model;
-    //视图
-    CustomGraphicsView *_view;
-    //场景
-    CustomFlowGraphicsScene *_scene;
+
 };
 
 

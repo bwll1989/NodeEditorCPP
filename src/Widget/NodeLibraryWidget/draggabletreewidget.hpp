@@ -1,8 +1,7 @@
 #pragma once
 
-#include <QMap>
-#include <QTreeWidget>
 
+#include <QTreeWidget>
 
 /**
  * @brief A tree widget that allows for the dragging of its components to other widgets.
@@ -15,24 +14,14 @@ public:
      */
     explicit DraggableTreeWidget(QWidget *parent = nullptr);
 
-    /**
-     * 注册一个新的动作到树形控件中
-     * @param key 动作的唯一ID
-     * @param action 当项目在拖拽结束时触发的动作
-     */
-    void registerAction(const QString &key, QAction *action);
-
+    QPixmap createDragPixmap(QTreeWidgetItem *item);
 protected:
     /**
      * 鼠标按下事件
      * @param QMouseEvent *event 鼠标事件
      */
     void mousePressEvent(QMouseEvent *event) override;
-    /**
-     * 鼠标释放事件
-     * @param QMouseEvent *event 鼠标事件
-     */
-    void mouseReleaseEvent(QMouseEvent *event) override;
+
     /**
      * 鼠标移动事件
      * @param QMouseEvent *event 鼠标事件
@@ -45,9 +34,11 @@ protected:
      */
     void startDrag(QTreeWidgetItem *item);
 private:
-    //动作映射
-    QMap<QString, QAction *> actions_;
     //拖拽的项
     QTreeWidgetItem *draggedItem_ = nullptr;
+    //拖拽开始位置
+    QPoint dragStartPosition_;
+    //拖拽是否已开始
+    bool isDragging_ = false;
 };
 

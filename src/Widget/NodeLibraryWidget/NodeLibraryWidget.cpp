@@ -2,16 +2,10 @@
 // Created by bwll1 on 2024/10/5.
 //
 
-#include <QtNodes/internal/UndoCommands.hpp>
+
 #include "NodeLibraryWidget.h"
 #include "QLineEdit"
-NodeLibraryWidget::NodeLibraryWidget(CustomDataFlowGraphModel *model,
-                               CustomGraphicsView *view,
-                               CustomFlowGraphicsScene *scene,
-                               QWidget *parent)
-                               :_model(model),
-                               _view(view) ,
-                               _scene(scene){
+NodeLibraryWidget::NodeLibraryWidget(CustomDataFlowGraphModel *model,QWidget *parent):_model(model){
     initLayout();
     this->update();
 }
@@ -48,15 +42,15 @@ void NodeLibraryWidget::update(){
         item->setIcon(0,QIcon(":/icons/icons/plugin.png"));
         auto *createNodeAction = new QAction(assoc.first, this);
         const QString &nodeType=item->text(0);
-        QObject::connect(createNodeAction, &QAction::triggered, [this, nodeType]() {
-            // Mouse position in scene coordinates.
-            QPoint globalPos = _view->mapFromGlobal(QCursor::pos());
-            if (_view->rect().contains(globalPos)) {
-                QPointF posView = _view->mapToScene(globalPos);
-                _scene->undoStack().push(new QtNodes::CreateCommand(_scene, nodeType, posView));
-            }
-        });
-        treeView->registerAction(assoc.first, createNodeAction);
+        // QObject::connect(createNodeAction, &QAction::triggered, [this, nodeType]() {
+        //     // Mouse position in scene coordinates.
+        //     QPoint globalPos = _view->mapFromGlobal(QCursor::pos());
+        //     if (_view->rect().contains(globalPos)) {
+        //         QPointF posView = _view->mapToScene(globalPos);
+        //         _scene->undoStack().push(new QtNodes::CreateCommand(_scene, nodeType, posView));
+        //     }
+        // });
+        // treeView->registerAction(assoc.first, createNodeAction);
     }
     treeView->expandAll();
     txtBox->setFocus();

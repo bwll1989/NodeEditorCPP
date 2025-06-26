@@ -211,7 +211,7 @@ void MainWindow::init()
 }
 //显示属性
 void MainWindow::initNodelist() {
-    nodeLibrary=new NodeLibraryWidget(dataFlowModel,view,scene);
+    nodeLibrary=new NodeLibraryWidget(dataFlowModel);
     this->nodeDockLibraryWidget->setWidget(nodeLibrary);
     emit initStatus("Initialization nodes library success");
 }
@@ -234,6 +234,7 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
         QFileInfo fileInfo(filePath);
         if (fileInfo.suffix().toLower() == "flow") {
             //            文件后缀符合，才接收拖拽
+            
             event->acceptProposedAction();
         }
     }
@@ -244,16 +245,16 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
 void MainWindow::dropEvent(QDropEvent *event) {
     const QMimeData *mimeData = event->mimeData();
     QString filePath = mimeData->urls().at(0).toLocalFile();
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly))
-        return ;
-
-    scene->clearScene();
-    //    场景清空
-    QByteArray const wholeFile = file.readAll();
-    //    读取.flow文件
-    dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object());
-
+    // QFile file(filePath);
+    // if (!file.open(QIODevice::ReadOnly))
+    //     return ;
+    //
+    // scene->clearScene();
+    // //    场景清空
+    // QByteArray const wholeFile = file.readAll();
+    // //    读取.flow文件
+    // dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object());
+    loadFileFromPath(&filePath);
     event->acceptProposedAction();
 
 }
@@ -281,7 +282,7 @@ void MainWindow::loadFileFromPath(QString *path)
         //    读取.flow文件
         QByteArray const wholeFile = file.readAll();
         // 加载数据流模型
-        dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object());
+        dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object()["DataFlow"].toObject());
         // 加载时间轴模型
         timeline->load(QJsonDocument::fromJson(wholeFile).object()["TimeLine"].toObject());
         // 设置当前项目路径
