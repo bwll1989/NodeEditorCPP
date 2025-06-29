@@ -14,16 +14,14 @@
 #include <QString>
 #include <QVector>
 #include <QPair>
+#include <QCloseEvent>
 #include "QPushButton"
+#include "Qsci/qsciscintilla.h"
 class QVBoxLayout;
-class QSyntaxStyle;
 class QComboBox;
 class QCheckBox;
 class QSpinBox;
 class QCompleter;
-class QStyleSyntaxHighlighter;
-class QCodeEditor;
-
 /**
  * @brief Class, that describes demo main window.
  */
@@ -42,15 +40,26 @@ public:
     void loadCodeFromCode(QString code);
     QPushButton *save=new QPushButton("保存");
     QPushButton *run=new QPushButton("运行");
+    QPushButton *detach=new QPushButton("分离");
+    /**
+     * @brief 设置窗口关闭事件处理
+     * @param event 关闭事件
+     */
+    void closeEvent(QCloseEvent *event) override {
+        // 如果是独立窗口模式，关闭时不销毁，只隐藏
+        if (!parent()) {
+            event->ignore();
+
+            detach->click();
+        } else {
+            QWidget::closeEvent(event);
+        }
+    }
+    
 public Q_SLOTS:
     QString saveCode();
 
 private:
-
-    void loadStyle(QString path);
-
-    void initData();
-
     void createWidgets();
 
     void setupWidgets();
@@ -59,16 +68,11 @@ private:
 
     QVBoxLayout* m_setupLayout;
     QString codePath;
-    QComboBox* m_styleCombobox;
+
     QCheckBox* m_readOnlyCheckBox;
-    QCheckBox* m_wordWrapCheckBox;
-    QCheckBox* m_tabReplaceEnabledCheckbox;
-    QSpinBox*  m_tabReplaceNumberSpinbox;
-    QCheckBox* m_autoIndentationCheckbox;
+    // QCodeEditor* m_codeEditor;
+    QsciScintilla *m_codeEditor;
 
-    QCodeEditor* m_codeEditor;
-
-    QVector<QPair<QString, QSyntaxStyle*>> m_styles;
     QString code;
 };
 

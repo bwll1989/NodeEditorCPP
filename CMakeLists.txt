@@ -70,10 +70,10 @@ INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
 message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
 
 # 设置QCodeEditor库
-set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/MSVC/lib/QCodeEditor.lib")
-set(QCodeEditor_INCLUDE "${DEPENDS_DIR}/QCodeEditor/include")
-INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
-message("-- Found QCodeEditor ${QCodeEditor_INCLUDE}")
+#set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/MSVC/lib/QCodeEditor.lib")
+#set(QCodeEditor_INCLUDE "${DEPENDS_DIR}/QCodeEditor/include")
+#INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
+#message("-- Found QCodeEditor ${QCodeEditor_INCLUDE}")
 
 # 设置portaudio库
 set(portaudio_DIR "${DEPENDS_DIR}/portaudio/include")
@@ -126,6 +126,12 @@ INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
 set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
 INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
+
+
+set(QScintilla_DIR "${DEPENDS_DIR}/QScintilla_src-2.14.1/src/install" )
+set(QScintilla_LIBRARIES "${QScintilla_DIR}/lib/qscintilla2_qt6.lib")
+INCLUDE_DIRECTORIES("${QScintilla_DIR}/include")
+message("--Found QScintilla  ${QScintilla_DIR}")
 
 # 设置QT库
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
@@ -328,7 +334,7 @@ target_link_libraries(${ProjectName}
             ${ADS_LIBRARIES}
             ${Libpd_LIBRARIES}
             ${QHotKey_LIBRARIES}
-            ${QCodeEditor_LIBRARIES}
+#            ${QCodeEditor_LIBRARIES}
             ${Qtpropertybrowser_LIBRARIES}
             ${Libltc_LIBRARIES}
             Eigen3::Eigen
@@ -336,6 +342,7 @@ target_link_libraries(${ProjectName}
             ${TabToolbar_LIBRARIES}
             ClientController
             OscListWidget
+            ${QScintilla_LIBRARIES}
 )
 
 #add_library(singleton SHARED ${CALC_SOURCE_FILES})

@@ -12,7 +12,7 @@
 #include "LuaThread.h"
 #include <QtCore/qglobal.h>
 #include "LuaModifier.hpp"
-
+#include "QPushButton"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -36,7 +36,6 @@ public:
         PortEditable=true;
         inputPortIndex=0;
         connect(widget->codeWidget->run,SIGNAL(clicked(bool)),this,SLOT(onButtonClicked()));
-
     }
     ~LuaDataModel()
     {
@@ -106,6 +105,7 @@ public:
 
     QWidget *embeddedWidget() override
     {
+        // return showEditorButton;
         return widget;
     }
 
@@ -238,6 +238,7 @@ private:
     LuaScriptInterface *widget;
     unsigned inputPortIndex;
     LuaThread *luaEngine=nullptr;
+    // QPushButton *showEditorButton=new QPushButton("Show editor");
 };
 
 // 注册类到lua

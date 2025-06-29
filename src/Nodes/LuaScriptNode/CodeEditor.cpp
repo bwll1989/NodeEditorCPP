@@ -3,19 +3,8 @@
 //
 
 #include "CodeEditor.h"
-#include <QCodeEditor>
-#include <QGLSLCompleter>
-#include <QLuaCompleter>
-#include <QPythonCompleter>
-#include <QSyntaxStyle>
-#include <QCXXHighlighter>
-#include <QGLSLHighlighter>
-#include <QXMLHighlighter>
-#include <QJavaHighlighter>
-#include <QJSHighlighter>
-#include <QJSONHighlighter>
-#include <QLuaHighlighter>
-#include <QPythonHighlighter>
+
+
 #include "QFrame"
 #include <QShortcut>
 // Qt
@@ -28,9 +17,9 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QMessageBox>
-
-CodeEditor::CodeEditor(QWidget* parent):
-code(R"(-- Write the Lua code here, and be careful not to use an endless loop like while(true).
+#include "Qsci/qscilexerlua.h"
+#include "Qsci/qsciapis.h"
+static QString DEFAULT_CODE=R"(-- Write the Lua code here, and be careful not to use an endless loop like while(true).
 -- function about lua read/write Node
 local luaTable = {
     key1 = Node:outputCount(),
@@ -42,35 +31,21 @@ local luaTable = {
 local out= VariantMap.fromLuaTable(luaTable)
 Node:setTableValue(0,out)
 
--- 将端口0的输入与lua表合并后从输出0输出)"),
+-- 将端口0的输入与lua表合并后从输出0输出)";
 
+
+CodeEditor::CodeEditor(QWidget* parent):
+        code(DEFAULT_CODE),
         m_setupLayout(nullptr),
-        m_styleCombobox(nullptr),
         m_readOnlyCheckBox(nullptr),
-        m_wordWrapCheckBox(nullptr),
-        m_tabReplaceEnabledCheckbox(nullptr),
-        m_tabReplaceNumberSpinbox(nullptr),
-        m_autoIndentationCheckbox(nullptr),
-        m_codeEditor(nullptr),
-        m_styles()
-
+        m_codeEditor(nullptr)
 {
-    initData();
     createWidgets();
     setupWidgets();
     performConnections();
     loadCodeFromCode(code);
 }
 
-void CodeEditor::initData()
-{
-    m_styles = {
-            {"Default", QSyntaxStyle::defaultStyle()}
-    };
-
-    // Loading styles
-    loadStyle(":/styles/drakula.xml");
-}
 
 QString CodeEditor::loadCode(QString path)
 {
@@ -87,29 +62,10 @@ QString CodeEditor::loadCode(QString path)
 void CodeEditor::loadCodeFromCode(QString val) {
 
     code=val;
-    m_codeEditor->setPlainText  (code);
-
+    m_codeEditor->setText(code);
 }
 
-void CodeEditor::loadStyle(QString path)
-{
-    QFile fl(path);
 
-    if (!fl.open(QIODevice::ReadOnly))
-    {
-        return;
-    }
-
-    auto style = new QSyntaxStyle(this);
-
-    if (!style->load(fl.readAll()))
-    {
-        delete style;
-        return;
-    }
-
-    m_styles.append({style->name(), style});
-}
 
 void CodeEditor::createWidgets()
 {
@@ -120,28 +76,53 @@ void CodeEditor::createWidgets()
     setupGroup->setLayout(m_setupLayout);
     setupGroup->setMaximumWidth(100);
     // CodeEditor
-    m_codeEditor = new QCodeEditor(this);
+    m_codeEditor = new QsciScintilla(this);
     hBox->addWidget(m_codeEditor);
+    QsciLexerLua* textLexer = new QsciLexerLua(this);
+    m_codeEditor->setLexer(textLexer);
+    
+    // 设置焦点策略，确保编辑器能够保持焦点
+    m_codeEditor->setFocusPolicy(Qt::StrongFocus);
+    
+    //文档中出现的单词支持自动补全
+    m_codeEditor->setAutoCompletionSource(QsciScintilla::AcsAll);
+    //设置自动补全的匹配模式为大小写敏感
+    m_codeEditor->setAutoCompletionCaseSensitivity(true);
+    //设置自动补全的触发字符个数
+    m_codeEditor->setAutoCompletionThreshold(1);
+    // //常用关键字支持自动补全
+    QsciAPIs *apis = new QsciAPIs(textLexer);
+    apis->add(QString("Node:"));
+    apis->add(QString("outputCount()"));
+    apis->add(QString("inputCount()"));
+    apis->add(QString("getTableValue()"));
+    apis->add(QString("toLuaTable()"));
+    apis->add(QString("print()"));
+    apis->add(QString("setTableValue()"));
+    apis->prepare();
 
-    m_styleCombobox       = new QComboBox(setupGroup);
-    m_wordWrapCheckBox           = new QCheckBox("Word Wrap", setupGroup);
-    m_tabReplaceEnabledCheckbox  = new QCheckBox("Tab Replace", setupGroup);
-    m_tabReplaceNumberSpinbox    = new QSpinBox(setupGroup);
-    m_autoIndentationCheckbox    = new QCheckBox("Auto Indentation", setupGroup);
+    //设置编码为UTF-8
+    m_codeEditor->SendScintilla(QsciScintilla::SCI_SETCODEPAGE, QsciScintilla::SC_CP_UTF8);
+
+    //左侧显示行号
+    m_codeEditor->setMarginLineNumbers(0, true);
+    m_codeEditor->setMarginWidth(0, 20);
+
+    //TAB缩进4个字符
+    m_codeEditor->setTabWidth(4);
+
+    //当前行高亮
+    m_codeEditor->setCaretLineVisible(true);
+    m_codeEditor->setCaretLineBackgroundColor(QColor("#E8E8FF"));
+    //折叠样式
+    m_codeEditor->setFolding(QsciScintilla::BoxedTreeFoldStyle);
+
     m_readOnlyCheckBox           = new QCheckBox("Read Only", setupGroup);
     auto *saveShortcutAction = new QShortcut((QKeySequence::fromString("Ctrl+S")),this);
     auto *m_actionToggleComment =new QShortcut(QKeySequence::fromString("Ctrl+/"),this);
-
-
-    connect(m_actionToggleComment , &QShortcut::activated, m_codeEditor, &QCodeEditor::toggleComment);
     connect(saveShortcutAction , &QShortcut::activated, this, &CodeEditor::saveCode);
-    m_setupLayout->addWidget(new QLabel(tr("Style"), setupGroup));
-    m_setupLayout->addWidget(m_styleCombobox);
+    m_setupLayout->addWidget(detach);
     m_setupLayout->addWidget(m_readOnlyCheckBox);
-    m_setupLayout->addWidget(m_wordWrapCheckBox);
-    m_setupLayout->addWidget(m_tabReplaceEnabledCheckbox);
-    m_setupLayout->addWidget(m_tabReplaceNumberSpinbox);
-    m_setupLayout->addWidget(m_autoIndentationCheckbox);
     m_setupLayout->addWidget(run);
     m_setupLayout->addWidget(save);
     m_setupLayout->addSpacerItem(new QSpacerItem(1, 2, QSizePolicy::Minimum, QSizePolicy::Expanding));
@@ -151,38 +132,13 @@ void CodeEditor::setupWidgets()
 {
     setWindowTitle("CodeEditor");
     loadCodeFromCode(code);
-    // CodeEditor
-
-    m_codeEditor->setSyntaxStyle(m_styles[0].second);
-//    m_codeEditor->setCompleter  (new QLuaCompleter);
-    m_codeEditor->setHighlighter(new QLuaHighlighter);
-
-//    m_codeEditor->squiggle(QCodeEditor::SeverityLevel::Warning, {3,2}, {13,5}, "unused variable");
-//    m_codeEditor->squiggle(QCodeEditor::SeverityLevel::Error, {7,0}, {8,0}, "Big error");
-
-
-    m_codeEditor->clearSquiggle();
-
-    QStringList list;
-    // Styles
-    for (auto&& el : m_styles)
-    {
-        list << el.first;
-    }
-
-    m_styleCombobox->addItems(list);
-    list.clear();
-
-    m_tabReplaceEnabledCheckbox->setChecked(m_codeEditor->tabReplace());
-    m_tabReplaceNumberSpinbox->setValue(m_codeEditor->tabReplaceSize());
-    m_tabReplaceNumberSpinbox->setSuffix(tr(" spaces"));
-    m_autoIndentationCheckbox->setChecked(m_codeEditor->autoIndentation());
-    m_wordWrapCheckBox->setChecked(m_codeEditor->wordWrapMode() != QTextOption::NoWrap);
-
+    
+    // 设置初始焦点到编辑器
+    m_codeEditor->setFocus();
 }
 
 QString CodeEditor::saveCode() {
-    code = m_codeEditor->toPlainText();
+    code = m_codeEditor->text();
 //    QFile file(codePath);
 //    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
 //        QTextStream stream(&file);
@@ -195,49 +151,6 @@ QString CodeEditor::saveCode() {
 void CodeEditor::performConnections()
 {
 
-    connect(
-            m_styleCombobox,
-            QOverload<int>::of(&QComboBox::currentIndexChanged),
-            [this](int index)
-            { m_codeEditor->setSyntaxStyle(m_styles[index].second); }
-    );
-
-    connect(
-            m_wordWrapCheckBox,
-            &QCheckBox::stateChanged,
-            [this](int state)
-            {
-                if (state != 0)
-                {
-                    m_codeEditor->setWordWrapMode(QTextOption::WordWrap);
-                }
-                else
-                {
-                    m_codeEditor->setWordWrapMode(QTextOption::NoWrap);
-                }
-            }
-    );
-
-    connect(
-            m_tabReplaceEnabledCheckbox,
-            &QCheckBox::stateChanged,
-            [this](int state)
-            { m_codeEditor->setTabReplace(state != 0); }
-    );
-
-    connect(
-            m_tabReplaceNumberSpinbox,
-            QOverload<int>::of(&QSpinBox::valueChanged),
-            [this](int value)
-            { m_codeEditor->setTabReplaceSize(value); }
-    );
-
-    connect(
-            m_autoIndentationCheckbox,
-            &QCheckBox::stateChanged,
-            [this](int state)
-            { m_codeEditor->setAutoIndentation(state != 0); }
-    );
     connect(
             m_readOnlyCheckBox,
             &QCheckBox::stateChanged,

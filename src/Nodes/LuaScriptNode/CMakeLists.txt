@@ -14,11 +14,14 @@ set(LUA_INCLUDE_DIR "${DEPENDS_DIR}/Lua/install/include")
 INCLUDE_DIRECTORIES(${LUA_INCLUDE_DIR})
 set(LUA_LIBRARIES "${DEPENDS_DIR}/Lua/install/lib/liblua54.lib")
 # set(LUA_LIBRARIES "${DEPENDS_DIR}/mingw-w64-x86_64/mingw-w64-x86_64-lua-5.4.7-3-any.pkg/mingw64/lib/liblua.a")
-
+set(QScintilla_DIR "${DEPENDS_DIR}/QScintilla_src-2.14.1/src/install" )
+set(QScintilla_LIBRARIES "${QScintilla_DIR}/lib/qscintilla2_qt6.lib")
+INCLUDE_DIRECTORIES("${QScintilla_DIR}/include")
+message("--Found QScintilla  ${QScintilla_DIR}")
 # find_package(Lua REQUIRED)
 message("-- Found Lua ${Lua_DIR}")
-INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
-set(SOURCE_FILES "./resources/resources.qrc"
+#INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
+set(SOURCE_FILES
         LuaThread.cpp
         LuaThread.h
         LuaScriptInterface.hpp
@@ -32,7 +35,7 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp)
 
 #set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} ${LUA_LIBRARIES} ${QCodeEditor_LIBRARIES} )
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} ${LUA_LIBRARIES} ${QScintilla_LIBRARIES} )
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 
