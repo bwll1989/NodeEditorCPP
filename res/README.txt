@@ -9,8 +9,8 @@ https://www.portaudio.com
 spdlog : 日志框架
 https://github.com/gabime/spdlog
 
-QCodeEditor : 代码编辑器框架
-https://github.com/Megaxela/QCodeEditor/tree/master
+QScintilla : 代码编辑器
+https://qscintilla.com
 
 Qt-Advanced-Docking-System : 高级布局系统
 https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System

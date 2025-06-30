@@ -69,11 +69,6 @@ set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/lib/Release/qt
 INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
 message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
 
-# 设置QCodeEditor库
-#set(QCodeEditor_LIBRARIES "${DEPENDS_DIR}/QCodeEditor/MSVC/lib/QCodeEditor.lib")
-#set(QCodeEditor_INCLUDE "${DEPENDS_DIR}/QCodeEditor/include")
-#INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
-#message("-- Found QCodeEditor ${QCodeEditor_INCLUDE}")
 
 # 设置portaudio库
 set(portaudio_DIR "${DEPENDS_DIR}/portaudio/include")
