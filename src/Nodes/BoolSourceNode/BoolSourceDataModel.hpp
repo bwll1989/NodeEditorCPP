@@ -35,9 +35,8 @@ public:
         WidgetEmbeddable=true;
         Resizable=false;
         button->setCheckable(true);
-        button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
-
-        registerOSCControl("/bool", button);
+        button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        NodeDelegateModel::registerOSCControl("/bool", button);
         button->setChecked(false);
         connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);
     }

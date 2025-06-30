@@ -4,7 +4,7 @@
 
 #include <QMessageBox>
 #include "MainWindow.hpp"
-#include "Nodes/NodeStyle.hpp"
+#include "Nodes/NodeEditorStyle.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "QFile"
 #include"Widget/ConsoleWidget/LogWidget.hpp"
@@ -21,7 +21,6 @@
 #define ToolsDisplay true
 using namespace ads;
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
-    ::setStyle();
 
 
     ads::CDockManager::setConfigFlag(ads::CDockManager::FocusHighlighting, true);
@@ -33,6 +32,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
     ads::CDockManager::setConfigFlag(ads::CDockManager::OpaqueSplitterResize, true);
 
     ads::CDockManager::setAutoHideConfigFlags(ads::CDockManager::DefaultAutoHideConfig);
+
 
 }
 MainWindow::~MainWindow()
@@ -58,6 +58,9 @@ void MainWindow::init()
 // 节点编辑控件
     auto *NodeDockWidget = new ads::CDockWidget("节点编辑");
     NodeDockWidget->setIcon(QIcon(":/icons/icons/dashboard.png"));
+    // 初始化节点编辑器样式表
+    setNodeEditorStyle();
+    emit initStatus("load node editor style success");
     view = new CustomGraphicsView();
     view->setObjectName("Canvas");
     view->setContextMenuPolicy(Qt::ActionsContextMenu);

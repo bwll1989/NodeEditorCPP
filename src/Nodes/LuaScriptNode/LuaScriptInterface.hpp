@@ -47,7 +47,8 @@ public:
             
             // 确保编辑器可见
             codeWidget->show();
-            codeWidget->detach->setText("独立窗口");
+            codeWidget->detach->setText("编辑");
+            codeWidget->setReadOnly(true);
             isDetached = false;
             
             // 更新布局
@@ -60,8 +61,8 @@ public:
             codeWidget->setWindowFlags(Qt::Window);
             codeWidget->resize(800, 600); // 设置独立窗口的初始大小
             codeWidget->show();
-            codeWidget->detach->setText("嵌入模式");
-            
+            codeWidget->detach->setText("关闭编辑");
+            codeWidget->setReadOnly(false);
             isDetached = true;
              // 更新布局
              updateGeometry();

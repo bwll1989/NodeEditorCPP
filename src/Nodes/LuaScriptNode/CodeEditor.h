@@ -38,9 +38,8 @@ public:
     explicit CodeEditor(QWidget* parent=nullptr);
     QString loadCode(QString path);
     void loadCodeFromCode(QString code);
-    QPushButton *save=new QPushButton("保存");
     QPushButton *run=new QPushButton("运行");
-    QPushButton *detach=new QPushButton("分离");
+    QPushButton *detach=new QPushButton("编辑");
     /**
      * @brief 设置窗口关闭事件处理
      * @param event 关闭事件
@@ -58,7 +57,7 @@ public:
     
 public Q_SLOTS:
     QString saveCode();
-
+    void setReadOnly(bool readOnly);
 private:
     void createWidgets();
 

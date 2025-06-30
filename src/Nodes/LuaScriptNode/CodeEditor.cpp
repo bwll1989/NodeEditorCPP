@@ -118,13 +118,13 @@ void CodeEditor::createWidgets()
     m_codeEditor->setFolding(QsciScintilla::BoxedTreeFoldStyle);
 
     m_readOnlyCheckBox           = new QCheckBox("Read Only", setupGroup);
-    auto *saveShortcutAction = new QShortcut((QKeySequence::fromString("Ctrl+S")),this);
-    auto *m_actionToggleComment =new QShortcut(QKeySequence::fromString("Ctrl+/"),this);
-    connect(saveShortcutAction , &QShortcut::activated, this, &CodeEditor::saveCode);
+    // auto *saveShortcutAction = new QShortcut((QKeySequence::fromString("Ctrl+S")),this);
+    // auto *m_actionToggleComment =new QShortcut(QKeySequence::fromString("Ctrl+/"),this);
+    // connect(saveShortcutAction , &QShortcut::activated, this, &CodeEditor::saveCode);
     m_setupLayout->addWidget(detach);
     m_setupLayout->addWidget(m_readOnlyCheckBox);
     m_setupLayout->addWidget(run);
-    m_setupLayout->addWidget(save);
+    // m_setupLayout->addWidget(save);
     m_setupLayout->addSpacerItem(new QSpacerItem(1, 2, QSizePolicy::Minimum, QSizePolicy::Expanding));
 }
 
@@ -157,5 +157,9 @@ void CodeEditor::performConnections()
             [this](int state)
             { m_codeEditor->setReadOnly(state != 0); }
     );
-    connect(save,&QPushButton::clicked,this,&CodeEditor::saveCode);
+    // connect(save,&QPushButton::clicked,this,&CodeEditor::saveCode);
+}
+void CodeEditor::setReadOnly(bool readOnly)
+{
+    m_readOnlyCheckBox->setChecked(readOnly);
 }

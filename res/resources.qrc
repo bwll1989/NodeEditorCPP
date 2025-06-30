@@ -86,7 +86,7 @@
     <file>images/loading.png</file>
   </qresource>
   <qresource prefix="styles">
-    <file>styles/DefaultStyle.json</file>
+    <file>styles/DefaultNodeEditorStyle.json</file>
     <file>styles/DefaultDark.qss</file>
 
   </qresource>
