@@ -13,39 +13,39 @@
 #include <QVBoxLayout>
 #include <vector>
 #include <QtCore/qglobal.h>
-#include <QJsonModel/QJsonModel.hpp>
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-
-
-/// The model dictates the number of inputs and outputs for the Node.
-/// In this example it has no logic.
-class DataInfoDataModel : public NodeDelegateModel
+using namespace NodeDataTypes;
+namespace Nodes
 {
-    Q_OBJECT
-
-public:
-    DataInfoDataModel()
+    /// The model dictates the number of inputs and outputs for the Node.
+    /// In this example it has no logic.
+    class DataInfoDataModel : public NodeDelegateModel
     {
-        InPortCount =1;
-        OutPortCount=1;
-        CaptionVisible=true;
-        Caption="Data Info";
-        WidgetEmbeddable=true;
-        Resizable= true;
-//        qDebug()<<Data->NodeValues.toString();
+        Q_OBJECT
 
-    }
+    public:
+        DataInfoDataModel()
+        {
+            InPortCount =1;
+            OutPortCount=1;
+            CaptionVisible=true;
+            Caption="Data Info";
+            WidgetEmbeddable=true;
+            Resizable= true;
+            //        qDebug()<<Data->NodeValues.toString();
 
-    virtual ~DataInfoDataModel() override{}
+        }
 
-    NodeDataType dataType(PortType portType, PortIndex portIndex) const override
-    {
-        Q_UNUSED(portIndex)
-        switch (portType) {
+        virtual ~DataInfoDataModel() override{}
+
+        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
+        {
+            Q_UNUSED(portIndex)
+            switch (portType) {
             case PortType::In:
                 return VariableData().type();
             case PortType::Out:
@@ -54,43 +54,41 @@ public:
                 break;
             default:
                 break;
-        }
-        // FIXME: control may reach end of non-void function [-Wreturn-type]
-        return VariableData().type();
-    }
-
-    std::shared_ptr<NodeData> outData(PortIndex const port) override
-    {
-        Q_UNUSED(port);
-        return inData;
-    }
-
-    void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
-    {
-        Q_UNUSED(portIndex);
-        if (data== nullptr){
-            return;
-        }
-        if (inData = std::dynamic_pointer_cast<VariableData>(data)) {
-            model=inData->getMap();
-            widget->buildPropertiesFromMap(model);
-            Q_EMIT dataUpdated(0);
-
+            }
+            // FIXME: control may reach end of non-void function [-Wreturn-type]
+            return VariableData().type();
         }
 
-    }
+        std::shared_ptr<NodeData> outData(PortIndex const port) override
+        {
+            Q_UNUSED(port);
+            return inData;
+        }
 
-    QWidget *embeddedWidget() override {
+        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
+        {
+            Q_UNUSED(portIndex);
+            if (data== nullptr){
+                return;
+            }
+            if (inData = std::dynamic_pointer_cast<VariableData>(data)) {
+                model=inData->getMap();
+                widget->buildPropertiesFromMap(model);
+                Q_EMIT dataUpdated(0);
 
-        return widget;
-    }
+            }
+
+        }
+
+        QWidget *embeddedWidget() override {
+
+            return widget;
+        }
 
 
-private:
-
-//    QLabel *widget=new QLabel("Resulting Text");
-    QVariantMap model;
-    QPropertyBrowser *widget=new QPropertyBrowser();
-    QtVariantPropertyManager *variantManager;
-     std::shared_ptr<VariableData> inData;
-};
+    private:
+        QVariantMap model;
+        QPropertyBrowser *widget=new QPropertyBrowser();
+        std::shared_ptr<VariableData> inData;
+    };
+}

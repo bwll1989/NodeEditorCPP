@@ -13,7 +13,7 @@ extern "C" {
 }
 #include "LuaBridge/LuaBridge.h"
 #include "iostream"
-
+using namespace Nodes;
 LuaThread::LuaThread(const QString &script,
                     QObject *ptr,
                     QObject *parent):

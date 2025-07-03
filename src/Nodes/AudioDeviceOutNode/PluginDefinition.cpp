@@ -17,5 +17,5 @@ Plugin::~Plugin()
 void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg)
 {
     assert(reg);
-    reg->registerModel<AudioDeviceOutDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::AudioDeviceOutDataModel>(PLUGIN_TAG);
 }

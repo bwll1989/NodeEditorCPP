@@ -10,39 +10,41 @@
 
 #include "DataTypes/NodeDataList.hpp"
 
+using namespace NodeDataTypes;
+namespace Nodes
+{
+    class CutImageModel final : public QtNodes::NodeDelegateModel {
+        Q_OBJECT
 
-class CutImageModel final : public QtNodes::NodeDelegateModel {
-    Q_OBJECT
+    public:
+        QString caption() const override;
 
-public:
-    QString caption() const override;
+        QString type() const override;
 
-    QString type() const override;
+        unsigned nPorts(QtNodes::PortType portType) const override;
 
-    unsigned nPorts(QtNodes::PortType portType) const override;
+        QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
 
-    QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
+        void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override;
 
-    void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override;
+        std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override;
 
-    std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override;
+        QWidget* embeddedWidget() override;
 
-    QWidget* embeddedWidget() override;
+    private:
+        static QImage processImage(const QImage& image, const QRect& rect);
 
-private:
-    static QImage processImage(const QImage& image, const QRect& rect);
+    private:
+        // in
+        // 0
+        std::weak_ptr<ImageData> m_inImageData;
+        // 1
+        std::weak_ptr<RectData> m_inRectData;
 
-private:
-    // in
-    // 0
-    std::weak_ptr<ImageData> m_inImageData;
-    // 1
-    std::weak_ptr<RectData> m_inRectData;
-
-    // out
-    // 0
-    std::shared_ptr<ImageData> m_outImageData;
-};
-
+        // out
+        // 0
+        std::shared_ptr<ImageData> m_outImageData;
+    };
+}
 
 #endif //CUTIMAGEMODEL_H

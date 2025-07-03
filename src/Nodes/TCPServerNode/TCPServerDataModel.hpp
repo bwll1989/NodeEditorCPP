@@ -22,64 +22,66 @@ using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 class QLineEdit;
-
-class TCPServerDataModel : public NodeDelegateModel
+using namespace NodeDataTypes;
+namespace Nodes
 {
-    Q_OBJECT
-
-public:
-
-    TCPServerDataModel(){
-        InPortCount =1;
-        OutPortCount=1;
-        CaptionVisible=true;
-        PortEditable=true;
-        Caption="TCP Server";
-        WidgetEmbeddable= false;
-        Resizable=false;
-//        inData=std::make_shared<VariableData>();
-        server=new TcpServer();
-//        server->moveToThread(serverThread);
-
-        connect(server, &TcpServer::recMsg, this, &TCPServerDataModel::recMsg, Qt::QueuedConnection);
-//        connect(server, &TcpServer::serverMessage, this, &TCPServerDataModel::recMsg, Qt::QueuedConnection);
-        connect(widget, &TCPServerInterface::hostChanged, server, &TcpServer::setHost, Qt::QueuedConnection);
-//        connect(this, &TCPServerDataModel::stopTCPServer, server, &TcpServer::stopServer, Qt::QueuedConnection);
-//
-//        connect(server, &TcpServer::clientInserted, this, &TCPServerDataModel::insertClient, Qt::QueuedConnection);
-//        connect(server, &TcpServer::clientRemoved, this, &TCPServerDataModel::removeClient, Qt::QueuedConnection);
-////        connect(widget->send, &QPushButton::clicked, this, &TCPServerDataModel::sendMessage, Qt::QueuedConnection);
-//        connect(this, &TCPServerDataModel::sendTCPMessage, server, &TcpServer::sendMessage, Qt::QueuedConnection);
-
-//        serverThread->start();
-
-    }
-    ~TCPServerDataModel(){
-        server->cleanup();
-    }
-public:
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+    class TCPServerDataModel : public NodeDelegateModel
     {
-        QString in = "➩";
-        QString out = "➩";
-        switch (portType) {
+        Q_OBJECT
+
+    public:
+
+        TCPServerDataModel(){
+            InPortCount =1;
+            OutPortCount=1;
+            CaptionVisible=true;
+            PortEditable=true;
+            Caption="TCP Server";
+            WidgetEmbeddable= false;
+            Resizable=false;
+            //        inData=std::make_shared<VariableData>();
+            server=new TcpServer();
+            //        server->moveToThread(serverThread);
+
+            connect(server, &TcpServer::recMsg, this, &TCPServerDataModel::recMsg, Qt::QueuedConnection);
+            //        connect(server, &TcpServer::serverMessage, this, &TCPServerDataModel::recMsg, Qt::QueuedConnection);
+            connect(widget, &TCPServerInterface::hostChanged, server, &TcpServer::setHost, Qt::QueuedConnection);
+            //        connect(this, &TCPServerDataModel::stopTCPServer, server, &TcpServer::stopServer, Qt::QueuedConnection);
+            //
+            //        connect(server, &TcpServer::clientInserted, this, &TCPServerDataModel::insertClient, Qt::QueuedConnection);
+            //        connect(server, &TcpServer::clientRemoved, this, &TCPServerDataModel::removeClient, Qt::QueuedConnection);
+            ////        connect(widget->send, &QPushButton::clicked, this, &TCPServerDataModel::sendMessage, Qt::QueuedConnection);
+            //        connect(this, &TCPServerDataModel::sendTCPMessage, server, &TcpServer::sendMessage, Qt::QueuedConnection);
+
+            //        serverThread->start();
+
+        }
+        ~TCPServerDataModel(){
+            server->cleanup();
+        }
+    public:
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+            QString in = "➩";
+            QString out = "➩";
+            switch (portType) {
             case PortType::In:
                 return in;
             case PortType::Out:
                 return out;
             default:
                 break;
+            }
+            return "";
         }
-        return "";
-    }
 
-public:
+    public:
 
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
+        unsigned int nPorts(PortType portType) const override
+        {
+            unsigned int result = 1;
 
-        switch (portType) {
+            switch (portType) {
             case PortType::In:
                 result = InPortCount;
                 break;
@@ -89,19 +91,19 @@ public:
 
             default:
                 break;
+            }
+
+            return result;
         }
 
-        return result;
-    }
+        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
+        {
 
-    NodeDataType dataType(PortType portType, PortIndex portIndex) const override
-    {
-
-        switch (portType) {
+            switch (portType) {
             case PortType::In:
                 switch (portIndex) {
-                    case 0:
-                        return VariableData().type();
+            case 0:
+                    return VariableData().type();
                 }
                 break;
             case PortType::Out:
@@ -110,77 +112,78 @@ public:
 
             case PortType::None:
                 break;
+            }
+            return VariableData().type();
         }
-        return VariableData().type();
-    }
 
 
-    std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
-    {
-        Q_UNUSED(portIndex)
-        return std::make_shared<VariableData>(message);
-    }
+        std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
+        {
+            Q_UNUSED(portIndex)
+            return std::make_shared<VariableData>(message);
+        }
 
-    void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
-        Q_UNUSED(portIndex)
-        if (data == nullptr) {
-            message = QVariant();
-        } else {
-            auto textData = std::dynamic_pointer_cast<VariableData>(data);
-            if (textData->value().canConvert<QString>()) {
-                message = textData->value().toString();
+        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
+            Q_UNUSED(portIndex)
+            if (data == nullptr) {
+                message = QVariant();
+            } else {
+                auto textData = std::dynamic_pointer_cast<VariableData>(data);
+                if (textData->value().canConvert<QString>()) {
+                    message = textData->value().toString();
+                }
             }
         }
-    }
 
-    QWidget *embeddedWidget() override
-    {
-        return widget;
-//        return nullptr;
-    }
-
-
-    QJsonObject save() const override
-    {
-        QJsonObject modelJson1;
-//        modelJson1["Port"] = widget->Port->value();
-        QJsonObject modelJson  = NodeDelegateModel::save();
-        modelJson["values"]=modelJson1;
-        return modelJson;
-    }
-
-    void load(const QJsonObject &p) override
-    {
-        QJsonValue v = p["values"];
-        if (!v.isUndefined()&&v.isObject()) {
-//            widget->Port->setValue(v["Port"].toInt());
-
+        QWidget *embeddedWidget() override
+        {
+            return widget;
+            //        return nullptr;
         }
-    }
-
-public slots:
-//    收到信息时
-    void recMsg(const QVariantMap &msg)
-    {
-//        inData->insert("default",msg.toHex());
-        widget->browser->buildPropertiesFromMap(msg);
-        Q_EMIT dataUpdated(0);
-    }
-
-    void sendMessage(){
 
 
-        server->sendMessage(message.toString());
-    }
+        QJsonObject save() const override
+        {
+            QJsonObject modelJson1;
+            //        modelJson1["Port"] = widget->Port->value();
+            QJsonObject modelJson  = NodeDelegateModel::save();
+            modelJson["values"]=modelJson1;
+            return modelJson;
+        }
 
-signals:
-//    关闭信号
-    void stopTCPServer();
-    void sendTCPMessage(const QString &client,const QString &message);
-private:
-    TCPServerInterface *widget=new TCPServerInterface();
-    TcpServer *server;
-//    QThread *serverThread=new QThread();
-    QVariant message;
-//    std::shared_ptr<VariableData> inData;
-};
+        void load(const QJsonObject &p) override
+        {
+            QJsonValue v = p["values"];
+            if (!v.isUndefined()&&v.isObject()) {
+                //            widget->Port->setValue(v["Port"].toInt());
+
+            }
+        }
+
+    public slots:
+    //    收到信息时
+        void recMsg(const QVariantMap &msg)
+        {
+            //        inData->insert("default",msg.toHex());
+            widget->browser->buildPropertiesFromMap(msg);
+            Q_EMIT dataUpdated(0);
+        }
+
+        void sendMessage(){
+
+
+            server->sendMessage(message.toString());
+        }
+
+        signals:
+        //    关闭信号
+            void stopTCPServer();
+        void sendTCPMessage(const QString &client,const QString &message);
+    private:
+        TCPServerInterface *widget=new TCPServerInterface();
+        TcpServer *server;
+        //    QThread *serverThread=new QThread();
+        QVariant message;
+        //    std::shared_ptr<VariableData> inData;
+    };
+}

@@ -26,8 +26,8 @@ set(SOURCE_FILES
         LuaThread.h
         LuaScriptInterface.hpp
         LuaDataModel.hpp
-        CodeEditor.cpp
-        CodeEditor.h
+        LuaCodeEditor.cpp
+        LuaCodeEditor.h
         LuaModifier.hpp)
 add_library(${Module_Name} SHARED
         ${SOURCE_FILES}

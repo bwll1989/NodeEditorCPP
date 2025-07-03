@@ -1,0 +1,177 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 1,
+                "intNodeId": 1,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 0,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 4,
+                "outNodeId": 1,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 3,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+        ],
+        "nodes": [
+            {
+                "id": 0,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -197,
+                    "y": 42
+                },
+                "remarks": "Camera",
+                "type": "Camera"
+            },
+            {
+                "id": 1,
+                "input-count": 2,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 192.96800000000002,
+                    "y": 108.01599999999998
+                },
+                "remarks": "Capture",
+                "type": "Capture"
+            },
+            {
+                "id": 2,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -96.67999999999999,
+                    "y": 281.91999999999996
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 3,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 781.3199999999999,
+                    "y": -28.799999999999915
+                },
+                "remarks": "Image display",
+                "type": "Image display"
+            },
+            {
+                "id": 4,
+                "input-count": 3,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 496.88,
+                    "y": 81.20000000000007
+                },
+                "remarks": "Scale Image",
+                "type": "Scale Image"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+            {
+                "clips": [
+                    {
+                        "Id": 0,
+                        "end": 429,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/2/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "start": 429,
+                        "type": "Trigger"
+                    },
+                    {
+                        "Id": 1,
+                        "end": 701,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/2/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "1"
+                                }
+                            ]
+                        },
+                        "start": 701,
+                        "type": "Trigger"
+                    },
+                    {
+                        "Id": 2,
+                        "end": 541,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/2/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "0"
+                                }
+                            ]
+                        },
+                        "start": 541,
+                        "type": "Trigger"
+                    }
+                ],
+                "trackName": "Trigger 0",
+                "type": "Trigger"
+            }
+        ]
+    }
+}

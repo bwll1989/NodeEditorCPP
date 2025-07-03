@@ -18,63 +18,61 @@ using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-
-
-/// The model dictates the number of inputs and outputs for the Node.
-/// In this example it has no logic.
-
-class QMLDataModel : public NodeDelegateModel
+using namespace NodeDataTypes;
+namespace Nodes
 {
-    Q_OBJECT
-
-public:
-    QMLDataModel()
+    class QMLDataModel : public NodeDelegateModel
     {
-        InPortCount =3;
-        OutPortCount=3;
-        CaptionVisible=true;
-        Caption=PLUGIN_NAME;
-        WidgetEmbeddable= false;
-        Resizable=false;
-        PortEditable= false;
-//        libpd_init();
-//        libpd_init_audio(2, 2, 44100);
-//        libpd_set_printhook(QMLDataModel::pdPrint);
-////        patch=libpd_openfile("test_libpd.pd", ".");
+        Q_OBJECT
 
-    }
+    public:
+        QMLDataModel()
+        {
+            InPortCount =3;
+            OutPortCount=3;
+            CaptionVisible=true;
+            Caption=PLUGIN_NAME;
+            WidgetEmbeddable= false;
+            Resizable=false;
+            PortEditable= false;
+            //        libpd_init();
+            //        libpd_init_audio(2, 2, 44100);
+            //        libpd_set_printhook(QMLDataModel::pdPrint);
+            ////        patch=libpd_openfile("test_libpd.pd", ".");
 
-    virtual ~QMLDataModel() override{
-//        if (patch) {
-//            libpd_closefile(patch);
-//            patch = nullptr;
-//        }
-        deleteLater();
+        }
 
-    }
+        virtual ~QMLDataModel() override{
+            //        if (patch) {
+            //            libpd_closefile(patch);
+            //            patch = nullptr;
+            //        }
+            deleteLater();
 
-public:
+        }
 
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-    {
-        QString in = "➩";
-        QString out = "➩";
-        switch (portType) {
+    public:
+
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+            QString in = "➩";
+            QString out = "➩";
+            switch (portType) {
             case PortType::In:
                 return in;
             case PortType::Out:
                 return out;
             default:
                 break;
+            }
+            return "";
         }
-        return "";
-    }
 
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
+        unsigned int nPorts(PortType portType) const override
+        {
+            unsigned int result = 1;
 
-        switch (portType) {
+            switch (portType) {
             case PortType::In:
                 result = InPortCount;
                 break;
@@ -84,98 +82,99 @@ public:
 
             default:
                 break;
+            }
+            return result;
         }
-        return result;
-    }
 
-    NodeDataType dataType(PortType portType, PortIndex portIndex) const override
-    {
-        Q_UNUSED(portIndex)
-        switch (portType) {
+        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
+        {
+            Q_UNUSED(portIndex)
+            switch (portType) {
             case PortType::In:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::Out:
-                return VariantData().type();
+                return VariableData().type();
             case PortType::None:
                 break;
             default:
                 break;
-        }
-        // FIXME: control may reach end of non-void function [-Wreturn-type]
+            }
+            // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return VariantData().type();
-    }
-
-    std::shared_ptr<NodeData> outData(PortIndex const port) override
-    {
-//        Q_UNUSED(port);
-        return  inData;
-    }
-
-    void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
-    {
-
-        if (data== nullptr){
-            return;
+            return VariableData().type();
         }
 
-    }
+        std::shared_ptr<NodeData> outData(PortIndex const port) override
+        {
+            //        Q_UNUSED(port);
+            return  inData;
+        }
 
-    QWidget *embeddedWidget() override{
+        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
+        {
 
-        return widget;
-    }
+            if (data== nullptr){
+                return;
+            }
 
-    double generateSineWave(double m_amplitude,double m_frequency,double m_time,double m_phase) {
-        return m_amplitude * qSin(2 * M_PI * m_frequency * m_time + m_phase);
-    }
+        }
 
-    double generateSquareWave(double m_amplitude,double m_frequency,double m_time,double m_phase) {
-        return m_amplitude * (qSin(2 * M_PI * m_frequency * m_time + m_phase) >= 0 ? 1 : -1);
-    }
+        QWidget *embeddedWidget() override{
 
-    double generateTriangleWave(double m_amplitude,double m_frequency,double m_time,double m_phase) {
-        double period = 1.0 / m_frequency;
-        double t = fmod(m_time + m_phase / (2 * M_PI * m_frequency), period);
-        double value = (4 * m_amplitude / period) * (t - period / 2.0);
-        return (value >= 0 ? 1 : -1) * qAbs(value);
-    }
+            return widget;
+        }
 
-public slots:
+        double generateSineWave(double m_amplitude,double m_frequency,double m_time,double m_phase) {
+            return m_amplitude * qSin(2 * M_PI * m_frequency * m_time + m_phase);
+        }
+
+        double generateSquareWave(double m_amplitude,double m_frequency,double m_time,double m_phase) {
+            return m_amplitude * (qSin(2 * M_PI * m_frequency * m_time + m_phase) >= 0 ? 1 : -1);
+        }
+
+        double generateTriangleWave(double m_amplitude,double m_frequency,double m_time,double m_phase) {
+            double period = 1.0 / m_frequency;
+            double t = fmod(m_time + m_phase / (2 * M_PI * m_frequency), period);
+            double value = (4 * m_amplitude / period) * (t - period / 2.0);
+            return (value >= 0 ? 1 : -1) * qAbs(value);
+        }
+
+    public slots:
 
 
-//    void generateWave(int index) {
-//        double value = 0.0;
-//        WaveType waveType = static_cast<WaveType>(widget->method->itemData(index).toInt());
-//        switch (waveType) {
-//            case SineWave:
-//                value = generateSineWave();
-//                qDebug() << "Selected Sine Wave";
-//                break;
-//            case SquareWave:
-//                value = generateSquareWave();
-//                qDebug() << "Selected Square Wave";
-//                break;
-//            case TriangleWave:
-//                value = generateTriangleWave();
-//                qDebug() << "Selected Triangle Wave";
-//                break;
-//        }
-//    }
+    //    void generateWave(int index) {
+    //        double value = 0.0;
+    //        WaveType waveType = static_cast<WaveType>(widget->method->itemData(index).toInt());
+    //        switch (waveType) {
+    //            case SineWave:
+    //                value = generateSineWave();
+    //                qDebug() << "Selected Sine Wave";
+    //                break;
+    //            case SquareWave:
+    //                value = generateSquareWave();
+    //                qDebug() << "Selected Square Wave";
+    //                break;
+    //            case TriangleWave:
+    //                value = generateTriangleWave();
+    //                qDebug() << "Selected Triangle Wave";
+    //                break;
+    //        }
+    //    }
 
-//    void generateSineWave() {
-//        double value = m_amplitude * qSin(2 * M_PI * m_frequency * m_time + m_phase);
-//        qDebug() << "Sine wave value:" << value;
-//        m_time += 1.0 / m_sampleRate;
-//    }
-public:
-    QMLInterface *widget=new QMLInterface();
-    shared_ptr<VariantData> inData;
-    void *patch;
-private:
-    static void pdPrint(const char *message)
-    {
-        // Use qDebug to output the message
-        qDebug() << "[libpd]:" << message;
-    }
-};
+    //    void generateSineWave() {
+    //        double value = m_amplitude * qSin(2 * M_PI * m_frequency * m_time + m_phase);
+    //        qDebug() << "Sine wave value:" << value;
+    //        m_time += 1.0 / m_sampleRate;
+    //    }
+    public:
+        QMLInterface *widget=new QMLInterface();
+        shared_ptr<VariableData> inData;
+        void *patch;
+    private:
+        static void pdPrint(const char *message)
+        {
+            // Use qDebug to output the message
+            qDebug() << "[libpd]:" << message;
+        }
+    };
+}

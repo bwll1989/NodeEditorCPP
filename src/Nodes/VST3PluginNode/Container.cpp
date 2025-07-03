@@ -8,6 +8,7 @@
 #include <QKeyEvent>
 using namespace Steinberg;
 using namespace Vst;
+using namespace Nodes;
 Container::Container(Steinberg::IPtr<Steinberg::IPlugView> &view1, QWidget *parent): view(view1)
 {
     setWindowFlags(windowFlags() | Qt::WindowStaysOnTopHint);

@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<DrawRectsModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::DrawRectsModel>(PLUGIN_TAG);
 }

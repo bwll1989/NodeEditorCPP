@@ -11,89 +11,90 @@
 #include "DataTypes/NodeDataList.hpp"
 
 class QPushButton;
+using namespace NodeDataTypes;
+namespace Nodes
+{
+    class CaptureModel final : public QtNodes::NodeDelegateModel {
+        Q_OBJECT
 
-class CaptureModel final : public QtNodes::NodeDelegateModel {
-    Q_OBJECT
+    public:
+        CaptureModel() {
+            InPortCount =2;
+            OutPortCount=1;
+            CaptionVisible=true;
+            Caption="Capture";
+            WidgetEmbeddable=true;
+            Resizable=false;
+        }
 
-public:
-    CaptureModel() {
-        InPortCount =2;
-        OutPortCount=1;
-        CaptionVisible=true;
-        Caption="Capture";
-        WidgetEmbeddable=true;
-        Resizable=false;
-    }
-
-    QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override{
-        switch (portType) {
+        QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override{
+            switch (portType) {
             case QtNodes::PortType::In:
                 switch (portIndex) {
-                    case 0:
-                        return ImageData().type();
-                    case 1:
-                        return VariableData().type();
-                    }
-                    break;
+            case 0:
+                    return ImageData().type();
+            case 1:
+                    return VariableData().type();
+                }
+                break;
             case QtNodes::PortType::Out:
                 return  ImageData().type();
-                 break;
+                break;
             case QtNodes::PortType::None:
                 break;
+            }
+            // FIXME: control may reach end of non-void function [-Wreturn-type]
+
+            return ImageData().type();
         }
-        // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return ImageData().type();
-    }
-
-    void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{
-        switch (portIndex) {
+        void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{
+            switch (portIndex) {
             case 0:
                 m_inImageData = std::dynamic_pointer_cast<ImageData>(nodeData);
             case 1:
                 m_inData=std::dynamic_pointer_cast<VariableData>(nodeData);
-            if (const auto lock = m_inData.lock()) {
-               if(m_inData.lock().get()->value().toBool())
-                   captureClicked();
+                if (const auto lock = m_inData.lock()) {
+                    if(m_inData.lock().get()->value().toBool())
+                        captureClicked();
+                }
+                break;
             }
-            break;
         }
-    }
 
-    std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override{
-        return m_outImageData;
-    }
-
-    QWidget* embeddedWidget() override{
-        if (!m_button) {
-            m_button = new QPushButton("Capture");
-            registerOSCControl("/capture",m_button);
-            connect(m_button, &QPushButton::clicked, this, &CaptureModel::captureClicked);
+        std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override{
+            return m_outImageData;
         }
-        return m_button;
-    }
 
-private slots:
-    void captureClicked(){
-        if (const auto lock = m_inImageData.lock()) {
-            m_outImageData = std::make_shared<ImageData>(lock->image());
-        } else {
-            m_outImageData.reset();
+        QWidget* embeddedWidget() override{
+            if (!m_button) {
+                m_button = new QPushButton("Capture");
+                registerOSCControl("/capture",m_button);
+                connect(m_button, &QPushButton::clicked, this, &CaptureModel::captureClicked);
+            }
+            return m_button;
         }
-        emit dataUpdated(0);
-    }
+
+    private slots:
+        void captureClicked(){
+            if (const auto lock = m_inImageData.lock()) {
+                m_outImageData = std::make_shared<ImageData>(lock->image());
+            } else {
+                m_outImageData.reset();
+            }
+            emit dataUpdated(0);
+        }
 
 
-private:
-    QPushButton* m_button = nullptr;
-    // in
-    // 0
-    std::weak_ptr<ImageData> m_inImageData;
-    std::weak_ptr<VariableData> m_inData;
-    // out
-    // 0
-    std::shared_ptr<ImageData> m_outImageData;
-};
-
-
+    private:
+        QPushButton* m_button = nullptr;
+        // in
+        // 0
+        std::weak_ptr<ImageData> m_inImageData;
+        std::weak_ptr<VariableData> m_inData;
+        // out
+        // 0
+        std::shared_ptr<ImageData> m_outImageData;
+    };
+}
 #endif //CAPTUREMODEL_H

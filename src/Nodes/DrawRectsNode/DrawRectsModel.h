@@ -11,61 +11,63 @@
 namespace Ui {
     class DrawRectsForm;
 }
+using namespace NodeDataTypes;
+namespace Nodes
+{
+    class DrawRectsModel final : public QtNodes::NodeDelegateModel {
+        Q_OBJECT
 
-class DrawRectsModel final : public QtNodes::NodeDelegateModel {
-    Q_OBJECT
+    public:
+        DrawRectsModel();
 
-public:
-    DrawRectsModel();
+        ~DrawRectsModel() override;
 
-    ~DrawRectsModel() override;
+        QString caption() const override;
 
-    QString caption() const override;
+        QString type() const override;
 
-    QString type() const override;
+        unsigned nPorts(QtNodes::PortType portType) const override;
 
-    unsigned nPorts(QtNodes::PortType portType) const override;
+        QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
 
-    QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
+        void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override;
 
-    void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override;
+        std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override;
 
-    std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override;
+        QWidget* embeddedWidget() override;
 
-    QWidget* embeddedWidget() override;
+    private:
+        static QPair<QImage, quint64> processImage(QImage image, const Rects& rects, const QColor& color, int thickness);
 
-private:
-    static QPair<QImage, quint64> processImage(QImage image, const Rects& rects, const QColor& color, int thickness);
+        void updateFromInputPort();
 
-    void updateFromInputPort();
+        QImage getPixmapToProcess() const;
 
-    QImage getPixmapToProcess() const;
+    private slots:
+        void processFinished();
 
-private slots:
-    void processFinished();
+        void requestProcess();
+    private:
+        QWidget* m_widget = nullptr;
+        QScopedPointer<Ui::DrawRectsForm> m_ui;
+        QFutureWatcher<QPair<QImage, quint64>> m_watcher;
 
-    void requestProcess();
-private:
-    QWidget* m_widget = nullptr;
-    QScopedPointer<Ui::DrawRectsForm> m_ui;
-    QFutureWatcher<QPair<QImage, quint64>> m_watcher;
+        // in
+        // 0
+        QImage m_lastPixmapToProcess;
+        std::weak_ptr<ImageData> m_inImageData;
+        // 1
+        std::weak_ptr<RectsData> m_inRectsData;
+        // 2
+        QColor m_color;
+        std::weak_ptr<VariableData> m_inColor;
+        // 3
+        int m_thickness;
+        std::weak_ptr<VariableData> m_inThickness;
 
-    // in
-    // 0
-    QImage m_lastPixmapToProcess;
-    std::weak_ptr<ImageData> m_inImageData;
-    // 1
-    std::weak_ptr<RectsData> m_inRectsData;
-    // 2
-    QColor m_color;
-    std::weak_ptr<VariantData> m_inColor;
-    // 3
-    int m_thickness;
-    std::weak_ptr<VariantData> m_inThickness;
-
-    // out
-    std::shared_ptr<ImageData> m_outImageData;
-};
-
+        // out
+        std::shared_ptr<ImageData> m_outImageData;
+    };
+}
 
 #endif //DRAWRECTSMODEL_H

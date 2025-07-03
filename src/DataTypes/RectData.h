@@ -7,23 +7,24 @@
 
 #include <QtNodes/NodeData>
 #include <QRect>
+namespace NodeDataTypes
+{
+    class RectData final : public QtNodes::NodeData {
+    public:
+        RectData() {
+        }
+        explicit RectData(const QRect& rect) : m_rect(rect) {
+        }
 
-class RectData final : public QtNodes::NodeData {
-public:
-    RectData() {
-    }
-    explicit RectData(const QRect& rect) : m_rect(rect) {
-    }
+        QRect rect() const {
+            return m_rect;
+        }
 
-    QRect rect() const {
-        return m_rect;
-    }
-
-    QtNodes::NodeDataType type() const override {
-        return QtNodes::NodeDataType{"rect", "rect"};
-    }
-private:
-    QRect m_rect;
-};
-
+        QtNodes::NodeDataType type() const override {
+            return QtNodes::NodeDataType{"rect", "rect"};
+        }
+    private:
+        QRect m_rect;
+    };
+}
 #endif //RECTDATA_H

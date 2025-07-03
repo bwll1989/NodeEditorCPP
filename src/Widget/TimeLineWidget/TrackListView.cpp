@@ -3,7 +3,7 @@
 //
 
 #include "TrackListView.h"
-#include "TimeCodeMessage.h"
+#include "TimeCodeDefines.h"
 TrackListView::TrackListView(TimeLineModel* model, QWidget *parent) : BaseTracklistView(model, parent)
 {
     //将时钟的显示与模型中的时钟相绑定

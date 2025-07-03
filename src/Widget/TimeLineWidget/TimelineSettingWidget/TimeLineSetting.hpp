@@ -16,7 +16,7 @@
 #include "../TimeLineModel.h"
 #include <QMessageBox>
 #include <QStackedWidget>
-#include "TimeCodeMessage.h"
+#include "TimeCodeDefines.h"
 #include "LtcSettingWidget.hpp"
 #include "MtcSettingWidget.hpp"
 #include "AudioSettingWidget.hpp"

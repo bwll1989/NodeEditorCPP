@@ -13,104 +13,106 @@ using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
+using namespace NodeDataTypes;
+namespace Nodes
+{
+    class ImageInfoModel : public NodeDelegateModel {
+        Q_OBJECT
+    public:
+        ImageInfoModel() {
+            InPortCount =1;
+            OutPortCount=2;
+            CaptionVisible=true;
+            Caption="Image Info";
+            WidgetEmbeddable= true;
+            Resizable=false;
+            PortEditable= false;
 
-class ImageInfoModel : public NodeDelegateModel {
-    Q_OBJECT
-public:
-    ImageInfoModel() {
-        InPortCount =1;
-        OutPortCount=2;
-        CaptionVisible=true;
-        Caption="Image Info";
-        WidgetEmbeddable= true;
-        Resizable=false;
-        PortEditable= false;
+        };
 
-    };
-
-    ~ImageInfoModel() override{};
+        ~ImageInfoModel() override{};
 
 
-    NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override {
-        switch (portType) {
+        NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override {
+            switch (portType) {
             case PortType::In:
                 return ImageData().type();
             case PortType::Out:
                 switch (portIndex) {
-                    case 0:
-                        return ImageData().type();
-                    case 1:
-                        return VariableData().type();
-                    default:
-                        break;
+            case 0:
+                    return ImageData().type();
+            case 1:
+                    return VariableData().type();
+            default:
+                    break;
                 }
             default:
                 break;
-        }
-        return ImageData().type();
-    };
+            }
+            return ImageData().type();
+        };
 
-    void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{
-        switch (portIndex) {
+        void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{
+            switch (portIndex) {
             case 0: {
-                m_inImageData = std::dynamic_pointer_cast<ImageData>(nodeData);
-                updateData();
-                break;
+                    m_inImageData = std::dynamic_pointer_cast<ImageData>(nodeData);
+                    updateData();
+                    break;
             }
             default:
                 break;
+            }
         }
-    }
 
-    std::shared_ptr<NodeData> outData(const QtNodes::PortIndex port) override {
-        switch (port) {
+        std::shared_ptr<NodeData> outData(const QtNodes::PortIndex port) override {
+            switch (port) {
             case 0:
                 return m_outImageData;
             case 1:
                 return m_proprtyData;
             default:
                 return nullptr;
+            }
         }
-    }
 
-    QWidget* embeddedWidget() override {
+        QWidget* embeddedWidget() override {
 
-        return widget;
-    }
-
-private:
-    void invalidateOutData(){
-        m_outImageData.reset();
-        m_proprtyData.reset();
-    }
-
-    void updateData(){
-        const auto imageLock = m_inImageData.lock();
-
-        if (!imageLock) {
-            invalidateOutData();
-            m_proprtyData=std::make_shared<VariableData>();
-            m_proprtyData->insert("isNull",true);
-        } else {
-            m_proprtyData=std::make_shared<VariableData>();
-            m_outImageData = std::make_shared<ImageData>(imageLock->image());
-            m_proprtyData->insert("isNull",imageLock->image().isNull());
-            m_proprtyData->insert("isGrayScale",imageLock->image().isGrayscale());
-            m_proprtyData->insert("hasAlpha",imageLock->image().hasAlphaChannel());
-            m_proprtyData->insert("Format",formatToString(imageLock->image().format()));
-            m_proprtyData->insert("Width",imageLock->image().size().width());
-            m_proprtyData->insert("Height",imageLock->image().size().height());
-            m_proprtyData->insert("Size",imageLock->image().size());
-            m_proprtyData->insert("Rect",imageLock->image().rect());
+            return widget;
         }
-        widget-> buildPropertiesFromMap(m_proprtyData->getMap());
 
-        emit dataUpdated(0);
-        emit dataUpdated(1);
-    }
+    private:
+        void invalidateOutData(){
+            m_outImageData.reset();
+            m_proprtyData.reset();
+        }
 
-    static QString formatToString(QImage::Format format){
-        switch (format) {
+        void updateData(){
+            const auto imageLock = m_inImageData.lock();
+
+            if (!imageLock) {
+                invalidateOutData();
+                m_proprtyData=std::make_shared<VariableData>();
+                m_proprtyData->insert("isNull",true);
+            } else {
+                m_proprtyData=std::make_shared<VariableData>();
+                m_outImageData = std::make_shared<ImageData>(imageLock->image());
+                m_proprtyData->insert("isNull",imageLock->image().isNull());
+                m_proprtyData->insert("isGrayScale",imageLock->image().isGrayscale());
+                m_proprtyData->insert("hasAlpha",imageLock->image().hasAlphaChannel());
+                m_proprtyData->insert("Format",formatToString(imageLock->image().format()));
+                m_proprtyData->insert("Width",imageLock->image().size().width());
+                m_proprtyData->insert("Height",imageLock->image().size().height());
+                m_proprtyData->insert("Size",imageLock->image().size());
+                m_proprtyData->insert("Rect",imageLock->image().rect());
+            }
+            widget-> buildPropertiesFromMap(m_proprtyData->getMap());
+
+            emit dataUpdated(0);
+            emit dataUpdated(1);
+        }
+
+        static QString formatToString(QImage::Format format){
+            switch (format) {
             case QImage::Format_Invalid: return "Invalid";
             case QImage::Format_Mono: return "Mono";
             case QImage::Format_MonoLSB: return "MonoLSB";
@@ -136,23 +138,22 @@ private:
             case QImage::Format_A2RGB30_Premultiplied: return "A2RGB30 Premultiplied";
             case QImage::Format_Alpha8: return "Alpha8";
             case QImage::Format_Grayscale8: return "Grayscale8";
-            // Include all other formats you need to handle
+                // Include all other formats you need to handle
             default: return "Unknown Format";
+            }
         }
-    }
 
-private:
-    QPropertyBrowser *widget=new QPropertyBrowser();
-    // in
-    std::weak_ptr<ImageData> m_inImageData;
-    // out
-    std::shared_ptr<VariableData> m_proprtyData;
-    // 0
-    std::shared_ptr<ImageData> m_outImageData;
-    // // 1
+    private:
+        QPropertyBrowser *widget=new QPropertyBrowser();
+        // in
+        std::weak_ptr<ImageData> m_inImageData;
+        // out
+        std::shared_ptr<VariableData> m_proprtyData;
+        // 0
+        std::shared_ptr<ImageData> m_outImageData;
+        // // 1
 
-};
-
-
+    };
+}
 
 #endif //IMAGEINFOMODEL_H

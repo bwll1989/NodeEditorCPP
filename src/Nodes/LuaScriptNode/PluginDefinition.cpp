@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<LuaDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::LuaDataModel>(PLUGIN_TAG);
 }

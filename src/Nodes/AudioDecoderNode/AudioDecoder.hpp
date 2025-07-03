@@ -5,7 +5,7 @@
 #include <condition_variable>
 #include <QtCore/QObject>
 #include "QJsonObject"
-#include "DataTypes/AudioData2.h"  // 确保包含此头文件
+#include "DataTypes/AudioData.h"  // 确保包含此头文件
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -42,7 +42,11 @@ public:
         stopPlay();
         cleanupFFmpeg();
     }
-
+    /**
+     * @brief 初始化ffmpeg
+     * @param filePath
+     * @return 返回音频参数
+     */
     QJsonObject* initializeFFmpeg(const QString &filePath){
         formatContext= nullptr;
         codecContext= nullptr;
@@ -124,21 +128,27 @@ public:
         return res;
     }
 
+    /**
+     * @brief 开始解码
+     */
     void startPlay(){
         QMutexLocker locker(&mutex);
         isPlaying = true;
         start();
     }
+    /**
+     * @brief 停止解码
+     */
     void stopPlay() {
         QMutexLocker locker(&mutex);
         isPlaying = false;
         condition.wakeAll();
         wait(); // 等待线程结束
 
-         
+
         // 清理解码资源
         // cleanupFFmpeg();
-        
+
         // // 重置解码器状态
         // formatContext = nullptr;
         // codecContext = nullptr;
@@ -151,7 +161,7 @@ public:
     bool isPlaying;
 
 signals:
-    // 添加信号用于发送音频帧
+    // 发送解码后的音频数据
     void audioFrameReady(AudioFrame frame);
 
 protected:
@@ -160,20 +170,23 @@ protected:
     }
 
 private:
+    /**
+     * @brief 播放音频
+     */
     void playAudio() {
         AVPacket packet;
         audioFrame = av_frame_alloc();
         uint8_t* outputBuffer = nullptr;
         int outputBufferSize = 0;
-        
+
         // 获取原始音频参数
         int originalSampleRate = codecContext->sample_rate;
         int originalChannels = codecContext->ch_layout.nb_channels;
-        
+
         // 计算每帧的理论持续时间（基于原始采样率）
         const double frameTime = 1000.0 * BUFFER_SIZE / originalSampleRate; // ms
         qint64 lastFrameTime = QDateTime::currentMSecsSinceEpoch();
-        
+
         while (isPlaying && av_read_frame(formatContext, &packet) >= 0) {
             if (packet.stream_index == audioStreamIndex) {
                 if (avcodec_send_packet(codecContext, &packet) < 0) {
@@ -208,13 +221,13 @@ private:
 
                     if (samplesResampled > 0) {
                         int totalBytes = samplesResampled * originalChannels * 2; // channels * 2 bytes per sample
-                        
+
                         AudioFrame frame;
                         frame.data = QByteArray(reinterpret_cast<const char*>(outputBuffer), totalBytes);
                         frame.sampleRate = 48000;  // 输出采样率固定为48000
                         frame.channels = originalChannels;  // 使用实际声道数
                         frame.bitsPerSample = 16;
-                        
+
                         frame.timestamp = QDateTime::currentMSecsSinceEpoch();
 
                         // 使用 DirectConnection 而不是 QueuedConnection
@@ -224,11 +237,11 @@ private:
                         qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
                         qint64 elapsedTime = currentTime - lastFrameTime;
                         qint64 sleepTime = frameTime - elapsedTime;
-                        
+
                         if (sleepTime > 0) {
                             QThread::msleep(sleepTime);
                         }
-                        
+
                         lastFrameTime = QDateTime::currentMSecsSinceEpoch();
                     }
                 }
@@ -266,7 +279,7 @@ private:
         }
 
     }
-  
+
     AVFormatContext *formatContext= nullptr;
     AVCodecContext *codecContext= nullptr;
     const AVCodec *codec;

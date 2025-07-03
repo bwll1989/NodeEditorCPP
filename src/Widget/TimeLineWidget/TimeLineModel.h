@@ -6,7 +6,7 @@
 #define TIMELINEMODEL_H
 #include "BaseTimeLineModel.h"
 #include  "./TimelineStageWidget/TimeLineStage.hpp"
-#include  "TimeCodeMessage.h"
+#include  "TimeCodeDefines.h"
 #include "./TimeLineClock/TimeLineClock.hpp"
 #include "TimeLineDefines.h"
 class TimeLineModel : public BaseTimeLineModel {

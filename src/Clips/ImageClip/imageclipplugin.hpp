@@ -19,7 +19,7 @@ public:
     }
 
     AbstractClipModel* createModel(int start) override {
-        return new ImageClipModel(start);
+        return new Clips::ImageClipModel(start);
     }
 
     // AbstractClipDelegate* createDelegate() override {

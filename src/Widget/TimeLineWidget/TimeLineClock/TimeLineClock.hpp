@@ -6,7 +6,7 @@
 #include <QMutex>
 #include <QAtomicInteger>
 #include "TimeLineDefines.h"
-#include "TimeCodeMessage.h"
+#include "TimeCodeDefines.h"
 #include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
 #include <QJsonObject>
 #include "TimeSyncServer.hpp"

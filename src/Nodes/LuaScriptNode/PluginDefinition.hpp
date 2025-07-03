@@ -14,7 +14,7 @@
 
 #define PLUGIN_NAME "Lua Script"
 #define PLUGIN_VERSION "20240410"
-#define PLUGIN_DESCRIBE "Lua脚本"
+#define PLUGIN_DESCRIBE "Lua 脚本"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject

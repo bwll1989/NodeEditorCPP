@@ -6,7 +6,8 @@
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
-
+using namespace Nodes;
+using namespace NodeDataTypes;
 ImageShowModel::ImageShowModel()
     : _label(new QLabel("Image will appear here")) {
     _label->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);

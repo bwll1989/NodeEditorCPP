@@ -18,7 +18,7 @@ public:
     }
 
     AbstractClipModel* createModel(int start) override {
-        return new TriggerClipModel(start);
+        return new Clips::TriggerClipModel(start);
     }
 };
 

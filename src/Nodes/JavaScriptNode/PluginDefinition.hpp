@@ -6,15 +6,15 @@
 
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef PythonNode_EXPORTS
+#ifdef JavaScriptNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "Python Script"
-#define PLUGIN_VERSION "20240520"
-#define PLUGIN_DESCRIBE "Python脚本"
+#define PLUGIN_NAME "JS Script"
+#define PLUGIN_VERSION "20250701"
+#define PLUGIN_DESCRIBE "JS 脚本"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject
@@ -23,6 +23,7 @@ class DLL_EXPORT Plugin
     Q_OBJECT
     Q_INTERFACES(QtNodes::PluginInterface)
     Q_PLUGIN_METADATA(IID PLUGIN_NAME)
+
 
 public:
     Plugin();

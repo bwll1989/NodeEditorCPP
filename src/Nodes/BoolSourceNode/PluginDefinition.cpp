@@ -18,6 +18,6 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<BoolPluginDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::BoolPluginDataModel>(PLUGIN_TAG);
 }
 

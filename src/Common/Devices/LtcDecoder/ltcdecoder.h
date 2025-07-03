@@ -3,7 +3,7 @@
 
 #include <QIODevice>
 
-#include "TimeCodeMessage.h"
+#include "TimeCodeDefines.h"
 
 class LtcDecoder: public QIODevice
 {

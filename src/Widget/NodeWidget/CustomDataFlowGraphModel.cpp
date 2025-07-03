@@ -20,7 +20,7 @@ using QtNodes::NodeFlag;
 using QtNodes::fromJson;
 using QtNodes::groupToJson;
 using QtNodes::NodeData;
-
+using namespace NodeDataTypes;
 CustomDataFlowGraphModel::CustomDataFlowGraphModel(std::shared_ptr<NodeDelegateModelRegistry> registry)
         : _registry(std::move(registry))
         , _nextNodeId{0}
@@ -148,7 +148,7 @@ bool CustomDataFlowGraphModel::connectionPossible(ConnectionId const connectionI
     if (portVacant(PortType::Out) && portVacant(PortType::In)){
 //        接口未占用时，判断数据类型是否一致，或端口类型为万能类
         return getDataType(PortType::Out).id == getDataType(PortType::In).id or
-           getDataType(PortType::Out).id == VariantData().type().id;
+           getDataType(PortType::In).id == VariableData().type().id;
 
     } else{
 //        返回不允许连接

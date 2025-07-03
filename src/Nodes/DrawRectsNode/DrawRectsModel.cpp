@@ -8,7 +8,8 @@
 #include <QPen>
 #include <QElapsedTimer>
 #include <QtConcurrent/QtConcurrent>
-
+using namespace Nodes;
+using namespace NodeDataTypes;
 DrawRectsModel::DrawRectsModel() {
     connect(&m_watcher, &QFutureWatcher<QPair<QImage, quint64>>::finished, this, &DrawRectsModel::processFinished);
 }
@@ -44,16 +45,16 @@ QtNodes::NodeDataType DrawRectsModel::dataType(QtNodes::PortType portType, QtNod
                 case 1:
                     return RectsData().type();
                 case 2:
-                    return VariantData(QColor()).type();
+                    return VariableData(QColor()).type();
                 case 3:
-                    return VariantData(0).type();
+                    return VariableData().type();
                 default:
-                    return VariantData().type();
+                    return VariableData().type();
             }
         case QtNodes::PortType::Out:
             return ImageData().type();
         default:
-            return VariantData().type();
+            return VariableData().type();
     }
 }
 
@@ -79,10 +80,10 @@ void DrawRectsModel::setInData(std::shared_ptr<QtNodes::NodeData> nodeData, cons
             }
             break;
         case 2:
-            m_inColor = std::dynamic_pointer_cast<VariantData>(nodeData);
+            m_inColor = std::dynamic_pointer_cast<VariableData>(nodeData);
             break;
         case 3:
-            m_inThickness = std::dynamic_pointer_cast<VariantData>(nodeData);
+            m_inThickness = std::dynamic_pointer_cast<VariableData>(nodeData);
             break;
         default:
             break;
@@ -144,7 +145,7 @@ void DrawRectsModel::updateFromInputPort() {
         QSignalBlocker sbr(m_ui->sb_r);
         QSignalBlocker sbg(m_ui->sb_g);
         QSignalBlocker sbb(m_ui->sb_b);
-        m_color = lockColor->variant().value<QColor>();
+        // m_color = lockColor->variant().value<QColor>();
         m_ui->sb_r->setEnabled(false);
         m_ui->sb_g->setEnabled(false);
         m_ui->sb_b->setEnabled(false);
@@ -157,14 +158,14 @@ void DrawRectsModel::updateFromInputPort() {
         m_ui->sb_b->setEnabled(true);
     }
     const auto lockThickness = m_inThickness.lock();
-    if (lockThickness && lockThickness->metaType() == QMetaType::Int) {
-        QSignalBlocker sbt(m_ui->sb_thickness);
-        m_thickness = lockThickness->variant().toInt();
-        m_ui->sb_thickness->setEnabled(false);
-        m_ui->sb_thickness->setValue(m_thickness);
-    } else {
-        m_ui->sb_thickness->setEnabled(true);
-    }
+    // if (lockThickness && lockThickness->metaType() == QMetaType::Int) {
+    //     QSignalBlocker sbt(m_ui->sb_thickness);
+    //     m_thickness = lockThickness->variant().toInt();
+    //     m_ui->sb_thickness->setEnabled(false);
+    //     m_ui->sb_thickness->setValue(m_thickness);
+    // } else {
+    //     m_ui->sb_thickness->setEnabled(true);
+    // }
     requestProcess();
 }
 

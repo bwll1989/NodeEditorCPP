@@ -18,6 +18,6 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<VST3PluginDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::VST3PluginDataModel>(PLUGIN_TAG);
 }
 

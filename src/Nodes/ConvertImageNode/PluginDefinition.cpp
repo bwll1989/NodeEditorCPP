@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<ConvertImageToModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::ConvertImageToModel>(PLUGIN_TAG);
 }

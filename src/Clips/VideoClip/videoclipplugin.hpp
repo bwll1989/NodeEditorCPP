@@ -18,7 +18,7 @@ public:
     }
 
     AbstractClipModel* createModel(int start) override {
-        return new  VideoClipModel(start);
+        return new  Clips::VideoClipModel(start);
     }
 
     // AbstractClipDelegate* createDelegate() override {

@@ -2,7 +2,7 @@
 // Created by bwll1 on 2024/10/10.
 //
 
-#include "CodeEditor.h"
+#include "JsCodeEditor.h"
 
 
 #include "QFrame"
@@ -17,25 +17,13 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QMessageBox>
-#include "Qsci/qscilexerlua.h"
+#include "Qsci/qscilexerjavascript.h"
 #include "Qsci/qsciapis.h"
-static QString DEFAULT_CODE=R"(-- Write the Lua code here, and be careful not to use an endless loop like while(true).
--- function about lua read/write Node
-local luaTable = {
-    key1 = Node:outputCount(),
-    key2 = Node:inputCount(),
-    key3 = 12321,
-    key4 = Node:getTableValue("In",0):toLuaTable()["default"]
-}
 
-local out= VariantMap.fromLuaTable(luaTable)
-Node:setTableValue(0,out)
+using namespace Nodes;
 
--- 将端口0的输入与lua表合并后从输出0输出)";
-
-
-CodeEditor::CodeEditor(QWidget* parent):
-        code(DEFAULT_CODE),
+JsCodeEditor::JsCodeEditor(QString code,QWidget* parent):
+        m_code(code),
         m_setupLayout(nullptr),
         m_readOnlyCheckBox(nullptr),
         m_codeEditor(nullptr)
@@ -43,11 +31,11 @@ CodeEditor::CodeEditor(QWidget* parent):
     createWidgets();
     setupWidgets();
     performConnections();
-    loadCodeFromCode(code);
+    loadCodeFromCode(m_code);
 }
 
 
-QString CodeEditor::loadCode(QString path)
+QString JsCodeEditor::loadCode(QString path)
 {
     QFile fl(path);
 
@@ -59,15 +47,15 @@ QString CodeEditor::loadCode(QString path)
     return fl.readAll();
 }
 
-void CodeEditor::loadCodeFromCode(QString val) {
+void JsCodeEditor::loadCodeFromCode(QString val) {
 
-    code=val;
-    m_codeEditor->setText(code);
+    m_code=val;
+    m_codeEditor->setText(m_code);
 }
 
 
 
-void CodeEditor::createWidgets()
+void JsCodeEditor::createWidgets()
 {
     auto hBox = new QHBoxLayout(this);
     auto setupGroup = new QFrame();
@@ -78,7 +66,7 @@ void CodeEditor::createWidgets()
     // CodeEditor
     m_codeEditor = new QsciScintilla(this);
     hBox->addWidget(m_codeEditor);
-    QsciLexerLua* textLexer = new QsciLexerLua(this);
+    QsciLexerJavaScript* textLexer = new QsciLexerJavaScript(this);
     m_codeEditor->setLexer(textLexer);
     
     // 设置焦点策略，确保编辑器能够保持焦点
@@ -92,13 +80,51 @@ void CodeEditor::createWidgets()
     m_codeEditor->setAutoCompletionThreshold(1);
     // //常用关键字支持自动补全
     QsciAPIs *apis = new QsciAPIs(textLexer);
-    apis->add(QString("Node:"));
-    apis->add(QString("outputCount()"));
-    apis->add(QString("inputCount()"));
-    apis->add(QString("getTableValue()"));
-    apis->add(QString("toLuaTable()"));
+    apis->add(QString("Node.inputIndex()"));
+    apis->add(QString("Node.getOutputCount()"));
+    apis->add(QString("Node.getInputCount()"));
+    apis->add(QString("Node.getInputValue()"));
+    apis->add(QString("Node.setOutputValue()"));
     apis->add(QString("print()"));
-    apis->add(QString("setTableValue()"));
+    apis->add(QString("typeof"));
+    apis->add(QString("var"));
+    apis->add(QString("null"));
+    apis->add(QString("new"));
+    apis->add(QString("SpinBox"));
+    apis->add(QString("CheckBox"));
+    apis->add(QString("LineEdit"));
+    apis->add(QString("Label"));
+    apis->add(QString("Button"));
+    apis->add(QString("VSlider"));
+    apis->add(QString("HSlider"));
+    apis->add(QString("DoubleSpinBox"));
+    apis->add(QString("ComboBox"));
+    apis->add(QString("clearLayout"));
+
+    apis->add(QString("Node.addToLayout"));
+
+    apis->add(QString(R"(if (condition){
+        // 执行代码块 1
+    }else{
+        // 执行代码块 2
+    })"));
+    apis->add(QString(R"(switch() {
+    case 1:
+        // 执行代码块 1
+        break;
+    case 2:
+        // 执行代码块 2
+        break;
+    default:
+        // 默认代码块
+})"));
+    apis->add(QString("while()"));
+    apis->add(QString("else"));
+    apis->add(QString("for"));
+    apis->add(QString("break"));
+    apis->add(QString("continue"));
+    apis->add(QString("function"));
+    apis->add(QString("console.log()"));
     apis->prepare();
 
     //设置编码为UTF-8
@@ -121,34 +147,33 @@ void CodeEditor::createWidgets()
     // auto *saveShortcutAction = new QShortcut((QKeySequence::fromString("Ctrl+S")),this);
     // auto *m_actionToggleComment =new QShortcut(QKeySequence::fromString("Ctrl+/"),this);
     // connect(saveShortcutAction , &QShortcut::activated, this, &CodeEditor::saveCode);
-    m_setupLayout->addWidget(detach);
     m_setupLayout->addWidget(m_readOnlyCheckBox);
     m_setupLayout->addWidget(run);
     // m_setupLayout->addWidget(save);
     m_setupLayout->addSpacerItem(new QSpacerItem(1, 2, QSizePolicy::Minimum, QSizePolicy::Expanding));
 }
 
-void CodeEditor::setupWidgets()
+void JsCodeEditor::setupWidgets()
 {
     setWindowTitle("CodeEditor");
-    loadCodeFromCode(code);
+    loadCodeFromCode(m_code);
     
     // 设置初始焦点到编辑器
     m_codeEditor->setFocus();
 }
 
-QString CodeEditor::saveCode() {
-    code = m_codeEditor->text();
+QString JsCodeEditor::saveCode() {
+    m_code = m_codeEditor->text();
 //    QFile file(codePath);
 //    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
 //        QTextStream stream(&file);
 //        stream << code;
 //        file.close();
 //    }
-    return code;
+    return m_code;
 
 }
-void CodeEditor::performConnections()
+void JsCodeEditor::performConnections()
 {
 
     connect(
@@ -159,7 +184,7 @@ void CodeEditor::performConnections()
     );
     // connect(save,&QPushButton::clicked,this,&CodeEditor::saveCode);
 }
-void CodeEditor::setReadOnly(bool readOnly)
+void JsCodeEditor::setReadOnly(bool readOnly)
 {
     m_readOnlyCheckBox->setChecked(readOnly);
 }

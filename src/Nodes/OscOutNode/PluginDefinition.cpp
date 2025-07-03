@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<OscOutDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::OscOutDataModel>(PLUGIN_TAG);
 }

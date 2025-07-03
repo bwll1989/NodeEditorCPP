@@ -9,30 +9,32 @@
 
 #include <QImage>
 #include <QPixmap>
+namespace NodeDataTypes
+{
+    class ImageData final : public QtNodes::NodeData {
+    public:
+        ImageData() = default;
 
-class ImageData final : public QtNodes::NodeData {
-public:
-    ImageData() = default;
+        explicit ImageData(QImage const &image) : m_image(image) {}
 
-    explicit ImageData(QImage const &image) : m_image(image) {}
+        explicit ImageData(QString const &fileName) : m_image(fileName) {}
 
-    explicit ImageData(QString const &fileName) : m_image(fileName) {}
+        QtNodes::NodeDataType type() const override {
+            return QtNodes::NodeDataType{"image", "image"};
+        }
 
-    QtNodes::NodeDataType type() const override {
-        return QtNodes::NodeDataType{"image", "image"};
-    }
+        // bool isNull() const { return m_image.isNull(); }
+        //
+        // bool isGrayScale() const { return m_image.isGrayscale(); }
+        //
+        // bool hasAlphaChannel() const { return m_image.hasAlphaChannel(); }
+        //
+        QImage image() const { return m_image; }
+        //
+        QPixmap pixmap() const { return QPixmap::fromImage(m_image); }
 
-    // bool isNull() const { return m_image.isNull(); }
-    //
-    // bool isGrayScale() const { return m_image.isGrayscale(); }
-    //
-    // bool hasAlphaChannel() const { return m_image.hasAlphaChannel(); }
-    //
-    QImage image() const { return m_image; }
-    //
-    QPixmap pixmap() const { return QPixmap::fromImage(m_image); }
-
-private:
-    QImage m_image;
-};
+    private:
+        QImage m_image;
+    };
+}
 #endif //IMAGEDATA_H

@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "PythonNodeModel.hpp"
+#include "JavaScriptDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<PythonDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::JavaScriptDataModel>(PLUGIN_TAG);
 }

@@ -1,6 +1,6 @@
 #include "Widget/TimeLineWidget/TimeLineClock/TimeLineClock.hpp"
 #include <QThread>
-#include "TimeCodeMessage.h"
+#include "TimeCodeDefines.h"
 TimeLineClock::TimeLineClock(QObject* parent)
     : QObject(parent)
     , m_currentFrame(0)

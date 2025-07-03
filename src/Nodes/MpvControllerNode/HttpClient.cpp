@@ -6,7 +6,7 @@
 #include "HttpClient.h"
 #include "QtNetwork/QNetworkAccessManager"
 #include "QtNetwork//QNetworkReply"
-
+using namespace Nodes;
 HttpClient::HttpClient(QObject *parent ) : QObject(parent) {
         connect(&manager, &QNetworkAccessManager::finished, this, &HttpClient::onReplyFinished);
     }

@@ -3,7 +3,7 @@
 #include "portaudio.h"
 #include <QGridLayout>
 
-
+using namespace Nodes;
 TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     : QWidget(parent)
     , deviceComboBox(new QComboBox(this))

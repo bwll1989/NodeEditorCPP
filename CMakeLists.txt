@@ -149,8 +149,6 @@ set(CALC_SOURCE_FILES
         src/DataTypes/NodeDataList.hpp
         src/Widget/NodeWidget/CustomGraphicsView.cpp
         src/Widget/NodeWidget/CustomGraphicsView.h
-        src/Nodes/NodeRegistry.cpp
-        src/Nodes/NodeRegistry.h
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.cpp
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.hpp
         res/res.rc
@@ -185,9 +183,6 @@ set(CALC_SOURCE_FILES
         src/Widget/NodeLibraryWidget/NodeLibraryWidget.h
         src/Widget/NodeListWidget/NodeListWidget.cpp
         src/Widget/NodeListWidget/NodeListWidget.hpp
-        src/Common/GUI/QJsonModel/QJsonModel.cpp
-        src/Common/GUI/QJsonModel/QJsonModel.hpp
-        src/Common/GUI/QJsonModel/details/QUtf8.hpp
         src/Common/GUI/Elements/XYPad/XYPad.cpp
         src/Common/GUI/Elements/XYPad/XYPad.h
         src/Common/GUI/Elements/BarButton/BarButton.cpp
@@ -198,10 +193,6 @@ set(CALC_SOURCE_FILES
         src/Common/GUI/Elements/MartixWidget/MatrixWidget.h
         src/Common/GUI/Elements/FaderWidget/FaderWidget.cpp
         src/Common/GUI/Elements/FaderWidget/FaderWidget.h
-#        src/Common/GUI/OscListWidget/OSCMessageItemWidget.hpp
-#        src/Common/GUI/OscListWidget/OSCMessageItemWidget.cpp
-#        src/Common/GUI/OscListWidget/OSCMessageListWidget.hpp
-#        src/Common/GUI/OscListWidget/OSCMessageListWidget.cpp
         src/Common/Devices/TcpServer/TcpServer.cpp
         src/Common/Devices/TcpServer/TcpServer.h
         src/Common/Devices/TcpClient/TcpClient.cpp
@@ -220,14 +211,6 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/LTCDecoder/LTCDecoder.h
         src/Common/Devices/LtcReceiver/LtcReceiver.cpp
         src/Common/Devices/LtcReceiver/LtcReceiver.h
-        src/DataTypes/DecimalData.h
-        src/DataTypes/TextData.h
-        src/DataTypes/FloatData.h
-        src/DataTypes/VariantData.h
-        src/DataTypes/AudioData2.h
-        src/DataTypes/PixmapData.h
-        src/DataTypes/AudioData.h
-        #        src/DataTypes/TimeCodeMessage.h
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         # src/Widget/TimeLineWidget/videoplayerwidget.hpp
@@ -329,7 +312,6 @@ target_link_libraries(${ProjectName}
             ${ADS_LIBRARIES}
             ${Libpd_LIBRARIES}
             ${QHotKey_LIBRARIES}
-#            ${QCodeEditor_LIBRARIES}
             ${Qtpropertybrowser_LIBRARIES}
             ${Libltc_LIBRARIES}
             Eigen3::Eigen

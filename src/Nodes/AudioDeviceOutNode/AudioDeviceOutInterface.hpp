@@ -7,29 +7,30 @@
 #include <QComboBox>
 #include <QVBoxLayout>
 #include <QLabel>
+namespace Nodes
+{
+    class AudioDeviceOutInterface : public QWidget {
+        Q_OBJECT
 
-class AudioDeviceOutInterface : public QWidget {
-    Q_OBJECT
+    public:
+        explicit AudioDeviceOutInterface(QWidget* parent = nullptr) : QWidget(parent) {
+            mainLayout = new QVBoxLayout(this);
 
-public:
-    explicit AudioDeviceOutInterface(QWidget* parent = nullptr) : QWidget(parent) {
-        mainLayout = new QVBoxLayout(this);
-        
-        deviceSelector = new QComboBox(this);
-        deviceSelector->setToolTip(tr("Select Audio Output Device"));
-        
-        bufferCountLabel = new QLabel("Buffered: 0", this);
-        bufferCountLabel->setAlignment(Qt::AlignCenter);
-        
-        mainLayout->addWidget(new QLabel("Output Device:", this));
-        mainLayout->addWidget(deviceSelector);
-        mainLayout->addWidget(bufferCountLabel);
-        
-        setLayout(mainLayout);
-    }
+            deviceSelector = new QComboBox(this);
+            deviceSelector->setToolTip(tr("Select Audio Output Device"));
 
-    QVBoxLayout* mainLayout;
-    QComboBox* deviceSelector;
-    QLabel* bufferCountLabel;
-};
+            bufferCountLabel = new QLabel("Buffered: 0", this);
+            bufferCountLabel->setAlignment(Qt::AlignCenter);
 
+            mainLayout->addWidget(new QLabel("Output Device:", this));
+            mainLayout->addWidget(deviceSelector);
+            mainLayout->addWidget(bufferCountLabel);
+
+            setLayout(mainLayout);
+        }
+
+        QVBoxLayout* mainLayout;
+        QComboBox* deviceSelector;
+        QLabel* bufferCountLabel;
+    };
+}

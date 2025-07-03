@@ -17,23 +17,26 @@ extern "C" {
 #include "lualib.h"
 }
 
-class LuaThread : public QThread {
-    Q_OBJECT
-public:
-    LuaThread(const QString& scriptContent,
-        QObject *ptr,
-        QObject* parent = nullptr);
-    // 重写析构函数以确保正确退出线程
-    ~LuaThread() ;
-    void init();
-    QString getError(const char* err);
-    void setCode(QString code);
-protected:
-    void run() override ;
+namespace Nodes
+{
+    class LuaThread : public QThread {
+        Q_OBJECT
+    public:
+        LuaThread(const QString& scriptContent,
+            QObject *ptr,
+            QObject* parent = nullptr);
+        // 重写析构函数以确保正确退出线程
+        ~LuaThread() ;
+        void init();
+        QString getError(const char* err);
+        void setCode(QString code);
+    protected:
+        void run() override ;
 
-private:
-    lua_State* luaState = nullptr;  // Lua的状态机
-    QString scriptContent;  // Lua脚本的内容
-    QObject *nodeInstance;
-};
+    private:
+        lua_State* luaState = nullptr;  // Lua的状态机
+        QString scriptContent;  // Lua脚本的内容
+        QObject *nodeInstance;
+    };
+}
 #endif //NODEEDITORCPP_LUATHREAD_H

@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<DelayDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::DelayDataModel>(PLUGIN_TAG);
 }

@@ -4,7 +4,8 @@
 
 #include "CutImageModel.h"
 #include "DataTypes/NodeDataList.hpp"
-
+using namespace NodeDataTypes;
+using namespace Nodes;
 QString CutImageModel::caption() const {
     return QString("Cut Image");
 }
@@ -33,12 +34,12 @@ QtNodes::NodeDataType CutImageModel::dataType(QtNodes::PortType portType, QtNode
                 case 1:
                     return RectData().type();
                 default:
-                    return VariantData().type();
+                    return VariableData().type();
             }
         case QtNodes::PortType::Out:
             return ImageData().type();
         default:
-            return VariantData().type();
+            return VariableData().type();
     }
 }
 

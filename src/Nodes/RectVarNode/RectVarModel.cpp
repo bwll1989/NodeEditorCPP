@@ -3,7 +3,7 @@
 //
 
 #include "RectVarModel.h"
-
+using namespace Nodes;
 RectVarModel::RectVarModel() {
 }
 
@@ -39,7 +39,7 @@ QtNodes::NodeDataType RectVarModel::dataType(QtNodes::PortType portType, QtNodes
                 case 1:
                     return RectData().type();
                 default:
-                    return VariantData().type();
+                    return VariableData().type();
             }
         case QtNodes::PortType::Out:
             switch (portIndex) {
@@ -49,7 +49,7 @@ QtNodes::NodeDataType RectVarModel::dataType(QtNodes::PortType portType, QtNodes
                     return RectData().type();
             }
         default:
-            return VariantData().type();
+            return VariableData().type();
     }
 }
 

@@ -8,6 +8,7 @@
 #include <QElapsedTimer>
 #include <QMetaEnum>
 #include <QtConcurrent/QtConcurrentRun>
+using namespace Nodes;
 
 ConvertImageToModel::ConvertImageToModel() {
 
@@ -28,9 +29,9 @@ QString ConvertImageToModel::type() const {
 unsigned ConvertImageToModel::nPorts(QtNodes::PortType portType) const {
     switch (portType) {
         case QtNodes::PortType::In:
-            return 2;
+            return 1;
         case QtNodes::PortType::Out:
-            return 2;
+            return 1;
         default:
             return 0;
     }
@@ -67,15 +68,7 @@ void ConvertImageToModel::setInData(std::shared_ptr<QtNodes::NodeData> nodeData,
             m_inImageData = std::dynamic_pointer_cast<ImageData>(nodeData);
             m_lastImageToProcess = getPixmapToProcess();
             break;
-        case 1:
-            m_inImageFormatData = std::dynamic_pointer_cast<ImageFormatData>(nodeData);
-            m_lastFormatToProcess = getFormat();
-            if (m_ui && !m_inImageFormatData.expired()) {
-                m_ui->comboBox_format->setEnabled(false);
-            } else if (m_ui) {
-                m_ui->comboBox_format->setEnabled(true);
-            }
-            break;
+
         default:
             break;
     }
@@ -86,8 +79,7 @@ std::shared_ptr<QtNodes::NodeData> ConvertImageToModel::outData(const QtNodes::P
     switch (port) {
         case 0:
             return m_outImageData;
-        case 1:
-            return m_outImageFormatData;
+
         default:
             return nullptr;
             break;
@@ -154,20 +146,13 @@ void ConvertImageToModel::fillComboBoxFormats(QComboBox* comboBox) {
     comboBox->setStyleSheet("combobox-popup: 0;");
 }
 
-QImage::Format ConvertImageToModel::getFormat() const {
-    const auto lock = m_inImageFormatData.lock();
-    if (lock) {
-        return lock->format();
-    }
-    return m_lastFormatToProcess;
-}
 
 void ConvertImageToModel::processFinished() {
     const auto [image, elapsed] = m_watcher.result();
     m_outImageData = std::make_shared<ImageData>(image);
-    if (!m_inImageData.expired()) {
-        m_outImageFormatData = std::make_shared<ImageFormatData>(getFormat());
-    }
+    // if (!m_inImageData.expired()) {
+    //     m_outImageFormatData = std::make_shared<ImageFormatData>(getFormat());
+    // }
     if (m_ui) {
         m_ui->sb_time->setValue(elapsed);
     }
@@ -249,10 +234,11 @@ void ConvertImageToModel::updateFlags() {
 }
 
 void ConvertImageToModel::updateFormat(int index) {
-    const auto lockFormat = m_inImageFormatData.lock();
-    if (lockFormat) {
-        m_lastFormatToProcess = lockFormat->format();
-    } else if (m_ui) {
+    // const auto lockFormat = m_inImageFormatData.lock();
+    // if (lockFormat) {
+    //     m_lastFormatToProcess = lockFormat->format();
+    // } else
+    if (m_ui) {
         m_lastFormatToProcess = m_ui->comboBox_format->itemData(index).value<QImage::Format>();
     }
     m_lastImageToProcess = getPixmapToProcess();

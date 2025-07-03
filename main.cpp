@@ -44,22 +44,6 @@ int main(int argc, char *argv[])
     setupApp();
     qApp->setStyle(QStyleFactory::create("Fusion"));           // 设置应用程序风格为Fusion
     qApp->setAttribute(static_cast<Qt::ApplicationAttribute>(Qt::WA_StyledBackground)); // 启用 QSS 样式表支持
-    //
-    // // app.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
-    // app.setStyleSheet(QString("QToolTip {border: 0.9px solid #3e3e42; padding: 6px; background-color: #2d2d2d; border-radius: 3px; color: #dcdcdc; font-family: 15;}"));
-
-    // QPalette pal;
-    // // 统一所有调色板角色的基础颜色
-    // pal.setColor(QPalette::Window, QColor(53,53,53));
-    // pal.setColor(QPalette::Base, QColor(53,53,53));
-    // pal.setColor(QPalette::AlternateBase, QColor(53,53,53));
-    // pal.setColor(QPalette::Button, QColor(53,53,53));
-    // pal.setColor(QPalette::ButtonText, Qt::gray);
-    // pal.setColor(QPalette::Text, Qt::white); // 取消注释确保文本可见
-    //
-    // // 先应用调色板
-    // qApp->setPalette(pal);
-
     // 再设置样式表（后设置的样式会覆盖调色板）
     QFile qssFile(":/styles/styles/DefaultDark.qss");
     if(qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {

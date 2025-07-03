@@ -20,38 +20,38 @@ using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-
-
-/// The model dictates the number of inputs and outputs for the Node.
-/// In this example it has no logic.
-class LogicOperationDataModel : public NodeDelegateModel
+using namespace NodeDataTypes;
+namespace Nodes
 {
-Q_OBJECT
 
-public:
-    LogicOperationDataModel()
+    class LogicOperationDataModel : public NodeDelegateModel
     {
-        InPortCount =2;
-        OutPortCount=1;
-        CaptionVisible=true;
-        Caption="Logic Operation";
-        WidgetEmbeddable= true;
-        Resizable=false;
-        PortEditable= false;
-//        method->setStyleSheet("QComboBox{background-color: transparent;}");
-        widget->addItems(*methods);
-//        method->setFlat(true);
-        val=QVariant(false);
-        connect(widget,&QComboBox::currentIndexChanged,this,&LogicOperationDataModel::methodChanged);
-        registerOSCControl("/method",widget);
-    }
+        Q_OBJECT
 
-    virtual ~LogicOperationDataModel() override{}
+        public:
+        LogicOperationDataModel()
+        {
+            InPortCount =2;
+            OutPortCount=1;
+            CaptionVisible=true;
+            Caption="Logic Operation";
+            WidgetEmbeddable= true;
+            Resizable=false;
+            PortEditable= false;
+            //        method->setStyleSheet("QComboBox{background-color: transparent;}");
+            widget->addItems(*methods);
+            //        method->setFlat(true);
+            val=QVariant(false);
+            connect(widget,&QComboBox::currentIndexChanged,this,&LogicOperationDataModel::methodChanged);
+            registerOSCControl("/method",widget);
+        }
+
+        virtual ~LogicOperationDataModel() override{}
 
 
-    NodeDataType dataType(PortType portType, PortIndex portIndex) const override
-    {
-        switch (portType) {
+        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
+        {
+            switch (portType) {
             case PortType::In:
                 return VariableData().type();
             case PortType::Out:
@@ -60,37 +60,37 @@ public:
                 break;
             default:
                 break;
-        }
-        // FIXME: control may reach end of non-void function [-Wreturn-type]
+            }
+            // FIXME: control may reach end of non-void function [-Wreturn-type]
 
-        return VariableData().type();
-    }
-
-    std::shared_ptr<NodeData> outData(PortIndex const port) override
-    {
-        Q_UNUSED(port);
-        return std::make_shared<VariableData>(val);
-    }
-
-    void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
-    {
-        if (data== nullptr){
-            return;
-        }
-        if (auto textData = std::dynamic_pointer_cast<VariableData>(data)) {
-            in_dictionary[portIndex]=textData->value();
-            methodChanged();
-
+            return VariableData().type();
         }
 
-        Q_EMIT dataUpdated(0);
-    }
-    void methodChanged()
-    {
+        std::shared_ptr<NodeData> outData(PortIndex const port) override
+        {
+            Q_UNUSED(port);
+            return std::make_shared<VariableData>(val);
+        }
 
-        for(auto kv:in_dictionary){
-            if(kv.first!=0){
-                switch (widget->currentIndex()) {
+        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
+        {
+            if (data== nullptr){
+                return;
+            }
+            if (auto textData = std::dynamic_pointer_cast<VariableData>(data)) {
+                in_dictionary[portIndex]=textData->value();
+                methodChanged();
+
+            }
+
+            Q_EMIT dataUpdated(0);
+        }
+        void methodChanged()
+        {
+
+            for(auto kv:in_dictionary){
+                if(kv.first!=0){
+                    switch (widget->currentIndex()) {
                     case 0:
                         val=in_dictionary[0].toString()==kv.second.toString();
                         break;
@@ -119,19 +119,20 @@ public:
                         val=in_dictionary[0].toFloat()>=kv.second.toFloat();
                         break;
 
+                    }
+
                 }
-
             }
+            Q_EMIT dataUpdated(0);
         }
-        Q_EMIT dataUpdated(0);
-    }
-    QWidget *embeddedWidget() override {
-        return widget; }
+        QWidget *embeddedWidget() override {
+            return widget; }
 
-private:
+    private:
 
-    QComboBox *widget=new QComboBox();
-    QStringList *methods=new QStringList {"AND","OR","NOT","MAX","MIN","<","<=",">",">="};
-    std::unordered_map<unsigned int, QVariant> in_dictionary;
-    QVariant val;
-};
+        QComboBox *widget=new QComboBox();
+        QStringList *methods=new QStringList {"AND","OR","NOT","MAX","MIN","<","<=",">",">="};
+        std::unordered_map<unsigned int, QVariant> in_dictionary;
+        QVariant val;
+    };
+}

@@ -18,6 +18,6 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<DynamicPortDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::DynamicPortDataModel>(PLUGIN_TAG);
 }
 

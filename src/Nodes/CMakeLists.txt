@@ -46,3 +46,4 @@ add_subdirectory(MpvControllerNode)   #mpv控制
 add_subdirectory(SwitchNode)          #输入切换
 add_subdirectory(NDVControlNode)       #NDV控制
 
+add_subdirectory(JavaScriptNode)       #JavaScript脚本
