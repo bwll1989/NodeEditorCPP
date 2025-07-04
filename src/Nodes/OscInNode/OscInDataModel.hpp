@@ -25,10 +25,10 @@ namespace Nodes
         OscInDataModel()
         {
             InPortCount =0;
-            OutPortCount=1;
+            OutPortCount=3;
             CaptionVisible=true;
             Caption="OSC Source";
-            WidgetEmbeddable=true;
+            WidgetEmbeddable=false;
             Resizable=false;
             inData=std::make_shared<VariableData>();
             setup();
@@ -45,6 +45,7 @@ namespace Nodes
 
             OSC_Receiver=new OSCReceiver(6000);
             widget=new OscInInterface();
+            NodeDelegateModel::registerOSCControl("/value",widget->portSpinBox);
             connect(OSC_Receiver, &OSCReceiver::receiveOSC, this, &OscInDataModel::getOsc);
             connect(widget,&OscInInterface::portChanged,OSC_Receiver,&OSCReceiver::setPort);
 
@@ -67,10 +68,36 @@ namespace Nodes
             return VariableData().type();
         }
 
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+
+            switch (portIndex)
+            {
+                case 0:
+                    return "RESULT";
+                case 1:
+                    return "ADDRESS";
+                case 2:
+                    return "VALUE";
+                default:
+                    return "";
+            }
+        }
+
         std::shared_ptr<NodeData> outData(PortIndex const port) override
         {
-            Q_UNUSED(port);
-            return std::make_shared<VariableData>(widget->browser->exportToMap());
+            switch (port)
+            {
+                case 0:
+                    return inData;
+                case 1:
+                    return std::make_shared<VariableData>(inData->value("address").toString());
+                case 2:
+                    return std::make_shared<VariableData>(inData->value().toString());
+                default:
+                    break;
+            }
+            return std::make_shared<VariableData>();
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
@@ -81,7 +108,7 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["Port"] = widget->browser->getProperties("Port").toInt();
+            modelJson1["Port"] = widget->portSpinBox->value();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -91,7 +118,7 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->browser->setProperty("Port",v["Port"].toInt());
+                widget->portSpinBox->setValue(v["Port"].toInt());
             }
         }
         QWidget *embeddedWidget() override {
@@ -100,15 +127,18 @@ namespace Nodes
         }
     private Q_SLOTS:
         void getOsc(const QVariantMap &data) {
-            inData->insert(data["address"].toString(),data["default"]);
+            inData=std::make_shared<VariableData>(data);
 
-            widget->browser->buildPropertiesFromMap(inData->getMap());
-            Q_EMIT dataUpdated(0);
+            emit dataUpdated(0);
+            emit dataUpdated(1);
+            emit dataUpdated(2);
+            widget->addressEdit->setText(data["address"].toString());
+            widget->valueEdit->setText(data["default"].toString());
+
         }
     private:
 
         std::shared_ptr<VariableData> inData;
-
         OSCReceiver *OSC_Receiver;
         OscInInterface *widget;
 

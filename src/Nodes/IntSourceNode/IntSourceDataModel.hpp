@@ -5,7 +5,6 @@
 
 #include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
-#include "IntSourceInterface.hpp"
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QSlider>
@@ -30,15 +29,15 @@ namespace Nodes
 
     public:
 
-        IntSourceDataModel():widget(new IntSourceInterface()){
+        IntSourceDataModel():widget(new QLineEdit()){
             InPortCount =1;
             OutPortCount=1;
             CaptionVisible=true;
             Caption="Int Source";
             WidgetEmbeddable=true;
             Resizable=false;
-            registerOSCControl("/int",widget->intDisplay);
-            connect(widget->intDisplay, &QLineEdit::textChanged, this, &IntSourceDataModel::onIntEdited);
+            NodeDelegateModel::registerOSCControl("/int",widget);
+            connect(widget, &QLineEdit::textChanged, this, &IntSourceDataModel::onIntEdited);
         }
 
 
@@ -63,23 +62,23 @@ namespace Nodes
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(widget->intDisplay->text().toInt());
+            return std::make_shared<VariableData>(widget->text().toInt());
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
             {
                 Q_UNUSED(portIndex);
                 if (data== nullptr){
-                    widget->intDisplay->setText("0");
+                    widget->setText("0");
                     return;
                 }
                 auto textData = std::dynamic_pointer_cast<VariableData>(data);
                 if (textData->value().canConvert<int>()) {
 
-                    widget->intDisplay->setText(QString::number(textData->value().toInt()));
+                    widget->setText(QString::number(textData->value().toInt()));
                 } else {
 
-                    widget->intDisplay->setText("0");
+                    widget->setText("0");
                 }
 
                 widget->adjustSize();
@@ -92,7 +91,7 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["val"] = widget->intDisplay->text().toInt();
+            modelJson1["val"] = widget->text().toInt();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -101,7 +100,7 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->intDisplay->setText(QString::number(v["val"].toInt()));
+                widget->setText(QString::number(v["val"].toInt()));
 
             }
         }
@@ -110,14 +109,12 @@ namespace Nodes
 
         void onIntEdited(QString const &string)
         {
-            //        widget->currentVal->setNum(string);
-            //        Q_UNUSED(string);
-            //        this->embeddedWidgetSizeUpdated();
+
             Q_EMIT dataUpdated(0);
         }
 
     private:
-        IntSourceInterface *widget;
+        QLineEdit *widget;
 
     };
 }

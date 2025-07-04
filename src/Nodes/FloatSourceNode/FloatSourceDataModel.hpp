@@ -6,7 +6,6 @@
 #include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
-#include "FloatSourceInterface.hpp"
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QSlider>
@@ -37,8 +36,8 @@ namespace Nodes
             Caption="Float Source";
             WidgetEmbeddable= true;
             Resizable=false;
-            connect(widget->floatDisplay, &QLineEdit::textChanged, this, &FloatSourceDataModel::onFloatEdited);
-            registerOSCControl("/float",widget->floatDisplay);
+            connect(widget, &QLineEdit::textChanged, this, &FloatSourceDataModel::onFloatEdited);
+            registerOSCControl("/float",widget);
         }
 
     public:
@@ -64,7 +63,7 @@ namespace Nodes
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(widget->floatDisplay->text().toDouble());
+            return std::make_shared<VariableData>(widget->text().toDouble());
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
@@ -77,10 +76,10 @@ namespace Nodes
                 auto textData = std::dynamic_pointer_cast<VariableData>(data);
                 if (textData->value().canConvert<double>()) {
 
-                    widget->floatDisplay->setText(QString::number(textData->value().toDouble()));
+                    widget->setText(QString::number(textData->value().toDouble()));
                 } else {
 
-                    widget->floatDisplay->setText("0");
+                    widget->setText("0");
                 }
                 widget->adjustSize();
                 Q_EMIT dataUpdated(0);
@@ -92,7 +91,7 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["val"] = widget->floatDisplay->text().toDouble();
+            modelJson1["val"] = widget->text().toDouble();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -101,7 +100,7 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->floatDisplay->setText(QString::number(v["val"].toDouble()));
+                widget->setText(QString::number(v["val"].toDouble()));
 
             }
         }
@@ -118,7 +117,7 @@ namespace Nodes
         }
 
     private:
-        FloatSourceInterface *widget=new FloatSourceInterface();
+        QLineEdit *widget=new QLineEdit();
 
 
     };

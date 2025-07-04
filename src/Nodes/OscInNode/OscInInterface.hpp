@@ -16,26 +16,36 @@ namespace Nodes
         Q_OBJECT
     public:
         explicit OscInInterface(QWidget *parent = nullptr){
-            main_layout=new QVBoxLayout();
-            browser=new QPropertyBrowser(this);
-            browser->addFixedProperties(QMetaType::Int,"Port",6000);
-            main_layout->addWidget(browser,0);
+            main_layout=new QGridLayout();
+            portSpinBox->setRange(0,65536);
+            portSpinBox->setValue(6000);
+            main_layout->addWidget(portLabel,0,0);
+            main_layout->addWidget(portSpinBox,0,1);
+            main_layout->addWidget(addressLabel,1,0);
+            main_layout->addWidget(addressEdit,1,1);
+            main_layout->addWidget(valueLabel,2,0);
+            main_layout->addWidget(valueEdit,2,1);
             main_layout->setContentsMargins(0,0,0,0);
-            connect(browser,&QPropertyBrowser::nodeItemValueChanged,this,&OscInInterface::valueChanged);
+            connect(portSpinBox,&QSpinBox::valueChanged,this,&OscInInterface::valueChanged);
             this->setLayout(main_layout);
         }
         signals:
             void portChanged(const int &port);
     public slots:
-        void valueChanged(const QString& propertyName, const QVariant& value) {
-        if (propertyName=="Port") {
-            emit portChanged(value.toInt());
-        }
-    }
-    public:
-        QVBoxLayout *main_layout;
-        QPropertyBrowser *browser;
+        void valueChanged() {
 
+            emit portChanged(portSpinBox->value());
+        }
+
+    public:
+        QGridLayout *main_layout;
+        QSpinBox *portSpinBox=new QSpinBox();
+        QLineEdit *valueEdit=new QLineEdit();
+        QLineEdit *addressEdit=new QLineEdit();
+    private:
+        QLabel *portLabel=new QLabel("port: ");
+        QLabel *valueLabel=new QLabel("value: ");
+        QLabel *addressLabel=new QLabel("address: ");
 
 
     };

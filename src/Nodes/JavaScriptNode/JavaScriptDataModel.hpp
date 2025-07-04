@@ -52,8 +52,8 @@ public:
         // 初始化JavaScript引擎
         initJSEngine();
 
-        connect(widget->codeWidget->run, SIGNAL(clicked(bool)), this, SLOT(onButtonClicked()));
-        connect(widget->run, SIGNAL(clicked(bool)), this, SLOT(onButtonClicked()));
+        connect(widget->codeWidget->run, SIGNAL(clicked(bool)), this, SLOT(onRunButtonClicked()));
+        connect(widget->run, SIGNAL(clicked(bool)), this, SLOT(onRunButtonClicked()));
 
     }
     
@@ -145,7 +145,7 @@ public:
         {
             inputPortIndex = portIndex;
             in_data[portIndex] = d->getMap();
-            onButtonClicked();
+            onRunButtonClicked();
         }
     }
 
@@ -194,7 +194,7 @@ private Q_SLOTS:
     /**
      * @brief 手动运行脚本
      */
-    void onButtonClicked()
+    void onRunButtonClicked()
     {
         script = widget->codeWidget->saveCode();
         loadScripts(script);
@@ -325,37 +325,7 @@ var slider1;
 function initInterface() {
     // 在这里编写初始化界面的代码
     // 例如：创建按钮、文本框等
-    // 注意：这只是一个示例，具体的界面元素和逻辑需要根据你的需求进行调整
-	Node.clearLayout();
-	var button1=new Button;
-	button1.setText("dsadsa");
-	slider1=new HSlider;
-	slider1.setRange(0,1000);
-	slider1.setValue(100);
-	var label= new Label;
-	label.setText("label")
-	var combox=new ComboBox;
-	combox.addItem("12");
-	combox.addItem("34");
-	combox.addItems(["56","78"]);
-	var lineedit=new LineEdit;
-	lineedit.setText("das");
-	Node.clearLayout();
-	Node.addToLayout(slider1,0,0,1,3);
-	Node.addToLayout(button1,0,3,4,1);
-	Node.addToLayout(combox,1,0,1,3)
-	Node.addToLayout(label,2,0,1,3);
-	Node.addToLayout(lineedit,3,0,1,3);
-	slider1.valueChanged.connect(label.setText);
-	combox.currentTextChanged.connect(lineedit.setText);
-	slider1.valueChanged.connect(output);
 }
-function output()
-{
-	Node.setOutputValue(0,slider1.value());
-}
-
-
 )";
 };
 }

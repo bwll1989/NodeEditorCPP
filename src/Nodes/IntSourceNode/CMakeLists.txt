@@ -5,7 +5,6 @@ set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)
 add_library(${Module_Name} SHARED
         IntSourceDataModel.hpp
-        IntSourceInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
         )

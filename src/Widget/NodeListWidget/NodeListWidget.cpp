@@ -35,7 +35,7 @@ NodeListWidget::NodeListWidget(CustomDataFlowGraphModel* model, CustomFlowGraphi
     connect(dataFlowModel, &CustomDataFlowGraphModel::nodeDeleted, this, &NodeListWidget::onNodeDeleted);
     // node更新时，更新nodeList中的node
     connect(dataFlowModel, &CustomDataFlowGraphModel::nodeUpdated, this, &NodeListWidget::onNodeUpdated);
-    // node位置更新时，更新nodeList中的位置
+    // // node位置更新时，更新nodeList中的位置
     connect(dataFlowModel, &CustomDataFlowGraphModel::nodePositionUpdated, this, &NodeListWidget::onNodeUpdated);
     // 搜索框文本变化时，过滤nodeList中的node
     connect(searchBox, &QLineEdit::textChanged, this, &NodeListWidget::filterNodes);
@@ -227,36 +227,165 @@ void NodeListWidget::onNodeDeleted(NodeId nodeId) {
     }
 }
 
+/**
+ * 节点更新
+ * @param NodeId nodeId 节点ID
+ */
 void NodeListWidget::onNodeUpdated(NodeId nodeId) {
+    // 预先获取所有需要的数据，避免重复调用
+    QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Remarks).toString();
+    QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
+    QString nodeType = dataFlowModel->nodeData(nodeId, NodeRole::Type).toString();
+    auto oscMapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
+    
+    // 查找节点项
+    QTreeWidgetItem* nodeItem = nullptr;
+    QString nodeIdStr = QString::number(nodeId) + ":";
+    
+    // 使用二分查找或哈希表可以进一步优化，但这里先用简单的线性查找
     for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
-        QTreeWidgetItem* nodeItem = nodeTree->topLevelItem(i);
-        if (nodeItem->text(0).startsWith(QString::number(nodeId) + ":")) {
-            // 更新节点名称
-            QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Remarks).toString();
-            nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
-
-            // 更新位置信息
-            QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
+        QTreeWidgetItem* item = nodeTree->topLevelItem(i);
+        if (item->text(0).startsWith(nodeIdStr)) {
+            nodeItem = item;
+            break;
+        }
+    }
+    
+    if (!nodeItem) return; // 未找到节点，直接返回
+    
+    // 更新节点名称
+    nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
+    
+    // 使用映射表存储子组，避免重复查找
+    QTreeWidgetItem* propertiesGroup = nullptr;
+    QTreeWidgetItem* commandsGroup = nullptr;
+    
+    // 一次性查找所有需要的组
+    for (int j = 0; j < nodeItem->childCount(); ++j) {
+        QTreeWidgetItem* groupItem = nodeItem->child(j);
+        QString groupText = groupItem->text(0);
+        
+        if (groupText == "Properties") {
+            propertiesGroup = groupItem;
+        } else if (groupText == "Commands") {
+            commandsGroup = groupItem;
+        }
+    }
+    
+    // 处理Properties组
+    if (propertiesGroup) {
+        // 使用映射表存储属性项，避免重复查找
+        QTreeWidgetItem* positionItem = nullptr;
+        QTreeWidgetItem* typeItem = nullptr;
+        QTreeWidgetItem* idItem = nullptr;
+        
+        // 一次性查找所有需要的属性项
+        for (int k = 0; k < propertiesGroup->childCount(); ++k) {
+            QTreeWidgetItem* propertyItem = propertiesGroup->child(k);
+            QString propertyText = propertyItem->text(0);
             
-            // 查找 Properties 分组
+            if (propertyText.startsWith("Position:")) {
+                positionItem = propertyItem;
+            } else if (propertyText.startsWith("Type:")) {
+                typeItem = propertyItem;
+            } else if (propertyText.startsWith("ID:")) {
+                idItem = propertyItem;
+            }
+        }
+        
+        // 更新或创建位置项
+        if (positionItem) {
+            positionItem->setText(0, QString("Position: (%1, %2)")
+                .arg(nodePosition.x())
+                .arg(nodePosition.y()));
+        } else {
+            positionItem = new QTreeWidgetItem(propertiesGroup);
+            positionItem->setText(0, QString("Position: (%1, %2)")
+                .arg(nodePosition.x())
+                .arg(nodePosition.y()));
+        }
+        
+        // 更新或创建类型项
+        if (typeItem) {
+            typeItem->setText(0, QString("Type: %1").arg(nodeType));
+        } else {
+            typeItem = new QTreeWidgetItem(propertiesGroup);
+            typeItem->setText(0, QString("Type: %1").arg(nodeType));
+        }
+        
+        // 更新或创建ID项
+        if (idItem) {
+            idItem->setText(0, QString("ID: %1").arg(nodeId));
+        } else {
+            idItem = new QTreeWidgetItem(propertiesGroup);
+            idItem->setText(0, QString("ID: %1").arg(nodeId));
+        }
+    } else {
+        // 创建Properties组
+        propertiesGroup = new QTreeWidgetItem(nodeItem);
+        propertiesGroup->setText(0, "Properties");
+        propertiesGroup->setIcon(0, QIcon(":/icons/icons/property.png"));
+        
+        // 一次性创建所有属性项
+        QTreeWidgetItem* idItem = new QTreeWidgetItem(propertiesGroup);
+        idItem->setText(0, QString("ID: %1").arg(nodeId));
+        
+        QTreeWidgetItem* positionItem = new QTreeWidgetItem(propertiesGroup);
+        positionItem->setText(0, QString("Position: (%1, %2)")
+            .arg(nodePosition.x())
+            .arg(nodePosition.y()));
+        
+        QTreeWidgetItem* typeItem = new QTreeWidgetItem(propertiesGroup);
+        typeItem->setText(0, QString("Type: %1").arg(nodeType));
+    }
+    
+    // 处理Commands组
+    bool hasCommands = !oscMapping.empty();
+    
+    if (commandsGroup) {
+        if (hasCommands) {
+            // 批量更新：先清除所有子项，然后一次性添加新的子项
+            commandsGroup->takeChildren(); // 比逐个删除更高效
+            
+            // 预先分配足够的空间
+            QList<QTreeWidgetItem*> newItems;
+            newItems.reserve(oscMapping.size());
+            
+            QString prefix = "/dataflow/" + QString::number(nodeId);
+            for (const auto& it : oscMapping) {
+                QTreeWidgetItem* controlItem = new QTreeWidgetItem();
+                controlItem->setText(0, prefix + it.first);
+                newItems.append(controlItem);
+            }
+            
+            commandsGroup->addChildren(newItems); // 批量添加子项
+        } else {
+            // 如果没有命令，移除Commands组
             for (int j = 0; j < nodeItem->childCount(); ++j) {
-                QTreeWidgetItem* groupItem = nodeItem->child(j);
-                if (groupItem->text(0) == "Properties") {
-                    // 更新位置属性
-                    for (int k = 0; k < groupItem->childCount(); ++k) {
-                        QTreeWidgetItem* propertyItem = groupItem->child(k);
-                        if (propertyItem->text(0).startsWith("Position:")) {
-                            propertyItem->setText(0, QString("Position: (%1, %2)")
-                                .arg(nodePosition.x())
-                                .arg(nodePosition.y()));
-                            break;
-                        }
-                    }
+                if (nodeItem->child(j) == commandsGroup) {
+                    delete nodeItem->takeChild(j);
                     break;
                 }
             }
-            break;
         }
+    } else if (hasCommands) {
+        // 创建Commands组
+        commandsGroup = new QTreeWidgetItem(nodeItem);
+        commandsGroup->setText(0, "Commands");
+        commandsGroup->setIcon(0, QIcon(":/icons/icons/command.png"));
+        
+        // 预先分配足够的空间
+        QList<QTreeWidgetItem*> newItems;
+        newItems.reserve(oscMapping.size());
+        
+        QString prefix = "/dataflow/" + QString::number(nodeId);
+        for (const auto& it : oscMapping) {
+            QTreeWidgetItem* controlItem = new QTreeWidgetItem();
+            controlItem->setText(0, prefix + it.first);
+            newItems.append(controlItem);
+        }
+        
+        commandsGroup->addChildren(newItems); // 批量添加子项
     }
 }
 
@@ -303,6 +432,10 @@ void NodeListWidget::showContextMenu(const QPoint &pos) {
     deleteAction->setIcon(QIcon(":/icons/icons/clear.png"));
     QAction* expandAction = contextMenu.addAction("Switch expand");
     expandAction->setIcon(QIcon(":/icons/icons/expand.png"));
+     
+    QAction* updateAction = contextMenu.addAction("Update Node");
+    updateAction->setIcon(QIcon(":/icons/icons/restore.png"));
+    
     connect(deleteAction, &QAction::triggered, [this, selectedItem]() {
         dataFlowScene->undoStack().push(new QtNodes::DeleteCommand(dataFlowScene));
     });
@@ -316,6 +449,9 @@ void NodeListWidget::showContextMenu(const QPoint &pos) {
         expandAction->setEnabled(false);
         deleteAction->setEnabled(false);
     }
+    connect(updateAction, &QAction::triggered, [this, nodeId]() {
+        onNodeUpdated(nodeId);
+    });
     contextMenu.exec(nodeTree->viewport()->mapToGlobal(pos));
 }
 

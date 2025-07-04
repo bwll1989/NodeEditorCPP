@@ -81,7 +81,6 @@ namespace Nodes
         }
 
         QWidget *embeddedWidget() override {
-
             return widget;
         }
 
