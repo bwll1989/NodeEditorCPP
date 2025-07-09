@@ -7,6 +7,7 @@
 #include <QtCore/QObject>
 #include <QtWidgets/QComboBox>
 #include <iostream>
+#include <QAbstractScrollArea>
 #include <vector>
 #include <QtCore/qglobal.h>
 #if defined(UNTITLED_LIBRARY)
@@ -33,34 +34,36 @@ namespace Nodes
             OutPortCount=1;
             CaptionVisible=true;
             Caption="Math Operation";
-            WidgetEmbeddable= true;
+            WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= false;
-
+            widget->setFixedWidth(80);
             widget->addItems(*methods);
 
             val=QVariant(0.0);
             connect(widget,&QComboBox::currentIndexChanged,this,&MathOperationDataModel::methodChanged);
-            registerOSCControl("/math",widget);
+            NodeDelegateModel::registerOSCControl("/math",widget);
         }
 
         virtual ~MathOperationDataModel() override{}
 
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+            switch(portType)
+            {
+            case PortType::In:
+                return "INPUT "+QString::number(portIndex);
+            case PortType::Out:
+                return "OUTPUT "+QString::number(portIndex);
+            default:
+                return "";
+            }
 
+        }
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
-            switch (portType) {
-            case PortType::In:
-                return VariableData().type();
-            case PortType::Out:
-                return VariableData().type();
-            case PortType::None:
-                break;
-            default:
-                break;
-            }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
-
+            Q_UNUSED(portIndex);
+            Q_UNUSED(portType);
             return VariableData().type();
         }
 

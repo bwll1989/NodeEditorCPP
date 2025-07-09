@@ -14,7 +14,7 @@ class TcpClient : public QObject
     Q_OBJECT
 
 public:
-    explicit TcpClient(QString dstHost="127.0.0.1",int dstPort=2000,QObject *parent = nullptr);
+    explicit TcpClient(QString dstHost="127.0.0.1",int dstPort=2001,QObject *parent = nullptr);
 
     ~TcpClient();
 
@@ -37,7 +37,7 @@ signals:
 
     void isReady(const bool &isready);
 
-    void recMsg(const QString &Msg);
+    void recMsg(const QVariantMap &Msg);
 
 private:
     QTcpSocket *tcpClient;

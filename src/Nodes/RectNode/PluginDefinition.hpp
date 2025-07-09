@@ -13,7 +13,7 @@
 
 #define PLUGIN_NAME "RectNode"
 #define PLUGIN_VERSION "20240730"
-#define PLUGIN_DESCRIBE "延时"
+#define PLUGIN_DESCRIBE "矩形节点"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin
     : public QObject

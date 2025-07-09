@@ -1,5 +1,5 @@
 #include "QtNodes/ConnectionStyle"
-#include "QtNodes/NodeEditorStyle"
+#include "QtNodes/NodeStyle"
 #include <QtNodes/GraphicsViewStyle>
 #include <QFile>
 #include <QJsonDocument>

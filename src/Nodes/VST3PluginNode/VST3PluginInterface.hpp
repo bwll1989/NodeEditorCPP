@@ -14,16 +14,16 @@ namespace Nodes
         Q_OBJECT
     public:
         explicit VST3PluginInterface(QWidget *parent = nullptr){
-            browser=new QPropertyBrowser(this);
+            // browser=new QPropertyBrowser(this);
             SelectVST=new QPushButton("Select");
             ShowController=new QPushButton("Controller");
             LoadPreset=new QComboBox();
             //        browser->addFixedProperties(QMetaType::Bool,"Select", false);
             //        connect(browser,&QPropertyBrowser::nodeItemValueChanged,this,&VST3PluginInterface::valueChanged);
-            main_layout->addWidget(SelectVST,1);
-            main_layout->addWidget(ShowController,1);
-            main_layout->addWidget(LoadPreset,1);
-            main_layout->addWidget(browser,4);
+            main_layout->addWidget(SelectVST,0,0,1,1);
+            main_layout->addWidget(ShowController,1,0,1,1);
+            main_layout->addWidget(LoadPreset,2,0,1,1);
+            // main_layout->addWidget(browser,4);
             ShowController->setEnabled(false);
             //        main_layout->addWidget(frame,4);
             this->setLayout(main_layout);
@@ -40,8 +40,8 @@ namespace Nodes
         }
     }
     public:
-        QVBoxLayout *main_layout=new QVBoxLayout(this);
-        QPropertyBrowser *browser;
+        QGridLayout *main_layout=new QGridLayout(this);
+        // QPropertyBrowser *browser;
         QPushButton *SelectVST;
         QPushButton *ShowController;
         QComboBox *LoadPreset;

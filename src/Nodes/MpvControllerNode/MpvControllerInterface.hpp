@@ -11,7 +11,7 @@
 #include "QLineEdit"
 #include "QTextBrowser"
 #include "QComboBox"
-#include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
+// #include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
 using namespace std;
 using namespace NodeDataTypes;
 namespace Nodes
@@ -20,23 +20,16 @@ namespace Nodes
         Q_OBJECT
         public:
         explicit MpvControllerInterface(QWidget *parent = nullptr){
+            main_layout->addWidget(hostLabel,0,0,1,1);
+            main_layout->addWidget(hostEdit,0,1,1,1);
+            main_layout->addWidget(Play,1,0,1,2);
+            main_layout->addWidget(playlist_prev,2,0,1,1);
+            main_layout->addWidget(playlist_next,2,1,1,1);
+            main_layout->addWidget(speedSub,3,0,1,1);
+            main_layout->addWidget(speedAdd,3,1,1,1);
+            main_layout->addWidget(speedReset,4,0,1,2);
+            main_layout->addWidget(Fullscreen,5,0,1,2);
 
-            //        Port->setValue(12345);
-            //        Port->setRange(2001,65535);
-
-
-            //        receiveBox->setStyleSheet("QTextBrowser { background-color: black; color: white; border: 1px solid gray; }"
-            //                                  "QTextBrowser QTextDocument { margin-left: 10px; }");
-
-            //        main_layout->addWidget(receiveBox,4);
-            //        main_layout->addWidget(sendBox,1);
-            //        main_layout->addWidget(send,1);
-            browser=new QPropertyBrowser(this);
-            browser->addFixedProperties(QMetaType::QString,"Host","127.0.0.1");
-            connect(browser,&QPropertyBrowser::nodeItemValueChanged,this,&MpvControllerInterface::valueChanged);
-            main_layout->addWidget(browser,4);
-            main_layout->addWidget(Play);
-            main_layout->addWidget(Fullscreen);
             this->setLayout(main_layout);
         }
 
@@ -49,16 +42,23 @@ namespace Nodes
 
         if ( propertyName == "Host") {
             // 获取 Host 和 Port 的最新值
-            QString host = browser->getProperties("Host").toString();
+            QString host = hostEdit->text();
             emit hostChanged(host);
         }
     }
     public:
 
-        QVBoxLayout *main_layout=new QVBoxLayout(this);
+        QGridLayout *main_layout=new QGridLayout(this);
+        QLabel *hostLabel=new QLabel("Host: ");
+        QLineEdit *hostEdit=new QLineEdit("127.0.0.1");
         QPushButton *Play=new QPushButton("play");
+        QPushButton *playlist_prev=new QPushButton("playlist_prev");
+        QPushButton *playlist_next=new QPushButton("playlist_next");
+        QPushButton *speedAdd=new QPushButton("speedAdd");
+        QPushButton *speedSub=new QPushButton("speedSub");
+        QPushButton *speedReset=new QPushButton("speedReset");
         QPushButton *Fullscreen=new QPushButton("fullscreen");
-        QPropertyBrowser *browser;
+
 
     };
 }

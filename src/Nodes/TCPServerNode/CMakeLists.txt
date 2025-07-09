@@ -8,8 +8,6 @@ add_library(${Module_Name} SHARED
         PluginDefinition.hpp
         PluginDefinition.cpp
         TCPServerInterface.hpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         ../../Common/Devices/TcpServer/TcpServer.cpp
         ../../Common/Devices/TcpServer/TcpServer.h)
 

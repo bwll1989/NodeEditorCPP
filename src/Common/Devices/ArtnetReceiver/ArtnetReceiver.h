@@ -14,7 +14,7 @@ public:
     ~ArtnetReceiver();
 
 signals:
-    void receiveOSC(QVariantMap &data);
+    void receiveArtnet(QVariantMap &data);
 
 public slots:
     void processPendingDatagrams();  // 处理接收到的UDP数据

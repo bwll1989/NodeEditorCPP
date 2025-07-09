@@ -43,7 +43,7 @@ QtNodes::NodeDataType DrawRectsModel::dataType(QtNodes::PortType portType, QtNod
                 case 0:
                     return ImageData().type();
                 case 1:
-                    return RectsData().type();
+                    return VariableData().type();
                 case 2:
                     return VariableData(QColor()).type();
                 case 3:
@@ -72,7 +72,7 @@ void DrawRectsModel::setInData(std::shared_ptr<QtNodes::NodeData> nodeData, cons
             }
             break;
         case 1:
-            m_inRectsData = std::dynamic_pointer_cast<RectsData>(nodeData);
+            m_inRectsData = std::dynamic_pointer_cast<VariableData>(nodeData);
             if (m_inRectsData .expired()) {
                 m_outImageData.reset();
                 emit dataUpdated(0);

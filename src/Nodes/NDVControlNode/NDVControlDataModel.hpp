@@ -31,11 +31,11 @@ namespace Nodes
     public:
         NDVControlDataModel()
         {
-            InPortCount =1;
+            InPortCount =4;
             OutPortCount=0;
             CaptionVisible=true;
             Caption="NDV Control";
-            WidgetEmbeddable=true;
+            WidgetEmbeddable=false;
             Resizable=false;
             inData=std::make_shared<VariableData>();
 
@@ -102,33 +102,40 @@ namespace Nodes
                 mSender->sendMessage(Command);
             });
 
-            registerOSCControl("/loop",widget->LoopPlay);
-            registerOSCControl("/play",widget->Play);
-            registerOSCControl("/stop",widget->Stop);
-            registerOSCControl("/close",widget->ClosePC);
-            registerOSCControl("/file",widget->FileIndex);
+            NodeDelegateModel::registerOSCControl("/loop",widget->LoopPlay);
+            NodeDelegateModel::registerOSCControl("/play",widget->Play);
+            NodeDelegateModel::registerOSCControl("/stop",widget->Stop);
+            NodeDelegateModel::registerOSCControl("/close",widget->ClosePC);
+            NodeDelegateModel::registerOSCControl("/file",widget->FileIndex);
         }
 
-        virtual ~NDVControlDataModel() override {
+        ~NDVControlDataModel() override {
             delete mSender;
             delete widget;
         }
 
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+
+            switch (portIndex)
+            {
+            case 0:
+                return "INDEX";
+            case 1:
+                return "PLAY";
+            case 2:
+                return "LOOP";
+            case 3:
+                return "STOP";
+            default:
+                return "";
+            }
+        }
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             Q_UNUSED(portIndex)
-            switch (portType) {
-            case PortType::In:
-                return VariableData().type();
-            case PortType::Out:
-                return VariableData().type();
-            case PortType::None:
-                break;
-            default:
-                break;
-            }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
+            Q_UNUSED(portType)
             return VariableData().type();
         }
 
@@ -140,7 +147,42 @@ namespace Nodes
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            Q_UNUSED(portIndex);
+            if (data== nullptr){
+                return;
+            }
+            auto textData = std::dynamic_pointer_cast<VariableData>(data);
+            switch (portIndex)
+            {
+                case 0:
+                {
+                    widget->FileIndex->setValue(textData->value().toInt());
+                    break;
+                }
+                case 1:
+                {
+                    if(textData->value().toBool())
+                    {
+                        widget->Play->clicked();
+                    }
+                    break;
+                }
+                case 2:
+                {
+                    if(textData->value().toBool())
+                    {
+                        widget->LoopPlay->clicked();
+                    }
+                    break;
+                }
+                case 3:
+                {
+                    if(textData->value().toBool())
+                    {
+                        widget->Stop->clicked();
+                    }
+                    break;
+                }
+            }
         }
 
         QJsonObject save() const override

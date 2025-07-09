@@ -4,16 +4,17 @@
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/PluginInterface>
 
+
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef RectVarNode_EXPORTS
+#ifdef CountNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "RectVarNode"
-#define PLUGIN_VERSION "20240730"
-#define PLUGIN_DESCRIBE "矩形变量"
+#define PLUGIN_NAME "Count"
+#define PLUGIN_VERSION "20250709"
+#define PLUGIN_DESCRIBE "计数"
 #define PLUGIN_TAG "Data"
 class DLL_EXPORT Plugin
     : public QObject

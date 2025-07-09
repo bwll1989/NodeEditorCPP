@@ -35,11 +35,9 @@ public slots:
     void cleanup() {
         // 关闭所有客户端连接
         for (QTcpSocket *clientSocket : mClientSockets) {
-            qDebug() << "delete";
             if (clientSocket->isOpen()) {
                 clientSocket->close();
             }
-            qDebug() << "deleteq";
             clientSocket->deleteLater();
         }
         mClientSockets.clear();
@@ -61,7 +59,7 @@ public slots:
 private slots:
     void onNewConnection() {
         QTcpSocket *clientSocket = mServer->nextPendingConnection();
-        qDebug() << "new";
+        qDebug() << "New tcp client connected"<< clientSocket->peerAddress().toString();
         connect(clientSocket, &QTcpSocket::readyRead, this, &TcpWorker::onReadyRead);
         connect(clientSocket, &QTcpSocket::disconnected, this, &TcpWorker::onDisconnected);
         mClientSockets.append(clientSocket); // Store the client socket
@@ -73,8 +71,9 @@ private slots:
                 QByteArray data = clientSocket->readAll();
                 QVariantMap dataMap;
                 
-                dataMap.insert("Host", clientSocket->peerAddress().toString());
-                dataMap.insert("Default", data);
+                dataMap.insert("host", clientSocket->peerAddress().toString());
+                dataMap.insert("hex",data.toHex());
+                dataMap.insert("default", data);
                 
                 emit messageReceived(data);
                 emit dataReceived(dataMap);

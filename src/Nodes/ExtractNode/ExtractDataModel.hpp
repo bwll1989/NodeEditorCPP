@@ -6,7 +6,6 @@
 #include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
-#include "ExtractInterface.hpp"
 #include <iostream>
 
 #include <QtWidgets/QLineEdit>
@@ -14,7 +13,7 @@
 #include <QtWidgets/QSpinBox>
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
-
+#include "JSEngineDefines/JSEngineDefines.hpp"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -39,9 +38,14 @@ namespace Nodes
             WidgetEmbeddable= true;
             Resizable=false;
             connect(widget, &QLineEdit::editingFinished, this, &ExtractDataModel::outDataSlot);
-
+            m_jsEngine = new QJSEngine(this);
         }
-        ~ExtractDataModel() override {};
+        ~ExtractDataModel() override {
+            if(m_jsEngine) {
+                delete m_jsEngine;
+                m_jsEngine = nullptr;
+            }
+        }
     public:
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
@@ -61,6 +65,11 @@ namespace Nodes
             return VariableData().type();
         }
 
+        /**
+         * @brief 处理输出数据，支持JS表达式解析
+         * @param portIndex 端口索引
+         * @return 提取后的数据
+         */
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
@@ -68,8 +77,47 @@ namespace Nodes
                 // m_proprtyData默认为空指针
                 return std::make_shared<VariableData>();
             }
-            auto data=m_proprtyData->value(widget->text());
-            return std::make_shared<VariableData>(data);
+            
+            QString expression = widget->text();
+            // 如果表达式不包含点号，使用原始的value方法
+            if (!expression.contains(".")) {
+                auto data = m_proprtyData->value(expression);
+                return std::make_shared<VariableData>(data);
+            }
+            
+            // 处理包含点号的JS表达式
+            QStringList parts = expression.split(".");
+            QString rootKey = parts.first();
+            QVariant rootValue = m_proprtyData->value(rootKey);
+            
+            if (rootValue.isNull()) {
+                return std::make_shared<VariableData>();
+            }
+            
+            // 将数据转换为JS对象
+            QJSValue jsObject;
+            if (rootValue.typeId() == QMetaType::QVariantMap) {
+                jsObject = JSEngineDefines::variantMapToJSValue(m_jsEngine, rootValue.toMap());
+            } else {
+                jsObject = m_jsEngine->toScriptValue(rootValue);
+            }
+            
+            // 构建完整的JS表达式
+            QString jsExpression = "obj";
+            for (int i = 1; i < parts.size(); ++i) {
+                jsExpression += "." + parts[i];
+            }
+            
+            // 设置JS上下文并执行表达式
+            m_jsEngine->globalObject().setProperty("obj", jsObject);
+            QJSValue result = m_jsEngine->evaluate(jsExpression);
+            
+            if (result.isError()) {
+                qDebug() << "JS表达式错误:" << result.toString();
+                return std::make_shared<VariableData>();
+            }
+            // 返回结果
+            return std::make_shared<VariableData>(result.toVariant());
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
@@ -110,6 +158,7 @@ namespace Nodes
     private:
         QLineEdit *widget=new QLineEdit("default");
         std::shared_ptr<VariableData> m_proprtyData;
+        QJSEngine *m_jsEngine = nullptr;
 
 
     };

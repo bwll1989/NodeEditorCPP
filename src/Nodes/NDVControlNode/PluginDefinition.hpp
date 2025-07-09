@@ -12,7 +12,7 @@
 #endif
 
 #define PLUGIN_NAME "NDV Control"
-#define PLUGIN_VERSION "20250427"
+#define PLUGIN_VERSION "20250707"
 #define PLUGIN_DESCRIBE "NDV控制"
 #define PLUGIN_TAG "Network"
 class DLL_EXPORT Plugin

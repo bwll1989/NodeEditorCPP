@@ -20,14 +20,14 @@ public slots:
     void initializeSocket();
     void setHost(QString address,int port);
     void cleanup();
-    void sendMessage(const QString &message);
+    void sendMessage(const QString &host,const int &port,const QString &message);
 
 
 signals:
 
     void isReady(const bool &isready);
 
-    void recMsg(const QString &Msg);
+    void recMsg(QVariantMap &Msg);
 
     void arrayMsg(QByteArray datagram);
 

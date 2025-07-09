@@ -31,7 +31,7 @@ namespace Nodes
             OutPortCount=1;
             Caption="Merge";
             CaptionVisible=true;
-            WidgetEmbeddable= true;
+            WidgetEmbeddable= false;
             PortEditable=true;
             Resizable=true;
 
@@ -47,30 +47,13 @@ namespace Nodes
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             Q_UNUSED(portIndex)
-            switch (portType) {
-            case PortType::In:
-                return VariableData().type();
-            case PortType::Out:
-                return VariableData().type();
-            case PortType::None:
-                break;
-            default:
-                break;
-            }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
-
+            Q_UNUSED(portType)
             return VariableData().type();
         }
 
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            // if(m_proprtyData==nullptr) {
-            //     // m_proprtyData默认为空指针
-            //     return std::make_shared<VariableData>();
-            // }
-            // auto data=m_proprtyData->value("widget->text()");
-
             return m_proprtyData;
         }
 
@@ -82,11 +65,24 @@ namespace Nodes
                 }
                 in_dictionary[portIndex]=std::dynamic_pointer_cast<VariableData>(data);
                 processAll();
-                Q_EMIT dataUpdated(0);
+
             }
         }
 
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+            switch(portType)
+            {
+            case PortType::In:
 
+                return "INPUT "+QString::number(portIndex);
+            case PortType::Out:
+                return "OUTPUT "+QString::number(portIndex);;
+            default:
+                return "";
+            }
+
+        }
         void processAll() {
             m_proprtyData=std::make_shared<VariableData>("");
             for(int i=0;i<widget->rowCount();i++) {
@@ -101,6 +97,7 @@ namespace Nodes
                     }
                 }
             }
+            outDataSlot();
         }
 
         void processRow(int row) {
@@ -115,7 +112,7 @@ namespace Nodes
                     m_proprtyData->insert(keys[2],in_dictionary[QString(keys[0]).toInt()]->value(keys[1]));
                 }
             }
-            Q_EMIT dataUpdated(0);
+            outDataSlot();
 
         }
         QJsonObject save() const override
@@ -138,7 +135,9 @@ namespace Nodes
         QWidget *embeddedWidget() override {return widget;}
     private slots:
         void outDataSlot() {
-            Q_EMIT dataUpdated(0);
+            for(unsigned int i = 0; i < OutPortCount; ++i){
+                Q_EMIT dataUpdated(i);
+            }
         }
     private:
         MergeInterface *widget=new MergeInterface();

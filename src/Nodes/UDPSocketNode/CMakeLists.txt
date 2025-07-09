@@ -8,8 +8,6 @@ add_library(${Module_Name} SHARED
         PluginDefinition.hpp
         PluginDefinition.cpp
         UDPSocketInterface.hpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         ../../Common/Devices/UdpSocket/UdpSocket.h
         ../../Common/Devices/UdpSocket/UdpSocket.cpp)
 

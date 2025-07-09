@@ -18,13 +18,19 @@ namespace Nodes
         Q_OBJECT
     public:
         SizeVarModel() {
-            InPortCount =1;
+            InPortCount =2;
             OutPortCount=1;
             CaptionVisible=true;
             Caption="Size Source";
-            WidgetEmbeddable= true;
+            WidgetEmbeddable= false;
             PortEditable= false;
             Resizable= true;
+            m_ui->setupUi(m_widget);
+            connect(m_ui->sb_width, &QLineEdit::textChanged, this ,&SizeVarModel::updateOutput);
+            connect(m_ui->sb_height, &QLineEdit::textChanged, this ,&SizeVarModel::updateOutput);
+            NodeDelegateModel::registerOSCControl("/width",m_ui->sb_width);
+            NodeDelegateModel::registerOSCControl("/height",m_ui->sb_height);
+
         };
 
         ~SizeVarModel() override{}
@@ -32,35 +38,43 @@ namespace Nodes
 
 
         QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override {
+            Q_UNUSED(portIndex);
+            Q_UNUSED(portType);
+            return VariableData().type();
+        }
+
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+
             switch (portType) {
             case QtNodes::PortType::In:
-                return VariableData().type();
+                switch (portIndex)
+                {
+                    case 0:
+                            return "Width";
+                    case 1:
+                            return "Height";
+                }
             case QtNodes::PortType::Out:
-                return VariableData().type();
+                return "SIZE";
             default:
-                return VariableData().type();
+                break;
             }
+            return "";
         }
 
         void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{
             m_inSizeData = std::dynamic_pointer_cast<VariableData>(nodeData);
-            if (auto sizeData = m_inSizeData.lock()) {
-                // 检查是否成功锁定
-                const auto lockSize = sizeData->value();
-                if (lockSize.isValid() &&  lockSize.canConvert<QSize>()) {
-                    // setOutSize();
-                    m_outSize=lockSize.toSize();
-                    m_ui->sb_width->setValue(lockSize.toSize().width());
-                    m_ui->sb_height->setValue(lockSize.toSize().height());
-                    m_ui->sb_width->setEnabled(false);
-                    m_ui->sb_height->setEnabled(false);
-                } else {
-
-                    m_ui->sb_width->setValue(sizeData->value("Width").toInt());
-                    m_ui->sb_height->setValue(sizeData->value("Height").toInt());
-                    // enable the spinboxes
-                    m_ui->sb_width->setEnabled(true);
-                    m_ui->sb_height->setEnabled(true);
+            if (auto sizeData = m_inSizeData.lock())
+            {
+                switch (portIndex)
+                {
+                case 0:
+                    m_ui->sb_width->setText(sizeData->value().toString());
+                    break;
+                case 1:
+                    m_ui->sb_height->setText( sizeData->value().toString());
+                    break;
                 }
             }
         }
@@ -69,8 +83,6 @@ namespace Nodes
             switch (port) {
             case 0:
                 m_outData=std::make_shared<VariableData>(QVariant(m_outSize));
-                m_outData->insert("Width", m_outSize.width());
-                m_outData->insert("Height", m_outSize.height());
                 return m_outData;
             default:
                 return nullptr;
@@ -78,53 +90,44 @@ namespace Nodes
         }
 
         QWidget* embeddedWidget() override{
-            if (!m_widget) {
-                m_ui = std::make_unique<Ui::SizeVarForm>();
-                m_widget = new QWidget();
+            return m_widget;
+        }
 
-                m_ui->setupUi(m_widget);
-                // sb_width and sb_height are QSpinBox
-                connect(m_ui->sb_width, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
-                    setOutSize(QSize(value, m_outSize.height()));
-                });
-                connect(m_ui->sb_height, QOverload<int>::of(&QSpinBox::valueChanged), [this](int value) {
-                    setOutSize(QSize(m_outSize.width(), value));
-                });
-                registerOSCControl("/width",m_ui->sb_width);
-                registerOSCControl("/height",m_ui->sb_height);
-                // setOutSize(QSize(0, 0));
-            }
-            return m_widget;}
-
-        QJsonObject save() const override {
-            QJsonObject modelJson = NodeDelegateModel::save();
-            if (m_inSizeData.expired() && m_ui) {
-                modelJson["width"] = m_ui->sb_width->value();
-                modelJson["height"] = m_ui->sb_height->value();
-            }
+        QJsonObject save() const override
+        {
+            QJsonObject modelJson1;
+            modelJson1["width"] = m_ui->sb_width->text();
+            modelJson1["height"] = m_ui->sb_height->text();
+            QJsonObject modelJson  = NodeDelegateModel::save();
+            modelJson["size"]=modelJson1;
             return modelJson;
         }
 
-        void load(QJsonObject const& jsonObj) override{
-            if (m_inSizeData.expired() && m_ui) {
-                setOutSize(QSize(jsonObj["width"].toInt(), jsonObj["height"].toInt()));
-            }}
+        void load(const QJsonObject &p) override
+        {
+            QJsonValue v = p["size"];
+            if (!v.isUndefined()&&v.isObject()) {
+                //            button->setChecked(v["val"].toBool(false));
+                m_ui->sb_width->setText(v["width"].toString());
+                m_ui->sb_height->setText(v["height"].toString());
+            }
+        }
 
-    private:
-        void setOutSize(const QSize& size) {
+    private slots:
+        void updateOutput() {
             // updates the size from incoming data
-            m_outSize=size;
+           m_outSize = QSizeF(m_ui->sb_width->text().toFloat(), m_ui->sb_height->text().toFloat());
             emit dataUpdated(0);
         }
 
     private:
-        std::unique_ptr<Ui::SizeVarForm> m_ui;
-        QWidget* m_widget = nullptr;
+        std::unique_ptr<Ui::SizeVarForm> m_ui=std::make_unique<Ui::SizeVarForm>();
+        QWidget* m_widget = new QWidget();
         // in
         std::weak_ptr<VariableData> m_inSizeData;
         // out
         // 0
-        QSize m_outSize;
+        QSizeF m_outSize;
         // std::shared_ptr<VariantData> m_outSizeData;
         // 1
         std::shared_ptr<VariableData> m_outData;

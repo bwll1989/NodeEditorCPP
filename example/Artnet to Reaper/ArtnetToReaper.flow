@@ -1,0 +1,300 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 10,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 5,
+                "outNodeId": 0,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 5,
+                "outNodeId": 11,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 2,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 11,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 2,
+                "intNodeId": 12,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 12,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 12,
+                "outNodeId": 13,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 2,
+                "intNodeId": 7,
+                "outNodeId": 12,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+            {
+                "nodeIds": [
+                    10,
+                    2,
+                    5,
+                    1,
+                    6,
+                    11,
+                    0
+                ],
+                "remarks": "获取Artnet输入将通道0-5提取出来"
+            },
+            {
+                "nodeIds": [
+                    12,
+                    13,
+                    3
+                ],
+                "remarks": "根据bool值切换不同的OSC地址"
+            },
+            {
+                "nodeIds": [
+                    7
+                ],
+                "remarks": "输出osc指令"
+            }
+        ],
+        "nodes": [
+            {
+                "id": 0,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 128
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -792.5133333333332,
+                    "y": 186.4266666666666
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 1,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "key": "2"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -791.6413333333333,
+                    "y": 22.442666666666696
+                },
+                "remarks": "Extract",
+                "type": "Extract"
+            },
+            {
+                "id": 10,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "key": "1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -798.6413333333333,
+                    "y": -52.557333333333304
+                },
+                "remarks": "Extract",
+                "type": "Extract"
+            },
+            {
+                "id": 2,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "key": "3"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -804.3773333333332,
+                    "y": 101.17066666666668
+                },
+                "remarks": "Extract",
+                "type": "Extract"
+            },
+            {
+                "id": 3,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "text": "/play"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -98.70533333333334,
+                    "y": -34.58933333333334
+                },
+                "remarks": "String Source",
+                "type": "String Source"
+            },
+            {
+                "id": 5,
+                "input-count": 2,
+                "internal-data": {
+                    "method": 8
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -505.5133333333332,
+                    "y": 24.25066666666656
+                },
+                "remarks": "Logic Operation",
+                "type": "Logic Operation"
+            },
+            {
+                "id": 6,
+                "input-count": 3,
+                "internal-data": {
+                    "values": {
+                        "Channels": "0-3",
+                        "Filter": true,
+                        "Universe": 0
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -1224.6413333333333,
+                    "y": -105.5573333333333
+                },
+                "remarks": "Artnet Source",
+                "type": "Artnet Source"
+            },
+            {
+                "id": 7,
+                "input-count": 5,
+                "internal-data": {
+                    "values": {
+                        "Address": "/stop",
+                        "Host": "127.0.0.1",
+                        "Port": 8000,
+                        "Type": 1,
+                        "Value": "1"
+                    }
+                },
+                "output-count": 0,
+                "port-editable": false,
+                "position": {
+                    "x": 508.6946666666669,
+                    "y": -85.73333333333335
+                },
+                "remarks": "OSC Output",
+                "type": "OSC Output"
+            },
+            {
+                "id": 11,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "key": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -797.6413333333333,
+                    "y": -132.5573333333333
+                },
+                "remarks": "Extract",
+                "type": "Extract"
+            },
+            {
+                "id": 12,
+                "input-count": 3,
+                "internal-data": {
+                    "values": {
+                        "val": 0
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -6.6240000000000805,
+                    "y": 103.968
+                },
+                "remarks": "Switch",
+                "type": "Switch"
+            },
+            {
+                "id": 13,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "text": "/stop"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -86.11200000000007,
+                    "y": -127.29599999999996
+                },
+                "remarks": "String Source",
+                "type": "String Source"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+        ]
+    }
+}

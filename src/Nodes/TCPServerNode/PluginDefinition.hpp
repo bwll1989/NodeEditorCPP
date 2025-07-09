@@ -13,7 +13,7 @@
 #endif
 
 #define PLUGIN_NAME "TCP Server"
-#define PLUGIN_VERSION "20240410"
+#define PLUGIN_VERSION "20250707"
 #define PLUGIN_DESCRIBE "TCP服务器"
 #define PLUGIN_TAG "Network"
 class DLL_EXPORT Plugin

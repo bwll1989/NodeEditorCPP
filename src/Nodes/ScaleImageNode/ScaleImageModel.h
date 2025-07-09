@@ -23,11 +23,11 @@ namespace Nodes
 
     public:
         ScaleImageModel() {
-            InPortCount =3;
+            InPortCount =4;
             OutPortCount=1;
             CaptionVisible=true;
             Caption="Scale Image";
-            WidgetEmbeddable=true;
+            WidgetEmbeddable=false;
             Resizable=false;
             PortEditable=false;
             this->installEventFilter(this);
@@ -40,24 +40,26 @@ namespace Nodes
             switch (portType) {
             case QtNodes::PortType::In:
                 switch (portIndex) {
-            case 0:
-                    return ImageData().type();
-            case 1:
-                    return VariableData().type();
-            case 2:
-                    return VariableData().type();
-            default:
-                    return ImageData().type();
+                case 0:
+                        return ImageData().type();
+                case 1:
+                        return VariableData().type();
+                case 2:
+                        return VariableData().type();
+                case 3:
+                        return VariableData().type();
+                default:
+                        return ImageData().type();
                 }
             case QtNodes::PortType::Out:
                 switch (portIndex) {
-            case 0:
-                    return ImageData().type();
-            default:
-                    return ImageData().type();
-                }
-            default:
-                return VariableData().type();
+                case 0:
+                        return ImageData().type();
+                default:
+                        return ImageData().type();
+                    }
+                default:
+                    return VariableData().type();
             }
         }
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
@@ -70,8 +72,10 @@ namespace Nodes
             case 0:
                     return "Image";
             case 1:
-                    return "Width";
+                    return "SIZE";
             case 2:
+                    return "Width";
+            case 3:
                     return "Height";
                 }
             case QtNodes::PortType::Out:
@@ -81,6 +85,7 @@ namespace Nodes
             }
             return "";
         }
+
         void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override {
 
             switch (portIndex) {
@@ -92,11 +97,29 @@ namespace Nodes
                 break;
             case 1:
 
-                m_ui->widthSpinBox->setValue(std::dynamic_pointer_cast<VariableData>(nodeData)->getMap()["default"].toInt());
+                if (auto data=std::dynamic_pointer_cast<VariableData>(nodeData))
+                {
+                    m_inScaleFactor=data->value().toSize();
+                    m_ui->widthSpinBox->blockSignals(true);
+                    m_ui->heightSpinBox->blockSignals(true);
+                    m_ui->widthSpinBox->setValue(m_inScaleFactor.width());
+                    m_ui->heightSpinBox->setValue(m_inScaleFactor.height());
+                    m_ui->widthSpinBox->blockSignals(false);
+                    m_ui->heightSpinBox->blockSignals(false);
+                    requestProcess();
+                }
                 break;
             case 2:
-
-                m_ui->heightSpinBox->setValue(std::dynamic_pointer_cast<VariableData>(nodeData)->getMap()["default"].toInt());
+                if (auto data=std::dynamic_pointer_cast<VariableData>(nodeData))
+                {
+                    m_ui->widthSpinBox->setValue(data->value().toInt());
+                }
+                break;
+            case 3:
+                if (auto data=std::dynamic_pointer_cast<VariableData>(nodeData))
+                {
+                    m_ui->heightSpinBox->setValue(data->value().toInt());
+                }
                 break;
             default:
                 break;
@@ -136,6 +159,28 @@ namespace Nodes
             }
             return m_widget;
         }
+
+        QJsonObject save() const override
+        {
+            QJsonObject modelJson1;
+            modelJson1["aspectRatio"] = m_ui->cb_aspectRatio->currentIndex();
+            modelJson1["width"] = m_ui->widthSpinBox->value();
+            modelJson1["height"] = m_ui->heightSpinBox->value();
+            QJsonObject modelJson  = NodeDelegateModel::save();
+            modelJson["size"]=modelJson1;
+            return modelJson;
+        }
+
+        void load(const QJsonObject &p) override
+        {
+            QJsonValue v = p["size"];
+            if (!v.isUndefined()&&v.isObject()) {
+                //            button->setChecked(v["val"].toBool(false));
+                m_ui->cb_aspectRatio->setCurrentIndex(v["aspectRatio"].toInt());
+                m_ui->widthSpinBox->setValue(v["width"].toInt());
+                m_ui->heightSpinBox->setValue(v["height"].toInt());
+            }
+        }
     private:
         static QPair<QImage, quint64> processImage(const QImage& image, const QSize& scaleFactor, Qt::AspectRatioMode mode) {
             QElapsedTimer timer;
@@ -165,7 +210,6 @@ namespace Nodes
             }
             emit dataUpdated(0);
         }
-
 
     private:
         QWidget* m_widget = nullptr;

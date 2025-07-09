@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-set(Module_Name "DrawRectsNode")
+set(Module_Name "DrawRectNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -45,7 +45,7 @@ namespace Nodes
         void toggleEditorMode() {
 
             // 如果当前是嵌入模式，则切换到独立窗口
-            codeWidget->setWindowTitle("Lua脚本编辑器");
+            codeWidget->setWindowTitle("JS脚本编辑器");
             codeWidget->setWindowFlags(Qt::Window);
             codeWidget->resize(800, 600); // 设置独立窗口的初始大小
             codeWidget->show();

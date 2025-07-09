@@ -22,16 +22,6 @@ namespace Nodes
 
         ~ImageShowModel() override = default;
 
-    public:
-        QString caption() const override { return QString("Image display"); }
-
-        QString type() const override { return QString("Image display"); }
-
-    public:
-        virtual QString modelName() const { return QString("Resulting Image"); }
-
-        unsigned int nPorts(QtNodes::PortType portType) const override;
-
         QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
 
         std::shared_ptr<QtNodes::NodeData> outData(QtNodes::PortIndex port) override;

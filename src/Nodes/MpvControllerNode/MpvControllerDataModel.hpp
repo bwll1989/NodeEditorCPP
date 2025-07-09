@@ -40,13 +40,18 @@ namespace Nodes
             Resizable=true;
             client=new HttpClient();
             widget=new MpvControllerInterface();
-            registerOSCControl("/play",widget->Play);
-            registerOSCControl("/fullscreen",widget->Fullscreen);
+            NodeDelegateModel::registerOSCControl("/play",widget->Play);
+            NodeDelegateModel::registerOSCControl("/fullscreen",widget->Fullscreen);
             timer=new QTimer();
             timer->setInterval(900);
             connect(widget->Play, &QPushButton::clicked, this, &MpvControllerDataModel::onPlay);
             connect(widget->Fullscreen, &QPushButton::clicked, this, &MpvControllerDataModel::onFullscreen);
-            connect(client,&HttpClient::getSatus,widget->browser,&QPropertyBrowser::buildPropertiesFromJson);
+            connect(widget->playlist_prev, &QPushButton::clicked, this, &MpvControllerDataModel::onplaylist_prev);
+            connect(widget->playlist_next, &QPushButton::clicked, this, &MpvControllerDataModel::onplaylist_next);
+            connect(widget->speedAdd, &QPushButton::clicked, this, &MpvControllerDataModel::speedAdd);
+            connect(widget->speedSub, &QPushButton::clicked, this, &MpvControllerDataModel::speedSub);
+            connect(widget->speedReset, &QPushButton::clicked, this, &MpvControllerDataModel::speedReset);
+            // connect(client,&HttpClient::getSatus,widget->browser,&QPropertyBrowser::buildPropertiesFromJson);
             connect(timer,&QTimer::timeout,this,&MpvControllerDataModel::getStatus);
             timer->start();
         }
@@ -80,7 +85,7 @@ namespace Nodes
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(widget->browser->exportToMap());
+            return std::make_shared<VariableData>();
         }
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
 
@@ -121,24 +126,53 @@ namespace Nodes
         void onPlay()
         {
             //        button->setText(QString::number(string));
-            hostAddress=widget->browser->getProperties("Host").toString();
+            hostAddress=widget->hostEdit->text();
             client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/toggle_pause"));
         }
         void onFullscreen()
         {
             //        button->setText(QString::number(string));
-            hostAddress=widget->browser->getProperties("Host").toString();
+            hostAddress=widget->hostEdit->text();
             client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/fullscreen"));
         }
         void getStatus(){
-            hostAddress=widget->browser->getProperties("Host").toString();
+            hostAddress=widget->hostEdit->text();
             client->sendGetRequest(QUrl("http://"+hostAddress+":8080/api/status"));
             Q_EMIT dataUpdated(0);
+        }
+
+        void onplaylist_prev()
+        {
+            hostAddress=widget->hostEdit->text();
+            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/playlist_prev"));
+        }
+        void onplaylist_next()
+        {
+            hostAddress=widget->hostEdit->text();
+            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/playlist_next"));
+        }
+        void speedAdd(){
+            speed+=0.1;
+            hostAddress=widget->hostEdit->text();
+            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_adjust/"+QString::number(speed)));
+            }
+        void speedSub()
+        {
+            speed-=0.1;
+            hostAddress=widget->hostEdit->text();
+            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_adjust/"+QString::number(speed)));
+        }
+        void speedReset()
+        {
+            speed=1.0;
+            hostAddress=widget->hostEdit->text();
+            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_set"));
         }
     private:
 
         HttpClient *client;
         QString hostAddress;
+        float speed=1.0;
         MpvControllerInterface *widget;
         QTimer *timer;
 

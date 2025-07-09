@@ -1,16 +1,11 @@
 #pragma once
 
 #include "DataTypes/NodeDataList.hpp"
-
 #include <QtNodes/NodeDelegateModel>
-
 #include <QtCore/QObject>
-#include <QtWidgets/QLabel>
 #include "QTimer"
 #include <iostream>
-#include <vector>
 #include <QtCore/qglobal.h>
-#include "QSpinBox"
 #include "DelayInterface.hpp"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -30,74 +25,86 @@ namespace Nodes
     public:
         DelayDataModel()
         {
-            InPortCount =1;
+            InPortCount =2;
             OutPortCount=1;
             CaptionVisible=true;
             Caption="Delay";
-            WidgetEmbeddable= true;
+            WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= false;
-
-
         }
 
-        virtual ~DelayDataModel() override{
+        ~DelayDataModel() override{
             if(timer->isActive())
             {
                 timer->stop();
             }
             deleteLater();
-
         }
-
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             Q_UNUSED(portIndex)
-            switch (portType) {
-            case PortType::In:
-                return VariableData().type();
-            case PortType::Out:
-                return VariableData().type();
-            case PortType::None:
-                break;
-            default:
-                break;
-            }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
-
+            Q_UNUSED(portType)
             return VariableData().type();
         }
 
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+            switch(portType)
+            {
+            case PortType::In:
+                switch(portIndex)
+                {
+                case 0:
+                        return "INPUT";
+                case 1:
+                        return "TIME";
+                default:
+                        return "";
+                }
+            case PortType::Out:
+                return "OUTPUT";
+            default:
+                return "";
+            }
+
+        }
         std::shared_ptr<NodeData> outData(PortIndex const port) override
         {
-            //        Q_UNUSED(port);
+            Q_UNUSED(port);
             return  inData;
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-
             if (data== nullptr){
                 return;
             }
-            if ((inData = std::dynamic_pointer_cast<VariableData>(data))) {
+            switch(portIndex)
+            {
+            case 0:
+                inData = std::dynamic_pointer_cast<VariableData>(data);
                 if(timer->isActive())
                 {
                     timer->stop();
                 }
-                timer->setInterval(widget->value->value());
+                timer->setInterval(widget->value->text().toInt());
                 connect(timer,&QTimer::timeout,this,&DelayDataModel::delayFinished);
                 timer->setSingleShot(true);
                 //            定时器单次执行
                 timer->start();
+                break;
+            case 1:
+                widget->value->setText(std::dynamic_pointer_cast<VariableData>(data)->value().toString());
             }
+
         }
 
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["delay"] = widget->value->value();
+            modelJson1["delay"] = widget->value->text().toInt();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -106,13 +113,13 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->value->setValue(v["delay"].toInt());
+                widget->value->setText(v.toString());
 
             }
         }
 
-        QWidget *embeddedWidget() override{
-
+        QWidget *embeddedWidget() override
+        {
             return widget;
         }
 
@@ -120,7 +127,7 @@ namespace Nodes
             Q_EMIT dataUpdated(0);
         }
         DelayInterface *widget=new DelayInterface();
-        shared_ptr<VariableData> inData;
+        std::shared_ptr<VariableData> inData;
         QTimer *timer=new QTimer();
     };
 }

@@ -61,7 +61,15 @@ void TcpClient::sendMessage(const QString &message)
 void TcpClient::onReadyRead()
     {
         QByteArray data = tcpClient->readAll();
-        emit recMsg(QString(data));
+        if(data.isEmpty())
+        {
+            return;
+        }
+        QVariantMap dataMap;
+        dataMap.insert("host", tcpClient->peerAddress().toString());
+        dataMap.insert("hex", data.toHex());
+        dataMap.insert("default", data);
+        emit recMsg(dataMap);
     }
 
 void TcpClient::onConnected()

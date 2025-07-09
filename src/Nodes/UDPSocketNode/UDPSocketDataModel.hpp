@@ -30,22 +30,27 @@ namespace Nodes
     public:
 
         UDPSocketDataModel(){
-            InPortCount =1;
-            OutPortCount=1;
+            InPortCount =4;
+            OutPortCount=4;
             PortEditable=true;
             CaptionVisible=true;
             Caption=PLUGIN_NAME;
-            WidgetEmbeddable= false;
+            WidgetEmbeddable= true;
             Resizable=true;
-            inData=std::make_shared<VariableData>();
+            m_inData=std::make_shared<VariableData>();
+            m_outData=std::make_shared<VariableData>();
             //        connect(widget->send, &QPushButton::clicked, this,&UDPSocketDataModel::sendMessage,Qt::QueuedConnection);
             connect(this, &UDPSocketDataModel::sendUDPMessage, client, &UdpSocket::sendMessage, Qt::QueuedConnection);
             ////        connect(widget->IP,&QLineEdit::editingFinished,this,&UDPSocketDataModel::hostChange,Qt::QueuedConnection);
             ////        connect(widget->Port,&QSpinBox::valueChanged,this,&UDPSocketDataModel::hostChange,Qt::QueuedConnection);
             connect(widget,&UDPSocketInterface::hostChanged,client, &UdpSocket::setHost,Qt::QueuedConnection);
-            connect(client, &UdpSocket::arrayMsg, this, &UDPSocketDataModel::recMsg, Qt::QueuedConnection);
+            connect(client, &UdpSocket::recMsg, this, &UDPSocketDataModel::recMsg, Qt::QueuedConnection);
+            // connect(widget->sendButton, &QPushButton::clicked, this,, Qt::QueuedConnection);
             //        connect(client, &UdpSocket::isReady, widget->send, &QPushButton::setEnabled, Qt::QueuedConnection);
             ////        connect(this, &UDPSocketDataModel::startUDPSocket, client, &UdpSocket::setHost, Qt::QueuedConnection);
+            connect(widget->sendButton, &QPushButton::clicked, this, [this]() {
+                emit sendUDPMessage(widget->targetHostEdit->text(), widget->targetPortSpinBox->value(), widget->valueEdit->text());
+            });
         }
         ~UDPSocketDataModel(){
 
@@ -55,60 +60,92 @@ namespace Nodes
             widget->deleteLater();
         }
 
-    public:
-
-        unsigned int nPorts(PortType portType) const override
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
-            unsigned int result = 1;
-
-            switch (portType) {
-            case PortType::In:
-                result = InPortCount;
-                break;
-
-            case PortType::Out:
-                result = OutPortCount;
-
-            default:
-                break;
-            }
-
-            return result;
-        }
-
-        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
-        {
-
             switch (portType) {
             case PortType::In:
                 switch (portIndex) {
             case 0:
-                    return VariableData().type();
+                    return "TARGET HOST";
+            case 1:
+                    return "TARGET PORT";
+            case 2:
+                    return "VALUE";
+            case 3:
+                    return "TRIGGER";
+            default:
+                    break;
                 }
-                break;
             case PortType::Out:
-                return VariableData().type();
-                break;
-
-            case PortType::None:
+                switch (portIndex)
+                {
+            case 0:
+                    return "RESULT";
+            case 1:
+                    return "HOST";
+            case 2:
+                    return "VALUE";
+            case 3:
+                    return "HEX";
+            default:
+                    break;
+                }
+            default:
                 break;
             }
+            return "";
+        }
+
+
+        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
+        {
+
+            Q_UNUSED(portIndex);
+            Q_UNUSED(portType);
             return VariableData().type();
         }
 
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
-            Q_UNUSED(portIndex)
-    //        return inData;
-            return std::make_shared<VariableData>(widget->browser->exportToMap());
+            switch (portIndex)
+            {
+            case 0:
+                return m_outData;
+            case 1:
+                return std::make_shared<VariableData>(m_outData->value("host").toString());
+            case 2:
+                return std::make_shared<VariableData>(m_outData->value());
+            case 3:
+                return std::make_shared<VariableData>(m_outData->value("hex"));
+            default:
+                return nullptr;
+            }
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
-            if (data== nullptr){
+            if (data == nullptr) {
                 return;
             }
-            auto Da = std::dynamic_pointer_cast<VariableData>(data);
-            emit sendUDPMessage(Da->value().toString());
+            m_inData = std::dynamic_pointer_cast<VariableData>(data);
+            switch (portIndex) {
+            case 0:
+                widget->targetHostEdit->setText(m_inData->value().toString());
+                break;
+            case 1:
+                widget->targetPortSpinBox->setValue(m_inData->value().toInt());
+                break;
+            case 2:
+                widget->valueEdit->setText(m_inData->value().toString());
+                emit sendUDPMessage(widget->targetHostEdit->text(),widget->targetPortSpinBox->value(),m_inData->value().toString());
+                break;
+            case 3:
+                m_inData = std::make_shared<VariableData>(widget->valueEdit->text());
+                emit sendUDPMessage(widget->targetHostEdit->text(),widget->targetPortSpinBox->value(),m_inData->value().toString());
+                break;
+            default:
+                break;
+            }
+
         }
 
         QWidget *embeddedWidget() override
@@ -119,39 +156,50 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["Port"] = widget->browser->getProperties("Port").toInt();
-            modelJson1["Host"] = widget->browser->getProperties("Host").toString();
+            modelJson1["Listening host"] = widget->listeningHostEdit->text();
+            modelJson1["Listening port"] = widget->listeningPortSpinBox->value();
+            modelJson1["Target host"] = widget->targetHostEdit->text();
+            modelJson1["Target port"] = widget->targetPortSpinBox->value();
+            modelJson1["Value"] = widget->valueEdit->text();
+
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
+
         }
 
         void load(const QJsonObject &p) override
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->browser->setProperty("Port",v["Port"].toInt());
-                widget->browser->setProperty("Host",v["Host"].toString());
+                widget->listeningHostEdit->setText(v["Listening host"].toString());
+                widget->listeningPortSpinBox->setValue(v["Listening port"].toInt());
+                widget->targetHostEdit->setText(v["Target host"].toString());
+                widget->targetPortSpinBox->setValue(v["Target port"].toInt());
+                widget->valueEdit->setText(v["Value"].toString());
             }
         }
 
     public slots:
     //    收到信息时
-        void recMsg(const QByteArray msg)
+        void recMsg(const QVariantMap &msg)
         {
-            inData->insert("default",msg.toHex());
-            widget->browser->buildPropertiesFromMap(inData->getMap());
+            m_outData=std::make_shared<VariableData>(msg);
             Q_EMIT dataUpdated(0);
+            Q_EMIT dataUpdated(1);
+            Q_EMIT dataUpdated(2);
+            Q_EMIT dataUpdated(3);
         }
 
-        signals:
-            void sendUDPMessage(const QString &message);
+    signals:
+        void sendUDPMessage(const QString &host,const int &port,const QString &message);
         void startUDPSocket(const QString &host,int port);
     private:
         UDPSocketInterface *widget=new UDPSocketInterface();
         UdpSocket *client=new UdpSocket();
         //    QVariant message;
-        std::shared_ptr<VariableData> inData;
+        std::shared_ptr<VariableData> m_inData;
+        std::shared_ptr<VariableData> m_outData;
 
     };
 }

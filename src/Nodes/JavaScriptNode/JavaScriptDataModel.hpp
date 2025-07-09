@@ -18,6 +18,7 @@
 #include <QLineEdit>
 #include <QCheckBox>
 #include "SupportWidgets.hpp"
+#include "JSEngineDefines/JSEngineDefines.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -254,7 +255,18 @@ public slots:
      */
    Q_INVOKABLE QJSValue getInputValue(int portIndex) {
         if (portIndex >= 0 && portIndex < static_cast<int>(InPortCount) && in_data.contains(portIndex)) {
-            return variantMapToJSValue(in_data[portIndex]);
+            return JSEngineDefines::variantMapToJSValue(m_jsEngine,in_data[portIndex]);
+        }
+        return m_jsEngine->newObject();
+    }
+    /**
+     * @brief 获取输出值（供JavaScript调用）
+     * @param portIndex 输出端口索引
+     * @return 输出值的JavaScript对象
+     */
+    Q_INVOKABLE QJSValue getOutputValue(int portIndex) {
+        if (portIndex >= 0 && portIndex < static_cast<int>(OutPortCount) && out_data.contains(portIndex)) {
+            return JSEngineDefines::variantMapToJSValue(m_jsEngine,out_data[portIndex]);
         }
         return m_jsEngine->newObject();
     }
@@ -266,50 +278,9 @@ public slots:
      */
    Q_INVOKABLE void setOutputValue(int portIndex, const QJSValue& value) {
         if (portIndex >= 0 && portIndex < static_cast<int>(OutPortCount)) {
-            out_data[portIndex] = jsValueToVariantMap(value);
+            out_data[portIndex] = JSEngineDefines::jsValueToVariantMap(value);
             emit dataUpdated(portIndex);
         }
-    }
-    
-    
-private:
-    /**
-     * @brief 将QVariantMap转换为JavaScript对象
-     * @param map 变体映射
-     * @return JavaScript对象
-     */
-    QJSValue variantMapToJSValue(const QVariantMap& map) {
-        QJSValue obj = m_jsEngine->newObject();
-        
-        for (auto it = map.begin(); it != map.end(); ++it) {
-            obj.setProperty(it.key(), m_jsEngine->toScriptValue(it.value()));
-        }
-        
-        return obj;
-    }
-    
-    /**
-     * @brief 将JavaScript对象转换为QVariantMap
-     * @param value JavaScript对象
-     * @return 变体映射
-     */
-    QVariantMap jsValueToVariantMap(const QJSValue& value) {
-        QVariantMap result;
-        
-        if (value.isObject()) {
-            QJSValueIterator it(value);
-            while (it.hasNext()) {
-                it.next();
-                if (!it.name().isEmpty() && !it.value().isCallable()) {
-                    result[it.name()] = it.value().toVariant();
-                }
-            }
-        } else {
-            // 如果不是对象，则使用默认键存储值
-            result["default"] = value.toVariant();
-        }
-        
-        return result;
     }
 
 private:

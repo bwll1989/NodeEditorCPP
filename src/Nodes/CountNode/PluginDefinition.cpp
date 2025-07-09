@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "RectVarModel.h"
+#include "CountDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::RectVarModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::CountDataModel>(PLUGIN_TAG);
 }

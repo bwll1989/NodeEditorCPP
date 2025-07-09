@@ -11,8 +11,9 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 # 自动处理资源
 add_library(${Module_Name} SHARED
-       CutImageModel.cpp
+        CutImageModel.cpp
         CutImageModel.h
+        CutImageInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE

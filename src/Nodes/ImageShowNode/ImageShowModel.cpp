@@ -10,6 +10,12 @@ using namespace Nodes;
 using namespace NodeDataTypes;
 ImageShowModel::ImageShowModel()
     : _label(new QLabel("Image will appear here")) {
+    InPortCount =1;
+    OutPortCount=1;
+    CaptionVisible=true;
+    Caption="Image display";
+    WidgetEmbeddable=true;
+    Resizable=false;
     _label->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
 
     QFont f = _label->font();
@@ -21,24 +27,6 @@ ImageShowModel::ImageShowModel()
     _label->setMinimumSize(200, 200);
 
     _label->installEventFilter(this);
-}
-
-unsigned int ImageShowModel::nPorts(const QtNodes::PortType portType) const {
-    unsigned int result = 1;
-
-    switch (portType) {
-        case QtNodes::PortType::In:
-            result = 1;
-            break;
-
-        case QtNodes::PortType::Out:
-            result = 1;
-
-        default:
-            break;
-    }
-
-    return result;
 }
 
 bool ImageShowModel::eventFilter(QObject* object, QEvent* event) {

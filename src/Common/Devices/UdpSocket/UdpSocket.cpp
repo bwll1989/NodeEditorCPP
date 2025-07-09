@@ -4,6 +4,8 @@
 
 #include "UdpSocket.h"
 
+#include <QVariant>
+
 UdpSocket::UdpSocket(QString dstHost, int dstPort, QObject *parent): QObject(parent), mPort(dstPort), mHost(dstHost), mSocket(nullptr)
 {
     // 启动线程
@@ -54,7 +56,13 @@ void UdpSocket::processPendingDatagrams()
         QHostAddress sender;
         quint16 senderPort;
         mSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        QVariantMap dataMap;
+        dataMap.insert("host", sender.toString());
+        dataMap.insert("hex", datagram.toHex());
+        dataMap.insert("default",  datagram);
+        emit recMsg(dataMap);
         emit arrayMsg(datagram);
+
 //        emit recMsg(QString::fromUtf8(datagram));
         // 发送回显数据到客户端
 //            QByteArray response = "Echo: " + datagram;
@@ -64,8 +72,8 @@ void UdpSocket::processPendingDatagrams()
 
 
 
-void UdpSocket::sendMessage(const QString &message)
+void UdpSocket::sendMessage(const QString &host,const int &port,const QString &message)
 {
-    mSocket->writeDatagram(message.toUtf8(),QHostAddress(mHost),mPort);
+    mSocket->writeDatagram(message.toUtf8(),QHostAddress(host),port);
 }
 

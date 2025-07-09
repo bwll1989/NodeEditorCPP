@@ -32,12 +32,9 @@ namespace Nodes
     class VST3PluginDataModel : public NodeDelegateModel
     {
         Q_OBJECT
-
-
     public:
-
         VST3PluginDataModel(){
-            InPortCount =2;
+            InPortCount =1;
             OutPortCount=2;
             CaptionVisible=true;
             Caption="VST3 Plugin";
@@ -90,27 +87,37 @@ namespace Nodes
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
-            Q_UNUSED(portIndex)
             switch (portType) {
             case PortType::In:
                 return AudioData().type();
             case PortType::Out:
-                return AudioData().type();
+                switch (portIndex)
+                {
+                    case 0:
+                            return AudioData().type();
+                    case 1:
+                            return VariableData().type();
+                }
             case PortType::None:
                 break;
             default:
                 break;
             }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
-
             return AudioData().type();
-
         }
 
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
-            Q_UNUSED(portIndex)
-            return std::make_shared<AudioData>();
+            switch (portIndex)
+            {
+                case 0:
+                    return std::make_shared<AudioData>();
+                case 1:
+                    return std::make_shared<VariableData>(pluginInfo);
+                default:
+                    return std::make_shared<AudioData>();
+            }
+
         }
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
 
@@ -170,14 +177,13 @@ namespace Nodes
                 return ;
             }
             const auto& factory = module->getFactory();
-            QVariantMap pluginInfo;
+
             pluginInfo["Plugin Path"]=pluginPath;
             // 假设 VST3::Hosting::Module 提供了相关 API 获取插件信息
             auto factoryInfo = module->getFactory ().info() ;
             pluginInfo["Vendor"]= QString::fromStdString(factoryInfo.get().vendor);
             pluginInfo["Version"]=QString::fromStdString(factoryInfo.get().url);
             pluginInfo["email"]=QString::fromStdString(factoryInfo.get().email);
-            widget->browser->buildPropertiesFromMap(pluginInfo);
 
             for (auto& classInfo : factory.classInfos ())
             {
@@ -202,8 +208,7 @@ namespace Nodes
             audioEffect=FUnknownPtr<Steinberg::Vst::IAudioProcessor>(vstPlug);
             widget->ShowController->setEnabled(true);
             //        editController->release ();
-
-
+            emit dataUpdated(1);
         }
 
 
@@ -217,5 +222,6 @@ namespace Nodes
         VST3PluginInterface * widget;
         Steinberg::IPtr<Steinberg::Vst::HostApplication> pluginContext= nullptr;
         std::shared_ptr<Container> window;
+        QVariantMap pluginInfo;
     };
 }

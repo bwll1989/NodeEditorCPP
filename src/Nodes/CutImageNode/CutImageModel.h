@@ -9,7 +9,7 @@
 #include <QFutureWatcher>
 
 #include "DataTypes/NodeDataList.hpp"
-
+#include "CutImageInterface.hpp"
 using namespace NodeDataTypes;
 namespace Nodes
 {
@@ -17,11 +17,9 @@ namespace Nodes
         Q_OBJECT
 
     public:
-        QString caption() const override;
+        CutImageModel();
 
-        QString type() const override;
-
-        unsigned nPorts(QtNodes::PortType portType) const override;
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
 
         QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
 
@@ -31,19 +29,22 @@ namespace Nodes
 
         QWidget* embeddedWidget() override;
 
-    private:
-        static QImage processImage(const QImage& image, const QRect& rect);
+        QJsonObject save() const override;
 
+        void load(const QJsonObject &p) override;
+
+    private slots:
+        void processImage();
     private:
-        // in
-        // 0
         std::weak_ptr<ImageData> m_inImageData;
-        // 1
-        std::weak_ptr<RectData> m_inRectData;
 
-        // out
-        // 0
+        QRect m_outRect;
+
         std::shared_ptr<ImageData> m_outImageData;
+
+        QVariant m_inData;
+
+        CutImageInterface* widget=new CutImageInterface();
     };
 }
 

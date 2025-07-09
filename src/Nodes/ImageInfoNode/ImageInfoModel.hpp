@@ -25,7 +25,7 @@ namespace Nodes
             CaptionVisible=true;
             Caption="Image Info";
             WidgetEmbeddable= true;
-            Resizable=false;
+            Resizable=true;
             PortEditable= false;
 
         };
@@ -39,12 +39,12 @@ namespace Nodes
                 return ImageData().type();
             case PortType::Out:
                 switch (portIndex) {
-            case 0:
-                    return ImageData().type();
-            case 1:
-                    return VariableData().type();
-            default:
-                    break;
+                    case 0:
+                            return ImageData().type();
+                    case 1:
+                            return VariableData().type();
+                    default:
+                        break;
                 }
             default:
                 break;
@@ -94,16 +94,14 @@ namespace Nodes
                 m_proprtyData=std::make_shared<VariableData>();
                 m_proprtyData->insert("isNull",true);
             } else {
-                m_proprtyData=std::make_shared<VariableData>();
+                m_proprtyData=std::make_shared<VariableData>(imageLock->image());
                 m_outImageData = std::make_shared<ImageData>(imageLock->image());
                 m_proprtyData->insert("isNull",imageLock->image().isNull());
                 m_proprtyData->insert("isGrayScale",imageLock->image().isGrayscale());
                 m_proprtyData->insert("hasAlpha",imageLock->image().hasAlphaChannel());
-                m_proprtyData->insert("Format",formatToString(imageLock->image().format()));
-                m_proprtyData->insert("Width",imageLock->image().size().width());
-                m_proprtyData->insert("Height",imageLock->image().size().height());
-                m_proprtyData->insert("Size",imageLock->image().size());
-                m_proprtyData->insert("Rect",imageLock->image().rect());
+                m_proprtyData->insert("format",formatToString(imageLock->image().format()));
+                m_proprtyData->insert("size",imageLock->image().size());
+                m_proprtyData->insert("rect",imageLock->image().rect());
             }
             widget-> buildPropertiesFromMap(m_proprtyData->getMap());
 

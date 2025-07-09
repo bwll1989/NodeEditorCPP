@@ -51,18 +51,7 @@ namespace Nodes
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             Q_UNUSED(portIndex)
-            switch (portType) {
-            case PortType::In:
-                return VariableData().type();
-            case PortType::Out:
-                return VariableData().type();
-            case PortType::None:
-                break;
-            default:
-                break;
-            }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
-
+            Q_UNUSED(portType)
             return VariableData().type();
 
         }
@@ -115,9 +104,6 @@ namespace Nodes
         }
 
     private:
-
         QPushButton *button;
-
-
     };
 }

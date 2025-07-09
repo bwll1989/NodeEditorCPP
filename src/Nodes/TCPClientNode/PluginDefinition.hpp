@@ -13,7 +13,7 @@
 #endif
 
 #define PLUGIN_NAME "TCP Client"
-#define PLUGIN_VERSION "20240721"
+#define PLUGIN_VERSION "20250707"
 #define PLUGIN_DESCRIBE "TCP客户端"
 #define PLUGIN_TAG "Network"
 class DLL_EXPORT Plugin

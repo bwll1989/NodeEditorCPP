@@ -6,22 +6,24 @@
 #include "QLabel"
 #include "QLayout"
 #include "QPushButton"
-#include "QComboBox"
+#include "QLineEdit"
 
 using namespace std;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class ExtractInterface: public QWidget{
+    class CountInterface: public QWidget{
     public:
-        explicit ExtractInterface(QWidget *parent = nullptr){
+        explicit CountInterface(QWidget *parent = nullptr){
             main_layout->setContentsMargins(0,0,0,0);
             this->setLayout(main_layout);
-            main_layout->addWidget(Selector);
+            main_layout->addWidget(Editor);
+            main_layout->addWidget(Clear);
         }
     public:
         QVBoxLayout *main_layout=new QVBoxLayout(this);
-        QComboBox *Selector=new QComboBox(this);
+        QLineEdit *Editor=new QLineEdit("default");
+        QPushButton *Clear=new QPushButton("clear");
 
     };
 }

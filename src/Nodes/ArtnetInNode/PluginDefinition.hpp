@@ -12,7 +12,7 @@
 #endif
 
 #define PLUGIN_NAME "Artnet Source"
-#define PLUGIN_VERSION "20241121"
+#define PLUGIN_VERSION "20250707"
 #define PLUGIN_DESCRIBE "Artnet输入"
 #define PLUGIN_TAG "Network"
 class DLL_EXPORT Plugin

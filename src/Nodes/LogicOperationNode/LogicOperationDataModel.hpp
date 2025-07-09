@@ -28,7 +28,7 @@ namespace Nodes
     {
         Q_OBJECT
 
-        public:
+    public:
         LogicOperationDataModel()
         {
             InPortCount =2;
@@ -39,11 +39,12 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             //        method->setStyleSheet("QComboBox{background-color: transparent;}");
+            widget->setFixedWidth(80);
             widget->addItems(*methods);
             //        method->setFlat(true);
             val=QVariant(false);
             connect(widget,&QComboBox::currentIndexChanged,this,&LogicOperationDataModel::methodChanged);
-            registerOSCControl("/method",widget);
+            NodeDelegateModel::registerOSCControl("/method",widget);
         }
 
         virtual ~LogicOperationDataModel() override{}
@@ -82,48 +83,64 @@ namespace Nodes
                 methodChanged();
 
             }
-
-            Q_EMIT dataUpdated(0);
         }
         void methodChanged()
         {
-
+            bool tempVal=false;
             for(auto kv:in_dictionary){
                 if(kv.first!=0){
                     switch (widget->currentIndex()) {
                     case 0:
-                        val=in_dictionary[0].toString()==kv.second.toString();
+                        tempVal=in_dictionary[0].toString()==kv.second.toString();
                         break;
                     case 1:
-                        val=in_dictionary[0].toBool()||kv.second.toBool();
+                        tempVal=in_dictionary[0].toBool()||kv.second.toBool();
                         break;
                     case 2:
-                        val=in_dictionary[0].toString()!=kv.second.toString();
+                        tempVal=in_dictionary[0].toString()!=kv.second.toString();
                         break;
                     case 3:
-                        val=qMax(in_dictionary[0].toDouble(),kv.second.toDouble());
+                        tempVal=qMax(in_dictionary[0].toDouble(),kv.second.toDouble());
                         break;
                     case 4:
-                        val=qMin(in_dictionary[0].toDouble(),kv.second.toDouble());
+                        tempVal=qMin(in_dictionary[0].toDouble(),kv.second.toDouble());
                         break;
                     case 5:
-                        val=in_dictionary[0].toFloat()<kv.second.toFloat();
+                        tempVal=in_dictionary[0].toFloat()<kv.second.toFloat();
                         break;
                     case 6:
-                        val=in_dictionary[0].toFloat()<=kv.second.toFloat();
+                        tempVal=in_dictionary[0].toFloat()<=kv.second.toFloat();
                         break;
                     case 7:
-                        val=in_dictionary[0].toFloat()>kv.second.toFloat();
+                        tempVal=in_dictionary[0].toFloat()>kv.second.toFloat();
                         break;
                     case 8:
-                        val=in_dictionary[0].toFloat()>=kv.second.toFloat();
+                        tempVal=in_dictionary[0].toFloat()>=kv.second.toFloat();
                         break;
 
                     }
 
                 }
             }
-            Q_EMIT dataUpdated(0);
+            if (tempVal!=val.toBool())
+            {
+                qDebug()<<"tempVal:"<<tempVal;
+                val = tempVal;
+                Q_EMIT dataUpdated(0);
+            }
+
+        }
+        QJsonObject save() const override
+        {
+            QJsonObject modelJson;
+            modelJson["method"] = widget->currentIndex();
+            return modelJson;
+        }
+
+        void load(QJsonObject const &p) override
+        {
+            int val = p["method"].toInt();
+            widget->setCurrentIndex(val);
         }
         QWidget *embeddedWidget() override {
             return widget; }

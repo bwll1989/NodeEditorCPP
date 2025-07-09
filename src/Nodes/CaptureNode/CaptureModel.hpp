@@ -23,7 +23,7 @@ namespace Nodes
             OutPortCount=1;
             CaptionVisible=true;
             Caption="Capture";
-            WidgetEmbeddable=true;
+            WidgetEmbeddable=false;
             Resizable=false;
         }
 
@@ -47,7 +47,27 @@ namespace Nodes
 
             return ImageData().type();
         }
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+            switch(portType)
+            {
+            case QtNodes::PortType::In:
+                switch(portIndex)
+                {
+            case 0:
+                    return "IMAGE";
+            case 1:
+                    return "TRIGGER";
+            default:
+                    return "";
+                }
+            case QtNodes::PortType::Out:
+                return "IMAGE";
+            default:
+                return "";
+            }
 
+        }
         void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{
             switch (portIndex) {
             case 0:

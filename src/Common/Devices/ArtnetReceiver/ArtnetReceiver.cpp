@@ -68,19 +68,28 @@ void ArtnetReceiver::processPendingDatagrams() {
 
         if (opCode == 0x5000) { // OpDmx
             result["universe"] = qFromLittleEndian<quint16>(reinterpret_cast<const uchar *>(header + 14));
-//            result["sequence"] = static_cast<quint8>(header[12]);
-//            result["physical"] = static_cast<quint8>(header[13]);
-            result["Host"]=sender.toString();
+            result["sequence"] = static_cast<quint8>(header[12]);
+            result["physical"] = static_cast<quint8>(header[13]);
+            result["host"]=sender.toString();
+
+            // 获取数据包中的DMX数据长度
             quint16 dmxDataLength = qFromLittleEndian<quint16>(reinterpret_cast<const uchar *>(header + 16));
-            if (datagram.size() < 18 + dmxDataLength) {
-//                qWarning() << "Invalid DMX data length";
+            // 检查数据包大小
+            if (datagram.size() < 18) {
+                qWarning() << "无效的Art-Net数据包大小";
                 continue;
             }
-            QByteArray dmxData = datagram.mid(18, dmxDataLength);
-            result["data"] = dmxData; // 包含 DMX 数据
-            if(mUniverse==-1||mUniverse==result["universe"].toInt())
-                emit receiveOSC(result);
 
+            // 提取DMX数据并填充到512字节
+            QByteArray dmxData;
+            if (datagram.size() >= 18) {
+                // 提取实际数据并填充到512字节
+                dmxData = datagram.mid(18).leftJustified(512, 0x00);
+            }
+            result["hex"]= dmxData.toHex();
+            result["default"] = dmxData;
+            if(mUniverse==-1||mUniverse==result["universe"].toInt())
+                emit receiveArtnet(result);
         }
     }
 }

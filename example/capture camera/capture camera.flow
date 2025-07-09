@@ -2,21 +2,33 @@
     "DataFlow": {
         "connections": [
             {
-                "inPortIndex": 1,
-                "intNodeId": 1,
-                "outNodeId": 2,
-                "outPortIndex": 0
-            },
-            {
                 "inPortIndex": 0,
                 "intNodeId": 1,
                 "outNodeId": 0,
                 "outPortIndex": 0
             },
             {
+                "inPortIndex": 1,
+                "intNodeId": 1,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 2,
+                "intNodeId": 4,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
                 "inPortIndex": 0,
                 "intNodeId": 4,
                 "outNodeId": 1,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 4,
+                "outNodeId": 5,
                 "outPortIndex": 0
             },
             {
@@ -62,7 +74,7 @@
                 "input-count": 1,
                 "internal-data": {
                     "values": {
-                        "val": "1"
+                        "val": "0"
                     }
                 },
                 "output-count": 1,
@@ -82,8 +94,8 @@
                 "output-count": 1,
                 "port-editable": false,
                 "position": {
-                    "x": 781.3199999999999,
-                    "y": -28.799999999999915
+                    "x": 1129.94556621881,
+                    "y": 67.29550863723615
                 },
                 "remarks": "Image display",
                 "type": "Image display"
@@ -96,11 +108,28 @@
                 "output-count": 1,
                 "port-editable": false,
                 "position": {
-                    "x": 496.88,
-                    "y": 81.20000000000007
+                    "x": 466.7104798464492,
+                    "y": 114.72168905950103
                 },
                 "remarks": "Scale Image",
                 "type": "Scale Image"
+            },
+            {
+                "id": 5,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 600
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 84.92161228406908,
+                    "y": 414.55155470249514
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
             }
         ]
     },

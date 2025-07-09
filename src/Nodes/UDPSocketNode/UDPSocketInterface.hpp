@@ -19,22 +19,27 @@ namespace Nodes
         Q_OBJECT
         public:
         explicit UDPSocketInterface(QWidget *parent = nullptr){
-
-            //        Port->setValue(12345);
-            //        Port->setRange(2001,65535);
-
-
-            //        receiveBox->setStyleSheet("QTextBrowser { background-color: black; color: white; border: 1px solid gray; }"
-            //                                  "QTextBrowser QTextDocument { margin-left: 10px; }");
-
-            //        main_layout->addWidget(receiveBox,4);
-            //        main_layout->addWidget(sendBox,1);
-            //        main_layout->addWidget(send,1);
-            browser=new QPropertyBrowser(this);
-            browser->addFixedProperties(QMetaType::Int,"Port",2001);
-            browser->addFixedProperties(QMetaType::QString,"Host","0.0.0.0");
-            connect(browser,&QPropertyBrowser::nodeItemValueChanged,this,&UDPSocketInterface::valueChanged);
-            main_layout->addWidget(browser,4);
+            this->setParent(parent);
+            main_layout->addWidget(listeningHostLabel, 0,0);
+            main_layout->addWidget(listeningHostEdit, 0,1);
+            main_layout->addWidget(listeningPortLabel, 1,0);
+            main_layout->addWidget(listeningPortSpinBox, 1,1);
+            main_layout->addWidget(targetHostLabel, 2,0);
+            main_layout->addWidget(targetHostEdit, 2,1);
+            main_layout->addWidget(targetPort, 3,0);
+            main_layout->addWidget(targetPortSpinBox, 3,1);
+            main_layout->addWidget(valueLabel, 4,0);
+            main_layout->addWidget(valueEdit, 4,1);
+            main_layout->addWidget(sendButton, 5,0,1,2);
+            listeningHostEdit->setText("127.0.0.1");
+            targetHostEdit->setText("127.0.0.1");
+            targetPortSpinBox->setRange(0,65536);
+            targetPortSpinBox->setValue(6011);
+            listeningPortSpinBox->setRange(0,65536);
+            listeningPortSpinBox->setValue(6000);
+            main_layout->setContentsMargins(0, 0, 0, 0);
+            connect(listeningPortSpinBox,&QSpinBox::valueChanged,this,&UDPSocketInterface::valueChanged);
+            connect(listeningHostEdit,&QLineEdit::textChanged,this,&UDPSocketInterface::valueChanged);
             this->setLayout(main_layout);
         }
 
@@ -43,20 +48,27 @@ namespace Nodes
             void hostChanged(QString host, int port);
     public slots:
         // 处理属性值变化
-        void valueChanged(const QString &propertyName, const QVariant &value) {
-
-        if (propertyName == "Port" || propertyName == "Host") {
-            // 获取 Host 和 Port 的最新值
-            QString host = browser->getProperties("Host").toString();
-            int port = browser->getProperties("Port").toInt();
+        void valueChanged() {
+            auto host = listeningHostEdit->text();
+            auto port = listeningPortSpinBox->value();
             emit hostChanged(host, port);
         }
-    }
+
     public:
 
-        QVBoxLayout *main_layout=new QVBoxLayout(this);
-
-        QPropertyBrowser *browser;
+        QGridLayout *main_layout=new QGridLayout(this);
+        QLineEdit *listeningHostEdit=new QLineEdit();
+        QSpinBox *listeningPortSpinBox=new QSpinBox();
+        QLineEdit *targetHostEdit=new QLineEdit();
+        QSpinBox *targetPortSpinBox=new QSpinBox();
+        QLineEdit *valueEdit=new QLineEdit();
+        QPushButton *sendButton=new QPushButton("Send");
+    private:
+        QLabel *listeningHostLabel=new QLabel("listening host: ");
+        QLabel *listeningPortLabel=new QLabel("listening port: ");
+        QLabel *targetHostLabel=new QLabel("target host: ");
+        QLabel *targetPort=new QLabel("target port: ");
+        QLabel *valueLabel=new QLabel("value: ");
 
     };
 }

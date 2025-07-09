@@ -211,6 +211,7 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/LTCDecoder/LTCDecoder.h
         src/Common/Devices/LtcReceiver/LtcReceiver.cpp
         src/Common/Devices/LtcReceiver/LtcReceiver.h
+        src/Common/Devices/JSEngineDefines/JSEngineDefines.hpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         # src/Widget/TimeLineWidget/videoplayerwidget.hpp

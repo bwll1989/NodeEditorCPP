@@ -10,6 +10,8 @@
 #include <QtNodes/NodeDelegateModel>
 #include "DataTypes/NodeDataList.hpp"
 #include "ui_RectForm.h"
+#include <QPointF>
+#include <QRectF>
 namespace Ui {
     class RectForm;
 }
@@ -21,13 +23,12 @@ namespace Nodes
 
     public:
         RectModel(){
-            m_outRect = QRect(0, 0, 0, 0);
-            m_outRectsData = std::make_shared<RectData>(m_outRect);
-            InPortCount =1;
-            OutPortCount=2;
+            m_outRect = QRectF(0, 0, 0, 0);
+            InPortCount =4;
+            OutPortCount=4;
             Caption="Rect";
             CaptionVisible=true;
-            WidgetEmbeddable= true;
+            WidgetEmbeddable= false;
             Resizable=false;
         }
 
@@ -35,61 +36,44 @@ namespace Nodes
 
 
         QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override{
-            switch (portType) {
-            case QtNodes::PortType::In:
-                return VariableData().type();
-            case QtNodes::PortType::Out:
-                switch (portIndex) {
-            case 0:
-                    return RectData().type();
-            case 1:
-                    return VariableData().type();
-            default:
-                    return VariableData().type();
-                }
-            default:
-                return VariableData().type();
-            }
+            Q_UNUSED(portIndex);
+            Q_UNUSED(portType);
+            return VariableData().type();
         }
 
         void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{
             // if the input data is a rect, update the m_outRectValue and the ui
-            if (auto rectData = std::dynamic_pointer_cast<VariableData>(nodeData)) {
-                m_inData = rectData;
-                if(m_inData.lock()->hasKey("Rect"))
-                    m_outRect = rectData->value("Rect").toRect();
+            switch (portIndex)
+            {
+            case 0:
+                if (auto rectData = std::dynamic_pointer_cast<VariableData>(nodeData))
+                     m_ui->sb_x->setText(QString::number(rectData->value().toFloat()));
+                break;
+            case 1:
+                if (auto rectData = std::dynamic_pointer_cast<VariableData>(nodeData))
+                    m_ui->sb_y->setText(QString::number(rectData->value().toFloat()));
+                break;
+            case 2:
+                if (auto rectData = std::dynamic_pointer_cast<VariableData>(nodeData))
+                    m_ui->sb_width->setText(QString::number(rectData->value().toFloat()));
+                break;
+            case 3:
+                if (auto rectData = std::dynamic_pointer_cast<VariableData>(nodeData))
+                    m_ui->sb_height->setText(QString::number(rectData->value().toFloat()));
+                break;
             }
-            else {
-                m_inData.reset();
-                m_outRect = QRect(0, 0, 0, 0);
-                m_outRectsData = std::make_shared<RectData>(m_outRect);
-            }
-            if (m_ui) {
-                // enable the widgets
-                m_ui->sb_x->setEnabled(true);
-                m_ui->sb_y->setEnabled(true);
-                m_ui->sb_width->setEnabled(true);
-                m_ui->sb_height->setEnabled(true);
-                // block signals to avoid infinite loop
-                QSignalBlocker blocker(m_ui->sb_x);
-                QSignalBlocker blocker2(m_ui->sb_y);
-                QSignalBlocker blocker3(m_ui->sb_width);
-                QSignalBlocker blocker4(m_ui->sb_height);
-                m_ui->sb_x->setValue(m_outRect.x());
-                m_ui->sb_y->setValue(m_outRect.y());
-                m_ui->sb_width->setValue(m_outRect.width());
-                m_ui->sb_height->setValue(m_outRect.height());
-                emit dataUpdated(0);
-            }
-            updateProperty();
         }
 
         std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override{
             switch (port) {
             case 0:
-                return m_outRectsData;
+                return std::make_shared<VariableData>(m_outRect);
             case 1:
-                return m_outPropertyData;
+                return std::make_shared<VariableData>(m_outRect.size());
+            case 2:
+                return std::make_shared<VariableData>(m_outRect.center());
+            case 3:
+                return std::make_shared<VariableData>(m_outRect.bottomRight());
             default:
                 return std::make_shared<VariableData>();
             }
@@ -101,14 +85,14 @@ namespace Nodes
                 m_ui = std::make_unique<Ui::RectForm>();
                 m_widget = new QWidget();
                 m_ui->setupUi(m_widget);
-                connect(m_ui->sb_x, QOverload<int>::of(&QSpinBox::valueChanged), this, &RectModel::updateRectFromUI);
-                connect(m_ui->sb_y, QOverload<int>::of(&QSpinBox::valueChanged), this, &RectModel::updateRectFromUI);
-                connect(m_ui->sb_width, QOverload<int>::of(&QSpinBox::valueChanged), this, &RectModel::updateRectFromUI);
-                connect(m_ui->sb_height, QOverload<int>::of(&QSpinBox::valueChanged), this, &RectModel::updateRectFromUI);
-                registerOSCControl("/x",m_ui->sb_x);
-                registerOSCControl("/y",m_ui->sb_y);
-                registerOSCControl("/width",m_ui->sb_width);
-                registerOSCControl("/height",m_ui->sb_height);
+                connect(m_ui->sb_x, &QLineEdit::textChanged, this, &RectModel::updateRectFromUI);
+                connect(m_ui->sb_y, &QLineEdit::textChanged, this, &RectModel::updateRectFromUI);
+                connect(m_ui->sb_width, &QLineEdit::textChanged, this, &RectModel::updateRectFromUI);
+                connect(m_ui->sb_height, &QLineEdit::textChanged, this, &RectModel::updateRectFromUI);
+                NodeDelegateModel::registerOSCControl("/x",m_ui->sb_x);
+                NodeDelegateModel::registerOSCControl("/y",m_ui->sb_y);
+                NodeDelegateModel::registerOSCControl("/width",m_ui->sb_width);
+                NodeDelegateModel::registerOSCControl("/height",m_ui->sb_height);
             }
             return m_widget;
         }
@@ -118,56 +102,81 @@ namespace Nodes
             switch (port) {
             case QtNodes::PortType::In:
                 switch (port_index) {
-            case 0:
-                    return "Rect";
-            default:
-                    return QString();
+                    case 0:
+                            return "POS_X";
+                    case 1:
+                            return "POS_Y";
+                    case 2:
+                            return "WIDTH";
+                    case 3:
+                            return "HEIGHT";
+                    default:
+                            return QString();
                 }
             case QtNodes::PortType::Out:
                 switch (port_index) {
-            case 0:
-                    return "Rect";
-            case 1:
-                    return "Info";
-            default:
-                    return QString();
+                    case 0:
+                            return "Rect";
+                    case 1:
+                            return "SIZE";
+                    case 2:
+                            return "CENTER";
+                    case 3:
+                            return  "BOTTOM_RIGHT";
+                    default:
+                        return QString();
                 }
             default:
                 return NodeDelegateModel::portCaption(port, port_index);
+            }
+        }
+        QJsonObject save() const override
+        {
+            QJsonObject modelJson1;
+            modelJson1["x"] = m_ui->sb_x->text();
+            modelJson1["y"] = m_ui->sb_y->text();
+            modelJson1["width"] = m_ui->sb_width->text();
+            modelJson1["height"] = m_ui->sb_height->text();
+            QJsonObject modelJson  = NodeDelegateModel::save();
+            modelJson["rect"]=modelJson1;
+            return modelJson;
+        }
+
+        void load(const QJsonObject &p) override
+        {
+            QJsonValue v = p["rect"];
+            if (!v.isUndefined()&&v.isObject()) {
+                m_ui->sb_x->blockSignals(true);
+                m_ui->sb_y->blockSignals(true);
+                m_ui->sb_width->blockSignals(true);
+                m_ui->sb_height->blockSignals(true);
+                m_ui->sb_x->setText(v["x"].toString());
+                m_ui->sb_y->setText(v["y"].toString());
+                m_ui->sb_width->setText(v["width"].toString());
+                m_ui->sb_height->setText(v["height"].toString());
+                m_ui->sb_x->blockSignals(false);
+                m_ui->sb_y->blockSignals(false);
+                m_ui->sb_width->blockSignals(false);
+                m_ui->sb_height->blockSignals(false);
+                updateRectFromUI();
             }
         }
 
     private slots:
         void updateRectFromUI(){
             // take the values from the ui and update the out data
-            const int x = m_ui->sb_x->value();
-            const int y = m_ui->sb_y->value();
-            const int width = m_ui->sb_width->value();
-            const int height = m_ui->sb_height->value();
-            m_outRect = QRect(x, y, width, height);
-            m_outRectsData = std::make_shared<RectData>(m_outRect);
+            const float x = m_ui->sb_x->text().toFloat();
+            const float y = m_ui->sb_y->text().toFloat();
+            const float width = m_ui->sb_width->text().toFloat();
+            const float height = m_ui->sb_height->text().toFloat();
+            m_outRect = QRectF(x, y, width, height);
             emit dataUpdated(0);
-            updateProperty();
+            emit dataUpdated(1);
+            emit dataUpdated(2);
+            emit dataUpdated(3);
         }
 
-        void updateProperty(){
-            if (m_ui) {
-                // block signals to avoid infinite loop
-                QSignalBlocker blocker(m_ui->sb_center_x);
-                QSignalBlocker blocker2(m_ui->sb_center_y);
-                m_ui->sb_center_x->setValue(m_outRect.center().x());
-                m_ui->sb_center_y->setValue(m_outRect.center().y());
-                m_outPropertyData = std::make_shared<VariableData>();
-                m_outPropertyData->insert("Rect", m_outRect);
-                m_outPropertyData->insert("Center", m_outRect.center());
-                m_outPropertyData->insert("Size", m_outRect.size());
-                m_outPropertyData->insert("topLeft", m_outRect.topLeft());
-                m_outPropertyData->insert("topRight", m_outRect.topRight());
-                m_outPropertyData->insert("bottomLeft", m_outRect.bottomLeft());
-                m_outPropertyData->insert("bottomRight", m_outRect.bottomRight());
-            }
-            emit dataUpdated(1);
-        }
+
 
     private:
         QWidget* m_widget = nullptr;
@@ -177,10 +186,8 @@ namespace Nodes
         std::weak_ptr<VariableData> m_inData;
         //out
         // 0
-        QRect m_outRect;
-        std::shared_ptr<RectData> m_outRectsData;
-        // 1
-        std::shared_ptr<VariableData> m_outPropertyData;
+        QRectF m_outRect;
+
 
     };
 }
