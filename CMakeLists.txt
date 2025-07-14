@@ -93,8 +93,8 @@ include_directories(${tinyosc_DIR})
 message("-- Found tinyosc ${tinyosc_DIR}")
 
 # 设置FFMPEG库
-set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/include")
-set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/lib")
+set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-184-gdc07f98934-win64-gpl-shared-7.1/include")
+set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-184-gdc07f98934-win64-gpl-shared-7.1/lib")
 include_directories(${FFMPEG_INCLUDE_DIRS})
 link_directories("${FFMPEG_LIB_DIRS}")
 message("-- Found ffmpeg ${FFMPEG_INCLUDE_DIRS}")
@@ -129,7 +129,7 @@ INCLUDE_DIRECTORIES("${QScintilla_DIR}/include")
 message("--Found QScintilla  ${QScintilla_DIR}")
 
 # 设置QT库
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick  Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
         QmlWorkerScript
         QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
@@ -197,6 +197,8 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/TcpServer/TcpServer.h
         src/Common/Devices/TcpClient/TcpClient.cpp
         src/Common/Devices/TcpClient/TcpClient.h
+        src/Common/Devices/TcpClient/TcpClientWorker.h
+        src/Common/Devices/TcpClient/TcpClientWorker.cpp
         src/Common/Devices/UdpSocket/UdpSocket.cpp
         src/Common/Devices/UdpSocket/UdpSocket.h
         src/Common/Devices/WebSocketServer/WebSocketServer.cpp

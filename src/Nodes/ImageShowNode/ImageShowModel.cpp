@@ -13,7 +13,7 @@ ImageShowModel::ImageShowModel()
     InPortCount =1;
     OutPortCount=1;
     CaptionVisible=true;
-    Caption="Image display";
+    Caption="Image Display";
     WidgetEmbeddable=true;
     Resizable=false;
     _label->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);

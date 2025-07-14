@@ -20,7 +20,7 @@ public slots:
     void initializeSocket();
     void setHost(QString address,int port);
     void cleanup();
-    void sendMessage(const QString &host,const int &port,const QString &message);
+    void sendMessage(const QString &host,const int &port,const QString &message,const int &format=0);
 
 
 signals:

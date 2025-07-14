@@ -51,7 +51,7 @@ namespace Nodes
             NodeDelegateModel::registerOSCControl("/value",widget->valueEdit);
             connect(widget->sendButton, &QPushButton::clicked, this,[this]()
             {
-                server->sendMessage(widget->valueEdit->text());
+                server->sendMessage(widget->valueEdit->text(),widget->format->currentIndex());
             },Qt::QueuedConnection);
             //        connect(this, &TCPServerDataModel::stopTCPServer, server, &TcpServer::stopServer, Qt::QueuedConnection);
             //
@@ -174,7 +174,7 @@ namespace Nodes
             modelJson1["Port"] = widget->portSpinBox->value();
             modelJson1["Host"] = widget->hostLineEdit->text();
             modelJson1["Value"] = widget->valueEdit->text();
-
+            modelJson1["Format"] = widget->format->currentIndex();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -188,7 +188,7 @@ namespace Nodes
                 widget->portSpinBox->setValue(v["Port"].toInt());
                 widget->hostLineEdit->setText(v["Host"].toString());
                 widget->valueEdit->setText(v["Value"].toString());
-
+                widget->format->setCurrentIndex(v["Format"].toInt());
             }
         }
 
@@ -207,13 +207,13 @@ namespace Nodes
             if(!m_inData){
                 return;
             }
-            server->sendMessage(m_inData->value().toString());
+            server->sendMessage(m_inData->value().toString(),widget->format->currentIndex());
         }
 
     signals:
         //    关闭信号
         void stopTCPServer();
-        void sendTCPMessage(const QString &client,const QString &message);
+        // void sendTCPMessage(const QString &client,const QString &message,const int &format);
     private:
         TCPServerInterface *widget=new TCPServerInterface();
         TcpServer *server;

@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::UDPSocketDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::UDPSocketDataModel>(name(),tag());
 }

@@ -31,48 +31,56 @@ namespace Nodes
 
     public:
 
+        // 修改构造函数部分
         TCPClientDataModel(){
             // 在新线程中启动服务器
-            InPortCount =4;
-            OutPortCount=4;
-            CaptionVisible=true;
-            PortEditable=false;
-            Caption=PLUGIN_NAME;
-            WidgetEmbeddable= false;
-            Resizable=false;
-            m_inData=std::make_shared<VariableData>();
-            m_outData=std::make_shared<VariableData>();
-            NodeDelegateModel::registerOSCControl("/host",widget->hostEdit);
-            NodeDelegateModel::registerOSCControl("/port",widget->portSpinBox);
-            NodeDelegateModel::registerOSCControl("/value",widget->valueEdit);
-            NodeDelegateModel::registerOSCControl("/send",widget->send);
-            client->moveToThread(clientThread);
-
-            connect(this,&TCPClientDataModel::sendTCPMessage, client, &TcpClient::sendMessage, Qt::QueuedConnection);
-            connect(widget->hostEdit,&QLineEdit::editingFinished,this,&TCPClientDataModel::hostChange,Qt::QueuedConnection);
-            connect(widget->portSpinBox,&QSpinBox::valueChanged,this,&TCPClientDataModel::hostChange,Qt::QueuedConnection);
-            connect(this,&TCPClientDataModel::connectTCPServer,client,&TcpClient::connectToServer,Qt::QueuedConnection);
-            connect(client,&TcpClient::isReady,widget->send,&QPushButton::setEnabled,Qt::QueuedConnection);
-            connect(client,&TcpClient::recMsg,this,&TCPClientDataModel::recMsg,Qt::QueuedConnection);
-            connect(widget->send, &QPushButton::clicked, this,[this]()
+            InPortCount = 4;
+            OutPortCount = 4;
+            CaptionVisible = true;
+            PortEditable = false;
+            Caption = PLUGIN_NAME;
+            WidgetEmbeddable = false;
+            Resizable = false;
+            m_inData = std::make_shared<VariableData>();
+            m_outData = std::make_shared<VariableData>();
+            NodeDelegateModel::registerOSCControl("/host", widget->hostEdit);
+            NodeDelegateModel::registerOSCControl("/port", widget->portSpinBox);
+            NodeDelegateModel::registerOSCControl("/value", widget->valueEdit);
+            NodeDelegateModel::registerOSCControl("/send", widget->send);
+            
+            // 不再需要将client移动到线程，因为TcpClient内部已经处理了线程
+            // client->moveToThread(clientThread); // 删除这一行
+        
+            connect(this, &TCPClientDataModel::sendTCPMessage, client, &TcpClient::sendMessage, Qt::QueuedConnection);
+            connect(widget->hostEdit, &QLineEdit::editingFinished, this, &TCPClientDataModel::hostChange, Qt::QueuedConnection);
+            connect(widget->portSpinBox, &QSpinBox::valueChanged, this, &TCPClientDataModel::hostChange, Qt::QueuedConnection);
+            connect(this, &TCPClientDataModel::connectTCPServer, client, &TcpClient::connectToServer, Qt::QueuedConnection);
+            connect(client, &TcpClient::isReady, widget->send, &QPushButton::setEnabled, Qt::QueuedConnection);
+            connect(client, &TcpClient::recMsg, this, &TCPClientDataModel::recMsg, Qt::QueuedConnection);
+            connect(widget->send, &QPushButton::clicked, this, [this]()
             {
-                 emit sendTCPMessage(widget->valueEdit->text());
-            },Qt::QueuedConnection);
-            clientThread->start();
+                emit sendTCPMessage(widget->valueEdit->text(),widget->format->currentIndex());
+            }, Qt::QueuedConnection);
+            connect(this, &TCPClientDataModel::stopTCPClient, client, &TcpClient::stopTimer, Qt::QueuedConnection);
+            
+            // 不再需要启动线程，因为TcpClient内部已经启动了线程
+            // clientThread->start(); // 删除这一行
         }
+        
         ~TCPClientDataModel(){
-            emit stopTCPClient();
-            if(clientThread->isRunning()){
-
-                clientThread->quit();
-                clientThread->wait();
-            }
-
+            // 不再需要在客户端线程中断开连接和停止计时器，直接调用方法即可
+            client->disconnectFromServer();
+            
+            // 不再需要等待和管理线程，因为TcpClient内部已经处理了线程
+            // QThread::msleep(50);
+            // if(clientThread->isRunning()){
+            //     clientThread->quit();
+            //     clientThread->wait();
+            // }
+            
             delete client;
-            delete clientThread;
-
+            // delete clientThread; // 删除这一行，因为不再需要管理线程
             widget->deleteLater();
-
         }
     public:
 
@@ -175,8 +183,10 @@ namespace Nodes
             modelJson1["Port"] = widget->portSpinBox->value();
             modelJson1["IP"] = widget->hostEdit->text();
             modelJson1["Value"] = widget->valueEdit->text();
+            modelJson1["Format"] = widget->format->currentIndex();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
+
             return modelJson;
         }
 
@@ -187,7 +197,7 @@ namespace Nodes
                 widget->hostEdit->setText(v["IP"].toString());
                 widget->portSpinBox->setValue(v["Port"].toInt());
                 widget->valueEdit->setText(v["Value"].toString());
-
+                widget->format->setCurrentIndex(v["Format"].toInt());
             }
         }
 
@@ -217,12 +227,12 @@ namespace Nodes
     signals:
         //    关闭信号
         void stopTCPClient();
-        void sendTCPMessage(const QString &message);
+        void sendTCPMessage(const QString &message,const int &format=0);
         void connectTCPServer(const QString &host,int port);
     private:
         TCPClientInterface *widget=new TCPClientInterface();
         TcpClient *client=new TcpClient();
-        QThread *clientThread=new QThread();
+        // QThread *clientThread=new QThread(); // 删除这一行，因为不再需要管理线程
         std::shared_ptr<VariableData> m_inData;
         std::shared_ptr<VariableData> m_outData;
     };

@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<ArtnetInDataModel>(PLUGIN_TAG);
+    reg->registerModel<ArtnetInDataModel>(name(),tag());
 }

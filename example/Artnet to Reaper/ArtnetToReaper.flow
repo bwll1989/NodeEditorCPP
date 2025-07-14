@@ -2,15 +2,15 @@
     "DataFlow": {
         "connections": [
             {
-                "inPortIndex": 0,
-                "intNodeId": 10,
-                "outNodeId": 6,
-                "outPortIndex": 0
-            },
-            {
                 "inPortIndex": 1,
                 "intNodeId": 5,
                 "outNodeId": 0,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 10,
+                "outNodeId": 6,
                 "outPortIndex": 0
             },
             {
@@ -32,6 +32,12 @@
                 "outPortIndex": 0
             },
             {
+                "inPortIndex": 1,
+                "intNodeId": 12,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
                 "inPortIndex": 0,
                 "intNodeId": 11,
                 "outNodeId": 6,
@@ -41,12 +47,6 @@
                 "inPortIndex": 2,
                 "intNodeId": 12,
                 "outNodeId": 5,
-                "outPortIndex": 0
-            },
-            {
-                "inPortIndex": 1,
-                "intNodeId": 12,
-                "outNodeId": 3,
                 "outPortIndex": 0
             },
             {

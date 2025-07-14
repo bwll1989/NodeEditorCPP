@@ -61,11 +61,10 @@ void MenuBarWidget::setupMenu() {
 
     Tool_menu=this->addMenu("工具");
     tool1Action = Tool_menu->addAction("FFmpeg转码工具");
-    tool1Action->setIcon(QIcon(":/icons/icons/tools.png"));
+    tool1Action->setIcon(QIcon(":/icons/icons/converty.png"));
     connect(tool1Action, &QAction::triggered, this, [this]() {
-        QStringList args;
-        args << "-version";  // 示例参数，显示FFmpeg版本信息
-        openToolWithArgs("ffmpeg.exe", args);
+
+        openToolWithArgs("FormatConverter.exe", QStringList());
     });
 
 

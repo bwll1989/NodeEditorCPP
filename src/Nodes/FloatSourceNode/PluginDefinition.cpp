@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::FloatSourceDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::FloatSourceDataModel>(name(),tag());
 }

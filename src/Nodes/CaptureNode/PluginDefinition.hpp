@@ -11,9 +11,9 @@
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "CaptureNode"
+#define PLUGIN_NAME "Capture"
 #define PLUGIN_VERSION "20240730"
-#define PLUGIN_DESCRIBE "延时"
+#define PLUGIN_DESCRIBE "捕获图片"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin
     : public QObject
@@ -30,6 +30,7 @@ public:
     QString name() const override { return PLUGIN_NAME; };
     QString version() const override {return PLUGIN_VERSION;};
     QString describe() const override {return PLUGIN_DESCRIBE;};
+    QString tag() const override {return PLUGIN_TAG;};
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 
 private:

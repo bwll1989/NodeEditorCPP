@@ -36,14 +36,15 @@ namespace Nodes
             OutPortCount=1;
             CaptionVisible=true;
             Caption="Mpv Controller";
-            WidgetEmbeddable=true;
-            Resizable=true;
+            WidgetEmbeddable=false;
+            Resizable=false;
             client=new HttpClient();
             widget=new MpvControllerInterface();
             NodeDelegateModel::registerOSCControl("/play",widget->Play);
             NodeDelegateModel::registerOSCControl("/fullscreen",widget->Fullscreen);
             timer=new QTimer();
             timer->setInterval(900);
+            timer->setSingleShot(true);
             connect(widget->Play, &QPushButton::clicked, this, &MpvControllerDataModel::onPlay);
             connect(widget->Fullscreen, &QPushButton::clicked, this, &MpvControllerDataModel::onFullscreen);
             connect(widget->playlist_prev, &QPushButton::clicked, this, &MpvControllerDataModel::onplaylist_prev);
@@ -51,9 +52,13 @@ namespace Nodes
             connect(widget->speedAdd, &QPushButton::clicked, this, &MpvControllerDataModel::speedAdd);
             connect(widget->speedSub, &QPushButton::clicked, this, &MpvControllerDataModel::speedSub);
             connect(widget->speedReset, &QPushButton::clicked, this, &MpvControllerDataModel::speedReset);
-            // connect(client,&HttpClient::getSatus,widget->browser,&QPropertyBrowser::buildPropertiesFromJson);
+            connect(client,&HttpClient::getSatus,this,[this](QJsonObject status){
+                this->status=status;
+                emit dataUpdated(0);
+                });
+            connect(widget->volumeEditor,&QDoubleSpinBox::valueChanged,this,&MpvControllerDataModel::seetValume);
             connect(timer,&QTimer::timeout,this,&MpvControllerDataModel::getStatus);
-            timer->start();
+
         }
         ~MpvControllerDataModel(){
             delete widget;
@@ -85,7 +90,7 @@ namespace Nodes
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>();
+            return std::make_shared<VariableData>(status);
         }
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
 
@@ -128,53 +133,60 @@ namespace Nodes
             //        button->setText(QString::number(string));
             hostAddress=widget->hostEdit->text();
             client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/toggle_pause"));
+            timer->start();
         }
         void onFullscreen()
         {
             //        button->setText(QString::number(string));
             hostAddress=widget->hostEdit->text();
             client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/fullscreen"));
+            timer->start();
         }
         void getStatus(){
             hostAddress=widget->hostEdit->text();
             client->sendGetRequest(QUrl("http://"+hostAddress+":8080/api/status"));
-            Q_EMIT dataUpdated(0);
         }
 
         void onplaylist_prev()
         {
             hostAddress=widget->hostEdit->text();
             client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/playlist_prev"));
+            timer->start();
         }
         void onplaylist_next()
         {
             hostAddress=widget->hostEdit->text();
             client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/playlist_next"));
+            timer->start();
         }
         void speedAdd(){
-            speed+=0.1;
             hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_adjust/"+QString::number(speed)));
+            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_adjust/1.1"));
+            timer->start();
             }
         void speedSub()
         {
-            speed-=0.1;
+           
             hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_adjust/"+QString::number(speed)));
+            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_adjust/0.9"));
+            timer->start();
         }
         void speedReset()
         {
-            speed=1.0;
             hostAddress=widget->hostEdit->text();
             client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_set"));
+            timer->start();
+        }
+        void seetValume(float valume){
+            hostAddress=widget->hostEdit->text();
+            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/set_volume/"+QString::number(valume)));
+            timer->start();
         }
     private:
-
         HttpClient *client;
         QString hostAddress;
-        float speed=1.0;
         MpvControllerInterface *widget;
         QTimer *timer;
-
+        QJsonObject status;
     };
 }

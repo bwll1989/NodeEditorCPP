@@ -27,7 +27,7 @@ namespace Nodes
             // 创建主布局
             buttom_Widget->setLayout(buttom_layout);
             buttom_layout->addSpacerItem(new QSpacerItem(0,0,QSizePolicy::Minimum,QSizePolicy::Expanding));
-            buttom_layout->addWidget(run);
+            // buttom_layout->addWidget(run);
             buttom_layout->addWidget(detach);
             top_layout->setContentsMargins(0,0,0,0);
             top_Widget->setLayout(top_layout);
@@ -67,8 +67,8 @@ namespace Nodes
         QGridLayout *top_layout = new QGridLayout();
         QWidget *buttom_Widget = new QWidget();
         QWidget *top_Widget = new QWidget();
-        QPushButton *run = new QPushButton("运行");
-        QPushButton *detach = new QPushButton("编辑");
+        // QPushButton *run = new QPushButton("重新运行");
+        QPushButton *detach = new QPushButton("编辑脚本");
         JsCodeEditor *codeWidget = new JsCodeEditor("",this);
 
 

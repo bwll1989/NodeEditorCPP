@@ -58,8 +58,10 @@ void UdpSocket::processPendingDatagrams()
         mSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
         QVariantMap dataMap;
         dataMap.insert("host", sender.toString());
-        dataMap.insert("hex", datagram.toHex());
-        dataMap.insert("default",  datagram);
+        dataMap.insert("hex", QString(datagram.toHex())); // 转换为QString类型
+        dataMap.insert("utf-8", QString::fromUtf8(datagram)); // 修复UTF-8解码方式
+        dataMap.insert("ansi", QString::fromLocal8Bit(datagram)); // 修复ANSI解码方式
+        dataMap.insert("default", datagram);
         emit recMsg(dataMap);
         emit arrayMsg(datagram);
 
@@ -72,8 +74,23 @@ void UdpSocket::processPendingDatagrams()
 
 
 
-void UdpSocket::sendMessage(const QString &host,const int &port,const QString &message)
+void UdpSocket::sendMessage(const QString &host,const int &port,const QString &message,const int &format)
 {
-    mSocket->writeDatagram(message.toUtf8(),QHostAddress(host),port);
+    QByteArray data;
+    switch (format) {
+    case 0: // HEX格式
+        data = QByteArray::fromHex(message.toUtf8());
+        break;
+    case 1: // UTF-8格式
+        data = message.toUtf8();  // 修复冒号错误为括号
+        break;
+    case 2: // 新增ANSI格式
+        data = message.toLocal8Bit(); // 使用本地编码（ANSI）
+        break;
+    default:
+        data = message.toUtf8();  // 默认使用UTF-8
+        break;
+    }
+    mSocket->writeDatagram(data,QHostAddress(host),port);
 }
 

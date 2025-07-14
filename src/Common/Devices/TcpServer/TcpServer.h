@@ -18,7 +18,7 @@ public:
 public slots:
     void initializeServer();
     void cleanup();
-    void sendMessage(const QString &message);
+    void sendMessage(const QString &message,const int &format=0);
     void setHost(QString address,int port);
 
 signals:
@@ -30,7 +30,7 @@ signals:
     // 内部信号，用于线程间通信
     void initializeRequested(const QString &host, int port);
     void cleanupRequested();
-    void sendMessageRequested(const QString &message);
+    void sendMessageRequested(const QString &message,const int &format);
 
 private:
     quint16 mPort;

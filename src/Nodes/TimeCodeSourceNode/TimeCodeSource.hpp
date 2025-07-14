@@ -16,7 +16,7 @@
 #include "TimeCodeInterface.h"
 #include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
 #include <QComboBox>
-
+#include <QJsonObject>
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -37,7 +37,7 @@ namespace Nodes
               receiver(new LTCReceiver())
         {
             InPortCount = 1;
-            OutPortCount = 1;
+            OutPortCount = 4;
             CaptionVisible = true;
             WidgetEmbeddable = true;
             Resizable = true;
@@ -48,7 +48,15 @@ namespace Nodes
 
             // 连接 receiver 的信号到 Widget
             connect(receiver, &LTCReceiver::statusChanged, _label, &TimeCodeInterface::setStatus);
-            connect(receiver, &LTCReceiver::newFrame, _label, &TimeCodeInterface::setTimeStamp);
+            // connect(receiver, &LTCReceiver::newFrame, _label, &TimeCodeInterface::setTimeStamp);
+            connect(receiver, &LTCReceiver::newFrame, this, &TimeCodeSource::onReceivedTimecodeFrame);
+            // connect(receiver, &LTCReceiver::newFrame, [this](TimeCodeFrame frame) {
+            //     *_timeCodeFrame = timecode_frame_add(frame, _label->timeCodeOffsetSpinBox->value());
+            //     Q_EMIT dataUpdated(0);
+            //     Q_EMIT dataUpdated(1);
+            //     Q_EMIT dataUpdated(2);
+            //     Q_EMIT dataUpdated(3);
+            // });
             connect(_label->deviceComboBox, &QComboBox::currentIndexChanged, this, &TimeCodeSource::deviceChanged);
             connect(_label->channelComboBox, &QComboBox::currentIndexChanged, receiver, &LTCReceiver::setChannel);
         }
@@ -62,56 +70,50 @@ namespace Nodes
             delete _label;
         }
 
-    public:
-
-        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
-        {
-            QString in = "In "+QString::number(portIndex);
-            QString out = "Out "+QString::number(portIndex);
-            switch (portType) {
-            case PortType::In:
-                return in;
-            case PortType::Out:
-                return out;
-            default:
-                break;
-            }
-            return "";
-        }
-
-
-    public:
-
-        unsigned int nPorts(PortType const portType) const override
-        {
-            unsigned int result = 1;
-
-            switch (portType) {
-            case PortType::In:
-                result =0;
-                break;
-
-            case PortType::Out:
-                result = 0;
-
-            default:
-                break;
-            }
-
-            return result;
-        }
-
         NodeDataType dataType(PortType const portType, PortIndex const portIndex) const override
         {
             Q_UNUSED(portType);
             Q_UNUSED(portIndex);
             return VariableData().type();
         }
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+            switch (portType) {
+            case PortType::In:
+                return "INPUT "+QString::number(portIndex);
+            case PortType::Out:
+                switch (portIndex)
+                {
+                case 0:
+                        return "FRAMES";
+                case 1:
+                        return "SECONDS";
+                case 2:
+                        return "MINUTES";
+                case 3:
+                        return "HOURS";
+                default:
+                        break;
+                    }
 
+            }
+            return "";
+        }
         std::shared_ptr<NodeData> outData(PortIndex const port) override
         {
-            Q_UNUSED(port);
-            return _nodeData;
+            switch (port)
+            {
+            case 0:
+                return std::make_shared<VariableData>(_timeCodeFrame.frames);
+            case 1:
+                return std::make_shared<VariableData>(_timeCodeFrame.seconds);
+            case 2:
+                return std::make_shared<VariableData>(_timeCodeFrame.minutes);
+            case 3:
+                return std::make_shared<VariableData>(_timeCodeFrame.hours);
+            default:
+                return std::make_shared<VariableData>();
+            }
         }
 
         void setInData(std::shared_ptr<NodeData> nodeData, PortIndex const port) override
@@ -122,8 +124,25 @@ namespace Nodes
 
         QWidget *embeddedWidget() override { return _label; }
 
-        bool resizable() const override { return true; }
-
+        QJsonObject save() const override
+        {
+            QJsonObject modelJson = NodeDelegateModel::save();
+            modelJson["device"] = _label->deviceComboBox->currentText();
+            modelJson["channel"] = _label->channelComboBox->currentIndex();
+            modelJson["offset"] = _label->timeCodeOffsetSpinBox->value();
+            return modelJson;
+        }
+        void load(QJsonObject const& jsonObj) override
+        {
+            const QJsonValue device = jsonObj["device"];
+            if (!device.isUndefined()) {
+                _label->deviceComboBox->setCurrentText(device.toString());
+            }
+            const QJsonValue channel = jsonObj["channel"];
+            if (!channel.isUndefined()) {
+                _label->channelComboBox->setCurrentIndex(channel.toInt());
+            }
+        }
     public slots:
         void deviceChanged()
         {
@@ -132,12 +151,18 @@ namespace Nodes
                 receiver->start(_label->deviceComboBox->currentText());
             }
         }
-
-    protected:
-
+        void onReceivedTimecodeFrame(TimeCodeFrame frame)
+        {
+            _timeCodeFrame=timecode_frame_add(frame,_label->timeCodeOffsetSpinBox->value());
+            _label->setTimeStamp(frame);
+            emit dataUpdated(0);
+            emit dataUpdated(1);
+            emit dataUpdated(2);
+            emit dataUpdated(3);
+        }
     private:
         TimeCodeInterface* _label;
         LTCReceiver* receiver;
-        std::shared_ptr<NodeData> _nodeData;
+        TimeCodeFrame _timeCodeFrame;
     };
 }

@@ -31,6 +31,7 @@ public:
     QString name() const override { return PLUGIN_NAME; };
     QString version() const override {return PLUGIN_VERSION;};
     QString describe() const override {return PLUGIN_DESCRIBE;};
+    QString tag() const override {return PLUGIN_TAG;};
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 
 private:

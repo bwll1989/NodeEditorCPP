@@ -99,6 +99,27 @@ void QPropertyBrowser::updatePropertiesFromMap(const QVariantMap& map, QtPropert
                 property->setValue(value.toPointF());
                 break;
             }
+            case QMetaType::QVariantList: {
+                // 将列表转换为带索引的map { "0": item1, "1": item2... }
+                QVariantList list = value.toList();
+                QVariantMap listMap;
+                for (int i = 0; i < list.size(); ++i) {
+                    listMap.insert(QString::number(i), list.at(i));
+                }
+
+                // 创建组属性作为父节点
+                property = m_propertyManager->addProperty(QtVariantPropertyManager::groupTypeId(), key);
+
+                if (parent) {
+                    parent->addSubProperty(property);
+                } else {
+                    m_propertyBrowser->addProperty(property);
+                }
+
+                // 递归处理转换后的map
+                updatePropertiesFromMap(listMap, property, readOnly);
+                continue;
+            }
             case QMetaType::QVariantMap: {
                 // 使用 QVariant::Invalid 表示组属性
                 property = m_propertyManager->addProperty(QtVariantPropertyManager::groupTypeId(), key);
@@ -117,9 +138,25 @@ void QPropertyBrowser::updatePropertiesFromMap(const QVariantMap& map, QtPropert
                 // 已经处理了属性添加，跳过后面的代码
                 continue;
             }
+            case QMetaType::QJsonObject: {
+                // 改为使用组类型创建父属性
+                property = m_propertyManager->addProperty(QtVariantPropertyManager::groupTypeId(), key);
+                QJsonObject childMap = value.toJsonObject();
+
+                // 先添加父属性
+                if (parent) {
+                    parent->addSubProperty(property);
+                } else {
+                    m_propertyBrowser->addProperty(property);
+                }
+
+                // 递归添加子属性，传入当前属性作为父属性
+                updatePropertiesFromMap(childMap.toVariantMap(), property, readOnly);
+                continue;
+            }
             case QMetaType::QByteArray: {
                 property = m_propertyManager->addProperty(QMetaType::QString, key);
-                property->setValue(value.toByteArray());
+                property->setValue(value.toByteArray().toHex());
                 break;
             }
             default:
@@ -144,8 +181,6 @@ void QPropertyBrowser::updatePropertiesFromMap(const QVariantMap& map, QtPropert
         }
     }
 }
-
-
 
 QVariantMap QPropertyBrowser::exportToMap() const {
     QVariantMap map;

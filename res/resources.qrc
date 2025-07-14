@@ -81,6 +81,7 @@
     <file>icons/expand.png</file>
     <file>icons/copy.png</file>
     <file>icons/osc.png</file>
+    <file>icons/converty.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

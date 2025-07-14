@@ -106,6 +106,7 @@
         "xutility": "cpp",
         "graphicsview": "cpp",
         "qjsvaluelist": "cpp",
-        "qjsvalueiterator": "cpp"
+        "qjsvalueiterator": "cpp",
+        "qtconcurrentrun": "cpp"
     }
 }

@@ -55,14 +55,14 @@
                 "input-count": 1,
                 "internal-data": {
                     "values": {
-                        "text": "7"
+                        "text": "15"
                     }
                 },
                 "output-count": 1,
                 "port-editable": false,
                 "position": {
-                    "x": 459,
-                    "y": 2
+                    "x": 489.24,
+                    "y": -41.19999999999999
                 },
                 "remarks": "String Source",
                 "type": "String Source"

@@ -11,7 +11,7 @@
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "Image show"
+#define PLUGIN_NAME "Image Display"
 #define PLUGIN_VERSION "20240410"
 #define PLUGIN_DESCRIBE "图片显示"
 #define PLUGIN_TAG "Image"
@@ -30,6 +30,7 @@ public:
     QString name() const override { return PLUGIN_NAME; };
     QString version() const override {return PLUGIN_VERSION;};
     QString describe() const override {return PLUGIN_DESCRIBE;};
+    QString tag() const override {return PLUGIN_TAG;};
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 
 private:

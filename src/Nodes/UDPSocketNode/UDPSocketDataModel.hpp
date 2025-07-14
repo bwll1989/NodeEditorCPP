@@ -49,7 +49,7 @@ namespace Nodes
             //        connect(client, &UdpSocket::isReady, widget->send, &QPushButton::setEnabled, Qt::QueuedConnection);
             ////        connect(this, &UDPSocketDataModel::startUDPSocket, client, &UdpSocket::setHost, Qt::QueuedConnection);
             connect(widget->sendButton, &QPushButton::clicked, this, [this]() {
-                emit sendUDPMessage(widget->targetHostEdit->text(), widget->targetPortSpinBox->value(), widget->valueEdit->text());
+                emit sendUDPMessage(widget->targetHostEdit->text(), widget->targetPortSpinBox->value(), widget->valueEdit->text(), widget->format->currentIndex());
             });
         }
         ~UDPSocketDataModel(){
@@ -136,11 +136,11 @@ namespace Nodes
                 break;
             case 2:
                 widget->valueEdit->setText(m_inData->value().toString());
-                emit sendUDPMessage(widget->targetHostEdit->text(),widget->targetPortSpinBox->value(),m_inData->value().toString());
+                emit sendUDPMessage(widget->targetHostEdit->text(),widget->targetPortSpinBox->value(),m_inData->value().toString(),widget->format->currentIndex());
                 break;
             case 3:
                 m_inData = std::make_shared<VariableData>(widget->valueEdit->text());
-                emit sendUDPMessage(widget->targetHostEdit->text(),widget->targetPortSpinBox->value(),m_inData->value().toString());
+                emit sendUDPMessage(widget->targetHostEdit->text(),widget->targetPortSpinBox->value(),m_inData->value().toString(),widget->format->currentIndex());
                 break;
             default:
                 break;
@@ -161,7 +161,7 @@ namespace Nodes
             modelJson1["Target host"] = widget->targetHostEdit->text();
             modelJson1["Target port"] = widget->targetPortSpinBox->value();
             modelJson1["Value"] = widget->valueEdit->text();
-
+            modelJson1["Format"] = widget->format->currentIndex();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -177,6 +177,7 @@ namespace Nodes
                 widget->targetHostEdit->setText(v["Target host"].toString());
                 widget->targetPortSpinBox->setValue(v["Target port"].toInt());
                 widget->valueEdit->setText(v["Value"].toString());
+                widget->format->setCurrentIndex(v["Format"].toInt());
             }
         }
 
@@ -192,7 +193,7 @@ namespace Nodes
         }
 
     signals:
-        void sendUDPMessage(const QString &host,const int &port,const QString &message);
+        void sendUDPMessage(const QString &host,const int &port,const QString &message,const int &format=0);
         void startUDPSocket(const QString &host,int port);
     private:
         UDPSocketInterface *widget=new UDPSocketInterface();

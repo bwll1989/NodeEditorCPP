@@ -66,6 +66,7 @@ namespace Nodes
 
             main_layout->addWidget(loop,5,1,1,2);
             main_layout->setContentsMargins(4,2,4,4);
+            main_layout->addWidget(start,6,0,1,3);
             this->setLayout(main_layout);
         }
     public:
@@ -78,6 +79,7 @@ namespace Nodes
         QDoubleSpinBox *sampleRate=new QDoubleSpinBox();
 
         QCheckBox *loop=new QCheckBox("loop");
+        QPushButton *start=new QPushButton("start");
 
     };
 }

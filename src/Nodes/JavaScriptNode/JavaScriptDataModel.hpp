@@ -19,6 +19,9 @@
 #include <QCheckBox>
 #include "SupportWidgets.hpp"
 #include "JSEngineDefines/JSEngineDefines.hpp"
+#include <QtConcurrent/QtConcurrentRun>
+#include <QFutureWatcher>
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -54,8 +57,10 @@ public:
         initJSEngine();
 
         connect(widget->codeWidget->run, SIGNAL(clicked(bool)), this, SLOT(onRunButtonClicked()));
-        connect(widget->run, SIGNAL(clicked(bool)), this, SLOT(onRunButtonClicked()));
-
+        // connect(widget->run, SIGNAL(clicked(bool)), this, SLOT(onRunButtonClicked()));
+        
+        // 连接Future完成信号到处理槽
+        connect(&m_jsWatcher, &QFutureWatcher<QJSValue>::finished, this, &JavaScriptDataModel::handleJsExecutionFinished);
     }
     
     /**
@@ -201,6 +206,11 @@ private Q_SLOTS:
         loadScripts(script);
         Q_EMIT dataUpdated(0);
     }
+    
+    /**
+     * @brief 处理JavaScript异步执行完成
+     */
+    void handleJsExecutionFinished();
 
 private:
     /**
@@ -291,6 +301,8 @@ private:
     QJSEngine *m_jsEngine;                    // JavaScript引擎
     QMap<int, QWidget*> m_widgets;           // 存储创建的控件
     int m_widgetCounter = 0;                 // 控件ID计数器
+    QFutureWatcher<QJSValue> m_jsWatcher;    // JavaScript执行Future监视器
+    bool m_jsExecuting = false;              // JavaScript是否正在执行
     QString script=R"(
 var slider1;
 function initInterface() {

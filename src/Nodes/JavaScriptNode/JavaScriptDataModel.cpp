@@ -88,20 +88,53 @@ void JavaScriptDataModel::loadScripts(QString code) {
         return;
     }
 
+    // 如果已经有一个脚本在执行，则不启动新的执行
+    if (m_jsExecuting) {
+        return;
+    }
+
     try {
-        // 更新Node对象的属性
-
-        // 执行用户脚本
-        QJSValue result = m_jsEngine->evaluate(code);
-
-        if (result.isError()) {
-            qWarning() << "JavaScript执行错误:"
-                      << result.property("lineNumber").toInt()
-                      << result.toString();
-        }
+        // 标记JavaScript正在执行
+        m_jsExecuting = true;
+        
+        // 使用QtConcurrent在后台线程中执行JavaScript代码
+        QFuture<QJSValue> future = QtConcurrent::run(
+            [this, code]() -> QJSValue {
+                try {
+                    // 在后台线程中执行JavaScript代码
+                    return m_jsEngine->evaluate(code);
+                } catch (const std::exception& e) {
+                    qWarning() << "JavaScript执行异常:" << e.what();
+                    // 创建一个错误对象返回
+                    QJSValue errorObj = m_jsEngine->newObject();
+                    errorObj.setProperty("isError", true);
+                    errorObj.setProperty("message", QString(e.what()));
+                    errorObj.setProperty("lineNumber", -1);
+                    return errorObj;
+                }
+            }
+        );
+        
+        // 设置watcher监视执行结果
+        m_jsWatcher.setFuture(future);
     } catch (const std::exception& e) {
+        m_jsExecuting = false;
         qWarning() << "JavaScript执行异常:" << e.what();
     }
+}
+
+void JavaScriptDataModel::handleJsExecutionFinished() {
+    // 重置执行状态
+    m_jsExecuting = false;
+    
+    QJSValue result = m_jsWatcher.result();
+    
+    if (result.isError()) {
+        qWarning() << "JavaScript执行错误:"
+                  << result.property("lineNumber").toInt()
+                  << result.toString();
+    }
+    
 }
 
  void JavaScriptDataModel::initJSEngine() {

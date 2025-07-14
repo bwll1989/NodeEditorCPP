@@ -26,7 +26,7 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp)
 
 #set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets  Qt${QT_VERSION_MAJOR}::Qml ${QtNodes_LIBRARIES} ${QScintilla_LIBRARIES} )
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Concurrent Qt${QT_VERSION_MAJOR}::Qml ${QtNodes_LIBRARIES} ${QScintilla_LIBRARIES} )
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

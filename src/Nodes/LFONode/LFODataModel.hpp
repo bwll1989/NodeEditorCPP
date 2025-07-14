@@ -31,8 +31,8 @@ namespace Nodes
     public:
         LFODataModel()
         {
-            InPortCount =3;
-            OutPortCount=3;
+            InPortCount =1;
+            OutPortCount=1;
             CaptionVisible=true;
             Caption="LFO";
             WidgetEmbeddable= false;
@@ -40,7 +40,8 @@ namespace Nodes
             PortEditable= false;
             connect(timer, &QTimer::timeout, this, &LFODataModel::generateWave);
             connect(widget->method,&QComboBox::currentIndexChanged,this,&LFODataModel::reStart);
-            timer->start(1000 / widget->sampleRate->value());
+            connect(widget->start,&QPushButton::clicked,this,&LFODataModel::reStart);
+            // timer->start(1000 / widget->sampleRate->value());
         }
 
         virtual ~LFODataModel() override{
@@ -73,7 +74,9 @@ namespace Nodes
         std::shared_ptr<NodeData> outData(PortIndex const port) override
         {
             //        Q_UNUSED(port);
-            return  inData;
+            auto result=std::make_shared<VariableData>(value);
+            result->insert("method",widget->method->itemData(widget->method->currentIndex()));
+            return  result;
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
@@ -125,21 +128,21 @@ namespace Nodes
             switch (waveType) {
             case SineWave:
                 value = generateSineWave(m_amplitude,m_frequency,m_time,m_phase);
-                qDebug() << "Selected Sine Wave"<<m_time;
                 break;
             case SquareWave:
                 value = generateSquareWave(m_amplitude,m_frequency,m_time,m_phase);
-                qDebug() << "Selected Square Wave"<<value;
+
                 break;
             case TriangleWave:
                 value = generateTriangleWave(m_amplitude,m_frequency,m_time,m_phase);
                 //                qInfo() << "Selected Triangle Wave"<<value;
-                qDebug("Testing debug");
+
                 break;
             }
 
             m_time += 1.0 / widget->sampleRate->value();
-            qWarning() << "Wave value:" << m_time;
+            emit dataUpdated(0);
+
         }
         void reStart()
         {
@@ -147,30 +150,7 @@ namespace Nodes
             timer->start(1000 / widget->sampleRate->value());
             m_time=0.0;
         }
-        //    void generateWave(int index) {
-        //        double value = 0.0;
-        //        WaveType waveType = static_cast<WaveType>(widget->method->itemData(index).toInt());
-        //        switch (waveType) {
-        //            case SineWave:
-        //                value = generateSineWave();
-        //                qDebug() << "Selected Sine Wave";
-        //                break;
-        //            case SquareWave:
-        //                value = generateSquareWave();
-        //                qDebug() << "Selected Square Wave";
-        //                break;
-        //            case TriangleWave:
-        //                value = generateTriangleWave();
-        //                qDebug() << "Selected Triangle Wave";
-        //                break;
-        //        }
-        //    }
 
-        //    void generateSineWave() {
-        //        double value = m_amplitude * qSin(2 * M_PI * m_frequency * m_time + m_phase);
-        //        qDebug() << "Sine wave value:" << value;
-        //        m_time += 1.0 / m_sampleRate;
-        //    }
     public:
         LFOInterface *widget=new LFOInterface();
         shared_ptr<VariableData> inData;

@@ -13,7 +13,7 @@
 
 #define PLUGIN_NAME "TimeCode Source"
 #define PLUGIN_VERSION "20240410"
-#define PLUGIN_DESCRIBE "分组"
+#define PLUGIN_DESCRIBE "时间码接收"
 #define PLUGIN_TAG "Other"
 class DLL_EXPORT Plugin
     : public QObject
@@ -30,6 +30,7 @@ public:
     QString name() const override { return PLUGIN_NAME; };
     QString version() const override {return PLUGIN_VERSION;};
     QString describe() const override {return PLUGIN_DESCRIBE;};
+    QString tag() const override {return PLUGIN_TAG;};
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 
 private:

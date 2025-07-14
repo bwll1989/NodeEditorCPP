@@ -20,6 +20,9 @@ namespace Nodes
         public:
         explicit UDPSocketInterface(QWidget *parent = nullptr){
             this->setParent(parent);
+            format->addItem("HEX");
+            format->addItem("UTF-8");
+            format->addItem("ASCII");
             main_layout->addWidget(listeningHostLabel, 0,0);
             main_layout->addWidget(listeningHostEdit, 0,1);
             main_layout->addWidget(listeningPortLabel, 1,0);
@@ -30,7 +33,8 @@ namespace Nodes
             main_layout->addWidget(targetPortSpinBox, 3,1);
             main_layout->addWidget(valueLabel, 4,0);
             main_layout->addWidget(valueEdit, 4,1);
-            main_layout->addWidget(sendButton, 5,0,1,2);
+            main_layout->addWidget(format, 5,0,1,2);
+            main_layout->addWidget(sendButton, 6,0,1,2);
             listeningHostEdit->setText("127.0.0.1");
             targetHostEdit->setText("127.0.0.1");
             targetPortSpinBox->setRange(0,65536);
@@ -63,6 +67,7 @@ namespace Nodes
         QSpinBox *targetPortSpinBox=new QSpinBox();
         QLineEdit *valueEdit=new QLineEdit();
         QPushButton *sendButton=new QPushButton("Send");
+        QComboBox *format=new QComboBox();
     private:
         QLabel *listeningHostLabel=new QLabel("listening host: ");
         QLabel *listeningPortLabel=new QLabel("listening port: ");

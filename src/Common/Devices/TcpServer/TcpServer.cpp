@@ -50,9 +50,24 @@ public slots:
         }
     }
     
-    void sendMessageToClients(const QString &message) {
+    void sendMessageToClients(const QString &message,const int &format) {
+        QByteArray data;
+        switch (format) {
+        case 0: // HEX格式
+            data = QByteArray::fromHex(message.toUtf8());
+            break;
+        case 1: // UTF-8格式
+            data = message.toUtf8();  // 修复冒号错误为括号
+            break;
+        case 2: // 新增ANSI格式
+            data = message.toLocal8Bit(); // 使用本地编码（ANSI）
+            break;
+        default:
+            data = message.toUtf8();  // 默认使用UTF-8
+            break;
+        }
         for (QTcpSocket *clientSocket : mClientSockets) {
-            clientSocket->write(message.toUtf8());
+            clientSocket->write(data);
         }
     }
 
@@ -72,7 +87,9 @@ private slots:
                 QVariantMap dataMap;
                 
                 dataMap.insert("host", clientSocket->peerAddress().toString());
-                dataMap.insert("hex",data.toHex());
+                dataMap.insert("hex", QString(data.toHex())); // 转换为QString类型
+                dataMap.insert("utf-8", QString::fromUtf8(data)); // 修复UTF-8解码方式
+                dataMap.insert("ansi", QString::fromLocal8Bit(data)); // 修复ANSI解码方式
                 dataMap.insert("default", data);
                 
                 emit messageReceived(data);
@@ -149,9 +166,9 @@ void TcpServer::cleanup()
     emit cleanupRequested();
 }
 
-void TcpServer::sendMessage(const QString &message)
+void TcpServer::sendMessage(const QString &message,const int &format)
 {
-    emit sendMessageRequested(message);
+    emit sendMessageRequested(message,format);
 }
 
 void TcpServer::setHost(QString address, int port) {

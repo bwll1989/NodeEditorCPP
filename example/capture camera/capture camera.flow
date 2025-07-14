@@ -14,27 +14,27 @@
                 "outPortIndex": 0
             },
             {
-                "inPortIndex": 2,
-                "intNodeId": 4,
-                "outNodeId": 5,
-                "outPortIndex": 0
-            },
-            {
                 "inPortIndex": 0,
-                "intNodeId": 4,
+                "intNodeId": 6,
                 "outNodeId": 1,
                 "outPortIndex": 0
             },
             {
-                "inPortIndex": 1,
-                "intNodeId": 4,
+                "inPortIndex": 2,
+                "intNodeId": 6,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 3,
+                "intNodeId": 6,
                 "outNodeId": 5,
                 "outPortIndex": 0
             },
             {
                 "inPortIndex": 0,
-                "intNodeId": 3,
-                "outNodeId": 4,
+                "intNodeId": 7,
+                "outNodeId": 6,
                 "outPortIndex": 0
             }
         ],
@@ -74,62 +74,67 @@
                 "input-count": 1,
                 "internal-data": {
                     "values": {
-                        "val": "0"
+                        "val": "1"
                     }
                 },
                 "output-count": 1,
                 "port-editable": false,
                 "position": {
-                    "x": -96.67999999999999,
-                    "y": 281.91999999999996
+                    "x": -94.10970958698206,
+                    "y": 283.205145206509
                 },
                 "remarks": "Bool Source",
                 "type": "Bool Source"
-            },
-            {
-                "id": 3,
-                "input-count": 1,
-                "internal-data": {
-                },
-                "output-count": 1,
-                "port-editable": false,
-                "position": {
-                    "x": 1129.94556621881,
-                    "y": 67.29550863723615
-                },
-                "remarks": "Image display",
-                "type": "Image display"
-            },
-            {
-                "id": 4,
-                "input-count": 3,
-                "internal-data": {
-                },
-                "output-count": 1,
-                "port-editable": false,
-                "position": {
-                    "x": 466.7104798464492,
-                    "y": 114.72168905950103
-                },
-                "remarks": "Scale Image",
-                "type": "Scale Image"
             },
             {
                 "id": 5,
                 "input-count": 1,
                 "internal-data": {
                     "values": {
-                        "val": 600
+                        "val": 1231
                     }
                 },
                 "output-count": 1,
                 "port-editable": false,
                 "position": {
-                    "x": 84.92161228406908,
-                    "y": 414.55155470249514
+                    "x": 79.92161228406903,
+                    "y": 365.3485827757126
                 },
                 "remarks": "Int Source",
                 "type": "Int Source"
+            },
+            {
+                "id": 6,
+                "input-count": 4,
+                "internal-data": {
+                    "size": {
+                        "aspectRatio": 1,
+                        "height": 1231,
+                        "width": 1231
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 510.67386689311246,
+                    "y": 299.5387888548729
+                },
+                "remarks": "Scale Image",
+                "type": "Scale Image"
+            },
+            {
+                "id": 7,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 866,
+                    "y": 275
+                },
+                "remarks": "Image Display",
+                "type": "Image Display"
             }
         ]
     },

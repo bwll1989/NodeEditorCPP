@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::ScaleImageModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::ScaleImageModel>(name(),tag());
 }

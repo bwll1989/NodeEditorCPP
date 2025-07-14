@@ -20,13 +20,17 @@ namespace Nodes
         Q_OBJECT
     public:
         explicit TCPServerInterface(QWidget *parent = nullptr){
+            format->addItem("HEX");
+            format->addItem("UTF-8");
+            format->addItem("ASCII");
             main_layout->addWidget(hostLabel, 0,0);
             main_layout->addWidget(hostLineEdit, 0,1);
             main_layout->addWidget(portLabel, 1,0);
             main_layout->addWidget(portSpinBox, 1,1);
             main_layout->addWidget(valueLabel, 2,0);
             main_layout->addWidget(valueEdit, 2,1);
-            main_layout->addWidget(sendButton, 3,0,1,2);
+            main_layout->addWidget(format, 3,0,1,2);
+            main_layout->addWidget(sendButton, 4,0,1,2);
             hostLineEdit->setText("0.0.0.0");
             portSpinBox->setRange(0,65536);
             portSpinBox->setValue(2001);
@@ -52,6 +56,7 @@ namespace Nodes
         QSpinBox *portSpinBox=new QSpinBox();
         QLineEdit *valueEdit=new QLineEdit();
         QPushButton *sendButton=new QPushButton("Send");
+        QComboBox* format=new QComboBox();
     private:
         QLabel *hostLabel=new QLabel("host: ");
         QLabel *portLabel=new QLabel("port: ");
