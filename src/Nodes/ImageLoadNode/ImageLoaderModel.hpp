@@ -22,7 +22,8 @@ namespace Nodes
         Q_OBJECT
 
     public:
-        ImageLoaderModel() : _label(new QLabel("Double click to load image")) {
+        ImageLoaderModel() {
+
             _label->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
             QFont f = _label->font();
             f.setBold(true);
@@ -34,10 +35,11 @@ namespace Nodes
             InPortCount =0;
             OutPortCount=1;
             CaptionVisible=true;
-            Caption="Image source";
+            Caption="Image File";
             WidgetEmbeddable= true;
             Resizable=false;
             PortEditable= false;
+            m_outImageData=std::make_shared<ImageData>();
         }
         ~ImageLoaderModel() override = default;
 
@@ -64,6 +66,7 @@ namespace Nodes
         }
 
         void load(QJsonObject const& jsonObj) override{
+
             const QJsonValue path = jsonObj["path"];
             if (!path.isUndefined()) {
                 m_path = path.toString();
@@ -78,13 +81,16 @@ namespace Nodes
                 const int h = _label->height();
 
                 if (event->type() == QEvent::MouseButtonPress) {
-                    m_path = QFileDialog::getOpenFileName(nullptr,
-                                                          tr("Open Image"),
-                                                          QDir::homePath(),
-                                                          tr("Image Files (*.png *.jpg *.bmp)"));
-                    if (!m_path.isEmpty())
-                        loadImage();
-                    return true;
+                    auto mouseEvent = static_cast<QMouseEvent*>(event);
+                    if (mouseEvent->button() == Qt::LeftButton && (mouseEvent->modifiers() & Qt::ControlModifier)) {
+                        m_path = QFileDialog::getOpenFileName(nullptr,
+                                                              tr("Open Image"),
+                                                              QDir::homePath(),
+                                                              tr("Image Files (*.png *.jpg *.bmp)"));
+                        if (!m_path.isEmpty())
+                            loadImage();
+                        return true;
+                    }
                 } else if (event->type() == QEvent::Resize) {
                     if (m_outImageData && !m_outImageData->image().isNull())
                         _label->setPixmap(m_outImageData->pixmap().scaled(w, h, Qt::KeepAspectRatio));
@@ -109,8 +115,7 @@ namespace Nodes
         }
 
     private:
-        QLabel *_label;
-
+        QLabel *_label=new QLabel("Ctrl+left click to load image");
         QString m_path;
         std::shared_ptr<ImageData> m_outImageData;
     };

@@ -1,0 +1,27 @@
+cmake_minimum_required(VERSION 3.5)
+set(Module_Name "WebSocketClientNode")
+project(${Module_Name})
+set(CMAKE_CXX_STANDARD 17)
+set(MAKE_CXX_STANDARD_REQUIRED ON)
+add_library(${Module_Name} SHARED
+        WebSocketClientDataModel.hpp
+        PluginDefinition.hpp
+        PluginDefinition.cpp
+        WebSocketClientInterface.hpp
+        ../../Common/Devices/WebSocketClient/WebSocketClient.h
+       ../../Common/Devices/WebSocketClient/WebSocketClient.cpp
+        ../../Common/Devices/WebSocketClient/WebSocketClientWorker.h
+      ../../Common/Devices/WebSocketClient/WebSocketClientWorker.cpp
+)
+
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} Qt${QT_VERSION_MAJOR}::Network Qt${QT_VERSION_MAJOR}::WebSockets)
+
+target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
+SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 
+        RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
+        LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
+        ARCHIVE_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
+        PREFIX ""
+        SUFFIX ".node")
+
+

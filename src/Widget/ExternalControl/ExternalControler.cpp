@@ -18,6 +18,8 @@
 #include <QTextEdit>
 #include <QLineEdit>
 #include "OSCMessage.h"
+#include <unordered_map>
+#include <QAction>
 ExternalControler::ExternalControler():
     OSC_Receiver(new OSCReceiver(8991))
  {
@@ -54,13 +56,31 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
         }
     case AddressType::Timeline:
         {
-            ClipId clipId =args[2].toInt();
-            auto widgets= m_timelinemodel->clipData(clipId,TimelineRoles::ClipOscWidgetsRole).value<std::unordered_map<QString, QWidget*>>();
-            auto it = widgets.find("/"+args[3]);
-            if (it != widgets.end()) {
-                widget = it->second;
+            if (args[2]=="toolbar")
+            {
+
+                auto it = m_TimelineToolbarMapping->find("/"+args[3]);
+                if (it != m_TimelineToolbarMapping->end()) {
+                    QAction* action = it->second;
+                    // 触发QAction的点击信号
+                    if (message.value.toInt()==1)
+                    {
+                        action->trigger();
+                    }
+                    return;
+                }
+                break;
+            }else
+            {
+                ClipId clipId =args[2].toInt();
+                auto widgets= m_timelinemodel->clipData(clipId,TimelineRoles::ClipOscWidgetsRole).value<std::unordered_map<QString, QWidget*>>();
+                auto it = widgets.find("/"+args[3]);
+                if (it != widgets.end()) {
+                    widget = it->second;
+                }
+                break;
             }
-            break;
+
         }
     default:
        //其他情况
@@ -115,4 +135,9 @@ void ExternalControler::setDataFlowModel(CustomDataFlowGraphModel *model)
 void ExternalControler::setTimelineModel(TimeLineModel *model)
 {
     this->m_timelinemodel = model;
+}
+
+void ExternalControler::setTimelineToolBarMap(std::shared_ptr<std::unordered_map<QString, QAction*>> oscMapping)
+{
+    m_TimelineToolbarMapping=std::move(oscMapping); // 转移所有权
 }

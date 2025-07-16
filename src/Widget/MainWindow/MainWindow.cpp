@@ -174,6 +174,7 @@ void MainWindow::init()
     controller=new ExternalControler();
     controller->setDataFlowModel(dataFlowModel);
     controller->setTimelineModel(timelineModel);
+    controller->setTimelineToolBarMap(timeline->view->m_toolbar->getOscMapping());
     emit initStatus("Initialization External Controler");
 
 

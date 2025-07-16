@@ -29,7 +29,8 @@ add_subdirectory(CameraNode)          #摄像头输入
 add_subdirectory(CaptureNode)         #图像捕获
 add_subdirectory(ConvertImageNode)    #图像转换
 add_subdirectory(CutImageNode)        #图像切割
-add_subdirectory(CountNode)       #矩形绘图
+add_subdirectory(ImageConstNode)      #图像常量
+add_subdirectory(CountNode)           #计数绘图
 add_subdirectory(RectNode)            #矩形模块
 add_subdirectory(SizeVarNode)         #尺寸模块
 add_subdirectory(MergeNode)           #数据合并
@@ -39,5 +40,6 @@ add_subdirectory(ArtnetInNode)        #Arnet输入
 add_subdirectory(MpvControllerNode)   #mpv控制
 add_subdirectory(SwitchNode)          #输入切换
 add_subdirectory(NDVControlNode)       #NDV控制
-
+add_subdirectory(WebSocketServerNode) #WebSocket服务器
+add_subdirectory(WebSocketClientNode) #WebSocket客户端
 add_subdirectory(JavaScriptNode)       #JavaScript脚本

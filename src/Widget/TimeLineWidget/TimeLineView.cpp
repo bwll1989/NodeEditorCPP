@@ -13,7 +13,7 @@ TimeLineView::TimeLineView(TimeLineModel* model, QWidget *parent) : BaseTimeline
         [this](int frame) {
             viewport()->update();  // 触发viewport的更新
         });
-    connect(derivedModel->getClock(), &TimeLineClock::timecodePlayingChanged,this->toolbar,&BaseTimelineToolbar::setPlaybackState);
+    connect(derivedModel->getClock(), &TimeLineClock::timecodePlayingChanged,this->m_toolbar,&BaseTimelineToolbar::setPlaybackState);
     setAcceptDrops(true);
 }
 TimeLineView::~TimeLineView() = default;

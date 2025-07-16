@@ -203,6 +203,10 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/UdpSocket/UdpSocket.h
         src/Common/Devices/WebSocketServer/WebSocketServer.cpp
         src/Common/Devices/WebSocketServer/WebSocketServer.h
+        src/Common/Devices/WebSocketClient/WebSocketClient.cpp
+        src/Common/Devices/WebSocketClient/WebSocketClient.h
+        src/Common/Devices/WebSocketClient/WebSocketClientWorker.h
+        src/Common/Devices/WebSocketClient/WebSocketClientWorker.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.h
         src/Common/Devices/OSCSender/OSCSender.cpp

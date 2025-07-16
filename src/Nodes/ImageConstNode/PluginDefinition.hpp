@@ -5,14 +5,15 @@
 #include <QtNodes/PluginInterface>
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef ImageLoadNode_EXPORTS
+#ifdef ImageConstNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
-#define PLUGIN_NAME "Image File"
-#define PLUGIN_VERSION "20240410"
-#define PLUGIN_DESCRIBE "导入图片"
+
+#define PLUGIN_NAME "Image Constant"
+#define PLUGIN_VERSION "20250717"
+#define PLUGIN_DESCRIBE "图像常量节点"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin
     : public QObject

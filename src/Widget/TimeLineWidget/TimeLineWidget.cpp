@@ -57,7 +57,7 @@ void TimelineWidget::createComponents() {
     // 连接轨道列表更新到时间线更新视图
     connect(tracklist, &BaseTracklistView::viewUpdate, view, &BaseTimelineView::onUpdateViewport);
     // 连接工具栏设置按钮到显示设置对话框
-    connect(view->toolbar, &BaseTimelineToolbar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
+    connect(view->m_toolbar, &BaseTimelineToolbar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
     // 添加到主布局
     mainlayout->addWidget(mainwidget);
 

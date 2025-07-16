@@ -25,7 +25,7 @@ public slots:
     void disconnectFromServer();
     
     // 发送消息
-    void sendMessage(const QString &message);
+    void sendMessage(const QString &message, const int &format = 0);
     
     // 停止重连计时器
     void stopTimer();

@@ -4,16 +4,18 @@
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/PluginInterface>
 
+
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef ImageLoadNode_EXPORTS
+#ifdef WebSocketServerNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
-#define PLUGIN_NAME "Image File"
-#define PLUGIN_VERSION "20240410"
-#define PLUGIN_DESCRIBE "导入图片"
-#define PLUGIN_TAG "Image"
+
+#define PLUGIN_NAME "WebSocket Server"
+#define PLUGIN_VERSION "202507015"
+#define PLUGIN_DESCRIBE "WebSocket 服务器"
+#define PLUGIN_TAG "Network"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

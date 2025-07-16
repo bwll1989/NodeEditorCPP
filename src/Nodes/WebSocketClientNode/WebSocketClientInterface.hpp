@@ -16,38 +16,37 @@ using namespace std;
 
 namespace Nodes
 {
-    class TCPClientInterface: public QWidget{
+    class WebSocketClientInterface: public QWidget{
     public:
-        explicit TCPClientInterface(QWidget *parent = nullptr){
-
-            portSpinBox->setRange(0,65535);
-            portSpinBox->setValue(2001);
-
+        explicit WebSocketClientInterface(QWidget *parent = nullptr){
             main_layout->addWidget(hostLabel,0,0,1,1);
-            main_layout->addWidget(hostEdit,0,1,1,1);
-            main_layout->addWidget(portLabel,1,0,1,1);
-            main_layout->addWidget(portSpinBox,1,1,1,1);
-            main_layout->addWidget(valueLabel,2,0,1,1);
-            main_layout->addWidget(valueEdit,2,1,1,1);
+            main_layout->addWidget(hostUrlEdit,0,1,1,1);
+            main_layout->addWidget(valueLabel,1,0,1,1);
+            main_layout->addWidget(valueEdit,1,1,1,1);
+            main_layout->addWidget(messageLabel,2,0,1,1);
+            main_layout->addWidget(messageType,2,1,1,1);
             main_layout->addWidget(format,3,0,1,2);
             main_layout->addWidget(send,4,0,1,2);
+            send->setEnabled(false);
             format->addItem("HEX");
             format->addItem("UTF-8");
             format->addItem("ASCII");
+            messageType->addItem("TEXT");
+            messageType->addItem("BINARY");
             this->setLayout(main_layout);
         }
     public:
 
         QGridLayout *main_layout=new QGridLayout(this);
         QLineEdit* valueEdit=new QLineEdit();
-        QSpinBox* portSpinBox=new QSpinBox();
-        QLineEdit* hostEdit=new QLineEdit("127.0.0.1");
+        QLineEdit* hostUrlEdit=new QLineEdit("ws://127.0.0.1:2003");
         QPushButton* send=new QPushButton("Send");
         QComboBox* format=new QComboBox();
+        QComboBox* messageType=new QComboBox();
     private:
-        QLabel *hostLabel=new QLabel("Host  ");
-        QLabel *portLabel=new QLabel("Port  ");
+        QLabel *hostLabel=new QLabel("URL  ");
         QLabel *valueLabel=new QLabel("Value    ");
+        QLabel *messageLabel=new QLabel("Message Type    ");
 
     };
 }

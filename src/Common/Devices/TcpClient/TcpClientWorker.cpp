@@ -1,5 +1,7 @@
 #include "TcpClientWorker.h"
-
+#include <QByteArray>
+#include <QHostInfo>
+#include <QThread>
 // 修改构造函数
 TcpClientWorker::TcpClientWorker(QObject *parent) : QObject(parent)
 {
@@ -39,20 +41,40 @@ TcpClientWorker::~TcpClientWorker()
 
 void TcpClientWorker::connectToServer(const QString &dstHost, int dstPort)
 {
+
+    // 1. 停止重连定时器
+    if (m_timer->isActive())
+        m_timer->stop();
+
+    // 2. 断开当前连接
+    if (tcpClient->state() != QAbstractSocket::UnconnectedState) {
+        tcpClient->abort();
+    }
+
+    // 3. 更新 host/port
     host = dstHost;
     port = dstPort;
-    
-    // 关闭现有连接
-    tcpClient->close();
-    
-    // 尝试连接到服务器
+    // 4. 添加空指针保护
+    if (!tcpClient) {
+        qCritical() << "Socket not initialized! Call initialize() first";
+        return;
+    }
+
+    // 5. 检查socket状态
+    if (tcpClient->state() != QAbstractSocket::UnconnectedState) {
+        qWarning() << "Socket is in invalid state:" << tcpClient->state();
+        return;
+    }
+    // 确保在当前线程操作socket（添加线程安全检查）
+    if (tcpClient->thread() != this->thread()) {
+        qCritical() << "Socket accessed from wrong thread!";
+        return;
+    }
+    qDebug() << "connecting to server at" <<host << ":" << port;
     tcpClient->connectToHost(host, port);
-    
+
     if(tcpClient->waitForConnected(500))
     {
-        if(m_timer->isActive()){
-            m_timer->stop();
-        }
         isConnected = true;
     }
     else{
@@ -80,11 +102,26 @@ void TcpClientWorker::disconnectFromServer()
     }
 }
 
-void TcpClientWorker::sendMessage(const QString &message)
+void TcpClientWorker::sendMessage(const QString &message,const int &format)
 {
+    QByteArray data;
+    switch (format) {
+    case 0: // HEX格式
+        data = QByteArray::fromHex(message.toUtf8());
+        break;
+    case 1: // UTF-8格式
+        data = message.toUtf8();  // 修复冒号错误为括号
+        break;
+    case 2: // ASCII
+        data = message.toLatin1(); // 使用本地编码（ASCII）
+        break;
+    default:
+        data = message.toUtf8();  // 默认使用UTF-8
+        break;
+    }
     if(tcpClient->state() == QAbstractSocket::ConnectedState)
     {
-        tcpClient->write(message.toUtf8());
+        tcpClient->write(data);
     }
 }
 
@@ -104,7 +141,9 @@ void TcpClientWorker::onReadyRead()
     }
     QVariantMap dataMap;
     dataMap.insert("host", tcpClient->peerAddress().toString());
-    dataMap.insert("hex", data.toHex());
+    dataMap.insert("hex", QString(data.toHex())); // 转换为QString类型
+    dataMap.insert("utf-8", QString::fromUtf8(data)); // 修复UTF-8解码方式
+    dataMap.insert("ascii", QString::fromLatin1(data)); // 修复ANSI解码方式
     dataMap.insert("default", data);
     emit recMsg(dataMap);
 }

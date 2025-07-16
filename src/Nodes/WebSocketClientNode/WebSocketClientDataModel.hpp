@@ -1,20 +1,17 @@
 #pragma once
 
-
 #include <QtCore/QObject>
-
 #include "DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
-#include "TCPClientInterface.hpp"
+#include "WebSocketClientInterface.hpp"
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QSlider>
 #include <QtWidgets/QSpinBox>
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
-#include <QThread>
-#include "Common/Devices/TcpClient/TcpClient.h"
-#include "QMutex"
+#include <QUrl>
+#include "Common/Devices/WebSocketClient/WebSocketClient.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -25,17 +22,14 @@ class QLineEdit;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class TCPClientDataModel : public NodeDelegateModel
+    class WebSocketClientDataModel : public NodeDelegateModel
     {
         Q_OBJECT
 
     public:
-
-        // 修改构造函数部分
-        TCPClientDataModel(){
-            // 在新线程中启动服务器
-            InPortCount = 4;
-            OutPortCount = 4;
+        WebSocketClientDataModel() {
+            InPortCount = 3;
+            OutPortCount = 3;
             CaptionVisible = true;
             PortEditable = false;
             Caption = PLUGIN_NAME;
@@ -43,46 +37,33 @@ namespace Nodes
             Resizable = false;
             m_inData = std::make_shared<VariableData>();
             m_outData = std::make_shared<VariableData>();
-            NodeDelegateModel::registerOSCControl("/host", widget->hostEdit);
-            NodeDelegateModel::registerOSCControl("/port", widget->portSpinBox);
+            NodeDelegateModel::registerOSCControl("/host", widget->hostUrlEdit);
             NodeDelegateModel::registerOSCControl("/value", widget->valueEdit);
             NodeDelegateModel::registerOSCControl("/send", widget->send);
-            
-            // 不再需要将client移动到线程，因为TcpClient内部已经处理了线程
-            // client->moveToThread(clientThread); // 删除这一行
-        
-            connect(this, &TCPClientDataModel::sendTCPMessage, client, &TcpClient::sendMessage, Qt::QueuedConnection);
-            connect(widget->hostEdit, &QLineEdit::editingFinished, this, &TCPClientDataModel::hostChange, Qt::QueuedConnection);
-            connect(widget->portSpinBox, &QSpinBox::valueChanged, this, &TCPClientDataModel::hostChange, Qt::QueuedConnection);
-            connect(this, &TCPClientDataModel::connectTCPServer, client, &TcpClient::connectToServer, Qt::QueuedConnection);
-            connect(client, &TcpClient::isReady, widget->send, &QPushButton::setEnabled, Qt::QueuedConnection);
-            connect(client, &TcpClient::recMsg, this, &TCPClientDataModel::recMsg, Qt::QueuedConnection);
-            connect(widget->send, &QPushButton::clicked, this, [this]()
-            {
-                emit sendTCPMessage(widget->valueEdit->text(),widget->format->currentIndex());
-            }, Qt::QueuedConnection);
-            connect(this, &TCPClientDataModel::stopTCPClient, client, &TcpClient::stopTimer, Qt::QueuedConnection);
+
+            m_client = new WebSocketClient(this,QUrl(widget->hostUrlEdit->text()));
+
+            connect(widget->send, &QPushButton::clicked, this, &WebSocketClientDataModel::onSendClicked);
+            connect(widget->hostUrlEdit, &QLineEdit::textChanged, this, &WebSocketClientDataModel::onHostChanged);
+            connect(this, &WebSocketClientDataModel::connectToUrl, m_client, &WebSocketClient::connectToServer);
+            connect(this, &WebSocketClientDataModel::sendMessage, m_client, &WebSocketClient::sendMessage);
+            connect(m_client, &WebSocketClient::recMsg, this, &WebSocketClientDataModel::recMsg);
+            connect(m_client, &WebSocketClient::isReady, this, &WebSocketClientDataModel::onConnected);
+            // connect(m_client, &WebSocketClient::errorOccurred, this, &WebSocketClientDataModel::onError);
         }
-        
-        ~TCPClientDataModel(){
-            client->disconnectFromServer();
-            delete client;
-            widget->deleteLater();
+        ~WebSocketClientDataModel() {
         }
     public:
-
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
             switch (portType) {
             case PortType::In:
                 switch (portIndex) {
             case 0:
-                    return "HOST";
+                    return "URL";
             case 1:
-                    return "PORT";
-            case 2:
                     return "VALUE";
-            case 3:
+            case 2:
                     return "TRIGGER";
             default:
                     break;
@@ -93,11 +74,9 @@ namespace Nodes
             case 0:
                     return "RESULT";
             case 1:
-                    return "HOST";
+                    return "URL";
             case 2:
-                    return "VALUE";
-            case 3:
-                    return "HEX";
+                    return "STRING";
             default:
                     break;
                 }
@@ -109,7 +88,6 @@ namespace Nodes
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
-
             Q_UNUSED(portIndex)
             Q_UNUSED(portType)
             return VariableData().type();
@@ -122,11 +100,9 @@ namespace Nodes
             case 0:
                 return m_outData;
             case 1:
-                return std::make_shared<VariableData>(m_outData->value("host").toString());
+                return std::make_shared<VariableData>(m_outData->value("url").toString());
             case 2:
                 return std::make_shared<VariableData>(m_outData->value());
-            case 3:
-                return std::make_shared<VariableData>(m_outData->value("hex"));
             default:
                 return nullptr;
             }
@@ -140,23 +116,19 @@ namespace Nodes
             m_inData = std::dynamic_pointer_cast<VariableData>(data);
             switch (portIndex) {
             case 0:
-                widget->hostEdit->setText(m_inData->value().toString());
+                widget->hostUrlEdit->setText(m_inData->value().toString());
+                // emit connectToUrl(QUrl(widget->hostUrlEdit->text()));
                 break;
             case 1:
-                widget->portSpinBox->setValue(m_inData->value().toInt());
+                widget->valueEdit->setText(m_inData->value().toString());
+                emit sendMessage(widget->valueEdit->text(), widget->messageType->currentIndex(),widget->format->currentIndex());
                 break;
             case 2:
-                widget->valueEdit->setText(m_inData->value().toString());
-                sendMessage();
-                break;
-            case 3:
-                m_inData = std::make_shared<VariableData>(widget->valueEdit->text());
-                sendMessage();
+                emit sendMessage(widget->valueEdit->text(), widget->messageType->currentIndex(),widget->format->currentIndex());
                 break;
             default:
                 break;
             }
-
         }
 
         QWidget *embeddedWidget() override
@@ -167,13 +139,12 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["Port"] = widget->portSpinBox->value();
-            modelJson1["IP"] = widget->hostEdit->text();
+            modelJson1["URL"] = widget->hostUrlEdit->text();
             modelJson1["Value"] = widget->valueEdit->text();
             modelJson1["Format"] = widget->format->currentIndex();
+            modelJson1["MessageType"] = widget->messageType->currentIndex();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
-
             return modelJson;
         }
 
@@ -181,45 +152,40 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->hostEdit->setText(v["IP"].toString());
-                widget->portSpinBox->setValue(v["Port"].toInt());
+                widget->hostUrlEdit->setText(v["URL"].toString());
                 widget->valueEdit->setText(v["Value"].toString());
                 widget->format->setCurrentIndex(v["Format"].toInt());
+                widget->messageType->setCurrentIndex(v["MessageType"].toInt());
             }
         }
 
     public slots:
-    // 收到信息时
+        void onSendClicked() {
+            emit sendMessage(widget->valueEdit->text(), widget->messageType->currentIndex(),widget->format->currentIndex());
+        }
+        void onHostChanged() {
+            emit connectToUrl(QUrl(widget->hostUrlEdit->text()));
+        }
+
         void recMsg(const QVariantMap &msg)
         {
             m_outData=std::make_shared<VariableData>(msg);
             Q_EMIT dataUpdated(0);
             Q_EMIT dataUpdated(1);
             Q_EMIT dataUpdated(2);
-            Q_EMIT dataUpdated(3);
-
         }
 
-        void sendMessage(){
-            if(!m_inData){
-                return;
-            }
-            emit sendTCPMessage(m_inData->value().toString(),widget->format->currentIndex());
+        void onConnected(bool isReady) {
+            // 可选：更新UI状态
+            widget->send->setEnabled(isReady);
         }
 
-        void hostChange()
-        {
-            emit connectTCPServer(widget->hostEdit->text(),widget->portSpinBox->value());
-        }
     signals:
-        //    关闭信号
-        void stopTCPClient();
-        void sendTCPMessage(const QString &message,const int &format=0);
-        void connectTCPServer(const QString &host,int port);
+        void connectToUrl(const QUrl &url);
+        void sendMessage(const QString &msg,const int &messageType = 0 ,const int &format = 0);
     private:
-        TCPClientInterface *widget=new TCPClientInterface();
-        TcpClient *client=new TcpClient();
-        // QThread *clientThread=new QThread(); // 删除这一行，因为不再需要管理线程
+        WebSocketClientInterface *widget = new WebSocketClientInterface();
+        WebSocketClient *m_client;
         std::shared_ptr<VariableData> m_inData;
         std::shared_ptr<VariableData> m_outData;
     };

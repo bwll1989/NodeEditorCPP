@@ -59,8 +59,8 @@ public slots:
         case 1: // UTF-8格式
             data = message.toUtf8();  // 修复冒号错误为括号
             break;
-        case 2: // 新增ANSI格式
-            data = message.toLocal8Bit(); // 使用本地编码（ANSI）
+        case 2: // 新增ASCII格式
+            data = message.toLatin1(); // 使用本地编码（ASCII）
             break;
         default:
             data = message.toUtf8();  // 默认使用UTF-8
@@ -89,7 +89,7 @@ private slots:
                 dataMap.insert("host", clientSocket->peerAddress().toString());
                 dataMap.insert("hex", QString(data.toHex())); // 转换为QString类型
                 dataMap.insert("utf-8", QString::fromUtf8(data)); // 修复UTF-8解码方式
-                dataMap.insert("ansi", QString::fromLocal8Bit(data)); // 修复ANSI解码方式
+                dataMap.insert("ascii", QString::fromLatin1(data)); // 修复ascii解码方式
                 dataMap.insert("default", data);
                 
                 emit messageReceived(data);

@@ -41,7 +41,6 @@ namespace Nodes
             targetPortSpinBox->setValue(6011);
             listeningPortSpinBox->setRange(0,65536);
             listeningPortSpinBox->setValue(6000);
-            main_layout->setContentsMargins(0, 0, 0, 0);
             connect(listeningPortSpinBox,&QSpinBox::valueChanged,this,&UDPSocketInterface::valueChanged);
             connect(listeningHostEdit,&QLineEdit::textChanged,this,&UDPSocketInterface::valueChanged);
             this->setLayout(main_layout);

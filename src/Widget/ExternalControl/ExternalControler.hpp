@@ -37,6 +37,7 @@ public:
     }
     void setDataFlowModel(CustomDataFlowGraphModel *model);
     void setTimelineModel(TimeLineModel *model);
+    void setTimelineToolBarMap(std::shared_ptr<std::unordered_map<QString, QAction*>> oscMapping);
 private slots:
     /**
      * 处理接收到的UDP数据
@@ -52,6 +53,7 @@ private:
 private:
     CustomDataFlowGraphModel *m_dataflowmodel;
     TimeLineModel *m_timelinemodel;
+    std::shared_ptr<std::unordered_map<QString, QAction*>> m_TimelineToolbarMapping;;
     //OSC接收器
     OSCReceiver *OSC_Receiver;
 };
