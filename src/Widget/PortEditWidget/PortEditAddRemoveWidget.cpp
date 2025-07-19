@@ -10,13 +10,12 @@ PortEditAddRemoveWidget::PortEditAddRemoveWidget(NodeId nodeId, CustomDataFlowGr
     , _model(model)
 {
 
-    setSizePolicy(QSizePolicy::Policy::Minimum, QSizePolicy::Policy::Minimum);
+    setSizePolicy(QSizePolicy::Policy::Minimum, QSizePolicy::Policy::Expanding);
 //    setMaximumWidth(150);
     QHBoxLayout *hl = new QHBoxLayout(this);
     this->setLayout(hl);
-    hl->setContentsMargins(2, 5, 2, 5);
+    hl->setContentsMargins(0, 0, 0, 0);
     hl->setSpacing(0);
-
     _left = new QVBoxLayout();
     _left->setSpacing(0);
     _left->setContentsMargins(0, 0, 0, 0);
@@ -24,20 +23,17 @@ PortEditAddRemoveWidget::PortEditAddRemoveWidget(NodeId nodeId, CustomDataFlowGr
     _right = new QVBoxLayout();
     _right->setSpacing(0);
     _right->setContentsMargins(0, 0, 0, 0);
+
     _right->addStretch();
-//    hl->addSpacing(10);
+
+
     hl->addLayout(_left,1);
-//    hl->addSpacing(10);
-    QFrame *line = new QFrame(this);
-    line->setFrameShape(QFrame::VLine);
-    line->setLineWidth(2);
-    hl->addWidget(line);
-//    hl->addSpacing(10);
+    hl->addStretch();
     hl->addLayout(_right,1);
 //    hl->addSpacing(5);
 //    addButtonGroupToLayout(_left ,  0);
 //    addButtonGroupToLayout(_right,  0);
-   
+
     populateButtons(PortType::In,_model.nodeData(_nodeId,QtNodes::NodeRole::InPortCount).toInt());
     populateButtons(PortType::Out,_model.nodeData(_nodeId,QtNodes::NodeRole::OutPortCount).toInt());
 
@@ -74,13 +70,15 @@ QHBoxLayout *PortEditAddRemoveWidget::addButtonGroupToLayout(QVBoxLayout *vbl, u
     auto l = new QHBoxLayout();
     l->setContentsMargins(0, 0, 0, 0);
 
-    auto button = new QPushButton(QIcon(":/icons/icons/add.png"),"add port");
-//    button->setFixedHeight(25);
+    auto button = new QPushButton(QIcon(":/icons/icons/add.png"),"");
+    button->setFixedHeight(25);
+    button->setFixedWidth(25);
     l->addWidget(button);
     connect(button, &QPushButton::clicked, this, &PortEditAddRemoveWidget::onPlusClicked);
 
-	button = new QPushButton(QIcon(":/icons/icons/remove.png"),"remove port");
-//    button->setFixedHeight(25);
+	button = new QPushButton(QIcon(":/icons/icons/remove.png"),"");
+    button->setFixedHeight(25);
+    button->setFixedWidth(25);
     l->addWidget(button);
     connect(button, &QPushButton::clicked, this, &PortEditAddRemoveWidget::onMinusClicked);
 
@@ -123,7 +121,7 @@ void PortEditAddRemoveWidget::onPlusClicked()
     // Trigger changes in the model
     _model.addPort(_nodeId, portType, portIndex + 1);
 
-    adjustSize();
+    // adjustSize();
 }
 
 void PortEditAddRemoveWidget::onMinusClicked()
@@ -141,7 +139,7 @@ void PortEditAddRemoveWidget::onMinusClicked()
         // Trigger changes in the model
         _model.removePort(_nodeId, portType, portIndex);
 
-        adjustSize();
+        // adjustSize();
     }
 
 

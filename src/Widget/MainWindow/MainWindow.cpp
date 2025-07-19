@@ -62,8 +62,8 @@ void MainWindow::init()
     setNodeEditorStyle();
     emit initStatus("load node editor style success");
     view = new CustomGraphicsView();
-    view->setObjectName("Canvas");
-    view->setContextMenuPolicy(Qt::ActionsContextMenu);
+    view->setObjectName("NodeEditor");
+    // view->setContextMenuPolicy(Qt::ActionsContextMenu);
     menuBar->views->addAction(NodeDockWidget->toggleViewAction());
     emit initStatus("Initialization view success");
     //初始化数据流模型
@@ -104,15 +104,6 @@ void MainWindow::init()
      menuBar->views->addAction(timelineDockWidget->toggleViewAction());
      emit initStatus("Initialization Timeline editor");
 
-// 端口编辑控件
-    auto *portEdits = new ads::CDockWidget("端口编辑");
-    portEdits->setObjectName("NodePortEdit");
-    portEdits->setIcon(QIcon(":/icons/icons/portEdit.png"));
-    portEdit=new PortEditWidget(dataFlowModel);
-    portEdits->setWidget(portEdit);
-    m_DockManager->addDockWidget(ads::LeftDockWidgetArea, portEdits);
-    menuBar->views->addAction(portEdits->toggleViewAction());
-    emit initStatus("Initialization node port editor");
 // 终端显示控件
     auto *logDockViewer= new ads::CDockWidget("终端显示");
     logTable=new LogWidget();
@@ -198,10 +189,10 @@ void MainWindow::init()
     connect(menuBar->pluginsFloderAction, &QAction::triggered, pluginsManagerDlg,&PluginsManagerWidget::openPluginsFolder);
     //鼠标点击时显示属性
     // connect(scene, &CustomFlowGraphicsScene::nodeClicked, property,&PropertyWidget::update);
-    connect(scene, &CustomFlowGraphicsScene::nodeClicked,portEdit,&PortEditWidget::update);
-    //    节点删除时更新属性显示
-    // connect(model,&CustomDataFlowGraphModel::nodeDeleted, property,&PropertyWidget::update);
-    connect(dataFlowModel,&CustomDataFlowGraphModel::nodeDeleted,portEdit,&PortEditWidget::update);
+    // connect(scene, &CustomFlowGraphicsScene::nodeClicked,portEdit,&PortEditWidget::update);
+    // //    节点删除时更新属性显示
+    // // connect(model,&CustomDataFlowGraphModel::nodeDeleted, property,&PropertyWidget::update);
+    // connect(dataFlowModel,&CustomDataFlowGraphModel::nodeDeleted,portEdit,&PortEditWidget::update);
     //    日志清空功能
     connect(menuBar->clearAction, &QAction::triggered, logTable, &LogWidget::clearTableWidget);
 //    导入文件，视图回到中心

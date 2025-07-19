@@ -17,7 +17,6 @@
 #include "Widget/NodeWidget/CustomGraphicsView.h"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/MenuBarWidget/MenuBarWidget.h"
-#include "Widget/PortEditWidget/PortEditWidget.h"
 #include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
 #include "Widget/TimeLineWidget/TimeLineWidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
@@ -42,8 +41,6 @@ public:
     CustomDataFlowGraphModel *dataFlowModel;
     //插件管理器
     PluginsManagerWidget *pluginsManagerDlg;
-    // 端口编辑控件
-    PortEditWidget *portEdit;
     // 节点库控件
     ads::CDockWidget *nodeDockLibraryWidget;
     bool isLocked= false;
@@ -55,8 +52,6 @@ public:
     TimelineWidget *timeline;
     // 时间线模型
     TimeLineModel *timelineModel;
-    // 片段属性
-    // ClipPropertyWidget *clipProperty;
     // 舞台控件
     StageWidget *stageWidget;
 signals:

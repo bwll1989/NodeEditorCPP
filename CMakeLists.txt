@@ -175,8 +175,6 @@ set(CALC_SOURCE_FILES
         src/Widget/MenuBarWidget/MenuBarWidget.h
         src/Widget/PropertyWidget/PropertyWidget.cpp
         src/Widget/PropertyWidget/PropertyWidget.hpp
-        src/Widget/PortEditWidget/PortEditWidget.cpp
-        src/Widget/PortEditWidget/PortEditWidget.h
         src/Widget/NodeLibraryWidget/draggabletreewidget.cpp
         src/Widget/NodeLibraryWidget/draggabletreewidget.hpp
         src/Widget/NodeLibraryWidget/NodeLibraryWidget.cpp

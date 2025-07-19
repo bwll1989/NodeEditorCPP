@@ -23,6 +23,7 @@ QJsonObject TimelineWidget::save() {
 }
 
 void TimelineWidget::load(const QJsonObject& json) {
+
     model->load(json);
 }
 

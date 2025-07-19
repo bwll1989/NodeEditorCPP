@@ -1,9 +1,6 @@
 #include "WebSocketServer.h"
 #include <QDebug>
 #include <QThread>
-#include "WebSocketServer.moc"
-
-
 
 WebSocketServer::WebSocketServer(QObject *parent)
     : QObject(parent)

@@ -33,8 +33,9 @@ namespace Nodes
             Caption="Count";
             CaptionVisible=true;
             WidgetEmbeddable= true;
-            Resizable=false;
-            NodeDelegateModel::registerOSCControl("/cleat",widget->Clear);
+            Resizable=true;
+            PortEditable=true;
+            NodeDelegateModel::registerOSCControl("/clear",widget->Clear);
             connect(widget->Editor, &QLineEdit::editingFinished, this, &CountDataModel::outDataSlot);
             connect(widget->Clear, &QPushButton::clicked, this, &CountDataModel::clearCount);
             m_jsEngine = new QJSEngine(this);
@@ -138,7 +139,10 @@ namespace Nodes
             }
         }
 
-        QWidget *embeddedWidget() override {return widget;}
+        QWidget *embeddedWidget() override
+        {
+            return widget;
+        }
     private slots:
         void outDataSlot() {
             Q_EMIT dataUpdated(0);

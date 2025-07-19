@@ -5,7 +5,7 @@
 #include "CustomDataFlowGraphModel.h"
 
 #include <stdexcept>
-
+#include <QMessageBox>
 #include "QtNodes/internal/ConnectionIdHash.hpp"
 #include "QtNodes/internal/GroupIdUtils.hpp"
 #include "Widget/PortEditWidget/PortEditAddRemoveWidget.hpp"
@@ -316,15 +316,27 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             break;
 
         case NodeRole::Widget: {
-            auto w = model->embeddedWidget();
-            result = QVariant::fromValue(w);
-            break;
-        }
+                switch (model->getWidgetType()) {
+                case QtNodes::NodeWidgetType::InternalWidget: {
+                        auto w = model->embeddedWidget();
+                        result = QVariant::fromValue(w);
+                }
+                    break;
+                case  QtNodes::NodeWidgetType::PortEditWidget: {
+                        auto w = layoutWidget(nodeId);
+                        result = QVariant::fromValue(w);
+                }
+                    break;
+                default:
+                    break;
+                }
+
+        } break;
         case NodeRole::PortEditable: {
             result = model->portEditable();
             break;
         }
-        case NodeRole::PortEditableWidget: {
+        case NodeRole::PortEditWidget: {
             auto l = layoutWidget(nodeId);
             result = QVariant::fromValue(l);
             break;
@@ -343,7 +355,9 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             result = model->getRemarks();
             break;
         }
-           
+        case NodeRole::EmbeddWidgetType:
+            result=static_cast<int>(model->getWidgetType());
+            break;
         default:
             break;
     }
@@ -405,7 +419,12 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
 
         case NodeRole::InternalData:
             break;
-
+        case NodeRole::PortEditable: {
+            _models[nodeId]->PortEditable=value.toBool();
+            Q_EMIT nodeUpdated(nodeId);
+            result = true;
+        }
+            break;
         case NodeRole::InPortCount:{
             _models[nodeId]->InPortCount=value.toUInt();
             layoutWidget(nodeId)->populateButtons(PortType::In, value.toUInt());
@@ -425,13 +444,11 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             break;
 
         case NodeRole::WidgetEmbeddable: {
-            {
-                auto it = _models.find(nodeId);
-                auto &model = it->second;
-                model->WidgetEmbeddable=value.toBool();
-                model->embeddedWidgetSizeUpdated();
-                Q_EMIT nodeUpdated(nodeId);
-            }
+            auto it = _models.find(nodeId);
+            auto &model = it->second;
+            model->WidgetEmbeddable=value.toBool();
+            model->embeddedWidgetSizeUpdated();
+            Q_EMIT nodeUpdated(nodeId);
             result = true;
         }
             break;
@@ -440,7 +457,6 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             auto it = _models.find(nodeId);
             auto &model = it->second;
             model->getWidgetFromOSCAddress(value.toString());
-            
             Q_EMIT nodeUpdated(nodeId);
             result = true;
         }
@@ -461,7 +477,17 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             Q_EMIT nodeUpdated(nodeId);
             result = true;
         }
-        break;
+            break;
+        case NodeRole::EmbeddWidgetType: {
+            auto it = _models.find(nodeId);
+            auto &model = it->second;
+            model->setEmbeddWidgetType(static_cast<decltype(model->getWidgetType())>(value.toInt())); // 显式类型转换
+            Q_EMIT nodeWidgetUpdated(nodeId);
+            result=true;
+        }
+            break;
+        case NodeRole::PortEditWidget:
+            break;
         default:
             break;
     }
@@ -700,6 +726,7 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
         setNodeData(restoredNodeId, NodeRole::OutPortCount, nodeJson["output-count"].toInt());
         _models[restoredNodeId]->load(internalDataJson);
     } else {
+        //创建失败，抛出异常
         throw std::logic_error(std::string("No registered model with name ") +
                                delegateModelName.toLocal8Bit().data());
     }
@@ -708,42 +735,56 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
 
 void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
 {
-    QJsonArray nodesJsonArray = jsonDocument["nodes"].toArray();
+    // 清空现有数据
+    auto existingNodes = allNodeIds();
+    for (auto nodeId : existingNodes) {
+        deleteNode(nodeId);
+    }
+    _groups.clear();
+    _connectivity.clear();
 
-    for (QJsonValueRef nodeJson : nodesJsonArray) {
-        loadNode(nodeJson.toObject());
+    try { // 节点加载阶段
+        QJsonArray nodesJsonArray = jsonDocument["nodes"].toArray();
+        for (QJsonValueRef nodeJson : nodesJsonArray) {
+            loadNode(nodeJson.toObject());
+        }
+    } catch (const std::exception& e) {
+        qCritical() << tr("节点加载失败:\n%1").arg(e.what());
+        return;
     }
 
-    QJsonArray connectionJsonArray = jsonDocument["connections"].toArray();
-
-    for (QJsonValueRef connection : connectionJsonArray) {
-        QJsonObject connJson = connection.toObject();
-
-        ConnectionId connId = fromJson(connJson);
-
-        // Restore the connection
-        addConnection(connId);
+    try { // 连接加载阶段
+        QJsonArray connectionJsonArray = jsonDocument["connections"].toArray();
+        for (QJsonValueRef connection : connectionJsonArray) {
+            QJsonObject connJson = connection.toObject();
+            ConnectionId connId = fromJson(connJson);
+            addConnection(connId);
+        }
+    } catch (const std::exception& e) {
+        qCritical() << tr("连接加载失败:\n%1").arg(e.what());
+        return;
     }
 
-    // 鍔犺浇缁勪箣鍓嶏紝鍏堟敹闆嗘墍鏈夌粍淇℃伅
-    std::vector<GroupId> allGroups;
-    QJsonArray groupJsonArray = jsonDocument["groups"].toArray();
-    for (QJsonValueRef group : groupJsonArray) {
-        QJsonObject groupJson = group.toObject();
-        GroupId groupId = QtNodes::fromJsonToGroup(groupJson);
-        allGroups.push_back(groupId);
-    }
+    try { // 分组加载阶段
+        std::vector<GroupId> allGroups;
+        QJsonArray groupJsonArray = jsonDocument["groups"].toArray();
+        for (QJsonValueRef group : groupJsonArray) {
+            QJsonObject groupJson = group.toObject();
+            GroupId groupId = QtNodes::fromJsonToGroup(groupJson);
+            allGroups.push_back(groupId);
+        }
 
-    //恢复group
-    std::sort(allGroups.begin(), allGroups.end(), 
-        [](const GroupId& a, const GroupId& b) {
-            return a.nodeIds.size() > b.nodeIds.size();
-            // 闄嶅簭鎺掑垪
-        });
+        std::sort(allGroups.begin(), allGroups.end(),
+            [](const GroupId& a, const GroupId& b) {
+                return a.nodeIds.size() > b.nodeIds.size();
+            });
 
-    // 添加group
-     for (const auto& groupId : allGroups) {
-        addGroup(groupId);
+        for (const auto& groupId : allGroups) {
+            addGroup(groupId);
+        }
+    } catch (const std::exception& e) {
+         qWarning() << tr("分组加载失败:\n%1").arg(e.what());
+
     }
 }
 
