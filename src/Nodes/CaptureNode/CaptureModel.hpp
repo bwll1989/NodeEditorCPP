@@ -98,7 +98,7 @@ namespace Nodes
     private slots:
         void captureClicked(){
             if (const auto lock = m_inImageData.lock()) {
-                m_outImageData = std::make_shared<ImageData>(lock->image());
+                m_outImageData = std::make_shared<ImageData>(lock->imgMat());
             } else {
                 m_outImageData.reset();
             }

@@ -24,10 +24,9 @@ add_subdirectory(AudioDeviceOutNode)  #音频输出模块
 add_subdirectory(HotKeyNode)          #热键模块
 add_subdirectory(ExtractNode)         #数据分离模块
 add_subdirectory(ImageInfoNode)       #图像信息
-add_subdirectory(ScaleImageNode)      #图像缩放
+add_subdirectory(ImageScaleNode)      #图像缩放
 add_subdirectory(CameraNode)          #摄像头输入
 add_subdirectory(CaptureNode)         #图像捕获
-add_subdirectory(ConvertImageNode)    #图像转换
 add_subdirectory(CutImageNode)        #图像切割
 add_subdirectory(ImageConstNode)      #图像常量
 add_subdirectory(CountNode)           #计数绘图
@@ -43,4 +42,6 @@ add_subdirectory(NDVControlNode)       #NDV控制
 add_subdirectory(WebSocketServerNode) #WebSocket服务器
 add_subdirectory(WebSocketClientNode) #WebSocket客户端
 add_subdirectory(JavaScriptNode)       #JavaScript脚本
-add_subdirectory(InternalControlNode)
+add_subdirectory(InternalControlNode) #内部控制
+add_subdirectory(ImageThresholdNode)  #图像二值化
+add_subdirectory(ImageCompareNode)    #图像对比

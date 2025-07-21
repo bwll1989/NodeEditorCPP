@@ -1,4 +1,4 @@
-# WebSocket 服务器节点文档
+# WebSocketServerNode 帮助文档
 
 ## 节点功能
 WebSocket服务器节点实现了WebSocket服务端通信功能，支持以下特性：

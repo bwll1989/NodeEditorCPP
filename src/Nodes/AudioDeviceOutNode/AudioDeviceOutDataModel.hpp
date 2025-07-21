@@ -14,6 +14,7 @@
 #include <QQueue>
 #include <QMutex>
 #include <QWaitCondition>
+#include "PluginDefinition.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -32,7 +33,7 @@ namespace Nodes
             InPortCount = 1;
             OutPortCount = 0;
             CaptionVisible = true;
-            Caption = "Audio Device Out";
+            Caption = PLUGIN_NAME;
             WidgetEmbeddable = true;
             Resizable = false;
 

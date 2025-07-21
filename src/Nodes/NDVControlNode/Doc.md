@@ -1,4 +1,4 @@
-# NDV 控制节点
+# NDVControlNode 帮助文档
 ## 节点功能
 NDV控制节点用于通过TCP协议控制NDV（Network Display Video）设备，支持以下特性：
 

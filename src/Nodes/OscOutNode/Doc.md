@@ -1,4 +1,4 @@
-# OSC 输出节点
+# OSCOutNode 帮助文档
 ## 节点功能
 OSC输出节点用于通过OSC（Open Sound Control）协议发送消息到远程设备或应用程序，支持以下特性：
 

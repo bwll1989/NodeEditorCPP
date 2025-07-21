@@ -1,4 +1,4 @@
-# WebSocket 客户端节点文档
+# WebSocketClientNode 帮助文档
 
 ## 节点功能
 WebSocket客户端节点实现了WebSocket客户端通信功能，支持以下特性：

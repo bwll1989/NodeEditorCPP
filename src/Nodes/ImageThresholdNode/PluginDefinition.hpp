@@ -4,16 +4,17 @@
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/PluginInterface>
 
+
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef ConvertImageNode_EXPORTS
+#ifdef ImageThresholdNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "ConvertImageNode"
-#define PLUGIN_VERSION "20240730"
-#define PLUGIN_DESCRIBE "延时"
+#define PLUGIN_NAME "Threshold"
+#define PLUGIN_VERSION "20250720"
+#define PLUGIN_DESCRIBE "图像二值化"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin
     : public QObject

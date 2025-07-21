@@ -18,6 +18,11 @@ class ImageConstInterface final : public QWidget{
     public:
         explicit ImageConstInterface(QWidget *parent = nullptr){
             main_layout=new QGridLayout();
+            colorRedEdit->setRange(0,255);
+            colorGreenEdit->setRange(0,255);
+            colorBlueEdit->setRange(0,255);
+            colorAlphaEdit->setRange(0,255);
+            colorAlphaEdit->setValue(255);
             main_layout->addWidget(display,0,0,1,2);
             main_layout->addWidget(sizeWidthLabel,1,0,1,1);
             main_layout->addWidget(widthEdit,1,1,1,1);
@@ -42,10 +47,10 @@ class ImageConstInterface final : public QWidget{
         QGridLayout *main_layout;
         QLineEdit *widthEdit=new QLineEdit("100");
         QLineEdit *heightEdit=new QLineEdit("100");
-        QLineEdit *colorRedEdit=new QLineEdit("255");
-        QLineEdit *colorGreenEdit=new QLineEdit("255");
-        QLineEdit *colorBlueEdit=new QLineEdit("255");
-        QLineEdit *colorAlphaEdit=new QLineEdit("255");
+        QSpinBox *colorRedEdit=new QSpinBox();
+        QSpinBox *colorGreenEdit=new QSpinBox();
+        QSpinBox *colorBlueEdit=new QSpinBox();
+        QSpinBox *colorAlphaEdit=new QSpinBox();
         QLabel *display=new QLabel();
     private:
         QLabel *sizeWidthLabel=new QLabel("Width: ");

@@ -2,11 +2,8 @@
 
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtWidgets/QFileDialog>
-#include <QtConcurrent/QtConcurrent>
-#include <QFutureWatcher>
 using namespace Nodes;
 using namespace NodeDataTypes;
-QFutureWatcher<QImage> *m_watcher = nullptr;
 ImageConstModel::ImageConstModel(){
     InPortCount = 6;
     OutPortCount=1;
@@ -14,14 +11,14 @@ ImageConstModel::ImageConstModel(){
     Caption="Image Constant";
     WidgetEmbeddable=false;
     Resizable=false;
-    m_watcher = new QFutureWatcher<QImage>(this);
+    m_watcher = new QFutureWatcher<void>(this);
     // 连接输入框变化信号到槽
     connect(widget->widthEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
     connect(widget->heightEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
-    connect(widget->colorRedEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
-    connect(widget->colorGreenEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
-    connect(widget->colorBlueEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
-    connect(widget->colorAlphaEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
+    connect(widget->colorRedEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
+    connect(widget->colorGreenEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
+    connect(widget->colorBlueEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
+    connect(widget->colorAlphaEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
     updateImage();
 }
 
@@ -65,7 +62,7 @@ QString ImageConstModel::portCaption(QtNodes::PortType portType, QtNodes::PortIn
 
 std::shared_ptr<QtNodes::NodeData> ImageConstModel::outData(QtNodes::PortIndex) {
     // 输出当前生成的图像
-    if (m_image.isNull()) return nullptr;
+    if (m_image.empty()) return nullptr;
     return std::make_shared<ImageData>(m_image);
 }
 
@@ -84,20 +81,16 @@ void ImageConstModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeDat
             widget->heightEdit->setText(QString::number(m_height));
             break;
         case 2: // RED
-            m_color.setRed(val.toInt());
-            widget->colorRedEdit->setText(QString::number(m_color.red()));
+            widget->colorRedEdit->setValue(val.toInt()>=255?255:val.toInt());
             break;
         case 3: // GREEN
-            m_color.setGreen(val.toInt());
-            widget->colorGreenEdit->setText(QString::number(m_color.green()));
+            widget->colorGreenEdit->setValue(val.toInt()>=255?255:val.toInt());
             break;
         case 4: // BLUE
-            m_color.setBlue(val.toInt());
-            widget->colorBlueEdit->setText(QString::number(m_color.blue()));
+            widget->colorBlueEdit->setValue(val.toInt()>=255?255:val.toInt());
             break;
         case 5: // ALPHA
-            m_color.setAlpha(val.toInt());
-            widget->colorAlphaEdit->setText(QString::number(m_color.alpha()));
+            widget->colorAlphaEdit->setValue(val.toInt()>=255?255:val.toInt());
             break;
         default:
             break;
@@ -110,10 +103,10 @@ void ImageConstModel::onInputChanged() {
     // 解析输入框内容
     m_width = widget->widthEdit->text().toInt();
     m_height = widget->heightEdit->text().toInt();
-    int r = widget->colorRedEdit->text().toInt();
-    int g = widget->colorGreenEdit->text().toInt();
-    int b = widget->colorBlueEdit->text().toInt();
-    int a = widget->colorAlphaEdit->text().isEmpty() ? 255 : widget->colorAlphaEdit->text().toInt();
+    int r = widget->colorRedEdit->value();
+    int g = widget->colorGreenEdit->value();
+    int b = widget->colorBlueEdit->value();
+    int a = widget->colorAlphaEdit->value();
     m_color = QColor(r, g, b, a);
     updateImage();
     Q_EMIT dataUpdated(0);
@@ -122,22 +115,35 @@ void ImageConstModel::onInputChanged() {
 void ImageConstModel::updateImage() {
     if (m_width <= 0) m_width = 1;
     if (m_height <= 0) m_height = 1;
+
     // 立即预览当前颜色
     QPixmap pix(widget->display->width(), widget->display->height());
     pix.fill(m_color);
     widget->display->setPixmap(pix);
+
     // 异步生成图像
     auto width = m_width;
     auto height = m_height;
     auto color = m_color;
-    QFuture<QImage> future = QtConcurrent::run([width, height, color]() {
-        QImage img(width, height, QImage::Format_ARGB32);
-        img.fill(color);
-        return img;
+    QFuture<void> future = QtConcurrent::run([this, width, height, color]() {
+        // 仅当尺寸变化时重新分配内存
+        if (m_image.rows != height || m_image.cols != width) {
+            m_image.create(height, width, CV_8UC4);
+        }
+
+        // 直接操作现有矩阵内存
+        m_image.forEach<cv::Vec4b>([color](cv::Vec4b &pixel, const int*) {
+            pixel = cv::Vec4b(
+                color.blue(),
+                color.green(),
+                color.red(),
+                color.alpha()
+            );
+        });
     });
+
     QObject::disconnect(m_watcher, nullptr, nullptr, nullptr);
-    QObject::connect(m_watcher, &QFutureWatcher<QImage>::finished, this, [this]() {
-        m_image = m_watcher->result();
+    QObject::connect(m_watcher, &QFutureWatcher<void>::finished, this, [this]() {
         Q_EMIT dataUpdated(0);
     });
     m_watcher->setFuture(future);
@@ -148,10 +154,10 @@ QJsonObject ImageConstModel::save() const
     QJsonObject modelJson1;
     modelJson1["width"] = widget->widthEdit->text();
     modelJson1["height"] = widget->heightEdit->text();
-    modelJson1["red"] = widget->colorRedEdit->text();
-    modelJson1["green"] = widget->colorGreenEdit->text();
-    modelJson1["blue"] = widget->colorBlueEdit->text();
-    modelJson1["alpha"] = widget->colorAlphaEdit->text();
+    modelJson1["red"] = widget->colorRedEdit->value();
+    modelJson1["green"] = widget->colorGreenEdit->value();
+    modelJson1["blue"] = widget->colorBlueEdit->value();
+    modelJson1["alpha"] = widget->colorAlphaEdit->value();
     QJsonObject modelJson  = NodeDelegateModel::save();
     modelJson["values"]=modelJson1;
     return modelJson;
@@ -163,10 +169,10 @@ void ImageConstModel::load(const QJsonObject &p)
         //            button->setChecked(v["val"].toBool(false));
         widget->widthEdit->setText(v["width"].toString());
         widget->heightEdit->setText(v["height"].toString());
-        widget->colorRedEdit->setText(v["red"].toString());
-        widget->colorGreenEdit->setText(v["green"].toString());
-        widget->colorBlueEdit->setText(v["blue"].toString());
-        widget->colorAlphaEdit->setText(v["alpha"].toString());
+        widget->colorRedEdit->setValue(v["red"].toInt());
+        widget->colorGreenEdit->setValue(v["green"].toInt());
+        widget->colorBlueEdit->setValue(v["blue"].toInt());
+        widget->colorAlphaEdit->setValue(v["alpha"].toInt());
         updateImage();
     }
 }

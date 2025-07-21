@@ -106,10 +106,10 @@ INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 message("-- Found Eigen3 ${EIGEN3_INCLUDE_DIR}")
 
 # 设置OpenCV库
-set(OpenCV_DIR "${DEPENDS_DIR}/opencv/build/include")
-set(OpenCV_LIBRARIES "${DEPENDS_DIR}/opencv/build/x64/vc16/lib")
-INCLUDE_DIRECTORIES(${OpenCV_DIR})
-link_directories("${OpenCV_LIBRARIES}")
+set(OpenCV_DIR "${DEPENDS_DIR}/opencv/build")
+#set(OpenCV_LIBRARIES "${DEPENDS_DIR}/opencv/build/x64/vc16/lib")
+find_package(OpenCV REQUIRED)	# 找到opencv库
+include_directories(${OpenCV_INCLUDE_DIRS})
 message("-- Found OpenCV ${OpenCV_DIR}")
 
 # 设置QtTimeLine库
@@ -117,10 +117,10 @@ set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
 set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
 INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 
-# 设置TabToolbar库
-set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
-set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
-INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
+## 设置TabToolbar库
+#set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
+#set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
+#INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
 
 
 set(QScintilla_DIR "${DEPENDS_DIR}/QScintilla_src-2.14.1/src/install" )
@@ -321,7 +321,8 @@ target_link_libraries(${ProjectName}
             ${Libltc_LIBRARIES}
             Eigen3::Eigen
             ${QtTimeLine_LIBRARIES}
-            ${TabToolbar_LIBRARIES}
+            ${OpenCV_LIBRARIES}
+#            ${TabToolbar_LIBRARIES}
             ClientController
             OscListWidget
             ${QScintilla_LIBRARIES}

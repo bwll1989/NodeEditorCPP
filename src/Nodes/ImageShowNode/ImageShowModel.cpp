@@ -17,15 +17,11 @@ ImageShowModel::ImageShowModel()
     WidgetEmbeddable=true;
     Resizable=false;
     _label->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
-
     QFont f = _label->font();
     f.setBold(true);
     f.setItalic(true);
-
     _label->setFont(f);
-
     _label->setMinimumSize(200, 200);
-
     _label->installEventFilter(this);
 }
 

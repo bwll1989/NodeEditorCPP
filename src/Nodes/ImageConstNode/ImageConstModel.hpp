@@ -7,9 +7,11 @@
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
-
+#include <QtConcurrent/QtConcurrent>
+#include <QFutureWatcher>
 #include "ImageConstInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
+#include "opencv2/imgcodecs/imgcodecs.hpp"
 using namespace NodeDataTypes;
 using namespace Nodes;
 namespace Nodes
@@ -41,8 +43,9 @@ namespace Nodes
         std::weak_ptr<ImageData> m_outData;
         int m_width = 100;
         int m_height = 100;
-        QColor m_color = QColor(255,255,255,255);
-        QImage m_image;
+        QColor m_color = QColor(0,0,0,255);
+        cv::Mat m_image=cv::Mat(100, 100, CV_8UC4, cv::Scalar(0, 0, 0, 255));;
+        QFutureWatcher<void> *m_watcher = nullptr;
     private Q_SLOTS:
         void updateImage();
         void onInputChanged();

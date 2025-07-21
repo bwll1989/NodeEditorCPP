@@ -1,18 +1,17 @@
 cmake_minimum_required(VERSION 3.5)
-
-set(Module_Name "ImageShowNode")
-
+set(Module_Name "ImageThresholdNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(MAKE_CXX_STANDARD_REQUIRED ON)
 INCLUDE_DIRECTORIES(${OpenCV_DIR})
-add_library(${Module_Name} SHARED
-        ImageShowModel.hpp
-        ImageShowModel.cpp
-        PluginDefinition.cpp
-        PluginDefinition.hpp)
+add_library(${Module_Name}  SHARED
+		ImageThresholdDataModel.hpp
+		ImageThresholdInterface.hpp
+        PluginDefinition.hpp
+        PluginDefinition.cpp)
+
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
-        ${QtNodes_LIBRARIES} ${OpenCV_LIBRARIES})
+		${QtNodes_LIBRARIES} ${OpenCV_LIBRARIES})
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

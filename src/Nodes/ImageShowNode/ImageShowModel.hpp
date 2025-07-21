@@ -1,14 +1,5 @@
 #pragma once
-
-#include <iostream>
-
-#include <QtCore/QObject>
-#include <QtWidgets/QLabel>
-
-#include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
-
-
 #include "DataTypes/NodeDataList.hpp"
 using namespace NodeDataTypes;
 namespace Nodes

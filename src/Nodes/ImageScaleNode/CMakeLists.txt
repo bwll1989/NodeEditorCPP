@@ -10,12 +10,14 @@ set(CMAKE_AUTOMOC ON)
 # 自动调用moc(元对象编译器)
 set(CMAKE_AUTORCC ON)
 # 自动处理资源
+INCLUDE_DIRECTORIES(${OpenCV_DIR})
 add_library(${Module_Name} SHARED
         ScaleImageForm.ui
         ScaleImageModel.h
         PluginDefinition.cpp
         PluginDefinition.hpp)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES})
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES}
+        ${OpenCV_LIBRARIES})
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"

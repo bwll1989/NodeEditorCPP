@@ -30,6 +30,10 @@ CutImageModel::CutImageModel() {
         m_outRect.setHeight(widget->heightEdit->text().toInt());
         processImage();
     });
+    NodeDelegateModel::registerOSCControl("/topLeftX",widget->pos_x);
+    NodeDelegateModel::registerOSCControl("/topLeftY",widget->pos_y);
+    NodeDelegateModel::registerOSCControl("/width",widget->widthEdit);
+    NodeDelegateModel::registerOSCControl("/height",widget->heightEdit);
 }
 
 QString CutImageModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
@@ -137,14 +141,31 @@ QWidget* CutImageModel::embeddedWidget() {
 }
 
 void CutImageModel::processImage() {
-    if (m_outRect.size().width()<=0||m_outRect.size().height()<=0)
-    {
+    if (m_outRect.width() <= 0 || m_outRect.height() <= 0) {
         m_outImageData.reset();
         emit dataUpdated(0);
         return;
     }
+
     if (const auto lock = m_inImageData.lock()) {
-        m_outImageData = std::make_shared<ImageData>(lock->image().copy(m_outRect));
+        const cv::Mat inputMat = lock->imgMat();
+
+        // 边界检查
+        cv::Rect validRect(
+            std::max(0, m_outRect.x()),
+            std::max(0, m_outRect.y()),
+            std::min(inputMat.cols - m_outRect.x(), m_outRect.width()),
+            std::min(inputMat.rows - m_outRect.y(), m_outRect.height())
+        );
+
+        if (validRect.width <= 0 || validRect.height <= 0) {
+            m_outImageData.reset();
+            return;
+        }
+
+        // 使用OpenCV进行ROI剪裁
+        cv::Mat croppedMat = inputMat(validRect).clone();
+        m_outImageData = std::make_shared<ImageData>(croppedMat);
     } else {
         m_outImageData.reset();
     }

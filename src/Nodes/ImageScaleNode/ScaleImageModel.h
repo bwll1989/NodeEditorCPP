@@ -12,6 +12,7 @@
 #include <QElapsedTimer>
 #include <QFileDialog>
 #include <QtConcurrent/QtConcurrent>
+#include <opencv2/imgproc.hpp>
 namespace Ui {
     class ScaleImageForm;
 }
@@ -138,7 +139,6 @@ namespace Nodes
                 m_widget = new QWidget();
                 m_ui->setupUi(m_widget);
                 // connect combobox cb_aspectRatio to requestProcess
-                connect(m_ui->cb_aspectRatio, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ScaleImageModel::requestProcess);
                 connect(m_ui->widthSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
                     this,
                     [this](int w) {
@@ -153,7 +153,6 @@ namespace Nodes
                         m_inScaleFactor.setHeight(h);
                         requestProcess();
                     });
-                registerOSCControl("/aspectRatio",m_ui->cb_aspectRatio);
                 registerOSCControl("/Height",m_ui->heightSpinBox);
                 registerOSCControl("/Width",m_ui->widthSpinBox);
             }
@@ -163,7 +162,6 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["aspectRatio"] = m_ui->cb_aspectRatio->currentIndex();
             modelJson1["width"] = m_ui->widthSpinBox->value();
             modelJson1["height"] = m_ui->heightSpinBox->value();
             QJsonObject modelJson  = NodeDelegateModel::save();
@@ -175,35 +173,55 @@ namespace Nodes
         {
             QJsonValue v = p["size"];
             if (!v.isUndefined()&&v.isObject()) {
-                //            button->setChecked(v["val"].toBool(false));
-                m_ui->cb_aspectRatio->setCurrentIndex(v["aspectRatio"].toInt());
                 m_ui->widthSpinBox->setValue(v["width"].toInt());
                 m_ui->heightSpinBox->setValue(v["height"].toInt());
             }
         }
     private:
-        static QPair<QImage, quint64> processImage(const QImage& image, const QSize& scaleFactor, Qt::AspectRatioMode mode) {
+         static QPair<cv::Mat, quint64> processImage(const cv::Mat& inputImage, const QSize& scaleFactor) {
             QElapsedTimer timer;
             timer.start();
-            const auto scaledImage = image.scaled(scaleFactor, mode);
-            return {scaledImage, static_cast<quint64>(timer.elapsed())};
+
+            if (inputImage.empty() || scaleFactor.width() <= 0 || scaleFactor.height() <= 0) {
+                return {cv::Mat(), 0};
+            }
+
+            // 转换Qt的缩放模式到OpenCV插值方式
+            int interpolation = cv::INTER_LINEAR;
+            cv::Mat outputImage;
+            try {
+                cv::resize(inputImage, outputImage,
+                          cv::Size(scaleFactor.width(), scaleFactor.height()),
+                          0, 0, interpolation);
+            } catch (const cv::Exception& e) {
+                qWarning() << "OpenCV resize error:" << e.what();
+                return {cv::Mat(), 0};
+            }
+
+            return {outputImage, static_cast<quint64>(timer.elapsed())};
         }
 
         void requestProcess() {
             const auto lockImage = m_inImageData.lock();
-            if (lockImage ) {
-                const auto image = lockImage->image();
+            if (lockImage) {
+                const auto cvImage = lockImage->imgMat(); // 获取OpenCV矩阵
 
-                if (image.isNull() ) {
+                if (cvImage.empty()) {
                     m_outImageData.reset();
                     return;
                 }
-                // get aspect ratio mode from the current index of the combobox
-                const auto mode = static_cast<Qt::AspectRatioMode>(m_ui->cb_aspectRatio->currentIndex());
-                const auto [fst, snd] = processImage(image, m_inScaleFactor, mode);
-                m_outImageData = std::make_shared<ImageData>(fst);
+
+
+                const auto [processedMat, elapsedTime] = processImage(cvImage, m_inScaleFactor);
+
+                if (!processedMat.empty()) {
+                    m_outImageData = std::make_shared<ImageData>(processedMat);
+                } else {
+                    m_outImageData.reset();
+                }
+
                 if (m_ui) {
-                    m_ui->sb_time->setValue(snd);
+                    m_ui->sb_time->setValue(elapsedTime);
                 }
             } else {
                 m_outImageData.reset();
