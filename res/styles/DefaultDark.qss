@@ -148,16 +148,25 @@ QSpinBox:hover, QSpinBox:focus {
     padding-left: 2px;
 }
 
-QSpinBox::up-button, QSpinBox::down-button {
+QSpinBox::up-button {
     subcontrol-origin: border;
-    subcontrol-position: center right;
-    border-left: 1px solid #353535;
+    subcontrol-position: top right;
     background-color: #353535;
+    image: url(:/icons/icons/arror_up.png);
+
+}
+
+QSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    background-color: #353535;
+    image: url(:/icons/icons/arror_down.png);
+
 }
 
 QSpinBox::up-button:hover, QSpinBox::down-button:hover {
     background-color: #1e1d23;
-    border-left: 2px solid #0078d4;
+    border-width: 2px solid #0078d4;
 }
 
 QSpinBox:disabled {

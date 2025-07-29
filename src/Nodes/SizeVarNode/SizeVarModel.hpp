@@ -123,16 +123,12 @@ namespace Nodes
     private:
         std::unique_ptr<Ui::SizeVarForm> m_ui=std::make_unique<Ui::SizeVarForm>();
         QWidget* m_widget = new QWidget();
-        // in
         std::weak_ptr<VariableData> m_inSizeData;
-        // out
         // 0
         QSizeF m_outSize;
-        // std::shared_ptr<VariantData> m_outSizeData;
         // 1
         std::shared_ptr<VariableData> m_outData;
-        // 2
-        // std::shared_ptr<VariantData> m_outHeightData;
+
     };
 }
 

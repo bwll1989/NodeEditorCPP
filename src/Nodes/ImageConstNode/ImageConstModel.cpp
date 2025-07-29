@@ -19,6 +19,10 @@ ImageConstModel::ImageConstModel(){
     connect(widget->colorGreenEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
     connect(widget->colorBlueEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
     connect(widget->colorAlphaEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
+    NodeDelegateModel::registerOSCControl("/r",widget->colorRedEdit);
+    NodeDelegateModel::registerOSCControl("/g",widget->colorGreenEdit);
+    NodeDelegateModel::registerOSCControl("/b",widget->colorBlueEdit);
+    NodeDelegateModel::registerOSCControl("/a",widget->colorAlphaEdit);
     updateImage();
 }
 

@@ -45,3 +45,4 @@ add_subdirectory(JavaScriptNode)       #JavaScript脚本
 add_subdirectory(InternalControlNode) #内部控制
 add_subdirectory(ImageThresholdNode)  #图像二值化
 add_subdirectory(ImageCompareNode)    #图像对比
+add_subdirectory(ImageSwitchNode)     #图像切换

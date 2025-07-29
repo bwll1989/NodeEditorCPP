@@ -82,6 +82,8 @@
     <file>icons/copy.png</file>
     <file>icons/osc.png</file>
     <file>icons/converty.png</file>
+    <file>icons/arror_up.png</file>
+    <file>icons/arror_down.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

@@ -101,7 +101,7 @@ void MenuBarWidget::openToolWithArgs(const QString& exePath, const QStringList& 
     
     if (QFile::exists(fullPath)) {
         process->start(fullPath, args);
-        qDebug()<<"open stage control is running on port 8080";
+        qDebug()<<"open stage control is running on port http://localhost:8080";
     } else {
         QMessageBox::warning(this, "错误", QString("找不到可执行文件：%1").arg(fullPath));
         process->deleteLater();

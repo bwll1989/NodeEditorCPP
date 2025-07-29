@@ -12,6 +12,7 @@ add_library(${Module_Name} SHARED
         AudioDecoderDataModel.hpp
         AudioDecoderInterface.hpp
         AudioDecoder.hpp
+
         PluginDefinition.cpp
         PluginDefinition.hpp
 
