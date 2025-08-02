@@ -41,8 +41,11 @@ add_subdirectory(SwitchNode)          #输入切换
 add_subdirectory(NDVControlNode)       #NDV控制
 add_subdirectory(WebSocketServerNode) #WebSocket服务器
 add_subdirectory(WebSocketClientNode) #WebSocket客户端
-add_subdirectory(JavaScriptNode)       #JavaScript脚本
+add_subdirectory(JavaScriptNode)      #JavaScript脚本
 add_subdirectory(InternalControlNode) #内部控制
 add_subdirectory(ImageThresholdNode)  #图像二值化
 add_subdirectory(ImageCompareNode)    #图像对比
 add_subdirectory(ImageSwitchNode)     #图像切换
+add_subdirectory(showStoreGBxNode)    #ELC showStoreGBx 控制器
+add_subdirectory(USR-IO808Node)       #基于Modbus Master实现与USR-IO808 控制器对接
+add_subdirectory(TSETLNode)           #对接TSETL

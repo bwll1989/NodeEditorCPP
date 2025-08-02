@@ -107,6 +107,7 @@
         "graphicsview": "cpp",
         "qjsvaluelist": "cpp",
         "qjsvalueiterator": "cpp",
-        "qtconcurrentrun": "cpp"
+        "qtconcurrentrun": "cpp",
+        "qjsonarray": "cpp"
     }
 }
