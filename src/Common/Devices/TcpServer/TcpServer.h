@@ -19,6 +19,8 @@ public slots:
     void initializeServer();
     void cleanup();
     void sendMessage(const QString &message,const int &format=0);
+    void sendByteArray(const QByteArray &byteArray);
+    void sendBytesArrayToHost(const QByteArray &byteArray,const QString &host);
     void setHost(QString address,int port);
 
 signals:
@@ -31,7 +33,8 @@ signals:
     void initializeRequested(const QString &host, int port);
     void cleanupRequested();
     void sendMessageRequested(const QString &message,const int &format);
-
+    void sendByteArrayRequested(const QByteArray &byteArray);
+    void sendByteArrayToHostRequested(const QByteArray &byteArray,const QString &host);
 private:
     quint16 mPort;
     QString mHost;

@@ -122,6 +122,13 @@ INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 #set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
 #INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
 
+# 设置Spout库
+set(Spout_DIR "${DEPENDS_DIR}/Spout2/install")
+set(Spout_LIBRARIES "${Spout_DIR}/lib/Spout.lib")
+set(SpoutLibrary_LIBRARIES "${Spout_DIR}/lib/SpoutLibrary.lib")
+INCLUDE_DIRECTORIES("${Spout_DIR}/include/SpoutGL")
+INCLUDE_DIRECTORIES("${Spout_DIR}/include/SpoutLibrary")
+message("--Found Spout SDK ${Spout_DIR}")
 
 set(QScintilla_DIR "${DEPENDS_DIR}/QScintilla_src-2.14.1/src/install" )
 set(QScintilla_LIBRARIES "${QScintilla_DIR}/lib/qscintilla2_qt6.lib")

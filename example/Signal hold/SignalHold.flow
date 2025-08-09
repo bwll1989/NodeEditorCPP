@@ -1,0 +1,119 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 3,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 4,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 2,
+                "outNodeId": 4,
+                "outPortIndex": 1
+            }
+        ],
+        "groups": [
+        ],
+        "nodes": [
+            {
+                "id": 1,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -27.200000000000003,
+                    "y": 16.2
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 2,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "holdTime": 10000,
+                        "ignoreRepeat": false
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 386,
+                    "y": 10
+                },
+                "remarks": "Hold",
+                "type": "Hold"
+            },
+            {
+                "id": 3,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 865,
+                    "y": 58
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 4,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 2,
+                "port-editable": false,
+                "position": {
+                    "x": 410,
+                    "y": 190
+                },
+                "remarks": "Image Info",
+                "type": "Image Info"
+            },
+            {
+                "id": 5,
+                "input-count": 0,
+                "internal-data": {
+                    "path": "C:/Users/WuBin/Desktop/OIP-C.jpg"
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -50,
+                    "y": 195
+                },
+                "remarks": "Image File",
+                "type": "Image File"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+        ]
+    }
+}

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-set(Module_Name "NDVServerNode")
+set(Module_Name "NDVPlayerNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,10 +10,10 @@ set(CMAKE_AUTOMOC ON)
 add_library(${Module_Name} SHARED
         ../../Common/Devices/TcpServer/TcpServer.cpp
         ../../Common/Devices/TcpServer/TcpServer.h
-        NDVServerDataModel.hpp
+        NDVPlayerDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        NDVServerInterface.hpp)
+        NDVPlayerInterface.hpp)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets  Qt${QT_VERSION_MAJOR}::Network ${QtNodes_LIBRARIES} ${Qtpropertybrowser_LIBRARIES})
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

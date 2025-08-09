@@ -4,17 +4,18 @@
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/PluginInterface>
 
+
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef NDVServerNode_EXPORTS
+#ifdef SpoutInNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "NDV Server"
-#define PLUGIN_VERSION "20250707"
-#define PLUGIN_DESCRIBE "NDV 服务器，用于管理多个客户端实例"
-#define PLUGIN_TAG "Network"
+#define PLUGIN_NAME "Spout In"
+#define PLUGIN_VERSION "20250807"
+#define PLUGIN_DESCRIBE "Spout输入"
+#define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

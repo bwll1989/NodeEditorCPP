@@ -124,7 +124,7 @@ namespace Nodes
             }
             if (tempVal!=val.toBool())
             {
-                qDebug()<<"tempVal:"<<tempVal;
+                // qDebug()<<"tempVal:"<<tempVal;
                 val = tempVal;
                 Q_EMIT dataUpdated(0);
             }

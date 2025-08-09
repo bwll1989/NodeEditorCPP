@@ -52,6 +52,7 @@ public slots:
     
     void sendMessageToClients(const QString &message,const int &format) {
         QByteArray data;
+
         switch (format) {
         case 0: // HEX格式
             data = QByteArray::fromHex(message.toUtf8());
@@ -67,10 +68,33 @@ public slots:
             break;
         }
         for (QTcpSocket *clientSocket : mClientSockets) {
+
             clientSocket->write(data);
         }
     }
 
+    void sendByteArrayToClients(const QByteArray &byteArray)
+    {
+        for (QTcpSocket *clientSocket : mClientSockets) {
+
+            clientSocket->write(byteArray);
+        }
+    }
+    void sendByteArrayToClient(const QByteArray &byteArray,const QString &host)
+    {
+        for (QTcpSocket *clientSocket : mClientSockets) {
+            if(clientSocket->peerAddress().toString() == host)
+            {
+                clientSocket->write(byteArray);
+                return;
+            }
+            else
+            {
+                qDebug() << "Host not found";
+            }
+
+        }
+    }
 private slots:
     void onNewConnection() {
         QTcpSocket *clientSocket = mServer->nextPendingConnection();
@@ -142,6 +166,8 @@ TcpServer::TcpServer(QString dstHost, int dstPort, QObject *parent)
     connect(this, &TcpServer::initializeRequested, worker, &TcpWorker::initialize);
     connect(this, &TcpServer::cleanupRequested, worker, &TcpWorker::cleanup);
     connect(this, &TcpServer::sendMessageRequested, worker, &TcpWorker::sendMessageToClients);
+    connect(this, &TcpServer::sendByteArrayRequested, worker, &TcpWorker::sendByteArrayToClients);
+    connect(this, &TcpServer::sendByteArrayToHostRequested, worker, &TcpWorker::sendByteArrayToClient);
     
     // 启动线程
     mThread->start();
@@ -169,6 +195,15 @@ void TcpServer::cleanup()
 void TcpServer::sendMessage(const QString &message,const int &format)
 {
     emit sendMessageRequested(message,format);
+}
+void TcpServer::sendByteArray(const QByteArray &byteArray)
+{
+    emit sendByteArrayRequested(byteArray);
+}
+
+void TcpServer::sendBytesArrayToHost(const QByteArray &byteArray,const QString &host)
+{
+    emit sendByteArrayToHostRequested(byteArray,host);
 }
 
 void TcpServer::setHost(QString address, int port) {

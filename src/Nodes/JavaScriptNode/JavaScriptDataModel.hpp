@@ -21,6 +21,9 @@
 #include "JSEngineDefines/JSEngineDefines.hpp"
 #include <QtConcurrent/QtConcurrentRun>
 #include <QFutureWatcher>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QMetaObject>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -133,11 +136,18 @@ public:
      * @param portIndex 输出端口索引
      * @return 输出数据
      */
+    /**
+     * @brief 获取输出数据
+     * @param portIndex 输出端口索引
+     * @return 输出数据
+     */
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
-        if (portIndex < out_data.size() && out_data.contains(portIndex)) {
+        QMutexLocker locker(&m_dataMutex);  // 加锁保护
+        if (portIndex < out_data.size()+1 && out_data.contains(portIndex)) {
             return std::make_shared<VariableData>(out_data[portIndex]);
         }
+        
         return std::make_shared<VariableData>();
     }
 
@@ -288,8 +298,11 @@ public slots:
      */
    Q_INVOKABLE void setOutputValue(int portIndex, const QJSValue& value) {
         if (portIndex >= 0 && portIndex < static_cast<int>(OutPortCount)) {
-            out_data[portIndex] = JSEngineDefines::jsValueToVariantMap(value);
-            emit dataUpdated(portIndex);
+            // 使用QMetaObject::invokeMethod确保在主线程中执行
+            QMetaObject::invokeMethod(this, [this, portIndex, value]() {
+                out_data[portIndex] = JSEngineDefines::jsValueToVariantMap(value);
+                emit dataUpdated(portIndex);
+            }, Qt::QueuedConnection);
         }
     }
 
@@ -310,6 +323,7 @@ function initInterface() {
     // 例如：创建按钮、文本框等
 }
 )";
+ QMutex m_dataMutex;  // 添加互斥锁保护数据访问
 };
 }
 

@@ -49,3 +49,6 @@ add_subdirectory(ImageSwitchNode)     #图像切换
 add_subdirectory(showStoreGBxNode)    #ELC showStoreGBx 控制器
 add_subdirectory(USR-IO808Node)       #基于Modbus Master实现与USR-IO808 控制器对接
 add_subdirectory(TSETLNode)           #对接TSETL
+add_subdirectory(HoldNode)            #信号保持
+add_subdirectory(SpoutInNode)         #Spout输入
+add_subdirectory(NDVPlayerNode)       #NDV player
