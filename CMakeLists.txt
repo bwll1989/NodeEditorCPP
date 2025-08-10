@@ -149,6 +149,7 @@ add_subdirectory(src/Nodes)
 add_subdirectory(src/Common/GUI/OscListWidget)
 
 add_subdirectory(src/Common/Devices/ClientController)
+add_subdirectory(src/Common/Devices/ArtnetSender)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c

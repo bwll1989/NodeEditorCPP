@@ -52,3 +52,6 @@ add_subdirectory(TSETLNode)           #对接TSETL
 add_subdirectory(HoldNode)            #信号保持
 add_subdirectory(SpoutInNode)         #Spout输入
 add_subdirectory(NDVPlayerNode)       #NDV player
+add_subdirectory(ArtnetDeviceNode)    #Artnet 设备
+add_subdirectory(ArtnetUniverseNode)  #Artnet Universe
+add_subdirectory(ArtnetOutNode)       #Artnet输出

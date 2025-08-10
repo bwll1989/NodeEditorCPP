@@ -1,4 +1,4 @@
-# JavaScript节点帮助文档
+# JavaScriptNode 帮助文档
 ## 1. 节点概述
 JavaScript节点允许您使用JavaScript编写自定义逻辑，处理输入数据并生成输出数据。它提供了丰富的API和UI控件，可以创建交互式界面，实现复杂的数据处理和控制流程。
 

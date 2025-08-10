@@ -1,0 +1,527 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 2,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 18,
+                "outNodeId": 17,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 7,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 2,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 7,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 8,
+                "outNodeId": 1,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 3,
+                "outNodeId": 13,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 12,
+                "outNodeId": 7,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 6,
+                "outNodeId": 14,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 16,
+                "outNodeId": 15,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 17,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+            {
+                "nodeIds": [
+                    12,
+                    1
+                ],
+                "remarks": "ArtnetOut全局单例，发送到指定地址，支持广播和单播"
+            },
+            {
+                "nodeIds": [
+                    4,
+                    6,
+                    5,
+                    3
+                ],
+                "remarks": "不同DMX设备，具有不同的通道数量"
+            },
+            {
+                "nodeIds": [
+                    13,
+                    14
+                ],
+                "remarks": "支持外部传入值"
+            },
+            {
+                "nodeIds": [
+                    2,
+                    7
+                ],
+                "remarks": "DMX数据发送给到指定的Universe"
+            },
+            {
+                "nodeIds": [
+                    16,
+                    15
+                ],
+                "remarks": "接收ArtnetNet数据"
+            },
+            {
+                "nodeIds": [
+                    17,
+                    18
+                ],
+                "remarks": "提取某一通道的发送值"
+            }
+        ],
+        "nodes": [
+            {
+                "id": 1,
+                "input-count": 4,
+                "internal-data": {
+                    "values": {
+                        "TargetHost": "127.0.0.1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -5.212095019561417,
+                    "y": -1001.9320232833559
+                },
+                "remarks": "Artnet Out",
+                "type": "Artnet Out"
+            },
+            {
+                "id": 2,
+                "input-count": 8,
+                "internal-data": {
+                    "UniverseSettings": {
+                        "net": 0,
+                        "subnet": 0,
+                        "universe": 0
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -662.7335334890713,
+                    "y": -985.3160154680975
+                },
+                "remarks": "Artnet Universe",
+                "type": "Artnet Universe"
+            },
+            {
+                "id": 3,
+                "input-count": 2,
+                "internal-data": {
+                    "ChannelSettings": {
+                        "channelCount": 2,
+                        "channelValues": [
+                            95,
+                            114
+                        ],
+                        "enabled": true,
+                        "startAddress": 1
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -1235.6163941666807,
+                    "y": -1008.7147791980485
+                },
+                "remarks": "Artnet Device",
+                "type": "Artnet Device"
+            },
+            {
+                "id": 4,
+                "input-count": 8,
+                "internal-data": {
+                    "ChannelSettings": {
+                        "channelCount": 8,
+                        "channelValues": [
+                            133,
+                            166,
+                            137,
+                            113,
+                            85,
+                            167,
+                            161,
+                            210
+                        ],
+                        "enabled": true,
+                        "startAddress": 10
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -1238.5251124095594,
+                    "y": -587.720589486959
+                },
+                "remarks": "Artnet Device",
+                "type": "Artnet Device"
+            },
+            {
+                "id": 5,
+                "input-count": 3,
+                "internal-data": {
+                    "ChannelSettings": {
+                        "channelCount": 3,
+                        "channelValues": [
+                            184,
+                            88,
+                            137
+                        ],
+                        "enabled": false,
+                        "startAddress": 1
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -1259.3164572246544,
+                    "y": -318.3735420991122
+                },
+                "remarks": "Artnet Device",
+                "type": "Artnet Device"
+            },
+            {
+                "id": 6,
+                "input-count": 4,
+                "internal-data": {
+                    "ChannelSettings": {
+                        "channelCount": 4,
+                        "channelValues": [
+                            96,
+                            86,
+                            179,
+                            124
+                        ],
+                        "enabled": true,
+                        "startAddress": 10
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -1276.6920115727928,
+                    "y": -87.43175352401369
+                },
+                "remarks": "Artnet Device",
+                "type": "Artnet Device"
+            },
+            {
+                "id": 7,
+                "input-count": 8,
+                "internal-data": {
+                    "UniverseSettings": {
+                        "net": 0,
+                        "subnet": 0,
+                        "universe": 1
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -666.2082985759253,
+                    "y": -481.83214831732397
+                },
+                "remarks": "Artnet Universe",
+                "type": "Artnet Universe"
+            },
+            {
+                "id": 8,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 714.4707777521554,
+                    "y": -1074.950505030148
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 12,
+                "input-count": 4,
+                "internal-data": {
+                    "values": {
+                        "TargetHost": "192.168.1.255"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": 5.2163550434259776,
+                    "y": -597.2245220241252
+                },
+                "remarks": "Artnet Out",
+                "type": "Artnet Out"
+            },
+            {
+                "id": 13,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 95
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -1955.7515791323676,
+                    "y": -802.8665214233309
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 14,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 96
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -1956.0385018825727,
+                    "y": -535.8286297814266
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 15,
+                "input-count": 3,
+                "internal-data": {
+                    "values": {
+                        "Channels": "0-10",
+                        "Filter": true,
+                        "Universe": 0
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -34.89272402662834,
+                    "y": 94.55261433909962
+                },
+                "remarks": "Artnet Source",
+                "type": "Artnet Source"
+            },
+            {
+                "id": 16,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 676.1532435427372,
+                    "y": 81.70129736287801
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 17,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "key": "default.dmxData[0]"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -24.228319314878874,
+                    "y": -259.8606012791916
+                },
+                "remarks": "Extract",
+                "type": "Extract"
+            },
+            {
+                "id": 18,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 635.0036630893107,
+                    "y": -302.0622162949776
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+            {
+                "clips": [
+                    {
+                        "Id": 0,
+                        "end": 606,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/13/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame%255"
+                                }
+                            ]
+                        },
+                        "start": 0,
+                        "type": "Mapping"
+                    }
+                ],
+                "trackName": "Mapping 0",
+                "type": "Mapping"
+            },
+            {
+                "clips": [
+                    {
+                        "Id": 1,
+                        "end": 164,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/5/enable",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "start": 164,
+                        "type": "Trigger"
+                    },
+                    {
+                        "Id": 2,
+                        "end": 366,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/5/enable",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "start": 366,
+                        "type": "Trigger"
+                    },
+                    {
+                        "Id": 4,
+                        "end": 751,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/7/clear",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "start": 751,
+                        "type": "Trigger"
+                    }
+                ],
+                "trackName": "Trigger 1",
+                "type": "Trigger"
+            },
+            {
+                "clips": [
+                    {
+                        "Id": 3,
+                        "end": 1231,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/5/channels0",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame%255"
+                                }
+                            ]
+                        },
+                        "start": 366,
+                        "type": "Mapping"
+                    }
+                ],
+                "trackName": "Mapping 2",
+                "type": "Mapping"
+            }
+        ]
+    }
+}

@@ -115,6 +115,9 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     else if (auto* comboBox = qobject_cast<QComboBox*>(widget)) {
         comboBox->setCurrentIndex(message.value.toInt());
     }
+    else if (auto* slider= qobject_cast<QSlider*>(widget)) {
+        slider->setValue(message.value.toInt());
+    }
     else if (auto* lineEdit = qobject_cast<QLineEdit*>(widget)) {
         lineEdit->setText(message.value.toString());
     }

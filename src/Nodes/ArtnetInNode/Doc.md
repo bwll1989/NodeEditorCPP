@@ -1,4 +1,4 @@
-# Artnet 输入节点文档
+# ArtnetInNode 帮助文档
 
 ## 节点功能
 Artnet 输入节点（ArtnetInNode）用于接收 Artnet 协议的 DMX 数据，支持以下特性：
