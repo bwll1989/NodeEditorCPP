@@ -7,6 +7,7 @@
 #include <QtCore/QByteArray>
 #include <QtCore/QDataStream>
 #include <QtCore/QDateTime>
+#include <QtCore/QTimer>
 
 #include "DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
@@ -39,6 +40,7 @@ namespace Nodes
      * - 解析消息头和JSON数据
      * - 提取SignalID和相关数据
      * - 以VariableData形式输出解析结果
+     * - 每5秒发送心跳包维持连接
      */
     class TSETLDataModel : public NodeDelegateModel
     {
@@ -64,6 +66,11 @@ namespace Nodes
             m_jsonData = std::make_shared<VariableData>();
             m_connectionStatus = std::make_shared<VariableData>();
             
+            // 初始化心跳定时器
+            m_heartbeatTimer = new QTimer(this);
+            m_heartbeatTimer->setInterval(5000); // 5秒间隔
+            connect(m_heartbeatTimer, &QTimer::timeout, this, &TSETLDataModel::sendHeartbeat);
+            
             // 注册OSC控制
             NodeDelegateModel::registerOSCControl("/host", widget->hostEdit);
             NodeDelegateModel::registerOSCControl("/port", widget->portSpinBox);
@@ -84,6 +91,11 @@ namespace Nodes
          * @brief 析构函数，清理资源
          */
         ~TSETLDataModel(){
+            // 停止心跳定时器
+            if (m_heartbeatTimer) {
+                m_heartbeatTimer->stop();
+            }
+            
             client->disconnectFromServer();
             delete client;
             widget->deleteLater();
@@ -230,14 +242,12 @@ namespace Nodes
         {
             // 解析TSETL协议
             if (msg.contains("default")) {
+
                 QByteArray rawData = msg["default"].toByteArray();
                 parseTSETLMessage(rawData);
             }
             
-            // 只发出相关端口的数据更新信号
-            Q_EMIT dataUpdated(0);  // SIGNAL_ID
-            Q_EMIT dataUpdated(1);  // JSON_DATA
-            Q_EMIT dataUpdated(2);  // CONNECTION
+
         }
 
         /**
@@ -248,9 +258,19 @@ namespace Nodes
         {
             m_connectionStatus = std::make_shared<VariableData>(isReady);
             widget->updateConnectionStatus(isReady);
-            Q_EMIT dataUpdated(4);
+            
+            // 根据连接状态控制心跳定时器
+            if (isReady) {
+                m_heartbeatTimer->start();
+                qDebug() << "TSETL服务连接成功";
+            } else {
+                m_heartbeatTimer->stop();
+            }
+            
+            Q_EMIT dataUpdated(2);
         }
 
+    public slots:
         /**
          * @brief 主机或端口改变时重新连接
          */
@@ -279,6 +299,7 @@ namespace Nodes
          */
         void parseTSETLMessage(const QByteArray &data)
         {
+
             if (data.size() < 4) {
                 qDebug() << "无效数据,TSETL消息长度不足";
                 return;
@@ -332,24 +353,38 @@ namespace Nodes
         }
         
         /**
-         * @brief 解析JSON数据部分 - 只处理SignalID消息
+         * @brief 解析JSON数据部分 - 处理SignalID和HeartBeat消息
          * @param jsonData JSON数据字节数组
          */
         void parseJSONData(const QByteArray &jsonData)
         {
-            // 打印收到的原始JSON数据
+            // 清理JSON数据，移除末尾的空字符和其他无效字符
+            QByteArray cleanedJsonData = jsonData;
+            
+            // 移除末尾的空字符（\0）和其他控制字符
+            while (!cleanedJsonData.isEmpty() && 
+                   (cleanedJsonData.at(cleanedJsonData.size() - 1) == '\0' ||
+                    cleanedJsonData.at(cleanedJsonData.size() - 1) < 32)) {
+                cleanedJsonData.chop(1);
+            }
+            
+            // // 打印收到的原始JSON数据用于调试
             // qDebug() << "=== 收到的JSON数据 ===";
             // qDebug() << "原始字节数组长度:" << jsonData.size();
+            // qDebug() << "清理后字节数组长度:" << cleanedJsonData.size();
             // qDebug() << "原始字节数组(十六进制):" << jsonData.toHex(' ');
-            // qDebug() << "JSON字符串:" << QString::fromUtf8(jsonData);
+            // qDebug() << "清理后字节数组(十六进制):" << cleanedJsonData.toHex(' ');
+            // qDebug() << "清理后JSON字符串:" << QString::fromUtf8(cleanedJsonData);
             // qDebug() << "========================";
             
             QJsonParseError error;
-            QJsonDocument doc = QJsonDocument::fromJson(jsonData, &error);
+            QJsonDocument doc = QJsonDocument::fromJson(cleanedJsonData, &error);
             
             if (error.error != QJsonParseError::NoError) {
                 qDebug() << "JSON解析错误:" << error.errorString();
                 qDebug() << "错误位置:" << error.offset;
+                qDebug() << "清理后JSON数据内容:" << QString::fromUtf8(cleanedJsonData);
+                qDebug() << "清理后JSON数据十六进制:" << cleanedJsonData.toHex(' ');
                 return;
             }
             
@@ -362,43 +397,57 @@ namespace Nodes
             
             // 提取MsgID
             QString msgId = jsonObj["MsgID"].toString();
+            // qDebug() << "收到消息类型:" << msgId;
             
-            // 只处理SignalID消息，其他消息忽略
-            if (msgId != "SignalID") {
-                // qDebug() << "忽略非SignalID消息 - MsgID:" << msgId;
-                // 清空输出数据
-                // m_signalIdData = std::make_shared<VariableData>("");
-                // m_jsonData = std::make_shared<VariableData>();
-                return;
+            // 处理不同类型的消息
+            if (msgId == "SignalID") {
+                // 处理SignalID消息
+                // qDebug() << "=== 处理SignalID消息 ===";
+                
+                // 解析Datas部分
+                QJsonObject datasObj = jsonObj["Datas"].toObject();
+                
+                // 提取SignalID
+                QString signalId = datasObj["SignalID"].toString();
+                QString dateTime = datasObj["DateTime"].toString();
+                
+                // qDebug() << "提取到的SignalID:" << signalId;
+                // qDebug() << "时间戳:" << dateTime;
+                
+                // 设置SignalID输出
+                m_signalIdData = std::make_shared<VariableData>(signalId);
+                
+                // 设置JSON数据输出（完整的JSON对象）
+                QVariantMap jsonVariantMap = jsonObj.toVariantMap();
+                m_jsonData = std::make_shared<VariableData>(jsonVariantMap);
+                
+                // 更新界面显示
+                widget->updateLastSignal(signalId, dateTime);
+                // 只发出相关端口的数据更新信号
+                Q_EMIT dataUpdated(0);  // SIGNAL_ID
+                Q_EMIT dataUpdated(1);  // JSON_DATA
+                Q_EMIT dataUpdated(2);  // CONNECTION
+                // qDebug() << "=== SignalID消息处理完成 ===";
             }
-            
-            // qDebug() << "=== 处理SignalID消息 ===";
-            // qDebug() << "完整JSON对象:" << QJsonDocument(jsonObj).toJson(QJsonDocument::Compact);
-            
-            // 解析Datas部分
-            QJsonObject datasObj = jsonObj["Datas"].toObject();
-            
-            // 提取SignalID
-            QString signalId = datasObj["SignalID"].toString();
-            QString dateTime = datasObj["DateTime"].toString();
-            
-            // qDebug() << "提取到的SignalID:" << signalId;
-            // qDebug() << "时间戳:" << dateTime;
-            
-            // 设置SignalID输出
-            m_signalIdData = std::make_shared<VariableData>(signalId);
-            
-            // 设置JSON数据输出（完整的JSON对象）
-            QVariantMap jsonVariantMap = jsonObj.toVariantMap();
-            m_jsonData = std::make_shared<VariableData>(jsonVariantMap);
-            
-            // 更新界面显示
-            widget->updateLastSignal(signalId, dateTime);
-            
-            // qDebug() << "=== SignalID消息处理完成 ===";
-            // qDebug() << "输出SignalID:" << signalId;
-            // qDebug() << "输出JSON数据大小:" << jsonVariantMap.size() << "个字段";
-            // qDebug() << "============================";
+            else if (msgId == "HeartBeat" || msgId == "HeartBeatReply") {
+                // 处理心跳包消息（包括心跳包和心跳包回复）
+                // qDebug() << "=== 收到心跳包消息 ===";
+                QString fromObject = jsonObj["FromObject"].toString();
+                QString toObject = jsonObj["ToObject"].toString();
+                // qDebug() << "消息类型:" << msgId;
+                // qDebug() << "来源:" << fromObject << " 目标:" << toObject;
+                
+                // 如果是服务器回应的心跳包
+                if (msgId == "HeartBeatReply" && fromObject == "TSETL" && toObject == "QSC") {
+                    // qDebug() << "收到服务器心跳包回复 - 连接正常";
+                } else if (msgId == "HeartBeat" && fromObject == "QSC" && toObject == "TSETL") {
+                    // qDebug() << "收到自己发送的心跳包回显";
+                }
+                // qDebug() << "=== 心跳包消息处理完成 ===";
+            }
+            else {
+                qDebug() << "忽略未知消息类型 - MsgID:" << msgId;
+            }
         }
         
         /**
@@ -497,8 +546,92 @@ namespace Nodes
             return (ucCRCHi << 8 | ucCRCLo); 
         }
     private:
+        /**
+         * @brief 生成心跳包JSON数据
+         * @return JSON字符串
+         */
+        QString generateHeartbeatJson()
+        {
+            QJsonObject data;
+            QJsonObject datas;
+            
+            // 设置当前时间
+            QString currentTime = QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss");
+            datas["DateTime"] = currentTime;
+            
+            // 设置消息内容
+            data["datas"] = datas;
+            data["MsgID"] = "HeartBeat";
+            data["FromObject"] = "QSC";
+            data["ToObject"] = "TSETL";
+            
+            // 转换为JSON字符串
+            QJsonDocument doc(data);
+            return doc.toJson(QJsonDocument::Compact);
+        }
+        
+        /**
+         * @brief 创建TSETL协议数据包
+         * @param jsonData JSON数据
+         * @return 完整的TSETL数据包
+         */
+        QByteArray createTSETLPacket(const QByteArray &jsonData)
+        {
+            QByteArray packet;
+            QDataStream stream(&packet, QIODevice::WriteOnly);
+            stream.setByteOrder(QDataStream::LittleEndian);
+            
+            // 1. 写入包头 (4字节，0xFBFBFBFB)
+            quint32 header = 0xFBFBFBFB;
+            stream << header;
+            
+            // 2. 写入数据长度 (2字节)
+            quint16 dataLength = static_cast<quint16>(jsonData.size());
+            stream << dataLength;
+            
+            // 3. 写入JSON数据 - 使用stream写入而不是append
+            stream.writeRawData(jsonData.data(), jsonData.size());
+            
+            // 4. 计算并写入CRC16校验码 (2字节)
+            quint16 crc16 = calculateModbusCRC16(jsonData);
+            stream << crc16;
+            
+            return packet;
+        }
+
+        /**
+         * @brief 发送心跳包
+         */
+        void sendHeartbeat()
+        {
+            // 生成心跳包JSON数据
+            QString heartbeatJson = generateHeartbeatJson();
+            
+            // 封装为TSETL协议数据包
+            QByteArray tsetlPacket = createTSETLPacket(heartbeatJson.toUtf8());
+            
+            // 通过TCP客户端发送（使用HEX格式）
+            QString hexString = tsetlPacket.toHex().toUpper();
+            client->sendMessage(hexString, 0); // 0表示HEX格式
+            
+            // 添加详细的调试信息
+            // qDebug() << "=== 心跳包发送详情 ===";
+            // qDebug() << "JSON数据:" << heartbeatJson;
+            // qDebug() << "JSON数据长度:" << heartbeatJson.toUtf8().size() << "字节";
+            // qDebug() << "完整数据包长度:" << tsetlPacket.size() << "字节";
+            // qDebug() << "数据包结构:";
+            // qDebug() << "  包头(4字节):" << tsetlPacket.mid(0, 4).toHex().toUpper();
+            // qDebug() << "  长度(2字节):" << tsetlPacket.mid(4, 2).toHex().toUpper();
+            // qDebug() << "  JSON数据(" << heartbeatJson.toUtf8().size() << "字节):" << tsetlPacket.mid(6, heartbeatJson.toUtf8().size()).toHex().toUpper();
+            // qDebug() << "  CRC16(2字节):" << tsetlPacket.mid(6 + heartbeatJson.toUtf8().size(), 2).toHex().toUpper();
+            // qDebug() << "完整HEX数据包:" << hexString;
+            // qDebug() << "===================";
+        }
+
+    private:
         TSETLInterface *widget = new TSETLInterface();
         TcpClient *client = new TcpClient();
+        QTimer *m_heartbeatTimer;  // 心跳定时器
 
         // 数据成员 - 只保留需要的3个输出
         std::shared_ptr<VariableData> m_inData;

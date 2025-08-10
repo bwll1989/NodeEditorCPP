@@ -9,6 +9,8 @@ TSETL节点是一个触发事件收集系统接口节点，用于接收和解析
 - 实现完整的Modbus CRC16校验算法
 - 提供详细的调试输出和日志记录
 - 优化的端口设计，专注于信号处理
+- 自动心跳机制，每5秒发送心跳包维持连接
+- 支持OSC控制接口
 
 ## 协议格式
 
@@ -70,17 +72,17 @@ TSETL采用自定义的消息帧结构：
 节点界面包含以下部分：
 
 1. **连接设置**：
-   - 主机地址：TSETL服务器的IP地址（默认：127.0.0.1）
-   - 端口：TSETL服务器的TCP端口（默认：2001）
+   - 主机地址：TSETL服务器的IP地址（默认：192.168.1.4）
+   - 端口：TSETL服务器的TCP端口（默认：11001）
 
 2. **连接状态**：
    - 显示当前与TSETL服务器的连接状态
    - 绿色表示已连接，红色表示未连接
 
 3. **信号信息**：
-   - 最新信号：显示最近接收到的SignalID
-   - 时间：显示信号的时间戳
-   - 消息计数：总接收消息数量（仅计算SignalID消息）
+   - 最新信号：显示最近接收到的SignalID（橙色粗体显示）
+   - 时间：显示信号的时间戳（橙色小字体）
+   - 信号计数：总接收SignalID消息数量（橙色小字体）
 
 ## 使用示例
 
@@ -107,6 +109,49 @@ TSETL采用自定义的消息帧结构：
 3. 使用JSON_DATA进行进一步的数据解析
 4. 实现基于SignalID的条件触发逻辑
 
+### 示例4：JavaScript脚本处理
+
+将TSETL节点的SIGNAL_ID输出连接到JavaScript节点，实现复杂的信号处理逻辑：
+
+```javascript
+// 获取输入的SignalID
+var signalId = Node.getInputValue(0);
+var value = signalId.value;
+
+// 根据不同的SignalID设置不同的输出端口
+// 先重置所有输出端口
+for (let i = 0; i < 4; i++) {
+    Node.setOutputValue(i, 0);
+}
+
+// 根据SignalID值设置对应的输出端口
+switch (parseInt(value, 10)) {
+    case 10004:
+        console.log("收到信号:", value);
+        Node.setOutputValue(0, 1);
+        break;
+        
+    case 10002:
+        console.log("收到信号:", value);
+        Node.setOutputValue(1, 1);
+        break;
+        
+    case 10003:
+        console.log("收到信号:", value);
+        Node.setOutputValue(2, 1);
+        break;
+        
+    case 10001:
+        Node.setOutputValue(3, 1);
+        break;
+        
+    default:
+        // 所有端口已经在开始时重置为0
+        console.log("未知信号:", value);
+        break;
+}
+```
+
 ## 技术细节
 
 ### 协议解析
@@ -114,7 +159,7 @@ TSETL采用自定义的消息帧结构：
 - **消息头验证**：检查0xFBFBFBFB包头
 - **长度校验**：验证数据段长度的一致性
 - **CRC16校验**：使用Modbus算法验证JSON数据完整性
-- **JSON解析**：解析数据段中的JSON内容
+- **JSON解析**：解析数据段中的JSON内容，自动清理无效字符
 - **类型过滤**：仅处理MsgID为"SignalID"的消息
 
 ### 数据处理
@@ -123,6 +168,14 @@ TSETL采用自定义的消息帧结构：
 - **实时解析**：接收到有效消息后立即解析
 - **数据提取**：提取SignalID、时间戳等关键信息
 - **状态管理**：维护连接状态和统计信息
+- **自动心跳**：每5秒自动发送心跳包维持连接
+
+### 心跳机制
+
+节点实现了自动心跳功能：
+- **发送频率**：每5秒发送一次心跳包
+- **心跳格式**：标准TSETL协议格式，MsgID为"HeartBeat"
+- **自动维护**：连接建立后自动开始，断开连接时自动停止
 
 ### CRC16校验实现
 
@@ -143,6 +196,12 @@ quint16 calculateModbusCRC16(const QByteArray& data);
 bool validateCRC16(const QByteArray& jsonData, quint16 expectedCRC);
 ```
 
+### OSC控制支持
+
+节点支持通过OSC协议进行远程控制：
+- **/host**：设置主机地址
+- **/port**：设置端口号
+
 ### 调试功能
 
 节点提供详细的调试输出，包括：
@@ -151,20 +210,22 @@ bool validateCRC16(const QByteArray& jsonData, quint16 expectedCRC);
 - CRC16校验过程和结果
 - 消息解析状态
 - 连接状态变化
+- 心跳包发送状态
 
 ### 错误处理
 
 - **连接异常**：自动重连机制
 - **协议错误**：跳过无效消息，继续处理
-- **JSON错误**：记录错误信息，不中断处理
+- **JSON错误**：记录错误信息，自动清理无效字符，不中断处理
 - **CRC错误**：记录校验失败，可选择忽略或拒绝消息
 - **消息过滤**：非SignalID消息被静默忽略
+- **数据清理**：自动移除JSON数据末尾的空字符和控制字符
 
 ## 测试数据
 
 ### 标准测试包
 
-1. **简单信号包（SignalID: 999）**
+1. **简单信号包（SignalID: 10001）**
 ```json
 {
    "MsgID":"SignalID",
@@ -176,6 +237,5 @@ bool validateCRC16(const QByteArray& jsonData, quint16 expectedCRC);
       }
 }
 ```
-```
-FB FB FB FB 7C 00 7B 22 4D 73 67 49 44 22 3A 22 53 69 67 6E 61 6C 49 44 22 2C 22 46 72 6F 6D 4F 62 6A 65 63 74 22 3A 22 54 53 45 54 4C 22 2C 22 54 6F 4F 62 6A 65 63 74 22 3A 22 51 53 43 22 2C 22 44 61 74 61 73 22 3A 7B 22 44 61 74 65 54 69 6D 65 22 3A 22 32 30 32 32 2D 31 30 2D 30 31 20 30 30 3A 30 30 3A 30 30 2E 30 30 31 22 2C 22 53 69 67 6E 61 6C 49 44 22 3A 22 31 30 30 30 31 22 7D 7D 29 21  
-```
+
+对应的十六进制数据包：

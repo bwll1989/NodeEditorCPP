@@ -144,7 +144,7 @@ public:
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         QMutexLocker locker(&m_dataMutex);  // 加锁保护
-        if (portIndex < out_data.size()+1 && out_data.contains(portIndex)) {
+        if (out_data.contains(portIndex)) {
             return std::make_shared<VariableData>(out_data[portIndex]);
         }
         
@@ -214,7 +214,7 @@ private Q_SLOTS:
     {
         script = widget->codeWidget->saveCode();
         loadScripts(script);
-        Q_EMIT dataUpdated(0);
+        // Q_EMIT dataUpdated(0);
     }
     
     /**

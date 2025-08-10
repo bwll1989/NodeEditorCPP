@@ -49,8 +49,8 @@ namespace Nodes
             
             // 设置默认值
             portSpinBox->setRange(1, 65535);
-            portSpinBox->setValue(2001);
-            hostEdit->setText("127.0.0.1");
+            portSpinBox->setValue(11001);
+            hostEdit->setText("192.168.1.4");
             
             this->setLayout(main_layout);
             setMinimumSize(200, 150);
