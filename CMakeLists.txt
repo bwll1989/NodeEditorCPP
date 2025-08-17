@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 set(ProjectName "NodeStudio")
 project(${ProjectName} VERSION 1.1 LANGUAGES CXX)
@@ -145,11 +145,12 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Wi
 add_subdirectory(src/Clips)
 # 添加Nodes模块
 add_subdirectory(src/Nodes)
-
+add_subdirectory(src/Common/Devices/OSCSender)
 add_subdirectory(src/Common/GUI/OscListWidget)
 
 add_subdirectory(src/Common/Devices/ClientController)
 add_subdirectory(src/Common/Devices/ArtnetSender)
+
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -215,8 +216,6 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/WebSocketClient/WebSocketClientWorker.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.h
-        src/Common/Devices/OSCSender/OSCSender.cpp
-        src/Common/Devices/OSCSender/OSCSender.h
         src/Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
         src/Common/Devices/ArtnetReceiver/ArtnetReceiver.h
         src/Common/Devices/LTCDecoder/LTCDecoder.cpp
@@ -226,6 +225,10 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/JSEngineDefines/JSEngineDefines.hpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
         src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
+        src/Common/GUI/DataTreeModel/DataTreeModel.h
+        src/Common/GUI/DataTreeModel/DataTreeModel.cpp
+        src/Common/GUI/DataTreeModel/QmlDataBrowser.h
+        src/Common/GUI/DataTreeModel/QmlDataBrowser.cpp
         # src/Widget/TimeLineWidget/videoplayerwidget.hpp
         # src/Widget/TimeLineWidget/videoplayerwidget.cpp
         src/Widget/TimeLineWidget/timelinewidget.cpp

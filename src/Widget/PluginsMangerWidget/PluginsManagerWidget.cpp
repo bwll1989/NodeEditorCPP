@@ -141,11 +141,10 @@ void PluginsManagerWidget::loadPluginsFromFolder()
 {
     PluginsManager *pluginsManager = PluginsManager::instance();
     std::shared_ptr<NodeDelegateModelRegistry> registry = pluginsManager->registry();
-//    registry->registerModel<PythonDataModel>("Controls");
 //    加载内建插件
     pluginsManager->loadPlugins(_pluginsFolder.absolutePath(),
                                 QStringList() << "*.node"
-                                              << "*.data");
+                                              << "*.js");
     for (auto l : pluginsManager->loaders()) {
         PluginInterface *plugin = qobject_cast<PluginInterface *>(l.second->instance());
         if (!plugin)

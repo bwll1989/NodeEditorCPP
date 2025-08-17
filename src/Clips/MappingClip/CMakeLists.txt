@@ -23,10 +23,7 @@ set(SOURCES
     mappingclipmodel.hpp
     mappingclipplugin.hpp
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
-    ${Devices_DIR}/OSCSender/OSCSender.h
-    ${Devices_DIR}/OSCSender/OSCSender.cpp
-    ${tinyosc_DIR}/tinyosc.c
-    ${tinyosc_DIR}/tinyosc.h)
+)
 
 # 创建插件库
 add_library(MappingClip MODULE
@@ -50,6 +47,7 @@ target_link_libraries(MappingClip PRIVATE
     Qt6::Network
     Qt${QT_VERSION_MAJOR}::Qml
     ${QtTimeLine_LIBRARIES}
+    OSCTransmitter
     OscListWidget
 )
 

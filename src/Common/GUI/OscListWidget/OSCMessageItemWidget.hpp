@@ -8,11 +8,11 @@
 #include <QJSEngine>
 #include "../../Common/Devices/OSCSender/OSCSender.h"
 #if defined(OSCLISTWIDGET_LIBRARY)
-#define DLL_EXPORT Q_DECL_EXPORT
+#define OSCLISTWIDGET_EXPORT Q_DECL_EXPORT
 #else
-#define DLL_EXPORT Q_DECL_IMPORT
+#define OSCLISTWIDGET_EXPORT Q_DECL_IMPORT
 #endif
-class DLL_EXPORT OSCMessageItemWidget : public QWidget {
+class OSCLISTWIDGET_EXPORT OSCMessageItemWidget : public QWidget {
     Q_OBJECT
 public:
     explicit OSCMessageItemWidget(QWidget* parent = nullptr);

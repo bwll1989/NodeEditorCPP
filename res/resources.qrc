@@ -98,6 +98,7 @@
   </qresource>
   <qresource prefix="/qml">
     <file>qml/LogWidget.qml</file>
+    <file>qml/DataBrowser.qml</file>
   </qresource>
   <qresource prefix="/ads_icons">
     <file>ads_icons/close-button.svg</file>

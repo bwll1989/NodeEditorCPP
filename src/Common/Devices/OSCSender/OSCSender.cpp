@@ -7,6 +7,9 @@
 #include <QByteArray>
 #include <QHostAddress>
 #include "tinyosc.h"
+/**
+ * @brief OSCSender构造函数 - 自动启动传输器
+ */
 OSCSender::OSCSender(QString dstHost,quint16 port, QObject *parent):
         mPort(port),
         mHost(dstHost),
@@ -21,6 +24,8 @@ OSCSender::OSCSender(QString dstHost,quint16 port, QObject *parent):
         connect(mThread, &QThread::started, this, &OSCSender::initializeSocket);
         connect(mThread, &QThread::finished, this, &OSCSender::cleanup);
         connect(m_timer, &QTimer::timeout, this, &OSCSender::processQueue);
+        
+        // 自动启动传输器
         mThread->start();
         // 在主线程中启动定时器
         QMetaObject::invokeMethod(m_timer, "start", Qt::QueuedConnection);

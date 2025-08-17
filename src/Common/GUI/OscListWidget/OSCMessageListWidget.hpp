@@ -14,11 +14,11 @@
 #include <QIcon>
 #include <QFont>
 #if defined(OSCLISTWIDGET_LIBRARY)
-#define DLL_EXPORT Q_DECL_EXPORT
+#define OSCLISTWIDGET_EXPORT Q_DECL_EXPORT
 #else
-#define DLL_EXPORT Q_DECL_IMPORT
+#define OSCLISTWIDGET_EXPORT Q_DECL_IMPORT
 #endif
-class DLL_EXPORT OSCMessageListWidget : public QListWidget {
+class OSCLISTWIDGET_EXPORT OSCMessageListWidget : public QListWidget {
     Q_OBJECT
 public:
     explicit OSCMessageListWidget(QWidget* parent = nullptr);

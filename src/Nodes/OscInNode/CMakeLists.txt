@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 set(Module_Name "OscInNode")
 project(${Module_Name})
@@ -9,8 +9,6 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp
         PluginDefinition.hpp
         OscInInterface.hpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         ../../Common/Devices/OSCReceiver/OSCReceiver.cpp
         ../../Common/Devices/OSCReceiver/OSCReceiver.h
         ../../Common/Devices/UdpSocket/UdpSocket.cpp

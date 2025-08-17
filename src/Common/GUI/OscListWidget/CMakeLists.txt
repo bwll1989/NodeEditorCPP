@@ -15,15 +15,11 @@ set(OscListWidget_sources
         OSCMessageListWidget.hpp
         OSCMessageItemWidget.cpp
         OSCMessageItemWidget.hpp
-        ../../../Common/Devices/OSCSender/OSCSender.h
-        ../../../Common/Devices/OSCSender/OSCSender.cpp
-        ${tinyosc_DIR}/tinyosc.c
-        ${tinyosc_DIR}/tinyosc.h
 )
 
 #target_link_libraries(MYLIBRARY_LIBRARY PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::WebSockets)
 
-add_library(OscListWidget SHARED ${OscListWidget_sources})
+add_library(OscListWidget SHARED ${OscListWidget_sources} )
 
 target_link_libraries(OscListWidget PRIVATE
         Qt${QT_VERSION_MAJOR}::Core
@@ -31,6 +27,7 @@ target_link_libraries(OscListWidget PRIVATE
         Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::Gui
         Qt${QT_VERSION_MAJOR}::Qml
+        OSCTransmitter
 )
 
 target_compile_definitions(OscListWidget PRIVATE OSCLISTWIDGET_LIBRARY)

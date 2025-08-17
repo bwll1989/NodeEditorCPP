@@ -2,15 +2,15 @@
     "DataFlow": {
         "connections": [
             {
-                "inPortIndex": 0,
-                "intNodeId": 1,
-                "outNodeId": 0,
-                "outPortIndex": 0
-            },
-            {
                 "inPortIndex": 1,
                 "intNodeId": 1,
                 "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 0,
                 "outPortIndex": 0
             },
             {
@@ -20,15 +20,15 @@
                 "outPortIndex": 0
             },
             {
-                "inPortIndex": 1,
-                "intNodeId": 0,
-                "outNodeId": 6,
-                "outPortIndex": 0
-            },
-            {
                 "inPortIndex": 0,
                 "intNodeId": 5,
                 "outNodeId": 1,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 0,
+                "outNodeId": 6,
                 "outPortIndex": 0
             },
             {
@@ -55,16 +55,16 @@
             },
             {
                 "nodeIds": [
+                    1
+                ],
+                "remarks": "NDV控制服务器实例，控制所有的NDV player"
+            },
+            {
+                "nodeIds": [
                     6,
                     8
                 ],
                 "remarks": "播放10s后停止 "
-            },
-            {
-                "nodeIds": [
-                    1
-                ],
-                "remarks": "NDV控制服务器实例，控制所有的NDV player"
             },
             {
                 "nodeIds": [
@@ -126,9 +126,9 @@
                         "clients": {
                             "10": {
                                 "id": 10,
-                                "ip": "192.168.1.4",
-                                "lastHandshake": "Sun Aug 10 11:56:13 2025",
-                                "lastSeen": "Sun Aug 10 11:52:21 2025"
+                                "ip": "192.168.0.103",
+                                "lastHandshake": "Thu Aug 14 21:14:04 2025",
+                                "lastSeen": "Thu Aug 14 21:13:11 2025"
                             }
                         }
                     }

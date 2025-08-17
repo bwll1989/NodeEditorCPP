@@ -34,7 +34,6 @@ namespace Nodes
             Resizable=false;
             inData=std::make_shared<VariableData>();
             setup();
-
         }
 
         ~OscOutDataModel() override {}

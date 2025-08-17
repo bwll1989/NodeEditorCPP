@@ -5,6 +5,7 @@
 #include <QtNodes/NodeDelegateModel>
 #include "qtpropertymanager.h"
 #include "qtvariantproperty.h"
+#include "Common/GUI/DataTreeModel/QmlDataBrowser.h"
 #include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
 #include <QtCore/QObject>
 #include <QtWidgets/QLabel>
@@ -13,6 +14,7 @@
 #include <QVBoxLayout>
 #include <vector>
 #include <QtCore/qglobal.h>
+#include <QtQuickWidgets/QQuickWidget>
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -23,24 +25,35 @@ namespace Nodes
 {
     /// The model dictates the number of inputs and outputs for the Node.
     /// In this example it has no logic.
+    // 在现有代码中添加QML支持
+
+    
     class DataInfoDataModel : public NodeDelegateModel
     {
         Q_OBJECT
-
+    
     public:
         DataInfoDataModel()
         {
-            InPortCount =1;
-            OutPortCount=1;
-            CaptionVisible=true;
-            Caption="Data Info";
-            WidgetEmbeddable=true;
-            Resizable= true;
-            //        qDebug()<<Data->NodeValues.toString();
-
+            InPortCount = 1;
+            OutPortCount = 1;
+            CaptionVisible = true;
+            Caption = "Data Info";
+            WidgetEmbeddable = true;
+            Resizable = true;
+            
+            // 使用QML版本的数据浏览器
+            qmlWidget = new QmlDataBrowser();
+            qmlWidget->setLazyLoadingEnabled(true);
+            qmlWidget->setMaxVisibleItems(1000);
         }
+         ~DataInfoDataModel() override{}
 
-        virtual ~DataInfoDataModel() override{}
+        std::shared_ptr<NodeData> outData(PortIndex const port) override
+        {
+            Q_UNUSED(port);
+            return inData;
+        }
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
@@ -59,35 +72,36 @@ namespace Nodes
             return VariableData().type();
         }
 
-        std::shared_ptr<NodeData> outData(PortIndex const port) override
-        {
-            Q_UNUSED(port);
-            return inData;
+        QWidget *embeddedWidget() override {
+            return qmlWidget;
         }
-
+    
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex);
-            if (data== nullptr){
+            if (data == nullptr) {
                 return;
             }
+            
             if (inData = std::dynamic_pointer_cast<VariableData>(data)) {
-                model=inData->getMap();
-                widget->buildPropertiesFromMap(model);
+                QVariantMap newModel = inData->getMap();
+                
+                // 使用高性能的增量更新
+                if (model.isEmpty()) {
+                    qmlWidget->buildPropertiesFromMap(newModel);
+                } else {
+                    qmlWidget->updatePropertiesIncremental(newModel);
+                }
+                
+                model = newModel;
                 Q_EMIT dataUpdated(0);
-
             }
 
         }
-
-        QWidget *embeddedWidget() override {
-            return widget;
-        }
-
-
+    
     private:
         QVariantMap model;
-        QPropertyBrowser *widget=new QPropertyBrowser();
+        QmlDataBrowser *qmlWidget;
         std::shared_ptr<VariableData> inData;
     };
 }

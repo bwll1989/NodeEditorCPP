@@ -83,6 +83,7 @@ void InternalControlModel::trigger()
 
     auto messages = widget->m_listWidget->getOSCMessages();
     for(auto message : messages){
+
         OSCSender::instance()->sendOSCMessageWithQueue(message);
     }
 }

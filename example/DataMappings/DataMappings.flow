@@ -1,0 +1,899 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 22,
+                "outNodeId": 21,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 23,
+                "outNodeId": 22,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 20,
+                "outNodeId": 24,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 22,
+                "outNodeId": 25,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+            {
+                "nodeIds": [
+                    3,
+                    2,
+                    0,
+                    1
+                ],
+                "remarks": "mapping1"
+            },
+            {
+                "nodeIds": [
+                    21,
+                    24,
+                    20,
+                    23,
+                    25,
+                    22
+                ],
+                "remarks": "Untitled group"
+            },
+            {
+                "nodeIds": [
+                    6,
+                    4,
+                    7,
+                    5
+                ],
+                "remarks": "mapping2"
+            },
+            {
+                "nodeIds": [
+                    8,
+                    9,
+                    10,
+                    11
+                ],
+                "remarks": "mapping3"
+            },
+            {
+                "nodeIds": [
+                    12,
+                    13,
+                    14,
+                    15
+                ],
+                "remarks": "mapping4"
+            },
+            {
+                "nodeIds": [
+                    16,
+                    18,
+                    17,
+                    19
+                ],
+                "remarks": "mapping5"
+            }
+        ],
+        "nodes": [
+            {
+                "id": 0,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 786
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -127,
+                    "y": 66
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 1,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 786
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 13,
+                    "y": 164
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 2,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 786
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -385,
+                    "y": 203
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 3,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 786
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -7,
+                    "y": 281
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 4,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 519
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -74.17999999999981,
+                    "y": 678.74
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 5,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 519
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -452.1800000000002,
+                    "y": 600.74
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 6,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 519
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -194.1799999999998,
+                    "y": 463.7399999999999
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 7,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 519
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -54.17999999999981,
+                    "y": 561.74
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 8,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 796
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 863.5639999999999,
+                    "y": 352.5319999999999
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 9,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 796
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 485.56399999999985,
+                    "y": 274.53200000000004
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 10,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 796
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 693.1639999999999,
+                    "y": 74.17200000000001
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 11,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 796
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 883.5639999999999,
+                    "y": 235.53199999999998
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 12,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 657
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 864.7719999999997,
+                    "y": 837.1879999999998
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 13,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 657
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 486.7719999999997,
+                    "y": 759.188
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 14,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 657
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 694.3719999999997,
+                    "y": 558.8279999999999
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 15,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 657
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 884.7719999999997,
+                    "y": 720.1879999999998
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 16,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 1426.2911999999994,
+                    "y": 99.1871999999999
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 17,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 1428.0191999999995,
+                    "y": 164.85119999999995
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 18,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 1607.7311999999995,
+                    "y": 87.09120000000003
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 19,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 1590.4511999999993,
+                    "y": 175.2192
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 20,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 2242.9589333333333,
+                    "y": 371.77955555555553
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 21,
+                "input-count": 5,
+                "internal-data": {
+                    "ChannelSettings": {
+                        "channelCount": 5,
+                        "channelValues": [
+                            47,
+                            47,
+                            0,
+                            0,
+                            0
+                        ],
+                        "enabled": true,
+                        "startAddress": 1
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": 1184.1114477366257,
+                    "y": 421.30584030635583
+                },
+                "remarks": "Aernet Device1",
+                "type": "Artnet Device"
+            },
+            {
+                "id": 22,
+                "input-count": 8,
+                "internal-data": {
+                    "UniverseSettings": {
+                        "net": 0,
+                        "subnet": 0,
+                        "universe": 0
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": 1839.7331555555556,
+                    "y": 540.6164444444447
+                },
+                "remarks": "Artnet Universe",
+                "type": "Artnet Universe"
+            },
+            {
+                "id": 23,
+                "input-count": 4,
+                "internal-data": {
+                    "values": {
+                        "TargetHost": "192.168.0.255"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": 2246.2709333333332,
+                    "y": 583.4157037037037
+                },
+                "remarks": "Artnet Out",
+                "type": "Artnet Out"
+            },
+            {
+                "id": 24,
+                "input-count": 3,
+                "internal-data": {
+                    "values": {
+                        "Channels": "",
+                        "Filter": false,
+                        "Universe": 0
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 1708.5124148148147,
+                    "y": 365.0349629629626
+                },
+                "remarks": "Artnet Source",
+                "type": "Artnet Source"
+            },
+            {
+                "id": 25,
+                "input-count": 5,
+                "internal-data": {
+                    "ChannelSettings": {
+                        "channelCount": 5,
+                        "channelValues": [
+                            46,
+                            0,
+                            0,
+                            0,
+                            0
+                        ],
+                        "enabled": false,
+                        "startAddress": 5
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": 1575.2136202560587,
+                    "y": 410.1919724508458
+                },
+                "remarks": "Artnet Device2",
+                "type": "Artnet Device"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+            {
+                "clips": [
+                    {
+                        "Id": 0,
+                        "end": 1066,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/0/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/1/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/3/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/2/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                }
+                            ]
+                        },
+                        "start": 280,
+                        "type": "Mapping"
+                    }
+                ],
+                "trackName": "Mapping 0",
+                "type": "Mapping"
+            },
+            {
+                "clips": [
+                    {
+                        "Id": 1,
+                        "end": 1375,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/5/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/6/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/4/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/7/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                }
+                            ]
+                        },
+                        "start": 664,
+                        "type": "Mapping"
+                    }
+                ],
+                "trackName": "Mapping 1",
+                "type": "Mapping"
+            },
+            {
+                "clips": [
+                    {
+                        "Id": 2,
+                        "end": 841,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/9/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/10/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/11/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/8/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                }
+                            ]
+                        },
+                        "start": 45,
+                        "type": "Mapping"
+                    }
+                ],
+                "trackName": "Mapping 2",
+                "type": "Mapping"
+            },
+            {
+                "clips": [
+                    {
+                        "Id": 3,
+                        "end": 1867,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/14/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/15/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/13/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                },
+                                {
+                                    "address": "/dataflow/12/int",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame"
+                                }
+                            ]
+                        },
+                        "start": 526,
+                        "type": "Mapping"
+                    }
+                ],
+                "trackName": "Mapping 3",
+                "type": "Mapping"
+            },
+            {
+                "clips": [
+                    {
+                        "Id": 4,
+                        "end": 2041,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/16/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame%2"
+                                },
+                                {
+                                    "address": "/dataflow/18/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame%2"
+                                },
+                                {
+                                    "address": "/dataflow/19/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame%2"
+                                },
+                                {
+                                    "address": "/dataflow/17/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame%2"
+                                },
+                                {
+                                    "address": "/dataflow/21/channels1",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame%255"
+                                },
+                                {
+                                    "address": "/dataflow/21/channels0",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame%255"
+                                }
+                            ]
+                        },
+                        "start": 371,
+                        "type": "Mapping"
+                    }
+                ],
+                "trackName": "Mapping 4",
+                "type": "Mapping"
+            },
+            {
+                "clips": [
+                    {
+                        "Id": 5,
+                        "end": 110,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/25/enable",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "false"
+                                }
+                            ]
+                        },
+                        "start": 110,
+                        "type": "Trigger"
+                    },
+                    {
+                        "Id": 6,
+                        "end": 1303,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/25/enable",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "start": 1303,
+                        "type": "Trigger"
+                    },
+                    {
+                        "Id": 9,
+                        "end": 1,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/21/channels0",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "0"
+                                },
+                                {
+                                    "address": "/dataflow/21/channels1",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "0"
+                                },
+                                {
+                                    "address": "/dataflow/25/channels0",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "0"
+                                },
+                                {
+                                    "address": "/dataflow/25/channels1",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "0"
+                                }
+                            ]
+                        },
+                        "start": 1,
+                        "type": "Trigger"
+                    }
+                ],
+                "trackName": "Trigger 5",
+                "type": "Trigger"
+            },
+            {
+                "clips": [
+                    {
+                        "Id": 7,
+                        "end": 1850,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/25/channels0",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "$frame%255"
+                                }
+                            ]
+                        },
+                        "start": 117,
+                        "type": "Mapping"
+                    }
+                ],
+                "trackName": "Mapping 6",
+                "type": "Mapping"
+            }
+        ]
+    }
+}

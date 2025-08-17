@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 set(PLUGIN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/DataFlow)
 add_subdirectory(VST3PluginNode)
 add_subdirectory(TimeCodeSourceNode)  #时间码输入
@@ -55,3 +55,5 @@ add_subdirectory(NDVPlayerNode)       #NDV player
 add_subdirectory(ArtnetDeviceNode)    #Artnet 设备
 add_subdirectory(ArtnetUniverseNode)  #Artnet Universe
 add_subdirectory(ArtnetOutNode)       #Artnet输出
+
+add_subdirectory(CustomScriptNode)    #自定义js节点
