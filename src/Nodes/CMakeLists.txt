@@ -39,6 +39,7 @@ add_subdirectory(ArtnetInNode)        #Arnet输入
 add_subdirectory(MpvControllerNode)   #mpv控制
 add_subdirectory(SwitchNode)          #输入切换
 add_subdirectory(NDVControlNode)       #NDV控制
+add_subdirectory(ConditionNode)        #条件判断
 add_subdirectory(WebSocketServerNode) #WebSocket服务器
 add_subdirectory(WebSocketClientNode) #WebSocket客户端
 add_subdirectory(JavaScriptNode)      #JavaScript脚本

@@ -84,6 +84,7 @@
     <file>icons/converty.png</file>
     <file>icons/arror_up.png</file>
     <file>icons/arror_down.png</file>
+    <file>icons/js.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

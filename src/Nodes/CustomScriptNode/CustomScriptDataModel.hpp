@@ -63,23 +63,23 @@ public:
             // 连接Future完成信号到处理槽
             connect(&m_jsWatcher, &QFutureWatcher<QJSValue>::finished, this, &CustomScriptDataModel::handleJsExecutionFinished);
         
-        // 注意：不再需要插件选择器相关的连接，因为每个节点对应一个特定插件
+        // 注意：不再需要插件选择器相关的连接，因为每个节点对应一个特定插�?
     }
     
     /**
-     * @brief 带插件信息的构造函数（推荐使用）
+     * @brief 带插件信息的构造函数（推荐使用�?
      * @param pluginInfo JS插件信息
      */
     CustomScriptDataModel(const JSPluginInfo& pluginInfo) : widget(new CustomScriptInterface())
     {
-        // 从插件元数据中获取端口配置
+        // 从插件元数据中获取端口配�?
         QJsonObject metadata = pluginInfo.metadata;
-        InPortCount = metadata.value("inputs").toInt(1);    // 默认1个输入端口
-        OutPortCount = metadata.value("outputs").toInt(1);  // 默认1个输出端口
+        InPortCount = metadata.value("inputs").toInt(1);    // 默认1个输入端�?
+        OutPortCount = metadata.value("outputs").toInt(1);  // 默认1个输出端�?
         
         CaptionVisible = true;
-        WidgetEmbeddable = metadata.value("embeddable").toBool(false);  // 从元数据获取是否可嵌入
-        Resizable = metadata.value("resizable").toBool(false);          // 从元数据获取是否可调整大小,默认不可缩放
+        WidgetEmbeddable = metadata.value("embeddable").toBool(false);  // 从元数据获取是否可嵌�?
+        Resizable = metadata.value("resizable").toBool(false);          // 从元数据获取是否可调整大�?默认不可缩放
         PortEditable = metadata.value("portEditable").toBool(false);    // 从元数据获取端口是否可编辑，默认不可编辑
         
         // 立即设置插件信息
@@ -91,7 +91,7 @@ public:
             script = pluginInfo.code;
         }
         
-        // // 重新初始化JS引擎并执行脚本
+        // // 重新初始化JS引擎并执行脚�?
         initJSEngine();
         connect(&m_jsWatcher, &QFutureWatcher<QJSValue>::finished, this, &CustomScriptDataModel::handleJsExecutionFinished);
     }
@@ -106,38 +106,18 @@ public:
     
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
-        QString in = "➩";
-        QString out = "➩";
+
         switch (portType) {
             case PortType::In:
-                return in;
+                return "IN "+QString::number(portIndex);
             case PortType::Out:
-                return out;
+                return "OUT "+QString::number(portIndex);
             default:
                 break;
         }
         return "";
     }
 
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
-
-        switch (portType) {
-            case PortType::In:
-                result = InPortCount;
-                break;
-
-            case PortType::Out:
-                result = OutPortCount;
-                break;
-
-            default:
-                break;
-        }
-
-        return result;
-    }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
@@ -160,7 +140,7 @@ public:
         {
             inputPortIndex = portIndex;
             in_data[portIndex] = d->getMap();
-            loadScripts(script);
+            inputEventHandler(portIndex);
         }
     }
 
@@ -194,7 +174,7 @@ public:
         if (!pluginInfo.code.isEmpty()) {
             script = pluginInfo.code;
             
-            // 重新初始化JS引擎并执行脚本
+            // 重新初始化JS引擎并执行脚�?
             initJSEngine();
         }
     }
@@ -221,6 +201,9 @@ public:
     Q_INVOKABLE unsigned int inputIndex();
     Q_INVOKABLE int addToLayout(QObject* widgetObj, int x=-1, int y=-1, int rowSpan=1, int columnSpan=1);
     Q_INVOKABLE void clearLayout();
+    Q_INVOKABLE void initInterface();
+
+    Q_INVOKABLE void inputEventHandler(int portIndex);
 
 public slots:
     Q_INVOKABLE QJSValue getInputValue(int portIndex) {
@@ -256,9 +239,9 @@ private:
     int m_widgetCounter = 0;
     QFutureWatcher<QJSValue> m_jsWatcher;
     bool m_jsExecuting = false;
-    QString script; // 当前插件的脚本内容
+    QString script; // 当前插件的脚本内�?
     QMutex m_dataMutex;
-    JSPluginInfo m_pluginInfo; // 保留，用于存储当前插件信息
+    JSPluginInfo m_pluginInfo; // 保留，用于存储当前插件信�?
 
 };
 

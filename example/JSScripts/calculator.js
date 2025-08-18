@@ -1,9 +1,12 @@
 /*! @plugin {
-    "name": "calcultor",
+    "name": "Calcultor",
     "description": "计算器",
     "version": "1.0.0",
     "author": "吴斌",
     "category": "Controls",
+    "embeddable": true,
+    "resizable": true,
+    "portEditable": false,
     "inputs":1,
     "outputs":1
 } */
@@ -62,7 +65,10 @@ function initInterface() {
     });
     Node.addToLayout(clearBtn, 4, 0);
 }
-
+function inputEventHandler(index){
+    console.log(index)
+    console.log(Node.getInputValue(index)["default"])
+}
 function createNumberClickHandler(num) {
     return function() {
         if (firstNumber || display.text() === "0") {

@@ -1,0 +1,252 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 0,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 9,
+                "outNodeId": 8,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 2,
+                "outNodeId": 0,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 8,
+                "outNodeId": 7,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 6,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 3,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 5,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+            {
+                "nodeIds": [
+                    4,
+                    0,
+                    7
+                ],
+                "remarks": "信号源"
+            },
+            {
+                "nodeIds": [
+                    8,
+                    5,
+                    2
+                ],
+                "remarks": "条件"
+            },
+            {
+                "nodeIds": [
+                    9,
+                    1,
+                    6,
+                    3
+                ],
+                "remarks": "结果显示"
+            }
+        ],
+        "nodes": [
+            {
+                "id": 0,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "IP": "192.168.0.103",
+                        "Port": 11001
+                    }
+                },
+                "output-count": 3,
+                "port-editable": false,
+                "position": {
+                    "x": -762.0959999999994,
+                    "y": -16.535999999999984
+                },
+                "remarks": "TSETL",
+                "type": "TSETL"
+            },
+            {
+                "id": 1,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 351.9622166246852,
+                    "y": -18.110831234256914
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 2,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "count": 0,
+                        "expression": "$input[\"default\"]==10001"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -298.7862166246851,
+                    "y": 8.140473551637314
+                },
+                "remarks": "Count",
+                "type": "Count"
+            },
+            {
+                "id": 3,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 365.4015813750138,
+                    "y": 145.71968485738358
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 4,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -740.192846347607,
+                    "y": 295.755959697733
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 5,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "count": 0,
+                        "expression": "$input[\"default\"]==1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -300.1239294710326,
+                    "y": 247.45523425692687
+                },
+                "remarks": "Count",
+                "type": "Count"
+            },
+            {
+                "id": 6,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 355.83778337531487,
+                    "y": 290.25491183879103
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 7,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 0
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -814.5542367758184,
+                    "y": 580.379546599496
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 8,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "count": 0,
+                        "expression": "$input[\"default\"]>=1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -292.87677581863977,
+                    "y": 511.42017128463453
+                },
+                "remarks": "Count",
+                "type": "Count"
+            },
+            {
+                "id": 9,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 344.90931989924434,
+                    "y": 499.8110831234259
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+        ]
+    }
+}

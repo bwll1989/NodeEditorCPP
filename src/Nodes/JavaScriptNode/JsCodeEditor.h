@@ -40,10 +40,14 @@ namespace Nodes
         explicit JsCodeEditor(QString code="",QWidget* parent=nullptr);
         QString loadCode(QString path);
         void loadCodeFromCode(QString code);
-        QPushButton *run=new QPushButton("运行");
+        QPushButton *importJS=new QPushButton("保存");
+        QPushButton *updateUI=new QPushButton("更新UI");
+        QPushButton *exportJS=new QPushButton("导出js节点");
+
     public Q_SLOTS:
         QString saveCode();
         void setReadOnly(bool readOnly);
+        void exportCode();
     private:
         void createWidgets();
 

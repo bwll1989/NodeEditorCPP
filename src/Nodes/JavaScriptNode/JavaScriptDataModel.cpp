@@ -42,10 +42,17 @@ unsigned int JavaScriptDataModel::inputIndex() {
 }
 
 Q_INVOKABLE void JavaScriptDataModel::clearLayout() {
+    // 确保在主线程中执行
+    if (QThread::currentThread() != QApplication::instance()->thread()) {
+        QMetaObject::invokeMethod(this, "clearLayout", Qt::BlockingQueuedConnection);
+        return;
+    }
+    
     // 删除所有控件
     for (QWidget* widget : m_widgets.values()) {
         unregisterOSCControl(QString("/%1").arg(m_widgets.key(widget)));
-        widget->deleteLater();
+        // 立即删除而不是使用deleteLater
+        delete widget;
     }
     m_widgets.clear();
     m_widgetCounter = 0;
@@ -137,42 +144,97 @@ void JavaScriptDataModel::handleJsExecutionFinished() {
     
 }
 
- void JavaScriptDataModel::initJSEngine() {
-        // 创建JavaScript引擎
-        m_jsEngine = new QJSEngine(this);
-        m_jsEngine->installExtensions(QJSEngine::AllExtensions);
-        // 创建Node全局对象
-        QJSValue jsObject = m_jsEngine->newQObject(this);
-        m_jsEngine->globalObject().setProperty("Node", jsObject);
-        m_jsEngine->globalObject().setProperty("SpinBox",  m_jsEngine->newQMetaObject<SpinBox>());
-        m_jsEngine->globalObject().setProperty("VSlider",  m_jsEngine->newQMetaObject<VSlider>());
-        m_jsEngine->globalObject().setProperty("HSlider",  m_jsEngine->newQMetaObject<HSlider>());
-        m_jsEngine->globalObject().setProperty("CheckBox",  m_jsEngine->newQMetaObject<CheckBox>());
-        m_jsEngine->globalObject().setProperty("LineEdit",  m_jsEngine->newQMetaObject<LineEdit>());
-        m_jsEngine->globalObject().setProperty("ComboBox",  m_jsEngine->newQMetaObject<ComboBox>());
-        m_jsEngine->globalObject().setProperty("Label",  m_jsEngine->newQMetaObject<Label>());
-        m_jsEngine->globalObject().setProperty("Button",  m_jsEngine->newQMetaObject<Button>());
-        m_jsEngine->globalObject().setProperty("DoubleSpinBox",  m_jsEngine->newQMetaObject<DoubleSpinBox>());
-        // 先执行脚本
-        if (!script.isEmpty()) {
-            QJSValue result = m_jsEngine->evaluate(script);
-
-            if (result.isError()) {
-                qWarning() << "JavaScript初始化错误:"
-                          << result.property("lineNumber").toInt()
-                          << result.toString();
-                return;
-            }
-
-            // 检查并执行initInterface函数（如果存在）
-            QJSValue initInterfaceFunc = m_jsEngine->globalObject().property("initInterface");
-            if (initInterfaceFunc.isCallable()) {
-                QJSValue initResult = initInterfaceFunc.call();
-                if (initResult.isError()) {
-                    qWarning() << "initInterface执行错误:"
-                              << initResult.property("lineNumber").toInt()
-                              << initResult.toString();
-                }
-            }
+void JavaScriptDataModel::initJSEngine() {
+    // 创建JavaScript引擎
+    m_jsEngine = new QJSEngine(this);
+    m_jsEngine->installExtensions(QJSEngine::AllExtensions);
+    // 创建Node全局对象
+    QJSValue jsObject = m_jsEngine->newQObject(this);
+    m_jsEngine->globalObject().setProperty("Node", jsObject);
+    m_jsEngine->globalObject().setProperty("SpinBox",  m_jsEngine->newQMetaObject<SpinBox>());
+    m_jsEngine->globalObject().setProperty("VSlider",  m_jsEngine->newQMetaObject<VSlider>());
+    m_jsEngine->globalObject().setProperty("HSlider",  m_jsEngine->newQMetaObject<HSlider>());
+    m_jsEngine->globalObject().setProperty("CheckBox",  m_jsEngine->newQMetaObject<CheckBox>());
+    m_jsEngine->globalObject().setProperty("LineEdit",  m_jsEngine->newQMetaObject<LineEdit>());
+    m_jsEngine->globalObject().setProperty("ComboBox",  m_jsEngine->newQMetaObject<ComboBox>());
+    m_jsEngine->globalObject().setProperty("Label",  m_jsEngine->newQMetaObject<Label>());
+    m_jsEngine->globalObject().setProperty("Button",  m_jsEngine->newQMetaObject<Button>());
+    m_jsEngine->globalObject().setProperty("DoubleSpinBox",  m_jsEngine->newQMetaObject<DoubleSpinBox>());
+    
+    // 先执行脚本，但不直接调用initInterface
+    if (!script.isEmpty()) {
+        QJSValue result = m_jsEngine->evaluate(script);
+        if (result.isError()) {
+            qWarning() << "JavaScript初始化错误:"
+                      << result.property("lineNumber").toInt()
+                      << result.toString();
+            return;
         }
+        
+        // 脚本加载完成后，通过C++方法调用initInterface
+        // 这样确保UI操作在主线程中进行
+        initInterface();
     }
+}
+
+/**
+ * @brief 在主线程中执行JavaScript的initInterface函数
+ * 解决跨线程UI操作问题
+ */
+Q_INVOKABLE void JavaScriptDataModel::initInterface() {
+
+    // 确保在主线程中执行
+    if (QThread::currentThread() != QApplication::instance()->thread()) {
+        // 如果不在主线程，使用QMetaObject::invokeMethod切换到主线程
+        QMetaObject::invokeMethod(this, "initInterface", Qt::QueuedConnection);
+        return;
+    }
+    
+    if (!m_jsEngine) {
+        qWarning() << "JavaScript引擎未初始化";
+        return;
+    }
+
+    // 检查并执行JavaScript中的initInterface函数
+    QJSValue initInterfaceFunc = m_jsEngine->globalObject().property("initInterface");
+    if (initInterfaceFunc.isCallable()) {
+        QJSValue initResult = initInterfaceFunc.call();
+        if (initResult.isError()) {
+            qWarning() << "initInterface执行错误:"
+                      << initResult.property("lineNumber").toInt()
+                      << initResult.toString();
+        }
+    } else {
+        qDebug() << "JavaScript中未找到initInterface函数";
+    }
+}
+
+/**
+ * @brief 处理输入端口事件，并将参数传递给JavaScript函数
+ * @param portIndex 触发事件的端口索引
+ */
+Q_INVOKABLE void JavaScriptDataModel::inputEventHandler(int portIndex)
+{
+    if (!m_jsEngine) {
+        qWarning() << "JavaScript引擎未初始化";
+        return;
+    }
+
+    // 检查并执行JavaScript中的inputEventHandler函数
+    QJSValue inputEventHandlerFunc = m_jsEngine->globalObject().property("inputEventHandler");
+    if (inputEventHandlerFunc.isCallable()) {
+        // 创建参数列表并传递portIndex
+        QJSValueList args;
+        args << portIndex;
+        
+        // 调用JavaScript函数并传递参数
+        QJSValue result = inputEventHandlerFunc.call(args);
+        if (result.isError()) {
+            qWarning() << "inputEventHandler执行错误:"
+                      << result.property("lineNumber").toInt()
+                      << result.toString();
+        }
+    } else {
+        qDebug() << "JavaScript中未找到inputEventHandler函数";
+    }
+}

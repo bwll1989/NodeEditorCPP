@@ -2,7 +2,7 @@
 #include <QtCore/QObject>
 #include "DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
-#include "CountInterface.hpp"
+#include "ConditionInterface.hpp"
 #include <iostream>
 
 #include <QtWidgets/QLineEdit>
@@ -21,27 +21,24 @@ class QLineEdit;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class CountDataModel : public NodeDelegateModel
+    class ConditionDataModel : public NodeDelegateModel
     {
         Q_OBJECT
 
     public:
 
-        CountDataModel(){
+        ConditionDataModel(){
             InPortCount =1;
             OutPortCount=1;
-            Caption="Count";
+            Caption="Condition";
             CaptionVisible=true;
             WidgetEmbeddable= true;
             Resizable=true;
             PortEditable=true;
-            NodeDelegateModel::registerOSCControl("/clear",widget->Clear);
-            connect(widget->Editor, &QLineEdit::editingFinished, this, &CountDataModel::outDataSlot);
-            connect(widget->Clear, &QPushButton::clicked, this, &CountDataModel::clearCount);
+            connect(widget->Editor, &QLineEdit::editingFinished, this, &ConditionDataModel::outDataSlot);
             m_jsEngine = new QJSEngine(this);
-            clearCount();
         }
-        ~CountDataModel() override {
+        ~ConditionDataModel() override {
             if(m_jsEngine) {
                 delete m_jsEngine;
                 m_jsEngine = nullptr;
@@ -96,12 +93,7 @@ namespace Nodes
             
             // 获取表达式结果的布尔值
             expressionResult = result.toBool();
-            
-            // 如果表达式结果为true，计数器+1
-            if (expressionResult) {
-                count++;
-            }
-            
+            count=expressionResult;
             // 返回当前计数值
             return std::make_shared<VariableData>(count);
         }
@@ -123,7 +115,6 @@ namespace Nodes
         {
             QJsonObject modelJson1;
             modelJson1["expression"] = widget->Editor->text();
-            modelJson1["count"] = count; // 保存当前计数值
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -133,10 +124,6 @@ namespace Nodes
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
                 widget->Editor->setText(v["expression"].toString());
-                // 加载保存的计数值
-                if (!v["count"].isUndefined()) {
-                    count = v["count"].toInt();
-                }
             }
         }
 
@@ -149,17 +136,11 @@ namespace Nodes
             Q_EMIT dataUpdated(0);
         }
         
-        /**
-         * @brief 清除计数器值
-         */
-        void clearCount() {
-            count = 0;
-            Q_EMIT dataUpdated(0);
-        }
+
     private:
-        CountInterface *widget=new CountInterface();
+        ConditionInterface *widget=new ConditionInterface();
         std::shared_ptr<VariableData> m_InData;
-        int count=0;
+        bool count=false;
         QJSEngine *m_jsEngine = nullptr;
 
 

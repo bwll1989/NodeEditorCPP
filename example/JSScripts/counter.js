@@ -1,9 +1,12 @@
 /*! @plugin {
-    "name": "Empty template",
-    "description": "空模板，指示线了界面",
+    "name": "Counter",
+    "description": "计数器，当输入值大于0时，计数增加",
     "version": "1.0.0",
     "author": "吴斌",
     "category": "Controls",
+    "embeddable": true,
+    "resizable": true,
+    "portEditable": false,
     "inputs": 1,
     "outputs": 1
 } */
@@ -42,9 +45,18 @@ function initInterface() {
     conditionLabel.setText("条件: 输入值 > 0");
     Node.addToLayout(conditionLabel, 2, 0, 1, 2);
 }
-
+function inputEventHandler(index){
+    if(Number(Node.getInputValue(index)["default"])>0){
+        count++
+        Node.setOutputValue(0,count);
+    }
+    countDisplay.setText(count.toString());
+}
 
 
 function clearCount() {
+    count=0;
+    countDisplay.setText(count.toString());
+    Node.setOutputValue(0,count);
     console.log("清空计数");
 }

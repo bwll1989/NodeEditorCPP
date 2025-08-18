@@ -55,13 +55,14 @@ public:
         Resizable = true;
         PortEditable = true;
         inputPortIndex = 0;
-        
+
         // 初始化JavaScript引擎
         initJSEngine();
-
-        connect(widget->codeWidget->run, SIGNAL(clicked(bool)), this, SLOT(onRunButtonClicked()));
-        // connect(widget->run, SIGNAL(clicked(bool)), this, SLOT(onRunButtonClicked()));
-        
+        connect(widget->codeWidget->importJS,SIGNAL(clicked(bool)), this, SLOT(onRunButtonClicked()));
+        connect(widget->codeWidget->updateUI, &QPushButton::clicked, this, [this]() {
+            clearLayout();
+            initInterface();
+        });
         // 连接Future完成信号到处理槽
         connect(&m_jsWatcher, &QFutureWatcher<QJSValue>::finished, this, &JavaScriptDataModel::handleJsExecutionFinished);
     }
@@ -161,7 +162,7 @@ public:
         {
             inputPortIndex = portIndex;
             in_data[portIndex] = d->getMap();
-            onRunButtonClicked();
+            inputEventHandler(portIndex);
         }
     }
 
@@ -214,7 +215,6 @@ private Q_SLOTS:
     {
         script = widget->codeWidget->saveCode();
         loadScripts(script);
-        // Q_EMIT dataUpdated(0);
     }
     
     /**
@@ -266,7 +266,14 @@ public :
      * @brief 清除right_layout中的所有控件
      */
     Q_INVOKABLE void clearLayout() ;
+    
+    /**
+     * @brief 在主线程中执行JavaScript的initInterface函数
+     * 解决跨线程UI操作问题
+     */
+    Q_INVOKABLE void initInterface();
 
+    Q_INVOKABLE void inputEventHandler(int portIndex);
 public slots:
     /**
      * @brief 获取输入值（供JavaScript调用）
@@ -321,6 +328,10 @@ var slider1;
 function initInterface() {
     // 在这里编写初始化界面的代码
     // 例如：创建按钮、文本框等
+}
+function inputEventHandler(index){
+    console.log(index)
+    console.log(Node.getInputValue(index)["default"])
 }
 )";
  QMutex m_dataMutex;  // 添加互斥锁保护数据访问

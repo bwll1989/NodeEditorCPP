@@ -1,0 +1,223 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 8,
+                "outNodeId": 7,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 3,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 7,
+                "outNodeId": 1,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 9,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 5,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 0,
+                "outNodeId": 7,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 10,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+        ],
+        "nodes": [
+            {
+                "id": 8,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 558.7199999999999,
+                    "y": 154.07999999999996
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 0,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 480.19999999999993,
+                    "y": -165.11999999999998
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 9,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 14
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 146.87999999999994,
+                    "y": 233.27999999999997
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 1,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "expression": "$input[\"default\"]==true"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -198.20000000000005,
+                    "y": 116.19999999999999
+                },
+                "remarks": "Condition",
+                "type": "Condition"
+            },
+            {
+                "id": 2,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -640.32,
+                    "y": 270.76
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 3,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "count": 14,
+                        "expression": "$input[\"default\"]==true"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -197.20000000000005,
+                    "y": 249.2
+                },
+                "remarks": "Count",
+                "type": "Count"
+            },
+            {
+                "id": 5,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "expression": "$input[\"default\"]*12"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -177,
+                    "y": 405
+                },
+                "remarks": "Condition",
+                "type": "Condition"
+            },
+            {
+                "id": 7,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "holdTime": 10000,
+                        "ignoreRepeat": false
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 143,
+                    "y": 2
+                },
+                "remarks": "Hold",
+                "type": "Hold"
+            },
+            {
+                "id": 10,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 236.16000000000003,
+                    "y": 406.0799999999999
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+        ]
+    }
+}
