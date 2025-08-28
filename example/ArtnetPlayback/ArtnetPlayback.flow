@@ -1,0 +1,457 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 3,
+                "intNodeId": 5,
+                "outNodeId": 9,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 8,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 8,
+                "outNodeId": 10,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 5,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 2,
+                "intNodeId": 8,
+                "outNodeId": 10,
+                "outPortIndex": 1
+            },
+            {
+                "inPortIndex": 5,
+                "intNodeId": 8,
+                "outNodeId": 10,
+                "outPortIndex": 4
+            },
+            {
+                "inPortIndex": 2,
+                "intNodeId": 5,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 5,
+                "outNodeId": 7,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 3,
+                "intNodeId": 8,
+                "outNodeId": 10,
+                "outPortIndex": 2
+            },
+            {
+                "inPortIndex": 4,
+                "intNodeId": 8,
+                "outNodeId": 10,
+                "outPortIndex": 3
+            },
+            {
+                "inPortIndex": 6,
+                "intNodeId": 8,
+                "outNodeId": 10,
+                "outPortIndex": 5
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 10,
+                "outNodeId": 7,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 10,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 2,
+                "intNodeId": 10,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 3,
+                "intNodeId": 10,
+                "outNodeId": 9,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 7,
+                "intNodeId": 8,
+                "outNodeId": 11,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 11,
+                "outNodeId": 12,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 11,
+                "outNodeId": 13,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+            {
+                "nodeIds": [
+                    13,
+                    12
+                ],
+                "remarks": "设备控制"
+            },
+            {
+                "nodeIds": [
+                    6,
+                    7,
+                    9,
+                    4
+                ],
+                "remarks": "播放控制"
+            },
+            {
+                "nodeIds": [
+                    11,
+                    5,
+                    10
+                ],
+                "remarks": "输出域"
+            },
+            {
+                "nodeIds": [
+                    8
+                ],
+                "remarks": "artnet输出"
+            }
+        ],
+        "nodes": [
+            {
+                "id": 4,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -296.9535999999999,
+                    "y": -382.5770666666665
+                },
+                "remarks": "PLAY",
+                "type": "Bool Source"
+            },
+            {
+                "id": 5,
+                "input-count": 4,
+                "internal-data": {
+                    "UniverseSettings": {
+                        "currentUniverseCount": 1,
+                        "isLooping": false,
+                        "net": 0,
+                        "playbackPosition": 0,
+                        "subnet": 0,
+                        "universe": 0,
+                        "videoDuration": 10.32,
+                        "videoFPS": 25,
+                        "videoFilePath": "D:/19_NodeEditorCPP/NodeEditorCPP/example/ArtnetPlayback/Universe0.mov",
+                        "videoHeight": 4,
+                        "videoWidth": 128
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": 290.83582188099814,
+                    "y": -273.6332079334612
+                },
+                "remarks": "Artnet Playback",
+                "type": "Artnet Playback"
+            },
+            {
+                "id": 6,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -315.1535999999998,
+                    "y": -131.6570666666666
+                },
+                "remarks": "STOP",
+                "type": "Bool Source"
+            },
+            {
+                "id": 7,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -305.23359999999985,
+                    "y": -255.93706666666645
+                },
+                "remarks": "LOOP",
+                "type": "Bool Source"
+            },
+            {
+                "id": 8,
+                "input-count": 8,
+                "internal-data": {
+                    "values": {
+                        "TargetHost": "192.168.0.255"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": 789.9635976967375,
+                    "y": -198.3121499680102
+                },
+                "remarks": "Artnet Out",
+                "type": "Artnet Out"
+            },
+            {
+                "id": 9,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -313.1935999999999,
+                    "y": -5.417066666666216
+                },
+                "remarks": "CLEAR",
+                "type": "Bool Source"
+            },
+            {
+                "id": 10,
+                "input-count": 4,
+                "internal-data": {
+                    "UniverseSettings": {
+                        "currentUniverseCount": 6,
+                        "isLooping": false,
+                        "net": 0,
+                        "playbackPosition": 0,
+                        "subnet": 0,
+                        "universe": 1,
+                        "videoDuration": 20.24,
+                        "videoFPS": 25,
+                        "videoFilePath": "D:/19_NodeEditorCPP/NodeEditorCPP/example/ArtnetPlayback/Universe0-6.mov",
+                        "videoHeight": 24,
+                        "videoWidth": 128
+                    }
+                },
+                "output-count": 6,
+                "port-editable": true,
+                "position": {
+                    "x": 290.764715547025,
+                    "y": -22.671365834933013
+                },
+                "remarks": "Artnet Playback",
+                "type": "Artnet Playback"
+            },
+            {
+                "id": 11,
+                "input-count": 4,
+                "internal-data": {
+                    "UniverseSettings": {
+                        "net": 0,
+                        "subnet": 0,
+                        "universe": 7
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": 295.3604882917468,
+                    "y": 280.9690149712092
+                },
+                "remarks": "Artnet Universe",
+                "type": "Artnet Universe"
+            },
+            {
+                "id": 12,
+                "input-count": 5,
+                "internal-data": {
+                    "ChannelSettings": {
+                        "channelCount": 5,
+                        "channelValues": [
+                            179,
+                            147,
+                            0,
+                            0,
+                            0
+                        ],
+                        "enabled": true,
+                        "startAddress": 1
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -306.1411976967372,
+                    "y": 213.55089443378122
+                },
+                "remarks": "Artnet Device",
+                "type": "Artnet Device"
+            },
+            {
+                "id": 13,
+                "input-count": 3,
+                "internal-data": {
+                    "ChannelSettings": {
+                        "channelCount": 3,
+                        "channelValues": [
+                            0,
+                            0,
+                            0
+                        ],
+                        "enabled": true,
+                        "startAddress": 1
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -311.041520153551,
+                    "y": 422.45937811900205
+                },
+                "remarks": "Artnet Device",
+                "type": "Artnet Device"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+            {
+                "clips": [
+                    {
+                        "Id": 1,
+                        "end": 545,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/6/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "start": 545,
+                        "type": "Trigger"
+                    },
+                    {
+                        "Id": 2,
+                        "end": 79,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/7/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "start": 79,
+                        "type": "Trigger"
+                    },
+                    {
+                        "Id": 3,
+                        "end": 224,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/5/play",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "start": 224,
+                        "type": "Trigger"
+                    },
+                    {
+                        "Id": 4,
+                        "end": 718,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/6/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                },
+                                {
+                                    "address": "/dataflow/9/bool",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                },
+                                {
+                                    "address": "/dataflow/11/clear",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "start": 718,
+                        "type": "Trigger"
+                    }
+                ],
+                "trackName": "Trigger 0",
+                "type": "Trigger"
+            }
+        ]
+    }
+}

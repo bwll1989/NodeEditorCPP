@@ -6,12 +6,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(${Module_Name} SHARED
         AudioDeviceOutDataModel.hpp
         AudioDeviceOutInterface.hpp
-        AudioOutputSelector.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-
-        # ../../Common/Devices/AudioPipe/AudioPipe.cpp
-        # ../../Common/Devices/AudioPipe/AudioPipe.h
+        AudioDeviceOutDataModel.cpp
 )
 
 target_link_libraries(${Module_Name}

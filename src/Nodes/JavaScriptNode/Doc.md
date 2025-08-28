@@ -185,6 +185,14 @@ function initInterface() {
     // 创建更多控件...
 }
 ```
+### 4.2 inputEventHandler
+当节点输入端口数据更新时会调用inputEventHandler(index)函数，您可以指定对应的方法
+```js
+function inputEventHandler(index){
+    //输入端口时间句柄
+    console.log(index)
+}
+```
 ## 5. 完整示例
 ### 5.1 简单计算器
 ``` js

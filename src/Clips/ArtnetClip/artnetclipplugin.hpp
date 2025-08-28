@@ -2,11 +2,9 @@
 #define ARTNETCLIPPLUGIN_HPP
 
 #include <QObject>
-#include "TimeLineWidget/clippluginterface.hpp"
-#include "TimeLineWidget/AbstractClipModel.hpp"
-#include "TimeLineWidget/AbstractClipDelegate.hpp"
+#include "AbstractClipInterface.h"
+#include "AbstractClipModel.hpp"
 #include "artnetclipmodel.hpp"
-#include "artnetclipdelegate.hpp"
 
 class ArtnetClipPlugin : public QObject, public ClipPlugInterface
 {
@@ -20,12 +18,12 @@ public:
     }
 
     AbstractClipModel* createModel(int start) override {
-        return new ArtnetClipModel(start, start+100);
+        return new  Clips::ArtnetClipModel(start);
     }
 
-    AbstractClipDelegate* createDelegate() override {
-        return new ArtnetClipDelegate();
-    }
+    // AbstractClipDelegate* createDelegate() override {
+    //     return new PlayerClipDelegate();
+    // }
 };
 
-#endif // ARTNETCLIPPLUGIN_HPP 
+#endif // ARTNETCLIPPLUGIN_HPP

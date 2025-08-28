@@ -123,7 +123,7 @@ namespace Nodes
             
             // 连接清空按钮信号
             connect(clearButton, &QPushButton::clicked, this, &ArtnetUniverseInterface::clearDataClicked);
-            
+
             controlLayout->addWidget(clearButton);
             parentLayout->addWidget(controlGroup);
         }

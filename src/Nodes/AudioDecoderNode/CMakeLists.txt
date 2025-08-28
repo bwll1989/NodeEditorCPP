@@ -12,12 +12,9 @@ add_library(${Module_Name} SHARED
         AudioDecoderDataModel.hpp
         AudioDecoderInterface.hpp
         AudioDecoder.hpp
-
+        AudioDecoder.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-
-        # ../../Common/Devices/AudioPipe/AudioPipe.cpp
-        # ../../Common/Devices/AudioPipe/AudioPipe.h
         )
 
 target_link_libraries(${Module_Name}  PRIVATE

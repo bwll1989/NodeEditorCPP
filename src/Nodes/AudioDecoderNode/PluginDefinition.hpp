@@ -12,8 +12,8 @@
 #endif
 
 #define PLUGIN_NAME "Audio Decoder"
-#define PLUGIN_VERSION "1.0"
-#define PLUGIN_DESCRIBE "音频播放"
+#define PLUGIN_VERSION "20250828"
+#define PLUGIN_DESCRIBE "音频解码器"
 #define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin
     : public QObject

@@ -12,7 +12,7 @@
 #endif
 
 #define PLUGIN_NAME "Audio Device Out"
-#define PLUGIN_VERSION "1.0"
+#define PLUGIN_VERSION "20250828"
 #define PLUGIN_DESCRIPE "输出音频设备"
 #define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin

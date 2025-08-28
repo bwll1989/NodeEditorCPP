@@ -14,7 +14,7 @@
 #define PLUGIN_NAME "Artnet Source"
 #define PLUGIN_VERSION "20250707"
 #define PLUGIN_DESCRIBE "Artnet输入"
-#define PLUGIN_TAG "Network"
+#define PLUGIN_TAG "DMX"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

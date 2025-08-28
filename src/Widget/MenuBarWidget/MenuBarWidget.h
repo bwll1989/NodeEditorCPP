@@ -60,6 +60,8 @@ public:
     QAction *tool1Action ;
     //工具2
     QAction *tool2Action ;
+    //artnetrecoder工具
+    QAction *ArtnetRecoderToolAction ;
     //关于菜单
     QMenu *About_menu;
     //关于
@@ -67,6 +69,7 @@ public:
     //关于Qt
     QAction *aboutQtAction ;
 private slots:
+    void openOSCInterface(const QString& exePath, const QStringList& args);
     void openToolWithArgs(const QString& exePath, const QStringList& args);
     //软件关于
     void showAboutDialog();

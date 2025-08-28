@@ -17,5 +17,7 @@ Plugin::~Plugin()
 void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg)
 {
     assert(reg);
-    reg->registerModel<Nodes::AudioDeviceOutDataModel>(name(),tag());
+    //加载插件时就实例化对象一次，通过牺牲启动速度，换取模块打开速度
+    reg->registerModelInstance<Nodes::AudioDeviceOutDataModel>(tag());
+    // reg->registerModel<Nodes::AudioDeviceOutDataModel>(name(),tag());
 }

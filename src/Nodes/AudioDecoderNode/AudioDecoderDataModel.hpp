@@ -24,14 +24,8 @@ using QtNodes::PortType;
 using QtNodes::NodeId;
 using QtNodes::NodeRole;
 
-
-
-//AudioPlayDataModel *AudioPlayDataModel::audioPlayDataModel=NULL;
 using namespace NodeDataTypes;
 
-/// The model dictates the number of inputs and outputs for the Node.
-/// In this example it has no logic.
-///
 namespace Nodes
 {
     class AudioDecoderDataModel : public NodeDelegateModel
@@ -39,33 +33,39 @@ namespace Nodes
         Q_OBJECT
     public:
         /**
-       * @brief 构造函数，初始化音频解码Node
+       * @brief 构造函数，初始化音频解码Node，支持动态多通道分离输出
        */
-        AudioDecoderDataModel():audioData(std::make_shared<AudioData>()){
-            InPortCount =3;
-            OutPortCount=1;
-            CaptionVisible=true;
-            Caption="Audio Decoder";
-            WidgetEmbeddable= false;
-            Resizable=false;
-            PortEditable= true;
-            // AudioData->pipe=pi;
-            qRegisterMetaType<AudioFrame>("AudioFrame");
-            connect(player, &AudioDecoder::audioFrameReady,
-                    this, &AudioDecoderDataModel::handleAudioFrame,
-                    Qt::DirectConnection);
-            connect(widget->button,&QPushButton::clicked,this,&AudioDecoderDataModel::select_audio_file,Qt::QueuedConnection);
-            connect(widget->button1,&QPushButton::clicked,this,&AudioDecoderDataModel::playAudio,Qt::QueuedConnection);
-            connect(widget->button2,&QPushButton::clicked,this,&AudioDecoderDataModel::stopAudio,Qt::QueuedConnection);
-            registerOSCControl("/play",widget->button1);
-            registerOSCControl("/stop",widget->button2);
+        AudioDecoderDataModel(){
+            InPortCount = 4;
+            OutPortCount = 2;  // 初始输出端口数，可动态调整
+            CaptionVisible = true;
+            Caption = "Audio Decoder";
+            WidgetEmbeddable = false;
+            Resizable = false;
+            PortEditable = true;
+
+
+            connect(widget->fileSelectButton,&QPushButton::clicked,this,&AudioDecoderDataModel::select_audio_file,Qt::QueuedConnection);
+            connect(widget->playButton,&QPushButton::clicked,this,&AudioDecoderDataModel::playAudio,Qt::QueuedConnection);
+            connect(widget->stopButton,&QPushButton::clicked,this,&AudioDecoderDataModel::stopAudio,Qt::QueuedConnection);
+            // 新增信号连接
+            connect(widget->volumeSlider, &QSlider::valueChanged,
+                    this, &AudioDecoderDataModel::onVolumeChanged, Qt::QueuedConnection);
+            connect(widget->loopCheckBox, &QCheckBox::toggled,
+                    this, &AudioDecoderDataModel::onLoopToggled, Qt::QueuedConnection);
+
+            // 注册OSC控制
+            registerOSCControl("/volume", widget->volumeSlider);
+            registerOSCControl("/loop", widget->loopCheckBox);
+            registerOSCControl("/play",widget->playButton);
+            registerOSCControl("/stop",widget->stopButton);
         }
 
         /**
          * @brief 析构函数，释放资源
          */
         ~AudioDecoderDataModel(){
-            if (player->isPlaying){
+            if (player->getPlaying()){
                 player->stopPlay();
             }
         }
@@ -86,19 +86,53 @@ namespace Nodes
             case PortType::None:
                 break;
             }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
 
             return VariableData().type();
         }
+
         /**
-         * @brief 获取端口输出
-         * @param portType 端口类型（输入/输出）
-         * @return 端口数量
+         * @brief 获取指定端口的输出数据（建立连接时调用）
+         * @param port 端口索引 (0-N对应不同声道)
+         * @return 包含共享环形缓冲区的音频数据
          */
         std::shared_ptr<NodeData> outData(PortIndex port) override
         {
-            Q_UNUSED(port)
+
+            
+            // 创建新的AudioData并设置共享环形缓冲区
+            auto audioData = std::make_shared<AudioData>();
+            audioData->setSharedAudioBuffer(player->getAudioBuffer(port));
+
             return audioData;
+
+        }
+
+
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+            switch(portType)
+            {
+            case PortType::In:
+                switch(portIndex)
+                {
+                case 0:
+                    return "PLAY";
+                case 1:
+                    return "STOP";
+                case 2:
+                    return "LOOP";
+                case 3:
+                    return "GAIN";
+                default:
+                    return "";
+                }
+            case PortType::Out:
+                    return "CH "+QString::number(portIndex);
+            default:
+                return "";
+            }
+
+
         }
         /**
          * @brief 设置端口输入
@@ -114,26 +148,36 @@ namespace Nodes
                         if (d->value().toBool() == true) {
                             this->playAudio();
                         } else {
-
+                            this->stopAudio();
                         }
                     }
                     return;
             }
             case 1: {
                     auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr) {
-                        filePath=d->value().toString();
-                    }
-            }
+                    if (d != nullptr)
+                        if (d->value().toBool() == true) {
+                            this->stopAudio();
+                        }
+                    return;
+                }
             case 2:{
                     auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr) {
-
+                    if (d != nullptr)
+                    {
+                        widget->loopCheckBox->setChecked(d->value().toBool());
                     }
+                    return;
+            }
+            case 3:{
+                    auto d = std::dynamic_pointer_cast<VariableData>(data);
+                    if (d != nullptr)
+                    {
+                        widget->volumeSlider->setValue(d->value().toDouble());
+                    }
+                    return;
             }
             }
-
-            Q_EMIT dataUpdated(0);
         }
 
         QWidget *embeddedWidget() override
@@ -142,27 +186,60 @@ namespace Nodes
             return widget;
         }
 
+        /**
+     * @brief 保存节点状态
+     */
         QJsonObject save() const override
         {
-            QJsonObject modelJson1;
-
-            modelJson1["path"] = filePath;
-            modelJson1["isLoop"] = isLoop;
-            modelJson1["autoPlay"] = autoPlay;
-
-            QJsonObject modelJson  = NodeDelegateModel::save();
-            modelJson["values"]=modelJson1;
+            QJsonObject modelJson = NodeDelegateModel::save();
+            modelJson["filePath"] = filePath;
+            modelJson["isLoop"] = isLoop;
+            modelJson["autoPlay"] = autoPlay;
+            modelJson["volume"] = static_cast<int>(widget->volumeSlider->value());
+            modelJson["fileDisplayText"] = widget->fileDisplay->text();
             return modelJson;
         }
 
+        /**
+     * @brief 加载节点状态
+     */
         void load(const QJsonObject &p) override
         {
-            QJsonValue v = p["values"];
-            if (!v.isUndefined() && v.isObject()) {
-
-                filePath = v["path"].toString();
-                isLoop = v["isLoop"].toBool();
-                autoPlay = v["autoPlay"].toBool();
+            QJsonObject modelJson = p;
+            
+            if (modelJson.contains("filePath")) {
+                filePath = modelJson["filePath"].toString();
+            }
+            
+            if (modelJson.contains("isLoop")) {
+                isLoop = modelJson["isLoop"].toBool();
+                widget->loopCheckBox->setChecked(isLoop);
+                player->setLooping(isLoop);
+            }
+            
+            if (modelJson.contains("autoPlay")) {
+                autoPlay = modelJson["autoPlay"].toBool();
+            }
+            
+            if (modelJson.contains("volume")) {
+                int volume = modelJson["volume"].toInt();
+                widget->volumeSlider->setValue(volume);
+                player->setVolume(volume / 100.0f);
+            }
+            
+            if (modelJson.contains("fileDisplayText")) {
+                widget->fileDisplay->setText(modelJson["fileDisplayText"].toString());
+            }
+            
+            // 如果有文件路径，重新初始化解码器
+            if (!filePath.isEmpty() && QFile::exists(filePath)) {
+                auto res = player->initializeFFmpeg(filePath);
+                if (res) {
+                    isReady = true;
+                    if (autoPlay) {
+                        QTimer::singleShot(100, this, &AudioDecoderDataModel::playAudio);
+                    }
+                }
             }
         }
 
@@ -180,19 +257,17 @@ namespace Nodes
             if(fileName!="")
             {
                 filePath=fileName;
-                if (player->isPlaying){
+                if (player->getPlaying()){
                     player->stopPlay();
                 }
                 auto res=player->initializeFFmpeg(filePath);
+
                 if(!res){
                     isReady= false;
                     return;
                 }
                 isReady= true;
                 widget->fileDisplay->setText(filePath.split("/").last());
-                // QJsonModel *resout=new QJsonModel(*res);
-                // widget->treeWidget->setModel(resout);
-                //        准备音频文件
             }
             delete fileDialog;
         }
@@ -201,15 +276,14 @@ namespace Nodes
          * 播放音频
          */
         void playAudio() {
+
             if (!isReady) {
                 return;
             }
 
-            if (audioData) {
-                player->stopPlay(); // 先停止之前的播放
-                player->startPlay();
-                Q_EMIT dataUpdated(0);
-            }
+            player->stopPlay(); // 先停止之前的播放
+            player->startPlay();
+
         }
         /**
          * 停止播放
@@ -217,23 +291,29 @@ namespace Nodes
         void stopAudio(){
             player->stopPlay();
         }
-
-    private slots:
         /**
-         * 处理音频帧
-         * @param frame 音频帧
+ * @brief 音量改变槽函数
+ * @param value 音量值 (0-100)
+ */
+        void onVolumeChanged(int value) {
+            float volume = value / 100.0f;
+            player->setVolume(volume);
+            qDebug() << "音量设置为:" << value << "%";
+        }
+
+        /**
+         * @brief 循环播放切换槽函数
+         * @param checked 是否启用循环播放
          */
-        void handleAudioFrame(AudioFrame frame) {
-            if (audioData) {
-                audioData->updateAudioFrame(frame);
-                Q_EMIT dataUpdated(0);
-            }
+        void onLoopToggled(bool checked) {
+            isLoop = checked;
+            player->setLooping(checked);
+            qDebug() << "循环播放:" << (checked ? "启用" : "禁用");
         }
 
     private:
-        // AudioPipe *pi=new AudioPipe;
 
-        std::shared_ptr<AudioData> audioData;
+        float currentVolume = 0.5f;  // 新增当前音量记录
 
         AudioDecoderInterface *widget=new AudioDecoderInterface();
         //    界面控件
@@ -243,8 +323,6 @@ namespace Nodes
         bool autoPlay=false;
         bool isReady= false;
 
-
     };
 }
-//==============================================================================
 

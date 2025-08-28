@@ -56,14 +56,9 @@ public:
             WidgetEmbeddable = false;
             Resizable = true;
             PortEditable = true;
-            
-            // // 初始化JavaScript引擎
-            // initJSEngine();
-    
             // 连接Future完成信号到处理槽
             connect(&m_jsWatcher, &QFutureWatcher<QJSValue>::finished, this, &CustomScriptDataModel::handleJsExecutionFinished);
-        
-        // 注意：不再需要插件选择器相关的连接，因为每个节点对应一个特定插�?
+
     }
     
     /**

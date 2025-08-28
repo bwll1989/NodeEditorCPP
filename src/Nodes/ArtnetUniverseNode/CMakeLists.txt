@@ -8,8 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 
 add_library(${Module_Name} SHARED
-        ../../Common/Devices/TcpServer/TcpServer.cpp
-        ../../Common/Devices/TcpServer/TcpServer.h
         ArtnetUniverseDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp

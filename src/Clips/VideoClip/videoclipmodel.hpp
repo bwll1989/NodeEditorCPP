@@ -26,14 +26,16 @@ namespace Clips
         explicit VideoClipModel(int start,const QString& filePath = QString(), QObject* parent = nullptr)
             : AbstractClipModel(start, "Video", parent),
               m_filePath(filePath),
-              m_editor(nullptr)
+              m_editor(nullptr),
+            fileNameLabel(new QLineEdit())
         {
             EMBEDWIDGET = false;
             SHOWBORDER = true;
             ClipColor=QColor("#6666cc");
             initPropertyWidget();
+
             if (!filePath.isEmpty()) {
-                loadVideoInfo(filePath);
+                setFilePath(filePath);
             }
             m_server = getClientControlInstance();
 
@@ -56,6 +58,7 @@ namespace Clips
             if (m_filePath != path) {
                 m_filePath = path;
                 loadVideoInfo(path);
+                fileNameLabel->setText(m_filePath);
                 emit filePathChanged(path);
             }
         }
@@ -99,10 +102,10 @@ namespace Clips
 
         void load(const QJsonObject& json) override {
             AbstractClipModel::load(json);
-            m_filePath = json["filePath"].toString();
-
+            m_filePath = json["file"].toString();
             if(!m_filePath.isEmpty()) {
-                loadVideoInfo(m_filePath);
+                setFilePath(m_filePath);
+                fileNameLabel->setText(m_filePath);
             }
             if(json.contains("position")) {
                 QJsonObject position = json["position"].toObject();
@@ -148,7 +151,6 @@ namespace Clips
             // // durationBox->setText(""(length(), timecode_frames_per_sec(getTimecodeType())));
             // basicLayout->addWidget(durationBox, 1, 1);
             // 文件名显示
-            auto* fileNameLabel = new QLineEdit(filePath(), basicGroup);
             fileNameLabel->setReadOnly(true);
             basicLayout->addWidget(fileNameLabel, 2, 0, 1, 2);
             // 媒体文件选择
@@ -165,7 +167,6 @@ namespace Clips
 
                 if (!filePath.isEmpty()) {
                     setFilePath(filePath);  // 这会触发视频信息加载和长度更新
-                    fileNameLabel->setText(filePath);
                     // 更新时长显示，使用时间码格式
                     // durationBox->setText(FramesToTimeString(length(), getFrameRate(getTimecodeType())));
 
@@ -314,6 +315,7 @@ namespace Clips
         QSpinBox* height;
         QSpinBox* layer;
         QSpinBox* rotation;
+        QLineEdit* fileNameLabel;
         SocketTransmitter* m_server;
     };
 }

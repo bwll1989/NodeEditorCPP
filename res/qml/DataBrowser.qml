@@ -196,9 +196,9 @@ Rectangle {
                     
                     // 计算列宽 - 比例 2:1:7
                     property int totalWidth: parent.width - 10 // 减去边距
-                    property int column1Width: totalWidth * 0.2  // 40% - 比例2
-                    property int column2Width: totalWidth * 0.1  // 20% - 比例1
-                    property int column3Width: totalWidth * 0.7  // 40% - 比例2
+                    property int column1Width: totalWidth * 0.4  // 40% - 比例2
+                    property int column2Width: totalWidth * 0.2  // 20% - 比例1
+                    property int column3Width: totalWidth * 0.4  // 40% - 比例2
                     
                     RowLayout {
                         anchors.fill: parent

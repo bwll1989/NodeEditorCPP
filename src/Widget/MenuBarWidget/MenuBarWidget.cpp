@@ -77,8 +77,15 @@ void MenuBarWidget::setupMenu() {
                     << "--no-gui"
                 << "--send"
                 <<"127.0.0.1:8991";  // 主机地址
-            openToolWithArgs("open-stage-control/open-stage-control.exe", args);
+            openOSCInterface("open-stage-control/open-stage-control.exe", args);
        });
+
+    ArtnetRecoderToolAction=Tool_menu->addAction("Artnet录制器");
+    ArtnetRecoderToolAction->setIcon(QIcon(":/icons/icons/ArtNet.png"));
+    connect(ArtnetRecoderToolAction, &QAction::triggered, this, [this]() {
+        openToolWithArgs("ArtnetRecorder.exe", QStringList());
+    });
+
     About_menu=this->addMenu("关于");
     aboutAction = About_menu->addAction("关于NodeEditorCPP");
     aboutAction->setIcon(QIcon(":/icons/icons/about.png"));
@@ -88,6 +95,23 @@ void MenuBarWidget::setupMenu() {
     aboutQtAction->setIcon(QIcon(":/icons/icons/about.png"));
     connect(aboutQtAction, &QAction::triggered, this, &QApplication::aboutQt);
     // 关于qt窗口
+}
+
+void MenuBarWidget::openOSCInterface(const QString& exePath, const QStringList& args) {
+     QString fullPath = QCoreApplication::applicationDirPath() + "/" + exePath;
+
+    QProcess *process = new QProcess(this);
+    process->setWorkingDirectory(QCoreApplication::applicationDirPath());
+
+    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            process, &QProcess::deleteLater);
+    if (QFile::exists(fullPath)) {
+        process->start(fullPath, args);
+        qDebug()<<"open stage control is running on http://localhost:8080";
+    } else {
+        QMessageBox::warning(this, "错误", QString("找不到可执行文件：%1").arg(fullPath));
+        process->deleteLater();
+    }
 }
 
 void MenuBarWidget::openToolWithArgs(const QString& exePath, const QStringList& args) {
@@ -101,7 +125,6 @@ void MenuBarWidget::openToolWithArgs(const QString& exePath, const QStringList& 
     
     if (QFile::exists(fullPath)) {
         process->start(fullPath, args);
-        qDebug()<<"open stage control is running on port http://localhost:8080";
     } else {
         QMessageBox::warning(this, "错误", QString("找不到可执行文件：%1").arg(fullPath));
         process->deleteLater();
