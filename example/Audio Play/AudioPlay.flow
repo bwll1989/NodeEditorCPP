@@ -3,6 +3,18 @@
         "connections": [
             {
                 "inPortIndex": 1,
+                "intNodeId": 14,
+                "outNodeId": 15,
+                "outPortIndex": 3
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 13,
+                "outNodeId": 15,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
                 "intNodeId": 12,
                 "outNodeId": 15,
                 "outPortIndex": 5
@@ -14,16 +26,10 @@
                 "outPortIndex": 2
             },
             {
-                "inPortIndex": 1,
-                "intNodeId": 14,
-                "outNodeId": 15,
-                "outPortIndex": 3
-            },
-            {
                 "inPortIndex": 0,
-                "intNodeId": 13,
+                "intNodeId": 11,
                 "outNodeId": 15,
-                "outPortIndex": 0
+                "outPortIndex": 6
             },
             {
                 "inPortIndex": 0,
@@ -36,12 +42,6 @@
                 "intNodeId": 12,
                 "outNodeId": 15,
                 "outPortIndex": 4
-            },
-            {
-                "inPortIndex": 0,
-                "intNodeId": 11,
-                "outNodeId": 15,
-                "outPortIndex": 6
             },
             {
                 "inPortIndex": 1,
@@ -77,6 +77,16 @@
         "groups": [
             {
                 "nodeIds": [
+                    17,
+                    11,
+                    13,
+                    14,
+                    12
+                ],
+                "remarks": "音频输出"
+            },
+            {
+                "nodeIds": [
                     16,
                     19
                 ],
@@ -88,16 +98,6 @@
                     15
                 ],
                 "remarks": "音频解码"
-            },
-            {
-                "nodeIds": [
-                    17,
-                    11,
-                    13,
-                    14,
-                    12
-                ],
-                "remarks": "音频输出"
             }
         ],
         "nodes": [
@@ -197,7 +197,7 @@
                     "fileDisplayText": "7.1  方位  测试音.wav",
                     "filePath": "D:/02_Media/02_Audios/01_TestAudios/7.1  方位  测试音.wav",
                     "isLoop": true,
-                    "volume": 50
+                    "volume": 20
                 },
                 "output-count": 8,
                 "port-editable": true,
@@ -213,7 +213,7 @@
                 "input-count": 1,
                 "internal-data": {
                     "values": {
-                        "val": "1"
+                        "val": "0"
                     }
                 },
                 "output-count": 1,
@@ -255,7 +255,7 @@
                     "fileDisplayText": "02_果园里的小淘气.wav",
                     "filePath": "D:/19_NodeEditorCPP/NodeEditorCPP/example/Audio Play/02_果园里的小淘气.wav",
                     "isLoop": false,
-                    "volume": 17
+                    "volume": 20
                 },
                 "output-count": 2,
                 "port-editable": true,
@@ -271,7 +271,7 @@
                 "input-count": 1,
                 "internal-data": {
                     "values": {
-                        "val": 60
+                        "val": 20
                     }
                 },
                 "output-count": 1,

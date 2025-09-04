@@ -334,7 +334,7 @@ private:
             Q_UNUSED(inputBuffer)
             Q_UNUSED(timeInfo)
             Q_UNUSED(statusFlags)
-
+            qDebug()<<QDateTime::currentMSecsSinceEpoch();
             AudioDeviceOutDataModel* model = static_cast<AudioDeviceOutDataModel*>(userData);
             return model->processAudio(outputBuffer, framesPerBuffer);
         }

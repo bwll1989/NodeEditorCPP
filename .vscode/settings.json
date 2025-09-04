@@ -108,6 +108,7 @@
         "qjsvaluelist": "cpp",
         "qjsvalueiterator": "cpp",
         "qtconcurrentrun": "cpp",
-        "qjsonarray": "cpp"
+        "qjsonarray": "cpp",
+        "alignedvector3": "cpp"
     }
 }

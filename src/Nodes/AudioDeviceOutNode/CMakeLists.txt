@@ -9,6 +9,8 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp
         PluginDefinition.hpp
         AudioDeviceOutDataModel.cpp
+        ../../DataTypes/AudioTimestampRingQueue.h
+        ../../DataTypes/AudioTimestampRingQueue.cpp
 )
 
 target_link_libraries(${Module_Name}

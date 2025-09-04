@@ -56,5 +56,7 @@ add_subdirectory(NDVPlayerNode)       #NDV player
 add_subdirectory(ArtnetDeviceNode)    #Artnet 设备
 add_subdirectory(ArtnetUniverseNode)  #Artnet Universe
 add_subdirectory(ArtnetOutNode)       #Artnet输出
-add_subdirectory(ArtnetPlaybackNode)
+add_subdirectory(ArtnetPlaybackNode)  #Artnet数据回放
 add_subdirectory(CustomScriptNode)    #自定义js节点
+add_subdirectory(AudioDeviceInNode)   #音频输入节点
+add_subdirectory(NoiseGeneratorNode)  #噪声生成器节点

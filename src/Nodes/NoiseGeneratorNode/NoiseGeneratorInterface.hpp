@@ -17,12 +17,12 @@
 ///
 namespace Nodes
 {
-    class AudioDecoderInterface: public QWidget{
+    class NoiseGeneratorInterface: public QWidget{
     public:
         /*构造
          *
          */
-        explicit AudioDecoderInterface(QWidget *parent = nullptr) {
+        explicit NoiseGeneratorInterface(QWidget *parent = nullptr) {
             main_layout = new QGridLayout(this);  // 正确初始化网格布局
 
             // 初始化文件显示框（设为只读）

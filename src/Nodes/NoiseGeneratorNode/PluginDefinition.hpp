@@ -5,15 +5,15 @@
 #include <QtNodes/PluginInterface>
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef AudioDeviceInNode_EXPORTS
+#ifdef NoiseGeneratorNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "Audio Device In"
+#define PLUGIN_NAME "Noise Generator"
 #define PLUGIN_VERSION "20250828"
-#define PLUGIN_DESCRIPE "输入音频设备"
+#define PLUGIN_DESCRIBE "噪声生成器"
 #define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin
     : public QObject
@@ -29,7 +29,7 @@ public:
 
     QString name() const override { return PLUGIN_NAME; };
     QString version() const override {return PLUGIN_VERSION;};
-    QString describe() const override {return PLUGIN_DESCRIPE;};
+    QString describe() const override {return PLUGIN_DESCRIBE;};
     QString tag() const override {return PLUGIN_TAG;};
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 

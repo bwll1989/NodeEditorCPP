@@ -1,0 +1,154 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 3,
+                "outNodeId": 0,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 4,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 6,
+                "outNodeId": 0,
+                "outPortIndex": 1
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 1,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+        ],
+        "nodes": [
+            {
+                "id": 0,
+                "input-count": 4,
+                "internal-data": {
+                    "autoPlay": false,
+                    "fileDisplayText": "02_果园里的小淘气.wav",
+                    "filePath": "D:/19_NodeEditorCPP/NodeEditorCPP/example/Audio Play/02_果园里的小淘气.wav",
+                    "isLoop": true,
+                    "volume": 0
+                },
+                "output-count": 2,
+                "port-editable": true,
+                "position": {
+                    "x": -286.3839999999999,
+                    "y": 112.60799999999998
+                },
+                "remarks": "Audio Decoder",
+                "type": "Audio Decoder"
+            },
+            {
+                "id": 1,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "selectedDeviceData": 6,
+                        "selectedDeviceIndex": 6,
+                        "selectedDeviceText": "6: Microsoft 声音映射器 - Output (MME)",
+                        "selectedDriverData": -1,
+                        "selectedDriverIndex": 0,
+                        "selectedDriverText": "All Drivers"
+                    }
+                },
+                "output-count": 0,
+                "port-editable": true,
+                "position": {
+                    "x": 758.7135828898457,
+                    "y": 176.80450378552132
+                },
+                "remarks": "Audio Device Out",
+                "type": "Audio Device Out"
+            },
+            {
+                "id": 3,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "ControllerState": "",
+                        "PluginPath": "D:/19_NodeEditorCPP/NodeEditorCPP/build/bin/plugins/VST3/AnSpec.vst3",
+                        "PluginUID": "",
+                        "ProcessorState": "YXByc1MDAABXAFkBeF59U01LxDAUrF5cUVEQFBFFEY8pCiKiCF3w46IH8RekzVMDyUtIUoue/An+ZF/LVrbbNoVpknmTmdeQridJgmcXV9d38MZLFVZpvUHIvyz3ngHyXMENEfsEXgppUm3EM5eYdiRLVK6RzMZ2Xj8TwrszpfWgLmm+07NqqzGXuiuJPnAsgCHX8JgMddWRtB5DmM/YImjazSqJwlTMy294IO6wZ7+oWnRbbtv9/cma8ajKdmt3I6b4aqFIP6QAVhgMzih/T6XTfsiwOHY6J50Myx3XrDlVpvM05yjIpcTwQrLzSN7oxvHsLNvuZDsQTMEnqCnRx5Gsf2HsuzY73l4ZC7dEHUR8G9G45yRbo7d14CE0l+SJlns9vzlB7BatEGa/Tkv9AeNFs7g="
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 104,
+                    "y": 90
+                },
+                "remarks": "AnSpec",
+                "type": "AnSpec"
+            },
+            {
+                "id": 4,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "ControllerState": "",
+                        "PluginPath": "D:/19_NodeEditorCPP/NodeEditorCPP/build/bin/plugins/VST3/PrimeEQ.vst3",
+                        "PluginUID": "",
+                        "ProcessorState": "YXBycw8VAAAlAH8AeF61WD2M3EQUdnIHLCSB6BSCAjk4EiJCwMv95RL+tJb4iYLyewghkQbv7uyuhe1xPN5bLkiIAim0UFAhQDTpEHRQ3VEgJAoUKamoEAUS3VVIdLzn8fj8NzM3imJpdvxm3ve+92bePNu717Isf36JvvgaGbhjPzkB8j5o3fXIZcwmodv1yUsw8Bg0d9z3aDug/fOuF7ZLKrtgGpuV9eIerxa0YUzHESP+CtwfrJkSsyor6JUXssQNe8QO3YCcsZq8KqkIG02tyHEYbVM7cmM3YO3eyA1D4tupVzajPn0T5k/UqRQIVSQPl9g4Br1lv8LEUQVNQbUaTasiL+wuCItTBWFpuiAs31MQTt5bEFbuKwiniuZPCwEp0DIaRDsIRxTOz1i1GL1w+AGMzlmaAEGvunot686vR62iR15oi01L13MCNMctuWdV/er676/I54rrvyrWH/uzF/Id4GK+B1zMd4GL+T5wMd8JLp6+vyS+8EAmTqfiwvyesrywtywv7ivLSw+W5eWHyvLJ/WV5RciqVEAX0S/0BfmRE3nQNuIPWJWNgSRIIAmuwfgRS7klmaY8XbY62Y1jGV7lBA4Y3Hkx0yWw0LsbCVwuGxC5CP9DS102Cqp3Y6WwBm+TsRGd2K7vi+PCzsL0M5bcuxqg6qO4xwvzJQC8PfHCPuCYd428AWOP1wiqWlWru4XJzetO2n/zkYMZCfiL4+RM+lSCn1dgaLZuvKwk93ir8wS3eSn2AvL65Ta5KuLuumHf7tFxmJwHFbuJQwWSc7acR6Sck7dh6tgOuSZVjqmcY9qp9odknIOYXB3C5NM7Y0X1Ki9WlH++v/HlxsHPnF++29j11dSq8/Krf737+WST8ztfZ/2G3A/cqHd27kfTvmL8q+/d/vfHK/91jv9u/zT67XbnxvVvoz9O/d2R8sIgMeBFdfm6i1O63c/KeKOYrKGxK6Dw7M64BUTOX7+wTpaMxW44JI7VVCfreqosPly2zCLSs70gonECJ8CncfNLmQohZ+MVpIodh30S++46f687BxrPafnKGBXj0TpjEo8DsRmu7w3D+X73Mqgt6GibgCrupzTcYeKBGZetgt6iEblAqtiPaNjXhgnMXAKteSNujpMzb3WOqZm7Pu29nz4u3gLFJRPybaic/4CjibzvMfyYMo48w6nWvPIcqloYeL6vfQ41gVSrrckyLPX2yBuOjLMsR0rZP73laM5XasOnE+PzJYDyyJcdTeQwxT9QiWUYeY4UjE0N37yz73kx9KTaIToYMJJcBKXnTbzhMFXaaRKermGxjIwTPsPJmf/UHfX08ZPmkPFR34Y28d/85Au7M7upS35uBNLIOPlzZBP7zJ6ff3A+ntOxM9Lj/9sYs+fIO9h1sJGsR+ZlLsPJmVvOnIbZpxG5ADptI15EyVlndMedBZQmI/j8Ml9tgVSttqa045IZl3b1OmvrCf/wMq4nHKbixT8R4DUVqk5aBfGd7FCNoaAg8E2toUz+D54Jt7s="
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 402,
+                    "y": 65
+                },
+                "remarks": "PrimeEQ",
+                "type": "PrimeEQ"
+            },
+            {
+                "id": 6,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "ControllerState": "",
+                        "PluginPath": "D:/19_NodeEditorCPP/NodeEditorCPP/build/bin/plugins/VST3/Surge XT Effects.vst3",
+                        "PluginUID": "",
+                        "ProcessorState": "VkMyIWAEAAA8P3htbCB2ZXJzaW9uPSIxLjAiIGVuY29kaW5nPSJVVEYtOCI/PiA8c3VyZ2VmeCBzdHJlYW1pbmdWZXJzaW9uPSIyIiBmeHBfMD0iMC4wMDQ5OTk5OTk4ODgyNDEyOTEiIHN1cmdldmFsdHlwZV8wPSIwIiBzdXJnZXZhbF8wPSIwIiBmeHBfcGFyYW1fZmVhdHVyZXNfMD0iMCIgZnhwXzE9IjEuMCIgc3VyZ2V2YWx0eXBlXzE9IjIiIHN1cmdldmFsXzE9IjkuMCIgZnhwX3BhcmFtX2ZlYXR1cmVzXzE9IjAiIGZ4cF8yPSIwLjQ5MjAwMDAxMzU4OTg1OSIgc3VyZ2V2YWx0eXBlXzI9IjIiIHN1cmdldmFsXzI9IjAuNDkyMDAwMDEzNTg5ODU5IiBmeHBfcGFyYW1fZmVhdHVyZXNfMj0iMCIgZnhwXzM9IjEuMCIgc3VyZ2V2YWx0eXBlXzM9IjIiIHN1cmdldmFsXzM9IjQuMCIgZnhwX3BhcmFtX2ZlYXR1cmVzXzM9IjAiIGZ4cF80PSIwLjQ3MjQ0MDk1ODAyMzA3MTMiIHN1cmdldmFsdHlwZV80PSIyIiBzdXJnZXZhbF80PSI2MC4wIiBmeHBfcGFyYW1fZmVhdHVyZXNfND0iMCIgZnhwXzU9IjAuMCIgc3VyZ2V2YWx0eXBlXzU9IjIiIHN1cmdldmFsXzU9IjAuMCIgZnhwX3BhcmFtX2ZlYXR1cmVzXzU9IjAiIGZ4cF82PSIwLjAiIHN1cmdldmFsdHlwZV82PSIyIiBzdXJnZXZhbF82PSIwLjAiIGZ4cF9wYXJhbV9mZWF0dXJlc182PSIwIiBmeHBfNz0iMC4xMDAwMDAwMDE0OTAxMTYxIiBzdXJnZXZhbHR5cGVfNz0iMiIgc3VyZ2V2YWxfNz0iMC4xMDAwMDAwMDE0OTAxMTYxIiBmeHBfcGFyYW1fZmVhdHVyZXNfNz0iMCIgZnhwXzg9IjAuMDA0OTk5OTk5ODg4MjQxMjkxIiBzdXJnZXZhbHR5cGVfOD0iMCIgc3VyZ2V2YWxfOD0iMCIgZnhwX3BhcmFtX2ZlYXR1cmVzXzg9IjAiIGZ4cF85PSIwLjUiIHN1cmdldmFsdHlwZV85PSIyIiBzdXJnZXZhbF85PSIwLjAiIGZ4cF9wYXJhbV9mZWF0dXJlc185PSIwIiBmeHBfMTA9IjAuODk5OTk5OTc2MTU4MTQyMSIgc3VyZ2V2YWx0eXBlXzEwPSIyIiBzdXJnZXZhbF8xMD0iMC43OTk5OTk5NTIzMTYyODQyIiBmeHBfcGFyYW1fZmVhdHVyZXNfMTA9IjAiIGZ4cF8xMT0iMC4wIiBzdXJnZXZhbHR5cGVfMTE9IjAiIHN1cmdldmFsXzExPSIwIiBmeHBfcGFyYW1fZmVhdHVyZXNfMTE9IjAiIGZ4dD0iMTIiIG9zY3Bpbj0iNTMyOTAiIG9zY2luPSIwIi8+AAAAAAAAAAAASlVDRVByaXZhdGVEYXRhAAEBQnlwYXNzAAEBAwAdAAAAAAAAAEpVQ0VQcml2YXRlRGF0YQ=="
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 179,
+                    "y": 297
+                },
+                "remarks": "Surge XT Effects",
+                "type": "Surge XT Effects"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+        ]
+    }
+}

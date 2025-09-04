@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "AudioDeviceInDataModel.hpp"
+#include "NoiseGeneratorDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -17,7 +17,6 @@ Plugin::~Plugin()
 void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg)
 {
     assert(reg);
-    //加载插件时就实例化对象一次，通过牺牲启动速度，换取模块打开速度
-    reg->registerModelInstance<Nodes::AudioDeviceInDataModel>(tag());
-    // reg->registerModel<Nodes::AudioDeviceOutDataModel>(name(),tag());
+
+    reg->registerModel<Nodes::NoiseGeneratorDataModel>(name(),tag());
 }

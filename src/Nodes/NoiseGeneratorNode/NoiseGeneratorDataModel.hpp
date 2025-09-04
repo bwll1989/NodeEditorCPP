@@ -4,7 +4,7 @@
 #include <iostream>
 #include <QPushButton>
 #include "DataTypes/NodeDataList.hpp"
-#include "AudioDecoderInterface.hpp"
+#include "NoiseGeneratorInterface.hpp"
 #include "QFileDialog"
 #include <memory>
 
@@ -28,14 +28,14 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
-    class AudioDecoderDataModel : public NodeDelegateModel
+    class NoiseGeneratorDataModel : public NodeDelegateModel
     {
         Q_OBJECT
     public:
         /**
        * @brief 构造函数，初始化音频解码Node，支持动态多通道分离输出
        */
-        AudioDecoderDataModel(){
+        NoiseGeneratorDataModel(){
             InPortCount = 4;
             OutPortCount = 2;  // 初始输出端口数，可动态调整
             CaptionVisible = true;
@@ -45,14 +45,14 @@ namespace Nodes
             PortEditable = true;
 
 
-            connect(widget->fileSelectButton,&QPushButton::clicked,this,&AudioDecoderDataModel::select_audio_file,Qt::QueuedConnection);
-            connect(widget->playButton,&QPushButton::clicked,this,&AudioDecoderDataModel::playAudio,Qt::QueuedConnection);
-            connect(widget->stopButton,&QPushButton::clicked,this,&AudioDecoderDataModel::stopAudio,Qt::QueuedConnection);
+            connect(widget->fileSelectButton,&QPushButton::clicked,this,&NoiseGeneratorDataModel::select_audio_file,Qt::QueuedConnection);
+            connect(widget->playButton,&QPushButton::clicked,this,&NoiseGeneratorDataModel::playAudio,Qt::QueuedConnection);
+            connect(widget->stopButton,&QPushButton::clicked,this,&NoiseGeneratorDataModel::stopAudio,Qt::QueuedConnection);
             // 新增信号连接
             connect(widget->volumeSlider, &QDoubleSpinBox::valueChanged,
-                    this, &AudioDecoderDataModel::onVolumeChanged, Qt::QueuedConnection);
+                    this, &NoiseGeneratorDataModel::onVolumeChanged, Qt::QueuedConnection);
             connect(widget->loopCheckBox, &QCheckBox::toggled,
-                    this, &AudioDecoderDataModel::onLoopToggled, Qt::QueuedConnection);
+                    this, &NoiseGeneratorDataModel::onLoopToggled, Qt::QueuedConnection);
 
             // 注册OSC控制
             NodeDelegateModel::registerOSCControl("/volume", widget->volumeSlider);
@@ -64,7 +64,7 @@ namespace Nodes
         /**
          * @brief 析构函数，释放资源
          */
-        ~AudioDecoderDataModel(){
+        ~NoiseGeneratorDataModel(){
             if (player->getPlaying()){
                 player->stopPlay();
             }
@@ -237,7 +237,7 @@ namespace Nodes
                 if (res) {
                     isReady = true;
                     if (autoPlay) {
-                        QTimer::singleShot(100, this, &AudioDecoderDataModel::playAudio);
+                        QTimer::singleShot(100, this, &NoiseGeneratorDataModel::playAudio);
                     }
                 }
             }
@@ -313,7 +313,7 @@ namespace Nodes
 
         float currentVolume = 0.5f;  // 新增当前音量记录
 
-        AudioDecoderInterface *widget=new AudioDecoderInterface();
+        NoiseGeneratorInterface *widget=new NoiseGeneratorInterface();
         //    界面控件
         AudioDecoder *player=new AudioDecoder();
         QString filePath="";

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-set(Module_Name "AudioDecoderNode")
+set(Module_Name "NoiseGeneratorNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,8 +9,8 @@ set(CMAKE_AUTOMOC ON)
 # 自动调用moc(元对象编译器)
 set(CMAKE_AUTORCC ON)
 add_library(${Module_Name} SHARED
-        AudioDecoderDataModel.hpp
-        AudioDecoderInterface.hpp
+        NoiseGeneratorDataModel.hpp
+        NoiseGeneratorInterface.hpp
         AudioDecoder.hpp
         AudioDecoder.cpp
         PluginDefinition.cpp

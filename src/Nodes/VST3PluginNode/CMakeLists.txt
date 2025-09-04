@@ -10,17 +10,27 @@ set(SMTG_ADD_VST3_HOSTING_SAMPLES 0 CACHE INTERNAL "")
 include_directories(${VST3_DIR})
 add_library(${Module_Name} SHARED
         VST3PluginDataModel.hpp
+        VST3PluginDataModel.cpp
         PluginDefinition.hpp
         PluginDefinition.cpp
         VST3PluginInterface.hpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
+        Vst3PluginManager.cpp
+        Vst3PluginManager.hpp
+        Vst3DataStream.hpp
+        Vst3DataStream.cpp
+        VST3AudioProcessingThread.hpp
+        VST3AudioProcessingThread.cpp
+        ../../DataTypes/AudioTimestampRingQueue.h
+        ../../DataTypes/AudioTimestampRingQueue.cpp
+#        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
+#        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         ${VST3_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/plugprovider.h
         UI/WindowContainer.hpp
         Container.cpp
         Container.h
+        ParameterChanges.hpp
 )
 #set(APP_PROPERTIES
 #        LINK_FLAGS "/SUBSYSTEM:windows"
@@ -39,6 +49,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         sdk
         sdk_common
         sdk_hosting
+
 )
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

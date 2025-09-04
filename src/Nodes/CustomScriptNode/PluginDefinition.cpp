@@ -75,7 +75,7 @@ QString Plugin::getPluginDirectory() const
             qWarning() << "无法创建插件目录:" << pluginDir;
             // 回退到用户文档目录
             QString userDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-            pluginDir = QDir(userDir).absoluteFilePath("NodeEditor/JSPlugins");
+            pluginDir = QDir(userDir).absoluteFilePath("plugins/JSPlugins");
             QDir(pluginDir).mkpath(pluginDir);
         }
     }

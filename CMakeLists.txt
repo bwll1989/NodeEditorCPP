@@ -57,8 +57,13 @@ set(QHotKey_LIBRARIES "${DEPENDS_DIR}/QHotkey-master/MSVC/lib/qhotkey.lib")
 INCLUDE_DIRECTORIES(${QHotKey_INCLUDE_DIRS} )
 message("-- Found QHotkey ${QHotKey_INCLUDE_DIRS}")
 # 设置VST3库
-set(VST3_DIR "${DEPENDS_DIR}/vst3sdk")
-set(VST3_LIBRARIES_DIR "${VST3_DIR}/MSVC/lib")
+#set(VST3_DIR "${DEPENDS_DIR}/vst3sdk")
+#set(VST3_LIBRARIES_DIR "${VST3_DIR}/MSVC/lib")
+#include_directories(${VST3_DIR})
+#link_directories(${VST3_LIBRARIES_DIR})
+#message("-- Found vst3sdk ${VST3_DIR}")
+set(VST3_DIR "${DEPENDS_DIR}/vst-sdk_3.7.14_build-55_2025-06-23/VST_SDK/vst3sdk")
+set(VST3_LIBRARIES_DIR "${DEPENDS_DIR}/vst-sdk_3.7.14_build-55_2025-06-23/VST_SDK/build/lib/Release")
 include_directories(${VST3_DIR})
 link_directories(${VST3_LIBRARIES_DIR})
 message("-- Found vst3sdk ${VST3_DIR}")
@@ -156,6 +161,9 @@ set(CALC_SOURCE_FILES
         3rdParty/tinyosc-msvc/tinyosc.c
         3rdParty/tinyosc-msvc/tinyosc.h
         src/DataTypes/NodeDataList.hpp
+        src/DataTypes/AudioData.h
+        src/DataTypes/AudioTimestampRingQueue.h
+        src/DataTypes/AudioTimestampRingQueue.cpp
         src/Widget/NodeWidget/CustomGraphicsView.cpp
         src/Widget/NodeWidget/CustomGraphicsView.h
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.cpp
@@ -257,6 +265,8 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/TimeLineView.h
         src/Widget/TimeLineWidget/TrackListView.cpp
         src/Widget/TimeLineWidget/TrackListView.h
+        src/DataTypes/AudioTimestampRingQueue.cpp
+        src/DataTypes/AudioTimestampRingQueue.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

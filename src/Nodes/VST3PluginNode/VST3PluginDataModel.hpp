@@ -17,9 +17,15 @@
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 #include "pluginterfaces/vst/ivsteditcontroller.h"
 #include "base/source/fdebug.h"
-#include <QFileDialog>
+
 #include "VST3PluginInterface.hpp"
 #include "Container.h"
+#include "VST3AudioProcessingThread.hpp"  // 添加多线程处理类
+#include <memory>
+#include "ParameterChanges.hpp"
+#include "pluginterfaces/base/funknown.h"
+#include "pluginterfaces/vst/ivstparameterchanges.h"
+#include "Vst3DataStream.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -27,201 +33,171 @@ using QtNodes::PortType;
 using namespace Steinberg;
 using namespace VST3;
 using namespace NodeDataTypes;
+
+// 改进的音频处理数据结构
+struct AudioProcessingData {
+    Steinberg::Vst::ProcessData vstData;
+    std::vector<Steinberg::Vst::AudioBusBuffers> vstInput;
+    std::vector<Steinberg::Vst::AudioBusBuffers> vstOutput;
+
+    // 支持双精度和单精度
+    std::vector<std::vector<float>> floatBuffers;
+    std::vector<std::vector<double>> doubleBuffers;
+
+    // 音频总线信息
+    std::vector<int> inputChannelCounts;
+    std::vector<int> outputChannelCounts;
+    int totalInputChannels = 0;
+    int totalOutputChannels = 0;
+
+    // 处理精度标志
+    bool useDoubleProcessing = false;
+};
+
+
+// 改进的参数管理
+struct ParameterManager {
+    std::map<Vst::ParamID, Vst::ParamValue> currentValues;
+    std::map<Vst::ParamID, std::unique_ptr<ParamValueQueue>> paramQueues;
+    ParameterChanges inputChanges;
+    ParameterChanges outputChanges;
+};
+
 namespace Nodes
 {
     class VST3PluginDataModel : public NodeDelegateModel
     {
         Q_OBJECT
     public:
-        VST3PluginDataModel(){
-            InPortCount =1;
-            OutPortCount=2;
-            CaptionVisible=true;
-            Caption="VST3 Plugin";
-            WidgetEmbeddable=true;
-            Resizable=false;
-            widget=new VST3PluginInterface();
-            connect(widget->SelectVST,&QPushButton::clicked,this,&VST3PluginDataModel::onTextEdited);
-            //        connect(this->widget, &VST3PluginInterface::SelectVst3, this, &VST3PluginDataModel::onTextEdited);
-            connect(widget->ShowController,&QPushButton::clicked,this,&VST3PluginDataModel::showController);
-        }
-        ~VST3PluginDataModel(){
-            //        delete button;
-
-        }
+        /**
+         * @brief 构造函数，初始化VST3插件节点
+         */
+        VST3PluginDataModel(const QString& path);
+        
+        /**
+         * @brief 析构函数，清理VST3插件资源
+         */
+        ~VST3PluginDataModel();
+        
     public slots:
-        void onTextEdited()
-        {
-            //        QFileDialog *fileDialog=new QFileDialog();
-
-            QString fileName = QFileDialog::getOpenFileName(nullptr,
-                                                            tr("Select vst3 File"), "./VST3", tr("Audio Files (*.vst3)"));
-            if(fileName!="")
-            {
-                loadPlugin(fileName);
-
-                Q_EMIT dataUpdated(0);
-            }
-
-        }
-        void showController()
-        {
-
-            if (window && window->isVisible()) {
-                // 如果窗口已经显示，不做任何操作
-                window->close();
-                return;
-            }
-
-            // 如果 window 已经存在并且关闭，则重新创建
-
-            view = owned(editController->createView(Vst::ViewType::kEditor));
-            view->addRef();
-            window = std::make_shared<Container>(view);
-
-            window->setWindowTitle(module->getFactory().info().vendor().c_str());
-            window->show();
-        }
+        /**
+         * @brief 显示VST3插件控制界面
+         */
+        void showController();
 
     public:
+        /**
+         * @brief 获取端口数据类型
+         */
+        NodeDataType dataType(PortType portType, PortIndex portIndex) const override;
 
-        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
-        {
-            switch (portType) {
-            case PortType::In:
-                return AudioData().type();
-            case PortType::Out:
-                switch (portIndex)
-                {
-                    case 0:
-                            return AudioData().type();
-                    case 1:
-                            return VariableData().type();
-                }
-            case PortType::None:
-                break;
-            default:
-                break;
-            }
-            return AudioData().type();
-        }
-
-        std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
-        {
-            switch (portIndex)
-            {
-                case 0:
-                    return std::make_shared<AudioData>();
-                case 1:
-                    return std::make_shared<VariableData>(pluginInfo);
-                default:
-                    return std::make_shared<AudioData>();
-            }
-
-        }
-        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
-
-            if (data== nullptr){
-                return;
-            }
-            auto audioData = std::dynamic_pointer_cast<AudioData>(data);
+        /**
+         * @brief 获取输出数据
+         */
+        std::shared_ptr<NodeData> outData(PortIndex const portIndex) override;
+        
+        /**
+         * @brief 设置输入数据并进行VST3音频处理
+         */
+        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override;
 
 
-            Q_EMIT dataUpdated(portIndex);
-        }
-
-
-        QJsonObject save() const override
-        {
-            QJsonObject modelJson1;
-            QJsonObject modelJson  = NodeDelegateModel::save();
-            modelJson["values"]=modelJson1;
-            return modelJson;
-        }
-        void load(const QJsonObject &p) override
-        {
-            QJsonValue v = p["values"];
-            if (!v.isUndefined()&&v.isObject()) {
-
-            }
-        }
-        QWidget *embeddedWidget() override{return widget;}
-
-
-
-        void loadPlugin(const QString& pluginPath) {
-            if (window && window->isVisible()) {
-                // 如果窗口已经显示，不做任何操作
-                window->close();
-            }
-            if(!module){
-                module.reset();
-                pluginContext.reset();
-                plugProvider.reset();
-                vstPlug.reset();
-                editController.reset();
-                audioEffect.reset();
-                view.reset();
-                window.reset();
-            }
-            std::string error;
-            if (!pluginContext) {
-                pluginContext = owned(NEW Steinberg::Vst::HostApplication());
-                Vst::PluginContextFactory::instance().setPluginContext(pluginContext);
-            }
-
-            module =VST3::Hosting::Module::create(pluginPath.toStdString(), error);
-            //        IPtr<Steinberg::Vst::PlugProvider> plugProvider {nullptr};
-            if (!module) {
-                qWarning() << "Failed to load module from path: " << error ;
-                return ;
-            }
-            const auto& factory = module->getFactory();
-
-            pluginInfo["Plugin Path"]=pluginPath;
-            // 假设 VST3::Hosting::Module 提供了相关 API 获取插件信息
-            auto factoryInfo = module->getFactory ().info() ;
-            pluginInfo["Vendor"]= QString::fromStdString(factoryInfo.get().vendor);
-            pluginInfo["Version"]=QString::fromStdString(factoryInfo.get().url);
-            pluginInfo["email"]=QString::fromStdString(factoryInfo.get().email);
-
-            for (auto& classInfo : factory.classInfos ())
-            {
-                if (classInfo.category () == kVstAudioEffectClass)
-                    plugProvider = owned (new Steinberg::Vst::PlugProvider (factory, classInfo, true));
-                if (!plugProvider->initialize()) {
-                    plugProvider = nullptr;
-                    return;
-                }
-                break;
-
-            }
-            editController = plugProvider->getController ();
-            if (!editController)
-            {
-                qDebug()<<"No EditController found (needed for allowing editor) in file ";
-                widget->ShowController->setEnabled(false);
-                return ;
-            }
-
-            vstPlug=plugProvider->getComponent();
-            audioEffect=FUnknownPtr<Steinberg::Vst::IAudioProcessor>(vstPlug);
-            widget->ShowController->setEnabled(true);
-            //        editController->release ();
-            emit dataUpdated(1);
-        }
-
+        /**
+         * @brief 保存节点状态
+         */
+        QJsonObject save() const override;
+        
+        /**
+         * @brief 加载节点状态
+         */
+        void load(const QJsonObject &p) override;
+        
+        QWidget *embeddedWidget() override ;
 
     private:
-        VST3::Hosting::Module::Ptr module = nullptr;
-        Steinberg::IPtr<Steinberg::Vst::PlugProvider> plugProvider = nullptr;
-        Steinberg::IPtr<Steinberg::Vst::IComponent> vstPlug = nullptr;
-        Steinberg::IPtr<Steinberg::Vst::IAudioProcessor> audioEffect = nullptr;
-        Steinberg::IPtr<Steinberg::Vst::IEditController> editController = nullptr;
+        /**
+         * @brief 加载VST3插件
+         * @param pluginPath 插件文件路径
+         */
+        void loadPlugin(const QString& pluginPath) ;
+        
+        /**
+         * @brief 初始化VST3音频处理
+         */
+        void initializeAudioProcessing();
+            
+
+        /**
+         * @brief 验证VST3接口的完整性
+         */
+        bool validateVST3Interfaces() ;
+
+        void processAudioData();
+        /**
+         * @brief 设置音频总线配置
+         */
+        void setupAudioBuses();
+
+        /**
+         * @brief 初始化音频缓冲区
+         */
+        void initializeAudioBuffers();
+
+        /**
+         * @brief 双精度音频处理
+         */
+        void processAudioDouble(const AudioFrame& inputFrame);
+
+        /**
+         * @brief 单精度音频处理
+         */
+        void processAudioFloat(const AudioFrame& inputFrame);
+        /**
+         * @brief 读取VST3处理器状态
+         * @return 序列化的处理器状态数据
+         */
+        QByteArray readProcessorState() const;
+
+        /**
+         * @brief 读取VST3控制器状态
+         * @return 序列化的控制器状态数据
+         */
+        QByteArray readControllerState() const;
+
+        /**
+         * @brief 将保存的状态写入VST3插件
+         */
+        void writeState();
+    private:
+        VST3::Hosting::Module::Ptr module_ = nullptr;
+        Steinberg::IPtr<Steinberg::Vst::PlugProvider> plugProvider_ = nullptr;
+        Steinberg::IPtr<Steinberg::Vst::IComponent> vstPlug_ = nullptr;
+        Steinberg::IPtr<Steinberg::Vst::IAudioProcessor> audioEffect_ = nullptr;
+        Steinberg::IPtr<Steinberg::Vst::IEditController> editController_ = nullptr;
         Steinberg::IPtr<Steinberg::IPlugView> view = nullptr;
-        VST3PluginInterface * widget;
-        Steinberg::IPtr<Steinberg::Vst::HostApplication> pluginContext= nullptr;
+        VST3PluginInterface* widget;
+        Steinberg::IPtr<Steinberg::Vst::HostApplication> pluginContext_ = nullptr;
         std::shared_ptr<Container> window;
-        QVariantMap pluginInfo;
+        QVariantMap pluginInfo_;
+        // 音频处理相关
+        // 移除原有的定时器相关成员
+        // QTimer* audioProcessTimer_;  // 删除这行
+        
+        // 添加多线程处理成员
+        std::unique_ptr<VST3AudioProcessingThread> audioProcessingThread_;
+        
+        std::shared_ptr<AudioTimestampRingQueue> outputAudioBuffer_;
+        std::shared_ptr<AudioTimestampRingQueue> inputAudioBuffer_;
+        int inputConsumerId_ = -1;
+        double sampleRate_;
+        int blockSize_;
+        ParameterChanges inputParameterChanges_;
+        ParameterChanges outputParameterChanges_;
+        std::map<Vst::ParamID, Vst::ParamValue> currentParameterValues_;
+        AudioProcessingData audioProcessingData_;
+        ParameterManager parameterManager_;
+        QByteArray savedProcessorState_;     // 保存的处理器状态
+        QByteArray savedControllerState_;    // 保存的控制器状态
+        QString pluginUID_;                  // 插件唯一标识
     };
 }
