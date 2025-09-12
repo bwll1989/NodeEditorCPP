@@ -26,6 +26,7 @@
 #include "pluginterfaces/base/funknown.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "Vst3DataStream.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -131,8 +132,6 @@ namespace Nodes
          * @brief 验证VST3接口的完整性
          */
         bool validateVST3Interfaces() ;
-
-        void processAudioData();
         /**
          * @brief 设置音频总线配置
          */
@@ -143,15 +142,6 @@ namespace Nodes
          */
         void initializeAudioBuffers();
 
-        /**
-         * @brief 双精度音频处理
-         */
-        void processAudioDouble(const AudioFrame& inputFrame);
-
-        /**
-         * @brief 单精度音频处理
-         */
-        void processAudioFloat(const AudioFrame& inputFrame);
         /**
          * @brief 读取VST3处理器状态
          * @return 序列化的处理器状态数据
@@ -168,6 +158,15 @@ namespace Nodes
          * @brief 将保存的状态写入VST3插件
          */
         void writeState();
+        /**
+     * @brief 将端口索引转换为总线和通道索引
+     * @param portIndex 端口索引
+     * @param busIndex 输出：总线索引
+     * @param channelIndex 输出：在总线中的通道索引
+     * @return 是否转换成功
+     */
+    bool portIndexToBusChannel(int portIndex, int& busIndex, int& channelIndex, bool isInput = true) const;
+
     private:
         VST3::Hosting::Module::Ptr module_ = nullptr;
         Steinberg::IPtr<Steinberg::Vst::PlugProvider> plugProvider_ = nullptr;
@@ -186,9 +185,8 @@ namespace Nodes
         // 添加多线程处理成员
         std::unique_ptr<VST3AudioProcessingThread> audioProcessingThread_;
         
-        std::shared_ptr<AudioTimestampRingQueue> outputAudioBuffer_;
-        std::shared_ptr<AudioTimestampRingQueue> inputAudioBuffer_;
-        int inputConsumerId_ = -1;
+        // std::shared_ptr<AudioTimestampRingQueue> outputAudioBuffer_;
+        // std::shared_ptr<AudioTimestampRingQueue> inputAudioBuffer_;
         double sampleRate_;
         int blockSize_;
         ParameterChanges inputParameterChanges_;
@@ -200,4 +198,5 @@ namespace Nodes
         QByteArray savedControllerState_;    // 保存的控制器状态
         QString pluginUID_;                  // 插件唯一标识
     };
-}
+    
+    }

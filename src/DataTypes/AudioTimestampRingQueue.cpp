@@ -18,116 +18,133 @@ AudioTimestampRingQueue::~AudioTimestampRingQueue() {
 }
 
 bool AudioTimestampRingQueue::pushFrame(const AudioFrame& frame) {
+    int emittedWriteIndex = -1;
+    AudioFrame emittedFrame;
+    {
+        QMutexLocker locker(&mutex_);
+        if (!isActive_) {
+            return false;
+        }
+
+        // 准备覆盖前的旧时间戳
+        const qint64 oldTs = frames_[writeIndex_].timestamp;
+        const bool wasValid = oldTs > 0;
+
+        // 覆盖槽位
+        frames_[writeIndex_] = frame;
+        const bool nowValid = frame.timestamp > 0;
+
+        // 维护有效帧计数
+        if (!wasValid && nowValid) {
+            if (validFrames_ < maxSize_) validFrames_++;
+        } else if (wasValid && !nowValid) {
+            if (validFrames_ > 0) validFrames_--;
+        }
+
+        // 先移除旧映射，避免哈希膨胀与指向过期槽位
+        if (wasValid && oldTs != frame.timestamp) {
+            timestampToIndex_.remove(oldTs);
+        }
+        // 再写入新映射
+        if (nowValid) {
+            timestampToIndex_.insert(frame.timestamp, writeIndex_);
+        }
+
+        // 记录要发射的参数，锁外发射信号
+        emittedWriteIndex = writeIndex_;
+        emittedFrame = frame;
+
+        // 更新写索引（环形递增）
+        writeIndex_ = (writeIndex_ + 1) % maxSize_;
+    }
+
+    // 锁外发射，避免长时间持锁导致卡顿
+    if (emittedWriteIndex >= 0) {
+        emit frameWritten(emittedWriteIndex);
+        emit newFrameWritten(emittedFrame);
+    }
+
+    return true;
+}
+
+double AudioTimestampRingQueue::getUsedRatio() const {
+    QMutexLocker locker(&mutex_);
+    if (maxSize_ <= 0) return 0.0;
+    return static_cast<double>(validFrames_) / static_cast<double>(maxSize_);
+}
+
+bool AudioTimestampRingQueue::getFrameByTimestamp(qint64 targetFrameCount, AudioFrame& frame) {
     QMutexLocker locker(&mutex_);
     if (!isActive_) {
         return false;
     }
 
-    // 将帧写入当前写索引位置
-    frames_[writeIndex_] = frame;
-    // 发送信号通知数据已写入
-    emit frameWritten(writeIndex_);
-    emit newFrameWritten(frame);
-    // 更新写索引（环形递增）
-    writeIndex_ = (writeIndex_ + 1) % maxSize_;
-
-    return true;
-}
-
-int AudioTimestampRingQueue::getAvailableFrameCount(int consumerReadIndex) const {
-    if (consumerReadIndex == writeIndex_) {
-        return 0; // 没有新数据
-    }
-
-    if (writeIndex_ > consumerReadIndex) {
-        return writeIndex_ - consumerReadIndex;
-    } else {
-        return maxSize_ - consumerReadIndex + writeIndex_;
-    }
-}
-
-double AudioTimestampRingQueue::getUsedRatio() const {
-    QMutexLocker locker(&mutex_);
-
-    if (consumerStatus_.isEmpty()||frames_.isEmpty()) {
-        return -1;
-    }
-
-    int maxAvailableFrames = 0;
-    for (auto it = consumerStatus_.begin(); it != consumerStatus_.end(); ++it) {
-        int available = getAvailableFrameCount(it.value().readIndex);
-        maxAvailableFrames = std::max(maxAvailableFrames, available);
-    }
-
-    return static_cast<double>(maxAvailableFrames) / maxSize_;
-}
-
-bool AudioTimestampRingQueue::getFrameByTimestamp(int consumerId, qint64 targetTimestamp, qint64 tolerance, AudioFrame& frame) {
-    QMutexLocker locker(&mutex_);
-
-    if (!isActive_ ) {
-        return false;
-    }
-
-    // 确保消费者已注册
-    if (!consumerStatus_.contains(consumerId)) {
-        return false;
-    }
-
-    ConsumerInfo& consumer = consumerStatus_[consumerId];
-    int bestIndex = -1;
-    qint64 bestTimeDiff = LLONG_MAX;
-
-    // 从消费者当前读索引开始搜索
-    int searchCount = 0;
-    int currentIndex = consumer.readIndex;
-
-    // 搜索可用的帧（最多搜索整个队列）
-    while (searchCount < maxSize_) {
-        const AudioFrame& currentFrame = frames_[currentIndex];
-        qint64 timeDiff = currentFrame.timestamp - targetTimestamp;
-
-        // 优先选择时间戳小于等于目标时间戳的帧
-        if (timeDiff <= 0 && std::abs(timeDiff) <= tolerance) {
-            if (std::abs(timeDiff) < bestTimeDiff) {
-                bestTimeDiff = std::abs(timeDiff);
-                bestIndex = currentIndex;
+    // 先用小缓存（连续访问很常见）
+    if (lastHitIndex_ >= 0) {
+        const AudioFrame& cached = frames_[lastHitIndex_];
+        if (cached.timestamp == targetFrameCount) {
+            frame = cached;
+            return true;
+        }
+        if (cached.timestamp + 1 == targetFrameCount) {
+            // 直接使用相邻槽（避免二次哈希）：假设时间戳连续写入映射到同一槽也安全
+            auto it = timestampToIndex_.find(targetFrameCount);
+            if (it != timestampToIndex_.end()) {
+                int idx = it.value();
+                const AudioFrame& hit = frames_[idx];
+                if (hit.timestamp == targetFrameCount) {
+                    frame = hit;
+                    lastHitTimestamp_ = hit.timestamp;
+                    lastHitIndex_ = idx;
+                    return true;
+                }
             }
         }
-        // 如果没有找到过去的帧，考虑未来的帧（更严格的容差）
-        else if (bestIndex == -1 && timeDiff > 0 && timeDiff <= tolerance / 2) {
-            if (timeDiff < bestTimeDiff) {
-                bestTimeDiff = timeDiff;
-                bestIndex = currentIndex;
-            }
-        }
-
-        // 移动到下一个索引
-        currentIndex = (currentIndex + 1) % maxSize_;
-        searchCount++;
-
-        // 如果到达写索引，停止搜索
-        if (currentIndex == writeIndex_) {
-            break;
+        if (cached.timestamp == targetFrameCount + 1) {
+            frame = cached;
+            return true;
         }
     }
 
-    if (bestIndex != -1) {
-        frame = frames_[bestIndex];
-        // 更新消费者读索引到找到的帧的下一位
-        consumer.readIndex = (bestIndex + 1) % maxSize_;
-        consumer.readTimestamp = frame.timestamp;
-        return true;
+    // 单次哈希查找：先 target
+    auto it = timestampToIndex_.find(targetFrameCount);
+    if (it != timestampToIndex_.end()) {
+        int idx = it.value();
+        const AudioFrame& hit = frames_[idx];
+        if (hit.timestamp == targetFrameCount) {
+            frame = hit;
+            lastHitTimestamp_ = hit.timestamp;
+            lastHitIndex_ = idx;
+            return true;
+        }
     }
+
+    // // 再 target+1（最多一次额外查找）
+    // auto it2 = timestampToIndex_.find(targetFrameCount + 1);
+    // qDebug()<<"can not find targetFrameCount"<<targetFrameCount;
+    // if (it2 != timestampToIndex_.end()) {
+    //     int idx2 = it2.value();
+    //     const AudioFrame& hit2 = frames_[idx2];
+    //     if (hit2.timestamp == targetFrameCount + 1) {
+    //         frame = hit2;
+    //         lastHitTimestamp_ = hit2.timestamp;
+    //         lastHitIndex_ = idx2;
+    //         return true;
+    //     }
+    // }
+
     return false;
 }
 
 void AudioTimestampRingQueue::clear() {
     QMutexLocker locker(&mutex_);
     writeIndex_ = 0;
-    // 重置所有消费者的读索引
-    for (auto it = consumerStatus_.begin(); it != consumerStatus_.end(); ++it) {
-        it.value().readIndex = 0;
+    timestampToIndex_.clear();
+    validFrames_ = 0;
+    lastHitTimestamp_ = 0;
+    lastHitIndex_ = -1;
+    for (int i = 0; i < frames_.size(); ++i) {
+        frames_[i] = AudioFrame();
     }
 }
 
@@ -139,102 +156,5 @@ void AudioTimestampRingQueue::setActive(bool active) {
 bool AudioTimestampRingQueue::isActive() const {
     QMutexLocker locker(&mutex_);
     return isActive_;
-}
-
-int AudioTimestampRingQueue::registerNewConsumer(bool syncToWriteIndex) {
-    static QAtomicInt nextId(1);
-    int consumerId = nextId.fetchAndAddAcquire(1);
-
-    if (registerConsumer(consumerId,syncToWriteIndex)) {
-        return consumerId;
-    }
-    return -1;
-}
-
-bool AudioTimestampRingQueue::registerConsumer(int consumerId,bool syncToWriteIndex) {
-    QMutexLocker locker(&mutex_);
-
-    if (consumerStatus_.contains(consumerId)) {
-        return false; // 消费者已存在
-    }
-
-    ConsumerInfo info;
-    info.consumerId = consumerId;
-
-    info.readTimestamp = 0;
-
-    // 根据系统时钟确定初始读索引
-    qint64 currentSystemTime = QDateTime::currentMSecsSinceEpoch();
-    int bestIndex = findBestIndexByTimestamp(currentSystemTime);
-
-    if (bestIndex != -1) {
-        info.readIndex = bestIndex;
-        info.readTimestamp = frames_[bestIndex].timestamp;
-        qDebug() << "Consumer" << consumerId << "registered with readIndex" << bestIndex
-                 << "timestamp" << frames_[bestIndex].timestamp;
-        consumerStatus_[consumerId] = info;
-        return true;
-    }
-        if (bestIndex==-1||syncToWriteIndex){
-        // 如果找不到合适的帧或指定与写索引同步，则使用当前写索引
-        info.readIndex = writeIndex_;
-        qDebug() << "Consumer" << consumerId << "registered with writeIndex" << writeIndex_
-                 << "(no suitable frame found)";
-        consumerStatus_[consumerId] = info;
-        return true;
-    }
-
-    consumerStatus_[consumerId] = info;
-    return true;
-}
-
-int AudioTimestampRingQueue::findBestIndexByTimestamp(qint64 targetTimestamp) const {
-    int bestIndex = -1;
-    qint64 bestTimeDiff = LLONG_MAX;
-
-    // 计算队列中有效帧的数量
-    int availableFrames = getAvailableFrameCount(0); // 从索引0开始计算总帧数
-    if (availableFrames == 0) {
-        return -1;
-    }
-
-    // 搜索所有有效帧
-    for (int i = 0; i < maxSize_; ++i) {
-        const AudioFrame& frame = frames_[i];
-
-        // 跳过无效帧（时间戳为0或负数）
-        if (frame.timestamp <= 0) {
-            continue;
-        }
-
-        qint64 timeDiff = std::abs(frame.timestamp - targetTimestamp);
-
-        // 优先选择时间戳小于等于目标时间戳的帧
-        if (frame.timestamp <= targetTimestamp) {
-            if (timeDiff < bestTimeDiff) {
-                bestTimeDiff = timeDiff;
-                bestIndex = i;
-            }
-        }
-        // 如果没有找到过去的帧，考虑未来的帧
-        else if (bestIndex == -1) {
-            if (timeDiff < bestTimeDiff) {
-                bestTimeDiff = timeDiff;
-                bestIndex = i;
-            }
-        }
-    }
-
-    return bestIndex;
-}
-
-bool AudioTimestampRingQueue::unregisterConsumer(int consumerId) {
-    QMutexLocker locker(&mutex_);
-
-    if (!consumerStatus_.contains(consumerId)) {
-        return false; // 消费者不存在
-    }
-    consumerStatus_.remove(consumerId);
-    return true;
 }
 

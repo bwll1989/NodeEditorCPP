@@ -23,9 +23,9 @@ extern "C" {
 #include <QDateTime>
 // #include <Common/Devices/AudioPipe/AudioPipe.h>
 static const int SAMPLE_RATE = 48000;
-static const int FAST_BUFFER_COUNT = 5;
 static const int LOOP_INTERVAL = 800;
-
+static const int FIXED_DELAY_FRAMES = 5;
+static const int SAMPLES_PER_CHANNEL = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();;
 // 在构造函数中添加新的成员变量初始化
 AudioDecoder::AudioDecoder(QObject *parent)
     : QThread(parent)
@@ -40,9 +40,7 @@ AudioDecoder::AudioDecoder(QObject *parent)
     , isPlaying(false)
     , isLooping(false)
     , volume(0.5f)
-    , systemStartTime(0)  // 新增：系统播放开始时间
-    , firstFramePts(AV_NOPTS_VALUE)  // 新增：第一帧的PTS
-    , timeBase(0.0)  // 新增：时间基准
+    , timestampGenerator_(TimestampGenerator::getInstance())  // 获取全局时间戳生成器实例
 {
     qRegisterMetaType<AudioFrame>("AudioFrame");
     connect(this, &AudioDecoder::audioFrameReady,
@@ -71,13 +69,11 @@ QJsonObject* AudioDecoder::initializeFFmpeg(const QString &filePath){
         qDebug()<<"找不到流信息";
         return nullptr;
     }
-    //查询流信息
-
+    
     audioStreamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
     if (audioStreamIndex==-1) {
         return nullptr;
     }
-    //查找音频流索引
 
     codec = avcodec_find_decoder(formatContext->streams[audioStreamIndex]->codecpar->codec_id);//获取codec
 
@@ -94,7 +90,6 @@ QJsonObject* AudioDecoder::initializeFFmpeg(const QString &filePath){
         // 解码器参数设置失败
         return nullptr;
     }
-
     if (avcodec_open2(codecContext, codec, nullptr) < 0) {
         qDebug()<<"打开解码器失败";
         return nullptr;
@@ -179,9 +174,6 @@ QJsonObject* AudioDecoder::initializeFFmpeg(const QString &filePath){
 void AudioDecoder::startPlay(){
     QMutexLocker locker(&mutex);
 
-    // 重置时间戳计算器
-    resetTimestamp();
-
     // 重置文件指针到开始位置
     if (formatContext) {
         // 将音频流定位到起始位置，使用向后搜索标志确保精确定位
@@ -195,15 +187,14 @@ void AudioDecoder::startPlay(){
         // 清空重采样器内部缓冲区，避免上次播放的残留数据造成杂音
         if (swrContext) {
             uint8_t* flushBuffer = nullptr;
-            // 计算刷新缓冲区大小：1024采样 × 2通道 × 2字节(16位) = 4096字节
             // 这个大小足够容纳重采样器内部可能残留的数据
-            int flushSize = 1024 * 2 * 2;  // samples × channels × bytes_per_sample
+            int flushSize = SAMPLES_PER_CHANNEL * 2 * 2;  // samples × channels × bytes_per_sample
             flushBuffer = (uint8_t*)av_malloc(flushSize);
             if (flushBuffer) {
                 // 调用swr_convert清空内部缓冲区
                 // 输入nullptr和0表示不提供新数据，只是刷新内部缓冲区
                 // 输出到临时缓冲区，然后丢弃这些数据
-                swr_convert(swrContext, &flushBuffer, 1024, nullptr, 0);
+                swr_convert(swrContext, &flushBuffer, SAMPLES_PER_CHANNEL, nullptr, 0);
                 av_freep(&flushBuffer);  // 释放临时缓冲区
             }
         }
@@ -220,11 +211,29 @@ void AudioDecoder::stopPlay() {
     // 刷新重采样器缓冲区
     if (swrContext) {
         uint8_t* flushBuffer = nullptr;
-        int flushSize = 1024 * 2 * 2;
+        int flushSize =2048 * 2 * 2;
         flushBuffer = (uint8_t*)av_malloc(flushSize);
         if (flushBuffer) {
-            swr_convert(swrContext, &flushBuffer, 1024, nullptr, 0);
+            swr_convert(swrContext, &flushBuffer, 2048, nullptr, 0);
             av_freep(&flushBuffer);
+        }
+    }
+
+    condition.wakeAll();
+    locker.unlock();
+
+    // 清空所有通道的音频缓冲区队列
+    for (auto& pair : channelAudioBuffers) {
+        if (pair.second) {
+            pair.second->clear();  // 清空队列中的所有音频帧
+            pair.second->setActive(false);  // 设置队列为非活跃状态
+        }
+    }
+    
+    // 重新激活所有缓冲区（为下次播放做准备）
+    for (auto& pair : channelAudioBuffers) {
+        if (pair.second) {
+            pair.second->setActive(true);
         }
     }
 
@@ -239,8 +248,6 @@ void AudioDecoder::stopPlay() {
     // 重置文件指针到开始位置
     if (formatContext) {
         av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
-        baseTimestamp = 0;
-        totalSamples = 0;
         // 清空解码器缓冲区
         if (codecContext) {
             avcodec_flush_buffers(codecContext);
@@ -264,29 +271,6 @@ void AudioDecoder::setLooping(bool loop) {
     isLooping = loop;
 }
 
-double AudioDecoder::getBufferUsedRatio() const
-{
-    if (channelAudioBuffers.empty())
-        return -1;  // 没有缓冲区
-    // 获取所有通道的平均填充率
-    double totalUsedRatio = 0.0;
-    int activeChannels = 0;
-
-    for (const auto& buffer : channelAudioBuffers) {
-        if (buffer.second && buffer.second->isActive()&&buffer.second->getUsedRatio()!=-1) {
-            totalUsedRatio += buffer.second->getUsedRatio();
-            activeChannels++;
-        }
-    }
-
-    // 如果没有找到有效的缓冲区，返回-1
-    if (activeChannels == 0) {
-        return -1;
-    }
-
-    // 返回平均填充率
-    return totalUsedRatio / activeChannels;
-    }
 
 bool AudioDecoder::getLooping() const {
     return isLooping;
@@ -343,6 +327,7 @@ void AudioDecoder::handleAudioFrame(AudioFrame frame) {
             outputData[sample] = inputData[sample * frame.channels + channel];
         }
         channelFrame.data = channelData;
+
         channelAudioBuffers[channel]->pushFrame(channelFrame);
     }
 }
@@ -365,15 +350,13 @@ void AudioDecoder::playAudio() {
     audioFrame = av_frame_alloc();
     uint8_t* outputBuffer = nullptr;
     int outputBufferSize = 0;
-
+    lastTimestamp_=timestampGenerator_->getCurrentFrameCount();
     // 获取原始音频参数
     int originalSampleRate = codecContext->sample_rate;
     int originalChannels = codecContext->ch_layout.nb_channels;
 
     // 检查是否需要重采样
     bool needsResampling = (originalSampleRate != SAMPLE_RATE) || (codecContext->sample_fmt != AV_SAMPLE_FMT_S16);
-
-    qint64 lastFrameTime = QDateTime::currentMSecsSinceEpoch();
 
     // 预缓冲控制变量
     int frameCount = 0;
@@ -387,8 +370,11 @@ void AudioDecoder::playAudio() {
             if (codecContext) {
                 avcodec_flush_buffers(codecContext);
             }
-            // 循环播放时重置时间戳
-            resetTimestamp();
+
+            // 重置待发缓冲
+            pendingInterleavedPcm_.clear();
+            pendingSamplesPerChannel_ = 0;
+            lastChannels_ = 0;
         }
 
         while (isPlaying && av_read_frame(formatContext, &packet) >= 0) {
@@ -398,9 +384,7 @@ void AudioDecoder::playAudio() {
                 }
 
                 while (avcodec_receive_frame(codecContext, audioFrame) >= 0) {
-                    double actualFrameTime = 0.0;
-                    AudioFrame frame;
-
+                    // qDebug()<<audioFrame->nb_samples;
                     if (needsResampling && swrContext) {
                         // ==================== 重采样输出采样数计算 ====================
 
@@ -468,100 +452,27 @@ void AudioDecoder::playAudio() {
                         }
 
                         if (samplesResampled > 0) {
-                            // ==================== 输出数据处理 ====================
-
-                            int totalBytes = samplesResampled * outputChannels * 2;
-
-                            // 添加数据有效性检查
-                            if (totalBytes > outputBufferSize) {
-                                qDebug() << "Warning: Output bytes exceed buffer size";
-                                totalBytes = outputBufferSize;
-                            }
-
                             // 应用音量控制
                             applyVolume(outputBuffer, samplesResampled, outputChannels);
-
-                            // 计算帧时间长度
-                            actualFrameTime = 1000.0 * samplesResampled / SAMPLE_RATE;
-
-                            // 封装音频帧数据
-                            frame.data = QByteArray(reinterpret_cast<const char*>(outputBuffer), totalBytes);
-                            frame.sampleRate = SAMPLE_RATE;
-                            frame.channels = outputChannels;
-                            frame.bitsPerSample = 16;
-                            frame.timestamp = calculatePreciseTimestamp(audioFrame, audioFrame->nb_samples);
+                            // 将数据切片为1920*channels并发送
+                            frameCount += processPcmAndEmitFixedFrames(outputBuffer,
+                                                                       samplesResampled,
+                                                                       outputChannels,
+                                                                       SAMPLE_RATE);
                         }
                     }
                     else {
                         // 不需要重采样的情况（48000Hz且已经是S16格式）
-                        int totalBytes = audioFrame->nb_samples * originalChannels * 2;
-
-                        // 检查音频格式是否为S16
                         if (codecContext->sample_fmt != AV_SAMPLE_FMT_S16) {
                             qDebug() << "Warning: Expected S16 format but got" << codecContext->sample_fmt;
                             continue;
                         }
-
                         // 直接使用原始数据
                         applyVolume(audioFrame->data[0], audioFrame->nb_samples, originalChannels);
-
-                        // 使用固定的48000Hz来计算帧时间，确保播放速度正确
-                        actualFrameTime = 1000.0 * audioFrame->nb_samples / SAMPLE_RATE;
-
-                        frame.data = QByteArray(reinterpret_cast<const char*>(audioFrame->data[0]), totalBytes);
-                        frame.sampleRate = SAMPLE_RATE; // 统一使用48000Hz
-                        frame.channels = originalChannels;
-                        frame.bitsPerSample = 16;
-                         // 使用精确的PTS时间戳
-                        frame.timestamp = calculatePreciseTimestamp(audioFrame, audioFrame->nb_samples);
-                    }
-
-                    // 发送音频帧，并控制时间和缓存
-                    if (!frame.data.isEmpty()) {
-
-                        emit audioFrameReady(frame);
-                        // qDebug() << "Audio frame ready to decode"<< QDateTime::currentMSecsSinceEpoch()<<frame.timestamp<<QDateTime::currentMSecsSinceEpoch()-frame.timestamp;
-                        frameCount++;
-
-                        // 播放速度控制
-                        if (actualFrameTime > 0) {
-                            // 获取当前缓冲区使用率 (0.0 - 1.0)
-                            double usedRatio = getBufferUsedRatio();
-
-                            // 正常播放速度：使用实际帧时间控制播放速度
-                            qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-
-                            qint64 elapsedTime = currentTime - lastFrameTime;
-                            qint64 sleepTime = static_cast<qint64>(actualFrameTime) - elapsedTime;
-
-                            // 根据填充率动态调整播放速度
-                            // 高于0.9时睡眠时间为正常的1.5倍，低于0.2时睡眠时间为正常的0.8倍
-                            if (usedRatio >= 0.0) {
-                                double speedMultiplier = 1.0;  // 默认正常速度
-
-                                if (usedRatio > 0.9) {
-                                    // 填充率高于0.9时，减慢播放速度（睡眠时间增加1.5倍）
-                                    speedMultiplier = 1.0 / 1.5;  // 播放速度变为原来的2/3
-                                    qDebug() << "High buffer fill ratio (" << usedRatio << "), slowing down playback";
-                                } else if (usedRatio < 0.2) {
-                                    // 填充率低于0.2时，加快播放速度（睡眠时间减少到0.8倍）
-                                    speedMultiplier = 1.0 / 0.5;  // 播放速度变为原来的2倍
-                                    qDebug() << "Low buffer fill ratio (" << usedRatio << "), speeding up playback";
-                                } else {
-
-                                }
-                                // 调整睡眠时间，实现解码速度的控制
-                                sleepTime = static_cast<qint64>(sleepTime / speedMultiplier);
-
-                            }
-
-                            // 限制睡眠时间范围
-                            if (sleepTime > 0 && sleepTime < 1000) {
-                                QThread::msleep(sleepTime);
-                            }
-
-                            lastFrameTime = QDateTime::currentMSecsSinceEpoch();
-                        }
+                        frameCount += processPcmAndEmitFixedFrames(audioFrame->data[0],
+                                                                   audioFrame->nb_samples,
+                                                                   originalChannels,
+                                                                   SAMPLE_RATE);
                     }
                 }
             }
@@ -634,54 +545,70 @@ void AudioDecoder::applyVolume(uint8_t* data, int sampleCount, int channels) {
     }
 }
 
-void AudioDecoder::resetTimestamp() {
-    systemStartTime = QDateTime::currentMSecsSinceEpoch();
-    firstFramePts = AV_NOPTS_VALUE;
-    baseTimestamp = 0;
-    totalSamples = 0;
 
-    // 获取音频流的时间基准
-    if (formatContext && audioStreamIndex >= 0) {
-        AVStream* audioStream = formatContext->streams[audioStreamIndex];
-        timeBase = av_q2d(audioStream->time_base) * 1000.0; // 转换为毫秒
+
+// 将解码得到的PCM累积并按固定1920采样/声道切片发送
+int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcmS16,
+                                               int samplesPerChannel,
+                                               int channels,
+                                               int sampleRate)
+{
+    const int bytesPerSample = 2; // S16
+    const int targetSamplesPerChannel = SAMPLES_PER_CHANNEL;
+    const int chunkBytes = targetSamplesPerChannel * channels * bytesPerSample;
+    const int inputBytes = samplesPerChannel * channels * bytesPerSample;
+
+    // 如果声道变化，重置累积状态
+    if (lastChannels_ != 0 && lastChannels_ != channels) {
+        pendingInterleavedPcm_.clear();
+        pendingSamplesPerChannel_ = 0;
     }
+    lastChannels_ = channels;
+
+    // 追加新数据
+    pendingInterleavedPcm_.append(reinterpret_cast<const char*>(interleavedPcmS16), inputBytes);
+    pendingSamplesPerChannel_ += samplesPerChannel;
+
+    int emitted = 0;
+    double chunkMs = 1000.0 * targetSamplesPerChannel / static_cast<double>(sampleRate);
+
+    while (pendingSamplesPerChannel_ >= targetSamplesPerChannel) {
+        QByteArray chunk = pendingInterleavedPcm_.left(chunkBytes);
+        pendingInterleavedPcm_.remove(0, chunkBytes);
+        pendingSamplesPerChannel_ -= targetSamplesPerChannel;
+
+        AudioFrame frame;
+        frame.data = chunk;
+        frame.sampleRate = sampleRate;
+        frame.channels = channels;
+        frame.bitsPerSample = 16;
+        frame.timestamp = ++lastTimestamp_+FIXED_DELAY_FRAMES;
+
+        emit audioFrameReady(frame);
+        emitted++;
+
+        // 播放速度控制：每个固定块按其持续时间节拍
+        if (chunkMs > 0 && chunkMs < 1000.0) {
+            // qDebug()<<"frame.timestamp"<<frame.timestamp<<chunkMs;
+            qint64 currentSystemTimestamp = timestampGenerator_->getCurrentFrameCount();
+            
+            // 计算时间戳差异（生成帧时间戳 - 当前系统时间戳）
+            qint64 timestampDiff = frame.timestamp - currentSystemTimestamp;
+            if (timestampDiff<FIXED_DELAY_FRAMES+1)
+            {
+                chunkMs=chunkMs*0.5;
+            }
+            if(timestampDiff>=8)
+            {
+                chunkMs=chunkMs*1.5;
+            }
+            QThread::msleep(static_cast<unsigned long>(chunkMs));
+        }
+    }
+
+    return emitted;
 }
 
-
-qint64 AudioDecoder::calculatePreciseTimestamp(AVFrame* audioFrame, int sampleCount) {
-    // 如果是第一次调用，初始化系统开始时间
-    if (systemStartTime == 0) {
-        resetTimestamp();
-    }
-
-    qint64 frameTimestamp = systemStartTime;
-
-    // 优先使用音频帧的PTS来计算时间偏移
-    if (audioFrame && audioFrame->pts != AV_NOPTS_VALUE && timeBase > 0) {
-        // 记录第一帧的PTS作为基准
-        if (firstFramePts == AV_NOPTS_VALUE) {
-            firstFramePts = audioFrame->pts;
-        }
-
-        // 计算当前帧相对于第一帧的时间偏移（毫秒）
-        qint64 ptsOffsetMs = static_cast<qint64>((audioFrame->pts - firstFramePts) * timeBase);
-        frameTimestamp = systemStartTime + ptsOffsetMs;
-    }
-    else {
-
-        // PTS无效时，使用累计采样数作为回退方案
-        if (baseTimestamp == 0) {
-            baseTimestamp = systemStartTime;
-            totalSamples = 0;
-        }
-
-        qint64 audioTimeMs = (totalSamples * 1000) / SAMPLE_RATE;
-        totalSamples += sampleCount;
-        frameTimestamp = baseTimestamp + audioTimeMs;
-    }
-
-    return frameTimestamp;
-}
 
 
 

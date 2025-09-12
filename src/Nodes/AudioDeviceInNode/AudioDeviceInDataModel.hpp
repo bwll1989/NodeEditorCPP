@@ -13,7 +13,7 @@
 #include <portaudio.h>
 #include <memory>
 #include <map>
-
+#include "TimestampGenerator/TimestampGenerator.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -297,19 +297,19 @@ namespace Nodes
          * @brief 处理音频输入数据
          */
         int processAudioInput(const void* inputBuffer, unsigned long framesPerBuffer) {
+
             if (!inputBuffer || !isRecording_) {
                 return paContinue;
             }
             
             const int16_t* input = static_cast<const int16_t*>(inputBuffer);
-            qint64 currentTimestamp = QDateTime::currentMSecsSinceEpoch();
-            
+            qint64 currentTimestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
             // 创建音频帧
             AudioFrame frame;
             frame.sampleRate = sampleRate_;
             frame.channels = channels_;
             frame.bitsPerSample = 16;
-            frame.timestamp = currentTimestamp;
+            frame.timestamp = currentTimestamp+5;
             
             // 复制音频数据并应用音量
             int totalSamples = framesPerBuffer * channels_;
@@ -349,7 +349,7 @@ namespace Nodes
                 channelFrame.channels = 1; // 单声道
                 channelFrame.bitsPerSample = frame.bitsPerSample;
                 double frameDurationMs = (double)framesPerBuffer_ * 1000.0 / sampleRate_;
-                channelFrame.timestamp = frame.timestamp+frameDurationMs;
+                channelFrame.timestamp = frame.timestamp;
                 
                 QByteArray channelData;
                 channelData.resize(samplesPerChannel * bytesPerSample);
@@ -373,7 +373,7 @@ namespace Nodes
         
         // 音频参数
         int sampleRate_ = 48000;
-        int framesPerBuffer_ = 4096;
+        int framesPerBuffer_ = sampleRate_/TimestampGenerator::getInstance()->getFrameRate();
         int channels_ = 2;
         
         // 设备和状态

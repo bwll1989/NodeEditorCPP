@@ -4,74 +4,59 @@
 
 #include <QCheckBox>
 #include <QDoubleSpinBox>
-
+#include <QComboBox>
 #include "QWidget"
 #include "QLabel"
 #include "QLayout"
 #include "QPushButton"
-#include <QFileDialog>  // 新增文件对话框支持
 
-
-/// The model dictates the number of inputs and outputs for the Node.
-/// In this example it has no logic.
-///
+/// 噪音生成器界面类
+/// 提供噪音类型选择、音量控制、开始/停止按钮等功能
 namespace Nodes
 {
     class NoiseGeneratorInterface: public QWidget{
     public:
-        /*构造
-         *
+        /**
+         * @brief 构造函数，初始化界面
+         * @param parent 父控件
          */
         explicit NoiseGeneratorInterface(QWidget *parent = nullptr) {
-            main_layout = new QGridLayout(this);  // 正确初始化网格布局
+            main_layout = new QGridLayout(this);
 
-            // 初始化文件显示框（设为只读）
-            fileDisplay->setAlignment(Qt::AlignCenter);
+            // 初始化噪音类型选择
+            noiseTypeCombo->addItem("白噪音");
+            noiseTypeCombo->addItem("粉噪音");
+            noiseTypeCombo->setCurrentIndex(0);
+            // 布局设置
+            main_layout->addWidget(new QLabel("噪音类型:"), 0, 0, 1, 1);
+            main_layout->addWidget(noiseTypeCombo, 0, 1, 1, 3);
+            main_layout->addWidget(new QLabel("音量(dB):"), 1, 0, 1, 1);
+            main_layout->addWidget(volumeSlider, 1, 1, 1, 3);
+            main_layout->addWidget(startButton, 2, 0, 1, 2);
+            main_layout->addWidget(stopButton, 2, 2, 1, 2);
 
-            main_layout->addWidget(fileDisplay, 0, 0, 2, 4);
-            fileDisplay->setStyleSheet("background-color:rgb(145, 48, 48);");
-            // 按钮布局
-            main_layout->addWidget(fileSelectButton, 2, 0,1,4);
-
-            main_layout->addWidget(playButton, 3, 0,1,2);
-
-            main_layout->addWidget(stopButton, 3, 2,1,2);
-
-            main_layout->addWidget(loopCheckBox, 4, 0,1,2);
-
-            main_layout->addWidget(volumeSlider, 4, 2,1,2);
-
-            main_layout->setContentsMargins(4,2,4,4);
+            main_layout->setContentsMargins(4, 2, 4, 4);
+            
+            // 音量滑块设置
             volumeSlider->setRange(-40, 20);
             volumeSlider->setValue(0);
             volumeSlider->setSingleStep(0.5);
             volumeSlider->setSuffix(" dB");
+            
+            // 按钮初始状态
+            stopButton->setEnabled(false);
+            
             this->setLayout(main_layout);
-            this->setMinimumSize(QSize(200,50));
-
+            this->setMinimumSize(QSize(220, 120));
         }
 
     public:
-        void selectFile() {
-            // 完善文件对话框参数
-            QString path = QFileDialog::getOpenFileName(this, "选择音频文件", "",
-                "音频文件 (*.mp3 *.wav *.flac *.aac)");
-
-            if (!path.isEmpty()) {
-                fileDisplay->setText(path);
-                // ... 保持原有解码初始化逻辑 ...
-            }
-        }
-    public:
-        // 修正后的成员变量
-        QGridLayout *main_layout;  // 统一使用网格布局
-        QLabel *fileDisplay = new QLabel(this);
-        QPushButton *fileSelectButton=new QPushButton("Select");
-        QPushButton *playButton=new QPushButton("Play");
-        QPushButton *stopButton=new QPushButton("Stop");
+        // 界面组件
+        QGridLayout *main_layout;
+        QComboBox *noiseTypeCombo = new QComboBox(this);
+        QPushButton *startButton = new QPushButton("开始生成");
+        QPushButton *stopButton = new QPushButton("停止生成");
         QDoubleSpinBox *volumeSlider = new QDoubleSpinBox(this);
-        QCheckBox *loopCheckBox = new QCheckBox("Loop");
-
     };
 }
 

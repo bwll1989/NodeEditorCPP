@@ -41,10 +41,9 @@ public:
     /**
      * @brief 设置输入输出音频缓冲区
      */
-    void setAudioBuffers(std::shared_ptr<AudioTimestampRingQueue> input, 
-                        std::shared_ptr<AudioTimestampRingQueue> output,
-                        int consumerId);
-    
+    void setInputAudioBuffers(int channelIndex,std::shared_ptr<AudioTimestampRingQueue> input);
+
+    std::shared_ptr<AudioTimestampRingQueue> getOutputAudioBuffers(int channelIndex);
     /**
      * @brief 设置VST3处理组件
      */
@@ -81,18 +80,18 @@ private:
     /**
      * @brief 双精度音频处理
      */
-    void processAudioDouble(const AudioFrame& inputFrame);
+    /**
+     * @brief 双精度音频处理
+     * @param currentSystemTime 当前系统时间戳
+     */
+    void processAudioDouble(qint64 currentSystemTime);
     
     /**
      * @brief 单精度音频处理
+     * @param currentSystemTime 当前系统时间戳
      */
-    void processAudioFloat(const AudioFrame& inputFrame);
+    void processAudioFloat(qint64 currentSystemTime);
     
-    /**
-     * @brief 计算下次处理时间
-     */
-    void calculateNextProcessTime();
-
 private:
     // 线程控制
     QAtomicInt running_;
@@ -103,22 +102,14 @@ private:
     // 音频参数
     double sampleRate_;
     int blockSize_;
-    qint64 frameDurationNs_;  // 帧持续时间（纳秒）
-    qint64 nextProcessTime_;  // 下次处理时间
-    
+    int64 lastProcessTimestamp_;
     // 音频缓冲区
-    std::shared_ptr<AudioTimestampRingQueue> inputBuffer_;
-    std::shared_ptr<AudioTimestampRingQueue> outputBuffer_;
-    int consumerId_;
-    
+    std::map<int, std::shared_ptr<AudioTimestampRingQueue>>  inputBuffer_;
+    std::map<int, std::shared_ptr<AudioTimestampRingQueue>> outputBuffer_;
     // VST3 组件
     Steinberg::IPtr<Steinberg::Vst::IAudioProcessor> audioEffect_;
     AudioProcessingData* processingData_;
-    
-    // 性能监控
-    qint64 lastProcessTime_;
-    int processedFrames_;
-    double averageProcessTime_;
+
 };
 
 } // namespace Nodes

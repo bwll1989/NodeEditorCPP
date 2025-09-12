@@ -19,6 +19,7 @@
 #include <QMap>  // 添加 QMap 头文件
 #include <QRegularExpression>  // 添加 QRegExp 头文件
 #include <QTimer>
+#include "TimestampGenerator/TimestampGenerator.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -26,9 +27,9 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
 
-static const size_t BUFFER_SIZE = 4096;
-static const int SAMPLE_RATE = 48000;
 
+static const int SAMPLE_RATE = 48000;
+static const size_t BUFFER_SIZE = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();
 namespace Nodes
 {
     class AudioDeviceOutDataModel : public NodeDelegateModel
@@ -84,21 +85,10 @@ namespace Nodes
                 if (audioData && audioData->isConnectedToSharedBuffer()) {
                     // 建立连接：保存AudioData指针
                     inputAudioData[portIndex] = audioData;
-                    
                     // 获取AudioTimestampQueue（新的队列模式）
                     auto timestampQueue = audioData->getSharedAudioBuffer();
                     if (timestampQueue) {
-                        // 保存队列引用
                         inputTimestampQueues[portIndex] = timestampQueue;
-                        
-                        // 注册消费者ID（重要：需要注册以便队列管理）
-                        int consumerId = timestampQueue->registerNewConsumer();
-                        if (consumerId != -1) {
-                            inputConsumerIds[portIndex] = consumerId;
-                            // qDebug() << "Port" << portIndex << "registered consumer ID:" << consumerId;
-                        } else {
-                            // qDebug() << "Failed to register consumer for port" << portIndex;
-                        }
                     }
                     
                     // 自动开始播放
@@ -106,22 +96,9 @@ namespace Nodes
                         startAudioOutput();
                     }
                 } else {
-                    // 断开连接：data为nullptr、audioData为空或未连接到共享缓冲区
-                    // 先注销消费者（如果存在）
-                    if (inputTimestampQueues.find(portIndex) != inputTimestampQueues.end() && 
-                        inputConsumerIds.find(portIndex) != inputConsumerIds.end()) {
-                        auto timestampQueue = inputTimestampQueues[portIndex];
-                        int consumerId = inputConsumerIds[portIndex];
-                        if (timestampQueue && consumerId != -1) {
-                            timestampQueue->unregisterConsumer(consumerId);
-                            // qDebug() << "Port" << portIndex << "unregistered consumer ID:" << consumerId;
-                        }
-                    }
-                    
                     // 从所有map中移除该端口的数据
                     inputAudioData.erase(portIndex);
                     inputTimestampQueues.erase(portIndex);
-                    inputConsumerIds.erase(portIndex);
 
                 }
             }
@@ -238,24 +215,24 @@ namespace Nodes
          * @param framesPerBuffer 每次处理的帧数（由PortAudio决定，通常固定）
          * @return PortAudio继续标志
          */
+        /**
+         * @brief 音频处理回调函数，严格按照FRAME_INTERVAL_MS控制处理间隔
+         * @param outputBuffer 输出缓冲区
+         * @param framesPerBuffer 每次处理的帧数
+         * @return PortAudio继续标志
+         */
         int processAudio(void* outputBuffer, unsigned long framesPerBuffer) {
+
             // 将输出缓冲区转换为16位整数指针
             int16_t* output = static_cast<int16_t*>(outputBuffer);
             // 获取音频设备的最大通道数
-            int deviceChannels = getDeviceMaxChannels(selectedDeviceIndex);
+            const int deviceChannels = getDeviceMaxChannels(selectedDeviceIndex);
+            const int frames = static_cast<int>(framesPerBuffer);
         
             // 清零输出缓冲区，确保没有杂音
-            memset(output, 0, framesPerBuffer * deviceChannels * sizeof(int16_t));
-            
-            // 获取当前系统时间作为目标播放时间
-            qint64 currentSystemTime = QDateTime::currentMSecsSinceEpoch();
-            
-            // 计算这一批音频帧的时间范围
-            double frameDurationMs = (double)framesPerBuffer * 1000.0 / SAMPLE_RATE;
-            qint64 targetTimestamp = currentSystemTime;
-        
-            qint64 tolerance = static_cast<qint64>(frameDurationMs * 1); // 容差为半帧时间
-        
+            memset(output, 0, static_cast<size_t>(frames) * static_cast<size_t>(deviceChannels) * sizeof(int16_t));
+
+            const qint64 targetTimestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
             // 遍历所有活跃的音频输入端口
             for (auto& [portIndex, timestampQueue] : inputTimestampQueues) {
                 // 检查端口索引是否在设备通道范围内
@@ -263,53 +240,37 @@ namespace Nodes
                     continue;
                 }
         
-                // 检查AudioTimestampQueue有效性
-                if (!timestampQueue || !timestampQueue->isActive()) {
+                // 检查队列有效性（避免在回调中额外加锁）
+                if (!timestampQueue) {
                     continue;
                 }
-                // 获取该端口对应的消费者ID
-                if (inputConsumerIds.find(portIndex) == inputConsumerIds.end()) {
-                    continue;
-                }
-                int consumerId = inputConsumerIds[portIndex];
+
+
                 AudioFrame frame;
-        
+
                 // 使用新的基于时间戳的读取方法
-                if (timestampQueue->getFrameByTimestamp(consumerId,targetTimestamp, tolerance, frame)) {
-                    // 将AudioFrame的数据转换为16位整数指针
+                if (timestampQueue->getFrameByTimestamp(targetTimestamp, frame)) {
+
                     const int16_t* input = reinterpret_cast<const int16_t*>(frame.data.constData());
-        
-                    // 计算输入数据的采样数 - 安全的类型转换
-                    size_t sampleCount = frame.data.size() / sizeof(int16_t);
-                    int inputSamples = (sampleCount > INT_MAX) ? INT_MAX : static_cast<int>(sampleCount);
-
-                    // 确定实际要处理的采样数 - 修复类型转换警告
-                    int samplesToProcess = std::min(static_cast<int>(framesPerBuffer), inputSamples);
-        
-                    // 将单声道音频数据写入到对应的设备声道
-                    for (int i = 0; i < samplesToProcess; i++) {
-                        output[i * deviceChannels + portIndex] = input[i];
+                    const int totalSamples = static_cast<int>(frame.data.size() / sizeof(int16_t));
+                    const int samplesToProcess = std::min(frames, totalSamples);
+                    // qDebug()<<"find target"<<targetTimestamp<<TimestampGenerator::getInstance()->getCurrentFrameInfo().absoluteTimeMs;
+                    // 指针步进写入，减少乘法
+                    int16_t* outPtr = output + portIndex;
+                    const int16_t* inPtr = input;
+                    int remaining = samplesToProcess;
+                    while (remaining-- > 0) {
+                        *outPtr = *inPtr++;
+                        outPtr += deviceChannels;
                     }
-
-                    
-                    // 可选：记录时间同步信息用于调试
-                    // qint64 timeDiff = std::abs(frame.timestamp - targetTimestamp);
-                    // if (timeDiff > 100) {
-                    // qint64 timeDiff = frame.timestamp - lastTimestamp;
-                    // if (timeDiff>90) {
-                    //     qDebug() << "Audio sync warning: time diff =" << frame.timestamp - targetTimestamp <<
-                    //         "ms, target timestamp =" << targetTimestamp <<
-                    //         "ms, current write timestamp =" << frame.timestamp <<
-                    //         "ms,last write timestamp =" << lastTimestamp;
-                    // }
-                    // lastTimestamp = frame.timestamp;
+                    // 可选：调试同步
+                    // qint64 timeDiff = frame.timestamp - targetTimestamp;
                 }
-                else {
-                    // 没有找到合适的帧，可以记录调试信息
-                    // qDebug() << "No suitable frame found for port" << portIndex << "at timestamp" << targetTimestamp;
-                }
+                // else {
+                //     // 没有找到合适的帧，可以记录调试信息
+                //     qDebug() << "No suitable frame found for port" << portIndex << "at timestamp" << targetTimestamp;
+                // }
             }
-        
             return paContinue;
         }
 
@@ -334,7 +295,6 @@ private:
             Q_UNUSED(inputBuffer)
             Q_UNUSED(timeInfo)
             Q_UNUSED(statusFlags)
-            qDebug()<<QDateTime::currentMSecsSinceEpoch();
             AudioDeviceOutDataModel* model = static_cast<AudioDeviceOutDataModel*>(userData);
             return model->processAudio(outputBuffer, framesPerBuffer);
         }
@@ -348,8 +308,6 @@ private:
         // 稀疏存储：只存储实际连接的通道
         std::map<int, std::shared_ptr<AudioData>> inputAudioData;  // 每个端口的音频数据
         std::map<int, std::shared_ptr<AudioTimestampRingQueue>> inputTimestampQueues;  // 每个端口对应的时间戳队列
-        std::map<int, int> inputConsumerIds;  // 每个端口对应的消费者ID
-        int64_t lastTimestamp = 0;
     };
 }
 

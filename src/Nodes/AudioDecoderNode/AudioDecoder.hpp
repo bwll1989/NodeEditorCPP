@@ -6,6 +6,7 @@
 #include <QtCore/QObject>
 #include "QJsonObject"
 #include "DataTypes/AudioData.h"  // 确保包含此头文件
+#include "Common/Devices/TimestampGenerator/TimestampGenerator.hpp"  // 添加时间戳生成器头文件
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -20,6 +21,7 @@ extern "C" {
 #include <QWaitCondition>
 #include <portaudio.h>
 #include <QDateTime>
+#include <QByteArray>
 
 
 class AudioDecoder : public QThread {
@@ -64,11 +66,7 @@ public:
      * @param loop 是否循环播放
      */
     void setLooping(bool loop) ;
-   /**
-     * @brief 获取所有通道缓冲区中的平均填充率
-     * @return 所有通道缓冲区的平均填充率，如果没有缓冲区则返回-1
-     */
-    double getBufferUsedRatio() const;
+
     /**
      * @brief 获取循环播放状态
      * @return 是否循环播放
@@ -115,18 +113,16 @@ private:
      * @param channels 声道数
      */
     void applyVolume(uint8_t* data, int sampleCount, int channels) ;
-    /**
-         * @brief 重置时间戳计算器（用于开始播放或循环播放）
-         */
-    void resetTimestamp() ;
 
-    /**
-     * @brief 根据系统播放开始时间和音频PTS计算精确的时间戳
-     * @param audioFrame FFmpeg音频帧
-     * @param sampleCount 当前帧的采样数（用于重采样情况）
-     * @return 精确的时间戳（毫秒），反映系统时间什么时候这帧音频开始播放
-     */
-    qint64 calculatePreciseTimestamp(AVFrame* audioFrame, int sampleCount) ;
+
+    // 将解码得到的PCM累积并按固定1920采样/声道切片发送
+    int processPcmAndEmitFixedFrames(const uint8_t* interleavedPcmS16,
+                                     int samplesPerChannel,
+                                     int channels,
+                                     int sampleRate);
+
+ 
+    
     // 添加新的成员变量
     AVFormatContext *formatContext = nullptr;
     AVCodecContext *codecContext = nullptr;
@@ -134,14 +130,8 @@ private:
     AVFrame *audioFrame;
     AVPacket *packet;
     SwrContext *swrContext;
-    qint64 baseTimestamp = 0;  // 基准时间戳（回退方案）
-    qint64 totalSamples = 0;   // 累计采样数（回退方案）
-    
-    // 新增成员变量用于PTS时间戳计算
-    qint64 systemStartTime = 0;      // 系统播放开始时间（毫秒）
-    int64_t firstFramePts = AV_NOPTS_VALUE;  // 第一帧的PTS
-    double timeBase = 0.0;           // 时间基准（毫秒）
-    
+    // 时间戳生成器相关
+    TimestampGenerator* timestampGenerator_;  // 全局时间戳生成器实例
     int audioStreamIndex = -1;
     int64_t decodedFrames;
     uint8_t *resampledBuffer;
@@ -151,7 +141,12 @@ private:
     bool isLooping = false;  // 循环播放标志
     float volume = 0.5f;     // 音量控制 (0.0 - 1.0)
     std::map<int, std::shared_ptr<AudioTimestampRingQueue>> channelAudioBuffers;  // 动态通道环形缓冲区
-};
 
+    // 固定帧大小切片的累积缓冲（S16交织）
+    QByteArray pendingInterleavedPcm_;
+    int pendingSamplesPerChannel_ = 0;
+    int lastChannels_ = 0;
+    qint64 lastTimestamp_ = 0;
+};
 
 

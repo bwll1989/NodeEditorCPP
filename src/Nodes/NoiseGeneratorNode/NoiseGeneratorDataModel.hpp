@@ -5,15 +5,13 @@
 #include <QPushButton>
 #include "DataTypes/NodeDataList.hpp"
 #include "NoiseGeneratorInterface.hpp"
-#include "QFileDialog"
 #include <memory>
-
+#include <TimestampGenerator/TimestampGenerator.hpp>
 #include "QtNodes/Definitions"
 
 #include "QTimer"
-#include "AudioDecoder.hpp"
+#include "NoiseGenerator.hpp"
 #include "QThread"
-// #include "Common/GUI/QJsonModel/QJsonModel.hpp"
 
 using namespace std;
 using QtNodes::NodeData;
@@ -33,49 +31,55 @@ namespace Nodes
         Q_OBJECT
     public:
         /**
-       * @brief 构造函数，初始化音频解码Node，支持动态多通道分离输出
-       */
+         * @brief 构造函数，初始化噪音生成器Node
+         */
         NoiseGeneratorDataModel(){
-            InPortCount = 4;
-            OutPortCount = 2;  // 初始输出端口数，可动态调整
+            InPortCount = 3;
+            OutPortCount = 1;  // 单声道输出
             CaptionVisible = true;
-            Caption = "Audio Decoder";
+            Caption = "Noise Generator";
             WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = true;
-
-
-            connect(widget->fileSelectButton,&QPushButton::clicked,this,&NoiseGeneratorDataModel::select_audio_file,Qt::QueuedConnection);
-            connect(widget->playButton,&QPushButton::clicked,this,&NoiseGeneratorDataModel::playAudio,Qt::QueuedConnection);
-            connect(widget->stopButton,&QPushButton::clicked,this,&NoiseGeneratorDataModel::stopAudio,Qt::QueuedConnection);
-            // 新增信号连接
+        
+            // 初始化噪音生成器 - 单声道配置
+            generator->initializeGenerator(48000, 1, 16);  // 1声道，16位整数
+        
+            // 设置初始音量为界面滑块的默认值 (0 dB)
+            generator->setVolume(0.0);  // 0 dB = 线性值 1.0
+        
+            // 连接信号
+            connect(widget->startButton, &QPushButton::clicked,
+                    this, &NoiseGeneratorDataModel::startGeneration, Qt::QueuedConnection);
+            connect(widget->stopButton, &QPushButton::clicked,
+                    this, &NoiseGeneratorDataModel::stopGeneration, Qt::QueuedConnection);
             connect(widget->volumeSlider, &QDoubleSpinBox::valueChanged,
                     this, &NoiseGeneratorDataModel::onVolumeChanged, Qt::QueuedConnection);
-            connect(widget->loopCheckBox, &QCheckBox::toggled,
-                    this, &NoiseGeneratorDataModel::onLoopToggled, Qt::QueuedConnection);
+            connect(widget->noiseTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this, &NoiseGeneratorDataModel::onNoiseTypeChanged, Qt::QueuedConnection);
 
             // 注册OSC控制
             NodeDelegateModel::registerOSCControl("/volume", widget->volumeSlider);
-            NodeDelegateModel::registerOSCControl("/loop", widget->loopCheckBox);
-            NodeDelegateModel::registerOSCControl("/play",widget->playButton);
-            NodeDelegateModel::registerOSCControl("/stop",widget->stopButton);
+            NodeDelegateModel::registerOSCControl("/noise_type", widget->noiseTypeCombo);
+            NodeDelegateModel::registerOSCControl("/start", widget->startButton);
+            NodeDelegateModel::registerOSCControl("/stop", widget->stopButton);
         }
 
         /**
          * @brief 析构函数，释放资源
          */
         ~NoiseGeneratorDataModel(){
-            if (player->getPlaying()){
-                player->stopPlay();
+            if (generator->isGenerating()){
+                generator->stopGeneration();
             }
         }
 
         /**
-     * @brief 获取端口标题
-     * @param portType 端口类型（输入/输出）
-     * @param portIndex 端口索引
-     * @return 端口标题字符串
-     */
+         * @brief 获取端口数据类型
+         * @param portType 端口类型（输入/输出）
+         * @param portIndex 端口索引
+         * @return 端口数据类型
+         */
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             switch (portType) {
@@ -91,235 +95,167 @@ namespace Nodes
         }
 
         /**
-         * @brief 获取指定端口的输出数据（建立连接时调用）
-         * @param port 端口索引 (0-N对应不同声道)
+         * @brief 获取指定端口的输出数据
+         * @param port 端口索引 (0-单声道输出)
          * @return 包含共享环形缓冲区的音频数据
          */
         std::shared_ptr<NodeData> outData(PortIndex port) override
         {
 
-            
             // 创建新的AudioData并设置共享环形缓冲区
             auto audioData = std::make_shared<AudioData>();
-            audioData->setSharedAudioBuffer(player->getAudioBuffer(port));
-
+            audioData->setSharedAudioBuffer(generator->getAudioBuffer());
             return audioData;
-
         }
 
-
+        /**
+         * @brief 获取端口标题
+         * @param portType 端口类型
+         * @param portIndex 端口索引
+         * @return 端口标题字符串
+         */
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
-            switch(portType)
-            {
+            switch (portType) {
             case PortType::In:
-                switch(portIndex)
-                {
-                case 0:
-                    return "PLAY";
-                case 1:
-                    return "STOP";
-                case 2:
-                    return "LOOP";
-                case 3:
-                    return "GAIN";
-                default:
-                    return "";
-                }
+                if (portIndex == 0) return "GAIN";
+                if (portIndex == 1) return "TYPE";
+                if (portIndex == 2) return "START";
+                break;
             case PortType::Out:
-                    return "CH "+QString::number(portIndex);
-            default:
-                return "";
+                if (portIndex == 0) return "Out";
+                break;
             }
-
-
+            return "";
         }
+
         /**
-         * @brief 设置端口输入
+         * @brief 设置输入数据
          * @param data 输入数据
          * @param portIndex 端口索引
          */
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            switch (portIndex) {
-            case 0: {
-                    auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr) {
-                        if (d->value().toBool() == true) {
-                            this->playAudio();
-                        } else {
-                            this->stopAudio();
+            if (data) {
+                if (auto variableData = std::dynamic_pointer_cast<VariableData>(data)) {
+                    switch (portIndex) {
+                    case 0: // 音量控制
+                        {
+                            double volume = variableData->value().toDouble();
+                            generator->setVolume(volume);
+                            widget->volumeSlider->setValue(volume);
                         }
+
+                        break;
+                    case 1: // 噪音类型控制
+                        {
+                            int type = variableData->value().toInt();
+                            if (type >= 0 && type < 2)
+                            {
+                                generator->setNoiseType(static_cast<NoiseType>(type));
+                                widget->noiseTypeCombo->setCurrentIndex(type);
+                            }
+                        }
+                        break;
+                    case 2: // 启动停止
+                        {
+                            bool type = variableData->value().toBool();
+                            if (type)
+                            {
+                                widget->startButton->click();
+                            }else
+                                widget->stopButton->click();
+                        }
+                        break;
                     }
-                    return;
-            }
-            case 1: {
-                    auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr)
-                        if (d->value().toBool() == true) {
-                            this->stopAudio();
-                        }
-                    return;
                 }
-            case 2:{
-                    auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr)
-                    {
-                        widget->loopCheckBox->setChecked(d->value().toBool());
-                    }
-                    return;
-            }
-            case 3:{
-                    auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr)
-                    {
-                        widget->volumeSlider->setValue(d->value().toDouble());
-                    }
-                    return;
-            }
             }
         }
 
+        /**
+         * @brief 获取嵌入式控件
+         * @return 控件指针
+         */
         QWidget *embeddedWidget() override
         {
-
             return widget;
         }
 
         /**
-     * @brief 保存节点状态
-     */
+         * @brief 保存节点状态
+         * @return JSON对象
+         */
         QJsonObject save() const override
         {
-            QJsonObject modelJson = NodeDelegateModel::save();
-            modelJson["filePath"] = filePath;
-            modelJson["isLoop"] = isLoop;
-            modelJson["autoPlay"] = autoPlay;
-            modelJson["volume"] = static_cast<int>(widget->volumeSlider->value());
-            modelJson["fileDisplayText"] = widget->fileDisplay->text();
-            return modelJson;
+            QJsonObject obj;
+            obj["volume"] = static_cast<double>(generator->getVolume());
+            obj["noiseType"] = static_cast<int>(generator->getNoiseType());
+            obj["generating"] = generator->isGenerating();
+            return obj;
         }
 
         /**
-     * @brief 加载节点状态
-     */
+         * @brief 加载节点状态
+         * @param p JSON对象
+         */
         void load(const QJsonObject &p) override
         {
-            QJsonObject modelJson = p;
-            
-            if (modelJson.contains("filePath")) {
-                filePath = modelJson["filePath"].toString();
-            }
-            
-            if (modelJson.contains("isLoop")) {
-                isLoop = modelJson["isLoop"].toBool();
-                widget->loopCheckBox->setChecked(isLoop);
-                player->setLooping(isLoop);
-            }
-            
-            if (modelJson.contains("autoPlay")) {
-                autoPlay = modelJson["autoPlay"].toBool();
-            }
-            
-            if (modelJson.contains("volume")) {
-                int volume = modelJson["volume"].toInt();
+            if (p.contains("volume")) {
+                double volume = p["volume"].toDouble();
+                generator->setVolume(volume);
                 widget->volumeSlider->setValue(volume);
-                player->setVolume(volume / 100.0f);
             }
             
-            if (modelJson.contains("fileDisplayText")) {
-                widget->fileDisplay->setText(modelJson["fileDisplayText"].toString());
+            if (p.contains("noiseType")) {
+                int type = p["noiseType"].toInt();
+                generator->setNoiseType(static_cast<NoiseType>(type));
+                widget->noiseTypeCombo->setCurrentIndex(type);
             }
             
-            // 如果有文件路径，重新初始化解码器
-            if (!filePath.isEmpty() && QFile::exists(filePath)) {
-                auto res = player->initializeFFmpeg(filePath);
-                if (res) {
-                    isReady = true;
-                    if (autoPlay) {
-                        QTimer::singleShot(100, this, &NoiseGeneratorDataModel::playAudio);
-                    }
-                }
+            if (p.contains("generating") && p["generating"].toBool()) {
+                generator->startGeneration();
             }
         }
 
     public slots:
         /**
-         * 选则音频文件
+         * @brief 开始生成噪音
          */
-        void select_audio_file()
-        {
-
-            QFileDialog *fileDialog=new QFileDialog();
-
-            QString fileName = QFileDialog::getOpenFileName(nullptr,
-                                                    tr("Select WAV or MP3 File"), "/home", tr("Audio Files (*.wav *.mp3)"));
-            if(fileName!="")
-            {
-                filePath=fileName;
-                if (player->getPlaying()){
-                    player->stopPlay();
-                }
-                auto res=player->initializeFFmpeg(filePath);
-
-                if(!res){
-                    isReady= false;
-                    return;
-                }
-                isReady= true;
-                widget->fileDisplay->setText(filePath.split("/").last());
-            }
-            delete fileDialog;
+        void startGeneration() {
+            // qDebug() << "Starting Noise Generator"<<TimestampGenerator::getInstance()->getCurrentFrameCount()<<TimestampGenerator::getInstance()->calculateFrameCountByTimeDelta(101);
+            generator->startGeneration();
+            widget->startButton->setEnabled(false);
+            widget->stopButton->setEnabled(true);
         }
 
         /**
-         * 播放音频
+         * @brief 停止生成噪音
          */
-        void playAudio() {
-
-            if (!isReady) {
-                return;
-            }
-
-            player->stopPlay(); // 先停止之前的播放
-            player->startPlay();
-
+        void stopGeneration() {
+            generator->stopGeneration();
+            widget->startButton->setEnabled(true);
+            widget->stopButton->setEnabled(false);
         }
-        /**
-         * 停止播放
-         */
-        void stopAudio(){
-            player->stopPlay();
-        }
+
         /**
          * @brief 音量改变槽函数
-         * @param value 音量值 (0-100)
+         * @param value 音量值
          */
         void onVolumeChanged(double value) {
-            player->setVolume(value);
+            generator->setVolume(value);
         }
 
         /**
-         * @brief 循环播放切换槽函数
-         * @param checked 是否启用循环播放
+         * @brief 噪音类型改变槽函数
+         * @param index 类型索引
          */
-        void onLoopToggled(bool checked) {
-            isLoop = checked;
-            player->setLooping(checked);
-            qDebug() << "循环播放:" << (checked ? "启用" : "禁用");
+        void onNoiseTypeChanged(int index) {
+            generator->setNoiseType(static_cast<NoiseType>(index));
         }
 
     private:
-
-        float currentVolume = 0.5f;  // 新增当前音量记录
-
-        NoiseGeneratorInterface *widget=new NoiseGeneratorInterface();
-        //    界面控件
-        AudioDecoder *player=new AudioDecoder();
-        QString filePath="";
-        bool isLoop=false;
-        bool autoPlay=false;
-        bool isReady= false;
+        NoiseGeneratorInterface *widget = new NoiseGeneratorInterface();
+        NoiseGenerator *generator = new NoiseGenerator();
 
     };
 }

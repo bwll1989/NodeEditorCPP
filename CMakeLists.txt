@@ -155,7 +155,7 @@ add_subdirectory(src/Common/GUI/OscListWidget)
 
 add_subdirectory(src/Common/Devices/ClientController)
 add_subdirectory(src/Common/Devices/ArtnetSender)
-
+add_subdirectory(src/Common/Devices/TimestampGenerator)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -346,6 +346,7 @@ target_link_libraries(${ProjectName}
 #            ${TabToolbar_LIBRARIES}
             ClientController
             OscListWidget
+            TimestampGenerator
             ${QScintilla_LIBRARIES}
 )
 

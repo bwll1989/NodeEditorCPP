@@ -86,6 +86,7 @@ bool AudioDeviceOutDataModel::startAudioOutput() {
     outputParameters.channelCount = getDeviceMaxChannels(selectedDeviceIndex);
     outputParameters.sampleFormat = paInt16;
     outputParameters.suggestedLatency = Pa_GetDeviceInfo(selectedDeviceIndex)->defaultLowOutputLatency;
+
     outputParameters.hostApiSpecificStreamInfo = nullptr;
 
     PaError err = Pa_OpenStream(
@@ -94,7 +95,7 @@ bool AudioDeviceOutDataModel::startAudioOutput() {
         &outputParameters,
         SAMPLE_RATE,
         BUFFER_SIZE,
-        paClipOff,
+        paClipOff | paDitherOff,  // 添加 paDitherOff 减少数字噪声
         paCallback,
         this
     );

@@ -1,5 +1,5 @@
 #include "VST3PluginDataModel.hpp"
-
+#include "TimestampGenerator/TimestampGenerator.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -11,8 +11,7 @@ using namespace NodeDataTypes;
 
 
 VST3PluginDataModel::VST3PluginDataModel(const QString& path){
-    InPortCount = 1;
-    OutPortCount = 1;
+
     CaptionVisible = true;
     QFileInfo fileinfo(path);
     Caption = fileinfo.baseName();
@@ -23,10 +22,7 @@ VST3PluginDataModel::VST3PluginDataModel(const QString& path){
 
     // 初始化音频处理参数
     sampleRate_ = 48000;
-    blockSize_ = 4096;
-
-    // 创建输出音频缓冲区
-    outputAudioBuffer_ = std::make_shared<AudioTimestampRingQueue>(8);
+    blockSize_ = sampleRate_/TimestampGenerator::getInstance()->getFrameRate();
 
     // 创建音频处理线程
     audioProcessingThread_ = std::make_unique<VST3AudioProcessingThread>(this);
@@ -42,7 +38,7 @@ VST3PluginDataModel::VST3PluginDataModel(const QString& path){
  * @brief 析构函数，清理VST3插件资源
  */
 VST3PluginDataModel::~VST3PluginDataModel(){
-    qDebug() << "VST3PluginDataModel destructor started";
+    // qDebug() << "VST3PluginDataModel destructor started";
     
     // 1. 首先停止音频处理线程
     if (audioProcessingThread_) {
@@ -92,23 +88,9 @@ VST3PluginDataModel::~VST3PluginDataModel(){
     module_ = nullptr;
     pluginContext_ = nullptr;
     
-    qDebug() << "VST3PluginDataModel destructor completed";
+    // qDebug() << "VST3PluginDataModel destructor completed";
 }
 
-/**
- * @brief 音频处理循环，由定时器定期调用
- */
-// 删除这个方法，因为音频处理现在在独立线程中进行
-// void VST3PluginDataModel::processAudioLoop()
-// {
-//     // 删除原有实现
-// }
-// {
-//     if (inputAudioBuffer_ && inputConsumerId_ != -1) {
-//         processAudioData();
-//     }
-// }
-        
 /**
  * @brief 显示VST3插件控制界面
  */
@@ -155,22 +137,9 @@ NodeDataType VST3PluginDataModel::dataType(PortType portType, PortIndex portInde
  */
 std::shared_ptr<NodeData> VST3PluginDataModel::outData(PortIndex const portIndex)
 {
-    switch (portIndex)
-    {
-        case 0:
-        {
-            // 返回包含处理后音频数据的AudioData对象
-            auto audioData = std::make_shared<AudioData>();
-            if (outputAudioBuffer_) {
-                audioData->setSharedAudioBuffer(outputAudioBuffer_);
-            }
-            return audioData;
-        }
-        case 1:
-            return std::make_shared<VariableData>(pluginInfo_);
-        default:
-            return std::make_shared<AudioData>();
-    }
+    auto audioData = std::make_shared<AudioData>();
+    audioData->setSharedAudioBuffer( audioProcessingThread_->getOutputAudioBuffers(portIndex));
+    return audioData;
 }
 
 /**
@@ -182,41 +151,25 @@ void VST3PluginDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex co
     if (audioData && audioData->isConnectedToSharedBuffer())
     {
         // 获取输入音频缓冲区
-        inputAudioBuffer_ = audioData->getSharedAudioBuffer();
+        auto inputAudioBuffer_ = audioData->getSharedAudioBuffer();
         if (!inputAudioBuffer_) {
             return;
         }
-
-        // 注册为消费者
-        if (inputConsumerId_ == -1) {
-            inputConsumerId_ = inputAudioBuffer_->registerNewConsumer(true);
-            qDebug() << "registerNewConsumer";
-        }
-
         // 设置音频处理线程的缓冲区和VST3组件
         if (audioProcessingThread_) {
-            audioProcessingThread_->setAudioBuffers(inputAudioBuffer_, outputAudioBuffer_, inputConsumerId_);
-            audioProcessingThread_->setVST3Components(audioEffect_, &audioProcessingData_);
-            
-            // 启动音频处理线程
-            audioProcessingThread_->startProcessing();
+
+            audioProcessingThread_->setInputAudioBuffers(portIndex,inputAudioBuffer_);
+
+
         }
     }
     else
     {
         // 断开连接：停止音频处理线程
         if (audioProcessingThread_) {
-            audioProcessingThread_->stopProcessing();
+            audioProcessingThread_->setInputAudioBuffers(portIndex,nullptr);
         }
 
-        // 注销消费者（如果存在）
-        if (inputConsumerId_ != -1) {
-            if (inputAudioBuffer_) {
-                inputAudioBuffer_->unregisterConsumer(inputConsumerId_);
-            }
-            inputConsumerId_ = -1;
-            inputAudioBuffer_ = nullptr;
-        }
     }
 }
 
@@ -307,11 +260,6 @@ QWidget* VST3PluginDataModel::embeddedWidget()  { return widget; }
 
 
 void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
-    // 1. 首先停止音频处理定时器
-    // if (audioProcessTimer_) {
-    //     audioProcessTimer_->stop();
-    // }
-
     // 2. 关闭界面窗口
     if (window && window->isVisible()) {
         window->close();
@@ -420,6 +368,11 @@ void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
             widget->ShowController->setEnabled(editController_ != nullptr);
         }
     }
+    audioProcessingThread_->setVST3Components(audioEffect_, &audioProcessingData_);
+
+    // 启动音频处理线程
+    if (!audioProcessingThread_->isRunning())
+        audioProcessingThread_->startProcessing();
 }
         
 /**
@@ -443,10 +396,6 @@ void VST3PluginDataModel::initializeAudioProcessing()
     
     // 优先使用双精度以获得更好的音质
     audioProcessingData_.useDoubleProcessing = supportsDouble;
-    
-    qDebug() << "Using" << (audioProcessingData_.useDoubleProcessing ? "double" : "float") 
-             << "precision processing";
-
     // 2. 配置处理设置
     Vst::ProcessSetup processSetup;
     processSetup.processMode = Vst::kRealtime;
@@ -481,8 +430,6 @@ void VST3PluginDataModel::initializeAudioProcessing()
         vstPlug_->setActive(false);
         return;
     }
-    
-    qDebug() << "VST3 audio processing initialized successfully";
 }
 
 /**
@@ -494,47 +441,53 @@ void VST3PluginDataModel::setupAudioBuses()
     int32 numInputBuses = vstPlug_->getBusCount(Vst::kAudio, Vst::kInput);
     int32 numOutputBuses = vstPlug_->getBusCount(Vst::kAudio, Vst::kOutput);
     
-    // qDebug() << "Plugin has" << numInputBuses << "input buses and" << numOutputBuses << "output buses";
-    
     // 重置总线信息
     audioProcessingData_.inputChannelCounts.clear();
     audioProcessingData_.outputChannelCounts.clear();
     audioProcessingData_.totalInputChannels = 0;
     audioProcessingData_.totalOutputChannels = 0;
     
-    // 配置输入总线
+    // 配置输入总线并计算实际端口数
+    int actualInputPorts = 0;
     for (int32 i = 0; i < numInputBuses; ++i) {
         Vst::BusInfo busInfo;
         tresult result = vstPlug_->getBusInfo(Vst::kAudio, Vst::kInput, i, busInfo);
         if (result == kResultOk) {
             // 激活主总线
-            if (busInfo.busType == Vst::kMain) {
+            if (busInfo.busType == Vst::kMain || busInfo.busType == Vst::kAux) {
                 result = vstPlug_->activateBus(Vst::kAudio, Vst::kInput, i, true);
                 if (result == kResultOk) {
                     audioProcessingData_.inputChannelCounts.push_back(busInfo.channelCount);
                     audioProcessingData_.totalInputChannels += busInfo.channelCount;
+                    actualInputPorts += busInfo.channelCount; // 每个通道对应一个端口
                     // qDebug() << "Activated input bus" << i << "with" << busInfo.channelCount << "channels";
                 }
             }
         }
     }
     
-    // 配置输出总线
+    // 配置输出总线并计算实际端口数
+    int actualOutputPorts = 0;
     for (int32 i = 0; i < numOutputBuses; ++i) {
         Vst::BusInfo busInfo;
         tresult result = vstPlug_->getBusInfo(Vst::kAudio, Vst::kOutput, i, busInfo);
         if (result == kResultOk) {
             // 激活主总线
-            if (busInfo.busType == Vst::kMain) {
+            if (busInfo.busType == Vst::kMain || busInfo.busType == Vst::kAux) {
                 result = vstPlug_->activateBus(Vst::kAudio, Vst::kOutput, i, true);
                 if (result == kResultOk) {
                     audioProcessingData_.outputChannelCounts.push_back(busInfo.channelCount);
                     audioProcessingData_.totalOutputChannels += busInfo.channelCount;
+                    actualOutputPorts += busInfo.channelCount; // 每个通道对应一个端口
                     // qDebug() << "Activated output bus" << i << "with" << busInfo.channelCount << "channels";
                 }
             }
         }
     }
+    
+    // 设置实际的端口数量（每个通道对应一个端口）
+    InPortCount = actualInputPorts;
+    OutPortCount = actualOutputPorts;
 }
 
 /**
@@ -545,18 +498,18 @@ void VST3PluginDataModel::initializeAudioBuffers()
     // 调整VST总线缓冲区大小
     audioProcessingData_.vstInput.resize(audioProcessingData_.inputChannelCounts.size());
     audioProcessingData_.vstOutput.resize(audioProcessingData_.outputChannelCounts.size());
-    
+
     if (audioProcessingData_.useDoubleProcessing) {
         // 双精度缓冲区
         audioProcessingData_.doubleBuffers.resize(
-            std::max(audioProcessingData_.totalInputChannels, audioProcessingData_.totalOutputChannels));
+            qMax(audioProcessingData_.totalInputChannels, audioProcessingData_.totalOutputChannels));
         for (auto& buffer : audioProcessingData_.doubleBuffers) {
             buffer.resize(blockSize_);
         }
     } else {
         // 单精度缓冲区
         audioProcessingData_.floatBuffers.resize(
-            std::max(audioProcessingData_.totalInputChannels, audioProcessingData_.totalOutputChannels));
+            qMax(audioProcessingData_.totalInputChannels, audioProcessingData_.totalOutputChannels));
         for (auto& buffer : audioProcessingData_.floatBuffers) {
             buffer.resize(blockSize_);
         }
@@ -605,218 +558,6 @@ bool VST3PluginDataModel::validateVST3Interfaces() {
     }
     
     return true;
-}
-/**
- * @brief 改进的音频数据处理函数，参考Score项目的零拷贝方法
- */
-void VST3PluginDataModel::processAudioData()
-{
-    if (!outputAudioBuffer_ || inputConsumerId_ == -1 || !audioEffect_) {
-        return;
-    }
-
-    // 获取输入音频帧
-    qint64 currentSystemTime = QDateTime::currentMSecsSinceEpoch();
-    double frameDurationMs = (double)blockSize_ * 1000.0 / sampleRate_;
-    qint64 tolerance = static_cast<qint64>(frameDurationMs * 0.5);
-    
-    AudioFrame inputFrame;
-    if (!inputAudioBuffer_->getFrameByTimestamp(inputConsumerId_, currentSystemTime, tolerance, inputFrame)) {
-        return;
-    }
-
-    // 验证输入数据
-    if (inputFrame.data.isEmpty() || inputFrame.sampleRate <= 0 || inputFrame.channels <= 0) {
-        return;
-    }
-
-    int sampleCount = inputFrame.data.size() / sizeof(int16_t);
-    if (sampleCount != blockSize_) {
-        // 如果样本数不匹配，调整块大小
-        blockSize_ = sampleCount;
-        initializeAudioBuffers();
-    }
-
-    // 执行音频处理
-    if (audioProcessingData_.useDoubleProcessing) {
-        processAudioDouble(inputFrame);
-    } else {
-        processAudioFloat(inputFrame);
-    }
-}
-
-/**
- * @brief 双精度音频处理（零拷贝优化）
- */
-void VST3PluginDataModel::processAudioDouble(const AudioFrame& inputFrame)
-{
-    const int16_t* inputInt16 = reinterpret_cast<const int16_t*>(inputFrame.data.constData());
-    int sampleCount = inputFrame.data.size() / sizeof(int16_t);
-    
-    // 准备输入缓冲区指针数组
-    std::vector<double*> inputPointers(audioProcessingData_.totalInputChannels);
-    std::vector<double*> outputPointers(audioProcessingData_.totalOutputChannels);
-    
-    // 转换输入数据到双精度并设置指针
-    int channelIndex = 0;
-    for (size_t busIndex = 0; busIndex < audioProcessingData_.inputChannelCounts.size(); ++busIndex) {
-        int channelCount = audioProcessingData_.inputChannelCounts[busIndex];
-        
-        for (int ch = 0; ch < channelCount; ++ch) {
-            auto& buffer = audioProcessingData_.doubleBuffers[channelIndex];
-            
-            // 转换16位整数到双精度浮点
-            for (int i = 0; i < sampleCount; ++i) {
-                buffer[i] = static_cast<double>(inputInt16[i]) / 32767.0;
-            }
-            
-            inputPointers[channelIndex] = buffer.data();
-            channelIndex++;
-        }
-        
-        // 设置VST输入总线
-        audioProcessingData_.vstInput[busIndex].numChannels = channelCount;
-        audioProcessingData_.vstInput[busIndex].channelBuffers64 = inputPointers.data() + channelIndex - channelCount;
-        audioProcessingData_.vstInput[busIndex].silenceFlags = 0;
-    }
-    
-    // 准备输出缓冲区
-    channelIndex = 0;
-    for (size_t busIndex = 0; busIndex < audioProcessingData_.outputChannelCounts.size(); ++busIndex) {
-        int channelCount = audioProcessingData_.outputChannelCounts[busIndex];
-        
-        for (int ch = 0; ch < channelCount; ++ch) {
-            outputPointers[channelIndex] = audioProcessingData_.doubleBuffers[channelIndex].data();
-            channelIndex++;
-        }
-        
-        // 设置VST输出总线
-        audioProcessingData_.vstOutput[busIndex].numChannels = channelCount;
-        audioProcessingData_.vstOutput[busIndex].channelBuffers64 = outputPointers.data() + channelIndex - channelCount;
-        audioProcessingData_.vstOutput[busIndex].silenceFlags = 0;
-    }
-    
-    // 执行VST处理
-    audioProcessingData_.vstData.numSamples = sampleCount;
-    tresult result = audioEffect_->process(audioProcessingData_.vstData);
-    
-    if (result == kResultOk) {
-        // 转换输出数据回16位整数
-        QByteArray outputData(sampleCount * sizeof(int16_t), 0);
-        int16_t* outputInt16 = reinterpret_cast<int16_t*>(outputData.data());
-        
-        // 使用第一个输出通道的数据
-        if (audioProcessingData_.totalOutputChannels > 0) {
-            const double* outputBuffer = outputPointers[0];
-            for (int i = 0; i < sampleCount; ++i) {
-                double sample = qBound(-1.0, outputBuffer[i], 1.0);
-                outputInt16[i] = static_cast<int16_t>(sample * 32767.0);
-            }
-        }
-        
-        // 创建输出帧
-        AudioFrame outputFrame;
-        outputFrame.data = outputData;
-        outputFrame.sampleRate = inputFrame.sampleRate;
-        outputFrame.channels = inputFrame.channels;
-        outputFrame.bitsPerSample = 16;
-        outputFrame.timestamp = inputFrame.timestamp + static_cast<qint64>(85);
-        
-        outputAudioBuffer_->pushFrame(outputFrame);
-    } else {
-        qWarning() << "VST3 double processing failed with result:" << result;
-        // 传递原始数据
-        AudioFrame outputFrame = inputFrame;
-        outputFrame.timestamp += static_cast<qint64>(85);
-        outputAudioBuffer_->pushFrame(outputFrame);
-    }
-}
-
-/**
- * @brief 单精度音频处理
- */
-void VST3PluginDataModel::processAudioFloat(const AudioFrame& inputFrame)
-{
-    const int16_t* inputInt16 = reinterpret_cast<const int16_t*>(inputFrame.data.constData());
-    int sampleCount = inputFrame.data.size() / sizeof(int16_t);
-    
-    // 准备输入缓冲区指针数组
-    std::vector<float*> inputPointers(audioProcessingData_.totalInputChannels);
-    std::vector<float*> outputPointers(audioProcessingData_.totalOutputChannels);
-    
-    // 转换输入数据到单精度并设置指针
-    int channelIndex = 0;
-    for (size_t busIndex = 0; busIndex < audioProcessingData_.inputChannelCounts.size(); ++busIndex) {
-        int channelCount = audioProcessingData_.inputChannelCounts[busIndex];
-        
-        for (int ch = 0; ch < channelCount; ++ch) {
-            auto& buffer = audioProcessingData_.floatBuffers[channelIndex];
-            
-            // 转换16位整数到单精度浮点
-            for (int i = 0; i < sampleCount; ++i) {
-                buffer[i] = static_cast<float>(inputInt16[i]) / 32767.0f;
-            }
-            
-            inputPointers[channelIndex] = buffer.data();
-            channelIndex++;
-        }
-        
-        // 设置VST输入总线
-        audioProcessingData_.vstInput[busIndex].numChannels = channelCount;
-        audioProcessingData_.vstInput[busIndex].channelBuffers32 = inputPointers.data() + channelIndex - channelCount;
-        audioProcessingData_.vstInput[busIndex].silenceFlags = 0;
-    }
-    
-    // 准备输出缓冲区
-    channelIndex = 0;
-    for (size_t busIndex = 0; busIndex < audioProcessingData_.outputChannelCounts.size(); ++busIndex) {
-        int channelCount = audioProcessingData_.outputChannelCounts[busIndex];
-        
-        for (int ch = 0; ch < channelCount; ++ch) {
-            outputPointers[channelIndex] = audioProcessingData_.floatBuffers[channelIndex].data();
-            channelIndex++;
-        }
-        
-        // 设置VST输出总线
-        audioProcessingData_.vstOutput[busIndex].numChannels = channelCount;
-        audioProcessingData_.vstOutput[busIndex].channelBuffers32 = outputPointers.data() + channelIndex - channelCount;
-        audioProcessingData_.vstOutput[busIndex].silenceFlags = 0;
-    }
-    
-    // 执行VST处理
-    audioProcessingData_.vstData.numSamples = sampleCount;
-    tresult result = audioEffect_->process(audioProcessingData_.vstData);
-    
-    if (result == kResultOk) {
-        // 转换输出数据回16位整数
-        QByteArray outputData(sampleCount * sizeof(int16_t), 0);
-        int16_t* outputInt16 = reinterpret_cast<int16_t*>(outputData.data());
-        
-        // 使用第一个输出通道的数据
-        if (audioProcessingData_.totalOutputChannels > 0) {
-            const float* outputBuffer = outputPointers[0];
-            for (int i = 0; i < sampleCount; ++i) {
-                float sample = qBound(-1.0f, outputBuffer[i], 1.0f);
-                outputInt16[i] = static_cast<int16_t>(sample * 32767.0f);
-            }
-        }
-        
-        // 创建输出帧
-        AudioFrame outputFrame;
-        outputFrame.data = outputData;
-        outputFrame.sampleRate = inputFrame.sampleRate;
-        outputFrame.channels = inputFrame.channels;
-        outputFrame.bitsPerSample = 16;
-        outputFrame.timestamp = inputFrame.timestamp + static_cast<qint64>(85);
-        
-        outputAudioBuffer_->pushFrame(outputFrame);
-    } else {
-        qWarning() << "VST3 float processing failed with result:" << result;
-        // 传递原始数据
-        AudioFrame outputFrame = inputFrame;
-        outputFrame.timestamp += static_cast<qint64>(85);
-        outputAudioBuffer_->pushFrame(outputFrame);
-    }
 }
 
 /**

@@ -31,6 +31,7 @@ target_link_libraries(${Module_Name}  PRIVATE
         swresample
         swscale
         ${portaudio_LIBRARIES}
+        TimestampGenerator
 )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

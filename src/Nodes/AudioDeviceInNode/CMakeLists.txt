@@ -16,7 +16,8 @@ target_link_libraries(${Module_Name}
         PUBLIC
         Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
-        ${portaudio_LIBRARIES})
+        ${portaudio_LIBRARIES}
+        TimestampGenerator)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES
