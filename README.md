@@ -6,6 +6,9 @@
 - Camera in
 - Audio decoder
 - Audio device out
+- Audio device in
+- VST3 audio process
+- Artnet record and playback
 - Tcp in and out
 - Udp in and out
 - Lua script support
@@ -31,3 +34,5 @@
 ![capture1.png](images%2Fcapture1.png)
 ![capture2.png](images%2Fcapture2.png)
 ![capture3.png](images%2Fcapture3.png)
+- ![img_2.png](img_2.png)
+![Screenshot.png](example/Artnet%20controls/Screenshot.png)

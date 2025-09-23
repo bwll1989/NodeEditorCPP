@@ -60,3 +60,5 @@ add_subdirectory(ArtnetPlaybackNode)  #Artnet数据回放
 add_subdirectory(CustomScriptNode)    #自定义js节点
 add_subdirectory(AudioDeviceInNode)   #音频输入节点
 add_subdirectory(NoiseGeneratorNode)  #噪声生成器节点
+add_subdirectory(NDIInNode)           #NDI输入节点
+add_subdirectory(NDIOutNode)          #NDI输出节点

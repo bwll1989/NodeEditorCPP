@@ -99,6 +99,6 @@ void Plugin::registerVst3Plugin(std::shared_ptr<QtNodes::NodeDelegateModelRegist
         return model;
     };
     // 使用工厂函数注册节点类型
-    reg->registerFactory(fileinfo.baseName(), factory, "AudioEffects");
+    reg->registerFactory(fileinfo.baseName(), factory, "Audio");
 
 }

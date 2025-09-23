@@ -3,6 +3,9 @@
 //
 
 #include "CustomFlowGraphicsScene.h"
+
+#include <QTableWidget>
+
 #include "QtNodes/internal/ConnectionGraphicsObject.hpp"
 #include "CustomGraphicsView.h"
 #include "QtNodes/internal/GraphicsView.hpp"
@@ -71,90 +74,180 @@ CustomFlowGraphicsScene::CustomFlowGraphicsScene(CustomDataFlowGraphModel &graph
         qDebug()<<node;
 }
 
-    QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos=QPointF(0,0))
+/**
+ * 创建横向标签页式的场景菜单（使用表格布局，从上到下从左到右排列，每列12项）
+ * @param scenePos 场景位置
+ * @return 返回创建的菜单指针
+ */
+QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos)
 {
     QMenu *modelMenu = new QMenu();
+    // auto const &flowViewStyle = StyleCollection::flowViewStyle();
+    // 创建主容器widget
+    QWidget *mainWidget = new QWidget(modelMenu);
+    mainWidget->setMinimumSize(600, 400);
 
-    // Add filterbox to the context menu
-    auto *txtBox = new QLineEdit(modelMenu);
+    // 创建垂直布局
+    QVBoxLayout *mainLayout = new QVBoxLayout(mainWidget);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setSpacing(0);
+
+    // 添加搜索框
+    QLineEdit *txtBox = new QLineEdit(mainWidget);
     txtBox->setPlaceholderText(QStringLiteral("Filter"));
     txtBox->setClearButtonEnabled(true);
+    txtBox->setFixedHeight(30);
+    mainLayout->addWidget(txtBox);
 
-    auto *txtBoxAction = new QWidgetAction(modelMenu);
-    txtBoxAction->setDefaultWidget(txtBox);
+    // 创建标签页控件
+    QTabWidget *tabWidget = new QTabWidget(mainWidget);
+    tabWidget->setTabPosition(QTabWidget::North);
+    tabWidget->setDocumentMode(true);
+    tabWidget->setMovable(false);
+    tabWidget->setUsesScrollButtons(false);
+    mainLayout->addWidget(tabWidget);
 
-    // 1.
-    modelMenu->addAction(txtBoxAction);
-
-    // Add result treeview to the context menu
-    QTreeWidget *treeView = new QTreeWidget(modelMenu);
-    treeView->header()->close();
-
-    auto *treeViewAction = new QWidgetAction(modelMenu);
-    treeViewAction->setDefaultWidget(treeView);
-
-    // 2.
-    modelMenu->addAction(treeViewAction);
-
+    // 获取注册表
     auto registry = _graphModel.dataModelRegistry();
 
+    // 为每个分类创建标签页
+    QMap<QString, QTableWidget*> categoryWidgets;
+
     for (auto const &cat : registry->categories()) {
-        auto item = new QTreeWidgetItem(treeView);
-        item->setText(0, cat);
-        item->setIcon(0,QIcon(":/icons/icons/plugins.png"));
-        item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+        // 创建表格控件
+        QTableWidget *tableWidget = new QTableWidget();
+
+        // 设置表格属性 - 每列12项，所以固定12行
+        tableWidget->setRowCount(12);
+        tableWidget->setColumnCount(1); // 先设置1列，后续根据数据动态调整
+        tableWidget->setHorizontalHeaderLabels(QStringList() << "");
+        tableWidget->horizontalHeader()->setVisible(false); // 隐藏列标题
+        tableWidget->verticalHeader()->setVisible(false);   // 隐藏行标题
+        tableWidget->setSelectionBehavior(QAbstractItemView::SelectItems);
+        tableWidget->setSelectionMode(QAbstractItemView::SingleSelection);
+        tableWidget->setAlternatingRowColors(false);
+        tableWidget->setShowGrid(true);
+        tableWidget->setGridStyle(Qt::NoPen);
+        // 设置单元格大小
+        tableWidget->verticalHeader()->setDefaultSectionSize(30);   // 行高30像素
+        tableWidget->horizontalHeader()->setDefaultSectionSize(150); // 列宽180像素
+        tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+        tableWidget->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+
+        // 添加到标签页
+        tabWidget->addTab(tableWidget, cat);
+        categoryWidgets[cat] = tableWidget;
+        // 设置滚动条策略
+        tableWidget->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        tableWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        // 连接点击事件
+        connect(tableWidget, &QTableWidget::itemClicked,
+                [this, modelMenu, scenePos](QTableWidgetItem *item) {
+                    if (!item || item->text().isEmpty()) return;
+
+                    // 检查项目是否可选择
+                    if (!(item->flags() & Qt::ItemIsSelectable)) return;
+
+                    this->undoStack().push(new QtNodes::CreateCommand(this, item->text(), scenePos));
+                    modelMenu->close();
+                });
     }
 
+    // 填充模型到对应的分类标签页
+    QMap<QString, QStringList> categoryModels;
+
+    // 先收集每个分类的所有模型
     for (auto const &assoc : registry->registeredModelsCategoryAssociation()) {
-        QList<QTreeWidgetItem *> parent = treeView->findItems(assoc.second, Qt::MatchExactly);
-
-        if (parent.count() <= 0)
-            continue;
-        auto item = new QTreeWidgetItem(parent.first());
-        item->setText(0, assoc.first);
-        item->setIcon(0,QIcon(":/icons/icons/plugin.png"));
+        QString modelName = assoc.first;
+        QString categoryName = assoc.second;
+        categoryModels[categoryName].append(modelName);
     }
-    treeView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    treeView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    treeView->expandAll();
 
-    connect(treeView,
-            &QTreeWidget::itemClicked,
-            [this, modelMenu, scenePos](QTreeWidgetItem *item, int) {
-                if (!(item->flags() & (Qt::ItemIsSelectable))) {
-                    return;
-                }
+   for (auto it = categoryModels.begin(); it != categoryModels.end(); ++it) {
+    QString categoryName = it.key();
+    QStringList models = it.value();
 
-                this->undoStack().push(new QtNodes::CreateCommand(this, item->text(0), scenePos));
+    if (categoryWidgets.contains(categoryName)) {
+        QTableWidget *tableWidget = categoryWidgets[categoryName];
+        int itemsPerColumn = 12;
+        int columnCount = (models.size() + itemsPerColumn - 1) / itemsPerColumn;
 
-                modelMenu->close();
-            });
+        // // 设置表格尺寸
+        // tableWidget->setRowCount(itemsPerColumn);  // 添加这行：设置行数
+        // tableWidget->setColumnCount(columnCount);
+        tableWidget->clear();
 
-    //Setup filtering
-    connect(txtBox, &QLineEdit::textChanged, [treeView](const QString &text) {
-        QTreeWidgetItemIterator categoryIt(treeView, QTreeWidgetItemIterator::HasChildren);
-        while (*categoryIt)
-            (*categoryIt++)->setHidden(true);
-        QTreeWidgetItemIterator it(treeView, QTreeWidgetItemIterator::NoChildren);
-        while (*it) {
-            auto modelName = (*it)->text(0);
-            const bool match = (modelName.contains(text, Qt::CaseInsensitive));
-            (*it)->setHidden(!match);
-            if (match) {
-                QTreeWidgetItem *parent = (*it)->parent();
-                while (parent) {
-                    parent->setHidden(false);
-                    parent = parent->parent();
+        // 重新设置表格尺寸（clear()可能会重置尺寸）
+        tableWidget->setRowCount(itemsPerColumn);
+        tableWidget->setColumnCount(columnCount);
+        // 设置滚动条策略
+        for (int i = 0; i < models.size(); ++i) {
+            int col = i / itemsPerColumn;  // 列索引
+            int row = i % itemsPerColumn;  // 行索引
+
+            QTableWidgetItem *item = new QTableWidgetItem(models[i]);
+            item->setTextAlignment(Qt::AlignCenter);
+            item->setToolTip(models[i]); // 添加工具提示
+
+            // 设置项目标志
+            item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+
+            // 设置默认颜色
+            item->setBackground(QBrush(QColor(43, 43, 43))); // 正常背景色
+            item->setForeground(QBrush(QColor(255, 255, 255))); // 白色文字
+
+            tableWidget->setItem(row, col, item);
+        }
+    }
+}
+
+    connect(txtBox, &QLineEdit::textChanged, [tabWidget, categoryWidgets](const QString &text) {
+        for (auto it = categoryWidgets.begin(); it != categoryWidgets.end(); ++it) {
+            QTableWidget *tableWidget = it.value();
+            int visibleCount = 0;
+
+            // 遍历所有单元格进行过滤
+            for (int row = 0; row < tableWidget->rowCount(); ++row) {
+                for (int col = 0; col < tableWidget->columnCount(); ++col) {
+                    QTableWidgetItem *item = tableWidget->item(row, col);
+                    if (item && !item->text().isEmpty()) {
+                        bool match = text.isEmpty() || item->text().contains(text, Qt::CaseInsensitive);
+
+                        if (match) {
+                            item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+                            item->setBackground(QBrush(QColor(43, 43, 43))); // 正常背景色
+                            item->setForeground(QBrush(QColor(255, 255, 255))); // 白色文字
+                            visibleCount++;
+                        } else {
+                            item->setFlags(Qt::ItemIsEnabled); // 移除可选择标志
+                            item->setBackground(QBrush(QColor(25, 25, 25))); // 更暗的背景色
+                            item->setForeground(QBrush(QColor(100, 100, 100))); // 灰色文字
+                        }
+                    }
                 }
             }
-            ++it;
+
+            int tabIndex = tabWidget->indexOf(tableWidget);
+            if (tabIndex >= 0) {
+                QString tabText = it.key();
+                if (!text.isEmpty()) {
+                    tabWidget->setTabText(tabIndex, QString("%1 (%2)").arg(tabText).arg(visibleCount));
+                } else {
+                    tabWidget->setTabText(tabIndex, tabText);
+                }
+            }
         }
     });
 
-    // make sure the text box gets focus so the user doesn't have to click on it
+    // 创建菜单动作并设置主widget
+    QWidgetAction *mainAction = new QWidgetAction(modelMenu);
+    mainAction->setDefaultWidget(mainWidget);
+    modelMenu->addAction(mainAction);
+
+    // 设置焦点到搜索框
     txtBox->setFocus();
 
-    // QMenu's instance auto-destruction
+    // 设置菜单属性
     modelMenu->setAttribute(Qt::WA_DeleteOnClose);
 
     return modelMenu;

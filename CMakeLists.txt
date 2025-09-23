@@ -56,12 +56,8 @@ set(QHotKey_INCLUDE_DIRS "${DEPENDS_DIR}/QHotkey-master/MSVC/include" )
 set(QHotKey_LIBRARIES "${DEPENDS_DIR}/QHotkey-master/MSVC/lib/qhotkey.lib")
 INCLUDE_DIRECTORIES(${QHotKey_INCLUDE_DIRS} )
 message("-- Found QHotkey ${QHotKey_INCLUDE_DIRS}")
+
 # 设置VST3库
-#set(VST3_DIR "${DEPENDS_DIR}/vst3sdk")
-#set(VST3_LIBRARIES_DIR "${VST3_DIR}/MSVC/lib")
-#include_directories(${VST3_DIR})
-#link_directories(${VST3_LIBRARIES_DIR})
-#message("-- Found vst3sdk ${VST3_DIR}")
 set(VST3_DIR "${DEPENDS_DIR}/vst-sdk_3.7.14_build-55_2025-06-23/VST_SDK/vst3sdk")
 set(VST3_LIBRARIES_DIR "${DEPENDS_DIR}/vst-sdk_3.7.14_build-55_2025-06-23/VST_SDK/build/lib/Release")
 include_directories(${VST3_DIR})
@@ -74,12 +70,17 @@ set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/lib/Release/qt
 INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
 message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
 
-
 # 设置portaudio库
 set(portaudio_DIR "${DEPENDS_DIR}/portaudio/include")
 set(portaudio_LIBRARIES "${DEPENDS_DIR}/portaudio/build/MSVC/lib/portaudio.lib")
 INCLUDE_DIRECTORIES(${portaudio_DIR})
 message("-- Found portaudio ${portaudio_DIR}")
+
+# 设置NDI库
+set(NDI_DIR "${DEPENDS_DIR}/NDI 6 SDK/include")
+set(NDI_LIBRARIES "${DEPENDS_DIR}/NDI 6 SDK/Lib/x64/Processing.NDI.Lib.x64.lib")
+INCLUDE_DIRECTORIES(${NDI_DIR})
+message("-- Found NDI ${NDI_DIR}")
 
 # 设置Qtpropertybrowser库
 set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/MSVC/lib/Qt6PropertyBrowser.lib")
@@ -333,6 +334,7 @@ target_link_libraries(${ProjectName}
             vstgui_support
             sdk_hosting
             ${portaudio_LIBRARIES}
+            ${NDI_LIBRARIES}
             ${QtNodes_LIBRARIES}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}

@@ -1,0 +1,284 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 8,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 8,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 8,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 9,
+                "outNodeId": 7,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 12,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 15,
+                "outNodeId": 14,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 12,
+                "outNodeId": 10,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 2,
+                "intNodeId": 12,
+                "outNodeId": 14,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 3,
+                "intNodeId": 12,
+                "outNodeId": 15,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 9,
+                "outNodeId": 12,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+            {
+                "nodeIds": [
+                    8
+                ],
+                "remarks": "NDI接收"
+            },
+            {
+                "nodeIds": [
+                    3,
+                    14,
+                    15,
+                    10,
+                    12
+                ],
+                "remarks": "图像源"
+            },
+            {
+                "nodeIds": [
+                    7,
+                    4
+                ],
+                "remarks": "启停控制"
+            },
+            {
+                "nodeIds": [
+                    9
+                ],
+                "remarks": "NDI发送"
+            }
+        ],
+        "nodes": [
+            {
+                "id": 8,
+                "input-count": 2,
+                "internal-data": {
+                    "currentSender": "DESKTOP-5GHA663 (NodeEditor NDI Output)",
+                    "isReceiving": true
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 11.608306198316939,
+                    "y": 417.30795520511765
+                },
+                "remarks": "NDI In",
+                "type": "NDI In"
+            },
+            {
+                "id": 1,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 650,
+                    "y": -61
+                },
+                "remarks": "Image Display",
+                "type": "Image Display"
+            },
+            {
+                "id": 9,
+                "input-count": 2,
+                "internal-data": {
+                    "isSending": true,
+                    "senderName": "NodeEditor NDI Output"
+                },
+                "output-count": 0,
+                "port-editable": false,
+                "position": {
+                    "x": 49.62148093757088,
+                    "y": 753.1699722050292
+                },
+                "remarks": "NDI Out",
+                "type": "NDI Out"
+            },
+            {
+                "id": 3,
+                "input-count": 0,
+                "internal-data": {
+                    "path": "D:/19_NodeEditorCPP/NodeEditorCPP/example/NDI in and out/20250321154030.png"
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -1399.8259042976483,
+                    "y": -56.80136399109641
+                },
+                "remarks": "Image File",
+                "type": "Image File"
+            },
+            {
+                "id": 4,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -363.4863204917747,
+                    "y": 707.8608690637747
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 5,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "text": "DESKTOP-5GHA663 (NodeEditor NDI Output)"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -458,
+                    "y": -144
+                },
+                "remarks": "String Source",
+                "type": "String Source"
+            },
+            {
+                "id": 7,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "1"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -363.4852774307145,
+                    "y": 835.7555946316878
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 10,
+                "input-count": 0,
+                "internal-data": {
+                    "path": "D:/19_NodeEditorCPP/NodeEditorCPP/example/NDI in and out/3540A正面.png"
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -1377.8568824268887,
+                    "y": 237.721089193792
+                },
+                "remarks": "Image File",
+                "type": "Image File"
+            },
+            {
+                "id": 12,
+                "input-count": 5,
+                "internal-data": {
+                    "values": {
+                        "index": 0
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -783.554159442409,
+                    "y": 486.4317177907034
+                },
+                "remarks": "Image Switch",
+                "type": "Image Switch"
+            },
+            {
+                "id": 14,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -1427.0206113355807,
+                    "y": 571.7452473675509
+                },
+                "remarks": "Camera",
+                "type": "Camera"
+            },
+            {
+                "id": 15,
+                "input-count": 2,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -1374.9648983734364,
+                    "y": 819.009883937736
+                },
+                "remarks": "Capture",
+                "type": "Capture"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+        ]
+    }
+}

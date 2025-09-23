@@ -483,6 +483,7 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             auto &model = it->second;
             model->setEmbeddWidgetType(static_cast<decltype(model->getWidgetType())>(value.toInt())); // 显式类型转换
             Q_EMIT nodeWidgetUpdated(nodeId);
+            Q_EMIT nodeUpdated(nodeId);
             result=true;
         }
             break;

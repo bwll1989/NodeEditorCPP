@@ -19,6 +19,7 @@ namespace Nodes
             this->setLayout(main_layout);
             main_layout->addWidget(Editor);
             main_layout->addWidget(Clear);
+            this->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Expanding);
         }
     public:
         QVBoxLayout *main_layout=new QVBoxLayout(this);

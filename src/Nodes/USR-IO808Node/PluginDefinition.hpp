@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "USR-IO808"
 #define PLUGIN_VERSION "1.0"
 #define PLUGIN_DESCRIBE "USR-IO808工业IO控制器，支持8路数字输入和8路继电器输出"
-#define PLUGIN_TAG "Device"
+#define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface
