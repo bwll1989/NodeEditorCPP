@@ -68,11 +68,15 @@ public:
     QAction *aboutAction ;
     //关于Qt
     QAction *aboutQtAction ;
+    //帮助
+    QAction *helpAction ;
 private slots:
     void openOSCInterface(const QString& exePath, const QStringList& args);
     void openToolWithArgs(const QString& exePath, const QStringList& args);
     //软件关于
     void showAboutDialog();
+    //显示帮助
+    void showHelp();
 };
 
 #endif //NODEEDITORCPP_MENUBARWIDGET_H

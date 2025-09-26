@@ -2,14 +2,14 @@
 #include "ltcdecoder.h"
 
 #include <ltc.h>
-
+#include <QDebug>
 #define GETLTC static_cast<LTCDecoder *>(_private)
 
 
 LtcDecoder::LtcDecoder(QObject *parent)
   :QIODevice(parent)
 {
-  int apv = 1920;
+  int apv = 2048;
   int queue_size = 32;
   _private = ltc_decoder_create(apv, queue_size);
 
@@ -27,6 +27,7 @@ LtcDecoder::~LtcDecoder()
 
 qint64 LtcDecoder::writeData(const char *data, qint64 len)
 {
+
   static int last_frame = 0;
   static int frame_rate_g = 0;
   static int frame_rate = 0;
@@ -36,7 +37,8 @@ qint64 LtcDecoder::writeData(const char *data, qint64 len)
   SMPTETimecode ltc_stime;
   TimeCodeFrame frame;
 
-  ltc_decoder_write(ltc, (ltcsnd_sample_t *)data, len, 0);
+  size_t sampleCount = len / sizeof(int16_t);
+  ltc_decoder_write_s16(ltc, (short *)data, sampleCount, 0);
 
   while(ltc_decoder_read(ltc, &ltc_frame))
   {

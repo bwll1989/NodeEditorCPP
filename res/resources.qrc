@@ -86,6 +86,8 @@
     <file>icons/arror_down.png</file>
     <file>icons/js.png</file>
     <file>icons/ArtNet.png</file>
+    <file>icons/help.png</file>
+    <file>icons/recoder.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>
@@ -93,7 +95,6 @@
   <qresource prefix="styles">
     <file>styles/DefaultNodeEditorStyle.json</file>
     <file>styles/DefaultDark.qss</file>
-
   </qresource>
   <qresource prefix="docs">
     <file>README.txt</file>

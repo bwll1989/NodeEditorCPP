@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "showStoreGBx"
 #define PLUGIN_VERSION "1.0"
 #define PLUGIN_DESCRIBE "ELC showStoreGBx,支持4路灯光数据同时回放"
-#define PLUGIN_TAG "Controls"
+#define PLUGIN_TAG "Devices"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

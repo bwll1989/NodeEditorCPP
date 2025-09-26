@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "TSETL"
 #define PLUGIN_VERSION "20250803"
 #define PLUGIN_DESCRIBE "TSETL 接口"
-#define PLUGIN_TAG "Controls"
+#define PLUGIN_TAG "Devices"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

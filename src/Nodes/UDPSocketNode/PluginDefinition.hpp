@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "UDP Socket"
 #define PLUGIN_VERSION "20250707"
 #define PLUGIN_DESCRIBE "UDP连接"
-#define PLUGIN_TAG "Network"
+#define PLUGIN_TAG "Communications"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

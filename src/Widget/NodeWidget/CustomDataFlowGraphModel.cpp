@@ -346,7 +346,10 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             // qDebug() << "getOscMapping" << model->getOscMapping().size();
             break;
         }
-
+        case NodeRole::ValidationState: {
+            auto validationState = model->validationState();
+            result = QVariant::fromValue(validationState);
+        } break;
         case NodeRole::NodeID: {
             result = QVariant::fromValue(model->getNodeID());
             break;
@@ -463,6 +466,16 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             break; 
         case NodeRole::Widget:
             break;
+        case NodeRole::ValidationState: {
+            if (value.canConvert<QtNodes::NodeValidationState>()) {
+                auto state = value.value<QtNodes::NodeValidationState>();
+                if (auto node = delegateModel<NodeDelegateModel>(nodeId); node != nullptr) {
+                    node->setValidatonState(state);
+                }
+            }
+            Q_EMIT nodeUpdated(nodeId);
+            result=true;
+        } break;
         case NodeRole::NodeID:
         { 
             auto it = _models.find(nodeId);

@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "Mpv Controller"
 #define PLUGIN_VERSION "20240410"
 #define PLUGIN_DESCRIBE "Mpv播放器控制"
-#define PLUGIN_TAG "Controls"
+#define PLUGIN_TAG "Devices"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

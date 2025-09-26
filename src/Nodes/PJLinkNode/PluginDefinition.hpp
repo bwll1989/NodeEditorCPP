@@ -4,16 +4,18 @@
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/PluginInterface>
 
+
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef AudioPlayNode_EXPORTS
+#ifdef PJLinkNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
-#define PLUGIN_NAME "audio player"
-#define PLUGIN_VERSION "20230301"
-#define PLUGIN_DESCRIBE "音频文件播放"
-#define PLUGIN_TAG "Audio"
+
+#define PLUGIN_NAME "PJLink"
+#define PLUGIN_VERSION "20250803"
+#define PLUGIN_DESCRIBE "PJLink 输出"
+#define PLUGIN_TAG "Communications"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface
@@ -29,6 +31,7 @@ public:
     QString name() const override { return PLUGIN_NAME; };
     QString version() const override {return PLUGIN_VERSION;};
     QString describe() const override {return PLUGIN_DESCRIBE;};
+    QString tag() const override {return PLUGIN_TAG;};
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 
 private:

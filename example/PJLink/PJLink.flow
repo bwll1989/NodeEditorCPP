@@ -1,0 +1,61 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 0,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+        ],
+        "nodes": [
+            {
+                "id": 0,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "IP": "127.0.0.1",
+                        "Password": "123"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -41,
+                    "y": 61
+                },
+                "remarks": "PJLink",
+                "type": "PJLink"
+            },
+            {
+                "id": 1,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 419,
+                    "y": -37
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+        ]
+    }
+}

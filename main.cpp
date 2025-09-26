@@ -48,6 +48,7 @@ bool setupAppStyle(QApplication& app) {
     
     // 加载样式表
     QFile qssFile(":/styles/styles/DefaultDark.qss");
+    // QFile qssFile(":/darkstyle/darkstyle/darkstyle.qss");
     if (!qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning() << "Failed to load QSS file:" << qssFile.errorString();
         return false;

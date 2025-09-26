@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "AudioPlayDataModel.hpp"
+#include "PJLinkDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<AudioPlayDataModel>(PLUGIN_TAG);
+    reg->registerModel<Nodes::PJLinkDataModel>(name(),tag());
 }

@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "WebSocket Server"
 #define PLUGIN_VERSION "202507015"
 #define PLUGIN_DESCRIBE "WebSocket 服务器"
-#define PLUGIN_TAG "Network"
+#define PLUGIN_TAG "Communications"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

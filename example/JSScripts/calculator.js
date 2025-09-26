@@ -3,10 +3,10 @@
     "description": "计算器",
     "version": "1.0.0",
     "author": "吴斌",
-    "category": "Controls",
+    "category": "JS Plugins",
     "embeddable": true,
     "resizable": true,
-    "portEditable": false,
+    "portEditable": true,
     "inputs":1,
     "outputs":1
 } */

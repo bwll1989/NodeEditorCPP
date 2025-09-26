@@ -98,7 +98,7 @@ QString Plugin::name() const
  */
 QString Plugin::version() const
 {
-    return "1.0.0";
+    return "20250925";
 }
 
 /**

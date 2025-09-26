@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "Switch"
 #define PLUGIN_VERSION "20250707"
 #define PLUGIN_DESCRIBE "输入切换"
-#define PLUGIN_TAG "Data"
+#define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

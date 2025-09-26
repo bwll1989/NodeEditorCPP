@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "Condition"
 #define PLUGIN_VERSION "20250809"
 #define PLUGIN_DESCRIBE "条件判断"
-#define PLUGIN_TAG "Data"
+#define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

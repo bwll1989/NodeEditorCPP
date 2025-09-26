@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "Bool Source"
 #define PLUGIN_VERSION "20240410"
 #define PLUGIN_DESCRIBE "布尔值输入"
-#define PLUGIN_TAG "Data"
+#define PLUGIN_TAG "Variables"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

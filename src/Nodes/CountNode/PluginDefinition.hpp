@@ -15,7 +15,7 @@
 #define PLUGIN_NAME "Count"
 #define PLUGIN_VERSION "20250709"
 #define PLUGIN_DESCRIBE "计数"
-#define PLUGIN_TAG "Data"
+#define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

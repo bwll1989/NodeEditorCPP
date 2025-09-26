@@ -7,11 +7,10 @@
 #include <QProcess>
 #include <QMessageBox>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QFile>
 #include "Widget/AboutWidget/AboutWidget.hpp"
 MenuBarWidget::MenuBarWidget(QWidget *parent) : QMenuBar(parent) {
-    
-
     setupMenu();
 }
 
@@ -81,12 +80,16 @@ void MenuBarWidget::setupMenu() {
        });
 
     ArtnetRecoderToolAction=Tool_menu->addAction("Artnet录制器");
-    ArtnetRecoderToolAction->setIcon(QIcon(":/icons/icons/ArtNet.png"));
+    ArtnetRecoderToolAction->setIcon(QIcon(":/icons/icons/recoder.png"));
     connect(ArtnetRecoderToolAction, &QAction::triggered, this, [this]() {
         openToolWithArgs("ArtnetRecorder.exe", QStringList());
     });
 
     About_menu=this->addMenu("关于");
+    helpAction=About_menu->addAction("帮助文档");
+    helpAction->setIcon(QIcon(":/icons/icons/help.png"));
+    connect(helpAction, &QAction::triggered, this, &MenuBarWidget::showHelp);
+
     aboutAction = About_menu->addAction("关于NodeEditorCPP");
     aboutAction->setIcon(QIcon(":/icons/icons/about.png"));
     connect(aboutAction, &QAction::triggered, this, &MenuBarWidget::showAboutDialog);
@@ -137,4 +140,10 @@ void MenuBarWidget::showAboutDialog() {
     AboutWidget aboutDialog(":/docs/README.txt");
     //    关于窗口显示文档设置
     aboutDialog.exec();
+}
+
+//帮助文档
+void MenuBarWidget::showHelp() {
+    QString helpPath = QCoreApplication::applicationDirPath() + "/html/index.html";
+    QDesktopServices::openUrl(QUrl::fromLocalFile(helpPath));
 }

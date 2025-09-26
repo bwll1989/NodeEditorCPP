@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "TimeCodeSource.hpp"
+#include "LTCDecoderDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::TimeCodeSource>(name(),tag());
+    reg->registerModel<Nodes::LTCDecoderDataModel>(name(),tag());
 }

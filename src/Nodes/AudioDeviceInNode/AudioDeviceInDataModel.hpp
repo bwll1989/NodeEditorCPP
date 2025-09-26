@@ -250,7 +250,7 @@ namespace Nodes
                 Pa_Terminate();
                 return;
             }
-            
+
             isRecording_ = true;
             // qDebug() << "开始录制音频，设备:" << selectedDeviceIndex_;
         }

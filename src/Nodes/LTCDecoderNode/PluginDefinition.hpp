@@ -5,16 +5,16 @@
 #include <QtNodes/PluginInterface>
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef TimeCodeSourceNode_EXPORTS
+#ifdef LTCDecoderNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "TimeCode Source"
-#define PLUGIN_VERSION "20240410"
-#define PLUGIN_DESCRIBE "时间码接收"
-#define PLUGIN_TAG "Other"
+#define PLUGIN_NAME "LTC Decoder"
+#define PLUGIN_VERSION "20250925"
+#define PLUGIN_DESCRIBE "LTC 时间码解析"
+#define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

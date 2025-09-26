@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-set(Module_Name "TimeCodeSourceNode")
+set(Module_Name "LTCDecoderNode")
 
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
@@ -8,18 +8,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(${Module_Name} SHARED
         ../../Common/Devices/LtcDecoder/ltcdecoder.h
         ../../Common/Devices/LtcDecoder/ltcdecoder.cpp
-        TimeCodeInterface.h
-        TimeCodeInterface.cpp
-        TimeCodeSource.hpp
+        ../../DataTypes/AudioTimestampRingQueue.h
+        ../../DataTypes/AudioTimestampRingQueue.cpp
+        LTCDecoderInterface.h
+        LTCDecoderInterface.cpp
+        LTCDecoderDataModel.hpp
+        LTCDecoderWorker.hpp
+        LTCDecoderWorker.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/Devices/LtcReceiver/ltcreceiver.cpp
-        ../../Common/Devices/LtcReceiver/ltcreceiver.h)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets 
-        # Qt${QT_VERSION_MAJOR}::Multimedia
+
+)
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES} 
         ${Libltc_LIBRARIES}
-        ${portaudio_LIBRARIES}
+        TimestampGenerator
         )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

@@ -14,7 +14,7 @@
 #define PLUGIN_NAME "OSC Source"
 #define PLUGIN_VERSION "20241119"
 #define PLUGIN_DESCRIBE "OSC输入"
-#define PLUGIN_TAG "Network"
+#define PLUGIN_TAG "Communications"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

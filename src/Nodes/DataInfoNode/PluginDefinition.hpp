@@ -14,7 +14,7 @@
 #define PLUGIN_NAME "Data Info"
 #define PLUGIN_VERSION "20241101"
 #define PLUGIN_DESCRIBE "数值显示"
-#define PLUGIN_TAG "Data"
+#define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

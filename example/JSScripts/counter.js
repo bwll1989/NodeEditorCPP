@@ -3,7 +3,7 @@
     "description": "计数器，当输入值大于0时，计数增加",
     "version": "1.0.0",
     "author": "吴斌",
-    "category": "Controls",
+    "category": "JS Plugins",
     "embeddable": true,
     "resizable": true,
     "portEditable": false,

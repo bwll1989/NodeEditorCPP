@@ -14,7 +14,7 @@
 #define PLUGIN_NAME "NDV Player"
 #define PLUGIN_VERSION "20250707"
 #define PLUGIN_DESCRIBE "NDV Player抽象实例"
-#define PLUGIN_TAG "Network"
+#define PLUGIN_TAG "Devices"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

@@ -204,53 +204,71 @@ void AudioDecoder::startPlay(){
     start();  // 启动线程开始播放
 }
 
+/**
+ * @brief 停止音频播放
+ * 确保线程安全地停止播放并清理所有缓冲区
+ */
 void AudioDecoder::stopPlay() {
-    QMutexLocker locker(&mutex);
-    isPlaying = false;
-
-    // 刷新重采样器缓冲区
-    if (swrContext) {
-        uint8_t* flushBuffer = nullptr;
-        int flushSize =2048 * 2 * 2;
-        flushBuffer = (uint8_t*)av_malloc(flushSize);
-        if (flushBuffer) {
-            swr_convert(swrContext, &flushBuffer, 2048, nullptr, 0);
-            av_freep(&flushBuffer);
+    {
+        QMutexLocker locker(&mutex);
+        if (!isPlaying) {
+            return; // 已经停止，直接返回
         }
+        isPlaying = false;
+        condition.wakeAll();
     }
 
-    condition.wakeAll();
-    locker.unlock();
-
-    // 清空所有通道的音频缓冲区队列
-    for (auto& pair : channelAudioBuffers) {
-        if (pair.second) {
-            pair.second->clear();  // 清空队列中的所有音频帧
-            pair.second->setActive(false);  // 设置队列为非活跃状态
-        }
-    }
-    
-    // 重新激活所有缓冲区（为下次播放做准备）
-    for (auto& pair : channelAudioBuffers) {
-        if (pair.second) {
-            pair.second->setActive(true);
-        }
-    }
-
-    condition.wakeAll();
-    locker.unlock();
-
-    // 等待线程结束
+    // 等待线程结束（在锁外进行）
     if (isRunning()) {
         wait(3000); // 等待最多3秒
     }
 
-    // 重置文件指针到开始位置
-    if (formatContext) {
-        av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
-        // 清空解码器缓冲区
-        if (codecContext) {
-            avcodec_flush_buffers(codecContext);
+    // 线程停止后再清理缓冲区
+    {
+        QMutexLocker locker(&mutex);
+        
+        // 先停用所有音频缓冲区
+        for (auto& pair : channelAudioBuffers) {
+            if (pair.second) {
+                pair.second->setActive(false);
+            }
+        }
+        
+        // 清空所有通道的音频缓冲区队列
+        for (auto& pair : channelAudioBuffers) {
+            if (pair.second) {
+                pair.second->clear();
+            }
+        }
+        
+        // 刷新重采样器缓冲区（但不处理输出）
+        if (swrContext) {
+            uint8_t* flushBuffer = nullptr;
+            int flushSize = 2048 * 2 * 2;
+            flushBuffer = (uint8_t*)av_malloc(flushSize);
+            if (flushBuffer) {
+                // 刷新但丢弃输出，避免产生额外音频
+                swr_convert(swrContext, &flushBuffer, 2048, nullptr, 0);
+                av_freep(&flushBuffer);
+            }
+        }
+        
+        // 重置文件指针到开始位置
+        if (formatContext) {
+            av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
+            if (codecContext) {
+                avcodec_flush_buffers(codecContext);
+            }
+        }
+    }
+    
+    // 重新激活所有缓冲区（为下次播放做准备）
+    {
+        QMutexLocker locker(&mutex);
+        for (auto& pair : channelAudioBuffers) {
+            if (pair.second) {
+                pair.second->setActive(true);
+            }
         }
     }
 }
