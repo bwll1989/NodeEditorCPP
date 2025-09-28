@@ -16,6 +16,8 @@
 #include "Eigen/Core"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "BaseTimeLineModel.h"
+#include "Elements/BarButton/BarButton.h"
+#include "Elements/XYPad/XYPad.h"
 #define ConsoleDisplay false
 #define PropertytDisplay true
 #define ToolsDisplay true
@@ -114,24 +116,21 @@ void MainWindow::init()
     menuBar->views->addAction(logDockViewer->toggleViewAction());
     emit initStatus("Initialization console widget");
 
-//    auto *DockView= new ads::CDockWidget("显示");
-////    auto *fader=new XYPad(this);
-////    auto *bar1=new BarButton(this);
-////    auto *bar2=new BarButton(this);
-//
-//    auto *w =new MatrixWidget(6, 2);
-//    DockView->setWidget(w);
-//    DockView->setIcon(QIcon(":/icons/icons/chartLine.png"));
-//    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, DockView);
-//    menuBar->views->addAction(DockView->toggleViewAction());
-//    Eigen::MatrixXd mMat(6,2);
-//    mMat << 0.11,0.11,
-//            0.3,0.5,
-//            0.8,0.3,
-//            0.3,0.3,
-//            0.5,0.8,
-//            0.3,0.3;
-//    w->setValuesFromMatrix(mMat);
+    // auto *DockView= new ads::CDockWidget("显示");
+    //
+    // auto *w =new MatrixWidget(6, 6);
+    // DockView->setWidget(w);
+    // DockView->setIcon(QIcon(":/icons/icons/chartLine.png"));
+    // m_DockManager->addDockWidget(ads::BottomDockWidgetArea, DockView);
+    // menuBar->views->addAction(DockView->toggleViewAction());
+    // Eigen::MatrixXd mMat(6,2);
+    // mMat << 0.11,0.11,
+    //         0.3,0.5,
+    //         0.8,0.3,
+    //         0.3,0.3,
+    //         0.5,0.8,
+    //         0.3,0.3;
+    // w->setValuesFromMatrix(mMat);
 
     // 添加舞台控件
     auto *stageDockWidget = new ads::CDockWidget("舞台");

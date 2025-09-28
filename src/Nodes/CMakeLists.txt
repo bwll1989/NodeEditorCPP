@@ -70,6 +70,7 @@ set(ALL_NODES
     NDIOutNode                                #NDI输出节点
     PJLinkNode                                #PJLink输出节点
     LTCDecoderNode                            #LTC时间码解析节点
+    AudioMatrixNode                           #音频矩阵节点
 )
 
 # 根据选项决定构建方式
@@ -154,6 +155,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(NDIOutNode)                                #NDI输出节点
     add_subdirectory(PJLinkNode)                                #PJLink输出节点
     add_subdirectory(LTCDecoderNode)                            #LTC时间码解析节点
+    add_subdirectory(AudioMatrixNode)                           #音频矩阵节点
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()

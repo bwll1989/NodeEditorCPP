@@ -9,8 +9,12 @@
 #include <QDebug>
 #include <QApplication>
 #include <QCursor>
-
-class XYPad:public QPushButton {
+#ifdef GUI_ELEMENTS_LIBRARY
+#define GUI_ELEMENTS_EXPORT Q_DECL_EXPORT
+#else
+#define GUI_ELEMENTS_EXPORT Q_DECL_IMPORT
+#endif
+class GUI_ELEMENTS_EXPORT XYPad:public QPushButton {
 Q_OBJECT
 public:
     explicit XYPad(QPointF Point=QPointF(0.5,0.5),bool display_value= false,QWidget *parent = nullptr);

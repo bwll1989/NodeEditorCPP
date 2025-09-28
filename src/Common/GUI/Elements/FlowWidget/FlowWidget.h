@@ -1,8 +1,12 @@
 #include <QLayout>
 #include <QRect>
 #include <QStyle>
-
-class FlowLayout : public QLayout
+#ifdef GUI_ELEMENTS_LIBRARY
+#define GUI_ELEMENTS_EXPORT Q_DECL_EXPORT
+#else
+#define GUI_ELEMENTS_EXPORT Q_DECL_IMPORT
+#endif
+class GUI_ELEMENTS_EXPORT FlowLayout : public QLayout
 {
 public:
     explicit FlowLayout(QWidget *parent, int margin = -1, int hSpacing = -1, int vSpacing = -1);

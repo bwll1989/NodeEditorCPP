@@ -102,17 +102,19 @@ bool AudioDeviceOutDataModel::startAudioOutput() {
 
     if (err != paNoError) {
         qDebug() << "无法打开音频流:" << Pa_GetErrorText(err);
+        updateNodeState(QtNodes::NodeValidationState::State::Error,"无法打开音频流");
         return false;
     }
 
     err = Pa_StartStream(paStream);
     if (err != paNoError) {
         qDebug() << "无法启动音频流:" << Pa_GetErrorText(err);
+        updateNodeState(QtNodes::NodeValidationState::State::Warning,"无法启动音频流");
         Pa_CloseStream(paStream);
         paStream = nullptr;
         return false;
     }
-
+    updateNodeState(QtNodes::NodeValidationState::State::Valid,"");
     isPlaying = true;
     return true;
 }

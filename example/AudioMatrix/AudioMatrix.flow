@@ -1,0 +1,232 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 3,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 6,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 4,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 6,
+                "outNodeId": 3,
+                "outPortIndex": 1
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 4,
+                "outNodeId": 6,
+                "outPortIndex": 1
+            }
+        ],
+        "groups": [
+        ],
+        "nodes": [
+            {
+                "id": 3,
+                "input-count": 4,
+                "internal-data": {
+                    "autoPlay": false,
+                    "fileDisplayText": "对不起.wav",
+                    "filePath": "D:/19_NodeEditorCPP/NodeEditorCPP/example/Audio Play/对不起.wav",
+                    "isLoop": false,
+                    "volume": 0
+                },
+                "output-count": 2,
+                "port-editable": true,
+                "position": {
+                    "x": 201.53399339933986,
+                    "y": 273.0145214521452
+                },
+                "remarks": "Audio Decoder",
+                "type": "Audio Decoder"
+            },
+            {
+                "id": 4,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "selectedDeviceData": 66,
+                        "selectedDeviceIndex": 66,
+                        "selectedDeviceText": "66: ASIO Fireface USB",
+                        "selectedDriverData": 2,
+                        "selectedDriverIndex": 3,
+                        "selectedDriverText": "ASIO"
+                    }
+                },
+                "output-count": 0,
+                "port-editable": true,
+                "position": {
+                    "x": 988,
+                    "y": 258
+                },
+                "remarks": "Audio Device Out",
+                "type": "Audio Device Out"
+            },
+            {
+                "id": 5,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -130.4818481848185,
+                    "y": 271.44884488448844
+                },
+                "remarks": "Bool Source",
+                "type": "Bool Source"
+            },
+            {
+                "id": 6,
+                "input-count": 6,
+                "internal-data": {
+                    "matrix": {
+                        "cols": 6,
+                        "data": [
+                            0,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            0,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40,
+                            -40
+                        ],
+                        "rows": 8
+                    }
+                },
+                "output-count": 8,
+                "port-editable": false,
+                "position": {
+                    "x": 631,
+                    "y": 245
+                },
+                "remarks": "Audio Matrix",
+                "type": "Audio Matrix"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+            {
+                "clips": [
+                    {
+                        "Id": 0,
+                        "end": 394,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/2/0-0",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Float",
+                                    "value": "$percent"
+                                },
+                                {
+                                    "address": "/dataflow/2/0-1",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Float",
+                                    "value": "1-$percent"
+                                }
+                            ]
+                        },
+                        "start": 171,
+                        "type": "Mapping"
+                    }
+                ],
+                "trackName": "Mapping 0",
+                "type": "Mapping"
+            },
+            {
+                "clips": [
+                    {
+                        "Id": 1,
+                        "end": 10,
+                        "messages": {
+                            "messages": [
+                                {
+                                    "address": "/dataflow/3/play",
+                                    "host": "127.0.0.1",
+                                    "port": 8991,
+                                    "type": "Int",
+                                    "value": "true"
+                                }
+                            ]
+                        },
+                        "start": 10,
+                        "type": "Trigger"
+                    }
+                ],
+                "trackName": "Trigger 1",
+                "type": "Trigger"
+            }
+        ]
+    }
+}

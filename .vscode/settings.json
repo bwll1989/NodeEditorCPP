@@ -109,6 +109,19 @@
         "qjsvalueiterator": "cpp",
         "qtconcurrentrun": "cpp",
         "qjsonarray": "cpp",
-        "alignedvector3": "cpp"
+        "alignedvector3": "cpp",
+        "mdspan": "cpp",
+        "stacktrace": "cpp",
+        "barrier": "cpp",
+        "cuchar": "cpp",
+        "execution": "cpp",
+        "expected": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp",
+        "latch": "cpp",
+        "numbers": "cpp",
+        "print": "cpp",
+        "spanstream": "cpp",
+        "syncstream": "cpp"
     }
 }

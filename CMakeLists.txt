@@ -153,7 +153,7 @@ add_subdirectory(src/Clips)
 add_subdirectory(src/Nodes)
 add_subdirectory(src/Common/Devices/OSCSender)
 add_subdirectory(src/Common/GUI/OscListWidget)
-
+add_subdirectory(src/Common/GUI/Elements)
 add_subdirectory(src/Common/Devices/ClientController)
 add_subdirectory(src/Common/Devices/ArtnetSender)
 add_subdirectory(src/Common/Devices/TimestampGenerator)
@@ -199,16 +199,16 @@ set(CALC_SOURCE_FILES
         src/Widget/NodeLibraryWidget/NodeLibraryWidget.h
         src/Widget/NodeListWidget/NodeListWidget.cpp
         src/Widget/NodeListWidget/NodeListWidget.hpp
-        src/Common/GUI/Elements/XYPad/XYPad.cpp
-        src/Common/GUI/Elements/XYPad/XYPad.h
-        src/Common/GUI/Elements/BarButton/BarButton.cpp
-        src/Common/GUI/Elements/BarButton/BarButton.h
-        src/Common/GUI/Elements/FlowWidget/FlowWidget.cpp
-        src/Common/GUI/Elements/FlowWidget/FlowWidget.h
-        src/Common/GUI/Elements/MartixWidget/MatrixWidget.cpp
-        src/Common/GUI/Elements/MartixWidget/MatrixWidget.h
-        src/Common/GUI/Elements/FaderWidget/FaderWidget.cpp
-        src/Common/GUI/Elements/FaderWidget/FaderWidget.h
+#        src/Common/GUI/Elements/XYPad/XYPad.cpp
+#        src/Common/GUI/Elements/XYPad/XYPad.h
+#        src/Common/GUI/Elements/BarButton/BarButton.cpp
+#        src/Common/GUI/Elements/BarButton/BarButton.h
+#        src/Common/GUI/Elements/FlowWidget/FlowWidget.cpp
+#        src/Common/GUI/Elements/FlowWidget/FlowWidget.h
+#        src/Common/GUI/Elements/MartixWidget/MatrixWidget.cpp
+#        src/Common/GUI/Elements/MartixWidget/MatrixWidget.h
+#        src/Common/GUI/Elements/FaderWidget/FaderWidget.cpp
+#        src/Common/GUI/Elements/FaderWidget/FaderWidget.h
         src/Common/Devices/TcpServer/TcpServer.cpp
         src/Common/Devices/TcpServer/TcpServer.h
         src/Common/Devices/TcpClient/TcpClient.cpp
@@ -320,6 +320,7 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::OpenGL
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
             Qt${QT_VERSION_MAJOR}::WebSockets
+            GUIElements
             avcodec
             avdevice
             avfilter
@@ -350,6 +351,7 @@ target_link_libraries(${ProjectName}
             OscListWidget
             TimestampGenerator
             ${QScintilla_LIBRARIES}
+
 )
 
 #add_library(singleton SHARED ${CALC_SOURCE_FILES})

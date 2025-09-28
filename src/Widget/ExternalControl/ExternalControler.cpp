@@ -20,11 +20,15 @@
 #include "OSCMessage.h"
 #include <unordered_map>
 #include <QAction>
+
+#include "Common/GUI/Elements/FaderWidget/FaderWidget.h"
+
 ExternalControler::ExternalControler():
     OSC_Receiver(new OSCReceiver(8991))
  {
     // 创建 UDP 套接字并绑定到指定端口
     connect(OSC_Receiver, &OSCReceiver::receiveOSCMessage, this, &ExternalControler::hasOSC);
+
 }
 ExternalControler::~ExternalControler()
 {
@@ -106,6 +110,10 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     else if (auto* checkBox = qobject_cast<QCheckBox*>(widget)) {
         checkBox->setChecked(message.value.toBool());
     }
+    else if (auto* fader = qobject_cast<FaderWidget*>(widget)) {
+        qDebug() << "Successfully cast to FaderWidget!";
+        fader->setValue(message.value.toFloat());
+    }
     else if (auto* pushButton = qobject_cast<QPushButton*>(widget)) {
         if (message.value.toBool()!=pushButton->isChecked())
         {
@@ -124,6 +132,7 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     else if (auto* textEdit = qobject_cast<QTextEdit*>(widget)) {
         textEdit->setText(message.value.toString());
     }
+
     else {
         qDebug() << "Unsupported widget type for address:" << message.address;
     }

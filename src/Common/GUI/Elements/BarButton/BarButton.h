@@ -6,7 +6,12 @@
 #define NODEEDITORCPP_BARBUTTON_H
 #include <QPushButton>
 #include <QPainter>
-class BarButton : public QPushButton {
+#ifdef GUI_ELEMENTS_LIBRARY
+#define GUI_ELEMENTS_EXPORT Q_DECL_EXPORT
+#else
+#define GUI_ELEMENTS_EXPORT Q_DECL_IMPORT
+#endif
+class GUI_ELEMENTS_EXPORT BarButton : public QPushButton {
 Q_OBJECT
 
 public:
