@@ -79,7 +79,7 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
             registerVst3Plugin(reg, pluginInfo);
         }
 
-        // qDebug() << "成功注册" << m_Vst3Plugins.size() << "个Vst3插件节点";
+        qDebug() << "成功注册" << m_Vst3Plugins.size() << "个Vst3插件节点";
     }
 }
 

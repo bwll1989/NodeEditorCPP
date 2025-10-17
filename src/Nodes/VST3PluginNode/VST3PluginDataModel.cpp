@@ -1,4 +1,6 @@
 #include "VST3PluginDataModel.hpp"
+
+#include "QtNodes/internal/NodeState.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -29,7 +31,7 @@ VST3PluginDataModel::VST3PluginDataModel(const QString& path){
     
     // 设置音频参数
     audioProcessingThread_->setAudioParameters(sampleRate_, blockSize_);
-    
+    // qDebug() << "Audio processing thread started";
     connect(widget->ShowController, &QPushButton::clicked, this, &VST3PluginDataModel::showController);
     loadPlugin(path);
 }
@@ -46,10 +48,10 @@ VST3PluginDataModel::~VST3PluginDataModel(){
             audioProcessingThread_->stopProcessing();
             
             // 等待线程正常退出
-            if (!audioProcessingThread_->wait(5000)) {
+            if (!audioProcessingThread_->wait(1000)) {
                 qWarning() << "Audio processing thread did not exit gracefully, terminating...";
                 audioProcessingThread_->terminate();
-                audioProcessingThread_->wait(2000);
+                audioProcessingThread_->wait(1000);
             }
         }
         
@@ -235,9 +237,6 @@ void VST3PluginDataModel::load(const QJsonObject &p)
                     values["ControllerState"].toString().toUtf8());
             }
             
-            // 重新加载插件
-            loadPlugin(pluginPath);
-            
             // 恢复参数值
             if (values.contains("Parameters")) {
                 QJsonObject params = values["Parameters"].toObject();
@@ -299,6 +298,7 @@ void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
     module_ = VST3::Hosting::Module::create(pluginPath.toStdString(), error);
     if (!module_) {
         qWarning() << "Failed to load module from path:" << QString::fromStdString(error);
+        updateNodeState(QtNodes::NodeValidationState::State::Error ,"Failed to load module from path");
         return;
     }
 
@@ -317,6 +317,7 @@ void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
             plugProvider_ = owned(new Steinberg::Vst::PlugProvider(factory, classInfo, true));
             if (!plugProvider_->initialize()) {
                 qWarning() << "Failed to initialize plugin provider";
+                updateNodeState(QtNodes::NodeValidationState::State::Error ,"Failed to initialize plugin provider");
                 plugProvider_ = nullptr;
                 return;
             }
@@ -326,6 +327,7 @@ void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
 
     if (!plugProvider_) {
         qWarning() << "Failed to create plugin provider";
+        updateNodeState(QtNodes::NodeValidationState::State::Error ,"Failed to create plugin provider");
         return;
     }
 
@@ -336,13 +338,16 @@ void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
 
     if (!audioEffect_) {
         qWarning() << "Failed to get audio processor interface";
+        updateNodeState(QtNodes::NodeValidationState::State::Error ,"Failed to get audio processor interface");
         return;
     }
     // 验证接口
     if (!validateVST3Interfaces()) {
         qWarning() << "VST3 interface validation failed";
+        updateNodeState(QtNodes::NodeValidationState::State::Error ,"VST3 interface validation failed");
         return;
     }
+    updateNodeState();
     // 11. 初始化音频处理（重要！）
     initializeAudioProcessing();
 

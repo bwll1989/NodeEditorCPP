@@ -1,5 +1,4 @@
-#ifndef NODEEDITORCPP_OSCTRANSMITTER_H
-#define NODEEDITORCPP_OSCTRANSMITTER_H
+#pragma once
 
 #include <QObject>
 #include <QThread>
@@ -61,14 +60,14 @@ public slots:
      * @param message OSC消息对象
      * @return 是否成功加入队列
      */
-    bool sendOSCMessageWithQueue(OSCMessage &message);
+    bool sendOSCMessageWithQueue(const OSCMessage &message);
     
     /**
      * @brief 直接发送OSC消息（线程安全）
      * @param message OSC消息对象
      * @return 是否发送成功
      */
-    bool sendOSCMessageDirectly(OSCMessage &message);
+    bool sendOSCMessageDirectly(const OSCMessage &message);
     
     /**
      * @brief 设置目标主机和端口
@@ -100,4 +99,3 @@ private:
     static const int PROCESS_INTERVAL = 16;
 };
 
-#endif //NODEEDITORCPP_OSCSENDER_H

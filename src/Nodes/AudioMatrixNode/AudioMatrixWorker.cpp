@@ -98,7 +98,7 @@ namespace Nodes
         // 收集所有输入通道的音频帧
         std::vector<AudioFrame> inputFrames(_inputBuffers.size());
         bool hasValidInput = false;
-        
+
         for (size_t i = 0; i < _inputBuffers.size(); ++i) {
             if (_inputBuffers[i] && _inputBuffers[i]->isActive()) {
                 if (_inputBuffers[i]->getFrameByTimestamp(currentTime, inputFrames[i])) {
@@ -106,7 +106,7 @@ namespace Nodes
                 }
             }
         }
-        
+
         if (!hasValidInput) {
             return;
         }
@@ -130,8 +130,8 @@ namespace Nodes
         if (inputFrames.empty()) {
             return;
         }
-        
-        const size_t frameSize = inputFrames[0].data.size() / sizeof(int16_t);
+
+        const size_t frameSize = 2048 * 2 / sizeof(int16_t);
         const int inputChannels = _matrix.rows();
         const int outputChannels = _matrix.cols();
         

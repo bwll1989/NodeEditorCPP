@@ -1,0 +1,193 @@
+{
+    "DataFlow": {
+        "connections": [
+            {
+                "inPortIndex": 1,
+                "intNodeId": 1,
+                "outNodeId": 2,
+                "outPortIndex": 1
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 2,
+                "outNodeId": 3,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 4,
+                "outNodeId": 6,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 3,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 6,
+                "outNodeId": 5,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 2,
+                "outNodeId": 0,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 0,
+                "outNodeId": 4,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+        ],
+        "nodes": [
+            {
+                "id": 0,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "expression": "$input[\"Band5EnergyRatio\"]>=0.5"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -12.855409236583228,
+                    "y": -45.20286991685563
+                },
+                "remarks": "Condition",
+                "type": "Condition"
+            },
+            {
+                "id": 1,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "selectedDeviceData": 34,
+                        "selectedDeviceIndex": 34,
+                        "selectedDeviceText": "34: ASIO Fireface USB",
+                        "selectedDriverData": 2,
+                        "selectedDriverIndex": 3,
+                        "selectedDriverText": "ASIO"
+                    }
+                },
+                "output-count": 0,
+                "port-editable": true,
+                "position": {
+                    "x": 841.5118012011269,
+                    "y": -49.50536318284889
+                },
+                "remarks": "Audio Device Out",
+                "type": "Audio Device Out"
+            },
+            {
+                "id": 2,
+                "input-count": 4,
+                "internal-data": {
+                    "autoPlay": false,
+                    "fileDisplayText": "48000.wav",
+                    "filePath": "D:/02_Media/02_Audios/02_Musics/48000.wav",
+                    "isLoop": false,
+                    "volume": 0
+                },
+                "output-count": 2,
+                "port-editable": true,
+                "position": {
+                    "x": 440.21580120112685,
+                    "y": -30.161363182848895
+                },
+                "remarks": "Audio Decoder",
+                "type": "Audio Decoder"
+            },
+            {
+                "id": 3,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "expression": "$input[\"Band9EnergyRatio\"]>=0.6"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -5.409216643990931,
+                    "y": 47.04007082388507
+                },
+                "remarks": "Condition",
+                "type": "Condition"
+            },
+            {
+                "id": 4,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -444.297072872947,
+                    "y": 29.77025903937335
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 5,
+                "input-count": 0,
+                "internal-data": {
+                    "selectedDevice": 14,
+                    "volume": 0
+                },
+                "output-count": 2,
+                "port-editable": true,
+                "position": {
+                    "x": -1037.3729987988736,
+                    "y": 59.2779968171511
+                },
+                "remarks": "Audio Device In",
+                "type": "Audio Device In"
+            },
+            {
+                "id": 6,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "enable": true
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -697.4889048498592,
+                    "y": 47.28526960214381
+                },
+                "remarks": "Audio Analysis",
+                "type": "Audio Analysis"
+            }
+        ]
+    },
+    "TimeLine": {
+        "clock": {
+            "clockSource": 2,
+            "timecodeType": 4
+        },
+        "displayFormat": 1,
+        "stage": {
+            "screens": [
+            ]
+        },
+        "tracks": [
+        ]
+    }
+}

@@ -122,6 +122,7 @@
         "numbers": "cpp",
         "print": "cpp",
         "spanstream": "cpp",
-        "syncstream": "cpp"
+        "syncstream": "cpp",
+        "mprealsupport": "cpp"
     }
 }

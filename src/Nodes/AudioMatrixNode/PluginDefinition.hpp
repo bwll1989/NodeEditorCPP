@@ -12,7 +12,7 @@
 #endif
 
 #define PLUGIN_NAME "Audio Matrix"
-#define PLUGIN_VERSION "20250925"
+#define PLUGIN_VERSION "20251014"
 #define PLUGIN_DESCRIBE "音频矩阵"
 #define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin

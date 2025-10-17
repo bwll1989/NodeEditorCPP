@@ -128,7 +128,7 @@ void OSCSender::processQueue(){
     
 }
 
-bool OSCSender::sendOSCMessageWithQueue(OSCMessage &message){
+bool OSCSender::sendOSCMessageWithQueue(const OSCMessage &message){
     // 将OSCMessage加入队列，首先需要加锁，避免多线程冲突
     QMutexLocker locker(&m_mutex);
     //将OSCMessage加入队列
@@ -136,7 +136,7 @@ bool OSCSender::sendOSCMessageWithQueue(OSCMessage &message){
     return true;
 }
 
-bool OSCSender::sendOSCMessageDirectly(OSCMessage &message){
+bool OSCSender::sendOSCMessageDirectly(const OSCMessage &message){
     // 直接发送消息，不加入队列，首先需要加锁，避免多线程冲突
     QMutexLocker locker(&m_mutex);
     char buffer[1024];
@@ -198,5 +198,4 @@ bool OSCSender::sendOSCMessageDirectly(OSCMessage &message){
         return false;
     }
     return true;
-
 }

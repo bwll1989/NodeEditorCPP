@@ -147,8 +147,6 @@ namespace Nodes
                     if (d != nullptr) {
                         if (d->value().toBool() == true) {
                             this->playAudio();
-                        } else {
-                            this->stopAudio();
                         }
                     }
                     return;

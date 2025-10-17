@@ -87,7 +87,9 @@
     <file>icons/js.png</file>
     <file>icons/ArtNet.png</file>
     <file>icons/help.png</file>
+    <file>icons/python.png</file>
     <file>icons/recoder.png</file>
+    <file>icons/scheduled.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

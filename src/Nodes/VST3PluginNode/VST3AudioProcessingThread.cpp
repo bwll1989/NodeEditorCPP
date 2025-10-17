@@ -48,7 +48,7 @@ void VST3AudioProcessingThread::setAudioParameters(double sampleRate, int blockS
     QMutexLocker locker(&mutex_);
     sampleRate_ = sampleRate;
     blockSize_ = blockSize;
-    qDebug() << "VST3AudioProcessingThread setting audio parameters..."<<blockSize_<<sampleRate;
+    // qDebug() << "VST3AudioProcessingThread setting audio parameters..."<<blockSize_<<sampleRate;
 }
 
 /**
@@ -219,7 +219,6 @@ void VST3AudioProcessingThread::processAudioDouble(qint64 currentSystemTime)
         
         // 从对应通道获取音频帧
         if (!inputQueue->getFrameByTimestamp(currentSystemTime, inputFrame)) {
-            qDebug() << "escape processing input channel " ;
             continue; // 如果该通道没有数据，跳过
         }
 

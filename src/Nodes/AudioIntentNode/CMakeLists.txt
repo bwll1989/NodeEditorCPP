@@ -1,0 +1,45 @@
+cmake_minimum_required(VERSION 3.10)
+
+set(Module_Name "AudioIntentNode")
+
+project(${Module_Name})
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(Rhino_DIR "${DEPENDS_DIR}/rhino")
+include_directories(${Rhino_DIR}/include)
+set(Porcupine_DIR "${DEPENDS_DIR}/porcupine")
+include_directories(${Porcupine_DIR}/include)
+add_library(${Module_Name} SHARED
+        ../../DataTypes/AudioTimestampRingQueue.h
+        ../../DataTypes/AudioTimestampRingQueue.cpp
+        AudioIntentInterface.h
+        AudioIntentInterface.cpp
+        AudioIntentDataModel.hpp
+        AudioIntentWorker.hpp
+        AudioIntentWorker.cpp
+        PluginDefinition.cpp
+        PluginDefinition.hpp
+        rhino_bridge.h
+        rhino_bridge.c
+        porcupine_bridge.c
+        porcupine_bridge.h
+)
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+        ${QtNodes_LIBRARIES}
+        TimestampGenerator )
+
+# 确保这行配置正确，指向您的 .dll 文件路径
+target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY
+        -DNODE_EDITOR_SHARED
+        -DRHINO_DYNAMIC_LOAD
+        -DPORCUPINE_DYNAMIC_LOAD
+        -DRHINO_DLL_PATH="${Rhino_DIR}/lib/windows/amd64/libpv_rhino.dll"
+        -DPORCUPINE_DLL_PATH="${Porcupine_DIR}/lib/windows/amd64/libpv_porcupine.dll")
+
+SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 
+        RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
+        LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
+        ARCHIVE_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
+        PREFIX ""
+        SUFFIX ".node")

@@ -741,6 +741,7 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
         _models[restoredNodeId]->load(internalDataJson);
     } else {
         //创建失败，抛出异常
+        qCritical() << "Failed to load node: " << nodeJson["id"].toString();
         throw std::logic_error(std::string("No registered model with name ") +
                                delegateModelName.toLocal8Bit().data());
     }

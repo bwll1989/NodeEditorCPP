@@ -23,6 +23,7 @@
 #include "Widget/StageWidget/StageWidget.hpp"
 #include "Widget/TimeLineWidget/TimeLineModel.h"
 #include "Widget/ExternalControl/ExternalControler.hpp"
+#include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
 class MainWindow : public QMainWindow
 {
 Q_OBJECT
@@ -54,6 +55,8 @@ public:
     TimeLineModel *timelineModel;
     // 舞台控件
     StageWidget *stageWidget;
+    // osc 日历控件
+    ScheduledTaskWidget *scheduledTaskWidget;
 signals:
     //初始化状态信号
     void initStatus(const QString &message);

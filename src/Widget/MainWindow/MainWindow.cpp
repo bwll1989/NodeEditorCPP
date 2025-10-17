@@ -131,7 +131,14 @@ void MainWindow::init()
     //         0.5,0.8,
     //         0.3,0.3;
     // w->setValuesFromMatrix(mMat);
-
+    auto *calendarDockWidget = new ads::CDockWidget("计划任务");
+    calendarDockWidget->setObjectName("scheduled");
+    calendarDockWidget->setIcon(QIcon(":/icons/icons/scheduled.png"));
+    scheduledTaskWidget=new ScheduledTaskWidget();
+    calendarDockWidget->setWidget(scheduledTaskWidget);
+    m_DockManager->addDockWidget(ads::RightDockWidgetArea, calendarDockWidget);
+    menuBar->views->addAction(calendarDockWidget->toggleViewAction());
+    emit initStatus("Initialization Scheduled");
     // 添加舞台控件
     auto *stageDockWidget = new ads::CDockWidget("舞台");
     stageDockWidget->setObjectName("stage");
@@ -279,6 +286,8 @@ void MainWindow::loadFileFromPath(QString *path)
         dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object()["DataFlow"].toObject());
         // 加载时间轴模型
         timeline->load(QJsonDocument::fromJson(wholeFile).object()["TimeLine"].toObject());
+        // 加载计划任务模型
+        scheduledTaskWidget->load(QJsonDocument::fromJson(wholeFile).object()["ScheduledTasks"].toObject());
         // 设置当前项目路径
         currentProjectPath = absolutePath;
     }
@@ -306,6 +315,8 @@ void MainWindow::loadFileFromExplorer() {
         dataFlowModel->load(senceFile["DataFlow"].toObject());
         // 加载时间轴
         timeline->load(senceFile["TimeLine"].toObject());
+        //加载计划任务
+        scheduledTaskWidget->load(senceFile["ScheduledTasks"].toObject());
         // 设置当前项目路径
         currentProjectPath=fileName;
         emit scene->sceneLoaded();
@@ -325,6 +336,8 @@ void MainWindow::saveFileToPath(){
         flowJson["DataFlow"]=dataFlowModel->save();
         // 保存时间轴
         flowJson["TimeLine"]=timeline->save();
+        // 保存计划任务
+        flowJson["ScheduledTasks"]=scheduledTaskWidget->save();
         file.write(QJsonDocument(flowJson).toJson());
         file.close();
     }
@@ -348,6 +361,8 @@ void MainWindow::saveFileToExplorer() {
             flowJson["DataFlow"]=dataFlowModel->save();
             // 保存时间轴
             flowJson["TimeLine"]=timeline->save();
+            // 保存计划任务
+            flowJson["ScheduledTasks"]=scheduledTaskWidget->save();
             file.write(QJsonDocument(flowJson).toJson());
             file.close();
             currentProjectPath=fileName;

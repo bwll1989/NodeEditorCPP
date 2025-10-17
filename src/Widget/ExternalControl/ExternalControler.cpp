@@ -111,7 +111,6 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
         checkBox->setChecked(message.value.toBool());
     }
     else if (auto* fader = qobject_cast<FaderWidget*>(widget)) {
-        qDebug() << "Successfully cast to FaderWidget!";
         fader->setValue(message.value.toFloat());
     }
     else if (auto* pushButton = qobject_cast<QPushButton*>(widget)) {

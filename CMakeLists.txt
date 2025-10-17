@@ -111,6 +111,7 @@ find_package(Eigen3 REQUIRED)
 INCLUDE_DIRECTORIES(${EIGEN3_INCLUDE_DIR})
 message("-- Found Eigen3 ${EIGEN3_INCLUDE_DIR}")
 
+
 # 设置OpenCV库
 set(OpenCV_DIR "${DEPENDS_DIR}/opencv/build")
 #set(OpenCV_LIBRARIES "${DEPENDS_DIR}/opencv/build/x64/vc16/lib")
@@ -199,16 +200,6 @@ set(CALC_SOURCE_FILES
         src/Widget/NodeLibraryWidget/NodeLibraryWidget.h
         src/Widget/NodeListWidget/NodeListWidget.cpp
         src/Widget/NodeListWidget/NodeListWidget.hpp
-#        src/Common/GUI/Elements/XYPad/XYPad.cpp
-#        src/Common/GUI/Elements/XYPad/XYPad.h
-#        src/Common/GUI/Elements/BarButton/BarButton.cpp
-#        src/Common/GUI/Elements/BarButton/BarButton.h
-#        src/Common/GUI/Elements/FlowWidget/FlowWidget.cpp
-#        src/Common/GUI/Elements/FlowWidget/FlowWidget.h
-#        src/Common/GUI/Elements/MartixWidget/MatrixWidget.cpp
-#        src/Common/GUI/Elements/MartixWidget/MatrixWidget.h
-#        src/Common/GUI/Elements/FaderWidget/FaderWidget.cpp
-#        src/Common/GUI/Elements/FaderWidget/FaderWidget.h
         src/Common/Devices/TcpServer/TcpServer.cpp
         src/Common/Devices/TcpServer/TcpServer.h
         src/Common/Devices/TcpClient/TcpClient.cpp
@@ -266,8 +257,24 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/TimeLineView.h
         src/Widget/TimeLineWidget/TrackListView.cpp
         src/Widget/TimeLineWidget/TrackListView.h
+        src/Widget/CalendarWidget/CalendarWidget.cpp
+        src/Widget/CalendarWidget/CalendarWidget.hpp
+        src/Widget/CalendarWidget/ScheduledTaskWidget.cpp
+        src/Widget/CalendarWidget/ScheduledTaskWidget.hpp
+        src/Widget/CalendarWidget/ScheduledTaskModel.cpp
+        src/Widget/CalendarWidget/ScheduledTaskModel.hpp
+        src/Widget/CalendarWidget/TaskItemWidget.cpp
+        src/Widget/CalendarWidget/TaskItemWidget.hpp
+        src/Widget/CalendarWidget/TaskListWidget.cpp
+        src/Widget/CalendarWidget/TaskListWidget.hpp
+        src/Widget/CalendarWidget/ScheduledTaskFilterProxyModel.cpp
+        src/Widget/CalendarWidget/ScheduledTaskFilterProxyModel.hpp
+        src/Widget/CalendarWidget/ScheduledTaskManager.cpp
+        src/Widget/CalendarWidget/ScheduledTaskManager.hpp
         src/DataTypes/AudioTimestampRingQueue.cpp
         src/DataTypes/AudioTimestampRingQueue.h
+        src/Widget/CalendarWidget/TaskItemDelegate.cpp
+        src/Widget/CalendarWidget/TaskItemDelegate.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -347,6 +354,7 @@ target_link_libraries(${ProjectName}
             ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}
 #            ${TabToolbar_LIBRARIES}
+            OSCTransmitter
             ClientController
             OscListWidget
             TimestampGenerator

@@ -71,6 +71,12 @@ set(ALL_NODES
     PJLinkNode                                #PJLink输出节点
     LTCDecoderNode                            #LTC时间码解析节点
     AudioMatrixNode                           #音频矩阵节点
+    AudioAnalysisNode                         #音频分析节点
+    PythonScriptNode                          #python脚本节点
+    YoloPoseONNXNode                            #Yolo v11n 姿态
+    YoloDetectionONNXNode                       #Yolo v11n 检测
+    StyleTransferONNXNode                       #神经网络风格迁移
+    AudioIntentNode                              #音频意图分析
 )
 
 # 根据选项决定构建方式
@@ -156,6 +162,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(PJLinkNode)                                #PJLink输出节点
     add_subdirectory(LTCDecoderNode)                            #LTC时间码解析节点
     add_subdirectory(AudioMatrixNode)                           #音频矩阵节点
+    add_subdirectory(AudioIntentNode)                            #音频意图分析
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()
