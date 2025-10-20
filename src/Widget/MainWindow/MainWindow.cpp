@@ -166,6 +166,16 @@ void MainWindow::init()
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, nodeListDockWidget);
     menuBar->views->addAction(nodeListDockWidget->toggleViewAction());
     emit initStatus("Initialization Node List Widget");
+    // 媒体库控件
+    auto *mediaLibraryDockWidget = new ads::CDockWidget("媒体库");
+    mediaLibraryDockWidget->setObjectName("mediaLibrary");
+    mediaLibraryDockWidget->setIcon(QIcon(":/icons/icons/media_mange.png"));
+    mediaLibraryWidget = new MediaLibraryWidget();
+    mediaLibraryDockWidget->setWidget(mediaLibraryWidget);
+    m_DockManager->addDockWidget(ads::RightDockWidgetArea, mediaLibraryDockWidget);
+    menuBar->views->addAction(mediaLibraryDockWidget->toggleViewAction());
+    emit initStatus("Initialization Media Library Widget");
+
 
     // 外部控制器
     controller=new ExternalControler();

@@ -76,8 +76,8 @@ void TaskListWidget::addScheduled(const ScheduledTaskItem& m_scheduled) {
 void TaskListWidget::showContextMenu(const QPoint& pos)
 {
     QMenu menu(this);
-    QAction* addAction = menu.addAction("Add Message");
-    QAction* deleteAction = menu.addAction("Delete Message");
+    QAction* addAction = menu.addAction("add Scheduled");
+    QAction* deleteAction = menu.addAction("Delete Scheduled");
     QAction* clearAction = menu.addAction("Clear All Messages");
 
     // QListView 不提供 clear()，如需清空请调用模型 API：m_model->setItems({})

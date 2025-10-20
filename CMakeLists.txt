@@ -158,6 +158,7 @@ add_subdirectory(src/Common/GUI/Elements)
 add_subdirectory(src/Common/Devices/ClientController)
 add_subdirectory(src/Common/Devices/ArtnetSender)
 add_subdirectory(src/Common/Devices/TimestampGenerator)
+add_subdirectory(src/Common/Devices/MediaLibrary)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -275,6 +276,10 @@ set(CALC_SOURCE_FILES
         src/DataTypes/AudioTimestampRingQueue.h
         src/Widget/CalendarWidget/TaskItemDelegate.cpp
         src/Widget/CalendarWidget/TaskItemDelegate.h
+        src/Widget/MediaLibraryWidget/MediaLibraryWidget.cpp
+        src/Widget/MediaLibraryWidget/MediaLibraryWidget.h
+#        src/Widget/MediaLibraryWidget/MediaLibraryModel.cpp
+#        src/Widget/MediaLibraryWidget/MediaLibraryModel.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -358,6 +363,7 @@ target_link_libraries(${ProjectName}
             ClientController
             OscListWidget
             TimestampGenerator
+            MediaManger
             ${QScintilla_LIBRARIES}
 
 )

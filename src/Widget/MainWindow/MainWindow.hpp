@@ -2,8 +2,7 @@
 // Created by 吴斌 on 2024/1/18.
 //
 
-#ifndef NODEEDITORCPP_MAINWINDOW_HPP
-#define NODEEDITORCPP_MAINWINDOW_HPP
+#pragma once
 #include <QDir>
 #include <QDateTime>
 #include <QThread>
@@ -24,6 +23,7 @@
 #include "Widget/TimeLineWidget/TimeLineModel.h"
 #include "Widget/ExternalControl/ExternalControler.hpp"
 #include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
+#include "Widget/MediaLibraryWidget/MediaLibraryWidget.h"
 class MainWindow : public QMainWindow
 {
 Q_OBJECT
@@ -57,6 +57,9 @@ public:
     StageWidget *stageWidget;
     // osc 日历控件
     ScheduledTaskWidget *scheduledTaskWidget;
+
+    // 媒体库
+    MediaLibraryWidget *mediaLibraryWidget;
 signals:
     //初始化状态信号
     void initStatus(const QString &message);
@@ -122,5 +125,3 @@ private:
     ExternalControler *controller;
 };
 
-
-#endif //NODEEDITORCPP_MAINWINDOW_HPP

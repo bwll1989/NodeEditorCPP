@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <QComboBox>
 
 #include <QtCore/QObject>
 #include <QtWidgets/QLabel>
@@ -12,6 +13,8 @@
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
+
+#include "MediaLibrary/MediaLibrary.h"
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using namespace NodeDataTypes;
@@ -24,14 +27,14 @@ namespace Nodes
     public:
         ImageLoaderModel() {
 
-            _label->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
-            QFont f = _label->font();
-            f.setBold(true);
-            f.setItalic(true);
-            _label->setFont(f);
-            _label->setMinimumSize(200, 200);
-            //_label->setMaximumSize(500, 300);
-            _label->installEventFilter(this);
+            // _label->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
+            // QFont f = _label->font();
+            // f.setBold(true);
+            // f.setItalic(true);
+            // _label->setFont(f);
+            // // _label->setMinimumSize(200, 200);
+            // //_label->setMaximumSize(500, 300);
+            // _label->installEventFilter(this);
             InPortCount =0;
             OutPortCount=1;
             CaptionVisible=true;
@@ -40,6 +43,13 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outImageData=std::make_shared<ImageData>();
+            QString fileName;
+            if (!_fileSelectComboBox->currentText().isEmpty()) {
+                fileName = _fileSelectComboBox->currentText();
+            }
+            _fileSelectComboBox->addItems( MediaLibrary::instance()->getFileList(MediaLibrary::Category::Image));
+            loadImage();
+            connect(_fileSelectComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ImageLoaderModel::loadImage);
         }
         ~ImageLoaderModel() override = default;
 
@@ -55,12 +65,15 @@ namespace Nodes
 
         void setInData(std::shared_ptr<QtNodes::NodeData>, QtNodes::PortIndex const portIndex) override {}
 
-        QWidget *embeddedWidget() override { return _label; }
+        QWidget *embeddedWidget() override {
+
+            return _fileSelectComboBox;
+        }
 
         QJsonObject save() const override{
             QJsonObject modelJson = NodeDelegateModel::save();
-            if (m_outImageData && !m_path.isEmpty()) {
-                modelJson["path"] = m_path;
+            if (m_outImageData && !_fileSelectComboBox->currentText().isEmpty()) {
+                modelJson["path"] = _fileSelectComboBox->currentText();
             }
             return modelJson;
         }
@@ -69,54 +82,58 @@ namespace Nodes
 
             const QJsonValue path = jsonObj["path"];
             if (!path.isUndefined()) {
-                m_path = path.toString();
+               _fileSelectComboBox->setCurrentText(path.toString());
                 loadImage();
             }
         }
 
-    protected:
-        bool eventFilter(QObject *object, QEvent *event) override{
-            if (object == _label) {
-                const int w = _label->width();
-                const int h = _label->height();
-
-                if (event->type() == QEvent::MouseButtonPress) {
-                    auto mouseEvent = static_cast<QMouseEvent*>(event);
-                    if (mouseEvent->button() == Qt::LeftButton && (mouseEvent->modifiers() & Qt::ControlModifier)) {
-                        m_path = QFileDialog::getOpenFileName(nullptr,
-                                                              tr("Open Image"),
-                                                              QDir::homePath(),
-                                                              tr("Image Files (*.png *.jpg *.bmp)"));
-                        if (!m_path.isEmpty())
-                            loadImage();
-                        return true;
-                    }
-                } else if (event->type() == QEvent::Resize) {
-                    if (m_outImageData && !m_outImageData->image().isNull())
-                        _label->setPixmap(m_outImageData->pixmap().scaled(w, h, Qt::KeepAspectRatio));
-                }
-            }
-
-            return false;
-        }
+    // protected:
+        // bool eventFilter(QObject *object, QEvent *event) override{
+        //     if (object == _label) {
+        //         const int w = _label->width();
+        //         const int h = _label->height();
+        //
+        //         if (event->type() == QEvent::MouseButtonPress) {
+        //             auto mouseEvent = static_cast<QMouseEvent*>(event);
+        //             if (mouseEvent->button() == Qt::LeftButton && (mouseEvent->modifiers() & Qt::ControlModifier)) {
+        //                 m_path = QFileDialog::getOpenFileName(nullptr,
+        //                                                       tr("Open Image"),
+        //                                                       QDir::homePath(),
+        //                                                       tr("Image Files (*.png *.jpg *.bmp)"));
+        //                 if (!m_path.isEmpty())
+        //                     loadImage();
+        //                 return true;
+        //             }
+        //         } else if (event->type() == QEvent::Resize) {
+        //             if (m_outImageData && !m_outImageData->image().isNull())
+        //                 _label->setPixmap(m_outImageData->pixmap().scaled(w, h, Qt::KeepAspectRatio));
+        //         }
+        //     }
+        //
+        //     return false;
+        // }
 
     private:
         void loadImage(){
-            if (!m_path.isEmpty()) {
+    
+            if (!_fileSelectComboBox->currentText().isEmpty()) {
+                m_path=MEDIA_LIBRARY_STORAGE_DIR+"/"+_fileSelectComboBox->currentText();
                 m_outImageData = std::make_shared<ImageData>(m_path);
                 if (m_outImageData && !m_outImageData->image().isNull()) {
-                    _label->setPixmap(m_outImageData->pixmap().scaled(_label->width(), _label->height(), Qt::KeepAspectRatio));
+                    // _label->setPixmap(m_outImageData->pixmap().scaled(_label->width(), _label->height(), Qt::KeepAspectRatio));
                 }
             } else {
                 m_outImageData.reset();
-                _label->clear();
+                // _label->clear();
             }
             emit dataUpdated(0);
         }
 
     private:
-        QLabel *_label=new QLabel("Ctrl+left click to load image");
+        // QLabel *_label=new QLabel("Ctrl+left click to load image");
+        QComboBox* _fileSelectComboBox = new QComboBox();
         QString m_path;
         std::shared_ptr<ImageData> m_outImageData;
+        // MediaLibrary* mediaLibrary = MediaLibrary::instance();
     };
 }
