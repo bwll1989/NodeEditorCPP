@@ -8,16 +8,12 @@ option(BUILD_NODES_INDIVIDUALLY "Build nodes individually (default behavior)" ON
 # 定义所有节点列表
 set(ALL_NODES
     VST3PluginNode
-    StringSourceNode                          #字符串显示
     DataInfoNode                              #数据显示
     ImageLoadNode                             #图像导入
     ImageShowNode                             #图像显示
-    BoolSourceNode                            #布尔输入模块
-    IntSourceNode                             #整数输入模块
     LuaScriptNode                             #Lua脚本模块
     TCPServerNode                             #TCP服务器模块
     TCPClientNode                             #TCP客户端模块
-    FloatSourceNode                           #浮点输入模块
     # TimeLineNode                              #时间轴模块 (注释掉的保持注释)
     UDPSocketNode                             #UDP模块
     DelayNode                                 #延迟模块
@@ -99,16 +95,12 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     
     # 原有的单独添加方式
     add_subdirectory(VST3PluginNode)
-    add_subdirectory(StringSourceNode)                          #字符串显示
     add_subdirectory(DataInfoNode)                              #数据显示
     add_subdirectory(ImageLoadNode)                             #图像导入
     add_subdirectory(ImageShowNode)                             #图像显示
-    add_subdirectory(BoolSourceNode)                            #布尔输入模块
-    add_subdirectory(IntSourceNode)                             #整数输入模块
     add_subdirectory(LuaScriptNode)                             #Lua脚本模块
     add_subdirectory(TCPServerNode)                             #TCP服务器模块
     add_subdirectory(TCPClientNode)                             #TCP客户端模块
-    add_subdirectory(FloatSourceNode)                           #浮点输入模块
     # add_subdirectory(TimeLineNode)                              #时间轴模块
     add_subdirectory(UDPSocketNode)                             #UDP模块
     add_subdirectory(DelayNode)                                 #延迟模块

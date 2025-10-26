@@ -10,10 +10,10 @@
 #include <QTableView>
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/PluginInterface>
-
+#include "BuildInNodes.hpp"
 using QtNodes::NodeDelegateModelRegistry;
 using QtNodes::PluginInterface;
-
+using namespace Nodes;
 PluginsManagerWidget::PluginsManagerWidget(QWidget *parent)
     : QDialog(parent)
 {
@@ -125,6 +125,24 @@ void PluginsManagerWidget::initLayout()
         pluginTable->selectRow(row);
     });
 }
+
+void PluginsManagerWidget::loadBuildInPlugin()
+{
+    PluginsManager *pluginsManager = PluginsManager::instance();
+    emit loadPluginStatus("Loading build in plugins");
+    pluginsManager->registry()->registerModel<VariableOutDataModel>("Variable Out","Controls");
+    pluginsManager->registry()->registerModel<VariableInDataModel>("Variable In","Controls");
+    pluginsManager->registry()->registerModel<AudioInDataModel>("Audio In","Audio");
+    pluginsManager->registry()->registerModel<AudioOutDataModel>("Audio Out","Audio");
+    pluginsManager->registry()->registerModel<ImageInDataModel>("Image In","Image");
+    pluginsManager->registry()->registerModel<ImageOutDataModel>("Image Out","Image");
+    pluginsManager->registry()->registerModel<BoolPluginDataModel>("Bool Source","Controls");
+    pluginsManager->registry()->registerModel<TextSourceDataModel>("String Source","Controls");
+    pluginsManager->registry()->registerModel<IntSourceDataModel>("Int Source","Controls");
+    pluginsManager->registry()->registerModel<FloatSourceDataModel>("Float Source","Controls");
+
+}
+
 //打开插件目录
 void PluginsManagerWidget::openPluginsFolder()
 {
@@ -141,10 +159,13 @@ void PluginsManagerWidget::loadPluginsFromFolder()
 {
     PluginsManager *pluginsManager = PluginsManager::instance();
     std::shared_ptr<NodeDelegateModelRegistry> registry = pluginsManager->registry();
-//    加载内建插件
+    // 首先加载内建插件
+    loadBuildInPlugin();
+    emit loadPluginStatus("Build in plugins loading finished");
     pluginsManager->loadPlugins(_pluginsFolder.absolutePath(),
                                 QStringList() << "*.node"
                                               << "*.js");
+
     for (auto l : pluginsManager->loaders()) {
         PluginInterface *plugin = qobject_cast<PluginInterface *>(l.second->instance());
         if (!plugin)
@@ -168,6 +189,6 @@ void PluginsManagerWidget::loadPluginsFromFolder()
         plugin->registerDataModels(registry);
 
     }
-    emit loadPluginStatus("Plugins loading finished");
+
 //    插件加载完成发送信号
 }

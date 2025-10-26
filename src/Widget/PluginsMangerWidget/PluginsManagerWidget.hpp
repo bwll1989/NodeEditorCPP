@@ -39,6 +39,10 @@ public:
      * 加载插件从文件夹
      */
     void loadPluginsFromFolder();
+    /**
+     * 加载内建插件
+     */
+    void loadBuildInPlugin();
 signals:
     /**
      * 加载插件状态

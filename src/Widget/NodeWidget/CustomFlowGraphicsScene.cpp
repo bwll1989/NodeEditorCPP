@@ -258,11 +258,11 @@ QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos)
         QString fileName = QFileDialog::getSaveFileName(nullptr,
                                                         tr("Open Flow Scene"),
                                                         QDir::homePath(),
-                                                        tr("Flow Scene Files (*.flow)"));
+                                                        tr("Flow Scene Files (*.childflow)"));
 
         if (!fileName.isEmpty()) {
-            if (!fileName.endsWith("flow", Qt::CaseInsensitive))
-                fileName += ".flow";
+            if (!fileName.endsWith("childflow", Qt::CaseInsensitive))
+                fileName += ".childflow";
 
             QFile file(fileName);
             if (file.open(QIODevice::WriteOnly)) {
@@ -276,9 +276,9 @@ QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos)
     bool CustomFlowGraphicsScene::load()
     {
         QString fileName = QFileDialog::getOpenFileName(nullptr,
-                                                        tr("Open Flow Scene"),
+                                                        tr("Open Child Flow "),
                                                         QDir::homePath(),
-                                                        tr("Flow Scene Files (*.flow)"));
+                                                        tr("Flow Scene Files (*.childflow)"));
 
         if (!QFileInfo::exists(fileName))
             return false;

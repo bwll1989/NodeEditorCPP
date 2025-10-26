@@ -24,6 +24,7 @@
 #include "Widget/ExternalControl/ExternalControler.hpp"
 #include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
 #include "Widget/MediaLibraryWidget/MediaLibraryWidget.h"
+#include "Widget/NodeWidget/DataflowViewsManger.hpp"
 class MainWindow : public QMainWindow
 {
 Q_OBJECT
@@ -34,12 +35,6 @@ public:
     MenuBarWidget *menuBar;
     //dock管理器
     ads::CDockManager* m_DockManager;
-    //节点视图
-    CustomGraphicsView *view;
-    //节点场景
-    CustomFlowGraphicsScene *scene;
-    // 数据流模型
-    CustomDataFlowGraphModel *dataFlowModel;
     //插件管理器
     PluginsManagerWidget *pluginsManagerDlg;
     // 节点库控件
@@ -57,9 +52,10 @@ public:
     StageWidget *stageWidget;
     // osc 日历控件
     ScheduledTaskWidget *scheduledTaskWidget;
-
     // 媒体库
     MediaLibraryWidget *mediaLibraryWidget;
+    //节点视图
+    DataflowViewsManger *dataflowViewsManger;
 signals:
     //初始化状态信号
     void initStatus(const QString &message);
@@ -89,7 +85,9 @@ public Q_SLOTS:
      */
     void saveFileToExplorer();
     /**
-     * 从路径加载文件
+     * @brief 从路径加载文件
+     *
+     * @param path 文件路径
      */
     void loadFileFromPath(QString *path);
     /**
@@ -100,20 +98,33 @@ public Q_SLOTS:
      * 保存文件到路径
      */
     void saveFileToPath();
-   
+    /**
+     * 创建数据流程视图
+     */
+    void createDataflowWidget();
+    /**
+     * 更新菜单栏视图action
+     */
+    void updateViewMenu(QMenu* menu);
 protected:
     /**
-     * 关闭事件
+     * @brief 关闭事件
+     *
+     * @param event 关闭事件指针
      */
-    virtual void closeEvent(QCloseEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
     /**
-     * 拖拽进入事件
+     * @brief 拖拽进入事件
+     *
+     * @param event 拖拽进入事件指针
      */
-    virtual void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
     /**
-     * 拖拽释放事件
+     * @brief 拖拽释放事件
+     *
+     * @param event 拖拽释放事件指针
      */
-    virtual void dropEvent(QDropEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
 private:
     //日志表
     LogWidget *logTable;

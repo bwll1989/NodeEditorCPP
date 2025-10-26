@@ -159,25 +159,27 @@ add_subdirectory(src/Common/Devices/ClientController)
 add_subdirectory(src/Common/Devices/ArtnetSender)
 add_subdirectory(src/Common/Devices/TimestampGenerator)
 add_subdirectory(src/Common/Devices/MediaLibrary)
+add_subdirectory(src/Common/Devices/ModelDataBridge)
+add_subdirectory(src/Common/BuildInNodes)
+add_subdirectory(src/DataTypes)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
         3rdParty/tinyosc-msvc/tinyosc.h
-        src/DataTypes/NodeDataList.hpp
-        src/DataTypes/AudioData.h
-        src/DataTypes/AudioTimestampRingQueue.h
-        src/DataTypes/AudioTimestampRingQueue.cpp
+
+        res/res.rc
+        res/resources.qrc
         src/Widget/NodeWidget/CustomGraphicsView.cpp
         src/Widget/NodeWidget/CustomGraphicsView.h
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.cpp
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.hpp
-        res/res.rc
-        res/resources.qrc
         src/Widget/TimeLineWidget/TimeLineResource.qrc
         src/Widget/NodeWidget/CustomDataFlowGraphModel.h
         src/Widget/NodeWidget/CustomDataFlowGraphModel.cpp
         src/Widget/NodeWidget/CustomFlowGraphicsScene.cpp
         src/Widget/NodeWidget/CustomFlowGraphicsScene.h
+        src/Widget/NodeWidget/DataflowViewsManger.hpp
+        src/Widget/NodeWidget/DataflowViewsManger.cpp
         src/Widget/PortEditWidget/PortEditAddRemoveWidget.hpp
         src/Widget/PortEditWidget/PortEditAddRemoveWidget.cpp
         src/Widget/AboutWidget/AboutWidget.hpp
@@ -272,14 +274,10 @@ set(CALC_SOURCE_FILES
         src/Widget/CalendarWidget/ScheduledTaskFilterProxyModel.hpp
         src/Widget/CalendarWidget/ScheduledTaskManager.cpp
         src/Widget/CalendarWidget/ScheduledTaskManager.hpp
-        src/DataTypes/AudioTimestampRingQueue.cpp
-        src/DataTypes/AudioTimestampRingQueue.h
         src/Widget/CalendarWidget/TaskItemDelegate.cpp
         src/Widget/CalendarWidget/TaskItemDelegate.h
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.cpp
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.h
-#        src/Widget/MediaLibraryWidget/MediaLibraryModel.cpp
-#        src/Widget/MediaLibraryWidget/MediaLibraryModel.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -346,6 +344,7 @@ target_link_libraries(${ProjectName}
             sdk
             vstgui_support
             sdk_hosting
+            BuildInNodes
             ${portaudio_LIBRARIES}
             ${NDI_LIBRARIES}
             ${QtNodes_LIBRARIES}
@@ -358,14 +357,14 @@ target_link_libraries(${ProjectName}
             Eigen3::Eigen
             ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}
-#            ${TabToolbar_LIBRARIES}
             OSCTransmitter
             ClientController
             OscListWidget
             TimestampGenerator
             MediaManger
             ${QScintilla_LIBRARIES}
-
+            ModelDataBridge
+            DataTypes
 )
 
 #add_library(singleton SHARED ${CALC_SOURCE_FILES})

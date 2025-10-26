@@ -10,69 +10,72 @@
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 
-#include <QtWidgets/QPushButton>
+
 #include <QtCore/qglobal.h>
+
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 class QLineEdit;
-class QPushButton;
 using namespace NodeDataTypes;
-namespace Nodes
-{
-    class BoolPluginDataModel : public NodeDelegateModel
+namespace Nodes {
+    class TextSourceDataModel : public NodeDelegateModel
     {
         Q_OBJECT
 
-
     public:
 
-        BoolPluginDataModel(): button(new QPushButton("0")){
+        TextSourceDataModel():_lineEdit(new QLineEdit("")){
             InPortCount =1;
             OutPortCount=1;
             CaptionVisible=true;
-            Caption="Bool Source";
+            Caption="String Source";
             WidgetEmbeddable=true;
             Resizable=false;
-            button->setCheckable(true);
-            button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-            NodeDelegateModel::registerOSCControl("/bool", button);
-            button->setChecked(false);
-            connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);
-        }
-        ~BoolPluginDataModel(){
-            delete button;
-
+            NodeDelegateModel::registerOSCControl("/string",_lineEdit);
+            connect(_lineEdit, &QLineEdit::textChanged, this, &TextSourceDataModel::onTextEdited);
         }
 
-    public:
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
-            Q_UNUSED(portIndex)
-            Q_UNUSED(portType)
-            return VariableData().type();
 
+            Q_UNUSED(portIndex)
+            switch (portType) {
+                case PortType::In:
+                    return VariableData().type();
+                case PortType::Out:
+                    return VariableData().type();
+                case PortType::None:
+                    break;
+                default:
+                    break;
+            }
+            // FIXME: control may reach end of non-void function [-Wreturn-type]
+
+            return VariableData().type();
         }
 
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(button->isChecked());
+            return std::make_shared<VariableData>(_lineEdit->text());
         }
-        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
 
+        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
             if (data== nullptr){
+                _lineEdit->setText("");
                 return;
             }
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
-            if (textData->value().canConvert<bool>()) {
-                button->setChecked(textData->value().toBool());
+            if (textData->value().canConvert<QString>()) {
+                _lineEdit->setText(textData->value().toString());
             } else {
-                button->setChecked(false);
+                _lineEdit->setText("");
             }
-            button->setText(button->isChecked()? "1":"0");
+
             Q_EMIT dataUpdated(portIndex);
         }
 
@@ -80,7 +83,7 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["val"] = QString::number(button->isChecked());
+            modelJson1["text"] = _lineEdit->text();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -89,21 +92,22 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                button->setChecked(v["val"].toBool(false));
-                button->setText(v["val"].toString());
+                _lineEdit->setText(v["text"].toString());
             }
         }
-        QWidget *embeddedWidget() override{return button;}
+        QWidget *embeddedWidget() override{return _lineEdit;}
 
     private Q_SLOTS:
 
-        void onTextEdited(bool const &string)
+        void onTextEdited(QString const &string)
         {
-            button->setText(QString::number(string));
+            Q_UNUSED(string);
+
             Q_EMIT dataUpdated(0);
         }
 
     private:
-        QPushButton *button;
+        QLineEdit *_lineEdit;
+
     };
 }

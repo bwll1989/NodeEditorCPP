@@ -10,6 +10,7 @@
 #include"Widget/ConsoleWidget/LogWidget.hpp"
 #include <QDropEvent>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QMimeData>
 #include <QWidgetAction>
 #include "Common/GUI/Elements/MartixWidget/MatrixWidget.h"
@@ -41,9 +42,7 @@ MainWindow::~MainWindow()
 {
     delete controller;
     delete timeline;
-    delete dataFlowModel;
-    delete scene;
-    delete view;
+
 }
 void MainWindow::init()
 {
@@ -63,24 +62,8 @@ void MainWindow::init()
     // 初始化节点编辑器样式表
     setNodeEditorStyle();
     emit initStatus("load node editor style success");
-    view = new CustomGraphicsView();
-    view->setObjectName("NodeEditor");
-    // view->setContextMenuPolicy(Qt::ActionsContextMenu);
-    menuBar->views->addAction(NodeDockWidget->toggleViewAction());
-    emit initStatus("Initialization view success");
-    //初始化数据流模型
-    dataFlowModel=new CustomDataFlowGraphModel(PluginsManager::instance()->registry());
-    emit initStatus("Initialization Model success");
-    //初始化场景
-    scene=new CustomFlowGraphicsScene(*dataFlowModel);
-    //设置场景
-    view->setScene(scene);
-    emit initStatus("Initialization scene success");
-    //设置节点编辑控件
-    NodeDockWidget->setWidget(view);
-    //添加到中心区域
-    m_DockManager->addDockWidget(ads::CenterDockWidgetArea, NodeDockWidget);
-    emit initStatus("Init node editor success");
+    dataflowViewsManger=new DataflowViewsManger(m_DockManager,this);
+    // emit initStatus("Init node editor success");
 // 插件管理器控件
     pluginsManagerDlg=new PluginsManagerWidget();
     emit initStatus("initialization pluginsManager");
@@ -88,7 +71,7 @@ void MainWindow::init()
     nodeDockLibraryWidget = new ads::CDockWidget("节点库");
     nodeDockLibraryWidget->setIcon(QIcon(":/icons/icons/library.png"));
     m_DockManager->addDockWidget(ads::BottomDockWidgetArea, nodeDockLibraryWidget);
-    menuBar->views->addAction(nodeDockLibraryWidget->toggleViewAction());
+
 // 时间轴控件
     // 创建时间线模型
     timelineModel = new TimeLineModel();
@@ -103,7 +86,6 @@ void MainWindow::init()
     // 添加到左侧区域
      m_DockManager->addDockWidget(ads::LeftDockWidgetArea,  timelineDockWidget);
      // 添加到菜单栏
-     menuBar->views->addAction(timelineDockWidget->toggleViewAction());
      emit initStatus("Initialization Timeline editor");
 
 // 终端显示控件
@@ -113,7 +95,6 @@ void MainWindow::init()
     logDockViewer->setWidget(logTable);
     logDockViewer->setIcon(QIcon(":/icons/icons/bug.png"));
     m_DockManager->addDockWidget(ads::BottomDockWidgetArea, logDockViewer);
-    menuBar->views->addAction(logDockViewer->toggleViewAction());
     emit initStatus("Initialization console widget");
 
     // auto *DockView= new ads::CDockWidget("显示");
@@ -137,17 +118,14 @@ void MainWindow::init()
     scheduledTaskWidget=new ScheduledTaskWidget();
     calendarDockWidget->setWidget(scheduledTaskWidget);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, calendarDockWidget);
-    menuBar->views->addAction(calendarDockWidget->toggleViewAction());
     emit initStatus("Initialization Scheduled");
     // 添加舞台控件
     auto *stageDockWidget = new ads::CDockWidget("舞台");
     stageDockWidget->setObjectName("stage");
     stageDockWidget->setIcon(QIcon(":/icons/icons/stage.png"));
     stageWidget = new StageWidget();
-    
     stageDockWidget->setWidget(stageWidget);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, stageDockWidget);
-    menuBar->views->addAction(stageDockWidget->toggleViewAction());
     // 从timelinemodel中获取stage
      stageWidget->setStage(timeline->model->getStage());
      emit initStatus("Initialization Stage");
@@ -157,15 +135,15 @@ void MainWindow::init()
      // });
     emit initStatus("Initialization Stage Widget");
 
-    // 节点列表显示控件
-    auto *nodeListDockWidget = new ads::CDockWidget("节点列表");
-    nodeListDockWidget->setObjectName("nodeList");
-    nodeListDockWidget->setIcon(QIcon(":/icons/icons/list.png"));
-    nodeListWidget = new NodeListWidget(dataFlowModel, scene, this);
-    nodeListDockWidget->setWidget(nodeListWidget);
-    m_DockManager->addDockWidget(ads::RightDockWidgetArea, nodeListDockWidget);
-    menuBar->views->addAction(nodeListDockWidget->toggleViewAction());
-    emit initStatus("Initialization Node List Widget");
+    // // 节点列表显示控件
+    // auto *nodeListDockWidget = new ads::CDockWidget("节点列表");
+    // nodeListDockWidget->setObjectName("nodeList");
+    // nodeListDockWidget->setIcon(QIcon(":/icons/icons/list.png"));
+    // nodeListWidget = new NodeListWidget(dataFlowModel, scene, this);
+    // nodeListDockWidget->setWidget(nodeListWidget);
+    // m_DockManager->addDockWidget(ads::RightDockWidgetArea, nodeListDockWidget);
+    // menuBar->views->addAction(nodeListDockWidget->toggleViewAction());
+    // emit initStatus("Initialization Node List Widget");
     // 媒体库控件
     auto *mediaLibraryDockWidget = new ads::CDockWidget("媒体库");
     mediaLibraryDockWidget->setObjectName("mediaLibrary");
@@ -173,17 +151,15 @@ void MainWindow::init()
     mediaLibraryWidget = new MediaLibraryWidget();
     mediaLibraryDockWidget->setWidget(mediaLibraryWidget);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, mediaLibraryDockWidget);
-    menuBar->views->addAction(mediaLibraryDockWidget->toggleViewAction());
+    // menuBar->views->addAction(mediaLibraryDockWidget->toggleViewAction());
     emit initStatus("Initialization Media Library Widget");
-
 
     // 外部控制器
     controller=new ExternalControler();
-    controller->setDataFlowModel(dataFlowModel);
+    controller->setDataflowModels(dataflowViewsManger->getModel());
     controller->setTimelineModel(timelineModel);
     controller->setTimelineToolBarMap(timeline->view->m_toolbar->getOscMapping());
     emit initStatus("Initialization External Controler");
-
 
     connect(menuBar->saveLayout, &QAction::triggered, this, &MainWindow::saveVisualState);
     //保存布局
@@ -201,28 +177,26 @@ void MainWindow::init()
     //锁定切换
     connect(menuBar->pluginsManagerAction, &QAction::triggered, pluginsManagerDlg,
             &PluginsManagerWidget::exec);
-    // 插件管理器
+    // 显示插件管理器
     connect(menuBar->pluginsFloderAction, &QAction::triggered, pluginsManagerDlg,&PluginsManagerWidget::openPluginsFolder);
-    //鼠标点击时显示属性
-    // connect(scene, &CustomFlowGraphicsScene::nodeClicked, property,&PropertyWidget::update);
-    // connect(scene, &CustomFlowGraphicsScene::nodeClicked,portEdit,&PortEditWidget::update);
-    // //    节点删除时更新属性显示
-    // // connect(model,&CustomDataFlowGraphModel::nodeDeleted, property,&PropertyWidget::update);
-    // connect(dataFlowModel,&CustomDataFlowGraphModel::nodeDeleted,portEdit,&PortEditWidget::update);
+    // 刷新菜单栏视图选项
+    connect(menuBar->views, &QMenu::aboutToShow, this, [this]() {
+        updateViewMenu(menuBar->views);
+    });
+    //清空所有数据流
+    connect(menuBar->Clear_dataflows, &QAction::triggered, dataflowViewsManger, &DataflowViewsManger::clearAllScenes);
+    //新建数据流程
+    connect(menuBar->New_dataflow, &QAction::triggered, this, &MainWindow::createDataflowWidget);
     //    日志清空功能
     connect(menuBar->clearAction, &QAction::triggered, logTable, &LogWidget::clearTableWidget);
-//    导入文件，视图回到中心
-    connect(scene, &CustomFlowGraphicsScene::sceneLoaded, view, &CustomGraphicsView::centerScene);
 
-    // 恢复布局
     setAcceptDrops(true);
 
-   
-
+    connect(menuBar->clearAction, &QAction::triggered, this,&MainWindow::createDataflowWidget);
 }
 //显示属性
 void MainWindow::initNodelist() {
-    nodeLibrary=new NodeLibraryWidget(dataFlowModel);
+    nodeLibrary=new NodeLibraryWidget();
     this->nodeDockLibraryWidget->setWidget(nodeLibrary);
     emit initStatus("Initialization nodes library success");
 }
@@ -230,10 +204,7 @@ void MainWindow::initNodelist() {
 // 锁定切换
 void MainWindow::locked_switch() {
     isLocked=!isLocked;
-    dataFlowModel->setNodesLocked(isLocked);
-    //    显示锁定
-    dataFlowModel->setDetachPossible(!isLocked);
-    //    不可分离连接
+    dataflowViewsManger->setSceneLocked(isLocked);
 
 }
 //拖拽进入
@@ -245,7 +216,6 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
         QFileInfo fileInfo(filePath);
         if (fileInfo.suffix().toLower() == "flow") {
             //            文件后缀符合，才接收拖拽
-            
             event->acceptProposedAction();
         }
     }
@@ -256,15 +226,13 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
 void MainWindow::dropEvent(QDropEvent *event) {
     const QMimeData *mimeData = event->mimeData();
     QString filePath = mimeData->urls().at(0).toLocalFile();
-    // QFile file(filePath);
-    // if (!file.open(QIODevice::ReadOnly))
-    //     return ;
-    //
-    // scene->clearScene();
-    // //    场景清空
-    // QByteArray const wholeFile = file.readAll();
-    // //    读取.flow文件
-    // dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object());
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly))
+        return ;
+
+    dataflowViewsManger->clearAllScenes();
+    //    场景清空
+
     loadFileFromPath(&filePath);
     event->acceptProposedAction();
 
@@ -289,11 +257,11 @@ void MainWindow::loadFileFromPath(QString *path)
             return;
         }
         //    场景清空
-        scene->clearScene();
+        // scene->clearScene();
         //    读取.flow文件
         QByteArray const wholeFile = file.readAll();
         // 加载数据流模型
-        dataFlowModel->load(QJsonDocument::fromJson(wholeFile).object()["DataFlow"].toObject());
+        dataflowViewsManger->load(QJsonDocument::fromJson(wholeFile).object()["DataFlow"].toObject());
         // 加载时间轴模型
         timeline->load(QJsonDocument::fromJson(wholeFile).object()["TimeLine"].toObject());
         // 加载计划任务模型
@@ -316,20 +284,20 @@ void MainWindow::loadFileFromExplorer() {
     if (!file.open(QIODevice::ReadOnly))
         return;
 
-        scene->clearScene();
+        // scene->clearScene();
         //    场景清空
         QByteArray const wholeFile = file.readAll();
         //    读取.flow文件
         auto senceFile=QJsonDocument::fromJson(wholeFile).object();
         // 加载数据流
-        dataFlowModel->load(senceFile["DataFlow"].toObject());
+        dataflowViewsManger->load(senceFile["DataFlow"].toObject());
         // 加载时间轴
         timeline->load(senceFile["TimeLine"].toObject());
         //加载计划任务
         scheduledTaskWidget->load(senceFile["ScheduledTasks"].toObject());
         // 设置当前项目路径
         currentProjectPath=fileName;
-        emit scene->sceneLoaded();
+        // emit scene->sceneLoaded();
 
 }
 //保存文件到路径
@@ -343,7 +311,7 @@ void MainWindow::saveFileToPath(){
     if (file.open(QIODevice::WriteOnly)) {
         QJsonObject flowJson;
         // 保存数据流
-        flowJson["DataFlow"]=dataFlowModel->save();
+        flowJson["DataFlow"]=dataflowViewsManger->save();
         // 保存时间轴
         flowJson["TimeLine"]=timeline->save();
         // 保存计划任务
@@ -368,7 +336,7 @@ void MainWindow::saveFileToExplorer() {
         if (file.open(QIODevice::WriteOnly)) {
             QJsonObject flowJson;
             // 保存数据流
-            flowJson["DataFlow"]=dataFlowModel->save();
+            flowJson["DataFlow"]=dataflowViewsManger->save();
             // 保存时间轴
             flowJson["TimeLine"]=timeline->save();
             // 保存计划任务
@@ -426,14 +394,37 @@ void MainWindow::closeEvent(QCloseEvent *event) {
     if (reply == QMessageBox::Yes) {
         qDebug()<<"The program exits manually";
         // 用户点击"是"，接受事件，应用程序关闭
-//    结束日志记录器
+        // 保存当前页面布局
         saveVisualState();
         this->close();
-//        m_DockManager->deleteLater();
-//    结束ADS
         event->accept();
     } else {
         // 用户点击"否"，忽略事件，应用程序保持运行
         event->ignore();
+    }
+}
+
+void MainWindow::createDataflowWidget()
+{
+    
+    bool ok;
+    QString name = QInputDialog::getText(this,
+                                         tr("新建Dataflow"),
+                                         tr("请输入名称（不可变更）:"),
+                                         QLineEdit::Normal,
+                                         tr("Dataflow"),
+                                         &ok);
+    if (!ok || name.isEmpty())
+        return;
+    // 用户取消或空名称则直接返回，重名判断在DataflowViewsManger中
+    dataflowViewsManger->addNewScene(name);
+}
+
+void MainWindow::updateViewMenu(QMenu* menu)
+{
+    menu->clear();
+    for (auto* DockWidget : m_DockManager->dockWidgetsMap())
+    {
+        menu->addAction(DockWidget->toggleViewAction());
     }
 }

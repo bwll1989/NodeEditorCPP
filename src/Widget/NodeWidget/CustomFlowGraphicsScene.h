@@ -1,10 +1,6 @@
 //
 // Created by 吴斌 on 2024/1/16.
 //
-
-#ifndef NODEEDITORCPP_CUSTOMFLOWGRAPHICSSCENE_H
-#define NODEEDITORCPP_CUSTOMFLOWGRAPHICSSCENE_H
-
 #pragma once
 
 #include "QtNodes/internal/BasicGraphicsScene.hpp"
@@ -76,9 +72,3 @@ protected:
      */
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
 };
-
-
-
-
-
-#endif //NODEEDITORCPP_CUSTOMFLOWGRAPHICSSCENE_H

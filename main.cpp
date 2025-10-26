@@ -188,15 +188,15 @@ int main(int argc, char *argv[])
     mainWindow->pluginsManagerDlg->loadPluginsFromFolder();
     mainWindow->initNodelist();
     
-    // 恢复窗口视觉状态
-    mainWindow->restoreVisualState();
+
     
     // 处理命令行参数
     handleCommandLineArguments(parser, *mainWindow);
     
     // 最大化显示主窗口
     mainWindow->showMaximized();
-    
+    // 恢复窗口视觉状态
+    mainWindow->restoreVisualState();
     // 启动应用程序事件循环
     int result = app.exec();
     

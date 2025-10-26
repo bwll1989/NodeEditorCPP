@@ -38,9 +38,8 @@ ExternalControler::~ExternalControler()
 void ExternalControler::hasOSC(const OSCMessage &message) {
     
     auto args = message.address.split("/");
-    
-    //如果地址层级小于或大于3，则判定格式不对，不处理
-    if (args.size()!=4) {
+    //如果地址层级小于或大于5，则判定格式不对，不处理
+    if (args.size()!=5) {
         qDebug() << "Invalid OSC address format:" << message.address;
         return;
     }
@@ -50,9 +49,22 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     {
     case AddressType::Dataflow:
         {
-            NodeId nodeId =args[2].toInt();
-            auto widgets = m_dataflowmodel->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
-            auto it = widgets.find("/"+args[3]);
+            if (!m_dataflowmodels) {
+                qDebug() << "Dataflow models map is nullptr for address:" << message.address;
+                break;
+            }
+            const QString model_key = args[2];
+            NodeId nodeId =args[3].toInt();
+            // 查找键而非直接 operator[]，避免插入空值
+            auto itModel = m_dataflowmodels->find(model_key);
+            if (itModel == m_dataflowmodels->end() || !itModel->second.get()) {
+                qDebug() << "Model not found or already deleted for key:" << model_key
+                         << "address:" << message.address;
+                break;
+            }
+            CustomDataFlowGraphModel* model = itModel->second.get();
+            auto widgets = model->nodeData(nodeId,NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
+            auto it = widgets.find("/"+args[4]);
             if (it != widgets.end()) {
                 widget = it->second;
             }
@@ -60,10 +72,18 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
         }
     case AddressType::Timeline:
         {
-            if (args[2]=="toolbar")
+            if (!m_timelinemodel) {
+                qDebug() << "Timeline model is nullptr for address:" << message.address;
+                break;
+            }
+            if (args[2]!="default") {
+                qDebug() << "Invalid timeline address format:" << message.address;
+                break;
+            }
+            if (args[3]=="toolbar")
             {
 
-                auto it = m_TimelineToolbarMapping->find("/"+args[3]);
+                auto it = m_TimelineToolbarMapping->find("/"+args[4]);
                 if (it != m_TimelineToolbarMapping->end()) {
                     QAction* action = it->second;
                     // 触发QAction的点击信号
@@ -76,9 +96,9 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
                 break;
             }else
             {
-                ClipId clipId =args[2].toInt();
+                ClipId clipId =args[3].toInt();
                 auto widgets= m_timelinemodel->clipData(clipId,TimelineRoles::ClipOscWidgetsRole).value<std::unordered_map<QString, QWidget*>>();
-                auto it = widgets.find("/"+args[3]);
+                auto it = widgets.find("/"+args[4]);
                 if (it != widgets.end()) {
                     widget = it->second;
                 }
@@ -137,10 +157,16 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     }
 }
 
-void ExternalControler::setDataFlowModel(CustomDataFlowGraphModel *model)
+// void ExternalControler::setDataFlowModel(CustomDataFlowGraphModel *model)
+// {
+//     this->m_dataflowmodel = model;
+// }
+
+void ExternalControler::setDataflowModels(std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>> *models)
 {
-    this->m_dataflowmodel = model;
+    this->m_dataflowmodels = models;
 }
+
 
 
 void ExternalControler::setTimelineModel(TimeLineModel *model)

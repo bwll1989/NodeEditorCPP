@@ -2,8 +2,6 @@
 // Created by 吴斌 on 2024/1/16.
 //
 
-#ifndef NODEEDITORCPP_CUSTOMDATAFLOWGRAPHMODEL_H
-#define NODEEDITORCPP_CUSTOMDATAFLOWGRAPHMODEL_H
 #pragma once
 
 #include <memory>
@@ -300,4 +298,3 @@ private:
     mutable std::unordered_map<NodeId, NodeGeometryData> _nodeGeometryData;
     };
 
-#endif //NODEEDITORCPP_CUSTOMDATAFLOWGRAPHMODEL_H

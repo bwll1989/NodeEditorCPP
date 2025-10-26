@@ -1,9 +1,7 @@
 //
 // Created by 吴斌 on 2023/11/21.
 //
-
-#ifndef NODEEDITORCPP_CUSTOMGRAPHICSVIEW_H
-#define NODEEDITORCPP_CUSTOMGRAPHICSVIEW_H
+#pragma once
 #include "QtNodes/GraphicsView"
 using QtNodes::GraphicsView;
 class CustomGraphicsView: public GraphicsView{
@@ -26,5 +24,3 @@ protected:
     void dropEvent(QDropEvent *event) override;
 };
 
-
-#endif //NODEEDITORCPP_CUSTOMGRAPHICSVIEW_H

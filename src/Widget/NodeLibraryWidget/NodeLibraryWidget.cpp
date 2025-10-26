@@ -5,7 +5,7 @@
 
 #include "NodeLibraryWidget.h"
 #include "QLineEdit"
-NodeLibraryWidget::NodeLibraryWidget(CustomDataFlowGraphModel *model,QWidget *parent):_model(model){
+NodeLibraryWidget::NodeLibraryWidget(QWidget *parent):QWidget(parent){
     initLayout();
     this->update();
 }
@@ -24,7 +24,8 @@ void NodeLibraryWidget::initLayout(){
 }
 
 void NodeLibraryWidget::update(){
-    auto registry = _model->dataModelRegistry();
+
+    auto registry = QtNodes::PluginsManager::instance()->registry();
 
     for (auto const &cat : registry->categories()) {
         auto item = new QTreeWidgetItem(treeView);

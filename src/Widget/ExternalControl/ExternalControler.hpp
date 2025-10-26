@@ -35,7 +35,8 @@ public:
         }
         return instance;
     }
-    void setDataFlowModel(CustomDataFlowGraphModel *model);
+    // void setDataFlowModel(CustomDataFlowGraphModel *model);
+    void setDataflowModels(std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>> *models);
     void setTimelineModel(TimeLineModel *model);
     void setTimelineToolBarMap(std::shared_ptr<std::unordered_map<QString, QAction*>> oscMapping);
 private slots:
@@ -51,9 +52,10 @@ private:
     ExternalControler(const ExternalControler&) = delete;
     ExternalControler& operator=(const ExternalControler&) = delete;
 private:
-    CustomDataFlowGraphModel *m_dataflowmodel;
+    std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>>  *m_dataflowmodels;
+    // CustomDataFlowGraphModel *m_dataflowmodel;
     TimeLineModel *m_timelinemodel;
-    std::shared_ptr<std::unordered_map<QString, QAction*>> m_TimelineToolbarMapping;;
+    std::shared_ptr<std::unordered_map<QString, QAction*>> m_TimelineToolbarMapping;
     //OSC接收器
     OSCReceiver *OSC_Receiver;
 };

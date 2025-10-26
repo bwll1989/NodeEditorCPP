@@ -26,12 +26,19 @@ void MenuBarWidget::setupMenu() {
     exitAction = Files_menu->addAction("退出");
     exitAction->setIcon(QIcon(":/icons/icons/exit.png"));
     Edit_menu=this->addMenu("编辑");
+    //新建数据流程
+    New_dataflow=Edit_menu->addAction("插入新流程");
+    New_dataflow->setIcon(QIcon(":/icons/icons/add.png"));
+    //清空数据流
+    Clear_dataflows=Edit_menu->addAction("清空所有流程");
+    Clear_dataflows->setIcon(QIcon(":/icons/icons/clear.png"));
     lockAction = Edit_menu->addAction("编辑模式");
     lockAction->setCheckable(true);
     lockAction->setIcon(lockAction->isChecked()?QIcon(":/icons/icons/lock.png"):QIcon(":/icons/icons/unlock.png"));
     connect(lockAction, &QAction::toggled, [this](bool checked) {
         this->lockAction->setIcon(checked?QIcon(":/icons/icons/lock.png"):QIcon(":/icons/icons/unlock.png"));
     });
+
     clearAction = Edit_menu->addAction("清空日志");
     clearAction->setIcon(QIcon(":/icons/icons/clear.png"));
 
