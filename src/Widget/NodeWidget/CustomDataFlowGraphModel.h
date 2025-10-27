@@ -223,6 +223,11 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
 
         return model;
     }
+    void setModelAlias(QString newAlias) {
+        _modelAlias = newAlias;
+    }
+
+    QString modelAlias() const { return _modelAlias; }
 Q_SIGNALS:
     /**
      * 端口数据被设置
@@ -288,6 +293,8 @@ private:
     bool _detachPossible=true;
     //节点锁定
     bool _nodesLocked= false;
+    //模型别名
+    QString _modelAlias;
     //节点模型
     std::unordered_map<NodeId, std::unique_ptr<NodeDelegateModel>> _models;
     //连接

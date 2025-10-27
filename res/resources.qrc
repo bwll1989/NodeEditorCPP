@@ -96,6 +96,7 @@
     <file>icons/document.png</file>
     <file>icons/audio.png</file>
     <file>icons/unknown.png</file>
+    <file>icons/options.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

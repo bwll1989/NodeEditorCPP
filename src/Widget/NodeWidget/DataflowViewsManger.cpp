@@ -38,6 +38,7 @@ void DataflowViewsManger::addNewScene(const QString& title)
     // 创建并以标题为键持久化模型
     _models.emplace(title, std::make_unique<CustomDataFlowGraphModel>(PluginsManager::instance()->registry()));
     auto& model = *_models.at(title);
+    model.setModelAlias(title);
     ads::CDockWidget* DockWidget = new ads::CDockWidget(title);
     // 函数级注释：
     // // 作用：为 DockWidget 开启 DeleteOnClose，由 ADS 负责删除；管理器仅保存弱引用
@@ -65,7 +66,7 @@ void DataflowViewsManger::addNewScene(const QString& title)
     QMenu* OptionsMenu = new QMenu(DockWidget);
     OptionsMenu->setTitle(QObject::tr("Options"));
     OptionsMenu->setToolTip(OptionsMenu->title());
-    OptionsMenu->setIcon(QIcon(":/icons/icons/tools.png"));
+    OptionsMenu->setIcon(QIcon(":/icons/icons/options.png"));
     auto MenuAction = OptionsMenu->menuAction();
     // The object name of the action will be set for the QToolButton that
     // is created in the dock area title bar. You can use this name for CSS
@@ -119,7 +120,7 @@ void DataflowViewsManger::addNewSceneFromeModel(const QString& title, CustomData
     QMenu* OptionsMenu = new QMenu(DockWidget);
     OptionsMenu->setTitle(QObject::tr("Options"));
     OptionsMenu->setToolTip(OptionsMenu->title());
-    OptionsMenu->setIcon(QIcon(":/icons/icons/tools.png"));
+    OptionsMenu->setIcon(QIcon(":/icons/icons/options.png"));
     auto MenuAction = OptionsMenu->menuAction();
     // The object name of the action will be set for the QToolButton that
     // is created in the dock area title bar. You can use this name for CSS
