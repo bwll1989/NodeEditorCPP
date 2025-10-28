@@ -21,7 +21,11 @@ MediaLibraryWidget::MediaLibraryWidget(QWidget* parent)
     m_tree->setModel(m_model);
     initializeTreeView();
 
-    // [更新] 为宿主控件开启接收外部拖拽（资源管理器）
+    // [新增] 监听媒体库的整体变更信号，统一刷新视图
+    connect(m_model, &MediaLibrary::libraryChanged,
+            this,    &MediaLibraryWidget::onLibraryChanged);
+
+    // ... existing code ...
     setAcceptDrops(true);
 
     // 右键菜单
@@ -217,10 +221,11 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
     QMenu ctx(m_tree);
 
     // 通用操作（空白、组、子项都显示）
-    QAction* actImportFiles   = ctx.addAction(tr("导入文件"));
-    QAction* actImportFolder  = ctx.addAction(tr("导入文件夹"));
-    QAction* actDeleteChecked = ctx.addAction(tr("删除选中"));
-    QAction* actClear         = ctx.addAction(tr("清空"));
+    QAction* actImportFiles   = ctx.addAction(QIcon(":/icons/icons/add.png"),tr("导入文件"));
+    QAction* actImportFolder  = ctx.addAction(QIcon(":/icons/icons/add.png"),tr("导入文件夹"));
+    QAction* actDeleteChecked = ctx.addAction(QIcon(":/icons/icons/remove.png"),tr("删除选中"));
+    QAction* actClear         = ctx.addAction(QIcon(":/icons/icons/clear.png"),tr("清空"));
+    QAction* actRefresh       = ctx.addAction(QIcon(":/icons/icons/reload.png"),tr("刷新"));
     ctx.addSeparator();
 
     connect(actImportFiles,  &QAction::triggered, this, &MediaLibraryWidget::importFiles);
@@ -230,7 +235,11 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
         deleteSelectedItems();
     });
     connect(actClear,        &QAction::triggered, this, &MediaLibraryWidget::clearLibrary);
+    connect(actRefresh,      &QAction::triggered, this, [this] {
+        MediaLibrary::instance()->refresh();
 
+        qDebug() << "MediaLibraryWidget::onContextMenuRequested()";
+    });
     if (!idx.isValid()) {
         // 空白处：只显示通用操作
         ctx.popup(m_tree->viewport()->mapToGlobal(pos));
@@ -246,7 +255,7 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
     } else {
         // 子项：打开/定位/删除
         // QAction* actOpen   = ctx.addAction(tr("打开"));
-        QAction* actReveal = ctx.addAction(tr("在资源管理器中显示"));
+        QAction* actReveal = ctx.addAction(QIcon(":/icons/icons/explore.png"),tr("在资源管理器中显示"));
 
         // connect(actOpen, &QAction::triggered, this, [this, path] {
         //     emit fileActivated(path);
@@ -355,4 +364,39 @@ void MediaLibraryWidget::dropEvent(QDropEvent* event)
     for (const QString& dir : folders) m_model->addFolder(dir);
 
     event->acceptProposedAction();
+}
+
+void MediaLibraryWidget::onLibraryChanged()
+{
+    // 函数级注释：
+    // 1) refresh() 过程中屏蔽了模型信号，视图未收到 rowsInserted/rowsRemoved，
+    //    因此此处强制重绑模型以刷新显示；
+    // 2) 重新初始化组图标与展开状态；
+    // 3) 为所有子项补充类型图标，避免在刷新过程中遗漏。
+
+    // 记录当前选中项（可选）
+    const QModelIndex current = m_tree->currentIndex();
+
+    // 强制刷新绑定，确保视图重新构建
+    m_tree->setModel(nullptr);
+    m_tree->setModel(m_model);
+
+    // 重新初始化视图外观（组图标、展开等）
+    initializeTreeView();
+
+    // 为所有组刷新子项图标
+    const int topCount = m_model->rowCount();
+    for (int r = 0; r < topCount; ++r) {
+        QStandardItem* group = m_model->item(r);
+        if (!group) continue;
+        setChildrenFlag(group);
+    }
+
+    // 恢复当前选择（若仍有效）
+    if (current.isValid()) {
+        m_tree->setCurrentIndex(current);
+    }
+
+    // 刷新视口以更新绘制
+    m_tree->viewport()->update();
 }

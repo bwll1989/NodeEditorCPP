@@ -130,7 +130,11 @@ signals:
      * @brief 数据变更信号（用于通知视图层刷新或外部持久化）
      */
     void libraryChanged();
-
+public slots:
+    /**
+     *
+     */
+    void refresh();
 private:
     /**
      * @brief 根据扩展名判定类别

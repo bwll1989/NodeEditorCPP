@@ -2,8 +2,7 @@
 // Created by bwll1 on 2024/9/25.
 //
 
-#ifndef NODEEDITORCPP_MENUBARWIDGET_H
-#define NODEEDITORCPP_MENUBARWIDGET_H
+#pragma once
 
 #include <QMenuBar>
 #include <QAction>
@@ -83,4 +82,3 @@ private slots:
     void showHelp();
 };
 
-#endif //NODEEDITORCPP_MENUBARWIDGET_H

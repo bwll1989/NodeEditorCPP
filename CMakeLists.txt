@@ -278,6 +278,7 @@ set(CALC_SOURCE_FILES
         src/Widget/CalendarWidget/TaskItemDelegate.h
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.cpp
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.h
+        src/constantDefines.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)

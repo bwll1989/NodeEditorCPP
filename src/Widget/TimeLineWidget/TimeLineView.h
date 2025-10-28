@@ -2,8 +2,7 @@
 // Created by WuBin on 2025/6/3.
 //
 
-#ifndef TIMELINEVIEW_H
-#define TIMELINEVIEW_H
+#pragma once
 
 #include "BaseTimeLineView.h"
 #include "TimeLineModel.h"
@@ -24,7 +23,3 @@ private:
     void movePlayheadToFrame(int frame) override;
 
 };
-
-
-
-#endif //TIMELINEVIEW_H

@@ -10,7 +10,6 @@ set(ALL_NODES
     VST3PluginNode
     DataInfoNode                              #数据显示
     ImageLoadNode                             #图像导入
-    ImageShowNode                             #图像显示
     LuaScriptNode                             #Lua脚本模块
     TCPServerNode                             #TCP服务器模块
     TCPClientNode                             #TCP客户端模块
@@ -97,7 +96,6 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(VST3PluginNode)
     add_subdirectory(DataInfoNode)                              #数据显示
     add_subdirectory(ImageLoadNode)                             #图像导入
-    add_subdirectory(ImageShowNode)                             #图像显示
     add_subdirectory(LuaScriptNode)                             #Lua脚本模块
     add_subdirectory(TCPServerNode)                             #TCP服务器模块
     add_subdirectory(TCPClientNode)                             #TCP客户端模块

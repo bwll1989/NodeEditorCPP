@@ -135,15 +135,15 @@ void MainWindow::init()
      // });
     emit initStatus("Initialization Stage Widget");
 
-    // // 节点列表显示控件
-    // auto *nodeListDockWidget = new ads::CDockWidget("节点列表");
-    // nodeListDockWidget->setObjectName("nodeList");
-    // nodeListDockWidget->setIcon(QIcon(":/icons/icons/list.png"));
-    // nodeListWidget = new NodeListWidget(dataFlowModel, scene, this);
-    // nodeListDockWidget->setWidget(nodeListWidget);
-    // m_DockManager->addDockWidget(ads::RightDockWidgetArea, nodeListDockWidget);
-    // menuBar->views->addAction(nodeListDockWidget->toggleViewAction());
-    // emit initStatus("Initialization Node List Widget");
+    // 节点列表显示控件
+    auto *nodeListDockWidget = new ads::CDockWidget("节点列表");
+    nodeListDockWidget->setObjectName("nodeList");
+    nodeListDockWidget->setIcon(QIcon(":/icons/icons/list.png"));
+    nodeListWidget = new NodeListWidget(dataflowViewsManger, this);
+    nodeListDockWidget->setWidget(nodeListWidget);
+    m_DockManager->addDockWidget(ads::RightDockWidgetArea, nodeListDockWidget);
+    menuBar->views->addAction(nodeListDockWidget->toggleViewAction());
+    emit initStatus("Initialization Node List Widget");
     // 媒体库控件
     auto *mediaLibraryDockWidget = new ads::CDockWidget("媒体库");
     mediaLibraryDockWidget->setObjectName("mediaLibrary");
@@ -193,7 +193,42 @@ void MainWindow::init()
     setAcceptDrops(true);
 
     connect(menuBar->clearAction, &QAction::triggered, this,&MainWindow::createDataflowWidget);
+
+     if (QSystemTrayIcon::isSystemTrayAvailable()) {
+        trayIcon = new QSystemTrayIcon(this);
+        trayIcon->setIcon(QIcon(":/icons/icons/NodeStudio.svg"));
+        trayIcon->setToolTip(tr("NodeStudio 正在后台运行"));
+        // 托盘菜单
+        trayMenu = new QMenu(this);
+        trayExitAction    = trayMenu->addAction(tr("  退出  "));
+        connect(trayExitAction,    &QAction::triggered, this, [this]() {
+            // 退出前保存布局
+            saveVisualState();
+            qApp->quit();
+        });
+        trayIcon->setContextMenu(trayMenu);
+
+        // 双击/单击托盘图标时还原
+        connect(trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
+            if (reason == QSystemTrayIcon::DoubleClick) {
+                switchVisibleFromTray();
+            }
+        });
+        trayIcon->show();
+        // 初始就显示图标，否则容易与windows任务栏显示机制有冲突，导致图标第二次无法正常显示
+    }
 }
+void MainWindow::switchVisibleFromTray()
+{
+    if (this->isHidden()) {
+        this->showMaximized();
+        this->raise();
+        this->activateWindow();
+    }else {
+        this->hide();
+    }
+}
+
 //显示属性
 void MainWindow::initNodelist() {
     nodeLibrary=new NodeLibraryWidget();
@@ -385,22 +420,30 @@ void MainWindow::restoreVisualState()
 
 
 //退出确认
-void MainWindow::closeEvent(QCloseEvent *event) {
-    // 弹出确认对话框
-    QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "退出确认", "您确定要退出吗？",
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    if (QSystemTrayIcon::isSystemTrayAvailable()) {
+        QMessageBox::StandardButton reply =
+            QMessageBox::question(this, tr("退出确认"),
+                                  tr("是否最小化到系统托盘？"),
                                   QMessageBox::Yes | QMessageBox::No);
 
-    if (reply == QMessageBox::Yes) {
-        qDebug()<<"The program exits manually";
-        // 用户点击"是"，接受事件，应用程序关闭
-        // 保存当前页面布局
-        saveVisualState();
-        this->close();
-        event->accept();
+        if (reply == QMessageBox::Yes) {
+            qDebug() << "Minimize to system tray";
+            this->hide();
+            event->ignore(); // 保持进程运行
+        } else if (reply == QMessageBox::No) {
+            // 选择否：保存布局并退出
+            qDebug() << "The program exits manually";
+            saveVisualState();
+            event->accept();
+        } else {
+            // 关闭对话框（X 或 Esc）：不做任何处理
+            event->ignore();
+        }
     } else {
-        // 用户点击"否"，忽略事件，应用程序保持运行
-        event->ignore();
+        saveVisualState();
+        event->accept();
     }
 }
 

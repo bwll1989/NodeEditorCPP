@@ -2,8 +2,8 @@
 // Created by WuBin on 2025/6/3.
 //
 
-#ifndef TRACKLISTVIEW_H
-#define TRACKLISTVIEW_H
+#pragma once
+
 #include "BaseTrackListView.h"
 #include "TimeLineModel.h"
 class TrackListView: public BaseTracklistView {
@@ -18,4 +18,4 @@ protected:
 
 
 
-#endif //TRACKLISTVIEW_H
+

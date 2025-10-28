@@ -10,6 +10,7 @@
 #include <QDesktopServices>
 #include <QFile>
 #include "Widget/AboutWidget/AboutWidget.hpp"
+#include "ConstantDefines.h"
 MenuBarWidget::MenuBarWidget(QWidget *parent) : QMenuBar(parent) {
     setupMenu();
 }
@@ -79,10 +80,15 @@ void MenuBarWidget::setupMenu() {
     connect(tool2Action, &QAction::triggered, this, [this]() {
             QStringList args;
             args << "--load"
-                << "./extrnal-control-interface.json" // 无gui运行
-                    << "--no-gui"
-                << "--send"
-                <<"127.0.0.1:8991";  // 主机地址
+                << "./extrnal-control-interface.json"             // 加载默认文件
+                <<"--port"
+                << QString::number(AppConstants::OSC_WEB_PORT)      //网页端口
+                << "--no-gui"                                   // 无gui运行
+                <<"--theme"                                     //主题
+                << "orange"
+                << "--send"                                      // OSC发送端口
+                <<"127.0.0.1:8991";
+
             openOSCInterface("open-stage-control/open-stage-control.exe", args);
        });
 
@@ -117,7 +123,7 @@ void MenuBarWidget::openOSCInterface(const QString& exePath, const QStringList& 
             process, &QProcess::deleteLater);
     if (QFile::exists(fullPath)) {
         process->start(fullPath, args);
-        qDebug()<<"open stage control is running on http://localhost:8080";
+        qDebug()<<"open stage control is running on http://localhost:"+QString::number(AppConstants::OSC_WEB_PORT);
     } else {
         QMessageBox::warning(this, "错误", QString("找不到可执行文件：%1").arg(fullPath));
         process->deleteLater();

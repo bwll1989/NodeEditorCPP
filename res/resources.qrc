@@ -97,6 +97,9 @@
     <file>icons/audio.png</file>
     <file>icons/unknown.png</file>
     <file>icons/options.png</file>
+    <file>icons/explore.png</file>
+    <file>icons/NodeStudio.svg</file>
+    <file>icons/NodeStudio.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

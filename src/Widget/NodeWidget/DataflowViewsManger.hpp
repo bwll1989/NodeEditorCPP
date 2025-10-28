@@ -13,8 +13,8 @@
 #include "ModelDataBridge/ModelDataBridge.hpp"
 
 class DataflowViewsManger : public QObject
-
 {
+    Q_OBJECT
 public:
     explicit DataflowViewsManger( ads::CDockManager* dockManager,QObject* parent = nullptr);
     
@@ -38,7 +38,6 @@ public:
      * @param model 数据流程模型指针
      */
     void addNewSceneFromeModel(const QString& title = QString(), CustomDataFlowGraphModel* model = nullptr);
-
     /**
      * @brief 保存所有场景的状态到JSON对象
      *
@@ -68,6 +67,37 @@ public Q_SLOTS:
      * @brief 清空所有场景，包括模型、视图和停靠窗口
      */
     void clearAllScenes();
+    /**
+     * @brief 获取当前聚焦场景的标题（若可用）
+     */
+    void focusedSceneTitle() ;
+Q_SIGNALS:
+    void createNewScene(QString title);
+    void sceneIsActive(QString title);
+    void removeScene(QString title);
+
+public:
+    /**
+     * @brief 获取所有场景标题
+     *
+     * @return QStringList 所有场景标题列表
+     */
+    QStringList sceneTitles() const;
+    /**
+     * @brief 根据标题获取场景指针
+     *
+     * @param title 场景标题
+     * @return CustomFlowGraphicsScene* 指针；不存在返回 nullptr
+     */
+    CustomFlowGraphicsScene* sceneByTitle(const QString& title) const;
+    /**
+     * @brief 根据标题获取模型指针
+     *
+     * @param title 场景标题
+     * @return CustomDataFlowGraphModel* 指针；不存在返回 nullptr
+     */
+    CustomDataFlowGraphModel* modelByTitle(const QString& title) const;
+
 private:
     // 键：标题（addNewScene 传入的 title）；值：对应的数据流模型
     std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>> _models;
@@ -77,5 +107,4 @@ private:
     std::shared_ptr<QtNodes::NodeDelegateModelRegistry> _defaultRegistry;
     // ads::CDockManager指针，用于创建和管理DockWidget,来自主窗口
     ads::CDockManager* m_DockManager;
-
 };

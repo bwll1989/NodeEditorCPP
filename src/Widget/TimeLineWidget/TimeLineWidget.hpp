@@ -1,9 +1,7 @@
 //
 // Created by bwll1 on 2024/5/27.
 //
-
-#ifndef TIMELINEWIDGET_HPP
-#define TIMELINEWIDGET_HPP
+#pragma once
 
 #include <QToolBar>
 
@@ -68,6 +66,4 @@ private:
 
 };
 
-
-#endif //TIMELINE_TIMEWIDGET_H
 

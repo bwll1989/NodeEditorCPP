@@ -140,7 +140,7 @@ void PluginsManagerWidget::loadBuildInPlugin()
     pluginsManager->registry()->registerModel<TextSourceDataModel>("String Source","Controls");
     pluginsManager->registry()->registerModel<IntSourceDataModel>("Int Source","Controls");
     pluginsManager->registry()->registerModel<FloatSourceDataModel>("Float Source","Controls");
-
+    pluginsManager->registry()->registerModel<ImageShowModel>("Image Display","Image");
 }
 
 //打开插件目录
@@ -162,6 +162,7 @@ void PluginsManagerWidget::loadPluginsFromFolder()
     // 首先加载内建插件
     loadBuildInPlugin();
     emit loadPluginStatus("Build in plugins loading finished");
+    // 加载plugins目录下的第三方插件
     pluginsManager->loadPlugins(_pluginsFolder.absolutePath(),
                                 QStringList() << "*.node"
                                               << "*.js");

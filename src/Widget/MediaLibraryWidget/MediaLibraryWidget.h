@@ -68,6 +68,13 @@ private slots:
      */
     void onRowsInserted(const QModelIndex& parent, int first, int last);
 
+    /**
+     * @brief 监听媒体库数据变更并刷新所有显示
+     * 函数级注释：当 MediaLibrary 发出 libraryChanged 时，强制重绑模型以刷新树视图，
+     *            重新设置组图标与展开状态，并为子项补充类型图标，确保 UI 同步。
+     */
+    void onLibraryChanged();
+
 private:
     /**
      * @brief 初始化树视图外观与行为（单选、隐藏表头、图标等）
@@ -96,7 +103,7 @@ private:
     QAction* m_actImportFolder = nullptr;
     QAction* m_actDeleteChecked = nullptr;
     QAction* m_actClear = nullptr;
-
+    QAction* m_actRefresh = nullptr;
     QMenu* m_ctxMenu = nullptr;
 
 protected:

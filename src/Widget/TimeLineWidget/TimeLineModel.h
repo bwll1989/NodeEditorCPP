@@ -2,8 +2,7 @@
 // Created by WuBin on 2025/6/3.
 //
 
-#ifndef TIMELINEMODEL_H
-#define TIMELINEMODEL_H
+#pragma once
 #include "BaseTimeLineModel.h"
 #include  "./TimelineStageWidget/TimeLineStage.hpp"
 #include  "TimeCodeDefines.h"
@@ -53,7 +52,3 @@ private:
     //时钟对象
     TimeLineClock* m_clock;
 };
-
-
-
-#endif //TIMELINEMODEL_H

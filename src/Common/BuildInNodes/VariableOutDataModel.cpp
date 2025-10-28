@@ -11,7 +11,6 @@ namespace Nodes {
         WidgetEmbeddable= true;
         Resizable=false;
         PortEditable= true;
-        setRemarks(QString("VariableExport"));
         ModelDataBridge::instance().registerExportDelegate(this);
 
     }

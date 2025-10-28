@@ -489,3 +489,60 @@ bool MediaLibrary::isInStorageDir(const QString& absPath) const
     const QString rel = storage.relativeFilePath(absPath);
     return !rel.startsWith("..");
 }
+
+void MediaLibrary::refresh() {
+    // 屏蔽信号，避免过程中产生大量中间状态通知
+    this->blockSignals(true);
+    bool anyChange = false;
+
+    // 确保存储目录存在
+    if (!QDir(MEDIA_LIBRARY_STORAGE_DIR).exists()) {
+        QDir().mkpath(MEDIA_LIBRARY_STORAGE_DIR);
+    }
+    QDir storage(QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
+
+    // 当前存储目录文件集合
+    const QFileInfoList infos = storage.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+    QSet<QString> storageFiles;
+    for (const QFileInfo& fi : infos) {
+        storageFiles.insert(fi.absoluteFilePath());
+    }
+
+    // 当前模型中记录的所有路径集合
+    QSet<QString> modelPaths;
+    for (auto it = m_categories.begin(); it != m_categories.end(); ++it) {
+        QStandardItem* group = it.value();
+        if (!group) continue;
+        bool groupChanged = false;
+        for (int r = group->rowCount() - 1; r >= 0; --r) {
+            QStandardItem* item = group->child(r);
+            if (!item) continue;
+            const QString path = item->data(PathRole).toString();
+            if (path.isEmpty()) continue;
+
+            // 若磁盘上该文件已不存在，则移除项
+            if (!QFileInfo(path).exists()) {
+                group->removeRow(r);
+                groupChanged = true;
+                anyChange = true;
+            }
+        }
+        if (groupChanged) {
+            renumberCategory(group);
+        }
+    }
+
+    // 将存储目录中新出现的文件加入模型
+    for (const QString& absPath : storageFiles) {
+        if (!modelPaths.contains(absPath)) {
+            addFile(absPath);
+            anyChange = true;
+        }
+    }
+
+    // 重新开启信号，并统一通知一次
+    this->blockSignals(false);
+    if (anyChange) {
+        emit libraryChanged();
+    }
+}

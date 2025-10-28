@@ -9,3 +9,4 @@
 #include "StringSourceDataModel.hpp"
 #include "IntSourceDataModel.hpp"
 #include "FloatSourceDataModel.hpp"
+#include "ImageShowModel.hpp"

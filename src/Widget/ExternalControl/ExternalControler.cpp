@@ -22,9 +22,9 @@
 #include <QAction>
 
 #include "Common/GUI/Elements/FaderWidget/FaderWidget.h"
-
+#include "ConstantDefines.h"
 ExternalControler::ExternalControler():
-    OSC_Receiver(new OSCReceiver(8991))
+    OSC_Receiver(new OSCReceiver(AppConstants::EXTRA_CONTROL_PORT))
  {
     // 创建 UDP 套接字并绑定到指定端口
     connect(OSC_Receiver, &OSCReceiver::receiveOSCMessage, this, &ExternalControler::hasOSC);

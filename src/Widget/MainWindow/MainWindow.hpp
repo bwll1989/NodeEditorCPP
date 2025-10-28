@@ -25,6 +25,10 @@
 #include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
 #include "Widget/MediaLibraryWidget/MediaLibraryWidget.h"
 #include "Widget/NodeWidget/DataflowViewsManger.hpp"
+// 新增：系统托盘支持
+#include <QSystemTrayIcon>
+#include <QMenu>
+
 class MainWindow : public QMainWindow
 {
 Q_OBJECT
@@ -63,7 +67,7 @@ public Q_SLOTS:
     /**
      * 初始化节点列表
      */
-    void  initNodelist();
+    void initNodelist();
     /**
      * 保存可视状态
      */
@@ -106,6 +110,13 @@ public Q_SLOTS:
      * 更新菜单栏视图action
      */
     void updateViewMenu(QMenu* menu);
+
+    /**
+     * @brief 从系统托盘恢复窗口
+     * 函数级注释：托盘图标双击，显示主窗口并隐藏托盘图标。
+     */
+    void switchVisibleFromTray();
+
 protected:
     /**
      * @brief 关闭事件
@@ -134,5 +145,10 @@ private:
     QString currentProjectPath;
     //外部控制器
     ExternalControler *controller;
+
+    // 新增：系统托盘相关成员
+    QSystemTrayIcon* trayIcon = nullptr;
+    QMenu* trayMenu = nullptr;
+    QAction* trayExitAction = nullptr;
 };
 

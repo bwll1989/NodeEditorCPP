@@ -8,20 +8,29 @@
 #include <QCommandLineParser>
 #include <QScopedPointer>
 #include <QScreen>
+#include <QFile>
+#include <QTextStream>
+#include <QDir>
+#include <QCoreApplication>
 #include "Widget/MainWindow/MainWindow.hpp"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
-// 应用程序常量定义
-namespace AppConstants {
-    // 外部控制端口号
-    constexpr int EXTRA_CONTROL_PORT = 8991;
-    // 产品信息
-    const QString PRODUCT_VERSION = "1.0";
-    const QString COMPANY_NAME = "Bwll";
-    const QString PRODUCT_NAME = "NodeStudio";
-    const QString LUA_PATH = "./lua;";
-    const QString FILE_DESCRIPTION = "Qt Creator based on Qt 6.6 (MinGw, 64 bit)";
-    const QString LEGAL_COPYRIGHT = "Copyright 2008-2016 The Qt Company Ltd. All rights reserved.";
+#include "ConstantDefines.h"
+
+
+/**
+ * @brief 生成单实例共享内存的唯一键
+ * @return QString 格式为 "Organization_Product" 的稳定键值
+ * @note 使用组织名与产品名组合，保证不同产品互不冲突，且应用名变化不影响单实例机制
+ */
+static QString makeSingleInstanceKey() {
+    const QString org = QApplication::organizationName().isEmpty()
+        ? AppConstants::COMPANY_NAME
+        : QApplication::organizationName();
+    const QString prod = QApplication::applicationName().isEmpty()
+        ? AppConstants::PRODUCT_NAME
+        : QApplication::applicationName();
+    return org + "_" + prod;
 }
 
 /**
@@ -40,29 +49,37 @@ void setupAppInfo() {
  * @param app QApplication对象的引用
  * @return bool 样式设置是否成功
  */
+// 函数：setupAppStyle（修正无效属性设置并补充注释）
+/**
+ * @brief 设置应用程序样式
+ * @param app QApplication对象的引用
+ * @return bool 样式设置是否成功（若失败，外部可选择使用默认样式）
+ * @note 仅设置支持的应用属性与样式；样式表从资源加载失败时返回false
+ */
 bool setupAppStyle(QApplication& app) {
     // 设置应用程序风格为Fusion
     QApplication::setStyle(QStyleFactory::create("Fusion"));
-    // 启用 QSS 样式表支持
-    QApplication::setAttribute(static_cast<Qt::ApplicationAttribute>(Qt::WA_StyledBackground));
-    
+
+    // 移除对 Qt::WA_StyledBackground 的误用：该枚举属于 Widget 属性而非 Application 属性
+    // 如需控件背景样式，应在具体控件上设置 WA_StyledBackground
+    // QApplication::setAttribute(static_cast<Qt::ApplicationAttribute>(Qt::WA_StyledBackground));
+
     // 加载样式表
     QFile qssFile(":/styles/styles/DefaultDark.qss");
-    // QFile qssFile(":/darkstyle/darkstyle/darkstyle.qss");
     if (!qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning() << "Failed to load QSS file:" << qssFile.errorString();
         return false;
     }
-    
+
     QTextStream stream(&qssFile);
-    QString styleSheet = stream.readAll();
+    const QString styleSheet = stream.readAll();
     qssFile.close();
-    
+
     if (styleSheet.isEmpty()) {
         qWarning() << "QSS file is empty or could not be read properly";
         return false;
     }
-    
+
     try {
         app.setStyleSheet(styleSheet);
     } catch (const std::exception& e) {
@@ -72,7 +89,7 @@ bool setupAppStyle(QApplication& app) {
         qWarning() << "Unknown error setting stylesheet";
         return false;
     }
-    
+
     return true;
 }
 
@@ -187,9 +204,6 @@ int main(int argc, char *argv[])
     // 加载插件和初始化节点列表
     mainWindow->pluginsManagerDlg->loadPluginsFromFolder();
     mainWindow->initNodelist();
-    
-
-    
     // 处理命令行参数
     handleCommandLineArguments(parser, *mainWindow);
     

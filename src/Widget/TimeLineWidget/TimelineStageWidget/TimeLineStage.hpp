@@ -1,5 +1,4 @@
-#ifndef TIMELINESTAGE_HPP
-#define TIMELINESTAGE_HPP
+#pragma once
 
 #include <QQuickItem>
 #include <QQmlEngine>
@@ -209,5 +208,3 @@ private:
     //当前帧图像
     QImage m_currentFrame;
 };
-
-#endif // TIMELINESTAGE_HPP 
