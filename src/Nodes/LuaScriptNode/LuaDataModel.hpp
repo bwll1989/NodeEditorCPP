@@ -18,6 +18,7 @@ using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
+using namespace QtNodes;
 namespace Nodes
 {
     class LuaDataModel : public NodeDelegateModel
@@ -131,6 +132,23 @@ namespace Nodes
                 OutPortCount=p["OutPortCount"].toInt();
             };
         }
+
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+            auto result = ConnectionPolicy::One;
+            switch (portType) {
+                case PortType::In:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::Out:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::None:
+                    break;
+            }
+
+            return result;
+        }
+
     private Q_SLOTS:
     /**
      * @brief 手动运行脚本

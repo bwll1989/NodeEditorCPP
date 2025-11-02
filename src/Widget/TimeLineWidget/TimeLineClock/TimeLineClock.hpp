@@ -62,7 +62,7 @@ public:
 
     void closeLTCClock();
 
-    QJsonObject  save();
+    QJsonObject save();
 
     void load(const QJsonObject& json);
 signals:
@@ -85,7 +85,12 @@ signals:
      * @param bool isPlaying 是否播放
      */
     void timecodePlayingChanged(bool isPlaying);
-    
+    /**
+    * 循环状态改变
+    * @param bool isLooping 是否循环
+    */
+    void loopingChanged(bool isLooping);
+
     void startPlay();
 
     void pausePlay();

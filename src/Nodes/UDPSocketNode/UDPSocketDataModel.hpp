@@ -22,6 +22,7 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 class QLineEdit;
 using namespace NodeDataTypes;
+using namespace QtNodes;
 namespace Nodes
 {
     class UDPSocketDataModel : public NodeDelegateModel
@@ -179,6 +180,22 @@ namespace Nodes
                 widget->valueEdit->setText(v["Value"].toString());
                 widget->format->setCurrentIndex(v["Format"].toInt());
             }
+        }
+
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+            auto result = ConnectionPolicy::One;
+            switch (portType) {
+                case PortType::In:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::Out:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::None:
+                    break;
+            }
+
+            return result;
         }
 
     public slots:

@@ -6,8 +6,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)
 set(SMTG_ADD_VST3_HOSTING_SAMPLES 0)
 set(SMTG_ADD_VST3_HOSTING_SAMPLES 0 CACHE INTERNAL "")
-
+# 设置VST3库
+set(VST3_DIR "${DEPENDS_DIR}/vst-sdk_3.7.14_build-55_2025-06-23/VST_SDK/vst3sdk")
+set(VST3_LIBRARIES_DIR "${DEPENDS_DIR}/vst-sdk_3.7.14_build-55_2025-06-23/VST_SDK/build/lib/Release")
 include_directories(${VST3_DIR})
+link_directories(${VST3_LIBRARIES_DIR})
+message("-- Found vst3sdk ${VST3_DIR}")
+
 add_library(${Module_Name} SHARED
         VST3PluginDataModel.hpp
         VST3PluginDataModel.cpp
@@ -40,7 +45,7 @@ add_library(${Module_Name} SHARED
 ##        ${APP_PROPERTIES}
 #)
 #set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
-link_directories(${VST3_LIBRARIES_DIR})
+
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
         ${Qtpropertybrowser_LIBRARIES}

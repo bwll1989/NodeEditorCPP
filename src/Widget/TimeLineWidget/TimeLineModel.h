@@ -40,6 +40,8 @@ public slots:
     void onPausePlay() override;
     //停止播放槽函数
     void onStopPlay() override;
+    //设置循环槽函数
+    void onSetLoop(bool loop);
     //设置播放位置槽函数
     void onSetPlayheadPos(int newPlayheadPos) override;
     //时间轴长度变化槽函数

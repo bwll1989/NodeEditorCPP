@@ -199,6 +199,22 @@ void USR_IO808DataModel::load(QJsonObject const &p)
     }
 }
 
+ConnectionPolicy USR_IO808DataModel::portConnectionPolicy(PortType portType, PortIndex index) const {
+    auto result = ConnectionPolicy::One;
+    switch (portType) {
+        case PortType::In:
+            result = ConnectionPolicy::Many;
+            break;
+        case PortType::Out:
+            result = ConnectionPolicy::Many;
+            break;
+        case PortType::None:
+            break;
+    }
+
+    return result;
+}
+
 void USR_IO808DataModel::recMsg(QByteArray msg, QString ip, int port)
 {
     // 处理接收到的Modbus TCP响应

@@ -19,7 +19,7 @@ using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-
+using namespace QtNodes;
 namespace Nodes {
 
 /**
@@ -41,6 +41,7 @@ public:
 public:
     QJsonObject save() const override;
     void load(QJsonObject const &p) override;
+    ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override ;
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override;
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override;
     std::shared_ptr<NodeData> outData(PortIndex port) override;

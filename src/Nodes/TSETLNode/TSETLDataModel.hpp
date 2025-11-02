@@ -29,7 +29,7 @@ using QtNodes::PortType;
 class QLineEdit;
 
 using namespace NodeDataTypes;
-
+using namespace QtNodes;
 namespace Nodes
 {
     /**
@@ -231,6 +231,22 @@ namespace Nodes
                 widget->portSpinBox->setValue(v["Port"].toInt());
                 hostChange();
             }
+        }
+
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+            auto result = ConnectionPolicy::One;
+            switch (portType) {
+                case PortType::In:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::Out:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::None:
+                    break;
+            }
+
+            return result;
         }
 
     public slots:

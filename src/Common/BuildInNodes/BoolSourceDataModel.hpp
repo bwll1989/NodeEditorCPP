@@ -93,6 +93,21 @@ namespace Nodes {
         }
         QWidget *embeddedWidget() override{return button;}
 
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+            auto result = ConnectionPolicy::One;
+            switch (portType) {
+                case PortType::In:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::Out:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::None:
+                    break;
+            }
+
+            return result;
+        }
     private Q_SLOTS:
 
         void onTextEdited(bool const &string)

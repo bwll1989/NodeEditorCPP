@@ -42,6 +42,23 @@ namespace Nodes {
     {
         return nullptr;
     }
+
+    ConnectionPolicy VariableOutDataModel::portConnectionPolicy(PortType portType, PortIndex index) const {
+        auto result = ConnectionPolicy::One;
+        switch (portType) {
+            case PortType::In:
+                result = ConnectionPolicy::Many;
+                break;
+            case PortType::Out:
+                result = ConnectionPolicy::Many;
+                break;
+            case PortType::None:
+                break;
+        }
+
+        return result;
+    }
+
     void VariableOutDataModel::setRemarks(const QString& remarks){
         NodeDelegateModel::setRemarks(remarks);
         ModelDataBridge::instance().updateRemarksForDelegate(this,false,getRemarks());

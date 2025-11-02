@@ -12,6 +12,7 @@
 #include "DataTypes/NodeDataList.hpp"
 using namespace NodeDataTypes;
 using namespace Nodes;
+using namespace QtNodes;
 namespace Nodes
 {
     class InternalControlModel final : public QtNodes::NodeDelegateModel
@@ -36,6 +37,7 @@ namespace Nodes
         QJsonObject save() const override;
 
         void load(const QJsonObject &p) override;
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override ;
     private Q_SLOTS:
         void trigger();
     private:

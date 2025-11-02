@@ -11,6 +11,7 @@
 #include "DataTypes/NodeDataList.hpp"
 
 class QPushButton;
+using namespace QtNodes;
 using namespace NodeDataTypes;
 namespace Nodes
 {
@@ -95,6 +96,21 @@ namespace Nodes
             return m_button;
         }
 
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+            auto result = ConnectionPolicy::One;
+            switch (portType) {
+                case PortType::In:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::Out:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::None:
+                    break;
+            }
+
+            return result;
+        }
     private slots:
         void captureClicked(){
             if (const auto lock = m_inImageData.lock()) {

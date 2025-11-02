@@ -13,6 +13,7 @@ using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
+using namespace QtNodes;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 namespace Nodes {
@@ -33,6 +34,8 @@ namespace Nodes {
         std::shared_ptr<NodeData> outData(PortIndex port) override;
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex portIndex) override;
+
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override;
 
         QWidget *embeddedWidget() override;
 

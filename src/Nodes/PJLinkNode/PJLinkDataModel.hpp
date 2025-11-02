@@ -30,7 +30,7 @@ using QtNodes::PortType;
 class QLineEdit;
 
 using namespace NodeDataTypes;
-
+using namespace QtNodes;
 namespace Nodes
 {
     /**
@@ -257,6 +257,21 @@ namespace Nodes
         }
     }
 
+    ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+        auto result = ConnectionPolicy::One;
+        switch (portType) {
+            case PortType::In:
+                result = ConnectionPolicy::Many;
+                break;
+            case PortType::Out:
+                result = ConnectionPolicy::Many;
+                break;
+            case PortType::None:
+                break;
+        }
+
+        return result;
+    }
     public slots:
         /**
      * @brief 接收TCP消息并解析PJLink协议

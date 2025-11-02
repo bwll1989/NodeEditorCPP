@@ -90,11 +90,25 @@ void TimeLineClock::setCurrentTimecode(const TimeCodeFrame& timecode)
 void TimeLineClock::setCurrentTimecodeFromTime(const double time)
 {
     m_currentTimecode = time_to_timecode_frame(time, m_timecodeType);
-    
+
     m_currentFrame = timecode_frame_to_frames(m_currentTimecode, m_timecodeType);
+
+    // 越界保护：根据 isLoop 判断循环或停止
+    if (m_maxFrames > 0 && m_currentFrame >= m_maxFrames) {
+        if (m_isLooping) {
+            // 同步计时器时间，确保保持当前状态
+            setCurrentFrame(0);
+            return; // 已更新并继续播放，无需再执行下方更新
+        } else {
+            // 不循环则停止播放并复位
+            onStop();
+            return;
+        }
+    }
 
     updateTimecode();
 }
+
 double TimeLineClock::getFrameRate() const
 {
     return timecode_frames_per_sec(m_timecodeType);
@@ -283,11 +297,11 @@ ClockSource TimeLineClock::getClockSource() const
 QJsonObject TimeLineClock::save()
 {
     QJsonObject json;
-    
+    // 保存循环设置
+    json["isLooping"] = m_isLooping.loadAcquire();
     // 保存基本设置
     json["clockSource"] = static_cast<int>(m_clockSource);
     json["timecodeType"] = static_cast<int>(m_timecodeType);
-
   
     // 保存 LTC 设置
     if (m_clockSource == ClockSource::LTC) {
@@ -317,7 +331,12 @@ void TimeLineClock::load(const QJsonObject& json)
         setTimecodeType(static_cast<TimeCodeType>(json["timecodeType"].toInt()));
         qDebug()<<"timecodeType"<<json["timecodeType"].toInt();
     }
-    
+    // 加载循环设置
+    if (json.contains("isLooping")) {
+        setLooping(json["isLooping"].toBool());
+        emit loopingChanged(m_isLooping.loadRelaxed());
+    }
+
     // 加载时钟源设置
     if (json.contains("clockSource")) {
         ClockSource source = static_cast<ClockSource>(json["clockSource"].toInt());

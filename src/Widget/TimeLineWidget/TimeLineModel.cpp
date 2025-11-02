@@ -55,6 +55,11 @@ void TimeLineModel::onStopPlay()
     getClock()->onStop();
 }
 
+void TimeLineModel::onSetLoop(bool loop)
+{
+    getClock()->onLoop(loop);
+}
+
 void TimeLineModel::onPausePlay()
 {
     getClock()->onPause();

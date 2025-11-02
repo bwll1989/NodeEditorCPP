@@ -11,7 +11,7 @@
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "TimeLine"
+#define PLUGIN_NAME "TimeLineNode"
 #define PLUGIN_VERSION "20240721"
 #define PLUGIN_DESCRIBE "时间轴组件"
 #define PLUGIN_TAG "Controls"
@@ -27,9 +27,10 @@ public:
     Plugin();
     ~Plugin();
 
-    QString name() const override { return PLUGIN_NAME; }
-    QString version() const override {return PLUGIN_VERSION;}
-    QString describe() const override {return PLUGIN_DESCRIBE;}
+    QString name() const override { return PLUGIN_NAME; };
+    QString version() const override {return PLUGIN_VERSION;};
+    QString describe() const override {return PLUGIN_DESCRIBE;};
+    QString tag() const override {return PLUGIN_TAG;};
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 
 private:

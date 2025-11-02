@@ -19,7 +19,7 @@ using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-
+using namespace QtNodes;
 
 using namespace NodeDataTypes;
 namespace Nodes
@@ -117,7 +117,21 @@ namespace Nodes
             double value = (4 * m_amplitude / period) * (t - period / 2.0);
             return (value >= 0 ? 1 : -1) * qAbs(value);
         }
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+            auto result = ConnectionPolicy::One;
+            switch (portType) {
+                case PortType::In:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::Out:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::None:
+                    break;
+            }
 
+            return result;
+        }
     public slots:
         void generateWave() {
             m_amplitude=widget->amplitude->value();

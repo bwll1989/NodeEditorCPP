@@ -4,6 +4,12 @@ project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# 设置NDI库
+set(NDI_DIR "${DEPENDS_DIR}/NDI 6 SDK/include")
+set(NDI_LIBRARIES "${DEPENDS_DIR}/NDI 6 SDK/Lib/x64/Processing.NDI.Lib.x64.lib")
+INCLUDE_DIRECTORIES(${NDI_DIR})
+message("-- Found NDI ${NDI_DIR}")
+
 add_library(${Module_Name}  SHARED
 		NDIInDataModel.hpp
 		NDIInInterface.hpp

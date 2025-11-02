@@ -9,24 +9,31 @@ set(MAKE_CXX_STANDARD_REQUIRED ON)
 #)
 add_library(${Module_Name} SHARED
 #
-        ../../Common/GUI/Timeline/timelinemodel.hpp
-        ../../Common/GUI/Timeline/trackmodel.hpp
-        ../../Common/GUI/Timeline/clipmodel.hpp
-        ../../Common/GUI/Timeline/sequencemodel.hpp
-        ../../Common/GUI/Timeline/timelineview.hpp
-        ../../Common/GUI/Timeline/clipdelegate.hpp
-        ../../Common/GUI/Timeline/tracklistview.hpp
-        ../../Common/GUI/Timeline/trackdelegate.hpp
-        ../../Common/GUI/Timeline/timelinetypes.h
-        ../../Common/GUI/Timeline/timelinewidget.hpp
+
         TimeLineDataModel.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-        )
+        TimeLineNodeClock.cpp
+        TimeLineNodeClock.hpp
+        TimeLineNodeModel.cpp
+        TimeLineNodeModel.h
+        TimeLineNodeView.cpp
+        TimeLineNodeView.h
+        TimeLineNodeWidget.cpp
+        TimeLineNodeWidget.hpp
+        TrackListNodeView.cpp
+        TrackListNodeView.h
+        NodeTimeSync.cpp
+        NodeTimeSync.hpp
+        TimeLineNodeToolbar.cpp
+        TimeLineNodeToolbar.h
+)
 
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} )
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+                        ${QtNodes_LIBRARIES}
+                        ${QtTimeLine_LIBRARIES})
 
-target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
+target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED NODE_TIMELINE_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
         LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"

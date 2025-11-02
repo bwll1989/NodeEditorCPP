@@ -11,6 +11,7 @@ class TimeLineView:public BaseTimelineView {
 public:
     explicit TimeLineView(TimeLineModel* model, QWidget* parent=nullptr);
     ~TimeLineView() override;
+    void initToolBar(BaseTimelineToolbar *toolbar) override;
 protected:
     /**
     * 鼠标移动事件

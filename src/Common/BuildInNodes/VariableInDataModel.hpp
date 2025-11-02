@@ -12,6 +12,7 @@ using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 class DecimalData;
+using namespace QtNodes;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 namespace Nodes {
@@ -29,6 +30,7 @@ namespace Nodes {
 
         void load(QJsonObject const &p) override;
 
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override;
     public:
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override;

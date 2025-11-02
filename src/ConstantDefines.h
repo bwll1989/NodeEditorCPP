@@ -8,7 +8,7 @@ namespace AppConstants {
     constexpr int EXTRA_CONTROL_PORT = 8991;
     constexpr int OSC_WEB_PORT = 8992;
     // 产品信息
-    const QString PRODUCT_VERSION = "1.0";
+    const QString PRODUCT_VERSION = "1.4";
     const QString COMPANY_NAME = "Bwll1989";
     const QString PRODUCT_NAME = "NodeStudio";
     const QString LUA_PATH = "./lua;";

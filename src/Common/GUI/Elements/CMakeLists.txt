@@ -22,6 +22,8 @@ add_library(${Module_Name} SHARED
     BarButton/BarButton.h
     FlowWidget/FlowWidget.cpp
     FlowWidget/FlowWidget.h
+    SelectorComboBox/SelectorComboBox.cpp
+    SelectorComboBox/SelectorComboBox.hpp
 )
 
 # 链接Qt库

@@ -13,7 +13,7 @@ set(ALL_NODES
     LuaScriptNode                             #Lua脚本模块
     TCPServerNode                             #TCP服务器模块
     TCPClientNode                             #TCP客户端模块
-    # TimeLineNode                              #时间轴模块 (注释掉的保持注释)
+     TimeLineNode                              #时间轴模块 (注释掉的保持注释)
     UDPSocketNode                             #UDP模块
     DelayNode                                 #延迟模块
     LogicOperationNode                        #逻辑操作模块

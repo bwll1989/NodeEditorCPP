@@ -7,6 +7,7 @@
 #include <QtCore/QJsonValue>
 #include <QtGui/QDoubleValidator>
 #include <QtWidgets/QLineEdit>
+using namespace QtNodes;
 namespace Nodes
 {
 VariableInDataModel::VariableInDataModel()
@@ -77,5 +78,21 @@ void VariableInDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex po
 {
    _dataMap[portIndex] = std::dynamic_pointer_cast<NodeDataTypes::VariableData>(data);
     emit dataUpdated(portIndex);
+}
+
+ConnectionPolicy VariableInDataModel::portConnectionPolicy(PortType portType, PortIndex index) const {
+    auto result = ConnectionPolicy::One;
+    switch (portType) {
+        case PortType::In:
+            result = ConnectionPolicy::Many;
+            break;
+        case PortType::Out:
+            result = ConnectionPolicy::Many;
+            break;
+        case PortType::None:
+            break;
+    }
+
+    return result;
 }
 }

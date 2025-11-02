@@ -16,6 +16,7 @@ using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
+using namespace QtNodes;
 namespace Nodes
 {
     class OscInDataModel : public NodeDelegateModel
@@ -124,6 +125,21 @@ namespace Nodes
         QWidget *embeddedWidget() override {
 
             return widget;
+        }
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+            auto result = ConnectionPolicy::One;
+            switch (portType) {
+                case PortType::In:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::Out:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::None:
+                    break;
+            }
+
+            return result;
         }
     private Q_SLOTS:
         void getOsc(const QVariantMap &data) {

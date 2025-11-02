@@ -18,6 +18,6 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<TimeLineDataModel>(PLUGIN_TAG);
+    reg->registerModel<TimeLineDataModel>(PLUGIN_NAME,PLUGIN_TAG);
 }
 

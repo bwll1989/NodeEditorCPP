@@ -103,7 +103,7 @@ void MenuBarWidget::setupMenu() {
     helpAction->setIcon(QIcon(":/icons/icons/help.png"));
     connect(helpAction, &QAction::triggered, this, &MenuBarWidget::showHelp);
 
-    aboutAction = About_menu->addAction("关于NodeEditorCPP");
+    aboutAction = About_menu->addAction("关于NodeStudio");
     aboutAction->setIcon(QIcon(":/icons/icons/about.png"));
     connect(aboutAction, &QAction::triggered, this, &MenuBarWidget::showAboutDialog);
     //关于软件窗口

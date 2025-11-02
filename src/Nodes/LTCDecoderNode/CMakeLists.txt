@@ -5,6 +5,12 @@ set(Module_Name "LTCDecoderNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# 设置libltc库
+set(Libltc_DIR "${DEPENDS_DIR}/libltc_cmake")
+set(Libltc_LIBRARIES "${Libltc_DIR}/MSVC/lib/libltc.lib")
+INCLUDE_DIRECTORIES("${DEPENDS_DIR}/libltc_cmake/src")
+message("-- Found libltc ${DEPENDS_DIR}/libltc_cmake/src")
+
 add_library(${Module_Name} SHARED
         ../../Common/Devices/LtcDecoder/ltcdecoder.h
         ../../Common/Devices/LtcDecoder/ltcdecoder.cpp

@@ -10,10 +10,13 @@
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 
-#include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
 #include <QToolBox>
-#include "Timeline/timelinewidget.hpp"
+#include "BaseTrackListView.h"
+#include "TimeLineNodeWidget.hpp"
+#include "TimeLineNodeModel.h"
+#include "BasePluginLoader.h"
+using namespace NodeDataTypes;
 using namespace std;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -29,40 +32,56 @@ Q_OBJECT
 
 public:
 
+    /**
+     * 构造函数
+     * - 初始化节点模型与界面
+     * - 从工具栏提取所有动作，并将其对应的 QWidget 注册到 OSC 控制映射
+     * 注意：registerOSCControl 只接受 QWidget*，需通过 widgetForAction 将 QAction 转换为控件
+     */
     TimeLineDataModel(){
-        InPortCount =1;
+        InPortCount =4;
         OutPortCount=1;
         CaptionVisible=true;
-        Caption=PLUGIN_NAME;
+        Caption="TimeLineNode";
         WidgetEmbeddable= false;
         Resizable= true;
         PortEditable=true;
+        model = new TimeLineNodeModel();
+        widget=new TimelineNodeWidget(model);;
+        auto toolbar=dynamic_cast<TimeLineNodeToolBar*>(widget->toolbar);
+        if (toolbar!= nullptr){
+            auto allActions=toolbar->allActions();
+            for (auto& action:allActions){
+                // 将 QAction 映射到其对应的 QWidget（例如 QToolButton）
+                QWidget* w = toolbar->widgetForAction(action.second);
+                if (w) {
+                    NodeDelegateModel::registerOSCControl("/"+action.first, w);
+                }
+            }
+        }
 
-//        widget->model->createTrack(MediaType::CONTROL);
-//
-//        widget->model->addClip(0,0,10,"123");
-//        widget->model->addClip(1,0,30,"456");
 
     }
 
     ~TimeLineDataModel()
     {
 
-        delete widget;
-        delete tab;
-
-
+        delete model;
     }
 public:
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
-        QString in = "➩";
-        QString out = "➩";
+       ;
         switch (portType) {
             case PortType::In:
-                return in;
+                switch(portIndex) {
+                    case 0: return "PLAY";
+                        case 1: return "STOP";
+                        case 2: return "PAUSE";
+                        case 3: return "LOOP";
+                }
             case PortType::Out:
-                return out;
+                return "out";
             default:
                 break;
         }
@@ -70,20 +89,6 @@ public:
     }
 
 public:
-    unsigned int nPorts(PortType portType) const override
-    {
-        unsigned int result = 1;
-        switch (portType) {
-            case PortType::In:
-                result = InPortCount;
-                break;
-            case PortType::Out:
-                result = OutPortCount;
-            default:
-                break;
-        }
-        return result;
-    }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
@@ -107,7 +112,7 @@ public:
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariantData>();
+        return std::make_shared<VariableData>();
     }
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
         if (data== nullptr){
@@ -115,25 +120,36 @@ public:
         }
         if (auto textData = std::dynamic_pointer_cast<VariableData>(data)) {
             if (textData->value().canConvert<bool>()) {
-                qDebug()<<textData->value().toBool();
-            } else {
+                bool b=textData->value().toBool();
+                switch (portIndex) {
+                    case 0:
+                        if (b)
+                            model->onStartPlay();
+                        else
+                            model->onStopPlay();
+                        break;
+                    case 1:
+                        if (b)
+                            model->onStopPlay();
+                        break;
+                    case 2:
+                        if (b)
+                            model->onPausePlay();
+                        break;
+                    case 3:
 
+                        widget->toolbar->allActions()["loop"]->setChecked(b);
+                        break;
+                }
             }
-        } else if (auto boolData = std::dynamic_pointer_cast<VariableData>(data)) {
-
-        } else {
-
-
         }
-
         Q_EMIT dataUpdated(portIndex);
     }
 
 
     QJsonObject save() const override
     {
-        QJsonObject modelJson1;
-        modelJson1["Clips"] = "sda";
+        QJsonObject modelJson1=model->save();
         QJsonObject modelJson  = NodeDelegateModel::save();
         modelJson["values"]=modelJson1;
         return modelJson;
@@ -143,9 +159,7 @@ public:
     {
         QJsonValue v = p["values"];
         if (!v.isUndefined()&&v.isObject()) {
-            value=v["Clips"].toString();
-
-
+            model->load(v.toObject());
         }
     }
     QWidget *embeddedWidget() override{
@@ -155,14 +169,14 @@ public:
 
 private Q_SLOTS:
 
-    void onTextEdited(bool const &string)
+    void setTimeLineState(bool const &string)
     {
         Q_EMIT dataUpdated(0);
     }
 
 private:
-    timelinewidget *widget=new timelinewidget();
-    QTabWidget *tab=new QTabWidget();
+    TimeLineNodeModel* model;
+    TimelineNodeWidget  *widget;
     unordered_map<unsigned int, QVariant> in_dictionary;
     unordered_map<unsigned int, QVariant> out_dictionary;
     QString value;

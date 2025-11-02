@@ -1,0 +1,70 @@
+//
+// Created by bwll1 on 2024/5/27.
+//
+
+#include "TimeLineNodeWidget.hpp"
+
+TimelineNodeWidget::TimelineNodeWidget(TimeLineNodeModel* model, QWidget *parent) : QWidget(parent), model(model) {
+    createComponents();
+
+}
+
+TimelineNodeWidget::~TimelineNodeWidget() =default;
+
+QJsonObject TimelineNodeWidget::save() {
+    const auto& saved = model->save();
+
+    return model->save();
+}
+
+void TimelineNodeWidget::load(const QJsonObject& json) {
+
+    model->load(json);
+}
+
+void TimelineNodeWidget::createComponents() {
+    // 创建工具栏
+    view = new TimeLineNodeView(model, this);
+    tracklist = new TrackListNodeView(model, this);
+    toolbar = new TimeLineNodeToolBar(view);
+    // 创建主布局
+    view->initToolBar(toolbar);
+    mainlayout = new QVBoxLayout(this);
+    mainlayout->setContentsMargins(0, 0, 0, 0);
+    mainlayout->setSpacing(0);
+    // 创建左侧面板（轨道列表和时间线）
+    auto* mainwidget = new QWidget(this);
+    auto* mainLayout = new QVBoxLayout(mainwidget);
+    splitter = new QSplitter(Qt::Horizontal,this);
+    mainLayout->setContentsMargins(1, 0, 1, 0);
+    mainLayout->setSpacing(0);
+
+    splitter->addWidget(tracklist);
+    splitter->addWidget(view);
+    splitter->setHandleWidth(0);
+    QList<int> sizes({200,900});
+    splitter->setMouseTracking(true);
+    splitter->setSizes(sizes);
+    mainLayout->addWidget(splitter);
+     // 连接轨道列表竖向滚动到时间线竖向滚动
+    connect(tracklist, &BaseTracklistView::trackScrolled, view, &BaseTimelineView::onScroll);
+    // 连接模型轨道变化到时间线更新视图
+//    connect(model, &BaseTimelineModel::S_trackCountChanged, view, &BaseTimelineView::onUpdateViewport);
+    // 连接轨道列表更新到时间线更新视图
+    connect(tracklist, &BaseTracklistView::viewUpdate, view, &BaseTimelineView::onUpdateViewport);
+    // 连接工具栏设置按钮到显示设置对话框
+    // connect(view->m_toolbar, &BaseTimelineToolbar::settingsClicked, this, &TimelineNodeWidget::showSettingsDialog);
+    // 添加到主布局
+    mainlayout->addWidget(mainwidget);
+
+    // 连接模型的帧图像更新信号到舞台
+//    connect(model, &BaseTimelineModel::S_frameImageUpdated,
+//            model->getStage(), &TimelineStage::updateCurrentFrame);
+//
+//    // 注册图像提供者
+//    auto engine = qmlEngine(model->getStage());
+//    if (engine) {
+//        engine->addImageProvider(QLatin1String("timeline"), TimelineImageProducer::instance());
+//    }
+}
+

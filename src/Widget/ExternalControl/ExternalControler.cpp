@@ -20,6 +20,7 @@
 #include "OSCMessage.h"
 #include <unordered_map>
 #include <QAction>
+#include <QToolButton>
 
 #include "Common/GUI/Elements/FaderWidget/FaderWidget.h"
 #include "ConstantDefines.h"
@@ -36,7 +37,7 @@ ExternalControler::~ExternalControler()
     delete OSC_Receiver;
 }
 void ExternalControler::hasOSC(const OSCMessage &message) {
-    
+    // 函数说明：处理接收到的 OSC 消息，根据地址找到对应控件，并按类型安全设置其状态或触发动作
     auto args = message.address.split("/");
     //如果地址层级小于或大于5，则判定格式不对，不处理
     if (args.size()!=5) {
@@ -118,7 +119,6 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     }
     // 使用 qobject_cast 进行安全的类型检查
     if (auto* spinBox = qobject_cast<QSpinBox*>(widget)) {
-
         spinBox->setValue(message.value.toInt());
     }
     else if (auto* doubleSpinBox = qobject_cast<QDoubleSpinBox*>(widget)) {
@@ -134,9 +134,19 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
         fader->setValue(message.value.toFloat());
     }
     else if (auto* pushButton = qobject_cast<QPushButton*>(widget)) {
-        if (message.value.toBool()!=pushButton->isChecked())
-        {
+        if (message.value.toBool() != pushButton->isChecked()) {
             pushButton->click();
+        }
+    }
+    // 新增分支：支持 QToolButton（QToolBar 上由 QAction 生成的控件）
+    else if (auto* toolButton = qobject_cast<QToolButton*>(widget)) {
+        // 如果是可切换按钮，直接同步勾选状态；否则在收到 true 时点击触发
+        if (toolButton->isCheckable()) {
+            toolButton->setChecked(message.value.toBool());
+        } else {
+            if (message.value.toBool()) {
+                toolButton->click();
+            }
         }
     }
     else if (auto* comboBox = qobject_cast<QComboBox*>(widget)) {
@@ -151,7 +161,6 @@ void ExternalControler::hasOSC(const OSCMessage &message) {
     else if (auto* textEdit = qobject_cast<QTextEdit*>(widget)) {
         textEdit->setText(message.value.toString());
     }
-
     else {
         qDebug() << "Unsupported widget type for address:" << message.address;
     }

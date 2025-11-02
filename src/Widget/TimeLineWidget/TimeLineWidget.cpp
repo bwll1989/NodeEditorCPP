@@ -4,6 +4,8 @@
 
 #include "TimeLineWidget.hpp"
 
+#include "DefaultTimeLineToolBar.h"
+
 TimelineWidget::TimelineWidget(TimeLineModel* model, QWidget *parent) : QWidget(parent), model(model) {
     createComponents();
 
@@ -31,8 +33,10 @@ void TimelineWidget::createComponents() {
     // 创建工具栏
     view = new TimeLineView(model, this);
     tracklist = new TrackListView(model, this);
-
+    // 创建工具栏
+    toolbar = new DefaultTimeLineToolBar(view);
     // 创建主布局
+    view->initToolBar(toolbar);
     mainlayout = new QVBoxLayout(this);
     mainlayout->setContentsMargins(0, 0, 0, 0);
     mainlayout->setSpacing(0);
@@ -58,7 +62,7 @@ void TimelineWidget::createComponents() {
     // 连接轨道列表更新到时间线更新视图
     connect(tracklist, &BaseTracklistView::viewUpdate, view, &BaseTimelineView::onUpdateViewport);
     // 连接工具栏设置按钮到显示设置对话框
-    connect(view->m_toolbar, &BaseTimelineToolbar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
+    connect(dynamic_cast<DefaultTimeLineToolBar*>(view->m_toolbar), &DefaultTimeLineToolBar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
     // 添加到主布局
     mainlayout->addWidget(mainwidget);
 

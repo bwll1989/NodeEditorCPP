@@ -14,6 +14,8 @@
 #include "BaseTimeLineToolBar.h"
 #include <QSplitter>
 #include <QVBoxLayout>
+
+#include "DefaultTimeLineToolBar.h"
 #include "./TimelineSettingWidget/TimeLineSetting.hpp"
 
 
@@ -35,6 +37,8 @@ public:
     TimeLineView* view;
     //轨道列表
     TrackListView* tracklist;
+    //工具栏
+    DefaultTimeLineToolBar* toolbar;
     //设置窗口
     TimeLineSetting* settingsDialog;
 signals:

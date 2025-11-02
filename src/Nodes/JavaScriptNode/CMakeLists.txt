@@ -10,8 +10,7 @@ set(QScintilla_DIR "${DEPENDS_DIR}/QScintilla_src-2.14.1/src/install" )
 set(QScintilla_LIBRARIES "${QScintilla_DIR}/lib/qscintilla2_qt6.lib")
 INCLUDE_DIRECTORIES("${QScintilla_DIR}/include")
 message("--Found QScintilla  ${QScintilla_DIR}")
-# find_package(Lua REQUIRED)
-#INCLUDE_DIRECTORIES(${QCodeEditor_INCLUDE})
+
 set(SOURCE_FILES
         JavaScriptInterface.hpp
         JavaScriptDataModel.hpp

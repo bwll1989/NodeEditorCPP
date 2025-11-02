@@ -23,6 +23,7 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 class QLineEdit;
 using namespace NodeDataTypes;
+using namespace QtNodes;
 namespace Nodes
 {
     class TCPServerDataModel : public NodeDelegateModel
@@ -191,7 +192,21 @@ namespace Nodes
                 widget->format->setCurrentIndex(v["Format"].toInt());
             }
         }
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+            auto result = ConnectionPolicy::One;
+            switch (portType) {
+                case PortType::In:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::Out:
+                    result = ConnectionPolicy::Many;
+                    break;
+                case PortType::None:
+                    break;
+            }
 
+            return result;
+        }
     public slots:
     //    收到信息时
         void recMsg(const QVariantMap &msg)

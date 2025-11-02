@@ -1,0 +1,350 @@
+{
+    
+        "connections": [
+            {
+                "inPortIndex": 0,
+                "intNodeId": 8,
+                "outNodeId": 2,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 15,
+                "outNodeId": 1,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 12,
+                "outNodeId": 14,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 1,
+                "intNodeId": 8,
+                "outNodeId": 7,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 9,
+                "outNodeId": 17,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 14,
+                "outNodeId": 1,
+                "outPortIndex": 1
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 13,
+                "outNodeId": 15,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 16,
+                "outNodeId": 1,
+                "outPortIndex": 2
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 11,
+                "outNodeId": 16,
+                "outPortIndex": 0
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 17,
+                "outNodeId": 1,
+                "outPortIndex": 3
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 3,
+                "outNodeId": 2,
+                "outPortIndex": 1
+            },
+            {
+                "inPortIndex": 0,
+                "intNodeId": 1,
+                "outNodeId": 8,
+                "outPortIndex": 0
+            }
+        ],
+        "groups": [
+            {
+                "nodeIds": [
+                    7
+                ],
+                "remarks": "测试指令"
+            },
+            {
+                "nodeIds": [
+                    1,
+                    3
+                ],
+                "remarks": "按不同的Signal ID将信号分配给不同的端口"
+            },
+            {
+                "nodeIds": [
+                    13,
+                    11,
+                    12,
+                    9
+                ],
+                "remarks": "显示信号"
+            },
+            {
+                "nodeIds": [
+                    16,
+                    15,
+                    17,
+                    14
+                ],
+                "remarks": "信号保持1s"
+            },
+            {
+                "nodeIds": [
+                    2
+                ],
+                "remarks": "读取TSETL发送来的Signal ID"
+            },
+            {
+                "nodeIds": [
+                    8
+                ],
+                "remarks": "测试信号来源切换"
+            }
+        ],
+        "nodes": [
+            {
+                "id": 9,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 715.1483897737675,
+                    "y": 542.542588581755
+                },
+                "remarks": "Signal 10001",
+                "type": "Bool Source"
+            },
+            {
+                "id": 1,
+                "input-count": 1,
+                "internal-data": {
+                    "InPortCount": 1,
+                    "OutPortCount": 4,
+                    "values": {
+                        "scripts": "\nvar slider1;\nfunction initInterface() {\n    // 在这里编写初始化界面的代码\n    // 例如：创建按钮、文本框等\n}\r\n\r\n\r\nfunction inputEventHandler(index){\r\n    if(index !=0)\r\n\t\treturn\r\n\t// 根据值设置对应的输出端口\r\n\tvar value=Node.getInputValue(0)[\"default\"];\r\n\tswitch (parseInt(value, 10)) {\r\n\t\tcase 10004:\r\n\t\t\tconsole.log(value);\r\n\t\t\tNode.setOutputValue(0, 1);\r\n\t\t\tbreak;\r\n\t\t\t\r\n\t\tcase 10002:\r\n\t\t\tconsole.log(value);\r\n\t\t\tNode.setOutputValue(1, 1);\r\n\t\t\tbreak;\r\n\t\t\t\r\n\t\tcase 10003:\r\n\t\t\tconsole.log(value);\r\n\t\t\tNode.setOutputValue(2, 1);\r\n\t\t\tbreak;\r\n\t\t\t\r\n\t\tcase 10001:\r\n\t\t\tconsole.log(value);\r\n\t\t\tNode.setOutputValue(3, 1);\r\n\t\t\tbreak;\r\n\t\t\t\r\n\t\tdefault:\r\n\t\t\t// 所有端口已经在开始时重置为0\r\n\t\t\tbreak;\r\n\t}\r\n}\r\n"
+                    }
+                },
+                "output-count": 4,
+                "port-editable": true,
+                "position": {
+                    "x": 30.52477031223546,
+                    "y": 300.87210095973586
+                },
+                "remarks": "JS Script",
+                "type": "JS Script"
+            },
+            {
+                "id": 2,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "IP": "192.168.1.4",
+                        "Port": 11001
+                    }
+                },
+                "output-count": 3,
+                "port-editable": false,
+                "position": {
+                    "x": -718.5458899783367,
+                    "y": 304.98492188270046
+                },
+                "remarks": "TSETL",
+                "type": "TSETL"
+            },
+            {
+                "id": 11,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 721.7784534754342,
+                    "y": 453.2704845542651
+                },
+                "remarks": "Signal 10003",
+                "type": "Bool Source"
+            },
+            {
+                "id": 3,
+                "input-count": 1,
+                "internal-data": {
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 19.396612138695332,
+                    "y": 522.2556235412011
+                },
+                "remarks": "Data Info",
+                "type": "Data Info"
+            },
+            {
+                "id": 7,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": 10004
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": -712.6497966218726,
+                    "y": 548.4177961898677
+                },
+                "remarks": "Int Source",
+                "type": "Int Source"
+            },
+            {
+                "id": 8,
+                "input-count": 3,
+                "internal-data": {
+                    "values": {
+                        "val": 1
+                    }
+                },
+                "output-count": 1,
+                "port-editable": true,
+                "position": {
+                    "x": -257.64892317507065,
+                    "y": 304.7911737814599
+                },
+                "remarks": "Switch",
+                "type": "Switch"
+            },
+            {
+                "id": 12,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 719.5885111034554,
+                    "y": 377.4863605489903
+                },
+                "remarks": "Signal 10002",
+                "type": "Bool Source"
+            },
+            {
+                "id": 13,
+                "input-count": 1,
+                "internal-data": {
+                    "values": {
+                        "val": "0"
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 718.9332955367818,
+                    "y": 279.40041559054055
+                },
+                "remarks": "Signal 10004",
+                "type": "Bool Source"
+            },
+            {
+                "id": 14,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "holdTime": 1000,
+                        "ignoreRepeat": false
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 377.3204922327785,
+                    "y": 360.13128774481214
+                },
+                "remarks": "Hold",
+                "type": "Hold"
+            },
+            {
+                "id": 15,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "holdTime": 1000,
+                        "ignoreRepeat": false
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 382.42110544387884,
+                    "y": 251.43020664917958
+                },
+                "remarks": "Hold",
+                "type": "Hold"
+            },
+            {
+                "id": 16,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "holdTime": 1000,
+                        "ignoreRepeat": false
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 380.05323408687264,
+                    "y": 463.74933832740476
+                },
+                "remarks": "Hold",
+                "type": "Hold"
+            },
+            {
+                "id": 17,
+                "input-count": 2,
+                "internal-data": {
+                    "values": {
+                        "holdTime": 1000,
+                        "ignoreRepeat": false
+                    }
+                },
+                "output-count": 1,
+                "port-editable": false,
+                "position": {
+                    "x": 385.15416805656815,
+                    "y": 576.7396034299292
+                },
+                "remarks": "Hold",
+                "type": "Hold"
+            }
+        ]
+    
+}
