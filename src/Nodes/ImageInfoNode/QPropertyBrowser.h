@@ -2,10 +2,7 @@
 // Created by WuBin on 24-11-4.
 //
 
-#ifndef QPROPERTYBROWSER_H
-#define QPROPERTYBROWSER_H
-
-
+#pragma once
 
 #include <QWidget>
 #include <QtTreePropertyBrowser>
@@ -40,5 +37,3 @@ private:
     QVBoxLayout* layout;
 };
 
-
-#endif //QPROPERTYBROWSER_H

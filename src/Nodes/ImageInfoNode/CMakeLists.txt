@@ -11,10 +11,15 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 # 自动处理资源
 INCLUDE_DIRECTORIES(${OpenCV_DIR})
+# 设置Qtpropertybrowser库
+set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/MSVC/lib/Qt6PropertyBrowser.lib")
+include_directories("${DEPENDS_DIR}/qtpropertybrowser/src")
+message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
+
 add_library(${Module_Name} SHARED
         ImageInfoModel.hpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
-        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
+        QPropertyBrowser.cpp
+        QPropertyBrowser.h
         PluginDefinition.cpp
         PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} ${Qtpropertybrowser_LIBRARIES} ${OpenCV_LIBRARIES})

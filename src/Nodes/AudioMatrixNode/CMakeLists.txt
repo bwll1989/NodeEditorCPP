@@ -18,10 +18,12 @@ add_library(${Module_Name} SHARED
 
 )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+        Qt${QT_VERSION_MAJOR}::Network
         ${QtNodes_LIBRARIES}
         TimestampGenerator
         Eigen3::Eigen
         GUIElements
+        OSCTransmitter
         )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

@@ -4,8 +4,13 @@
 #pragma once
 // 应用程序常量定义
 namespace AppConstants {
-    // 外部控制端口号
+    // OSC 外部反馈主机
+    constexpr const char* EXTRA_FEEDBACK_HOST = "127.0.0.1";
+    // OSC外部反馈端口号
+    constexpr int EXTRA_FEEDBACK_PORT = 8990;
+    // OSC外部控制端口号
     constexpr int EXTRA_CONTROL_PORT = 8991;
+    // OSC Web 端口号
     constexpr int OSC_WEB_PORT = 8992;
     // 产品信息
     const QString PRODUCT_VERSION = "1.4";

@@ -48,7 +48,7 @@ void HttpClient::onReplyFinished(QNetworkReply *reply) {
             // 解析成功，可以根据实际情况处理 JSON
             if (doc.isObject()) {
                 QJsonObject jsonObj = doc.object();
-//                qDebug() << "Parsed JSON Object:" << jsonObj;
+                // qDebug() << "Parsed JSON Object:" << jsonObj;
                 emit getSatus(jsonObj);
                 // 可以访问 JSON 对象的各个字段
                 // 示例：jsonObj["key"]

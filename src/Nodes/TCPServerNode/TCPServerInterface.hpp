@@ -11,7 +11,7 @@
 #include "QLineEdit"
 #include "QTextBrowser"
 #include "QComboBox"
-#include "QPropertyBrowser/QPropertyBrowser.h"
+#include "../ImageInfoNode/QPropertyBrowser.h"
 #include "QVariant"
 using namespace std;
 namespace Nodes

@@ -12,6 +12,10 @@
 #include <QCoreApplication>
 #include <QDebug>
 
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
+#include "OSCSender/OSCSender.h"
+
 namespace Nodes {
 
 USR_IO808DataModel::USR_IO808DataModel()
@@ -37,8 +41,10 @@ USR_IO808DataModel::USR_IO808DataModel()
     }
     
     // 注册OSC控制
+    NodeDelegateModel::registerOSCControl("/status", _interface->_statusLabel);
     for (int i = 0; i < 8; ++i) {
-        NodeDelegateModel::registerOSCControl("/DO" + QString::number(i + 1), _interface->_outputCheckBoxes[i]);
+        NodeDelegateModel::registerOSCControl("/DO" + QString::number(i), _interface->_outputCheckBoxes[i]);
+        NodeDelegateModel::registerOSCControl("/DI" + QString::number(i), _interface->_inputLabels[i]);
     }
     
     // 连接TCP客户端信号
@@ -289,7 +295,6 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
                     _outputStates[i] = state;
                     _interface->setOutputState(i, state);
                 }
-                // qDebug() << "读取DO状态完成";
             }
         }
         break;
@@ -308,7 +313,7 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
                         updateOutputData(i, state);
                     }
                 }
-                // qDebug() << "读取DI状态完成";
+
             }
         }
         break;
@@ -471,4 +476,13 @@ void USR_IO808DataModel::sendModbusCommand(const QByteArray &command)
     }
 }
 
+void USR_IO808DataModel::stateFeedBack(const QString& oscAddress,QVariant value) {
+
+    OSCMessage message;
+    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+    message.value = value;
+    OSCSender::instance()->sendOSCMessageWithQueue(message);
+}
 } // namespace Nodes

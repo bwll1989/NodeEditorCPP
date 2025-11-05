@@ -3,6 +3,7 @@
 // 防止 Windows 宏定义冲突
 #ifndef NOMINMAX
 #define NOMINMAX
+
 #endif
 
 // 防止 Windows.h 定义 min/max 宏
@@ -36,7 +37,8 @@
 
 // 现在安全地包含 OpenCV
 #include <opencv2/opencv.hpp>
-
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
 #include "NDIOutInterface.hpp"
 #include <iostream>
 #include <vector>
@@ -588,6 +590,16 @@ namespace Nodes
             connect(m_sendThread, &NDISendThread::errorOccurred,
                     this, &NDIOutDataModel::onErrorOccurred, Qt::QueuedConnection);
 
+        }
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
         }
     private:
         // 界面组件

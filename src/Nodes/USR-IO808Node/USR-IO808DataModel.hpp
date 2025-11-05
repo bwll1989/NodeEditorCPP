@@ -79,6 +79,7 @@ private slots:
      */
     void readAllData();
 
+    void stateFeedBack(const QString& oscAddress,QVariant value) override;
 private:
     USR_IO808Interface *_interface;
     TcpClient *_tcpClient;

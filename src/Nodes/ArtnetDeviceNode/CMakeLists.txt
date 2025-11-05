@@ -14,7 +14,7 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp
         PluginDefinition.hpp
         ArtnetDeviceInterface.hpp)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets  Qt${QT_VERSION_MAJOR}::Network ${QtNodes_LIBRARIES} ${Qtpropertybrowser_LIBRARIES})
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets  Qt${QT_VERSION_MAJOR}::Network ${QtNodes_LIBRARIES} OSCTransmitter)
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

@@ -7,6 +7,14 @@
 #include <QByteArray>
 #include <QHostAddress>
 #include "tinyosc.h"
+
+OSCSender* OSCSender::instance() {
+    static OSCSender* sender = nullptr;
+    if (!sender) {
+        sender = new OSCSender();
+    }
+    return sender;
+}
 /**
  * @brief OSCSender构造函数 - 自动启动传输器
  */

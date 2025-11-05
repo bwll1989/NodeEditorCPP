@@ -15,9 +15,11 @@ add_library(${Module_Name}  SHARED
         PluginDefinition.cpp)
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+		Qt${QT_VERSION_MAJOR}::Network
 		Qt${QT_VERSION_MAJOR}::Concurrent
 		${QtNodes_LIBRARIES}
 		${OpenCV_LIBRARIES}
+		OSCTransmitter
 		onnxruntime
 		onnxruntime_providers_cuda  # 如果使用CUDA
 		onnxruntime_providers_shared

@@ -10,6 +10,8 @@
 
 #include "InternalControlInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
+#include "ConstantDefines.h"
+
 using namespace NodeDataTypes;
 using namespace Nodes;
 using namespace QtNodes;
@@ -38,6 +40,8 @@ namespace Nodes
 
         void load(const QJsonObject &p) override;
         ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override ;
+    public Q_SLOTS:
+        void stateFeedBack(const QString& oscAddress,QVariant value) override;
     private Q_SLOTS:
         void trigger();
     private:

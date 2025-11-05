@@ -6,6 +6,8 @@
 #include <QComboBox>
 #include <iostream>
 #include "../Devices/ModelDataBridge/ModelDataBridge.hpp"
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -42,6 +44,8 @@ namespace Nodes {
         QWidget *embeddedWidget() override;
 
         void setRemarks(const QString& remarks) override;
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override;
     private:
         std::unordered_map<PortIndex, std::shared_ptr<NodeData>> _dataMap;
         QComboBox *_inputSelector;

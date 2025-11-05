@@ -12,6 +12,8 @@
 #include "ImageConstInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
 #include "opencv2/imgcodecs/imgcodecs.hpp"
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
 using namespace NodeDataTypes;
 using namespace Nodes;
 namespace Nodes
@@ -38,6 +40,8 @@ namespace Nodes
         QJsonObject save() const override;
 
         void load(const QJsonObject &p) override;
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override ;
     private:
         ImageConstInterface *widget = new ImageConstInterface();
         std::weak_ptr<ImageData> m_outData;

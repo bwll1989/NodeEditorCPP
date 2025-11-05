@@ -20,9 +20,13 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QThread>
+
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
 #include "PluginDefinition.hpp"
+#include "OSCSender/OSCSender.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -77,6 +81,8 @@ namespace Nodes
             NodeDelegateModel::registerOSCControl("/muteOff", widget->muteOffButton);
             NodeDelegateModel::registerOSCControl("/muteOff", widget->customCommandButton);
             NodeDelegateModel::registerOSCControl("/custom", widget->customCommandLineEdit);
+            NodeDelegateModel::registerOSCControl("/status", widget->connectionStatusLabel);
+
             // 连接信号和槽
             connect(this, &PJLinkDataModel::connectTCPServer, client, &TcpClient::connectToServer, Qt::QueuedConnection);
             connect(client, &TcpClient::isReady, this, &PJLinkDataModel::onConnectionStatusChanged, Qt::QueuedConnection);
@@ -315,7 +321,15 @@ namespace Nodes
             Q_EMIT dataUpdated(0);
         }
 
-    public slots:
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
         /**
          * @brief 主机或端口改变时重新连接
          */

@@ -19,8 +19,11 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QThread>
+
+#include "ConstantDefines.h"
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
+#include "OSCSender/OSCSender.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -65,7 +68,7 @@ namespace Nodes
             m_signalIdData = std::make_shared<VariableData>("");
             m_jsonData = std::make_shared<VariableData>();
             m_connectionStatus = std::make_shared<VariableData>();
-            
+
             // 初始化心跳定时器
             m_heartbeatTimer = new QTimer(this);
             m_heartbeatTimer->setInterval(5000); // 5秒间隔
@@ -74,10 +77,15 @@ namespace Nodes
             // 注册OSC控制
             NodeDelegateModel::registerOSCControl("/host", widget->hostEdit);
             NodeDelegateModel::registerOSCControl("/port", widget->portSpinBox);
-            
+            NodeDelegateModel::registerOSCControl("/connect", widget->connectionStatus);
+            NodeDelegateModel::registerOSCControl("/lastTime", widget->lastTimeLabel);
+            NodeDelegateModel::registerOSCControl("/lastSignal", widget->lastSignalLabel);
             // 连接信号和槽
             connect(this, &TSETLDataModel::connectTCPServer, client, &TcpClient::connectToServer, Qt::QueuedConnection);
             connect(client, &TcpClient::isReady, this, &TSETLDataModel::onConnectionStatusChanged, Qt::QueuedConnection);
+            connect(client, &TcpClient::isReady, this,[this](bool isReady){
+                onConnectionStatusChanged(isReady);
+            });
             connect(client, &TcpClient::recMsg, this, &TSETLDataModel::recMsg, Qt::QueuedConnection);
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, &TSETLDataModel::hostChange, Qt::QueuedConnection);
             connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &TSETLDataModel::hostChange, Qt::QueuedConnection);
@@ -98,7 +106,7 @@ namespace Nodes
             
             client->disconnectFromServer();
             delete client;
-            widget->deleteLater();
+
         }
 
     public:
@@ -249,6 +257,7 @@ namespace Nodes
             return result;
         }
 
+
     public slots:
         /**
          * @brief 接收TCP消息并解析TSETL协议
@@ -265,7 +274,15 @@ namespace Nodes
             
 
         }
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
         /**
          * @brief 连接状态改变处理
          * @param isReady 连接状态
@@ -278,11 +295,9 @@ namespace Nodes
             // 根据连接状态控制心跳定时器
             if (isReady) {
                 m_heartbeatTimer->start();
-                qDebug() << "TSETL服务连接成功";
             } else {
                 m_heartbeatTimer->stop();
             }
-            
             Q_EMIT dataUpdated(2);
         }
 

@@ -6,7 +6,7 @@
 #include <QPushButton>
 #include "QComboBox"
 #include "QLayout"
-#include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
+#include "../ImageInfoNode/QPropertyBrowser.h"
 #include <QThread>
 using namespace std;
 namespace Nodes

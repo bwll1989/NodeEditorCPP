@@ -94,7 +94,7 @@ void TimeLineClock::setCurrentTimecodeFromTime(const double time)
     m_currentFrame = timecode_frame_to_frames(m_currentTimecode, m_timecodeType);
 
     // 越界保护：根据 isLoop 判断循环或停止
-    if (m_maxFrames > 0 && m_currentFrame >= m_maxFrames) {
+    if (m_maxFrames > 0 && m_currentFrame > m_maxFrames) {
         if (m_isLooping) {
             // 同步计时器时间，确保保持当前状态
             setCurrentFrame(0);
@@ -329,7 +329,7 @@ void TimeLineClock::load(const QJsonObject& json)
 
     if (json.contains("timecodeType")) {
         setTimecodeType(static_cast<TimeCodeType>(json["timecodeType"].toInt()));
-        qDebug()<<"timecodeType"<<json["timecodeType"].toInt();
+        // qDebug()<<"timecodeType"<<json["timecodeType"].toInt();
     }
     // 加载循环设置
     if (json.contains("isLooping")) {

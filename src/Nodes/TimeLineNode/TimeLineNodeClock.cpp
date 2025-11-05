@@ -94,7 +94,7 @@ void TimeLineNodeClock::setCurrentTimecodeFromTime(const double time)
     m_currentFrame = timecode_frame_to_frames(m_currentTimecode, m_timecodeType);
 
     // 越界保护：根据 isLoop 判断循环或停止
-    if (m_maxFrames > 0 && m_currentFrame >= m_maxFrames) {
+    if (m_maxFrames > 0 && m_currentFrame > m_maxFrames) {
         if (m_isLooping) {
             // 同步计时器时间，确保保持当前状态
             setCurrentFrame(0);

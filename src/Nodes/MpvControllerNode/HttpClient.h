@@ -21,8 +21,8 @@ namespace Nodes
         // 发送 POST 请求
         void sendPostRequest(const QUrl &url, const QJsonObject &data = QJsonObject()) ;
         void sendGetRequest(const QUrl &url) ;
-        signals:
-            void getSatus(QJsonObject &status);
+    signals:
+        void getSatus(QJsonObject &status);
 
     private slots:
         // 响应完成的处理槽

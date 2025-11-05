@@ -21,11 +21,15 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QMetaObject>
+
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/embed.h"
 #include "pybind11/eval.h"
 #include "PythonEngineDefines.h"
 #include "PythonWorkerThread.hpp"  // 添加PythonWorkerThread头文件
+#include "OSCSender/OSCSender.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -244,7 +248,15 @@ public:
             OutPortCount = p["OutPortCount"].toInt();
         };
     }
-    
+    void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+        OSCMessage message;
+        message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+        message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+        message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+        message.value = value;
+        OSCSender::instance()->sendOSCMessageWithQueue(message);
+    }
 private Q_SLOTS:
     /**
      * @brief 手动运行脚本

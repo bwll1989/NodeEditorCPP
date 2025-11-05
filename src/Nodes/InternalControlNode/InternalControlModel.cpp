@@ -93,10 +93,19 @@ ConnectionPolicy InternalControlModel::portConnectionPolicy(PortType portType, P
 
     return result;
 }
+void InternalControlModel::stateFeedBack(const QString& oscAddress,QVariant value)
+{
+
+    OSCMessage message;
+    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+    message.value = value;
+    OSCSender::instance()->sendOSCMessageWithQueue(message);
+}
 
 void InternalControlModel::trigger()
 {
-
     auto messages = widget->m_listWidget->getOSCMessages();
     for(auto message : messages){
 

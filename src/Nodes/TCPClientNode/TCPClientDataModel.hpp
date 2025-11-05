@@ -13,8 +13,12 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QThread>
+
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
+#include "OSCSender/OSCSender.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -48,7 +52,7 @@ namespace Nodes
             NodeDelegateModel::registerOSCControl("/port", widget->portSpinBox);
             NodeDelegateModel::registerOSCControl("/value", widget->valueEdit);
             NodeDelegateModel::registerOSCControl("/send", widget->send);
-            
+            NodeDelegateModel::registerOSCControl("/connect", widget->statusButton);
             // 不再需要将client移动到线程，因为TcpClient内部已经处理了线程
             // client->moveToThread(clientThread); // 删除这一行
         
@@ -56,7 +60,13 @@ namespace Nodes
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, &TCPClientDataModel::hostChange, Qt::QueuedConnection);
             connect(widget->portSpinBox, &QSpinBox::valueChanged, this, &TCPClientDataModel::hostChange, Qt::QueuedConnection);
             connect(this, &TCPClientDataModel::connectTCPServer, client, &TcpClient::connectToServer, Qt::QueuedConnection);
-            connect(client, &TcpClient::isReady, widget->send, &QPushButton::setEnabled, Qt::QueuedConnection);
+            connect(client, &TcpClient::isReady,this,[this](bool isReady){
+                widget->send->setEnabled(isReady);
+                widget->statusButton->setText(isReady?"Disconnect":"Connect");
+                widget->statusButton->setChecked(isReady);
+                widget->statusButton->setStyleSheet(isReady?"color: green; font-weight: bold;":"color: red; font-weight: bold;");
+            });
+
             connect(client, &TcpClient::recMsg, this, &TCPClientDataModel::recMsg, Qt::QueuedConnection);
             connect(widget->send, &QPushButton::clicked, this, [this]()
             {
@@ -226,6 +236,16 @@ namespace Nodes
         void hostChange()
         {
             emit connectTCPServer(widget->hostEdit->text(),widget->portSpinBox->value());
+        }
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
         }
     signals:
         //    关闭信号

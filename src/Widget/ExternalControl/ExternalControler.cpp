@@ -26,9 +26,10 @@
 #include "ConstantDefines.h"
 ExternalControler::ExternalControler():
     OSC_Receiver(new OSCReceiver(AppConstants::EXTRA_CONTROL_PORT))
+    // ,OSC_Sender(new OSCSender(OSCSender("127.0.0.1", AppConstants::EXTRA_FEEDBACK_PORT)))
  {
     // 创建 UDP 套接字并绑定到指定端口
-    connect(OSC_Receiver, &OSCReceiver::receiveOSCMessage, this, &ExternalControler::hasOSC);
+    connect(OSC_Receiver, &OSCReceiver::receiveOSCMessage, this, &ExternalControler::parseOSC);
 
 }
 ExternalControler::~ExternalControler()
@@ -36,7 +37,8 @@ ExternalControler::~ExternalControler()
     // 清理映射中的所有控件
     delete OSC_Receiver;
 }
-void ExternalControler::hasOSC(const OSCMessage &message) {
+
+void ExternalControler::parseOSC(const OSCMessage &message) {
     // 函数说明：处理接收到的 OSC 消息，根据地址找到对应控件，并按类型安全设置其状态或触发动作
     auto args = message.address.split("/");
     //如果地址层级小于或大于5，则判定格式不对，不处理

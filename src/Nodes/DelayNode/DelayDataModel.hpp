@@ -7,6 +7,8 @@
 #include <iostream>
 #include <QtCore/qglobal.h>
 #include "DelayInterface.hpp"
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -32,6 +34,8 @@ namespace Nodes
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= false;
+            NodeDelegateModel::registerOSCControl("/time",widget->value);
+
         }
 
         ~DelayDataModel() override{
@@ -104,7 +108,7 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["delay"] = widget->value->text().toInt();
+            modelJson1["delay"] = widget->value->text();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -113,7 +117,7 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->value->setText(v.toString());
+                widget->value->setText(v["delay"].toString());
 
             }
         }
@@ -138,9 +142,22 @@ namespace Nodes
 
             return result;
         }
+
         void delayFinished(){
             Q_EMIT dataUpdated(0);
         }
+
+    public slots:
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
+    public:
         DelayInterface *widget=new DelayInterface();
         std::shared_ptr<VariableData> inData;
         QTimer *timer=new QTimer();

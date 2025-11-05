@@ -2,7 +2,7 @@
 
 #include <QObject>
 #include <QThread>
-#include <QUdpSocket>
+#include <QtNetwork/QUdpSocket>
 #include <QMutex>
 #include <QQueue>
 #include <QTimer>
@@ -14,7 +14,6 @@
 #else
 #define OSCTRANSMITTER_EXPORT Q_DECL_IMPORT
 #endif
-
 /**
  * @brief OSC传输器类 - 多线程全局单例实现
  * 提供线程安全的OSC消息发送功能，支持队列和直接发送两种模式
@@ -41,13 +40,7 @@ public:
      * @brief 获取全局单例实例
      * @return OSCSender单例指针
      */
-    static OSCSender* instance() {
-        static OSCSender* sender = nullptr;
-        if (!sender) {
-            sender = new OSCSender();
-        }
-        return sender;
-    }
+    static OSCSender* instance();
     
 public slots:
     /**

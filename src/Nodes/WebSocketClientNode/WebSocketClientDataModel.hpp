@@ -11,7 +11,11 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QUrl>
+
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
 #include "Common/Devices/WebSocketClient/WebSocketClient.h"
+#include "OSCSender/OSCSender.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -40,7 +44,7 @@ namespace Nodes
             NodeDelegateModel::registerOSCControl("/host", widget->hostUrlEdit);
             NodeDelegateModel::registerOSCControl("/value", widget->valueEdit);
             NodeDelegateModel::registerOSCControl("/send", widget->send);
-
+            NodeDelegateModel::registerOSCControl("/status", widget->statusButton);
             m_client = new WebSocketClient(this,QUrl(widget->hostUrlEdit->text()));
 
             connect(widget->send, &QPushButton::clicked, this, &WebSocketClientDataModel::onSendClicked);
@@ -178,8 +182,19 @@ namespace Nodes
         void onConnected(bool isReady) {
             // 可选：更新UI状态
             widget->send->setEnabled(isReady);
+            widget->statusButton->setChecked(isReady);
+            widget->statusButton->setText(isReady?"Connected":"Disconnected");
+            widget->statusButton->setStyleSheet(isReady?"color: green; font-weight: bold;":"color: red; font-weight: bold;");
         }
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
     signals:
         void connectToUrl(const QUrl &url);
         void sendMessage(const QString &msg,const int &messageType = 0 ,const int &format = 0);

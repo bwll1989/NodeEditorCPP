@@ -42,8 +42,9 @@ target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
         Qt${QT_VERSION_MAJOR}::Qml
+        Qt${QT_VERSION_MAJOR}::Network
         ${QtNodes_LIBRARIES}
-
+        OSCTransmitter
         ${QScintilla_LIBRARIES}
         ${Python3_LIBRARIES}
         pybind11::module

@@ -1,18 +1,10 @@
 #pragma once
 
 #include "DataTypes/NodeDataList.hpp"
-
 #include <QtNodes/NodeDelegateModel>
-#include "qtpropertymanager.h"
-#include "qtvariantproperty.h"
 #include "Common/GUI/DataTreeModel/QmlDataBrowser.h"
-#include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
-#include <QtCore/QObject>
-#include <QtWidgets/QLabel>
 #include <iostream>
-#include <qtreeview.h>
 #include <QVBoxLayout>
-#include <vector>
 #include <QtCore/qglobal.h>
 #include <QtQuickWidgets/QQuickWidget>
 using QtNodes::ConnectionPolicy;

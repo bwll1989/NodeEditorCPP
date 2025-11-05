@@ -27,10 +27,13 @@ public:
         // IP地址设置
         connectionLayout->addWidget(new QLabel("IP地址:"), 0, 0,1,1);
         _hostEdit = new QLineEdit("127.0.0.1", this);
-        connectionLayout->addWidget(_hostEdit, 0, 1,1,1);
-        // 连接按钮和状态显示
+        connectionLayout->addWidget(_hostEdit, 0, 1,1,2);
+        //连接状态显示
+        connectionLayout->addWidget(status, 1, 0,1,3);
+        status->setFlat(true);
+        status->setCheckable(true);
+        status->setEnabled(false);
         layout->addWidget(connectionGroup, 0, 0, 1, 1);
-        layout->setRowStretch(0,1);
         // 创建输出控制组
         auto outputGroup = new QGroupBox("播放控制", this);
         auto outputLayout = new QGridLayout(outputGroup);
@@ -40,9 +43,8 @@ public:
             _playButtons[i]->setEnabled(false); // 初始禁用输出复选框
             outputLayout->addWidget(_playButtons[i], i/4, i%4);
         }
-         outputLayout->addWidget(Stop,2,0,1,4);
+        outputLayout->addWidget(Stop,2,0,1,4);
         layout->addWidget(outputGroup, 1, 0, 1, 1);
-        layout->setRowStretch(1,3);
         // 连接按钮的信号
         for (int i = 0; i < 4; ++i) {
             connect(_playButtons[i], &QPushButton::clicked, this, [this, i](bool checked) {
@@ -77,9 +79,7 @@ public:
         }
         return false;
     }
-    
 
-    
     // 设置连接状态
     void setConnectionStatus(bool connected) {
         if (connected) {
@@ -87,14 +87,18 @@ public:
             for (int i = 0; i < 4; ++i) {
                 _playButtons[i]->setEnabled(true);
             }
-            Stop->setEnabled(true);
+
         } else {
             // 禁用所有输出复选框
             for (int i = 0; i < 4; ++i) {
                 _playButtons[i]->setEnabled(false);
             }
-            Stop->setEnabled(false);
+
         }
+        Stop->setEnabled(connected);
+        status->setText(connected?"Connected":"Disconnected");
+        status->setStyleSheet(connected?"color: green; font-weight: bold;":"color: red; font-weight: bold;");
+        status->setChecked(connected);
     }
     
     // 获取主机地址
@@ -114,13 +118,13 @@ public:
 
     QPushButton *_playButtons[4];
     QPushButton *Stop=new QPushButton("Stop");
-    QLabel *State[4];
+    QPushButton *status=new QPushButton("Disconnected");
+    QLineEdit *_hostEdit;
 signals:
 
     void hostChanged(const QString &host);
     void outputChanged(int index, bool state);
-    
-private:
-    QLineEdit *_hostEdit;
+
+
 
 };

@@ -2,8 +2,7 @@
 // Created by pablo on 3/9/24.
 //
 
-#ifndef CAPTUREMODEL_H
-#define CAPTUREMODEL_H
+#pragma once
 
 #include <QtNodes/NodeDelegateModel>
 #include <QFutureWatcher>
@@ -133,4 +132,4 @@ namespace Nodes
         std::shared_ptr<ImageData> m_outImageData;
     };
 }
-#endif //CAPTUREMODEL_H
+

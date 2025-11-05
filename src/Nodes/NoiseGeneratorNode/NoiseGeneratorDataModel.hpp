@@ -7,11 +7,15 @@
 #include "NoiseGeneratorInterface.hpp"
 #include <memory>
 #include <TimestampGenerator/TimestampGenerator.hpp>
+
+#include "ConstantDefines.h"
 #include "QtNodes/Definitions"
 
 #include "QTimer"
 #include "NoiseGenerator.hpp"
+#include "OSCMessage.h"
 #include "QThread"
+#include "OSCSender/OSCSender.h"
 
 using namespace std;
 using QtNodes::NodeData;
@@ -253,6 +257,15 @@ namespace Nodes
             generator->setNoiseType(static_cast<NoiseType>(index));
         }
 
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
     private:
         NoiseGeneratorInterface *widget = new NoiseGeneratorInterface();
         NoiseGenerator *generator = new NoiseGenerator();

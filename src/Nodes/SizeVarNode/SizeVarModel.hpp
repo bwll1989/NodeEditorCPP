@@ -6,8 +6,13 @@
 #define SIZEVARMODEL_H
 
 #include <QtNodes/NodeDelegateModel>
+
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
 #include "DataTypes/NodeDataList.hpp"
 #include "ui_SizeVarForm.h"
+#include "OSCSender/OSCSender.h"
+
 namespace Ui {
     class SizeVarForm;
 }
@@ -111,6 +116,16 @@ namespace Nodes
                 m_ui->sb_width->setText(v["width"].toString());
                 m_ui->sb_height->setText(v["height"].toString());
             }
+        }
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
         }
 
     private slots:

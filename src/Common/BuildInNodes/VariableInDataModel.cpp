@@ -7,6 +7,7 @@
 #include <QtCore/QJsonValue>
 #include <QtGui/QDoubleValidator>
 #include <QtWidgets/QLineEdit>
+
 using namespace QtNodes;
 namespace Nodes
 {
@@ -94,5 +95,15 @@ ConnectionPolicy VariableInDataModel::portConnectionPolicy(PortType portType, Po
     }
 
     return result;
+}
+
+void VariableInDataModel::stateFeedBack(const QString& oscAddress,QVariant value){
+
+    OSCMessage message;
+    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+    message.value = value;
+    OSCSender::instance()->sendOSCMessageWithQueue(message);
 }
 }

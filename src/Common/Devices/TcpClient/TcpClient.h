@@ -33,7 +33,7 @@ public slots:
 
 signals:
     // 连接状态信号
-    void isReady(const bool &isready);
+    void isReady(const bool &isReady);
     
     // 接收消息信号
     void recMsg(const QVariantMap &Msg);

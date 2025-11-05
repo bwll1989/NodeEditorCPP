@@ -2,12 +2,10 @@
 // Created by pablo on 2/29/24.
 //
 #pragma once
-#ifndef IMAGEINFOMODEL_H
-#define IMAGEINFOMODEL_H
 #include <qtreeview.h>
 #include <QtNodes/NodeDelegateModel>
 #include "DataTypes/NodeDataList.hpp"
-#include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
+#include "QPropertyBrowser.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -119,4 +117,3 @@ namespace Nodes
     };
 }
 
-#endif //IMAGEINFOMODEL_H

@@ -9,6 +9,10 @@
 #include "NDVPlayerInterface.hpp"
 #include <QVariantMap>
 
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
+#include "OSCSender/OSCSender.h"
+
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -44,6 +48,7 @@ namespace Nodes
             NodeDelegateModel::registerOSCControl("/next",widget->Next);
             NodeDelegateModel::registerOSCControl("/prev",widget->Prev);
             NodeDelegateModel::registerOSCControl("/index",widget->FileIndex);
+            NodeDelegateModel::registerOSCControl("/playerID",widget->PlayerID);
 
             // 连接界面按钮
             connect(widget->Play, &QPushButton::clicked, this, [this]() {
@@ -226,6 +231,17 @@ namespace Nodes
 
             return result;
         }
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
+
     private:
         /**
          * @brief 发送播放指令

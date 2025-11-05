@@ -2,11 +2,7 @@
 // Created by pablo on 3/9/24.
 // Modified to use OpenCV for better performance with threading
 //
-
-#ifndef CAMERAMODEL_H
-#define CAMERAMODEL_H
-
-
+#pragma once
 #include <QtNodes/NodeDelegateModel>
 #include <QFutureWatcher>
 #include <QTimer>
@@ -455,4 +451,3 @@ namespace Nodes
         std::shared_ptr<ImageData> m_outImageData;
     };
 }
-#endif //CAMERAMODEL_H

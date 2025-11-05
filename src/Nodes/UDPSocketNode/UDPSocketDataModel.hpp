@@ -14,7 +14,11 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QThread>
+
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
 #include "Common/Devices/UdpSocket/UdpSocket.h"
+#include "OSCSender/OSCSender.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -52,6 +56,11 @@ namespace Nodes
             connect(widget->sendButton, &QPushButton::clicked, this, [this]() {
                 emit sendUDPMessage(widget->targetHostEdit->text(), widget->targetPortSpinBox->value(), widget->valueEdit->text(), widget->format->currentIndex());
             });
+            NodeDelegateModel::registerOSCControl("/send",widget->sendButton);
+            NodeDelegateModel::registerOSCControl("/targetHost",widget->targetHostEdit);
+            NodeDelegateModel::registerOSCControl("/targetPort",widget->targetPortSpinBox);
+            NodeDelegateModel::registerOSCControl("/value",widget->valueEdit);
+            NodeDelegateModel::registerOSCControl("/format",widget->format);
         }
         ~UDPSocketDataModel(){
 
@@ -208,7 +217,15 @@ namespace Nodes
             Q_EMIT dataUpdated(2);
             Q_EMIT dataUpdated(3);
         }
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
     signals:
         void sendUDPMessage(const QString &host,const int &port,const QString &message,const int &format=0);
         void startUDPSocket(const QString &host,int port);

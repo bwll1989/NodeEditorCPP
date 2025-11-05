@@ -13,8 +13,11 @@
 #include "MpvControllerInterface.hpp"
 #include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
+
+#include "ConstantDefines.h"
 #include "HttpClient.h"
 #include "QTimer"
+#include "OSCSender/OSCSender.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -28,10 +31,7 @@ namespace Nodes
     class MpvControllerDataModel : public NodeDelegateModel
     {
         Q_OBJECT
-
-
     public:
-
         MpvControllerDataModel(){
             InPortCount =1;
             OutPortCount=1;
@@ -53,18 +53,17 @@ namespace Nodes
             connect(widget->speedAdd, &QPushButton::clicked, this, &MpvControllerDataModel::speedAdd);
             connect(widget->speedSub, &QPushButton::clicked, this, &MpvControllerDataModel::speedSub);
             connect(widget->speedReset, &QPushButton::clicked, this, &MpvControllerDataModel::speedReset);
-            connect(client,&HttpClient::getSatus,this,[this](QJsonObject status){
-                this->status=status;
+            connect(client,&HttpClient::getSatus,this,[this](QJsonObject state){
+                this->status=&state;
                 emit dataUpdated(0);
                 });
-            connect(widget->volumeEditor,&QDoubleSpinBox::valueChanged,this,&MpvControllerDataModel::seetValume);
+            connect(widget->volumeEditor,&QDoubleSpinBox::valueChanged,this,&MpvControllerDataModel::setValume);
             connect(timer,&QTimer::timeout,this,&MpvControllerDataModel::getStatus);
 
         }
         ~MpvControllerDataModel(){
-            delete widget;
-            delete client;
-
+            // delete widget;
+            // delete client;
         }
 
     public:
@@ -142,6 +141,16 @@ namespace Nodes
 
             return result;
         }
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
     private Q_SLOTS:
 
         void onPlay()
@@ -193,16 +202,17 @@ namespace Nodes
             client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_set"));
             timer->start();
         }
-        void seetValume(float valume){
+        void setValume(float valume){
             hostAddress=widget->hostEdit->text();
             client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/set_volume/"+QString::number(valume)));
             timer->start();
         }
+
     private:
         HttpClient *client;
         QString hostAddress;
         MpvControllerInterface *widget;
         QTimer *timer;
-        QJsonObject status;
+        QJsonObject *status=new QJsonObject();
     };
 }

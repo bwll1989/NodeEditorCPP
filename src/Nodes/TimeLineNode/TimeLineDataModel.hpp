@@ -16,6 +16,9 @@
 #include "TimeLineNodeWidget.hpp"
 #include "TimeLineNodeModel.h"
 #include "BasePluginLoader.h"
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
+
 using namespace NodeDataTypes;
 using namespace std;
 using QtNodes::NodeData;
@@ -165,8 +168,17 @@ public:
     QWidget *embeddedWidget() override{
 
         return widget;
-}
+    }
 
+    void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+        OSCMessage message;
+        message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+        message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+        message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+        message.value = value;
+        OSCSender::instance()->sendOSCMessageWithQueue(message);
+    }
 private Q_SLOTS:
 
     void setTimeLineState(bool const &string)

@@ -11,7 +11,11 @@
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QSlider>
 #include <QtWidgets/QSpinBox>
+
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
 #include "Common/Devices/WebSocketServer/WebSocketServer.h"
+#include "OSCSender/OSCSender.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -208,7 +212,15 @@ namespace Nodes
             if(server) server->broadcastMessage(data, widget->messageType->currentIndex());
         }
 
-    signals:
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
 
     private:
         WebSocketServerInterface *widget=new WebSocketServerInterface();

@@ -16,7 +16,8 @@
 #include <QFileDialog>
 #include <QDateTime>
 #include <QDebug>
-
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
 // FFmpeg头文件
 extern "C" {
 #include <libavformat/avformat.h>
@@ -241,6 +242,15 @@ public:
             return widget;
         }
 
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
 signals:
     /**
      * @brief 错误发生信号

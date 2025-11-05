@@ -26,7 +26,11 @@ namespace Nodes
             main_layout->addWidget(messageLabel,2,0,1,1);
             main_layout->addWidget(messageType,2,1,1,1);
             main_layout->addWidget(format,3,0,1,2);
-            main_layout->addWidget(send,4,0,1,2);
+            main_layout->addWidget(statusButton,4,0,1,2);
+            statusButton->setFlat(true);
+            statusButton->setCheckable(true);
+            statusButton->setEnabled(false);
+            main_layout->addWidget(send,5,0,1,2);
             send->setEnabled(false);
             format->addItem("HEX");
             format->addItem("UTF-8");
@@ -43,6 +47,7 @@ namespace Nodes
         QPushButton* send=new QPushButton("Send");
         QComboBox* format=new QComboBox();
         QComboBox* messageType=new QComboBox();
+        QPushButton* statusButton=new QPushButton("Disconnected");
     private:
         QLabel *hostLabel=new QLabel("URL  ");
         QLabel *valueLabel=new QLabel("Value    ");

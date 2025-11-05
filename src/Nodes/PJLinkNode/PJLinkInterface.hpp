@@ -29,7 +29,7 @@ namespace Nodes
      * - 最新信号显示
      * - 消息统计信息
      */
-    class PJLinkInterface: public QWidget{
+    class PJLinkInterface: public QGroupBox{
     public:
         /**
          * @brief 构造函数，初始化界面
@@ -61,19 +61,45 @@ namespace Nodes
          * @param connected 连接状态
          */
         void updateConnectionStatus(bool connected) {
-            if (connected) {
-                connectionStatusLabel->setText("状态: 已连接");
-                connectionStatusLabel->setStyleSheet("color: green; font-weight: bold;");
-            } else {
-                connectionStatusLabel->setText("状态: 未连接");
-                connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
-
-            }
+            connectionStatusLabel->setText(connected?"状态: 已连接":"状态: 未连接");
+            connectionStatusLabel->setStyleSheet(connected?"color: green; font-weight: bold;":"color: red; font-weight: bold;");
+            connectionStatusLabel->setChecked(connected);
         }
         
+        /**
+        * @brief 创建连接设置组
+        */
+        void createConnectionGroup()
+        {
 
-        
+            QGridLayout *connectionLayout = new QGridLayout(this);
 
+            connectionLayout->addWidget(hostLabel, 0, 0, 1, 1);
+            connectionLayout->addWidget(hostEdit, 0, 1, 1, 1);
+            connectionLayout->addWidget(portLabel, 1, 0, 1, 1);
+            connectionLayout->addWidget(portSpinBox, 1, 1, 1, 1);
+            connectionLayout->addWidget(passwordLabel, 2, 0, 1, 1);
+            connectionLayout->addWidget(passwordLineEdit, 2, 1, 1, 1);
+            connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
+            connectionStatusLabel->setFlat(true);
+            connectionStatusLabel->setCheckable(true);
+            connectionStatusLabel->setEnabled(false);
+            connectionLayout->addWidget(connectionStatusLabel,3,0,1,2);
+            connectionLayout->addWidget(powerOnButton, 4, 0, 1, 1);
+            connectionLayout->addWidget(powerOffButton, 4, 1, 1, 1);
+            connectionLayout->addWidget(muteOnButton, 5, 0, 1, 1);
+            connectionLayout->addWidget(muteOffButton, 5, 1, 1, 1);
+            connectionLayout->addWidget(customCommandLineEdit, 6, 0, 1, 2);
+            connectionLayout->addWidget(customCommandButton, 7, 0, 1, 2);
+            main_layout->addLayout(connectionLayout);
+        }
+
+    private:
+        QVBoxLayout *main_layout;
+
+        QLabel *hostLabel = new QLabel("主机地址:");
+        QLabel *portLabel = new QLabel("端口:");
+        QLabel *passwordLabel = new QLabel("Password:");
     public:
         QPushButton* powerOnButton = new QPushButton("PowerOn");
         QPushButton* powerOffButton = new QPushButton("PowerOff");
@@ -83,44 +109,6 @@ namespace Nodes
         QSpinBox* portSpinBox = new QSpinBox();
         QLineEdit *customCommandLineEdit = new QLineEdit("");
         QPushButton* customCommandButton = new QPushButton("CustomCommand");
-    private:
-        QVBoxLayout *main_layout;
-        // 连接设置相关
-        QGroupBox *connectionGroup;
-        QLabel *hostLabel = new QLabel("主机地址:");
-        QLabel *portLabel = new QLabel("端口:");
-        QLabel *passwordLabel = new QLabel("Password:");
-
-        // 状态显示相关
-        QGroupBox *statusGroup;
-        QLabel *connectionStatusLabel = new QLabel("状态: 未连接");
-
-        
-        /**
-         * @brief 创建连接设置组
-         */
-        void createConnectionGroup()
-        {
-            connectionGroup = new QGroupBox("连接设置", this);
-            QGridLayout *connectionLayout = new QGridLayout(connectionGroup);
-            
-            connectionLayout->addWidget(hostLabel, 0, 0, 1, 1);
-            connectionLayout->addWidget(hostEdit, 0, 1, 1, 1);
-            connectionLayout->addWidget(portLabel, 1, 0, 1, 1);
-             connectionLayout->addWidget(portSpinBox, 1, 1, 1, 1);
-            connectionLayout->addWidget(passwordLabel, 2, 0, 1, 1);
-            connectionLayout->addWidget(passwordLineEdit, 2, 1, 1, 1);
-            connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
-            connectionLayout->addWidget(connectionStatusLabel,3,0,1,2);
-            connectionLayout->addWidget(powerOnButton, 4, 0, 1, 1);
-            connectionLayout->addWidget(powerOffButton, 4, 1, 1, 1);
-            connectionLayout->addWidget(muteOnButton, 5, 0, 1, 1);
-            connectionLayout->addWidget(muteOffButton, 5, 1, 1, 1);
-            connectionLayout->addWidget(customCommandLineEdit, 6, 0, 1, 2);
-            connectionLayout->addWidget(customCommandButton, 7, 0, 1, 2);
-            main_layout->addWidget(connectionGroup);
-        }
-        
-
+        QPushButton *connectionStatusLabel = new QPushButton("Disconnect");
     };
 }

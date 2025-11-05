@@ -11,6 +11,10 @@
 #include <QDateTime>
 #include <QCoreApplication>
 
+#include "ConstantDefines.h"
+#include "OSCMessage.h"
+#include "OSCSender/OSCSender.h"
+
 namespace Nodes {
 
 showStoreGBxDataModel::showStoreGBxDataModel()
@@ -31,6 +35,8 @@ showStoreGBxDataModel::showStoreGBxDataModel()
         NodeDelegateModel::registerOSCControl("/channel"+QString::number(i+1),_interface->_playButtons[i]);
     }
     NodeDelegateModel::registerOSCControl("/stop",_interface->Stop);
+    NodeDelegateModel::registerOSCControl("/status",_interface->status);
+
     // 连接信号和槽
     connect(_tcpClient, &TcpClient::recMsg, this, [this](const QVariantMap &dataMap) {
         if (dataMap.contains("default")) {
@@ -156,5 +162,14 @@ void showStoreGBxDataModel::setOutput(int index, bool state)
     _tcpClient->sendMessage(QString("ST%1\r").arg(index + 1, 2, 10, QChar('0')), 1);
 }
 
+void showStoreGBxDataModel::stateFeedBack(const QString& oscAddress,QVariant value) {
+
+    OSCMessage message;
+    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+    message.value = value;
+    OSCSender::instance()->sendOSCMessageWithQueue(message);
+}
 
 } // namespace Nodes

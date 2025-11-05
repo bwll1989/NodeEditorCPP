@@ -10,6 +10,8 @@
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
 #include "ImageThresholdInterface.hpp"
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -173,6 +175,15 @@ namespace Nodes
             }
         }
 
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
     private:
 
         ImageThresholdInterface *widget=new ImageThresholdInterface();

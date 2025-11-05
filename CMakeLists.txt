@@ -51,11 +51,6 @@ set(QtNodes_LIBRARIES "${DEPENDS_DIR}/nodeeditor/MSVC/lib/QtNodes.lib")
 INCLUDE_DIRECTORIES(${QtNodes_DIR})
 message("-- Found QtNodes ${QtNodes_DIR}")
 
-# 设置QHotKey库
-set(QHotKey_INCLUDE_DIRS "${DEPENDS_DIR}/QHotkey-master/MSVC/include" )
-set(QHotKey_LIBRARIES "${DEPENDS_DIR}/QHotkey-master/MSVC/lib/qhotkey.lib")
-INCLUDE_DIRECTORIES(${QHotKey_INCLUDE_DIRS} )
-message("-- Found QHotkey ${QHotKey_INCLUDE_DIRS}")
 
 # 设置ADS库
 set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/src" )
@@ -68,12 +63,6 @@ set(portaudio_DIR "${DEPENDS_DIR}/portaudio/include")
 set(portaudio_LIBRARIES "${DEPENDS_DIR}/portaudio/build/MSVC/lib/portaudio.lib")
 INCLUDE_DIRECTORIES(${portaudio_DIR})
 message("-- Found portaudio ${portaudio_DIR}")
-
-
-# 设置Qtpropertybrowser库
-set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/MSVC/lib/Qt6PropertyBrowser.lib")
-include_directories("${DEPENDS_DIR}/qtpropertybrowser/src")
-message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
 
 # 设置libltc库
 set(Libltc_DIR "${DEPENDS_DIR}/libltc_cmake")
@@ -116,14 +105,6 @@ INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 #set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
 #set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
 #INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
-
-# 设置Spout库
-set(Spout_DIR "${DEPENDS_DIR}/Spout2/install")
-set(Spout_LIBRARIES "${Spout_DIR}/lib/Spout.lib")
-set(SpoutLibrary_LIBRARIES "${Spout_DIR}/lib/SpoutLibrary.lib")
-INCLUDE_DIRECTORIES("${Spout_DIR}/include/SpoutGL")
-INCLUDE_DIRECTORIES("${Spout_DIR}/include/SpoutLibrary")
-message("--Found Spout SDK ${Spout_DIR}")
 
 # 设置QT库
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
@@ -208,8 +189,6 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/LtcReceiver/LtcReceiver.cpp
         src/Common/Devices/LtcReceiver/LtcReceiver.h
         src/Common/Devices/JSEngineDefines/JSEngineDefines.hpp
-        src/Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
-        src/Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         src/Common/GUI/DataTreeModel/DataTreeModel.h
         src/Common/GUI/DataTreeModel/DataTreeModel.cpp
         src/Common/GUI/DataTreeModel/QmlDataBrowser.h
@@ -295,7 +274,7 @@ set(QRC_FILES
 target_compile_definitions(${ProjectName} PRIVATE -DNODE_EDITOR_SHARED NODE_TIMELINE_SHARED)
 target_compile_definitions(${ProjectName} PRIVATE CLIENTCONTROLLER_LIBRARY)
 target_compile_definitions(${ProjectName} PRIVATE OSCLISTWIDGET_LIBRARY)
-
+#target_compile_definitions(${ProjectName} PRIVATE OSCTRANSMITTER_LIBRARY)
 target_link_libraries(${ProjectName}
         PUBLIC
             Qt${QT_VERSION_MAJOR}::Widgets
@@ -324,19 +303,17 @@ target_link_libraries(${ProjectName}
             swscale
             Opengl32
             glu32
+            OSCTransmitter
             BuildInNodes
             ${portaudio_LIBRARIES}
             ${QtNodes_LIBRARIES}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
             ${Libpd_LIBRARIES}
-            ${QHotKey_LIBRARIES}
-            ${Qtpropertybrowser_LIBRARIES}
             ${Libltc_LIBRARIES}
             Eigen3::Eigen
             ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}
-            OSCTransmitter
             ClientController
             OscListWidget
             TimestampGenerator

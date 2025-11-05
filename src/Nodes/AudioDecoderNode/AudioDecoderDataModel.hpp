@@ -13,6 +13,8 @@
 #include "QTimer"
 #include "AudioDecoder.hpp"
 #include "QThread"
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
 // #include "Common/GUI/QJsonModel/QJsonModel.hpp"
 
 using namespace std;
@@ -305,6 +307,16 @@ namespace Nodes
             isLoop = checked;
             player->setLooping(checked);
             qDebug() << "循环播放:" << (checked ? "启用" : "禁用");
+        }
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
         }
 
     private:

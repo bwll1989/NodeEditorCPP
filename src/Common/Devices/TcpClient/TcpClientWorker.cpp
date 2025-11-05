@@ -10,7 +10,7 @@ TcpClientWorker::TcpClientWorker(QObject *parent) : QObject(parent)
     
     // 创建计时器
     m_timer = new QTimer(this);
-    m_timer->setInterval(5000); // 每隔5秒重连一次
+    m_timer->setInterval(1000); // 每隔1秒重连一次
     
     // 连接计时器信号
     connect(m_timer, &QTimer::timeout, this, &TcpClientWorker::reConnect);
@@ -70,7 +70,7 @@ void TcpClientWorker::connectToServer(const QString &dstHost, int dstPort)
         qCritical() << "Socket accessed from wrong thread!";
         return;
     }
-    qDebug() << "connecting to server at" <<host << ":" << port;
+    // qDebug() << "connecting to server at" <<host << ":" << port;
     tcpClient->connectToHost(host, port);
 
     if(tcpClient->waitForConnected(500))

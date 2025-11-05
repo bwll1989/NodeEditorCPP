@@ -83,11 +83,14 @@ void MenuBarWidget::setupMenu() {
                 << "./extrnal-control-interface.json"             // 加载默认文件
                 <<"--port"
                 << QString::number(AppConstants::OSC_WEB_PORT)      //网页端口
+                <<"--osc-port"
+                << QString::number(AppConstants::EXTRA_FEEDBACK_PORT)      //osc端口
                 << "--no-gui"                                   // 无gui运行
                 <<"--theme"                                     //主题
                 << "orange"
                 << "--send"                                      // OSC发送端口
                 <<"127.0.0.1:8991";
+
 
             openOSCInterface("open-stage-control/open-stage-control.exe", args);
        });

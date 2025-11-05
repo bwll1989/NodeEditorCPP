@@ -54,7 +54,14 @@ public:
         _serverId->setRange(0, 255);
         _serverId->setValue(1);
         connectionLayout->addWidget(_serverId, 2, 1, 1, 1);
-        
+        // 连接状态指示器
+        _statusLabel = new QPushButton("状态: 未连接", this);
+        _statusLabel->setEnabled(false);
+        _statusLabel->setCheckable(true);
+        _statusLabel->setFlat(true);
+        _statusLabel->setStyleSheet("color: red; font-weight: bold;");
+         connectionLayout->addWidget(_statusLabel, 3, 0, 1, 1);
+
         layout->addWidget(connectionGroup, 0, 0, 1, 1);
 
         // 创建输入状态组（DI 0x0020~0x0027）
@@ -62,7 +69,8 @@ public:
         auto inputLayout = new QGridLayout(inputGroup);
 
         for (int i = 0; i < 8; ++i) {
-            _inputLabels[i] = new QLabel(QString("DI%1: 关").arg(i), this);
+            _inputLabels[i] = new QCheckBox(QString("DI%1: 关").arg(i), this);
+            _inputLabels[i]->setEnabled(false);
             _inputLabels[i]->setStyleSheet("color: gray; font-weight: bold;");
             _inputLabels[i]->setMinimumWidth(80);
             inputLayout->addWidget(_inputLabels[i], i / 4, i % 4);
@@ -87,11 +95,6 @@ public:
         _readAll->setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 8px; }");
         _readAll->setEnabled(false); // 初始禁用
         layout->addWidget(_readAll, 3, 0, 1, 1);
-        
-        // 连接状态指示器
-        _statusLabel = new QLabel("状态: 未连接", this);
-        _statusLabel->setStyleSheet("color: red; font-weight: bold;");
-        layout->addWidget(_statusLabel, 4, 0, 1, 1);
         
         // 连接输出复选框的信号
         for (int i = 0; i < 8; ++i) {
@@ -122,6 +125,7 @@ public:
      */
     void setInputState(int index, bool state) {
         if (index >= 0 && index < 8) {
+            _inputLabels[index]->setChecked(state);
             _inputLabels[index]->setText(QString("DI%1: %2").arg(index).arg(state ? "开" : "关"));
             _inputLabels[index]->setStyleSheet(state ? "color: green; font-weight: bold;" : "color: gray; font-weight: bold;");
         }
@@ -177,6 +181,7 @@ public:
                 _outputCheckBoxes[i]->setEnabled(true);
             }
             _readAll->setEnabled(true);
+            _statusLabel->setChecked(true);
             _statusLabel->setText("状态: 已连接");
             _statusLabel->setStyleSheet("color: green; font-weight: bold;");
         } else {
@@ -185,6 +190,7 @@ public:
                 _outputCheckBoxes[i]->setEnabled(false);
             }
             _readAll->setEnabled(false);
+            _statusLabel->setChecked(false);
             _statusLabel->setText("状态: 未连接");
             _statusLabel->setStyleSheet("color: red; font-weight: bold;");
         }
@@ -261,11 +267,11 @@ signals:
      * @param state 输出状态
      */
     void outputChanged(int index, bool state);
-    
-private:
-    QLabel *_inputLabels[8];
+
+public:
+    QCheckBox *_inputLabels[8];
     QLineEdit *_hostEdit;
     QSpinBox *_portEdit;
     QSpinBox *_serverId;
-    QLabel *_statusLabel;
+    QPushButton *_statusLabel;
 };

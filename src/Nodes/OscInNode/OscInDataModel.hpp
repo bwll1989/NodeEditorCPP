@@ -9,7 +9,10 @@
 #include "Common/Devices/OSCReceiver/OSCReceiver.h"
 #include "OscInInterface.hpp"
 #include <QVariantMap>
+
+#include "ConstantDefines.h"
 #include "QThread"
+#include "OSCSender/OSCSender.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -36,9 +39,7 @@ namespace Nodes
 
         }
 
-        virtual ~OscInDataModel() override {
-            //        OSC_Receiver->deleteLater();
-            delete OSC_Receiver;
+        ~OscInDataModel() override {
             delete widget;
         }
 
@@ -46,7 +47,9 @@ namespace Nodes
 
             OSC_Receiver=new OSCReceiver(6000);
             widget=new OscInInterface();
-            NodeDelegateModel::registerOSCControl("/value",widget->portSpinBox);
+            NodeDelegateModel::registerOSCControl("/port",widget->portSpinBox);
+            NodeDelegateModel::registerOSCControl("/address",widget->addressEdit);
+            NodeDelegateModel::registerOSCControl("/value",widget->valueEdit);
             connect(OSC_Receiver, &OSCReceiver::receiveOSC, this, &OscInDataModel::getOsc);
             connect(widget,&OscInInterface::portChanged,OSC_Receiver,&OSCReceiver::setPort);
 
@@ -141,6 +144,15 @@ namespace Nodes
 
             return result;
         }
+    void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+        OSCMessage message;
+        message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+        message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+        message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+        message.value = value;
+        OSCSender::instance()->sendOSCMessageWithQueue(message);
+    }
     private Q_SLOTS:
         void getOsc(const QVariantMap &data) {
             inData=std::make_shared<VariableData>(data);

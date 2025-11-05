@@ -45,6 +45,9 @@ public:
 
     QWidget *embeddedWidget() override { return _interface; }
 
+public slots:
+    void stateFeedBack(const QString& oscAddress,QVariant value) override;
+
 private slots:
     void recMsg(QString msg);
     void setOutput(int index, bool state);

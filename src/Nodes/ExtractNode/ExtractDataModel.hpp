@@ -37,6 +37,7 @@ namespace Nodes
             CaptionVisible=true;
             WidgetEmbeddable= true;
             Resizable=false;
+            widget->setPlaceholderText("JS Expression (e.g., \"input['key']\")");
             connect(widget, &QLineEdit::editingFinished, this, &ExtractDataModel::outDataSlot);
             m_jsEngine = new QJSEngine(this);
         }
@@ -72,51 +73,47 @@ namespace Nodes
          */
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
+            // 函数说明：
+            // 1. 将 VariableData（QVariantMap）整体导出为 JS 对象，注入到 QJSEngine 的全局上下文；
+            // 2. 同时把顶层键作为全局变量注入，支持直接使用键名访问（兼容之前的用法）；
+            // 3. 对用户输入的 JS 表达式进行 evaluate，返回结果作为 VariableData；
+            // 4. 表达式错误时返回空 VariableData，并打印错误日志。
             Q_UNUSED(portIndex)
-            if(m_proprtyData==nullptr) {
-                // m_proprtyData默认为空指针
+            if (m_proprtyData == nullptr) {
                 return std::make_shared<VariableData>();
             }
-            
-            QString expression = widget->text();
-            // 如果表达式不包含点号，使用原始的value方法
-            if (!expression.contains(".")) {
-                auto data = m_proprtyData->value(expression);
-                return std::make_shared<VariableData>(data);
+        
+            // 获取输入数据的完整映射
+            const QVariantMap dataMap = m_proprtyData->getMap();
+        
+            // 获取表达式（支持任意 JS 表达式）
+            const QString expression = widget->text().trimmed();
+        
+            // 如果表达式为空，直接返回整份 VariableData，便于下游节点整体使用
+            if (expression.isEmpty()) {
+                return std::make_shared<VariableData>(dataMap);
             }
-            
-            // 处理包含点号的JS表达式
-            QStringList parts = expression.split(".");
-            QString rootKey = parts.first();
-            QVariant rootValue = m_proprtyData->value(rootKey);
-            
-            if (rootValue.isNull()) {
-                return std::make_shared<VariableData>();
+        
+            // 将整份 VariableData 导出为 JS 对象并注入上下文
+            QJSValue jsData = JSEngineDefines::variantMapToJSValue(m_jsEngine, dataMap);
+            QJSValue global = m_jsEngine->globalObject();
+        
+            // 保持兼容：提供 data 与 obj 两个入口变量
+            global.setProperty("input", jsData);
+        
+            // 便捷访问：注入顶层键到全局对象，支持直接编写 key.subkey 的表达式
+            for (auto it = dataMap.begin(); it != dataMap.end(); ++it) {
+                global.setProperty(it.key(), m_jsEngine->toScriptValue(it.value()));
             }
-            
-            // 将数据转换为JS对象
-            QJSValue jsObject;
-            if (rootValue.typeId() == QMetaType::QVariantMap) {
-                jsObject = JSEngineDefines::variantMapToJSValue(m_jsEngine, rootValue.toMap());
-            } else {
-                jsObject = m_jsEngine->toScriptValue(rootValue);
-            }
-            
-            // 构建完整的JS表达式
-            QString jsExpression = "obj";
-            for (int i = 1; i < parts.size(); ++i) {
-                jsExpression += "." + parts[i];
-            }
-            
-            // 设置JS上下文并执行表达式
-            m_jsEngine->globalObject().setProperty("obj", jsObject);
-            QJSValue result = m_jsEngine->evaluate(jsExpression);
-            
+        
+            // 执行用户表达式
+            QJSValue result = m_jsEngine->evaluate(expression);
             if (result.isError()) {
                 qDebug() << "JS表达式错误:" << result.toString();
                 return std::make_shared<VariableData>();
             }
-            // 返回结果
+        
+            // 返回结果（自动保持原始类型，如对象/数组/数值/字符串/布尔等）
             return std::make_shared<VariableData>(result.toVariant());
         }
 
@@ -172,7 +169,7 @@ namespace Nodes
             Q_EMIT dataUpdated(0);
         }
     private:
-        QLineEdit *widget=new QLineEdit("default");
+        QLineEdit *widget=new QLineEdit();
         std::shared_ptr<VariableData> m_proprtyData;
         QJSEngine *m_jsEngine = nullptr;
 

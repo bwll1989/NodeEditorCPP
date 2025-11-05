@@ -71,7 +71,7 @@ set(ALL_NODES
     YoloPoseONNXNode                            #Yolo v11n 姿态
     YoloDetectionONNXNode                       #Yolo v11n 检测
     StyleTransferONNXNode                       #神经网络风格迁移
-    AudioIntentNode                              #音频意图分析
+#    AudioIntentNode                              #音频意图分析
 )
 
 # 根据选项决定构建方式

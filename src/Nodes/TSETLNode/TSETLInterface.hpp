@@ -66,16 +66,17 @@ namespace Nodes
          * @param connected 连接状态
          */
         void updateConnectionStatus(bool connected) {
+            connectionStatus->setChecked(connected);
             if (connected) {
-                connectionStatusLabel->setText("状态: 已连接");
-                connectionStatusLabel->setStyleSheet("color: green; font-weight: bold;");
+                connectionStatus->setText("已连接");
+                connectionStatus->setStyleSheet("color: green; font-weight: bold;");
             } else {
-                connectionStatusLabel->setText("状态: 未连接");
-                connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
+                connectionStatus->setText("未连接");
+                connectionStatus->setStyleSheet("color: red; font-weight: bold;");
                 // 清空信号信息
-                lastSignalLabel->setText("最新信号: 无");
-                lastTimeLabel->setText("时间: --");
-                signalCountLabel->setText("信号计数: 0");
+                lastSignalLabel->setText("Latest signal: --");
+                lastTimeLabel->setText("Latest time: --");
+                signalCountLabel->setText("Signal count: 0");
             }
         }
         
@@ -85,21 +86,22 @@ namespace Nodes
          * @param dateTime 时间戳
          */
         void updateLastSignal(const QString &signalId, const QString &dateTime) {
-            lastSignalLabel->setText(QString("最新信号: %1").arg(signalId));
-            lastTimeLabel->setText(QString("时间: %1").arg(dateTime));
-            
+            lastSignalLabel->setText(QString("Latest signal: %1").arg(signalId));
+            lastTimeLabel->setText(QString("Latest time: %1").arg(dateTime));
+
             // 更新计数器
             signalCount++;
-            messageCount++;
             signalCountLabel->setText(QString("信号计数: %1").arg(signalCount));
 
         }
         
-
-
+    public:
+        QPushButton *connectionStatus = new QPushButton("未连接");
+        QLineEdit *lastSignalLabel = new QLineEdit("Latest signal: --");
+        QLineEdit *lastTimeLabel = new QLineEdit("Latest time: --");
+        QLineEdit *signalCountLabel = new QLineEdit("Signal count: 0");
     private:
         QVBoxLayout *main_layout;
-        
         // 连接设置相关
         QGroupBox *connectionGroup;
         QLabel *hostLabel = new QLabel("主机地址:");
@@ -107,16 +109,9 @@ namespace Nodes
         
         // 状态显示相关
         QGroupBox *statusGroup;
-        QLabel *connectionStatusLabel = new QLabel("状态: 未连接");
-        
         // 信号信息相关
         QGroupBox *signalGroup;
-        QLabel *lastSignalLabel = new QLabel("最新信号: 无");
-        QLabel *lastTimeLabel = new QLabel("时间: --");
-        QLabel *signalCountLabel = new QLabel("信号计数: 0");
-        
         // 计数器
-        int messageCount = 0;
         int signalCount = 0;
         int heartbeatCount = 0;
         
@@ -148,8 +143,11 @@ namespace Nodes
             lastTimeLabel->setStyleSheet("font-size: 10px; color: orange;");
 
             signalCountLabel->setStyleSheet("font-size: 10px; color: orange;");
-            connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
-            signalLayout->addWidget(connectionStatusLabel);
+            connectionStatus->setStyleSheet("color: red; font-weight: bold;");
+            connectionStatus->setCheckable(true);
+            connectionStatus->setEnabled(false);
+            connectionStatus->setFlat(true);
+            signalLayout->addWidget(connectionStatus);
             signalLayout->addWidget(lastSignalLabel);
             signalLayout->addWidget(lastTimeLabel);
             signalLayout->addWidget(signalCountLabel);

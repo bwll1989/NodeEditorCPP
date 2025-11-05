@@ -13,7 +13,7 @@
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
-#include "Elements/SelectorComboBox/SelectorComboBox.hpp"
+// #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -48,8 +48,8 @@ namespace Nodes
                 fileName = _fileSelectComboBox->currentText();
             }
             // _fileSelectComboBox->setEditable(true);
-            // _fileSelectComboBox->addItems( MediaLibrary::instance()->getFileList(MediaLibrary::Category::Image));
-            _selectorComboBox->addItems( MediaLibrary::instance()->getFileList(MediaLibrary::Category::Image));
+            _fileSelectComboBox->addItems( MediaLibrary::instance()->getFileList(MediaLibrary::Category::Image));
+            // _selectorComboBox->addItems( MediaLibrary::instance()->getFileList(MediaLibrary::Category::Image));
             loadImage();
             connect(_fileSelectComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ImageLoaderModel::loadImage);
         }
@@ -69,8 +69,8 @@ namespace Nodes
 
         QWidget *embeddedWidget() override {
 
-            // return _fileSelectComboBox;
-            return _selectorComboBox;
+            return _fileSelectComboBox;
+            // return _selectorComboBox;
         }
 
         QJsonObject save() const override{
@@ -135,7 +135,7 @@ namespace Nodes
     private:
         // QLabel *_label=new QLabel("Ctrl+left click to load image");
         QComboBox* _fileSelectComboBox = new QComboBox();
-        SelectorComboBox* _selectorComboBox = new SelectorComboBox();
+        // SelectorComboBox* _selectorComboBox = new SelectorComboBox();
         QString m_path;
         std::shared_ptr<ImageData> m_outImageData;
         // MediaLibrary* mediaLibrary = MediaLibrary::instance();

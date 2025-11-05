@@ -18,10 +18,12 @@ add_library(${Module_Name}  SHARED
 
 target_link_libraries(${Module_Name}  
 		PRIVATE
-		Qt${QT_VERSION_MAJOR}::Widgets 
+		Qt${QT_VERSION_MAJOR}::Widgets
+		Qt${QT_VERSION_MAJOR}::Network
 		${QtNodes_LIBRARIES}
 		${OpenCV_LIBRARIES}
 		${NDI_LIBRARIES}
+		OSCTransmitter
 		Qt${QT_VERSION_MAJOR}::OpenGL
 		opengl32  # 添加OpenGL32库
 		glu32     # 添加GLU32库

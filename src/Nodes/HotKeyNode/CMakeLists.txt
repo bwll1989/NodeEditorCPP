@@ -4,6 +4,12 @@ set(Module_Name "HotKeyNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# 设置QHotKey库
+set(QHotKey_INCLUDE_DIRS "${DEPENDS_DIR}/QHotkey-master/MSVC/include" )
+set(QHotKey_LIBRARIES "${DEPENDS_DIR}/QHotkey-master/MSVC/lib/qhotkey.lib")
+INCLUDE_DIRECTORIES(${QHotKey_INCLUDE_DIRS} )
+message("-- Found QHotkey ${QHotKey_INCLUDE_DIRS}")
+
 add_library(${Module_Name} SHARED
         HotKeyDataModel.hpp
         HotKeyInterface.hpp

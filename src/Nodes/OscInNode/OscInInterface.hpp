@@ -7,7 +7,7 @@
 #include "QWidget"
 #include "QLabel"
 #include "QLayout"
-#include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
+#include "../ImageInfoNode/QPropertyBrowser.h"
 #include <QSpinBox>
 #include <QVariantMap>
 namespace Nodes

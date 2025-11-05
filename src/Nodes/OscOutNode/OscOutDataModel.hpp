@@ -9,6 +9,8 @@
 #include "Common/Devices/OSCSender/OSCSender.h"
 #include "OscOutInterface.hpp"
 #include <QVariantMap>
+
+#include "ConstantDefines.h"
 #include "QThread"
 #include "spdlog/fmt/bundled/base.h"
 using QtNodes::ConnectionPolicy;
@@ -130,6 +132,16 @@ namespace Nodes
             }
 
 
+        }
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
         }
 
         QJsonObject save() const override

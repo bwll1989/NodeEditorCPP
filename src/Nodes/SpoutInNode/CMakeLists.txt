@@ -4,6 +4,14 @@ project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# 设置Spout库
+set(Spout_DIR "${DEPENDS_DIR}/Spout2/install")
+set(Spout_LIBRARIES "${Spout_DIR}/lib/Spout.lib")
+set(SpoutLibrary_LIBRARIES "${Spout_DIR}/lib/SpoutLibrary.lib")
+INCLUDE_DIRECTORIES("${Spout_DIR}/include/SpoutGL")
+INCLUDE_DIRECTORIES("${Spout_DIR}/include/SpoutLibrary")
+message("--Found Spout SDK ${Spout_DIR}")
+
 add_library(${Module_Name}  SHARED
 		SpoutInDataModel.hpp
 		SpoutInInterface.hpp

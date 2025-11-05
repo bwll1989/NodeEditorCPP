@@ -10,7 +10,8 @@
 #include <QVariantMap>
 #include <QByteArray>
 #include <QJsonArray>
-
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -203,6 +204,15 @@ namespace Nodes
             return widget;
         }
 
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
+
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
     private slots:
         /**
          * @brief 通道数量改变时的处理
@@ -253,7 +263,7 @@ namespace Nodes
                  NodeDelegateModel::registerOSCControl("/channels" + QString::number(i), slider);
                 if (slider) {
                     // 断开之前的连接（如果有）
-                    disconnect(slider, &QSlider::valueChanged, nullptr, nullptr);
+                    // disconnect(slider, &QSlider::valueChanged, nullptr, nullptr);
                     
                     // 连接新的信号
                     connect(slider, &QSlider::valueChanged, 
