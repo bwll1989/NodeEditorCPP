@@ -16,7 +16,9 @@ using namespace QtNodes;
 
 DataflowViewsManger::DataflowViewsManger(ads::CDockManager* dockManager,QObject* parent)
     : QObject(parent),
-    m_DockManager(dockManager){}
+    m_DockManager(dockManager) {
+    connect(m_DockManager, &ads::CDockManager::focusedDockWidgetChanged, this, &DataflowViewsManger::focusedSceneTitle);
+}
 
 DataflowViewsManger::~DataflowViewsManger()
 {
@@ -95,8 +97,6 @@ void DataflowViewsManger::addNewScene(const QString& title)
 
     });
 
-
-    connect(m_DockManager, &ads::CDockManager::focusedDockWidgetChanged, this, &DataflowViewsManger::focusedSceneTitle);
       // 安全添加到区域：优先使用当前聚焦区域，其次回退到中心区域
     if (m_DockManager && m_DockManager->focusedDockWidget() && m_DockManager->focusedDockWidget()->dockAreaWidget()) {
         m_DockManager->addDockWidgetTabToArea(DockWidget, m_DockManager->focusedDockWidget()->dockAreaWidget());
@@ -105,7 +105,9 @@ void DataflowViewsManger::addNewScene(const QString& title)
         m_DockManager->addDockWidgetTab(ads::CenterDockWidgetArea, DockWidget);
         m_DockManager->setWidgetFocus(DockWidget);
     }
+
     emit createNewScene(title);
+
 }
 
 
@@ -159,11 +161,13 @@ void DataflowViewsManger::addNewSceneFromeModel(const QString& title, CustomData
         e->setText(model.getNodesLocked()?QObject::tr("Unlock Dataflow"):QObject::tr("Lock Dataflow"));
 
     });
+
     if (m_DockManager) {
         m_DockManager->addDockWidgetTab(ads::CenterDockWidgetArea, DockWidget);
         m_DockManager->setWidgetFocus(DockWidget);
     }
     emit createNewScene(title);
+
 }
 
 void DataflowViewsManger::clearAllScenes() {

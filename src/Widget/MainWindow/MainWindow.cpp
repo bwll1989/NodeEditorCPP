@@ -119,6 +119,7 @@ void MainWindow::init()
     calendarDockWidget->setWidget(scheduledTaskWidget);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, calendarDockWidget);
     emit initStatus("Initialization Scheduled");
+    
     // 添加舞台控件
     auto *stageDockWidget = new ads::CDockWidget("舞台");
     stageDockWidget->setObjectName("stage");
@@ -267,18 +268,18 @@ void MainWindow::dropEvent(QDropEvent *event) {
 
     dataflowViewsManger->clearAllScenes();
     //    场景清空
-
-    loadFileFromPath(&filePath);
+    loadFileFromPath(filePath);
     event->acceptProposedAction();
 
 }
+
 //从路径打开文件
-void MainWindow::loadFileFromPath(QString *path)
+void MainWindow::loadFileFromPath(const QString &path)
 {
-    if(!path->isEmpty())
+    if(!path.isEmpty())
     {
         // 获取绝对路径
-        QFileInfo fileInfo(*path);
+        QFileInfo fileInfo(path);
         QString absolutePath = fileInfo.absoluteFilePath();
         
         // 将"\"转换成"/"，因为"\"系统不认
@@ -291,18 +292,25 @@ void MainWindow::loadFileFromPath(QString *path)
                 tr("无法打开文件 %1:\n%2").arg(absolutePath).arg(file.errorString()));
             return;
         }
-        //    场景清空
-        // scene->clearScene();
+
         //    读取.flow文件
         QByteArray const wholeFile = file.readAll();
+        auto jsonDoc = QJsonDocument::fromJson(wholeFile);
+        if (jsonDoc.isNull()) {
+            QMessageBox::warning(this, tr("打开失败"),
+                tr("无法解析文件 %1").arg(absolutePath));
+            return;
+        }
+
         // 加载数据流模型
-        dataflowViewsManger->load(QJsonDocument::fromJson(wholeFile).object()["DataFlow"].toObject());
+        dataflowViewsManger->load(jsonDoc.object()["DataFlow"].toObject());
         // 加载时间轴模型
-        timeline->load(QJsonDocument::fromJson(wholeFile).object()["TimeLine"].toObject());
+        timeline->load(jsonDoc.object()["TimeLine"].toObject());
         // 加载计划任务模型
-        scheduledTaskWidget->load(QJsonDocument::fromJson(wholeFile).object()["ScheduledTasks"].toObject());
+        scheduledTaskWidget->load(jsonDoc.object()["ScheduledTasks"].toObject());
         // 设置当前项目路径
-        currentProjectPath = absolutePath;
+        currentProjectPath=absolutePath;
+        this->setWindowTitle(file.fileName());
     }
 }
 //从文件管理器打开文件
@@ -314,27 +322,10 @@ void MainWindow::loadFileFromExplorer() {
 
     if (!QFileInfo::exists(fileName))
         return;
-
-    QFile file(fileName);
-    if (!file.open(QIODevice::ReadOnly))
-        return;
-
-        // scene->clearScene();
-        //    场景清空
-        QByteArray const wholeFile = file.readAll();
-        //    读取.flow文件
-        auto senceFile=QJsonDocument::fromJson(wholeFile).object();
-        // 加载数据流
-        dataflowViewsManger->load(senceFile["DataFlow"].toObject());
-        // 加载时间轴
-        timeline->load(senceFile["TimeLine"].toObject());
-        //加载计划任务
-        scheduledTaskWidget->load(senceFile["ScheduledTasks"].toObject());
-        // 设置当前项目路径
-        currentProjectPath=fileName;
-        // emit scene->sceneLoaded();
+    loadFileFromPath(fileName);
 
 }
+
 //保存文件到路径
 void MainWindow::saveFileToPath(){
     if(currentProjectPath.isEmpty()){
@@ -379,6 +370,7 @@ void MainWindow::saveFileToExplorer() {
             file.write(QJsonDocument(flowJson).toJson());
             file.close();
             currentProjectPath=fileName;
+            this->setWindowTitle(file.fileName());
         }
     }
 }
@@ -419,14 +411,23 @@ void MainWindow::restoreVisualState()
 }
 
 
-//退出确认
+/**
+ * @brief 处理主窗口的关闭事件
+ * - 如果系统托盘可用，则弹出询问框：
+ *   - Yes：最小化到托盘，忽略关闭事件（保持进程运行）
+ *   - No：保存布局并退出，接受关闭事件
+ *   - Cancel 或关闭对话框（X/Esc）：忽略关闭事件（不退出）
+ * - 如果系统托盘不可用：直接保存布局并退出
+ * @param event 关闭事件对象
+ */
 void MainWindow::closeEvent(QCloseEvent* event)
 {
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
         QMessageBox::StandardButton reply =
             QMessageBox::question(this, tr("退出确认"),
                                   tr("是否最小化到系统托盘？"),
-                                  QMessageBox::Yes | QMessageBox::No);
+                                  QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
+                                  QMessageBox::Cancel); // 默认按钮为 Cancel
 
         if (reply == QMessageBox::Yes) {
             qDebug() << "Minimize to system tray";
@@ -438,7 +439,6 @@ void MainWindow::closeEvent(QCloseEvent* event)
             saveVisualState();
             event->accept();
         } else {
-            // 关闭对话框（X 或 Esc）：不做任何处理
             event->ignore();
         }
     } else {

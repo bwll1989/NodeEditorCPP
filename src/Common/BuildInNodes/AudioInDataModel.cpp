@@ -12,7 +12,7 @@ namespace Nodes {
         : _inputSelector{new QComboBox()}
     {
         InPortCount =0;
-        OutPortCount=2;
+        OutPortCount=1;
         CaptionVisible=true;
         Caption="Audio In";
         WidgetEmbeddable= true;

@@ -4,6 +4,7 @@
 
 #include "CustomFlowGraphicsScene.h"
 
+#include <QMessageBox>
 #include <QTableWidget>
 
 #include "QtNodes/internal/ConnectionGraphicsObject.hpp"
@@ -286,13 +287,23 @@ QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos)
         QFile file(fileName);
 
         if (!file.open(QIODevice::ReadOnly))
+        {
+            QMessageBox::warning(nullptr, tr("打开失败"),
+                tr("无法打开文件 %1:\n%2").arg(fileName).arg(file.errorString()));
             return false;
+        }
 
-        clearScene();
+
 
         QByteArray const wholeFile = file.readAll();
-
-        _graphModel.load(QJsonDocument::fromJson(wholeFile).object());
+        auto jsonDoc = QJsonDocument::fromJson(wholeFile);
+        if (jsonDoc.isNull()) {
+            QMessageBox::warning(nullptr, tr("打开失败"),
+                tr("无法解析文件 %1").arg(fileName));
+            return false;
+        }
+        clearScene();
+        _graphModel.load(jsonDoc.object());
 
         Q_EMIT sceneLoaded();
 

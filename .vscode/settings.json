@@ -123,6 +123,9 @@
         "print": "cpp",
         "spanstream": "cpp",
         "syncstream": "cpp",
-        "mprealsupport": "cpp"
+        "mprealsupport": "cpp",
+        "fft": "cpp",
+        "*.evaluator": "cpp",
+        "*.traits": "cpp"
     }
 }

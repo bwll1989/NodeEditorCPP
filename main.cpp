@@ -122,7 +122,7 @@ void handleCommandLineArguments(const QCommandLineParser& parser, MainWindow& ma
     const QStringList args = parser.positionalArguments();
     if (!args.isEmpty()) {
         QString filePath = args.first();
-        mainWindow.loadFileFromPath(&filePath);
+        mainWindow.loadFileFromPath(filePath);
     }
 }
 
@@ -204,13 +204,13 @@ int main(int argc, char *argv[])
     // 加载插件和初始化节点列表
     mainWindow->pluginsManagerDlg->loadPluginsFromFolder();
     mainWindow->initNodelist();
-    // 处理命令行参数
-    handleCommandLineArguments(parser, *mainWindow);
-    
     // 最大化显示主窗口
     mainWindow->showMaximized();
     // 恢复窗口视觉状态
+    handleCommandLineArguments(parser, *mainWindow);
     mainWindow->restoreVisualState();
+    // 窗口显示之后再处理命令行参数
+
     // 启动应用程序事件循环
     int result = app.exec();
     

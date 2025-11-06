@@ -4,7 +4,7 @@
 namespace Nodes {
     VariableOutDataModel::VariableOutDataModel()
     {
-        InPortCount =2;
+        InPortCount =1;
         OutPortCount=0;
         CaptionVisible=true;
         Caption="Variable Out";

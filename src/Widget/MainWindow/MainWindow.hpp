@@ -93,7 +93,7 @@ public Q_SLOTS:
      *
      * @param path 文件路径
      */
-    void loadFileFromPath(QString *path);
+    void loadFileFromPath(const QString &path);
     /**
      * 从资源管理器加载文件
      */

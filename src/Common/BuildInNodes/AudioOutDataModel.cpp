@@ -4,7 +4,7 @@
 namespace Nodes {
     AudioOutDataModel::AudioOutDataModel()
     {
-        InPortCount =2;
+        InPortCount =1;
         OutPortCount=0;
         CaptionVisible=true;
         Caption="Audio Out";

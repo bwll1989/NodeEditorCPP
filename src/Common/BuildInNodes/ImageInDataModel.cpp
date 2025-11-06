@@ -13,7 +13,7 @@ ImageInDataModel::ImageInDataModel()
     : _inputSelector{new QComboBox()}
  {
     InPortCount =0;
-    OutPortCount=2;
+    OutPortCount=1;
     CaptionVisible=true;
     Caption="Image In";
     WidgetEmbeddable= true;
