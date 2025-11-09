@@ -47,7 +47,8 @@ namespace Nodes
             PortEditable = true;
 
 
-            connect(widget->fileSelectButton,&QPushButton::clicked,this,&AudioDecoderDataModel::select_audio_file,Qt::QueuedConnection);
+            // connect(widget->fileSelectButton,&QPushButton::clicked,this,&AudioDecoderDataModel::select_audio_file,Qt::QueuedConnection);
+            connect(widget->fileSelectComboBox,&SelectorComboBox::textChanged,this,&AudioDecoderDataModel::select_audio_file,Qt::QueuedConnection);
             connect(widget->playButton,&QPushButton::clicked,this,&AudioDecoderDataModel::playAudio,Qt::QueuedConnection);
             connect(widget->stopButton,&QPushButton::clicked,this,&AudioDecoderDataModel::stopAudio,Qt::QueuedConnection);
             // 新增信号连接
@@ -61,6 +62,7 @@ namespace Nodes
             NodeDelegateModel::registerOSCControl("/loop", widget->loopCheckBox);
             NodeDelegateModel::registerOSCControl("/play",widget->playButton);
             NodeDelegateModel::registerOSCControl("/stop",widget->stopButton);
+            NodeDelegateModel::registerOSCControl("/file",widget->fileSelectComboBox);
         }
 
         /**
@@ -192,11 +194,10 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson = NodeDelegateModel::save();
-            modelJson["filePath"] = filePath;
+            modelJson["filePath"] = widget->fileSelectComboBox->text();
             modelJson["isLoop"] = isLoop;
             modelJson["autoPlay"] = autoPlay;
             modelJson["volume"] = static_cast<int>(widget->volumeSlider->value());
-            modelJson["fileDisplayText"] = widget->fileDisplay->text();
             return modelJson;
         }
 
@@ -208,7 +209,7 @@ namespace Nodes
             QJsonObject modelJson = p;
             
             if (modelJson.contains("filePath")) {
-                filePath = modelJson["filePath"].toString();
+                widget->fileSelectComboBox->setText(modelJson["filePath"].toString());
             }
             
             if (modelJson.contains("isLoop")) {
@@ -226,11 +227,7 @@ namespace Nodes
                 widget->volumeSlider->setValue(volume);
                 player->setVolume(volume / 100.0f);
             }
-            
-            if (modelJson.contains("fileDisplayText")) {
-                widget->fileDisplay->setText(modelJson["fileDisplayText"].toString());
-            }
-            
+
             // 如果有文件路径，重新初始化解码器
             if (!filePath.isEmpty() && QFile::exists(filePath)) {
                 auto res = player->initializeFFmpeg(filePath);
@@ -247,16 +244,16 @@ namespace Nodes
         /**
          * 选则音频文件
          */
-        void select_audio_file()
+        void select_audio_file(QString fileName)
         {
 
-            QFileDialog *fileDialog=new QFileDialog();
-
-            QString fileName = QFileDialog::getOpenFileName(nullptr,
-                                                    tr("Select WAV or MP3 File"), "/home", tr("Audio Files (*.wav *.mp3)"));
+            // QFileDialog *fileDialog=new QFileDialog();
+            //
+            // QString fileName = QFileDialog::getOpenFileName(nullptr,
+            //                                         tr("Select WAV or MP3 File"), "/home", tr("Audio Files (*.wav *.mp3)"));
             if(fileName!="")
             {
-                filePath=fileName;
+                filePath= MEDIA_LIBRARY_STORAGE_DIR+"/"+fileName;
                 if (player->getPlaying()){
                     player->stopPlay();
                 }
@@ -267,9 +264,8 @@ namespace Nodes
                     return;
                 }
                 isReady= true;
-                widget->fileDisplay->setText(filePath.split("/").last());
             }
-            delete fileDialog;
+
         }
 
         /**

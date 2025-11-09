@@ -1,213 +1,229 @@
 #include "SelectorComboBox.hpp"
-#include <QAbstractItemView>
 #include <QValidator>
-#include <QStringListModel>
-/**
- * @brief 构造函数：默认启用可编辑、自动补全与编辑后自动追加
- * @param parent 父对象
- */
-SelectorComboBox::SelectorComboBox(QWidget* parent)
-    : QComboBox(parent)
-{
-    // 可编辑输入，允许手动填充名称
-    setEditable(true);
-    // 默认不由 QComboBox 自行插入，交给 onEditingFinished 控制
-    setInsertPolicy(QComboBox::NoInsert);
-    // 让下拉视图在较暗主题下也可读
-    view()->setAlternatingRowColors(false);
+#include <QVBoxLayout>
+#include <QKeyEvent>
+#include <QApplication>
 
-    // 应用内置 QLineEdit 的局部样式，避免受全局 QSS 的宽度/边距影响
+SelectorComboBox::SelectorComboBox(MediaLibrary::Category category, QWidget* parent)
+    : QLineEdit(parent), m_mediaLibrary(MediaLibrary::instance()), m_category(category)
+{
+    // 局部样式与行为
     applyLineEditLocalStyle();
 
+    // 右侧切换按钮
+    m_toggleButton = new QToolButton(this);
+    m_toggleButton->setCursor(Qt::PointingHandCursor);
+    m_toggleButton->setAutoRaise(true);
+    m_toggleButton->setText("⋯"); // 简洁指示（可替换为图标）
+    m_toggleButton->setToolTip(tr("展开候选"));
+    connect(m_toggleButton, &QToolButton::clicked, this, &SelectorComboBox::onTogglePopup);
+
+    // 侧边弹出面板
+    m_popupFrame = new QFrame(nullptr, Qt::Popup | Qt::FramelessWindowHint);
+    m_popupFrame->setAttribute(Qt::WA_TranslucentBackground, false);
+    m_popupFrame->setObjectName("SelectorComboBoxPopup");
+    m_popupFrame->setStyleSheet(
+        "#SelectorComboBoxPopup {"
+        "  background: palette(Base);"
+        "  border: 1px solid palette(Mid);"
+        "}"
+    );
+    auto* layout = new QVBoxLayout(m_popupFrame);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    m_listView = new QListView(m_popupFrame);
+    m_listView->setUniformItemSizes(true);
+    m_listView->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_model = new QStringListModel(m_listView);
+    m_listView->setModel(m_model);
+    layout->addWidget(m_listView);
+
+    connect(m_listView, &QListView::clicked, this, &SelectorComboBox::onItemClicked);
+
     // 信号转发
-    connect(this, &QComboBox::currentTextChanged,
-            this, &SelectorComboBox::onCurrentTextChangedForward);
-    connect(this, &QComboBox::editTextChanged,
-            this, &SelectorComboBox::onEditTextChangedForward);
+    connect(this, &QLineEdit::textChanged, this, &SelectorComboBox::onTextChangedForward);
+    connect(this, &QLineEdit::textEdited, this, &SelectorComboBox::onTextEditedForward);
+    connect(this, &QLineEdit::editingFinished, this, &SelectorComboBox::onEditingFinishedInternal);
 
-    if (lineEdit()) {
-        connect(lineEdit(), &QLineEdit::editingFinished,
-                this, &SelectorComboBox::onEditingFinished);
-    }
+    // 自动补全
+    rebuildCompleter();
 
-    // 构建自动补全器
+    // 初始布局
+    resizeEvent(nullptr);
+    updateItems(m_category);
+}
+
+void SelectorComboBox::updateItems(MediaLibrary::Category category) {
+    m_category = category;
+    m_items = m_mediaLibrary->getFileList(category);
+    updateModel();
     rebuildCompleter();
 }
 
-/**
- * @brief 设置下拉选项列表（替换全部）
- * @param items 条目字符串列表
- */
-void SelectorComboBox::setItems(const QStringList& items) {
-    clear();
-    addItems(items);
-    rebuildCompleter();
-}
-
-/**
- * @brief 若条目不存在则追加
- * @param item 待追加内容
- * @return bool 是否实际追加
- */
 bool SelectorComboBox::addIfNotExists(const QString& item) {
-    const int idx = findText(item, Qt::MatchExactly);
-    if (idx >= 0) return false;
-    addItem(item);
+    if (m_items.contains(item, Qt::CaseSensitive)) return false;
+    m_items.push_back(item);
+    updateModel();
     rebuildCompleter();
     return true;
 }
 
-/**
- * @brief 设置当前值（优先选择现有条目，否则作为编辑文本）
- * @param value 目标文本
- */
 void SelectorComboBox::setCurrentValue(const QString& value) {
-    const int idx = findText(value, Qt::MatchExactly);
-    if (idx >= 0) {
-        setCurrentIndex(idx);
-    } else {
-        setEditText(value);
-    }
+    // 若存在候选，则视为选择（不强制），否则仅设置文本
+    setText(value);
+    // 触发 selectionChanged，以保持旧语义
+    emit selectionChanged(value);
 }
 
-/**
- * @brief 启用/禁用可编辑输入
- * @param enabled true 可编辑；false 只读选择
- */
 void SelectorComboBox::setAllowCustomInput(bool enabled) {
-    setEditable(enabled);
+    // lineedit 语义：enabled=true => 可编辑；false => 只读
+    setReadOnly(!enabled);
     applyLineEditLocalStyle();
 }
 
-/**
- * @brief 设置占位提示文本
- * @param text 占位文本
- */
 void SelectorComboBox::setPlaceholderText(const QString& text) {
-    if (lineEdit()) {
-        lineEdit()->setPlaceholderText(text);
-    }
+    QLineEdit::setPlaceholderText(text);
 }
 
-/**
- * @brief 为内置 QLineEdit 设置校验器
- * @param validator 外部提供的 QValidator 指针
- */
 void SelectorComboBox::setValidator(QValidator* validator) {
-    if (lineEdit()) {
-        lineEdit()->setValidator(validator);
-    }
+    QLineEdit::setValidator(validator);
 }
 
-/**
- * @brief 启用/禁用自动补全
- * @param enabled true 启用；false 关闭
- */
 void SelectorComboBox::setCompleterEnabled(bool enabled) {
     m_completerEnabled = enabled;
     rebuildCompleter();
 }
 
-/**
- * @brief 设置是否在编辑完成时自动将新文本追加到列表
- * @param enabled true 追加；false 不追加
- */
 void SelectorComboBox::setAutoAddOnEditingFinished(bool enabled) {
     m_autoAddOnEditingFinished = enabled;
 }
 
-/**
- * @brief 转发 currentTextChanged 到 selectionChanged
- * @param text 当前文本
- */
-void SelectorComboBox::onCurrentTextChangedForward(const QString& text) {
-    emit selectionChanged(text);
-}
-
-/**
- * @brief 编辑中文本变更转发
- * @param text 当前编辑文本
- */
-void SelectorComboBox::onEditTextChangedForward(const QString& text) {
-    emit textEdited(text);
-}
-
-/**
- * @brief 编辑完成处理：自动追加输入（若启用且不存在）
- */
-void SelectorComboBox::onEditingFinished() {
-    if (!m_autoAddOnEditingFinished) return;
-    if (!isEditable() || !lineEdit()) return;
-
-    const QString text = lineEdit()->text().trimmed();
-    if (text.isEmpty()) return;
-
-    addIfNotExists(text);
-}
-
-/**
- * @brief 应用内置 QLineEdit 的局部样式与属性
- * 
- * 样式目标：
- * - 让行编辑器占满 QComboBox 内容区域（不被无关 margin/padding 挤压）
- * - 去掉额外边框，使用透明背景让整体视觉与主题一致
- */
-void SelectorComboBox::applyLineEditLocalStyle() {
-    if (!lineEdit() && isEditable()) {
-        // 确保可编辑模式实际创建了 QLineEdit
-        setEditable(true);
-    }
-    if (auto* le = lineEdit()) {
-        le->setFrame(false);
-        le->setContentsMargins(0, 0, 0, 0);
-        // 局部样式仅作用于这个 lineEdit，避免影响全局
-        le->setStyleSheet(
-            "QLineEdit {"
-            "  margin: 0px;"
-            "  padding: 0 4px;"
-            "  border: none;"
-            "  background: transparent;"
-            "}"
-        );
-    }
-}
-
-/**
- * @brief 重建自动补全器
- */
-void SelectorComboBox::rebuildCompleter() {
-    if (!isEditable()) {
-        if (m_completer) {
-            // 不可编辑时移除补全器
-            setCompleter(nullptr);
-        }
+void SelectorComboBox::onTogglePopup() {
+    if (m_popupVisible) {
+        m_popupFrame->hide();
+        m_popupVisible = false;
         return;
     }
+    updateItems(m_category);
+    placePopup();
+    m_popupFrame->show();
+    m_popupVisible = true;
 
+    // 尝试选中当前文本对应的项
+    const QString txt = text();
+    const int row = m_items.indexOf(txt);
+    if (row >= 0) {
+        m_listView->setCurrentIndex(m_model->index(row));
+    } else {
+        m_listView->clearSelection();
+    }
+}
+
+void SelectorComboBox::onItemClicked(const QModelIndex& index) {
+    if (!index.isValid()) return;
+    const QString chosen = m_model->data(index, Qt::DisplayRole).toString();
+    setText(chosen);
+    emit selectionChanged(chosen);
+    m_popupFrame->hide();
+    m_popupVisible = false;
+}
+
+// 所属方法：SelectorComboBox::onEditingFinishedInternal
+void SelectorComboBox::onEditingFinishedInternal() {
+    // 若未启用或是只读，直接返回（默认不启用，故不会追加）
+    if (!m_autoAddOnEditingFinished) return;
+    if (isReadOnly()) return;
+
+    const QString txt = text().trimmed();
+    if (txt.isEmpty()) return;
+    // 不自动将输入文本加入候选项；如需恢复自动追加，可取消注释下一行并将 m_autoAddOnEditingFinished 设为 true
+    // addIfNotExists(txt);
+}
+
+void SelectorComboBox::onTextChangedForward(const QString& t) {
+    emit selectionChanged(t);
+}
+
+void SelectorComboBox::onTextEditedForward(const QString& t) {
+    emit textEdited(t);
+}
+
+void SelectorComboBox::applyLineEditLocalStyle() {
+    // 保持与周边一致的样式，给右侧按钮留出内间距
+    setFrame(true);
+    setContentsMargins(0, 0, 0, 0);
+    setStyleSheet(
+        "QLineEdit {"
+        "  padding-right: 24px;"  // 为右侧按钮留空间
+        "}"
+    );
+    if (m_toggleButton) {
+        m_toggleButton->setVisible(true);
+        m_toggleButton->setFocusPolicy(Qt::NoFocus);
+    }
+}
+
+void SelectorComboBox::rebuildCompleter() {
     if (!m_completerEnabled) {
         setCompleter(nullptr);
         return;
     }
-
     if (!m_completer) {
         m_completer = new QCompleter(this);
         m_completer->setCaseSensitivity(Qt::CaseInsensitive);
         m_completer->setCompletionMode(QCompleter::PopupCompletion);
     }
-
     m_completer->setModel(new QStringListModel(allItems(), m_completer));
     setCompleter(m_completer);
 }
 
-/**
- * @brief 获取所有条目组成的列表
- * @return QStringList 
- */
 QStringList SelectorComboBox::allItems() const {
-    QStringList list;
-    list.reserve(count());
-    for (int i = 0; i < count(); ++i) {
-        list.push_back(itemText(i));
+    return m_items;
+}
+
+void SelectorComboBox::updateModel() {
+    m_model->setStringList(m_items);
+}
+
+void SelectorComboBox::placePopup() {
+    // 将弹出面板放到控件右侧
+    const int popupWidth = 240;
+    const int popupHeight = qMin(240, qMax(120, m_items.size() * 24));
+    const QPoint topLeftGlobal = mapToGlobal(QPoint(width(), 0));
+    m_popupFrame->setGeometry(QRect(topLeftGlobal, QSize(popupWidth, popupHeight)));
+}
+
+void SelectorComboBox::resizeEvent(QResizeEvent* e) {
+    QLineEdit::resizeEvent(e);
+    if (!m_toggleButton) return;
+    const int btnW = 20;
+    const int btnH = height() - 4;
+    m_toggleButton->setFixedSize(btnW, qMax(16, btnH));
+    const int x = width() - btnW - 2;
+    const int y = 2;
+    m_toggleButton->move(x, y);
+}
+
+void SelectorComboBox::focusOutEvent(QFocusEvent* e) {
+    QLineEdit::focusOutEvent(e);
+    if (m_popupVisible) {
+        // 若焦点离开控件与弹出层，则关闭
+        if (!m_popupFrame->isActiveWindow() && !m_popupFrame->underMouse()) {
+            m_popupFrame->hide();
+            m_popupVisible = false;
+        }
     }
-    return list;
+}
+
+void SelectorComboBox::keyPressEvent(QKeyEvent* e) {
+    if (m_popupVisible) {
+        if (e->key() == Qt::Key_Escape) {
+            m_popupFrame->hide();
+            m_popupVisible = false;
+            e->accept();
+            return;
+        }
+    }
+    QLineEdit::keyPressEvent(e);
 }

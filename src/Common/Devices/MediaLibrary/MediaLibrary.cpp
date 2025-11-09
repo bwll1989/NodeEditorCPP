@@ -83,10 +83,10 @@ QModelIndex MediaLibrary::addFile(const QString& absPath)
 void MediaLibrary::addFiles(const QStringList& absPaths)
 {
     QDir storage(QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
+
     for (const QString& p : absPaths) {
         const QFileInfo fi(p);
         if (!fi.exists() || !fi.isFile()) continue;
-
         // 若源文件已在存储目录中，直接入库
         if (isInStorageDir(fi.absoluteFilePath())) {
             addFile(fi.absoluteFilePath());
@@ -112,6 +112,9 @@ void MediaLibrary::addFiles(const QStringList& absPaths)
         } else {
             // 复制失败：如果你希望弹窗提示，请告知；当前策略为跳过，不入库
             // 可改为 QMessageBox::warning(...) 提示复制失败
+            QMessageBox::warning(nullptr,
+                                 QStringLiteral("复制失败"),
+                                 QStringLiteral("无法复制文件（复制失败）：\n%1").arg(fi.absoluteFilePath()));
         }
     }
 }
@@ -485,10 +488,46 @@ QString MediaLibrary::uniqueFileNameInStorage(const QString& fileName) const
  */
 bool MediaLibrary::isInStorageDir(const QString& absPath) const
 {
-    QDir storage(QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
-    const QString rel = storage.relativeFilePath(absPath);
-    return !rel.startsWith("..");
+/**
+ * @brief 更稳健的库内路径判断（修复 Windows 跨盘符误判）
+ *
+ * 背景：
+ * - 之前使用 QDir::relativeFilePath(absPath) 并判断是否以 ".." 开头，
+ *   在 Windows 上当源文件与库目录不在同一盘符时，relativeFilePath 会返回带盘符的绝对路径（如 "D:/..."），
+ *   该字符串不以 ".." 开头，导致误判为“在库目录内”，从而跳过复制。
+ *
+ * 策略：
+ * - 使用 canonicalPath/canonicalFilePath 获取规范绝对路径（消除符号链接与相对路径）
+ * - 若 canonical 获取失败则回退到 absolutePath/absoluteFilePath
+ * - 规范化分隔符并追加尾随斜杠后，做前缀匹配判断包含关系
+ * - Windows 上大小写不敏感
+ */
+const QString storageCanonical = QDir(QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath()).canonicalPath();
+QString fileCanonical = QFileInfo(absPath).canonicalFilePath();
+
+QString storagePath = storageCanonical.isEmpty()
+    ? QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath()
+    : storageCanonical;
+QString filePath = fileCanonical.isEmpty()
+    ? QFileInfo(absPath).absoluteFilePath()
+    : fileCanonical;
+
+storagePath = QDir::cleanPath(storagePath);
+filePath = QDir::cleanPath(filePath);
+
+// 确保库路径有尾随斜杠，避免前缀误匹配
+QString storagePrefix = storagePath;
+if (!storagePrefix.endsWith('/')) storagePrefix += '/';
+
+#ifdef Q_OS_WIN
+// Windows：大小写不敏感匹配
+return filePath.startsWith(storagePrefix, Qt::CaseInsensitive);
+#else
+return filePath.startsWith(storagePrefix);
+#endif
 }
+
+
 
 void MediaLibrary::refresh() {
     // 屏蔽信号，避免过程中产生大量中间状态通知

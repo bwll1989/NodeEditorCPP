@@ -31,6 +31,7 @@ target_link_libraries(${Module_Name} PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
+    MediaManger
 )
 
 # 导出符号

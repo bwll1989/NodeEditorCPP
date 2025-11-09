@@ -13,7 +13,7 @@
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
-// #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
+#include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -37,21 +37,21 @@ namespace Nodes
             // _label->installEventFilter(this);
             InPortCount =0;
             OutPortCount=1;
+
+
             CaptionVisible=true;
             Caption="Image File";
             WidgetEmbeddable= true;
             Resizable=false;
             PortEditable= false;
             m_outImageData=std::make_shared<ImageData>();
-            QString fileName;
-            if (!_fileSelectComboBox->currentText().isEmpty()) {
-                fileName = _fileSelectComboBox->currentText();
-            }
+            // if (!_fileSelectComboBox->currentText().isEmpty()) {
+            //     fileName = _fileSelectComboBox->currentText();
+            // }
             // _fileSelectComboBox->setEditable(true);
-            _fileSelectComboBox->addItems( MediaLibrary::instance()->getFileList(MediaLibrary::Category::Image));
             // _selectorComboBox->addItems( MediaLibrary::instance()->getFileList(MediaLibrary::Category::Image));
-            loadImage();
-            connect(_fileSelectComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &ImageLoaderModel::loadImage);
+            NodeDelegateModel::registerOSCControl("/file",_fileSelectComboBox);
+            connect(_fileSelectComboBox, &SelectorComboBox::textChanged, this, &ImageLoaderModel::loadImage);
         }
         ~ImageLoaderModel() override = default;
 
@@ -75,8 +75,8 @@ namespace Nodes
 
         QJsonObject save() const override{
             QJsonObject modelJson = NodeDelegateModel::save();
-            if (m_outImageData && !_fileSelectComboBox->currentText().isEmpty()) {
-                modelJson["path"] = _fileSelectComboBox->currentText();
+            if (m_outImageData && !_fileSelectComboBox->text().isEmpty()) {
+                modelJson["path"] = _fileSelectComboBox->text();
             }
             return modelJson;
         }
@@ -85,8 +85,8 @@ namespace Nodes
 
             const QJsonValue path = jsonObj["path"];
             if (!path.isUndefined()) {
-               _fileSelectComboBox->setCurrentText(path.toString());
-                loadImage();
+               _fileSelectComboBox->setText(path.toString());
+                loadImage(path.toString());
             }
         }
 
@@ -117,10 +117,10 @@ namespace Nodes
         // }
 
     private:
-        void loadImage(){
+        void loadImage(QString fileName){
     
-            if (!_fileSelectComboBox->currentText().isEmpty()) {
-                m_path=MEDIA_LIBRARY_STORAGE_DIR+"/"+_fileSelectComboBox->currentText();
+            if (!fileName.isEmpty()) {
+                m_path=MEDIA_LIBRARY_STORAGE_DIR+"/"+fileName;
                 m_outImageData = std::make_shared<ImageData>(m_path);
                 if (m_outImageData && !m_outImageData->image().isNull()) {
                     // _label->setPixmap(m_outImageData->pixmap().scaled(_label->width(), _label->height(), Qt::KeepAspectRatio));
@@ -134,8 +134,8 @@ namespace Nodes
 
     private:
         // QLabel *_label=new QLabel("Ctrl+left click to load image");
-        QComboBox* _fileSelectComboBox = new QComboBox();
-        // SelectorComboBox* _selectorComboBox = new SelectorComboBox();
+        // QComboBox* _fileSelectComboBox = new QComboBox();
+        SelectorComboBox* _fileSelectComboBox = new SelectorComboBox(MediaLibrary::Category::Image);
         QString m_path;
         std::shared_ptr<ImageData> m_outImageData;
         // MediaLibrary* mediaLibrary = MediaLibrary::instance();

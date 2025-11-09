@@ -34,6 +34,8 @@ target_link_libraries(${Module_Name}  PRIVATE
         swscale
         ${portaudio_LIBRARIES}
         TimestampGenerator
+        MediaManger
+        GUIElements
 )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
