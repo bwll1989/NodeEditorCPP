@@ -90,7 +90,8 @@ void TimeLineNodeClock::setCurrentTimecode(const TimeCodeFrame& timecode)
 void TimeLineNodeClock::setCurrentTimecodeFromTime(const double time)
 {
     m_currentTimecode = time_to_timecode_frame(time, m_timecodeType);
-    
+    if (m_currentFrame==timecode_frame_to_frames(m_currentTimecode, m_timecodeType))
+        return;
     m_currentFrame = timecode_frame_to_frames(m_currentTimecode, m_timecodeType);
 
     // 越界保护：根据 isLoop 判断循环或停止

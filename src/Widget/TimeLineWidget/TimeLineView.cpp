@@ -23,7 +23,7 @@ void TimeLineView::movePlayheadToFrame(int frame)
 {
     if (auto* derivedModel = dynamic_cast<TimeLineModel*>(getModel()))
     {
-        derivedModel->getClock()->setCurrentFrame(frame);
+
         getModel()->onSetPlayheadPos(frame);
         viewport()->update();
     }

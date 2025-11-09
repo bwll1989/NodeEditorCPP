@@ -99,6 +99,7 @@ message("-- Found OpenCV ${OpenCV_DIR}")
 # 设置QtTimeLine库
 set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
 set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
+
 INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 
 ## 设置TabToolbar库

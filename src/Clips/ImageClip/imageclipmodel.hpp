@@ -26,10 +26,18 @@ namespace Clips
         {
             EMBEDWIDGET = false;
             SHOWBORDER = true;
-            initPropertyWidget();
+            m_canNotify = false;
 
             m_server = getClientControlInstance();
+            initPropertyWidget();
+            // 构造阶段先禁止通知
+
             // SocketTransmitter::getInstance();
+            // 构造完成，允许通知
+            m_canNotify = true;
+
+            // 异步触发一次初始通知，确保事件循环就绪
+            QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
         }
 
         ~ImageClipModel() override
@@ -56,11 +64,15 @@ namespace Clips
 
         void setStart(int start) override  {
             AbstractClipModel::setStart(start);
-            onPropertyChanged();
+            if (m_canNotify) {
+                QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
+            }
         }
         void setEnd(int end) override  {
             AbstractClipModel::setEnd(end);
-            onPropertyChanged();
+            if (m_canNotify) {
+                QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
+            }
         }
         // 其他 getter/setter 保持不变
         QString filePath() const { return m_filePath; }
@@ -254,6 +266,10 @@ namespace Clips
 
     public Q_SLOTS:
         void onPropertyChanged(){
+            if (!m_server) {
+                qWarning() << "[VideoClipModel] SocketTransmitter not ready, skip onPropertyChanged";
+                return;
+            }
             QJsonDocument doc;
             QJsonArray array;  // 创建一个JSON数组
             array.append(save()); // 将对象添加到数组中
@@ -273,6 +289,7 @@ namespace Clips
         QSpinBox* layer;
         QSpinBox* rotation;
         SocketTransmitter *m_server;
+        bool m_canNotify = false;
     };
 }
 #endif // VideoClipModel_HPP

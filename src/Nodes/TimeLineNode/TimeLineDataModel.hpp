@@ -68,8 +68,6 @@ public:
 
     ~TimeLineDataModel()
     {
-
-        delete model;
     }
 public:
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override

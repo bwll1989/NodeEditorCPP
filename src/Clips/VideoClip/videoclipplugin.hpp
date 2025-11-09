@@ -1,6 +1,4 @@
-#ifndef VIDEOCLIPPLUGIN_HPP
-#define VIDEOCLIPPLUGIN_HPP
-
+#pragma once
 #include <QObject>
 #include "AbstractClipInterface.h"
 #include "AbstractClipModel.hpp"
@@ -21,9 +19,4 @@ public:
         return new  Clips::VideoClipModel(start);
     }
 
-    // AbstractClipDelegate* createDelegate() override {
-    //     return new PlayerClipDelegate();
-    // }
 };
-
-#endif // VIDEOCLIPPLUGIN_HPP 

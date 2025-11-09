@@ -49,10 +49,7 @@ public Q_SLOTS:
      * @param NodeId node 节点
      */
 	void test(const NodeId node);
-    /**
-     * 中心节点
-     */
-    void centerOnNode(NodeId nodeId);
+
 
 Q_SIGNALS:
     /**

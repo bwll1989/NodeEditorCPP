@@ -37,7 +37,10 @@ namespace Clips
                 loadArtnetInfo(filePath);
             }
 
+            m_canNotify = true;
 
+            // 异步触发一次初始通知，确保事件循环就绪
+            QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
         }
 
         ~ArtnetClipModel() override
@@ -56,11 +59,11 @@ namespace Clips
 
         void setStart(int start) override  {
             AbstractClipModel::setStart(start);
-            onPropertyChanged();
+            QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
         }
         void setEnd(int end) override  {
             AbstractClipModel::setEnd(end);
-            onPropertyChanged();
+            QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
         }
         // 其他 getter/setter 保持不变
         QString filePath() const { return m_filePath; }
@@ -188,6 +191,7 @@ namespace Clips
         QString m_filePath;
         QWidget* m_editor;
         QLineEdit* fileNameLabel;
+        bool m_canNotify = false;
     };
 }
 #endif // ArtnetClipModel_HPP

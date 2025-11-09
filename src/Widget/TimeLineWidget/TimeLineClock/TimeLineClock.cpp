@@ -77,7 +77,7 @@ void TimeLineClock::setCurrentFrame(qint64 frame)
         m_timer->resume();
     }
 
-//    updateTimecode();
+    updateTimecode();
 }
 
 void TimeLineClock::setCurrentTimecode(const TimeCodeFrame& timecode)
@@ -90,9 +90,11 @@ void TimeLineClock::setCurrentTimecode(const TimeCodeFrame& timecode)
 void TimeLineClock::setCurrentTimecodeFromTime(const double time)
 {
     m_currentTimecode = time_to_timecode_frame(time, m_timecodeType);
-
+    if (m_currentFrame == timecode_frame_to_frames(m_currentTimecode, m_timecodeType)) {
+        //校验帧数是否变化，有变化才更新视图
+       return;
+    }
     m_currentFrame = timecode_frame_to_frames(m_currentTimecode, m_timecodeType);
-
     // 越界保护：根据 isLoop 判断循环或停止
     if (m_maxFrames > 0 && m_currentFrame > m_maxFrames) {
         if (m_isLooping) {

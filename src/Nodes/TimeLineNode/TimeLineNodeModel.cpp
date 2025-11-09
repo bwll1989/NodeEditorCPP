@@ -17,7 +17,6 @@ QJsonObject TimeLineNodeModel::save() const
     return res;
 }
 TimeLineNodeModel::~TimeLineNodeModel() {
-    delete m_clock;
 };
 void TimeLineNodeModel::load(const QJsonObject& json)
 {

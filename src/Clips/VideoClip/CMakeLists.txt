@@ -56,6 +56,7 @@ target_link_libraries(VideoClip PUBLIC
     Qt6::Network
     Qt6::WebSockets
     Qt6::QuickWidgets
+#    QtTimeLine
     avcodec
     avdevice
     avfilter

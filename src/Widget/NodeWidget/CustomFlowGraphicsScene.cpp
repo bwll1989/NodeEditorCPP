@@ -325,10 +325,4 @@ QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos)
         }
 }
 
-void CustomFlowGraphicsScene::centerOnNode(NodeId nodeId) {
-    auto nodeItem = nodeGraphicsObject(nodeId);
-    if (nodeItem) {
-        views().first()->centerOn(nodeItem);
-    }
-}
 

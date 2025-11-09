@@ -36,7 +36,10 @@ namespace Clips
                 loadAudioInfo(filePath);
             }
             m_server = getClientControlInstance();
+            m_canNotify = true;
 
+            // 异步触发一次初始通知，确保事件循环就绪
+            QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
         }
 
         ~AudioClipModel() override
@@ -62,11 +65,11 @@ namespace Clips
 
         void setStart(int start) override  {
             AbstractClipModel::setStart(start);
-            onPropertyChanged();
+            QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
         }
         void setEnd(int end) override  {
             AbstractClipModel::setEnd(end);
-            onPropertyChanged();
+            QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
         }
         // 其他 getter/setter 保持不变
         QString filePath() const { return m_filePath; }
@@ -190,6 +193,10 @@ namespace Clips
 
     public Q_SLOTS:
         void onPropertyChanged(){
+            if (!m_server) {
+                qWarning() << "[VideoClipModel] SocketTransmitter not ready, skip onPropertyChanged";
+                return;
+            }
             QJsonDocument doc;
             QJsonArray array;  // 创建一个JSON数组
             array.append(save()); // 将对象添加到数组中
@@ -237,6 +244,7 @@ namespace Clips
         QWidget* m_editor;
         QSpinBox* gain;
         SocketTransmitter* m_server;
+        bool m_canNotify = false;
     };
 }
 #endif // AudioClipModel_HPP

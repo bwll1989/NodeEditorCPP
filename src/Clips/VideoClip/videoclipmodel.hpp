@@ -1,5 +1,4 @@
-#ifndef VIDEOCLIPMODEL_HPP
-#define VIDEOCLIPMODEL_HPP
+#pragma once
 #include <QImage>
 #include <QPainter>
 #include <QFont>
@@ -23,22 +22,38 @@ namespace Clips
     class VideoClipModel : public AbstractClipModel {
         Q_OBJECT
     public:
+        /**
+         * 构造函数
+         * - 先初始化 m_server
+         * - 构造期间暂不允许属性变更通知（m_canNotify=false）
+         * - 完成初始化后开启通知，并以异步方式触发一次初始通知
+         */
         explicit VideoClipModel(int start,const QString& filePath = QString(), QObject* parent = nullptr)
             : AbstractClipModel(start, "Video", parent),
-              m_filePath(filePath),
-              m_editor(nullptr),
-            fileNameLabel(new QLineEdit())
+                m_filePath(filePath),
+                m_editor(nullptr)
         {
+            RESIZEABLE = true;
             EMBEDWIDGET = false;
             SHOWBORDER = true;
             ClipColor=QColor("#6666cc");
-            initPropertyWidget();
-
-            if (!filePath.isEmpty()) {
-                setFilePath(filePath);
-            }
+            // 初始化 SocketTransmitter，避免后续使用空指针
             m_server = getClientControlInstance();
-
+            // 构造阶段先禁止通知
+            m_canNotify = false;
+            
+            initPropertyWidget();
+            
+            if (!filePath.isEmpty()) {
+                // 构造阶段的加载不触发通知，避免事件循环未就绪时的同步调用
+                loadVideoInfo(filePath);
+            }
+            
+            // 构造完成，允许通知
+            m_canNotify = true;
+            
+            // 异步触发一次初始通知，确保事件循环就绪
+            QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
         }
 
         ~VideoClipModel() override
@@ -63,13 +78,28 @@ namespace Clips
             }
         }
 
+        /**
+         * 设置开始时间
+         * - 调用基类逻辑
+         * - 若允许通知，则异步排队 onPropertyChanged，避免构造阶段阻塞或崩溃
+         */
         void setStart(int start) override  {
             AbstractClipModel::setStart(start);
-            onPropertyChanged();
+            if (m_canNotify) {
+                QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
+            }
         }
+
+        /**
+         * 设置结束时间
+         * - 调用基类逻辑
+         * - 若允许通知，则异步排队 onPropertyChanged，避免构造阶段阻塞或崩溃
+         */
         void setEnd(int end) override  {
             AbstractClipModel::setEnd(end);
-            onPropertyChanged();
+            if (m_canNotify) {
+                QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
+            }
         }
         // 其他 getter/setter 保持不变
         QString filePath() const { return m_filePath; }
@@ -239,6 +269,7 @@ namespace Clips
             connect(rotation, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
                 onPropertyChanged();
             });
+            
             return m_editor;
         }
 
@@ -261,11 +292,20 @@ namespace Clips
 
 
     public Q_SLOTS:
+        /**
+         * 属性变更后通知控制端
+         * - 空指针保护，避免初始化阶段或异常情况下崩溃
+         * - 此函数可能由异步排队触发，确保运行在事件循环中
+         */
         void onPropertyChanged(){
+            if (!m_server) {
+                qWarning() << "[VideoClipModel] SocketTransmitter not ready, skip onPropertyChanged";
+                return;
+            }
             QJsonDocument doc;
-            QJsonArray array;  // 创建一个JSON数组
-            array.append(save()); // 将对象添加到数组中
-            doc.setObject(QJsonObject{{"fileList", array}}); // 正确设置JSON文档的根对象
+            QJsonArray array;
+            array.append(save());
+            doc.setObject(QJsonObject{{"fileList", array}});
             m_server->enqueueJson(doc);
         }
 
@@ -315,8 +355,13 @@ namespace Clips
         QSpinBox* height;
         QSpinBox* layer;
         QSpinBox* rotation;
-        QLineEdit* fileNameLabel;
+        QLineEdit* fileNameLabel= new QLineEdit();
         SocketTransmitter* m_server;
+        /**
+         * 是否允许触发属性变更通知
+        * - 构造阶段为 false，构造完成后设为 true
+        */
+        bool m_canNotify = false;
+
     };
 }
-#endif // VideoClipModel_HPP
