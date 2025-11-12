@@ -74,7 +74,6 @@ namespace Nodes
          * @brief 析构函数
          */
         ~ArtnetUniverseDataModel() override {
-            delete widget;
         }
 
         /**

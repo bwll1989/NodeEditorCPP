@@ -20,7 +20,8 @@
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QTreeWidget>
 #include <QtWidgets/QWidgetAction>
-
+#include <QListWidget>
+#include <QStyledItemDelegate>
 #include <QtCore/QBuffer>
 #include <QtCore/QByteArray>
 #include <QtCore/QDataStream>
@@ -75,184 +76,166 @@ CustomFlowGraphicsScene::CustomFlowGraphicsScene(CustomDataFlowGraphModel &graph
         qDebug()<<node;
 }
 
-/**
- * 创建横向标签页式的场景菜单（使用表格布局，从上到下从左到右排列，每列12项）
- * @param scenePos 场景位置
- * @return 返回创建的菜单指针
- */
 QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos)
 {
+    /**
+     * @brief 创建节点添加菜单（深色主题，扁平列表，选中高亮）
+     *
+     * 调整：
+     * - 提升列表控件的固定高度以显示更多项（默认显示约 18 行）；
+     * - 保持滚动条按需显示。
+     */
     QMenu *modelMenu = new QMenu();
-    // auto const &flowViewStyle = StyleCollection::flowViewStyle();
-    // 创建主容器widget
-    QWidget *mainWidget = new QWidget(modelMenu);
-    mainWidget->setMinimumSize(600, 400);
-
-    // 创建垂直布局
-    QVBoxLayout *mainLayout = new QVBoxLayout(mainWidget);
-    mainLayout->setContentsMargins(0, 0, 0, 0);
-    mainLayout->setSpacing(0);
-
-    // 添加搜索框
-    QLineEdit *txtBox = new QLineEdit(mainWidget);
-    txtBox->setPlaceholderText(QStringLiteral("Filter"));
+    // 搜索框
+    auto *txtBox = new QLineEdit(modelMenu);
+    txtBox->setPlaceholderText(QStringLiteral("Search"));
     txtBox->setClearButtonEnabled(true);
-    txtBox->setFixedHeight(30);
-    mainLayout->addWidget(txtBox);
+    txtBox->addAction(QIcon(":/icons/icons/search.png"), QLineEdit::LeadingPosition);
+    txtBox->setStyleSheet(
+        "QLineEdit {"
+        "  background:transparent;"
+        "  border:1px solid #444444;"
+        "  border-radius:6px;"
+        "  padding:4px 8px 4px 0px;"
+        "}"
+        "QLineEdit:hover { border-color:#5a5a5a; }"
+        "QLineEdit:focus { border-color:#6e9cfa; }"
+    );
+    auto *txtBoxAction = new QWidgetAction(modelMenu);
+    txtBoxAction->setDefaultWidget(txtBox);
+    modelMenu->addAction(txtBoxAction);
 
-    // 创建标签页控件
-    QTabWidget *tabWidget = new QTabWidget(mainWidget);
-    tabWidget->setTabPosition(QTabWidget::North);
-    tabWidget->setDocumentMode(true);
-    tabWidget->setMovable(false);
-    tabWidget->setUsesScrollButtons(false);
-    mainLayout->addWidget(tabWidget);
+    // 扁平列表（不使用 setItemWidget，改用委托绘制选中态）
+    auto *listWidget = new QListWidget(modelMenu);
+    listWidget->setFrameShape(QFrame::NoFrame);
+    listWidget->setUniformItemSizes(true);
+    listWidget->setMouseTracking(true);
+    listWidget->setSelectionMode(QAbstractItemView::SingleSelection);
+    listWidget->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    listWidget->setStyleSheet(
+        "QListWidget {"
+        "  background:#1e1e1e;"
+        "  color:#dddddd;"
+        "  outline:0;"
+        "  border:none;"
+        "}"
+    );
+    // 关键：提升菜单内列表的可视高度，减少滚动
+    const int kRowHeight   = 28;   // 与委托的行高保持一致
+    const int kVisibleRows = 18;   // 目标可视行数（可调）
+    listWidget->setFixedHeight(kRowHeight * kVisibleRows + 8); // +8 作为上下内边距
+    listWidget->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    auto *listAction = new QWidgetAction(modelMenu);
+    listAction->setDefaultWidget(listWidget);
+    modelMenu->addAction(listAction);
+    // 菜单整体样式
+    modelMenu->setStyleSheet(
+        "QMenu {"
+        "  background:#3c3c3c;"
+        "  border:1px solid #3b3b3b;"
+        "  padding:0px;"
+        "}"
+    );
 
-    // 获取注册表
-    auto registry = _graphModel.dataModelRegistry();
+    // 自定义委托：绘制“分组 ▸ 节点名”，并处理选中/悬停背景
+    class NodeListItemDelegate : public QStyledItemDelegate {
+    public:
+        using QStyledItemDelegate::QStyledItemDelegate;
+        void paint(QPainter *p, const QStyleOptionViewItem &opt, const QModelIndex &idx) const override {
+            QStyleOptionViewItem option(opt);
+            p->save();
 
-    // 为每个分类创建标签页
-    QMap<QString, QTableWidget*> categoryWidgets;
+            const QRect r = option.rect;
 
-    for (auto const &cat : registry->categories()) {
-        // 创建表格控件
-        QTableWidget *tableWidget = new QTableWidget();
+            // 背景：选中更深、悬停稍浅、其余透明（交由视图背景）
+            if (option.state & QStyle::State_Selected) {
+                p->fillRect(r, QColor("#191919")); // 深选中
+            } else if (option.state & QStyle::State_MouseOver) {
+                p->fillRect(r, QColor("#262626"));
+            }
 
-        // 设置表格属性 - 每列12项，所以固定12行
-        tableWidget->setRowCount(12);
-        tableWidget->setColumnCount(1); // 先设置1列，后续根据数据动态调整
-        tableWidget->setHorizontalHeaderLabels(QStringList() << "");
-        tableWidget->horizontalHeader()->setVisible(false); // 隐藏列标题
-        tableWidget->verticalHeader()->setVisible(false);   // 隐藏行标题
-        tableWidget->setSelectionBehavior(QAbstractItemView::SelectItems);
-        tableWidget->setSelectionMode(QAbstractItemView::SingleSelection);
-        tableWidget->setAlternatingRowColors(false);
-        tableWidget->setShowGrid(true);
-        tableWidget->setGridStyle(Qt::NoPen);
-        // 设置单元格大小
-        tableWidget->verticalHeader()->setDefaultSectionSize(30);   // 行高30像素
-        tableWidget->horizontalHeader()->setDefaultSectionSize(150); // 列宽180像素
-        tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Fixed);
-        tableWidget->verticalHeader()->setSectionResizeMode(QHeaderView::Fixed);
+            // 文本内容
+            const QString category = idx.data(Qt::UserRole + 1).toString();
+            const QString name     = idx.data(Qt::DisplayRole).toString();
 
-        // 添加到标签页
-        tabWidget->addTab(tableWidget, cat);
-        categoryWidgets[cat] = tableWidget;
-        // 设置滚动条策略
-        tableWidget->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        tableWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-        // 连接点击事件
-        connect(tableWidget, &QTableWidget::itemClicked,
-                [this, modelMenu, scenePos](QTableWidgetItem *item) {
-                    if (!item || item->text().isEmpty()) return;
+            int x = r.x() + 8;
+            const int y = r.y();
+            const int h = r.height();
 
-                    // 检查项目是否可选择
-                    if (!(item->flags() & Qt::ItemIsSelectable)) return;
+            // 分组（灰）
+            p->setPen(QColor("#b0b0b0"));
+            QFont groupFont = option.font;
+            QFontMetrics gm(groupFont);
+            const int groupWidth = gm.horizontalAdvance(category);
+            p->setFont(groupFont);
+            p->drawText(QRect(x, y, groupWidth + 2, h), Qt::AlignVCenter | Qt::AlignLeft, category);
+            x += groupWidth + 6;
 
-                    this->undoStack().push(new QtNodes::CreateCommand(this, item->text(), scenePos));
-                    modelMenu->close();
-                });
-    }
+            // 箭头（更灰）
+            p->setPen(QColor("#9a9a9a"));
+            const QString arrow = QStringLiteral("▸");
+            const int arrowWidth = gm.horizontalAdvance(arrow);
+            p->drawText(QRect(x, y, arrowWidth + 2, h), Qt::AlignVCenter | Qt::AlignLeft, arrow);
+            x += arrowWidth + 6;
 
-    // 填充模型到对应的分类标签页
-    QMap<QString, QStringList> categoryModels;
+            // 名称（白+半粗）
+            QFont nameFont = option.font;
+            nameFont.setWeight(QFont::DemiBold);
+            p->setFont(nameFont);
+            p->setPen(QColor("#ffffff"));
+            p->drawText(QRect(x, y, r.right() - x - 8, h), Qt::AlignVCenter | Qt::AlignLeft, name);
 
-    // 先收集每个分类的所有模型
-    for (auto const &assoc : registry->registeredModelsCategoryAssociation()) {
-        QString modelName = assoc.first;
-        QString categoryName = assoc.second;
-        categoryModels[categoryName].append(modelName);
-    }
-
-   for (auto it = categoryModels.begin(); it != categoryModels.end(); ++it) {
-    QString categoryName = it.key();
-    QStringList models = it.value();
-
-    if (categoryWidgets.contains(categoryName)) {
-        QTableWidget *tableWidget = categoryWidgets[categoryName];
-        int itemsPerColumn = 12;
-        int columnCount = (models.size() + itemsPerColumn - 1) / itemsPerColumn;
-
-        // // 设置表格尺寸
-        // tableWidget->setRowCount(itemsPerColumn);  // 添加这行：设置行数
-        // tableWidget->setColumnCount(columnCount);
-        tableWidget->clear();
-
-        // 重新设置表格尺寸（clear()可能会重置尺寸）
-        tableWidget->setRowCount(itemsPerColumn);
-        tableWidget->setColumnCount(columnCount);
-        // 设置滚动条策略
-        for (int i = 0; i < models.size(); ++i) {
-            int col = i / itemsPerColumn;  // 列索引
-            int row = i % itemsPerColumn;  // 行索引
-
-            QTableWidgetItem *item = new QTableWidgetItem(models[i]);
-            item->setTextAlignment(Qt::AlignCenter);
-            item->setToolTip(models[i]); // 添加工具提示
-
-            // 设置项目标志
-            item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
-
-            // 设置默认颜色
-            item->setBackground(QBrush(QColor(43, 43, 43))); // 正常背景色
-            item->setForeground(QBrush(QColor(255, 255, 255))); // 白色文字
-
-            tableWidget->setItem(row, col, item);
+            p->restore();
         }
+        QSize sizeHint(const QStyleOptionViewItem &opt, const QModelIndex &idx) const override {
+            QSize s = QStyledItemDelegate::sizeHint(opt, idx);
+            s.setHeight(28);
+            return s;
+        }
+    };
+
+    listWidget->setItemDelegate(new NodeListItemDelegate(listWidget));
+
+    // 填充列表条目（分组与名称）
+    auto registry = _graphModel.dataModelRegistry();
+    for (const auto &assoc : registry->registeredModelsCategoryAssociation()) {
+        const QString nodeName = assoc.first;
+        const QString category = assoc.second;
+
+        auto *item = new QListWidgetItem();
+        item->setText(nodeName);                     // DisplayRole：节点名
+        item->setData(Qt::UserRole + 1, category);   // 自定义角色：分组
+        item->setSizeHint(QSize(item->sizeHint().width(), 28));
+        listWidget->addItem(item);
     }
-}
 
-    connect(txtBox, &QLineEdit::textChanged, [tabWidget, categoryWidgets](const QString &text) {
-        for (auto it = categoryWidgets.begin(); it != categoryWidgets.end(); ++it) {
-            QTableWidget *tableWidget = it.value();
-            int visibleCount = 0;
+    // 点击创建节点
+    connect(listWidget, &QListWidget::itemClicked,
+            [this, modelMenu, scenePos](QListWidgetItem *item) {
+                const QString nodeName = item->text();
+                this->undoStack().push(new QtNodes::CreateCommand(this, nodeName, scenePos));
+                modelMenu->close();
+            });
 
-            // 遍历所有单元格进行过滤
-            for (int row = 0; row < tableWidget->rowCount(); ++row) {
-                for (int col = 0; col < tableWidget->columnCount(); ++col) {
-                    QTableWidgetItem *item = tableWidget->item(row, col);
-                    if (item && !item->text().isEmpty()) {
-                        bool match = text.isEmpty() || item->text().contains(text, Qt::CaseInsensitive);
-
-                        if (match) {
-                            item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
-                            item->setBackground(QBrush(QColor(43, 43, 43))); // 正常背景色
-                            item->setForeground(QBrush(QColor(255, 255, 255))); // 白色文字
-                            visibleCount++;
-                        } else {
-                            item->setFlags(Qt::ItemIsEnabled); // 移除可选择标志
-                            item->setBackground(QBrush(QColor(25, 25, 25))); // 更暗的背景色
-                            item->setForeground(QBrush(QColor(100, 100, 100))); // 灰色文字
-                        }
-                    }
-                }
-            }
-
-            int tabIndex = tabWidget->indexOf(tableWidget);
-            if (tabIndex >= 0) {
-                QString tabText = it.key();
-                if (!text.isEmpty()) {
-                    tabWidget->setTabText(tabIndex, QString("%1 (%2)").arg(tabText).arg(visibleCount));
-                } else {
-                    tabWidget->setTabText(tabIndex, tabText);
-                }
-            }
+    // 搜索：按分组或名称匹配
+    connect(txtBox, &QLineEdit::textChanged, [listWidget](const QString &text) {
+        const QString t = text.trimmed();
+        for (int i = 0; i < listWidget->count(); ++i) {
+            auto *it = listWidget->item(i);
+            const QString node = it->text();
+            const QString cat  = it->data(Qt::UserRole + 1).toString();
+            const bool match = t.isEmpty()
+                               || node.contains(t, Qt::CaseInsensitive)
+                               || cat.contains(t, Qt::CaseInsensitive);
+            it->setHidden(!match);
         }
     });
 
-    // 创建菜单动作并设置主widget
-    QWidgetAction *mainAction = new QWidgetAction(modelMenu);
-    mainAction->setDefaultWidget(mainWidget);
-    modelMenu->addAction(mainAction);
-
-    // 设置焦点到搜索框
     txtBox->setFocus();
-
-    // 设置菜单属性
     modelMenu->setAttribute(Qt::WA_DeleteOnClose);
-
     return modelMenu;
 }
+
 
     bool CustomFlowGraphicsScene::save() const
     {

@@ -28,7 +28,7 @@ set(DataTypes _sources
 )
 
 # 生成静态库（也可改为 SHARED，如需导出符号）
-add_library(DataTypes  STATIC ${DataTypes_sources})
+add_library(DataTypes SHARED ${DataTypes_sources})
 
 # 链接 Qt 和 QtNodes（QtNodes_LIBRARIES 在主工程中全局设置）
 target_link_libraries(DataTypes PRIVATE
@@ -44,5 +44,4 @@ target_include_directories(DataTypes PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# 编译定义（与工程中节点模块保持一致，必要时可调整）
-target_compile_definitions(BuildInNodes PRIVATE -DNODE_EDITOR_SHARED)
+target_compile_definitions(DataTypes PRIVATE DATATYPES_LIBRARY)

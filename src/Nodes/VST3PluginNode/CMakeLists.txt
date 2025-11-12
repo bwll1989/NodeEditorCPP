@@ -27,8 +27,6 @@ add_library(${Module_Name} SHARED
         VST3AudioProcessingThread.cpp
         ../../DataTypes/AudioTimestampRingQueue.h
         ../../DataTypes/AudioTimestampRingQueue.cpp
-#        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.cpp
-#        ../../Common/GUI/QPropertyBrowser/QPropertyBrowser.h
         ${VST3_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/plugprovider.h
@@ -48,7 +46,6 @@ add_library(${Module_Name} SHARED
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
-        ${Qtpropertybrowser_LIBRARIES}
         base
         pluginterfaces
         sdk

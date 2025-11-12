@@ -100,6 +100,7 @@
     <file>icons/explore.png</file>
     <file>icons/NodeStudio.svg</file>
     <file>icons/NodeStudio.png</file>
+    <file>icons/search.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

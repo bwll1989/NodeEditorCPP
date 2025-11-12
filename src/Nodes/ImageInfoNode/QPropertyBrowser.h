@@ -5,7 +5,7 @@
 #pragma once
 
 #include <QWidget>
-#include <QtTreePropertyBrowser>
+#include "QtTreePropertyBrowser.h"
 #include <QtVariantPropertyManager>
 #include <QtVariantEditorFactory>
 #include <QtVariantProperty>

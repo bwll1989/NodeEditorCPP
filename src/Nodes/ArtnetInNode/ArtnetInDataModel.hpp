@@ -40,8 +40,8 @@ public:
 
     ~ArtnetInDataModel() override {
 //        artnet_Receiver->deleteLater();
-        delete artnet_Receiver;
-        delete widget;
+        // delete artnet_Receiver;
+
     }
 
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override

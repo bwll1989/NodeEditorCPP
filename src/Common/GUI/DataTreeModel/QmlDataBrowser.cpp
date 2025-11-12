@@ -25,12 +25,20 @@ QmlDataBrowser::QmlDataBrowser(QWidget *parent)
     connect(this, &QQuickWidget::statusChanged, this, [this](QQuickWidget::Status status) {
         if (status == QQuickWidget::Ready) {
             connectQmlSignals();
+            // 保险：确保默认展开全部
+            if (auto *root = rootObject()) {
+                root->setProperty("autoExpandAll", true);
+                QMetaObject::invokeMethod(root, "expandAll");
+            }
         }
     });
-    
     // 如果已经准备好，立即连接
     if (status() == QQuickWidget::Ready) {
         connectQmlSignals();
+        if (auto *root = rootObject()) {
+            root->setProperty("autoExpandAll", true);
+            QMetaObject::invokeMethod(root, "expandAll");
+        }
     }
     
     // 连接数据模型信号以更新统计信息

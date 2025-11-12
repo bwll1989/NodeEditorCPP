@@ -28,7 +28,7 @@ set(CMAKE_PREFIX_PATH ${DEPENDS_DIR})
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Gui)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Devices)
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/DataTypes)
+#INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/DataTypes)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Clips)
 add_definitions(-DQT_MESSAGELOGCONTEXT)
 
@@ -243,6 +243,7 @@ set(CALC_SOURCE_FILES
         src/constantDefines.h
 )
 
+
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(${ProjectName}
             MANUAL_FINALIZATION
@@ -305,6 +306,7 @@ target_link_libraries(${ProjectName}
             Opengl32
             glu32
             OSCTransmitter
+            DataTypes
             BuildInNodes
             ${portaudio_LIBRARIES}
             ${QtNodes_LIBRARIES}
@@ -320,7 +322,6 @@ target_link_libraries(${ProjectName}
             TimestampGenerator
             MediaManger
             ModelDataBridge
-            DataTypes
 )
 
 #add_library(singleton SHARED ${CALC_SOURCE_FILES})

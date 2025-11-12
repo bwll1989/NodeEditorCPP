@@ -7,7 +7,7 @@
 #include <QMetaType>
 #include <memory>
 #include <QObject>  // 添加QObject头文件
-#include <AudioTimestampRingQueue.h>
+#include "AudioTimestampRingQueue.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 

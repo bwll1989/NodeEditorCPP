@@ -66,7 +66,6 @@ public:
      * 析构函数 - 清理资源
      */
     ~ArtnetOutDataModel() override {
-        delete widget;
     }
 
     /**

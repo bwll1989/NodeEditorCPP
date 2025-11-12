@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <iostream>
@@ -70,7 +70,7 @@ namespace Nodes
          * @brief 析构函数
          */
         ~ArtnetDeviceDataModel() override {
-            delete widget;
+
         }
 
         /**

@@ -9,8 +9,8 @@ Rectangle {
     id: root
     color: "#2d2d2d"
     
-    // 添加展开状态属性
-    property bool autoExpandAll: false
+    // 默认直接展开全部
+    property bool autoExpandAll: true
     
     signal itemClicked(var item)
     signal itemDoubleClicked(var item)
@@ -80,79 +80,10 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
         
-        // 简单的工具栏
-        Rectangle {
+        // 移除顶部工具栏（展开全部），保持布局占位为 0 高度
+        Item {
             Layout.fillWidth: true
-            Layout.preferredHeight: 40
-            color: "#1a1a1a"
-            border.color: "#333333"
-            border.width: 1
-            
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 8
-                spacing: 8
-                
-                // 展开全部单选框 - 改进样式
-                CheckBox {
-                    id: expandAllCheckBox
-                    text: "展开全部"
-                    checked: root.autoExpandAll
-                    Layout.preferredHeight: 25
-                    
-                    onCheckedChanged: {
-                        root.autoExpandAll = checked
-                        if (checked) {
-                            root.expandAll()
-                        } else {
-                            root.collapseAll()
-                        }
-                    }
-                    
-                    // 自定义样式 - 更统一的风格
-                    indicator: Rectangle {
-                        implicitWidth: 18
-                        implicitHeight: 18
-                        x: expandAllCheckBox.leftPadding
-                        y: parent.height / 2 - height / 2
-                        radius: 3
-                        border.color: {
-                            if (expandAllCheckBox.checked) return "#4CAF50"
-                            if (expandAllCheckBox.hovered) return "#666666"
-                            return "#555555"
-                        }
-                        border.width: 2
-                        color: {
-                            if (expandAllCheckBox.checked) return "#4CAF50"
-                            if (expandAllCheckBox.hovered) return "#333333"
-                            return "#2d2d2d"
-                        }
-                        
-                        // 勾选标记
-                        Text {
-                            anchors.centerIn: parent
-                            text: "✓"
-                            color: "#ffffff"
-                            font.pixelSize: 12
-                            font.bold: true
-                            visible: expandAllCheckBox.checked
-                        }
-                    }
-                    
-                    contentItem: Text {
-                        text: expandAllCheckBox.text
-                        font.pixelSize: 12
-                        color: expandAllCheckBox.hovered ? "#ffffff" : "#BDBDBD"
-                        verticalAlignment: Text.AlignVCenter
-                        leftPadding: expandAllCheckBox.indicator.width + expandAllCheckBox.spacing + 4
-                    }
-                    
-                    // 添加悬停效果
-                    hoverEnabled: true
-                }
-                
-                Item { Layout.fillWidth: true }
-            }
+            Layout.preferredHeight: 0
         }
         
         // 树状视图 - 直接显示，去除表头
@@ -169,7 +100,6 @@ Rectangle {
                 target: dataModel
                 function onModelReset() {
                     if (autoExpandAll) {
-                        // 减少延迟，使用单次 callLater
                         Qt.callLater(function() {
                             expandAll()
                         })
