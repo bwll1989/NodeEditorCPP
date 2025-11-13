@@ -221,11 +221,34 @@ sys.stderr = QDebugStream()
 )");
             } catch (const std::exception& e) {
                 qWarning() << "设置Python输出重定向时出错:" << e.what();
-                // 继续执行，不阻止子解释器初始化
             }
-        }
 
-        qDebug() << "Python子解释器在构造函数中初始化完成";
+            // 注入 worker 运行时 API（供脚本直接调用）
+            try {
+                py::exec(R"(
+class Worker:
+    def get_input_value(self, idx):
+        return get_input_value_callback(idx)
+    def set_output_value(self, idx, value):
+        return set_output_value_callback(idx, value)
+    def get_input_count(self):
+        return get_input_count_callback()
+    def get_output_count(self):
+        return get_output_count_callback()
+    def should_stop(self):
+        return should_stop_callback()
+    def send_message(self, msg):
+        return send_message_callback(msg)
+
+# 提供一个全局实例
+worker = Worker()
+)", m_mainModule.attr("__dict__"));
+            } catch (const std::exception& e) {
+                qWarning() << "安装 worker 运行时 API 失败:" << e.what();
+            }
+    }
+
+    qDebug() << "Python子解释器在构造函数中初始化完成";
 
     } catch (const py::error_already_set& e) {
         qCritical() << "Python子解释器初始化失败(Python错误):" << e.what();
@@ -357,39 +380,58 @@ void PythonWorkerThread::cleanupPythonSubInterpreter()
 
 void PythonWorkerThread::registerCallbacksInSubInterpreter()
 {
-    // 注册qDebug输出回调函数
+    // 注册 qDebug 输出回调
     m_mainModule.attr("qdebug_print") = py::cpp_function([](const std::string& message) {
         qDebug() << QString::fromStdString(message);
     });
-    
-    // 注册获取输入值回调
+
+    // 注册底层 callback（保留）
     m_mainModule.attr("get_input_value_callback") = py::cpp_function([this](int index) -> py::object {
         return this->getInputValuePy(index);
     });
-    
-    // 注册设置输出值回调
     m_mainModule.attr("set_output_value_callback") = py::cpp_function([this](int index, py::object value) {
         this->setOutputValuePy(index, value);
     });
-    
-    // 注册停止检查回调
     m_mainModule.attr("should_stop_callback") = py::cpp_function([this]() -> bool {
         return this->shouldStop();
     });
-    
-    // 注册消息发送回调
     m_mainModule.attr("send_message_callback") = py::cpp_function([this](const std::string& message) {
         this->sendMessage(QString::fromStdString(message));
     });
-    
-    // 注册端口数量回调
     m_mainModule.attr("get_input_count_callback") = py::cpp_function([this]() -> int {
         return m_inputPortCount;
     });
-    
     m_mainModule.attr("get_output_count_callback") = py::cpp_function([this]() -> int {
         return m_outputPortCount;
     });
+
+    // 提供更易用的别名函数
+    m_mainModule.attr("get_input_value") = m_mainModule.attr("get_input_value_callback");
+    m_mainModule.attr("set_output_value") = m_mainModule.attr("set_output_value_callback");
+    m_mainModule.attr("get_input_count") = m_mainModule.attr("get_input_count_callback");
+    m_mainModule.attr("get_output_count") = m_mainModule.attr("get_output_count_callback");
+    m_mainModule.attr("should_stop") = m_mainModule.attr("should_stop_callback");
+    m_mainModule.attr("send_message") = m_mainModule.attr("send_message_callback");
+
+    // 提供当前输入索引查询
+    m_mainModule.attr("get_current_input_index") = py::cpp_function([this]() -> int {
+        return m_lastInputIndex;
+    });
+
+    // 在子解释器中注入一个简单的 Worker 类与实例
+    py::exec(R"(
+class Worker:
+    def get_input_value(self, index): return get_input_value(index)
+    def set_output_value(self, index, value): return set_output_value(index, value)
+    def get_input_count(self): return get_input_count()
+    def get_output_count(self): return get_output_count()
+    def get_current_input_index(self): return get_current_input_index()
+    def should_stop(self): return should_stop()
+    def send_message(self, msg): return send_message(msg)
+
+# 提供全局实例
+worker = Worker()
+)", m_mainModule.attr("__dict__"));
 }
 
 py::object PythonWorkerThread::getInputValuePy(int portIndex)
@@ -419,11 +461,26 @@ void PythonWorkerThread::setScript(const QString& script)
     QMutexLocker locker(&m_mutex);
     m_script = script;
     m_scriptChanged = true;
+    m_uiInitialized = false; // 标记需要重新初始化 UI（init_interface）
+}
 
+/**
+ * @brief 标记要触发的输入事件索引，并唤醒线程执行
+ *        同步记录最近一次触发索引，供脚本查询。
+ * @param index 输入端口索引
+ */
+void PythonWorkerThread::setInputEventIndex(int index)
+{
+    QMutexLocker locker(&m_mutex);
+    m_pendingInputIndex = index;
+    m_lastInputIndex = index;      // 记录最近一次触发的索引
+    m_executing = true;
+    m_condition.wakeOne();
 }
 
 /**
  * @brief 启动Python脚本执行
+ *        若线程未运行则启动线程；已运行则唤醒执行。
  */
 void PythonWorkerThread::startExecution()
 {
@@ -433,23 +490,8 @@ void PythonWorkerThread::startExecution()
         start();
     } else {
         // 如果已经在运行，设置执行状态并唤醒线程执行新脚本
-        {
-            QMutexLocker locker(&m_mutex);
-            m_executing = true;  // 设置执行状态
-            m_condition.wakeOne();
-        }
-    }
-}
-
-/**
- * @brief 停止Python脚本执行
- */
-void PythonWorkerThread::stopExecution()
-{
-    m_stopRequested = true;
-    m_executing = false;  // 重置执行状态
-    {
         QMutexLocker locker(&m_mutex);
+        m_executing = true;
         m_condition.wakeOne();
     }
 }
@@ -514,6 +556,14 @@ void PythonWorkerThread::executePythonScript()
 bool PythonWorkerThread::shouldStop() const
 {
     return m_stopRequested;
+}
+
+void PythonWorkerThread::stopExecution()
+{
+    m_stopRequested = true;
+    m_executing = false;
+    QMutexLocker locker(&m_mutex);
+    m_condition.wakeOne();
 }
 
 void PythonWorkerThread::sendMessage(const QString& message)

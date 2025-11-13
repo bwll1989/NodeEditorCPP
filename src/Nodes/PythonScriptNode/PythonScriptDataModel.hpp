@@ -180,11 +180,6 @@ public:
      * @param portIndex 输出端口索引
      * @return 输出数据
      */
-    /**
-     * @brief 获取输出数据
-     * @param portIndex 输出端口索引
-     * @return 输出数据
-     */
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         QMutexLocker locker(&m_dataMutex);  // 加锁保护

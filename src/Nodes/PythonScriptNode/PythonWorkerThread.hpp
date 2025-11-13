@@ -59,57 +59,63 @@ public:
     explicit PythonWorkerThread(QObject *parent = nullptr);
     
     /**
-     * @brief 析构函数
+     * @brief 析构函数，确保线程与子解释器安全清理
      */
     ~PythonWorkerThread();
     
     /**
-     * @brief 设置Python脚本
+     * @brief 设置Python脚本源码
      * @param script Python脚本内容
      */
     void setScript(const QString& script);
     
     /**
-     * @brief 启动Python脚本执行
+     * @brief 启动或唤醒线程以执行脚本
      */
     void startExecution();
     
     /**
-     * @brief 执行Python脚本
+     * @brief 执行Python脚本（在线程内调用）
      */
     void executePythonScript();
     
     /**
-     * @brief 停止Python脚本执行
+     * @brief 请求停止脚本执行（线程安全）
      */
     void stopExecution();
     
     /**
-     * @brief 检查是否正在执行
-     * @return 是否正在执行
+     * @brief 返回当前是否处于执行态
      */
     bool isExecuting() const;
     
     /**
-     * @brief 设置输入数据
+     * @brief 注入输入端口数据（线程安全）
      * @param portIndex 端口索引
      * @param data 输入数据
      */
     void setInputData(int portIndex, const QVariantMap& data);
     
     /**
-     * @brief 获取输出数据
+     * @brief 读取指定输出端口数据（线程安全）
      * @param portIndex 端口索引
      * @return 输出数据
      */
     QVariantMap getOutputData(int portIndex) const;
     
     /**
-     * @brief 设置端口数量
+     * @brief 配置输入/输出端口数量
      * @param inputCount 输入端口数量
      * @param outputCount 输出端口数量
      */
     void setPortCounts(int inputCount, int outputCount);
+public:
+    /**
+     * @brief 标记本次执行要触发的输入事件索引
+     *        执行脚本后，会调用用户脚本的 input_event_handler(index)
+     * @param index 输入端口索引（>=0 生效）
+     */
+    void setInputEventIndex(int index);
 
 protected:
     /**
@@ -198,7 +204,23 @@ private:
     int m_outputPortCount{1};                  // 输出端口数量
     
     // 脚本执行控制
-    bool m_scriptChanged{false};               // 脚本是否已更改
+    bool m_scriptChanged{false};
+
+    /**
+     * @brief 待触发的输入事件索引；<0 表示不触发
+     */
+    int m_pendingInputIndex{-1};
+
+    /**
+     * @brief 标记是否已调用过 init_interface（当脚本变更会重置）
+     */
+    bool m_uiInitialized{false};
+
+    /**
+     * @brief 最近一次触发的输入端口索引，用于 get_current_input_index()
+     *        在 setInputEventIndex(index) 时更新，执行结束后保留查询。
+     */
+    int m_lastInputIndex{-1};
 };
 
 } // namespace Nodes

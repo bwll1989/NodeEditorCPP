@@ -208,6 +208,7 @@ void DataflowViewsManger::load(QJsonObject const &nodeJson) {
                     QString tabTitle = it.key();
                     QJsonObject tabJson = it.value().toObject();
                     auto model= new CustomDataFlowGraphModel(PluginsManager::instance()->registry());
+                    model->setModelAlias(tabTitle);
                     model->load(tabJson);
                     addNewSceneFromeModel(tabTitle,model);
                 }

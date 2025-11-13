@@ -108,10 +108,10 @@ INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 #INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
 
 # 设置QT库
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets WebEngineWidgets WebEngineQuick)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
         QmlWorkerScript
-        QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
+        QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets WebEngineWidgets WebEngineQuick)
 #分组模块
 # 添加Clips模块
 add_subdirectory(src/Clips)
@@ -294,6 +294,8 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::OpenGL
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
             Qt${QT_VERSION_MAJOR}::WebSockets
+            Qt${QT_VERSION_MAJOR}::WebEngineWidgets
+            Qt${QT_VERSION_MAJOR}::WebEngineQuick
             GUIElements
             avcodec
             avdevice

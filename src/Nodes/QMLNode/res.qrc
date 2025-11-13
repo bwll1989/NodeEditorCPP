@@ -2,5 +2,8 @@
   <qresource prefix="qml">
     <file>content/PetsModel.qml</file>
     <file>content/dynamicview.qml</file>
+    <file>content/main.qml</file>
+    <file>content/main.html</file>
+    <file>content/timeline.js</file>
   </qresource>
 </RCC>

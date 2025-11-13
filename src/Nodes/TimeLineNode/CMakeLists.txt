@@ -27,6 +27,7 @@ add_library(${Module_Name} SHARED
         NodeTimeSync.hpp
         TimeLineNodeToolbar.cpp
         TimeLineNodeToolbar.h
+        TimelineInterface.hpp
 )
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets

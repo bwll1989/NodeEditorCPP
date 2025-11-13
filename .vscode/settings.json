@@ -126,6 +126,12 @@
         "mprealsupport": "cpp",
         "fft": "cpp",
         "*.evaluator": "cpp",
-        "*.traits": "cpp"
+        "*.traits": "cpp",
+        "cholmodsupport": "cpp",
+        "core": "cpp",
+        "pastixsupport": "cpp",
+        "threadpool": "cpp",
+        "matrixfunctions": "cpp",
+        "*.main": "cpp"
     }
 }

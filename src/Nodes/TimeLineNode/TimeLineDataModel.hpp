@@ -17,6 +17,7 @@
 #include "TimeLineNodeModel.h"
 #include "BasePluginLoader.h"
 #include "ConstantDefines.h"
+#include "TimelineInterface.hpp"
 #include "OSCSender/OSCSender.h"
 
 using namespace NodeDataTypes;
@@ -47,11 +48,11 @@ public:
         CaptionVisible=true;
         Caption="TimeLineNode";
         WidgetEmbeddable= false;
-        Resizable= true;
+        Resizable= false;
         PortEditable=true;
         model = new TimeLineNodeModel();
-        widget=new TimelineNodeWidget(model);;
-        auto toolbar=dynamic_cast<TimeLineNodeToolBar*>(widget->toolbar);
+        widget=new Nodes::TimelineInterface(model);
+        auto toolbar=dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar);
         if (toolbar!= nullptr){
             auto allActions=toolbar->allActions();
             for (auto& action:allActions){
@@ -63,11 +64,14 @@ public:
             }
         }
 
-
+        NodeDelegateModel::registerOSCControl("/start", widget->startButton);
+        NodeDelegateModel::registerOSCControl("/stop", widget->stopButton);
+        NodeDelegateModel::registerOSCControl("/pause", widget->pauseButton);
     }
 
     ~TimeLineDataModel()
     {
+        model->onStopPlay();
     }
 public:
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
@@ -139,7 +143,7 @@ public:
                         break;
                     case 3:
 
-                        widget->toolbar->allActions()["loop"]->setChecked(b);
+                        widget->timeline->toolbar->allActions()["loop"]->setChecked(b);
                         break;
                 }
             }
@@ -186,7 +190,7 @@ private Q_SLOTS:
 
 private:
     TimeLineNodeModel* model;
-    TimelineNodeWidget  *widget;
+    Nodes::TimelineInterface  *widget;
     unordered_map<unsigned int, QVariant> in_dictionary;
     unordered_map<unsigned int, QVariant> out_dictionary;
     QString value;

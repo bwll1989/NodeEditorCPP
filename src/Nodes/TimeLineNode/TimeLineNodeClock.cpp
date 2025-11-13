@@ -77,7 +77,7 @@ void TimeLineNodeClock::setCurrentFrame(qint64 frame)
         m_timer->resume();
     }
 
-//    updateTimecode();
+    updateTimecode();
 }
 
 void TimeLineNodeClock::setCurrentTimecode(const TimeCodeFrame& timecode)

@@ -25,7 +25,7 @@ void TimeLineNodeToolBar::createActions()
     m_playAction = new QAction(this);
     m_playAction->setIcon(QIcon(":/icons/icons/play.png"));
     m_playAction->setToolTip(tr("Play"));
-
+    m_playAction->setShortcut(QKeySequence(Qt::Key_Space));
     connect(m_playAction, &QAction::triggered, [this]() {
         m_isPlaying = !m_isPlaying;
         m_playAction->setIcon(QIcon(m_isPlaying ? ":/icons/icons/pause.png" : ":/icons/icons/play.png"));
@@ -60,22 +60,24 @@ void TimeLineNodeToolBar::createActions()
     m_nextFrameAction = new QAction(this);
     m_nextFrameAction->setIcon(QIcon(":/icons/icons/rewind-forward.png"));
     m_nextFrameAction->setToolTip(tr("Next Frame"));
+    m_nextFrameAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Right));
     connect(m_nextFrameAction, &QAction::triggered, this, &TimeLineNodeToolBar::nextFrameClicked);
 
     m_previousFrameAction = new QAction(this);
 
     m_previousFrameAction->setIcon(QIcon(":/icons/icons/rewind-back.png"));
+    m_previousFrameAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_Left));
     m_previousFrameAction->setToolTip(tr("Previous Frame"));
     connect(m_previousFrameAction, &QAction::triggered, this, &TimeLineNodeToolBar::prevFrameClicked);
 
     m_nextMediaAction = new QAction(this);
-
+    m_nextMediaAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Right));
     m_nextMediaAction->setIcon(QIcon(":/icons/icons/play-next.png"));
     m_nextMediaAction->setToolTip(tr("Next Media"));
     // connect(m_nextMediaAction, &QAction::triggered, this, &TimeLineNodeToolBar::nextMediaClicked);
 
     m_previousMediaAction = new QAction(this);
-
+    m_previousMediaAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_Left));
     m_previousMediaAction->setIcon(QIcon(":/icons/icons/play-previous.png"));
     m_previousMediaAction->setToolTip(tr("Previous Media"));
     // connect(m_previousMediaAction, &QAction::triggered, this, &TimeLineNodeToolBar::previousMediaClicked);

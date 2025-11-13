@@ -735,6 +735,7 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
                     onOutPortDataUpdated(restoredNodeId, portIndex);
                 });
         model->setNodeID(restoredNodeId);
+        model->setParentAlias(modelAlias());
         _models[restoredNodeId] = std::move(model);
 
         Q_EMIT nodeCreated(restoredNodeId);

@@ -33,7 +33,7 @@ namespace Nodes
             CaptionVisible=true;
             Caption=PLUGIN_NAME;
             WidgetEmbeddable= false;
-            Resizable=false;
+            Resizable=true;
             PortEditable= false;
             //        libpd_init();
             //        libpd_init_audio(2, 2, 44100);

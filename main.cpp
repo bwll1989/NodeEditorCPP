@@ -16,7 +16,7 @@
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "ConstantDefines.h"
-
+#include <QtWebEngineQuick/QtWebEngineQuick>
 
 /**
  * @brief 生成单实例共享内存的唯一键
@@ -147,7 +147,7 @@ int main(int argc, char *argv[])
     // 创建Qt应用程序实例
     QApplication app(argc, argv);
     app.setApplicationName(AppConstants::PRODUCT_NAME);
-    
+     QtWebEngineQuick::initialize();
     // 设置工作目录为可执行文件所在目录
     QDir::setCurrent(QCoreApplication::applicationDirPath());
     
