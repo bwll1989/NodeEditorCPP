@@ -51,6 +51,15 @@ void MainWindow::init()
     m_DockManager->setStyleSheet("");
 
     m_DockManager->setDockWidgetToolBarStyle(Qt::ToolButtonStyle::ToolButtonTextOnly,CDockWidget::eState::StateDocked);
+    // 终端显示控件
+    auto *logDockViewer= new ads::CDockWidget("终端显示");
+    logTable=new LogWidget();
+    log=new LogHandler(logTable);
+    logDockViewer->setWidget(logTable);
+    logDockViewer->setIcon(QIcon(":/icons/icons/bug.png"));
+    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, logDockViewer);
+    emit initStatus("Initialization console widget");
+    // 菜单条控件
     menuBar=new MenuBarWidget(this);
     this->setCentralWidget(m_DockManager);
     emit initStatus("Initialization ADS success");
@@ -88,14 +97,7 @@ void MainWindow::init()
      // 添加到菜单栏
      emit initStatus("Initialization Timeline editor");
 
-// 终端显示控件
-    auto *logDockViewer= new ads::CDockWidget("终端显示");
-    logTable=new LogWidget();
-    log=new LogHandler(logTable);
-    logDockViewer->setWidget(logTable);
-    logDockViewer->setIcon(QIcon(":/icons/icons/bug.png"));
-    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, logDockViewer);
-    emit initStatus("Initialization console widget");
+
 
     // auto *DockView= new ads::CDockWidget("显示");
     //

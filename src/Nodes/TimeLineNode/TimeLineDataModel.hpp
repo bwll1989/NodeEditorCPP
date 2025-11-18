@@ -66,7 +66,6 @@ public:
 
         NodeDelegateModel::registerOSCControl("/start", widget->startButton);
         NodeDelegateModel::registerOSCControl("/stop", widget->stopButton);
-        NodeDelegateModel::registerOSCControl("/pause", widget->pauseButton);
     }
 
     ~TimeLineDataModel()

@@ -23,6 +23,11 @@ QJsonObject TimeLineModel::save() const
 
 void TimeLineModel::load(const QJsonObject& json)
 {
+    try { // 时钟数据加载
+        m_clock->load(json["clock"].toObject());
+    } catch (const std::exception& e) {
+        qCritical() << tr("时钟数据加载失败:\n%1").arg(e.what());
+    }
     try { // 基础数据加载
         BaseTimeLineModel::load(json);
     } catch (const std::exception& e) {
@@ -37,11 +42,7 @@ void TimeLineModel::load(const QJsonObject& json)
         return;
     }
 
-    try { // 时钟数据加载
-        m_clock->load(json["clock"].toObject());
-    } catch (const std::exception& e) {
-         qCritical() << tr("时钟数据加载失败:\n%1").arg(e.what());
-    }
+
 }
 
 void TimeLineModel::onStartPlay()

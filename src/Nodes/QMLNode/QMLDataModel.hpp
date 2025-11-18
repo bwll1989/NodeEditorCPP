@@ -35,19 +35,18 @@ namespace Nodes
             WidgetEmbeddable= false;
             Resizable=true;
             PortEditable= false;
-            //        libpd_init();
-            //        libpd_init_audio(2, 2, 44100);
-            //        libpd_set_printhook(QMLDataModel::pdPrint);
-            ////        patch=libpd_openfile("test_libpd.pd", ".");
-
+            m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+            // m_quickWidget->setSource(QUrl("qrc:qml/content/dynamicview.qml"));
+            m_quickWidget->setSource(QUrl("qrc:qml/content/main.qml"));
+            m_quickWidget->rootContext()->setContextProperty("CppBridge", this);
+            connect(widget->editButton, &QPushButton::clicked, this, &QMLDataModel::toggleEditorMode);
         }
 
-        virtual ~QMLDataModel() override{
-            //        if (patch) {
-            //            libpd_closefile(patch);
-            //            patch = nullptr;
-            //        }
-            deleteLater();
+       ~QMLDataModel() override {
+            if (m_quickWidget && m_quickWidget->isVisible()) {
+                    m_quickWidget->close();
+                }
+                // 如果窗口仍然存在，强制隐藏
 
         }
 
@@ -123,58 +122,71 @@ namespace Nodes
 
             return widget;
         }
-
-        double generateSineWave(double m_amplitude,double m_frequency,double m_time,double m_phase) {
-            return m_amplitude * qSin(2 * M_PI * m_frequency * m_time + m_phase);
+    public Q_SLOTS:
+        Q_INVOKABLE void togglePlay() {
+            qDebug() << "togglePlay";
         }
 
-        double generateSquareWave(double m_amplitude,double m_frequency,double m_time,double m_phase) {
-            return m_amplitude * (qSin(2 * M_PI * m_frequency * m_time + m_phase) >= 0 ? 1 : -1);
+
+        void toggleEditorMode() {
+            // 移除父子关系，使其成为独立窗口
+            m_quickWidget->setParent(nullptr);
+
+            // 设置为独立窗口
+            m_quickWidget->setWindowTitle("编辑器");
+
+            // 设置窗口图标
+            m_quickWidget->setWindowIcon(QIcon(":/icons/icons/js.png"));
+
+            // 设置窗口标志：独立窗口 + 置顶显示 + 关闭按钮
+            m_quickWidget->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
+
+            // 设置窗口属性：当关闭时自动删除
+            m_quickWidget->setAttribute(Qt::WA_DeleteOnClose, false); // 不自动删除，我们手动管理
+            m_quickWidget->setAttribute(Qt::WA_QuitOnClose, false);   // 关闭窗口时不退出应用程序
+
+            // 设置窗口大小和显示
+            m_quickWidget->resize(800, 400);
+            m_quickWidget->show();
+            // 激活窗口并置于前台
+            m_quickWidget->activateWindow();
+            m_quickWidget->raise();
         }
+        Q_INVOKABLE void updatePlayheadTime(const QVariantList &parts) {
+            // 提取第一个可解析的数字作为时间（秒），最后一个布尔值作为播放状态
+            double timeSec = 0.0;
+            bool hasTime = false;
+            bool isPlaying = false;
+            qDebug() << "updatePlayheadTime"<<parts;
+            for (const QVariant &p : parts) {
+                const QString s = p.toString().trimmed();
+                bool ok = false;
+                const double v = s.toDouble(&ok);
+                if (ok && !hasTime) {
+                    timeSec = v;
+                    hasTime = true;
+                } else if (s.compare("true", Qt::CaseInsensitive) == 0) {
+                    isPlaying = true;
+                } else if (s.compare("false", Qt::CaseInsensitive) == 0) {
+                    isPlaying = false;
+                }
+            }
 
-        double generateTriangleWave(double m_amplitude,double m_frequency,double m_time,double m_phase) {
-            double period = 1.0 / m_frequency;
-            double t = fmod(m_time + m_phase / (2 * M_PI * m_frequency), period);
-            double value = (4 * m_amplitude / period) * (t - period / 2.0);
-            return (value >= 0 ? 1 : -1) * qAbs(value);
+            // if (hasTime && statusLabel) {
+            //     const int ms = static_cast<int>(timeSec * 1000.0 + 0.5);
+            //     QTime base(0, 0, 0, 0);
+            //     statusLabel->setTime(base.addMSecs(ms));
+            // }
+            //
+            // if (startButton && stopButton) {
+            //     startButton->setChecked(isPlaying);
+            //     stopButton->setChecked(!isPlaying);
+            // }
         }
-
-    public slots:
-
-
-    //    void generateWave(int index) {
-    //        double value = 0.0;
-    //        WaveType waveType = static_cast<WaveType>(widget->method->itemData(index).toInt());
-    //        switch (waveType) {
-    //            case SineWave:
-    //                value = generateSineWave();
-    //                qDebug() << "Selected Sine Wave";
-    //                break;
-    //            case SquareWave:
-    //                value = generateSquareWave();
-    //                qDebug() << "Selected Square Wave";
-    //                break;
-    //            case TriangleWave:
-    //                value = generateTriangleWave();
-    //                qDebug() << "Selected Triangle Wave";
-    //                break;
-    //        }
-    //    }
-
-    //    void generateSineWave() {
-    //        double value = m_amplitude * qSin(2 * M_PI * m_frequency * m_time + m_phase);
-    //        qDebug() << "Sine wave value:" << value;
-    //        m_time += 1.0 / m_sampleRate;
-    //    }
     public:
         QMLInterface *widget=new QMLInterface();
         shared_ptr<VariableData> inData;
         void *patch;
-    private:
-        static void pdPrint(const char *message)
-        {
-            // Use qDebug to output the message
-            qDebug() << "[libpd]:" << message;
-        }
+        QQuickWidget *m_quickWidget=new QQuickWidget();
     };
 }

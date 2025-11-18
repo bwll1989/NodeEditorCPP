@@ -23,13 +23,13 @@ namespace Nodes
             this->setLayout(mainlayout);
             this->layout()->setContentsMargins(0,0,0,0);
             startButton = new QPushButton("启动");
-            pauseButton = new QPushButton("暂停");
             stopButton  = new QPushButton("停止");
             statusLabel = new QTimeEdit(this);
             statusLabel->setDisplayFormat("hh:mm:ss:zzz");
             statusLabel->setAlignment(Qt::AlignCenter);
             statusLabel->setTime(QTime(0,0,0,0));
             statusLabel->setReadOnly(true);
+            statusLabel->setButtonSymbols(QAbstractSpinBox::NoButtons);
             // 设置字体加粗并放大
             QFont font = statusLabel->font();
             font.setBold(true);
@@ -38,8 +38,9 @@ namespace Nodes
             
             mainlayout->addWidget(statusLabel,0,0,1,3);
             mainlayout->addWidget(startButton,1,0,1,1);
-            mainlayout->addWidget(pauseButton,1,1,1,1);
-            mainlayout->addWidget(stopButton,1,2,1,1);
+            mainlayout->addWidget(stopButton,1,1,1,1);
+            startButton->setCheckable(true);
+            stopButton->setCheckable(true);
             // 创建编辑图标按钮（更小尺寸）
             editButton = new QPushButton("显示编辑器");
             editButton->setToolTip("编辑脚本");
@@ -49,7 +50,6 @@ namespace Nodes
             connect(editButton, &QToolButton::clicked, this, &TimelineInterface::toggleEditorMode);
             // 连接控制按钮到模型
             connect(startButton, &QPushButton::clicked, this, &TimelineInterface::onStartClicked);
-            connect(pauseButton, &QPushButton::clicked, this, &TimelineInterface::onPauseClicked);
             connect(stopButton,  &QPushButton::clicked, this, &TimelineInterface::onStopClicked);
 
             // 监听时钟播放状态变化，自动更新状态
@@ -119,16 +119,6 @@ namespace Nodes
         }
 
         /**
-         * @brief 暂停播放按钮的槽函数
-         * 调用模型的 onPausePlay 并更新状态文本
-         */
-        void onPauseClicked() {
-            if (timeline && timeline->model) {
-                timeline->model->onPausePlay();
-            }
-        }
-
-        /**
          * @brief 停止播放按钮的槽函数
          * 调用模型的 onStopPlay 并更新状态与按钮
          */
@@ -148,13 +138,12 @@ namespace Nodes
          */
         void onPlaybackStateChanged(bool isPlaying) {
             if (isPlaying) {
-                startButton->setEnabled(false);
-                pauseButton->setEnabled(true);
-                stopButton->setEnabled(true);
+                startButton->setChecked(true);
+                stopButton->setChecked(false);
             } else {
-                startButton->setEnabled(true);
-                pauseButton->setEnabled(true);
-                stopButton->setEnabled(true);
+                startButton->setChecked(false);
+                stopButton->setChecked(true);
+                statusLabel->setTime(QTime(0,0,0,0));
             }
         }
 
@@ -162,9 +151,9 @@ namespace Nodes
          * @brief 监听播放完成事件，自动更新状态为停止
          */
         void onPlaybackFinished() {
-            startButton->setEnabled(true);
-            pauseButton->setEnabled(false);
-            stopButton->setEnabled(false);
+            startButton->setChecked(false);
+            stopButton->setChecked(true);
+
         }
 
     public:
@@ -172,7 +161,6 @@ namespace Nodes
         QPushButton *editButton; // 编辑按钮
         TimelineNodeWidget  *timeline;
         QPushButton *startButton;
-        QPushButton *pauseButton;
         QPushButton *stopButton;
         QTimeEdit *statusLabel;
     };

@@ -4,11 +4,10 @@ import QtQuick.Controls 2.12
 import QtQuick.Layouts 1.12
 import QtWebEngine
 
-Window {
+Rectangle {
     visible: true
     width: 860
     height: 440
-    title: qsTr("Timeline Editor")
 
     property string savedData: ""
 
@@ -21,16 +20,17 @@ Window {
             Layout.fillWidth: true
             Layout.fillHeight: true
             url: "qrc:qml/content/main.html"
-            
-            onLoadingChanged: function(loadRequest) {
-                if (loadRequest.status === WebEngineLoadRequest.LoadSucceededStatus) {
+
+            // 函数级注释：页面加载状态变化回调，在加载成功时注册时间轴事件监听
+            onLoadingChanged: function(loadingInfo) {
+                if (loadingInfo.status === WebEngineLoadingInfo.LoadSucceededStatus) {
                     console.log("Timeline editor loaded successfully")
-                    
-                    // Add event listener
+
+                    // 注册事件监听，向 C++ 同步播放头时间与状态
                     webView.runJavaScript(`
                         timeline.addEventListener('playheadTimeChange', function(data) {
-                            console.log("event.playheadTimeChange:", 
-                                data.time.toFixed(2), 
+                            console.log("event.playheadTimeChange:",
+                                data.time.toFixed(2),
                                 data.value.toFixed(2),
                                 data.isPlaying);
                         });
@@ -38,7 +38,7 @@ Window {
                 }
             }
 
-            // Receive console output from WebView
+            // 接收 WebView 的 console 输出
             onJavaScriptConsoleMessage: function(level, message, lineNumber, sourceId) {
 
                 // Split the message into parts
@@ -48,6 +48,8 @@ Window {
                 if (level===0 && parts[0] == "event.playheadTimeChange:") {
                     valueDisplay.text = parts[1] + " s  " + parts[2] + " %";
                     valueDisplay.color = parts[3] === "true" ? "#FFFFFF" : "#666666";
+                    // 同步给 C++ 顶部控件（QTimeEdit / 按钮状态）
+                    CppBridge.updatePlayheadTime(parts);
                 }
             }
         }
@@ -105,7 +107,7 @@ Window {
                     font.family: "Monaco"
                     font.pointSize: 12
                     Layout.fillWidth: true
-                    horizontalAlignment: Text.AlignRight
+                    horizontalAlignment: Text.AlignLeft
                 }
             }
         }
