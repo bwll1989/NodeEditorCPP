@@ -81,6 +81,7 @@ QList<QVariantMap> TimeLineNodeModel::onGetClipCurrentData(qint64 currentFrame) 
     // 遍历所有轨道
     for (TrackData* track : getTracks()) {
         // 遍历轨道中的所有片段
+
         for (AbstractClipModel* clip : track->clips) {
             // 检查当前帧是否在片段范围内
             if (currentFrame >= clip->start() && currentFrame <= clip->end()) {

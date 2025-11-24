@@ -2,8 +2,7 @@
 // Created by bwll1 on 2024/8/29.
 //
 
-#ifndef NODEEDITORCPP_CUSTOMSPLASHSCREEN_HPP
-#define NODEEDITORCPP_CUSTOMSPLASHSCREEN_HPP
+#pragma once
 #include <QSplashScreen>
 #include <QTimer>
 #include <QPainter>
@@ -31,5 +30,3 @@ private:
     QSplashScreen *splash;
 };
 
-
-#endif //NODEEDITORCPP_CUSTOMSPLASHSCREEN_HPP

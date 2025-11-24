@@ -2,8 +2,7 @@
 // Created by bwll1 on 2024/10/5.
 //
 
-#ifndef NODEEDITORCPP_NODELIBRARYWIDGET_H
-#define NODEEDITORCPP_NODELIBRARYWIDGET_H
+#pragma once
 #include "QWidget"
 #include "QVBoxLayout"
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
@@ -39,5 +38,3 @@ private:
 
 };
 
-
-#endif //NODEEDITORCPP_NODELIBRARYWIDGET_H

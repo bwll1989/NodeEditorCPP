@@ -132,6 +132,7 @@
         "pastixsupport": "cpp",
         "threadpool": "cpp",
         "matrixfunctions": "cpp",
-        "*.main": "cpp"
+        "*.main": "cpp",
+        "qcontextmenuevent": "cpp"
     }
 }

@@ -1,5 +1,5 @@
-#ifndef STAGEWIDGET_HPP
-#define STAGEWIDGET_HPP
+#pragma once
+
 
 #include <QWidget>
 #include <QDockWidget>
@@ -29,5 +29,3 @@ private:
     QVBoxLayout *m_layout;
     TimeLineStage* m_stage;
 };
-
-#endif // STAGEWIDGET_HPP

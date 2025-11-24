@@ -125,6 +125,7 @@ add_subdirectory(src/Common/Devices/ArtnetSender)
 add_subdirectory(src/Common/Devices/TimestampGenerator)
 add_subdirectory(src/Common/Devices/MediaLibrary)
 add_subdirectory(src/Common/Devices/ModelDataBridge)
+add_subdirectory(src/Common/GUI/DelayListWidget)
 add_subdirectory(src/Common/BuildInNodes)
 add_subdirectory(src/DataTypes)
 set(CALC_SOURCE_FILES
@@ -324,6 +325,7 @@ target_link_libraries(${ProjectName}
             TimestampGenerator
             MediaManger
             ModelDataBridge
+            DelayListWidget
 )
 
 #add_library(singleton SHARED ${CALC_SOURCE_FILES})

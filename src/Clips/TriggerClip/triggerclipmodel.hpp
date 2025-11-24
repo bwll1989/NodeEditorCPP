@@ -49,6 +49,7 @@ namespace Clips
 
 
         QVariantMap currentData(int currentFrame) const override {
+            qDebug() << "clip current frame " << currentFrame<<m_start<<m_end;
             if(currentFrame >= m_start && currentFrame <= m_end){
                 const_cast<TriggerClipModel*>(this)->trigger();
             }
@@ -79,6 +80,7 @@ namespace Clips
         void trigger(){
             auto messages = m_listWidget->getOSCMessages();
             for(auto message : messages){
+
                 OSCSender::instance()->sendOSCMessageWithQueue(message);
             }
         }

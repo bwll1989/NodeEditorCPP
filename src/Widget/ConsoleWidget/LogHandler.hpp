@@ -2,8 +2,7 @@
 // Created by bwll1 on 2024/9/19.
 //
 
-#ifndef NODEEDITORCPP_LOGHANDLER_HPP
-#define NODEEDITORCPP_LOGHANDLER_HPP
+#pragma once
 
 #include <QTextBrowser>
 #include <QVBoxLayout>
@@ -58,5 +57,3 @@ private:
      */
     static LogWidget *logTableWidget;
 };
-
-#endif //NODEEDITORCPP_LOGHANDLER_HPP

@@ -1,5 +1,4 @@
-#ifndef LOGWIDGET_HPP
-#define LOGWIDGET_HPP
+#pragma once
 
 #include <QTableWidget>
 #include <QMenu>
@@ -53,4 +52,3 @@ private:
     int m_maxLogEntries = 200; // 默认最大日志条目数
     QString m_currentFilter = "All"; // 当前过滤级别
 };
-#endif // LOGWIDGET_HPP

@@ -2,8 +2,8 @@
 // Created by 吴斌 on 2024/1/17.
 //
 
-#ifndef NODEEDITORCPP_ABOUTWIDGET_HPP
-#define NODEEDITORCPP_ABOUTWIDGET_HPP
+#pragma once
+
 #include <QApplication>
 #include <QDialog>
 #include <QVBoxLayout>
@@ -43,4 +43,3 @@ private:
         }
     }
 };
-#endif //NODEEDITORCPP_ABOUTWIDGET_HPP
