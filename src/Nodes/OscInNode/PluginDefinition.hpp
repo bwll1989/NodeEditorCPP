@@ -12,7 +12,9 @@
 #endif
 
 #define PLUGIN_NAME "OSC Source"
-#define PLUGIN_VERSION "20241119"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "OSC输入"
 #define PLUGIN_TAG "Communications"
 class DLL_EXPORT Plugin

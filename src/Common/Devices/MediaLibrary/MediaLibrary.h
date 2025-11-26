@@ -13,7 +13,7 @@
 #else
 #define MEDIAMANGER_EXPORT Q_DECL_IMPORT
 #endif
-const QString MEDIA_LIBRARY_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/MediaLibrary";
+
 /**
  * @class MediaLibrary
  * @brief 媒体库数据模型。负责分类、增删、去重、序号维护以及JSON持久化。

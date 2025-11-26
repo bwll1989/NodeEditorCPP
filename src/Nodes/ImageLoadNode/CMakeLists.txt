@@ -5,13 +5,16 @@ set(Module_Name "ImageLoadNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+string(TIMESTAMP BUILD_TS "%Y%m%d")
+# 将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
+add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 INCLUDE_DIRECTORIES(${OpenCV_DIR})
 #link_directories("${OpenCV_LIBRARIES}")
 add_library(${Module_Name} SHARED
         ImageLoaderModel.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} ${OpenCV_LIBRARIES} MediaManger GUIElements)
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} ${OpenCV_LIBRARIES} MediaManger GUIElements OSCTransmitter Qt${QT_VERSION_MAJOR}::Network)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

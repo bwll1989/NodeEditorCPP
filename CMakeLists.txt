@@ -3,7 +3,9 @@ cmake_minimum_required(VERSION 3.10)
 set(ProjectName "NodeStudio")
 project(${ProjectName} VERSION 1.1 LANGUAGES CXX)
 # set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
-
+string(TIMESTAMP BUILD_TS "%Y%m%d")
+# 函数级注释：将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
+add_definitions(-DPRODUCT_VERSION="${BUILD_TS}")
 # 设置所有目标的默认输出目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -108,10 +110,10 @@ INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 #INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
 
 # 设置QT库
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets WebEngineWidgets WebEngineQuick)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
         QmlWorkerScript
-        QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets WebEngineWidgets WebEngineQuick)
+        QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets )
 #分组模块
 # 添加Clips模块
 add_subdirectory(src/Clips)
@@ -295,8 +297,6 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::OpenGL
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
             Qt${QT_VERSION_MAJOR}::WebSockets
-            Qt${QT_VERSION_MAJOR}::WebEngineWidgets
-            Qt${QT_VERSION_MAJOR}::WebEngineQuick
             GUIElements
             avcodec
             avdevice

@@ -108,7 +108,7 @@ void DelayMessageListWidget::dropEvent(QDropEvent* event)
         // 反序列化消息数据
         QByteArray data = mimeData->data("application/x-delay-message");
         QDataStream stream(data);
-        stream >> message.port >> message.time>> message.command;
+        stream >> message.port >> message.time;
 
         // 添加消息到列表
         addDelayMessage(message);
@@ -146,7 +146,7 @@ void DelayMessageListWidget::mouseMoveEvent(QMouseEvent* event)
     
     QByteArray itemData;
     QDataStream dataStream(&itemData, QIODevice::WriteOnly);
-    dataStream << message.port <<  message.time << message.command;
+    dataStream << message.port <<  message.time;
     
     QMimeData* mimeData = new QMimeData;
     mimeData->setData("application/x-delay-message", itemData);
@@ -191,7 +191,6 @@ QJsonObject DelayMessageListWidget::messageToJson(const delay_item& message)
 
     messageJson["port"] = message.port;
     messageJson["time"] = message.time;
-    messageJson["command"] = message.command;
     return messageJson;
 }
 
@@ -200,7 +199,6 @@ delay_item DelayMessageListWidget::jsonToMessage(const QJsonObject& json)
     delay_item message;
     message.port = json["port"].toInt();
     message.time = json["time"].toInt();
-    message.command = json["command"].toString();
     return message;
 }
 

@@ -12,7 +12,9 @@
 #endif
 
 #define PLUGIN_NAME "Internal Commands"
-#define PLUGIN_VERSION "20250717"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "内部控制"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin

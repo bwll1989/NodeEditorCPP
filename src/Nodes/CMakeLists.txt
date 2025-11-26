@@ -19,7 +19,7 @@ set(ALL_NODES
     LogicOperationNode                        #逻辑操作模块
     MathOperationNode                         #数学操作模块
     LFONode                                   #LFO模块
-    QMLNode                                   #QML模块
+    CurveNode                                   #曲线模块
     AudioDecoderNode                          #音频解码模块
     AudioDeviceOutNode                        #音频输出模块
     HotKeyNode                                #热键模块
@@ -39,7 +39,7 @@ set(ALL_NODES
     ArtnetInNode                              #Arnet输入
     MpvControllerNode                         #mpv控制
     SwitchNode                                #输入切换
-    NDVControlNode                            #NDV控制
+        NDVServerNode                            #NDV控制
     ConditionNode                             #条件判断
     WebSocketServerNode                       #WebSocket服务器
     WebSocketClientNode                       #WebSocket客户端
@@ -105,7 +105,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(LogicOperationNode)                        #逻辑操作模块
     add_subdirectory(MathOperationNode)                         #数学操作模块
     add_subdirectory(LFONode)                                   #LFO模块
-    add_subdirectory(QMLNode)                                   #QML模块
+    add_subdirectory(CurveNode)                                   #QML模块
     add_subdirectory(AudioDecoderNode)                          #音频解码模块
     add_subdirectory(AudioDeviceOutNode)                        #音频输出模块
     add_subdirectory(HotKeyNode)                                #热键模块
@@ -125,7 +125,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(ArtnetInNode)                              #Arnet输入
     add_subdirectory(MpvControllerNode)                         #mpv控制
     add_subdirectory(SwitchNode)                                #输入切换
-    add_subdirectory(NDVControlNode)                            #NDV控制
+    add_subdirectory(NDVServerNode)                            #NDV控制
     add_subdirectory(ConditionNode)                             #条件判断
     add_subdirectory(WebSocketServerNode)                       #WebSocket服务器
     add_subdirectory(WebSocketClientNode)                       #WebSocket客户端

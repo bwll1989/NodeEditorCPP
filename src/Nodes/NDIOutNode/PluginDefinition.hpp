@@ -13,7 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "NDI Out"
-#define PLUGIN_VERSION "20250922"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "NDI输出"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin

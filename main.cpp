@@ -36,10 +36,11 @@ static QString makeSingleInstanceKey() {
 /**
  * @brief 设置应用程序基本信息
  * 配置应用程序的显示名称、版本号、组织名称和域名
+ * @note 版本号从 PRODUCT_VERSION 宏获取，若未定义则使用默认值 "dev"
  */
 void setupAppInfo() {
     QApplication::setApplicationDisplayName(AppConstants::PRODUCT_NAME);
-    QApplication::setApplicationVersion(AppConstants::PRODUCT_VERSION);
+    QApplication::setApplicationVersion(PRODUCT_VERSION);
     QApplication::setOrganizationName(AppConstants::COMPANY_NAME);
     QApplication::setOrganizationDomain("www.qt.com");
 }
@@ -147,7 +148,7 @@ int main(int argc, char *argv[])
     // 创建Qt应用程序实例
     QApplication app(argc, argv);
     app.setApplicationName(AppConstants::PRODUCT_NAME);
-     QtWebEngineQuick::initialize();
+     // QtWebEngineQuick::initialize();
     // 设置工作目录为可执行文件所在目录
     QDir::setCurrent(QCoreApplication::applicationDirPath());
     

@@ -13,7 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "PJLink"
-#define PLUGIN_VERSION "20250803"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "PJLink 输出"
 #define PLUGIN_TAG "Communications"
 class DLL_EXPORT Plugin

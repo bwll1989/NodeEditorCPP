@@ -17,7 +17,7 @@
 #include <mutex>
 #include <QDir>
 #include <QRegularExpression>
-
+#include "ConstantDefines.h"
 LogHandler::LogHandler(LogWidget *tableWidget) {
     // 设置静态成员
     LogHandler::logTableWidget = tableWidget;
@@ -35,8 +35,8 @@ LogHandler::~LogHandler() {
 bool LogHandler::initLogHandler() {
     // 初始化 spdlog 日志器
     try{
-        QDir().mkpath("logs");
-        std::string logFilePath = ("logs/log.txt");
+        QDir().mkpath(AppConstants::LOGS_STORAGE_DIR);
+        std::string logFilePath = (AppConstants::LOGS_STORAGE_DIR.toStdString()+"/log.txt");
         
         // 使用rotating_file_sink替代daily_file_sink，可以限制日志文件大小和数量
         auto dailySink = std::make_shared<spdlog::sinks::daily_file_sink_mt>(logFilePath, 0, 0);

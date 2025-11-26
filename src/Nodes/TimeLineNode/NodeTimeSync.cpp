@@ -8,8 +8,8 @@ NodeTimeSync::NodeTimeSync(QObject *parent)
     , speed(1.0)
     , isPaused(true)
 {
-    // 设置定时广播，20ms间隔
-    broadcastTimer->setInterval(40);
+    // 设置时间检查器，10ms间隔
+    broadcastTimer->setInterval(10);
     connect(broadcastTimer, &QTimer::timeout, this, &NodeTimeSync::broadcastTime);
     // 启动时就开始广播
     broadcastTimer->start();

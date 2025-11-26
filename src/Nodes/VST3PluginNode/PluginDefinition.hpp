@@ -13,7 +13,9 @@
 
 
 #define PLUGIN_NAME "VST3 Plugin"
-#define PLUGIN_VERSION "20240410"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "VST3插件"
 #define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin

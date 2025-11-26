@@ -12,7 +12,9 @@
 #endif
 
 #define PLUGIN_NAME "LTC Decoder"
-#define PLUGIN_VERSION "20250925"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "LTC 时间码解析"
 #define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin

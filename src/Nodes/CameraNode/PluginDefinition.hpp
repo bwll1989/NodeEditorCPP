@@ -12,7 +12,9 @@
 #endif
 
 #define PLUGIN_NAME "Camera"
-#define PLUGIN_VERSION "20240730"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "相机输入"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin

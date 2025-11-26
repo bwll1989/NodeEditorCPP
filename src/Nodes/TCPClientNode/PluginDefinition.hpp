@@ -13,7 +13,10 @@
 #endif
 
 #define PLUGIN_NAME "TCP Client"
-#define PLUGIN_VERSION "20250707"
+// 版本宏的默认值；若构建系统已注入，则使用注入值
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "TCP客户端"
 #define PLUGIN_TAG "Communications"
 class DLL_EXPORT Plugin

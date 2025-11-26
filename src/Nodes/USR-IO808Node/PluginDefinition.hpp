@@ -13,7 +13,10 @@
 #endif
 
 #define PLUGIN_NAME "USR-IO808"
-#define PLUGIN_VERSION "1.0"
+// 版本宏的默认值；若构建系统已注入，则使用注入值
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "USR-IO808工业IO控制器，支持8路数字输入和8路继电器输出"
 #define PLUGIN_TAG "Devices"
 class DLL_EXPORT Plugin

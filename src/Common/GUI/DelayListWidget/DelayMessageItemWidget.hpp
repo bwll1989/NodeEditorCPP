@@ -16,7 +16,6 @@
 struct DELAYLISTWIDGET_EXPORT delay_item {
     int port = 0;
     int time = 0;
-    QString command="";
 };
 class DELAYLISTWIDGET_EXPORT DelayMessageItemWidget : public QWidget {
     Q_OBJECT
@@ -35,8 +34,6 @@ signals:
 private:
     QSpinBox* portIndex;
     QLineEdit* timeEdit;
-    QLineEdit* commandEdit;
     void setupUI();
-    void connectSignals();
 
 };

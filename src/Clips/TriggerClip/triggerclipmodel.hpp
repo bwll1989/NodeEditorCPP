@@ -49,7 +49,6 @@ namespace Clips
 
 
         QVariantMap currentData(int currentFrame) const override {
-            qDebug() << "clip current frame " << currentFrame<<m_start<<m_end;
             if(currentFrame >= m_start && currentFrame <= m_end){
                 const_cast<TriggerClipModel*>(this)->trigger();
             }

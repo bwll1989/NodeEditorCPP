@@ -13,7 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "Python Script"
-#define PLUGIN_VERSION "20250701"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "Python 脚本"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin

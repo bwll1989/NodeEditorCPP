@@ -6,7 +6,7 @@ DelayMessageItemWidget::DelayMessageItemWidget(QWidget* parent)
     : QWidget(parent)
 {
     setupUI();
-    connectSignals();
+
 }
 
 void DelayMessageItemWidget::setupUI()
@@ -34,12 +34,6 @@ void DelayMessageItemWidget::setupUI()
     layout->addWidget(new QLabel("Delay:"));
     layout->addWidget(timeEdit);
     layout->addWidget(new QLabel("ms"));
-    // Command
-    commandEdit = new QLineEdit(this);
-    commandEdit->setPlaceholderText("Command");
-    commandEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-    layout->addWidget(commandEdit);
-
     layout->addWidget(moveLabel);
     
     // 设置弹性布局比例
@@ -53,20 +47,13 @@ void DelayMessageItemWidget::setupUI()
 
 }
 
-void DelayMessageItemWidget::connectSignals()
-{
-
-    connect(timeEdit, &QLineEdit::textChanged, this, &DelayMessageItemWidget::messageChanged);
-}
-
-
 delay_item DelayMessageItemWidget::getMessage() const
 {
     delay_item message;
 
     message.port = portIndex->value();
     message.time = timeEdit->text().toInt();
-    message.command = commandEdit->text();
+
     return message;
 }
 
@@ -74,7 +61,7 @@ void DelayMessageItemWidget::setMessage(const delay_item& message)
 {
     portIndex->setValue(message.port);
     timeEdit->setText(QString::number(message.time));
-    commandEdit->setText(message.command);
+
 }
 
 

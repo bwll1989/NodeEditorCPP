@@ -13,8 +13,12 @@
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
+
+#include "ConstantDefines.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
+#include "OSCMessage.h"
+#include "OSCSender/OSCSender.h"
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using namespace NodeDataTypes;
@@ -115,12 +119,20 @@ namespace Nodes
         //
         //     return false;
         // }
+        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
+            OSCMessage message;
+            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+            message.value = value;
+            OSCSender::instance()->sendOSCMessageWithQueue(message);
+        }
     private:
         void loadImage(QString fileName){
     
             if (!fileName.isEmpty()) {
-                m_path=MEDIA_LIBRARY_STORAGE_DIR+"/"+fileName;
+                m_path= AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+fileName;
                 m_outImageData = std::make_shared<ImageData>(m_path);
                 if (m_outImageData && !m_outImageData->image().isNull()) {
                     // _label->setPixmap(m_outImageData->pixmap().scaled(_label->width(), _label->height(), Qt::KeepAspectRatio));

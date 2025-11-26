@@ -12,8 +12,10 @@
 #endif
 
 #define PLUGIN_NAME "CutImage"
-#define PLUGIN_VERSION "20240730"
-#define PLUGIN_DESCRIBE "延时"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
+#define PLUGIN_DESCRIBE "裁剪图像"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin
     : public QObject

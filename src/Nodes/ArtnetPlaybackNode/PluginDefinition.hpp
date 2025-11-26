@@ -12,7 +12,9 @@
 #endif
 
 #define PLUGIN_NAME "Artnet Playback"
-#define PLUGIN_VERSION "20250821"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "Artnet数据回放"
 #define PLUGIN_TAG "DMX"
 class DLL_EXPORT Plugin

@@ -39,7 +39,20 @@ QPushButton:pressed {
     padding-left: 2px;
     background-color: #1e1d23;
 }
+QPushButton:checked {
+    border-style: solid;
+    border-left-color: #2e7d32;   /* 绿色左边框，与背景一致 */
+    border-left-width: 2px;
+    padding-left: 2px;
+    background-color: #2e7d32;    /* 绿色背景 */
+    color: #ffffff;               /* 文本改为白色以增强对比 */
+}
 
+/* 鼠标悬停在已选中按钮时略微亮一些 */
+QPushButton:checked:hover {
+    background-color: #388e3c;    /* 更亮的绿色 */
+    border-left-color: #388e3c;
+}
 QPushButton:disabled {
     border-style: solid;
     border-width: 0px;

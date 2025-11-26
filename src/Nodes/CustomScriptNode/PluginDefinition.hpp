@@ -12,7 +12,9 @@
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
-
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 /**
  * @brief 动态JS插件注册器
  * 根据JS文件中的元数据动态注册插件，使用工厂模式创建节点实例

@@ -12,7 +12,9 @@
 #endif
 
 #define PLUGIN_NAME "Artnet Out"
-#define PLUGIN_VERSION "20250707"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "Artnet输出"
 #define PLUGIN_TAG "DMX"
 class DLL_EXPORT Plugin

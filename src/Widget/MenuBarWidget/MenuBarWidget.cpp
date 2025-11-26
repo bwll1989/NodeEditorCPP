@@ -59,7 +59,7 @@ void MenuBarWidget::setupMenu() {
     Setting_2->setIcon(QIcon(":/icons/icons/setting.png"));
 
     Plugins_menu = this->addMenu("插件");
-    pluginsManagerAction = Plugins_menu->addAction("插件管理");
+    pluginsManagerAction = Plugins_menu->addAction("节点管理");
     pluginsManagerAction->setIcon(QIcon(":/icons/icons/plugins.png"));
     pluginsFloderAction =Plugins_menu->addAction("打开插件目录");
     pluginsFloderAction->setIcon(QIcon(":/icons/icons/open_flat.png"));
@@ -153,7 +153,7 @@ void MenuBarWidget::openToolWithArgs(const QString& exePath, const QStringList& 
 //软件关于
 void MenuBarWidget::showAboutDialog() {
 
-    AboutWidget aboutDialog(":/docs/README.txt");
+    AboutWidget aboutDialog(":/docs/README.md");
     //    关于窗口显示文档设置
     aboutDialog.exec();
 }

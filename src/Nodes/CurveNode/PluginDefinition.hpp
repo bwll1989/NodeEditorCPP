@@ -5,15 +5,18 @@
 #include <QtNodes/PluginInterface>
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef QMLNode_EXPORTS
+#ifdef CurveNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "QML"
-#define PLUGIN_VERSION "20240802"
-#define PLUGIN_DESCRIBE "QML"
+#define PLUGIN_NAME "Curve"
+// 版本宏的默认值；若构建系统已注入，则使用注入值
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
+#define PLUGIN_DESCRIBE "2D Curve Node"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject

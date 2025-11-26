@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)
 set(SMTG_ADD_VST3_HOSTING_SAMPLES 0)
 set(SMTG_ADD_VST3_HOSTING_SAMPLES 0 CACHE INTERNAL "")
+string(TIMESTAMP BUILD_TS "%Y%m%d")
+# 函数级注释：将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
+add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 # 设置VST3库
 set(VST3_DIR "${DEPENDS_DIR}/vst-sdk_3.7.14_build-55_2025-06-23/VST_SDK/vst3sdk")
 set(VST3_LIBRARIES_DIR "${DEPENDS_DIR}/vst-sdk_3.7.14_build-55_2025-06-23/VST_SDK/build/lib/Release")

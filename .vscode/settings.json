@@ -133,6 +133,8 @@
         "threadpool": "cpp",
         "matrixfunctions": "cpp",
         "*.main": "cpp",
-        "qcontextmenuevent": "cpp"
+        "qcontextmenuevent": "cpp",
+        "qtreeview": "cpp",
+        "qdesktopservices": "cpp"
     }
 }

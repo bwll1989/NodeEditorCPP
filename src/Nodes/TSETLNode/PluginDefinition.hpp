@@ -13,7 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "TSETL"
-#define PLUGIN_VERSION "20250803"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "TSETL 接口"
 #define PLUGIN_TAG "Devices"
 class DLL_EXPORT Plugin

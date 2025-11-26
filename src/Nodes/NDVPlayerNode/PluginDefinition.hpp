@@ -12,7 +12,9 @@
 #endif
 
 #define PLUGIN_NAME "NDV Player"
-#define PLUGIN_VERSION "20250707"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "NDV Player抽象实例"
 #define PLUGIN_TAG "Devices"
 class DLL_EXPORT Plugin

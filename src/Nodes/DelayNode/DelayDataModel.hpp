@@ -201,7 +201,6 @@ namespace Nodes
             int i = m_cursor;
             while (i < m_schedule.size() && std::max(0, m_schedule[i].time) == currentTime) {
                 const int outPort = std::max(0, m_schedule[i].port);
-                inData=std::make_shared<VariableData>(m_schedule[i].command);
                 Q_EMIT dataUpdated(outPort);
                 ++i;
             }

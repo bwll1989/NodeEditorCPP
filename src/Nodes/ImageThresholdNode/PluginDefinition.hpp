@@ -13,7 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "Threshold"
-#define PLUGIN_VERSION "20250720"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "图像二值化"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin

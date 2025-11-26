@@ -49,7 +49,7 @@ void PluginsManagerWidget::initLayout()
 
     // add button
     QPushButton *addButton = new QPushButton(QIcon(":/icons/icons/add.png"),"Add");
-    layout->addWidget(addButton, 1, 0);
+    layout->addWidget(addButton, 1, 0,1,2);
     connect(addButton, &QPushButton::clicked, this, [this]() {
         QString fileName =
                 QFileDialog::getOpenFileName(this->parentWidget(),
@@ -97,8 +97,8 @@ void PluginsManagerWidget::initLayout()
     });
 
     // delete button
-    QPushButton *deleteButton = new QPushButton(QIcon(":/icons/icons/remove.png"),"Delete", this);
-    layout->addWidget(deleteButton, 1, 1);
+    QPushButton *deleteButton = new QPushButton(QIcon(":/icons/icons/remove.png"),"Delete");
+    // layout->addWidget(deleteButton, 1, 1);
     connect(deleteButton, &QPushButton::clicked, this, [this, pluginTable]() {
         QItemSelectionModel *selectionModel = pluginTable->selectionModel();
 
@@ -146,7 +146,7 @@ void PluginsManagerWidget::loadBuildInPlugin()
 //打开插件目录
 void PluginsManagerWidget::openPluginsFolder()
 {
-     QDesktopServices::openUrl(QUrl::fromLocalFile(pluginsFolderPath()));
+     QDesktopServices::openUrl(QUrl::fromLocalFile(QDir::cleanPath(QCoreApplication::applicationDirPath() + QDir::separator() + "plugins")));
 //    QDesktopServices::openUrl(QUrl(_pluginsFolder.absolutePath()));
 }
 

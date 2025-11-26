@@ -253,7 +253,7 @@ namespace Nodes
             //                                         tr("Select WAV or MP3 File"), "/home", tr("Audio Files (*.wav *.mp3)"));
             if(fileName!="")
             {
-                filePath= MEDIA_LIBRARY_STORAGE_DIR+"/"+fileName;
+                filePath= AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+fileName;
                 if (player->getPlaying()){
                     player->stopPlay();
                 }

@@ -7,7 +7,6 @@
 #include "QWidget"
 #include "QLabel"
 #include "QLayout"
-#include "../ImageInfoNode/QPropertyBrowser.h"
 #include <QSpinBox>
 #include <QVariantMap>
 #include <QPushButton>

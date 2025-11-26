@@ -13,7 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "WebSocket Client"
-#define PLUGIN_VERSION "202507015"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "WebSocket 客户端"
 #define PLUGIN_TAG "Communications"
 class DLL_EXPORT Plugin

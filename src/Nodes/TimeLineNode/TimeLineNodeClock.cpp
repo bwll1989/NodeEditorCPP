@@ -93,7 +93,7 @@ void TimeLineNodeClock::setCurrentTimecodeFromTime(const double time)
     if (m_currentFrame==timecode_frame_to_frames(m_currentTimecode, m_timecodeType))
         return;
     m_currentFrame = timecode_frame_to_frames(m_currentTimecode, m_timecodeType);
-    qDebug() << "TimeLineNodeClock::updateTimecode"<<m_currentFrame<<m_currentTimecode.frames<<time;
+    // qDebug() << "TimeLineNodeClock::updateTimecode"<<m_currentFrame<<m_currentTimecode.frames<<time;
     // 越界保护：根据 isLoop 判断循环或停止
     if (m_maxFrames > 0 && m_currentFrame > m_maxFrames) {
         if (m_isLooping) {

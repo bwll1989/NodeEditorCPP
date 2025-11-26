@@ -29,7 +29,7 @@ namespace Nodes {
 
     public:
 
-        BoolPluginDataModel(): button(new QPushButton("0")){
+        BoolPluginDataModel(): button(new QPushButton(" ")){
             InPortCount =1;
             OutPortCount=1;
             CaptionVisible=true;
@@ -72,7 +72,6 @@ namespace Nodes {
             } else {
                 button->setChecked(false);
             }
-            button->setText(button->isChecked()? "1":"0");
             Q_EMIT dataUpdated(portIndex);
         }
 
@@ -80,7 +79,7 @@ namespace Nodes {
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["val"] = QString::number(button->isChecked());
+            modelJson1["val"] = button->isChecked();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -90,7 +89,6 @@ namespace Nodes {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
                 button->setChecked(v["val"].toBool(false));
-                button->setText(v["val"].toString());
             }
         }
         QWidget *embeddedWidget() override{return button;}
@@ -124,7 +122,7 @@ namespace Nodes {
 
         void onTextEdited(bool const &string)
         {
-            button->setText(QString::number(string));
+            button->setText(" ");
             Q_EMIT dataUpdated(0);
         }
 

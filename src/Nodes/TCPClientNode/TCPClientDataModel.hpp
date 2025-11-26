@@ -62,7 +62,7 @@ namespace Nodes
             connect(this, &TCPClientDataModel::connectTCPServer, client, &TcpClient::connectToServer, Qt::QueuedConnection);
             connect(client, &TcpClient::isReady,this,[this](bool isReady){
                 widget->send->setEnabled(isReady);
-                widget->statusButton->setText(isReady?"Disconnect":"Connect");
+                widget->statusButton->setText(isReady?"Connected":"Disconnect");
                 widget->statusButton->setChecked(isReady);
                 widget->statusButton->setStyleSheet(isReady?"color: green; font-weight: bold;":"color: red; font-weight: bold;");
             });

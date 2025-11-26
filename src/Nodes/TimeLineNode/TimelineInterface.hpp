@@ -143,6 +143,7 @@ namespace Nodes
             } else {
                 startButton->setChecked(false);
                 stopButton->setChecked(true);
+                QThread::msleep(10);
                 statusLabel->setTime(QTime(0,0,0,0));
             }
         }
@@ -153,6 +154,8 @@ namespace Nodes
         void onPlaybackFinished() {
             startButton->setChecked(false);
             stopButton->setChecked(true);
+
+            statusLabel->setTime(QTime(0,0,0,0));
 
         }
 

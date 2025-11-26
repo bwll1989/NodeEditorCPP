@@ -13,7 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "Extract"
-#define PLUGIN_VERSION "20241104"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "数据选择"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin

@@ -13,7 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "Math Operation"
-#define PLUGIN_VERSION "20241107"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "数学运算"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin

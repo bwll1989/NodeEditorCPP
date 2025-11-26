@@ -4,6 +4,9 @@ project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+string(TIMESTAMP BUILD_TS "%Y%m%d")
+# 将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
+add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 # 设置NDI库
 set(NDI_DIR "${DEPENDS_DIR}/NDI 6 SDK/include")
 set(NDI_LIBRARIES "${DEPENDS_DIR}/NDI 6 SDK/Lib/x64/Processing.NDI.Lib.x64.lib")

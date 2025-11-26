@@ -101,6 +101,7 @@
     <file>icons/NodeStudio.svg</file>
     <file>icons/NodeStudio.png</file>
     <file>icons/search.png</file>
+    <file>icons/curve.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>
@@ -110,7 +111,7 @@
     <file>styles/DefaultDark.qss</file>
   </qresource>
   <qresource prefix="docs">
-    <file>README.txt</file>
+    <file>README.md</file>
   </qresource>
   <qresource prefix="/qml">
     <file>qml/LogWidget.qml</file>

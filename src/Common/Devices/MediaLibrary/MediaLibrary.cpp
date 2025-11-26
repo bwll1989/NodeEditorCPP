@@ -4,7 +4,7 @@
 // 新增：定位 Windows 文档库路径
 #include <QStandardPaths>
 #include <QtWidgets/QMessageBox>
-
+#include "ConstantDefines.h"
 /**
  * @brief 构造函数：初始化五个分类的组节点
  */
@@ -82,7 +82,7 @@ QModelIndex MediaLibrary::addFile(const QString& absPath)
  */
 void MediaLibrary::addFiles(const QStringList& absPaths)
 {
-    QDir storage(QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
+    QDir storage(QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
 
     for (const QString& p : absPaths) {
         const QFileInfo fi(p);
@@ -449,13 +449,13 @@ QHash<int, QByteArray> MediaLibrary::roleNames() const {
 void MediaLibrary::initializeStorageDir()
 {
     // 如果存储目录不存在则创建
-    if (!QDir(MEDIA_LIBRARY_STORAGE_DIR).exists()) {
-        QDir().mkpath(MEDIA_LIBRARY_STORAGE_DIR);
+    if (!QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).exists()) {
+        QDir().mkpath(AppConstants::MEDIA_LIBRARY_STORAGE_DIR);
     }
 
 
     // 扫描存储目录中的所有文件（仅一层）
-    QDir storage(QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
+    QDir storage(QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
     const QFileInfoList infos = storage.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
     for (const QFileInfo& fi : infos) {
         addFile(fi.absoluteFilePath());
@@ -465,7 +465,7 @@ void MediaLibrary::initializeStorageDir()
 // 新增：在存储目录内生成不重名的文件名
 QString MediaLibrary::uniqueFileNameInStorage(const QString& fileName) const
 {
-    QDir storage(QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
+    QDir storage(QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
     const QFileInfo info(fileName);
     const QString base = info.completeBaseName();
     const QString ext = info.suffix();
@@ -502,11 +502,11 @@ bool MediaLibrary::isInStorageDir(const QString& absPath) const
  * - 规范化分隔符并追加尾随斜杠后，做前缀匹配判断包含关系
  * - Windows 上大小写不敏感
  */
-const QString storageCanonical = QDir(QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath()).canonicalPath();
+const QString storageCanonical = QDir(QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath()).canonicalPath();
 QString fileCanonical = QFileInfo(absPath).canonicalFilePath();
 
 QString storagePath = storageCanonical.isEmpty()
-    ? QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath()
+    ? QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath()
     : storageCanonical;
 QString filePath = fileCanonical.isEmpty()
     ? QFileInfo(absPath).absoluteFilePath()
@@ -535,10 +535,10 @@ void MediaLibrary::refresh() {
     bool anyChange = false;
 
     // 确保存储目录存在
-    if (!QDir(MEDIA_LIBRARY_STORAGE_DIR).exists()) {
-        QDir().mkpath(MEDIA_LIBRARY_STORAGE_DIR);
+    if (!QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).exists()) {
+        QDir().mkpath(AppConstants::MEDIA_LIBRARY_STORAGE_DIR);
     }
-    QDir storage(QDir(MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
+    QDir storage(QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
 
     // 当前存储目录文件集合
     const QFileInfoList infos = storage.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);

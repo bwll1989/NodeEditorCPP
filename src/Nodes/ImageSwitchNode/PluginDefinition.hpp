@@ -13,7 +13,9 @@
 #endif
 
 #define PLUGIN_NAME "Image Switch"
-#define PLUGIN_VERSION "20250722"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "图像切换"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin

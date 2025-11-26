@@ -251,6 +251,7 @@ namespace Nodes
                 } else {
                     // 重置模式：停止当前计时器，立即处理新信号
                     if (timer->isActive()) {
+
                         timer->stop();
                     }
                 }
@@ -262,6 +263,7 @@ namespace Nodes
             
             // 启动定时器
             timer->setInterval(holdTime);
+
             timer->start();
             
             // 立即输出信号

@@ -13,7 +13,9 @@
 
 
 #define PLUGIN_NAME "Mpv Controller"
-#define PLUGIN_VERSION "20240410"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "Mpv播放器控制"
 #define PLUGIN_TAG "Devices"
 class DLL_EXPORT Plugin

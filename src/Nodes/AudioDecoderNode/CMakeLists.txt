@@ -8,6 +8,9 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 # 自动调用moc(元对象编译器)
 set(CMAKE_AUTORCC ON)
+string(TIMESTAMP BUILD_TS "%Y%m%d")
+# 将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
+add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         AudioDecoderDataModel.hpp
         AudioDecoderInterface.hpp

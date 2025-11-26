@@ -12,7 +12,9 @@
 #endif
 
 #define PLUGIN_NAME "Image Constant"
-#define PLUGIN_VERSION "20250717"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "图像常量节点"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin

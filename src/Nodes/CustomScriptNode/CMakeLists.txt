@@ -5,12 +5,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-
-# 移除 QScintilla 相关配置（代码编辑器不再需要）
-# set(QScintilla_DIR "${DEPENDS_DIR}/QScintilla_src-2.14.1/src/install" )
-# set(QScintilla_LIBRARIES "${QScintilla_DIR}/lib/qscintilla2_qt6.lib")
-# INCLUDE_DIRECTORIES("${QScintilla_DIR}/include")
-# message("--Found QScintilla  ${QScintilla_DIR}")
+string(TIMESTAMP BUILD_TS "%Y%m%d")
+# 将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
+add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 
 set(SOURCE_FILES
         CustomScriptInterface.hpp
@@ -21,9 +18,6 @@ set(SOURCE_FILES
         JSPluginManager.cpp
         SupportWidgets.hpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp
-        # 移除 JsCodeEditor 相关文件
-        # JsCodeEditor.cpp
-        # JsCodeEditor.h
         )
 
 add_library(${Module_Name} SHARED

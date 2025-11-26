@@ -12,7 +12,9 @@
 #endif
 
 #define PLUGIN_NAME "Noise Generator"
-#define PLUGIN_VERSION "20250828"
+#ifndef PLUGIN_VERSION
+#define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
+#endif
 #define PLUGIN_DESCRIBE "噪声生成器"
 #define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin
