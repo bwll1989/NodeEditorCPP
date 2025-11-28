@@ -17,9 +17,9 @@ namespace Nodes
 class InternalControlInterface final : public QWidget{
         Q_OBJECT
     public:
-        explicit InternalControlInterface(QWidget *parent = nullptr) {
+        explicit InternalControlInterface(bool OnlyInternal,QWidget *parent = nullptr) {
             main_layout=new QGridLayout();
-            m_listWidget=new OSCMessageListWidget(this);
+            m_listWidget=new OSCMessageListWidget(OnlyInternal,this);
             main_layout->addWidget(m_listWidget,0,0,1,1);
             // 添加右键菜单支持
             main_layout->addWidget(testButton,1,0,1,1);

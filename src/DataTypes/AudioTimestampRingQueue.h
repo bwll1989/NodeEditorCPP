@@ -1,10 +1,7 @@
 //
 // Created by WuBin on 2025/8/29.
 //
-
-#ifndef AUDIOTIMESTAMPRINGQUEUE_H
-#define AUDIOTIMESTAMPRINGQUEUE_H
-
+#pragma once
 #include "QtNodes/NodeData"
 #include <QMetaType>
 #include <QQueue>
@@ -16,6 +13,7 @@
 #include <QObject>  // 添加QObject头文件
 #include "TimestampGenerator/TimestampGenerator.hpp"
 #include <QHash>
+#include "DataTypesExport.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 
@@ -34,7 +32,7 @@ struct AudioFrame {
  * @brief 基于时间戳的环形音频队列
  * AudioDecoder始终写入队首，AudioDeviceOut根据时间戳提取帧
  */
-class AudioTimestampRingQueue : public QObject {
+class DATATYPES_EXPORT AudioTimestampRingQueue : public QObject {
     Q_OBJECT
 public:
     explicit AudioTimestampRingQueue(int maxSize = 16,QObject* parent = nullptr);
@@ -70,7 +68,3 @@ private:
     qint64 lastHitTimestamp_ = 0;
     int lastHitIndex_ = -1;
 };
-
-
-
-#endif //AUDIOTIMESTAMPRINGQUEUE_H

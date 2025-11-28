@@ -22,6 +22,6 @@ set(ModelDataBridge_sources
 
 add_library(ModelDataBridge SHARED ${ModelDataBridge_sources})
 
-target_link_libraries(ModelDataBridge PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} OSCTransmitter)
+target_link_libraries(ModelDataBridge PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} OSCTransmitter DataTypes)
 
 target_compile_definitions(ModelDataBridge PRIVATE MODELDATABRIDGE_LIBRARY -DNODE_EDITOR_SHARED)

@@ -28,7 +28,9 @@ target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::QuickWidgets
         Qt${QT_VERSION_MAJOR}::Network
         OSCTransmitter
-        ${QtNodes_LIBRARIES})
+        ${QtNodes_LIBRARIES}
+        DataTypes
+)
 
 set(QRC_FILES
         res.qrc

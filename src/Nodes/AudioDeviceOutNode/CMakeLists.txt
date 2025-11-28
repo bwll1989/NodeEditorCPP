@@ -12,8 +12,7 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp
         PluginDefinition.hpp
         AudioDeviceOutDataModel.cpp
-        ../../DataTypes/AudioTimestampRingQueue.h
-        ../../DataTypes/AudioTimestampRingQueue.cpp
+
 
 )
 
@@ -22,7 +21,9 @@ target_link_libraries(${Module_Name}
         Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
         ${portaudio_LIBRARIES}
-        TimestampGenerator)
+        TimestampGenerator
+        DataTypes
+)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

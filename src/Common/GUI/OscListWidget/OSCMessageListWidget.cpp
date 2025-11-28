@@ -6,9 +6,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonValue>
-
-OSCMessageListWidget::OSCMessageListWidget(QWidget* parent)
-    : QListWidget(parent)
+#include "ConstantDefines.h"
+OSCMessageListWidget::OSCMessageListWidget(bool onlyInternal, QWidget* parent)
+    : QListWidget(parent), OnlyInternal(!onlyInternal)
 {
     setDragEnabled(true);
     setAcceptDrops(true);
@@ -24,7 +24,7 @@ OSCMessageListWidget::OSCMessageListWidget(QWidget* parent)
 void OSCMessageListWidget::addOSCMessage(const OSCMessage& message) 
 {
     auto* item = new QListWidgetItem(this);
-    auto* widget = new OSCMessageItemWidget(this);
+    auto* widget = new OSCMessageItemWidget(OnlyInternal, this);
     
     if (!message.address.isEmpty()) {
         widget->setMessage(message);
@@ -112,8 +112,11 @@ void OSCMessageListWidget::dropEvent(QDropEvent* event)
         // 反序列化消息数据
         QByteArray data = mimeData->data("application/x-osc-address");
         QDataStream stream(data);
-        stream >> message.host >> message.port >> message.address >> message.value;
-        
+        if (OnlyInternal) {
+            message.host = "127.0.0.1";
+            message.port = AppConstants::EXTRA_CONTROL_PORT;
+        }
+        stream >> message.host >> message.port >> message.address >> message.type >> message.value;
         // 添加消息到列表
         addOSCMessage(message);
         event->acceptProposedAction();
@@ -150,7 +153,12 @@ void OSCMessageListWidget::mouseMoveEvent(QMouseEvent* event)
     
     QByteArray itemData;
     QDataStream dataStream(&itemData, QIODevice::WriteOnly);
-    dataStream << message.host << message.port << message.address << message.value;
+    if (OnlyInternal)
+    {
+        message.host = "127.0.0.1";
+        message.port = AppConstants::EXTRA_CONTROL_PORT;
+    }
+    dataStream << message.host << message.port << message.address << message.type << message.value;
     
     QMimeData* mimeData = new QMimeData;
     mimeData->setData("application/x-osc-address", itemData);

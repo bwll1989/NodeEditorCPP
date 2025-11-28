@@ -10,9 +10,7 @@ add_library(${Module_Name} SHARED
         AudioDeviceInDataModel.hpp
         AudioDeviceInInterface.hpp
         PluginDefinition.cpp
-        PluginDefinition.hpp
-        ../../DataTypes/AudioTimestampRingQueue.h
-        ../../DataTypes/AudioTimestampRingQueue.cpp)
+        PluginDefinition.hpp)
 
 
 target_link_libraries(${Module_Name}
@@ -22,7 +20,9 @@ target_link_libraries(${Module_Name}
         ${QtNodes_LIBRARIES}
         ${portaudio_LIBRARIES}
         TimestampGenerator
-        OSCTransmitter)
+        OSCTransmitter
+        DataTypes
+)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES

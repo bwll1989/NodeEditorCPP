@@ -17,7 +17,7 @@
 #include "QHotkey"
 
 class HotKeyItem: public QWidget{
-
+    Q_OBJECT
 public:
     explicit HotKeyItem(QWidget *parent = nullptr){
 

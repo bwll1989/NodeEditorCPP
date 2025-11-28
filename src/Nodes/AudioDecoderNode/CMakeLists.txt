@@ -18,8 +18,6 @@ add_library(${Module_Name} SHARED
         AudioDecoder.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../DataTypes/AudioTimestampRingQueue.h
-        ../../DataTypes/AudioTimestampRingQueue.cpp
         )
 
 target_link_libraries(${Module_Name}  PRIVATE
@@ -39,6 +37,7 @@ target_link_libraries(${Module_Name}  PRIVATE
         TimestampGenerator
         MediaManger
         GUIElements
+        DataTypes
 )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

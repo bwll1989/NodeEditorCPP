@@ -18,8 +18,6 @@ add_library(${Module_Name} SHARED
         NoiseGenerator.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../DataTypes/AudioTimestampRingQueue.h
-        ../../DataTypes/AudioTimestampRingQueue.cpp
         )
 
 target_link_libraries(${Module_Name}  PRIVATE
@@ -37,7 +35,7 @@ target_link_libraries(${Module_Name}  PRIVATE
         ${portaudio_LIBRARIES}
         TimestampGenerator
         OSCTransmitter
-)
+        DataTypes)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

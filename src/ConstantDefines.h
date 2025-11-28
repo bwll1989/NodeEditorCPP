@@ -12,6 +12,8 @@
 namespace AppConstants {
     // OSC 外部反馈主机
     constexpr const char* EXTRA_FEEDBACK_HOST = "127.0.0.1";
+    // 软件内OSC控制主机
+    constexpr const char* OSC_INTERNAL_CONTROL_HOST = "127.0.0.1";
     // OSC外部反馈端口号
     constexpr int EXTRA_FEEDBACK_PORT = 8990;
     // OSC外部控制端口号

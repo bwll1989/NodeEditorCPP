@@ -228,10 +228,7 @@ namespace Nodes
         }
 
         void sendMessage(){
-            if(!m_inData){
-                return;
-            }
-            emit sendTCPMessage(m_inData->value().toString(),widget->format->currentIndex());
+            emit sendTCPMessage( widget->valueEdit->text(),widget->format->currentIndex());
         }
 
         void hostChange()

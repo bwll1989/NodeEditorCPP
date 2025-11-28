@@ -10,7 +10,7 @@
 #include <QtQml/QJSValueList>
 #include <QtQml/QJSValueIterator> 
 #include "../../Common/Devices/TcpClient/TcpClient.h"
-#include "../../DataTypes/VariableData.h"
+#include "DataTypes/NodeDataList.hpp"
 #include "showStoreGBxInterface.hpp"
 
 using QtNodes::NodeData;

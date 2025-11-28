@@ -37,7 +37,7 @@ namespace Nodes
             PortEditable= false;
             m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
             // m_quickWidget->setSource(QUrl("qrc:qml/content/dynamicview.qml"));
-            m_quickWidget->setSource(QUrl("qrc:qml/content/main.qml"));
+            m_quickWidget->setSource(QUrl("qrc:/qml/content/main.qml"));
             m_quickWidget->rootContext()->setContextProperty("CppBridge", this);
             NodeDelegateModel::registerOSCControl("/start",widget->startButton);
             // NodeDelegateModel::registerOSCControl("/stop",widget->stopButton);
@@ -49,11 +49,14 @@ namespace Nodes
         }
 
        ~CurveDataModel() override {
-            if (m_quickWidget && m_quickWidget->isVisible()) {
-                    m_quickWidget->close();
-                }
-                // 如果窗口仍然存在，强制隐藏
-
+            QObject *timeline = getTimelineEditor();
+            if (timeline) {
+                QMetaObject::invokeMethod(timeline, "pause");
+            }
+            if (m_quickWidget) {
+                m_quickWidget->setParent(nullptr);
+                m_quickWidget->deleteLater();
+            }
         }
 
     public:

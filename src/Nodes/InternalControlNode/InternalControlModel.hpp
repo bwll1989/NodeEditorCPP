@@ -45,6 +45,6 @@ namespace Nodes
     private Q_SLOTS:
         void trigger();
     private:
-        InternalControlInterface *widget = new InternalControlInterface();
+        InternalControlInterface *widget = new InternalControlInterface(true);
     };
 }

@@ -17,14 +17,19 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
 
 # 源文件列表
-set(DataTypes _sources
+set(DataTypes_sources
     AudioTimestampRingQueue.cpp
     AudioTimestampRingQueue.h
+    AudioData.h
+    AudioData.cpp
     ImageData.h
+    ImageData.cpp
     NodeDataList.hpp
     RectData.h
     RectsData.h
     VariableData.h
+    VariableData.cpp
+    DataTypesExport.h
 )
 
 # 生成静态库（也可改为 SHARED，如需导出符号）
@@ -44,4 +49,4 @@ target_include_directories(DataTypes PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_compile_definitions(DataTypes PRIVATE DATATYPES_LIBRARY)
+target_compile_definitions(DataTypes PRIVATE DATATYPES_LIBRARY -DNODE_EDITOR_SHARED)

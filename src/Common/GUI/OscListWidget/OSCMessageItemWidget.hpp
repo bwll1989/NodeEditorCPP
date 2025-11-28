@@ -15,7 +15,7 @@
 class OSCLISTWIDGET_EXPORT OSCMessageItemWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit OSCMessageItemWidget(QWidget* parent = nullptr);
+    explicit OSCMessageItemWidget(bool onlyInternal,QWidget* parent = nullptr);
     
     // 获取当前OSC消息
     OSCMessage getMessage() const;
@@ -46,6 +46,7 @@ private:
     void setupUI();
     void connectSignals();
     void updateValueWidget(const QString& type);
+    bool OnlyInternal;
 };
 
 #endif // OSCMESSAGEITEMWIDGET_HPP 

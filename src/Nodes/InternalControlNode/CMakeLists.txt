@@ -14,15 +14,18 @@ add_library(${Module_Name} SHARED
         InternalControlModel.hpp
         InternalControlModel.cpp
         InternalControlInterface.hpp
+        OscOutGroupModel.hpp
+        OscOutGroupModel.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-#        ${Devices_DIR}/OSCSender/OSCSender.h
-#        ${Devices_DIR}/OSCSender/OSCSender.cpp
-#        ${tinyosc_DIR}/tinyosc.c
-#        ${tinyosc_DIR}/tinyosc.h
         )
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::Concurrent  Qt${QT_VERSION_MAJOR}::Qml OscListWidget
-        ${QtNodes_LIBRARIES} OSCTransmitter)
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+        Qt${QT_VERSION_MAJOR}::Concurrent
+        Qt${QT_VERSION_MAJOR}::Qml
+        OscListWidget
+        ${QtNodes_LIBRARIES}
+        OSCTransmitter
+        DataTypes)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

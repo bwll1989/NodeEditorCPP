@@ -2,8 +2,7 @@
 // Created by WuBin on 2025/10/15.
 //
 
-#ifndef TASKITEMDELEGATE_H
-#define TASKITEMDELEGATE_H
+#pragma once
 #include <QStyledItemDelegate>
 #include <QPainter>
 
@@ -55,5 +54,3 @@ public:
 };
 
 
-
-#endif //TASKITEMDELEGATE_H

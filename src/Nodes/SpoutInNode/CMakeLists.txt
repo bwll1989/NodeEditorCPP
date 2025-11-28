@@ -36,7 +36,8 @@ target_link_libraries(${Module_Name}
 		Qt${QT_VERSION_MAJOR}::OpenGL
 		opengl32  # 添加OpenGL32库
 		glu32     # 添加GLU32库
-)
+		OSCTransmitter
+		DataTypes)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

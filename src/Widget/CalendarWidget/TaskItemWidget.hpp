@@ -48,7 +48,7 @@ public:
 private:
     void setupUI();
     void connectSignals();
-    QLineEdit* hostEdit;
+    // QLineEdit* hostEdit;
     QLineEdit* addressEdit;
     QComboBox* typeCombo;
     QLineEdit* valueEdit;

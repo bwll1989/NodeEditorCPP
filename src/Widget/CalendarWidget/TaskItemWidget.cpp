@@ -9,7 +9,7 @@
 #include <QGroupBox>   // Command组与Loop组
 #include <QPushButton> // Test按钮
 #include <QFont>       // 大号时间字体
-
+#include "ConstantDefines.h"
 TaskItemWidget::TaskItemWidget(QWidget* parent)
     : QWidget(parent)
 {
@@ -61,14 +61,14 @@ void TaskItemWidget::setupUI() {
         "QLineEdit {"
         "  padding: 2px;"
         "  font-size: 14px;"
-        "  color: rgba(255, 0, 0, 180);"
+        "  color: #00c853;"
         "}"
     );
     mainLayout->addWidget(remarkEdit, 0, 2, 1, 5);
 
     // 顶行控件：Host、Address、Type、Value、Test
-    hostEdit = new QLineEdit(this);
-    hostEdit->setPlaceholderText("127.0.0.1:8990");
+    // hostEdit = new QLineEdit(this);
+    // hostEdit->setPlaceholderText("127.0.0.1:8990");
 
     addressEdit = new QLineEdit(this);
     addressEdit->setPlaceholderText("address");
@@ -81,17 +81,17 @@ void TaskItemWidget::setupUI() {
     valueEdit->setPlaceholderText("value");
 
     // Test 按钮（位于 Command 组右侧）
-    btnTest = new QPushButton("Test", this);
+    btnTest = new QPushButton("Command Test", this);
     btnTest->setObjectName("btnTest");
 
     // 将控件加入 Command 组布局
-    mainLayout->addWidget(hostEdit,1,0,1,1);
-    mainLayout->addWidget(addressEdit,1,1,1,2);
-    mainLayout->addWidget(typeCombo,1,3,1,1);
-    mainLayout->addWidget(valueEdit,1,4,1,2);
-    mainLayout->addWidget(btnTest,1,6,1,1);
+    // mainLayout->addWidget(hostEdit,1,0,1,1);
+    mainLayout->addWidget(addressEdit,1,0,1,2);
+    mainLayout->addWidget(typeCombo,1,2,1,1);
+    mainLayout->addWidget(valueEdit,1,3,1,2);
+    mainLayout->addWidget(btnTest,1,5,1,1);
     //  设置控件的尺寸策略：输入框为横向可扩展，按钮为固定
-    hostEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    // hostEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     addressEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     valueEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     // typeCombo 默认不会扩展，保持较小宽度；如需可扩展可改为 Expanding
@@ -158,8 +158,8 @@ void TaskItemWidget::connectSignals() {
     };
 
     // 文本类：仅用户编辑触发
-    connect(hostEdit, &QLineEdit::textEdited, this, emitChange);
-    connect(hostEdit, &QLineEdit::editingFinished, this, emitChange);
+    // connect(hostEdit, &QLineEdit::textEdited, this, emitChange);
+    // connect(hostEdit, &QLineEdit::editingFinished, this, emitChange);
     connect(addressEdit, &QLineEdit::textEdited, this, emitChange);
     connect(addressEdit, &QLineEdit::editingFinished, this, emitChange);
     connect(valueEdit, &QLineEdit::textEdited, this, emitChange);
@@ -207,19 +207,20 @@ OSCMessage TaskItemWidget::getMessage() const
     OSCMessage msg;
 
     // 解析 host:port 格式
-    const QString hostText = hostEdit->text().trimmed();
-    QString host = hostText;
-    int port = 6001; // 默认端口
-    const int sep = hostText.lastIndexOf(':');
-    if (sep > 0) {
-        host = hostText.left(sep);
-        bool ok = false;
-        int p = hostText.mid(sep + 1).toInt(&ok);
-        if (ok) port = p;
-    }
-    msg.host = host;
-    msg.port = port;
-
+    // const QString hostText = hostEdit->text().trimmed();
+    // QString host = hostText;
+    // int port = 8991; // 默认端口
+    // const int sep = hostText.lastIndexOf(':');
+    // if (sep > 0) {
+    //     host = hostText.left(sep);
+    //     bool ok = false;
+    //     int p = hostText.mid(sep + 1).toInt(&ok);
+    //     if (ok) port = p;
+    // }
+    // msg.host = host;
+    // msg.port = port;
+    msg.host=AppConstants::OSC_INTERNAL_CONTROL_HOST;
+    msg.port=AppConstants::EXTRA_CONTROL_PORT;
     // 地址与类型/值
     msg.address = addressEdit->text().trimmed();
     msg.type = typeCombo->currentText();
@@ -240,9 +241,9 @@ void TaskItemWidget::setMessage(const OSCMessage& message)
     /**
      * @brief 将 OSCMessage 显示到 UI（host:port）
      */
-    if (!message.host.isEmpty()) {
-        hostEdit->setText(QString("%1:%2").arg(message.host).arg(message.port));
-    }
+    // if (!message.host.isEmpty()) {
+    //     hostEdit->setText(QString("%1:%2").arg(message.host).arg(message.port));
+    // }
     addressEdit->setText(message.address);
     typeCombo->setCurrentText(message.type);
     valueEdit->setText(message.value.toString());

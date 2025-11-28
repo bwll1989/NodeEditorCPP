@@ -4,8 +4,8 @@
 #include <QValidator>
 #include <QRegularExpressionValidator>
 
-OSCMessageItemWidget::OSCMessageItemWidget(QWidget* parent)
-    : QWidget(parent)
+OSCMessageItemWidget::OSCMessageItemWidget(bool onlyInternal, QWidget* parent)
+    : QWidget(parent), OnlyInternal(onlyInternal)
 {
     setupUI();
     engine.globalObject().setProperty("PI", M_PI);
@@ -21,7 +21,7 @@ void OSCMessageItemWidget::setupUI()
     layout->setSpacing(4);
     
     // Host
-    hostEdit = new QLineEdit(this);
+    hostEdit = new QLineEdit();
     hostEdit->setPlaceholderText("ip:port");
     hostEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 
@@ -53,19 +53,31 @@ void OSCMessageItemWidget::setupUI()
     moveLabel->setPixmap(QPixmap(":/icons/icons/move.png").scaled(moveLabel->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation));
     moveLabel->setAlignment(Qt::AlignCenter);
 
+    if(OnlyInternal){
+        layout->addWidget(hostEdit);
+        layout->addWidget(addressEdit);
+        layout->addWidget(typeCombo);
+        layout->addWidget(valueEdit);
+        layout->addWidget(moveLabel);
+        
+        // 设置弹性布局比例（显示 host 时）
+        layout->setStretch(0, 2);  // host:port
+        layout->setStretch(1, 2);  // address
+        layout->setStretch(2, 1);  // type (固定宽度)
+        layout->setStretch(3, 4);  // value
+        layout->setStretch(4, 1);  // icon
+    } else {
+        layout->addWidget(addressEdit);
+        layout->addWidget(typeCombo);
+        layout->addWidget(valueEdit);
+        layout->addWidget(moveLabel);
 
-    layout->addWidget(hostEdit);
-    layout->addWidget(addressEdit);
-    layout->addWidget(typeCombo);
-    layout->addWidget(valueEdit);
-    layout->addWidget(moveLabel);
-    
-    // 设置弹性布局比例
-    layout->setStretch(0, 2);  // host:port
-    layout->setStretch(1, 2);  // address
-    layout->setStretch(2, 1);  // type (固定宽度)
-    layout->setStretch(3, 2);  // value
-    layout->setStretch(4, 1);  // icon
+        // 设置弹性布局比例（不显示 host 时）
+        layout->setStretch(0, 2);  // address
+        layout->setStretch(1, 1);  // type (固定宽度)
+        layout->setStretch(2, 4);  // value
+        layout->setStretch(3, 1);  // icon
+    }
 
 }
 
@@ -115,7 +127,6 @@ OSCMessage OSCMessageItemWidget::getMessage() const
     message.address = addressEdit->text();
     
     message.type = typeCombo->currentText();
-
     QString value = valueEdit->text();
     if (message.type == "Int") {
         QJSValue result = engine.evaluate("with(Math) { " + value + " }");
@@ -152,6 +163,7 @@ void OSCMessageItemWidget::setMessage(const OSCMessage& message)
     
     // 设置类型和值
     typeCombo->setCurrentText(message.type);
+
     setExpression(message.value.toString());
 }
 

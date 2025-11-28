@@ -28,8 +28,6 @@ add_library(${Module_Name} SHARED
         Vst3DataStream.cpp
         VST3AudioProcessingThread.hpp
         VST3AudioProcessingThread.cpp
-        ../../DataTypes/AudioTimestampRingQueue.h
-        ../../DataTypes/AudioTimestampRingQueue.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/module_win32.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/plugprovider.cpp
         ${VST3_DIR}/public.sdk/source/vst/hosting/plugprovider.h
@@ -55,8 +53,8 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         sdk_common
         sdk_hosting
         TimestampGenerator
-
-)
+        OSCTransmitter
+        DataTypes)
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

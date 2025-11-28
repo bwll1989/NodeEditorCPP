@@ -10,16 +10,16 @@ set(ALL_NODES
     VST3PluginNode
     DataInfoNode                              #数据显示
     ImageLoadNode                             #图像导入
-    LuaScriptNode                             #Lua脚本模块
+#    LuaScriptNode                             #Lua脚本模块(弃用）
     TCPServerNode                             #TCP服务器模块
     TCPClientNode                             #TCP客户端模块
-     TimeLineNode                              #时间轴模块 (注释掉的保持注释)
+    TimeLineNode                              #时间轴模块
     UDPSocketNode                             #UDP模块
     DelayNode                                 #延迟模块
     LogicOperationNode                        #逻辑操作模块
     MathOperationNode                         #数学操作模块
     LFONode                                   #LFO模块
-    CurveNode                                   #曲线模块
+    CurveNode                                 #曲线模块
     AudioDecoderNode                          #音频解码模块
     AudioDeviceOutNode                        #音频输出模块
     HotKeyNode                                #热键模块
@@ -39,7 +39,8 @@ set(ALL_NODES
     ArtnetInNode                              #Arnet输入
     MpvControllerNode                         #mpv控制
     SwitchNode                                #输入切换
-        NDVServerNode                            #NDV控制
+    NDVServerNode                             #NDV控制
+    DataVisualizationNode                         #图表模块
     ConditionNode                             #条件判断
     WebSocketServerNode                       #WebSocket服务器
     WebSocketClientNode                       #WebSocket客户端
@@ -71,7 +72,8 @@ set(ALL_NODES
     YoloPoseONNXNode                            #Yolo v11n 姿态
     YoloDetectionONNXNode                       #Yolo v11n 检测
     StyleTransferONNXNode                       #神经网络风格迁移
-#    AudioIntentNode                              #音频意图分析
+        DataVisualNode                          #数据可视化
+#    AudioIntentNode                              #音频意图分析（弃用）
 )
 
 # 根据选项决定构建方式
@@ -96,10 +98,10 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(VST3PluginNode)
     add_subdirectory(DataInfoNode)                              #数据显示
     add_subdirectory(ImageLoadNode)                             #图像导入
-    add_subdirectory(LuaScriptNode)                             #Lua脚本模块
+#    add_subdirectory(LuaScriptNode)                             #Lua脚本模块（弃用）
     add_subdirectory(TCPServerNode)                             #TCP服务器模块
     add_subdirectory(TCPClientNode)                             #TCP客户端模块
-    # add_subdirectory(TimeLineNode)                              #时间轴模块
+    add_subdirectory(TimeLineNode)                              #时间轴模块
     add_subdirectory(UDPSocketNode)                             #UDP模块
     add_subdirectory(DelayNode)                                 #延迟模块
     add_subdirectory(LogicOperationNode)                        #逻辑操作模块
@@ -152,7 +154,8 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(PJLinkNode)                                #PJLink输出节点
     add_subdirectory(LTCDecoderNode)                            #LTC时间码解析节点
     add_subdirectory(AudioMatrixNode)                           #音频矩阵节点
-    add_subdirectory(AudioIntentNode)                            #音频意图分析
+    add_subdirectory(DataVisualNode)                            #数据可视化节点
+#    add_subdirectory(AudioIntentNode)                            #音频意图分析（弃用）
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()

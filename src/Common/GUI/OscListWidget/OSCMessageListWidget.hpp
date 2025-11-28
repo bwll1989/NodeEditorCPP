@@ -21,7 +21,7 @@
 class OSCLISTWIDGET_EXPORT OSCMessageListWidget : public QListWidget {
     Q_OBJECT
 public:
-    explicit OSCMessageListWidget(QWidget* parent = nullptr);
+    explicit OSCMessageListWidget(bool onlyInternal = false, QWidget* parent = nullptr);
 
     // 添加新的OSC消息
     void addOSCMessage(const OSCMessage& message = OSCMessage());
@@ -60,6 +60,7 @@ private:
     
     // 从JSON对象创建OSC消息
     static OSCMessage jsonToMessage(const QJsonObject& json);
+    bool OnlyInternal;
 };
 
 #endif // OSCMESSAGELISTWIDGET_HPP 

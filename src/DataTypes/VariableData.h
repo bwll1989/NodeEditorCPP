@@ -1,73 +1,40 @@
 //
 // Created by WuBin on 24-10-31.
 //
+#pragma once
+#include "DataTypesExport.h"
 #include "QtNodes/NodeData"
 #include "QJsonObject"
-#ifndef VARIBALEDATA_H
-#define VARIBALEDATA_H
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 namespace NodeDataTypes
 {
-    class VariableData : public NodeData {
+    class DATATYPES_EXPORT VariableData : public NodeData {
     public:
-        VariableData() : NodeValues() {}
+        VariableData() ;
 
-        explicit VariableData(QVariantMap* val) : NodeValues(*val) {}
+        explicit VariableData(QVariantMap* val) ;
 
-        explicit VariableData(const QVariantMap &val) : NodeValues(val) {}
+        explicit VariableData(const QVariantMap &val) ;
 
-        explicit VariableData(const QJsonObject* val) {
-            for (const QString& key : val->keys()) {
-                NodeValues.insert(key, val->value(key).toVariant());
-            }
-        }
+        explicit VariableData(const QJsonObject* val);
 
-        explicit VariableData(const QVariant &val) {
-            NodeValues.insert("default", val);
-        }
+        explicit VariableData(const QVariant &val) ;
 
-        void insert(const QString &key, const QVariant &value) {
-            NodeValues.insert(key, value);
-        }
+        void insert(const QString &key, const QVariant &value) ;
 
-        NodeDataType type() const override {
-            return isEmpty()
-                ? NodeDataType{"default", "Info"}
-            : NodeDataType{"default", value().typeName()};
-        }
+        NodeDataType type() const override ;
 
-        bool hasKey(const QString &key) const {
-            return NodeValues.contains(key);
-        }
+        bool hasKey(const QString &key) const ;
+        bool isEmpty() const ;
 
-        bool isEmpty() const {
-            return NodeValues.isEmpty();
-        }
+        QVariant value(const QString &key = "default") const ;
 
-        QVariant value(const QString &key = "default") const {
-            return hasKey(key) ? NodeValues.value(key) : QVariant();
-        }
+        QVariantMap getMap() const ;
 
-        QVariantMap getMap() const {
-            return NodeValues;
-        }
-
-        std::unique_ptr<QJsonObject> json() const {
-            auto jsonObject = std::make_unique<QJsonObject>();
-            for (auto it = NodeValues.begin(); it != NodeValues.end(); ++it) {
-                jsonObject->insert(it.key(), QJsonValue::fromVariant(it.value()));
-            }
-
-            if (isEmpty()) {
-                jsonObject->insert("default", QJsonValue::fromVariant(""));
-            }
-
-            return jsonObject;
-        }
+        std::unique_ptr<QJsonObject> json() const ;
 
     private:
         QVariantMap NodeValues;
     };
 }
-#endif //VARIBALEDATA_H

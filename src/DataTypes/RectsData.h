@@ -2,9 +2,8 @@
 // Created by pablo on 3/1/24.
 //
 
-#ifndef RECTS_H
-#define RECTS_H
-
+#pragma once
+#include "DataTypesExport.h"
 #include <QtNodes/NodeData>
 #include <QRect>
 #include <QList>
@@ -12,24 +11,17 @@
 typedef QList<QRect> Rects;
 namespace NodeDataTypes
 {
-    class RectsData final : public QtNodes::NodeData {
+    class DATATYPES_EXPORT RectsData final : public QtNodes::NodeData {
     public:
-        RectsData() {
-        }
-        explicit RectsData(const QRect& rect) : m_rects({rect}) {
-        }
-        explicit RectsData(const QList<QRect>& rects) : m_rects(rects) {
-        }
+        RectsData() ;
+        explicit RectsData(const QRect& rect) ;
+        explicit RectsData(const QList<QRect>& rects) ;
 
-        QList<QRect> rects() {
-            return m_rects;
-        }
+        QList<QRect> rects() ;
 
-        QtNodes::NodeDataType type() const override {
-            return QtNodes::NodeDataType{"rects", "rects"};
-        }
+        QtNodes::NodeDataType type() const override ;
     private:
         QList<QRect> m_rects;
     };
 }
-#endif //RECTS_H
+

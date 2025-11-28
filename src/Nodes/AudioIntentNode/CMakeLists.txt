@@ -29,7 +29,8 @@ add_library(${Module_Name} SHARED
 )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
-        TimestampGenerator )
+        TimestampGenerator
+)
 
 # 确保这行配置正确，指向您的 .dll 文件路径
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY

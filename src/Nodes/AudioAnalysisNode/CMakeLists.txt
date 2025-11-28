@@ -26,8 +26,6 @@ set(GIST_SOURCES
 )
 
 add_library(${Module_Name} SHARED
-        ../../DataTypes/AudioTimestampRingQueue.h
-        ../../DataTypes/AudioTimestampRingQueue.cpp
         ${GIST_SOURCES}
         AudioAnalysisInterface.h
         AudioAnalysisInterface.cpp
@@ -44,6 +42,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         TimestampGenerator
         GUIElements
         OSCTransmitter
+        DataTypes
         )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED -DUSE_KISS_FFT )

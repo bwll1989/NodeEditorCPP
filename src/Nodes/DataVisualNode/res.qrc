@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/">
+    <file>qml/3DScatter/main.qml</file>
+    <file>qml/3DScatter/Graph.qml</file>
+  </qresource>
+</RCC>

@@ -2,11 +2,12 @@
 // Created by bwll1 on 2024/9/1.
 //
 
-#ifndef NODEEDITORCPP_ARTNETRECEIVER_H
-#define NODEEDITORCPP_ARTNETRECEIVER_H
+#pragma once
+
 #include <QObject>
 #include "QThread"
 #include <QtNetwork/QUdpSocket>
+#include <QVariant>
 class ArtnetReceiver:public QObject {
     Q_OBJECT
 public:
@@ -30,4 +31,3 @@ private:
 };
 
 
-#endif //NODEEDITORCPP_EXTERNALCONTROLER_H

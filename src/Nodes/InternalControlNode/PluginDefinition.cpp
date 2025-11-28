@@ -1,7 +1,7 @@
 #include "PluginDefinition.hpp"
 
 #include "InternalControlModel.hpp"
-
+#include "OscOutGroupModel.hpp"
 Plugin *Plugin::_this_plugin = nullptr;
 
 Plugin::Plugin()
@@ -19,4 +19,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
     assert(reg);
 
     reg->registerModel<Nodes::InternalControlModel>(name(),tag());
+    reg->registerModel<Nodes::OscOutGroupModel>("OscOutGroup","Communications");
 }
