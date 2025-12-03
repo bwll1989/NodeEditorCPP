@@ -48,12 +48,6 @@ void setupAppInfo() {
 /**
  * @brief 设置应用程序样式
  * @param app QApplication对象的引用
- * @return bool 样式设置是否成功
- */
-// 函数：setupAppStyle（修正无效属性设置并补充注释）
-/**
- * @brief 设置应用程序样式
- * @param app QApplication对象的引用
  * @return bool 样式设置是否成功（若失败，外部可选择使用默认样式）
  * @note 仅设置支持的应用属性与样式；样式表从资源加载失败时返回false
  */
@@ -122,9 +116,30 @@ bool isApplicationRunning(QSharedMemory& sharedMemory) {
 void handleCommandLineArguments(const QCommandLineParser& parser, MainWindow& mainWindow) {
     const QStringList args = parser.positionalArguments();
     if (!args.isEmpty()) {
-        QString filePath = args.first();
+        const QString& filePath = args.first();
         mainWindow.loadFileFromPath(filePath);
     }
+}
+
+/**
+ * @brief 安全关闭启动界面并断开所有相关信号
+ * @param splashScreen 启动画面指针
+ * @param mainWindow 主窗口指针
+ * @note 统一封装关闭逻辑，防止在关闭后仍然接收状态更新导致的多余渲染
+ */
+static void closeSplashSafely(const QScopedPointer<CustomSplashScreen>& splashScreen,
+                              const QScopedPointer<MainWindow>& mainWindow)
+{
+    if (!splashScreen || !mainWindow) return;
+
+    // 断开状态更新信号，避免关闭后仍绘制
+    QObject::disconnect(mainWindow.data(), &MainWindow::initStatus,
+                        splashScreen.data(), &CustomSplashScreen::updateStatus);
+    QObject::disconnect(mainWindow->pluginsManagerDlg, &PluginsManagerWidget::loadPluginStatus,
+                        splashScreen.data(), &CustomSplashScreen::updateStatus);
+
+    // 关闭启动界面
+    splashScreen->finish(mainWindow.data());
 }
 
 /**
@@ -133,6 +148,7 @@ void handleCommandLineArguments(const QCommandLineParser& parser, MainWindow& ma
  * @param argv 命令行参数数组
  * @return int 程序退出码
  */
+
 int main(int argc, char *argv[])
 {
     // 设置高DPI支持
@@ -154,7 +170,7 @@ int main(int argc, char *argv[])
     // 检查应用程序是否已经在运行
     QSharedMemory sharedMemory(app.applicationName());
     if (isApplicationRunning(sharedMemory)) {
-        QMessageBox::warning(nullptr, "警告", "应用程序已经在运行中。");
+        QMessageBox::warning(nullptr, "", "应用程序已经在运行中。");
         return 1;
     }
     
@@ -164,7 +180,7 @@ int main(int argc, char *argv[])
     // 设置应用程序样式
     if (!setupAppStyle(app)) {
         qWarning() << "应用程序样式设置失败，将使用默认样式。";
-        QMessageBox::warning(nullptr, "样式警告", "应用程序样式加载失败，将使用默认样式。\n应用程序功能不受影响，但视觉效果可能不理想。");
+        QMessageBox::warning(nullptr, "", "应用程序样式加载失败，将使用默认样式。\n应用程序功能不受影响，但视觉效果可能不理想。");
     }
     
     // 解析命令行参数
@@ -177,45 +193,45 @@ int main(int argc, char *argv[])
     
     // 创建启动画面
     QScopedPointer<CustomSplashScreen> splashScreen(new CustomSplashScreen());
-    splashScreen->updateStatus("正在初始化...");
+    splashScreen->updateStatus("Preparing to open the program...");
     
     // 创建主窗口
     QScopedPointer<MainWindow> mainWindow(new MainWindow());
     
-    // 连接初始化状态信号到启动画面
-    QObject::connect(mainWindow.data(), &MainWindow::initStatus, 
+    // 连接初始化状态信号到启动画面（仅用于启动阶段的文字提示）
+    QObject::connect(mainWindow.data(), &MainWindow::initStatus,
                      splashScreen.data(), &CustomSplashScreen::updateStatus);
     
     // 初始化主窗口
     mainWindow->init();
     
-    // 主窗口初始化完成后，连接插件管理器的状态信号
-    QObject::connect(mainWindow->pluginsManagerDlg, &PluginsManagerWidget::loadPluginStatus, 
+    // 插件加载状态也显示在启动画面
+    QObject::connect(mainWindow->pluginsManagerDlg, &PluginsManagerWidget::loadPluginStatus,
                      splashScreen.data(), &CustomSplashScreen::updateStatus);
     
-    // 当收到初始化节点库成功的消息时，关闭启动画面
-    QObject::connect(mainWindow.data(), &MainWindow::initStatus, 
-                     [&splashScreen, &mainWindow](const QString& message) {
-        if (message == "Initialization nodes library success") {
-            splashScreen->finish(mainWindow.data());
-        }
-    });
-    
-    // 加载插件和初始化节点列表
+    // 加载插件和初始化节点列表（保持原有顺序）
     mainWindow->pluginsManagerDlg->loadPluginsFromFolder();
     mainWindow->initNodelist();
-    // 最大化显示主窗口
+    
+    // 如果有命令行参数，则处理命令行参数，由于处理命令行时也会有恢复视觉效果，所以这里不需要再恢复视觉状态
+    if (!parser.positionalArguments().isEmpty()) {
+        // 处理命令行参数可能触发文件加载
+        handleCommandLineArguments(parser, *mainWindow);
+    }
+    // else{
+    //     // 如果没有命令行参数，则恢复视觉状态
+    //     mainWindow->restoreVisualState();
+    // }
+    // 所有都处理完成后再显示主窗口，并关闭启动界面
     mainWindow->showMaximized();
-    // 恢复窗口视觉状态
-    handleCommandLineArguments(parser, *mainWindow);
-    mainWindow->restoreVisualState();
-    // 窗口显示之后再处理命令行参数
+
+    closeSplashSafely(splashScreen, mainWindow);
 
     // 启动应用程序事件循环
     int result = app.exec();
-    
+
     // 完成后分离共享内存
     sharedMemory.detach();
-    
+
     return result;
 }

@@ -60,8 +60,17 @@ signals:
 
 protected:
     void resizeEvent(QResizeEvent* e) override;
+    /**
+     * 失去焦点事件
+     * 若焦点离开控件与弹出层，则关闭弹出层。
+     */
     void focusOutEvent(QFocusEvent* e) override;
     void keyPressEvent(QKeyEvent* e) override;
+    /**
+     * 移动事件
+     * 控件在父窗口内移动时，若弹出层处于可见状态则重新定位弹出层。
+     */
+    void moveEvent(QMoveEvent* e) override;
 
 private slots:
     void onTogglePopup();
@@ -75,6 +84,10 @@ private:
     void rebuildCompleter();
     QStringList allItems() const;
     void updateModel();
+    /**
+     * 放置弹出面板
+     * 将弹出面板对齐到右侧按钮外侧顶部，并进行屏幕边界裁剪。
+     */
     void placePopup();
 
 private:

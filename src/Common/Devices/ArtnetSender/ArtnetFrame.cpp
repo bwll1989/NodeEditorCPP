@@ -5,7 +5,7 @@
 #include "ArtnetFrame.h"
 #include <QDateTime>
 #include <QHostAddress>
-
+#include "ConstantDefines.h"
 /**
  * @brief 默认构造函数
  */
@@ -13,7 +13,7 @@ ArtnetFrame::ArtnetFrame()
     : host("127.0.0.1")
     , universe(0)
     , sequence(0)
-    , port(6454)
+    , port(AppConstants::ARTNET_PORT)
     , timestamp(QDateTime::currentMSecsSinceEpoch())
 {
     dmxData.fill(0, 512); // 初始化为512字节的零数据

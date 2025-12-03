@@ -2,8 +2,7 @@
 // Created by bwll1 on 2025/7/3.
 //
 
-#ifndef NODEEDITORCPP_SUPPORTWIDGETS_H
-#define NODEEDITORCPP_SUPPORTWIDGETS_H
+#pragma once
 #include <QSpinBox>
 #include <QPushButton>
 #include <QSlider>
@@ -24,6 +23,11 @@ public:
     {
         return QSpinBox::value();
     }
+    Q_INVOKABLE void setRange(int min, int max)
+    {
+        QSpinBox::setRange(min, max);
+    }
+
 };
 
 class Button : public QPushButton
@@ -39,6 +43,7 @@ public:
             QPushButton::setText(text);
         }
     }
+    
 };
 
 class VSlider : public QSlider
@@ -50,6 +55,10 @@ public:
     Q_INVOKABLE int value() const
     {
         return QSlider::value();
+    }
+    Q_INVOKABLE void setRange(int min, int max)
+    {
+        QSlider::setRange(min, max);
     }
 };
 
@@ -66,6 +75,11 @@ public:
     {
         return QSlider::value();
     }
+    Q_INVOKABLE void setRange(int min, int max)
+    {
+        QSlider::setRange(min, max);
+    }
+
 };
 
 class Label : public QLabel
@@ -77,6 +91,10 @@ public:
     Q_INVOKABLE QString text() const
     {
         return QLabel::text();
+    }
+    Q_INVOKABLE void setAlignment(Qt::Alignment alignment)
+    {
+        QLabel::setAlignment(alignment);
     }
 };
 
@@ -144,7 +162,9 @@ public:
     {
         return QDoubleSpinBox::value();
     }
+    Q_INVOKABLE void setRange(double min, double max)
+    {
+        QDoubleSpinBox::setRange(min, max);
+    }
 };
 
-
-#endif //NODEEDITORCPP_SUPPORTWIDGETS_H

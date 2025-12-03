@@ -6,7 +6,7 @@
 #include <iostream>
 #include <QPushButton>
 #include <QtCore/qglobal.h>
-#include "ArtnetPlaybackInterface.hpp"
+#include "UniversePlaybackInterface.hpp"
 #include <QVariantMap>
 #include <QByteArray>
 #include <QJsonArray>
@@ -40,7 +40,7 @@ namespace Nodes
  * 支持HAP 25fps格式视频，水平128像素RGBA代表512个DMX通道，竖直每4行代表一个Universe
  * 支持动态Universe数量，根据视频高度自动计算
  */
-class ArtnetPlaybackDataModel : public NodeDelegateModel
+class UniversePlaybackDataModel : public NodeDelegateModel
 {
     Q_OBJECT
 
@@ -48,15 +48,14 @@ public:
     /**
      * @brief 构造函数，初始化Artnet Universe回放节点
      */
-    ArtnetPlaybackDataModel();
+    UniversePlaybackDataModel();
 
     /**
      * @brief 析构函数
      */
-    ~ArtnetPlaybackDataModel() override {
+    ~UniversePlaybackDataModel() override {
         stopPlayback();
         cleanupFFmpeg();
-        delete widget;
     }
 
     /**
@@ -389,7 +388,7 @@ private:
     QList<QVector<int>> dmxDataList;                    // 动态数量的Universe的512通道DMX数据
     QList<std::shared_ptr<VariableData>> universeOutputs; // 动态数量的Universe输出数据
 
-    Nodes::ArtnetPlaybackInterface * widget = new Nodes::ArtnetPlaybackInterface();
+    Nodes::UniversePlaybackInterface * widget = new Nodes::UniversePlaybackInterface();
     };
 }
 

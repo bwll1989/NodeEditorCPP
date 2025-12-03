@@ -3,6 +3,7 @@
 #include <QVBoxLayout>
 #include <QKeyEvent>
 #include <QApplication>
+#include <QScreen>
 
 SelectorComboBox::SelectorComboBox(MediaLibrary::Category category, QWidget* parent)
     : QLineEdit(parent), m_mediaLibrary(MediaLibrary::instance()), m_category(category)
@@ -18,8 +19,8 @@ SelectorComboBox::SelectorComboBox(MediaLibrary::Category category, QWidget* par
     m_toggleButton->setToolTip(tr("展开候选"));
     connect(m_toggleButton, &QToolButton::clicked, this, &SelectorComboBox::onTogglePopup);
 
-    // 侧边弹出面板
-    m_popupFrame = new QFrame(nullptr, Qt::Popup | Qt::FramelessWindowHint);
+    // 侧边弹出面板（修复：将父对象设为 this，使其作为控件的“父弹窗”）
+    m_popupFrame = new QFrame(this, Qt::Popup | Qt::FramelessWindowHint);
     m_popupFrame->setAttribute(Qt::WA_TranslucentBackground, false);
     m_popupFrame->setObjectName("SelectorComboBoxPopup");
     m_popupFrame->setStyleSheet(
@@ -203,6 +204,22 @@ void SelectorComboBox::resizeEvent(QResizeEvent* e) {
     const int x = width() - btnW - 2;
     const int y = 2;
     m_toggleButton->move(x, y);
+
+    // 若弹出层可见，尺寸变化后重新定位，避免错位
+    if (m_popupVisible) {
+        placePopup();
+    }
+}
+
+/**
+ * 控件移动事件
+ * 控件位置发生变化时，若弹出层可见则重新定位。
+ */
+void SelectorComboBox::moveEvent(QMoveEvent* e) {
+    QLineEdit::moveEvent(e);
+    if (m_popupVisible) {
+        placePopup();
+    }
 }
 
 void SelectorComboBox::focusOutEvent(QFocusEvent* e) {

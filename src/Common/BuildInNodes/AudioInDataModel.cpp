@@ -7,10 +7,12 @@
 #include <QtCore/QJsonValue>
 #include <QtGui/QDoubleValidator>
 #include <QtWidgets/QLineEdit>
+
+using namespace QtNodes;
 namespace Nodes {
     AudioInDataModel::AudioInDataModel()
-        : _inputSelector{new QComboBox()}
     {
+		widget=new DataBridgeSelectorBox();
         InPortCount =0;
         OutPortCount=1;
         CaptionVisible=true;
@@ -18,11 +20,9 @@ namespace Nodes {
         WidgetEmbeddable= true;
         Resizable=false;
         PortEditable= true;
-        registerOSCControl("/index",_inputSelector);
-        setRemarks("Undefined");
+        NodeDelegateModel::registerOSCControl("/input",widget);
         ModelDataBridge::instance().registerEntranceDelegate(this);
-        connect(_inputSelector,&QComboBox::currentTextChanged,this,&AudioInDataModel::setRemarks);
-
+        connect(widget,&DataBridgeSelectorBox::selectionChanged,this,&AudioInDataModel::setRemarks);
     }
 
     AudioInDataModel::~AudioInDataModel() {
@@ -32,25 +32,32 @@ namespace Nodes {
     {
         QJsonObject modelJson = NodeDelegateModel::save();
 
-        modelJson["quoted address"] =_inputSelector->currentText();
+    	modelJson["quoted address"] =widget->text();
 
         return modelJson;
     }
 
 
     void AudioInDataModel::setRemarks(const QString& remarks){
-        NodeDelegateModel::setRemarks(remarks);
+        QString trimmedRemarks = remarks.trimmed();
+
+        if (trimmedRemarks.isEmpty())
+            trimmedRemarks="Undefined";
+        NodeDelegateModel::setRemarks(trimmedRemarks);
         ModelDataBridge::instance().updateRemarksForDelegate(this,true,getRemarks());
+        ModelDataBridge::instance().requestDataManual(this->getRemarks());
     };
+
     void AudioInDataModel::load(QJsonObject const &p)
     {
         QJsonValue v = p["quoted address"];
 
         if (!v.isUndefined()) {
             QString strNum = v.toString();
-            if (_inputSelector)
-                _inputSelector->setCurrentText(strNum);
+            if (widget)
+                widget->setCurrentValue(strNum);
         }
+        ModelDataBridge::instance().requestDataManual(this->getRemarks());
 
     }
 
@@ -68,9 +75,7 @@ namespace Nodes {
 
     QWidget *AudioInDataModel::embeddedWidget()
     {
-        _inputSelector->clear();
-        _inputSelector->addItems(ModelDataBridge::instance().getAllExportRemarks());
-        return _inputSelector;
+        return widget;
     }
 
     void AudioInDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
@@ -83,5 +88,14 @@ namespace Nodes {
             _dataMap[portIndex]=nullptr;
         }
         emit dataUpdated(portIndex);
+    }
+    void AudioInDataModel::stateFeedBack(const QString& oscAddress,QVariant value){
+
+        OSCMessage message;
+        message.host = AppConstants::EXTRA_FEEDBACK_HOST;
+        message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+        message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
+        message.value = value;
+        OSCSender::instance()->sendOSCMessageWithQueue(message);
     }
 }

@@ -18,8 +18,9 @@ set(SOURCE_FILES
         JavaScriptInterface.hpp
         JavaScriptDataModel.hpp
         JavaScriptDataModel.cpp
-        SupportWidgets.hpp
+#        SupportWidgets.hpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp
+        ../../Common/Devices/JSEngineDefines/SupportWidgets.hpp
         JsCodeEditor.cpp
         JsCodeEditor.h)
 add_library(${Module_Name} SHARED

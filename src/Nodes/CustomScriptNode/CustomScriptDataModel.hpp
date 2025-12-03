@@ -17,7 +17,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QCheckBox>
-#include "SupportWidgets.hpp"
+#include "JSEngineDefines/SupportWidgets.hpp"
 #include "JSEngineDefines/JSEngineDefines.hpp"
 #include <QtConcurrent/QtConcurrentRun>
 #include <QFutureWatcher>
@@ -97,10 +97,10 @@ public:
      */
     ~CustomScriptDataModel()
     {
-        widget->deleteLater();
+
     }
     
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+    Q_INVOKABLE QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
 
         switch (portType) {
@@ -114,7 +114,24 @@ public:
         return "";
     }
 
+    Q_INVOKABLE unsigned int nPorts(PortType portType) const override
+        {
+            unsigned int result = 1;
 
+            switch (portType) {
+                case PortType::In:
+                    result = InPortCount;
+                    break;
+
+                case PortType::Out:
+                    result = OutPortCount;
+
+                default:
+                    break;
+            }
+
+            return result;
+        }
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
         Q_UNUSED(portType)

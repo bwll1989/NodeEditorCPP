@@ -6,7 +6,7 @@
 #include <iostream>
 #include <QPushButton>
 #include <QtCore/qglobal.h>
-#include "ArtnetUniverseInterface.hpp"
+#include "DMXUniverseInterface.hpp"
 #include <QVariantMap>
 #include <QByteArray>
 #include <QJsonArray>
@@ -25,7 +25,7 @@ namespace Nodes
      * @brief Artnet Universe节点 - 合并多个ArtnetDevice输出为完整Universe数据包
      * 接收多个ArtnetDevice的输出，合并成带有Universe信息的512通道DMX数据包
      */
-    class ArtnetUniverseDataModel : public NodeDelegateModel
+    class DMXUniverseDataModel : public NodeDelegateModel
     {
         Q_OBJECT
 
@@ -33,7 +33,7 @@ namespace Nodes
         /**
          * @brief 构造函数，初始化Artnet Universe节点
          */
-        ArtnetUniverseDataModel()
+        DMXUniverseDataModel()
         {
             InPortCount = 8;   // 默认8个输入端口，用于接收ArtnetDevice输出
             OutPortCount = 1;   // 一个Universe数据输出
@@ -51,15 +51,15 @@ namespace Nodes
             
             // 连接界面信号
             connect(widget->universeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &ArtnetUniverseDataModel::onUniverseChanged);
+                    this, &DMXUniverseDataModel::onUniverseChanged);
             connect(widget->subnetSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &ArtnetUniverseDataModel::onSubnetChanged);
+                    this, &DMXUniverseDataModel::onSubnetChanged);
             connect(widget->netSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &ArtnetUniverseDataModel::onNetChanged);
+                    this, &DMXUniverseDataModel::onNetChanged);
             
             // 连接清空按钮信号
-            connect(widget, &Nodes::ArtnetUniverseInterface::clearDataClicked,
-                    this, &ArtnetUniverseDataModel::onClearDataClicked);
+            connect(widget, &Nodes::DMXUniverseInterface::clearDataClicked,
+                    this, &DMXUniverseDataModel::onClearDataClicked);
             
             // 注册OSC控制
             NodeDelegateModel::registerOSCControl("/universe", widget->universeSpinBox);
@@ -73,7 +73,7 @@ namespace Nodes
         /**
          * @brief 析构函数
          */
-        ~ArtnetUniverseDataModel() override {
+        ~DMXUniverseDataModel() override {
         }
 
         /**
@@ -318,6 +318,6 @@ namespace Nodes
         std::shared_ptr<VariableData> universeData;  // Universe数据输出
         QVector<int> dmxData;                        // 512通道DMX数据
         
-        Nodes::ArtnetUniverseInterface * widget = new Nodes::ArtnetUniverseInterface();
+        Nodes::DMXUniverseInterface * widget = new Nodes::DMXUniverseInterface();
     };
 }

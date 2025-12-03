@@ -33,3 +33,4 @@
 - [libLtc](https://github.com/x42/libltc.git) — LTC 编解码
 - [Eigen3](https://eigen.tuxfamily.org/index.php?title=Main_Page) — 矩阵运算
 - [OpenCV](https://github.com/opencv/opencv.git) — 图像处理
+- [Onnx](https://github.com/onnx/onnx.git) — 模型推理

@@ -11,8 +11,9 @@ public:
         : QSortFilterProxyModel(parent) {}
 
     void setFilterDate(const QDate& d) {
+        beginFilterChange();
         m_date = d;
-        invalidateFilter();
+        endFilterChange();
     }
     QDate getFilterDate() const {return m_date;}
 protected:

@@ -40,7 +40,6 @@ set(ALL_NODES
     MpvControllerNode                         #mpv控制
     SwitchNode                                #输入切换
     NDVServerNode                             #NDV控制
-    DataVisualizationNode                         #图表模块
     ConditionNode                             #条件判断
     WebSocketServerNode                       #WebSocket服务器
     WebSocketClientNode                       #WebSocket客户端
@@ -55,24 +54,24 @@ set(ALL_NODES
     HoldNode                                  #信号保持
     SpoutInNode                               #Spout输入
     NDVPlayerNode                             #NDV player
-    ArtnetDeviceNode                          #Artnet 设备
-    ArtnetUniverseNode                        #Artnet Universe
+    DMXDeviceNode                             #DMX 设备
+    DMXUniverseNode                           #DMX Universe
     ArtnetOutNode                             #Artnet输出
-    ArtnetPlaybackNode                        #Artnet数据回放
+    UniversePlaybackNode                      #DMX Universe 数据回放
     CustomScriptNode                          #自定义js节点
     AudioDeviceInNode                         #音频输入节点
     NoiseGeneratorNode                        #噪声生成器节点
     NDIInNode                                 #NDI输入节点
     NDIOutNode                                #NDI输出节点
     PJLinkNode                                #PJLink输出节点
-    LTCDecoderNode                            #LTC时间码解析节点
-    AudioMatrixNode                           #音频矩阵节点
-    AudioAnalysisNode                         #音频分析节点
-    PythonScriptNode                          #python脚本节点
+    LTCDecoderNode                              #LTC时间码解析节点
+    AudioMatrixNode                             #音频矩阵节点
+    AudioAnalysisNode                           #音频分析节点
+    PythonScriptNode                            #python脚本节点
     YoloPoseONNXNode                            #Yolo v11n 姿态
     YoloDetectionONNXNode                       #Yolo v11n 检测
     StyleTransferONNXNode                       #神经网络风格迁移
-        DataVisualNode                          #数据可视化
+    DataVisualNode                              #数据可视化
 #    AudioIntentNode                              #音频意图分析（弃用）
 )
 
@@ -142,10 +141,10 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(HoldNode)                                  #信号保持
     add_subdirectory(SpoutInNode)                               #Spout输入
     add_subdirectory(NDVPlayerNode)                             #NDV player
-    add_subdirectory(ArtnetDeviceNode)                          #Artnet 设备
-    add_subdirectory(ArtnetUniverseNode)                        #Artnet Universe
+    add_subdirectory(DMXDeviceNode)                             #DMX 设备
+    add_subdirectory(DMXUniverseNode)                           #DMX Universe 数据
     add_subdirectory(ArtnetOutNode)                             #Artnet输出
-    add_subdirectory(ArtnetPlaybackNode)                        #Artnet数据回放
+    add_subdirectory(UniversePlaybackNode)                       #DMX Universe 数据回放
     add_subdirectory(CustomScriptNode)                          #自定义js节点
     add_subdirectory(AudioDeviceInNode)                         #音频输入节点
     add_subdirectory(NoiseGeneratorNode)                        #噪声生成器节点

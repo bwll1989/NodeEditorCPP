@@ -16,6 +16,7 @@
 #include <spdlog/sinks/daily_file_sink.h>
 #include <mutex>
 #include <QDir>
+#include <QMessageBox>
 #include <QRegularExpression>
 #include "ConstantDefines.h"
 LogHandler::LogHandler(LogWidget *tableWidget) {
@@ -50,6 +51,7 @@ bool LogHandler::initLogHandler() {
         return true;
     }
     catch (const spdlog::spdlog_ex& ex) {
+        QMessageBox::warning(nullptr, "日志初始化失败", QString("无法初始化日志系统：%1").arg(ex.what()));
         return false;
     }
 }
@@ -119,7 +121,7 @@ void LogHandler::appendLogToTable(const QString &timestamp, const QString &level
         QStringList logParts = logMessage.split(regex, Qt::SkipEmptyParts);
         
         // 检查是否需要删除旧日志条目以保持在最大条目数限制内
-        int maxEntries = logTableWidget->maxLogEntries();
+        int maxEntries = AppConstants::MaxLogEntries;
         while (logTableWidget->rowCount() >= maxEntries) {
             logTableWidget->removeRow(0); // 删除最早的日志条目
         }

@@ -18,6 +18,7 @@ using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
+using QtNodes::ConnectionPolicy;
 class QLineEdit;
 class QPushButton;
 using namespace NodeDataTypes;

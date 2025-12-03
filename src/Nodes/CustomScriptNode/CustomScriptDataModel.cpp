@@ -19,7 +19,7 @@
 #include <QCheckBox>
 #include <QCoreApplication>
 #include <QTimer>
-#include "SupportWidgets.hpp"
+#include "JSEngineDefines/SupportWidgets.hpp"
 #include "JSEngineDefines/JSEngineDefines.hpp"
 #include <QtConcurrent/QtConcurrentRun>
 

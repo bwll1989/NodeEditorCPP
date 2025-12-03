@@ -135,3 +135,18 @@ void ModelDataBridge::unregisterEntranceDelegate(NodeDelegateModel* delegate) {
 void ModelDataBridge::unregisterExportDelegate(NodeDelegateModel* delegate) {
     removeDelegateFromMap(_exports, delegate);
 }
+
+void ModelDataBridge::requestDataManual(const QString& sourceRemarks) {
+    if (_exports.contains(sourceRemarks)) {
+        NodeDelegateModel* source = _exports.value(sourceRemarks).data();
+        int portcount=source->InPortCount;
+        NodeDelegateModel* target = _entrances.value(sourceRemarks).data();
+        for(int outIdx=0;outIdx<portcount;outIdx++){
+            std::shared_ptr<NodeData> data = source->outData(outIdx);
+
+                // 推送到所有匹配备注的导出节点
+                pushToExports(sourceRemarks, data, outIdx);
+
+        }
+    }
+}

@@ -44,7 +44,76 @@
 #include <QStringConverter>
 
 using namespace Nodes;
+/**
+ * 批量注册内置的单行提示词与少量多行模板
+ * 使用 QStringList 循环，显著减少逐条 apis->add() 的样板代码。
+ */
+static void registerDefaultJsApis(QsciAPIs* apis)
+{
+    // 单行提示词（类名、方法、关键字等）
+    const QStringList items = {
+        "Node.inputIndex()",
+        "Node.getOutputCount()",
+        "Node.getInputCount()",
+        "Node.getInputValue()",
+        "Node.setOutputValue()",
+        "print()",
+        "typeof",
+        "var",
+        "null",
+        "new",
+        "SpinBox",
+        "CheckBox",
+        "LineEdit",
+        "Label",
+        "Button",
+        "VSlider",
+        "HSlider",
+        "DoubleSpinBox",
+        "ComboBox",
+        "clearLayout",
+        "setRange",
+        "setValue",
+        "Node.addToLayout",
+        "while()",
+        "else",
+        "for",
+        "break",
+        "continue",
+        "function",
+        "console.log()"
+    };
+    for (const auto& s : items) {
+        apis->add(s);
+    }
 
+    // 多行模板示例：保留为单独的大字符串添加
+    apis->add(QString(R"(if (condition){
+        // 执行代码块 1
+    }else{
+        // 执行代码块 2
+    })"));
+
+    apis->add(QString(R"(switch() {
+    case 1:
+        // 执行代码块 1
+        break;
+    case 2:
+        // 执行代码块 2
+        break;
+    default:
+        // 默认代码块
+})"));
+}
+/**
+ * 尝试从文件加载 API 列表
+ * 优先从 Qt 资源路径（如 :/res/js_apis.api）或磁盘路径读取，每行一个词条。
+ * 成功返回 true；失败返回 false（由调用方回退到默认列表）。
+ */
+static bool registerApisFromFile(QsciAPIs* apis, const QString& filePath)
+{
+    return apis->load(filePath);
+}
 JsCodeEditor::JsCodeEditor(QString code,QWidget* parent):
         m_code(code),
         m_setupLayout(nullptr),
@@ -92,62 +161,49 @@ void JsCodeEditor::createWidgets()
     QsciLexerJavaScript* textLexer = new QsciLexerJavaScript(this);
     m_codeEditor->setLexer(textLexer);
     
+    /**
+     * 编辑器行为优化设置：
+     * - 按词换行并保留缩进
+     * - 自动缩进与缩进辅助
+     * - 自动补全更稳（阈值、大小写、替换、单项不弹窗）
+     * - 括号匹配提高可读性
+     */
     // 设置焦点策略，确保编辑器能够保持焦点
     m_codeEditor->setFocusPolicy(Qt::StrongFocus);
-    
-    //文档中出现的单词支持自动补全
+
+    // 文档中出现的单词支持自动补全
     m_codeEditor->setAutoCompletionSource(QsciScintilla::AcsAll);
-    //设置自动补全的匹配模式为大小写敏感
+    m_codeEditor->setCaretLineVisible(true);
+
+    //设置光标所在行背景色
+    m_codeEditor->setCaretLineBackgroundColor(Qt::lightGray);
+    m_codeEditor->setFolding(QsciScintilla::BoxedTreeFoldStyle);//折叠样式
+
+    m_codeEditor->setFoldMarginColors(Qt::gray,Qt::lightGray);//折叠栏颜色
+    // 优化换行：按词换行 + 缩进对齐
+    m_codeEditor->setWrapMode(QsciScintilla::WrapWord);
+    m_codeEditor->setWrapIndentMode(QsciScintilla::WrapIndentIndented);
+    
+    // 编辑体验增强：自动缩进、缩进辅助与退格反缩进
+    m_codeEditor->setAutoIndent(true);
+    m_codeEditor->setIndentationGuides(true);
+    m_codeEditor->setTabIndents(true);
+    m_codeEditor->setBackspaceUnindents(true);
+    
+    // 自动补全：替换单词，大小写敏感，阈值适度，单项不弹窗
+    m_codeEditor->setAutoCompletionReplaceWord(true);
     m_codeEditor->setAutoCompletionCaseSensitivity(true);
-    //设置自动补全的触发字符个数
+    m_codeEditor->setAutoCompletionShowSingle(false);
     m_codeEditor->setAutoCompletionThreshold(1);
-    // //常用关键字支持自动补全
+    
+    // 括号匹配：宽松匹配提高效果
+    m_codeEditor->setBraceMatching(QsciScintilla::SloppyBraceMatch);
+    
+    //常用关键字支持自动补全
     QsciAPIs *apis = new QsciAPIs(textLexer);
-    apis->add(QString("Node.inputIndex()"));
-    apis->add(QString("Node.getOutputCount()"));
-    apis->add(QString("Node.getInputCount()"));
-    apis->add(QString("Node.getInputValue()"));
-    apis->add(QString("Node.setOutputValue()"));
-    apis->add(QString("print()"));
-    apis->add(QString("typeof"));
-    apis->add(QString("var"));
-    apis->add(QString("null"));
-    apis->add(QString("new"));
-    apis->add(QString("SpinBox"));
-    apis->add(QString("CheckBox"));
-    apis->add(QString("LineEdit"));
-    apis->add(QString("Label"));
-    apis->add(QString("Button"));
-    apis->add(QString("VSlider"));
-    apis->add(QString("HSlider"));
-    apis->add(QString("DoubleSpinBox"));
-    apis->add(QString("ComboBox"));
-    apis->add(QString("clearLayout"));
+    // 加载提示词文件（类名、方法、关键字等）
+    registerApisFromFile(apis, ":/JS_API/js_apis.api");
 
-    apis->add(QString("Node.addToLayout"));
-
-    apis->add(QString(R"(if (condition){
-        // 执行代码块 1
-    }else{
-        // 执行代码块 2
-    })"));
-    apis->add(QString(R"(switch() {
-    case 1:
-        // 执行代码块 1
-        break;
-    case 2:
-        // 执行代码块 2
-        break;
-    default:
-        // 默认代码块
-})"));
-    apis->add(QString("while()"));
-    apis->add(QString("else"));
-    apis->add(QString("for"));
-    apis->add(QString("break"));
-    apis->add(QString("continue"));
-    apis->add(QString("function"));
-    apis->add(QString("console.log()"));
     apis->prepare();
 
     //设置编码为UTF-8
@@ -200,13 +256,23 @@ QString JsCodeEditor::saveCode() {
 void JsCodeEditor::performConnections()
 {
 
+    /**
+     * 连接控件信号：使用 Qt 6 推荐的 checkStateChanged(Qt::CheckState)
+     * 将编辑器的只读状态与“Read Only”复选框联动。
+     */
     connect(
-            m_readOnlyCheckBox,
-            &QCheckBox::stateChanged,
-            [this](int state)
-            { m_codeEditor->setReadOnly(state != 0); }
+        m_readOnlyCheckBox,
+        &QCheckBox::checkStateChanged,
+        [this](Qt::CheckState state)
+        {
+            // 非 Unchecked（包含 PartiallyChecked/Checked）均视为只读
+            m_codeEditor->setReadOnly(state != Qt::Unchecked);
+        }
     );
     connect(exportJS,&QPushButton::clicked,this,&JsCodeEditor::exportCode);
+    // // 绑定 Ctrl+/ 快捷键到内置注释切换
+    // auto *m_actionToggleComment = new QShortcut(QKeySequence::fromString("Ctrl+/"), m_codeEditor);
+    // connect(m_actionToggleComment, &QShortcut::activated, this, &JsCodeEditor::toggleComment);
 }
 void JsCodeEditor::setReadOnly(bool readOnly)
 {
@@ -400,3 +466,4 @@ void JsCodeEditor::exportCode()
     // 清理
     exportDialog->deleteLater();
 }
+

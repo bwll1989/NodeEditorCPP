@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
-
+# 标准程序
 set(ProjectName "NodeStudio")
+# Headless 程序
+set(HeadlessProjectName ${ProjectName}Actuator)
 project(${ProjectName} VERSION 1.1 LANGUAGES CXX)
 # set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
 string(TIMESTAMP BUILD_TS "%Y%m%d")
@@ -56,7 +58,7 @@ message("-- Found QtNodes ${QtNodes_DIR}")
 
 # 设置ADS库
 set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/src" )
-set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/lib/qt6advanceddocking.lib")
+set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/lib/qtadvanceddocking-qt6.lib")
 INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
 message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
 
@@ -134,7 +136,6 @@ set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
         3rdParty/tinyosc-msvc/tinyosc.h
-        res/res.rc
         res/resources.qrc
         src/Widget/NodeWidget/CustomGraphicsView.cpp
         src/Widget/NodeWidget/CustomGraphicsView.h
@@ -152,6 +153,8 @@ set(CALC_SOURCE_FILES
         src/Widget/AboutWidget/AboutWidget.hpp
         src/Widget/MainWindow/MainWindow.hpp
         src/Widget/MainWindow/MainWindow.cpp
+        src/Widget/MainWindow/MainWindowHeadLess.cpp
+        src/Widget/MainWindow/MainWindowHeadLess.hpp
         src/Widget/SplashWidget/CustomSplashScreen.cpp
         src/Widget/SplashWidget/CustomSplashScreen.hpp
         src/Widget/ExternalControl/ExternalControler.cpp
@@ -193,12 +196,11 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/LtcReceiver/LtcReceiver.cpp
         src/Common/Devices/LtcReceiver/LtcReceiver.h
         src/Common/Devices/JSEngineDefines/JSEngineDefines.hpp
+        src/Common/Devices/JSEngineDefines/SupportWidgets.hpp
         src/Common/GUI/DataTreeModel/DataTreeModel.h
         src/Common/GUI/DataTreeModel/DataTreeModel.cpp
         src/Common/GUI/DataTreeModel/QmlDataBrowser.h
         src/Common/GUI/DataTreeModel/QmlDataBrowser.cpp
-        # src/Widget/TimeLineWidget/videoplayerwidget.hpp
-        # src/Widget/TimeLineWidget/videoplayerwidget.cpp
         src/Widget/TimeLineWidget/timelinewidget.cpp
         src/Widget/TimeLineWidget/timelinewidget.hpp
         src/Widget/TimeLineWidget/TimelineScreenWidget/AbstractTimelineScreen.hpp
@@ -245,29 +247,37 @@ set(CALC_SOURCE_FILES
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.h
         src/constantDefines.h
 )
-
+# 函数级注释：定义 Headless 版本源文件（用 headless_main.cpp 替换 main.cpp）
+set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES})
+list(REMOVE_ITEM HEADLESS_SOURCE_FILES main.cpp)
+list(APPEND HEADLESS_SOURCE_FILES headless_main.cpp)
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(${ProjectName}
             MANUAL_FINALIZATION
             ${CALC_SOURCE_FILES}
+            res/res.rc
     )
-
-# Define target properties for Android with Qt 6 as:
-#    set_property(TARGET ${ProjectName} APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
-#                 ${CMAKE_CURRENT_SOURCE_DIR}/android)
-# For more information, see https://doc.qt.io/qt-6/qt-add-executable.html#target-creation
+    # 函数级注释：Qt6 下添加 Headless 可执行目标
+    qt_add_executable(${HeadlessProjectName}
+            MANUAL_FINALIZATION
+            ${HEADLESS_SOURCE_FILES}
+            res/headless.rc
+    )
 else()
     if(ANDROID)
         add_library(${ProjectName} SHARED
                 ${CALC_SOURCE_FILES}
         )
-# Define properties for Android with Qt 5 after find_package() calls as:
-#    set(ANDROID_PACKAGE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/android")
     else()
         add_executable(${ProjectName}
                 ${CALC_SOURCE_FILES}
                 res/res.rc
+        )
+        # 函数级注释：Qt5/非 Android 下添加 Headless 可执行目标
+        add_executable(${HeadlessProjectName}
+                ${HEADLESS_SOURCE_FILES}
+                res/headless.rc
         )
     endif()
 endif()
@@ -329,26 +339,77 @@ target_link_libraries(${ProjectName}
             DelayListWidget
 )
 
-#add_library(singleton SHARED ${CALC_SOURCE_FILES})
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
-
-#if(${QT_VERSION} VERSION_LESS 6.1.0)
-#  set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.${ProjectName})
-#endif()
+# 为 Headless 目标定义编译宏（与主程序一致）
+target_compile_definitions(${HeadlessProjectName} PRIVATE -DNODE_EDITOR_SHARED NODE_TIMELINE_SHARED)
+target_compile_definitions(${HeadlessProjectName} PRIVATE CLIENTCONTROLLER_LIBRARY)
+target_compile_definitions(${HeadlessProjectName} PRIVATE OSCLISTWIDGET_LIBRARY)
+# 为 Headless 目标链接与主程序一致的库（含 FFmpeg 7.1）
+target_link_libraries(${HeadlessProjectName}
+        PUBLIC
+            Qt${QT_VERSION_MAJOR}::Widgets
+            Qt${QT_VERSION_MAJOR}::Gui
+            Qt${QT_VERSION_MAJOR}::Core
+            Qt${QT_VERSION_MAJOR}::Qml
+            Qt${QT_VERSION_MAJOR}::QmlWorkerScript
+            Qt${QT_VERSION_MAJOR}::QuickControls2
+            Qt${QT_VERSION_MAJOR}::Quick
+            Qt${QT_VERSION_MAJOR}::QuickWidgets
+            Qt${QT_VERSION_MAJOR}::Network
+            Qt${QT_VERSION_MAJOR}::Concurrent
+            Qt${QT_VERSION_MAJOR}::Multimedia
+            Qt${QT_VERSION_MAJOR}::MultimediaWidgets
+            Qt${QT_VERSION_MAJOR}::OpenGL
+            Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+            Qt${QT_VERSION_MAJOR}::WebSockets
+            Qt${QT_VERSION_MAJOR}::Graphs
+            GUIElements
+            avcodec
+            avdevice
+            avfilter
+            avformat
+            avutil
+            postproc
+            swresample
+            swscale
+            Opengl32
+            glu32
+            OSCTransmitter
+            DataTypes
+            BuildInNodes
+            ${portaudio_LIBRARIES}
+            ${QtNodes_LIBRARIES}
+            ${Spdlog_LIBRARIES}
+            ${ADS_LIBRARIES}
+            ${Libpd_LIBRARIES}
+            ${Libltc_LIBRARIES}
+            Eigen3::Eigen
+            ${QtTimeLine_LIBRARIES}
+            ${OpenCV_LIBRARIES}
+            ClientController
+            OscListWidget
+            TimestampGenerator
+            MediaManger
+            ModelDataBridge
+            DelayListWidget
+)
+# 设置主程序属性
 set_target_properties(${ProjectName} PROPERTIES
-    ${BUNDLE_ID_OPTION}
-#    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-#    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-#    MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
     OUTPUT_NAME "${ProjectName}"
-
+)
+# 设置 Headless 目标属性与输出名，与主程序一致
+set_target_properties(${HeadlessProjectName} PROPERTIES
+    WIN32_EXECUTABLE TRUE
+    OUTPUT_NAME ${HeadlessProjectName}
 )
 
-include(GNUInstallDirs)
 install(TARGETS ${ProjectName}
+    BUNDLE DESTINATION .
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+# 函数级注释：安装 Headless 目标到同一目录
+install(TARGETS ${HeadlessProjectName}
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -356,6 +417,8 @@ install(TARGETS ${ProjectName}
 
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(${ProjectName})
+    # 函数级注释：Qt6 下完成 Headless 目标的终结步骤
+    qt_finalize_executable(${HeadlessProjectName})
 endif()
 if(WIN32)
     # Windows 下的处理逻辑

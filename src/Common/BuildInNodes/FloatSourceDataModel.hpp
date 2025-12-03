@@ -19,6 +19,7 @@ using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
+using QtNodes::ConnectionPolicy;
 class QLineEdit;
 
 using namespace NodeDataTypes;

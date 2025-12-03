@@ -52,6 +52,7 @@ void InternalControlModel::setInData(const std::shared_ptr<QtNodes::NodeData> no
     QVariant val = v->value();
     switch (port) {
         case 0: // Trigger
+            if (val.toBool())
             widget->testButton->click();
             break;
         default:

@@ -15,14 +15,14 @@ namespace Nodes
      * @brief Artnet Universe回放节点界面
      * 提供Universe配置界面、视频文件选择和播放控制功能
      */
-    class ArtnetPlaybackInterface: public QWidget{
+    class UniversePlaybackInterface: public QWidget{
         Q_OBJECT
     public:
         /**
          * @brief 构造函数，初始化界面
          * @param parent 父控件
          */
-        explicit ArtnetPlaybackInterface(QWidget *parent = nullptr){
+        explicit UniversePlaybackInterface(QWidget *parent = nullptr){
             setupUI();
         }
 
@@ -170,7 +170,7 @@ namespace Nodes
             
             // 文件选择按钮
             selectFileButton->setToolTip("选择HAP格式视频文件（128像素宽度，25fps）");
-            connect(selectFileButton, &QPushButton::clicked, this, &ArtnetPlaybackInterface::selectFileClicked);
+            connect(selectFileButton, &QPushButton::clicked, this, &UniversePlaybackInterface::selectFileClicked);
             fileLayout->addWidget(selectFileButton);
             
             // 文件名显示
@@ -196,7 +196,7 @@ namespace Nodes
             // 循环播放复选框
             loopCheckBox->setToolTip("启用后视频播放结束时会自动重新开始");
            
-            connect(loopCheckBox, &QCheckBox::toggled, this, &ArtnetPlaybackInterface::loopStateChanged);
+            connect(loopCheckBox, &QCheckBox::toggled, this, &UniversePlaybackInterface::loopStateChanged);
             playbackLayout->addWidget(loopCheckBox);
             
             // 播放控制按钮
@@ -219,7 +219,7 @@ namespace Nodes
                 "    background-color: #cccccc;"
                 "}"
             );
-            connect(playButton, &QPushButton::clicked, this, &ArtnetPlaybackInterface::playClicked);
+            connect(playButton, &QPushButton::clicked, this, &UniversePlaybackInterface::playClicked);
             buttonLayout->addWidget(playButton);
             
             stopButton->setToolTip("停止播放并重置到开头");
@@ -240,7 +240,7 @@ namespace Nodes
                 "    background-color: #cccccc;"
                 "}"
             );
-            connect(stopButton, &QPushButton::clicked, this, &ArtnetPlaybackInterface::stopClicked);
+            connect(stopButton, &QPushButton::clicked, this, &UniversePlaybackInterface::stopClicked);
             buttonLayout->addWidget(stopButton);
             
             playbackLayout->addLayout(buttonLayout);
@@ -265,7 +265,7 @@ namespace Nodes
             );
 
             // 连接清空按钮信号
-            connect(clearButton, &QPushButton::clicked, this, &ArtnetPlaybackInterface::clearDataClicked);
+            connect(clearButton, &QPushButton::clicked, this, &UniversePlaybackInterface::clearDataClicked);
 
             playbackLayout->addWidget(clearButton);
             // 状态显示

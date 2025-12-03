@@ -50,7 +50,9 @@ target_link_libraries(BuildInNodes PRIVATE
     Qt${QT_VERSION_MAJOR}::Network
     ${QtNodes_LIBRARIES}
     OSCTransmitter
-        DataTypes
+    DataTypes
+    GUIElements
+    ModelDataBridge
 )
 
 # 暴露包含目录，便于外部通过 Common/BuildInNodes/... 头文件路径包含

@@ -1,0 +1,138 @@
+# 常用关键字
+var
+let
+const
+function
+return
+if ()
+else
+switch ()
+case
+break
+continue
+for ()
+while ()
+do
+new
+typeof
+instanceof
+try
+catch
+finally
+throw
+null
+undefined
+true
+false
+console.log()
+console.warn()
+console.error()
+console.debug()
+print()
+Math.abs()
+Math.max()
+Math.min()
+Math.floor()
+Math.ceil()
+Math.round()
+Math.random()
+Math.pow()
+Math.sqrt()
+JSON.stringify()
+JSON.parse()
+Array.isArray()
+[].push()
+[].pop()
+[].shift()
+[].unshift()
+[].slice()
+[].splice()
+[].map()
+[].filter()
+[].reduce()
+[].find()
+[].indexOf()
+[].includes()
+[].forEach()
+"".includes()
+"".indexOf()
+"".toLowerCase()
+"".toUpperCase()
+"".trim()
+"".replace()
+"".split()
+"".substr()
+"".substring()
+Date
+Date.now()
+new Date()
+setTimeout()
+setInterval()
+clearTimeout()
+clearInterval()
+# 常用函数
+Node.inputIndex
+Node.inputIndex()
+Node.getOutputCount
+Node.getOutputCount()
+Node.getInputCount
+Node.getInputCount()
+Node.getInputValue
+Node.getInputValue()
+Node.setOutputValue
+Node.setOutputValue()
+Node.addToLayout
+Node.addToLayout()
+Node.clearLayout
+Node.clearLayout()
+Node.nPorts()
+Node.portCaption()
+# 常用控件
+Label
+LineEdit
+SpinBox
+DoubleSpinBox
+HSlider
+VSlider
+Button
+ComboBox
+CheckBox
+setText
+setText()
+text
+text()
+value
+value()
+setValue
+setValue()
+setRange
+setRange()
+setMinimum
+setMinimum()
+setMaximum
+setMaximum()
+setSingleStep
+setSingleStep()
+clicked.connect
+valueChanged.connect
+textChanged.connect
+checkStateChanged.connect
+currentIndexChanged.connect
+addItem
+addItem()
+setItems
+setItems()
+currentIndex
+currentIndex()
+setCurrentIndex
+setCurrentIndex()
+JSUtil.setProperty
+JSUtil.setProperty()
+JSUtil.getProperty
+JSUtil.getProperty()
+console.log
+if ()
+switch ()
+while ()
+for ()
+function ()

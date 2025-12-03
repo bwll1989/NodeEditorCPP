@@ -77,8 +77,11 @@ void TaskListWidget::showContextMenu(const QPoint& pos)
 {
     QMenu menu(this);
     QAction* addAction = menu.addAction("add Scheduled");
+    addAction->setIcon(QIcon(":/icons/icons/add.png"));
     QAction* deleteAction = menu.addAction("Delete Scheduled");
+    deleteAction->setIcon(QIcon(":/icons/icons/delete.png"));
     QAction* clearAction = menu.addAction("Clear All Messages");
+    clearAction->setIcon(QIcon(":/icons/icons/clear.png"));
 
     // QListView 不提供 clear()，如需清空请调用模型 API：m_model->setItems({})
     // connect(clearAction, &QAction::triggered, this, &TaskListWidget::clear);

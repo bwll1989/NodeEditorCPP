@@ -23,4 +23,3 @@ protected:
      */
     void dropEvent(QDropEvent *event) override;
 };
-

@@ -1,3 +1,4 @@
+<!DOCTYPE RCC>
 <RCC>
   <qresource prefix="icons">
     <file>icons/history.png</file>
@@ -100,8 +101,24 @@
     <file>icons/explore.png</file>
     <file>icons/NodeStudio.svg</file>
     <file>icons/NodeStudio.png</file>
+    <file>icons/NodeStudioBlue.png</file>
+    <file>icons/NodeStudioOrange.png</file>
+    <file>icons/NodeStudioPurple.png</file>
+    <file>icons/NodeStudioRed.png</file>
     <file>icons/search.png</file>
     <file>icons/curve.png</file>
+    <file>icons/export.png</file>
+    <file>icons/filter.png</file>
+    <file>icons/delete.png</file>
+    <file>icons/genealogy.png</file>
+    <file>icons/add_database.png</file>
+    <file>icons/delete_database.png</file>
+    <file>icons/import.png</file>
+    <file>icons/folder.png</file>
+    <file>icons/statistics.png</file>
+    <file>icons/inspection.png</file>
+    <file>icons/internal.png</file>
+    <file>icons/external.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>
@@ -117,7 +134,6 @@
     <file>qml/LogWidget.qml</file>
     <file>qml/DataBrowser.qml</file>
     <file>qml/MediaLibraryView.qml</file>
-
   </qresource>
   <qresource prefix="/ads_icons">
     <file>ads_icons/close-button.svg</file>
@@ -139,5 +155,9 @@
     <file>ads_icons/vs-pin-button-pinned.svg</file>
     <file>ads_icons/vs-pin-button-pinned-focused.svg</file>
     <file>ads_icons/vs-pin-button_45.svg</file>
+    <file>ads_icons/custom-menu-button.svg</file>
+  </qresource>
+  <qresource prefix="/JS_API">
+    <file>js_apis.api</file>
   </qresource>
 </RCC>

@@ -17,60 +17,53 @@ LogWidget::LogWidget() {
     
     // 设置选择行为，使整行选中
     setSelectionBehavior(QAbstractItemView::SelectRows);
+    // 初始化右键菜单
+    initializeActions();
     
 }
 
-void LogWidget::contextMenuEvent(QContextMenuEvent *event) {
-    QMenu menu(this);
-    
+void LogWidget::initializeActions() {
+
     // 创建清除日志的动作
-    QAction *clearAction = menu.addAction("清除日志 ");
+    QAction *clearAction = menu->addAction("清除日志 ");
+    clearAction->setIcon(QIcon(":/icons/icons/clear.png"));
     connect(clearAction, &QAction::triggered, this, &LogWidget::clearTableWidget);
-    
+
     // 添加导出日志功能
-    QAction *exportAction = menu.addAction("导出日志 ");
+    QAction *exportAction = menu->addAction("导出日志 ");
+    exportAction->setIcon(QIcon(":/icons/icons/export.png"));
     connect(exportAction, &QAction::triggered, this, &LogWidget::exportLog);
-    
+
     // 添加日志过滤子菜单
-    QMenu *filterMenu = menu.addMenu( "过滤日志  ");
-    
+    QMenu *filterMenu = menu->addMenu( "过滤日志  ");
+    filterMenu->setIcon(QIcon(":/icons/icons/filter.png"));
     QStringList filterLevels = {"All", "Debug", "Info", "Warn", "Critical", "Fatal"};
     QActionGroup *filterGroup = new QActionGroup(this);
     filterGroup->setExclusive(true);
-    
+
     for (const QString &level : filterLevels) {
         QAction *levelAction = filterMenu->addAction(level);
         levelAction->setCheckable(true);
         levelAction->setChecked(level == m_currentFilter);
         filterGroup->addAction(levelAction);
-        
+
         connect(levelAction, &QAction::triggered, [this, level]() {
             this->setLogFilter(level);
         });
     }
-    
-    // 在鼠标位置显示菜单
-    menu.exec(event->globalPos());
+}
+QList<QAction*> LogWidget::getActions() {
+    return menu->actions();
+}
+
+void LogWidget::contextMenuEvent(QContextMenuEvent *event)
+{
+    menu->exec(event->globalPos());
 }
 
 void LogWidget::clearTableWidget() {
     clearContents();  // 仅清空内容，不清空表头
     setRowCount(0);   // 清空所有行
-}
-
-void LogWidget::setMaxLogEntries(int maxEntries) {
-    if (maxEntries > 0) {
-        m_maxLogEntries = maxEntries;
-        
-        // 如果当前行数超过最大值，删除多余的行
-        while (rowCount() > m_maxLogEntries) {
-            removeRow(0); // 删除最早的日志条目
-        }
-    }
-}
-
-int LogWidget::maxLogEntries() const {
-    return m_maxLogEntries;
 }
 
 void LogWidget::setLogFilter(const QString &level) {

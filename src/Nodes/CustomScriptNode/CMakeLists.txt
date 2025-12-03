@@ -16,8 +16,8 @@ set(SOURCE_FILES
         CustomScriptDataModel.cpp
         JSPluginManager.hpp
         JSPluginManager.cpp
-        SupportWidgets.hpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp
+        ../../Common/Devices/JSEngineDefines/SupportWidgets.hpp
         )
 
 add_library(${Module_Name} SHARED

@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "ArtnetUniverseDataModel.hpp"
+#include "DMXDeviceDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::ArtnetUniverseDataModel>(name(),tag());
+    reg->registerModel<Nodes::DMXDeviceDataModel>(name(),tag());
 }

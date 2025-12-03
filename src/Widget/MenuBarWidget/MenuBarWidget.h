@@ -6,6 +6,7 @@
 
 #include <QMenuBar>
 #include <QAction>
+#include "ConstantDefines.h"
 class MenuBarWidget:public QMenuBar {
 Q_OBJECT
 
@@ -25,6 +26,8 @@ public:
     QAction *saveAsAction ;
     //加载
     QAction * loadAction ;
+    //最近文件菜单
+    QMenu *recentFilesMenu;
     //退出
     QAction *exitAction;
     //编辑菜单
@@ -73,6 +76,13 @@ public:
     QAction *aboutQtAction ;
     //帮助
     QAction *helpAction ;
+    //最近文件菜单项
+    QAction* recentFileActs[AppConstants::MaxRecentFiles];
+    //更新最近文件菜单项
+    void updateRecentFileActions(const QStringList& files);
+
+Q_SIGNALS:
+    void recentFileTriggered(const QString& path);
 private slots:
     void openOSCInterface(const QString& exePath, const QStringList& args);
     void openToolWithArgs(const QString& exePath, const QStringList& args);

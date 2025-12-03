@@ -5,17 +5,17 @@
 #include <QtNodes/PluginInterface>
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef ArtnetUniverseNode_EXPORTS
+#ifdef UniversePlaybackNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "Artnet Universe"
+#define PLUGIN_NAME "Universe Playback"
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "Artnet 域抽象实例"
+#define PLUGIN_DESCRIBE "DMX Universe 数据回放"
 #define PLUGIN_TAG "DMX"
 class DLL_EXPORT Plugin
     : public QObject

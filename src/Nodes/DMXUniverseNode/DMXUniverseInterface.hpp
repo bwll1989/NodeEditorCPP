@@ -17,14 +17,14 @@ namespace Nodes
      * @brief Artnet Universe节点界面
      * 提供Universe配置界面和清空功能
      */
-    class ArtnetUniverseInterface: public QWidget{
+    class DMXUniverseInterface: public QWidget{
         Q_OBJECT
     public:
         /**
          * @brief 构造函数，初始化界面
          * @param parent 父控件
          */
-        explicit ArtnetUniverseInterface(QWidget *parent = nullptr){
+        explicit DMXUniverseInterface(QWidget *parent = nullptr){
             setupUI();
         }
 
@@ -122,7 +122,7 @@ namespace Nodes
             );
             
             // 连接清空按钮信号
-            connect(clearButton, &QPushButton::clicked, this, &ArtnetUniverseInterface::clearDataClicked);
+            connect(clearButton, &QPushButton::clicked, this, &DMXUniverseInterface::clearDataClicked);
 
             controlLayout->addWidget(clearButton);
             parentLayout->addWidget(controlGroup);

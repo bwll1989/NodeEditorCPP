@@ -35,3 +35,5 @@
 /docs
 /新建文件夹
 /msvc
+install.iss
+.vscode/settings.json

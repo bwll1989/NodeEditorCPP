@@ -2,8 +2,8 @@
 // Created by bwll1 on 2024/9/1.
 //
 
-#ifndef NODEEDITORCPP_ARTNETFRAME_H
-#define NODEEDITORCPP_ARTNETFRAME_H
+#pragma once
+
 
 #include <QByteArray>
 #include <qmetatype.h>
@@ -82,4 +82,3 @@ struct ARTNETTRANSMITTER_EXPORT ArtnetFrame
  */
 Q_DECLARE_METATYPE(ArtnetFrame)
 
-#endif //NODEEDITORCPP_ARTNETFRAME_H

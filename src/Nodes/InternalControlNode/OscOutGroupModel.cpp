@@ -51,7 +51,8 @@ void OscOutGroupModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeDa
     QVariant val = v->value();
     switch (port) {
         case 0: // Trigger
-            widget->testButton->click();
+                if (val.toBool())
+                widget->testButton->click();
             break;
         default:
             break;

@@ -221,8 +221,8 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
     QMenu ctx(m_tree);
 
     // 通用操作（空白、组、子项都显示）
-    QAction* actImportFiles   = ctx.addAction(QIcon(":/icons/icons/add.png"),tr("导入文件"));
-    QAction* actImportFolder  = ctx.addAction(QIcon(":/icons/icons/add.png"),tr("导入文件夹"));
+    QAction* actImportFiles   = ctx.addAction(QIcon(":/icons/icons/import.png"),tr("导入文件"));
+    QAction* actImportFolder  = ctx.addAction(QIcon(":/icons/icons/folder.png"),tr("导入文件夹"));
     QAction* actDeleteChecked = ctx.addAction(QIcon(":/icons/icons/remove.png"),tr("删除选中"));
     QAction* actClear         = ctx.addAction(QIcon(":/icons/icons/clear.png"),tr("清空"));
     QAction* actRefresh       = ctx.addAction(QIcon(":/icons/icons/reload.png"),tr("刷新"));
@@ -249,6 +249,7 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
     if (path.isEmpty()) {
         // 组节点：展开/折叠
         QAction* actToggle = ctx.addAction(tr("展开/折叠"));
+        actToggle->setIcon(QIcon(":/icons/icons/expand.png"));
         connect(actToggle, &QAction::triggered, this, [this, idx] {
             m_tree->setExpanded(idx, !m_tree->isExpanded(idx));
         });

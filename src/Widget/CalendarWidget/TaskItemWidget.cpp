@@ -309,3 +309,4 @@ void TaskItemWidget::setScheduledInfo(const ScheduledInfo& info)
     chkSunday->setChecked(isLoop && containsDay("Sunday"));
 
 }
+

@@ -17,7 +17,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QCheckBox>
-#include "SupportWidgets.hpp"
+#include "JSEngineDefines/SupportWidgets.hpp"
 #include "JSEngineDefines/JSEngineDefines.hpp"
 #include <QtConcurrent/QtConcurrentRun>
 #include <QFutureWatcher>
@@ -73,7 +73,7 @@ public:
      */
     ~JavaScriptDataModel()
     {
-        widget->deleteLater();
+
     }
     
     /**
@@ -82,7 +82,7 @@ public:
      * @param portIndex 端口索引
      * @return 端口标题字符串
      */
-    QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+    Q_INVOKABLE QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
         QString in = "➩";
         QString out = "➩";
@@ -102,7 +102,7 @@ public:
      * @param portType 端口类型（输入/输出）
      * @return 端口数量
      */
-    unsigned int nPorts(PortType portType) const override
+    Q_INVOKABLE unsigned int nPorts(PortType portType) const override
     {
         unsigned int result = 1;
 

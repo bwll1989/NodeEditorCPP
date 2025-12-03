@@ -1,10 +1,10 @@
 //
 // Created by WuBin on 2025/8/21.
 //
-#include "ArtnetPlaybackDataModel.hpp"
+#include "UniversePlaybackDataModel.hpp"
 using namespace Nodes;
 
-ArtnetPlaybackDataModel::ArtnetPlaybackDataModel()
+UniversePlaybackDataModel::UniversePlaybackDataModel()
 {
     InPortCount = 4;   // 无输入端口，从视频文件读取
     OutPortCount = 1;   // 初始1个输出端口，会根据视频动态调整
@@ -20,29 +20,29 @@ ArtnetPlaybackDataModel::ArtnetPlaybackDataModel()
     // 初始化播放定时器（25fps = 40ms间隔）
     playbackTimer = new QTimer(this);
     playbackTimer->setInterval(40); // 25fps
-    connect(playbackTimer, &QTimer::timeout, this, &ArtnetPlaybackDataModel::onPlaybackTimer);
+    connect(playbackTimer, &QTimer::timeout, this, &UniversePlaybackDataModel::onPlaybackTimer);
 
     // 连接界面信号
     connect(widget->universeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-        this, &ArtnetPlaybackDataModel::onUniverseChanged);
+        this, &UniversePlaybackDataModel::onUniverseChanged);
     connect(widget->subnetSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-        this, &ArtnetPlaybackDataModel::onSubnetChanged);
+        this, &UniversePlaybackDataModel::onSubnetChanged);
     connect(widget->netSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-        this, &ArtnetPlaybackDataModel::onNetChanged);
+        this, &UniversePlaybackDataModel::onNetChanged);
 
     // 连接控制按钮信号
-    connect(widget, &Nodes::ArtnetPlaybackInterface::clearDataClicked,
-        this, &ArtnetPlaybackDataModel::onClearDataClicked);
-    connect(widget, &Nodes::ArtnetPlaybackInterface::selectFileClicked,
-        this, &ArtnetPlaybackDataModel::onSelectFileClicked);
-    connect(widget, &Nodes::ArtnetPlaybackInterface::playClicked,
-        this, &ArtnetPlaybackDataModel::onPlayClicked);
-    connect(widget, &Nodes::ArtnetPlaybackInterface::stopClicked,
-        this, &ArtnetPlaybackDataModel::onStopClicked);
+    connect(widget, &Nodes::UniversePlaybackInterface::clearDataClicked,
+        this, &UniversePlaybackDataModel::onClearDataClicked);
+    connect(widget, &Nodes::UniversePlaybackInterface::selectFileClicked,
+        this, &UniversePlaybackDataModel::onSelectFileClicked);
+    connect(widget, &Nodes::UniversePlaybackInterface::playClicked,
+        this, &UniversePlaybackDataModel::onPlayClicked);
+    connect(widget, &Nodes::UniversePlaybackInterface::stopClicked,
+        this, &UniversePlaybackDataModel::onStopClicked);
     
     // 连接循环播放信号
-    connect(widget, &Nodes::ArtnetPlaybackInterface::loopStateChanged,
-        this, &ArtnetPlaybackDataModel::onLoopStateChanged);  // 新增：连接循环播放信号
+    connect(widget, &Nodes::UniversePlaybackInterface::loopStateChanged,
+        this, &UniversePlaybackDataModel::onLoopStateChanged);  // 新增：连接循环播放信号
 
     // 注册OSC控制
     NodeDelegateModel::registerOSCControl("/universe", widget->universeSpinBox);
@@ -54,22 +54,22 @@ ArtnetPlaybackDataModel::ArtnetPlaybackDataModel()
 }
 
 
-void ArtnetPlaybackDataModel::onUniverseChanged(int universe) {
+void UniversePlaybackDataModel::onUniverseChanged(int universe) {
     Q_UNUSED(universe)
     updateAllUniverseData();
 }
 
-void ArtnetPlaybackDataModel::onSubnetChanged(int subnet) {
+void UniversePlaybackDataModel::onSubnetChanged(int subnet) {
     Q_UNUSED(subnet)
     updateAllUniverseData();
 }
 
-void ArtnetPlaybackDataModel::onNetChanged(int net) {
+void UniversePlaybackDataModel::onNetChanged(int net) {
     Q_UNUSED(net)
     updateAllUniverseData();
 }
 
-void ArtnetPlaybackDataModel::onClearDataClicked() {
+void UniversePlaybackDataModel::onClearDataClicked() {
     // 清空所有DMX数据
     for (int i = 0; i < dmxDataList.size(); i++) {
         dmxDataList[i].fill(0);
@@ -79,7 +79,7 @@ void ArtnetPlaybackDataModel::onClearDataClicked() {
     updateAllUniverseData();
 }
 
-void ArtnetPlaybackDataModel::onSelectFileClicked() {
+void UniversePlaybackDataModel::onSelectFileClicked() {
     QString fileName = QFileDialog::getOpenFileName(
         nullptr,
         "选择Artnet映射文件",
@@ -96,21 +96,21 @@ void ArtnetPlaybackDataModel::onSelectFileClicked() {
     }
 }
 
-void ArtnetPlaybackDataModel::onPlayClicked() {
+void UniversePlaybackDataModel::onPlayClicked() {
     if (m_formatContext && !isPlaying) {
         startPlayback();
     }
 }
 
 
-void ArtnetPlaybackDataModel::onStopClicked() {
+void UniversePlaybackDataModel::onStopClicked() {
     stopPlayback();
 }
 
 /**
  * @brief 播放定时器回调，处理视频帧读取和循环播放逻辑
  */
-void ArtnetPlaybackDataModel::onPlaybackTimer() {
+void UniversePlaybackDataModel::onPlaybackTimer() {
     if (!isPlaying || !m_formatContext) {
         return;
     }
@@ -138,7 +138,7 @@ void ArtnetPlaybackDataModel::onPlaybackTimer() {
     }
 }
 
-void ArtnetPlaybackDataModel::initializeFFmpeg() {
+void UniversePlaybackDataModel::initializeFFmpeg() {
     // 初始化FFmpeg（只需要调用一次）
     static bool initialized = false;
     if (!initialized) {
@@ -161,7 +161,7 @@ void ArtnetPlaybackDataModel::initializeFFmpeg() {
     currentUniverseCount = 0;
 }
 
-void ArtnetPlaybackDataModel::cleanupFFmpegInternal() {
+void UniversePlaybackDataModel::cleanupFFmpegInternal() {
     if (m_frame) {
         av_frame_free(&m_frame);
     }
@@ -176,12 +176,12 @@ void ArtnetPlaybackDataModel::cleanupFFmpegInternal() {
     }
 }
 
-void ArtnetPlaybackDataModel::cleanupFFmpeg() {
+void UniversePlaybackDataModel::cleanupFFmpeg() {
     QMutexLocker locker(&m_mutex);
     cleanupFFmpegInternal();
 }
 
-void ArtnetPlaybackDataModel::adjustUniverseCount(int videoHeight)
+void UniversePlaybackDataModel::adjustUniverseCount(int videoHeight)
 {
     // 计算Universe数量（每4行对应一个Universe）
     int newUniverseCount = videoHeight / 4;
@@ -205,7 +205,7 @@ void ArtnetPlaybackDataModel::adjustUniverseCount(int videoHeight)
         currentUniverseCount = newUniverseCount;}
 }
 
-bool ArtnetPlaybackDataModel::openVideo(const QString& filename)
+bool UniversePlaybackDataModel::openVideo(const QString& filename)
 {
     QMutexLocker locker(&m_mutex);
 
@@ -306,7 +306,7 @@ bool ArtnetPlaybackDataModel::openVideo(const QString& filename)
     return true;
 }
 
-void ArtnetPlaybackDataModel::startPlayback() {
+void UniversePlaybackDataModel::startPlayback() {
     if (!m_formatContext) {
         return;
     }
@@ -316,7 +316,7 @@ void ArtnetPlaybackDataModel::startPlayback() {
     playbackTimer->start();
 }
 
-void ArtnetPlaybackDataModel::stopPlayback() {
+void UniversePlaybackDataModel::stopPlayback() {
     isPlaying = false;
     playbackTimer->stop();
     widget->updatePlaybackState(false);
@@ -327,7 +327,7 @@ void ArtnetPlaybackDataModel::stopPlayback() {
     }
 }
 
-bool ArtnetPlaybackDataModel::readNextFrame() {
+bool UniversePlaybackDataModel::readNextFrame() {
     if (!m_formatContext || !m_codecContext) {
         return false;
     }
@@ -358,7 +358,7 @@ bool ArtnetPlaybackDataModel::readNextFrame() {
     return false; // 文件结束
 }
 
-void ArtnetPlaybackDataModel::extractAndUpdateDmxData() {
+void UniversePlaybackDataModel::extractAndUpdateDmxData() {
     if (!m_frame || !m_frame->data[0]) {
         return;
     }
@@ -416,13 +416,13 @@ void ArtnetPlaybackDataModel::extractAndUpdateDmxData() {
     updateAllUniverseData();
 }
 
-void ArtnetPlaybackDataModel::updateAllUniverseData() {
+void UniversePlaybackDataModel::updateAllUniverseData() {
         for (int i = 0; i < currentUniverseCount; i++) {
             updateUniverseData(i);
         }
     }
 
-void ArtnetPlaybackDataModel::updateUniverseData(int universeIndex) {
+void UniversePlaybackDataModel::updateUniverseData(int universeIndex) {
         if (universeIndex < 0 || universeIndex >= universeOutputs.size()) {
             return;
         }
@@ -481,6 +481,6 @@ void ArtnetPlaybackDataModel::updateUniverseData(int universeIndex) {
         Q_EMIT dataUpdated(universeIndex);
     }
 
-void ArtnetPlaybackDataModel::onLoopStateChanged(bool enabled) {
+void UniversePlaybackDataModel::onLoopStateChanged(bool enabled) {
     isLooping = enabled;
 }

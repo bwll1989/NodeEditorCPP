@@ -20,14 +20,14 @@ namespace Nodes
      * @brief 通道设备节点界面
      * 提供多通道数据的配置和控制界面，支持动态通道数量
      */
-    class ArtnetDeviceInterface: public QWidget{
+    class DMXDeviceInterface: public QWidget{
         Q_OBJECT
     public:
         /**
          * @brief 构造函数，初始化界面
          * @param parent 父控件
          */
-        explicit ArtnetDeviceInterface(QWidget *parent = nullptr){
+        explicit DMXDeviceInterface(QWidget *parent = nullptr){
             setupUI();
             updateChannelControls(5); // 默认5个通道
         }
@@ -138,7 +138,7 @@ namespace Nodes
             configLayout->addWidget(enableCheckBox, 0, 0, 1, 2);
             
             // 连接信号
-            connect(enableCheckBox, &QCheckBox::toggled, this, &ArtnetDeviceInterface::enableStateChanged);
+            connect(enableCheckBox, &QCheckBox::toggled, this, &DMXDeviceInterface::enableStateChanged);
             
             // 起始DMX地址设置
             configLayout->addWidget(new QLabel("起始地址:", this), 1, 0);

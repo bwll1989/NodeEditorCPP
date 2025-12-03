@@ -6,7 +6,7 @@
 #include <iostream>
 #include <QPushButton>
 #include <QtCore/qglobal.h>
-#include "ArtnetDeviceInterface.hpp"
+#include "DMXDeviceInterface.hpp"
 #include <QVariantMap>
 #include <QByteArray>
 #include <QJsonArray>
@@ -25,7 +25,7 @@ namespace Nodes
      * @brief 通道设备节点 - 多通道数据处理节点
      * 支持设置起始DMX地址、通道数，每个通道的值，并通过输入和输出端口接收和发送值
      */
-    class ArtnetDeviceDataModel : public NodeDelegateModel
+    class DMXDeviceDataModel : public NodeDelegateModel
     {
         Q_OBJECT
 
@@ -33,13 +33,13 @@ namespace Nodes
         /**
          * @brief 构造函数，初始化通道设备节点
          */
-        ArtnetDeviceDataModel()
+        DMXDeviceDataModel()
         {
             InPortCount = 5;   // 默认5个输入端口
             OutPortCount = 1;   // 只有一个通道数据输出
             PortEditable=true;
             CaptionVisible = true;
-            Caption = "Artnet Device";
+            Caption = "DMX Device";
             WidgetEmbeddable = false;
             Resizable = false;
             
@@ -54,9 +54,9 @@ namespace Nodes
             NodeDelegateModel::registerOSCControl("/startAddress", widget->startAddressSpinBox);
             NodeDelegateModel::registerOSCControl("/enable", widget->enableCheckBox);
             connect(widget->channelCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &ArtnetDeviceDataModel::onChannelCountChanged);
+                    this, &DMXDeviceDataModel::onChannelCountChanged);
             connect(widget->startAddressSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &ArtnetDeviceDataModel::onStartAddressChanged);
+                    this, &DMXDeviceDataModel::onStartAddressChanged);
             
             // 连接初始通道滑块信号
             connectChannelSliders();
@@ -69,7 +69,7 @@ namespace Nodes
         /**
          * @brief 析构函数
          */
-        ~ArtnetDeviceDataModel() override {
+        ~DMXDeviceDataModel() override {
 
         }
 
@@ -357,6 +357,6 @@ namespace Nodes
         std::shared_ptr<VariableData> channelData;  // 通道数据输出
         QVector<int> channelValues;                 // 通道值数组
         
-        Nodes::ArtnetDeviceInterface * widget = new Nodes::ArtnetDeviceInterface();
+        Nodes::DMXDeviceInterface * widget = new Nodes::DMXDeviceInterface();
     };
 }

@@ -33,7 +33,13 @@ class MainWindow : public QMainWindow
 {
 Q_OBJECT
 public:
-    MainWindow(QWidget *parent = nullptr);
+    /**
+     * @brief 构造函数（支持无头模式）
+     * @param parent 父窗口
+     * @param headlessMode 是否启用无头模式（不显示任何界面）
+     * 函数级注释：无头模式下仍会构造必要的后台对象以保证功能不变。
+     */
+    explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
     //菜单栏
     MenuBarWidget *menuBar;
@@ -60,30 +66,30 @@ public:
     MediaLibraryWidget *mediaLibraryWidget;
     //节点视图
     DataflowViewsManger *dataflowViewsManger;
-signals:
+Q_SIGNALS:
     //初始化状态信号
     void initStatus(const QString &message);
 public Q_SLOTS:
+    void init();
     /**
      * 初始化节点列表
      */
     void initNodelist();
     /**
-     * 保存可视状态
+     * 更新默认可视化布局状态
      */
-    void saveVisualState();
+    void updateVisualState();
     /**
-     * 恢复可视状态
+     * 恢复默认可视布局
      */
-    void restoreVisualState();
+    void resetVisualState();
     /**
      * 锁定切换
      */
     void locked_switch();
     /**
-     * 初始化
+     * 初始化正常模式，显示所有界面
      */
-    void init();
     /**
      * 保存文件到资源管理器
      */
@@ -117,6 +123,12 @@ public Q_SLOTS:
      */
     void switchVisibleFromTray();
 
+    /**
+     * @brief 打开最近文件（菜单项触发）
+     * 函数级注释：接收文件绝对路径，调用现有加载逻辑
+     */
+    void openRecentFile(const QString& path);
+
 protected:
     /**
      * @brief 关闭事件
@@ -136,6 +148,13 @@ protected:
      * @param event 拖拽释放事件指针
      */
     void dropEvent(QDropEvent *event) override;
+    /**
+     * 添加菜单项
+     * @param parent
+     * @param actions
+     * @return
+     */
+QMenu* makeOptionsMenu(QWidget* parent, const QList<QAction*>& actions);
 private:
     //日志表
     LogWidget *logTable;
@@ -150,5 +169,22 @@ private:
     QSystemTrayIcon* trayIcon = nullptr;
     QMenu* trayMenu = nullptr;
     QAction* trayExitAction = nullptr;
+
+    /**
+     * 函数级注释：载入最近文件列表（从 cfg/RecentFiles.ini）
+     */
+    QStringList getRecentFiles() const;
+
+    /**
+     * 函数级注释：保存最近文件列表（至 cfg/RecentFiles.ini）
+     */
+    void saveRecentFiles(const QStringList& files) const;
+
+    /**
+     * 函数级注释：将新路径加入最近文件列表（去重、限制数量并更新菜单）
+     */
+    void addToRecentFiles(const QString& path);
+
+
 };
 

@@ -2,8 +2,7 @@
 // Created by bwll1 on 2024/9/1.
 //
 
-#ifndef NODEEDITORCPP_ARTNETTRANSMITTER_H
-#define NODEEDITORCPP_ARTNETTRANSMITTER_H
+#pragma once
 
 #include <QObject>
 #include <QThread>
@@ -13,7 +12,7 @@
 #include <QTimer>
 #include <QtCore/qglobal.h>
 #include "ArtnetFrame.h"
-
+#include "ConstantDefines.h"
 #if defined(ARTNETTRANSMITTER_LIBRARY)
 #define ARTNETTRANSMITTER_EXPORT Q_DECL_EXPORT
 #else
@@ -61,13 +60,6 @@ public slots:
      * @param frame Art-Net数据帧
      */
     void enqueueFrame(const ArtnetFrame& frame);
-
-    /**
-     * @brief 立即发送Art-Net数据帧
-     * @param frame Art-Net数据帧
-     * @return bool 发送是否成功
-     */
-    bool sendFrame(const ArtnetFrame& frame);
 
     /**
      * @brief 批量添加Art-Net数据帧到发送队列
@@ -120,6 +112,9 @@ private slots:
 
     /**
      * @brief 处理发送队列
+     *
+     * 每25ms触发一次，若队列不为空，则一次性取出现有队列中的所有帧并逐一发送。
+     * 发送完成后更新队列大小信号。
      */
     Q_INVOKABLE void processQueue();
 
@@ -145,7 +140,7 @@ private:
     QTimer* mQueueTimer;
     
     // 发送间隔（毫秒）
-    int mSendInterval;
+    int mSendInterval=1000/AppConstants::ARTNET_OUTPUT_FPS; // 发送间隔（毫秒），默认40fps
 
     /**
      * @brief 创建Art-Net数据包
@@ -168,4 +163,4 @@ private:
  */
 ARTNETTRANSMITTER_EXPORT ArtnetTransmitter* getArtnetTransmitterInstance();
 
-#endif //NODEEDITORCPP_ARTNETTRANSMITTER_H
+

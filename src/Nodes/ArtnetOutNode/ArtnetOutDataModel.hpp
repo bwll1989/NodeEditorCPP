@@ -54,7 +54,7 @@ public:
         connect(m_artnetTransmitter, &ArtnetTransmitter::frameSendFailed, this, &ArtnetOutDataModel::onFrameSendFailed);
         
         // 设置默认值
-        m_targetHost = "192.168.1.255";  // 默认广播地址
+        m_targetHost = "192.168.0.255";  // 默认广播地址
         
         widget->setTargetHost(m_targetHost);
         
@@ -181,7 +181,7 @@ public:
         QJsonValue v = p["values"];
         if (!v.isUndefined() && v.isObject()) {
             QJsonObject obj = v.toObject();
-            m_targetHost = obj["TargetHost"].toString("192.168.1.255");
+            m_targetHost = obj["TargetHost"].toString("192.168.0.255");
             
             widget->setTargetHost(m_targetHost);
         }
@@ -256,7 +256,6 @@ private:
         // 创建ArtnetFrame
         ArtnetFrame frame;
         frame.host = m_targetHost;
-        frame.port = 6454;  // 标准Art-Net端口
         frame.sequence = 0;
         frame.timestamp = QDateTime::currentMSecsSinceEpoch();
         
@@ -268,12 +267,8 @@ private:
         frame.setDmxData(dmxData);
         
         // 发送数据帧
-        bool success = m_artnetTransmitter->sendFrame(frame);
-        if (!success) {
-            widget->setStatus(QString("Universe %1 发送失败").arg(frame.universe), false);
-        } else {
-            widget->setStatus(QString("Universe %1 正在发送...").arg(frame.universe), true);
-        }
+        m_artnetTransmitter->enqueueFrame(frame);
+
     }
     
     /**

@@ -12,8 +12,9 @@ using namespace QtNodes;
 namespace Nodes
 {
 VariableInDataModel::VariableInDataModel()
-    : _inputSelector{new QComboBox()}
  {
+
+    widget=new DataBridgeSelectorBox();
     InPortCount =0;
     OutPortCount=1;
     CaptionVisible=true;
@@ -21,10 +22,10 @@ VariableInDataModel::VariableInDataModel()
     WidgetEmbeddable= true;
     Resizable=false;
     PortEditable= true;
-    registerOSCControl("/number",_inputSelector);
+    NodeDelegateModel::registerOSCControl("/input",widget);
     setRemarks("Undefined");
     ModelDataBridge::instance().registerEntranceDelegate(this);
-    connect(_inputSelector,&QComboBox::currentTextChanged,this,&VariableInDataModel::setRemarks);
+    connect(widget,&DataBridgeSelectorBox::selectionChanged,this,&VariableInDataModel::setRemarks);
 
 }
 
@@ -35,7 +36,7 @@ QJsonObject VariableInDataModel::save() const
 {
     QJsonObject modelJson = NodeDelegateModel::save();
 
-    modelJson["quoted address"] =_inputSelector->currentText();
+    modelJson["quoted address"] =widget->text();
 
     return modelJson;
 }
@@ -51,8 +52,8 @@ void VariableInDataModel::load(QJsonObject const &p)
 
     if (!v.isUndefined()) {
         QString strNum = v.toString();
-        if (_inputSelector)
-            _inputSelector->setCurrentText(strNum);
+        if (widget)
+            widget->setCurrentValue(strNum);
         }
 
 }
@@ -70,9 +71,7 @@ std::shared_ptr<NodeData> VariableInDataModel::outData(PortIndex port)
 
 QWidget *VariableInDataModel::embeddedWidget()
 {
-    _inputSelector->clear();
-    _inputSelector->addItems(ModelDataBridge::instance().getAllExportRemarks());
-    return _inputSelector;
+    return widget;
 }
 
 void VariableInDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
@@ -96,6 +95,7 @@ ConnectionPolicy VariableInDataModel::portConnectionPolicy(PortType portType, Po
 
     return result;
 }
+
 
 void VariableInDataModel::stateFeedBack(const QString& oscAddress,QVariant value){
 

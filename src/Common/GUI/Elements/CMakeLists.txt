@@ -24,6 +24,8 @@ add_library(${Module_Name} SHARED
     FlowWidget/FlowWidget.h
     SelectorComboBox/SelectorComboBox.cpp
     SelectorComboBox/SelectorComboBox.hpp
+    DataBridgeSelectorBox/DataBridgeSelectorBox.cpp
+    DataBridgeSelectorBox/DataBridgeSelectorBox.hpp
 )
 
 # 链接Qt库
@@ -32,7 +34,8 @@ target_link_libraries(${Module_Name} PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
     MediaManger
+    ModelDataBridge
 )
 
 # 导出符号
-target_compile_definitions(${Module_Name} PRIVATE GUI_ELEMENTS_LIBRARY)
+target_compile_definitions(${Module_Name} PRIVATE GUI_ELEMENTS_LIBRARY -DNODE_EDITOR_SHARED)

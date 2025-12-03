@@ -56,3 +56,4 @@ void CustomGraphicsView::dragMoveEvent(QDragMoveEvent *event) {
 void CustomGraphicsView::dragLeaveEvent(QDragLeaveEvent *event) {
     QGraphicsView::dragLeaveEvent(event);
 }
+

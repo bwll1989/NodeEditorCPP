@@ -23,21 +23,33 @@ ARTNETTRANSMITTER_EXPORT ArtnetTransmitter* getArtnetTransmitterInstance()
  * @brief 私有构造函数，自动启动UDP套接字服务
  */
 ArtnetTransmitter::ArtnetTransmitter(QObject* parent)
-    : QObject(parent), mThread(nullptr), mSocket(nullptr), mQueueTimer(nullptr), mSendInterval(20)
+    : QObject(parent), mQueueTimer (new QTimer(this))
 {
+    /**
+     * @brief 构造函数中设置发送间隔为25ms，并在独立线程中初始化定时器与套接字
+     */
     // 注册信号传递数值类型
     qRegisterMetaType<ArtnetFrame>("ArtnetFrame");
     qRegisterMetaType<ArtnetFrame>("ArtnetFrame&");
     qRegisterMetaType<QList<ArtnetFrame>>("QList<ArtnetFrame>");
-    
+
     // 创建工作线程
     mThread = new QThread(this);
     this->moveToThread(mThread);
+
+    mQueueTimer ->setInterval(mSendInterval);
+    mQueueTimer ->moveToThread(mThread);
+    connect(mThread , &QThread::started, this, &ArtnetTransmitter::initializeSocket);
+    connect(mThread , &QThread::finished, this, &ArtnetTransmitter::cleanup);
+    connect(mQueueTimer , &QTimer::timeout, this, &ArtnetTransmitter::processQueue);
     
+    // 自动启动传输器
+    mThread->start();
+    // 在主线程中启动定时器
+    QMetaObject::invokeMethod(mQueueTimer, "start", Qt::QueuedConnection);
     // 连接线程信号
-    connect(mThread, &QThread::started, this, &ArtnetTransmitter::initializeSocket);
-    connect(mThread, &QThread::finished, this, &ArtnetTransmitter::cleanup);
-    
+  
+
     // 启动线程，自动初始化套接字
     mThread->start();
 }
@@ -52,7 +64,12 @@ ArtnetTransmitter::~ArtnetTransmitter()
         mThread->wait();
     }
 }
-
+void ArtnetTransmitter::initializeSocket() {
+    mSocket = new QUdpSocket(this);
+    if (mSocket->bind(QHostAddress::AnyIPv4, 0,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)) {
+        // connect(mQueueTimer, &QTimer::timeout, this, &ArtnetTransmitter::onQueueTimer);
+    }
+}
 /**
  * @brief 获取单例实例
  */
@@ -64,24 +81,7 @@ ArtnetTransmitter* ArtnetTransmitter::getInstance()
     return artnetInstance;
 }
 
-/**
- * @brief 初始化UDP套接字
- */
-void ArtnetTransmitter::initializeSocket()
-{
-    if (mSocket) {
-        return;
-    }
-    
-    mSocket = new QUdpSocket(this);
-    
-    // 创建队列处理定时器
-    mQueueTimer = new QTimer(this);
-    connect(mQueueTimer, &QTimer::timeout, this, &ArtnetTransmitter::onQueueTimer);
-    mQueueTimer->start(mSendInterval); // 默认20ms间隔
-    
-    // qDebug() << "Art-Net transmitter initialized with" << mSendInterval << "ms send interval";
-}
+
 
 /**
  * @brief 清理资源
@@ -103,47 +103,12 @@ void ArtnetTransmitter::cleanup()
 }
 
 /**
- * @brief 添加Art-Net数据帧到发送队列
- */
-void ArtnetTransmitter::enqueueFrame(const ArtnetFrame& frame)
-{
-    if (!frame.isValid()) {
-        qWarning() << "Invalid ArtnetFrame, skipping";
-        return;
-    }
-    
-    QMutexLocker locker(&mMutex);
-    mSendQueue.enqueue(frame);
-    int queueSize = mSendQueue.size();
-    locker.unlock();
-    
-    emit queueSizeChanged(queueSize);
-    
-    qDebug() << "Enqueued frame for universe" << frame.universe 
-             << "to" << frame.host << "queue size:" << queueSize;
-}
-
-/**
- * @brief 立即发送Art-Net数据帧
- */
-bool ArtnetTransmitter::sendFrame(const ArtnetFrame& frame)
-{
-    if (!frame.isValid()) {
-        qWarning() << "Invalid ArtnetFrame";
-        emit frameSendFailed(frame, "Invalid frame data");
-        return false;
-    }
-    
-    return sendFrameInternal(frame);
-}
-
-/**
  * @brief 批量添加Art-Net数据帧到发送队列
  */
 void ArtnetTransmitter::enqueueFrames(const QList<ArtnetFrame>& frames)
 {
     QMutexLocker locker(&mMutex);
-    
+
     for (const ArtnetFrame& frame : frames) {
         if (frame.isValid()) {
             mSendQueue.enqueue(frame);
@@ -156,10 +121,29 @@ void ArtnetTransmitter::enqueueFrames(const QList<ArtnetFrame>& frames)
     locker.unlock();
     
     emit queueSizeChanged(queueSize);
-    
-    qDebug() << "Enqueued" << frames.size() << "frames, queue size:" << queueSize;
+    //
+    // qDebug() << "Enqueued" << frames.size() << "frames, queue size:" << queueSize;
 }
+/**
+ * @brief 单独添加Art-Net数据帧到发送队列
+ */
+void ArtnetTransmitter::enqueueFrame(const ArtnetFrame& frame)
+{
+    QMutexLocker locker(&mMutex);
 
+
+    if (frame.isValid()) {
+        mSendQueue.enqueue(frame);
+    } else {
+        qWarning() << "Skipping invalid frame in batch";
+    }
+
+
+    int queueSize = mSendQueue.size();
+    locker.unlock();
+
+    emit queueSizeChanged(queueSize);
+}
 /**
  * @brief 清空发送队列
  */
@@ -182,37 +166,48 @@ int ArtnetTransmitter::getQueueSize() const
     return mSendQueue.size();
 }
 
-/**
- * @brief 处理发送队列
- */
+    /**
+     * @brief 批量发送队列中的所有帧
+     *
+     * 为减少锁持有时间，先将当前队列中的帧拷贝到本地列表，再释放锁后逐一发送。
+     */
 void ArtnetTransmitter::processQueue()
 {
+
     QMutexLocker locker(&mMutex);
-    
+
     if (mSendQueue.isEmpty()) {
         return;
     }
-    
-    ArtnetFrame frame = mSendQueue.dequeue();
-    int queueSize = mSendQueue.size();
-    locker.unlock();
-    
-    // 发送数据帧
-    bool success = sendFrameInternal(frame);
-    
-    if (success) {
-        emit queueSizeChanged(queueSize);
-    } else {
-        // 发送失败，可以选择重新入队或丢弃
-        qWarning() << "Failed to send frame, dropping";
+
+    // 将当前队列全部取出到本地列表
+    QList<ArtnetFrame> framesToSend;
+    framesToSend.reserve(mSendQueue.size());
+    while (!mSendQueue.isEmpty()) {
+        framesToSend.append(mSendQueue.dequeue());
     }
+    int queueSize = mSendQueue.size(); // 此处应为0
+    locker.unlock();
+
+    // 逐一发送
+    for (const ArtnetFrame& f : framesToSend) {
+        bool success = sendFrameInternal(f);
+        if (!success) {
+            qWarning() << "Failed to send frame, dropping";
+            // 可选：失败重试或重新入队，这里选择丢弃
+        }
+    }
+
+    // 队列被清空后广播队列大小
+    emit queueSizeChanged(queueSize);
 }
 
-/**
- * @brief 定时处理队列
- */
+ /**
+     * @brief 定时器回调：每25ms检查队列并批量发送
+     */
 void ArtnetTransmitter::onQueueTimer()
 {
+   
     processQueue();
 }
 

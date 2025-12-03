@@ -5,13 +5,16 @@
 #include <QtCore/QObject>
 #include <QComboBox>
 #include <iostream>
-#include "../Devices/ModelDataBridge/ModelDataBridge.hpp"
+#include "ModelDataBridge/ModelDataBridge.hpp"
+#include "Elements/DataBridgeSelectorBox/DataBridgeSelectorBox.hpp"
+#include "ConstantDefines.h"
+#include "OSCSender/OSCSender.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-class DecimalData;
+using namespace QtNodes;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 namespace Nodes {
@@ -40,9 +43,11 @@ namespace Nodes {
         QWidget *embeddedWidget() override;
 
         void setRemarks(const QString& remarks) override;
+
+        void stateFeedBack(const QString& oscAddress,QVariant value) override;
     private:
         std::unordered_map<PortIndex, std::shared_ptr<NodeData>> _dataMap;
-        QComboBox *_inputSelector;
+        DataBridgeSelectorBox *widget;
 
     };
 }

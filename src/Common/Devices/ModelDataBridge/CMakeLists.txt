@@ -12,10 +12,6 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
 set(ModelDataBridge_sources
         ModelDataBridge.cpp
         ModelDataBridge.hpp
-        ../../BuildInNodes/VariableInDataModel.hpp
-        ../../BuildInNodes/VariableInDataModel.cpp
-        ../../BuildInNodes/VariableOutDataModel.cpp
-        ../../BuildInNodes/VariableOutDataModel.hpp
         )
 
 #target_link_libraries(MYLIBRARY_LIBRARY PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::WebSockets)

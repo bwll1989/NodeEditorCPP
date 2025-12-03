@@ -6,11 +6,8 @@
 #include <QPointer>
 #include <QLineEdit>
 #include <memory>
-
-#include <QtNodes/NodeDelegateModel>
 #include <QtNodes/Definitions>
-#include "../../BuildInNodes/VariableInDataModel.hpp"
-#include "../../BuildInNodes/VariableOutDataModel.hpp"
+#include <QtNodes/NodeDelegateModel>
 #ifdef MODELDATABRIDGE_LIBRARY
 #define MODELDATABRIDGE_EXPORT Q_DECL_EXPORT
 #else
@@ -47,13 +44,15 @@ public:
     /// - newRemarks: 新备注文本
     void updateRemarksForDelegate(QtNodes::NodeDelegateModel* delegate, bool isEntrance, const QString& newRemarks);
 
+    void requestDataManual(const QString& sourceRemarks);
+
     QStringList getAllEntranceRemarks();
 
     QStringList getAllExportRemarks();
 
-    void unregisterEntranceDelegate(NodeDelegateModel* delegate);
+    void unregisterEntranceDelegate(QtNodes::NodeDelegateModel* delegate);
 
-    void unregisterExportDelegate(NodeDelegateModel* delegate);
+    void unregisterExportDelegate(QtNodes::NodeDelegateModel* delegate);
 private:
     /// 工具：从委托模型获取备注文本（去除首尾空白）
     /// 作用：用于作为映射键

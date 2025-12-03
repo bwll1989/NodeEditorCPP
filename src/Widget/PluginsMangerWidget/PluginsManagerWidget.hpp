@@ -43,7 +43,7 @@ public:
      * 加载内建插件
      */
     void loadBuildInPlugin();
-signals:
+Q_SIGNALS:
     /**
      * 加载插件状态
      * @param const QString &stauts 状态

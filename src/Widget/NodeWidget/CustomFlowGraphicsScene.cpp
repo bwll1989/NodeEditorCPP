@@ -45,7 +45,6 @@ CustomFlowGraphicsScene::CustomFlowGraphicsScene(CustomDataFlowGraphModel &graph
         connect(&_graphModel,
                 &CustomDataFlowGraphModel::inPortDataWasSet,
                 [this](NodeId const nodeId, PortType const, PortIndex const) { onNodeUpdated(nodeId); });
-
 //        connect(this,&CustomFlowGraphicsScene::nodeContextMenu,this,&CustomFlowGraphicsScene::test);
 //    connect(&_graphModel,&CustomDataFlowGraphModel::nodeDeleted,this,&CustomFlowGraphicsScene::test);
 
