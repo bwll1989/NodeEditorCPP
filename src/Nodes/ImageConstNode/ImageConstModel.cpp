@@ -1,11 +1,11 @@
 #include "ImageConstModel.hpp"
-
+#include "Elements/ColorEditorWidget/ColorEditorWidget.hpp"
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtWidgets/QFileDialog>
 using namespace Nodes;
 using namespace NodeDataTypes;
 ImageConstModel::ImageConstModel(){
-    InPortCount = 6;
+    InPortCount = 3;
     OutPortCount=1;
     CaptionVisible=true;
     Caption="Image Constant";
@@ -15,15 +15,16 @@ ImageConstModel::ImageConstModel(){
     // 连接输入框变化信号到槽
     connect(widget->widthEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
     connect(widget->heightEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
-    connect(widget->colorRedEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
-    connect(widget->colorGreenEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
-    connect(widget->colorBlueEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
-    connect(widget->colorAlphaEdit, &QSpinBox::valueChanged, this, &ImageConstModel::onInputChanged);
-    NodeDelegateModel::registerOSCControl("/r",widget->colorRedEdit);
-    NodeDelegateModel::registerOSCControl("/g",widget->colorGreenEdit);
-    NodeDelegateModel::registerOSCControl("/b",widget->colorBlueEdit);
-    NodeDelegateModel::registerOSCControl("/a",widget->colorAlphaEdit);
+    connect(colorEditorWidget, &ColorEditorWidget::colorChanged, this, &ImageConstModel::onInputChanged);
+    connect(widget->colorEditButton, &QPushButton::clicked, this, &ImageConstModel::toggleEditorMode);
     updateImage();
+}
+
+ImageConstModel::~ImageConstModel(){
+    if (colorEditorWidget) {
+        colorEditorWidget->setParent(nullptr);
+        colorEditorWidget->deleteLater();
+    }
 }
 
 QtNodes::NodeDataType ImageConstModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const {
@@ -85,17 +86,8 @@ void ImageConstModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeDat
             widget->heightEdit->setText(QString::number(m_height));
             break;
         case 2: // RED
-            widget->colorRedEdit->setValue(val.toInt()>=255?255:val.toInt());
-            break;
-        case 3: // GREEN
-            widget->colorGreenEdit->setValue(val.toInt()>=255?255:val.toInt());
-            break;
-        case 4: // BLUE
-            widget->colorBlueEdit->setValue(val.toInt()>=255?255:val.toInt());
-            break;
-        case 5: // ALPHA
-            widget->colorAlphaEdit->setValue(val.toInt()>=255?255:val.toInt());
-            break;
+            colorEditorWidget->setColor(val.toString());
+
         default:
             break;
     }
@@ -107,11 +99,7 @@ void ImageConstModel::onInputChanged() {
     // 解析输入框内容
     m_width = widget->widthEdit->text().toInt();
     m_height = widget->heightEdit->text().toInt();
-    int r = widget->colorRedEdit->value();
-    int g = widget->colorGreenEdit->value();
-    int b = widget->colorBlueEdit->value();
-    int a = widget->colorAlphaEdit->value();
-    m_color = QColor(r, g, b, a);
+    m_color = QColor(colorEditorWidget->getColor());
     updateImage();
     Q_EMIT dataUpdated(0);
 }
@@ -120,7 +108,7 @@ void ImageConstModel::updateImage() {
     if (m_width <= 0) m_width = 1;
     if (m_height <= 0) m_height = 1;
 
-    // 立即预览当前颜色
+    // // 立即预览当前颜色
     QPixmap pix(widget->display->width(), widget->display->height());
     pix.fill(m_color);
     widget->display->setPixmap(pix);
@@ -158,10 +146,10 @@ QJsonObject ImageConstModel::save() const
     QJsonObject modelJson1;
     modelJson1["width"] = widget->widthEdit->text();
     modelJson1["height"] = widget->heightEdit->text();
-    modelJson1["red"] = widget->colorRedEdit->value();
-    modelJson1["green"] = widget->colorGreenEdit->value();
-    modelJson1["blue"] = widget->colorBlueEdit->value();
-    modelJson1["alpha"] = widget->colorAlphaEdit->value();
+    modelJson1["color"] = colorEditorWidget->getColor().name(QColor::HexArgb);
+    // modelJson1["green"] = widget->colorGreenEdit->value();
+    // modelJson1["blue"] = widget->colorBlueEdit->value();
+    // modelJson1["alpha"] = widget->colorAlphaEdit->value();
     QJsonObject modelJson  = NodeDelegateModel::save();
     modelJson["values"]=modelJson1;
     return modelJson;
@@ -173,10 +161,11 @@ void ImageConstModel::load(const QJsonObject &p)
         //            button->setChecked(v["val"].toBool(false));
         widget->widthEdit->setText(v["width"].toString());
         widget->heightEdit->setText(v["height"].toString());
-        widget->colorRedEdit->setValue(v["red"].toInt());
-        widget->colorGreenEdit->setValue(v["green"].toInt());
-        widget->colorBlueEdit->setValue(v["blue"].toInt());
-        widget->colorAlphaEdit->setValue(v["alpha"].toInt());
+        colorEditorWidget->setColor(QColor(v["color"].toString()));
+        // widget->colorRedEdit->setValue(v["red"].toInt());
+        // widget->colorGreenEdit->setValue(v["green"].toInt());
+        // widget->colorBlueEdit->setValue(v["blue"].toInt());
+        // widget->colorAlphaEdit->setValue(v["alpha"].toInt());
         updateImage();
     }
 }
@@ -188,4 +177,28 @@ void ImageConstModel::stateFeedBack(const QString& oscAddress,QVariant value){
     message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
     message.value = value;
     OSCSender::instance()->sendOSCMessageWithQueue(message);
+}
+void ImageConstModel::toggleEditorMode() {
+    // 移除父子关系，使其成为独立窗口
+    colorEditorWidget->setParent(nullptr);
+
+    // 设置为独立窗口
+    colorEditorWidget->setWindowTitle("颜色编辑器");
+
+    // 设置窗口图标
+    colorEditorWidget->setWindowIcon(QIcon(":/icons/icons/curve.png"));
+
+    // 设置窗口标志：独立窗口 + 置顶显示 + 关闭按钮
+    colorEditorWidget->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
+
+    // 设置窗口属性：当关闭时自动删除
+    colorEditorWidget->setAttribute(Qt::WA_DeleteOnClose, false); // 不自动删除，我们手动管理
+    colorEditorWidget->setAttribute(Qt::WA_QuitOnClose, false);   // 关闭窗口时不退出应用程序
+
+    // 设置窗口大小和显示
+    colorEditorWidget->resize(800, 400);
+    colorEditorWidget->show();
+    // 激活窗口并置于前台
+    colorEditorWidget->activateWindow();
+    colorEditorWidget->raise();
 }

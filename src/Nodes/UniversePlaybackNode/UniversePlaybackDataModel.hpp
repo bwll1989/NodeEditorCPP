@@ -127,6 +127,8 @@ public:
         case 0: // 播放
             if (trigger)
                 onPlayClicked();
+            else
+                onStopClicked();
             break;
         case 1: // 循环播放
             widget->loopCheckBox->setChecked(trigger);
@@ -161,18 +163,8 @@ public:
         modelJson1["isLooping"] = widget->loopCheckBox->isChecked();
         
         // 保存视频文件信息
-        modelJson1["videoFilePath"] = m_fileName;
-        modelJson1["videoWidth"] = m_videoWidth;
-        modelJson1["videoHeight"] = m_videoHeight;
-        modelJson1["videoFPS"] = m_fps;
-        modelJson1["videoDuration"] = m_duration;
-        
-        // 保存当前Universe数量
-        modelJson1["currentUniverseCount"] = currentUniverseCount;
-        
-        // 保存播放状态（但不保存isPlaying，因为重新加载时不应该自动播放）
-        modelJson1["playbackPosition"] = 0.0; // 可以后续扩展为保存当前播放位置
-    
+        modelJson1["videoFilePath"] = widget->_fileSelectComboBox->text();
+
         QJsonObject modelJson = NodeDelegateModel::save();
         modelJson["UniverseSettings"] = modelJson1;
         return modelJson;
@@ -200,32 +192,11 @@ public:
             
             // 加载视频文件信息
             QString videoFilePath = settings["videoFilePath"].toString();
-            if (!videoFilePath.isEmpty() && videoFilePath != "未选择文件") {
-                // 尝试重新打开视频文件
-                if (QFile::exists(videoFilePath)) {
-                    if (openVideo(videoFilePath)) {
-                        // 恢复视频信息显示
-                        double savedDuration = settings["videoDuration"].toDouble(m_duration);
-                        double savedFPS = settings["videoFPS"].toDouble(m_fps);
-                        widget->updateFileInfo(videoFilePath, savedDuration, savedFPS);
-                        
-                        qDebug() << "已重新加载视频文件:" << videoFilePath;
-                    } else {
-                        widget->showError("无法重新加载视频文件: " + videoFilePath);
-                        widget->fileNameLabel->setText("文件不存在: " + QFileInfo(videoFilePath).fileName());
-                    }
-                } else {
-                    widget->showError("视频文件不存在: " + videoFilePath);
-                    widget->fileNameLabel->setText("文件不存在: " + QFileInfo(videoFilePath).fileName());
-                }
+            if (!videoFilePath.isEmpty()) {
+                widget->_fileSelectComboBox->setText(videoFilePath);
             }
             
-            // 加载其他保存的信息（用于显示或验证）
-            int savedUniverseCount = settings["currentUniverseCount"].toInt(1);
-            if (savedUniverseCount > 0 && savedUniverseCount != currentUniverseCount) {
-                qDebug() << "Universe数量从保存的" << savedUniverseCount << "调整为当前" << currentUniverseCount;
-            }
-    
+
             // 更新输出数据
             updateAllUniverseData();
     
@@ -290,7 +261,7 @@ private slots:
     /**
      * @brief 选择视频文件
      */
-    void onSelectFileClicked() ;
+    void onSelectFileClicked(QString fileName) ;
 
     /**
      * @brief 播放按钮点击
@@ -385,8 +356,12 @@ private:
     int currentUniverseCount;  // 当前Universe数量
 
     // 数据存储（动态大小）
-    QList<QVector<int>> dmxDataList;                    // 动态数量的Universe的512通道DMX数据
+    QList<QByteArray> dmxDataList;                    // 动态数量的Universe的512通道DMX数据
     QList<std::shared_ptr<VariableData>> universeOutputs; // 动态数量的Universe输出数据
+    /**
+     * 函数级注释：当前播放时间（毫秒），从帧时间戳换算而来，用于驱动 QTimeEdit 显示
+     */
+    qint64 m_currentTimestampMs {0};
 
     Nodes::UniversePlaybackInterface * widget = new Nodes::UniversePlaybackInterface();
     };

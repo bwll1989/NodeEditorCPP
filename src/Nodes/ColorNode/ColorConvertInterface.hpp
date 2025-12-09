@@ -1,0 +1,42 @@
+//
+// Created by Administrator on 2023/12/13.
+//
+#pragma once
+#include <QLineEdit>
+#include "QWidget"
+#include "QLabel"
+#include "QLayout"
+#include <QSpinBox>
+#include <QVariantMap>
+
+#include "PushButton.h"
+
+namespace Nodes
+{
+class ColorConvertInterface final : public QWidget{
+        Q_OBJECT
+    public:
+        explicit ColorConvertInterface(QWidget *parent = nullptr){
+            main_layout=new QGridLayout();
+            main_layout->addWidget(display,0,0,1,2);
+            main_layout->setColumnStretch(0,1);
+            main_layout->setColumnStretch(1,1);
+            main_layout->setSpacing(0);
+            main_layout->setContentsMargins(0,0,0,0);
+
+            this->setLayout(main_layout);
+            /* 函数级注释：移除固定大小，采用最小尺寸 + 可扩展策略 */
+            this->setFixedSize(80, 120);
+            this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        }
+
+    public:
+        QGridLayout *main_layout;
+        QLabel *display=new QLabel();
+
+
+
+
+    };
+}
+

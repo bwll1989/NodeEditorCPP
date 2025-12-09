@@ -356,14 +356,14 @@ MediaLibrary::Category MediaLibrary::detectCategory(const QString& absPath) cons
     static const QSet<QString> video = { "mp4", "mov", "mkv", "avi", "wmv", "flv", "webm" };
     // 音频
     static const QSet<QString> sound = { "wav", "mp3", "flac", "aac", "ogg", "m4a" };
-    // MIDI
+    // DMX
     static const QSet<QString> dmx  = { "dmx" };
     // 图片
     static const QSet<QString> pic   = { "jpg", "jpeg", "png", "bmp", "gif", "webp", "tiff" };
     // 3D 模型（简单示例）
     static const QSet<QString> model = { "obj", "fbx", "stl", "gltf", "glb" };
     // other
-    static const QSet<QString> other = { "txt", "json", "xml", "cfg", "log" , "md" , "csv" };
+    static const QSet<QString> other = { "txt", "json", "xml", "cfg", "log" , "md" , "csv","ini" };
     if (video.contains(ext)) return Category::Video;
     if (sound.contains(ext)) return Category::Audio;
     if (dmx.contains(ext))  return Category::DMX;

@@ -26,6 +26,9 @@ add_library(${Module_Name} SHARED
     SelectorComboBox/SelectorComboBox.hpp
     DataBridgeSelectorBox/DataBridgeSelectorBox.cpp
     DataBridgeSelectorBox/DataBridgeSelectorBox.hpp
+    ColorEditorWidget/ColorEditorWidget.cpp
+    ColorEditorWidget/ColorEditorWidget.hpp
+
 )
 
 # 链接Qt库
@@ -35,6 +38,8 @@ target_link_libraries(${Module_Name} PRIVATE
     Qt${QT_VERSION_MAJOR}::Gui
     MediaManger
     ModelDataBridge
+    ${QtColorWidgets_LIBRARIES}
+
 )
 
 # 导出符号

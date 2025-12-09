@@ -3,19 +3,18 @@
 #include <QObject>
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/PluginInterface>
-
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef ImageLoadNode_EXPORTS
+#ifdef FileLoadNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
-#define PLUGIN_NAME "Image File"
+#define PLUGIN_NAME "File Load Node"
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "导入图片"
-#define PLUGIN_TAG "Image"
+#define PLUGIN_DESCRIBE "导入文件（JSON、CSV、INI、Image）"
+#define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

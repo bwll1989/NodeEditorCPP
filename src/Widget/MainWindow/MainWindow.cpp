@@ -47,6 +47,8 @@ MainWindow::~MainWindow()
 void MainWindow::init()
 {
     m_DockManager = new ads::CDockManager(this);
+    // 注册到 DockHub，供外部模块统一挂载
+    DockHub::instance().setDockManager(m_DockManager);
     //禁用ads内置样式表
     m_DockManager->setStyleSheet(":/styles/styles/DefaultDark.qss");
 
@@ -162,7 +164,13 @@ void MainWindow::init()
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, mediaLibraryDockWidget);
     // menuBar->views->addAction(mediaLibraryDockWidget->toggleViewAction());
     emit initStatus("Initialization Media Library Widget success");
-
+    // // 属性控件
+    // propertyDockWidget = new ads::CDockWidget(m_DockManager,"属性");
+    // propertyDockWidget->setObjectName("property");
+    // propertyDockWidget->setIcon(QIcon(":/icons/icons/property.png"));
+    // m_DockManager->addDockWidget(ads::RightDockWidgetArea, propertyDockWidget);
+    // // menuBar->views->addAction(propertyDockWidget->toggleViewAction());
+    // emit initStatus("Initialization Property Widget success");
     // 外部控制器
     controller=new ExternalControler();
     controller->setDataflowModels(dataflowViewsManger->getModel());

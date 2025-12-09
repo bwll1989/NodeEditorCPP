@@ -39,7 +39,7 @@ namespace Nodes
             OutPortCount = 1;   // 一个Universe数据输出
             PortEditable = true;
             CaptionVisible = true;
-            Caption = "Artnet Universe";
+            Caption = "DMX Universe";
             WidgetEmbeddable = false;
             Resizable = false;
             

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
+import QtQml.Models
 
 /**
  * @brief 简化的数据浏览器组件，以树状图形式显示QVariantMap数据
@@ -94,6 +95,14 @@ Rectangle {
             
             // 使用从C++传递的dataModel实例
             model: dataModel
+            
+            /**
+             * @brief 选择模型：用于管理当前项和选中项
+             * 绑定到 TreeView 的 model，避免 selectionModel 为空导致操作失败
+             */
+            selectionModel: ItemSelectionModel {
+                model: treeView.model
+            }
             
             // 监听模型重置信号
             Connections {
@@ -239,9 +248,17 @@ Rectangle {
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                     hoverEnabled: true
                     
+                    /**
+                     * @brief 单击选择当前行，并转发点击事件
+                     * 增加判空保护，避免 selectionModel 为空时报错
+                     */
                     onClicked: function(mouse) {
-                        treeView.selectionModel.setCurrentIndex(treeView.index(row, 0), ItemSelectionModel.ClearAndSelect)
-                        
+                        if (treeView.selectionModel) {
+                            treeView.selectionModel.setCurrentIndex(
+                                treeView.index(row, 0),
+                                ItemSelectionModel.ClearAndSelect
+                            )
+                        }
                         if (mouse.button === Qt.LeftButton) {
                             root.itemClicked(model)
                         } else if (mouse.button === Qt.RightButton) {

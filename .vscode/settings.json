@@ -135,6 +135,10 @@
         "*.main": "cpp",
         "qcontextmenuevent": "cpp",
         "qtreeview": "cpp",
-        "qdesktopservices": "cpp"
+        "qdesktopservices": "cpp",
+        "qwidgetaction": "cpp",
+        "__availability": "cpp",
+        "*.moc": "cpp",
+        "resumable": "cpp"
     }
 }

@@ -8,7 +8,8 @@
 #include <QGroupBox>
 #include <QFileInfo>
 #include <QCheckBox>  // 新增：包含QCheckBox头文件
-
+#include <QTimeEdit>
+#include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 namespace Nodes
 {
     /**
@@ -34,17 +35,21 @@ namespace Nodes
         
         // 控制按钮
         QPushButton *clearButton = new QPushButton("清空数据", this);
-        QPushButton *selectFileButton = new QPushButton("选择视频", this);
+        // QPushButton *selectFileButton = new QPushButton("选择视频", this);
         QPushButton *playButton = new QPushButton("播放", this);
         QPushButton *stopButton = new QPushButton("停止", this);
         
         // 循环播放控制
         QCheckBox *loopCheckBox = new QCheckBox("循环播放", this);  // 新增：循环播放复选框
-        
-        // 信息显示
-        QLabel *fileNameLabel = new QLabel("未选择文件", this);
+        SelectorComboBox* _fileSelectComboBox = new SelectorComboBox(MediaLibrary::Category::DMX);
+        // // 信息显示
+        // QLabel *fileNameLabel = new QLabel("未选择文件", this);
         QLabel *videoInfoLabel = new QLabel("", this);
         QLabel *statusLabel = new QLabel("就绪", this);
+        /**
+         * 函数级注释：当前播放时间显示，格式 hh:mm:ss.zzz，只读
+         */
+        QTimeEdit *currentTimeEdit = new QTimeEdit(this);
 
         /**
          * @brief 更新文件信息显示
@@ -52,11 +57,10 @@ namespace Nodes
          * @param duration 时长
          * @param fps 帧率
          */
-        void updateFileInfo(const QString& fileName, double duration, double fps) {
+        void updateFileInfo(const QString& fileName, double duration, double fps,int videoHeight) {
             QFileInfo fileInfo(fileName);
-            fileNameLabel->setText(fileInfo.fileName());
-            videoInfoLabel->setText(QString("时长: %1s, 帧率: %2fps")
-                                   .arg(duration, 0, 'f', 1).arg(fps, 0, 'f', 1));
+            videoInfoLabel->setText(QString("时长: %1s, 帧率: %2fps, 域数量: %3")
+                                   .arg(duration, 0, 'f', 1).arg(fps, 0, 'f', 1).arg(videoHeight));
         }
         
         /**
@@ -87,7 +91,7 @@ namespace Nodes
         /**
          * @brief 选择文件按钮点击信号
          */
-        void selectFileClicked();
+        void selectFileClicked(QString fileName);
         
         /**
          * @brief 播放按钮点击信号
@@ -112,7 +116,7 @@ namespace Nodes
         void setupUI() {
             QVBoxLayout *mainLayout = new QVBoxLayout(this);
             mainLayout->setSpacing(8);
-            mainLayout->setContentsMargins(8, 8, 8, 8);
+            mainLayout->setContentsMargins(0, 0, 0, 0);
             
             // Universe配置组
             createUniverseConfigGroup(mainLayout);
@@ -125,7 +129,7 @@ namespace Nodes
 
             
             this->setLayout(mainLayout);
-            this->setMinimumSize(350, 400);
+            this->setMinimumSize(250, 300);
         }
 
         /**
@@ -165,19 +169,12 @@ namespace Nodes
          * @param parentLayout 父布局
          */
         void createVideoFileGroup(QVBoxLayout *parentLayout) {
-            QGroupBox *fileGroup = new QGroupBox("视频文件", this);
+            QGroupBox *fileGroup = new QGroupBox("DMX文件", this);
             QVBoxLayout *fileLayout = new QVBoxLayout(fileGroup);
             
             // 文件选择按钮
-            selectFileButton->setToolTip("选择HAP格式视频文件（128像素宽度，25fps）");
-            connect(selectFileButton, &QPushButton::clicked, this, &UniversePlaybackInterface::selectFileClicked);
-            fileLayout->addWidget(selectFileButton);
-            
-            // 文件名显示
-            fileNameLabel->setWordWrap(true);
-            fileNameLabel->setStyleSheet("font-weight: bold;");
-            fileLayout->addWidget(fileNameLabel);
-            
+            fileLayout->addWidget(_fileSelectComboBox);
+            connect(_fileSelectComboBox, &SelectorComboBox::textChanged, this, &UniversePlaybackInterface::selectFileClicked);
             // 视频信息显示
             videoInfoLabel->setStyleSheet("color: gray;");
             fileLayout->addWidget(videoInfoLabel);
@@ -191,16 +188,17 @@ namespace Nodes
          */
         void createPlaybackControlGroup(QVBoxLayout *parentLayout) {
             QGroupBox *playbackGroup = new QGroupBox("播放控制", this);
-            QVBoxLayout *playbackLayout = new QVBoxLayout(playbackGroup);
-            
+            QGridLayout *playbackLayout = new QGridLayout(playbackGroup);
+            currentTimeEdit->setDisplayFormat("hh:mm:ss.zzz");
+            currentTimeEdit->setReadOnly(true);
+            currentTimeEdit->setButtonSymbols(QAbstractSpinBox::NoButtons);
+            currentTimeEdit->setTime(QTime(0,0,0,0));
+            playbackLayout->addWidget(currentTimeEdit, 0, 0,1,2);
             // 循环播放复选框
-            loopCheckBox->setToolTip("启用后视频播放结束时会自动重新开始");
+            loopCheckBox->setToolTip("启用后播放结束时会自动重新开始");
            
             connect(loopCheckBox, &QCheckBox::toggled, this, &UniversePlaybackInterface::loopStateChanged);
-            playbackLayout->addWidget(loopCheckBox);
-            
-            // 播放控制按钮
-            QHBoxLayout *buttonLayout = new QHBoxLayout();
+            playbackLayout->addWidget(loopCheckBox,1,0,1,2);
 
             playButton->setToolTip("开始播放视频（25fps）");
             playButton->setStyleSheet(
@@ -220,7 +218,7 @@ namespace Nodes
                 "}"
             );
             connect(playButton, &QPushButton::clicked, this, &UniversePlaybackInterface::playClicked);
-            buttonLayout->addWidget(playButton);
+            playbackLayout->addWidget(playButton,2,0,1,1);
             
             stopButton->setToolTip("停止播放并重置到开头");
             stopButton->setEnabled(false);
@@ -241,9 +239,7 @@ namespace Nodes
                 "}"
             );
             connect(stopButton, &QPushButton::clicked, this, &UniversePlaybackInterface::stopClicked);
-            buttonLayout->addWidget(stopButton);
-            
-            playbackLayout->addLayout(buttonLayout);
+            playbackLayout->addWidget(stopButton,2,1,1,1);
 
             // 清空按钮
             clearButton->setToolTip("清空当前Universe的所有DMX数据（将所有512个通道设置为0）");
@@ -267,12 +263,11 @@ namespace Nodes
             // 连接清空按钮信号
             connect(clearButton, &QPushButton::clicked, this, &UniversePlaybackInterface::clearDataClicked);
 
-            playbackLayout->addWidget(clearButton);
+            playbackLayout->addWidget(clearButton,3,0,1,2);
             // 状态显示
             statusLabel->setAlignment(Qt::AlignCenter);
             statusLabel->setStyleSheet("font-weight: bold; padding: 4px;");
-            playbackLayout->addWidget(statusLabel);
-            
+            playbackLayout->addWidget(statusLabel,4,0,1,2);
             parentLayout->addWidget(playbackGroup);
         }
     };

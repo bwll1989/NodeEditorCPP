@@ -10,7 +10,7 @@
 #include <QMenuBar>
 #include "Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
-#include "DockManager.h"
+#include "DockHub/DockHub.hpp"
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
 #include "Widget/NodeWidget/CustomFlowGraphicsScene.h"
 #include "Widget/NodeWidget/CustomGraphicsView.h"

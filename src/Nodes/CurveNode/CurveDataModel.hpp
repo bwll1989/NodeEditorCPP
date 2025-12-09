@@ -29,12 +29,12 @@ namespace Nodes
         CurveDataModel()
         {
             InPortCount =1;
-            OutPortCount=4;
+            OutPortCount=3;
             CaptionVisible=true;
             Caption=PLUGIN_NAME;
             WidgetEmbeddable= false;
             Resizable=false;
-            PortEditable= false;
+            PortEditable= true;
             m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
             // m_quickWidget->setSource(QUrl("qrc:qml/content/dynamicview.qml"));
             m_quickWidget->setSource(QUrl("qrc:/qml/content/main.qml"));
@@ -68,11 +68,8 @@ namespace Nodes
                 return "TRIGGER";
             case PortType::Out:
                 switch (portIndex) {
-                case 0:  return "TIME";
-                case 1:  return "VALUE_X";
-                case 2:  return "VALUE_Y";
-                case 3:  return "STATUS";
-                default: break;
+                case 0:  return "PROGRESS";
+                default: return QString("Curve%1").arg(portIndex);
                 }
                 break;
             default:
@@ -93,10 +90,15 @@ namespace Nodes
         {
             switch (port) {
             case 0: return currentTime;
-            case 1: return currentValue_X;
-            case 2:return currentValue_Y;
-            case 3: return currentStatus;
-            default: return nullptr;
+            default: {
+                // 安全读取：未赋值或越界时返回 0.0，避免崩溃
+                const int idx = static_cast<int>(port) - 1;
+                const double safeValue =
+                    (idx >= 0 && idx < static_cast<int>(currentValuesY.size()))
+                    ? currentValuesY[idx]
+                    : 0.0;
+                return make_shared<VariableData>(safeValue);
+            }
             }
         }
 
@@ -256,7 +258,14 @@ namespace Nodes
             bool okTime = false;
             const double timeSec = parts[1].toString().trimmed().toDouble(&okTime);
             const double valueX = parts[2].toString().trimmed().toDouble();
-            const double valueY = parts[3].toString().trimmed().toDouble();
+            if (parts[3].typeId() == QMetaType::QVariantList) {
+                const QVariantList vl = parts[3].toList();
+                currentValuesY.resize(vl.size());
+                for (int i = 0; i < vl.size(); ++i) {
+                    currentValuesY[i] = vl[i].toDouble();
+                    Q_EMIT dataUpdated(i + 1);
+                }
+            }
             const QString statusStr = parts[4].toString().trimmed();
             const bool isPlaying = (statusStr.compare("true", Qt::CaseInsensitive) == 0);
 
@@ -269,16 +278,12 @@ namespace Nodes
             } else {
                 currentTime.reset();
             }
+            currentTime = make_shared<VariableData>(valueX);
             Q_EMIT dataUpdated(0);
-            // 更新当前百分比
-            currentValue_Y = make_shared<VariableData>(valueY);
-            currentValue_X = make_shared<VariableData>(valueX);
-            Q_EMIT dataUpdated(1);
-            Q_EMIT dataUpdated(2);
+
             if (currentStatus->value().toBool() != isPlaying) {
                 currentStatus = make_shared<VariableData>(isPlaying);
                 updateStatus(isPlaying);
-                Q_EMIT dataUpdated(3);
             }
         }
 
@@ -306,11 +311,10 @@ namespace Nodes
     public:
         CurveInterface *widget=new CurveInterface();
         shared_ptr<VariableData> inData;
-        shared_ptr<VariableData> currentValue_Y=make_shared<VariableData>(0.0);
-        shared_ptr<VariableData> currentValue_X=make_shared<VariableData>(0.0);
+        std::vector<double> currentValuesY=std::vector<double>();
+        shared_ptr<VariableData> currentValue_Time=make_shared<VariableData>(0.0);
         shared_ptr<VariableData> currentTime=make_shared<VariableData>(0.0);
         shared_ptr<VariableData> currentStatus=make_shared<VariableData>(QVariant(false));
-        void *patch;
         QQuickWidget *m_quickWidget=new QQuickWidget();
     private:
         // 函数级注释：通过 objectName 查找 QML 中的 TimelineEditor（main.qml 内 id: timelineEditor）

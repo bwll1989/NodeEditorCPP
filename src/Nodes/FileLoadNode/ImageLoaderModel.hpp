@@ -30,15 +30,6 @@ namespace Nodes
 
     public:
         ImageLoaderModel() {
-
-            // _label->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
-            // QFont f = _label->font();
-            // f.setBold(true);
-            // f.setItalic(true);
-            // _label->setFont(f);
-            // // _label->setMinimumSize(200, 200);
-            // //_label->setMaximumSize(500, 300);
-            // _label->installEventFilter(this);
             InPortCount =0;
             OutPortCount=1;
 
@@ -49,11 +40,6 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outImageData=std::make_shared<ImageData>();
-            // if (!_fileSelectComboBox->currentText().isEmpty()) {
-            //     fileName = _fileSelectComboBox->currentText();
-            // }
-            // _fileSelectComboBox->setEditable(true);
-            // _selectorComboBox->addItems( MediaLibrary::instance()->getFileList(MediaLibrary::Category::Image));
             NodeDelegateModel::registerOSCControl("/file",_fileSelectComboBox);
             connect(_fileSelectComboBox, &SelectorComboBox::textChanged, this, &ImageLoaderModel::loadImage);
         }
@@ -94,31 +80,6 @@ namespace Nodes
             }
         }
 
-    // protected:
-        // bool eventFilter(QObject *object, QEvent *event) override{
-        //     if (object == _label) {
-        //         const int w = _label->width();
-        //         const int h = _label->height();
-        //
-        //         if (event->type() == QEvent::MouseButtonPress) {
-        //             auto mouseEvent = static_cast<QMouseEvent*>(event);
-        //             if (mouseEvent->button() == Qt::LeftButton && (mouseEvent->modifiers() & Qt::ControlModifier)) {
-        //                 m_path = QFileDialog::getOpenFileName(nullptr,
-        //                                                       tr("Open Image"),
-        //                                                       QDir::homePath(),
-        //                                                       tr("Image Files (*.png *.jpg *.bmp)"));
-        //                 if (!m_path.isEmpty())
-        //                     loadImage();
-        //                 return true;
-        //             }
-        //         } else if (event->type() == QEvent::Resize) {
-        //             if (m_outImageData && !m_outImageData->image().isNull())
-        //                 _label->setPixmap(m_outImageData->pixmap().scaled(w, h, Qt::KeepAspectRatio));
-        //         }
-        //     }
-        //
-        //     return false;
-        // }
         void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
             OSCMessage message;
@@ -135,11 +96,13 @@ namespace Nodes
                 m_path= AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+fileName;
                 m_outImageData = std::make_shared<ImageData>(m_path);
                 if (m_outImageData && !m_outImageData->image().isNull()) {
-                    // _label->setPixmap(m_outImageData->pixmap().scaled(_label->width(), _label->height(), Qt::KeepAspectRatio));
+                    updateNodeState(QtNodes::NodeValidationState::State::Valid);
+    
                 }
             } else {
+                updateNodeState(QtNodes::NodeValidationState::State::Error,"cannot open file");
                 m_outImageData.reset();
-                // _label->clear();
+              
             }
             emit dataUpdated(0);
         }

@@ -42,5 +42,6 @@ namespace AppConstants {
     // Art-Net 相关常量
     constexpr int ARTNET_PORT = 6454;
     // Art-Net 输出FPS
-    constexpr double ARTNET_OUTPUT_FPS = 25.0; // 25ms
+    constexpr double ARTNET_OUTPUT_FPS = 50.0; // 25ms
+
 }

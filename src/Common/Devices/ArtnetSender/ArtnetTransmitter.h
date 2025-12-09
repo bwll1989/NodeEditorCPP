@@ -140,7 +140,7 @@ private:
     QTimer* mQueueTimer;
     
     // 发送间隔（毫秒）
-    int mSendInterval=1000/AppConstants::ARTNET_OUTPUT_FPS; // 发送间隔（毫秒），默认40fps
+    int mSendInterval=1000/AppConstants::ARTNET_OUTPUT_FPS; // 发送间隔（毫秒），默认20fps
 
     /**
      * @brief 创建Art-Net数据包

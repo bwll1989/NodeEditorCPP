@@ -28,15 +28,68 @@ Item {
     property real dragStartViewportStart: 0     // 视口拖拽起始时的 viewportStart（秒）
     property int gridRowCount: 6
     property var markers: []                    // 标记时间集合（秒）
+    // 函数级注释：撤销历史（最多50条）
+    property var history: []
+    property int maxHistoryLength: 50
 
+    // 函数级注释：边距设置
+    property var margin: ({ left: 10, right: 10, top: 20, bottom: 20 })
     // 函数级注释：控制点数组，type: 0=LINEAR, 1=BEZIER
-    property var points: [
-        { time: 0,  value: 0.5, type: 0 },
-        { time: 30, value: 0.5, type: 0 }
-    ]
+    property var curves: [
+            {
+                name: "Curve 1",
+                points: [
+                    { time: 0,  value: 0.5, type: 0 },
+                    { time: 30, value: 0.5, type: 0 }
+                ]
+            },{
+                name: "Curve 2",
+                points: [
+                    { time: 0,  value: 0.8, type: 0 },
+                    { time: 30, value: 0.2, type: 0 }
+                ]
+            }
+        ]
+    property int activeCurveIndex: 1
     property var selectedPoint: null            // 选中的控制点
     property int pointRadius: 4                 // 控制点半径（像素）
+    // 多曲线随机（稳定）颜色调色板
+    property var colorPalette: [
+        "#e6194B", "#3cb44b", "#ffe119", "#4363d8", "#f58231",
+        "#911eb4", "#42d4f4", "#f032e6", "#bfef45", "#fabed4",
+        "#469990", "#dcbeff", "#9A6324", "#800000", "#808000",
+        "#000075", "#a9a9a9", "#000000"
+    ]
+    /*
+     * 函数：getCurveColor
+     * 目的：为指定索引的曲线提供稳定的随机颜色（基于索引映射）
+     * 参数：index - 曲线在 curves 数组中的索引
+     * 返回：字符串颜色（Hex），始终为同一索引返回同一颜色
+     */
+    function getCurveColor(index) {
+        return colorPalette[index % colorPalette.length]
+    }
+    function getCurveLength() {
+        var lastPointTime
+        if (curves && curves.length > 0) {
+            var maxT = 0
+            for (var ci = 0; ci < curves.length; ci++) {
+                var pts = curves[ci].points || []
+                if (pts.length > 0) {
+                    var lastT = pts[pts.length - 1].time
+                    if (lastT > maxT) maxT = lastT
+                }
+            }
+            lastPointTime = maxT > 0 ? maxT : totalDuration
+        } else {
+            // 兼容旧结构：仅单曲线 points
+            lastPointTime = points.length ? points[points.length - 1].time : totalDuration
+        }
 
+        var endTime = Math.min(totalDuration, lastPointTime)
+        return endTime
+    }
+    property var points: (curves[activeCurveIndex] ? curves[activeCurveIndex].points : [])
     // 函数级注释：播放头属性与计时器
     property var playhead: ({
         time: 0,
@@ -44,21 +97,17 @@ Item {
         width: 1,
         isDragging: false,
         isPlaying: false,
-        fps: 50
+        fps: 25
     })
     Timer {
         id: playTimer
         interval: Math.max(1, 1000 / root.playhead.fps)
-
-        
         repeat: true
         running: false
         onTriggered: {
             var dt = 1.0 / root.playhead.fps
             var next = root.playhead.time + dt
-
-            var lastPointTime = points.length ? points[points.length - 1].time : totalDuration
-            var endTime = Math.min(totalDuration, lastPointTime)
+            var endTime = getCurveLength()
 
             if (next >= endTime) {
                 if (root.isLoop) {
@@ -73,14 +122,6 @@ Item {
             }
         }
     }
-
-    // 函数级注释：撤销历史（最多50条）
-    property var history: []
-    property int maxHistoryLength: 50
-
-    // 函数级注释：边距设置
-    property var margin: ({ left: 10, right: 10, top: 20, bottom: 20 })
-
     // 函数级注释：数据变化防抖保存计时器（300ms）
     Timer {
         id: autoSaveTimer
@@ -90,15 +131,24 @@ Item {
             dataChanged(JSON.stringify(exportData()))
         }
     }
-
     // 函数级注释：数据变化信号（外部接收后更新 savedData）
     signal dataChanged(string json)
-
     // 函数级注释：播放头变化信号（外部用于同步 UI/C++）
-    signal playheadTimeChange(double time, double valueX , double valueY, bool isPlaying)
+    signal playheadTimeChange(double time,double normTime ,var values, bool isPlaying)
+    // 曲线数量变化信号
+    signal curveCountChanged()
 
+    function formatTime(seconds) {
+        seconds = Math.max(0, Math.floor(seconds))
+        var h = Math.floor(seconds / 3600)
+        var m = Math.floor((seconds % 3600) / 60)
+        var s = seconds % 60
+        function pad(n) { return n < 10 ? "0" + n : "" + n }
+        if (h > 0) return pad(h) + ":" + pad(m) + ":" + pad(s)
+        return pad(m) + ":" + pad(s)
+    }
     // 函数级注释：根据时间点计算曲线值（线性/Bezier）
-    function getValue(time) {
+    function getCurrentCurveValue(time) {
         var t = Math.max(0, Math.min(totalDuration, time))
         for (var i = 0; i < points.length - 1; i++) {
             var p1 = points[i], p2 = points[i+1]
@@ -108,9 +158,9 @@ Item {
                     // 简化 cubic Bezier 采样（无显式控制点时用端点值近似）
                     var cp1y = p1.value, cp2y = p2.value
                     return p1.value * Math.pow(1-tt,3) +
-                           cp1y * 3 * tt * Math.pow(1-tt,2) +
-                           cp2y * 3 * Math.pow(tt,2) * (1-tt) +
-                           p2.value * Math.pow(tt,3)
+                        cp1y * 3 * tt * Math.pow(1-tt,2) +
+                        cp2y * 3 * Math.pow(tt,2) * (1-tt) +
+                        p2.value * Math.pow(tt,3)
                 } else {
                     return p1.value + (p2.value - p1.value) * tt
                 }
@@ -118,65 +168,196 @@ Item {
         }
         return points.length ? points[points.length-1].value : 0
     }
+    // 函数级注释：根据时间点计算曲线值（线性/Bezier）
+    function getAllCurveValues(time) {
+        var t = Math.max(0, Math.min(totalDuration, time))
+        var results = []
+
+        // 兼容：若已是多曲线，则遍历 curves；否则回退到单曲线 points
+        var curvesArr = (curves && curves.length) ? curves : [{ points: points }]
+
+        for (var ci = 0; ci < curvesArr.length; ci++) {
+            var pts = curvesArr[ci].points || []
+            if (!pts || pts.length === 0) {
+                results.push(0)
+                continue
+            }
+
+            // 时间在首尾之外则返回端点值
+            if (t <= pts[0].time) {
+                results.push(pts[0].value)
+                continue
+            }
+            if (t >= pts[pts.length - 1].time) {
+                results.push(pts[pts.length - 1].value)
+                continue
+            }
+
+            var val = pts[pts.length - 1].value
+            for (var i = 0; i < pts.length - 1; i++) {
+                var p1 = pts[i], p2 = pts[i + 1]
+                if (t >= p1.time && t <= p2.time) {
+                    var tt = (t - p1.time) / (p2.time - p1.time)
+                    if (p1.type === 1 || p2.type === 1) {
+                        // 简化 cubic Bezier 采样（无显式控制点时用端点值近似）
+                        var cp1y = p1.value, cp2y = p2.value
+                        val = p1.value * Math.pow(1 - tt, 3) +
+                              cp1y * 3 * tt * Math.pow(1 - tt, 2) +
+                              cp2y * 3 * Math.pow(tt, 2) * (1 - tt) +
+                              p2.value * Math.pow(tt, 3)
+                    } else {
+                        val = p1.value + (p2.value - p1.value) * tt
+                    }
+                    break
+                }
+            }
+            results.push(val)
+        }
+
+        return results
+    }
+    
     function timeToNormX(t) {
         if (totalDuration <= 0) return 0
-        var lastPointTime = points.length ? points[points.length - 1].time : totalDuration
-        var endTime = Math.min(totalDuration, lastPointTime)
+        var endTime = getCurveLength();
         var x = t / endTime
         return Math.max(0, Math.min(1, x))
     }
     // 函数级注释：播放头移动/设置（触发重绘与事件）
     function seek(t) {
-    var nt = Math.max(0, Math.min(totalDuration, t))
-    if (nt !== playhead.time) {
-        playhead.time = nt
-        canvas.requestPaint()
-        var xNorm = timeToNormX(playhead.time)
-        var yNorm = getValue(playhead.time)
-        playheadTimeChange(playhead.time, xNorm, yNorm, playhead.isPlaying)
+        var nt = Math.max(0, Math.min(totalDuration, t))
+        if (nt !== playhead.time) {
+            playhead.time = nt
+            canvas.requestPaint()
+            var xNorm = timeToNormX(playhead.time)
+            var yNorm = getAllCurveValues(playhead.time)
+            playheadTimeChange(playhead.time, xNorm, yNorm, playhead.isPlaying)
+        }
     }
-}
-
     // 函数级注释：开始播放
-  function play() {
-    if (!playhead.isPlaying) {
-        playhead.isPlaying = true
-        playTimer.start()
-        var xNorm = timeToNormX(playhead.time)
-        var yNorm = getValue(playhead.time)
-        playheadTimeChange(playhead.time, xNorm, yNorm, true)
+    function play() {
+        if (!playhead.isPlaying) {
+            playhead.isPlaying = true
+            playTimer.start()
+            var xNorm = timeToNormX(playhead.time)
+            var yNorm = getAllCurveValues(playhead.time)
+            playheadTimeChange(playhead.time, xNorm, yNorm, true)
+        }
     }
-}
+    // 设置循环
     function setIsLoop(isLoop) {
         root.isLoop = isLoop
     }
     // 函数级注释：暂停播放
-   function pause() {
-    if (playhead.isPlaying) {
-        playhead.isPlaying = false
-        playTimer.stop()
-        var xNorm = timeToNormX(playhead.time)
-        var yNorm = getValue(playhead.time)
-        playheadTimeChange(playhead.time, xNorm, yNorm, false)
-    }
-}
-
-    // 函数级注释：导出当前曲线数据（对象）
-    function exportData() {
-        return {
-            points: points.map(function(p) { return { time: p.time, value: p.value, type: p.type || 0 } })
+    function pause() {
+        if (playhead.isPlaying) {
+            playhead.isPlaying = false
+            playTimer.stop()
+            var xNorm = timeToNormX(playhead.time)
+            var yNorm = getAllCurveValues(playhead.time)
+            playheadTimeChange(playhead.time, xNorm, yNorm, false)
         }
     }
+    // 函数级注释：导出当前曲线数据（对象）
+   function exportData() {
+        // 新格式：导出所有曲线
+        if (curves && curves.length > 0) {
+            var outCurves = curves.map(function (c) {
+                var pts = (c && c.points) ? c.points : []
+                return {
+                    // 保留已有可选字段
+                    name: (c && c.name !== undefined) ? c.name : undefined,
+                    color: (c && c.color !== undefined) ? c.color : undefined,
+                    // 点数据
+                    points: pts.map(function (p) {
+                        return { time: p.time, value: p.value, type: p.type || 0 }
+                    })
+                }
+            })
+            return {
+                curves: outCurves,
+                activeCurveIndex: (typeof activeCurveIndex === "number") ? activeCurveIndex : 0
+            }
+        }
 
-    // 函数级注释：导入曲线数据（对象），刷新历史与显示
-    function importData(data) {
-        if (!data || !data.points || !data.points.length) return false
-        points = data.points.map(function(p) { return { time: p.time, value: p.value, type: p.type || 0 } })
-        saveToHistory()
-        canvas.requestPaint()
-        return true
+        // 旧格式：仅单曲线 points
+        return {
+            points: points.map(function (p) { return { time: p.time, value: p.value, type: p.type || 0 } })
+        }
     }
+    function importData(data) {
+        if (!data) return false
 
+        // 新格式：{ curves: [...], activeCurveIndex? }
+        if (data.curves && data.curves.length >= 0) {
+            var normalized = data.curves.map(function (c) {
+                var pts = (c && c.points) ? c.points : []
+                var normPts = pts.map(function (p) {
+                    return { time: p.time, value: p.value, type: p.type || 0 }
+                }).sort(function (a, b) { return a.time - b.time })
+
+                var obj = { points: normPts }
+                if (c && c.name !== undefined) obj.name = c.name
+                if (c && c.color !== undefined) obj.color = c.color
+                return obj
+            })
+
+            // 不可变赋值以触发绑定刷新
+            curves = normalized
+
+            // 校正激活索引
+            if (typeof data.activeCurveIndex === "number") {
+                activeCurveIndex = Math.max(0, Math.min(curves.length - 1, data.activeCurveIndex))
+            } else {
+                activeCurveIndex = Math.max(0, Math.min(activeCurveIndex || 0, curves.length - 1))
+            }
+
+            // 若存在曲线数量变化信号，则通知外部刷新列表
+            if (typeof curveCountChanged === "function") {
+                curveCountChanged()
+            }
+
+            saveToHistory()
+            canvas.requestPaint()
+            return true
+        }
+
+        // 旧格式：{ points: [...] }
+        if (data.points && data.points.length) {
+            var normPts2 = data.points.map(function (p) {
+                return { time: p.time, value: p.value, type: p.type || 0 }
+            }).sort(function (a, b) { return a.time - b.time })
+
+            if (curves && curves.length > 0) {
+                // 替换第一条曲线的 points
+                curves = curves.map(function (c, i) {
+                    if (i === 0) {
+                        var obj = { points: normPts2 }
+                        if (c && c.name !== undefined) obj.name = c.name
+                        if (c && c.color !== undefined) obj.color = c.color
+                        return obj
+                    }
+                    return c
+                })
+                activeCurveIndex = Math.min(activeCurveIndex || 0, curves.length - 1)
+            } else {
+                // 创建第一条曲线
+                curves = [{ points: normPts2 }]
+                activeCurveIndex = 0
+            }
+
+            if (typeof curveCountChanged === "function") {
+                curveCountChanged()
+            }
+
+            saveToHistory()
+            canvas.requestPaint()
+            return true
+        }
+
+        // 数据结构不合法
+        return false
+    }
     // 函数级注释：保存历史（深拷贝），并触发防抖自动保存
     function saveToHistory() {
         var snap = points.map(function(p) { return { time: p.time, value: p.value, type: p.type } })
@@ -184,13 +365,11 @@ Item {
         if (history.length > maxHistoryLength) history.shift()
         autoSaveTimer.restart()
     }
-
     // 函数级注释：重置历史
     function resetHistory() {
         history = []
         saveToHistory()
     }
-
     // 函数级注释：撤销至上一次状态
     function undo() {
         if (history.length > 1) {
@@ -206,8 +385,6 @@ Item {
         var chartWidth = canvas.width - margin.left - margin.right
         return viewportStart + ((x - margin.left) / chartWidth) * viewportDuration
     }
-
-
     // 坐标换算函数
     function yToValue(y) {
         // 函数级注释：将屏幕 y 转为归一化值（0–1），并做范围钳制
@@ -216,8 +393,7 @@ Item {
         if (!isFinite(v)) v = 0
         return Math.max(0, Math.min(1, v))
     }
-    
-    // 函数级注释：将归一化值（0–1）映射到屏幕 y（保证与 0–1 值域一致）
+    // 将归一化值（0–1）映射到屏幕 y（保证与 0–1 值域一致）
     function valueToY(v) {
         var chartHeight = canvas.height - margin.top - margin.bottom
         var vv = Math.max(0, Math.min(1, v))
@@ -274,7 +450,7 @@ Item {
         var v = yToValue(y) // 已归一化 0–1
         if (t <= 0 || t >= totalDuration || v < 0 || v > 1) return null
     
-        var expected = getValue(t)      // 归一化 0–1
+        var expected = getCurrentCurveValue(t)      // 归一化 0–1
         var yExp = valueToY(expected)   // 期望屏幕 y
         var nearByPx = 8                // 像素近邻阈值
     
@@ -283,7 +459,39 @@ Item {
         }
         return null
     }
+    //添加新的曲线
+    function addCurve() {
+        var idx = curves.length + 1
+        var newCurve = {
+            name: "Curve " + idx,
+            points: [
+                { time: 0,  value: 0.8, type: 0 },
+                { time: 30, value: 0.8, type: 0 }
+            ]
+        }
+        curves = curves.concat([newCurve])
+        curveCountChanged()
+        setActiveCurve(curves.length - 1)
+        if (typeof exportData === "function" && typeof dataChanged === "function") {
+            dataChanged(JSON.stringify(exportData()))
+        }
+        // 更新显示与历史
+        saveToHistory()
 
+    }
+    // 删除曲线
+    function removeCurve() {
+        if (curves.length <= 1) return
+        curves.splice(curves.length - 1, 1)
+        curveCountChanged()
+        setActiveCurve(curves.length - 1)
+        if (typeof exportData === "function" && typeof dataChanged === "function") {
+            dataChanged(JSON.stringify(exportData()))
+        }
+        // 更新显示与历史
+        saveToHistory()
+        
+    }
     // 函数级注释：Canvas 绘制方法
     // 根组件（TimelineEditor）的 Canvas 片段，补充时间轴刻度绘制
     Canvas {
@@ -388,73 +596,72 @@ Item {
         //   2) 仅在点击曲线近邻时插入新点（右键为贝塞尔，左键为线性）
         //   3) 命中播放头三角区域进入播放头拖动
         //   4) 其他情况（空白处）开始视口拖动，不创建新点
-       function handleMousePressed(mouse) {
-        var x = mouse.x, y = mouse.y
+        function handleMousePressed(mouse) {
+            var x = mouse.x, y = mouse.y
 
-        // 控制点优先（支持右键快速切换点类型）
-        var pt = findNearestPoint(x, y)
-        if (pt) {
-            var now = Date.now()
-            // 双击删除（首尾点不可删）
-            if (now - lastClickTime < 300 && pt === lastClickPoint) {
-                if (pt !== points[0] && pt !== points[points.length - 1]) {
-                    var idx = points.indexOf(pt)
-                    points.splice(idx, 1)
-                    selectedPoint = null
+            // 控制点优先（支持右键快速切换点类型）
+            var pt = findNearestPoint(x, y)
+            if (pt) {
+                var now = Date.now()
+                // 双击删除（首尾点不可删）
+                if (now - lastClickTime < 300 && pt === lastClickPoint) {
+                    if (pt !== points[0] && pt !== points[points.length - 1]) {
+                        var idx = points.indexOf(pt)
+                        points.splice(idx, 1)
+                        selectedPoint = null
+                        saveToHistory()
+                        canvas.requestPaint()
+                    }
+                } else {
+                    selectedPoint = pt
+                    if (isDraggingViewport) {
+                    isDraggingViewport = false
                     saveToHistory()
                     canvas.requestPaint()
                 }
-            } else {
-                selectedPoint = pt
-                if (isDraggingViewport) {
+
+                    // 右键切换类型：线性(0) <-> 贝塞尔(1)
+                    if (mouse.button === Qt.RightButton) {
+                        pt.type = (pt.type === 1 ? 0 : 1)
+                        saveToHistory()
+                        canvas.requestPaint()
+                        lastClickTime = now
+                        lastClickPoint = pt
+                        return
+                    }
+                }
+                lastClickTime = now
+                lastClickPoint = pt
+                return
+            }
+
+            // 仅当点击曲线近邻时：新增点（与 timeline.js 一致）
+            var newPoint = checkLineClick(x, y)
+            if (newPoint) {
+                newPoint.type = mouse.button === Qt.RightButton ? 1 : 0
+                points.push(newPoint)
+                points.sort(function(a, b) { return a.time - b.time })
+                selectedPoint = newPoint
                 isDraggingViewport = false
                 saveToHistory()
                 canvas.requestPaint()
+                return
             }
 
-                // 右键切换类型：线性(0) <-> 贝塞尔(1)
-                if (mouse.button === Qt.RightButton) {
-                    pt.type = (pt.type === 1 ? 0 : 1)
-                    saveToHistory()
-                    canvas.requestPaint()
-                    lastClickTime = now
-                    lastClickPoint = pt
-                    return
-                }
+            // 播放头三角区域命中检测（进入播放头拖动）
+            var chartW = canvas.width - margin.left - margin.right
+            var phx = margin.left + ((playhead.time - viewportStart) / viewportDuration) * chartW
+            if (x >= phx - 5 && x <= phx + 5 && y >= margin.top - 8 && y <= margin.top) {
+                playhead.isDragging = true
+                return
             }
-            lastClickTime = now
-            lastClickPoint = pt
-            return
-        }
 
-        // 仅当点击曲线近邻时：新增点（与 timeline.js 一致）
-        var newPoint = checkLineClick(x, y)
-        if (newPoint) {
-            newPoint.type = mouse.button === Qt.RightButton ? 1 : 0
-            points.push(newPoint)
-            points.sort(function(a, b) { return a.time - b.time })
-            selectedPoint = newPoint
-            isDraggingViewport = false
-            saveToHistory()
-            canvas.requestPaint()
-            return
-        }
-
-        // 播放头三角区域命中检测（进入播放头拖动）
-        var chartW = canvas.width - margin.left - margin.right
-        var phx = margin.left + ((playhead.time - viewportStart) / viewportDuration) * chartW
-        if (x >= phx - 5 && x <= phx + 5 && y >= margin.top - 8 && y <= margin.top) {
-            playhead.isDragging = true
-            return
-        }
-
-        // 空白处：开始视口拖动（不创建点），记录锚定的世界坐标（时间）
-        isDraggingViewport = true
-        lastMouseX = mouse.x
-        var chartW2 = canvas.width - margin.left - margin.right
-        dragStartTimeUnderMouse = viewportStart + ((x - margin.left) / chartW2) * viewportDuration
-        dragStartViewportStart = viewportStart
-    }
+            // 空白处：开始视口拖动（不创建点），记录锚定的世界坐标（时间）
+            isDraggingViewport = true
+            lastMouseX = mouse.x
+            var chartW2 = canvas.width - margin.left - margin.right
+            dragStartTimeUnderMouse = viewportStart + ((x - margin.left) / chartW2) * viewportDuration
+            dragStartViewportStart = viewportStart}
     
         // 函数级注释：鼠标移动事件处理
         // - 输入：mouse（MouseEvent）
@@ -462,52 +669,51 @@ Item {
         //   1) 播放头拖动：根据鼠标位置换算时间并调用 seek()
         //   2) 控制点拖动：保持与邻居的时间约束并更新值
         //   3) 视口拖动：按水平位移换算时间偏移并重绘
-     function handleMouseMove(mouse) {
-        var x = mouse.x, y = mouse.y
+        function handleMouseMove(mouse) {
+            var x = mouse.x, y = mouse.y
 
-        // 播放头拖动
-        if (playhead.isDragging) {
-            var chartW = canvas.width - margin.left - margin.right
-            var t = viewportStart + (x - margin.left) * viewportDuration / chartW
-            seek(t)
-            return
-        }
-
-        // 控制点拖动（包含拖拽创建的新点）
-        if (selectedPoint) {
-            var t2 = xToTime(x)
-            var v2 = yToValue(y)
-
-            if (selectedPoint === points[0]) {
-                // 起点仅纵向移动
-                selectedPoint.value = v2
-            } else if (selectedPoint === points[points.length - 1]) {
-                // 终点横纵移动，时间需大于前一邻居
-                var prevTime = points[points.length - 2].time
-                selectedPoint.time = Math.max(prevTime + 1, Math.min(totalDuration, t2))
-                selectedPoint.value = v2
-            } else {
-                // 中间点在邻居之间移动（保持时间约束）
-                var idx = points.indexOf(selectedPoint)
-                var prevT = points[idx - 1].time
-                var nextT = points[idx + 1].time
-                selectedPoint.time = Math.max(prevT, Math.min(nextT, t2))
-                selectedPoint.value = v2
+            // 播放头拖动
+            if (playhead.isDragging) {
+                var chartW = canvas.width - margin.left - margin.right
+                var t = viewportStart + (x - margin.left) * viewportDuration / chartW
+                seek(t)
+                return
             }
-            canvas.requestPaint()
-            return
-        }
 
-        // 视口拖动（锚定鼠标下的世界坐标，缩放下不漂移）
-        if (isDraggingViewport) {
-            var chartW = canvas.width - margin.left - margin.right
-            var newStart = dragStartTimeUnderMouse - ((mouse.x - margin.left) / chartW) * viewportDuration
-            viewportStart = Math.max(0, Math.min(totalDuration - viewportDuration, newStart))
-            lastMouseX = mouse.x
-            canvas.requestPaint()
-            return
-        }
-    }
+            // 控制点拖动（包含拖拽创建的新点）
+            if (selectedPoint) {
+                var t2 = xToTime(x)
+                var v2 = yToValue(y)
+
+                if (selectedPoint === points[0]) {
+                    // 起点仅纵向移动
+                    selectedPoint.value = v2
+                } else if (selectedPoint === points[points.length - 1]) {
+                    // 终点横纵移动，时间需大于前一邻居
+                    var prevTime = points[points.length - 2].time
+                    selectedPoint.time = Math.max(prevTime + 1, Math.min(totalDuration, t2))
+                    selectedPoint.value = v2
+                } else {
+                    // 中间点在邻居之间移动（保持时间约束）
+                    var idx = points.indexOf(selectedPoint)
+                    var prevT = points[idx - 1].time
+                    var nextT = points[idx + 1].time
+                    selectedPoint.time = Math.max(prevT, Math.min(nextT, t2))
+                    selectedPoint.value = v2
+                }
+                canvas.requestPaint()
+                return
+            }
+
+            // 视口拖动（锚定鼠标下的世界坐标，缩放下不漂移）
+            if (isDraggingViewport) {
+                var chartW = canvas.width - margin.left - margin.right
+                var newStart = dragStartTimeUnderMouse - ((mouse.x - margin.left) / chartW) * viewportDuration
+                viewportStart = Math.max(0, Math.min(totalDuration - viewportDuration, newStart))
+                lastMouseX = mouse.x
+                canvas.requestPaint()
+                return
+            }}
     
         // 函数级注释：鼠标释放事件处理
         // - 输入：mouse（MouseEvent）
@@ -576,34 +782,28 @@ Item {
             }
         }
 
-       Keys.onPressed: function(event) {
-        // Ctrl+Z 撤销
-        if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
-            undo()
-            event.accepted = true
-            return
-        }
-
-        // 空格键播放/停止
-        if (event.key === Qt.Key_Space) {
-            if (playhead.isPlaying) {
-                pause()
-            } else {
-                play()
+        Keys.onPressed: function(event) {
+            // Ctrl+Z 撤销
+            if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_Z) {
+                undo()
+                event.accepted = true
+                return
             }
-            event.accepted = true
-            return
+
+            // 空格键播放/停止
+            if (event.key === Qt.Key_Space) {
+                if (playhead.isPlaying) {
+                    pause()
+                } else {
+                    play()
+                }
+                event.accepted = true
+                return
+            }
+            }
         }
-        }
-    }
     }
 
-    // 函数级注释：绘制时间刻度线与标签（底部）。
-    // - 根据 `viewportDuration` 自动选择合适的主刻度间隔（1/2/5/10/15/30/60/120/300/600 秒）
-    // - 次刻度为主刻度的 1/5 或 1/2（当主刻度 <1s 时）
-    // - 标签格式为 mm:ss 或 hh:mm:ss
-    // - 依赖外部属性：root.viewportStart、root.viewportDuration、root.margin
-    // 根组件 TimelineEditor.qml 中的方法：drawTimeAxis(ctx)
     function drawTimeAxis(ctx) {
         // 函数级注释：绘制底部时间刻度线与标签（与网格一致）
         // - 均使用 canvas.width/height 与 margin 计算 chartW/chartH，保证与网格、曲线一致
@@ -660,7 +860,6 @@ Item {
         
         ctx.restore()
     }
-
     function drawValueAxis(ctx) {
         // 函数级注释：绘制左侧竖轴（归一化 0–1）及标签，固定分割数
         var chartW = canvas.width - margin.left - margin.right
@@ -746,9 +945,18 @@ Item {
         ctx.stroke()
         ctx.restore()
     }
-
+    function setActiveCurve(index) {
+        activeCurveIndex = index
+        canvas.requestPaint()
+        update()
+    }
+    /**
+     * @brief 绘制所有曲线与当前曲线控制点（同时显示，多色区分）
+     * - 遍历 curves，为每条曲线使用自身 color 绘制线段/Bezier
+     * - 控制点仅绘制当前激活曲线的点，避免多曲线交互冲突
+     */
     function drawCurveAndPoints(ctx) {
-        // 函数级注释：归一化曲线与控制点绘制（值域 0–1），裁剪到图表区域
+        // 归一化曲线与控制点绘制（值域 0–1），裁剪到图表区域
         var chartW = canvas.width - margin.left - margin.right
         var chartH = canvas.height - margin.top - margin.bottom
     
@@ -756,65 +964,66 @@ Item {
         ctx.beginPath()
         ctx.rect(margin.left, margin.top, chartW, chartH)
         ctx.clip()
-        ctx.beginPath()
     
-        ctx.strokeStyle = lineColor
-        ctx.lineWidth = 2
-        var firstVisible = true
-        for (var i=0;i<points.length-1;i++) {
-            var p1 = points[i], p2 = points[i+1]
-            if (p2.time < viewportStart || p1.time > viewportStart + viewportDuration) continue
-            var x1 = margin.left + ((p1.time - viewportStart) / viewportDuration) * chartW
-            var y1 = margin.top + (1 - Math.max(0, Math.min(1, p1.value))) * chartH
-            var x2 = margin.left + ((p2.time - viewportStart) / viewportDuration) * chartW
-            var y2 = margin.top + (1 - Math.max(0, Math.min(1, p2.value))) * chartH
     
-            if (firstVisible) { ctx.moveTo(x1, y1); firstVisible = false }
+        // 循环绘制每条曲线（使用曲线自定义颜色；若缺省则使用 lineColor）
+        for (var ci = 0; ci < curves.length; ci++) {
+            var curve = curves[ci]
+            var pts = curve.points
+            var firstVisible = true
     
-            if (p1.type === 1 || p2.type === 1) {
-                var steps = 32
-                for (var s=1; s<=steps; s++) {
-                    var tt = s/steps
-                    var val = p1.value * Math.pow(1-tt,3) +
-                              p1.value * 3 * tt * Math.pow(1-tt,2) +
-                              p2.value * 3 * Math.pow(tt,2) * (1-tt) +
-                              p2.value * Math.pow(tt,3)
-                    var xx = x1 + (x2 - x1) * tt
-                    var yy = margin.top + (1 - Math.max(0, Math.min(1, val))) * chartH
-                    ctx.lineTo(xx, yy)
+            // 使用随机（稳定）颜色映射，不再读取 curve.color
+            ctx.beginPath()
+            ctx.strokeStyle = getCurveColor(ci)
+            ctx.lineWidth = 2
+      
+    
+            for (var i = 0; i < pts.length - 1; i++) {
+                var p1 = pts[i], p2 = pts[i + 1]
+                if (p2.time < viewportStart || p1.time > (viewportStart + viewportDuration)) continue
+    
+                var x1 = margin.left + ((p1.time - viewportStart) / viewportDuration) * chartW
+                var y1 = margin.top + (1 - Math.max(0, Math.min(1, p1.value))) * chartH
+                var x2 = margin.left + ((p2.time - viewportStart) / viewportDuration) * chartW
+                var y2 = margin.top + (1 - Math.max(0, Math.min(1, p2.value))) * chartH
+    
+                if (firstVisible) { ctx.moveTo(x1, y1); firstVisible = false }
+    
+                // Bezier 简化绘制（端点近似）
+                if (p1.type === 1 || p2.type === 1) {
+                    var steps = 32
+                    for (var s = 1; s <= steps; s++) {
+                        var tt = s / steps
+                        var val = p1.value * Math.pow(1 - tt, 3) +
+                                  p1.value * 3 * tt * Math.pow(1 - tt, 2) +
+                                  p2.value * 3 * Math.pow(tt, 2) * (1 - tt) +
+                                  p2.value * Math.pow(tt, 3)
+                        var xx = x1 + (x2 - x1) * tt
+                        var yy = margin.top + (1 - Math.max(0, Math.min(1, val))) * chartH
+                        ctx.lineTo(xx, yy)
+                    }
+                } else {
+                    ctx.lineTo(x2, y2)
                 }
-            } else {
-                ctx.lineTo(x2, y2)
             }
+            // 只对该曲线的路径进行描边
+            ctx.stroke()
         }
-        ctx.stroke()
     
-        // 控制点（仍在裁剪区域内）
+        // 控制点仅绘制当前激活曲线的点（交互保持一致）
         ctx.fillStyle = "#FFD54F"
-        for (i=0;i<points.length;i++) {
-            var p = points[i]
+        var actPts = points
+        for (var j = 0; j < actPts.length; j++) {
+            var p = actPts[j]
             var px = margin.left + ((p.time - viewportStart) / viewportDuration) * chartW
             var py = margin.top + (1 - Math.max(0, Math.min(1, p.value))) * chartH
             ctx.beginPath()
-            ctx.arc(px, py, pointRadius, 0, Math.PI*2)
+            ctx.arc(px, py, pointRadius, 0, Math.PI * 2)
             ctx.fill()
         }
     
         ctx.restore()                   // 关键：结束裁剪作用，防止影响刻度/播放头
     }
-    // 函数级注释：格式化秒数为 mm:ss 或 hh:mm:ss 字符串，用于刻度标签显示
-    // - 输入：seconds（Number）
-    // - 输出：字符串，如 "00:05" 或 "01:02:03"
-    function formatTime(seconds) {
-        seconds = Math.max(0, Math.floor(seconds))
-        var h = Math.floor(seconds / 3600)
-        var m = Math.floor((seconds % 3600) / 60)
-        var s = seconds % 60
-        function pad(n) { return n < 10 ? "0" + n : "" + n }
-        if (h > 0) return pad(h) + ":" + pad(m) + ":" + pad(s)
-        return pad(m) + ":" + pad(s)
-    }
-
 }
 
 

@@ -2,13 +2,12 @@
 // Created by Administrator on 2023/12/13.
 //
 #pragma once
-
 #include <QLineEdit>
 
 #include "QWidget"
 #include "QLabel"
 #include "QLayout"
-#include <QPushButton>
+#include <QSpinBox>
 #include <QVariantMap>
 namespace Nodes
 {
@@ -17,31 +16,26 @@ class ImageConstInterface final : public QWidget{
     public:
         explicit ImageConstInterface(QWidget *parent = nullptr){
             main_layout=new QGridLayout();
-            main_layout->addWidget(display,0,0,2,2);
-            main_layout->addWidget(sizeWidthLabel,2,0,1,1);
-            main_layout->addWidget(widthEdit,2,1,1,1);
-            main_layout->addWidget(sizeHeightLabel,3,0,1,1);
-            main_layout->addWidget(heightEdit,3,1,1,1);
-            main_layout->addWidget(colorEditButton,4,0,4,2);
+            main_layout->addWidget(display,0,0,1,2);
+            main_layout->addWidget(colorEditButton,1,0,1,2);
             main_layout->setColumnStretch(0,1);
             main_layout->setColumnStretch(1,1);
-            this->setLayout(main_layout);
+            main_layout->setSpacing(0);
+            main_layout->setContentsMargins(0,0,0,0);
 
+            this->setLayout(main_layout);
             /* 函数级注释：移除固定大小，采用最小尺寸 + 可扩展策略 */
-            this->setFixedSize(150, 200);
+            this->setFixedSize(80, 120);
             this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         }
 
     public:
         QGridLayout *main_layout;
-        QLineEdit *widthEdit=new QLineEdit("100");
-        QLineEdit *heightEdit=new QLineEdit("100");
         QLabel *display=new QLabel();
-        QPushButton *colorEditButton=new QPushButton("Color");
-    private:
-        QLabel *sizeWidthLabel=new QLabel("Width: ");
-        QLabel *sizeHeightLabel=new QLabel("Height");
+        QPushButton *colorEditButton=new QPushButton("Edit Color");
+
 
 
     };
 }
+

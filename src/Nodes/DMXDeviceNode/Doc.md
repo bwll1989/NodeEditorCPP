@@ -1,8 +1,8 @@
-# ArtnetDeviceNode 帮助文档
+# DMXDeviceNode 帮助文档
 
 ## 概述
 
-ArtnetDeviceNode是一个抽象化的Artnet灯光设备节点，用于封装和处理Artnet协议数据。该节点支持动态通道数量配置、起始DMX地址设置，并通过输入和输出端口接收和发送Artnet数据。
+DMXDeviceNode是一个抽象化的Artnet灯光设备节点，用于封装和处理Artnet协议数据。该节点支持动态通道数量配置、起始DMX地址设置，并通过输入和输出端口接收和发送Artnet数据。
 
 **主要特性**：
 - 支持标准Artnet协议数据封装
@@ -91,9 +91,9 @@ ArtnetDeviceNode是一个抽象化的Artnet灯光设备节点，用于封装和�
 4. 可独立控制每个设备的启用/禁用状态
 
 ### 示例4：与其他节点配合
-- **LFO节点** → **ArtnetDeviceNode CH0** → **Artnet输出**
-- **OSC输入** → **ArtnetDeviceNode CH1-CH7** → **灯光控制**
-- **时间轴节点** → **ArtnetDeviceNode** → **场景控制**
+- **LFO节点** → **DMXDeviceNode CH0** → **Artnet输出**
+- **OSC输入** → **DMXDeviceNode CH1-CH7** → **灯光控制**
+- **时间轴节点** → **DMXDeviceNode** → **场景控制**
 - **布尔源节点** → **启用控制** → **远程开关设备**
 
 ## OSC控制

@@ -9,7 +9,6 @@ option(BUILD_NODES_INDIVIDUALLY "Build nodes individually (default behavior)" ON
 set(ALL_NODES
     VST3PluginNode
     DataInfoNode                              #数据显示
-    ImageLoadNode                             #图像导入
 #    LuaScriptNode                             #Lua脚本模块(弃用）
     TCPServerNode                             #TCP服务器模块
     TCPClientNode                             #TCP客户端模块
@@ -19,7 +18,7 @@ set(ALL_NODES
     LogicOperationNode                        #逻辑操作模块
     MathOperationNode                         #数学操作模块
     LFONode                                   #LFO模块
-    CurveNode                                 #曲线模块
+    CurveNode                               #曲线模块
     AudioDecoderNode                          #音频解码模块
     AudioDeviceOutNode                        #音频输出模块
     HotKeyNode                                #热键模块
@@ -72,6 +71,8 @@ set(ALL_NODES
     YoloDetectionONNXNode                       #Yolo v11n 检测
     StyleTransferONNXNode                       #神经网络风格迁移
     DataVisualNode                              #数据可视化
+        FileLoadNode                             #文件导入
+        ColorNode                                       #颜色节点
 #    AudioIntentNode                              #音频意图分析（弃用）
 )
 
@@ -96,7 +97,6 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     # 原有的单独添加方式
     add_subdirectory(VST3PluginNode)
     add_subdirectory(DataInfoNode)                              #数据显示
-    add_subdirectory(ImageLoadNode)                             #图像导入
 #    add_subdirectory(LuaScriptNode)                             #Lua脚本模块（弃用）
     add_subdirectory(TCPServerNode)                             #TCP服务器模块
     add_subdirectory(TCPClientNode)                             #TCP客户端模块
@@ -106,7 +106,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(LogicOperationNode)                        #逻辑操作模块
     add_subdirectory(MathOperationNode)                         #数学操作模块
     add_subdirectory(LFONode)                                   #LFO模块
-    add_subdirectory(CurveNode)                                   #QML模块
+    add_subdirectory(CurveNode)                                #曲线模块
     add_subdirectory(AudioDecoderNode)                          #音频解码模块
     add_subdirectory(AudioDeviceOutNode)                        #音频输出模块
     add_subdirectory(HotKeyNode)                                #热键模块
@@ -154,6 +154,8 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(LTCDecoderNode)                            #LTC时间码解析节点
     add_subdirectory(AudioMatrixNode)                           #音频矩阵节点
     add_subdirectory(DataVisualNode)                            #数据可视化节点
+    add_subdirectory(FileLoadNode)                             #文档导入节点
+    add_subdirectory(ColorNode)                                 #颜色节点
 #    add_subdirectory(AudioIntentNode)                            #音频意图分析（弃用）
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")

@@ -1,8 +1,8 @@
-# ArtnetUniverseNode 帮助文档
+# DMXUniverseNode 帮助文档
 
 ## 概述
 
-ArtnetUniverseNode是一个Artnet Universe合并节点，用于接收多个ArtnetDevice节点的输出数据，并将它们合并成一个完整的512通道DMX Universe数据包。该节点支持标准Artnet协议的Universe、Subnet、Net寻址，并提供实时的设备状态监控。
+DMXUniverseNode是一个DMX Universe合并节点，用于接收多个DMX Device节点的输出数据，并将它们合并成一个完整的512通道DMX Universe数据包。该节点支持标准Artnet协议的Universe、Subnet、Net寻址，并提供实时的设备状态监控。
 
 **主要特性**：
 - 接收多个ArtnetDevice节点的输出数据
@@ -92,7 +92,7 @@ ArtnetUniverseNode是一个Artnet Universe合并节点，用于接收多个Artne
 4. 验证设备地址范围是否正确
 
 ### 示例4：与ArtnetOut节点配合
-1. **ArtnetDevice** → **ArtnetUniverse** → **ArtnetOut** → **网络广播**
+1. **ArtnetDevice** → **DMXUniverse** → **ArtnetOut** → **网络广播**
 2. Universe节点负责数据合并和协议封装
 3. Out节点负责网络传输
 4. 可在Universe层面进行数据清空控制

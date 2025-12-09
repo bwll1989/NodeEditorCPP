@@ -103,8 +103,12 @@ message("-- Found OpenCV ${OpenCV_DIR}")
 # 设置QtTimeLine库
 set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
 set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
-
 INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
+
+# 设置QtColorWidgets库
+set(QtColorWidgets_DIR "${DEPENDS_DIR}/Qt-Color-Widgets")
+set(QtColorWidgets_LIBRARIES "${QtColorWidgets_DIR}/install/lib/QtColorWidgets.lib")
+INCLUDE_DIRECTORIES("${QtColorWidgets_DIR}/install/include")
 
 ## 设置TabToolbar库
 #set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
@@ -131,6 +135,7 @@ add_subdirectory(src/Common/Devices/MediaLibrary)
 add_subdirectory(src/Common/Devices/ModelDataBridge)
 add_subdirectory(src/Common/GUI/DelayListWidget)
 add_subdirectory(src/Common/BuildInNodes)
+add_subdirectory(src/Common/GUI/DockHub)
 add_subdirectory(src/DataTypes)
 set(CALC_SOURCE_FILES
         main.cpp
@@ -201,6 +206,8 @@ set(CALC_SOURCE_FILES
         src/Common/GUI/DataTreeModel/DataTreeModel.cpp
         src/Common/GUI/DataTreeModel/QmlDataBrowser.h
         src/Common/GUI/DataTreeModel/QmlDataBrowser.cpp
+#        src/Common/GUI/DockHub/DockHub.cpp
+#        src/Common/GUI/DockHub/DockHub.hpp
         src/Widget/TimeLineWidget/timelinewidget.cpp
         src/Widget/TimeLineWidget/timelinewidget.hpp
         src/Widget/TimeLineWidget/TimelineScreenWidget/AbstractTimelineScreen.hpp
@@ -331,12 +338,14 @@ target_link_libraries(${ProjectName}
             Eigen3::Eigen
             ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}
+            ${QtColorWidgets_LIBRARIES}
             ClientController
             OscListWidget
             TimestampGenerator
             MediaManger
             ModelDataBridge
             DelayListWidget
+            DockHub
 )
 
 # 为 Headless 目标定义编译宏（与主程序一致）
@@ -391,6 +400,7 @@ target_link_libraries(${HeadlessProjectName}
             MediaManger
             ModelDataBridge
             DelayListWidget
+            DockHub
 )
 # 设置主程序属性
 set_target_properties(${ProjectName} PROPERTIES

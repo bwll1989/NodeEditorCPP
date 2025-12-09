@@ -10,7 +10,7 @@
 #include <QMenuBar>
 #include "Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
-#include "DockManager.h"
+#include "DockHub/DockHub.hpp"
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
 #include "Widget/NodeWidget/CustomFlowGraphicsScene.h"
 #include "Widget/NodeWidget/CustomGraphicsView.h"
@@ -49,6 +49,9 @@ public:
     PluginsManagerWidget *pluginsManagerDlg;
     // 节点库控件
     ads::CDockWidget *nodeDockLibraryWidget;
+    // // 节点设置控件
+    // ads::CDockWidget *propertyDockWidget;
+    // 锁定状态
     bool isLocked= false;
     // 节点库
     NodeLibraryWidget *nodeLibrary;

@@ -34,7 +34,9 @@ MainWindowHeadLess::~MainWindowHeadLess()
 void MainWindowHeadLess::init()
 {
     m_DockManager = new ads::CDockManager(this);
+    DockHub::instance().setDockManager(m_DockManager);
     emit initStatus("Initialization ADS success");
+
     // 终端显示控件
     logTable=new LogWidget();
     logTable->resize(800,200);
