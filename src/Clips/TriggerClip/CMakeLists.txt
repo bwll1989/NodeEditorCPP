@@ -52,6 +52,7 @@ target_link_libraries(TriggerClip PRIVATE
         OSCTransmitter
     OscListWidget
     Qt${QT_VERSION_MAJOR}::Qml
+        GUIElements
 )
 
 # 包含目录

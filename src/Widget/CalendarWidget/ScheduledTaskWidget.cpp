@@ -185,3 +185,12 @@ QVector<OSCMessage> ScheduledTaskWidget::itemsToMessages(const QVector<Scheduled
     }
     return messages;
 }
+
+/**
+ * @brief 获取任务列表控件的右键菜单操作列表
+ * @return 操作列表（QAction*）
+ */
+QList<QAction*> ScheduledTaskWidget::getActions()
+{
+    return m_taskList->getMenu()->actions();
+}

@@ -104,22 +104,6 @@ namespace Nodes
             
             // 清空按钮
             clearButton->setToolTip("清空当前Universe的所有DMX数据（将所有512个通道设置为0）");
-            clearButton->setStyleSheet(
-                "QPushButton {"
-                "    background-color: #ff6b6b;"
-                "    color: white;"
-                "    border: none;"
-                "    padding: 8px 16px;"
-                "    border-radius: 4px;"
-                "    font-weight: bold;"
-                "}"
-                "QPushButton:hover {"
-                "    background-color: #ff5252;"
-                "}"
-                "QPushButton:pressed {"
-                "    background-color: #e53935;"
-                "}"
-            );
             
             // 连接清空按钮信号
             connect(clearButton, &QPushButton::clicked, this, &DMXUniverseInterface::clearDataClicked);

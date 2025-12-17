@@ -10,34 +10,44 @@
 #include <QPushButton> // Test按钮
 #include <QFont>       // 大号时间字体
 #include "ConstantDefines.h"
+#include <QGraphicsDropShadowEffect>
 TaskItemWidget::TaskItemWidget(QWidget* parent)
     : QWidget(parent)
 {
+    /**
+     * 函数：TaskItemWidget::TaskItemWidget
+     * 作用：构造任务项编辑卡片，初始化统一的“紧凑卡片风格”界面并连接信号。
+     */
     setupUI();
     connectSignals();
 }
 
 void TaskItemWidget::setupUI() {
+    /**
+     * 函数：TaskItemWidget::setupUI
+     * 作用：构建紧凑卡片式编辑界面，并在右上角放置测试按钮，
+     *       左侧强调条与控件样式对齐 OSCMessageItemWidget 的风格。
+     */
+    auto* outerLayout = new QHBoxLayout(this);
+    outerLayout->setContentsMargins(2, 2, 2, 2);
+    outerLayout->setSpacing(0);
 
-    auto* outerLayout = new QVBoxLayout(this);
-    outerLayout->setContentsMargins(6, 6, 6, 6);
-    outerLayout->setSpacing(6);
-    // 卡片边框容器
-    QFrame* card = new QFrame(this);
-    card->setObjectName("taskCard");
-    card->setFrameShape(QFrame::NoFrame);
-    // 边框样式：浅色边框 + 圆角；根据主题可调整透明度
-    card->setStyleSheet(
-        "#taskCard {"
-        "  border: 2px solid rgba(255,255,255,0.25);"
-        "  border-radius: 6px;"
-        "}"
-    );
+    // 卡片内部：左侧强调条 + 右侧表单
+    auto* cardHBox = new QHBoxLayout();
+    cardHBox->setContentsMargins(6, 6, 6, 6);
+    cardHBox->setSpacing(8);
+    outerLayout->addLayout(cardHBox);
 
-    // 卡片内部主布局（原 mainLayout 改为挂在 card 上）
-    auto* mainLayout = new QGridLayout(card);
-    mainLayout->setContentsMargins(4, 2, 4, 2);
-    mainLayout->setSpacing(4);
+    m_accentBar = new QFrame(this);
+    m_accentBar->setObjectName("accentBar");
+    m_accentBar->setFixedWidth(3);
+    cardHBox->addWidget(m_accentBar);
+
+    auto* mainLayout = new QGridLayout();
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+    mainLayout->setHorizontalSpacing(8);
+    mainLayout->setVerticalSpacing(2);
+    cardHBox->addLayout(mainLayout);
 
     // 第一行：居中时间显示（使用 timeEdit 的值），大号字体
     timeEdit = new QTimeEdit(this);
@@ -47,49 +57,60 @@ void TaskItemWidget::setupUI() {
     timeEdit->setAlignment(Qt::AlignCenter);
     {
         QFont f = timeEdit->font();
-        f.setPointSize(f.pointSize() + 12);
+        f.setPointSize(f.pointSize() + 10);
         f.setBold(true);
         timeEdit->setFont(f);
     }
-    mainLayout->addWidget(timeEdit, 0, 0, 1, 2);
+    // 第一行：时间（占左侧三列）
+    mainLayout->addWidget(timeEdit, 0, 0, 1, 3);
 
-    // 第二行：备注栏（居中）
+    // 第二行：备注栏（整行）
     remarkEdit = new QLineEdit(this);
     remarkEdit->setObjectName("remarkEdit");
     remarkEdit->setPlaceholderText("备注（例如：早上开机）");
-    remarkEdit->setStyleSheet(
-        "QLineEdit {"
-        "  padding: 2px;"
-        "  font-size: 14px;"
-        "  color: #00c853;"
-        "}"
-    );
-    mainLayout->addWidget(remarkEdit, 0, 2, 1, 5);
-
-    // 顶行控件：Host、Address、Type、Value、Test
-    // hostEdit = new QLineEdit(this);
-    // hostEdit->setPlaceholderText("127.0.0.1:8990");
-
+    remarkEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    mainLayout->addWidget(remarkEdit, 1, 0, 1, 4);
     addressEdit = new QLineEdit(this);
+    addressEdit->setStyleSheet(
+        ""
+    );
     addressEdit->setPlaceholderText("address");
 
     typeCombo = new QComboBox(this);
     typeCombo->addItems({ "Int", "Float","String"});
-    // typeCombo->installEventFilter(this);
+
 
     valueEdit = new QLineEdit(this);
     valueEdit->setPlaceholderText("value");
-
+    valueEdit->setStyleSheet("");
+    
     // Test 按钮（位于 Command 组右侧）
-    btnTest = new QPushButton("Command Test", this);
-    btnTest->setObjectName("btnTest");
+    btnTest = new QPushButton(QIcon(":/icons/icons/send.png"), "", this);
+    btnTest->setFlat(true);
 
-    // 将控件加入 Command 组布局
-    // mainLayout->addWidget(hostEdit,1,0,1,1);
-    mainLayout->addWidget(addressEdit,1,0,1,2);
-    mainLayout->addWidget(typeCombo,1,2,1,1);
-    mainLayout->addWidget(valueEdit,1,3,1,2);
-    mainLayout->addWidget(btnTest,1,5,1,1);
+    btnTest->setObjectName("btnTest");
+    btnTest->setFixedSize(16, 16);
+    btnTest->setFocusPolicy(Qt::NoFocus);
+    // 右上角发送按钮
+    mainLayout->addWidget(btnTest, 0, 3, 1, 1, Qt::AlignRight | Qt::AlignTop);
+
+    // 标签（缩小宽度，增强可读性）
+    auto* addressLabel = new QLabel(tr("地址"), this);
+    auto* typeLabel    = new QLabel(tr("类型"), this);
+    addressLabel->setMinimumWidth(36);
+    typeLabel->setMinimumWidth(36);
+
+    // 第三行：地址（标签+输入）
+    int currentRow = 2;
+    mainLayout->addWidget(addressLabel, currentRow, 0, 1, 1);
+    mainLayout->addWidget(addressEdit,  currentRow, 1, 1, 3);
+    currentRow++;
+    // 第四行：类型与值（类型标签+选择、值标签+输入）
+    mainLayout->addWidget(typeLabel,    currentRow, 0, 1, 1);
+    mainLayout->addWidget(typeCombo,    currentRow, 1, 1, 1);
+
+    mainLayout->addWidget(valueEdit,    currentRow, 2, 1, 2);
+    currentRow++;
     //  设置控件的尺寸策略：输入框为横向可扩展，按钮为固定
     // hostEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     addressEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -98,19 +119,11 @@ void TaskItemWidget::setupUI() {
     typeCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     btnTest->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-    // 关键：为各列设置伸展因子
-    // 列 0: host
-    mainLayout->setColumnStretch(0, 2);
-    // 列 1-2: address（跨两列，两个列都给较大的 stretch）
-    mainLayout->setColumnStretch(1, 3);
-    mainLayout->setColumnStretch(2, 3);
-    // 列 3: type（较小的 stretch）
+    // 列弹性：标签列最小，输入列伸展，按钮列固定
+    mainLayout->setColumnStretch(0, 0);
+    mainLayout->setColumnStretch(1, 1);
+    mainLayout->setColumnStretch(2, 0);
     mainLayout->setColumnStretch(3, 1);
-    // 列 4-5: value（跨两列，同样给较大 stretch）
-    mainLayout->setColumnStretch(4, 3);
-    mainLayout->setColumnStretch(5, 3);
-    // 列 6: Test 按钮（不拉伸）
-    mainLayout->setColumnStretch(6, 0);
     /**
      * @brief Loop 组（仅在勾选时显示周几）
      */
@@ -138,15 +151,9 @@ void TaskItemWidget::setupUI() {
     daysLayout->addWidget(chkSaturday);
     daysLayout->addWidget(chkSunday);
 
+    // 第五、六行：Loop 组（跨两行四列）
+    mainLayout->addWidget(loopGroup, 4, 0, 2, 4);
 
-
-    mainLayout->addWidget(loopGroup, 2, 0, 1, 7);
-
-    // // 初始隐藏（Group 未勾选时）
-    // loopDaysContainer->setVisible(false);
-
-    // 将卡片布局挂在外部布局
-    outerLayout->addWidget(card);
 }
 
 void TaskItemWidget::connectSignals() {
@@ -157,9 +164,6 @@ void TaskItemWidget::connectSignals() {
         emit messageChanged();
     };
 
-    // 文本类：仅用户编辑触发
-    // connect(hostEdit, &QLineEdit::textEdited, this, emitChange);
-    // connect(hostEdit, &QLineEdit::editingFinished, this, emitChange);
     connect(addressEdit, &QLineEdit::textEdited, this, emitChange);
     connect(addressEdit, &QLineEdit::editingFinished, this, emitChange);
     connect(valueEdit, &QLineEdit::textEdited, this, emitChange);
@@ -206,19 +210,6 @@ OSCMessage TaskItemWidget::getMessage() const
 {
     OSCMessage msg;
 
-    // 解析 host:port 格式
-    // const QString hostText = hostEdit->text().trimmed();
-    // QString host = hostText;
-    // int port = 8991; // 默认端口
-    // const int sep = hostText.lastIndexOf(':');
-    // if (sep > 0) {
-    //     host = hostText.left(sep);
-    //     bool ok = false;
-    //     int p = hostText.mid(sep + 1).toInt(&ok);
-    //     if (ok) port = p;
-    // }
-    // msg.host = host;
-    // msg.port = port;
     msg.host=AppConstants::OSC_INTERNAL_CONTROL_HOST;
     msg.port=AppConstants::EXTRA_CONTROL_PORT;
     // 地址与类型/值
@@ -246,7 +237,14 @@ void TaskItemWidget::setMessage(const OSCMessage& message)
     // }
     addressEdit->setText(message.address);
     typeCombo->setCurrentText(message.type);
-    valueEdit->setText(message.value.toString());
+    if (message.type == "Int") {
+        valueEdit->setText(QString::number(message.value.toInt()));
+
+    } else if (message.type == "Float") {
+        valueEdit->setText(QString::number(message.value.toFloat()));
+    } else if (message.type == "String") {
+        valueEdit->setText(message.value.toString());
+    }
 }
 
 /**

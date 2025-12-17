@@ -24,19 +24,14 @@ class InternalControlInterface final : public QWidget{
             // 添加右键菜单支持
             main_layout->addWidget(testButton,1,0,1,1);
             this->setLayout(main_layout);
-            this->setFixedSize(400,200);
+            // this->setFixedSize(400,200);
 
         };
 
     public:
         QGridLayout *main_layout;
         OSCMessageListWidget* m_listWidget;
-        QPushButton *testButton=new QPushButton("Trigger");
-
-    // 添加事件过滤器声明
-
-
-
+        QPushButton *testButton=new QPushButton(QIcon(":/icons/icons/send.png"),"");
     };
 }
 #endif

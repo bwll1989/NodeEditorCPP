@@ -139,6 +139,13 @@
         "qwidgetaction": "cpp",
         "__availability": "cpp",
         "*.moc": "cpp",
-        "resumable": "cpp"
+        "resumable": "cpp",
+        "qapplication": "cpp",
+        "*.inc": "cpp",
+        "bvh": "cpp",
+        "qkeyevent": "cpp",
+        "qfiledialog": "cpp",
+        "qabstractlistmodel": "cpp",
+        "qregularexpressionvalidator": "cpp"
     }
 }

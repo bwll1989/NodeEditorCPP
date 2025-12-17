@@ -11,7 +11,10 @@
 #include "TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
+#include "ConstantDefines.h"
 #include "../../Common/Devices/ClientController/SocketTransmitter.h"
+#include "Elements/SelectorComboBox/SelectorComboBox.hpp"
+
 // #include "Widget/ExternalControl/ExternalControler.hpp"
 extern "C" {
 #include <libavformat/avformat.h>
@@ -69,13 +72,10 @@ namespace Clips
         }
 
         // 设置文件路径并加载视频信息
-        void setFilePath(const QString& path) {
-            if (m_filePath != path) {
-                m_filePath = path;
-                loadVideoInfo(path);
-                fileNameLabel->setText(m_filePath);
-                emit filePathChanged(path);
-            }
+        void setMedia(const QVariant& path) override {
+            mediaSelector->setText(path.toString());
+            emit mediaSelector->textChanged(path.toString());
+            onPropertyChanged();
         }
 
         /**
@@ -133,10 +133,8 @@ namespace Clips
         void load(const QJsonObject& json) override {
             AbstractClipModel::load(json);
             m_filePath = json["file"].toString();
-            if(!m_filePath.isEmpty()) {
-                setFilePath(m_filePath);
-                fileNameLabel->setText(m_filePath);
-            }
+
+            mediaSelector->setText(m_filePath);
             if(json.contains("position")) {
                 QJsonObject position = json["position"].toObject();
                 postion_x->setValue(position["x"].toInt());
@@ -147,6 +145,9 @@ namespace Clips
                 QJsonObject size = json["size"].toObject();
                 width->setValue(size["width"].toInt());
                 height->setValue(size["height"].toInt());
+            }
+            if (!m_filePath.isEmpty()) {
+                loadVideoInfo(AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+m_filePath);
             }
             m_id = json["Id"].toInt();
             rotation->setValue(json["rotation"].toInt());
@@ -181,26 +182,21 @@ namespace Clips
             // // durationBox->setText(""(length(), timecode_frames_per_sec(getTimecodeType())));
             // basicLayout->addWidget(durationBox, 1, 1);
             // 文件名显示
-            fileNameLabel->setReadOnly(true);
-            basicLayout->addWidget(fileNameLabel, 2, 0, 1, 2);
+            // fileNameLabel->setReadOnly(true);
+            // basicLayout->addWidget(fileNameLabel, 2, 0, 1, 2);
             // 媒体文件选择
-            basicLayout->addWidget(new QLabel("媒体文件:"), 4, 0);
-            auto* mediaButton = new QPushButton("选择媒体文件", basicGroup);
-            basicLayout->addWidget(mediaButton, 4, 1);
+            basicLayout->addWidget(new QLabel("媒体文件:"), 0, 0,1,1);
+            mediaSelector = new SelectorComboBox(MediaLibrary::Category::Video,basicGroup);
+            registerOSCControl("/file", mediaSelector);
+            basicLayout->addWidget(mediaSelector, 0, 1,1,2);
             // 连接信号槽
-            connect(mediaButton, &QPushButton::clicked, [=]() {
-                QString filePath = QFileDialog::getOpenFileName(m_editor,
-                    "选择媒体文件",
-                    "",
-                    "视频文件 (*.mp4 *.avi *.mkv *.mov);;"
-                    "所有文件 (*)");
-
-                if (!filePath.isEmpty()) {
-                    setFilePath(filePath);  // 这会触发视频信息加载和长度更新
-                    // 更新时长显示，使用时间码格式
-                    // durationBox->setText(FramesToTimeString(length(), getFrameRate(getTimecodeType())));
-
-                }
+            connect(mediaSelector,&SelectorComboBox::textChanged,[=](const QString& text){
+                if (m_filePath != text) {
+               m_filePath = text;
+               loadVideoInfo(AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+text);
+               emit filePathChanged(text);
+               emit onPropertyChanged();
+           }
             });
             mainLayout->addWidget(basicGroup);
             // 添加尺寸位置参数设置
@@ -355,7 +351,7 @@ namespace Clips
         QSpinBox* height;
         QSpinBox* layer;
         QSpinBox* rotation;
-        QLineEdit* fileNameLabel= new QLineEdit();
+        SelectorComboBox* mediaSelector;
         SocketTransmitter* m_server;
         /**
          * 是否允许触发属性变更通知

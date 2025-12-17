@@ -138,7 +138,7 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["delay_message_list"] = widget->delay_message_list_widget->save();
+            modelJson1= widget->delay_message_list_widget->save();
             modelJson1["ignoreRepeat"]=widget->ignoreRepeatCheckBox->isChecked();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
@@ -148,7 +148,7 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->delay_message_list_widget->load(v["delay_message_list"].toObject());
+                widget->delay_message_list_widget->load(v.toObject());
                 widget->ignoreRepeatCheckBox->setChecked(v["ignoreRepeat"].toBool());
             }
         }

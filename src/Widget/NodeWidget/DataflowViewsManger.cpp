@@ -141,16 +141,16 @@ void DataflowViewsManger::addNewSceneFromeModel(const QString& title, CustomData
     // styling
     MenuAction->setObjectName("optionsMenu");
     DockWidget->setTitleBarActions({OptionsMenu->menuAction()});
-    auto a = OptionsMenu->addAction(QObject::tr("Clear Dataflow"));
+    auto a = OptionsMenu->addAction(QIcon(":/icons/icons/clear.png"),QObject::tr("Clear Dataflow"));
     // c->connect(a, SIGNAL(triggered()), SLOT(clear()));
     QObject::connect(a, &QAction::triggered, scene, &CustomFlowGraphicsScene::clear);
-    auto b = OptionsMenu->addAction(QObject::tr("Save Child Dataflow"));
+    auto b = OptionsMenu->addAction(QIcon(":/icons/icons/save.png"),QObject::tr("Save Child Dataflow"));
     QObject::connect(b, &QAction::triggered, scene, &CustomFlowGraphicsScene::save);
-    auto c = OptionsMenu->addAction(QObject::tr("Delete Dataflow"));
+    auto c = OptionsMenu->addAction(QIcon(":/icons/icons/delete_database.png"),QObject::tr("Delete Dataflow"));
     QObject::connect(c, &QAction::triggered, this, [this, DockWidget, title](){
         m_DockManager->removeDockWidget(DockWidget);
         _models.erase(title);
-
+        emit removeScene(title);
     });
     auto d = OptionsMenu->addAction(QIcon(":/icons/icons/open_flat.png"),QObject::tr("Load Child Dataflow"));
     QObject::connect(d, &QAction::triggered, scene, &CustomFlowGraphicsScene::load);
@@ -289,4 +289,26 @@ void DataflowViewsManger::focusedSceneTitle()
         }
     }
 
+}
+
+void DataflowViewsManger::refreshAllScenes()
+{
+    // 函数级注释：
+    // 说明：强制刷新所有场景和视图，用于主题切换后更新显示
+    auto const &flowViewStyle = StyleCollection::flowViewStyle();
+    for (auto& kv : _DockWidget) {
+        ads::CDockWidget* dock = kv.second;
+        if (!dock) continue;
+        auto view = qobject_cast<CustomGraphicsView*>(dock->widget());
+        if (view) {
+            // 更新背景颜色
+            view->setBackgroundBrush(flowViewStyle.BackgroundColor);
+            // 强制更新视图（背景等）
+            view->update();
+            if (view->scene()) {
+                // 强制更新场景项
+                view->scene()->update();
+            }
+        }
+    }
 }

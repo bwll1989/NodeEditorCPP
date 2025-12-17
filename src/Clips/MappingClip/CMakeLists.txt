@@ -49,6 +49,7 @@ target_link_libraries(MappingClip PRIVATE
     ${QtTimeLine_LIBRARIES}
     OSCTransmitter
     OscListWidget
+    GUIElements
 )
 
 # 包含目录

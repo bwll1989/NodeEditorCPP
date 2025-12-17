@@ -63,6 +63,8 @@ target_link_libraries(AudioClip PUBLIC
     swscale
     ${QtTimeLine_LIBRARIES}
     ClientController
+    MediaManger
+    GUIElements
 )
 
 # 包含目录

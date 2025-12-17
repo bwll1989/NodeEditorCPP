@@ -71,6 +71,10 @@ public Q_SLOTS:
      * @brief 获取当前聚焦场景的标题（若可用）
      */
     void focusedSceneTitle() ;
+    /**
+     * @brief 强制刷新所有场景和视图
+     */
+    void refreshAllScenes();
 Q_SIGNALS:
     void createNewScene(QString title);
     void sceneIsActive(QString title);

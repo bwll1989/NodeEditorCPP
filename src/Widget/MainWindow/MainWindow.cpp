@@ -3,6 +3,7 @@
 //
 
 #include <QMessageBox>
+#include <QApplication>
 #include "MainWindow.hpp"
 #include "Nodes/NodeEditorStyle.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
@@ -22,6 +23,24 @@
 #include "Elements/XYPad/XYPad.h"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
 using namespace ads;
+
+/* 函数级注释：全局应用样式表并强制重新抛光所有已存在控件 */
+static void applyGlobalStyleSheet(const QString& styleSheet)
+{
+    if (auto* app = qobject_cast<QApplication*>(QApplication::instance())) {
+        app->setStyleSheet(styleSheet);
+        const auto widgets = QApplication::allWidgets();
+        for (QWidget* w : widgets) {
+            if (!w) continue;
+            if (w->style()) {
+                w->style()->unpolish(w);
+                w->style()->polish(w);
+            }
+            w->update();
+        }
+    }
+}
+
 MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
 
 
@@ -37,6 +56,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
 
     ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasTabsMenuButton, true);
 }
+
 MainWindow::~MainWindow()
 {
     delete controller;
@@ -49,13 +69,11 @@ void MainWindow::init()
     m_DockManager = new ads::CDockManager(this);
     // 注册到 DockHub，供外部模块统一挂载
     DockHub::instance().setDockManager(m_DockManager);
-    //禁用ads内置样式表
-    m_DockManager->setStyleSheet(":/styles/styles/DefaultDark.qss");
 
     m_DockManager->setDockWidgetToolBarStyle(Qt::ToolButtonStyle::ToolButtonIconOnly,CDockWidget::eState::StateDocked);
     this->setCentralWidget(m_DockManager);
     emit initStatus("Initialization ADS success");
-    // 终端显示控件
+    // 首先实例化终端显示控件，保证日志输出正常
     auto *logDockViewer= new ads::CDockWidget(m_DockManager,"终端显示");
     logTable=new LogWidget();
     log=new LogHandler(logTable);
@@ -74,11 +92,12 @@ void MainWindow::init()
     menuBar->updateRecentFileActions(getRecentFiles());
     this->setMenuBar(menuBar);
     emit initStatus("Initialization MenuBar success");
+    //读取主题设置
+    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
+    switchTheme(settings.value("isDarkTheme").toBool());
     // 节点编辑控件
     auto *NodeDockWidget = new ads::CDockWidget(m_DockManager,"节点编辑");
     NodeDockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
-    // 初始化节点编辑器样式表
-    setNodeEditorStyle();
     emit initStatus("load node editor style success");
     dataflowViewsManger=new DataflowViewsManger(m_DockManager,this);
     emit initStatus("Init node editor success");
@@ -106,8 +125,6 @@ void MainWindow::init()
      // 添加到菜单栏
      emit initStatus("Initialization Timeline editor success");
 
-
-
     // auto *DockView= new ads::CDockWidget("显示");
     //
     // auto *w =new MatrixWidget(6, 6);
@@ -129,6 +146,8 @@ void MainWindow::init()
     scheduledTaskWidget=new ScheduledTaskWidget();
     calendarDockWidget->setWidget(scheduledTaskWidget);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, calendarDockWidget);
+    // QMenu* Options = makeOptionsMenu(scheduledTaskWidget, scheduledTaskWidget->getActions());
+    calendarDockWidget->setTitleBarActions({makeOptionsMenu(scheduledTaskWidget, scheduledTaskWidget->getActions())->menuAction()});
     emit initStatus("Initialization Scheduled Task success");
     
     // 添加舞台控件
@@ -200,6 +219,10 @@ void MainWindow::init()
     connect(menuBar->views, &QMenu::aboutToShow, this, [this]() {
         updateViewMenu(menuBar->views);
     });
+    // 切换主题
+    connect(menuBar->switchTheme, &QAction::triggered, this, [this]() {
+        switchTheme(!isDarkTheme);
+    });
     //清空所有数据流
     connect(menuBar->Clear_dataflows, &QAction::triggered, dataflowViewsManger, &DataflowViewsManger::clearAllScenes);
     //新建数据流程
@@ -235,6 +258,7 @@ void MainWindow::init()
         // 初始就显示图标，否则容易与windows任务栏显示机制有冲突，导致图标第二次无法正常显示
         //启动时加载默认布局
         resetVisualState();
+
     }
 }
 
@@ -540,26 +564,24 @@ void MainWindow::updateViewMenu(QMenu* menu)
 
 /**
  * 函数级注释：载入最近文件列表
- * - 从 cfg/RecentFiles.ini 读取键 "files"
+ * - 从 cfg/Settings.ini 读取键 "files"
  * - 返回 QStringList（若不存在返回空）
  */
 QStringList MainWindow::getRecentFiles() const
 {
-
-   
-    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/RecentFiles.ini", QSettings::IniFormat);
+    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
     const QStringList files = settings.value("files").toStringList();
     return files;
 }
 
 /**
  * 函数级注释：保存最近文件列表
- * - 写入 cfg/RecentFiles.ini 键 "files"
+ * - 写入 cfg/Settings.ini 键 "files"
  */
 void MainWindow::saveRecentFiles(const QStringList& files) const
 {
     QDir().mkpath(AppConstants::RECENT_FILES_STORAGE_DIR);
-    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/RecentFiles.ini", QSettings::IniFormat);
+    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
     settings.setValue("files", files);
 }
 
@@ -592,4 +614,48 @@ QMenu* MainWindow::makeOptionsMenu(QWidget* parent, const QList<QAction*>& actio
     menu->setToolTip(menu->title());
     menu->addActions(actions);
     return menu;
+}
+
+void MainWindow::switchTheme(bool isDark) {
+    isDarkTheme = isDark;
+    const QString qss = isDarkTheme ? AppConstants::DARK_STYLESHEET
+                                    : AppConstants::LIGHT_STYLESHEET;
+    QFile qssFile(qss);
+    if (!qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "Failed to load QSS file:" << qssFile.errorString();
+        isDarkTheme = !isDarkTheme;
+        return ;
+    }
+
+    QTextStream stream(&qssFile);
+    const QString styleSheet = stream.readAll();
+    qssFile.close();
+
+    if (styleSheet.isEmpty()) {
+        isDarkTheme = !isDarkTheme;
+        qWarning() << "QSS file is empty or could not be read properly";
+        return ;
+    }
+
+    if (!styleSheet.isEmpty()) {
+        applyGlobalStyleSheet(styleSheet);
+         if (m_DockManager) m_DockManager->setStyleSheet(styleSheet);
+    }
+    // 初始化节点编辑器样式表
+    setNodeEditorDarkStyle(isDark);
+
+    // 强制刷新所有场景
+    if (dataflowViewsManger) {
+        dataflowViewsManger->refreshAllScenes();
+    }
+
+    if (menuBar && menuBar->switchTheme) {
+        menuBar->switchTheme->setText(isDarkTheme ? tr("切换到浅色主题")
+                                                  : tr("切换到深色主题"));
+        menuBar->switchTheme->setIcon(isDarkTheme ? QIcon(":/icons/icons/landscape.png")
+                                                  : QIcon(":/icons/icons/night_landscape.png"));
+    }
+    QDir().mkpath(AppConstants::RECENT_FILES_STORAGE_DIR);
+    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
+    settings.setValue("isDarkTheme", isDarkTheme);
 }

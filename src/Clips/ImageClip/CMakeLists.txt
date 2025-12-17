@@ -50,6 +50,8 @@ target_link_libraries(ImageClip PUBLIC
         Qt6::QuickWidgets
         ${QtTimeLine_LIBRARIES}
         ClientController
+        MediaManger
+        GUIElements
 )
 
 # 包含目录

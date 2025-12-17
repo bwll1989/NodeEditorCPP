@@ -23,7 +23,7 @@ TrackListView::~TrackListView() = default;
  */
 void TrackListView::drawTitle(QPainter *painter) {
 
-    painter->setBrush(QBrush(bgColour));
+    painter->setBrush(QBrush(trackBgColor()));
     painter->drawRect(0,0,viewport()->width(),rulerHeight+toolbarHeight);
 
     QRect ruler(0,  0, viewport()->width(), rulerHeight+toolbarHeight);

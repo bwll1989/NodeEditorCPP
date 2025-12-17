@@ -3,24 +3,21 @@
 //
 
 #include "MenuBarWidget.h"
-#include "QApplication"
 #include <QProcess>
 #include <QMessageBox>
-#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QFile>
 #include "Widget/AboutWidget/AboutWidget.hpp"
 #include "ConstantDefines.h"
 MenuBarWidget::MenuBarWidget(QWidget *parent) : QMenuBar(parent) {
+    this->setFont(QApplication::font());
     setupMenu();
 }
 
 void MenuBarWidget::setupMenu() {
     Files_menu = this->addMenu("文件");
-    loadAction = Files_menu->addAction("打开文件");
-    loadAction->setIcon(QIcon(":/icons/icons/open_flat.png"));
-    recentFilesMenu = Files_menu->addMenu("最近打开");
-    recentFilesMenu->setIcon(QIcon(":/icons/icons/history.png"));
+    loadAction = Files_menu->addAction(QIcon(":/icons/icons/open_flat.png"),"打开文件");
+    recentFilesMenu = Files_menu->addMenu(QIcon(":/icons/icons/history.png"),"最近打开");
     for (int i = 0; i < AppConstants::MaxRecentFiles; ++i) {
         recentFileActs[i] = new QAction(this);
         recentFileActs[i]->setVisible(false);
@@ -33,40 +30,35 @@ void MenuBarWidget::setupMenu() {
     }
     Files_menu->addSeparator();
 
-    saveAction = Files_menu->addAction("保存");
-    saveAction->setIcon(QIcon(":/icons/icons/save.png"));
-    saveAsAction = Files_menu->addAction("保存为");
-    saveAsAction->setIcon(QIcon(":/icons/icons/saveAs.png"));
+    saveAction = Files_menu->addAction(QIcon(":/icons/icons/save.png"),"保存");
+    saveAsAction = Files_menu->addAction(QIcon(":/icons/icons/saveAs.png"),"保存为");
     Files_menu->addSeparator();
-    exitAction = Files_menu->addAction("退出");
-    exitAction->setIcon(QIcon(":/icons/icons/exit.png"));
+    exitAction = Files_menu->addAction(QIcon(":/icons/icons/exit.png"),"退出");
 
     Edit_menu=this->addMenu("编辑");
     //新建数据流程
-    New_dataflow=Edit_menu->addAction("新建数据流");
-    New_dataflow->setIcon(QIcon(":/icons/icons/add_database.png"));
+    New_dataflow=Edit_menu->addAction(QIcon(":/icons/icons/add_database.png"),"新建数据流");
     //清空数据流
-    Clear_dataflows=Edit_menu->addAction("清空所有数据流");
-    Clear_dataflows->setIcon(QIcon(":/icons/icons/delete_database.png"));
-    lockAction = Edit_menu->addAction("编辑模式");
+    Clear_dataflows=Edit_menu->addAction(QIcon(":/icons/icons/delete_database.png"),"清空所有数据流");
+    lockAction = Edit_menu->addAction(QIcon(":/icons/icons/unlock.png"),"编辑模式");
     lockAction->setCheckable(true);
     lockAction->setIcon(lockAction->isChecked()?QIcon(":/icons/icons/lock.png"):QIcon(":/icons/icons/unlock.png"));
     connect(lockAction, &QAction::toggled, [this](bool checked) {
         this->lockAction->setIcon(checked?QIcon(":/icons/icons/lock.png"):QIcon(":/icons/icons/unlock.png"));
     });
 
-    clearAction = Edit_menu->addAction("清空日志");
-    clearAction->setIcon(QIcon(":/icons/icons/clear.png"));
+    clearAction = Edit_menu->addAction(QIcon(":/icons/icons/clear.png"),"清空日志");
 
     View_menu=this->addMenu("视图");
-    views=View_menu->addMenu("显示窗口");
-    views->setIcon(QIcon(":/icons/icons/statistics.png"));
-    View_menu->addSeparator();
-    restoreLayout=View_menu->addAction("重置默认布局");
-    restoreLayout->setIcon(QIcon(":/icons/icons/restore.png"));
+    //切换主题
+    switchTheme=View_menu->addAction(QIcon(":/icons/icons/landscape.png"),"切换主题");
 
-    saveLayout=View_menu->addAction("保存为默认布局");
-    saveLayout->setIcon(QIcon(":/icons/icons/layout.png"));
+    views=View_menu->addMenu(QIcon(":/icons/icons/statistics.png"),"显示窗口");
+
+    View_menu->addSeparator();
+    restoreLayout=View_menu->addAction(QIcon(":/icons/icons/restore.png"),"重置默认布局");
+
+    saveLayout=View_menu->addAction(QIcon(":/icons/icons/layout.png"),"保存为默认布局");
 
     // Setting_menu=this->addMenu("设置");
     // Setting_1=Setting_menu->addAction("设置1");
@@ -75,24 +67,20 @@ void MenuBarWidget::setupMenu() {
     // Setting_2->setIcon(QIcon(":/icons/icons/setting.png"));
 
     Plugins_menu = this->addMenu("插件");
-    pluginsManagerAction = Plugins_menu->addAction("插件管理器");
-    pluginsManagerAction->setIcon(QIcon(":/icons/icons/plugins.png"));
-    pluginsFloderAction =Plugins_menu->addAction("打开插件文件夹");
-    pluginsFloderAction->setIcon(QIcon(":/icons/icons/open_flat.png"));
+    pluginsManagerAction = Plugins_menu->addAction(QIcon(":/icons/icons/plugins.png"),"插件管理器");
+    pluginsFloderAction =Plugins_menu->addAction(QIcon(":/icons/icons/open_flat.png"),"打开插件文件夹");
+
     createNodeAction=new QAction(QStringLiteral("Create node"));
 
-
     Tool_menu=this->addMenu("工具");
-    tool1Action = Tool_menu->addAction("视频格式转换器");
-    tool1Action->setIcon(QIcon(":/icons/icons/converty.png"));
+    tool1Action = Tool_menu->addAction(QIcon(":/icons/icons/converty.png"),"视频格式转换器");
     connect(tool1Action, &QAction::triggered, this, [this]() {
 
         openToolWithArgs("FormatConverter.exe", QStringList());
     });
 
 
-    tool2Action = Tool_menu->addAction("OpenStageControl");
-    tool2Action->setIcon(QIcon(":/icons/icons/osc.png"));
+    tool2Action = Tool_menu->addAction(QIcon(":/icons/icons/osc.png"),"OpenStageControl");
     connect(tool2Action, &QAction::triggered, this, [this]() {
             QStringList args;
             args << "--load"
@@ -111,23 +99,20 @@ void MenuBarWidget::setupMenu() {
             openOSCInterface("open-stage-control/open-stage-control.exe", args);
        });
 
-    ArtnetRecoderToolAction=Tool_menu->addAction("Artnet记录器");
-    ArtnetRecoderToolAction->setIcon(QIcon(":/icons/icons/recoder.png"));
+    ArtnetRecoderToolAction=Tool_menu->addAction(QIcon(":/icons/icons/recoder.png"),"Artnet记录器");
     connect(ArtnetRecoderToolAction, &QAction::triggered, this, [this]() {
         openToolWithArgs("ArtnetRecorder.exe", QStringList());
     });
 
     About_menu=this->addMenu("关于");
-    helpAction=About_menu->addAction("帮助");
-    helpAction->setIcon(QIcon(":/icons/icons/help.png"));
+    helpAction=About_menu->addAction(QIcon(":/icons/icons/help.png"),"帮助");
     connect(helpAction, &QAction::triggered, this, &MenuBarWidget::showHelp);
 
-    aboutAction = About_menu->addAction("关于NodeStudio");
-    aboutAction->setIcon(QIcon(":/icons/icons/about.png"));
+    aboutAction = About_menu->addAction(QIcon(":/icons/icons/about.png"),"关于NodeStudio");
+
     connect(aboutAction, &QAction::triggered, this, &MenuBarWidget::showAboutDialog);
     //关于软件窗口
-    aboutQtAction = About_menu->addAction("关于QT");
-    aboutQtAction->setIcon(QIcon(":/icons/icons/about.png"));
+    aboutQtAction = About_menu->addAction(QIcon(":/icons/icons/about.png"),"关于QT");
     connect(aboutQtAction, &QAction::triggered, this, &QApplication::aboutQt);
     // 关于qt窗口
 }

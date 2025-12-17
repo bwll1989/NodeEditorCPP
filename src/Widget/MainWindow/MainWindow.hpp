@@ -42,33 +42,33 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
     //菜单栏
-    MenuBarWidget *menuBar;
+    MenuBarWidget *menuBar=nullptr;
     //dock管理器
-    ads::CDockManager* m_DockManager;
+    ads::CDockManager* m_DockManager=nullptr;
     //插件管理器
-    PluginsManagerWidget *pluginsManagerDlg;
+    PluginsManagerWidget *pluginsManagerDlg=nullptr;
     // 节点库控件
-    ads::CDockWidget *nodeDockLibraryWidget;
+    ads::CDockWidget *nodeDockLibraryWidget=nullptr;
     // // 节点设置控件
     // ads::CDockWidget *propertyDockWidget;
     // 锁定状态
     bool isLocked= false;
     // 节点库
-    NodeLibraryWidget *nodeLibrary;
+    NodeLibraryWidget *nodeLibrary=nullptr;
     // 节点列表
-    NodeListWidget *nodeListWidget;
+    NodeListWidget *nodeListWidget=nullptr;
     // 时间线
-    TimelineWidget *timeline;
+    TimelineWidget *timeline     = nullptr;
     // 时间线模型
-    TimeLineModel *timelineModel;
+    TimeLineModel *timelineModel=nullptr;
     // 舞台控件
-    StageWidget *stageWidget;
+    StageWidget *stageWidget=nullptr;
     // osc 日历控件
-    ScheduledTaskWidget *scheduledTaskWidget;
+    ScheduledTaskWidget *scheduledTaskWidget=nullptr;
     // 媒体库
-    MediaLibraryWidget *mediaLibraryWidget;
+    MediaLibraryWidget *mediaLibraryWidget=nullptr;
     //节点视图
-    DataflowViewsManger *dataflowViewsManger;
+    DataflowViewsManger *dataflowViewsManger=nullptr;
 Q_SIGNALS:
     //初始化状态信号
     void initStatus(const QString &message);
@@ -157,7 +157,10 @@ protected:
      * @param actions
      * @return
      */
-QMenu* makeOptionsMenu(QWidget* parent, const QList<QAction*>& actions);
+    QMenu* makeOptionsMenu(QWidget* parent, const QList<QAction*>& actions);
+
+    void switchTheme(bool isDark);
+
 private:
     //日志表
     LogWidget *logTable;
@@ -172,6 +175,7 @@ private:
     QSystemTrayIcon* trayIcon = nullptr;
     QMenu* trayMenu = nullptr;
     QAction* trayExitAction = nullptr;
+    bool isDarkTheme = false;
 
     /**
      * 函数级注释：载入最近文件列表（从 cfg/RecentFiles.ini）

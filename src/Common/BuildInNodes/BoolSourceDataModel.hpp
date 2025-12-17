@@ -38,7 +38,8 @@ namespace Nodes {
             WidgetEmbeddable=true;
             Resizable=false;
             button->setCheckable(true);
-            button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+            // button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+            button->setMinimumWidth(80);
             NodeDelegateModel::registerOSCControl("/bool", button);
             button->setChecked(false);
             connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);

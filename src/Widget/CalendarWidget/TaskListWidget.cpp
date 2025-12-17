@@ -8,7 +8,7 @@
 #include <QJsonValue>
 
 TaskListWidget::TaskListWidget(ScheduledTaskModel* model,QWidget* parent)
-    : QListView(parent),
+    : QGridView(parent),     // 变更：改为 QGridView 基类构造
       m_model(model)
 {
     // 视图基础配置
@@ -33,15 +33,14 @@ TaskListWidget::TaskListWidget(ScheduledTaskModel* model,QWidget* parent)
     auto* delegate = new TaskItemDelegate(this);
     setItemDelegate(delegate);
 
-    // 列表视图显示参数优化：
-    // 1) 关闭统一行高，允许每行按委托 sizeHint 动态高度
-    setUniformItemSizes(false);
-    // 2) 显示为列表模式（保证水平不换列）
-    setViewMode(QListView::ListMode);
-    // 3) 设置项间距，避免视觉过于紧凑
-    setSpacing(4);
+    // 网格显示参数：
+    // - 使用统一尺寸的网格，保持卡片一致大小（与 TaskItemWidget 最小尺寸一致）
+    setUniformItemSizes(true);
+    setGridSize(QSize(370, 200));
+    // - 网格间距（水平/垂直）
+    setSpacing(4, 4);
 
-    // 打开持久编辑器，让每一行永久显示 TaskItemWidget
+    // 打开（设置）所有行的索引部件，让每个格子显示 TaskItemWidget
     openEditorsForAllRows();
     if (m_model) {
         connect(m_model, &QAbstractItemModel::rowsInserted, this, [this](const QModelIndex&, int, int){
@@ -51,6 +50,16 @@ TaskListWidget::TaskListWidget(ScheduledTaskModel* model,QWidget* parent)
             openEditorsForAllRows();
         });
     }
+    QAction* addAction = menu->addAction("add Scheduled");
+    addAction->setIcon(QIcon(":/icons/icons/add.png"));
+    QAction* deleteAction = menu->addAction("Delete Scheduled");
+    deleteAction->setIcon(QIcon(":/icons/icons/delete.png"));
+    QAction* clearAction = menu->addAction("Clear All Messages");
+    clearAction->setIcon(QIcon(":/icons/icons/clear.png"));
+
+    connect(addAction, &QAction::triggered, this, &TaskListWidget::addNewScheduled);
+    connect(deleteAction, &QAction::triggered, this, &TaskListWidget::deleteSelectedMessage);
+    connect(clearAction, &QAction::triggered, this, &TaskListWidget::clearAllScheduled); // 新增连接
 }
 
 void TaskListWidget::addScheduled(const OSCMessage& message)
@@ -75,20 +84,7 @@ void TaskListWidget::addScheduled(const ScheduledTaskItem& m_scheduled) {
 
 void TaskListWidget::showContextMenu(const QPoint& pos)
 {
-    QMenu menu(this);
-    QAction* addAction = menu.addAction("add Scheduled");
-    addAction->setIcon(QIcon(":/icons/icons/add.png"));
-    QAction* deleteAction = menu.addAction("Delete Scheduled");
-    deleteAction->setIcon(QIcon(":/icons/icons/delete.png"));
-    QAction* clearAction = menu.addAction("Clear All Messages");
-    clearAction->setIcon(QIcon(":/icons/icons/clear.png"));
-
-    // QListView 不提供 clear()，如需清空请调用模型 API：m_model->setItems({})
-    // connect(clearAction, &QAction::triggered, this, &TaskListWidget::clear);
-    connect(addAction, &QAction::triggered, this, &TaskListWidget::addNewScheduled);
-    connect(deleteAction, &QAction::triggered, this, &TaskListWidget::deleteSelectedMessage);
-    
-    menu.exec(mapToGlobal(pos));
+    menu->exec(mapToGlobal(pos));
 }
 
 void TaskListWidget::addNewScheduled()
@@ -98,12 +94,54 @@ void TaskListWidget::addNewScheduled()
 
 void TaskListWidget::deleteSelectedMessage()
 {
+    /**
+     * 函数：TaskListWidget::deleteSelectedMessage
+     * 作用：删除当前选中的任务项。
+     * 说明：视图绑定的是过滤代理模型（m_proxy），因此需要将当前索引
+     *       从代理模型映射回源模型（m_model）后再删除正确的源行。
+     */
     if (!m_model) return;
-    const QModelIndex idx = currentIndex();
-    if (idx.isValid()) {
-        m_model->removeItem(idx.row());
+
+    // 当前选中的是“代理模型索引”
+    const QModelIndex proxyIdx = currentIndex();
+    if (!proxyIdx.isValid()) {
+        clearSelection();
+        return;
     }
+
+    // 将代理索引映射回源模型索引
+    QModelIndex sourceIdx = proxyIdx;
+    if (m_proxy) {
+        sourceIdx = m_proxy->mapToSource(proxyIdx);
+    }
+
+    // 删除源模型中的对应行
+    if (sourceIdx.isValid()) {
+        m_model->removeItem(sourceIdx.row());
+    }
+
+    // 清空选择，避免残留到已删除的行
     clearSelection();
+}
+
+void TaskListWidget::clearAllScheduled()
+{
+    /**
+     * 函数：TaskListWidget::clearAllScheduled
+     * 作用：清空模型中所有任务项（操作源模型 m_model）。
+     * 说明：视图绑定的是过滤代理模型 m_proxy；直接清空源模型可保证无论过滤
+     *       条件为何，最终都移除所有数据行。
+     */
+    if (!m_model) return;
+
+    // 从末尾到开头逐行删除，避免 row 变化影响遍历
+    for (int r = m_model->rowCount() - 1; r >= 0; --r) {
+        m_model->removeItem(r);
+    }
+
+    // 清空选择并请求重新布局
+    clearSelection();
+    scheduleDelayedItemsLayout();
 }
 
 // 拖拽相关实现
@@ -130,7 +168,7 @@ void TaskListWidget::dropEvent(QDropEvent* event)
         // 反序列化消息数据
         QByteArray data = mimeData->data("application/x-osc-address");
         QDataStream stream(data);
-        stream >> message.host >> message.port >> message.address >> message.value;
+        stream >> message.host >> message.port >> message.address >>  message.type >> message.value;
         
         // 添加消息到列表
         addScheduled(message);
@@ -187,7 +225,7 @@ bool TaskListWidget::eventFilter(QObject* object, QEvent* event)
             return true;
         }
     }
-    return QListView::eventFilter(object, event);
+    return QGridView::eventFilter(object, event); // 变更：回退到 QGridView
 }
 
 // 打开所有行的持久编辑器
@@ -203,6 +241,8 @@ void TaskListWidget::openEditorsForAllRows()
             openPersistentEditor(idx);
         }
     }
+    // 布局刷新与几何更新
+    scheduleDelayedItemsLayout();
 }
 
 void TaskListWidget::setDate(const QDate& date)
@@ -211,4 +251,14 @@ void TaskListWidget::setDate(const QDate& date)
     m_proxy->setFilterDate(date);
     // 过滤变动后，刷新持久编辑器集合
     openEditorsForAllRows();
+}
+
+void TaskListWidget::resizeEvent(QResizeEvent* event)
+{
+    /**
+     * 函数：TaskListWidget::resizeEvent
+     * 作用：窗口缩放时，触发网格延迟布局并刷新索引部件几何。
+     */
+    QGridView::resizeEvent(event);
+    scheduleDelayedItemsLayout();
 }

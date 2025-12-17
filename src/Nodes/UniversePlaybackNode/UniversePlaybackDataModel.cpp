@@ -108,6 +108,13 @@ void UniversePlaybackDataModel::onStopClicked() {
  * @brief 播放定时器回调，处理视频帧读取和循环播放逻辑
  */
 void UniversePlaybackDataModel::onPlaybackTimer() {
+    /**
+     * 函数级注释：
+     * 播放定时器回调，读取下一帧并更新DMX与时间显示。
+     * 为避免与析构或打开文件等操作发生竞态，进入回调即加锁保护FFmpeg相关资源。
+     */
+    QMutexLocker locker(&m_mutex);
+
     if (!isPlaying || !m_formatContext) {
         return;
     }

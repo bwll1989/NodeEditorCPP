@@ -53,8 +53,28 @@ public:
     /**
      * @brief 析构函数
      */
+    /**
+     * 函数级注释：
+     * 析构时确保安全停止定时器、断开信号并释放FFmpeg资源，避免播放中退出产生悬挂指针/竞态。
+     * 步骤：
+     * 1) 无条件停止定时器并断开与本对象的连接
+     * 2) 断开界面(widget)与本对象的所有信号
+     * 3) 标记不在播放状态
+     * 4) 在互斥保护下清理FFmpeg资源
+     */
     ~UniversePlaybackDataModel() override {
-        stopPlayback();
+        if (playbackTimer) {
+            playbackTimer->stop();
+            // 断开定时器与本对象的连接，避免销毁后仍触发槽函数
+            playbackTimer->disconnect(this);
+        }
+        if (widget) {
+            // 断开界面与本对象的所有连接，避免本对象销毁后收到界面回调
+            widget->disconnect(this);
+        }
+
+        // 无论播放状态如何，都设置为不播放并清理资源
+        isPlaying = false;
         cleanupFFmpeg();
     }
 

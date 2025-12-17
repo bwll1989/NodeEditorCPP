@@ -46,49 +46,6 @@ void setupAppInfo() {
 }
 
 /**
- * @brief 设置应用程序样式
- * @param app QApplication对象的引用
- * @return bool 样式设置是否成功（若失败，外部可选择使用默认样式）
- * @note 仅设置支持的应用属性与样式；样式表从资源加载失败时返回false
- */
-bool setupAppStyle(QApplication& app) {
-    // 设置应用程序风格为Fusion
-    QApplication::setStyle(QStyleFactory::create("Fusion"));
-
-    // 移除对 Qt::WA_StyledBackground 的误用：该枚举属于 Widget 属性而非 Application 属性
-    // 如需控件背景样式，应在具体控件上设置 WA_StyledBackground
-    // QApplication::setAttribute(static_cast<Qt::ApplicationAttribute>(Qt::WA_StyledBackground));
-
-    // 加载样式表
-    QFile qssFile(":/styles/styles/DefaultDark.qss");
-    if (!qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        qWarning() << "Failed to load QSS file:" << qssFile.errorString();
-        return false;
-    }
-
-    QTextStream stream(&qssFile);
-    const QString styleSheet = stream.readAll();
-    qssFile.close();
-
-    if (styleSheet.isEmpty()) {
-        qWarning() << "QSS file is empty or could not be read properly";
-        return false;
-    }
-
-    try {
-        app.setStyleSheet(styleSheet);
-    } catch (const std::exception& e) {
-        qWarning() << "Error setting stylesheet:" << e.what();
-        return false;
-    } catch (...) {
-        qWarning() << "Unknown error setting stylesheet";
-        return false;
-    }
-
-    return true;
-}
-
-/**
  * @brief 检查应用程序是否已经在运行
  * @param sharedMemory 共享内存对象的引用
  * @return bool 如果应用程序已经在运行则返回true
@@ -176,13 +133,10 @@ int main(int argc, char *argv[])
     
     // 设置应用程序基本信息
     setupAppInfo();
-    
+
     // 设置应用程序样式
-    if (!setupAppStyle(app)) {
-        qWarning() << "应用程序样式设置失败，将使用默认样式。";
-        QMessageBox::warning(nullptr, "", "应用程序样式加载失败，将使用默认样式。\n应用程序功能不受影响，但视觉效果可能不理想。");
-    }
-    
+    QApplication::setStyle(QStyleFactory::create("Fusion"));
+
     // 解析命令行参数
     QCommandLineParser parser;
     parser.setApplicationDescription(AppConstants::FILE_DESCRIPTION);

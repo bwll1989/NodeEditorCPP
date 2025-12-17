@@ -1,5 +1,5 @@
-#ifndef VIDEOCLIPMODEL_HPP
-#define VIDEOCLIPMODEL_HPP
+#pragma once
+
 #include <QImage>
 #include <QPainter>
 #include <QFont>
@@ -12,8 +12,10 @@
 #include "TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
-#include "../../Common/Devices/ClientController/SocketTransmitter.h"
-
+#include "ConstantDefines.h"
+#include "Common/Devices/ClientController/SocketTransmitter.h"
+#include "Elements/SelectorComboBox/SelectorComboBox.hpp"
+#include "MediaLibrary/MediaLibrary.h"
 namespace Clips
 {
     class ImageClipModel : public AbstractClipModel {
@@ -55,11 +57,15 @@ namespace Clips
         };
 
         // 设置文件路径并加载视频信息
-        void setFilePath(const QString& path) {
-            if (m_filePath != path) {
-                m_filePath = path;
-                emit filePathChanged(path);
-            }
+        void setMedia(const QVariant& path) override {
+            // if (m_filePath != path) {
+            //     m_filePath = path;
+            //     emit filePathChanged(m_filePath);
+            //     emit onPropertyChanged();
+            // }
+            mediaSelector->setText(path.toString());
+            emit mediaSelector->textChanged(path.toString());
+            onPropertyChanged();
         }
 
         void setStart(int start) override  {
@@ -74,9 +80,6 @@ namespace Clips
                 QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
             }
         }
-        // 其他 getter/setter 保持不变
-        QString filePath() const { return m_filePath; }
-
 
         // 重写保存和加载函数
         QJsonObject save() const override {
@@ -105,8 +108,8 @@ namespace Clips
 
         void load(const QJsonObject& json) override {
             AbstractClipModel::load(json);
-            m_filePath = json["filePath"].toString();
-
+            m_filePath = json["file"].toString();
+            mediaSelector->setText(m_filePath);
 
             if(json.contains("position")) {
                 QJsonObject position = json["position"].toObject();
@@ -136,7 +139,6 @@ namespace Clips
             }
         }
 
-
         QWidget* clipPropertyWidget() override{
             m_editor = new QWidget();
             QVBoxLayout* mainLayout = new QVBoxLayout(m_editor);
@@ -145,36 +147,18 @@ namespace Clips
             // 基本设置组
             auto* basicGroup = new QGroupBox("文件属性", m_editor);
             auto* basicLayout = new QGridLayout(basicGroup);
-            // 时间相关控件
-            // basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
-            // auto* durationBox = new QLineEdit(basicGroup);
-            // durationBox->setReadOnly(true);
-            // // 将帧数转换为时间码格式显示
-            // // durationBox->setText(""(length(), timecode_frames_per_sec(getTimecodeType())));
-            // basicLayout->addWidget(durationBox, 1, 1);
-            // 文件名显示
-            auto* fileNameLabel = new QLineEdit(filePath(), basicGroup);
-            fileNameLabel->setReadOnly(true);
-            basicLayout->addWidget(fileNameLabel, 2, 0, 1, 2);
             // 媒体文件选择
-            basicLayout->addWidget(new QLabel("媒体文件:"), 4, 0);
-            auto* mediaButton = new QPushButton("选择媒体文件", basicGroup);
-            basicLayout->addWidget(mediaButton, 4, 1);
-            // 连接信号槽
-            connect(mediaButton, &QPushButton::clicked, [=]() {
-                QString filePath = QFileDialog::getOpenFileName(m_editor,
-                    "选择媒体文件",
-                    "",
-                    "图片文件 (*.jpg *.jpeg *.png *.bmp);;");
-
-                if (!filePath.isEmpty()) {
-                    setFilePath(filePath);  // 这会触发视频信息加载和长度更新
-                    fileNameLabel->setText(filePath);
-                    // 更新时长显示，使用时间码格式
-                    // durationBox->setText(FramesToTimeString(length(), getFrameRate(getTimecodeType())));
-
+            basicLayout->addWidget(new QLabel("媒体文件:"), 0, 0,1,1);
+            mediaSelector = new SelectorComboBox(MediaLibrary::Category::Image,basicGroup);
+            basicLayout->addWidget(mediaSelector, 0, 1,1,2);
+            connect(mediaSelector,&SelectorComboBox::textChanged,[=](const QString& text){
+                if (m_filePath != text) {
+                    m_filePath = text;
+                    emit filePathChanged(m_filePath);
+                    emit onPropertyChanged();
                 }
             });
+            registerOSCControl("/file", mediaSelector);
             mainLayout->addWidget(basicGroup);
             // 添加尺寸位置参数设置
             auto* positionGroup = new QGroupBox("位置参数", m_editor);
@@ -276,7 +260,6 @@ namespace Clips
             doc.setObject(QJsonObject{{"fileList", array}}); // 正确设置JSON文档的根对象
             m_server->enqueueJson(doc);
         }
-
     private:
         QString m_filePath;
         QWidget* m_editor;
@@ -288,8 +271,8 @@ namespace Clips
         QSpinBox* height;
         QSpinBox* layer;
         QSpinBox* rotation;
+        SelectorComboBox* mediaSelector;
         SocketTransmitter *m_server;
         bool m_canNotify = false;
     };
 }
-#endif // VideoClipModel_HPP

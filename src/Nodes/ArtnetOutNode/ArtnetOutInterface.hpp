@@ -25,7 +25,7 @@ public:
         
         // 设置提示信息
         targetHostEdit->setToolTip("输入目标主机IP地址，如：192.168.1.100 或 192.168.1.255（广播）");
-        
+        targetHostEdit->setValidator(new QRegularExpressionValidator(QRegularExpression("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")));
         // 设置默认值
         targetHostEdit->setText("192.168.1.255");
         statusLabel->setText("就绪");

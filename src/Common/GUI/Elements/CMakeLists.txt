@@ -28,7 +28,8 @@ add_library(${Module_Name} SHARED
     DataBridgeSelectorBox/DataBridgeSelectorBox.hpp
     ColorEditorWidget/ColorEditorWidget.cpp
     ColorEditorWidget/ColorEditorWidget.hpp
-
+    QGridView/QGridView.cpp
+    QGridView/QGridView.h
 )
 
 # 链接Qt库

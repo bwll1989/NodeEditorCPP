@@ -7,7 +7,7 @@
 #include <QTextStream>
 #include <QTextCharFormat>  // 新增：用于设置周标题与日期的文本格式
 
-OscCalendarWidget::OscCalendarWidget(    ScheduledTaskModel* model,QWidget *parent)
+OscCalendarWidget::OscCalendarWidget(ScheduledTaskModel* model,QWidget *parent)
     :m_model(model),
     QCalendarWidget(parent)
 {
@@ -23,12 +23,9 @@ OscCalendarWidget::OscCalendarWidget(    ScheduledTaskModel* model,QWidget *pare
     setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);//不显示星期数
     // setHorizontalHeaderFormat(QCalendarWidget::NoHorizontalHeader);
     setNavigationBarVisible(true);
-    setDateEditEnabled(false);
-    setStyleSheet(
 
-            "QCalendarWidget QAbstractItemView::item:enabled:selected:!alternate { background-color: #1976D2; }"
-            "QCalendarWidget QAbstractItemView::item:enabled:!selected:!alternate { background-color: #333333; }"
-            "QCalendarWidget QAbstractItemView::item:enabled:!selected:alternate { background-color: #323232; }");
+    setDateEditEnabled(false);
+
 }
 
 OscCalendarWidget::~OscCalendarWidget()
@@ -65,14 +62,11 @@ void OscCalendarWidget::contextMenuEvent(QContextMenuEvent *event)
 void OscCalendarWidget::paintCell(QPainter *painter, const QRect &rect, QDate date) const
 {
     /**
-     * @brief 自定义绘制单元格
-     * 
-     * 功能点：
-     * - 非本月日期不显示（仅保留背景，留空）
-     * - 选中日期：填充蓝色背景
-     * - 今天：绿色边框
-     * - 周末日期数字为红色、工作日为浅色
-     * - 保留右上角 OSC 计数显示
+     * 函数：OscCalendarWidget::paintCell
+     * 作用：尽可能使用 QSS/调色板进行绘制，仅在必要处做叠加绘制。
+     * 策略：
+     * - 非本月：只填充基础背景，保持留空（不绘制日期与计数）
+     * - 本月：使用基类默认绘制（受 QSS 与主题控制），叠加“今天”边框与右上角计数
      */
     painter->save();
 
@@ -80,18 +74,9 @@ void OscCalendarWidget::paintCell(QPainter *painter, const QRect &rect, QDate da
     const int shownYear  = yearShown();
     const bool inCurrentMonth = (date.month() == shownMonth && date.year() == shownYear);
 
-    // 背景填充（保持当前主题基色）
-    QColor baseBg = palette().base().color();
-    painter->fillRect(rect, baseBg);
-
-    // 非本月日期：填充深色背景后返回
+    // 非本月：填充基础背景，留空
     if (!inCurrentMonth) {
-        // painter->fillRect(rect, QColor("#2A2A2A")); // 更深的背景色
-        // 显示文字为灰色
-        painter->setPen(QColor("#808080"));
-        painter->drawText(rect.adjusted(6, 4, -4, -4),
-                          Qt::AlignLeft | Qt::AlignTop,
-                          QString::number(date.day()));
+        painter->fillRect(rect, palette().base());
         painter->restore();
         return;
     }
@@ -99,38 +84,21 @@ void OscCalendarWidget::paintCell(QPainter *painter, const QRect &rect, QDate da
     const bool isSelected = (date == selectedDate());
     const bool isToday    = (date == QDate::currentDate());
 
-    // 选中日期背景
-    if (isSelected) {
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setBrush(QColor("#1976D2")); // 选中蓝色
-        painter->setPen(Qt::NoPen);
-        QRect selRect = rect.adjusted(2, 2, -2, -2);
-        painter->drawRoundedRect(selRect, 4, 4);
-    }
+    // 使用默认绘制（文本、选中样式等由样式/QSS控制）
+    QCalendarWidget::paintCell(painter, rect, date);
 
-    // 今天边框（绿色）
+    // 叠加“今天”边框（采用主题高亮色）
     if (isToday) {
         painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setPen(QPen(QColor("#00C853"), 2));
+        painter->setPen(QPen(palette().highlight().color(), 2));
         QRect borderRect = rect.adjusted(2, 2, -2, -2);
         painter->drawRoundedRect(borderRect, 4, 4);
     }
 
-    // 日期数字颜色：周末红，其它浅色
-    QColor textColor = QColor("#E0E0E0");
-    const int dow = date.dayOfWeek(); // 1-7（周一=1）
-    if (dow == 6 || dow == 7) {
-        textColor = QColor("#FF3B30");
-    }
-    painter->setPen(textColor);
-    painter->drawText(rect.adjusted(6, 4, -4, -4),
-                      Qt::AlignLeft | Qt::AlignTop,
-                      QString::number(date.day()));
-
-    // 右上角显示该日期的 OSC 任务数量
+    // 右上角显示该日期的 OSC 任务数量（采用主题高亮色）
     if (hasOscMessageForDate(date)) {
         const QString countText = QString::number(m_model->itemsForDate(date).count());
-        painter->setPen(QColor(255, 0, 0, 200));
+        painter->setPen(palette().highlight().color());
         const int textWidth = painter->fontMetrics().horizontalAdvance(countText);
         const int x = rect.right() - textWidth - 4;
         const int y = rect.top() + painter->fontMetrics().ascent() + 4;
@@ -212,7 +180,6 @@ QMenu* OscCalendarWidget::createContextMenu(const QDate& date)
     
     return menu;
 }
-
 
 
 

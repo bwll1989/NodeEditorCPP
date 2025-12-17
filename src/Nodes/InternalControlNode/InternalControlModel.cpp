@@ -13,7 +13,7 @@ InternalControlModel::InternalControlModel(){
     CaptionVisible=true;
     Caption=PLUGIN_NAME;
     WidgetEmbeddable=false;
-    Resizable=false;
+    Resizable=true;
     connect(widget->testButton,&QPushButton::clicked,this,&InternalControlModel::trigger);
     NodeDelegateModel::registerOSCControl("/trigger",widget->testButton);
 }
@@ -66,7 +66,7 @@ QJsonObject InternalControlModel::save() const
     QJsonObject modelJson1;
     QJsonObject modelJson  = NodeDelegateModel::save();
 
-    modelJson1["messages"] = widget->m_listWidget->save();
+    modelJson1= widget->m_listWidget->save();
     modelJson["values"]=modelJson1;
     return modelJson;
 }
@@ -75,7 +75,7 @@ void InternalControlModel::load(const QJsonObject &p)
 {
     QJsonValue v = p["values"];
     if (!v.isUndefined()&&v.isObject()) {
-        widget->m_listWidget->load(v["messages"].toObject());
+        widget->m_listWidget->load(v.toObject());
     }
 }
 

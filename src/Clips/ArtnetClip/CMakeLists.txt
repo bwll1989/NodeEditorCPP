@@ -25,6 +25,7 @@ set(Devices_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../Common/Devices)
 # 设置源文件
 set(SOURCES
     Artnetclipmodel.hpp
+    Artnetclipmodel.cpp
     Artnetclipplugin.hpp
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
 #        ../../Widget/ExternalControl/ExternalControler.cpp
@@ -66,6 +67,8 @@ target_link_libraries(ArtnetClip PUBLIC
     swscale
     ${QtTimeLine_LIBRARIES}
     ArtnetTransmitter
+        MediaManger
+        GUIElements
 
 )
 

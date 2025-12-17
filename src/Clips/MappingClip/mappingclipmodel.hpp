@@ -26,13 +26,14 @@ namespace Clips
         // 重写保存和加载函数
         QJsonObject save() const override {
             QJsonObject json = AbstractClipModel::save();
-            json["messages"] = m_listWidget->save();
+            auto arr = m_listWidget->save()["messages"].toArray();
+            json["messages"] = arr;
             return json;
         }
 
         void load(const QJsonObject& json) override {
             AbstractClipModel::load(json);
-            m_listWidget->load(json["messages"].toObject());
+             m_listWidget->load(json);
 
         }
 
@@ -52,12 +53,12 @@ namespace Clips
                 m_currentFrame = currentFrame;
                 for (int i = 0; i < m_listWidget->count(); ++i)
                 {
-                    QListWidgetItem* currentItem = m_listWidget->item(i);
+                    OSCMessageItemWidget* widget = m_listWidget->item(i);
 
-                    if (!currentItem) {
+                    if (!widget) {
                         continue;
                     }
-                    auto* widget = static_cast<OSCMessageItemWidget*>(m_listWidget->itemWidget(currentItem));
+                    // auto* widget = static_cast<OSCMessageItemWidget*>(m_listWidget->itemWidget(currentItem));
                     // widget->getValue()
                     widget->getJSEngine()->globalObject().setProperty("$percent", value);
                     widget->getJSEngine()->globalObject().setProperty("$frame", m_currentFrame-m_start);
@@ -81,6 +82,7 @@ namespace Clips
             playLayout->setContentsMargins(0, 0, 0, 0);
             playLayout->addWidget(m_listWidget);
             mainLayout->addWidget(playGroup);
+            playGroup->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
             return m_editor;
         }
 

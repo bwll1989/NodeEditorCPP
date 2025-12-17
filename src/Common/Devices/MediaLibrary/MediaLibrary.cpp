@@ -2,12 +2,20 @@
 #include <QJsonDocument>
 #include <QFile>
 // 新增：定位 Windows 文档库路径
+#include <QMimeData>
 #include <QStandardPaths>
 #include <QtWidgets/QMessageBox>
 #include "ConstantDefines.h"
+#include <QGuiApplication>
+#include <QClipboard>
 /**
  * @brief 构造函数：初始化五个分类的组节点
  */
+inline QString ImageFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"path": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "Image File"}]})");
+inline QString JsonFileNode  = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"path": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "JSON File"}]})");
+inline QString IniFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"path": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "INI File"}]})");
+inline QString DmxFileNode   = QStringLiteral(R"({"nodes": [{ "id": 1, "input-count": 4, "internal-data": { "UniverseSettings": { "isLooping": false, "net": 0, "subnet": 0, "universe": 0, "videoFilePath": "%1" } }, "output-count": 4, "port-editable": true, "position": {"x": %2, "y": %3}, "remarks": "Universe Playback", "type": "Universe Playback"}]})");
+inline QString AudioFileNode = QStringLiteral(R"({"nodes": [{ "id": 1, "input-count": 4, "internal-data": { "autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 2, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Audio Decoder", "type": "Audio Decoder" } ] })");
 MediaLibrary::MediaLibrary(QObject* parent)
     : QStandardItemModel(parent)
 {
@@ -439,6 +447,111 @@ QHash<int, QByteArray> MediaLibrary::roleNames() const {
     names.insert(ParentRowRole, "parentRow");
     return names;
 }
+
+/**
+ * @brief 生成拖拽的 mimeData（application/media-item）,生成节点创建 JSON 模板，并复制到剪贴板
+ * 仅包含文件标签与文件名（不包含绝对路径），用于画布按标签创建节点
+ */
+QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
+{
+    QMimeData* md = new QMimeData();
+
+    // 单次遍历：同时完成 mimeData 生成 与 剪贴板模板复制
+    for (const QModelIndex& idx : indexes) {
+        if (!idx.isValid()) continue;
+
+        const QStandardItem* item = this->itemFromIndex(idx);
+        if (!item) continue;
+
+        const QStandardItem* parentGroup = item->parent();
+        if (!parentGroup) continue;          // 顶层组不参与
+
+        const QString path = item->data(PathRole).toString();
+        if (path.isEmpty()) continue;
+
+        const QString name = QFileInfo(path).fileName();
+        const int catInt   = item->data(CategoryRole).toInt();
+        const Category cat = static_cast<Category>(catInt);
+
+        // 1. 生成 mimeData（仅一次）
+        static const QHash<Category, QString> tagMap = {
+            {Category::Video,    "Video"},
+            {Category::Audio,    "Audio"},
+            {Category::DMX,      "DMX"},
+            {Category::Image,    "Image"},
+            {Category::Model,    "Model"},
+            {Category::Document, "Document"},
+            {Category::Unknown,  "Unknown"}
+        };
+        const QString tagKey = tagMap.value(cat, "Unknown");
+
+        QJsonObject obj;
+        obj["tag"]  = tagKey;
+        obj["name"] = name;
+        md->setData("application/media-item",
+                    QJsonDocument(obj).toJson(QJsonDocument::Compact));
+
+        // 2. 复制节点模板到剪贴板（仅一次）
+        const QFileInfo fi(path);
+        const QString fileName = fi.fileName();
+        QString tpl;
+        switch (cat) {
+            case Category::Video:
+                tpl = ImageFileNode.arg(fileName);
+                    break;
+                case Category::Audio:
+                    tpl = AudioFileNode.arg(fileName);
+                    break;
+                case Category::Image:
+                    tpl = ImageFileNode.arg(fileName);
+                    break;
+                case Category::DMX:
+                    tpl = DmxFileNode.arg(fileName);
+                    break;
+                case Category::Model:
+                    break;
+                case Category::Document: {
+                    const QString ext = fi.suffix().toLower();
+                    if (ext == "json") tpl = JsonFileNode.arg(fileName);
+                    else if (ext == "ini") tpl = IniFileNode.arg(fileName);
+                }
+                    break;
+                case Category::Unknown:
+                    tpl.clear();
+                    break;
+        }
+        if (!tpl.isEmpty()) {
+            if (QClipboard* cb = QGuiApplication::clipboard())
+                cb->setText(tpl);
+        }
+
+        break;   // 仅处理第一个有效文件项
+    }
+
+    return md;
+}
+
+/**
+ * @brief 声明支持的 mime 类型（包含 application/media-item）
+ */
+QStringList MediaLibrary::mimeTypes() const
+{
+    QStringList types = QStandardItemModel::mimeTypes();
+    if (!types.contains("application/media-item"))
+        types << "application/media-item";
+    return types;
+}
+
+/**
+ * @brief 拖拽动作为复制
+ */
+Qt::DropActions MediaLibrary::supportedDragActions() const
+{
+    return Qt::CopyAction;
+}
+
+
+
 
 /**
  * @brief 初始化存储目录（使用头文件常量 MEDIA_LIBRARY_STORAGE_DIR），并扫描已有文件入库

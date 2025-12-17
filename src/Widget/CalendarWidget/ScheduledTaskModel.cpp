@@ -5,67 +5,6 @@
  */
 ScheduledTaskModel::ScheduledTaskModel(QObject* parent)
     : QAbstractListModel(parent) {
-    // 从 JSON 字符串导入初始任务数据（与原始示例一致）
-//     fromJson(QJsonDocument::fromJson(R"(
-// {
-//    "tasks":
-//    [
-//     {
-//         "osc message":
-//         {
-//             "address": "/ewqeq/ewq",
-//             "host": "127.0.0.1",
-//             "port": 8082,
-//             "type": "Float",
-//             "value": "1.0"
-//         },
-//         "remarks": "这是一个示例任务",
-//         "scheduled":
-//         {
-//             "type":"loop",
-//             "time":"2025/10/13 17:00:32",
-//             "Conditions":[
-//                 "Monday",
-//                 "Wednesday"
-//             ]
-//         }
-//     },
-//     {
-//         "osc message":
-//         {
-//             "address": "/ewqeq/ewq2",
-//             "host": "127.0.0.1",
-//             "port": 8080,
-//             "type": "int",
-//             "value": 2
-//         },
-//         "remarks": "这是一个示例任务2",
-//         "scheduled":
-//         {
-//             "type":"once",
-//             "time":"2025/10/13 17:00:32"
-//         }
-//     },
-//     {
-//         "osc message":
-//         {
-//             "address": "/ewqeq/ewq2",
-//             "host": "127.0.0.1",
-//             "port": 8080,
-//             "type": "int",
-//             "value": 2
-//         },
-//         "scheduled":
-//         {
-//             "type":"loop",
-//             "time":"2025/10/13 17:00:32",
-//             "Conditions":[
-//
-//             ]
-//         }
-//     }    ]
-// }
-// )").object());
 }
 
 /**

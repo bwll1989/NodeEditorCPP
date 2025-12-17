@@ -28,14 +28,23 @@ namespace Clips
         // 重写保存和加载函数
         QJsonObject save() const override {
             QJsonObject json = AbstractClipModel::save();
-            json["messages"] = m_listWidget->save();
+            auto arr = m_listWidget->save()["messages"].toArray();
+            json["messages"] = arr;
             return json;
         }
 
         void load(const QJsonObject& json) override {
             AbstractClipModel::load(json);
-            m_listWidget->load(json["messages"].toObject());
+            m_listWidget->load(json);
 
+        }
+
+        void setMedia(const QVariant &command) {
+            QJsonObject msg;
+            QJsonArray arr ;
+            arr.append(command.toJsonObject());
+            msg["messages"] = arr;
+            m_listWidget->load(msg);
         }
 
         QVariant data(int role) const override {

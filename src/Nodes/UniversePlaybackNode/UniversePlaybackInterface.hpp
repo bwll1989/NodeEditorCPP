@@ -201,64 +201,19 @@ namespace Nodes
             playbackLayout->addWidget(loopCheckBox,1,0,1,2);
 
             playButton->setToolTip("开始播放视频（25fps）");
-            playButton->setStyleSheet(
-                "QPushButton {"
-                "    background-color: #4CAF50;"
-                "    color: white;"
-                "    border: none;"
-                "    padding: 8px 16px;"
-                "    border-radius: 4px;"
-                "    font-weight: bold;"
-                "}"
-                "QPushButton:hover {"
-                "    background-color: #45a049;"
-                "}"
-                "QPushButton:disabled {"
-                "    background-color: #cccccc;"
-                "}"
-            );
+
             connect(playButton, &QPushButton::clicked, this, &UniversePlaybackInterface::playClicked);
             playbackLayout->addWidget(playButton,2,0,1,1);
             
             stopButton->setToolTip("停止播放并重置到开头");
             stopButton->setEnabled(false);
-            stopButton->setStyleSheet(
-                "QPushButton {"
-                "    background-color: #f44336;"
-                "    color: white;"
-                "    border: none;"
-                "    padding: 8px 16px;"
-                "    border-radius: 4px;"
-                "    font-weight: bold;"
-                "}"
-                "QPushButton:hover {"
-                "    background-color: #da190b;"
-                "}"
-                "QPushButton:disabled {"
-                "    background-color: #cccccc;"
-                "}"
-            );
+
             connect(stopButton, &QPushButton::clicked, this, &UniversePlaybackInterface::stopClicked);
             playbackLayout->addWidget(stopButton,2,1,1,1);
 
             // 清空按钮
             clearButton->setToolTip("清空当前Universe的所有DMX数据（将所有512个通道设置为0）");
-            clearButton->setStyleSheet(
-                "QPushButton {"
-                "    background-color: #ff6b6b;"
-                "    color: white;"
-                "    border: none;"
-                "    padding: 8px 16px;"
-                "    border-radius: 4px;"
-                "    font-weight: bold;"
-                "}"
-                "QPushButton:hover {"
-                "    background-color: #ff5252;"
-                "}"
-                "QPushButton:pressed {"
-                "    background-color: #e53935;"
-                "}"
-            );
+
 
             // 连接清空按钮信号
             connect(clearButton, &QPushButton::clicked, this, &UniversePlaybackInterface::clearDataClicked);

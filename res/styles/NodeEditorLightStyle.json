@@ -1,34 +1,34 @@
 {
   "GraphicsViewStyle": {
-    "BackgroundColor": [53, 53, 53],
-    "FineGridColor": [60, 60, 60],
-    "CoarseGridColor": [25, 25, 25]
+    "BackgroundColor": [246, 246, 246],
+    "FineGridColor": [230, 230, 230],
+    "CoarseGridColor": [214, 214, 214]
   },
 
   "NodeStyle": {
-    "NormalBoundaryColor": [200, 200, 200],
+    "NormalBoundaryColor": [180, 180, 180],
     "SelectedBoundaryColor": [255, 165, 0],
 
-    "GradientColor0": "gray",
-    "GradientColor1": [80, 80, 80],
-    "GradientColor2": [64, 64, 64],
-    "GradientColor3": [58, 58, 58],
-    "ShadowColor": [255, 20, 20],
-    "ShadowEnabled":false,
-    "FontColor" : [53, 53, 53],
+    "GradientColor0": "lightgray",
+    "GradientColor1": [246, 246, 246],
+    "GradientColor2": [236, 236, 236],
+    "GradientColor3": [230, 230, 230],
+    "ShadowColor": [0, 0, 0],
+    "ShadowEnabled": false,
+    "FontColor" : [26, 26, 26],
     "FontColorFaded" : "gray",
     "ConnectionPointColor": [169, 169, 169],
     "FilledConnectionPointColor": "cyan",
     "ErrorColor": [211, 47, 47],
     "WarningColor": [255, 179, 0],
-    "ToolTipIconColor": "white",
+    "ToolTipIconColor": "black",
 
     "PenWidth": 1.0,
     "HoveredPenWidth": 1.5,
 
     "ConnectionPointDiameter": 10.0,
 
-    "Opacity": 0.95
+    "Opacity": 0.96
   },
 
   "ConnectionStyle": {
@@ -45,22 +45,22 @@
     "UseDataDefinedColors": true,
     "InArrow" : true,
     "OutArrow" : false
-},
+  },
 
   "GroupStyle": {
-    "NormalBoundaryColor": [255, 255, 255],
-    "FontColor" : [53, 53, 53],
-    "NormalColor": [255, 255, 255],
+    "NormalBoundaryColor": [180, 180, 180],
+    "FontColor" : [26, 26, 26],
+    "NormalColor": [248, 248, 248],
     "SelectedColor": [255, 165, 0],
     "SelectedHaloColor": "orange",
     "CaptionColor": "darkcyan",
-    "Opacity": 0.8,
+    "Opacity": 0.85,
     "PenWidth": 1.0,
     "HoveredPenWidth": 1.5,
-    "GradientColor0": "gray",
+    "GradientColor0": "lightgray",
     "CaptionHeight": 30.0,
-    "GradientColor1": [80, 80, 80],
-    "GradientColor2": [64, 64, 64],
-    "GradientColor3": [58, 58, 58]
+    "GradientColor1": [250, 250, 250],
+    "GradientColor2": [242, 242, 242],
+    "GradientColor3": [235, 235, 235]
   }
 }

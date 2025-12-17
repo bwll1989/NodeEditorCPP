@@ -18,8 +18,9 @@ protected:
     * @param QMouseEvent *event 鼠标事件
     */
     void mouseMoveEvent(QMouseEvent *event) override;
-
     QString isMimeAcceptable(const QMimeData *Mime) const override;
+
+    void dropEvent(QDropEvent *event) override;
 private:
     void movePlayheadToFrame(int frame) override;
 

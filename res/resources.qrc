@@ -119,13 +119,18 @@
     <file>icons/inspection.png</file>
     <file>icons/internal.png</file>
     <file>icons/external.png</file>
+    <file>icons/send.png</file>
+    <file>icons/night_landscape.png</file>
+    <file>icons/landscape.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>
   </qresource>
   <qresource prefix="styles">
-    <file>styles/DefaultNodeEditorStyle.json</file>
+    <file>styles/NodeEditorDarkStyle.json</file>
+    <file>styles/NodeEditorLightStyle.json</file>
     <file>styles/DefaultDark.qss</file>
+    <file>styles/DefaultLight.qss</file>
   </qresource>
   <qresource prefix="docs">
     <file>README.md</file>
@@ -134,6 +139,7 @@
     <file>qml/LogWidget.qml</file>
     <file>qml/DataBrowser.qml</file>
     <file>qml/MediaLibraryView.qml</file>
+    <file>qml/OscMessageList.qml</file>
   </qresource>
   <qresource prefix="/ads_icons">
     <file>ads_icons/close-button.svg</file>

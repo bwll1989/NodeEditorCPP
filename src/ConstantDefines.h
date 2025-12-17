@@ -44,4 +44,9 @@ namespace AppConstants {
     // Art-Net 输出FPS
     constexpr double ARTNET_OUTPUT_FPS = 50.0; // 25ms
 
+    // 深色主题样式表
+    const QString DARK_STYLESHEET = ":/styles/styles/DefaultDark.qss";
+    // 浅色主题样式表
+    const QString LIGHT_STYLESHEET = ":/styles/styles/DefaultLight.qss";
+
 }

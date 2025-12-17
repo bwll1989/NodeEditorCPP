@@ -46,9 +46,21 @@ public:
     void setScheduledInfo(const ScheduledInfo& info);
 
 private:
+    /**
+     * 函数：TaskItemWidget::setupUI
+     * 作用：构建“紧凑卡片风格”的任务编辑界面，包含左侧强调条与统一控件样式，
+     *       与 OSCMessageItemWidget 风格保持一致以提升可读性与一致性。
+     */
     void setupUI();
+    /**
+     * 函数：TaskItemWidget::connectSignals
+     * 作用：连接各控件的信号，确保数据编辑变更与发送测试事件能够正确通知。
+     */
     void connectSignals();
-    // QLineEdit* hostEdit;
+    /**
+     * 函数：TaskItemWidget::applyCardStyle
+     * 作用：应用卡片统一样式（圆角、暗色背景、输入控件风格、强调条颜色等）。
+     */
     QLineEdit* addressEdit;
     QComboBox* typeCombo;
     QLineEdit* valueEdit;
@@ -68,4 +80,9 @@ private:
 
     // 新增：用于在编辑器生命周期内保存当前任务的日期，避免 getScheduledInfo 使用当前系统日期
     QDate m_boundDate;
+
+    /**
+     * 卡片风格元素：与 OSCMessageItemWidget 保持一致
+     */
+    QFrame* m_accentBar = nullptr;
 };

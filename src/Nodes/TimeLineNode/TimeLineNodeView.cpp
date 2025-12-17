@@ -54,31 +54,102 @@ void TimeLineNodeView::mouseMoveEvent(QMouseEvent *event)
 
 QString TimeLineNodeView::isMimeAcceptable(const QMimeData *Mime) const
 {
-    // 获取拖拽的文件路径
-
-    if (Mime->hasUrls())
-    {
-        QString filePath = Mime->urls().first().toLocalFile();
-        QFileInfo fileInfo(filePath);
-        QString suffix = fileInfo.suffix().toLower();
-        // 根据后缀判断文件类型
-        if(VideoTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Video";
-        }
-        else if(AudioTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Audio";
-        }
-        else if(ImageTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Image";
-        }
-        else if(ControlTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Control";
-        }
-    }else if (Mime->hasFormat("application/x-osc-address"))
+    // 检查是否为 OSC 地址
+    if (Mime->hasFormat("application/x-osc-address"))
     {
         return "Trigger";
     }
+    // 检查是否为自定义媒体库条目
+    if (Mime->hasFormat("application/media-item")) {
+        const QByteArray raw = Mime->data("application/media-item");
+        QJsonParseError parseError;
+        const QJsonDocument doc = QJsonDocument::fromJson(raw, &parseError);
+        if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+            qWarning() << "Invalid media-item mime JSON:" << parseError.errorString();
+            return "";
+        }
+        const QJsonObject obj = doc.object();
+        const QString tag  = obj.value("tag").toString();
+        const QString name = obj.value("name").toString();
+
+        if (tag.isEmpty() || name.isEmpty()) {
+            qWarning() << "media-item missing required fields: tag/name";
+            return "";
+        }
+
+       if(tag=="DMX") return "Artnet";
+       if (tag=="Video" || tag=="Image" || tag=="Audio") return tag;
+    }
     return "";
+}
+
+/**
+ * 函数：TimeLineView::dropEvent
+ * 作用：处理媒体拖拽到时间线后的新剪辑创建，并构造嵌套的 OSC 消息 JSON：
+ *       "messages": { "messages": [ {..value:"1"}, {..value:""} ] }
+ * 关键点：
+ *  - 正确读取/更新 QJsonObject 与 QJsonArray（取出 -> 修改 -> 写回）
+ *  - 生成两条消息（开始播放与清空值），符合期望格式
+ */
+void TimeLineNodeView::dropEvent(QDropEvent *event)
+{
+    if(m_isSupportMedia){
+        m_lastDragPos = event->position().toPoint();
+        QModelIndex trackIndex;
+        QRect rullerRect(-m_scrollOffset.x(),0,viewport()->width() + m_scrollOffset.x(),rulerHeight);
+        /* If above or on the ruler drop on the first track*/
+        if(m_lastDragPos.y()<0 || rullerRect.contains(m_lastDragPos)){
+            if(getModel()->rowCount()>0)
+                trackIndex = model()->index(0, 0);
+        }else{
+            /* Find track at drop point */
+            for(int i = 0; i < getModel()->rowCount(); i++){
+                if (visualRect(getModel()->index(i, 0)).contains(m_lastDragPos)){
+                    trackIndex = getModel()->index(i,0);
+                }
+            }
+        }
+        /* If dropped out side of tracks */
+        if(!trackIndex.isValid()){
+            return;
+        }
+        int pos = pointToFrame(m_lastDragPos.x());
+
+        getModel()->onAddClip(trackIndex.row(),pos);
+        viewport()->update();
+        auto doc=getModel()->getTracks()[trackIndex.row()]->clips.back()->save();
+        if(event->mimeData()->hasFormat("application/x-osc-address")){
+            QDataStream stream(event->mimeData()->data("application/x-osc-address"));
+            QString address, host,type;
+            QVariant value;
+            int port;
+            stream >>  host >> port >> address >>type>>value;
+            QJsonObject msg;
+                msg["address"] = address;
+                msg["host"]    = host.isEmpty() ? "127.0.0.1" : host;
+                msg["port"]    = port == 0 ? 8991 : port;
+                msg["type"]    = type.isEmpty() ? "Int" : type;
+                msg["value"]   = value.isValid()? value.toString() : "1";
+            getModel()->getTracks()[trackIndex.row()]->clips.back()->setMedia(msg);
+            return;
+        }
+        if(event->mimeData()->hasFormat("application/media-item")){
+              const QByteArray raw = event->mimeData()->data("application/media-item");
+            QJsonParseError parseError;
+            const QJsonDocument mime = QJsonDocument::fromJson(raw, &parseError);
+            if (parseError.error != QJsonParseError::NoError || !mime.isObject()) {
+                qWarning() << "Invalid media-item mime JSON:" << parseError.errorString();
+                return;
+            }
+            const QJsonObject obj = mime.object();
+            const QString name = obj.value("name").toString();
+            getModel()->getTracks()[trackIndex.row()]->clips.back()->setMedia(name);
+
+        }
+            
+    }else{
+        QAbstractItemView::dropEvent(event);
+    }
 }
 
 void TimeLineNodeView::initToolBar(BaseTimelineToolbar *toolbar)

@@ -65,7 +65,11 @@ public:
      * @param json JSON 对象
      */
     void load(const QJsonObject& json);
-
+    /**
+     * @brief 获取任务列表控件的右键菜单操作列表
+     * @return 操作列表（QAction*）
+     */
+    QList<QAction*> getActions();
 signals:
     /**
      * @brief 日期任务变更信号

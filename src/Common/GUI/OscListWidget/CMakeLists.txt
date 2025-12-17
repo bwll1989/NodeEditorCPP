@@ -15,6 +15,8 @@ set(OscListWidget_sources
         OSCMessageListWidget.hpp
         OSCMessageItemWidget.cpp
         OSCMessageItemWidget.hpp
+        OSCMessageListModel.cpp
+        OSCMessageListModel.hpp
 )
 
 #target_link_libraries(MYLIBRARY_LIBRARY PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::WebSockets)
@@ -28,6 +30,7 @@ target_link_libraries(OscListWidget PRIVATE
         Qt${QT_VERSION_MAJOR}::Gui
         Qt${QT_VERSION_MAJOR}::Qml
         OSCTransmitter
+        GUIElements
 )
 
 target_compile_definitions(OscListWidget PRIVATE OSCLISTWIDGET_LIBRARY)

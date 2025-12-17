@@ -166,4 +166,19 @@ private:
      * @brief 重写角色名映射，向 QML 暴露自定义角色
      */
     QHash<int, QByteArray> roleNames() const override;
+    /**
+     * @brief 支持从媒体库拖拽：提供文件URL等mime类型
+     * 生成 text/uri-list，便于其他视图识别并创建对应节点
+     */
+    QMimeData* mimeData(const QModelIndexList& indexes) const override;
+
+    /**
+     * @brief 声明模型支持的拖拽mime类型（包含 text/uri-list）
+     */
+    QStringList mimeTypes() const override;
+
+    /**
+     * @brief 拖拽动作为复制（不移动媒体库条目）
+     */
+    Qt::DropActions supportedDragActions() const override;
 };

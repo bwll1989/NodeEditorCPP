@@ -6,7 +6,7 @@ using namespace Nodes;
 using namespace NodeDataTypes;
 ColorFDataModel::ColorFDataModel(){
     InPortCount = 4;
-    OutPortCount=1;
+    OutPortCount=5;
     CaptionVisible=true;
     Caption="Color Float";
     WidgetEmbeddable=false;
@@ -57,14 +57,40 @@ QString ColorFDataModel::portCaption(QtNodes::PortType portType, QtNodes::PortIn
         }
     }
     if (portType == QtNodes::PortType::Out) {
-        return "RGB";
+        switch (portIndex) {
+            case 0:
+                return "COLOR";
+            case 1:
+                return "RED";
+            case 2:
+                return "GREEN";
+            case 3:
+                return "BLUE";
+            case 4:
+                return "ALPHA";
+            default:
+                return "";
+        }
     }
     return "";
 
 }
 
-std::shared_ptr<QtNodes::NodeData> ColorFDataModel::outData(QtNodes::PortIndex) {
-        return std::make_shared<VariableData>(m_color);
+std::shared_ptr<QtNodes::NodeData> ColorFDataModel::outData(QtNodes::PortIndex portIndex) {
+        switch (portIndex) {
+            case 0:
+                return std::make_shared<VariableData>(m_color);
+            case 1:
+                return std::make_shared<VariableData>(m_color.redF());
+            case 2:
+                return std::make_shared<VariableData>(m_color.greenF());
+            case 3:
+                return std::make_shared<VariableData>(m_color.blueF());
+            case 4:
+                return std::make_shared<VariableData>(m_color.alphaF());
+            default:
+                return std::make_shared<VariableData>(m_color);
+        }
 }
 
 void ColorFDataModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex port) {
@@ -147,4 +173,8 @@ void ColorFDataModel::onColorChanged(const QColor& c) {
     pix.fill(m_color);
     widget->display->setPixmap(pix);
     Q_EMIT dataUpdated(0);
+    Q_EMIT dataUpdated(1);
+    Q_EMIT dataUpdated(2);
+    Q_EMIT dataUpdated(3);
+    Q_EMIT dataUpdated(4);
 }

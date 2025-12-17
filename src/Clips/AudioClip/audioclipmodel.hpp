@@ -12,7 +12,9 @@
 #include "TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
+#include "ConstantDefines.h"
 #include "../../Common/Devices/ClientController/SocketTransmitter.h"
+#include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -55,12 +57,10 @@ namespace Clips
         }
 
         // 设置文件路径并加载视频信息
-        void setFilePath(const QString& path) {
-            if (m_filePath != path) {
-                m_filePath = path;
-                loadAudioInfo(path);
-                emit filePathChanged(path);
-            }
+        void setMedia(const QVariant& path) override{
+            mediaSelector->setText(path.toString());
+            emit mediaSelector->textChanged(path.toString());
+            onPropertyChanged();
         }
 
         void setStart(int start) override  {
@@ -91,12 +91,12 @@ namespace Clips
         }
 
         void load(const QJsonObject& json) override {
-            AbstractClipModel::load(json);
-            m_filePath = json["filePath"].toString();
 
+            m_filePath = json["file"].toString();
             if(!m_filePath.isEmpty()) {
-                loadAudioInfo(m_filePath);
+                loadAudioInfo(AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+m_filePath);
             }
+            AbstractClipModel::load(json);
             m_id = json["Id"].toInt();
             gain->setValue(json["gain"].toInt());
         }
@@ -129,29 +129,33 @@ namespace Clips
             // // durationBox->setText(""(length(), timecode_frames_per_sec(getTimecodeType())));
             // basicLayout->addWidget(durationBox, 1, 1);
             // 文件名显示
-            auto* fileNameLabel = new QLineEdit(filePath(), basicGroup);
-            fileNameLabel->setReadOnly(true);
-            basicLayout->addWidget(fileNameLabel, 1, 0, 1, 2);
+
             // 媒体文件选择
-            basicLayout->addWidget(new QLabel("媒体文件:"), 4, 0);
-            auto* mediaButton = new QPushButton("选择媒体文件", basicGroup);
-            basicLayout->addWidget(mediaButton, 4, 1);
-            // 连接信号槽
-            connect(mediaButton, &QPushButton::clicked, [=]() {
-                QString filePath = QFileDialog::getOpenFileName(m_editor,
-                    "选择媒体文件",
-                    "",
-                    "音频文件 (*.mp3 *.wav *.aac *.flac);;"
-                    "所有文件 (*)");
-
-                if (!filePath.isEmpty()) {
-                    setFilePath(filePath);  // 这会触发视频信息加载和长度更新
-                    fileNameLabel->setText(filePath);
-                    // 更新时长显示，使用时间码格式
-                    // durationBox->setText(FramesToTimeString(length(), getFrameRate(getTimecodeType())));
-
+            mediaSelector = new SelectorComboBox(MediaLibrary::Category::Audio,basicGroup);
+            basicLayout->addWidget(mediaSelector, 0, 1,1,2);
+            connect(mediaSelector,&SelectorComboBox::textChanged,[=](const QString& text){
+                if (m_filePath != text) {
+                    m_filePath = text;
+                    emit filePathChanged(m_filePath);
+                    emit onPropertyChanged();
                 }
             });
+            // 连接信号槽
+            // connect(mediaButton, &QPushButton::clicked, [=]() {
+            //     QString filePath = QFileDialog::getOpenFileName(m_editor,
+            //         "选择媒体文件",
+            //         "",
+            //         "音频文件 (*.mp3 *.wav *.aac *.flac);;"
+            //         "所有文件 (*)");
+            //
+            //     if (!filePath.isEmpty()) {
+            //         setMeida(filePath);  // 这会触发视频信息加载和长度更新
+            //         fileNameLabel->setText(filePath);
+            //         // 更新时长显示，使用时间码格式
+            //         // durationBox->setText(FramesToTimeString(length(), getFrameRate(getTimecodeType())));
+            //
+            //     }
+            // });
             mainLayout->addWidget(basicGroup);
             // 添加尺寸位置参数设置
             auto* positionGroup = new QGroupBox("音频参数", m_editor);
@@ -240,6 +244,7 @@ namespace Clips
             onPropertyChanged();
         }
 
+        SelectorComboBox* mediaSelector;
         QString m_filePath;
         QWidget* m_editor;
         QSpinBox* gain;
