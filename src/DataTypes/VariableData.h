@@ -33,6 +33,10 @@ namespace NodeDataTypes
         QVariantMap getMap() const ;
 
         std::unique_ptr<QJsonObject> json() const ;
+        
+        QString toJsonString() const;
+
+        QStringList keys() const;
 
     private:
         QVariantMap NodeValues;

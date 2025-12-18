@@ -37,6 +37,8 @@ set(BuildInNodes_sources
     BuildInNodes.hpp
     ImageShowModel.cpp
     ImageShowModel.hpp
+    ToJsonDataModel.hpp
+    FromJsonDataModel.hpp
 )
 
 # 生成静态库（也可改为 SHARED，如需导出符号）

@@ -58,5 +58,15 @@ std::unique_ptr<QJsonObject> VariableData::json() const {
     return jsonObject;
 }
 
+QString VariableData::toJsonString() const {
+    QJsonObject jsonObject;
+    for (auto it = NodeValues.begin(); it != NodeValues.end(); ++it) {
+        jsonObject.insert(it.key(), QJsonValue::fromVariant(it.value()));
+    }
+    QJsonDocument doc(jsonObject);
+    return doc.toJson(QJsonDocument::Indented);
+}
 
-
+QStringList VariableData::keys() const {
+    return NodeValues.keys();
+}

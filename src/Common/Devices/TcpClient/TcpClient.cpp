@@ -42,18 +42,21 @@ TcpClient::TcpClient(QString dstHost, int dstPort, QObject *parent) : QObject(pa
 TcpClient::~TcpClient()
 {
     // 请求断开连接
-    emit disconnectFromServerRequest();
+    // emit disconnectFromServerRequest();
     
     // 等待一小段时间确保断开连接的消息被处理
-    QThread::msleep(50);
+    // QThread::msleep(50);
     
     // 停止并删除线程和工作对象
+    // 先请求 worker 自我销毁（在线程事件循环中处理）
+    worker->deleteLater();
+
     if (workerThread->isRunning()) {
         workerThread->quit();
         workerThread->wait();
     }
     
-    worker->deleteLater();
+    // worker->deleteLater(); // 移到上面
     delete workerThread;
 }
 

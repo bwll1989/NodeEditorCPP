@@ -240,6 +240,8 @@ void MainWindow::init()
         trayIcon->setToolTip(tr("NodeStudio"));
         // 托盘菜单
         trayMenu = new QMenu(this);
+        trayMenu->setWindowFlags(trayMenu->windowFlags() | Qt::NoDropShadowWindowHint);
+        trayMenu->setAttribute(Qt::WA_TranslucentBackground, false);
         trayExitAction    = trayMenu->addAction(tr("  退出  "));
         connect(trayExitAction,    &QAction::triggered, this, [this]() {
             // 退出前保存布局

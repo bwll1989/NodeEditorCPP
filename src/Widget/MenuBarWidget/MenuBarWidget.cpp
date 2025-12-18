@@ -16,8 +16,12 @@ MenuBarWidget::MenuBarWidget(QWidget *parent) : QMenuBar(parent) {
 
 void MenuBarWidget::setupMenu() {
     Files_menu = this->addMenu("文件");
+    Files_menu->setWindowFlags(Files_menu->windowFlags() | Qt::NoDropShadowWindowHint);
+    Files_menu->setAttribute(Qt::WA_TranslucentBackground, false);
     loadAction = Files_menu->addAction(QIcon(":/icons/icons/open_flat.png"),"打开文件");
     recentFilesMenu = Files_menu->addMenu(QIcon(":/icons/icons/history.png"),"最近打开");
+    recentFilesMenu->setWindowFlags(recentFilesMenu->windowFlags() | Qt::NoDropShadowWindowHint);
+    recentFilesMenu->setAttribute(Qt::WA_TranslucentBackground, false);
     for (int i = 0; i < AppConstants::MaxRecentFiles; ++i) {
         recentFileActs[i] = new QAction(this);
         recentFileActs[i]->setVisible(false);
@@ -36,6 +40,8 @@ void MenuBarWidget::setupMenu() {
     exitAction = Files_menu->addAction(QIcon(":/icons/icons/exit.png"),"退出");
 
     Edit_menu=this->addMenu("编辑");
+    Edit_menu->setWindowFlags(Edit_menu->windowFlags() | Qt::NoDropShadowWindowHint);
+    Edit_menu->setAttribute(Qt::WA_TranslucentBackground, false);
     //新建数据流程
     New_dataflow=Edit_menu->addAction(QIcon(":/icons/icons/add_database.png"),"新建数据流");
     //清空数据流
@@ -50,10 +56,14 @@ void MenuBarWidget::setupMenu() {
     clearAction = Edit_menu->addAction(QIcon(":/icons/icons/clear.png"),"清空日志");
 
     View_menu=this->addMenu("视图");
+    View_menu->setWindowFlags(View_menu->windowFlags() | Qt::NoDropShadowWindowHint);
+    View_menu->setAttribute(Qt::WA_TranslucentBackground, false);
     //切换主题
     switchTheme=View_menu->addAction(QIcon(":/icons/icons/landscape.png"),"切换主题");
 
     views=View_menu->addMenu(QIcon(":/icons/icons/statistics.png"),"显示窗口");
+    views->setWindowFlags(views->windowFlags() | Qt::NoDropShadowWindowHint);
+    views->setAttribute(Qt::WA_TranslucentBackground, false);
 
     View_menu->addSeparator();
     restoreLayout=View_menu->addAction(QIcon(":/icons/icons/restore.png"),"重置默认布局");
@@ -67,12 +77,16 @@ void MenuBarWidget::setupMenu() {
     // Setting_2->setIcon(QIcon(":/icons/icons/setting.png"));
 
     Plugins_menu = this->addMenu("插件");
+    Plugins_menu->setWindowFlags(Plugins_menu->windowFlags() | Qt::NoDropShadowWindowHint);
+    Plugins_menu->setAttribute(Qt::WA_TranslucentBackground, false);
     pluginsManagerAction = Plugins_menu->addAction(QIcon(":/icons/icons/plugins.png"),"插件管理器");
     pluginsFloderAction =Plugins_menu->addAction(QIcon(":/icons/icons/open_flat.png"),"打开插件文件夹");
 
     createNodeAction=new QAction(QStringLiteral("Create node"));
 
     Tool_menu=this->addMenu("工具");
+    Tool_menu->setWindowFlags(Tool_menu->windowFlags() | Qt::NoDropShadowWindowHint);
+    Tool_menu->setAttribute(Qt::WA_TranslucentBackground, false);
     tool1Action = Tool_menu->addAction(QIcon(":/icons/icons/converty.png"),"视频格式转换器");
     connect(tool1Action, &QAction::triggered, this, [this]() {
 
@@ -105,6 +119,8 @@ void MenuBarWidget::setupMenu() {
     });
 
     About_menu=this->addMenu("关于");
+    About_menu->setWindowFlags(About_menu->windowFlags() | Qt::NoDropShadowWindowHint);
+    About_menu->setAttribute(Qt::WA_TranslucentBackground, false);
     helpAction=About_menu->addAction(QIcon(":/icons/icons/help.png"),"帮助");
     connect(helpAction, &QAction::triggered, this, &MenuBarWidget::showHelp);
 

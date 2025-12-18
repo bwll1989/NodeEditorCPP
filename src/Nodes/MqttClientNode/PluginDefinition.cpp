@@ -1,7 +1,7 @@
 #include "PluginDefinition.hpp"
 
-#include "InternalControlModel.hpp"
-#include "OscOutGroupModel.hpp"
+#include "MqttDataModel.hpp"
+
 Plugin *Plugin::_this_plugin = nullptr;
 
 Plugin::Plugin()
@@ -18,6 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::InternalControlModel>(name(),tag());
-    reg->registerModel<Nodes::OscOutGroupModel>("Osc Out Group","Connect");
+    reg->registerModel<Nodes::MqttDataModel>(name(),tag());
 }

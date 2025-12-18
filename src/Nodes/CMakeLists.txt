@@ -63,6 +63,7 @@ set(ALL_NODES
     NDIInNode                                 #NDI输入节点
     NDIOutNode                                #NDI输出节点
     PJLinkNode                                #PJLink输出节点
+    MqttClientNode                              #Mqtt客户端节点
     LTCDecoderNode                              #LTC时间码解析节点
     AudioMatrixNode                             #音频矩阵节点
     AudioAnalysisNode                           #音频分析节点
@@ -151,6 +152,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(NDIInNode)                                 #NDI输入节点
     add_subdirectory(NDIOutNode)                                #NDI输出节点
     add_subdirectory(PJLinkNode)                                #PJLink输出节点
+    add_subdirectory(MqttClientNode)                              #Mqtt客户端节点
     add_subdirectory(LTCDecoderNode)                            #LTC时间码解析节点
     add_subdirectory(AudioMatrixNode)                           #音频矩阵节点
     add_subdirectory(DataVisualNode)                            #数据可视化节点

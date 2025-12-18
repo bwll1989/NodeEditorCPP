@@ -2,8 +2,7 @@
 // Created by WuBin on 2024/12/6.
 //
 
-#ifndef NODEEDITORCPP_HTTPCLIENT_H
-#define NODEEDITORCPP_HTTPCLIENT_H
+#pragma once
 
 #include <QJsonDocument>
 #include "QObject"
@@ -32,4 +31,4 @@ namespace Nodes
         QNetworkAccessManager manager;
     };
 }
-#endif //NODEEDITORCPP_HTTPCLIENT_H
+

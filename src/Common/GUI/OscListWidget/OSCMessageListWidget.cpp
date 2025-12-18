@@ -400,6 +400,8 @@ void OSCMessageListWidget::showContextMenu(const QPoint& pos)
      * 作用：右键弹出菜单；根据事件源正确映射位置。
      */
     QMenu menu(this);
+    menu.setWindowFlags(menu.windowFlags() | Qt::NoDropShadowWindowHint);
+    menu.setAttribute(Qt::WA_TranslucentBackground, false);
     QAction* addAction = menu.addAction(QIcon(":/icons/icons/add.png"),"Add Message");
   
     QAction* deleteAction = menu.addAction(QIcon(":/icons/icons/delete.png"),"Delete Message");

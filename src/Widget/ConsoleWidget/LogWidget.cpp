@@ -17,6 +17,11 @@ LogWidget::LogWidget() {
     
     // 设置选择行为，使整行选中
     setSelectionBehavior(QAbstractItemView::SelectRows);
+    // 移除菜单阴影，避免圆角显示不一致
+    if (menu) {
+        menu->setWindowFlags(menu->windowFlags() | Qt::NoDropShadowWindowHint);
+        menu->setAttribute(Qt::WA_TranslucentBackground, false);
+    }
     // 初始化右键菜单
     initializeActions();
     

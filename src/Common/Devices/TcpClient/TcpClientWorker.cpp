@@ -73,6 +73,8 @@ void TcpClientWorker::connectToServer(const QString &dstHost, int dstPort)
     // qDebug() << "connecting to server at" <<host << ":" << port;
     tcpClient->connectToHost(host, port);
 
+    // 移除同步等待，改用异步信号处理
+    /*
     if(tcpClient->waitForConnected(500))
     {
         isConnected = true;
@@ -82,6 +84,7 @@ void TcpClientWorker::connectToServer(const QString &dstHost, int dstPort)
         isConnected = false;
     }
     emit isReady(isConnected);
+    */
 }
 
 void TcpClientWorker::disconnectFromServer()
@@ -167,6 +170,10 @@ void TcpClientWorker::onErrorOccurred(QAbstractSocket::SocketError socketError)
     qWarning() << "Socket error:" << socketError;
     isConnected = false;
     emit isReady(isConnected);
+    // 连接失败时启动重连定时器
+    if (!m_timer->isActive()) {
+        m_timer->start();
+    }
 }
 
 void TcpClientWorker::reConnect()

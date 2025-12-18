@@ -12,8 +12,8 @@ add_library(${Module_Name} SHARED
         MpvControllerInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-        HttpClient.cpp
-        HttpClient.h)
+        ../../Common/Devices/HttpClient/HttpClient.cpp
+        ../../Common/Devices/HttpClient/HttpClient.h)
 #set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}

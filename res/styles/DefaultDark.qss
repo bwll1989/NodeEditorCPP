@@ -187,6 +187,7 @@ QMenu {
     border-radius: 6px;
     padding: 4px 4px 4px 4px;
     margin: 0px;
+    min-height: 20px;
 }
 
 QMenu::item {
@@ -196,6 +197,7 @@ QMenu::item {
     padding: 4px 20px;
     background-color: transparent;
     border-radius: 6px;
+    min-height: 20px;
 }
 
 QMenu::item:selected {
@@ -326,6 +328,36 @@ QComboBox::drop-down:pressed {
 
 
 
+/* ======= 列表视图样式 ======= */
+QListView {
+    background-color: transparent;
+    color: #a9b7c6;
+    border: 1px solid rgba(255,255,255,30);
+    border-radius: 6px;
+    outline: 0;
+}
+
+QListView::item {
+    height: 26px;
+    padding: 2px 8px;
+    border-left: 2px solid transparent;
+}
+
+QListView::item:selected {
+    background-color: #2a292f;
+    color: #FFFFFF;
+    border-left-color: #0078d4;
+    border-left-width: 2px;
+    padding-left: 10px;
+}
+
+QListView::item:hover:!selected {
+    background-color: #2a292f;
+    border-left-color: #0078d4;
+    border-left-width: 2px;
+    padding-left: 10px;
+}
+
 /* ======= 树形控件样式 ======= */
 QTreeWidget {
     background-color: transparent;
@@ -339,6 +371,7 @@ QTreeWidget::item {
     height: 26px;
     padding: 2px 8px;
     border-left: 2px solid transparent;
+    min-height: 20px;
 }
 
 QTreeWidget::item:selected {
@@ -360,7 +393,7 @@ QTreeWidget::item:hover:!selected {
 QTreeView {
     background-color: transparent;
     color: #a9b7c6;
-    border: 1px solid rgba(0,0,0,20);
+    border: 1px solid rgba(255,255,255,30);
     border-radius: 4px;
     outline: 0;
 }
@@ -426,6 +459,14 @@ QTreeView::branch:!has-children:!adjoins-item,
 QTreeView::branch:has-children:closed,
 QTreeView::branch:has-children:open {
     border: none;
+}
+
+QTreeView::branch:has-children:closed {
+    image: url(:/icons/icons/arror_right.png);
+}
+
+QTreeView::branch:has-children:open {
+    image: url(:/icons/icons/expand.png);
 }
 
 

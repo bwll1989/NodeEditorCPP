@@ -36,11 +36,6 @@ namespace Nodes
          * @param parent 父控件
          */
         explicit PJLinkInterface(QWidget *parent = nullptr){
-            // 创建主布局
-            main_layout = new QVBoxLayout(this);
-            main_layout->setContentsMargins(5, 5, 5, 5);
-            main_layout->setSpacing(5);
-            
             // 连接设置组
             createConnectionGroup();
             hostEdit->setText("192.168.1.4");
@@ -48,7 +43,7 @@ namespace Nodes
             portSpinBox->setRange(100, 65535);
             portSpinBox->setValue(4352);
             customCommandLineEdit->setText("LAMP ?");
-            this->setLayout(main_layout);
+
 
             setMinimumSize(200, 150);
 
@@ -73,7 +68,6 @@ namespace Nodes
         {
 
             QGridLayout *connectionLayout = new QGridLayout(this);
-
             connectionLayout->addWidget(hostLabel, 0, 0, 1, 1);
             connectionLayout->addWidget(hostEdit, 0, 1, 1, 1);
             connectionLayout->addWidget(portLabel, 1, 0, 1, 1);
@@ -91,12 +85,10 @@ namespace Nodes
             connectionLayout->addWidget(muteOffButton, 5, 1, 1, 1);
             connectionLayout->addWidget(customCommandLineEdit, 6, 0, 1, 2);
             connectionLayout->addWidget(customCommandButton, 7, 0, 1, 2);
-            main_layout->addLayout(connectionLayout);
+
         }
 
     private:
-        QVBoxLayout *main_layout;
-
         QLabel *hostLabel = new QLabel("主机地址:");
         QLabel *portLabel = new QLabel("端口:");
         QLabel *passwordLabel = new QLabel("Password:");

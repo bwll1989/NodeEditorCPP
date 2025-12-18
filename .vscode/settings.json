@@ -146,6 +146,7 @@
         "qkeyevent": "cpp",
         "qfiledialog": "cpp",
         "qabstractlistmodel": "cpp",
-        "qregularexpressionvalidator": "cpp"
+        "qregularexpressionvalidator": "cpp",
+        "*.rh": "cpp"
     }
 }

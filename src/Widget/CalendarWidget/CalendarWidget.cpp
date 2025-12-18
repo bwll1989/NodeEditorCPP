@@ -155,6 +155,8 @@ QDate OscCalendarWidget::getDateAtPosition(const QPoint& pos)
 QMenu* OscCalendarWidget::createContextMenu(const QDate& date)
 {
     QMenu* menu = new QMenu(this);
+    menu->setWindowFlags(menu->windowFlags() | Qt::NoDropShadowWindowHint);
+    menu->setAttribute(Qt::WA_TranslucentBackground, false);
     
     // 显示日期信息
     QAction* dateAction = menu->addAction(QString("日期: %1").arg(date.toString("yyyy-MM-dd")));
@@ -180,6 +182,5 @@ QMenu* OscCalendarWidget::createContextMenu(const QDate& date)
     
     return menu;
 }
-
 
 

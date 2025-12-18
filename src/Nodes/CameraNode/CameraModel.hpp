@@ -58,14 +58,14 @@ public:
      * @param deviceIndex 摄像头设备索引
      */
     void startCapture(int deviceIndex) {
-        QMutexLocker locker(&m_mutex);
-        
         // 如果线程已经在运行，先停止它
+        // 注意：不要在这里持有互斥锁，否则wait()会死锁（因为run()中退出需要获取锁）
         if (isRunning()) {
             stop();
             wait();
         }
-        
+
+        QMutexLocker locker(&m_mutex);
         m_deviceIndex = deviceIndex;
         m_running = true;
         

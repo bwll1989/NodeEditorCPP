@@ -76,10 +76,11 @@ namespace Nodes
         }
         
         ~TCPClientDataModel(){
-            if ( widget->statusButton->isChecked())
+            if(client){
                 client->disconnectFromServer();
-            delete client;
-
+                delete client;
+                client = nullptr;
+            }
         }
     public:
 

@@ -1,12 +1,11 @@
 #pragma once
-
-
-#include <QTreeWidget>
+#include <QTreeView>
 
 /**
  * @brief A tree widget that allows for the dragging of its components to other widgets.
  */
-class DraggableTreeWidget : public QTreeWidget {
+class DraggableTreeWidget : public QTreeView {
+    Q_OBJECT
 public:
     /**
      * 创建一个新的空树形控件
@@ -14,7 +13,7 @@ public:
      */
     explicit DraggableTreeWidget(QWidget *parent = nullptr);
 
-    QPixmap createDragPixmap(QTreeWidgetItem *item);
+    QPixmap createDragPixmap(const QModelIndex &index);
 protected:
     /**
      * 鼠标按下事件
@@ -32,13 +31,12 @@ protected:
      * 开始拖拽
      * @param Qt::DropActions supportedActions 支持的动作
      */
-    void startDrag(QTreeWidgetItem *item);
+    void startDrag(const QModelIndex &index);
 private:
     //拖拽的项
-    QTreeWidgetItem *draggedItem_ = nullptr;
+    QModelIndex draggedIndex_;
     //拖拽开始位置
     QPoint dragStartPosition_;
     //拖拽是否已开始
     bool isDragging_ = false;
 };
-

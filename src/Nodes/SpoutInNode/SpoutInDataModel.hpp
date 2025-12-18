@@ -23,6 +23,10 @@
 #include <QtWidgets/QComboBox>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QtGui/QOpenGLContext>
+#include <QtGui/QOffscreenSurface>
+#include <QtGui/QSurfaceFormat>
+#include <QtCore/QMetaType>
 
 // 使用 SpoutLibrary API 而不是 SpoutReceiver
 #include "SpoutLibrary.h"
@@ -75,7 +79,17 @@ namespace Nodes
             , m_width(0)
             , m_height(0)
             , m_forceUpdateSenders(false)
+            , m_context(nullptr)
+            , m_surface(nullptr)
         {
+            // 在主线程中创建 OffscreenSurface
+            // 使用兼容模式，以防 Spout 需要旧版 OpenGL 功能
+            QSurfaceFormat format = QSurfaceFormat::defaultFormat();
+            format.setProfile(QSurfaceFormat::CompatibilityProfile);
+            
+            m_surface = new QOffscreenSurface();
+            m_surface->setFormat(format);
+            m_surface->create();
         }
 
         /**
@@ -84,7 +98,20 @@ namespace Nodes
         ~SpoutReceiveThread() override {
             stopReceiving();
             wait();
+            // m_surface 在主线程创建，应在主线程销毁
+            if (m_surface) {
+                m_surface->destroy();
+                delete m_surface;
+                m_surface = nullptr;
+            }
             cleanupSpout();
+            
+            // 线程结束前清理 OpenGL 上下文
+            if (m_context) {
+                m_context->doneCurrent();
+                delete m_context;
+                m_context = nullptr;
+            }
         }
 
         /**
@@ -136,6 +163,26 @@ namespace Nodes
          * @brief 线程主循环
          */
         void run() override {
+            // 创建并设置 OpenGL 上下文 (在工作线程中)
+            m_context = new QOpenGLContext();
+            m_context->setFormat(m_surface->format());
+            if (!m_context->create()) {
+                qDebug() << "SpoutReceiveThread: Failed to create OpenGL context";
+                delete m_context;
+                m_context = nullptr;
+                return;
+            }
+
+            // 使用主线程创建的 surface
+            if (!m_context->makeCurrent(m_surface)) {
+                qDebug() << "SpoutReceiveThread: Failed to make OpenGL context current";
+                delete m_context;
+                m_context = nullptr;
+                return;
+            }
+
+            qDebug() << "SpoutReceiveThread: OpenGL context created and made current";
+
             initializeSpout();
             
             // 立即扫描一次发送器列表
@@ -172,6 +219,10 @@ namespace Nodes
         // SpoutLibrary 接口
         SPOUTHANDLE m_spout;
         
+        // OpenGL 上下文
+        QOpenGLContext* m_context;
+        QOffscreenSurface* m_surface;
+
         // 图像缓冲区
         unsigned char* m_imageBuffer;
         unsigned int m_width;
@@ -275,8 +326,21 @@ namespace Nodes
             bool receiveResult = m_spout->ReceiveImage(m_imageBuffer, GL_BGRA, false);
             
             if (!receiveResult) {
-                qDebug() << "SpoutReceiveThread: ReceiveImage failed";
+                // qDebug() << "SpoutReceiveThread: ReceiveImage failed"; // 减少日志刷屏
                 return false;
+            }
+
+            // 调试：检查中心像素值，确认是否有数据
+            static int logCounter = 0;
+            if (++logCounter % 60 == 0) { // 每60帧打印一次
+                int centerX = m_width / 2;
+                int centerY = m_height / 2;
+                int pixelIndex = (centerY * m_width + centerX) * 4;
+                qDebug() << "SpoutReceiveThread: Frame" << logCounter 
+                         << "Size:" << m_width << "x" << m_height
+                         << "Center Pixel (BGRA):" 
+                         << (int)m_imageBuffer[pixelIndex] << (int)m_imageBuffer[pixelIndex+1] 
+                         << (int)m_imageBuffer[pixelIndex+2] << (int)m_imageBuffer[pixelIndex+3];
             }
             
             // 检查是否有新帧
@@ -336,7 +400,7 @@ namespace Nodes
             m_width = 0;
             m_height = 0;
             
-            qDebug() << "SpoutReceiveThread: Resources cleaned up";
+            qDebug() << "SpoutReceiveThread: Spout resources cleaned up";
         }
     };
 
@@ -560,6 +624,7 @@ namespace Nodes
          * @brief 初始化接收器
          */
         void initializeReceiver() {
+            qRegisterMetaType<cv::Mat>("cv::Mat");
             m_receiveThread = new SpoutReceiveThread(this);
             
             // 连接信号

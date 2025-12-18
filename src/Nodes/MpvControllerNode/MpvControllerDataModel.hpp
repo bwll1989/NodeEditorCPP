@@ -15,7 +15,7 @@
 #include <QtCore/qglobal.h>
 
 #include "ConstantDefines.h"
-#include "HttpClient.h"
+#include "Common/Devices/HttpClient/HttpClient.h"
 #include "QTimer"
 #include "OSCSender/OSCSender.h"
 using QtNodes::NodeData;

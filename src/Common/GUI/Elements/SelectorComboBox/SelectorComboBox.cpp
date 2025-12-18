@@ -23,12 +23,13 @@ SelectorComboBox::SelectorComboBox(MediaLibrary::Category category, QWidget* par
     m_popupFrame = new QFrame(this, Qt::Popup | Qt::FramelessWindowHint);
     m_popupFrame->setAttribute(Qt::WA_TranslucentBackground, false);
     m_popupFrame->setObjectName("SelectorComboBoxPopup");
-    m_popupFrame->setStyleSheet(
-        "#SelectorComboBoxPopup {"
-        "  background: palette(Base);"
-        "  border: 1px solid palette(Mid);"
-        "}"
-    );
+    // m_popupFrame->setStyleSheet(
+    //     "#SelectorComboBoxPopup {"
+    //     "  background: palette(Base);"
+    //     "  border: 1px solid palette(Mid);"
+    //     "  border-radius: 6px;"
+    //     "}"
+    // );
     auto* layout = new QVBoxLayout(m_popupFrame);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);

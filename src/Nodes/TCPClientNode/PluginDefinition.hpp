@@ -18,7 +18,7 @@
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
 #define PLUGIN_DESCRIBE "TCP客户端"
-#define PLUGIN_TAG "Communications"
+#define PLUGIN_TAG "Connect"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

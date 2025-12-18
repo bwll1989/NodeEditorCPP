@@ -495,6 +495,8 @@ void NodeListWidget::showContextMenu(const QPoint &pos) {
     NodeId nodeId = nodeText.section(':', 0, 0).toInt();
 
     QMenu contextMenu;
+    contextMenu.setWindowFlags(contextMenu.windowFlags() | Qt::NoDropShadowWindowHint);
+    contextMenu.setAttribute(Qt::WA_TranslucentBackground, false);
     QAction* focusAction = contextMenu.addAction("Focus Node");
     focusAction->setIcon(QIcon(":/icons/icons/focus.png"));
     

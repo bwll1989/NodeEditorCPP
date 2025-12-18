@@ -5,6 +5,11 @@
 
 #include "NodeLibraryWidget.h"
 #include "QLineEdit"
+#include <QStandardItemModel>
+#include <QStandardItem>
+#include <QSortFilterProxyModel>
+#include <QAction>
+
 NodeLibraryWidget::NodeLibraryWidget(QWidget *parent):QWidget(parent){
     initLayout();
     this->update();
@@ -17,6 +22,14 @@ void NodeLibraryWidget::initLayout(){
     txtBox->setClearButtonEnabled(true);
     treeView = new DraggableTreeWidget(this);
 
+    // 设置模型
+    QStandardItemModel *model = new QStandardItemModel(treeView);
+    QSortFilterProxyModel *proxy = new QSortFilterProxyModel(treeView);
+    proxy->setSourceModel(model);
+    proxy->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    proxy->setRecursiveFilteringEnabled(true);
+    treeView->setModel(proxy);
+
     treeView->setHeaderHidden(true);
     mainLayout->addWidget(txtBox);
     mainLayout->addWidget(treeView);
@@ -24,25 +37,31 @@ void NodeLibraryWidget::initLayout(){
 }
 
 void NodeLibraryWidget::update(){
+    auto proxy = static_cast<QSortFilterProxyModel*>(treeView->model());
+    auto model = static_cast<QStandardItemModel*>(proxy->sourceModel());
+    model->clear();
 
     auto registry = QtNodes::PluginsManager::instance()->registry();
 
     for (auto const &cat : registry->categories()) {
-        auto item = new QTreeWidgetItem(treeView);
-        item->setText(0, cat);
-        item->setIcon(0,QIcon(":/icons/icons/plugins.png"));
+        auto item = new QStandardItem(cat);
+        item->setIcon(QIcon(":/icons/icons/plugins.png"));
         item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+        model->appendRow(item);
     }
     for (auto const &assoc : registry->registeredModelsCategoryAssociation()) {
-        QList<QTreeWidgetItem *> parent = treeView->findItems(assoc.second, Qt::MatchExactly);
+        QList<QStandardItem *> parents = model->findItems(assoc.second);
 
-        if (parent.count() <= 0)
+        if (parents.isEmpty())
             continue;
-        auto item = new QTreeWidgetItem(parent.first());
-        item->setText(0, assoc.first);
-        item->setIcon(0,QIcon(":/icons/icons/plugin.png"));
+        
+        auto parentItem = parents.first();
+        auto item = new QStandardItem(assoc.first);
+        item->setIcon(QIcon(":/icons/icons/plugin.png"));
+        parentItem->appendRow(item);
+
         auto *createNodeAction = new QAction(assoc.first, this);
-        const QString &nodeType=item->text(0);
+        const QString &nodeType=item->text();
         // QObject::connect(createNodeAction, &QAction::triggered, [this, nodeType]() {
         //     // Mouse position in scene coordinates.
         //     QPoint globalPos = _view->mapFromGlobal(QCursor::pos());
@@ -59,21 +78,9 @@ void NodeLibraryWidget::update(){
     connect(txtBox, &QLineEdit::textChanged, this,&NodeLibraryWidget::filterChanged);
 }
 void NodeLibraryWidget::filterChanged(const QString &text){
-    QTreeWidgetItemIterator categoryIt(treeView, QTreeWidgetItemIterator::HasChildren);
-    while (*categoryIt)
-        (*categoryIt++)->setHidden(true);
-    QTreeWidgetItemIterator it(treeView, QTreeWidgetItemIterator::NoChildren);
-    while (*it) {
-        auto modelName = (*it)->text(0);
-        const bool match = (modelName.contains(text, Qt::CaseInsensitive));
-        (*it)->setHidden(!match);
-        if (match) {
-            QTreeWidgetItem *parent = (*it)->parent();
-            while (parent) {
-                parent->setHidden(false);
-                parent = parent->parent();
-            }
-        }
-        ++it;
+    auto proxy = static_cast<QSortFilterProxyModel*>(treeView->model());
+    proxy->setFilterFixedString(text);
+    if (!text.isEmpty()) {
+        treeView->expandAll();
     }
 }

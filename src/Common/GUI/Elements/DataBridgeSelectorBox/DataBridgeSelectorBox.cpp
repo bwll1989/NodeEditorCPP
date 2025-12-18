@@ -23,12 +23,12 @@ DataBridgeSelectorBox::DataBridgeSelectorBox(QWidget* parent)
     m_popupFrame = new QFrame(this, Qt::Popup | Qt::FramelessWindowHint);
     m_popupFrame->setAttribute(Qt::WA_TranslucentBackground, false);
     m_popupFrame->setObjectName("DataBridgeSelectorBoxPopup");
-    m_popupFrame->setStyleSheet(
-        "#DataBridgeSelectorBoxPopup {"
-        "  background: palette(Base);"
-        "  border: 1px solid palette(Mid);"
-        "}"
-    );
+    // m_popupFrame->setStyleSheet(
+    //     "#DataBridgeSelectorBoxPopup {"
+    //     "  background: palette(Base);"
+    //     "  border: 1px solid palette(Mid);"
+    //     "}"
+    // );
     auto* layout = new QVBoxLayout(m_popupFrame);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);

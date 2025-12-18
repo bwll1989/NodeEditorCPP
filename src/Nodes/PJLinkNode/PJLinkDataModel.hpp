@@ -124,7 +124,7 @@ namespace Nodes
             
             client->disconnectFromServer();
             delete client;
-            widget->deleteLater();
+            client=nullptr;
         }
 
     public:

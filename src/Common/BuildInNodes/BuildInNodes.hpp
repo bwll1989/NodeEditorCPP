@@ -10,3 +10,5 @@
 #include "IntSourceDataModel.hpp"
 #include "FloatSourceDataModel.hpp"
 #include "ImageShowModel.hpp"
+#include "ToJsonDataModel.hpp"
+#include "FromJsonDataModel.hpp"

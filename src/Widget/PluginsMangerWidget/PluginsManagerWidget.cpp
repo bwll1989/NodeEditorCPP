@@ -141,6 +141,8 @@ void PluginsManagerWidget::loadBuildInPlugin()
     pluginsManager->registry()->registerModel<IntSourceDataModel>("Int Source","Controls");
     pluginsManager->registry()->registerModel<FloatSourceDataModel>("Float Source","Controls");
     pluginsManager->registry()->registerModel<ImageShowModel>("Image Display","Image");
+    pluginsManager->registry()->registerModel<ToJsonDataModel>("To JSON","Controls");
+    pluginsManager->registry()->registerModel<FromJsonDataModel>("From JSON","Controls");
 }
 
 //打开插件目录
