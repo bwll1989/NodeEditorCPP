@@ -167,8 +167,6 @@ namespace Nodes
         m_p_sources = nullptr;
         m_no_sources = 0;
         m_ndi_initialized = true;
-
-        qDebug() << "NDI初始化成功";
     }
 
     /**
@@ -625,7 +623,25 @@ namespace Nodes
 
             }
         }
-        
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+
+            switch (portType) {
+            case QtNodes::PortType::In:
+                switch (portIndex)
+                {
+                    case 0:
+                            return "SOURCE";
+                    case 1:
+                            return "ENABLE";
+                }
+            case QtNodes::PortType::Out:
+                return "IMAGE";
+            default:
+                break;
+            }
+            return "";
+        }
         /**
          * @brief 停止接收NDI数据
          */
@@ -686,7 +702,7 @@ namespace Nodes
          */
         void initializeReceiver() {
             m_receiveThread = new NDIReceiveThread(this);
-            
+
             // 连接信号
             connect(m_receiveThread, &NDIReceiveThread::frameReceived,
                     this, &NDIInDataModel::onFrameReceived, Qt::QueuedConnection);
@@ -694,7 +710,7 @@ namespace Nodes
                     this, &NDIInDataModel::onConnectionStatusChanged, Qt::QueuedConnection);
             connect(m_receiveThread, &NDIReceiveThread::senderListUpdated,
                     this, &NDIInDataModel::onSenderListUpdated, Qt::QueuedConnection);
-                    
+
             qDebug() << "NDIInDataModel: Receiver initialized";
         }
     };

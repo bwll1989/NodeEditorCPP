@@ -6,17 +6,17 @@
 
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef NDIInNode_EXPORTS
+#ifdef SpoutOutNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "NDI In"
+#define PLUGIN_NAME "Spout Out"
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "NDI输入"
+#define PLUGIN_DESCRIBE "Spout输出"
 #define PLUGIN_TAG "Image"
 class DLL_EXPORT Plugin
     : public QObject

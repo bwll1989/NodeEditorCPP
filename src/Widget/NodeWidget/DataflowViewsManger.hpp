@@ -37,7 +37,7 @@ public:
      * @param title 场景标题
      * @param model 数据流程模型指针
      */
-    void addNewSceneFromeModel(const QString& title = QString(), CustomDataFlowGraphModel* model = nullptr);
+    void addNewSceneFromeModel(const QString& title = QString(), QJsonObject const &jsonDocument=QJsonObject());
     /**
      * @brief 保存所有场景的状态到JSON对象
      *

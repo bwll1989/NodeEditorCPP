@@ -48,12 +48,19 @@ namespace Nodes
             connect(widget->loopCheckBox, &QCheckBox::clicked, this, &CurveDataModel::onLoopCheckBoxClicked); // 绑定循环播放复选框点击事件
         }
 
+       // 函数级注释：析构函数
+       // 说明：销毁节点时，尝试暂停时间轴播放，并安全释放 QQuickWidget 资源，防止悬挂指针。
        ~CurveDataModel() override {
-            QObject *timeline = getTimelineEditor();
-            if (timeline) {
-                QMetaObject::invokeMethod(timeline, "pause");
-            }
+            // 移除可能导致崩溃的时间轴访问代码，因为 widget 即将销毁，不需要显式暂停
+            // QObject *timeline = getTimelineEditor();
+            // if (timeline) {
+            //     QMetaObject::invokeMethod(timeline, "pause");
+            // }
             if (m_quickWidget) {
+                // 断开 C++ 与 QML 的连接，防止 QML 回调已销毁的 C++ 对象
+                if (m_quickWidget->rootContext()) {
+                     m_quickWidget->rootContext()->setContextProperty("CppBridge", nullptr);
+                }
                 m_quickWidget->setParent(nullptr);
                 m_quickWidget->deleteLater();
             }
@@ -108,7 +115,8 @@ namespace Nodes
             if (!data) { return; }
             inData = std::dynamic_pointer_cast<VariableData>(data);
 
-            widget->startButton->clicked(inData->value().toBool());
+            if (widget)
+                widget->startButton->clicked(inData->value().toBool());
 
         }
         
@@ -138,7 +146,8 @@ namespace Nodes
             }
     
             // 函数级注释：保存循环播放开关到 JSON，以便恢复 UI 与播放逻辑。
-            values.insert("loop", widget->loopCheckBox->isChecked());
+            if (widget)
+                values.insert("loop", widget->loopCheckBox->isChecked());
     
             modelJson.insert("values", values);
             return modelJson;
@@ -193,7 +202,8 @@ namespace Nodes
                     loopEnabled = (lv.toInt() != 0);
                 }
             }
-            widget->loopCheckBox->setChecked(loopEnabled);
+            if (widget)
+                widget->loopCheckBox->setChecked(loopEnabled);
             if (QObject *timeline = getTimelineEditor()) {
                 QMetaObject::invokeMethod(timeline, "setIsLoop", Q_ARG(QVariant, QVariant(loopEnabled)));
             }
@@ -288,11 +298,11 @@ namespace Nodes
         }
 
         Q_INVOKABLE void updateLoop(const bool &status) {
-
-            widget->loopCheckBox->setChecked(status);
+            if (widget)
+                widget->loopCheckBox->setChecked(status);
         }
         void updateStatus(const bool &status) {
-
+            if (!widget) return;
             if ( widget->startButton->isChecked() != status) {
                 widget->startButton->setChecked(status);
                 // widget->stopButton->setChecked(!status);
@@ -309,13 +319,13 @@ namespace Nodes
             OSCSender::instance()->sendOSCMessageWithQueue(message);
         }
     public:
-        CurveInterface *widget=new CurveInterface();
+        QPointer<CurveInterface> widget=new CurveInterface();
         shared_ptr<VariableData> inData;
         std::vector<double> currentValuesY=std::vector<double>();
         shared_ptr<VariableData> currentValue_Time=make_shared<VariableData>(0.0);
         shared_ptr<VariableData> currentTime=make_shared<VariableData>(0.0);
         shared_ptr<VariableData> currentStatus=make_shared<VariableData>(QVariant(false));
-        QQuickWidget *m_quickWidget=new QQuickWidget();
+        QPointer<QQuickWidget> m_quickWidget=new QQuickWidget();
     private:
         // 函数级注释：通过 objectName 查找 QML 中的 TimelineEditor（main.qml 内 id: timelineEditor）
         QObject* getTimelineEditor() {

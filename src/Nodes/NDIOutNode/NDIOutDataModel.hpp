@@ -424,7 +424,25 @@ namespace Nodes
             }
             return VariableData().type();
         }
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
 
+            switch (portType) {
+                case QtNodes::PortType::In:
+                    switch (portIndex)
+                    {
+                    case 0:
+                            return "IMAGE";
+                    case 1:
+                            return "ENABLE";
+                    }
+                case QtNodes::PortType::Out:
+                    return "";
+                default:
+                    break;
+            }
+            return "";
+        }
         /**
          * @brief 获取输出数据（NDI输出节点无输出）
          * @param port 端口索引

@@ -9,7 +9,7 @@
     "NormalBoundaryColor": [200, 200, 200],
     "SelectedBoundaryColor": [255, 165, 0],
 
-    "GradientColor0": "gray",
+    "GradientColor0": "blue",
     "GradientColor1": [80, 80, 80],
     "GradientColor2": [64, 64, 64],
     "GradientColor3": [58, 58, 58],

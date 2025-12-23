@@ -24,7 +24,7 @@ namespace Nodes
      * - 发送器选择和刷新
      * - 连接状态显示
      */
-    class SpoutInInterface: public QGroupBox
+    class SpoutOutInterface: public QWidget
     {
         Q_OBJECT
 
@@ -33,13 +33,18 @@ namespace Nodes
          * @brief 构造函数，初始化界面
          * @param parent 父控件
          */
-        explicit SpoutInInterface(QWidget *parent = nullptr)
-            : QGroupBox("Spout发送器",parent)
+        explicit SpoutOutInterface(QWidget *parent = nullptr)
+            : QWidget(parent)
             , m_isReceiving(false)
+            , m_autoConnect(true)
         {
             // 创建界面组件
-            initInterface();
+            createSenderGroup();
+            createControlGroup();
+            setupLayout();
             setupConnections();
+            setupStyles();
+            
             // 设置窗口属性
             setMinimumSize(250, 150);
             setMaximumWidth(300);
@@ -91,7 +96,6 @@ namespace Nodes
          * @param senders 可用的发送器列表
          */
         void updateSenderList(const QStringList& senders) {
-            m_senderComboBox->blockSignals(true);
             QString currentSelection = m_senderComboBox->currentText();
             
             m_senderComboBox->clear();
@@ -106,13 +110,11 @@ namespace Nodes
                 int index = m_senderComboBox->findText(currentSelection);
                 if (index >= 0) {
                     m_senderComboBox->setCurrentIndex(index);
-                } else if (senders.size() > 0) {
+                } else if (m_autoConnect && senders.size() > 0) {
                     // 自动连接第一个发送器
                     m_senderComboBox->setCurrentIndex(0);
-
+                    emit senderSelected(senders.first());
                 }
-                emit senderSelected(m_senderComboBox->currentText());
-                m_senderComboBox->blockSignals(false);
             }
         }
 
@@ -120,8 +122,8 @@ namespace Nodes
         /**
          * @brief 处理开始/停止按钮点击
          */
-        void onStartStopClicked(bool checked) {
-            if (!checked) {
+        void onStartStopClicked() {
+            if (m_isReceiving) {
                 emit stopReceiving();
             } else {
                 emit startReceiving();
@@ -148,54 +150,109 @@ namespace Nodes
             }
         }
         
-
         /**
-         * @brief 创建发送器选择组
+         * @brief 处理自动连接复选框状态变化
+         * @param checked 是否选中
          */
-        void initInterface() {
-            m_mainLayout = new QGridLayout(this);
-            m_senderComboBox = new QComboBox();
-            m_senderComboBox->addItem("无可用发送器");
-            m_senderComboBox->setEditable(true);
-            m_senderComboBox->setInsertPolicy(QComboBox::NoInsert);
-            m_senderComboBox->addItem("请输入或选择发送器名称");
-            m_refreshButton = new QPushButton("刷新");
-            m_refreshButton->setMaximumWidth(50);
-            m_startStopButton = new QPushButton("开始");
-            m_startStopButton->setCheckable(true);
-            m_connectionStatusLabel = new QLabel("状态: 未连接");
-
-            m_mainLayout->addWidget(m_senderComboBox, 0, 0, 1, 3);
-            m_mainLayout->addWidget(m_refreshButton, 0, 3,1,1);
-            m_mainLayout->addWidget(m_startStopButton, 1, 0,1,4);
-            m_mainLayout->addWidget(m_connectionStatusLabel, 2, 0,1,4);
-        }
-
-        /**
-         * @brief 设置信号连接
-         */
-        void setupConnections() {
-            connect(m_startStopButton, &QPushButton::toggled, this, &SpoutInInterface::onStartStopClicked);
-            connect(m_refreshButton, &QPushButton::clicked, this, &SpoutInInterface::onRefreshClicked);
-            connect(m_senderComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                    this, &SpoutInInterface::onSenderSelectionChanged);
+        void onAutoConnectChanged(bool checked) {
+            m_autoConnect = checked;
         }
 
     private:
         // 主布局
-        QGridLayout *m_mainLayout;
-
+        QVBoxLayout *m_mainLayout;
+        
+        // 发送器选择组
+        QGroupBox *m_senderGroup;
+        QComboBox *m_senderComboBox;
         QPushButton *m_refreshButton;
-
+        QCheckBox *m_autoConnectCheckBox;
+        
+        // 控制组
+        QGroupBox *m_controlGroup;
+        QPushButton *m_startStopButton;
         QLabel *m_connectionStatusLabel;
         
         // 状态变量
         bool m_isReceiving;
-    public:
-
-        // 发送器选择组
-        QComboBox *m_senderComboBox;
-        QPushButton *m_startStopButton;
-
+        bool m_autoConnect;
+        
+        /**
+         * @brief 创建发送器选择组
+         */
+        void createSenderGroup() {
+            m_senderGroup = new QGroupBox("Spout发送器", this);
+            QVBoxLayout *layout = new QVBoxLayout(m_senderGroup);
+            
+            // 发送器选择
+            QHBoxLayout *senderLayout = new QHBoxLayout();
+            m_senderComboBox = new QComboBox();
+            m_senderComboBox->addItem("无可用发送器");
+            m_senderComboBox->setEnabled(false);
+            m_refreshButton = new QPushButton("刷新");
+            m_refreshButton->setMaximumWidth(50);
+            
+            senderLayout->addWidget(m_senderComboBox);
+            senderLayout->addWidget(m_refreshButton);
+            
+            // 自动连接选项
+            m_autoConnectCheckBox = new QCheckBox("自动连接");
+            m_autoConnectCheckBox->setChecked(true);
+            
+            layout->addLayout(senderLayout);
+            layout->addWidget(m_autoConnectCheckBox);
+        }
+        
+        /**
+         * @brief 创建控制组
+         */
+        void createControlGroup() {
+            m_controlGroup = new QGroupBox("连接控制", this);
+            QVBoxLayout *layout = new QVBoxLayout(m_controlGroup);
+            
+            m_startStopButton = new QPushButton("开始");
+            m_connectionStatusLabel = new QLabel("状态: 未连接");
+            
+            layout->addWidget(m_startStopButton);
+            layout->addWidget(m_connectionStatusLabel);
+        }
+        
+        /**
+         * @brief 设置布局
+         */
+        void setupLayout() {
+            m_mainLayout = new QVBoxLayout(this);
+            m_mainLayout->setContentsMargins(5, 5, 5, 5);
+            m_mainLayout->setSpacing(5);
+            
+            m_mainLayout->addWidget(m_senderGroup);
+            m_mainLayout->addWidget(m_controlGroup);
+            m_mainLayout->addStretch();
+        }
+        
+        /**
+         * @brief 设置信号连接
+         */
+        void setupConnections() {
+            connect(m_startStopButton, &QPushButton::clicked, this, & SpoutOutInterface::onStartStopClicked);
+            connect(m_refreshButton, &QPushButton::clicked, this, & SpoutOutInterface::onRefreshClicked);
+            connect(m_senderComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), 
+                    this, & SpoutOutInterface::onSenderSelectionChanged);
+            connect(m_autoConnectCheckBox, &QCheckBox::toggled, this, & SpoutOutInterface::onAutoConnectChanged);
+        }
+        
+        /**
+         * @brief 设置样式
+         */
+        void setupStyles() {
+            // 连接状态标签样式
+            m_connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
+            
+            // 按钮样式
+            m_startStopButton->setStyleSheet(
+                "QPushButton { font-weight: bold; padding: 5px; }"
+                "QPushButton:pressed { background-color: #ddd; }"
+            );
+        }
     };
 }

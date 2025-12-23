@@ -119,8 +119,8 @@ namespace Clips
             mainLayout->setContentsMargins(5, 5, 5, 5);
             mainLayout->setSpacing(4);
             // 基本设置组
-            auto* basicGroup = new QGroupBox("文件属性", m_editor);
-            auto* basicLayout = new QGridLayout(basicGroup);
+            //auto* basicGroup = new QGroupBox("文件属性", m_editor);
+            //auto* basicLayout = new QGridLayout(basicGroup);
             // 时间相关控件
             // basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
             // auto* durationBox = new QLineEdit(basicGroup);
@@ -131,15 +131,7 @@ namespace Clips
             // 文件名显示
 
             // 媒体文件选择
-            mediaSelector = new SelectorComboBox(MediaLibrary::Category::Audio,basicGroup);
-            basicLayout->addWidget(mediaSelector, 0, 1,1,2);
-            connect(mediaSelector,&SelectorComboBox::textChanged,[=](const QString& text){
-                if (m_filePath != text) {
-                    m_filePath = text;
-                    emit filePathChanged(m_filePath);
-                    emit onPropertyChanged();
-                }
-            });
+
             // 连接信号槽
             // connect(mediaButton, &QPushButton::clicked, [=]() {
             //     QString filePath = QFileDialog::getOpenFileName(m_editor,
@@ -156,19 +148,28 @@ namespace Clips
             //
             //     }
             // });
-            mainLayout->addWidget(basicGroup);
+            //mainLayout->addWidget(basicGroup);
             // 添加尺寸位置参数设置
-            auto* positionGroup = new QGroupBox("音频参数", m_editor);
+            auto* positionGroup = new QGroupBox("片段属性", m_editor);
             auto* positionLayout = new QGridLayout(positionGroup);
             // 位置
-
+            mediaSelector = new SelectorComboBox(MediaLibrary::Category::Audio,positionGroup);
+            positionLayout->addWidget(new QLabel("Media:"), 0, 0);
+            positionLayout->addWidget(mediaSelector, 0, 1);
+            connect(mediaSelector,&SelectorComboBox::textChanged,[=](const QString& text){
+                if (m_filePath != text) {
+                    m_filePath = text;
+                    emit filePathChanged(m_filePath);
+                    emit onPropertyChanged();
+                }
+            });
             gain=new QSpinBox(positionGroup);
             gain->setMinimum(-180);
             gain->setMaximum(180);
             gain->setValue(0);
             registerOSCControl("/gain",gain);
-            positionLayout->addWidget(new QLabel("gain:"), 6, 0);
-            positionLayout->addWidget(gain, 6, 1);
+            positionLayout->addWidget(new QLabel("Gain:"), 1, 0);
+            positionLayout->addWidget(gain, 1, 1);
             mainLayout->addWidget(positionGroup);
             // 连接信号槽
             connect(gain, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {

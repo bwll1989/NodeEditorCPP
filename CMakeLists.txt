@@ -126,6 +126,7 @@ add_subdirectory(src/Clips)
 # 添加Nodes模块
 add_subdirectory(src/Nodes)
 add_subdirectory(src/Common/Devices/OSCSender)
+add_subdirectory(src/Common/Devices/SpoutReceiver)
 add_subdirectory(src/Common/GUI/OscListWidget)
 add_subdirectory(src/Common/GUI/Elements)
 add_subdirectory(src/Common/Devices/ClientController)
@@ -401,6 +402,7 @@ target_link_libraries(${HeadlessProjectName}
             ModelDataBridge
             DelayListWidget
             DockHub
+            SpoutReceiver
 )
 # 设置主程序属性
 set_target_properties(${ProjectName} PROPERTIES

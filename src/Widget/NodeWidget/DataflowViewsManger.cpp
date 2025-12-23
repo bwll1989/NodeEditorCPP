@@ -55,7 +55,7 @@ void DataflowViewsManger::addNewScene(const QString& title)
     view->setScene(scene);
 
     // 便捷行为：加载后居中显示
-    QObject::connect(scene, &CustomFlowGraphicsScene::sceneLoaded, view, &GraphicsView::centerScene);
+    // QObject::connect(scene, &CustomFlowGraphicsScene::sceneLoaded, view, &GraphicsView::centerScene);
 
     // 仅保存弱引用，避免二次释放
     _DockWidget[title] = DockWidget;
@@ -77,7 +77,7 @@ void DataflowViewsManger::addNewScene(const QString& title)
     DockWidget->setTitleBarActions({OptionsMenu->menuAction()});
     auto a = OptionsMenu->addAction(QIcon(":/icons/icons/clear.png"),QObject::tr("Clear Dataflow"));
     // c->connect(a, SIGNAL(triggered()), SLOT(clear()));
-    QObject::connect(a, &QAction::triggered, scene, &CustomFlowGraphicsScene::clear);
+    QObject::connect(a, &QAction::triggered, scene, &CustomFlowGraphicsScene::clearScene);
     auto b = OptionsMenu->addAction(QIcon(":/icons/icons/save.png"),QObject::tr("Save Child Dataflow"));
     QObject::connect(b, &QAction::triggered, scene, &CustomFlowGraphicsScene::save);
     auto c = OptionsMenu->addAction(QIcon(":/icons/icons/delete_database.png"),QObject::tr("Delete Dataflow"));
@@ -111,62 +111,64 @@ void DataflowViewsManger::addNewScene(const QString& title)
 }
 
 
-void DataflowViewsManger::addNewSceneFromeModel(const QString& title, CustomDataFlowGraphModel* model) {
-
-    if (_models.count(title)) return;
-    _models.emplace(title, std::unique_ptr<CustomDataFlowGraphModel>(model));
-
-    ads::CDockWidget* DockWidget = new ads::CDockWidget(m_DockManager,title);
-
-    _DockWidget[title] = DockWidget;
-
-    auto view  = new CustomGraphicsView(DockWidget);
-    auto scene = new CustomFlowGraphicsScene(*model, view);
-    // 说明：确保 Scene 作为 QObject 的父对象是 View，从而在 DockWidget 关闭时按父子链自动析构
-    scene->setParent(view);
-    view->setScene(scene);
-
-    // 便捷行为：加载后居中显示
-    QObject::connect(scene, &CustomFlowGraphicsScene::sceneLoaded, view, &GraphicsView::centerScene);
-
-    DockWidget->setWidget(view);
-    DockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
-    QMenu* OptionsMenu = new QMenu(DockWidget);
-    OptionsMenu->setTitle(QObject::tr("Options"));
-    OptionsMenu->setToolTip(OptionsMenu->title());
-    OptionsMenu->setIcon(QIcon(":/icons/icons/options.png"));
-    auto MenuAction = OptionsMenu->menuAction();
-    // The object name of the action will be set for the QToolButton that
-    // is created in the dock area title bar. You can use this name for CSS
-    // styling
-    MenuAction->setObjectName("optionsMenu");
-    DockWidget->setTitleBarActions({OptionsMenu->menuAction()});
-    auto a = OptionsMenu->addAction(QIcon(":/icons/icons/clear.png"),QObject::tr("Clear Dataflow"));
-    // c->connect(a, SIGNAL(triggered()), SLOT(clear()));
-    QObject::connect(a, &QAction::triggered, scene, &CustomFlowGraphicsScene::clear);
-    auto b = OptionsMenu->addAction(QIcon(":/icons/icons/save.png"),QObject::tr("Save Child Dataflow"));
-    QObject::connect(b, &QAction::triggered, scene, &CustomFlowGraphicsScene::save);
-    auto c = OptionsMenu->addAction(QIcon(":/icons/icons/delete_database.png"),QObject::tr("Delete Dataflow"));
-    QObject::connect(c, &QAction::triggered, this, [this, DockWidget, title](){
-        m_DockManager->removeDockWidget(DockWidget);
-        _models.erase(title);
-        emit removeScene(title);
-    });
-    auto d = OptionsMenu->addAction(QIcon(":/icons/icons/open_flat.png"),QObject::tr("Load Child Dataflow"));
-    QObject::connect(d, &QAction::triggered, scene, &CustomFlowGraphicsScene::load);
-    auto e = OptionsMenu->addAction(QIcon(":/icons/icons/lock.png"),QObject::tr("Lock Dataflow"));
-    QObject::connect(e, &QAction::triggered, this, [this, title, e](){
-        auto& model = *_models.at(title);
-        model.setNodesLocked(!model.getNodesLocked());
-        e->setText(model.getNodesLocked()?QObject::tr("Unlock Dataflow"):QObject::tr("Lock Dataflow"));
-
-    });
-
-    if (m_DockManager) {
-        m_DockManager->addDockWidgetTab(ads::CenterDockWidgetArea, DockWidget);
-        m_DockManager->setWidgetFocus(DockWidget);
-    }
-    emit createNewScene(title);
+void DataflowViewsManger::addNewSceneFromeModel(const QString& title, QJsonObject const &jsonDocument) {
+    addNewScene(title);
+    _models[title]->load(jsonDocument);
+    // if (_models.count(title)) return;
+    // _models.emplace(title, std::unique_ptr<CustomDataFlowGraphModel>(model));
+    //
+    // ads::CDockWidget* DockWidget = new ads::CDockWidget(m_DockManager,title);
+    //
+    // _DockWidget[title] = DockWidget;
+    //
+    // auto view  = new CustomGraphicsView(DockWidget);
+    //
+    // auto scene = new CustomFlowGraphicsScene(*model, view);
+    // // 说明：确保 Scene 作为 QObject 的父对象是 View，从而在 DockWidget 关闭时按父子链自动析构
+    // scene->setParent(view);
+    // view->setScene(scene);
+    //
+    // // 便捷行为：加载后居中显示
+    // QObject::connect(scene, &CustomFlowGraphicsScene::sceneLoaded, view, &GraphicsView::centerScene);
+    //
+    // DockWidget->setWidget(view);
+    // DockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
+    // QMenu* OptionsMenu = new QMenu(DockWidget);
+    // OptionsMenu->setTitle(QObject::tr("Options"));
+    // OptionsMenu->setToolTip(OptionsMenu->title());
+    // OptionsMenu->setIcon(QIcon(":/icons/icons/options.png"));
+    // auto MenuAction = OptionsMenu->menuAction();
+    // // The object name of the action will be set for the QToolButton that
+    // // is created in the dock area title bar. You can use this name for CSS
+    // // styling
+    // MenuAction->setObjectName("optionsMenu");
+    // DockWidget->setTitleBarActions({OptionsMenu->menuAction()});
+    // auto a = OptionsMenu->addAction(QIcon(":/icons/icons/clear.png"),QObject::tr("Clear Dataflow"));
+    // // c->connect(a, SIGNAL(triggered()), SLOT(clear()));
+    // QObject::connect(a, &QAction::triggered, scene, &CustomFlowGraphicsScene::clear);
+    // auto b = OptionsMenu->addAction(QIcon(":/icons/icons/save.png"),QObject::tr("Save Child Dataflow"));
+    // QObject::connect(b, &QAction::triggered, scene, &CustomFlowGraphicsScene::save);
+    // auto c = OptionsMenu->addAction(QIcon(":/icons/icons/delete_database.png"),QObject::tr("Delete Dataflow"));
+    // QObject::connect(c, &QAction::triggered, this, [this, DockWidget, title](){
+    //     m_DockManager->removeDockWidget(DockWidget);
+    //     _models.erase(title);
+    //     emit removeScene(title);
+    // });
+    // auto d = OptionsMenu->addAction(QIcon(":/icons/icons/open_flat.png"),QObject::tr("Load Child Dataflow"));
+    // QObject::connect(d, &QAction::triggered, scene, &CustomFlowGraphicsScene::load);
+    // auto e = OptionsMenu->addAction(QIcon(":/icons/icons/lock.png"),QObject::tr("Lock Dataflow"));
+    // QObject::connect(e, &QAction::triggered, this, [this, title, e](){
+    //     auto& model = *_models.at(title);
+    //     model.setNodesLocked(!model.getNodesLocked());
+    //     e->setText(model.getNodesLocked()?QObject::tr("Unlock Dataflow"):QObject::tr("Lock Dataflow"));
+    //
+    // });
+    //
+    // if (m_DockManager) {
+    //     m_DockManager->addDockWidgetTab(ads::CenterDockWidgetArea, DockWidget);
+    //     m_DockManager->setWidgetFocus(DockWidget);
+    // }
+    // emit createNewScene(title);
 
 }
 
@@ -207,10 +209,7 @@ void DataflowViewsManger::load(QJsonObject const &nodeJson) {
                 for (auto it = tab.begin(); it != tab.end(); ++it) {
                     QString tabTitle = it.key();
                     QJsonObject tabJson = it.value().toObject();
-                    auto model= new CustomDataFlowGraphModel(PluginsManager::instance()->registry());
-                    model->setModelAlias(tabTitle);
-                    model->load(tabJson);
-                    addNewSceneFromeModel(tabTitle,model);
+                    addNewSceneFromeModel(tabTitle,tabJson);
                 }
             }
         }

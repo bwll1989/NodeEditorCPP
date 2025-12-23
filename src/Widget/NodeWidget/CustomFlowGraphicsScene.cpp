@@ -75,78 +75,78 @@ CustomFlowGraphicsScene::CustomFlowGraphicsScene(CustomDataFlowGraphModel &graph
         qDebug()<<node;
 }
 
-/**
- * 创建场景右键菜单（分级子菜单）
- * - 顶层仅包含一个文本搜索框与一级“标签”（分类）菜单项
- * - 第二级为对应分类下的节点列表，受搜索框过滤
- * - 点击节点动作后，在 scenePos 位置创建对应模型节点
- */
-QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos)
-{
-    QMenu *modelMenu = new QMenu();
-    modelMenu->setWindowFlags(modelMenu->windowFlags() | Qt::NoDropShadowWindowHint);
-    modelMenu->setAttribute(Qt::WA_TranslucentBackground, false);
-    auto registry = _graphModel.dataModelRegistry();
+    /**
+     * 创建场景右键菜单（分级子菜单）
+     * - 顶层仅包含一个文本搜索框与一级“标签”（分类）菜单项
+     * - 第二级为对应分类下的节点列表，受搜索框过滤
+     * - 点击节点动作后，在 scenePos 位置创建对应模型节点
+     */
+    QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos)
+    {
+        QMenu *modelMenu = new QMenu();
+        modelMenu->setWindowFlags(modelMenu->windowFlags() | Qt::NoDropShadowWindowHint);
+        modelMenu->setAttribute(Qt::WA_TranslucentBackground, false);
+        auto registry = _graphModel.dataModelRegistry();
 
-    auto *txtBox = new QLineEdit(modelMenu);
-    txtBox->setPlaceholderText(tr("搜索节点"));
-    txtBox->setClearButtonEnabled(true);
-    auto *txtBoxAction = new QWidgetAction(modelMenu);
-    txtBoxAction->setDefaultWidget(txtBox);
-    modelMenu->addAction(txtBoxAction);
-    modelMenu->addSeparator();
-    QHash<QString, QMenu *> categoryMenus;
-    QHash<QString, QAction *> categoryActions;
-    for (auto const &cat : registry->categories()) {
-        QMenu *catMenu = modelMenu->addMenu(cat);
-        categoryMenus.insert(cat, catMenu);
-        categoryActions.insert(cat, catMenu->menuAction());
-    }
-
-    const auto associations = registry->registeredModelsCategoryAssociation();
-
-    auto refreshMenus = [this, scenePos, categoryMenus, categoryActions, associations](const QString &filterText) {
-        QHash<QString, int> categoryCount;
-        for (auto it = categoryMenus.begin(); it != categoryMenus.end(); ++it) {
-            categoryCount.insert(it.key(), 0);
+        auto *txtBox = new QLineEdit(modelMenu);
+        txtBox->setPlaceholderText(tr("搜索节点"));
+        txtBox->setClearButtonEnabled(true);
+        auto *txtBoxAction = new QWidgetAction(modelMenu);
+        txtBoxAction->setDefaultWidget(txtBox);
+        modelMenu->addAction(txtBoxAction);
+        modelMenu->addSeparator();
+        QHash<QString, QMenu *> categoryMenus;
+        QHash<QString, QAction *> categoryActions;
+        for (auto const &cat : registry->categories()) {
+            QMenu *catMenu = modelMenu->addMenu(cat);
+            categoryMenus.insert(cat, catMenu);
+            categoryActions.insert(cat, catMenu->menuAction());
         }
 
-        for (auto menu : categoryMenus) {
-            menu->clear();
-        }
+        const auto associations = registry->registeredModelsCategoryAssociation();
 
-        for (auto const &assoc : associations) {
-            const QString &modelName = assoc.first;
-            const QString &category  = assoc.second;
-
-            if (!categoryMenus.contains(category)) continue;
-            if (!filterText.isEmpty() && !modelName.contains(filterText, Qt::CaseInsensitive)) continue;
-
-            QAction *leafAction = categoryMenus[category]->addAction(modelName);
-            QObject::connect(leafAction, &QAction::triggered, this, [this, modelName, scenePos]() {
-                this->undoStack().push(new QtNodes::CreateCommand(this, modelName, scenePos));
-            });
-            categoryCount[category] += 1;
-        }
-
-        for (auto it = categoryMenus.begin(); it != categoryMenus.end(); ++it) {
-            bool hasItems = categoryCount[it.key()] > 0;
-            it.value()->setEnabled(hasItems);
-            if (categoryActions.contains(it.key())) {
-                categoryActions[it.key()]->setVisible(hasItems);
+        auto refreshMenus = [this, scenePos, categoryMenus, categoryActions, associations](const QString &filterText) {
+            QHash<QString, int> categoryCount;
+            for (auto it = categoryMenus.begin(); it != categoryMenus.end(); ++it) {
+                categoryCount.insert(it.key(), 0);
             }
-        }
-    };
 
-    refreshMenus(QString());
-    QObject::connect(txtBox, &QLineEdit::textChanged, modelMenu, [refreshMenus](const QString &text) {
-        refreshMenus(text);
-    });
+            for (auto menu : categoryMenus) {
+                menu->clear();
+            }
 
-    modelMenu->setAttribute(Qt::WA_DeleteOnClose);
-    txtBox->setFocus();
-    return modelMenu;
-}
+            for (auto const &assoc : associations) {
+                const QString &modelName = assoc.first;
+                const QString &category  = assoc.second;
+
+                if (!categoryMenus.contains(category)) continue;
+                if (!filterText.isEmpty() && !modelName.contains(filterText, Qt::CaseInsensitive)) continue;
+
+                QAction *leafAction = categoryMenus[category]->addAction(modelName);
+                QObject::connect(leafAction, &QAction::triggered, this, [this, modelName, scenePos]() {
+                    this->undoStack().push(new QtNodes::CreateCommand(this, modelName, scenePos));
+                });
+                categoryCount[category] += 1;
+            }
+
+            for (auto it = categoryMenus.begin(); it != categoryMenus.end(); ++it) {
+                bool hasItems = categoryCount[it.key()] > 0;
+                it.value()->setEnabled(hasItems);
+                if (categoryActions.contains(it.key())) {
+                    categoryActions[it.key()]->setVisible(hasItems);
+                }
+            }
+        };
+
+        refreshMenus(QString());
+        QObject::connect(txtBox, &QLineEdit::textChanged, modelMenu, [refreshMenus](const QString &text) {
+            refreshMenus(text);
+        });
+
+        modelMenu->setAttribute(Qt::WA_DeleteOnClose);
+        txtBox->setFocus();
+        return modelMenu;
+    }
 
 
     bool CustomFlowGraphicsScene::save() const

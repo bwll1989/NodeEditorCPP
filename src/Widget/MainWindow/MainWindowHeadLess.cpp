@@ -181,7 +181,7 @@ QStringList MainWindowHeadLess::getRecentFiles() const
 {
 
    
-    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/RecentFiles.ini", QSettings::IniFormat);
+    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
     const QStringList files = settings.value("files").toStringList();
     return files;
 }

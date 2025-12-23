@@ -147,6 +147,8 @@
         "qfiledialog": "cpp",
         "qabstractlistmodel": "cpp",
         "qregularexpressionvalidator": "cpp",
-        "*.rh": "cpp"
+        "*.rh": "cpp",
+        "openglsupport": "cpp",
+        "nonlinearoptimization": "cpp"
     }
 }

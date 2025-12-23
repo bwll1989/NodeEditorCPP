@@ -10,7 +10,7 @@
 #include <QDebug>
 #include <QThread>
 #include <QMutex>
-#include <QWaitCondition>
+#include <QPointer>
 
 #include <QMediaDevices>
 #include <QCameraDevice>
@@ -79,7 +79,7 @@ public:
     void stop() {
         QMutexLocker locker(&m_mutex);
         m_running = false;
-        m_condition.wakeOne(); // 唤醒线程，使其能够检查m_running并退出
+        // m_condition.wakeOne(); // 唤醒线程，使其能够检查m_running并退出
     }
 
 signals:
@@ -144,10 +144,21 @@ protected:
                 cv::Mat frame;
                 bool success = capture.read(frame);
                 
+                // 读取后再次检查运行状态，防止在读取过程中被停止
+                {
+                    QMutexLocker locker(&m_mutex);
+                    if (!m_running) break;
+                }
+                
                 if (success && !frame.empty()) {
-                    emit frameAvailable(frame);
+                    // 使用 clone() 进行深拷贝，确保数据独立于 VideoCapture 的内部缓冲区
+                    // 这可以防止在 VideoCapture 释放或重用缓冲区时，接收端访问无效内存
+                    emit frameAvailable(frame.clone());
                 } else if (!success || frame.empty()) {
-                    qWarning() << "捕获帧失败";
+                    // 只有在确实应该运行时才警告
+                    if (m_running) {
+                        qWarning() << "捕获帧失败";
+                    }
                 }
                 
                 // 根据帧率控制捕获频率，避免CPU占用过高
@@ -155,12 +166,9 @@ protected:
                 msleep(delayMs / 2); // 使用一半的延迟，确保不会错过帧
                 
                 // 检查是否应该停止
-                QMutexLocker locker(&m_mutex);
-                if (!m_running) break;
-                
-                // 如果需要暂停，等待条件变量
-                if (!m_running) {
-                    m_condition.wait(&m_mutex);
+                {
+                    QMutexLocker locker(&m_mutex);
+                    if (!m_running) break;
                 }
             } catch (const cv::Exception& e) {
                 qWarning() << "OpenCV异常(捕获线程): " << e.what();
@@ -188,7 +196,7 @@ protected:
 
 private:
     QMutex m_mutex;              // 互斥锁，保护共享数据
-    QWaitCondition m_condition;  // 条件变量，用于线程同步
+    // QWaitCondition m_condition;  // Removed: redundant
     QAtomicInt m_running;        // 原子变量，控制线程运行状态
     int m_deviceIndex;           // 摄像头设备索引
 };
@@ -223,8 +231,8 @@ namespace Nodes
          */
         ~CameraModel() override {
             try {
-                // 停止摄像头
-                stopCamera();
+                // 停止摄像头 (通知是析构调用)
+                stopCamera(true);
                 
                 // 停止摄像头线程
                 if (m_captureThread) {
@@ -234,8 +242,7 @@ namespace Nodes
                 
                 // 清除图像数据
                 m_outImageData.reset();
-                
-                qInfo() << "CameraModel已销毁并释放资源";
+
             } catch (const std::exception& e) {
                 qWarning() << "CameraModel析构函数中的异常: " << e.what();
             } catch (...) {
@@ -305,10 +312,10 @@ namespace Nodes
             stopCamera();
             
             // 初始化新选择的摄像头
-            initializeCamera(deviceIndex);
+                initializeCamera(deviceIndex);
+            
         }
-        
-        /**
+    /**
          * @brief 处理线程中捕获的新帧
          * @param frame 捕获的帧
          */
@@ -335,7 +342,7 @@ namespace Nodes
          * @param isCapturing 是否正在捕获
          */
         void onCaptureStateChanged(bool isCapturing) {
-            if (m_ui) {
+            if (m_ui && m_widget) {
                 m_ui->cb_takingFrame->setChecked(isCapturing);
             }
         }
@@ -345,7 +352,7 @@ namespace Nodes
          * 使用Qt的QMediaDevices API获取摄像头列表和名称
          */
         void updateCameras() {
-            if (!m_ui) {
+            if (!m_ui || !m_widget) {
                 return;
             }
             
@@ -403,12 +410,12 @@ namespace Nodes
                 
             } catch (const std::exception& e) {
                 qWarning() << "初始化摄像头异常: " << e.what();
-                if (m_ui) {
+                if (m_ui && m_widget) {
                     m_ui->cb_takingFrame->setChecked(false);
                 }
             } catch (...) {
                 qWarning() << "初始化摄像头时发生未知异常";
-                if (m_ui) {
+                if (m_ui && m_widget) {
                     m_ui->cb_takingFrame->setChecked(false);
                 }
             }
@@ -417,21 +424,23 @@ namespace Nodes
         /**
          * @brief 停止摄像头
          */
-        void stopCamera() {
+        void stopCamera(bool fromDestructor = false) {
             try {
                 // 停止捕获线程
                 if (m_captureThread) {
                     m_captureThread->stop();
                 }
                 
-                // 更新UI状态
-                if (m_ui) {
+                // 更新UI状态 (仅在非析构且UI有效时)
+                if (!fromDestructor && m_ui && m_widget) {
                     m_ui->cb_takingFrame->setChecked(false);
                 }
                 
                 // 清除输出数据
                 m_outImageData.reset();
-                emit dataUpdated(0);
+                if (!fromDestructor) {
+                    emit dataUpdated(0);
+                }
             } catch (const std::exception& e) {
                 qWarning() << "停止摄像头异常: " << e.what();
             } catch (...) {
@@ -443,7 +452,7 @@ namespace Nodes
 
 
     private:
-        QWidget* m_widget = nullptr;
+        QPointer<QWidget> m_widget;
         QScopedPointer<Ui::CameraForm> m_ui;
         CameraCaptureThread* m_captureThread = nullptr; // 摄像头捕获线程
 

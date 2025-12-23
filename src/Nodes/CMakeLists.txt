@@ -52,6 +52,7 @@ set(ALL_NODES
     TSETLNode                                 #对接TSETL
     HoldNode                                  #信号保持
     SpoutInNode                               #Spout输入
+    SpoutOutNode                              #Spout输出
     NDVPlayerNode                             #NDV player
     DMXDeviceNode                             #DMX 设备
     DMXUniverseNode                           #DMX Universe
@@ -141,6 +142,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(TSETLNode)                                 #对接TSETL
     add_subdirectory(HoldNode)                                  #信号保持
     add_subdirectory(SpoutInNode)                               #Spout输入
+    add_subdirectory(SpoutOutNode)                              #Spout输出
     add_subdirectory(NDVPlayerNode)                             #NDV player
     add_subdirectory(DMXDeviceNode)                             #DMX 设备
     add_subdirectory(DMXUniverseNode)                           #DMX Universe 数据

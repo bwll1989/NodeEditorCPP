@@ -172,8 +172,8 @@ namespace Clips
             mainLayout->setContentsMargins(5, 5, 5, 5);
             mainLayout->setSpacing(4);
             // 基本设置组
-            auto* basicGroup = new QGroupBox("文件属性", m_editor);
-            auto* basicLayout = new QGridLayout(basicGroup);
+            //auto* basicGroup = new QGroupBox("文件属性", m_editor);
+            //auto* basicLayout = new QGridLayout(basicGroup);
             // 时间相关控件
             // basicLayout->addWidget(new QLabel("文件时长:"), 1, 0);
             // auto* durationBox = new QLineEdit(basicGroup);
@@ -185,10 +185,16 @@ namespace Clips
             // fileNameLabel->setReadOnly(true);
             // basicLayout->addWidget(fileNameLabel, 2, 0, 1, 2);
             // 媒体文件选择
-            basicLayout->addWidget(new QLabel("媒体文件:"), 0, 0,1,1);
-            mediaSelector = new SelectorComboBox(MediaLibrary::Category::Video,basicGroup);
+
+            //mainLayout->addWidget(basicGroup);
+            // 添加尺寸位置参数设置
+            auto* positionGroup = new QGroupBox("片段属性", m_editor);
+            auto* positionLayout = new QGridLayout(positionGroup);
+            // 位置
+            positionLayout->addWidget(new QLabel("Meida:"), 0,0);
+            mediaSelector = new SelectorComboBox(MediaLibrary::Category::Video,positionGroup);
             registerOSCControl("/file", mediaSelector);
-            basicLayout->addWidget(mediaSelector, 0, 1,1,2);
+            positionLayout->addWidget(mediaSelector, 0, 1);
             // 连接信号槽
             connect(mediaSelector,&SelectorComboBox::textChanged,[=](const QString& text){
                 if (m_filePath != text) {
@@ -198,11 +204,6 @@ namespace Clips
                emit onPropertyChanged();
            }
             });
-            mainLayout->addWidget(basicGroup);
-            // 添加尺寸位置参数设置
-            auto* positionGroup = new QGroupBox("位置参数", m_editor);
-            auto* positionLayout = new QGridLayout(positionGroup);
-            // 位置
             positionLayout->addWidget(new QLabel("X:"), 1, 0);
             postion_x = new QSpinBox(positionGroup);
             postion_x->setMinimum(-10000);

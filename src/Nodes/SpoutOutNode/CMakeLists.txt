@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-set(Module_Name "SpoutInNode")
+set(Module_Name "SpoutOutNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
@@ -13,13 +13,19 @@ string(TIMESTAMP BUILD_TS "%Y%m%d")
 # 函数级注释：将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
 add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 # 设置Spout库
+#set(Spout_DIR "${DEPENDS_DIR}/Spout2/install")
+#set(Spout_LIBRARIES "${Spout_DIR}/lib/Spout.lib")
+#set(SpoutLibrary_LIBRARIES "${Spout_DIR}/lib/SpoutLibrary.lib")
+#INCLUDE_DIRECTORIES("${Spout_DIR}/include/SpoutGL")
+#INCLUDE_DIRECTORIES("${Spout_DIR}/include/SpoutLibrary")
+#set(Spout_LIBRARIES "${Spout_DIR}/lib/Spout.lib")
 set(SpoutLibrary_LIBRARIES "${DEPENDS_DIR}/Spout2-2.007.017/SPOUTSDK/SpoutLibrary/x64/Release/SpoutLibrary.lib")
 INCLUDE_DIRECTORIES("${DEPENDS_DIR}/Spout2-2.007.017/SPOUTSDK/SpoutLibrary")
 message("--Found Spout SDK ${Spout_DIR}")
 
 add_library(${Module_Name}  SHARED
-		SpoutInDataModel.hpp
-		SpoutInInterface.hpp
+		SpoutOutDataModel.hpp
+		SpoutOutInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp)
 
@@ -29,7 +35,6 @@ target_link_libraries(${Module_Name}
 		${QtNodes_LIBRARIES}
 		${OpenCV_LIBRARIES}
 		${SpoutLibrary_LIBRARIES}
-		SpoutReceiver
 		Qt${QT_VERSION_MAJOR}::OpenGL
 		opengl32  # 添加OpenGL32库
 		glu32     # 添加GLU32库
