@@ -64,10 +64,12 @@ public:
     QAction *createNodeAction;
     //工具菜单
     QMenu *Tool_menu;
-    //工具1
-    QAction *tool1Action ;
-    //工具2
-    QAction *tool2Action ;
+    //格式转化器
+    QAction *FormatConverter ;
+    //网页入口
+    QAction *WebInterface ;
+    //系统信息
+    QAction *systemInfoAction;
     //artnetrecoder工具
     QAction *ArtnetRecoderToolAction ;
     //关于菜单
@@ -86,11 +88,16 @@ public:
 Q_SIGNALS:
     void recentFileTriggered(const QString& path);
 private slots:
-    void openOSCInterface(const QString& exePath, const QStringList& args);
     void openToolWithArgs(const QString& exePath, const QStringList& args);
     //软件关于
     void showAboutDialog();
     //显示帮助
     void showHelp();
+    /**
+     * 函数级注释：在默认浏览器中打开本地HTTP服务器的页面
+     * - 使用 `AppConstants::HTTP_SERVER_PORT` 组合URL
+     * - 调用 `QDesktopServices::openUrl` 打开浏览器
+     */
+    void openDashboard();
 };
 

@@ -15,6 +15,7 @@
 #include <QWidget>
 
 #include "OSCSender/OSCSender.h"
+#include <QCoreApplication>
 
 enum class AddressType { Dataflow, Timeline, Unknown };
 
@@ -30,11 +31,13 @@ public:
     explicit ExternalControler();
     ~ExternalControler();
     static ExternalControler* instance() {
-        static ExternalControler* instance = nullptr;
-        if (!instance) {
-            instance = new ExternalControler(); // 需要传入父窗口参数
+        if (!s_instance) {
+            s_instance = new ExternalControler(); // 需要传入父窗口参数
+            if (QCoreApplication::instance()) {
+                s_instance->moveToThread(QCoreApplication::instance()->thread());
+            }
         }
-        return instance;
+        return s_instance;
     }
     /**
      * 设置数据流程模型映射
@@ -52,7 +55,7 @@ public:
      */
     void setTimelineToolBarMap(std::shared_ptr<std::unordered_map<QString, QAction*>> oscMapping);
 
-private slots:
+public slots:
     /**
      * 处理接收到的UDP数据
      * @param const QVariantMap &data 接收到的UDP数据
@@ -67,6 +70,7 @@ private:
     ExternalControler& operator=(const ExternalControler&) = delete;
 
 private:
+    static ExternalControler* s_instance;
     // 数据流程模型映射
     std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>>  *m_dataflowmodels;
     // 时间线模型
@@ -77,4 +81,3 @@ private:
     OSCReceiver *OSC_Receiver;
 
 };
-

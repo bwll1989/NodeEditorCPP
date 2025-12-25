@@ -24,12 +24,14 @@
 
 #include "Common/GUI/Elements/FaderWidget/FaderWidget.h"
 #include "ConstantDefines.h"
+ExternalControler* ExternalControler::s_instance = nullptr;
 ExternalControler::ExternalControler():
     OSC_Receiver(new OSCReceiver(AppConstants::EXTRA_CONTROL_PORT))
     // ,OSC_Sender(new OSCSender(OSCSender("127.0.0.1", AppConstants::EXTRA_FEEDBACK_PORT)))
  {
     // 创建 UDP 套接字并绑定到指定端口
     connect(OSC_Receiver, &OSCReceiver::receiveOSCMessage, this, &ExternalControler::parseOSC);
+    if (!s_instance) s_instance = this;
 
 }
 ExternalControler::~ExternalControler()

@@ -68,6 +68,10 @@ void MainWindowHeadLess::init()
     controller->setTimelineModel(timelineModel);
     controller->setTimelineToolBarMap(timeline->view->m_toolbar->getOscMapping());
     emit initStatus("Initialization external controler success");
+	 // http 服务器
+    httpServer=new NodeStudio::NodeHttpServer();
+    httpServer->start(AppConstants::HTTP_SERVER_PORT);
+    emit initStatus("Initialization Http Server success");
     // 系统托盘图标
      if (QSystemTrayIcon::isSystemTrayAvailable()) {
         trayIcon = new QSystemTrayIcon(this);
@@ -143,6 +147,12 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
 
         // 设置当前项目路径
         currentProjectPath = absolutePath;
+ 		// 载入网页布局（HTTP Server）
+        const QJsonObject webLayout = jsonDoc.object().value("WebLayout").toObject();
+        if (!webLayout.isEmpty() && httpServer) {
+             emit initStatus(tr("Load the web layout..."));
+            httpServer->load(webLayout);
+        }
         m_splash->updateStatus(tr("Load flow file completed"));
         m_splash->finish(this);
         // 更新托盘图标工具提示

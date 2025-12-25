@@ -195,7 +195,11 @@ void MainWindow::init()
     controller->setDataflowModels(dataflowViewsManger->getModel());
     controller->setTimelineModel(timelineModel);
     controller->setTimelineToolBarMap(timeline->view->m_toolbar->getOscMapping());
-    emit initStatus("Initialization External Controler");
+    emit initStatus("Initialization external controler success");
+	 // http 服务器
+    httpServer=new NodeStudio::NodeHttpServer();
+    httpServer->start(AppConstants::HTTP_SERVER_PORT);
+    emit initStatus("Initialization Http Server success");
     // 更新默认布局
     connect(menuBar->saveLayout, &QAction::triggered, this, &MainWindow::updateVisualState);
     //恢复布局
@@ -384,6 +388,7 @@ void MainWindow::loadFileFromPath(const QString &path)
         const QString layoutBase64 = jsonDoc.object()["VisualLayout"].toString();
         if (!layoutBase64.isEmpty()) {
             const QByteArray layoutBytes = QByteArray::fromBase64(layoutBase64.toLatin1());
+            splashScreen.updateStatus(tr("Load the visual layout..."));
             m_DockManager->restoreState(layoutBytes);
         }else {
             resetVisualState();
@@ -392,7 +397,14 @@ void MainWindow::loadFileFromPath(const QString &path)
         // 设置当前项目路径
         currentProjectPath = absolutePath;
         this->setWindowTitle(file.fileName());
-
+        
+        // 载入网页布局（HTTP Server）
+        const QJsonObject webLayout = jsonDoc.object().value("WebLayout").toObject();
+        if (!webLayout.isEmpty() && httpServer) {
+            splashScreen.updateStatus(tr("Load the web layout..."));
+            httpServer->load(webLayout);
+        }
+        
         // 加入最近文件并刷新菜单
         addToRecentFiles(absolutePath);
         menuBar->updateRecentFileActions(getRecentFiles());
@@ -436,8 +448,10 @@ void MainWindow::saveFileToPath(){
         // 保存布局信息
         const QByteArray layoutBytes = m_DockManager->saveState();
         flowJson["VisualLayout"] = QString::fromLatin1(layoutBytes.toBase64());
+        // 保存网页布局（HTTP Server）
+        flowJson["WebLayout"] = httpServer ? httpServer->save() : QJsonObject{};
         
-        file.write(QJsonDocument(flowJson).toJson());
+        file.write(QJsonDocument(flowJson).toJson(QJsonDocument::Compact));
         file.close();
     }
     
@@ -465,8 +479,10 @@ void MainWindow::saveFileToExplorer() {
             // 保存布局信息
             const QByteArray layoutBytes = m_DockManager->saveState();
             flowJson["VisualLayout"] = QString::fromLatin1(layoutBytes.toBase64());
+            // 保存网页布局（HTTP Server）
+            flowJson["WebLayout"] = httpServer ? httpServer->save() : QJsonObject{};
 
-            file.write(QJsonDocument(flowJson).toJson());
+            file.write(QJsonDocument(flowJson).toJson(QJsonDocument::Compact));
             file.close();
             currentProjectPath=fileName;
             this->setWindowTitle(file.fileName());

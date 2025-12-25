@@ -1,0 +1,11 @@
+<el-button 
+  type="primary" 
+  @click="exec" 
+  @mousedown="onDown"
+  @mouseup="onUp"
+  @mouseleave="onUp"
+  @touchstart="onDown"
+  @touchend="onUp"
+  :style="buttonStyle">
+  {{ label }}
+</el-button>

@@ -110,6 +110,12 @@ set(QtColorWidgets_DIR "${DEPENDS_DIR}/Qt-Color-Widgets")
 set(QtColorWidgets_LIBRARIES "${QtColorWidgets_DIR}/install/lib/QtColorWidgets.lib")
 INCLUDE_DIRECTORIES("${QtColorWidgets_DIR}/install/include")
 
+#
+set(Poco_DIR "${DEPENDS_DIR}/poco-1.14.2/install/cmake")
+find_package(Poco CONFIG REQUIRED Foundation Util Net JSON)
+include_directories(${Poco_INCLUDE_DIRS})
+message("-- Found Poco ${Poco_DIR}")
+
 ## 设置TabToolbar库
 #set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
 #set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
@@ -138,6 +144,7 @@ add_subdirectory(src/Common/GUI/DelayListWidget)
 add_subdirectory(src/Common/BuildInNodes)
 add_subdirectory(src/Common/GUI/DockHub)
 add_subdirectory(src/DataTypes)
+add_subdirectory(src/Common/Devices/StatusContainer)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -156,7 +163,7 @@ set(CALC_SOURCE_FILES
         src/Widget/NodeWidget/DataflowViewsManger.cpp
         src/Widget/PortEditWidget/PortEditAddRemoveWidget.hpp
         src/Widget/PortEditWidget/PortEditAddRemoveWidget.cpp
-        src/Widget/AboutWidget/AboutWidget.hpp
+        src/Widget/MenuBarWidget/AboutWidget.hpp
         src/Widget/MainWindow/MainWindow.hpp
         src/Widget/MainWindow/MainWindow.cpp
         src/Widget/MainWindow/MainWindowHeadLess.cpp
@@ -171,6 +178,8 @@ set(CALC_SOURCE_FILES
         src/Widget/ConsoleWidget/LogHandler.hpp
         src/Widget/MenuBarWidget/MenuBarWidget.cpp
         src/Widget/MenuBarWidget/MenuBarWidget.h
+        src/Widget/MenuBarWidget/SystemInfoWidget.cpp
+        src/Widget/MenuBarWidget/SystemInfoWidget.h
         src/Widget/PropertyWidget/PropertyWidget.cpp
         src/Widget/PropertyWidget/PropertyWidget.hpp
         src/Widget/NodeLibraryWidget/draggabletreewidget.cpp
@@ -253,6 +262,8 @@ set(CALC_SOURCE_FILES
         src/Widget/CalendarWidget/TaskItemDelegate.h
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.cpp
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.h
+        src/Widget/HttpServer/HttpServer.cpp
+        src/Widget/HttpServer/HttpServer.hpp
         src/constantDefines.h
 )
 # 函数级注释：定义 Headless 版本源文件（用 headless_main.cpp 替换 main.cpp）
@@ -316,6 +327,10 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
             Qt${QT_VERSION_MAJOR}::WebSockets
             Qt${QT_VERSION_MAJOR}::Graphs
+            Poco::Foundation
+            Poco::Util
+            Poco::Net
+            Poco::JSON
             GUIElements
             avcodec
             avdevice
@@ -347,6 +362,8 @@ target_link_libraries(${ProjectName}
             ModelDataBridge
             DelayListWidget
             DockHub
+            StatusContainer
+
 )
 
 # 为 Headless 目标定义编译宏（与主程序一致）
@@ -372,6 +389,10 @@ target_link_libraries(${HeadlessProjectName}
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
             Qt${QT_VERSION_MAJOR}::WebSockets
             Qt${QT_VERSION_MAJOR}::Graphs
+            Poco::Foundation
+            Poco::Util
+            Poco::Net
+            Poco::JSON
             GUIElements
             avcodec
             avdevice
@@ -403,6 +424,7 @@ target_link_libraries(${HeadlessProjectName}
             DelayListWidget
             DockHub
             SpoutReceiver
+            StatusContainer
 )
 # 设置主程序属性
 set_target_properties(${ProjectName} PROPERTIES

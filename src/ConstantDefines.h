@@ -14,18 +14,16 @@ namespace AppConstants {
     constexpr const char* EXTRA_FEEDBACK_HOST = "127.0.0.1";
     // 软件内OSC控制主机，默认值为本地回环地址
     constexpr const char* OSC_INTERNAL_CONTROL_HOST = "127.0.0.1";
-    // OSC外部反馈端口号
+    // OSC外部反馈端口号,即使用这个端口向外发送数据
     constexpr int EXTRA_FEEDBACK_PORT = 8990;
-    // OSC外部控制端口号
+    // OSC外部控制端口号,即使用这个端口向内接收数据
     constexpr int EXTRA_CONTROL_PORT = 8991;
-    // OSC Web 端口号
-    constexpr int OSC_WEB_PORT = 8992;
+    // HTTP 服务器端口号
+    constexpr int HTTP_SERVER_PORT = 8992;
 
     // 产品信息
-
     const QString COMPANY_NAME = "WuBin";
     const QString PRODUCT_NAME = "NodeStudio";
-    const QString LUA_PATH = "./lua;";
     const QString FILE_DESCRIPTION = "NodeStudio based on Qt 6.10.1 (MSVC, 64 bit)";
     const QString LEGAL_COPYRIGHT = "Copyright 2008-2025 The Qt Company Ltd. All rights reserved.";
     // 日志存储目录
@@ -42,7 +40,7 @@ namespace AppConstants {
     // Art-Net 相关常量
     constexpr int ARTNET_PORT = 6454;
     // Art-Net 输出FPS
-    constexpr double ARTNET_OUTPUT_FPS = 50.0; // 25ms
+    constexpr double ARTNET_OUTPUT_FPS = 50.0; // 20ms
 
     // 深色主题样式表
     const QString DARK_STYLESHEET = ":/styles/styles/DefaultDark.qss";

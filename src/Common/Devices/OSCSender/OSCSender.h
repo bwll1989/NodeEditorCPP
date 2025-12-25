@@ -78,6 +78,12 @@ public slots:
      * @brief 清理资源
      */
     void cleanup();
+signals:
+    /**
+     * @brief 发送 OSC 消息的信号
+     * @param message 发送的消息
+     */
+    void messageSent(const OSCMessage &message);
     
 private:
     QTimer *m_timer;                    ///< 消息处理定时器

@@ -28,7 +28,7 @@
 // 新增：系统托盘支持
 #include <QSystemTrayIcon>
 #include <QMenu>
-
+#include "Widget/HttpServer/HttpServer.hpp"
 class MainWindow : public QMainWindow
 {
 Q_OBJECT
@@ -69,6 +69,8 @@ public:
     MediaLibraryWidget *mediaLibraryWidget=nullptr;
     //节点视图
     DataflowViewsManger *dataflowViewsManger=nullptr;
+    // http 服务器
+    NodeStudio::NodeHttpServer *httpServer=nullptr;
 Q_SIGNALS:
     //初始化状态信号
     void initStatus(const QString &message);

@@ -1,0 +1,10 @@
+<el-button 
+  @click="toggle"
+  @mousedown="onDown"
+  @mouseup="onUp"
+  @mouseleave="onUp"
+  @touchstart="onDown"
+  @touchend="onUp"
+  :style="buttonStyle">
+  {{ active ? labelOn : labelOff }}
+</el-button>

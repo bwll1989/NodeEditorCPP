@@ -8,11 +8,17 @@
 - [Qt Advanced Docking System](https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System) — 高级布局系统
 - [QScintilla](https://qscintilla.com) — 代码编辑器
 - [QHotKey](https://github.com/Skycoder42/QHotkey.git) — 全局热键
+- [Poco](https://pocoproject.org) — 跨平台基础库,实现网络服务器等
 
 ## 音频
 
 - [PortAudio](https://www.portaudio.com) — 音频 IO
 - [VST3 (MSVC)](https://github.com/steinbergmedia/vst3sdk) — VST3 插件支持
+
+## 视频
+
+- [Spout2](https://spout.zeal.co/) — 纹理共享
+- [NDI](https://ndi.video) — 视频流共享
 
 ## 时间轴
 
@@ -21,7 +27,6 @@
 ## 通讯与协议
 
 - [TinyOSC](https://github.com/bwll1989/tinyosc.git) — OSC 解析器
-- [open-stage-control](https://github.com/jean-emmanuel/open-stage-control.git) — OSC/MIDI 服务器
 
 ## 编解码
 

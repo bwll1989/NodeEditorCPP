@@ -1,0 +1,8 @@
+<div class="p-knob p-component" :style="containerStyle">
+    <svg viewBox="0 0 100 100" class="p-knob-svg" style="width: 100%; height: 100%; cursor: pointer; touch-action: none" 
+        @mousedown="onMouseDown" @touchstart="onTouchStart">
+        <path :d="rangePath" :stroke="rangeColor" :stroke-width="strokeWidth" fill="none" class="p-knob-range"></path>
+        <path :d="valuePath" :stroke="valueColor" :stroke-width="strokeWidth" fill="none" class="p-knob-value"></path>
+        <text v-if="showValue" x="50" y="57" text-anchor="middle" :fill="textColor" font-size="20" font-family="var(--font-family, inherit)" font-weight="600" class="p-knob-text">{{ valueText }}</text>
+    </svg>
+</div>

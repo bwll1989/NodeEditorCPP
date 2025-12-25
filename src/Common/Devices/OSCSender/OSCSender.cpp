@@ -141,6 +141,7 @@ bool OSCSender::sendOSCMessageWithQueue(const OSCMessage &message){
     QMutexLocker locker(&m_mutex);
     //将OSCMessage加入队列
     m_messageQueue.enqueue(message);
+    emit messageSent(message);
     return true;
 }
 
@@ -205,5 +206,6 @@ bool OSCSender::sendOSCMessageDirectly(const OSCMessage &message){
         qWarning() << "Failed to send OSC message for address" << address << "via QUdpSocket."<<mHost;
         return false;
     }
+    emit messageSent(message);
     return true;
 }

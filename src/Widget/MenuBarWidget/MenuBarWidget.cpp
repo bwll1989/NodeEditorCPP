@@ -7,8 +7,10 @@
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QFile>
-#include "Widget/AboutWidget/AboutWidget.hpp"
+#include "AboutWidget.hpp"
 #include "ConstantDefines.h"
+#include "SystemInfoWidget.h"
+
 MenuBarWidget::MenuBarWidget(QWidget *parent) : QMenuBar(parent) {
     this->setFont(QApplication::font());
     setupMenu();
@@ -87,36 +89,26 @@ void MenuBarWidget::setupMenu() {
     Tool_menu=this->addMenu("工具");
     Tool_menu->setWindowFlags(Tool_menu->windowFlags() | Qt::NoDropShadowWindowHint);
     Tool_menu->setAttribute(Qt::WA_TranslucentBackground, false);
-    tool1Action = Tool_menu->addAction(QIcon(":/icons/icons/converty.png"),"视频格式转换器");
-    connect(tool1Action, &QAction::triggered, this, [this]() {
+    FormatConverter = Tool_menu->addAction(QIcon(":/icons/icons/converty.png"),"视频格式转换器");
+    connect(FormatConverter, &QAction::triggered, this, [this]() {
 
         openToolWithArgs("FormatConverter.exe", QStringList());
     });
 
 
-    tool2Action = Tool_menu->addAction(QIcon(":/icons/icons/osc.png"),"OpenStageControl");
-    connect(tool2Action, &QAction::triggered, this, [this]() {
-            QStringList args;
-            args << "--load"
-                << "./extrnal-control-interface.json"             // 加载默认文件
-                <<"--port"
-                << QString::number(AppConstants::OSC_WEB_PORT)      //网页端口
-                <<"--osc-port"
-                << QString::number(AppConstants::EXTRA_FEEDBACK_PORT)      //osc端口
-                << "--no-gui"                                   // 无gui运行
-                <<"--theme"                                     //主题
-                << "orange"
-                << "--send"                                      // OSC发送端口
-                << QString("%1:%2").arg(AppConstants::EXTRA_FEEDBACK_HOST).arg(AppConstants::EXTRA_CONTROL_PORT); //OSC网页服务主机
-
-
-            openOSCInterface("open-stage-control/open-stage-control.exe", args);
-       });
+    WebInterface = Tool_menu->addAction(QIcon(":/icons/icons/home.png"),"打开网页控制台");
+    connect(WebInterface, &QAction::triggered, this, &MenuBarWidget::openDashboard);
 
     ArtnetRecoderToolAction=Tool_menu->addAction(QIcon(":/icons/icons/recoder.png"),"Artnet记录器");
     connect(ArtnetRecoderToolAction, &QAction::triggered, this, [this]() {
         openToolWithArgs("ArtnetRecorder.exe", QStringList());
     });
+    systemInfoAction=Tool_menu->addAction(QIcon(":/icons/icons/property.png"),"系统信息");
+    connect(systemInfoAction, &QAction::triggered, this, [this]() {
+        SystemInfoWidget systemInfoWidget;
+        systemInfoWidget.exec();
+    });
+
 
     About_menu=this->addMenu("关于");
     About_menu->setWindowFlags(About_menu->windowFlags() | Qt::NoDropShadowWindowHint);
@@ -133,22 +125,6 @@ void MenuBarWidget::setupMenu() {
     // 关于qt窗口
 }
 
-void MenuBarWidget::openOSCInterface(const QString& exePath, const QStringList& args) {
-     QString fullPath = QCoreApplication::applicationDirPath() + "/" + exePath;
-
-    QProcess *process = new QProcess(this);
-    process->setWorkingDirectory(QCoreApplication::applicationDirPath());
-
-    connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-            process, &QProcess::deleteLater);
-    if (QFile::exists(fullPath)) {
-        process->start(fullPath, args);
-        qDebug()<<"open stage control is running on http://localhost:"+QString::number(AppConstants::OSC_WEB_PORT);
-    } else {
-        QMessageBox::warning(this, "", QString("找不到可执行文件：%1").arg(fullPath));
-        process->deleteLater();
-    }
-}
 
 void MenuBarWidget::openToolWithArgs(const QString& exePath, const QStringList& args) {
     QString fullPath = QCoreApplication::applicationDirPath() + "/" + exePath;
@@ -181,6 +157,11 @@ void MenuBarWidget::showHelp() {
     QDesktopServices::openUrl(QUrl::fromLocalFile(helpPath));
 }
 
+// 函数级注释：在默认浏览器中打开本地HTTP服务器页面（Dashboard）
+void MenuBarWidget::openDashboard() {
+    const QUrl url(QString("http://127.0.0.1:%1/").arg(AppConstants::HTTP_SERVER_PORT));
+    QDesktopServices::openUrl(url);
+}
 /**
  * 函数级注释：更新“最近打开”菜单的显示内容
  * - 显示最多 MaxRecentFiles 项，文本为序号+文件名，tooltip 为完整路径

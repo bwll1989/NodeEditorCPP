@@ -1,0 +1,2274 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <title>NodeStudio Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link href="assets/vendor/bootstrap.min.css" rel="stylesheet">
+  <link href="assets/vendor/gridstack.min.css" rel="stylesheet"/>
+  <link href="assets/vendor/index.css" rel="stylesheet"/>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; }
+    h1 { color: #2b6cb0; margin-bottom: 12px; }
+    .app-shell { display: flex; height: 100vh; }
+    .main-area { flex: 1; padding: 16px 16px 16px 16px; overflow: auto; }
+    .sidebar { width: 320px; border-left: 1px solid #e1e4e8; display: flex; flex-direction: column; transition: width 0.3s ease, padding 0.3s ease; overflow-y: auto; overflow-x: hidden; }
+    .sidebar.collapsed { width: 0; padding: 0; border: none; overflow: hidden; }
+    .sidebar::-webkit-scrollbar { width: 5px; }
+    .sidebar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar-section { padding: 12px; min-width: 320px; }
+    .sidebar-section + .sidebar-section { border-top: 1px solid #e1e4e8; }
+    .toolbar { margin-bottom: 8px; }
+    .grid-stack { background: #f8fafc; min-height: calc(100vh - 110px); }
+    .grid-stack-item-content { background: #ffffff; border: 1px solid #e1e4e8; border-radius: 6px; padding: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+    .widget-title { font-weight: 600; font-size: 13px; color: #475569; margin-bottom: 8px; cursor: move; }
+    .view-mode .widget-title { cursor: default; }
+    .view-mode .grid-stack-item-content { border-color: transparent; box-shadow: none; background: transparent; }
+    .grid-selected .grid-stack-item-content { border-color: #2b6cb0; box-shadow: 0 0 0 2px rgba(43,108,176,0.15); }
+    
+    /* 编辑模式下显示遮罩层 */
+    .widget-overlay-mask { display: none; }
+    .edit-mode .widget-overlay-mask { display: block; cursor: move; border: 1px dashed rgba(0,0,0,0.1); }
+    .edit-mode .grid-selected .widget-overlay-mask { border: 2px solid #2b6cb0; background: rgba(43,108,176,0.05); }
+    /* 视图模式下确保内容可交互 */
+    .view-mode .grid-stack-item-content { pointer-events: auto; }
+    /* 移动端拖拽/滚动优化：默认允许纵向滚动；编辑模式禁用滚动以专注拖拽 */
+    .main-area { overscroll-behavior: contain; }
+    .view-mode .main-area, .view-mode .grid-stack { touch-action: pan-y; }
+    .edit-mode .main-area, .edit-mode .grid-stack { touch-action: none; }
+    /* 拖拽手柄不拦截事件，遮罩只在编辑模式参与命中 */
+    .widget-drag-handle { pointer-events: none; }
+    .view-mode .widget-overlay-mask { pointer-events: none; }
+    .edit-mode .widget-overlay-mask { pointer-events: auto; }
+
+    .prop-label { font-size: 12px; color: #64748b; }
+    .prop-value { font-size: 13px; }
+
+    /* 强制提升 resize handle 层级，防止被遮挡 */
+    .ui-resizable-handle { z-index: 1000 !important; }
+
+    /* 侧边栏折叠样式 */
+    .sidebar-section-header { cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+    .sidebar-section-header:hover { color: #2b6cb0; }
+    .sidebar-section-content { transition: max-height 0.3s ease, opacity 0.3s ease; overflow: hidden; max-height: 3000px; opacity: 1; }
+    .sidebar-section.collapsed .sidebar-section-content { max-height: 0; opacity: 0; padding: 0 !important; margin: 0 !important; }
+    .toggle-icon { transition: transform 0.3s ease; }
+    .sidebar-section.collapsed .toggle-icon { transform: rotate(-90deg); }
+    #tabsBar { 
+      overflow-x: auto; 
+      -webkit-overflow-scrolling: touch; 
+      position: sticky; 
+      top: 0; 
+      background: #fff; 
+      padding: 6px 0; 
+      border-bottom: 1px solid #e1e4e8; 
+      z-index: 10;
+    }
+    #tabsList { display: flex; flex-wrap: nowrap !important; gap: 6px; }
+    #tabsList .nav-link { white-space: nowrap; display: inline-flex; align-items: center; }
+    .tab-close { cursor: pointer; margin-left: 6px; line-height: 1; }
+    .tab-close:hover { color: #dc3545; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <div class="main-area">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="mb-0">Dashboard</h1>
+        <button id="toggleEditMode" class="btn btn-sm btn-outline-primary">编辑模式</button>
+      </div>
+      <div id="tabsBar" class="d-flex align-items-center mb-2 gap-2">
+        <div id="tabsList" class="nav nav-tabs flex-wrap"></div>
+        <button id="sidebarAddTab" class="btn btn-sm btn-outline-secondary" style="margin-bottom: 1px;">+</button>
+      </div>
+      <div id="tabsContent" style="position:relative; height: calc(100vh - 160px);">
+        <!-- 动态插入每个页面的 grid 容器 -->
+      </div>
+    </div>
+    <div class="sidebar collapsed">
+      <!-- 布局操作区域已移除 -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">
+          <div class="d-flex align-items-center justify-content-between flex-grow-1">
+            <strong>控件库</strong>
+            <small class="text-muted me-2" style="font-weight:normal; font-size: 0.8em;">拖拽后再调整</small>
+          </div>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="sidebar-section-content mt-2">
+          <div class="d-grid gap-2">
+            <button id="addButtonWidget" class="btn btn-sm btn-outline-primary">按钮</button>
+            <button id="addSliderWidget" class="btn btn-sm btn-outline-secondary">滑块</button>
+            <button id="addFloatSliderWidget" class="btn btn-sm btn-outline-secondary">浮点滑块</button>
+            <button id="addVSliderWidget" class="btn btn-sm btn-outline-secondary">竖向滑动条</button>
+            <button id="addVFloatSliderWidget" class="btn btn-sm btn-outline-secondary">竖向浮点滑块</button>
+            <button id="addCheckboxWidget" class="btn btn-sm btn-outline-secondary">勾选</button>
+            <button id="addSwitchWidget" class="btn btn-sm btn-outline-secondary">开关</button>
+            <button id="addInputWidget" class="btn btn-sm btn-outline-secondary">输入框</button>
+            <button id="addToggleButtonWidget" class="btn btn-sm btn-outline-secondary">切换按钮</button>
+            <button id="addDividerWidget" class="btn btn-sm btn-outline-secondary">分割线</button>
+            <button id="addVDividerWidget" class="btn btn-sm btn-outline-secondary">竖向分割线</button>
+            <button id="addLabelWidget" class="btn btn-sm btn-outline-secondary">标签</button>
+            <button id="addKnobWidget" class="btn btn-sm btn-outline-secondary">旋钮</button>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-header">
+          <strong>属性</strong>
+          <span class="toggle-icon">▼</span>
+        </div>
+        <div class="sidebar-section-content mt-2">
+          <div id="propPanel">
+            <!-- 动态生成属性表单 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/vendor/bootstrap.bundle.min.js"></script>
+  <script src="assets/vendor/gridstack-all.min.js"></script>
+  <script src="assets/vendor/vue.global.prod.js"></script>
+  <script src="assets/vendor/index.full.min.js"></script>
+  <script src="assets/widgets.js"></script>
+  <script src="assets/ep-widgets.js"></script>
+  <script src="widgets/Button/widget.js"></script>
+  <script src="widgets/Slider/widget.js"></script>
+  <script src="widgets/FloatSlider/widget.js"></script>
+  <script src="widgets/VSlider/widget.js"></script>
+  <script src="widgets/VFloatSlider/widget.js"></script>
+  <script src="widgets/Checkbox/widget.js"></script>
+  <script src="widgets/Switch/widget.js"></script>
+  <script src="widgets/Input/widget.js"></script>
+  <script src="widgets/ToggleButton/widget.js"></script>
+  <script src="widgets/Divider/widget.js"></script>
+  <script src="widgets/VDivider/widget.js"></script>
+  <script src="widgets/Label/widget.js"></script>
+  <script src="widgets/Knob/widget.js"></script>
+  <script>
+    const EPWidgets = window.EPWidgets || {};
+    EPWidgets.isRemoteUpdating = false; // 初始化标志
+    let grids = new Map();
+    let activeTabId = null;
+    let tabs = [];
+    
+    // WebSocket 状态同步
+    const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = wsProtocol + '//' + location.host + '/ws';
+    let ws = null;
+    let wsReconnectTimer = null;
+    
+    function connectWebSocket() {
+        if (ws) return;
+        ws = new WebSocket(wsUrl);
+        ws.onopen = function() {
+            console.log('WebSocket connected');
+            if (wsReconnectTimer) {
+                clearTimeout(wsReconnectTimer);
+                wsReconnectTimer = null;
+            }
+        };
+        ws.onmessage = function(event) {
+            try {
+                const msg = JSON.parse(event.data);
+                console.log('WS received:', msg); // Debug log
+                if (msg.addr) {
+                    // 标记为远程更新，阻止 sendCommand
+                    EPWidgets.isRemoteUpdating = true;
+                    
+                    // 遍历所有 grid 查找匹配的 widget
+                    grids.forEach(info => {
+                        const grid = info.grid;
+                        if (!grid || !grid.el) return;
+                        // 注意：grid.el 是 .grid-stack 容器，.grid-stack-item 是其子元素
+                        const items = grid.el.querySelectorAll('.grid-stack-item');
+                        items.forEach(item => {
+                            // 获取 item 绑定的 API
+                            const props = EPWidgets.getProps(item);
+                            // 检查 commandId
+                            const target = msg.addr;
+                            if (props.commandId === target) {
+                                console.log('Updating widget:', target, msg.value); // Debug log
+                                EPWidgets.setProps(item, { value: msg.value });
+                            }
+                        });
+                    });
+                    
+                    // 恢复标志（等待 Vue watcher 周期结束）
+                    const vue = EPWidgets.getVue();
+                    if (vue && vue.nextTick) {
+                        vue.nextTick(() => { EPWidgets.isRemoteUpdating = false; });
+                    } else {
+                        setTimeout(() => { EPWidgets.isRemoteUpdating = false; }, 0);
+                    }
+                }
+            } catch (e) {
+                console.error('WebSocket message error:', e);
+                EPWidgets.isRemoteUpdating = false;
+            }
+        };
+        ws.onclose = function() {
+            console.log('WebSocket closed');
+            ws = null;
+            if (!wsReconnectTimer) {
+                wsReconnectTimer = setTimeout(connectWebSocket, 3000);
+            }
+        };
+        ws.onerror = function(err) {
+            console.error('WebSocket error:', err);
+        };
+    }
+    // 页面加载完成后连接
+    if (document.readyState === 'complete') {
+        connectWebSocket();
+    } else {
+        window.addEventListener('load', connectWebSocket);
+    }
+
+    // 函数级注释：收集指定 GridStack 的控件项（全局作用域，供多分页保存使用）
+    function collectGridItems(grid) {
+      const items = [];
+      const nodes = (grid && grid.el) ? grid.el.querySelectorAll('.grid-stack-item') : [];
+      nodes.forEach(item => {
+        const type = item.dataset.type || '';
+        const props = EPWidgets.getProps(item);
+        const x = parseInt(item.getAttribute('gs-x') || '0', 10);
+        const y = parseInt(item.getAttribute('gs-y') || '0', 10);
+        const w = parseInt(item.getAttribute('gs-w') || '1', 10);
+        const h = parseInt(item.getAttribute('gs-h') || '1', 10);
+        if (type) items.push({ type, props, x, y, w, h });
+      });
+      return items;
+    }
+    // 函数级注释：根据规范在指定 Grid 上创建控件并绑定遮罩
+    function createWidgetFromSpec(grid, spec) {
+      if (!spec || !grid) return null;
+      const opts = { x: spec.x, y: spec.y, w: spec.w, h: spec.h };
+      const p = spec.props || {};
+      let node = null;
+      if (spec.type === '按钮') node = EPWidgets.createEPButtonWidget(grid, p, opts);
+      else if (spec.type === '滑块') node = EPWidgets.createEPSliderWidget(grid, p, opts);
+      else if (spec.type === '浮点滑块') node = EPWidgets.createEPFloatSliderWidget(grid, p, opts);
+      else if (spec.type === '勾选') node = EPWidgets.createEPCheckboxWidget(grid, p, opts);
+      else if (spec.type === '开关') node = EPWidgets.createEPSwitchWidget(grid, p, opts);
+      else if (spec.type === '输入框') node = EPWidgets.createEPInputWidget(grid, p, opts);
+      else if (spec.type === '切换按钮') node = EPWidgets.createEPToggleButtonWidget(grid, p, opts);
+      else if (spec.type === '分割线') node = EPWidgets.createEPDividerWidget(grid, p, opts);
+      else if (spec.type === '竖向分割线') node = EPWidgets.createEPVDividerWidget(grid, p, opts);
+      else if (spec.type === '标签') node = EPWidgets.createEPLabelWidget(grid, p, opts);
+      else if (spec.type === '竖向滑动条') node = EPWidgets.createEPVSliderWidget(grid, p, opts);
+      else if (spec.type === '竖向浮点滑块') node = EPWidgets.createEPVFloatSliderWidget(grid, p, opts);
+      else if (spec.type === '旋钮') node = EPWidgets.createEPKnobWidget(grid, p, opts);
+      if (node) {
+        node.dataset.type = spec.type;
+        attachOverlay(node);
+      }
+      return node;
+    }
+    // 函数级注释：确保 Vue 和 ElementPlus 已加载后再执行回调；必要时尝试回退文件名
+    function ensureEPReady(callback) {
+      function loaded() {
+        return (typeof window.Vue !== 'undefined' || typeof Vue !== 'undefined') && typeof window.ElementPlus !== 'undefined';
+      }
+      if (loaded()) { callback(); return; }
+      // 若 Vue UMD 文件名为 vue.global.js，尝试回退加载
+      if (typeof window.Vue === 'undefined' && typeof Vue === 'undefined') {
+        var s = document.createElement('script');
+        s.src = 'assets/vendor/vue.global.js';
+        s.onload = function(){ callback(); };
+        s.onerror = function(){ callback(); };
+        document.head.appendChild(s);
+      } else {
+        // 等待现有脚本初始化
+        var tries = 0;
+        var timer = setInterval(function(){
+          if (loaded() || (++tries > 40)) { clearInterval(timer); callback(); }
+        }, 50);
+      }
+    }
+    // 函数级注释：初始化仪表盘（多标签分页与独立 GridStack）
+    function initDashboard() {
+      // 提升变量声明到顶部，避免 TDZ 问题
+      let currentSelected = null;
+
+      if (typeof GridStack === 'undefined') {
+        alert('GridStack 未加载，请检查 CDN 或网络连接');
+        return;
+      }
+
+      // 函数级注释：手动生成 GridStack 48列 CSS 样式，确保非12列模式下布局正常
+      function generateGridStackCSS(columns) {
+        let css = '';
+        const step = 100 / columns;
+        for (let i = 0; i < columns; i++) {
+          css += `.grid-stack > .grid-stack-item[gs-x='${i}'] { left: ${step * i}%; }\n`;
+          css += `.grid-stack > .grid-stack-item[gs-w='${i+1}'] { width: ${step * (i+1)}%; }\n`;
+        }
+        const style = document.createElement('style');
+        style.innerHTML = css;
+        document.head.appendChild(style);
+      }
+      generateGridStackCSS(48);
+
+      // 函数级注释：获取当前激活页的 GridStack 实例
+      function getActiveGrid() {
+        if (!activeTabId) return null;
+        const info = grids.get(activeTabId);
+        return info ? info.grid : null;
+      }
+
+      // 函数级注释：收集当前 GridStack 中的控件项（类型、属性、坐标与尺寸）
+      function collectGridItems(grid) {
+        const items = [];
+        const nodes = (grid && grid.el) ? grid.el.querySelectorAll('.grid-stack-item') : [];
+        nodes.forEach(item => {
+          const type = item.dataset.type || '';
+          const props = EPWidgets.getProps(item);
+          const x = parseInt(item.getAttribute('gs-x') || '0', 10);
+          const y = parseInt(item.getAttribute('gs-y') || '0', 10);
+          const w = parseInt(item.getAttribute('gs-w') || '1', 10);
+          const h = parseInt(item.getAttribute('gs-h') || '1', 10);
+          if (type) items.push({ type, props, x, y, w, h });
+        });
+        return items;
+      }
+
+      // 函数级注释：将布局保存到本地存储（按分页 tid 维度）
+      function saveLayoutLocal(tid, grid) {
+        try {
+          const items = collectGridItems(grid);
+          localStorage.setItem('ns_layout_' + tid, JSON.stringify({ items }));
+        } catch (err) {
+          console.error('saveLayoutLocal failed', err);
+        }
+      }
+
+      // 函数级注释：从本地存储加载布局（按分页 tid 维度）
+      function loadLayoutLocal(grid, tid, silent = false) {
+        try {
+          const raw = localStorage.getItem('ns_layout_' + tid);
+          if (!raw) {
+            if (!silent) alert('当前页面没有本地保存的布局');
+            return false;
+          }
+          const data = JSON.parse(raw);
+          const items = data.items || [];
+          if (items.length === 0) {
+            if (!silent) alert('当前页面本地布局为空');
+            return false;
+          }
+          grid.removeAll();
+          ensureEPReady(() => { items.forEach(spec => { createWidgetFromSpec(grid, spec); }); });
+          return true;
+        } catch (err) {
+          console.error('loadLayoutLocal failed', err);
+          if (!silent) alert('本地布局加载失败: ' + err);
+          return false;
+        }
+      }
+
+      // 函数级注释：绑定 GridStack 事件以实现自动本地保存（去抖）
+      function bindGridPersistence(tid, grid) {
+        let timer = null;
+        const triggerSave = () => {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => saveLayoutLocal(tid, grid), 200);
+        };
+        try {
+          grid.on('added', triggerSave);
+          grid.on('removed', triggerSave);
+          grid.on('change', triggerSave);
+          grid.on('dragstop', triggerSave);
+          grid.on('resizestop', triggerSave);
+        } catch (err) {
+          console.warn('bindGridPersistence failed', err);
+        }
+      }
+
+      // 函数级注释：创建一个新标签页并初始化 GridStack
+      function createTab(name, id, opts) {
+        const tid = id || ('page_' + Math.random().toString(36).slice(2, 8));
+        const tabsList = document.getElementById('tabsList');
+        const tabsContent = document.getElementById('tabsContent');
+        // 创建 tab 按钮
+        const tabBtn = document.createElement('button');
+        tabBtn.className = 'nav-link btn btn-sm btn-outline-secondary';
+        renderTabLabel(tabBtn, name, tid);
+        tabBtn.dataset.tabId = tid;
+        tabBtn.onclick = () => switchTab(tid);
+        // 函数级注释：双击编辑分页名称并持久化
+        tabBtn.ondblclick = (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const info = grids.get(tid);
+          const oldName = (info && info.name) || name || '';
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'form-control form-control-sm';
+          input.style.width = '140px';
+          input.value = oldName;
+          tabBtn.innerHTML = '';
+          tabBtn.appendChild(input);
+          input.focus();
+          input.select();
+          const finish = (commit) => {
+            const newName = (input.value || '').trim();
+            tabBtn.removeChild(input);
+            const finalName = commit && newName ? newName : oldName;
+            renderTabLabel(tabBtn, finalName, tid);
+            // 更新 grids 与 tabs 并持久化
+            if (info) info.name = finalName;
+            const idx = tabs.findIndex(t => t.id === tid);
+            if (idx >= 0) {
+              tabs[idx].name = finalName;
+              try { localStorage.setItem('ns_tabs', JSON.stringify(tabs)); } catch {}
+            }
+          };
+          input.onblur = () => finish(true);
+          input.onkeydown = (evt) => {
+            if (evt.key === 'Enter') finish(true);
+            else if (evt.key === 'Escape') finish(false);
+          };
+        };
+        tabsList.appendChild(tabBtn);
+        // 创建内容容器
+        const pageWrap = document.createElement('div');
+        pageWrap.style.position = 'absolute';
+        pageWrap.style.inset = '0';
+        pageWrap.style.display = 'none';
+        pageWrap.dataset.tabId = tid;
+        const gridEl = document.createElement('div');
+        gridEl.className = 'grid-stack';
+        pageWrap.appendChild(gridEl);
+        tabsContent.appendChild(pageWrap);
+        // 初始化该页 GridStack
+        const grid = GridStack.init({
+          cellHeight: 20,
+          margin: 5,
+          float: true,
+          column: 48,
+          styleInHead: true,
+          disableOneColumnMode: true
+        }, gridEl);
+        grids.set(tid, { name, tabBtn, pageWrap, grid, loaded: false });
+        // 绑定自动保存
+        bindGridPersistence(tid, grid);
+        // 新建页面遵循全局编辑模式
+        try {
+          const isEdit = getGlobalEditMode();
+          grid.setStatic(!isEdit);
+        } catch {}
+        // 若为新建页面，将其写入 tabs 列表
+        if (!tabs.find(t => t.id === tid)) {
+          tabs.push({ id: tid, name });
+          try {
+            localStorage.setItem('ns_tabs', JSON.stringify(tabs));
+            localStorage.setItem('ns_active_tab', tid);
+          } catch (err) { console.warn('Persist tabs failed', err); }
+        }
+        // 尝试从本地恢复该页布局（可跳过）
+        const skipLocal = opts && opts.skipLocalLoad;
+        if (!skipLocal) loadLayoutLocal(grid, tid, true);
+        switchTab(tid);
+        return tid;
+      }
+      // 函数级注释：暴露创建分页函数到全局，便于外部加载流程调用
+      window.__createTab = createTab;
+      
+      // 函数级注释：渲染标签标题与删除按钮
+      function renderTabLabel(tabBtn, name, tid) {
+        tabBtn.textContent = name;
+        const close = document.createElement('span');
+        close.className = 'tab-close';
+        close.title = '删除页面';
+        close.textContent = '×';
+        close.onclick = (e) => { e.stopPropagation(); deleteTab(tid); };
+        // 非编辑模式下隐藏删除按钮
+        try { close.style.display = getGlobalEditMode() ? '' : 'none'; } catch {}
+        tabBtn.appendChild(close);
+      }
+      
+      // 函数级注释：删除指定标签页并更新持久化与激活状态
+      function deleteTab(tid) {
+        try {
+          // 仅在编辑模式允许删除
+          if (!getGlobalEditMode()) { alert('请切换到编辑模式后删除页面'); return; }
+          if (grids.size <= 1) { alert('至少保留一个页面'); return; }
+          const info = grids.get(tid);
+          if (!info) return;
+          // 移除DOM
+          if (info.pageWrap && info.pageWrap.parentElement) {
+            info.pageWrap.parentElement.removeChild(info.pageWrap);
+          }
+          if (info.tabBtn && info.tabBtn.parentElement) {
+            info.tabBtn.parentElement.removeChild(info.tabBtn);
+          }
+          // 从映射与数组移除
+          grids.delete(tid);
+          const idx = tabs.findIndex(t => t.id === tid);
+          if (idx >= 0) tabs.splice(idx, 1);
+          // 清理本地存储该页布局
+          try { localStorage.removeItem('ns_layout_' + tid); } catch {}
+          // 更新 tabs 持久化
+          try { localStorage.setItem('ns_tabs', JSON.stringify(tabs)); } catch {}
+          // 若删除的是激活页，切换到其它页
+          if (activeTabId === tid) {
+            const next = tabs[0] ? tabs[0].id : (grids.keys().next().value || null);
+            if (next) {
+              try { localStorage.setItem('ns_active_tab', next); } catch {}
+              switchTab(next);
+            } else {
+              activeTabId = null;
+            }
+          }
+        } catch (err) {
+          alert('删除页面失败: ' + err);
+        }
+      }
+
+      // 函数级注释：切换到指定标签页
+      function switchTab(id) {
+        activeTabId = id;
+        grids.forEach((info, tid) => {
+          const active = tid === id;
+          info.pageWrap.style.display = active ? 'block' : 'none';
+          info.tabBtn.classList.toggle('active', active);
+        });
+        // 激活时优先从本地恢复一次（仅首次）
+        const info = grids.get(id);
+        if (info && !info.loaded) {
+          const ok = loadLayoutLocal(info.grid, id, true);
+          info.loaded = true;
+          // 若本地无布局，可尝试后端加载（静默）
+          if (!ok) {
+            try {
+              loadLayout(info.grid, true);
+            } catch {}
+          }
+        }
+        // 切换分页时保持全局编辑模式，不改变按钮与模式
+      }
+      // 函数级注释：暴露切换分页函数到全局，便于外部加载流程调用
+      window.__switchTab = switchTab;
+
+      document.getElementById('addButtonWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPButtonWidget(getActiveGrid()), '按钮'));
+      document.getElementById('addSliderWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPSliderWidget(getActiveGrid()), '滑块'));
+      document.getElementById('addFloatSliderWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPFloatSliderWidget(getActiveGrid()), '浮点滑块'));
+      document.getElementById('addVSliderWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPVSliderWidget(getActiveGrid()), '竖向滑动条'));
+      document.getElementById('addVFloatSliderWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPVFloatSliderWidget(getActiveGrid()), '竖向浮点滑块'));
+      document.getElementById('addCheckboxWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPCheckboxWidget(getActiveGrid()), '勾选'));
+      document.getElementById('addSwitchWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPSwitchWidget(getActiveGrid()), '开关'));
+      document.getElementById('addInputWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPInputWidget(getActiveGrid()), '输入框'));
+      document.getElementById('addToggleButtonWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPToggleButtonWidget(getActiveGrid()), '切换按钮'));
+      document.getElementById('addDividerWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPDividerWidget(getActiveGrid()), '分割线'));
+      document.getElementById('addVDividerWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPVDividerWidget(getActiveGrid()), '竖向分割线'));
+      document.getElementById('addLabelWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPLabelWidget(getActiveGrid()), '标签'));
+      document.getElementById('addKnobWidget').onclick = () => ensureEPReady(()=>attachAndSelect(EPWidgets.createEPKnobWidget(getActiveGrid()), '旋钮'));
+      // document.getElementById('sidebarSaveLayout').onclick = () => saveAllLayouts();
+      // document.getElementById('sidebarLoadLayout').onclick = () => loadAllLayouts();
+      // 函数级注释：侧边栏“新增页面”按钮
+      document.getElementById('sidebarAddTab').onclick = () => {
+        const base = '页面';
+        const idx = grids.size + 1;
+        const tid = createTab(base + idx);
+        try {
+          localStorage.setItem('ns_active_tab', tid);
+          localStorage.setItem('ns_tabs', JSON.stringify(tabs));
+        } catch {}
+      };
+
+      // 侧边栏折叠逻辑
+      document.querySelectorAll('.sidebar-section-header').forEach(header => {
+        header.onclick = () => {
+          header.parentElement.classList.toggle('collapsed');
+        };
+      });
+
+      // 函数级注释：获取全局编辑模式（本地存储）
+      function getGlobalEditMode() {
+        try {
+          const raw = localStorage.getItem('ns_edit_mode');
+          if (raw === null || raw === undefined) return false;
+          return raw === 'true';
+        } catch { return false; }
+      }
+      // 函数级注释：应用全局编辑模式到所有分页
+      function applyEditModeAll(isEdit) {
+        try {
+          grids.forEach(info => {
+            if (info && info.grid) info.grid.setStatic(!isEdit);
+          });
+        } catch {}
+        const sidebar = document.querySelector('.sidebar');
+        if (isEdit) {
+          document.body.classList.add('edit-mode');
+          document.body.classList.remove('view-mode');
+          sidebar.classList.remove('collapsed');
+        } else {
+          document.body.classList.add('view-mode');
+          document.body.classList.remove('edit-mode');
+          sidebar.classList.add('collapsed');
+          if (currentSelected) {
+            currentSelected.classList.remove('grid-selected');
+            currentSelected = null;
+            updatePropPanel(null);
+          }
+        }
+        // 同步删除按钮显隐状态
+        try {
+          document.querySelectorAll('.tab-close').forEach(el => {
+            el.style.display = isEdit ? '' : 'none';
+          });
+        } catch {}
+      }
+      // 函数级注释：设置全局编辑模式并同步 UI 与持久化
+      function setGlobalEditMode(isEdit) {
+        try { localStorage.setItem('ns_edit_mode', isEdit ? 'true' : 'false'); } catch {}
+        applyEditModeAll(isEdit);
+        const btn = document.getElementById('toggleEditMode');
+        if (btn) {
+          if (isEdit) {
+            btn.classList.remove('btn-outline-primary');
+            btn.classList.add('btn-primary');
+            btn.textContent = '完成编辑';
+          } else {
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-outline-primary');
+            btn.textContent = '编辑模式';
+          }
+        }
+      }
+      // 函数级注释：编辑模式按钮切换（全局）
+      document.getElementById('toggleEditMode').onclick = () => {
+        const current = getGlobalEditMode();
+        setGlobalEditMode(!current);
+        if (current) { // 如果是从编辑模式切换回非编辑模式（完成编辑）
+             saveAllLayouts();
+        }
+      };
+      
+      // 初始化Tabs：从本地恢复已有分页；无则创建默认
+      try {
+        const rawTabs = localStorage.getItem('ns_tabs');
+        tabs = Array.isArray(JSON.parse(rawTabs || '[]')) ? JSON.parse(rawTabs || '[]') : [];
+      } catch { tabs = []; }
+      if (tabs.length > 0) {
+        tabs.forEach(t => createTab(t.name, t.id));
+        const savedActive = localStorage.getItem('ns_active_tab');
+        if (savedActive && grids.has(savedActive)) switchTab(savedActive);
+        else switchTab(tabs[0].id);
+      } else {
+        const defaultId = createTab('页面1');
+        try {
+          localStorage.setItem('ns_tabs', JSON.stringify([{ id: defaultId, name: '页面1' }]));
+          localStorage.setItem('ns_active_tab', defaultId);
+        } catch {}
+      }
+      // 按全局状态恢复编辑模式
+      const initialEdit = getGlobalEditMode();
+      applyEditModeAll(initialEdit);
+      // 初始化按钮状态
+      const btnInit = document.getElementById('toggleEditMode');
+      if (btnInit) {
+        if (initialEdit) {
+          btnInit.classList.remove('btn-outline-primary');
+          btnInit.classList.add('btn-primary');
+          btnInit.textContent = '完成编辑';
+        } else {
+          btnInit.classList.remove('btn-primary');
+          btnInit.classList.add('btn-outline-primary');
+          btnInit.textContent = '编辑模式';
+        }
+      }
+      // 强制刷新时加载后端布局（支持多分页新格式）
+      try { loadAllLayouts(); } catch {}
+      
+      // 函数级注释：记录并高亮当前选择的控件，并刷新属性面板
+      function selectNode(node) {
+        if (currentSelected && currentSelected !== node) {
+          currentSelected.classList.remove('grid-selected');
+        }
+        currentSelected = node;
+        currentSelected.classList.add('grid-selected');
+        updatePropPanel(node);
+      }
+      // 将选择函数暴露为全局以便外部工具调用（如自动加载后绑定）
+      window.__selectNode = selectNode;
+
+      // 函数级注释：更新属性面板字段显示
+      function updatePropPanel(node) {
+        const panel = document.getElementById('propPanel');
+        panel.innerHTML = '';
+        if (!node) {
+          panel.innerHTML = '<div class="text-muted">未选择控件</div>';
+          return;
+        }
+        const type = node.dataset.type || '未知';
+        const props = EPWidgets.getProps(node);
+        const form = document.createElement('div');
+        // 类型显示
+        const typeRow = document.createElement('div');
+        typeRow.className = 'mb-2';
+        typeRow.innerHTML = '<div class="prop-label">类型</div><div class="prop-value text-muted">'+ type +'</div>';
+        form.appendChild(typeRow);
+        
+        // 基础ID设置
+        const idRow = document.createElement('div');
+        idRow.className = 'mb-2 p-2 bg-light border rounded';
+        idRow.innerHTML = '<div class="prop-label fw-bold mb-1">ID 设置</div>';
+        
+        const cmdIdDiv = document.createElement('div');
+        cmdIdDiv.className = 'mb-1';
+        cmdIdDiv.innerHTML = '<div class="prop-label">Command ID</div>';
+        const cmdIdInput = document.createElement('input');
+        cmdIdInput.className = 'form-control form-control-sm';
+        cmdIdInput.value = props.commandId || '/cmd/demo';
+        cmdIdInput.onchange = (e) => EPWidgets.setProps(node, { commandId: e.target.value });
+        cmdIdDiv.appendChild(cmdIdInput);
+        idRow.appendChild(cmdIdDiv);
+
+        form.appendChild(idRow);
+
+        // 样式设置
+        const styleRow = document.createElement('div');
+        styleRow.className = 'mb-2 p-2 bg-light border rounded';
+        styleRow.innerHTML = '<div class="prop-label fw-bold mb-1">样式设置</div>';
+        
+        const bgColorDiv = document.createElement('div');
+        bgColorDiv.className = 'mb-1 d-flex align-items-center justify-content-between';
+        bgColorDiv.innerHTML = '<div class="prop-label">背景色</div>';
+        const bgColorInput = document.createElement('input');
+        bgColorInput.type = 'color';
+        bgColorInput.className = 'form-control form-control-color form-control-sm';
+        bgColorInput.value = props.bgColor || '#ffffff';
+        bgColorInput.onchange = (e) => {
+             EPWidgets.setProps(node, { bgColor: e.target.value });
+             node.querySelector('.grid-stack-item-content').style.backgroundColor = e.target.value;
+        };
+        bgColorDiv.appendChild(bgColorInput);
+        styleRow.appendChild(bgColorDiv);
+
+        const fontSizeDiv = document.createElement('div');
+        fontSizeDiv.className = 'mb-1';
+        fontSizeDiv.innerHTML = '<div class="prop-label">字体大小 (px)</div>';
+        const fontSizeInput = document.createElement('input');
+        fontSizeInput.type = 'number';
+        fontSizeInput.className = 'form-control form-control-sm';
+        fontSizeInput.value = props.fontSize || '14';
+        fontSizeInput.onchange = (e) => {
+             EPWidgets.setProps(node, { fontSize: e.target.value });
+             node.style.fontSize = e.target.value + 'px';
+        };
+        fontSizeDiv.appendChild(fontSizeInput);
+        styleRow.appendChild(fontSizeDiv);
+        
+        form.appendChild(styleRow);
+
+        // 根据类型渲染特定属性
+        if (type === '按钮') {
+          const labelRow = document.createElement('div');
+          labelRow.className = 'mb-2';
+          labelRow.innerHTML = '<div class="prop-label">文本</div>';
+          const labelInput = document.createElement('input');
+          labelInput.id = 'propBtnLabel';
+          labelInput.className = 'form-control form-control-sm';
+          labelInput.value = props.label || '执行';
+          labelInput.onchange = (e) => EPWidgets.setProps(node, { label: e.target.value });
+          labelRow.appendChild(labelInput);
+          form.appendChild(labelRow);
+
+          // 按钮颜色
+          const btnColorRow = document.createElement('div');
+          btnColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          btnColorRow.innerHTML = '<div class="prop-label">按钮颜色</div>';
+          const btnColorInput = document.createElement('input');
+          btnColorInput.id = 'propBtnColor';
+          btnColorInput.type = 'color';
+          btnColorInput.className = 'form-control form-control-color form-control-sm';
+          btnColorInput.value = props.buttonColor || '#409EFF';
+          btnColorInput.onchange = (e) => EPWidgets.setProps(node, { buttonColor: e.target.value });
+          btnColorRow.appendChild(btnColorInput);
+          styleRow.appendChild(btnColorRow);
+
+          // 按下颜色
+          const activeColorRow = document.createElement('div');
+          activeColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          activeColorRow.innerHTML = '<div class="prop-label">按下颜色</div>';
+          const activeColorInput = document.createElement('input');
+          activeColorInput.id = 'propBtnActiveColor';
+          activeColorInput.type = 'color';
+          activeColorInput.className = 'form-control form-control-color form-control-sm';
+          activeColorInput.value = props.activeColor || '#3a8ee6';
+          activeColorInput.onchange = (e) => EPWidgets.setProps(node, { activeColor: e.target.value });
+          activeColorRow.appendChild(activeColorInput);
+          styleRow.appendChild(activeColorRow);
+
+          // 文字颜色
+          const txtColorRow = document.createElement('div');
+          txtColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          txtColorRow.innerHTML = '<div class="prop-label">文字颜色</div>';
+          const txtColorInput = document.createElement('input');
+          txtColorInput.id = 'propBtnTextColor';
+          txtColorInput.type = 'color';
+          txtColorInput.className = 'form-control form-control-color form-control-sm';
+          txtColorInput.value = props.textColor || '#ffffff';
+          txtColorInput.onchange = (e) => EPWidgets.setProps(node, { textColor: e.target.value });
+          txtColorRow.appendChild(txtColorInput);
+          styleRow.appendChild(txtColorRow);
+
+          // 边框颜色
+          const borderColorRow = document.createElement('div');
+          borderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          borderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const borderColorInput = document.createElement('input');
+          borderColorInput.id = 'propBtnBorderColor';
+          borderColorInput.type = 'color';
+          borderColorInput.className = 'form-control form-control-color form-control-sm';
+          borderColorInput.value = props.borderColor || '#409EFF';
+          borderColorInput.onchange = (e) => EPWidgets.setProps(node, { borderColor: e.target.value });
+          borderColorRow.appendChild(borderColorInput);
+          styleRow.appendChild(borderColorRow);
+
+          // 边框样式
+          const borderStyleRow = document.createElement('div');
+          borderStyleRow.className = 'mb-2';
+          borderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const borderStyleSelect = document.createElement('select');
+          borderStyleSelect.id = 'propBtnBorderStyle';
+          borderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+              const opt = document.createElement('option');
+              opt.value = s;
+              opt.textContent = s;
+              if (s === (props.borderStyle || 'solid')) opt.selected = true;
+              borderStyleSelect.appendChild(opt);
+          });
+          borderStyleSelect.onchange = (e) => EPWidgets.setProps(node, { borderStyle: e.target.value });
+          borderStyleRow.appendChild(borderStyleSelect);
+          styleRow.appendChild(borderStyleRow);
+
+        } else if (type === '滑块') {
+          const minRow = document.createElement('div');
+          minRow.className = 'mb-2';
+          minRow.innerHTML = '<div class="prop-label">最小值</div>';
+          const minInput = document.createElement('input');
+          minInput.id = 'propSliderMin';
+          minInput.type = 'number';
+          minInput.className = 'form-control form-control-sm';
+          minInput.value = props.min ?? 0;
+          minRow.appendChild(minInput);
+          form.appendChild(minRow);
+          const maxRow = document.createElement('div');
+          maxRow.className = 'mb-2';
+          maxRow.innerHTML = '<div class="prop-label">最大值</div>';
+          const maxInput = document.createElement('input');
+          maxInput.id = 'propSliderMax';
+          maxInput.type = 'number';
+          maxInput.className = 'form-control form-control-sm';
+          maxInput.value = props.max ?? 100;
+          maxRow.appendChild(maxInput);
+          form.appendChild(maxRow);
+          const valRow = document.createElement('div');
+          valRow.className = 'mb-2';
+          valRow.innerHTML = '<div class="prop-label">当前值</div>';
+          const valInput = document.createElement('input');
+          valInput.id = 'propSliderValue';
+          valInput.type = 'number';
+          valInput.className = 'form-control form-control-sm';
+          valInput.value = props.value ?? 0;
+          valRow.appendChild(valInput);
+          form.appendChild(valRow);
+          // 样式设置
+          const sBarColorRow = document.createElement('div');
+          sBarColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          sBarColorRow.innerHTML = '<div class="prop-label">轨道颜色</div>';
+          const sBarColorInput = document.createElement('input');
+          sBarColorInput.id = 'propSliderBarColor';
+          sBarColorInput.type = 'color';
+          sBarColorInput.className = 'form-control form-control-color form-control-sm';
+          sBarColorInput.value = props.barColor || '#e5e7eb';
+          sBarColorInput.onchange = (e) => EPWidgets.setProps(node, { barColor: e.target.value });
+          sBarColorRow.appendChild(sBarColorInput);
+          styleRow.appendChild(sBarColorRow);
+
+          const sFillColorRow = document.createElement('div');
+          sFillColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          sFillColorRow.innerHTML = '<div class="prop-label">进度颜色</div>';
+          const sFillColorInput = document.createElement('input');
+          sFillColorInput.id = 'propSliderFillColor';
+          sFillColorInput.type = 'color';
+          sFillColorInput.className = 'form-control form-control-color form-control-sm';
+          sFillColorInput.value = props.fillColor || '#2b6cb0';
+          sFillColorInput.onchange = (e) => EPWidgets.setProps(node, { fillColor: e.target.value });
+          sFillColorRow.appendChild(sFillColorInput);
+          styleRow.appendChild(sFillColorRow);
+
+          const sValColorRow = document.createElement('div');
+          sValColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          sValColorRow.innerHTML = '<div class="prop-label">数值颜色</div>';
+          const sValColorInput = document.createElement('input');
+          sValColorInput.id = 'propSliderValueColor';
+          sValColorInput.type = 'color';
+          sValColorInput.className = 'form-control form-control-color form-control-sm';
+          sValColorInput.value = props.valueColor || '#111827';
+          sValColorInput.onchange = (e) => EPWidgets.setProps(node, { valueColor: e.target.value });
+          sValColorRow.appendChild(sValColorInput);
+          styleRow.appendChild(sValColorRow);
+
+          const sBorderColorRow = document.createElement('div');
+          sBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          sBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const sBorderColorInput = document.createElement('input');
+          sBorderColorInput.id = 'propSliderBorderColor';
+          sBorderColorInput.type = 'color';
+          sBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          sBorderColorInput.value = props.borderColor || '#e5e7eb';
+          sBorderColorInput.onchange = (e) => EPWidgets.setProps(node, { borderColor: e.target.value });
+          sBorderColorRow.appendChild(sBorderColorInput);
+          styleRow.appendChild(sBorderColorRow);
+
+          const sBorderStyleRow = document.createElement('div');
+          sBorderStyleRow.className = 'mb-2';
+          sBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const sBorderStyleSelect = document.createElement('select');
+          sBorderStyleSelect.id = 'propSliderBorderStyle';
+          sBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            sBorderStyleSelect.appendChild(opt);
+          });
+          sBorderStyleSelect.onchange = (e) => EPWidgets.setProps(node, { borderStyle: e.target.value });
+          sBorderStyleRow.appendChild(sBorderStyleSelect);
+          styleRow.appendChild(sBorderStyleRow);
+        } else if (type === '浮点滑块') {
+          const minRow = document.createElement('div');
+          minRow.className = 'mb-2';
+          minRow.innerHTML = '<div class="prop-label">最小值</div>';
+          const minInput = document.createElement('input');
+          minInput.id = 'propFloatSliderMin';
+          minInput.type = 'number';
+          minInput.step = '0.01';
+          minInput.className = 'form-control form-control-sm';
+          minInput.value = props.min ?? 0;
+          minRow.appendChild(minInput);
+          form.appendChild(minRow);
+          const maxRow = document.createElement('div');
+          maxRow.className = 'mb-2';
+          maxRow.innerHTML = '<div class="prop-label">最大值</div>';
+          const maxInput = document.createElement('input');
+          maxInput.id = 'propFloatSliderMax';
+          maxInput.type = 'number';
+          maxInput.step = '0.01';
+          maxInput.className = 'form-control form-control-sm';
+          maxInput.value = props.max ?? 1;
+          maxRow.appendChild(maxInput);
+          form.appendChild(maxRow);
+          const stepRow = document.createElement('div');
+          stepRow.className = 'mb-2';
+          stepRow.innerHTML = '<div class="prop-label">步进</div>';
+          const stepInput = document.createElement('input');
+          stepInput.id = 'propFloatSliderStep';
+          stepInput.type = 'number';
+          stepInput.step = '0.001';
+          stepInput.className = 'form-control form-control-sm';
+          stepInput.value = props.step ?? 0.01;
+          stepRow.appendChild(stepInput);
+          form.appendChild(stepRow);
+          const valRow = document.createElement('div');
+          valRow.className = 'mb-2';
+          valRow.innerHTML = '<div class="prop-label">当前值</div>';
+          const valInput = document.createElement('input');
+          valInput.id = 'propFloatSliderValue';
+          valInput.type = 'number';
+          valInput.step = '0.01';
+          valInput.className = 'form-control form-control-sm';
+          valInput.value = props.value ?? 0;
+          valRow.appendChild(valInput);
+          form.appendChild(valRow);
+          // 样式设置（浮点）
+          const fsBarColorRow = document.createElement('div');
+          fsBarColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          fsBarColorRow.innerHTML = '<div class="prop-label">轨道颜色</div>';
+          const fsBarColorInput = document.createElement('input');
+          fsBarColorInput.id = 'propFloatSliderBarColor';
+          fsBarColorInput.type = 'color';
+          fsBarColorInput.className = 'form-control form-control-color form-control-sm';
+          fsBarColorInput.value = props.barColor || '#e5e7eb';
+          fsBarColorInput.onchange = (e) => EPWidgets.setProps(node, { barColor: e.target.value });
+          fsBarColorRow.appendChild(fsBarColorInput);
+          styleRow.appendChild(fsBarColorRow);
+
+          const fsFillColorRow = document.createElement('div');
+          fsFillColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          fsFillColorRow.innerHTML = '<div class="prop-label">进度颜色</div>';
+          const fsFillColorInput = document.createElement('input');
+          fsFillColorInput.id = 'propFloatSliderFillColor';
+          fsFillColorInput.type = 'color';
+          fsFillColorInput.className = 'form-control form-control-color form-control-sm';
+          fsFillColorInput.value = props.fillColor || '#2b6cb0';
+          fsFillColorInput.onchange = (e) => EPWidgets.setProps(node, { fillColor: e.target.value });
+          fsFillColorRow.appendChild(fsFillColorInput);
+          styleRow.appendChild(fsFillColorRow);
+
+          const fsValColorRow = document.createElement('div');
+          fsValColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          fsValColorRow.innerHTML = '<div class="prop-label">数值颜色</div>';
+          const fsValColorInput = document.createElement('input');
+          fsValColorInput.id = 'propFloatSliderValueColor';
+          fsValColorInput.type = 'color';
+          fsValColorInput.className = 'form-control form-control-color form-control-sm';
+          fsValColorInput.value = props.valueColor || '#111827';
+          fsValColorInput.onchange = (e) => EPWidgets.setProps(node, { valueColor: e.target.value });
+          fsValColorRow.appendChild(fsValColorInput);
+          styleRow.appendChild(fsValColorRow);
+
+          const fsBorderColorRow = document.createElement('div');
+          fsBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          fsBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const fsBorderColorInput = document.createElement('input');
+          fsBorderColorInput.id = 'propFloatSliderBorderColor';
+          fsBorderColorInput.type = 'color';
+          fsBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          fsBorderColorInput.value = props.borderColor || '#e5e7eb';
+          fsBorderColorInput.onchange = (e) => EPWidgets.setProps(node, { borderColor: e.target.value });
+          fsBorderColorRow.appendChild(fsBorderColorInput);
+          styleRow.appendChild(fsBorderColorRow);
+
+          const fsBorderStyleRow = document.createElement('div');
+          fsBorderStyleRow.className = 'mb-2';
+          fsBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const fsBorderStyleSelect = document.createElement('select');
+          fsBorderStyleSelect.id = 'propFloatSliderBorderStyle';
+          fsBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            fsBorderStyleSelect.appendChild(opt);
+          });
+          fsBorderStyleSelect.onchange = (e) => EPWidgets.setProps(node, { borderStyle: e.target.value });
+          fsBorderStyleRow.appendChild(fsBorderStyleSelect);
+          styleRow.appendChild(fsBorderStyleRow);
+        } else if (type === '勾选') {
+          const labelRow = document.createElement('div');
+          labelRow.className = 'mb-2';
+          labelRow.innerHTML = '<div class="prop-label">文本</div>';
+          const labelInput = document.createElement('input');
+          labelInput.id = 'propCheckLabel';
+          labelInput.className = 'form-control form-control-sm';
+          labelInput.value = props.label || '启用';
+          labelRow.appendChild(labelInput);
+          form.appendChild(labelRow);
+          const chkRow = document.createElement('div');
+          chkRow.className = 'mb-2';
+          chkRow.innerHTML = '<div class="prop-label">选中</div>';
+          const chkInput = document.createElement('input');
+          chkInput.id = 'propCheckChecked';
+          chkInput.type = 'checkbox';
+          chkInput.className = 'form-check-input';
+          chkInput.checked = !!props.checked;
+          chkRow.appendChild(chkInput);
+          form.appendChild(chkRow);
+          const cActiveColorRow = document.createElement('div');
+          cActiveColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          cActiveColorRow.innerHTML = '<div class="prop-label">选中颜色</div>';
+          const cActiveColorInput = document.createElement('input');
+          cActiveColorInput.id = 'propCheckActiveColor';
+          cActiveColorInput.type = 'color';
+          cActiveColorInput.className = 'form-control form-control-color form-control-sm';
+          cActiveColorInput.value = props.activeColor || '#409EFF';
+          cActiveColorRow.appendChild(cActiveColorInput);
+          styleRow.appendChild(cActiveColorRow);
+          const cTextColorRow = document.createElement('div');
+          cTextColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          cTextColorRow.innerHTML = '<div class="prop-label">文字颜色</div>';
+          const cTextColorInput = document.createElement('input');
+          cTextColorInput.id = 'propCheckTextColor';
+          cTextColorInput.type = 'color';
+          cTextColorInput.className = 'form-control form-control-color form-control-sm';
+          cTextColorInput.value = props.textColor || '#111827';
+          cTextColorRow.appendChild(cTextColorInput);
+          styleRow.appendChild(cTextColorRow);
+          const cBorderColorRow = document.createElement('div');
+          cBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          cBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const cBorderColorInput = document.createElement('input');
+          cBorderColorInput.id = 'propCheckBorderColor';
+          cBorderColorInput.type = 'color';
+          cBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          cBorderColorInput.value = props.borderColor || '#409EFF';
+          cBorderColorRow.appendChild(cBorderColorInput);
+          styleRow.appendChild(cBorderColorRow);
+          const cBorderStyleRow = document.createElement('div');
+          cBorderStyleRow.className = 'mb-2';
+          cBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const cBorderStyleSelect = document.createElement('select');
+          cBorderStyleSelect.id = 'propCheckBorderStyle';
+          cBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            cBorderStyleSelect.appendChild(opt);
+          });
+          cBorderStyleRow.appendChild(cBorderStyleSelect);
+          styleRow.appendChild(cBorderStyleRow);
+        } else if (type === '开关') {
+          const chkRow = document.createElement('div');
+          chkRow.className = 'mb-2';
+          chkRow.innerHTML = '<div class="prop-label">选中</div>';
+          const chkInput = document.createElement('input');
+          chkInput.id = 'propSwitchChecked';
+          chkInput.type = 'checkbox';
+          chkInput.className = 'form-check-input';
+          chkInput.checked = !!props.checked;
+          chkRow.appendChild(chkInput);
+          form.appendChild(chkRow);
+          const sOnColorRow = document.createElement('div');
+          sOnColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          sOnColorRow.innerHTML = '<div class="prop-label">开启颜色</div>';
+          const sOnColorInput = document.createElement('input');
+          sOnColorInput.id = 'propSwitchOnColor';
+          sOnColorInput.type = 'color';
+          sOnColorInput.className = 'form-control form-control-color form-control-sm';
+          sOnColorInput.value = props.onColor || '#13ce66';
+          sOnColorRow.appendChild(sOnColorInput);
+          styleRow.appendChild(sOnColorRow);
+          const sOffColorRow = document.createElement('div');
+          sOffColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          sOffColorRow.innerHTML = '<div class="prop-label">关闭颜色</div>';
+          const sOffColorInput = document.createElement('input');
+          sOffColorInput.id = 'propSwitchOffColor';
+          sOffColorInput.type = 'color';
+          sOffColorInput.className = 'form-control form-control-color form-control-sm';
+          sOffColorInput.value = props.offColor || '#ff4949';
+          sOffColorRow.appendChild(sOffColorInput);
+          styleRow.appendChild(sOffColorRow);
+          const sBorderColorRow = document.createElement('div');
+          sBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          sBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const sBorderColorInput = document.createElement('input');
+          sBorderColorInput.id = 'propSwitchBorderColor';
+          sBorderColorInput.type = 'color';
+          sBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          sBorderColorInput.value = props.borderColor || '#e5e7eb';
+          sBorderColorRow.appendChild(sBorderColorInput);
+          styleRow.appendChild(sBorderColorRow);
+          const sBorderStyleRow = document.createElement('div');
+          sBorderStyleRow.className = 'mb-2';
+          sBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const sBorderStyleSelect = document.createElement('select');
+          sBorderStyleSelect.id = 'propSwitchBorderStyle';
+          sBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            sBorderStyleSelect.appendChild(opt);
+          });
+          sBorderStyleRow.appendChild(sBorderStyleSelect);
+          styleRow.appendChild(sBorderStyleRow);
+        } else if (type === '输入框') {
+          const phRow = document.createElement('div');
+          phRow.className = 'mb-2';
+          phRow.innerHTML = '<div class="prop-label">占位符</div>';
+          const phInput = document.createElement('input');
+          phInput.id = 'propInputPlaceholder';
+          phInput.className = 'form-control form-control-sm';
+          phInput.value = props.placeholder || '请输入';
+          phRow.appendChild(phInput);
+          form.appendChild(phRow);
+          const valRow = document.createElement('div');
+          valRow.className = 'mb-2';
+          valRow.innerHTML = '<div class="prop-label">当前值</div>';
+          const valInput = document.createElement('input');
+          valInput.id = 'propInputValue';
+          valInput.className = 'form-control form-control-sm';
+          valInput.value = props.value || '';
+          valRow.appendChild(valInput);
+          form.appendChild(valRow);
+          const iTextColorRow = document.createElement('div');
+          iTextColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          iTextColorRow.innerHTML = '<div class="prop-label">文字颜色</div>';
+          const iTextColorInput = document.createElement('input');
+          iTextColorInput.id = 'propInputTextColor';
+          iTextColorInput.type = 'color';
+          iTextColorInput.className = 'form-control form-control-color form-control-sm';
+          iTextColorInput.value = props.textColor || '#111827';
+          iTextColorRow.appendChild(iTextColorInput);
+          styleRow.appendChild(iTextColorRow);
+          const iBorderColorRow = document.createElement('div');
+          iBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          iBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const iBorderColorInput = document.createElement('input');
+          iBorderColorInput.id = 'propInputBorderColor';
+          iBorderColorInput.type = 'color';
+          iBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          iBorderColorInput.value = props.borderColor || '#e5e7eb';
+          iBorderColorRow.appendChild(iBorderColorInput);
+          styleRow.appendChild(iBorderColorRow);
+          const iBorderStyleRow = document.createElement('div');
+          iBorderStyleRow.className = 'mb-2';
+          iBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const iBorderStyleSelect = document.createElement('select');
+          iBorderStyleSelect.id = 'propInputBorderStyle';
+          iBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            iBorderStyleSelect.appendChild(opt);
+          });
+          iBorderStyleRow.appendChild(iBorderStyleSelect);
+          styleRow.appendChild(iBorderStyleRow);
+        } else if (type === '分割线') {
+          const textRow = document.createElement('div');
+          textRow.className = 'mb-2';
+          textRow.innerHTML = '<div class="prop-label">文本</div>';
+          const textInput = document.createElement('input');
+          textInput.id = 'propDividerText';
+          textInput.className = 'form-control form-control-sm';
+          textInput.value = props.text || '分割线';
+          textRow.appendChild(textInput);
+          form.appendChild(textRow);
+          const dTextColorRow = document.createElement('div');
+          dTextColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          dTextColorRow.innerHTML = '<div class="prop-label">文字颜色</div>';
+          const dTextColorInput = document.createElement('input');
+          dTextColorInput.id = 'propDividerTextColor';
+          dTextColorInput.type = 'color';
+          dTextColorInput.className = 'form-control form-control-color form-control-sm';
+          dTextColorInput.value = props.textColor || '#64748b';
+          dTextColorRow.appendChild(dTextColorInput);
+          styleRow.appendChild(dTextColorRow);
+          const dLineColorRow = document.createElement('div');
+          dLineColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          dLineColorRow.innerHTML = '<div class="prop-label">线条颜色</div>';
+          const dLineColorInput = document.createElement('input');
+          dLineColorInput.id = 'propDividerLineColor';
+          dLineColorInput.type = 'color';
+          dLineColorInput.className = 'form-control form-control-color form-control-sm';
+          dLineColorInput.value = props.lineColor || '#e5e7eb';
+          dLineColorRow.appendChild(dLineColorInput);
+          styleRow.appendChild(dLineColorRow);
+          const dLineWidthRow = document.createElement('div');
+          dLineWidthRow.className = 'mb-2';
+          dLineWidthRow.innerHTML = '<div class="prop-label">线宽 (px)</div>';
+          const dLineWidthInput = document.createElement('input');
+          dLineWidthInput.id = 'propDividerLineWidth';
+          dLineWidthInput.type = 'number';
+          dLineWidthInput.className = 'form-control form-control-sm';
+          dLineWidthInput.value = props.lineWidth || 2;
+          dLineWidthRow.appendChild(dLineWidthInput);
+          styleRow.appendChild(dLineWidthRow);
+          const dBorderStyleRow = document.createElement('div');
+          dBorderStyleRow.className = 'mb-2';
+          dBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const dBorderStyleSelect = document.createElement('select');
+          dBorderStyleSelect.id = 'propDividerBorderStyle';
+          dBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            dBorderStyleSelect.appendChild(opt);
+          });
+          dBorderStyleRow.appendChild(dBorderStyleSelect);
+          styleRow.appendChild(dBorderStyleRow);
+        } else if (type === '竖向分割线') {
+          const vLineColorRow = document.createElement('div');
+          vLineColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          vLineColorRow.innerHTML = '<div class="prop-label">线条颜色</div>';
+          const vLineColorInput = document.createElement('input');
+          vLineColorInput.id = 'propVDividerLineColor';
+          vLineColorInput.type = 'color';
+          vLineColorInput.className = 'form-control form-control-color form-control-sm';
+          vLineColorInput.value = props.lineColor || '#e5e7eb';
+          vLineColorRow.appendChild(vLineColorInput);
+          styleRow.appendChild(vLineColorRow);
+          const vLineWidthRow = document.createElement('div');
+          vLineWidthRow.className = 'mb-2';
+          vLineWidthRow.innerHTML = '<div class="prop-label">线宽 (px)</div>';
+          const vLineWidthInput = document.createElement('input');
+          vLineWidthInput.id = 'propVDividerLineWidth';
+          vLineWidthInput.type = 'number';
+          vLineWidthInput.className = 'form-control form-control-sm';
+          vLineWidthInput.value = props.lineWidth || 2;
+          vLineWidthRow.appendChild(vLineWidthInput);
+          styleRow.appendChild(vLineWidthRow);
+          const vBorderStyleRow = document.createElement('div');
+          vBorderStyleRow.className = 'mb-2';
+          vBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const vBorderStyleSelect = document.createElement('select');
+          vBorderStyleSelect.id = 'propVDividerBorderStyle';
+          vBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            vBorderStyleSelect.appendChild(opt);
+          });
+          vBorderStyleRow.appendChild(vBorderStyleSelect);
+          styleRow.appendChild(vBorderStyleRow);
+        } else if (type === '标签') {
+          const textRow = document.createElement('div');
+          textRow.className = 'mb-2';
+          textRow.innerHTML = '<div class="prop-label">文本</div>';
+          const textInput = document.createElement('input');
+          textInput.id = 'propLabelText';
+          textInput.className = 'form-control form-control-sm';
+          textInput.value = props.text || '标签';
+          textRow.appendChild(textInput);
+          form.appendChild(textRow);
+          
+          // 样式设置：文字颜色
+          const lblTextColorRow = document.createElement('div');
+          lblTextColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          lblTextColorRow.innerHTML = '<div class="prop-label">文字颜色</div>';
+          const lblTextColorInput = document.createElement('input');
+          lblTextColorInput.id = 'propLabelTextColor';
+          lblTextColorInput.type = 'color';
+          lblTextColorInput.className = 'form-control form-control-color form-control-sm';
+          lblTextColorInput.value = props.textColor || '#111827';
+          lblTextColorInput.onchange = (e) => EPWidgets.setProps(node, { textColor: e.target.value });
+          lblTextColorRow.appendChild(lblTextColorInput);
+          styleRow.appendChild(lblTextColorRow);
+
+          // 样式设置：边框颜色
+          const lblBorderColorRow = document.createElement('div');
+          lblBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          lblBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const lblBorderColorInput = document.createElement('input');
+          lblBorderColorInput.id = 'propLabelBorderColor';
+          lblBorderColorInput.type = 'color';
+          lblBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          lblBorderColorInput.value = props.borderColor || '#e5e7eb';
+          lblBorderColorInput.onchange = (e) => EPWidgets.setProps(node, { borderColor: e.target.value });
+          lblBorderColorRow.appendChild(lblBorderColorInput);
+          styleRow.appendChild(lblBorderColorRow);
+
+          // 样式设置：边框样式
+          const lblBorderStyleRow = document.createElement('div');
+          lblBorderStyleRow.className = 'mb-2';
+          lblBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const lblBorderStyleSelect = document.createElement('select');
+          lblBorderStyleSelect.id = 'propLabelBorderStyle';
+          lblBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            lblBorderStyleSelect.appendChild(opt);
+          });
+          lblBorderStyleSelect.onchange = (e) => EPWidgets.setProps(node, { borderStyle: e.target.value });
+          lblBorderStyleRow.appendChild(lblBorderStyleSelect);
+          styleRow.appendChild(lblBorderStyleRow);
+        } else if (type === '竖向滑动条') {
+          const minRow = document.createElement('div');
+          minRow.className = 'mb-2';
+          minRow.innerHTML = '<div class="prop-label">最小值</div>';
+          const minInput = document.createElement('input');
+          minInput.id = 'propVSliderMin';
+          minInput.type = 'number';
+          minInput.className = 'form-control form-control-sm';
+          minInput.value = props.min ?? 0;
+          minRow.appendChild(minInput);
+          form.appendChild(minRow);
+          const maxRow = document.createElement('div');
+          maxRow.className = 'mb-2';
+          maxRow.innerHTML = '<div class="prop-label">最大值</div>';
+          const maxInput = document.createElement('input');
+          maxInput.id = 'propVSliderMax';
+          maxInput.type = 'number';
+          maxInput.className = 'form-control form-control-sm';
+          maxInput.value = props.max ?? 100;
+          maxRow.appendChild(maxInput);
+          form.appendChild(maxRow);
+          const valRow = document.createElement('div');
+          valRow.className = 'mb-2';
+          valRow.innerHTML = '<div class="prop-label">当前值</div>';
+          const valInput = document.createElement('input');
+          valInput.id = 'propVSliderValue';
+          valInput.type = 'number';
+          valInput.className = 'form-control form-control-sm';
+          valInput.value = props.value ?? 0;
+          valRow.appendChild(valInput);
+          form.appendChild(valRow);
+          const heightRow = document.createElement('div');
+          heightRow.className = 'mb-2';
+          heightRow.innerHTML = '<div class="prop-label">高度</div>';
+          const heightInput = document.createElement('input');
+          heightInput.id = 'propVSliderHeight';
+          heightInput.type = 'text';
+          heightInput.placeholder = '例如 140px';
+          heightInput.className = 'form-control form-control-sm';
+          heightInput.value = props.height || '100%';
+          heightRow.appendChild(heightInput);
+          form.appendChild(heightRow);
+          const vsBarColorRow = document.createElement('div');
+          vsBarColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          vsBarColorRow.innerHTML = '<div class="prop-label">轨道颜色</div>';
+          const vsBarColorInput = document.createElement('input');
+          vsBarColorInput.id = 'propVSliderBarColor';
+          vsBarColorInput.type = 'color';
+          vsBarColorInput.className = 'form-control form-control-color form-control-sm';
+          vsBarColorInput.value = props.barColor || '#e5e7eb';
+          vsBarColorRow.appendChild(vsBarColorInput);
+          styleRow.appendChild(vsBarColorRow);
+          const vsFillColorRow = document.createElement('div');
+          vsFillColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          vsFillColorRow.innerHTML = '<div class="prop-label">进度颜色</div>';
+          const vsFillColorInput = document.createElement('input');
+          vsFillColorInput.id = 'propVSliderFillColor';
+          vsFillColorInput.type = 'color';
+          vsFillColorInput.className = 'form-control form-control-color form-control-sm';
+          vsFillColorInput.value = props.fillColor || '#2b6cb0';
+          vsFillColorRow.appendChild(vsFillColorInput);
+          styleRow.appendChild(vsFillColorRow);
+          const vsValColorRow = document.createElement('div');
+          vsValColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          vsValColorRow.innerHTML = '<div class="prop-label">数值颜色</div>';
+          const vsValColorInput = document.createElement('input');
+          vsValColorInput.id = 'propVSliderValueColor';
+          vsValColorInput.type = 'color';
+          vsValColorInput.className = 'form-control form-control-color form-control-sm';
+          vsValColorInput.value = props.valueColor || '#111827';
+          vsValColorRow.appendChild(vsValColorInput);
+          styleRow.appendChild(vsValColorRow);
+          const vsBorderColorRow = document.createElement('div');
+          vsBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          vsBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const vsBorderColorInput = document.createElement('input');
+          vsBorderColorInput.id = 'propVSliderBorderColor';
+          vsBorderColorInput.type = 'color';
+          vsBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          vsBorderColorInput.value = props.borderColor || '#e5e7eb';
+          vsBorderColorRow.appendChild(vsBorderColorInput);
+          styleRow.appendChild(vsBorderColorRow);
+          const vsBorderStyleRow = document.createElement('div');
+          vsBorderStyleRow.className = 'mb-2';
+          vsBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const vsBorderStyleSelect = document.createElement('select');
+          vsBorderStyleSelect.id = 'propVSliderBorderStyle';
+          vsBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            vsBorderStyleSelect.appendChild(opt);
+          });
+          vsBorderStyleRow.appendChild(vsBorderStyleSelect);
+          styleRow.appendChild(vsBorderStyleRow);
+        } else if (type === '竖向浮点滑块') {
+          const minRow = document.createElement('div');
+          minRow.className = 'mb-2';
+          minRow.innerHTML = '<div class="prop-label">最小值</div>';
+          const minInput = document.createElement('input');
+          minInput.id = 'propVFloatSliderMin';
+          minInput.type = 'number';
+          minInput.step = '0.01';
+          minInput.className = 'form-control form-control-sm';
+          minInput.value = props.min ?? 0;
+          minRow.appendChild(minInput);
+          form.appendChild(minRow);
+          const maxRow = document.createElement('div');
+          maxRow.className = 'mb-2';
+          maxRow.innerHTML = '<div class="prop-label">最大值</div>';
+          const maxInput = document.createElement('input');
+          maxInput.id = 'propVFloatSliderMax';
+          maxInput.type = 'number';
+          maxInput.step = '0.01';
+          maxInput.className = 'form-control form-control-sm';
+          maxInput.value = props.max ?? 1;
+          maxRow.appendChild(maxInput);
+          form.appendChild(maxRow);
+          const stepRow = document.createElement('div');
+          stepRow.className = 'mb-2';
+          stepRow.innerHTML = '<div class="prop-label">步进</div>';
+          const stepInput = document.createElement('input');
+          stepInput.id = 'propVFloatSliderStep';
+          stepInput.type = 'number';
+          stepInput.step = '0.001';
+          stepInput.className = 'form-control form-control-sm';
+          stepInput.value = props.step ?? 0.01;
+          stepRow.appendChild(stepInput);
+          form.appendChild(stepRow);
+          const valRow = document.createElement('div');
+          valRow.className = 'mb-2';
+          valRow.innerHTML = '<div class="prop-label">当前值</div>';
+          const valInput = document.createElement('input');
+          valInput.id = 'propVFloatSliderValue';
+          valInput.type = 'number';
+          valInput.step = '0.01';
+          valInput.className = 'form-control form-control-sm';
+          valInput.value = props.value ?? 0;
+          valRow.appendChild(valInput);
+          form.appendChild(valRow);
+          const heightRow = document.createElement('div');
+          heightRow.className = 'mb-2';
+          heightRow.innerHTML = '<div class="prop-label">高度</div>';
+          const heightInput = document.createElement('input');
+          heightInput.id = 'propVFloatSliderHeight';
+          heightInput.type = 'text';
+          heightInput.placeholder = '例如 140px';
+          heightInput.className = 'form-control form-control-sm';
+          heightInput.value = props.height || '100%';
+          heightRow.appendChild(heightInput);
+          form.appendChild(heightRow);
+          const vfsBarColorRow = document.createElement('div');
+          vfsBarColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          vfsBarColorRow.innerHTML = '<div class="prop-label">轨道颜色</div>';
+          const vfsBarColorInput = document.createElement('input');
+          vfsBarColorInput.id = 'propVFloatSliderBarColor';
+          vfsBarColorInput.type = 'color';
+          vfsBarColorInput.className = 'form-control form-control-color form-control-sm';
+          vfsBarColorInput.value = props.barColor || '#e5e7eb';
+          vfsBarColorRow.appendChild(vfsBarColorInput);
+          styleRow.appendChild(vfsBarColorRow);
+          const vfsFillColorRow = document.createElement('div');
+          vfsFillColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          vfsFillColorRow.innerHTML = '<div class="prop-label">进度颜色</div>';
+          const vfsFillColorInput = document.createElement('input');
+          vfsFillColorInput.id = 'propVFloatSliderFillColor';
+          vfsFillColorInput.type = 'color';
+          vfsFillColorInput.className = 'form-control form-control-color form-control-sm';
+          vfsFillColorInput.value = props.fillColor || '#2b6cb0';
+          vfsFillColorRow.appendChild(vfsFillColorInput);
+          styleRow.appendChild(vfsFillColorRow);
+          const vfsValColorRow = document.createElement('div');
+          vfsValColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          vfsValColorRow.innerHTML = '<div class="prop-label">数值颜色</div>';
+          const vfsValColorInput = document.createElement('input');
+          vfsValColorInput.id = 'propVFloatSliderValueColor';
+          vfsValColorInput.type = 'color';
+          vfsValColorInput.className = 'form-control form-control-color form-control-sm';
+          vfsValColorInput.value = props.valueColor || '#111827';
+          vfsValColorRow.appendChild(vfsValColorInput);
+          styleRow.appendChild(vfsValColorRow);
+          const vfsBorderColorRow = document.createElement('div');
+          vfsBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          vfsBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const vfsBorderColorInput = document.createElement('input');
+          vfsBorderColorInput.id = 'propVFloatSliderBorderColor';
+          vfsBorderColorInput.type = 'color';
+          vfsBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          vfsBorderColorInput.value = props.borderColor || '#e5e7eb';
+          vfsBorderColorRow.appendChild(vfsBorderColorInput);
+          styleRow.appendChild(vfsBorderColorRow);
+          const vfsBorderStyleRow = document.createElement('div');
+          vfsBorderStyleRow.className = 'mb-2';
+          vfsBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const vfsBorderStyleSelect = document.createElement('select');
+          vfsBorderStyleSelect.id = 'propVFloatSliderBorderStyle';
+          vfsBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            vfsBorderStyleSelect.appendChild(opt);
+          });
+          vfsBorderStyleRow.appendChild(vfsBorderStyleSelect);
+          styleRow.appendChild(vfsBorderStyleRow);
+        } else if (type === '旋钮') {
+          const minRow = document.createElement('div');
+          minRow.className = 'mb-2';
+          minRow.innerHTML = '<div class="prop-label">最小值</div>';
+          const minInput = document.createElement('input');
+          minInput.id = 'propKnobMin';
+          minInput.type = 'number';
+          minInput.className = 'form-control form-control-sm';
+          minInput.value = props.min ?? 0;
+          minRow.appendChild(minInput);
+          form.appendChild(minRow);
+          const maxRow = document.createElement('div');
+          maxRow.className = 'mb-2';
+          maxRow.innerHTML = '<div class="prop-label">最大值</div>';
+          const maxInput = document.createElement('input');
+          maxInput.id = 'propKnobMax';
+          maxInput.type = 'number';
+          maxInput.className = 'form-control form-control-sm';
+          maxInput.value = props.max ?? 100;
+          maxRow.appendChild(maxInput);
+          form.appendChild(maxRow);
+          const valRow = document.createElement('div');
+          valRow.className = 'mb-2';
+          valRow.innerHTML = '<div class="prop-label">当前值</div>';
+          const valInput = document.createElement('input');
+          valInput.id = 'propKnobValue';
+          valInput.type = 'number';
+          valInput.className = 'form-control form-control-sm';
+          valInput.value = props.value ?? 0;
+          valRow.appendChild(valInput);
+          form.appendChild(valRow);
+          
+          // 新增：颜色和步长设置
+          const stepRow = document.createElement('div');
+          stepRow.className = 'mb-2';
+          stepRow.innerHTML = '<div class="prop-label">步长</div>';
+          const stepInput = document.createElement('input');
+          stepInput.id = 'propKnobStep';
+          stepInput.type = 'number';
+          stepInput.className = 'form-control form-control-sm';
+          stepInput.value = props.step ?? 1;
+          stepRow.appendChild(stepInput);
+          form.appendChild(stepRow);
+          
+          const colorRow = document.createElement('div');
+          colorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          colorRow.innerHTML = '<div class="prop-label">值颜色</div>';
+          const colorInput = document.createElement('input');
+          colorInput.id = 'propKnobValueColor';
+          colorInput.type = 'color';
+          colorInput.className = 'form-control form-control-color form-control-sm';
+          colorInput.value = props.valueColor || '#3B82F6';
+          colorRow.appendChild(colorInput);
+          form.appendChild(colorRow);
+          
+          const kTextColorRow = document.createElement('div');
+          kTextColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          kTextColorRow.innerHTML = '<div class="prop-label">文字颜色</div>';
+          const kTextColorInput = document.createElement('input');
+          kTextColorInput.id = 'propKnobTextColor';
+          kTextColorInput.type = 'color';
+          kTextColorInput.className = 'form-control form-control-color form-control-sm';
+          kTextColorInput.value = props.textColor || '#495057';
+          // 函数级注释：实时应用旋钮文字颜色
+          kTextColorInput.onchange = (e) => EPWidgets.setProps(node, { textColor: e.target.value });
+          kTextColorRow.appendChild(kTextColorInput);
+          styleRow.appendChild(kTextColorRow);
+
+          const kBorderColorRow = document.createElement('div');
+          kBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          kBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const kBorderColorInput = document.createElement('input');
+          kBorderColorInput.id = 'propKnobBorderColor';
+          kBorderColorInput.type = 'color';
+          kBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          kBorderColorInput.value = props.borderColor || '#dfe7ef';
+          // 函数级注释：实时应用旋钮边框颜色
+          kBorderColorInput.onchange = (e) => EPWidgets.setProps(node, { borderColor: e.target.value });
+          kBorderColorRow.appendChild(kBorderColorInput);
+          styleRow.appendChild(kBorderColorRow);
+
+          const kBorderStyleRow = document.createElement('div');
+          kBorderStyleRow.className = 'mb-2';
+          kBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const kBorderStyleSelect = document.createElement('select');
+          kBorderStyleSelect.id = 'propKnobBorderStyle';
+          kBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            kBorderStyleSelect.appendChild(opt);
+          });
+          // 函数级注释：实时应用旋钮边框样式
+          kBorderStyleSelect.onchange = (e) => EPWidgets.setProps(node, { borderStyle: e.target.value });
+          kBorderStyleRow.appendChild(kBorderStyleSelect);
+          styleRow.appendChild(kBorderStyleRow);
+
+          const kRangeColorRow = document.createElement('div');
+          kRangeColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          kRangeColorRow.innerHTML = '<div class="prop-label">范围颜色</div>';
+          const kRangeColorInput = document.createElement('input');
+          kRangeColorInput.id = 'propKnobRangeColor';
+          kRangeColorInput.type = 'color';
+          kRangeColorInput.className = 'form-control form-control-color form-control-sm';
+          kRangeColorInput.value = props.rangeColor || '#dfe7ef';
+          // 函数级注释：实时应用旋钮范围颜色
+          kRangeColorInput.onchange = (e) => EPWidgets.setProps(node, { rangeColor: e.target.value });
+          kRangeColorRow.appendChild(kRangeColorInput);
+          styleRow.appendChild(kRangeColorRow);
+
+          const kStrokeWidthRow = document.createElement('div');
+          kStrokeWidthRow.className = 'mb-2';
+          kStrokeWidthRow.innerHTML = '<div class="prop-label">描边宽度</div>';
+          const kStrokeWidthInput = document.createElement('input');
+          kStrokeWidthInput.id = 'propKnobStrokeWidth';
+          kStrokeWidthInput.type = 'number';
+          kStrokeWidthInput.className = 'form-control form-control-sm';
+          kStrokeWidthInput.value = props.strokeWidth || 14;
+          // 函数级注释：实时应用旋钮描边宽度
+          kStrokeWidthInput.onchange = (e) => EPWidgets.setProps(node, { strokeWidth: Number(e.target.value) });
+          kStrokeWidthRow.appendChild(kStrokeWidthInput);
+          styleRow.appendChild(kStrokeWidthRow);
+
+          const kShowValueRow = document.createElement('div');
+          kShowValueRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          kShowValueRow.innerHTML = '<div class="prop-label">显示数值</div>';
+          const kShowValueInput = document.createElement('input');
+          kShowValueInput.id = 'propKnobShowValue';
+          kShowValueInput.type = 'checkbox';
+          kShowValueInput.className = 'form-check-input';
+          kShowValueInput.checked = !!props.showValue;
+          // 函数级注释：实时切换旋钮显示数值
+          kShowValueInput.onchange = (e) => EPWidgets.setProps(node, { showValue: !!e.target.checked });
+          kShowValueRow.appendChild(kShowValueInput);
+          styleRow.appendChild(kShowValueRow);
+
+        } else if (type === '切换按钮') {
+          const onRow = document.createElement('div');
+          onRow.className = 'mb-2';
+          onRow.innerHTML = '<div class="prop-label">开启文本</div>';
+          const onInput = document.createElement('input');
+          onInput.id = 'propToggleLabelOn';
+          onInput.className = 'form-control form-control-sm';
+          onInput.value = props.labelOn || '开启';
+          onRow.appendChild(onInput);
+          form.appendChild(onRow);
+          const offRow = document.createElement('div');
+          offRow.className = 'mb-2';
+          offRow.innerHTML = '<div class="prop-label">关闭文本</div>';
+          const offInput = document.createElement('input');
+          offInput.id = 'propToggleLabelOff';
+          offInput.className = 'form-control form-control-sm';
+          offInput.value = props.labelOff || '关闭';
+          offRow.appendChild(offInput);
+          form.appendChild(offRow);
+          const activeRow = document.createElement('div');
+          activeRow.className = 'mb-2';
+          activeRow.innerHTML = '<div class="prop-label">激活</div>';
+          const activeInput = document.createElement('input');
+          activeInput.id = 'propToggleActive';
+          activeInput.type = 'checkbox';
+          activeInput.className = 'form-check-input';
+          activeInput.checked = !!props.active;
+          activeRow.appendChild(activeInput);
+          form.appendChild(activeRow);
+          
+          // 样式设置：按钮颜色（未激活）
+          const tBtnColorRow = document.createElement('div');
+          tBtnColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          tBtnColorRow.innerHTML = '<div class="prop-label">按钮颜色</div>';
+          const tBtnColorInput = document.createElement('input');
+          tBtnColorInput.id = 'propToggleBtnColor';
+          tBtnColorInput.type = 'color';
+          tBtnColorInput.className = 'form-control form-control-color form-control-sm';
+          tBtnColorInput.value = props.buttonColor || '#409EFF';
+          tBtnColorInput.onchange = (e) => EPWidgets.setProps(node, { buttonColor: e.target.value });
+          tBtnColorRow.appendChild(tBtnColorInput);
+          styleRow.appendChild(tBtnColorRow);
+
+          // 样式设置：按下颜色
+          const tPressColorRow = document.createElement('div');
+          tPressColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          tPressColorRow.innerHTML = '<div class="prop-label">按下颜色</div>';
+          const tPressColorInput = document.createElement('input');
+          tPressColorInput.id = 'propTogglePressColor';
+          tPressColorInput.type = 'color';
+          tPressColorInput.className = 'form-control form-control-color form-control-sm';
+          tPressColorInput.value = props.pressColor || '#2a7bd8';
+          tPressColorInput.onchange = (e) => EPWidgets.setProps(node, { pressColor: e.target.value });
+          tPressColorRow.appendChild(tPressColorInput);
+          styleRow.appendChild(tPressColorRow);
+
+          // 样式设置：激活颜色（切换后）
+          const tActiveColorRow = document.createElement('div');
+          tActiveColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          tActiveColorRow.innerHTML = '<div class="prop-label">激活颜色</div>';
+          const tActiveColorInput = document.createElement('input');
+          tActiveColorInput.id = 'propToggleActiveColor';
+          tActiveColorInput.type = 'color';
+          tActiveColorInput.className = 'form-control form-control-color form-control-sm';
+          tActiveColorInput.value = props.activeColor || '#3a8ee6';
+          tActiveColorInput.onchange = (e) => EPWidgets.setProps(node, { activeColor: e.target.value });
+          tActiveColorRow.appendChild(tActiveColorInput);
+          styleRow.appendChild(tActiveColorRow);
+
+          // 样式设置：文字颜色
+          const tTextColorRow = document.createElement('div');
+          tTextColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          tTextColorRow.innerHTML = '<div class="prop-label">文字颜色</div>';
+          const tTextColorInput = document.createElement('input');
+          tTextColorInput.id = 'propToggleTextColor';
+          tTextColorInput.type = 'color';
+          tTextColorInput.className = 'form-control form-control-color form-control-sm';
+          tTextColorInput.value = props.textColor || '#ffffff';
+          tTextColorInput.onchange = (e) => EPWidgets.setProps(node, { textColor: e.target.value });
+          tTextColorRow.appendChild(tTextColorInput);
+          styleRow.appendChild(tTextColorRow);
+
+          // 样式设置：边框颜色
+          const tBorderColorRow = document.createElement('div');
+          tBorderColorRow.className = 'mb-2 d-flex align-items-center justify-content-between';
+          tBorderColorRow.innerHTML = '<div class="prop-label">边框颜色</div>';
+          const tBorderColorInput = document.createElement('input');
+          tBorderColorInput.id = 'propToggleBorderColor';
+          tBorderColorInput.type = 'color';
+          tBorderColorInput.className = 'form-control form-control-color form-control-sm';
+          tBorderColorInput.value = props.borderColor || '#409EFF';
+          tBorderColorInput.onchange = (e) => EPWidgets.setProps(node, { borderColor: e.target.value });
+          tBorderColorRow.appendChild(tBorderColorInput);
+          styleRow.appendChild(tBorderColorRow);
+
+          // 样式设置：边框样式
+          const tBorderStyleRow = document.createElement('div');
+          tBorderStyleRow.className = 'mb-2';
+          tBorderStyleRow.innerHTML = '<div class="prop-label">边框样式</div>';
+          const tBorderStyleSelect = document.createElement('select');
+          tBorderStyleSelect.id = 'propToggleBorderStyle';
+          tBorderStyleSelect.className = 'form-select form-select-sm';
+          ['solid', 'dashed', 'dotted', 'double', 'none'].forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s;
+            opt.textContent = s;
+            if (s === (props.borderStyle || 'solid')) opt.selected = true;
+            tBorderStyleSelect.appendChild(opt);
+          });
+          tBorderStyleSelect.onchange = (e) => EPWidgets.setProps(node, { borderStyle: e.target.value });
+          tBorderStyleRow.appendChild(tBorderStyleSelect);
+          styleRow.appendChild(tBorderStyleRow);
+        }
+        const applyRow = document.createElement('div');
+        applyRow.className = 'mt-2';
+        const applyBtn = document.createElement('button');
+        applyBtn.id = 'propApply';
+        applyBtn.className = 'btn btn-sm btn-primary';
+        applyBtn.textContent = '应用修改';
+        applyRow.appendChild(applyBtn);
+        const delBtn = document.createElement('button');
+        delBtn.id = 'propDelete';
+        delBtn.className = 'btn btn-sm btn-outline-danger ms-2';
+        delBtn.textContent = '删除控件';
+        applyRow.appendChild(delBtn);
+        form.appendChild(applyRow);
+        panel.appendChild(form);
+        applyBtn.onclick = () => applyProperties();
+        // 函数级注释：删除选中控件并重置属性面板
+        delBtn.onclick = () => {
+          if (!currentSelected) return;
+          try {
+            grid.removeWidget(currentSelected);
+          } catch(e) {
+            console.error('删除控件失败:', e);
+          }
+          currentSelected = null;
+          updatePropPanel(null);
+        };
+      }
+
+      // 函数级注释：应用属性修改到选中控件
+      function applyProperties() {
+        if (!currentSelected) return;
+        const type = currentSelected.dataset.type;
+        const props = {};
+        const titleEl = document.getElementById('propTitle');
+        if (titleEl) props.title = titleEl.value.trim();
+        if (type === '按钮') {
+          props.label = document.getElementById('propBtnLabel').value.trim();
+          props.buttonColor = document.getElementById('propBtnColor').value;
+          props.activeColor = document.getElementById('propBtnActiveColor').value;
+          props.textColor = document.getElementById('propBtnTextColor').value;
+          props.borderColor = document.getElementById('propBtnBorderColor').value;
+          props.borderStyle = document.getElementById('propBtnBorderStyle').value;
+        } else if (type === '滑块') {
+          props.min = Number(document.getElementById('propSliderMin').value);
+          props.max = Number(document.getElementById('propSliderMax').value);
+          props.value = Number(document.getElementById('propSliderValue').value);
+          const sbEl = document.getElementById('propSliderBarColor');
+          const sfEl = document.getElementById('propSliderFillColor');
+          const svEl = document.getElementById('propSliderValueColor');
+          const sbcEl = document.getElementById('propSliderBorderColor');
+          const sbsEl = document.getElementById('propSliderBorderStyle');
+          if (sbEl) props.barColor = sbEl.value;
+          if (sfEl) props.fillColor = sfEl.value;
+          if (svEl) props.valueColor = svEl.value;
+          if (sbcEl) props.borderColor = sbcEl.value;
+          if (sbsEl) props.borderStyle = sbsEl.value;
+        } else if (type === '浮点滑块') {
+          props.min = Number(document.getElementById('propFloatSliderMin').value);
+          props.max = Number(document.getElementById('propFloatSliderMax').value);
+          props.step = Number(document.getElementById('propFloatSliderStep').value);
+          props.value = Number(document.getElementById('propFloatSliderValue').value);
+          const fsbEl = document.getElementById('propFloatSliderBarColor');
+          const fsfEl = document.getElementById('propFloatSliderFillColor');
+          const fsvEl = document.getElementById('propFloatSliderValueColor');
+          const fsbcEl = document.getElementById('propFloatSliderBorderColor');
+          const fsbsEl = document.getElementById('propFloatSliderBorderStyle');
+          if (fsbEl) props.barColor = fsbEl.value;
+          if (fsfEl) props.fillColor = fsfEl.value;
+          if (fsvEl) props.valueColor = fsvEl.value;
+          if (fsbcEl) props.borderColor = fsbcEl.value;
+          if (fsbsEl) props.borderStyle = fsbsEl.value;
+        } else if (type === '勾选') {
+          props.label = document.getElementById('propCheckLabel').value.trim();
+          props.checked = document.getElementById('propCheckChecked').checked;
+          const caEl = document.getElementById('propCheckActiveColor');
+          const ctEl = document.getElementById('propCheckTextColor');
+          const cbEl = document.getElementById('propCheckBorderColor');
+          const cbsEl = document.getElementById('propCheckBorderStyle');
+          if (caEl) props.activeColor = caEl.value;
+          if (ctEl) props.textColor = ctEl.value;
+          if (cbEl) props.borderColor = cbEl.value;
+          if (cbsEl) props.borderStyle = cbsEl.value;
+        } else if (type === '开关') {
+          props.checked = document.getElementById('propSwitchChecked').checked;
+          const soEl = document.getElementById('propSwitchOnColor');
+          const sfEl = document.getElementById('propSwitchOffColor');
+          const sbEl = document.getElementById('propSwitchBorderColor');
+          const sbsEl = document.getElementById('propSwitchBorderStyle');
+          if (soEl) props.onColor = soEl.value;
+          if (sfEl) props.offColor = sfEl.value;
+          if (sbEl) props.borderColor = sbEl.value;
+          if (sbsEl) props.borderStyle = sbsEl.value;
+        } else if (type === '输入框') {
+          props.placeholder = document.getElementById('propInputPlaceholder').value.trim();
+          props.value = document.getElementById('propInputValue').value;
+          const itEl = document.getElementById('propInputTextColor');
+          const ibEl = document.getElementById('propInputBorderColor');
+          const ibsEl = document.getElementById('propInputBorderStyle');
+          if (itEl) props.textColor = itEl.value;
+          if (ibEl) props.borderColor = ibEl.value;
+          if (ibsEl) props.borderStyle = ibsEl.value;
+        } else if (type === '竖向分割线') {
+          const vlcEl = document.getElementById('propVDividerLineColor');
+          const vlwEl = document.getElementById('propVDividerLineWidth');
+          const vbsEl = document.getElementById('propVDividerBorderStyle');
+          if (vlcEl) props.lineColor = vlcEl.value;
+          if (vlwEl) props.lineWidth = Number(vlwEl.value);
+          if (vbsEl) props.borderStyle = vbsEl.value;
+        } else if (type === '分割线') {
+          props.text = document.getElementById('propDividerText').value.trim();
+          const dtEl = document.getElementById('propDividerTextColor');
+          const dlcEl = document.getElementById('propDividerLineColor');
+          const dlwEl = document.getElementById('propDividerLineWidth');
+          const dbsEl = document.getElementById('propDividerBorderStyle');
+          if (dtEl) props.textColor = dtEl.value;
+          if (dlcEl) props.lineColor = dlcEl.value;
+          if (dlwEl) props.lineWidth = Number(dlwEl.value);
+          if (dbsEl) props.borderStyle = dbsEl.value;
+        } else if (type === '标签') {
+          props.text = document.getElementById('propLabelText').value.trim();
+          const tColorEl = document.getElementById('propLabelTextColor');
+          const bColorEl = document.getElementById('propLabelBorderColor');
+          const bStyleEl = document.getElementById('propLabelBorderStyle');
+          if (tColorEl) props.textColor = tColorEl.value;
+          if (bColorEl) props.borderColor = bColorEl.value;
+          if (bStyleEl) props.borderStyle = bStyleEl.value;
+        } else if (type === '竖向滑动条') {
+          props.min = Number(document.getElementById('propVSliderMin').value);
+          props.max = Number(document.getElementById('propVSliderMax').value);
+          props.value = Number(document.getElementById('propVSliderValue').value);
+          props.height = document.getElementById('propVSliderHeight').value.trim();
+          const vbEl = document.getElementById('propVSliderBarColor');
+          const vfEl = document.getElementById('propVSliderFillColor');
+          const vvEl = document.getElementById('propVSliderValueColor');
+          const vbcEl = document.getElementById('propVSliderBorderColor');
+          const vbsEl = document.getElementById('propVSliderBorderStyle');
+          if (vbEl) props.barColor = vbEl.value;
+          if (vfEl) props.fillColor = vfEl.value;
+          if (vvEl) props.valueColor = vvEl.value;
+          if (vbcEl) props.borderColor = vbcEl.value;
+          if (vbsEl) props.borderStyle = vbsEl.value;
+        } else if (type === '竖向浮点滑块') {
+          props.min = Number(document.getElementById('propVFloatSliderMin').value);
+          props.max = Number(document.getElementById('propVFloatSliderMax').value);
+          props.step = Number(document.getElementById('propVFloatSliderStep').value);
+          props.value = Number(document.getElementById('propVFloatSliderValue').value);
+          props.height = document.getElementById('propVFloatSliderHeight').value.trim();
+          const vfbEl = document.getElementById('propVFloatSliderBarColor');
+          const vffEl = document.getElementById('propVFloatSliderFillColor');
+          const vfvEl = document.getElementById('propVFloatSliderValueColor');
+          const vfbcEl = document.getElementById('propVFloatSliderBorderColor');
+          const vfbsEl = document.getElementById('propVFloatSliderBorderStyle');
+          if (vfbEl) props.barColor = vfbEl.value;
+          if (vffEl) props.fillColor = vffEl.value;
+          if (vfvEl) props.valueColor = vfvEl.value;
+          if (vfbcEl) props.borderColor = vfbcEl.value;
+          if (vfbsEl) props.borderStyle = vfbsEl.value;
+        } else if (type === '旋钮') {
+          props.min = Number(document.getElementById('propKnobMin').value);
+          props.max = Number(document.getElementById('propKnobMax').value);
+          props.value = Number(document.getElementById('propKnobValue').value);
+          props.step = Number(document.getElementById('propKnobStep').value);
+          props.valueColor = document.getElementById('propKnobValueColor').value;
+          const ktEl = document.getElementById('propKnobTextColor');
+          const kbEl = document.getElementById('propKnobBorderColor');
+          const kbsEl = document.getElementById('propKnobBorderStyle');
+          const krEl = document.getElementById('propKnobRangeColor');
+          const kswEl = document.getElementById('propKnobStrokeWidth');
+          const ksvEl = document.getElementById('propKnobShowValue');
+          if (ktEl) props.textColor = ktEl.value;
+          if (kbEl) props.borderColor = kbEl.value;
+          if (kbsEl) props.borderStyle = kbsEl.value;
+          if (krEl) props.rangeColor = krEl.value;
+          if (kswEl) props.strokeWidth = Number(kswEl.value);
+          if (ksvEl) props.showValue = ksvEl.checked;
+        } else if (type === '切换按钮') {
+          props.labelOn = document.getElementById('propToggleLabelOn').value.trim();
+          props.labelOff = document.getElementById('propToggleLabelOff').value.trim();
+          props.active = document.getElementById('propToggleActive').checked;
+          // 样式属性
+          const btnColorEl = document.getElementById('propToggleBtnColor');
+          const pressColorEl = document.getElementById('propTogglePressColor');
+          const activeColorEl = document.getElementById('propToggleActiveColor');
+          const textColorEl = document.getElementById('propToggleTextColor');
+          const borderColorEl = document.getElementById('propToggleBorderColor');
+          const borderStyleEl = document.getElementById('propToggleBorderStyle');
+          if (btnColorEl) props.buttonColor = btnColorEl.value;
+          if (pressColorEl) props.pressColor = pressColorEl.value;
+          if (activeColorEl) props.activeColor = activeColorEl.value;
+          if (textColorEl) props.textColor = textColorEl.value;
+          if (borderColorEl) props.borderColor = borderColorEl.value;
+          if (borderStyleEl) props.borderStyle = borderStyleEl.value;
+        }
+        EPWidgets.setProps(currentSelected, props);
+        // 更新面板显示（标题可能变化）
+        updatePropPanel(currentSelected);
+      }
+    }
+
+    // 函数级注释：添加键盘删除支持（Delete/Backspace 在编辑模式下删除选中控件）
+    window.addEventListener('keydown', function(e){
+      try {
+        const isInput = ['INPUT','TEXTAREA'].includes((e.target && e.target.tagName) || '');
+        const isEdit = document.body.classList.contains('edit-mode');
+        if (!isEdit) return;
+        if (isInput) return;
+        if ((e.key === 'Delete' || e.key === 'Backspace') && typeof window.__selectNode === 'function') {
+          const activeWrap = Array.from(document.querySelectorAll('#tabsContent [data-tab-id]')).find(el => el.style.display !== 'none');
+          const selected = activeWrap ? activeWrap.querySelector('.grid-stack-item.grid-selected') : null;
+          if (selected) {
+            e.preventDefault();
+            const gridEl = activeWrap.querySelector('.grid-stack');
+            if (gridEl && gridEl.gridstack) {
+              try { gridEl.gridstack.removeWidget(selected); } catch(err){ console.error(err); }
+            }
+            if (typeof updatePropPanel === 'function') updatePropPanel(null);
+          }
+        }
+      } catch {}
+    });
+    // 函数级注释：绑定 overlay 点击以触发选中（全局函数，供加载与添加时复用）
+    function attachOverlay(node) {
+      const overlay = node.querySelector('.widget-overlay-mask');
+      if (overlay) {
+        overlay.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (typeof window.__selectNode === 'function') window.__selectNode(node);
+        });
+      }
+    }
+
+    // 函数级注释：添加控件并立即进入编辑与选中（全局函数）
+    function attachAndSelect(node, type) {
+      if (!node) return;
+      const editModeSwitch = document.getElementById('editModeSwitch');
+      if (editModeSwitch && !editModeSwitch.checked) {
+        editModeSwitch.checked = true;
+        editModeSwitch.dispatchEvent(new Event('change'));
+      }
+      node.dataset.type = type;
+      attachOverlay(node);
+      if (typeof window.__selectNode === 'function') window.__selectNode(node);
+    }
+
+    // 函数级注释：保存当前活动页布局到后端（兼容旧格式）
+    function saveLayout(grid) {
+      const items = [];
+      const gridEl = grid && grid.el ? grid.el : document.querySelector('#tabsContent .grid-stack:not([style*="display: none"])');
+      const nodes = gridEl ? gridEl.querySelectorAll('.grid-stack-item') : [];
+          
+      
+      nodes.forEach(item => {
+        const type = item.dataset.type || '';
+        const props = EPWidgets.getProps(item);
+        const x = parseInt(item.getAttribute('gs-x') || '0', 10);
+        const y = parseInt(item.getAttribute('gs-y') || '0', 10);
+        const w = parseInt(item.getAttribute('gs-w') || '1', 10);
+        const h = parseInt(item.getAttribute('gs-h') || '1', 10);
+        
+        if (type) {
+            items.push({ type, props, x, y, w, h });
+        } else {
+            console.warn('Skipping item without type:', item);
+        }
+      });
+      
+      if (items.length === 0 && nodes.length > 0) {
+          alert('无法识别任何有效控件，请检查控件类型是否正确');
+          return;
+      }
+
+      fetch('/api/layout/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      })
+      .then(r => r.text())
+      .then(text => {
+        try {
+            const j = JSON.parse(text);
+            if (j.ok) {
+                 // alert('布局已保存'); // 已禁用保存成功弹窗
+            }
+            else alert('保存失败: ' + (j.error || '未知错误'));
+          } catch (e) {
+            // 容错处理：如果后端返回的 JSON 格式有误（如路径未转义），但包含 success 标记，则视为成功
+            if (text.includes('"ok":true')) {
+                console.warn('JSON parse error but saved:', e);
+                // alert('布局已保存'); // 已禁用保存成功弹窗
+            } else {
+                throw new Error('服务器响应格式错误: ' + text.substring(0, 50) + '...');
+            }
+          }
+        // 同步保存到本地存储（按页面维度）
+        try {
+          if (activeTabId) localStorage.setItem('ns_layout_' + activeTabId, JSON.stringify({ items }));
+        } catch (err) { console.warn('localStorage save failed', err); }
+      })
+      .catch(e => alert('保存请求失败: ' + e));
+    }
+
+    // 函数级注释：保存所有分页布局到后端（包含 tabs、activeTabId 与 pages 映射）
+    function saveAllLayouts() {
+      try {
+        const pages = {};
+        grids.forEach((info, tid) => {
+          const items = collectGridItems(info.grid);
+          pages[tid] = { items };
+        });
+        const payload = { tabs, activeTabId, pages };
+        fetch('/api/layout/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        .then(r => r.text())
+        .then(text => {
+          try {
+            const j = JSON.parse(text);
+            if (j.ok) {
+                 // alert('布局已保存');
+            }
+            else alert('保存失败: ' + (j.error || '未知错误'));
+          } catch (e) {
+            if (text.includes('"ok":true')) {
+                 // alert('布局已保存');
+            }
+            else throw new Error('服务器响应格式错误: ' + text.substring(0, 50) + '...');
+          }
+        })
+        .catch(e => alert('保存请求失败: ' + e));
+      } catch (err) {
+        alert('保存异常: ' + err);
+      }
+    }
+
+    // 函数级注释：从后端恢复所有分页布局（支持新旧两种格式）
+    function loadLayout(grid, silent = false) {
+      fetch('/api/layout/load')
+        .then(r => r.json())
+        .then(data => {
+          const items = data.items || [];
+          if (items.length === 0 && !silent) {
+              alert('当前没有保存的布局');
+              return;
+          }
+          if (items.length > 0) {
+            grid.removeAll();
+            ensureEPReady(() => {
+            items.forEach(spec => { createWidgetFromSpec(grid, spec); });
+            });
+            if (!silent) alert('布局加载成功');
+          }
+        })
+        .catch(e => {
+            // 失败则尝试从本地存储按页面加载
+            try {
+              if (activeTabId) {
+                const raw = localStorage.getItem('ns_layout_' + activeTabId);
+                if (raw) {
+                  const data = JSON.parse(raw);
+                  const items = data.items || [];
+                  if (items.length > 0) {
+                    grid.removeAll();
+                    ensureEPReady(() => {
+                      items.forEach(spec => { createWidgetFromSpec(grid, spec); });
+                    });
+                    if (!silent) alert('离线布局加载成功');
+                    return;
+                  }
+                }
+              }
+            } catch(err) {
+              console.error('Local load failed:', err);
+            }
+            if (!silent) alert('加载失败: ' + e);
+            else console.error('Auto-load failed:', e);
+        });
+    }
+
+    // 函数级注释：加载所有分页布局（若后端返回新格式则重建分页与内容）
+    function loadAllLayouts() {
+      fetch('/api/layout/load')
+        .then(r => r.json())
+        .then(data => {
+          const hasPages = data && data.pages && typeof data.pages === 'object';
+          const hasTabs = Array.isArray(data.tabs);
+          if (hasPages && hasTabs) {
+            // 清空现有分页
+            try {
+              tabs = [];
+              grids.forEach(info => {
+                if (info && info.pageWrap && info.pageWrap.parentElement) {
+                  info.pageWrap.parentElement.removeChild(info.pageWrap);
+                }
+              });
+              grids.clear();
+              const tabsList = document.getElementById('tabsList');
+              const tabsContent = document.getElementById('tabsContent');
+              tabsList.innerHTML = '';
+              tabsContent.innerHTML = '';
+            } catch {}
+            // 重建分页
+            data.tabs.forEach(t => {
+              if (window.__createTab) window.__createTab(t.name, t.id, { skipLocalLoad: true });
+              else createTab(t.name, t.id, { skipLocalLoad: true });
+            });
+            // 渲染各页内容
+            Object.keys(data.pages).forEach(tid => {
+              const info = grids.get(tid);
+              if (!info) return;
+              const items = (data.pages[tid] && data.pages[tid].items) || [];
+              info.grid.removeAll();
+              ensureEPReady(() => {
+                items.forEach(spec => { createWidgetFromSpec(info.grid, spec); });
+                const info2 = grids.get(tid);
+                if (info2) info2.loaded = true;
+              });
+            });
+            const targetActive = data.activeTabId && grids.has(data.activeTabId) ? data.activeTabId : (data.tabs[0] && data.tabs[0].id);
+            if (targetActive) {
+              if (window.__switchTab) window.__switchTab(targetActive);
+              else switchTab(targetActive);
+            }
+           
+          } else {
+            const info = activeTabId ? grids.get(activeTabId) : null;
+            const g = info && info.grid ? info.grid : null;
+            if (g) loadLayout(g, false);
+          }
+        })
+        .catch(e => alert('加载失败: ' + e));
+    }
+
+    window.addEventListener('DOMContentLoaded', initDashboard);
+  </script>
+</body>
+</html>

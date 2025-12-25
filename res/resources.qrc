@@ -125,6 +125,7 @@
     <file>icons/arror_left.png</file>
     <file>icons/arror_right.png</file>
     <file>icons/collapse.png</file>
+    <file>icons/home.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>
