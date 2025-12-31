@@ -15,7 +15,7 @@
 #include <map>
 #include "TimestampGenerator/TimestampGenerator.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -29,7 +29,7 @@ namespace Nodes
      * @brief 音频输入设备节点数据模型
      * 负责从指定的音频输入设备录制音频并输出AudioData
      */
-    class AudioDeviceInDataModel : public NodeDelegateModel
+    class AudioDeviceInDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -55,7 +55,7 @@ namespace Nodes
                     this, &AudioDeviceInDataModel::onDeviceChanged);
             // connect(widget, &AudioDeviceInInterface::recordingStopped,
             //         this, &AudioDeviceInDataModel::stopRecording);
-            NodeDelegateModel::registerOSCControl("/gain",widget->volume_spinbox);
+            AbstractDelegateModel::registerOSCControl("/gain",widget->volume_spinbox);
             get_device_list();
         }
 
@@ -276,15 +276,6 @@ namespace Nodes
             // qDebug() << "停止录制音频";
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 
     private:
 

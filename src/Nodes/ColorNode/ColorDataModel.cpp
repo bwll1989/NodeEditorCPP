@@ -13,13 +13,13 @@ ColorDataModel::ColorDataModel(){
     Resizable=false;
     connect(colorEditorWidget, &ColorEditorWidget::colorChanged, this, &ColorDataModel::onColorChanged);
     connect(widget->colorEditButton, &QPushButton::clicked, this, &ColorDataModel::toggleEditorMode);
-    NodeDelegateModel::registerOSCControl("/red", colorEditorWidget->spinRed);
-    NodeDelegateModel::registerOSCControl("/green", colorEditorWidget->spinGreen);
-    NodeDelegateModel::registerOSCControl("/blue", colorEditorWidget->spinBlue);
-    NodeDelegateModel::registerOSCControl("/alpha", colorEditorWidget->spinAlpha);
-    NodeDelegateModel::registerOSCControl("/hue", colorEditorWidget->spinHue);
-    NodeDelegateModel::registerOSCControl("/saturation", colorEditorWidget->spinSaturation);
-    NodeDelegateModel::registerOSCControl("/value", colorEditorWidget->spinValue);
+    AbstractDelegateModel::registerOSCControl("/red", colorEditorWidget->spinRed);
+    AbstractDelegateModel::registerOSCControl("/green", colorEditorWidget->spinGreen);
+    AbstractDelegateModel::registerOSCControl("/blue", colorEditorWidget->spinBlue);
+    AbstractDelegateModel::registerOSCControl("/alpha", colorEditorWidget->spinAlpha);
+    AbstractDelegateModel::registerOSCControl("/hue", colorEditorWidget->spinHue);
+    AbstractDelegateModel::registerOSCControl("/saturation", colorEditorWidget->spinSaturation);
+    AbstractDelegateModel::registerOSCControl("/value", colorEditorWidget->spinValue);
 }
 
 ColorDataModel::~ColorDataModel(){
@@ -133,15 +133,7 @@ void ColorDataModel::load(const QJsonObject &p)
         colorEditorWidget->setColor(QColor(v["color"].toString()));
     }
 }
-void ColorDataModel::stateFeedBack(const QString& oscAddress,QVariant value){
 
-    OSCMessage message;
-    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-    message.value = value;
-    OSCSender::instance()->sendOSCMessageWithQueue(message);
-}
 void ColorDataModel::toggleEditorMode() {
     // 移除父子关系，使其成为独立窗口
     colorEditorWidget->setParent(nullptr);

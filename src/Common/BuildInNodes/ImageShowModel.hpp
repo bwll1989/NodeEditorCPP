@@ -1,10 +1,11 @@
 #pragma once
 #include <QtNodes/NodeDelegateModelRegistry>
 #include "DataTypes/NodeDataList.hpp"
+#include "AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class ImageShowModel final : public QtNodes::NodeDelegateModel
+    class ImageShowModel final : public AbstractDelegateModel
     {
         Q_OBJECT
 

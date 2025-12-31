@@ -11,7 +11,7 @@
 #include <QtCore/qglobal.h>
 #include "ConstantDefines.h"
 #include "DataVisualInterface.hpp"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -20,7 +20,7 @@ using QtNodes::PortType;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class ScatterSeriesDataModel : public NodeDelegateModel
+    class ScatterSeriesDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -145,22 +145,6 @@ namespace Nodes
             m_quickWidget->raise();
         }
 
-
-
-
-        // 函数级注释：循环播放复选框槽函数，直接调用 QML 的 TimelineEditor.isLoop 切换循环播放状态
-
-
-
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     public:
         DataVisualInterface *widget=new DataVisualInterface();
         shared_ptr<VariableData> inData;

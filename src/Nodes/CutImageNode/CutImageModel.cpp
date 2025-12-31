@@ -30,10 +30,10 @@ CutImageModel::CutImageModel() {
         m_outRect.setHeight(widget->heightEdit->text().toInt());
         processImage();
     });
-    NodeDelegateModel::registerOSCControl("/topLeftX",widget->pos_x);
-    NodeDelegateModel::registerOSCControl("/topLeftY",widget->pos_y);
-    NodeDelegateModel::registerOSCControl("/width",widget->widthEdit);
-    NodeDelegateModel::registerOSCControl("/height",widget->heightEdit);
+    AbstractDelegateModel::registerOSCControl("/topLeftX",widget->pos_x);
+    AbstractDelegateModel::registerOSCControl("/topLeftY",widget->pos_y);
+    AbstractDelegateModel::registerOSCControl("/width",widget->widthEdit);
+    AbstractDelegateModel::registerOSCControl("/height",widget->heightEdit);
 }
 
 QString CutImageModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const

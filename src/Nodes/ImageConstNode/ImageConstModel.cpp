@@ -169,15 +169,7 @@ void ImageConstModel::load(const QJsonObject &p)
         updateImage();
     }
 }
-void ImageConstModel::stateFeedBack(const QString& oscAddress,QVariant value){
 
-    OSCMessage message;
-    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-    message.value = value;
-    OSCSender::instance()->sendOSCMessageWithQueue(message);
-}
 void ImageConstModel::toggleEditorMode() {
     // 移除父子关系，使其成为独立窗口
     colorEditorWidget->setParent(nullptr);

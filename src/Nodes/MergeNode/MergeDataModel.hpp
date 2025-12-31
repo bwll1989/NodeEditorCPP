@@ -10,7 +10,7 @@
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 #include <QtCore/qglobal.h>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -20,7 +20,7 @@ class QLineEdit;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class MergeDataModel : public NodeDelegateModel
+    class MergeDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 

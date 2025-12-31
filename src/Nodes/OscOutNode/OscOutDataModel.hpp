@@ -9,7 +9,7 @@
 #include "Common/Devices/OSCSender/OSCSender.h"
 #include "OscOutInterface.hpp"
 #include <QVariantMap>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "ConstantDefines.h"
 #include "QThread"
 #include "spdlog/fmt/bundled/base.h"
@@ -22,7 +22,7 @@ using namespace NodeDataTypes;
 using namespace QtNodes;
 namespace Nodes
 {
-    class OscOutDataModel : public NodeDelegateModel
+    class OscOutDataModel : public AbstractDelegateModel
     {
 
         Q_OBJECT

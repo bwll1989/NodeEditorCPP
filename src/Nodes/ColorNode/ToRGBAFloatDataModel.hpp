@@ -11,12 +11,12 @@
 #include "ColorConvertInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace Nodes;
 namespace Nodes
 {
-    class ToRGBAFloatDataModel final : public QtNodes::NodeDelegateModel
+    class ToRGBAFloatDataModel final : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -34,10 +34,6 @@ namespace Nodes
         void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex port) override;
 
         QWidget *embeddedWidget() override { return widget; }
-
-
-
-        void stateFeedBack(const QString& oscAddress,QVariant value) override ;
 
     private:
         ColorConvertInterface *widget = new ColorConvertInterface();

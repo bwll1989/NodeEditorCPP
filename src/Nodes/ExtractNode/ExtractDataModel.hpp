@@ -14,7 +14,7 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include "JSEngineDefines/JSEngineDefines.hpp"
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -24,7 +24,7 @@ using namespace QtNodes;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class ExtractDataModel : public NodeDelegateModel
+    class ExtractDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -149,21 +149,6 @@ namespace Nodes
 
         QWidget *embeddedWidget() override {return widget;}
 
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-            auto result = ConnectionPolicy::One;
-            switch (portType) {
-                case PortType::In:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::Out:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::None:
-                    break;
-            }
-
-            return result;
-        }
     private slots:
         void outDataSlot() {
             Q_EMIT dataUpdated(0);

@@ -22,7 +22,11 @@ INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 set(SOURCES
     triggerclipmodel.hpp
     triggerclipplugin.hpp
-    ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp)
+    ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
+        ../AbstractClipDelegateModel.cpp
+        ../AbstractClipDelegateModel.h
+)
+
 #    ${Devices_DIR}/OSCSender/OSCSender.h
 #    ${Devices_DIR}/OSCSender/OSCSender.cpp
 #    ${tinyosc_DIR}/tinyosc.c
@@ -53,6 +57,7 @@ target_link_libraries(TriggerClip PRIVATE
     OscListWidget
     Qt${QT_VERSION_MAJOR}::Qml
         GUIElements
+        StatusContainer
 )
 
 # 包含目录

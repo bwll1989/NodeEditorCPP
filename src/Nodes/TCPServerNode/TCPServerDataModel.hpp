@@ -17,10 +17,10 @@
 #include <QtNetwork/QTcpSocket>
 
 #include "ConstantDefines.h"
-#include "OSCMessage.h"
+
 #include "QMutex"
 #include "Common/Devices/TcpServer/TcpServer.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -30,7 +30,7 @@ using namespace NodeDataTypes;
 using namespace QtNodes;
 namespace Nodes
 {
-    class TCPServerDataModel : public NodeDelegateModel
+    class TCPServerDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -52,8 +52,8 @@ namespace Nodes
             connect(server, &TcpServer::recMsg, this, &TCPServerDataModel::recMsg, Qt::QueuedConnection);
             //        connect(server, &TcpServer::serverMessage, this, &TCPServerDataModel::recMsg, Qt::QueuedConnection);
             connect(widget, &TCPServerInterface::hostChanged, server, &TcpServer::setHost, Qt::QueuedConnection);
-            NodeDelegateModel::registerOSCControl("/send",widget->sendButton);
-            NodeDelegateModel::registerOSCControl("/value",widget->valueEdit);
+            AbstractDelegateModel::registerOSCControl("/send",widget->sendButton);
+            AbstractDelegateModel::registerOSCControl("/value",widget->valueEdit);
             connect(widget->sendButton, &QPushButton::clicked, this,[this]()
             {
                 server->sendMessage(widget->valueEdit->text(),widget->format->currentIndex());
@@ -229,15 +229,6 @@ namespace Nodes
             server->sendMessage(m_inData->value().toString(),widget->format->currentIndex());
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     signals:
         //    关闭信号
         void stopTCPServer();

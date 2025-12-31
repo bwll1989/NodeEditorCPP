@@ -233,6 +233,8 @@ set(CALC_SOURCE_FILES
         src/Widget/TimeLineWidget/TimelineStageWidget/TimeLineStage.cpp
         src/Widget/TimeLineWidget/TimelineScreenWidget/TimeLineScreen.hpp
         src/Widget/TimeLineWidget/TimelineScreenWidget/TimeLineScreen.cpp
+        src/Widget/TimeLineWidget/TimeLineToolbar.h
+        src/Widget/TimeLineWidget/TimeLineToolbar.cpp
         src/Widget/TimeLineWidget/TimeLineClock/TimeLineClock.hpp
         src/Widget/TimeLineWidget/TimeLineClock/TimeLineClock.cpp
         src/Widget/TimeLineWidget/TimeLineClock/TimeSyncServer.hpp
@@ -262,12 +264,14 @@ set(CALC_SOURCE_FILES
         src/Widget/CalendarWidget/TaskItemDelegate.h
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.cpp
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.h
-        src/Widget/HttpServer/HttpServer.cpp
-        src/Widget/HttpServer/HttpServer.hpp
+        src/Widget/ExternalControl/HttpServer.cpp
+        src/Widget/ExternalControl/HttpServer.hpp
         src/constantDefines.h
 )
 # 函数级注释：定义 Headless 版本源文件（用 headless_main.cpp 替换 main.cpp）
-set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES})
+set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES}
+        src/Clips/AbstractClipDelegateModel.cpp
+        src/Clips/AbstractClipDelegateModel.h)
 list(REMOVE_ITEM HEADLESS_SOURCE_FILES main.cpp)
 list(APPEND HEADLESS_SOURCE_FILES headless_main.cpp)
 
@@ -363,7 +367,6 @@ target_link_libraries(${ProjectName}
             DelayListWidget
             DockHub
             StatusContainer
-
 )
 
 # 为 Headless 目标定义编译宏（与主程序一致）

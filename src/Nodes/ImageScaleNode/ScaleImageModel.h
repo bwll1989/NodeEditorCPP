@@ -13,13 +13,14 @@
 #include <QFileDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <opencv2/imgproc.hpp>
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 namespace Ui {
     class ScaleImageForm;
 }
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class ScaleImageModel final : public QtNodes::NodeDelegateModel {
+    class ScaleImageModel final : public AbstractDelegateModel {
         Q_OBJECT
 
     public:
@@ -31,11 +32,33 @@ namespace Nodes
             WidgetEmbeddable=false;
             Resizable=false;
             PortEditable=false;
-            this->installEventFilter(this);
 
+            m_widget = new QWidget();
+            m_ui->setupUi(m_widget);
+
+            this->installEventFilter(this);
+            connect(m_ui->widthSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+                               this,
+                               [this](int w) {
+                                   m_inScaleFactor.setWidth(w);
+                                   requestProcess(); // 触发图像处理
+                               });
+
+            // 保持对称性，对heightSpinBox也添加相同逻辑
+            connect(m_ui->heightSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+                this,
+                [this](int h) {
+                    m_inScaleFactor.setHeight(h);
+                    requestProcess();
+                });
+            AbstractDelegateModel::registerOSCControl("/Height",m_ui->heightSpinBox);
+            AbstractDelegateModel::registerOSCControl("/Width",m_ui->widthSpinBox);
         };
 
-        ~ScaleImageModel() override {}
+        ~ScaleImageModel() override {
+            delete m_ui;
+            delete m_widget;
+        }
 
         QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override {
             switch (portType) {
@@ -134,28 +157,7 @@ namespace Nodes
         }
 
         QWidget* embeddedWidget() override {
-            if (!m_widget) {
-                m_ui.reset(new Ui::ScaleImageForm);
-                m_widget = new QWidget();
-                m_ui->setupUi(m_widget);
-                // connect combobox cb_aspectRatio to requestProcess
-                connect(m_ui->widthSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-                    this,
-                    [this](int w) {
-                        m_inScaleFactor.setWidth(w);
-                        requestProcess(); // 触发图像处理
-                    });
 
-                // 保持对称性，对heightSpinBox也添加相同逻辑
-                connect(m_ui->heightSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-                    this,
-                    [this](int h) {
-                        m_inScaleFactor.setHeight(h);
-                        requestProcess();
-                    });
-                registerOSCControl("/Height",m_ui->heightSpinBox);
-                registerOSCControl("/Width",m_ui->widthSpinBox);
-            }
             return m_widget;
         }
 
@@ -231,7 +233,7 @@ namespace Nodes
 
     private:
         QWidget* m_widget = nullptr;
-        QScopedPointer<Ui::ScaleImageForm> m_ui;
+        Ui::ScaleImageForm* m_ui =new Ui::ScaleImageForm();
         // in
         // 0
         std::weak_ptr<ImageData> m_inImageData;

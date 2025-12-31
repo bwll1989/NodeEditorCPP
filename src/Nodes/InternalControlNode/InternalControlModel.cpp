@@ -4,6 +4,8 @@
 #include <QtWidgets/QFileDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <QFutureWatcher>
+
+#include "StatusContainer/StatusContainer.h"
 using namespace Nodes;
 using namespace NodeDataTypes;
 
@@ -15,7 +17,7 @@ InternalControlModel::InternalControlModel(){
     WidgetEmbeddable=false;
     Resizable=true;
     connect(widget->testButton,&QPushButton::clicked,this,&InternalControlModel::trigger);
-    NodeDelegateModel::registerOSCControl("/trigger",widget->testButton);
+    AbstractDelegateModel::registerOSCControl("/trigger",widget->testButton);
 }
 
 QtNodes::NodeDataType InternalControlModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const {
@@ -94,22 +96,12 @@ ConnectionPolicy InternalControlModel::portConnectionPolicy(PortType portType, P
 
     return result;
 }
-void InternalControlModel::stateFeedBack(const QString& oscAddress,QVariant value)
-{
-
-    OSCMessage message;
-    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-    message.value = value;
-    OSCSender::instance()->sendOSCMessageWithQueue(message);
-}
 
 void InternalControlModel::trigger()
 {
     auto messages = widget->m_listWidget->getOSCMessages();
     for(auto message : messages){
-
-        OSCSender::instance()->sendOSCMessageWithQueue(message);
+        StatusContainer::instance()->parseOSC(message);
+        // OSCSender::instance()->sendOSCMessageWithQueue(message);
     }
 }

@@ -10,6 +10,7 @@
 #include "ArtnetInInterface.hpp"
 #include <QVariantMap>
 #include "QThread"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -19,7 +20,7 @@ using namespace NodeDataTypes;
 
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class ArtnetInDataModel : public NodeDelegateModel
+class ArtnetInDataModel : public AbstractDelegateModel
 {
 
 public:

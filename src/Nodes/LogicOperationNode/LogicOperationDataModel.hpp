@@ -11,7 +11,7 @@
 #include <vector>
 #include <QtCore/qglobal.h>
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #if defined(UNTITLED_LIBRARY)
 #  define UNTITLED_EXPORT Q_DECL_EXPORT
 #else
@@ -26,7 +26,7 @@ using namespace NodeDataTypes;
 namespace Nodes
 {
 
-    class LogicOperationDataModel : public NodeDelegateModel
+    class LogicOperationDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -46,7 +46,7 @@ namespace Nodes
             //        method->setFlat(true);
             val=QVariant(false);
             connect(widget,&QComboBox::currentIndexChanged,this,&LogicOperationDataModel::methodChanged);
-            NodeDelegateModel::registerOSCControl("/method",widget);
+            AbstractDelegateModel::registerOSCControl("/method",widget);
         }
 
         virtual ~LogicOperationDataModel() override{}
@@ -162,15 +162,7 @@ namespace Nodes
             return result;
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private:
 
         QComboBox *widget=new QComboBox();

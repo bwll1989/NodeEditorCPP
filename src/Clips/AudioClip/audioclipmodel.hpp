@@ -15,18 +15,18 @@
 #include "ConstantDefines.h"
 #include "../../Common/Devices/ClientController/SocketTransmitter.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
-
+#include "AbstractClipDelegateModel.h"
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 }
 namespace Clips
 {
-    class AudioClipModel : public AbstractClipModel {
+    class AudioClipModel : public AbstractClipDelegateModel {
         Q_OBJECT
     public:
         explicit AudioClipModel(int start,const QString& filePath = QString(), QObject* parent = nullptr)
-            : AbstractClipModel(start, "Audio", parent),
+            : AbstractClipDelegateModel(start, "Audio", parent),
               m_filePath(filePath),
               m_editor(nullptr)
         {
@@ -99,6 +99,7 @@ namespace Clips
             AbstractClipModel::load(json);
             m_id = json["Id"].toInt();
             gain->setValue(json["gain"].toInt());
+            updateOSCRegistration();
         }
 
         QVariant data(int role) const override {
@@ -167,7 +168,7 @@ namespace Clips
             gain->setMinimum(-180);
             gain->setMaximum(180);
             gain->setValue(0);
-            registerOSCControl("/gain",gain);
+            AbstractClipDelegateModel::registerOSCControl("/gain",gain);
             positionLayout->addWidget(new QLabel("Gain:"), 1, 0);
             positionLayout->addWidget(gain, 1, 1);
             mainLayout->addWidget(positionGroup);

@@ -19,8 +19,7 @@
 #include <algorithm>
 
 #include "ConstantDefines.h"
-#include "OSCMessage.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -30,7 +29,7 @@ using namespace std;
 
 namespace Nodes
 {
-    class YoloDetectionONNXDataModel : public NodeDelegateModel
+    class YoloDetectionONNXDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -48,7 +47,7 @@ namespace Nodes
             m_outImage=std::make_shared<ImageData>();
             model_path="./plugins/Models/AnimeGANv3_Hayao_36.onnx";
 
-            NodeDelegateModel::registerOSCControl("/enable",widget->EnableBtn);
+            AbstractDelegateModel::registerOSCControl("/enable",widget->EnableBtn);
 
         }
 
@@ -430,15 +429,6 @@ namespace Nodes
         }
     }
 
-    void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-        OSCMessage message;
-        message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-        message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-        message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-        message.value = value;
-        OSCSender::instance()->sendOSCMessageWithQueue(message);
-    }
 
     private:
         QFutureWatcher<double>* m_watcher = nullptr;

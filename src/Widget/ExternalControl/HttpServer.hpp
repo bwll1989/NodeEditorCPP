@@ -18,6 +18,7 @@
 #include <QJsonObject>
 #include "OSCMessage.h"
 #include "Poco/Net/HTTPResponse.h"
+#include "StatusContainer/StatusItem.h"
 
 namespace NodeStudio {
 
@@ -62,10 +63,18 @@ namespace NodeStudio {
         void handleApiExec(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& query);
         void handleLayoutSave(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         void handleLayoutLoad(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
+        // 函数级注释：处理媒体文件上传（octet-stream，query中携带filename）
+        void handleUploadMedia(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
+        // 函数级注释：处理.flow项目文件上传（octet-stream，query中携带filename，仅允许.flow扩展名）
+        void handleUploadFlow(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         void handleStaticFile(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& path);
         
         // Utility to send JSON response
         void sendJsonResponse(Poco::Net::HTTPServerResponse& response, const std::string& json, Poco::Net::HTTPResponse::HTTPStatus status = Poco::Net::HTTPResponse::HTTP_OK);
+        // 函数级注释：从查询串中解析指定键的值（例如 filename），未找到返回空字符串
+        static std::string parseQueryParam(const std::string& query, const std::string& key);
+        // 函数级注释：对文件名进行安全过滤，移除路径分隔与非法字符
+        static std::string sanitizeFilename(const std::string& name);
     };
 
     class StaticRequestHandlerFactory final : public Poco::Net::HTTPRequestHandlerFactory {
@@ -116,7 +125,7 @@ namespace NodeStudio {
 
     public slots:
         // 函数级注释：处理 OSC 消息发送，广播给所有 WebSocket 连接
-        void onOscMessageSent(const OSCMessage &message);
+        void onOscMessageSent(const StatusItem& message);
 
     private:
         std::unique_ptr<Poco::Net::HTTPServer> _server;

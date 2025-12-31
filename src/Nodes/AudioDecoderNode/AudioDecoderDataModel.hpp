@@ -14,8 +14,7 @@
 #include "AudioDecoder.hpp"
 #include "QThread"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
-// #include "Common/GUI/QJsonModel/QJsonModel.hpp"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 
 using namespace std;
 using QtNodes::NodeData;
@@ -30,7 +29,7 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
-    class AudioDecoderDataModel : public NodeDelegateModel
+    class AudioDecoderDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
     public:
@@ -58,11 +57,11 @@ namespace Nodes
                     this, &AudioDecoderDataModel::onLoopToggled, Qt::QueuedConnection);
 
             // 注册OSC控制
-            NodeDelegateModel::registerOSCControl("/volume", widget->volumeSlider);
-            NodeDelegateModel::registerOSCControl("/loop", widget->loopCheckBox);
-            NodeDelegateModel::registerOSCControl("/play",widget->playButton);
-            NodeDelegateModel::registerOSCControl("/stop",widget->stopButton);
-            NodeDelegateModel::registerOSCControl("/file",widget->fileSelectComboBox);
+            AbstractDelegateModel::registerOSCControl("/volume", widget->volumeSlider);
+            AbstractDelegateModel::registerOSCControl("/loop", widget->loopCheckBox);
+            AbstractDelegateModel::registerOSCControl("/play",widget->playButton);
+            AbstractDelegateModel::registerOSCControl("/stop",widget->stopButton);
+            AbstractDelegateModel::registerOSCControl("/file",widget->fileSelectComboBox);
         }
 
         /**
@@ -305,15 +304,6 @@ namespace Nodes
             qDebug() << "循环播放:" << (checked ? "启用" : "禁用");
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 
     private:
 

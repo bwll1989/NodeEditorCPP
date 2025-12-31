@@ -24,7 +24,10 @@ OSCMessageListWidget::OSCMessageListWidget(bool onlyInternal, QWidget* parent)
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     // 网格参数（可按需调整）
     setUniformItemSizes(true);
-    setGridSize(QSize(200, 140));
+    if (onlyInternal)
+        setGridSize(QSize(200, 120));
+    else
+        setGridSize(QSize(200, 140));
     setSpacing(8, 8);
     setSelectionMode(QAbstractItemView::SingleSelection);
     setSelectionBehavior(QAbstractItemView::SelectItems);
@@ -248,7 +251,6 @@ void OSCMessageListWidget::dropEvent(QDropEvent* event)
             message.port = AppConstants::EXTRA_CONTROL_PORT;
         }
         stream >> message.host >> message.port >> message.address >> message.type >> message.value;
-
         addOSCMessage(message);
         event->acceptProposedAction();
     } else {

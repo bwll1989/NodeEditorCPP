@@ -10,12 +10,11 @@
 
 #include "ConstantDefines.h"
 #include "QtNodes/Definitions"
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "QTimer"
 #include "NoiseGenerator.hpp"
-#include "OSCMessage.h"
 #include "QThread"
-#include "OSCSender/OSCSender.h"
+
 
 using namespace std;
 using QtNodes::NodeData;
@@ -30,7 +29,7 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
-    class NoiseGeneratorDataModel : public NodeDelegateModel
+    class NoiseGeneratorDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
     public:
@@ -63,10 +62,10 @@ namespace Nodes
                     this, &NoiseGeneratorDataModel::onNoiseTypeChanged, Qt::QueuedConnection);
 
             // 注册OSC控制
-            NodeDelegateModel::registerOSCControl("/volume", widget->volumeSlider);
-            NodeDelegateModel::registerOSCControl("/noise_type", widget->noiseTypeCombo);
-            NodeDelegateModel::registerOSCControl("/start", widget->startButton);
-            NodeDelegateModel::registerOSCControl("/stop", widget->stopButton);
+            AbstractDelegateModel::registerOSCControl("/volume", widget->volumeSlider);
+            AbstractDelegateModel::registerOSCControl("/noise_type", widget->noiseTypeCombo);
+            AbstractDelegateModel::registerOSCControl("/start", widget->startButton);
+            AbstractDelegateModel::registerOSCControl("/stop", widget->stopButton);
         }
 
         /**
@@ -256,16 +255,7 @@ namespace Nodes
         void onNoiseTypeChanged(int index) {
             generator->setNoiseType(static_cast<NoiseType>(index));
         }
-
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
+    
     private:
         NoiseGeneratorInterface *widget = new NoiseGeneratorInterface();
         NoiseGenerator *generator = new NoiseGenerator();

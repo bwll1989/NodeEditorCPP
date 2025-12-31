@@ -6,6 +6,7 @@
 #include "DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
+#include "AbstractDelegateModel.h"
 
 #include <iostream>
 #include <QtWidgets/QLineEdit>
@@ -13,7 +14,7 @@
 #include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+// #include "OSCSender/OSCSender.h" 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -23,7 +24,7 @@ class QLineEdit;
 class QPushButton;
 using namespace NodeDataTypes;
 namespace Nodes {
-    class BoolPluginDataModel : public NodeDelegateModel
+    class BoolPluginDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -40,7 +41,7 @@ namespace Nodes {
             button->setCheckable(true);
             // button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
             button->setMinimumWidth(80);
-            NodeDelegateModel::registerOSCControl("/bool", button);
+            AbstractDelegateModel::registerOSCControl("/bool", button);
             button->setChecked(false);
             connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);
         }
@@ -95,31 +96,8 @@ namespace Nodes {
         }
         QWidget *embeddedWidget() override{return button;}
 
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-            auto result = ConnectionPolicy::One;
-            switch (portType) {
-                case PortType::In:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::Out:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::None:
-                    break;
-            }
 
-            return result;
-        }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private Q_SLOTS:
 
         void onTextEdited(bool const &string)

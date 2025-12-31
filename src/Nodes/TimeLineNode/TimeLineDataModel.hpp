@@ -18,7 +18,7 @@
 #include "BasePluginLoader.h"
 #include "ConstantDefines.h"
 #include "TimelineInterface.hpp"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 
 using namespace NodeDataTypes;
 using namespace std;
@@ -30,7 +30,7 @@ class QLineEdit;
 class QPushButton;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
-class TimeLineDataModel : public NodeDelegateModel
+class TimeLineDataModel : public AbstractDelegateModel
 {
 Q_OBJECT
 
@@ -59,13 +59,13 @@ public:
                 // 将 QAction 映射到其对应的 QWidget（例如 QToolButton）
                 QWidget* w = toolbar->widgetForAction(action.second);
                 if (w) {
-                    NodeDelegateModel::registerOSCControl("/"+action.first, w);
+                   AbstractDelegateModel::registerOSCControl("/"+action.first, w);
                 }
             }
         }
 
-        NodeDelegateModel::registerOSCControl("/start", widget->startButton);
-        NodeDelegateModel::registerOSCControl("/stop", widget->stopButton);
+        AbstractDelegateModel::registerOSCControl("/start", widget->startButton);
+        AbstractDelegateModel::registerOSCControl("/stop", widget->stopButton);
     }
 
     ~TimeLineDataModel()
@@ -171,15 +171,6 @@ public:
         return widget;
     }
 
-    void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-        OSCMessage message;
-        message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-        message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-        message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-        message.value = value;
-        OSCSender::instance()->sendOSCMessageWithQueue(message);
-    }
 private Q_SLOTS:
 
     void setTimeLineState(bool const &string)

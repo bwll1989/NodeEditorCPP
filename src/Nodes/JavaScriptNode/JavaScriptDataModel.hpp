@@ -25,7 +25,7 @@
 #include <QMutexLocker>
 #include <QMetaObject>
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -38,7 +38,7 @@ using namespace QtNodes;
 namespace Nodes {
 
 
-class JavaScriptDataModel : public NodeDelegateModel
+class JavaScriptDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
 
@@ -207,21 +207,7 @@ public:
             OutPortCount = p["OutPortCount"].toInt();
         };
     }
-    ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-        auto result = ConnectionPolicy::One;
-        switch (portType) {
-            case PortType::In:
-                result = ConnectionPolicy::Many;
-                break;
-            case PortType::Out:
-                result = ConnectionPolicy::Many;
-                break;
-            case PortType::None:
-                break;
-        }
 
-        return result;
-    }
 private Q_SLOTS:
     /**
      * @brief 手动运行脚本
@@ -237,15 +223,7 @@ private Q_SLOTS:
      */
     void handleJsExecutionFinished();
 
-    void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
-        OSCMessage message;
-        message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-        message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-        message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-        message.value = value;
-        OSCSender::instance()->sendOSCMessageWithQueue(message);
-    }
 private:
     /**
      * @brief 初始化JavaScript引擎

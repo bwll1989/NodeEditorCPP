@@ -41,7 +41,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
         TimestampGenerator
         GUIElements
-        OSCTransmitter
+        BuildInNodes
         DataTypes
         )
 

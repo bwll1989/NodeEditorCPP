@@ -13,7 +13,7 @@
 #include <QDateTime>
 #include <QTimer>
 #include "QThread"
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -53,7 +53,7 @@ namespace Nodes
      * @brief NDV控制节点 - 专门负责发送数据到指定ID的NDV设备
      * 这个节点负责网络通信、设备管理，并定时向所有客户端发送握手信号
      */
-    class NDVServerDataModel : public NodeDelegateModel
+    class NDVServerDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 

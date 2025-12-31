@@ -37,7 +37,7 @@ ScheduledTaskWidget::ScheduledTaskWidget(QWidget* parent)
     if (!m_manager) {
         m_manager = new ScheduledTaskManager(m_model, this);
         m_manager->setToleranceSeconds(1);     // 秒级容差
-        m_manager->setUseQueue(true);         // 默认使用队列
+        // m_manager->setUseQueue(true);         // 默认使用队列
         m_manager->start(1000);                // 每秒轮询一次
     }
 }

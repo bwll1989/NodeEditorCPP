@@ -76,7 +76,10 @@
     <div class="main-area">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="mb-0">Dashboard</h1>
-        <button id="toggleEditMode" class="btn btn-sm btn-outline-primary">编辑模式</button>
+        <div class="d-flex gap-2">
+          <button id="openSettings" class="btn btn-sm btn-outline-secondary">设置</button>
+          <button id="toggleEditMode" class="btn btn-sm btn-outline-primary">编辑模式</button>
+        </div>
       </div>
       <div id="tabsBar" class="d-flex align-items-center mb-2 gap-2">
         <div id="tabsList" class="nav nav-tabs flex-wrap"></div>
@@ -160,6 +163,37 @@
     let ws = null;
     let wsReconnectTimer = null;
     
+    // 函数级注释：查询所有已加载控件的状态（发送 query 指令），增加防抖处理避免短时间内多次查询
+    let queryStatusTimer = null;
+    function queryAllStatuses() {
+        if (queryStatusTimer) clearTimeout(queryStatusTimer);
+        queryStatusTimer = setTimeout(() => {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            const ids = new Set();
+            grids.forEach(info => {
+                const grid = info.grid;
+                if (!grid || !grid.el) return;
+                const items = grid.el.querySelectorAll('.grid-stack-item');
+                items.forEach(item => {
+                    const props = EPWidgets.getProps(item);
+                    if (props.commandId) {
+                        ids.add(props.commandId);
+                    }
+                });
+            });
+            const arr = Array.from(ids);
+            if (arr.length > 0) {
+                console.log('Querying statuses for:', arr);
+                ws.send(JSON.stringify({ query: arr }));
+            }
+        }, 300); // 300ms 防抖
+    }
+
+    // 函数级注释：跳转到设置页面（setting.html）
+    function openSettingsPage() {
+        window.location.href = 'setting.html';
+    }
+
     function connectWebSocket() {
         if (ws) return;
         ws = new WebSocket(wsUrl);
@@ -169,12 +203,14 @@
                 clearTimeout(wsReconnectTimer);
                 wsReconnectTimer = null;
             }
+            // 连接建立后尝试查询一次（处理重连场景）
+            queryAllStatuses();
         };
         ws.onmessage = function(event) {
             try {
                 const msg = JSON.parse(event.data);
                 console.log('WS received:', msg); // Debug log
-                if (msg.addr) {
+                if (msg.address) {
                     // 标记为远程更新，阻止 sendCommand
                     EPWidgets.isRemoteUpdating = true;
                     
@@ -188,7 +224,7 @@
                             // 获取 item 绑定的 API
                             const props = EPWidgets.getProps(item);
                             // 检查 commandId
-                            const target = msg.addr;
+                            const target = msg.address;
                             if (props.commandId === target) {
                                 console.log('Updating widget:', target, msg.value); // Debug log
                                 EPWidgets.setProps(item, { value: msg.value });
@@ -648,6 +684,8 @@
              saveAllLayouts();
         }
       };
+      // 函数级注释：设置按钮点击跳转到设置页面
+      document.getElementById('openSettings').onclick = openSettingsPage;
       
       // 初始化Tabs：从本地恢复已有分页；无则创建默认
       try {
@@ -2170,22 +2208,34 @@
       }
     }
 
-    // 函数级注释：从后端恢复所有分页布局（支持新旧两种格式）
+    // 函数级注释：从后端恢复所有分页布局（仅支持新格式）
     function loadLayout(grid, silent = false) {
       fetch('/api/layout/load')
         .then(r => r.json())
         .then(data => {
-          const items = data.items || [];
-          if (items.length === 0 && !silent) {
-              alert('当前没有保存的布局');
-              return;
+          let items = [];
+          // 仅支持新格式（多页）
+          if (data && data.pages && typeof data.pages === 'object' && Array.isArray(data.tabs)) {
+             // 查找当前 grid 对应的 tid
+             let tid = null;
+             grids.forEach((info, key) => { if (info.grid === grid) tid = key; });
+             if (tid && data.pages[tid]) {
+                 items = data.pages[tid].items || [];
+             }
           }
-          if (items.length > 0) {
-            grid.removeAll();
-            ensureEPReady(() => {
+          
+          // 空布局也视为成功：清空并标记为已加载，不弹窗
+          grid.removeAll();
+          ensureEPReady(() => {
             items.forEach(spec => { createWidgetFromSpec(grid, spec); });
-            });
+          });
+          try {
+            grids.forEach(info => { if (info.grid === grid) info.loaded = true; });
+          } catch {}
+          if (items.length > 0) {
             if (!silent) alert('布局加载成功');
+          } else {
+            console.log('当前没有保存的布局，显示空页面');
           }
         })
         .catch(e => {
@@ -2258,11 +2308,10 @@
               if (window.__switchTab) window.__switchTab(targetActive);
               else switchTab(targetActive);
             }
+            
+            // 布局加载完成后，延迟查询状态以确保控件已创建
+            setTimeout(queryAllStatuses, 500);
            
-          } else {
-            const info = activeTabId ? grids.get(activeTabId) : null;
-            const g = info && info.grid ? info.grid : null;
-            if (g) loadLayout(g, false);
           }
         })
         .catch(e => alert('加载失败: ' + e));

@@ -12,7 +12,7 @@
 #include "QThread"
 #include <QTimer>
 #include <QDateTime>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -24,7 +24,7 @@ using namespace NodeDataTypes;
  * ArtnetOutDataModel - Artnet数据发送节点模型（简化版）
  * 接收ArtnetUniverseNode的输出数据并自动发送到Art-Net网络
  */
-class ArtnetOutDataModel : public NodeDelegateModel
+class ArtnetOutDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
 

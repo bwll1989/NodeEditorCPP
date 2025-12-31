@@ -22,11 +22,11 @@
 #include <QThread>
 
 #include "ConstantDefines.h"
-#include "OSCMessage.h"
+
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
 #include "PluginDefinition.hpp"
-#include "OSCSender/OSCSender.h"
+#include  "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -47,7 +47,7 @@ namespace Nodes
      * - 以VariableData形式输出解析结果
      * - 每5秒发送心跳包维持连接
      */
-    class PJLinkDataModel : public NodeDelegateModel
+    class PJLinkDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -321,15 +321,6 @@ namespace Nodes
             Q_EMIT dataUpdated(0);
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
         /**
          * @brief 主机或端口改变时重新连接
          */

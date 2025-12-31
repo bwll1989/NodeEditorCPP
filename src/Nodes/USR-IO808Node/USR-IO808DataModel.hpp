@@ -13,7 +13,7 @@
 #include "../../Common/Devices/TcpClient/TcpClient.h"
 #include "../../DataTypes/VariableData.h"
 #include "USR-IO808Interface.hpp"
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -30,7 +30,7 @@ namespace Nodes {
  * - DI部分：8个离散量输入只读，寄存器地址范围0x0020~0x0027
  * - Read All功能：同步从机数据
  */
-class USR_IO808DataModel : public NodeDelegateModel
+class USR_IO808DataModel : public AbstractDelegateModel
 {
     Q_OBJECT
 
@@ -79,7 +79,6 @@ private slots:
      */
     void readAllData();
 
-    void stateFeedBack(const QString& oscAddress,QVariant value) override;
 private:
     USR_IO808Interface *_interface;
     TcpClient *_tcpClient;

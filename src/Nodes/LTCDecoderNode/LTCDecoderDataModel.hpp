@@ -21,7 +21,7 @@
 #include <QComboBox>
 #include <QJsonObject>
 #include "PluginDefinition.hpp"
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "LTCDecoderWorker.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
@@ -36,7 +36,7 @@ namespace Nodes {
      * 接收AudioData输入，解码为时间码并输出小时、分钟、秒、帧
      */
     // 修改后的LTCDecoderDataModel类（关键部分）
-    class LTCDecoderDataModel : public NodeDelegateModel
+    class LTCDecoderDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
     

@@ -16,13 +16,14 @@
 #include "Common/Devices/ClientController/SocketTransmitter.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
+#include "AbstractClipDelegateModel.h"
 namespace Clips
 {
-    class ImageClipModel : public AbstractClipModel {
+    class ImageClipModel : public AbstractClipDelegateModel {
         Q_OBJECT
     public:
         explicit ImageClipModel(int start,const QString& filePath = QString(), QObject* parent = nullptr)
-            : AbstractClipModel(start, "Image", parent),
+            : AbstractClipDelegateModel(start, "Image", parent),
               m_filePath(filePath),
               m_editor(nullptr)
         {
@@ -126,6 +127,7 @@ namespace Clips
             m_id = json["Id"].toInt();
             rotation->setValue(json["rotation"].toInt());
             layer->setValue(json["zIndex"].toInt());
+            updateOSCRegistration();
         }
 
         QVariant data(int role) const override {
@@ -158,7 +160,7 @@ namespace Clips
                     emit onPropertyChanged();
                 }
             });
-            registerOSCControl("/file", mediaSelector);
+            AbstractClipDelegateModel::registerOSCControl("/file", mediaSelector);
             mainLayout->addWidget(basicGroup);
             // 添加尺寸位置参数设置
             auto* positionGroup = new QGroupBox("位置参数", m_editor);
@@ -169,28 +171,28 @@ namespace Clips
             postion_x->setMinimum(-10000);
             postion_x->setMaximum(10000);
             postion_x->setValue(0);
-            registerOSCControl("/posX",postion_x);
+            AbstractClipDelegateModel::registerOSCControl("/posX",postion_x);
             positionLayout->addWidget(postion_x, 1, 1);
             positionLayout->addWidget(new QLabel("Y:"), 2, 0);
             postion_y = new QSpinBox(positionGroup);
             postion_y->setMinimum(-10000);
             postion_y->setMaximum(10000);
             postion_y->setValue(0);
-            registerOSCControl("/posY",postion_y);
+            AbstractClipDelegateModel::registerOSCControl("/posY",postion_y);
             positionLayout->addWidget(postion_y, 2, 1);
             positionLayout->addWidget(new QLabel("Width:"), 3, 0);
             width = new QSpinBox(positionGroup);
             width->setMinimum(0);
             width->setMaximum(10000);
             width->setValue(100);
-            registerOSCControl("/width",width);
+            AbstractClipDelegateModel::registerOSCControl("/width",width);
             positionLayout->addWidget(width, 3, 1);
             positionLayout->addWidget(new QLabel("Height:"), 4, 0);
             height = new QSpinBox(positionGroup);
             height->setMinimum(0);
             height->setMaximum(10000);
             height->setValue(100);
-            registerOSCControl("/height",height);
+            AbstractClipDelegateModel::registerOSCControl("/height",height);
             positionLayout->addWidget(height, 4, 1);
             positionLayout->addWidget(new QLabel("Layer:"), 5, 0);
             layer = new QSpinBox(positionGroup);
@@ -204,7 +206,7 @@ namespace Clips
             rotation->setMinimum(-180);
             rotation->setMaximum(180);
             rotation->setValue(0);
-            registerOSCControl("/rotation",rotation);
+            AbstractClipDelegateModel::registerOSCControl("/rotation",rotation);
             positionLayout->addWidget(new QLabel("Rotate:"), 6, 0);
             positionLayout->addWidget(rotation, 6, 1);
             mainLayout->addWidget(positionGroup);

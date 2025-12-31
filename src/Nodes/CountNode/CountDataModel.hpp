@@ -12,7 +12,7 @@
 #include <QtCore/qglobal.h>
 #include "JSEngineDefines/JSEngineDefines.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -22,7 +22,7 @@ class QLineEdit;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class CountDataModel : public NodeDelegateModel
+    class CountDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -36,7 +36,7 @@ namespace Nodes
             WidgetEmbeddable= true;
             Resizable=true;
             PortEditable=true;
-            NodeDelegateModel::registerOSCControl("/clear",widget->Clear);
+            AbstractDelegateModel::registerOSCControl("/clear",widget->Clear);
             connect(widget->Editor, &QLineEdit::editingFinished, this, &CountDataModel::outDataSlot);
             connect(widget->Clear, &QPushButton::clicked, this, &CountDataModel::clearCount);
             m_jsEngine = new QJSEngine(this);
@@ -146,15 +146,6 @@ namespace Nodes
             return widget;
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private slots:
         void outDataSlot() {
             Q_EMIT dataUpdated(0);

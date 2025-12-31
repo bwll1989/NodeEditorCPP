@@ -25,7 +25,7 @@
 #include "Eigen/Core"
 #include "opencv2/flann/matrix.h"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -39,7 +39,7 @@ namespace Nodes {
      * 接收AudioData输入，解码为时间码并输出小时、分钟、秒、帧
      */
     // 修改后的AudioMatrixDataModel类（关键部分）
-    class AudioMatrixDataModel : public NodeDelegateModel
+    class AudioMatrixDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
     
@@ -69,7 +69,7 @@ namespace Nodes {
             _worker->moveToThread(_workerThread);
             for (int i = 0; i < widget->mMatrixWidget->getRows(); i++) {
                 for (int j = 0; j < widget->mMatrixWidget->getCols(); j++) {
-                    NodeDelegateModel::registerOSCControl(QString("/%1-%2").arg(i).arg(j), widget->mMatrixWidget->getMatrixElement(i*widget->mMatrixWidget->getCols()+j));
+                    AbstractDelegateModel::registerOSCControl(QString("/%1-%2").arg(i).arg(j), widget->mMatrixWidget->getMatrixElement(i*widget->mMatrixWidget->getCols()+j));
                 }
             }
 
@@ -276,15 +276,6 @@ namespace Nodes {
 
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     public slots:
         /**
          * @brief 处理状态变化槽函数

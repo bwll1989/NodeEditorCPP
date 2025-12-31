@@ -62,7 +62,7 @@ private:
      * 作用：应用卡片统一样式（圆角、暗色背景、输入控件风格、强调条颜色等）。
      */
     QLineEdit* addressEdit;
-    QComboBox* typeCombo;
+    // QComboBox* typeCombo;
     QLineEdit* valueEdit;
     QTimeEdit* timeEdit;
     QPushButton* btnTest;

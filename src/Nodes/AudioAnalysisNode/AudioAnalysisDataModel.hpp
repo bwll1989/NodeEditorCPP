@@ -24,7 +24,7 @@
 #include "AudioAnalysisWorker.hpp"
 #include "Gist.h"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -37,7 +37,7 @@ namespace Nodes {
 
      */
     // 修改后的AudioAnalysisDataModel类（关键部分）
-    class AudioAnalysisDataModel : public NodeDelegateModel
+    class AudioAnalysisDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
     
@@ -58,7 +58,7 @@ namespace Nodes {
             Resizable = false;
             PortEditable = false;
             Caption = PLUGIN_NAME;
-            NodeDelegateModel::registerOSCControl("/enable",widget->mResetButton);
+            AbstractDelegateModel::registerOSCControl("/enable",widget->mResetButton);
             // 设置工作线程
             _worker->moveToThread(_workerThread);
             // 连接信号槽
@@ -226,15 +226,6 @@ namespace Nodes {
 
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 
     private:
         AudioAnalysisWorker* _worker;                                      ///< 工作线程对象

@@ -14,7 +14,7 @@
 #include <QtCore/qglobal.h>
 #include "ConstantDefines.h"
 #include "OSCSender/OSCSender.h"
-
+#include "AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -25,7 +25,7 @@ class QLineEdit;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-class FloatSourceDataModel : public NodeDelegateModel
+class FloatSourceDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -108,32 +108,6 @@ class FloatSourceDataModel : public NodeDelegateModel
         }
 
         QWidget *embeddedWidget() override {return widget;}
-
-    ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-            auto result = ConnectionPolicy::One;
-            switch (portType) {
-                case PortType::In:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::Out:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::None:
-                    break;
-            }
-
-            return result;
-        }
-
-    void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 
     private Q_SLOTS:
 

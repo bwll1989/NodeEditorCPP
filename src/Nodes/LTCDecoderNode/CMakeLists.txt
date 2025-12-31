@@ -17,8 +17,6 @@ message("-- Found libltc ${DEPENDS_DIR}/libltc_cmake/src")
 add_library(${Module_Name} SHARED
         ../../Common/Devices/LtcDecoder/ltcdecoder.h
         ../../Common/Devices/LtcDecoder/ltcdecoder.cpp
-        ../../DataTypes/AudioTimestampRingQueue.h
-        ../../DataTypes/AudioTimestampRingQueue.cpp
         LTCDecoderInterface.h
         LTCDecoderInterface.cpp
         LTCDecoderDataModel.hpp
@@ -32,7 +30,8 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES} 
         ${Libltc_LIBRARIES}
         TimestampGenerator
-        DataTypes)
+        DataTypes
+        BuildInNodes)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

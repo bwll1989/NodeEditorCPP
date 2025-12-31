@@ -23,7 +23,9 @@
 #include "ConstantDefines.h"
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
+
+
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -45,7 +47,7 @@ namespace Nodes
      * - 以VariableData形式输出解析结果
      * - 每5秒发送心跳包维持连接
      */
-    class TSETLDataModel : public NodeDelegateModel
+    class TSETLDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -75,11 +77,11 @@ namespace Nodes
             connect(m_heartbeatTimer, &QTimer::timeout, this, &TSETLDataModel::sendHeartbeat);
             
             // 注册OSC控制
-            NodeDelegateModel::registerOSCControl("/host", widget->hostEdit);
-            NodeDelegateModel::registerOSCControl("/port", widget->portSpinBox);
-            NodeDelegateModel::registerOSCControl("/connect", widget->connectionStatus);
-            NodeDelegateModel::registerOSCControl("/lastTime", widget->lastTimeLabel);
-            NodeDelegateModel::registerOSCControl("/lastSignal", widget->lastSignalLabel);
+            AbstractDelegateModel::registerOSCControl("/host", widget->hostEdit);
+            AbstractDelegateModel::registerOSCControl("/port", widget->portSpinBox);
+            AbstractDelegateModel::registerOSCControl("/connect", widget->connectionStatus);
+            AbstractDelegateModel::registerOSCControl("/lastTime", widget->lastTimeLabel);
+            AbstractDelegateModel::registerOSCControl("/lastSignal", widget->lastSignalLabel);
             // 连接信号和槽
             connect(this, &TSETLDataModel::connectTCPServer, client, &TcpClient::connectToServer, Qt::QueuedConnection);
             connect(client, &TcpClient::isReady, this, &TSETLDataModel::onConnectionStatusChanged, Qt::QueuedConnection);
@@ -274,15 +276,7 @@ namespace Nodes
             
 
         }
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
         /**
          * @brief 连接状态改变处理
          * @param isReady 连接状态

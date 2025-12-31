@@ -8,6 +8,7 @@
 #include <QLineEdit>
 #include "../../DataTypes/NodeDataList.hpp"
 #include "../Devices/ModelDataBridge/ModelDataBridge.hpp"
+#include "AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -16,8 +17,9 @@ using QtNodes::PortType;
 using namespace QtNodes;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
+///
 namespace Nodes {
-    class VariableOutDataModel : public NodeDelegateModel
+    class VariableOutDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 

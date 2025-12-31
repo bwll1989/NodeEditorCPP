@@ -20,7 +20,7 @@ target_link_libraries(${Module_Name}
         ${QtNodes_LIBRARIES}
         ${portaudio_LIBRARIES}
         TimestampGenerator
-        OSCTransmitter
+        BuildInNodes
         DataTypes
 )
 

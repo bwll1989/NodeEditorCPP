@@ -8,10 +8,9 @@
 #include <QtCore/qglobal.h>
 #include "NDVPlayerInterface.hpp"
 #include <QVariantMap>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "ConstantDefines.h"
-#include "OSCMessage.h"
-#include "OSCSender/OSCSender.h"
+
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -26,7 +25,7 @@ namespace Nodes
      * @brief NDV播放器节点 - 抽象化NDV播放器功能
      * 这个节点负责播放器逻辑，将指令传递给NDVControlNode
      */
-    class NDVPlayerDataModel : public NodeDelegateModel
+    class NDVPlayerDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -42,13 +41,13 @@ namespace Nodes
             
             commandData = std::make_shared<VariableData>();
             statusData = std::make_shared<VariableData>();
-            NodeDelegateModel::registerOSCControl("/play",widget->Play);
-            NodeDelegateModel::registerOSCControl("/stop",widget->Stop);
-            NodeDelegateModel::registerOSCControl("/loop",widget->LoopPlay);
-            NodeDelegateModel::registerOSCControl("/next",widget->Next);
-            NodeDelegateModel::registerOSCControl("/prev",widget->Prev);
-            NodeDelegateModel::registerOSCControl("/index",widget->FileIndex);
-            NodeDelegateModel::registerOSCControl("/playerID",widget->PlayerID);
+            AbstractDelegateModel::registerOSCControl("/play",widget->Play);
+            AbstractDelegateModel::registerOSCControl("/stop",widget->Stop);
+            AbstractDelegateModel::registerOSCControl("/loop",widget->LoopPlay);
+            AbstractDelegateModel::registerOSCControl("/next",widget->Next);
+            AbstractDelegateModel::registerOSCControl("/prev",widget->Prev);
+            AbstractDelegateModel::registerOSCControl("/index",widget->FileIndex);
+            AbstractDelegateModel::registerOSCControl("/playerID",widget->PlayerID);
 
             // 连接界面按钮
             connect(widget->Play, &QPushButton::clicked, this, [this]() {
@@ -230,16 +229,6 @@ namespace Nodes
             }
 
             return result;
-        }
-
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
         }
 
     private:

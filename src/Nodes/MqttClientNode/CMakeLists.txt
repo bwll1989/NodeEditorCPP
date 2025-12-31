@@ -18,7 +18,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
         Qt${QT_VERSION_MAJOR}::Network
         ${QtNodes_LIBRARIES}
-        OSCTransmitter
+        BuildInNodes
         DataTypes
         MqttClient
 )

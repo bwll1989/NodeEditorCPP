@@ -12,13 +12,14 @@
 #include "ui_RectForm.h"
 #include <QPointF>
 #include <QRectF>
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 namespace Ui {
     class RectForm;
 }
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class RectModel final : public QtNodes::NodeDelegateModel {
+    class RectModel final : public AbstractDelegateModel {
         Q_OBJECT
 
     public:
@@ -89,10 +90,10 @@ namespace Nodes
                 connect(m_ui->sb_y, &QLineEdit::textChanged, this, &RectModel::updateRectFromUI);
                 connect(m_ui->sb_width, &QLineEdit::textChanged, this, &RectModel::updateRectFromUI);
                 connect(m_ui->sb_height, &QLineEdit::textChanged, this, &RectModel::updateRectFromUI);
-                NodeDelegateModel::registerOSCControl("/x",m_ui->sb_x);
-                NodeDelegateModel::registerOSCControl("/y",m_ui->sb_y);
-                NodeDelegateModel::registerOSCControl("/width",m_ui->sb_width);
-                NodeDelegateModel::registerOSCControl("/height",m_ui->sb_height);
+                AbstractDelegateModel::registerOSCControl("/x",m_ui->sb_x);
+                AbstractDelegateModel::registerOSCControl("/y",m_ui->sb_y);
+                AbstractDelegateModel::registerOSCControl("/width",m_ui->sb_width);
+                AbstractDelegateModel::registerOSCControl("/height",m_ui->sb_height);
             }
             return m_widget;
         }

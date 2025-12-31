@@ -20,6 +20,7 @@
 #include <QRegularExpression>  // 添加 QRegExp 头文件
 #include <QTimer>
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -32,7 +33,7 @@ static const int SAMPLE_RATE = 48000;
 static const size_t BUFFER_SIZE = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();
 namespace Nodes
 {
-    class AudioDeviceOutDataModel : public NodeDelegateModel
+    class AudioDeviceOutDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 

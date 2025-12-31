@@ -8,7 +8,7 @@
 #include <QtCore/qglobal.h>
 #include "DelayInterface.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -19,7 +19,7 @@ namespace Nodes
 {
     /// The model dictates the number of inputs and outputs for the Node.
     /// In this example it has no logic.
-    class DelayDataModel : public NodeDelegateModel
+    class DelayDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -175,16 +175,6 @@ namespace Nodes
         }
 
     public slots:
-        // 函数级注释：将节点状态以 OSC 反馈出去，便于远程监控。
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 
         // 函数级注释：单定时器超时回调。
         // 触发当前时间批次内的所有端口，计算到下一批次的时间差并继续启动定时器；队列结束则清理。

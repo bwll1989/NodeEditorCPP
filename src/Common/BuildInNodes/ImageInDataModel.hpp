@@ -9,7 +9,7 @@
 #include "Elements/DataBridgeSelectorBox/DataBridgeSelectorBox.hpp"
 #include "ConstantDefines.h"
 #include "OSCSender/OSCSender.h"
-
+#include "AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -19,7 +19,7 @@ using QtNodes::PortType;
 /// In this example it has no logic.
 namespace Nodes
 {
-class ImageInDataModel : public NodeDelegateModel
+class ImageInDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
 

@@ -27,7 +27,7 @@
 #include <QTimer>
 #include "JSPluginManager.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -36,7 +36,7 @@ using namespace NodeDataTypes;
 
 namespace Nodes {
 
-class CustomScriptDataModel : public NodeDelegateModel
+class CustomScriptDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
 
@@ -199,16 +199,7 @@ public:
         return m_pluginInfo;
     }
 
-public Q_SLOTS:
-    void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 private Q_SLOTS:
 
     

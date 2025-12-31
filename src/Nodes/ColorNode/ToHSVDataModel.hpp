@@ -11,12 +11,12 @@
 #include "ColorConvertInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace Nodes;
 namespace Nodes
 {
-    class ToHSVDataModel final : public QtNodes::NodeDelegateModel
+    class ToHSVDataModel final : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -35,9 +35,6 @@ namespace Nodes
 
         QWidget *embeddedWidget() override { return widget; }
 
-
-
-        void stateFeedBack(const QString& oscAddress,QVariant value) override ;
 
     private:
         ColorConvertInterface *widget = new ColorConvertInterface();

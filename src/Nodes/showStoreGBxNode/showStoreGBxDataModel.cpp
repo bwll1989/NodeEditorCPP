@@ -10,10 +10,7 @@
 #include <QJSEngine>
 #include <QDateTime>
 #include <QCoreApplication>
-
 #include "ConstantDefines.h"
-#include "OSCMessage.h"
-#include "OSCSender/OSCSender.h"
 
 namespace Nodes {
 
@@ -162,14 +159,5 @@ void showStoreGBxDataModel::setOutput(int index, bool state)
     _tcpClient->sendMessage(QString("ST%1\r").arg(index + 1, 2, 10, QChar('0')), 1);
 }
 
-void showStoreGBxDataModel::stateFeedBack(const QString& oscAddress,QVariant value) {
-
-    OSCMessage message;
-    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-    message.value = value;
-    OSCSender::instance()->sendOSCMessageWithQueue(message);
-}
 
 } // namespace Nodes

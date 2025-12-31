@@ -7,10 +7,11 @@
 #include <QJsonArray>
 #include "TimeLineDefines.h"
 #include <QPushButton>
-#include "AbstractClipModel.hpp"
+
 #include "TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
+#include "../AbstractClipDelegateModel.h"
 #include "ConstantDefines.h"
 #include "../../Common/Devices/ClientController/SocketTransmitter.h"
 #include "ArtnetSender/ArtnetTransmitter.h"
@@ -24,7 +25,7 @@ extern "C" {
 }
 namespace Clips
 {
-    class ArtnetClipModel : public AbstractClipModel {
+    class ArtnetClipModel : public AbstractClipDelegateModel {
         Q_OBJECT
     public:
         explicit ArtnetClipModel(int start,const QString& filePath = QString(), QObject* parent = nullptr);

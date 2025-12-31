@@ -149,6 +149,7 @@
         "qregularexpressionvalidator": "cpp",
         "*.rh": "cpp",
         "openglsupport": "cpp",
-        "nonlinearoptimization": "cpp"
+        "nonlinearoptimization": "cpp",
+        "nodedelegatemodel": "cpp"
     }
 }

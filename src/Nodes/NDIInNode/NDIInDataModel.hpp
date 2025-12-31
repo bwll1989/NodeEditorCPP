@@ -24,7 +24,7 @@
 #include <QtWidgets/QComboBox>
 #include <QJsonObject>
 #include <QJsonValue>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include <Processing.NDI.Lib.h>
 
 // 再次确保没有 min/max 宏定义
@@ -432,7 +432,7 @@ namespace Nodes
      * 
      * 提供NDI图像接收功能，支持多发送器选择和实时图像传输
      */
-    class NDIInDataModel : public NodeDelegateModel
+    class NDIInDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -452,9 +452,9 @@ namespace Nodes
             WidgetEmbeddable = true;
             Resizable = false;
             PortEditable = false;
-            NodeDelegateModel::registerOSCControl("/enable",m_widget->m_startStopButton);
-            NodeDelegateModel::registerOSCControl("/refresh",m_widget->m_refreshButton);
-            NodeDelegateModel::registerOSCControl("/source",m_widget->m_senderComboBox);
+            AbstractDelegateModel::registerOSCControl("/enable",m_widget->m_startStopButton);
+            AbstractDelegateModel::registerOSCControl("/refresh",m_widget->m_refreshButton);
+            AbstractDelegateModel::registerOSCControl("/source",m_widget->m_senderComboBox);
             initializeReceiver();
             // 连接信号
             connect(m_widget, &NDIInInterface::startReceiving, this, &NDIInDataModel::startReceiving);

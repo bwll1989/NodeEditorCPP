@@ -4,8 +4,10 @@
 #include <QJsonDocument>
 #include <QMetaObject>
 #include <QCoreApplication>
-#include "../ExternalControl/ExternalControler.hpp"
-#include "../../Common/Devices/OSCSender/OSCSender.h"
+#include <QJsonArray>
+
+#include "Common/Devices/StatusContainer/StatusContainer.h"
+#include "Common/Devices/OSCSender/OSCSender.h"
 #include "ConstantDefines.h"
 #include "OSCMessage.h"
 #include <Poco/Net/HTTPServerResponse.h>
@@ -17,6 +19,7 @@
 #include <Poco/StreamCopier.h>
 #include <sstream>
 #include <QMetaType>
+#include <QDir>
 Q_DECLARE_METATYPE(OSCMessage)
 using namespace Poco::Net;
 using namespace Poco;
@@ -33,14 +36,54 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
         _ws = &ws;
         _server.registerWebSocket(this);
         
-        char buffer[1024];
+        char buffer[2048];
         int flags;
         int n;
         
         // 循环读取数据，保持连接活跃，直到客户端关闭或发生错误
         do {
             n = ws.receiveFrame(buffer, sizeof(buffer), flags);
-            // 这里可以处理客户端发送的心跳或指令，目前仅作保持连接用
+            if (n > 0 && (flags & WebSocket::FRAME_OP_BITMASK) != WebSocket::FRAME_OP_CLOSE) {
+                // 解析 JSON 控制指令
+                QByteArray payload(buffer, n);
+                QJsonParseError err;
+                QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
+                if (err.error == QJsonParseError::NoError && doc.isObject()) {
+                    QJsonObject obj = doc.object();
+                    
+                    // 处理查询请求：前端发送 {"query": ["/addr1", "/addr2"]}
+                    if (obj.contains("query") && obj["query"].isArray()) {
+                        QJsonArray queries = obj["query"].toArray();
+                        for (const auto& val : queries) {
+                            QString addr = val.toString();
+                            if (StatusContainer::instance()->contains(addr)) {
+                                StatusItem item = StatusContainer::instance()->last(addr);
+                                QJsonObject resp = item.toJsonObject();
+                                std::string msg = QJsonDocument(resp).toJson(QJsonDocument::Compact).toStdString();
+                                send(msg);
+                            }
+                        }
+                    }
+
+                    // 兼容 address 和 addr 字段
+                    QString addr = obj.value("address").toString();
+                    if (addr.isEmpty()) addr = obj.value("addr").toString();
+                    
+                    if (!addr.isEmpty()) {
+                        OSCMessage msg;
+                        msg.host = "127.0.0.1";
+                        msg.port = AppConstants::EXTRA_CONTROL_PORT;
+                        msg.address = addr;
+                        msg.value = obj["value"].toVariant();
+                        
+                        // 跨线程调用 StatusContainer::parseOSC
+                        QMetaObject::invokeMethod(StatusContainer::instance(),
+                                                  "parseOSC",
+                                                  Qt::QueuedConnection,
+                                                  Q_ARG(OSCMessage, msg));
+                    }
+                }
+            }
         } while (n > 0 && (flags & WebSocket::FRAME_OP_BITMASK) != WebSocket::FRAME_OP_CLOSE);
         
         _server.unregisterWebSocket(this);
@@ -122,9 +165,9 @@ void StaticRequestHandler::handleApiCommand(HTTPServerRequest& request, HTTPServ
         msg.port = AppConstants::EXTRA_CONTROL_PORT;
         msg.address = addr;
         msg.value = value;
-        auto* controller = ExternalControler::instance();
+        // auto* controller = ExternalControler::instance();
         qRegisterMetaType<OSCMessage>("OSCMessage");
-        QMetaObject::invokeMethod(controller,
+        QMetaObject::invokeMethod(StatusContainer::instance(),
                                   "parseOSC",
                                   Qt::QueuedConnection,
                                   Q_ARG(OSCMessage, msg));
@@ -144,7 +187,7 @@ void StaticRequestHandler::handleApiExec(HTTPServerRequest& request, HTTPServerR
         const QString json = QString("{\"ok\":true,\"path\":\"%1\",\"query\":\"%2\"}")
             .arg(QString::fromStdString(path),
                  QString::fromStdString(cmd));
-        qDebug() << json;
+
     }
     std::ostringstream oss;
     oss << "{\"ok\":true,\"path\":\"" << path << "\",\"query\":\"" << cmd << "\"}";
@@ -179,6 +222,7 @@ void StaticRequestHandler::handleLayoutLoad(HTTPServerRequest& request, HTTPServ
         QJsonObject obj = _server.save();
         if (!obj.isEmpty()) {
             QJsonDocument doc(obj);
+            // qDebug()<<"doc:"<<doc.toJson(QJsonDocument::Compact);
             sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString(), HTTPResponse::HTTP_OK);
             return;
         }
@@ -281,6 +325,10 @@ void StaticRequestHandler::handleRequest(HTTPServerRequest& request,
             handleLayoutSave(request, response);
         } else if (path == "/api/layout/load") {
             handleLayoutLoad(request, response);
+        } else if (path == "/api/upload/media") {
+            handleUploadMedia(request, response);
+        } else if (path == "/api/upload/flow") {
+            handleUploadFlow(request, response);
         } else {
             handleStaticFile(request, response, path);
         }
@@ -295,6 +343,129 @@ void StaticRequestHandler::handleRequest(HTTPServerRequest& request,
     }
 }
 
+// 函数级注释：解析查询参数中指定键的值（简单实现，不处理重复键）
+std::string StaticRequestHandler::parseQueryParam(const std::string& query, const std::string& key) {
+    if (query.empty() || key.empty()) return "";
+    std::string k = key + "=";
+    auto pos = query.find(k);
+    if (pos == std::string::npos) return "";
+    pos += k.size();
+    auto end = query.find('&', pos);
+    std::string val = end == std::string::npos ? query.substr(pos) : query.substr(pos, end - pos);
+    // URL 解码（简化，仅处理 %20 和 + 为空格）
+    std::string out;
+    out.reserve(val.size());
+    for (size_t i = 0; i < val.size(); ++i) {
+        if (val[i] == '+') out.push_back(' ');
+        else if (val[i] == '%' && i + 2 < val.size()) {
+            std::string hex = val.substr(i + 1, 2);
+            char c = (char)strtol(hex.c_str(), nullptr, 16);
+            out.push_back(c);
+            i += 2;
+        } else {
+            out.push_back(val[i]);
+        }
+    }
+    return out;
+}
+
+// 函数级注释：对文件名进行安全过滤，移除路径分隔与非法字符
+std::string StaticRequestHandler::sanitizeFilename(const std::string& name) {
+    std::string n;
+    n.reserve(name.size());
+    for (char ch : name) {
+        if (ch == '/' || ch == '\\') continue;
+        if (ch == ':' || ch == '*' || ch == '?' || ch == '"' || ch == '<' || ch == '>' || ch == '|') continue;
+        if ((unsigned char)ch < 32) continue;
+        n.push_back(ch);
+    }
+    // 防止 .. 穿越
+    if (n == "..") n = "";
+    return n;
+}
+
+// 函数级注释：处理媒体文件上传（以二进制流写入到文档根 uploads/media）
+void StaticRequestHandler::handleUploadMedia(HTTPServerRequest& request, HTTPServerResponse& response) {
+    try {
+        if (request.getMethod() != "POST") {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+            return;
+        }
+        URI uri(request.getURI());
+        const std::string rawName = parseQueryParam(uri.getQuery(), "filename");
+        const std::string safeName = sanitizeFilename(rawName);
+        if (safeName.empty()) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"missing_or_invalid_filename\"}", HTTPResponse::HTTP_BAD_REQUEST);
+            return;
+        }
+        // 目标目录：使用应用常量 MEDIA_LIBRARY_STORAGE_DIR
+        const QString mediaDir = AppConstants::MEDIA_LIBRARY_STORAGE_DIR;
+        QDir().mkpath(mediaDir);
+        const QString qFilePath = QDir(mediaDir).filePath(QString::fromStdString(safeName));
+        const std::string absPath = qFilePath.toStdString();
+        // 写入文件
+        std::istream& in = request.stream();
+        std::ostringstream buffer;
+        Poco::StreamCopier::copyStream(in, buffer);
+        Poco::FileOutputStream fos(absPath, std::ios::binary);
+        fos.write(buffer.str().data(), (std::streamsize)buffer.str().size());
+        fos.close();
+        // 返回
+        std::ostringstream oss;
+        oss << "{\"ok\":true,\"path\":\"" << absPath << "\"}";
+        sendJsonResponse(response, oss.str());
+    } catch (const Poco::Exception& e) {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"" + e.displayText() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+    } catch (const std::exception& e) {
+        sendJsonResponse(response, std::string("{\"ok\":false,\"error\":\"") + e.what() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+    }
+}
+
+// 函数级注释：处理.flow项目文件上传（限制扩展名为.flow）
+void StaticRequestHandler::handleUploadFlow(HTTPServerRequest& request, HTTPServerResponse& response) {
+    try {
+        if (request.getMethod() != "POST") {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+            return;
+        }
+        URI uri(request.getURI());
+        const std::string rawName = parseQueryParam(uri.getQuery(), "filename");
+        const std::string safeName = sanitizeFilename(rawName);
+        if (safeName.empty()) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"missing_or_invalid_filename\"}", HTTPResponse::HTTP_BAD_REQUEST);
+            return;
+        }
+        Poco::Path tmp(safeName);
+        if (Poco::icompare(tmp.getExtension(), "flow") != 0) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"invalid_extension\"}", HTTPResponse::HTTP_BAD_REQUEST);
+            return;
+        }
+        // 目标目录：docRoot/uploads/projects
+        Poco::Path base(_docRoot);
+        base.makeDirectory();
+        Poco::Path dir(base);
+        dir.append("uploads");
+        dir.append("projects");
+        Poco::File(dir).createDirectories();
+        Poco::Path filePath(dir);
+        filePath.append(safeName);
+        // 写入文件
+        std::istream& in = request.stream();
+        std::ostringstream buffer;
+        Poco::StreamCopier::copyStream(in, buffer);
+        Poco::FileOutputStream fos(filePath.toString(), std::ios::binary);
+        fos.write(buffer.str().data(), (std::streamsize)buffer.str().size());
+        fos.close();
+        // 返回
+        std::ostringstream oss;
+        oss << "{\"ok\":true,\"path\":\"/uploads/projects/" << safeName << "\"}";
+        sendJsonResponse(response, oss.str());
+    } catch (const Poco::Exception& e) {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"" + e.displayText() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+    } catch (const std::exception& e) {
+        sendJsonResponse(response, std::string("{\"ok\":false,\"error\":\"") + e.what() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+    }
+}
 std::string StaticRequestHandler::guessContentType(const std::string& ext) {
     if (ext == "html" || ext == "htm") return "text/html; charset=utf-8";
     if (ext == "css") return "text/css";
@@ -365,7 +536,7 @@ bool NodeHttpServer::start(int port) {
         emit serverStarted(_port);
         
         // 连接 OSCSender 信号
-        connect(OSCSender::instance(), &OSCSender::messageSent, this, &NodeHttpServer::onOscMessageSent, Qt::UniqueConnection);
+        connect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, &NodeHttpServer::onOscMessageSent, Qt::UniqueConnection);
         
         return true;
     } catch (const Poco::Exception& e) {
@@ -382,9 +553,8 @@ void NodeHttpServer::stop() {
     _server.reset();
     _running = false;
     emit serverStopped();
-    
-    // 断开 OSCSender 信号
-    disconnect(OSCSender::instance(), &OSCSender::messageSent, this, &NodeHttpServer::onOscMessageSent);
+
+    disconnect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, &NodeHttpServer::onOscMessageSent);
     
     // 清理 WebSocket 处理器
     QMutexLocker locker(&_wsMutex);
@@ -404,26 +574,12 @@ void NodeHttpServer::unregisterWebSocket(PageWebSocketHandler* handler) {
     _wsHandlers.erase(handler);
 }
 
-void NodeHttpServer::onOscMessageSent(const OSCMessage &message) {
+void NodeHttpServer::onOscMessageSent(const StatusItem& message) {
     // 将 OSC 消息转为 JSON
     QJsonObject json;
-    json["addr"] = message.address;
-    
-    // 简化值处理
-    QVariant val = message.value;
-    if (val.typeId() == QMetaType::Double || val.typeId() == QMetaType::Float) {
-        json["value"] = val.toDouble();
-    } else if (val.typeId() == QMetaType::Int || val.typeId() == QMetaType::UInt || val.typeId() == QMetaType::LongLong) {
-        json["value"] = val.toInt();
-    } else if (val.typeId() == QMetaType::Bool) {
-        json["value"] = val.toBool();
-    } else {
-        json["value"] = val.toString();
-    }
-    
+    json= message.toJsonObject();
     QJsonDocument doc(json);
     std::string jsonStr = doc.toJson(QJsonDocument::Compact).toStdString();
-
     // 广播给所有 WebSocket 连接
     QMutexLocker locker(&_wsMutex);
     for (auto* handler : _wsHandlers) {

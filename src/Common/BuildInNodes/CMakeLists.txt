@@ -39,6 +39,8 @@ set(BuildInNodes_sources
     ImageShowModel.hpp
     ToJsonDataModel.hpp
     FromJsonDataModel.hpp
+    AbstractDelegateModel.cpp
+    AbstractDelegateModel.h
 )
 
 # 生成静态库（也可改为 SHARED，如需导出符号）
@@ -55,6 +57,7 @@ target_link_libraries(BuildInNodes PRIVATE
     DataTypes
     GUIElements
     ModelDataBridge
+    StatusContainer
 )
 
 # 暴露包含目录，便于外部通过 Common/BuildInNodes/... 头文件路径包含

@@ -34,7 +34,7 @@ void TimelineWidget::createComponents() {
     view = new TimeLineView(model, this);
     tracklist = new TrackListView(model, this);
     // 创建工具栏
-    toolbar = new DefaultTimeLineToolBar(view);
+    toolbar = new TimeLineToolBar(view);
     // 创建主布局
     view->initToolBar(toolbar);
     mainlayout = new QVBoxLayout(this);
@@ -62,7 +62,7 @@ void TimelineWidget::createComponents() {
     // 连接轨道列表更新到时间线更新视图
     connect(tracklist, &BaseTracklistView::viewUpdate, view, &BaseTimelineView::onUpdateViewport);
     // 连接工具栏设置按钮到显示设置对话框
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(view->m_toolbar), &DefaultTimeLineToolBar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
+    connect(dynamic_cast<TimeLineToolBar*>(view->m_toolbar), &TimeLineToolBar::settingsClicked, this, &TimelineWidget::showSettingsDialog);
     // 添加到主布局
     mainlayout->addWidget(mainwidget);
 

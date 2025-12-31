@@ -2,18 +2,18 @@
 // Created by pablo on 3/9/24.
 //
 
-#ifndef CUTIMAGEMODEL_H
-#define CUTIMAGEMODEL_H
+#pragma once
 
 #include <QtNodes/NodeDelegateModel>
 #include <QFutureWatcher>
 
 #include "DataTypes/NodeDataList.hpp"
 #include "CutImageInterface.hpp"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class CutImageModel final : public QtNodes::NodeDelegateModel {
+    class CutImageModel final : public AbstractDelegateModel {
         Q_OBJECT
 
     public:
@@ -48,4 +48,4 @@ namespace Nodes
     };
 }
 
-#endif //CUTIMAGEMODEL_H
+

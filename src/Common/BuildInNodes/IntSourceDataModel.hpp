@@ -11,7 +11,7 @@
 #include <QtWidgets/QSpinBox>
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
-
+#include "AbstractDelegateModel.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -23,7 +23,7 @@ namespace Nodes
 {
     /// The model dictates the number of inputs and outputs for the Node.
     /// In this example it has no logic.
-    class IntSourceDataModel : public NodeDelegateModel
+    class IntSourceDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -36,7 +36,7 @@ namespace Nodes
             Caption="Int Source";
             WidgetEmbeddable=true;
             Resizable=false;
-            NodeDelegateModel::registerOSCControl("/int",widget);
+            AbstractDelegateModel::registerOSCControl("/int",widget);
             connect(widget, &QLineEdit::textChanged, this, &IntSourceDataModel::onIntEdited);
         }
 
@@ -106,31 +106,6 @@ namespace Nodes
         }
         QWidget *embeddedWidget() override {return widget;}
 
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-            auto result = ConnectionPolicy::One;
-            switch (portType) {
-                case PortType::In:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::Out:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::None:
-                    break;
-            }
-
-            return result;
-        }
-
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 
     private Q_SLOTS:
 

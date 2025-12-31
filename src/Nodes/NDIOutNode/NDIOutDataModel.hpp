@@ -24,7 +24,7 @@
 #include <QtWidgets/QComboBox>
 #include <QJsonObject>
 #include <QJsonValue>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include <Processing.NDI.Lib.h>
 
 // 再次确保没有 min/max 宏定义
@@ -38,7 +38,6 @@
 // 现在安全地包含 OpenCV
 #include <opencv2/opencv.hpp>
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
 #include "NDIOutInterface.hpp"
 #include <iostream>
 #include <vector>
@@ -372,7 +371,7 @@ namespace Nodes
      * 
      * 接收ImageData输入，通过NDI协议发送到网络
      */
-    class NDIOutDataModel : public NodeDelegateModel
+    class NDIOutDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -394,7 +393,7 @@ namespace Nodes
             PortEditable = false;
 
             initializeSender();
-            NodeDelegateModel::registerOSCControl("/enable",m_widget->m_startStopButton);
+            AbstractDelegateModel::registerOSCControl("/enable",m_widget->m_startStopButton);
 
         }
 
@@ -610,15 +609,7 @@ namespace Nodes
 
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private:
         // 界面组件
         NDIOutInterface *m_widget;

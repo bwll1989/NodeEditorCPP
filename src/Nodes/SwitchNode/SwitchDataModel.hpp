@@ -14,8 +14,7 @@
 #include <QtCore/qglobal.h>
 
 #include "ConstantDefines.h"
-#include "OSCMessage.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -26,7 +25,7 @@ class QPushButton;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class SwitchDataModel : public NodeDelegateModel
+    class SwitchDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -42,7 +41,7 @@ namespace Nodes
             Resizable=false;
             PortEditable= true;
 
-            NodeDelegateModel::registerOSCControl("/index",widget);
+            AbstractDelegateModel::registerOSCControl("/index",widget);
             connect(widget,&QSpinBox::valueChanged, this, &SwitchDataModel::onIndexEdited);
         }
         ~SwitchDataModel(){    }
@@ -117,15 +116,6 @@ namespace Nodes
 
         QWidget *embeddedWidget() override{return widget;}
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private Q_SLOTS:
 
         void onIndexEdited(int const &string)

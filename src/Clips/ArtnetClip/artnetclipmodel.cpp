@@ -8,7 +8,7 @@
 #include "ConstantDefines.h"
 
 Clips::ArtnetClipModel::ArtnetClipModel(int start,const QString& filePath, QObject* parent)
-            : AbstractClipModel(start, "Artnet", parent),m_filePath(filePath),m_editor(nullptr)
+            : AbstractClipDelegateModel(start, "Artnet", parent),m_filePath(filePath),m_editor(nullptr)
     {
         EMBEDWIDGET = false;
         SHOWBORDER = true;
@@ -65,6 +65,7 @@ void Clips::ArtnetClipModel::load(const QJsonObject& json)  {
     AbstractClipModel::load(json);
     m_startUniverse->setValue(json["startUniverse"].toInt());
     targetHostEdit->setText( json["targetHost"].toString());
+    updateOSCRegistration();
 }
 
 QVariant Clips::ArtnetClipModel::data(int role) const {
@@ -94,14 +95,14 @@ QWidget* Clips::ArtnetClipModel::clipPropertyWidget() {
     m_startUniverse = new QSpinBox(basicGroup);
     m_startUniverse->setMinimum(0);
     m_startUniverse->setMaximum(65536);
-    registerOSCControl("/universe", m_startUniverse);
+    AbstractClipDelegateModel::registerOSCControl("/universe", m_startUniverse);
     basicLayout->addWidget(m_startUniverse, 1, 1,1,1);
 
     basicLayout->addWidget(new QLabel("目标主机:"), 3, 0,1,1);
     targetHostEdit = new QLineEdit(basicGroup);
     targetHostEdit->setValidator(new QRegularExpressionValidator(QRegularExpression("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")));
     targetHostEdit->setToolTip("输入目标主机IP地址，如：192.168.1.100 或 192.168.1.255（广播）");
-    registerOSCControl("/host", targetHostEdit);
+    AbstractClipDelegateModel::registerOSCControl("/host", targetHostEdit);
     // 设置默认值
     targetHostEdit->setText(m_targetHost);
     basicLayout->addWidget(targetHostEdit, 3, 1,1,1);
@@ -110,7 +111,7 @@ QWidget* Clips::ArtnetClipModel::clipPropertyWidget() {
     });
     basicLayout->addWidget(new QLabel("Artnet数据:"), 2, 0,1,1);
     mediaSelector = new SelectorComboBox(MediaLibrary::Category::DMX,basicGroup);
-    registerOSCControl("/file", mediaSelector);
+     AbstractClipDelegateModel::registerOSCControl("/file", mediaSelector);
     basicLayout->addWidget(mediaSelector, 2, 1,1,1);
     videoInfoLabel=new QLabel(basicGroup);
     // 连接信号槽

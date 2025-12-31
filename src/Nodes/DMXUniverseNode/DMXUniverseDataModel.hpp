@@ -11,7 +11,7 @@
 #include <QByteArray>
 #include <QJsonArray>
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -25,7 +25,7 @@ namespace Nodes
      * @brief Artnet Universe节点 - 合并多个ArtnetDevice输出为完整Universe数据包
      * 接收多个ArtnetDevice的输出，合并成带有Universe信息的512通道DMX数据包
      */
-    class DMXUniverseDataModel : public NodeDelegateModel
+    class DMXUniverseDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -62,10 +62,10 @@ namespace Nodes
                     this, &DMXUniverseDataModel::onClearDataClicked);
             
             // 注册OSC控制
-            NodeDelegateModel::registerOSCControl("/universe", widget->universeSpinBox);
-            NodeDelegateModel::registerOSCControl("/subnet", widget->subnetSpinBox);
-            NodeDelegateModel::registerOSCControl("/net", widget->netSpinBox);
-            NodeDelegateModel::registerOSCControl("/clear", widget->clearButton);
+            AbstractDelegateModel::registerOSCControl("/universe", widget->universeSpinBox);
+            AbstractDelegateModel::registerOSCControl("/subnet", widget->subnetSpinBox);
+            AbstractDelegateModel::registerOSCControl("/net", widget->netSpinBox);
+            AbstractDelegateModel::registerOSCControl("/clear", widget->clearButton);
             // 初始化输出数据
             updateUniverseData();
         }
@@ -206,15 +206,6 @@ namespace Nodes
             return widget;
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 
     private slots:
         /**

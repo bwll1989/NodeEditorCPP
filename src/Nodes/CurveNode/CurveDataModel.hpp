@@ -12,7 +12,7 @@
 #include "PluginDefinition.hpp"
 #include "ConstantDefines.h"
 #include "CurveInterface.hpp"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -21,7 +21,7 @@ using QtNodes::PortType;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class CurveDataModel : public NodeDelegateModel
+    class CurveDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -39,9 +39,9 @@ namespace Nodes
             // m_quickWidget->setSource(QUrl("qrc:qml/content/dynamicview.qml"));
             m_quickWidget->setSource(QUrl("qrc:/qml/content/main.qml"));
             m_quickWidget->rootContext()->setContextProperty("CppBridge", this);
-            NodeDelegateModel::registerOSCControl("/start",widget->startButton);
+            AbstractDelegateModel::registerOSCControl("/start",widget->startButton);
             // NodeDelegateModel::registerOSCControl("/stop",widget->stopButton);
-            NodeDelegateModel::registerOSCControl("/loop",widget->loopCheckBox);
+            AbstractDelegateModel::registerOSCControl("/loop",widget->loopCheckBox);
             connect(widget->editButton, &QPushButton::clicked, this, &CurveDataModel::toggleEditorMode);
             connect(widget->startButton, &QPushButton::clicked, this, &CurveDataModel::onStartButtonClicked);
             // connect(widget->stopButton,  &QPushButton::clicked, this, &QMLDataModel::onStopButtonClicked);
@@ -309,15 +309,7 @@ namespace Nodes
             }
             widget->startButton->setText(status ? "Stop" : "Play");
         }
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     public:
         QPointer<CurveInterface> widget=new CurveInterface();
         shared_ptr<VariableData> inData;

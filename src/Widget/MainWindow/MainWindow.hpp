@@ -28,7 +28,7 @@
 // 新增：系统托盘支持
 #include <QSystemTrayIcon>
 #include <QMenu>
-#include "Widget/HttpServer/HttpServer.hpp"
+#include "../ExternalControl/HttpServer.hpp"
 class MainWindow : public QMainWindow
 {
 Q_OBJECT

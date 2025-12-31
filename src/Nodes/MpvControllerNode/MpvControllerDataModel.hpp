@@ -17,7 +17,7 @@
 #include "ConstantDefines.h"
 #include "Common/Devices/HttpClient/HttpClient.h"
 #include "QTimer"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -28,7 +28,7 @@ using namespace NodeDataTypes;
 using namespace QtNodes;
 namespace Nodes
 {
-    class MpvControllerDataModel : public NodeDelegateModel
+    class MpvControllerDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
     public:
@@ -41,8 +41,8 @@ namespace Nodes
             Resizable=false;
             client=new HttpClient();
             widget=new MpvControllerInterface();
-            NodeDelegateModel::registerOSCControl("/play",widget->Play);
-            NodeDelegateModel::registerOSCControl("/fullscreen",widget->Fullscreen);
+            AbstractDelegateModel::registerOSCControl("/play",widget->Play);
+            AbstractDelegateModel::registerOSCControl("/fullscreen",widget->Fullscreen);
             timer=new QTimer();
             timer->setInterval(900);
             timer->setSingleShot(true);
@@ -142,15 +142,6 @@ namespace Nodes
             return result;
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private Q_SLOTS:
 
         void onPlay()

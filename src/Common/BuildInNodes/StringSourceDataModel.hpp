@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <QtWidgets/QLineEdit>
-
+#include "AbstractDelegateModel.h"
 
 #include <QtCore/qglobal.h>
 
@@ -22,7 +22,7 @@ class QLineEdit;
 using namespace NodeDataTypes;
 using namespace QtNodes;
 namespace Nodes {
-    class TextSourceDataModel : public NodeDelegateModel
+    class TextSourceDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -35,7 +35,7 @@ namespace Nodes {
             Caption="String Source";
             WidgetEmbeddable=true;
             Resizable=false;
-            NodeDelegateModel::registerOSCControl("/string",_lineEdit);
+            AbstractDelegateModel::registerOSCControl("/string",_lineEdit);
             connect(_lineEdit, &QLineEdit::textChanged, this, &TextSourceDataModel::onTextEdited);
         }
 
@@ -97,31 +97,6 @@ namespace Nodes {
             }
         }
         QWidget *embeddedWidget() override{return _lineEdit;}
-
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-            auto result = ConnectionPolicy::One;
-            switch (portType) {
-                case PortType::In:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::Out:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::None:
-                    break;
-            }
-
-            return result;
-        }
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 
     private Q_SLOTS:
 

@@ -13,9 +13,8 @@
 #include <QUrl>
 
 #include "ConstantDefines.h"
-#include "OSCMessage.h"
 #include "Common/Devices/WebSocketClient/WebSocketClient.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -26,7 +25,7 @@ class QLineEdit;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class WebSocketClientDataModel : public NodeDelegateModel
+    class WebSocketClientDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -41,10 +40,10 @@ namespace Nodes
             Resizable = false;
             m_inData = std::make_shared<VariableData>();
             m_outData = std::make_shared<VariableData>();
-            NodeDelegateModel::registerOSCControl("/host", widget->hostUrlEdit);
-            NodeDelegateModel::registerOSCControl("/value", widget->valueEdit);
-            NodeDelegateModel::registerOSCControl("/send", widget->send);
-            NodeDelegateModel::registerOSCControl("/status", widget->statusButton);
+            AbstractDelegateModel::registerOSCControl("/host", widget->hostUrlEdit);
+            AbstractDelegateModel::registerOSCControl("/value", widget->valueEdit);
+            AbstractDelegateModel::registerOSCControl("/send", widget->send);
+            AbstractDelegateModel::registerOSCControl("/status", widget->statusButton);
             m_client = new WebSocketClient(this,QUrl(widget->hostUrlEdit->text()));
 
             connect(widget->send, &QPushButton::clicked, this, &WebSocketClientDataModel::onSendClicked);
@@ -186,15 +185,7 @@ namespace Nodes
             widget->statusButton->setText(isReady?"Connected":"Disconnected");
             widget->statusButton->setStyleSheet(isReady?"color: green; font-weight: bold;":"color: red; font-weight: bold;");
         }
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     signals:
         void connectToUrl(const QUrl &url);
         void sendMessage(const QString &msg,const int &messageType = 0 ,const int &format = 0);

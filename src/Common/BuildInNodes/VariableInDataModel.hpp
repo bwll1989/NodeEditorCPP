@@ -9,6 +9,7 @@
 #include "Elements/DataBridgeSelectorBox/DataBridgeSelectorBox.hpp"
 #include "ConstantDefines.h"
 #include "OSCSender/OSCSender.h"
+#include "AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -18,7 +19,7 @@ using namespace QtNodes;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 namespace Nodes {
-    class VariableInDataModel : public NodeDelegateModel
+    class VariableInDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 

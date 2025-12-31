@@ -15,10 +15,8 @@ add_library(${Module_Name} SHARED
         ../../Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
         ../../Common/Devices/ArtnetReceiver/ArtnetReceiver.h
         ../../Common/Devices/UdpSocket/UdpSocket.cpp
-        ../../Common/Devices/UdpSocket/UdpSocket.h
-        ../../../3rdParty/tinyosc-msvc/tinyosc.c
-        ../../../3rdParty/tinyosc-msvc/tinyosc.h)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets  Qt${QT_VERSION_MAJOR}::Network ${QtNodes_LIBRARIES} DataTypes)
+        ../../Common/Devices/UdpSocket/UdpSocket.h)
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets  Qt${QT_VERSION_MAJOR}::Network ${QtNodes_LIBRARIES} DataTypes BuildInNodes)
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

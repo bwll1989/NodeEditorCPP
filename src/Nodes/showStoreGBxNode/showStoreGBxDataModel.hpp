@@ -12,7 +12,7 @@
 #include "../../Common/Devices/TcpClient/TcpClient.h"
 #include "DataTypes/NodeDataList.hpp"
 #include "showStoreGBxInterface.hpp"
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -21,7 +21,7 @@ using QtNodes::PortType;
 
 namespace Nodes {
 
-class showStoreGBxDataModel : public NodeDelegateModel
+class showStoreGBxDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
 
@@ -44,9 +44,6 @@ public:
     void setInData(std::shared_ptr<NodeData> data, PortIndex port) override;
 
     QWidget *embeddedWidget() override { return _interface; }
-
-public slots:
-    void stateFeedBack(const QString& oscAddress,QVariant value) override;
 
 private slots:
     void recMsg(QString msg);

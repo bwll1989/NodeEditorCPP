@@ -12,7 +12,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
-
+#include "AbstractDelegateModel.h"
 
 #include <QtCore/qglobal.h>
 
@@ -28,7 +28,7 @@ namespace Nodes {
     /**
      * @brief JSON转字符串数据模型
      */
-    class FromJsonDataModel : public NodeDelegateModel
+    class FromJsonDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -137,38 +137,6 @@ namespace Nodes {
          * @brief 获取嵌入式控件
          */
         QWidget *embeddedWidget() override{return _textEdit;}
-
-        /**
-         * @brief 端口连接策略
-         */
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-            auto result = ConnectionPolicy::One;
-            switch (portType) {
-                case PortType::In:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::Out:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::None:
-                    break;
-            }
-
-            return result;
-        }
-        
-        /**
-         * @brief 状态反馈
-         */
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 
     private Q_SLOTS:
 

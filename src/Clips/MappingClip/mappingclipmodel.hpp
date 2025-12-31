@@ -6,16 +6,17 @@
 #include "../../Common/Devices/OSCSender/OSCSender.h"
 #include "OscListWidget/OSCMessageListWidget.hpp"
 #include "OscListWidget/OSCMessageItemWidget.hpp"
+#include "AbstractClipDelegateModel.h"
 namespace Clips
 {
-    class MappingClipModel : public AbstractClipModel {
+    class MappingClipModel : public AbstractClipDelegateModel {
         Q_OBJECT
     public:
 
 
-        MappingClipModel(int start): AbstractClipModel(start,"Mapping"),
-        m_editor(nullptr),
-        m_listWidget(new OSCMessageListWidget(m_editor))
+        MappingClipModel(int start): AbstractClipDelegateModel(start,"Mapping"),
+                                    m_editor(nullptr),
+                                    m_listWidget(new OSCMessageListWidget(true,m_editor))
         {
             setEnd(start+100);
             // 片段正常颜色
@@ -34,6 +35,7 @@ namespace Clips
         void load(const QJsonObject& json) override {
             AbstractClipModel::load(json);
              m_listWidget->load(json);
+             updateOSCRegistration();
 
         }
 
@@ -89,7 +91,9 @@ namespace Clips
         void trigger(){
             auto messages = m_listWidget->getOSCMessages();
             for(auto message : messages){
-                OSCSender::instance()->sendOSCMessageWithQueue(message);
+
+                StatusContainer::instance()->parseOSC(message);
+                // OSCSender::instance()->sendOSCMessageWithQueue(message);
             }
         }
 

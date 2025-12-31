@@ -2,7 +2,7 @@
 
 #include "DataTypes/NodeDataList.hpp"
 
-#include <QtNodes/NodeDelegateModel>
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 
 #include <QtCore/QObject>
 #include <QtWidgets/QLabel>
@@ -24,7 +24,7 @@ using namespace QtNodes;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class LFODataModel : public NodeDelegateModel
+    class LFODataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -44,7 +44,7 @@ namespace Nodes
             // timer->start(1000 / widget->sampleRate->value());
         }
 
-        virtual ~LFODataModel() override{
+         ~LFODataModel() override{
             if(timer->isActive())
             {
                 timer->stop();

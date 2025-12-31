@@ -11,7 +11,7 @@
 #include <QByteArray>
 #include <QJsonArray>
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -25,7 +25,7 @@ namespace Nodes
      * @brief 通道设备节点 - 多通道数据处理节点
      * 支持设置起始DMX地址、通道数，每个通道的值，并通过输入和输出端口接收和发送值
      */
-    class DMXDeviceDataModel : public NodeDelegateModel
+    class DMXDeviceDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -50,9 +50,9 @@ namespace Nodes
             channelValues.resize(InPortCount, 0);
             
             // 注册OSC控制
-            NodeDelegateModel::registerOSCControl("/channels", widget->channelCountSpinBox);
-            NodeDelegateModel::registerOSCControl("/startAddress", widget->startAddressSpinBox);
-            NodeDelegateModel::registerOSCControl("/enable", widget->enableCheckBox);
+            AbstractDelegateModel::registerOSCControl("/channels", widget->channelCountSpinBox);
+            AbstractDelegateModel::registerOSCControl("/startAddress", widget->startAddressSpinBox);
+            AbstractDelegateModel::registerOSCControl("/enable", widget->enableCheckBox);
             connect(widget->channelCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
                     this, &DMXDeviceDataModel::onChannelCountChanged);
             connect(widget->startAddressSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
@@ -204,15 +204,6 @@ namespace Nodes
             return widget;
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private slots:
         /**
          * @brief 通道数量改变时的处理

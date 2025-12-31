@@ -15,12 +15,12 @@
 #include "DataTypes/NodeDataList.hpp"
 #include "opencv2/imgcodecs/imgcodecs.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace Nodes;
 namespace Nodes
 {
-    class ColorFDataModel final : public QtNodes::NodeDelegateModel
+    class ColorFDataModel final : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -43,7 +43,6 @@ namespace Nodes
 
         void load(const QJsonObject &p) override;
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override ;
     public Q_SLOTS:
         void toggleEditorMode();
     private:

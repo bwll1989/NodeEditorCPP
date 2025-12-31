@@ -3,18 +3,19 @@
 #include <QPushButton>
 #include "AbstractClipModel.hpp"
 #include <QJsonArray>
-#include "../../Common/Devices/OSCSender/OSCSender.h"
+
+#include "AbstractClipDelegateModel.h"
 #include "OscListWidget/OSCMessageListWidget.hpp"
 namespace Clips
 {
-    class TriggerClipModel : public AbstractClipModel {
+    class TriggerClipModel : public AbstractClipDelegateModel {
         Q_OBJECT
     public:
 
 
-        TriggerClipModel(int start): AbstractClipModel(start,"Trigger"),
+        TriggerClipModel(int start): AbstractClipDelegateModel(start,"Trigger"),
         m_editor(nullptr),
-        m_listWidget(new OSCMessageListWidget(m_editor))
+        m_listWidget(new OSCMessageListWidget(true,m_editor))
         {
             setEnd(start);
             RESIZEABLE = false;
@@ -36,6 +37,7 @@ namespace Clips
         void load(const QJsonObject& json) override {
             AbstractClipModel::load(json);
             m_listWidget->load(json);
+            updateOSCRegistration();
 
         }
 
@@ -89,7 +91,8 @@ namespace Clips
             auto messages = m_listWidget->getOSCMessages();
             for(auto message : messages){
 
-                OSCSender::instance()->sendOSCMessageWithQueue(message);
+                StatusContainer::instance()->parseOSC(message);
+                // OSCSender::instance()->sendOSCMessageWithQueue(message);
             }
         }
 

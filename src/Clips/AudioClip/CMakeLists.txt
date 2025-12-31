@@ -27,6 +27,8 @@ set(SOURCES
     audioclipmodel.hpp
     audioclipplugin.hpp
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
+        ../AbstractClipDelegateModel.cpp
+        ../AbstractClipDelegateModel.h
 )
 
 # 创建插件库
@@ -65,6 +67,7 @@ target_link_libraries(AudioClip PUBLIC
     ClientController
     MediaManger
     GUIElements
+    StatusContainer
 )
 
 # 包含目录

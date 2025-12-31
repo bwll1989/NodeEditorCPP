@@ -3,7 +3,7 @@
 #include <QtNodes/NodeDelegateModel>
 
 #include <QtCore/QObject>
-
+#include "AbstractDelegateModel.h"
 #include <iostream>
 #include <QLineEdit>
 #include "../../DataTypes/NodeDataList.hpp"
@@ -16,7 +16,7 @@ using QtNodes::PortType;
 /// The model dictates the number of inputs and outputs for the Node.
 /// In this example it has no logic.
 namespace Nodes {
-    class ImageOutDataModel : public NodeDelegateModel
+    class ImageOutDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 

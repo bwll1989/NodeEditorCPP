@@ -4,6 +4,8 @@
 
 #include "TimeLineView.h"
 #include "DefaultTimeLineToolBar.h"
+#include "TimeLineToolbar.h"
+
 TimeLineView::TimeLineView(TimeLineModel* model, QWidget *parent) : BaseTimelineView(model, parent)
 {
     //将时间游标的显示与模型中的时钟相绑定
@@ -158,29 +160,29 @@ void TimeLineView::initToolBar(BaseTimelineToolbar *toolbar)
     // 设置工具栏位置
      this->m_toolbar->move(0, 2);
     // 连接工具栏播放按钮信号
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(this->m_toolbar), &DefaultTimeLineToolBar::playClicked, [this]() {
+    connect(dynamic_cast<TimeLineToolBar*>(this->m_toolbar), &TimeLineToolBar::playClicked, [this]() {
         getModel()->onStartPlay();
     });
     // 连接工具栏停止按钮信号
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(m_toolbar), &DefaultTimeLineToolBar::stopClicked, [this]() {
+    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::stopClicked, [this]() {
         getModel()->onStopPlay();
     });
     // 连接工具栏暂停按钮信号
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(m_toolbar), &DefaultTimeLineToolBar::pauseClicked, [this]() {
+    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::pauseClicked, [this]() {
         getModel()->onPausePlay();
     });
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(m_toolbar),&DefaultTimeLineToolBar::prevFrameClicked,[this](){
+    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar),&TimeLineToolBar::prevFrameClicked,[this](){
        getModel()->onSetPlayheadPos(qMax(0,getModel()->getPlayheadPos()-1));
     });
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(m_toolbar),&DefaultTimeLineToolBar::nextFrameClicked,[this](){
+    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar),&TimeLineToolBar::nextFrameClicked,[this](){
         getModel()->onSetPlayheadPos(getModel()->getPlayheadPos()+1);
     });
     // 连接移动剪辑按钮信号
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(m_toolbar), &DefaultTimeLineToolBar::moveClipClicked, [this](int dx) {
+    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::moveClipClicked, [this](int dx) {
         moveSelectedClip(dx,0,false);
     });
     // 连接删除剪辑按钮信号
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(m_toolbar), &DefaultTimeLineToolBar::deleteClipClicked, [this]() {
+    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::deleteClipClicked, [this]() {
         if(selectionModel()->selectedIndexes().isEmpty())
             return;
 
@@ -195,7 +197,7 @@ void TimeLineView::initToolBar(BaseTimelineToolbar *toolbar)
     });
 
     // 连接放大按钮信号
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(m_toolbar), &DefaultTimeLineToolBar::zoomInClicked, [this]() {
+    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::zoomInClicked, [this]() {
         currentScale = currentScale * 1.1;
 
                 // 允许达到 0.0，从而触达 setScale 的 minTimescale
@@ -203,7 +205,7 @@ void TimeLineView::initToolBar(BaseTimelineToolbar *toolbar)
        setScale(currentScale);
     });
     // 连接缩小按钮信号
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(m_toolbar), &DefaultTimeLineToolBar::zoomOutClicked, [this]() {
+    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::zoomOutClicked, [this]() {
         currentScale = currentScale * 0.9;
 
         // 允许达到 0.0，从而触达 setScale 的 minTimescale
@@ -211,12 +213,12 @@ void TimeLineView::initToolBar(BaseTimelineToolbar *toolbar)
         setScale(currentScale);
     });
     connect( dynamic_cast<TimeLineModel*>(getModel())->getClock(), &TimeLineClock::timecodePlayingChanged,
-       dynamic_cast<DefaultTimeLineToolBar*>(this->m_toolbar),&DefaultTimeLineToolBar::setPlaybackState);
+       dynamic_cast<TimeLineToolBar*>(this->m_toolbar),&TimeLineToolBar::setPlaybackState);
 
     // 连接循环按钮信号
-    connect(dynamic_cast<DefaultTimeLineToolBar*>(m_toolbar), &DefaultTimeLineToolBar::loopToggled, [this](bool loop) {
+    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::loopToggled, [this](bool loop) {
         dynamic_cast<TimeLineModel*>(getModel())->onSetLoop(loop);
     });
     connect( dynamic_cast<TimeLineModel*>(getModel())->getClock(), &TimeLineClock::loopingChanged,
-       dynamic_cast<DefaultTimeLineToolBar*>(this->m_toolbar),&DefaultTimeLineToolBar::setLoopState);
+       dynamic_cast<TimeLineToolBar*>(this->m_toolbar),&TimeLineToolBar::setLoopState);
 }

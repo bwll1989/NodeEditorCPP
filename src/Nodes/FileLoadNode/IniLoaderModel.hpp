@@ -20,14 +20,13 @@
 #include "ConstantDefines.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
-#include "OSCMessage.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class IniLoaderModel : public NodeDelegateModel
+    class IniLoaderModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -46,7 +45,7 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outIniData=std::make_shared<VariableData>();
-            NodeDelegateModel::registerOSCControl("/file",_fileSelectComboBox);
+            AbstractDelegateModel::registerOSCControl("/file",_fileSelectComboBox);
             connect(_fileSelectComboBox, &SelectorComboBox::textChanged, this, &IniLoaderModel::loadIni);
         }
         ~IniLoaderModel() override = default;
@@ -100,18 +99,7 @@ namespace Nodes
             }
         }
 
-        /**
-         * @brief 将节点状态通过OSC反馈（保持原有逻辑）
-         */
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
 
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private:
         /**
          * @brief 打开并解析INI文件，输出到端口0

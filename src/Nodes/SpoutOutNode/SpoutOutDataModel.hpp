@@ -27,7 +27,7 @@
 #include <QtGui/QOffscreenSurface>
 #include <QtGui/QSurfaceFormat>
 #include <QtCore/QMetaType>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 // 使用 SpoutLibrary API 而不是 SpoutReceiver
 #include "SpoutLibrary.h"
 
@@ -409,7 +409,7 @@ namespace Nodes
      * 
      * 提供Spout图像接收功能，支持多发送器选择和实时图像传输
      */
-    class SpoutOutDataModel : public NodeDelegateModel
+    class SpoutOutDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 

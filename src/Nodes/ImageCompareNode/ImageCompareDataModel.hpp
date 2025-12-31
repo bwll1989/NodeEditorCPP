@@ -12,7 +12,7 @@
 #include "PluginDefinition.hpp"
 #include "ImageCompareInterface.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -21,7 +21,7 @@ using namespace NodeDataTypes;
 using namespace std;
 namespace Nodes
 {
-    class ImageCompareDataModel : public NodeDelegateModel
+    class ImageCompareDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -37,7 +37,7 @@ namespace Nodes
             PortEditable= false;
             m_outVariable=std::make_shared<VariableData>();
             connect(widget->methodEdit,&QComboBox::currentIndexChanged,this,&ImageCompareDataModel::calculateImagedifference);
-            NodeDelegateModel::registerOSCControl("/method",widget->methodEdit);
+            AbstractDelegateModel::registerOSCControl("/method",widget->methodEdit);
 
         }
 
@@ -233,15 +233,6 @@ namespace Nodes
             }
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private:
         QFutureWatcher<double>* m_watcher = nullptr;
         ImageCompareInterface *widget=new ImageCompareInterface();

@@ -28,7 +28,7 @@ target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Quick
         Qt${QT_VERSION_MAJOR}::QuickWidgets
         Qt${QT_VERSION_MAJOR}::Network
-        OSCTransmitter
+        BuildInNodes
         ${QtNodes_LIBRARIES}
         DataTypes
 )

@@ -12,7 +12,7 @@ add_library(${Module_Name} SHARED
         PluginDefinition.hpp
         PluginDefinition.cpp)
 #set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} OSCTransmitter Qt${QT_VERSION_MAJOR}::Network DataTypes)
+target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} BuildInNodes Qt${QT_VERSION_MAJOR}::Network DataTypes)
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"

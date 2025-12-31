@@ -10,6 +10,7 @@
 #include <QtQuickWidgets/QQuickWidget>
 // #include "DockManager.h"
 // #include "DockHub/DockHub.hpp"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -20,7 +21,7 @@ namespace Nodes
 {
     /// The model dictates the number of inputs and outputs for the Node.
     /// In this example it has no logic.
-    class DataInfoDataModel : public NodeDelegateModel
+    class DataInfoDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
     

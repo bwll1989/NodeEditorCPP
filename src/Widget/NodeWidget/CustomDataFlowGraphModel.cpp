@@ -11,6 +11,8 @@
 #include "Widget/PortEditWidget/PortEditAddRemoveWidget.hpp"
 #include <QJsonArray>
 #include <QToolBox>
+
+#include "../../Common/BuildInNodes/AbstractDelegateModel.h"
 #include "DataTypes/NodeDataList.hpp"
 using QtNodes::InvalidNodeId;
 using QtNodes::ConnectionPolicy;
@@ -83,6 +85,9 @@ NodeId CustomDataFlowGraphModel::addNode(QString const nodeType)
         NodeId newId = newNodeId();
         model->setNodeID(newId);
         model->setParentAlias(this->modelAlias());
+        if (auto derived = dynamic_cast<AbstractDelegateModel*>(model.get())) {
+            derived->onModelReady();
+        }
         connect(model.get(),
                 &NodeDelegateModel::dataUpdated,
                 [newId, this](PortIndex const portIndex) {
@@ -750,6 +755,10 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
         setNodeData(restoredNodeId, NodeRole::InPortCount, nodeJson["input-count"].toInt());
         setNodeData(restoredNodeId, NodeRole::OutPortCount, nodeJson["output-count"].toInt());
         _models[restoredNodeId]->load(internalDataJson);
+
+        if (auto derived = dynamic_cast<AbstractDelegateModel*>(_models[restoredNodeId].get())) {
+            derived->onModelReady();
+        }
     } else {
         //创建失败，抛出异常
         qCritical() << "Failed to load node: " << nodeJson["id"].toString();

@@ -11,7 +11,7 @@
 #include "PluginDefinition.hpp"
 #include "ImageThresholdInterface.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -20,7 +20,7 @@ using namespace NodeDataTypes;
 using namespace std;
 namespace Nodes
 {
-    class ImageThresholdDataModel : public NodeDelegateModel
+    class ImageThresholdDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -39,9 +39,9 @@ namespace Nodes
             connect(widget->maxvalEdit,&QSpinBox::valueChanged,this,&ImageThresholdDataModel::updateImage);
             connect(widget->methodEdit,&QComboBox::currentIndexChanged,this,&ImageThresholdDataModel::updateImage);
 
-            NodeDelegateModel::registerOSCControl("/method",widget->methodEdit);
-            NodeDelegateModel::registerOSCControl("/thresh",widget->threshEdit);
-            NodeDelegateModel::registerOSCControl("/maxval",widget->maxvalEdit);
+            AbstractDelegateModel::registerOSCControl("/method",widget->methodEdit);
+            AbstractDelegateModel::registerOSCControl("/thresh",widget->threshEdit);
+            AbstractDelegateModel::registerOSCControl("/maxval",widget->maxvalEdit);
         }
 
         virtual ~ImageThresholdDataModel() override{}
@@ -175,15 +175,6 @@ namespace Nodes
             }
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private:
 
         ImageThresholdInterface *widget=new ImageThresholdInterface();

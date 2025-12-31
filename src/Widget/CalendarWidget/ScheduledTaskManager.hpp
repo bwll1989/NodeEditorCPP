@@ -7,7 +7,7 @@
 #include <QMap>
 #include <QString>
 #include "ScheduledTaskModel.hpp"
-#include "../../Common/Devices/OSCSender/OSCSender.h"
+// #include "../../Common/Devices/OSCSender/OSCSender.h"
 
 /**
  * @brief 计划任务执行器
@@ -60,7 +60,7 @@ public:
      * @brief 设置是否使用队列发送（true：入队列；false：直接发送）
      * @param useQueue 布尔
      */
-    void setUseQueue(bool useQueue);
+    // void setUseQueue(bool useQueue);
 
 signals:
     /**
@@ -96,7 +96,7 @@ private:
      * @brief 发送 OSC 消息（可选择直接或入队列）
      * @param msg OSCMessage
      */
-    void sendOsc(const OSCMessage& msg);
+    void executeTask(const OSCMessage& msg);
 
     /**
      * @brief 为任务生成稳定键，用于防重复/防抖标识
@@ -109,7 +109,7 @@ private:
     QTimer m_timer;
     ScheduledTaskModel* m_model = nullptr;
     int m_toleranceSec = 1;
-    bool m_useQueue = true;
+    // bool m_useQueue = true;
     // 循环任务（loop）最近一次触发时间
     QMap<QString, QDateTime> m_lastTriggerTime;
 };

@@ -17,6 +17,7 @@
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include <algorithm>
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -25,7 +26,7 @@ using namespace NodeDataTypes;
 using namespace std;
 namespace Nodes
 {
-    class YoloPoseONNXDataModel : public NodeDelegateModel
+    class YoloPoseONNXDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 

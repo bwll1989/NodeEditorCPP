@@ -1,5 +1,7 @@
 #include "ScheduledTaskManager.hpp"
 
+#include "StatusContainer/StatusContainer.h"
+
 /**
  * @brief 构造：可选传入模型，默认不启动定时器
  */
@@ -47,9 +49,9 @@ void ScheduledTaskManager::setToleranceSeconds(int seconds) {
 /**
  * @brief 设置发送方式（队列/直接）
  */
-void ScheduledTaskManager::setUseQueue(bool useQueue) {
-    m_useQueue = useQueue;
-}
+// void ScheduledTaskManager::setUseQueue(bool useQueue) {
+//     m_useQueue = useQueue;
+// }
 
 /**
  * @brief 定时器回调：轮询并执行任务
@@ -74,8 +76,8 @@ void ScheduledTaskManager::onTick() {
         }
 
         if (fire) {
-            qDebug()<<"The scheduled task has been carried out"<<item.remarks;
-            sendOsc(item.osc);
+            qDebug()<<"The scheduled task has been carried out"<<item.remarks<<item.scheduled.time.toString("yyyy-MM-dd hh:mm:ss");
+            executeTask(item.osc);
             emit taskExecuted(item);
         }
     }
@@ -155,12 +157,12 @@ bool ScheduledTaskManager::shouldTriggerLoop(const ScheduledTaskItem& item, cons
 /**
  * @brief 发送 OSC 消息（队列或直接）
  */
-void ScheduledTaskManager::sendOsc(const OSCMessage& msg) {
-    if (m_useQueue) {
-         OSCSender::instance()->sendOSCMessageWithQueue(msg);
-    } else {
-        OSCSender::instance()->sendOSCMessageDirectly(msg);
-    }
+void ScheduledTaskManager::executeTask(const OSCMessage& msg) {
+    // if (m_useQueue) {
+         StatusContainer::instance()->parseOSC(msg);
+    // } else {
+    //     OSCSender::instance()->sendOSCMessageDirectly(msg);
+    // }
 }
 
 /**

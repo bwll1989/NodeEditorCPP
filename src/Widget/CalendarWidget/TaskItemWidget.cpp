@@ -76,8 +76,8 @@ void TaskItemWidget::setupUI() {
     );
     addressEdit->setPlaceholderText("address");
 
-    typeCombo = new QComboBox(this);
-    typeCombo->addItems({ "Int", "Float","String"});
+    // typeCombo = new QComboBox(this);
+    // typeCombo->addItems({ "Int", "Float","String"});
 
 
     valueEdit = new QLineEdit(this);
@@ -96,7 +96,7 @@ void TaskItemWidget::setupUI() {
 
     // 标签（缩小宽度，增强可读性）
     auto* addressLabel = new QLabel(tr("地址"), this);
-    auto* typeLabel    = new QLabel(tr("类型"), this);
+    auto* typeLabel    = new QLabel(tr("数值"), this);
     addressLabel->setMinimumWidth(36);
     typeLabel->setMinimumWidth(36);
 
@@ -107,16 +107,16 @@ void TaskItemWidget::setupUI() {
     currentRow++;
     // 第四行：类型与值（类型标签+选择、值标签+输入）
     mainLayout->addWidget(typeLabel,    currentRow, 0, 1, 1);
-    mainLayout->addWidget(typeCombo,    currentRow, 1, 1, 1);
+    // mainLayout->addWidget(typeCombo,    currentRow, 1, 1, 1);
 
-    mainLayout->addWidget(valueEdit,    currentRow, 2, 1, 2);
+    mainLayout->addWidget(valueEdit,    currentRow, 1, 1, 3);
     currentRow++;
     //  设置控件的尺寸策略：输入框为横向可扩展，按钮为固定
     // hostEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     addressEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     valueEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     // typeCombo 默认不会扩展，保持较小宽度；如需可扩展可改为 Expanding
-    typeCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    // typeCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     btnTest->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     // 列弹性：标签列最小，输入列伸展，按钮列固定
@@ -170,7 +170,7 @@ void TaskItemWidget::connectSignals() {
     connect(valueEdit, &QLineEdit::editingFinished, this, emitChange);
 
     // 类型选择：只响应用户选择（避免程序化设置或滚轮误触发）
-    connect(typeCombo, QOverload<int>::of(&QComboBox::activated), this, emitChange);
+    // connect(typeCombo, QOverload<int>::of(&QComboBox::activated), this, emitChange);
 
     connect(remarkEdit, &QLineEdit::textEdited, this, emitChange);
     connect(remarkEdit, &QLineEdit::editingFinished, this, emitChange);
@@ -214,7 +214,7 @@ OSCMessage TaskItemWidget::getMessage() const
     msg.port=AppConstants::EXTRA_CONTROL_PORT;
     // 地址与类型/值
     msg.address = addressEdit->text().trimmed();
-    msg.type = typeCombo->currentText();
+    // msg.type = typeCombo->currentText();
 
     // 简单将值作为字符串保存（如需更严格类型转换，可扩展）
     msg.value = valueEdit->text();
@@ -236,7 +236,7 @@ void TaskItemWidget::setMessage(const OSCMessage& message)
     //     hostEdit->setText(QString("%1:%2").arg(message.host).arg(message.port));
     // }
     addressEdit->setText(message.address);
-    typeCombo->setCurrentText(message.type);
+    // typeCombo->setCurrentText(message.type);
     if (message.type == "Int") {
         valueEdit->setText(QString::number(message.value.toInt()));
 

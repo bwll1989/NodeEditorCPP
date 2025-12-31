@@ -6,6 +6,7 @@
 #include <QtNodes/NodeDelegateModel>
 #include "DataTypes/NodeDataList.hpp"
 #include "QPropertyBrowser.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -14,7 +15,7 @@ using QtNodes::PortType;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class ImageInfoModel : public NodeDelegateModel {
+    class ImageInfoModel : public AbstractDelegateModel {
         Q_OBJECT
     public:
         ImageInfoModel() {

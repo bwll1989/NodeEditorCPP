@@ -77,17 +77,6 @@ void ToHSVDataModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeData
     onColorChanged(m_color);
 }
 
-
-void ToHSVDataModel::stateFeedBack(const QString& oscAddress,QVariant value){
-
-    OSCMessage message;
-    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-    message.value = value;
-    OSCSender::instance()->sendOSCMessageWithQueue(message);
-}
-
 void ToHSVDataModel::onColorChanged(const QColor& c) {
     m_color = c;
     QPixmap pix(widget->display->width(), widget->display->height());

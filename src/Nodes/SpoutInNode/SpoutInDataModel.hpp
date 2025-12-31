@@ -26,7 +26,7 @@
 #include <iostream>
 #include <vector>
 #include <memory>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -41,7 +41,7 @@ namespace Nodes
      * 
      * 提供Spout图像接收功能，支持多发送器选择和实时图像传输
      */
-    class SpoutInDataModel : public NodeDelegateModel
+    class SpoutInDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -61,8 +61,8 @@ namespace Nodes
             Resizable = false;
             PortEditable = false;
             initializeReceiver();
-            NodeDelegateModel::registerOSCControl("/source",m_widget->m_senderComboBox);
-            NodeDelegateModel::registerOSCControl("/enable",m_widget->m_startStopButton);
+            AbstractDelegateModel::registerOSCControl("/source",m_widget->m_senderComboBox);
+            AbstractDelegateModel::registerOSCControl("/enable",m_widget->m_startStopButton);
         }
 
         /**

@@ -8,13 +8,13 @@
 #include <QFutureWatcher>
 #include <QPushButton>
 #include "DataTypes/NodeDataList.hpp"
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 class QPushButton;
 using namespace QtNodes;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class CaptureModel final : public QtNodes::NodeDelegateModel {
+    class CaptureModel final : public AbstractDelegateModel {
         Q_OBJECT
 
     public:
@@ -89,7 +89,7 @@ namespace Nodes
         QWidget* embeddedWidget() override{
             if (!m_button) {
                 m_button = new QPushButton("Capture");
-                registerOSCControl("/capture",m_button);
+                AbstractDelegateModel::registerOSCControl("/capture",m_button);
                 connect(m_button, &QPushButton::clicked, this, &CaptureModel::captureClicked);
             }
             return m_button;

@@ -7,7 +7,7 @@
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "InternalControlInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
 #include "ConstantDefines.h"
@@ -17,7 +17,7 @@ using namespace Nodes;
 using namespace QtNodes;
 namespace Nodes
 {
-    class InternalControlModel final : public QtNodes::NodeDelegateModel
+    class InternalControlModel final : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -39,9 +39,9 @@ namespace Nodes
         QJsonObject save() const override;
 
         void load(const QJsonObject &p) override;
+
         ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override ;
-    public Q_SLOTS:
-        void stateFeedBack(const QString& oscAddress,QVariant value) override;
+
     private Q_SLOTS:
         void trigger();
     private:

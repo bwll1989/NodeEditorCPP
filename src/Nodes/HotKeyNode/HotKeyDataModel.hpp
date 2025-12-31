@@ -13,6 +13,7 @@
 #include "QSpinBox"
 #include "HotKeyInterface.hpp"
 #include "HotKeyItem.hpp"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -22,7 +23,7 @@ using namespace std;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class HotKeyDataModel : public NodeDelegateModel
+    class HotKeyDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 

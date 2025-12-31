@@ -192,9 +192,9 @@ void MainWindow::init()
     // emit initStatus("Initialization Property Widget success");
     // 外部控制器
     controller=new ExternalControler();
-    controller->setDataflowModels(dataflowViewsManger->getModel());
-    controller->setTimelineModel(timelineModel);
-    controller->setTimelineToolBarMap(timeline->view->m_toolbar->getOscMapping());
+    // controller->setDataflowModels(dataflowViewsManger->getModel());
+    // controller->setTimelineModel(timelineModel);
+    // controller->setTimelineToolBarMap(timeline->view->m_toolbar->getOscMapping());
     emit initStatus("Initialization external controler success");
 	 // http 服务器
     httpServer=new NodeStudio::NodeHttpServer();

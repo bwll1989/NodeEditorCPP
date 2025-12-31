@@ -38,6 +38,7 @@ target_link_libraries(${Module_Name}  PRIVATE
         MediaManger
         GUIElements
         DataTypes
+        BuildInNodes
 )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

@@ -17,7 +17,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 // FFmpeg头文件
 extern "C" {
 #include <libavformat/avformat.h>
@@ -40,7 +40,7 @@ namespace Nodes
  * 支持HAP 25fps格式视频，水平128像素RGBA代表512个DMX通道，竖直每4行代表一个Universe
  * 支持动态Universe数量，根据视频高度自动计算
  */
-class UniversePlaybackDataModel : public NodeDelegateModel
+class UniversePlaybackDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
 
@@ -232,15 +232,6 @@ public:
             return widget;
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
 signals:
     /**
      * @brief 错误发生信号

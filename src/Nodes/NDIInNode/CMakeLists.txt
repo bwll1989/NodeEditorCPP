@@ -27,7 +27,7 @@ target_link_libraries(${Module_Name}
 		${OpenCV_LIBRARIES}
 		${NDI_LIBRARIES}
 		Qt${QT_VERSION_MAJOR}::OpenGL
-		OSCTransmitter
+		BuildInNodes
 		opengl32  # 添加OpenGL32库
 		glu32     # 添加GLU32库
 		DataTypes)

@@ -8,9 +8,8 @@
 #include <QtCore/qglobal.h>
 #include "MqttInterface.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/MqttClient/MqttClient.h"
-#include "OSCMessage.h"
 #include <QtWidgets/QSpinBox>
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -21,7 +20,7 @@ using namespace NodeDataTypes;
 using namespace QtNodes;
 namespace Nodes
 {
-    class MqttDataModel : public NodeDelegateModel
+    class MqttDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -37,14 +36,14 @@ namespace Nodes
             PortEditable = false;
             m_outData = std::make_shared<VariableData>();
 
-            NodeDelegateModel::registerOSCControl("/host", widget->hostEdit);
-            NodeDelegateModel::registerOSCControl("/port", widget->portSpinBox);
-            NodeDelegateModel::registerOSCControl("/username", widget->usernameEdit);
-            NodeDelegateModel::registerOSCControl("/password", widget->passwordEdit);
-            NodeDelegateModel::registerOSCControl("/topic", widget->topicEdit);
-            NodeDelegateModel::registerOSCControl("/payload", widget->payloadEdit);
-            NodeDelegateModel::registerOSCControl("/publish", widget->publishButton);
-            NodeDelegateModel::registerOSCControl("/connect", widget->statusButton);
+            AbstractDelegateModel::registerOSCControl("/host", widget->hostEdit);
+            AbstractDelegateModel::registerOSCControl("/port", widget->portSpinBox);
+            AbstractDelegateModel::registerOSCControl("/username", widget->usernameEdit);
+            AbstractDelegateModel::registerOSCControl("/password", widget->passwordEdit);
+            AbstractDelegateModel::registerOSCControl("/topic", widget->topicEdit);
+            AbstractDelegateModel::registerOSCControl("/payload", widget->payloadEdit);
+            AbstractDelegateModel::registerOSCControl("/publish", widget->publishButton);
+            AbstractDelegateModel::registerOSCControl("/connect", widget->statusButton);
 
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, &MqttDataModel::connectChange, Qt::QueuedConnection);
             connect(widget->portSpinBox, qOverload<int>(&QSpinBox::valueChanged), this, &MqttDataModel::connectChange, Qt::QueuedConnection);
@@ -210,15 +209,6 @@ namespace Nodes
             return result;
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     public slots:
         void connectChange()
         {

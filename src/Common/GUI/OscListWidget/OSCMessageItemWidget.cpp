@@ -221,7 +221,7 @@ void OSCMessageItemWidget::setMessage(const OSCMessage& message)
     addressEdit->setText(message.address);
     
     // 设置类型和值
-    typeCombo->setCurrentText(message.type);
+    typeCombo->setCurrentText(message.type.isEmpty() ? "String" : message.type);
 
     setExpression(message.value.toString());
 }

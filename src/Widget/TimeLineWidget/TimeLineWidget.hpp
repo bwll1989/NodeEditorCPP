@@ -2,20 +2,14 @@
 // Created by bwll1 on 2024/5/27.
 //
 #pragma once
-
-#include <QToolBar>
-
-
+#include "TimeLineToolbar.h"
 #include "TimeLineStyle.h"
 #include <QWidget>
 #include "TimeLineModel.h"
 #include "TimeLineView.h"
 #include "TrackListView.h"
-#include "BaseTimeLineToolBar.h"
 #include <QSplitter>
 #include <QVBoxLayout>
-
-#include "DefaultTimeLineToolBar.h"
 #include "./TimelineSettingWidget/TimeLineSetting.hpp"
 
 
@@ -38,7 +32,7 @@ public:
     //轨道列表
     TrackListView* tracklist;
     //工具栏
-    DefaultTimeLineToolBar* toolbar;
+    TimeLineToolBar* toolbar;
     //设置窗口
     TimeLineSetting* settingsDialog;
 signals:

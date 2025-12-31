@@ -17,6 +17,7 @@
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include <algorithm>
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -26,7 +27,7 @@ using namespace std;
 
 namespace Nodes
 {
-    class YoloDetectionONNXDataModel : public NodeDelegateModel
+    class YoloDetectionONNXDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -45,9 +46,9 @@ namespace Nodes
             model_path="./plugins/Models/yolo11n-Detection.onnx";
             // model_path="./plugins/Models/AnimeGANv3_Hayao_36.onnx";
 
-            NodeDelegateModel::registerOSCControl("/enable",widget->EnableBtn);
-            NodeDelegateModel::registerOSCControl("/filter",widget->ClassSelectorComboBox);
-            NodeDelegateModel::registerOSCControl("/confidence",widget->ConfidenceFilterSpinBox);
+            AbstractDelegateModel::registerOSCControl("/enable",widget->EnableBtn);
+            AbstractDelegateModel::registerOSCControl("/filter",widget->ClassSelectorComboBox);
+            AbstractDelegateModel::registerOSCControl("/confidence",widget->ConfidenceFilterSpinBox);
 
         }
 

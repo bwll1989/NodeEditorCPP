@@ -8,7 +8,7 @@
 #include <QtCore/qglobal.h>
 #include "HoldInterface.hpp"
 #include "ConstantDefines.h"
-#include "OSCSender/OSCSender.h"
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -23,7 +23,7 @@ namespace Nodes
      * 输入值会保持设定时间，时间到达后信号清空
      * 支持两种重复信号处理模式：忽略模式和重置模式
      */
-    class HoldDataModel : public NodeDelegateModel
+    class HoldDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
@@ -48,8 +48,8 @@ namespace Nodes
             // 设置定时器为单次触发
             timer->setSingleShot(true);
             connect(timer, &QTimer::timeout, this, &HoldDataModel::holdTimeExpired);
-            NodeDelegateModel::registerOSCControl("/time",widget->value);
-            NodeDelegateModel::registerOSCControl("/ignoreRepeat",widget->ignoreRepeatCheckBox);
+            AbstractDelegateModel::registerOSCControl("/time",widget->value);
+            AbstractDelegateModel::registerOSCControl("/ignoreRepeat",widget->ignoreRepeatCheckBox);
         }
 
         /**
@@ -182,31 +182,7 @@ namespace Nodes
             return widget;
         }
 
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-            auto result = ConnectionPolicy::One;
-            switch (portType) {
-                case PortType::In:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::Out:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::None:
-                    break;
-            }
 
-            return result;
-        }
-
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
-        }
     private slots:
         /**
          * @brief 保持时间到期处理函数

@@ -27,7 +27,10 @@ set(SOURCES
     Artnetclipmodel.hpp
     Artnetclipmodel.cpp
     Artnetclipplugin.hpp
+
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
+    ../AbstractClipDelegateModel.cpp
+    ../AbstractClipDelegateModel.h
 #        ../../Widget/ExternalControl/ExternalControler.cpp
 #       ../../Widget/ExternalControl/ExternalControler.hpp
 
@@ -69,7 +72,7 @@ target_link_libraries(ArtnetClip PUBLIC
     ArtnetTransmitter
         MediaManger
         GUIElements
-
+    StatusContainer
 )
 
 # 包含目录

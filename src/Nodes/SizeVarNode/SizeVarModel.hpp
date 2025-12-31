@@ -11,15 +11,14 @@
 #include "OSCMessage.h"
 #include "DataTypes/NodeDataList.hpp"
 #include "ui_SizeVarForm.h"
-#include "OSCSender/OSCSender.h"
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 namespace Ui {
     class SizeVarForm;
 }
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class SizeVarModel final : public QtNodes::NodeDelegateModel {
+    class SizeVarModel final : public AbstractDelegateModel {
         Q_OBJECT
     public:
         SizeVarModel() {
@@ -33,8 +32,8 @@ namespace Nodes
             m_ui->setupUi(m_widget);
             connect(m_ui->sb_width, &QLineEdit::textChanged, this ,&SizeVarModel::updateOutput);
             connect(m_ui->sb_height, &QLineEdit::textChanged, this ,&SizeVarModel::updateOutput);
-            NodeDelegateModel::registerOSCControl("/width",m_ui->sb_width);
-            NodeDelegateModel::registerOSCControl("/height",m_ui->sb_height);
+            AbstractDelegateModel::registerOSCControl("/width",m_ui->sb_width);
+            AbstractDelegateModel::registerOSCControl("/height",m_ui->sb_height);
 
         };
 
@@ -116,16 +115,6 @@ namespace Nodes
                 m_ui->sb_width->setText(v["width"].toString());
                 m_ui->sb_height->setText(v["height"].toString());
             }
-        }
-
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
         }
 
     private slots:

@@ -8,6 +8,7 @@
 #include <QLineEdit>
 #include "../../DataTypes/NodeDataList.hpp"
 #include "../Devices/ModelDataBridge/ModelDataBridge.hpp"
+#include "AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -17,7 +18,7 @@ using QtNodes::PortType;
 /// In this example it has no logic.
 namespace Nodes
 {
-class AudioOutDataModel : public NodeDelegateModel
+class AudioOutDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
 

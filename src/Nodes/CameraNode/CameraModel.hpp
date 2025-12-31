@@ -21,7 +21,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
 #include <vector>
-
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 namespace Ui {
     class CameraForm;
 }
@@ -203,7 +203,7 @@ private:
 
 namespace Nodes
 {
-    class CameraModel final : public QtNodes::NodeDelegateModel {
+    class CameraModel final : public AbstractDelegateModel {
         Q_OBJECT
 
     public:
@@ -252,12 +252,12 @@ namespace Nodes
 
 
         QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override{  switch (portType) {
-        case QtNodes::PortType::In:
-            return ImageData().type();
-        case QtNodes::PortType::Out:
-            return ImageData().type();
-        default:
-            return ImageData().type();
+            case QtNodes::PortType::In:
+                return ImageData().type();
+            case QtNodes::PortType::Out:
+                return ImageData().type();
+            default:
+                return ImageData().type();
         }}
 
         void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{}
