@@ -25,6 +25,14 @@ LtcDecoder::~LtcDecoder()
 }
 
 
+/**
+ * @brief 写入音频数据并进行LTC解码（Float32）
+ * 使用 libltc 的 ltc_decoder_write_float 接口，将 32 位浮点音频样本输入解码器。
+ * 假设输入为单通道或已选定携带LTC的通道，数据为连续的 float32 样本。
+ * @param data 音频数据指针（float32）
+ * @param len  数据字节数
+ * @return 实际消费的字节数
+ */
 qint64 LtcDecoder::writeData(const char *data, qint64 len)
 {
 
@@ -37,8 +45,11 @@ qint64 LtcDecoder::writeData(const char *data, qint64 len)
   SMPTETimecode ltc_stime;
   TimeCodeFrame frame;
 
-  size_t sampleCount = len / sizeof(int16_t);
-  ltc_decoder_write_s16(ltc, (short *)data, sampleCount, 0);
+  // 以 float32 作为输入格式
+  size_t sampleCount = static_cast<size_t>(len) / sizeof(float);
+  if (sampleCount > 0) {
+    ltc_decoder_write_float(ltc, (float *)data, sampleCount, 0);
+  }
 
   while(ltc_decoder_read(ltc, &ltc_frame))
   {

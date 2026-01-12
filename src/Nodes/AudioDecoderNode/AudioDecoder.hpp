@@ -82,6 +82,9 @@ public:
 signals:
     // 发送解码后的音频数据
     void audioFrameReady(AudioFrame frame);
+    // 播放进度信号 (当前时间秒, 总时间秒)
+    void playbackProgress(double currentSec, double totalSec);
+
 public slots:
     /**
      * @brief 处理音频帧，支持动态通道数，使用内存块拷贝优化的音频通道分离
@@ -116,7 +119,7 @@ private:
 
 
     // 将解码得到的PCM累积并按固定1920采样/声道切片发送
-    int processPcmAndEmitFixedFrames(const uint8_t* interleavedPcmS16,
+    int processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
                                      int samplesPerChannel,
                                      int channels,
                                      int sampleRate);
@@ -142,7 +145,7 @@ private:
     float volume = 0.5f;     // 音量控制 (0.0 - 1.0)
     std::map<int, std::shared_ptr<AudioTimestampRingQueue>> channelAudioBuffers;  // 动态通道环形缓冲区
 
-    // 固定帧大小切片的累积缓冲（S16交织）
+    // 固定帧大小切片的累积缓冲（Float32交织）
     QByteArray pendingInterleavedPcm_;
     int pendingSamplesPerChannel_ = 0;
     int lastChannels_ = 0;

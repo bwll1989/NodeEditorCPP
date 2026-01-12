@@ -12,7 +12,6 @@ namespace Nodes
         : QObject(parent)
         , _ltcDecoder(nullptr)
         , _audioBuffer(nullptr)
-        , _processingTimer(new QTimer(this))
         , _isProcessing(false)
         , _lastProcessedTimestamp(0)
     {
@@ -21,10 +20,6 @@ namespace Nodes
         
         // 连接LTC解码器的信号
         connect(_ltcDecoder, &LtcDecoder::newFrame, this, &LTCDecoderWorker::onLtcDecoderNewFrame);
-        
-        // 设置处理定时器
-        _processingTimer->setInterval(15); // 10ms间隔处理音频数据
-        connect(_processingTimer, &QTimer::timeout, this, &LTCDecoderWorker::processAudioData);
 
     }
     
@@ -75,8 +70,11 @@ namespace Nodes
             _isProcessing = true;
             _lastProcessedTimestamp = 0;
             
-            // 启动处理定时器
-            _processingTimer->start();
+            QObject::connect(TimestampGenerator::getInstance(),
+                             &TimestampGenerator::frameCountUpdated,
+                             this,
+                             &LTCDecoderWorker::onFrameTick,
+                             Qt::QueuedConnection);
             emit processingStatusChanged(true);
 
         }
@@ -92,10 +90,10 @@ namespace Nodes
         if (_isProcessing) {
             _isProcessing = false;
             
-            // 停止处理定时器
-            if (_processingTimer->isActive()) {
-                _processingTimer->stop();
-            }
+            QObject::disconnect(TimestampGenerator::getInstance(),
+                                &TimestampGenerator::frameCountUpdated,
+                                this,
+                                &LTCDecoderWorker::onFrameTick);
             
             emit processingStatusChanged(false);
 
@@ -151,6 +149,29 @@ namespace Nodes
         //             .arg(frame.minutes, 2, 10, QLatin1Char('0'))
         //             .arg(frame.seconds, 2, 10, QLatin1Char('0'))
         //             .arg(frame.frames, 2, 10, QLatin1Char('0'));
+    }
+
+    /**
+     * 按全局帧计数驱动的解码回调
+     * - 由 TimestampGenerator::frameCountUpdated 信号触发
+     * - 避免固定周期轮询，确保与系统统一时钟对齐
+     * @param frameCount 当前全局帧计数
+     */
+    void LTCDecoderWorker::onFrameTick(qint64 frameCount)
+    {
+        if (!_isProcessing || !_audioBuffer || !_audioBuffer->isActive()) {
+            return;
+        }
+        if (frameCount == _lastProcessedTimestamp) {
+            return;
+        }
+        AudioFrame frame;
+        if (_audioBuffer->getFrameByTimestamp(frameCount, frame)) {
+            _lastProcessedTimestamp = frame.timestamp;
+            if (!frame.data.isEmpty() && _ltcDecoder) {
+                _ltcDecoder->writeData(frame.data.constData(), frame.data.size());
+            }
+        }
     }
 }
 

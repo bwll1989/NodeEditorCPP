@@ -92,6 +92,15 @@ private:
      */
     void processAudioFloat(qint64 currentSystemTime);
     
+public slots:
+    /**
+     * 按全局帧计数驱动的处理槽函数
+     * - 由 TimestampGenerator::frameCountUpdated 触发
+     * - 唤醒处理线程以执行单次音频处理
+     * @param frameCount 当前全局帧计数
+     */
+    void onFrameTick(qint64 frameCount);
+    
 private:
     // 线程控制
     QAtomicInt running_;

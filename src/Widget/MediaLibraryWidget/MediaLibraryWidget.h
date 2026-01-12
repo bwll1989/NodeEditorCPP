@@ -25,7 +25,14 @@ public:
      */
     explicit MediaLibraryWidget(QWidget* parent = nullptr);
 
-
+    /**
+        * @brief 获取任务列表控件的右键菜单操作列表
+        * @return 操作列表（QAction*）
+        */
+    QList<QAction*> getActions()
+    {
+        return m_ctxMenu->actions();
+    }
 signals:
     /**
      * @brief 文件被激活（双击或菜单“打开”）
@@ -75,12 +82,16 @@ private slots:
      */
     void onLibraryChanged();
 
+
 private:
     /**
      * @brief 初始化树视图外观与行为（单选、隐藏表头、图标等）
      */
     void initializeTreeView();
-
+    /**
+     * @brief 初始化右键菜单操作（导入、删除、清空、刷新等）
+     */
+    void initializeContextMenu();
     /**
      * @brief 为所有顶层组与其子项设置复选框：组不勾选，子项可勾选
      */

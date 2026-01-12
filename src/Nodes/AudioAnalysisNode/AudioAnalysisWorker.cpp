@@ -158,24 +158,21 @@ namespace Nodes
         // 准备音频数据用于GIST分析
         std::vector<float> audioBuffer;
         
-        // 将QByteArray转换为16位整数指针
-        const int16_t* samples = reinterpret_cast<const int16_t*>(frame.data.constData());
-        int totalSamples = frame.data.size() / sizeof(int16_t);
+        // 将QByteArray转换为float指针
+        const float* samples = reinterpret_cast<const float*>(frame.data.constData());
+        int totalSamples = frame.data.size() / sizeof(float);
         int samplesPerChannel = totalSamples / frame.channels;
         
         // 根据音频帧的通道数处理数据
         if (frame.channels == 1) {
-            // 单声道：直接转换为float
-            audioBuffer.reserve(samplesPerChannel);
-            for (int i = 0; i < samplesPerChannel; i++) {
-                audioBuffer.push_back(static_cast<float>(samples[i]) / 32768.0f);
-            }
+            // 单声道：直接复制
+            audioBuffer.assign(samples, samples + samplesPerChannel);
         } else if (frame.channels == 2) {
             // 立体声：混合左右声道为单声道
             audioBuffer.reserve(samplesPerChannel);
             for (int i = 0; i < samplesPerChannel; i++) {
-                float leftSample = static_cast<float>(samples[i * 2]) / 32768.0f;
-                float rightSample = static_cast<float>(samples[i * 2 + 1]) / 32768.0f;
+                float leftSample = samples[i * 2];
+                float rightSample = samples[i * 2 + 1];
                 float mixedSample = (leftSample + rightSample) * 0.5f;
                 audioBuffer.push_back(mixedSample);
             }
@@ -183,7 +180,7 @@ namespace Nodes
             // 多声道：提取第一个声道
             audioBuffer.reserve(samplesPerChannel);
             for (int i = 0; i < samplesPerChannel; i++) {
-                audioBuffer.push_back(static_cast<float>(samples[i * frame.channels]) / 32768.0f);
+                audioBuffer.push_back(samples[i * frame.channels]);
             }
         }
         

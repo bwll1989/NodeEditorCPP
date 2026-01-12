@@ -3,6 +3,11 @@
 //
 #include "AudioDeviceOutDataModel.hpp"
 using namespace Nodes;
+/**
+ * 初始化 PortAudio 库并刷新设备列表
+ * - 仅在节点构造后调用一次，失败时记录错误并停止后续流程
+ * - 成功后调用 updateDeviceList() 以填充可用输出设备
+ */
 void AudioDeviceOutDataModel::initPortAudio() {
         PaError err = Pa_Initialize();
         if (err != paNoError) {
@@ -13,6 +18,12 @@ void AudioDeviceOutDataModel::initPortAudio() {
     }
 /**
  * @brief 简化的设备列表更新函数
+ */
+/**
+ * 更新输出设备列表（按驱动类型筛选）
+ * - 仅列出具备输出能力的设备（maxOutputChannels>0）
+ * - 当驱动选择为“全部”时展示 host API 名称；否则按所选驱动过滤
+ * - 若无设备可用，回退到系统默认输出设备
  */
 void AudioDeviceOutDataModel::updateDeviceList() {
     widget->deviceSelector->clear();
@@ -78,13 +89,20 @@ void AudioDeviceOutDataModel::updateDeviceList() {
     }
 }
 
+/**
+ * 打开并启动音频输出流
+ * - 根据当前选择设备设置通道数、采样格式、建议延迟
+ * - 使用 BUFFER_SIZE 作为帧块大小，来源于 SAMPLE_RATE 与全局帧率的比值
+ * - 绑定静态回调 paCallback 执行实时输出
+ * - 失败时更新节点状态并返回 false
+ */
 bool AudioDeviceOutDataModel::startAudioOutput() {
     if (isPlaying) return true;
 
     PaStreamParameters outputParameters;
     outputParameters.device = selectedDeviceIndex;
     outputParameters.channelCount = getDeviceMaxChannels(selectedDeviceIndex);
-    outputParameters.sampleFormat = paInt16;
+    outputParameters.sampleFormat = paFloat32;
     outputParameters.suggestedLatency = Pa_GetDeviceInfo(selectedDeviceIndex)->defaultLowOutputLatency;
 
     outputParameters.hostApiSpecificStreamInfo = nullptr;
@@ -119,6 +137,11 @@ bool AudioDeviceOutDataModel::startAudioOutput() {
     return true;
 }
 
+/**
+ * 停止音频输出流
+ * - 仅在流处于播放状态时调用 Pa_StopStream
+ * - 不关闭流与设备，保持资源以便后续快速恢复
+ */
 void AudioDeviceOutDataModel::stopAudioOutput() {
     if (paStream && isPlaying) {
         Pa_StopStream(paStream);
@@ -126,6 +149,12 @@ void AudioDeviceOutDataModel::stopAudioOutput() {
     }
 }
 
+/**
+ * 驱动类型改变回调
+ * - 根据 UI 选择刷新设备列表
+ * - 若当前正在播放，为确保配置生效，尝试选择第一个可用设备并重启音频流
+ * @param index 驱动选择器索引（未直接使用）
+ */
 void AudioDeviceOutDataModel::onDriverChanged(int index) {
     Q_UNUSED(index)
     // 重新更新设备列表
@@ -139,6 +168,12 @@ void AudioDeviceOutDataModel::onDriverChanged(int index) {
     }
 }
 
+/**
+ * 设备选择改变回调
+ * - 从 UI 文本解析设备索引并应用到 selectedDeviceIndex
+ * - 若正在播放则重启音频流以应用新设备
+ * @param deviceText 形如 "<index>: <name>" 的显示文本
+ */
 void AudioDeviceOutDataModel::onDeviceChanged(const QString& deviceText) {
     QStringList parts = deviceText.split(":");
     if (!parts.isEmpty()) {

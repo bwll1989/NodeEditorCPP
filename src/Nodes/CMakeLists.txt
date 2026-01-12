@@ -68,13 +68,21 @@ set(ALL_NODES
     LTCDecoderNode                              #LTC时间码解析节点
     AudioMatrixNode                             #音频矩阵节点
     AudioAnalysisNode                           #音频分析节点
-    PythonScriptNode                            #python脚本节点
-    YoloPoseONNXNode                            #Yolo v11n 姿态
-    YoloDetectionONNXNode                       #Yolo v11n 检测
+#    PythonScriptNode                            #python脚本节点
+
     StyleTransferONNXNode                       #神经网络风格迁移
     DataVisualNode                              #数据可视化
-        FileLoadNode                             #文件导入
-        ColorNode                                       #颜色节点
+    FileLoadNode                                #文件导入
+    ColorNode                                   #颜色节点
+    FmodNode                                    #Fmod 节点
+    AudioDuckingNode                            #音频闪避
+    AudioCrossFaderNode                         #音频交叉淡化过渡
+    AudioPriorityNode                           #音频优先级
+    AudioASRNode                                #音频关键词识别
+    PoseDetectionNode                            #Yolo v11n 姿态
+    ObjectDetectionNode                       #Yolo v11n 检测
+    FaceDetectionNode                              #人脸检测
+    VideoDecoderNode                              #视频解码器节点
 #    AudioIntentNode                              #音频意图分析（弃用）
 )
 
@@ -99,7 +107,6 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     # 原有的单独添加方式
     add_subdirectory(VST3PluginNode)
     add_subdirectory(DataInfoNode)                              #数据显示
-#    add_subdirectory(LuaScriptNode)                             #Lua脚本模块（弃用）
     add_subdirectory(TCPServerNode)                             #TCP服务器模块
     add_subdirectory(TCPClientNode)                             #TCP客户端模块
     add_subdirectory(TimeLineNode)                              #时间轴模块
@@ -160,10 +167,26 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(DataVisualNode)                            #数据可视化节点
     add_subdirectory(FileLoadNode)                             #文档导入节点
     add_subdirectory(ColorNode)                                 #颜色节点
-#    add_subdirectory(AudioIntentNode)                            #音频意图分析（弃用）
+    add_subdirectory(FmodNode)                                  #Fmod 节点
+    add_subdirectory(AudioDuckingNode)                          #音频闪避
+    add_subdirectory(AudioCrossFaderNode)                       #音频交叉淡化过渡
+    add_subdirectory(AudioPriorityNode)                         #音频优先级
+    add_subdirectory(AudioASRNode)                              #音频关键词识别
+    add_subdirectory(PoseDetectionNode)                        #动作识别
+    add_subdirectory(ObjectDetectionNode)                       #对象识别
+    add_subdirectory(FaceDetectionNode)                            #人脸检测
+    add_subdirectory(VideoDecoderNode)                          #视频解码器节点
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()
+
+# 可单独构建全部节点的聚合目标（不依赖选项）
+add_custom_target(BuildAllNodes)
+foreach(NODE_NAME ${ALL_NODES})
+    if (TARGET ${NODE_NAME})
+        add_dependencies(BuildAllNodes ${NODE_NAME})
+    endif()
+endforeach()
 
 # 打印构建信息
 if(BUILD_ALL_NODES)

@@ -51,6 +51,13 @@ namespace Nodes
          * @brief 处理音频数据的主循环
          */
         void processAudioData();
+        /**
+         * 按全局帧计数驱动的解码槽函数
+         * - 由 TimestampGenerator::frameCountUpdated 信号触发
+         * - 避免固定周期轮询，确保与系统统一时钟对齐
+         * @param frameCount 当前全局帧计数
+         */
+        void onFrameTick(qint64 frameCount);
 
     signals:
         /**
@@ -75,7 +82,6 @@ namespace Nodes
     private:
         LtcDecoder* _ltcDecoder;                                        ///< LTC解码器
         std::shared_ptr<AudioTimestampRingQueue> _audioBuffer;          ///< 音频缓冲区
-        QTimer* _processingTimer;                                       ///< 处理定时器
         QMutex _mutex;                                                  ///< 互斥锁
         bool _isProcessing;                                             ///< 处理状态标志
         qint64 _lastProcessedTimestamp;                                 ///< 上次处理的时间戳

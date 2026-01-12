@@ -224,7 +224,7 @@ namespace Nodes
             PaStreamParameters inputParameters;
             inputParameters.device = selectedDeviceIndex_;
             inputParameters.channelCount = channels_;
-            inputParameters.sampleFormat = paInt16;
+            inputParameters.sampleFormat = paFloat32;
             inputParameters.suggestedLatency = Pa_GetDeviceInfo(selectedDeviceIndex_)->defaultLowInputLatency;
             inputParameters.hostApiSpecificStreamInfo = nullptr;
             
@@ -305,29 +305,29 @@ namespace Nodes
                 return paContinue;
             }
             
-            const int16_t* input = static_cast<const int16_t*>(inputBuffer);
+            const float* input = static_cast<const float*>(inputBuffer);
             qint64 currentTimestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
             // 创建音频帧
             AudioFrame frame;
             frame.sampleRate = sampleRate_;
             frame.channels = channels_;
-            frame.bitsPerSample = 16;
+            frame.bitsPerSample = 32;
             frame.timestamp = currentTimestamp+5;
             
             // 复制音频数据并应用音量
             int totalSamples = framesPerBuffer * channels_;
-            frame.data.resize(totalSamples * sizeof(int16_t));
-            int16_t* output = reinterpret_cast<int16_t*>(frame.data.data());
+            frame.data.resize(totalSamples * sizeof(float));
+            float* output = reinterpret_cast<float*>(frame.data.data());
             
             for (int i = 0; i < totalSamples; i++) {
                 float scaledSample = input[i] * volumeGain_;
                 // 削波保护
-                if (scaledSample > 32767.0f) {
-                    output[i] = 32767;
-                } else if (scaledSample < -32768.0f) {
-                    output[i] = -32768;
+                if (scaledSample > 1.0f) {
+                    output[i] = 1.0f;
+                } else if (scaledSample < -1.0f) {
+                    output[i] = -1.0f;
                 } else {
-                    output[i] = static_cast<int16_t>(scaledSample);
+                    output[i] = scaledSample;
                 }
             }
             
@@ -341,8 +341,8 @@ namespace Nodes
          * @brief 分离声道并推送到对应的音频缓冲区
          */
         void separateChannelsAndPush(const AudioFrame& frame) {
-            int samplesPerChannel = frame.data.size() / (sizeof(int16_t) * frame.channels);
-            int bytesPerSample = sizeof(int16_t);
+            int samplesPerChannel = frame.data.size() / (sizeof(float) * frame.channels);
+            int bytesPerSample = sizeof(float);
 
             for (int channel = 0; channel < frame.channels; channel++) {
                 if (!channelAudioBuffers_[channel])
@@ -357,8 +357,8 @@ namespace Nodes
                 QByteArray channelData;
                 channelData.resize(samplesPerChannel * bytesPerSample);
                 
-                const int16_t* inputData = reinterpret_cast<const int16_t*>(frame.data.constData());
-                int16_t* outputData = reinterpret_cast<int16_t*>(channelData.data());
+                const float* inputData = reinterpret_cast<const float*>(frame.data.constData());
+                float* outputData = reinterpret_cast<float*>(channelData.data());
                 
                 // 提取指定声道的数据
                 for (int sample = 0; sample < samplesPerChannel; sample++) {

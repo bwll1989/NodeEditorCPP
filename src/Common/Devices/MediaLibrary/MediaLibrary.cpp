@@ -14,8 +14,10 @@
 inline QString ImageFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"path": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "Image File"}]})");
 inline QString JsonFileNode  = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"path": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "JSON File"}]})");
 inline QString IniFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"path": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "INI File"}]})");
-inline QString DmxFileNode   = QStringLiteral(R"({"nodes": [{ "id": 1, "input-count": 4, "internal-data": { "UniverseSettings": { "isLooping": false, "net": 0, "subnet": 0, "universe": 0, "videoFilePath": "%1" } }, "output-count": 4, "port-editable": true, "position": {"x": %2, "y": %3}, "remarks": "Universe Playback", "type": "Universe Playback"}]})");
-inline QString AudioFileNode = QStringLiteral(R"({"nodes": [{ "id": 1, "input-count": 4, "internal-data": { "autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 2, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Audio Decoder", "type": "Audio Decoder" } ] })");
+inline QString DmxFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 4, "internal-data": {"UniverseSettings": { "isLooping": false, "net": 0, "subnet": 0, "universe": 0, "videoFilePath": "%1" } }, "output-count": 4, "port-editable": true, "position": {"x": %2, "y": %3}, "remarks": "Universe Playback", "type": "Universe Playback"}]})");
+inline QString AudioFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 4, "internal-data": {"autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 2, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Audio Decoder", "type": "Audio Decoder" } ] })");
+inline QString VideoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 4, "internal-data": {"autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 3, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Video Decoder", "type": "Video Decoder" } ] })");
+
 MediaLibrary::MediaLibrary(QObject* parent)
     : QStandardItemModel(parent)
 {
@@ -497,7 +499,7 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
         QString tpl;
         switch (cat) {
             case Category::Video:
-                tpl = ImageFileNode.arg(fileName);
+                tpl = VideoFileNode.arg(fileName);
                     break;
                 case Category::Audio:
                     tpl = AudioFileNode.arg(fileName);

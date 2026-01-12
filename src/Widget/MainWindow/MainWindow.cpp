@@ -182,6 +182,7 @@ void MainWindow::init()
     mediaLibraryDockWidget->setWidget(mediaLibraryWidget);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, mediaLibraryDockWidget);
     // menuBar->views->addAction(mediaLibraryDockWidget->toggleViewAction());
+    mediaLibraryDockWidget->setTitleBarActions({makeOptionsMenu(mediaLibraryWidget, mediaLibraryWidget->getActions())->menuAction()});
     emit initStatus("Initialization Media Library Widget success");
     // // 属性控件
     // propertyDockWidget = new ads::CDockWidget(m_DockManager,"属性");

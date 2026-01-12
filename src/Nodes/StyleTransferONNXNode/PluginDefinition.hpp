@@ -17,7 +17,7 @@
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
 #define PLUGIN_DESCRIBE "yolo v11n detection"
-#define PLUGIN_TAG "YOLO"
+#define PLUGIN_TAG "ONNX"
 class DLL_EXPORT Plugin
     : public QObject
     , public QtNodes::PluginInterface

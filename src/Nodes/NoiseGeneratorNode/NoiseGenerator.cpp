@@ -170,12 +170,12 @@ int NoiseGenerator::processAudioCallback(void* outputBuffer, unsigned long frame
     AudioFrame frame;
     frame.sampleRate = sampleRate;
     frame.channels = channels;
-    frame.bitsPerSample = 16;  // 使用16位浮点
+    frame.bitsPerSample = 32;  // 使用32位浮点
     frame.timestamp = currentTimestamp;
 
     // 分配音频数据缓冲区
-    frame.data.resize(framesPerBuffer * channels * sizeof(int16_t));
-    int16_t* frameData = reinterpret_cast<int16_t*>(frame.data.data());
+    frame.data.resize(framesPerBuffer * channels * sizeof(float));
+    float* frameData = reinterpret_cast<float*>(frame.data.data());
     
     // 生成噪音数据
     for (unsigned long i = 0; i < framesPerBuffer; ++i) {
@@ -200,12 +200,9 @@ int NoiseGenerator::processAudioCallback(void* outputBuffer, unsigned long frame
         if (sample > 1.0f) sample = 1.0f;
         if (sample < -1.0f) sample = -1.0f;
         
-         // 将float样本转换为16位整数
-        int16_t intSample = static_cast<int16_t>(sample * 32767.0f);
-        
         // 填充所有声道
         for (int ch = 0; ch < channels; ++ch) {
-            frameData[i * channels + ch] = intSample;
+            frameData[i * channels + ch] = sample;
         }
     
     }

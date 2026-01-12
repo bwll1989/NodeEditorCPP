@@ -35,7 +35,7 @@ struct AudioFrame {
 class DATATYPES_EXPORT AudioTimestampRingQueue : public QObject {
     Q_OBJECT
 public:
-    explicit AudioTimestampRingQueue(int maxSize = 16,QObject* parent = nullptr);
+    explicit AudioTimestampRingQueue(int maxSize = 64,QObject* parent = nullptr);
     ~AudioTimestampRingQueue() ;
 
     bool pushFrame(const AudioFrame& frame);

@@ -10,16 +10,9 @@ namespace Nodes
      */
     AudioMatrixWorker::AudioMatrixWorker(QObject *parent)
         : QObject(parent)
-        , _processingTimer(new QTimer(this))
         , _isProcessing(false)
         , _lastProcessedTimestamp(0)
-    {
-
-        // 设置处理定时器
-        _processingTimer->setInterval(15); // 15ms间隔处理音频数据
-        connect(_processingTimer, &QTimer::timeout, this, &AudioMatrixWorker::processAudioData);
-
-    }
+    {}
     
     /**
      * @brief 析构函数
@@ -27,7 +20,6 @@ namespace Nodes
     AudioMatrixWorker::~AudioMatrixWorker()
     {
         stopProcessing();
-
     }
     
    
@@ -38,15 +30,17 @@ namespace Nodes
     void AudioMatrixWorker::startProcessing()
     {
         QMutexLocker locker(&_mutex);
-        // 如果已经在处理，直接返回
         if (_isProcessing) {
             qDebug() << "AudioMatrixWorker: Already processing, ignoring duplicate call";
             return;
         }
         _isProcessing = true;
         _lastProcessedTimestamp = 0;
-        // 启动处理定时器
-        _processingTimer->start();
+        QObject::connect(TimestampGenerator::getInstance(),
+                         &TimestampGenerator::frameCountUpdated,
+                         this,
+                         &AudioMatrixWorker::onFrameTick,
+                         Qt::QueuedConnection);
         emit processingStatusChanged(true);
     }
     
@@ -59,14 +53,13 @@ namespace Nodes
         
         if (_isProcessing) {
             _isProcessing = false;
-            
-            // 停止处理定时器
-            if (_processingTimer->isActive()) {
-                _processingTimer->stop();
-            }
+
+            QObject::disconnect(TimestampGenerator::getInstance(),
+                                &TimestampGenerator::frameCountUpdated,
+                                this,
+                                &AudioMatrixWorker::onFrameTick);
             
             emit processingStatusChanged(false);
-
         }
     }
     
@@ -119,6 +112,35 @@ namespace Nodes
         // 发送处理完成信号
         emit audioProcessed(_outputBuffers);
     }
+
+    /**
+     * 按全局帧计数驱动的混音回调
+     * @param frameCount 当前全局帧计数
+     */
+    void AudioMatrixWorker::onFrameTick(qint64 frameCount)
+    {
+        if (!_isProcessing || _inputBuffers.empty() || _outputBuffers.empty()) {
+            return;
+        }
+        if (frameCount == _lastProcessedTimestamp) {
+            return;
+        }
+        std::vector<AudioFrame> inputFrames(_inputBuffers.size());
+        bool hasValidInput = false;
+        for (size_t i = 0; i < _inputBuffers.size(); ++i) {
+            if (_inputBuffers[i] && _inputBuffers[i]->isActive()) {
+                if (_inputBuffers[i]->getFrameByTimestamp(frameCount, inputFrames[i])) {
+                    hasValidInput = true;
+                }
+            }
+        }
+        if (!hasValidInput) {
+            return;
+        }
+        performMatrixOperation(inputFrames, frameCount);
+        _lastProcessedTimestamp = frameCount;
+        emit audioProcessed(_outputBuffers);
+    }
     
     /**
      * @brief 使用矩阵运算执行音频矩阵操作
@@ -131,7 +153,7 @@ namespace Nodes
             return;
         }
 
-        const size_t frameSize = 2048 * 2 / sizeof(int16_t);
+        const size_t frameSize = 2048 * 4 / sizeof(float);
         const int inputChannels = _matrix.rows();
         const int outputChannels = _matrix.cols();
         
@@ -142,13 +164,13 @@ namespace Nodes
         for (int inChannel = 0; inChannel < inputChannels; ++inChannel) {
             if (inChannel < static_cast<int>(inputFrames.size())) {
                 const auto& frameData = inputFrames[inChannel].data;
-                const int16_t* audioSamples = reinterpret_cast<const int16_t*>(frameData.constData());
-                const size_t availableSamples = frameData.size() / sizeof(int16_t);
+                const float* audioSamples = reinterpret_cast<const float*>(frameData.constData());
+                const size_t availableSamples = frameData.size() / sizeof(float);
                 const size_t samplesToCopy = std::min(frameSize, availableSamples);
                 
-                // 将int16_t转换为float并填充到矩阵中
+                // 直接填充到矩阵中
                 for (size_t sample = 0; sample < samplesToCopy; ++sample) {
-                    inputMatrix(inChannel, sample) = static_cast<float>(audioSamples[sample]) / 32768.0f;
+                    inputMatrix(inChannel, sample) = audioSamples[sample];
                 }
                 
                 // 如果数据不足，填充零
@@ -172,13 +194,13 @@ namespace Nodes
                 outputFrame.timestamp = timestamp + 2;
                 outputFrame.sampleRate = inputFrames[0].sampleRate;
                 outputFrame.channels = 1;
-                outputFrame.bitsPerSample = 16;
+                outputFrame.bitsPerSample = 32;
                 
                 // 分配输出数据内存
-                outputFrame.data.resize(frameSize * sizeof(int16_t));
-                int16_t* outputData = reinterpret_cast<int16_t*>(outputFrame.data.data());
+                outputFrame.data.resize(frameSize * sizeof(float));
+                float* outputData = reinterpret_cast<float*>(outputFrame.data.data());
                 
-                // 从输出矩阵提取当前通道的数据并转换为int16_t
+                // 从输出矩阵提取当前通道的数据
                 for (size_t sample = 0; sample < frameSize; ++sample) {
                     float outputSample = outputMatrix(outChannel, sample);
                     
@@ -186,8 +208,7 @@ namespace Nodes
                     if (outputSample > 1.0f) outputSample = 1.0f;
                     else if (outputSample < -1.0f) outputSample = -1.0f;
                     
-                    // 转换为int16_t格式
-                    outputData[sample] = static_cast<int16_t>(outputSample * 32767.0f);
+                    outputData[sample] = outputSample;
                 }
                 
                 // 将处理后的音频帧添加到输出缓冲区

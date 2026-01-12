@@ -46,7 +46,7 @@ namespace Nodes
             PortEditable = true;
         
             // 初始化噪音生成器 - 单声道配置
-            generator->initializeGenerator(48000, 1, 16);  // 1声道，16位整数
+            generator->initializeGenerator(48000, 1, 32);  // 1声道，32位浮点
         
             // 设置初始音量为界面滑块的默认值 (0 dB)
             generator->setVolume(0.0);  // 0 dB = 线性值 1.0

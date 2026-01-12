@@ -4,6 +4,7 @@
 
 #include <QCheckBox>
 #include <QDoubleSpinBox>
+#include <QSlider>
 
 #include "QWidget"
 #include "QLabel"
@@ -34,9 +35,18 @@ namespace Nodes
 
             main_layout->addWidget(stopButton, 3, 0,1,2);
 
-            main_layout->addWidget(loopCheckBox, 4, 0,1,1);
+            // 进度条和时间显示
+            progressSlider->setOrientation(Qt::Horizontal);
+            progressSlider->setRange(0, 1000); // 精度 0.1%
+            main_layout->addWidget(progressSlider, 4, 0, 1, 2);
+            
+            timeLabel->setAlignment(Qt::AlignCenter);
+            timeLabel->setText("00:00 / 00:00");
+            main_layout->addWidget(timeLabel, 5, 0, 1, 2);
 
-            main_layout->addWidget(volumeSlider, 4, 1,1,1);
+            main_layout->addWidget(loopCheckBox, 6, 0,1,1);
+
+            main_layout->addWidget(volumeSlider, 6, 1,1,1);
 
             main_layout->setContentsMargins(4,2,4,4);
             volumeSlider->setRange(-40, 20);
@@ -55,6 +65,8 @@ namespace Nodes
         SelectorComboBox *fileSelectComboBox = new SelectorComboBox(MediaLibrary::Category::Audio,this);
         QPushButton *playButton=new QPushButton("Play");
         QPushButton *stopButton=new QPushButton("Stop");
+        QSlider *progressSlider = new QSlider(this);
+        QLabel *timeLabel = new QLabel(this);
         QDoubleSpinBox *volumeSlider = new QDoubleSpinBox(this);
         QCheckBox *loopCheckBox = new QCheckBox("Loop");
 

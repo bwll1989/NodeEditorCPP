@@ -11,8 +11,7 @@
  * @brief 构造函数：搭建界面、连接信号、初始化树视图
  */
 MediaLibraryWidget::MediaLibraryWidget(QWidget* parent)
-    : QWidget(parent)
-{
+    : QWidget(parent) {
     // 模型
     m_model =MediaLibrary::instance();
 
@@ -50,6 +49,10 @@ MediaLibraryWidget::MediaLibraryWidget(QWidget* parent)
     lay->setSpacing(0);
     lay->addWidget(m_tree);
     setLayout(lay);
+    // 通用操作（空白、组、子项都显示）
+    // QMenu ctx(m_tree);
+    // 初始化右键菜单操作
+    initializeContextMenu();
 }
 
 /**
@@ -93,9 +96,28 @@ void MediaLibraryWidget::initializeTreeView()
     // m_tree->setDefaultDropAction(Qt::CopyAction);
 }
 
-/**
- * @brief 为所有顶层组与其子项设置复选框：组不勾选，子项可勾选
- */
+void MediaLibraryWidget::initializeContextMenu()
+{
+    // 初始化右键菜单操作（导入、删除、清空、刷新等）
+    m_ctxMenu = new QMenu(m_tree);
+    // 通用操作（空白、组、子项都显示）
+    m_actImportFiles   = m_ctxMenu->addAction(QIcon(":/icons/icons/import.png"),tr("导入文件"));
+    m_actImportFolder  = m_ctxMenu->addAction(QIcon(":/icons/icons/folder.png"),tr("导入文件夹"));
+    m_actDeleteChecked = m_ctxMenu->addAction(QIcon(":/icons/icons/remove.png"),tr("删除选中"));
+    m_actClear         = m_ctxMenu->addAction(QIcon(":/icons/icons/clear.png"),tr("清空"));
+    m_actRefresh       = m_ctxMenu->addAction(QIcon(":/icons/icons/reload.png"),tr("刷新"));
+    m_ctxMenu->addSeparator();
+    connect(m_actImportFiles,  &QAction::triggered, this, &MediaLibraryWidget::importFiles);
+    connect(m_actImportFolder, &QAction::triggered, this, &MediaLibraryWidget::importFolder);
+    // 连接“删除选中”到当前选择删除
+    connect(m_actDeleteChecked, &QAction::triggered, this, [this] {
+        deleteSelectedItems();
+    });
+    connect(m_actClear,        &QAction::triggered, this, &MediaLibraryWidget::clearLibrary);
+    connect(m_actRefresh,      &QAction::triggered, this, [this] {
+        MediaLibrary::instance()->refresh();
+    });
+}
 
 /**
  * @brief 初始化所有项的“勾选”状态（已改为无操作：不再使用复选框）
@@ -218,37 +240,18 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
     const QModelIndex idx = m_tree->indexAt(pos);
     const QString path = idx.isValid() ? m_model->filePathForIndex(idx) : QString();
 
-    QMenu ctx(m_tree);
 
-    // 通用操作（空白、组、子项都显示）
-    QAction* actImportFiles   = ctx.addAction(QIcon(":/icons/icons/import.png"),tr("导入文件"));
-    QAction* actImportFolder  = ctx.addAction(QIcon(":/icons/icons/folder.png"),tr("导入文件夹"));
-    QAction* actDeleteChecked = ctx.addAction(QIcon(":/icons/icons/remove.png"),tr("删除选中"));
-    QAction* actClear         = ctx.addAction(QIcon(":/icons/icons/clear.png"),tr("清空"));
-    QAction* actRefresh       = ctx.addAction(QIcon(":/icons/icons/reload.png"),tr("刷新"));
-    ctx.addSeparator();
 
-    connect(actImportFiles,  &QAction::triggered, this, &MediaLibraryWidget::importFiles);
-    connect(actImportFolder, &QAction::triggered, this, &MediaLibraryWidget::importFolder);
-    // 连接“删除选中”到当前选择删除
-    connect(actDeleteChecked, &QAction::triggered, this, [this] {
-        deleteSelectedItems();
-    });
-    connect(actClear,        &QAction::triggered, this, &MediaLibraryWidget::clearLibrary);
-    connect(actRefresh,      &QAction::triggered, this, [this] {
-        MediaLibrary::instance()->refresh();
 
-        qDebug() << "MediaLibraryWidget::onContextMenuRequested()";
-    });
     if (!idx.isValid()) {
         // 空白处：只显示通用操作
-        ctx.popup(m_tree->viewport()->mapToGlobal(pos));
+        m_ctxMenu->popup(m_tree->viewport()->mapToGlobal(pos));
         return;
     }
 
     if (path.isEmpty()) {
         // 组节点：展开/折叠
-        QAction* actToggle = ctx.addAction(tr("展开/折叠"));
+        QAction* actToggle = m_ctxMenu->addAction(tr("展开/折叠"));
         actToggle->setIcon(QIcon(":/icons/icons/expand.png"));
         connect(actToggle, &QAction::triggered, this, [this, idx] {
             m_tree->setExpanded(idx, !m_tree->isExpanded(idx));
@@ -256,7 +259,7 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
     } else {
         // 子项：打开/定位/删除
         // QAction* actOpen   = ctx.addAction(tr("打开"));
-        QAction* actReveal = ctx.addAction(QIcon(":/icons/icons/explore.png"),tr("在资源管理器中显示"));
+        QAction* actReveal = m_ctxMenu->addAction(QIcon(":/icons/icons/explore.png"),tr("在资源管理器中显示"));
 
         // connect(actOpen, &QAction::triggered, this, [this, path] {
         //     emit fileActivated(path);
@@ -272,8 +275,8 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
 
     }
 
-    ctx.popup(m_tree->viewport()->mapToGlobal(pos));
-    ctx.exec();
+     m_ctxMenu->popup(m_tree->viewport()->mapToGlobal(pos));
+    m_ctxMenu->exec();
 }
 
 /**

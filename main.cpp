@@ -17,7 +17,6 @@
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "ConstantDefines.h"
 #include <QtWebEngineQuick/QtWebEngineQuick>
-
 /**
  * @brief 生成单实例共享内存的唯一键
  * @return QString 格式为 "Organization_Product" 的稳定键值

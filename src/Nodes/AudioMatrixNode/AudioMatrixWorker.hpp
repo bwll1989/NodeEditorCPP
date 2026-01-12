@@ -50,6 +50,13 @@ namespace Nodes
          * @brief 处理音频数据的主循环
          */
         void processAudioData();
+        /**
+         * 按全局帧计数驱动的混音槽函数
+         * - 由 TimestampGenerator::frameCountUpdated 信号触发
+         * - 避免固定周期轮询，确保与系统统一时钟对齐
+         * @param frameCount 当前全局帧计数
+         */
+        void onFrameTick(qint64 frameCount);
 
         void performMatrixOperation(const std::vector<AudioFrame>& inputFrames, qint64 timestamp);
     signals:
@@ -92,7 +99,6 @@ namespace Nodes
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _inputBuffers;    ///< 输入音频缓冲区数组
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _outputBuffers;   ///< 输出音频缓冲区数组
         Eigen::MatrixXd _matrix;                                               ///< 矩阵数据
-        QTimer* _processingTimer;                                              ///< 处理定时器
         QMutex _mutex;                                                         ///< 互斥锁
         bool _isProcessing;                                                    ///< 处理状态标志
         qint64 _lastProcessedTimestamp;                                        ///< 上次处理的时间戳

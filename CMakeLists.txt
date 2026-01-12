@@ -110,7 +110,7 @@ set(QtColorWidgets_DIR "${DEPENDS_DIR}/Qt-Color-Widgets")
 set(QtColorWidgets_LIBRARIES "${QtColorWidgets_DIR}/install/lib/QtColorWidgets.lib")
 INCLUDE_DIRECTORIES("${QtColorWidgets_DIR}/install/include")
 
-#
+#设置Poco库
 set(Poco_DIR "${DEPENDS_DIR}/poco-1.14.2/install/cmake")
 find_package(Poco CONFIG REQUIRED Foundation Util Net JSON)
 include_directories(${Poco_INCLUDE_DIRS})
@@ -331,6 +331,15 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
             Qt${QT_VERSION_MAJOR}::WebSockets
             Qt${QT_VERSION_MAJOR}::Graphs
+            ${portaudio_LIBRARIES}
+            ${QtNodes_LIBRARIES}
+            ${Spdlog_LIBRARIES}
+            ${ADS_LIBRARIES}
+            ${Libpd_LIBRARIES}
+            ${Libltc_LIBRARIES}
+            ${QtTimeLine_LIBRARIES}
+            ${OpenCV_LIBRARIES}
+            ${QtColorWidgets_LIBRARIES}
             Poco::Foundation
             Poco::Util
             Poco::Net
@@ -349,16 +358,7 @@ target_link_libraries(${ProjectName}
             OSCTransmitter
             DataTypes
             BuildInNodes
-            ${portaudio_LIBRARIES}
-            ${QtNodes_LIBRARIES}
-            ${Spdlog_LIBRARIES}
-            ${ADS_LIBRARIES}
-            ${Libpd_LIBRARIES}
-            ${Libltc_LIBRARIES}
             Eigen3::Eigen
-            ${QtTimeLine_LIBRARIES}
-            ${OpenCV_LIBRARIES}
-            ${QtColorWidgets_LIBRARIES}
             ClientController
             OscListWidget
             TimestampGenerator

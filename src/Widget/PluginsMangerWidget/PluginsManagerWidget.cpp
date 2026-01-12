@@ -143,6 +143,7 @@ void PluginsManagerWidget::loadBuildInPlugin()
     pluginsManager->registry()->registerModel<ImageShowModel>("Image Display","Image");
     pluginsManager->registry()->registerModel<ToJsonDataModel>("To JSON","Controls");
     pluginsManager->registry()->registerModel<FromJsonDataModel>("From JSON","Controls");
+    pluginsManager->registry()->registerModel<WindowDisplayModel>("Window Display","Image");
 }
 
 //打开插件目录

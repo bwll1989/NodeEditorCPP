@@ -15,6 +15,7 @@ extern "C" {
 #include <libavutil/opt.h>
 }
 #include <iostream>
+#include <cmath>
 #include <QObject>
 #include <QThread>
 #include <QMutex>
@@ -97,7 +98,7 @@ QJsonObject* AudioDecoder::initializeFFmpeg(const QString &filePath){
 
     // 检查是否需要重采样
     bool needsResampling = (codecContext->sample_rate != SAMPLE_RATE) ||
-                          (codecContext->sample_fmt != AV_SAMPLE_FMT_S16);
+                          (codecContext->sample_fmt != AV_SAMPLE_FMT_FLT);
 
     // // 只有在需要重采样时才初始化重采样器
     if (needsResampling) {
@@ -118,7 +119,7 @@ QJsonObject* AudioDecoder::initializeFFmpeg(const QString &filePath){
         // 在initializeFFmpeg中改进重采样器配置
         if (swr_alloc_set_opts2(&swrContext,
                                 &outChannelLayout,
-                                AV_SAMPLE_FMT_S16,
+                                AV_SAMPLE_FMT_FLT,
                                 SAMPLE_RATE, // 输出采样率
                                 &inChannelLayout,
                                 codecContext->sample_fmt,
@@ -188,7 +189,7 @@ void AudioDecoder::startPlay(){
         if (swrContext) {
             uint8_t* flushBuffer = nullptr;
             // 这个大小足够容纳重采样器内部可能残留的数据
-            int flushSize = SAMPLES_PER_CHANNEL * 2 * 2;  // samples × channels × bytes_per_sample
+            int flushSize = SAMPLES_PER_CHANNEL * 2 * 4;  // samples × channels × bytes_per_sample (float)
             flushBuffer = (uint8_t*)av_malloc(flushSize);
             if (flushBuffer) {
                 // 调用swr_convert清空内部缓冲区
@@ -244,7 +245,7 @@ void AudioDecoder::stopPlay() {
         // 刷新重采样器缓冲区（但不处理输出）
         if (swrContext) {
             uint8_t* flushBuffer = nullptr;
-            int flushSize = 2048 * 2 * 2;
+            int flushSize = 2048 * 2 * 4;
             flushBuffer = (uint8_t*)av_malloc(flushSize);
             if (flushBuffer) {
                 // 刷新但丢弃输出，避免产生额外音频
@@ -319,13 +320,13 @@ void AudioDecoder::handleAudioFrame(AudioFrame frame) {
         QByteArray channelData;
         channelData.resize(samplesPerChannel * bytesPerSample);
 
-        // 16位音频的类似优化
-        const int16_t* inputData = reinterpret_cast<const int16_t*>(frame.data.constData());
-        int16_t* outputData = reinterpret_cast<int16_t*>(channelData.data());
+        const float* inputData = reinterpret_cast<const float*>(frame.data.constData());
+        float* outputData = reinterpret_cast<float*>(channelData.data());
 
-        const int16_t* src = inputData + channel;
-        int16_t* dst = outputData;
+        const float* src = inputData + channel;
+        float* dst = outputData;
 
+        // Optimization for interleaved to planar conversion
         int unrolledSamples = (samplesPerChannel / 8) * 8;
         for (int sample = 0; sample < unrolledSamples; sample += 8) {
             dst[0] = src[0];
@@ -345,7 +346,6 @@ void AudioDecoder::handleAudioFrame(AudioFrame frame) {
             outputData[sample] = inputData[sample * frame.channels + channel];
         }
         channelFrame.data = channelData;
-
         channelAudioBuffers[channel]->pushFrame(channelFrame);
     }
 }
@@ -374,10 +374,11 @@ void AudioDecoder::playAudio() {
     int originalChannels = codecContext->ch_layout.nb_channels;
 
     // 检查是否需要重采样
-    bool needsResampling = (originalSampleRate != SAMPLE_RATE) || (codecContext->sample_fmt != AV_SAMPLE_FMT_S16);
+    bool needsResampling = (originalSampleRate != SAMPLE_RATE) || (codecContext->sample_fmt != AV_SAMPLE_FMT_FLT);
 
     // 预缓冲控制变量
     int frameCount = 0;
+    double lastEmitTime = -1.0;
 
     // 循环播放的主循环
     do {
@@ -396,6 +397,25 @@ void AudioDecoder::playAudio() {
         }
 
         while (isPlaying && av_read_frame(formatContext, &packet) >= 0) {
+            // 发送播放进度信号
+            if (packet.stream_index == audioStreamIndex) {
+                 double currentSec = 0.0;
+                 if (packet.pts != AV_NOPTS_VALUE) {
+                     currentSec = packet.pts * av_q2d(formatContext->streams[packet.stream_index]->time_base);
+                 }
+                 
+                 double totalSec = 0.0;
+                 if (formatContext->duration != AV_NOPTS_VALUE) {
+                     totalSec = formatContext->duration / (double)AV_TIME_BASE;
+                 }
+                 
+                 // 限制发送频率，避免UI刷新过快 (例如每0.1秒刷新一次)
+                 if (std::abs(currentSec - lastEmitTime) >= 0.1) {
+                     emit playbackProgress(currentSec, totalSec);
+                     lastEmitTime = currentSec;
+                 }
+            }
+
             if (packet.stream_index == audioStreamIndex) {
                 if (avcodec_send_packet(codecContext, &packet) < 0) {
                     continue;
@@ -438,7 +458,7 @@ void AudioDecoder::playAudio() {
                         // ==================== 输出缓冲区大小计算 ====================
 
                         int outputChannels = originalChannels;
-                        int newSize = outputSamples * outputChannels * 2;
+                        int newSize = outputSamples * outputChannels * 4; // float is 4 bytes
 
                         // 动态调整输出缓冲区大小
                         if (outputBufferSize < newSize) {
@@ -480,9 +500,9 @@ void AudioDecoder::playAudio() {
                         }
                     }
                     else {
-                        // 不需要重采样的情况（48000Hz且已经是S16格式）
-                        if (codecContext->sample_fmt != AV_SAMPLE_FMT_S16) {
-                            qDebug() << "Warning: Expected S16 format but got" << codecContext->sample_fmt;
+                        // 不需要重采样的情况（48000Hz且已经是FLT格式）
+                        if (codecContext->sample_fmt != AV_SAMPLE_FMT_FLT) {
+                            qDebug() << "Warning: Expected FLT format but got" << codecContext->sample_fmt;
                             continue;
                         }
                         // 直接使用原始数据
@@ -545,20 +565,18 @@ void AudioDecoder::applyVolume(uint8_t* data, int sampleCount, int channels) {
     } else {
         linearGain = std::pow(10.0f, volume / 20.0f);
     }
-    int16_t* samples = reinterpret_cast<int16_t*>(data);
+    float* samples = reinterpret_cast<float*>(data);
     int totalSamples = sampleCount * channels;
 
     for (int i = 0; i < totalSamples; i++) {
         // 应用线性增益并进行削波保护
-        float scaledSample = samples[i] * linearGain;
+        samples[i] *= linearGain;
         
-        // 削波保护，防止溢出
-        if (scaledSample > 32767.0f) {
-            samples[i] = 32767;
-        } else if (scaledSample < -32768.0f) {
-            samples[i] = -32768;
-        } else {
-            samples[i] = static_cast<int16_t>(scaledSample);
+        // 简单削波保护，防止溢出 [-1.0, 1.0]
+        if (samples[i] > 1.0f) {
+            samples[i] = 1.0f;
+        } else if (samples[i] < -1.0f) {
+            samples[i] = -1.0f;
         }
     }
 }
@@ -566,12 +584,12 @@ void AudioDecoder::applyVolume(uint8_t* data, int sampleCount, int channels) {
 
 
 // 将解码得到的PCM累积并按固定1920采样/声道切片发送
-int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcmS16,
+int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
                                                int samplesPerChannel,
                                                int channels,
                                                int sampleRate)
 {
-    const int bytesPerSample = 2; // S16
+    const int bytesPerSample = 4; // Float
     const int targetSamplesPerChannel = SAMPLES_PER_CHANNEL;
     const int chunkBytes = targetSamplesPerChannel * channels * bytesPerSample;
     const int inputBytes = samplesPerChannel * channels * bytesPerSample;
@@ -584,7 +602,7 @@ int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcmS16,
     lastChannels_ = channels;
 
     // 追加新数据
-    pendingInterleavedPcm_.append(reinterpret_cast<const char*>(interleavedPcmS16), inputBytes);
+    pendingInterleavedPcm_.append(reinterpret_cast<const char*>(interleavedPcm), inputBytes);
     pendingSamplesPerChannel_ += samplesPerChannel;
 
     int emitted = 0;
@@ -599,7 +617,7 @@ int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcmS16,
         frame.data = chunk;
         frame.sampleRate = sampleRate;
         frame.channels = channels;
-        frame.bitsPerSample = 16;
+        frame.bitsPerSample = 32;
         frame.timestamp = ++lastTimestamp_+FIXED_DELAY_FRAMES;
 
         emit audioFrameReady(frame);
@@ -620,6 +638,7 @@ int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcmS16,
             {
                 chunkMs=chunkMs*1.5;
             }
+
             QThread::msleep(static_cast<unsigned long>(chunkMs));
         }
     }

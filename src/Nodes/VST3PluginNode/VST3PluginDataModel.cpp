@@ -187,6 +187,8 @@ QJsonObject VST3PluginDataModel::save() const
     // 保存插件路径和状态
     if (!pluginInfo_.isEmpty()) {
         values["PluginPath"] = pluginInfo_["Plugin Path"].toString();
+    }
+    if (!pluginUID_.isEmpty()) {
         values["PluginUID"] = pluginUID_;
     }
     
@@ -226,26 +228,25 @@ void VST3PluginDataModel::load(const QJsonObject &p)
             QString pluginPath = values["PluginPath"].toString();
             pluginUID_ = values["PluginUID"].toString();
             
-            // 恢复状态数据
             if (values.contains("ProcessorState")) {
                 savedProcessorState_ = QByteArray::fromBase64(
                     values["ProcessorState"].toString().toUtf8());
             }
-            
             if (values.contains("ControllerState")) {
                 savedControllerState_ = QByteArray::fromBase64(
                     values["ControllerState"].toString().toUtf8());
             }
             
-            // 恢复参数值
+            // 先加载插件，再恢复状态与参数（保证状态写入时接口已可用）
+            loadPlugin(pluginPath);
+            writeState();
+            
             if (values.contains("Parameters")) {
                 QJsonObject params = values["Parameters"].toObject();
                 for (auto it = params.begin(); it != params.end(); ++it) {
                     Vst::ParamID paramId = it.key().toUInt();
                     Vst::ParamValue value = it.value().toDouble();
                     currentParameterValues_[paramId] = value;
-                    
-                    // 应用到插件
                     if (editController_) {
                         editController_->setParamNormalized(paramId, value);
                     }
@@ -311,9 +312,11 @@ void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
     pluginInfo_["Version"] = QString::fromStdString(factoryInfo.get().url);
     pluginInfo_["email"] = QString::fromStdString(factoryInfo.get().email);
 
-    // 9. 创建插件提供者
+    // 9. 创建插件提供者（优先按保存的UID匹配具体类）
     for (auto& classInfo : factory.classInfos()) {
-        if (classInfo.category() == kVstAudioEffectClass) {
+        if (classInfo.category() != kVstAudioEffectClass) continue;
+        const QString classId = QString::fromStdString(classInfo.ID().toString());
+        if (!pluginUID_.isEmpty() && classId == pluginUID_) {
             plugProvider_ = owned(new Steinberg::Vst::PlugProvider(factory, classInfo, true));
             if (!plugProvider_->initialize()) {
                 qWarning() << "Failed to initialize plugin provider";
@@ -321,6 +324,23 @@ void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
                 plugProvider_ = nullptr;
                 return;
             }
+            // 同步保存UID，确保下次序列化可用
+            pluginUID_ = classId;
+            break;
+        }
+    }
+    // 若按UID未找到，选择第一个音频效果类并记录UID
+    if (!plugProvider_) {
+        for (auto& classInfo : factory.classInfos()) {
+            if (classInfo.category() != kVstAudioEffectClass) continue;
+            plugProvider_ = owned(new Steinberg::Vst::PlugProvider(factory, classInfo, true));
+            if (!plugProvider_->initialize()) {
+                qWarning() << "Failed to initialize plugin provider";
+                updateNodeState(QtNodes::NodeValidationState::State::Error ,"Failed to initialize plugin provider");
+                plugProvider_ = nullptr;
+                return;
+            }
+            pluginUID_ = QString::fromStdString(classInfo.ID().toString());
             break;
         }
     }

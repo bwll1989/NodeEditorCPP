@@ -140,7 +140,7 @@ private:
     // 音频参数
     int sampleRate = 48000;
     int channels = 1;
-    int bitsPerSample = 16;
+    int bitsPerSample = 32;
     
     // 线程安全
     mutable QMutex mutex;

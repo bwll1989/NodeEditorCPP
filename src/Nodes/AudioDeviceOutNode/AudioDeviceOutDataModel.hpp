@@ -33,6 +33,13 @@ static const int SAMPLE_RATE = 48000;
 static const size_t BUFFER_SIZE = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();
 namespace Nodes
 {
+    /**
+     * 音频设备输出节点模型
+     * - 职责：从各输入端口的 AudioTimestampRingQueue 按全局时间戳消费帧并输出到 PortAudio
+     * - 关键成员：设备选择、驱动筛选、PortAudio 流、输入端口共享缓冲与每端口上次消费时间戳
+     * - 时钟：依赖 TimestampGenerator 提供统一帧计数，缓冲大小由 SAMPLE_RATE / 全局帧率计算
+     * - 线程：PortAudio 回调线程读取并混音/路由到设备通道，尽量避免锁与耗时操作
+     */
     class AudioDeviceOutDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
@@ -209,13 +216,6 @@ namespace Nodes
          * @param deviceText 设备文本
          */
         void onDeviceChanged(const QString& deviceText) ;
-
-        /**
-         * @brief 音频处理回调，根据系统时间从AudioTimestampQueue读取对应时间戳的数据
-         * @param outputBuffer 输出缓冲区指针
-         * @param framesPerBuffer 每次处理的帧数（由PortAudio决定，通常固定）
-         * @return PortAudio继续标志
-         */
         /**
          * @brief 音频处理回调函数，严格按照FRAME_INTERVAL_MS控制处理间隔
          * @param outputBuffer 输出缓冲区
@@ -224,24 +224,24 @@ namespace Nodes
          */
         int processAudio(void* outputBuffer, unsigned long framesPerBuffer) {
 
-            // 将输出缓冲区转换为16位整数指针
-            int16_t* output = static_cast<int16_t*>(outputBuffer);
-            // 获取音频设备的最大通道数
+            // Convert output buffer to float pointer
+            float* output = static_cast<float*>(outputBuffer);
+            // Get device max channels
             const int deviceChannels = getDeviceMaxChannels(selectedDeviceIndex);
             const int frames = static_cast<int>(framesPerBuffer);
         
-            // 清零输出缓冲区，确保没有杂音
-            memset(output, 0, static_cast<size_t>(frames) * static_cast<size_t>(deviceChannels) * sizeof(int16_t));
+            // Clear output buffer to ensure silence
+            memset(output, 0, static_cast<size_t>(frames) * static_cast<size_t>(deviceChannels) * sizeof(float));
 
-            const qint64 targetTimestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
-            // 遍历所有活跃的音频输入端口
+            const qint64 currentGlobalTs = TimestampGenerator::getInstance()->getCurrentFrameCount();
+            // Iterate over all active audio input ports
             for (auto& [portIndex, timestampQueue] : inputTimestampQueues) {
-                // 检查端口索引是否在设备通道范围内
+                // Check if port index is within device channel range
                 if (portIndex >= deviceChannels) {
                     continue;
                 }
         
-                // 检查队列有效性（避免在回调中额外加锁）
+                // Check queue validity
                 if (!timestampQueue) {
                     continue;
                 }
@@ -249,28 +249,23 @@ namespace Nodes
 
                 AudioFrame frame;
 
-                // 使用新的基于时间戳的读取方法
-                if (timestampQueue->getFrameByTimestamp(targetTimestamp, frame)) {
+                qint64& lastTs = lastConsumedTimestamps[portIndex];
+                qint64 desiredTs = (currentGlobalTs == lastTs && lastTs > 0) ? (lastTs + 1) : currentGlobalTs;
+                if (timestampQueue->getFrameByTimestamp(desiredTs, frame)) {
+                    lastTs = frame.timestamp;
 
-                    const int16_t* input = reinterpret_cast<const int16_t*>(frame.data.constData());
-                    const int totalSamples = static_cast<int>(frame.data.size() / sizeof(int16_t));
+                    const float* input = reinterpret_cast<const float*>(frame.data.constData());
+                    const int totalSamples = static_cast<int>(frame.data.size() / sizeof(float));
                     const int samplesToProcess = std::min(frames, totalSamples);
-                    // qDebug()<<"find target"<<targetTimestamp<<TimestampGenerator::getInstance()->getCurrentFrameInfo().absoluteTimeMs;
-                    // 指针步进写入，减少乘法
-                    int16_t* outPtr = output + portIndex;
-                    const int16_t* inPtr = input;
+                    // Pointer stepping write, reducing multiplication
+                    float* outPtr = output + portIndex;
+                    const float* inPtr = input;
                     int remaining = samplesToProcess;
                     while (remaining-- > 0) {
                         *outPtr = *inPtr++;
                         outPtr += deviceChannels;
                     }
-                    // 可选：调试同步
-                    // qint64 timeDiff = frame.timestamp - targetTimestamp;
                 }
-                // else {
-                //     // 没有找到合适的帧，可以记录调试信息
-                //     qDebug() << "No suitable frame found for port" << portIndex << "at timestamp" << targetTimestamp;
-                // }
             }
             return paContinue;
         }
@@ -287,6 +282,18 @@ namespace Nodes
 private:
         /**
          * @brief PortAudio 回调函数
+         */
+        /**
+         * PortAudio 静态回调桥接函数
+         * - 将 C 风格回调转发到实例方法 processAudio
+         * - 忽略输入缓冲与时间信息，专注输出
+         * @param inputBuffer 输入缓冲（未使用）
+         * @param outputBuffer 输出缓冲
+         * @param framesPerBuffer 帧块大小
+         * @param timeInfo PortAudio 时间信息（未使用）
+         * @param statusFlags PortAudio 状态标志（未使用）
+         * @param userData 节点实例指针
+         * @return PortAudio 回调返回码
          */
         static int paCallback(const void* inputBuffer, void* outputBuffer,
                              unsigned long framesPerBuffer,
@@ -309,6 +316,7 @@ private:
         // 稀疏存储：只存储实际连接的通道
         std::map<int, std::shared_ptr<AudioData>> inputAudioData;  // 每个端口的音频数据
         std::map<int, std::shared_ptr<AudioTimestampRingQueue>> inputTimestampQueues;  // 每个端口对应的时间戳队列
+        std::map<int, qint64> lastConsumedTimestamps;  // 每个端口上次成功消费的时间戳
     };
 }
 

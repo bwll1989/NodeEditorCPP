@@ -12,3 +12,4 @@
 #include "ImageShowModel.hpp"
 #include "ToJsonDataModel.hpp"
 #include "FromJsonDataModel.hpp"
+#include "WindowDisplayModel.hpp"

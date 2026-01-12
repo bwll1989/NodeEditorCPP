@@ -80,30 +80,26 @@ bool AudioTimestampRingQueue::getFrameByTimestamp(qint64 targetFrameCount, Audio
     }
 
     // 先用小缓存（连续访问很常见）
-    if (lastHitIndex_ >= 0) {
+    if (lastHitIndex_ >= 0 && lastHitIndex_ < maxSize_) {
         const AudioFrame& cached = frames_[lastHitIndex_];
         if (cached.timestamp == targetFrameCount) {
             frame = cached;
             return true;
         }
+        
+        // 真正实现"直接使用相邻槽"，不查哈希表，大幅降低锁竞争
         if (cached.timestamp + 1 == targetFrameCount) {
-            // 直接使用相邻槽（避免二次哈希）：假设时间戳连续写入映射到同一槽也安全
-            auto it = timestampToIndex_.find(targetFrameCount);
-            if (it != timestampToIndex_.end()) {
-                int idx = it.value();
-                const AudioFrame& hit = frames_[idx];
-                if (hit.timestamp == targetFrameCount) {
-                    frame = hit;
-                    lastHitTimestamp_ = hit.timestamp;
-                    lastHitIndex_ = idx;
-                    return true;
-                }
+            int nextIdx = (lastHitIndex_ + 1) % maxSize_;
+            const AudioFrame& nextFrame = frames_[nextIdx];
+            if (nextFrame.timestamp == targetFrameCount) {
+                frame = nextFrame;
+                lastHitIndex_ = nextIdx;
+                lastHitTimestamp_ = nextFrame.timestamp;
+                return true;
             }
         }
-        if (cached.timestamp == targetFrameCount + 1) {
-            frame = cached;
-            return true;
-        }
+        
+        // 容错：如果缓存的时间戳已经不匹配（比如被覆盖），直接走下面的哈希查找
     }
 
     // 单次哈希查找：先 target

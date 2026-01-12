@@ -1,0 +1,57 @@
+{
+    "nodestudio": {
+        "host": "192.168.0.103",
+        "port": 8992
+    },
+    "commands": {
+        "stop_background_music": {
+            "address": "/dataflow/Dataflow/0/stop",
+            "value": 1
+        },
+        "start_background_music": {
+            "address": "/dataflow/Dataflow/0/play",
+            "value": 1
+        },
+        "set_background_music_volume":{
+            "description": "设置背景音乐音量（dB）",
+            "aliases": ["设置背景音乐音量", "背景音乐音量"],
+            "args": {
+                "Volume": { "type": "float", "description": "-40 到 10（dB）" }
+            },
+            "address":"/dataflow/Dataflow/0/volume",
+            "value":{
+                "$arg":"Volume",
+                "scale":1,
+                "clamp":[-40,10]
+            }
+        },
+        "set_background_music_loop": {
+            "description": "设置背景音乐循环",
+            "aliases": ["背景音乐循环", "设置背景音乐循环"],
+            "args": {
+                "Loop": { "type": "bool", "description": "true 开启，false 关闭" }
+            },
+            "address": "/dataflow/Dataflow/0/loop",
+            "value": { "$arg": "Loop" }
+        },
+        "get_background_music_loop": {
+            "query": ["/dataflow/Dataflow/0/loop"]
+        },
+        "get_background_music_volume": {
+            "description": "查询背景音乐音量（dB）",
+            "aliases": ["查询背景音乐音量", "背景音乐音量是多少"],
+            "query": ["/dataflow/Dataflow/0/volume"]
+        },
+        "set_light_Brightness": {
+            "args": {
+                "Brightness": { "type": "int", "description": "0-100" }
+            },
+            "address": "/dataflow/Dataflow/6/channels0",
+            "value": { "$arg": "Brightness", "scale": 2.55, "clamp": [0, 255] }
+        },
+        "get_light_Brightness": {
+            "query": ["/dataflow/Dataflow/6/channels0"]
+        }
+    }
+
+}

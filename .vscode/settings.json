@@ -150,6 +150,7 @@
         "*.rh": "cpp",
         "openglsupport": "cpp",
         "nonlinearoptimization": "cpp",
-        "nodedelegatemodel": "cpp"
+        "nodedelegatemodel": "cpp",
+        "qpushbutton": "cpp"
     }
 }

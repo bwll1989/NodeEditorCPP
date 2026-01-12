@@ -55,6 +55,8 @@ namespace Nodes
                     this, &AudioDecoderDataModel::onVolumeChanged, Qt::QueuedConnection);
             connect(widget->loopCheckBox, &QCheckBox::toggled,
                     this, &AudioDecoderDataModel::onLoopToggled, Qt::QueuedConnection);
+            connect(player.get(), &AudioDecoder::playbackProgress,
+                    this, &AudioDecoderDataModel::onPlaybackProgress, Qt::QueuedConnection);
 
             // 注册OSC控制
             AbstractDelegateModel::registerOSCControl("/volume", widget->volumeSlider);
@@ -240,6 +242,19 @@ namespace Nodes
         }
 
     public slots:
+        void onPlaybackProgress(double currentSec, double totalSec) {
+            if (totalSec > 0) {
+                int value = static_cast<int>((currentSec / totalSec) * 1000);
+                widget->progressSlider->blockSignals(true);
+                widget->progressSlider->setValue(value);
+                widget->progressSlider->blockSignals(false);
+            }
+            
+            QString currentTimeStr = formatTime(currentSec);
+            QString totalTimeStr = formatTime(totalSec);
+            widget->timeLabel->setText(currentTimeStr + " / " + totalTimeStr);
+        }
+
         /**
          * 选则音频文件
          */
@@ -306,12 +321,17 @@ namespace Nodes
 
 
     private:
+        QString formatTime(double seconds) {
+            int m = static_cast<int>(seconds) / 60;
+            int s = static_cast<int>(seconds) % 60;
+            return QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
+        }
 
         float currentVolume = 0.5f;  // 新增当前音量记录
 
         AudioDecoderInterface *widget=new AudioDecoderInterface();
         //    界面控件
-        AudioDecoder *player=new AudioDecoder();
+        std::shared_ptr<AudioDecoder> player=std::make_shared<AudioDecoder>();
         QString filePath="";
         bool isLoop=false;
         bool autoPlay=false;
