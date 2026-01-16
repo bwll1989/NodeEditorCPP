@@ -25,15 +25,22 @@ extern "C" {
 #include <QWaitCondition>
 #include <portaudio.h>
 #include <QDateTime>
+#include <QElapsedTimer>
 // #include <Common/Devices/AudioPipe/AudioPipe.h>
 static const int SAMPLE_RATE = 48000;
 static const int LOOP_INTERVAL = 800;
 static const int FIXED_DELAY_FRAMES = 5;
 static const int SAMPLES_PER_CHANNEL = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();;
 // 在构造函数中添加新的成员变量初始化
+/**
+ * @brief 构造函数
+ * 初始化成员变量，注册元数据类型，连接信号槽
+ * @param parent 父对象指针
+ */
 VideoDecoder::VideoDecoder(QObject *parent)
     : QThread(parent)
     , formatContext(nullptr)
+    , formatContextVideo(nullptr)
     , codecContext(nullptr)
     , codec(nullptr)
     , audioFrame(nullptr)
@@ -72,20 +79,41 @@ VideoDecoder::~VideoDecoder() {
     cleanupFFmpeg();
 }
 
+/**
+ * @brief 初始化音频与视频的FFmpeg上下文
+ * 
+ * 为了实现音视频独立解码互不阻塞，这里会分别打开两次文件：
+ * 1. formatContext: 用于音频解码
+ * 2. formatContextVideo: 用于视频解码
+ * 
+ * @param filePath 媒体文件路径
+ * @return 包含媒体信息的JSON对象
+ */
 QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
     formatContext= nullptr;
+    formatContextVideo = nullptr;
     codecContext= nullptr;
     codec= nullptr;
     swrContext= nullptr;
     avformat_network_init();
+    // 打开音频上下文
     if (avformat_open_input(&formatContext, filePath.toStdString().c_str(), nullptr, nullptr) != 0) {
         qDebug()<<"打开文件失败"<<filePath.toStdString().c_str();
         return nullptr;
     }
-    //打开文件，并读取格式信息到格式上下文formatContext
+    // 打开视频上下文（独立）
+    if (avformat_open_input(&formatContextVideo, filePath.toStdString().c_str(), nullptr, nullptr) != 0) {
+        qDebug()<<"打开文件失败(视频)"<<filePath.toStdString().c_str();
+        return nullptr;
+    }
+    //读取格式信息
 
     if (avformat_find_stream_info(formatContext, nullptr) != 0) {
         qDebug()<<"找不到流信息";
+        return nullptr;
+    }
+    if (avformat_find_stream_info(formatContextVideo, nullptr) != 0) {
+        qDebug()<<"找不到视频流信息";
         return nullptr;
     }
     
@@ -114,14 +142,14 @@ QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
         return nullptr;
     }
 
-        // 初始化视频
-        videoStreamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+        // 初始化视频（独立上下文）
+        videoStreamIndex = av_find_best_stream(formatContextVideo, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
         if (videoStreamIndex != -1) {
-            videoCodec = avcodec_find_decoder(formatContext->streams[videoStreamIndex]->codecpar->codec_id);
+            videoCodec = avcodec_find_decoder(formatContextVideo->streams[videoStreamIndex]->codecpar->codec_id);
             if (videoCodec) {
                 videoCodecContext = avcodec_alloc_context3(videoCodec);
                 if (videoCodecContext) {
-                    avcodec_parameters_to_context(videoCodecContext, formatContext->streams[videoStreamIndex]->codecpar);
+                    avcodec_parameters_to_context(videoCodecContext, formatContextVideo->streams[videoStreamIndex]->codecpar);
                     if (avcodec_open2(videoCodecContext, videoCodec, nullptr) >= 0) {
                         videoWidth = videoCodecContext->width;
                         videoHeight = videoCodecContext->height;
@@ -218,13 +246,15 @@ QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
 
 
 /**
- * @brief 启动音频播放
- * 重置文件指针，清空缓冲区，并启动解码线程
+ * @brief 启动播放
+ * 1. 重置音频和视频的解码状态（seek到0，清空buffer）
+ * 2. 启动音频解码线程和视频解码线程
+ * 3. 两个线程独立运行，互不阻塞
  */
 void VideoDecoder::startPlay(){
     QMutexLocker locker(&mutex);
 
-    // 重置文件指针到开始位置
+    // 重置文件指针到开始位置（音频）
     if (formatContext) {
         // 将音频流定位到起始位置，使用向后搜索标志确保精确定位
         av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
@@ -249,28 +279,54 @@ void VideoDecoder::startPlay(){
             }
         }
     }
+    // 重置文件指针到开始位置（视频）
+    if (formatContextVideo && videoStreamIndex >= 0) {
+        av_seek_frame(formatContextVideo, videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
+        if (videoCodecContext) {
+            avcodec_flush_buffers(videoCodecContext);
+        }
+    }
 
-    isPlaying = true;
-    start();  // 启动线程开始播放
+    isPlaying.store(true);
+    // 启动音频线程
+    if (!audioRunning.load()) {
+        if (audioThread.joinable()) audioThread.join();
+        audioRunning.store(true);
+        audioThread = std::thread([this]() { audioLoop(); });
+    }
+    // 启动视频线程
+    if (!videoRunning.load() && videoCodecContext && formatContextVideo) {
+        if (videoThread.joinable()) videoThread.join();
+        videoRunning.store(true);
+        videoThread = std::thread([this]() { videoLoop(); });
+    }
 }
 
 /**
- * @brief 停止音频播放
- * 确保线程安全地停止播放并清理所有缓冲区
+ * @brief 停止播放
+ * 1. 设置停止标志，唤醒等待条件
+ * 2. 等待音频和视频线程结束 (join)
+ * 3. 清理所有缓冲区和重置解码器状态
  */
 void VideoDecoder::stopPlay() {
     {
         QMutexLocker locker(&mutex);
-        if (!isPlaying) {
+        if (!isPlaying.load()) {
             return; // 已经停止，直接返回
         }
-        isPlaying = false;
+        isPlaying.store(false);
         condition.wakeAll();
     }
 
-    // 等待线程结束（在锁外进行）
-    if (isRunning()) {
-        wait(3000); // 等待最多3秒
+    // 停止音频线程
+    if (audioRunning.load()) {
+        audioRunning.store(false);
+        if (audioThread.joinable()) audioThread.join();
+    }
+    // 停止视频线程
+    if (videoRunning.load()) {
+        videoRunning.store(false);
+        if (videoThread.joinable()) videoThread.join();
     }
 
     // 线程停止后再清理缓冲区
@@ -336,18 +392,18 @@ float VideoDecoder::getVolume() const {
 
 void VideoDecoder::setLooping(bool loop) {
     QMutexLocker locker(&mutex);
-    isLooping = loop;
+    isLooping.store(loop);
 }
 
 
 bool VideoDecoder::getLooping() const {
-    return isLooping;
+    return isLooping.load();
 }
 
 
 bool VideoDecoder::getPlaying() const
 {
-    return isPlaying;
+    return isPlaying.load();
 }
        
 
@@ -445,15 +501,31 @@ void VideoDecoder::processVideoFrame() {
     emit videoFrameReady(imageData);
 }
 
+/**
+ * @brief 兼容旧接口：保持空实现或仅用于调试
+ */
 void VideoDecoder::run()  {
-    playAudio();
 }
 
 
+/**
+ * @brief 启动播放（向后兼容），等同于 startPlay()
+ */
 void VideoDecoder::playAudio() {
+    startPlay();
+}
+
+/**
+ * @brief 音频解码主循环
+ * 运行在独立线程中，负责：
+ * 1. 读取音频包并解码
+ * 2. 进行音频重采样（如需）
+ * 3. 将PCM数据切片为固定大小的块（SAMPLES_PER_CHANNEL）
+ * 4. 控制音频播放进度信号
+ */
+void VideoDecoder::audioLoop() {
     AVPacket packet;
     audioFrame = av_frame_alloc();
-    videoFrame = av_frame_alloc();
     uint8_t* outputBuffer = nullptr;
     int outputBufferSize = 0;
     lastTimestamp_=timestampGenerator_->getCurrentFrameCount();
@@ -471,18 +543,11 @@ void VideoDecoder::playAudio() {
     // 循环播放的主循环
     do {
         // 重置文件指针到开始位置（用于循环播放）
-        if (frameCount > 0 && isLooping) {
+        if (frameCount > 0 && isLooping.load()) {
             QThread::msleep(LOOP_INTERVAL);
             av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
-            if (videoStreamIndex >= 0) {
-                 av_seek_frame(formatContext, videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
-            }
-
             if (codecContext) {
                 avcodec_flush_buffers(codecContext);
-            }
-            if (videoCodecContext) {
-                avcodec_flush_buffers(videoCodecContext);
             }
 
             // 重置待发缓冲
@@ -491,9 +556,9 @@ void VideoDecoder::playAudio() {
             lastChannels_ = 0;
         }
 
-        while (isPlaying && av_read_frame(formatContext, &packet) >= 0) {
+        while (audioRunning.load() && isPlaying.load() && av_read_frame(formatContext, &packet) >= 0) {
             // 发送播放进度信号
-            if (packet.stream_index == audioStreamIndex || (packet.stream_index == videoStreamIndex && audioStreamIndex == -1)) {
+            if (packet.stream_index == audioStreamIndex) {
                  double currentSec = 0.0;
                  if (packet.pts != AV_NOPTS_VALUE) {
                      currentSec = packet.pts * av_q2d(formatContext->streams[packet.stream_index]->time_base);
@@ -608,27 +673,84 @@ void VideoDecoder::playAudio() {
                                                                    SAMPLE_RATE);
                     }
                 }
-            } else if (packet.stream_index == videoStreamIndex) {
-                if (avcodec_send_packet(videoCodecContext, &packet) == 0) {
-                    while (avcodec_receive_frame(videoCodecContext, videoFrame) >= 0) {
-                        processVideoFrame();
-                    }
-                }
             }
             av_packet_unref(&packet);
         }
-    } while (isPlaying && isLooping); // 循环播放条件
+    } while (audioRunning.load() && isPlaying.load() && isLooping.load()); // 循环播放条件
 
     // 清理资源
     if (audioFrame) {
         av_frame_free(&audioFrame);
     }
-    if (videoFrame) {
-        av_frame_free(&videoFrame);
-    }
     if (outputBuffer) {
         av_freep(&outputBuffer);
     }
+    audioRunning.store(false);
+    if (!isLooping.load()) {
+        isPlaying.store(false);
+        videoRunning.store(false);
+    }
+}
+
+/**
+ * @brief 视频解码主循环
+ * 运行在独立线程中，负责：
+ * 1. 使用独立的 AVFormatContext 读取视频包
+ * 2. 解码视频帧
+ * 3. 根据 PTS (Presentation Time Stamp) 进行帧同步，使用 sleep 控制播放速度
+ * 4. 转换 YUV 到 BGR 并发送图像信号
+ */
+void VideoDecoder::videoLoop() {
+    AVPacket packet;
+    videoFrame = av_frame_alloc();
+    QElapsedTimer timer;
+    bool started = false;
+    double firstPtsSec = 0.0;
+    // 主循环（按PTS节奏输出，避免UI被淹没）
+    while (videoRunning.load() && isPlaying.load()) {
+        int ret = av_read_frame(formatContextVideo, &packet);
+        if (ret < 0) {
+            if (isLooping.load()) {
+                av_seek_frame(formatContextVideo, videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
+                if (videoCodecContext) {
+                    avcodec_flush_buffers(videoCodecContext);
+                }
+                started = false;
+                continue;
+            }
+            break;
+        }
+
+        if (packet.stream_index == videoStreamIndex) {
+            if (avcodec_send_packet(videoCodecContext, &packet) == 0) {
+                while (videoRunning.load() && isPlaying.load() && avcodec_receive_frame(videoCodecContext, videoFrame) >= 0) {
+                    int64_t ts = (videoFrame->best_effort_timestamp != AV_NOPTS_VALUE) ? videoFrame->best_effort_timestamp : videoFrame->pts;
+                    if (ts != AV_NOPTS_VALUE) {
+                        const AVRational tb = formatContextVideo->streams[videoStreamIndex]->time_base;
+                        const double ptsSec = ts * av_q2d(tb);
+                        if (!started) {
+                            started = true;
+                            firstPtsSec = ptsSec;
+                            timer.start();
+                        } else {
+                            const qint64 targetMs = static_cast<qint64>((ptsSec - firstPtsSec) * 1000.0);
+                            const qint64 nowMs = timer.elapsed();
+                            const qint64 sleepMs = targetMs - nowMs;
+                            if (sleepMs > 0 && sleepMs < 1000) {
+                                QThread::msleep(static_cast<unsigned long>(sleepMs));
+                            }
+                        }
+                    }
+                    processVideoFrame();
+                }
+            }
+        }
+        av_packet_unref(&packet);
+    }
+    if (videoFrame) {
+        av_frame_free(&videoFrame);
+    }
+    videoRunning.store(false);
 }
 
 /**
@@ -654,6 +776,9 @@ void VideoDecoder::cleanupFFmpeg(){
     }
     if (formatContext) {
         avformat_close_input(&formatContext);
+    }
+    if (formatContextVideo) {
+        avformat_close_input(&formatContextVideo);
     }
     if (audioFrame) {
         av_frame_free(&audioFrame);
@@ -704,7 +829,18 @@ void VideoDecoder::applyVolume(uint8_t* data, int sampleCount, int channels) {
 
 
 
-// 将解码得到的PCM累积并按固定1920采样/声道切片发送
+/**
+ * @brief 处理PCM数据并按固定帧大小发射
+ * 
+ * 将解码后的PCM数据累积到缓冲区，当达到 SAMPLES_PER_CHANNEL 时切片发送。
+ * 包含简单的播放速度控制（通过 sleep）。
+ * 
+ * @param interleavedPcm 交错的PCM数据指针
+ * @param samplesPerChannel 本次输入的每通道采样数
+ * @param channels 通道数
+ * @param sampleRate 采样率
+ * @return 已发射的帧数
+ */
 int VideoDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
                                                int samplesPerChannel,
                                                int channels,
@@ -766,7 +902,4 @@ int VideoDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
 
     return emitted;
 }
-
-
-
 

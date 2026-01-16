@@ -132,6 +132,7 @@ add_subdirectory(src/Clips)
 # 添加Nodes模块
 add_subdirectory(src/Nodes)
 add_subdirectory(src/Common/Devices/OSCSender)
+add_subdirectory(src/Common/Devices/FTDAWController)
 add_subdirectory(src/Common/Devices/SpoutReceiver)
 add_subdirectory(src/Common/GUI/OscListWidget)
 add_subdirectory(src/Common/GUI/Elements)

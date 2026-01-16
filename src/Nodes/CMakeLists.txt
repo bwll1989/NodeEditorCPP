@@ -69,7 +69,7 @@ set(ALL_NODES
     AudioMatrixNode                             #音频矩阵节点
     AudioAnalysisNode                           #音频分析节点
 #    PythonScriptNode                            #python脚本节点
-
+    DAWControllerNode                           #DAW控制器节点
     StyleTransferONNXNode                       #神经网络风格迁移
     DataVisualNode                              #数据可视化
     FileLoadNode                                #文件导入
@@ -176,6 +176,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(ObjectDetectionNode)                       #对象识别
     add_subdirectory(FaceDetectionNode)                            #人脸检测
     add_subdirectory(VideoDecoderNode)                          #视频解码器节点
+    add_subdirectory(DAWControllerNode)                          #DAW控制器节点
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()

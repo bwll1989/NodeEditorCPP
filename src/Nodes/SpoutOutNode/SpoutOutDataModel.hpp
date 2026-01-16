@@ -27,8 +27,9 @@
 #include <QtGui/QOffscreenSurface>
 #include <QtGui/QSurfaceFormat>
 #include <QtCore/QMetaType>
+#include <QDebug>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
-// 使用 SpoutLibrary API 而不是 SpoutReceiver
+// 使用 SpoutLibrary API
 #include "SpoutLibrary.h"
 
 // 再次确保没有 min/max 宏定义
@@ -57,12 +58,12 @@ using namespace NodeDataTypes;
 namespace Nodes
 {
     /**
-     * @brief Spout接收线程类
+     * @brief Spout发送线程类
      * 
-     * 在独立线程中处理Spout图像接收，避免阻塞主线程
-     * 使用SpoutLibrary API提供更稳定的接收功能
+     * 在独立线程中处理Spout图像发送，避免阻塞主线程
+     * 维护独立的 OpenGL 上下文以供 Spout 使用
      */
-    class SpoutSendThread : public QThread
+    class SpoutSenderThread : public QThread
     {
         Q_OBJECT
 
@@ -71,19 +72,16 @@ namespace Nodes
          * @brief 构造函数
          * @param parent 父对象
          */
-        explicit SpoutSendThread(QObject* parent = nullptr)
+        explicit SpoutSenderThread(QObject* parent = nullptr)
             : QThread(parent)
             , m_running(false)
             , m_spout(nullptr)
-            , m_imageBuffer(nullptr)
-            , m_width(0)
-            , m_height(0)
-            , m_forceUpdateSenders(false)
             , m_context(nullptr)
             , m_surface(nullptr)
+            , m_nameChanged(false)
+            , m_newFrameAvailable(false)
         {
             // 在主线程中创建 OffscreenSurface
-            // 使用兼容模式，以防 Spout 需要旧版 OpenGL 功能
             QSurfaceFormat format = QSurfaceFormat::defaultFormat();
             format.setProfile(QSurfaceFormat::CompatibilityProfile);
             
@@ -95,8 +93,8 @@ namespace Nodes
         /**
          * @brief 析构函数
          */
-        ~SpoutSendThread() override {
-            stopReceiving();
+        ~SpoutSenderThread() override {
+            stopSending();
             wait();
             // m_surface 在主线程创建，应在主线程销毁
             if (m_surface) {
@@ -104,23 +102,20 @@ namespace Nodes
                 delete m_surface;
                 m_surface = nullptr;
             }
-            cleanupSpout();
             
             // 线程结束前清理 OpenGL 上下文
             if (m_context) {
-                m_context->doneCurrent();
+                // 注意：这里可能需要在 run() 结束前清理，或者确保 context 没有被 current
                 delete m_context;
                 m_context = nullptr;
             }
         }
 
         /**
-         * @brief 开始接收Spout数据
-         * @param senderName 发送器名称，为空则连接到活动发送器
+         * @brief 开始发送Spout数据
          */
-        void startReceiving(const QString& senderName = "") {
+        void startSending() {
             QMutexLocker locker(&m_mutex);
-            m_senderName = senderName;
             m_running = true;
             if (!isRunning()) {
                 start();
@@ -128,9 +123,9 @@ namespace Nodes
         }
 
         /**
-         * @brief 停止接收Spout数据
+         * @brief 停止发送Spout数据
          */
-        void stopReceiving() {
+        void stopSending() {
             QMutexLocker locker(&m_mutex);
             m_running = false;
         }
@@ -141,22 +136,41 @@ namespace Nodes
          */
         void setSenderName(const QString& senderName) {
             QMutexLocker locker(&m_mutex);
-            m_senderName = senderName;
-            qDebug() << "SpoutSendThread: setSenderName:" << m_senderName;
+            if (m_senderName != senderName) {
+                m_senderName = senderName;
+                m_nameChanged = true;
+            }
         }
 
         /**
-         * @brief 手动触发发送器列表更新
+         * @brief 更新要发送的帧
+         * @param frame OpenCV图像帧
          */
-        void requestSenderListUpdate() {
+        void updateFrame(const cv::Mat& frame) {
+            if (frame.empty()) return;
+            
             QMutexLocker locker(&m_mutex);
-            m_forceUpdateSenders = true;
+            cv::Mat converted;
+            if (frame.channels() == 3) {
+                cv::cvtColor(frame, converted, cv::COLOR_BGR2BGRA);
+            } else if (frame.channels() == 4) {
+                if (frame.type() == CV_8UC4) {
+                    converted = frame;
+                } else {
+                    frame.convertTo(converted, CV_8UC4);
+                }
+            } else if (frame.channels() == 1) {
+                cv::cvtColor(frame, converted, cv::COLOR_GRAY2BGRA);
+            } else {
+                return;
+            }
+
+            m_nextFrame = converted.clone();
+            m_newFrameAvailable = true;
         }
 
     signals:
-        void frameReceived(const cv::Mat& frame);
-        void connectionStatusChanged(bool connected);
-        void senderListUpdated(const QStringList& senders);
+        void connectionStatusChanged(bool sending);
 
     protected:
         /**
@@ -167,54 +181,103 @@ namespace Nodes
             m_context = new QOpenGLContext();
             m_context->setFormat(m_surface->format());
             if (!m_context->create()) {
-                qDebug() << "SpoutSendThread: Failed to create OpenGL context";
-                delete m_context;
-                m_context = nullptr;
+                qDebug() << "SpoutSenderThread: Failed to create OpenGL context";
                 return;
             }
 
             // 使用主线程创建的 surface
             if (!m_context->makeCurrent(m_surface)) {
-                qDebug() << "SpoutSendThread: Failed to make OpenGL context current";
-                delete m_context;
-                m_context = nullptr;
+                qDebug() << "SpoutSenderThread: Failed to make OpenGL context current";
                 return;
             }
 
-            qDebug() << "SpoutSendThread: OpenGL context created and made current";
+            // 初始化 Spout
+            m_spout = GetSpout();
+            if (!m_spout) {
+                qDebug() << "SpoutSenderThread: Failed to create Spout instance";
+                return;
+            }
 
-            initializeSpout();
-            
-            // 立即扫描一次发送器列表
-            updateSenderList();
-            
-            while (m_running) {
-                bool hasFrame = false;
-                
-                // 如果有指定发送器，尝试接收帧
+            // 初始设置发送器名称
+            {
+                QMutexLocker locker(&m_mutex);
                 if (!m_senderName.isEmpty()) {
-                    hasFrame = receiveFrame();
-                    emit connectionStatusChanged(hasFrame);
+                    m_spout->SetSenderName(m_senderName.toLocal8Bit().data());
+                } else {
+                    m_spout->SetSenderName("NodeEditor Spout");
                 }
-                
-                // 定期更新发送器列表或响应手动请求
-                static int updateCounter = 0;
-                if (m_forceUpdateSenders || (++updateCounter % 60 == 0)) { // 每60帧或手动请求时更新
-                    updateSenderList();
-                    m_forceUpdateSenders = false;
-                }
-                
-                msleep(hasFrame ? 16 : 100); // 有帧时60fps，无帧时10fps
             }
             
-            cleanupSpout();
+            emit connectionStatusChanged(true);
+
+            cv::Mat currentFrame;
+            
+            while (m_running) {
+                // 检查名称变更
+                {
+                    QMutexLocker locker(&m_mutex);
+                    if (m_nameChanged) {
+                        m_spout->ReleaseSender();
+                        m_spout->SetSenderName(m_senderName.toLocal8Bit().data());
+                        m_nameChanged = false;
+                        qDebug() << "SpoutSenderThread: Sender name changed to" << m_senderName;
+                    }
+                    
+                    if (m_newFrameAvailable) {
+                        m_nextFrame.copyTo(currentFrame);
+                        m_newFrameAvailable = false;
+                    }
+                }
+
+                if (!currentFrame.empty()) {
+                    // 发送图像
+                    // SendImage(pixels, width, height, glFormat, bInvert)
+                    // 使用 GL_BGRA 因为我们已经转换过了
+                    bool success = m_spout->SendImage(
+                        currentFrame.data,
+                        currentFrame.cols,
+                        currentFrame.rows,
+                        GL_BGRA,
+                        false // bInvert (OpenCV 通常是 top-down, OpenGL 纹理通常是 bottom-up, Spout 可能处理这个? 通常不需要反转如果 Spout 内部处理了)
+                        // Spout documentation says: bInvert - Flip the image vertically.
+                        // OpenCV is Top-Left origin. OpenGL is Bottom-Left origin.
+                        // If we send as is, it might be upside down in Spout Receiver.
+                        // Let's try false first (default), change to true if needed.
+                        // Usually Spout SendImage handles texture upload which flips it effectively for GL.
+                    );
+                    
+                    if (!success) {
+                        // qDebug() << "SpoutSenderThread: SendImage failed";
+                    }
+                }
+
+                // 保持 ~60fps
+                msleep(16);
+            }
+            
+            // 清理
+            if (m_spout) {
+                m_spout->ReleaseSender();
+                m_spout->Release();
+                m_spout = nullptr;
+            }
+            
+            emit connectionStatusChanged(false);
+            
+            if (m_context) {
+                m_context->doneCurrent();
+            }
         }
 
     private:
         bool m_running;
-        bool m_forceUpdateSenders;
-        QString m_senderName;
         QMutex m_mutex;
+        
+        QString m_senderName;
+        bool m_nameChanged;
+        
+        cv::Mat m_nextFrame;
+        bool m_newFrameAvailable;
         
         // SpoutLibrary 接口
         SPOUTHANDLE m_spout;
@@ -222,192 +285,12 @@ namespace Nodes
         // OpenGL 上下文
         QOpenGLContext* m_context;
         QOffscreenSurface* m_surface;
-
-        // 图像缓冲区
-        unsigned char* m_imageBuffer;
-        unsigned int m_width;
-        unsigned int m_height;
-        
-        /**
-         * @brief 初始化Spout接收器
-         */
-        void initializeSpout() {
-            // 创建 SpoutLibrary 实例
-            m_spout = GetSpout();
-            if (!m_spout) {
-                qDebug() << "SpoutSendThread: Failed to create Spout instance";
-                return;
-            }
-            
-            qDebug() << "SpoutSendThread: Spout instance created successfully";
-            
-            // 设置接收器名称（如果指定）
-            if (!m_senderName.isEmpty()) {
-                m_spout->SetReceiverName(m_senderName.toLocal8Bit().data());
-                qDebug() << "SpoutSendThread: Set receiver name to:" << m_senderName;
-            }
-            
-            // 检查 Spout 状态
-            qDebug() << "SpoutSendThread: SDK Version:" << QString::fromStdString(m_spout->GetSDKversion());
-            qDebug() << "SpoutSendThread: GL/DX ready:" << m_spout->IsGLDXready();
-            qDebug() << "SpoutSendThread: Auto share mode:" << m_spout->GetAutoShare();
-            
-            // 获取发送器数量
-            int senderCount = m_spout->GetSenderCount();
-            qDebug() << "SpoutSendThread: Available sender count:" << senderCount;
-            
-            // 列出所有发送器
-            for (int i = 0; i < senderCount; i++) {
-                char senderName[256];
-                if (m_spout->GetSender(i, senderName, 256)) {
-                    qDebug() << "SpoutSendThread: Sender" << i << ":" << senderName;
-                }
-            }
-        }
-        
-        /**
-         * @brief 接收Spout帧数据
-         * @return 是否成功接收到帧
-         */
-        bool receiveFrame() {
-
-            if (!m_spout) {
-                qDebug() << "SpoutSendThread: Spout not initialized";
-                return false;
-            }
-            
-            // 获取发送器信息
-            unsigned int senderWidth = 0, senderHeight = 0;
-            HANDLE dxShareHandle = nullptr;
-            DWORD dwFormat = 0;
-            
-            std::string senderNameStd = m_senderName.toStdString();
-            bool infoResult = m_spout->GetSenderInfo(senderNameStd.c_str(), senderWidth, senderHeight, dxShareHandle, dwFormat);
-            
-            if (!infoResult || senderWidth == 0 || senderHeight == 0) {
-                // 尝试连接到活动发送器
-                char activeSender[256];
-                if (m_spout->GetActiveSender(activeSender)) {
-                    QString activeSenderName = QString::fromLocal8Bit(activeSender);
-                    if (activeSenderName != m_senderName) {
-                        qDebug() << "SpoutSendThread: Trying active sender:" << activeSenderName;
-                        std::string activeSenderStd = activeSenderName.toStdString();
-                        infoResult = m_spout->GetSenderInfo(activeSenderStd.c_str(), senderWidth, senderHeight, dxShareHandle, dwFormat);
-                        if (infoResult && senderWidth > 0 && senderHeight > 0) {
-                            m_senderName = activeSenderName;
-                            m_spout->SetReceiverName(activeSenderStd.c_str());
-                        }
-                    }
-                }
-                
-                if (!infoResult || senderWidth == 0 || senderHeight == 0) {
-                    return false;
-                }
-            }
-            
-            // 检查是否需要重新分配缓冲区
-            if (m_width != senderWidth || m_height != senderHeight) {
-                qDebug() << "SpoutSendThread: Reallocating buffer from" << m_width << "x" << m_height
-                         << "to" << senderWidth << "x" << senderHeight;
-                
-                if (m_imageBuffer) {
-                    delete[] m_imageBuffer;
-                    m_imageBuffer = nullptr;
-                }
-                
-                m_width = senderWidth;
-                m_height = senderHeight;
-                m_imageBuffer = new unsigned char[m_width * m_height * 4]; // BGRA/RGBA
-                
-                qDebug() << "SpoutSendThread: Buffer allocated for" << m_width << "x" << m_height;
-            }
-            
-            // 尝试接收图像数据 - 使用BGRA格式，这是Spout的默认格式
-            bool receiveResult = m_spout->ReceiveImage(m_imageBuffer, GL_BGRA, false);
-            
-            if (!receiveResult) {
-                // qDebug() << "SpoutSendThread: ReceiveImage failed"; // 减少日志刷屏
-                return false;
-            }
-
-            // 调试：检查中心像素值，确认是否有数据
-            static int logCounter = 0;
-            if (++logCounter % 60 == 0) { // 每60帧打印一次
-                int centerX = m_width / 2;
-                int centerY = m_height / 2;
-                int pixelIndex = (centerY * m_width + centerX) * 4;
-                qDebug() << "SpoutSendThread: Frame" << logCounter
-                         << "Size:" << m_width << "x" << m_height
-                         << "Center Pixel (BGRA):" 
-                         << (int)m_imageBuffer[pixelIndex] << (int)m_imageBuffer[pixelIndex+1] 
-                         << (int)m_imageBuffer[pixelIndex+2] << (int)m_imageBuffer[pixelIndex+3];
-            }
-            
-            // 检查是否有新帧
-            if (!m_spout->IsFrameNew()) {
-                return true; // 连接正常，但没有新帧
-            }
-            
-            // 转换为OpenCV Mat - 使用BGRA格式
-            cv::Mat bgraFrame(m_height, m_width, CV_8UC4, m_imageBuffer);
-            cv::Mat rgbFrame;
-            
-            // 从BGRA转换为RGB
-            cv::cvtColor(bgraFrame, rgbFrame, cv::COLOR_BGRA2RGB);
-            
-            // 发送帧数据
-            emit frameReceived(rgbFrame.clone());
-            
-            return true;
-        }
-        
-        /**
-         * @brief 更新发送器列表
-         */
-        void updateSenderList() {
-            if (!m_spout) {
-                return;
-            }
-            
-            QStringList senders;
-            int senderCount = m_spout->GetSenderCount();
-            
-            for (int i = 0; i < senderCount; i++) {
-                char senderName[256];
-                if (m_spout->GetSender(i, senderName, 256)) {
-                    senders.append(QString::fromLocal8Bit(senderName));
-                }
-            }
-            
-            emit senderListUpdated(senders);
-        }
-        
-        /**
-         * @brief 清理Spout资源
-         */
-        void cleanupSpout() {
-            if (m_imageBuffer) {
-                delete[] m_imageBuffer;
-                m_imageBuffer = nullptr;
-            }
-            
-            if (m_spout) {
-                m_spout->ReleaseReceiver();
-                m_spout->Release();
-                m_spout = nullptr;
-            }
-            
-            m_width = 0;
-            m_height = 0;
-            
-            qDebug() << "SpoutSendThread: Spout resources cleaned up";
-        }
     };
 
     /**
-     * @brief Spout输入节点数据模型
+     * @brief Spout输出节点数据模型
      * 
-     * 提供Spout图像接收功能，支持多发送器选择和实时图像传输
+     * 将输入的图像数据通过 Spout 发送给其他应用程序
      */
     class SpoutOutDataModel : public AbstractDelegateModel
     {
@@ -419,28 +302,28 @@ namespace Nodes
          */
         SpoutOutDataModel()
             : m_widget(nullptr)
-            , m_receiveThread(nullptr)
-            , m_isReceiving(false)
+            , m_sendThread(nullptr)
+            , m_isSending(false)
         {
-            InPortCount = 0;  // Spout输入不需要输入端口
-            OutPortCount = 1;
+            InPortCount = 2;
+            OutPortCount = 0;
             CaptionVisible = true;
-            Caption = "Spout In";
+            Caption = "Spout Out";
             WidgetEmbeddable = true;
             Resizable = false;
             PortEditable = false;
             
-            initializeReceiver();
+            initializeSender();
         }
 
         /**
          * @brief 析构函数
          */
         ~SpoutOutDataModel() override {
-            stopReceiving();
-            if (m_receiveThread) {
-                m_receiveThread->wait();
-                delete m_receiveThread;
+            if (m_sendThread) {
+                m_sendThread->stopSending();
+                m_sendThread->wait();
+                delete m_sendThread;
             }
             if (m_widget) {
                 m_widget->deleteLater();
@@ -449,193 +332,185 @@ namespace Nodes
 
         /**
          * @brief 获取端口数据类型
-         * @param portType 端口类型
-         * @param portIndex 端口索引
-         * @return 数据类型
          */
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override {
             Q_UNUSED(portIndex);
             switch (portType) {
-            case PortType::Out:
-                return ImageData().type();
+            case PortType::In:
+                if (portIndex==0)
+                    return ImageData().type();
+                else
+                    return VariableData().type();
             default:
-                return ImageData().type();
+                return VariableData().type();
             }
         }
 
         /**
-         * @brief 获取输出数据
-         * @param port 端口索引
-         * @return 输出数据
+         * @brief 获取输出数据 (无输出)
          */
         std::shared_ptr<NodeData> outData(PortIndex const port) override {
             Q_UNUSED(port);
-            return m_outputImageData ? m_outputImageData : std::make_shared<ImageData>();
+            return nullptr;
+        }
+
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+
+            switch (portType) {
+                case QtNodes::PortType::In:
+                    switch (portIndex)
+                    {
+                    case 0:
+                            return "IMAGE";
+                    case 1:
+                            return "ENABLE";
+                    }
+                case QtNodes::PortType::Out:
+                    return "";
+                default:
+                    break;
+            }
+            return "";
+        }
+        /**
+         * @brief 设置输入数据
+         */
+        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
+            switch (portIndex) {
+            case 0: {
+                if (!m_isSending || !m_sendThread) return;
+                auto imageData = std::dynamic_pointer_cast<ImageData>(data);
+                if (imageData && !imageData->isEmpty()) {
+                    m_sendThread->updateFrame(imageData->imgMat());
+                }
+                return;
+            }
+            case 1: {
+                bool enabled = false;
+                if (data) {
+                    auto variableData = std::dynamic_pointer_cast<VariableData>(data);
+                    if (variableData) {
+                        enabled = variableData->value().toBool();
+                    }
+                }
+                setSendingEnabled(enabled);
+                return;
+            }
+            default:
+                return;
+            }
         }
 
         /**
-         * @brief 设置输入数据
-         * @param data 输入数据
-         * @param portIndex 端口索引
+         * @brief 创建嵌入式控件
          */
-        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
-            Q_UNUSED(data);
-            Q_UNUSED(portIndex);
-            // Spout输入节点不接受输入数据
+        QWidget* embeddedWidget() override {
+            if (!m_widget) {
+                m_widget = new SpoutOutInterface();
+                
+                // 连接信号
+                connect(m_widget, &SpoutOutInterface::startSending,
+                        this, &SpoutOutDataModel::onStartSending);
+                connect(m_widget, &SpoutOutInterface::stopSending,
+                        this, &SpoutOutDataModel::onStopSending);
+                connect(m_widget, &SpoutOutInterface::senderNameChanged,
+                        this, &SpoutOutDataModel::onSenderNameChanged);
+                
+                // 初始状态
+                if (m_sendThread) {
+                     // 如果需要同步状态
+                }
+            }
+            return m_widget;
         }
 
         /**
          * @brief 保存节点状态
-         * @return JSON对象
          */
         QJsonObject save() const override {
             QJsonObject modelJson;
-            modelJson["currentSender"] = m_currentSender;
-            modelJson["isReceiving"] = m_isReceiving;
+            modelJson["senderName"] = m_senderName;
+            modelJson["isSending"] = m_isSending;
             return modelJson;
         }
 
         /**
          * @brief 加载节点状态
-         * @param jsonObject JSON对象
          */
-        void load(QJsonObject const &jsonObject) override {
-            if (jsonObject.contains("currentSender")) {
-                m_currentSender = jsonObject["currentSender"].toString();
+        void load(QJsonObject const& p) override {
+            QJsonValue v = p["senderName"];
+            if (!v.isUndefined()) {
+                m_senderName = v.toString();
+                if (m_sendThread) {
+                    m_sendThread->setSenderName(m_senderName);
+                }
             }
-            if (jsonObject.contains("isReceiving") && jsonObject["isReceiving"].toBool()) {
-                // 延迟启动，确保界面已初始化
-                QTimer::singleShot(1000, this, &SpoutOutDataModel::startReceiving);
+            v = p["isSending"];
+            if (!v.isUndefined()) {
+                setSendingEnabled(v.toBool());
             }
-        }
-        
-        /**
-         * @brief 获取嵌入式控件
-         * @return 控件指针
-         */
-        QWidget *embeddedWidget() override {
-            if (!m_widget) {
-                m_widget = new SpoutOutInterface();
-                
-                // 连接信号
-                connect(m_widget, &SpoutOutInterface::startReceiving, this, &SpoutOutDataModel::startReceiving);
-                connect(m_widget, &SpoutOutInterface::stopReceiving, this, &SpoutOutDataModel::stopReceiving);
-                connect(m_widget, &SpoutOutInterface::senderSelected, this, &SpoutOutDataModel::selectSender);
-                connect(m_widget, &SpoutOutInterface::refreshRequested, this, &SpoutOutDataModel::refreshSenders);
-                
-                // 初始刷新发送器列表
-                QTimer::singleShot(500, this, &SpoutOutDataModel::refreshSenders);
-            }
-            return m_widget;
         }
 
-    public slots:
-        /**
-         * @brief 处理接收到的帧数据
-         * @param frame 接收到的图像帧
-         */
-        void onFrameReceived(const cv::Mat& frame) {
-            if (!frame.empty()) {
-                m_outputImageData = std::make_shared<ImageData>(frame);
-                emit dataUpdated(0);
+    private slots:
+        void onStartSending() {
+            setSendingEnabled(true);
+        }
+
+        void onStopSending() {
+            setSendingEnabled(false);
+        }
+
+        void onSenderNameChanged(const QString& name) {
+            m_senderName = name;
+            if (m_sendThread) {
+                m_sendThread->setSenderName(name);
             }
         }
         
-        /**
-         * @brief 处理连接状态变化
-         * @param connected 连接状态
-         */
-        void onConnectionStatusChanged(bool connected) {
-            if (m_widget) {
-                m_widget->updateConnectionStatus(connected);
-            }
-        }
-        
-        /**
-         * @brief 处理发送器列表更新
-         * @param senders 发送器列表
-         */
-        void onSenderListUpdated(const QStringList& senders) {
-            if (m_widget) {
-                m_widget->updateSenderList(senders);
-            }
-        }
-        
-        /**
-         * @brief 开始接收Spout数据
-         */
-        void startReceiving() {
-            if (!m_isReceiving && m_receiveThread) {
-                m_receiveThread->startReceiving(m_currentSender);
-                m_isReceiving = true;
-                qDebug() << "SpoutOutDataModel: Started receiving from:" << m_currentSender;
-            }
-        }
-        
-        /**
-         * @brief 停止接收Spout数据
-         */
-        void stopReceiving() {
-            if (m_isReceiving && m_receiveThread) {
-                m_receiveThread->stopReceiving();
-                m_isReceiving = false;
-                qDebug() << "SpoutOutDataModel: Stopped receiving";
-            }
-        }
-        
-        /**
-         * @brief 选择发送器
-         * @param senderName 发送器名称
-         */
-        void selectSender(const QString& senderName) {
-            m_currentSender = senderName;
-            if (m_receiveThread) {
-                m_receiveThread->setSenderName(senderName);
-            }
-            qDebug() << "SpoutOutDataModel: Selected sender:" << senderName;
-        }
-        
-        /**
-         * @brief 刷新发送器列表
-         */
-        void refreshSenders() {
-            if (m_receiveThread) {
-                // 触发发送器列表更新
-                m_receiveThread->requestSenderListUpdate();
-                qDebug() << "SpoutOutDataModel: Requested sender list update";
-            }
+        void onThreadStatusChanged(bool sending) {
+             // 可以用来同步实际状态到UI
         }
 
     private:
-        // 界面组件
-        SpoutOutInterface *m_widget;
-        
-        // Spout接收线程
-        SpoutSendThread *m_receiveThread;
-        
-        // 输出数据
-        std::shared_ptr<ImageData> m_outputImageData;
-        
-        // 状态变量
-        QString m_currentSender;
-        bool m_isReceiving;
-        
+        SpoutOutInterface* m_widget;
+        SpoutSenderThread* m_sendThread;
+        bool m_isSending;
+        QString m_senderName;
+
         /**
-         * @brief 初始化接收器
+         * @brief 设置发送启停状态（UI/端口统一入口）
+         * @param enabled true 开始发送，false 停止发送
          */
-        void initializeReceiver() {
-            qRegisterMetaType<cv::Mat>("cv::Mat");
-            m_receiveThread = new SpoutSendThread(this);
+        void setSendingEnabled(bool enabled) {
+            if (m_isSending == enabled) {
+                if (m_widget) {
+                    m_widget->updateConnectionStatus(m_isSending);
+                }
+                return;
+            }
+
+            m_isSending = enabled;
+            if (m_sendThread) {
+                if (enabled) {
+                    m_sendThread->startSending();
+                } else {
+                    m_sendThread->stopSending();
+                }
+            }
+            if (m_widget) {
+                m_widget->updateConnectionStatus(enabled);
+            }
+        }
+
+        void initializeSender() {
+            m_sendThread = new SpoutSenderThread(this);
+            connect(m_sendThread, &SpoutSenderThread::connectionStatusChanged,
+                    this, &SpoutOutDataModel::onThreadStatusChanged);
             
-            // 连接信号
-            connect(m_receiveThread, &SpoutSendThread::frameReceived,
-                    this, &SpoutOutDataModel::onFrameReceived, Qt::QueuedConnection);
-            connect(m_receiveThread, &SpoutSendThread::connectionStatusChanged,
-                    this, &SpoutOutDataModel::onConnectionStatusChanged, Qt::QueuedConnection);
-            connect(m_receiveThread, &SpoutSendThread::senderListUpdated,
-                    this, &SpoutOutDataModel::onSenderListUpdated, Qt::QueuedConnection);
-                    
-            qDebug() << "SpoutOutDataModel: Receiver initialized";
+            // 默认名称
+            m_senderName = "NodeEditor Spout";
+            m_sendThread->setSenderName(m_senderName);
         }
     };
 }

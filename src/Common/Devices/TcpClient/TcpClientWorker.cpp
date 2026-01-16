@@ -167,7 +167,7 @@ void TcpClientWorker::onDisconnected()
 
 void TcpClientWorker::onErrorOccurred(QAbstractSocket::SocketError socketError)
 {
-    qWarning() << "Socket error:" << socketError;
+    // qWarning() << "Socket error:" << socketError;
     isConnected = false;
     emit isReady(isConnected);
     // 连接失败时启动重连定时器
@@ -178,6 +178,6 @@ void TcpClientWorker::onErrorOccurred(QAbstractSocket::SocketError socketError)
 
 void TcpClientWorker::reConnect()
 {
-    qDebug() << "reconnect" << host << port;
+    // qDebug() << "reconnect" << host << port;
     connectToServer(host, port);
 }

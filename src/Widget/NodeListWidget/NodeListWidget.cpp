@@ -8,6 +8,7 @@
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QApplication>
+#include <QClipboard>
 #include <QPainter>
 #include <QPixmap>
 #include <QComboBox>
@@ -514,7 +515,11 @@ void NodeListWidget::showContextMenu(const QPoint &pos) {
         }
     });
     connect(focusAction, &QAction::triggered, [this, nodeId]() {
-        if (dataFlowScene) {
+        if (dataFlowScene && !dataFlowScene->views().isEmpty()) {
+            auto view = dataFlowScene->views().first();
+            //首先重置缩放
+            view->resetTransform();
+            //视图中心移至节点
             dataFlowScene->centerOnNode(nodeId);
         }
     });
@@ -544,7 +549,8 @@ void NodeListWidget::startDrag(QTreeWidgetItem* item) {
     message.host = "127.0.0.1";
     message.port = 8991;
     message.value = 1;
-
+    QClipboard *clipboard = QApplication::clipboard();
+    clipboard->setText(message.address);
     QByteArray itemData;
     QDataStream dataStream(&itemData, QIODevice::WriteOnly);
     dataStream << message.host << message.port << message.address << message.value;
@@ -578,7 +584,7 @@ void NodeListWidget::startDrag(QTreeWidgetItem* item) {
     drag->setPixmap(pixmap);
     drag->setHotSpot(QPoint(pixmap.width()/2, pixmap.height()/2));  // 热点在中心
 
-    Qt::DropAction dropAction = drag->exec(Qt::CopyAction);
+    drag->exec(Qt::CopyAction);
 }
 
 void NodeListWidget::onRefreshClicked()

@@ -91,6 +91,13 @@ QPixmap ImageData::pixmap() const {
 cv::Mat ImageData::imgMat() const {
     return m_image.clone();
 }
+
+/**
+ * @brief 以只读引用形式返回内部图像矩阵（避免深拷贝）
+ */
+const cv::Mat& ImageData::mat() const {
+    return m_image;
+}
 bool ImageData::hasKey(const QString &key) const {
     return NodeValues.contains(key);
 }
@@ -109,5 +116,4 @@ QVariantMap ImageData::getMap() {
     NodeValues.insert("channels", QVariant::fromValue(m_image.channels()));
     return NodeValues;
 }
-
 

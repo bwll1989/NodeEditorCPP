@@ -8,6 +8,7 @@
 #include <QTextEdit>
 #include <QLineEdit>
 #include <QToolButton>
+#include <QTimer>
 #include "Elements/FaderWidget/FaderWidget.h"
 
 StatusContainer* StatusContainer::instance() {
@@ -122,46 +123,72 @@ void StatusContainer::parseOSC(const OSCMessage &message) {
         qDebug() << "Invalid widget pointer for address:" << message.address;
         return;
     }
-    // 使用 qobject_cast 进行安全的类型检查
+    
+    // 使用 QTimer::singleShot(0, ...) 确保所有 UI 更新都在主线程执行
+    // 并且通过 Lambda 捕获值，避免 worker 线程访问 UI 或状态不一致问题
+
     if (auto* spinBox = qobject_cast<QSpinBox*>(widget)) {
-        spinBox->setValue(message.value.toInt());
+        int v = message.value.toInt();
+        QTimer::singleShot(0, spinBox, [spinBox, v](){ spinBox->setValue(v); });
     }
     else if (auto* doubleSpinBox = qobject_cast<QDoubleSpinBox*>(widget)) {
-        doubleSpinBox->setValue(message.value.toDouble());
+        double v = message.value.toDouble();
+        QTimer::singleShot(0, doubleSpinBox, [doubleSpinBox, v](){ doubleSpinBox->setValue(v); });
     }
     else if (auto* slider = qobject_cast<QSlider*>(widget)) {
-        slider->setValue(message.value.toInt());
+        int v = message.value.toInt();
+        QTimer::singleShot(0, slider, [slider, v](){ slider->setValue(v); });
     }
     else if (auto* checkBox = qobject_cast<QCheckBox*>(widget)) {
-        checkBox->setChecked(message.value.toBool());
+        bool v = message.value.toBool();
+        QTimer::singleShot(0, checkBox, [checkBox, v](){ checkBox->setChecked(v); });
     }
     else if (auto* fader = qobject_cast<FaderWidget*>(widget)) {
-        fader->setValue(message.value.toFloat());
+        float v = message.value.toFloat();
+        QTimer::singleShot(0, fader, [fader, v](){ fader->setValue(v); });
     }
     else if (auto* pushButton = qobject_cast<QPushButton*>(widget)) {
-        if (message.value.toBool() != pushButton->isChecked()) {
-            pushButton->click();
-        }
-    }
-    // 新增分支：支持 QToolButton（QToolBar 上由 QAction 生成的控件）
-    else if (auto* toolButton = qobject_cast<QToolButton*>(widget)) {
-        // 如果是可切换按钮，直接同步勾选状态；否则在收到 true 时点击触发
-        if (toolButton->isCheckable()) {
-            toolButton->setChecked(message.value.toBool());
-        } else {
-            if (message.value.toBool()) {
-                toolButton->click();
+        bool v = message.value.toBool();
+        QTimer::singleShot(0, pushButton, [pushButton, v](){
+            // 对于 checkable 按钮，根据当前状态决定是否 click 以触发 clicked 信号并切换状态
+            // 避免直接 setChecked 导致不触发 clicked 信号，或 invokeMethod("click") 导致的逻辑错误
+            if (pushButton->isCheckable()) {
+                if (pushButton->isChecked() != v) {
+                    pushButton->click();
+                }
+            } else {
+                // 普通按钮仅在 true 时触发点击
+                if (v) {
+                    pushButton->click();
+                }
             }
-        }
+        });
+    }
+    else if (auto* toolButton = qobject_cast<QToolButton*>(widget)) {
+        bool v = message.value.toBool();
+        QTimer::singleShot(0, toolButton, [toolButton, v](){
+            if (toolButton->isCheckable()) {
+                if (toolButton->isChecked() != v) {
+                    toolButton->click();
+                }
+            } else {
+                if (v) {
+                    toolButton->click();
+                }
+            }
+        });
     }
     else if (auto* comboBox = qobject_cast<QComboBox*>(widget)) {
-        comboBox->setCurrentIndex(message.value.toInt());
+        int v = message.value.toInt();
+        QTimer::singleShot(0, comboBox, [comboBox, v](){ comboBox->setCurrentIndex(v); });
     }
     else if (auto* lineEdit = qobject_cast<QLineEdit*>(widget)) {
-        lineEdit->setText(message.value.toString());
+        QString v = message.value.toString();
+        QTimer::singleShot(0, lineEdit, [lineEdit, v](){ lineEdit->setText(v); });
     }
     else if (auto* textEdit = qobject_cast<QTextEdit*>(widget)) {
-        textEdit->setText(message.value.toString());
+        QString v = message.value.toString();
+        QTimer::singleShot(0, textEdit, [textEdit, v](){ textEdit->setText(v); });
     }
     else {
         qDebug() << "Unsupported widget type for address:" << message.address;
@@ -174,46 +201,72 @@ void StatusContainer::parseStatus(const StatusItem& message) {
         qDebug() << "Invalid widget pointer for address:" << message.address;
         return;
     }
-     // 使用 qobject_cast 进行安全的类型检查
+     
+    // 使用 QTimer::singleShot(0, ...) 确保所有 UI 更新都在主线程执行
+    // 并且通过 Lambda 捕获值，避免 worker 线程访问 UI 或状态不一致问题
+
     if (auto* spinBox = qobject_cast<QSpinBox*>(widget)) {
-        spinBox->setValue(message.value.toInt());
+        int v = message.value.toInt();
+        QTimer::singleShot(0, spinBox, [spinBox, v](){ spinBox->setValue(v); });
     }
     else if (auto* doubleSpinBox = qobject_cast<QDoubleSpinBox*>(widget)) {
-        doubleSpinBox->setValue(message.value.toDouble());
+        double v = message.value.toDouble();
+        QTimer::singleShot(0, doubleSpinBox, [doubleSpinBox, v](){ doubleSpinBox->setValue(v); });
     }
     else if (auto* slider = qobject_cast<QSlider*>(widget)) {
-        slider->setValue(message.value.toInt());
+        int v = message.value.toInt();
+        QTimer::singleShot(0, slider, [slider, v](){ slider->setValue(v); });
     }
     else if (auto* checkBox = qobject_cast<QCheckBox*>(widget)) {
-        checkBox->setChecked(message.value.toBool());
+        bool v = message.value.toBool();
+        QTimer::singleShot(0, checkBox, [checkBox, v](){ checkBox->setChecked(v); });
     }
     else if (auto* fader = qobject_cast<FaderWidget*>(widget)) {
-        fader->setValue(message.value.toFloat());
+        float v = message.value.toFloat();
+        QTimer::singleShot(0, fader, [fader, v](){ fader->setValue(v); });
     }
     else if (auto* pushButton = qobject_cast<QPushButton*>(widget)) {
-        if (message.value.toBool() != pushButton->isChecked()) {
-            pushButton->click();
-        }
-    }
-    // 新增分支：支持 QToolButton（QToolBar 上由 QAction 生成的控件）
-    else if (auto* toolButton = qobject_cast<QToolButton*>(widget)) {
-        // 如果是可切换按钮，直接同步勾选状态；否则在收到 true 时点击触发
-        if (toolButton->isCheckable()) {
-            toolButton->setChecked(message.value.toBool());
-        } else {
-            if (message.value.toBool()) {
-                toolButton->click();
+        bool v = message.value.toBool();
+        QTimer::singleShot(0, pushButton, [pushButton, v](){
+            // 对于 checkable 按钮，根据当前状态决定是否 click 以触发 clicked 信号并切换状态
+            // 避免直接 setChecked 导致不触发 clicked 信号，或 invokeMethod("click") 导致的逻辑错误
+            if (pushButton->isCheckable()) {
+                if (pushButton->isChecked() != v) {
+                    pushButton->click();
+                }
+            } else {
+                // 普通按钮仅在 true 时触发点击
+                if (v) {
+                    pushButton->click();
+                }
             }
-        }
+        });
+    }
+    else if (auto* toolButton = qobject_cast<QToolButton*>(widget)) {
+        bool v = message.value.toBool();
+        QTimer::singleShot(0, toolButton, [toolButton, v](){
+            if (toolButton->isCheckable()) {
+                if (toolButton->isChecked() != v) {
+                    toolButton->click();
+                }
+            } else {
+                if (v) {
+                    toolButton->click();
+                }
+            }
+        });
     }
     else if (auto* comboBox = qobject_cast<QComboBox*>(widget)) {
-        comboBox->setCurrentIndex(message.value.toInt());
+        int v = message.value.toInt();
+        QTimer::singleShot(0, comboBox, [comboBox, v](){ comboBox->setCurrentIndex(v); });
     }
     else if (auto* lineEdit = qobject_cast<QLineEdit*>(widget)) {
-        lineEdit->setText(message.value.toString());
+        QString v = message.value.toString();
+        QTimer::singleShot(0, lineEdit, [lineEdit, v](){ lineEdit->setText(v); });
     }
     else if (auto* textEdit = qobject_cast<QTextEdit*>(widget)) {
-        textEdit->setText(message.value.toString());
+        QString v = message.value.toString();
+        QTimer::singleShot(0, textEdit, [textEdit, v](){ textEdit->setText(v); });
     }
     else {
         qDebug() << "Unsupported widget type for address:" << message.address;

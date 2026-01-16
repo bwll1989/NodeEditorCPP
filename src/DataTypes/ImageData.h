@@ -38,6 +38,10 @@ namespace NodeDataTypes
         QPixmap pixmap() const ;
 
         cv::Mat imgMat() const ;
+        /**
+         * @brief 以只读引用形式返回内部图像矩阵（避免深拷贝）
+         */
+        const cv::Mat& mat() const;
         bool hasKey(const QString &key) const ;
 
         bool isEmpty() const ;
@@ -50,4 +54,3 @@ namespace NodeDataTypes
         QVariantMap NodeValues;
     };
 }
-

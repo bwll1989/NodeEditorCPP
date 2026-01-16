@@ -440,25 +440,21 @@ void StaticRequestHandler::handleUploadFlow(HTTPServerRequest& request, HTTPServ
             sendJsonResponse(response, "{\"ok\":false,\"error\":\"invalid_extension\"}", HTTPResponse::HTTP_BAD_REQUEST);
             return;
         }
-        // 目标目录：docRoot/uploads/projects
-        Poco::Path base(_docRoot);
-        base.makeDirectory();
-        Poco::Path dir(base);
-        dir.append("uploads");
-        dir.append("projects");
-        Poco::File(dir).createDirectories();
-        Poco::Path filePath(dir);
-        filePath.append(safeName);
+        // 目标目录：使用应用常量 MEDIA_LIBRARY_STORAGE_DIR（取消 docRoot/uploads/projects 双份保存）
+        const QString mediaDir = AppConstants::MEDIA_LIBRARY_STORAGE_DIR;
+        QDir().mkpath(mediaDir);
+        const QString qFilePath = QDir(mediaDir).filePath(QString::fromStdString(safeName));
+        const std::string absPath = qFilePath.toStdString();
         // 写入文件
         std::istream& in = request.stream();
         std::ostringstream buffer;
         Poco::StreamCopier::copyStream(in, buffer);
-        Poco::FileOutputStream fos(filePath.toString(), std::ios::binary);
+        Poco::FileOutputStream fos(absPath, std::ios::binary);
         fos.write(buffer.str().data(), (std::streamsize)buffer.str().size());
         fos.close();
         // 返回
         std::ostringstream oss;
-        oss << "{\"ok\":true,\"path\":\"/uploads/projects/" << safeName << "\"}";
+        oss << "{\"ok\":true,\"path\":\"" << absPath << "\"}";
         sendJsonResponse(response, oss.str());
     } catch (const Poco::Exception& e) {
         sendJsonResponse(response, "{\"ok\":false,\"error\":\"" + e.displayText() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);

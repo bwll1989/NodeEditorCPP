@@ -20,8 +20,13 @@
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QTreeWidget>
 #include <QtWidgets/QWidgetAction>
-#include <QListWidget>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QListView>
+#include <QStringListModel>
 #include <QStyledItemDelegate>
+#include <QIcon>
+
 #include <QtCore/QBuffer>
 #include <QtCore/QByteArray>
 #include <QtCore/QDataStream>
@@ -31,6 +36,7 @@
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
 #include <QtCore/QtGlobal>
+#include <algorithm>
 
 #include <stdexcept>
 #include <utility>
@@ -76,73 +82,163 @@ CustomFlowGraphicsScene::CustomFlowGraphicsScene(CustomDataFlowGraphModel &graph
 }
 
     /**
-     * 创建场景右键菜单（分级子菜单）
-     * - 顶层仅包含一个文本搜索框与一级“标签”（分类）菜单项
-     * - 第二级为对应分类下的节点列表，受搜索框过滤
-     * - 点击节点动作后，在 scenePos 位置创建对应模型节点
+     * 创建场景右键菜单（双列持久展示）
+     * - 顶部为带图标的搜索框，支持即时过滤
+     * - 左列为分类列表，右列为节点项列表
+     * - 点击节点后在 scenePos 位置创建对应模型节点
      */
     QMenu *CustomFlowGraphicsScene::createSceneMenu(QPointF const scenePos)
     {
         QMenu *modelMenu = new QMenu();
         modelMenu->setWindowFlags(modelMenu->windowFlags() | Qt::NoDropShadowWindowHint);
         modelMenu->setAttribute(Qt::WA_TranslucentBackground, false);
-        auto registry = _graphModel.dataModelRegistry();
+        
+        // 创建容器 Widget
+        QWidget *container = new QWidget;
+        QVBoxLayout *mainLayout = new QVBoxLayout(container);
+        mainLayout->setContentsMargins(0, 0, 0, 0);
+        mainLayout->setSpacing(4);
 
-        auto *txtBox = new QLineEdit(modelMenu);
+        // 搜索框
+        QLineEdit *txtBox = new QLineEdit;
         txtBox->setPlaceholderText(tr("搜索节点"));
         txtBox->setClearButtonEnabled(true);
-        auto *txtBoxAction = new QWidgetAction(modelMenu);
-        txtBoxAction->setDefaultWidget(txtBox);
-        modelMenu->addAction(txtBoxAction);
-        modelMenu->addSeparator();
-        QHash<QString, QMenu *> categoryMenus;
-        QHash<QString, QAction *> categoryActions;
-        for (auto const &cat : registry->categories()) {
-            QMenu *catMenu = modelMenu->addMenu(cat);
-            categoryMenus.insert(cat, catMenu);
-            categoryActions.insert(cat, catMenu->menuAction());
-        }
+        // 使用资源图标
+        QAction *searchIconAction = new QAction(QIcon(":/icons/icons/search.png"), tr("搜索"), txtBox);
+        txtBox->addAction(searchIconAction, QLineEdit::LeadingPosition);
+        searchIconAction->setEnabled(false);
+        mainLayout->addWidget(txtBox);
 
-        const auto associations = registry->registeredModelsCategoryAssociation();
+        // 双列布局：左侧分类，右侧节点
+        QWidget *columnsWidget = new QWidget;
+        QHBoxLayout *columnsLayout = new QHBoxLayout(columnsWidget);
+        columnsLayout->setContentsMargins(0, 0, 0, 0);
+        columnsLayout->setSpacing(4);
+        
+        QListView *categoryView = new QListView;    
+        QListView *nodeView = new QListView;
 
-        auto refreshMenus = [this, scenePos, categoryMenus, categoryActions, associations](const QString &filterText) {
-            QHash<QString, int> categoryCount;
-            for (auto it = categoryMenus.begin(); it != categoryMenus.end(); ++it) {
-                categoryCount.insert(it.key(), 0);
-            }
-
-            for (auto menu : categoryMenus) {
-                menu->clear();
-            }
-
-            for (auto const &assoc : associations) {
-                const QString &modelName = assoc.first;
-                const QString &category  = assoc.second;
-
-                if (!categoryMenus.contains(category)) continue;
-                if (!filterText.isEmpty() && !modelName.contains(filterText, Qt::CaseInsensitive)) continue;
-
-                QAction *leafAction = categoryMenus[category]->addAction(modelName);
-                QObject::connect(leafAction, &QAction::triggered, this, [this, modelName, scenePos]() {
-                    this->undoStack().push(new QtNodes::CreateCommand(this, modelName, scenePos));
-                });
-                categoryCount[category] += 1;
-            }
-
-            for (auto it = categoryMenus.begin(); it != categoryMenus.end(); ++it) {
-                bool hasItems = categoryCount[it.key()] > 0;
-                it.value()->setEnabled(hasItems);
-                if (categoryActions.contains(it.key())) {
-                    categoryActions[it.key()]->setVisible(hasItems);
-                }
+        // 设置委托以固定行高
+        class FixedHeightDelegate : public QStyledItemDelegate {
+        public:
+            explicit FixedHeightDelegate(QObject *parent = nullptr) : QStyledItemDelegate(parent) {}
+            QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+                QSize size = QStyledItemDelegate::sizeHint(option, index);
+                size.setHeight(28);
+                return size;
             }
         };
+        categoryView->setItemDelegate(new FixedHeightDelegate(categoryView));
+        nodeView->setItemDelegate(new FixedHeightDelegate(nodeView));
 
-        refreshMenus(QString());
-        QObject::connect(txtBox, &QLineEdit::textChanged, modelMenu, [refreshMenus](const QString &text) {
-            refreshMenus(text);
+        auto *categoriesModel = new QStringListModel(categoryView);
+        auto *nodesModel = new QStringListModel(nodeView);
+        
+        categoryView->setFixedWidth(120); 
+        nodeView->setMinimumWidth(200);
+        nodeView->setMinimumHeight(300);
+        categoryView->setSelectionMode(QAbstractItemView::SingleSelection);
+        nodeView->setSelectionMode(QAbstractItemView::SingleSelection);
+        categoryView->setModel(categoriesModel);
+        nodeView->setModel(nodesModel);
+        
+        columnsLayout->addWidget(categoryView);
+        columnsLayout->addWidget(nodeView);
+        mainLayout->addWidget(columnsWidget);
+
+        // 获取数据
+        auto registry = _graphModel.dataModelRegistry();
+        auto associations = registry->registeredModelsCategoryAssociation(); 
+        auto categories = registry->categories(); 
+        QStringList catList;
+        for (const auto &cat : categories) {
+            catList << cat;
+        }
+        categoriesModel->setStringList(catList);
+        
+        /**
+         * 更新右侧节点列表（支持分类或全文检索）
+         * - 当有搜索文本时忽略分类，展示命中项
+         * - 对最终列表进行本地化排序，提升浏览体验
+         */
+        auto updateNodeList = [nodesModel, associations](const QString& category, const QString& filter) {
+            QStringList items;
+            bool isSearching = !filter.isEmpty();
+            
+            for(const auto& pair : associations) {
+                QString name = pair.first;
+                QString cat = pair.second;
+                
+                if (isSearching) {
+                    if (name.contains(filter, Qt::CaseInsensitive)) {
+                        items << name;
+                    }
+                } else {
+                    if (cat == category) {
+                        items << name;
+                    }
+                }
+            }
+            std::sort(items.begin(), items.end(),
+                      [](const QString& a, const QString& b){
+                          return QString::localeAwareCompare(a, b) < 0;
+                      });
+            nodesModel->setStringList(items);
+        };
+        
+        QObject::connect(categoryView, &QListView::clicked,
+                         [categoriesModel, updateNodeList, txtBox](const QModelIndex &index) {
+                             if (!txtBox->text().isEmpty()) {
+                                 txtBox->blockSignals(true);
+                                 txtBox->clear();
+                                 txtBox->blockSignals(false);
+                             }
+                             QString cat = categoriesModel->data(index, Qt::DisplayRole).toString();
+                             updateNodeList(cat, QString());
+                         });
+        
+        QObject::connect(txtBox, &QLineEdit::textChanged, [categoryView, categoriesModel, nodeView, nodesModel, updateNodeList](const QString &text) {
+            if (text.isEmpty()) {
+                 categoryView->setVisible(true);
+                 categoryView->setEnabled(true);
+                 QModelIndex current = categoryView->currentIndex();
+                 if (current.isValid()) {
+                     QString cat = categoriesModel->data(current, Qt::DisplayRole).toString();
+                     updateNodeList(cat, QString());
+                 } else if (categoriesModel->rowCount() > 0) {
+                     QModelIndex first = categoriesModel->index(0, 0);
+                     categoryView->setCurrentIndex(first);
+                     QString cat = categoriesModel->data(first, Qt::DisplayRole).toString();
+                     updateNodeList(cat, QString());
+                 } else {
+                     nodesModel->setStringList(QStringList());
+                 }
+            } else {
+                 categoryView->setVisible(false);
+                 updateNodeList(QString(), text);
+            }
+        });
+        
+        QObject::connect(nodeView, &QListView::clicked, [this, nodesModel, modelMenu, scenePos](const QModelIndex &index) {
+            QString name = nodesModel->data(index, Qt::DisplayRole).toString();
+            if (!name.isEmpty()) {
+                this->undoStack().push(new QtNodes::CreateCommand(this, name, scenePos));
+                modelMenu->close();
+            }
         });
 
+        if(categoriesModel->rowCount() > 0) {
+            QModelIndex first = categoriesModel->index(0, 0);
+            categoryView->setCurrentIndex(first);
+            QString cat = categoriesModel->data(first, Qt::DisplayRole).toString();
+            updateNodeList(cat, QString());
+        }
+
+        // 将 Widget 放入菜单
+        QWidgetAction *action = new QWidgetAction(modelMenu);
+        action->setDefaultWidget(container);
+        modelMenu->addAction(action);
+        
         modelMenu->setAttribute(Qt::WA_DeleteOnClose);
         txtBox->setFocus();
         return modelMenu;

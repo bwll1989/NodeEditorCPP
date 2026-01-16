@@ -116,6 +116,9 @@ private:
     QAction* m_actClear = nullptr;
     QAction* m_actRefresh = nullptr;
     QMenu* m_ctxMenu = nullptr;
+    QAction* m_actToggle = nullptr;
+    QAction* m_actReveal = nullptr;
+    QModelIndex m_contextIndex;
 
 protected:
     /**

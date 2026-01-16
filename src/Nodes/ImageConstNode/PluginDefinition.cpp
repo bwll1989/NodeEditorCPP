@@ -1,7 +1,8 @@
 #include "PluginDefinition.hpp"
 
 #include "ImageConstModel.hpp"
-
+#include "TextToImageModel.hpp"
+#include "ImageLayoutModel.hpp"
 Plugin *Plugin::_this_plugin = nullptr;
 
 Plugin::Plugin()
@@ -19,4 +20,6 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
     assert(reg);
 
     reg->registerModel<Nodes::ImageConstModel>(name(),tag());
+    reg->registerModel<Nodes::TextToImageModel>("Text To Image",tag());
+    reg->registerModel<Nodes::ImageLayoutModel>("Image Layout",tag());
 }

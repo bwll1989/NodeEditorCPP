@@ -25,6 +25,8 @@ extern "C" {
 #include <portaudio.h>
 #include <QDateTime>
 #include <QByteArray>
+#include <thread>
+#include <atomic>
 
 
 /**
@@ -92,14 +94,14 @@ public:
     bool getPlaying() const;
        
     /**
-     * @brief 播放主逻辑函数
-     * 通常在 run() 方法中调用
+     * @brief 播放音频（兼容性接口）
+     * 内部调用 startPlay() 启动解码线程
      */
     void playAudio();
 
     /**
      * @brief 获取音频通道数
-     * @return 通道数
+     * @return 通道数，如果未初始化则返回0
      */
     int getChannels() const {
         if (codecContext) {
@@ -131,14 +133,26 @@ public slots:
     std::shared_ptr<AudioTimestampRingQueue> getAudioBuffer(int index);
 protected:
     /**
-     * @brief 线程运行入口
+     * @brief 线程运行入口（已弃用）
+     * 保留为空实现以兼容 QThread 接口，实际解码在 audioLoop 和 videoLoop 中进行
      */
     void run() override ;
 
-    // 辅助函数：处理视频帧
+    /**
+     * @brief 辅助函数：处理视频帧
+     * 将解码后的 YUV 数据转换为 BGR 格式并发送信号
+     */
     void processVideoFrame();
 
 private:
+    /**
+     * @brief 音频解码主循环（独立线程）
+     */
+    void audioLoop();
+    /**
+     * @brief 视频解码主循环（独立线程）
+     */
+    void videoLoop();
     /**
      * @brief 应用音量增益
      * @param data 音频数据指针
@@ -167,7 +181,8 @@ private:
     QWaitCondition condition;   ///< 条件变量，用于线程同步
     
     // FFmpeg 相关
-    AVFormatContext *formatContext; ///< 格式上下文
+    AVFormatContext *formatContext;       ///< 音频格式上下文
+    AVFormatContext *formatContextVideo;  ///< 视频格式上下文
     
     // 音频相关
     AVCodecContext *codecContext;   ///< 音频解码器上下文
@@ -192,9 +207,13 @@ private:
     uint8_t *resampledBuffer;       ///< 重采样缓冲区
     
     // 播放状态
-    bool isPlaying;     ///< 是否正在播放
-    bool isLooping;     ///< 是否循环播放
+    std::atomic<bool> isPlaying;     ///< 是否正在播放
+    std::atomic<bool> isLooping;     ///< 是否循环播放
     float volume;       ///< 音量 (dB)
+    std::atomic<bool> audioRunning{false};
+    std::atomic<bool> videoRunning{false};
+    std::thread audioThread;
+    std::thread videoThread;
     
     // 缓冲区管理
     // 使用map管理多通道缓冲区，key为通道索引(0,1,2...)
@@ -209,5 +228,3 @@ private:
     TimestampGenerator* timestampGenerator_;
     uint64_t lastTimestamp_ = 0;
 };
-
-

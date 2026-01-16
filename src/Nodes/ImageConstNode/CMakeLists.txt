@@ -11,19 +11,29 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 INCLUDE_DIRECTORIES("${QtColorWidgets_DIR}/install/include")
 add_library(${Module_Name} SHARED
         ImageConstModel.hpp
-        ImageConstModel.cpp
         ImageConstInterface.hpp
+        TextToImageModel.hpp
+        TextToImageInterface.hpp
+        ImageLayoutInterface.hpp
+        ImageLayoutModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+        Qt${QT_VERSION_MAJOR}::Gui
+        Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Concurrent
         Qt${QT_VERSION_MAJOR}::Network
+        Qt${QT_VERSION_MAJOR}::OpenGL
+        Qt${QT_VERSION_MAJOR}::OpenGLWidgets
         ${QtNodes_LIBRARIES}
         ${OpenCV_LIBRARIES}
+        ${QtColorWidgets_LIBRARIES}
         BuildInNodes
         ${QtColorWidgets_LIBRARIES}
         GUIElements
-        DataTypes)
+        DataTypes
+        Opengl32
+        glu32)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

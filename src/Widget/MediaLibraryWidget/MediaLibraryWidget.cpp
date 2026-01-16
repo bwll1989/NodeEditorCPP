@@ -117,6 +117,29 @@ void MediaLibraryWidget::initializeContextMenu()
     connect(m_actRefresh,      &QAction::triggered, this, [this] {
         MediaLibrary::instance()->refresh();
     });
+
+    // 动态操作（展开/折叠、在资源管理器中显示）
+    m_actToggle = m_ctxMenu->addAction(QIcon(":/icons/icons/expand.png"), tr("展开/折叠"));
+    m_actToggle->setVisible(false);
+    connect(m_actToggle, &QAction::triggered, this, [this] {
+        if (m_contextIndex.isValid()) {
+            m_tree->setExpanded(m_contextIndex, !m_tree->isExpanded(m_contextIndex));
+        }
+    });
+
+    m_actReveal = m_ctxMenu->addAction(QIcon(":/icons/icons/explore.png"), tr("在资源管理器中显示"));
+    m_actReveal->setVisible(false);
+    connect(m_actReveal, &QAction::triggered, this, [this] {
+        if (m_contextIndex.isValid()) {
+            QString path = m_model->filePathForIndex(m_contextIndex);
+            if (!path.isEmpty()) {
+                QString cmd = "explorer";
+                QStringList args;
+                args << "/select," << QDir::toNativeSeparators(path);
+                QProcess::startDetached(cmd, args);
+            }
+        }
+    });
 }
 
 /**
@@ -237,46 +260,24 @@ void MediaLibraryWidget::onDoubleClicked(const QModelIndex& index)
 
 void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
 {
-    const QModelIndex idx = m_tree->indexAt(pos);
-    const QString path = idx.isValid() ? m_model->filePathForIndex(idx) : QString();
+    m_contextIndex = m_tree->indexAt(pos);
+    const QString path = m_contextIndex.isValid() ? m_model->filePathForIndex(m_contextIndex) : QString();
 
+    // Reset visibility
+    m_actToggle->setVisible(false);
+    m_actReveal->setVisible(false);
 
-
-
-    if (!idx.isValid()) {
-        // 空白处：只显示通用操作
-        m_ctxMenu->popup(m_tree->viewport()->mapToGlobal(pos));
-        return;
+    if (m_contextIndex.isValid()) {
+        if (path.isEmpty()) {
+            // Group node: show toggle
+            m_actToggle->setVisible(true);
+        } else {
+            // Item node: show reveal
+            m_actReveal->setVisible(true);
+        }
     }
 
-    if (path.isEmpty()) {
-        // 组节点：展开/折叠
-        QAction* actToggle = m_ctxMenu->addAction(tr("展开/折叠"));
-        actToggle->setIcon(QIcon(":/icons/icons/expand.png"));
-        connect(actToggle, &QAction::triggered, this, [this, idx] {
-            m_tree->setExpanded(idx, !m_tree->isExpanded(idx));
-        });
-    } else {
-        // 子项：打开/定位/删除
-        // QAction* actOpen   = ctx.addAction(tr("打开"));
-        QAction* actReveal = m_ctxMenu->addAction(QIcon(":/icons/icons/explore.png"),tr("在资源管理器中显示"));
-
-        // connect(actOpen, &QAction::triggered, this, [this, path] {
-        //     emit fileActivated(path);
-        //     QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-        // });
-        connect(actReveal, &QAction::triggered, this, [path] {
-            // Windows 资源管理器定位
-            QString cmd = "explorer";
-            QStringList args;
-            args << "/select," << QDir::toNativeSeparators(path);
-            QProcess::startDetached(cmd, args);
-        });
-
-    }
-
-     m_ctxMenu->popup(m_tree->viewport()->mapToGlobal(pos));
-    m_ctxMenu->exec();
+    m_ctxMenu->exec(m_tree->viewport()->mapToGlobal(pos));
 }
 
 /**
