@@ -27,6 +27,8 @@
 #include "QMutex"
 #include "PluginDefinition.hpp"
 #include  "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -50,6 +52,10 @@ namespace Nodes
     class PJLinkDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString host READ getHost WRITE setHost NOTIFY hostChanged)
+        Q_PROPERTY(int port READ getPort WRITE setPort NOTIFY portChanged)
+        Q_PROPERTY(QString password READ getPassword WRITE setPassword NOTIFY passwordChanged)
+        Q_PROPERTY(QString customCommand READ getCustomCommand WRITE setCustomCommand NOTIFY customCommandChanged)
 
     public:
         /**
@@ -73,39 +79,60 @@ namespace Nodes
             m_heartbeatTimer = new QTimer(this);
             m_heartbeatTimer->setInterval(5000); // 5秒间隔
             connect(m_heartbeatTimer, &QTimer::timeout, this, &PJLinkDataModel::sendHeartbeat);
-            // 注册OSC控制
-            NodeDelegateModel::registerOSCControl("/host", widget->hostEdit);
-            NodeDelegateModel::registerOSCControl("/powerOn", widget->powerOnButton);
-            NodeDelegateModel::registerOSCControl("/powerOff", widget->powerOffButton);
-            NodeDelegateModel::registerOSCControl("/muteOn", widget->muteOnButton);
-            NodeDelegateModel::registerOSCControl("/muteOff", widget->muteOffButton);
-            NodeDelegateModel::registerOSCControl("/muteOff", widget->customCommandButton);
-            NodeDelegateModel::registerOSCControl("/custom", widget->customCommandLineEdit);
-            NodeDelegateModel::registerOSCControl("/status", widget->connectionStatusLabel);
+            NodeDelegateModel::registerExternalControl("/host", widget->hostEdit);
+            NodeDelegateModel::registerExternalControl("/port", widget->portSpinBox);
+            NodeDelegateModel::registerExternalControl("/password", widget->passwordLineEdit);
+            NodeDelegateModel::registerExternalControl("/powerOn", widget->powerOnButton);
+            NodeDelegateModel::registerExternalControl("/powerOff", widget->powerOffButton);
+            NodeDelegateModel::registerExternalControl("/muteOn", widget->muteOnButton);
+            NodeDelegateModel::registerExternalControl("/muteOff", widget->muteOffButton);
+            NodeDelegateModel::registerExternalControl("/customCommand", widget->customCommandButton);
+            NodeDelegateModel::registerExternalControl("/custom", widget->customCommandLineEdit);
+            NodeDelegateModel::registerExternalControl("/status", widget->connectionStatusLabel);
+            // 同步UI初始值
+            m_host = widget->hostEdit->text();
+            m_port = widget->portSpinBox->value();
+            m_password = widget->passwordLineEdit->text();
+            m_customPJLinkCommand = widget->customCommandLineEdit->text();
+            if (m_host.isEmpty()) {
+                m_host = "192.168.0.10";
+                widget->hostEdit->setText(m_host);
+            }
 
             // 连接信号和槽
             connect(this, &PJLinkDataModel::connectTCPServer, client, &TcpClient::connectToServer, Qt::QueuedConnection);
             connect(client, &TcpClient::isReady, this, &PJLinkDataModel::onConnectionStatusChanged, Qt::QueuedConnection);
             connect(client, &TcpClient::recMsg, this, &PJLinkDataModel::recMsg, Qt::QueuedConnection);
-            connect(widget->hostEdit, &QLineEdit::editingFinished, this, &PJLinkDataModel::hostChange, Qt::QueuedConnection);
-            connect(widget->portSpinBox, &QSpinBox::valueChanged, this, &PJLinkDataModel::hostChange, Qt::QueuedConnection);
+            
+            // UI -> Property connections
+            connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this](){
+                setHost(widget->hostEdit->text());
+            });
+            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &PJLinkDataModel::setPort);
+            connect(widget->passwordLineEdit, &QLineEdit::editingFinished, this, [this](){
+                setPassword(widget->passwordLineEdit->text());
+            });
+            connect(widget->customCommandLineEdit, &QLineEdit::editingFinished, this, [this](){
+                setCustomCommand(widget->customCommandLineEdit->text());
+            });
+
             connect(this, &PJLinkDataModel::stopTCPClient, client, &TcpClient::stopTimer, Qt::QueuedConnection);
-            connect(widget->passwordLineEdit, &QLineEdit::editingFinished, this, &PJLinkDataModel::hostChange, Qt::QueuedConnection);
+            
             connect(widget->powerOnButton, &QPushButton::clicked, this, [this]() {
-            sendPJLinkCommand("POWR", "1");
-        });
+                sendPJLinkCommand("POWR", "1");
+            });
             connect(widget->powerOffButton, &QPushButton::clicked, this, [this]() {
-            sendPJLinkCommand("POWR", "0");
-        });
+                sendPJLinkCommand("POWR", "0");
+            });
             connect(widget->muteOnButton, &QPushButton::clicked, this, [this]() {
-            sendPJLinkCommand("AVMT", "31");
-        });
+                sendPJLinkCommand("AVMT", "31");
+            });
             connect(widget->muteOffButton, &QPushButton::clicked, this, [this]() {
-            sendPJLinkCommand("AVMT", "30");
-        });
+                sendPJLinkCommand("AVMT", "30");
+            });
             connect(widget->customCommandButton, &QPushButton::clicked, this, [this]() {
-            sendCustomPJLinkCommand(widget->customCommandLineEdit->text());
-        });
+                sendCustomPJLinkCommand(widget->customCommandLineEdit->text());
+            });
             // 自动连接
             hostChange();
             // 初始化认证状态
@@ -125,6 +152,25 @@ namespace Nodes
             client->disconnectFromServer();
             delete client;
             client=nullptr;
+        }
+
+        void afterModelReady() override
+        {
+            AbstractDelegateModel::afterModelReady();
+            auto bus = GlobalEventBus::instance();
+            
+            // Properties
+            bus->subscribe(makeFullOscAddress("/host"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/port"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/password"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/customCommand"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            
+            // Commands
+            bus->subscribe(makeFullOscAddress("/powerOn"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/powerOff"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/muteOn"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/muteOff"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/custom"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
     public:
@@ -205,20 +251,20 @@ namespace Nodes
             switch (portIndex) {
             case 0: {
                 if (m_inData&&m_inData->value().toBool())
-                    widget->powerOnButton->click();
+                    sendPJLinkCommand("POWR", "1");
                 else
-                    widget->powerOffButton->click();
+                    sendPJLinkCommand("POWR", "0");
             }
                 break;
             case 1:{
                 if (m_inData&&m_inData->value().toBool())
-                    widget->muteOnButton->click();
+                    sendPJLinkCommand("AVMT", "31");
                 else
-                    widget->muteOffButton->click();
+                    sendPJLinkCommand("AVMT", "30");
                 }
             case 2: {
                 if (m_inData&&m_inData->value().toBool())
-                    widget->customCommandButton->click();
+                    sendCustomPJLinkCommand(widget->customCommandLineEdit->text());
             }
                 break;
             default:
@@ -242,8 +288,10 @@ namespace Nodes
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
-        modelJson1["IP"] = widget->hostEdit->text();
-        modelJson1["Password"] = widget->passwordLineEdit->text();
+        modelJson1["IP"] = m_host;
+        modelJson1["Port"] = m_port;
+        modelJson1["Password"] = m_password;
+        modelJson1["CustomCommand"] = m_customPJLinkCommand;
         QJsonObject modelJson = NodeDelegateModel::save();
         modelJson["values"] = modelJson1;
         return modelJson;
@@ -257,9 +305,10 @@ namespace Nodes
     {
         QJsonValue v = p["values"];
         if (!v.isUndefined() && v.isObject()) {
-            widget->hostEdit->setText(v["IP"].toString());
-            widget->passwordLineEdit->setText(v["Password"].toString());
-            hostChange();
+            if (v["IP"].isString()) setHost(v["IP"].toString());
+            if (v["Port"].isDouble()) setPort(v["Port"].toInt());
+            if (v["Password"].isString()) setPassword(v["Password"].toString());
+            if (v["CustomCommand"].isString()) setCustomCommand(v["CustomCommand"].toString());
         }
     }
 
@@ -278,6 +327,59 @@ namespace Nodes
 
         return result;
     }
+    
+    public: // Getters and Setters
+        QString getHost() const { return m_host; }
+        void setHost(const QString &value) {
+            if (m_host == value) return;
+            m_host = value;
+            if (widget && widget->hostEdit->text() != value) {
+                QSignalBlocker blocker(widget->hostEdit);
+                widget->hostEdit->setText(value);
+            }
+            emit hostChanged(value);
+            AbstractDelegateModel::stateFeedBack("/host", value);
+            hostChange();
+        }
+
+        int getPort() const { return m_port; }
+        void setPort(int value) {
+            if (m_port == value) return;
+            m_port = value;
+            if (widget && widget->portSpinBox->value() != value) {
+                QSignalBlocker blocker(widget->portSpinBox);
+                widget->portSpinBox->setValue(value);
+            }
+            emit portChanged(value);
+            AbstractDelegateModel::stateFeedBack("/port", value);
+            hostChange();
+        }
+
+        QString getPassword() const { return m_password; }
+        void setPassword(const QString &value) {
+            if (m_password == value) return;
+            m_password = value;
+            if (widget && widget->passwordLineEdit->text() != value) {
+                QSignalBlocker blocker(widget->passwordLineEdit);
+                widget->passwordLineEdit->setText(value);
+            }
+            emit passwordChanged(value);
+            AbstractDelegateModel::stateFeedBack("/password", value);
+            hostChange();
+        }
+
+        QString getCustomCommand() const { return m_customPJLinkCommand; }
+        void setCustomCommand(const QString &value) {
+            if (m_customPJLinkCommand == value) return;
+            m_customPJLinkCommand = value;
+            if (widget && widget->customCommandLineEdit->text() != value) {
+                QSignalBlocker blocker(widget->customCommandLineEdit);
+                widget->customCommandLineEdit->setText(value);
+            }
+            emit customCommandChanged(value);
+            AbstractDelegateModel::stateFeedBack("/customCommand", value);
+        }
+
     public slots:
         /**
      * @brief 接收TCP消息并解析PJLink协议
@@ -317,7 +419,7 @@ namespace Nodes
                 setValidatonState(state);
                 m_heartbeatTimer->stop();
             }
-            
+            AbstractDelegateModel::stateFeedBack("/connect", isReady);
             Q_EMIT dataUpdated(0);
         }
 
@@ -331,8 +433,34 @@ namespace Nodes
             m_authHash.clear();
 
             // 重新连接TCP服务器
-            emit connectTCPServer(widget->hostEdit->text(), widget->portSpinBox->value());
+            emit connectTCPServer(m_host, m_port);
 
+        }
+
+    private Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            
+            if (localPath == "host") {
+                setHost(ev.payload.toString());
+            } else if (localPath == "port") {
+                setPort(ev.payload.toInt());
+            } else if (localPath == "password") {
+                setPassword(ev.payload.toString());
+            } else if (localPath == "customCommand") {
+                setCustomCommand(ev.payload.toString());
+            } else if (localPath == "powerOn") {
+                sendPJLinkCommand("POWR", "1");
+            } else if (localPath == "powerOff") {
+                sendPJLinkCommand("POWR", "0");
+            } else if (localPath == "muteOn") {
+                sendPJLinkCommand("AVMT", "31");
+            } else if (localPath == "muteOff") {
+                sendPJLinkCommand("AVMT", "30");
+            } else if (localPath == "custom") {
+                sendCustomPJLinkCommand(ev.payload.toString());
+            }
         }
 
     signals:
@@ -348,6 +476,11 @@ namespace Nodes
          */
         void connectTCPServer(const QString &host, int port);
 
+        void hostChanged(const QString &host);
+        void portChanged(int port);
+        void passwordChanged(const QString &password);
+        void customCommandChanged(const QString &value);
+
     private:
         
         /**
@@ -360,8 +493,6 @@ namespace Nodes
             QByteArray packet;
             QDataStream stream(&packet, QIODevice::WriteOnly);
             stream.setByteOrder(QDataStream::LittleEndian);
-            
-
             
             return packet;
         }
@@ -407,14 +538,13 @@ namespace Nodes
      */
     void performAuthentication()
     {
-        QString password = widget->passwordLineEdit->text();
-        if (password.isEmpty()) {
+        if (m_password.isEmpty()) {
             qDebug() << "PJLink: 密码为空，跳过认证";
             return;
         }
         
         // 根据PJLink规范生成MD5哈希
-        QString authString = m_randomKey + password;
+        QString authString = m_randomKey + m_password;
         QByteArray hash = QCryptographicHash::hash(authString.toUtf8(), QCryptographicHash::Md5);
         QString hashHex = hash.toHex();
         
@@ -446,10 +576,11 @@ namespace Nodes
             // 有密码认证：格式为 哈希值%1指令 参数
             pjlinkCommand = m_authHash + "%1" + command + " " + parameter + "\r";
         }
-        
+
         // 发送指令
         QByteArray commandData = pjlinkCommand.toUtf8();
         client->sendMessage(commandData.toHex(), 0); // 0表示HEX格式
+        AbstractDelegateModel::stateFeedBack("/send", true);
     }
     /**
      * @brief 发送自定义PJLink指令
@@ -457,6 +588,7 @@ namespace Nodes
      * 将指令按空格分割，第一部分作为指令，第二部分作为参数发送
      */
     void sendCustomPJLinkCommand(const QString &command) {
+        setCustomCommand(command);
         // 按空格分割指令
         QStringList parts = command.split(' ', Qt::SkipEmptyParts);
         
@@ -464,10 +596,12 @@ namespace Nodes
             // 如果有至少两个部分，第一位作为指令，第二位作为参数
             QString cmd = parts[0];
             QString param = parts[1];
+            // widget->customCommandLineEdit->setText(command); // Handled by setCustomCommand
             sendPJLinkCommand(cmd, param);
         } else if (parts.size() == 1) {
             // 如果只有一个部分，作为指令发送，参数为空
             QString cmd = parts[0];
+            // widget->customCommandLineEdit->setText(cmd); // Handled by setCustomCommand
             sendPJLinkCommand(cmd, "");
         } else {
             // 如果指令为空或无效
@@ -494,8 +628,10 @@ namespace Nodes
         // 数据成员 - 只保留需要的一个输入和一个输出
         std::shared_ptr<VariableData> m_inData;
         std::shared_ptr<VariableData> m_connectionStatus;  // 连接状态输出
+        QString m_customPJLinkCommand;
+        QString m_host;
+        int m_port;
+        QString m_password;
     };
 
 }
-
-

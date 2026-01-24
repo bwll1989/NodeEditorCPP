@@ -88,7 +88,7 @@ namespace Nodes
             
             if (result.isError()) {
                 qDebug() << "JS表达式错误:" << result.toString();
-                return std::make_shared<VariableData>(count);
+                return std::make_shared<VariableData>(QVariant(false));
             }
             
             // 获取表达式结果的布尔值

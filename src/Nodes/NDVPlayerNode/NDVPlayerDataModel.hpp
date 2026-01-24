@@ -10,7 +10,8 @@
 #include <QVariantMap>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "ConstantDefines.h"
-
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -28,6 +29,8 @@ namespace Nodes
     class NDVPlayerDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(int fileIndex READ getFileIndex WRITE setFileIndex NOTIFY fileIndexChanged)
+        Q_PROPERTY(int playerId READ getPlayerId WRITE setPlayerId NOTIFY playerIdChanged)
 
     public:
         NDVPlayerDataModel()
@@ -41,13 +44,17 @@ namespace Nodes
             
             commandData = std::make_shared<VariableData>();
             statusData = std::make_shared<VariableData>();
-            AbstractDelegateModel::registerOSCControl("/play",widget->Play);
-            AbstractDelegateModel::registerOSCControl("/stop",widget->Stop);
-            AbstractDelegateModel::registerOSCControl("/loop",widget->LoopPlay);
-            AbstractDelegateModel::registerOSCControl("/next",widget->Next);
-            AbstractDelegateModel::registerOSCControl("/prev",widget->Prev);
-            AbstractDelegateModel::registerOSCControl("/index",widget->FileIndex);
-            AbstractDelegateModel::registerOSCControl("/playerID",widget->PlayerID);
+            AbstractDelegateModel::registerExternalControl("/play",widget->Play);
+            AbstractDelegateModel::registerExternalControl("/stop",widget->Stop);
+            AbstractDelegateModel::registerExternalControl("/loop",widget->LoopPlay);
+            AbstractDelegateModel::registerExternalControl("/next",widget->Next);
+            AbstractDelegateModel::registerExternalControl("/prev",widget->Prev);
+            AbstractDelegateModel::registerExternalControl("/index",widget->FileIndex);
+            AbstractDelegateModel::registerExternalControl("/playerID",widget->PlayerID);
+            
+            // 初始化内部状态
+            currentFileIndex = widget->FileIndex->value();
+            currentPlayerId = widget->PlayerID->value();
 
             // 连接界面按钮
             connect(widget->Play, &QPushButton::clicked, this, [this]() {
@@ -71,16 +78,10 @@ namespace Nodes
             });
 
             // 文件索引变化时更新
-            connect(widget->FileIndex, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
-                currentFileIndex = value;
-                updateStatus();
-            });
+            connect(widget->FileIndex, QOverload<int>::of(&QSpinBox::valueChanged), this, &NDVPlayerDataModel::setFileIndex);
 
             // 播放器ID变化时更新
-            connect(widget->PlayerID, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
-                currentPlayerId = value;
-                updateStatus();
-            });
+            connect(widget->PlayerID, QOverload<int>::of(&QSpinBox::valueChanged), this, &NDVPlayerDataModel::setPlayerId);
 
             // 初始化状态
             updateStatus();
@@ -156,9 +157,7 @@ namespace Nodes
                 case 0: // 文件索引
                 {
                     int fileIndex = variableData->value().toInt();
-                    widget->FileIndex->setValue(fileIndex);
-                    currentFileIndex = fileIndex;
-                    updateStatus();
+                    setFileIndex(fileIndex);
                     break;
                 }
                 case 1: // 播放触发
@@ -190,8 +189,8 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["FileIndex"] = widget->FileIndex->value();
-            modelJson1["PlayerID"] = widget->PlayerID->value();
+            modelJson1["FileIndex"] = currentFileIndex;
+            modelJson1["PlayerID"] = currentPlayerId;
             QJsonObject modelJson = NodeDelegateModel::save();
             modelJson["PlayerSettings"] = modelJson1;
             return modelJson;
@@ -201,12 +200,11 @@ namespace Nodes
         {
             QJsonValue v = p["PlayerSettings"];
             if (!v.isUndefined() && v.isObject()) {
-                widget->FileIndex->setValue(v.toObject()["FileIndex"].toInt());
-                widget->PlayerID->setValue(v.toObject()["PlayerID"].toInt());
-                currentFileIndex = widget->FileIndex->value();
-                currentPlayerId = widget->PlayerID->value();
+                if (v.toObject().contains("FileIndex"))
+                    setFileIndex(v.toObject()["FileIndex"].toInt());
+                if (v.toObject().contains("PlayerID"))
+                    setPlayerId(v.toObject()["PlayerID"].toInt());
                 
-                updateStatus();
                 NodeDelegateModel::load(p);
             }
         }
@@ -231,6 +229,66 @@ namespace Nodes
             return result;
         }
 
+        void afterModelReady() override {
+            AbstractDelegateModel::afterModelReady();
+            auto bus = GlobalEventBus::instance();
+            bus->subscribe(makeFullOscAddress("/index"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/playerID"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/next"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/prev"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            
+            AbstractDelegateModel::stateFeedBack("/index", currentFileIndex);
+            AbstractDelegateModel::stateFeedBack("/playerID", currentPlayerId);
+        }
+
+    public:
+        int getFileIndex() const { return currentFileIndex; }
+        void setFileIndex(int value) {
+            if (currentFileIndex == value) return;
+            currentFileIndex = value;
+            if (widget && widget->FileIndex->value() != value) {
+                QSignalBlocker blocker(widget->FileIndex);
+                widget->FileIndex->setValue(value);
+            }
+            emit fileIndexChanged(value);
+            AbstractDelegateModel::stateFeedBack("/index", value);
+            updateStatus();
+        }
+
+        int getPlayerId() const { return currentPlayerId; }
+        void setPlayerId(int value) {
+            if (currentPlayerId == value) return;
+            currentPlayerId = value;
+            if (widget && widget->PlayerID->value() != value) {
+                QSignalBlocker blocker(widget->PlayerID);
+                widget->PlayerID->setValue(value);
+            }
+            emit playerIdChanged(value);
+            AbstractDelegateModel::stateFeedBack("/playerID", value);
+            updateStatus();
+        }
+
+    Q_SIGNALS:
+        void fileIndexChanged(int value);
+        void playerIdChanged(int value);
+
+    private Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            
+            if (localPath == "index") setFileIndex(ev.payload.toInt());
+            else if (localPath == "playerID") setPlayerId(ev.payload.toInt());
+            else if (localPath == "play") sendPlayCommand();
+            else if (localPath == "stop") sendStopCommand();
+            else if (localPath == "loop") sendLoopCommand();
+            else if (localPath == "next") sendNextCommand();
+            else if (localPath == "prev") sendPrevCommand();
+        }
+
     private:
         /**
          * @brief 发送播放指令
@@ -238,6 +296,7 @@ namespace Nodes
         void sendPlayCommand() {
             sendCommand("play", currentFileIndex);
             currentState = "Playing";
+            AbstractDelegateModel::stateFeedBack("/play", true);
             updateStatus();
         }
 
@@ -246,6 +305,7 @@ namespace Nodes
          */
         void sendStopCommand() {
             sendCommand("stop", 0);
+            AbstractDelegateModel::stateFeedBack("/stop", true);
             currentState = "Stopped";
             updateStatus();
         }
@@ -256,6 +316,7 @@ namespace Nodes
         void sendLoopCommand() {
             sendCommand("loop", currentFileIndex);
             currentState = "Loop Playing";
+            AbstractDelegateModel::stateFeedBack("/loop", true);
             updateStatus();
         }
 
@@ -264,6 +325,7 @@ namespace Nodes
          */
         void sendNextCommand() {
             sendCommand("next", 0);
+            AbstractDelegateModel::stateFeedBack("/next", true);
         }
 
         /**
@@ -271,6 +333,7 @@ namespace Nodes
          */
         void sendPrevCommand() {
             sendCommand("prev", 0);
+            AbstractDelegateModel::stateFeedBack("/prev", true);
         }
 
         /**

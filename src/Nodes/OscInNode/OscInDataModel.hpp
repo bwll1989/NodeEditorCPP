@@ -13,6 +13,8 @@
 #include "ConstantDefines.h"
 #include "QThread"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -24,6 +26,8 @@ namespace Nodes
 {
     class OscInDataModel : public AbstractDelegateModel
     {
+        Q_OBJECT
+        Q_PROPERTY(int port READ getPort WRITE setPort NOTIFY portChanged)
 
     public:
         OscInDataModel()
@@ -43,16 +47,42 @@ namespace Nodes
             delete widget;
         }
 
+        void afterModelReady() override
+        {
+            AbstractDelegateModel::afterModelReady();
+            auto bus = GlobalEventBus::instance();
+            bus->subscribe(makeFullOscAddress("/port"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        }
+
         void setup() {
 
-            OSC_Receiver=new OSCReceiver(6000);
+            OSC_Receiver=new OSCReceiver(m_port);
             widget=new OscInInterface();
-            AbstractDelegateModel::registerOSCControl("/port",widget->portSpinBox);
-            AbstractDelegateModel::registerOSCControl("/address",widget->addressEdit);
-            AbstractDelegateModel::registerOSCControl("/value",widget->valueEdit);
+            AbstractDelegateModel::registerExternalControl("/port",widget->portSpinBox);
+            AbstractDelegateModel::registerExternalControl("/address",widget->addressEdit);
+            AbstractDelegateModel::registerExternalControl("/value",widget->valueEdit);
             connect(OSC_Receiver, &OSCReceiver::receiveOSC, this, &OscInDataModel::getOsc);
-            connect(widget,&OscInInterface::portChanged,OSC_Receiver,&OSCReceiver::setPort);
+            // connect(widget,&OscInInterface::portChanged,OSC_Receiver,&OSCReceiver::setPort);
+            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, &OscInDataModel::setPort);
 
+        }
+
+        int getPort() const { return m_port; }
+        void setPort(int value) {
+            if (m_port == value) return;
+            m_port = value;
+            if (OSC_Receiver) {
+                QMetaObject::invokeMethod(OSC_Receiver, "setPort", Qt::QueuedConnection, Q_ARG(int, value));
+            }
+            
+            if (widget && widget->portSpinBox->value() != value) {
+                QSignalBlocker blocker(widget->portSpinBox);
+                widget->portSpinBox->setValue(value);
+            }
+            
+            emit portChanged(value);
+            AbstractDelegateModel::stateFeedBack("/port", value);
         }
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -112,7 +142,7 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["Port"] = widget->portSpinBox->value();
+            modelJson1["Port"] = m_port;
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -122,7 +152,7 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->portSpinBox->setValue(v["Port"].toInt());
+                setPort(v["Port"].toInt());
             }
         }
         QWidget *embeddedWidget() override {
@@ -145,7 +175,19 @@ namespace Nodes
             return result;
         }
 
+    Q_SIGNALS:
+        void portChanged(int value);
+
     private Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            
+            if (localPath == "port") {
+                setPort(ev.payload.toInt());
+            }
+        }
+
         void getOsc(const QVariantMap &data) {
             inData=std::make_shared<VariableData>(data);
 
@@ -161,6 +203,7 @@ namespace Nodes
         std::shared_ptr<VariableData> inData;
         OSCReceiver *OSC_Receiver;
         OscInInterface *widget;
+        int m_port = 6000;
 
     };
 }

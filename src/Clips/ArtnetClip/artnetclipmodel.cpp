@@ -1,11 +1,13 @@
 
 #include <QImage>
 #include <QDebug>
+#include <QSignalBlocker>
 #include "TimeLineDefines.h"
 #include "AbstractClipModel.hpp"
 #include "TimeCodeDefines.h"
 #include "artnetclipmodel.hpp"
 #include "ConstantDefines.h"
+#include "../../Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
 Clips::ArtnetClipModel::ArtnetClipModel(int start,const QString& filePath, QObject* parent)
             : AbstractClipDelegateModel(start, "Artnet", parent),m_filePath(filePath),m_editor(nullptr)
@@ -65,7 +67,7 @@ void Clips::ArtnetClipModel::load(const QJsonObject& json)  {
     AbstractClipModel::load(json);
     m_startUniverse->setValue(json["startUniverse"].toInt());
     targetHostEdit->setText( json["targetHost"].toString());
-    updateOSCRegistration();
+
 }
 
 QVariant Clips::ArtnetClipModel::data(int role) const {
@@ -95,35 +97,30 @@ QWidget* Clips::ArtnetClipModel::clipPropertyWidget() {
     m_startUniverse = new QSpinBox(basicGroup);
     m_startUniverse->setMinimum(0);
     m_startUniverse->setMaximum(65536);
-    AbstractClipDelegateModel::registerOSCControl("/universe", m_startUniverse);
+    AbstractClipDelegateModel::registerExternalControl("/universe", m_startUniverse);
     basicLayout->addWidget(m_startUniverse, 1, 1,1,1);
+    connect(m_startUniverse, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &ArtnetClipModel::onUniverseChanged);
 
     basicLayout->addWidget(new QLabel("目标主机:"), 3, 0,1,1);
     targetHostEdit = new QLineEdit(basicGroup);
     targetHostEdit->setValidator(new QRegularExpressionValidator(QRegularExpression("^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$")));
     targetHostEdit->setToolTip("输入目标主机IP地址，如：192.168.1.100 或 192.168.1.255（广播）");
-    AbstractClipDelegateModel::registerOSCControl("/host", targetHostEdit);
+    AbstractClipDelegateModel::registerExternalControl("/host", targetHostEdit);
     // 设置默认值
     targetHostEdit->setText(m_targetHost);
     basicLayout->addWidget(targetHostEdit, 3, 1,1,1);
-    connect(targetHostEdit,&QLineEdit::textChanged,[this]() {
-        m_targetHost = targetHostEdit->text().trimmed();
-    });
+    connect(targetHostEdit,&QLineEdit::textChanged,
+            this, &ArtnetClipModel::onHostChanged);
     basicLayout->addWidget(new QLabel("Artnet数据:"), 2, 0,1,1);
     mediaSelector = new SelectorComboBox(MediaLibrary::Category::DMX,basicGroup);
-     AbstractClipDelegateModel::registerOSCControl("/file", mediaSelector);
+    AbstractClipDelegateModel::registerExternalControl("/file", mediaSelector);
     basicLayout->addWidget(mediaSelector, 2, 1,1,1);
     videoInfoLabel=new QLabel(basicGroup);
     // 连接信号槽
     basicLayout->addWidget(videoInfoLabel, 4, 0,2,2);
-    connect(mediaSelector,&SelectorComboBox::textChanged,[=](const QString& text){
-        if (m_filePath != text) {
-           m_filePath = text;
-           loadArtnetInfo(AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+m_filePath);
-           emit filePathChanged(text);
-           emit onPropertyChanged();
-        }
-    });
+    connect(mediaSelector,&SelectorComboBox::textChanged,
+            this, &ArtnetClipModel::onFileChanged);
 
     mainLayout->addWidget(basicGroup);
     return m_editor;
@@ -212,7 +209,39 @@ QVariantMap Clips::ArtnetClipModel::currentData(int currentFrame) const {
 
 
 void Clips::ArtnetClipModel::onPropertyChanged(){
+    // 函数级注释：属性变化后可用于通知外部或刷新界面（当前为空实现，保留扩展点）
+}
 
+void Clips::ArtnetClipModel::onUniverseChanged(int value)
+{
+    // 函数级注释：统一处理起始 Universe 变更并发送状态反馈
+    stateFeedBack("/universe", value);
+}
+
+void Clips::ArtnetClipModel::onHostChanged(const QString& host)
+{
+    // 函数级注释：统一处理目标主机 IP 变更并发送状态反馈
+    const QString trimmed = host.trimmed();
+    if (trimmed.isEmpty()) {
+        return;
+    }
+    m_targetHost = trimmed;
+    stateFeedBack("/host", m_targetHost);
+}
+
+void Clips::ArtnetClipModel::onFileChanged(const QString& file)
+{
+    // 函数级注释：统一处理 DMX 文件路径变更：加载信息、更新内部状态并发送状态反馈
+    if (file.isEmpty()) {
+        return;
+    }
+    if (m_filePath != file) {
+        m_filePath = file;
+        loadArtnetInfo(AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+m_filePath);
+        emit filePathChanged(file);
+        emit onPropertyChanged();
+    }
+    stateFeedBack("/file", m_filePath);
 }
 
 
@@ -463,5 +492,57 @@ void Clips::ArtnetClipModel::sendArtnetFrames(int baseUniverse, int subnet, int 
     }
 
     m_lastSentFrameIndex = currentFrame;
+}
+
+void Clips::ArtnetClipModel::afterModelReady()
+{
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/universe"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/host"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/file"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
+}
+
+void Clips::ArtnetClipModel::onGlobalEvent(const GlobalEvent& ev)
+{
+    if (ev.kind != GlobalEventKind::Command) {
+        return;
+    }
+
+    const QString addrUniverse = makeFullOscAddress("/universe");
+    const QString addrHost = makeFullOscAddress("/host");
+    const QString addrFile = makeFullOscAddress("/file");
+
+    if (ev.address == addrUniverse && m_startUniverse) {
+        bool ok = false;
+        int v = ev.payload.toInt(&ok);
+        if (!ok) return;
+        // 先执行业务逻辑（包含状态反馈），再阻断信号更新控件显示
+        onUniverseChanged(v);
+        QSignalBlocker blocker(m_startUniverse);
+        m_startUniverse->setValue(v);
+    } else if (ev.address == addrHost && targetHostEdit) {
+        const QString host = ev.payload.toString();
+        if (host.trimmed().isEmpty()) return;
+        onHostChanged(host);
+        QSignalBlocker blocker(targetHostEdit);
+        targetHostEdit->setText(host);
+    } else if (ev.address == addrFile && mediaSelector) {
+        const QString file = ev.payload.toString();
+        if (file.isEmpty()) return;
+        onFileChanged(file);
+        QSignalBlocker blocker(mediaSelector);
+        mediaSelector->setText(file);
+    }
 }
 

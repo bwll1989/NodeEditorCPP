@@ -8,18 +8,22 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
 
+#include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "InternalControlInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
 #include "ConstantDefines.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 
+struct GlobalEvent;
 using namespace NodeDataTypes;
 using namespace Nodes;
 using namespace QtNodes;
 namespace Nodes
 {
-    class OscOutGroupModel final : public QtNodes::NodeDelegateModel
+    class OscOutGroupModel final : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(bool trigger READ trigger WRITE setTrigger NOTIFY triggerChanged)
 
     public:
         OscOutGroupModel();
@@ -39,12 +43,23 @@ namespace Nodes
         QJsonObject save() const override;
 
         void load(const QJsonObject &p) override;
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override ;
+
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override;
+
+        bool trigger() const { return m_trigger; }
+
     public Q_SLOTS:
-        void stateFeedBack(const QString& oscAddress,QVariant value) override;
-    private Q_SLOTS:
-        void trigger();
+        void setTrigger(bool value);
+        void onGlobalEvent(const GlobalEvent& ev);
+
+    Q_SIGNALS:
+        void triggerChanged(bool value);
+
+    protected:
+        void afterModelReady() override;
+
     private:
         InternalControlInterface *widget = new InternalControlInterface(false);
+        bool m_trigger = false;
     };
 }

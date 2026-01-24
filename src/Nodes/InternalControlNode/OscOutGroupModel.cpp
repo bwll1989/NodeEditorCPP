@@ -3,6 +3,8 @@
 #include <QtWidgets/QFileDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <QFutureWatcher>
+#include "Common/Devices/OSCSender/OSCSender.h"
+
 using namespace Nodes;
 using namespace NodeDataTypes;
 
@@ -10,11 +12,13 @@ OscOutGroupModel::OscOutGroupModel(){
     InPortCount = 1;
     OutPortCount=0;
     CaptionVisible=true;
-    Caption="OscOutGroup";
+    Caption="Osc Out Group";
     WidgetEmbeddable=false;
     Resizable=true;
-    connect(widget->testButton,&QPushButton::clicked,this,&OscOutGroupModel::trigger);
-    NodeDelegateModel::registerOSCControl("/trigger",widget->testButton);
+    connect(widget->testButton,&QPushButton::clicked,this,[this](){
+        setTrigger(true);
+    });
+    AbstractDelegateModel::registerExternalControl("/trigger",widget->testButton);
 }
 
 QtNodes::NodeDataType OscOutGroupModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const {
@@ -51,8 +55,8 @@ void OscOutGroupModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeDa
     QVariant val = v->value();
     switch (port) {
         case 0: // Trigger
-                if (val.toBool())
-                widget->testButton->click();
+            if (val.toBool())
+                setTrigger(true);
             break;
         default:
             break;
@@ -93,22 +97,43 @@ ConnectionPolicy OscOutGroupModel::portConnectionPolicy(PortType portType, PortI
 
     return result;
 }
-void OscOutGroupModel::stateFeedBack(const QString& oscAddress,QVariant value)
-{
 
-    OSCMessage message;
-    message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-    message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-    message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-    message.value = value;
-    OSCSender::instance()->sendOSCMessageWithQueue(message);
-}
-
-void OscOutGroupModel::trigger()
+/**
+ * 函数级注释：触发一组 OSC 消息并通过事件总线反馈触发状态
+ */
+void OscOutGroupModel::setTrigger(bool value)
 {
+    if (!value) return;
+    m_trigger = true;
     auto messages = widget->m_listWidget->getOSCMessages();
     for(auto message : messages){
-
         OSCSender::instance()->sendOSCMessageWithQueue(message);
     }
+    m_trigger = false;
+    Q_EMIT triggerChanged(true);
+    AbstractDelegateModel::stateFeedBack("/trigger", true);
+}
+
+/**
+ * 函数级注释：处理来自全局事件总线的触发命令
+ */
+void OscOutGroupModel::onGlobalEvent(const GlobalEvent& ev)
+{
+    if (ev.kind != GlobalEventKind::Command) return;
+    const QString addrTrigger = makeFullOscAddress("/trigger");
+    if (ev.address == addrTrigger) {
+        setTrigger(ev.payload.toBool());
+    }
+}
+
+/**
+ * 函数级注释：模型就绪后订阅触发相关的全局命令
+ */
+void OscOutGroupModel::afterModelReady()
+{
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/trigger"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
 }

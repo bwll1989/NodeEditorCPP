@@ -37,8 +37,7 @@ namespace Clips
         void load(const QJsonObject& json) override {
             AbstractClipModel::load(json);
             m_listWidget->load(json);
-            updateOSCRegistration();
-
+           
         }
 
         void setMedia(const QVariant &command) {

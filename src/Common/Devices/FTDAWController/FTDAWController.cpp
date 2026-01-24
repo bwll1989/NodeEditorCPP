@@ -5,7 +5,7 @@
 #include "FTDAWController.h"
 #include <QMutexLocker>
 #include <QMetaType>
-
+#include <QtCore/QDateTime>
 FTDAWController* FTDAWController::s_instance = nullptr;
 int FTDAWController::s_refCount = 0;
 QMutex FTDAWController::s_refMutex;
@@ -121,12 +121,21 @@ void FTDAWController::sendMessage(const QString &message, int format)
 {
     QMutexLocker locker(&m_mutex);
     if (m_client) {
-        m_client->sendMessage(message, format);
+        // 如果不是心跳包，更新最后发送时间
+        if (message != QStringLiteral("heartbeat")) {
+             m_lastCommandTime = QDateTime::currentMSecsSinceEpoch();
+        }
+        m_client->sendMessage(message, 2);
     }
 }
 
 void FTDAWController::sendHeartbeat()
 {
+    // 检查距离上次发送指令的时间
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    if (currentTime - m_lastCommandTime < 500) {
+        return; // 如果距离上次发送指令不到500ms，跳过本次心跳
+    }
     sendMessage(QStringLiteral("heartbeat"), 1);
 }
 

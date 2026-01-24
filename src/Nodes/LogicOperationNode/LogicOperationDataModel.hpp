@@ -12,6 +12,8 @@
 #include <QtCore/qglobal.h>
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
 #if defined(UNTITLED_LIBRARY)
 #  define UNTITLED_EXPORT Q_DECL_EXPORT
 #else
@@ -29,6 +31,7 @@ namespace Nodes
     class LogicOperationDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(int logicMethod READ logicMethod WRITE setLogicMethod NOTIFY logicMethodChanged)
 
     public:
         LogicOperationDataModel()
@@ -45,13 +48,33 @@ namespace Nodes
             widget->addItems(*methods);
             //        method->setFlat(true);
             val=QVariant(false);
-            connect(widget,&QComboBox::currentIndexChanged,this,&LogicOperationDataModel::methodChanged);
-            AbstractDelegateModel::registerOSCControl("/method",widget);
+            connect(widget, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &LogicOperationDataModel::setLogicMethod);
+            AbstractDelegateModel::registerExternalControl("/method",widget);
         }
 
         virtual ~LogicOperationDataModel() override{}
 
+        int logicMethod() const { return m_logicMethod; }
 
+    public Q_SLOTS:
+        void setLogicMethod(int value)
+        {
+            if (m_logicMethod == value) return;
+            m_logicMethod = value;
+            methodChanged();
+            Q_EMIT logicMethodChanged(value);
+            AbstractDelegateModel::stateFeedBack("/method", m_logicMethod);
+            {
+                QSignalBlocker blocker(widget);
+                widget->setCurrentIndex(value);
+            }
+
+        }
+
+    Q_SIGNALS:
+        void logicMethodChanged(int value);
+
+    public:
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             switch (portType) {
@@ -89,60 +112,59 @@ namespace Nodes
         void methodChanged()
         {
             bool tempVal=false;
-            for(auto kv:in_dictionary){
-                if(kv.first!=0){
-                    switch (widget->currentIndex()) {
-                    case 0:
-                        tempVal=in_dictionary[0].toString()==kv.second.toString();
-                        break;
-                    case 1:
-                        tempVal=in_dictionary[0].toBool()||kv.second.toBool();
-                        break;
-                    case 2:
-                        tempVal=in_dictionary[0].toString()!=kv.second.toString();
-                        break;
-                    case 3:
-                        tempVal=qMax(in_dictionary[0].toDouble(),kv.second.toDouble());
-                        break;
-                    case 4:
-                        tempVal=qMin(in_dictionary[0].toDouble(),kv.second.toDouble());
-                        break;
-                    case 5:
-                        tempVal=in_dictionary[0].toFloat()<kv.second.toFloat();
-                        break;
-                    case 6:
-                        tempVal=in_dictionary[0].toFloat()<=kv.second.toFloat();
-                        break;
-                    case 7:
-                        tempVal=in_dictionary[0].toFloat()>kv.second.toFloat();
-                        break;
-                    case 8:
-                        tempVal=in_dictionary[0].toFloat()>=kv.second.toFloat();
-                        break;
 
-                    }
-
+                switch (m_logicMethod) {
+                case 0:
+                    tempVal=in_dictionary[0].toString()==in_dictionary[1].toString();
+                    break;
+                case 1:
+                    tempVal=in_dictionary[0].toBool()||in_dictionary[1].toBool();
+                    break;
+                case 2:
+                    tempVal=in_dictionary[0].toString()!=in_dictionary[1].toString();
+                    break;
+                case 3:
+                    tempVal=qMax(in_dictionary[0].toDouble(),in_dictionary[1].toDouble());
+                    break;
+                case 4:
+                    tempVal=qMin(in_dictionary[0].toDouble(),in_dictionary[1].toDouble());
+                    break;
+                case 5:
+                    tempVal=in_dictionary[0].toFloat()<in_dictionary[1].toFloat();
+                    break;
+                case 6:
+                    tempVal=in_dictionary[0].toFloat()<=in_dictionary[1].toFloat();
+                    break;
+                case 7:
+                    tempVal=in_dictionary[0].toFloat()>in_dictionary[1].toFloat();
+                    break;
+                case 8:
+                    tempVal=in_dictionary[0].toFloat()>=in_dictionary[1].toFloat();
+                    break;
                 }
-            }
-            if (tempVal!=val.toBool())
-            {
-                // qDebug()<<"tempVal:"<<tempVal;
-                val = tempVal;
-                Q_EMIT dataUpdated(0);
-            }
-
+            // qDebug()<<"tempVal:"<<tempVal;
+            val = tempVal;
+            Q_EMIT dataUpdated(0);
         }
+
+        void afterModelReady() override
+        {
+            AbstractDelegateModel::afterModelReady();
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/method"), this,SLOT(onGlobalEvent(GlobalEvent)));
+        }
+
         QJsonObject save() const override
         {
             QJsonObject modelJson;
-            modelJson["method"] = widget->currentIndex();
+            modelJson["method"] = m_logicMethod;
             return modelJson;
         }
 
         void load(QJsonObject const &p) override
         {
-            int val = p["method"].toInt();
-            widget->setCurrentIndex(val);
+            if (p.contains("method")) {
+                setLogicMethod(p["method"].toInt());
+            }
         }
         QWidget *embeddedWidget() override {
             return widget; }
@@ -162,12 +184,21 @@ namespace Nodes
             return result;
         }
 
-
+    public Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) return;
+            const QString addr = makeFullOscAddress("/method");
+            if (ev.address == addr) {
+                setLogicMethod(ev.payload.toInt());
+            }
+        }
     private:
 
         QComboBox *widget=new QComboBox();
         QStringList *methods=new QStringList {"AND","OR","NOT","MAX","MIN","<","<=",">",">="};
         std::unordered_map<unsigned int, QVariant> in_dictionary;
         QVariant val;
+        int m_logicMethod = 0;
     };
 }

@@ -12,6 +12,7 @@
 #include "QTextBrowser"
 #include "QComboBox"
 #include "QCheckBox"
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 
 using namespace std;
 using namespace NodeDataTypes;
@@ -36,7 +37,7 @@ namespace Nodes
             auto modeLabel = new QLabel("重复信号处理:");
             
             // 设置输入框默认值
-            value->setText("1000"); // 默认保持1秒
+            value->setValue(1000);
             value->setToolTip("信号保持时间（毫秒）");
             
             // 设置重复信号处理模式选择框
@@ -57,7 +58,7 @@ namespace Nodes
         
     public:
         QGridLayout *main_layout = new QGridLayout(this);      // 主布局
-        QLineEdit *value = new QLineEdit(this);               // 保持时间输入框
+        IntDragValueWidget *value = new IntDragValueWidget(this);               // 保持时间输入框
         QCheckBox *ignoreRepeatCheckBox = new QCheckBox(this); // 重复信号处理模式选择框
     };
 }

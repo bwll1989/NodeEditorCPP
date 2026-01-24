@@ -13,3 +13,5 @@
 #include "ToJsonDataModel.hpp"
 #include "FromJsonDataModel.hpp"
 #include "WindowDisplayModel.hpp"
+#include "TriggerSourceDataModel.hpp"
+#include "ToggleSourceDataModel.hpp"

@@ -26,14 +26,12 @@ namespace Nodes
         explicit AudioDecoderInterface(QWidget *parent = nullptr) {
             main_layout = new QGridLayout(this);  // 正确初始化网格布局
 
-
-
+            // 将播放/停止合并为一个可勾选按钮
+            playButton->setCheckable(true);
 
             main_layout->addWidget(fileSelectComboBox, 0, 0,2,2);
 
             main_layout->addWidget(playButton, 2, 0,1,2);
-
-            main_layout->addWidget(stopButton, 3, 0,1,2);
 
             // 进度条和时间显示
             progressSlider->setOrientation(Qt::Horizontal);
@@ -64,7 +62,7 @@ namespace Nodes
         QGridLayout *main_layout;  // 统一使用网格布局
         SelectorComboBox *fileSelectComboBox = new SelectorComboBox(MediaLibrary::Category::Audio,this);
         QPushButton *playButton=new QPushButton("Play");
-        QPushButton *stopButton=new QPushButton("Stop");
+
         QSlider *progressSlider = new QSlider(this);
         QLabel *timeLabel = new QLabel(this);
         QDoubleSpinBox *volumeSlider = new QDoubleSpinBox(this);

@@ -13,6 +13,7 @@
 #include "JSEngineDefines/JSEngineDefines.hpp"
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -29,14 +30,14 @@ namespace Nodes
     public:
 
         CountDataModel(){
-            InPortCount =1;
+            InPortCount =2;
             OutPortCount=1;
             Caption="Count";
             CaptionVisible=true;
             WidgetEmbeddable= true;
             Resizable=true;
             PortEditable=true;
-            AbstractDelegateModel::registerOSCControl("/clear",widget->Clear);
+            AbstractDelegateModel::registerExternalControl("/clear",widget->Clear);
             connect(widget->Editor, &QLineEdit::editingFinished, this, &CountDataModel::outDataSlot);
             connect(widget->Clear, &QPushButton::clicked, this, &CountDataModel::clearCount);
             m_jsEngine = new QJSEngine(this);
@@ -145,12 +146,33 @@ namespace Nodes
         {
             return widget;
         }
-
+    protected:
+        /**
+         * 函数级注释：模型就绪后订阅全局事件总线，使用包含正确节点ID的完整地址
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/clear"),
+                this,
+                SLOT(clearExternalCommand(GlobalEvent))
+            );
+        }
     private slots:
         void outDataSlot() {
             Q_EMIT dataUpdated(0);
         }
-        
+
+        void clearExternalCommand(const GlobalEvent& ev) {
+            // 仅处理命令类事件，避免状态反馈导致重复执行
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            if (ev.payload.toBool()) {
+                clearCount();
+            }
+        }
+
         /**
          * @brief 清除计数器值
          */

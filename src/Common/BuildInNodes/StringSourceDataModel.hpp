@@ -10,6 +10,7 @@
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 #include "AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 
 #include <QtCore/qglobal.h>
 
@@ -25,6 +26,7 @@ namespace Nodes {
     class TextSourceDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString value READ value WRITE setValue NOTIFY valueChanged)
 
     public:
 
@@ -35,8 +37,14 @@ namespace Nodes {
             Caption="String Source";
             WidgetEmbeddable=true;
             Resizable=false;
-            AbstractDelegateModel::registerOSCControl("/string",_lineEdit);
+            AbstractDelegateModel::registerExternalControl("/string",_lineEdit);
+            _lineEdit->setText(m_value);
             connect(_lineEdit, &QLineEdit::textChanged, this, &TextSourceDataModel::onTextEdited);
+            connect(this, &TextSourceDataModel::valueChanged, this, [this](const QString &){
+                if (_lineEdit->text()!=m_value)
+                    _lineEdit->setText(m_value);
+                stateFeedBack("/string", m_value);
+            });
         }
 
 
@@ -62,29 +70,46 @@ namespace Nodes {
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(_lineEdit->text());
+            return std::make_shared<VariableData>(value());
+        }
+
+        /**
+         * 函数级注释：获取当前字符串属性值
+         */
+        QString value() const
+        {
+            return m_value;
+        }
+
+        /**
+         * 函数级注释：设置当前字符串属性值，仅在变化时发出通知
+         */
+        void setValue(const QString &v)
+        {
+
+            m_value = v;
+            Q_EMIT dataUpdated(0);
+            Q_EMIT valueChanged(v);
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
             if (data== nullptr){
-                _lineEdit->setText("");
+                setValue("");
                 return;
             }
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
-            if (textData->value().canConvert<QString>()) {
-                _lineEdit->setText(textData->value().toString());
-            } else {
-                _lineEdit->setText("");
+            QString v;
+            if (textData && textData->value().canConvert<QString>()) {
+                v = textData->value().toString();
             }
-
-            Q_EMIT dataUpdated(portIndex);
+            setValue(v);
         }
 
 
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["text"] = _lineEdit->text();
+            modelJson1["text"] = value();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -93,22 +118,60 @@ namespace Nodes {
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                _lineEdit->setText(v["text"].toString());
+                setValue(v["text"].toString());
             }
         }
         QWidget *embeddedWidget() override{return _lineEdit;}
 
+    signals:
+        /**
+         * 函数级注释：字符串属性发生变化时发出的通知信号
+         */
+        void valueChanged(const QString &value);
+
+    protected:
+        /**
+         * 函数级注释：模型就绪后订阅字符串地址的命令事件
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/string"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+        }
+
     private Q_SLOTS:
 
+        /**
+         * 函数级注释：本地编辑字符串时通过属性接口驱动业务逻辑
+         */
         void onTextEdited(QString const &string)
         {
             Q_UNUSED(string);
+            setValue(_lineEdit->text());
+        }
 
-            Q_EMIT dataUpdated(0);
+    public Q_SLOTS:
+        /**
+         * 函数级注释：处理来自事件总线的字符串命令事件，更新控件与状态
+         */
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            if (ev.address != makeFullOscAddress("/string")) {
+                return;
+            }
+            const QString v = ev.payload.toString();
+            setValue(v);
         }
 
     private:
         QLineEdit *_lineEdit;
+        QString m_value;
 
     };
 }

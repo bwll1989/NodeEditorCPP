@@ -24,7 +24,7 @@
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
-
+#include "StatusContainer/GlobalEventBus.hpp"
 
 
 using QtNodes::NodeData;
@@ -50,6 +50,8 @@ namespace Nodes
     class TSETLDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString host READ getHost WRITE setHost NOTIFY hostChanged)
+        Q_PROPERTY(int port READ getPort WRITE setPort NOTIFY portChanged)
 
     public:
         /**
@@ -75,26 +77,61 @@ namespace Nodes
             m_heartbeatTimer = new QTimer(this);
             m_heartbeatTimer->setInterval(5000); // 5秒间隔
             connect(m_heartbeatTimer, &QTimer::timeout, this, &TSETLDataModel::sendHeartbeat);
-            
-            // 注册OSC控制
-            AbstractDelegateModel::registerOSCControl("/host", widget->hostEdit);
-            AbstractDelegateModel::registerOSCControl("/port", widget->portSpinBox);
-            AbstractDelegateModel::registerOSCControl("/connect", widget->connectionStatus);
-            AbstractDelegateModel::registerOSCControl("/lastTime", widget->lastTimeLabel);
-            AbstractDelegateModel::registerOSCControl("/lastSignal", widget->lastSignalLabel);
+            AbstractDelegateModel::registerExternalControl("/host", widget->hostEdit);
+            AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
+            AbstractDelegateModel::registerExternalControl("/connect", widget->connectionStatus);
+            // UI Connections
+            connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this]() {
+                setHost(widget->hostEdit->text());
+            });
+
+            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int val) {
+                setPort(val);
+            });
+
             // 连接信号和槽
             connect(this, &TSETLDataModel::connectTCPServer, client, &TcpClient::connectToServer, Qt::QueuedConnection);
             connect(client, &TcpClient::isReady, this, &TSETLDataModel::onConnectionStatusChanged, Qt::QueuedConnection);
-            connect(client, &TcpClient::isReady, this,[this](bool isReady){
-                onConnectionStatusChanged(isReady);
-            });
             connect(client, &TcpClient::recMsg, this, &TSETLDataModel::recMsg, Qt::QueuedConnection);
-            connect(widget->hostEdit, &QLineEdit::editingFinished, this, &TSETLDataModel::hostChange, Qt::QueuedConnection);
-            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &TSETLDataModel::hostChange, Qt::QueuedConnection);
             connect(this, &TSETLDataModel::stopTCPClient, client, &TcpClient::stopTimer, Qt::QueuedConnection);
-            
+
+            // Initial sync
+            widget->hostEdit->setText(m_host);
+            widget->portSpinBox->setValue(m_port);
+
             // 自动连接
             hostChange();
+        }
+
+        QString getHost() const { return m_host; }
+        void setHost(const QString& host) {
+            if (m_host == host) return;
+            m_host = host;
+
+            QSignalBlocker blocker(widget->hostEdit);
+            widget->hostEdit->setText(m_host);
+
+            emit hostChanged(m_host);
+            AbstractDelegateModel::stateFeedBack("/host", m_host);
+            hostChange();
+        }
+
+        int getPort() const { return m_port; }
+        void setPort(int port) {
+            if (m_port == port) return;
+            m_port = port;
+
+            QSignalBlocker blocker(widget->portSpinBox);
+            widget->portSpinBox->setValue(m_port);
+
+            emit portChanged(m_port);
+            AbstractDelegateModel::stateFeedBack("/port", m_port);
+            hostChange();
+        }
+
+        void afterModelReady() override {
+            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/host"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/port"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
         
         /**
@@ -194,12 +231,10 @@ namespace Nodes
             m_inData = std::dynamic_pointer_cast<VariableData>(data);
             switch (portIndex) {
             case 0:
-                widget->hostEdit->setText(m_inData->value().toString());
-                hostChange();
+                setHost(m_inData->value().toString());
                 break;
             case 1:
-                widget->portSpinBox->setValue(m_inData->value().toInt());
-                hostChange();
+                setPort(m_inData->value().toInt());
                 break;
             default:
                 break;
@@ -222,8 +257,8 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["Port"] = widget->portSpinBox->value();
-            modelJson1["IP"] = widget->hostEdit->text();
+            modelJson1["Port"] = m_port;
+            modelJson1["IP"] = m_host;
             QJsonObject modelJson = NodeDelegateModel::save();
             modelJson["values"] = modelJson1;
             return modelJson;
@@ -237,9 +272,8 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined() && v.isObject()) {
-                widget->hostEdit->setText(v["IP"].toString());
-                widget->portSpinBox->setValue(v["Port"].toInt());
-                hostChange();
+                setHost(v["IP"].toString());
+                setPort(v["Port"].toInt());
             }
         }
 
@@ -261,6 +295,14 @@ namespace Nodes
 
 
     public slots:
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind == GlobalEventKind::Command) {
+                QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+                if (localPath == "host") setHost(ev.payload.toString());
+                else if (localPath == "port") setPort(ev.payload.toInt());
+            }
+        }
+
         /**
          * @brief 接收TCP消息并解析TSETL协议
          * @param msg 接收到的消息数据
@@ -273,7 +315,7 @@ namespace Nodes
                 QByteArray rawData = msg["default"].toByteArray();
                 parseTSETLMessage(rawData);
             }
-            
+
 
         }
 
@@ -285,7 +327,8 @@ namespace Nodes
         {
             m_connectionStatus = std::make_shared<VariableData>(isReady);
             widget->updateConnectionStatus(isReady);
-            
+            AbstractDelegateModel::stateFeedBack("/connect", isReady);
+
             // 根据连接状态控制心跳定时器
             if (isReady) {
                 m_heartbeatTimer->start();
@@ -301,10 +344,13 @@ namespace Nodes
          */
         void hostChange()
         {
-            emit connectTCPServer(widget->hostEdit->text(), widget->portSpinBox->value());
+            emit connectTCPServer(m_host, m_port);
         }
 
     signals:
+        void hostChanged(QString host);
+        void portChanged(int port);
+
         /**
          * @brief 停止TCP客户端信号
          */
@@ -631,14 +677,14 @@ namespace Nodes
         {
             // 生成心跳包JSON数据
             QString heartbeatJson = generateHeartbeatJson();
-            
+
             // 封装为TSETL协议数据包
             QByteArray tsetlPacket = createTSETLPacket(heartbeatJson.toUtf8());
-            
+
             // 通过TCP客户端发送（使用HEX格式）
             QString hexString = tsetlPacket.toHex().toUpper();
             client->sendMessage(hexString, 0); // 0表示HEX格式
-            
+
             // 添加详细的调试信息
             // qDebug() << "=== 心跳包发送详情 ===";
             // qDebug() << "JSON数据:" << heartbeatJson;
@@ -657,6 +703,9 @@ namespace Nodes
         TSETLInterface *widget = new TSETLInterface();
         TcpClient *client = new TcpClient();
         QTimer *m_heartbeatTimer;  // 心跳定时器
+        
+        QString m_host = "127.0.0.1";
+        int m_port = 11001;
 
         // 数据成员 - 只保留需要的3个输出
         std::shared_ptr<VariableData> m_inData;

@@ -50,7 +50,7 @@ Q_INVOKABLE void JavaScriptDataModel::clearLayout() {
     
     // 删除所有控件
     for (QWidget* widget : m_widgets.values()) {
-        unregisterOSCControl(QString("/%1").arg(m_widgets.key(widget)));
+        // unregisterOSCControl(QString("/%1").arg(m_widgets.key(widget)));
         // 立即删除而不是使用deleteLater
         delete widget;
     }
@@ -86,7 +86,7 @@ Q_INVOKABLE int JavaScriptDataModel::addToLayout(QObject* widgetObj, int x, int 
     }
     int id = m_widgetCounter++;
     m_widgets[id] = widget_obj;
-    registerOSCControl(QString("/%1").arg(id),widget_obj);
+    // registerOSCControl(QString("/%1").arg(id),widget_obj);
     return id;
 }
 

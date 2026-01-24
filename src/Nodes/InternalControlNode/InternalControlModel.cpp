@@ -6,6 +6,7 @@
 #include <QFutureWatcher>
 
 #include "StatusContainer/StatusContainer.h"
+
 using namespace Nodes;
 using namespace NodeDataTypes;
 
@@ -16,8 +17,10 @@ InternalControlModel::InternalControlModel(){
     Caption=PLUGIN_NAME;
     WidgetEmbeddable=false;
     Resizable=true;
-    connect(widget->testButton,&QPushButton::clicked,this,&InternalControlModel::trigger);
-    AbstractDelegateModel::registerOSCControl("/trigger",widget->testButton);
+    connect(widget->testButton,&QPushButton::clicked,this,[=](){
+        setTrigger(true);
+    });
+    AbstractDelegateModel::registerExternalControl("/trigger",widget->testButton);
 }
 
 QtNodes::NodeDataType InternalControlModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const {
@@ -55,7 +58,7 @@ void InternalControlModel::setInData(const std::shared_ptr<QtNodes::NodeData> no
     switch (port) {
         case 0: // Trigger
             if (val.toBool())
-            widget->testButton->click();
+                setTrigger(true);
             break;
         default:
             break;
@@ -97,11 +100,28 @@ ConnectionPolicy InternalControlModel::portConnectionPolicy(PortType portType, P
     return result;
 }
 
-void InternalControlModel::trigger()
+void InternalControlModel::setTrigger(bool value)
 {
+    if (!value) return;
     auto messages = widget->m_listWidget->getOSCMessages();
     for(auto message : messages){
         StatusContainer::instance()->parseOSC(message);
-        // OSCSender::instance()->sendOSCMessageWithQueue(message);
     }
+    Q_EMIT triggerChanged(true);
+    AbstractDelegateModel::stateFeedBack("/trigger", true);
+}
+
+void InternalControlModel::onGlobalEvent(const GlobalEvent& ev)
+{
+    if (ev.kind != GlobalEventKind::Command) return;
+    const QString addrTrigger = makeFullOscAddress("/trigger");
+    if (ev.address == addrTrigger) {
+        setTrigger(ev.payload.toBool());
+    }
+}
+
+void InternalControlModel::afterModelReady()
+{
+    GlobalEventBus::instance()->subscribe(makeFullOscAddress("/trigger"),
+                                          this, SLOT(onGlobalEvent(GlobalEvent)));
 }

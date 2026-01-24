@@ -16,12 +16,15 @@
 #include "TimestampGenerator/TimestampGenerator.hpp"
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
+
+struct GlobalEvent;
 
 namespace Nodes
 {
@@ -32,6 +35,7 @@ namespace Nodes
     class AudioDeviceInDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(double gainDb READ gainDb WRITE setGainDb NOTIFY gainDbChanged)
 
     public:
         /**
@@ -46,16 +50,15 @@ namespace Nodes
             WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = true;
-            // 创建音频缓冲区
-            // 连接界面信号
+
+            AbstractDelegateModel::registerExternalControl("/gain", widget->volume_spinbox);
+
             connect(widget->volume_spinbox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-                    this, &AudioDeviceInDataModel::onVolumeChanged);
-            // 连接录制按钮信号
+                    this, [this](double v){ setGainDb(v); });
+
             connect(widget->device_selector, &QComboBox::currentIndexChanged,
                     this, &AudioDeviceInDataModel::onDeviceChanged);
-            // connect(widget, &AudioDeviceInInterface::recordingStopped,
-            //         this, &AudioDeviceInDataModel::stopRecording);
-            AbstractDelegateModel::registerOSCControl("/gain",widget->volume_spinbox);
+
             get_device_list();
         }
 
@@ -114,7 +117,7 @@ namespace Nodes
         {
             QJsonObject modelJson;
             modelJson["selectedDevice"] =widget->device_selector->currentIndex();
-            modelJson["volume"] = volumeDb_;
+            modelJson["volume"] = gainDb();
             return modelJson;
         }
 
@@ -127,8 +130,7 @@ namespace Nodes
                 widget->device_selector->setCurrentIndex(p["selectedDevice"].toInt());
             }
             if (p.contains("volume")) {
-                volumeDb_ = p["volume"].toDouble();
-                widget->volume_spinbox->setValue(volumeDb_);
+                setGainDb(p["volume"].toDouble());
             }
         }
 
@@ -196,15 +198,39 @@ namespace Nodes
          * @brief 音量变化处理（分贝值）
          */
         void onVolumeChanged(double dbValue) {
+            setGainDb(dbValue);
+        }
+
+        /**
+         * 函数级注释：获取当前输入设备增益（分贝）属性
+         */
+        double gainDb() const
+        {
+            return volumeDb_;
+        }
+
+        /**
+         * 函数级注释：设置当前输入设备增益（分贝）属性，触发状态反馈
+         */
+        void setGainDb(double dbValue)
+        {
+            if (qFuzzyCompare(dbValue + 1.0, volumeDb_ + 1.0)) {
+                return;
+            }
+            {
+                QSignalBlocker blocker(widget->volume_spinbox);
+                widget->volume_spinbox->setValue(dbValue);
+            }
             volumeDb_ = dbValue;
-            // 将分贝转换为线性增益
             if (dbValue <= -60.0) {
                 volumeGain_ = 0.0f;
             } else {
                 volumeGain_ = std::pow(10.0f, dbValue / 20.0f);
             }
-
+            Q_EMIT gainDbChanged(volumeDb_);
+            AbstractDelegateModel::stateFeedBack("/gain", volumeDb_);
         }
+            
         
         /**
          * @brief 开始录制音频
@@ -276,6 +302,39 @@ namespace Nodes
             // qDebug() << "停止录制音频";
         }
 
+    signals:
+        /**
+         * 函数级注释：当输入设备增益属性发生变化时发出的通知信号
+         */
+        void gainDbChanged(double db);
+
+    protected:
+        /**
+         * 函数级注释：模型就绪后订阅全局事件总线，实现外部增益控制
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/gain"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+        }
+
+    private Q_SLOTS:
+        /**
+         * 函数级注释：处理来自全局事件总线的增益命令，更新 gainDb 属性
+         */
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            if (ev.address != makeFullOscAddress("/gain")) {
+                return;
+            }
+            setGainDb(ev.payload.toDouble());
+        }
 
     private:
 
@@ -392,6 +451,3 @@ namespace Nodes
         std::map<int, std::shared_ptr<AudioTimestampRingQueue>> channelAudioBuffers_;
     };
 }
-
-
-

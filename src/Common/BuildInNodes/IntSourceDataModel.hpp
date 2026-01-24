@@ -12,7 +12,8 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include "AbstractDelegateModel.h"
-
+#include "StatusContainer/GlobalEventBus.hpp"
+#include "../GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -26,18 +27,26 @@ namespace Nodes
     class IntSourceDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(int value READ value WRITE setValue NOTIFY valueChanged)
 
     public:
 
-        IntSourceDataModel():widget(new QLineEdit()){
+        IntSourceDataModel():widget(new IntDragValueWidget()){
             InPortCount =1;
             OutPortCount=1;
             CaptionVisible=true;
             Caption="Int Source";
             WidgetEmbeddable=true;
             Resizable=false;
-            AbstractDelegateModel::registerOSCControl("/int",widget);
-            connect(widget, &QLineEdit::textChanged, this, &IntSourceDataModel::onIntEdited);
+            widget->setFixedSize(80,24);
+            AbstractDelegateModel::registerExternalControl("/int",widget);
+            widget->setValue(m_value);
+            connect(widget, &IntDragValueWidget::valueChanged, this, &IntSourceDataModel::setValue);
+            connect(this, &IntSourceDataModel::valueChanged, this, [this](int){
+                if (widget->value()!=m_value)
+                    widget->setValue(m_value);
+                stateFeedBack("/int", m_value);
+            });
         }
 
 
@@ -62,27 +71,32 @@ namespace Nodes
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(widget->text().toInt());
+            return std::make_shared<VariableData>(value());
         }
+
+        /**
+         * 函数级注释：获取当前整型属性值
+         */
+        int value() const
+        {
+            return m_value;
+        }
+
+
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
             {
                 Q_UNUSED(portIndex);
                 if (data== nullptr){
-                    widget->setText("0");
+                    setValue(0);
                     return;
                 }
                 auto textData = std::dynamic_pointer_cast<VariableData>(data);
-                if (textData->value().canConvert<int>()) {
-
-                    widget->setText(QString::number(textData->value().toInt()));
-                } else {
-
-                    widget->setText("0");
+                int v = 0;
+                if (textData && textData->value().canConvert<int>()) {
+                    v = textData->value().toInt();
                 }
-
-                widget->adjustSize();
-                Q_EMIT dataUpdated(0);
+                setValue(v);
 
             }
         }
@@ -91,7 +105,7 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["val"] = widget->text().toInt();
+            modelJson1["val"] = value();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -100,23 +114,67 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->setText(QString::number(v["val"].toInt()));
+                setValue(v["val"].toInt());
 
             }
         }
         QWidget *embeddedWidget() override {return widget;}
 
+    signals:
+        /**
+         * 函数级注释：整型值属性发生变化时发出的通知信号
+         */
+        void valueChanged(int value);
+
+    protected:
+        /**
+         * 函数级注释：模型就绪后订阅整型地址的命令事件
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/int"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+        }
 
     private Q_SLOTS:
 
-        void onIntEdited(QString const &string)
-        {
 
+
+    public Q_SLOTS:
+        /**
+         * 函数级注释：处理来自事件总线的整型命令事件，更新控件与状态
+         */
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            if (ev.address != makeFullOscAddress("/int")) {
+                return;
+            }
+            bool ok = false;
+            int v = ev.payload.toInt(&ok);
+            if (!ok) {
+                return;
+            }
+            setValue(v);
+        }
+        /**
+         * 函数级注释：设置当前整型属性值，仅在变化时发出通知
+         */
+        void setValue(int v)
+        {
+            m_value = v;
             Q_EMIT dataUpdated(0);
+            Q_EMIT valueChanged(v);
         }
 
     private:
-        QLineEdit *widget;
+        IntDragValueWidget *widget;
+        int m_value = 0;
 
     };
 }

@@ -2,8 +2,11 @@
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
+#include <QLineEdit>
+#include <QSignalBlocker>
 #include <set>
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include "StatusContainer/GlobalEventBus.hpp"
 
 namespace Nodes {
 
@@ -21,6 +24,38 @@ FmodDecoderDataModel::FmodDecoderDataModel()
     
     // Create widget
     widget = new FmodDecoderInterface();
+
+    // 注册外部控制并将 UI 文本作为属性入口
+    AbstractDelegateModel::registerExternalControl("/file", widget->fileSelectComboBox);
+    connect(widget->fileSelectComboBox, &QLineEdit::textChanged, this, &FmodDecoderDataModel::setBankPath);
+    connect(this, &FmodDecoderDataModel::bankPathChanged, this, [this](const QString&){
+        {
+            QSignalBlocker blocker(widget->fileSelectComboBox);
+            widget->fileSelectComboBox->setText(m_bankPath);
+        }
+        if (!m_bankPath.isEmpty() && worker_) {
+            QMetaObject::invokeMethod(
+                worker_,
+                "loadBanks",
+                Qt::QueuedConnection,
+                Q_ARG(QString, m_bankPath)
+            );
+        }
+        AbstractDelegateModel::stateFeedBack("/file", m_bankPath);
+    });
+
+    connect(this, &FmodDecoderDataModel::currentEventChanged, this, [this](const QString&){
+        if (m_currentEvent.isEmpty() || !worker_) {
+            return;
+        }
+        QMetaObject::invokeMethod(
+            worker_,
+            "playEvent",
+            Qt::QueuedConnection,
+            Q_ARG(QString, m_currentEvent)
+        );
+        AbstractDelegateModel::stateFeedBack("/event", m_currentEvent);
+    });
     
     // Initialize buffers
     outputBuffers_.resize(OutPortCount);
@@ -44,11 +79,7 @@ FmodDecoderDataModel::FmodDecoderDataModel()
     
     // UI Connections
     connect(widget->selectButton, &QPushButton::clicked, this, &FmodDecoderDataModel::select_audio_file, Qt::QueuedConnection);
-    
-    // OSC
-    AbstractDelegateModel::registerOSCControl("/select", widget->selectButton);
-    AbstractDelegateModel::registerOSCControl("/file", widget->fileSelectComboBox);
-    
+
     // Start Thread
     workerThread_->start();
     
@@ -95,7 +126,7 @@ std::shared_ptr<NodeData> FmodDecoderDataModel::outData(PortIndex port)
 QJsonObject FmodDecoderDataModel::save() const
 {
     QJsonObject modelJson = NodeDelegateModel::save();
-    QString pathText = widget && widget->fileSelectComboBox ? widget->fileSelectComboBox->text() : QString();
+    const QString pathText = bankPath();
     if (!pathText.isEmpty()) {
         modelJson["path"] = pathText;
     }
@@ -122,9 +153,7 @@ void FmodDecoderDataModel::select_audio_file()
 {
     QString path = QFileDialog::getExistingDirectory(nullptr, "Select FMOD Bank Folder", "");
     if (!path.isEmpty()) {
-        widget->fileSelectComboBox->setText(path);
-        // Call worker to load banks
-        QMetaObject::invokeMethod(worker_, "loadBanks", Qt::QueuedConnection, Q_ARG(QString, path));
+        setBankPath(path);
     }
 }
 
@@ -149,7 +178,7 @@ void FmodDecoderDataModel::updateEventListUI(const QStringList& events)
         }
         
         QPushButton* btn = new QPushButton(btnText);
-        AbstractDelegateModel::registerOSCControl("/"+btnText, btn);
+        AbstractDelegateModel::registerExternalControl("/"+btnText, btn);
         btn->setToolTip(eventPath);
         // Style the button to look better
 
@@ -177,7 +206,7 @@ void FmodDecoderDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex c
     case 0: { // 文本事件触发
         const QString eventPath = variableData->value().toString();
         if (!eventPath.isEmpty()) {
-            QMetaObject::invokeMethod(worker_, "playEvent", Qt::QueuedConnection, Q_ARG(QString, eventPath));
+            setCurrentEvent(eventPath);
         }
         break;
     }
@@ -185,7 +214,7 @@ void FmodDecoderDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex c
         const int idx = variableData->value().toInt();
         if (idx >= 0 && idx < availableEvents_.size()) {
             const QString& eventPath = availableEvents_.at(idx);
-            QMetaObject::invokeMethod(worker_, "playEvent", Qt::QueuedConnection, Q_ARG(QString, eventPath));
+            setCurrentEvent(eventPath);
         }
         break;
     }
@@ -196,8 +225,7 @@ void FmodDecoderDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex c
 
 void FmodDecoderDataModel::onEventSelected(const QString& eventPath)
 {
-    // Call worker to play event
-    QMetaObject::invokeMethod(worker_, "playEvent", Qt::QueuedConnection, Q_ARG(QString, eventPath));
+    setCurrentEvent(eventPath);
 }
 
 void FmodDecoderDataModel::load(QJsonObject const &p)
@@ -213,8 +241,67 @@ void FmodDecoderDataModel::load(QJsonObject const &p)
         path = widget->fileSelectComboBox->text();
     }
     if (!path.isEmpty()) {
-        widget->fileSelectComboBox->setText(path);
-        QMetaObject::invokeMethod(worker_, "loadBanks", Qt::QueuedConnection, Q_ARG(QString, path));
+        setBankPath(path);
+    }
+}
+
+QString FmodDecoderDataModel::bankPath() const
+{
+    return m_bankPath;
+}
+
+void FmodDecoderDataModel::setBankPath(const QString& path)
+{
+    const QString trimmed = path.trimmed();
+    if (trimmed == m_bankPath) {
+        return;
+    }
+    m_bankPath = trimmed;
+    Q_EMIT bankPathChanged(trimmed);
+}
+
+QString FmodDecoderDataModel::currentEvent() const
+{
+    return m_currentEvent;
+}
+
+void FmodDecoderDataModel::setCurrentEvent(const QString& eventPath)
+{
+    const QString trimmed = eventPath.trimmed();
+    if (trimmed == m_currentEvent) {
+        return;
+    }
+    m_currentEvent = trimmed;
+    Q_EMIT currentEventChanged(trimmed);
+}
+
+void FmodDecoderDataModel::afterModelReady()
+{
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/file"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/event"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
+}
+
+void FmodDecoderDataModel::onGlobalEvent(const GlobalEvent& ev)
+{
+    if (ev.kind != GlobalEventKind::Command) {
+        return;
+    }
+
+    const QString addrFile = makeFullOscAddress("/file");
+    const QString addrEvent = makeFullOscAddress("/event");
+
+    if (ev.address == addrFile) {
+        setBankPath(ev.payload.toString());
+    } else if (ev.address == addrEvent) {
+        setCurrentEvent(ev.payload.toString());
     }
 }
 

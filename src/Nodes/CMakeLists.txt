@@ -78,7 +78,7 @@ set(ALL_NODES
     AudioDuckingNode                            #音频闪避
     AudioCrossFaderNode                         #音频交叉淡化过渡
     AudioPriorityNode                           #音频优先级
-    AudioASRNode                                #音频关键词识别
+#    AudioASRNode                                #音频关键词识别
     PoseDetectionNode                            #Yolo v11n 姿态
     ObjectDetectionNode                       #Yolo v11n 检测
     FaceDetectionNode                              #人脸检测
@@ -171,7 +171,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(AudioDuckingNode)                          #音频闪避
     add_subdirectory(AudioCrossFaderNode)                       #音频交叉淡化过渡
     add_subdirectory(AudioPriorityNode)                         #音频优先级
-    add_subdirectory(AudioASRNode)                              #音频关键词识别
+#    add_subdirectory(AudioASRNode)                              #音频关键词识别
     add_subdirectory(PoseDetectionNode)                        #动作识别
     add_subdirectory(ObjectDetectionNode)                       #对象识别
     add_subdirectory(FaceDetectionNode)                            #人脸检测

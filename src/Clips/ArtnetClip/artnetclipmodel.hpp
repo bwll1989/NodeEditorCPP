@@ -23,6 +23,8 @@ extern "C" {
 #include <libavutil/imgutils.h>
 #include <libavutil/time.h>
 }
+struct GlobalEvent;
+
 namespace Clips
 {
     class ArtnetClipModel : public AbstractClipDelegateModel {
@@ -60,6 +62,22 @@ namespace Clips
     public Q_SLOTS:
         void onPropertyChanged();
 
+        void onGlobalEvent(const GlobalEvent& ev);
+
+        /**
+         * 函数级注释：外部或本地修改起始 Universe 时的业务处理（同时发送状态反馈）
+         */
+        void onUniverseChanged(int value);
+
+        /**
+         * 函数级注释：外部或本地修改目标主机 IP 时的业务处理（同时发送状态反馈）
+         */
+        void onHostChanged(const QString& host);
+
+        /**
+         * 函数级注释：外部或本地修改 DMX 文件路径时的业务处理（加载信息并发送状态反馈）
+         */
+        void onFileChanged(const QString& file);
 
         /**
          * 函数级注释：读取媒体文件基本信息并据此设置剪辑长度
@@ -90,7 +108,7 @@ namespace Clips
          */
         void extractDMXFromCurrentFrame() ;
         /**
-         * 函数级注释：将当前帧的每个 Universe 的 DMX 数据封装为 ArtnetFrame 并入队发送
+         * 函数级注释：将当前帧的每个 Universe 的 512 字节 DMX 数据封装为 ArtnetFrame 并入队发送
          * - 参考 ArtnetOutDataModel 的发送逻辑
          * - 使用广播地址 `m_targetHost`；可根据需要扩展属性面板增加目标主机设置
          * - 通过 m_lastSentFrameIndex 防止 timeline 对同帧的重复调用造成重复发送
@@ -109,6 +127,10 @@ namespace Clips
             videoInfoLabel->setText(QString("时长: %1s, 帧率: %2fps, 域数量: %3")
                                    .arg(duration, 0, 'f', 1).arg(fps, 0, 'f', 1).arg(videoHeight));
         }
+
+    protected:
+        void afterModelReady() override;
+
     private:
         AVFormatContext* m_formatContext {nullptr};
         AVCodecContext* m_codecContext {nullptr};

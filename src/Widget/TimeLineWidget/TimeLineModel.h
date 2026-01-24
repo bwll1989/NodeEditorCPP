@@ -53,4 +53,5 @@ private:
     TimeLineStage* m_stage;
     //时钟对象
     TimeLineClock* m_clock;
+    // mutable qint64 lastFrame = 0;
 };

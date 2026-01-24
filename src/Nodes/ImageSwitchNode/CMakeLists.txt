@@ -9,7 +9,6 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 INCLUDE_DIRECTORIES(${OpenCV_DIR})
 add_library(${Module_Name}  SHARED
 		ImageSwitchDataModel.hpp
-		ImageSwitchInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp)
 

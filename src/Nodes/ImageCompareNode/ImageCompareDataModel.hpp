@@ -13,6 +13,8 @@
 #include "ImageCompareInterface.hpp"
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -24,6 +26,7 @@ namespace Nodes
     class ImageCompareDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(int method READ method WRITE setMethod NOTIFY methodChanged)
 
         public:
         ImageCompareDataModel()
@@ -36,12 +39,22 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outVariable=std::make_shared<VariableData>();
-            connect(widget->methodEdit,&QComboBox::currentIndexChanged,this,&ImageCompareDataModel::calculateImagedifference);
-            AbstractDelegateModel::registerOSCControl("/method",widget->methodEdit);
+            
+            AbstractDelegateModel::registerExternalControl("/method",widget->methodEdit);
 
+            // 初始化属性
+            m_method = widget->methodEdit->currentIndex();
+
+            // 连接信号
+            connect(widget->methodEdit, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this, [this](int index){
+                setMethod(index);
+            });
         }
 
         virtual ~ImageCompareDataModel() override{}
+
+        int method() const { return m_method; }
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
@@ -107,7 +120,7 @@ namespace Nodes
 {
     if (m_inImage0 && m_inImage1) {
         // 获取当前方法索引（主线程操作）
-        const int methodIndex = widget->methodEdit->currentIndex();
+        const int methodIndex = m_method;
 
         // 深拷贝图像数据用于异步处理
         cv::Mat img0 = m_inImage0->imgMat().clone();
@@ -219,7 +232,7 @@ namespace Nodes
         {
             QJsonObject modelJson1;
             QJsonObject modelJson  = NodeDelegateModel::save();
-            modelJson1["method"] = widget->methodEdit->currentIndex();
+            modelJson1["method"] = m_method;
             modelJson["values"]=modelJson1;
             return modelJson;
         }
@@ -228,9 +241,39 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-
-                widget->methodEdit->setCurrentIndex(v.toObject()["method"].toInt());
+                setMethod(v.toObject()["method"].toInt());
             }
+        }
+
+    public slots:
+        void setMethod(int m)
+        {
+            if (m_method == m) return;
+            m_method = m;
+            if (widget) {
+                const QSignalBlocker blocker(widget->methodEdit);
+                widget->methodEdit->setCurrentIndex(m);
+            }
+            calculateImagedifference();
+            Q_EMIT methodChanged(m);
+            AbstractDelegateModel::stateFeedBack("/method", m);
+        }
+
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) return;
+            if (ev.address == makeFullOscAddress("/method")) {
+                setMethod(ev.payload.toInt());
+            }
+        }
+
+    signals:
+        void methodChanged(int method);
+
+    protected:
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/method"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
     private:
@@ -239,5 +282,6 @@ namespace Nodes
         std::shared_ptr<ImageData> m_inImage0;
         std::shared_ptr<ImageData> m_inImage1;
         std::shared_ptr<VariableData> m_outVariable;
+        int m_method = 0;
     };
 }

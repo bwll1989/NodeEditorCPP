@@ -144,6 +144,9 @@ void PluginsManagerWidget::loadBuildInPlugin()
     pluginsManager->registry()->registerModel<ToJsonDataModel>("To JSON","Controls");
     pluginsManager->registry()->registerModel<FromJsonDataModel>("From JSON","Controls");
     pluginsManager->registry()->registerModel<WindowDisplayModel>("Window Display","Image");
+    pluginsManager->registry()->registerModel<TriggerSourceDataModel>("Trigger Source","Controls");
+    pluginsManager->registry()->registerModel<TogglePluginDataModel>("Toggle Source","Controls");
+
 }
 
 //打开插件目录

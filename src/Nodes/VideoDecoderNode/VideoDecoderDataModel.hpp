@@ -15,6 +15,7 @@
 #include "QThread"
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 
 using namespace std;
 using QtNodes::NodeData;
@@ -32,6 +33,10 @@ namespace Nodes
     class VideoDecoderDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString fileName READ getFileName WRITE setFileName NOTIFY fileNameChanged)
+        Q_PROPERTY(bool loop READ getLoop WRITE setLoop NOTIFY loopChanged)
+        Q_PROPERTY(double volume READ getVolume WRITE setVolume NOTIFY volumeChanged)
+
     public:
         /**
        * @brief 构造函数，初始化音频解码Node，支持动态多通道分离输出
@@ -46,27 +51,26 @@ namespace Nodes
             PortEditable = true;
 
 
-            // connect(widget->fileSelectButton,&QPushButton::clicked,this,&VideoDecoderDataModel::select_audio_file,Qt::QueuedConnection);
-            connect(widget->fileSelectComboBox,&SelectorComboBox::textChanged,this,&VideoDecoderDataModel::select_audio_file,Qt::QueuedConnection);
-            connect(widget->playButton,&QPushButton::clicked,this,&VideoDecoderDataModel::playAudio,Qt::QueuedConnection);
-            connect(widget->stopButton,&QPushButton::clicked,this,&VideoDecoderDataModel::stopAudio,Qt::QueuedConnection);
+            // UI Connections
+            connect(widget->fileSelectComboBox, &SelectorComboBox::textChanged, this, &VideoDecoderDataModel::setFileName);
+            connect(widget->playButton, &QPushButton::clicked, this, &VideoDecoderDataModel::play);
+            connect(widget->stopButton, &QPushButton::clicked, this, &VideoDecoderDataModel::stop);
+            
+            connect(widget->volumeSlider, &QDoubleSpinBox::valueChanged, this, &VideoDecoderDataModel::setVolume);
+            connect(widget->loopCheckBox, &QCheckBox::toggled, this, &VideoDecoderDataModel::setLoop);
+
+            // Player Connections
             connect(player, &VideoDecoder::videoFrameReady, this, &VideoDecoderDataModel::onVideoFrameReady, Qt::QueuedConnection);
-            // 新增信号连接
-            connect(widget->volumeSlider, &QDoubleSpinBox::valueChanged,
-                    this, &VideoDecoderDataModel::onVolumeChanged, Qt::QueuedConnection);
-            connect(widget->loopCheckBox, &QCheckBox::toggled,
-                    this, &VideoDecoderDataModel::onLoopToggled, Qt::QueuedConnection);
-            connect(player, &VideoDecoder::playbackProgress,
-                    this, &VideoDecoderDataModel::onPlaybackProgress, Qt::QueuedConnection);
+            connect(player, &VideoDecoder::playbackProgress, this, &VideoDecoderDataModel::onPlaybackProgress, Qt::QueuedConnection);
 
+            // Initial State
             widget->volumeSlider->setValue(-10.0);
-
-            // 注册OSC控制
-            AbstractDelegateModel::registerOSCControl("/volume", widget->volumeSlider);
-            AbstractDelegateModel::registerOSCControl("/loop", widget->loopCheckBox);
-            AbstractDelegateModel::registerOSCControl("/play",widget->playButton);
-            AbstractDelegateModel::registerOSCControl("/stop",widget->stopButton);
-            AbstractDelegateModel::registerOSCControl("/file",widget->fileSelectComboBox);
+            AbstractDelegateModel::registerExternalControl("/volume", widget->volumeSlider);
+            AbstractDelegateModel::registerExternalControl("/loop", widget->loopCheckBox);
+            AbstractDelegateModel::registerExternalControl("/play",widget->playButton);
+            AbstractDelegateModel::registerExternalControl("/stop",widget->stopButton);
+            AbstractDelegateModel::registerExternalControl("/file",widget->fileSelectComboBox);
+            m_volume = -10.0;
         }
 
         /**
@@ -76,6 +80,56 @@ namespace Nodes
             if (player->getPlaying()){
                 player->stopPlay();
             }
+        }
+        
+        QString getFileName() const { return m_fileName; }
+        void setFileName(const QString& fileName) {
+            if (m_fileName == fileName) return;
+            m_fileName = fileName;
+            {
+                QSignalBlocker blocker(widget->fileSelectComboBox);
+                widget->fileSelectComboBox->setText(m_fileName);
+            }
+            loadVideoFile(m_fileName);
+            
+            emit fileNameChanged(m_fileName);
+            AbstractDelegateModel::stateFeedBack("/file", m_fileName);
+        }
+
+        bool getLoop() const { return m_loop; }
+        void setLoop(bool loop) {
+            if (m_loop == loop) return;
+            m_loop = loop;
+            
+            QSignalBlocker blocker(widget->loopCheckBox);
+            widget->loopCheckBox->setChecked(m_loop);
+            
+            player->setLooping(m_loop);
+            
+            emit loopChanged(m_loop);
+            AbstractDelegateModel::stateFeedBack("/loop", m_loop);
+        }
+
+        double getVolume() const { return m_volume; }
+        void setVolume(double volume) {
+            if (qFuzzyCompare(m_volume, volume)) return;
+            m_volume = volume;
+            
+            QSignalBlocker blocker(widget->volumeSlider);
+            widget->volumeSlider->setValue(m_volume);
+            
+            player->setVolume(m_volume);
+            
+            emit volumeChanged(m_volume);
+            AbstractDelegateModel::stateFeedBack("/volume", m_volume);
+        }
+        
+        void afterModelReady() override {
+            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/file"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/volume"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
         /**
@@ -160,40 +214,22 @@ namespace Nodes
          */
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
+            auto d = std::dynamic_pointer_cast<VariableData>(data);
+            if (d == nullptr) return;
+
             switch (portIndex) {
-            case 0: {
-                    auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr) {
-                        if (d->value().toBool() == true) {
-                            this->playAudio();
-                        }
-                    }
-                    return;
-            }
-            case 1: {
-                    auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr)
-                        if (d->value().toBool() == true) {
-                            this->stopAudio();
-                        }
-                    return;
-                }
-            case 2:{
-                    auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr)
-                    {
-                        widget->loopCheckBox->setChecked(d->value().toBool());
-                    }
-                    return;
-            }
-            case 3:{
-                    auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr)
-                    {
-                        widget->volumeSlider->setValue(d->value().toDouble());
-                    }
-                    return;
-            }
+            case 0: 
+                if (d->value().toBool()) play();
+                break;
+            case 1: 
+                if (d->value().toBool()) stop();
+                break;
+            case 2:
+                setLoop(d->value().toBool());
+                break;
+            case 3:
+                setVolume(d->value().toDouble());
+                break;
             }
         }
 
@@ -209,10 +245,10 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson = NodeDelegateModel::save();
-            modelJson["filePath"] = widget->fileSelectComboBox->text();
-            modelJson["isLoop"] = isLoop;
+            modelJson["filePath"] = m_fileName;
+            modelJson["isLoop"] = m_loop;
             modelJson["autoPlay"] = autoPlay;
-            modelJson["volume"] = static_cast<int>(widget->volumeSlider->value());
+            modelJson["volume"] = m_volume;
             return modelJson;
         }
 
@@ -224,13 +260,11 @@ namespace Nodes
             QJsonObject modelJson = p;
             
             if (modelJson.contains("filePath")) {
-                widget->fileSelectComboBox->setText(modelJson["filePath"].toString());
+                setFileName(modelJson["filePath"].toString());
             }
             
             if (modelJson.contains("isLoop")) {
-                isLoop = modelJson["isLoop"].toBool();
-                widget->loopCheckBox->setChecked(isLoop);
-                player->setLooping(isLoop);
+                setLoop(modelJson["isLoop"].toBool());
             }
             
             if (modelJson.contains("autoPlay")) {
@@ -238,44 +272,43 @@ namespace Nodes
             }
             
             if (modelJson.contains("volume")) {
-                int volume = modelJson["volume"].toInt();
-                widget->volumeSlider->setValue(volume);
-                player->setVolume(volume / 100.0f);
+                setVolume(modelJson["volume"].toDouble());
             }
 
             // 如果有文件路径，重新初始化解码器
             if (!filePath.isEmpty() && QFile::exists(filePath)) {
-                auto res = player->initializeFFmpeg(filePath);
-                if (res) {
-                    isReady = true;
-                    if (autoPlay) {
-                        QTimer::singleShot(100, this, &VideoDecoderDataModel::playAudio);
-                    }
+                // setFileName 已经处理了初始化逻辑
+                if (isReady && autoPlay) {
+                    QTimer::singleShot(100, this, &VideoDecoderDataModel::play);
                 }
             }
         }
 
     public slots:
-        /**
-         * 选则音频文件
-         */
-        void select_audio_file(QString fileName)
-        {
 
-            // QFileDialog *fileDialog=new QFileDialog();
-            //
-            // QString fileName = QFileDialog::getOpenFileName(nullptr,
-            //                                         tr("Select WAV or MP3 File"), "/home", tr("Audio Files (*.wav *.mp3)"));
-            if(fileName!="")
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind == GlobalEventKind::Command) {
+                QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+                if (localPath == "file") setFileName(ev.payload.toString());
+                else if (localPath == "loop") setLoop(ev.payload.toBool());
+                else if (localPath == "volume") setVolume(ev.payload.toDouble());
+                else if (localPath == "play") play();
+                else if (localPath == "stop") stop();
+            }
+        }
+
+        void loadVideoFile(QString fileName)
+        {
+            if(fileName != "")
             {
-                filePath= AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+fileName;
+                filePath = AppConstants::MEDIA_LIBRARY_STORAGE_DIR + "/" + fileName;
                 if (player->getPlaying()){
                     player->stopPlay();
                 }
-                auto res=player->initializeFFmpeg(filePath);
+                auto res = player->initializeFFmpeg(filePath);
 
                 if(!res){
-                    isReady= false;
+                    isReady = false;
                     return;
                 }
                 
@@ -295,15 +328,14 @@ namespace Nodes
                     }
                 }
                 
-                isReady= true;
+                isReady = true;
             }
-
         }
 
         /**
          * 播放音频
          */
-        void playAudio() {
+        void play() {
 
             if (!isReady) {
                 return;
@@ -311,30 +343,16 @@ namespace Nodes
 
             player->stopPlay(); // 先停止之前的播放
             player->startPlay();
+            AbstractDelegateModel::stateFeedBack("/play", true);
+            
 
         }
         /**
          * 停止播放
          */
-        void stopAudio(){
+        void stop(){
             player->stopPlay();
-        }
-        /**
-         * @brief 音量改变槽函数
-         * @param value 音量值 (0-100)
-         */
-        void onVolumeChanged(double value) {
-            player->setVolume(value);
-        }
-
-        /**
-         * @brief 循环播放切换槽函数
-         * @param checked 是否启用循环播放
-         */
-        void onLoopToggled(bool checked) {
-            isLoop = checked;
-            player->setLooping(checked);
-            qDebug() << "循环播放:" << (checked ? "启用" : "禁用");
+            AbstractDelegateModel::stateFeedBack("/stop", true);
         }
 
         void onVideoFrameReady(NodeDataTypes::ImageData frame) {
@@ -355,6 +373,11 @@ namespace Nodes
             widget->timeLabel->setText(currentTimeStr + " / " + totalTimeStr);
         }
 
+    signals:
+        void fileNameChanged(QString fileName);
+        void loopChanged(bool loop);
+        void volumeChanged(double volume);
+
     private:
         /**
          * @brief 格式化时间显示 (MM:SS)
@@ -369,16 +392,15 @@ namespace Nodes
 
         std::shared_ptr<NodeDataTypes::ImageData> lastVideoFrame;
 
-        float currentVolume = -10.0f;  // 新增当前音量记录
-
         VideoDecoderInterface *widget=new VideoDecoderInterface();
         //    界面控件
         VideoDecoder *player=new VideoDecoder();
-        QString filePath="";
-        bool isLoop=false;
+        QString filePath=""; // Full path
+        QString m_fileName=""; // File name (relative)
+        bool m_loop=false;
+        double m_volume = -10.0;
         bool autoPlay=false;
         bool isReady= false;
 
     };
 }
-

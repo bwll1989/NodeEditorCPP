@@ -10,6 +10,8 @@
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 
+#include <QSignalBlocker>
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include <QtCore/qglobal.h>
 #include <QToolBox>
 #include "BaseTrackListView.h"
@@ -19,7 +21,6 @@
 #include "ConstantDefines.h"
 #include "TimelineInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
-
 using namespace NodeDataTypes;
 using namespace std;
 using QtNodes::NodeData;
@@ -32,7 +33,9 @@ class QPushButton;
 /// In this example it has no logic.
 class TimeLineDataModel : public AbstractDelegateModel
 {
-Q_OBJECT
+    Q_OBJECT
+    Q_PROPERTY(bool isPlaying READ getIsPlaying WRITE setIsPlaying NOTIFY isPlayingChanged)
+    Q_PROPERTY(bool isLooping READ getIsLooping WRITE setIsLooping NOTIFY isLoopingChanged)
 
 public:
 
@@ -55,23 +58,89 @@ public:
         auto toolbar=dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar);
         if (toolbar!= nullptr){
             auto allActions=toolbar->allActions();
-            for (auto& action:allActions){
-                // 将 QAction 映射到其对应的 QWidget（例如 QToolButton）
-                QWidget* w = toolbar->widgetForAction(action.second);
-                if (w) {
-                   AbstractDelegateModel::registerOSCControl("/"+action.first, w);
+
+            // 将 QAction 映射到其对应的 QWidget（例如 QToolButton）
+            QWidget* w = toolbar->widgetForAction(allActions["play"]);
+            if (w) {
+               AbstractDelegateModel::registerExternalControl("/play", w);
+            }
+            w = toolbar->widgetForAction(allActions["loop"]);
+            if (w) {
+               AbstractDelegateModel::registerExternalControl("/loop", w);
+            }
+            w = toolbar->widgetForAction(allActions["stop"]);
+            if (w) {
+               AbstractDelegateModel::registerExternalControl("/stop", w);
+            }
+        }
+        AbstractDelegateModel::registerExternalControl("/play", widget->startButton);
+        connect(widget->startButton, &QPushButton::clicked, this, &TimeLineDataModel::setIsPlaying);
+    }
+
+    ~TimeLineDataModel() override
+    {
+        if (model) {
+            model->onStopPlay();
+        }
+    }
+
+    void afterModelReady() override {
+        // Subscribe to GlobalEventBus
+        GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        // Connect clock signals to sync internal state and provide feedback
+        if (model && model->getClock()) {
+            connect(model->getClock(), &TimeLineNodeClock::timecodePlayingChanged, this, &TimeLineDataModel::onClockPlayingChanged);
+        }
+    }
+
+    // Getters and Setters
+    bool getIsPlaying() const { return m_isPlaying; }
+    void setIsPlaying(bool playing) {
+        if (m_isPlaying == playing) return;
+        
+        if (playing) {
+            model->onStartPlay();
+            if (widget && widget->timeline && widget->timeline->toolbar) {
+                auto actions = widget->timeline->toolbar->allActions();
+                {
+                    QSignalBlocker blocker(actions["play"]); // Action might not be a widget, QSignalBlocker works on QObject
+                    actions["play"]->setChecked(playing);
                 }
+                {
+                    QSignalBlocker blocker(widget->startButton); // Action might not be a widget, QSignalBlocker works on QObject
+                    widget->startButton->setChecked(playing);
+
+                }
+            }
+        } else {
+            model->onStopPlay();
+
+        }
+        // m_isPlaying will be updated by onClockPlayingChanged
+    }
+
+    bool getIsLooping() const { return m_isLooping; }
+    void setIsLooping(bool looping) {
+        if (m_isLooping == looping) return;
+        m_isLooping = looping;
+        
+        model->onSetLoop(m_isLooping);
+        
+        // Sync UI
+        if (widget && widget->timeline && widget->timeline->toolbar) {
+            auto actions = widget->timeline->toolbar->allActions();
+            {
+                 QSignalBlocker blocker(actions["loop"]); // Action might not be a widget, QSignalBlocker works on QObject
+                 actions["loop"]->setChecked(m_isLooping);
             }
         }
 
-        AbstractDelegateModel::registerOSCControl("/start", widget->startButton);
-        AbstractDelegateModel::registerOSCControl("/stop", widget->stopButton);
+        emit isLoopingChanged(m_isLooping);
+        AbstractDelegateModel::stateFeedBack("/loop", m_isLooping);
     }
 
-    ~TimeLineDataModel()
-    {
-        model->onStopPlay();
-    }
 public:
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
@@ -126,23 +195,17 @@ public:
             if (textData->value().canConvert<bool>()) {
                 bool b=textData->value().toBool();
                 switch (portIndex) {
-                    case 0:
-                        if (b)
-                            model->onStartPlay();
-                        else
-                            model->onStopPlay();
+                    case 0: // PLAY
+                        setIsPlaying(b);
                         break;
-                    case 1:
-                        if (b)
-                            model->onStopPlay();
+                    case 1: // STOP
+                        if (b) setIsPlaying(false);
                         break;
-                    case 2:
-                        if (b)
-                            model->onPausePlay();
+                    case 2: // PAUSE
+                        if (b) model->onPausePlay(); // No property for pause yet, treat as action
                         break;
-                    case 3:
-
-                        widget->timeline->toolbar->allActions()["loop"]->setChecked(b);
+                    case 3: // LOOP
+                        setIsLooping(b);
                         break;
                 }
             }
@@ -156,6 +219,12 @@ public:
         QJsonObject modelJson1=model->save();
         QJsonObject modelJson  = NodeDelegateModel::save();
         modelJson["values"]=modelJson1;
+        
+        // Save properties if needed, though model->save() might cover internal state.
+        // Assuming model->save() covers timeline state.
+        // We should save looping state if not covered by model->save().
+        // Based on previous code, it only saved "values" -> model->save().
+        
         return modelJson;
     }
 
@@ -165,17 +234,45 @@ public:
         if (!v.isUndefined()&&v.isObject()) {
             model->load(v.toObject());
         }
+        // Sync local state from model after load?
+        // Loop state might be in model.
     }
     QWidget *embeddedWidget() override{
 
         return widget;
     }
 
-private Q_SLOTS:
+signals:
+    void isPlayingChanged(bool playing);
+    void isLoopingChanged(bool looping);
+
+public slots:
+    void onGlobalEvent(const GlobalEvent& ev) {
+        if (ev.kind == GlobalEventKind::Command) {
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            if (localPath == "play" || localPath == "start") {
+                if (ev.payload.isValid()) setIsPlaying(ev.payload.toBool());
+                else setIsPlaying(true);
+            }
+            else if (localPath == "stop") setIsPlaying(false);
+            else if (localPath == "pause") model->onPausePlay();
+            else if (localPath == "loop") setIsLooping(ev.payload.toBool());
+        }
+    }
+
+private slots:
 
     void setTimeLineState(bool const &string)
     {
         Q_EMIT dataUpdated(0);
+    }
+    
+    void onClockPlayingChanged(bool playing) {
+        if (m_isPlaying != playing) {
+            m_isPlaying = playing;
+            emit isPlayingChanged(m_isPlaying);
+            AbstractDelegateModel::stateFeedBack("/play", m_isPlaying);
+        }
     }
 
 private:
@@ -184,4 +281,7 @@ private:
     unordered_map<unsigned int, QVariant> in_dictionary;
     unordered_map<unsigned int, QVariant> out_dictionary;
     QString value;
+    
+    bool m_isPlaying = false;
+    bool m_isLooping = false;
 };

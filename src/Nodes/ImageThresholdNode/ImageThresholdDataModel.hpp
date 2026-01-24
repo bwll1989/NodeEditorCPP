@@ -12,6 +12,9 @@
 #include "ImageThresholdInterface.hpp"
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
+struct GlobalEvent;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -23,6 +26,9 @@ namespace Nodes
     class ImageThresholdDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(int thresh READ thresh WRITE setThresh NOTIFY threshChanged)
+        Q_PROPERTY(int maxval READ maxval WRITE setMaxval NOTIFY maxvalChanged)
+        Q_PROPERTY(int method READ method WRITE setMethod NOTIFY methodChanged)
 
         public:
         ImageThresholdDataModel()
@@ -35,16 +41,24 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outImage=std::make_shared<ImageData>();
-            connect(widget->threshEdit,&QSpinBox::valueChanged,this,&ImageThresholdDataModel::updateImage);
-            connect(widget->maxvalEdit,&QSpinBox::valueChanged,this,&ImageThresholdDataModel::updateImage);
-            connect(widget->methodEdit,&QComboBox::currentIndexChanged,this,&ImageThresholdDataModel::updateImage);
+            connect(widget->threshEdit,&QSpinBox::valueChanged,this,[this](int v){ setThresh(v); });
+            connect(widget->maxvalEdit,&QSpinBox::valueChanged,this,[this](int v){ setMaxval(v); });
+            connect(widget->methodEdit,&QComboBox::currentIndexChanged,this,[this](int v){ setMethod(v); });
 
-            AbstractDelegateModel::registerOSCControl("/method",widget->methodEdit);
-            AbstractDelegateModel::registerOSCControl("/thresh",widget->threshEdit);
-            AbstractDelegateModel::registerOSCControl("/maxval",widget->maxvalEdit);
+            AbstractDelegateModel::registerExternalControl("/method",widget->methodEdit);
+            AbstractDelegateModel::registerExternalControl("/thresh",widget->threshEdit);
+            AbstractDelegateModel::registerExternalControl("/maxval",widget->maxvalEdit);
+
+            m_thresh = widget->threshEdit->value();
+            m_maxval = widget->maxvalEdit->value();
+            m_method = widget->methodEdit->currentIndex();
         }
 
         virtual ~ImageThresholdDataModel() override{}
+
+        int thresh() const { return m_thresh; }
+        int maxval() const { return m_maxval; }
+        int method() const { return m_method; }
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
@@ -116,13 +130,13 @@ namespace Nodes
                 updateImage();
                 break;
             case 1:
-                widget->threshEdit->setValue(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
+                setThresh(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
                 break;
             case 2:
-                widget->maxvalEdit->setValue(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
+                setMaxval(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
                 break;
             case 3:
-                widget->methodEdit->setCurrentIndex(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
+                setMethod(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
                 break;
             }
         }
@@ -137,11 +151,9 @@ namespace Nodes
                     cv::cvtColor(inputMat, inputMat, cv::COLOR_BGR2GRAY);
                 }
 
-                // 获取参数值
-                double thresh = widget->threshEdit->value();
-                double maxval = widget->maxvalEdit->value();
-                int method = widget->methodEdit->currentIndex();
-                // 执行阈值操作
+                double thresh = m_thresh;
+                double maxval = m_maxval;
+                int method = m_method;
                 cv::threshold(inputMat, thresholdedMat, thresh, maxval, method);
 
                 m_outImage = std::make_shared<ImageData>(thresholdedMat);
@@ -158,9 +170,9 @@ namespace Nodes
             QJsonObject modelJson1;
             QJsonObject modelJson  = NodeDelegateModel::save();
 
-            modelJson1["thresh"] = widget->threshEdit->value();
-            modelJson1["maxval"] = widget->maxvalEdit->value();
-            modelJson1["method"] = widget->methodEdit->currentIndex();
+            modelJson1["thresh"] = m_thresh;
+            modelJson1["maxval"] = m_maxval;
+            modelJson1["method"] = m_method;
             modelJson["values"]=modelJson1;
             return modelJson;
         }
@@ -169,9 +181,9 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->threshEdit->setValue(v.toObject()["thresh"].toInt());
-                widget->maxvalEdit->setValue(v.toObject()["maxval"].toInt());
-                widget->methodEdit->setCurrentIndex(v.toObject()["method"].toInt());
+                setThresh(v.toObject()["thresh"].toInt());
+                setMaxval(v.toObject()["maxval"].toInt());
+                setMethod(v.toObject()["method"].toInt());
             }
         }
 
@@ -181,5 +193,79 @@ namespace Nodes
         std::shared_ptr<NodeData> m_outImage;
         std::shared_ptr<ImageData> m_inImage;
         std::shared_ptr<VariableData> m_inVariable;
+        int m_thresh = 0;
+        int m_maxval = 0;
+        int m_method = 0;
+
+    public Q_SLOTS:
+        void setThresh(int v)
+        {
+            if (m_thresh == v) return;
+            m_thresh = v;
+            if (widget && widget->threshEdit) {
+                const QSignalBlocker blocker(widget->threshEdit);
+                widget->threshEdit->setValue(v);
+            }
+            updateImage();
+            Q_EMIT threshChanged(v);
+            AbstractDelegateModel::stateFeedBack("/thresh", v);
+        }
+
+        void setMaxval(int v)
+        {
+            if (m_maxval == v) return;
+            m_maxval = v;
+            if (widget && widget->maxvalEdit) {
+                const QSignalBlocker blocker(widget->maxvalEdit);
+                widget->maxvalEdit->setValue(v);
+            }
+            updateImage();
+            Q_EMIT maxvalChanged(v);
+            AbstractDelegateModel::stateFeedBack("/maxval", v);
+        }
+
+        void setMethod(int v)
+        {
+            if (m_method == v) return;
+            m_method = v;
+            if (widget && widget->methodEdit) {
+                const QSignalBlocker blocker(widget->methodEdit);
+                widget->methodEdit->setCurrentIndex(v);
+            }
+            updateImage();
+            Q_EMIT methodChanged(v);
+            AbstractDelegateModel::stateFeedBack("/method", v);
+        }
+
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) return;
+            const QString addrThresh = makeFullOscAddress("/thresh");
+            const QString addrMaxval = makeFullOscAddress("/maxval");
+            const QString addrMethod = makeFullOscAddress("/method");
+            if (ev.address == addrThresh) {
+                setThresh(ev.payload.toInt());
+            } else if (ev.address == addrMaxval) {
+                setMaxval(ev.payload.toInt());
+            } else if (ev.address == addrMethod) {
+                setMethod(ev.payload.toInt());
+            }
+        }
+
+    Q_SIGNALS:
+        void threshChanged(int v);
+        void maxvalChanged(int v);
+        void methodChanged(int v);
+
+    protected:
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/thresh"),
+                                                  this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/maxval"),
+                                                  this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/method"),
+                                                  this, SLOT(onGlobalEvent(GlobalEvent)));
+        }
     };
 }

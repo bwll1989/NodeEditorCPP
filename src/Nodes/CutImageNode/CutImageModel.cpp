@@ -1,12 +1,18 @@
 //
 // Created by pablo on 3/9/24.
 //
+//
 
 #include "CutImageModel.h"
 #include "DataTypes/NodeDataList.hpp"
+#include <QSignalBlocker>
 using namespace NodeDataTypes;
 using namespace Nodes;
 using namespace QtNodes;
+
+// 函数级注释：构造函数，初始化端口、标题，并将界面控件与属性系统绑定
+// - 通过 QLineEdit 的 textChanged 信号更新属性，从而触发图像裁剪与状态反馈
+// - 使用 registerExternalControl 注册控制接口，便于统一外部控制入口
 CutImageModel::CutImageModel() {
     InPortCount =6;
     OutPortCount=1;
@@ -15,25 +21,21 @@ CutImageModel::CutImageModel() {
     WidgetEmbeddable=false;
     Resizable=false;
     connect(widget->pos_x, &QLineEdit::textChanged, this, [this]() {
-        m_outRect.setLeft(widget->pos_x->text().toInt());
-        processImage();
+        setTopLeftX(widget->pos_x->text().toInt());
     });
     connect(widget->pos_y, &QLineEdit::textChanged, this, [this]() {
-        m_outRect.setTop(widget->pos_y->text().toInt());
-        processImage();
+        setTopLeftY(widget->pos_y->text().toInt());
     });
     connect(widget->widthEdit, &QLineEdit::textChanged, this, [this]() {
-        m_outRect.setWidth(widget->widthEdit->text().toInt());
-        processImage();
+        setWidth(widget->widthEdit->text().toInt());
     });
     connect(widget->heightEdit, &QLineEdit::textChanged, this, [this]() {
-        m_outRect.setHeight(widget->heightEdit->text().toInt());
-        processImage();
+        setHeight(widget->heightEdit->text().toInt());
     });
-    AbstractDelegateModel::registerOSCControl("/topLeftX",widget->pos_x);
-    AbstractDelegateModel::registerOSCControl("/topLeftY",widget->pos_y);
-    AbstractDelegateModel::registerOSCControl("/width",widget->widthEdit);
-    AbstractDelegateModel::registerOSCControl("/height",widget->heightEdit);
+    AbstractDelegateModel::registerExternalControl("/topLeftX",widget->pos_x);
+    AbstractDelegateModel::registerExternalControl("/topLeftY",widget->pos_y);
+    AbstractDelegateModel::registerExternalControl("/width",widget->widthEdit);
+    AbstractDelegateModel::registerExternalControl("/height",widget->heightEdit);
 }
 
 QString CutImageModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
@@ -81,6 +83,7 @@ QtNodes::NodeDataType CutImageModel::dataType(QtNodes::PortType portType, QtNode
     }
 }
 
+// 函数级注释：根据不同输入端口更新输入图像或裁剪参数，并委托给属性接口
 void CutImageModel::setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) {
     switch (portIndex) {
         case 0:
@@ -91,45 +94,42 @@ void CutImageModel::setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const
                 return;
             }
             m_inData = std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            m_outRect = m_inData.toRect();
-            widget->pos_x->setText(QString::number(m_outRect.left()));
-            widget->pos_y->setText(QString::number(m_outRect.top()));
-            widget->widthEdit->setText(QString::number(m_outRect.width()));
-            widget->heightEdit->setText(QString::number(m_outRect.height()));
+            {
+                const QRect rect = m_inData.toRect();
+                setTopLeftX(rect.left());
+                setTopLeftY(rect.top());
+                setWidth(rect.width());
+                setHeight(rect.height());
+            }
             break;
         case 2:
             if (nodeData== nullptr){
                 return;
             }
             m_inData = std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            m_outRect.setLeft(m_inData.toInt());
-            widget->pos_x->setText(QString::number(m_inData.toInt()));
+            setTopLeftX(m_inData.toInt());
             break;
         case 3:
             if (nodeData== nullptr){
                 return;
             }
             m_inData=std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            m_outRect.setTop(m_inData.toInt());
-            widget->pos_y->setText(QString::number(m_inData.toInt()));
+            setTopLeftY(m_inData.toInt());
             break;
         case 4:
             if (nodeData== nullptr){
                 return;
             }
             m_inData=std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            m_outRect.setWidth(m_inData.toInt());
-            widget->widthEdit->setText(QString::number(m_inData.toInt()));
+            setWidth(m_inData.toInt());
             break;
         case 5:
             if (nodeData== nullptr){
                 return;
             }
             m_inData=std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            m_outRect.setHeight(m_inData.toInt());
-            widget->heightEdit->setText(QString::number(m_inData.toInt()));
+            setHeight(m_inData.toInt());
     }
-    processImage();
 }
 
 std::shared_ptr<QtNodes::NodeData> CutImageModel::outData(const QtNodes::PortIndex port) {
@@ -138,6 +138,31 @@ std::shared_ptr<QtNodes::NodeData> CutImageModel::outData(const QtNodes::PortInd
 
 QWidget* CutImageModel::embeddedWidget() {
     return widget;
+}
+
+// 函数级注释：模型就绪后订阅全局事件总线，实现外部命令控制裁剪参数
+void CutImageModel::afterModelReady()
+{
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/topLeftX"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/topLeftY"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/width"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/height"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
 }
 
 void CutImageModel::processImage() {
@@ -188,12 +213,99 @@ QJsonObject CutImageModel::save() const {
 
 void CutImageModel::load(const QJsonObject& data) {
     QJsonValue modelJson = data["values"];
-    widget->pos_x->setText(QString::number(modelJson["pos_x"].toInt()));
-    widget->pos_y->setText(QString::number(modelJson["pos_y"].toInt()));
-    widget->widthEdit->setText(QString::number(modelJson["width"].toInt()));
-    widget->heightEdit->setText(QString::number(modelJson["height"].toInt()));
-    m_outRect.setLeft(modelJson["pos_x"].toInt());
-    m_outRect.setTop(modelJson["pos_y"].toInt());
-    m_outRect.setWidth(modelJson["width"].toInt());
-    m_outRect.setHeight(modelJson["height"].toInt());
+    const int x = modelJson["pos_x"].toInt();
+    const int y = modelJson["pos_y"].toInt();
+    const int w = modelJson["width"].toInt();
+    const int h = modelJson["height"].toInt();
+
+    setTopLeftX(x);
+    setTopLeftY(y);
+    setWidth(w);
+    setHeight(h);
+}
+
+// 函数级注释：设置裁剪矩形左上角 X 坐标属性，并更新界面与状态
+void CutImageModel::setTopLeftX(int x)
+{
+    if (m_outRect.left() == x) {
+        return;
+    }
+    m_outRect.setLeft(x);
+    if (widget && widget->pos_x) {
+        QSignalBlocker blocker(widget->pos_x);
+        widget->pos_x->setText(QString::number(x));
+    }
+    processImage();
+    Q_EMIT topLeftXChanged(x);
+    AbstractDelegateModel::stateFeedBack("/topLeftX", x);
+}
+
+// 函数级注释：设置裁剪矩形左上角 Y 坐标属性，并更新界面与状态
+void CutImageModel::setTopLeftY(int y)
+{
+    if (m_outRect.top() == y) {
+        return;
+    }
+    m_outRect.setTop(y);
+    if (widget && widget->pos_y) {
+        QSignalBlocker blocker(widget->pos_y);
+        widget->pos_y->setText(QString::number(y));
+    }
+    processImage();
+    Q_EMIT topLeftYChanged(y);
+    AbstractDelegateModel::stateFeedBack("/topLeftY", y);
+}
+
+// 函数级注释：设置裁剪矩形宽度属性，并更新界面与状态
+void CutImageModel::setWidth(int w)
+{
+    if (m_outRect.width() == w) {
+        return;
+    }
+    m_outRect.setWidth(w);
+    if (widget && widget->widthEdit) {
+        QSignalBlocker blocker(widget->widthEdit);
+        widget->widthEdit->setText(QString::number(w));
+    }
+    processImage();
+    Q_EMIT widthChanged(w);
+    AbstractDelegateModel::stateFeedBack("/width", w);
+}
+
+// 函数级注释：设置裁剪矩形高度属性，并更新界面与状态
+void CutImageModel::setHeight(int h)
+{
+    if (m_outRect.height() == h) {
+        return;
+    }
+    m_outRect.setHeight(h);
+    if (widget && widget->heightEdit) {
+        QSignalBlocker blocker(widget->heightEdit);
+        widget->heightEdit->setText(QString::number(h));
+    }
+    processImage();
+    Q_EMIT heightChanged(h);
+    AbstractDelegateModel::stateFeedBack("/height", h);
+}
+// 函数级注释：处理来自全局事件总线的裁剪命令，映射到对应属性
+void CutImageModel::onGlobalEvent(const GlobalEvent& ev)
+{
+    if (ev.kind != GlobalEventKind::Command) {
+        return;
+    }
+
+    const QString addrX = makeFullOscAddress("/topLeftX");
+    const QString addrY = makeFullOscAddress("/topLeftY");
+    const QString addrW = makeFullOscAddress("/width");
+    const QString addrH = makeFullOscAddress("/height");
+
+    if (ev.address == addrX) {
+        setTopLeftX(ev.payload.toInt());
+    } else if (ev.address == addrY) {
+        setTopLeftY(ev.payload.toInt());
+    } else if (ev.address == addrW) {
+        setWidth(ev.payload.toInt());
+    } else if (ev.address == addrH) {
+        setHeight(ev.payload.toInt());
+    }
 }

@@ -13,7 +13,8 @@ set(StatusContainer_sources
         StatusContainer.cpp
         StatusContainer.h
         StatusItem.cpp
-        StatusItem.h)
+        StatusItem.h
+        GlobalEventBus.hpp)
 
 #target_link_libraries(MYLIBRARY_LIBRARY PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::WebSockets)
 

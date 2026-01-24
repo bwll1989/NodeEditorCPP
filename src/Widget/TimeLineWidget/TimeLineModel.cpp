@@ -90,6 +90,18 @@ TimeCodeType TimeLineModel::getTimeCodeType() const
 QList<QVariantMap> TimeLineModel::onGetClipCurrentData(qint64 currentFrame) const {
     QList<QVariantMap> clipDataList;
     // 遍历所有轨道
+    // 帧序列校验：检测跳帧或重复帧（含倒退）
+    // const qint64 delta = currentFrame - lastFrame;
+    // if (lastFrame != 0) {
+    //     if (delta > 1) {
+    //         // 跳帧：当前帧与上一帧差值大于 1
+    //         qDebug() << "skipped frames from " ;
+    //     } else if (delta <= 0) {
+    //         // 重复或倒退帧
+    //         qDebug() << "duplicate/backward frame, last ";
+    //     }
+    // }
+    // lastFrame = currentFrame;
     for (TrackData* track : getTracks()) {
         // 遍历轨道中的所有片段
         for (AbstractClipModel* clip : track->clips) {
@@ -140,7 +152,7 @@ QVariant TimeLineModel::clipData(ClipId clipID, TimelineRoles role) const
                         result= QVariant::fromValue(clip);
                         break;
                     case ClipOscWidgetsRole:
-                        result=QVariant::fromValue(clip->getOscMapping());
+                        result=QVariant::fromValue(clip->getExternalControlAddressMapping());
                         break;
                     default:
                         break;

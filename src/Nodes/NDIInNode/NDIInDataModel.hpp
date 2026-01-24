@@ -3,7 +3,6 @@
 // 防止 Windows 宏定义冲突
 #ifndef NOMINMAX
 #define NOMINMAX
-
 #endif
 
 // 防止 Windows.h 定义 min/max 宏
@@ -44,6 +43,9 @@
 #include <memory>
 #include "ConstantDefines.h"
 #include "OSCSender/OSCSender.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
+
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -68,7 +70,6 @@ namespace Nodes
          * @brief 构造函数
          * @param parent 父对象
          */
-        // 在NDIReceiveThread构造函数中添加
         explicit NDIReceiveThread(QObject* parent = nullptr)
         : QThread(parent)
         , m_running(false)
@@ -76,14 +77,13 @@ namespace Nodes
         , m_width(0)
         , m_height(0)
         , m_forceUpdateSenders(false)
-        , m_ndi_find(nullptr)  // 新增
-        , m_ndi_recv(nullptr)  // 新增
-        , m_p_sources(nullptr) // 新增
-        , m_no_sources(0)      // 新增
-        , m_ndi_initialized(false) // 新增
+        , m_ndi_find(nullptr)
+        , m_ndi_recv(nullptr)
+        , m_p_sources(nullptr)
+        , m_no_sources(0)
+        , m_ndi_initialized(false)
         {
             initializeNDI();
-
         }
 
         /**
@@ -140,243 +140,245 @@ namespace Nodes
             QMutexLocker locker(&m_mutex);
             m_forceUpdateSenders = true;
         }
+
         /**
-     * @brief 初始化NDI库
-     */
-    void initializeNDI() {
-        // 初始化NDI库
-        if (!NDIlib_initialize()) {
-            qDebug() << "NDI初始化失败";
-            return;
+         * @brief 初始化NDI库
+         */
+        void initializeNDI() {
+            // 初始化NDI库
+            if (!NDIlib_initialize()) {
+                qDebug() << "NDI初始化失败";
+                return;
+            }
+
+            // 创建NDI查找实例
+            NDIlib_find_create_t find_create;
+            find_create.show_local_sources = true;
+            find_create.p_groups = nullptr;
+            find_create.p_extra_ips = nullptr;
+
+            m_ndi_find = NDIlib_find_create_v2(&find_create);
+            if (!m_ndi_find) {
+                qDebug() << "NDI查找实例创建失败";
+                NDIlib_destroy();
+                return;
+            }
+
+            m_ndi_recv = nullptr;
+            m_p_sources = nullptr;
+            m_no_sources = 0;
+            m_ndi_initialized = true;
         }
 
-        // 创建NDI查找实例
-        NDIlib_find_create_t find_create;
-        find_create.show_local_sources = true;
-        find_create.p_groups = nullptr;
-        find_create.p_extra_ips = nullptr;
+        /**
+         * @brief 接收NDI帧数据
+         * @return 是否成功接收到帧
+         */
+        bool receiveFrame() {
+            if (!m_ndi_recv) {
+                return false;
+            }
 
-        m_ndi_find = NDIlib_find_create_v2(&find_create);
-        if (!m_ndi_find) {
-            qDebug() << "NDI查找实例创建失败";
-            NDIlib_destroy();
-            return;
-        }
+            // 创建视频帧结构
+            NDIlib_video_frame_v2_t video_frame;
 
-        m_ndi_recv = nullptr;
-        m_p_sources = nullptr;
-        m_no_sources = 0;
-        m_ndi_initialized = true;
-    }
+            // 尝试接收视频帧（超时100ms）
+            switch (NDIlib_recv_capture_v2(m_ndi_recv, &video_frame, nullptr, nullptr, 100)) {
+                case NDIlib_frame_type_video:
+                {
+                    // 成功接收到视频帧
+                    if (video_frame.p_data && video_frame.xres > 0 && video_frame.yres > 0) {
+                        // 转换NDI帧到OpenCV Mat
+                        cv::Mat frame = convertNDIFrameToMat(video_frame);
 
-    /**
-     * @brief 接收NDI帧数据
-     * @return 是否成功接收到帧
-     */
-    bool receiveFrame() {
-        if (!m_ndi_recv) {
-            return false;
-        }
+                        if (!frame.empty()) {
+                            emit frameReceived(frame);
+                        }
 
-        // 创建视频帧结构
-        NDIlib_video_frame_v2_t video_frame;
-
-        // 尝试接收视频帧（超时100ms）
-        switch (NDIlib_recv_capture_v2(m_ndi_recv, &video_frame, nullptr, nullptr, 100)) {
-            case NDIlib_frame_type_video:
-            {
-                // 成功接收到视频帧
-                if (video_frame.p_data && video_frame.xres > 0 && video_frame.yres > 0) {
-                    // 转换NDI帧到OpenCV Mat
-                    cv::Mat frame = convertNDIFrameToMat(video_frame);
-
-                    if (!frame.empty()) {
-                        emit frameReceived(frame);
+                        // 释放视频帧
+                        NDIlib_recv_free_video_v2(m_ndi_recv, &video_frame);
+                        return true;
                     }
 
                     // 释放视频帧
                     NDIlib_recv_free_video_v2(m_ndi_recv, &video_frame);
-                    return true;
+                    break;
                 }
-
-                // 释放视频帧
-                NDIlib_recv_free_video_v2(m_ndi_recv, &video_frame);
-                break;
+                case NDIlib_frame_type_none:
+                    // 没有帧可用，这是正常的
+                    break;
+                default:
+                    // 其他类型的帧或错误
+                    break;
             }
-            case NDIlib_frame_type_none:
-                // 没有帧可用，这是正常的
-                break;
-            default:
-                // 其他类型的帧或错误
-                break;
-        }
 
-        return false;
-    }
-
-    /**
-     * @brief 更新NDI发送器列表
-     */
-    void updateSenderList() {
-        if (!m_ndi_find) {
-            return;
-        }
-
-        // 等待发送器列表更新
-        NDIlib_find_wait_for_sources(m_ndi_find, 1000);
-
-        // 获取当前可用的发送器
-        m_p_sources = NDIlib_find_get_current_sources(m_ndi_find, &m_no_sources);
-
-        QStringList senderNames;
-        for (uint32_t i = 0; i < m_no_sources; i++) {
-            QString senderName = QString::fromUtf8(m_p_sources[i].p_ndi_name);
-            senderNames.append(senderName);
-        }
-
-        emit senderListUpdated(senderNames);
-        qDebug() << "发现" << m_no_sources << "个NDI发送器";
-    }
-
-    /**
-     * @brief 清理NDI接收器
-     */
-    void cleanupNDIReceiver() {
-        if (m_ndi_recv) {
-            NDIlib_recv_destroy(m_ndi_recv);
-            m_ndi_recv = nullptr;
-        }
-
-        if (m_ndi_find) {
-            NDIlib_find_destroy(m_ndi_find);
-            m_ndi_find = nullptr;
-        }
-
-        if (m_ndi_initialized) {
-            NDIlib_destroy();
-            m_ndi_initialized = false;
-        }
-
-        qDebug() << "NDI资源已清理";
-    }
-
-    /**
-     * @brief 将NDI帧转换为OpenCV Mat
-     * @param video_frame NDI视频帧
-     * @return OpenCV Mat对象
-     */
-    cv::Mat convertNDIFrameToMat(const NDIlib_video_frame_v2_t& video_frame) {
-        cv::Mat frame;
-
-        // 根据NDI帧格式进行转换
-        switch (video_frame.FourCC) {
-            case NDIlib_FourCC_type_BGRA:
-            {
-                // BGRA格式，直接创建Mat
-                frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
-                               (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                // 转换为BGR格式（去除Alpha通道）
-                cv::cvtColor(frame, frame, cv::COLOR_BGRA2BGR);
-                break;
-            }
-            case NDIlib_FourCC_type_BGRX:
-            {
-                // BGRX格式
-                frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
-                               (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                // 转换为BGR格式
-                cv::cvtColor(frame, frame, cv::COLOR_BGRA2BGR);
-                break;
-            }
-            case NDIlib_FourCC_type_RGBA:
-            {
-                // RGBA格式
-                frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
-                               (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                // 转换为BGR格式
-                cv::cvtColor(frame, frame, cv::COLOR_RGBA2BGR);
-                break;
-            }
-            case NDIlib_FourCC_type_RGBX:
-            {
-                // RGBX格式
-                frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
-                               (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                // 转换为BGR格式
-                cv::cvtColor(frame, frame, cv::COLOR_RGBA2BGR);
-                break;
-            }
-            case NDIlib_FourCC_type_UYVY:
-            {
-                // UYVY格式（YUV422）
-                frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC2,
-                               (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                // 转换为BGR格式
-                cv::cvtColor(frame, frame, cv::COLOR_YUV2BGR_UYVY);
-                break;
-            }
-            default:
-                qDebug() << "不支持的NDI帧格式:" << video_frame.FourCC;
-                break;
-        }
-
-        // 克隆数据以避免内存问题
-        if (!frame.empty()) {
-            frame = frame.clone();
-        }
-
-        return frame;
-    }
-
-    /**
-     * @brief 连接到指定的NDI发送器
-     * @param senderName 发送器名称
-     * @return 是否连接成功
-     */
-    bool connectToSender(const QString& senderName) {
-        if (!m_ndi_find || senderName.isEmpty()) {
             return false;
         }
 
-        // 查找指定的发送器
-        const NDIlib_source_t* target_source = nullptr;
-        for (uint32_t i = 0; i < m_no_sources; i++) {
-            QString currentName = QString::fromUtf8(m_p_sources[i].p_ndi_name);
-            if (currentName == senderName) {
-                target_source = &m_p_sources[i];
-                break;
+        /**
+         * @brief 更新NDI发送器列表
+         */
+        void updateSenderList() {
+            if (!m_ndi_find) {
+                return;
+            }
+
+            // 等待发送器列表更新
+            NDIlib_find_wait_for_sources(m_ndi_find, 1000);
+
+            // 获取当前可用的发送器
+            m_p_sources = NDIlib_find_get_current_sources(m_ndi_find, &m_no_sources);
+
+            QStringList senderNames;
+            for (uint32_t i = 0; i < m_no_sources; i++) {
+                QString senderName = QString::fromUtf8(m_p_sources[i].p_ndi_name);
+                senderNames.append(senderName);
+            }
+
+            emit senderListUpdated(senderNames);
+            qDebug() << "发现" << m_no_sources << "个NDI发送器";
+        }
+
+        /**
+         * @brief 清理NDI接收器
+         */
+        void cleanupNDIReceiver() {
+            if (m_ndi_recv) {
+                NDIlib_recv_destroy(m_ndi_recv);
+                m_ndi_recv = nullptr;
+            }
+
+            if (m_ndi_find) {
+                NDIlib_find_destroy(m_ndi_find);
+                m_ndi_find = nullptr;
+            }
+
+            if (m_ndi_initialized) {
+                NDIlib_destroy();
+                m_ndi_initialized = false;
+            }
+
+            qDebug() << "NDI资源已清理";
+        }
+
+        /**
+         * @brief 将NDI帧转换为OpenCV Mat
+         * @param video_frame NDI视频帧
+         * @return OpenCV Mat对象
+         */
+        cv::Mat convertNDIFrameToMat(const NDIlib_video_frame_v2_t& video_frame) {
+            cv::Mat frame;
+
+            // 根据NDI帧格式进行转换
+            switch (video_frame.FourCC) {
+                case NDIlib_FourCC_type_BGRA:
+                {
+                    // BGRA格式，直接创建Mat
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
+                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    // 转换为BGR格式（去除Alpha通道）
+                    cv::cvtColor(frame, frame, cv::COLOR_BGRA2BGR);
+                    break;
+                }
+                case NDIlib_FourCC_type_BGRX:
+                {
+                    // BGRX格式
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
+                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    // 转换为BGR格式
+                    cv::cvtColor(frame, frame, cv::COLOR_BGRA2BGR);
+                    break;
+                }
+                case NDIlib_FourCC_type_RGBA:
+                {
+                    // RGBA格式
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
+                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    // 转换为BGR格式
+                    cv::cvtColor(frame, frame, cv::COLOR_RGBA2BGR);
+                    break;
+                }
+                case NDIlib_FourCC_type_RGBX:
+                {
+                    // RGBX格式
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
+                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    // 转换为BGR格式
+                    cv::cvtColor(frame, frame, cv::COLOR_RGBA2BGR);
+                    break;
+                }
+                case NDIlib_FourCC_type_UYVY:
+                {
+                    // UYVY格式（YUV422）
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC2,
+                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    // 转换为BGR格式
+                    cv::cvtColor(frame, frame, cv::COLOR_YUV2BGR_UYVY);
+                    break;
+                }
+                default:
+                    qDebug() << "不支持的NDI帧格式:" << video_frame.FourCC;
+                    break;
+            }
+
+            // 克隆数据以避免内存问题
+            if (!frame.empty()) {
+                frame = frame.clone();
+            }
+
+            return frame;
+        }
+
+        /**
+         * @brief 连接到指定的NDI发送器
+         * @param senderName 发送器名称
+         * @return 是否连接成功
+         */
+        bool connectToSender(const QString& senderName) {
+            if (!m_ndi_find || senderName.isEmpty()) {
+                return false;
+            }
+
+            // 查找指定的发送器
+            const NDIlib_source_t* target_source = nullptr;
+            for (uint32_t i = 0; i < m_no_sources; i++) {
+                QString currentName = QString::fromUtf8(m_p_sources[i].p_ndi_name);
+                if (currentName == senderName) {
+                    target_source = &m_p_sources[i];
+                    break;
+                }
+            }
+
+            if (!target_source) {
+                qDebug() << "未找到指定的NDI发送器:" << senderName;
+                return false;
+            }
+
+            // 清理之前的接收器
+            if (m_ndi_recv) {
+                NDIlib_recv_destroy(m_ndi_recv);
+                m_ndi_recv = nullptr;
+            }
+
+            // 创建新的接收器
+            NDIlib_recv_create_v3_t recv_create;
+            recv_create.source_to_connect_to = *target_source;
+            recv_create.color_format = NDIlib_recv_color_format_BGRX_BGRA;
+            recv_create.bandwidth = NDIlib_recv_bandwidth_highest;
+            recv_create.allow_video_fields = false;
+            recv_create.p_ndi_recv_name = "NodeEditor NDI Receiver";
+
+            m_ndi_recv = NDIlib_recv_create_v3(&recv_create);
+
+            if (m_ndi_recv) {
+                qDebug() << "成功连接到NDI发送器:" << senderName;
+                return true;
+            } else {
+                qDebug() << "连接NDI发送器失败:" << senderName;
+                return false;
             }
         }
 
-        if (!target_source) {
-            qDebug() << "未找到指定的NDI发送器:" << senderName;
-            return false;
-        }
-
-        // 清理之前的接收器
-        if (m_ndi_recv) {
-            NDIlib_recv_destroy(m_ndi_recv);
-            m_ndi_recv = nullptr;
-        }
-
-        // 创建新的接收器
-        NDIlib_recv_create_v3_t recv_create;
-        recv_create.source_to_connect_to = *target_source;
-        recv_create.color_format = NDIlib_recv_color_format_BGRX_BGRA;
-        recv_create.bandwidth = NDIlib_recv_bandwidth_highest;
-        recv_create.allow_video_fields = false;
-        recv_create.p_ndi_recv_name = "NodeEditor NDI Receiver";
-
-        m_ndi_recv = NDIlib_recv_create_v3(&recv_create);
-
-        if (m_ndi_recv) {
-            qDebug() << "成功连接到NDI发送器:" << senderName;
-            return true;
-        } else {
-            qDebug() << "连接NDI发送器失败:" << senderName;
-            return false;
-        }
-    }
     signals:
         void frameReceived(const cv::Mat& frame);
         void connectionStatusChanged(bool connected);
@@ -407,24 +409,22 @@ namespace Nodes
                 }
             }
         }
-
-    // 在NDIReceiveThread类中完善以下方法实现
     
     private:
-    // NDI相关变量
-    NDIlib_find_instance_t m_ndi_find;
-    NDIlib_recv_instance_t m_ndi_recv;
-    const NDIlib_source_t* m_p_sources;
-    uint32_t m_no_sources;
-    bool m_ndi_initialized;
-    bool m_running;
-    bool m_forceUpdateSenders;
-    QString m_senderName;
-    QMutex m_mutex;
-    // 图像缓冲区
-    unsigned char* m_imageBuffer;
-    unsigned int m_width;
-    unsigned int m_height;
+        // NDI相关变量
+        NDIlib_find_instance_t m_ndi_find;
+        NDIlib_recv_instance_t m_ndi_recv;
+        const NDIlib_source_t* m_p_sources;
+        uint32_t m_no_sources;
+        bool m_ndi_initialized;
+        bool m_running;
+        bool m_forceUpdateSenders;
+        QString m_senderName;
+        QMutex m_mutex;
+        // 图像缓冲区
+        unsigned char* m_imageBuffer;
+        unsigned int m_width;
+        unsigned int m_height;
     };
 
     /**
@@ -435,6 +435,8 @@ namespace Nodes
     class NDIInDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString sourceName READ getSourceName WRITE setSourceName NOTIFY sourceNameChanged)
+        Q_PROPERTY(bool enable READ getEnable WRITE setEnable NOTIFY enableChanged)
 
     public:
         /**
@@ -452,14 +454,17 @@ namespace Nodes
             WidgetEmbeddable = true;
             Resizable = false;
             PortEditable = false;
-            AbstractDelegateModel::registerOSCControl("/enable",m_widget->m_startStopButton);
-            AbstractDelegateModel::registerOSCControl("/refresh",m_widget->m_refreshButton);
-            AbstractDelegateModel::registerOSCControl("/source",m_widget->m_senderComboBox);
+            
+            AbstractDelegateModel::registerExternalControl("/enable", m_widget->m_startStopButton);
+            AbstractDelegateModel::registerExternalControl("/refresh", m_widget->m_refreshButton);
+            AbstractDelegateModel::registerExternalControl("/source", m_widget->m_senderComboBox);
+            
             initializeReceiver();
-            // 连接信号
-            connect(m_widget, &NDIInInterface::startReceiving, this, &NDIInDataModel::startReceiving);
-            connect(m_widget, &NDIInInterface::stopReceiving, this, &NDIInDataModel::stopReceiving);
-            connect(m_widget, &NDIInInterface::senderSelected, this, &NDIInDataModel::selectSender);
+            
+            // 连接信号到属性Setter
+            connect(m_widget, &NDIInInterface::startReceiving, this, [this](){ setEnable(true); });
+            connect(m_widget, &NDIInInterface::stopReceiving, this, [this](){ setEnable(false); });
+            connect(m_widget, &NDIInInterface::senderSelected, this, &NDIInDataModel::setSourceName);
             connect(m_widget, &NDIInInterface::refreshRequested, this, &NDIInDataModel::refreshSenders);
         }
 
@@ -467,7 +472,7 @@ namespace Nodes
          * @brief 析构函数
          */
         ~NDIInDataModel() override {
-            stopReceiving();
+            setEnable(false); // 停止接收
             if (m_receiveThread) {
                 m_receiveThread->wait();
                 delete m_receiveThread;
@@ -479,9 +484,6 @@ namespace Nodes
 
         /**
          * @brief 获取端口数据类型
-         * @param portType 端口类型
-         * @param portIndex 端口索引
-         * @return 数据类型
          */
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override {
             Q_UNUSED(portIndex);
@@ -495,8 +497,6 @@ namespace Nodes
 
         /**
          * @brief 获取输出数据
-         * @param port 端口索引
-         * @return 输出数据
          */
         std::shared_ptr<NodeData> outData(PortIndex const port) override {
             Q_UNUSED(port);
@@ -505,24 +505,20 @@ namespace Nodes
 
         /**
          * @brief 设置输入数据
-         * @param data 输入数据
-         * @param portIndex 端口索引
          */
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
             switch (portIndex) {
                 case 0: {
                     auto Data = std::dynamic_pointer_cast<VariableData>(data);
                     if (Data && m_receiveThread) {
-                        // 发送图像数据
-                        m_widget->m_senderComboBox->setCurrentText(Data->value().toString());
+                        setSourceName(Data->value().toString());
                     }
                 }
                     break;
                 case 1: {
                     auto Data = std::dynamic_pointer_cast<VariableData>(data);
                     if (Data)
-                        m_widget->m_startStopButton->setChecked(Data->value().toBool());
-
+                        setEnable(Data->value().toBool());
                 }
                     break;
                 default: {break;}
@@ -531,57 +527,81 @@ namespace Nodes
 
         /**
          * @brief 保存节点状态
-         * @return JSON对象
          */
         QJsonObject save() const override {
-            QJsonObject modelJson;
-            modelJson["currentSender"] = m_currentSender;
-            modelJson["isReceiving"] = m_isReceiving;
+            QJsonObject modelJson = NodeDelegateModel::save();
+            QJsonObject values;
+            values["currentSender"] = m_currentSender;
+            values["isReceiving"] = m_isReceiving;
+            modelJson["values"] = values;
             return modelJson;
         }
 
         /**
          * @brief 加载节点状态
-         * @param jsonObject JSON对象
          */
         void load(QJsonObject const &jsonObject) override {
-
-            // 然后恢复接收状态
-            if (jsonObject.contains("isReceiving") && jsonObject["isReceiving"].toBool()) {
-
-                m_widget->m_startStopButton->setChecked(true);
-
-            }
-            if (jsonObject.contains("currentSender")) {
-                QString senderName = jsonObject["currentSender"].toString();
-                m_currentSender = senderName;
-                // 确保界面已创建
-                if (m_widget) {
-                    // 直接设置文本，无论发送器是否在列表中
-
-                    m_widget->m_senderComboBox->setCurrentText(senderName);
-                     // 延迟1秒执行refreshSenders函数
+            QJsonValue v = jsonObject["values"];
+            if (!v.isUndefined() && v.isObject()) {
+                QJsonObject values = v.toObject();
+                if (values.contains("currentSender")) {
+                    QString senderName = values["currentSender"].toString();
+                    setSourceName(senderName);
+                    // 延迟1秒执行refreshSenders函数，确保列表已更新
                     QTimer::singleShot(1000, this, [this]() {
                         refreshSenders();
                     });
-
+                }
+                if (values.contains("isReceiving")) {
+                    setEnable(values["isReceiving"].toBool());
+                }
+            } else {
+                // 兼容旧的保存格式
+                if (jsonObject.contains("currentSender")) {
+                    setSourceName(jsonObject["currentSender"].toString());
+                    QTimer::singleShot(1000, this, [this]() {
+                        refreshSenders();
+                    });
+                }
+                if (jsonObject.contains("isReceiving")) {
+                    setEnable(jsonObject["isReceiving"].toBool());
                 }
             }
         }
         
         /**
          * @brief 获取嵌入式控件
-         * @return 控件指针
          */
         QWidget *embeddedWidget() override {
-
             return m_widget;
         }
 
+        void afterModelReady() override
+        {
+            AbstractDelegateModel::afterModelReady();
+            auto bus = GlobalEventBus::instance();
+            
+            bus->subscribe(makeFullOscAddress("/source"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/refresh"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
+        }
+
     public slots:
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            if (localPath == "source") {
+                setSourceName(ev.payload.toString());
+            } else if (localPath == "enable") {
+                setEnable(ev.payload.toBool());
+            } else if (localPath == "refresh") {
+                refreshSenders();
+            }
+        }
+
         /**
          * @brief 处理接收到的帧数据
-         * @param frame 接收到的图像帧
          */
         void onFrameReceived(const cv::Mat& frame) {
             if (!frame.empty()) {
@@ -592,7 +612,6 @@ namespace Nodes
         
         /**
          * @brief 处理连接状态变化
-         * @param connected 连接状态
          */
         void onConnectionStatusChanged(bool connected) {
             if (m_widget) {
@@ -602,7 +621,6 @@ namespace Nodes
         
         /**
          * @brief 处理发送器列表更新
-         * @param senders 发送器列表
          */
         void onSenderListUpdated(const QStringList& senders) {
             if (m_widget) {
@@ -610,22 +628,8 @@ namespace Nodes
             }
         }
         
-        /**
-         * @brief 开始接收NDI数据
-         */
-        void startReceiving() {
-            if (!m_isReceiving && m_receiveThread) {
-
-                refreshSenders();
-                m_receiveThread->startReceiving(m_currentSender);
-                m_isReceiving = true;
-
-
-            }
-        }
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
-
             switch (portType) {
             case QtNodes::PortType::In:
                 switch (portIndex)
@@ -642,27 +646,6 @@ namespace Nodes
             }
             return "";
         }
-        /**
-         * @brief 停止接收NDI数据
-         */
-        void stopReceiving() {
-            if (m_isReceiving && m_receiveThread) {
-                m_receiveThread->stopReceiving();
-                m_isReceiving = false;
-            }
-        }
-        
-        /**
-         * @brief 选择发送器
-         * @param senderName 发送器名称
-         */
-        void selectSender(const QString& senderName) {
-            m_currentSender = senderName;
-            if (m_receiveThread) {
-                m_receiveThread->setSenderName(senderName);
-            }
-
-        }
         
         /**
          * @brief 刷新发送器列表
@@ -671,18 +654,63 @@ namespace Nodes
             if (m_receiveThread) {
                 // 触发发送器列表更新
                 m_receiveThread->requestSenderListUpdate();
+                AbstractDelegateModel::stateFeedBack("/refresh", true);
             }
         }
 
-        void stateFeedBack(const QString& oscAddress,QVariant value) override {
-
-            OSCMessage message;
-            message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-            message.port = AppConstants::EXTRA_FEEDBACK_PORT;
-            message.address = "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + oscAddress;
-            message.value = value;
-            OSCSender::instance()->sendOSCMessageWithQueue(message);
+    public:
+        // Property Accessors
+        QString getSourceName() const { return m_currentSender; }
+        void setSourceName(const QString& value) {
+            if (m_currentSender == value) return;
+            m_currentSender = value;
+            
+            if (m_widget && m_widget->m_senderComboBox->currentText() != value) {
+                QSignalBlocker blocker(m_widget->m_senderComboBox);
+                m_widget->m_senderComboBox->setCurrentText(value);
+            }
+            
+            // Logic to select sender
+            if (m_receiveThread) {
+                m_receiveThread->setSenderName(value);
+            }
+            
+            emit sourceNameChanged(value);
+            AbstractDelegateModel::stateFeedBack("/source", value);
         }
+
+        bool getEnable() const { return m_isReceiving; }
+        void setEnable(bool value) {
+            if (m_isReceiving == value) return;
+            
+            if (value) {
+                // Start receiving logic
+                if (m_receiveThread) {
+                    refreshSenders();
+                    m_receiveThread->startReceiving(m_currentSender);
+                }
+            } else {
+                // Stop receiving logic
+                if (m_receiveThread) {
+                    m_receiveThread->stopReceiving();
+                }
+            }
+            
+            m_isReceiving = value;
+            
+            if (m_widget && m_widget->m_startStopButton->isChecked() != value) {
+                QSignalBlocker blocker(m_widget->m_startStopButton);
+                m_widget->m_startStopButton->setChecked(value);
+            }
+
+            emit enableChanged(value);
+            AbstractDelegateModel::stateFeedBack("/enable", value);
+        }
+
+    signals:
+        void sourceNameChanged(QString value);
+        void enableChanged(bool value);
+
     private:
         // 界面组件
         NDIInInterface *m_widget;

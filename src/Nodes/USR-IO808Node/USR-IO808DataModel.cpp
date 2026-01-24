@@ -22,7 +22,10 @@ USR_IO808DataModel::USR_IO808DataModel()
     : _interface(new USR_IO808Interface())
     , _tcpClient(new TcpClient("127.0.0.1", 8080))  // Modbus TCP默认端口502
     , _readTimer(new QTimer(this))
+    , _writeQueueTimer(new QTimer(this))
     , _transactionId(0)
+    , _host("127.0.0.1")
+    , _port(8080)
     , _serverId(1)
 {
     InPortCount = 8;
@@ -39,61 +42,64 @@ USR_IO808DataModel::USR_IO808DataModel()
         _outputStates[i] = false;
         _outputData[i] = std::make_shared<NodeDataTypes::VariableData>();
     }
-    
-    // 注册OSC控制
-    AbstractDelegateModel::registerOSCControl("/status", _interface->_statusLabel);
+    AbstractDelegateModel::registerExternalControl("/connect", _interface->_statusLabel);
+    // UI Connections
+    connect(_interface->_hostEdit, &QLineEdit::editingFinished, this, [this]() {
+        setHost(_interface->_hostEdit->text());
+    });
+
+    connect(_interface->_portEdit, &QSpinBox::valueChanged, this, [this](int val) {
+        setPort(val);
+    });
+
+    connect(_interface->_serverId, &QSpinBox::valueChanged, this, [this](int val) {
+        setServerId(val);
+    });
+
     for (int i = 0; i < 8; ++i) {
-        AbstractDelegateModel::registerOSCControl("/DO" + QString::number(i), _interface->_outputCheckBoxes[i]);
-        AbstractDelegateModel::registerOSCControl("/DI" + QString::number(i), _interface->_inputLabels[i]);
+        AbstractDelegateModel::registerExternalControl("/DO" + QString::number(i), _interface->_outputCheckBoxes[i]);
+        AbstractDelegateModel::registerExternalControl("/DI" + QString::number(i), _interface->_inputLabels[i]);
+        connect(_interface->_outputCheckBoxes[i], &QCheckBox::clicked, this, [this, i](bool checked) {
+            setOutput(i, checked);
+        });
     }
+
+    // Read All Button
+    connect(_interface->_readAll, &QPushButton::clicked, this, &USR_IO808DataModel::readAllData);
     
-    // 连接TCP客户端信号
+    // TCP Client Connections
     connect(_tcpClient, &TcpClient::recMsg, this, [this](const QVariantMap &dataMap) {
         if (dataMap.contains("default")) {
             recMsg(dataMap.value("default").toByteArray(), dataMap["host"].toString(), 0);
         }
     });
     
-    // 连接TCP客户端连接状态信号
     connect(_tcpClient, &TcpClient::isReady, this, [this](const bool &isReady) {
         _interface->setConnectionStatus(isReady);
+        AbstractDelegateModel::stateFeedBack("/connect",isReady);
+        _interface->_readAll->setEnabled(isReady);
+        for(int i=0; i<8; i++) {
+            _interface->_outputCheckBoxes[i]->setEnabled(isReady);
+        }
+
         if (isReady) {
-            // 连接成功后，读取所有输入和输出状态
             readAllData();
-            // 启动定时读取
-            _readTimer->start(1000); // 每秒读取一次
+            _readTimer->start(1000); 
         } else {
             _readTimer->stop();
         }
     });
-    
-    // 连接输出状态改变信号
-    connect(_interface, &USR_IO808Interface::outputChanged, this, [this](int index, bool state) {
-        if (index >= 0 && index < 8) {
-            setOutput(index, state);
-        }
-    });
-    
-    // 连接主机和端口变更信号
-    connect(_interface, &USR_IO808Interface::hostChanged, this, [this](const QString &host) {
-        _tcpClient->disconnectFromServer();
-        _tcpClient->connectToServer(host, _interface->getPort());
-    });
-    
-    connect(_interface, &USR_IO808Interface::portChanged, this, [this](int port) {
-        _tcpClient->disconnectFromServer();
-        _tcpClient->connectToServer(_interface->getHost(), port);
-    });
-    
-    // 连接Read All按钮
-    connect(_interface->_readAll, &QPushButton::clicked, this, [this]() {
-        readAllData();
-    });
-    
-    // 设置定时读取
-    connect(_readTimer, &QTimer::timeout, this, [this]() {
-        readAllInputs(); // 定时读取输入状态
-    });
+
+    connect(_readTimer, &QTimer::timeout, this, &USR_IO808DataModel::readAllInputs);
+
+    // Write Queue Timer Setup
+    _writeQueueTimer->setInterval(1000); // 1s interval
+    connect(_writeQueueTimer, &QTimer::timeout, this, &USR_IO808DataModel::processWriteQueue);
+
+    // Initial sync
+    _interface->_hostEdit->setText(_host);
+    _interface->_portEdit->setValue(_port);
+    _interface->_serverId->setValue(_serverId);
 }
 
 USR_IO808DataModel::~USR_IO808DataModel()
@@ -104,6 +110,78 @@ USR_IO808DataModel::~USR_IO808DataModel()
     }
     if (_readTimer) {
         _readTimer->stop();
+    }
+    if (_writeQueueTimer) {
+        _writeQueueTimer->stop();
+    }
+}
+
+void USR_IO808DataModel::setHost(const QString& host) {
+    if (_host == host) return;
+    _host = host;
+    
+    QSignalBlocker blocker(_interface->_hostEdit);
+    _interface->_hostEdit->setText(_host);
+    
+    emit hostChanged(_host);
+    AbstractDelegateModel::stateFeedBack("/host", _host);
+
+    // Reconnect
+    _tcpClient->disconnectFromServer();
+    _tcpClient->connectToServer(_host, _port);
+}
+
+void USR_IO808DataModel::setPort(int port) {
+    if (_port == port) return;
+    _port = port;
+    
+    QSignalBlocker blocker(_interface->_portEdit);
+    _interface->_portEdit->setValue(_port);
+    
+    emit portChanged(_port);
+    AbstractDelegateModel::stateFeedBack("/port", _port);
+
+    // Reconnect
+    _tcpClient->disconnectFromServer();
+    _tcpClient->connectToServer(_host, _port);
+}
+
+void USR_IO808DataModel::setServerId(int serverId) {
+    if (_serverId == serverId) return;
+    _serverId = serverId;
+    
+    QSignalBlocker blocker(_interface->_serverId);
+    _interface->_serverId->setValue(_serverId);
+    
+    emit serverIdChanged(_serverId);
+    AbstractDelegateModel::stateFeedBack("/serverId", _serverId);
+}
+
+void USR_IO808DataModel::onGlobalEvent(const GlobalEvent& ev) {
+    if (ev.kind == GlobalEventKind::Command) {
+        QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+        if (localPath == "host") setHost(ev.payload.toString());
+        else if (localPath == "port") setPort(ev.payload.toInt());
+        else if (localPath == "serverId") setServerId(ev.payload.toInt());
+        else if (localPath == "readAll") readAllData();
+        else if (localPath.startsWith("DO")) {
+            bool ok;
+            int index = localPath.mid(2).toInt(&ok);
+            if (ok && index >= 0 && index < 8) {
+                setOutput(index, ev.payload.toBool());
+            }
+        }
+    }
+}
+
+void USR_IO808DataModel::afterModelReady() {
+    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/host"), this,SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/port"), this,SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/serverId"), this,SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/readAll"), this,SLOT(onGlobalEvent(GlobalEvent)));
+    
+    for (int i = 0; i < 8; ++i) {
+        GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress(QString("/DO%1").arg(i)), this,SLOT(onGlobalEvent(GlobalEvent)));
     }
 }
 
@@ -129,11 +207,7 @@ void USR_IO808DataModel::setInData(std::shared_ptr<NodeData> data, PortIndex por
     }
     
     bool newState = varData->value().toBool();
-    if (_outputStates[port] != newState) {
-        _outputStates[port] = newState;
-        _interface->_outputCheckBoxes[port]->setChecked(newState);
-        // setOutput(port, newState);
-    }
+    setOutput(port, newState);
 }
 
 QString USR_IO808DataModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
@@ -160,8 +234,8 @@ QJsonObject USR_IO808DataModel::save() const
         outputStates.append(_outputStates[i]);
     }
     modelJson1["outputStates"] = outputStates;
-    modelJson1["host"] = _interface->getHost();
-    modelJson1["port"] = _interface->getPort();
+    modelJson1["host"] = _host;
+    modelJson1["port"] = _port;
     modelJson1["serverId"] = _serverId;
     
     modelJson["values"] = modelJson1;
@@ -174,33 +248,16 @@ void USR_IO808DataModel::load(QJsonObject const &p)
     if (!v.isUndefined() && v.isObject()) {
         QJsonObject values = v.toObject();
         
-        // 加载主机和端口信息
-        if (values.contains("host")) {
-            QString host = values["host"].toString();
-            _interface->setHost(host);
-        }
-        
-        if (values.contains("port")) {
-            int port = values["port"].toInt();
-            _interface->setPort(port);
-        }
-        
-        if (values.contains("serverId")) {
-            _serverId = values["serverId"].toInt();
-        }
+        if (values.contains("host")) setHost(values["host"].toString());
+        if (values.contains("port")) setPort(values["port"].toInt());
+        if (values.contains("serverId")) setServerId(values["serverId"].toInt());
         
         // 加载输出状态
         if (values.contains("outputStates")) {
             QJsonArray outputStates = values["outputStates"].toArray();
             for (int i = 0; i < outputStates.size() && i < 8; ++i) {
-                _outputStates[i] = outputStates[i].toBool();
-                _interface->setOutputState(i, _outputStates[i]);
+                setOutput(i, outputStates[i].toBool());
             }
-        }
-        
-        // 连接到服务器
-        if (!_interface->getHost().isEmpty() && _interface->getPort() > 0) {
-            _tcpClient->connectToServer(_interface->getHost(), _interface->getPort());
         }
     }
 }
@@ -223,20 +280,17 @@ ConnectionPolicy USR_IO808DataModel::portConnectionPolicy(PortType portType, Por
 
 void USR_IO808DataModel::recMsg(QByteArray msg, QString ip, int port)
 {
-    // 处理接收到的Modbus TCP响应
     processModbusResponse(msg);
 }
 
 void USR_IO808DataModel::readAllInputs()
 {
-    // 读取DI状态（地址0x0020~0x0027）
     QByteArray command = generateReadDiscreteInputsCommand(0x0020, 8);
     sendModbusCommand(command);
 }
 
 void USR_IO808DataModel::readAllOutputs()
 {
-    // 读取DO状态（地址0x0000~0x0007）
     QByteArray command = generateReadCoilsCommand(0x0000, 8);
     sendModbusCommand(command);
 }
@@ -251,25 +305,43 @@ void USR_IO808DataModel::readAllData()
 
 void USR_IO808DataModel::setOutput(int index, bool state)
 {
-    if (index < 0 || index >= 8) {
-        return;
-    }
+    if (index < 0 || index >= 8) return;
     
     _outputStates[index] = state;
     
-    // 发送写单个线圈命令（地址0x0000 + index）
-    QByteArray command = generateWriteSingleCoilCommand(0x0000 + index, state);
-    sendModbusCommand(command);
+    QSignalBlocker blocker(_interface->_outputCheckBoxes[index]);
+    _interface->_outputCheckBoxes[index]->setChecked(state);
+
+    AbstractDelegateModel::stateFeedBack(QString("/DO%1").arg(index), state);
     
-    // qDebug() << QString("设置输出 DO%1 为 %2").arg(index).arg(state ? "开" : "关");
+    // 添加到队列
+    _writeQueue.enqueue({index, state});
+    
+    // 如果定时器未运行，立即触发
+    if (!_writeQueueTimer->isActive()) {
+        _writeQueueTimer->start(0);
+    }
+}
+
+void USR_IO808DataModel::processWriteQueue()
+{
+    if (_writeQueue.isEmpty()) {
+        _writeQueueTimer->stop();
+        return;
+    }
+
+    // 取出最早的一个指令
+    WriteCommand cmd = _writeQueue.dequeue();
+    QByteArray command = generateWriteSingleCoilCommand(cmd.index, cmd.state);
+    sendModbusCommand(command);
+
+    // 设置下一次触发为1秒后
+    _writeQueueTimer->start(1000);
 }
 
 void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
 {
-    if (response.size() < 8) {
-        // qDebug() << "Modbus响应数据长度不足";
-        return;
-    }
+    if (response.size() < 8) return;
     
     // 解析Modbus TCP响应头
     quint16 transactionId = (static_cast<quint8>(response[0]) << 8) | static_cast<quint8>(response[1]);
@@ -278,10 +350,7 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
     quint8 unitId = static_cast<quint8>(response[6]);
     quint8 functionCode = static_cast<quint8>(response[7]);
     
-    if (protocolId != 0) {
-        qDebug() << "无效的Modbus TCP协议标识符";
-        return;
-    }
+    if (protocolId != 0) return;
     
     switch (functionCode) {
     case 0x01: // 读取线圈状态响应
@@ -292,8 +361,12 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
                 // 更新DO状态
                 for (int i = 0; i < 8; ++i) {
                     bool state = (coilData & (1 << i)) != 0;
-                    _outputStates[i] = state;
-                    _interface->setOutputState(i, state);
+                    if (_outputStates[i] != state) {
+                        _outputStates[i] = state;
+                        QSignalBlocker blocker(_interface->_outputCheckBoxes[i]);
+                        _interface->_outputCheckBoxes[i]->setChecked(state);
+                        AbstractDelegateModel::stateFeedBack(QString("/DO%1").arg(i), state);
+                    }
                 }
             }
         }
@@ -311,6 +384,7 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
                         _inputStates[i] = state;
                         _interface->setInputState(i, state);
                         updateOutputData(i, state);
+                        AbstractDelegateModel::stateFeedBack(QString("/DI%1").arg(i), state);
                     }
                 }
 
@@ -319,23 +393,12 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
         break;
         
     case 0x05: // 写单个线圈响应
-        // qDebug() << "写单个线圈操作完成";
         break;
         
     case 0x0F: // 写多个线圈响应
-        // qDebug() << "写多个线圈操作完成";
         break;
         
     default:
-        if (functionCode & 0x80) {
-            // 错误响应
-            if (response.size() >= 9) {
-                quint8 exceptionCode = static_cast<quint8>(response[8]);
-                // qDebug() << QString("Modbus异常响应，异常码: 0x%1").arg(exceptionCode, 2, 16, QChar('0'));
-            }
-        } else {
-            qDebug() << QString("未处理的功能码: 0x%1").arg(functionCode, 2, 16, QChar('0'));
-        }
         break;
     }
 }
@@ -343,23 +406,18 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
 QByteArray USR_IO808DataModel::generateReadCoilsCommand(quint16 startAddress, quint16 quantity)
 {
     QByteArray command;
-    
-    // Modbus TCP头
-    command.append(static_cast<char>(_transactionId >> 8));   // 事务标识符高字节
-    command.append(static_cast<char>(_transactionId & 0xFF)); // 事务标识符低字节
-    command.append(static_cast<char>(0x00));                  // 协议标识符高字节
-    command.append(static_cast<char>(0x00));                  // 协议标识符低字节
-    command.append(static_cast<char>(0x00));                  // 长度高字节
-    command.append(static_cast<char>(0x06));                  // 长度低字节（6字节）
-    command.append(static_cast<char>(_serverId));             // 单元标识符
-    
-    // PDU
-    command.append(static_cast<char>(0x01));                  // 功能码：读取线圈
-    command.append(static_cast<char>(startAddress >> 8));     // 起始地址高字节
-    command.append(static_cast<char>(startAddress & 0xFF));   // 起始地址低字节
-    command.append(static_cast<char>(quantity >> 8));         // 数量高字节
-    command.append(static_cast<char>(quantity & 0xFF));       // 数量低字节
-    
+    command.append(static_cast<char>(_transactionId >> 8));
+    command.append(static_cast<char>(_transactionId & 0xFF));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x06));
+    command.append(static_cast<char>(_serverId));
+    command.append(static_cast<char>(0x01));
+    command.append(static_cast<char>(startAddress >> 8));
+    command.append(static_cast<char>(startAddress & 0xFF));
+    command.append(static_cast<char>(quantity >> 8));
+    command.append(static_cast<char>(quantity & 0xFF));
     _transactionId++;
     return command;
 }
@@ -367,23 +425,18 @@ QByteArray USR_IO808DataModel::generateReadCoilsCommand(quint16 startAddress, qu
 QByteArray USR_IO808DataModel::generateReadDiscreteInputsCommand(quint16 startAddress, quint16 quantity)
 {
     QByteArray command;
-    
-    // Modbus TCP头
-    command.append(static_cast<char>(_transactionId >> 8));   // 事务标识符高字节
-    command.append(static_cast<char>(_transactionId & 0xFF)); // 事务标识符低字节
-    command.append(static_cast<char>(0x00));                  // 协议标识符高字节
-    command.append(static_cast<char>(0x00));                  // 协议标识符低字节
-    command.append(static_cast<char>(0x00));                  // 长度高字节
-    command.append(static_cast<char>(0x06));                  // 长度低字节（6字节）
-    command.append(static_cast<char>(_serverId));             // 单元标识符
-    
-    // PDU
-    command.append(static_cast<char>(0x02));                  // 功能码：读取离散输入
-    command.append(static_cast<char>(startAddress >> 8));     // 起始地址高字节
-    command.append(static_cast<char>(startAddress & 0xFF));   // 起始地址低字节
-    command.append(static_cast<char>(quantity >> 8));         // 数量高字节
-    command.append(static_cast<char>(quantity & 0xFF));       // 数量低字节
-    
+    command.append(static_cast<char>(_transactionId >> 8));
+    command.append(static_cast<char>(_transactionId & 0xFF));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x06));
+    command.append(static_cast<char>(_serverId));
+    command.append(static_cast<char>(0x02));
+    command.append(static_cast<char>(startAddress >> 8));
+    command.append(static_cast<char>(startAddress & 0xFF));
+    command.append(static_cast<char>(quantity >> 8));
+    command.append(static_cast<char>(quantity & 0xFF));
     _transactionId++;
     return command;
 }
@@ -391,23 +444,18 @@ QByteArray USR_IO808DataModel::generateReadDiscreteInputsCommand(quint16 startAd
 QByteArray USR_IO808DataModel::generateWriteSingleCoilCommand(quint16 address, bool value)
 {
     QByteArray command;
-    
-    // Modbus TCP头
-    command.append(static_cast<char>(_transactionId >> 8));   // 事务标识符高字节
-    command.append(static_cast<char>(_transactionId & 0xFF)); // 事务标识符低字节
-    command.append(static_cast<char>(0x00));                  // 协议标识符高字节
-    command.append(static_cast<char>(0x00));                  // 协议标识符低字节
-    command.append(static_cast<char>(0x00));                  // 长度高字节
-    command.append(static_cast<char>(0x06));                  // 长度低字节（6字节）
-    command.append(static_cast<char>(_serverId));             // 单元标识符
-    
-    // PDU
-    command.append(static_cast<char>(0x05));                  // 功能码：写单个线圈
-    command.append(static_cast<char>(address >> 8));          // 线圈地址高字节
-    command.append(static_cast<char>(address & 0xFF));        // 线圈地址低字节
-    command.append(static_cast<char>(value ? 0xFF : 0x00));   // 线圈值高字节
-    command.append(static_cast<char>(0x00));                  // 线圈值低字节
-    
+    command.append(static_cast<char>(_transactionId >> 8));
+    command.append(static_cast<char>(_transactionId & 0xFF));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x06));
+    command.append(static_cast<char>(_serverId));
+    command.append(static_cast<char>(0x05));
+    command.append(static_cast<char>(address >> 8));
+    command.append(static_cast<char>(address & 0xFF));
+    command.append(static_cast<char>(value ? 0xFF : 0x00));
+    command.append(static_cast<char>(0x00));
     _transactionId++;
     return command;
 }
@@ -415,28 +463,22 @@ QByteArray USR_IO808DataModel::generateWriteSingleCoilCommand(quint16 address, b
 QByteArray USR_IO808DataModel::generateWriteMultipleCoilsCommand(quint16 startAddress, const QVector<bool> &values, quint16 quantity)
 {
     QByteArray command;
-    
-    // 计算字节数
     quint8 byteCount = (quantity + 7) / 8;
     
-    // Modbus TCP头
-    command.append(static_cast<char>(_transactionId >> 8));   // 事务标识符高字节
-    command.append(static_cast<char>(_transactionId & 0xFF)); // 事务标识符低字节
-    command.append(static_cast<char>(0x00));                  // 协议标识符高字节
-    command.append(static_cast<char>(0x00));                  // 协议标识符低字节
-    command.append(static_cast<char>(0x00));                  // 长度高字节
-    command.append(static_cast<char>(7 + byteCount));         // 长度低字节
-    command.append(static_cast<char>(_serverId));             // 单元标识符
+    command.append(static_cast<char>(_transactionId >> 8));
+    command.append(static_cast<char>(_transactionId & 0xFF));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(7 + byteCount));
+    command.append(static_cast<char>(_serverId));
+    command.append(static_cast<char>(0x0F));
+    command.append(static_cast<char>(startAddress >> 8));
+    command.append(static_cast<char>(startAddress & 0xFF));
+    command.append(static_cast<char>(quantity >> 8));
+    command.append(static_cast<char>(quantity & 0xFF));
+    command.append(static_cast<char>(byteCount));
     
-    // PDU
-    command.append(static_cast<char>(0x0F));                  // 功能码：写多个线圈
-    command.append(static_cast<char>(startAddress >> 8));     // 起始地址高字节
-    command.append(static_cast<char>(startAddress & 0xFF));   // 起始地址低字节
-    command.append(static_cast<char>(quantity >> 8));         // 数量高字节
-    command.append(static_cast<char>(quantity & 0xFF));       // 数量低字节
-    command.append(static_cast<char>(byteCount));             // 字节数
-    
-    // 线圈值
     for (int i = 0; i < byteCount; ++i) {
         quint8 byteValue = 0;
         for (int j = 0; j < 8 && (i * 8 + j) < values.size(); ++j) {
@@ -446,7 +488,6 @@ QByteArray USR_IO808DataModel::generateWriteMultipleCoilsCommand(quint16 startAd
         }
         command.append(static_cast<char>(byteValue));
     }
-    
     _transactionId++;
     return command;
 }
@@ -459,20 +500,11 @@ void USR_IO808DataModel::updateOutputData(int port, bool value)
     }
 }
 
-/**
- * @brief 发送Modbus命令
- * @param command Modbus命令字节数组
- */
 void USR_IO808DataModel::sendModbusCommand(const QByteArray &command)
 {
-    if (_tcpClient) {
-        // 将QByteArray转换为十六进制字符串，因为TcpClient::sendMessage需要QString参数
+    if (_tcpClient ) {
         QString hexCommand = command.toHex();
-        // qDebug() << "发送Modbus命令: " << command.toHex(' '); // 带空格的十六进制显示，便于调试
-        // 发送命令，格式参数设为0（16进制）
         _tcpClient->sendMessage(hexCommand, 0);
-    } else {
-        qDebug() << "TCP Server 未连接，无法发送Modbus命令";
     }
 }
 

@@ -49,7 +49,7 @@ public:
      * @param message 文本内容
      * @param format 自定义格式标识，透传给 TcpClient
      */
-    Q_INVOKABLE void sendMessage(const QString &message, int format = 1);
+    Q_INVOKABLE void sendMessage(const QString &message, int format = 2);
 
 signals:
     /**
@@ -91,6 +91,7 @@ private:
     QTimer *m_heartbeatTimer;
     QString m_host;
     static const int FIXED_PORT = 2003;
+    qint64 m_lastCommandTime = 0;
     
     static FTDAWController* s_instance;
     static int s_refCount;

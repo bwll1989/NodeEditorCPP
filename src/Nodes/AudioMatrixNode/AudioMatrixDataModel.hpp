@@ -67,11 +67,11 @@ namespace Nodes {
             _worker->initializeBuffers(InPortCount,OutPortCount,matrix);
             // 设置工作线程
             _worker->moveToThread(_workerThread);
-            for (int i = 0; i < widget->mMatrixWidget->getRows(); i++) {
-                for (int j = 0; j < widget->mMatrixWidget->getCols(); j++) {
-                    AbstractDelegateModel::registerOSCControl(QString("/%1-%2").arg(i).arg(j), widget->mMatrixWidget->getMatrixElement(i*widget->mMatrixWidget->getCols()+j));
-                }
-            }
+            // for (int i = 0; i < widget->mMatrixWidget->getRows(); i++) {
+            //     for (int j = 0; j < widget->mMatrixWidget->getCols(); j++) {
+            //         AbstractDelegateModel::registerOSCControl(QString("/%1-%2").arg(i).arg(j), widget->mMatrixWidget->getMatrixElement(i*widget->mMatrixWidget->getCols()+j));
+            //     }
+            // }
 
 
 

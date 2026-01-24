@@ -15,6 +15,9 @@
 #include "ConstantDefines.h"
 #include "OSCSender/OSCSender.h"
 #include "AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+#include "../GUI/Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -28,6 +31,7 @@ namespace Nodes
 class FloatSourceDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(double value READ value WRITE setValue NOTIFY valueChanged)
 
     public:
 
@@ -38,8 +42,17 @@ class FloatSourceDataModel : public AbstractDelegateModel
             Caption="Float Source";
             WidgetEmbeddable= true;
             Resizable=false;
-            connect(widget, &QLineEdit::textChanged, this, &FloatSourceDataModel::onFloatEdited);
-            registerOSCControl("/float",widget);
+            widget->setFixedSize(80,24);
+            widget->setValue(m_value);
+            connect(widget, &FloatDragValueWidget::valueChanged, this, &FloatSourceDataModel::setValue);
+            AbstractDelegateModel::registerExternalControl("/float",widget);
+            // registerExternalControl("/float",widget);
+            
+            connect(this, &FloatSourceDataModel::valueChanged, this, [this](double){
+                if (widget->value() != m_value)
+                    widget->setValue(m_value);
+                stateFeedBack("/float", m_value);
+            });
         }
 
     public:
@@ -65,26 +78,42 @@ class FloatSourceDataModel : public AbstractDelegateModel
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(widget->text().toDouble());
+            return std::make_shared<VariableData>(value());
+        }
+
+        /**
+         * 函数级注释：获取当前浮点属性值
+         */
+        double value() const
+        {
+            return m_value;
+        }
+
+        /**
+         * 函数级注释：设置当前浮点属性值，仅在变化时发出通知
+         */
+        void setValue(double v)
+        {
+
+            m_value = v;
+            Q_EMIT dataUpdated(0);
+            Q_EMIT valueChanged(v);
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
             {
                 Q_UNUSED(portIndex);
                 if (data== nullptr){
+                    setValue(0.0);
                     return;
                 }
 
                 auto textData = std::dynamic_pointer_cast<VariableData>(data);
-                if (textData->value().canConvert<double>()) {
-
-                    widget->setText(QString::number(textData->value().toDouble()));
-                } else {
-
-                    widget->setText("0");
+                double v = 0.0;
+                if (textData && textData->value().canConvert<double>()) {
+                    v = textData->value().toDouble();
                 }
-                widget->adjustSize();
-                Q_EMIT dataUpdated(0);
+                setValue(v);
 
             }
         }
@@ -93,7 +122,7 @@ class FloatSourceDataModel : public AbstractDelegateModel
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["val"] = widget->text().toDouble();
+            modelJson1["val"] = value();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -102,25 +131,57 @@ class FloatSourceDataModel : public AbstractDelegateModel
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->setText(QString::number(v["val"].toDouble()));
+                setValue(v["val"].toDouble());
 
             }
         }
 
         QWidget *embeddedWidget() override {return widget;}
 
+    signals:
+        /**
+         * 函数级注释：浮点值属性发生变化时发出的通知信号
+         */
+        void valueChanged(double value);
+
+    protected:
+        /**
+         * 函数级注释：模型就绪后订阅浮点地址的命令事件
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/float"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+        }
+
     private Q_SLOTS:
 
-        void onFloatEdited(QString const &string)
+    public Q_SLOTS:
+        /**
+         * 函数级注释：处理来自事件总线的浮点命令事件，更新控件与状态
+         */
+        void onGlobalEvent(const GlobalEvent& ev)
         {
-            //        widget->currentVal->setNum(string);
-            //        Q_UNUSED(string);
-            //        this->embeddedWidgetSizeUpdated();
-            Q_EMIT dataUpdated(0);
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            if (ev.address != makeFullOscAddress("/float")) {
+                return;
+            }
+            bool ok = false;
+            double v = ev.payload.toDouble(&ok);
+            if (!ok) {
+                return;
+            }
+            setValue(v);
         }
 
     private:
-        QLineEdit *widget=new QLineEdit();
+        FloatDragValueWidget *widget=new FloatDragValueWidget();
+        double m_value = 0.0;
 
 
     };

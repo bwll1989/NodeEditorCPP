@@ -16,7 +16,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "Daw 控制"
+#define PLUGIN_DESCRIBE "自研设备控制"
 #define PLUGIN_TAG "Devices"
 class DLL_EXPORT Plugin
     : public QObject

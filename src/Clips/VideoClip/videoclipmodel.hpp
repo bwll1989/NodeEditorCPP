@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QFileDialog>
 #include <QJsonArray>
+#include <QSignalBlocker>
 #include "TimeLineDefines.h"
 #include <QPushButton>
 #include "AbstractClipModel.hpp"
@@ -15,6 +16,7 @@
 #include "../../Common/Devices/ClientController/SocketTransmitter.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "AbstractClipDelegateModel.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 // #include "Widget/ExternalControl/ExternalControler.hpp"
 extern "C" {
 #include <libavformat/avformat.h>
@@ -74,9 +76,12 @@ namespace Clips
 
         // 设置文件路径并加载视频信息
         void setMedia(const QVariant& path) override {
-            mediaSelector->setText(path.toString());
-            emit mediaSelector->textChanged(path.toString());
-            onPropertyChanged();
+            const QString text = path.toString();
+            onFileChange(text);
+            if (mediaSelector) {
+                QSignalBlocker blocker(mediaSelector);
+                mediaSelector->setText(text);
+            }
         }
 
         /**
@@ -153,7 +158,6 @@ namespace Clips
             m_id = json["Id"].toInt();
             rotation->setValue(json["rotation"].toInt());
             layer->setValue(json["zIndex"].toInt());
-            updateOSCRegistration();
         }
 
         QVariant data(int role) const override {
@@ -195,79 +199,67 @@ namespace Clips
             // 位置
             positionLayout->addWidget(new QLabel("Meida:"), 0,0);
             mediaSelector = new SelectorComboBox(MediaLibrary::Category::Video,positionGroup);
-            AbstractClipDelegateModel::registerOSCControl("/file", mediaSelector);
+            AbstractClipDelegateModel::registerExternalControl("/file", mediaSelector);
             positionLayout->addWidget(mediaSelector, 0, 1);
             // 连接信号槽
-            connect(mediaSelector,&SelectorComboBox::textChanged,[=](const QString& text){
-                if (m_filePath != text) {
-               m_filePath = text;
-               loadVideoInfo(AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+text);
-               emit filePathChanged(text);
-               emit onPropertyChanged();
-           }
-            });
+            connect(mediaSelector,&SelectorComboBox::textChanged,
+                    this,&VideoClipModel::onFileChange);
             positionLayout->addWidget(new QLabel("X:"), 1, 0);
             postion_x = new QSpinBox(positionGroup);
             postion_x->setMinimum(-10000);
             postion_x->setMaximum(10000);
             postion_x->setValue(0);
-             AbstractClipDelegateModel::registerOSCControl("/posX", postion_x);
+            AbstractClipDelegateModel::registerExternalControl("/posX", postion_x);
             positionLayout->addWidget(postion_x, 1, 1);
             positionLayout->addWidget(new QLabel("Y:"), 2, 0);
             postion_y = new QSpinBox(positionGroup);
             postion_y->setMinimum(-10000);
             postion_y->setMaximum(10000);
             postion_y->setValue(0);
-             AbstractClipDelegateModel::registerOSCControl("/posY", postion_y);
+            AbstractClipDelegateModel::registerExternalControl("/posY", postion_y);
             positionLayout->addWidget(postion_y, 2, 1);
             positionLayout->addWidget(new QLabel("Width:"), 3, 0);
             width = new QSpinBox(positionGroup);
             width->setMinimum(0);
             width->setMaximum(10000);
             width->setValue(100);
-             AbstractClipDelegateModel::registerOSCControl("/width", width);
+            AbstractClipDelegateModel::registerExternalControl("/width", width);
             positionLayout->addWidget(width, 3, 1);
             positionLayout->addWidget(new QLabel("Height:"), 4, 0);
             height = new QSpinBox(positionGroup);
             height->setMinimum(0);
             height->setMaximum(10000);
             height->setValue(100);
-             AbstractClipDelegateModel::registerOSCControl("/height", height);
+            AbstractClipDelegateModel::registerExternalControl("/height", height);
             positionLayout->addWidget(height, 4, 1);
             positionLayout->addWidget(new QLabel("Layer:"), 5, 0);
             layer = new QSpinBox(positionGroup);
             layer->setSingleStep(1);
             layer->setMinimum(0);
             layer->setMaximum(5);
-             AbstractClipDelegateModel::registerOSCControl("/layer", layer);
+            AbstractClipDelegateModel::registerExternalControl("/layer", layer);
             positionLayout->addWidget(layer, 5, 1);
             rotation=new QSpinBox(positionGroup);
             rotation->setMinimum(-180);
             rotation->setMaximum(180);
             rotation->setValue(0);
-             AbstractClipDelegateModel::registerOSCControl("/rotation", rotation);
+            AbstractClipDelegateModel::registerExternalControl("/rotation", rotation);
             positionLayout->addWidget(new QLabel("Rotate:"), 6, 0);
             positionLayout->addWidget(rotation, 6, 1);
             mainLayout->addWidget(positionGroup);
             // 连接信号槽
-            connect(postion_x, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
-                onPropertyChanged();
-            });
-            connect(postion_y, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
-                onPropertyChanged();
-            });
-            connect(width, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
-                onPropertyChanged();
-            });
-            connect(height, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
-                onPropertyChanged();
-            });
-            connect(layer, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
-                onPropertyChanged();
-            });
-            connect(rotation, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
-                onPropertyChanged();
-            });
+            connect(postion_x, QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, &VideoClipModel::onPositionXChange);
+            connect(postion_y, QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, &VideoClipModel::onPositionYChange);
+            connect(width, QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, &VideoClipModel::onWidthChange);
+            connect(height, QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, &VideoClipModel::onHeightChange);
+            connect(layer, QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, &VideoClipModel::onLayerChange);
+            connect(rotation, QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, &VideoClipModel::onRotationChange);
             
             return m_editor;
         }
@@ -306,6 +298,179 @@ namespace Clips
             array.append(save());
             doc.setObject(QJsonObject{{"fileList", array}});
             m_server->enqueueJson(doc);
+        }
+
+        /**
+         * 函数级注释：统一处理视频文件路径变更：加载信息、更新内部状态并发送状态反馈
+         */
+        void onFileChange(const QString& text){
+            if (text.isEmpty()) {
+                return;
+            }
+            if (m_filePath != text) {
+                m_filePath = text;
+                loadVideoInfo(AppConstants::MEDIA_LIBRARY_STORAGE_DIR + "/" + text);
+                emit filePathChanged(text);
+                emit onPropertyChanged();
+            }
+            stateFeedBack("/file", m_filePath);
+        }
+
+        /**
+         * 函数级注释：统一处理视频宽度变更并发送状态反馈
+         */
+        void onWidthChange(int value){
+            stateFeedBack("/width", value);
+            onPropertyChanged();
+        }
+
+        /**
+         * 函数级注释：统一处理视频高度变更并发送状态反馈
+         */
+        void onHeightChange(int value){
+            stateFeedBack("/height", value);
+            onPropertyChanged();
+        }
+
+        /**
+         * 函数级注释：统一处理图层顺序变更并发送状态反馈
+         */
+        void onLayerChange(int value){
+            stateFeedBack("/layer", value);
+            onPropertyChanged();
+        }
+
+        /**
+         * 函数级注释：统一处理视频旋转角度变更并发送状态反馈
+         */
+        void onRotationChange(int value){
+            stateFeedBack("/rotation", value);
+            onPropertyChanged();
+        }
+
+        /**
+         * 函数级注释：统一处理视频 X 坐标变更并发送状态反馈
+         */
+        void onPositionXChange(int value){
+            stateFeedBack("/posX", value);
+            onPropertyChanged();
+        }
+
+        /**
+         * 函数级注释：统一处理视频 Y 坐标变更并发送状态反馈
+         */
+        void onPositionYChange(int value){
+            stateFeedBack("/posY", value);
+            onPropertyChanged();
+        }
+
+        /**
+         * 函数级注释：处理来自全局事件总线的外部命令，调用业务槽并阻断控件信号
+         */
+        void onGlobalEvent(const GlobalEvent& ev){
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+
+            const QString addrPosX = makeFullOscAddress("/posX");
+            const QString addrPosY = makeFullOscAddress("/posY");
+            const QString addrWidth = makeFullOscAddress("/width");
+            const QString addrHeight = makeFullOscAddress("/height");
+            const QString addrLayer = makeFullOscAddress("/layer");
+            const QString addrRotation = makeFullOscAddress("/rotation");
+            const QString addrFile = makeFullOscAddress("/file");
+
+            if (ev.address == addrPosX && postion_x) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                onPositionXChange(v);
+                QSignalBlocker blocker(postion_x);
+                postion_x->setValue(v);
+            } else if (ev.address == addrPosY && postion_y) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                onPositionYChange(v);
+                QSignalBlocker blocker(postion_y);
+                postion_y->setValue(v);
+            } else if (ev.address == addrWidth && width) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                onWidthChange(v);
+                QSignalBlocker blocker(width);
+                width->setValue(v);
+            } else if (ev.address == addrHeight && height) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                onHeightChange(v);
+                QSignalBlocker blocker(height);
+                height->setValue(v);
+            } else if (ev.address == addrLayer && layer) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                onLayerChange(v);
+                QSignalBlocker blocker(layer);
+                layer->setValue(v);
+            } else if (ev.address == addrRotation && rotation) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                onRotationChange(v);
+                QSignalBlocker blocker(rotation);
+                rotation->setValue(v);
+            } else if (ev.address == addrFile && mediaSelector) {
+                const QString file = ev.payload.toString();
+                if (file.isEmpty()) return;
+                onFileChange(file);
+                QSignalBlocker blocker(mediaSelector);
+                mediaSelector->setText(file);
+            }
+        }
+
+    protected:
+        /**
+         * 函数级注释：剪辑模型初始化完成后订阅位置与尺寸相关的外部命令
+         */
+        void afterModelReady() override{
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/posX"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/posY"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/width"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/height"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/layer"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/rotation"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/file"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
         }
 
     private:

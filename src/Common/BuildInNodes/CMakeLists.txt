@@ -31,6 +31,8 @@ set(BuildInNodes_sources
     VariableOutDataModel.cpp
     VariableOutDataModel.hpp
     BoolSourceDataModel.hpp
+    ToggleSourceDataModel.hpp
+    TriggerSourceDataModel.hpp
     StringSourceDataModel.hpp
     IntSourceDataModel.hpp
     FloatSourceDataModel.hpp

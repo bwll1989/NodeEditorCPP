@@ -20,6 +20,7 @@
 
 #include "QMutex"
 #include "Common/Devices/TcpServer/TcpServer.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -33,6 +34,9 @@ namespace Nodes
     class TCPServerDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString host READ getHost WRITE setHost NOTIFY hostChanged)
+        Q_PROPERTY(int port READ getPort WRITE setPort NOTIFY portChanged)
+        Q_PROPERTY(QString value READ getValue WRITE setValue NOTIFY valueChanged)
 
     public:
 
@@ -51,27 +55,88 @@ namespace Nodes
 
             connect(server, &TcpServer::recMsg, this, &TCPServerDataModel::recMsg, Qt::QueuedConnection);
             //        connect(server, &TcpServer::serverMessage, this, &TCPServerDataModel::recMsg, Qt::QueuedConnection);
-            connect(widget, &TCPServerInterface::hostChanged, server, &TcpServer::setHost, Qt::QueuedConnection);
-            AbstractDelegateModel::registerOSCControl("/send",widget->sendButton);
-            AbstractDelegateModel::registerOSCControl("/value",widget->valueEdit);
-            connect(widget->sendButton, &QPushButton::clicked, this,[this]()
-            {
-                server->sendMessage(widget->valueEdit->text(),widget->format->currentIndex());
-            },Qt::QueuedConnection);
-            //        connect(this, &TCPServerDataModel::stopTCPServer, server, &TcpServer::stopServer, Qt::QueuedConnection);
-            //
-            //        connect(server, &TcpServer::clientInserted, this, &TCPServerDataModel::insertClient, Qt::QueuedConnection);
-            //        connect(server, &TcpServer::clientRemoved, this, &TCPServerDataModel::removeClient, Qt::QueuedConnection);
-            ////        connect(widget->send, &QPushButton::clicked, this, &TCPServerDataModel::sendMessage, Qt::QueuedConnection);
-            //        connect(this, &TCPServerDataModel::sendTCPMessage, server, &TcpServer::sendMessage, Qt::QueuedConnection);
+            
+            // Connect UI to Setters
+            connect(widget->hostLineEdit, &QLineEdit::editingFinished, this, [this](){
+                setHost(widget->hostLineEdit->text());
+            });
+            connect(widget->portSpinBox, &QSpinBox::valueChanged, this, &TCPServerDataModel::setPort);
+            connect(widget->valueEdit, &QLineEdit::textChanged, this, &TCPServerDataModel::setValue); // Use textChanged for value or editingFinished? textChanged is more immediate but high freq. editingFinished is safer. 
+            // Previous code for TCPClient used editingFinished for host, but value?
+            // TCPClient registered external control for valueEdit.
+            // Let's use editingFinished for value to be consistent with input fields usually.
+            disconnect(widget->valueEdit, &QLineEdit::textChanged, this, &TCPServerDataModel::setValue); // Just in case
+            connect(widget->valueEdit, &QLineEdit::editingFinished, this, [this](){
+                setValue(widget->valueEdit->text());
+            });
 
-            //        serverThread->start();
-
+            connect(widget->sendButton, &QPushButton::clicked, this, &TCPServerDataModel::sendMessage, Qt::QueuedConnection);
+            
+            // Initial sync
+            m_host = widget->hostLineEdit->text();
+            m_port = widget->portSpinBox->value();
+            m_value = widget->valueEdit->text();
         }
         ~TCPServerDataModel(){
             server->cleanup();
         }
+        
+        void afterModelReady() override {
+            auto *bus = GlobalEventBus::instance();
+            bus->subscribe(makeFullOscAddress("/host"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/port"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/value"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/send"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        }
+
     public:
+        // Getters
+        QString getHost() const { return m_host; }
+        int getPort() const { return m_port; }
+        QString getValue() const { return m_value; }
+
+        // Setters
+        void setHost(const QString &host) {
+            if (m_host == host) return;
+            m_host = host;
+            
+            if (widget && widget->hostLineEdit) {
+                QSignalBlocker blocker(widget->hostLineEdit);
+                widget->hostLineEdit->setText(host);
+            }
+            
+            updateServer();
+            emit hostChanged(m_host);
+            AbstractDelegateModel::stateFeedBack("/host", m_host);
+        }
+
+        void setPort(int port) {
+            if (m_port == port) return;
+            m_port = port;
+            
+            if (widget && widget->portSpinBox) {
+                QSignalBlocker blocker(widget->portSpinBox);
+                widget->portSpinBox->setValue(port);
+            }
+            
+            updateServer();
+            emit portChanged(m_port);
+            AbstractDelegateModel::stateFeedBack("/port", m_port);
+        }
+
+        void setValue(const QString &val) {
+            if (m_value == val) return;
+            m_value = val;
+            
+            if (widget && widget->valueEdit) {
+                QSignalBlocker blocker(widget->valueEdit);
+                widget->valueEdit->setText(val);
+            }
+            
+            emit valueChanged(m_value);
+            AbstractDelegateModel::stateFeedBack("/value", m_value);
+        }
+
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
             switch (portType) {
@@ -140,59 +205,50 @@ namespace Nodes
             m_inData = std::dynamic_pointer_cast<VariableData>(data);
             switch (portIndex) {
                 case 0:
-                    widget->hostLineEdit->setText(m_inData->value().toString());
+                    setHost(m_inData->value().toString());
                     break;
                 case 1:
-                    widget->portSpinBox->setValue(m_inData->value().toInt());
+                    setPort(m_inData->value().toInt());
                     break;
                 case 2:
-                    widget->valueEdit->setText(m_inData->value().toString());
+                    setValue(m_inData->value().toString());
                     sendMessage();
                     break;
                 case 3:
-                    m_inData = std::make_shared<VariableData>(widget->valueEdit->text());
-                    sendMessage();
+                    if (m_inData->value().toBool()) {
+                        setValue(m_inData->value().toString());
+                        sendMessage();
+                    }
                     break;
                 default:
                     break;
             }
-
-            // if (data == nullptr) {
-            //     message = QVariant();
-            // } else {
-            //     auto textData = std::dynamic_pointer_cast<VariableData>(data);
-            //     if (textData->value().canConvert<QString>()) {
-            //         message = textData->value().toString();
-            //     }
-            // }
         }
 
         QWidget *embeddedWidget() override
         {
             return widget;
-            //        return nullptr;
         }
 
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["Port"] = widget->portSpinBox->value();
-            modelJson1["Host"] = widget->hostLineEdit->text();
-            modelJson1["Value"] = widget->valueEdit->text();
+            modelJson1["Port"] = m_port;
+            modelJson1["Host"] = m_host;
+            modelJson1["Value"] = m_value;
             modelJson1["Format"] = widget->format->currentIndex();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
-
         }
 
         void load(const QJsonObject &p) override
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->portSpinBox->setValue(v["Port"].toInt());
-                widget->hostLineEdit->setText(v["Host"].toString());
-                widget->valueEdit->setText(v["Value"].toString());
+                setPort(v["Port"].toInt());
+                setHost(v["Host"].toString());
+                setValue(v["Value"].toString());
                 widget->format->setCurrentIndex(v["Format"].toInt());
             }
         }
@@ -211,6 +267,21 @@ namespace Nodes
 
             return result;
         }
+
+    private Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            if (localPath == "host") setHost(ev.payload.toString());
+            else if (localPath == "port") setPort(ev.payload.toInt());
+            else if (localPath == "value") setValue(ev.payload.toString());
+            else if (localPath == "send") sendMessage();
+        }
+        
+        void updateServer() {
+             QMetaObject::invokeMethod(server, "setHost", Qt::QueuedConnection, Q_ARG(QString, m_host), Q_ARG(int, m_port));
+        }
+
     public slots:
     //    收到信息时
         void recMsg(const QVariantMap &msg)
@@ -223,21 +294,25 @@ namespace Nodes
         }
 
         void sendMessage(){
-            if(!m_inData){
-                return;
-            }
-            server->sendMessage(m_inData->value().toString(),widget->format->currentIndex());
+            server->sendMessage(m_value, widget->format->currentIndex());
+            AbstractDelegateModel::stateFeedBack("/send", true);
         }
 
     signals:
         //    关闭信号
         void stopTCPServer();
-        // void sendTCPMessage(const QString &client,const QString &message,const int &format);
+        void hostChanged(const QString &host);
+        void portChanged(int port);
+        void valueChanged(const QString &value);
+        
     private:
         TCPServerInterface *widget=new TCPServerInterface();
         TcpServer *server;
-        //    QThread *serverThread=new QThread();
         std::shared_ptr<VariableData> m_inData;
         std::shared_ptr<VariableData> m_outData;
+        
+        QString m_host;
+        int m_port = 8080;
+        QString m_value;
     };
 }

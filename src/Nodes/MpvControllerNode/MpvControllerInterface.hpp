@@ -21,19 +21,19 @@ namespace Nodes
         public:
         explicit MpvControllerInterface(QWidget *parent = nullptr){
             main_layout->addWidget(hostLabel,0,0,1,1);
-            main_layout->addWidget(hostEdit,0,1,1,1);
-            main_layout->addWidget(Play,1,0,1,2);
-            main_layout->addWidget(playlist_prev,2,0,1,1);
-            main_layout->addWidget(playlist_next,2,1,1,1);
-            main_layout->addWidget(speedSub,3,0,1,1);
-            main_layout->addWidget(speedAdd,3,1,1,1);
-            main_layout->addWidget(speedReset,4,0,1,2);
+            main_layout->addWidget(hostEdit,0,1,1,3);
+            main_layout->addWidget(Play,1,0,1,4);
+            main_layout->addWidget(playlist_prev,2,0,1,2);
+            main_layout->addWidget(playlist_next,2,2,1,2);
+            main_layout->addWidget(speedSub,3,0,1,2);
+            main_layout->addWidget(speedAdd,3,2,1,2);
+            main_layout->addWidget(speedReset,4,0,1,4);
             main_layout->addWidget(volumeLabel,5,0,1,1);
-            main_layout->addWidget(volumeEditor,5,1,1,1);
+            main_layout->addWidget(volumeEditor,5,2,1,3);
             volumeEditor->setRange(0,150);
             volumeEditor->setSingleStep(1);
             volumeEditor->setValue(100);
-            main_layout->addWidget(Fullscreen,6,0,1,2);
+            main_layout->addWidget(Fullscreen,6,0,1,4);
             main_layout->setColumnStretch(0,1);
             main_layout->setColumnStretch(1,1);
 

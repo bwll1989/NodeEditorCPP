@@ -27,6 +27,7 @@
 #include "QMutex"
 #include "PluginDefinition.hpp"
 #include  "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -40,6 +41,9 @@ namespace Nodes
     class DAWControllerNode : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString host READ host WRITE setHost NOTIFY hostChanged)
+        Q_PROPERTY(QString command READ command WRITE setCommand NOTIFY commandChanged)
+        Q_PROPERTY(bool send READ send WRITE setSend NOTIFY sendChanged)
 
     public:
         /**
@@ -60,17 +64,19 @@ namespace Nodes
             m_outData = std::make_shared<VariableData>();
 
             m_controller = FTDAWController::acquire();
-            AbstractDelegateModel::registerOSCControl("/send",widget->customCommandButton);
-            AbstractDelegateModel::registerOSCControl("/host",widget->hostEdit);
-            AbstractDelegateModel::registerOSCControl("/command",widget->customCommandLineEdit);
+            AbstractDelegateModel::registerExternalControl("/send",widget->customCommandButton);
+            AbstractDelegateModel::registerExternalControl("/host",widget->hostEdit);
+            AbstractDelegateModel::registerExternalControl("/command",widget->customCommandLineEdit);
 
-            connect(widget->hostEdit, &QLineEdit::editingFinished, this, &DAWControllerNode::hostChange);
-            
-            connect(widget->customCommandButton, &QPushButton::clicked, [=](){
-                if (m_controller) {
-                    QString cmd = widget->customCommandLineEdit->text();
-                    sendToController(cmd);
-                }
+            connect(widget->hostEdit, &QLineEdit::editingFinished, this, [=](){
+                setHost(widget->hostEdit->text());
+            });
+            connect(widget->customCommandLineEdit, &QLineEdit::editingFinished, this, [=]() {
+                setCommand(widget->customCommandLineEdit->text());
+            });
+
+            connect(widget->customCommandButton, &QPushButton::clicked, this, [=](){
+                setSend(true);
             });
 
 
@@ -79,11 +85,19 @@ namespace Nodes
                     widget->updateConnectionStatus(ready);
                     m_outData->insert("connected", ready);
                     Q_EMIT dataUpdated(0);
+                    AbstractDelegateModel::stateFeedBack("/connected", ready);
                 });
                 
-                connect(m_controller, &FTDAWController::onHostChanged, this, [=](const QString &host){
-                    if(widget->hostEdit->text() != host){
+                connect(this, &DAWControllerNode::hostChanged, this, [=](const QString &host){
+                    if (widget && widget->hostEdit) {
+                        const QSignalBlocker blocker(widget->hostEdit);
                         widget->hostEdit->setText(host);
+                    }
+                });
+                connect(this, &DAWControllerNode::commandChanged, this, [=](const QString &command){
+                    if (widget && widget->customCommandLineEdit) {
+                        const QSignalBlocker blocker(widget->customCommandLineEdit);
+                        widget->customCommandLineEdit->setText(command);
                     }
                 });
             }
@@ -100,6 +114,13 @@ namespace Nodes
         }
 
     public:
+        QString host() const { return m_host; }
+        QString command() const { return m_command; }
+        /**
+         * 函数级注释：获取发送触发属性（瞬时触发，外部使用 true 作为脉冲）
+         */
+        bool send() const { return m_send; }
+
         /**
          * @brief 获取端口标题
          * @param portType 端口类型
@@ -165,19 +186,16 @@ namespace Nodes
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
             auto varData = std::dynamic_pointer_cast<VariableData>(data);
-            if (!varData) return;
+            if (!varData) {
+                return;
+            }
 
             if (portIndex == 0) {
-                // 设置命令
-                widget->customCommandLineEdit->setText(varData->value().toString());
-                sendToController(varData->value().toString());
+                setCommand(varData->value().toString());
             }
             else if (portIndex == 1) {
-                // 触发发送 (这里简化逻辑，只要收到非空数据就触发，或者根据具体需求判断)
-                // 只有当有命令时才发送
-
-                if (varData->value().toBool()&&!widget->customCommandLineEdit->text().isEmpty()) {
-                     sendToController(widget->customCommandLineEdit->text());
+                if (varData->value().toBool() && !command().isEmpty()) {
+                   setSend(true);
                 }
             }
         }
@@ -198,8 +216,8 @@ namespace Nodes
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
-        modelJson1["IP"] = widget->hostEdit->text();
-        modelJson1["Command"] = widget->customCommandLineEdit->text();
+        modelJson1["IP"] = host();
+        modelJson1["Command"] = command();
         QJsonObject modelJson = NodeDelegateModel::save();
         modelJson["values"] = modelJson1;
         return modelJson;
@@ -213,43 +231,117 @@ namespace Nodes
     {
         QJsonValue v = p["values"];
         if (!v.isUndefined() && v.isObject()) {
-            widget->hostEdit->setText(v["IP"].toString());
-            widget->customCommandLineEdit->setText(v["Command"].toString());
-            hostChange();
+            const QString ip = v["IP"].toString();
+            const QString cmd = v["Command"].toString();
+            setHost(ip);
+            setCommand(cmd);
         }
     }
 
     public slots:
-
         /**
-         * @brief 主机或端口改变时重新连接
+         * 函数级注释：设置发送触发属性；当为 true 时执行发送并进行状态反馈
          */
-        void hostChange()
+        void setSend(bool value)
         {
-            if (m_controller) {
-                m_controller->connectToServer(widget->hostEdit->text());
+            if (value) {
+                const QString cmd = command();
+
+                if (m_controller) {
+                    m_controller->sendMessage(cmd);
+                    const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
+                    m_outData->insert("connected", true);
+                    m_outData->insert("last_message", cmd);
+                    m_outData->insert("timestamp", timestamp);
+                    Q_EMIT dataUpdated(0);
+
+                }
             }
+            AbstractDelegateModel::stateFeedBack("/send", value);
+            Q_EMIT sendChanged(value);
         }
 
-    private:
-        void sendToController(const QString& cmd)
+        void setHost(const QString& host)
         {
-            if (m_controller) {
-                m_controller->sendMessage(cmd);
-                m_outData->insert("connected", true);
-                m_outData->insert("last_message", cmd);
-                m_outData->insert("timestamp", QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz"));
-                Q_EMIT dataUpdated(0);
+            if (m_host == host) {
+                return;
             }
+            m_host = host;
+            Q_EMIT hostChanged(host);
+            AbstractDelegateModel::stateFeedBack("/host", host);
+            if (m_controller) {
+                m_controller->connectToServer(host);
+            }
+
         }
 
-    private:
+        void setCommand(const QString& cmd)
+        {
+            m_command = cmd;
+            setSend(true);
+            Q_EMIT commandChanged(cmd);
+            AbstractDelegateModel::stateFeedBack("/command", cmd);
+        }
+
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+
+            const QString addrSend = makeFullOscAddress("/send");
+            const QString addrHost = makeFullOscAddress("/host");
+            const QString addrCmd = makeFullOscAddress("/command");
+
+            if (ev.address == addrSend) {
+                setSend(ev.payload.toBool());
+            } else if (ev.address == addrHost) {
+                setHost(ev.payload.toString());
+            } else if (ev.address == addrCmd) {
+                setCommand(ev.payload.toString());
+            }
+        }
+    Q_SIGNALS:
+        void hostChanged(const QString& host);
+        void commandChanged(const QString& cmd);
+        /**
+         * 函数级注释：当发送触发属性变化时发出的通知信号
+         */
+        void sendChanged(bool value);
+
+     protected:
+        /**
+         * 函数级注释：模型就绪后订阅全局事件总线，使用包含正确节点ID的完整地址
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/send"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/host"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/command"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+        }
+
+
+
         DAWControllerInterface *widget = new DAWControllerInterface();
         std::shared_ptr<VariableData> m_inData;
         std::shared_ptr<VariableData> m_outData;           // 输出数据 (Map类型)
         FTDAWController* m_controller = nullptr;
+        QString m_host;
+        QString m_command;
+        bool m_send = false;
 
     };
 
 }
-

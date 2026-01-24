@@ -3,6 +3,7 @@
 #include <QtCore/QObject>
 #include <QtWidgets/QLabel>
 #include <QtCore/QTimer>
+#include <QtCore/QQueue>
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeData>
@@ -14,6 +15,8 @@
 #include "../../DataTypes/VariableData.h"
 #include "USR-IO808Interface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -33,10 +36,24 @@ namespace Nodes {
 class USR_IO808DataModel : public AbstractDelegateModel
 {
     Q_OBJECT
+    Q_PROPERTY(QString host READ getHost WRITE setHost NOTIFY hostChanged)
+    Q_PROPERTY(int port READ getPort WRITE setPort NOTIFY portChanged)
+    Q_PROPERTY(int serverId READ getServerId WRITE setServerId NOTIFY serverIdChanged)
 
 public:
     USR_IO808DataModel();
     ~USR_IO808DataModel() override;
+
+    QString getHost() const { return _host; }
+    void setHost(const QString& host);
+
+    int getPort() const { return _port; }
+    void setPort(int port);
+
+    int getServerId() const { return _serverId; }
+    void setServerId(int serverId);
+
+    void afterModelReady() override;
 
 public:
     QJsonObject save() const override;
@@ -48,7 +65,13 @@ public:
     void setInData(std::shared_ptr<NodeData> data, PortIndex port) override;
     QWidget *embeddedWidget() override { return _interface; }
 
+signals:
+    void hostChanged(QString host);
+    void portChanged(int port);
+    void serverIdChanged(int serverId);
+
 private slots:
+    void onGlobalEvent(const GlobalEvent& ev);
     /**
      * @brief 接收TCP消息处理槽函数
      * @param msg 接收到的消息数据
@@ -79,10 +102,20 @@ private slots:
      */
     void readAllData();
 
+private slots:
+    void processWriteQueue();
+
 private:
     USR_IO808Interface *_interface;
     TcpClient *_tcpClient;
     QTimer *_readTimer;  // 定时读取定时器
+    QTimer *_writeQueueTimer; // 写队列定时器
+
+    struct WriteCommand {
+        int index;
+        bool state;
+    };
+    QQueue<WriteCommand> _writeQueue; // 写命令队列
 
     // 设备状态
     bool _inputStates[8];   // DI状态数组
@@ -90,7 +123,11 @@ private:
     
     // Modbus协议相关
     quint16 _transactionId; // 事务标识符
-    quint8 _serverId;       // 服务器ID
+    
+    // Properties
+    QString _host = "127.0.0.1";
+    int _port = 502;
+    int _serverId = 1;       // 服务器ID
     
     // 输出数据缓存
     std::shared_ptr<NodeDataTypes::VariableData> _outputData[8];

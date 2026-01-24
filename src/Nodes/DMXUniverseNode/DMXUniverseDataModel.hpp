@@ -12,6 +12,10 @@
 #include <QJsonArray>
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
+
+struct GlobalEvent;
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -28,6 +32,9 @@ namespace Nodes
     class DMXUniverseDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(int universe READ universe WRITE setUniverse NOTIFY universeChanged)
+        Q_PROPERTY(int subnet READ subnet WRITE setSubnet NOTIFY subnetChanged)
+        Q_PROPERTY(int net READ net WRITE setNet NOTIFY netChanged)
 
     public:
         /**
@@ -50,31 +57,99 @@ namespace Nodes
             universeData = std::make_shared<VariableData>();
             
             // 连接界面信号
-            connect(widget->universeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &DMXUniverseDataModel::onUniverseChanged);
-            connect(widget->subnetSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &DMXUniverseDataModel::onSubnetChanged);
-            connect(widget->netSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &DMXUniverseDataModel::onNetChanged);
+            connect(widget->universeSpinBox, QOverload<int>::of(&IntDragValueWidget::valueChanged),
+                    this, &DMXUniverseDataModel::setUniverse);
+            connect(widget->subnetSpinBox, QOverload<int>::of(&IntDragValueWidget::valueChanged),
+                    this, &DMXUniverseDataModel::setSubnet);
+            connect(widget->netSpinBox, QOverload<int>::of(&IntDragValueWidget::valueChanged),
+                    this, &DMXUniverseDataModel::setNet);
             
             // 连接清空按钮信号
             connect(widget, &Nodes::DMXUniverseInterface::clearDataClicked,
                     this, &DMXUniverseDataModel::onClearDataClicked);
             
             // 注册OSC控制
-            AbstractDelegateModel::registerOSCControl("/universe", widget->universeSpinBox);
-            AbstractDelegateModel::registerOSCControl("/subnet", widget->subnetSpinBox);
-            AbstractDelegateModel::registerOSCControl("/net", widget->netSpinBox);
-            AbstractDelegateModel::registerOSCControl("/clear", widget->clearButton);
+            AbstractDelegateModel::registerExternalControl("/universe", widget->universeSpinBox);
+            AbstractDelegateModel::registerExternalControl("/subnet", widget->subnetSpinBox);
+            AbstractDelegateModel::registerExternalControl("/net", widget->netSpinBox);
+            AbstractDelegateModel::registerExternalControl("/clear", widget->clearButton);
             // 初始化输出数据
             updateUniverseData();
         }
-
         /**
-         * @brief 析构函数
-         */
+                 * @brief 析构函数
+                 */
         ~DMXUniverseDataModel() override {
         }
+        int universe() const { return m_universe; }
+        int subnet() const { return m_subnet; }
+        int net() const { return m_net; }
+
+    public slots:
+        void setUniverse(int universe) {
+            if (m_universe == universe) {
+                return;
+            }
+            m_universe = universe;
+            if (widget) {
+                const QSignalBlocker blocker(widget->universeSpinBox);
+                widget->universeSpinBox->setValue(universe);
+            }
+            updateUniverseData();
+            Q_EMIT universeChanged(universe);
+            AbstractDelegateModel::stateFeedBack("/universe", universe);
+        }
+
+        void setSubnet(int subnet) {
+            if (m_subnet == subnet) {
+                return;
+            }
+            m_subnet = subnet;
+            if (widget) {
+                const QSignalBlocker blocker(widget->subnetSpinBox);
+                widget->subnetSpinBox->setValue(subnet);
+            }
+            updateUniverseData();
+            Q_EMIT subnetChanged(subnet);
+            AbstractDelegateModel::stateFeedBack("/subnet", subnet);
+        }
+
+        void setNet(int netValue) {
+            if (m_net == netValue) {
+                return;
+            }
+            m_net = netValue;
+            if (widget) {
+                const QSignalBlocker blocker(widget->netSpinBox);
+                widget->netSpinBox->setValue(netValue);
+            }
+            updateUniverseData();
+            Q_EMIT netChanged(netValue);
+            AbstractDelegateModel::stateFeedBack("/net", netValue);
+        }
+
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+
+            const QString addrUniverse = makeFullOscAddress("/universe");
+            const QString addrSubnet = makeFullOscAddress("/subnet");
+            const QString addrNet = makeFullOscAddress("/net");
+            const QString addrClear = makeFullOscAddress("/clear");
+
+            if (ev.address == addrUniverse) {
+                setUniverse(ev.payload.toInt());
+            } else if (ev.address == addrSubnet) {
+                setSubnet(ev.payload.toInt());
+            } else if (ev.address == addrNet) {
+                setNet(ev.payload.toInt());
+            } else if (ev.address == addrClear) {
+                onClearDataClicked();
+            }
+        }
+
+
 
         /**
          * @brief 获取端口标题
@@ -168,9 +243,9 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["universe"] = widget->universeSpinBox->value();
-            modelJson1["subnet"] = widget->subnetSpinBox->value();
-            modelJson1["net"] = widget->netSpinBox->value();
+            modelJson1["universe"] = m_universe;
+            modelJson1["subnet"] = m_subnet;
+            modelJson1["net"] = m_net;
             
             QJsonObject modelJson = NodeDelegateModel::save();
             modelJson["UniverseSettings"] = modelJson1;
@@ -186,14 +261,11 @@ namespace Nodes
             QJsonValue v = p["UniverseSettings"];
             if (!v.isUndefined() && v.isObject()) {
                 auto settings = v.toObject();
-                
-                widget->universeSpinBox->setValue(settings["universe"].toInt(0));
-                widget->subnetSpinBox->setValue(settings["subnet"].toInt(0));
-                widget->netSpinBox->setValue(settings["net"].toInt(0));
-                
-                // 更新输出数据
-                updateUniverseData();
-                
+
+                setUniverse(settings["universe"].toInt(0));
+                setSubnet(settings["subnet"].toInt(0));
+                setNet(settings["net"].toInt(0));
+
                 NodeDelegateModel::load(p);
             }
         }
@@ -209,42 +281,42 @@ namespace Nodes
 
     private slots:
         /**
-         * @brief Universe改变时的处理
-         * @param universe 新的Universe值
-         */
-        void onUniverseChanged(int universe) {
-            Q_UNUSED(universe)
-            updateUniverseData();
-        }
-
-        /**
-         * @brief Subnet改变时的处理
-         * @param subnet 新的Subnet值
-         */
-        void onSubnetChanged(int subnet) {
-            Q_UNUSED(subnet)
-            updateUniverseData();
-        }
-
-        /**
-         * @brief Net改变时的处理
-         * @param net 新的Net值
-         */
-        void onNetChanged(int net) {
-            Q_UNUSED(net)
-            updateUniverseData();
-        }
-
-        /**
          * @brief 清空数据按钮点击处理
          * 将当前Universe的所有512个DMX通道清零
          */
         void onClearDataClicked() {
-            // 清空所有DMX数据
             dmxData.fill(0);
-            
-            // 更新输出数据
             updateUniverseData();
+            AbstractDelegateModel::stateFeedBack("/clear", true);
+        }
+
+    Q_SIGNALS:
+        void universeChanged(int universe);
+        void subnetChanged(int subnet);
+        void netChanged(int net);
+
+    protected:
+        void afterModelReady() override {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/universe"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/subnet"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/net"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/clear"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
         }
 
     private:
@@ -263,9 +335,9 @@ namespace Nodes
             artnetPacket["opcode"] = 0x5000;  // ArtDMX操作码
             
             // Universe寻址信息
-            int universe = widget->universeSpinBox->value();
-            int subnet = widget->subnetSpinBox->value();
-            int net = widget->netSpinBox->value();
+            int universe = m_universe;
+            int subnet = m_subnet;
+            int net = m_net;
             
             artnetPacket["universe"] = universe;
             artnetPacket["subnet"] = subnet;
@@ -310,5 +382,8 @@ namespace Nodes
         QVector<int> dmxData;                        // 512通道DMX数据
         
         Nodes::DMXUniverseInterface * widget = new Nodes::DMXUniverseInterface();
+        int m_universe = 0;
+        int m_subnet = 0;
+        int m_net = 0;
     };
 }

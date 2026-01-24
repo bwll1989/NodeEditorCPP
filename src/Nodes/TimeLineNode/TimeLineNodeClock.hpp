@@ -96,6 +96,11 @@ signals:
 
 public slots:
     /**
+     * 函数级注释：内部时钟 tick 到来时更新帧计数
+     * @param delta 本次 tick 对应的时间增量（秒）
+     */
+    void onTick(double delta);
+    /**
      * 开始
      */
     void onStart();
@@ -149,5 +154,9 @@ private:
      * 时钟源
      */
     ClockSource m_clockSource;
+    /**
+     * 帧累加器，用于根据时间增量累积出整帧步进
+     */
+    double m_frameAccumulator {0.0};
 
 };

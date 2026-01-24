@@ -16,11 +16,9 @@ namespace Nodes
         AudioCrossFaderInterface(QWidget *parent = nullptr);
         ~AudioCrossFaderInterface();
         
-        QDoubleSpinBox* mixSpin;       // 0.0 ~ 1.0
+        QDoubleSpinBox* mixSpin;          // 0.0 ~ 1.0
         QDoubleSpinBox* fadeDurationSpin; // ms
-        QPushButton* fadeAToBButton;
-        QPushButton* fadeBToAButton;
-        QPushButton* resetButton;
+        QComboBox* actionCombo;           // A->B / B->A / Reset
     };
 }
 

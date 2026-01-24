@@ -1,7 +1,7 @@
 #include "PluginDefinition.hpp"
 
 #include "DAWControllerDataModel.hpp"
-
+#include "CurtainDataModel.hpp"
 Plugin *Plugin::_this_plugin = nullptr;
 
 Plugin::Plugin()
@@ -18,5 +18,6 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::DAWControllerNode>(name(),tag());
+    reg->registerModel<Nodes::DAWControllerNode>("DAW Controller",tag());
+    reg->registerModel<Nodes::CurtainDataModel>("Curtain Controller",tag());
 }

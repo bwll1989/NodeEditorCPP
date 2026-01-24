@@ -36,7 +36,7 @@ public:
     /**
      * 函数级注释：注册控件到 OSC 地址映射，并同步注册到 StatusContainer
      */
-    void registerOSCControl(const QString& oscAddress, QWidget* control) override;
+    void registerExternalControl(const QString& oscAddress, QWidget* control) override;
     /**
      * 函数级注释：模型初始化完成回调（GraphModel 设置了 NodeID 与 ParentAlias 之后调用）
      * - 将已有的控件映射统一注册到 StatusContainer
@@ -52,6 +52,12 @@ protected:
      * 函数级注释：构造完整的 OSC 地址（/dataflow/<alias>/<nodeId><relative>）
      */
     QString makeFullOscAddress(const QString& relative) const;
+
+    /**
+     * 函数级注释：模型初始化完成后的扩展点（NodeID 与 ParentAlias 已就绪）
+     * - 派生类可重写此函数，在此阶段基于完整地址执行额外注册（如事件总线订阅）
+     */
+    virtual void afterModelReady();
 
 public:
     /**

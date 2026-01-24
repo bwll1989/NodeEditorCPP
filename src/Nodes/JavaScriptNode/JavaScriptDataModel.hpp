@@ -84,13 +84,12 @@ public:
      */
     Q_INVOKABLE QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
-        QString in = "➩";
-        QString out = "➩";
+
         switch (portType) {
             case PortType::In:
-                return in;
+                return "OUT "+QString::number(portIndex);
             case PortType::Out:
-                return out;
+                return "IN "+QString::number(portIndex);
             default:
                 break;
         }

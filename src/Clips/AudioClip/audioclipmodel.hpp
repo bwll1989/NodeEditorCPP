@@ -16,6 +16,7 @@
 #include "../../Common/Devices/ClientController/SocketTransmitter.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "AbstractClipDelegateModel.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -99,7 +100,6 @@ namespace Clips
             AbstractClipModel::load(json);
             m_id = json["Id"].toInt();
             gain->setValue(json["gain"].toInt());
-            updateOSCRegistration();
         }
 
         QVariant data(int role) const override {
@@ -163,19 +163,20 @@ namespace Clips
                     emit filePathChanged(m_filePath);
                     emit onPropertyChanged();
                 }
+                stateFeedBack("/file", m_filePath);
             });
             gain=new QSpinBox(positionGroup);
             gain->setMinimum(-180);
             gain->setMaximum(180);
             gain->setValue(0);
-            AbstractClipDelegateModel::registerOSCControl("/gain",gain);
+            registerExternalControl("/gain",gain);
+            connect(gain, QOverload<int>::of(&QSpinBox::valueChanged), [=](int v) {
+                stateFeedBack("/gain", v);
+                onPropertyChanged();
+            });
             positionLayout->addWidget(new QLabel("Gain:"), 1, 0);
             positionLayout->addWidget(gain, 1, 1);
             mainLayout->addWidget(positionGroup);
-            // 连接信号槽
-            connect(gain, QOverload<int>::of(&QSpinBox::valueChanged), [=]() {
-                onPropertyChanged();
-            });
             return m_editor;
         }
 

@@ -29,10 +29,10 @@ showStoreGBxDataModel::showStoreGBxDataModel()
 
     for (int i = 0; i < 4; ++i)
     {
-        NodeDelegateModel::registerOSCControl("/channel"+QString::number(i+1),_interface->_playButtons[i]);
+        NodeDelegateModel::registerExternalControl("/channel"+QString::number(i+1),_interface->_playButtons[i]);
     }
-    NodeDelegateModel::registerOSCControl("/stop",_interface->Stop);
-    NodeDelegateModel::registerOSCControl("/status",_interface->status);
+    NodeDelegateModel::registerExternalControl("/stop",_interface->Stop);
+    NodeDelegateModel::registerExternalControl("/status",_interface->status);
 
     // 连接信号和槽
     connect(_tcpClient, &TcpClient::recMsg, this, [this](const QVariantMap &dataMap) {

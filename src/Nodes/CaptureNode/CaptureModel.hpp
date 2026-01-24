@@ -9,15 +9,21 @@
 #include <QPushButton>
 #include "DataTypes/NodeDataList.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 class QPushButton;
 using namespace QtNodes;
 using namespace NodeDataTypes;
+struct GlobalEvent;
 namespace Nodes
 {
     class CaptureModel final : public AbstractDelegateModel {
         Q_OBJECT
+        Q_PROPERTY(bool trigger READ triggerProperty WRITE setTriggerProperty NOTIFY triggerChanged)
 
     public:
+        /**
+         * 函数级注释：构造函数，初始化图像捕获节点及触发属性
+         */
         CaptureModel() {
             InPortCount =2;
             OutPortCount=1;
@@ -68,15 +74,22 @@ namespace Nodes
             }
 
         }
+        /**
+         * 函数级注释：设置输入端口数据
+         * - 端口0：图像输入
+         * - 端口1：布尔触发信号，为 true 时触发捕获
+         */
         void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{
             switch (portIndex) {
             case 0:
                 m_inImageData = std::dynamic_pointer_cast<ImageData>(nodeData);
+                break;
             case 1:
                 m_inData=std::dynamic_pointer_cast<VariableData>(nodeData);
                 if (const auto lock = m_inData.lock()) {
-                    if(m_inData.lock().get()->value().toBool())
-                        captureClicked();
+                    if (lock->value().toBool()) {
+                        setTriggerProperty(true);
+                    }
                 }
                 break;
             }
@@ -89,8 +102,10 @@ namespace Nodes
         QWidget* embeddedWidget() override{
             if (!m_button) {
                 m_button = new QPushButton("Capture");
-                AbstractDelegateModel::registerOSCControl("/capture",m_button);
-                connect(m_button, &QPushButton::clicked, this, &CaptureModel::captureClicked);
+                AbstractDelegateModel::registerExternalControl("/capture",m_button);
+                connect(m_button, &QPushButton::clicked, this, [this](){
+                    setTriggerProperty(true);
+                });
             }
             return m_button;
         }
@@ -110,16 +125,83 @@ namespace Nodes
 
             return result;
         }
-    private slots:
-        void captureClicked(){
+
+        /**
+         * 函数级注释：获取当前触发属性值
+         * @return true 表示请求捕获，false 表示空闲
+         */
+        bool triggerProperty() const
+        {
+            return m_trigger;
+        }
+
+        /**
+         * 函数级注释：设置触发属性，当置为 true 时执行一次图像捕获并自动复位为 false
+         */
+        void setTriggerProperty(bool trigger)
+        {
+            if (!trigger) {
+                return;
+            }
+            if (!m_trigger) {
+                m_trigger = true;
+                Q_EMIT triggerChanged(m_trigger);
+                captureOnce();
+                m_trigger = false;
+                Q_EMIT triggerChanged(m_trigger);
+            } else {
+                captureOnce();
+            }
+        }
+
+    Q_SIGNALS:
+        /**
+         * 函数级注释：触发属性变化信号，用于状态反馈到事件总线
+         */
+        void triggerChanged(bool trigger);
+
+    protected:
+        /**
+         * 函数级注释：模型就绪后订阅全局事件总线，实现外部触发控制
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/capture"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+        }
+
+    private Q_SLOTS:
+        /**
+         * 函数级注释：执行一次图像捕获并输出到下游
+         */
+        void captureOnce(){
             if (const auto lock = m_inImageData.lock()) {
                 m_outImageData = std::make_shared<ImageData>(lock->imgMat());
             } else {
                 m_outImageData.reset();
             }
             emit dataUpdated(0);
+            AbstractDelegateModel::stateFeedBack("/capture", true);
         }
 
+        /**
+         * 函数级注释：处理来自全局事件总线的捕获触发命令
+         */
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            if (ev.address != makeFullOscAddress("/capture")) {
+                return;
+            }
+            if (ev.payload.toBool()) {
+                setTriggerProperty(true);
+            }
+        }
 
     private:
         QPushButton* m_button = nullptr;
@@ -130,6 +212,6 @@ namespace Nodes
         // out
         // 0
         std::shared_ptr<ImageData> m_outImageData;
+        bool m_trigger = false;
     };
 }
-

@@ -80,7 +80,7 @@ namespace Nodes
         int _sampleRate = 48000;
 
         // Crossfade parameters
-        float _mix = 0.0f;           // 0.0 -> A, 1.0 -> B（始终使用等功率曲线）
+        float _mix = 0.5f;           // 0.0 -> A, 1.0 -> B（始终使用等功率曲线）
         double _fadeDurationMs = 2000.0; // 淡入淡出时长（毫秒）
         bool _fadingActive = false;
         qint64 _fadeStartFrame = 0;

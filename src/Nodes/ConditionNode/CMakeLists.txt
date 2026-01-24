@@ -9,6 +9,8 @@ string(TIMESTAMP BUILD_TS "%Y%m%d")
 add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         ConditionDataModel.hpp
+        FilterDataModel.hpp
+        ConditionInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp

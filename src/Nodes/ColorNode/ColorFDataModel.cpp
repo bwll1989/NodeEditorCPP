@@ -2,8 +2,11 @@
 #include "Elements/ColorEditorWidget/ColorEditorWidget.hpp"
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtWidgets/QFileDialog>
+#include "StatusContainer/GlobalEventBus.hpp"
+
 using namespace Nodes;
 using namespace NodeDataTypes;
+
 ColorFDataModel::ColorFDataModel(){
     InPortCount = 4;
     OutPortCount=5;
@@ -13,13 +16,14 @@ ColorFDataModel::ColorFDataModel(){
     Resizable=false;
     connect(colorEditorWidget, &ColorEditorWidget::colorChanged, this, &ColorFDataModel::onColorChanged);
     connect(widget->colorEditButton, &QPushButton::clicked, this, &ColorFDataModel::toggleEditorMode);
-    AbstractDelegateModel::registerOSCControl("/red", colorEditorWidget->spinRed);
-    AbstractDelegateModel::registerOSCControl("/green", colorEditorWidget->spinGreen);
-    AbstractDelegateModel::registerOSCControl("/blue", colorEditorWidget->spinBlue);
-    AbstractDelegateModel::registerOSCControl("/alpha", colorEditorWidget->spinAlpha);
-    AbstractDelegateModel::registerOSCControl("/hue", colorEditorWidget->spinHue);
-    AbstractDelegateModel::registerOSCControl("/saturation", colorEditorWidget->spinSaturation);
-    AbstractDelegateModel::registerOSCControl("/value", colorEditorWidget->spinValue);
+    
+    AbstractDelegateModel::registerExternalControl("/red", colorEditorWidget->spinRed);
+    AbstractDelegateModel::registerExternalControl("/green", colorEditorWidget->spinGreen);
+    AbstractDelegateModel::registerExternalControl("/blue", colorEditorWidget->spinBlue);
+    AbstractDelegateModel::registerExternalControl("/alpha", colorEditorWidget->spinAlpha);
+    AbstractDelegateModel::registerExternalControl("/hue", colorEditorWidget->spinHue);
+    AbstractDelegateModel::registerExternalControl("/saturation", colorEditorWidget->spinSaturation);
+    AbstractDelegateModel::registerExternalControl("/value", colorEditorWidget->spinValue);
 }
 
 ColorFDataModel::~ColorFDataModel(){
@@ -114,7 +118,10 @@ void ColorFDataModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeDat
         default:
             break;
     }
-    colorEditorWidget->setColor(m_color);
+    {
+        QSignalBlocker b(colorEditorWidget);
+        colorEditorWidget->setColor(m_color);
+    }
     onColorChanged(m_color);
 }
 
@@ -130,7 +137,12 @@ void ColorFDataModel::load(const QJsonObject &p)
 {
     QJsonValue v = p["values"];
     if (!v.isUndefined()&&v.isObject()) {
-        colorEditorWidget->setColor(QColor(v["color"].toString()));
+        QColor c(v["color"].toString());
+        {
+            QSignalBlocker b(colorEditorWidget);
+            colorEditorWidget->setColor(c);
+        }
+        onColorChanged(c);
     }
 }
 
@@ -159,14 +171,137 @@ void ColorFDataModel::toggleEditorMode() {
     colorEditorWidget->raise();
 }
 
-void ColorFDataModel::onColorChanged(const QColor& c) {
-    m_color = c;
+void ColorFDataModel::updateDisplay() {
     QPixmap pix(widget->display->width(), widget->display->height());
     pix.fill(m_color);
     widget->display->setPixmap(pix);
+}
+
+void ColorFDataModel::notifyAllPropertiesChanged() {
+    Q_EMIT redChanged(m_color.red());
+    Q_EMIT greenChanged(m_color.green());
+    Q_EMIT blueChanged(m_color.blue());
+    Q_EMIT alphaChanged(m_color.alpha());
+    Q_EMIT hueChanged(m_color.hue());
+    Q_EMIT saturationChanged(m_color.saturation());
+    Q_EMIT valueChanged(m_color.value());
+    
+    AbstractDelegateModel::stateFeedBack("/red", m_color.red());
+    AbstractDelegateModel::stateFeedBack("/green", m_color.green());
+    AbstractDelegateModel::stateFeedBack("/blue", m_color.blue());
+    AbstractDelegateModel::stateFeedBack("/alpha", m_color.alpha());
+    AbstractDelegateModel::stateFeedBack("/hue", m_color.hue());
+    AbstractDelegateModel::stateFeedBack("/saturation", m_color.saturation());
+    AbstractDelegateModel::stateFeedBack("/value", m_color.value());
+}
+
+void ColorFDataModel::onColorChanged(const QColor& c) {
+    m_color = c;
+    updateDisplay();
+    notifyAllPropertiesChanged();
     Q_EMIT dataUpdated(0);
     Q_EMIT dataUpdated(1);
     Q_EMIT dataUpdated(2);
     Q_EMIT dataUpdated(3);
     Q_EMIT dataUpdated(4);
+}
+
+void ColorFDataModel::setRed(int r) {
+    if (m_color.red() == r) return;
+    m_color.setRed(r);
+    {
+        QSignalBlocker b(colorEditorWidget);
+        colorEditorWidget->setColor(m_color);
+    }
+    onColorChanged(m_color);
+}
+
+void ColorFDataModel::setGreen(int g) {
+    if (m_color.green() == g) return;
+    m_color.setGreen(g);
+    {
+        QSignalBlocker b(colorEditorWidget);
+        colorEditorWidget->setColor(m_color);
+    }
+    onColorChanged(m_color);
+}
+
+void ColorFDataModel::setBlue(int b) {
+    if (m_color.blue() == b) return;
+    m_color.setBlue(b);
+    {
+        QSignalBlocker b(colorEditorWidget);
+        colorEditorWidget->setColor(m_color);
+    }
+    onColorChanged(m_color);
+}
+
+void ColorFDataModel::setAlpha(int a) {
+    if (m_color.alpha() == a) return;
+    m_color.setAlpha(a);
+    {
+        QSignalBlocker b(colorEditorWidget);
+        colorEditorWidget->setColor(m_color);
+    }
+    onColorChanged(m_color);
+}
+
+void ColorFDataModel::setHue(int h) {
+    if (m_color.hue() == h) return;
+    m_color.setHsv(h, m_color.saturation(), m_color.value(), m_color.alpha());
+    {
+        QSignalBlocker b(colorEditorWidget);
+        colorEditorWidget->setColor(m_color);
+    }
+    onColorChanged(m_color);
+}
+
+void ColorFDataModel::setSaturation(int s) {
+    if (m_color.saturation() == s) return;
+    m_color.setHsv(m_color.hue(), s, m_color.value(), m_color.alpha());
+    {
+        QSignalBlocker b(colorEditorWidget);
+        colorEditorWidget->setColor(m_color);
+    }
+    onColorChanged(m_color);
+}
+
+void ColorFDataModel::setValue(int v) {
+    if (m_color.value() == v) return;
+    m_color.setHsv(m_color.hue(), m_color.saturation(), v, m_color.alpha());
+    {
+        QSignalBlocker b(colorEditorWidget);
+        colorEditorWidget->setColor(m_color);
+    }
+    onColorChanged(m_color);
+}
+
+void ColorFDataModel::afterModelReady() {
+    GlobalEventBus::instance()->subscribe(makeFullOscAddress("/red"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeFullOscAddress("/green"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeFullOscAddress("/blue"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeFullOscAddress("/alpha"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeFullOscAddress("/hue"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeFullOscAddress("/saturation"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeFullOscAddress("/value"), this, SLOT(onGlobalEvent(GlobalEvent)));
+}
+
+void ColorFDataModel::onGlobalEvent(const GlobalEvent& ev) {
+    if (ev.kind != GlobalEventKind::Command) return;
+    
+    if (ev.address == makeFullOscAddress("/red")) {
+        setRed(ev.payload.toInt());
+    } else if (ev.address == makeFullOscAddress("/green")) {
+        setGreen(ev.payload.toInt());
+    } else if (ev.address == makeFullOscAddress("/blue")) {
+        setBlue(ev.payload.toInt());
+    } else if (ev.address == makeFullOscAddress("/alpha")) {
+        setAlpha(ev.payload.toInt());
+    } else if (ev.address == makeFullOscAddress("/hue")) {
+        setHue(ev.payload.toInt());
+    } else if (ev.address == makeFullOscAddress("/saturation")) {
+        setSaturation(ev.payload.toInt());
+    } else if (ev.address == makeFullOscAddress("/value")) {
+        setValue(ev.payload.toInt());
+    }
 }

@@ -25,12 +25,15 @@
 #include "Gist.h"
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
+
+struct GlobalEvent;
 
 namespace Nodes {
     /**
@@ -40,6 +43,7 @@ namespace Nodes {
     class AudioAnalysisDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
     
     public:
         /**
@@ -58,7 +62,15 @@ namespace Nodes {
             Resizable = false;
             PortEditable = false;
             Caption = PLUGIN_NAME;
-            AbstractDelegateModel::registerOSCControl("/enable",widget->mResetButton);
+            AbstractDelegateModel::registerExternalControl("/enable",widget->mResetButton);
+            connect(widget->mResetButton, &QPushButton::toggled, this, &AudioAnalysisDataModel::setEnabled);
+            connect(this, &AudioAnalysisDataModel::enabledChanged, this, [this](bool){
+                {
+                    QSignalBlocker blocker(widget->mResetButton);
+                    widget->mResetButton->setChecked(m_enabled);
+                }
+                AbstractDelegateModel::stateFeedBack("/enable", m_enabled);
+            });
             // 设置工作线程
             _worker->moveToThread(_workerThread);
             // 连接信号槽
@@ -129,6 +141,26 @@ namespace Nodes {
                     return "";
             }
         }
+
+        /**
+         * 函数级注释：获取当前音频分析节点的启用状态属性
+         */
+        bool enabled() const
+        {
+            return m_enabled;
+        }
+
+        /**
+         * 函数级注释：设置音频分析节点启用状态属性，触发状态反馈
+         */
+        void setEnabled(bool enabled)
+        {
+            if (enabled == m_enabled) {
+                return;
+            }
+            m_enabled = enabled;
+            Q_EMIT enabledChanged(enabled);
+        }
         
          /**
          * @brief 获取输出数据
@@ -164,7 +196,7 @@ namespace Nodes {
             }else {
                 auto Data = std::dynamic_pointer_cast<VariableData>(nodeData);
                 if (Data) {
-                    widget->mResetButton->setChecked(Data->value().toBool());
+                    setEnabled(Data->value().toBool());
                 }
 
             }
@@ -184,7 +216,7 @@ namespace Nodes {
         QJsonObject save() const override
         {
             QJsonObject modelJson1 ;
-            modelJson1["enable"] = widget->mResetButton->isChecked();
+            modelJson1["enable"] = enabled();
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -201,9 +233,43 @@ namespace Nodes {
             QJsonValue v = jsonObj["values"];
             if (!v.isUndefined()&&v.isObject()) {
                 qDebug() << "loading audio analysis data"<<v["enable"].toBool(false);
-                widget->mResetButton->setChecked(v["enable"].toBool(false));
+                setEnabled(v["enable"].toBool(false));
             }
 
+        }
+
+    signals:
+        /**
+         * 函数级注释：当音频分析节点启用状态发生变化时发出的通知信号
+         */
+        void enabledChanged(bool enabled);
+
+    protected:
+        /**
+         * 函数级注释：模型就绪后订阅全局事件总线，使用包含正确节点ID的完整地址
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/enable"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+        }
+
+    private Q_SLOTS:
+        /**
+         * 函数级注释：处理来自全局事件总线的外部命令，更新启用状态属性
+         */
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            if (ev.address != makeFullOscAddress("/enable")) {
+                return;
+            }
+            setEnabled(ev.payload.toBool());
         }
     public slots:
         /**
@@ -219,7 +285,7 @@ namespace Nodes {
             }
         }
         void onGetResult(QVariantMap const& result) {
-            if (widget->mResetButton->isChecked()) {
+            if (enabled()) {
                 _outputData=std::make_shared<VariableData>(result);
                 dataUpdated(0);
             }
@@ -233,5 +299,6 @@ namespace Nodes {
         // 移除这行：std::vector<std::shared_ptr<AudioTimestampRingQueue>> _audioBuffer;
         AudioAnalysisInterface* widget;
         std::shared_ptr<VariableData> _outputData;
+        bool m_enabled = false;
     };
 }

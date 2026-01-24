@@ -18,6 +18,7 @@
 #include <memory>
 #include <algorithm>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -30,6 +31,9 @@ namespace Nodes
     class ObjectDetectionDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(double confidence READ getConfidence WRITE setConfidence NOTIFY confidenceChanged)
+        Q_PROPERTY(int filterClassIndex READ getFilterClassIndex WRITE setFilterClassIndex NOTIFY filterClassIndexChanged)
+        Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged)
 
         public:
         ObjectDetectionDataModel()
@@ -45,22 +49,94 @@ namespace Nodes
             m_outImage=std::make_shared<ImageData>();
             model_path="./plugins/Models/yolo11n-Detection.onnx";
             // model_path="./plugins/Models/AnimeGANv3_Hayao_36.onnx";
-
-            AbstractDelegateModel::registerOSCControl("/enable",widget->EnableBtn);
-            AbstractDelegateModel::registerOSCControl("/filter",widget->ClassSelectorComboBox);
-            AbstractDelegateModel::registerOSCControl("/confidence",widget->ConfidenceFilterSpinBox);
-
+            AbstractDelegateModel::registerExternalControl("/enable",widget->EnableBtn);
+            AbstractDelegateModel::registerExternalControl("/filter",widget->ClassSelectorComboBox);
+            AbstractDelegateModel::registerExternalControl("/confidence",widget->ConfidenceFilterSpinBox);
+            // Connect widget signals
+            connect(widget->ConfidenceFilterSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+                    this, &ObjectDetectionDataModel::setConfidence);
+            connect(widget->ClassSelectorComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this, &ObjectDetectionDataModel::setFilterClassIndex);
+            connect(widget->EnableBtn, &QPushButton::clicked,
+                    this, &ObjectDetectionDataModel::setEnabled);
         }
- 
-         /**
-          * @brief 安全析构：取消异步推理并释放ONNX资源
-          */
-         virtual ~ObjectDetectionDataModel() override{
-             cancelPendingInference();
-             m_ortSession.reset();
-             m_sessionOptions.reset();
-             m_ortEnv.reset();
-         }
+        /**
+         * @brief 安全析构：取消异步推理并释放ONNX资源
+         */
+        ~ObjectDetectionDataModel() override{
+            cancelPendingInference();
+            m_ortSession.reset();
+            m_sessionOptions.reset();
+            m_ortEnv.reset();
+        }
+        void afterModelReady() override
+        {
+            AbstractDelegateModel::afterModelReady();
+            auto bus = GlobalEventBus::instance();
+            
+            bus->subscribe(makeFullOscAddress("/confidence"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/filter"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        }
+
+    public:
+        double getConfidence() const { return m_confThreshold; }
+        void setConfidence(double value) {
+            if (qFuzzyCompare(m_confThreshold, value)) return;
+            m_confThreshold = value;
+            if (widget && !qFuzzyCompare(widget->ConfidenceFilterSpinBox->value(), value)) {
+                QSignalBlocker blocker(widget->ConfidenceFilterSpinBox);
+                widget->ConfidenceFilterSpinBox->setValue(value);
+            }
+            emit confidenceChanged(value);
+            AbstractDelegateModel::stateFeedBack("/confidence", value);
+            imageReasoning();
+        }
+
+        int getFilterClassIndex() const { return m_selectedClassId; }
+        void setFilterClassIndex(int value) {
+            if (m_selectedClassId == value) return;
+            m_selectedClassId = value;
+            if (widget && widget->ClassSelectorComboBox->currentIndex() != value) {
+                QSignalBlocker blocker(widget->ClassSelectorComboBox);
+                widget->ClassSelectorComboBox->setCurrentIndex(value);
+            }
+            emit filterClassIndexChanged(value);
+            AbstractDelegateModel::stateFeedBack("/filter", value);
+            imageReasoning();
+        }
+
+        bool isEnabled() const { return m_enabled; }
+        void setEnabled(bool value) {
+            if (m_enabled == value) return;
+            m_enabled = value;
+            if (widget && widget->EnableBtn->isChecked() != value) {
+                QSignalBlocker blocker(widget->EnableBtn);
+                widget->EnableBtn->setChecked(value);
+            }
+            emit enabledChanged(value);
+            AbstractDelegateModel::stateFeedBack("/enable", value);
+            imageReasoning();
+        }
+
+    Q_SIGNALS:
+        void confidenceChanged(double value);
+        void filterClassIndexChanged(int value);
+        void enabledChanged(bool value);
+
+    private Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            
+            if (localPath == "confidence") {
+                setConfidence(ev.payload.toDouble());
+            } else if (localPath == "filter") {
+                setFilterClassIndex(ev.payload.toInt());
+            } else if (localPath == "enable") {
+                setEnabled(ev.payload.toBool());
+            }
+        }
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
@@ -131,7 +207,7 @@ namespace Nodes
      */
     void imageReasoning()
     {
-        if (!m_inImage0 || !widget->EnableBtn->isChecked()) {
+        if (!m_inImage0 || !m_enabled) {
             m_outVariable = std::make_shared<VariableData>();
             emit dataUpdated(1);
             return;
@@ -143,8 +219,11 @@ namespace Nodes
             return;
         }
         cv::Mat matCopy = m_inImage0->imgMat();
-        auto future = QtConcurrent::run([this, matCopy](){
-            runInferenceOnImage(matCopy);
+        double conf = m_confThreshold;
+        int clsId = m_selectedClassId;
+        
+        auto future = QtConcurrent::run([this, matCopy, conf, clsId](){
+            runInferenceOnImage(matCopy, conf, clsId);
         });
         m_inferenceWatcher->setFuture(future);
     }
@@ -153,7 +232,7 @@ namespace Nodes
      * @brief 在工作线程中执行推理与后处理，并在主线程更新输出
      * @param inputImage 输入图像副本
      */
-    void runInferenceOnImage(cv::Mat inputImage)
+    void runInferenceOnImage(cv::Mat inputImage, double confidence, int classId)
     {
         if (inputImage.empty()) return;
         if (m_cancelRequested.load()) return;
@@ -182,15 +261,17 @@ namespace Nodes
             auto outputTensors = m_ortSession->Run(Ort::RunOptions{nullptr},
                                                    m_inputNames.data(), &inputTensor, 1,
                                                    m_outputNames.data(), m_outputNames.size());
-            if (widget) {
-                m_confThreshold = widget->ConfidenceFilterSpinBox->value();
-                m_selectedClassId = widget->ClassSelectorComboBox->currentIndex();
-            }
+
             if (m_cancelRequested.load()) return;
-            cv::Mat resultImage = postProcessOnnxResults(outputTensors, inputImage, m_modelInputSize);
-            QMetaObject::invokeMethod(this, [this, resultImage](){
+            
+            QVariantMap detectionResults;
+            cv::Mat resultImage = postProcessOnnxResults(outputTensors, inputImage, m_modelInputSize, static_cast<float>(confidence), classId, detectionResults);
+            
+            QMetaObject::invokeMethod(this, [this, resultImage, detectionResults](){
                 m_outImage = std::make_shared<ImageData>(resultImage);
+                m_outVariable = std::make_shared<VariableData>(detectionResults);
                 emit dataUpdated(0);
+                emit dataUpdated(1);
             }, Qt::QueuedConnection);
         } catch (const Ort::Exception& e) {
             qDebug() << "ONNX Runtime错误:" << e.what();
@@ -222,9 +303,12 @@ namespace Nodes
      * @param outputTensors ONNX Runtime的输出张量
      * @param originalImage 原始输入图像
      * @param inputSize 模型输入尺寸
+     * @param confidence 置信度阈值
+     * @param classId 筛选的类别ID
+     * @param outDetectionResults 输出的检测结果数据
      * @return 带有检测框标注的图像
      */
-    cv::Mat postProcessOnnxResults(std::vector<Ort::Value>& outputTensors, const cv::Mat& originalImage, const cv::Size& inputSize)
+    cv::Mat postProcessOnnxResults(std::vector<Ort::Value>& outputTensors, const cv::Mat& originalImage, const cv::Size& inputSize, float confidence, int classId, QVariantMap& outDetectionResults)
     {
         cv::Mat resultImage = originalImage.clone();
 
@@ -248,8 +332,9 @@ namespace Nodes
         const int numBoxes = outputShape[2];
 
         // 过滤参数
-        const float confidenceThreshold = static_cast<float>(m_confThreshold);
-        const int selectedClassId = m_selectedClassId;
+        const float confidenceThreshold = confidence;
+        const int selectedClassId = classId;
+
         const bool filterByClass = (selectedClassId >= 0 && selectedClassId < numClasses);
         
         // 预计算缩放比例
@@ -334,12 +419,9 @@ namespace Nodes
 
         if (boxes.empty()) {
             // 构建空的检测结果
-            QVariantMap detectionResults;
             QVariantList detectionsArray;
-            detectionResults["default"] = detectionsArray;
-            detectionResults["total_detections"] = 0;
-            m_outVariable = std::make_shared<VariableData>(detectionResults);
-            emit dataUpdated(1);
+            outDetectionResults["default"] = detectionsArray;
+            outDetectionResults["total_detections"] = 0;
             return resultImage;
         }
 
@@ -402,8 +484,7 @@ namespace Nodes
                        cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
         }
 
-        // 构建检测结果数据并输出到第二个端口
-        QVariantMap detectionResults;
+        // 构建检测结果数据
         QVariantList detectionsArray;
 
         for (const int idx : indices) {
@@ -424,15 +505,8 @@ namespace Nodes
             detectionsArray.append(detection);
         }
 
-        detectionResults["default"] = detectionsArray;
-        // detectionResults["filter_confidence"] = confidenceThreshold;
-        // detectionResults["filter_class_id"] = filterByClass ? selectedClassId : -1;
-        // detectionResults["filter_class_name"] = filterByClass ? QString::fromStdString(classNames[selectedClassId]) : "All";
-        detectionResults["total_detections"] = detectionCount;
-
-        // 输出检测结果到第二个端口
-        m_outVariable = std::make_shared<VariableData>(detectionResults);
-        emit dataUpdated(1);
+        outDetectionResults["default"] = detectionsArray;
+        outDetectionResults["total_detections"] = detectionCount;
 
         return resultImage;
     }
@@ -453,13 +527,13 @@ namespace Nodes
             QJsonObject modelJson = NodeDelegateModel::save();
             
             // 保存置信度阈值
-            modelJson1["confidence"] = widget->ConfidenceFilterSpinBox->value();
+            modelJson1["confidence"] = m_confThreshold;
             
             // 保存类别选择索引
-            modelJson1["classIndex"] = widget->ClassSelectorComboBox->currentIndex();
+            modelJson1["classIndex"] = m_selectedClassId;
             
             // 保存启用状态
-            modelJson1["enabled"] = widget->EnableBtn->isChecked();
+            modelJson1["enabled"] = m_enabled;
             
             modelJson["values"] = modelJson1;
             return modelJson;
@@ -478,22 +552,17 @@ namespace Nodes
                 
                 // 加载置信度阈值
                 if (values.contains("confidence")) {
-                    double confidence = values["confidence"].toDouble(0.4);
-                    widget->ConfidenceFilterSpinBox->setValue(confidence);
+                    setConfidence(values["confidence"].toDouble(0.4));
                 }
                 
                 // 加载类别选择索引
                 if (values.contains("classIndex")) {
-                    int classIndex = values["classIndex"].toInt(0);
-                    if (classIndex >= 0 && classIndex < widget->ClassSelectorComboBox->count()) {
-                        widget->ClassSelectorComboBox->setCurrentIndex(classIndex);
-                    }
+                    setFilterClassIndex(values["classIndex"].toInt(0));
                 }
                 
                 // 加载启用状态
                 if (values.contains("enabled")) {
-                    bool enabled = values["enabled"].toBool(true);
-                    widget->EnableBtn->setChecked(enabled);
+                    setEnabled(values["enabled"].toBool(true));
                 }
             }
         }
@@ -620,7 +689,8 @@ namespace Nodes
         QString model_path;
         double m_confThreshold = 0.4;
         int m_selectedClassId = 0;
-         // ONNX Runtime缓存资源
+        bool m_enabled = false;
+        // ONNX Runtime缓存资源
         std::unique_ptr<Ort::Env> m_ortEnv;
         std::unique_ptr<Ort::Session> m_ortSession;
         std::unique_ptr<Ort::SessionOptions> m_sessionOptions;

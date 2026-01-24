@@ -9,6 +9,7 @@
 #include <QString>
 #include "OSCMessage.h"
 #include "StatusItem.h"
+#include "GlobalEventBus.hpp"
 
 
 #ifdef STATUSCONTAINER_LIBRARY
@@ -35,7 +36,7 @@ public:
      * 函数级注释：按地址写入状态的便捷方法（不保留 host/port）。
      */
     bool updateState(const QString& address, const QVariant& value, const QString& type = QString());
-
+    
     /**
      * 函数级注释：判断是否存在指定地址的状态
      */
@@ -81,6 +82,12 @@ public slots:
      * @param const StatusItem& message 接收到的状态数据
      */
     void parseStatus(const StatusItem& message);
+
+    /**
+     * 函数级注释：处理来自 GlobalEventBus 的状态反馈事件
+     * - 仅在事件类型为 StateFeedback 时，将其转发到 updateState 流程
+     */
+    void onGlobalEvent(const GlobalEvent& ev);
 
 signals:
     /**

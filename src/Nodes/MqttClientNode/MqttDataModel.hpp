@@ -11,6 +11,9 @@
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/MqttClient/MqttClient.h"
 #include <QtWidgets/QSpinBox>
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
+
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -23,7 +26,13 @@ namespace Nodes
     class MqttDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
-
+        Q_PROPERTY(QString host READ getHost WRITE setHost NOTIFY hostChanged)
+        Q_PROPERTY(int port READ getPort WRITE setPort NOTIFY portChanged)
+        Q_PROPERTY(QString username READ getUsername WRITE setUsername NOTIFY usernameChanged)
+        Q_PROPERTY(QString password READ getPassword WRITE setPassword NOTIFY passwordChanged)
+        Q_PROPERTY(QString topic READ getTopic WRITE setTopic NOTIFY topicChangedProp)
+        Q_PROPERTY(QString payload READ getPayload WRITE setPayload NOTIFY payloadChanged)
+        
     public:
         MqttDataModel()
         {
@@ -36,20 +45,21 @@ namespace Nodes
             PortEditable = false;
             m_outData = std::make_shared<VariableData>();
 
-            AbstractDelegateModel::registerOSCControl("/host", widget->hostEdit);
-            AbstractDelegateModel::registerOSCControl("/port", widget->portSpinBox);
-            AbstractDelegateModel::registerOSCControl("/username", widget->usernameEdit);
-            AbstractDelegateModel::registerOSCControl("/password", widget->passwordEdit);
-            AbstractDelegateModel::registerOSCControl("/topic", widget->topicEdit);
-            AbstractDelegateModel::registerOSCControl("/payload", widget->payloadEdit);
-            AbstractDelegateModel::registerOSCControl("/publish", widget->publishButton);
-            AbstractDelegateModel::registerOSCControl("/connect", widget->statusButton);
+            AbstractDelegateModel::registerExternalControl("/host", widget->hostEdit);
+            AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
+            AbstractDelegateModel::registerExternalControl("/username", widget->usernameEdit);
+            AbstractDelegateModel::registerExternalControl("/password", widget->passwordEdit);
+            AbstractDelegateModel::registerExternalControl("/topic", widget->topicEdit);
+            AbstractDelegateModel::registerExternalControl("/payload", widget->payloadEdit);
+            AbstractDelegateModel::registerExternalControl("/publish", widget->publishButton);
+            AbstractDelegateModel::registerExternalControl("/connect", widget->statusButton);
 
-            connect(widget->hostEdit, &QLineEdit::editingFinished, this, &MqttDataModel::connectChange, Qt::QueuedConnection);
-            connect(widget->portSpinBox, qOverload<int>(&QSpinBox::valueChanged), this, &MqttDataModel::connectChange, Qt::QueuedConnection);
-            connect(widget->usernameEdit, &QLineEdit::editingFinished, this, &MqttDataModel::connectChange, Qt::QueuedConnection);
-            connect(widget->passwordEdit, &QLineEdit::editingFinished, this, &MqttDataModel::connectChange, Qt::QueuedConnection);
-            connect(widget->topicEdit, &QLineEdit::editingFinished, this, &MqttDataModel::topicChanged, Qt::QueuedConnection);
+            connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this](){ setHost(widget->hostEdit->text()); });
+            connect(widget->portSpinBox, qOverload<int>(&QSpinBox::valueChanged), this, &MqttDataModel::setPort);
+            connect(widget->usernameEdit, &QLineEdit::editingFinished, this, [this](){ setUsername(widget->usernameEdit->text()); });
+            connect(widget->passwordEdit, &QLineEdit::editingFinished, this, [this](){ setPassword(widget->passwordEdit->text()); });
+            connect(widget->topicEdit, &QLineEdit::editingFinished, this, [this](){ setTopic(widget->topicEdit->text()); });
+            connect(widget->payloadEdit, &QLineEdit::editingFinished, this, [this](){ setPayload(widget->payloadEdit->text()); });
 
             connect(widget->publishButton, &QPushButton::clicked, this, &MqttDataModel::publishMessage, Qt::QueuedConnection);
 
@@ -61,7 +71,7 @@ namespace Nodes
                 widget->statusButton->setStyleSheet(ready ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;");
                 if (ready) {
                     // 自动订阅当前主题
-                    client->subscribe(widget->topicEdit->text(), widget->qosCombo->currentData().toInt());
+                    client->subscribe(m_topic, widget->qosCombo->currentData().toInt());
                 }
             }, Qt::QueuedConnection);
             connect(client, &MqttClient::messageReceived, this, &MqttDataModel::onMessage, Qt::QueuedConnection);
@@ -136,19 +146,18 @@ namespace Nodes
             if (!v) return;
             switch (portIndex) {
             case 0:
-                widget->hostEdit->setText(v->value().toString());
+                setHost(v->value().toString());
                 connectChange();
                 break;
             case 1:
-                widget->portSpinBox->setValue(v->value().toInt());
+                setPort(v->value().toInt());
                 connectChange();
                 break;
             case 2:
-                widget->topicEdit->setText(v->value().toString());
-                topicChanged();
+                setTopic(v->value().toString());
                 break;
             case 3:
-                widget->payloadEdit->setText(v->value().toString());
+                setPayload(v->value().toString());
                 publishMessage();
                 break;
             case 4:
@@ -160,16 +169,16 @@ namespace Nodes
 
         QJsonObject save() const override
         {
-            QJsonObject modelJson1;
-            modelJson1["host"] = widget->hostEdit->text();
-            modelJson1["port"] = widget->portSpinBox->value();
-            modelJson1["username"] = widget->usernameEdit->text();
-            modelJson1["password"] = widget->passwordEdit->text();
-            modelJson1["topic"] = widget->topicEdit->text();
-            modelJson1["payload"] = widget->payloadEdit->text();
-            modelJson1["qos"] = widget->qosCombo->currentIndex();
             QJsonObject modelJson = NodeDelegateModel::save();
-            modelJson["values"] = modelJson1;
+            QJsonObject values;
+            values["host"] = m_host;
+            values["port"] = m_port;
+            values["username"] = m_username;
+            values["password"] = m_password;
+            values["topic"] = m_topic;
+            values["payload"] = m_payload;
+            values["qos"] = widget->qosCombo->currentIndex();
+            modelJson["values"] = values;
             return modelJson;
         }
 
@@ -177,13 +186,15 @@ namespace Nodes
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined() && v.isObject()) {
-                widget->hostEdit->setText(v["host"].toString());
-                widget->portSpinBox->setValue(v["port"].toInt());
-                widget->usernameEdit->setText(v["username"].toString());
-                widget->passwordEdit->setText(v["password"].toString());
-                widget->topicEdit->setText(v["topic"].toString());
-                widget->payloadEdit->setText(v["payload"].toString());
-                widget->qosCombo->setCurrentIndex(v["qos"].toInt());
+                QJsonObject values = v.toObject();
+                if (values.contains("host")) setHost(values["host"].toString());
+                if (values.contains("port")) setPort(values["port"].toInt());
+                if (values.contains("username")) setUsername(values["username"].toString());
+                if (values.contains("password")) setPassword(values["password"].toString());
+                if (values.contains("topic")) setTopic(values["topic"].toString());
+                if (values.contains("payload")) setPayload(values["payload"].toString());
+                if (values.contains("qos")) widget->qosCombo->setCurrentIndex(values["qos"].toInt());
+                
                 connectChange();
             }
         }
@@ -209,29 +220,40 @@ namespace Nodes
             return result;
         }
 
+        void afterModelReady() override
+        {
+            AbstractDelegateModel::afterModelReady();
+            auto bus = GlobalEventBus::instance();
+            
+            bus->subscribe(makeFullOscAddress("/host"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/port"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/username"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/password"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/topic"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/payload"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/connect"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/publish"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            
+            // Initial feedback
+            AbstractDelegateModel::stateFeedBack("/host", m_host);
+            AbstractDelegateModel::stateFeedBack("/port", m_port);
+            AbstractDelegateModel::stateFeedBack("/username", m_username);
+            AbstractDelegateModel::stateFeedBack("/password", m_password);
+            AbstractDelegateModel::stateFeedBack("/topic", m_topic);
+            AbstractDelegateModel::stateFeedBack("/payload", m_payload);
+        }
+
     public slots:
         void connectChange()
         {
             if (!client) return;
-            client->connectToHost(widget->hostEdit->text(),
-                                  widget->portSpinBox->value(),
-                                  widget->usernameEdit->text(),
-                                  widget->passwordEdit->text());
-        }
-
-        void topicChanged()
-        {
-            if (!client) return;
-            client->subscribe(widget->topicEdit->text(), widget->qosCombo->currentData().toInt());
+            client->connectToHost(m_host, m_port, m_username, m_password);
         }
 
         void publishMessage()
         {
             if (!client) return;
-            client->publish(widget->topicEdit->text(),
-                            widget->payloadEdit->text(),
-                            widget->qosCombo->currentData().toInt(),
-                            false);
+            client->publish(m_topic, m_payload, widget->qosCombo->currentData().toInt(), false);
         }
 
         void onMessage(const QString &topic, const QByteArray &payload)
@@ -253,9 +275,120 @@ namespace Nodes
             stateFeedBack("/error", err);
         }
 
+    public:
+        // Property Getters and Setters
+        QString getHost() const { return m_host; }
+        void setHost(const QString& value) {
+            if (m_host == value) return;
+            m_host = value;
+            if (widget && widget->hostEdit->text() != value) {
+                QSignalBlocker blocker(widget->hostEdit);
+                widget->hostEdit->setText(value);
+            }
+            emit hostChanged(value);
+            AbstractDelegateModel::stateFeedBack("/host", value);
+            connectChange();
+        }
+
+        int getPort() const { return m_port; }
+        void setPort(int value) {
+            if (m_port == value) return;
+            m_port = value;
+            if (widget && widget->portSpinBox->value() != value) {
+                QSignalBlocker blocker(widget->portSpinBox);
+                widget->portSpinBox->setValue(value);
+            }
+            emit portChanged(value);
+            AbstractDelegateModel::stateFeedBack("/port", value);
+            connectChange();
+        }
+
+        QString getUsername() const { return m_username; }
+        void setUsername(const QString& value) {
+            if (m_username == value) return;
+            m_username = value;
+            if (widget && widget->usernameEdit->text() != value) {
+                QSignalBlocker blocker(widget->usernameEdit);
+                widget->usernameEdit->setText(value);
+            }
+            emit usernameChanged(value);
+            AbstractDelegateModel::stateFeedBack("/username", value);
+            connectChange();
+        }
+
+        QString getPassword() const { return m_password; }
+        void setPassword(const QString& value) {
+            if (m_password == value) return;
+            m_password = value;
+            if (widget && widget->passwordEdit->text() != value) {
+                QSignalBlocker blocker(widget->passwordEdit);
+                widget->passwordEdit->setText(value);
+            }
+            emit passwordChanged(value);
+            AbstractDelegateModel::stateFeedBack("/password", value);
+            connectChange();
+        }
+
+        QString getTopic() const { return m_topic; }
+        void setTopic(const QString& value) {
+            if (m_topic == value) return;
+            m_topic = value;
+            if (widget && widget->topicEdit->text() != value) {
+                QSignalBlocker blocker(widget->topicEdit);
+                widget->topicEdit->setText(value);
+            }
+            if (client) {
+                client->subscribe(value, widget->qosCombo->currentData().toInt());
+            }
+            emit topicChangedProp(value);
+            AbstractDelegateModel::stateFeedBack("/topic", value);
+        }
+
+        QString getPayload() const { return m_payload; }
+        void setPayload(const QString& value) {
+            if (m_payload == value) return;
+            m_payload = value;
+            if (widget && widget->payloadEdit->text() != value) {
+                QSignalBlocker blocker(widget->payloadEdit);
+                widget->payloadEdit->setText(value);
+            }
+            emit payloadChanged(value);
+            AbstractDelegateModel::stateFeedBack("/payload", value);
+        }
+
+    Q_SIGNALS:
+        void hostChanged(QString value);
+        void portChanged(int value);
+        void usernameChanged(QString value);
+        void passwordChanged(QString value);
+        void topicChangedProp(QString value);
+        void payloadChanged(QString value);
+        void qosChanged(int value);
+
+    private Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            if (localPath == "host") setHost(ev.payload.toString());
+            else if (localPath == "port") setPort(ev.payload.toInt());
+            else if (localPath == "username") setUsername(ev.payload.toString());
+            else if (localPath == "password") setPassword(ev.payload.toString());
+            else if (localPath == "topic") setTopic(ev.payload.toString());
+            else if (localPath == "payload") setPayload(ev.payload.toString());
+            else if (localPath == "connect") connectChange();
+            else if (localPath == "publish") publishMessage();
+        }
+
     private:
         MqttInterface *widget = new MqttInterface();
         MqttClient *client = nullptr;
         std::shared_ptr<VariableData> m_outData;
+
+        QString m_host;
+        int m_port = 1883;
+        QString m_username;
+        QString m_password;
+        QString m_topic;
+        QString m_payload;
     };
 }

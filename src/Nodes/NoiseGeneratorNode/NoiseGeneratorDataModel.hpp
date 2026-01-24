@@ -14,6 +14,7 @@
 #include "QTimer"
 #include "NoiseGenerator.hpp"
 #include "QThread"
+#include "StatusContainer/GlobalEventBus.hpp"
 
 
 using namespace std;
@@ -32,6 +33,10 @@ namespace Nodes
     class NoiseGeneratorDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(double volume READ getVolume WRITE setVolume NOTIFY volumeChanged)
+        Q_PROPERTY(int noiseType READ getNoiseType WRITE setNoiseType NOTIFY noiseTypeChanged)
+        Q_PROPERTY(bool generating READ isGenerating WRITE setGenerating NOTIFY generatingChanged)
+
     public:
         /**
          * @brief 构造函数，初始化噪音生成器Node
@@ -53,19 +58,17 @@ namespace Nodes
         
             // 连接信号
             connect(widget->startButton, &QPushButton::clicked,
-                    this, &NoiseGeneratorDataModel::startGeneration, Qt::QueuedConnection);
+                    this, [this](){ setGenerating(true); });
             connect(widget->stopButton, &QPushButton::clicked,
-                    this, &NoiseGeneratorDataModel::stopGeneration, Qt::QueuedConnection);
+                    this, [this](){ setGenerating(false); });
             connect(widget->volumeSlider, &QDoubleSpinBox::valueChanged,
-                    this, &NoiseGeneratorDataModel::onVolumeChanged, Qt::QueuedConnection);
+                    this, &NoiseGeneratorDataModel::setVolume);
             connect(widget->noiseTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                    this, &NoiseGeneratorDataModel::onNoiseTypeChanged, Qt::QueuedConnection);
-
-            // 注册OSC控制
-            AbstractDelegateModel::registerOSCControl("/volume", widget->volumeSlider);
-            AbstractDelegateModel::registerOSCControl("/noise_type", widget->noiseTypeCombo);
-            AbstractDelegateModel::registerOSCControl("/start", widget->startButton);
-            AbstractDelegateModel::registerOSCControl("/stop", widget->stopButton);
+                    this, &NoiseGeneratorDataModel::setNoiseType);
+            AbstractDelegateModel::registerExternalControl("/volume", widget->volumeSlider);
+            AbstractDelegateModel::registerExternalControl("/noise_type", widget->noiseTypeCombo);
+            AbstractDelegateModel::registerExternalControl("/start", widget->startButton);
+            AbstractDelegateModel::registerExternalControl("/stop", widget->stopButton);
         }
 
         /**
@@ -75,6 +78,18 @@ namespace Nodes
             if (generator->isGenerating()){
                 generator->stopGeneration();
             }
+        }
+
+        void afterModelReady() override
+        {
+            AbstractDelegateModel::afterModelReady();
+            auto bus = GlobalEventBus::instance();
+            
+            // Subscribe to properties
+            bus->subscribe(makeFullOscAddress("/volume"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/type"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/start"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
         /**
@@ -143,32 +158,13 @@ namespace Nodes
                 if (auto variableData = std::dynamic_pointer_cast<VariableData>(data)) {
                     switch (portIndex) {
                     case 0: // 音量控制
-                        {
-                            double volume = variableData->value().toDouble();
-                            generator->setVolume(volume);
-                            widget->volumeSlider->setValue(volume);
-                        }
-
+                        setVolume(variableData->value().toDouble());
                         break;
                     case 1: // 噪音类型控制
-                        {
-                            int type = variableData->value().toInt();
-                            if (type >= 0 && type < 2)
-                            {
-                                generator->setNoiseType(static_cast<NoiseType>(type));
-                                widget->noiseTypeCombo->setCurrentIndex(type);
-                            }
-                        }
+                        setNoiseType(variableData->value().toInt());
                         break;
                     case 2: // 启动停止
-                        {
-                            bool type = variableData->value().toBool();
-                            if (type)
-                            {
-                                widget->startButton->click();
-                            }else
-                                widget->stopButton->click();
-                        }
+                        setGenerating(variableData->value().toBool());
                         break;
                     }
                 }
@@ -190,10 +186,12 @@ namespace Nodes
          */
         QJsonObject save() const override
         {
-            QJsonObject obj;
-            obj["volume"] = static_cast<double>(generator->getVolume());
-            obj["noiseType"] = static_cast<int>(generator->getNoiseType());
-            obj["generating"] = generator->isGenerating();
+            QJsonObject obj = NodeDelegateModel::save();
+            QJsonObject values;
+            values["volume"] = m_volume;
+            values["noiseType"] = m_noiseType;
+            values["generating"] = m_generating;
+            obj["values"] = values;
             return obj;
         }
 
@@ -203,62 +201,102 @@ namespace Nodes
          */
         void load(const QJsonObject &p) override
         {
-            if (p.contains("volume")) {
-                double volume = p["volume"].toDouble();
-                generator->setVolume(volume);
-                widget->volumeSlider->setValue(volume);
-            }
-            
-            if (p.contains("noiseType")) {
-                int type = p["noiseType"].toInt();
-                generator->setNoiseType(static_cast<NoiseType>(type));
-                widget->noiseTypeCombo->setCurrentIndex(type);
-            }
-            
-            if (p.contains("generating") && p["generating"].toBool()) {
-                generator->startGeneration();
+            QJsonValue v = p["values"];
+            if (!v.isUndefined() && v.isObject()) {
+                QJsonObject values = v.toObject();
+                if (values.contains("volume")) {
+                    setVolume(values["volume"].toDouble());
+                }
+                if (values.contains("noiseType")) {
+                    setNoiseType(values["noiseType"].toInt());
+                }
+                if (values.contains("generating")) {
+                    setGenerating(values["generating"].toBool());
+                }
+                NodeDelegateModel::load(p);
             }
         }
 
-    public slots:
-        /**
-         * @brief 开始生成噪音
-         */
-        void startGeneration() {
-            // qDebug() << "Starting Noise Generator"<<TimestampGenerator::getInstance()->getCurrentFrameCount()<<TimestampGenerator::getInstance()->calculateFrameCountByTimeDelta(101);
-            generator->startGeneration();
-            widget->startButton->setEnabled(false);
-            widget->stopButton->setEnabled(true);
-        }
-
-        /**
-         * @brief 停止生成噪音
-         */
-        void stopGeneration() {
-            generator->stopGeneration();
-            widget->startButton->setEnabled(true);
-            widget->stopButton->setEnabled(false);
-        }
-
-        /**
-         * @brief 音量改变槽函数
-         * @param value 音量值
-         */
-        void onVolumeChanged(double value) {
+    public:
+        double getVolume() const { return m_volume; }
+        void setVolume(double value) {
+            if (qFuzzyCompare(m_volume, value)) return;
+            m_volume = value;
             generator->setVolume(value);
+            
+            if (widget && !qFuzzyCompare(widget->volumeSlider->value(), value)) {
+                QSignalBlocker blocker(widget->volumeSlider);
+                widget->volumeSlider->setValue(value);
+            }
+            
+            emit volumeChanged(value);
+            AbstractDelegateModel::stateFeedBack("/volume", value);
         }
 
-        /**
-         * @brief 噪音类型改变槽函数
-         * @param index 类型索引
-         */
-        void onNoiseTypeChanged(int index) {
-            generator->setNoiseType(static_cast<NoiseType>(index));
+        int getNoiseType() const { return m_noiseType; }
+        void setNoiseType(int value) {
+            if (m_noiseType == value) return;
+            if (value < 0 || value >= 2) return;
+            
+            m_noiseType = value;
+            generator->setNoiseType(static_cast<NoiseType>(value));
+            
+            if (widget && widget->noiseTypeCombo->currentIndex() != value) {
+                QSignalBlocker blocker(widget->noiseTypeCombo);
+                widget->noiseTypeCombo->setCurrentIndex(value);
+            }
+            
+            emit noiseTypeChanged(value);
+            AbstractDelegateModel::stateFeedBack("/type", value);
+        }
+
+        bool isGenerating() const { return m_generating; }
+        void setGenerating(bool value) {
+            if (m_generating == value) return;
+            m_generating = value;
+            
+            if (value) {
+                generator->startGeneration();
+                widget->startButton->setEnabled(false);
+                widget->stopButton->setEnabled(true);
+            } else {
+                generator->stopGeneration();
+                widget->startButton->setEnabled(true);
+                widget->stopButton->setEnabled(false);
+            }
+            
+            emit generatingChanged(value);
+            AbstractDelegateModel::stateFeedBack("/start", value);
+        }
+
+    Q_SIGNALS:
+        void volumeChanged(double value);
+        void noiseTypeChanged(int value);
+        void generatingChanged(bool value);
+
+    private Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            
+            if (localPath == "volume") {
+                setVolume(ev.payload.toDouble());
+            } else if (localPath == "type") {
+                setNoiseType(ev.payload.toInt());
+            } else if (localPath == "start") {
+                setGenerating(true);
+            } else if (localPath == "stop") {
+                setGenerating(false);
+            }
         }
     
     private:
         NoiseGeneratorInterface *widget = new NoiseGeneratorInterface();
         NoiseGenerator *generator = new NoiseGenerator();
+        
+        double m_volume = 0.0;
+        int m_noiseType = 0;
+        bool m_generating = false;
 
     };
 }

@@ -124,7 +124,7 @@ void DataBridgeSelectorBox::onItemClicked(const QModelIndex& index) {
     if (!index.isValid()) return;
     const QString chosen = m_model->data(index, Qt::DisplayRole).toString();
     setText(chosen);
-    emit selectionChanged(chosen);
+    //emit selectionChanged(chosen);
     m_popupFrame->hide();
     m_popupVisible = false;
 }

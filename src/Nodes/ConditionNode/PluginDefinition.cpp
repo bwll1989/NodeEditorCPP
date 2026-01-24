@@ -1,6 +1,7 @@
 #include "PluginDefinition.hpp"
 
 #include "ConditionDataModel.hpp"
+#include "FilterDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -19,4 +20,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
     assert(reg);
 
     reg->registerModel<Nodes::ConditionDataModel>(name(),tag());
+    reg->registerModel<Nodes::FilterDataModel>("Filter",tag());
 }

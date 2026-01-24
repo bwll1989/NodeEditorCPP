@@ -16,7 +16,12 @@ StatusContainer* StatusContainer::instance() {
     return &inst;
 }
 
-StatusContainer::StatusContainer(QObject* parent) : QObject(parent) {}
+StatusContainer::StatusContainer(QObject* parent) : QObject(parent)
+{
+    // 函数级注释：订阅全局事件总线，监听状态反馈事件并转发到本地状态更新
+    connect(GlobalEventBus::instance(), &GlobalEventBus::eventPublished,
+            this, &StatusContainer::onGlobalEvent);
+}
 
 void StatusContainer::registerWidget(QWidget* p, const QString& a) {
 
@@ -106,6 +111,17 @@ void StatusContainer::clearAll() {
     _queue.clear();
 }
 
+void StatusContainer::onGlobalEvent(const GlobalEvent& ev) {
+    // 函数级注释：收到全局事件总线的状态反馈事件时，将其转换为本地状态更新
+    if (ev.kind != GlobalEventKind::StateFeedback) {
+        return;
+    }
+    if (ev.address.isEmpty()) {
+        return;
+    }
+    updateState(ev.address, ev.payload);
+}
+
 QWidget* StatusContainer::getWidget(const QString& address) {
     // 函数级注释：直接通过 StatusContainer 使用完整地址查找控件，并按类型安全设置其状态或触发动作
     if (!StatusContainer::instance()->contains(address)) {
@@ -118,158 +134,18 @@ QWidget* StatusContainer::getWidget(const QString& address) {
 
 
 void StatusContainer::parseOSC(const OSCMessage &message) {
-    QWidget* widget = getWidget(message.address);
-    if (!widget) {
-        qDebug() << "Invalid widget pointer for address:" << message.address;
+    // 函数级注释：将外部 OSC 消息转换为命令事件，交由全局事件总线驱动业务逻辑
+    if (message.address.isEmpty()) {
         return;
     }
-    
-    // 使用 QTimer::singleShot(0, ...) 确保所有 UI 更新都在主线程执行
-    // 并且通过 Lambda 捕获值，避免 worker 线程访问 UI 或状态不一致问题
-
-    if (auto* spinBox = qobject_cast<QSpinBox*>(widget)) {
-        int v = message.value.toInt();
-        QTimer::singleShot(0, spinBox, [spinBox, v](){ spinBox->setValue(v); });
-    }
-    else if (auto* doubleSpinBox = qobject_cast<QDoubleSpinBox*>(widget)) {
-        double v = message.value.toDouble();
-        QTimer::singleShot(0, doubleSpinBox, [doubleSpinBox, v](){ doubleSpinBox->setValue(v); });
-    }
-    else if (auto* slider = qobject_cast<QSlider*>(widget)) {
-        int v = message.value.toInt();
-        QTimer::singleShot(0, slider, [slider, v](){ slider->setValue(v); });
-    }
-    else if (auto* checkBox = qobject_cast<QCheckBox*>(widget)) {
-        bool v = message.value.toBool();
-        QTimer::singleShot(0, checkBox, [checkBox, v](){ checkBox->setChecked(v); });
-    }
-    else if (auto* fader = qobject_cast<FaderWidget*>(widget)) {
-        float v = message.value.toFloat();
-        QTimer::singleShot(0, fader, [fader, v](){ fader->setValue(v); });
-    }
-    else if (auto* pushButton = qobject_cast<QPushButton*>(widget)) {
-        bool v = message.value.toBool();
-        QTimer::singleShot(0, pushButton, [pushButton, v](){
-            // 对于 checkable 按钮，根据当前状态决定是否 click 以触发 clicked 信号并切换状态
-            // 避免直接 setChecked 导致不触发 clicked 信号，或 invokeMethod("click") 导致的逻辑错误
-            if (pushButton->isCheckable()) {
-                if (pushButton->isChecked() != v) {
-                    pushButton->click();
-                }
-            } else {
-                // 普通按钮仅在 true 时触发点击
-                if (v) {
-                    pushButton->click();
-                }
-            }
-        });
-    }
-    else if (auto* toolButton = qobject_cast<QToolButton*>(widget)) {
-        bool v = message.value.toBool();
-        QTimer::singleShot(0, toolButton, [toolButton, v](){
-            if (toolButton->isCheckable()) {
-                if (toolButton->isChecked() != v) {
-                    toolButton->click();
-                }
-            } else {
-                if (v) {
-                    toolButton->click();
-                }
-            }
-        });
-    }
-    else if (auto* comboBox = qobject_cast<QComboBox*>(widget)) {
-        int v = message.value.toInt();
-        QTimer::singleShot(0, comboBox, [comboBox, v](){ comboBox->setCurrentIndex(v); });
-    }
-    else if (auto* lineEdit = qobject_cast<QLineEdit*>(widget)) {
-        QString v = message.value.toString();
-        QTimer::singleShot(0, lineEdit, [lineEdit, v](){ lineEdit->setText(v); });
-    }
-    else if (auto* textEdit = qobject_cast<QTextEdit*>(widget)) {
-        QString v = message.value.toString();
-        QTimer::singleShot(0, textEdit, [textEdit, v](){ textEdit->setText(v); });
-    }
-    else {
-        qDebug() << "Unsupported widget type for address:" << message.address;
-    }
+    GlobalEventBus::instance()->publishCommand(message.address, message.value);
 }
 
 void StatusContainer::parseStatus(const StatusItem& message) {
-    QWidget* widget = getWidget(message.address);
-    if (!widget) {
-        qDebug() << "Invalid widget pointer for address:" << message.address;
+    // 函数级注释：将外部状态消息转换为状态反馈事件，写入全局事件总线
+    if (message.address.isEmpty()) {
         return;
     }
-     
-    // 使用 QTimer::singleShot(0, ...) 确保所有 UI 更新都在主线程执行
-    // 并且通过 Lambda 捕获值，避免 worker 线程访问 UI 或状态不一致问题
-
-    if (auto* spinBox = qobject_cast<QSpinBox*>(widget)) {
-        int v = message.value.toInt();
-        QTimer::singleShot(0, spinBox, [spinBox, v](){ spinBox->setValue(v); });
-    }
-    else if (auto* doubleSpinBox = qobject_cast<QDoubleSpinBox*>(widget)) {
-        double v = message.value.toDouble();
-        QTimer::singleShot(0, doubleSpinBox, [doubleSpinBox, v](){ doubleSpinBox->setValue(v); });
-    }
-    else if (auto* slider = qobject_cast<QSlider*>(widget)) {
-        int v = message.value.toInt();
-        QTimer::singleShot(0, slider, [slider, v](){ slider->setValue(v); });
-    }
-    else if (auto* checkBox = qobject_cast<QCheckBox*>(widget)) {
-        bool v = message.value.toBool();
-        QTimer::singleShot(0, checkBox, [checkBox, v](){ checkBox->setChecked(v); });
-    }
-    else if (auto* fader = qobject_cast<FaderWidget*>(widget)) {
-        float v = message.value.toFloat();
-        QTimer::singleShot(0, fader, [fader, v](){ fader->setValue(v); });
-    }
-    else if (auto* pushButton = qobject_cast<QPushButton*>(widget)) {
-        bool v = message.value.toBool();
-        QTimer::singleShot(0, pushButton, [pushButton, v](){
-            // 对于 checkable 按钮，根据当前状态决定是否 click 以触发 clicked 信号并切换状态
-            // 避免直接 setChecked 导致不触发 clicked 信号，或 invokeMethod("click") 导致的逻辑错误
-            if (pushButton->isCheckable()) {
-                if (pushButton->isChecked() != v) {
-                    pushButton->click();
-                }
-            } else {
-                // 普通按钮仅在 true 时触发点击
-                if (v) {
-                    pushButton->click();
-                }
-            }
-        });
-    }
-    else if (auto* toolButton = qobject_cast<QToolButton*>(widget)) {
-        bool v = message.value.toBool();
-        QTimer::singleShot(0, toolButton, [toolButton, v](){
-            if (toolButton->isCheckable()) {
-                if (toolButton->isChecked() != v) {
-                    toolButton->click();
-                }
-            } else {
-                if (v) {
-                    toolButton->click();
-                }
-            }
-        });
-    }
-    else if (auto* comboBox = qobject_cast<QComboBox*>(widget)) {
-        int v = message.value.toInt();
-        QTimer::singleShot(0, comboBox, [comboBox, v](){ comboBox->setCurrentIndex(v); });
-    }
-    else if (auto* lineEdit = qobject_cast<QLineEdit*>(widget)) {
-        QString v = message.value.toString();
-        QTimer::singleShot(0, lineEdit, [lineEdit, v](){ lineEdit->setText(v); });
-    }
-    else if (auto* textEdit = qobject_cast<QTextEdit*>(widget)) {
-        QString v = message.value.toString();
-        QTimer::singleShot(0, textEdit, [textEdit, v](){ textEdit->setText(v); });
-    }
-    else {
-        qDebug() << "Unsupported widget type for address:" << message.address;
-    }
+    GlobalEventBus::instance()->publishState(message.address, message.value);
 }
 

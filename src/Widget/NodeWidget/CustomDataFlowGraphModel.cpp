@@ -348,7 +348,7 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             break;
         }
         case NodeRole::OSCAddress: {
-            result = QVariant::fromValue(model->getOscMapping());
+            result = QVariant::fromValue(model->getExternalControlAddressMapping());
             // qDebug() << "getOscMapping" << model->getOscMapping().size();
             break;
         }
@@ -468,7 +468,7 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
         {
             auto it = _models.find(nodeId);
             auto &model = it->second;
-            model->getWidgetFromOSCAddress(value.toString());
+            model->getWidgetFromAddress(value.toString());
             Q_EMIT nodeUpdated(nodeId);
             result = true;
         }

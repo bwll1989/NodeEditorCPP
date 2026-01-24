@@ -9,6 +9,8 @@
 #include "HoldInterface.hpp"
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -26,8 +28,22 @@ namespace Nodes
     class HoldDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(int holdTime READ holdTime WRITE setHoldTime NOTIFY holdTimeChanged)
+        Q_PROPERTY(bool ignoreRepeat READ ignoreRepeat WRITE setIgnoreRepeat NOTIFY ignoreRepeatChanged)
 
     public:
+        /**
+         * @brief 获取保持时间
+         * @return 保持时间（毫秒）
+         */
+        int holdTime() const { return m_holdTime; }
+
+        /**
+         * @brief 获取是否忽略重复
+         * @return 是否忽略重复信号
+         */
+        bool ignoreRepeat() const { return m_ignoreRepeat; }
+
         /**
          * @brief 构造函数，初始化信号保持节点
          */
@@ -48,8 +64,21 @@ namespace Nodes
             // 设置定时器为单次触发
             timer->setSingleShot(true);
             connect(timer, &QTimer::timeout, this, &HoldDataModel::holdTimeExpired);
-            AbstractDelegateModel::registerOSCControl("/time",widget->value);
-            AbstractDelegateModel::registerOSCControl("/ignoreRepeat",widget->ignoreRepeatCheckBox);
+            AbstractDelegateModel::registerExternalControl("/time",widget->value);
+            AbstractDelegateModel::registerExternalControl("/ignoreRepeat",widget->ignoreRepeatCheckBox);
+
+            // 初始化属性值
+            m_holdTime = widget->value->value();
+            m_ignoreRepeat = widget->ignoreRepeatCheckBox->isChecked();
+
+            // UI 与属性联动
+            connect(widget->value, &IntDragValueWidget::editingFinished, this, [this](){
+                qDebug() << "HoldDataModel editingFinished";
+                setHoldTime(widget->value->value());
+            });
+            connect(widget->ignoreRepeatCheckBox, &QCheckBox::toggled, this, [this](bool checked){
+                setIgnoreRepeat(checked);
+            });
         }
 
         /**
@@ -137,7 +166,7 @@ namespace Nodes
                     auto timeData = std::dynamic_pointer_cast<VariableData>(data);
                     if (timeData) {
                         int holdTime = timeData->value().toInt();
-                        widget->value->setText(QString::number(holdTime));
+                        setHoldTime(holdTime);
                     }
                 }
                 break;
@@ -151,8 +180,8 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["holdTime"] = widget->value->text().toInt();
-            modelJson1["ignoreRepeat"] = widget->ignoreRepeatCheckBox->isChecked();
+            modelJson1["holdTime"] = m_holdTime;
+            modelJson1["ignoreRepeat"] = m_ignoreRepeat;
             QJsonObject modelJson = NodeDelegateModel::save();
             modelJson["values"] = modelJson1;
             return modelJson;
@@ -168,8 +197,8 @@ namespace Nodes
             if (!v.isUndefined() && v.isObject()) {
                 int holdTime = v["holdTime"].toInt();
                 bool ignoreRepeat = v["ignoreRepeat"].toBool();
-                widget->value->setText(QString::number(holdTime));
-                widget->ignoreRepeatCheckBox->setChecked(ignoreRepeat);
+                setHoldTime(holdTime);
+                setIgnoreRepeat(ignoreRepeat);
             }
         }
 
@@ -182,6 +211,63 @@ namespace Nodes
             return widget;
         }
 
+
+    public slots:
+        /**
+         * @brief 设置保持时间属性
+         * @param timeMs 保持时间（毫秒）
+         */
+        void setHoldTime(int timeMs)
+        {
+            if (m_holdTime == timeMs)
+                return;
+            m_holdTime = timeMs;
+            if (widget)
+            {
+                const QSignalBlocker blocker(widget->value);
+                widget->value->setValue(timeMs);
+            }
+            Q_EMIT holdTimeChanged(timeMs);
+            AbstractDelegateModel::stateFeedBack("/time", timeMs);
+        }
+
+        /**
+         * @brief 设置忽略重复属性
+         * @param ignore 是否忽略重复
+         */
+        void setIgnoreRepeat(bool ignore)
+        {
+            if (m_ignoreRepeat == ignore)
+                return;
+            m_ignoreRepeat = ignore;
+            if (widget)
+            {
+                const QSignalBlocker blocker(widget->ignoreRepeatCheckBox);
+                widget->ignoreRepeatCheckBox->setChecked(ignore);
+            }
+            Q_EMIT ignoreRepeatChanged(ignore);
+            AbstractDelegateModel::stateFeedBack("/ignoreRepeat", ignore);
+        }
+
+        /**
+         * @brief 处理全局事件（事件总线）
+         * @param ev 全局事件
+         */
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command)
+                return;
+            const QString addrTime = makeFullOscAddress("/time");
+            const QString addrIgnore = makeFullOscAddress("/ignoreRepeat");
+            if (ev.address == addrTime)
+            {
+                setHoldTime(ev.payload.toInt());
+            }
+            else if (ev.address == addrIgnore)
+            {
+                setIgnoreRepeat(ev.payload.toBool());
+            }
+        }
 
     private slots:
         /**
@@ -209,7 +295,7 @@ namespace Nodes
             }
             
             // 获取保持时间
-            int holdTime = widget->value->text().toInt();
+            int holdTime = m_holdTime;
             if (holdTime <= 0) {
                 // 如果保持时间为0或负数，直接输出信号
                 outputData = inputData;
@@ -218,7 +304,7 @@ namespace Nodes
             }
             
             // 检查重复信号处理模式
-            bool ignoreRepeat = widget->ignoreRepeatCheckBox->isChecked();
+            bool ignoreRepeat = m_ignoreRepeat;
             
             if (isHolding) {
                 if (ignoreRepeat) {
@@ -251,5 +337,30 @@ namespace Nodes
         std::shared_ptr<VariableData> outputData;              // 输出数据
         QTimer *timer = new QTimer(this);                      // 保持时间定时器
         bool isHolding = false;                                // 是否正在保持状态
+        int m_holdTime = 0;                                    // 保持时间（毫秒）
+        bool m_ignoreRepeat = false;                           // 是否忽略重复信号
+
+    signals:
+        /**
+         * @brief 保持时间发生变化
+         * @param timeMs 新的保持时间
+         */
+        void holdTimeChanged(int timeMs);
+
+        /**
+         * @brief 忽略重复标志发生变化
+         * @param ignore 新的忽略状态
+         */
+        void ignoreRepeatChanged(bool ignore);
+
+    protected:
+        /**
+         * @brief 模型准备就绪后订阅事件总线
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/time"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/ignoreRepeat"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        }
     };
 }

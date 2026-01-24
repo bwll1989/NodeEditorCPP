@@ -11,15 +11,20 @@
 #include "InternalControlInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
 #include "ConstantDefines.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
 
+struct GlobalEvent;
 using namespace NodeDataTypes;
 using namespace Nodes;
 using namespace QtNodes;
 namespace Nodes
 {
+
     class InternalControlModel final : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(bool trigger READ trigger WRITE setTrigger NOTIFY triggerChanged)
 
     public:
         InternalControlModel();
@@ -42,9 +47,21 @@ namespace Nodes
 
         ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override ;
 
-    private Q_SLOTS:
-        void trigger();
+        bool trigger() const { return m_trigger; }
+
+    public Q_SLOTS:
+        void setTrigger(bool value);
+        void onGlobalEvent(const GlobalEvent& ev);
+
+
+    Q_SIGNALS:
+        void triggerChanged(bool value);
+
+    protected:
+        void afterModelReady() override;
+
     private:
         InternalControlInterface *widget = new InternalControlInterface(true);
+        bool m_trigger = false;
     };
 }

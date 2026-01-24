@@ -12,6 +12,9 @@
 #include <QJsonArray>
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
+struct GlobalEvent;
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -28,6 +31,9 @@ namespace Nodes
     class DMXDeviceDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(int channelCount READ channelCount WRITE setChannelCount NOTIFY channelCountChanged)
+        Q_PROPERTY(int startAddress READ startAddress WRITE setStartAddress NOTIFY startAddressChanged)
+        Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
 
     public:
         /**
@@ -50,13 +56,14 @@ namespace Nodes
             channelValues.resize(InPortCount, 0);
             
             // 注册OSC控制
-            AbstractDelegateModel::registerOSCControl("/channels", widget->channelCountSpinBox);
-            AbstractDelegateModel::registerOSCControl("/startAddress", widget->startAddressSpinBox);
-            AbstractDelegateModel::registerOSCControl("/enable", widget->enableCheckBox);
-            connect(widget->channelCountSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &DMXDeviceDataModel::onChannelCountChanged);
-            connect(widget->startAddressSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), 
-                    this, &DMXDeviceDataModel::onStartAddressChanged);
+            AbstractDelegateModel::registerExternalControl("/channels", widget->channelCountSpinBox);
+            AbstractDelegateModel::registerExternalControl("/startAddress", widget->startAddressSpinBox);
+            AbstractDelegateModel::registerExternalControl("/enable", widget->enableCheckBox);
+            connect(widget->channelCountSpinBox, QOverload<int>::of(&IntDragValueWidget::valueChanged),
+                    this, &DMXDeviceDataModel::setChannelCount);
+            connect(widget->startAddressSpinBox, QOverload<int>::of(&IntDragValueWidget::valueChanged),
+                    this, &DMXDeviceDataModel::setStartAddress);
+            connect(widget->enableCheckBox, &QCheckBox::clicked, this, &DMXDeviceDataModel::setEnabled);
             
             // 连接初始通道滑块信号
             connectChannelSliders();
@@ -73,9 +80,133 @@ namespace Nodes
 
         }
 
+        int channelCount() const { return m_channelCount; }
+        int startAddress() const { return m_startAddress; }
+        bool enabled() const { return m_enabled; }
+
+    public slots:
+        void setChannelCount(int count) {
+            if (m_channelCount == count) return;
+            
+            int oldSize = m_channelCount;
+            m_channelCount = count;
+            // 更新订阅
+            updateChannelSubscriptions(oldSize, m_channelCount);
+
+            channelValues.resize(m_channelCount, 0);
+            for (int i = oldSize; i < m_channelCount; ++i) {
+                channelValues[i] = 0;
+            }
+
+            if (widget) {
+                // 防止递归调用，并在控件数量更新后统一注册和绑定滑块
+                const QSignalBlocker blocker(widget->channelCountSpinBox);
+                widget->channelCountSpinBox->setValue(count);
+                widget->updateChannelControls(count);
+             
+            }
+
+            // 在通道控件更新完成后，统一为所有滑块做外部控制注册与信号连接
+            connectChannelSliders();
+            updateAddressRangeDisplay();
+            updateChannelSliders();
+            updateChannelData();
+            Q_EMIT channelCountChanged(count);
+            AbstractDelegateModel::stateFeedBack("/channels", count);
+
+        }
+
+        void setStartAddress(int addr) {
+             if (m_startAddress == addr) return;
+             m_startAddress = addr;
+             if(widget) {
+                 const QSignalBlocker blocker(widget->startAddressSpinBox);
+                 widget->startAddressSpinBox->setValue(addr);
+             }
+             updateAddressRangeDisplay();
+             updateChannelData();
+             Q_EMIT startAddressChanged(addr);
+             AbstractDelegateModel::stateFeedBack("/startAddress", addr);
+        }
+
+        void setEnabled(bool enable) {
+            if (m_enabled == enable) return;
+            m_enabled = enable;
+             if(widget) {
+                 const QSignalBlocker blocker(widget->enableCheckBox);
+                 widget->enableCheckBox->setChecked(enable);
+             }
+            updateChannelData();
+            Q_EMIT enabledChanged(enable);
+            AbstractDelegateModel::stateFeedBack("/enable", enable);
+        }
+
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) return;
+
+            const QString addrChannels = makeFullOscAddress("/channels");
+            const QString addrStart = makeFullOscAddress("/startAddress");
+            const QString addrEnable = makeFullOscAddress("/enable");
+
+            if (ev.address == addrChannels) {
+                setChannelCount(ev.payload.toInt());
+            } else if (ev.address == addrStart) {
+                setStartAddress(ev.payload.toInt());
+            } else if (ev.address == addrEnable) {
+                setEnabled(ev.payload.toBool());
+            } else if (ev.address.startsWith(addrChannels + "/")) {
+                // 处理 /channels/N
+                QString suffix = ev.address.mid(addrChannels.length() + 1);
+                bool ok;
+                int idx = suffix.toInt(&ok);
+                if (ok) {
+                    updateChannelState(idx, ev.payload.toInt());
+                }
+            }
+        }
+    
+    Q_SIGNALS:
+        void channelCountChanged(int count);
+        void startAddressChanged(int addr);
+        void enabledChanged(bool enable);
+
+    protected:
+        void afterModelReady() override {
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/channels"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/startAddress"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            
+            // 初始订阅通道
+            updateChannelSubscriptions(0, m_channelCount);
+        }
+
+    private:
+        void updateChannelSubscriptions(int oldIdx, int newIdx) {
+            // 增加订阅
+            for (int i = oldIdx; i < newIdx; ++i) {
+                QString addr = makeFullOscAddress(QString("/channels/%1").arg(i));
+                GlobalEventBus::instance()->subscribe(addr, this, SLOT(onGlobalEvent(GlobalEvent)));
+            }
+            // 减少订阅
+            for (int i = newIdx; i < oldIdx; ++i) {
+                QString addr = makeFullOscAddress(QString("/channels/%1").arg(i));
+                GlobalEventBus::instance()->unsubscribe(addr, this);
+            }
+        }
+        
+        void updateChannelState(int index, int value) {
+             if (index >= 0 && index < channelValues.size()) {
+                 setChannelValue(index, value);
+                 if (widget) {
+                     IntDragValueWidget* slider = widget->getChannelSlider(index);
+                     if (slider) {
+                         const QSignalBlocker blocker(slider);
+                         slider->setValue(value);
+                     }
+                 }
+             }
+        }
         /**
-         * @brief 获取端口标题
-         * @param portType 端口类型
          * @param portIndex 端口索引
          * @return 端口标题
          */
@@ -129,18 +260,9 @@ namespace Nodes
             }
 
             // 设置对应通道的值（如果通道索引在当前通道数范围内）
-            int channelCount = widget->channelCountSpinBox->value();
-            if (portIndex < channelCount) {
+            if (portIndex < m_channelCount) {
                 int channelValue = qBound(0, variableData->value().toInt(), 255);
-                setChannelValue(portIndex, channelValue);
-                
-                // 更新界面滑块（如果控件存在）
-                QSlider* slider = widget->getChannelSlider(portIndex);
-                QLabel* label = widget->getChannelLabel(portIndex);
-                if (slider && label) {
-                    slider->setValue(channelValue);
-
-                }
+                updateChannelState(portIndex, channelValue);
             }
         }
 
@@ -151,9 +273,9 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["channelCount"] = widget->channelCountSpinBox->value();
-            modelJson1["startAddress"] = widget->startAddressSpinBox->value();
-            modelJson1["enabled"] = widget->enableCheckBox->isChecked();
+            modelJson1["channelCount"] = m_channelCount;
+            modelJson1["startAddress"] = m_startAddress;
+            modelJson1["enabled"] = m_enabled;
             
             // 保存通道值
             QJsonArray channelArray;
@@ -177,9 +299,9 @@ namespace Nodes
             if (!v.isUndefined() && v.isObject()) {
                 auto settings = v.toObject();
                 
-                widget->channelCountSpinBox->setValue(settings["channelCount"].toInt(16));
-                widget->startAddressSpinBox->setValue(settings["startAddress"].toInt(1));
-                widget->enableCheckBox->setChecked(settings["enabled"].toBool(true));
+                setChannelCount(settings["channelCount"].toInt(16));
+                setStartAddress(settings["startAddress"].toInt(1));
+                setEnabled(settings["enabled"].toBool(true));
                 
                 // 加载通道值
                 QJsonArray channelArray = settings["channelValues"].toArray();
@@ -188,7 +310,6 @@ namespace Nodes
                 }
                 
                 // 更新界面
-                updateAddressRangeDisplay();
                 updateChannelSliders();
                 updateChannelData();
                 
@@ -204,63 +325,24 @@ namespace Nodes
             return widget;
         }
 
-    private slots:
-        /**
-         * @brief 通道数量改变时的处理
-         * @param channelCount 新的通道数量
-         */
-        void onChannelCountChanged(int channelCount) {
-            // 调整通道值数组大小
-            int oldSize = channelValues.size();
-            channelValues.resize(channelCount, 0);
-            
-            // 如果增加了通道，新通道值初始化为0
-            for (int i = oldSize; i < channelCount; ++i) {
-                channelValues[i] = 0;
-            }
-            
-            // 更新界面控件数量
-            widget->updateChannelControls(channelCount);
-            
-            // 重新连接信号
-            connectChannelSliders();
-            
-            // 更新界面显示
-            updateAddressRangeDisplay();
-            updateChannelSliders();
-            updateChannelData();
-        }
-
-        /**
-         * @brief 起始地址改变时的处理
-         * @param startAddr 新的起始地址
-         */
-        void onStartAddressChanged(int startAddr) {
-            Q_UNUSED(startAddr)
-            // 更新界面显示
-            updateAddressRangeDisplay();
-            updateChannelData();
-        }
-
     private:
         /**
-         * @brief 连接通道滑块信号
+         * @brief 连接通道滑块信号，并将每个滑块注册到外部控制映射
          */
         void connectChannelSliders() {
             int channelCount = widget->getChannelCount();
             for (int i = 0; i < channelCount; ++i) {
-                
-                QSlider* slider = widget->getChannelSlider(i);
-                 NodeDelegateModel::registerOSCControl("/channels" + QString::number(i), slider);
+                IntDragValueWidget* slider = widget->getChannelSlider(i);
                 if (slider) {
-                    // 断开之前的连接（如果有）
-                    // disconnect(slider, &QSlider::valueChanged, nullptr, nullptr);
-                    
-                    // 连接新的信号
-                    connect(slider, &QSlider::valueChanged, 
-                            this, [this, i](int value) {
-                        setChannelValue(i, value);
-                    });
+                   
+                    connect(
+                        slider,
+                        &IntDragValueWidget::valueChanged,
+                        this,
+                        [this, i](int value) {
+                            setChannelValue(i, value);
+                        }
+                    );
                 }
             }
         }
@@ -272,8 +354,12 @@ namespace Nodes
          */
         void setChannelValue(int channel, int value) {
             if (channel >= 0 && channel < channelValues.size()) {
-                channelValues[channel] = qBound(0, value, 255);
+                int newVal = qBound(0, value, 255);
+                if (channelValues[channel] == newVal) return;
+
+                channelValues[channel] = newVal;
                 updateChannelData();
+                AbstractDelegateModel::stateFeedBack(QString("/channels/%1").arg(channel), newVal);
             }
         }
 
@@ -285,9 +371,9 @@ namespace Nodes
             
             // 创建包含DMX地址映射的数据
             QVariantMap dmxData;
-            int startAddr = widget->startAddressSpinBox->value();
-            int channelCount = widget->channelCountSpinBox->value();
-            bool enabled = widget->enableCheckBox->isChecked();
+            int startAddr = m_startAddress;
+            int channelCount = m_channelCount;
+            bool enabled = m_enabled;
             
             // 添加基本信息
             dmxData["startAddress"] = startAddr;
@@ -320,15 +406,10 @@ namespace Nodes
          * @brief 更新地址范围显示
          */
         void updateAddressRangeDisplay() {
-            int startAddr = widget->startAddressSpinBox->value();
-            int channelCount = widget->channelCountSpinBox->value();
+            int startAddr = m_startAddress;
+            int channelCount = m_channelCount;
             widget->updateAddressRangeLabel(startAddr, channelCount);
         }
-
-        /**
-         * @brief 更新通道标签显示
-         */
-
 
         /**
          * @brief 更新通道滑块显示
@@ -337,7 +418,7 @@ namespace Nodes
             int channelCount = widget->getChannelCount();
             
             for (int i = 0; i < channelCount; ++i) {
-                QSlider* slider = widget->getChannelSlider(i);
+                IntDragValueWidget* slider = widget->getChannelSlider(i);
                 if (slider) {
                     slider->setValue(channelValues[i]);
                 }
@@ -349,5 +430,8 @@ namespace Nodes
         QVector<int> channelValues;                 // 通道值数组
         
         Nodes::DMXDeviceInterface * widget = new Nodes::DMXDeviceInterface();
+        int m_channelCount = 5;
+        int m_startAddress = 1;
+        bool m_enabled = true;
     };
 }

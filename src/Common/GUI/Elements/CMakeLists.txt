@@ -30,6 +30,12 @@ add_library(${Module_Name} SHARED
     ColorEditorWidget/ColorEditorWidget.hpp
     QGridView/QGridView.cpp
     QGridView/QGridView.h
+    IntDragValueWidget/IntDragValueWidget.cpp
+    IntDragValueWidget/IntDragValueWidget.hpp
+    FloatDragValueWidget/FloatDragValueWidget.cpp
+    FloatDragValueWidget/FloatDragValueWidget.hpp
+    TriggerWidget/TriggerWidget.cpp
+    TriggerWidget/TriggerWidget.hpp
 )
 
 # 链接Qt库

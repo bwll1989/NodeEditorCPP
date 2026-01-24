@@ -16,7 +16,7 @@ AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     mixSpin->setRange(0.0, 1.0);
     mixSpin->setDecimals(3);
     mixSpin->setSingleStep(0.01);
-    mixSpin->setValue(0.0);
+    mixSpin->setValue(0.5);
     mainLayout->addWidget(mixSpin, 0, 1);
 
     // Note: Direction and Curve comboboxes removed per request
@@ -30,16 +30,15 @@ AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     fadeDurationSpin->setValue(2000.0);
     fadeDurationSpin->setSuffix(" ms");
     mainLayout->addWidget(fadeDurationSpin, 1, 1);
+
+    // Action Combo
+    mainLayout->addWidget(new QLabel("Action:"), 2, 0);
+    actionCombo = new QComboBox();
+    actionCombo->addItem("Reset Mix");
+    actionCombo->addItem("Start A -> B");
+    actionCombo->addItem("Start B -> A");
     
-    // Buttons
-    fadeAToBButton = new QPushButton("Start A -> B");
-    fadeBToAButton = new QPushButton("Start B -> A");
-    mainLayout->addWidget(fadeAToBButton, 2, 0);
-    mainLayout->addWidget(fadeBToAButton, 2, 1);
-    
-    // Reset
-    resetButton = new QPushButton("Reset Mix");
-    mainLayout->addWidget(resetButton, 3, 0, 1, 2);
+    mainLayout->addWidget(actionCombo, 2, 1);
     
     setMinimumWidth(250);
 }

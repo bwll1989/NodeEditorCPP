@@ -17,7 +17,8 @@
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include <algorithm>
-
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
 #include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
@@ -32,7 +33,7 @@ namespace Nodes
     class YoloDetectionONNXDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
-
+        Q_PROPERTY(bool enable READ enable WRITE setEnable NOTIFY enableChanged)
         public:
         YoloDetectionONNXDataModel()
         {
@@ -47,11 +48,12 @@ namespace Nodes
             m_outImage=std::make_shared<ImageData>();
             model_path="./plugins/Models/AnimeGANv3_Hayao_36.onnx";
 
-            AbstractDelegateModel::registerOSCControl("/enable",widget->EnableBtn);
+            AbstractDelegateModel::registerExternalControl("/enable",widget->EnableBtn);
+            connect(widget->EnableBtn,&QPushButton::clicked,this,&YoloDetectionONNXDataModel::setEnable);
 
         }
 
-        virtual ~YoloDetectionONNXDataModel() override{}
+        ~YoloDetectionONNXDataModel() override{}
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
@@ -119,7 +121,7 @@ namespace Nodes
      */
     void imageReasoning()
     {
-        if (!m_inImage0 || !widget->EnableBtn->isChecked()) {
+        if (!m_inImage0 || !m_enable) {
             m_outVariable = std::make_shared<VariableData>();
             emit dataUpdated(1);
             return;
@@ -296,7 +298,7 @@ namespace Nodes
             QJsonObject modelJson1;
             QJsonObject modelJson = NodeDelegateModel::save();
             // 保存启用状态
-            modelJson1["enabled"] = widget->EnableBtn->isChecked();
+            modelJson1["enabled"] = m_enable;
             
             modelJson["values"] = modelJson1;
             return modelJson;
@@ -315,7 +317,7 @@ namespace Nodes
                 // 加载启用状态
                 if (values.contains("enabled")) {
                     bool enabled = values["enabled"].toBool(true);
-                    widget->EnableBtn->setChecked(enabled);
+                    setEnable(enabled);
                 }
             }
         }
@@ -428,7 +430,42 @@ namespace Nodes
             return false;
         }
     }
+    bool enable() const { return m_enable; }
 
+    void setEnable(bool enable) {
+        if (m_enable != enable) {
+            m_enable = enable;
+            {
+             
+                QSignalBlocker blocker(widget->EnableBtn);
+                widget->EnableBtn->setChecked(enable);
+            }
+            emit enableChanged();
+             AbstractDelegateModel::stateFeedBack("/enable", m_enable);
+        }
+    }
+        /**
+         * @brief 在模型准备就绪后订阅事件总线
+         */
+        void afterModelReady() override {
+            auto bus = GlobalEventBus::instance();
+            bus->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        }
+
+private Q_SLOTS:
+
+        /**
+         * @brief 全局事件回调：处理/index
+         */
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            if (localPath == "enable") {
+                setEnable(ev.payload.toBool());
+            }
+        }
+    signals:
+        void enableChanged();
 
     private:
         QFutureWatcher<double>* m_watcher = nullptr;
@@ -457,5 +494,6 @@ namespace Nodes
         bool m_isModelInitialized = false;
         QString m_cachedModelPath;
         bool m_useCuda = false;
+        bool m_enable = false;
     };
 }

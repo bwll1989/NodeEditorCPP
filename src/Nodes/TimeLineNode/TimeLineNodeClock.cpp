@@ -9,15 +9,16 @@ TimeLineNodeClock::TimeLineNodeClock(QObject* parent)
     , m_timecodeType(TimeCodeType::PAL)
     , m_clockSource(ClockSource::Internal)
 {
-    //默认初始化内部时钟
-  initInternalClock();
+    m_frameRate = timecode_frames_per_sec(m_timecodeType);
+    initInternalClock();
 }
 
 TimeLineNodeClock::~TimeLineNodeClock()
 {
     // 确保定时器停止
     if (m_timer) {
-        m_timer->stop();
+        // 使用 invokeMethod 安全地停止定时器
+        QMetaObject::invokeMethod(m_timer, "stop", Qt::BlockingQueuedConnection);
 
         // 获取定时器所在线程
         QThread* timerThread = m_timer->thread();
@@ -44,13 +45,20 @@ TimeLineNodeClock::~TimeLineNodeClock()
 
 void TimeLineNodeClock::initInternalClock()
 {
-    // 创建定时器并保持在主线程
-    m_timer =new NodeTimeSync();
-    // 将定时器移动到高优先级线程
+    m_timer = new NodeTimeSync();
+    double fps = timecode_frames_per_sec(m_timecodeType);
+    if (fps > 0.0) {
+        m_timer->setTickInterval(1.0 / fps);
+    }
     QThread* timerThread = new QThread(this);
     timerThread->start(QThread::HighPriority);
-    // 使用直接连接确保及时处理定时器事件
-    connect(m_timer, &NodeTimeSync::timeUpdated, this, &TimeLineNodeClock::setCurrentTimecodeFromTime,Qt::DirectConnection);
+    connect(m_timer, &NodeTimeSync::timeUpdated, this, &TimeLineNodeClock::onTick, Qt::DirectConnection);
+
+    // 连接控制信号到 m_timer，确保跨线程调用安全
+    connect(this, &TimeLineNodeClock::resumePlay, m_timer, &NodeTimeSync::resume);
+    connect(this, &TimeLineNodeClock::pausePlay, m_timer, &NodeTimeSync::pause);
+    connect(this, &TimeLineNodeClock::stopPlay, m_timer, &NodeTimeSync::stop);
+
     connect(timerThread, &QThread::finished, timerThread, &QObject::deleteLater);
     m_timer->moveToThread(timerThread);
 }
@@ -67,16 +75,9 @@ void TimeLineNodeClock::closeInternalClock()
 
 void TimeLineNodeClock::setCurrentFrame(qint64 frame)
 {
-    m_currentFrame = frame;  // QAtomicInteger 是线程安全的，不需要互斥锁
+    m_currentFrame = frame;
     m_currentTimecode = frames_to_timecode_frame(m_currentFrame, m_timecodeType);
-    auto status=m_timer->isPause();
-    m_timer->pause();
-    m_timer->setCurrentTime(timecode_frame_to_time(m_currentTimecode, m_timecodeType));
-    if(!status) {
-        QThread::msleep(50);
-        m_timer->resume();
-    }
-
+    m_frameAccumulator = 0.0;
     updateTimecode();
 }
 
@@ -87,21 +88,53 @@ void TimeLineNodeClock::setCurrentTimecode(const TimeCodeFrame& timecode)
     updateTimecode();
 }
 
-void TimeLineNodeClock::setCurrentTimecodeFromTime(const double time)
+void TimeLineNodeClock::onTick(double)
 {
-    m_currentTimecode = time_to_timecode_frame(time, m_timecodeType);
-    if (m_currentFrame==timecode_frame_to_frames(m_currentTimecode, m_timecodeType))
+    if (m_clockSource != ClockSource::Internal) {
         return;
-    m_currentFrame = timecode_frame_to_frames(m_currentTimecode, m_timecodeType);
-    // qDebug() << "TimeLineNodeClock::updateTimecode"<<m_currentFrame<<m_currentTimecode.frames<<time;
-    // 越界保护：根据 isLoop 判断循环或停止
+    }
+
+    m_currentFrame++;
     if (m_maxFrames > 0 && m_currentFrame > m_maxFrames) {
         if (m_isLooping) {
-            // 同步计时器时间，确保保持当前状态
-            setCurrentFrame(0);
-            return; // 已更新并继续播放，无需再执行下方更新
+            m_currentFrame = 0;
         } else {
-            // 不循环则停止播放并复位
+            onStop();
+            return;
+        }
+    }
+    m_currentTimecode = frames_to_timecode_frame(m_currentFrame, m_timecodeType);
+    updateTimecode();
+}
+
+void TimeLineNodeClock::setCurrentTimecodeFromTime(const double time)
+{
+    if (m_clockSource != ClockSource::Internal) {
+        return;
+    }
+    if (time <= 0.0) {
+        return;
+    }
+    double fps = timecode_frames_per_sec(m_timecodeType);
+    if (fps <= 0.0) {
+        return;
+    }
+    m_frameAccumulator += time * fps;
+    qint64 step = static_cast<qint64>(m_frameAccumulator);
+    if (step <= 0) {
+        return;
+    }
+    m_frameAccumulator -= static_cast<double>(step);
+    m_currentFrame += step;
+    m_currentTimecode = frames_to_timecode_frame(m_currentFrame, m_timecodeType);
+    if (m_maxFrames > 0 && m_currentFrame > m_maxFrames) {
+        if (m_isLooping) {
+            m_currentFrame = 0;
+            m_currentTimecode = frames_to_timecode_frame(m_currentFrame, m_timecodeType);
+            m_frameAccumulator = 0.0;
+            updateTimecode();
+            return;
+        } else {
             onStop();
             return;
         }
@@ -121,6 +154,10 @@ void TimeLineNodeClock::setTimecodeType(TimeCodeType type)
     if (m_timecodeType != type) {
         // 判断时间码变换时，转换当前时间码到新的时间码类型
         m_timecodeType = type;
+        m_frameRate = timecode_frames_per_sec(m_timecodeType);
+        if (m_timer && m_frameRate > 0.0) {
+            QMetaObject::invokeMethod(m_timer, "setTickInterval", Qt::QueuedConnection, Q_ARG(double, 1.0 / m_frameRate));
+        }
         updateTimecode();
     }
     
@@ -138,10 +175,11 @@ void TimeLineNodeClock::setMaxFrames(qint64 maxFrames)
 
 void TimeLineNodeClock::updateTimecode()
 {
-    // 使用队列连接发送信号，避免阻塞定时器线程
-    QMetaObject::invokeMethod(this, [this]() {
-        emit currentFrameChanged(m_currentFrame);
-        emit timecodeChanged(getCurrentTimecode());
+    const qint64 frame = m_currentFrame;            // 把当前帧号拷贝出来
+    const TimeCodeFrame tc = m_currentTimecode;     // 把当前时间码拷贝出来
+    QMetaObject::invokeMethod(this, [this, frame, tc]() {
+        emit currentFrameChanged(frame);
+        emit timecodeChanged(tc);
     }, Qt::QueuedConnection);
 }
 
@@ -163,7 +201,7 @@ void TimeLineNodeClock::onStart()
         emit timecodePlayingChanged(false);
         return;
     }
-    m_timer->resume();
+    emit resumePlay();
     emit timecodePlayingChanged(true);
   
     
@@ -176,8 +214,8 @@ void TimeLineNodeClock::onPause()
         return;
     }
     // QMutexLocker locker(&m_mutex);
-    m_timer->pause();
-    emit timecodePlayingChanged(false);
+    emit pausePlay();
+    // emit timecodePlayingChanged(false);
     
 }
 
@@ -187,10 +225,11 @@ void TimeLineNodeClock::onStop()
     {
         return;
     }
-    m_timer->stop();
-    m_currentFrame = 0;
-    updateTimecode();
+    emit stopPlay();
     emit timecodePlayingChanged(false);
+    m_currentFrame = 0;
+    m_currentTimecode = frames_to_timecode_frame(m_currentFrame, m_timecodeType);
+    updateTimecode();
 }
 
 void TimeLineNodeClock::moveToNextFrame()

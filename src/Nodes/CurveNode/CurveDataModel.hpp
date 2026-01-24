@@ -13,6 +13,7 @@
 #include "ConstantDefines.h"
 #include "CurveInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -39,9 +40,9 @@ namespace Nodes
             // m_quickWidget->setSource(QUrl("qrc:qml/content/dynamicview.qml"));
             m_quickWidget->setSource(QUrl("qrc:/qml/content/main.qml"));
             m_quickWidget->rootContext()->setContextProperty("CppBridge", this);
-            AbstractDelegateModel::registerOSCControl("/start",widget->startButton);
+            AbstractDelegateModel::registerExternalControl("/start",widget->startButton);
             // NodeDelegateModel::registerOSCControl("/stop",widget->stopButton);
-            AbstractDelegateModel::registerOSCControl("/loop",widget->loopCheckBox);
+            AbstractDelegateModel::registerExternalControl("/loop",widget->loopCheckBox);
             connect(widget->editButton, &QPushButton::clicked, this, &CurveDataModel::toggleEditorMode);
             connect(widget->startButton, &QPushButton::clicked, this, &CurveDataModel::onStartButtonClicked);
             // connect(widget->stopButton,  &QPushButton::clicked, this, &QMLDataModel::onStopButtonClicked);
@@ -214,6 +215,25 @@ namespace Nodes
 
             return widget;
         }
+
+    protected:
+        /**
+         * 函数级注释：模型就绪后订阅全局事件总线，使用完整地址接收播放与循环命令
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/start"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/loop"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+        }
+
     public Q_SLOTS:
         void toggleEditorMode() {
             // 移除父子关系，使其成为独立窗口
@@ -250,6 +270,7 @@ namespace Nodes
                 QMetaObject::invokeMethod(timeline, "pause");
                 QMetaObject::invokeMethod(timeline, "seek", Q_ARG(QVariant, QVariant(0.0)));
             }
+            AbstractDelegateModel::stateFeedBack("/start", isChecked);
         }
 
 
@@ -257,7 +278,9 @@ namespace Nodes
         void onLoopCheckBoxClicked() {
             QObject *timeline = getTimelineEditor();
             if (!timeline) return;
-            QMetaObject::invokeMethod(timeline, "setIsLoop", Q_ARG(QVariant, QVariant(widget->loopCheckBox->isChecked())));
+            const bool loopStatus = widget->loopCheckBox->isChecked();
+            QMetaObject::invokeMethod(timeline, "setIsLoop", Q_ARG(QVariant, QVariant(loopStatus)));
+            AbstractDelegateModel::stateFeedBack("/loop", loopStatus);
         }
 
         Q_INVOKABLE void updatePlayheadTime(const QVariantList &parts) {
@@ -300,6 +323,7 @@ namespace Nodes
         Q_INVOKABLE void updateLoop(const bool &status) {
             if (widget)
                 widget->loopCheckBox->setChecked(status);
+            AbstractDelegateModel::stateFeedBack("/loop", status);
         }
         void updateStatus(const bool &status) {
             if (!widget) return;
@@ -325,6 +349,27 @@ namespace Nodes
             QObject *root = m_quickWidget->rootObject();
             if (!root) return nullptr;
             return root->findChild<QObject*>("timelineEditor");
+        }
+
+    private Q_SLOTS:
+        /**
+         * 函数级注释：处理来自全局事件总线的命令，控制播放与循环状态
+         */
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            const QString addrStart = makeFullOscAddress("/start");
+            const QString addrLoop  = makeFullOscAddress("/loop");
+
+            if (ev.address == addrStart) {
+                const bool play = ev.payload.toBool();
+                onStartButtonClicked(play);
+            } else if (ev.address == addrLoop) {
+                const bool loop = ev.payload.toBool();
+                updateLoop(loop);
+            }
         }
     };
 }

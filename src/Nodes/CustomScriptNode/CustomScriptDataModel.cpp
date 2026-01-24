@@ -56,7 +56,7 @@ unsigned int CustomScriptDataModel::inputIndex() {
 void CustomScriptDataModel::clearLayout() {
     // 删除所有控�?
     for (QWidget* widget : m_widgets.values()) {
-        NodeDelegateModel::unregisterOSCControl(QString("/%1").arg(m_widgets.key(widget)));
+        // NodeDelegateModel::unregisterOSCControl(QString("/%1").arg(m_widgets.key(widget)));
         widget->deleteLater();
     }
     m_widgets.clear();
@@ -95,7 +95,7 @@ int CustomScriptDataModel::addToLayout(QObject* widgetObj, int x, int y, int row
     
     int id = m_widgetCounter++;
     m_widgets[id] = widget_obj;
-    NodeDelegateModel::registerOSCControl(QString("/%1").arg(id), widget_obj);
+    // NodeDelegateModel::registerOSCControl(QString("/%1").arg(id), widget_obj);
     return id;
 }
 

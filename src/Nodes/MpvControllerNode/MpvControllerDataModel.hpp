@@ -1,23 +1,22 @@
 #pragma once
 
-
 #include <QtCore/QObject>
-
 #include "DataTypes/NodeDataList.hpp"
-
 #include <QtNodes/NodeDelegateModel>
-
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 #include <QUrl>
 #include "MpvControllerInterface.hpp"
 #include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
+#include <QSignalBlocker>
 
 #include "ConstantDefines.h"
 #include "Common/Devices/HttpClient/HttpClient.h"
 #include "QTimer"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -31,21 +30,40 @@ namespace Nodes
     class MpvControllerDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString hostAddress READ getHostAddress WRITE setHostAddress NOTIFY hostAddressChanged)
+        Q_PROPERTY(double volume READ getVolume WRITE setVolume NOTIFY volumeChanged)
+
     public:
-        MpvControllerDataModel(){
-            InPortCount =1;
-            OutPortCount=1;
-            CaptionVisible=true;
-            Caption="Mpv Controller";
-            WidgetEmbeddable=false;
-            Resizable=false;
-            client=new HttpClient();
-            widget=new MpvControllerInterface();
-            AbstractDelegateModel::registerOSCControl("/play",widget->Play);
-            AbstractDelegateModel::registerOSCControl("/fullscreen",widget->Fullscreen);
-            timer=new QTimer();
+        MpvControllerDataModel()
+        {
+            InPortCount = 1;
+            OutPortCount = 1;
+            CaptionVisible = true;
+            Caption = "Mpv Controller";
+            WidgetEmbeddable = false;
+            Resizable = false;
+            
+            client = new HttpClient();
+            widget = new MpvControllerInterface();
+            
+            // Restore external control registration
+            AbstractDelegateModel::registerExternalControl("/play", widget->Play);
+            AbstractDelegateModel::registerExternalControl("/fullscreen", widget->Fullscreen);
+            AbstractDelegateModel::registerExternalControl("/volume", widget->volumeEditor);
+            AbstractDelegateModel::registerExternalControl("/playlist_prev", widget->playlist_prev);
+            AbstractDelegateModel::registerExternalControl("/playlist_next", widget->playlist_next);
+            AbstractDelegateModel::registerExternalControl("/speed_add", widget->speedAdd);
+            AbstractDelegateModel::registerExternalControl("/speed_sub", widget->speedSub);
+            AbstractDelegateModel::registerExternalControl("/speed_reset", widget->speedReset);
+            // Sync host address from widget
+            m_hostAddress = widget->hostEdit->text();
+            if (m_hostAddress.isEmpty()) m_hostAddress = "127.0.0.1";
+
+            timer = new QTimer();
             timer->setInterval(900);
             timer->setSingleShot(true);
+
+            // Button Connections
             connect(widget->Play, &QPushButton::clicked, this, &MpvControllerDataModel::onPlay);
             connect(widget->Fullscreen, &QPushButton::clicked, this, &MpvControllerDataModel::onFullscreen);
             connect(widget->playlist_prev, &QPushButton::clicked, this, &MpvControllerDataModel::onplaylist_prev);
@@ -53,21 +71,27 @@ namespace Nodes
             connect(widget->speedAdd, &QPushButton::clicked, this, &MpvControllerDataModel::speedAdd);
             connect(widget->speedSub, &QPushButton::clicked, this, &MpvControllerDataModel::speedSub);
             connect(widget->speedReset, &QPushButton::clicked, this, &MpvControllerDataModel::speedReset);
-            connect(client,&HttpClient::getSatus,this,[this](QJsonObject state){
-                this->status=&state;
-                emit dataUpdated(0);
-                });
-            connect(widget->volumeEditor,&QDoubleSpinBox::valueChanged,this,&MpvControllerDataModel::setValume);
-            connect(timer,&QTimer::timeout,this,&MpvControllerDataModel::getStatus);
 
+            // Client Status Connection - Fix for stack pointer bug
+            connect(client, &HttpClient::getSatus, this, [this](QJsonObject state){
+                *this->status = state; // Deep copy instead of pointer assignment
+                emit dataUpdated(0);
+            });
+
+            // Property Connections
+            connect(widget->volumeEditor, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MpvControllerDataModel::setVolume);
+            connect(widget->hostEdit, &QLineEdit::textChanged, this, &MpvControllerDataModel::setHostAddress);
+            
+            connect(timer, &QTimer::timeout, this, &MpvControllerDataModel::getStatus);
         }
-        ~MpvControllerDataModel(){
+
+        ~MpvControllerDataModel()
+        {
             // delete widget;
             // delete client;
         }
 
     public:
-
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             Q_UNUSED(portIndex)
@@ -81,10 +105,7 @@ namespace Nodes
             default:
                 break;
             }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
-
             return VariableData().type();
-
         }
 
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
@@ -92,41 +113,47 @@ namespace Nodes
             Q_UNUSED(portIndex)
             return std::make_shared<VariableData>(status);
         }
-        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
 
-            if (data== nullptr){
+        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
+        {
+            if (data == nullptr) {
                 return;
             }
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
             if (!textData->isEmpty()) {
-                //            qDebug()<<textData->value().toString();
-                client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/"+textData->value().toString()));
+                client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/" + textData->value().toString()));
                 Q_EMIT dataUpdated(portIndex);
             }
-
-
         }
-
 
         QJsonObject save() const override
         {
-            QJsonObject modelJson1;
-            //        modelJson1["val"] = QString::number(button->isChecked());
-            QJsonObject modelJson  = NodeDelegateModel::save();
-            modelJson["values"]=modelJson1;
+            QJsonObject modelJson = NodeDelegateModel::save();
+            QJsonObject values;
+            values["hostAddress"] = m_hostAddress;
+            values["volume"] = m_volume;
+            modelJson["values"] = values;
             return modelJson;
         }
+
         void load(const QJsonObject &p) override
         {
             QJsonValue v = p["values"];
-            if (!v.isUndefined()&&v.isObject()) {
-                //            button->setChecked(v["val"].toBool(false));
-                //            button->setText(v["val"].toString());
+            if (!v.isUndefined() && v.isObject()) {
+                QJsonObject values = v.toObject();
+                if (values.contains("hostAddress")) {
+                    setHostAddress(values["hostAddress"].toString());
+                }
+                if (values.contains("volume")) {
+                    setVolume(values["volume"].toDouble());
+                }
             }
         }
-        QWidget *embeddedWidget() override{return widget;}
 
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
+        QWidget *embeddedWidget() override { return widget; }
+
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override
+        {
             auto result = ConnectionPolicy::One;
             switch (portType) {
                 case PortType::In:
@@ -138,72 +165,149 @@ namespace Nodes
                 case PortType::None:
                     break;
             }
-
             return result;
         }
 
+        void afterModelReady() override
+        {
+            AbstractDelegateModel::afterModelReady();
+            auto bus = GlobalEventBus::instance();
+            
+            // Subscribe to properties
+            bus->subscribe(makeFullOscAddress("/host"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/volume"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            
+            // Subscribe to commands
+            bus->subscribe(makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/fullscreen"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/playlist_prev"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/playlist_next"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/speed_add"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/speed_sub"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/speed_reset"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
+        }
+
+    public:
+        QString getHostAddress() const { return m_hostAddress; }
+        void setHostAddress(const QString& value)
+        {
+            if (m_hostAddress == value) return;
+            m_hostAddress = value;
+            
+            if (widget && widget->hostEdit->text() != value) {
+                QSignalBlocker blocker(widget->hostEdit);
+                widget->hostEdit->setText(value);
+            }
+            
+            Q_EMIT hostAddressChanged(value);
+            AbstractDelegateModel::stateFeedBack("/host", value);
+        }
+
+        double getVolume() const { return m_volume; }
+        void setVolume(double value)
+        {
+            if (qFuzzyCompare(m_volume, value)) return;
+            m_volume = value;
+
+            if (widget && !qFuzzyCompare(widget->volumeEditor->value(), value)) {
+                QSignalBlocker blocker(widget->volumeEditor);
+                widget->volumeEditor->setValue(value);
+            }
+
+            // Send request to MPV
+            client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/set_volume/" + QString::number(value)));
+            timer->start();
+
+            Q_EMIT volumeChanged(value);
+            AbstractDelegateModel::stateFeedBack("/volume", value);
+        }
+
+    Q_SIGNALS:
+        void hostAddressChanged(QString value);
+        void volumeChanged(double value);
+
     private Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            
+            if (localPath == "host") {
+                setHostAddress(ev.payload.toString());
+            } else if (localPath == "volume") {
+                setVolume(ev.payload.toDouble());
+            } else if (localPath == "play") {
+                onPlay();
+            } else if (localPath == "fullscreen") {
+                onFullscreen();
+            } else if (localPath == "playlist_prev") {
+                onplaylist_prev();
+            } else if (localPath == "playlist_next") {
+                onplaylist_next();
+            } else if (localPath == "speed_add") {
+                speedAdd();
+            } else if (localPath == "speed_sub") {
+                speedSub();
+            } else if (localPath == "speed_reset") {
+                speedReset();
+            }
+        }
 
         void onPlay()
         {
-            //        button->setText(QString::number(string));
-            hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/toggle_pause"));
+            client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/toggle_pause"));
             timer->start();
+            AbstractDelegateModel::stateFeedBack("/play", true);
         }
         void onFullscreen()
         {
-            //        button->setText(QString::number(string));
-            hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/fullscreen"));
+            client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/fullscreen"));
             timer->start();
+            AbstractDelegateModel::stateFeedBack("/fullscreen", true);
         }
-        void getStatus(){
-            hostAddress=widget->hostEdit->text();
-            client->sendGetRequest(QUrl("http://"+hostAddress+":8080/api/status"));
+        void getStatus()
+        {
+            client->sendGetRequest(QUrl("http://" + m_hostAddress + ":8080/api/status"));
         }
 
         void onplaylist_prev()
         {
-            hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/playlist_prev"));
+            client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/playlist_prev"));
             timer->start();
+            AbstractDelegateModel::stateFeedBack("/playlist_prev", true);
         }
         void onplaylist_next()
         {
-            hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/playlist_next"));
+            client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/playlist_next"));
             timer->start();
+            AbstractDelegateModel::stateFeedBack("/playlist_next", true);
         }
-        void speedAdd(){
-            hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_adjust/1.1"));
+        void speedAdd()
+        {
+            client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/speed_adjust/1.1"));
             timer->start();
-            }
+            AbstractDelegateModel::stateFeedBack("/speed_add", true);
+        }
         void speedSub()
         {
-           
-            hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_adjust/0.9"));
+            client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/speed_adjust/0.9"));
             timer->start();
+            AbstractDelegateModel::stateFeedBack("/speed_sub", true);
         }
         void speedReset()
         {
-            hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/speed_set"));
+            client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/speed_set"));
             timer->start();
-        }
-        void setValume(float valume){
-            hostAddress=widget->hostEdit->text();
-            client->sendPostRequest(QUrl("http://"+hostAddress+":8080/api/set_volume/"+QString::number(valume)));
-            timer->start();
+            AbstractDelegateModel::stateFeedBack("/speed_reset", true);
         }
 
     private:
         HttpClient *client;
-        QString hostAddress;
+        QString m_hostAddress = "127.0.0.1";
+        double m_volume = 0.0;
         MpvControllerInterface *widget;
         QTimer *timer;
-        QJsonObject *status=new QJsonObject();
+        QJsonObject *status = new QJsonObject();
     };
 }

@@ -13,7 +13,7 @@
 #include <QScrollArea>
 #include <QVector>
 #include <QCheckBox>
-
+#include "../GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
 {
     /**
@@ -62,7 +62,7 @@ namespace Nodes
          * @param index 通道索引
          * @return 滑块控件指针，如果索引无效返回nullptr
          */
-        QSlider* getChannelSlider(int index) {
+        IntDragValueWidget* getChannelSlider(int index) {
             if (index >= 0 && index < channelSliders.size()) {
                 return channelSliders[index];
             }
@@ -91,8 +91,8 @@ namespace Nodes
 
     public:
         // 通道配置控件
-        QSpinBox *channelCountSpinBox = new QSpinBox(this);
-        QSpinBox *startAddressSpinBox = new QSpinBox(this);  // 起始DMX地址
+        IntDragValueWidget *channelCountSpinBox = new IntDragValueWidget(this);
+        IntDragValueWidget *startAddressSpinBox = new IntDragValueWidget(this);  // 起始DMX地址
         QLabel *addressRangeLabel;  // 地址范围显示标签
         QCheckBox *enableCheckBox = new QCheckBox(this);  // 启用/禁用控件
 
@@ -224,7 +224,7 @@ namespace Nodes
                 channelLabels[i]->setStyleSheet("font-weight: bold; color: orange;");
                 
                 // 通道滑块
-                channelSliders[i] = new QSlider(Qt::Horizontal, channelWidget);
+                channelSliders[i] = new IntDragValueWidget( channelWidget);
                 channelSliders[i]->setRange(0, 255);
                 channelSliders[i]->setValue(0);
 
@@ -248,7 +248,7 @@ namespace Nodes
 
     private:
         // 动态通道控件容器
-        QVector<QSlider*> channelSliders;
+        QVector<IntDragValueWidget*> channelSliders;
         QVector<QLabel*> channelLabels;
         
         // 界面组件

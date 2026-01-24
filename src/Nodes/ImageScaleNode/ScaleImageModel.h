@@ -14,6 +14,8 @@
 #include <QtConcurrent/QtConcurrent>
 #include <opencv2/imgproc.hpp>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+#include <QSignalBlocker>
 namespace Ui {
     class ScaleImageForm;
 }
@@ -22,6 +24,8 @@ namespace Nodes
 {
     class ScaleImageModel final : public AbstractDelegateModel {
         Q_OBJECT
+        Q_PROPERTY(int width READ width WRITE setWidth NOTIFY widthChanged)
+        Q_PROPERTY(int height READ height WRITE setHeight NOTIFY heightChanged)
 
     public:
         ScaleImageModel() {
@@ -36,29 +40,33 @@ namespace Nodes
             m_widget = new QWidget();
             m_ui->setupUi(m_widget);
 
-            this->installEventFilter(this);
             connect(m_ui->widthSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
                                this,
                                [this](int w) {
-                                   m_inScaleFactor.setWidth(w);
-                                   requestProcess(); // 触发图像处理
+                                   setWidth(w);
                                });
 
             // 保持对称性，对heightSpinBox也添加相同逻辑
             connect(m_ui->heightSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
                 this,
                 [this](int h) {
-                    m_inScaleFactor.setHeight(h);
-                    requestProcess();
+                    setHeight(h);
                 });
-            AbstractDelegateModel::registerOSCControl("/Height",m_ui->heightSpinBox);
-            AbstractDelegateModel::registerOSCControl("/Width",m_ui->widthSpinBox);
+            AbstractDelegateModel::registerExternalControl("/Height",m_ui->heightSpinBox);
+            AbstractDelegateModel::registerExternalControl("/Width",m_ui->widthSpinBox);
+
+            m_width = m_ui->widthSpinBox->value();
+            m_height = m_ui->heightSpinBox->value();
+            m_inScaleFactor = QSize(m_width, m_height);
         };
 
         ~ScaleImageModel() override {
             delete m_ui;
             delete m_widget;
         }
+
+        int width() const { return m_width; }
+        int height() const { return m_height; }
 
         QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override {
             switch (portType) {
@@ -124,25 +132,20 @@ namespace Nodes
                 if (auto data=std::dynamic_pointer_cast<VariableData>(nodeData))
                 {
                     m_inScaleFactor=data->value().toSize();
-                    m_ui->widthSpinBox->blockSignals(true);
-                    m_ui->heightSpinBox->blockSignals(true);
-                    m_ui->widthSpinBox->setValue(m_inScaleFactor.width());
-                    m_ui->heightSpinBox->setValue(m_inScaleFactor.height());
-                    m_ui->widthSpinBox->blockSignals(false);
-                    m_ui->heightSpinBox->blockSignals(false);
-                    requestProcess();
+                    setWidth(m_inScaleFactor.width());
+                    setHeight(m_inScaleFactor.height());
                 }
                 break;
             case 2:
                 if (auto data=std::dynamic_pointer_cast<VariableData>(nodeData))
                 {
-                    m_ui->widthSpinBox->setValue(data->value().toInt());
+                    setWidth(data->value().toInt());
                 }
                 break;
             case 3:
                 if (auto data=std::dynamic_pointer_cast<VariableData>(nodeData))
                 {
-                    m_ui->heightSpinBox->setValue(data->value().toInt());
+                    setHeight(data->value().toInt());
                 }
                 break;
             default:
@@ -164,8 +167,8 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["width"] = m_ui->widthSpinBox->value();
-            modelJson1["height"] = m_ui->heightSpinBox->value();
+            modelJson1["width"] = m_width;
+            modelJson1["height"] = m_height;
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["size"]=modelJson1;
             return modelJson;
@@ -175,10 +178,55 @@ namespace Nodes
         {
             QJsonValue v = p["size"];
             if (!v.isUndefined()&&v.isObject()) {
-                m_ui->widthSpinBox->setValue(v["width"].toInt());
-                m_ui->heightSpinBox->setValue(v["height"].toInt());
+                setWidth(v["width"].toInt());
+                setHeight(v["height"].toInt());
             }
         }
+
+    public slots:
+        void setWidth(int w)
+        {
+            if (m_width == w) return;
+            m_width = w;
+            m_inScaleFactor.setWidth(w);
+            if (m_ui && m_ui->widthSpinBox) {
+                const QSignalBlocker blocker(m_ui->widthSpinBox);
+                m_ui->widthSpinBox->setValue(w);
+            }
+            requestProcess();
+            Q_EMIT widthChanged(w);
+            AbstractDelegateModel::stateFeedBack("/Width", w);
+        }
+
+        void setHeight(int h)
+        {
+            if (m_height == h) return;
+            m_height = h;
+            m_inScaleFactor.setHeight(h);
+            if (m_ui && m_ui->heightSpinBox) {
+                const QSignalBlocker blocker(m_ui->heightSpinBox);
+                m_ui->heightSpinBox->setValue(h);
+            }
+            requestProcess();
+            Q_EMIT heightChanged(h);
+            AbstractDelegateModel::stateFeedBack("/Height", h);
+        }
+
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) return;
+            const QString addrWidth = makeFullOscAddress("/Width");
+            const QString addrHeight = makeFullOscAddress("/Height");
+            if (ev.address == addrWidth) {
+                setWidth(ev.payload.toInt());
+            } else if (ev.address == addrHeight) {
+                setHeight(ev.payload.toInt());
+            }
+        }
+
+    signals:
+        void widthChanged(int width);
+        void heightChanged(int height);
     private:
          static QPair<cv::Mat, quint64> processImage(const cv::Mat& inputImage, const QSize& scaleFactor) {
             QElapsedTimer timer;
@@ -242,6 +290,15 @@ namespace Nodes
         // out
         // 0
         std::shared_ptr<ImageData> m_outImageData;
+        int m_width = 0;
+        int m_height = 0;
+
+    protected:
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/Width"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/Height"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        }
     };
 }
 #endif //SCALEIMAGEMODEL_H

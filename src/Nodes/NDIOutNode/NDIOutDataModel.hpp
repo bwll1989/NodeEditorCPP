@@ -25,6 +25,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
 #include <Processing.NDI.Lib.h>
 
 // 再次确保没有 min/max 宏定义
@@ -49,6 +50,8 @@ using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
+
+struct GlobalEvent;
 
 namespace Nodes
 {
@@ -374,6 +377,8 @@ namespace Nodes
     class NDIOutDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString senderName READ senderName WRITE setSenderName NOTIFY senderNameChanged)
+        Q_PROPERTY(bool enable READ enable WRITE setEnable NOTIFY enableChanged)
 
     public:
         /**
@@ -393,7 +398,7 @@ namespace Nodes
             PortEditable = false;
 
             initializeSender();
-            AbstractDelegateModel::registerOSCControl("/enable",m_widget->m_startStopButton);
+            AbstractDelegateModel::registerExternalControl("/enable",m_widget->m_startStopButton);
 
         }
 
@@ -469,7 +474,7 @@ namespace Nodes
                 case 1: {
                     auto Data = std::dynamic_pointer_cast<VariableData>(data);
                     if (Data)
-                        m_widget->m_startStopButton->setChecked(Data->value().toBool());
+                        setEnable(Data->value().toBool());
 
                 }
                     break;
@@ -483,8 +488,8 @@ namespace Nodes
          */
         QJsonObject save() const override {
             QJsonObject obj;
-            obj["senderName"] = m_currentSenderName;
-            obj["isSending"] = m_isSending;
+            obj["senderName"] = senderName();
+            obj["isSending"] = enable();
             return obj;
         }
 
@@ -494,15 +499,10 @@ namespace Nodes
          */
         void load(QJsonObject const &jsonObject) override {
             if (jsonObject.contains("senderName")) {
-                m_currentSenderName = jsonObject["senderName"].toString();
-                m_widget->m_senderNameEdit->setText(m_currentSenderName);
-                if (m_sendThread) {
-                    m_sendThread->setSenderName(m_currentSenderName);
-                }
-
+                setSenderName(jsonObject["senderName"].toString());
             }
             if (jsonObject.contains("isSending")) {
-                m_widget->m_startStopButton->setChecked(jsonObject["isSending"].toBool());
+                setEnable(jsonObject["isSending"].toBool());
             }
 
         }
@@ -514,11 +514,69 @@ namespace Nodes
         QWidget *embeddedWidget() override {
 
             // 连接信号
-            connect(m_widget, &NDIOutInterface::startSending, this, &NDIOutDataModel::startSending);
-            connect(m_widget, &NDIOutInterface::stopSending, this, &NDIOutDataModel::stopSending);
             connect(m_widget, &NDIOutInterface::senderNameChanged, this, &NDIOutDataModel::setSenderName);
+            connect(m_widget->m_startStopButton, &QPushButton::toggled, this, &NDIOutDataModel::setEnable);
 
             return m_widget;
+        }
+
+    Q_SIGNALS:
+        void senderNameChanged(QString senderName);
+        void enableChanged(bool enable);
+
+    public:
+        QString senderName() const { return m_currentSenderName; }
+        void setSenderName(const QString& senderName) {
+            if (m_currentSenderName == senderName) return;
+            m_currentSenderName = senderName;
+            
+            if (m_sendThread) {
+                m_sendThread->setSenderName(senderName);
+            }
+            
+            if (m_widget && m_widget->m_senderNameEdit->text() != senderName) {
+                QSignalBlocker blocker(m_widget->m_senderNameEdit);
+                m_widget->m_senderNameEdit->setText(senderName);
+            }
+            emit senderNameChanged(senderName);
+            AbstractDelegateModel::stateFeedBack("/name", senderName);
+        }
+
+        bool enable() const { return m_isSending; }
+        void setEnable(bool enable) {
+            if (m_isSending == enable) return;
+            
+            if (enable) {
+                startSending();
+            } else {
+                stopSending();
+            }
+            
+            if (m_widget && m_widget->m_startStopButton->isChecked() != enable) {
+                QSignalBlocker blocker(m_widget->m_startStopButton);
+                m_widget->m_startStopButton->setChecked(enable);
+            }
+            
+            emit enableChanged(enable);
+            AbstractDelegateModel::stateFeedBack("/enable", enable);
+        }
+
+    protected:
+        void afterModelReady() override {
+            AbstractDelegateModel::afterModelReady();
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/name"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        }
+
+    private Q_SLOTS:
+        void onGlobalEvent(const GlobalEvent& ev) {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            if (localPath == "name") {
+                setSenderName(ev.payload.toString());
+            } else if (localPath == "enable") {
+                setEnable(ev.payload.toBool());
+            }
         }
 
     public slots:
@@ -527,9 +585,15 @@ namespace Nodes
          * @param sending 发送状态
          */
         void onSendingStatusChanged(bool sending) {
-            m_isSending = sending;
+            // m_isSending is updated in startSending/stopSending or setEnable
+            // Just update UI visual status here
             if (m_widget) {
                 m_widget->updateSendingStatus(sending);
+            }
+            // Ensure consistency if changed externally
+            if (m_isSending != sending) {
+                 m_isSending = sending;
+                 emit enableChanged(sending);
             }
         }
         
@@ -540,10 +604,8 @@ namespace Nodes
         void onErrorOccurred(const QString& error) {
             if (m_widget) {
                 m_widget->showError(error);
-                m_isSending = false;
-                m_widget->m_startStopButton->setChecked(false);
-
             }
+            setEnable(false);
         }
         
         /**
@@ -578,22 +640,6 @@ namespace Nodes
             }
         }
         
-        /**
-         * @brief 设置发送器名称
-         * @param senderName 发送器名称
-         */
-        void setSenderName(const QString& senderName) {
-            if (m_currentSenderName == senderName) {
-                return; // 名称相同，无需更改
-            }
-            
-            m_currentSenderName = senderName;
-            
-            if (m_sendThread) {
-                // 如果正在发送，线程会自动处理重新创建
-                m_sendThread->setSenderName(senderName);
-            }
-        }
         /**
          * @brief 初始化发送器
          */

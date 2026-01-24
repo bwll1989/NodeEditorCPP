@@ -14,7 +14,8 @@
 #include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
 #include "ConstantDefines.h"
-// #include "OSCSender/OSCSender.h" 
+#include "StatusContainer/GlobalEventBus.hpp"
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -27,11 +28,11 @@ namespace Nodes {
     class BoolPluginDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
-
+        Q_PROPERTY(bool value READ value WRITE setValue NOTIFY valueChanged)
 
     public:
 
-        BoolPluginDataModel(): button(new QPushButton(" ")){
+        BoolPluginDataModel(): button(new QPushButton("Toggle")){
             InPortCount =1;
             OutPortCount=1;
             CaptionVisible=true;
@@ -41,9 +42,18 @@ namespace Nodes {
             button->setCheckable(true);
             // button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
             button->setMinimumWidth(80);
-            AbstractDelegateModel::registerOSCControl("/bool", button);
+            AbstractDelegateModel::registerExternalControl("/bool", button);
             button->setChecked(false);
-            connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::onTextEdited);
+            // 用户点击直接驱动属性 setValue
+            connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::setValue);
+            // 属性变化统一更新界面并发送反馈、通知输出端口
+            connect(this, &BoolPluginDataModel::valueChanged, this, [this](bool){
+                // 1. 界面状态和属性自动对齐
+                if (button->isChecked() != lastValue.toBool()) {
+                    button->setChecked(lastValue.toBool());
+                }   
+                stateFeedBack("/bool", lastValue);
+            });
         }
         ~BoolPluginDataModel(){
 
@@ -62,20 +72,34 @@ namespace Nodes {
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(button->isChecked());
+            return std::make_shared<VariableData>(lastValue);
+        }
+        /**
+         * 函数级注释：获取当前布尔属性值
+         */
+        bool value() const { return lastValue.toBool(); }
+        /**
+         * 函数级注释：设置当前布尔属性值，仅在变化时发出通知
+         */
+        void setValue(bool v)
+        {
+            lastValue = v;
+            Q_EMIT dataUpdated(0);
+            Q_EMIT valueChanged(v);
         }
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
 
+            Q_UNUSED(portIndex)
             if (data== nullptr){
                 return;
             }
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
-            if (textData->value().canConvert<bool>()) {
-                button->setChecked(textData->value().toBool());
-            } else {
-                button->setChecked(false);
+            bool v = false;
+            if (textData && textData->value().canConvert<bool>()) {
+                v = textData->value().toBool();
             }
-            Q_EMIT dataUpdated(portIndex);
+            // 端口输入同样通过属性接口驱动业务
+            setValue(v);
         }
 
 
@@ -96,17 +120,45 @@ namespace Nodes {
         }
         QWidget *embeddedWidget() override{return button;}
 
+    signals:
+        /**
+         * 函数级注释：布尔值属性发生变化时发出的通知信号
+         */
+        void valueChanged(bool value);
 
+    protected:
+        /**
+         * 函数级注释：模型就绪后订阅全局事件总线，使用包含正确节点ID的完整地址
+         */
+        void afterModelReady() override
+        {
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/bool"),
+                this,
+                SLOT(onValueChanged(GlobalEvent))
+            );
+        }
 
     private Q_SLOTS:
 
-        void onTextEdited(bool const &string)
-        {
-            button->setText(" ");
-            Q_EMIT dataUpdated(0);
-        }
 
+        /**
+         * 函数级注释：处理外部事件总线输入，调用 setValue 更新布尔属性
+         */
+        void onValueChanged(const GlobalEvent& ev)
+        {
+            // 仅处理当前节点地址上的命令事件，避免状态反馈导致重复执行
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            if (ev.address != makeFullOscAddress("/bool")) {
+                return;
+            }
+            setValue(ev.payload.toBool());
+        }
+       
     private:
         QPushButton *button;
+        QVariant lastValue=false;
     };
 }
