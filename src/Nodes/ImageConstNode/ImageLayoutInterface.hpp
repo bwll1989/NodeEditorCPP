@@ -13,6 +13,7 @@
 #include <QComboBox>
 #include <QSpinBox>
 #include <QIntValidator>
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
 {
 class ImageLayoutInterface final : public QWidget{
@@ -52,22 +53,22 @@ class ImageLayoutInterface final : public QWidget{
             spacingSpin->setRange(0, 1024);
 
             // 数值校验
-            auto *wValidator = new QIntValidator(1, 32768, widthEdit);
-            widthEdit->setValidator(wValidator);
-            auto *hValidator = new QIntValidator(1, 32768, heightEdit);
-            heightEdit->setValidator(hValidator);
+            // auto *wValidator = new QIntValidator(1, 32768, widthEdit);
+            // widthEdit->setValidator(wValidator);
+            // auto *hValidator = new QIntValidator(1, 32768, heightEdit);
+            // heightEdit->setValidator(hValidator);
         }
 
     public:
         QGridLayout *main_layout;
-        QLineEdit *widthEdit=new QLineEdit("100");
-        QLineEdit *heightEdit=new QLineEdit("100");
+        IntDragValueWidget *widthEdit=new IntDragValueWidget();
+        IntDragValueWidget *heightEdit=new IntDragValueWidget();
         // QLabel *display=new QLabel();
         QPushButton *colorEditButton=new QPushButton("Color");
         QComboBox *layoutCombo = new QComboBox();
-        QSpinBox *rowsSpin = new QSpinBox();
-        QSpinBox *colsSpin = new QSpinBox();
-        QSpinBox *spacingSpin = new QSpinBox();
+        IntDragValueWidget *rowsSpin = new IntDragValueWidget();
+        IntDragValueWidget *colsSpin = new IntDragValueWidget();
+        IntDragValueWidget *spacingSpin = new IntDragValueWidget();
     private:
         QLabel *sizeWidthLabel=new QLabel("Width: ");
         QLabel *sizeHeightLabel=new QLabel("Height: ");

@@ -20,9 +20,6 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QThread>
-
-#include "ConstantDefines.h"
-
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
 #include "PluginDefinition.hpp"
@@ -108,7 +105,7 @@ namespace Nodes
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this](){
                 setHost(widget->hostEdit->text());
             });
-            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &PJLinkDataModel::setPort);
+            connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, &PJLinkDataModel::setPort);
             connect(widget->passwordLineEdit, &QLineEdit::editingFinished, this, [this](){
                 setPassword(widget->passwordLineEdit->text());
             });

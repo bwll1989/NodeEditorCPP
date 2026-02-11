@@ -20,9 +20,6 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QThread>
-
-#include "ConstantDefines.h"
-
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
 #include "PluginDefinition.hpp"
@@ -78,12 +75,12 @@ namespace Nodes
             connect(m_heartbeatTimer, &QTimer::timeout, this, &CurtainDataModel::sendHeartbeat);
 
             // 注册外部控制
-            NodeDelegateModel::registerExternalControl("/host", widget->hostEdit);
-            NodeDelegateModel::registerExternalControl("/port", widget->portSpinBox);
-            NodeDelegateModel::registerExternalControl("/open", widget->openButton);
-            NodeDelegateModel::registerExternalControl("/close", widget->closeButton);
-            NodeDelegateModel::registerExternalControl("/reset", widget->resetButton);
-            NodeDelegateModel::registerExternalControl("/status", widget->connectionStatusLabel);
+            AbstractDelegateModel::registerExternalControl("/host", widget->hostEdit);
+            AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
+            AbstractDelegateModel::registerExternalControl("/open", widget->openButton);
+            AbstractDelegateModel::registerExternalControl("/close", widget->closeButton);
+            AbstractDelegateModel::registerExternalControl("/reset", widget->resetButton);
+            AbstractDelegateModel::registerExternalControl("/status", widget->connectionStatusLabel);
 
             // 同步UI初始值
             m_host = widget->hostEdit->text();
@@ -103,7 +100,7 @@ namespace Nodes
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this](){
                 setHost(widget->hostEdit->text());
             });
-            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &CurtainDataModel::setPort);
+            connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, &CurtainDataModel::setPort);
 
 
             connect(this, &CurtainDataModel::stopTCPClient, client, &TcpClient::stopTimer, Qt::QueuedConnection);

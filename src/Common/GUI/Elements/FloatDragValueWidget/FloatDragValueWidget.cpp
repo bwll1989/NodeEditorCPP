@@ -10,7 +10,7 @@ FloatDragValueWidget::FloatDragValueWidget(QWidget *parent)
     : QWidget(parent)
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    setMinimumHeight(24);
+    setMinimumHeight(28);
 
     m_lineEdit = new QLineEdit(this);
     m_lineEdit->hide();
@@ -90,10 +90,22 @@ void FloatDragValueWidget::setRange(double min, double max)
     setMaximum(max);
 }
 
+QString FloatDragValueWidget::suffix() const
+{
+    return m_suffix;
+}
+
+void FloatDragValueWidget::setSuffix(const QString &s)
+{
+    if (m_suffix == s) return;
+    m_suffix = s;
+    update();
+}
+
 void FloatDragValueWidget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
-      QPainter painter(this);
+    QPainter painter(this);
     
     QStyleOptionFrame option;
     option.initFrom(this); // 从当前控件获取状态、调色板等
@@ -106,6 +118,9 @@ void FloatDragValueWidget::paintEvent(QPaintEvent *event)
     // 使用调色板中的文本颜色
     painter.setPen(option.palette.text().color());
     QString text = QString::number(m_value, 'f', m_decimals);
+    if (!m_suffix.isEmpty()) {
+        text += m_suffix;
+    }
     painter.drawText(rect(), Qt::AlignCenter, text);
     
     // Draw active indicator if focused or hovering? 

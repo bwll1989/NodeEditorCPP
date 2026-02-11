@@ -9,7 +9,7 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QFont>
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "OSCMessageListModel.hpp"
 OSCMessageListWidget::OSCMessageListWidget(bool onlyInternal, QWidget* parent)
     : QGridView(parent), OnlyInternal(onlyInternal)
@@ -248,7 +248,7 @@ void OSCMessageListWidget::dropEvent(QDropEvent* event)
         QDataStream stream(data);
         if (OnlyInternal) {
             message.host = "127.0.0.1";
-            message.port = AppConstants::EXTRA_CONTROL_PORT;
+            message.port = ConfigManager::instance().getExtraControlPort();
         }
         stream >> message.host >> message.port >> message.address >> message.type >> message.value;
         addOSCMessage(message);
@@ -327,7 +327,7 @@ void OSCMessageListWidget::mouseMoveEvent(QMouseEvent* event)
     QDataStream dataStream(&itemData, QIODevice::WriteOnly);
     if (OnlyInternal) {
         message.host = "127.0.0.1";
-        message.port = AppConstants::EXTRA_CONTROL_PORT;
+        message.port = ConfigManager::instance().getExtraControlPort();
     }
     dataStream << message.host << message.port << message.address << message.type << message.value;
 

@@ -70,15 +70,17 @@ QHBoxLayout *PortEditAddRemoveWidget::addButtonGroupToLayout(QVBoxLayout *vbl, u
     auto l = new QHBoxLayout();
     l->setContentsMargins(0, 0, 0, 0);
 
-    auto button = new QPushButton(QIcon(":/icons/icons/add.png"),"");
-    button->setFixedHeight(25);
-    button->setFixedWidth(25);
+    auto button = new QPushButton("+");
+    button->setFixedSize(23,23);
+    // 强制去除样式表中的最小高度和内边距限制
+    button->setStyleSheet("QPushButton { min-height: 23px; max-height: 23px; padding: 0px; border: 1px solid #555; border-radius: 2px; font-size: 8px; }");
     l->addWidget(button);
     connect(button, &QPushButton::clicked, this, &PortEditAddRemoveWidget::onPlusClicked);
 
-	button = new QPushButton(QIcon(":/icons/icons/remove.png"),"");
-    button->setFixedHeight(25);
-    button->setFixedWidth(25);
+	button = new QPushButton("-");
+    button->setFixedSize(23,23);
+    // 强制去除样式表中的最小高度和内边距限制
+    button->setStyleSheet("QPushButton { min-height: 23px; max-height: 23px; padding: 0px; border: 1px solid #555; border-radius: 2px; font-size: 8px; }");
     l->addWidget(button);
     connect(button, &QPushButton::clicked, this, &PortEditAddRemoveWidget::onMinusClicked);
 

@@ -10,6 +10,7 @@
 #include "QLayout"
 #include <QSpinBox>
 #include <QVariantMap>
+#include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
 {
     class OscInInterface: public QWidget{
@@ -26,7 +27,7 @@ namespace Nodes
             main_layout->addWidget(valueLabel,2,0);
             main_layout->addWidget(valueEdit,2,1);
             main_layout->setContentsMargins(0,0,0,0);
-            connect(portSpinBox,&QSpinBox::valueChanged,this,&OscInInterface::valueChanged);
+            connect(portSpinBox,&IntDragValueWidget::valueChanged,this,&OscInInterface::valueChanged);
             this->setLayout(main_layout);
         }
         signals:
@@ -39,7 +40,7 @@ namespace Nodes
 
     public:
         QGridLayout *main_layout;
-        QSpinBox *portSpinBox=new QSpinBox();
+        IntDragValueWidget *portSpinBox=new IntDragValueWidget();
         QLineEdit *valueEdit=new QLineEdit();
         QLineEdit *addressEdit=new QLineEdit();
     private:

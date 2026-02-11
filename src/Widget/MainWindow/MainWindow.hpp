@@ -179,21 +179,7 @@ private:
     QAction* trayExitAction = nullptr;
     bool isDarkTheme = false;
 
-    /**
-     * 函数级注释：载入最近文件列表（从 cfg/RecentFiles.ini）
-     */
-    QStringList getRecentFiles() const;
-
-    /**
-     * 函数级注释：保存最近文件列表（至 cfg/RecentFiles.ini）
-     */
-    void saveRecentFiles(const QStringList& files) const;
-
-    /**
-     * 函数级注释：将新路径加入最近文件列表（去重、限制数量并更新菜单）
-     */
-    void addToRecentFiles(const QString& path);
-
+  
 
 };
 

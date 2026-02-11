@@ -10,7 +10,6 @@
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
 #include "ImageThresholdInterface.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
@@ -41,8 +40,8 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outImage=std::make_shared<ImageData>();
-            connect(widget->threshEdit,&QSpinBox::valueChanged,this,[this](int v){ setThresh(v); });
-            connect(widget->maxvalEdit,&QSpinBox::valueChanged,this,[this](int v){ setMaxval(v); });
+            connect(widget->threshEdit,&IntDragValueWidget::valueChanged,this,[this](int v){ setThresh(v); });
+            connect(widget->maxvalEdit,&IntDragValueWidget::valueChanged,this,[this](int v){ setMaxval(v); });
             connect(widget->methodEdit,&QComboBox::currentIndexChanged,this,[this](int v){ setMethod(v); });
 
             AbstractDelegateModel::registerExternalControl("/method",widget->methodEdit);

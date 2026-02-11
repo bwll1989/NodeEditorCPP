@@ -8,8 +8,8 @@
 #include <QDesktopServices>
 #include <QFile>
 #include "AboutWidget.hpp"
-#include "ConstantDefines.h"
 #include "SystemInfoWidget.h"
+#include "Common/AppConfig/ConfigManager.h"
 
 MenuBarWidget::MenuBarWidget(QWidget *parent) : QMenuBar(parent) {
     this->setFont(QApplication::font());
@@ -20,18 +20,23 @@ void MenuBarWidget::setupMenu() {
     Files_menu = this->addMenu("文件");
     Files_menu->setWindowFlags(Files_menu->windowFlags() | Qt::NoDropShadowWindowHint);
     Files_menu->setAttribute(Qt::WA_TranslucentBackground, false);
-    loadAction = Files_menu->addAction(QIcon(":/icons/icons/open_flat.png"),"打开文件");
+    loadAction = Files_menu->addAction(QIcon(":/icons/icons/folder.png"),"打开文件");
     recentFilesMenu = Files_menu->addMenu(QIcon(":/icons/icons/history.png"),"最近打开");
     recentFilesMenu->setWindowFlags(recentFilesMenu->windowFlags() | Qt::NoDropShadowWindowHint);
     recentFilesMenu->setAttribute(Qt::WA_TranslucentBackground, false);
-    for (int i = 0; i < AppConstants::MaxRecentFiles; ++i) {
-        recentFileActs[i] = new QAction(this);
-        recentFileActs[i]->setVisible(false);
+
+    // Dynamic initialization of recent file actions based on ConfigManager
+    int maxFiles = ConfigManager::instance().getMaxRecentFiles();
+    for (int i = 0; i < maxFiles; ++i) {
+        QAction* action = new QAction(this);
+        action->setVisible(false);
+        recentFileActs.append(action);
+        
         // 将动作加入子菜单
-        recentFilesMenu->addAction(recentFileActs[i]);
+        recentFilesMenu->addAction(action);
         // 点击后发出路径信号，由 MainWindow 处理实际打开
-        connect(recentFileActs[i], &QAction::triggered, this, [this, i]() {
-            emit recentFileTriggered(recentFileActs[i]->data().toString());
+        connect(action, &QAction::triggered, this, [this, action]() {
+            emit recentFileTriggered(action->data().toString());
         });
     }
     Files_menu->addSeparator();
@@ -56,6 +61,10 @@ void MenuBarWidget::setupMenu() {
     });
 
     clearAction = Edit_menu->addAction(QIcon(":/icons/icons/clear.png"),"清空日志");
+    Edit_menu->addSeparator();
+    Setting=Edit_menu->addAction("系统设置");
+    Setting->setIcon(QIcon(":/icons/icons/setting.png"));
+    connect(Setting, &QAction::triggered, this, &MenuBarWidget::showSetting);
 
     View_menu=this->addMenu("视图");
     View_menu->setWindowFlags(View_menu->windowFlags() | Qt::NoDropShadowWindowHint);
@@ -72,17 +81,11 @@ void MenuBarWidget::setupMenu() {
 
     saveLayout=View_menu->addAction(QIcon(":/icons/icons/layout.png"),"保存为默认布局");
 
-    // Setting_menu=this->addMenu("设置");
-    // Setting_1=Setting_menu->addAction("设置1");
-    // Setting_1->setIcon(QIcon(":/icons/icons/setting.png"));
-    // Setting_2=Setting_menu->addAction("设置2");
-    // Setting_2->setIcon(QIcon(":/icons/icons/setting.png"));
-
     Plugins_menu = this->addMenu("插件");
     Plugins_menu->setWindowFlags(Plugins_menu->windowFlags() | Qt::NoDropShadowWindowHint);
     Plugins_menu->setAttribute(Qt::WA_TranslucentBackground, false);
     pluginsManagerAction = Plugins_menu->addAction(QIcon(":/icons/icons/plugins.png"),"插件管理器");
-    pluginsFloderAction =Plugins_menu->addAction(QIcon(":/icons/icons/open_flat.png"),"打开插件文件夹");
+    pluginsFloderAction =Plugins_menu->addAction(QIcon(":/icons/icons/folder.png"),"打开插件文件夹");
 
     createNodeAction=new QAction(QStringLiteral("Create node"));
 
@@ -159,7 +162,9 @@ void MenuBarWidget::showHelp() {
 
 // 函数级注释：在默认浏览器中打开本地HTTP服务器页面（Dashboard）
 void MenuBarWidget::openDashboard() {
-    const QUrl url(QString("http://127.0.0.1:%1/").arg(AppConstants::HTTP_SERVER_PORT));
+    // Use configured port
+    int port = ConfigManager::instance().getHttpServerPort();
+    const QUrl url(QString("http://127.0.0.1:%1/").arg(port));
     QDesktopServices::openUrl(url);
 }
 /**
@@ -168,19 +173,36 @@ void MenuBarWidget::openDashboard() {
  * - 如果列表长度不足，隐藏多余条目
  */
 void MenuBarWidget::updateRecentFileActions(const QStringList& files) {
-    const int count = qMin(files.size(), 5);
+    int maxFiles = ConfigManager::instance().getMaxRecentFiles();
+    
+    // Ensure we have enough actions (in case config changed or initialization differed)
+    while (recentFileActs.size() < maxFiles) {
+        QAction* action = new QAction(this);
+        action->setVisible(false);
+        recentFileActs.append(action);
+        recentFilesMenu->addAction(action);
+        connect(action, &QAction::triggered, this, [this, action]() {
+            emit recentFileTriggered(action->data().toString());
+        });
+    }
+
+    const int count = qMin(files.size(), maxFiles);
     for (int i = 0; i < count; ++i) {
         const QString path = files.at(i);
         const QFileInfo fi(path);
-        recentFileActs[i]->setText(QString::number(i + 1) + " " + fi.fileName());
+        recentFileActs[i]->setText(fi.fileName());
         recentFileActs[i]->setData(path);
         recentFileActs[i]->setToolTip(path);
         recentFileActs[i]->setVisible(true);
     }
-    for (int j = count; j < AppConstants::MaxRecentFiles; ++j) {
+    for (int j = count; j < recentFileActs.size(); ++j) {
         recentFileActs[j]->setVisible(false);
         recentFileActs[j]->setData(QString());
         recentFileActs[j]->setText(QString());
         recentFileActs[j]->setToolTip(QString());
     }
+}
+void MenuBarWidget::showSetting() {
+    SettingWidget settingWidget(this);
+    settingWidget.exec();
 }

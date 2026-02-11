@@ -9,7 +9,7 @@
 #include <QGroupBox>   // Command组与Loop组
 #include <QPushButton> // Test按钮
 #include <QFont>       // 大号时间字体
-#include "ConstantDefines.h"
+#include "../../Common/AppConfig/ConfigManager.h"
 #include <QGraphicsDropShadowEffect>
 TaskItemWidget::TaskItemWidget(QWidget* parent)
     : QWidget(parent)
@@ -210,8 +210,8 @@ OSCMessage TaskItemWidget::getMessage() const
 {
     OSCMessage msg;
 
-    msg.host=AppConstants::OSC_INTERNAL_CONTROL_HOST;
-    msg.port=AppConstants::EXTRA_CONTROL_PORT;
+    msg.host=ConfigManager::instance().getOscInternalControlHost();
+    msg.port=ConfigManager::instance().getExtraControlPort();
     // 地址与类型/值
     msg.address = addressEdit->text().trimmed();
     // msg.type = typeCombo->currentText();

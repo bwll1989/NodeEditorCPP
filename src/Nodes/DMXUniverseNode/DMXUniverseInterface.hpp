@@ -61,7 +61,7 @@ namespace Nodes
             createControlGroup(mainLayout);
             
             this->setLayout(mainLayout);
-            this->setMinimumSize(300, 200);
+            this->setMinimumSize(200, 200);
         }
 
         /**

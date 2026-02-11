@@ -181,7 +181,7 @@ QMenuBar::item:selected {
 
 /* ======= 菜单样式 ======= */
 QMenu {
-    background-color: #F8F8F8;
+    background-color: rgba(248, 248, 248, 0.95);
     color: #000000;
     border: 1px solid rgba(0,0,0,20);
     border-radius: 6px;
@@ -198,6 +198,44 @@ QMenu::item {
     background-color: transparent;
     border-radius: 6px;
     min-height: 20px;
+}
+
+QMenu::icon {
+    padding-left: 5px;
+}
+
+QMenu::right-arrow {
+    image: url(:/icons/icons/arror_right.png);
+    width: 10px;
+    height: 10px;
+    padding-right: 5px;
+}
+
+QMenu::down-arrow {
+    image: url(:/icons/icons/arror_down.png);
+    width: 10px;
+    height: 10px;
+}
+
+QMenu::up-arrow {
+    image: url(:/icons/icons/arror_up.png);
+    width: 10px;
+    height: 10px;
+}
+QMenu::left-arrow {
+    image: url(:/icons/icons/arror_left.png);
+    width: 10px;
+    height: 10px;
+}
+/* QToolButton 下拉箭头优化 */
+QToolButton::menu-indicator {
+    image: none;
+    width: 10px;
+    height: 10px;
+    subcontrol-position: bottom right;
+    subcontrol-origin: padding;
+    right: 2px;
+    bottom: 2px;
 }
 
 QMenu::item:selected {
@@ -396,25 +434,44 @@ QTreeView {
     border-radius: 4px;
     outline: 0;
 }
+QToolBar {
+    background: transparent;
+    border: none;
+}
+QToolBar QToolButton {
+    border: none;
+    background: transparent;
+    padding: 2px;
+    margin: 1px;
+    color: #000000;
+}
+QToolBar QToolButton:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+QToolBar QToolButton:pressed {
+    background-color: rgba(0, 0, 0, 0.14);
+}
+QToolBar QToolButton:checked {
+    background-color: rgba(0, 120, 212, 0.28);
+    color: #000000;
+}
 
 QTreeView::item {
     height: 26px;
-    padding: 2px 8px;
-    border-left: 2px solid transparent;
+    padding: 0px 2px;
+
 }
 
 QTreeView::item:selected {
     background-color: #b8b8b8;
     color: #1A1A1A;
-    border-left-color: #0078d4;
-    border-left-width: 2px;
+
     padding-left: 10px;
 }
 
 QTreeView::item:hover:!selected {
     background-color: #b8b8b8;
-    border-left-color: #0078d4;
-    border-left-width: 2px;
+
     padding-left: 10px;
 }
 
@@ -445,33 +502,12 @@ QGridView::item:hover:!selected {
     border-radius: 6px;
 }
 
-/* 分支指示器与线条扁平化 */
-QTreeView::branch {
-    background: transparent;
-}
-
-QTreeView::branch:has-siblings:adjoins-item,
-QTreeView::branch:has-siblings:!adjoins-item,
-QTreeView::branch:!has-children:adjoins-item,
-QTreeView::branch:!has-children:!adjoins-item,
-QTreeView::branch:has-children:closed,
-QTreeView::branch:has-children:open {
-    border: none;
-}
-
-QTreeView::branch:has-children:closed {
-    image: url(:/icons/icons/arror_right.png);
-}
-
-QTreeView::branch:has-children:open {
-    image: url(:/icons/icons/expand.png);
-}
 
 
 /* ======= 滚动条样式 ======= */
 QScrollBar:vertical {
     background-color: transparent;
-    width: 4px;
+    width: 6px;
 }
 
 QScrollBar::handle:vertical {
@@ -482,7 +518,7 @@ QScrollBar::handle:vertical {
 
 QScrollBar:horizontal {
     background-color: transparent;
-    height: 4px;
+    height: 6px;
 }
 
 QScrollBar::handle:horizontal {

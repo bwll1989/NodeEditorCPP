@@ -10,7 +10,6 @@
 #include <iostream>
 #include <vector>
 #include <QtCore/qglobal.h>
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>

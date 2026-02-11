@@ -13,7 +13,7 @@
 #include "QTimer"
 #include "AudioDecoder.hpp"
 #include "QThread"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
@@ -78,7 +78,7 @@ namespace Nodes
                 AbstractDelegateModel::stateFeedBack("/file", m_filePath);
             });
 
-            connect(widget->volumeSlider, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->volumeSlider, &FloatDragValueWidget::valueChanged,
                     this, &AudioDecoderDataModel::setVolumeProperty, Qt::QueuedConnection);
             connect(this, &AudioDecoderDataModel::volumeChanged, this, [this](double){
                 {

@@ -14,7 +14,6 @@
 #include <memory>
 #include <map>
 #include "TimestampGenerator/TimestampGenerator.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;

@@ -10,7 +10,7 @@ IntDragValueWidget::IntDragValueWidget(QWidget *parent)
     : QWidget(parent)
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    setMinimumHeight(24);
+    setMinimumHeight(28);
 
     m_lineEdit = new QLineEdit(this);
     m_lineEdit->hide();
@@ -79,6 +79,17 @@ void IntDragValueWidget::setRange(int min, int max)
     setMaximum(max);
 }
 
+QString IntDragValueWidget::suffix() const
+{
+    return m_suffix;
+}
+
+void IntDragValueWidget::setSuffix(const QString &s)
+{
+    if (m_suffix == s) return;
+    m_suffix = s;
+    update();
+}
 
 void IntDragValueWidget::paintEvent(QPaintEvent *event)
 {
@@ -96,6 +107,9 @@ void IntDragValueWidget::paintEvent(QPaintEvent *event)
     // 使用调色板中的文本颜色
     painter.setPen(option.palette.text().color());
     QString text = QString::number(m_value);
+    if (!m_suffix.isEmpty()) {
+        text += m_suffix;
+    }
     painter.drawText(rect(), Qt::AlignCenter, text);
     
     // Draw active indicator if focused or hovering? 

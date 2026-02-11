@@ -83,7 +83,7 @@ namespace Nodes
                 mSender->setHost(text, widget->Port->value());
             });
 
-            connect(widget->Port, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
+            connect(widget->Port, &IntDragValueWidget::valueChanged, this, [this](int value){
                 mSender->setHost(widget->IP->text(), value);
             });
 

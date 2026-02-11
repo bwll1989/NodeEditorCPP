@@ -11,7 +11,6 @@
 #include <QtCore/qglobal.h>
 #include <QSignalBlocker>
 
-#include "ConstantDefines.h"
 #include "Common/Devices/HttpClient/HttpClient.h"
 #include "QTimer"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
@@ -79,7 +78,7 @@ namespace Nodes
             });
 
             // Property Connections
-            connect(widget->volumeEditor, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MpvControllerDataModel::setVolume);
+            connect(widget->volumeEditor, &FloatDragValueWidget::valueChanged, this, &MpvControllerDataModel::setVolume);
             connect(widget->hostEdit, &QLineEdit::textChanged, this, &MpvControllerDataModel::setHostAddress);
             
             connect(timer, &QTimer::timeout, this, &MpvControllerDataModel::getStatus);

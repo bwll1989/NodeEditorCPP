@@ -12,6 +12,7 @@
 #include "QTextBrowser"
 #include "QComboBox"
 #include "QVariant"
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 using namespace std;
 namespace Nodes
 {
@@ -34,7 +35,7 @@ namespace Nodes
             main_layout->addWidget(sendButton, 5,0,1,2);
             portSpinBox->setRange(0,65536);
             portSpinBox->setValue(2003);
-            connect(portSpinBox,&QSpinBox::valueChanged,this,&WebSocketServerInterface::valueChanged);
+            connect(portSpinBox,&IntDragValueWidget::valueChanged,this,&WebSocketServerInterface::valueChanged);
             this->setLayout(main_layout);
         }
         signals:
@@ -51,7 +52,7 @@ namespace Nodes
     public:
 
         QGridLayout *main_layout=new QGridLayout(this);
-        QSpinBox *portSpinBox=new QSpinBox();
+        IntDragValueWidget *portSpinBox=new IntDragValueWidget();
         QLineEdit *valueEdit=new QLineEdit();
         QPushButton *sendButton=new QPushButton("Send");
         QComboBox* format=new QComboBox();

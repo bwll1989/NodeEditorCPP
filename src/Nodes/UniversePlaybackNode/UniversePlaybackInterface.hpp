@@ -10,6 +10,7 @@
 #include <QCheckBox>  // 新增：包含QCheckBox头文件
 #include <QTimeEdit>
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
+#include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
 {
     /**
@@ -29,9 +30,9 @@ namespace Nodes
 
     public:
         // Universe配置控件
-        QSpinBox *universeSpinBox = new QSpinBox(this);
-        QSpinBox *subnetSpinBox = new QSpinBox(this);
-        QSpinBox *netSpinBox = new QSpinBox(this);
+        IntDragValueWidget *universeSpinBox = new IntDragValueWidget(this);
+        IntDragValueWidget *subnetSpinBox = new IntDragValueWidget(this);
+        IntDragValueWidget *netSpinBox = new IntDragValueWidget(this);
         
         // 控制按钮
         QPushButton *clearButton = new QPushButton("清空数据", this);

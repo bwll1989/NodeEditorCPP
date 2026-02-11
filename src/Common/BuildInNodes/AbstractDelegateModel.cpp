@@ -13,7 +13,7 @@
 #include <QSpinBox>
 #include <QLineEdit>
 
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "../Devices/StatusContainer/StatusContainer.h"
 #include "../Devices/StatusContainer/GlobalEventBus.hpp"
 #include "OSCSender/OSCSender.h"

@@ -7,7 +7,6 @@
 #include <iostream>
 #include "ModelDataBridge/ModelDataBridge.hpp"
 #include "Elements/DataBridgeSelectorBox/DataBridgeSelectorBox.hpp"
-#include "ConstantDefines.h"
 #include "AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;

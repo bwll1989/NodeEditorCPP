@@ -22,7 +22,6 @@
 #include <QJsonObject>
 #include "PluginDefinition.hpp"
 #include "AudioDuckingWorker.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 

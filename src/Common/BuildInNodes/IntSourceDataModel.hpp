@@ -38,7 +38,7 @@ namespace Nodes
             Caption="Int Source";
             WidgetEmbeddable=true;
             Resizable=false;
-            widget->setFixedSize(80,24);
+            widget->setFixedSize(80,30);
             AbstractDelegateModel::registerExternalControl("/int",widget);
             widget->setValue(m_value);
             connect(widget, &IntDragValueWidget::valueChanged, this, &IntSourceDataModel::setValue);

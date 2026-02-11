@@ -9,6 +9,8 @@
 #include <QSpinBox>
 #include <QPushButton>
 
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+
 namespace Nodes
 {
     /**
@@ -43,7 +45,7 @@ namespace Nodes
     public:
         QGridLayout *main_layout = new QGridLayout(this);
         QLineEdit *IP = new QLineEdit("0.0.0.0", this);
-        QSpinBox *Port = new QSpinBox(this);
+        IntDragValueWidget *Port = new IntDragValueWidget(this);
 
     };
 }

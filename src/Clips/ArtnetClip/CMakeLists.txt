@@ -73,6 +73,7 @@ target_link_libraries(ArtnetClip PUBLIC
         MediaManger
         GUIElements
     StatusContainer
+        AppConfig
 )
 
 # 包含目录

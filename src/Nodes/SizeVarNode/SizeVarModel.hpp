@@ -6,9 +6,6 @@
 #define SIZEVARMODEL_H
 
 #include <QtNodes/NodeDelegateModel>
-
-#include "ConstantDefines.h"
-#include "OSCMessage.h"
 #include "DataTypes/NodeDataList.hpp"
 #include "ui_SizeVarForm.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"

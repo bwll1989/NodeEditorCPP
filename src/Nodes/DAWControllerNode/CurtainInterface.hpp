@@ -15,7 +15,7 @@
 #include "QHBoxLayout"
 #include "QGridLayout"
 #include "QDateTime"
-
+#include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 using namespace std;
 
 namespace Nodes
@@ -83,7 +83,7 @@ namespace Nodes
         QPushButton* openButton = new QPushButton("Open");
         QPushButton* closeButton = new QPushButton("Close");
         QPushButton* resetButton = new QPushButton("Reset");
-        QSpinBox* portSpinBox = new QSpinBox();
+        IntDragValueWidget* portSpinBox = new IntDragValueWidget();
         QPushButton *connectionStatusLabel = new QPushButton("Disconnect");
     };
 }

@@ -10,12 +10,9 @@
 #include "QLabel"
 #include "QLayout"
 #include "QPushButton"
-#include <QFileDialog>  // 新增文件对话框支持
 
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
-/// The model dictates the number of inputs and outputs for the Node.
-/// In this example it has no logic.
-///
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 namespace Nodes
 {
     class AudioDecoderInterface: public QWidget{
@@ -65,7 +62,7 @@ namespace Nodes
 
         QSlider *progressSlider = new QSlider(this);
         QLabel *timeLabel = new QLabel(this);
-        QDoubleSpinBox *volumeSlider = new QDoubleSpinBox(this);
+        FloatDragValueWidget *volumeSlider = new FloatDragValueWidget(this);
         QCheckBox *loopCheckBox = new QCheckBox("Loop");
 
     };

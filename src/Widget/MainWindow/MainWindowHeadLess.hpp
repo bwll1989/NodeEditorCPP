@@ -98,10 +98,6 @@ private:
     QAction* trayExitAction = nullptr;
 
     /**
-     * 函数级注释：载入最近文件列表（从 cfg/RecentFiles.ini）
-     */
-    QStringList getRecentFiles() const;
-    /**
      * @brief 判断是否已注入启动画面
      * @return true 表示拥有可用的 SplashScreen
      * 函数级注释：用于在加载流程中选择是否输出状态到启动画面。

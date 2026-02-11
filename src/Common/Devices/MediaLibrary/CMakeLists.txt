@@ -18,6 +18,6 @@ set(MediaManger_sources
 
 add_library(MediaManger SHARED ${MediaManger_sources})
 
-target_link_libraries(MediaManger PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(MediaManger PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets AppConfig)
 
 target_compile_definitions(MediaManger PRIVATE MEDIAMANGER_LIBRARY)

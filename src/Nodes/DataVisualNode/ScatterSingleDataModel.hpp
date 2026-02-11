@@ -9,7 +9,6 @@
 #include <QQuickItem>
 #include <vector>
 #include <QtCore/qglobal.h>
-#include "ConstantDefines.h"
 #include "DataVisualInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;

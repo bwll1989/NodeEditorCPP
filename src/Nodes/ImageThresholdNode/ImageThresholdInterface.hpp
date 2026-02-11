@@ -1,13 +1,13 @@
 //
 // Created by Administrator on 2025/07/13.
 //
-#ifndef IMAGETHRESHOLDERFACE_HPP
-#define IMAGETHRESHOLDERFACE_HPP
+#pragma once
 #include "QWidget"
 #include "QLayout"
 #include <QSpinBox>
 #include <QVariantMap>
 #include <QPushButton>
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
 {
 class ImageThresholdInterface final : public QWidget{
@@ -21,10 +21,10 @@ class ImageThresholdInterface final : public QWidget{
             methodEdit->addItem("THRESH_TRUNC");
             methodEdit->addItem("THRESH_TOZERO");
             methodEdit->addItem("THRESH_TOZERO_INV");
-            threshEdit=new QSpinBox();
+            threshEdit=new IntDragValueWidget();
             threshEdit->setRange(0,255);
             threshEdit->setValue(128);
-            maxvalEdit=new QSpinBox();
+            maxvalEdit=new IntDragValueWidget();
             maxvalEdit->setRange(0,255);
             maxvalEdit->setValue(255);
             main_layout->addWidget(new QLabel("Threshold"),0,0,1,1);
@@ -45,8 +45,8 @@ class ImageThresholdInterface final : public QWidget{
     public:
         QGridLayout *main_layout;
         QComboBox *methodEdit;
-        QSpinBox *threshEdit;
-        QSpinBox *maxvalEdit;
+        IntDragValueWidget *threshEdit;
+        IntDragValueWidget *maxvalEdit;
 
 
     // 添加事件过滤器声明
@@ -55,4 +55,4 @@ class ImageThresholdInterface final : public QWidget{
 
     };
 }
-#endif
+

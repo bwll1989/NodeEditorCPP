@@ -26,7 +26,6 @@
 #include <QMetaObject>
 #include <QTimer>
 #include "JSPluginManager.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;

@@ -10,7 +10,6 @@
 #include <QVariantMap>
 #include <QByteArray>
 #include <QJsonArray>
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>

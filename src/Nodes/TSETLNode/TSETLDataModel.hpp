@@ -19,8 +19,6 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QThread>
-
-#include "ConstantDefines.h"
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
@@ -85,7 +83,7 @@ namespace Nodes
                 setHost(widget->hostEdit->text());
             });
 
-            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int val) {
+            connect(widget->portSpinBox,&IntDragValueWidget::valueChanged, this, [this](int val) {
                 setPort(val);
             });
 

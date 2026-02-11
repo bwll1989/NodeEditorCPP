@@ -7,7 +7,6 @@
 #include <iostream>
 #include <QtCore/qglobal.h>
 #include "HoldInterface.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
@@ -72,10 +71,7 @@ namespace Nodes
             m_ignoreRepeat = widget->ignoreRepeatCheckBox->isChecked();
 
             // UI 与属性联动
-            connect(widget->value, &IntDragValueWidget::editingFinished, this, [this](){
-                qDebug() << "HoldDataModel editingFinished";
-                setHoldTime(widget->value->value());
-            });
+            connect(widget->value, &IntDragValueWidget::valueChanged, this,&HoldDataModel::setHoldTime);
             connect(widget->ignoreRepeatCheckBox, &QCheckBox::toggled, this, [this](bool checked){
                 setIgnoreRepeat(checked);
             });

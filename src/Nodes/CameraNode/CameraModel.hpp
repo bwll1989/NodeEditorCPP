@@ -108,6 +108,14 @@ protected:
             QMutexLocker locker(&m_mutex);
             try {
                 capture.open(m_deviceIndex);
+
+                if (capture.isOpened()) {
+                    // 显式设置分辨率为 3840x2160
+                    // 如果不设置，OpenCV 默认通常使用 640x480
+                    capture.set(cv::CAP_PROP_FRAME_WIDTH, 3840);
+                    capture.set(cv::CAP_PROP_FRAME_HEIGHT, 2160);
+                }
+
                 captureOpened = capture.isOpened();
                 emit captureStateChanged(captureOpened);
             } catch (const cv::Exception& e) {

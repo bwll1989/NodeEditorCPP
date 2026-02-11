@@ -9,6 +9,8 @@
 #include <QSpinBox>
 #include <QPushButton>
 
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+
 namespace Nodes
 {
     /**
@@ -49,8 +51,8 @@ namespace Nodes
 
     public:
         QGridLayout *main_layout = new QGridLayout(this);
-        QSpinBox *PlayerID = new QSpinBox(this);
-        QSpinBox *FileIndex = new QSpinBox(this);
+        IntDragValueWidget *PlayerID = new IntDragValueWidget(this);
+        IntDragValueWidget *FileIndex = new IntDragValueWidget(this);
         QPushButton *Play = new QPushButton("Play", this);
         QPushButton *LoopPlay = new QPushButton("Loop Play", this);
         QPushButton *Stop = new QPushButton("Stop", this);

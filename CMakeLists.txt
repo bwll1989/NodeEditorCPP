@@ -146,6 +146,7 @@ add_subdirectory(src/Common/BuildInNodes)
 add_subdirectory(src/Common/GUI/DockHub)
 add_subdirectory(src/DataTypes)
 add_subdirectory(src/Common/Devices/StatusContainer)
+add_subdirectory(src/Common/AppConfig)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -181,6 +182,9 @@ set(CALC_SOURCE_FILES
         src/Widget/MenuBarWidget/MenuBarWidget.h
         src/Widget/MenuBarWidget/SystemInfoWidget.cpp
         src/Widget/MenuBarWidget/SystemInfoWidget.h
+        src/Widget/MenuBarWidget/SettingWidget.cpp
+        src/Widget/MenuBarWidget/SettingWidget.h
+
         src/Widget/PropertyWidget/PropertyWidget.cpp
         src/Widget/PropertyWidget/PropertyWidget.hpp
         src/Widget/NodeLibraryWidget/draggabletreewidget.cpp
@@ -267,7 +271,6 @@ set(CALC_SOURCE_FILES
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.h
         src/Widget/ExternalControl/HttpServer.cpp
         src/Widget/ExternalControl/HttpServer.hpp
-        src/constantDefines.h
 )
 # 函数级注释：定义 Headless 版本源文件（用 headless_main.cpp 替换 main.cpp）
 set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES}
@@ -368,6 +371,7 @@ target_link_libraries(${ProjectName}
             DelayListWidget
             DockHub
             StatusContainer
+            AppConfig
 )
 
 # 为 Headless 目标定义编译宏（与主程序一致）

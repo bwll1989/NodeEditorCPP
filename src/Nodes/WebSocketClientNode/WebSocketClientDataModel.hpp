@@ -12,8 +12,6 @@
 #include <QtCore/qglobal.h>
 #include <QUrl>
 #include <QSignalBlocker>
-
-#include "ConstantDefines.h"
 #include "Common/Devices/WebSocketClient/WebSocketClient.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"

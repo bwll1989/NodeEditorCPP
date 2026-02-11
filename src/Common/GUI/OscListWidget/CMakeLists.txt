@@ -31,6 +31,7 @@ target_link_libraries(OscListWidget PRIVATE
         Qt${QT_VERSION_MAJOR}::Qml
         OSCTransmitter
         GUIElements
+        AppConfig
 )
 
 target_compile_definitions(OscListWidget PRIVATE OSCLISTWIDGET_LIBRARY)

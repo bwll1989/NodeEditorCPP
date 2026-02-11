@@ -22,6 +22,7 @@
 #include "Elements/BarButton/BarButton.h"
 #include "Elements/XYPad/XYPad.h"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
+#include "../../Common/AppConfig/ConfigManager.h"
 using namespace ads;
 
 /* 函数级注释：全局应用样式表并强制重新抛光所有已存在控件 */
@@ -49,7 +50,7 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
     ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasCloseButton, true);
     //    每个区域都有独立的关闭按钮
     ads::CDockManager::setConfigFlag(ads::CDockManager::AlwaysShowTabs, false);
-
+    //
     ads::CDockManager::setConfigFlag(ads::CDockManager::OpaqueSplitterResize, true);
 
     ads::CDockManager::setAutoHideConfigFlags(ads::CDockManager::DefaultAutoHideConfig);
@@ -73,8 +74,16 @@ void MainWindow::init()
     m_DockManager->setDockWidgetToolBarStyle(Qt::ToolButtonStyle::ToolButtonIconOnly,CDockWidget::eState::StateDocked);
     this->setCentralWidget(m_DockManager);
     emit initStatus("Initialization ADS success");
+     // 菜单条控件
+    menuBar=new MenuBarWidget(this);
+    connect(menuBar, &MenuBarWidget::recentFileTriggered,
+             this, &MainWindow::openRecentFile);
+     // 初始化时刷新最近文件菜单
+    menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
+    this->setMenuBar(menuBar);
+    emit initStatus("Initialization MenuBar success");
     // 首先实例化终端显示控件，保证日志输出正常
-    auto *logDockViewer= new ads::CDockWidget(m_DockManager,"终端显示");
+    auto *logDockViewer= m_DockManager->createDockWidget("终端显示");
     logTable=new LogWidget();
     log=new LogHandler(logTable);
     logDockViewer->setWidget(logTable);
@@ -84,19 +93,11 @@ void MainWindow::init()
     QMenu* OptionsMenu = makeOptionsMenu(logTable, logTable->getActions());
     logDockViewer->setTitleBarActions({OptionsMenu->menuAction()});
     emit initStatus("Initialization console widget");
-    // 菜单条控件
-    menuBar=new MenuBarWidget(this);
-    connect(menuBar, &MenuBarWidget::recentFileTriggered,
-             this, &MainWindow::openRecentFile);
-     // 初始化时刷新最近文件菜单
-    menuBar->updateRecentFileActions(getRecentFiles());
-    this->setMenuBar(menuBar);
-    emit initStatus("Initialization MenuBar success");
+   
     //读取主题设置
-    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
-    switchTheme(settings.value("isDarkTheme").toBool());
+    switchTheme(ConfigManager::instance().isDefaultDarkTheme());
     // 节点编辑控件
-    auto *NodeDockWidget = new ads::CDockWidget(m_DockManager,"节点编辑");
+    auto *NodeDockWidget = m_DockManager->createDockWidget("节点编辑");
     NodeDockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
     emit initStatus("load node editor style success");
     dataflowViewsManger=new DataflowViewsManger(m_DockManager,this);
@@ -105,7 +106,7 @@ void MainWindow::init()
     pluginsManagerDlg=new PluginsManagerWidget();
     emit initStatus("initialization pluginsManager success");
     // 节点库控件
-    nodeDockLibraryWidget = new ads::CDockWidget(m_DockManager,"节点库");
+    nodeDockLibraryWidget = m_DockManager->createDockWidget("节点库");
     nodeDockLibraryWidget->setIcon(QIcon(":/icons/icons/library.png"));
     m_DockManager->addDockWidget(ads::BottomDockWidgetArea, nodeDockLibraryWidget);
     emit initStatus("Initialization nodeLibrary success");
@@ -115,7 +116,7 @@ void MainWindow::init()
     // 创建时间线部件
     timeline = new TimelineWidget(timelineModel);
     // 创建时间轴控件
-    auto *timelineDockWidget = new ads::CDockWidget(m_DockManager,"时间轴");
+    auto *timelineDockWidget = m_DockManager->createDockWidget("时间轴");
     timelineDockWidget->setObjectName("timeline");
     timelineDockWidget->setIcon(QIcon(":/icons/icons/timeline.png"));
     // timeline=new timelinewidget(timelineModel);
@@ -140,7 +141,7 @@ void MainWindow::init()
     //         0.5,0.8,
     //         0.3,0.3;
     // w->setValuesFromMatrix(mMat);
-    auto *calendarDockWidget = new ads::CDockWidget(m_DockManager,"计划任务");
+    auto *calendarDockWidget = m_DockManager->createDockWidget("计划任务");
     calendarDockWidget->setObjectName("scheduled");
     calendarDockWidget->setIcon(QIcon(":/icons/icons/scheduled.png"));
     scheduledTaskWidget=new ScheduledTaskWidget();
@@ -151,7 +152,7 @@ void MainWindow::init()
     emit initStatus("Initialization Scheduled Task success");
     
     // 添加舞台控件
-    auto *stageDockWidget = new ads::CDockWidget(m_DockManager,"舞台");
+    auto *stageDockWidget = m_DockManager->createDockWidget("舞台");
     stageDockWidget->setObjectName("stage");
     stageDockWidget->setIcon(QIcon(":/icons/icons/stage.png"));
     stageWidget = new StageWidget();
@@ -166,7 +167,7 @@ void MainWindow::init()
     emit initStatus("Initialization Stage Widget success");
 
     // 节点列表显示控件
-    auto *nodeListDockWidget = new ads::CDockWidget(m_DockManager,"节点列表");
+    auto *nodeListDockWidget = m_DockManager->createDockWidget("节点列表");
     nodeListDockWidget->setObjectName("nodeList");
     nodeListDockWidget->setIcon(QIcon(":/icons/icons/list.png"));
     nodeListWidget = new NodeListWidget(dataflowViewsManger, this);
@@ -175,7 +176,7 @@ void MainWindow::init()
     menuBar->views->addAction(nodeListDockWidget->toggleViewAction());
     emit initStatus("Initialization Node List Widget success");
     // 媒体库控件
-    auto *mediaLibraryDockWidget = new ads::CDockWidget(m_DockManager,"媒体库");
+    auto *mediaLibraryDockWidget = m_DockManager->createDockWidget("媒体库");
     mediaLibraryDockWidget->setObjectName("mediaLibrary");
     mediaLibraryDockWidget->setIcon(QIcon(":/icons/icons/media_mange.png"));
     mediaLibraryWidget = new MediaLibraryWidget();
@@ -199,7 +200,7 @@ void MainWindow::init()
     emit initStatus("Initialization external controler success");
 	 // http 服务器
     httpServer=new NodeStudio::NodeHttpServer();
-    httpServer->start(AppConstants::HTTP_SERVER_PORT);
+    httpServer->start(ConfigManager::instance().getHttpServerPort());
     emit initStatus("Initialization Http Server success");
     // 更新默认布局
     connect(menuBar->saveLayout, &QAction::triggered, this, &MainWindow::updateVisualState);
@@ -373,15 +374,15 @@ void MainWindow::loadFileFromPath(const QString &path)
             return;
         }
 
-        splashScreen.updateStatus(tr("Load the dataflow model..."));
+        splashScreen.updateStatus(tr("Load the dataflow model ..."));
         // 加载数据流模型
         dataflowViewsManger->load(jsonDoc.object()["DataFlow"].toObject());
 
-        splashScreen.updateStatus(tr("Load the timeline model..."));
+        splashScreen.updateStatus(tr("Load the timeline model ..."));
         // 加载时间轴模型
         timeline->load(jsonDoc.object()["TimeLine"].toObject());
 
-        splashScreen.updateStatus(tr("Load the scheduled tasks model..."));
+        splashScreen.updateStatus(tr("Load the scheduled tasks model ..."));
         // 加载计划任务模型
         scheduledTaskWidget->load(jsonDoc.object()["ScheduledTasks"].toObject());
 
@@ -389,7 +390,7 @@ void MainWindow::loadFileFromPath(const QString &path)
         const QString layoutBase64 = jsonDoc.object()["VisualLayout"].toString();
         if (!layoutBase64.isEmpty()) {
             const QByteArray layoutBytes = QByteArray::fromBase64(layoutBase64.toLatin1());
-            splashScreen.updateStatus(tr("Load the visual layout..."));
+            splashScreen.updateStatus(tr("Load the visual layout ..."));
             m_DockManager->restoreState(layoutBytes);
         }else {
             resetVisualState();
@@ -407,8 +408,8 @@ void MainWindow::loadFileFromPath(const QString &path)
         }
         
         // 加入最近文件并刷新菜单
-        addToRecentFiles(absolutePath);
-        menuBar->updateRecentFileActions(getRecentFiles());
+        ConfigManager::instance().addRecentFile(absolutePath);
+        menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
 
         splashScreen.updateStatus(tr("Load flow file completed"));
         splashScreen.finish(this);
@@ -488,8 +489,8 @@ void MainWindow::saveFileToExplorer() {
             currentProjectPath=fileName;
             this->setWindowTitle(file.fileName());
             // 保存后加入最近文件并刷新菜单
-            addToRecentFiles(currentProjectPath);
-            menuBar->updateRecentFileActions(getRecentFiles());
+            ConfigManager::instance().addRecentFile(currentProjectPath);
+            menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
         }
     }
 }
@@ -581,50 +582,6 @@ void MainWindow::updateViewMenu(QMenu* menu)
     }
 }
 
-/**
- * 函数级注释：载入最近文件列表
- * - 从 cfg/Settings.ini 读取键 "files"
- * - 返回 QStringList（若不存在返回空）
- */
-QStringList MainWindow::getRecentFiles() const
-{
-    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
-    const QStringList files = settings.value("files").toStringList();
-    return files;
-}
-
-/**
- * 函数级注释：保存最近文件列表
- * - 写入 cfg/Settings.ini 键 "files"
- */
-void MainWindow::saveRecentFiles(const QStringList& files) const
-{
-    QDir().mkpath(AppConstants::RECENT_FILES_STORAGE_DIR);
-    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
-    settings.setValue("files", files);
-}
-
-/**
- * 函数级注释：将新路径加入最近文件列表
- * - 规则：去重后插入到首位；保留最多 MenuBarWidget::MaxRecentFiles 个
- * - 同步写入配置文件
- */
-void MainWindow::addToRecentFiles(const QString& path)
-{
-    if (path.isEmpty())
-        return;
-
-    QString abs = path;
-    abs = abs.replace("\\", "/"); // 统一分隔符
-    QStringList files = getRecentFiles();
-    files.removeAll(abs);
-    files.prepend(abs);
-    while (files.size() > AppConstants::MaxRecentFiles) {
-        files.removeLast();
-    }
-    saveRecentFiles(files);
-}
-
 QMenu* MainWindow::makeOptionsMenu(QWidget* parent, const QList<QAction*>& actions) {
     QMenu* menu = new QMenu(tr("Options"), parent);
     QAction* menuAct = menu->menuAction();
@@ -674,7 +631,7 @@ void MainWindow::switchTheme(bool isDark) {
         menuBar->switchTheme->setIcon(isDarkTheme ? QIcon(":/icons/icons/landscape.png")
                                                   : QIcon(":/icons/icons/night_landscape.png"));
     }
-    QDir().mkpath(AppConstants::RECENT_FILES_STORAGE_DIR);
-    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
-    settings.setValue("isDarkTheme", isDarkTheme);
+    QJsonObject config;
+    config["DefaultDarkTheme"] = isDarkTheme;
+    ConfigManager::instance().updateConfig(config);
 }

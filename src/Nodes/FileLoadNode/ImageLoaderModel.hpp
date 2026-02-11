@@ -12,9 +12,8 @@
 #include "DataTypes/NodeDataList.hpp"
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
+#include "Common/AppConfig/ConfigManager.h"
 #include <QtWidgets/QFileDialog>
-
-#include "ConstantDefines.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"

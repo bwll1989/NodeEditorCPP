@@ -16,7 +16,6 @@
 #include "TextToImageInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
 #include "opencv2/imgcodecs/imgcodecs.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace Nodes;

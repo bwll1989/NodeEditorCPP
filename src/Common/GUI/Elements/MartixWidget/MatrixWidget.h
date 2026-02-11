@@ -2,8 +2,7 @@
 // Created by bwll1 on 2024/10/9.
 //
 
-#ifndef NODEEDITORCPP_MATRIXWIDGET_H
-#define NODEEDITORCPP_MATRIXWIDGET_H
+#pragma once
 
 
 #include <QWidget>
@@ -11,7 +10,7 @@
 #include <QGridLayout>
 #include <QVBoxLayout>
 #include <QVector>
-#include "Common/GUI/Elements/FaderWidget/FaderWidget.h"
+#include "Common/GUI/Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 #include "Eigen/Core"
 #include <QDial>
 #ifdef GUI_ELEMENTS_LIBRARY
@@ -30,7 +29,7 @@ public:
     void setValuesFromMatrix(const Eigen::MatrixXd& matrix);
     Eigen::MatrixXd getLinearValuesAsMatrix();
     Eigen::MatrixXd getValuesAsMatrix();
-    FaderWidget* getMatrixElement(int index);
+    FloatDragValueWidget* getMatrixElement(int index);
     int getRows() const;
     int getCols() const;
 signals:
@@ -42,11 +41,10 @@ public slots:
 private:
     int m_rows;
     int m_cols;
-    QVector<FaderWidget*> m_buttons;
+    QVector<FloatDragValueWidget*> m_buttons;
     QGridLayout *m_layout;
+    float m_minValue=-60;
+    float m_maxValue=20;
     void createButtons() ;
 };
 
-
-
-#endif //NODEEDITORCPP_MATRIXWIDGET_H

@@ -16,6 +16,7 @@ class GUI_ELEMENTS_EXPORT IntDragValueWidget : public QWidget
     Q_PROPERTY(int minimum READ minimum WRITE setMinimum)
     Q_PROPERTY(int maximum READ maximum WRITE setMaximum)
     Q_PROPERTY(int singleStep READ singleStep WRITE setSingleStep)
+    Q_PROPERTY(QString suffix READ suffix WRITE setSuffix)
 
 public:
     explicit IntDragValueWidget(QWidget *parent = nullptr);
@@ -25,6 +26,7 @@ public:
     int minimum() const;
     int maximum() const;
     int singleStep() const;
+    QString suffix() const;
 
 public slots:
     void setValue(int val);
@@ -32,6 +34,7 @@ public slots:
     void setMaximum(int max);
     void setSingleStep(int step);
     void setRange(int min, int max);
+    void setSuffix(const QString &s);
 
 signals:
     void valueChanged(int value);
@@ -61,4 +64,5 @@ private:
     int m_dragStartValue = 0;
 
     QLineEdit *m_lineEdit;
+    QString m_suffix;
 };

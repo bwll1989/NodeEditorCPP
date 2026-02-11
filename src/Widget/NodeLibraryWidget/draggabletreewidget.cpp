@@ -10,6 +10,7 @@
 
 DraggableTreeWidget::DraggableTreeWidget(QWidget *parent) : QTreeView(parent) {
     setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    setEditTriggers(QAbstractItemView::NoEditTriggers);
 }
 
 void DraggableTreeWidget::mousePressEvent(QMouseEvent *event) {

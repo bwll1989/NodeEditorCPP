@@ -15,9 +15,6 @@
 #include <QThread>
 #include <QtNetwork/QTcpServer>
 #include <QtNetwork/QTcpSocket>
-
-#include "ConstantDefines.h"
-
 #include "QMutex"
 #include "Common/Devices/TcpServer/TcpServer.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
@@ -60,7 +57,7 @@ namespace Nodes
             connect(widget->hostLineEdit, &QLineEdit::editingFinished, this, [this](){
                 setHost(widget->hostLineEdit->text());
             });
-            connect(widget->portSpinBox, &QSpinBox::valueChanged, this, &TCPServerDataModel::setPort);
+            connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, &TCPServerDataModel::setPort);
             connect(widget->valueEdit, &QLineEdit::textChanged, this, &TCPServerDataModel::setValue); // Use textChanged for value or editingFinished? textChanged is more immediate but high freq. editingFinished is safer. 
             // Previous code for TCPClient used editingFinished for host, but value?
             // TCPClient registered external control for valueEdit.

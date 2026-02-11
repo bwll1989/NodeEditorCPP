@@ -12,7 +12,6 @@
 #include <QtWidgets/QSpinBox>
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
-#include "ConstantDefines.h"
 #include "OSCSender/OSCSender.h"
 #include "AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
@@ -42,7 +41,7 @@ class FloatSourceDataModel : public AbstractDelegateModel
             Caption="Float Source";
             WidgetEmbeddable= true;
             Resizable=false;
-            widget->setFixedSize(80,24);
+            widget->setFixedSize(80,30);
             widget->setValue(m_value);
             connect(widget, &FloatDragValueWidget::valueChanged, this, &FloatSourceDataModel::setValue);
             AbstractDelegateModel::registerExternalControl("/float",widget);

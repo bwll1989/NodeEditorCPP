@@ -24,7 +24,6 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QMetaObject>
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;

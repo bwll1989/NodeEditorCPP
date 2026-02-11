@@ -10,6 +10,8 @@
 #include <QSpinBox>
 #include <QHBoxLayout>
 
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+
 /**
  * @brief Modbus主机界面类
  * 
@@ -43,14 +45,14 @@ public:
         
         // 端口设置
         connectionLayout->addWidget(new QLabel("端口:"), 1, 0, 1, 1);
-        _portEdit = new QSpinBox(this);
+        _portEdit = new IntDragValueWidget(this);
         _portEdit->setRange(1, 65535);
         _portEdit->setValue(8080);  // Modbus TCP默认端口
         connectionLayout->addWidget(_portEdit, 1, 1, 1, 1);
         
         // Server ID设置
         connectionLayout->addWidget(new QLabel("ServerID(Useless):"), 2, 0, 1, 1);
-        _serverId = new QSpinBox(this);
+        _serverId = new IntDragValueWidget(this);
         _serverId->setRange(0, 255);
         _serverId->setValue(1);
         connectionLayout->addWidget(_serverId, 2, 1, 1, 1);
@@ -108,7 +110,7 @@ public:
             emit hostChanged(_hostEdit->text());
         });
         
-        connect(_portEdit, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int value) {
+        connect(_portEdit, &IntDragValueWidget::valueChanged, this, [this](int value) {
             emit portChanged(value);
         });
         
@@ -271,7 +273,7 @@ signals:
 public:
     QCheckBox *_inputLabels[8];
     QLineEdit *_hostEdit;
-    QSpinBox *_portEdit;
-    QSpinBox *_serverId;
+    IntDragValueWidget *_portEdit;
+    IntDragValueWidget *_serverId;
     QPushButton *_statusLabel;
 };

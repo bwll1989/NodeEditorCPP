@@ -16,11 +16,11 @@ void DelayMessageItemWidget::setupUI()
     layout->setSpacing(4);
     
     // Host
-    portIndex = new QSpinBox(this);
+    portIndex = new IntDragValueWidget(this);
 
     // Value
-    timeEdit = new QLineEdit(this);
-    timeEdit->setPlaceholderText("value");
+    timeEdit = new IntDragValueWidget(this);
+
     timeEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
 
     QLabel* moveLabel = new QLabel();
@@ -52,7 +52,7 @@ delay_item DelayMessageItemWidget::getMessage() const
     delay_item message;
 
     message.port = portIndex->value();
-    message.time = timeEdit->text().toInt();
+    message.time = timeEdit->value();
 
     return message;
 }
@@ -60,7 +60,7 @@ delay_item DelayMessageItemWidget::getMessage() const
 void DelayMessageItemWidget::setMessage(const delay_item& message)
 {
     portIndex->setValue(message.port);
-    timeEdit->setText(QString::number(message.time));
+    timeEdit->setValue(message.time);
 
 }
 

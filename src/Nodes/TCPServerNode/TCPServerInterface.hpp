@@ -6,7 +6,7 @@
 #include "QLabel"
 #include "QLayout"
 #include "QPushButton"
-#include "QComboBox"
+#include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #include "QSpinBox"
 #include "QLineEdit"
 #include "QTextBrowser"
@@ -33,7 +33,7 @@ namespace Nodes
             hostLineEdit->setText("0.0.0.0");
             portSpinBox->setRange(0,65536);
             portSpinBox->setValue(2001);
-            connect(portSpinBox,&QSpinBox::valueChanged,this,&TCPServerInterface::valueChanged);
+            connect(portSpinBox,&IntDragValueWidget::valueChanged,this,&TCPServerInterface::valueChanged);
             connect(hostLineEdit,&QLineEdit::textChanged,this,&TCPServerInterface::valueChanged);
             this->setLayout(main_layout);
         }
@@ -52,7 +52,7 @@ namespace Nodes
 
         QGridLayout *main_layout=new QGridLayout(this);
         QLineEdit *hostLineEdit=new QLineEdit();
-        QSpinBox *portSpinBox=new QSpinBox();
+        IntDragValueWidget *portSpinBox=new IntDragValueWidget();
         QLineEdit *valueEdit=new QLineEdit();
         QPushButton *sendButton=new QPushButton("Send");
         QComboBox* format=new QComboBox();

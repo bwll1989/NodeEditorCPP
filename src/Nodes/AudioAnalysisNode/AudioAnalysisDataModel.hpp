@@ -23,7 +23,6 @@
 #include "PluginDefinition.hpp"
 #include "AudioAnalysisWorker.hpp"
 #include "Gist.h"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;

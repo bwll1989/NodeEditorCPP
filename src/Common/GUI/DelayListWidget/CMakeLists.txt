@@ -27,6 +27,7 @@ target_link_libraries(DelayListWidget PRIVATE
         Qt${QT_VERSION_MAJOR}::Gui
         Qt${QT_VERSION_MAJOR}::Qml
         OSCTransmitter
+        GUIElements
 )
 
 target_compile_definitions(DelayListWidget PRIVATE DELAYLISTWIDGET_LIBRARY)

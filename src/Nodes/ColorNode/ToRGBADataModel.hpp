@@ -10,7 +10,6 @@
 #include <QtConcurrent/QtConcurrent>
 #include "ColorConvertInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace Nodes;

@@ -1,8 +1,8 @@
 //
 // Created by Administrator on 2025/07/13.
 //
-#ifndef INTERNALCONTROLINTERFACE_HPP
-#define INTERNALCONTROLINTERFACE_HPP
+#pragma once
+
 #include "QWidget"
 #include "QLayout"
 #include <QSpinBox>
@@ -34,4 +34,4 @@ class InternalControlInterface final : public QWidget{
         QPushButton *testButton=new QPushButton(QIcon(":/icons/icons/send.png"),"");
     };
 }
-#endif
+

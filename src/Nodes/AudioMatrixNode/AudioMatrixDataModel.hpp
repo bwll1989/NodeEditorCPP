@@ -24,7 +24,6 @@
 #include "AudioMatrixWorker.hpp"
 #include "Eigen/Core"
 #include "opencv2/flann/matrix.h"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;

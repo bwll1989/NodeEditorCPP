@@ -13,7 +13,7 @@
 #include "TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "Common/Devices/ClientController/SocketTransmitter.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"

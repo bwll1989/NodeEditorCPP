@@ -151,6 +151,18 @@
         "openglsupport": "cpp",
         "nonlinearoptimization": "cpp",
         "nodedelegatemodel": "cpp",
-        "qpushbutton": "cpp"
+        "qpushbutton": "cpp",
+        "iterativelinearsolvers": "cpp",
+        "klusupport": "cpp",
+        "orderingmethods": "cpp",
+        "pardisosupport": "cpp",
+        "svd": "cpp",
+        "sparsecore": "cpp",
+        "superlusupport": "cpp",
+        "umfpacksupport": "cpp",
+        "tensorsymmetry": "cpp",
+        "qdoublespinbox": "cpp",
+        "qsignalblocker": "cpp",
+        "qobject": "cpp"
     }
 }

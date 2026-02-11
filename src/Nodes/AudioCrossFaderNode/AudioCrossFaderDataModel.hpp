@@ -22,7 +22,6 @@
 #include <QJsonObject>
 #include "PluginDefinition.hpp"
 #include "AudioCrossFaderWorker.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;

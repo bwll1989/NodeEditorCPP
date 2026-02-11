@@ -10,7 +10,6 @@
 #include <QJSEngine>
 #include <QDateTime>
 #include <QCoreApplication>
-#include "ConstantDefines.h"
 
 namespace Nodes {
 

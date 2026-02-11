@@ -10,6 +10,7 @@
 #include "QLayout"
 #include <QPushButton>
 #include <QVariantMap>
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
 {
 class ImageConstInterface final : public QWidget{
@@ -34,8 +35,8 @@ class ImageConstInterface final : public QWidget{
 
     public:
         QGridLayout *main_layout;
-        QLineEdit *widthEdit=new QLineEdit("100");
-        QLineEdit *heightEdit=new QLineEdit("100");
+        IntDragValueWidget *widthEdit=new IntDragValueWidget();
+        IntDragValueWidget *heightEdit=new IntDragValueWidget();
         QLabel *display=new QLabel();
         QPushButton *colorEditButton=new QPushButton("Color");
     private:

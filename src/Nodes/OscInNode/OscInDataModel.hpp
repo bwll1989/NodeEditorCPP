@@ -10,7 +10,7 @@
 #include "OscInInterface.hpp"
 #include <QVariantMap>
 
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "QThread"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
@@ -63,7 +63,7 @@ namespace Nodes
             AbstractDelegateModel::registerExternalControl("/value",widget->valueEdit);
             connect(OSC_Receiver, &OSCReceiver::receiveOSC, this, &OscInDataModel::getOsc);
             // connect(widget,&OscInInterface::portChanged,OSC_Receiver,&OSCReceiver::setPort);
-            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+            connect(widget->portSpinBox, &IntDragValueWidget::valueChanged,
                     this, &OscInDataModel::setPort);
 
         }

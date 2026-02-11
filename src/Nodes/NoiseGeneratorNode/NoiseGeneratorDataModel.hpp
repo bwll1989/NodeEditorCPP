@@ -7,8 +7,6 @@
 #include "NoiseGeneratorInterface.hpp"
 #include <memory>
 #include <TimestampGenerator/TimestampGenerator.hpp>
-
-#include "ConstantDefines.h"
 #include "QtNodes/Definitions"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "QTimer"
@@ -61,7 +59,7 @@ namespace Nodes
                     this, [this](){ setGenerating(true); });
             connect(widget->stopButton, &QPushButton::clicked,
                     this, [this](){ setGenerating(false); });
-            connect(widget->volumeSlider, &QDoubleSpinBox::valueChanged,
+            connect(widget->volumeSlider, &FloatDragValueWidget::valueChanged,
                     this, &NoiseGeneratorDataModel::setVolume);
             connect(widget->noiseTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
                     this, &NoiseGeneratorDataModel::setNoiseType);

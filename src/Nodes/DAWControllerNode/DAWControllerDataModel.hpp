@@ -15,14 +15,9 @@
 #include <iostream>
 #include <qcryptographichash.h>
 #include <QtWidgets/QLineEdit>
-#include <QtWidgets/QSlider>
-#include <QtWidgets/QSpinBox>
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QThread>
-
-#include "ConstantDefines.h"
-
 #include "Common/Devices/FTDAWController/FTDAWController.h"
 #include "QMutex"
 #include "PluginDefinition.hpp"

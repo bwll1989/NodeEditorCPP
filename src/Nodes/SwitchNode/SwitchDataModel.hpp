@@ -12,8 +12,6 @@
 
 #include <QtWidgets/QSpinBox>
 #include <QtCore/qglobal.h>
-
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
@@ -48,6 +46,7 @@ namespace Nodes
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= true;
+            widget->setMinimum(0);
             widget->setFixedSize(100,24);
             connect(widget,&IntDragValueWidget::valueChanged, this, [this](int v){ setIndex(v); });
             AbstractDelegateModel::registerExternalControl("switch",widget);

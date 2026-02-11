@@ -5,7 +5,7 @@
 #include "ArtnetFrame.h"
 #include <QDateTime>
 #include <QHostAddress>
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 /**
  * @brief 默认构造函数
  */

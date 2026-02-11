@@ -7,7 +7,7 @@
 #include <QDebug>
 #include "Widget/MainWindow/MainWindowHeadLess.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConstantDefines.h"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
 
 /**

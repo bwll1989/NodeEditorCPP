@@ -197,6 +197,9 @@ void AudioDecoder::startPlay(){
                 // 输出到临时缓冲区，然后丢弃这些数据
                 swr_convert(swrContext, &flushBuffer, SAMPLES_PER_CHANNEL, nullptr, 0);
                 av_freep(&flushBuffer);  // 释放临时缓冲区
+
+                // 彻底重置重采样器状态，清除任何内部滤波器状态
+                swr_init(swrContext);
             }
         }
     }
@@ -369,6 +372,12 @@ void AudioDecoder::playAudio() {
     uint8_t* outputBuffer = nullptr;
     int outputBufferSize = 0;
     lastTimestamp_=timestampGenerator_->getCurrentFrameCount();
+
+    // 重置累积缓冲区，防止上次播放残留
+    pendingInterleavedPcm_.clear();
+    pendingSamplesPerChannel_ = 0;
+    lastChannels_ = 0;
+
     // 获取原始音频参数
     int originalSampleRate = codecContext->sample_rate;
     int originalChannels = codecContext->ch_layout.nb_channels;

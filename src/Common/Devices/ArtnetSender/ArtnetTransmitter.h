@@ -12,7 +12,7 @@
 #include <QTimer>
 #include <QtCore/qglobal.h>
 #include "ArtnetFrame.h"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #if defined(ARTNETTRANSMITTER_LIBRARY)
 #define ARTNETTRANSMITTER_EXPORT Q_DECL_EXPORT
 #else

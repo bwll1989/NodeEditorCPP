@@ -15,7 +15,7 @@
 #include <QTextBrowser>
 #include <QTextStream>
 #include <QTextDocument>
-#include "../../ConstantDefines.h"
+#include "../../Common/AppConfig/ConfigManager.h"
 class AboutWidget : public QDialog
 {
 public:

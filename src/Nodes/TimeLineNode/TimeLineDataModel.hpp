@@ -18,7 +18,6 @@
 #include "TimeLineNodeWidget.hpp"
 #include "TimeLineNodeModel.h"
 #include "BasePluginLoader.h"
-#include "ConstantDefines.h"
 #include "TimelineInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
@@ -154,7 +153,7 @@ public:
                         case 3: return "LOOP";
                 }
             case PortType::Out:
-                return "out";
+                return "OUT";
             default:
                 break;
         }

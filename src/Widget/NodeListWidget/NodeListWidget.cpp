@@ -33,11 +33,17 @@ NodeListWidget::NodeListWidget(DataflowViewsManger* viewsManager, QWidget *paren
     // 搜索框
     searchBox = new QLineEdit(this);
     searchBox->setPlaceholderText("Search nodes...");
-
-    // 树形视图
-    nodeTree = new QTreeWidget(this);
-    nodeTree->setColumnCount(1);
-    nodeTree->setHeaderLabels(QStringList() << "Nodes");
+    QAction *searchIconAction = new QAction(QIcon(":/icons/icons/search.png"), tr("搜索"), searchBox);
+    searchBox->addAction(searchIconAction, QLineEdit::LeadingPosition);
+    searchIconAction->setEnabled(false);
+    // 树形视图（基于 QTreeView）
+    nodeTree = new QTreeView(this);
+    nodeModel = new QStandardItemModel(this);
+    nodeModel->setHorizontalHeaderLabels(QStringList() << "Nodes");
+    nodeModel->setColumnCount(1);
+    nodeTree->setModel(nodeModel);
+    // 禁用编辑，双击展开
+    nodeTree->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
     // 顶部行：下拉框 + 刷新按钮
     QHBoxLayout* topRow = new QHBoxLayout();
@@ -63,9 +69,13 @@ NodeListWidget::NodeListWidget(DataflowViewsManger* viewsManager, QWidget *paren
     // 连接：搜索过滤
     connect(searchBox, &QLineEdit::textChanged, this, &NodeListWidget::filterNodes);
     // 连接：右键菜单
-    connect(nodeTree, &QTreeWidget::customContextMenuRequested, this, &NodeListWidget::showContextMenu);
+    connect(nodeTree, &QTreeView::customContextMenuRequested, this, &NodeListWidget::showContextMenu);
     // 连接：树选择变化
-    connect(nodeTree, &QTreeWidget::itemSelectionChanged, this, &NodeListWidget::onTreeItemSelectionChanged);
+    connect(nodeTree->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this](const QItemSelection&, const QItemSelection&) {
+        onTreeItemSelectionChanged();
+    });
+    // 连接：双击事件
+    connect(nodeTree, &QTreeView::doubleClicked, this, &NodeListWidget::onTreeDoubleClicked);
 
     connect(viewsManager, &DataflowViewsManger::createNewScene, this, [this](QString title) {
         onRefreshClicked();
@@ -117,7 +127,7 @@ void NodeListWidget::onSceneSwitched(const QString& title)
 
     // 安全检查
     if (!dataFlowModel || !dataFlowScene) {
-        nodeTree->clear();
+        nodeModel->clear();
         return;
     }
 
@@ -139,8 +149,8 @@ bool NodeListWidget::eventFilter(QObject* watched, QEvent* event)
             case QEvent::MouseButtonPress: {
                 QMouseEvent* mouseEvent = static_cast<QMouseEvent*>(event);
                 if (mouseEvent->button() == Qt::LeftButton) {
-                    QTreeWidgetItem* item = nodeTree->itemAt(mouseEvent->pos());
-                    if (item && isCommand(item)) {
+                    QModelIndex index = nodeTree->indexAt(mouseEvent->pos());
+                    if (index.isValid() && isCommand(index)) {
                         dragStartPosition = mouseEvent->pos();
                         isDragging = true;
                         return true;  // 拦截事件
@@ -153,9 +163,9 @@ bool NodeListWidget::eventFilter(QObject* watched, QEvent* event)
                 if (isDragging && (mouseEvent->buttons() & Qt::LeftButton)) {
                     if ((mouseEvent->pos() - dragStartPosition).manhattanLength() 
                         >= QApplication::startDragDistance()) {
-                        QTreeWidgetItem* item = nodeTree->itemAt(dragStartPosition);
-                        if (item && isCommand(item)) {
-                            startDrag(item);
+                        QModelIndex index = nodeTree->indexAt(dragStartPosition);
+                        if (index.isValid() && isCommand(index)) {
+                            startDrag(index);
                             isDragging = false;
                             return true;  // 拦截事件
                         }
@@ -180,14 +190,11 @@ void NodeListWidget::onTreeItemSelectionChanged() {
     if (isUpdatingSelection) return;
     if (!dataFlowScene || !dataFlowModel) return;
 
-    QList<QTreeWidgetItem*> selectedItems = nodeTree->selectedItems();
-    if (selectedItems.isEmpty()) return;
-
-    QTreeWidgetItem* item = selectedItems.first();
-    if (item->parent()) {
-        item = item->parent();
-    }
-    QString nodeText = item->text(0);
+    QModelIndexList selectedIndexes = nodeTree->selectionModel()->selectedIndexes();
+    if (selectedIndexes.isEmpty()) return;
+    QModelIndex index = selectedIndexes.first();
+    while (index.parent().isValid()) index = index.parent();
+    QString nodeText = nodeModel->data(index, Qt::DisplayRole).toString();
     NodeId nodeId = nodeText.section(':', 0, 0).toInt();
     
     isUpdatingSelection = true;
@@ -203,21 +210,23 @@ void NodeListWidget::onSceneSelectionChanged() {
     if (!dataFlowScene) return;
 
     isUpdatingSelection = true;
-    nodeTree->clearSelection();
+    nodeTree->selectionModel()->clearSelection();
     auto selectedNodes = dataFlowScene->selectedNodes();
     for (NodeId nodeId : selectedNodes) {
-        if (QTreeWidgetItem* item = findNodeItem(nodeId)) {
-            item->setSelected(true);
-            nodeTree->scrollToItem(item);
+        if (QStandardItem* item = findNodeItem(nodeId)) {
+            QModelIndex idx = item->index();
+            nodeTree->selectionModel()->select(idx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+            nodeTree->scrollTo(idx);
         }
     }
     isUpdatingSelection = false;
 }
 
-QTreeWidgetItem* NodeListWidget::findNodeItem(NodeId nodeId) {
-    for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
-        QTreeWidgetItem* item = nodeTree->topLevelItem(i);
-        if (item->text(0).startsWith(QString::number(nodeId) + ":")) {
+QStandardItem* NodeListWidget::findNodeItem(NodeId nodeId) {
+    QStandardItem* root = nodeModel->invisibleRootItem();
+    for (int i = 0; i < root->rowCount(); ++i) {
+        QStandardItem* item = root->child(i, 0);
+        if (item && item->text().startsWith(QString::number(nodeId) + ":")) {
             return item;
         }
     }
@@ -225,76 +234,72 @@ QTreeWidgetItem* NodeListWidget::findNodeItem(NodeId nodeId) {
 }
 
 void NodeListWidget::populateNodeTree() {
-    nodeTree->clear();
+    nodeModel->clear();
+    nodeModel->setHorizontalHeaderLabels(QStringList() << "Nodes");
     if (!dataFlowModel) return;
 
     for (const auto& nodeId : dataFlowModel->allNodeIds()) {
         QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Remarks).toString();
-        QTreeWidgetItem* nodeItem = new QTreeWidgetItem(nodeTree);
-        nodeItem->setIcon(0, QIcon(":/icons/icons/model_1.png"));
-        nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
+        auto* nodeItem = new QStandardItem(QIcon(":/icons/icons/model_1.png"), QString("%1: %2").arg(nodeId).arg(nodeName));
+        nodeModel->invisibleRootItem()->appendRow(nodeItem);
 
         // 添加 Properties 分组
-        QTreeWidgetItem* propertiesGroup = new QTreeWidgetItem(nodeItem);
-        propertiesGroup->setText(0, "Properties");
-        propertiesGroup->setIcon(0, QIcon(":/icons/icons/property.png"));
+        auto* propertiesGroup = new QStandardItem(QIcon(":/icons/icons/property.png"), "Properties");
+        nodeItem->appendRow(propertiesGroup);
         // 添加位置属性到 Properties 分组
         QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
-        QTreeWidgetItem* positionItem = new QTreeWidgetItem(propertiesGroup);
-        positionItem->setText(0, QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
+        auto* positionItem = new QStandardItem(QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
+        propertiesGroup->appendRow(positionItem);
         // 添加 Controls 分组
         auto mapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
         if(mapping.size()<=0){
            continue;
         }
-        QTreeWidgetItem* controlsGroup = new QTreeWidgetItem(nodeItem);
-        controlsGroup->setIcon(0, QIcon(":/icons/icons/command.png"));
-        controlsGroup->setText(0, "Commands");
+        auto* controlsGroup = new QStandardItem(QIcon(":/icons/icons/command.png"), "Commands");
+        nodeItem->appendRow(controlsGroup);
         for(auto it:mapping){
-            QTreeWidgetItem* controlItem = new QTreeWidgetItem(controlsGroup);
-            controlItem->setText(0, "/dataflow/" + dataFlowModel->nodeData(nodeId, NodeRole::ModelAlias).toString() + "/" + QString::number(nodeId)+it.first);
+            auto* controlItem = new QStandardItem("/dataflow/" + dataFlowModel->nodeData(nodeId, NodeRole::ModelAlias).toString() + "/" + QString::number(nodeId)+it.first);
+            controlsGroup->appendRow(controlItem);
         }
     }
 }
 
 void NodeListWidget::onNodeCreated(NodeId nodeId) {
     QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Remarks).toString();
-    QTreeWidgetItem* nodeItem = new QTreeWidgetItem(nodeTree);
-    nodeItem->setIcon(0, QIcon(":/icons/icons/model_1.png"));
-    nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
+    auto* nodeItem = new QStandardItem(QIcon(":/icons/icons/model_1.png"), QString("%1: %2").arg(nodeId).arg(nodeName));
+    nodeModel->invisibleRootItem()->appendRow(nodeItem);
     // 添加 Properties 分组
-    QTreeWidgetItem* propertiesGroup = new QTreeWidgetItem(nodeItem);
-    propertiesGroup->setText(0, "Properties");
-    propertiesGroup->setIcon(0, QIcon(":/icons/icons/property.png"));
+    auto* propertiesGroup = new QStandardItem(QIcon(":/icons/icons/property.png"), "Properties");
+    nodeItem->appendRow(propertiesGroup);
     //添加ID显示到Properties分组
-    QTreeWidgetItem* idItem = new QTreeWidgetItem(propertiesGroup);
-    idItem->setText(0, QString("ID: %1").arg(nodeId));
+    auto* idItem = new QStandardItem(QString("ID: %1").arg(nodeId));
+    propertiesGroup->appendRow(idItem);
     // 添加位置属性到 Properties 分组
     QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
-    QTreeWidgetItem* positionItem = new QTreeWidgetItem(propertiesGroup);
-    positionItem->setText(0, QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
+    auto* positionItem = new QStandardItem(QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
+    propertiesGroup->appendRow(positionItem);
      // 添加备注属性到 Properties 分组
-    QTreeWidgetItem* remarksItem = new QTreeWidgetItem(propertiesGroup);
-    remarksItem->setText(0, QString("Type: %1").arg(dataFlowModel->nodeData(nodeId, NodeRole::Type).toString()));
+    auto* remarksItem = new QStandardItem(QString("Type: %1").arg(dataFlowModel->nodeData(nodeId, NodeRole::Type).toString()));
+    propertiesGroup->appendRow(remarksItem);
     // 添加 Controls 分组
     auto mapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
     if(mapping.size()<=0){
         return;
     }
-    QTreeWidgetItem* controlsGroup = new QTreeWidgetItem(nodeItem);
-    controlsGroup->setText(0, "Commands");
-    controlsGroup->setIcon(0, QIcon(":/icons/icons/command.png"));
+    auto* controlsGroup = new QStandardItem(QIcon(":/icons/icons/command.png"), "Commands");
+    nodeItem->appendRow(controlsGroup);
     for(auto it:mapping){
-        QTreeWidgetItem* controlItem = new QTreeWidgetItem(controlsGroup);
-        controlItem->setText(0, "/dataflow/"+dataFlowModel->nodeData(nodeId, NodeRole::ModelAlias).toString() + "/" + QString::number(nodeId)+it.first);
+        auto* controlItem = new QStandardItem("/dataflow/"+dataFlowModel->nodeData(nodeId, NodeRole::ModelAlias).toString() + "/" + QString::number(nodeId)+it.first);
+        controlsGroup->appendRow(controlItem);
     }
 }
 
 void NodeListWidget::onNodeDeleted(NodeId nodeId) {
-    for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
-        QTreeWidgetItem* nodeItem = nodeTree->topLevelItem(i);
-        if (nodeItem->text(0).startsWith(QString::number(nodeId) + ":")) {
-            delete nodeTree->takeTopLevelItem(i);
+    QStandardItem* root = nodeModel->invisibleRootItem();
+    for (int i = 0; i < root->rowCount(); ++i) {
+        QStandardItem* nodeItem = root->child(i, 0);
+        if (nodeItem && nodeItem->text().startsWith(QString::number(nodeId) + ":")) {
+            root->removeRow(i);
             break;
         }
     }
@@ -308,31 +313,25 @@ void NodeListWidget::onNodeUpdated(NodeId nodeId) {
     auto oscMapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
 
     // 查找节点项
-    QTreeWidgetItem* nodeItem = nullptr;
+    QStandardItem* nodeItem = nullptr;
     QString nodeIdStr = QString::number(nodeId) + ":";
 
-    // 使用二分查找或哈希表可以进一步优化，但这里先用简单的线性查找
-    for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
-        QTreeWidgetItem* item = nodeTree->topLevelItem(i);
-        if (item->text(0).startsWith(nodeIdStr)) {
-            nodeItem = item;
-            break;
-        }
-    }
+    // 使用线性查找顶层项
+    nodeItem = findNodeItem(nodeId);
 
     if (!nodeItem) return; // 未找到节点，直接返回
 
     // 更新节点名称
-    nodeItem->setText(0, QString("%1: %2").arg(nodeId).arg(nodeName));
+    nodeItem->setText(QString("%1: %2").arg(nodeId).arg(nodeName));
 
     // 使用映射表存储子组，避免重复查找
-    QTreeWidgetItem* propertiesGroup = nullptr;
-    QTreeWidgetItem* commandsGroup = nullptr;
+    QStandardItem* propertiesGroup = nullptr;
+    QStandardItem* commandsGroup = nullptr;
 
     // 一次性查找所有需要的组
-    for (int j = 0; j < nodeItem->childCount(); ++j) {
-        QTreeWidgetItem* groupItem = nodeItem->child(j);
-        QString groupText = groupItem->text(0);
+    for (int j = 0; j < nodeItem->rowCount(); ++j) {
+        QStandardItem* groupItem = nodeItem->child(j, 0);
+        QString groupText = groupItem->text();
 
         if (groupText == "Properties") {
             propertiesGroup = groupItem;
@@ -344,14 +343,14 @@ void NodeListWidget::onNodeUpdated(NodeId nodeId) {
     // 处理Properties组
     if (propertiesGroup) {
         // 使用映射表存储属性项，避免重复查找
-        QTreeWidgetItem* positionItem = nullptr;
-        QTreeWidgetItem* typeItem = nullptr;
-        QTreeWidgetItem* idItem = nullptr;
+        QStandardItem* positionItem = nullptr;
+        QStandardItem* typeItem = nullptr;
+        QStandardItem* idItem = nullptr;
 
         // 一次性查找所有需要的属性项
-        for (int k = 0; k < propertiesGroup->childCount(); ++k) {
-            QTreeWidgetItem* propertyItem = propertiesGroup->child(k);
-            QString propertyText = propertyItem->text(0);
+        for (int k = 0; k < propertiesGroup->rowCount(); ++k) {
+            QStandardItem* propertyItem = propertiesGroup->child(k, 0);
+            QString propertyText = propertyItem->text();
 
             if (propertyText.startsWith("Position:")) {
                 positionItem = propertyItem;
@@ -364,48 +363,47 @@ void NodeListWidget::onNodeUpdated(NodeId nodeId) {
 
         // 更新或创建位置项
         if (positionItem) {
-            positionItem->setText(0, QString("Position: (%1, %2)")
+            positionItem->setText(QString("Position: (%1, %2)")
                 .arg(nodePosition.x())
                 .arg(nodePosition.y()));
         } else {
-            positionItem = new QTreeWidgetItem(propertiesGroup);
-            positionItem->setText(0, QString("Position: (%1, %2)")
+            positionItem = new QStandardItem(QString("Position: (%1, %2)")
                 .arg(nodePosition.x())
                 .arg(nodePosition.y()));
+            propertiesGroup->appendRow(positionItem);
         }
 
         // 更新或创建类型项
         if (typeItem) {
-            typeItem->setText(0, QString("Type: %1").arg(nodeType));
+            typeItem->setText(QString("Type: %1").arg(nodeType));
         } else {
-            typeItem = new QTreeWidgetItem(propertiesGroup);
-            typeItem->setText(0, QString("Type: %1").arg(nodeType));
+            typeItem = new QStandardItem(QString("Type: %1").arg(nodeType));
+            propertiesGroup->appendRow(typeItem);
         }
 
         // 更新或创建ID项
         if (idItem) {
-            idItem->setText(0, QString("ID: %1").arg(nodeId));
+            idItem->setText(QString("ID: %1").arg(nodeId));
         } else {
-            idItem = new QTreeWidgetItem(propertiesGroup);
-            idItem->setText(0, QString("ID: %1").arg(nodeId));
+            idItem = new QStandardItem(QString("ID: %1").arg(nodeId));
+            propertiesGroup->appendRow(idItem);
         }
     } else {
         // 创建Properties组
-        propertiesGroup = new QTreeWidgetItem(nodeItem);
-        propertiesGroup->setText(0, "Properties");
-        propertiesGroup->setIcon(0, QIcon(":/icons/icons/property.png"));
+        propertiesGroup = new QStandardItem(QIcon(":/icons/icons/property.png"), "Properties");
+        nodeItem->appendRow(propertiesGroup);
 
         // 一次性创建所有属性项
-        QTreeWidgetItem* idItem = new QTreeWidgetItem(propertiesGroup);
-        idItem->setText(0, QString("ID: %1").arg(nodeId));
+        QStandardItem* idItem = new QStandardItem(QString("ID: %1").arg(nodeId));
+        propertiesGroup->appendRow(idItem);
 
-        QTreeWidgetItem* positionItem = new QTreeWidgetItem(propertiesGroup);
-        positionItem->setText(0, QString("Position: (%1, %2)")
+        QStandardItem* positionItem = new QStandardItem(QString("Position: (%1, %2)")
             .arg(nodePosition.x())
             .arg(nodePosition.y()));
+        propertiesGroup->appendRow(positionItem);
 
-        QTreeWidgetItem* typeItem = new QTreeWidgetItem(propertiesGroup);
-        typeItem->setText(0, QString("Type: %1").arg(nodeType));
+        QStandardItem* typeItem = new QStandardItem(QString("Type: %1").arg(nodeType));
+        propertiesGroup->appendRow(typeItem);
     }
 
     // 处理Commands组
@@ -414,85 +412,94 @@ void NodeListWidget::onNodeUpdated(NodeId nodeId) {
     if (commandsGroup) {
         if (hasCommands) {
             // 批量更新：先清除所有子项，然后一次性添加新的子项
-            commandsGroup->takeChildren(); // 比逐个删除更高效
+            while (commandsGroup->rowCount() > 0) {
+                commandsGroup->removeRow(0);
+            }
 
             // 预先分配足够的空间
-            QList<QTreeWidgetItem*> newItems;
-            newItems.reserve(oscMapping.size());
+            QList<QStandardItem*> newItems;
+            newItems.reserve(int(oscMapping.size()));
 
             QString prefix = "/dataflow/" + dataFlowModel->nodeData(nodeId, NodeRole::ModelAlias).toString() +"/"+QString::number(nodeId);
             for (const auto& it : oscMapping) {
-                QTreeWidgetItem* controlItem = new QTreeWidgetItem();
-                controlItem->setText(0, prefix + it.first);
+                QStandardItem* controlItem = new QStandardItem(prefix + it.first);
                 newItems.append(controlItem);
             }
 
-            commandsGroup->addChildren(newItems); // 批量添加子项
+            for (auto* it : newItems) commandsGroup->appendRow(it); // 批量添加子项
         } else {
             // 如果没有命令，移除Commands组
-            for (int j = 0; j < nodeItem->childCount(); ++j) {
-                if (nodeItem->child(j) == commandsGroup) {
-                    delete nodeItem->takeChild(j);
+            for (int j = 0; j < nodeItem->rowCount(); ++j) {
+                if (nodeItem->child(j, 0) == commandsGroup) {
+                    nodeItem->removeRow(j);
                     break;
                 }
             }
         }
     } else if (hasCommands) {
         // 创建Commands组
-        commandsGroup = new QTreeWidgetItem(nodeItem);
-        commandsGroup->setText(0, "Commands");
-        commandsGroup->setIcon(0, QIcon(":/icons/icons/command.png"));
+        commandsGroup = new QStandardItem(QIcon(":/icons/icons/command.png"), "Commands");
+        nodeItem->appendRow(commandsGroup);
 
         // 预先分配足够的空间
-        QList<QTreeWidgetItem*> newItems;
-        newItems.reserve(oscMapping.size());
+        QList<QStandardItem*> newItems;
+        newItems.reserve(int(oscMapping.size()));
 
         QString prefix = "/dataflow/" + dataFlowModel->nodeData(nodeId, NodeRole::ModelAlias).toString() + "/" + QString::number(nodeId);
         for (const auto& it : oscMapping) {
-            QTreeWidgetItem* controlItem = new QTreeWidgetItem();
-            controlItem->setText(0, prefix + it.first);
+            QStandardItem* controlItem = new QStandardItem(prefix + it.first);
             newItems.append(controlItem);
         }
 
-        commandsGroup->addChildren(newItems); // 批量添加子项
+        for (auto* it : newItems) commandsGroup->appendRow(it); // 批量添加子项
     }
 }
 
 void NodeListWidget::filterNodes(const QString& query) {
-    for (int i = 0; i < nodeTree->topLevelItemCount(); ++i) {
-        QTreeWidgetItem* nodeItem = nodeTree->topLevelItem(i);
-        bool matchInNode = nodeItem->text(0).contains(query, Qt::CaseInsensitive);
+    QStandardItem* root = nodeModel->invisibleRootItem();
+    for (int i = 0; i < root->rowCount(); ++i) {
+        QStandardItem* nodeItem = root->child(i, 0);
+        if (!nodeItem) continue;
+        bool matchInNode = nodeItem->text().contains(query, Qt::CaseInsensitive);
         bool matchInChildren = false;
 
-        // Search through child items
-        for (int j = 0; j < nodeItem->childCount(); ++j) {
-            QTreeWidgetItem* childItem = nodeItem->child(j);
-            if (childItem->text(0).contains(query, Qt::CaseInsensitive)) {
-                matchInChildren = true;
-                childItem->setHidden(false);
-            } else {
-                childItem->setHidden(!query.isEmpty());
+        // 遍历组与子项
+        for (int j = 0; j < nodeItem->rowCount(); ++j) {
+            QStandardItem* groupItem = nodeItem->child(j, 0);
+            if (!groupItem) continue;
+            for (int k = 0; k < groupItem->rowCount(); ++k) {
+                QStandardItem* childItem = groupItem->child(k, 0);
+                if (!childItem) continue;
+                bool match = childItem->text().contains(query, Qt::CaseInsensitive);
+                nodeTree->setRowHidden(k, groupItem->index(), !match && !query.isEmpty());
+                if (match) matchInChildren = true;
             }
         }
 
-        // Show the node if either the node itself or any of its children match
-        nodeItem->setHidden(!(matchInNode || matchInChildren));
+        // 顶层显示控制
+        nodeTree->setRowHidden(i, QModelIndex(), !(matchInNode || matchInChildren));
 
-        // If the node matches, show all its children
+        // 若顶层匹配，则显示所有子项
         if (matchInNode) {
-            for (int j = 0; j < nodeItem->childCount(); ++j) {
-                nodeItem->child(j)->setHidden(false);
+            for (int j = 0; j < nodeItem->rowCount(); ++j) {
+                QStandardItem* groupItem = nodeItem->child(j, 0);
+                if (!groupItem) continue;
+                for (int k = 0; k < groupItem->rowCount(); ++k) {
+                    nodeTree->setRowHidden(k, groupItem->index(), false);
+                }
             }
         }
     }
 }
 
 void NodeListWidget::showContextMenu(const QPoint &pos) {
-    QTreeWidgetItem* selectedItem = nodeTree->itemAt(pos);
-    if (!selectedItem) return;
+    QModelIndex index = nodeTree->indexAt(pos);
+    if (!index.isValid()) return;
     if (!dataFlowModel || !dataFlowScene) return;
 
-    QString nodeText = selectedItem->text(0);
+    // 顶层索引
+    while (index.parent().isValid()) index = index.parent();
+    QString nodeText = nodeModel->data(index, Qt::DisplayRole).toString();
     NodeId nodeId = nodeText.section(':', 0, 0).toInt();
 
     QMenu contextMenu;
@@ -500,25 +507,22 @@ void NodeListWidget::showContextMenu(const QPoint &pos) {
     contextMenu.setAttribute(Qt::WA_TranslucentBackground, false);
     QAction* focusAction = contextMenu.addAction("Focus Node");
     focusAction->setIcon(QIcon(":/icons/icons/focus.png"));
-    
-    QAction* deleteAction = contextMenu.addAction("Delete Node");
-    deleteAction->setIcon(QIcon(":/icons/icons/clear.png"));
     QAction* expandAction = contextMenu.addAction("Switch expand");
     expandAction->setIcon(QIcon(":/icons/icons/expand.png"));
-     
     QAction* updateAction = contextMenu.addAction("Update Node");
     updateAction->setIcon(QIcon(":/icons/icons/restore.png"));
-    
-    connect(deleteAction, &QAction::triggered, [this, selectedItem]() {
+    QAction* deleteAction = contextMenu.addAction("Delete Node");
+    deleteAction->setIcon(QIcon(":/icons/icons/clear.png"));
+    connect(deleteAction, &QAction::triggered, [this]() {
         if (dataFlowScene) {
             dataFlowScene->undoStack().push(new QtNodes::DeleteCommand(dataFlowScene));
         }
     });
     connect(focusAction, &QAction::triggered, [this, nodeId]() {
         if (dataFlowScene && !dataFlowScene->views().isEmpty()) {
-            auto view = dataFlowScene->views().first();
+            CustomGraphicsView view = dataFlowScene->views().first();
             //首先重置缩放
-            view->resetTransform();
+            view.resetTransform();
             //视图中心移至节点
             dataFlowScene->centerOnNode(nodeId);
         }
@@ -539,13 +543,17 @@ void NodeListWidget::showContextMenu(const QPoint &pos) {
     contextMenu.exec(nodeTree->viewport()->mapToGlobal(pos));
 }
 
-bool NodeListWidget::isCommand(const QTreeWidgetItem* item) const {
-    return item->parent() && item->parent()->text(0) == "Commands";
+bool NodeListWidget::isCommand(const QModelIndex& index) const {
+    if (!index.isValid()) return false;
+    QModelIndex parentIndex = index.parent();
+    if (!parentIndex.isValid()) return false;
+    return nodeModel->data(parentIndex, Qt::DisplayRole).toString() == "Commands";
 }
 
-void NodeListWidget::startDrag(QTreeWidgetItem* item) {
+void NodeListWidget::startDrag(const QModelIndex& index) {
+    if (!index.isValid()) return;
     OSCMessage message;
-    message.address = item->text(0);
+    message.address = nodeModel->data(index, Qt::DisplayRole).toString();
     message.host = "127.0.0.1";
     message.port = 8991;
     message.value = 1;
@@ -623,4 +631,29 @@ void NodeListWidget::onRefreshClicked()
     // 强制刷新显示
     nodeTree->viewport()->update();
     nodeTree->repaint();
+}
+
+/**
+ * @brief 双击项：展开顶层节点并聚焦到场景中的对应节点
+ * @param index 被双击的模型索引
+ */
+void NodeListWidget::onTreeDoubleClicked(const QModelIndex& index)
+{
+    if (!index.isValid() || !dataFlowScene || !dataFlowModel) return;
+    // 顶层索引
+    QModelIndex rootIndex = index;
+    while (rootIndex.parent().isValid()) rootIndex = rootIndex.parent();
+    // 展开顶层节点
+    nodeTree->setExpanded(rootIndex, true);
+    // 获取节点ID并聚焦
+    QString nodeText = nodeModel->data(rootIndex, Qt::DisplayRole).toString();
+    NodeId nodeId = nodeText.section(':', 0, 0).toInt();
+    if (auto nodeObj = dataFlowScene->nodeGraphicsObject(nodeId)) {
+        // 重置缩放并居中
+        if (!dataFlowScene->views().isEmpty()) {
+            auto view = dataFlowScene->views().first();
+            view->resetTransform();
+        }
+        dataFlowScene->centerOnNode(nodeId);
+    }
 }

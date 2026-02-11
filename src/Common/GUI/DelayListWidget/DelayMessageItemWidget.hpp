@@ -8,6 +8,7 @@
 #include <QSpinBox>
 
 #include "../../Common/Devices/OSCSender/OSCSender.h"
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #if defined(DELAYLISTWIDGET_LIBRARY)
 #define DELAYLISTWIDGET_EXPORT Q_DECL_EXPORT
 #else
@@ -32,8 +33,8 @@ signals:
     void messageChanged();
 
 private:
-    QSpinBox* portIndex;
-    QLineEdit* timeEdit;
+    IntDragValueWidget* portIndex;
+    IntDragValueWidget* timeEdit;
     void setupUI();
 
 };

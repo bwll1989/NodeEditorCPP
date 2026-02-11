@@ -10,7 +10,7 @@
 #include "OscOutInterface.hpp"
 #include <QVariantMap>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "QThread"
 #include "spdlog/fmt/bundled/base.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
@@ -79,7 +79,7 @@ namespace Nodes
             connect(widget->sendButton, &QPushButton::clicked, this, &OscOutDataModel::sendOSCMessage);
             
             connect(widget->hostLineEdit, &QLineEdit::textChanged, this, &OscOutDataModel::setHost);
-            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, &OscOutDataModel::setPort);
+            connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, &OscOutDataModel::setPort);
             connect(widget->addressLineEdit, &QLineEdit::textChanged, this, &OscOutDataModel::setAddress);
             connect(widget->typeComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &OscOutDataModel::setTypeIndex);
 
@@ -298,6 +298,7 @@ namespace Nodes
             
             // To support headless, we should know what index 0, 1, 2 map to.
             // Assuming 0: Int, 1: Float, 2: String based on original switch.
+
             switch (m_typeIndex)
             {
             case 0: // Int

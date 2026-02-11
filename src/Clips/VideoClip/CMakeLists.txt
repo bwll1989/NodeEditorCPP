@@ -72,6 +72,7 @@ target_link_libraries(VideoClip PUBLIC
         MediaManger
         GUIElements
         StatusContainer
+        AppConfig
 )
 
 # 包含目录

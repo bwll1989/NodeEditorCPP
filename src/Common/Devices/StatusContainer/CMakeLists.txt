@@ -24,6 +24,7 @@ target_link_libraries(StatusContainer PUBLIC
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
         Qt${QT_VERSION_MAJOR}::Widgets
-        GUIElements)
+        GUIElements
+        AppConfig)
 
 target_compile_definitions(StatusContainer PRIVATE STATUSCONTAINER_LIBRARY)

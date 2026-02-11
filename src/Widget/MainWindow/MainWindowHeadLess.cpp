@@ -21,6 +21,7 @@
 #include "Elements/BarButton/BarButton.h"
 #include "Elements/XYPad/XYPad.h"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
+#include "../../Common/AppConfig/ConfigManager.h"
 using namespace ads;
 MainWindowHeadLess::MainWindowHeadLess(QWidget *parent): QMainWindow(parent) {
 
@@ -36,7 +37,6 @@ void MainWindowHeadLess::init()
     m_DockManager = new ads::CDockManager(this);
     DockHub::instance().setDockManager(m_DockManager);
     emit initStatus("Initialization ADS success");
-
     // 终端显示控件
     logTable=new LogWidget();
     logTable->resize(800,200);
@@ -70,7 +70,7 @@ void MainWindowHeadLess::init()
     emit initStatus("Initialization external controler success");
 	 // http 服务器
     httpServer=new NodeStudio::NodeHttpServer();
-    httpServer->start(AppConstants::HTTP_SERVER_PORT);
+    httpServer->start(ConfigManager::instance().getHttpServerPort());
     emit initStatus("Initialization Http Server success");
     // 系统托盘图标
      if (QSystemTrayIcon::isSystemTrayAvailable()) {
@@ -133,15 +133,15 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
             return false;
         }
 
-        emit initStatus(tr("Load the dataflow model..."));
+        emit initStatus(tr("Load the dataflow model ..."));
         // 加载数据流模型
         dataflowViewsManger->load(jsonDoc.object()["DataFlow"].toObject());
 
-        emit initStatus(tr("Load the timeline model..."));
+        emit initStatus(tr("Load the timeline model ..."));
         // 加载时间轴模型
         timeline->load(jsonDoc.object()["TimeLine"].toObject());
 
-        emit initStatus(tr("Load the scheduled tasks model..."));
+        emit initStatus(tr("Load the scheduled tasks model ..."));
         // 加载计划任务模型
         scheduledTaskWidget->load(jsonDoc.object()["ScheduledTasks"].toObject());
 
@@ -150,7 +150,7 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
  		// 载入网页布局（HTTP Server）
         const QJsonObject webLayout = jsonDoc.object().value("WebLayout").toObject();
         if (!webLayout.isEmpty() && httpServer) {
-             emit initStatus(tr("Load the web layout..."));
+             emit initStatus(tr("Load the web layout ..."));
             httpServer->load(webLayout);
         }
         m_splash->updateStatus(tr("Load flow file completed"));
@@ -168,7 +168,7 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
 }
 
 bool MainWindowHeadLess::loadRecentFile() {
-    auto recentFile = getRecentFiles()[0];
+    auto recentFile = ConfigManager::instance().getRecentFiles()[0];
     if (!recentFile.isEmpty()) {
         return loadFileFromPath(recentFile);
     }
@@ -180,19 +180,5 @@ void MainWindowHeadLess::closeEvent(QCloseEvent* event)
 {
     qDebug() << "The program(Headless) exits manually";
     event->accept();
-}
-
-/**
- * 函数级注释：载入最近文件列表
- * - 从 cfg/RecentFiles.ini 读取键 "files"
- * - 返回 QStringList（若不存在返回空）
- */
-QStringList MainWindowHeadLess::getRecentFiles() const
-{
-
-   
-    QSettings settings(AppConstants::RECENT_FILES_STORAGE_DIR+"/Settings.ini", QSettings::IniFormat);
-    const QStringList files = settings.value("files").toStringList();
-    return files;
 }
 

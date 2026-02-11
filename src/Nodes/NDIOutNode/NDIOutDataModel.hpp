@@ -38,7 +38,6 @@
 
 // 现在安全地包含 OpenCV
 #include <opencv2/opencv.hpp>
-#include "ConstantDefines.h"
 #include "NDIOutInterface.hpp"
 #include <iostream>
 #include <vector>

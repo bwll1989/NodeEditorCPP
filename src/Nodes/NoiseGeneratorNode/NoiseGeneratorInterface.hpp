@@ -3,7 +3,7 @@
 //
 
 #include <QCheckBox>
-#include <QDoubleSpinBox>
+#include "Common/GUI/Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 #include <QComboBox>
 #include "QWidget"
 #include "QLabel"
@@ -56,7 +56,7 @@ namespace Nodes
         QComboBox *noiseTypeCombo = new QComboBox(this);
         QPushButton *startButton = new QPushButton("开始生成");
         QPushButton *stopButton = new QPushButton("停止生成");
-        QDoubleSpinBox *volumeSlider = new QDoubleSpinBox(this);
+        FloatDragValueWidget *volumeSlider = new FloatDragValueWidget(this);
     };
 }
 

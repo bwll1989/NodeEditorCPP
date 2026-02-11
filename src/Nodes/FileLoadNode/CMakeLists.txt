@@ -22,7 +22,8 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${Qt
         GUIElements
         Qt${QT_VERSION_MAJOR}::Network
         DataTypes
-        BuildInNodes)
+        BuildInNodes
+        AppConfig)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

@@ -21,11 +21,11 @@ UniversePlaybackDataModel::UniversePlaybackDataModel()
     connect(playbackTimer, &QTimer::timeout, this, &UniversePlaybackDataModel::onPlaybackTimer);
 
     // 连接界面信号
-    connect(widget->universeSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+    connect(widget->universeSpinBox, &IntDragValueWidget::valueChanged,
         this, [this](int val) { setUniverse(val); });
-    connect(widget->subnetSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+    connect(widget->subnetSpinBox, &IntDragValueWidget::valueChanged,
         this, [this](int val) { setSubnet(val); });
-    connect(widget->netSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+    connect(widget->netSpinBox, &IntDragValueWidget::valueChanged,
         this, [this](int val) { setNet(val); });
 
     // 连接控制按钮信号

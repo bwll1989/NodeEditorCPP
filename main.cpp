@@ -15,7 +15,7 @@
 #include "Widget/MainWindow/MainWindow.hpp"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include <QtWebEngineQuick/QtWebEngineQuick>
 /**
  * @brief 生成单实例共享内存的唯一键
@@ -108,15 +108,7 @@ static void closeSplashSafely(const QScopedPointer<CustomSplashScreen>& splashSc
 int main(int argc, char *argv[])
 {
     // 设置高DPI支持
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    // Qt 6中高DPI缩放默认启用，不需要显式设置AA_EnableHighDpiScaling
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
-#else
-    // Qt 5中需要显式启用高DPI缩放
-    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
-#endif
-    
     // 创建Qt应用程序实例
     QApplication app(argc, argv);
     app.setApplicationName(AppConstants::PRODUCT_NAME);
@@ -134,7 +126,7 @@ int main(int argc, char *argv[])
     setupAppInfo();
 
     // 设置应用程序样式
-    QApplication::setStyle(QStyleFactory::create("Fusion"));
+    // QApplication::setStyle(QStyleFactory::create("Fusion"));
 
     // 解析命令行参数
     QCommandLineParser parser;
@@ -171,10 +163,7 @@ int main(int argc, char *argv[])
         // 处理命令行参数可能触发文件加载
         handleCommandLineArguments(parser, *mainWindow);
     }
-    // else{
-    //     // 如果没有命令行参数，则恢复视觉状态
-    //     mainWindow->restoreVisualState();
-    // }
+
     // 所有都处理完成后再显示主窗口，并关闭启动界面
     mainWindow->showMaximized();
 

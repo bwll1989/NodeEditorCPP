@@ -41,7 +41,7 @@ void DataflowViewsManger::addNewScene(const QString& title)
     _models.emplace(title, std::make_unique<CustomDataFlowGraphModel>(PluginsManager::instance()->registry()));
     auto& model = *_models.at(title);
     model.setModelAlias(title);
-    ads::CDockWidget* DockWidget = new ads::CDockWidget(m_DockManager,title);
+    ads::CDockWidget* DockWidget = m_DockManager->createDockWidget(title);
     // 函数级注释：
     // // 作用：为 DockWidget 开启 DeleteOnClose，由 ADS 负责删除；管理器仅保存弱引用
     // DockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, true);
@@ -87,7 +87,7 @@ void DataflowViewsManger::addNewScene(const QString& title)
         emit removeScene(title);
     });
 
-    auto d = OptionsMenu->addAction(QIcon(":/icons/icons/open_flat.png"),QObject::tr("Load Child Dataflow"));
+    auto d = OptionsMenu->addAction(QIcon(":/icons/icons/folder.png"),QObject::tr("Load Child Dataflow"));
     QObject::connect(d, &QAction::triggered, scene, &CustomFlowGraphicsScene::load);
     auto e = OptionsMenu->addAction(QIcon(":/icons/icons/lock.png"),QObject::tr("Lock Dataflow"));
     QObject::connect(e, &QAction::triggered, this, [this, title, e](){
@@ -154,7 +154,7 @@ void DataflowViewsManger::addNewSceneFromeModel(const QString& title, QJsonObjec
     //     _models.erase(title);
     //     emit removeScene(title);
     // });
-    // auto d = OptionsMenu->addAction(QIcon(":/icons/icons/open_flat.png"),QObject::tr("Load Child Dataflow"));
+    // auto d = OptionsMenu->addAction(QIcon(":/icons/icons/folder.png"),QObject::tr("Load Child Dataflow"));
     // QObject::connect(d, &QAction::triggered, scene, &CustomFlowGraphicsScene::load);
     // auto e = OptionsMenu->addAction(QIcon(":/icons/icons/lock.png"),QObject::tr("Lock Dataflow"));
     // QObject::connect(e, &QAction::triggered, this, [this, title, e](){

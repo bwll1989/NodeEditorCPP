@@ -7,7 +7,6 @@
 #include <iostream>
 #include <QtCore/qglobal.h>
 #include "MqttInterface.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/MqttClient/MqttClient.h"
 #include <QtWidgets/QSpinBox>
@@ -55,7 +54,7 @@ namespace Nodes
             AbstractDelegateModel::registerExternalControl("/connect", widget->statusButton);
 
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this](){ setHost(widget->hostEdit->text()); });
-            connect(widget->portSpinBox, qOverload<int>(&QSpinBox::valueChanged), this, &MqttDataModel::setPort);
+            connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, &MqttDataModel::setPort);
             connect(widget->usernameEdit, &QLineEdit::editingFinished, this, [this](){ setUsername(widget->usernameEdit->text()); });
             connect(widget->passwordEdit, &QLineEdit::editingFinished, this, [this](){ setPassword(widget->passwordEdit->text()); });
             connect(widget->topicEdit, &QLineEdit::editingFinished, this, [this](){ setTopic(widget->topicEdit->text()); });

@@ -10,7 +10,6 @@
 #include <QVariantMap>
 #include <QByteArray>
 #include <QJsonArray>
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
@@ -215,7 +214,7 @@ namespace Nodes
             if (portType == PortType::In) {
                 return QString("CH%1").arg(portIndex);  // 从CH0开始，对应设备通道
             } else {
-                return "CHANNELS";    // 通道数据输出
+                return "DEVICE";    // 通道数据输出
             }
         }
 

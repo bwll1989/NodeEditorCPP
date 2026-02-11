@@ -14,7 +14,6 @@
 #include "ImageConstInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
 #include "opencv2/imgcodecs/imgcodecs.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace Nodes;
@@ -34,8 +33,8 @@ namespace Nodes
             Resizable=false;
             m_watcher = new QFutureWatcher<void>(this);
             // 连接输入框变化信号到槽
-            connect(widget->widthEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
-            connect(widget->heightEdit, &QLineEdit::textChanged, this, &ImageConstModel::onInputChanged);
+            connect(widget->widthEdit, &IntDragValueWidget::valueChanged, this, &ImageConstModel::onInputChanged);
+            connect(widget->heightEdit, &IntDragValueWidget::valueChanged, this, &ImageConstModel::onInputChanged);
             connect(colorEditorWidget, &ColorEditorWidget::colorChanged, this, &ImageConstModel::onInputChanged);
             connect(widget->colorEditButton, &QPushButton::clicked, this, &ImageConstModel::toggleEditorMode);
             updateImage();
@@ -99,11 +98,11 @@ namespace Nodes
             switch (port) {
                 case 0: // WIDTH
                     m_width = val.toInt();
-                    widget->widthEdit->setText(QString::number(m_width));
+                    widget->widthEdit->setValue(m_width);
                     break;
                 case 1: // HEIGHT
                     m_height = val.toInt();
-                    widget->heightEdit->setText(QString::number(m_height));
+                    widget->heightEdit->setValue(m_height);
                     break;
                 case 2: // RED
                     colorEditorWidget->setColor(val.toString());
@@ -119,8 +118,8 @@ namespace Nodes
 
         QJsonObject save() const override{
             QJsonObject modelJson1;
-            modelJson1["width"] = widget->widthEdit->text();
-            modelJson1["height"] = widget->heightEdit->text();
+            modelJson1["width"] = widget->widthEdit->value();
+            modelJson1["height"] = widget->heightEdit->value();
             modelJson1["color"] = colorEditorWidget->getColor().name(QColor::HexArgb);
             // modelJson1["green"] = widget->colorGreenEdit->value();
             // modelJson1["blue"] = widget->colorBlueEdit->value();
@@ -134,8 +133,8 @@ namespace Nodes
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
                 //            button->setChecked(v["val"].toBool(false));
-                widget->widthEdit->setText(v["width"].toString());
-                widget->heightEdit->setText(v["height"].toString());
+                widget->widthEdit->setValue(v["width"].toInt());
+                widget->heightEdit->setValue(v["height"].toInt());
                 colorEditorWidget->setColor(QColor(v["color"].toString()));
                 // widget->colorRedEdit->setValue(v["red"].toInt());
                 // widget->colorGreenEdit->setValue(v["green"].toInt());
@@ -211,8 +210,8 @@ namespace Nodes
 
         void onInputChanged(){
             // 解析输入框内容
-            m_width = widget->widthEdit->text().toInt();
-            m_height = widget->heightEdit->text().toInt();
+            m_width = widget->widthEdit->value();
+            m_height = widget->heightEdit->value();
             m_color = QColor(colorEditorWidget->getColor());
             updateImage();
             Q_EMIT dataUpdated(0);

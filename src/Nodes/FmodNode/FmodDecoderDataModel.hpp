@@ -10,7 +10,6 @@
 #include "QtNodes/Definitions"
 #include "QTimer"
 #include "QThread"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "DataTypes/AudioData.h"
 #include "FmodDecoderWorker.h"

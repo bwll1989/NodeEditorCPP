@@ -155,9 +155,9 @@ void TimeLineNodeView::dropEvent(QDropEvent *event)
 void TimeLineNodeView::initToolBar(BaseTimelineToolbar *toolbar)
 {
     this->m_toolbar = toolbar;
-    this->m_toolbar->setFixedHeight(toolbarHeight-4);
+    this->m_toolbar->setFixedHeight(toolbarHeight-8);
     // 设置工具栏位置
-    this->m_toolbar->move(0, 2);
+    this->m_toolbar->move(4, 4);
     // 连接工具栏播放按钮信号
     connect(dynamic_cast<TimeLineNodeToolBar*>(this->m_toolbar), &TimeLineNodeToolBar::playClicked, [this]() {
         getModel()->onStartPlay();

@@ -10,7 +10,7 @@
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "InternalControlInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
 

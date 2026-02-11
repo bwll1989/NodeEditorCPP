@@ -11,6 +11,7 @@
 #include "QLineEdit"
 #include "QTextBrowser"
 #include "QComboBox"
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 // #include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
 using namespace std;
 using namespace NodeDataTypes;
@@ -64,7 +65,7 @@ namespace Nodes
         QPushButton *speedAdd=new QPushButton("speedAdd");
         QPushButton *speedSub=new QPushButton("speedSub");
         QLabel *volumeLabel=new QLabel("Volume: ");
-        QDoubleSpinBox *volumeEditor=new QDoubleSpinBox();
+        FloatDragValueWidget *volumeEditor=new FloatDragValueWidget(this);
         QPushButton *speedReset=new QPushButton("speedReset");
         QPushButton *Fullscreen=new QPushButton("fullscreen");
 

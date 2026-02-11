@@ -10,6 +10,8 @@
 #include <QWidget>
 #include <QtWidgets/QLabel>
 
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+
 
 using namespace std;
 using namespace NodeDataTypes;
@@ -55,7 +57,7 @@ namespace Nodes
     public:
         QGridLayout *main_layout = new QGridLayout(this);
         QLineEdit *hostEdit = new QLineEdit(this);
-        QSpinBox *portSpinBox = new QSpinBox(this);
+        IntDragValueWidget *portSpinBox = new IntDragValueWidget(this);
         QLineEdit *usernameEdit = new QLineEdit(this);
         QLineEdit *passwordEdit = new QLineEdit(this);
         QLineEdit *topicEdit = new QLineEdit(this);

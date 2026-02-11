@@ -13,7 +13,6 @@
 
 #include <QtWidgets/QPushButton>
 #include <QtCore/qglobal.h>
-#include "ConstantDefines.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
 using QtNodes::NodeData;

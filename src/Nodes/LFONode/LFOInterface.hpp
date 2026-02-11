@@ -12,6 +12,7 @@
 #include "QTextBrowser"
 #include "QComboBox"
 #include "QCheckBox"
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 using namespace std;
 enum WaveType {
     SineWave,
@@ -73,10 +74,10 @@ namespace Nodes
 
         QGridLayout *main_layout=new QGridLayout(this);
         QComboBox *method=new QComboBox();
-        QDoubleSpinBox *frequency=new QDoubleSpinBox();
-        QDoubleSpinBox *amplitude=new QDoubleSpinBox();
-        QDoubleSpinBox *phase=new QDoubleSpinBox();
-        QDoubleSpinBox *sampleRate=new QDoubleSpinBox();
+        FloatDragValueWidget *frequency=new FloatDragValueWidget();
+        FloatDragValueWidget *amplitude=new FloatDragValueWidget();
+        FloatDragValueWidget *phase=new FloatDragValueWidget();
+        FloatDragValueWidget *sampleRate=new FloatDragValueWidget();
 
         QCheckBox *loop=new QCheckBox("loop");
         QPushButton *start=new QPushButton("start");

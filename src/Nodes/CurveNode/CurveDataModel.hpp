@@ -10,7 +10,6 @@
 #include <vector>
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
-#include "ConstantDefines.h"
 #include "CurveInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"

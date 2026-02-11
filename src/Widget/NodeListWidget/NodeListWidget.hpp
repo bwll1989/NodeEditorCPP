@@ -1,6 +1,8 @@
 #pragma once
 #include <QWidget>
-#include <QTreeWidget>
+#include <QTreeView>
+#include <QStandardItemModel>
+#include <QStandardItem>
 #include <QVBoxLayout>
 #include <QLineEdit>
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
@@ -30,7 +32,9 @@ private:
     // 刷新按钮（强制刷新显示）
     QPushButton* refreshButton;
     //树形视图
-    QTreeWidget* nodeTree;
+    QTreeView* nodeTree;
+    // 数据模型
+    QStandardItemModel* nodeModel;
     //搜索框
     QLineEdit* searchBox;
     // 数据视图管理器（来源：DataflowViewsManger）
@@ -80,17 +84,17 @@ private:
      * 查找节点项
      * @param NodeId nodeId 节点ID
      */
-    QTreeWidgetItem* findNodeItem(NodeId nodeId);
+    QStandardItem* findNodeItem(NodeId nodeId);
     /**
      * 是否为命令项
-     * @param const QTreeWidgetItem* item 节点项
+     * @param const QModelIndex& index 节点索引
      */
-    bool isCommand(const QTreeWidgetItem* item) const;
+    bool isCommand(const QModelIndex& index) const;
     /**
      * 开始拖动节点项
-     * @param QTreeWidgetItem* item 节点项
+     * @param const QModelIndex& index 节点索引
      */
-    void startDrag(QTreeWidgetItem* item);
+    void startDrag(const QModelIndex& index);
 
 private slots:
     /**
@@ -106,6 +110,11 @@ private slots:
      * 树形视图项选择改变
      */
     void onTreeItemSelectionChanged();
+    /**
+     * @brief 双击项：展开顶层节点并聚焦到场景中的对应节点
+     * @param index 被双击的模型索引
+     */
+    void onTreeDoubleClicked(const QModelIndex& index);
 signals:
     /**
      * 聚焦节点

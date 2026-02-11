@@ -10,7 +10,6 @@
 #include "Elements/ColorEditorWidget/ColorEditorWidget.hpp"
 #include "ColorInterface.hpp"
 #include "DataTypes/NodeDataList.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 using namespace NodeDataTypes;

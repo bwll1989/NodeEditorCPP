@@ -12,7 +12,7 @@
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
 #include "../AbstractClipDelegateModel.h"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "../../Common/Devices/ClientController/SocketTransmitter.h"
 #include "ArtnetSender/ArtnetTransmitter.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"

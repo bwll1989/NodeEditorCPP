@@ -21,11 +21,11 @@
 #include <QToolButton>
 
 #include "Common/GUI/Elements/FaderWidget/FaderWidget.h"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 
 ExternalControler::ExternalControler():
-    OSC_Receiver(new OSCReceiver(AppConstants::EXTRA_CONTROL_PORT))
-    ,OSC_Feedback(new OSCSender(AppConstants::EXTRA_FEEDBACK_HOST,AppConstants::EXTRA_FEEDBACK_PORT))
+    OSC_Receiver(new OSCReceiver(ConfigManager::instance().getExtraControlPort()))
+    ,OSC_Feedback(new OSCSender(ConfigManager::instance().getExtraFeedbackHost(),ConfigManager::instance().getExtraFeedbackPort()))
     ,StatusContainer(StatusContainer::instance())
 {
     // 创建 UDP 套接字并绑定到指定端口
@@ -34,8 +34,8 @@ ExternalControler::ExternalControler():
     connect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, [this](const StatusItem& item) {
         // 发送 OSC 反馈
         OSCMessage message = item.toOSCMessage();
-        message.host = AppConstants::EXTRA_FEEDBACK_HOST;
-        message.port = AppConstants::EXTRA_FEEDBACK_PORT;
+        message.host = ConfigManager::instance().getExtraFeedbackHost();
+        message.port = ConfigManager::instance().getExtraFeedbackPort();
         OSC_Feedback->sendOSCMessageWithQueue(message);
     });
 }

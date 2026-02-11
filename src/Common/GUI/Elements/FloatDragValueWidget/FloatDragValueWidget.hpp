@@ -16,6 +16,7 @@ class GUI_ELEMENTS_EXPORT FloatDragValueWidget : public QWidget
     Q_PROPERTY(double maximum READ maximum WRITE setMaximum)
     Q_PROPERTY(double singleStep READ singleStep WRITE setSingleStep)
     Q_PROPERTY(int decimals READ decimals WRITE setDecimals)
+    Q_PROPERTY(QString suffix READ suffix WRITE setSuffix)
 
 public:
     explicit FloatDragValueWidget(QWidget *parent = nullptr);
@@ -26,6 +27,7 @@ public:
     double maximum() const;
     double singleStep() const;
     int decimals() const;
+    QString suffix() const;
 
 public slots:
     void setValue(double val);
@@ -34,6 +36,7 @@ public slots:
     void setSingleStep(double step);
     void setDecimals(int prec);
     void setRange(double min, double max);
+    void setSuffix(const QString &s);
 
 signals:
     void valueChanged(double value);
@@ -64,4 +67,5 @@ private:
     double m_dragStartValue = 0.0;
 
     QLineEdit *m_lineEdit;
+    QString m_suffix;
 };

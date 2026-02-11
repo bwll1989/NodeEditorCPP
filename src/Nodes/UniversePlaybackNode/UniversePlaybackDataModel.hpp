@@ -17,7 +17,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QSignalBlocker>
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 

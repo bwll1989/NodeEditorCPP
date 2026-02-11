@@ -20,6 +20,9 @@ void NodeLibraryWidget::initLayout(){
     txtBox = new QLineEdit(this);
     txtBox->setPlaceholderText(QStringLiteral("Filter"));
     txtBox->setClearButtonEnabled(true);
+    QAction *searchIconAction = new QAction(QIcon(":/icons/icons/search.png"), tr("搜索"), txtBox);
+    txtBox->addAction(searchIconAction, QLineEdit::LeadingPosition);
+    searchIconAction->setEnabled(false);
     treeView = new DraggableTreeWidget(this);
 
     // 设置模型

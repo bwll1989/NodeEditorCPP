@@ -30,7 +30,6 @@
 #include "DataTypes/NodeDataList.hpp"
 #include "opencv2/imgcodecs/imgcodecs.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace Nodes;
@@ -55,12 +54,12 @@ namespace Nodes
             PortEditable=true;
             m_watcher = new QFutureWatcher<void>(this);
             // 连接输入框变化信号到槽
-            connect(widget->widthEdit, &QLineEdit::textChanged, this, & ImageLayoutModel::onInputChanged);
-            connect(widget->heightEdit, &QLineEdit::textChanged, this, & ImageLayoutModel::onInputChanged);
+            connect(widget->widthEdit, &IntDragValueWidget::valueChanged, this, & ImageLayoutModel::onInputChanged);
+            connect(widget->heightEdit, &IntDragValueWidget::valueChanged, this, & ImageLayoutModel::onInputChanged);
             connect(widget->layoutCombo, qOverload<int>(&QComboBox::currentIndexChanged), this, &ImageLayoutModel::onInputChanged);
-            connect(widget->rowsSpin, qOverload<int>(&QSpinBox::valueChanged), this, &ImageLayoutModel::onInputChanged);
-            connect(widget->colsSpin, qOverload<int>(&QSpinBox::valueChanged), this, &ImageLayoutModel::onInputChanged);
-            connect(widget->spacingSpin, qOverload<int>(&QSpinBox::valueChanged), this, &ImageLayoutModel::onInputChanged);
+            connect(widget->rowsSpin, &IntDragValueWidget::valueChanged, this, &ImageLayoutModel::onInputChanged);
+            connect(widget->colsSpin, &IntDragValueWidget::valueChanged, this, &ImageLayoutModel::onInputChanged);
+            connect(widget->spacingSpin, &IntDragValueWidget::valueChanged, this, &ImageLayoutModel::onInputChanged);
             connect(colorEditorWidget, &ColorEditorWidget::colorChanged, this, & ImageLayoutModel::onInputChanged);
             connect(widget->colorEditButton, &QPushButton::clicked, this, & ImageLayoutModel::toggleEditorMode);
             updateImage();
@@ -109,8 +108,8 @@ namespace Nodes
 
         QJsonObject save() const override{
             QJsonObject modelJson1;
-            modelJson1["width"] = widget->widthEdit->text();
-            modelJson1["height"] = widget->heightEdit->text();
+            modelJson1["width"] = widget->widthEdit->value();
+            modelJson1["height"] = widget->heightEdit->value();
             modelJson1["layout"] = widget->layoutCombo->currentIndex();
             modelJson1["rows"] = widget->rowsSpin->value();
             modelJson1["cols"] = widget->colsSpin->value();
@@ -124,8 +123,8 @@ namespace Nodes
         void load(const QJsonObject &p) override{
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                widget->widthEdit->setText(v["width"].toString());
-                widget->heightEdit->setText(v["height"].toString());
+                widget->widthEdit->setValue(v["width"].toInt(0));
+                widget->heightEdit->setValue(v["height"].toInt(0));
                 widget->layoutCombo->setCurrentIndex(v["layout"].toInt(0));
                 widget->rowsSpin->setValue(v["rows"].toInt(2));
                 widget->colsSpin->setValue(v["cols"].toInt(2));
@@ -267,12 +266,11 @@ namespace Nodes
          */
         void onInputChanged(){
             // 解析输入框内容
-            bool okW = false;
-            bool okH = false;
-            const int w = widget->widthEdit->text().toInt(&okW);
-            const int h = widget->heightEdit->text().toInt(&okH);
-            if (okW && w > 0) m_width = w;
-            if (okH && h > 0) m_height = h;
+
+            const int w = widget->widthEdit->value();
+            const int h = widget->heightEdit->value();
+            if ( w > 0) m_width = w;
+            if ( h > 0) m_height = h;
             m_color = QColor(colorEditorWidget->getColor());
             updateImage();
             Q_EMIT dataUpdated(0);

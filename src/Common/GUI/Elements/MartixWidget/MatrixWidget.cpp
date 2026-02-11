@@ -6,9 +6,7 @@
 #include <QWidget>
 #include <QPushButton>
 #include <QGridLayout>
-#include <QVBoxLayout>
 #include <QVector>
-#include "Common/GUI/Elements/FaderWidget/FaderWidget.h"
 #include "Eigen/Core"
 MatrixWidget::MatrixWidget(int rows, int cols, QWidget *parent)
             : QWidget(parent),
@@ -34,10 +32,13 @@ void MatrixWidget::createButtons() {
     // 按行列创建按钮
     for (int row = 0; row < m_rows; ++row) {
         for (int col = 0; col < m_cols; ++col) {
-            FaderWidget *button = new FaderWidget();
+            FloatDragValueWidget *button = new FloatDragValueWidget();
+            button->setMinimum(m_minValue);
+            button->setMaximum(m_maxValue);
+            button->setValue(m_minValue);
             m_buttons.append(button);
             m_layout->addWidget(button, row, col); // 将按钮添加到网格布局中
-            connect(button, &FaderWidget::valueChanged, this, &MatrixWidget::onValueChanged);
+            connect(button, &FloatDragValueWidget::valueChanged, this, &MatrixWidget::onValueChanged);
         }
     }
 }
@@ -78,7 +79,7 @@ Eigen::MatrixXd MatrixWidget::getLinearValuesAsMatrix() {
     // 遍历按钮并获取每个按钮的值
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
-            res(row, col) = m_buttons[row * cols + col]->getLinearValue(); // 获取按钮的 value 并存入矩阵
+            res(row, col) = std::pow(10.0,  m_buttons[row * cols + col]->value() / 20.0);
         }
     }
     return res;
@@ -92,7 +93,7 @@ Eigen::MatrixXd MatrixWidget::getValuesAsMatrix() {
     // 遍历按钮并获取每个按钮的值
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
-            res(row, col) = m_buttons[row * cols + col]->getValue(); // 获取按钮的 value 并存入矩阵
+            res(row, col) = m_buttons[row * cols + col]->value(); // 获取按钮的 value 并存入矩阵
         }
     }
     return res;
@@ -108,12 +109,12 @@ int MatrixWidget::getCols() const {
     return m_cols;
 }
 
-FaderWidget *MatrixWidget::getMatrixElement(int index) {
+FloatDragValueWidget *MatrixWidget::getMatrixElement(int index) {
     return m_buttons[index];
 }
 
 void MatrixWidget::resetValues() {
     for (auto& button : m_buttons) {
-        button->setValue(button->getMinValue());
+        button->setValue(button->minimum());
     }
 }

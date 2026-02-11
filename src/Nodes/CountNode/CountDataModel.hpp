@@ -11,7 +11,6 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include "JSEngineDefines/JSEngineDefines.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;

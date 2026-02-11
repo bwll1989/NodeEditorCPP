@@ -7,7 +7,6 @@
 #include <iostream>
 #include <QtCore/qglobal.h>
 #include "DelayInterface.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;

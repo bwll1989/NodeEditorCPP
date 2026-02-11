@@ -10,10 +10,7 @@
 #include <QSpinBox>
 #include <QVariantMap>
 #include <QPushButton>
-#include <QVBoxLayout>
-#include <QPushButton>
-#include <QMetaType>
-#include <QWidget>
+#include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #include <QComboBox>
 namespace Nodes
 {
@@ -40,11 +37,11 @@ namespace Nodes
         main_layout->addWidget(valueLineEdit, 4,1);
         main_layout->addWidget(sendButton, 5,0,1,2);
         portSpinBox->setRange(1000,66535);
-        portSpinBox->setValue(6001);
+        portSpinBox->setValue(8000);
         main_layout->setContentsMargins(0, 0, 0, 0);
         // 信号槽连接
         connect(hostLineEdit, &QLineEdit::editingFinished, this, &OscOutInterface::valueChanged);
-        connect(portSpinBox, &QSpinBox::editingFinished, this, &OscOutInterface::valueChanged);
+        connect(portSpinBox, &IntDragValueWidget::valueChanged, this, &OscOutInterface::valueChanged);
         // 应用布局
         setLayout(main_layout);
     }
@@ -61,7 +58,7 @@ namespace Nodes
     }
     public:
         QLineEdit *hostLineEdit=new QLineEdit("127.0.0.1");
-        QSpinBox *portSpinBox=new QSpinBox();
+        IntDragValueWidget *portSpinBox=new IntDragValueWidget();
         QLineEdit *addressLineEdit=new QLineEdit("/test");
         QComboBox *typeComboBox=new QComboBox();
         QLineEdit *valueLineEdit=new QLineEdit();

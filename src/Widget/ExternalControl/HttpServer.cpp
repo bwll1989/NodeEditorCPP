@@ -8,7 +8,7 @@
 
 #include "Common/Devices/StatusContainer/StatusContainer.h"
 #include "Common/Devices/OSCSender/OSCSender.h"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "OSCMessage.h"
 #include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/Net/HTTPServerRequest.h>
@@ -72,7 +72,7 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
                     if (!addr.isEmpty()) {
                         OSCMessage msg;
                         msg.host = "127.0.0.1";
-                        msg.port = AppConstants::EXTRA_CONTROL_PORT;
+                        msg.port = ConfigManager::instance().getExtraControlPort();
                         msg.address = addr;
                         msg.value = obj["value"].toVariant();
                         
@@ -162,7 +162,7 @@ void StaticRequestHandler::handleApiCommand(HTTPServerRequest& request, HTTPServ
 
         OSCMessage msg;
         msg.host = "127.0.0.1";
-        msg.port = AppConstants::EXTRA_CONTROL_PORT;
+        msg.port = ConfigManager::instance().getExtraControlPort();
         msg.address = addr;
         msg.value = value;
         // auto* controller = ExternalControler::instance();

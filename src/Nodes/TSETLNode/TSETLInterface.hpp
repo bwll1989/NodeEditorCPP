@@ -15,7 +15,7 @@
 #include "QHBoxLayout"
 #include "QGridLayout"
 #include "QDateTime"
-
+#include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 using namespace std;
 
 namespace Nodes
@@ -59,7 +59,7 @@ namespace Nodes
 
     public:
         QLineEdit* hostEdit = new QLineEdit("127.0.0.1");
-        QSpinBox* portSpinBox = new QSpinBox();
+        IntDragValueWidget* portSpinBox = new IntDragValueWidget();
         
         /**
          * @brief 更新连接状态显示

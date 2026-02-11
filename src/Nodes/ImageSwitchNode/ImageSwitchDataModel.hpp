@@ -10,7 +10,6 @@
 #include <vector>
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
@@ -39,6 +38,7 @@ namespace Nodes
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= true;
+            widget->setMinimum(0);
             in_dictionary=std::unordered_map<unsigned int,  std::shared_ptr<ImageData>>();
             m_index = widget->value();
             widget->setFixedSize(100,24);

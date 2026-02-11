@@ -41,7 +41,6 @@
 #include <iostream>
 #include <vector>
 #include <memory>
-#include "ConstantDefines.h"
 #include "OSCSender/OSCSender.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>

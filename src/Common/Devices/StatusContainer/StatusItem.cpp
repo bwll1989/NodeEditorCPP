@@ -1,7 +1,7 @@
 #include "StatusItem.h"
 #include <QJsonValue>
 
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 
 StatusItem::StatusItem() : ptr(nullptr) {}
 
@@ -11,7 +11,7 @@ StatusItem::StatusItem(QWidget* p, const QString& a, const QVariant& v)
 OSCMessage StatusItem::toOSCMessage() const {
     OSCMessage msg;
     msg.host="127.0.0.1";
-    msg.port=AppConstants::EXTRA_CONTROL_PORT;
+    msg.port=ConfigManager::instance().getExtraControlPort();
     msg.address = address;
     msg.value = value;
     return msg;

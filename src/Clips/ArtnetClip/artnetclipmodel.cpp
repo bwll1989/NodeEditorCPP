@@ -6,7 +6,7 @@
 #include "AbstractClipModel.hpp"
 #include "TimeCodeDefines.h"
 #include "artnetclipmodel.hpp"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "../../Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
 Clips::ArtnetClipModel::ArtnetClipModel(int start,const QString& filePath, QObject* parent)

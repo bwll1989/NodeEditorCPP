@@ -13,7 +13,7 @@
 #include "QTimer"
 #include "VideoDecoder.hpp"
 #include "QThread"
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
@@ -56,7 +56,7 @@ namespace Nodes
             connect(widget->playButton, &QPushButton::clicked, this, &VideoDecoderDataModel::play);
             connect(widget->stopButton, &QPushButton::clicked, this, &VideoDecoderDataModel::stop);
             
-            connect(widget->volumeSlider, &QDoubleSpinBox::valueChanged, this, &VideoDecoderDataModel::setVolume);
+            connect(widget->volumeSlider, &FloatDragValueWidget::valueChanged, this, &VideoDecoderDataModel::setVolume);
             connect(widget->loopCheckBox, &QCheckBox::toggled, this, &VideoDecoderDataModel::setLoop);
 
             // Player Connections

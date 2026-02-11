@@ -6,7 +6,7 @@
 
 #include <QMenuBar>
 #include <QAction>
-#include "ConstantDefines.h"
+#include "SettingWidget.h"
 class MenuBarWidget:public QMenuBar {
 Q_OBJECT
 
@@ -40,12 +40,8 @@ public:
     QAction *lockAction ;
     //清除
     QAction *clearAction ;
-    //设置菜单
-    QMenu *Setting_menu;
-    //设置1
-    QAction *Setting_1 ;
-    //设置2
-    QAction *Setting_2 ;
+    //系统设置
+    QAction *Setting;
     //视图菜单
     QMenu *View_menu;
     //切换主题
@@ -81,7 +77,7 @@ public:
     //帮助
     QAction *helpAction ;
     //最近文件菜单项
-    QAction* recentFileActs[AppConstants::MaxRecentFiles];
+    QList<QAction*> recentFileActs;
     //更新最近文件菜单项
     void updateRecentFileActions(const QStringList& files);
 
@@ -99,5 +95,7 @@ private slots:
      * - 调用 `QDesktopServices::openUrl` 打开浏览器
      */
     void openDashboard();
+    //显示设置弹窗
+    void showSetting();
 };
 

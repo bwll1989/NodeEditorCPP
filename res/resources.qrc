@@ -3,15 +3,10 @@
   <qresource prefix="icons">
     <file>icons/history.png</file>
     <file>icons/json.png</file>
-    <file>icons/lan.png</file>
-    <file>icons/lan-disconnect.png</file>
-    <file>icons/lan-connect.png</file>
     <file>icons/csv.png</file>
     <file>icons/tags.png</file>
     <file>icons/plugin.png</file>
-    <file>icons/plugin.svg</file>
     <file>icons/plugins.png</file>
-    <file>icons/plugins.svg</file>
     <file>icons/debug.png</file>
     <file>icons/error.png</file>
     <file>icons/info.png</file>
@@ -21,33 +16,26 @@
     <file>icons/clear.png</file>
     <file>icons/property.png</file>
     <file>icons/focus.png</file>
-    <file>icons/dashboard.png</file>
     <file>icons/library.png</file>
     <file>icons/lock.png</file>
-    <file>icons/track.png</file>
     <file>icons/views.png</file>
-    <file>icons/filesearch.png</file>
     <file>icons/save.png</file>
     <file>icons/saveAs.png</file>
-    <file>icons/videos.png</file>
     <file>icons/images.png</file>
     <file>icons/map.png</file>
     <file>icons/bug.png</file>
     <file>icons/trash.png</file>
     <file>icons/chartLine.png</file>
     <file>icons/model_1.png</file>
-    <file>icons/portEdit.png</file>
     <file>icons/list.png</file>
     <file>icons/add.png</file>
     <file>icons/remove.png</file>
-    <file>icons/open_flat.png</file>
     <file>icons/exit.png</file>
     <file>icons/lock.png</file>
     <file>icons/unlock.png</file>
     <file>icons/layout.png</file>
     <file>icons/restore.png</file>
     <file>icons/setting.png</file>
-    <file>icons/tools.png</file>
     <file>icons/about.png</file>
     <file>icons/timeline.png</file>
     <file>icons/play-previous.png</file>
@@ -56,14 +44,10 @@
     <file>icons/rewind-back.png</file>
     <file>icons/rewind-forward.png</file>
     <file>icons/settings.png</file>
-    <file>icons/sound-off.png</file>
-    <file>icons/sound-on.png</file>
     <file>icons/volume-down.png</file>
     <file>icons/volume-up.png</file>
     <file>icons/fullscreen-enter.png</file>
     <file>icons/fullscreen-exit.png</file>
-    <file>icons/microphone.png</file>
-    <file>icons/microphone-disable.png</file>
     <file>icons/pause.png</file>
     <file>icons/play.png</file>
     <file>icons/play-next.png</file>
@@ -77,16 +61,13 @@
     <file>icons/zoomin.png</file>
     <file>icons/zoomout.png</file>
     <file>icons/move.png</file>
-    <file>icons/cable.png</file>
     <file>icons/command.png</file>
     <file>icons/expand.png</file>
     <file>icons/copy.png</file>
-    <file>icons/osc.png</file>
     <file>icons/converty.png</file>
     <file>icons/arror_up.png</file>
     <file>icons/arror_down.png</file>
     <file>icons/js.png</file>
-    <file>icons/ArtNet.png</file>
     <file>icons/help.png</file>
     <file>icons/python.png</file>
     <file>icons/recoder.png</file>
@@ -116,7 +97,6 @@
     <file>icons/import.png</file>
     <file>icons/folder.png</file>
     <file>icons/statistics.png</file>
-    <file>icons/inspection.png</file>
     <file>icons/internal.png</file>
     <file>icons/external.png</file>
     <file>icons/send.png</file>

@@ -9,7 +9,6 @@
 #include "NDVPlayerInterface.hpp"
 #include <QVariantMap>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
-#include "ConstantDefines.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
 
@@ -78,10 +77,10 @@ namespace Nodes
             });
 
             // 文件索引变化时更新
-            connect(widget->FileIndex, QOverload<int>::of(&QSpinBox::valueChanged), this, &NDVPlayerDataModel::setFileIndex);
+            connect(widget->FileIndex, &IntDragValueWidget::valueChanged, this, &NDVPlayerDataModel::setFileIndex);
 
             // 播放器ID变化时更新
-            connect(widget->PlayerID, QOverload<int>::of(&QSpinBox::valueChanged), this, &NDVPlayerDataModel::setPlayerId);
+            connect(widget->PlayerID, &IntDragValueWidget::valueChanged, this, &NDVPlayerDataModel::setPlayerId);
 
             // 初始化状态
             updateStatus();

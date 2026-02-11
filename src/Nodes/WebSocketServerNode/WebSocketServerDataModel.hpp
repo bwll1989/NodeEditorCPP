@@ -10,8 +10,6 @@
 #include <QtWidgets/QSlider>
 #include <QtWidgets/QSpinBox>
 #include <QSignalBlocker>
-
-#include "ConstantDefines.h"
 #include "Common/Devices/WebSocketServer/WebSocketServer.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
@@ -48,7 +46,7 @@ namespace Nodes
             AbstractDelegateModel::registerExternalControl("/value", widget->valueEdit);
             AbstractDelegateModel::registerExternalControl("/send", widget->sendButton);
             // UI Connections
-            connect(widget->portSpinBox, &QSpinBox::valueChanged, this, [this](int val) {
+            connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, [this](int val) {
                 setPort(val);
             });
 

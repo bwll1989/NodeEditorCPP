@@ -136,7 +136,7 @@ void FTDAWController::sendHeartbeat()
     if (currentTime - m_lastCommandTime < 500) {
         return; // 如果距离上次发送指令不到500ms，跳过本次心跳
     }
-    sendMessage(QStringLiteral("heartbeat"), 1);
+    sendMessage(QStringLiteral(""), 1);
 }
 
 void FTDAWController::onConnectionStateChanged(bool ready)

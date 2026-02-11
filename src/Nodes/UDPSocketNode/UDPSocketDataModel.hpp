@@ -14,8 +14,6 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include <QThread>
-
-#include "ConstantDefines.h"
 #include "Common/Devices/UdpSocket/UdpSocket.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
@@ -59,7 +57,7 @@ namespace Nodes
             connect(widget->targetHostEdit, &QLineEdit::editingFinished, this, [this](){
                 setTargetHost(widget->targetHostEdit->text());
             });
-            connect(widget->targetPortSpinBox, &QSpinBox::valueChanged, this, &UDPSocketDataModel::setTargetPort);
+            connect(widget->targetPortSpinBox, &IntDragValueWidget::valueChanged, this, &UDPSocketDataModel::setTargetPort);
             connect(widget->valueEdit, &QLineEdit::editingFinished, this, [this](){
                 setValue(widget->valueEdit->text());
             });

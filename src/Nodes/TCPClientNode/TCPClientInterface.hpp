@@ -9,9 +9,8 @@
 #include "QComboBox"
 #include "QSpinBox"
 #include "QLineEdit"
-#include "QTextBrowser"
 #include "QComboBox"
-
+#include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 using namespace std;
 
 namespace Nodes
@@ -44,7 +43,7 @@ namespace Nodes
     public:
         QGridLayout *main_layout=new QGridLayout(this);
         QLineEdit* valueEdit=new QLineEdit();
-        QSpinBox* portSpinBox=new QSpinBox();
+        IntDragValueWidget* portSpinBox=new IntDragValueWidget();
         QLineEdit* hostEdit=new QLineEdit("127.0.0.1");
         QPushButton* send=new QPushButton("Send");
         QComboBox* format=new QComboBox();

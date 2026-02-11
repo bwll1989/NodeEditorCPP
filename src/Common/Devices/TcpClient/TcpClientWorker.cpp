@@ -125,6 +125,8 @@ void TcpClientWorker::sendMessage(const QString &message,const int &format)
     if(tcpClient->state() == QAbstractSocket::ConnectedState)
     {
         tcpClient->write(data);
+    }else {
+        qWarning() << "Not connected, message dropped!";
     }
 }
 

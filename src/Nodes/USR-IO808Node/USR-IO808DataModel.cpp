@@ -8,12 +8,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJSEngine>
-#include <QDateTime>
-#include <QCoreApplication>
 #include <QDebug>
-
-#include "ConstantDefines.h"
-#include "OSCMessage.h"
 #include "OSCSender/OSCSender.h"
 
 namespace Nodes {
@@ -48,11 +43,11 @@ USR_IO808DataModel::USR_IO808DataModel()
         setHost(_interface->_hostEdit->text());
     });
 
-    connect(_interface->_portEdit, &QSpinBox::valueChanged, this, [this](int val) {
+    connect(_interface->_portEdit, &IntDragValueWidget::valueChanged, this, [this](int val) {
         setPort(val);
     });
 
-    connect(_interface->_serverId, &QSpinBox::valueChanged, this, [this](int val) {
+    connect(_interface->_serverId, &IntDragValueWidget::valueChanged, this, [this](int val) {
         setServerId(val);
     });
 

@@ -11,7 +11,6 @@
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
 #include "ImageCompareInterface.hpp"
-#include "ConstantDefines.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>

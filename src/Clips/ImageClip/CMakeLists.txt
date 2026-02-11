@@ -55,6 +55,7 @@ target_link_libraries(ImageClip PUBLIC
         MediaManger
         GUIElements
         StatusContainer
+        AppConfig
 )
 
 # 包含目录

@@ -18,7 +18,8 @@
 #include <QDir>
 #include <QMessageBox>
 #include <QRegularExpression>
-#include "ConstantDefines.h"
+#include "../../Common/AppConfig/ConfigManager.h"
+
 LogHandler::LogHandler(LogWidget *tableWidget) {
     // 设置静态成员
     LogHandler::logTableWidget = tableWidget;
@@ -38,8 +39,6 @@ bool LogHandler::initLogHandler() {
     try{
         QDir().mkpath(AppConstants::LOGS_STORAGE_DIR);
         std::string logFilePath = (AppConstants::LOGS_STORAGE_DIR.toStdString()+"/log.txt");
-        
-        // 使用rotating_file_sink替代daily_file_sink，可以限制日志文件大小和数量
         auto dailySink = std::make_shared<spdlog::sinks::daily_file_sink_mt>(logFilePath, 0, 0);
         logger = std::make_shared<spdlog::logger>("logger", dailySink);
         spdlog::register_logger(logger);
@@ -121,7 +120,7 @@ void LogHandler::appendLogToTable(const QString &timestamp, const QString &level
         QStringList logParts = logMessage.split(regex, Qt::SkipEmptyParts);
         
         // 检查是否需要删除旧日志条目以保持在最大条目数限制内
-        int maxEntries = AppConstants::MaxLogEntries;
+        int maxEntries = ConfigManager::instance().getMaxLogEntries();
         while (logTableWidget->rowCount() >= maxEntries) {
             logTableWidget->removeRow(0); // 删除最早的日志条目
         }

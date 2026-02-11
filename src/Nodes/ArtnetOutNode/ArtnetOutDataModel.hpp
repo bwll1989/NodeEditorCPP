@@ -27,6 +27,22 @@ using namespace NodeDataTypes;
 class ArtnetOutDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
+    Q_PROPERTY(QString targetHost READ targetHost WRITE setTargetHost NOTIFY targetHostChanged)
+
+public:
+    QString targetHost() const { return m_targetHost; }
+public Q_SLOTS:
+    void setTargetHost(const QString &host) {
+        if (m_targetHost == host) return;
+        m_targetHost = host;
+        Q_EMIT targetHostChanged(m_targetHost);
+        
+        // 同步到界面（防止循环更新）
+        if (widget && widget->getTargetHost() != host) {
+            QSignalBlocker blocker(widget);
+            widget->setTargetHost(host);
+        }
+    }
 
 public:
     /**
@@ -54,9 +70,7 @@ public:
         connect(m_artnetTransmitter, &ArtnetTransmitter::frameSendFailed, this, &ArtnetOutDataModel::onFrameSendFailed);
         
         // 设置默认值
-        m_targetHost = "192.168.0.255";  // 默认广播地址
-        
-        widget->setTargetHost(m_targetHost);
+        setTargetHost("192.168.0.255");  // 默认广播地址
         
         // 初始化Universe数据缓存
         m_universeCache.clear();
@@ -67,6 +81,8 @@ public:
      */
     ~ArtnetOutDataModel() override {
     }
+
+
 
     /**
      * 获取端口标题
@@ -181,9 +197,7 @@ public:
         QJsonValue v = p["values"];
         if (!v.isUndefined() && v.isObject()) {
             QJsonObject obj = v.toObject();
-            m_targetHost = obj["TargetHost"].toString("192.168.0.255");
-            
-            widget->setTargetHost(m_targetHost);
+            setTargetHost(obj["TargetHost"].toString("192.168.0.255"));
         }
     }
     
@@ -201,7 +215,7 @@ private slots:
      * @param host 新的目标主机地址
      */
     void onTargetHostChanged(const QString &host) {
-        m_targetHost = host;
+        setTargetHost(host);
     }
     
     /**
@@ -292,7 +306,8 @@ private:
         
         return dmxData;
     }
-    
+signals:
+    void targetHostChanged(const QString &host);
 private:
     std::shared_ptr<VariableData> m_outData;
     

@@ -24,10 +24,9 @@
     "ToolTipIconColor": "black",
 
     "PenWidth": 1.0,
-    "HoveredPenWidth": 1.5,
-
+    "HoveredPenWidth": 4.0,
     "ConnectionPointDiameter": 10.0,
-
+    "BoundaryRadius" : 6,
     "Opacity": 0.96
   },
 
@@ -48,15 +47,16 @@
   },
 
   "GroupStyle": {
-    "NormalBoundaryColor": [180, 180, 180],
+    "NormalBoundaryColor": [128, 128, 128],
     "FontColor" : [26, 26, 26],
-    "NormalColor": [248, 248, 248],
+    "NormalColor": [128, 128, 128],
     "SelectedColor": [255, 165, 0],
     "SelectedHaloColor": "orange",
     "CaptionColor": "darkcyan",
     "Opacity": 0.85,
     "PenWidth": 1.0,
-    "HoveredPenWidth": 1.5,
+    "HoveredPenWidth": 2,
+    "BoundaryRadius" : 6,
     "GradientColor0": "lightgray",
     "CaptionHeight": 30.0,
     "GradientColor1": [250, 250, 250],

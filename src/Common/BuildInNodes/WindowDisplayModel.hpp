@@ -44,8 +44,6 @@ namespace Nodes
 
         QWidget *embeddedWidget() override { return _panel; }
 
-        bool resizable() const override { return true; }
-
         QJsonObject save() const override;
 
         void load(const QJsonObject &p) override;

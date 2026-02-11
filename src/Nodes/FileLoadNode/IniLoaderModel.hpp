@@ -16,8 +16,7 @@
 #include <QSettings>
 #include <QtCore/QFile>
 #include <QtCore/QByteArray>
-
-#include "ConstantDefines.h"
+#include "Common/AppConfig/ConfigManager.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
