@@ -7,13 +7,14 @@
 
 #include <QtNodes/NodeDelegateModel>
 #include "DataTypes/NodeDataList.hpp"
-#include "ui_SizeVarForm.h"
+#include <QtWidgets/QWidget>
+#include <QtWidgets/QGridLayout>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QLineEdit>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 
-namespace Ui {
-    class SizeVarForm;
-}
 using namespace NodeDataTypes;
 namespace Nodes
 {
@@ -31,20 +32,36 @@ namespace Nodes
             WidgetEmbeddable= false;
             PortEditable= false;
             Resizable= true;
-            m_ui->setupUi(m_widget);
-            AbstractDelegateModel::registerExternalControl("/width",m_ui->sb_width);
-            AbstractDelegateModel::registerExternalControl("/height",m_ui->sb_height);
+
+            // UI Setup
+            QGridLayout* gridLayout = new QGridLayout(m_widget);
+            
+            QLabel* labelWidth = new QLabel("Width", m_widget);
+            gridLayout->addWidget(labelWidth, 0, 0);
+            
+            sb_width = new IntDragValueWidget(m_widget);
+            gridLayout->addWidget(sb_width, 0, 1);
+            
+            QLabel* labelHeight = new QLabel("Height", m_widget);
+            gridLayout->addWidget(labelHeight, 1, 0);
+            
+            sb_height = new IntDragValueWidget(m_widget);
+            gridLayout->addWidget(sb_height, 1, 1);
+
+            AbstractDelegateModel::registerExternalControl("/width", sb_width);
+            AbstractDelegateModel::registerExternalControl("/height", sb_height);
+
             // UI -> Property connections
-            connect(m_ui->sb_width, &QLineEdit::editingFinished, this, [this](){
-                setWidth(m_ui->sb_width->text().toFloat());
+            connect(sb_width, &IntDragValueWidget::valueChanged, this, [this](){
+                setWidth(sb_width->value());
             });
-            connect(m_ui->sb_height, &QLineEdit::editingFinished, this, [this](){
-                setHeight(m_ui->sb_height->text().toFloat());
+            connect(sb_height, &IntDragValueWidget::valueChanged, this, [this](){
+                setHeight(sb_height->value());
             });
 
             // Initial sync
-            m_ui->sb_width->setText(QString::number(m_outSize.width()));
-            m_ui->sb_height->setText(QString::number(m_outSize.height()));
+            sb_width->setValue(m_outSize.width());
+            sb_height->setValue(m_outSize.height());
         };
 
         ~SizeVarModel() override{}
@@ -143,9 +160,9 @@ namespace Nodes
             if (qFuzzyCompare(m_outSize.width(), value)) return;
             m_outSize.setWidth(value);
             
-            if (m_widget && m_ui && m_ui->sb_width->text().toDouble() != value) {
-                QSignalBlocker blocker(m_ui->sb_width);
-                m_ui->sb_width->setText(QString::number(value));
+            if (m_widget && sb_width && sb_width->value()!= value) {
+                QSignalBlocker blocker(sb_width);
+                sb_width->setValue(value);
             }
             emit widthChanged(value);
             AbstractDelegateModel::stateFeedBack("/width", value);
@@ -157,9 +174,9 @@ namespace Nodes
             if (qFuzzyCompare(m_outSize.height(), value)) return;
             m_outSize.setHeight(value);
             
-            if (m_widget && m_ui && m_ui->sb_height->text().toDouble() != value) {
-                QSignalBlocker blocker(m_ui->sb_height);
-                m_ui->sb_height->setText(QString::number(value));
+            if (m_widget && sb_height && sb_height->value() != value) {
+                QSignalBlocker blocker(sb_height);
+                sb_height->setValue(value);
             }
             emit heightChanged(value);
             AbstractDelegateModel::stateFeedBack("/height", value);
@@ -183,7 +200,8 @@ namespace Nodes
         }
 
     private:
-        std::unique_ptr<Ui::SizeVarForm> m_ui=std::make_unique<Ui::SizeVarForm>();
+        IntDragValueWidget* sb_width = nullptr;
+        IntDragValueWidget* sb_height = nullptr;
         QWidget* m_widget = new QWidget();
         std::weak_ptr<VariableData> m_inSizeData;
         // 0

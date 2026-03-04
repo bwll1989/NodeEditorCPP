@@ -65,92 +65,65 @@ namespace Nodes
         Q_OBJECT
 
     public:
-        /**
-         * @brief 构造函数
-         * @param parent 父对象
-         */
         explicit NDIReceiveThread(QObject* parent = nullptr)
         : QThread(parent)
-        , m_running(false)
-        , m_imageBuffer(nullptr)
-        , m_width(0)
-        , m_height(0)
-        , m_forceUpdateSenders(false)
+        , m_isCapturing(false)
+        , m_updatePending(false)
+        , m_connectionPending(false)
         , m_ndi_find(nullptr)
         , m_ndi_recv(nullptr)
         , m_p_sources(nullptr)
         , m_no_sources(0)
         , m_ndi_initialized(false)
         {
-            initializeNDI();
         }
 
-        /**
-         * @brief 析构函数
-         */
         ~NDIReceiveThread() override {
-            stopReceiving();
-            wait();
-            cleanupNDIReceiver();
-        }
-
-        /**
-         * @brief 开始接收NDI数据
-         * @param senderName 发送器名称，为空则连接到活动发送器
-         */
-        void startReceiving(const QString& senderName = "") {
-            QMutexLocker locker(&m_mutex);
-            m_senderName = senderName;
-            m_running = true;
-            if (!isRunning()) {
-                start();
-                emit connectionStatusChanged(m_running);
+            stopThread();
+            // Allow thread to exit gracefully
+            if (!wait(200)) {
+                 terminate();
+                 wait();
             }
         }
 
-        /**
-         * @brief 停止接收NDI数据
-         */
-        void stopReceiving() {
-            QMutexLocker locker(&m_mutex);
-            m_running = false;
-            emit connectionStatusChanged(m_running);
+        void stopThread() {
+            requestInterruption();
         }
 
-        /**
-         * @brief 设置发送器名称
-         * @param senderName 发送器名称
-         */
+        void startCapturing(const QString& senderName = "") {
+            QMutexLocker locker(&m_mutex);
+            if (!senderName.isEmpty()) {
+                m_pendingSenderName = senderName;
+                m_connectionPending = true;
+            }
+            m_isCapturing = true;
+            emit connectionStatusChanged(true);
+        }
+
+        void stopCapturing() {
+            QMutexLocker locker(&m_mutex);
+            m_isCapturing = false;
+            emit connectionStatusChanged(false);
+        }
+
         void setSenderName(const QString& senderName) {
             QMutexLocker locker(&m_mutex);
-            m_senderName = senderName;
-            
-            // 连接到新的发送器
-            if (!senderName.isEmpty()) {
-                locker.unlock();
-                connectToSender(senderName);
-            }
+            m_pendingSenderName = senderName;
+            m_connectionPending = true;
         }
 
-        /**
-         * @brief 手动触发发送器列表更新
-         */
         void requestSenderListUpdate() {
             QMutexLocker locker(&m_mutex);
-            m_forceUpdateSenders = true;
+            m_updatePending = true;
         }
 
-        /**
-         * @brief 初始化NDI库
-         */
         void initializeNDI() {
-            // 初始化NDI库
             if (!NDIlib_initialize()) {
                 qDebug() << "NDI初始化失败";
                 return;
             }
 
-            // 创建NDI查找实例
             NDIlib_find_create_t find_create;
             find_create.show_local_sources = true;
             find_create.p_groups = nullptr;
@@ -169,63 +142,39 @@ namespace Nodes
             m_ndi_initialized = true;
         }
 
-        /**
-         * @brief 接收NDI帧数据
-         * @return 是否成功接收到帧
-         */
         bool receiveFrame() {
             if (!m_ndi_recv) {
                 return false;
             }
 
-            // 创建视频帧结构
             NDIlib_video_frame_v2_t video_frame;
-
-            // 尝试接收视频帧（超时100ms）
-            switch (NDIlib_recv_capture_v2(m_ndi_recv, &video_frame, nullptr, nullptr, 100)) {
+            switch (NDIlib_recv_capture_v2(m_ndi_recv, &video_frame, nullptr, nullptr, 50)) {
                 case NDIlib_frame_type_video:
                 {
-                    // 成功接收到视频帧
                     if (video_frame.p_data && video_frame.xres > 0 && video_frame.yres > 0) {
-                        // 转换NDI帧到OpenCV Mat
                         cv::Mat frame = convertNDIFrameToMat(video_frame);
-
                         if (!frame.empty()) {
                             emit frameReceived(frame);
                         }
-
-                        // 释放视频帧
                         NDIlib_recv_free_video_v2(m_ndi_recv, &video_frame);
                         return true;
                     }
-
-                    // 释放视频帧
                     NDIlib_recv_free_video_v2(m_ndi_recv, &video_frame);
                     break;
                 }
-                case NDIlib_frame_type_none:
-                    // 没有帧可用，这是正常的
-                    break;
                 default:
-                    // 其他类型的帧或错误
                     break;
             }
-
             return false;
         }
 
-        /**
-         * @brief 更新NDI发送器列表
-         */
         void updateSenderList() {
-            if (!m_ndi_find) {
-                return;
-            }
+            if (!m_ndi_find) return;
 
-            // 等待发送器列表更新
-            NDIlib_find_wait_for_sources(m_ndi_find, 1000);
+            // Wait up to 100ms, but this runs in worker thread without lock
+            // Reduce wait time to prevent long blocking during destruction
+            NDIlib_find_wait_for_sources(m_ndi_find, 100);
 
-            // 获取当前可用的发送器
             m_p_sources = NDIlib_find_get_current_sources(m_ndi_find, &m_no_sources);
 
             QStringList senderNames;
@@ -235,111 +184,59 @@ namespace Nodes
             }
 
             emit senderListUpdated(senderNames);
-            qDebug() << "发现" << m_no_sources << "个NDI发送器";
         }
 
-        /**
-         * @brief 清理NDI接收器
-         */
         void cleanupNDIReceiver() {
             if (m_ndi_recv) {
                 NDIlib_recv_destroy(m_ndi_recv);
                 m_ndi_recv = nullptr;
             }
-
             if (m_ndi_find) {
                 NDIlib_find_destroy(m_ndi_find);
                 m_ndi_find = nullptr;
             }
-
             if (m_ndi_initialized) {
                 NDIlib_destroy();
                 m_ndi_initialized = false;
             }
-
-            qDebug() << "NDI资源已清理";
         }
 
-        /**
-         * @brief 将NDI帧转换为OpenCV Mat
-         * @param video_frame NDI视频帧
-         * @return OpenCV Mat对象
-         */
         cv::Mat convertNDIFrameToMat(const NDIlib_video_frame_v2_t& video_frame) {
             cv::Mat frame;
-
-            // 根据NDI帧格式进行转换
             switch (video_frame.FourCC) {
                 case NDIlib_FourCC_type_BGRA:
-                {
-                    // BGRA格式，直接创建Mat
-                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
-                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                    // 转换为BGR格式（去除Alpha通道）
-                    cv::cvtColor(frame, frame, cv::COLOR_BGRA2BGR);
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4, (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    // cv::cvtColor(frame, frame, cv::COLOR_BGRA2BGR);
                     break;
-                }
                 case NDIlib_FourCC_type_BGRX:
-                {
-                    // BGRX格式
-                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
-                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                    // 转换为BGR格式
-                    cv::cvtColor(frame, frame, cv::COLOR_BGRA2BGR);
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4, (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    // cv::cvtColor(frame, frame, cv::COLOR_BGRA2BGR);
                     break;
-                }
                 case NDIlib_FourCC_type_RGBA:
-                {
-                    // RGBA格式
-                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
-                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                    // 转换为BGR格式
-                    cv::cvtColor(frame, frame, cv::COLOR_RGBA2BGR);
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4, (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    cv::cvtColor(frame, frame, cv::COLOR_RGBA2BGRA);
                     break;
-                }
                 case NDIlib_FourCC_type_RGBX:
-                {
-                    // RGBX格式
-                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4,
-                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                    // 转换为BGR格式
-                    cv::cvtColor(frame, frame, cv::COLOR_RGBA2BGR);
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC4, (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    cv::cvtColor(frame, frame, cv::COLOR_RGBA2BGRA);
                     break;
-                }
                 case NDIlib_FourCC_type_UYVY:
-                {
-                    // UYVY格式（YUV422）
-                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC2,
-                                   (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
-                    // 转换为BGR格式
-                    cv::cvtColor(frame, frame, cv::COLOR_YUV2BGR_UYVY);
+                    frame = cv::Mat(video_frame.yres, video_frame.xres, CV_8UC2, (void*)video_frame.p_data, video_frame.line_stride_in_bytes);
+                    cv::cvtColor(frame, frame, cv::COLOR_YUV2BGRA_UYVY);
                     break;
-                }
                 default:
-                    qDebug() << "不支持的NDI帧格式:" << video_frame.FourCC;
                     break;
             }
-
-            // 克隆数据以避免内存问题
-            if (!frame.empty()) {
-                frame = frame.clone();
-            }
-
+            // Deep copy is REQUIRED because NDI owns the buffer and we free it immediately after this.
+            if (!frame.empty()) frame = frame.clone();
             return frame;
         }
 
-        /**
-         * @brief 连接到指定的NDI发送器
-         * @param senderName 发送器名称
-         * @return 是否连接成功
-         */
         bool connectToSender(const QString& senderName) {
-            if (!m_ndi_find || senderName.isEmpty()) {
-                return false;
-            }
+            if (!m_ndi_find || senderName.isEmpty()) return false;
 
-            // 查找指定的发送器
             const NDIlib_source_t* target_source = nullptr;
+            // First try to find in current sources
             for (uint32_t i = 0; i < m_no_sources; i++) {
                 QString currentName = QString::fromUtf8(m_p_sources[i].p_ndi_name);
                 if (currentName == senderName) {
@@ -347,19 +244,17 @@ namespace Nodes
                     break;
                 }
             }
-
+            
             if (!target_source) {
                 qDebug() << "未找到指定的NDI发送器:" << senderName;
                 return false;
             }
 
-            // 清理之前的接收器
             if (m_ndi_recv) {
                 NDIlib_recv_destroy(m_ndi_recv);
                 m_ndi_recv = nullptr;
             }
 
-            // 创建新的接收器
             NDIlib_recv_create_v3_t recv_create;
             recv_create.source_to_connect_to = *target_source;
             recv_create.color_format = NDIlib_recv_color_format_BGRX_BGRA;
@@ -369,13 +264,13 @@ namespace Nodes
 
             m_ndi_recv = NDIlib_recv_create_v3(&recv_create);
 
-            if (m_ndi_recv) {
-                qDebug() << "成功连接到NDI发送器:" << senderName;
-                return true;
+            bool success = (m_ndi_recv != nullptr);
+            if (success) {
+                 qDebug() << "成功连接到NDI发送器:" << senderName;
             } else {
-                qDebug() << "连接NDI发送器失败:" << senderName;
-                return false;
+                 qDebug() << "连接NDI发送器失败:" << senderName;
             }
+            return success;
         }
 
     signals:
@@ -384,46 +279,64 @@ namespace Nodes
         void senderListUpdated(const QStringList& senders);
 
     protected:
-        /**
-         * @brief 线程主循环
-         */
         void run() override {
-            while (m_running) {
-                QMutexLocker locker(&m_mutex);
-                
-                // 检查是否需要更新发送器列表
-                if (m_forceUpdateSenders) {
-                    updateSenderList();
-                    m_forceUpdateSenders = false;
+            initializeNDI();
+
+            while (!isInterruptionRequested()) {
+                bool doUpdate = false;
+                bool doConnect = false;
+                bool doCapture = false;
+                QString newSender;
+
+                {
+                    QMutexLocker locker(&m_mutex);
+                    if (m_updatePending) {
+                        doUpdate = true;
+                        m_updatePending = false;
+                    }
+                    if (m_connectionPending) {
+                        doConnect = true;
+                        m_connectionPending = false;
+                        newSender = m_pendingSenderName;
+                    }
+                    doCapture = m_isCapturing;
                 }
-                
-                // 如果有接收器，尝试接收帧
-                if (m_ndi_recv) {
-                    locker.unlock();
+
+                if (doUpdate) {
+                    updateSenderList();
+                }
+
+                if (doConnect) {
+                    connectToSender(newSender);
+                }
+
+                if (doCapture) {
                     receiveFrame();
                 } else {
-                    locker.unlock();
-                    // 没有连接时短暂休眠
+                    msleep(10);
+                }
+                
+                if (!doUpdate && !doConnect && !doCapture) {
                     msleep(50);
                 }
             }
+            
+            cleanupNDIReceiver();
         }
     
     private:
-        // NDI相关变量
         NDIlib_find_instance_t m_ndi_find;
         NDIlib_recv_instance_t m_ndi_recv;
         const NDIlib_source_t* m_p_sources;
         uint32_t m_no_sources;
         bool m_ndi_initialized;
-        bool m_running;
-        bool m_forceUpdateSenders;
-        QString m_senderName;
+        
+        std::atomic<bool> m_isCapturing;
+        bool m_updatePending;
+        bool m_connectionPending;
+        QString m_pendingSenderName;
+        
         QMutex m_mutex;
-        // 图像缓冲区
-        unsigned char* m_imageBuffer;
-        unsigned int m_width;
-        unsigned int m_height;
     };
 
     /**
@@ -473,7 +386,11 @@ namespace Nodes
         ~NDIInDataModel() override {
             setEnable(false); // 停止接收
             if (m_receiveThread) {
-                m_receiveThread->wait();
+                m_receiveThread->stopThread();
+                if (!m_receiveThread->wait(2000)) {
+                    m_receiveThread->terminate();
+                    m_receiveThread->wait();
+                }
                 delete m_receiveThread;
             }
             if (m_widget) {
@@ -546,10 +463,6 @@ namespace Nodes
                 if (values.contains("currentSender")) {
                     QString senderName = values["currentSender"].toString();
                     setSourceName(senderName);
-                    // 延迟1秒执行refreshSenders函数，确保列表已更新
-                    QTimer::singleShot(1000, this, [this]() {
-                        refreshSenders();
-                    });
                 }
                 if (values.contains("isReceiving")) {
                     setEnable(values["isReceiving"].toBool());
@@ -558,9 +471,6 @@ namespace Nodes
                 // 兼容旧的保存格式
                 if (jsonObject.contains("currentSender")) {
                     setSourceName(jsonObject["currentSender"].toString());
-                    QTimer::singleShot(1000, this, [this]() {
-                        refreshSenders();
-                    });
                 }
                 if (jsonObject.contains("isReceiving")) {
                     setEnable(jsonObject["isReceiving"].toBool());
@@ -685,13 +595,12 @@ namespace Nodes
             if (value) {
                 // Start receiving logic
                 if (m_receiveThread) {
-                    refreshSenders();
-                    m_receiveThread->startReceiving(m_currentSender);
+                    m_receiveThread->startCapturing(m_currentSender);
                 }
             } else {
                 // Stop receiving logic
                 if (m_receiveThread) {
-                    m_receiveThread->stopReceiving();
+                    m_receiveThread->stopCapturing();
                 }
             }
             
@@ -738,7 +647,9 @@ namespace Nodes
             connect(m_receiveThread, &NDIReceiveThread::senderListUpdated,
                     this, &NDIInDataModel::onSenderListUpdated, Qt::QueuedConnection);
 
-            qDebug() << "NDIInDataModel: Receiver initialized";
+            // Use HighestPriority instead of TimeCriticalPriority to prevent UI starvation
+            m_receiveThread->start(QThread::HighestPriority); 
+            qDebug() << "NDIInDataModel: Receiver initialized and thread started with HighestPriority";
         }
     };
 }

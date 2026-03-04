@@ -19,6 +19,8 @@ namespace AppConstants {
     const QString LOGS_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/NodeStudio/Logs";
     // 媒体库存储目录
     const QString MEDIA_LIBRARY_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/NodeStudio/Medias";
+    // FLOW文件存储目录
+    const QString MEDIA_LIBRARY_FLOW_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/NodeStudio/Flows";
     // 最近打开文件存储路径
     const QString RECENT_FILES_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/NodeStudio/Cfg";
     // Art-Net 相关常量

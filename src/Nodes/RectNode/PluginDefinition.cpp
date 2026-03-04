@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "RectModel.h"
+#include "RectModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 

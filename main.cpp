@@ -126,7 +126,7 @@ int main(int argc, char *argv[])
     setupAppInfo();
 
     // 设置应用程序样式
-    // QApplication::setStyle(QStyleFactory::create("Fusion"));
+    QApplication::setStyle(QStyleFactory::create("Fusion"));
 
     // 解析命令行参数
     QCommandLineParser parser;

@@ -1,6 +1,6 @@
 #include "PluginDefinition.hpp"
 
-#include "ScaleImageModel.h"
+#include "ScaleImageModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 

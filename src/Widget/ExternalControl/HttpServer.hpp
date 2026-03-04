@@ -117,7 +117,15 @@ namespace NodeStudio {
         // 函数级注释：设置布局配置
         void load(const QJsonObject& layout);
 
+        // 函数级注释：通知Flow文件上传完成
+        void notifyFlowFileUploaded(const QString& path) {
+            emit flowFileUploaded(path);
+        }
+
     signals:
+        // 函数级注释：Flow文件上传完成信号
+        void flowFileUploaded(const QString& path);
+
         // 函数级注释：服务器启动信号
         void serverStarted(int port);
         // 函数级注释：服务器停止信号

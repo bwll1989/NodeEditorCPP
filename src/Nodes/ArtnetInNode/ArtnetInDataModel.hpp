@@ -97,7 +97,7 @@ public:
         switch(portIndex)
         {
             case 0:
-                widget->universeEdit->setText(std::dynamic_pointer_cast<VariableData>(data)->value().toString());
+                widget->universeEdit->setValue(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
                 break;
             case 1:
                widget->channelsEdit->setText(std::dynamic_pointer_cast<VariableData>(data)->value().toString());
@@ -113,7 +113,7 @@ public:
     QJsonObject save() const override
     {
         QJsonObject modelJson1;
-        modelJson1["Universe"] = widget->universeEdit->text().toInt();
+        modelJson1["Universe"] = widget->universeEdit->value();
         modelJson1["Channels"] = widget->channelsEdit->text();
         modelJson1["Filter"] = widget->isChecked();
         QJsonObject modelJson = NodeDelegateModel::save();
@@ -126,7 +126,7 @@ public:
         QJsonValue v = p["values"];
         if (!v.isUndefined() && v.isObject()) {
             QJsonObject obj = v.toObject();
-            widget->universeEdit->setText(QString::number(obj["Universe"].toInt()));
+            widget->universeEdit->setValue(obj["Universe"].toInt());
             widget->channelsEdit->setText(obj["Channels"].toString());
             widget->setChecked(obj["Filter"].toBool());
 
@@ -155,7 +155,7 @@ private Q_SLOTS:
         if (widget->isChecked()) {
             // 检查Universe是否匹配
             if (data.contains("universe") &&
-                data["universe"].toInt() == widget->universeEdit->text().toInt()) {
+                data["universe"].toInt() == widget->universeEdit->value()) {
                 // 如果有通道过滤器
                 if (!m_channelsFilter.isEmpty() && data.contains("default")) {
                     QByteArray dmxData = data["default"].toByteArray();

@@ -70,7 +70,7 @@ namespace Nodes {
             });
             connect(_workerThread, &QThread::finished, _worker, &AudioCrossFaderWorker::stopProcessing);
             
-            connect(widget->mixSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->mixSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioCrossFaderDataModel::setMix);
             connect(this, &AudioCrossFaderDataModel::mixChanged, this, [this](double){
                 {
@@ -86,7 +86,7 @@ namespace Nodes {
                 AbstractDelegateModel::stateFeedBack("/mix", m_mix);
             });
 
-            connect(widget->fadeDurationSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->fadeDurationSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioCrossFaderDataModel::setFadeMs);
             connect(this, &AudioCrossFaderDataModel::fadeMsChanged, this, [this](double){
                 {

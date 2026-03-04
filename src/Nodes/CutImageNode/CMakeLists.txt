@@ -27,6 +27,7 @@ target_link_libraries(${Module_Name} PRIVATE
         ${OpenCV_LIBRARIES}
         DataTypes
         BuildInNodes
+        GUIElements
 )
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

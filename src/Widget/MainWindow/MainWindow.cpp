@@ -200,6 +200,8 @@ void MainWindow::init()
     emit initStatus("Initialization external controler success");
 	 // http 服务器
     httpServer=new NodeStudio::NodeHttpServer();
+    //http服务器文件上传后，直接打开
+    connect(httpServer, &NodeStudio::NodeHttpServer::flowFileUploaded, this, &MainWindow::loadFileFromPath);
     httpServer->start(ConfigManager::instance().getHttpServerPort());
     emit initStatus("Initialization Http Server success");
     // 更新默认布局

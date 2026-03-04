@@ -52,7 +52,7 @@ namespace Nodes
 
             AbstractDelegateModel::registerExternalControl("/gain", widget->volume_spinbox);
 
-            connect(widget->volume_spinbox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->volume_spinbox, &FloatDragValueWidget::valueChanged,
                     this, [this](double v){ setGainDb(v); });
 
             connect(widget->device_selector, &QComboBox::currentIndexChanged,

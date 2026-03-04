@@ -31,8 +31,10 @@ void DelayMessageItemWidget::setupUI()
 
     layout->addWidget(new QLabel("Index:"));
     layout->addWidget(portIndex);
+    portIndex->setMinimum(0);
     layout->addWidget(new QLabel("Delay:"));
     layout->addWidget(timeEdit);
+    timeEdit->setMinimum(0);
     layout->addWidget(new QLabel("ms"));
     layout->addWidget(moveLabel);
     

@@ -440,8 +440,8 @@ void StaticRequestHandler::handleUploadFlow(HTTPServerRequest& request, HTTPServ
             sendJsonResponse(response, "{\"ok\":false,\"error\":\"invalid_extension\"}", HTTPResponse::HTTP_BAD_REQUEST);
             return;
         }
-        // 目标目录：使用应用常量 MEDIA_LIBRARY_STORAGE_DIR（取消 docRoot/uploads/projects 双份保存）
-        const QString mediaDir = AppConstants::MEDIA_LIBRARY_STORAGE_DIR;
+        // 目标目录：使用应用常量 MEDIA_LIBRARY_FLOW_DIR（取消 docRoot/uploads/projects 双份保存）
+        const QString mediaDir = AppConstants::MEDIA_LIBRARY_FLOW_DIR;
         QDir().mkpath(mediaDir);
         const QString qFilePath = QDir(mediaDir).filePath(QString::fromStdString(safeName));
         const std::string absPath = qFilePath.toStdString();
@@ -452,6 +452,9 @@ void StaticRequestHandler::handleUploadFlow(HTTPServerRequest& request, HTTPServ
         Poco::FileOutputStream fos(absPath, std::ios::binary);
         fos.write(buffer.str().data(), (std::streamsize)buffer.str().size());
         fos.close();
+
+        // 通知主窗口加载文件
+        _server.notifyFlowFileUploaded(qFilePath);
         // 返回
         std::ostringstream oss;
         oss << "{\"ok\":true,\"path\":\"" << absPath << "\"}";

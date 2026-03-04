@@ -12,7 +12,7 @@ AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     
     // Mix
     mainLayout->addWidget(new QLabel("Mix (0=A, 1=B):"), 0, 0);
-    mixSpin = new QDoubleSpinBox();
+    mixSpin = new FloatDragValueWidget();
     mixSpin->setRange(0.0, 1.0);
     mixSpin->setDecimals(3);
     mixSpin->setSingleStep(0.01);
@@ -23,7 +23,7 @@ AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     
     // Fade Duration
     mainLayout->addWidget(new QLabel("Fade Time (ms):"), 1, 0);
-    fadeDurationSpin = new QDoubleSpinBox();
+    fadeDurationSpin = new FloatDragValueWidget();
     fadeDurationSpin->setRange(10.0, 600000.0);
     fadeDurationSpin->setDecimals(1);
     fadeDurationSpin->setSingleStep(10.0);

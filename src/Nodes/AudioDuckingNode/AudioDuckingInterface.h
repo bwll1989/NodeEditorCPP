@@ -5,7 +5,7 @@
 #include <QSpinBox>
 #include <QDoubleSpinBox>
 #include <QPushButton>
-
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 namespace Nodes
 {
     class AudioDuckingInterface : public QWidget
@@ -16,13 +16,13 @@ namespace Nodes
         AudioDuckingInterface(QWidget *parent = nullptr);
         ~AudioDuckingInterface();
         
-        QDoubleSpinBox* thresholdSpin;
-        QDoubleSpinBox* ratioSpin;
-        QDoubleSpinBox* attackSpin;
-        QDoubleSpinBox* releaseSpin;
-        QDoubleSpinBox* makeupGainSpin;
-        QDoubleSpinBox* sidechainGainSpin;
-        QDoubleSpinBox* depthSpin;
+        FloatDragValueWidget* thresholdSpin;
+        FloatDragValueWidget* ratioSpin;
+        FloatDragValueWidget* attackSpin;
+        FloatDragValueWidget* releaseSpin;
+        FloatDragValueWidget* makeupGainSpin;
+        FloatDragValueWidget* sidechainGainSpin;
+        FloatDragValueWidget* depthSpin;
     };
 }
 

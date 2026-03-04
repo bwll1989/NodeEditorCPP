@@ -9,15 +9,17 @@
 #include <opencv2/core/types.hpp>
 #include <QtNodes/NodeDelegateModel>
 #include "DataTypes/NodeDataList.hpp"
-#include "ui_RectForm.h"
 #include <QPointF>
 #include <QRectF>
+#include <QtWidgets/QWidget>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QGridLayout>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QLineEdit>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 
-namespace Ui {
-    class RectForm;
-}
 using namespace NodeDataTypes;
 namespace Nodes
 {
@@ -92,32 +94,79 @@ namespace Nodes
         QWidget* embeddedWidget() override
         {
             if (!m_widget) {
-                m_ui = std::make_unique<Ui::RectForm>();
                 m_widget = new QWidget();
-                m_ui->setupUi(m_widget);
-                AbstractDelegateModel::registerExternalControl("/x",m_ui->sb_x);
-                AbstractDelegateModel::registerExternalControl("/y",m_ui->sb_y);
-                AbstractDelegateModel::registerExternalControl("/width",m_ui->sb_width);
-                AbstractDelegateModel::registerExternalControl("/height",m_ui->sb_height);
+                QHBoxLayout* horizontalLayout = new QHBoxLayout(m_widget);
+                QGridLayout* gridLayout = new QGridLayout();
+                
+                // 设置列伸缩比例 3,1,3,1,3
+                gridLayout->setColumnStretch(0, 3);
+                gridLayout->setColumnStretch(1, 1);
+                gridLayout->setColumnStretch(2, 3);
+                gridLayout->setColumnStretch(3, 1);
+                gridLayout->setColumnStretch(4, 3);
+
+                // Row 0
+                QLabel* label_3 = new QLabel("Top left: ");
+                gridLayout->addWidget(label_3, 0, 0);
+
+                QLabel* label = new QLabel("X:");
+                gridLayout->addWidget(label, 0, 1);
+
+                sb_x = new IntDragValueWidget();
+                sb_x->setMinimum(0);
+                gridLayout->addWidget(sb_x, 0, 2);
+
+                QLabel* label_2 = new QLabel("Y:");
+                gridLayout->addWidget(label_2, 0, 3);
+
+                sb_y = new IntDragValueWidget();
+                sb_y->setMinimum(0);
+                gridLayout->addWidget(sb_y, 0, 4);
+
+                // Row 1
+                QLabel* label_4 = new QLabel("Size: ");
+                gridLayout->addWidget(label_4, 1, 0);
+
+                QLabel* label_5 = new QLabel("W");
+                gridLayout->addWidget(label_5, 1, 1);
+
+                sb_width = new IntDragValueWidget();
+                sb_width->setMinimum(0);
+                gridLayout->addWidget(sb_width, 1, 2);
+
+                QLabel* label_6 = new QLabel("H");
+                gridLayout->addWidget(label_6, 1, 3);
+
+                sb_height = new IntDragValueWidget();
+                sb_height->setMinimum(0);
+                gridLayout->addWidget(sb_height, 1, 4);
+
+                horizontalLayout->addLayout(gridLayout);
+
+                AbstractDelegateModel::registerExternalControl("/x", sb_x);
+                AbstractDelegateModel::registerExternalControl("/y", sb_y);
+                AbstractDelegateModel::registerExternalControl("/width", sb_width);
+                AbstractDelegateModel::registerExternalControl("/height", sb_height);
+                
                 // UI -> Property connections
-                connect(m_ui->sb_x, &QLineEdit::editingFinished, this, [this](){
-                    setX(m_ui->sb_x->text().toFloat());
+                connect(sb_x, &IntDragValueWidget::valueChanged, this, [this](){
+                    setX(sb_x->value());
                 });
-                connect(m_ui->sb_y, &QLineEdit::editingFinished, this, [this](){
-                    setY(m_ui->sb_y->text().toFloat());
+                connect(sb_y, &IntDragValueWidget::valueChanged, this, [this](){
+                    setY(sb_y->value());
                 });
-                connect(m_ui->sb_width, &QLineEdit::editingFinished, this, [this](){
-                    setWidth(m_ui->sb_width->text().toFloat());
+                connect(sb_width, &IntDragValueWidget::valueChanged, this, [this](){
+                    setWidth(sb_width->value());
                 });
-                connect(m_ui->sb_height, &QLineEdit::editingFinished, this, [this](){
-                    setHeight(m_ui->sb_height->text().toFloat());
+                connect(sb_height, &IntDragValueWidget::valueChanged, this, [this](){
+                    setHeight(sb_height->value());
                 });
 
                 // Initial sync
-                m_ui->sb_x->setText(QString::number(m_outRect.x()));
-                m_ui->sb_y->setText(QString::number(m_outRect.y()));
-                m_ui->sb_width->setText(QString::number(m_outRect.width()));
-                m_ui->sb_height->setText(QString::number(m_outRect.height()));
+                sb_x->setValue(m_outRect.x());
+                sb_y->setValue(m_outRect.y());
+                sb_width->setValue(m_outRect.width());
+                sb_height->setValue(m_outRect.height());
             }
             return m_widget;
         }
@@ -180,15 +229,11 @@ namespace Nodes
         qreal getX() const { return m_outRect.x(); }
         void setX(qreal value) {
             if (qFuzzyCompare(m_outRect.x(), value)) return;
-            m_outRect.moveLeft(value); // Moves the rect, preserving size.
-            // Wait, moveLeft changes left and KEEPS size.
-            // If I just want to set X and keep everything else... 
-            // setRect(x, y, w, h) is explicit.
             m_outRect.setRect(value, m_outRect.y(), m_outRect.width(), m_outRect.height());
             
-            if (m_widget && m_ui && m_ui->sb_x->text().toDouble() != value) {
-                QSignalBlocker blocker(m_ui->sb_x);
-                m_ui->sb_x->setText(QString::number(value));
+            if (m_widget && sb_x && sb_x->value() != value) {
+                QSignalBlocker blocker(sb_x);
+                sb_x->setValue(value);
             }
             emit xChanged(value);
             AbstractDelegateModel::stateFeedBack("/x", value);
@@ -200,9 +245,9 @@ namespace Nodes
             if (qFuzzyCompare(m_outRect.y(), value)) return;
             m_outRect.setRect(m_outRect.x(), value, m_outRect.width(), m_outRect.height());
             
-            if (m_widget && m_ui && m_ui->sb_y->text().toDouble() != value) {
-                QSignalBlocker blocker(m_ui->sb_y);
-                m_ui->sb_y->setText(QString::number(value));
+            if (m_widget && sb_y && sb_y->value() != value) {
+                QSignalBlocker blocker(sb_y);
+                sb_y->setValue(value);
             }
             emit yChanged(value);
             AbstractDelegateModel::stateFeedBack("/y", value);
@@ -214,9 +259,9 @@ namespace Nodes
             if (qFuzzyCompare(m_outRect.width(), value)) return;
             m_outRect.setWidth(value);
             
-            if (m_widget && m_ui && m_ui->sb_width->text().toDouble() != value) {
-                QSignalBlocker blocker(m_ui->sb_width);
-                m_ui->sb_width->setText(QString::number(value));
+            if (m_widget && sb_width && sb_width->value() != value) {
+                QSignalBlocker blocker(sb_width);
+                sb_width->setValue(value);
             }
             emit widthChanged(value);
             AbstractDelegateModel::stateFeedBack("/width", value);
@@ -228,9 +273,9 @@ namespace Nodes
             if (qFuzzyCompare(m_outRect.height(), value)) return;
             m_outRect.setHeight(value);
             
-            if (m_widget && m_ui && m_ui->sb_height->text().toDouble() != value) {
-                QSignalBlocker blocker(m_ui->sb_height);
-                m_ui->sb_height->setText(QString::number(value));
+            if (m_widget && sb_height && sb_height->value() != value) {
+                QSignalBlocker blocker(sb_height);
+                sb_height->setValue(value);
             }
             emit heightChanged(value);
             AbstractDelegateModel::stateFeedBack("/height", value);
@@ -269,7 +314,12 @@ namespace Nodes
 
     private:
         QWidget* m_widget = nullptr;
-        std::unique_ptr<Ui::RectForm> m_ui;
+        
+        IntDragValueWidget* sb_x = nullptr;
+        IntDragValueWidget* sb_y = nullptr;
+        IntDragValueWidget* sb_width = nullptr;
+        IntDragValueWidget* sb_height = nullptr;
+
         // in
         // 0
         std::weak_ptr<VariableData> m_inData;

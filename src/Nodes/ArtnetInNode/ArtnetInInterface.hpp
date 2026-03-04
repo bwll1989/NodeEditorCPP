@@ -12,6 +12,8 @@
 #include <QVariantMap>
 #include <QToolTip>
 
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+
 class ArtnetInInterface: public QGroupBox {
     Q_OBJECT
 public:
@@ -23,7 +25,7 @@ public:
         // 设置提示信息
         universeEdit->setToolTip("输入Universe编号进行过滤");
         channelsEdit->setToolTip("输入通道编号列表进行过滤，格式：1,2,5-10,15");
-        
+        universeEdit->setRange(0,65536);
         // 连接信号槽
         connect(channelsEdit, &QLineEdit::textChanged, this, &ArtnetInInterface::onChannelsFilterChanged);
         
@@ -100,7 +102,7 @@ public slots:
     }
 
 public:
-    QLineEdit* universeEdit = new QLineEdit();
+    IntDragValueWidget* universeEdit = new IntDragValueWidget();
     QLineEdit* channelsEdit = new QLineEdit();
 
 private:

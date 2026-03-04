@@ -20,17 +20,17 @@ CutImageModel::CutImageModel() {
     Caption="CutImage";
     WidgetEmbeddable=false;
     Resizable=false;
-    connect(widget->pos_x, &QLineEdit::textChanged, this, [this]() {
-        setTopLeftX(widget->pos_x->text().toInt());
+    connect(widget->pos_x, &IntDragValueWidget::valueChanged, this, [this]() {
+        setTopLeftX(widget->pos_x->value());
     });
-    connect(widget->pos_y, &QLineEdit::textChanged, this, [this]() {
-        setTopLeftY(widget->pos_y->text().toInt());
+    connect(widget->pos_y, &IntDragValueWidget::valueChanged,this, [this]() {
+        setTopLeftY(widget->pos_y->value());
     });
-    connect(widget->widthEdit, &QLineEdit::textChanged, this, [this]() {
-        setWidth(widget->widthEdit->text().toInt());
+    connect(widget->widthEdit, &IntDragValueWidget::valueChanged, this, [this]() {
+        setWidth(widget->widthEdit->value());
     });
-    connect(widget->heightEdit, &QLineEdit::textChanged, this, [this]() {
-        setHeight(widget->heightEdit->text().toInt());
+    connect(widget->heightEdit, &IntDragValueWidget::valueChanged, this, [this]() {
+        setHeight(widget->heightEdit->value());
     });
     AbstractDelegateModel::registerExternalControl("/topLeftX",widget->pos_x);
     AbstractDelegateModel::registerExternalControl("/topLeftY",widget->pos_y);
@@ -203,10 +203,10 @@ QJsonObject CutImageModel::save() const {
     QJsonObject modelJson  = NodeDelegateModel::save();
     QJsonObject modelJson1;
     modelJson1["values"]=modelJson1;
-    modelJson1["pos_x"] = widget->pos_x->text().toInt();
-    modelJson1["pos_y"] = widget->pos_y->text().toInt();
-    modelJson1["width"] = widget->widthEdit->text().toInt();
-    modelJson1["height"] = widget->heightEdit->text().toInt();
+    modelJson1["pos_x"] = widget->pos_x->value();
+    modelJson1["pos_y"] = widget->pos_y->value();
+    modelJson1["width"] = widget->widthEdit->value();
+    modelJson1["height"] = widget->heightEdit->value();
     modelJson["values"]=modelJson1;
     return modelJson;
 }
@@ -233,7 +233,7 @@ void CutImageModel::setTopLeftX(int x)
     m_outRect.setLeft(x);
     if (widget && widget->pos_x) {
         QSignalBlocker blocker(widget->pos_x);
-        widget->pos_x->setText(QString::number(x));
+        widget->pos_x->setValue(x);
     }
     processImage();
     Q_EMIT topLeftXChanged(x);
@@ -249,7 +249,7 @@ void CutImageModel::setTopLeftY(int y)
     m_outRect.setTop(y);
     if (widget && widget->pos_y) {
         QSignalBlocker blocker(widget->pos_y);
-        widget->pos_y->setText(QString::number(y));
+        widget->pos_y->setValue(y);
     }
     processImage();
     Q_EMIT topLeftYChanged(y);
@@ -265,7 +265,7 @@ void CutImageModel::setWidth(int w)
     m_outRect.setWidth(w);
     if (widget && widget->widthEdit) {
         QSignalBlocker blocker(widget->widthEdit);
-        widget->widthEdit->setText(QString::number(w));
+        widget->widthEdit->setValue(w);
     }
     processImage();
     Q_EMIT widthChanged(w);
@@ -281,7 +281,7 @@ void CutImageModel::setHeight(int h)
     m_outRect.setHeight(h);
     if (widget && widget->heightEdit) {
         QSignalBlocker blocker(widget->heightEdit);
-        widget->heightEdit->setText(QString::number(h));
+        widget->heightEdit->setValue(h);
     }
     processImage();
     Q_EMIT heightChanged(h);

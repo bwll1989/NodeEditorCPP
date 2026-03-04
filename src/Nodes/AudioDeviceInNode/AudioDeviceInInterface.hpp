@@ -10,6 +10,7 @@
 #include "QComboBox"
 #include "QDoubleSpinBox"
 #include "QGridLayout"
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 
 /**
  * @brief 音频输入设备节点界面类
@@ -35,7 +36,7 @@ public:
         layout->addWidget(new QLabel("音量:"), 1, 0, 1, 1);
         layout->addWidget(volume_spinbox, 1, 1, 1, 2);
         this->setLayout(layout);
-        this->setMinimumSize(QSize(100,50));
+        this->setFixedSize(QSize(200,100));
     }
 
 signals:
@@ -45,7 +46,7 @@ signals:
 public:
     QGridLayout *layout = new QGridLayout(this);
     QComboBox *device_selector = new QComboBox();
-    QDoubleSpinBox *volume_spinbox = new QDoubleSpinBox();
+    FloatDragValueWidget *volume_spinbox = new FloatDragValueWidget();
 
 };
 

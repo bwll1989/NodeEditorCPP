@@ -6,6 +6,8 @@
 #include <QDoubleSpinBox>
 #include <QPushButton>
 
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+
 namespace Nodes
 {
     class AudioCrossFaderInterface : public QWidget
@@ -16,8 +18,8 @@ namespace Nodes
         AudioCrossFaderInterface(QWidget *parent = nullptr);
         ~AudioCrossFaderInterface();
         
-        QDoubleSpinBox* mixSpin;          // 0.0 ~ 1.0
-        QDoubleSpinBox* fadeDurationSpin; // ms
+        FloatDragValueWidget* mixSpin;          // 0.0 ~ 1.0
+        FloatDragValueWidget* fadeDurationSpin; // ms
         QComboBox* actionCombo;           // A->B / B->A / Reset
     };
 }

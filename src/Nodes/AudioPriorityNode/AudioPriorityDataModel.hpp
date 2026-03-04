@@ -90,7 +90,7 @@ namespace Nodes {
             });
             connect(_workerThread, &QThread::finished, _worker, &AudioPriorityWorker::stopProcessing);
 
-            connect(widget->thresholdSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->thresholdSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioPriorityDataModel::setThreshold);
             connect(this, &AudioPriorityDataModel::thresholdChanged, this, [this](double value){
                 {
@@ -103,7 +103,7 @@ namespace Nodes {
                 AbstractDelegateModel::stateFeedBack("/threshold", value);
             });
 
-            connect(widget->ratioSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->ratioSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioPriorityDataModel::setRatio);
             connect(this, &AudioPriorityDataModel::ratioChanged, this, [this](double value){
                 {
@@ -116,7 +116,7 @@ namespace Nodes {
                 AbstractDelegateModel::stateFeedBack("/ratio", value);
             });
 
-            connect(widget->attackSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->attackSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioPriorityDataModel::setAttack);
             connect(this, &AudioPriorityDataModel::attackChanged, this, [this](double value){
                 {
@@ -129,7 +129,7 @@ namespace Nodes {
                 AbstractDelegateModel::stateFeedBack("/attack", value);
             });
 
-            connect(widget->releaseSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->releaseSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioPriorityDataModel::setRelease);
             connect(this, &AudioPriorityDataModel::releaseChanged, this, [this](double value){
                 {
@@ -142,7 +142,7 @@ namespace Nodes {
                 AbstractDelegateModel::stateFeedBack("/release", value);
             });
 
-            connect(widget->makeupGainSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->makeupGainSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioPriorityDataModel::setMakeupGain);
             connect(this, &AudioPriorityDataModel::makeupGainChanged, this, [this](double value){
                 {
@@ -155,7 +155,7 @@ namespace Nodes {
                 AbstractDelegateModel::stateFeedBack("/makeup", value);
             });
 
-            connect(widget->sidechainGainSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->sidechainGainSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioPriorityDataModel::setSidechainGain);
             connect(this, &AudioPriorityDataModel::sidechainGainChanged, this, [this](double value){
                 {
@@ -168,7 +168,7 @@ namespace Nodes {
                 AbstractDelegateModel::stateFeedBack("/sidechain_gain", value);
             });
 
-            connect(widget->depthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            connect(widget->depthSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioPriorityDataModel::setDepth);
             connect(this, &AudioPriorityDataModel::depthChanged, this, [this](double value){
                 {

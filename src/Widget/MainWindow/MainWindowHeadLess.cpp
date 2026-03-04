@@ -71,6 +71,8 @@ void MainWindowHeadLess::init()
 	 // http 服务器
     httpServer=new NodeStudio::NodeHttpServer();
     httpServer->start(ConfigManager::instance().getHttpServerPort());
+    //http服务器文件上传后，直接打开
+    connect(httpServer, &NodeStudio::NodeHttpServer::flowFileUploaded, this, &MainWindowHeadLess::loadFileFromPath);
     emit initStatus("Initialization Http Server success");
     // 系统托盘图标
      if (QSystemTrayIcon::isSystemTrayAvailable()) {
