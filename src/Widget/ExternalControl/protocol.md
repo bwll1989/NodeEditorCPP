@@ -60,6 +60,42 @@
     {"ok":true}
     ```
 
+- `POST /api/upload/media?filename=<name>`
+  - 作用：上传媒体文件（音视频/图片等）
+  - 请求头：`Content-Type: application/octet-stream`
+  - 请求体：文件二进制流
+  - 保存位置：由应用常量决定（`MEDIA_LIBRARY_STORAGE_DIR`），返回绝对路径
+  - 响应示例：
+    ```json
+    {"ok":true,"path":"D:\\...\\yourfile.ext"}
+    ```
+  - 失败示例：`{"ok":false,"error":"method_not_allowed"}`、`{"ok":false,"error":"missing_or_invalid_filename"}`
+
+- `POST /api/upload/flow?filename=<name>.flow`
+  - 作用：上传项目文件（仅允许 `.flow` 扩展名）
+  - 请求头：`Content-Type: application/octet-stream`
+  - 请求体：文件二进制流
+  - 保存位置：由应用常量决定（`MEDIA_LIBRARY_FLOW_DIR`），返回绝对路径
+  - 成功后行为：服务端触发加载该项目（连接到主窗口的加载逻辑）
+  - 响应示例：
+    ```json
+    {"ok":true,"path":"D:\\...\\project.flow"}
+    ```
+  - 失败示例：`{"ok":false,"error":"method_not_allowed"}`、`{"ok":false,"error":"missing_or_invalid_filename"}`、`{"ok":false,"error":"invalid_extension"}`
+
+- `GET /api/download/current_flow`
+  - 作用：下载当前正在运行的 `.flow` 项目文件
+  - 响应头：`Content-Type: application/octet-stream`，并设置 `Content-Disposition: attachment; filename="xxx.flow"`
+  - 失败示例：`{"ok":false,"error":"method_not_allowed"}`、`{"ok":false,"error":"no_file_running"}`、`{"ok":false,"error":"file_not_found"}`
+
+- `GET /api/info/current_flow`
+  - 作用：查询当前正在运行的项目文件信息
+  - 成功示例：
+    ```json
+    {"ok":true,"filename":"project.flow","path":"D:\\...\\project.flow"}
+    ```
+  - 失败示例：`{"ok":false,"error":"no_recent_file"}`、`{"ok":false,"error":"file_not_found"}`、`{"ok":false,"error":"no_file_running"}`
+
 - `GET /api/exec?...`（示例接口）
   - 作用：回显请求路径与查询串，便于联调
   - 响应示例：
@@ -108,6 +144,11 @@
     }
     ```
   - 兼容性提示：前端当前仅在“加载所有分页”流程中使用上述新格式（`tabs` + `pages`）。若返回为单页 `{ "items": [...] }`，前端会按页面内本地逻辑回退，仅在部分流程使用。
+
+### 静态文件服务
+- 路径穿越防御：禁止 `..` 与绝对路径，统一基于文档根（默认 `www`）拼接并校验前缀
+- 首页回退：优先返回文档根 `index.html`，不存在时返回内置首页
+- Content-Type 依据扩展名推断：`html/css/js/json/png/jpg/jpeg/gif/svg` 等，其它为 `application/octet-stream`
 
 ## 行为说明与建议
 - 前端刷新或重连时，建议按需收集界面控件绑定的地址并发送 `query`，以减少状态传输量

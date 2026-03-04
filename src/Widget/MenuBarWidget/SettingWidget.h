@@ -7,7 +7,7 @@
 #include <QDialogButtonBox>
 #include <QListWidget>
 #include <QStackedWidget>
-
+#include "../GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 class SettingWidget : public QDialog {
     Q_OBJECT
 public:
@@ -27,16 +27,16 @@ private:
     QDialogButtonBox* m_buttonBox;
 
     // General Settings
-    QSpinBox* m_maxRecentFilesSpin;
+    IntDragValueWidget* m_maxRecentFilesSpin;
     QCheckBox* m_darkThemeCheck;
 
     // Network Settings
-    QSpinBox* m_httpPortSpin;
+    IntDragValueWidget* m_httpPortSpin;
     QLineEdit* m_extraFeedbackHostEdit;
-    QSpinBox* m_extraFeedbackPortSpin;
-    QSpinBox* m_extraControlPortSpin;
+    IntDragValueWidget* m_extraFeedbackPortSpin;
+    IntDragValueWidget* m_extraControlPortSpin;
     QLineEdit* m_oscInternalHostEdit;
 
     // Log Settings
-    QSpinBox* m_maxLogEntriesSpin;
+    IntDragValueWidget* m_maxLogEntriesSpin;
 };

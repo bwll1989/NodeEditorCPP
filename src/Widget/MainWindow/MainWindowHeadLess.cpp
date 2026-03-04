@@ -146,21 +146,19 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
         emit initStatus(tr("Load the scheduled tasks model ..."));
         // 加载计划任务模型
         scheduledTaskWidget->load(jsonDoc.object()["ScheduledTasks"].toObject());
-
-        // 设置当前项目路径
-        currentProjectPath = absolutePath;
  		// 载入网页布局（HTTP Server）
         const QJsonObject webLayout = jsonDoc.object().value("WebLayout").toObject();
         if (!webLayout.isEmpty() && httpServer) {
              emit initStatus(tr("Load the web layout ..."));
             httpServer->load(webLayout);
         }
+        ConfigManager::instance().addRecentFile(absolutePath);
         m_splash->updateStatus(tr("Load flow file completed"));
         m_splash->finish(this);
         // 更新托盘图标工具提示
         if (trayIcon)
-            trayIcon->setToolTip(tr("正在运行 %1").arg(currentProjectPath));
-        qDebug()<<tr("正在运行 %1").arg(currentProjectPath);
+            trayIcon->setToolTip(tr("正在运行 %1").arg(ConfigManager::instance().getCurrentFlowPath().split("/").last()));
+        qDebug()<<tr("正在运行 %1").arg(ConfigManager::instance().getCurrentFlowPath().split("/").last());
         return true;
     }
     else {

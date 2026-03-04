@@ -29,10 +29,32 @@ SettingWidget::SettingWidget(QWidget* parent)
 
     // 左侧侧边栏
     m_listWidget = new QListWidget(this);
-    m_listWidget->setFixedWidth(100);
-    m_listWidget->addItem("常规设置");
-    m_listWidget->addItem("网络设置");
-    m_listWidget->addItem("日志设置");
+    m_listWidget->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_listWidget->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    m_listWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_listWidget->setUniformItemSizes(true);
+    m_listWidget->setFrameShape(QFrame::NoFrame);
+    m_listWidget->setSpacing(6);
+    {
+        const QStringList items = {QStringLiteral("常规设置"), QStringLiteral("网络设置"), QStringLiteral("日志设置")};
+        QFontMetrics fm(m_listWidget->font());
+        int maxTextW = 0;
+        for (const auto& t : items) maxTextW = std::max(maxTextW, fm.horizontalAdvance(t));
+        const int padding = 24;
+        const int minWidth = std::max(140, maxTextW + padding);
+        m_listWidget->setFixedWidth(minWidth);
+        const int rowHeight = std::max(32, fm.height() + fm.leading() + 10);
+        auto* it1 = new QListWidgetItem(QStringLiteral("常规设置"));
+        it1->setSizeHint(QSize(0, rowHeight));
+        m_listWidget->addItem(it1);
+        auto* it2 = new QListWidgetItem(QStringLiteral("网络设置"));
+        it2->setSizeHint(QSize(0, rowHeight));
+        m_listWidget->addItem(it2);
+        auto* it3 = new QListWidgetItem(QStringLiteral("日志设置"));
+        it3->setSizeHint(QSize(0, rowHeight));
+        m_listWidget->addItem(it3);
+        m_listWidget->setCurrentRow(0);
+    }
     contentLayout->addWidget(m_listWidget);
 
     // 右侧内容区域
@@ -58,7 +80,7 @@ SettingWidget::SettingWidget(QWidget* parent)
     auto* formGeneral = new QFormLayout();
     formGeneral->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     
-    m_maxRecentFilesSpin = new QSpinBox(this);
+    m_maxRecentFilesSpin = new IntDragValueWidget(this);
     m_maxRecentFilesSpin->setRange(1, 50);
     formGeneral->addRow("最近文件数量:", m_maxRecentFilesSpin);
 
@@ -85,18 +107,18 @@ SettingWidget::SettingWidget(QWidget* parent)
     auto* formNet = new QFormLayout();
     formNet->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
-    m_httpPortSpin = new QSpinBox(this);
+    m_httpPortSpin = new IntDragValueWidget(this);
     m_httpPortSpin->setRange(1024, 65535);
     formNet->addRow("HTTP 服务器端口:", m_httpPortSpin);
 
     m_extraFeedbackHostEdit = new QLineEdit(this);
     formNet->addRow("OSC 反馈主机 IP:", m_extraFeedbackHostEdit);
 
-    m_extraFeedbackPortSpin = new QSpinBox(this);
+    m_extraFeedbackPortSpin = new IntDragValueWidget(this);
     m_extraFeedbackPortSpin->setRange(1024, 65535);
     formNet->addRow("OSC 反馈端口:", m_extraFeedbackPortSpin);
 
-    m_extraControlPortSpin = new QSpinBox(this);
+    m_extraControlPortSpin = new IntDragValueWidget(this);
     m_extraControlPortSpin->setRange(1024, 65535);
     formNet->addRow("OSC 控制端口:", m_extraControlPortSpin);
 
@@ -123,7 +145,7 @@ SettingWidget::SettingWidget(QWidget* parent)
     auto* formLog = new QFormLayout();
     formLog->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
-    m_maxLogEntriesSpin = new QSpinBox(this);
+    m_maxLogEntriesSpin = new IntDragValueWidget(this);
     m_maxLogEntriesSpin->setRange(1, 10000);
     formLog->addRow("最大日志显示条目:", m_maxLogEntriesSpin);
 

@@ -41,6 +41,7 @@ QString ConfigManager::getOscInternalControlHost() const { return m_oscInternalC
 bool ConfigManager::isDefaultDarkTheme() const { return m_defaultDarkTheme; }
 int ConfigManager::getMaxLogEntries() const { return m_MaxLogEntries; }
 QStringList ConfigManager::getRecentFiles() const { return m_recentFiles; }
+QString ConfigManager::getCurrentFlowPath() const { return m_currentFlowPath; }
 
 void ConfigManager::addRecentFile(const QString& path)
 {
@@ -55,6 +56,7 @@ void ConfigManager::addRecentFile(const QString& path)
         m_recentFiles.removeLast();
     }
     saveConfig();
+    m_currentFlowPath = abs;
 }
 
 

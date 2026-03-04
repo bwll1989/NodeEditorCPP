@@ -20,6 +20,7 @@
 #include <sstream>
 #include <QMetaType>
 #include <QDir>
+#include <QFileInfo>
 Q_DECLARE_METATYPE(OSCMessage)
 using namespace Poco::Net;
 using namespace Poco;
@@ -329,6 +330,10 @@ void StaticRequestHandler::handleRequest(HTTPServerRequest& request,
             handleUploadMedia(request, response);
         } else if (path == "/api/upload/flow") {
             handleUploadFlow(request, response);
+        } else if (path == "/api/download/current_flow") {
+            handleDownloadCurrentFlow(request, response);
+        } else if (path == "/api/info/current_flow") {
+            handleGetCurrentFlowInfo(request, response);
         } else {
             handleStaticFile(request, response, path);
         }
@@ -465,6 +470,70 @@ void StaticRequestHandler::handleUploadFlow(HTTPServerRequest& request, HTTPServ
         sendJsonResponse(response, std::string("{\"ok\":false,\"error\":\"") + e.what() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
     }
 }
+
+// 函数级注释：下载当前Flow文件（取最近文件列表首项）
+void StaticRequestHandler::handleDownloadCurrentFlow(HTTPServerRequest& request, HTTPServerResponse& response) {
+    if (request.getMethod() != "GET") {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+        return;
+    }
+
+    QString recentFile = ConfigManager::instance().getCurrentFlowPath();
+    if (recentFile.isEmpty()) {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"no_file_running\"}", HTTPResponse::HTTP_NOT_FOUND);
+        return;
+    }
+
+ 
+    Poco::File file(recentFile.toStdString());
+    if (!file.exists() || !file.isFile()) {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"file_not_found\"}", HTTPResponse::HTTP_NOT_FOUND);
+        return;
+    }
+
+    response.setStatus(HTTPResponse::HTTP_OK);
+    response.setContentType("application/octet-stream");
+
+    // Set filename in Content-Disposition
+    Poco::Path p(recentFile.toStdString());
+    std::string filename = p.getFileName();
+    response.set("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+
+    std::ostream& ostr = response.send();
+    Poco::FileInputStream fis(file.path());
+    Poco::StreamCopier::copyStream(fis, ostr);
+}
+
+// 函数级注释：获取当前Flow文件信息（返回JSON）
+void StaticRequestHandler::handleGetCurrentFlowInfo(HTTPServerRequest& request, HTTPServerResponse& response) {
+    if (request.getMethod() != "GET") {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"no_file_running\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+        return;
+    }
+
+    QString recentFile = ConfigManager::instance().getCurrentFlowPath();
+    QJsonObject json;
+    
+    if (recentFile.isEmpty()) {
+        json["ok"] = false;
+        json["error"] = "no_recent_file";
+    } else {
+        QString filePath = recentFile;
+        Poco::File file(filePath.toStdString());
+        if (!file.exists() || !file.isFile()) {
+            json["ok"] = false;
+            json["error"] = "file_not_found";
+        } else {
+            json["ok"] = true;
+            json["path"] = filePath;
+            json["filename"] = QFileInfo(filePath).fileName();
+        }
+    }
+    
+    QJsonDocument doc(json);
+    sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString());
+}
+
 std::string StaticRequestHandler::guessContentType(const std::string& ext) {
     if (ext == "html" || ext == "htm") return "text/html; charset=utf-8";
     if (ext == "css") return "text/css";

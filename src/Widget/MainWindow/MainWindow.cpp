@@ -397,10 +397,6 @@ void MainWindow::loadFileFromPath(const QString &path)
         }else {
             resetVisualState();
         }
-
-        // 设置当前项目路径
-        currentProjectPath = absolutePath;
-        this->setWindowTitle(file.fileName());
         
         // 载入网页布局（HTTP Server）
         const QJsonObject webLayout = jsonDoc.object().value("WebLayout").toObject();
@@ -413,6 +409,9 @@ void MainWindow::loadFileFromPath(const QString &path)
         ConfigManager::instance().addRecentFile(absolutePath);
         menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
 
+
+   
+        this->setWindowTitle(ConfigManager::instance().getCurrentFlowPath().split("/").last());
         splashScreen.updateStatus(tr("Load flow file completed"));
         splashScreen.finish(this);
     }

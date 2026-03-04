@@ -67,6 +67,10 @@ namespace NodeStudio {
         void handleUploadMedia(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         // 函数级注释：处理.flow项目文件上传（octet-stream，query中携带filename，仅允许.flow扩展名）
         void handleUploadFlow(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
+        // 函数级注释：下载当前Flow文件（取最近文件列表首项）
+        void handleDownloadCurrentFlow(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
+        // 函数级注释：获取当前Flow文件信息（返回JSON）
+        void handleGetCurrentFlowInfo(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         void handleStaticFile(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& path);
         
         // Utility to send JSON response

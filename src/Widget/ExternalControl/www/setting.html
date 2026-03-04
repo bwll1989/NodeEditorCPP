@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <title>设置 - NodeStudio</title>
+  <link rel="icon" href="favicon.png" type="image/png">
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link href="assets/vendor/bootstrap.min.css" rel="stylesheet">
   <style>
@@ -49,6 +50,18 @@
         </div>
         <div class="progress mt-2 d-none" id="flowProgressWrap">
           <div class="progress-bar" role="progressbar" style="width: 0%;" id="flowProgress"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">下载当前项目</h5>
+        <p class="text-muted">下载当前正在运行的项目文件</p>
+        <p class="text-muted small">当前文件：<code id="currentFlowName">检测中...</code></p>
+        <div class="d-flex align-items-center gap-2">
+          <button id="downloadFlowBtn" class="btn btn-success btn-sm">下载文件</button>
+          <span id="downloadStatus" class="text-muted small"></span>
         </div>
       </div>
     </div>
@@ -125,9 +138,67 @@
       uploadFileBinary(url, file, progressEl, progressWrap, statusEl);
     }
 
+    // 函数级注释：下载当前.flow项目文件
+    async function downloadFlow() {
+      const statusEl = document.getElementById('downloadStatus');
+      statusEl.textContent = '正在请求...';
+      try {
+        const resp = await fetch('/api/download/current_flow');
+        if (!resp.ok) {
+          const j = await resp.json().catch(() => ({}));
+          throw new Error(j.error || resp.statusText);
+        }
+        
+        const blob = await resp.blob();
+        // 尝试从 Content-Disposition 解析文件名
+        const disposition = resp.headers.get('Content-Disposition') || '';
+        let filename = 'project.flow';
+        const matches = /filename="([^"]*)"/.exec(disposition);
+        if (matches && matches[1]) {
+            filename = matches[1];
+        }
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        statusEl.textContent = '下载完成';
+      } catch (e) {
+        statusEl.textContent = '下载失败：' + e.message;
+      }
+    }
+
+    // 函数级注释：获取当前Flow文件信息并显示
+    async function fetchCurrentFlowInfo() {
+      const nameEl = document.getElementById('currentFlowName');
+      try {
+        const resp = await fetch('/api/info/current_flow');
+        if (resp.ok) {
+          const j = await resp.json();
+          if (j.ok && j.filename) {
+            nameEl.textContent = j.filename;
+          } else {
+            nameEl.textContent = '无项目运行';
+          }
+        } else {
+          nameEl.textContent = '获取失败';
+        }
+      } catch (e) {
+        nameEl.textContent = '连接异常';
+      }
+    }
+
     // 事件绑定
     document.getElementById('uploadMediaBtn').onclick = uploadMedia;
     document.getElementById('uploadFlowBtn').onclick = uploadFlow;
+    document.getElementById('downloadFlowBtn').onclick = downloadFlow;
+    
+    // 初始化
+    fetchCurrentFlowInfo();
   </script>
 </body>
 </html>
