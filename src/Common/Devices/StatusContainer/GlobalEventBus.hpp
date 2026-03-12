@@ -18,7 +18,7 @@
  */
 enum class GlobalEventKind {
     Command,
-    StateFeedback
+    Feedback
 };
 
 /**
@@ -97,7 +97,7 @@ public:
      */
     void publishState(const QString& address, const QVariant& payload = QVariant())
     {
-        publish(address, payload, GlobalEventKind::StateFeedback);
+        publish(address, payload, GlobalEventKind::Feedback);
     }
 
     /**

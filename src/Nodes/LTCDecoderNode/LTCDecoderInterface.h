@@ -6,7 +6,7 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QSpinBox>
-
+#include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
 {
     class TimeCodeInterface : public QWidget
@@ -19,7 +19,7 @@ namespace Nodes
         QLabel *timeCodeLabel;
         QLabel *timeCodeTypeLabel;
         QLabel *timeCodeStatusLabel;
-        QSpinBox *timeCodeOffsetSpinBox;
+        IntDragValueWidget *timeCodeOffsetSpinBox;
     public slots:
         void setStatus(bool error,QString message);
         void setTimeStamp(TimeCodeFrame frame);

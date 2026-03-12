@@ -12,7 +12,6 @@
 #include <QMap>
 #include <QObject>  // 添加QObject头文件
 #include "TimestampGenerator/TimestampGenerator.hpp"
-#include <QHash>
 #include "DataTypesExport.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
@@ -61,10 +60,11 @@ private:
     bool isActive_;                               // 队列激活状态
     int writeIndex_;                              // 写索引（0到maxSize-1循环）
     mutable QMutex mutex_;                        // 线程安全互斥锁
-    QHash<qint64, int> timestampToIndex_;         // 时间戳到索引的快速映射
     int validFrames_ = 0;                         // 有效帧数量（timestamp>0）
 
     // 读取侧小缓存：加速顺序访问，减少哈希查找次数
     qint64 lastHitTimestamp_ = 0;
     int lastHitIndex_ = -1;
+    qint64 latestTimestamp_=0;
+    int latestIndex_=-1;
 };

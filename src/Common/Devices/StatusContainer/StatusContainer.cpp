@@ -113,7 +113,7 @@ void StatusContainer::clearAll() {
 
 void StatusContainer::onGlobalEvent(const GlobalEvent& ev) {
     // 函数级注释：收到全局事件总线的状态反馈事件时，将其转换为本地状态更新
-    if (ev.kind != GlobalEventKind::StateFeedback) {
+    if (ev.kind != GlobalEventKind::Feedback) {
         return;
     }
     if (ev.address.isEmpty()) {

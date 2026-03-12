@@ -66,6 +66,7 @@ set(ALL_NODES
     PJLinkNode                                #PJLink输出节点
     MqttClientNode                              #Mqtt客户端节点
     LTCDecoderNode                              #LTC时间码解析节点
+    LTCGeneratorNode                            #LTC时间码生成节点
     AudioMatrixNode                             #音频矩阵节点
     AudioAnalysisNode                           #音频分析节点
 #    PythonScriptNode                            #python脚本节点
@@ -163,6 +164,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(PJLinkNode)                                #PJLink输出节点
     add_subdirectory(MqttClientNode)                              #Mqtt客户端节点
     add_subdirectory(LTCDecoderNode)                            #LTC时间码解析节点
+    add_subdirectory(LTCGeneratorNode)                          #LTC时间吗生成节点
     add_subdirectory(AudioMatrixNode)                           #音频矩阵节点
     add_subdirectory(DataVisualNode)                            #数据可视化节点
     add_subdirectory(FileLoadNode)                             #文档导入节点

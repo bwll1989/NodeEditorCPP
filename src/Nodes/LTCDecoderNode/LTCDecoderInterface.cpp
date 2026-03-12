@@ -8,7 +8,7 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     , timeCodeLabel(new QLabel(this))
     , timeCodeTypeLabel(new QLabel(this))
     , timeCodeStatusLabel(new QLabel(this))
-    , timeCodeOffsetSpinBox(new QSpinBox(this))
+    , timeCodeOffsetSpinBox(new IntDragValueWidget(this))
 {
     auto *layout = new QGridLayout(this);
     timeCodeLabel->setAlignment(Qt::AlignCenter);
