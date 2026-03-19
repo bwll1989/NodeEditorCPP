@@ -24,6 +24,7 @@
 #include <QMouseEvent>
 #include "DefaultTimeLineToolBar.h"
 #include "Common/Devices/StatusContainer/StatusContainer.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #pragma once
 
 #include <QToolBar>
@@ -41,6 +42,8 @@
 #include <QEvent>
 #include <QMouseEvent>
 #include "BaseTimeLineToolBar.h"
+#include "Nodes/TimeLineNode/TimeLineNodeToolBar.h"
+
 class TimeLineToolBar : public BaseTimelineToolbar{
     Q_OBJECT
 public:
@@ -122,67 +125,92 @@ public:
             widget->installEventFilter(this);
         }
         (*_OscMapping)[oscAddress] = control;
-        StatusContainer::instance()->registerWidget(widget,makeFullOscAddress(oscAddress));
-        registerOSCFeedBack(makeFullOscAddress(oscAddress),widget);
-    }
-
-    void registerOSCFeedBack(const QString& oscAddress, QWidget* feedback)
-    {
-
-        // 绑定值变化信号到 stateFeedBack
-        if (auto* button = qobject_cast<QAbstractButton*>(feedback)) {
-            if (button->isCheckable()){
-                this->stateFeedBack(oscAddress, QVariant(button->isChecked()));
-                QObject::connect(button, &QAbstractButton::toggled, this, [this, oscAddress](bool checked) {
-                    this->stateFeedBack(oscAddress, QVariant(checked));
-                });
-            }else {
-                QObject::connect(button, &QAbstractButton::pressed, this, [this, oscAddress]() {
-                this->stateFeedBack(oscAddress, QVariant(1));
-            });
-                QObject::connect(button, &QAbstractButton::released, this, [this, oscAddress]() {
-                this->stateFeedBack(oscAddress, QVariant(0));
-            });
-            }
-
-        } else if (auto* slider = qobject_cast<QAbstractSlider*>(feedback)) {
-            this->stateFeedBack(oscAddress, QVariant(slider->value()));
-            QObject::connect(slider, &QAbstractSlider::valueChanged, this, [this, oscAddress](int value) {
-                this->stateFeedBack(oscAddress, QVariant(value));
-            });
-        } else if (auto* spinBox = qobject_cast<QSpinBox*>(feedback)) {
-            this->stateFeedBack(oscAddress, QVariant(spinBox->value()));
-            QObject::connect(spinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, oscAddress](int value) {
-                this->stateFeedBack(oscAddress, QVariant(value));
-            });
-        } else if (auto* lineEdit = qobject_cast<QLineEdit*>(feedback)) {
-            this->stateFeedBack(oscAddress, QVariant(lineEdit->text()));
-            QObject::connect(lineEdit, &QLineEdit::textChanged, this, [this, oscAddress](const QString& text) {
-                this->stateFeedBack(oscAddress, QVariant(text));
-            });
-        } else if (auto* comboBox = qobject_cast<QComboBox*>(feedback)) {
-            this->stateFeedBack(oscAddress, QVariant(comboBox->currentIndex()));
-            QObject::connect(comboBox, &QComboBox::currentIndexChanged, this, [this, oscAddress](int value) {
-                this->stateFeedBack(oscAddress, QVariant(value));
-            });
-        } else if (auto* checkBox = qobject_cast<QCheckBox*>(feedback)) {
-            this->stateFeedBack(oscAddress, QVariant(checkBox->isChecked()));
-            QObject::connect(checkBox, &QCheckBox::checkStateChanged, this, [this, oscAddress](int state) {
-                this->stateFeedBack(oscAddress, QVariant(state));
-            });
+        if (!m_busBound) {
+            return;
         }
+        StatusContainer::instance()->registerWidget(widget, makeFullOscAddress(oscAddress));
+        // registerOSCFeedBack(makeFullOscAddress(oscAddress), widget);
     }
+
+    // void registerOSCFeedBack(const QString& oscAddress, QWidget* feedback)
+    // {
+    //
+    //     // 绑定值变化信号到 stateFeedBack
+    //     if (auto* button = qobject_cast<QAbstractButton*>(feedback)) {
+    //         if (button->isCheckable()){
+    //             this->stateFeedBack(oscAddress, QVariant(button->isChecked()));
+    //             QObject::connect(button, &QAbstractButton::toggled, this, [this, oscAddress](bool checked) {
+    //                 this->stateFeedBack(oscAddress, QVariant(checked));
+    //             });
+    //         }else {
+    //             QObject::connect(button, &QAbstractButton::pressed, this, [this, oscAddress]() {
+    //             this->stateFeedBack(oscAddress, QVariant(1));
+    //         });
+    //             QObject::connect(button, &QAbstractButton::released, this, [this, oscAddress]() {
+    //             this->stateFeedBack(oscAddress, QVariant(0));
+    //         });
+    //         }
+    //
+    //     } else if (auto* slider = qobject_cast<QAbstractSlider*>(feedback)) {
+    //         this->stateFeedBack(oscAddress, QVariant(slider->value()));
+    //         QObject::connect(slider, &QAbstractSlider::valueChanged, this, [this, oscAddress](int value) {
+    //             this->stateFeedBack(oscAddress, QVariant(value));
+    //         });
+    //     } else if (auto* spinBox = qobject_cast<QSpinBox*>(feedback)) {
+    //         this->stateFeedBack(oscAddress, QVariant(spinBox->value()));
+    //         QObject::connect(spinBox, QOverload<int>::of(&QSpinBox::valueChanged), this, [this, oscAddress](int value) {
+    //             this->stateFeedBack(oscAddress, QVariant(value));
+    //         });
+    //     } else if (auto* lineEdit = qobject_cast<QLineEdit*>(feedback)) {
+    //         this->stateFeedBack(oscAddress, QVariant(lineEdit->text()));
+    //         QObject::connect(lineEdit, &QLineEdit::textChanged, this, [this, oscAddress](const QString& text) {
+    //             this->stateFeedBack(oscAddress, QVariant(text));
+    //         });
+    //     } else if (auto* comboBox = qobject_cast<QComboBox*>(feedback)) {
+    //         this->stateFeedBack(oscAddress, QVariant(comboBox->currentIndex()));
+    //         QObject::connect(comboBox, &QComboBox::currentIndexChanged, this, [this, oscAddress](int value) {
+    //             this->stateFeedBack(oscAddress, QVariant(value));
+    //         });
+    //     } else if (auto* checkBox = qobject_cast<QCheckBox*>(feedback)) {
+    //         this->stateFeedBack(oscAddress, QVariant(checkBox->isChecked()));
+    //         QObject::connect(checkBox, &QCheckBox::checkStateChanged, this, [this, oscAddress](int state) {
+    //             this->stateFeedBack(oscAddress, QVariant(state));
+    //         });
+    //     }
+    // }
 
 
     QString makeFullOscAddress(const QString& oscAddress) const {
-        // 函数级注释：根据节点ID添加前缀
-        return  "/timeline/default/toolbar" + oscAddress;
+        // 函数级注释：根据模型别名添加前缀
+        const QString normOsc = oscAddress.startsWith('/') ? oscAddress : ("/" + oscAddress);
+        const QString alias = m_modelAlias.isEmpty() ? QString("/default") : m_modelAlias;
+        return alias  + normOsc;
     }
     void stateFeedBack(const QString& oscAddress, QVariant value) {
-        // 函数级注释：默认将状态写入到 StatusContainer，仅更新值
-        StatusContainer::instance()->updateState(oscAddress, value);
+        // 函数级注释：状态反馈统一走全局事件总线，由 StatusContainer 订阅反馈事件并写入本地状态
+        if (!m_busBound) {
+            return;
+        }
+        GlobalEventBus::instance()->publishState(oscAddress, value);
     }
+
+
 public slots:
+    /**
+     * 函数级注释：绑定全局事件总线订阅，并立即推送一次当前状态
+     */
+    void bindBus(const QString& modelAlias);
+
+    /**
+     * 函数级注释：主动发布一次当前状态（用于程序启动/加载工程后的初始状态同步）
+     */
+    void publishCurrentState();
+
+    /**
+     * 函数级注释：处理来自全局事件总线的外部命令，并转为工具栏动作/信号
+     */
+    void onGlobalEvent(const GlobalEvent& ev);
+
     /**
      * 设置播放状态
      * @param bool isPlaying 是否播放
@@ -203,7 +231,8 @@ private:
      */
     void setupUI() override;
 
-
+protected:
+    void startDrag(QAction* widget) override;
 private:
 
     //播放动作
@@ -242,6 +271,9 @@ private:
     QAction* m_locationAction;
     //是否播放
     bool m_isPlaying = false;
+
+    QString m_modelAlias;
+    bool m_busBound = false;
 };
 
 

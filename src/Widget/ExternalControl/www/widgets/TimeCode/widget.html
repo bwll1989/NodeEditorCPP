@@ -1,0 +1,17 @@
+<div :style="containerStyle">
+  <div v-if="!readOnly" :style="rowStyle">
+    <button type="button" :style="buttonStyle" @click="inc('h')">+</button>
+    <button type="button" :style="buttonStyle" @click="inc('m')">+</button>
+    <button type="button" :style="buttonStyle" @click="inc('s')">+</button>
+    <button type="button" :style="buttonStyle" @click="inc('f')">+</button>
+  </div>
+
+  <div :style="displayStyle">{{ timecodeText }}</div>
+
+  <div v-if="!readOnly" :style="rowStyle">
+    <button type="button" :style="buttonStyle" @click="dec('h')">-</button>
+    <button type="button" :style="buttonStyle" @click="dec('m')">-</button>
+    <button type="button" :style="buttonStyle" @click="dec('s')">-</button>
+    <button type="button" :style="buttonStyle" @click="dec('f')">-</button>
+  </div>
+</div>

@@ -8,6 +8,7 @@
 
 #include "TimeLineStyle.h"
 #include <QWidget>
+#include <QItemSelectionModel>
 #include "TimeLineNodeModel.h"
 #include "TimeLineNodeView.h"
 #include "TrackListNodeView.h"
@@ -34,6 +35,9 @@ public:
     TimeLineNodeToolBar* toolbar;
     //轨道列表
     TrackListNodeView* tracklist;
+
+    QItemSelectionModel* m_sharedSelectionModel {nullptr};
+    QObject* m_bindings {nullptr};
 signals:
     //初始化信号
     void initialized();

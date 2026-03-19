@@ -42,5 +42,5 @@ void TrackListNodeView::drawTitle(QPainter *painter) {
             painter->drawText(ruler,Qt::AlignCenter, derivedModel->getClock()->getCurrentAbsoluteTime());
         }
     }
-    painter->restore();  // 恢复状态
+    // painter->restore();  // 恢复状态
 }

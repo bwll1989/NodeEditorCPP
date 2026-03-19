@@ -51,14 +51,17 @@ public:
      */
     QString makeFullOscAddress(const QString& oscAddress) const {
         const QString norm = oscAddress.startsWith("/") ? oscAddress : ("/" + oscAddress);
-        return  "/timeline/" + m_modelAlias + "/" + QString::number(m_id)  + norm;
+        const QString modelAlias = m_timelineModel
+           ? m_timelineModel->data(QModelIndex(), TimelineRoles::TimelineModelAliasRole).toString()
+           : QStringLiteral("default");
+        return  modelAlias + "/" + QString::number(m_id)  + norm;
     }
 
     /**
      * 函数级注释：通过事件总线发送状态反馈事件，避免直接操作 StatusContainer
      * @param oscAddress 相对地址（形如 "/gain"），内部自动补全为完整地址
      */
-    void stateFeedBack(const QString& oscAddress, QVariant value) {
+    void stateFeedBack(const QString& oscAddress, QVariant value) override {
         GlobalEventBus::instance()->publishState(makeFullOscAddress(oscAddress), value);
     }
 

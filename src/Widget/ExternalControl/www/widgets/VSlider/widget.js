@@ -8,49 +8,37 @@
     const defaultTitle = initialProps.title || '竖向滑动条';
     const { node, mountNode } = createContainer(grid, defaultTitle, 4, 10, opts);
     
+    const defaults = {
+      commandId: '/cmd/demo',
+      bgColor: '#ffffff',
+      fontSize: '14',
+      min: 0,
+      max: 100,
+      value: 0,
+      height: '100%',
+      barColor: '#e5e7eb',
+      fillColor: '#2b6cb0',
+      valueColor: '#111827',
+      borderColor: '#e5e7eb',
+      borderStyle: 'solid'
+    };
+    const coercers = {
+      fontSize: (v) => String(v ?? '14'),
+      min: (v) => Number(v),
+      max: (v) => Number(v),
+      value: (v) => Number(v),
+      height: (v) => String(v ?? '100%')
+    };
+
     // 1. 同步注册基础 API
-    registerNode(node, '竖向滑动条', {
-      getProps(){ return { 
-          commandId: initialProps.commandId || '/cmd/demo', 
-          bgColor: initialProps.bgColor || '#ffffff',
-          fontSize: initialProps.fontSize || '14',
-          min: initialProps.min ?? 0, 
-          max: initialProps.max ?? 100, 
-          value: initialProps.value ?? 0,
-          height: initialProps.height || '100%',
-          barColor: initialProps.barColor || '#e5e7eb',
-          fillColor: initialProps.fillColor || '#2b6cb0',
-          valueColor: initialProps.valueColor || '#111827',
-          borderColor: initialProps.borderColor || '#e5e7eb',
-          borderStyle: initialProps.borderStyle || 'solid'
-      }; },
-      setProps(p){ 
-        if (p.commandId!==undefined) initialProps.commandId = p.commandId;
-        if (p.bgColor!==undefined) initialProps.bgColor = p.bgColor;
-        if (p.fontSize!==undefined) initialProps.fontSize = p.fontSize;
-        if (p.min!==undefined) initialProps.min = Number(p.min);
-        if (p.max!==undefined) initialProps.max = Number(p.max);
-        if (p.value!==undefined) initialProps.value = Number(p.value);
-        if (p.height!==undefined) initialProps.height = String(p.height);
-        if (p.barColor!==undefined) initialProps.barColor = p.barColor;
-        if (p.fillColor!==undefined) initialProps.fillColor = p.fillColor;
-        if (p.valueColor!==undefined) initialProps.valueColor = p.valueColor;
-        if (p.borderColor!==undefined) initialProps.borderColor = p.borderColor;
-        if (p.borderStyle!==undefined) initialProps.borderStyle = p.borderStyle;
-        if (node.vm) {
-          if (p.min!==undefined) node.vm.min = Number(p.min);
-          if (p.max!==undefined) node.vm.max = Number(p.max);
-          if (p.value!==undefined) node.vm.value = Number(p.value);
-          if (p.height!==undefined) node.vm.height = String(p.height);
-          if (p.barColor!==undefined) node.vm.barColor = p.barColor;
-          if (p.fillColor!==undefined) node.vm.fillColor = p.fillColor;
-          if (p.valueColor!==undefined) node.vm.valueColor = p.valueColor;
-          if (p.borderColor!==undefined) node.vm.borderColor = p.borderColor;
-          if (p.borderStyle!==undefined) node.vm.borderStyle = p.borderStyle;
-          if (p.fontSize!==undefined) node.vm.fontSize = p.fontSize;
-        }
-      }
-    });
+    registerNode(node, '竖向滑动条', window.EPWidgets.createPropsApi({
+      node,
+      initialProps,
+      vm: null,
+      defaults,
+      coercers,
+      valueMapper(value) { return { value: Number(value) }; }
+    }));
 
     if (!ready) {
       mountNode.innerHTML = '<div style="color:#b91c1c;font-size:12px;">Vue/ElementPlus 未加载或路径错误</div>';
@@ -160,41 +148,17 @@
       app.use(window.ElementPlus);
       const vm = app.mount(mountNode);
       
-      // 应用样式
-      if(initialProps.bgColor) node.querySelector('.grid-stack-item-content').style.backgroundColor = initialProps.bgColor;
-      if(initialProps.fontSize) node.style.fontSize = initialProps.fontSize + 'px';
+      window.EPWidgets.applyCommonStyle(node, initialProps || {});
 
       // 2. Vue 就绪后，覆盖注册
-      registerNode(node, '竖向滑动条', {
-        getProps(){ return { 
-            commandId: vm.commandId, 
-            bgColor: initialProps.bgColor, 
-            fontSize: initialProps.fontSize,
-            min: vm.min, 
-            max: vm.max, 
-            value: vm.value,
-            height: vm.height,
-            barColor: vm.barColor,
-            fillColor: vm.fillColor,
-            valueColor: vm.valueColor,
-            borderColor: vm.borderColor,
-            borderStyle: vm.borderStyle
-        }; },
-        setProps(p){ 
-          if (p.commandId!==undefined) vm.commandId = p.commandId; 
-          if (p.bgColor!==undefined) initialProps.bgColor = p.bgColor;
-          if (p.fontSize!==undefined) initialProps.fontSize = p.fontSize;
-          if (p.min!==undefined) vm.min = Number(p.min); 
-          if (p.max!==undefined) vm.max = Number(p.max); 
-          if (p.value!==undefined) vm.value = Number(p.value);
-          if (p.height!==undefined) vm.height = String(p.height);
-          if (p.barColor!==undefined) vm.barColor = p.barColor;
-          if (p.fillColor!==undefined) vm.fillColor = p.fillColor;
-          if (p.valueColor!==undefined) vm.valueColor = p.valueColor;
-          if (p.borderColor!==undefined) vm.borderColor = p.borderColor;
-          if (p.borderStyle!==undefined) vm.borderStyle = p.borderStyle;
-        }
-      });
+      registerNode(node, '竖向滑动条', window.EPWidgets.createPropsApi({
+        node,
+        initialProps,
+        vm,
+        defaults,
+        coercers,
+        valueMapper(value) { return { value: Number(value) }; }
+      }));
     }).catch(err => {
       mountNode.innerHTML = `<div style="color:red;font-size:12px;">加载模板失败: ${err}</div>`;
     });

@@ -20,6 +20,7 @@
 #include "BasePluginLoader.h"
 #include "TimelineInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "AbstractClipDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace std;
 using QtNodes::NodeData;
@@ -54,25 +55,10 @@ public:
         PortEditable=true;
         model = new TimeLineNodeModel();
         widget=new Nodes::TimelineInterface(model);
-        auto toolbar=dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar);
-        if (toolbar!= nullptr){
-            auto allActions=toolbar->allActions();
-
-            // 将 QAction 映射到其对应的 QWidget（例如 QToolButton）
-            QWidget* w = toolbar->widgetForAction(allActions["play"]);
-            if (w) {
-               AbstractDelegateModel::registerExternalControl("/play", w);
-            }
-            w = toolbar->widgetForAction(allActions["loop"]);
-            if (w) {
-               AbstractDelegateModel::registerExternalControl("/loop", w);
-            }
-            w = toolbar->widgetForAction(allActions["stop"]);
-            if (w) {
-               AbstractDelegateModel::registerExternalControl("/stop", w);
-            }
+        auto toolbar = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar);
+        if (toolbar != nullptr) {
+            connect(toolbar, &TimeLineNodeToolBar::loopToggled, this, &TimeLineDataModel::setIsLooping);
         }
-        AbstractDelegateModel::registerExternalControl("/play", widget->startButton);
         connect(widget->startButton, &QPushButton::clicked, this, &TimeLineDataModel::setIsPlaying);
     }
 
@@ -83,14 +69,31 @@ public:
         }
     }
 
+    /**
+     * 函数级注释：节点模型就绪回调
+     * - GraphModel 已分配 NodeID 与 ParentAlias，可安全拼接 /dataflow/... 完整地址
+     * - 同步设置 timeline 的 modelAlias，并让已加载的剪辑立刻完成控件注册与初始状态反馈
+     */
     void afterModelReady() override {
-        // Subscribe to GlobalEventBus
-        GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
-        GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
-        GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
-        // Connect clock signals to sync internal state and provide feedback
+        model->setModelAlias("dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()));
+
+        if (widget && widget->timeline && widget->timeline->toolbar) {
+            if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
+                tb->bindBus(getParentAlias(), getNodeID());
+            }
+        }
+
         if (model && model->getClock()) {
             connect(model->getClock(), &TimeLineNodeClock::timecodePlayingChanged, this, &TimeLineDataModel::onClockPlayingChanged);
+        }
+
+        for (TrackData* track : model->getTracks()) {
+            if (!track) continue;
+            for (AbstractClipModel* clip : track->clips) {
+                if (auto* delegate = dynamic_cast<AbstractClipDelegateModel*>(clip)) {
+                    delegate->onModelReady();
+                }
+            }
         }
     }
 
@@ -137,7 +140,6 @@ public:
         }
 
         emit isLoopingChanged(m_isLooping);
-        AbstractDelegateModel::stateFeedBack("/loop", m_isLooping);
     }
 
 public:
@@ -245,20 +247,6 @@ signals:
     void isPlayingChanged(bool playing);
     void isLoopingChanged(bool looping);
 
-public slots:
-    void onGlobalEvent(const GlobalEvent& ev) {
-        if (ev.kind == GlobalEventKind::Command) {
-            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
-            if (localPath == "play" || localPath == "start") {
-                if (ev.payload.isValid()) setIsPlaying(ev.payload.toBool());
-                else setIsPlaying(true);
-            }
-            else if (localPath == "stop") setIsPlaying(false);
-            else if (localPath == "pause") model->onPausePlay();
-            else if (localPath == "loop") setIsLooping(ev.payload.toBool());
-        }
-    }
-
 private slots:
 
     void setTimeLineState(bool const &string)
@@ -270,7 +258,19 @@ private slots:
         if (m_isPlaying != playing) {
             m_isPlaying = playing;
             emit isPlayingChanged(m_isPlaying);
-            AbstractDelegateModel::stateFeedBack("/play", m_isPlaying);
+
+            if (widget && widget->timeline && widget->timeline->toolbar) {
+                if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
+                    tb->setPlaybackState(m_isPlaying);
+                    tb->publishState("/play", m_isPlaying);
+                    tb->publishState("/stop", !m_isPlaying);
+                }
+            }
+
+            if (widget && widget->startButton) {
+                QSignalBlocker blocker(widget->startButton);
+                widget->startButton->setChecked(m_isPlaying);
+            }
         }
     }
 

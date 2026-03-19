@@ -63,7 +63,10 @@ void Clips::ArtnetClipModel::load(const QJsonObject& json)  {
     if (!m_filePath.isEmpty()) {
         loadArtnetInfo(AppConstants::MEDIA_LIBRARY_STORAGE_DIR+"/"+m_filePath);
     }
-    mediaSelector->setText(m_filePath);
+    {
+        QSignalBlocker blocker(mediaSelector);
+        mediaSelector->setText(m_filePath);
+    }
     AbstractClipModel::load(json);
     m_startUniverse->setValue(json["startUniverse"].toInt());
     targetHostEdit->setText( json["targetHost"].toString());
@@ -510,7 +513,22 @@ void Clips::ArtnetClipModel::afterModelReady()
         makeFullOscAddress("/file"),
         this,
         SLOT(onGlobalEvent(GlobalEvent))
-    );
+        );
+    GlobalEventBus::instance()->subscribe(
+       makeFullOscAddress("/start_frame"),
+       this,
+       SLOT(onGlobalEvent(GlobalEvent))
+   );
+    GlobalEventBus::instance()->subscribe(
+       makeFullOscAddress("/end_frame"),
+       this,
+       SLOT(onGlobalEvent(GlobalEvent))
+   );
+    GlobalEventBus::instance()->subscribe(
+       makeFullOscAddress("/position_frame"),
+       this,
+       SLOT(onGlobalEvent(GlobalEvent))
+   );
 }
 
 void Clips::ArtnetClipModel::onGlobalEvent(const GlobalEvent& ev)
@@ -522,6 +540,9 @@ void Clips::ArtnetClipModel::onGlobalEvent(const GlobalEvent& ev)
     const QString addrUniverse = makeFullOscAddress("/universe");
     const QString addrHost = makeFullOscAddress("/host");
     const QString addrFile = makeFullOscAddress("/file");
+    const QString addrStartFrame = makeFullOscAddress("/start_frame");
+    const QString addrEndFrame = makeFullOscAddress("/end_frame");
+    const QString addrPositionFrame = makeFullOscAddress("/position_frame");
 
     if (ev.address == addrUniverse && m_startUniverse) {
         bool ok = false;
@@ -543,6 +564,31 @@ void Clips::ArtnetClipModel::onGlobalEvent(const GlobalEvent& ev)
         onFileChanged(file);
         QSignalBlocker blocker(mediaSelector);
         mediaSelector->setText(file);
+    } else if (ev.address == addrStartFrame && timeGroupBox->m_startFrameSpinBox) {
+        bool ok = false;
+        int v = ev.payload.toInt(&ok);
+        if (!ok) return;
+        QSignalBlocker blocker(timeGroupBox->m_startFrameSpinBox);
+        setStart(v);
+        timeGroupBox->m_startFrameSpinBox->setValue(v);
+    } else if (ev.address == addrEndFrame && timeGroupBox->m_endFrameSpinBox) {
+        bool ok = false;
+        int v = ev.payload.toInt(&ok);
+        if (!ok) return;
+        QSignalBlocker blocker(timeGroupBox->m_endFrameSpinBox);
+        setEnd(v);
+        timeGroupBox->m_endFrameSpinBox->setValue(v);
+    } else if (ev.address == addrPositionFrame && timeGroupBox->m_endFrameSpinBox&&timeGroupBox->m_startFrameSpinBox) {
+        bool ok = false;
+        int v = ev.payload.toInt(&ok);
+        if (!ok) return;
+        int len = length();
+        QSignalBlocker blocker(timeGroupBox->m_startFrameSpinBox);
+        QSignalBlocker blocker2(timeGroupBox->m_endFrameSpinBox);
+        setStart(v);
+        setEnd(v+len);
+        timeGroupBox->m_startFrameSpinBox->setValue(v);
+        timeGroupBox->m_endFrameSpinBox->setValue(v+len);
     }
 }
 

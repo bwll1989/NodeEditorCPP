@@ -4,6 +4,9 @@
 
 #include "TimeLineModel.h"
 #include <QMessageBox>
+
+#include "AbstractClipDelegateModel.h"
+
 TimeLineModel::TimeLineModel(QObject* parent):m_stage(new TimeLineStage()),m_clock(new TimeLineClock(this))
 {
     connect(m_clock,&TimeLineClock::currentFrameChanged,this,&TimeLineModel::onGetClipCurrentData);
@@ -34,7 +37,14 @@ void TimeLineModel::load(const QJsonObject& json)
         qCritical() << tr("基础数据加载失败:\n%1").arg(e.what());
         return;
     }
-
+    for (TrackData* track : getTracks()) {
+            if (!track) continue;
+            for (AbstractClipModel* clip : track->clips) {
+                if (auto* delegate = dynamic_cast<AbstractClipDelegateModel*>(clip)) {
+                    delegate->onModelReady();
+                }
+            }
+        }
     try { // 舞台数据加载
         m_stage->load(json["stage"].toObject());
     } catch (const std::exception& e) {

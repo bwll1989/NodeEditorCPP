@@ -88,6 +88,111 @@ function loadTemplate(path) {
   return fetch(path).then(res => res.text());
 }
 
+// 函数级注释：将任意输入转换为布尔（兼容 true/"true"/1 等）
+function toBool(v) {
+  if (v === true) return true;
+  if (v === false) return false;
+  const s = String(v ?? '').trim().toLowerCase();
+  if (s === 'true' || s === '1' || s === 'on' || s === 'yes') return true;
+  if (s === 'false' || s === '0' || s === 'off' || s === 'no' || s === '') return false;
+  return !!v;
+}
+
+// 函数级注释：应用通用容器样式（背景色与字号），用于所有控件一致的外观
+function applyCommonStyle(node, props) {
+  try {
+    const inner = node && node.querySelector ? node.querySelector('.grid-stack-item-content') : null;
+    if (inner && props && props.bgColor) inner.style.backgroundColor = props.bgColor;
+    if (node && props && props.fontSize !== undefined && props.fontSize !== null) {
+      const fs = Number(props.fontSize);
+      if (!Number.isNaN(fs)) node.style.fontSize = fs + 'px';
+    }
+  } catch {}
+}
+
+// 函数级注释：基于 defaults/initialProps/vm 自动生成 getProps/setProps，减少每个控件重复代码
+function createPropsApi(params) {
+  const { node, initialProps, vm, defaults, propKeys, valueMapper, coercers } = params || {};
+  const keys = Array.isArray(propKeys) ? propKeys : Object.keys(defaults || {});
+
+  if (defaults && initialProps) {
+    keys.forEach(k => {
+      if (initialProps[k] === undefined) initialProps[k] = defaults[k];
+    });
+  }
+
+  return {
+    getProps() {
+      const out = {};
+      keys.forEach(k => {
+        if (vm && vm[k] !== undefined) out[k] = vm[k];
+        else if (initialProps && initialProps[k] !== undefined) out[k] = initialProps[k];
+        else if (defaults && defaults[k] !== undefined) out[k] = defaults[k];
+      });
+      return out;
+    },
+    setProps(p) {
+      if (!p) return;
+      let patch = p;
+      if (p.value !== undefined && typeof valueMapper === 'function') {
+        try {
+          const mapped = valueMapper(p.value);
+          if (mapped && typeof mapped === 'object') patch = Object.assign({}, p, mapped);
+        } catch {}
+      }
+
+      keys.forEach(k => {
+        if (patch[k] === undefined) return;
+        let val = patch[k];
+        if (coercers && coercers[k]) {
+          try { val = coercers[k](val); } catch {}
+        }
+        if (initialProps) initialProps[k] = val;
+        if (vm) {
+          try { vm[k] = val; } catch {}
+        }
+      });
+
+      if (patch.bgColor !== undefined || patch.fontSize !== undefined) {
+        applyCommonStyle(node, initialProps || patch);
+      }
+    }
+  };
+}
+
+// 函数级注释：创建并挂载一个基于模板的 Vue/ElementPlus 控件（自动注册属性API与应用通用样式）
+function createVueWidget(grid, cfg) {
+  const { type, templatePath, initialProps, opts, defaultW, defaultH, defaults, propKeys, valueMapper, coercers, appFactory } = cfg || {};
+  const { getVue, registerNode, createContainer } = window.EPWidgets || {};
+
+  const vue = getVue && getVue();
+  const ready = !!vue && !!window.ElementPlus;
+  const title = (initialProps && initialProps.title) || type || '控件';
+  const { node, mountNode } = createContainer(grid, title, defaultW || 4, defaultH || 2, opts || {});
+
+  registerNode(node, type || title, createPropsApi({ node, initialProps, vm: null, defaults: defaults || {}, propKeys, valueMapper, coercers }));
+
+  if (!ready) {
+    mountNode.innerHTML = '<div style="color:#b91c1c;font-size:12px;">Vue/ElementPlus 未加载或路径错误</div>';
+    return node;
+  }
+
+  loadTemplate(templatePath).then(template => {
+    const appOptions = (typeof appFactory === 'function') ? appFactory(template) : { template };
+    const app = vue.createApp(appOptions);
+    app.use(window.ElementPlus);
+    const vm = app.mount(mountNode);
+    node.vm = vm;
+
+    applyCommonStyle(node, initialProps || {});
+    registerNode(node, type || title, createPropsApi({ node, initialProps, vm, defaults: defaults || {}, propKeys, valueMapper, coercers }));
+  }).catch(err => {
+    mountNode.innerHTML = `<div style="color:red;font-size:12px;">加载模板失败: ${err}</div>`;
+  });
+
+  return node;
+}
+
 // 函数级注释：导出核心工具库
 window.EPWidgets = {
   getVue,
@@ -96,6 +201,10 @@ window.EPWidgets = {
   getProps,
   setProps,
   loadTemplate,
+  toBool,
+  applyCommonStyle,
+  createPropsApi,
+  createVueWidget,
   // 函数级注释：向后端发送指令JSON（addr/value）
   sendCommand(addr, value) {
     if (this.isRemoteUpdating) return Promise.resolve({ ok: true });
@@ -106,7 +215,6 @@ window.EPWidgets = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       }).then(r => r.text()).then(t => {
-        // 容错：后端若返回非严格JSON，也不影响调用方
         try { return JSON.parse(t); } catch { return { ok: true, raw: t }; }
       }).catch(() => ({ ok: false }));
     } catch {

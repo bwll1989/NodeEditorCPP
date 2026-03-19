@@ -409,7 +409,7 @@ void MainWindow::loadFileFromPath(const QString &path)
         ConfigManager::instance().addRecentFile(absolutePath);
         menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
 
-
+        currentProjectPath=absolutePath;
    
         this->setWindowTitle(ConfigManager::instance().getCurrentFlowPath().split("/").last());
         splashScreen.updateStatus(tr("Load flow file completed"));

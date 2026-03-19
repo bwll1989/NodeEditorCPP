@@ -10,6 +10,7 @@
 #include "TrackListView.h"
 #include <QSplitter>
 #include <QVBoxLayout>
+#include <QItemSelectionModel>
 #include "./TimelineSettingWidget/TimeLineSetting.hpp"
 
 
@@ -61,6 +62,9 @@ private:
      * 创建组件
      */
     void createComponents();
+
+    QItemSelectionModel* m_sharedSelectionModel {nullptr};
+    QObject* m_bindings {nullptr};
 
 };
 

@@ -112,8 +112,10 @@ namespace Clips
         void load(const QJsonObject& json) override {
             AbstractClipModel::load(json);
             m_filePath = json["file"].toString();
-            mediaSelector->setText(m_filePath);
-
+            {
+                QSignalBlocker blocker(mediaSelector);
+                mediaSelector->setText(m_filePath);
+            }
             if(json.contains("position")) {
                 QJsonObject position = json["position"].toObject();
                 postion_x->setValue(position["x"].toInt());
@@ -326,6 +328,10 @@ namespace Clips
             const QString addrHeight = makeFullOscAddress("/height");
             const QString addrLayer = makeFullOscAddress("/layer");
             const QString addrRotation = makeFullOscAddress("/rotation");
+            const QString addrFile = makeFullOscAddress("/file");
+            const QString addrStartFrame = makeFullOscAddress("/start_frame");
+            const QString addrEndFrame = makeFullOscAddress("/end_frame");
+            const QString addrPositionFrame = makeFullOscAddress("/position_frame");
 
             if (ev.address == addrPosX && postion_x) {
                 bool ok = false;
@@ -369,6 +375,37 @@ namespace Clips
                 onRotationChange(v);
                 QSignalBlocker blocker(rotation);
                 rotation->setValue(v);
+            }else if (ev.address == addrFile && mediaSelector) {
+                const QString file = ev.payload.toString();
+                if (file.isEmpty()) return;
+                onFileChange(file);
+                QSignalBlocker blocker(mediaSelector);
+                mediaSelector->setText(file);
+            } else if (ev.address == addrStartFrame && timeGroupBox->m_startFrameSpinBox) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                QSignalBlocker blocker(timeGroupBox->m_startFrameSpinBox);
+                setStart(v);
+                timeGroupBox->m_startFrameSpinBox->setValue(v);
+            } else if (ev.address == addrEndFrame && timeGroupBox->m_endFrameSpinBox) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                QSignalBlocker blocker(timeGroupBox->m_endFrameSpinBox);
+                setEnd(v);
+                timeGroupBox->m_endFrameSpinBox->setValue(v);
+            } else if (ev.address == addrPositionFrame && timeGroupBox->m_endFrameSpinBox&&timeGroupBox->m_startFrameSpinBox) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                int len = length();
+                QSignalBlocker blocker(timeGroupBox->m_startFrameSpinBox);
+                QSignalBlocker blocker2(timeGroupBox->m_endFrameSpinBox);
+                setStart(v);
+                setEnd(v+len);
+                timeGroupBox->m_startFrameSpinBox->setValue(v);
+                timeGroupBox->m_endFrameSpinBox->setValue(v+len);
             }
         }
     protected:
@@ -405,7 +442,26 @@ namespace Clips
                 makeFullOscAddress("/rotation"),
                 this,
                 SLOT(onGlobalEvent(GlobalEvent))
+            ); GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/file"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
             );
+             GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/start_frame"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+               makeFullOscAddress("/end_frame"),
+               this,
+               SLOT(onGlobalEvent(GlobalEvent))
+           );
+            GlobalEventBus::instance()->subscribe(
+               makeFullOscAddress("/position_frame"),
+               this,
+               SLOT(onGlobalEvent(GlobalEvent))
+           );
         }
     private:
         QString m_filePath;

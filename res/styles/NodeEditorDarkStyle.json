@@ -15,7 +15,7 @@
     "GradientColor3": [58, 58, 58],
     "ShadowColor": [255, 20, 20],
     "ShadowEnabled":false,
-    "FontColor" : [255, 255, 255],
+    "FontColor" : [26, 26, 26],
     "FontColorFaded" : "gray",
     "ConnectionPointColor": [169, 169, 169],
     "FilledConnectionPointColor": "cyan",

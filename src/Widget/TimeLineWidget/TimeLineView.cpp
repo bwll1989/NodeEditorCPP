@@ -13,8 +13,8 @@ TimeLineView::TimeLineView(TimeLineModel* model, QWidget *parent) : BaseTimeline
     // 连接时间码生成器信号
     // 使用lambda表达式来处理时间码变化信号
     connect(derivedModel->getClock(), &TimeLineClock::currentFrameChanged,
-        [this](int frame) {
-            viewport()->update();  // 触发viewport的更新
+        [this](int) {
+            scheduleRedraw();
         });
 
     setAcceptDrops(true);
@@ -27,7 +27,7 @@ void TimeLineView::movePlayheadToFrame(int frame)
     {
 
         getModel()->onSetPlayheadPos(frame);
-        viewport()->update();
+        scheduleRedraw();
     }
 }
 
@@ -118,7 +118,7 @@ void TimeLineView::dropEvent(QDropEvent *event)
         int pos = pointToFrame(m_lastDragPos.x());
 
         getModel()->onAddClip(trackIndex.row(),pos);
-        viewport()->update();
+        scheduleRedraw();
         if(event->mimeData()->hasFormat("application/x-osc-address")){
             QDataStream stream(event->mimeData()->data("application/x-osc-address"));
             QString address, host,type;
@@ -163,6 +163,7 @@ void TimeLineView::initToolBar(BaseTimelineToolbar *toolbar)
     connect(dynamic_cast<TimeLineToolBar*>(this->m_toolbar), &TimeLineToolBar::playClicked, [this]() {
         getModel()->onStartPlay();
     });
+
     // 连接工具栏停止按钮信号
     connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::stopClicked, [this]() {
         getModel()->onStopPlay();
@@ -193,7 +194,7 @@ void TimeLineView::initToolBar(BaseTimelineToolbar *toolbar)
         selectionModel()->clearSelection();
         emit currentClipChanged(nullptr);
 
-        viewport()->update();
+        scheduleRedraw();
     });
 
     // 连接放大按钮信号

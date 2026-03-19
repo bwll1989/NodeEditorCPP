@@ -2,121 +2,71 @@
 (function(){
   window.EPWidgets = window.EPWidgets || {};
   window.EPWidgets.createEPSwitchWidget = function(grid, initialProps = {}, opts = {}) {
-    const { getVue, registerNode, createContainer, loadTemplate } = window.EPWidgets;
-    const vue = getVue();
-    const ready = !!vue && !!window.ElementPlus;
-    const defaultTitle = initialProps.title || '开关';
-    const { node, mountNode } = createContainer(grid, defaultTitle, 8, 2, opts);
-    
-    // 1. 同步注册基础 API
-    registerNode(node, '开关', {
-      getProps(){ return { 
-          commandId: initialProps.commandId || '/cmd/demo', 
-          bgColor: initialProps.bgColor || '#ffffff',
-          fontSize: initialProps.fontSize || '14',
-          checked: initialProps.checked ?? false,
-          // 样式属性
-          onColor: initialProps.onColor || '#13ce66',
-          offColor: initialProps.offColor || '#ff4949',
-          borderColor: initialProps.borderColor || '#e5e7eb',
-          borderStyle: initialProps.borderStyle || 'solid'
-      }; },
-      setProps(p){ 
-        // 兼容 value 属性更新状态
-        if (p.value !== undefined) {
-            const v = p.value;
-            p.checked = (v === true || String(v).toLowerCase() === 'true' || v == 1);
-        }
-        if (p.commandId!==undefined) initialProps.commandId = p.commandId;
-        if (p.bgColor!==undefined) initialProps.bgColor = p.bgColor;
-        if (p.fontSize!==undefined) initialProps.fontSize = p.fontSize;
-        if (p.checked!==undefined) initialProps.checked = !!p.checked;
-        if (p.onColor!==undefined) initialProps.onColor = p.onColor;
-        if (p.offColor!==undefined) initialProps.offColor = p.offColor;
-        if (p.borderColor!==undefined) initialProps.borderColor = p.borderColor;
-        if (p.borderStyle!==undefined) initialProps.borderStyle = p.borderStyle;
+    const defaults = {
+      commandId: '/cmd/demo',
+      bgColor: '#ffffff',
+      fontSize: '14',
+      checked: false,
+      onColor: '#13ce66',
+      offColor: '#ff4949',
+      borderColor: '#e5e7eb',
+      borderStyle: 'solid'
+    };
+
+    return window.EPWidgets.createVueWidget(grid, {
+      type: '开关',
+      templatePath: 'widgets/Switch/widget.html',
+      initialProps,
+      opts,
+      defaultW: 8,
+      defaultH: 2,
+      defaults,
+      valueMapper(value) {
+        return { checked: window.EPWidgets.toBool(value) };
+      },
+      appFactory(template) {
+        return {
+          template,
+          data() {
+            return {
+              checked: initialProps.checked ?? defaults.checked,
+              commandId: initialProps.commandId ?? defaults.commandId,
+              onColor: initialProps.onColor ?? defaults.onColor,
+              offColor: initialProps.offColor ?? defaults.offColor,
+              borderColor: initialProps.borderColor ?? defaults.borderColor,
+              borderStyle: initialProps.borderStyle ?? defaults.borderStyle
+            };
+          },
+          watch: {
+            // 函数级注释：开关状态变化即发送命令
+            checked(nv) {
+              const addr = this.commandId || defaults.commandId;
+              window.EPWidgets.sendCommand(addr, nv ? '1' : '0');
+            }
+          },
+          computed: {
+            // 函数级注释：计算容器样式（用于边框自定义）
+            containerStyle() {
+              return {
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderColor: this.borderColor,
+                borderStyle: this.borderStyle
+              };
+            },
+            // 函数级注释：计算开关样式（通过 ElementPlus CSS 变量强制应用 on/off 颜色）
+            switchStyle() {
+              return {
+                '--el-switch-on-color': this.onColor,
+                '--el-switch-off-color': this.offColor
+              };
+            }
+          }
+        };
       }
     });
-
-    if (!ready) {
-      mountNode.innerHTML = '<div style="color:#b91c1c;font-size:12px;">Vue/ElementPlus 未加载或路径错误</div>';
-      return node;
-    }
-
-    loadTemplate('widgets/Switch/widget.html').then(template => {
-      const app = vue.createApp({
-        template: template,
-        data() {
-          return { 
-              checked: initialProps.checked ?? false,
-              commandId: initialProps.commandId || '/cmd/demo',
-              onColor: initialProps.onColor || '#13ce66',
-              offColor: initialProps.offColor || '#ff4949',
-              borderColor: initialProps.borderColor || '#e5e7eb',
-              borderStyle: initialProps.borderStyle || 'solid'
-          };
-        },
-        watch: {
-          // 函数级注释：开关状态变化即发送命令
-          checked(nv) {
-            const addr = this.commandId || '/cmd/demo';
-            window.EPWidgets.sendCommand(addr, nv ? '1' : '0');
-          }
-        },
-        computed: {
-          // 函数级注释：计算容器样式（用于边框自定义）
-          containerStyle() {
-            return {
-              width: '100%',
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderColor: this.borderColor,
-              borderStyle: this.borderStyle
-            };
-          }
-        }
-      });
-      app.use(window.ElementPlus);
-      const vm = app.mount(mountNode);
-      
-      // 应用样式
-      if(initialProps.bgColor) node.querySelector('.grid-stack-item-content').style.backgroundColor = initialProps.bgColor;
-      if(initialProps.fontSize) node.style.fontSize = initialProps.fontSize + 'px';
-
-      // 2. Vue 就绪后，覆盖注册
-      registerNode(node, '开关', {
-        getProps(){ return { 
-            commandId: vm.commandId, 
-            bgColor: initialProps.bgColor, 
-            fontSize: initialProps.fontSize,
-            checked: !!vm.checked,
-            onColor: vm.onColor,
-            offColor: vm.offColor,
-            borderColor: vm.borderColor,
-            borderStyle: vm.borderStyle
-        }; },
-        setProps(p){ 
-          // 兼容 value 属性更新状态
-          if (p.value !== undefined) {
-              const v = p.value;
-              vm.checked = (v === true || String(v).toLowerCase() === 'true' || v == 1);
-          }
-          if (p.commandId!==undefined) vm.commandId = p.commandId; 
-          if (p.bgColor!==undefined) initialProps.bgColor = p.bgColor;
-          if (p.fontSize!==undefined) initialProps.fontSize = p.fontSize;
-          if (p.checked!==undefined) vm.checked = !!p.checked; 
-          if (p.onColor!==undefined) vm.onColor = p.onColor;
-          if (p.offColor!==undefined) vm.offColor = p.offColor;
-          if (p.borderColor!==undefined) vm.borderColor = p.borderColor;
-          if (p.borderStyle!==undefined) vm.borderStyle = p.borderStyle;
-        }
-      });
-    }).catch(err => {
-      mountNode.innerHTML = `<div style="color:red;font-size:12px;">加载模板失败: ${err}</div>`;
-    });
-
-    return node;
   };
 })();

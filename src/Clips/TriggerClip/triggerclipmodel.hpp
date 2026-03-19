@@ -17,7 +17,7 @@ namespace Clips
         m_editor(nullptr),
         m_listWidget(new OSCMessageListWidget(true,m_editor))
         {
-            setEnd(start);
+            m_end=start;
             RESIZEABLE = false;
             EMBEDWIDGET = false;
             SHOWBORDER = false;
@@ -77,10 +77,11 @@ namespace Clips
             playLayout->setContentsMargins(0, 0, 0, 0);
             playLayout->addWidget(m_listWidget);
             // 测试按钮
-            auto* sendButton = new QPushButton("测试发送", m_editor);
+            sendButton = new QPushButton("测试发送", m_editor);
             connect(sendButton, &QPushButton::clicked, [=]() {
                 trigger();
             });
+            AbstractClipDelegateModel::registerExternalControl("/send",sendButton);
             playLayout->addWidget(sendButton);
             mainLayout->addWidget(playGroup);
             return m_editor;
@@ -129,9 +130,81 @@ namespace Clips
             painter->setPen(QPen(ClipBorderColour, 1));
             painter->restore();  // 恢复状态
         }
+    public slots:
+        /**
+         * 函数级注释：处理来自全局事件总线的外部命令，调用业务槽并阻断控件信号
+         */
+        void onGlobalEvent(const GlobalEvent& ev){
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
 
+            const QString addrStartFrame = makeFullOscAddress("/start_frame");
+            const QString addrEndFrame = makeFullOscAddress("/end_frame");
+            const QString addrPositionFrame = makeFullOscAddress("/position_frame");
+            const QString addrSend = makeFullOscAddress("/send");
+           if (ev.address == addrStartFrame && timeGroupBox->m_startFrameSpinBox) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                QSignalBlocker blocker(timeGroupBox->m_startFrameSpinBox);
+                setStart(v);
+                timeGroupBox->m_startFrameSpinBox->setValue(v);
+            } else if (ev.address == addrEndFrame && timeGroupBox->m_endFrameSpinBox) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                QSignalBlocker blocker(timeGroupBox->m_endFrameSpinBox);
+                setEnd(v);
+                timeGroupBox->m_endFrameSpinBox->setValue(v);
+            } else if (ev.address == addrPositionFrame && timeGroupBox->m_endFrameSpinBox&&timeGroupBox->m_startFrameSpinBox) {
+                bool ok = false;
+                int v = ev.payload.toInt(&ok);
+                if (!ok) return;
+                int len = length();
+                QSignalBlocker blocker(timeGroupBox->m_startFrameSpinBox);
+                QSignalBlocker blocker2(timeGroupBox->m_endFrameSpinBox);
+                setStart(v);
+                setEnd(v+len);
+                timeGroupBox->m_startFrameSpinBox->setValue(v);
+                timeGroupBox->m_endFrameSpinBox->setValue(v+len);
+            }else if (ev.address == addrSend ) {
+                bool v = ev.payload.toBool();
+                if (!v) return;
+                trigger();
+            }
+        }
+
+    protected:
+        /**
+         * 函数级注释：剪辑模型初始化完成后订阅位置与尺寸相关的外部命令
+         */
+        void afterModelReady() override{
+
+             GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/start_frame"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+               makeFullOscAddress("/end_frame"),
+               this,
+               SLOT(onGlobalEvent(GlobalEvent))
+           );
+            GlobalEventBus::instance()->subscribe(
+               makeFullOscAddress("/position_frame"),
+               this,
+               SLOT(onGlobalEvent(GlobalEvent))
+           );
+            GlobalEventBus::instance()->subscribe(
+               makeFullOscAddress("/send"),
+               this,
+               SLOT(onGlobalEvent(GlobalEvent))
+           );
+        }
     private:
         QWidget* m_editor;
+        QPushButton* sendButton;
         OSCMessageListWidget* m_listWidget;
     };
 }

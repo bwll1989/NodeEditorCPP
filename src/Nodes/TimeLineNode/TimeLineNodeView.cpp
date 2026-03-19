@@ -12,8 +12,8 @@ TimeLineNodeView::TimeLineNodeView(TimeLineNodeModel* model, QWidget *parent) : 
     // 连接时间码生成器信号
     // 使用lambda表达式来处理时间码变化信号
     connect(derivedModel->getClock(), &TimeLineNodeClock::currentFrameChanged,
-        [this](int frame) {
-            viewport()->update();  // 触发viewport的更新
+        [this](int) {
+            scheduleRedraw();
         });
 
     setAcceptDrops(true);
@@ -25,7 +25,7 @@ void TimeLineNodeView::movePlayheadToFrame(int frame)
     {
         // derivedModel->getClock()->setCurrentFrame(frame);
         getModel()->onSetPlayheadPos(frame);
-        viewport()->update();
+        scheduleRedraw();
     }
 }
 
@@ -116,7 +116,7 @@ void TimeLineNodeView::dropEvent(QDropEvent *event)
         int pos = pointToFrame(m_lastDragPos.x());
 
         getModel()->onAddClip(trackIndex.row(),pos);
-        viewport()->update();
+        scheduleRedraw();
         auto doc=getModel()->getTracks()[trackIndex.row()]->clips.back()->save();
         if(event->mimeData()->hasFormat("application/x-osc-address")){
             QDataStream stream(event->mimeData()->data("application/x-osc-address"));
@@ -192,7 +192,7 @@ void TimeLineNodeView::initToolBar(BaseTimelineToolbar *toolbar)
         selectionModel()->clearSelection();
         emit currentClipChanged(nullptr);
 
-        viewport()->update();
+        scheduleRedraw();
     });
 
     // 连接放大按钮信号

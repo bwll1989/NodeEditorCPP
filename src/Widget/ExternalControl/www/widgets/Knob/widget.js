@@ -9,54 +9,41 @@
     // 默认 4x4 大小 (GridStack 48列模式下)
     const { node, mountNode } = createContainer(grid, defaultTitle, 4, 4, opts);
     
+    const defaults = {
+      commandId: '/cmd/demo',
+      bgColor: '#ffffff',
+      fontSize: '14',
+      min: 0,
+      max: 100,
+      value: 0,
+      step: 1,
+      valueColor: '#3B82F6',
+      rangeColor: '#dfe7ef',
+      strokeWidth: 14,
+      showValue: true,
+      textColor: '#495057',
+      borderColor: '#dfe7ef',
+      borderStyle: 'solid'
+    };
+    const coercers = {
+      fontSize: (v) => String(v ?? '14'),
+      min: (v) => Number(v),
+      max: (v) => Number(v),
+      value: (v) => Number(v),
+      step: (v) => Number(v),
+      strokeWidth: (v) => Number(v),
+      showValue: (v) => window.EPWidgets.toBool(v)
+    };
+
     // 1. 同步注册基础 API
-    registerNode(node, '旋钮', {
-      getProps(){ return { 
-          commandId: initialProps.commandId || '/cmd/demo', 
-          min: initialProps.min ?? 0, 
-          max: initialProps.max ?? 100, 
-          value: initialProps.value ?? 0,
-          step: initialProps.step ?? 1,
-          valueColor: initialProps.valueColor || '#3B82F6',
-          rangeColor: initialProps.rangeColor || '#dfe7ef',
-          strokeWidth: initialProps.strokeWidth || 14,
-          showValue: initialProps.showValue ?? true,
-          // 样式属性
-          textColor: initialProps.textColor || '#495057',
-          borderColor: initialProps.borderColor || '#dfe7ef',
-          borderStyle: initialProps.borderStyle || 'solid'
-      }; },
-      setProps(p){ 
-        if (p.commandId!==undefined) initialProps.commandId = p.commandId;
-        if (p.min!==undefined) initialProps.min = Number(p.min);
-        if (p.max!==undefined) initialProps.max = Number(p.max);
-        if (p.value!==undefined) initialProps.value = Number(p.value);
-        if (p.step!==undefined) initialProps.step = Number(p.step);
-        if (p.valueColor!==undefined) initialProps.valueColor = p.valueColor;
-        if (p.rangeColor!==undefined) initialProps.rangeColor = p.rangeColor;
-        if (p.strokeWidth!==undefined) initialProps.strokeWidth = Number(p.strokeWidth);
-        if (p.showValue!==undefined) initialProps.showValue = !!p.showValue;
-        if (p.textColor!==undefined) initialProps.textColor = p.textColor;
-        if (p.borderColor!==undefined) initialProps.borderColor = p.borderColor;
-        if (p.borderStyle!==undefined) initialProps.borderStyle = p.borderStyle;
-        
-        // Update Vue instance if it exists
-        if (node.vm) {
-            if (p.min!==undefined) node.vm.min = Number(p.min);
-            if (p.max!==undefined) node.vm.max = Number(p.max);
-            if (p.value!==undefined) node.vm.value = Number(p.value);
-            if (p.step!==undefined) node.vm.step = Number(p.step);
-            if (p.valueColor!==undefined) node.vm.valueColor = p.valueColor;
-            if (p.rangeColor!==undefined) node.vm.rangeColor = p.rangeColor;
-            if (p.strokeWidth!==undefined) node.vm.strokeWidth = Number(p.strokeWidth);
-            if (p.showValue!==undefined) node.vm.showValue = !!p.showValue;
-            if (p.commandId!==undefined) node.vm.commandId = p.commandId;
-            if (p.textColor!==undefined) node.vm.textColor = p.textColor;
-            if (p.borderColor!==undefined) node.vm.borderColor = p.borderColor;
-            if (p.borderStyle!==undefined) node.vm.borderStyle = p.borderStyle;
-        }
-      }
-    });
+    registerNode(node, '旋钮', window.EPWidgets.createPropsApi({
+      node,
+      initialProps,
+      vm: null,
+      defaults,
+      coercers,
+      valueMapper(value) { return { value: Number(value) }; }
+    }));
 
     if (!ready) {
       mountNode.innerHTML = '<div style="color:#b91c1c;font-size:12px;">Vue/ElementPlus 未加载或路径错误</div>';
@@ -184,8 +171,19 @@
             }
         }
       });
+      app.use(window.ElementPlus);
       const vm = app.mount(mountNode);
       node.vm = vm; // store view model instance
+
+      window.EPWidgets.applyCommonStyle(node, initialProps || {});
+      registerNode(node, '旋钮', window.EPWidgets.createPropsApi({
+        node,
+        initialProps,
+        vm,
+        defaults,
+        coercers,
+        valueMapper(value) { return { value: Number(value) }; }
+      }));
     });
 
     return node;

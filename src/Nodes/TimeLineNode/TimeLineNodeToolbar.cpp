@@ -7,6 +7,7 @@
 #include <QStyle>
 #include <QApplication>
 #include <QClipboard>
+#include <QSignalBlocker>
 
 TimeLineNodeToolBar::TimeLineNodeToolBar(QWidget* parent)
     : BaseTimelineToolbar(parent)
@@ -17,6 +18,94 @@ TimeLineNodeToolBar::TimeLineNodeToolBar(QWidget* parent)
 
 TimeLineNodeToolBar::~TimeLineNodeToolBar()
 {
+}
+
+QString TimeLineNodeToolBar::makeBusAddress(const QString& relative) const
+{
+    const QString norm = relative.startsWith('/') ? relative : ("/" + relative);
+    return "/dataflow/" + m_parentAlias + "/" + QString::number(m_nodeId) + norm;
+}
+
+void TimeLineNodeToolBar::publishState(const QString& relative, const QVariant& value)
+{
+    if (!m_busBound) {
+        return;
+    }
+    GlobalEventBus::instance()->publishState(makeBusAddress(relative), value);
+}
+
+void TimeLineNodeToolBar::bindBus(const QString& parentAlias, int nodeId)
+{
+    if (m_busBound) {
+        return;
+    }
+    if (parentAlias.isEmpty() || nodeId < 0) {
+        return;
+    }
+    //首先校验起始，保证以/开头
+    m_parentAlias = parentAlias.startsWith('/') ? parentAlias : ("/" + parentAlias);
+    m_nodeId = nodeId;
+    m_busBound = true;
+
+    GlobalEventBus::instance()->subscribe(makeBusAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeBusAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeBusAddress("/pause"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeBusAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    connect(this, &TimeLineNodeToolBar::loopToggled, this, [this](bool enabled) {
+        publishState("/loop", enabled);
+    });
+    //立即发送一次状态
+    publishState("/play", m_isPlaying);
+    publishState("/stop", !m_isPlaying);
+    publishState("/loop", m_loopAction ? m_loopAction->isChecked() : false);
+}
+
+void TimeLineNodeToolBar::onGlobalEvent(const GlobalEvent& ev)
+{
+    if (ev.kind != GlobalEventKind::Command) {
+        return;
+    }
+
+    if (ev.address == makeBusAddress("/play")) {
+        const bool wantPlay = !ev.payload.isValid() || ev.payload.toBool();
+        if (wantPlay) {
+            if (!m_isPlaying && m_playAction) {
+                m_playAction->trigger();
+            }
+        } else {
+            if (m_stopAction) {
+                m_stopAction->trigger();
+            }
+        }
+        return;
+    }
+
+    if (ev.address == makeBusAddress("/pause")) {
+        const bool wantPause = !ev.payload.isValid() || ev.payload.toBool();
+        if (wantPause && m_isPlaying && m_playAction) {
+            m_playAction->trigger();
+        }
+        return;
+    }
+
+    if (ev.address == makeBusAddress("/stop")) {
+        const bool wantStop = !ev.payload.isValid() || ev.payload.toBool();
+        if (wantStop && m_stopAction) {
+            m_stopAction->trigger();
+        }
+        return;
+    }
+
+    if (ev.address == makeBusAddress("/loop")) {
+        const bool enabled = ev.payload.toBool();
+        if (m_loopAction && m_loopAction->isChecked() != enabled) {
+            QSignalBlocker blocker(m_loopAction);
+            m_loopAction->setChecked(enabled);
+            blocker.unblock();
+            emit loopToggled(enabled);
+        }
+        return;
+    }
 }
 
 void TimeLineNodeToolBar::createActions()
@@ -143,27 +232,33 @@ void TimeLineNodeToolBar::setupUI()
     m_allActions["previousFrame"]=m_previousFrameAction;
     addAction(m_playAction);
     m_allActions["play"]=m_playAction;
+    // 注册play 外部控制
+    registerOSCControl("/play",m_playAction);
     addAction(m_stopAction);
     m_allActions["stop"]=m_stopAction;
+    // 注册stop 外部控制
+    registerOSCControl("/stop",m_stopAction);
     addAction(m_nextFrameAction);
     m_allActions["nextFrame"]=m_nextFrameAction;
     addAction(m_nextMediaAction);
     m_allActions["nextMedia"]=m_nextMediaAction;
-    // addAction(m_fullscreenAction);
-    // BaseTimelineToolbar::registerOSCControl("/fullscreen",m_fullscreenAction);
-    // addAction(m_settingsAction);
-    // BaseTimelineToolbar::registerOSCControl("/settings",m_settingsAction);
+
     addAction(m_loopAction);
     m_allActions["loop"]=m_loopAction;
+    // 注册loop 外部控制
+    registerOSCControl("/loop",m_loopAction);
     // addAction(m_outputAction);
     // BaseTimelineToolbar::registerOSCControl("/output",m_outputAction);
     addSeparator();
     addAction(m_moveClipLeftAction);
     m_allActions["moveClipLeft"]=m_moveClipLeftAction;
+
     addAction(m_moveClipRightAction);
     m_allActions["moveClipRight"]=m_moveClipRightAction;
+
     addAction(m_deleteClipAction);
     m_allActions["deleteClip"]=m_deleteClipAction;
+
     addAction(m_zoomInAction);
     m_allActions["zoomIn"]=m_zoomInAction;
     addAction(m_zoomOutAction);
@@ -175,20 +270,90 @@ void TimeLineNodeToolBar::setupUI()
 
 void TimeLineNodeToolBar::setPlaybackState(bool isPlaying)
 {
+    if (m_isPlaying == isPlaying) {
+        return;
+    }
     m_isPlaying = isPlaying;
     m_playAction->setIcon(QIcon(m_isPlaying ? ":/icons/icons/pause.png" : ":/icons/icons/play.png"));
     m_playAction->setToolTip(m_isPlaying ? tr("Pause") : tr("Play"));
+
 }
 
 void TimeLineNodeToolBar::setLoopState(bool isLooping)
 {
+    if (m_loopAction->isChecked() == isLooping) {
+        return;
+    }
+
     m_loopAction->blockSignals(true);
     m_loopAction->setChecked(isLooping);
     m_loopAction->blockSignals(false);
     m_loopAction->setToolTip(isLooping ? tr("Unloop") : tr("Loop"));
+
+    publishState("/loop", isLooping);
 }
 
 
 std::unordered_map<QString, QAction *> TimeLineNodeToolBar::allActions() {
     return m_allActions;
+}
+
+void TimeLineNodeToolBar::startDrag(QAction* widget)
+{
+    // 找到对应的OSC地址
+    QString oscAddress;
+    for (const auto& pair : *_OscMapping) {
+        if (pair.second == widget) {
+            oscAddress = pair.first;
+            break;
+        }
+    }
+
+    if (oscAddress.isEmpty()) return;
+
+    OSCMessage message;
+    message.address = makeBusAddress(oscAddress);
+    message.host = "127.0.0.1";
+    message.port = 8991;
+    QClipboard* clipboard = QApplication::clipboard();
+    clipboard->setText(message.address);
+    // 获取控件的值
+
+    message.value = widget->isChecked();
+    message.type = "Int";
+
+
+    QByteArray itemData;
+    QDataStream dataStream(&itemData, QIODevice::WriteOnly);
+    dataStream << message.host << message.port << message.address << message.value<<message.type;
+
+    QMimeData* mimeData = new QMimeData;
+    mimeData->setData("application/x-osc-address", itemData);
+
+    QDrag* drag = new QDrag(widget);
+    drag->setMimeData(mimeData);
+    QPixmap pixmap(200, 30);
+    pixmap.fill(Qt::transparent);
+
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+
+    // 绘制背景
+    QColor bgColor(40, 40, 40, 200);  // 半透明深灰色
+    painter.setBrush(bgColor);
+    painter.setPen(Qt::NoPen);
+    painter.drawRoundedRect(pixmap.rect(), 5, 5);  // 圆角矩形
+    // 绘制文本
+    painter.setPen(Qt::white);
+    QFont font = painter.font();
+    font.setPointSize(9);
+    painter.setFont(font);
+    QRect textRect = pixmap.rect().adjusted(30, 0, -8, 0);  // 图标右侧的文本区域
+    painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, message.address);
+
+    // 设置拖拽预览
+    drag->setPixmap(pixmap);
+    drag->setHotSpot(QPoint(pixmap.width()/2, pixmap.height()/2));  // 热点在中心
+
+    drag->exec(Qt::CopyAction);
 }
