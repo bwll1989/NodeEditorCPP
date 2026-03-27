@@ -170,7 +170,7 @@
   padding:2px 6px;
   border:1px solid var(--ep-tl-label-border,#e5e7eb);
   border-radius:4px;
-  background:var(--ep-tl-label-bg,#ffffff);
+  background:transparent;
   color:var(--ep-tl-text-color,#111827);
   font-size:inherit;
   line-height:1.4;
@@ -195,7 +195,7 @@
   height:10px;
   border-radius:50%;
   background:var(--ep-tl-point-color,#2563eb);
-  border:2px solid #ffffff;
+  border:2px solid transparent;
   transform:translate(-50%,-50%);
   box-sizing:border-box;
 }
@@ -207,7 +207,7 @@
 
     const defaults = {
       commandId: '/cmd/demo',
-      bgColor: '#ffffff',
+      bgColor: 'transparent',
       fontSize: '14',
 
       // 时间轴配置（范围强制按数据自动计算）
@@ -233,7 +233,7 @@
       lineWidth: 2,
 
       borderColor: '#e5e7eb',
-      borderStyle: 'solid'
+      borderStyle: 'none'
     };
 
     const coercers = {

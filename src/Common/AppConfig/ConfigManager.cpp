@@ -22,6 +22,8 @@ ConfigManager::ConfigManager()
     , m_extraFeedbackPort(AppConfigs::EXTRA_FEEDBACK_PORT)
     , m_extraControlPort(AppConfigs::EXTRA_CONTROL_PORT)
     , m_oscInternalControlHost(AppConfigs::OSC_INTERNAL_CONTROL_HOST)
+    , m_oscEnabled(AppConfigs::OSC_ENABLED)
+    , m_webAccessPassword(AppConfigs::WEB_ACCESS_PASSWORD)
     , m_defaultDarkTheme(AppConfigs::DEFAULT_DARK_THEME)
     , m_MaxLogEntries(AppConfigs::MAX_LOG_ENTRIES)
 {
@@ -42,6 +44,8 @@ bool ConfigManager::isDefaultDarkTheme() const { return m_defaultDarkTheme; }
 int ConfigManager::getMaxLogEntries() const { return m_MaxLogEntries; }
 QStringList ConfigManager::getRecentFiles() const { return m_recentFiles; }
 QString ConfigManager::getCurrentFlowPath() const { return m_currentFlowPath; }
+bool ConfigManager::isOscEnabled() const { return m_oscEnabled; }
+QString ConfigManager::getWebAccessPassword() const { return m_webAccessPassword; }
 
 void ConfigManager::addRecentFile(const QString& path)
 {
@@ -75,6 +79,8 @@ void ConfigManager::loadConfig()
     m_extraFeedbackPort = settings.value("Network/ExtraFeedbackPort", AppConfigs::EXTRA_FEEDBACK_PORT).toInt();
     m_extraControlPort = settings.value("Network/ExtraControlPort", AppConfigs::EXTRA_CONTROL_PORT).toInt();
     m_oscInternalControlHost = settings.value("Network/OscInternalControlHost", AppConfigs::OSC_INTERNAL_CONTROL_HOST).toString();
+    m_oscEnabled = settings.value("Network/OscEnabled", AppConfigs::OSC_ENABLED).toBool();
+    m_webAccessPassword = settings.value("Network/WebAccessPassword", AppConfigs::WEB_ACCESS_PASSWORD).toString();
     // Log
     m_MaxLogEntries = settings.value("Log/MaxLogEntries", AppConfigs::MAX_LOG_ENTRIES).toInt();
 }
@@ -100,6 +106,8 @@ void ConfigManager::saveConfig()
     settings.setValue("Network/ExtraFeedbackPort", m_extraFeedbackPort);
     settings.setValue("Network/ExtraControlPort", m_extraControlPort);
     settings.setValue("Network/OscInternalControlHost", m_oscInternalControlHost);
+    settings.setValue("Network/OscEnabled", m_oscEnabled);
+    settings.setValue("Network/WebAccessPassword", m_webAccessPassword);
     // Log
     settings.setValue("Log/MaxLogEntries", m_MaxLogEntries);
 
@@ -116,6 +124,8 @@ void ConfigManager::updateConfig(const QJsonObject& newConfig)
     if (newConfig.contains("OscInternalControlHost")) m_oscInternalControlHost = newConfig["OscInternalControlHost"].toString();
     if (newConfig.contains("DefaultDarkTheme")) m_defaultDarkTheme = newConfig["DefaultDarkTheme"].toBool();
     if (newConfig.contains("MaxLogEntries")) m_MaxLogEntries = newConfig["MaxLogEntries"].toInt();
+    if (newConfig.contains("OscEnabled")) m_oscEnabled = newConfig["OscEnabled"].toBool();
+    if (newConfig.contains("WebAccessPassword")) m_webAccessPassword = newConfig["WebAccessPassword"].toString();
 
     saveConfig();
 }

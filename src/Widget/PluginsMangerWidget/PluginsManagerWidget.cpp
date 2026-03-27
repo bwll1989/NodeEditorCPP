@@ -130,22 +130,27 @@ void PluginsManagerWidget::loadBuildInPlugin()
 {
     PluginsManager *pluginsManager = PluginsManager::instance();
     emit loadPluginStatus("Loading build in plugins");
-    pluginsManager->registry()->registerModel<VariableOutDataModel>("Variable Out","Controls");
-    pluginsManager->registry()->registerModel<VariableInDataModel>("Variable In","Controls");
+    pluginsManager->registry()->registerModel<VariableOutDataModel>("Variable Out","Variable");
+    pluginsManager->registry()->registerModel<VariableInDataModel>("Variable In","Variable");
     pluginsManager->registry()->registerModel<AudioInDataModel>("Audio In","Audio");
     pluginsManager->registry()->registerModel<AudioOutDataModel>("Audio Out","Audio");
     pluginsManager->registry()->registerModel<ImageInDataModel>("Image In","Image");
     pluginsManager->registry()->registerModel<ImageOutDataModel>("Image Out","Image");
-    pluginsManager->registry()->registerModel<BoolPluginDataModel>("Bool Source","Controls");
-    pluginsManager->registry()->registerModel<TextSourceDataModel>("String Source","Controls");
-    pluginsManager->registry()->registerModel<IntSourceDataModel>("Int Source","Controls");
-    pluginsManager->registry()->registerModel<FloatSourceDataModel>("Float Source","Controls");
+    pluginsManager->registry()->registerModel<BoolPluginDataModel>("Bool Source","Property");
+    pluginsManager->registry()->registerModel<TextSourceDataModel>("String Source","Property");
+    pluginsManager->registry()->registerModel<IntSourceDataModel>("Int Source","Property");
+    pluginsManager->registry()->registerModel<FloatSourceDataModel>("Float Source","Property");
     pluginsManager->registry()->registerModel<ImageShowModel>("Image Display","Image");
     pluginsManager->registry()->registerModel<ToJsonDataModel>("To JSON","Controls");
     pluginsManager->registry()->registerModel<FromJsonDataModel>("From JSON","Controls");
     pluginsManager->registry()->registerModel<WindowDisplayModel>("Window Display","Image");
-    pluginsManager->registry()->registerModel<TriggerSourceDataModel>("Trigger Source","Controls");
-    pluginsManager->registry()->registerModel<TogglePluginDataModel>("Toggle Source","Controls");
+    pluginsManager->registry()->registerModel<TogglePluginDataModel>("Toggle Source","Property");
+    pluginsManager->registry()->registerModel<TriggerSourceDataModel>("Trigger Source","Variable");
+    pluginsManager->registry()->registerModel<FloatVariableDataModel>("Float Variable","Variable");
+    pluginsManager->registry()->registerModel<IntVariableDataModel>("Int Variable","Variable");
+    pluginsManager->registry()->registerModel<BoolVariableDataModel>("Bool Variable","Variable");
+    pluginsManager->registry()->registerModel<TextVariableDataModel>("String Variable","Variable");
+    pluginsManager->registry()->registerModel<ToggleVariableDataModel>("Toggle Variable","Variable");
 
 }
 

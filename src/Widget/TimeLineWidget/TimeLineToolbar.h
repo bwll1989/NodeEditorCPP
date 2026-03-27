@@ -106,6 +106,12 @@ signals:
      *
      */
     void locationClicked();
+
+    /**
+     * 函数级注释：外部通过总线请求设置当前帧
+     * @param qint64 frame 目标帧
+     */
+    void setCurrentFrame(qint64 frame);
 public:
     void registerOSCControl(const QString& oscAddress, QAction* control) override
     {
@@ -221,6 +227,12 @@ public slots:
     * @param bool isLooping 是否循环
     */
     void setLoopState(bool isLooping);
+
+    /**
+     * 函数级注释：发布当前帧状态到总线（/currentFrame）
+     * @param qint64 frame 当前帧
+     */
+    void publishCurrentFrame(int frame);
 private:
     /**
      * 创建动作
@@ -269,6 +281,8 @@ private:
     QAction* m_outputAction;
     //
     QAction* m_locationAction;
+    //当前帧
+    QAction* m_currentFrameAction;
     //是否播放
     bool m_isPlaying = false;
 

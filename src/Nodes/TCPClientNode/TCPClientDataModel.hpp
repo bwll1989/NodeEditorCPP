@@ -51,7 +51,7 @@ namespace Nodes
             AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
             AbstractDelegateModel::registerExternalControl("/value", widget->valueEdit);
             AbstractDelegateModel::registerExternalControl("/send", widget->send);
-            AbstractDelegateModel::registerExternalControl("/connect", widget->statusButton);
+            AbstractDelegateModel::registerExternalControl("/connected", widget->statusButton);
 
             // UI Connections
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this]() {

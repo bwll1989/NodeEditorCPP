@@ -14,24 +14,49 @@ function registerNode(node, type, api) {
   widgetRegistry.set(node, api);
 }
 
-// 函数级注释：创建一个无标题的容器并挂载到 Gridstack（支持初始位置）
+// 函数级注释：解析像素布局参数（仅支持 opts.rect；放弃旧 grid 的 x/y/w/h 兼容）
+function resolvePixelRect(hostEl, w, h, opts) {
+  const rect = (opts && opts.rect && typeof opts.rect === 'object') ? opts.rect : null;
+  if (rect && rect.x !== undefined && rect.y !== undefined && rect.w !== undefined && rect.h !== undefined) {
+    return {
+      x: Math.max(0, Math.round(Number(rect.x) || 0)),
+      y: Math.max(0, Math.round(Number(rect.y) || 0)),
+      w: Math.max(10, Math.round(Number(rect.w) || 10)),
+      h: Math.max(10, Math.round(Number(rect.h) || 10)),
+    };
+  }
+
+  const unitW = 16;
+  const unitH = 20;
+  const ww0 = Number(w);
+  const hh0 = Number(h);
+  const ww = Number.isFinite(ww0) ? ww0 : 10;
+  const hh = Number.isFinite(hh0) ? hh0 : 6;
+
+  const pxW = Math.max(60, Math.round(ww * unitW));
+  const pxH = Math.max(40, Math.round(hh * unitH));
+
+  return { x: 0, y: 0, w: pxW, h: pxH };
+}
+
+// 函数级注释：创建一个无标题的容器并挂载到像素画布（支持初始位置）
 function createContainer(grid, title, w=4, h=2, opts) {
   const content = document.createElement('div');
   content.style.height = '100%';
   content.style.display = 'flex';
   content.style.flexDirection = 'column';
-  content.className = 'widget-content-wrapper'; // 添加类名以便CSS控制
+  content.className = 'widget-content-wrapper';
 
-  // 不再创建 header，直接创建挂载点
   const mountNode = document.createElement('div');
+  mountNode.className = 'widget-mount';
   mountNode.style.flex = '1';
   mountNode.style.display = 'flex';
-  mountNode.style.alignItems = 'center';
-  mountNode.style.justifyContent = 'center';
+  mountNode.style.alignItems = 'stretch';
+  mountNode.style.justifyContent = 'stretch';
   mountNode.style.overflow = 'hidden';
   mountNode.style.width = '100%';
-  
-  // 拖拽手柄区域，覆盖整个控件，但pointer-events需精细控制
+  mountNode.style.height = '100%';
+
   const handle = document.createElement('div');
   handle.className = 'widget-drag-handle';
   handle.style.position = 'absolute';
@@ -39,13 +64,11 @@ function createContainer(grid, title, w=4, h=2, opts) {
   handle.style.left = '0';
   handle.style.width = '100%';
   handle.style.height = '100%';
-  handle.style.zIndex = '1'; // 位于底层
-  
-  // 挂载点位于上层，以便交互
+  handle.style.zIndex = '1';
+
   mountNode.style.zIndex = '2';
   mountNode.style.position = 'relative';
 
-  // 编辑模式下的遮罩层，用于拖拽和选中
   const overlay = document.createElement('div');
   overlay.className = 'widget-overlay-mask';
   overlay.style.position = 'absolute';
@@ -53,22 +76,22 @@ function createContainer(grid, title, w=4, h=2, opts) {
   overlay.style.left = '0';
   overlay.style.width = '100%';
   overlay.style.height = '100%';
-  overlay.style.zIndex = '10'; // 最上层
-  // 默认隐藏，由CSS控制显示
-  
+  overlay.style.zIndex = '10';
+
   content.appendChild(handle);
   content.appendChild(mountNode);
   content.appendChild(overlay);
-  
-  const node = window.Widgets.addWidgetDom(
-    grid,
-    content,
-    (opts && typeof opts.w === 'number') ? opts.w : w,
-    (opts && typeof opts.h === 'number') ? opts.h : h,
-    (opts && typeof opts.x === 'number') ? opts.x : undefined,
-    (opts && typeof opts.y === 'number') ? opts.y : undefined
-  );
-  return { node, mountNode, header: null }; // header 为 null
+
+  const host = (grid && grid.el) ? grid.el : grid;
+  const r = resolvePixelRect(host, w, h, opts);
+  const node = window.Widgets.addWidgetDom(host, content, r.w, r.h, r.x, r.y);
+  try {
+    node.dataset.pxX = String(r.x);
+    node.dataset.pxY = String(r.y);
+    node.dataset.pxW = String(r.w);
+    node.dataset.pxH = String(r.h);
+  } catch {}
+  return { node, mountNode, header: null };
 }
 
 // 函数级注释：读取选中控件的属性

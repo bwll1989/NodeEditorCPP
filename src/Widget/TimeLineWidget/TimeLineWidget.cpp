@@ -7,6 +7,7 @@
 #include <QColor>
 #include <QPalette>
 #include <QScrollBar>
+#include <limits>
 
 #include "DefaultTimeLineToolBar.h"
 
@@ -65,6 +66,18 @@ private:
         if (m_view && m_view->m_toolbar) {
             if (auto* tb = dynamic_cast<TimeLineToolBar*>(m_view->m_toolbar)) {
                 tb->bindBus(m_model->getModelAlias());
+
+                if (auto* tlModel = dynamic_cast<TimeLineModel*>(m_model)) {
+                    if (auto* clock = tlModel->getClock()) {
+                        connect(clock, &TimeLineClock::currentFrameChanged, tb, &TimeLineToolBar::publishCurrentFrame);
+                        tb->publishCurrentFrame(clock->getCurrentFrame());
+                    }
+
+                    connect(tb, &TimeLineToolBar::setCurrentFrame, this, [tlModel](qint64 frame) {
+                        const qint64 bounded = frame < 0 ? 0 : (frame > std::numeric_limits<int>::max() ? std::numeric_limits<int>::max() : frame);
+                        tlModel->onSetPlayheadPos(static_cast<int>(bounded));
+                    });
+                }
             }
         }
         auto refreshTimeline = [this]() {

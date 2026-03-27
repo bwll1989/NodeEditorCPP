@@ -1,49 +1,59 @@
-// 函数级注释：创建EP按钮控件
+// 函数级注释：注册“超链接”控件，提供属性读写与样式应用
 (function(){
-  window.EPWidgets = window.EPWidgets || {};
-  window.EPWidgets.createEPButtonWidget = function(grid, initialProps = {}, opts = {}) {
+  const EP = window.EPWidgets || {};
+  // 函数级注释：创建超链接控件
+  EP.createEPLinkWidget = function(grid, initialProps = {}, opts = {}) {
     const defaults = {
+      title: '超链接',
       commandId: '/cmd/demo',
-      bgColor: 'transparent',
-      fontSize: '14',
-      label: '执行',
+      label: '打开链接',
+      href: 'https://example.com',
+      targetBlank: true,
       buttonColor: '#409EFF',
       activeColor: '#0e5d45',
       textColor: '#ffffff',
       borderColor: '#409EFF',
       borderStyle: 'none',
-      isActive: false
+      fontSize: '14',
+      bgColor: 'transparent'
     };
 
-    return window.EPWidgets.createVueWidget(grid, {
-      type: '按钮',
-      templatePath: 'widgets/Button/widget.html',
+    // 使用与“按钮”一致的标准渲染路径（依赖 Vue/ElementPlus）
+
+    // 标准 Vue 渲染路径
+    return EP.createVueWidget(grid, {
+      type: '超链接',
+      templatePath: 'widgets/Hyperlink/widget.html',
       initialProps,
       opts,
       defaultW: 8,
       defaultH: 2,
       defaults,
       valueMapper(value) {
-        return { isActive: window.EPWidgets.toBool(value) };
+        const s = String(value ?? '').trim();
+        if (/^https?:\\/\\//i.test(s)) return { href: s };
+        return { text: s };
       },
       appFactory(template) {
         return {
           template,
           data() {
             return {
+              title: initialProps.title ?? defaults.title,
               label: initialProps.label ?? defaults.label,
-              commandId: initialProps.commandId ?? defaults.commandId,
+              href: initialProps.href ?? defaults.href,
+              targetBlank: initialProps.targetBlank ?? defaults.targetBlank,
               buttonColor: initialProps.buttonColor ?? defaults.buttonColor,
               activeColor: initialProps.activeColor ?? defaults.activeColor,
               textColor: initialProps.textColor ?? defaults.textColor,
               borderColor: initialProps.borderColor ?? defaults.borderColor,
               borderStyle: initialProps.borderStyle ?? defaults.borderStyle,
               fontSize: initialProps.fontSize ?? defaults.fontSize,
+              bgColor: initialProps.bgColor ?? defaults.bgColor,
               isActive: false
             };
           },
           computed: {
-            // 函数级注释：计算按钮样式（使用 ElementPlus CSS 变量，确保自定义颜色生效）
             buttonStyle() {
               const bg = this.isActive ? this.activeColor : this.buttonColor;
               return {
@@ -60,12 +70,9 @@
             }
           },
           methods: {
-            // 函数级注释：发送一次按钮触发指令
-            exec() {
-              const addr = this.commandId || defaults.commandId;
-              window.EPWidgets.sendCommand(addr, 1);
+            openLink(){
+              try { window.open(this.href, this.targetBlank ? '_blank' : '_self', 'noopener'); } catch {}
             },
-            // 函数级注释：按下/抬起事件改变按下状态
             onDown() { this.isActive = true; },
             onUp() { this.isActive = false; }
           }
@@ -73,4 +80,5 @@
       }
     });
   };
+  window.EPWidgets = EP;
 })();

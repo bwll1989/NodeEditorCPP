@@ -18,6 +18,7 @@
 #include <Poco/Path.h>
 #include <Poco/StreamCopier.h>
 #include <sstream>
+#include <vector>
 #include <QMetaType>
 #include <QDir>
 #include <QFileInfo>
@@ -37,52 +38,47 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
         _ws = &ws;
         _server.registerWebSocket(this);
         
-        char buffer[2048];
+        std::vector<char> chunk(65536);
         int flags;
         int n;
-        
-        // 循环读取数据，保持连接活跃，直到客户端关闭或发生错误
+        std::string accum;
         do {
-            n = ws.receiveFrame(buffer, sizeof(buffer), flags);
+            n = ws.receiveFrame(chunk.data(), (int)chunk.size(), flags);
             if (n > 0 && (flags & WebSocket::FRAME_OP_BITMASK) != WebSocket::FRAME_OP_CLOSE) {
-                // 解析 JSON 控制指令
-                QByteArray payload(buffer, n);
-                QJsonParseError err;
-                QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
-                if (err.error == QJsonParseError::NoError && doc.isObject()) {
-                    QJsonObject obj = doc.object();
-                    
-                    // 处理查询请求：前端发送 {"query": ["/addr1", "/addr2"]}
-                    if (obj.contains("query") && obj["query"].isArray()) {
-                        QJsonArray queries = obj["query"].toArray();
-                        for (const auto& val : queries) {
-                            QString addr = val.toString();
-                            if (StatusContainer::instance()->contains(addr)) {
-                                StatusItem item = StatusContainer::instance()->last(addr);
-                                QJsonObject resp = item.toJsonObject();
-                                std::string msg = QJsonDocument(resp).toJson(QJsonDocument::Compact).toStdString();
-                                send(msg);
+                accum.append(chunk.data(), n);
+                if (flags & WebSocket::FRAME_FLAG_FIN) {
+                    QByteArray payload(accum.data(), (int)accum.size());
+                    QJsonParseError err;
+                    QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
+                    if (err.error == QJsonParseError::NoError && doc.isObject()) {
+                        QJsonObject obj = doc.object();
+                        if (obj.contains("query") && obj["query"].isArray()) {
+                            QJsonArray queries = obj["query"].toArray();
+                            for (const auto& val : queries) {
+                                QString addr = val.toString();
+                                if (StatusContainer::instance()->contains(addr)) {
+                                    StatusItem item = StatusContainer::instance()->last(addr);
+                                    QJsonObject resp = item.toJsonObject();
+                                    std::string msg = QJsonDocument(resp).toJson(QJsonDocument::Compact).toStdString();
+                                    send(msg);
+                                }
                             }
                         }
+                        QString addr = obj.value("address").toString();
+                        if (addr.isEmpty()) addr = obj.value("addr").toString();
+                        if (!addr.isEmpty()) {
+                            OSCMessage msg;
+                            msg.host = "127.0.0.1";
+                            msg.port = ConfigManager::instance().getExtraControlPort();
+                            msg.address = addr;
+                            msg.value = obj["value"].toVariant();
+                            QMetaObject::invokeMethod(StatusContainer::instance(),
+                                                      "parseOSC",
+                                                      Qt::QueuedConnection,
+                                                      Q_ARG(OSCMessage, msg));
+                        }
                     }
-
-                    // 兼容 address 和 addr 字段
-                    QString addr = obj.value("address").toString();
-                    if (addr.isEmpty()) addr = obj.value("addr").toString();
-                    
-                    if (!addr.isEmpty()) {
-                        OSCMessage msg;
-                        msg.host = "127.0.0.1";
-                        msg.port = ConfigManager::instance().getExtraControlPort();
-                        msg.address = addr;
-                        msg.value = obj["value"].toVariant();
-                        
-                        // 跨线程调用 StatusContainer::parseOSC
-                        QMetaObject::invokeMethod(StatusContainer::instance(),
-                                                  "parseOSC",
-                                                  Qt::QueuedConnection,
-                                                  Q_ARG(OSCMessage, msg));
-                    }
+                    accum.clear();
                 }
             }
         } while (n > 0 && (flags & WebSocket::FRAME_OP_BITMASK) != WebSocket::FRAME_OP_CLOSE);
@@ -174,6 +170,41 @@ void StaticRequestHandler::handleApiCommand(HTTPServerRequest& request, HTTPServ
                                   Q_ARG(OSCMessage, msg));
 
         sendJsonResponse(response, "{\"ok\":true}");
+    } catch (const Poco::Exception& e) {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"" + e.displayText() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+    }
+}
+
+void StaticRequestHandler::handleApiAuthSetting(HTTPServerRequest& request, HTTPServerResponse& response) {
+    // 函数级注释：校验设置页访问密码（POST JSON: {"password":"..."}）
+    if (request.getMethod() != "POST") {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+        return;
+    }
+
+    try {
+        std::istream& in = request.stream();
+        std::ostringstream body;
+        StreamCopier::copyStream(in, body);
+        const QByteArray payload = QByteArray::fromStdString(body.str());
+
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
+        if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"invalid_json\"}", HTTPResponse::HTTP_BAD_REQUEST);
+            return;
+        }
+
+        const QJsonObject obj = doc.object();
+        const QString input = obj.value("password").toString();
+        const QString expected = ConfigManager::instance().getWebAccessPassword();
+
+        if (expected.isEmpty() || input == expected) {
+            sendJsonResponse(response, "{\"ok\":true}", HTTPResponse::HTTP_OK);
+            return;
+        }
+
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"unauthorized\"}", HTTPResponse::HTTP_UNAUTHORIZED);
     } catch (const Poco::Exception& e) {
         sendJsonResponse(response, "{\"ok\":false,\"error\":\"" + e.displayText() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
     }
@@ -318,7 +349,9 @@ void StaticRequestHandler::handleRequest(HTTPServerRequest& request,
         std::string path = uri.getPath();
 
         // 路由分发
-        if (path == "/api/command") {
+        if (path == "/api/auth/setting") {
+            handleApiAuthSetting(request, response);
+        } else if (path == "/api/command") {
             handleApiCommand(request, response);
         } else if (path.rfind("/api/exec", 0) == 0) {
             handleApiExec(request, response, uri.getQuery());

@@ -6,11 +6,11 @@
   window.EPWidgets.createEPTimecodeWidget = function (grid, initialProps = {}, opts = {}) {
     const defaults = {
       commandId: '/cmd/demo',
-      bgColor: '#ffffff',
+      bgColor: 'transparent',
       fontSize: '30',
       textColor: '#111827',
       borderColor: '#e5e7eb',
-      borderStyle: 'solid',
+      borderStyle: 'none',
       fps: 25,
       value: 0,
       readOnly: false,

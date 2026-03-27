@@ -80,11 +80,19 @@ public:
         if (widget && widget->timeline && widget->timeline->toolbar) {
             if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
                 tb->bindBus(getParentAlias(), getNodeID());
+                connect(tb, &TimeLineNodeToolBar::setCurrentFrame, this, [this](qint64 frame) {
+                    if (model && model->getClock()) {
+                        model->getClock()->setCurrentFrame(frame);
+                    }
+                });
             }
         }
 
         if (model && model->getClock()) {
             connect(model->getClock(), &TimeLineNodeClock::timecodePlayingChanged, this, &TimeLineDataModel::onClockPlayingChanged);
+            //当前时间码变更后发布状态
+            connect(model->getClock(), &TimeLineNodeClock::currentFrameChanged, this, &TimeLineDataModel::onClockCurrentFrameChanged);
+
         }
 
         for (TrackData* track : model->getTracks()) {
@@ -262,14 +270,24 @@ private slots:
             if (widget && widget->timeline && widget->timeline->toolbar) {
                 if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
                     tb->setPlaybackState(m_isPlaying);
-                    tb->publishState("/play", m_isPlaying);
-                    tb->publishState("/stop", !m_isPlaying);
                 }
             }
 
             if (widget && widget->startButton) {
                 QSignalBlocker blocker(widget->startButton);
                 widget->startButton->setChecked(m_isPlaying);
+            }
+        }
+    }
+
+    /**
+     * 函数级注释：时钟当前帧变化回调
+     * - 像播放状态一样，通过工具栏向总线发布当前帧
+     */
+    void onClockCurrentFrameChanged(int frame) {
+        if (widget && widget->timeline && widget->timeline->toolbar) {
+            if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
+                tb->publishCurrentFrame(frame);
             }
         }
     }

@@ -34,17 +34,25 @@ void DataflowViewsManger::setDockManager(ads::CDockManager* dockManager)
 
 void DataflowViewsManger::addNewScene(const QString& title)
 {
-    // 若标题已存在则直接返回，避免重复创建
-    if (_models.count(title)) return;
+    if (!m_DockManager) return;
 
-    // 创建并以标题为键持久化模型
-    _models.emplace(title, std::make_unique<CustomDataFlowGraphModel>(PluginsManager::instance()->registry()));
-    auto& model = *_models.at(title);
-    model.setModelAlias(title);
+    auto mit = _models.find(title);
+    if (mit == _models.end()) {
+        _models.emplace(title, std::make_unique<CustomDataFlowGraphModel>(PluginsManager::instance()->registry()));
+        mit = _models.find(title);
+        if (mit != _models.end() && mit->second) {
+            mit->second->setModelAlias(title);
+        }
+    }
+    if (mit == _models.end() || !mit->second) return;
+
+    auto dit = _DockWidget.find(title);
+    if (dit != _DockWidget.end() && dit->second) {
+        return;
+    }
+
+    auto& model = *mit->second;
     ads::CDockWidget* DockWidget = m_DockManager->createDockWidget(title);
-    // 函数级注释：
-    // // 作用：为 DockWidget 开启 DeleteOnClose，由 ADS 负责删除；管理器仅保存弱引用
-    // DockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, true);
 
     // 以 DockWidget 为父对象，确保其关闭时 View/Scene 一并销毁
     auto view  = new CustomGraphicsView(DockWidget);
@@ -82,9 +90,15 @@ void DataflowViewsManger::addNewScene(const QString& title)
     QObject::connect(b, &QAction::triggered, scene, &CustomFlowGraphicsScene::save);
     auto c = OptionsMenu->addAction(QIcon(":/icons/icons/delete_database.png"),QObject::tr("Delete Dataflow"));
     QObject::connect(c, &QAction::triggered, this, [this, DockWidget, title](){
-        m_DockManager->removeDockWidget(DockWidget);
-        _models.erase(title);
+        _DockWidget.erase(title);
         emit removeScene(title);
+
+        if (m_DockManager && DockWidget) {
+            m_DockManager->removeDockWidget(DockWidget);
+            delete DockWidget;
+        }
+
+        _models.erase(title);
     });
 
     auto d = OptionsMenu->addAction(QIcon(":/icons/icons/folder.png"),QObject::tr("Load Child Dataflow"));
@@ -113,6 +127,19 @@ void DataflowViewsManger::addNewScene(const QString& title)
 
 void DataflowViewsManger::addNewSceneFromeModel(const QString& title, QJsonObject const &jsonDocument) {
     addNewScene(title);
+
+    auto it = _models.find(title);
+    if (it != _models.end() && it->second) {
+        QObject::connect(it->second.get(),
+                         &CustomDataFlowGraphModel::loadProgress,
+                         this,
+                         [this, title](const QString& phase, int current, int total) {
+                             Q_EMIT loadProgress(title, phase, current, total);
+                         });
+        it->second->load(jsonDocument);
+        return;
+    }
+
     _models[title]->load(jsonDocument);
     // if (_models.count(title)) return;
     // _models.emplace(title, std::unique_ptr<CustomDataFlowGraphModel>(model));
@@ -186,16 +213,18 @@ void DataflowViewsManger::clearAllScenes() {
     }
     const QSignalBlocker blocker(m_DockManager);
 
+    std::vector<ads::CDockWidget*> docks;
+    docks.reserve(_DockWidget.size());
     for (auto& kv : _DockWidget) {
-        ads::CDockWidget* dock = kv.second; // QPointer 直接取原始指针
-        if (dock) {
-            m_DockManager->removeDockWidget(dock);
-            // 触发删除
-        }
+        if (kv.second) docks.push_back(kv.second);
     }
     _DockWidget.clear();
-   
-    // 2) 再释放模型，确保 Scene/View 已销毁，不再引用模型
+
+    for (auto* dock : docks) {
+        m_DockManager->removeDockWidget(dock);
+        delete dock;
+    }
+
     _models.clear();
 }
 

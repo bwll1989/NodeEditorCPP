@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
             }
         }
     }else {
-        splashScreen->updateStatus( "flow file path is empty,try load recent file..." );
+        splashScreen->updateStatus( " load recent file..." );
         if (!mainWindow->loadRecentFile()) {
             splashScreen->updateStatus( "Failed to load recent file (headless)...");
             splashScreen->finish(mainWindow.data());

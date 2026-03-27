@@ -50,5 +50,9 @@ namespace AppConfigs {
     constexpr int HTTP_SERVER_PORT = 8992;
     // 使用暗色主题
     constexpr bool DEFAULT_DARK_THEME = true;
+    // 网页访问密码
+    constexpr const char* WEB_ACCESS_PASSWORD = "wb@niubility";
+    // 是否启用OSC外部反馈/控制
+    constexpr bool OSC_ENABLED = false;
 
 }

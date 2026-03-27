@@ -3,6 +3,8 @@
 //
 
 #include <QMessageBox>
+#include <QApplication>
+#include <QJsonParseError>
 #include "MainWindowHeadLess.hpp"
 #include "Nodes/NodeEditorStyle.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
@@ -101,70 +103,172 @@ void MainWindowHeadLess::init()
  */
 bool MainWindowHeadLess::loadFileFromPath(const QString &path)
 {
+    CustomSplashScreen splashScreen;
 
-    emit initStatus(tr("Prepare to open: %1").arg(path));
+    const auto pumpUi = []() {
+        QApplication::processEvents();
+    };
 
-    if (!path.isEmpty())
-    {
-        // 获取绝对路径
-        QFileInfo fileInfo(path);
-        QString absolutePath = fileInfo.absoluteFilePath();
+    const auto update = [&](const QString& msg) {
+        emit initStatus(msg);
+        splashScreen.updateStatus(msg);
+        pumpUi();
+    };
 
-        // 将"\"转换成"/"，因为"\"系统不认
-        absolutePath = absolutePath.replace("\\", "/");
-        emit initStatus(tr("Analyze path: %1").arg(absolutePath));
+    update(tr("Prepare to open: %1").arg(path));
 
-        QFile file(absolutePath);
-        if (!file.open(QIODevice::ReadOnly))
-        {
-            emit initStatus(tr("Open file failed: %1").arg(file.errorString()));
-            return false;
-        }
-
-        emit initStatus(tr("Read file: %1").arg(absolutePath));
-
-        // 读取.flow文件
-        QByteArray const wholeFile = file.readAll();
-
-        emit initStatus(tr("Parse the flow file..."));
-
-        auto jsonDoc = QJsonDocument::fromJson(wholeFile);
-        if (jsonDoc.isNull()) {
-           emit initStatus(tr("Parse the flow file failed"));
-
-            return false;
-        }
-
-        emit initStatus(tr("Load the dataflow model ..."));
-        // 加载数据流模型
-        dataflowViewsManger->load(jsonDoc.object()["DataFlow"].toObject());
-
-        emit initStatus(tr("Load the timeline model ..."));
-        // 加载时间轴模型
-        timeline->load(jsonDoc.object()["TimeLine"].toObject());
-
-        emit initStatus(tr("Load the scheduled tasks model ..."));
-        // 加载计划任务模型
-        scheduledTaskWidget->load(jsonDoc.object()["ScheduledTasks"].toObject());
- 		// 载入网页布局（HTTP Server）
-        const QJsonObject webLayout = jsonDoc.object().value("WebLayout").toObject();
-        if (!webLayout.isEmpty() && httpServer) {
-             emit initStatus(tr("Load the web layout ..."));
-            httpServer->load(webLayout);
-        }
-        ConfigManager::instance().addRecentFile(absolutePath);
-        m_splash->updateStatus(tr("Load flow file completed"));
-        m_splash->finish(this);
-        // 更新托盘图标工具提示
-        if (trayIcon)
-            trayIcon->setToolTip(tr("正在运行 %1").arg(ConfigManager::instance().getCurrentFlowPath().split("/").last()));
-        qDebug()<<tr("正在运行 %1").arg(ConfigManager::instance().getCurrentFlowPath().split("/").last());
-        return true;
-    }
-    else {
-        emit initStatus(tr("Path is empty"));
+    if (path.isEmpty()) {
+        update(tr("Path is empty"));
+        splashScreen.finish(this);
         return false;
     }
+
+    QFileInfo fileInfo(path);
+    QString absolutePath = fileInfo.absoluteFilePath();
+    absolutePath = absolutePath.replace("\\", "/");
+    update(tr("Analyze path: %1").arg(absolutePath));
+
+    QFile file(absolutePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        update(tr("Open file failed: %1").arg(file.errorString()));
+        splashScreen.finish(this);
+        return false;
+    }
+
+    const qint64 fileSize = file.size();
+    if (fileSize > 2147483647LL) {
+        update(tr("File is too large: %1 bytes").arg(fileSize));
+        splashScreen.finish(this);
+        return false;
+    }
+
+    update(tr("Read file: %1").arg(absolutePath));
+
+    QByteArray wholeFile;
+    wholeFile.reserve((int)qMax<qint64>(0, fileSize));
+
+    qint64 readBytes = 0;
+    const qint64 chunkSize = 1024 * 1024;
+    while (!file.atEnd()) {
+        const QByteArray chunk = file.read(chunkSize);
+        if (chunk.isEmpty() && file.error() != QFile::NoError) break;
+        wholeFile.append(chunk);
+        readBytes += chunk.size();
+
+        if (fileSize > 0) {
+            int pct = (int)((readBytes * 100) / fileSize);
+            if (pct > 100) pct = 100;
+            update(tr("Read file... %1% (%2/%3)").arg(pct).arg(readBytes).arg(fileSize));
+        } else {
+            update(tr("Read file... %1 bytes").arg(readBytes));
+        }
+    }
+
+    if (file.error() != QFile::NoError) {
+        update(tr("Read file failed: %1").arg(file.errorString()));
+        splashScreen.finish(this);
+        return false;
+    }
+
+    update(tr("Parse the flow file..."));
+
+    QJsonParseError parseError;
+    const QJsonDocument jsonDoc = QJsonDocument::fromJson(wholeFile, &parseError);
+    if (jsonDoc.isNull() || !jsonDoc.isObject()) {
+        const QString reason = parseError.error == QJsonParseError::NoError
+                                   ? tr("Unknown error")
+                                   : parseError.errorString();
+        update(tr("Parse the flow file failed: %1").arg(reason));
+        splashScreen.finish(this);
+        return false;
+    }
+
+    const QJsonObject root = jsonDoc.object();
+
+    update(tr("Load the dataflow model ..."));
+    const QJsonValue df = root.value("DataFlow");
+    if (!df.isObject()) {
+        update(tr("DataFlow 数据缺失或格式错误"));
+        splashScreen.finish(this);
+        return false;
+    }
+    if (!dataflowViewsManger) {
+        update(tr("DataflowViewsManger is null"));
+        splashScreen.finish(this);
+        return false;
+    }
+
+    QMetaObject::Connection dfConn;
+    dfConn = QObject::connect(dataflowViewsManger,
+                              &DataflowViewsManger::loadProgress,
+                              this,
+                              [&splashScreen, &pumpUi](const QString& sceneTitle, const QString& phase, int current, int total) {
+                                  if (total > 0) {
+                                      const int pct = qBound(0, (current * 100) / total, 100);
+                                      splashScreen.updateStatus(QObject::tr("DataFlow [%1] %2 %3% (%4/%5)")
+                                                                   .arg(sceneTitle, phase)
+                                                                   .arg(pct)
+                                                                   .arg(current)
+                                                                   .arg(total));
+                                  } else {
+                                      splashScreen.updateStatus(QObject::tr("DataFlow [%1] %2 %3")
+                                                                   .arg(sceneTitle, phase)
+                                                                   .arg(current));
+                                  }
+                                  pumpUi();
+                              });
+
+    dataflowViewsManger->load(df.toObject());
+
+    if (dfConn) {
+        QObject::disconnect(dfConn);
+    }
+
+    update(tr("Load the timeline model ..."));
+    const QJsonValue tl = root.value("TimeLine");
+    if (!tl.isObject()) {
+        update(tr("TimeLine 数据缺失或格式错误"));
+        splashScreen.finish(this);
+        return false;
+    }
+    if (!timeline) {
+        update(tr("TimelineWidget is null"));
+        splashScreen.finish(this);
+        return false;
+    }
+    timeline->load(tl.toObject());
+
+    update(tr("Load the scheduled tasks model ..."));
+    const QJsonValue st = root.value("ScheduledTasks");
+    if (!st.isObject()) {
+        update(tr("ScheduledTasks 数据缺失或格式错误"));
+        splashScreen.finish(this);
+        return false;
+    }
+    if (!scheduledTaskWidget) {
+        update(tr("ScheduledTaskWidget is null"));
+        splashScreen.finish(this);
+        return false;
+    }
+    scheduledTaskWidget->load(st.toObject());
+
+    const QJsonObject webLayout = root.value("WebLayout").toObject();
+    if (!webLayout.isEmpty() && httpServer) {
+        update(tr("Load the web layout ..."));
+        httpServer->load(webLayout);
+    }
+
+    ConfigManager::instance().addRecentFile(absolutePath);
+
+    update(tr("Load flow file completed"));
+    splashScreen.finish(this);
+
+    if (trayIcon) {
+        trayIcon->setToolTip(tr("正在运行 %1").arg(QFileInfo(absolutePath).fileName()));
+    }
+    qDebug() << tr("正在运行 %1").arg(QFileInfo(absolutePath).fileName());
+
+    return true;
 }
 
 bool MainWindowHeadLess::loadRecentFile() {

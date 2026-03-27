@@ -14,7 +14,7 @@
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="container" id="pageContent" style="display:none;">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="h4 mb-0">设置</h1>
       <a class="btn btn-sm btn-outline-secondary" href="index.html">返回仪表盘</a>
@@ -68,6 +68,35 @@
   </div>
 
   <script>
+    // 函数级注释：向服务器提交设置页密码进行校验（POST /api/auth/setting）
+    async function verifySettingPassword(password) {
+      try {
+        const resp = await fetch('/api/auth/setting', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: password || '' })
+        });
+        const j = await resp.json().catch(() => null);
+        return !!(resp.ok && j && j.ok);
+      } catch {
+        return false;
+      }
+    }
+
+    // 函数级注释：进入设置页前进行密码校验（若服务器未配置密码，则自动通过）
+    async function requireSettingAuth() {
+      const okEmpty = await verifySettingPassword('');
+      if (okEmpty) return true;
+
+      while (true) {
+        const pw = window.prompt('请输入设置页面密码');
+        if (pw === null) return false;
+        const ok = await verifySettingPassword(pw);
+        if (ok) return true;
+        window.alert('密码错误');
+      }
+    }
+
     // 函数级注释：将文件通过二进制流上传到指定接口（带进度显示）
     async function uploadFileBinary(url, file, progressEl, progressWrap, statusEl) {
       if (!file) { statusEl.textContent = '请选择文件'; return; }
@@ -76,7 +105,6 @@
       statusEl.textContent = '开始上传...';
 
       try {
-        // 使用可读流分块上传以显示进度（现代浏览器支持）
         const total = file.size || 0;
         let uploaded = 0;
 
@@ -148,16 +176,15 @@
           const j = await resp.json().catch(() => ({}));
           throw new Error(j.error || resp.statusText);
         }
-        
+
         const blob = await resp.blob();
-        // 尝试从 Content-Disposition 解析文件名
         const disposition = resp.headers.get('Content-Disposition') || '';
         let filename = 'project.flow';
         const matches = /filename="([^"]*)"/.exec(disposition);
         if (matches && matches[1]) {
             filename = matches[1];
         }
-        
+
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -192,13 +219,23 @@
       }
     }
 
-    // 事件绑定
-    document.getElementById('uploadMediaBtn').onclick = uploadMedia;
-    document.getElementById('uploadFlowBtn').onclick = uploadFlow;
-    document.getElementById('downloadFlowBtn').onclick = downloadFlow;
-    
-    // 初始化
-    fetchCurrentFlowInfo();
+    // 函数级注释：初始化页面（先鉴权，再绑定事件并加载数据）
+    async function initSettingPage() {
+      const content = document.getElementById('pageContent');
+      const ok = await requireSettingAuth();
+      if (!ok) {
+        window.location.href = 'index.html';
+        return;
+      }
+
+      content.style.display = '';
+      document.getElementById('uploadMediaBtn').onclick = uploadMedia;
+      document.getElementById('uploadFlowBtn').onclick = uploadFlow;
+      document.getElementById('downloadFlowBtn').onclick = downloadFlow;
+      fetchCurrentFlowInfo();
+    }
+
+    document.addEventListener('DOMContentLoaded', initSettingPage);
   </script>
 </body>
 </html>

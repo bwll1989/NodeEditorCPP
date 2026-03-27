@@ -59,6 +59,7 @@ namespace NodeStudio {
         static std::string builtInIndexHtml();
 
         // Helper methods for request handling
+        void handleApiAuthSetting(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         void handleApiCommand(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         void handleApiExec(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& query);
         void handleLayoutSave(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);

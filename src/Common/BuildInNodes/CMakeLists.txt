@@ -45,6 +45,11 @@ set(BuildInNodes_sources
     FromJsonDataModel.hpp
     AbstractDelegateModel.cpp
     AbstractDelegateModel.h
+    FloatVariableDataModel.hpp
+    IntVariableDataModel.hpp
+    BoolVariableDataModel.hpp
+    ToggleVariableDataModel.hpp
+    StringVariableDataModel.hpp
 )
 
 # 生成静态库（也可改为 SHARED，如需导出符号）

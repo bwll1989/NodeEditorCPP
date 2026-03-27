@@ -4,6 +4,7 @@
 #include "SettingWidget.h"
 #include "Common/AppConfig/ConfigManager.h"
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QFormLayout>
 #include <QLabel>
 #include <QMessageBox>
@@ -111,6 +112,9 @@ SettingWidget::SettingWidget(QWidget* parent)
     m_httpPortSpin->setRange(1024, 65535);
     formNet->addRow("HTTP 服务器端口:", m_httpPortSpin);
 
+    m_webPasswordEdit = new QLineEdit(this);
+    formNet->addRow("网页访问密码:", m_webPasswordEdit);
+
     m_extraFeedbackHostEdit = new QLineEdit(this);
     formNet->addRow("OSC 反馈主机 IP:", m_extraFeedbackHostEdit);
 
@@ -124,6 +128,9 @@ SettingWidget::SettingWidget(QWidget* parent)
 
     m_oscInternalHostEdit = new QLineEdit(this);
     formNet->addRow("OSC 内部主机 IP:", m_oscInternalHostEdit);
+
+    m_oscEnabledCheck = new QCheckBox("启用", this);
+    formNet->addRow("OSC外部反馈/控制:", m_oscEnabledCheck);
 
     layoutNet->addLayout(formNet);
     layoutNet->addStretch();
@@ -157,12 +164,11 @@ SettingWidget::SettingWidget(QWidget* parent)
     connect(m_listWidget, &QListWidget::currentRowChanged, m_stackedWidget, &QStackedWidget::setCurrentIndex);
 
     // 底部按钮
-    m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::RestoreDefaults, this);
+    m_buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
     mainLayout->addWidget(m_buttonBox);
 
     connect(m_buttonBox, &QDialogButtonBox::accepted, this, &SettingWidget::saveSettings);
     connect(m_buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect(m_buttonBox->button(QDialogButtonBox::RestoreDefaults), &QPushButton::clicked, this, &SettingWidget::resetToDefaults);
 
     loadCurrentSettings();
     
@@ -183,6 +189,8 @@ void SettingWidget::loadCurrentSettings() {
     m_extraFeedbackPortSpin->setValue(config.getExtraFeedbackPort());
     m_extraControlPortSpin->setValue(config.getExtraControlPort());
     m_oscInternalHostEdit->setText(config.getOscInternalControlHost());
+    m_oscEnabledCheck->setChecked(config.isOscEnabled());
+    m_webPasswordEdit->setText(config.getWebAccessPassword());
     // Log Settings
     m_maxLogEntriesSpin->setValue(config.getMaxLogEntries());
 }
@@ -197,6 +205,8 @@ void SettingWidget::saveSettings() {
     obj["ExtraControlPort"] = m_extraControlPortSpin->value();
     obj["OscInternalControlHost"] = m_oscInternalHostEdit->text();
     obj["DefaultDarkTheme"] = m_darkThemeCheck->isChecked();
+    obj["OscEnabled"] = m_oscEnabledCheck->isChecked();
+    obj["WebAccessPassword"] = m_webPasswordEdit->text();
     // Log Settings
     obj["MaxLogEntries"] = m_maxLogEntriesSpin->value();
 
@@ -206,13 +216,6 @@ void SettingWidget::saveSettings() {
     accept();
 }
 
-void SettingWidget::resetToDefaults() {
-    if (QMessageBox::question(this, "重置", "确定要恢复默认设置吗？") == QMessageBox::Yes) {
-        ConfigManager::instance().createDefaultConfig(); // Resets file
-        ConfigManager::instance().loadConfig(); // Reloads memory
-        loadCurrentSettings(); // Refreshes UI
-    }
-}
 
 static inline QPoint centerOnScreen(QWidget* w) {
     if (QGuiApplication::primaryScreen()) {

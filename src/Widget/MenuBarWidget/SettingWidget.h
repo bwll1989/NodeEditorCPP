@@ -16,7 +16,6 @@ public:
 
 private slots:
     void saveSettings();
-    void resetToDefaults();
 
 private:
     void loadCurrentSettings();
@@ -36,6 +35,8 @@ private:
     IntDragValueWidget* m_extraFeedbackPortSpin;
     IntDragValueWidget* m_extraControlPortSpin;
     QLineEdit* m_oscInternalHostEdit;
+    QCheckBox* m_oscEnabledCheck;
+    QLineEdit* m_webPasswordEdit;
 
     // Log Settings
     IntDragValueWidget* m_maxLogEntriesSpin;

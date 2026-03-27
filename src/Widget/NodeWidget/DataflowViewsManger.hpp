@@ -80,6 +80,15 @@ Q_SIGNALS:
     void sceneIsActive(QString title);
     void removeScene(QString title);
 
+    /**
+     * @brief 加载进度（用于 SplashScreen 显示更精细进度）
+     * @param sceneTitle 场景标题
+     * @param phase 阶段（例如：节点/连接/分组）
+     * @param current 当前完成数量
+     * @param total 总数量（未知传 0）
+     */
+    void loadProgress(const QString& sceneTitle, const QString& phase, int current, int total);
+
 public:
     /**
      * @brief 获取所有场景标题

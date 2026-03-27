@@ -80,6 +80,10 @@ signals:
      * 缩小点击
      */
     void zoomOutClicked();
+    /**
+     * 当前帧点击
+     */
+    void setCurrentFrame(qint64 frame);
 public slots:
     /**
      * 函数级注释：处理来自全局事件总线的外部命令，并转为工具栏动作/信号
@@ -96,6 +100,7 @@ public slots:
      * @param bool isLooping 是否循环
      */
     void setLoopState(bool isLooping);
+    void publishCurrentFrame(int frame);
     void bindBus(const QString& parentAlias, int nodeId);
     /**
      * 函数级注释：发布工具栏相关的状态反馈到全局事件总线
@@ -153,7 +158,7 @@ private:
     //缩小动作
     QAction* m_zoomOutAction;
     //输出窗口动作
-    // QAction* m_outputAction;
+    QAction* m_currentFrameAction;
     //是否播放
     bool m_isPlaying = false;
     //所有动作

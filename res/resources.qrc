@@ -106,6 +106,7 @@
     <file>icons/arror_right.png</file>
     <file>icons/collapse.png</file>
     <file>icons/home.png</file>
+    <file>icons/cursor.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

@@ -15,3 +15,8 @@
 #include "WindowDisplayModel.hpp"
 #include "TriggerSourceDataModel.hpp"
 #include "ToggleSourceDataModel.hpp"
+#include "FloatVariableDataModel.hpp"
+#include "StringVariableDataModel.hpp"
+#include "IntVariableDataModel.hpp"
+#include "BoolVariableDataModel.hpp"
+#include "ToggleVariableDataModel.hpp"

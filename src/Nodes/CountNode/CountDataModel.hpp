@@ -29,18 +29,18 @@ namespace Nodes
     public:
 
         CountDataModel(){
-            InPortCount =2;
+            InPortCount =1;
             OutPortCount=1;
             Caption="Count";
             CaptionVisible=true;
             WidgetEmbeddable= true;
-            Resizable=true;
+            Resizable=false;
             PortEditable=true;
             AbstractDelegateModel::registerExternalControl("/clear",widget->Clear);
+            AbstractDelegateModel::registerExternalControl("/count",widget->countDisplay);
             connect(widget->Editor, &QLineEdit::editingFinished, this, &CountDataModel::outDataSlot);
             connect(widget->Clear, &QPushButton::clicked, this, &CountDataModel::clearCount);
             m_jsEngine = new QJSEngine(this);
-            clearCount();
         }
         ~CountDataModel() override {
             if(m_jsEngine) {
@@ -101,6 +101,8 @@ namespace Nodes
             // 如果表达式结果为true，计数器+1
             if (expressionResult) {
                 count++;
+                stateFeedBack("/count", count);
+                widget->countDisplay->setValue(count);
             }
             
             // 返回当前计数值
@@ -156,6 +158,7 @@ namespace Nodes
                 this,
                 SLOT(clearExternalCommand(GlobalEvent))
             );
+            stateFeedBack("/count", count);
         }
     private slots:
         void outDataSlot() {
@@ -177,6 +180,9 @@ namespace Nodes
          */
         void clearCount() {
             count = 0;
+            m_InData=nullptr;
+            widget->countDisplay->setValue(count);
+            stateFeedBack("/count", count);
             Q_EMIT dataUpdated(0);
         }
     private:

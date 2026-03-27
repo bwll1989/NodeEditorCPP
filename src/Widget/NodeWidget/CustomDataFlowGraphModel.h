@@ -230,6 +230,14 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
     QString modelAlias() const { return _modelAlias; }
 Q_SIGNALS:
     /**
+     * 加载进度
+     * @param phase 阶段（例如：节点/连接/分组）
+     * @param current 当前完成数量
+     * @param total 总数量（未知传 0）
+     */
+    void loadProgress(const QString& phase, int current, int total);
+
+    /**
      * 端口数据被设置
      * @param NodeId const nodeId 节点ID
      * @param PortType const portType 端口类型

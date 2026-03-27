@@ -18,6 +18,7 @@ TimeLineToolBar::~TimeLineToolBar()
     delete m_stopAction;
     delete m_loopAction;
     delete m_nextFrameAction;
+    delete m_currentFrameAction;
 }
 
 void TimeLineToolBar::bindBus(const QString& modelAlias)
@@ -53,6 +54,7 @@ void TimeLineToolBar::bindBus(const QString& modelAlias)
     GlobalEventBus::instance()->subscribe(makeFullOscAddress("/deleteClip"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(makeFullOscAddress("/zoomIn"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(makeFullOscAddress("/zoomOut"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeFullOscAddress("/currentFrame"), this, SLOT(onGlobalEvent(GlobalEvent)));
     //发布初始状态
     publishCurrentState();
 }
@@ -65,6 +67,7 @@ void TimeLineToolBar::publishCurrentState()
     stateFeedBack(makeFullOscAddress("/play"), m_isPlaying);
     stateFeedBack(makeFullOscAddress("/stop"), !m_isPlaying);
     stateFeedBack(makeFullOscAddress("/loop"), m_loopAction ? m_loopAction->isChecked() : false);
+    stateFeedBack(makeFullOscAddress("/currentFrame"), 0);
 
 }
 
@@ -128,6 +131,16 @@ void TimeLineToolBar::onGlobalEvent(const GlobalEvent& ev)
             emit outputWindowToggled(enabled);
             stateFeedBack(makeFullOscAddress("/output"), enabled);
         }
+        return;
+    }
+
+    if (ev.address == makeFullOscAddress("/currentFrame")) {
+        if (!ev.payload.isValid()) {
+            return;
+        }
+        const qint64 frame = ev.payload.toLongLong();
+        emit setCurrentFrame(frame);
+        stateFeedBack(makeFullOscAddress("/currentFrame"), frame);
         return;
     }
 
@@ -286,6 +299,10 @@ void TimeLineToolBar::createActions()
     m_locationAction->setIcon(QIcon(":/icons/icons/location.png"));
     m_locationAction->setToolTip(tr("Focus cursor"));
     connect(m_locationAction, &QAction::triggered, this, &TimeLineToolBar::locationClicked);
+
+    m_currentFrameAction=new QAction(this);
+    m_currentFrameAction->setIcon(QIcon(":/icons/icons/cursor.png"));
+    m_currentFrameAction->setToolTip(tr("Current Frame"));
 }
 
 void TimeLineToolBar::setupUI()
@@ -324,6 +341,8 @@ void TimeLineToolBar::setupUI()
     addAction(m_zoomOutAction);
     registerOSCControl("/zoomOut",m_zoomOutAction);
     addAction(m_locationAction);
+    addAction(m_currentFrameAction);
+    registerOSCControl("/currentFrame",m_currentFrameAction);
     // 设置工具栏样式
     setMovable(false);
     setIconSize(QSize(toolbarButtonWidth, toolbarButtonWidth));
@@ -352,6 +371,11 @@ void TimeLineToolBar::setLoopState(bool isLooping)
     m_loopAction->blockSignals(false);
     m_loopAction->setToolTip(isLooping ? tr("Unloop") : tr("Loop"));
 
+}
+
+void TimeLineToolBar::publishCurrentFrame(int frame)
+{
+    stateFeedBack(makeFullOscAddress("/currentFrame"), frame);
 }
 void TimeLineToolBar::startDrag(QAction* widget)
 {

@@ -32,6 +32,8 @@ public:
     int getMaxLogEntries() const;
     QStringList getRecentFiles() const;
     QString getCurrentFlowPath() const;
+    bool isOscEnabled() const;
+    QString getWebAccessPassword() const;
     /**
      * 函数级注释：将新路径加入最近文件列表
      * - 规则：去重后插入到首位；保留最多 MaxRecentFiles 个
@@ -65,6 +67,8 @@ private:
     int m_extraFeedbackPort;
     int m_extraControlPort;
     QString m_oscInternalControlHost;
+    bool m_oscEnabled;
+    QString m_webAccessPassword;
     bool m_defaultDarkTheme;
     int m_MaxLogEntries;
     QStringList m_recentFiles;

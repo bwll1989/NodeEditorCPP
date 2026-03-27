@@ -10,7 +10,7 @@
     
     const defaults = {
       commandId: '/cmd/demo',
-      bgColor: '#ffffff',
+      bgColor: 'transparent',
       fontSize: '14',
       min: 0,
       max: 1,
@@ -20,7 +20,7 @@
       fillColor: '#2b6cb0',
       valueColor: '#111827',
       borderColor: '#e5e7eb',
-      borderStyle: 'solid'
+      borderStyle: 'none'
     };
     const coercers = {
       fontSize: (v) => String(v ?? '14'),

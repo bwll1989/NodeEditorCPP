@@ -11,7 +11,6 @@
 #include "OSCMessage.h"
 #include <QWidget>
 #include "Common/Devices/StatusContainer/StatusContainer.h"
-#include "Common/Devices/StatusContainer/StatusContainer.h"
 #include <QCoreApplication>
 #include "Common/Devices/OSCSender/OSCSender.h"
 

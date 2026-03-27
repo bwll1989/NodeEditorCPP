@@ -24,26 +24,30 @@
 #include "Common/AppConfig/ConfigManager.h"
 
 ExternalControler::ExternalControler():
-    OSC_Receiver(new OSCReceiver(ConfigManager::instance().getExtraControlPort()))
-    ,OSC_Feedback(new OSCSender(ConfigManager::instance().getExtraFeedbackHost(),ConfigManager::instance().getExtraFeedbackPort()))
+    OSC_Receiver(nullptr)
+    ,OSC_Feedback(nullptr)
     ,StatusContainer(StatusContainer::instance())
 {
-    // 创建 UDP 套接字并绑定到指定端口
-    connect(OSC_Receiver, &OSCReceiver::receiveOSCMessage,StatusContainer::instance(),&StatusContainer::parseOSC);
-    
-    connect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, [this](const StatusItem& item) {
-        // 发送 OSC 反馈
-        OSCMessage message = item.toOSCMessage();
-        message.host = ConfigManager::instance().getExtraFeedbackHost();
-        message.port = ConfigManager::instance().getExtraFeedbackPort();
-        OSC_Feedback->sendOSCMessageWithQueue(message);
-    });
+    if (ConfigManager::instance().isOscEnabled()) {
+        OSC_Receiver = new OSCReceiver(ConfigManager::instance().getExtraControlPort());
+        OSC_Feedback = new OSCSender(ConfigManager::instance().getExtraFeedbackHost(), ConfigManager::instance().getExtraFeedbackPort());
+
+        connect(OSC_Receiver, &OSCReceiver::receiveOSCMessage, StatusContainer::instance(), &StatusContainer::parseOSC);
+        connect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, [this](const StatusItem& item) {
+            OSCMessage message = item.toOSCMessage();
+            message.host = ConfigManager::instance().getExtraFeedbackHost();
+            message.port = ConfigManager::instance().getExtraFeedbackPort();
+            if (OSC_Feedback) {
+                OSC_Feedback->sendOSCMessageWithQueue(message);
+            }
+        });
+    }
 }
 
 ExternalControler::~ExternalControler()
 {
-    // 清理映射中的所有控件
     delete OSC_Receiver;
+    delete OSC_Feedback;
 }
 
 

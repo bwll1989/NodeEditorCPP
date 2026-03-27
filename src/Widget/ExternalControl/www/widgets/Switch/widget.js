@@ -4,13 +4,13 @@
   window.EPWidgets.createEPSwitchWidget = function(grid, initialProps = {}, opts = {}) {
     const defaults = {
       commandId: '/cmd/demo',
-      bgColor: '#ffffff',
+      bgColor: 'transparent',
       fontSize: '14',
       checked: false,
       onColor: '#13ce66',
       offColor: '#ff4949',
       borderColor: '#e5e7eb',
-      borderStyle: 'solid'
+      borderStyle: 'none'
     };
 
     return window.EPWidgets.createVueWidget(grid, {

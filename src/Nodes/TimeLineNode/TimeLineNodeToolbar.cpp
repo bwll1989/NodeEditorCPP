@@ -23,7 +23,7 @@ TimeLineNodeToolBar::~TimeLineNodeToolBar()
 QString TimeLineNodeToolBar::makeBusAddress(const QString& relative) const
 {
     const QString norm = relative.startsWith('/') ? relative : ("/" + relative);
-    return "/dataflow/" + m_parentAlias + "/" + QString::number(m_nodeId) + norm;
+    return "/dataflow" + m_parentAlias + "/" + QString::number(m_nodeId) + norm;
 }
 
 void TimeLineNodeToolBar::publishState(const QString& relative, const QVariant& value)
@@ -51,6 +51,8 @@ void TimeLineNodeToolBar::bindBus(const QString& parentAlias, int nodeId)
     GlobalEventBus::instance()->subscribe(makeBusAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(makeBusAddress("/pause"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(makeBusAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(makeBusAddress("/currentFrame"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
     connect(this, &TimeLineNodeToolBar::loopToggled, this, [this](bool enabled) {
         publishState("/loop", enabled);
     });
@@ -58,6 +60,7 @@ void TimeLineNodeToolBar::bindBus(const QString& parentAlias, int nodeId)
     publishState("/play", m_isPlaying);
     publishState("/stop", !m_isPlaying);
     publishState("/loop", m_loopAction ? m_loopAction->isChecked() : false);
+    publishState("/currentFrame", 0);
 }
 
 void TimeLineNodeToolBar::onGlobalEvent(const GlobalEvent& ev)
@@ -104,6 +107,11 @@ void TimeLineNodeToolBar::onGlobalEvent(const GlobalEvent& ev)
             blocker.unblock();
             emit loopToggled(enabled);
         }
+        return;
+    }
+    if (ev.address == makeBusAddress("/currentFrame")) {
+        const qint64 frame = ev.payload.toLongLong();
+        emit setCurrentFrame(frame);
         return;
     }
 }
@@ -263,6 +271,14 @@ void TimeLineNodeToolBar::setupUI()
     m_allActions["zoomIn"]=m_zoomInAction;
     addAction(m_zoomOutAction);
     m_allActions["zoomOut"]=m_zoomOutAction;
+    // 当前帧动作
+    m_currentFrameAction = new QAction(this);
+    m_currentFrameAction->setIcon(QIcon(":/icons/icons/cursor.png"));
+    m_currentFrameAction->setToolTip(tr("Current Frame"));
+    addAction(m_currentFrameAction);
+    m_allActions["currentFrame"]=m_currentFrameAction;
+    // 注册currentFrame 外部控制
+    registerOSCControl("/currentFrame",m_currentFrameAction);
     // 设置工具栏样式
     setMovable(false);
     setIconSize(QSize(toolbarButtonWidth, toolbarButtonWidth));
@@ -276,6 +292,8 @@ void TimeLineNodeToolBar::setPlaybackState(bool isPlaying)
     m_isPlaying = isPlaying;
     m_playAction->setIcon(QIcon(m_isPlaying ? ":/icons/icons/pause.png" : ":/icons/icons/play.png"));
     m_playAction->setToolTip(m_isPlaying ? tr("Pause") : tr("Play"));
+    publishState("/play", m_isPlaying);
+    publishState("/stop", !m_isPlaying);
 
 }
 
@@ -291,6 +309,11 @@ void TimeLineNodeToolBar::setLoopState(bool isLooping)
     m_loopAction->setToolTip(isLooping ? tr("Unloop") : tr("Loop"));
 
     publishState("/loop", isLooping);
+}
+
+void TimeLineNodeToolBar::publishCurrentFrame(int frame)
+{
+    publishState("/currentFrame", frame);
 }
 
 

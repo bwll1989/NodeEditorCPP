@@ -4,7 +4,7 @@
   window.EPWidgets.createEPToggleButtonWidget = function(grid, initialProps = {}, opts = {}) {
     const defaults = {
       commandId: '/cmd/demo',
-      bgColor: '#ffffff',
+      bgColor: 'transparent',
       fontSize: '14',
       labelOn: '开启',
       labelOff: '关闭',
@@ -14,7 +14,7 @@
       pressColor: '#0e5d45',
       textColor: '#ffffff',
       borderColor: '#409EFF',
-      borderStyle: 'solid',
+      borderStyle: 'none',
       isPressed: false
     };
 

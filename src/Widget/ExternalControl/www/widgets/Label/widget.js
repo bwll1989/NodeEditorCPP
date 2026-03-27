@@ -4,12 +4,12 @@
   window.EPWidgets.createEPLabelWidget = function(grid, initialProps = {}, opts = {}) {
     const defaults = {
       commandId: '/cmd/demo',
-      bgColor: '#ffffff',
+      bgColor: 'transparent',
       fontSize: '14',
       text: '标签',
       textColor: '#111827',
       borderColor: '#e5e7eb',
-      borderStyle: 'solid'
+      borderStyle: 'none'
     };
 
     return window.EPWidgets.createVueWidget(grid, {

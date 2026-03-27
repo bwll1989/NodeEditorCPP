@@ -3,7 +3,7 @@
   window.EPWidgets = window.EPWidgets || {};
   window.EPWidgets.createEPDividerWidget = function(grid, initialProps = {}, opts = {}) {
     const defaults = {
-      bgColor: '#ffffff',
+      bgColor: 'transparent',
       fontSize: '14',
       text: '分割线',
       lineColor: '#e5e7eb',

@@ -19,10 +19,12 @@
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "BaseTimeLineModel.h"
 #include <QSettings>
+#include <exception>
 #include "Elements/BarButton/BarButton.h"
 #include "Elements/XYPad/XYPad.h"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
 #include "../../Common/AppConfig/ConfigManager.h"
+#include <QMetaObject>
 using namespace ads;
 
 /* 函数级注释：全局应用样式表并强制重新抛光所有已存在控件 */
@@ -338,85 +340,205 @@ void MainWindow::dropEvent(QDropEvent *event) {
 void MainWindow::loadFileFromPath(const QString &path)
 {
     CustomSplashScreen splashScreen;
+
+    const auto pumpUi = []() {
+        QApplication::processEvents();
+    };
+
     splashScreen.updateStatus(tr("Prepare to open: %1").arg(path));
+    pumpUi();
 
     if (!path.isEmpty())
     {
-        // 获取绝对路径
         QFileInfo fileInfo(path);
         QString absolutePath = fileInfo.absoluteFilePath();
 
-        // 将"\"转换成"/"，因为"\"系统不认
         absolutePath = absolutePath.replace("\\", "/");
         splashScreen.updateStatus(tr("Analyze path: %1").arg(absolutePath));
+        pumpUi();
 
         QFile file(absolutePath);
         if (!file.open(QIODevice::ReadOnly))
         {
             splashScreen.updateStatus(tr("Open file failed: %1").arg(file.errorString()));
+            pumpUi();
             splashScreen.finish(this);
             QMessageBox::warning(this, "",
                                  tr("无法打开文件 %1:\n%2").arg(absolutePath).arg(file.errorString()));
             return;
         }
 
-        splashScreen.updateStatus(tr("Read file: %1").arg(absolutePath));
+        const qint64 fileSize = file.size();
+        if (fileSize > 2147483647LL) {
+            splashScreen.updateStatus(tr("File is too large: %1 bytes").arg(fileSize));
+            pumpUi();
+            splashScreen.finish(this);
+            QMessageBox::warning(this, "",
+                                 tr("文件过大，无法加载 %1\n大小: %2 bytes").arg(absolutePath).arg(fileSize));
+            return;
+        }
 
-        // 读取.flow文件
-        QByteArray const wholeFile = file.readAll();
+        splashScreen.updateStatus(tr("Read file: %1").arg(absolutePath));
+        pumpUi();
+
+        QByteArray wholeFile;
+        wholeFile.reserve((int)qMax<qint64>(0, fileSize));
+        qint64 readBytes = 0;
+        const qint64 chunkSize = 1024 * 1024;
+        while (!file.atEnd()) {
+            const QByteArray chunk = file.read(chunkSize);
+            if (chunk.isEmpty() && file.error() != QFile::NoError) break;
+            wholeFile.append(chunk);
+            readBytes += chunk.size();
+
+            if (fileSize > 0) {
+                int pct = (int)((readBytes * 100) / fileSize);
+                if (pct > 100) pct = 100;
+                splashScreen.updateStatus(tr("Read file... %1% (%2/%3)").arg(pct).arg(readBytes).arg(fileSize));
+            } else {
+                splashScreen.updateStatus(tr("Read file... %1 bytes").arg(readBytes));
+            }
+            pumpUi();
+        }
+
+        if (file.error() != QFile::NoError) {
+            splashScreen.updateStatus(tr("Read file failed: %1").arg(file.errorString()));
+            pumpUi();
+            splashScreen.finish(this);
+            QMessageBox::warning(this, "",
+                                 tr("读取文件失败 %1:\n%2").arg(absolutePath).arg(file.errorString()));
+            return;
+        }
 
         splashScreen.updateStatus(tr("Parse the flow file..."));
+        pumpUi();
 
         auto jsonDoc = QJsonDocument::fromJson(wholeFile);
-        if (jsonDoc.isNull()) {
+        if (jsonDoc.isNull() || !jsonDoc.isObject()) {
             splashScreen.updateStatus(tr("Parse the flow file failed"));
+            pumpUi();
             splashScreen.finish(this);
             QMessageBox::warning(this, "",
                                  tr("无法解析文件 %1:\n%2").arg(absolutePath));
             return;
         }
 
+        const QJsonObject root = jsonDoc.object();
+        const auto abortLoad = [&](const QString& msg) {
+            splashScreen.updateStatus(msg);
+            pumpUi();
+            splashScreen.finish(this);
+            QMessageBox::warning(this, "", msg);
+        };
+
         splashScreen.updateStatus(tr("Load the dataflow model ..."));
-        // 加载数据流模型
-        dataflowViewsManger->load(jsonDoc.object()["DataFlow"].toObject());
+        pumpUi();
+
+        QMetaObject::Connection dfConn;
+        if (dataflowViewsManger) {
+            dfConn = QObject::connect(dataflowViewsManger,
+                                      &DataflowViewsManger::loadProgress,
+                                      this,
+                                      [&splashScreen, &pumpUi](const QString& sceneTitle, const QString& phase, int current, int total) {
+                                          if (total > 0) {
+                                              const int pct = qBound(0, (current * 100) / total, 100);
+                                              splashScreen.updateStatus(QObject::tr("DataFlow [%1] %2 %3% (%4/%5)")
+                                                                           .arg(sceneTitle, phase)
+                                                                           .arg(pct)
+                                                                           .arg(current)
+                                                                           .arg(total));
+                                          } else {
+                                              splashScreen.updateStatus(QObject::tr("DataFlow [%1] %2 %3")
+                                                                           .arg(sceneTitle, phase)
+                                                                           .arg(current));
+                                          }
+                                          pumpUi();
+                                      });
+        }
+
+        try {
+            const QJsonValue v = root.value("DataFlow");
+            if (!v.isObject()) {
+                if (dfConn) QObject::disconnect(dfConn);
+                abortLoad(tr("DataFlow 数据缺失或格式错误"));
+                return;
+            }
+            dataflowViewsManger->load(v.toObject());
+            if (dfConn) QObject::disconnect(dfConn);
+        } catch (const std::exception& e) {
+            if (dfConn) QObject::disconnect(dfConn);
+            abortLoad(tr("加载 DataFlow 失败: %1").arg(QString::fromUtf8(e.what())));
+            return;
+        } catch (...) {
+            if (dfConn) QObject::disconnect(dfConn);
+            abortLoad(tr("加载 DataFlow 失败"));
+            return;
+        }
 
         splashScreen.updateStatus(tr("Load the timeline model ..."));
-        // 加载时间轴模型
-        timeline->load(jsonDoc.object()["TimeLine"].toObject());
+        pumpUi();
+        try {
+            const QJsonValue v = root.value("TimeLine");
+            if (!v.isObject()) {
+                abortLoad(tr("TimeLine 数据缺失或格式错误"));
+                return;
+            }
+            timeline->load(v.toObject());
+        } catch (const std::exception& e) {
+            abortLoad(tr("加载 TimeLine 失败: %1").arg(QString::fromUtf8(e.what())));
+            return;
+        } catch (...) {
+            abortLoad(tr("加载 TimeLine 失败"));
+            return;
+        }
 
         splashScreen.updateStatus(tr("Load the scheduled tasks model ..."));
-        // 加载计划任务模型
-        scheduledTaskWidget->load(jsonDoc.object()["ScheduledTasks"].toObject());
+        pumpUi();
+        try {
+            const QJsonValue v = root.value("ScheduledTasks");
+            if (!v.isObject()) {
+                abortLoad(tr("ScheduledTasks 数据缺失或格式错误"));
+                return;
+            }
+            scheduledTaskWidget->load(v.toObject());
+        } catch (const std::exception& e) {
+            abortLoad(tr("加载 ScheduledTasks 失败: %1").arg(QString::fromUtf8(e.what())));
+            return;
+        } catch (...) {
+            abortLoad(tr("加载 ScheduledTasks 失败"));
+            return;
+        }
 
-        // 加载布局信息
         const QString layoutBase64 = jsonDoc.object()["VisualLayout"].toString();
         if (!layoutBase64.isEmpty()) {
-            const QByteArray layoutBytes = QByteArray::fromBase64(layoutBase64.toLatin1());
             splashScreen.updateStatus(tr("Load the visual layout ..."));
+            pumpUi();
+            const QByteArray layoutBytes = QByteArray::fromBase64(layoutBase64.toLatin1());
             m_DockManager->restoreState(layoutBytes);
         }else {
             resetVisualState();
         }
-        
-        // 载入网页布局（HTTP Server）
+
         const QJsonObject webLayout = jsonDoc.object().value("WebLayout").toObject();
         if (!webLayout.isEmpty() && httpServer) {
             splashScreen.updateStatus(tr("Load the web layout..."));
+            pumpUi();
             httpServer->load(webLayout);
         }
-        
-        // 加入最近文件并刷新菜单
+
         ConfigManager::instance().addRecentFile(absolutePath);
         menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
 
         currentProjectPath=absolutePath;
-   
+
         this->setWindowTitle(ConfigManager::instance().getCurrentFlowPath().split("/").last());
         splashScreen.updateStatus(tr("Load flow file completed"));
+        pumpUi();
         splashScreen.finish(this);
     }
     else {
         splashScreen.updateStatus(tr("Path is empty"));
+        pumpUi();
         splashScreen.finish(this);
     }
 }

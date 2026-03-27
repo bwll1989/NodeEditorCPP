@@ -631,6 +631,13 @@ bool CustomDataFlowGraphModel::deleteNode(NodeId const nodeId)
         deleteConnection(cId);
     }
 
+    auto wit = _nodeWidgets.find(nodeId);
+    if (wit != _nodeWidgets.end()) {
+        auto* w = wit->second;
+        _nodeWidgets.erase(wit);
+        if (w) w->deleteLater();
+    }
+
     _nodeGeometryData.erase(nodeId);
     _models.erase(nodeId);
 
@@ -775,13 +782,29 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
     for (auto nodeId : existingNodes) {
         deleteNode(nodeId);
     }
+    for (auto& kv : _nodeWidgets) {
+        if (kv.second) kv.second->deleteLater();
+    }
+    _nodeWidgets.clear();
+
     _groups.clear();
     _connectivity.clear();
 
+    const auto emitProgress = [this](const QString& phase, int current, int total) {
+        if (current == 0 || current == total || (current % 20) == 0) {
+            Q_EMIT loadProgress(phase, current, total);
+        }
+    };
+
     try { // 节点加载阶段
         QJsonArray nodesJsonArray = jsonDocument["nodes"].toArray();
+        const int total = nodesJsonArray.size();
+        emitProgress(tr("节点"), 0, total);
+        int i = 0;
         for (QJsonValueRef nodeJson : nodesJsonArray) {
             loadNode(nodeJson.toObject());
+            ++i;
+            emitProgress(tr("节点"), i, total);
         }
     } catch (const std::exception& e) {
         qCritical() << tr("节点加载失败:\n%1").arg(e.what());
@@ -790,10 +813,15 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
 
     try { // 连接加载阶段
         QJsonArray connectionJsonArray = jsonDocument["connections"].toArray();
+        const int total = connectionJsonArray.size();
+        emitProgress(tr("连接"), 0, total);
+        int i = 0;
         for (QJsonValueRef connection : connectionJsonArray) {
             QJsonObject connJson = connection.toObject();
             ConnectionId connId = fromJson(connJson);
             addConnection(connId);
+            ++i;
+            emitProgress(tr("连接"), i, total);
         }
     } catch (const std::exception& e) {
         qCritical() << tr("连接加载失败:\n%1").arg(e.what());
@@ -803,6 +831,8 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
     try { // 分组加载阶段
         std::vector<GroupId> allGroups;
         QJsonArray groupJsonArray = jsonDocument["groups"].toArray();
+        const int total = groupJsonArray.size();
+
         for (QJsonValueRef group : groupJsonArray) {
             QJsonObject groupJson = group.toObject();
             GroupId groupId = QtNodes::fromJsonToGroup(groupJson);
@@ -814,11 +844,15 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
                 return a.nodeIds.size() > b.nodeIds.size();
             });
 
+        emitProgress(tr("分组"), 0, total);
+        int i = 0;
         for (const auto& groupId : allGroups) {
             addGroup(groupId);
+            ++i;
+            emitProgress(tr("分组"), i, total);
         }
     } catch (const std::exception& e) {
-         qWarning() << tr("分组加载失败:\n%1").arg(e.what());
+        qWarning() << tr("分组加载失败:\n%1").arg(e.what());
 
     }
 }

@@ -4,14 +4,14 @@
   window.EPWidgets.createEPCheckboxWidget = function(grid, initialProps = {}, opts = {}) {
     const defaults = {
       commandId: '/cmd/demo',
-      bgColor: '#ffffff',
+      bgColor: 'transparent',
       fontSize: '14',
       label: '启用',
       checked: false,
       activeColor: '#409EFF',
       textColor: '#111827',
       borderColor: '#409EFF',
-      borderStyle: 'solid'
+      borderStyle: 'none'
     };
 
     return window.EPWidgets.createVueWidget(grid, {
