@@ -6,6 +6,7 @@
 #include "QWidget"
 #include "QLabel"
 #include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
+
 class PropertyWidget: public QWidget
 {
     Q_OBJECT
@@ -13,10 +14,12 @@ public:
     PropertyWidget(CustomDataFlowGraphModel *model,QWidget *parent = nullptr);
     ~PropertyWidget();
     void initLayout();
-//    void setObject(QObject *object);
+    void setModel(CustomDataFlowGraphModel* model);
     QVBoxLayout *lay;
+
 public slots:
     void update(const NodeId nodeId);
+
 private:
 
     QLabel *emptyProperty;

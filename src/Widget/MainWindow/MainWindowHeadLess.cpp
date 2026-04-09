@@ -2,29 +2,39 @@
 // Created by 吴斌 on 2024/1/18.
 //
 
-#include <QMessageBox>
-#include <QApplication>
-#include <QJsonParseError>
 #include "MainWindowHeadLess.hpp"
 #include "Nodes/NodeEditorStyle.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "QFile"
 #include"Widget/ConsoleWidget/LogWidget.hpp"
-#include <QDropEvent>
-#include <QFileDialog>
-#include <QInputDialog>
-#include <QMimeData>
-#include <QWidgetAction>
-#include "Common/GUI/Elements/MartixWidget/MatrixWidget.h"
-#include "Eigen/Core"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "BaseTimeLineModel.h"
 #include <QSettings>
-#include "Elements/BarButton/BarButton.h"
-#include "Elements/XYPad/XYPad.h"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
 #include "../../Common/AppConfig/ConfigManager.h"
 using namespace ads;
+
+/**
+ * @brief 启动 HTTP 服务器并在端口占用的短窗口期内重试
+ * @param server HTTP 服务器对象
+ * @param port 监听端口
+ * @param waitMs 最大等待时间（毫秒）
+ * @return true 启动成功；false 启动失败
+ * 函数级注释：用于解决“进程刚重启、旧进程端口尚未完全释放”的时序问题。
+ */
+static bool startHttpServerWithRetry(NodeStudio::NodeHttpServer* server, int port, int waitMs)
+{
+    if (!server) return false;
+    const int step = 200;
+    int elapsed = 0;
+    while (elapsed <= waitMs) {
+        if (server->start(port)) return true;
+        QThread::msleep(static_cast<unsigned long>(step));
+        elapsed += step;
+    }
+    return false;
+}
+
 MainWindowHeadLess::MainWindowHeadLess(QWidget *parent): QMainWindow(parent) {
 
 }
@@ -34,6 +44,14 @@ MainWindowHeadLess::~MainWindowHeadLess()
     delete timeline;
 }
 
+/**
+ * @brief 初始化无头模式所需的后台组件
+ * 函数级注释：
+ * - 创建 DockManager（复用数据结构，不显示 UI）
+ * - 初始化日志、数据流管理器、时间线/舞台、计划任务、外部控制
+ * - 启动内置 HTTP 服务器用于网页访问与文件上传
+ * - 初始化系统托盘（便于后台常驻与退出）
+ */
 void MainWindowHeadLess::init()
 {
     m_DockManager = new ads::CDockManager(this);
@@ -66,13 +84,13 @@ void MainWindowHeadLess::init()
     emit initStatus("Initialization media library success");
     // 外部控制器
     controller=new ExternalControler();
-    // controller->setDataflowModels(dataflowViewsManger->getModel());
-    // controller->setTimelineModel(timelineModel);
-    // controller->setTimelineToolBarMap(timeline->view->m_toolbar->getOscMapping());
     emit initStatus("Initialization external controler success");
 	 // http 服务器
     httpServer=new NodeStudio::NodeHttpServer();
-    httpServer->start(ConfigManager::instance().getHttpServerPort());
+    const int port = ConfigManager::instance().getHttpServerPort();
+    if (!startHttpServerWithRetry(httpServer, port, 3000)) {
+        emit initStatus(tr("HTTP Server 启动失败，端口可能被占用: %1").arg(port));
+    }
     //http服务器文件上传后，直接打开
     connect(httpServer, &NodeStudio::NodeHttpServer::flowFileUploaded, this, &MainWindowHeadLess::loadFileFromPath);
     emit initStatus("Initialization Http Server success");
@@ -101,8 +119,20 @@ void MainWindowHeadLess::init()
  * 从路径打开文件（仅显示状态文字）
  * 使用 CustomSplashScreen 分阶段展示状态文本，避免界面卡顿。
  */
+/**
+ * @brief 从路径加载 flow 文件
+ * @param path 待加载的 .flow 文件路径
+ * @return true 成功；false 失败
+ * 函数级注释：
+ * - 首次加载（currentProjectPath 为空）：在当前进程中解析并加载项目。
+ * - 二次打开（currentProjectPath 非空）：不直接卸载并重建节点，而是触发重启打开，避免第三方节点内存泄漏累积。
+ */
 bool MainWindowHeadLess::loadFileFromPath(const QString &path)
 {
+    if (!currentProjectPath.isEmpty()) {
+        restartAndOpenFlow(path);
+        return true;
+    }
     CustomSplashScreen splashScreen;
 
     const auto pumpUi = []() {
@@ -259,6 +289,7 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
     }
 
     ConfigManager::instance().addRecentFile(absolutePath);
+    currentProjectPath = absolutePath;
 
     update(tr("Load flow file completed"));
     splashScreen.finish(this);
@@ -269,6 +300,45 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
     qDebug() << tr("正在运行 %1").arg(QFileInfo(absolutePath).fileName());
 
     return true;
+}
+
+/**
+ * @brief 重启并打开指定项目文件
+ * @param path 目标 .flow 文件路径
+ * 函数级注释：
+ * - 重启前主动 stop HTTP Server，尽量释放端口，避免新进程启动后网页不可访问
+ * - 通过 startDetached 启动新进程，并携带 --restart-delay-ms 让新进程在启动前延迟等待旧进程退出
+ * - 启动成功后退出当前进程
+ */
+void MainWindowHeadLess::restartAndOpenFlow(const QString& path)
+{
+    const QString abs = QFileInfo(path).absoluteFilePath();
+    if (abs.isEmpty() || !QFileInfo::exists(abs)) {
+        return;
+    }
+
+    if (httpServer && httpServer->running()) {
+        httpServer->stop();
+        QCoreApplication::processEvents();
+        QThread::msleep(200);
+    }
+
+    const QString exe = QCoreApplication::applicationFilePath();
+    if (exe.isEmpty() || !QFileInfo::exists(exe)) {
+        return;
+    }
+
+    QStringList args;
+    args << "--restart-delay-ms=200";
+    args << abs;
+
+    const bool started = QProcess::startDetached(exe, args);
+    if (!started) {
+        emit initStatus(tr("重启打开失败：无法启动新进程"));
+        return;
+    }
+
+    qApp->quit();
 }
 
 bool MainWindowHeadLess::loadRecentFile() {

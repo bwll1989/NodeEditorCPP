@@ -87,22 +87,38 @@ int main(int argc, char *argv[])
 
     // 设置工作目录为可执行文件所在目录
     QDir::setCurrent(QCoreApplication::applicationDirPath());
-    // 单实例检查（无头模式只打印日志，不弹窗）
-    QSharedMemory sharedMemory(makeSingleInstanceKey());
-    if (isApplicationRunning(sharedMemory)) {
-        QMessageBox::warning(nullptr, "", "应用程序已经在运行中。");
-        return 1;
-    }
+
     // 应用程序基本信息
     setupAppInfo();
-    // 解析命令行参数（必须提供待加载的 flow 文件）
+
+    // 解析命令行参数（flow 文件路径 + 自重启延迟）
     QCommandLineParser parser;
     parser.setApplicationDescription(AppConstants::FILE_DESCRIPTION);
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument("file", "要打开的flow文件路径");
+    QCommandLineOption restartDelayOpt("restart-delay-ms", "自重启启动前延迟毫秒（避免单实例冲突）", "ms");
+    parser.addOption(restartDelayOpt);
     parser.process(app);
     const QString flowFile = parseFlowFileArg(parser);
+
+    int restartDelayMs = 0;
+    if (parser.isSet(restartDelayOpt)) {
+        bool ok = false;
+        restartDelayMs = parser.value(restartDelayOpt).toInt(&ok);
+        if (!ok) restartDelayMs = 0;
+    }
+    restartDelayMs = qBound(0, restartDelayMs, 5000);
+    if (restartDelayMs > 0) {
+        QThread::msleep(static_cast<unsigned long>(restartDelayMs));
+    }
+
+    // 单实例检查（无头模式不弹窗，避免阻塞自重启流程）
+    QSharedMemory sharedMemory(makeSingleInstanceKey());
+    if (isApplicationRunning(sharedMemory)) {
+        qWarning() << "应用程序已经在运行中。";
+        return 1;
+    }
     // 创建统一的启动画面（程序启动到文件加载完成期间共用）
     QScopedPointer<CustomSplashScreen> splashScreen(new CustomSplashScreen());
     splashScreen->updateStatus("Preparing to open the program...");
@@ -131,7 +147,7 @@ int main(int argc, char *argv[])
             if (!mainWindow->loadRecentFile()) {
                 splashScreen->updateStatus( "Failed to load recent file (headless)...");
                 splashScreen->finish(mainWindow.data());
-                QMessageBox::warning(nullptr, "", "文件加载失败！");
+                qCritical()<<"Flow file loaded failed: " + flowFile;
                 return 2;
 
             }
@@ -141,7 +157,7 @@ int main(int argc, char *argv[])
         if (!mainWindow->loadRecentFile()) {
             splashScreen->updateStatus( "Failed to load recent file (headless)...");
             splashScreen->finish(mainWindow.data());
-            QMessageBox::warning(nullptr, "", "文件加载失败！");
+            qCritical()<<"Failed to load recent file (headless)";
             return 3;
         }
         splashScreen->finish(mainWindow.data());

@@ -3,22 +3,15 @@
 //
 
 #pragma once
-#include <QDir>
-#include <QDateTime>
-#include <QThread>
+
 #include <QMainWindow>
 #include <QMenuBar>
 #include "Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "DockHub/DockHub.hpp"
-#include "Widget/NodeWidget/CustomDataFlowGraphModel.h"
-#include "Widget/NodeWidget/CustomFlowGraphicsScene.h"
-#include "Widget/NodeWidget/CustomGraphicsView.h"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
-#include "Widget/MenuBarWidget/MenuBarWidget.h"
 #include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
 #include "Widget/TimeLineWidget/TimeLineWidget.hpp"
-#include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "Widget/StageWidget/StageWidget.hpp"
 #include "Widget/TimeLineWidget/TimeLineModel.h"
 #include "Widget/ExternalControl/ExternalControler.hpp"
@@ -34,11 +27,17 @@ class MainWindowHeadLess : public QMainWindow
 Q_OBJECT
 public:
     /**
-     * @brief 构造函数(无头模式)
+     * @brief 构造函数（无头模式）
      * @param parent 父窗口
-     * 函数级注释：无头模式下仍会构造必要的后台对象以保证功能不变。
+     * 函数级注释：无头模式下不展示主界面，但仍会构建数据流/时间线/外部控制/HTTP 服务等后台对象。
+     *            该模式主要用于常驻后台运行、提供网页控制与自动化能力。
      */
     explicit MainWindowHeadLess(QWidget *parent = nullptr);
+
+    /**
+     * @brief 析构函数
+     * 函数级注释：释放无头模式下创建的后台对象，确保退出时资源正确回收。
+     */
     ~MainWindowHeadLess() override;
     //dock管理器
     ads::CDockManager* m_DockManager;
@@ -66,13 +65,40 @@ Q_SIGNALS:
     //初始化状态信号
     void initStatus(const QString &message);
 public Q_SLOTS:
+    /**
+     * @brief 初始化无头主窗口依赖的后台模块
+     * 函数级注释：创建 DockManager / 日志 / DataflowViewsManger / 时间线与舞台 / 计划任务 / 外部控制器 / HTTP 服务器 / 托盘等。
+     *            无头模式不展示 Dock 的 UI，但仍复用其数据与逻辑。
+     */
     void init();
+
+    /**
+     * @brief 从指定路径加载 .flow 项目文件
+     * @param path .flow 文件路径
+     * @return true 加载成功；false 加载失败
+     * 函数级注释：若当前进程已加载过项目（currentProjectPath 非空），则不在本进程切换项目，
+     *            而是触发 restartAndOpenFlow 以“重启打开新项目”，避免第三方节点卸载不彻底导致的内存增长。
+     */
     bool loadFileFromPath(const QString &path);
+
+    /**
+     * @brief 加载最近一次打开的项目文件
+     * @return true 加载成功；false 加载失败
+     * 函数级注释：用于启动阶段未指定文件参数时的兜底加载逻辑。
+     */
     bool loadRecentFile();
+
+    /**
+     * @brief 重启进程并在新进程中打开指定 flow 文件
+     * @param path flow 文件路径
+     * 函数级注释：先尽量停止 HTTP 服务释放端口，再以命令行参数启动新进程打开目标文件，然后退出当前进程。
+     */
+    void restartAndOpenFlow(const QString& path);
+
     /**
      * @brief 注入统一的启动画面对象
      * @param splash 由外部创建并管理生命周期的 CustomSplashScreen 指针
-     * 函数级注释：使程序启动与文件加载共用同一个 SplashScreen；本类不负责关闭它。
+     * 函数级注释：用于将无头模式的初始化/加载状态输出到外部 Splash；本类不负责创建/销毁/finish。
      */
     void setSplashScreen(class CustomSplashScreen* splash) { m_splash = splash; }
 protected:
@@ -83,13 +109,13 @@ protected:
      */
     void closeEvent(QCloseEvent* event) override;
 private:
-    //日志表
+    // 日志表：用于在无头模式下承载日志显示与调试输出
     LogWidget *logTable;
-    //日志处理器
+    // 日志处理器：将运行信息写入日志表
     LogHandler *log;
-    //当前项目路径
+    // 当前项目路径：非空表示本进程已经加载过一个项目（后续再打开新项目将走“重启打开”）
     QString currentProjectPath;
-    //外部控制器
+    // 外部控制器：承载 OSC / 外部控制等逻辑
     ExternalControler *controller;
 
     // 新增：系统托盘相关成员

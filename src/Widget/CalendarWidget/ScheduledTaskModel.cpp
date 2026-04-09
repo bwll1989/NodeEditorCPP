@@ -254,7 +254,8 @@ OSCMessage ScheduledTaskModel::oscMessageFromJson(const QJsonObject& json) {
     m.address = json["address"].toString();
     m.host = json["host"].toString("127.0.0.1");
     m.port = json["port"].toInt(6001);
-    m.type = json["type"].toString("String");
+    QString typeStr = json["type"].toString();
+    m.type = typeStr.isEmpty() ? "String" : typeStr;
     m.value = json["value"].toVariant();
     return m;
 }

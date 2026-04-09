@@ -163,6 +163,10 @@
         "tensorsymmetry": "cpp",
         "qdoublespinbox": "cpp",
         "qsignalblocker": "cpp",
-        "qobject": "cpp"
+        "qobject": "cpp",
+        "qmessagebox": "cpp",
+        "qinputdialog": "cpp",
+        "qdropevent": "cpp",
+        "qmimedata": "cpp"
     }
 }

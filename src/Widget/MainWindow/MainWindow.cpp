@@ -3,7 +3,6 @@
 //
 
 #include <QMessageBox>
-#include <QApplication>
 #include "MainWindow.hpp"
 #include "Nodes/NodeEditorStyle.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
@@ -13,21 +12,40 @@
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QMimeData>
-#include <QWidgetAction>
-#include "Common/GUI/Elements/MartixWidget/MatrixWidget.h"
-#include "Eigen/Core"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
-#include "BaseTimeLineModel.h"
+#include "Widget/PropertyWidget/PropertyWidget.hpp"
 #include <QSettings>
 #include <exception>
-#include "Elements/BarButton/BarButton.h"
-#include "Elements/XYPad/XYPad.h"
-#include "Widget/SplashWidget/CustomSplashScreen.hpp"
 #include "../../Common/AppConfig/ConfigManager.h"
 #include <QMetaObject>
 using namespace ads;
 
-/* 函数级注释：全局应用样式表并强制重新抛光所有已存在控件 */
+/**
+ * @brief 启动 HTTP 服务器并在端口占用的短窗口期内重试
+ * @param server HTTP 服务器对象
+ * @param port 监听端口
+ * @param waitMs 最大等待时间（毫秒）
+ * @return true 启动成功；false 启动失败
+ * 函数级注释：用于解决“重启切换项目后端口尚未完全释放”导致网页不可访问的问题。
+ */
+static bool startHttpServerWithRetry(NodeStudio::NodeHttpServer* server, int port, int waitMs)
+{
+    if (!server) return false;
+    const int step = 200;
+    int elapsed = 0;
+    while (elapsed <= waitMs) {
+        if (server->start(port)) return true;
+        QThread::msleep(static_cast<unsigned long>(step));
+        elapsed += step;
+    }
+    return false;
+}
+
+/**
+ * @brief 全局应用样式表并强制重新抛光所有已存在控件
+ * @param styleSheet 目标 QSS 内容
+ * 函数级注释：用于主题切换后立即刷新所有已创建控件的显示效果。
+ */
 static void applyGlobalStyleSheet(const QString& styleSheet)
 {
     if (auto* app = qobject_cast<QApplication*>(QApplication::instance())) {
@@ -127,22 +145,6 @@ void MainWindow::init()
      m_DockManager->addDockWidget(ads::LeftDockWidgetArea,  timelineDockWidget);
      // 添加到菜单栏
      emit initStatus("Initialization Timeline editor success");
-
-    // auto *DockView= new ads::CDockWidget("显示");
-    //
-    // auto *w =new MatrixWidget(6, 6);
-    // DockView->setWidget(w);
-    // DockView->setIcon(QIcon(":/icons/icons/chartLine.png"));
-    // m_DockManager->addDockWidget(ads::BottomDockWidgetArea, DockView);
-    // menuBar->views->addAction(DockView->toggleViewAction());
-    // Eigen::MatrixXd mMat(6,2);
-    // mMat << 0.11,0.11,
-    //         0.3,0.5,
-    //         0.8,0.3,
-    //         0.3,0.3,
-    //         0.5,0.8,
-    //         0.3,0.3;
-    // w->setValuesFromMatrix(mMat);
     auto *calendarDockWidget = m_DockManager->createDockWidget("计划任务");
     calendarDockWidget->setObjectName("scheduled");
     calendarDockWidget->setIcon(QIcon(":/icons/icons/scheduled.png"));
@@ -187,25 +189,58 @@ void MainWindow::init()
     // menuBar->views->addAction(mediaLibraryDockWidget->toggleViewAction());
     mediaLibraryDockWidget->setTitleBarActions({makeOptionsMenu(mediaLibraryWidget, mediaLibraryWidget->getActions())->menuAction()});
     emit initStatus("Initialization Media Library Widget success");
-    // // 属性控件
-    // propertyDockWidget = new ads::CDockWidget(m_DockManager,"属性");
-    // propertyDockWidget->setObjectName("property");
-    // propertyDockWidget->setIcon(QIcon(":/icons/icons/property.png"));
-    // m_DockManager->addDockWidget(ads::RightDockWidgetArea, propertyDockWidget);
-    // // menuBar->views->addAction(propertyDockWidget->toggleViewAction());
-    // emit initStatus("Initialization Property Widget success");
+    propertyDockWidget = m_DockManager->createDockWidget("属性");
+    propertyDockWidget->setObjectName("property");
+    propertyDockWidget->setIcon(QIcon(":/icons/icons/property.png"));
+    propertyWidget = new PropertyWidget(nullptr, propertyDockWidget);
+    propertyDockWidget->setWidget(propertyWidget);
+    m_DockManager->addDockWidget(ads::RightDockWidgetArea, propertyDockWidget);
+    emit initStatus("Initialization Property Widget success");
+
+    // connect(dataflowViewsManger, &DataflowViewsManger::sceneIsActive, this, [this](const QString& title) {
+    //     if (!propertyWidget || !dataflowViewsManger) return;
+
+    //     if (propertySelectionConn) {
+    //         QObject::disconnect(propertySelectionConn);
+    //         propertySelectionConn = QMetaObject::Connection();
+    //     }
+
+    //     auto* model = dataflowViewsManger->modelByTitle(title);
+    //     propertyWidget->setModel(model);
+
+    //     auto* scene = dataflowViewsManger->sceneByTitle(title);
+    //     if (!scene) {
+    //         propertyWidget->update(QtNodes::NodeId{});
+    //         return;
+    //     }
+
+    //     propertySelectionConn = QObject::connect(scene, &QGraphicsScene::selectionChanged, this, [this, title]() {
+    //         if (!propertyWidget || !dataflowViewsManger) return;
+    //         auto* s = dataflowViewsManger->sceneByTitle(title);
+    //         if (!s) return;
+    //         const auto nodes = s->selectedNodes();
+    //         const QtNodes::NodeId id = nodes.empty() ? QtNodes::NodeId{} : nodes.front();
+    //         propertyWidget->update(id);
+    //     });
+
+    //     const auto nodes = scene->selectedNodes();
+    //     const QtNodes::NodeId id = nodes.empty() ? QtNodes::NodeId{} : nodes.front();
+    //     propertyWidget->update(id);
+    // });
     // 外部控制器
     controller=new ExternalControler();
-    // controller->setDataflowModels(dataflowViewsManger->getModel());
-    // controller->setTimelineModel(timelineModel);
-    // controller->setTimelineToolBarMap(timeline->view->m_toolbar->getOscMapping());
+
     emit initStatus("Initialization external controler success");
 	 // http 服务器
     httpServer=new NodeStudio::NodeHttpServer();
-    //http服务器文件上传后，直接打开
+    //http服务器文件上传后，直接打开（若已加载过项目，则自动走重启打开）
     connect(httpServer, &NodeStudio::NodeHttpServer::flowFileUploaded, this, &MainWindow::loadFileFromPath);
-    httpServer->start(ConfigManager::instance().getHttpServerPort());
-    emit initStatus("Initialization Http Server success");
+    const int port = ConfigManager::instance().getHttpServerPort();
+    if (!startHttpServerWithRetry(httpServer, port, 3000)) {
+        emit initStatus(tr("HTTP Server 启动失败，端口可能被占用: %1").arg(port));
+    } else {
+        emit initStatus("Initialization Http Server success");
+    }
     // 更新默认布局
     connect(menuBar->saveLayout, &QAction::triggered, this, &MainWindow::updateVisualState);
     //恢复布局
@@ -285,10 +320,55 @@ void MainWindow::switchVisibleFromTray()
     }
 }
 
+/**
+ * @brief 重启进程并在新进程中打开指定项目文件
+ * @param path 目标 .flow 文件路径
+ * 函数级注释：
+ * - 先尽量停止 HTTP Server 释放端口，避免新进程启动后网页服务端口被占用
+ * - 再通过 startDetached 启动新进程，并携带 --restart-delay-ms 等待旧进程退出
+ * - 置位 isRestarting，确保 closeEvent 不弹出“是否最小化到托盘”的确认框
+ * - 最后退出当前进程
+ */
+void MainWindow::restartAndOpenFlow(const QString& path)
+{
+    const QString abs = QFileInfo(path).absoluteFilePath();
+    if (abs.isEmpty() || !QFileInfo::exists(abs)) {
+        return;
+    }
+
+    if (httpServer && httpServer->running()) {
+        httpServer->stop();
+        QCoreApplication::processEvents();
+        QThread::msleep(200);
+    }
+
+    const QString exe = QCoreApplication::applicationFilePath();
+    if (exe.isEmpty() || !QFileInfo::exists(exe)) {
+        return;
+    }
+
+    QStringList args;
+    args << "--restart-delay-ms=500";
+    args << abs;
+
+    const bool started = QProcess::startDetached(exe, args);
+    if (!started) {
+        QMessageBox::warning(this, "", tr("重启打开失败：无法启动新进程"));
+        return;
+    }
+
+    isRestarting = true;
+    QCoreApplication::quit();
+}
+
+/**
+ * @brief 打开最近文件（菜单项触发）
+ * @param path 最近文件路径
+ * 函数级注释：统一走重启打开，避免运行时直接切换项目导致内存持续增长。
+ */
 void MainWindow::openRecentFile(const QString& path)
 {
-
-    loadFileFromPath(path);
+    restartAndOpenFlow(path);
 }
 
 //显示属性
@@ -322,24 +402,35 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
  */
 void MainWindow::dropEvent(QDropEvent *event) {
     const QMimeData *mimeData = event->mimeData();
-    QString filePath = mimeData->urls().at(0).toLocalFile();
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly))
-        return ;
+    const QString filePath = mimeData->urls().at(0).toLocalFile();
+    if (!QFileInfo::exists(filePath))
+        return;
 
-    dataflowViewsManger->clearAllScenes();
-    //    场景清空
-    loadFileFromPath(filePath);
+    restartAndOpenFlow(filePath);
     event->acceptProposedAction();
 
 }
 /**
  * 从路径打开文件（仅显示状态文字）
- * 使用 CustomSplashScreen 分阶段展示状态文本，避免界面卡顿。
+ * 通过 initStatus 分阶段展示状态文本（启动阶段由 main.cpp 的启动界面承接）。
  */
 void MainWindow::loadFileFromPath(const QString &path)
 {
-    CustomSplashScreen splashScreen;
+    if (!currentProjectPath.isEmpty()) {
+        restartAndOpenFlow(path);
+        return;
+    }
+
+    struct SplashProxy {
+        MainWindow* self = nullptr;
+        void updateStatus(const QString& msg) {
+            if (self) Q_EMIT self->initStatus(msg);
+            QApplication::processEvents();
+        }
+        void finish(QWidget*) {}
+    };
+
+    SplashProxy splashScreen{ this };
 
     const auto pumpUi = []() {
         QApplication::processEvents();
@@ -543,6 +634,10 @@ void MainWindow::loadFileFromPath(const QString &path)
     }
 }
 //从文件管理器打开文件
+/**
+ * @brief 从资源管理器选择并打开 .flow 文件
+ * 函数级注释：该入口用于用户主动切换项目；为稳定性起见，统一走重启打开。
+ */
 void MainWindow::loadFileFromExplorer() {
     QString fileName = QFileDialog::getOpenFileName(nullptr,
                                                     tr("Open Flow Scene"),
@@ -550,7 +645,8 @@ void MainWindow::loadFileFromExplorer() {
                                                     tr("Flow Scene Files (*.flow)"));
     if (!QFileInfo::exists(fileName))
         return;
-    loadFileFromPath(fileName);
+
+    restartAndOpenFlow(fileName);
 
 }
 
@@ -645,16 +741,19 @@ void MainWindow::resetVisualState()
 }
 
 /**
- * @brief 处理主窗口的关闭事件
- * - 如果系统托盘可用，则弹出询问框：
- *   - Yes：最小化到托盘，忽略关闭事件（保持进程运行）
- *   - No：保存布局并退出，接受关闭事件
- *   - Cancel 或关闭对话框（X/Esc）：忽略关闭事件（不退出）
- * - 如果系统托盘不可用：直接保存布局并退出
- * @param event 关闭事件对象
+ * @brief 主窗口关闭事件
+ * @param event 关闭事件
+ * 函数级注释：
+ * - 正常关闭：若系统托盘可用则询问是否最小化到托盘
+ * - 自重启关闭：isRestarting=true 时直接 accept，避免弹窗阻塞重启链路
  */
 void MainWindow::closeEvent(QCloseEvent* event)
 {
+    if (isRestarting) {
+        event->accept();
+        return;
+    }
+
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
         QMessageBox::StandardButton reply =
             QMessageBox::question(this, "",

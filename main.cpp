@@ -1,16 +1,7 @@
 #include <QtWidgets/QApplication>
-#include <QProcessEnvironment>
 #include <QObject>
-
 #include <QStyleFactory>
-#include <QMessageBox>
-#include <QSharedMemory>
-#include <QCommandLineParser>
 #include <QScopedPointer>
-#include <QScreen>
-#include <QFile>
-#include <QTextStream>
-#include <QDir>
 #include <QCoreApplication>
 #include "Widget/MainWindow/MainWindow.hpp"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
@@ -114,14 +105,7 @@ int main(int argc, char *argv[])
     app.setApplicationName(AppConstants::PRODUCT_NAME);
     // 设置工作目录为可执行文件所在目录
     QDir::setCurrent(QCoreApplication::applicationDirPath());
-    
-    // 检查应用程序是否已经在运行
-    QSharedMemory sharedMemory(app.applicationName());
-    if (isApplicationRunning(sharedMemory)) {
-        QMessageBox::warning(nullptr, "", "应用程序已经在运行中。");
-        return 1;
-    }
-    
+
     // 设置应用程序基本信息
     setupAppInfo();
 
@@ -134,8 +118,29 @@ int main(int argc, char *argv[])
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addPositionalArgument("file", "要打开的文件路径");
+    QCommandLineOption restartDelayOpt("restart-delay-ms", "自重启启动前延迟毫秒（避免单实例冲突）", "ms");
+    parser.addOption(restartDelayOpt);
     parser.process(app);
-    
+
+    // 可选：自重启时延迟一段时间再进行单实例检测，确保旧进程已退出
+    int restartDelayMs = 0;
+    if (parser.isSet(restartDelayOpt)) {
+        bool ok = false;
+        restartDelayMs = parser.value(restartDelayOpt).toInt(&ok);
+        if (!ok) restartDelayMs = 0;
+    }
+    restartDelayMs = qBound(0, restartDelayMs, 5000);
+    if (restartDelayMs > 0) {
+        QThread::msleep(static_cast<unsigned long>(restartDelayMs));
+    }
+
+    // 检查应用程序是否已经在运行
+    QSharedMemory sharedMemory(app.applicationName());
+    if (isApplicationRunning(sharedMemory)) {
+        QMessageBox::warning(nullptr, "", "应用程序已经在运行中。");
+        return 1;
+    }
+
     // 创建启动画面
     QScopedPointer<CustomSplashScreen> splashScreen(new CustomSplashScreen());
     splashScreen->updateStatus("Preparing to open the program...");

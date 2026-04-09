@@ -811,22 +811,7 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
         return;
     }
 
-    try { // 连接加载阶段
-        QJsonArray connectionJsonArray = jsonDocument["connections"].toArray();
-        const int total = connectionJsonArray.size();
-        emitProgress(tr("连接"), 0, total);
-        int i = 0;
-        for (QJsonValueRef connection : connectionJsonArray) {
-            QJsonObject connJson = connection.toObject();
-            ConnectionId connId = fromJson(connJson);
-            addConnection(connId);
-            ++i;
-            emitProgress(tr("连接"), i, total);
-        }
-    } catch (const std::exception& e) {
-        qCritical() << tr("连接加载失败:\n%1").arg(e.what());
-        return;
-    }
+
 
     try { // 分组加载阶段
         std::vector<GroupId> allGroups;
@@ -854,6 +839,22 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
     } catch (const std::exception& e) {
         qWarning() << tr("分组加载失败:\n%1").arg(e.what());
 
+    }
+    try { // 连接加载阶段
+        QJsonArray connectionJsonArray = jsonDocument["connections"].toArray();
+        const int total = connectionJsonArray.size();
+        emitProgress(tr("连接"), 0, total);
+        int i = 0;
+        for (QJsonValueRef connection : connectionJsonArray) {
+            QJsonObject connJson = connection.toObject();
+            ConnectionId connId = fromJson(connJson);
+            addConnection(connId);
+            ++i;
+            emitProgress(tr("连接"), i, total);
+        }
+    } catch (const std::exception& e) {
+        qCritical() << tr("连接加载失败:\n%1").arg(e.what());
+        return;
     }
 }
 
