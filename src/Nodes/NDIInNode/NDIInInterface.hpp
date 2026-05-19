@@ -11,7 +11,7 @@
 #include <QGroupBox>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QGridLayout>
+#include <QSpacerItem>
 #include <QDateTime>
 #include <QCheckBox>
 
@@ -127,6 +127,7 @@ namespace Nodes
          * @brief 处理刷新按钮点击
          */
         void onRefreshClicked() {
+
             emit refreshRequested();
         }
         
@@ -198,6 +199,7 @@ namespace Nodes
             m_mainLayout->setContentsMargins(5, 5, 5, 5);
             m_mainLayout->setSpacing(5);
             m_mainLayout->addWidget(m_senderGroup);
+            m_mainLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
 
         }
         

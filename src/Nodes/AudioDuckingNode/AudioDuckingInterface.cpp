@@ -68,7 +68,8 @@ AudioDuckingInterface::AudioDuckingInterface(QWidget *parent)
     sidechainGainSpin->setValue(0.0);
     sidechainGainSpin->setSuffix(" dB");
     layout->addWidget(sidechainGainSpin, 6, 1);
-
+    layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 7, 0, 1, 2);
+    layout->setRowStretch(3, 1);
     mainLayout->addWidget(group);
     setMinimumWidth(250);
 }

@@ -5,11 +5,16 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <iostream>
+#include <QPointer>
 #include <QQmlContext>
-#include <QQuickItem>
+#include <QThread>
+#include <QtQuick/QQuickItem>
+#include <QtQuick/QQuickView>
+#include <QWidget>
+#include <QSizePolicy>
 #include <vector>
 #include <QtCore/qglobal.h>
-#include "DataVisualInterface.hpp"
+// #include "DataVisualInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -33,21 +38,25 @@ namespace Nodes
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= false;
-            m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
-            // m_quickWidget->setSource(QUrl("qrc:qml/content/dynamicview.qml"));
-            m_quickWidget->setSource(QUrl("qrc:/qml/3DScatter/main.qml"));
-            m_quickWidget->rootContext()->setContextProperty("CppBridge", this);
+            m_view = new QQuickView();
+            m_view->setResizeMode(QQuickView::SizeRootObjectToView);
+            m_view->rootContext()->setContextProperty("CppBridge", this);
+            m_view->setSource(QUrl("qrc:/qml/3DScatter/main.qml"));
+
+            m_container = QWidget::createWindowContainer(m_view);
+            m_container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
             // NodeDelegateModel::registerOSCControl("/stop",widget->stopButton);
 
-            connect(widget->editButton, &QPushButton::clicked, this, &ScatterSingleDataModel::toggleEditorMode);
+            // connect(widget->editButton, &QPushButton::clicked, this, &ScatterSingleDataModel::toggleEditorMode);
         }
 
         ~ScatterSingleDataModel() override {
-            if (m_quickWidget && m_quickWidget->isVisible()) {
-                m_quickWidget->close();
+            if (m_container) {
+                m_container->deleteLater();
+                m_container = nullptr;
+                m_view = nullptr;
             }
-            // 如果窗口仍然存在，强制隐藏
         }
 
     public:
@@ -100,12 +109,7 @@ namespace Nodes
 
             }
 
-            if (QObject* root = m_quickWidget->rootObject()) {
-                QMetaObject::invokeMethod(root, "updatePoint",
-                    Q_ARG(QVariant, QVariant(m_x)),
-                    Q_ARG(QVariant, QVariant(m_y)),
-                    Q_ARG(QVariant, QVariant(m_z)));
-            }
+            invokeRoot3("updatePoint", m_x, m_y, m_z);
 
         }
 
@@ -126,35 +130,47 @@ namespace Nodes
         }
 
         QWidget *embeddedWidget() override{
-            return widget;
-        }
-
-    public Q_SLOTS:
-        void toggleEditorMode() {
-            // 移除父子关系，使其成为独立窗口
-            m_quickWidget->setParent(nullptr);
-            m_quickWidget->setWindowTitle("DataVisual编辑器");
-            m_quickWidget->setWindowIcon(QIcon(":/icons/icons/DataVisual.png"));
-            m_quickWidget->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
-            m_quickWidget->setAttribute(Qt::WA_DeleteOnClose, false);
-            m_quickWidget->setAttribute(Qt::WA_QuitOnClose, false);
-            m_quickWidget->resize(800, 400);
-            m_quickWidget->show();
-            m_quickWidget->activateWindow();
-            m_quickWidget->raise();
+            return m_container;
         }
 
     public:
-        DataVisualInterface *widget=new DataVisualInterface();
-        shared_ptr<VariableData> inData;
-        shared_ptr<VariableData> currentValue_Y=make_shared<VariableData>(0.0);
-        shared_ptr<VariableData> currentValue_X=make_shared<VariableData>(0.0);
-        shared_ptr<VariableData> currentTime=make_shared<VariableData>(0.0);
-        shared_ptr<VariableData> currentStatus=make_shared<VariableData>(QVariant(false));
+        // DataVisualInterface *widget=new DataVisualInterface();
+        std::shared_ptr<VariableData> inData;
+        std::shared_ptr<VariableData> currentValue_Y=std::make_shared<VariableData>(0.0);
+        std::shared_ptr<VariableData> currentValue_X=std::make_shared<VariableData>(0.0);
+        std::shared_ptr<VariableData> currentTime=std::make_shared<VariableData>(0.0);
+        std::shared_ptr<VariableData> currentStatus=std::make_shared<VariableData>(QVariant(false));
         void *patch;
-        QQuickWidget *m_quickWidget=new QQuickWidget();
 
     private:
+        /**
+         * 函数级注释：线程安全地调用 QML 根对象方法（带 3 个 double 参数）
+         */
+        void invokeRoot3(const char* method, double x, double y, double z)
+        {
+            if (!m_view) { return; }
+
+            QPointer<QQuickView> safeView = m_view;
+            const auto fn = [safeView, method, x, y, z]() {
+                if (!safeView) { return; }
+                QQuickItem* root = safeView->rootObject();
+                if (!root) { return; }
+                QMetaObject::invokeMethod(root, method,
+                                         Q_ARG(QVariant, QVariant(x)),
+                                         Q_ARG(QVariant, QVariant(y)),
+                                         Q_ARG(QVariant, QVariant(z)));
+            };
+
+            if (QThread::currentThread() == m_view->thread()) {
+                fn();
+            } else {
+                QMetaObject::invokeMethod(m_view.data(), fn, Qt::QueuedConnection);
+            }
+        }
+
+        QPointer<QQuickView> m_view;
+        QPointer<QWidget> m_container;
+
         // 函数级注释：最近一次 x/y/z 值缓存与就绪标记
         double m_x {0.0};
         double m_y {0.0};

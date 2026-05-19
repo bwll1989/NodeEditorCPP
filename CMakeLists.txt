@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 # 标准程序
-set(ProjectName "NodeStudio")
+set(ProjectName "Flow")
 # Headless 程序
-set(HeadlessProjectName ${ProjectName}Actuator)
+set(HeadlessProjectName ${ProjectName}Runtime)
 project(${ProjectName} VERSION 1.1 LANGUAGES CXX)
 # set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
 string(TIMESTAMP BUILD_TS "%Y%m%d")
@@ -115,12 +115,17 @@ set(Poco_DIR "${DEPENDS_DIR}/poco-1.14.2/install/cmake")
 find_package(Poco CONFIG REQUIRED Foundation Util Net JSON)
 include_directories(${Poco_INCLUDE_DIRS})
 message("-- Found Poco ${Poco_DIR}")
-
+# QMQTT path
+set(QMQTT_INSTALL_DIR "${DEPENDS_DIR}/qmqtt/install")
+include_directories("${QMQTT_INSTALL_DIR}/include")
+link_directories("${QMQTT_INSTALL_DIR}/lib")
 ## 设置TabToolbar库
 #set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
 #set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
 #INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
-
+set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/MSVC/lib/Qt6PropertyBrowser.lib")
+include_directories("${DEPENDS_DIR}/qtpropertybrowser/src")
+message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
 # 设置QT库
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets Graphs)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
@@ -132,6 +137,7 @@ add_subdirectory(src/Clips)
 # 添加Nodes模块
 add_subdirectory(src/Nodes)
 add_subdirectory(src/Common/Devices/OSCSender)
+add_subdirectory(src/Common/Devices/MqttClient)
 add_subdirectory(src/Common/Devices/FTDAWController)
 add_subdirectory(src/Common/Devices/SpoutReceiver)
 add_subdirectory(src/Common/GUI/OscListWidget)
@@ -147,6 +153,7 @@ add_subdirectory(src/Common/GUI/DockHub)
 add_subdirectory(src/DataTypes)
 add_subdirectory(src/Common/Devices/StatusContainer)
 add_subdirectory(src/Common/AppConfig)
+add_subdirectory(src/Common/GUI/PropertyTreeWidget)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -344,6 +351,7 @@ target_link_libraries(${ProjectName}
             ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}
             ${QtColorWidgets_LIBRARIES}
+        ${Qtpropertybrowser_LIBRARIES}
             Poco::Foundation
             Poco::Util
             Poco::Net
@@ -372,6 +380,8 @@ target_link_libraries(${ProjectName}
             DockHub
             StatusContainer
             AppConfig
+            PropertyTreeWidget
+            MqttClient
 )
 
 # 为 Headless 目标定义编译宏（与主程序一致）
@@ -433,6 +443,9 @@ target_link_libraries(${HeadlessProjectName}
             DockHub
             SpoutReceiver
             StatusContainer
+            AppConfig
+            PropertyTreeWidget
+            MqttClient
 )
 # 设置主程序属性
 set_target_properties(${ProjectName} PROPERTIES

@@ -99,13 +99,16 @@ SettingWidget::SettingWidget(QWidget* parent)
     auto* lblNet = new QLabel("网络设置 (重启生效)");
     lblNet->setFont(titleFont);
     layoutNet->addWidget(lblNet);
-    
+
     auto* lineNet = new QFrame();
     lineNet->setFrameShape(QFrame::HLine);
     lineNet->setFrameShadow(QFrame::Sunken);
     layoutNet->addWidget(lineNet);
 
     auto* formNet = new QFormLayout();
+    auto* lblweb = new QLabel("WEB设置");
+    lblweb->setFont(titleFont);
+    formNet->addRow(lblweb);
     formNet->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
     m_httpPortSpin = new IntDragValueWidget(this);
@@ -114,6 +117,10 @@ SettingWidget::SettingWidget(QWidget* parent)
 
     m_webPasswordEdit = new QLineEdit(this);
     formNet->addRow("网页访问密码:", m_webPasswordEdit);
+
+    auto* lblosc = new QLabel("OSC设置 ");
+    lblosc->setFont(titleFont);
+    formNet->addRow(lblosc);
 
     m_extraFeedbackHostEdit = new QLineEdit(this);
     formNet->addRow("OSC 反馈主机 IP:", m_extraFeedbackHostEdit);
@@ -131,6 +138,35 @@ SettingWidget::SettingWidget(QWidget* parent)
 
     m_oscEnabledCheck = new QCheckBox("启用", this);
     formNet->addRow("OSC外部反馈/控制:", m_oscEnabledCheck);
+
+    auto* lblMqttSection = new QLabel(QStringLiteral("MQTT 设置"));
+    lblMqttSection->setFont(titleFont);
+    formNet->addRow(lblMqttSection);
+
+    m_mqttHostEdit = new QLineEdit(this);
+    m_mqttHostEdit->setPlaceholderText(QStringLiteral("broker.emqx.io（仅主机名，勿填 mqtt://）"));
+    formNet->addRow("MQTT Broker 地址:", m_mqttHostEdit);
+
+    m_mqttPortSpin = new IntDragValueWidget(this);
+    m_mqttPortSpin->setRange(1, 65535);
+    formNet->addRow("MQTT Broker 端口:", m_mqttPortSpin);
+
+    m_mqttUsernameEdit = new QLineEdit(this);
+    m_mqttUsernameEdit->setPlaceholderText(QStringLiteral("公共 Broker 可留空"));
+    formNet->addRow("MQTT 用户名:", m_mqttUsernameEdit);
+
+    m_mqttPasswordEdit = new QLineEdit(this);
+    m_mqttPasswordEdit->setEchoMode(QLineEdit::Password);
+    formNet->addRow("MQTT 密码:", m_mqttPasswordEdit);
+
+    m_mqttControlTopicEdit = new QLineEdit(this);
+    formNet->addRow("MQTT 控制主题:", m_mqttControlTopicEdit);
+
+    m_mqttFeedbackTopicEdit = new QLineEdit(this);
+    formNet->addRow("MQTT 反馈主题:", m_mqttFeedbackTopicEdit);
+
+    m_mqttEnabledCheck = new QCheckBox("启用", this);
+    formNet->addRow("MQTT外部反馈/控制:", m_mqttEnabledCheck);
 
     layoutNet->addLayout(formNet);
     layoutNet->addStretch();
@@ -190,6 +226,13 @@ void SettingWidget::loadCurrentSettings() {
     m_extraControlPortSpin->setValue(config.getExtraControlPort());
     m_oscInternalHostEdit->setText(config.getOscInternalControlHost());
     m_oscEnabledCheck->setChecked(config.isOscEnabled());
+    m_mqttHostEdit->setText(config.getMqttHost());
+    m_mqttPortSpin->setValue(config.getMqttPort());
+    m_mqttUsernameEdit->setText(config.getMqttUsername());
+    m_mqttPasswordEdit->setText(config.getMqttPassword());
+    m_mqttControlTopicEdit->setText(config.getMqttControlTopic());
+    m_mqttFeedbackTopicEdit->setText(config.getMqttFeedbackTopic());
+    m_mqttEnabledCheck->setChecked(config.isMqttEnabled());
     m_webPasswordEdit->setText(config.getWebAccessPassword());
     // Log Settings
     m_maxLogEntriesSpin->setValue(config.getMaxLogEntries());
@@ -206,6 +249,13 @@ void SettingWidget::saveSettings() {
     obj["OscInternalControlHost"] = m_oscInternalHostEdit->text();
     obj["DefaultDarkTheme"] = m_darkThemeCheck->isChecked();
     obj["OscEnabled"] = m_oscEnabledCheck->isChecked();
+    obj["MqttEnabled"] = m_mqttEnabledCheck->isChecked();
+    obj["MqttHost"] = m_mqttHostEdit->text();
+    obj["MqttPort"] = m_mqttPortSpin->value();
+    obj["MqttUsername"] = m_mqttUsernameEdit->text();
+    obj["MqttPassword"] = m_mqttPasswordEdit->text();
+    obj["MqttControlTopic"] = m_mqttControlTopicEdit->text();
+    obj["MqttFeedbackTopic"] = m_mqttFeedbackTopicEdit->text();
     obj["WebAccessPassword"] = m_webPasswordEdit->text();
     // Log Settings
     obj["MaxLogEntries"] = m_maxLogEntriesSpin->value();

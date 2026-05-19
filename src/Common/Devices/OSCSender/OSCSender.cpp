@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QByteArray>
 #include <QHostAddress>
+#include <limits>
 #include "tinyosc.h"
 
 OSCSender* OSCSender::instance() {
@@ -99,6 +100,22 @@ void OSCSender::processQueue(){
         } else if (value.typeId() == QMetaType::Bool) {
             format += "i";
             intArgs.push_back(value.toInt());
+        } else if (value.typeId() == QMetaType::LongLong) {
+            const qint64 v = value.toLongLong();
+            if (v < std::numeric_limits<int32_t>::min() || v > std::numeric_limits<int32_t>::max()) {
+                qWarning() << "OSC int32 overflow (qlonglong):" << v << "address:" << address;
+                continue;
+            }
+            format += "i";
+            intArgs.push_back(static_cast<int32_t>(v));
+        } else if (value.typeId() == QMetaType::ULongLong) {
+            const quint64 v = value.toULongLong();
+            if (v > static_cast<quint64>(std::numeric_limits<int32_t>::max())) {
+                qWarning() << "OSC int32 overflow (qulonglong):" << v << "address:" << address;
+                continue;
+            }
+            format += "i";
+            intArgs.push_back(static_cast<int32_t>(v));
         } else {
             qWarning() << "Unsupported value type in QVariantMap:" << value;
             continue; // 跳过不支持的类型
@@ -173,6 +190,22 @@ bool OSCSender::sendOSCMessageDirectly(const OSCMessage &message){
     } else if (value.typeId() == QMetaType::Bool) {
         format += "i";
         intArgs.push_back(value.toInt());
+    } else if (value.typeId() == QMetaType::LongLong) {
+        const qint64 v = value.toLongLong();
+        if (v < std::numeric_limits<int32_t>::min() || v > std::numeric_limits<int32_t>::max()) {
+            qWarning() << "OSC int32 overflow (qlonglong):" << v << "address:" << address;
+            return false;
+        }
+        format += "i";
+        intArgs.push_back(static_cast<int32_t>(v));
+    } else if (value.typeId() == QMetaType::ULongLong) {
+        const quint64 v = value.toULongLong();
+        if (v > static_cast<quint64>(std::numeric_limits<int32_t>::max())) {
+            qWarning() << "OSC int32 overflow (qulonglong):" << v << "address:" << address;
+            return false;
+        }
+        format += "i";
+        intArgs.push_back(static_cast<int32_t>(v));
     } else {
         qWarning() << "Unsupported value type in QVariantMap:" << value;
         return false; // 跳过不支持的类型

@@ -16,8 +16,6 @@
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
 
-#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
-
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -46,10 +44,10 @@ namespace Nodes
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= true;
-            widget->setMinimum(0);
-            widget->setFixedSize(100,24);
-            connect(widget,&IntDragValueWidget::valueChanged, this, [this](int v){ setIndex(v); });
-            AbstractDelegateModel::registerExternalControl("switch",widget);
+
+            NodeDelegateModel::ExternalBinding b;
+            b.member = "index";
+            AbstractDelegateModel::registerExternalBinding("/index", this, b);
         }
         ~SwitchDataModel(){    }
 
@@ -131,7 +129,7 @@ namespace Nodes
             }
         }
 
-        QWidget *embeddedWidget() override{return widget;}
+        // QWidget *embeddedWidget() override{return container;}
 
     private Q_SLOTS:
 
@@ -168,18 +166,12 @@ namespace Nodes
         void setIndex(int value) {
             if (m_index == value) return;
             m_index = value;
-            if (widget) {
-                QSignalBlocker blocker(widget);
-                widget->setValue(value);
-            }
             emit indexChanged(value);
-            AbstractDelegateModel::stateFeedBack("/index", value);
             for(unsigned int i = 0; i < OutPortCount; ++i){
                 Q_EMIT dataUpdated(i);
             }
         }
 
-        IntDragValueWidget *widget=new IntDragValueWidget();
         std::unordered_map<unsigned int,  std::shared_ptr<VariableData>> in_dictionary;
         int m_index{0};
 

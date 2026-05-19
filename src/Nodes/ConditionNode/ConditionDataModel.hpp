@@ -34,7 +34,7 @@ namespace Nodes
             CaptionVisible=true;
             WidgetEmbeddable= true;
             Resizable=true;
-            PortEditable=true;
+            PortEditable=false;
             connect(widget->Editor, &QLineEdit::editingFinished, this, &ConditionDataModel::outDataSlot);
             m_jsEngine = new QJSEngine(this);
         }

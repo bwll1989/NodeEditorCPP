@@ -42,8 +42,8 @@ namespace Nodes {
             OutPortCount=1;
             CaptionVisible=true;
             Caption="From JSON";
-            WidgetEmbeddable=true;
-            Resizable=true; // 允许调整大小
+            WidgetEmbeddable=false;
+            Resizable=false; // 允许调整大小
 
             connect(_textEdit, &QPlainTextEdit::textChanged, this, &FromJsonDataModel::onTextEdited);
         }

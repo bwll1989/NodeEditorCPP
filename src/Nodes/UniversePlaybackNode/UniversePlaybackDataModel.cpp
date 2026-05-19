@@ -35,23 +35,63 @@ UniversePlaybackDataModel::UniversePlaybackDataModel()
     connect(widget, &Nodes::UniversePlaybackInterface::selectFileClicked,
         this, [this](QString fileName) { setFileName(fileName); });
         
-    connect(widget, &Nodes::UniversePlaybackInterface::playClicked,
-        this, [this]() { setIsPlaying(true); });
-        
-    connect(widget, &Nodes::UniversePlaybackInterface::stopClicked,
-        this, [this]() { setIsPlaying(false); });
+    connect(widget->playButton, &QPushButton::clicked,
+        this, [this](bool checked) { setIsPlaying(checked); });
     
     // 连接循环播放信号
     connect(widget, &Nodes::UniversePlaybackInterface::loopStateChanged,
         this, [this](bool checked) { setIsLooping(checked); });
-    NodeDelegateModel::registerExternalControl("/universe", widget->universeSpinBox);
-    NodeDelegateModel::registerExternalControl("/subnet", widget->subnetSpinBox);
-    NodeDelegateModel::registerExternalControl("/net", widget->netSpinBox);
-    NodeDelegateModel::registerExternalControl("/clear", widget->clearButton);
-    NodeDelegateModel::registerExternalControl("/play", widget->playButton);
-    NodeDelegateModel::registerExternalControl("/stop", widget->stopButton);
-    NodeDelegateModel::registerExternalControl("/loop", widget->loopCheckBox);
-    NodeDelegateModel::registerExternalControl("/filename", widget->_fileSelectComboBox);
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "universe";
+        b.control=widget->universeSpinBox;
+        AbstractDelegateModel::registerExternalBinding("/universe", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "subnet";
+        b.control=widget->subnetSpinBox;
+        AbstractDelegateModel::registerExternalBinding("/subnet",this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "net";
+        b.control=widget->netSpinBox;
+        AbstractDelegateModel::registerExternalBinding("/net", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "clear";
+        b.control=widget->clearButton;
+        AbstractDelegateModel::registerExternalBinding("/clear", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "isPlaying";
+        b.control=widget->playButton;
+        AbstractDelegateModel::registerExternalBinding("/play", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "isLooping";
+        b.control=widget->loopCheckBox;
+        AbstractDelegateModel::registerExternalBinding("/loop", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "fileName";
+        b.control=widget->_fileSelectComboBox;
+        AbstractDelegateModel::registerExternalBinding("/filename", this, b);
+    }
+
+    // NodeDelegateModel::registerExternalControl("/universe", widget->universeSpinBox);
+    // NodeDelegateModel::registerExternalControl("/subnet", widget->subnetSpinBox);
+    // NodeDelegateModel::registerExternalControl("/net", widget->netSpinBox);
+    // NodeDelegateModel::registerExternalControl("/clear", widget->clearButton);
+    // NodeDelegateModel::registerExternalControl("/play", widget->playButton);
+    // NodeDelegateModel::registerExternalControl("/stop", widget->stopButton);
+    // NodeDelegateModel::registerExternalControl("/loop", widget->loopCheckBox);
+    // NodeDelegateModel::registerExternalControl("/filename", widget->_fileSelectComboBox);
 }
 
     
@@ -61,7 +101,7 @@ void UniversePlaybackDataModel::afterModelReady() {
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/net"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/clear"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
-    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    // GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/filename"), this, SLOT(onGlobalEvent(GlobalEvent)));
 }
@@ -76,7 +116,7 @@ void UniversePlaybackDataModel::setUniverse(int universe) {
     }
     updateAllUniverseDataInternal();
     emit universeChanged(m_universe);
-    AbstractDelegateModel::stateFeedBack("/universe", m_universe);
+
 }
 
 void UniversePlaybackDataModel::setSubnet(int subnet) {
@@ -89,7 +129,7 @@ void UniversePlaybackDataModel::setSubnet(int subnet) {
     }
     updateAllUniverseDataInternal();
     emit subnetChanged(m_subnet);
-    AbstractDelegateModel::stateFeedBack("/subnet", m_subnet);
+
 }
 
 void UniversePlaybackDataModel::setNet(int net) {
@@ -102,7 +142,7 @@ void UniversePlaybackDataModel::setNet(int net) {
     }
     updateAllUniverseDataInternal();
     emit netChanged(m_net);
-    AbstractDelegateModel::stateFeedBack("/net", m_net);
+
 }
 
 void UniversePlaybackDataModel::setIsLooping(bool looping) {
@@ -114,7 +154,7 @@ void UniversePlaybackDataModel::setIsLooping(bool looping) {
         widget->loopCheckBox->setChecked(m_isLooping);
     }
     emit isLoopingChanged(m_isLooping);
-    AbstractDelegateModel::stateFeedBack("/loop", m_isLooping);
+
 }
 
 void UniversePlaybackDataModel::setIsPlaying(bool playing) {
@@ -136,9 +176,12 @@ void UniversePlaybackDataModel::setIsPlaying(bool playing) {
     } else {
         stopPlayback();
     }
-    
+    if (widget->playButton->isChecked()!=m_isPlaying) {
+        widget->playButton->blockSignals(true);
+        widget->playButton->setChecked(m_isPlaying);
+        widget->playButton->blockSignals(false);
+    }
     emit isPlayingChanged(m_isPlaying);
-    AbstractDelegateModel::stateFeedBack("/play", m_isPlaying);
 }
 
 void UniversePlaybackDataModel::setFileName(const QString& fileName) {
@@ -162,7 +205,6 @@ void UniversePlaybackDataModel::setFileName(const QString& fileName) {
     }
     
     emit fileNameChanged(m_fileName);
-    AbstractDelegateModel::stateFeedBack("/filename", m_fileName);
 }
 
 void UniversePlaybackDataModel::onGlobalEvent(const GlobalEvent& ev) {
@@ -173,7 +215,7 @@ void UniversePlaybackDataModel::onGlobalEvent(const GlobalEvent& ev) {
         else if (localPath == "net") setNet(ev.payload.toInt());
         else if (localPath == "loop") setIsLooping(ev.payload.toBool());
         else if (localPath == "play") setIsPlaying(ev.payload.toBool());
-        else if (localPath == "stop") setIsPlaying(false);
+        // else if (localPath == "stop") setIsPlaying(false);
         else if (localPath == "clear") onClearDataClicked();
         else if (localPath == "filename") setFileName(ev.payload.toString());
     }
@@ -286,9 +328,11 @@ void UniversePlaybackDataModel::onClearDataClicked() {
     for (int i = 0; i < dmxDataList.size(); i++) {
         dmxDataList[i].fill(0);
     }
+    AbstractDelegateModel::stateFeedBack("/clear", true);
     // 更新输出数据
     updateAllUniverseDataInternal();
-    AbstractDelegateModel::stateFeedBack("/clear", true);
+    AbstractDelegateModel::stateFeedBack("/clear", false);
+
 }
 
 void UniversePlaybackDataModel::onPlaybackTimer() {

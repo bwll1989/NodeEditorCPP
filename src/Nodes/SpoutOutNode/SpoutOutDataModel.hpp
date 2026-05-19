@@ -309,7 +309,6 @@ namespace Nodes
             OutPortCount = 0;
             CaptionVisible = true;
             Caption = "Spout Out";
-            WidgetEmbeddable = true;
             Resizable = false;
             PortEditable = false;
             

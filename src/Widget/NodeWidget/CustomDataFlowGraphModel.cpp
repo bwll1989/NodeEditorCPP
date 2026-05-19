@@ -322,22 +322,22 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             break;
 
         case NodeRole::Widget: {
-                switch (model->getWidgetType()) {
-                case QtNodes::NodeWidgetType::InternalWidget: {
+                // switch (model->getWidgetType()) {
+                // case QtNodes::NodeWidgetType::InternalWidget: {
                         auto w = model->embeddedWidget();
                         result = QVariant::fromValue(w);
                 }
                     break;
-                case  QtNodes::NodeWidgetType::PortEditWidget: {
-                        auto w = layoutWidget(nodeId);
-                        result = QVariant::fromValue(w);
-                }
-                    break;
-                default:
-                    break;
-                }
+                // case  QtNodes::NodeWidgetType::PortEditWidget: {
+                //         auto w = layoutWidget(nodeId);
+                //         result = QVariant::fromValue(w);
+                // }
+                //     break;
+                // default:
+                //     break;
+                // }
 
-        } break;
+        // } break;
         case NodeRole::PortEditable: {
             result = model->portEditable();
             break;
@@ -349,7 +349,6 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
         }
         case NodeRole::OSCAddress: {
             result = QVariant::fromValue(model->getExternalControlAddressMapping());
-            // qDebug() << "getOscMapping" << model->getOscMapping().size();
             break;
         }
         case NodeRole::ValidationState: {
@@ -364,9 +363,9 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             result = model->getRemarks();
             break;
         }
-        case NodeRole::EmbeddWidgetType:
-            result=static_cast<int>(model->getWidgetType());
-            break;
+        // case NodeRole::EmbeddWidgetType:
+        //     result=static_cast<int>(model->getWidgetType());
+        //     break;
         case NodeRole::ModelAlias:
             result= modelAlias();
             break;
@@ -500,15 +499,15 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             result = true;
         }
             break;
-        case NodeRole::EmbeddWidgetType: {
-            auto it = _models.find(nodeId);
-            auto &model = it->second;
-            model->setEmbeddWidgetType(static_cast<decltype(model->getWidgetType())>(value.toInt())); // 显式类型转换
-            Q_EMIT nodeWidgetUpdated(nodeId);
-            Q_EMIT nodeUpdated(nodeId);
-            result=true;
-        }
-            break;
+        // case NodeRole::EmbeddWidgetType: {
+        //     auto it = _models.find(nodeId);
+        //     auto &model = it->second;
+        //     model->setEmbeddWidgetType(static_cast<decltype(model->getWidgetType())>(value.toInt())); // 显式类型转换
+        //     Q_EMIT nodeWidgetUpdated(nodeId);
+        //     Q_EMIT nodeUpdated(nodeId);
+        //     result=true;
+        // }
+        //     break;
         case NodeRole::PortEditWidget:
             break;
 
@@ -890,7 +889,7 @@ void CustomDataFlowGraphModel::setNodesLocked(bool b)
     _nodesLocked = b;
 
     for (NodeId nodeId : allNodeIds()) {
-        setNodeData(nodeId,NodeRole::WidgetEmbeddable,false);
+        // setNodeData(nodeId,NodeRole::WidgetEmbeddable,false);
         Q_EMIT nodeFlagsUpdated(nodeId);
     }
     //锁定节点后也需锁定分组

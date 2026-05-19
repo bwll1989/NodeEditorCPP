@@ -35,8 +35,8 @@ namespace Nodes
             OutPortCount=1;
             Caption="Extract";
             CaptionVisible=true;
-            WidgetEmbeddable= true;
-            Resizable=false;
+            WidgetEmbeddable= false;
+            Resizable=true;
             widget->setPlaceholderText("JS Expression (e.g., \"input['key']\")");
             connect(widget, &QLineEdit::editingFinished, this, &ExtractDataModel::outDataSlot);
             m_jsEngine = new QJSEngine(this);

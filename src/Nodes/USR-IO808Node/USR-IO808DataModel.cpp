@@ -37,7 +37,32 @@ USR_IO808DataModel::USR_IO808DataModel()
         _outputStates[i] = false;
         _outputData[i] = std::make_shared<NodeDataTypes::VariableData>();
     }
-    AbstractDelegateModel::registerExternalControl("/connect", _interface->_statusLabel);
+
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "host";
+        b.control = _interface->_hostEdit;
+        AbstractDelegateModel::registerExternalBinding("/host", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "port";
+        b.control = _interface->_portEdit;
+        AbstractDelegateModel::registerExternalBinding("/port", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "serverId";
+        b.control = _interface->_serverId;
+        AbstractDelegateModel::registerExternalBinding("/serverId", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "connected";
+        b.control = _interface->_statusLabel;
+        AbstractDelegateModel::registerExternalBinding("/connect", this, b);
+    }
+
     // UI Connections
     connect(_interface->_hostEdit, &QLineEdit::editingFinished, this, [this]() {
         setHost(_interface->_hostEdit->text());
@@ -52,15 +77,23 @@ USR_IO808DataModel::USR_IO808DataModel()
     });
 
     for (int i = 0; i < 8; ++i) {
-        AbstractDelegateModel::registerExternalControl("/DO" + QString::number(i), _interface->_outputCheckBoxes[i]);
-        AbstractDelegateModel::registerExternalControl("/DI" + QString::number(i), _interface->_inputLabels[i]);
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.control = _interface->_outputCheckBoxes[i];
+            AbstractDelegateModel::registerExternalBinding("/DO" + QString::number(i), nullptr, b);
+        }
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.control = _interface->_inputLabels[i];
+            AbstractDelegateModel::registerExternalBinding("/DI" + QString::number(i), nullptr, b);
+        }
         connect(_interface->_outputCheckBoxes[i], &QCheckBox::clicked, this, [this, i](bool checked) {
             setOutput(i, checked);
         });
     }
 
     // Read All Button
-    connect(_interface->_readAll, &QPushButton::clicked, this, &USR_IO808DataModel::readAllData);
+    connect(_interface->_readAll, &QPushButton::clicked, this, [this](){ readAllData(); });
     
     // TCP Client Connections
     connect(_tcpClient, &TcpClient::recMsg, this, [this](const QVariantMap &dataMap) {
@@ -70,22 +103,10 @@ USR_IO808DataModel::USR_IO808DataModel()
     });
     
     connect(_tcpClient, &TcpClient::isReady, this, [this](const bool &isReady) {
-        _interface->setConnectionStatus(isReady);
-        AbstractDelegateModel::stateFeedBack("/connect",isReady);
-        _interface->_readAll->setEnabled(isReady);
-        for(int i=0; i<8; i++) {
-            _interface->_outputCheckBoxes[i]->setEnabled(isReady);
-        }
-
-        if (isReady) {
-            readAllData();
-            _readTimer->start(1000); 
-        } else {
-            _readTimer->stop();
-        }
+        setConnected(isReady);
     });
 
-    connect(_readTimer, &QTimer::timeout, this, &USR_IO808DataModel::readAllInputs);
+    connect(_readTimer, &QTimer::timeout, this, &USR_IO808DataModel::readAllData);
 
     // Write Queue Timer Setup
     _writeQueueTimer->setInterval(1000); // 1s interval
@@ -119,7 +140,7 @@ void USR_IO808DataModel::setHost(const QString& host) {
     _interface->_hostEdit->setText(_host);
     
     emit hostChanged(_host);
-    AbstractDelegateModel::stateFeedBack("/host", _host);
+
 
     // Reconnect
     _tcpClient->disconnectFromServer();
@@ -134,7 +155,6 @@ void USR_IO808DataModel::setPort(int port) {
     _interface->_portEdit->setValue(_port);
     
     emit portChanged(_port);
-    AbstractDelegateModel::stateFeedBack("/port", _port);
 
     // Reconnect
     _tcpClient->disconnectFromServer();
@@ -149,32 +169,35 @@ void USR_IO808DataModel::setServerId(int serverId) {
     _interface->_serverId->setValue(_serverId);
     
     emit serverIdChanged(_serverId);
-    AbstractDelegateModel::stateFeedBack("/serverId", _serverId);
 }
 
 void USR_IO808DataModel::onGlobalEvent(const GlobalEvent& ev) {
-    if (ev.kind == GlobalEventKind::Command) {
-        QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
-        if (localPath == "host") setHost(ev.payload.toString());
-        else if (localPath == "port") setPort(ev.payload.toInt());
-        else if (localPath == "serverId") setServerId(ev.payload.toInt());
-        else if (localPath == "readAll") readAllData();
-        else if (localPath.startsWith("DO")) {
-            bool ok;
-            int index = localPath.mid(2).toInt(&ok);
-            if (ok && index >= 0 && index < 8) {
-                setOutput(index, ev.payload.toBool());
-            }
+    if (ev.kind != GlobalEventKind::Command) {
+        return;
+    }
+
+    QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+    if (localPath == "host") {
+        setHost(ev.payload.toString());
+    } else if (localPath == "port") {
+        setPort(ev.payload.toInt());
+    } else if (localPath == "serverId") {
+        setServerId(ev.payload.toInt());
+    } else if (localPath.startsWith("DO")) {
+        bool ok;
+        int index = localPath.mid(2).toInt(&ok);
+        if (ok && index >= 0 && index < 8) {
+            setOutput(index, ev.payload.toBool());
         }
     }
 }
 
 void USR_IO808DataModel::afterModelReady() {
+    AbstractDelegateModel::afterModelReady();
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/host"), this,SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/port"), this,SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/serverId"), this,SLOT(onGlobalEvent(GlobalEvent)));
-    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/readAll"), this,SLOT(onGlobalEvent(GlobalEvent)));
-    
+
     for (int i = 0; i < 8; ++i) {
         GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress(QString("/DO%1").arg(i)), this,SLOT(onGlobalEvent(GlobalEvent)));
     }
@@ -224,11 +247,11 @@ QJsonObject USR_IO808DataModel::save() const
     QJsonObject modelJson1;
     
     // 保存输出状态
-    QJsonArray outputStates;
-    for (int i = 0; i < 8; ++i) {
-        outputStates.append(_outputStates[i]);
-    }
-    modelJson1["outputStates"] = outputStates;
+    // QJsonArray outputStates;
+    // for (int i = 0; i < 8; ++i) {
+    //     outputStates.append(_outputStates[i]);
+    // }
+    // modelJson1["outputStates"] = outputStates;
     modelJson1["host"] = _host;
     modelJson1["port"] = _port;
     modelJson1["serverId"] = _serverId;
@@ -247,13 +270,13 @@ void USR_IO808DataModel::load(QJsonObject const &p)
         if (values.contains("port")) setPort(values["port"].toInt());
         if (values.contains("serverId")) setServerId(values["serverId"].toInt());
         
-        // 加载输出状态
-        if (values.contains("outputStates")) {
-            QJsonArray outputStates = values["outputStates"].toArray();
-            for (int i = 0; i < outputStates.size() && i < 8; ++i) {
-                setOutput(i, outputStates[i].toBool());
-            }
-        }
+        // // 加载输出状态
+        // if (values.contains("outputStates")) {
+        //     QJsonArray outputStates = values["outputStates"].toArray();
+        //     for (int i = 0; i < outputStates.size() && i < 8; ++i) {
+        //         setOutput(i, outputStates[i].toBool());
+        //     }
+        // }
     }
 }
 
@@ -297,6 +320,31 @@ void USR_IO808DataModel::readAllData()
         readAllOutputs();
     });
 }
+
+void USR_IO808DataModel::setConnected(bool connected)
+{
+    if (_connected == connected) {
+        return;
+    }
+
+    _connected = connected;
+    emit connectedChanged(_connected);
+
+    if (_interface) {
+        _interface->setConnectionStatus(_connected);
+        _interface->_readAll->setEnabled(_connected);
+        for (int i = 0; i < 8; i++) {
+            _interface->_outputCheckBoxes[i]->setEnabled(_connected);
+        }
+    }
+    if (_connected) {
+        readAllData();
+        _readTimer->start(1000);
+    } else {
+        _readTimer->stop();
+    }
+}
+
 
 void USR_IO808DataModel::setOutput(int index, bool state)
 {

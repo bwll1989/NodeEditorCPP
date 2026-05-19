@@ -11,6 +11,9 @@
 #include "QLineEdit"
 #include "QTextBrowser"
 #include "QComboBox"
+#include <QHBoxLayout>
+#include <QSpacerItem>
+#include <QVBoxLayout>
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 // #include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
 using namespace std;
@@ -21,24 +24,60 @@ namespace Nodes
         Q_OBJECT
         public:
         explicit MpvControllerInterface(QWidget *parent = nullptr){
-            main_layout->addWidget(hostLabel,0,0,1,1);
-            main_layout->addWidget(hostEdit,0,1,1,3);
-            main_layout->addWidget(Play,1,0,1,4);
-            main_layout->addWidget(playlist_prev,2,0,1,2);
-            main_layout->addWidget(playlist_next,2,2,1,2);
-            main_layout->addWidget(speedSub,3,0,1,2);
-            main_layout->addWidget(speedAdd,3,2,1,2);
-            main_layout->addWidget(speedReset,4,0,1,4);
-            main_layout->addWidget(volumeLabel,5,0,1,1);
-            main_layout->addWidget(volumeEditor,5,2,1,3);
+            auto *layout = new QVBoxLayout(this);
+            layout->setContentsMargins(0, 0, 0, 0);
+            layout->setSpacing(6);
+
+            const auto addRow = [this, layout](const QString& labelText, QWidget* editor) {
+                auto *row = new QWidget(this);
+                auto *rowLayout = new QHBoxLayout(row);
+                rowLayout->setContentsMargins(0, 0, 0, 0);
+                rowLayout->setSpacing(8);
+
+                auto *label = new QLabel(labelText, row);
+                rowLayout->addWidget(label, 0);
+                rowLayout->addWidget(editor, 1);
+
+                layout->addWidget(row);
+            };
+
+            {
+                auto *row = new QWidget(this);
+                auto *rowLayout = new QHBoxLayout(row);
+                rowLayout->setContentsMargins(0, 0, 0, 0);
+                rowLayout->setSpacing(8);
+                rowLayout->addWidget(hostLabel, 0);
+                rowLayout->addWidget(hostEdit, 1);
+                layout->addWidget(row);
+            }
+
+            layout->addWidget(Play);
+
+            auto *playlistRow = new QWidget(this);
+            auto *playlistLayout = new QHBoxLayout(playlistRow);
+            playlistLayout->setContentsMargins(0, 0, 0, 0);
+            playlistLayout->setSpacing(8);
+            playlistLayout->addWidget(playlist_prev);
+            playlistLayout->addWidget(playlist_next);
+            layout->addWidget(playlistRow);
+
+            auto *speedRow = new QWidget(this);
+            auto *speedLayout = new QHBoxLayout(speedRow);
+            speedLayout->setContentsMargins(0, 0, 0, 0);
+            speedLayout->setSpacing(8);
+            speedLayout->addWidget(speedSub);
+            speedLayout->addWidget(speedAdd);
+            layout->addWidget(speedRow);
+
+            layout->addWidget(speedReset);
+
+            addRow("Volume:", volumeEditor);
             volumeEditor->setRange(0,150);
             volumeEditor->setSingleStep(1);
             volumeEditor->setValue(100);
-            main_layout->addWidget(Fullscreen,6,0,1,4);
-            main_layout->setColumnStretch(0,1);
-            main_layout->setColumnStretch(1,1);
 
-            this->setLayout(main_layout);
+            layout->addWidget(Fullscreen);
+            layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
         }
 
         signals:
@@ -56,7 +95,6 @@ namespace Nodes
     }
     public:
 
-        QGridLayout *main_layout=new QGridLayout(this);
         QLabel *hostLabel=new QLabel("Host: ");
         QLineEdit *hostEdit=new QLineEdit("127.0.0.1");
         QPushButton *Play=new QPushButton("play");

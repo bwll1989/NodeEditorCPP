@@ -1,38 +1,28 @@
-# NDIOutNode 帮助文档
+# NDIOutNode 使用说明
 
-## 功能概述
+## 用途
+NDIOutNode 用于把流程中的图像（ImageData）通过 NDI 协议发送到局域网，让其他支持 NDI 的软件/设备接收（例如 OBS、vMix 等）。
 
-NDIOutNode是一个基于NDI技术的图像输出节点，用于在Windows平台上实时发送图像数据。NDI（Network Device Interface）是一个用于实时视频传输的开放标准，广泛应用于视频编辑、VJ表演、数字艺术等领域。
+## 端口
+- 输入（2）
+  - IMAGE（端口 0）：ImageData
+  - ENABLE（端口 1）：VariableData（bool），true 开始发送，false 停止
+- 输出：无
 
-### 主要功能
+## 节点参数
+- senderName：NDI 发送器名称（默认 `NodeEditor NDI Output`）
+- enable：是否发送
 
-- **实时图像发送**: 通过NDI协议发送图像数据到其他应用程序
-- **多格式支持**: 支持BGRA、BGRX、RGBA、RGBX等多种图像格式
-- **动态参数配置**: 支持运行时修改发送器名称和视频参数
-- **线程安全**: 使用独立线程处理NDI发送，确保界面响应性
-- **状态监控**: 实时显示发送状态和错误信息
+## 外部控制（可选）
+- `/senderName`：设置发送器名称（string）
+- `/enable`：启动/停止发送（bool）
 
+## 使用步骤
+1. 将上游图像连接到 IMAGE。
+2. 设置 senderName（可选）。
+3. 把 ENABLE 设为 true（或点击 Start/Stop）。
+4. 在其他 NDI 软件中选择该 senderName 作为输入源。
 
-## 输入输出端口
-
-### 输出端口
-- 无输出端口（NDI数据通过网络发送）
-### 输入端口
-- **端口0**: `ImageData` - 输入要发送的图像数据
-- **端口1**: `VariableData` - 启动/停止NDI发送器
-
-## 节点界面
-
-### 发送器选择组
-- **名称设置**: 输入NDI发送器的名称
-- **启动/停止按钮**: 手动启动或停止NDI发送器
-- **状态显示**: 显示当前NDI发送器的状态（启动/停止/错误）
-
-## 使用方法
-
-### 基本使用
-1. 将ImageData连接到输入端口
-2. 设置发送器名称（可选）
-3. 配置视频参数（可选）
-4. 点击"启动"按钮开始发送
-5. 在其他NDI兼容应用中接收视频流
+## 注意事项
+- 需要安装并可用 NDI Runtime。
+- 未启用 ENABLE 时，即使有图像输入也不会发送。

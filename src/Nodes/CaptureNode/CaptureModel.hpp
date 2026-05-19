@@ -18,7 +18,6 @@ namespace Nodes
 {
     class CaptureModel final : public AbstractDelegateModel {
         Q_OBJECT
-        Q_PROPERTY(bool trigger READ triggerProperty WRITE setTriggerProperty NOTIFY triggerChanged)
 
     public:
         /**
@@ -31,6 +30,16 @@ namespace Nodes
             Caption="Capture";
             WidgetEmbeddable=false;
             Resizable=false;
+            m_button = new QPushButton("Capture");
+            connect(m_button, &QPushButton::clicked, this, [this](){
+                    captureOnce();
+                });
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "trigger";
+                b.control=m_button;
+                AbstractDelegateModel::registerExternalBinding("/capture", this, b);
+            }
         }
 
         QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override{
@@ -88,7 +97,7 @@ namespace Nodes
                 m_inData=std::dynamic_pointer_cast<VariableData>(nodeData);
                 if (const auto lock = m_inData.lock()) {
                     if (lock->value().toBool()) {
-                        setTriggerProperty(true);
+                        captureOnce();
                     }
                 }
                 break;
@@ -100,13 +109,6 @@ namespace Nodes
         }
 
         QWidget* embeddedWidget() override{
-            if (!m_button) {
-                m_button = new QPushButton("Capture");
-                AbstractDelegateModel::registerExternalControl("/capture",m_button);
-                connect(m_button, &QPushButton::clicked, this, [this](){
-                    setTriggerProperty(true);
-                });
-            }
             return m_button;
         }
 
@@ -125,40 +127,6 @@ namespace Nodes
 
             return result;
         }
-
-        /**
-         * 函数级注释：获取当前触发属性值
-         * @return true 表示请求捕获，false 表示空闲
-         */
-        bool triggerProperty() const
-        {
-            return m_trigger;
-        }
-
-        /**
-         * 函数级注释：设置触发属性，当置为 true 时执行一次图像捕获并自动复位为 false
-         */
-        void setTriggerProperty(bool trigger)
-        {
-            if (!trigger) {
-                return;
-            }
-            if (!m_trigger) {
-                m_trigger = true;
-                Q_EMIT triggerChanged(m_trigger);
-                captureOnce();
-                m_trigger = false;
-                Q_EMIT triggerChanged(m_trigger);
-            } else {
-                captureOnce();
-            }
-        }
-
-    Q_SIGNALS:
-        /**
-         * 函数级注释：触发属性变化信号，用于状态反馈到事件总线
-         */
-        void triggerChanged(bool trigger);
 
     protected:
         /**
@@ -183,8 +151,10 @@ namespace Nodes
             } else {
                 m_outImageData.reset();
             }
-            emit dataUpdated(0);
             AbstractDelegateModel::stateFeedBack("/capture", true);
+            emit dataUpdated(0);
+            AbstractDelegateModel::stateFeedBack("/capture", false);
+
         }
 
         /**
@@ -199,7 +169,7 @@ namespace Nodes
                 return;
             }
             if (ev.payload.toBool()) {
-                setTriggerProperty(true);
+                captureOnce();
             }
         }
 
@@ -212,6 +182,6 @@ namespace Nodes
         // out
         // 0
         std::shared_ptr<ImageData> m_outImageData;
-        bool m_trigger = false;
+
     };
 }

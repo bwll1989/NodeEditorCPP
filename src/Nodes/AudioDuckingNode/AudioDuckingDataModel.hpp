@@ -16,8 +16,6 @@
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
 #include <QtCore/qglobal.h>
-#include "AudioDuckingInterface.h"
-#include <QComboBox>
 #include <QJsonArray>
 #include <QJsonObject>
 #include "PluginDefinition.hpp"
@@ -44,7 +42,7 @@ namespace Nodes {
         Q_PROPERTY(double threshold READ threshold WRITE setThreshold NOTIFY thresholdChanged)
         Q_PROPERTY(double ratio READ ratio WRITE setRatio NOTIFY ratioChanged)
         Q_PROPERTY(double attack READ attack WRITE setAttack NOTIFY attackChanged)
-        Q_PROPERTY(double release READ release READ release WRITE setRelease NOTIFY releaseChanged)
+        Q_PROPERTY(double release READ release WRITE setRelease NOTIFY releaseChanged)
         Q_PROPERTY(double makeupGain READ makeupGain WRITE setMakeupGain NOTIFY makeupGainChanged)
         Q_PROPERTY(double sidechainGain READ sidechainGain WRITE setSidechainGain NOTIFY sidechainGainChanged)
         Q_PROPERTY(double depth READ depth WRITE setDepth NOTIFY depthChanged)
@@ -59,30 +57,55 @@ namespace Nodes {
         {
             InPortCount = 2; // 0: Music, 1: Sidechain
             OutPortCount = 1; // Ducked Music
-            widget = new AudioDuckingInterface();
             CaptionVisible = true;
             WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = false;
             Caption = "Audio Ducking";
-            
-            // 初始化属性默认值
-            m_threshold = widget->thresholdSpin->value();
-            m_ratio = widget->ratioSpin->value();
-            m_attack = widget->attackSpin->value();
-            m_release = widget->releaseSpin->value();
-            m_makeupGain = widget->makeupGainSpin->value();
-            m_sidechainGain = widget->sidechainGainSpin->value();
-            m_depth = widget->depthSpin->value();
 
-            // 注册外部控制控件
-            AbstractDelegateModel::registerExternalControl("/threshold", widget->thresholdSpin);
-            AbstractDelegateModel::registerExternalControl("/ratio", widget->ratioSpin);
-            AbstractDelegateModel::registerExternalControl("/attack", widget->attackSpin);
-            AbstractDelegateModel::registerExternalControl("/release", widget->releaseSpin);
-            AbstractDelegateModel::registerExternalControl("/makeup", widget->makeupGainSpin);
-            AbstractDelegateModel::registerExternalControl("/sidechain_gain", widget->sidechainGainSpin);
-            AbstractDelegateModel::registerExternalControl("/depth", widget->depthSpin);
+            m_threshold = -20.0;
+            m_ratio = 4.0;
+            m_attack = 10.0;
+            m_release = 100.0;
+            m_makeupGain = 0.0;
+            m_depth = 24.0;
+            m_sidechainGain = 0.0;
+
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "threshold";
+                AbstractDelegateModel::registerExternalBinding("/threshold", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "ratio";
+                AbstractDelegateModel::registerExternalBinding("/ratio", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "attack";
+                AbstractDelegateModel::registerExternalBinding("/attack", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "release";
+                AbstractDelegateModel::registerExternalBinding("/release", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "makeupGain";
+                AbstractDelegateModel::registerExternalBinding("/makeup", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "sidechainGain";
+                AbstractDelegateModel::registerExternalBinding("/sidechain_gain", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "depth";
+                AbstractDelegateModel::registerExternalBinding("/depth", this, b);
+            }
 
             // Initialize buffers in worker
             _worker->initializeBuffers(InPortCount, OutPortCount);
@@ -95,95 +118,46 @@ namespace Nodes {
             });
             connect(_workerThread, &QThread::finished, _worker, &AudioDuckingWorker::stopProcessing);
             
-            connect(widget->thresholdSpin, &FloatDragValueWidget::valueChanged,
-                    this, &AudioDuckingDataModel::setThreshold);
             connect(this, &AudioDuckingDataModel::thresholdChanged, this, [this](double value){
-                {
-                    QSignalBlocker blocker(widget->thresholdSpin);
-                    widget->thresholdSpin->setValue(value);
-                }
                 QMetaObject::invokeMethod(_worker, "setThreshold",
                                           Qt::QueuedConnection,
                                           Q_ARG(double, value));
-                AbstractDelegateModel::stateFeedBack("/threshold", value);
             });
 
-            connect(widget->ratioSpin, &FloatDragValueWidget::valueChanged,
-                    this, &AudioDuckingDataModel::setRatio);
             connect(this, &AudioDuckingDataModel::ratioChanged, this, [this](double value){
-                {
-                    QSignalBlocker blocker(widget->ratioSpin);
-                    widget->ratioSpin->setValue(value);
-                }
                 QMetaObject::invokeMethod(_worker, "setRatio",
                                           Qt::QueuedConnection,
                                           Q_ARG(double, value));
-                AbstractDelegateModel::stateFeedBack("/ratio", value);
             });
 
-            connect(widget->attackSpin, &FloatDragValueWidget::valueChanged,
-                    this, &AudioDuckingDataModel::setAttack);
             connect(this, &AudioDuckingDataModel::attackChanged, this, [this](double value){
-                {
-                    QSignalBlocker blocker(widget->attackSpin);
-                    widget->attackSpin->setValue(value);
-                }
                 QMetaObject::invokeMethod(_worker, "setAttack",
                                           Qt::QueuedConnection,
                                           Q_ARG(double, value));
-                AbstractDelegateModel::stateFeedBack("/attack", value);
             });
 
-            connect(widget->releaseSpin, &FloatDragValueWidget::valueChanged,
-                    this, &AudioDuckingDataModel::setRelease);
             connect(this, &AudioDuckingDataModel::releaseChanged, this, [this](double value){
-                {
-                    QSignalBlocker blocker(widget->releaseSpin);
-                    widget->releaseSpin->setValue(value);
-                }
                 QMetaObject::invokeMethod(_worker, "setRelease",
                                           Qt::QueuedConnection,
                                           Q_ARG(double, value));
-                AbstractDelegateModel::stateFeedBack("/release", value);
             });
 
-            connect(widget->makeupGainSpin, &FloatDragValueWidget::valueChanged,
-                    this, &AudioDuckingDataModel::setMakeupGain);
             connect(this, &AudioDuckingDataModel::makeupGainChanged, this, [this](double value){
-                {
-                    QSignalBlocker blocker(widget->makeupGainSpin);
-                    widget->makeupGainSpin->setValue(value);
-                }
                 QMetaObject::invokeMethod(_worker, "setMakeupGain",
                                           Qt::QueuedConnection,
                                           Q_ARG(double, value));
-                AbstractDelegateModel::stateFeedBack("/makeup", value);
             });
 
-            connect(widget->sidechainGainSpin, &FloatDragValueWidget::valueChanged,
-                    this, &AudioDuckingDataModel::setSidechainGain);
             connect(this, &AudioDuckingDataModel::sidechainGainChanged, this, [this](double value){
-                {
-                    QSignalBlocker blocker(widget->sidechainGainSpin);
-                    widget->sidechainGainSpin->setValue(value);
-                }
                 QMetaObject::invokeMethod(_worker, "setSidechainGain",
                                           Qt::QueuedConnection,
                                           Q_ARG(double, value));
-                AbstractDelegateModel::stateFeedBack("/sidechain_gain", value);
             });
 
-            connect(widget->depthSpin, &FloatDragValueWidget::valueChanged,
-                    this, &AudioDuckingDataModel::setDepth);
             connect(this, &AudioDuckingDataModel::depthChanged, this, [this](double value){
-                {
-                    QSignalBlocker blocker(widget->depthSpin);
-                    widget->depthSpin->setValue(value);
-                }
                 QMetaObject::invokeMethod(_worker, "setDepth",
                                           Qt::QueuedConnection,
                                           Q_ARG(double, value));
-                AbstractDelegateModel::stateFeedBack("/depth", value);
             });
             
             connect(_worker, &AudioDuckingWorker::processingStatusChanged, this, &AudioDuckingDataModel::onProcessingStatusChanged);
@@ -424,21 +398,23 @@ namespace Nodes {
         /**
          * 函数级注释：返回嵌入式界面控件
          */
-        QWidget *embeddedWidget() override { return widget; }
         
         /**
          * @brief 保存节点配置
          */
         QJsonObject save() const override
         {
-            QJsonObject modelJson;
-            modelJson["threshold"] = threshold();
-            modelJson["ratio"] = ratio();
-            modelJson["attack"] = attack();
-            modelJson["release"] = release();
-            modelJson["makeup"] = makeupGain();
-            modelJson["sidechain_gain"] = sidechainGain();
-            modelJson["depth"] = depth();
+            QJsonObject values;
+            values["threshold"] = threshold();
+            values["ratio"] = ratio();
+            values["attack"] = attack();
+            values["release"] = release();
+            values["makeup"] = makeupGain();
+            values["sidechain_gain"] = sidechainGain();
+            values["depth"] = depth();
+
+            QJsonObject modelJson = NodeDelegateModel::save();
+            modelJson["values"] = values;
             return modelJson;
         }
 
@@ -447,13 +423,23 @@ namespace Nodes {
          */
         void load(QJsonObject const &p) override
         {
-            if (p.contains("threshold")) setThreshold(p["threshold"].toDouble());
-            if (p.contains("ratio")) setRatio(p["ratio"].toDouble());
-            if (p.contains("attack")) setAttack(p["attack"].toDouble());
-            if (p.contains("release")) setRelease(p["release"].toDouble());
-            if (p.contains("makeup")) setMakeupGain(p["makeup"].toDouble());
-            if (p.contains("sidechain_gain")) setSidechainGain(p["sidechain_gain"].toDouble());
-            if (p.contains("depth")) setDepth(p["depth"].toDouble());
+            NodeDelegateModel::load(p);
+
+            QJsonObject values;
+            const QJsonValue vv = p.value("values");
+            if (vv.isObject()) {
+                values = vv.toObject();
+            } else {
+                values = p;
+            }
+
+            if (values.contains("threshold")) setThreshold(values["threshold"].toDouble());
+            if (values.contains("ratio")) setRatio(values["ratio"].toDouble());
+            if (values.contains("attack")) setAttack(values["attack"].toDouble());
+            if (values.contains("release")) setRelease(values["release"].toDouble());
+            if (values.contains("makeup")) setMakeupGain(values["makeup"].toDouble());
+            if (values.contains("sidechain_gain")) setSidechainGain(values["sidechain_gain"].toDouble());
+            if (values.contains("depth")) setDepth(values["depth"].toDouble());
         }
 
     public slots:
@@ -572,7 +558,6 @@ namespace Nodes {
         }
 
     private:
-        AudioDuckingInterface *widget;
         AudioDuckingWorker* _worker;
         QThread* _workerThread;
         double m_threshold = 0.0;

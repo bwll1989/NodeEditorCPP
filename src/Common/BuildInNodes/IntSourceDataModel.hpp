@@ -39,13 +39,19 @@ namespace Nodes
             WidgetEmbeddable=true;
             Resizable=false;
             widget->setFixedSize(80,30);
-            AbstractDelegateModel::registerExternalControl("/int",widget);
+            NodeDelegateModel::ExternalBinding binding;
+            binding.member = "value";
+            binding.control=widget;
+            AbstractDelegateModel::registerExternalBinding("/int", this, binding);
+            // AbstractDelegateModel::registerExternalControl("/int",widget);
             widget->setValue(m_value);
             connect(widget, &IntDragValueWidget::valueChanged, this, &IntSourceDataModel::setValue);
             connect(this, &IntSourceDataModel::valueChanged, this, [this](int){
-                if (widget->value()!=m_value)
+                if (widget->value()!=m_value){
+                    widget->blockSignals(true);
                     widget->setValue(m_value);
-                stateFeedBack("/int", m_value);
+                    widget->blockSignals(false);
+                }
             });
         }
 

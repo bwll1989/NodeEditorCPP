@@ -35,13 +35,14 @@ namespace Nodes
     {
         Q_OBJECT
         Q_PROPERTY(double gainDb READ gainDb WRITE setGainDb NOTIFY gainDbChanged)
+        Q_PROPERTY(int deviceId READ deviceId WRITE setDeviceId NOTIFY deviceIdChanged)
 
     public:
         /**
          * @brief 构造函数
          */
         AudioDeviceInDataModel() {
-            
+
             InPortCount = 0;
             OutPortCount = 2; // 默认立体声输出
             CaptionVisible = true;
@@ -50,7 +51,18 @@ namespace Nodes
             Resizable = false;
             PortEditable = true;
 
-            AbstractDelegateModel::registerExternalControl("/gain", widget->volume_spinbox);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "gainDb";
+                b.control = widget->volume_spinbox;
+                AbstractDelegateModel::registerExternalBinding("/gain", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "deviceId";
+                b.control = widget->device_selector;
+                AbstractDelegateModel::registerExternalBinding("/deviceId", this, b);
+            }
 
             connect(widget->volume_spinbox, &FloatDragValueWidget::valueChanged,
                     this, [this](double v){ setGainDb(v); });
@@ -114,9 +126,12 @@ namespace Nodes
          */
         QJsonObject save() const override
         {
-            QJsonObject modelJson;
-            modelJson["selectedDevice"] =widget->device_selector->currentIndex();
-            modelJson["volume"] = gainDb();
+            QJsonObject values;
+            values["deviceId"] = deviceId();
+            values["gainDb"] = gainDb();
+
+            QJsonObject modelJson = NodeDelegateModel::save();
+            modelJson["values"] = values;
             return modelJson;
         }
 
@@ -125,11 +140,30 @@ namespace Nodes
          */
         void load(const QJsonObject &p) override
         {
-            if (p.contains("selectedDevice")) {
-                widget->device_selector->setCurrentIndex(p["selectedDevice"].toInt());
+            NodeDelegateModel::load(p);
+
+            QJsonObject values;
+            const QJsonValue vv = p.value("values");
+            if (vv.isObject()) {
+                values = vv.toObject();
+            } else {
+                values = p;
             }
-            if (p.contains("volume")) {
-                setGainDb(p["volume"].toDouble());
+
+            if (values.contains("deviceId")) {
+                setDeviceId(values.value("deviceId").toInt());
+            } else if (values.contains("selectedDevice")) {
+                const int idx = values.value("selectedDevice").toInt(-1);
+                if (idx >= 0) {
+                    const int did = widget->device_selector->itemData(idx).toInt();
+                    setDeviceId(did);
+                }
+            }
+
+            if (values.contains("gainDb")) {
+                setGainDb(values.value("gainDb").toDouble());
+            } else if (values.contains("volume")) {
+                setGainDb(values.value("volume").toDouble());
             }
         }
 
@@ -177,20 +211,11 @@ namespace Nodes
          * @brief 设备选择变化处理
          */
         void onDeviceChanged(int index) {
-            if (index >= 0) {
-                selectedDeviceIndex_ = widget->device_selector->itemData(index).toInt();
-                const PaDeviceInfo *deviceInfo = Pa_GetDeviceInfo(selectedDeviceIndex_);
-                // 更新输出端口数量以匹配通道数
-                channels_=deviceInfo->maxInputChannels;
-                // 如果正在录制，重启录制
-                if (isRecording_) {
-                    stopRecording();
-                    startRecording();
-                }else
-                {
-                    startRecording();
-                }
+            if (index < 0) {
+                return;
             }
+            const int did = widget->device_selector->itemData(index).toInt();
+            setDeviceId(did);
         }
         
         /**
@@ -206,6 +231,14 @@ namespace Nodes
         double gainDb() const
         {
             return volumeDb_;
+        }
+
+        /**
+         * 函数级注释：获取当前输入设备索引ID（PortAudio device id）属性
+         */
+        int deviceId() const
+        {
+            return static_cast<int>(selectedDeviceIndex_);
         }
 
         /**
@@ -227,7 +260,60 @@ namespace Nodes
                 volumeGain_ = std::pow(10.0f, dbValue / 20.0f);
             }
             Q_EMIT gainDbChanged(volumeDb_);
-            AbstractDelegateModel::stateFeedBack("/gain", volumeDb_);
+        }
+
+        /**
+         * 函数级注释：设置当前输入设备索引ID（PortAudio device id）属性，并在需要时重启录制
+         */
+        void setDeviceId(int deviceId)
+        {
+            if (deviceId < 0) {
+                return;
+            }
+            if (static_cast<int>(selectedDeviceIndex_) == deviceId) {
+                return;
+            }
+
+            const bool needInit = !isRecording_;
+            if (needInit) {
+                const PaError err = Pa_Initialize();
+                if (err != paNoError) {
+                    qWarning() << "PortAudio初始化失败:" << Pa_GetErrorText(err);
+                    return;
+                }
+            }
+
+            selectedDeviceIndex_ = static_cast<PaDeviceIndex>(deviceId);
+            const PaDeviceInfo* deviceInfo = Pa_GetDeviceInfo(selectedDeviceIndex_);
+            if (!deviceInfo || deviceInfo->maxInputChannels <= 0) {
+                if (needInit) {
+                    Pa_Terminate();
+                }
+                return;
+            }
+
+            channels_ = deviceInfo->maxInputChannels;
+
+            if (needInit) {
+                Pa_Terminate();
+            }
+
+            {
+                const int comboIndex = widget->device_selector->findData(deviceId);
+                if (comboIndex >= 0 && widget->device_selector->currentIndex() != comboIndex) {
+                    const QSignalBlocker blocker(widget->device_selector);
+                    widget->device_selector->setCurrentIndex(comboIndex);
+                }
+            }
+
+            if (isRecording_) {
+                stopRecording();
+                startRecording();
+            } else {
+                startRecording();
+            }
+
+            Q_EMIT deviceIdChanged(deviceId);
         }
             
         
@@ -306,6 +392,10 @@ namespace Nodes
          * 函数级注释：当输入设备增益属性发生变化时发出的通知信号
          */
         void gainDbChanged(double db);
+        /**
+         * 函数级注释：当输入设备索引ID发生变化时发出的通知信号
+         */
+        void deviceIdChanged(int deviceId);
 
     protected:
         /**
@@ -315,6 +405,11 @@ namespace Nodes
         {
             GlobalEventBus::instance()->subscribe(
                 makeFullOscAddress("/gain"),
+                this,
+                SLOT(onGlobalEvent(GlobalEvent))
+            );
+            GlobalEventBus::instance()->subscribe(
+                makeFullOscAddress("/deviceId"),
                 this,
                 SLOT(onGlobalEvent(GlobalEvent))
             );
@@ -329,10 +424,15 @@ namespace Nodes
             if (ev.kind != GlobalEventKind::Command) {
                 return;
             }
-            if (ev.address != makeFullOscAddress("/gain")) {
-                return;
+
+            const QString addrGain = makeFullOscAddress("/gain");
+            const QString addrDev  = makeFullOscAddress("/deviceId");
+
+            if (ev.address == addrGain) {
+                setGainDb(ev.payload.toDouble());
+            } else if (ev.address == addrDev) {
+                setDeviceId(ev.payload.toInt());
             }
-            setGainDb(ev.payload.toDouble());
         }
 
     private:

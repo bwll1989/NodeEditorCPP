@@ -9,10 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Network)
 
-# QMQTT path
-set(QMQTT_INSTALL_DIR "${DEPENDS_DIR}/qmqtt/install")
-include_directories("${QMQTT_INSTALL_DIR}/include")
-link_directories("${QMQTT_INSTALL_DIR}/lib")
+
 
 set(MqttClient_sources
     MqttClient.cpp

@@ -15,6 +15,7 @@
 #include "QHBoxLayout"
 #include "QGridLayout"
 #include "QDateTime"
+#include <QSpacerItem>
 #include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 using namespace std;
 
@@ -68,6 +69,10 @@ namespace Nodes
         {
 
             QGridLayout *connectionLayout = new QGridLayout(this);
+            connectionLayout->setContentsMargins(0, 0, 0, 0);
+            connectionLayout->setSpacing(6);
+            connectionLayout->setColumnStretch(0, 1);
+            connectionLayout->setColumnStretch(1, 2);
             connectionLayout->addWidget(hostLabel, 0, 0, 1, 1);
             connectionLayout->addWidget(hostEdit, 0, 1, 1, 1);
             connectionLayout->addWidget(portLabel, 1, 0, 1, 1);
@@ -79,12 +84,14 @@ namespace Nodes
             connectionStatusLabel->setCheckable(true);
             connectionStatusLabel->setEnabled(false);
             connectionLayout->addWidget(connectionStatusLabel,3,0,1,2);
-            connectionLayout->addWidget(powerOnButton, 4, 0, 1, 1);
-            connectionLayout->addWidget(powerOffButton, 4, 1, 1, 1);
-            connectionLayout->addWidget(muteOnButton, 5, 0, 1, 1);
-            connectionLayout->addWidget(muteOffButton, 5, 1, 1, 1);
-            connectionLayout->addWidget(customCommandLineEdit, 6, 0, 1, 2);
-            connectionLayout->addWidget(customCommandButton, 7, 0, 1, 2);
+            connectionLayout->addWidget(powerOnButton, 4, 0, 1, 2);
+            connectionLayout->addWidget(powerOffButton, 5, 0, 1, 2);
+            connectionLayout->addWidget(muteOnButton, 6, 0, 1, 2);
+            connectionLayout->addWidget(muteOffButton, 7, 0, 1, 2);
+            connectionLayout->addWidget(customCommandLineEdit, 8, 0, 1, 2);
+            connectionLayout->addWidget(customCommandButton, 9, 0, 1, 2);
+            connectionLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 10, 0, 1, 2);
+            connectionLayout->setRowStretch(10, 1);
 
         }
 

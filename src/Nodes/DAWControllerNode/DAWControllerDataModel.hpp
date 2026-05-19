@@ -39,6 +39,7 @@ namespace Nodes
         Q_PROPERTY(QString host READ host WRITE setHost NOTIFY hostChanged)
         Q_PROPERTY(QString command READ command WRITE setCommand NOTIFY commandChanged)
         Q_PROPERTY(bool send READ send WRITE setSend NOTIFY sendChanged)
+        Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
 
     public:
         /**
@@ -59,9 +60,30 @@ namespace Nodes
             m_outData = std::make_shared<VariableData>();
 
             m_controller = FTDAWController::acquire();
-            AbstractDelegateModel::registerExternalControl("/send",widget->customCommandButton);
-            AbstractDelegateModel::registerExternalControl("/host",widget->hostEdit);
-            AbstractDelegateModel::registerExternalControl("/command",widget->customCommandLineEdit);
+
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "send";
+                b.control = widget->customCommandButton;
+                AbstractDelegateModel::registerExternalBinding("/send", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "host";
+                b.control = widget->hostEdit;
+                AbstractDelegateModel::registerExternalBinding("/host", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "command";
+                b.control = widget->customCommandLineEdit;
+                AbstractDelegateModel::registerExternalBinding("/command", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "connected";
+                AbstractDelegateModel::registerExternalBinding("/connected", this, b);
+            }
 
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, [=](){
                 setHost(widget->hostEdit->text());
@@ -77,10 +99,7 @@ namespace Nodes
 
             if (m_controller) {
                 connect(m_controller, &FTDAWController::isReady, this, [=](bool ready){
-                    widget->updateConnectionStatus(ready);
-                    m_outData->insert("connected", ready);
-                    Q_EMIT dataUpdated(0);
-                    AbstractDelegateModel::stateFeedBack("/connected", ready);
+                    setConnected(ready);
                 });
                 
                 connect(this, &DAWControllerNode::hostChanged, this, [=](const QString &host){
@@ -115,6 +134,7 @@ namespace Nodes
          * 函数级注释：获取发送触发属性（瞬时触发，外部使用 true 作为脉冲）
          */
         bool send() const { return m_send; }
+        bool connected() const { return m_connected; }
 
         /**
          * @brief 获取端口标题
@@ -239,21 +259,26 @@ namespace Nodes
          */
         void setSend(bool value)
         {
-            if (value) {
-                const QString cmd = command();
-
-                if (m_controller) {
-                    m_controller->sendMessage(cmd);
-                    const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
-                    m_outData->insert("connected", true);
-                    m_outData->insert("last_message", cmd);
-                    m_outData->insert("timestamp", timestamp);
-                    Q_EMIT dataUpdated(0);
-
-                }
+            if (!value) {
+                return;
             }
-            AbstractDelegateModel::stateFeedBack("/send", value);
-            Q_EMIT sendChanged(value);
+            if (m_send) {
+                return;
+            }
+            m_send = true;
+            Q_EMIT sendChanged(true);
+
+            const QString cmd = command();
+            if (m_controller && !cmd.isEmpty()) {
+                m_controller->sendMessage(cmd);
+                const QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss.zzz");
+                m_outData->insert("last_message", cmd);
+                m_outData->insert("timestamp", timestamp);
+                Q_EMIT dataUpdated(0);
+            }
+
+            m_send = false;
+            Q_EMIT sendChanged(false);
         }
 
         void setHost(const QString& host)
@@ -263,19 +288,18 @@ namespace Nodes
             }
             m_host = host;
             Q_EMIT hostChanged(host);
-            AbstractDelegateModel::stateFeedBack("/host", host);
             if (m_controller) {
                 m_controller->connectToServer(host);
             }
-
         }
 
         void setCommand(const QString& cmd)
         {
+            if (m_command == cmd) {
+                return;
+            }
             m_command = cmd;
-            setSend(true);
             Q_EMIT commandChanged(cmd);
-            AbstractDelegateModel::stateFeedBack("/command", cmd);
         }
 
         void onGlobalEvent(const GlobalEvent& ev)
@@ -299,10 +323,8 @@ namespace Nodes
     Q_SIGNALS:
         void hostChanged(const QString& host);
         void commandChanged(const QString& cmd);
-        /**
-         * 函数级注释：当发送触发属性变化时发出的通知信号
-         */
         void sendChanged(bool value);
+        void connectedChanged(bool connected);
 
      protected:
         /**
@@ -329,6 +351,20 @@ namespace Nodes
 
 
 
+        void setConnected(bool ready)
+        {
+            if (m_connected == ready) {
+                return;
+            }
+            m_connected = ready;
+            if (widget) {
+                widget->updateConnectionStatus(ready);
+            }
+            m_outData->insert("connected", ready);
+            Q_EMIT dataUpdated(0);
+            Q_EMIT connectedChanged(ready);
+        }
+
         DAWControllerInterface *widget = new DAWControllerInterface();
         std::shared_ptr<VariableData> m_inData;
         std::shared_ptr<VariableData> m_outData;           // 输出数据 (Map类型)
@@ -336,6 +372,7 @@ namespace Nodes
         QString m_host;
         QString m_command;
         bool m_send = false;
+        bool m_connected = false;
 
     };
 

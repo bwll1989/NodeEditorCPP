@@ -23,13 +23,14 @@ class ImageConstInterface final : public QWidget{
             main_layout->addWidget(widthEdit,2,1,1,1);
             main_layout->addWidget(sizeHeightLabel,3,0,1,1);
             main_layout->addWidget(heightEdit,3,1,1,1);
-            main_layout->addWidget(colorEditButton,4,0,4,2);
+            main_layout->addWidget(colorEditButton,4,0,1,2);
             main_layout->setColumnStretch(0,1);
             main_layout->setColumnStretch(1,1);
-            this->setLayout(main_layout);
+            // 空行
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 5, 0, 1, 2);
+            main_layout->setRowStretch(5, 1);
 
-            /* 函数级注释：移除固定大小，采用最小尺寸 + 可扩展策略 */
-            this->setFixedSize(150, 200);
+            this->setLayout(main_layout);
             this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         }
 

@@ -43,10 +43,35 @@ namespace Nodes
             Resizable = false;
             m_inData = std::make_shared<VariableData>();
             m_outData = std::make_shared<VariableData>();
-             AbstractDelegateModel::registerExternalControl("/host", widget->hostUrlEdit);
-            AbstractDelegateModel::registerExternalControl("/value", widget->valueEdit);
-            AbstractDelegateModel::registerExternalControl("/send", widget->send);
-            AbstractDelegateModel::registerExternalControl("/connect", widget->statusButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "url";
+                b.control=widget->hostUrlEdit;
+                AbstractDelegateModel::registerExternalBinding("/url", this, b);
+            }
+            //  AbstractDelegateModel::registerExternalControl("/host", widget->hostUrlEdit);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "value";
+                b.control=widget->valueEdit;
+                AbstractDelegateModel::registerExternalBinding("/value", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/value", widget->valueEdit);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "send";
+                b.control=widget->send;
+                AbstractDelegateModel::registerExternalBinding("/send", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/send", widget->sendButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "connected";
+                b.control=widget->statusButton;
+                AbstractDelegateModel::registerExternalBinding("/connected", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/send", widget->sendButton);
+            // AbstractDelegateModel::registerExternalControl("/connect", widget->statusButton);
             
             m_client = new WebSocketClient(this, QUrl(m_url));
 
@@ -83,7 +108,6 @@ namespace Nodes
                 widget->hostUrlEdit->setText(m_url);
             }
             emit urlChanged(m_url);
-            AbstractDelegateModel::stateFeedBack("/url", m_url);
             emit connectToUrl(QUrl(m_url));
         }
 
@@ -96,7 +120,6 @@ namespace Nodes
                 widget->valueEdit->setText(m_value);
             }
             emit valueChanged(m_value);
-            AbstractDelegateModel::stateFeedBack("/value", m_value);
         }
 
         bool getConnected() const { return m_connected; }
@@ -112,7 +135,6 @@ namespace Nodes
             widget->send->setEnabled(m_connected);
             
             emit connectedChanged(m_connected);
-            AbstractDelegateModel::stateFeedBack("/connect", m_connected);
         }
 
         void afterModelReady() override {
@@ -213,8 +235,9 @@ namespace Nodes
 
     public slots:
         void sendMessage() {
-            emit sendWSMessage(m_value, widget->messageType->currentIndex(), widget->format->currentIndex());
             AbstractDelegateModel::stateFeedBack("/send", true);
+            emit sendWSMessage(m_value, widget->messageType->currentIndex(), widget->format->currentIndex());
+            AbstractDelegateModel::stateFeedBack("/send", false);
         }
 
         void recMsg(const QVariantMap &msg)
@@ -254,7 +277,7 @@ namespace Nodes
         std::shared_ptr<VariableData> m_inData;
         std::shared_ptr<VariableData> m_outData;
 
-        QString m_url = "ws://echo.websocket.org";
+        QString m_url = "ws://127.0.0.1:2003";
         QString m_value;
         bool m_connected = false;
     };

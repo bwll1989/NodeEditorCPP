@@ -19,6 +19,8 @@
 #include <Poco/StreamCopier.h>
 #include <sstream>
 #include <vector>
+#include <algorithm>
+#include <cctype>
 #include <QMetaType>
 #include <QDir>
 #include <QFileInfo>
@@ -102,7 +104,7 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
             response.send();
             break;
         }
-    } catch (const Poco::Exception& exc) {
+    } catch (const Poco::Exception&) {
         _server.unregisterWebSocket(this);
         _ws = nullptr;
         // qWarning() << "WebSocket Poco Exception: " << exc.displayText().c_str();
@@ -274,6 +276,7 @@ void StaticRequestHandler::handleStaticFile(HTTPServerRequest& request, HTTPServ
         if (indexFile.exists() && !indexFile.isDirectory()) {
             response.setStatus(HTTPResponse::HTTP_OK);
             response.setContentType("text/html; charset=utf-8");
+            response.set("Cache-Control", "no-cache");
             std::ostream& ostr = response.send();
             Poco::FileInputStream fis(indexFile.path());
             Poco::StreamCopier::copyStream(fis, ostr);
@@ -333,10 +336,37 @@ void StaticRequestHandler::handleStaticFile(HTTPServerRequest& request, HTTPServ
         return;
     }
 
-    // 读取文件并发送
+    // 读取文件并发送（带缓存/ETag）
     std::string ext = absPath.getExtension();
+
+    const std::string ifNoneMatch = request.get("If-None-Match", "");
+    const std::string sizeStr = std::to_string(file.getSize());
+    const std::string mtimeStr = std::to_string((long long)file.getLastModified().epochTime());
+    const std::string etag = "\"" + sizeStr + "-" + mtimeStr + "\"";
+
+    response.set("ETag", etag);
+
+    const bool isServiceWorker = (rel == "service-worker.js");
+    if (isServiceWorker) {
+        response.set("Service-Worker-Allowed", "/");
+        response.set("Cache-Control", "no-cache");
+    } else if (ext == "html" || ext == "htm") {
+        response.set("Cache-Control", "no-cache");
+    } else {
+        response.set("Cache-Control", "public, max-age=31536000, immutable");
+    }
+
+    if (!ifNoneMatch.empty() && ifNoneMatch == etag) {
+        response.setStatus(HTTPResponse::HTTP_NOT_MODIFIED);
+        response.setContentLength(0);
+        response.send();
+        return;
+    }
+
     response.setStatus(HTTPResponse::HTTP_OK);
     response.setContentType(guessContentType(ext));
+    response.setContentLength(file.getSize());
+
     std::ostream& ostr = response.send();
     FileInputStream fis(file.path());
     StreamCopier::copyStream(fis, ostr);
@@ -583,10 +613,10 @@ std::string StaticRequestHandler::builtInIndexHtml() {
     std::ostringstream ss;
     ss <<
         "<!doctype html><html><head><meta charset='utf-8'/>"
-        "<title>NodeStudio HTTP Server</title>"
+        "<title>FLOW HTTP Server</title>"
         "<style>body{font-family:Segoe UI,Arial; margin:40px;}h1{color:#2b6cb0;}code{background:#f6f8fa;padding:2px 4px;border-radius:4px;}</style>"
         "</head><body>"
-        "<h1>NodeStudio HTTP Server</h1>"
+        "<h1>FLOW HTTP Server</h1>"
         "<p>服务器正在运行。你可以将静态文件放在文档根目录并通过浏览器访问。</p>"
         "<p>默认首页由内置内容提供。如需自定义，请在文档根目录创建 <code>index.html</code>。</p>"
         "</body></html>";

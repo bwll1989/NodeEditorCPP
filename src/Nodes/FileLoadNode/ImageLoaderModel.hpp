@@ -42,7 +42,11 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outImageData=std::make_shared<ImageData>();
-            AbstractDelegateModel::registerExternalControl("/file",_fileSelectComboBox);
+            NodeDelegateModel::ExternalBinding binding;
+            binding.member = "file";
+            binding.control = _fileSelectComboBox;
+            AbstractDelegateModel::registerExternalBinding("/file", this, binding);
+
             connect(_fileSelectComboBox, &SelectorComboBox::textChanged, this, &ImageLoaderModel::setFile);
             connect(this, &ImageLoaderModel::fileChanged, this, [this](const QString&){
                 {
@@ -50,7 +54,6 @@ namespace Nodes
                     _fileSelectComboBox->setText(m_file);
                 }
                 loadImage(m_file);
-                AbstractDelegateModel::stateFeedBack("/file", m_file);
             });
         }
         ~ImageLoaderModel() override = default;

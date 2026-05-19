@@ -38,8 +38,13 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outVariable=std::make_shared<VariableData>();
-            
-            AbstractDelegateModel::registerExternalControl("/method",widget->methodEdit);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "method";
+                b.control = widget->methodEdit;
+                AbstractDelegateModel::registerExternalBinding("/method", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/method",widget->methodEdit);
 
             // 初始化属性
             m_method = widget->methodEdit->currentIndex();

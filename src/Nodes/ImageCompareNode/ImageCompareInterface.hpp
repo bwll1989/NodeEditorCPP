@@ -24,6 +24,9 @@ class ImageCompareInterface final : public QWidget{
             main_layout->addWidget(methodEdit,0,0,1,1);
 
             main_layout->setColumnStretch(0,1);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 1, 0, 1, 2);
+            main_layout->setRowStretch(1, 1);
+
             this->setLayout(main_layout);
             // this->setFixedSize(400,200);
 

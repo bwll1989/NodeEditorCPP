@@ -1,8 +1,11 @@
 #include "ToRGBADataModel.hpp"
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtWidgets/QFileDialog>
+#include "StatusContainer/GlobalEventBus.hpp"
+
 using namespace Nodes;
 using namespace NodeDataTypes;
+
 ToRGBADataModel::ToRGBADataModel(){
     InPortCount = 1;
     OutPortCount=4;
@@ -10,6 +13,12 @@ ToRGBADataModel::ToRGBADataModel(){
     Caption="To RGBA";
     WidgetEmbeddable=false;
     Resizable=false;
+
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "color";
+        AbstractDelegateModel::registerExternalBinding("/color", this, b);
+    }
 }
 
 ToRGBADataModel::~ToRGBADataModel(){
@@ -71,24 +80,71 @@ std::shared_ptr<QtNodes::NodeData> ToRGBADataModel::outData(QtNodes::PortIndex p
 }
 
 void ToRGBADataModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex port) {
+    Q_UNUSED(port)
     if (!nodeData) return;
     auto v = std::dynamic_pointer_cast<VariableData>(nodeData);
     if (!v) return;
-    QVariant val = v->value();
 
-    m_color=QColor(val.value<QColor>());
-
-    onColorChanged(m_color);
+    const QVariant val = v->value();
+    if (val.canConvert<QColor>()) {
+        setColor(val.value<QColor>());
+    } else {
+        const QColor c(val.toString());
+        if (c.isValid()) {
+            setColor(c);
+        }
+    }
 }
 
+QColor ToRGBADataModel::color() const
+{
+    return m_color;
+}
 
-void ToRGBADataModel::onColorChanged(const QColor& c) {
+void ToRGBADataModel::setColor(const QColor& c)
+{
+    if (m_color == c) {
+        return;
+    }
     m_color = c;
-    QPixmap pix(widget->display->width(), widget->display->height());
-    pix.fill(m_color);
-    widget->display->setPixmap(pix);
+    Q_EMIT colorChanged(m_color);
+    AbstractDelegateModel::stateFeedBack("/color", m_color);
+
     Q_EMIT dataUpdated(0);
     Q_EMIT dataUpdated(1);
     Q_EMIT dataUpdated(2);
     Q_EMIT dataUpdated(3);
+}
+
+void ToRGBADataModel::onColorChanged(const QColor& c) {
+    setColor(c);
+}
+
+void ToRGBADataModel::afterModelReady()
+{
+    GlobalEventBus::instance()->subscribe(
+        makeFullOscAddress("/color"),
+        this,
+        SLOT(onGlobalEvent(GlobalEvent))
+    );
+}
+
+void ToRGBADataModel::onGlobalEvent(const GlobalEvent& ev)
+{
+    if (ev.kind != GlobalEventKind::Command) {
+        return;
+    }
+    if (ev.address != makeFullOscAddress("/color")) {
+        return;
+    }
+
+    const QVariant v = ev.payload;
+    if (v.canConvert<QColor>()) {
+        setColor(v.value<QColor>());
+    } else {
+        const QColor c(v.toString());
+        if (c.isValid()) {
+            setColor(c);
+        }
+    }
 }

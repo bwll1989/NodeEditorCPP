@@ -14,6 +14,7 @@
 #include <QGridLayout>
 #include <QDateTime>
 #include <QCheckBox>
+#include <QSpacerItem>
 
 namespace Nodes
 {
@@ -125,14 +126,20 @@ namespace Nodes
          */
         void createSenderGroup() {
             m_senderGroup = new QGroupBox("Spout发送设置", this);
-            QGridLayout *layout = new QGridLayout(m_senderGroup);
-            
-            // 发送器名称输入
-            layout->addWidget(new QLabel("发送器名称:"),0,0,1,1);
-            m_senderNameEdit = new QLineEdit("NodeEditor Spout");
+            auto *layout = new QVBoxLayout(m_senderGroup);
+            layout->setContentsMargins(6, 6, 6, 6);
+            layout->setSpacing(6);
+
+            auto *nameRow = new QWidget(m_senderGroup);
+            auto *nameLayout = new QHBoxLayout(nameRow);
+            nameLayout->setContentsMargins(0, 0, 0, 0);
+            nameLayout->setSpacing(8);
+
+            nameLayout->addWidget(new QLabel("发送器名称:", nameRow), 0);
+            m_senderNameEdit = new QLineEdit("NodeEditor Spout", nameRow);
             m_currentSenderName = "NodeEditor Spout";
-            
-            layout->addWidget(m_senderNameEdit,0,1,1,2);
+            nameLayout->addWidget(m_senderNameEdit, 1);
+            layout->addWidget(nameRow);
             
             connect(m_senderNameEdit, &QLineEdit::editingFinished, 
                     this, &SpoutOutInterface::onSenderNameEditingFinished);
@@ -141,11 +148,11 @@ namespace Nodes
             m_startStopButton = new QPushButton("开始");
             connect(m_startStopButton, &QPushButton::clicked,
                     this, &SpoutOutInterface::onStartStopClicked);
-            layout->addWidget(m_startStopButton,1,0,1,3);
+            layout->addWidget(m_startStopButton);
             m_connectionStatusLabel = new QLabel("状态: 未发送");
             m_connectionStatusLabel->setAlignment(Qt::AlignCenter);
             m_connectionStatusLabel->setStyleSheet("color: red; font-weight: bold;");
-            layout->addWidget(m_connectionStatusLabel,2,0,1,3);
+            layout->addWidget(m_connectionStatusLabel);
         }
 
         
@@ -157,7 +164,7 @@ namespace Nodes
             m_mainLayout->setContentsMargins(5, 5, 5, 5);
             m_mainLayout->setSpacing(5);
             m_mainLayout->addWidget(m_senderGroup);
-            m_mainLayout->addStretch();
+            m_mainLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
         }
         
         /**

@@ -33,6 +33,8 @@ namespace Nodes
             main_layout->addWidget(messageType, 3,1,1,1);
             main_layout->addWidget(format, 4,0,1,2);
             main_layout->addWidget(sendButton, 5,0,1,2);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 6, 0, 1, 2);
+            main_layout->setRowStretch(6, 1);
             portSpinBox->setRange(0,65536);
             portSpinBox->setValue(2003);
             connect(portSpinBox,&IntDragValueWidget::valueChanged,this,&WebSocketServerInterface::valueChanged);

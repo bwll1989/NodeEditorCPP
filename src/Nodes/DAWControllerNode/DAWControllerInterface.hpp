@@ -80,7 +80,8 @@ namespace Nodes
             connectionLayout->addWidget(connectionStatusLabel,1,0,1,2);
             connectionLayout->addWidget(customCommandLineEdit, 2, 0, 1, 2);
             connectionLayout->addWidget(customCommandButton, 3, 0, 1, 2);
-
+            connectionLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 4, 0, 1, 2);
+            connectionLayout->setRowStretch(4, 1);
         }
 
     private:

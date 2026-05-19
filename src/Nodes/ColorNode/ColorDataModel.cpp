@@ -15,15 +15,50 @@ ColorDataModel::ColorDataModel(){
     WidgetEmbeddable=false;
     Resizable=false;
     connect(colorEditorWidget, &ColorEditorWidget::colorChanged, this, &ColorDataModel::onColorChanged);
-    connect(widget->colorEditButton, &QPushButton::clicked, this, &ColorDataModel::toggleEditorMode);
+    // connect(widget->colorEditButton, &QPushButton::clicked, this, &ColorDataModel::toggleEditorMode);
     
-    AbstractDelegateModel::registerExternalControl("/red", colorEditorWidget->spinRed);
-    AbstractDelegateModel::registerExternalControl("/green", colorEditorWidget->spinGreen);
-    AbstractDelegateModel::registerExternalControl("/blue", colorEditorWidget->spinBlue);
-    AbstractDelegateModel::registerExternalControl("/alpha", colorEditorWidget->spinAlpha);
-    AbstractDelegateModel::registerExternalControl("/hue", colorEditorWidget->spinHue);
-    AbstractDelegateModel::registerExternalControl("/saturation", colorEditorWidget->spinSaturation);
-    AbstractDelegateModel::registerExternalControl("/value", colorEditorWidget->spinValue);
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "red";
+        b.control = colorEditorWidget->spinRed;
+        AbstractDelegateModel::registerExternalBinding("/red", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "green";
+        b.control = colorEditorWidget->spinGreen;
+        AbstractDelegateModel::registerExternalBinding("/green", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "blue";
+        b.control = colorEditorWidget->spinBlue;
+        AbstractDelegateModel::registerExternalBinding("/blue", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "alpha";
+        b.control = colorEditorWidget->spinAlpha;
+        AbstractDelegateModel::registerExternalBinding("/alpha", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "hue";
+        b.control = colorEditorWidget->spinHue;
+        AbstractDelegateModel::registerExternalBinding("/hue", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "saturation";
+        b.control = colorEditorWidget->spinSaturation;
+        AbstractDelegateModel::registerExternalBinding("/saturation", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "value";
+        b.control = colorEditorWidget->spinValue;
+        AbstractDelegateModel::registerExternalBinding("/value", this, b);
+    }
 }
 
 ColorDataModel::~ColorDataModel(){
@@ -172,9 +207,9 @@ void ColorDataModel::toggleEditorMode() {
 }
 
 void ColorDataModel::updateDisplay() {
-    QPixmap pix(widget->display->width(), widget->display->height());
-    pix.fill(m_color);
-    widget->display->setPixmap(pix);
+    // QPixmap pix(widget->display->width(), widget->display->height());
+    // pix.fill(m_color);
+    // widget->display->setPixmap(pix);
 }
 
 void ColorDataModel::notifyAllPropertiesChanged() {

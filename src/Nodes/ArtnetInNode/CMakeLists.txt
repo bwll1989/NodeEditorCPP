@@ -11,7 +11,6 @@ add_library(${Module_Name} SHARED
         ArtnetInDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ArtnetInInterface.hpp
         ../../Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
         ../../Common/Devices/ArtnetReceiver/ArtnetReceiver.h
         ../../Common/Devices/UdpSocket/UdpSocket.cpp

@@ -16,7 +16,6 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         CutImageModel.cpp
         CutImageModel.h
-        CutImageInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE

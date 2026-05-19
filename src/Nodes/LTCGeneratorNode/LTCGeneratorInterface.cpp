@@ -1,6 +1,8 @@
 #include "LTCGeneratorInterface.h"
 #include "QtDebug"
-#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QSpacerItem>
+#include <QVBoxLayout>
 
 using namespace Nodes;
 TimeCodeInterface::TimeCodeInterface(QWidget *parent)
@@ -14,28 +16,44 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     , resetButton(new QPushButton("Reset", this))
     , volumeSlider(new FloatDragValueWidget(this))
 {
-    auto *layout = new QGridLayout(this);
+    auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(6);
+
+    const auto addRow = [this, layout](const QString& labelText, QWidget* editor) {
+        auto *row = new QWidget(this);
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->setSpacing(8);
+
+        auto *label = new QLabel(labelText, row);
+        rowLayout->addWidget(label, 0);
+        rowLayout->addWidget(editor, 1);
+
+        layout->addWidget(row);
+    };
+
     timeCodeLabel->setAlignment(Qt::AlignCenter);
     timeCodeLabel->setFont(QFont("Arial", 16, QFont::Bold));
     timeCodeLabel->setText("00:00:00.00");
-    layout->addWidget(timeCodeLabel,0,0,1,2);
+    layout->addWidget(timeCodeLabel);
+
     timeCodeStatusLabel->setAlignment(Qt::AlignCenter);
     timeCodeStatusLabel->setText("Status: Idle");
-    layout->addWidget(timeCodeStatusLabel,1,0,1,2);
-    layout->addWidget(new QLabel("Offset: "),2,0,1,1);
-    layout->addWidget(timeCodeOffsetSpinBox,2,1,1,1);
-    layout->addWidget(new QLabel("Type: "),3,0,1,1);
-    layout->addWidget(timeCodeTypeComboBox,3,1,1,1);
-    layout->addWidget(new QLabel("Volume: "),4,0,1,1);
-    layout->addWidget(volumeSlider,4,1,1,1);
-    
-    layout->addWidget(startButton,5,0,1,2);
-    layout->addWidget(stopButton,6,0,1,2);
-    layout->addWidget(resetButton,7,0,1,2);
-    layout->setColumnStretch(0,1);
-    layout->setColumnStretch(0,2);
+    layout->addWidget(timeCodeStatusLabel);
+
+    addRow("Offset:", timeCodeOffsetSpinBox);
+    addRow("Type:", timeCodeTypeComboBox);
+    addRow("Volume:", volumeSlider);
+
+    layout->addWidget(startButton);
+    layout->addWidget(stopButton);
+    layout->addWidget(resetButton);
+
+    layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
     timeCodeOffsetSpinBox->setRange(-100, 100);
     timeCodeOffsetSpinBox->setValue(0);
+    
     
     timeCodeTypeComboBox->addItems(timecode_type_labels());
     timeCodeTypeComboBox->setCurrentText(timecode_type_to_label(TimeCodeType::PAL));
@@ -43,7 +61,6 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     volumeSlider->setRange(-60, 24);
     volumeSlider->setValue(-25);
     volumeSlider->setSuffix(" dB");
-    this->setFixedSize(QSize(200,250));
     connect(startButton, &QPushButton::clicked, this, &TimeCodeInterface::startRequested);
     connect(stopButton, &QPushButton::clicked, this, &TimeCodeInterface::stopRequested);
     connect(resetButton, &QPushButton::clicked, this, &TimeCodeInterface::resetRequested);

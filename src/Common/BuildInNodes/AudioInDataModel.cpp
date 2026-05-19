@@ -16,12 +16,15 @@ namespace Nodes {
 		widget=new DataBridgeSelectorBox();
         InPortCount =0;
         OutPortCount=1;
-        CaptionVisible=true;
+        CaptionVisible=false;
         Caption="Audio In";
         WidgetEmbeddable= true;
         Resizable=false;
         PortEditable= true;
-        AbstractDelegateModel::registerExternalControl("/input",widget);
+        NodeDelegateModel::ExternalBinding binding;
+        binding.member = "remarks";
+        binding.control=widget;
+        AbstractDelegateModel::registerExternalBinding("/input", this, binding);
         ModelDataBridge::instance().registerEntranceDelegate(this);
         connect(widget,&DataBridgeSelectorBox::selectionChanged,this,&AudioInDataModel::setRemarks);
         connect(this,&AudioInDataModel::remarksChanged,this,[this](const QString &normalizedRemarks){
@@ -29,7 +32,6 @@ namespace Nodes {
             ModelDataBridge::instance().requestDataManual(normalizedRemarks);
             if (widget->text()!=normalizedRemarks)
                 widget->setCurrentValue(normalizedRemarks);
-            stateFeedBack("/input",normalizedRemarks);
         });
     }
 

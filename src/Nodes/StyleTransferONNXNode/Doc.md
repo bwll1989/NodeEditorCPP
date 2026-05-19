@@ -1,49 +1,35 @@
-# ImageCompareNode 帮助文档
+# StyleTransferONNXNode 使用说明
 
-## 节点功能
-实现基于OpenCV的图像相似度计算，支持以下算法：
-1. 均方误差（MSE）
-2. 结构相似性指数（SSIM）
-3. 峰值信噪比（PSNR）
+## 用途
+对输入图像进行 ONNX 风格迁移，并输出迁移后的图像与处理状态信息。
 
-## 输入端口
-- IMAGE 1 (PortIndex 0)：输入图像，支持图像类型数据
-- IMAGE 2 (PortIndex 1)：输入图像，支持图像类型数据
-## 输出端口
-- OUTPUT 0 (PortIndex 0)：相似度数值(float),数值越大相似度越高，最大100%
+## 端口
+### 输入
+- IMAGE（ImageData）：输入图像
 
-## 节点界面
-- 方法选择下拉框：MSE/SSIM/PSNR
+### 输出
+- IMAGE 0（ImageData）：风格迁移后的图像
+- RESULT（VariableData）：处理状态/信息
 
-## 保存与加载
-- 节点支持保存和加载参数。
+## 参数
+- enable（bool）：启用/禁用风格迁移
 
-## 使用示例
-### 基本相似度比较
-1. 连接两个图像源节点到INPUT 0和INPUT 1
-2. 在下拉菜单中选择比较方法（默认MSE）
-3. 输出端口将得到相似度数值：
-    - MSE值越小表示越相似（范围0-1）
-    - SSIM值越接近1表示越相似
-    - PSNR值越大表示质量越好（单位dB）
-## 技术细节
-- 核心算法：
-    - MSE: `cv::norm()`计算L2范数平方
-    - SSIM: 动态高斯核结构相似性计算
-    - PSNR: 基于MSE的对数计算
-- 预处理流程：
-    1. 自动转换为灰度图像
-    2. 强制统一输入图像尺寸
-    3. 类型校验（CV_8UC1）
-- 性能优化：
-    - 异步计算保证界面流畅
-    - 智能指针管理图像数据
-    - OpenCV并行算法加速
+## 外部控制（可选）
+- /enable（bool）：启用/禁用
 
+## 输出字段（RESULT）
+RESULT 为一个键值表，常用字段：
+- status：success / error
+- input_size：原图尺寸（例如 1920x1080）
+- output_size：输出尺寸（例如 1920x1080）
+- model_input_size：模型输入尺寸（例如 720x720）
+- timestamp：时间戳（毫秒）
+- error_message：错误信息（仅 status=error 时）
+
+## 使用步骤
+1. 将图像源连接到 IMAGE。
+2. 设置 enable=true（或通过 /enable 启用）。
+3. 从 IMAGE 0 获取风格化图像；从 RESULT 获取状态与尺寸信息。
 
 ## 注意事项
-1. 输入图像必须为相同尺寸和类型
-2. 建议输入图像分辨率不低于100x100像素
-3. SSIM计算使用动态高斯核（基于图像尺寸自动调整）
-4. 空输入或尺寸不匹配时返回0.0
-5. 支持通过OSC控制方法选择（/method）
+- enable=false 或无输入时，RESULT 会输出空/默认值（不做风格迁移）。 

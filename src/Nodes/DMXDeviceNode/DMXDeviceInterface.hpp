@@ -6,6 +6,7 @@
 #include "QGridLayout"
 #include "QVBoxLayout"
 #include "QHBoxLayout"
+#include <QSpacerItem>
 #include <QSpinBox>
 #include <QPushButton>
 #include <QSlider>
@@ -108,16 +109,13 @@ namespace Nodes
          * @brief 设置用户界面
          */
         void setupUI() {
-            QVBoxLayout *mainLayout = new QVBoxLayout(this);
+            QHBoxLayout *mainLayout = new QHBoxLayout(this);
             mainLayout->setSpacing(5);
             mainLayout->setContentsMargins(5, 5, 5, 5);
-            
-            // 通道配置组
+
             createChannelConfigGroup(mainLayout);
-            
-            // 通道控制组
             createChannelControlGroup(mainLayout);
-            
+
             this->setLayout(mainLayout);
             this->setMinimumSize(200, 300);
         }
@@ -126,7 +124,7 @@ namespace Nodes
          * @brief 创建通道配置组
          * @param parentLayout 父布局
          */
-        void createChannelConfigGroup(QVBoxLayout *parentLayout) {
+        void createChannelConfigGroup(QBoxLayout *parentLayout) {
             QGroupBox *configGroup = new QGroupBox("通道配置", this);
             QGridLayout *configLayout = new QGridLayout(configGroup);
             
@@ -158,15 +156,18 @@ namespace Nodes
             addressRangeLabel = new QLabel("地址范围: 1-5", this);
             addressRangeLabel->setStyleSheet("color: #888; font-style: italic;");
             configLayout->addWidget(addressRangeLabel, 3, 0, 1, 2);
-            
-            parentLayout->addWidget(configGroup);
+
+            configLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 4, 0, 1, 2);
+            configLayout->setRowStretch(4, 1);
+
+            parentLayout->addWidget(configGroup, 1);
         }
 
         /**
          * @brief 创建通道控制组
          * @param parentLayout 父布局
          */
-        void createChannelControlGroup(QVBoxLayout *parentLayout) {
+        void createChannelControlGroup(QBoxLayout *parentLayout) {
             channelGroup = new QGroupBox("通道控制", this);
             
             // 创建滚动区域
@@ -177,13 +178,11 @@ namespace Nodes
             scrollWidget->setLayout(channelLayout);
             scrollArea->setWidget(scrollWidget);
             scrollArea->setWidgetResizable(true);
-            scrollArea->setMaximumHeight(200);
-            
             QVBoxLayout *groupLayout = new QVBoxLayout(channelGroup);
             groupLayout->setContentsMargins(0,2,0,2);
             groupLayout->addWidget(scrollArea);
             
-            parentLayout->addWidget(channelGroup);
+            parentLayout->addWidget(channelGroup, 2);
         }
 
         /**

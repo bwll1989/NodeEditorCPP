@@ -31,7 +31,7 @@
       defaults,
       valueMapper(value) {
         const s = String(value ?? '').trim();
-        if (/^https?:\\/\\//i.test(s)) return { href: s };
+        if (/^https?:\/\//i.test(s)) return { href: s };
         return { text: s };
       },
       appFactory(template) {

@@ -7,12 +7,23 @@
 #include <iostream>
 #include <QQmlContext>
 #include <QQuickItem>
+#include <QtQuick/QQuickView>
 #include <vector>
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
-#include "CurveInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
+#include <QCheckBox>
+#include <QFont>
+#include <QGridLayout>
+#include <QPointer>
+#include <QPushButton>
+#include <QSignalBlocker>
+#include <QSizePolicy>
+#include <QTime>
+#include <QTimeEdit>
+#include <QVBoxLayout>
+#include <QWidget>
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -24,6 +35,19 @@ namespace Nodes
     class CurveDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(bool start READ start WRITE setStart NOTIFY startChanged)
+        Q_PROPERTY(bool loop READ loop WRITE setLoop NOTIFY loopChanged)
+
+    Q_SIGNALS:
+        /**
+         * 函数级注释：播放状态属性变化通知（用于属性系统、外部控制与状态反馈）
+         */
+        void startChanged(bool start);
+
+        /**
+         * 函数级注释：循环状态属性变化通知（用于属性系统、外部控制与状态反馈）
+         */
+        void loopChanged(bool loop);
 
     public:
         CurveDataModel()
@@ -35,34 +59,46 @@ namespace Nodes
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= true;
-            m_quickWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
-            // m_quickWidget->setSource(QUrl("qrc:qml/content/dynamicview.qml"));
-            m_quickWidget->setSource(QUrl("qrc:/qml/content/main.qml"));
-            m_quickWidget->rootContext()->setContextProperty("CppBridge", this);
-            AbstractDelegateModel::registerExternalControl("/start",widget->startButton);
-            // NodeDelegateModel::registerOSCControl("/stop",widget->stopButton);
-            AbstractDelegateModel::registerExternalControl("/loop",widget->loopCheckBox);
-            connect(widget->editButton, &QPushButton::clicked, this, &CurveDataModel::toggleEditorMode);
-            connect(widget->startButton, &QPushButton::clicked, this, &CurveDataModel::onStartButtonClicked);
-            // connect(widget->stopButton,  &QPushButton::clicked, this, &QMLDataModel::onStopButtonClicked);
-            connect(widget->loopCheckBox, &QCheckBox::clicked, this, &CurveDataModel::onLoopCheckBoxClicked); // 绑定循环播放复选框点击事件
+
+            widget = new QWidget();
+            widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            auto *mainLayout = new QVBoxLayout(widget);
+            mainLayout->setContentsMargins(0, 0, 0, 0);
+            mainLayout->setSpacing(0);
+
+            m_view = new QQuickView();
+            m_view->setResizeMode(QQuickView::SizeRootObjectToView);
+            m_view->rootContext()->setContextProperty("CppBridge", this);
+            m_view->setSource(QUrl("qrc:/qml/content/main.qml"));
+
+            editorContainer = QWidget::createWindowContainer(m_view, widget);
+            editorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            mainLayout->addWidget(editorContainer, 1);
+
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "start";
+                AbstractDelegateModel::registerExternalBinding("/start", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "loop";
+                AbstractDelegateModel::registerExternalBinding("/loop", this, b);
+            }
         }
 
        // 函数级注释：析构函数
-       // 说明：销毁节点时，尝试暂停时间轴播放，并安全释放 QQuickWidget 资源，防止悬挂指针。
+       // 说明：销毁节点时，安全释放 QQuickView 资源，防止悬挂指针。
        ~CurveDataModel() override {
-            // 移除可能导致崩溃的时间轴访问代码，因为 widget 即将销毁，不需要显式暂停
-            // QObject *timeline = getTimelineEditor();
-            // if (timeline) {
-            //     QMetaObject::invokeMethod(timeline, "pause");
-            // }
-            if (m_quickWidget) {
-                // 断开 C++ 与 QML 的连接，防止 QML 回调已销毁的 C++ 对象
-                if (m_quickWidget->rootContext()) {
-                     m_quickWidget->rootContext()->setContextProperty("CppBridge", nullptr);
-                }
-                m_quickWidget->setParent(nullptr);
-                m_quickWidget->deleteLater();
+            if (m_view && m_view->rootContext()) {
+                m_view->rootContext()->setContextProperty("CppBridge", nullptr);
+            }
+            if (widget) {
+                widget->setParent(nullptr);
+                widget->deleteLater();
+                widget = nullptr;
+                editorContainer = nullptr;
+                m_view = nullptr;
             }
         }
 
@@ -104,7 +140,7 @@ namespace Nodes
                     (idx >= 0 && idx < static_cast<int>(currentValuesY.size()))
                     ? currentValuesY[idx]
                     : 0.0;
-                return make_shared<VariableData>(safeValue);
+                return std::make_shared<VariableData>(safeValue);
             }
             }
         }
@@ -114,10 +150,7 @@ namespace Nodes
             Q_UNUSED(portIndex)
             if (!data) { return; }
             inData = std::dynamic_pointer_cast<VariableData>(data);
-
-            if (widget)
-                widget->startButton->clicked(inData->value().toBool());
-
+            setStart(inData ? inData->value().toBool() : false);
         }
         
         // 函数级注释：保存节点状态到 JSON。
@@ -129,8 +162,8 @@ namespace Nodes
             QJsonObject values;
     
             QString savedJson;
-            if (m_quickWidget && m_quickWidget->rootObject()) {
-                const QVariant v = m_quickWidget->rootObject()->property("savedData");
+            if (m_view && m_view->rootObject()) {
+                const QVariant v = m_view->rootObject()->property("savedData");
                 if (v.isValid())
                     savedJson = v.toString();
             }
@@ -145,9 +178,8 @@ namespace Nodes
                 }
             }
     
-            // 函数级注释：保存循环播放开关到 JSON，以便恢复 UI 与播放逻辑。
-            if (widget)
-                values.insert("loop", widget->loopCheckBox->isChecked());
+            // 函数级注释：保存循环播放开关到 JSON，以便恢复播放逻辑。
+            values.insert("loop", loop());
     
             modelJson.insert("values", values);
             return modelJson;
@@ -184,8 +216,8 @@ namespace Nodes
                 js = QStringLiteral("timeline.importData(JSON.parse('%1'));").arg(escaped);
             }
     
-            if (m_quickWidget && m_quickWidget->rootObject()) {
-                QObject *root = m_quickWidget->rootObject();
+            if (m_view && m_view->rootObject()) {
+                QObject *root = m_view->rootObject();
                 // 写入 savedData，供 QML 侧在页面就绪或属性变更时自动导入
                 root->setProperty("savedData", savedStr);
     
@@ -202,11 +234,7 @@ namespace Nodes
                     loopEnabled = (lv.toInt() != 0);
                 }
             }
-            if (widget)
-                widget->loopCheckBox->setChecked(loopEnabled);
-            if (QObject *timeline = getTimelineEditor()) {
-                QMetaObject::invokeMethod(timeline, "setIsLoop", Q_ARG(QVariant, QVariant(loopEnabled)));
-            }
+            setLoopInternal(loopEnabled, true);
         }
 
 
@@ -233,53 +261,64 @@ namespace Nodes
             );
         }
 
-    public Q_SLOTS:
-        void toggleEditorMode() {
-            // 移除父子关系，使其成为独立窗口
-            m_quickWidget->setParent(nullptr);
+        /**
+         * 函数级注释：获取播放状态属性
+         */
+        bool start() const { return m_start; }
 
-            // 设置为独立窗口
-            m_quickWidget->setWindowTitle("Curve编辑器");
-
-            // 设置窗口图标
-            m_quickWidget->setWindowIcon(QIcon(":/icons/icons/curve.png"));
-
-            // 设置窗口标志：独立窗口 + 置顶显示 + 关闭按钮
-            m_quickWidget->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
-
-            // 设置窗口属性：当关闭时自动删除
-            m_quickWidget->setAttribute(Qt::WA_DeleteOnClose, false); // 不自动删除，我们手动管理
-            m_quickWidget->setAttribute(Qt::WA_QuitOnClose, false);   // 关闭窗口时不退出应用程序
-
-            // 设置窗口大小和显示
-            m_quickWidget->resize(800, 400);
-            m_quickWidget->show();
-            // 激活窗口并置于前台
-            m_quickWidget->activateWindow();
-            m_quickWidget->raise();
-        }
-
-        // 函数级注释：开始按钮槽函数，直接调用 QML 的 TimelineEditor.play() 启动播放
-        void onStartButtonClicked(bool isChecked) {
-            QObject *timeline = getTimelineEditor();
-            if (!timeline) return;
-            if (isChecked)
-                QMetaObject::invokeMethod(timeline, "play");
-            else {
-                QMetaObject::invokeMethod(timeline, "pause");
-                QMetaObject::invokeMethod(timeline, "seek", Q_ARG(QVariant, QVariant(0.0)));
+        /**
+         * 函数级注释：设置播放状态属性，驱动 QML 时间轴播放/暂停
+         */
+        void setStart(bool isChecked)
+        {
+            if (m_start == isChecked) {
+                return;
             }
-            AbstractDelegateModel::stateFeedBack("/start", isChecked);
+            m_start = isChecked;
+
+            QObject *timeline = getTimelineEditor();
+            if (timeline) {
+                if (isChecked) {
+                    QMetaObject::invokeMethod(timeline, "play");
+                } else {
+                    QMetaObject::invokeMethod(timeline, "pause");
+                    QMetaObject::invokeMethod(timeline, "seek", Q_ARG(QVariant, QVariant(0.0)));
+                }
+            }
+
+            Q_EMIT startChanged(m_start);
         }
 
+        /**
+         * 函数级注释：获取循环状态属性
+         */
+        bool loop() const { return m_loop; }
 
-        // 函数级注释：循环播放复选框槽函数，直接调用 QML 的 TimelineEditor.isLoop 切换循环播放状态
-        void onLoopCheckBoxClicked() {
-            QObject *timeline = getTimelineEditor();
-            if (!timeline) return;
-            const bool loopStatus = widget->loopCheckBox->isChecked();
-            QMetaObject::invokeMethod(timeline, "setIsLoop", Q_ARG(QVariant, QVariant(loopStatus)));
-            AbstractDelegateModel::stateFeedBack("/loop", loopStatus);
+        /**
+         * 函数级注释：设置循环状态属性，并同步到 QML 时间轴
+         */
+        void setLoop(bool status)
+        {
+            setLoopInternal(status, true);
+        }
+
+        /**
+         * 函数级注释：内部设置循环状态，可选择是否同步到 QML（用于从 QML 回调更新属性，避免循环）
+         */
+        void setLoopInternal(bool status, bool applyToTimeline)
+        {
+            if (m_loop == status) {
+                return;
+            }
+            m_loop = status;
+
+            if (applyToTimeline) {
+                if (QObject *timeline = getTimelineEditor()) {
+                    QMetaObject::invokeMethod(timeline, "setIsLoop", Q_ARG(QVariant, QVariant(status)));
+                }
+            }
+
+            Q_EMIT loopChanged(m_loop);
         }
 
         Q_INVOKABLE void updatePlayheadTime(const QVariantList &parts) {
@@ -305,47 +344,46 @@ namespace Nodes
             if (okTime) {
                 const int ms = static_cast<int>(timeSec * 1000.0 + 0.5);
                 QTime base(0, 0, 0, 0);
-                widget->statusLabel->setTime(base.addMSecs(ms));
-                currentTime = make_shared<VariableData>(timeSec);
+                if (statusLabel)
+                    statusLabel->setTime(base.addMSecs(ms));
+                currentTime =std::make_shared<VariableData>(timeSec);
             } else {
                 currentTime.reset();
             }
-            currentTime = make_shared<VariableData>(valueX);
+            currentTime = std::make_shared<VariableData>(valueX);
             Q_EMIT dataUpdated(0);
 
             if (currentStatus->value().toBool() != isPlaying) {
-                currentStatus = make_shared<VariableData>(isPlaying);
-                updateStatus(isPlaying);
+                currentStatus = std::make_shared<VariableData>(isPlaying);
+                if (m_start != isPlaying) {
+                    m_start = isPlaying;
+                    Q_EMIT startChanged(m_start);
+                }
             }
         }
 
         Q_INVOKABLE void updateLoop(const bool &status) {
-            if (widget)
-                widget->loopCheckBox->setChecked(status);
-            AbstractDelegateModel::stateFeedBack("/loop", status);
-        }
-        void updateStatus(const bool &status) {
-            if (!widget) return;
-            if ( widget->startButton->isChecked() != status) {
-                widget->startButton->setChecked(status);
-                // widget->stopButton->setChecked(!status);
-            }
-            widget->startButton->setText(status ? "Stop" : "Play");
+            setLoopInternal(status, false);
         }
 
     public:
-        QPointer<CurveInterface> widget=new CurveInterface();
-        shared_ptr<VariableData> inData;
+        QPointer<QWidget> widget;
+        QPointer<QWidget> editorContainer;
+        QPointer<QTimeEdit> statusLabel;
+        std::shared_ptr<VariableData> inData;
         std::vector<double> currentValuesY=std::vector<double>();
-        shared_ptr<VariableData> currentValue_Time=make_shared<VariableData>(0.0);
-        shared_ptr<VariableData> currentTime=make_shared<VariableData>(0.0);
-        shared_ptr<VariableData> currentStatus=make_shared<VariableData>(QVariant(false));
-        QPointer<QQuickWidget> m_quickWidget=new QQuickWidget();
+        std::shared_ptr<VariableData> currentValue_Time=std::make_shared<VariableData>(0.0);
+        std::shared_ptr<VariableData> currentTime=std::make_shared<VariableData>(0.0);
+        std::shared_ptr<VariableData> currentStatus=std::make_shared<VariableData>(QVariant(false));
+        QPointer<QQuickView> m_view;
     private:
+        bool m_start = false;
+        bool m_loop = false;
+
         // 函数级注释：通过 objectName 查找 QML 中的 TimelineEditor（main.qml 内 id: timelineEditor）
         QObject* getTimelineEditor() {
-            if (!m_quickWidget) return nullptr;
-            QObject *root = m_quickWidget->rootObject();
+            if (!m_view) return nullptr;
+            QObject *root = m_view->rootObject();
             if (!root) return nullptr;
             return root->findChild<QObject*>("timelineEditor");
         }
@@ -364,10 +402,10 @@ namespace Nodes
 
             if (ev.address == addrStart) {
                 const bool play = ev.payload.toBool();
-                onStartButtonClicked(play);
+                setStart(play);
             } else if (ev.address == addrLoop) {
                 const bool loop = ev.payload.toBool();
-                updateLoop(loop);
+                setLoop(loop);
             }
         }
     };

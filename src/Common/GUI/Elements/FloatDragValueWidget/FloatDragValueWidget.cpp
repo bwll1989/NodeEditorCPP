@@ -10,7 +10,7 @@ FloatDragValueWidget::FloatDragValueWidget(QWidget *parent)
     : QWidget(parent)
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    setMinimumHeight(28);
+    setMinimumHeight(25);
 
     m_lineEdit = new QLineEdit(this);
     m_lineEdit->hide();

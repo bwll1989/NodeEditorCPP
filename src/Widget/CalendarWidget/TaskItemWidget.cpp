@@ -9,7 +9,10 @@
 #include <QGroupBox>   // Command组与Loop组
 #include <QPushButton> // Test按钮
 #include <QFont>       // 大号时间字体
+#include <QGridLayout>
+#include <QVBoxLayout>
 #include "../../Common/AppConfig/ConfigManager.h"
+#include "../../Common/Devices/StatusContainer/StatusContainer.h"
 #include <QGraphicsDropShadowEffect>
 TaskItemWidget::TaskItemWidget(QWidget* parent)
     : QWidget(parent)
@@ -34,8 +37,8 @@ void TaskItemWidget::setupUI() {
 
     // 卡片内部：左侧强调条 + 右侧表单
     auto* cardHBox = new QHBoxLayout();
-    cardHBox->setContentsMargins(6, 6, 6, 6);
-    cardHBox->setSpacing(8);
+    cardHBox->setContentsMargins(4, 4, 4, 4);
+    cardHBox->setSpacing(6);
     outerLayout->addLayout(cardHBox);
 
     m_accentBar = new QFrame(this);
@@ -57,9 +60,10 @@ void TaskItemWidget::setupUI() {
     timeEdit->setAlignment(Qt::AlignCenter);
     {
         QFont f = timeEdit->font();
-        f.setPointSize(f.pointSize() + 10);
+        f.setPointSize(f.pointSize() + 6);
         f.setBold(true);
         timeEdit->setFont(f);
+        timeEdit->setMinimumHeight(30);
     }
     // 第一行：时间（占左侧三列）
     mainLayout->addWidget(timeEdit, 0, 0, 1, 3);
@@ -94,22 +98,22 @@ void TaskItemWidget::setupUI() {
     // 右上角发送按钮
     mainLayout->addWidget(btnTest, 0, 3, 1, 1, Qt::AlignRight | Qt::AlignTop);
 
-    // 标签（缩小宽度，增强可读性）
-    auto* addressLabel = new QLabel(tr("地址"), this);
-    auto* typeLabel    = new QLabel(tr("数值"), this);
-    addressLabel->setMinimumWidth(36);
-    typeLabel->setMinimumWidth(36);
+    // // 标签（缩小宽度，增强可读性）
+    // auto* addressLabel = new QLabel(tr("地址"), this);
+    // auto* typeLabel    = new QLabel(tr("数值"), this);
+    // addressLabel->setMinimumWidth(36);
+    // typeLabel->setMinimumWidth(36);
 
     // 第三行：地址（标签+输入）
     int currentRow = 2;
-    mainLayout->addWidget(addressLabel, currentRow, 0, 1, 1);
-    mainLayout->addWidget(addressEdit,  currentRow, 1, 1, 3);
+    // mainLayout->addWidget(addressLabel, currentRow, 0, 1, 1);
+    mainLayout->addWidget(addressEdit,  currentRow, 0, 1, 4);
     currentRow++;
     // 第四行：类型与值（类型标签+选择、值标签+输入）
-    mainLayout->addWidget(typeLabel,    currentRow, 0, 1, 1);
+    // mainLayout->addWidget(typeLabel,    currentRow, 0, 1, 1);
     // mainLayout->addWidget(typeCombo,    currentRow, 1, 1, 1);
 
-    mainLayout->addWidget(valueEdit,    currentRow, 1, 1, 3);
+    mainLayout->addWidget(valueEdit,    currentRow, 0, 1, 4);
     currentRow++;
     //  设置控件的尺寸策略：输入框为横向可扩展，按钮为固定
     // hostEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -119,40 +123,65 @@ void TaskItemWidget::setupUI() {
     // typeCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     btnTest->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-    // 列弹性：标签列最小，输入列伸展，按钮列固定
-    mainLayout->setColumnStretch(0, 0);
+    // 列弹性：内容区优先，按钮列不参与伸展
+    mainLayout->setColumnStretch(0, 1);
     mainLayout->setColumnStretch(1, 1);
-    mainLayout->setColumnStretch(2, 0);
-    mainLayout->setColumnStretch(3, 1);
+    mainLayout->setColumnStretch(2, 1);
+    mainLayout->setColumnStretch(3, 0);
+
     /**
-     * @brief Loop 组（仅在勾选时显示周几）
+     * @brief Loop 组（未勾选时隐藏周几区，勾选后以两行网格显示，避免宽度不足导致被裁切）
      */
     loopGroup = new QGroupBox("Loop", this);
     loopGroup->setObjectName("loopGroup");
     loopGroup->setCheckable(true);
-    loopGroup->setChecked(false); // 初始 once
-    auto* daysLayout = new QHBoxLayout(loopGroup);
-    daysLayout->setContentsMargins(2, 2, 2, 2);
-    daysLayout->setSpacing(0);
+    loopGroup->setChecked(false);
 
-    chkMonday = new QCheckBox("Mon", loopGroup);
-    chkTuesday = new QCheckBox("Tues", loopGroup);
-    chkWednesday = new QCheckBox("Wed", loopGroup);
-    chkThursday = new QCheckBox("Thur", loopGroup);
-    chkFriday = new QCheckBox("Fri", loopGroup);
-    chkSaturday = new QCheckBox("Sat", loopGroup);
-    chkSunday = new QCheckBox("Sun", loopGroup);
+    auto* loopVBox = new QVBoxLayout(loopGroup);
+    loopVBox->setContentsMargins(2, 2, 2, 2);
+    loopVBox->setSpacing(2);
 
-    daysLayout->addWidget(chkMonday);
-    daysLayout->addWidget(chkTuesday);
-    daysLayout->addWidget(chkWednesday);
-    daysLayout->addWidget(chkThursday);
-    daysLayout->addWidget(chkFriday);
-    daysLayout->addWidget(chkSaturday);
-    daysLayout->addWidget(chkSunday);
+    auto* daysWidget = new QWidget(loopGroup);
+    daysWidget->setObjectName("daysWidget");
+    auto* daysGrid = new QGridLayout(daysWidget);
+    daysGrid->setContentsMargins(0, 0, 0, 0);
+    daysGrid->setHorizontalSpacing(6);
+    daysGrid->setVerticalSpacing(0);
 
-    // 第五、六行：Loop 组（跨两行四列）
-    mainLayout->addWidget(loopGroup, 4, 0, 2, 4);
+    chkMonday = new QCheckBox("Mon", daysWidget);
+    chkTuesday = new QCheckBox("Tue", daysWidget);
+    chkWednesday = new QCheckBox("Wed", daysWidget);
+    chkThursday = new QCheckBox("Thu", daysWidget);
+    chkFriday = new QCheckBox("Fri", daysWidget);
+    chkSaturday = new QCheckBox("Sat", daysWidget);
+    chkSunday = new QCheckBox("Sun", daysWidget);
+
+    {
+        QFont dayFont = chkMonday->font();
+        dayFont.setPointSize(qMax(8, dayFont.pointSize() - 1));
+        chkMonday->setFont(dayFont);
+        chkTuesday->setFont(dayFont);
+        chkWednesday->setFont(dayFont);
+        chkThursday->setFont(dayFont);
+        chkFriday->setFont(dayFont);
+        chkSaturday->setFont(dayFont);
+        chkSunday->setFont(dayFont);
+    }
+
+    daysGrid->addWidget(chkMonday, 0, 0);
+    daysGrid->addWidget(chkTuesday, 0, 1);
+    daysGrid->addWidget(chkWednesday, 0, 2);
+    daysGrid->addWidget(chkThursday, 0, 3);
+    daysGrid->addWidget(chkFriday, 1, 0);
+    daysGrid->addWidget(chkSaturday, 1, 1);
+    daysGrid->addWidget(chkSunday, 1, 2);
+
+    loopVBox->addWidget(daysWidget);
+
+    daysWidget->setVisible(loopGroup->isChecked());
+    connect(loopGroup, &QGroupBox::toggled, daysWidget, &QWidget::setVisible);
+
+    mainLayout->addWidget(loopGroup, currentRow, 0, 1, 4);
 
 }
 
@@ -202,8 +231,7 @@ void TaskItemWidget::updateValueWidget(const QString& type)
 void TaskItemWidget::testCommand() const
 {
     auto osc=getMessage();
-    OSCSender::instance()->sendOSCMessageWithQueue(osc);
-
+    StatusContainer::instance()->parseOSC(osc);
 }
 
 OSCMessage TaskItemWidget::getMessage() const

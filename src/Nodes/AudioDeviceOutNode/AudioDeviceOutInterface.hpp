@@ -41,6 +41,7 @@ namespace Nodes
             mainLayout->addWidget(driverSelector);
             mainLayout->addWidget(new QLabel("Output Device:", this));
             mainLayout->addWidget(deviceSelector);
+            mainLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
             setLayout(mainLayout);
         }
         

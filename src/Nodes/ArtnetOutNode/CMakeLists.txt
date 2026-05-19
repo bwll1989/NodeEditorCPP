@@ -12,7 +12,7 @@ add_library(${Module_Name} SHARED
         ArtnetOutDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ArtnetOutInterface.hpp
+        # ArtnetOutInterface.hpp
         ../../Common/Devices/UdpSocket/UdpSocket.cpp
         ../../Common/Devices/UdpSocket/UdpSocket.h)
 # 添加ArtnetTransmitter的头文件路径

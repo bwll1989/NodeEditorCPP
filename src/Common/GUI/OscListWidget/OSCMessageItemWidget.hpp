@@ -47,10 +47,10 @@ signals:
     void requestDelete();
 
 private:
-    QLineEdit* hostEdit;
-    QLineEdit* addressEdit;
-    QComboBox* typeCombo;
-    QLineEdit* valueEdit;
+    QLineEdit* hostEdit = nullptr;
+    QLineEdit* addressEdit = nullptr;
+    QComboBox* typeCombo = nullptr;
+    QLineEdit* valueEdit = nullptr;
     mutable QJSEngine engine;
     mutable OSCMessage m_currentMessage;
     void setupUI();

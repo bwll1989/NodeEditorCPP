@@ -1,5 +1,6 @@
 #pragma once
 #include <QtNodes/NodeDelegateModelRegistry>
+#include <QWidget>
 #include "DataTypes/NodeDataList.hpp"
 #include "AbstractDelegateModel.h"
 using namespace NodeDataTypes;
@@ -32,13 +33,13 @@ namespace Nodes
          */
         void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex port) override;
 
-        QWidget *embeddedWidget() override { return _label; }
+        QWidget *embeddedWidget() override { return _view; }
 
         bool resizable() const override { return true; }
 
 
     private:
-        QLabel *_label;
+        QWidget *_view;
 
         std::shared_ptr<ImageData> m_outData;
     };

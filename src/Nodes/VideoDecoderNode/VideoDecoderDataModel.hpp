@@ -36,6 +36,7 @@ namespace Nodes
         Q_PROPERTY(QString fileName READ getFileName WRITE setFileName NOTIFY fileNameChanged)
         Q_PROPERTY(bool loop READ getLoop WRITE setLoop NOTIFY loopChanged)
         Q_PROPERTY(double volume READ getVolume WRITE setVolume NOTIFY volumeChanged)
+        Q_PROPERTY(bool play READ getPlay WRITE setPlay NOTIFY playChanged)
 
     public:
         /**
@@ -49,12 +50,40 @@ namespace Nodes
             WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = true;
-
-
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "fileName";
+                b.control=widget->fileSelectComboBox;
+                AbstractDelegateModel::registerExternalBinding("/fileName", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "loop";
+                b.control=widget->loopCheckBox;
+                AbstractDelegateModel::registerExternalBinding("/loop", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "volume";
+                b.control=widget->volumeSlider;
+                AbstractDelegateModel::registerExternalBinding("/volume", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "play";
+                b.control=widget->playButton;
+                AbstractDelegateModel::registerExternalBinding("/play", this, b);
+            }
+            // {
+            //     NodeDelegateModel::ExternalBinding b;
+            //     b.member = "stop";
+            //     b.control=widget->stopButton;
+            //     AbstractDelegateModel::registerExternalBinding("/stop", this, b);
+            // }
             // UI Connections
             connect(widget->fileSelectComboBox, &SelectorComboBox::textChanged, this, &VideoDecoderDataModel::setFileName);
-            connect(widget->playButton, &QPushButton::clicked, this, &VideoDecoderDataModel::play);
-            connect(widget->stopButton, &QPushButton::clicked, this, &VideoDecoderDataModel::stop);
+            connect(widget->playButton, &QPushButton::clicked, this, &VideoDecoderDataModel::setPlay);
+            // connect(widget->stopButton, &QPushButton::clicked, this, &VideoDecoderDataModel::stop);
             
             connect(widget->volumeSlider, &FloatDragValueWidget::valueChanged, this, &VideoDecoderDataModel::setVolume);
             connect(widget->loopCheckBox, &QCheckBox::toggled, this, &VideoDecoderDataModel::setLoop);
@@ -62,14 +91,17 @@ namespace Nodes
             // Player Connections
             connect(player, &VideoDecoder::videoFrameReady, this, &VideoDecoderDataModel::onVideoFrameReady, Qt::QueuedConnection);
             connect(player, &VideoDecoder::playbackProgress, this, &VideoDecoderDataModel::onPlaybackProgress, Qt::QueuedConnection);
+            connect(player, &VideoDecoder::playbackFinished, this, [this]() {
+                setPlay(false);
+            }, Qt::QueuedConnection);
 
             // Initial State
             widget->volumeSlider->setValue(-10.0);
-            AbstractDelegateModel::registerExternalControl("/volume", widget->volumeSlider);
-            AbstractDelegateModel::registerExternalControl("/loop", widget->loopCheckBox);
-            AbstractDelegateModel::registerExternalControl("/play",widget->playButton);
-            AbstractDelegateModel::registerExternalControl("/stop",widget->stopButton);
-            AbstractDelegateModel::registerExternalControl("/file",widget->fileSelectComboBox);
+            // AbstractDelegateModel::registerExternalControl("/volume", widget->volumeSlider);
+            // AbstractDelegateModel::registerExternalControl("/loop", widget->loopCheckBox);
+            // AbstractDelegateModel::registerExternalControl("/play",widget->playButton);
+            // AbstractDelegateModel::registerExternalControl("/stop",widget->stopButton);
+            // AbstractDelegateModel::registerExternalControl("/file",widget->fileSelectComboBox);
             m_volume = -10.0;
         }
 
@@ -93,7 +125,6 @@ namespace Nodes
             loadVideoFile(m_fileName);
             
             emit fileNameChanged(m_fileName);
-            AbstractDelegateModel::stateFeedBack("/file", m_fileName);
         }
 
         bool getLoop() const { return m_loop; }
@@ -107,7 +138,6 @@ namespace Nodes
             player->setLooping(m_loop);
             
             emit loopChanged(m_loop);
-            AbstractDelegateModel::stateFeedBack("/loop", m_loop);
         }
 
         double getVolume() const { return m_volume; }
@@ -121,11 +151,10 @@ namespace Nodes
             player->setVolume(m_volume);
             
             emit volumeChanged(m_volume);
-            AbstractDelegateModel::stateFeedBack("/volume", m_volume);
         }
         
         void afterModelReady() override {
-            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/file"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/fileName"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/volume"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
@@ -188,7 +217,7 @@ namespace Nodes
                 switch(portIndex)
                 {
                 case 0:
-                    return "PLAY";
+                    return "PLAY/STOP";
                 case 1:
                     return "STOP";
                 case 2:
@@ -219,10 +248,10 @@ namespace Nodes
 
             switch (portIndex) {
             case 0: 
-                if (d->value().toBool()) play();
+                setPlay(d->value().toBool());
                 break;
             case 1: 
-                if (d->value().toBool()) stop();
+                if (d->value().toBool()) setPlay(false);
                 break;
             case 2:
                 setLoop(d->value().toBool());
@@ -279,7 +308,7 @@ namespace Nodes
             if (!filePath.isEmpty() && QFile::exists(filePath)) {
                 // setFileName 已经处理了初始化逻辑
                 if (isReady && autoPlay) {
-                    QTimer::singleShot(100, this, &VideoDecoderDataModel::play);
+                    QTimer::singleShot(100, this, [this](){ setPlay(true); });
                 }
             }
         }
@@ -292,8 +321,8 @@ namespace Nodes
                 if (localPath == "file") setFileName(ev.payload.toString());
                 else if (localPath == "loop") setLoop(ev.payload.toBool());
                 else if (localPath == "volume") setVolume(ev.payload.toDouble());
-                else if (localPath == "play") play();
-                else if (localPath == "stop") stop();
+                else if (localPath == "play") setPlay(ev.payload.toBool());
+
             }
         }
 
@@ -302,13 +331,17 @@ namespace Nodes
             if(fileName != "")
             {
                 filePath = AppConstants::MEDIA_LIBRARY_STORAGE_DIR + "/" + fileName;
-                if (player->getPlaying()){
-                    player->stopPlay();
-                }
+                const bool resumePlay = isPlaying || player->getPlaying();
+
+                lastVideoFrame = std::make_shared<NodeDataTypes::ImageData>(cv::Mat());
+                emit dataUpdated(0);
+
                 auto res = player->initializeFFmpeg(filePath);
 
                 if(!res){
                     isReady = false;
+                    isPlaying = false;
+                    emit playChanged(false);
                     return;
                 }
                 
@@ -329,31 +362,44 @@ namespace Nodes
                 }
                 
                 isReady = true;
+
+                if (resumePlay) {
+                    setPlay(true);
+                }
             }
         }
 
         /**
          * 播放音频
          */
-        void play() {
+        void setPlay(bool toPlay) {
 
             if (!isReady) {
+                isPlaying = false;
+                emit playChanged(false);
                 return;
             }
-
-            player->stopPlay(); // 先停止之前的播放
-            player->startPlay();
-            AbstractDelegateModel::stateFeedBack("/play", true);
-            
+            if (!toPlay) {
+                player->stopPlay();
+                isPlaying=false;
+                emit playChanged(false);
+            }else {
+                player->stopPlay(); // 先停止之前的播放
+                player->startPlay();
+                isPlaying=true;
+                emit playChanged(true);
+            }
+            if (widget->playButton->isChecked()!=isPlaying) {
+                widget->playButton->blockSignals(true);
+                widget->playButton->setChecked(isPlaying);
+                widget->playButton->blockSignals(false);
+            }
 
         }
-        /**
-         * 停止播放
-         */
-        void stop(){
-            player->stopPlay();
-            AbstractDelegateModel::stateFeedBack("/stop", true);
+        bool getPlay() {
+            return isPlaying;
         }
+
 
         void onVideoFrameReady(NodeDataTypes::ImageData frame) {
             lastVideoFrame = std::make_shared<NodeDataTypes::ImageData>(frame);
@@ -377,7 +423,7 @@ namespace Nodes
         void fileNameChanged(QString fileName);
         void loopChanged(bool loop);
         void volumeChanged(double volume);
-
+        void playChanged(bool playing);
     private:
         /**
          * @brief 格式化时间显示 (MM:SS)
@@ -401,6 +447,7 @@ namespace Nodes
         double m_volume = -10.0;
         bool autoPlay=false;
         bool isReady= false;
+        bool isPlaying= false;
 
     };
 }

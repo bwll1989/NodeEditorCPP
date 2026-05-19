@@ -41,14 +41,18 @@ namespace Nodes {
             WidgetEmbeddable = true;
             Resizable = false;
             button->setMinimumWidth(80);
-            AbstractDelegateModel::registerExternalControl("/trigger", button);
+            NodeDelegateModel::ExternalBinding binding;
+            binding.member = "value";
+            AbstractDelegateModel::registerExternalBinding("/trigger", this, binding);
+            // AbstractDelegateModel::registerExternalControl("/trigger", button);
             
             // 点击按钮触发
             connect(button, &TriggerWidget::clicked, this, [this]() { setTrigger(); });
             connect(this, &TriggerSourceDataModel::triggerChanged, [=](bool trigger){
                     QSignalBlocker blocker(button);
-                    button->trigger();
                     stateFeedBack("/trigger", trigger);
+                    button->trigger();
+                    stateFeedBack("/trigger", !trigger);
             });
         }
 

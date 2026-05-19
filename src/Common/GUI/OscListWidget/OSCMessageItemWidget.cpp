@@ -43,88 +43,46 @@ void OSCMessageItemWidget::setupUI()
     outer->addWidget(m_accentBar);
 
     // 表单区域（右侧）
-    auto* layout = new QGridLayout();
+    auto* layout = new QVBoxLayout();
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setHorizontalSpacing(8);
-    layout->setVerticalSpacing(4);
-    outer->addLayout(layout);
+    layout->setSpacing(4);
+    outer->addLayout(layout, 1);
 
-    // Host
-    hostEdit = new QLineEdit();
-    hostEdit->setPlaceholderText("ip:port");
-    hostEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-    hostEdit->setMinimumHeight(22);
-    QRegularExpression rx(R"(^((\d{1,3}\.){0,3}\d{0,3})(:\d{0,5})?$)");
-    hostEdit->setValidator(new QRegularExpressionValidator(rx, this));
+    // Host（仅外部模式显示）
+    if (!OnlyInternal) {
+        hostEdit = new QLineEdit(this);
+        hostEdit->setPlaceholderText("ip:port");
+        hostEdit->setMinimumHeight(22);
+        hostEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        QRegularExpression rx(R"(^((\d{1,3}\.){0,3}\d{0,3})(:\d{0,5})?$)");
+        hostEdit->setValidator(new QRegularExpressionValidator(rx, this));
+    }
 
     // Address
     addressEdit = new QLineEdit(this);
     addressEdit->setPlaceholderText("address");
+    addressEdit->setMinimumHeight(22);
+    addressEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     // Type
     typeCombo = new QComboBox(this);
     typeCombo->addItems({"Int", "Float", "String"});
-
+    typeCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     // Value
     valueEdit = new QLineEdit(this);
     valueEdit->setPlaceholderText("value");
+    valueEdit->setMinimumHeight(22);
+    valueEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-
-    // 标签（缩小宽度，减少占用）
-    auto* hostLabel    = new QLabel(tr("目标"));
-    auto* addressLabel = new QLabel(tr("地址"));
-    auto* typeLabel    = new QLabel(tr("类型"));
-    auto* valueLabel   = new QLabel(tr("值"));
-    hostLabel->setMinimumWidth(20);
-    addressLabel->setMinimumWidth(20);
-    typeLabel->setMinimumWidth(20);
-    valueLabel->setMinimumWidth(20);
-    
-    // m_deleteBtn = new QPushButton();
-    // m_deleteBtn->setIcon(QIcon(":/icons/icons/remove.png"));
-    //
-    // m_deleteBtn->setToolTip(tr("删除此消息"));
-    // m_deleteBtn->setFixedHeight(m_deleteBtn->sizeHint().height());
-    // m_deleteBtn->setFlat(true);
-    // m_deleteBtn->setFocusPolicy(Qt::NoFocus);
-
-
-    int currentRow = 0;
-    if (!OnlyInternal) {
-        layout->addWidget(hostLabel,   currentRow, 0, Qt::AlignLeft);
-        layout->addWidget(hostEdit,    currentRow, 1);
-        currentRow++;
-
-        layout->addWidget(addressLabel, currentRow, 0, Qt::AlignLeft);
-        layout->addWidget(addressEdit,  currentRow, 1);
-        currentRow++;
-
-        layout->addWidget(typeLabel,    currentRow, 0, Qt::AlignLeft);
-        layout->addWidget(typeCombo,    currentRow, 1);
-        currentRow++;
-
-        layout->addWidget(valueLabel,   currentRow, 0, Qt::AlignLeft);
-        layout->addWidget(valueEdit,    currentRow, 1);
-    } else {
-        layout->addWidget(addressLabel, currentRow, 0, Qt::AlignLeft);
-        layout->addWidget(addressEdit,  currentRow, 1);
-        currentRow++;
-
-        layout->addWidget(typeLabel,    currentRow, 0, Qt::AlignLeft);
-        layout->addWidget(typeCombo,    currentRow, 1);
-        currentRow++;
-
-        layout->addWidget(valueLabel,   currentRow, 0, Qt::AlignLeft);
-        layout->addWidget(valueEdit,    currentRow, 1);
+    if (!OnlyInternal && hostEdit) {
+        layout->addWidget(hostEdit);
     }
+    layout->addWidget(addressEdit);
+    layout->addWidget(typeCombo);
+    layout->addWidget(valueEdit);
 
-    // 右侧放置拖动图标
-    // layout->addWidget(m_deleteBtn, 0, 2, currentRow + 1, 1, Qt::AlignTop);
-
-    // 列弹性：标签列最小，输入列伸展，图标列固定
-    layout->setColumnStretch(0, 1);
-    layout->setColumnStretch(1, 4);
+    layout->addStretch();
 
 
 }
@@ -137,7 +95,9 @@ void OSCMessageItemWidget::connectSignals()
      * 函数：OSCMessageItemWidget::connectSignals
      * 作用：连接控件的信号，确保编辑变更与删除操作可以向外通知。
      */
-    connect(hostEdit, &QLineEdit::textChanged, this, &OSCMessageItemWidget::messageChanged);
+    if (hostEdit) {
+        connect(hostEdit, &QLineEdit::textChanged, this, &OSCMessageItemWidget::messageChanged);
+    }
     connect(addressEdit, &QLineEdit::textChanged, this, &OSCMessageItemWidget::messageChanged);
     connect(typeCombo, &QComboBox::currentTextChanged, this, [this](const QString& type) {
         updateValueWidget(type);
@@ -172,14 +132,16 @@ OSCMessage OSCMessageItemWidget::getMessage() const
 {
     OSCMessage message;
 
-    // 解析 host:port
-    QStringList hostParts = hostEdit->text().split(":");
-    if (hostParts.size() == 2) {
-        message.host = hostParts[0];
-        bool ok;
-        int port = hostParts[1].toInt(&ok);
-        if (ok && port > 0 && port <= 65535) {
-            message.port = port;
+    // 解析 host:port（仅外部模式）
+    if (hostEdit) {
+        QStringList hostParts = hostEdit->text().split(":");
+        if (hostParts.size() == 2) {
+            message.host = hostParts[0];
+            bool ok;
+            int port = hostParts[1].toInt(&ok);
+            if (ok && port > 0 && port <= 65535) {
+                message.port = port;
+            }
         }
     }
     
@@ -211,12 +173,14 @@ OSCMessage OSCMessageItemWidget::getMessage() const
 
 void OSCMessageItemWidget::setMessage(const OSCMessage& message)
 {
-    // 设置 host:port
-    QString hostPort = message.host;
-    if (message.port > 0) {
-        hostPort += ":" + QString::number(message.port);
+    // 设置 host:port（仅外部模式）
+    if (hostEdit) {
+        QString hostPort = message.host;
+        if (message.port > 0) {
+            hostPort += ":" + QString::number(message.port);
+        }
+        hostEdit->setText(hostPort);
     }
-    hostEdit->setText(hostPort);
     
     addressEdit->setText(message.address);
     

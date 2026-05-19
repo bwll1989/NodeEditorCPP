@@ -37,6 +37,8 @@ class ImageThresholdInterface final : public QWidget{
             main_layout->setColumnStretch(1,2);
             main_layout->setColumnStretch(2,1);
             main_layout->setColumnStretch(3,2);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 4, 0, 1, 2);
+            main_layout->setRowStretch(4, 1);
             this->setLayout(main_layout);
             // this->setFixedSize(400,200);
 

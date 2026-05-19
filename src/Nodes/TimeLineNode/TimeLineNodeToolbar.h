@@ -19,7 +19,6 @@
 #include <QEvent>
 #include <QMouseEvent>
 #include "BaseTimeLineToolBar.h"
-#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
 class TimeLineNodeToolBar : public BaseTimelineToolbar{
     Q_OBJECT
@@ -86,11 +85,6 @@ signals:
     void setCurrentFrame(qint64 frame);
 public slots:
     /**
-     * 函数级注释：处理来自全局事件总线的外部命令，并转为工具栏动作/信号
-     */
-    void onGlobalEvent(const GlobalEvent& ev);
-
-    /**
      * 设置播放状态
      * @param bool isPlaying 是否播放
      */
@@ -100,12 +94,7 @@ public slots:
      * @param bool isLooping 是否循环
      */
     void setLoopState(bool isLooping);
-    void publishCurrentFrame(int frame);
     void bindBus(const QString& parentAlias, int nodeId);
-    /**
-     * 函数级注释：发布工具栏相关的状态反馈到全局事件总线
-     */
-    void publishState(const QString& relative, const QVariant& value);
 private:
     /**
      * 函数级注释：拼接工具栏对应的完整总线地址（/dataflow/<alias>/<id><relative>）

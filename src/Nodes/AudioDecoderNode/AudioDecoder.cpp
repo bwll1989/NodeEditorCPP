@@ -389,6 +389,8 @@ void AudioDecoder::playAudio() {
     int frameCount = 0;
     double lastEmitTime = -1.0;
 
+    bool endedByEof = false;
+
     // 循环播放的主循环
     do {
         // 重置文件指针到开始位置（用于循环播放）
@@ -412,12 +414,12 @@ void AudioDecoder::playAudio() {
                  if (packet.pts != AV_NOPTS_VALUE) {
                      currentSec = packet.pts * av_q2d(formatContext->streams[packet.stream_index]->time_base);
                  }
-                 
+
                  double totalSec = 0.0;
                  if (formatContext->duration != AV_NOPTS_VALUE) {
                      totalSec = formatContext->duration / (double)AV_TIME_BASE;
                  }
-                 
+
                  // 限制发送频率，避免UI刷新过快 (例如每0.1秒刷新一次)
                  if (std::abs(currentSec - lastEmitTime) >= 0.1) {
                      emit playbackProgress(currentSec, totalSec);
@@ -525,7 +527,19 @@ void AudioDecoder::playAudio() {
             }
             av_packet_unref(&packet);
         }
+
+        if (isPlaying && !isLooping) {
+            endedByEof = true;
+        }
     } while (isPlaying && isLooping); // 循环播放条件
+
+    if (endedByEof) {
+        {
+            QMutexLocker locker(&mutex);
+            isPlaying = false;
+        }
+        emit playbackFinished();
+    }
 
     // 清理资源
     if (audioFrame) {

@@ -16,13 +16,7 @@
  * @note 使用组织名与产品名组合，保证不同产品互不冲突，且应用名变化不影响单实例机制
  */
 static QString makeSingleInstanceKey() {
-    const QString org = QApplication::organizationName().isEmpty()
-        ? AppConstants::COMPANY_NAME
-        : QApplication::organizationName();
-    const QString prod = QApplication::applicationName().isEmpty()
-        ? AppConstants::PRODUCT_NAME
-        : QApplication::applicationName();
-    return org + "_" + prod;
+    return QString(AppConstants::COMPANY_NAME) + "_" + QString(AppConstants::PRODUCT_NAME);
 }
 
 /**
@@ -31,7 +25,7 @@ static QString makeSingleInstanceKey() {
  * @note 版本号从 PRODUCT_VERSION 宏获取，若未定义则使用默认值 "dev"
  */
 void setupAppInfo() {
-    QApplication::setApplicationDisplayName(AppConstants::PRODUCT_NAME);
+    QApplication::setApplicationDisplayName(AppConstants::PRODUCT_RUNTIME_NAME);
     QApplication::setApplicationVersion(PRODUCT_VERSION);
     QApplication::setOrganizationName(AppConstants::COMPANY_NAME);
     QApplication::setOrganizationDomain("www.qt.com");

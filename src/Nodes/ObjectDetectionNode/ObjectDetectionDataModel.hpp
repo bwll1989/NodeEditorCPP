@@ -49,9 +49,9 @@ namespace Nodes
             m_outImage=std::make_shared<ImageData>();
             model_path="./plugins/Models/yolo11n-Detection.onnx";
             // model_path="./plugins/Models/AnimeGANv3_Hayao_36.onnx";
-            AbstractDelegateModel::registerExternalControl("/enable",widget->EnableBtn);
-            AbstractDelegateModel::registerExternalControl("/filter",widget->ClassSelectorComboBox);
-            AbstractDelegateModel::registerExternalControl("/confidence",widget->ConfidenceFilterSpinBox);
+            // AbstractDelegateModel::registerExternalControl("/enable",widget->EnableBtn);
+            // AbstractDelegateModel::registerExternalControl("/filter",widget->ClassSelectorComboBox);
+            // AbstractDelegateModel::registerExternalControl("/confidence",widget->ConfidenceFilterSpinBox);
             // Connect widget signals
             connect(widget->ConfidenceFilterSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
                     this, &ObjectDetectionDataModel::setConfidence);

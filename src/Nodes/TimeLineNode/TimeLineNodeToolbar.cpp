@@ -7,7 +7,6 @@
 #include <QStyle>
 #include <QApplication>
 #include <QClipboard>
-#include <QSignalBlocker>
 
 TimeLineNodeToolBar::TimeLineNodeToolBar(QWidget* parent)
     : BaseTimelineToolbar(parent)
@@ -26,14 +25,6 @@ QString TimeLineNodeToolBar::makeBusAddress(const QString& relative) const
     return "/dataflow" + m_parentAlias + "/" + QString::number(m_nodeId) + norm;
 }
 
-void TimeLineNodeToolBar::publishState(const QString& relative, const QVariant& value)
-{
-    if (!m_busBound) {
-        return;
-    }
-    GlobalEventBus::instance()->publishState(makeBusAddress(relative), value);
-}
-
 void TimeLineNodeToolBar::bindBus(const QString& parentAlias, int nodeId)
 {
     if (m_busBound) {
@@ -46,74 +37,6 @@ void TimeLineNodeToolBar::bindBus(const QString& parentAlias, int nodeId)
     m_parentAlias = parentAlias.startsWith('/') ? parentAlias : ("/" + parentAlias);
     m_nodeId = nodeId;
     m_busBound = true;
-
-    GlobalEventBus::instance()->subscribe(makeBusAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
-    GlobalEventBus::instance()->subscribe(makeBusAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
-    GlobalEventBus::instance()->subscribe(makeBusAddress("/pause"), this, SLOT(onGlobalEvent(GlobalEvent)));
-    GlobalEventBus::instance()->subscribe(makeBusAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
-    GlobalEventBus::instance()->subscribe(makeBusAddress("/currentFrame"), this, SLOT(onGlobalEvent(GlobalEvent)));
-
-    connect(this, &TimeLineNodeToolBar::loopToggled, this, [this](bool enabled) {
-        publishState("/loop", enabled);
-    });
-    //立即发送一次状态
-    publishState("/play", m_isPlaying);
-    publishState("/stop", !m_isPlaying);
-    publishState("/loop", m_loopAction ? m_loopAction->isChecked() : false);
-    publishState("/currentFrame", 0);
-}
-
-void TimeLineNodeToolBar::onGlobalEvent(const GlobalEvent& ev)
-{
-    if (ev.kind != GlobalEventKind::Command) {
-        return;
-    }
-
-    if (ev.address == makeBusAddress("/play")) {
-        const bool wantPlay = !ev.payload.isValid() || ev.payload.toBool();
-        if (wantPlay) {
-            if (!m_isPlaying && m_playAction) {
-                m_playAction->trigger();
-            }
-        } else {
-            if (m_stopAction) {
-                m_stopAction->trigger();
-            }
-        }
-        return;
-    }
-
-    if (ev.address == makeBusAddress("/pause")) {
-        const bool wantPause = !ev.payload.isValid() || ev.payload.toBool();
-        if (wantPause && m_isPlaying && m_playAction) {
-            m_playAction->trigger();
-        }
-        return;
-    }
-
-    if (ev.address == makeBusAddress("/stop")) {
-        const bool wantStop = !ev.payload.isValid() || ev.payload.toBool();
-        if (wantStop && m_stopAction) {
-            m_stopAction->trigger();
-        }
-        return;
-    }
-
-    if (ev.address == makeBusAddress("/loop")) {
-        const bool enabled = ev.payload.toBool();
-        if (m_loopAction && m_loopAction->isChecked() != enabled) {
-            QSignalBlocker blocker(m_loopAction);
-            m_loopAction->setChecked(enabled);
-            blocker.unblock();
-            emit loopToggled(enabled);
-        }
-        return;
-    }
-    if (ev.address == makeBusAddress("/currentFrame")) {
-        const qint64 frame = ev.payload.toLongLong();
-        emit setCurrentFrame(frame);
-        return;
-    }
 }
 
 void TimeLineNodeToolBar::createActions()
@@ -143,6 +66,7 @@ void TimeLineNodeToolBar::createActions()
             m_isPlaying = false;
             m_playAction->setIcon(QIcon(":/icons/icons/play.png"));
             m_playAction->setToolTip(tr("Play"));
+           
         }
         emit stopClicked();
     });
@@ -152,7 +76,9 @@ void TimeLineNodeToolBar::createActions()
     m_loopAction->setIcon(QIcon(":/icons/icons/repeat.png"));
     m_loopAction->setToolTip(tr("Loop"));
     m_loopAction->setCheckable(true);
-    connect(m_loopAction, &QAction::toggled, this, &TimeLineNodeToolBar::loopToggled);
+    connect(m_loopAction, &QAction::toggled, [this](bool enabled) {
+        emit loopToggled(enabled);
+    });
 
     m_nextFrameAction = new QAction(this);
     m_nextFrameAction->setIcon(QIcon(":/icons/icons/rewind-forward.png"));
@@ -292,8 +218,6 @@ void TimeLineNodeToolBar::setPlaybackState(bool isPlaying)
     m_isPlaying = isPlaying;
     m_playAction->setIcon(QIcon(m_isPlaying ? ":/icons/icons/pause.png" : ":/icons/icons/play.png"));
     m_playAction->setToolTip(m_isPlaying ? tr("Pause") : tr("Play"));
-    publishState("/play", m_isPlaying);
-    publishState("/stop", !m_isPlaying);
 
 }
 
@@ -307,13 +231,6 @@ void TimeLineNodeToolBar::setLoopState(bool isLooping)
     m_loopAction->setChecked(isLooping);
     m_loopAction->blockSignals(false);
     m_loopAction->setToolTip(isLooping ? tr("Unloop") : tr("Loop"));
-
-    publishState("/loop", isLooping);
-}
-
-void TimeLineNodeToolBar::publishCurrentFrame(int frame)
-{
-    publishState("/currentFrame", frame);
 }
 
 

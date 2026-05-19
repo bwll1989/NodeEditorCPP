@@ -51,7 +51,7 @@ namespace Nodes
             portSpinBox->setRange(1, 65535);
             portSpinBox->setValue(11001);
             hostEdit->setText("192.168.1.4");
-            
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
             this->setLayout(main_layout);
             setMinimumSize(200, 150);
 

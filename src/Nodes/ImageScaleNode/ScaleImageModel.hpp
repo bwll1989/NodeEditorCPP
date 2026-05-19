@@ -12,15 +12,8 @@
 #include <QFileDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <opencv2/imgproc.hpp>
-#include <QtWidgets/QWidget>
-#include <QtWidgets/QGridLayout>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QSpinBox>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
-#include <QSignalBlocker>
-
-#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 
 using namespace NodeDataTypes;
 namespace Nodes
@@ -40,64 +33,23 @@ namespace Nodes
             Resizable=false;
             PortEditable=false;
 
-            m_widget = new QWidget();
-            
-            QGridLayout* gridLayout = new QGridLayout(m_widget);
-            gridLayout->setColumnStretch(0, 1);
-            gridLayout->setColumnStretch(1, 2);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "width";
+                AbstractDelegateModel::registerExternalBinding("/width", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "height";
+                AbstractDelegateModel::registerExternalBinding("/height", this, b);
+            }
 
-            // Row 0: Width
-            QLabel* labelWidth = new QLabel("Width", m_widget);
-            gridLayout->addWidget(labelWidth, 0, 0);
-
-            widthSpinBox = new IntDragValueWidget(m_widget);
-            widthSpinBox->setRange(0,50000);
-            gridLayout->addWidget(widthSpinBox, 0, 1);
-
-            // Row 1: Height
-            QLabel* labelHeight = new QLabel("Height", m_widget);
-            gridLayout->addWidget(labelHeight, 1, 0);
-
-            heightSpinBox = new IntDragValueWidget(m_widget);
-            heightSpinBox->setRange(0,50000);
-            gridLayout->addWidget(heightSpinBox, 1, 1);
-
-            // Row 2: Time
-            QLabel* labelTime = new QLabel("Time ms:", m_widget);
-            gridLayout->addWidget(labelTime, 2, 0);
-
-            sb_time = new QSpinBox(m_widget);
-            sb_time->setReadOnly(true);
-            sb_time->setButtonSymbols(QAbstractSpinBox::NoButtons);
-            sb_time->setMaximum(99999);
-            gridLayout->addWidget(sb_time, 2, 1);
-
-            connect(widthSpinBox,&IntDragValueWidget::valueChanged,
-                               this,
-                               [this](int w) {
-                                   setWidth(w);
-                               });
-
-            // 保持对称性，对heightSpinBox也添加相同逻辑
-            connect(heightSpinBox,&IntDragValueWidget::valueChanged,
-                this,
-                [this](int h) {
-                    setHeight(h);
-                });
-            AbstractDelegateModel::registerExternalControl("/Height", heightSpinBox);
-            AbstractDelegateModel::registerExternalControl("/Width", widthSpinBox);
-
-            m_width = widthSpinBox->value();
-            m_height = heightSpinBox->value();
+            m_width = 0;
+            m_height = 0;
             m_inScaleFactor = QSize(m_width, m_height);
         };
 
-        ~ScaleImageModel() override {
-            if (m_widget) {
-                m_widget->deleteLater();
-            }
-        }
-
+        ~ScaleImageModel() override = default;
         int width() const { return m_width; }
         int height() const { return m_height; }
 
@@ -192,10 +144,10 @@ namespace Nodes
             return m_outImageData;
         }
 
-        QWidget* embeddedWidget() override {
-
-            return m_widget;
-        }
+        // QWidget* embeddedWidget() override {
+        //
+        //     return m_widget;
+        // }
 
         QJsonObject save() const override
         {
@@ -222,13 +174,8 @@ namespace Nodes
             if (m_width == w) return;
             m_width = w;
             m_inScaleFactor.setWidth(w);
-            if (m_widget && widthSpinBox) {
-                const QSignalBlocker blocker(widthSpinBox);
-                widthSpinBox->setValue(w);
-            }
             requestProcess();
             Q_EMIT widthChanged(w);
-            AbstractDelegateModel::stateFeedBack("/Width", w);
         }
 
         void setHeight(int h)
@@ -236,13 +183,8 @@ namespace Nodes
             if (m_height == h) return;
             m_height = h;
             m_inScaleFactor.setHeight(h);
-            if (m_widget && heightSpinBox) {
-                const QSignalBlocker blocker(heightSpinBox);
-                heightSpinBox->setValue(h);
-            }
             requestProcess();
             Q_EMIT heightChanged(h);
-            AbstractDelegateModel::stateFeedBack("/Height", h);
         }
 
         void onGlobalEvent(const GlobalEvent& ev)
@@ -260,6 +202,7 @@ namespace Nodes
     signals:
         void widthChanged(int width);
         void heightChanged(int height);
+        void lastProcessMsChanged(qint64 ms);
     private:
          static QPair<cv::Mat, quint64> processImage(const cv::Mat& inputImage, const QSize& scaleFactor) {
             QElapsedTimer timer;
@@ -302,10 +245,6 @@ namespace Nodes
                 } else {
                     m_outImageData.reset();
                 }
-
-                if (m_widget && sb_time) {
-                    sb_time->setValue(elapsedTime);
-                }
             } else {
                 m_outImageData.reset();
             }
@@ -313,12 +252,6 @@ namespace Nodes
         }
 
     private:
-        QWidget* m_widget = nullptr;
-        IntDragValueWidget* widthSpinBox = nullptr;
-        IntDragValueWidget* heightSpinBox = nullptr;
-        QSpinBox* sb_time = nullptr;
-
-        // in
         // 0
         std::weak_ptr<ImageData> m_inImageData;
         // 1

@@ -7,10 +7,43 @@ function getVue() {
 
 // 函数级注释：注册控件到映射，保存属性访问器，便于属性面板读写
 const widgetRegistry = new WeakMap();
+
+// 函数级注释：commandId → Set<HTMLElement> 索引表，用于 WS 消息 O(1) 查找目标控件
+const commandIndex = new Map();
+
 function registerNode(node, type, api) {
   node.dataset.type = type;
   const props = api.getProps ? api.getProps() : {};
   node.dataset.title = props.title || type;
+
+  // 从索引中移除该节点旧 commandId
+  const oldCmd = node.__nsCommandId || '';
+  if (oldCmd && commandIndex.has(oldCmd)) {
+    commandIndex.get(oldCmd).delete(node);
+    if (commandIndex.get(oldCmd).size === 0) commandIndex.delete(oldCmd);
+  }
+
+  // 添加新 commandId 到索引
+  const newCmd = String(props.commandId || '').trim();
+  if (newCmd) {
+    if (!commandIndex.has(newCmd)) commandIndex.set(newCmd, new Set());
+    commandIndex.get(newCmd).add(node);
+  }
+  node.__nsCommandId = newCmd;
+
+  // 同时索引 Timeline 等控件的 items[].id
+  const pItems = Array.isArray(props.items) ? props.items : null;
+  if (pItems) {
+    pItems.forEach(it => {
+      const id = it && (it.id ?? it.commandId);
+      const s = (id !== undefined && id !== null) ? String(id).trim() : '';
+      if (s) {
+        if (!commandIndex.has(s)) commandIndex.set(s, new Set());
+        commandIndex.get(s).add(node);
+      }
+    });
+  }
+
   widgetRegistry.set(node, api);
 }
 
@@ -103,12 +136,48 @@ function getProps(node) {
 // 函数级注释：设置选中控件的属性
 function setProps(node, props) {
   const api = widgetRegistry.get(node);
-  if (api && api.setProps) api.setProps(props);
+  if (api && api.setProps) {
+    api.setProps(props);
+    // 当 commandId 被修改时，同步更新索引表
+    if (props && props.commandId !== undefined) {
+      const oldCmd = node.__nsCommandId || '';
+      const newCmd = String(props.commandId || '').trim();
+      if (oldCmd !== newCmd) {
+        // 移除旧索引
+        if (oldCmd && commandIndex.has(oldCmd)) {
+          commandIndex.get(oldCmd).delete(node);
+          if (commandIndex.get(oldCmd).size === 0) commandIndex.delete(oldCmd);
+        }
+        // 添加新索引
+        if (newCmd) {
+          if (!commandIndex.has(newCmd)) commandIndex.set(newCmd, new Set());
+          commandIndex.get(newCmd).add(node);
+        }
+        node.__nsCommandId = newCmd;
+      }
+    }
+  }
 }
 
-// 函数级注释：通用模板加载器
+// 函数级注释：通用模板加载器（带缓存与并发去重），避免大量控件同时创建时重复请求同一模板。
+const __nsTemplatePromiseCache = new Map();
 function loadTemplate(path) {
-  return fetch(path).then(res => res.text());
+  const p = String(path || '').trim();
+  if (!p) return Promise.resolve('');
+  if (__nsTemplatePromiseCache.has(p)) return __nsTemplatePromiseCache.get(p);
+
+  const promise = fetch(p)
+    .then(res => {
+      if (!res || !res.ok) throw new Error('http_' + (res ? res.status : 0));
+      return res.text();
+    })
+    .catch(err => {
+      __nsTemplatePromiseCache.delete(p);
+      throw err;
+    });
+
+  __nsTemplatePromiseCache.set(p, promise);
+  return promise;
 }
 
 // 函数级注释：将任意输入转换为布尔（兼容 true/"true"/1 等）
@@ -228,6 +297,29 @@ window.EPWidgets = {
   applyCommonStyle,
   createPropsApi,
   createVueWidget,
+  // 函数级注释：获取 commandId 索引表（供 index.html 的 WS 同步使用）
+  getCommandIndex() { return commandIndex; },
+  // 函数级注释：从索引中移除一个节点（控件销毁时调用）
+  unindexNode(node) {
+    if (!node) return;
+    const oldCmd = node.__nsCommandId || '';
+    if (oldCmd && commandIndex.has(oldCmd)) {
+      commandIndex.get(oldCmd).delete(node);
+      if (commandIndex.get(oldCmd).size === 0) commandIndex.delete(oldCmd);
+    }
+    // 清理 items 索引：遍历所有 commandIndex 条目，移除包含该 node 的引用
+    commandIndex.forEach((nodes, addr) => {
+      if (nodes.has(node)) {
+        nodes.delete(node);
+        if (nodes.size === 0) commandIndex.delete(addr);
+      }
+    });
+    node.__nsCommandId = '';
+  },
+  // 函数级注释：清理整个索引表（页面全量清空时调用）
+  clearCommandIndex() {
+    commandIndex.clear();
+  },
   // 函数级注释：向后端发送指令JSON（addr/value）
   sendCommand(addr, value) {
     if (this.isRemoteUpdating) return Promise.resolve({ ok: true });

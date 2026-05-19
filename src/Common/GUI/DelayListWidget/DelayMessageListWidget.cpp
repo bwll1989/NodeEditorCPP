@@ -26,9 +26,10 @@ void DelayMessageListWidget::addDelayMessage(const delay_item& message)
     auto* item = new QListWidgetItem(this);
     auto* widget = new DelayMessageItemWidget(this);
     widget->setMessage(message);
-    item->setSizeHint(widget->sizeHint());
     addItem(item);
     setItemWidget(item, widget);
+    widget->adjustSize();
+    item->setSizeHint(widget->sizeHint()*1.5);
 }
 
 QVector<delay_item> DelayMessageListWidget::getDelayMessages() const
@@ -175,7 +176,11 @@ void DelayMessageListWidget::mouseMoveEvent(QMouseEvent* event)
 
     // 设置拖拽预览
     drag->setPixmap(pixmap);
-    drag->setHotSpot(QPoint(pixmap.width()/2, pixmap.height()/2));  // 热点在中心
+    const QRect itemRect = visualItemRect(item);
+    QPoint hotSpot = event->pos() - itemRect.topLeft();
+    hotSpot.setX(qBound(0, hotSpot.x(), pixmap.width() - 1));
+    hotSpot.setY(qBound(0, hotSpot.y(), pixmap.height() - 1));
+    drag->setHotSpot(hotSpot);
     
     Qt::DropAction defaultAction = event->modifiers() & Qt::ControlModifier ? 
                                  Qt::CopyAction : Qt::MoveAction;

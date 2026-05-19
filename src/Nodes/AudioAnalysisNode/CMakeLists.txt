@@ -27,8 +27,8 @@ set(GIST_SOURCES
 
 add_library(${Module_Name} SHARED
         ${GIST_SOURCES}
-        AudioAnalysisInterface.h
-        AudioAnalysisInterface.cpp
+#        AudioAnalysisInterface.h
+#        AudioAnalysisInterface.cpp
         AudioAnalysisDataModel.hpp
         AudioAnalysisWorker.hpp
         AudioAnalysisWorker.cpp

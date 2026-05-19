@@ -1,63 +1,33 @@
-# ArtnetInNode 帮助文档
+# ArtnetInNode 使用说明
 
-## 节点功能
-Artnet 输入节点（ArtnetInNode）用于接收 Artnet 协议的 DMX 数据，支持以下特性：
-
-- 监听指定 Universe 的 Artnet 数据包
-- 支持通道过滤，可只输出指定通道的数据
-- 支持通过节点端口或界面设置 Universe、通道列表和过滤开关
-- 输出原始和过滤后的 DMX 数据
-- 运行在独立线程，不阻塞主 UI 线程
+## 用途
+ArtnetInNode 用于从网络接收 Art-Net / DMX 数据，并输出为一份可在流程中继续处理的变量数据。
 
 ## 输入端口
-节点提供如下输入端口：
-
-1. UNIVERSE ：监听的 Universe 编号（整数类型）
-2. CHANNELS ：需要过滤的通道列表（字符串类型，如 "1,2,5-10"）
-3. FILTER ：过滤开关（布尔类型，true=启用过滤，false=不过滤）
+- UNIVERSE：要监听的 Universe 编号（整数）。
+- CHANNELS：需要过滤的通道列表（字符串，可为空）。示例：`1,2,5-10`。
+- FILTER：是否启用通道过滤（布尔）。
 
 ## 输出端口
-节点提供如下输出端口：
+- OUTPUT：接收到的数据（VariableData）。
+  - 未开启过滤：输出上游完整数据（包含 `universe`、`host`、`default` 等字段）。
+  - 开启过滤：输出一个简化对象，包含 `universe`、`host`，以及你指定通道的键值对。
 
-1. OUTPUT ：接收到的 Artnet 数据（VariableData 类型，包含 universe、host、各通道值等字段）
+## 外部控制（OSC）
+- `/universe`：设置 Universe（int）。
+- `/channels`：设置通道列表（string）。
+- `/filter`：开关过滤（bool）。
 
-## 节点界面
-节点界面包含以下控件：
+## 快速上手
+1. 将 ArtnetInNode 放入流程。
+2. 直接连接 OUTPUT 到下游节点即可查看数据；默认不过滤。
+3. 若只关心部分通道：
+   - 设置 FILTER 为 true。
+   - 在 CHANNELS 填写通道列表，例如 `1,2,5-10`。
 
-- Universe ：输入框，用于设置监听的 Universe 编号
-- Channels ：输入框，用于设置需要过滤的通道列表，支持单个和范围（如 "1,2,5-10"）
-- 过滤器开关 ：GroupBox 勾选启用过滤
+## 通道号说明
+- 通道列表使用“索引”方式过滤，范围为 `0~512`（与接收到的 DMX 数据字节序列下标一致）。
 
-## 信号与状态
-- 支持信号：UniverseChanged、ChannelsFilterChanged
-- 过滤开关启用时，仅输出指定 Universe 和通道的数据
-- 关闭过滤时，输出所有接收到的 Artnet 数据
-
-## 使用示例
-### 示例1：基本接收
-1. 添加 Artnet 输入节点到流程图
-2. 在界面中设置 Universe 编号
-3. 关闭过滤器，节点将输出所有接收到的 Artnet 数据
-
-### 示例2：通道过滤
-1. 启用过滤器开关
-2. 在 Channels 输入框中输入 "1,2,5-10"，仅输出这些通道的数据
-3. 连接 OUTPUT 输出端口到下游节点，获取过滤后的数据
-
-### 示例3：通过其他节点控制
-1. 用整数源节点控制 UNIVERSE 输入端口，实现动态切换监听 Universe
-2. 用字符串源节点控制 CHANNELS 输入端口，实现动态切换过滤通道
-3. 用布尔源节点控制 FILTER 输入端口，实现远程开关过滤
-
-## 注意事项
-1. 通道列表支持单个通道和范围（如 "1,2,5-10"），通道编号从 0 开始
-2. 启用过滤时，只有 Universe 匹配且通道在列表中的数据才会输出
-3. 关闭过滤时，所有接收到的 Artnet 数据包都会输出
-4. 输出数据为 VariableData 类型，包含 universe、host、各通道值等字段
-5. 节点自动管理 Artnet 接收线程，无需手动干预
-
-## 技术细节
-- 节点使用 ArtnetReceiver 实现 Artnet 协议数据接收
-- 支持多 Universe 监听和通道过滤
-- 通信过程在独立线程中运行，确保 UI 响应性
-- 支持通过界面和端口动态配置过滤参数
+## 常见问题
+- 没有输出：确认网络中确实有 Art-Net 数据；Universe 过滤条件是否匹配。
+- 过滤后没有字段：确认 CHANNELS 不为空，且通道号在有效范围内。

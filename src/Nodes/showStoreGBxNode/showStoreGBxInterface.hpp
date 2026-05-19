@@ -5,46 +5,46 @@
 #include <QPushButton>
 #include <QLineEdit>
 #include <QGridLayout>
-#include <QGroupBox>
 #include <QCheckBox>
 #include <QSpinBox>
 #include <QHBoxLayout>
+#include <QSpacerItem>
 
 class showStoreGBxInterface : public QWidget
 {
     Q_OBJECT
 
 public:
+    /**
+     * 函数级注释：构造 showStoreGBx 界面，采用竖向 2*n 排列（两列多行）
+     */
     showStoreGBxInterface(QWidget *parent = nullptr)
         : QWidget(parent)
     {
-        // 创建主布局
         auto layout = new QGridLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
-        // 创建连接设置组
-        auto connectionGroup = new QGroupBox("连接设置", this);
-        auto connectionLayout = new QGridLayout(connectionGroup);
-        // IP地址设置
-        connectionLayout->addWidget(new QLabel("IP地址:"), 0, 0,1,1);
+        layout->setSpacing(6);
+
         _hostEdit = new QLineEdit("127.0.0.1", this);
-        connectionLayout->addWidget(_hostEdit, 0, 1,1,2);
-        //连接状态显示
-        connectionLayout->addWidget(status, 1, 0,1,3);
+        layout->addWidget(new QLabel("Host:"), 0, 0, 1, 1);
+        layout->addWidget(_hostEdit, 0, 1, 1, 1);
+
+        layout->addWidget(status, 1, 0, 1, 2);
         status->setFlat(true);
         status->setCheckable(true);
         status->setEnabled(false);
-        layout->addWidget(connectionGroup, 0, 0, 1, 1);
-        // 创建输出控制组
-        auto outputGroup = new QGroupBox("播放控制", this);
-        auto outputLayout = new QGridLayout(outputGroup);
         
         for (int i = 0; i < 4; ++i) {
             _playButtons[i] = new QPushButton(QString("Show%1").arg(i+1), this);
             _playButtons[i]->setEnabled(false); // 初始禁用输出复选框
-            outputLayout->addWidget(_playButtons[i], i/4, i%4);
+            layout->addWidget(_playButtons[i], 2 + i, 0, 1, 2);
         }
-        outputLayout->addWidget(Stop,2,0,1,4);
-        layout->addWidget(outputGroup, 1, 0, 1, 1);
+
+        layout->addWidget(Stop, 6, 0, 1, 2);
+        layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 7, 0, 1, 2);
+        layout->setRowStretch(7, 1);
+        layout->setColumnStretch(0, 1);
+        layout->setColumnStretch(1, 1);
         // 连接按钮的信号
         for (int i = 0; i < 4; ++i) {
             connect(_playButtons[i], &QPushButton::clicked, this, [this, i](bool checked) {

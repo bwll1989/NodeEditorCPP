@@ -1,125 +1,42 @@
-# DMXUniverseNode 帮助文档
+# DMXUniverseNode 使用说明
 
-## 概述
+## 用途
+DMXUniverseNode 用于把多个 DMXDeviceNode 输出的 `addressMap` 合并为一个完整的 512 通道 Universe，并输出包含 Art-Net 发送所需信息的数据包结构。
 
-DMXUniverseNode是一个DMX Universe合并节点，用于接收多个DMX Device节点的输出数据，并将它们合并成一个完整的512通道DMX Universe数据包。该节点支持标准Artnet协议的Universe、Subnet、Net寻址，并提供实时的设备状态监控。
+## 端口
+- 输入（默认 8 个，可编辑）
+  - DEVICE1..DEVICE8：接收 DMXDeviceNode 的 DEVICE 输出（VariableData）
+- 输出（1）
+  - UNIVERSE：VariableData，包含 512 通道 DMX 数据与 Universe 寻址信息
 
-**主要特性**：
-- 接收多个ArtnetDevice节点的输出数据
-- 自动合并DMX地址映射到512通道Universe
-- 支持标准Artnet协议寻址（Universe、Subnet、Net）
-- 实时监控连接设备状态和通道活跃度
-- 生成完整的Artnet数据包
-- 支持OSC远程控制
-- **新增：清空数据功能**
+输出 `default` 字段常用内容：
+- `protocol`：Art-Net
+- `opcode`：0x5000
+- `universe/subnet/net`：寻址参数
+- `fullUniverse`：组合后的完整 Universe 值
+- `dmxData`：长度 512 的通道值列表（0-255）
+- `activeChannels`：非零通道数量
+- `maxValue`：最大通道值
+- `timestamp`：时间戳
 
-## 功能说明
+## 节点参数/界面
+- universe：Universe（0-15）
+- subnet：Subnet（0-15）
+- net：Net（0-127）
+- enabled：启用/禁用输出（禁用时输出的 dmxData 全为 0）
 
-### Universe合并机制
-- **多设备输入**：最多支持8个ArtnetDevice输入
-- **地址映射**：根据每个设备的DMX地址范围自动映射到512通道
-- **数据合并**：多个设备可以控制不同的DMX地址范围
-- **冲突处理**：后接收的数据会覆盖相同地址的值
+## 使用步骤
+1. 添加一个或多个 DMXDeviceNode，分别设置它们的 startAddress / channels，并输出 DEVICE。
+2. 将各 DEVICE 连接到 DMXUniverseNode 的 DEVICE1..DEVICE8。
+3. 设置 universe/subnet/net。
+4. 将 UNIVERSE 输出连接到 ArtnetOut 等发送节点。
 
-### 数据清空功能
-- **清空按钮**：一键清空当前Universe的所有512个DMX通道
-- **即时生效**：清空操作立即更新输出数据
-- **安全操作**：清空后所有通道值重置为0
-- **实时反馈**：清空后立即发出数据更新信号
-
-### Artnet协议支持
-- **Universe寻址**：支持Universe (0-15)、Subnet (0-15)、Net (0-127)
-- **完整地址**：自动计算完整Universe地址 = (Net << 8) | (Subnet << 4) | Universe
-- **标准数据包**：生成符合Artnet协议的完整数据包
-- **512通道**：固定输出512个DMX通道数据
-
-## 端口配置
-
-### 输入端口（可编辑）
-- **DEVICE1-DEVICE8**：接收ArtnetDevice节点的输出数据
-- 每个端口接收包含DMX地址映射的数据结构
-- 支持动态连接和断开设备
-- **清空影响**：清空操作会重置所有输入设备的数据
-
-### 输出端口
-- **UNIVERSE**：完整的Artnet Universe数据包
-  - 包含协议头信息
-  - Universe寻址信息
-  - 512通道DMX数据
-  - 统计信息和时间戳
-
-## 界面说明
-
-### Universe配置
-- **Universe**：Universe编号设置 (0-15)
-- **Subnet**：Subnet编号设置 (0-15)
-- **Net**：Net编号设置 (0-127)
-
-### 控制操作
-- **清空数据**：红色按钮，一键清空当前Universe所有通道数据
-- **操作确认**：清空操作立即生效，无需确认
-- **视觉反馈**：按钮具有明显的警告色彩和提示信息
-
-### Universe状态监控
-- **Universe信息**：显示完整Universe地址、活跃通道数、最大通道值
-- **活跃通道进度条**：实时显示有值（>0）的通道数量
-- **最大值进度条**：显示当前所有通道中的最大值
-- **清空后状态**：清空后活跃通道数和最大值都重置为0
-
-### 设备状态监控
-- **连接设备列表**：显示每个输入端口连接的设备信息
-- **设备地址范围**：显示每个设备占用的DMX地址范围
-- **连接状态**：实时显示设备连接状态
-
-## 使用示例
-
-### 示例1：多设备灯光控制系统
-1. 连接多个ArtnetDevice节点到DEVICE输入端口
-2. 设置Universe、Subnet、Net参数
-3. 各设备数据自动合并到512通道Universe
-4. 从UNIVERSE输出端口获取完整数据包
-
-### 示例2：紧急清空操作
-1. 在演出过程中需要紧急关闭所有灯光
-2. 点击"清空数据"按钮
-3. 所有512个DMX通道立即重置为0
-4. 连接的设备输出立即停止
-
-### 示例3：调试和测试
-1. 在调试阶段使用清空功能重置状态
-2. 逐个连接设备测试地址映射
-3. 使用清空功能快速回到初始状态
-4. 验证设备地址范围是否正确
-
-### 示例4：与ArtnetOut节点配合
-1. **ArtnetDevice** → **DMXUniverse** → **ArtnetOut** → **网络广播**
-2. Universe节点负责数据合并和协议封装
-3. Out节点负责网络传输
-4. 可在Universe层面进行数据清空控制
-
-## OSC控制
-
-### 支持的OSC地址
-- `/universe` - 设置Universe编号 (0-15)
-- `/subnet` - 设置Subnet编号 (0-15)
-- `/net` - 设置Net编号 (0-127)
-- `/clear` - 清空所有通道数据（发送任意值触发）
-
-### OSC消息格式
-- 整数值：Universe、Subnet、Net设置
-- 清空操作：发送任意数值到 `/clear` 地址即可触发
-
-## 技术细节
-- 清空操作直接操作内部512通道数组
-- 清空后立即调用updateUniverseData()更新输出
-- 支持通过界面按钮和OSC远程清空
-- 清空操作不影响Universe寻址设置
-- 清空后连接的设备可以重新发送数据进行覆盖
+## 外部控制（可选）
+- `/universe`：设置 Universe（int）
+- `/subnet`：设置 Subnet（int）
+- `/net`：设置 Net（int）
+- `/enable`：启用/禁用（bool）
 
 ## 注意事项
-1. 清空操作是不可逆的，执行前请确认
-2. 清空后需要重新从连接的设备接收数据才能恢复
-3. 清空操作不会断开设备连接，只是重置数据
-4. 建议在调试和紧急情况下使用清空功能
-5. 清空操作会立即影响下游的ArtnetOut节点输出
-6. Universe寻址参数不受清空操作影响
+- 地址冲突：多个 DEVICE 若写入同一 DMX 地址，后到的数据会覆盖先到的数据。
+- 该节点不提供 `/clear` 外部地址；如需清零，建议在上游设备节点禁用输出或将通道值置 0。

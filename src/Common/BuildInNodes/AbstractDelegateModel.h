@@ -7,8 +7,12 @@
 #include <memory>
 #include <QVariant>
 #include <QString>
+#include <QPointer>
 #include <QtWidgets/QWidget>
 #include <QtNodes/internal/NodeDelegateModel.hpp>
+
+class PropertyTreeWidget;
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -36,7 +40,7 @@ public:
     /**
      * 函数级注释：注册控件到 OSC 地址映射，并同步注册到 StatusContainer
      */
-    void registerExternalControl(const QString& oscAddress, QWidget* control) override;
+    void registerExternalBinding(const QString &oscAddress, QObject *target, ExternalBinding binding);
     /**
      * 函数级注释：模型初始化完成回调（GraphModel 设置了 NodeID 与 ParentAlias 之后调用）
      * - 将已有的控件映射统一注册到 StatusContainer
@@ -76,9 +80,14 @@ public:
     virtual QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const = 0;
 
     /**
-     * 函数级注释：返回嵌入式控件（需由派生类实现）
+     * 函数级注释：返回嵌入式控件
+     * - 默认返回基于 Q_PROPERTY 自动生成的属性树控件
+     * - 派生类如需自定义界面，可重写该函数
      */
-    virtual QWidget* embeddedWidget() = 0;
+    QWidget* embeddedWidget() override;
+
+private:
+    mutable QPointer<PropertyTreeWidget> _autoPropertyWidget;
 
     ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override;
 

@@ -1,40 +1,33 @@
-# ImageThresholdNode 帮助文档
+# ImageThresholdNode 使用说明
 
-## 节点功能
-实现基于OpenCV的图像阈值处理，支持以下操作：
-1. 自动将彩色图像转换为灰度图像
-2. 支持5种阈值处理类型：
-  - 二进制阈值化 (THRESH_BINARY)
-  - 反二进制阈值化 (THRESH_BINARY_INV)
-  - 截断阈值化 (THRESH_TRUNC)
-  - 阈值化为0 (THRESH_TOZERO)
-  - 反阈值化为0 (THRESH_TOZERO_INV)
-3. 支持动态调整阈值和最大值参数
-4. 实时预览处理结果
+## 用途
+ImageThresholdNode 用于对输入图像做阈值化（黑白化/截断/置零等），常用于二值分割、轮廓提取前处理等。
 
-## 输入端口
-- IMAGE (PortIndex 0)：输入图像，支持图像类型数据
-- THRESHOLD (PortIndex 1)：阈值参数，支持整数数据
-- MAX_VALUE (PortIndex 2)：最大值参数，支持整数数据
-- THRESHOLD_TYPE (PortIndex 3)：阈值处理类型参数，支持整数数据
+## 端口
+- 输入（4）
+  - IMAGE（端口 0）：ImageData
+  - THRESHOLD（端口 1）：VariableData（int）
+  - MAXVAL（端口 2）：VariableData（int）
+  - METHOD（端口 3）：VariableData（int，方法索引）
+- 输出（1）
+  - OUTPUT 0（端口 0）：ImageData（阈值化后的图像）
 
-## 输出端口
-- IMAGE (PortIndex 0)：输出图像，支持图像类型数据
+## 方法索引（METHOD）
+- 0：Binary
+- 1：BinaryInv
+- 2：Trunc
+- 3：ToZero
+- 4：ToZeroInv
 
-## 节点界面
-- 阈值参数输入框
-- 最大值参数输入框
-- 阈值处理类型下拉列表
+## 外部控制（可选）
+- `/thresh`：设置阈值（int）
+- `/maxval`：设置最大值（int）
+- `/method`：设置方法索引（int）
 
-## 保存与加载
-- 节点支持保存和加载参数。
-
-## 使用示例
-### 基本消息配置
-
-
-
-## 技术细节
-
+## 使用步骤
+1. 将图像源连接到 IMAGE。
+2. 设置 THRESHOLD/MAXVAL 与 METHOD（可通过端口或外部控制）。
+3. 将输出图像连接到下游节点查看结果。
 
 ## 注意事项
+- 输入图像若是彩色，会先自动转为灰度后再阈值化。

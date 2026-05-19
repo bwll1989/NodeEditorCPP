@@ -35,8 +35,9 @@ public:
         layout->addWidget(device_selector, 0, 1, 1, 2);
         layout->addWidget(new QLabel("音量:"), 1, 0, 1, 1);
         layout->addWidget(volume_spinbox, 1, 1, 1, 2);
+        layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 2, 0, 1, 2);
+        layout->setRowStretch(2, 1);
         this->setLayout(layout);
-        this->setFixedSize(QSize(200,100));
     }
 
 signals:

@@ -33,6 +33,7 @@ namespace Nodes
         Q_PROPERTY(QString address READ getAddress WRITE setAddress NOTIFY addressChanged)
         Q_PROPERTY(QString value READ getValue WRITE setValue NOTIFY valueChanged)
         Q_PROPERTY(int typeIndex READ getTypeIndex WRITE setTypeIndex NOTIFY typeIndexChanged)
+        Q_PROPERTY(bool send READ send WRITE setSend NOTIFY sendChanged)
 
     public:
         OscOutDataModel()
@@ -63,21 +64,50 @@ namespace Nodes
 
         void setup() {
             widget=new OscOutInterface();
-            NodeDelegateModel::registerExternalControl("/host",widget->hostLineEdit);
-            NodeDelegateModel::registerExternalControl("/port",widget->portSpinBox);
-            NodeDelegateModel::registerExternalControl("/address",widget->addressLineEdit);
-            NodeDelegateModel::registerExternalControl("/value",widget->valueLineEdit);
-            // connect(widget,&OscOutInterface::hostChanged,OSC_Sender,&OSCSender::setHost);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "host";
+                b.control = widget->hostLineEdit;
+                AbstractDelegateModel::registerExternalBinding("/host", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                b.control = widget->portSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/port", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "address";
+                b.control = widget->addressLineEdit;
+                AbstractDelegateModel::registerExternalBinding("/address", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "value";
+                b.control = widget->valueLineEdit;
+                AbstractDelegateModel::registerExternalBinding("/value", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "typeIndex";
+                b.control = widget->typeComboBox;
+                AbstractDelegateModel::registerExternalBinding("/type", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "send";
+                b.control = widget->sendButton;
+                AbstractDelegateModel::registerExternalBinding("/send", this, b);
+            }
+
             connect(this,&OscOutDataModel::onHasOSC,this,[this](OSCMessage &msg){
                 OSCSender::instance()->sendOSCMessageWithQueue(msg);
             });
 
-            // connect(widget->valueLineEdit,&QLineEdit::textChanged,this,&OscOutDataModel::sendOSCMessage);
             connect(widget->valueLineEdit, &QLineEdit::textChanged, this, &OscOutDataModel::setValue);
+            connect(widget->sendButton, &QPushButton::clicked, this, [this](){ setSend(true); });
 
-            // connect(widget->sendButton,&QPushButton::clicked,this,&OscOutDataModel::sendOSCMessage);
-            connect(widget->sendButton, &QPushButton::clicked, this, &OscOutDataModel::sendOSCMessage);
-            
             connect(widget->hostLineEdit, &QLineEdit::textChanged, this, &OscOutDataModel::setHost);
             connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, &OscOutDataModel::setPort);
             connect(widget->addressLineEdit, &QLineEdit::textChanged, this, &OscOutDataModel::setAddress);
@@ -94,7 +124,7 @@ namespace Nodes
                 widget->hostLineEdit->setText(value);
             }
             emit hostChanged(value);
-            AbstractDelegateModel::stateFeedBack("/host", value);
+            // AbstractDelegateModel::stateFeedBack("/host", value);
         }
 
         int getPort() const { return m_port; }
@@ -106,7 +136,7 @@ namespace Nodes
                 widget->portSpinBox->setValue(value);
             }
             emit portChanged(value);
-            AbstractDelegateModel::stateFeedBack("/port", value);
+            // AbstractDelegateModel::stateFeedBack("/port", value);
         }
 
         QString getAddress() const { return m_address; }
@@ -118,7 +148,7 @@ namespace Nodes
                 widget->addressLineEdit->setText(value);
             }
             emit addressChanged(value);
-            AbstractDelegateModel::stateFeedBack("/address", value);
+            // AbstractDelegateModel::stateFeedBack("/address", value);
         }
 
         QString getValue() const { return m_value; }
@@ -130,7 +160,7 @@ namespace Nodes
                 widget->valueLineEdit->setText(value);
             }
             emit valueChanged(value);
-            AbstractDelegateModel::stateFeedBack("/value", value);
+            // AbstractDelegateModel::stateFeedBack("/value", value);
             // Auto-send when value changes? The original code connected textChanged to sendOSCMessage.
             // Let's keep it consistent: manual send or via trigger. 
             // BUT wait, original line 55: connect(widget->valueLineEdit,&QLineEdit::textChanged,this,&OscOutDataModel::sendOSCMessage);
@@ -147,7 +177,22 @@ namespace Nodes
                 widget->typeComboBox->setCurrentIndex(value);
             }
             emit typeIndexChanged(value);
-            AbstractDelegateModel::stateFeedBack("/type", value);
+            // AbstractDelegateModel::stateFeedBack("/type", value);
+        }
+
+        bool send() const { return m_send; }
+        void setSend(bool value)
+        {
+            if (!value) return;
+            if (!m_send) {
+                m_send = true;
+                emit sendChanged(m_send);
+                sendOSCMessage();
+                m_send = false;
+                emit sendChanged(m_send);
+            } else {
+                sendOSCMessage();
+            }
         }
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
@@ -218,7 +263,7 @@ namespace Nodes
                 case 4:
                     if(textData->value().toBool())
                     {
-                        sendOSCMessage();
+                        setSend(true);
                     }
                     break;
             }
@@ -317,7 +362,7 @@ namespace Nodes
                 msg.type = "String";
                 msg.value = m_value;
             }
-            AbstractDelegateModel::stateFeedBack("/send",true);
+            // AbstractDelegateModel::stateFeedBack("/send",true);
             emit onHasOSC(msg);
         }
 
@@ -327,6 +372,7 @@ namespace Nodes
         void addressChanged(const QString& value);
         void valueChanged(const QString& value);
         void typeIndexChanged(int value);
+        void sendChanged(bool value);
 
         void onHasOSC(OSCMessage &data);
 
@@ -346,7 +392,9 @@ namespace Nodes
             } else if (localPath == "type") {
                 setTypeIndex(ev.payload.toInt());
             } else if (localPath == "send") {
-                sendOSCMessage();
+                if (!ev.payload.isValid() || ev.payload.toBool()) {
+                    setSend(true);
+                }
             }
         }
 
@@ -359,6 +407,7 @@ namespace Nodes
         QString m_address = "/test";
         QString m_value = "0";
         int m_typeIndex = 0;
+        bool m_send = false;
 
     };
 }

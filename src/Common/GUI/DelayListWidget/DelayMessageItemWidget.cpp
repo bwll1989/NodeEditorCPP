@@ -12,41 +12,38 @@ DelayMessageItemWidget::DelayMessageItemWidget(QWidget* parent)
 void DelayMessageItemWidget::setupUI()
 {
     auto* layout = new QHBoxLayout(this);
-    layout->setContentsMargins(2, 2, 2, 2);
+    layout->setContentsMargins(2, 0, 2, 0);
     layout->setSpacing(4);
-    
-    // Host
+    layout->setAlignment(Qt::AlignVCenter);
+
     portIndex = new IntDragValueWidget(this);
 
-    // Value
     timeEdit = new IntDragValueWidget(this);
+    timeEdit->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
-    timeEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
-
-    QLabel* moveLabel = new QLabel();
-    moveLabel->setFixedWidth(10);
+    QLabel* moveLabel = new QLabel(this);
+    moveLabel->setFixedSize(14, 14);
     moveLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-    moveLabel->setPixmap(QPixmap(":/icons/icons/move.png").scaled(moveLabel->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation));
+    moveLabel->setPixmap(QPixmap(":/icons/icons/move.png").scaled(moveLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
     moveLabel->setAlignment(Qt::AlignCenter);
 
-    layout->addWidget(new QLabel("Index:"));
-    layout->addWidget(portIndex);
-    portIndex->setMinimum(0);
-    layout->addWidget(new QLabel("Delay:"));
-    layout->addWidget(timeEdit);
-    timeEdit->setMinimum(0);
-    layout->addWidget(new QLabel("ms"));
-    layout->addWidget(moveLabel);
-    
-    // 设置弹性布局比例
-    layout->setStretch(0, 1);  // port text
-    layout->setStretch(1, 2);  // port
-    layout->setStretch(2, 1);  // value text
-    layout->setStretch(3, 2);  // value
-    layout->setStretch(4, 1);  // ms
-    layout->setStretch(5, 2);  // icon
-    layout->setStretch(7, 1);  // command
+    auto* indexLabel = new QLabel("Index:", this);
+    auto* delayLabel = new QLabel("Delay:", this);
+    auto* msLabel = new QLabel("ms", this);
 
+    layout->addWidget(indexLabel, 0, Qt::AlignVCenter);
+    layout->addWidget(portIndex, 1, Qt::AlignVCenter);
+    portIndex->setMinimum(0);
+
+    layout->addWidget(delayLabel, 0, Qt::AlignVCenter);
+    layout->addWidget(timeEdit, 1, Qt::AlignVCenter);
+    timeEdit->setMinimum(0);
+
+    layout->addWidget(msLabel, 0, Qt::AlignVCenter);
+    layout->addWidget(moveLabel, 0, Qt::AlignVCenter);
+
+    layout->setStretch(1, 1);
+    layout->setStretch(3, 1);
 }
 
 delay_item DelayMessageItemWidget::getMessage() const

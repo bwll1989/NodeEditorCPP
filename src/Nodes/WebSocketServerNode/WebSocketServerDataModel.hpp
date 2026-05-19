@@ -42,9 +42,29 @@ namespace Nodes
             m_outData = std::make_shared<VariableData>();
             
             server = new WebSocketServer();
-            AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
-            AbstractDelegateModel::registerExternalControl("/value", widget->valueEdit);
-            AbstractDelegateModel::registerExternalControl("/send", widget->sendButton);
+       
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                b.control=widget->portSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/port", this, b);
+            }
+            
+            // AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "value";
+                b.control=widget->valueEdit;
+                AbstractDelegateModel::registerExternalBinding("/value", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/value", widget->valueEdit);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "send";
+                b.control=widget->sendButton;
+                AbstractDelegateModel::registerExternalBinding("/send", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/send", widget->sendButton);
             // UI Connections
             connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, [this](int val) {
                 setPort(val);
@@ -88,7 +108,6 @@ namespace Nodes
                 server->start(static_cast<quint16>(m_port));
             }
             emit portChanged(m_port);
-            AbstractDelegateModel::stateFeedBack("/port", m_port);
         }
 
         QString getValue() const { return m_value; }
@@ -100,7 +119,6 @@ namespace Nodes
                 widget->valueEdit->setText(m_value);
             }
             emit valueChanged(m_value);
-            AbstractDelegateModel::stateFeedBack("/value", m_value);
         }
 
         void afterModelReady() override {
@@ -225,9 +243,9 @@ namespace Nodes
                 data = m_value.toUtf8();
                 break;
             }
-
-            if(server) server->broadcastMessage(data, widget->messageType->currentIndex());
             AbstractDelegateModel::stateFeedBack("/send", true);
+            if(server) server->broadcastMessage(data, widget->messageType->currentIndex());
+            AbstractDelegateModel::stateFeedBack("/send", false);
         }
 
         void onGlobalEvent(const GlobalEvent& ev) {

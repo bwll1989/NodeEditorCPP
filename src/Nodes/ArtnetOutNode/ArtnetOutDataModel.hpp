@@ -7,12 +7,17 @@
 #include <QtCore/qglobal.h>
 #include "ArtnetTransmitter.h"
 #include "ArtnetFrame.h"
-#include "ArtnetOutInterface.hpp"
+// #include "ArtnetOutInterface.hpp"
 #include <QVariantMap>
 #include "QThread"
 #include <QTimer>
 #include <QDateTime>
+#include <QSignalBlocker>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "StatusContainer/GlobalEventBus.hpp"
+
+struct GlobalEvent;
+
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -28,20 +33,17 @@ class ArtnetOutDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
     Q_PROPERTY(QString targetHost READ targetHost WRITE setTargetHost NOTIFY targetHostChanged)
+    Q_PROPERTY(bool isReady READ isReady NOTIFY isReadyChanged)
 
 public:
     QString targetHost() const { return m_targetHost; }
+    bool isReady() const { return m_isReady; }
+
 public Q_SLOTS:
     void setTargetHost(const QString &host) {
         if (m_targetHost == host) return;
         m_targetHost = host;
         Q_EMIT targetHostChanged(m_targetHost);
-        
-        // 同步到界面（防止循环更新）
-        if (widget && widget->getTargetHost() != host) {
-            QSignalBlocker blocker(widget);
-            widget->setTargetHost(host);
-        }
     }
 
 public:
@@ -61,13 +63,24 @@ public:
         
         // 获取ArtnetTransmitter单例
         m_artnetTransmitter = ArtnetTransmitter::getInstance();
-        
-        // 连接界面信号（只保留目标主机变化）
-        connect(widget, &ArtnetOutInterface::TargetHostChanged, this, &ArtnetOutDataModel::onTargetHostChanged);
-        
+        setIsReady(m_artnetTransmitter != nullptr);
+
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.member = "targetHost";
+            AbstractDelegateModel::registerExternalBinding("/targetHost", this, b);
+        }
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.member = "isReady";
+            AbstractDelegateModel::registerExternalBinding("/isReady", this, b);
+        }
+
         // 连接ArtnetTransmitter信号
-        connect(m_artnetTransmitter, &ArtnetTransmitter::frameSent, this, &ArtnetOutDataModel::onFrameSent);
-        connect(m_artnetTransmitter, &ArtnetTransmitter::frameSendFailed, this, &ArtnetOutDataModel::onFrameSendFailed);
+        if (m_artnetTransmitter) {
+            connect(m_artnetTransmitter, &ArtnetTransmitter::frameSent, this, &ArtnetOutDataModel::onFrameSent);
+            connect(m_artnetTransmitter, &ArtnetTransmitter::frameSendFailed, this, &ArtnetOutDataModel::onFrameSendFailed);
+        }
         
         // 设置默认值
         setTargetHost("192.168.0.255");  // 默认广播地址
@@ -201,21 +214,61 @@ public:
         }
     }
     
-    /**
-     * 获取嵌入式控件
-     * @return 控件指针
-     */
-    QWidget *embeddedWidget() override {
-        return widget;
-    }
+    // /**
+    //  * 获取嵌入式控件
+    //  * @return 控件指针
+    //  */
+    // QWidget *embeddedWidget() override {
+    //     /**
+    //      * 函数级注释：懒加载创建界面控件
+    //      * - 无头模式下 embeddedWidget 不会被调用，从而避免创建 QWidget 节省资源
+    //      */
+    //     if (!widget) {
+    //         widget = new ArtnetOutInterface();
+    //
+    //         {
+    //             NodeDelegateModel::ExternalBinding b;
+    //             b.member = "targetHost";
+    //             b.control = widget->targetHostEdit;
+    //             AbstractDelegateModel::registerExternalBinding("/targetHost", this, b);
+    //         }
+    //
+    //         {
+    //             const QSignalBlocker blocker(widget->targetHostEdit);
+    //             widget->setTargetHost(m_targetHost);
+    //         }
+    //
+    //         if (!m_isReady) {
+    //             widget->setStatus("ArtnetTransmitter未初始化", false);
+    //         }
+    //
+    //         connect(widget, &ArtnetOutInterface::TargetHostChanged, this, &ArtnetOutDataModel::setTargetHost);
+    //     }
+    //     return widget;
+    // }
     
+protected:
+    /**
+     * 函数级注释：模型就绪后订阅全局事件总线，实现外部命令控制 targetHost
+     */
+    void afterModelReady() override
+    {
+        GlobalEventBus::instance()->subscribe(makeFullOscAddress("/targetHost"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    }
+
 private slots:
     /**
-     * 目标主机变化处理
-     * @param host 新的目标主机地址
+     * 函数级注释：处理来自全局事件总线的命令，更新 targetHost 属性
      */
-    void onTargetHostChanged(const QString &host) {
-        setTargetHost(host);
+    void onGlobalEvent(const GlobalEvent& ev)
+    {
+        if (ev.kind != GlobalEventKind::Command) {
+            return;
+        }
+        if (ev.address != makeFullOscAddress("/targetHost")) {
+            return;
+        }
+        setTargetHost(ev.payload.toString());
     }
     
     /**
@@ -233,8 +286,11 @@ private slots:
         
         m_outData = std::make_shared<VariableData>(statusData);
         Q_EMIT dataUpdated(0);
-        
-        widget->setStatus(QString("Universe %1 发送成功").arg(frame.universe), true);
+
+        setIsReady(true);
+        // if (widget) {
+        //     widget->setStatus(QString("Universe %1 发送成功").arg(frame.universe), true);
+        // }
     }
     
     /**
@@ -252,8 +308,11 @@ private slots:
         
         m_outData = std::make_shared<VariableData>(statusData);
         Q_EMIT dataUpdated(0);
-        
-        widget->setStatus(QString("Universe %1 发送失败: %2").arg(frame.universe).arg(error), false);
+
+        setIsReady(false);
+        // if (widget) {
+        //     widget->setStatus(QString("Universe %1 发送失败: %2").arg(frame.universe).arg(error), false);
+        // }
     }
     
 private:
@@ -263,7 +322,10 @@ private:
      */
     void sendUniverseData(const QVariantMap &artnetPacket) {
         if (!m_artnetTransmitter) {
-            widget->setStatus("ArtnetTransmitter未初始化", false);
+            setIsReady(false);
+            // if (widget) {
+            //     widget->setStatus("ArtnetTransmitter未初始化", false);
+            // }
             return;
         }
         
@@ -308,14 +370,27 @@ private:
     }
 signals:
     void targetHostChanged(const QString &host);
+    void isReadyChanged(bool ready);
+
+private:
+    void setIsReady(bool ready)
+    {
+        if (m_isReady == ready) {
+            return;
+        }
+        m_isReady = ready;
+        Q_EMIT isReadyChanged(m_isReady);
+    }
+
 private:
     std::shared_ptr<VariableData> m_outData;
     
     ArtnetTransmitter* m_artnetTransmitter;  // ArtnetTransmitter单例
-    ArtnetOutInterface* widget = new ArtnetOutInterface();  // 界面控件
+    // ArtnetOutInterface* widget = nullptr;  // 界面控件（懒加载）
     
     // 配置参数
     QString m_targetHost;     // 目标主机地址
+    bool m_isReady = false;
     
     // Universe数据缓存 - 键为端口索引，值为ArtnetUniverseNode的输出数据包
     QMap<int, QVariantMap> m_universeCache;

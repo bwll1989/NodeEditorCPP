@@ -1,49 +1,35 @@
-# ImageCompareNode 帮助文档
+# FaceDetectionNode 使用说明
 
-## 节点功能
-实现基于OpenCV的图像相似度计算，支持以下算法：
-1. 均方误差（MSE）
-2. 结构相似性指数（SSIM）
-3. 峰值信噪比（PSNR）
+## 用途
+FaceDetectionNode 用于对输入图像进行人脸检测，并输出：
+- 带检测框的图像
+- 检测结果（数量、每个框的位置与置信度）
 
-## 输入端口
-- IMAGE 1 (PortIndex 0)：输入图像，支持图像类型数据
-- IMAGE 2 (PortIndex 1)：输入图像，支持图像类型数据
-## 输出端口
-- OUTPUT 0 (PortIndex 0)：相似度数值(float),数值越大相似度越高，最大100%
+## 端口
+- 输入（1）
+  - IMAGE（端口 0）：ImageData
+- 输出（2）
+  - IMAGE 0（端口 0）：ImageData（已绘制检测框）
+  - RESULT（端口 1）：VariableData（检测结果）
 
-## 节点界面
-- 方法选择下拉框：MSE/SSIM/PSNR
+RESULT 常用字段：
+- `count`：检测到的人脸数量（int）
+- `detections`：列表，每项包含：
+  - `score`：置信度（float）
+  - `box`：`[x1, y1, x2, y2]`（int）
+  - `classId`：类别 ID（int）
+  - `className`：类别名称（固定为 `"face"`）
+- `width` / `height`：原图尺寸
 
-## 保存与加载
-- 节点支持保存和加载参数。
+## 节点参数/界面
+- conf：置信度阈值
+- nms：NMS 阈值
 
-## 使用示例
-### 基本相似度比较
-1. 连接两个图像源节点到INPUT 0和INPUT 1
-2. 在下拉菜单中选择比较方法（默认MSE）
-3. 输出端口将得到相似度数值：
-    - MSE值越小表示越相似（范围0-1）
-    - SSIM值越接近1表示越相似
-    - PSNR值越大表示质量越好（单位dB）
-## 技术细节
-- 核心算法：
-    - MSE: `cv::norm()`计算L2范数平方
-    - SSIM: 动态高斯核结构相似性计算
-    - PSNR: 基于MSE的对数计算
-- 预处理流程：
-    1. 自动转换为灰度图像
-    2. 强制统一输入图像尺寸
-    3. 类型校验（CV_8UC1）
-- 性能优化：
-    - 异步计算保证界面流畅
-    - 智能指针管理图像数据
-    - OpenCV并行算法加速
-
+## 使用步骤
+1. 将图像源连接到 IMAGE。
+2. 从 IMAGE 0 获取绘制框后的图像用于显示/录制。
+3. 从 RESULT 读取 detections，用于做跟踪、裁剪或触发逻辑。
 
 ## 注意事项
-1. 输入图像必须为相同尺寸和类型
-2. 建议输入图像分辨率不低于100x100像素
-3. SSIM计算使用动态高斯核（基于图像尺寸自动调整）
-4. 空输入或尺寸不匹配时返回0.0
-5. 支持通过OSC控制方法选择（/method）
+- 默认模型文件路径为 `./plugins/Models/yolo11n-face-detection.onnx`，缺失时将无法检测。
+- 输入为空图像时不会输出结果。

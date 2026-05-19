@@ -36,7 +36,7 @@ TaskListWidget::TaskListWidget(ScheduledTaskModel* model,QWidget* parent)
     // 网格显示参数：
     // - 使用统一尺寸的网格，保持卡片一致大小（与 TaskItemWidget 最小尺寸一致）
     setUniformItemSizes(true);
-    setGridSize(QSize(370, 200));
+    setGridSize(QSize(220, 200));
     // - 网格间距（水平/垂直）
     setSpacing(4, 4);
 

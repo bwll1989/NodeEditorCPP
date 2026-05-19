@@ -12,6 +12,7 @@
 #include "QTextBrowser"
 #include "QComboBox"
 #include "QVariant"
+#include <QSpacerItem>
 using namespace std;
 namespace Nodes
 {
@@ -22,14 +23,22 @@ namespace Nodes
             format->addItem("HEX");
             format->addItem("UTF-8");
             format->addItem("ASCII");
-            main_layout->addWidget(hostLabel, 0,0);
-            main_layout->addWidget(hostLineEdit, 0,1);
-            main_layout->addWidget(portLabel, 1,0);
-            main_layout->addWidget(portSpinBox, 1,1);
-            main_layout->addWidget(valueLabel, 2,0);
-            main_layout->addWidget(valueEdit, 2,1);
-            main_layout->addWidget(format, 3,0,1,2);
-            main_layout->addWidget(sendButton, 4,0,1,2);
+
+            main_layout->setContentsMargins(0, 0, 0, 0);
+            main_layout->setSpacing(6);
+            main_layout->setColumnStretch(0, 1);
+            main_layout->setColumnStretch(1, 2);
+
+            main_layout->addWidget(hostLabel, 0, 0);
+            main_layout->addWidget(hostLineEdit, 0, 1);
+            main_layout->addWidget(portLabel, 1, 0);
+            main_layout->addWidget(portSpinBox, 1, 1);
+            main_layout->addWidget(valueLabel, 2, 0);
+            main_layout->addWidget(valueEdit, 2, 1);
+            main_layout->addWidget(format, 3, 0, 1, 2);
+            main_layout->addWidget(sendButton, 4, 0, 1, 2);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 5, 0, 1, 2);
+            main_layout->setRowStretch(5, 1);
             hostLineEdit->setText("0.0.0.0");
             portSpinBox->setRange(0,65536);
             portSpinBox->setValue(2001);

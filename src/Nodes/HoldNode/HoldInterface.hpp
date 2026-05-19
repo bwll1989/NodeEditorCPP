@@ -53,6 +53,9 @@ namespace Nodes
             main_layout->addWidget(modeLabel, 1, 0);
             main_layout->addWidget(ignoreRepeatCheckBox, 1, 1, 1, 2);
             main_layout->setContentsMargins(4, 2, 4, 4);
+            // 空行
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 2, 0, 1, 2);
+            main_layout->setRowStretch(2, 1);
             this->setLayout(main_layout);
         }
         

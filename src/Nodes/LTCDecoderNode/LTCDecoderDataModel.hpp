@@ -53,9 +53,9 @@ namespace Nodes {
             InPortCount = 1;
             OutPortCount = 5;
             CaptionVisible = true;
-            WidgetEmbeddable = true;
             Resizable = false;
             PortEditable = false;
+            WidgetEmbeddable=false;
             Caption = PLUGIN_NAME;
 
             // 设置工作线程

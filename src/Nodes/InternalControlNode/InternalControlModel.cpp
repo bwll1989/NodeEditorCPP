@@ -20,7 +20,11 @@ InternalControlModel::InternalControlModel(){
     connect(widget->testButton,&QPushButton::clicked,this,[=](){
         setTrigger(true);
     });
-    AbstractDelegateModel::registerExternalControl("/trigger",widget->testButton);
+     NodeDelegateModel::ExternalBinding b;
+            b.member = "trigger";
+            b.control = widget->testButton;
+        AbstractDelegateModel::registerExternalBinding("/trigger", this, b);
+    // AbstractDelegateModel::registerExternalControl("/trigger",widget->testButton);
 }
 
 QtNodes::NodeDataType InternalControlModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const {

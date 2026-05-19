@@ -74,6 +74,8 @@ namespace Nodes
             connectionLayout->addWidget(openButton, 3, 0, 1, 1);
             connectionLayout->addWidget(closeButton, 3, 1, 1, 1);
             connectionLayout->addWidget(resetButton, 4, 0, 1, 2);
+            connectionLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 5, 0, 1, 2);
+            connectionLayout->setRowStretch(5, 1);
         }
 
     private:

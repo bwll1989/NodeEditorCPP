@@ -1,49 +1,41 @@
-# ImageCompareNode 帮助文档
+# ObjectDetectionNode 使用说明
 
-## 节点功能
-实现基于OpenCV的图像相似度计算，支持以下算法：
-1. 均方误差（MSE）
-2. 结构相似性指数（SSIM）
-3. 峰值信噪比（PSNR）
+## 用途
+对输入图像进行目标检测，并输出：
+- 叠加检测框/标签后的图像
+- 检测结果列表（VariableData）
 
-## 输入端口
-- IMAGE 1 (PortIndex 0)：输入图像，支持图像类型数据
-- IMAGE 2 (PortIndex 1)：输入图像，支持图像类型数据
-## 输出端口
-- OUTPUT 0 (PortIndex 0)：相似度数值(float),数值越大相似度越高，最大100%
+## 端口
+### 输入
+- IMAGE（ImageData）：输入图像
 
-## 节点界面
-- 方法选择下拉框：MSE/SSIM/PSNR
+### 输出
+- IMAGE 0（ImageData）：检测结果图（带框与标签）
+- RESULT（VariableData）：检测结果数据
 
-## 保存与加载
-- 节点支持保存和加载参数。
+## 参数/界面
+- Enable：启用/禁用检测
+- Confidence：置信度阈值（数值越高越严格）
+- Class Filter：类别过滤（选择后只检测该类别；若选择“全部/无过滤”，则检测所有类别）
 
-## 使用示例
-### 基本相似度比较
-1. 连接两个图像源节点到INPUT 0和INPUT 1
-2. 在下拉菜单中选择比较方法（默认MSE）
-3. 输出端口将得到相似度数值：
-    - MSE值越小表示越相似（范围0-1）
-    - SSIM值越接近1表示越相似
-    - PSNR值越大表示质量越好（单位dB）
-## 技术细节
-- 核心算法：
-    - MSE: `cv::norm()`计算L2范数平方
-    - SSIM: 动态高斯核结构相似性计算
-    - PSNR: 基于MSE的对数计算
-- 预处理流程：
-    1. 自动转换为灰度图像
-    2. 强制统一输入图像尺寸
-    3. 类型校验（CV_8UC1）
-- 性能优化：
-    - 异步计算保证界面流畅
-    - 智能指针管理图像数据
-    - OpenCV并行算法加速
+## 外部控制（可选）
+- /enable（bool）：启用/禁用
+- /confidence（double）：设置置信度阈值
+- /filter（int）：设置类别索引（与界面下拉一致）
 
+## 输出字段（RESULT）
+RESULT 为一个键值表，常用字段：
+- default：数组，每项为一个检测结果（QVariantMap）
+  - class_id（int）
+  - class_name（string）
+  - confidence（double，0~1）
+- total_detections（int）：检测数量
+
+## 使用步骤
+1. 将图像源连接到 IMAGE。
+2. 打开 Enable，调整 Confidence（必要时选择 Class Filter）。
+3. 从 IMAGE 0 获取叠加框的图像；从 RESULT 获取结构化检测结果，供下游逻辑/显示使用。
 
 ## 注意事项
-1. 输入图像必须为相同尺寸和类型
-2. 建议输入图像分辨率不低于100x100像素
-3. SSIM计算使用动态高斯核（基于图像尺寸自动调整）
-4. 空输入或尺寸不匹配时返回0.0
-5. 支持通过OSC控制方法选择（/method）
+- 未启用或无输入时，RESULT 会输出空结果（total_detections=0）。
+- 类别索引与模型/界面下拉保持一致；不同模型可能会导致类别列表变化。 

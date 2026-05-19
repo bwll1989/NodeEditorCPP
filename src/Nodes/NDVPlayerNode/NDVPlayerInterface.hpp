@@ -5,7 +5,9 @@
 #include <QLineEdit>
 #include "QWidget"
 #include "QLabel"
-#include "QGridLayout"
+#include <QHBoxLayout>
+#include <QSpacerItem>
+#include <QVBoxLayout>
 #include <QSpinBox>
 #include <QPushButton>
 
@@ -21,36 +23,50 @@ namespace Nodes
     public:
         explicit NDVPlayerInterface(QWidget *parent = nullptr){
 
-            main_layout->addWidget(new QLabel("Player ID:", this), 0, 0, 1, 1);
-            main_layout->addWidget(PlayerID, 0, 1, 1, 1);
+            auto *layout = new QVBoxLayout(this);
+            layout->setContentsMargins(5, 5, 5, 5);
+            layout->setSpacing(5);
+
+            const auto addRow = [this, layout](const QString& labelText, QWidget* editor) {
+                auto *row = new QWidget(this);
+                auto *rowLayout = new QHBoxLayout(row);
+                rowLayout->setContentsMargins(0, 0, 0, 0);
+                rowLayout->setSpacing(8);
+
+                auto *label = new QLabel(labelText, row);
+                rowLayout->addWidget(label, 0);
+                rowLayout->addWidget(editor, 1);
+
+                layout->addWidget(row);
+            };
+
+            addRow("Player ID:", PlayerID);
             PlayerID->setRange(1, 99);
             PlayerID->setValue(1);
 
             // 文件控制
-            main_layout->addWidget(new QLabel("File Index:", this), 1, 0, 1, 1);
-            main_layout->addWidget(FileIndex, 1, 1, 1, 1);
+            addRow("File Index:", FileIndex);
             FileIndex->setRange(0, 100);
             FileIndex->setValue(0);
 
             // 播放控制按钮
-            main_layout->addWidget(Play, 2, 0, 1, 2);
-            main_layout->addWidget(LoopPlay, 3, 0, 1, 2);
-            main_layout->addWidget(Stop, 4, 0, 1, 2);
+            layout->addWidget(Play);
+            layout->addWidget(LoopPlay);
+            layout->addWidget(Stop);
             
             // 文件导航
-            main_layout->addWidget(Prev, 5, 0, 1, 1);
-            main_layout->addWidget(Next, 5, 1, 1, 1);
+            auto *navRow = new QWidget(this);
+            auto *navLayout = new QHBoxLayout(navRow);
+            navLayout->setContentsMargins(0, 0, 0, 0);
+            navLayout->setSpacing(8);
+            navLayout->addWidget(Prev);
+            navLayout->addWidget(Next);
+            layout->addWidget(navRow);
 
-            main_layout->setColumnStretch(0, 1);
-            main_layout->setColumnStretch(1, 1);
-            main_layout->setSpacing(5);
-            main_layout->setContentsMargins(5, 5, 5, 5);
-
-            this->setLayout(main_layout);
+            layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
         }
 
     public:
-        QGridLayout *main_layout = new QGridLayout(this);
         IntDragValueWidget *PlayerID = new IntDragValueWidget(this);
         IntDragValueWidget *FileIndex = new IntDragValueWidget(this);
         QPushButton *Play = new QPushButton("Play", this);

@@ -55,18 +55,39 @@ namespace Nodes
             generator->setVolume(0.0);  // 0 dB = 线性值 1.0
         
             // 连接信号
+            // 同步更新按钮文字：启动时显示“停止”，停止时显示“启动”
             connect(widget->startButton, &QPushButton::clicked,
-                    this, [this](){ setGenerating(true); });
-            connect(widget->stopButton, &QPushButton::clicked,
-                    this, [this](){ setGenerating(false); });
+                    this, [this](bool checked){
+                        setGenerating(checked);
+                        widget->startButton->setText(checked ? "停止" : "启动");
+                    });
+
             connect(widget->volumeSlider, &FloatDragValueWidget::valueChanged,
                     this, &NoiseGeneratorDataModel::setVolume);
             connect(widget->noiseTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
                     this, &NoiseGeneratorDataModel::setNoiseType);
-            AbstractDelegateModel::registerExternalControl("/volume", widget->volumeSlider);
-            AbstractDelegateModel::registerExternalControl("/noise_type", widget->noiseTypeCombo);
-            AbstractDelegateModel::registerExternalControl("/start", widget->startButton);
-            AbstractDelegateModel::registerExternalControl("/stop", widget->stopButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "volume";
+                b.control = widget->volumeSlider;
+                AbstractDelegateModel::registerExternalBinding("/volume", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/volume", widget->volumeSlider);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "noiseType";
+                b.control = widget->noiseTypeCombo;
+                AbstractDelegateModel::registerExternalBinding("/noiseType", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/noise_type", widget->noiseTypeCombo);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "generating";
+                b.control = widget->startButton;
+                AbstractDelegateModel::registerExternalBinding("/generating", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/start", widget->startButton);
+            // AbstractDelegateModel::registerExternalControl("/stop", widget->stopButton);
         }
 
         /**
@@ -85,9 +106,8 @@ namespace Nodes
             
             // Subscribe to properties
             bus->subscribe(makeFullOscAddress("/volume"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/type"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/start"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/noiseType"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/generating"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
         /**
@@ -136,7 +156,7 @@ namespace Nodes
             case PortType::In:
                 if (portIndex == 0) return "GAIN";
                 if (portIndex == 1) return "TYPE";
-                if (portIndex == 2) return "START";
+                if (portIndex == 2) return "START/STOP";
                 break;
             case PortType::Out:
                 if (portIndex == 0) return "Out";
@@ -228,7 +248,6 @@ namespace Nodes
             }
             
             emit volumeChanged(value);
-            AbstractDelegateModel::stateFeedBack("/volume", value);
         }
 
         int getNoiseType() const { return m_noiseType; }
@@ -245,7 +264,6 @@ namespace Nodes
             }
             
             emit noiseTypeChanged(value);
-            AbstractDelegateModel::stateFeedBack("/type", value);
         }
 
         bool isGenerating() const { return m_generating; }
@@ -255,16 +273,16 @@ namespace Nodes
             
             if (value) {
                 generator->startGeneration();
-                widget->startButton->setEnabled(false);
-                widget->stopButton->setEnabled(true);
+               
             } else {
                 generator->stopGeneration();
-                widget->startButton->setEnabled(true);
-                widget->stopButton->setEnabled(false);
+               
             }
-            
+            widget->blockSignals(true);
+            widget->startButton->setChecked(value);
+            widget->startButton->setText(value ? "停止" : "启动");
+            widget->blockSignals(false);
             emit generatingChanged(value);
-            AbstractDelegateModel::stateFeedBack("/start", value);
         }
 
     Q_SIGNALS:
@@ -279,12 +297,10 @@ namespace Nodes
             
             if (localPath == "volume") {
                 setVolume(ev.payload.toDouble());
-            } else if (localPath == "type") {
+            } else if (localPath == "noiseType") {
                 setNoiseType(ev.payload.toInt());
-            } else if (localPath == "start") {
-                setGenerating(true);
-            } else if (localPath == "stop") {
-                setGenerating(false);
+            } else if (localPath == "generating") {
+                setGenerating(ev.payload.toBool());
             }
         }
     

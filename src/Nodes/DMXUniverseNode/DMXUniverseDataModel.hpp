@@ -34,6 +34,7 @@ namespace Nodes
         Q_PROPERTY(int universe READ universe WRITE setUniverse NOTIFY universeChanged)
         Q_PROPERTY(int subnet READ subnet WRITE setSubnet NOTIFY subnetChanged)
         Q_PROPERTY(int net READ net WRITE setNet NOTIFY netChanged)
+        Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
 
     public:
         /**
@@ -62,16 +63,33 @@ namespace Nodes
                     this, &DMXUniverseDataModel::setSubnet);
             connect(widget->netSpinBox, QOverload<int>::of(&IntDragValueWidget::valueChanged),
                     this, &DMXUniverseDataModel::setNet);
+            connect(widget->enableButton, &QPushButton::clicked,this, &DMXUniverseDataModel::setEnabled);
             
-            // 连接清空按钮信号
-            connect(widget, &Nodes::DMXUniverseInterface::clearDataClicked,
-                    this, &DMXUniverseDataModel::onClearDataClicked);
-            
-            // 注册OSC控制
-            AbstractDelegateModel::registerExternalControl("/universe", widget->universeSpinBox);
-            AbstractDelegateModel::registerExternalControl("/subnet", widget->subnetSpinBox);
-            AbstractDelegateModel::registerExternalControl("/net", widget->netSpinBox);
-            AbstractDelegateModel::registerExternalControl("/clear", widget->clearButton);
+            // 注册外部控制（属性化绑定）
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "universe";
+                b.control = widget->universeSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/universe", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "subnet";
+                b.control = widget->subnetSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/subnet", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "net";
+                b.control = widget->netSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/net", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "enabled";
+                AbstractDelegateModel::registerExternalBinding("/enable", this, b);
+            }
+
             // 初始化输出数据
             updateUniverseData();
         }
@@ -83,6 +101,7 @@ namespace Nodes
         int universe() const { return m_universe; }
         int subnet() const { return m_subnet; }
         int net() const { return m_net; }
+        bool enabled() const { return m_enabled; }
 
     public slots:
         void setUniverse(int universe) {
@@ -96,7 +115,6 @@ namespace Nodes
             }
             updateUniverseData();
             Q_EMIT universeChanged(universe);
-            AbstractDelegateModel::stateFeedBack("/universe", universe);
         }
 
         void setSubnet(int subnet) {
@@ -110,7 +128,6 @@ namespace Nodes
             }
             updateUniverseData();
             Q_EMIT subnetChanged(subnet);
-            AbstractDelegateModel::stateFeedBack("/subnet", subnet);
         }
 
         void setNet(int netValue) {
@@ -124,7 +141,21 @@ namespace Nodes
             }
             updateUniverseData();
             Q_EMIT netChanged(netValue);
-            AbstractDelegateModel::stateFeedBack("/net", netValue);
+        }
+
+        void setEnabled(bool enabled)
+        {
+            if (m_enabled == enabled) {
+                return;
+            }
+            m_enabled = enabled;
+            if (widget) {
+                const QSignalBlocker blocker(widget->netSpinBox);
+                widget->enableButton->setChecked(m_enabled);
+            }
+            dmxData.fill(0);
+            updateUniverseData();
+            Q_EMIT enabledChanged(m_enabled);
         }
 
         void onGlobalEvent(const GlobalEvent& ev) {
@@ -135,7 +166,7 @@ namespace Nodes
             const QString addrUniverse = makeFullOscAddress("/universe");
             const QString addrSubnet = makeFullOscAddress("/subnet");
             const QString addrNet = makeFullOscAddress("/net");
-            const QString addrClear = makeFullOscAddress("/clear");
+            const QString addrEnable = makeFullOscAddress("/enable");
 
             if (ev.address == addrUniverse) {
                 setUniverse(ev.payload.toInt());
@@ -143,8 +174,8 @@ namespace Nodes
                 setSubnet(ev.payload.toInt());
             } else if (ev.address == addrNet) {
                 setNet(ev.payload.toInt());
-            } else if (ev.address == addrClear) {
-                onClearDataClicked();
+            } else if (ev.address == addrEnable) {
+                setEnabled(ev.payload.toBool());
             }
         }
 
@@ -196,7 +227,7 @@ namespace Nodes
          */
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            if (data == nullptr) {
+            if (data == nullptr || !m_enabled) {
                 return;
             }
             
@@ -286,13 +317,13 @@ namespace Nodes
         void onClearDataClicked() {
             dmxData.fill(0);
             updateUniverseData();
-            AbstractDelegateModel::stateFeedBack("/clear", true);
         }
 
     Q_SIGNALS:
         void universeChanged(int universe);
         void subnetChanged(int subnet);
         void netChanged(int net);
+        void enabledChanged(bool enabled);
 
     protected:
         void afterModelReady() override {
@@ -312,7 +343,7 @@ namespace Nodes
                 SLOT(onGlobalEvent(GlobalEvent))
             );
             GlobalEventBus::instance()->subscribe(
-                makeFullOscAddress("/clear"),
+                makeFullOscAddress("/enable"),
                 this,
                 SLOT(onGlobalEvent(GlobalEvent))
             );
@@ -323,6 +354,7 @@ namespace Nodes
          * @brief 更新Universe数据输出
          */
         void updateUniverseData() {
+
             universeData = std::make_shared<VariableData>();
             
             // 创建完整的Artnet Universe数据包
@@ -349,7 +381,7 @@ namespace Nodes
             // DMX数据
             QVariantList dmxList;
             for (int i = 0; i < 512; ++i) {
-                dmxList.append(dmxData[i]);
+                dmxList.append(m_enabled ? dmxData[i] : 0);
             }
             artnetPacket["dmxData"] = dmxList;
             artnetPacket["dataLength"] = 512;
@@ -358,10 +390,11 @@ namespace Nodes
             int activeChannels = 0;
             int maxValue = 0;
             for (int i = 0; i < 512; ++i) {
-                if (dmxData[i] > 0) {
+                const int v = m_enabled ? dmxData[i] : 0;
+                if (v > 0) {
                     activeChannels++;
                 }
-                maxValue = qMax(maxValue, dmxData[i]);
+                maxValue = qMax(maxValue, v);
             }
             artnetPacket["activeChannels"] = activeChannels;
             artnetPacket["maxValue"] = maxValue;
@@ -384,5 +417,6 @@ namespace Nodes
         int m_universe = 0;
         int m_subnet = 0;
         int m_net = 0;
+        bool m_enabled = true;
     };
 }

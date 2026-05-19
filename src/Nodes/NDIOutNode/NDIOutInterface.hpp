@@ -11,7 +11,7 @@
 #include <QGroupBox>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QGridLayout>
+#include <QSpacerItem>
 #include <QDateTime>
 #include <QCheckBox>
 #include <QDoubleSpinBox>
@@ -121,17 +121,19 @@ namespace Nodes
         void createSenderGroup() {
         m_senderGroup = new QGroupBox("发送器设置", this);
         QVBoxLayout *layout = new QVBoxLayout(m_senderGroup);
-        // 发送器名称
-        QHBoxLayout *nameLayout = new QHBoxLayout();
-        QLabel *nameLabel = new QLabel("名称:");
-        m_senderNameEdit = new QLineEdit("NodeEditor NDI Output");
-        nameLayout->addWidget(nameLabel);
-        nameLayout->addWidget(m_senderNameEdit);
+        auto *nameRow = new QWidget(m_senderGroup);
+        auto *nameLayout = new QHBoxLayout(nameRow);
+        nameLayout->setContentsMargins(0, 0, 0, 0);
+        nameLayout->setSpacing(8);
+        QLabel *nameLabel = new QLabel("名称:", nameRow);
+        m_senderNameEdit = new QLineEdit("NodeEditor NDI Output", nameRow);
+        nameLayout->addWidget(nameLabel, 0);
+        nameLayout->addWidget(m_senderNameEdit, 1);
         m_startStopButton = new QPushButton("开始");
         m_startStopButton->setCheckable(true);
         m_statusLabel = new QLabel("状态: 已停止");
 
-        layout->addLayout(nameLayout);
+        layout->addWidget(nameRow);
         layout->addWidget(m_startStopButton);
         layout->addWidget(m_statusLabel);
     }
@@ -146,6 +148,7 @@ namespace Nodes
         m_mainLayout->setContentsMargins(5, 5, 5, 5);
         m_mainLayout->setSpacing(5);
         m_mainLayout->addWidget(m_senderGroup);
+        m_mainLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
     }
 
         /**

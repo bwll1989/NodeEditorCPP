@@ -23,8 +23,8 @@ namespace Nodes
             OutPortCount=2;
             CaptionVisible=true;
             Caption="Image Info";
-            WidgetEmbeddable= true;
-            Resizable=true;
+            WidgetEmbeddable= false;
+            Resizable=false;
             PortEditable= false;
 
         };

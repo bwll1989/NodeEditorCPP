@@ -43,7 +43,11 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outJsonData=std::make_shared<VariableData>();
-            AbstractDelegateModel::registerExternalControl("/file",_fileSelectComboBox);
+            NodeDelegateModel::ExternalBinding binding;
+            binding.member = "file";
+            binding.control = _fileSelectComboBox;
+            AbstractDelegateModel::registerExternalBinding("/file", this, binding);
+
             connect(_fileSelectComboBox, &SelectorComboBox::textChanged, this, &JsonLoaderModel::setFile);
             connect(this, &JsonLoaderModel::fileChanged, this, [this](const QString&){
                 {
@@ -51,7 +55,6 @@ namespace Nodes
                     _fileSelectComboBox->setText(m_file);
                 }
                 loadJson(m_file);
-                AbstractDelegateModel::stateFeedBack("/file", m_file);
             });
         }
         ~JsonLoaderModel() override = default;

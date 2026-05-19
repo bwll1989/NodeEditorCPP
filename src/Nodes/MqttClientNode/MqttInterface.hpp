@@ -51,6 +51,8 @@ namespace Nodes
             main_layout->addWidget(statusButton, 7, 0, 1, 2);
             main_layout->addWidget(publishButton, 8, 0, 1, 2);
             main_layout->setContentsMargins(4, 2, 4, 4);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 9, 0, 1, 2);
+            main_layout->setRowStretch(9, 1);
             this->setLayout(main_layout);
         }
         

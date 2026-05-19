@@ -14,6 +14,7 @@
 #include <QGridLayout>
 #include <QDateTime>
 #include <QCheckBox>
+#include <QSpacerItem>
 
 namespace Nodes
 {
@@ -92,8 +93,8 @@ namespace Nodes
          */
         void updateSenderList(const QStringList& senders) {
             m_senderComboBox->blockSignals(true);
-            QString currentSelection = m_senderComboBox->currentText();
-            
+            const QString currentSelection = m_senderComboBox->currentText();
+
             m_senderComboBox->clear();
             if (senders.isEmpty()) {
                 m_senderComboBox->addItem("无可用发送器");
@@ -101,18 +102,18 @@ namespace Nodes
             } else {
                 m_senderComboBox->addItems(senders);
                 m_senderComboBox->setEnabled(true);
-                
-                // 尝试恢复之前的选择
-                int index = m_senderComboBox->findText(currentSelection);
+
+                const int index = m_senderComboBox->findText(currentSelection);
                 if (index >= 0) {
                     m_senderComboBox->setCurrentIndex(index);
-                } else if (senders.size() > 0) {
-                    // 自动连接第一个发送器
+                } else {
                     m_senderComboBox->setCurrentIndex(0);
-
                 }
+            }
+            m_senderComboBox->blockSignals(false);
+
+            if (m_senderComboBox->isEnabled()) {
                 emit senderSelected(m_senderComboBox->currentText());
-                m_senderComboBox->blockSignals(false);
             }
         }
 
@@ -153,7 +154,6 @@ namespace Nodes
          * @brief 创建发送器选择组
          */
         void initInterface() {
-            m_mainLayout = new QGridLayout(this);
             m_senderComboBox = new QComboBox();
             m_senderComboBox->addItem("无可用发送器");
             m_senderComboBox->setEditable(true);
@@ -165,10 +165,21 @@ namespace Nodes
             m_startStopButton->setCheckable(true);
             m_connectionStatusLabel = new QLabel("状态: 未连接");
 
-            m_mainLayout->addWidget(m_senderComboBox, 0, 0, 1, 3);
-            m_mainLayout->addWidget(m_refreshButton, 0, 3,1,1);
-            m_mainLayout->addWidget(m_startStopButton, 1, 0,1,4);
-            m_mainLayout->addWidget(m_connectionStatusLabel, 2, 0,1,4);
+            m_mainLayout = new QVBoxLayout(this);
+            m_mainLayout->setContentsMargins(5, 5, 5, 5);
+            m_mainLayout->setSpacing(6);
+
+            auto* senderRow = new QWidget(this);
+            auto* senderRowLayout = new QHBoxLayout(senderRow);
+            senderRowLayout->setContentsMargins(0, 0, 0, 0);
+            senderRowLayout->setSpacing(8);
+            senderRowLayout->addWidget(m_senderComboBox, 1);
+            senderRowLayout->addWidget(m_refreshButton, 0);
+
+            m_mainLayout->addWidget(senderRow);
+            m_mainLayout->addWidget(m_startStopButton);
+            m_mainLayout->addWidget(m_connectionStatusLabel);
+            m_mainLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
         }
 
         /**
@@ -183,7 +194,7 @@ namespace Nodes
 
     private:
         // 主布局
-        QGridLayout *m_mainLayout;
+        QVBoxLayout *m_mainLayout;
 
         QPushButton *m_refreshButton;
 

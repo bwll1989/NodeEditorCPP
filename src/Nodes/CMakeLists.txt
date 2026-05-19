@@ -84,6 +84,8 @@ set(ALL_NODES
     ObjectDetectionNode                       #Yolo v11n 检测
     FaceDetectionNode                              #人脸检测
     VideoDecoderNode                              #视频解码器节点
+    PLC-ModBus                                  #modbus控制PLC
+    QmlScriptNode
 #    AudioIntentNode                              #音频意图分析（弃用）
 )
 
@@ -179,6 +181,8 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(FaceDetectionNode)                            #人脸检测
     add_subdirectory(VideoDecoderNode)                          #视频解码器节点
     add_subdirectory(DAWControllerNode)                          #DAW控制器节点
+    add_subdirectory(PLC-ModBus)                                #Modbus控制PLC节点
+    add_subdirectory(QmlScriptNode)
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()

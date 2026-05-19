@@ -25,6 +25,8 @@ namespace Nodes
     class CountDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(int count READ count WRITE setCount NOTIFY countChanged)
+        Q_PROPERTY(bool clear READ clear WRITE setClear NOTIFY clearChanged)
 
     public:
 
@@ -33,13 +35,25 @@ namespace Nodes
             OutPortCount=1;
             Caption="Count";
             CaptionVisible=true;
-            WidgetEmbeddable= true;
+            WidgetEmbeddable= false;
             Resizable=false;
             PortEditable=true;
-            AbstractDelegateModel::registerExternalControl("/clear",widget->Clear);
-            AbstractDelegateModel::registerExternalControl("/count",widget->countDisplay);
+
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "clear";
+                b.control = widget->Clear;
+                AbstractDelegateModel::registerExternalBinding("/clear", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "count";
+                b.control = widget->countDisplay;
+                AbstractDelegateModel::registerExternalBinding("/count", this, b);
+            }
+
             connect(widget->Editor, &QLineEdit::editingFinished, this, &CountDataModel::outDataSlot);
-            connect(widget->Clear, &QPushButton::clicked, this, &CountDataModel::clearCount);
+            connect(widget->Clear, &QPushButton::clicked, this, [this]() { setClear(true); });
             m_jsEngine = new QJSEngine(this);
         }
         ~CountDataModel() override {
@@ -76,10 +90,9 @@ namespace Nodes
         {
             Q_UNUSED(portIndex)
             if(m_InData==nullptr) {
-                // 输入数据为空时，直接返回当前计数值
-                return std::make_shared<VariableData>(count);
+                return std::make_shared<VariableData>(m_count);
             }
-            
+
             QString expression = widget->Editor->text();
             bool expressionResult = false;
             
@@ -92,7 +105,7 @@ namespace Nodes
             
             if (result.isError()) {
                 qDebug() << "JS表达式错误:" << result.toString();
-                return std::make_shared<VariableData>(count);
+                return std::make_shared<VariableData>(m_count);
             }
             
             // 获取表达式结果的布尔值
@@ -100,13 +113,10 @@ namespace Nodes
             
             // 如果表达式结果为true，计数器+1
             if (expressionResult) {
-                count++;
-                stateFeedBack("/count", count);
-                widget->countDisplay->setValue(count);
+                setCount(m_count + 1);
             }
-            
-            // 返回当前计数值
-            return std::make_shared<VariableData>(count);
+
+            return std::make_shared<VariableData>(m_count);
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
@@ -126,7 +136,6 @@ namespace Nodes
         {
             QJsonObject modelJson1;
             modelJson1["expression"] = widget->Editor->text();
-            modelJson1["count"] = count; // 保存当前计数值
             QJsonObject modelJson  = NodeDelegateModel::save();
             modelJson["values"]=modelJson1;
             return modelJson;
@@ -136,10 +145,6 @@ namespace Nodes
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
                 widget->Editor->setText(v["expression"].toString());
-                // 加载保存的计数值
-                if (!v["count"].isUndefined()) {
-                    count = v["count"].toInt();
-                }
             }
         }
 
@@ -158,7 +163,6 @@ namespace Nodes
                 this,
                 SLOT(clearExternalCommand(GlobalEvent))
             );
-            stateFeedBack("/count", count);
         }
     private slots:
         void outDataSlot() {
@@ -166,12 +170,11 @@ namespace Nodes
         }
 
         void clearExternalCommand(const GlobalEvent& ev) {
-            // 仅处理命令类事件，避免状态反馈导致重复执行
             if (ev.kind != GlobalEventKind::Command) {
                 return;
             }
             if (ev.payload.toBool()) {
-                clearCount();
+                setClear(true);
             }
         }
 
@@ -179,16 +182,52 @@ namespace Nodes
          * @brief 清除计数器值
          */
         void clearCount() {
-            count = 0;
+            setCount(0);
             m_InData=nullptr;
-            widget->countDisplay->setValue(count);
-            stateFeedBack("/count", count);
             Q_EMIT dataUpdated(0);
         }
+
+        int count() const { return m_count; }
+
+        void setCount(int v)
+        {
+            if (m_count == v) {
+                return;
+            }
+            m_count = v;
+            {
+                const QSignalBlocker blocker(widget->countDisplay);
+                widget->countDisplay->setValue(m_count);
+            }
+            Q_EMIT countChanged(m_count);
+        }
+
+        bool clear() const { return m_clear; }
+
+        void setClear(bool v)
+        {
+            if (!v) {
+                return;
+            }
+            if (m_clear) {
+                return;
+            }
+            m_clear = true;
+            Q_EMIT clearChanged(true);
+            clearCount();
+            m_clear = false;
+            Q_EMIT clearChanged(false);
+        }
+
+    signals:
+        void countChanged(int v);
+        void clearChanged(bool v);
+
     private:
         CountInterface *widget=new CountInterface();
         std::shared_ptr<VariableData> m_InData;
-        int count=0;
+        int m_count=0;
+        bool m_clear=false;
         QJSEngine *m_jsEngine = nullptr;
 
 

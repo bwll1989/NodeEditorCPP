@@ -47,11 +47,41 @@ namespace Nodes
             Resizable = false;
             m_inData = std::make_shared<VariableData>();
             m_outData = std::make_shared<VariableData>();
-             AbstractDelegateModel::registerExternalControl("/host", widget->hostEdit);
-            AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
-            AbstractDelegateModel::registerExternalControl("/value", widget->valueEdit);
-            AbstractDelegateModel::registerExternalControl("/send", widget->send);
-            AbstractDelegateModel::registerExternalControl("/connected", widget->statusButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "host";
+                b.control=widget->hostEdit;
+                AbstractDelegateModel::registerExternalBinding("/host", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                b.control=widget->portSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/port", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "value";
+                b.control=widget->valueEdit;
+                AbstractDelegateModel::registerExternalBinding("/value", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "connected";
+                b.control=widget->statusButton;
+                AbstractDelegateModel::registerExternalBinding("/connected", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "send";
+                b.control=widget->send;
+                AbstractDelegateModel::registerExternalBinding("/send", this, b);
+            }
+            //  AbstractDelegateModel::registerExternalControl("/host", widget->hostEdit);
+            // AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
+            // AbstractDelegateModel::registerExternalControl("/value", widget->valueEdit);
+            // AbstractDelegateModel::registerExternalControl("/send", widget->send);
+            // AbstractDelegateModel::registerExternalControl("/connected", widget->statusButton);
 
             // UI Connections
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this]() {
@@ -88,7 +118,7 @@ namespace Nodes
                 widget->statusButton->setChecked(isReady);
                 widget->statusButton->setStyleSheet(isReady ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;");
                 widget->send->setEnabled(isReady);
-                AbstractDelegateModel::stateFeedBack("/connected", m_connected);
+                // AbstractDelegateModel::stateFeedBack("/connected", m_connected);
             }, Qt::QueuedConnection);
 
             connect(client, &TcpClient::recMsg, this, &TCPClientDataModel::recMsg, Qt::QueuedConnection);
@@ -115,7 +145,7 @@ namespace Nodes
             }
             emit connectTCPServer(m_host,m_port);
             emit hostChanged(m_host);
-            AbstractDelegateModel::stateFeedBack("/host", m_host);
+            // AbstractDelegateModel::stateFeedBack("/host", m_host);
 
         }
 
@@ -129,7 +159,7 @@ namespace Nodes
             }
             emit connectTCPServer(m_host,m_port);
             emit portChanged(m_port);
-            AbstractDelegateModel::stateFeedBack("/port", m_port);
+            // AbstractDelegateModel::stateFeedBack("/port", m_port);
 
         }
 
@@ -278,8 +308,9 @@ namespace Nodes
         }
 
         void sendMessage() {
-            emit sendTCPMessage(m_value, widget->format->currentIndex());
             AbstractDelegateModel::stateFeedBack("/send", true);
+            emit sendTCPMessage(m_value, widget->format->currentIndex());
+            AbstractDelegateModel::stateFeedBack("/send", false);
         }
         void onGlobalEvent(const GlobalEvent& ev) {
             if (ev.kind == GlobalEventKind::Command) {
@@ -309,7 +340,7 @@ namespace Nodes
         std::shared_ptr<VariableData> m_outData;
         
         QString m_host = "127.0.0.1";
-        int m_port = 8080;
+        int m_port = 2001;
         QString m_value;
         bool m_connected = false;
     };

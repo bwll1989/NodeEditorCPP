@@ -40,6 +40,8 @@ class FaceDetectionInterface final : public QWidget{
             main_layout->addWidget(nmsSpin,1,1,1,2);
 
             main_layout->setColumnStretch(0,1);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 3, 0, 1, 2);
+            main_layout->setRowStretch(3, 1);
             this->setLayout(main_layout);
             // this->setFixedSize(400,200);
 

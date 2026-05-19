@@ -363,13 +363,30 @@ namespace Nodes
             OutPortCount = 1;
             CaptionVisible = true;
             Caption = "NDI In";
-            WidgetEmbeddable = true;
+            WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = false;
-            
-            AbstractDelegateModel::registerExternalControl("/enable", m_widget->m_startStopButton);
-            AbstractDelegateModel::registerExternalControl("/refresh", m_widget->m_refreshButton);
-            AbstractDelegateModel::registerExternalControl("/source", m_widget->m_senderComboBox);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "enable";
+                b.control = m_widget->m_startStopButton;
+                AbstractDelegateModel::registerExternalBinding("/enable", this, b);
+            }
+                // AbstractDelegateModel::registerExternalControl("/enable", m_widget->m_startStopButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "refresh";
+                b.control = m_widget->m_refreshButton;
+                AbstractDelegateModel::registerExternalBinding("/refresh", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/refresh", m_widget->m_refreshButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "sourceName";
+                b.control = m_widget->m_senderComboBox;
+                AbstractDelegateModel::registerExternalBinding("/sourceName", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/source", m_widget->m_senderComboBox);
             
             initializeReceiver();
             
@@ -499,13 +516,17 @@ namespace Nodes
     public slots:
         void onGlobalEvent(const GlobalEvent& ev)
         {
+            if (ev.kind != GlobalEventKind::Command) return;
+
             QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
             if (localPath == "source") {
                 setSourceName(ev.payload.toString());
             } else if (localPath == "enable") {
                 setEnable(ev.payload.toBool());
             } else if (localPath == "refresh") {
-                refreshSenders();
+                if (!ev.payload.isValid() || ev.payload.toBool()) {
+                    refreshSenders();
+                }
             }
         }
 
@@ -563,7 +584,7 @@ namespace Nodes
             if (m_receiveThread) {
                 // 触发发送器列表更新
                 m_receiveThread->requestSenderListUpdate();
-                AbstractDelegateModel::stateFeedBack("/refresh", true);
+                stateFeedBack("/refresh",true);
             }
         }
 
@@ -585,7 +606,7 @@ namespace Nodes
             }
             
             emit sourceNameChanged(value);
-            AbstractDelegateModel::stateFeedBack("/source", value);
+
         }
 
         bool getEnable() const { return m_isReceiving; }
@@ -612,7 +633,7 @@ namespace Nodes
             }
 
             emit enableChanged(value);
-            AbstractDelegateModel::stateFeedBack("/enable", value);
+            // AbstractDelegateModel::stateFeedBack("/enable", value);
         }
 
     signals:

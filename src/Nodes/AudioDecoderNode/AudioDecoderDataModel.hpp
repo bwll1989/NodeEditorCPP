@@ -39,6 +39,7 @@ namespace Nodes
         Q_PROPERTY(bool loop READ loopProperty WRITE setLoopProperty NOTIFY loopChanged)
         Q_PROPERTY(double volume READ volumeProperty WRITE setVolumeProperty NOTIFY volumeChanged)
         Q_PROPERTY(bool playing READ playingProperty WRITE setPlayingProperty NOTIFY playingChanged)
+        Q_PROPERTY(double progress READ progressProperty NOTIFY progressChanged)
     public:
         /**
        * @brief 构造函数，初始化音频解码Node，支持动态多通道分离输出
@@ -52,10 +53,35 @@ namespace Nodes
             Resizable = false;
             PortEditable = true;
 
-            AbstractDelegateModel::registerExternalControl("/file", widget->fileSelectComboBox);
-            AbstractDelegateModel::registerExternalControl("/volume", widget->volumeSlider);
-            AbstractDelegateModel::registerExternalControl("/loop", widget->loopCheckBox);
-            AbstractDelegateModel::registerExternalControl("/play", widget->playButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "file";
+                b.control = widget->fileSelectComboBox;
+                AbstractDelegateModel::registerExternalBinding("/file", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "volume";
+                b.control = widget->volumeSlider;
+                AbstractDelegateModel::registerExternalBinding("/volume", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "loop";
+                b.control = widget->loopCheckBox;
+                AbstractDelegateModel::registerExternalBinding("/loop", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "playing";
+                b.control = widget->playButton;
+                AbstractDelegateModel::registerExternalBinding("/play", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "progress";
+                AbstractDelegateModel::registerExternalBinding("/progress", this, b);
+            }
 
             connect(widget->fileSelectComboBox, &SelectorComboBox::textChanged,
                     this, &AudioDecoderDataModel::setFilePathProperty, Qt::QueuedConnection);
@@ -75,7 +101,6 @@ namespace Nodes
                     }
                     isReady = true;
                 }
-                AbstractDelegateModel::stateFeedBack("/file", m_filePath);
             });
 
             connect(widget->volumeSlider, &FloatDragValueWidget::valueChanged,
@@ -86,7 +111,6 @@ namespace Nodes
                     widget->volumeSlider->setValue(m_volume);
                 }
                 player->setVolume(m_volume);
-                AbstractDelegateModel::stateFeedBack("/volume", m_volume);
             });
 
             connect(widget->loopCheckBox, &QCheckBox::toggled,
@@ -97,7 +121,6 @@ namespace Nodes
                     widget->loopCheckBox->setChecked(m_loop);
                 }
                 player->setLooping(m_loop);
-                AbstractDelegateModel::stateFeedBack("/loop", m_loop);
             });
 
             connect(widget->playButton, &QPushButton::toggled,
@@ -115,12 +138,15 @@ namespace Nodes
                     player->startPlay();
                 } else {
                     player->stopPlay();
+                    onPlaybackProgress(0,1);
+                    
                 }
-                AbstractDelegateModel::stateFeedBack("/play", playing);
             });
 
             connect(player.get(), &AudioDecoder::playbackProgress,
                     this, &AudioDecoderDataModel::onPlaybackProgress, Qt::QueuedConnection);
+            connect(player.get(), &AudioDecoder::playbackFinished,
+                    this, [this]() { setPlayingProperty(false); }, Qt::QueuedConnection);
         }
 
         /**
@@ -212,17 +238,15 @@ namespace Nodes
 
             case 1:{
                     auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr)
-                    {
-                        widget->loopCheckBox->setChecked(d->value().toBool());
+                    if (d != nullptr) {
+                        setLoopProperty(d->value().toBool());
                     }
                     return;
             }
             case 2:{
                     auto d = std::dynamic_pointer_cast<VariableData>(data);
-                    if (d != nullptr)
-                    {
-                        widget->volumeSlider->setValue(d->value().toDouble());
+                    if (d != nullptr) {
+                        setVolumeProperty(d->value().toDouble());
                     }
                     return;
             }
@@ -240,11 +264,14 @@ namespace Nodes
      */
         QJsonObject save() const override
         {
+            QJsonObject values;
+            values["filePath"] = m_filePath;
+            values["isLoop"] = loopProperty();
+            values["autoPlay"] = autoPlay;
+            values["volume"] = volumeProperty();
+
             QJsonObject modelJson = NodeDelegateModel::save();
-            modelJson["filePath"] = m_filePath;
-            modelJson["isLoop"] = loopProperty();
-            modelJson["autoPlay"] = autoPlay;
-            modelJson["volume"] = static_cast<int>(volumeProperty());
+            modelJson["values"] = values;
             return modelJson;
         }
 
@@ -253,23 +280,30 @@ namespace Nodes
      */
         void load(const QJsonObject &p) override
         {
-            QJsonObject modelJson = p;
-            
-            if (modelJson.contains("filePath")) {
-                setFilePathProperty(modelJson["filePath"].toString());
+            NodeDelegateModel::load(p);
+
+            QJsonObject values;
+            const QJsonValue vv = p.value("values");
+            if (vv.isObject()) {
+                values = vv.toObject();
+            } else {
+                values = p;
             }
-            
-            if (modelJson.contains("isLoop")) {
-                setLoopProperty(modelJson["isLoop"].toBool());
+
+            if (values.contains("filePath")) {
+                setFilePathProperty(values.value("filePath").toString());
             }
-            
-            if (modelJson.contains("autoPlay")) {
-                autoPlay = modelJson["autoPlay"].toBool();
+
+            if (values.contains("isLoop")) {
+                setLoopProperty(values.value("isLoop").toBool());
             }
-            
-            if (modelJson.contains("volume")) {
-                int volume = modelJson["volume"].toInt();
-                setVolumeProperty(volume);
+
+            if (values.contains("autoPlay")) {
+                autoPlay = values.value("autoPlay").toBool();
+            }
+
+            if (values.contains("volume")) {
+                setVolumeProperty(values.value("volume").toDouble());
             }
 
             // 如果有文件路径，重新初始化解码器
@@ -285,14 +319,23 @@ namespace Nodes
         }
 
     public slots:
+        /**
+         * 函数级注释：接收解码器播放进度并同步到 UI 与 progress 属性
+         */
         void onPlaybackProgress(double currentSec, double totalSec) {
-            if (totalSec > 0) {
-                int value = static_cast<int>((currentSec / totalSec) * 1000);
-                widget->progressSlider->blockSignals(true);
-                widget->progressSlider->setValue(value);
-                widget->progressSlider->blockSignals(false);
+            const double p = (totalSec > 0.0) ? qBound(0.0, currentSec / totalSec, 1.0) : 0.0;
+            if (!qFuzzyCompare(p + 1.0, m_progress + 1.0)) {
+                m_progress = p;
+                Q_EMIT progressChanged(m_progress);
             }
-            
+
+            if (totalSec > 0) {
+                const int maxV = widget->progressSlider->maximum();
+                const int value = static_cast<int>(p * static_cast<double>(maxV));
+                const QSignalBlocker blocker(widget->progressSlider);
+                widget->progressSlider->setValue(value);
+            }
+
             QString currentTimeStr = formatTime(currentSec);
             QString totalTimeStr = formatTime(totalSec);
             widget->timeLabel->setText(currentTimeStr + " / " + totalTimeStr);
@@ -342,6 +385,14 @@ namespace Nodes
         QString filePathProperty() const
         {
             return m_filePath;
+        }
+
+        /**
+         * 函数级注释：获取播放进度属性（0.0~1.0）
+         */
+        double progressProperty() const
+        {
+            return m_progress;
         }
 
         void setFilePathProperty(const QString& relative)
@@ -404,6 +455,12 @@ namespace Nodes
                 return;
             }
             m_playing = playing;
+            if (!m_playing) {
+                if (!qFuzzyCompare(0.0 + 1.0, m_progress + 1.0)) {
+                    m_progress = 0.0;
+                    Q_EMIT progressChanged(m_progress);
+                }
+            }
             Q_EMIT playingChanged(playing);
         }
 
@@ -412,6 +469,7 @@ namespace Nodes
         void loopChanged(bool loop);
         void volumeChanged(double volume);
         void playingChanged(bool playing);
+        void progressChanged(double progress);
 
     protected:
         void afterModelReady() override
@@ -480,6 +538,7 @@ namespace Nodes
         bool m_loop=false;
         double m_volume = 0.0;
         bool m_playing = false;
+        double m_progress = 0.0;
         bool autoPlay=false;
         bool isReady= false;
 

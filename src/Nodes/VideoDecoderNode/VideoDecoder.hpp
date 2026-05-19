@@ -117,6 +117,11 @@ signals:
     void videoFrameReady(NodeDataTypes::ImageData frame);
     // 播放进度信号 (当前时间秒, 总时间秒)
     void playbackProgress(double currentSec, double totalSec);
+    /**
+     * @brief 播放自然结束信号
+     * @details 在未开启循环播放且媒体读到末尾时发出；主动 stopPlay() 不会触发该信号
+     */
+    void playbackFinished();
 
 public slots:
     /**
@@ -175,6 +180,11 @@ private:
      * @brief 清理 FFmpeg 资源
      */
     void cleanupFFmpeg();
+
+    /**
+     * @brief 释放视频色彩空间转换缓冲（分辨率变化或切换文件时需重建）
+     */
+    void releaseVideoScaler();
 
 private:
     mutable QMutex mutex;       ///< 互斥锁，保护共享资源

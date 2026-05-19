@@ -3,22 +3,20 @@
 #include "DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
-#include <QtWidgets/QComboBox>
 #include <iostream>
 #include <QtConcurrent/QtConcurrent>
-#include <QAbstractScrollArea>
 #include <opencv2/dnn.hpp>
 #include <vector>
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
-#include "StyleTransferONNXInterface.hpp"
+
 // 添加ONNX Runtime头文件
 #include <onnxruntime_cxx_api.h>
 #include <opencv2/opencv.hpp>
 #include <memory>
 #include <algorithm>
+
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
-#include <QSignalBlocker>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -46,9 +44,11 @@ namespace Nodes
             m_outVariable=std::make_shared<VariableData>();
             m_outImage=std::make_shared<ImageData>();
             model_path="./plugins/Models/AnimeGANv3_Hayao_36.onnx";
-
-            AbstractDelegateModel::registerExternalControl("/enable",widget->EnableBtn);
-            connect(widget->EnableBtn,&QPushButton::clicked,this,&YoloDetectionONNXDataModel::setEnable);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "enable";
+                AbstractDelegateModel::registerExternalBinding("/enable", this, b);
+            }
 
         }
 
@@ -282,10 +282,6 @@ namespace Nodes
         }
     }
 
-        QWidget *embeddedWidget() override
-        {
-            return widget;
-        }
 
         /**
          * @brief 保存节点配置
@@ -434,13 +430,7 @@ namespace Nodes
     void setEnable(bool enable) {
         if (m_enable != enable) {
             m_enable = enable;
-            {
-             
-                QSignalBlocker blocker(widget->EnableBtn);
-                widget->EnableBtn->setChecked(enable);
-            }
             emit enableChanged();
-             AbstractDelegateModel::stateFeedBack("/enable", m_enable);
         }
     }
         /**
@@ -468,7 +458,6 @@ private Q_SLOTS:
 
     private:
         QFutureWatcher<double>* m_watcher = nullptr;
-        YoloDetectionONNXInterface *widget=new YoloDetectionONNXInterface();
         std::shared_ptr<ImageData> m_inImage0;
         // std::shared_ptr<ImageData> m_inImage1;
         std::shared_ptr<VariableData> m_outVariable;

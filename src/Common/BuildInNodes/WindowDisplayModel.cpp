@@ -14,7 +14,7 @@ WindowDisplayModel::WindowDisplayModel()
     OutPortCount=1;
     CaptionVisible=true;
     Caption="Window Display";
-    WidgetEmbeddable=true;
+    WidgetEmbeddable=false;
     Resizable=false;
     // 控制面板
     _panel = new QWidget();
@@ -25,6 +25,7 @@ WindowDisplayModel::WindowDisplayModel()
     _layout->addWidget(new QLabel("显示器:"), 0, 0);
     _layout->addWidget(_screenCombo, 0, 1);
     _layout->addWidget(_openBtn, 1, 0, 1, 2);
+    _layout->addItem(new QSpacerItem(20, 20, QSizePolicy::Expanding, QSizePolicy::MinimumExpanding), 2, 0, 1, 2);
     _panel->setMinimumSize(240, 80);
     // OpenGL窗口
     _glWindow = new ImageOpenGLWindow();

@@ -6,6 +6,10 @@
 
 #include "QWidget"
 #include "QLayout"
+#include "QLabel"
+#include <QDoubleSpinBox>
+#include <QGridLayout>
+#include <QSpacerItem>
 #include <QSpinBox>
 #include <QVariantMap>
 #include <QPushButton>
@@ -43,26 +47,34 @@ class ObjectDetectionInterface final : public QWidget{
         Q_OBJECT
     public:
         explicit ObjectDetectionInterface(QWidget *parent = nullptr) {
-            main_layout=new QGridLayout();
+            main_layout = new QGridLayout(this);
+            main_layout->setContentsMargins(4, 2, 4, 4);
+            main_layout->setSpacing(6);
 
-            ConfidenceFilterSpinBox=new QDoubleSpinBox();
+            ConfidenceFilterSpinBox = new QDoubleSpinBox(this);
             ConfidenceFilterSpinBox->setMinimum(0);
             ConfidenceFilterSpinBox->setMaximum(1);
             ConfidenceFilterSpinBox->setSingleStep(0.1);
             ConfidenceFilterSpinBox->setDecimals(2);
             ConfidenceFilterSpinBox->setValue(0.4);
-            main_layout->addWidget(new QLabel("置信度阈值:"),0,0,1,1);
-            main_layout->addWidget(ConfidenceFilterSpinBox,0,1,1,2);
-            ClassSelectorComboBox=new QComboBox();
+            main_layout->addWidget(new QLabel("置信度阈值:", this), 0, 0);
+            main_layout->addWidget(ConfidenceFilterSpinBox, 0, 1);
+
+            ClassSelectorComboBox = new QComboBox(this);
             for (const auto &name : classNames) {
                 ClassSelectorComboBox->addItem(QString::fromStdString(name));
             }
             ClassSelectorComboBox->setCurrentIndex(0);
-            main_layout->addWidget(new QLabel("检测对象:"),1,0,1,1);
-            main_layout->addWidget(ClassSelectorComboBox,1,1,1,2);
-            EnableBtn=new QPushButton("Enable");
+            main_layout->addWidget(new QLabel("检测对象:", this), 1, 0);
+            main_layout->addWidget(ClassSelectorComboBox, 1, 1);
+
+            EnableBtn = new QPushButton("Enable", this);
             EnableBtn->setCheckable(true);
-            main_layout->addWidget(EnableBtn,2,0,1,3);
+            main_layout->addWidget(EnableBtn, 2, 0, 1, 2);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 3, 0, 1, 2);
+            main_layout->setRowStretch(3, 1);
+            main_layout->setColumnStretch(0, 1);
+            main_layout->setColumnStretch(1, 2);
             this->setLayout(main_layout);
             // this->setFixedSize(400,200);
 

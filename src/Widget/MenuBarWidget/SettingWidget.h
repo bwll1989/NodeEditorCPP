@@ -36,6 +36,13 @@ private:
     IntDragValueWidget* m_extraControlPortSpin;
     QLineEdit* m_oscInternalHostEdit;
     QCheckBox* m_oscEnabledCheck;
+    QCheckBox* m_mqttEnabledCheck;
+    QLineEdit* m_mqttHostEdit;
+    IntDragValueWidget* m_mqttPortSpin;
+    QLineEdit* m_mqttUsernameEdit;
+    QLineEdit* m_mqttPasswordEdit;
+    QLineEdit* m_mqttControlTopicEdit;
+    QLineEdit* m_mqttFeedbackTopicEdit;
     QLineEdit* m_webPasswordEdit;
 
     // Log Settings

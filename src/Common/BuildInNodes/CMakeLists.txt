@@ -64,6 +64,8 @@ target_link_libraries(BuildInNodes PRIVATE
     Qt${QT_VERSION_MAJOR}::OpenGL
     Qt${QT_VERSION_MAJOR}::OpenGLWidgets
     ${QtNodes_LIBRARIES}
+    ${Qtpropertybrowser_LIBRARIES}
+    PropertyTreeWidget
     OSCTransmitter
     DataTypes
     GUIElements

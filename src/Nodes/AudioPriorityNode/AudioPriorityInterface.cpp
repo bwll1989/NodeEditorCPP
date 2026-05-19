@@ -68,9 +68,8 @@ AudioPriorityInterface::AudioPriorityInterface(QWidget *parent)
     sidechainGainSpin->setValue(0.0);
     sidechainGainSpin->setSuffix(" dB");
     layout->addWidget(sidechainGainSpin, 6, 1);
-
+    mainLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
     mainLayout->addWidget(group);
-    setMinimumWidth(250);
 }
 
 AudioPriorityInterface::~AudioPriorityInterface()

@@ -25,7 +25,7 @@ OSCMessageListWidget::OSCMessageListWidget(bool onlyInternal, QWidget* parent)
     // 网格参数（可按需调整）
     setUniformItemSizes(true);
     if (onlyInternal)
-        setGridSize(QSize(200, 120));
+        setGridSize(QSize(200, 100));
     else
         setGridSize(QSize(200, 140));
     setSpacing(8, 8);

@@ -43,13 +43,58 @@ namespace Nodes
             
             commandData = std::make_shared<VariableData>();
             statusData = std::make_shared<VariableData>();
-            AbstractDelegateModel::registerExternalControl("/play",widget->Play);
-            AbstractDelegateModel::registerExternalControl("/stop",widget->Stop);
-            AbstractDelegateModel::registerExternalControl("/loop",widget->LoopPlay);
-            AbstractDelegateModel::registerExternalControl("/next",widget->Next);
-            AbstractDelegateModel::registerExternalControl("/prev",widget->Prev);
-            AbstractDelegateModel::registerExternalControl("/index",widget->FileIndex);
-            AbstractDelegateModel::registerExternalControl("/playerID",widget->PlayerID);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "play";
+                b.control = widget->Play;
+                AbstractDelegateModel::registerExternalBinding("/play", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/play",widget->Play);
+            // 注册停止按钮
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "stop";
+                b.control = widget->Stop;
+                AbstractDelegateModel::registerExternalBinding("/stop", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/stop",widget->Stop);
+            // 注册循环播放按钮
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "loop";
+                b.control = widget->LoopPlay;
+                AbstractDelegateModel::registerExternalBinding("/loop", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/loop",widget->LoopPlay);
+            // 注册下一首按钮
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "next";
+                b.control = widget->Next;
+                AbstractDelegateModel::registerExternalBinding("/next", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/next",widget->Next);
+            // 注册上一首按钮
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "prev";
+                b.control = widget->Prev;
+                AbstractDelegateModel::registerExternalBinding("/prev", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/prev",widget->Prev);    
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "fileIndex";
+                b.control = widget->FileIndex;
+                AbstractDelegateModel::registerExternalBinding("/index", this,b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "playerId";
+                b.control = widget->PlayerID;
+                AbstractDelegateModel::registerExternalBinding("/playerID", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/playerID",widget->PlayerID);
             
             // 初始化内部状态
             currentFileIndex = widget->FileIndex->value();
@@ -239,8 +284,7 @@ namespace Nodes
             bus->subscribe(makeFullOscAddress("/next"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/prev"), this, SLOT(onGlobalEvent(GlobalEvent)));
             
-            AbstractDelegateModel::stateFeedBack("/index", currentFileIndex);
-            AbstractDelegateModel::stateFeedBack("/playerID", currentPlayerId);
+        
         }
 
     public:
@@ -253,7 +297,7 @@ namespace Nodes
                 widget->FileIndex->setValue(value);
             }
             emit fileIndexChanged(value);
-            AbstractDelegateModel::stateFeedBack("/index", value);
+  
             updateStatus();
         }
 
@@ -266,7 +310,7 @@ namespace Nodes
                 widget->PlayerID->setValue(value);
             }
             emit playerIdChanged(value);
-            AbstractDelegateModel::stateFeedBack("/playerID", value);
+
             updateStatus();
         }
 

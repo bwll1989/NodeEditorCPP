@@ -33,8 +33,7 @@ namespace Nodes
         Q_PROPERTY(double volume READ getVolume WRITE setVolume NOTIFY volumeChanged)
 
     public:
-        MpvControllerDataModel()
-        {
+        MpvControllerDataModel() {
             InPortCount = 1;
             OutPortCount = 1;
             CaptionVisible = true;
@@ -46,14 +45,61 @@ namespace Nodes
             widget = new MpvControllerInterface();
             
             // Restore external control registration
-            AbstractDelegateModel::registerExternalControl("/play", widget->Play);
-            AbstractDelegateModel::registerExternalControl("/fullscreen", widget->Fullscreen);
-            AbstractDelegateModel::registerExternalControl("/volume", widget->volumeEditor);
-            AbstractDelegateModel::registerExternalControl("/playlist_prev", widget->playlist_prev);
-            AbstractDelegateModel::registerExternalControl("/playlist_next", widget->playlist_next);
-            AbstractDelegateModel::registerExternalControl("/speed_add", widget->speedAdd);
-            AbstractDelegateModel::registerExternalControl("/speed_sub", widget->speedSub);
-            AbstractDelegateModel::registerExternalControl("/speed_reset", widget->speedReset);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "trigger";
+                b.control = widget->Play;
+                AbstractDelegateModel::registerExternalBinding("/play", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/play", widget->Play);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "trigger";
+                b.control = widget->Fullscreen;
+                AbstractDelegateModel::registerExternalBinding("/fullscreen", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/fullscreen", widget->Fullscreen);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "trigger";
+                b.control = widget->volumeEditor;
+                AbstractDelegateModel::registerExternalBinding("/volume", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/volume", widget->volumeEditor);
+            {
+            NodeDelegateModel::ExternalBinding b;
+            b.member = "trigger";
+            b.control = widget->playlist_prev;
+            AbstractDelegateModel::registerExternalBinding("/playlist_prev", this,b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "trigger";
+                b.control = widget->playlist_next;
+                AbstractDelegateModel::registerExternalBinding("/playlist_next", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/playlist_next", widget->playlist_next);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "trigger";
+                b.control = widget->speedAdd;
+                AbstractDelegateModel::registerExternalBinding("/speed_add", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/speed_add", widget->speedAdd);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "trigger";
+                b.control = widget->speedSub;
+                AbstractDelegateModel::registerExternalBinding("/speed_sub", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/speed_sub", widget->speedSub);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "trigger";
+                b.control = widget->speedReset;
+                AbstractDelegateModel::registerExternalBinding("/speed_reset", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/speed_reset", widget->speedReset);
             // Sync host address from widget
             m_hostAddress = widget->hostEdit->text();
             if (m_hostAddress.isEmpty()) m_hostAddress = "127.0.0.1";
@@ -255,15 +301,17 @@ namespace Nodes
 
         void onPlay()
         {
+            AbstractDelegateModel::stateFeedBack("/play", true);
             client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/toggle_pause"));
             timer->start();
-            AbstractDelegateModel::stateFeedBack("/play", true);
+            AbstractDelegateModel::stateFeedBack("/play", false);
         }
         void onFullscreen()
         {
+            AbstractDelegateModel::stateFeedBack("/fullscreen", true);
             client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/fullscreen"));
             timer->start();
-            AbstractDelegateModel::stateFeedBack("/fullscreen", true);
+            AbstractDelegateModel::stateFeedBack("/fullscreen", false);
         }
         void getStatus()
         {
@@ -272,33 +320,38 @@ namespace Nodes
 
         void onplaylist_prev()
         {
+            AbstractDelegateModel::stateFeedBack("/playlist_prev", true);
             client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/playlist_prev"));
             timer->start();
-            AbstractDelegateModel::stateFeedBack("/playlist_prev", true);
+            AbstractDelegateModel::stateFeedBack("/playlist_prev", false);
         }
         void onplaylist_next()
         {
+            AbstractDelegateModel::stateFeedBack("/playlist_next", true);
             client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/playlist_next"));
             timer->start();
-            AbstractDelegateModel::stateFeedBack("/playlist_next", true);
+            AbstractDelegateModel::stateFeedBack("/playlist_next", false);
         }
         void speedAdd()
         {
+            AbstractDelegateModel::stateFeedBack("/speed_add", true);
             client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/speed_adjust/1.1"));
             timer->start();
-            AbstractDelegateModel::stateFeedBack("/speed_add", true);
+            AbstractDelegateModel::stateFeedBack("/speed_add", false);
         }
         void speedSub()
         {
+            AbstractDelegateModel::stateFeedBack("/speed_sub", true);
             client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/speed_adjust/0.9"));
             timer->start();
-            AbstractDelegateModel::stateFeedBack("/speed_sub", true);
+            AbstractDelegateModel::stateFeedBack("/speed_sub", false);
         }
         void speedReset()
         {
+            AbstractDelegateModel::stateFeedBack("/speed_reset", true);
             client->sendPostRequest(QUrl("http://" + m_hostAddress + ":8080/api/speed_set"));
             timer->start();
-            AbstractDelegateModel::stateFeedBack("/speed_reset", true);
+            AbstractDelegateModel::stateFeedBack("/speed_reset", false);
         }
 
     private:

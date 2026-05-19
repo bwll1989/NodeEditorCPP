@@ -18,7 +18,7 @@
 #include "TimeLineNodeWidget.hpp"
 #include "TimeLineNodeModel.h"
 #include "BasePluginLoader.h"
-#include "TimelineInterface.hpp"
+// #include "TimelineInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "AbstractClipDelegateModel.h"
 using namespace NodeDataTypes;
@@ -34,8 +34,9 @@ class QPushButton;
 class TimeLineDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
-    Q_PROPERTY(bool isPlaying READ getIsPlaying WRITE setIsPlaying NOTIFY isPlayingChanged)
-    Q_PROPERTY(bool isLooping READ getIsLooping WRITE setIsLooping NOTIFY isLoopingChanged)
+    Q_PROPERTY(bool playing READ playing WRITE setPlaying NOTIFY playingChanged)
+    Q_PROPERTY(bool looping READ looping WRITE setLooping NOTIFY loopingChanged)
+    Q_PROPERTY(qint64 currentFrame READ currentFrame WRITE setCurrentFrame NOTIFY currentFrameChanged)
 
 public:
 
@@ -47,19 +48,36 @@ public:
      */
     TimeLineDataModel(){
         InPortCount =4;
-        OutPortCount=1;
+        OutPortCount=0;
         CaptionVisible=true;
         Caption="TimeLineNode";
-        WidgetEmbeddable= false;
         Resizable= false;
-        PortEditable=true;
-        model = new TimeLineNodeModel();
-        widget=new Nodes::TimelineInterface(model);
-        auto toolbar = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar);
-        if (toolbar != nullptr) {
-            connect(toolbar, &TimeLineNodeToolBar::loopToggled, this, &TimeLineDataModel::setIsLooping);
+        WidgetEmbeddable=false;
+        PortEditable=false;
+        model = new TimeLineNodeModel(this);
+
+        widget=new TimelineNodeWidget(model);
+        if (model && model->getClock()) {
+            m_currentFrame = model->getClock()->getCurrentFrame();
+            m_looping = model->getClock()->isLooping();
         }
-        connect(widget->startButton, &QPushButton::clicked, this, &TimeLineDataModel::setIsPlaying);
+
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.member = "playing";
+            AbstractDelegateModel::registerExternalBinding("/play", this, b);
+        }
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.member = "looping";
+            AbstractDelegateModel::registerExternalBinding("/loop", this, b);
+        }
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.member = "currentFrame";
+            AbstractDelegateModel::registerExternalBinding("/currentFrame", this, b);
+        }
+        // connect(widget->startButton, &QPushButton::clicked, this, &TimeLineDataModel::setIsPlaying);
     }
 
     ~TimeLineDataModel() override
@@ -77,8 +95,8 @@ public:
     void afterModelReady() override {
         model->setModelAlias("dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()));
 
-        if (widget && widget->timeline && widget->timeline->toolbar) {
-            if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
+        if (widget && widget->toolbar) {
+            if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->toolbar)) {
                 tb->bindBus(getParentAlias(), getNodeID());
                 connect(tb, &TimeLineNodeToolBar::setCurrentFrame, this, [this](qint64 frame) {
                     if (model && model->getClock()) {
@@ -88,12 +106,42 @@ public:
             }
         }
 
-        if (model && model->getClock()) {
-            connect(model->getClock(), &TimeLineNodeClock::timecodePlayingChanged, this, &TimeLineDataModel::onClockPlayingChanged);
-            //当前时间码变更后发布状态
-            connect(model->getClock(), &TimeLineNodeClock::currentFrameChanged, this, &TimeLineDataModel::onClockCurrentFrameChanged);
+        GlobalEventBus::instance()->subscribe(makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        GlobalEventBus::instance()->subscribe(makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        GlobalEventBus::instance()->subscribe(makeFullOscAddress("/pause"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        GlobalEventBus::instance()->subscribe(makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+        GlobalEventBus::instance()->subscribe(makeFullOscAddress("/currentFrame"), this, SLOT(onGlobalEvent(GlobalEvent)));
 
+        if (model && model->getClock()) {
+            connect(model->getClock(), &TimeLineNodeClock::timecodePlayingChanged, this, [this](bool isPlaying) {
+                if (m_playing == isPlaying) {
+                    return;
+                }
+                m_playing = isPlaying;
+                emit playingChanged(m_playing);
+                stateFeedBack("/stop", !m_playing);
+            });
+
+            connect(model->getClock(), &TimeLineNodeClock::loopingChanged, this, [this](bool isLooping) {
+                if (m_looping == isLooping) {
+                    return;
+                }
+                m_looping = isLooping;
+                emit loopingChanged(m_looping);
+                stateFeedBack("/loop", m_looping);
+            });
+
+            connect(model->getClock(), &TimeLineNodeClock::currentFrameChanged, this, [this](qint64 frame) {
+                if (m_currentFrame == frame) {
+                    return;
+                }
+                m_currentFrame = frame;
+                emit currentFrameChanged(m_currentFrame);
+                stateFeedBack("/currentFrame", m_currentFrame);
+            });
         }
+
+        stateFeedBack("/stop", !m_playing);
 
         for (TrackData* track : model->getTracks()) {
             if (!track) continue;
@@ -105,49 +153,41 @@ public:
         }
     }
 
-    // Getters and Setters
-    bool getIsPlaying() const { return m_isPlaying; }
-    void setIsPlaying(bool playing) {
-        if (m_isPlaying == playing) return;
-        
+    bool playing() const { return m_playing; }
+    void setPlaying(bool playing) {
+        if (m_playing == playing) {
+            return;
+        }
+        if (!model) {
+            return;
+        }
         if (playing) {
             model->onStartPlay();
-            if (widget && widget->timeline && widget->timeline->toolbar) {
-                auto actions = widget->timeline->toolbar->allActions();
-                {
-                    QSignalBlocker blocker(actions["play"]); // Action might not be a widget, QSignalBlocker works on QObject
-                    actions["play"]->setChecked(playing);
-                }
-                {
-                    QSignalBlocker blocker(widget->startButton); // Action might not be a widget, QSignalBlocker works on QObject
-                    widget->startButton->setChecked(playing);
-
-                }
-            }
         } else {
             model->onStopPlay();
-
         }
-        // m_isPlaying will be updated by onClockPlayingChanged
     }
 
-    bool getIsLooping() const { return m_isLooping; }
-    void setIsLooping(bool looping) {
-        if (m_isLooping == looping) return;
-        m_isLooping = looping;
-        
-        model->onSetLoop(m_isLooping);
-        
-        // Sync UI
-        if (widget && widget->timeline && widget->timeline->toolbar) {
-            auto actions = widget->timeline->toolbar->allActions();
-            {
-                 QSignalBlocker blocker(actions["loop"]); // Action might not be a widget, QSignalBlocker works on QObject
-                 actions["loop"]->setChecked(m_isLooping);
-            }
+    bool looping() const { return m_looping; }
+    void setLooping(bool looping) {
+        if (m_looping == looping) {
+            return;
         }
+        if (!model) {
+            return;
+        }
+        model->onSetLoop(looping);
+    }
 
-        emit isLoopingChanged(m_isLooping);
+    qint64 currentFrame() const { return m_currentFrame; }
+    void setCurrentFrame(qint64 frame) {
+        if (m_currentFrame == frame) {
+            return;
+        }
+        if (!model || !model->getClock()) {
+            return;
+        }
+        model->getClock()->setCurrentFrame(frame);
     }
 
 public:
@@ -205,16 +245,16 @@ public:
                 bool b=textData->value().toBool();
                 switch (portIndex) {
                     case 0: // PLAY
-                        setIsPlaying(b);
+                        setPlaying(b);
                         break;
                     case 1: // STOP
-                        if (b) setIsPlaying(false);
+                        if (b) setPlaying(false);
                         break;
                     case 2: // PAUSE
-                        if (b) model->onPausePlay(); // No property for pause yet, treat as action
+                        if (b && model) model->onPausePlay();
                         break;
                     case 3: // LOOP
-                        setIsLooping(b);
+                        setLooping(b);
                         break;
                 }
             }
@@ -251,54 +291,100 @@ public:
         return widget;
     }
 
-signals:
-    void isPlayingChanged(bool playing);
-    void isLoopingChanged(bool looping);
+// signals:
+//     void isPlayingChanged(bool playing);
+//     void isLoopingChanged(bool looping);
 
 private slots:
+    void onGlobalEvent(const GlobalEvent& ev) {
+        if (ev.kind != GlobalEventKind::Command) {
+            return;
+        }
 
-    void setTimeLineState(bool const &string)
-    {
-        Q_EMIT dataUpdated(0);
-    }
-    
-    void onClockPlayingChanged(bool playing) {
-        if (m_isPlaying != playing) {
-            m_isPlaying = playing;
-            emit isPlayingChanged(m_isPlaying);
+        const QString addrPlay = makeFullOscAddress("/play");
+        const QString addrStop = makeFullOscAddress("/stop");
+        const QString addrPause = makeFullOscAddress("/pause");
+        const QString addrLoop = makeFullOscAddress("/loop");
+        const QString addrFrame = makeFullOscAddress("/currentFrame");
 
-            if (widget && widget->timeline && widget->timeline->toolbar) {
-                if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
-                    tb->setPlaybackState(m_isPlaying);
-                }
+        if (ev.address == addrPlay) {
+            const bool wantPlay = !ev.payload.isValid() || ev.payload.toBool();
+            setPlaying(wantPlay);
+            return;
+        }
+        if (ev.address == addrStop) {
+            const bool wantStop = !ev.payload.isValid() || ev.payload.toBool();
+            if (wantStop) {
+                setPlaying(false);
             }
-
-            if (widget && widget->startButton) {
-                QSignalBlocker blocker(widget->startButton);
-                widget->startButton->setChecked(m_isPlaying);
+            return;
+        }
+        if (ev.address == addrPause) {
+            const bool wantPause = !ev.payload.isValid() || ev.payload.toBool();
+            if (wantPause && model) {
+                model->onPausePlay();
             }
+            return;
+        }
+        if (ev.address == addrLoop) {
+            setLooping(ev.payload.toBool());
+            return;
+        }
+        if (ev.address == addrFrame) {
+            setCurrentFrame(ev.payload.toLongLong());
+            return;
         }
     }
+
+    // void setTimeLineState(bool const &string)
+    // {
+    //     Q_EMIT dataUpdated(0);
+    // }
+    
+    // void onClockPlayingChanged(bool playing) {
+    //     if (m_isPlaying != playing) {
+    //         m_isPlaying = playing;
+    //         emit isPlayingChanged(m_isPlaying);
+
+    //         if (widget && widget->timeline && widget->timeline->toolbar) {
+    //             if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
+    //                 tb->setPlaybackState(m_isPlaying);
+    //             }
+    //         }
+
+    //         if (widget && widget->startButton) {
+    //             QSignalBlocker blocker(widget->startButton);
+    //             widget->startButton->setChecked(m_isPlaying);
+    //         }
+    //     }
+    // }
 
     /**
      * 函数级注释：时钟当前帧变化回调
      * - 像播放状态一样，通过工具栏向总线发布当前帧
-     */
-    void onClockCurrentFrameChanged(int frame) {
-        if (widget && widget->timeline && widget->timeline->toolbar) {
-            if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
-                tb->publishCurrentFrame(frame);
-            }
-        }
-    }
+    //  */
+    // void onClockCurrentFrameChanged(int frame) {
+    //     if (widget && widget->timeline && widget->timeline->toolbar) {
+    //         if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->timeline->toolbar)) {
+    //             tb->publishCurrentFrame(frame);
+    //         }
+    //     }
+    // }
 
 private:
     TimeLineNodeModel* model;
-    Nodes::TimelineInterface  *widget;
-    unordered_map<unsigned int, QVariant> in_dictionary;
-    unordered_map<unsigned int, QVariant> out_dictionary;
-    QString value;
-    
-    bool m_isPlaying = false;
-    bool m_isLooping = false;
+    // Nodes::TimelineInterface  *widget;
+    TimelineNodeWidget *widget;
+    bool m_playing = false;
+    bool m_looping = false;
+    qint64 m_currentFrame = 0;
+    // unordered_map<unsigned int, QVariant> in_dictionary;
+    // unordered_map<unsigned int, QVariant> out_dictionary;
+    // QString value;
+
+signals:
+    void playingChanged(bool playing);
+    void loopingChanged(bool looping);
+    void currentFrameChanged(qint64 frame);
+
 };

@@ -13,7 +13,6 @@
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
-#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 struct GlobalEvent;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -38,14 +37,11 @@ namespace Nodes
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= true;
-            widget->setMinimum(0);
             in_dictionary=std::unordered_map<unsigned int,  std::shared_ptr<ImageData>>();
-            m_index = widget->value();
-            widget->setFixedSize(100,24);
-            connect(widget, QOverload<int>::of(&IntDragValueWidget::valueChanged),
-                    this, &ImageSwitchDataModel::setIndex);
-            AbstractDelegateModel::registerExternalControl("/index",widget);
 
+            NodeDelegateModel::ExternalBinding b;
+            b.member = "index";
+            AbstractDelegateModel::registerExternalBinding("/index", this, b);
         }
 
         virtual ~ImageSwitchDataModel() override{}
@@ -130,10 +126,10 @@ namespace Nodes
         }
 
 
-        QWidget *embeddedWidget() override
-        {
-            return widget;
-        }
+        // QWidget *embeddedWidget() override
+        // {
+        //     return widget;
+        // }
 
         QJsonObject save() const override
         {
@@ -162,15 +158,10 @@ namespace Nodes
         {
             if (m_index == idx) return;
             m_index = idx;
-            if (widget) {
-                const QSignalBlocker blocker(widget);
-                widget->setValue(idx);
-            }
             for(unsigned int i=0;i<OutPortCount;i++){
                 Q_EMIT dataUpdated(i);
             }
             Q_EMIT indexChanged(idx);
-            AbstractDelegateModel::stateFeedBack("/index", idx);
         }
 
         /**
@@ -205,7 +196,7 @@ namespace Nodes
     
     private:
         QFutureWatcher<double>* m_watcher = nullptr;
-        IntDragValueWidget *widget=new IntDragValueWidget();
+        // IntDragValueWidget *widget=new IntDragValueWidget();
         std::unordered_map<unsigned int,  std::shared_ptr<ImageData>> in_dictionary;
         int m_index = 0;
     };

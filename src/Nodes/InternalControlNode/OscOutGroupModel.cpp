@@ -18,7 +18,10 @@ OscOutGroupModel::OscOutGroupModel(){
     connect(widget->testButton,&QPushButton::clicked,this,[this](){
         setTrigger(true);
     });
-    AbstractDelegateModel::registerExternalControl("/trigger",widget->testButton);
+    NodeDelegateModel::ExternalBinding b;
+            b.member = "trigger";
+            b.control = widget->testButton;
+        AbstractDelegateModel::registerExternalBinding("/trigger", this, b);
 }
 
 QtNodes::NodeDataType OscOutGroupModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const {

@@ -8,7 +8,6 @@
 #include <QFutureWatcher>
 
 #include "DataTypes/NodeDataList.hpp"
-#include "CutImageInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 using namespace NodeDataTypes;
@@ -33,8 +32,6 @@ namespace Nodes
 
         std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override;
 
-        QWidget* embeddedWidget() override;
-
         QJsonObject save() const override;
 
         void load(const QJsonObject &p) override;
@@ -42,22 +39,22 @@ namespace Nodes
         /**
          * 函数级注释：获取当前裁剪矩形左上角 X 坐标属性
          */
-        int topLeftX() const { return m_outRect.left(); }
+        int topLeftX() const { return m_topLeftX; }
 
         /**
          * 函数级注释：获取当前裁剪矩形左上角 Y 坐标属性
          */
-        int topLeftY() const { return m_outRect.top(); }
+        int topLeftY() const { return m_topLeftY; }
 
         /**
          * 函数级注释：获取当前裁剪矩形宽度属性
          */
-        int width() const { return m_outRect.width(); }
+        int width() const { return m_width; }
 
         /**
          * 函数级注释：获取当前裁剪矩形高度属性
          */
-        int height() const { return m_outRect.height(); }
+        int height() const { return m_height; }
 
     public slots:
         /**
@@ -115,14 +112,12 @@ namespace Nodes
         void onGlobalEvent(const GlobalEvent& ev);
     private:
         std::weak_ptr<ImageData> m_inImageData;
-
-        QRect m_outRect;
-
         std::shared_ptr<ImageData> m_outImageData;
-
-        QVariant m_inData;
-
-        CutImageInterface* widget=new CutImageInterface();
+        int m_topLeftX =0;
+        int m_topLeftY=0;
+        int m_width=0;
+        int m_height=0;
+        // CutImageInterface* widget=new CutImageInterface();
 
 
     };

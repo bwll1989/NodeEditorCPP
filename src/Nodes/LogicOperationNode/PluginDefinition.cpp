@@ -18,5 +18,13 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::LogicOperationDataModel>(name(),tag());
+    reg->registerModel<Nodes::LogicAndDataModel>("Logic And", tag());
+    reg->registerModel<Nodes::LogicOrDataModel>("Logic Or", tag());
+    reg->registerModel<Nodes::LogicNotEqualDataModel>("Logic NotEqual", tag());
+    reg->registerModel<Nodes::LogicMaxDataModel>("Logic Max", tag());
+    reg->registerModel<Nodes::LogicMinDataModel>("Logic Min", tag());
+    reg->registerModel<Nodes::LogicLessDataModel>("Logic Less", tag());
+    reg->registerModel<Nodes::LogicLessEqualDataModel>("Logic LessEqual", tag());
+    reg->registerModel<Nodes::LogicGreaterDataModel>("Logic Greater", tag());
+    reg->registerModel<Nodes::LogicGreaterEqualDataModel>("Logic GreaterEqual", tag());
 }

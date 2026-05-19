@@ -14,6 +14,8 @@
 #include <QCoreApplication>
 #include "Common/Devices/OSCSender/OSCSender.h"
 
+class MqttClient;
+
 class ExternalControler:public QObject {
         Q_OBJECT
 public:
@@ -21,8 +23,12 @@ public:
     ~ExternalControler();
 
 private:
+    void setupMqtt();
+    void onMqttMessage(const QString& topic, const QByteArray& payload);
+
     //OSC接收器
-    OSCReceiver *OSC_Receiver;
-    OSCSender *OSC_Feedback;
+    OSCReceiver *OSC_Receiver = nullptr;
+    OSCSender *OSC_Feedback = nullptr;
+    MqttClient *Mqtt_Client = nullptr;
     StatusContainer *StatusContainer;
 };

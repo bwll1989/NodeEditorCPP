@@ -53,6 +53,12 @@ namespace Nodes
         Q_PROPERTY(int port READ getPort WRITE setPort NOTIFY portChanged)
         Q_PROPERTY(QString password READ getPassword WRITE setPassword NOTIFY passwordChanged)
         Q_PROPERTY(QString customCommand READ getCustomCommand WRITE setCustomCommand NOTIFY customCommandChanged)
+        Q_PROPERTY(bool connected READ connected WRITE setConnected NOTIFY connectedChanged)
+        Q_PROPERTY(bool powerOn READ powerOn WRITE setPowerOn NOTIFY powerOnChanged)
+        Q_PROPERTY(bool powerOff READ powerOff WRITE setPowerOff NOTIFY powerOffChanged)
+        Q_PROPERTY(bool muteOn READ muteOn WRITE setMuteOn NOTIFY muteOnChanged)
+        Q_PROPERTY(bool muteOff READ muteOff WRITE setMuteOff NOTIFY muteOffChanged)
+        Q_PROPERTY(bool sendCustom READ sendCustom WRITE setSendCustom NOTIFY sendCustomChanged)
 
     public:
         /**
@@ -76,16 +82,66 @@ namespace Nodes
             m_heartbeatTimer = new QTimer(this);
             m_heartbeatTimer->setInterval(5000); // 5秒间隔
             connect(m_heartbeatTimer, &QTimer::timeout, this, &PJLinkDataModel::sendHeartbeat);
-            NodeDelegateModel::registerExternalControl("/host", widget->hostEdit);
-            NodeDelegateModel::registerExternalControl("/port", widget->portSpinBox);
-            NodeDelegateModel::registerExternalControl("/password", widget->passwordLineEdit);
-            NodeDelegateModel::registerExternalControl("/powerOn", widget->powerOnButton);
-            NodeDelegateModel::registerExternalControl("/powerOff", widget->powerOffButton);
-            NodeDelegateModel::registerExternalControl("/muteOn", widget->muteOnButton);
-            NodeDelegateModel::registerExternalControl("/muteOff", widget->muteOffButton);
-            NodeDelegateModel::registerExternalControl("/customCommand", widget->customCommandButton);
-            NodeDelegateModel::registerExternalControl("/custom", widget->customCommandLineEdit);
-            NodeDelegateModel::registerExternalControl("/status", widget->connectionStatusLabel);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "host";
+                b.control = widget->hostEdit;
+                AbstractDelegateModel::registerExternalBinding("/host", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                b.control = widget->portSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/port", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "password";
+                b.control = widget->passwordLineEdit;
+                AbstractDelegateModel::registerExternalBinding("/password", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "customCommand";
+                b.control = widget->customCommandLineEdit;
+                AbstractDelegateModel::registerExternalBinding("/customCommand", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "powerOn";
+                b.control = widget->powerOnButton;
+                AbstractDelegateModel::registerExternalBinding("/powerOn", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "powerOff";
+                b.control = widget->powerOffButton;
+                AbstractDelegateModel::registerExternalBinding("/powerOff", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "muteOn";
+                b.control = widget->muteOnButton;
+                AbstractDelegateModel::registerExternalBinding("/muteOn", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "muteOff";
+                b.control = widget->muteOffButton;
+                AbstractDelegateModel::registerExternalBinding("/muteOff", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "sendCustom";
+                b.control = widget->customCommandButton;
+                AbstractDelegateModel::registerExternalBinding("/custom", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "connected";
+                b.control = widget->connectionStatusLabel;
+                AbstractDelegateModel::registerExternalBinding("/connect", this, b);
+            }
             // 同步UI初始值
             m_host = widget->hostEdit->text();
             m_port = widget->portSpinBox->value();
@@ -116,19 +172,23 @@ namespace Nodes
             connect(this, &PJLinkDataModel::stopTCPClient, client, &TcpClient::stopTimer, Qt::QueuedConnection);
             
             connect(widget->powerOnButton, &QPushButton::clicked, this, [this]() {
-                sendPJLinkCommand("POWR", "1");
+                setPowerOn(true);
             });
             connect(widget->powerOffButton, &QPushButton::clicked, this, [this]() {
-                sendPJLinkCommand("POWR", "0");
+                setPowerOff(true);
             });
             connect(widget->muteOnButton, &QPushButton::clicked, this, [this]() {
-                sendPJLinkCommand("AVMT", "31");
+                setMuteOn(true);
             });
             connect(widget->muteOffButton, &QPushButton::clicked, this, [this]() {
-                sendPJLinkCommand("AVMT", "30");
+                setMuteOff(true);
             });
             connect(widget->customCommandButton, &QPushButton::clicked, this, [this]() {
-                sendCustomPJLinkCommand(widget->customCommandLineEdit->text());
+                setSendCustom(true);
+            });
+            connect(widget->customCommandLineEdit, &QLineEdit::editingFinished, this, [this]() {
+                setCustomCommand(widget->customCommandLineEdit->text());
+                setSendCustom(true);
             });
             // 自动连接
             hostChange();
@@ -247,21 +307,24 @@ namespace Nodes
             m_inData = std::dynamic_pointer_cast<VariableData>(data);
             switch (portIndex) {
             case 0: {
-                if (m_inData&&m_inData->value().toBool())
-                    sendPJLinkCommand("POWR", "1");
-                else
-                    sendPJLinkCommand("POWR", "0");
+                if (m_inData && m_inData->value().toBool()) {
+                    setPowerOn(true);
+                } else {
+                    setPowerOff(true);
+                }
             }
                 break;
             case 1:{
-                if (m_inData&&m_inData->value().toBool())
-                    sendPJLinkCommand("AVMT", "31");
-                else
-                    sendPJLinkCommand("AVMT", "30");
+                if (m_inData && m_inData->value().toBool()) {
+                    setMuteOn(true);
+                } else {
+                    setMuteOff(true);
+                }
                 }
             case 2: {
-                if (m_inData&&m_inData->value().toBool())
-                    sendCustomPJLinkCommand(widget->customCommandLineEdit->text());
+                if (m_inData && m_inData->value().toBool()) {
+                    setSendCustom(true);
+                }
             }
                 break;
             default:
@@ -326,6 +389,95 @@ namespace Nodes
     }
     
     public: // Getters and Setters
+        bool connected() const { return m_connected; }
+        void setConnected(bool value)
+        {
+            if (m_connected == value) return;
+            m_connected = value;
+            if (widget) {
+                widget->updateConnectionStatus(value);
+            }
+            emit connectedChanged(value);
+            // AbstractDelegateModel::stateFeedBack("/connect", value);
+            // AbstractDelegateModel::stateFeedBack("/status", value);
+        }
+
+        bool powerOn() const { return m_powerOn; }
+        void setPowerOn(bool value)
+        {
+            if (!value) return;
+            if (!m_powerOn) {
+                m_powerOn = true;
+                emit powerOnChanged(m_powerOn);
+                sendPJLinkCommand("POWR", "1");
+                m_powerOn = false;
+                emit powerOnChanged(m_powerOn);
+            } else {
+                sendPJLinkCommand("POWR", "1");
+            }
+        }
+
+        bool powerOff() const { return m_powerOff; }
+        void setPowerOff(bool value)
+        {
+            if (!value) return;
+            if (!m_powerOff) {
+                m_powerOff = true;
+                emit powerOffChanged(m_powerOff);
+                sendPJLinkCommand("POWR", "0");
+                m_powerOff = false;
+                emit powerOffChanged(m_powerOff);
+            } else {
+                sendPJLinkCommand("POWR", "0");
+            }
+        }
+
+        bool muteOn() const { return m_muteOn; }
+        void setMuteOn(bool value)
+        {
+            if (!value) return;
+            if (!m_muteOn) {
+                m_muteOn = true;
+                emit muteOnChanged(m_muteOn);
+                sendPJLinkCommand("AVMT", "31");
+                m_muteOn = false;
+                emit muteOnChanged(m_muteOn);
+            } else {
+                sendPJLinkCommand("AVMT", "31");
+            }
+        }
+
+        bool muteOff() const { return m_muteOff; }
+        void setMuteOff(bool value)
+        {
+            if (!value) return;
+            if (!m_muteOff) {
+                m_muteOff = true;
+                emit muteOffChanged(m_muteOff);
+                sendPJLinkCommand("AVMT", "30");
+                m_muteOff = false;
+                emit muteOffChanged(m_muteOff);
+            } else {
+                sendPJLinkCommand("AVMT", "30");
+            }
+        }
+
+        bool sendCustom() const { return m_sendCustom; }
+        void setSendCustom(bool value)
+        {
+            if (!value) return;
+
+            if (!m_sendCustom) {
+                m_sendCustom = true;
+                emit sendCustomChanged(m_sendCustom);
+                sendCustomPJLinkCommand(m_customPJLinkCommand);
+                m_sendCustom = false;
+                emit sendCustomChanged(m_sendCustom);
+            } else {
+                sendCustomPJLinkCommand(m_customPJLinkCommand);
+            }
+        }
+
         QString getHost() const { return m_host; }
         void setHost(const QString &value) {
             if (m_host == value) return;
@@ -335,7 +487,7 @@ namespace Nodes
                 widget->hostEdit->setText(value);
             }
             emit hostChanged(value);
-            AbstractDelegateModel::stateFeedBack("/host", value);
+
             hostChange();
         }
 
@@ -348,7 +500,7 @@ namespace Nodes
                 widget->portSpinBox->setValue(value);
             }
             emit portChanged(value);
-            AbstractDelegateModel::stateFeedBack("/port", value);
+
             hostChange();
         }
 
@@ -361,7 +513,7 @@ namespace Nodes
                 widget->passwordLineEdit->setText(value);
             }
             emit passwordChanged(value);
-            AbstractDelegateModel::stateFeedBack("/password", value);
+
             hostChange();
         }
 
@@ -374,7 +526,7 @@ namespace Nodes
                 widget->customCommandLineEdit->setText(value);
             }
             emit customCommandChanged(value);
-            AbstractDelegateModel::stateFeedBack("/customCommand", value);
+
         }
 
     public slots:
@@ -402,7 +554,7 @@ namespace Nodes
         void onConnectionStatusChanged(const bool &isReady)
         {
             m_connectionStatus = std::make_shared<VariableData>(isReady);
-            widget->updateConnectionStatus(isReady);
+            setConnected(isReady);
             
             // 根据连接状态控制心跳定时器
             if (isReady) {
@@ -416,7 +568,6 @@ namespace Nodes
                 setValidatonState(state);
                 m_heartbeatTimer->stop();
             }
-            AbstractDelegateModel::stateFeedBack("/connect", isReady);
             Q_EMIT dataUpdated(0);
         }
 
@@ -448,15 +599,32 @@ namespace Nodes
             } else if (localPath == "customCommand") {
                 setCustomCommand(ev.payload.toString());
             } else if (localPath == "powerOn") {
-                sendPJLinkCommand("POWR", "1");
+                if (!ev.payload.isValid() || ev.payload.toBool()) {
+                    setPowerOn(true);
+                }
             } else if (localPath == "powerOff") {
-                sendPJLinkCommand("POWR", "0");
+                if (!ev.payload.isValid() || ev.payload.toBool()) {
+                    setPowerOff(true);
+                }
             } else if (localPath == "muteOn") {
-                sendPJLinkCommand("AVMT", "31");
+                if (!ev.payload.isValid() || ev.payload.toBool()) {
+                    setMuteOn(true);
+                }
             } else if (localPath == "muteOff") {
-                sendPJLinkCommand("AVMT", "30");
+                if (!ev.payload.isValid() || ev.payload.toBool()) {
+                    setMuteOff(true);
+                }
             } else if (localPath == "custom") {
-                sendCustomPJLinkCommand(ev.payload.toString());
+                if (ev.payload.metaType().id() == QMetaType::QString) {
+                    const QString cmd = ev.payload.toString();
+                    if (!cmd.isEmpty()) {
+                        sendCustomPJLinkCommand(cmd);
+                        return;
+                    }
+                }
+                if (!ev.payload.isValid() || ev.payload.toBool()) {
+                    setSendCustom(true);
+                }
             }
         }
 
@@ -477,6 +645,13 @@ namespace Nodes
         void portChanged(int port);
         void passwordChanged(const QString &password);
         void customCommandChanged(const QString &value);
+
+        void connectedChanged(bool value);
+        void powerOnChanged(bool value);
+        void powerOffChanged(bool value);
+        void muteOnChanged(bool value);
+        void muteOffChanged(bool value);
+        void sendCustomChanged(bool value);
 
     private:
         
@@ -567,17 +742,17 @@ namespace Nodes
         
         // 根据认证状态构建指令
         if (m_authHash.isEmpty()) {
-            // 无密码认证：格式为 %1指令 参数
-            pjlinkCommand = QString("%1%2 %3\r").arg("%1").arg(command).arg(parameter);
+            // 无密码认证：格式为 %1<command> <parameter>\r
+            pjlinkCommand = QString("%1") + command + " " + parameter + "\r";
         } else {
-            // 有密码认证：格式为 哈希值%1指令 参数
+            // 有密码认证：格式为 <md5>%1<command> <parameter>\r
             pjlinkCommand = m_authHash + "%1" + command + " " + parameter + "\r";
         }
 
         // 发送指令
         QByteArray commandData = pjlinkCommand.toUtf8();
         client->sendMessage(commandData.toHex(), 0); // 0表示HEX格式
-        AbstractDelegateModel::stateFeedBack("/send", true);
+     
     }
     /**
      * @brief 发送自定义PJLink指令
@@ -629,6 +804,13 @@ namespace Nodes
         QString m_host;
         int m_port;
         QString m_password;
+
+        bool m_connected = false;
+        bool m_powerOn = false;
+        bool m_powerOff = false;
+        bool m_muteOn = false;
+        bool m_muteOff = false;
+        bool m_sendCustom = false;
     };
 
 }

@@ -1,60 +1,29 @@
-# AudioCrossFaderNode 帮助文档
+# AudioCrossFaderNode 使用说明
 
-## 概述
-AudioCrossFaderNode 用于对两路输入音频进行交叉淡化过渡（A↔B）。支持手动混合比例控制和按时长自动淡入淡出，采用等功率曲线实现恒定响度的听感。
+## 用途
+AudioCrossFaderNode 用于在两路音频 A / B 之间做平滑过渡（交叉淡化），常用于场景切换、音乐/语音切换等。
 
-## 功能特性
-- 双输入交叉淡化：两路音频 A、B 之间平滑过渡
-- 等功率曲线：使用 cos/sin 权重保持响度一致
-- 自动淡入淡出：按毫秒时长执行 A→B 或 B→A
-- 手动混合控制：`mix` 范围 0.0~1.0（0=A，1=B）
-- Reset Mix：重新发送当前 `mixSpin` 数值到处理线程
-- 时间戳同步：基于 `TimestampGenerator` 的帧级同步
-- 线程安全：UI 与工作线程通过信号/槽隔离
-- 单路回退：仅有一侧输入时自动直通
+## 输入端口（AudioData）
+- In0：A 路音频
+- In1：B 路音频
 
-## 输入端口
-- 端口类型：`AudioData`
-- 端口数量：2（`In0`: A，`In1`: B）
-- 数据格式：`AudioTimestampRingQueue` 共享缓冲区
-- 位深度：支持 16 位、有符号整数；或 32 位 float
-- 采样率：通常 48kHz（随上游）
-- 帧对齐：按 `TimestampGenerator` 的帧计数对齐
+## 输出端口（AudioData）
+- Out0：混合后的音频
 
-## 输出端口
-- 端口类型：`AudioData`
-- 端口数量：1（混合输出）
-- 数据格式：内部混合为 `float32`，时间戳随帧推进
-- 处理延迟：极低（含小幅时间戳补偿）
+## 界面参数
+- Mix（0=A，1=B）：手动混合比例。
+- Fade Time (ms)：自动过渡时长（毫秒）。
+- Start A -> B：按 Fade Time 从 A 过渡到 B。
+- Start B -> A：按 Fade Time 从 B 过渡到 A。
+- Reset Mix：把当前 Mix 立即应用到输出。
 
-## 界面组件
-- `Mix (0=A, 1=B)`：混合比例数值框（`QDoubleSpinBox`）
-- `Fade Time (ms)`：自动淡入淡出时长（毫秒）
-- `Start A -> B`：启动 A→B 的自动淡入淡出
-- `Start B -> A`：启动 B→A 的自动淡入淡出
-- `Reset Mix`：重新发送当前 `mixSpin` 数值至工作线程
+## 快速上手
+1. 把两路音频源分别接到 In0/In1。
+2. 手动模式：直接调 Mix。
+3. 自动模式：设置 Fade Time，然后点 Start A -> B 或 Start B -> A。
+4. 将 Out0 连接到音频输出或后续处理节点。
 
-## 技术实现
-- 核心类：`AudioCrossFaderWorker`（工作线程）、`AudioCrossFaderDataModel`（数据模型）、`AudioCrossFaderInterface`（界面）
-- 等功率权重：`wA = cos(π·mix/2)`，`wB = sin(π·mix/2)`
-- 数据路径：输入缓冲区按时间戳取帧 → 转换为 `float32` → 加权混合 → 推送到输出缓冲区
-- 自动淡入淡出：基于当前帧计数与时长换算目标帧区间，线性推进 `mix`
-- 线程通信：通过 `QMetaObject::invokeMethod` 使用队列连接
-
-## 使用说明
-1. 将两路音频源分别接到输入端口 A、B
-2. 调整 `Mix` 数值实现手动混合；或设置 `Fade Time (ms)` 后点击 `Start A -> B` / `Start B -> A`
-3. 点击 `Reset Mix` 会把当前 `Mix` 数值再次发送到工作线程（等效于重新触发 `mixSpin.valueChanged`）
-4. 从输出端口获取混合后的音频
-
-## 故障排除
-- 无输出：确认至少有一侧输入处于活动状态且时间戳对齐
-- 失真/响度异常：检查上游位深与采样率；避免重复归一化
-- 过渡不平滑：确认 `TimestampGenerator` 正常推进帧计数
-
-## 版本信息
-- 兼容系统：Windows 10 及以上
-- 依赖：Qt6、QtNodes、项目内 `TimestampGenerator`
-- 建议采样率：48kHz
-- 备注：项目音频解码链路使用 FFmpeg 7.1（若涉及外部解码）
+## 注意事项
+- 只有一路输入时，会直接输出现有输入；另一侧为空不会报错。
+- 如果听不到声音：确认 Out0 已连接到音频输出节点，且上游音量正常。
 

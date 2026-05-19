@@ -26,17 +26,18 @@ StatusContainer::StatusContainer(QObject* parent) : QObject(parent)
 void StatusContainer::registerWidget(QWidget* p, const QString& a) {
 
     // 函数级注释：注册控件指针到指定地址。若地址已存在，仅更新其指针；否则新建条目，值为空
-    if (!p || a.isEmpty()) return;
+    if (a.isEmpty()) return;
     QWriteLocker g(&_lock);
     auto it = _latest.find(a);
     if (it != _latest.end()) {
         StatusItem item = it.value();
-        item.ptr = p;
+        item.ptr = p;  // 支持 nullptr 以解除绑定
         it.value() = item;
     } else {
         _latest.insert(a, StatusItem(p, a, QVariant()));
     }
 }
+
 
 bool StatusContainer::updateState(const OSCMessage& message) {
 

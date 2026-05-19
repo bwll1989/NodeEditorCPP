@@ -1,91 +1,41 @@
-# NDVControlNode 帮助文档
+# NDVServerNode 使用说明
 
-## 节点功能
-NDV控制节点是一个专门负责网络通信和设备管理的服务器节点，支持以下特性：
+## 用途
+NDVServerNode 用于监听 NDV 设备的连接/握手，并把 NDVPlayerNode 输出的 COMMAND 指令转发给指定设备（按设备 ID 或按 IP）。
 
-- **TCP服务器**：作为TCP服务器接收和处理来自NDVPlayerNode的指令
-- **设备通信**：通过TCP协议与NDV（Network Display Video）设备进行通信
-- **客户端管理**：维护连接的NDV设备列表，支持设备状态监控
-- **自动握手**：每隔5秒自动向所有客户端发送握手信号，维持连接状态
-- **指令执行**：接收播放器指令并转换为NDV设备协议格式发送
-- **多设备支持**：支持同时管理多个NDV设备
-- **配置保存与加载**：自动保存和加载服务器配置和客户端信息
+## 端口
+- 输入（可编辑）
+  - PLAYER 0..N：VariableData（指令数据，通常连接 NDVPlayerNode 的 COMMAND）
+- 输出（1）
+  - CLIENT_STATUS：VariableData（客户端列表与状态）
 
-## 输入端口
-节点支持动态端口数量：
+COMMAND 字段（常用）：
+- `type`：`play` / `stop` / `loop` / `next` / `prev` / `close` / `handshake`
+- `fileIndex`：文件索引（play/loop 时有效）
+- `targetId`：目标设备 ID；为 0 时表示广播到所有已连接设备
+- `targetIP`：可选；如果设置了该字段，会优先按 IP 发送
 
-1. **PLAYER 0, PLAYER 1, ...**：接收来自NDVPlayerNode的指令数据（VariableData类型）
-   - 支持的指令类型：play、stop、loop、next、prev、handshake
-   - 指令数据包含：指令类型、文件索引、目标ID、时间戳等信息
+CLIENT_STATUS 字段：
+- `ConnectedClients`：map，key 为设备 ID（string），value 包含：
+  - `ip` / `id` / `status` / `lastSeen` / `lastHandshake`
+- `ClientCount`：已连接设备数量（int）
+- `HandshakeActive`：是否启用自动握手（bool）
+- `LastHandshakeTime`：最近一次自动握手时间（string）
 
-## 输出端口
-节点提供1个输出端口：
+## 节点参数
+- ip：监听 IP（默认 `0.0.0.0`）
+- port：监听端口（默认 `9008`）
 
-1. **CLIENT_STATUS**：客户端状态信息输出（VariableData类型），包含所有连接设备的状态信息
+## 外部控制（可选）
+- `/ip`：设置监听 IP（string）
+- `/port`：设置监听端口（int）
 
-## 节点界面
-节点提供了服务器配置界面，包含以下元素：
-
-- **IP地址**：输入框，用于设置服务器监听的IP地址（默认：0.0.0.0，监听所有接口）
-- **端口**：数字输入框，用于设置服务器监听端口（范围：1000-65535，默认：8008）
-- **当前目标ID**：显示框，显示当前处理的目标设备ID
-
-## 使用示例
-
-### 基本服务器设置
-1. 添加NDVControlNode到工作区
-2. 设置服务器监听端口（如：8008）
-3. 节点将自动启动TCP服务器并开始监听连接
-4. 每隔5秒自动向所有连接的客户端发送握手信号
-
-### 与NDVPlayerNode配合使用
-1. 添加NDVPlayerNode和NDVControlNode到工作区
-2. 将NDVPlayerNode的COMMAND输出连接到NDVControlNode的PLAYER输入端口
-3. 在NDVPlayerNode中设置播放器ID和文件索引
-4. 通过NDVPlayerNode发送的指令将自动由NDVControlNode转发给对应的NDV设备
-
-### 多播放器环境
-1. 添加多个NDVPlayerNode和一个NDVControlNode
-2. 将所有NDVPlayerNode的COMMAND输出连接到NDVControlNode的不同PLAYER端口
-3. 为每个播放器设置不同的播放器ID
-4. NDVControlNode将根据目标ID将指令发送给对应的NDV设备
-
-### 客户端状态监控
-1. 将NDVControlNode的CLIENT_STATUS输出连接到其他节点（如显示节点）
-2. 实时监控所有连接设备的状态信息
-3. 包含设备IP、ID、最后握手时间、连接状态等信息
+## 使用步骤
+1. 设置 ip/port 并启动（节点创建后会自动监听）。
+2. 等待 NDV 设备上线并握手，CLIENT_STATUS 会出现设备列表。
+3. 将一个或多个 NDVPlayerNode 的 COMMAND 输出连接到 PLAYER 输入端口。
+4. 在 NDVPlayerNode 里设置 playerId（目标设备 ID）并触发播放/停止等操作。
 
 ## 注意事项
-
-- **网络配置**：确保NDV设备能够连接到服务器的IP地址和端口
-- **防火墙设置**：确保服务器端口未被防火墙阻止
-- **设备ID映射**：NDVControlNode会自动维护设备IP与ID的映射关系
-- **握手机制**：节点每5秒自动发送握手信号，维持与客户端的连接状态
-- **指令格式**：节点自动将播放器指令转换为NDV设备的十六进制协议格式
-- **并发处理**：支持同时处理多个播放器的指令请求
-- **连接管理**：自动检测和管理客户端连接状态
-- **配置持久化**：服务器配置和客户端映射关系会自动保存
-
-## 支持的NDV指令
-
-节点支持以下NDV设备指令：
-
-- **播放指令**：播放指定索引的文件
-- **停止指令**：停止当前播放
-- **循环播放指令**：循环播放指定索引的文件
-- **下一个指令**：播放下一个文件
-- **上一个指令**：播放上一个文件
-- **握手指令**：维持设备连接状态
-- **关闭指令**：关闭客户端连接
-
-## 技术细节
-
-- **网络框架**：使用自定义的TcpServer类实现TCP服务器功能
-- **协议格式**：使用预定义的十六进制命令格式与NDV设备通信
-- **定时器机制**：使用QTimer实现5秒间隔的自动握手功能
-- **客户端管理**：使用NDVClientInfo结构体维护客户端信息
-- **数据结构**：使用QMap存储设备ID与客户端信息的映射关系
-- **线程安全**：网络操作在独立线程中执行，不阻塞主UI线程
-- **信号处理**：使用Qt信号槽机制处理网络事件和数据更新
-- **配置存储**：使用QJsonObject实现配置和客户端信息的持久化
-- **界面框架**：基于Qt Widgets构建，使用自定义的NDVServerInterface
+- 设备列表来自设备主动握手；未握手的设备不会出现在 ConnectedClients 中。
+- 自动握手默认每 5 秒向所有已连接设备发送一次。

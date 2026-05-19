@@ -47,6 +47,30 @@ namespace Nodes
             Resizable=false;
             m_inData=std::make_shared<VariableData>();
             m_outData=std::make_shared<VariableData>();
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "host";
+                b.control=widget->hostLineEdit;
+                AbstractDelegateModel::registerExternalBinding("/host", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                b.control=widget->portSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/port", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "value";
+                b.control=widget->valueEdit;
+                AbstractDelegateModel::registerExternalBinding("/value", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "send";
+                b.control=widget->sendButton;
+                AbstractDelegateModel::registerExternalBinding("/send", this, b);
+            }
             server=new TcpServer();
             //        server->moveToThread(serverThread);
 
@@ -104,7 +128,6 @@ namespace Nodes
             
             updateServer();
             emit hostChanged(m_host);
-            AbstractDelegateModel::stateFeedBack("/host", m_host);
         }
 
         void setPort(int port) {
@@ -118,7 +141,6 @@ namespace Nodes
             
             updateServer();
             emit portChanged(m_port);
-            AbstractDelegateModel::stateFeedBack("/port", m_port);
         }
 
         void setValue(const QString &val) {
@@ -131,7 +153,6 @@ namespace Nodes
             }
             
             emit valueChanged(m_value);
-            AbstractDelegateModel::stateFeedBack("/value", m_value);
         }
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
@@ -291,8 +312,9 @@ namespace Nodes
         }
 
         void sendMessage(){
-            server->sendMessage(m_value, widget->format->currentIndex());
             AbstractDelegateModel::stateFeedBack("/send", true);
+            server->sendMessage(m_value, widget->format->currentIndex());
+            AbstractDelegateModel::stateFeedBack("/send", false);
         }
 
     signals:

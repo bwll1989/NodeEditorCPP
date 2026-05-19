@@ -33,7 +33,6 @@ namespace Nodes
         Q_PROPERTY(int channelCount READ channelCount WRITE setChannelCount NOTIFY channelCountChanged)
         Q_PROPERTY(int startAddress READ startAddress WRITE setStartAddress NOTIFY startAddressChanged)
         Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
-
     public:
         /**
          * @brief 构造函数，初始化通道设备节点
@@ -54,10 +53,26 @@ namespace Nodes
             // 初始化通道值数组（默认5个通道，值为0）
             channelValues.resize(InPortCount, 0);
             
-            // 注册OSC控制
-            AbstractDelegateModel::registerExternalControl("/channels", widget->channelCountSpinBox);
-            AbstractDelegateModel::registerExternalControl("/startAddress", widget->startAddressSpinBox);
-            AbstractDelegateModel::registerExternalControl("/enable", widget->enableCheckBox);
+            // 注册外部控制（属性化：地址 <-> Q_PROPERTY(member)；控件仅用于兼容映射/定位）
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "channelCount";
+                b.control = widget->channelCountSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/channels", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "startAddress";
+                b.control = widget->startAddressSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/startAddress", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "enabled";
+                b.control = widget->enableCheckBox;
+                AbstractDelegateModel::registerExternalBinding("/enable", this, b);
+            }
+
             connect(widget->channelCountSpinBox, QOverload<int>::of(&IntDragValueWidget::valueChanged),
                     this, &DMXDeviceDataModel::setChannelCount);
             connect(widget->startAddressSpinBox, QOverload<int>::of(&IntDragValueWidget::valueChanged),
@@ -111,7 +126,6 @@ namespace Nodes
             updateChannelSliders();
             updateChannelData();
             Q_EMIT channelCountChanged(count);
-            AbstractDelegateModel::stateFeedBack("/channels", count);
 
         }
 
@@ -125,7 +139,6 @@ namespace Nodes
              updateAddressRangeDisplay();
              updateChannelData();
              Q_EMIT startAddressChanged(addr);
-             AbstractDelegateModel::stateFeedBack("/startAddress", addr);
         }
 
         void setEnabled(bool enable) {
@@ -137,7 +150,6 @@ namespace Nodes
              }
             updateChannelData();
             Q_EMIT enabledChanged(enable);
-            AbstractDelegateModel::stateFeedBack("/enable", enable);
         }
 
         void onGlobalEvent(const GlobalEvent& ev) {

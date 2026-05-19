@@ -25,9 +25,20 @@ namespace Nodes
     class ImageThresholdDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+
+        enum class ThresholdMethod : int {
+            Binary = 0,
+            BinaryInv = 1,
+            Trunc = 2,
+            ToZero = 3,
+            ToZeroInv = 4
+        };
+        Q_ENUM(ThresholdMethod)
+
         Q_PROPERTY(int thresh READ thresh WRITE setThresh NOTIFY threshChanged)
         Q_PROPERTY(int maxval READ maxval WRITE setMaxval NOTIFY maxvalChanged)
-        Q_PROPERTY(int method READ method WRITE setMethod NOTIFY methodChanged)
+        Q_PROPERTY(ThresholdMethod method READ method WRITE setMethod NOTIFY methodChanged)
+        Q_PROPERTY(int methodIndex READ methodIndex WRITE setMethodIndex NOTIFY methodIndexChanged DESIGNABLE false)
 
         public:
         ImageThresholdDataModel()
@@ -40,24 +51,39 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outImage=std::make_shared<ImageData>();
-            connect(widget->threshEdit,&IntDragValueWidget::valueChanged,this,[this](int v){ setThresh(v); });
-            connect(widget->maxvalEdit,&IntDragValueWidget::valueChanged,this,[this](int v){ setMaxval(v); });
-            connect(widget->methodEdit,&QComboBox::currentIndexChanged,this,[this](int v){ setMethod(v); });
+            // connect(widget->threshEdit,&IntDragValueWidget::valueChanged,this,[this](int v){ setThresh(v); });
+            // connect(widget->maxvalEdit,&IntDragValueWidget::valueChanged,this,[this](int v){ setMaxval(v); });
+            // connect(widget->methodEdit,&QComboBox::currentIndexChanged,this,[this](int v){ setMethod(static_cast<ThresholdMethod>(v)); });
 
-            AbstractDelegateModel::registerExternalControl("/method",widget->methodEdit);
-            AbstractDelegateModel::registerExternalControl("/thresh",widget->threshEdit);
-            AbstractDelegateModel::registerExternalControl("/maxval",widget->maxvalEdit);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "methodIndex";
+                AbstractDelegateModel::registerExternalBinding("/method", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "thresh";
+                // b.control = widget->threshEdit;
+                AbstractDelegateModel::registerExternalBinding("/thresh", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "maxval";
+                // b.control = widget->maxvalEdit;
+                AbstractDelegateModel::registerExternalBinding("/maxval", this, b);
+            }
 
-            m_thresh = widget->threshEdit->value();
-            m_maxval = widget->maxvalEdit->value();
-            m_method = widget->methodEdit->currentIndex();
+            // m_thresh = widget->threshEdit->value();
+            // m_maxval = widget->maxvalEdit->value();
+            // m_method = static_cast<ThresholdMethod>(widget->methodEdit->currentIndex());
         }
 
         virtual ~ImageThresholdDataModel() override{}
 
         int thresh() const { return m_thresh; }
         int maxval() const { return m_maxval; }
-        int method() const { return m_method; }
+        ThresholdMethod method() const { return m_method; }
+        int methodIndex() const { return static_cast<int>(m_method); }
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
@@ -135,7 +161,7 @@ namespace Nodes
                 setMaxval(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
                 break;
             case 3:
-                setMethod(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
+                setMethodIndex(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
                 break;
             }
         }
@@ -152,17 +178,17 @@ namespace Nodes
 
                 double thresh = m_thresh;
                 double maxval = m_maxval;
-                int method = m_method;
+                const int method = static_cast<int>(m_method);
                 cv::threshold(inputMat, thresholdedMat, thresh, maxval, method);
 
                 m_outImage = std::make_shared<ImageData>(thresholdedMat);
             }
             Q_EMIT dataUpdated(0);
         }
-        QWidget *embeddedWidget() override
-        {
-            return widget;
-        }
+        // QWidget *embeddedWidget() override
+        // {
+        //     return widget;
+        // }
 
         QJsonObject save() const override
         {
@@ -171,7 +197,7 @@ namespace Nodes
 
             modelJson1["thresh"] = m_thresh;
             modelJson1["maxval"] = m_maxval;
-            modelJson1["method"] = m_method;
+            modelJson1["method"] = static_cast<int>(m_method);
             modelJson["values"]=modelJson1;
             return modelJson;
         }
@@ -182,58 +208,57 @@ namespace Nodes
             if (!v.isUndefined()&&v.isObject()) {
                 setThresh(v.toObject()["thresh"].toInt());
                 setMaxval(v.toObject()["maxval"].toInt());
-                setMethod(v.toObject()["method"].toInt());
+                setMethodIndex(v.toObject()["method"].toInt());
             }
         }
 
     private:
 
-        ImageThresholdInterface *widget=new ImageThresholdInterface();
+        // ImageThresholdInterface *widget=new ImageThresholdInterface();
         std::shared_ptr<NodeData> m_outImage;
         std::shared_ptr<ImageData> m_inImage;
         std::shared_ptr<VariableData> m_inVariable;
         int m_thresh = 0;
         int m_maxval = 0;
-        int m_method = 0;
+        ThresholdMethod m_method = ThresholdMethod::Binary;
 
     public Q_SLOTS:
         void setThresh(int v)
         {
             if (m_thresh == v) return;
             m_thresh = v;
-            if (widget && widget->threshEdit) {
-                const QSignalBlocker blocker(widget->threshEdit);
-                widget->threshEdit->setValue(v);
-            }
+            // if (widget && widget->threshEdit) {
+            //     const QSignalBlocker blocker(widget->threshEdit);
+            //     widget->threshEdit->setValue(v);
+            // }
             updateImage();
             Q_EMIT threshChanged(v);
-            AbstractDelegateModel::stateFeedBack("/thresh", v);
         }
 
         void setMaxval(int v)
         {
             if (m_maxval == v) return;
             m_maxval = v;
-            if (widget && widget->maxvalEdit) {
-                const QSignalBlocker blocker(widget->maxvalEdit);
-                widget->maxvalEdit->setValue(v);
-            }
+            // if (widget && widget->maxvalEdit) {
+            //     const QSignalBlocker blocker(widget->maxvalEdit);
+            //     widget->maxvalEdit->setValue(v);
+            // }
             updateImage();
             Q_EMIT maxvalChanged(v);
-            AbstractDelegateModel::stateFeedBack("/maxval", v);
         }
 
-        void setMethod(int v)
+        void setMethod(ThresholdMethod v)
         {
             if (m_method == v) return;
             m_method = v;
-            if (widget && widget->methodEdit) {
-                const QSignalBlocker blocker(widget->methodEdit);
-                widget->methodEdit->setCurrentIndex(v);
-            }
             updateImage();
-            Q_EMIT methodChanged(v);
-            AbstractDelegateModel::stateFeedBack("/method", v);
+            Q_EMIT methodChanged();
+            Q_EMIT methodIndexChanged(methodIndex());
+        }
+
+        void setMethodIndex(int v)
+        {
+            setMethod(static_cast<ThresholdMethod>(v));
         }
 
         void onGlobalEvent(const GlobalEvent& ev)
@@ -247,14 +272,15 @@ namespace Nodes
             } else if (ev.address == addrMaxval) {
                 setMaxval(ev.payload.toInt());
             } else if (ev.address == addrMethod) {
-                setMethod(ev.payload.toInt());
+                setMethodIndex(ev.payload.toInt());
             }
         }
 
     Q_SIGNALS:
         void threshChanged(int v);
         void maxvalChanged(int v);
-        void methodChanged(int v);
+        void methodChanged();
+        void methodIndexChanged(int v);
 
     protected:
         void afterModelReady() override

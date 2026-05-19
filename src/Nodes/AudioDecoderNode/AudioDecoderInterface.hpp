@@ -32,23 +32,22 @@ namespace Nodes
 
             // 进度条和时间显示
             progressSlider->setOrientation(Qt::Horizontal);
-            progressSlider->setRange(0, 1000); // 精度 0.1%
+            progressSlider->setRange(0, 10000); // 精度 0.01%
             main_layout->addWidget(progressSlider, 4, 0, 1, 2);
             
             timeLabel->setAlignment(Qt::AlignCenter);
             timeLabel->setText("00:00 / 00:00");
             main_layout->addWidget(timeLabel, 5, 0, 1, 2);
-
-            main_layout->addWidget(loopCheckBox, 6, 0,1,1);
-
-            main_layout->addWidget(volumeSlider, 6, 1,1,1);
+            main_layout->addWidget(volumeSlider, 6, 0,1,1);
+            main_layout->addWidget(loopCheckBox, 6, 1,1,1);
 
             main_layout->setContentsMargins(4,2,4,4);
             volumeSlider->setRange(-40, 20);
             volumeSlider->setValue(0);
             volumeSlider->setSingleStep(0.5);
             volumeSlider->setSuffix(" dB");
-
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 7, 0, 1, 2);
+            main_layout->setRowStretch(7, 1);
             this->setLayout(main_layout);
             this->setMinimumSize(QSize(200,50));
 

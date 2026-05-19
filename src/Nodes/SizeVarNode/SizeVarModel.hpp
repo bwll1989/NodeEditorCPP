@@ -11,6 +11,7 @@
 #include <QtWidgets/QGridLayout>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
+#include <QtWidgets/QSpacerItem>
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
@@ -20,8 +21,8 @@ namespace Nodes
 {
     class SizeVarModel final : public AbstractDelegateModel {
         Q_OBJECT
-        Q_PROPERTY(qreal width READ getWidth WRITE setWidth NOTIFY widthChanged)
-        Q_PROPERTY(qreal height READ getHeight WRITE setHeight NOTIFY heightChanged)
+        Q_PROPERTY(double width READ getWidth WRITE setWidth NOTIFY widthChanged)
+        Q_PROPERTY(double height READ getHeight WRITE setHeight NOTIFY heightChanged)
 
     public:
         SizeVarModel() {
@@ -34,34 +35,50 @@ namespace Nodes
             Resizable= true;
 
             // UI Setup
-            QGridLayout* gridLayout = new QGridLayout(m_widget);
-            
-            QLabel* labelWidth = new QLabel("Width", m_widget);
-            gridLayout->addWidget(labelWidth, 0, 0);
-            
-            sb_width = new IntDragValueWidget(m_widget);
-            gridLayout->addWidget(sb_width, 0, 1);
-            
-            QLabel* labelHeight = new QLabel("Height", m_widget);
-            gridLayout->addWidget(labelHeight, 1, 0);
-            
-            sb_height = new IntDragValueWidget(m_widget);
-            gridLayout->addWidget(sb_height, 1, 1);
+            // QGridLayout* gridLayout = new QGridLayout(m_widget);
+            // gridLayout->setContentsMargins(0, 0, 0, 0);
+            // gridLayout->setSpacing(6);
+            // gridLayout->setColumnStretch(0, 1);
+            // gridLayout->setColumnStretch(1, 2);
+            //
+            // QLabel* labelWidth = new QLabel("Width:", m_widget);
+            // gridLayout->addWidget(labelWidth, 0, 0);
+            //
+            // sb_width = new IntDragValueWidget(m_widget);
+            // gridLayout->addWidget(sb_width, 0, 1);
+            //
+            // QLabel* labelHeight = new QLabel("Height:", m_widget);
+            // gridLayout->addWidget(labelHeight, 1, 0);
+            //
+            // sb_height = new IntDragValueWidget(m_widget);
+            // gridLayout->addWidget(sb_height, 1, 1);
+            //
+            // gridLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 2, 0, 1, 2);
+            // gridLayout->setRowStretch(2, 1);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "width";
+                AbstractDelegateModel::registerExternalBinding("/width", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "height";
+                AbstractDelegateModel::registerExternalBinding("/height", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/width", sb_width);
+            // AbstractDelegateModel::registerExternalControl("/height", sb_height);
 
-            AbstractDelegateModel::registerExternalControl("/width", sb_width);
-            AbstractDelegateModel::registerExternalControl("/height", sb_height);
+            // // UI -> Property connections
+            // connect(sb_width, &IntDragValueWidget::valueChanged, this, [this](){
+            //     setWidth(sb_width->value());
+            // });
+            // connect(sb_height, &IntDragValueWidget::valueChanged, this, [this](){
+            //     setHeight(sb_height->value());
+            // });
 
-            // UI -> Property connections
-            connect(sb_width, &IntDragValueWidget::valueChanged, this, [this](){
-                setWidth(sb_width->value());
-            });
-            connect(sb_height, &IntDragValueWidget::valueChanged, this, [this](){
-                setHeight(sb_height->value());
-            });
-
-            // Initial sync
-            sb_width->setValue(m_outSize.width());
-            sb_height->setValue(m_outSize.height());
+            // // Initial sync
+            // sb_width->setValue(m_outSize.width());
+            // sb_height->setValue(m_outSize.height());
         };
 
         ~SizeVarModel() override{}
@@ -71,9 +88,6 @@ namespace Nodes
             auto bus = GlobalEventBus::instance();
             bus->subscribe(makeFullOscAddress("/width"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/height"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            AbstractDelegateModel::stateFeedBack("/width", m_outSize.width());
-            AbstractDelegateModel::stateFeedBack("/height", m_outSize.height());
-
         }
 
         QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override {
@@ -128,9 +142,9 @@ namespace Nodes
             }
         }
 
-        QWidget* embeddedWidget() override{
-            return m_widget;
-        }
+        // QWidget* embeddedWidget() override{
+        //     return m_widget;
+        // }
 
         QJsonObject save() const override
         {
@@ -160,12 +174,12 @@ namespace Nodes
             if (qFuzzyCompare(m_outSize.width(), value)) return;
             m_outSize.setWidth(value);
             
-            if (m_widget && sb_width && sb_width->value()!= value) {
-                QSignalBlocker blocker(sb_width);
-                sb_width->setValue(value);
-            }
+            // if (m_widget && sb_width && sb_width->value()!= value) {
+            //     QSignalBlocker blocker(sb_width);
+            //     sb_width->setValue(value);
+            // }
             emit widthChanged(value);
-            AbstractDelegateModel::stateFeedBack("/width", value);
+            // AbstractDelegateModel::stateFeedBack("/width", value);
             Q_EMIT dataUpdated(0);
         }
 
@@ -174,12 +188,12 @@ namespace Nodes
             if (qFuzzyCompare(m_outSize.height(), value)) return;
             m_outSize.setHeight(value);
             
-            if (m_widget && sb_height && sb_height->value() != value) {
-                QSignalBlocker blocker(sb_height);
-                sb_height->setValue(value);
-            }
+            // if (m_widget && sb_height && sb_height->value() != value) {
+            //     QSignalBlocker blocker(sb_height);
+            //     sb_height->setValue(value);
+            // }
             emit heightChanged(value);
-            AbstractDelegateModel::stateFeedBack("/height", value);
+            // AbstractDelegateModel::stateFeedBack("/height", value);
             Q_EMIT dataUpdated(0);
         }
 
@@ -202,7 +216,7 @@ namespace Nodes
     private:
         IntDragValueWidget* sb_width = nullptr;
         IntDragValueWidget* sb_height = nullptr;
-        QWidget* m_widget = new QWidget();
+        // QWidget* m_widget = new QWidget();
         std::weak_ptr<VariableData> m_inSizeData;
         // 0
         QSizeF m_outSize;

@@ -119,7 +119,7 @@ void MenuBarWidget::setupMenu() {
     helpAction=About_menu->addAction(QIcon(":/icons/icons/help.png"),"帮助");
     connect(helpAction, &QAction::triggered, this, &MenuBarWidget::showHelp);
 
-    aboutAction = About_menu->addAction(QIcon(":/icons/icons/about.png"),"关于NodeStudio");
+    aboutAction = About_menu->addAction(QIcon(":/icons/icons/about.png"),"关于"+AppConstants::PRODUCT_NAME);
 
     connect(aboutAction, &QAction::triggered, this, &MenuBarWidget::showAboutDialog);
     //关于软件窗口

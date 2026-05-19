@@ -5,6 +5,10 @@
 
 using namespace Nodes;
 
+/**
+ * @brief 构造 AudioCrossFader 节点参数界面
+ * 函数级注释：使用垂直弹簧（row stretch）吸收多余高度，避免窗口上下拉伸时控件间距被拉大。
+ */
 AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     : QWidget(parent)
 {
@@ -39,7 +43,9 @@ AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     actionCombo->addItem("Start B -> A");
     
     mainLayout->addWidget(actionCombo, 2, 1);
-    
+
+    mainLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 3, 0, 1, 2);
+    mainLayout->setRowStretch(3, 1);
     setMinimumWidth(250);
 }
 

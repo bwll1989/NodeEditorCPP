@@ -41,7 +41,10 @@ namespace Nodes {
             button->setCheckable(true);
             // button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
             button->setMinimumWidth(80);
-            AbstractDelegateModel::registerExternalControl("/bool", button);
+            NodeDelegateModel::ExternalBinding binding;
+            binding.member = "value";
+            AbstractDelegateModel::registerExternalBinding("/bool", this, binding);
+            // AbstractDelegateModel::registerExternalControl("/bool", button);
             button->setChecked(false);
             // 用户点击直接驱动属性 setValue
             connect(button, &QPushButton::clicked, this, &BoolPluginDataModel::setValue);
@@ -51,7 +54,7 @@ namespace Nodes {
                 if (button->isChecked() != lastValue.toBool()) {
                     button->setChecked(lastValue.toBool());
                 }   
-                stateFeedBack("/bool", lastValue);
+                // stateFeedBack("/bool", lastValue);
             });
         }
         ~BoolPluginDataModel(){
@@ -114,10 +117,15 @@ namespace Nodes {
         {
             QJsonValue v = p["values"];
             if (!v.isUndefined()&&v.isObject()) {
-                button->setChecked(v["val"].toBool(false));
+                setValue(v["val"].toBool(false));
             }
         }
-        QWidget *embeddedWidget() override{return button;}
+        QWidget *embeddedWidget() override {
+            NodeDelegateModel::ExternalBinding ui;
+            ui.control = button;
+            registerExternalBinding("/bool", nullptr, ui);
+            return button;
+        }
 
     signals:
         /**

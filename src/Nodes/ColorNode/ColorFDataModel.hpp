@@ -47,7 +47,7 @@ namespace Nodes
 
         void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex port) override;
 
-        QWidget *embeddedWidget() override { return widget; }
+        QWidget *embeddedWidget() override { return colorEditorWidget; }
 
         QJsonObject save() const override;
 
@@ -90,7 +90,7 @@ namespace Nodes
         void afterModelReady() override;
 
     private:
-        ImageConstInterface *widget = new ImageConstInterface();
+        // ImageConstInterface *widget = new ImageConstInterface();
         ColorEditorWidget *colorEditorWidget=new ColorEditorWidget();
         QColor m_color = QColor(0,0,0,255);
 

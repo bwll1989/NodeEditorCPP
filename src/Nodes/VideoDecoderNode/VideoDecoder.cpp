@@ -90,11 +90,15 @@ VideoDecoder::~VideoDecoder() {
  * @return 包含媒体信息的JSON对象
  */
 QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
-    formatContext= nullptr;
-    formatContextVideo = nullptr;
-    codecContext= nullptr;
-    codec= nullptr;
-    swrContext= nullptr;
+    // 切换媒体前必须停掉解码线程并释放旧上下文，否则播放中换片会崩溃
+    stopPlay();
+    cleanupFFmpeg();
+
+    pendingInterleavedPcm_.clear();
+    pendingSamplesPerChannel_ = 0;
+    lastChannels_ = 0;
+    lastTimestamp_ = timestampGenerator_->getCurrentFrameCount();
+
     avformat_network_init();
     // 打开音频上下文
     if (avformat_open_input(&formatContext, filePath.toStdString().c_str(), nullptr, nullptr) != 0) {
@@ -311,8 +315,8 @@ void VideoDecoder::startPlay(){
 void VideoDecoder::stopPlay() {
     {
         QMutexLocker locker(&mutex);
-        if (!isPlaying.load()) {
-            return; // 已经停止，直接返回
+        if (!isPlaying.load() && !audioRunning.load() && !videoRunning.load()) {
+            return;
         }
         isPlaying.store(false);
         condition.wakeAll();
@@ -466,26 +470,51 @@ std::shared_ptr<AudioTimestampRingQueue> VideoDecoder::getAudioBuffer(int index)
 /**
  * @brief 处理视频帧：将解码后的视频帧转换为RGB格式并发送
  */
+void VideoDecoder::releaseVideoScaler()
+{
+    if (swsContext) {
+        sws_freeContext(swsContext);
+        swsContext = nullptr;
+    }
+    if (videoDstData[0]) {
+        av_freep(&videoDstData[0]);
+        for (int i = 0; i < 4; ++i) {
+            videoDstData[i] = nullptr;
+            videoDstLinesize[i] = 0;
+        }
+    }
+}
+
 void VideoDecoder::processVideoFrame() {
     if (!videoFrame || !videoCodecContext) return;
 
-    if (!swsContext) {
-        swsContext = sws_getContext(videoCodecContext->width, videoCodecContext->height,
+    const int frameW = videoCodecContext->width;
+    const int frameH = videoCodecContext->height;
+    if (frameW <= 0 || frameH <= 0) {
+        return;
+    }
+
+    if (!swsContext || videoWidth != frameW || videoHeight != frameH) {
+        releaseVideoScaler();
+        videoWidth = frameW;
+        videoHeight = frameH;
+
+        swsContext = sws_getContext(frameW, frameH,
                                     videoCodecContext->pix_fmt,
-                                    videoCodecContext->width, videoCodecContext->height,
+                                    frameW, frameH,
                                     AV_PIX_FMT_BGR24,
                                     SWS_BILINEAR, nullptr, nullptr, nullptr);
-        
+
         if (!swsContext) {
             qDebug() << "Could not initialize swsContext";
             return;
         }
 
-        // Allocate destination buffer
         if (av_image_alloc(videoDstData, videoDstLinesize,
-                           videoCodecContext->width, videoCodecContext->height,
+                           frameW, frameH,
                            AV_PIX_FMT_BGR24, 1) < 0) {
             qDebug() << "Could not allocate raw video buffer";
+            releaseVideoScaler();
             return;
         }
     }
@@ -685,10 +714,12 @@ void VideoDecoder::audioLoop() {
     if (outputBuffer) {
         av_freep(&outputBuffer);
     }
+    const bool finishedNaturally = audioRunning.load() && isPlaying.load() && !isLooping.load();
     audioRunning.store(false);
-    if (!isLooping.load()) {
+    if (finishedNaturally) {
         isPlaying.store(false);
         videoRunning.store(false);
+        Q_EMIT playbackFinished();
     }
 }
 
@@ -760,39 +791,47 @@ void VideoDecoder::videoLoop() {
 void VideoDecoder::cleanupFFmpeg(){
     if (swrContext) {
         swr_free(&swrContext);
+        swrContext = nullptr;
     }
     if (codecContext) {
         avcodec_free_context(&codecContext);
+        codecContext = nullptr;
     }
-    if (swsContext) {
-        sws_freeContext(swsContext);
-        swsContext = nullptr;
-    }
+    releaseVideoScaler();
     if (videoCodecContext) {
         avcodec_free_context(&videoCodecContext);
+        videoCodecContext = nullptr;
     }
-    if (videoDstData[0]) {
-        av_freep(&videoDstData[0]);
-    }
+    videoCodec = nullptr;
     if (formatContext) {
         avformat_close_input(&formatContext);
+        formatContext = nullptr;
     }
     if (formatContextVideo) {
         avformat_close_input(&formatContextVideo);
+        formatContextVideo = nullptr;
     }
     if (audioFrame) {
         av_frame_free(&audioFrame);
+        audioFrame = nullptr;
     }
     if (videoFrame) {
         av_frame_free(&videoFrame);
+        videoFrame = nullptr;
     }
     if (packet) {
         av_packet_free(&packet);
+        packet = nullptr;
     }
     if (resampledBuffer) {
         av_free(resampledBuffer);
+        resampledBuffer = nullptr;
     }
-
+    codec = nullptr;
+    audioStreamIndex = -1;
+    videoStreamIndex = -1;
+    videoWidth = 0;
+    videoHeight = 0;
 }
 
 /**

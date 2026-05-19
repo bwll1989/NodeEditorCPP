@@ -309,6 +309,14 @@ QSpinBox:disabled {
     background-color: #1e1d23;
 }
 
+PropertyTreeWidget#propertyTreeWidget QSpinBox,
+PropertyTreeWidget#propertyTreeWidget QDoubleSpinBox,
+PropertyTreeWidget#propertyTreeWidget QComboBox,
+PropertyTreeWidget#propertyTreeWidget QLineEdit {
+    min-height: 16px;
+    padding: 0px 0px;
+}
+
 /* ======= 下拉框样式（与输入框风格一致） ======= */
 QComboBox {
     color: #FFFFFF;
@@ -680,32 +688,40 @@ QTableWidget QTableCornerButton::section {
     border: none;
 }
 
+QTabWidget::pane {
+    border: 1px solid rgba(255,255,255,20);
+    top: -1px;
+    background-color: #353535;
+}
+
 QTabBar {
     background: transparent;
+    qproperty-drawBase: 0;
 }
 
 QTabBar::tab {
     color: #a9b7c6;
-    background-color: #353535;
-    border: 1px solid rgba(255,255,255,24);
+    background-color: #2A2A2A;
+    border: 1px solid rgba(255,255,255,20);
     border-bottom: none;
-    border-radius: 4px 4px 0 0;
-    padding: 4px 10px;
-    min-height: 22px;
-    margin-right: 2px;
+    border-radius: 0px 0px 0 0;
+    padding: 2px 8px;
+    min-height: 12px;
+    min-width: 60px;
+    font-size: 12px;
 }
 
 QTabBar::tab:hover:!selected {
-    border-left-color: #0078d4;
+border-left-color: #0078d4;
     border-left-width: 2px;
     padding-left: 12px;
     color: #FFFFFF;
-    background-color: #2a292f;
+    background-color: #303030;
 }
 
 QTabBar::tab:selected {
     color: #FFFFFF;
-    background-color: #1e1d23;
+    background-color: #0078d4;
     border-left-color: #0078d4;
     border-left-width: 2px;
     padding-left: 12px;

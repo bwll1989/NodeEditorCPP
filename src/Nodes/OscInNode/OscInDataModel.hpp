@@ -58,9 +58,14 @@ namespace Nodes
 
             OSC_Receiver=new OSCReceiver(m_port);
             widget=new OscInInterface();
-            AbstractDelegateModel::registerExternalControl("/port",widget->portSpinBox);
-            AbstractDelegateModel::registerExternalControl("/address",widget->addressEdit);
-            AbstractDelegateModel::registerExternalControl("/value",widget->valueEdit);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                b.control = widget->portSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/port", this,b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/port",widget->portSpinBox);
+            // AbstractDelegateModel::registerExternalControl("/address",widget->addressEdit);
             connect(OSC_Receiver, &OSCReceiver::receiveOSC, this, &OscInDataModel::getOsc);
             // connect(widget,&OscInInterface::portChanged,OSC_Receiver,&OSCReceiver::setPort);
             connect(widget->portSpinBox, &IntDragValueWidget::valueChanged,

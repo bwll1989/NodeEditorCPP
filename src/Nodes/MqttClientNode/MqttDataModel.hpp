@@ -44,14 +44,45 @@ namespace Nodes
             PortEditable = false;
             m_outData = std::make_shared<VariableData>();
 
-            AbstractDelegateModel::registerExternalControl("/host", widget->hostEdit);
-            AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
-            AbstractDelegateModel::registerExternalControl("/username", widget->usernameEdit);
-            AbstractDelegateModel::registerExternalControl("/password", widget->passwordEdit);
-            AbstractDelegateModel::registerExternalControl("/topic", widget->topicEdit);
-            AbstractDelegateModel::registerExternalControl("/payload", widget->payloadEdit);
-            AbstractDelegateModel::registerExternalControl("/publish", widget->publishButton);
-            AbstractDelegateModel::registerExternalControl("/connect", widget->statusButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "host";
+                b.control = widget->hostEdit;
+                AbstractDelegateModel::registerExternalBinding("/host", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                b.control = widget->portSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/port", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "topic";
+                b.control = widget->topicEdit;
+                AbstractDelegateModel::registerExternalBinding("/topic", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "payload";
+                b.control = widget->payloadEdit;
+                AbstractDelegateModel::registerExternalBinding("/payload", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "publish";
+                b.control = widget->publishButton;
+                AbstractDelegateModel::registerExternalBinding("/publish", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/publish", widget->publishButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "connect";
+                b.control = widget->statusButton;
+                AbstractDelegateModel::registerExternalBinding("/connect", this, b);
+            }
+
+            // AbstractDelegateModel::registerExternalControl("/connect", widget->statusButton);
 
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this](){ setHost(widget->hostEdit->text()); });
             connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, &MqttDataModel::setPort);
@@ -62,19 +93,29 @@ namespace Nodes
 
             connect(widget->publishButton, &QPushButton::clicked, this, &MqttDataModel::publishMessage, Qt::QueuedConnection);
 
+            m_connectDebounce = new QTimer(this);
+            m_connectDebounce->setSingleShot(true);
+            m_connectDebounce->setInterval(400);
+            connect(m_connectDebounce, &QTimer::timeout, this, &MqttDataModel::connectChange);
+
             client = new MqttClient();
             connect(client, &MqttClient::isConnectedChanged, this, [this](bool ready){
                 widget->statusButton->setEnabled(true);
                 widget->statusButton->setText(ready ? "Connected" : "Disconnect");
                 widget->statusButton->setChecked(ready);
                 widget->statusButton->setStyleSheet(ready ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;");
+                if (m_reportedConnectState != ready) {
+                    m_reportedConnectState = ready;
+                    stateFeedBack("/connect", ready);
+                }
+                m_brokerConnected = ready;
                 if (ready) {
-                    // 自动订阅当前主题
-                    client->subscribe(m_topic, widget->qosCombo->currentData().toInt());
+                    m_activeConnectionKey = makeConnectionKey();
+                    subscribeCurrentTopic();
                 }
             }, Qt::QueuedConnection);
             connect(client, &MqttClient::messageReceived, this, &MqttDataModel::onMessage, Qt::QueuedConnection);
-            connect(client, &MqttClient::errorOccurred, this, &MqttDataModel::onError, Qt::QueuedConnection);
+            // connect(client, &MqttClient::errorOccurred, this, &MqttDataModel::onError, Qt::QueuedConnection);
         }
 
         ~MqttDataModel() override
@@ -146,11 +187,9 @@ namespace Nodes
             switch (portIndex) {
             case 0:
                 setHost(v->value().toString());
-                connectChange();
                 break;
             case 1:
                 setPort(v->value().toInt());
-                connectChange();
                 break;
             case 2:
                 setTopic(v->value().toString());
@@ -194,7 +233,7 @@ namespace Nodes
                 if (values.contains("payload")) setPayload(values["payload"].toString());
                 if (values.contains("qos")) widget->qosCombo->setCurrentIndex(values["qos"].toInt());
                 
-                connectChange();
+                scheduleConnect();
             }
         }
 
@@ -226,26 +265,41 @@ namespace Nodes
             
             bus->subscribe(makeFullOscAddress("/host"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/port"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/username"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/password"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/topic"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/payload"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/connect"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/publish"), this, SLOT(onGlobalEvent(GlobalEvent)));
             
             // Initial feedback
-            AbstractDelegateModel::stateFeedBack("/host", m_host);
-            AbstractDelegateModel::stateFeedBack("/port", m_port);
-            AbstractDelegateModel::stateFeedBack("/username", m_username);
-            AbstractDelegateModel::stateFeedBack("/password", m_password);
-            AbstractDelegateModel::stateFeedBack("/topic", m_topic);
-            AbstractDelegateModel::stateFeedBack("/payload", m_payload);
+            // AbstractDelegateModel::stateFeedBack("/host", m_host);
+            // AbstractDelegateModel::stateFeedBack("/port", m_port);
+            // AbstractDelegateModel::stateFeedBack("/username", m_username);
+            // AbstractDelegateModel::stateFeedBack("/password", m_password);
+            // AbstractDelegateModel::stateFeedBack("/topic", m_topic);
+            // AbstractDelegateModel::stateFeedBack("/payload", m_payload);
         }
 
     public slots:
+        void scheduleConnect()
+        {
+            if (!connectionTargetChanged()) {
+                return;
+            }
+            if (!m_connectDebounce) {
+                connectChange();
+                return;
+            }
+            m_connectDebounce->start();
+        }
+
         void connectChange()
         {
-            if (!client) return;
+            if (!client || m_host.trimmed().isEmpty()) {
+                return;
+            }
+            const QString key = makeConnectionKey();
+            if (key == m_activeConnectionKey && m_brokerConnected) {
+                return;
+            }
             client->connectToHost(m_host, m_port, m_username, m_password);
         }
 
@@ -253,6 +307,7 @@ namespace Nodes
         {
             if (!client) return;
             client->publish(m_topic, m_payload, widget->qosCombo->currentData().toInt(), false);
+            stateFeedBack("/publish",true);
         }
 
         void onMessage(const QString &topic, const QByteArray &payload)
@@ -269,16 +324,17 @@ namespace Nodes
             Q_EMIT dataUpdated(2);
         }
 
-        void onError(const QString &err)
-        {
-            stateFeedBack("/error", err);
-        }
+        // void onError(const QString &err)
+        // {
+        //     stateFeedBack("/error", err);
+        // }
 
     public:
         // Property Getters and Setters
         QString getHost() const { return m_host; }
         void setHost(const QString& value) {
             if (m_host == value) return;
+            m_activeConnectionKey.clear();
             m_host = value;
             if (widget && widget->hostEdit->text() != value) {
                 QSignalBlocker blocker(widget->hostEdit);
@@ -286,12 +342,13 @@ namespace Nodes
             }
             emit hostChanged(value);
             AbstractDelegateModel::stateFeedBack("/host", value);
-            connectChange();
+            scheduleConnect();
         }
 
         int getPort() const { return m_port; }
         void setPort(int value) {
             if (m_port == value) return;
+            m_activeConnectionKey.clear();
             m_port = value;
             if (widget && widget->portSpinBox->value() != value) {
                 QSignalBlocker blocker(widget->portSpinBox);
@@ -299,33 +356,33 @@ namespace Nodes
             }
             emit portChanged(value);
             AbstractDelegateModel::stateFeedBack("/port", value);
-            connectChange();
+            scheduleConnect();
         }
 
         QString getUsername() const { return m_username; }
         void setUsername(const QString& value) {
             if (m_username == value) return;
+            m_activeConnectionKey.clear();
             m_username = value;
             if (widget && widget->usernameEdit->text() != value) {
                 QSignalBlocker blocker(widget->usernameEdit);
                 widget->usernameEdit->setText(value);
             }
             emit usernameChanged(value);
-            AbstractDelegateModel::stateFeedBack("/username", value);
-            connectChange();
+            scheduleConnect();
         }
 
         QString getPassword() const { return m_password; }
         void setPassword(const QString& value) {
             if (m_password == value) return;
+            m_activeConnectionKey.clear();
             m_password = value;
             if (widget && widget->passwordEdit->text() != value) {
                 QSignalBlocker blocker(widget->passwordEdit);
                 widget->passwordEdit->setText(value);
             }
             emit passwordChanged(value);
-            AbstractDelegateModel::stateFeedBack("/password", value);
-            connectChange();
+            scheduleConnect();
         }
 
         QString getTopic() const { return m_topic; }
@@ -336,11 +393,8 @@ namespace Nodes
                 QSignalBlocker blocker(widget->topicEdit);
                 widget->topicEdit->setText(value);
             }
-            if (client) {
-                client->subscribe(value, widget->qosCombo->currentData().toInt());
-            }
             emit topicChangedProp(value);
-            AbstractDelegateModel::stateFeedBack("/topic", value);
+            subscribeCurrentTopic();
         }
 
         QString getPayload() const { return m_payload; }
@@ -352,7 +406,6 @@ namespace Nodes
                 widget->payloadEdit->setText(value);
             }
             emit payloadChanged(value);
-            AbstractDelegateModel::stateFeedBack("/payload", value);
         }
 
     Q_SIGNALS:
@@ -370,18 +423,66 @@ namespace Nodes
             QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
             if (localPath == "host") setHost(ev.payload.toString());
             else if (localPath == "port") setPort(ev.payload.toInt());
-            else if (localPath == "username") setUsername(ev.payload.toString());
-            else if (localPath == "password") setPassword(ev.payload.toString());
             else if (localPath == "topic") setTopic(ev.payload.toString());
             else if (localPath == "payload") setPayload(ev.payload.toString());
-            else if (localPath == "connect") connectChange();
             else if (localPath == "publish") publishMessage();
         }
 
     private:
+        static QString normalizeHostForKey(const QString& host)
+        {
+            QString h = host.trimmed();
+            static const QStringList prefixes = {
+                QStringLiteral("mqtts://"), QStringLiteral("mqtt://"),
+                QStringLiteral("ssl://"), QStringLiteral("tcp://"),
+            };
+            for (const QString& prefix : prefixes) {
+                if (h.startsWith(prefix, Qt::CaseInsensitive)) {
+                    h = h.mid(prefix.size());
+                    break;
+                }
+            }
+            const int slash = h.indexOf(QLatin1Char('/'));
+            if (slash > 0) {
+                h = h.left(slash);
+            }
+            return h.trimmed();
+        }
+
+        QString makeConnectionKey() const
+        {
+            return QStringLiteral("%1|%2|%3|%4")
+                .arg(normalizeHostForKey(m_host))
+                .arg(m_port)
+                .arg(m_username.trimmed())
+                .arg(m_password);
+        }
+
+        bool connectionTargetChanged() const
+        {
+            return makeConnectionKey() != m_activeConnectionKey;
+        }
+
+        void subscribeCurrentTopic()
+        {
+            if (!client || !m_brokerConnected) {
+                return;
+            }
+            const QString topic = m_topic.trimmed();
+            if (topic.isEmpty()) {
+                return;
+            }
+            client->subscribe(topic, widget->qosCombo->currentData().toInt());
+        }
+
         MqttInterface *widget = new MqttInterface();
         MqttClient *client = nullptr;
+        QTimer *m_connectDebounce = nullptr;
         std::shared_ptr<VariableData> m_outData;
+
+        QString m_activeConnectionKey;
+        bool m_brokerConnected = false;
+        bool m_reportedConnectState = false;
 
         QString m_host;
         int m_port = 1883;

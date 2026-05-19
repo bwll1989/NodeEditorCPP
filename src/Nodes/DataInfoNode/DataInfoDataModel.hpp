@@ -32,14 +32,14 @@ namespace Nodes
             OutPortCount = 1;
             CaptionVisible = true;
             Caption = "Data Info";
-            WidgetEmbeddable = true;
-            Resizable = true;
-            viewButton=new QPushButton("View");
+            WidgetEmbeddable = false;
+            Resizable = false;
+
             // 使用QML版本的数据浏览器
             qmlWidget = new QmlDataBrowser();
             qmlWidget->setLazyLoadingEnabled(true);
             qmlWidget->setMaxVisibleItems(1000);
-            connect(viewButton,&QPushButton::clicked,this,&DataInfoDataModel::toggleEditorMode);
+            // connect(viewButton,&QPushButton::clicked,this,&DataInfoDataModel::toggleEditorMode);
         }
          ~DataInfoDataModel() override {
             if (qmlWidget) {
@@ -72,7 +72,7 @@ namespace Nodes
         }
 
         QWidget *embeddedWidget() override {
-            return viewButton;
+            return qmlWidget;
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
@@ -124,7 +124,6 @@ namespace Nodes
         }
 
     private:
-        QPushButton *viewButton;
         QVariantMap model;
         QmlDataBrowser *qmlWidget;
         std::shared_ptr<VariableData> inData;

@@ -9,6 +9,8 @@
 #include <QCheckBox>
 #include <QSpinBox>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QSpacerItem>
 
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 
@@ -29,42 +31,59 @@ public:
     USR_IO808Interface(QWidget *parent = nullptr)
         : QWidget(parent)
     {
-        // 创建主布局
-        auto layout = new QGridLayout(this);
-        layout->setContentsMargins(5, 5, 5, 5);
-        layout->setSpacing(5);
-        
+        auto mainLayout = new QHBoxLayout(this);
+        mainLayout->setContentsMargins(5, 5, 5, 5);
+        mainLayout->setSpacing(5);
+
+        auto *leftPanel = new QWidget(this);
+        auto *leftLayout = new QVBoxLayout(leftPanel);
+        leftLayout->setContentsMargins(0, 0, 0, 0);
+        leftLayout->setSpacing(5);
+
+        auto *rightPanel = new QWidget(this);
+        auto *rightLayout = new QVBoxLayout(rightPanel);
+        rightLayout->setContentsMargins(0, 0, 0, 0);
+        rightLayout->setSpacing(5);
+
         // 创建连接设置组
         auto connectionGroup = new QGroupBox("连接设置", this);
         auto connectionLayout = new QGridLayout(connectionGroup);
-        
+
         // IP地址设置
         connectionLayout->addWidget(new QLabel("IP地址:"), 0, 0, 1, 1);
         _hostEdit = new QLineEdit("127.0.0.1", this);
         connectionLayout->addWidget(_hostEdit, 0, 1, 1, 1);
-        
+
         // 端口设置
         connectionLayout->addWidget(new QLabel("端口:"), 1, 0, 1, 1);
         _portEdit = new IntDragValueWidget(this);
         _portEdit->setRange(1, 65535);
         _portEdit->setValue(8080);  // Modbus TCP默认端口
         connectionLayout->addWidget(_portEdit, 1, 1, 1, 1);
-        
+
         // Server ID设置
         connectionLayout->addWidget(new QLabel("ServerID(Useless):"), 2, 0, 1, 1);
         _serverId = new IntDragValueWidget(this);
         _serverId->setRange(0, 255);
         _serverId->setValue(1);
         connectionLayout->addWidget(_serverId, 2, 1, 1, 1);
+
         // 连接状态指示器
         _statusLabel = new QPushButton("状态: 未连接", this);
         _statusLabel->setEnabled(false);
         _statusLabel->setCheckable(true);
         _statusLabel->setFlat(true);
         _statusLabel->setStyleSheet("color: red; font-weight: bold;");
-         connectionLayout->addWidget(_statusLabel, 3, 0, 1, 1);
+        connectionLayout->addWidget(_statusLabel, 3, 0, 1, 2);
 
-        layout->addWidget(connectionGroup, 0, 0, 1, 1);
+        leftLayout->addWidget(connectionGroup);
+
+        // Read All按钮
+        _readAll = new QPushButton("Read All", this);
+        _readAll->setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 8px; }");
+        _readAll->setEnabled(false); // 初始禁用
+        leftLayout->addWidget(_readAll);
+        leftLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
 
         // 创建输入状态组（DI 0x0020~0x0027）
         auto inputGroup = new QGroupBox("DI 状态 (0x0020~0x0027)", this);
@@ -78,25 +97,22 @@ public:
             inputLayout->addWidget(_inputLabels[i], i / 4, i % 4);
         }
 
-        layout->addWidget(inputGroup, 1, 0, 1, 1);
-
         // 创建输出控制组（DO 0x0000~0x0007）
         auto outputGroup = new QGroupBox("DO 控制 (0x0000~0x0007)", this);
         auto outputLayout = new QGridLayout(outputGroup);
-        
+
         for (int i = 0; i < 8; ++i) {
             _outputCheckBoxes[i] = new QCheckBox(QString("DO%1").arg(i), this);
             _outputCheckBoxes[i]->setEnabled(false); // 初始禁用输出复选框
             outputLayout->addWidget(_outputCheckBoxes[i], i / 4, i % 4);
         }
-        
-        layout->addWidget(outputGroup, 2, 0, 1, 1);
-        
-        // Read All按钮
-        _readAll = new QPushButton("Read All", this);
-        _readAll->setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 8px; }");
-        _readAll->setEnabled(false); // 初始禁用
-        layout->addWidget(_readAll, 3, 0, 1, 1);
+
+        rightLayout->addWidget(inputGroup);
+        rightLayout->addWidget(outputGroup);
+        rightLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
+
+        mainLayout->addWidget(leftPanel, 1);
+        mainLayout->addWidget(rightPanel, 2);
         
         // 连接输出复选框的信号
         for (int i = 0; i < 8; ++i) {
@@ -115,9 +131,8 @@ public:
         });
         
         // 设置大小策略
-        setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-        setMinimumSize(250, 400);
-        setMaximumSize(300, 500);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        setMinimumSize(450, 280);
     }
     
     /**

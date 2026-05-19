@@ -39,6 +39,7 @@ class USR_IO808DataModel : public AbstractDelegateModel
     Q_PROPERTY(QString host READ getHost WRITE setHost NOTIFY hostChanged)
     Q_PROPERTY(int port READ getPort WRITE setPort NOTIFY portChanged)
     Q_PROPERTY(int serverId READ getServerId WRITE setServerId NOTIFY serverIdChanged)
+    Q_PROPERTY(bool connected READ isConnected WRITE setConnected NOTIFY connectedChanged)
 
 public:
     USR_IO808DataModel();
@@ -52,6 +53,19 @@ public:
 
     int getServerId() const { return _serverId; }
     void setServerId(int serverId);
+
+    /**
+     * @brief 获取当前 TCP 连接状态
+     * @return 已连接返回 true，否则返回 false
+     */
+    bool isConnected() const { return _connected; }
+
+    /**
+     * @brief 设置当前 TCP 连接状态，并同步界面与定时读取行为
+     * @param connected 已连接状态
+     */
+    void setConnected(bool connected);
+
 
     void afterModelReady() override;
 
@@ -69,6 +83,12 @@ signals:
     void hostChanged(QString host);
     void portChanged(int port);
     void serverIdChanged(int serverId);
+
+    /**
+     * @brief 连接状态变化通知
+     * @param connected 已连接状态
+     */
+    void connectedChanged(bool connected);
 
 private slots:
     void onGlobalEvent(const GlobalEvent& ev);
@@ -128,6 +148,7 @@ private:
     QString _host = "127.0.0.1";
     int _port = 502;
     int _serverId = 1;       // 服务器ID
+    bool _connected = false;  // 连接状态
     
     // 输出数据缓存
     std::shared_ptr<NodeDataTypes::VariableData> _outputData[8];

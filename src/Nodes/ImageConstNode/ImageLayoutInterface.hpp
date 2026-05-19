@@ -40,6 +40,9 @@ class ImageLayoutInterface final : public QWidget{
             main_layout->addWidget(colorEditButton,8,0,1,2);
             main_layout->setColumnStretch(0,1);
             main_layout->setColumnStretch(1,1);
+            // 空行
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 9, 0, 1, 2);
+            main_layout->setRowStretch(9, 1);
             this->setLayout(main_layout);
 
             /* 函数级注释：设置最小尺寸并允许扩展 */

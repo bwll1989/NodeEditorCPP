@@ -18,12 +18,16 @@ VariableInDataModel::VariableInDataModel()
     widget=new DataBridgeSelectorBox();
     InPortCount =0;
     OutPortCount=1;
-    CaptionVisible=true;
+    CaptionVisible=false;
     Caption="Variable In";
     WidgetEmbeddable= true;
     Resizable=false;
     PortEditable= true;
-    AbstractDelegateModel::registerExternalControl("/input",widget);
+    NodeDelegateModel::ExternalBinding binding;
+    binding.member = "remarks";
+    binding.control=widget;
+    AbstractDelegateModel::registerExternalBinding("/input", this, binding);
+    // AbstractDelegateModel::registerExternalControl("/input",widget);
     setRemarks("Undefined");
     ModelDataBridge::instance().registerEntranceDelegate(this);
     connect(widget,&DataBridgeSelectorBox::selectionChanged,this,&VariableInDataModel::setRemarks);
@@ -31,7 +35,6 @@ VariableInDataModel::VariableInDataModel()
         ModelDataBridge::instance().updateRemarksForDelegate(this,true,normalizedRemarks);
         if (widget->text()!=normalizedRemarks)
             widget->setCurrentValue(normalizedRemarks);
-        AbstractDelegateModel::stateFeedBack("/input",normalizedRemarks);
     });
 
 }

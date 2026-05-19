@@ -31,6 +31,8 @@ namespace Nodes
             statusButton->setCheckable(true);
             statusButton->setEnabled(false);
             main_layout->addWidget(send,5,0,1,2);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 6, 0, 1, 2);
+            main_layout->setRowStretch(6, 1);
             send->setEnabled(false);
             format->addItem("HEX");
             format->addItem("UTF-8");

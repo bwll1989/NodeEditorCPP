@@ -55,7 +55,7 @@ namespace Nodes {
             InPortCount = 4;
             OutPortCount = 1;
             CaptionVisible = true;
-            WidgetEmbeddable = true;
+            WidgetEmbeddable=false;
             Resizable = false;
             PortEditable = false;
             Caption = PLUGIN_NAME;

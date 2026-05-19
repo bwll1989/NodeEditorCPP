@@ -4,6 +4,7 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include "QTimer"
+#include <QElapsedTimer>
 #include <iostream>
 #include <QtCore/qglobal.h>
 #include "DelayInterface.hpp"
@@ -24,6 +25,7 @@ namespace Nodes
 
 
     public:
+        // 函数级注释：初始化 Delay 节点模型，配置单定时器触发与进度条刷新。
         DelayDataModel()
         {
             InPortCount =1;
@@ -33,8 +35,15 @@ namespace Nodes
             WidgetEmbeddable= false;
             Resizable=true;
             PortEditable= true;
-            connect(timer, SIGNAL(timeout()), this, SLOT(onSingleTimerTimeout()));
 
+            timer->setParent(this);
+            progressTimer->setParent(this);
+            progressTimer->setInterval(100);
+
+            connect(timer, SIGNAL(timeout()), this, SLOT(onSingleTimerTimeout()));
+            connect(progressTimer, SIGNAL(timeout()), this, SLOT(updateProgress()));
+
+            updateProgress();
         }
 
         ~DelayDataModel() override{
@@ -112,6 +121,7 @@ namespace Nodes
                 QVector<delay_item> messages = widget->delay_message_list_widget->getDelayMessages();
                 if (messages.isEmpty()) {
                     // 无配置时，立即触发端口0
+                    stopAndClearSchedule();
                     Q_EMIT dataUpdated(0);
                     return;
                 }
@@ -121,11 +131,18 @@ namespace Nodes
                 m_schedule = messages;
                 m_cursor = 0;
 
+                m_totalDurationMs = std::max(0, m_schedule.last().time);
+                m_elapsed.restart();
+
                 // 启动第一个间隔：从0到第一个延迟的绝对时间
                 const int firstDelay = std::max(0, m_schedule.first().time);
                 timer->setInterval(firstDelay);
 
                 timer->start();
+                if (!progressTimer->isActive()) {
+                    progressTimer->start();
+                }
+                updateProgress();
                 break;
             }
             default:
@@ -175,6 +192,29 @@ namespace Nodes
 
     public slots:
 
+        // 函数级注释：按“已运行时间/总延时”更新界面进度条（0-100）；停止或队列结束时重置为空闲。
+        void updateProgress()
+        {
+            if (!widget) {
+                return;
+            }
+            if (m_schedule.isEmpty() || m_cursor >= m_schedule.size()) {
+                widget->setProgressIdle();
+                return;
+            }
+
+            const int totalMs = std::max(0, m_totalDurationMs);
+            const int elapsedMs = m_elapsed.isValid() ? static_cast<int>(m_elapsed.elapsed()) : 0;
+
+            if (totalMs <= 0) {
+                widget->setProgressPercent(100);
+                return;
+            }
+
+            const int percent = std::max(0, std::min(100, (elapsedMs * 100) / totalMs));
+            widget->setProgressPercent(percent);
+        }
+
         // 函数级注释：单定时器超时回调。
         // 触发当前时间批次内的所有端口，计算到下一批次的时间差并继续启动定时器；队列结束则清理。
         void onSingleTimerTimeout()
@@ -201,6 +241,7 @@ namespace Nodes
                 const int delta = std::max(0, nextTime - currentTime);
                 timer->setInterval(delta);
                 timer->start();
+                updateProgress();
             } else {
                 // 队列完成
                 stopAndClearSchedule();
@@ -211,6 +252,13 @@ namespace Nodes
         DelayInterface *widget=new DelayInterface();
         std::shared_ptr<VariableData> inData;
         QTimer *timer=new QTimer();
+        QTimer *progressTimer = new QTimer();
+
+    private:
+        QElapsedTimer m_elapsed;
+        int m_totalDurationMs = 0;
+
+    private:
 
     private:
         // 函数级注释：停止定时器并清空队列状态。
@@ -219,8 +267,16 @@ namespace Nodes
             if (timer->isActive()) {
                 timer->stop();
             }
+            if (progressTimer->isActive()) {
+                progressTimer->stop();
+            }
             m_schedule.clear();
             m_cursor = 0;
+            m_totalDurationMs = 0;
+            m_elapsed.invalidate();
+            if (widget) {
+                widget->setProgressIdle();
+            }
         }
 
         // 单定时器的顺序执行队列与游标

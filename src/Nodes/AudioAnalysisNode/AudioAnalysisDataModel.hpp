@@ -3,7 +3,6 @@
 #include <iostream>
 
 #include <QtCore/QObject>
-#include <QtWidgets/QLabel>
 #include <QTimer>
 #include <QDebug>
 
@@ -16,7 +15,6 @@
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
 #include <QtCore/qglobal.h>
-#include "AudioAnalysisInterface.h"
 #include <QComboBox>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -55,28 +53,17 @@ namespace Nodes {
         {
             InPortCount = 2;
             OutPortCount = 1;
-            widget = new AudioAnalysisInterface();
             CaptionVisible = true;
             WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = false;
             Caption = PLUGIN_NAME;
-            AbstractDelegateModel::registerExternalControl("/enable",widget->mResetButton);
-            connect(widget->mResetButton, &QPushButton::toggled, this, &AudioAnalysisDataModel::setEnabled);
-            connect(this, &AudioAnalysisDataModel::enabledChanged, this, [this](bool){
-                {
-                    QSignalBlocker blocker(widget->mResetButton);
-                    widget->mResetButton->setChecked(m_enabled);
-                }
-                AbstractDelegateModel::stateFeedBack("/enable", m_enabled);
-            });
-            // 设置工作线程
-            _worker->moveToThread(_workerThread);
-            // 连接信号槽
-            connect(_workerThread, &QThread::started, this, [this]() {
-                // 确保在缓冲区初始化后启动处理
-                QMetaObject::invokeMethod(_worker, "startProcessing", Qt::QueuedConnection);
-            });
+
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "enabled";
+                AbstractDelegateModel::registerExternalBinding("/enable", this, b);
+            }
             connect(_workerThread, &QThread::finished, _worker, &AudioAnalysisWorker::stopProcessing);
             connect(_worker, &AudioAnalysisWorker::processingStatusChanged, this, &AudioAnalysisDataModel::onProcessingStatusChanged);
             connect(_worker, &AudioAnalysisWorker::analysisValueChanged, this, &AudioAnalysisDataModel::onGetResult);
@@ -204,9 +191,6 @@ namespace Nodes {
         }
     
     public slots:
-        /**
-        */
-        QWidget *embeddedWidget() override { return widget; }
 
         /**
          * @brief 保存节点配置
@@ -296,7 +280,6 @@ namespace Nodes {
         AudioAnalysisWorker* _worker;                                      ///< 工作线程对象
         QThread* _workerThread;                                         ///< 工作线程
         // 移除这行：std::vector<std::shared_ptr<AudioTimestampRingQueue>> _audioBuffer;
-        AudioAnalysisInterface* widget;
         std::shared_ptr<VariableData> _outputData;
         bool m_enabled = false;
     };

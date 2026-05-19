@@ -165,7 +165,14 @@ void TimeLineNodeClock::setTimecodeType(TimeCodeType type)
 
 void TimeLineNodeClock::setLooping(bool loop)
 {
-    m_isLooping = loop;
+    const bool old = m_isLooping.loadRelaxed();
+    if (old == loop) {
+        return;
+    }
+    m_isLooping.storeRelaxed(loop);
+    QMetaObject::invokeMethod(this, [this, loop]() {
+        emit loopingChanged(loop);
+    }, Qt::QueuedConnection);
 }
 
 void TimeLineNodeClock::setMaxFrames(qint64 maxFrames)
@@ -355,11 +362,17 @@ void TimeLineNodeClock::load(const QJsonObject& json)
     // 加载循环设置
     if (json.contains("isLooping")) {
         setLooping(json["isLooping"].toBool());
-        emit loopingChanged(m_isLooping.loadRelaxed());
     }
 }
 
 void TimeLineNodeClock::onLoop(bool loop)
 {
+    const bool old = m_isLooping.loadRelaxed();
+    if (old == loop) {
+        return;
+    }
     m_isLooping.storeRelaxed(loop);
+    QMetaObject::invokeMethod(this, [this, loop]() {
+        emit loopingChanged(loop);
+    }, Qt::QueuedConnection);
 }

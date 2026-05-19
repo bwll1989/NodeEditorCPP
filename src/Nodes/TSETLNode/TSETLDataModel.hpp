@@ -75,9 +75,27 @@ namespace Nodes
             m_heartbeatTimer = new QTimer(this);
             m_heartbeatTimer->setInterval(5000); // 5秒间隔
             connect(m_heartbeatTimer, &QTimer::timeout, this, &TSETLDataModel::sendHeartbeat);
-            AbstractDelegateModel::registerExternalControl("/host", widget->hostEdit);
-            AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
-            AbstractDelegateModel::registerExternalControl("/connect", widget->connectionStatus);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "host";
+                b.control=widget->hostEdit;
+                AbstractDelegateModel::registerExternalBinding("/host", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                b.control=widget->portSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/port", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "connect";
+                b.control=widget->connectionStatus;
+                AbstractDelegateModel::registerExternalBinding("/connect", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/host", widget->hostEdit);
+            // AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
+            // AbstractDelegateModel::registerExternalControl("/connect", widget->connectionStatus);
             // UI Connections
             connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this]() {
                 setHost(widget->hostEdit->text());
@@ -110,7 +128,6 @@ namespace Nodes
             widget->hostEdit->setText(m_host);
 
             emit hostChanged(m_host);
-            AbstractDelegateModel::stateFeedBack("/host", m_host);
             hostChange();
         }
 
@@ -123,7 +140,6 @@ namespace Nodes
             widget->portSpinBox->setValue(m_port);
 
             emit portChanged(m_port);
-            AbstractDelegateModel::stateFeedBack("/port", m_port);
             hostChange();
         }
 

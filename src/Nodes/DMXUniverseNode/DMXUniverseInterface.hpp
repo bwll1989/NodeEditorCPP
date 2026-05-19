@@ -37,13 +37,9 @@ namespace Nodes
         IntDragValueWidget *netSpinBox = new IntDragValueWidget(this);
         
         // 清空按钮
-        QPushButton *clearButton = new QPushButton("清空数据", this);
+        QPushButton *enableButton = new QPushButton("Enable", this);
 
-    signals:
-        /**
-         * @brief 清空按钮点击信号
-         */
-        void clearDataClicked();
+
 
     private:
         /**
@@ -59,6 +55,9 @@ namespace Nodes
             
             // 控制按钮组
             createControlGroup(mainLayout);
+            
+            // 空行
+            mainLayout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
             
             this->setLayout(mainLayout);
             this->setMinimumSize(200, 200);
@@ -94,6 +93,7 @@ namespace Nodes
             configLayout->addWidget(netSpinBox, 2, 1);
             
             parentLayout->addWidget(configGroup);
+            
         }
 
         /**
@@ -105,12 +105,10 @@ namespace Nodes
             QVBoxLayout *controlLayout = new QVBoxLayout(controlGroup);
             
             // 清空按钮
-            clearButton->setToolTip("清空当前Universe的所有DMX数据（将所有512个通道设置为0）");
-            
-            // 连接清空按钮信号
-            connect(clearButton, &QPushButton::clicked, this, &DMXUniverseInterface::clearDataClicked);
-
-            controlLayout->addWidget(clearButton);
+            enableButton->setToolTip("清空当前Universe的所有DMX数据（将所有512个通道设置为0）");
+            enableButton->setCheckable(true);
+            enableButton->setChecked(true);
+            controlLayout->addWidget(enableButton);
             parentLayout->addWidget(controlGroup);
         }
     };

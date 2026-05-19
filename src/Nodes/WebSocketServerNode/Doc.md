@@ -1,85 +1,41 @@
-# WebSocketServerNode 帮助文档
+# WebSocketServerNode 使用说明
 
-## 节点功能
-WebSocket服务器节点实现了WebSocket服务端通信功能，支持以下特性：
+## 用途
+启动一个 WebSocket 服务器（监听指定端口），接收客户端消息，并可向所有客户端广播消息。
 
-- 支持多客户端同时连接与管理
-- 支持文本和二进制数据收发
-- 支持HEX、UTF-8、ASCII三种消息格式
-- 自动维护客户端连接状态，断开自动清理
-- 客户端连接/断开事件通知
-- 支持动态更改监听端口，端口切换自动重启服务
-- 服务器运行在独立线程，不阻塞主UI线程
+## 端口
+### 输入（VariableData）
+- PORT：监听端口（int）
+- VALUE：要广播的内容（string）。更新时会立即广播一次
+- TRIGGER：触发广播（任意类型）。收到输入即广播一次（广播当前 VALUE）
 
-## 输入端口
-节点提供如下输入端口：
+### 输出（VariableData）
+- RESULT：收到的数据（键值表）
+- HOST：发送方地址（string，等同 RESULT.host）
+- VALUE：收到的原始字节（QByteArray，等同 RESULT.default）
+- HEX：收到数据的十六进制（string，等同 RESULT.hex）
 
-1. PORT ：服务器监听端口号（整数类型，范围0-65535，默认2003）
-2. VALUE ：要广播给所有客户端的消息内容（字符串类型）
-3. FORMAT ：消息格式（整数类型，0=HEX，1=UTF-8，2=ASCII）
-4. TYPE ：消息类型（整数类型，0=文本，1=二进制）
-5. TRIGGER ：触发消息广播的信号（任意类型，收到数据即触发）
+## 参数/界面
+- Port：监听端口
+- Value：要广播的内容
+- Message Type：消息类型（0=文本，1=二进制）
+- Format：发送编码（0=HEX，1=UTF-8，2=ASCII）
+- Send：广播一次
 
-## 输出端口
-节点提供如下输出端口：
+## 外部控制（可选）
+- /port（int）
+- /value（string）
+- /send（bool 或任意值）：触发广播一次
 
-1. RESULT ：接收到的完整数据（VariableData类型，包含host、hex、utf-8、ascii、default、type字段）
-2. HOST ：发送数据的客户端地址（字符串类型）
-3. VALUE ：接收到的原始数据（字符串类型，utf-8解码）
-4. HEX ：接收到的数据的十六进制表示（字符串类型）
+## 输出字段（RESULT）
+RESULT 常用字段：
+- host：发送方地址（string）
+- hex：收到数据的 hex（string）
+- utf-8：按 UTF-8 解码后的文本（string）
+- ascii：按 ASCII/Latin1 解码后的文本（string）
+- default：原始字节（QByteArray）
 
-## 节点界面
-节点界面包含以下控件：
-
-- Port ：数字输入框，用于设置服务器监听端口，范围0-65535，默认为2003
-- Value ：输入框，用于输入要广播给所有客户端的消息内容
-- Message Type ：下拉框，选择消息类型（文本/二进制）
-- Format ：下拉框，选择发送数据的编码格式（HEX/UTF-8/ASCII）
-- Send ：按钮，点击将消息广播给所有已连接的客户端
-
-## 信号与状态
-- 服务器自动处理客户端连接和断开，无需手动管理
-- 支持信号：clientConnected、clientDisconnected、messageReceived
-- 端口变更后服务自动重启，所有客户端需重新连接
-
-## 使用示例
-### 示例1：基本服务器设置和广播消息
-1. 添加WebSocket服务器节点到流程图
-2. 在节点界面中设置监听端口（如2003）
-3. 在Value输入框中输入要广播的消息
-4. 选择Message Type和Format
-5. 点击Send按钮将消息发送给所有已连接的客户端
-6. 从输出端口获取客户端发送的响应
-
-### 示例2：通过其他节点控制WebSocket服务器
-1. 添加WebSocket服务器节点和整数源节点到流程图
-2. 将整数源节点的输出连接到WebSocket服务器节点的PORT输入端口，设置监听端口
-3. 添加字符串源节点，将其输出连接到VALUE输入端口，设置要广播的消息
-4. 添加整数源节点，将其输出连接到TYPE和FORMAT输入端口，设置消息类型和格式
-5. 添加按钮节点，将其输出连接到TRIGGER输入端口，用于触发消息广播
-6. 将WebSocket服务器节点的RESULT输出端口连接到数据信息节点，以查看接收到的数据
-
-### 示例3：动态端口切换与多客户端
-1. 在节点界面或通过端口输入动态切换监听端口，服务会自动重启
-2. 多个客户端可同时连接，断开自动清理
-
-## 注意事项
-1. 服务器会自动处理客户端的连接和断开，无需手动管理
-2. 发送消息时，消息会被广播给所有已连接的客户端，支持HEX/UTF-8/ASCII格式
-3. 支持文本和二进制消息收发，客户端发送文本或二进制消息均可被正确接收
-4. 接收到的数据会通过RESULT输出端口以VariableData格式输出，包含以下字段：
-   - host：客户端地址
-   - hex：数据的十六进制表示
-   - utf-8：utf-8解码的字符串
-   - ascii：latin1/ansi解码的字符串
-   - default：原始数据（QByteArray）
-   - type：消息类型（TextMessage/BinaryMessage）
-5. 支持动态更改监听端口，端口变更后服务自动重启
-6. 服务器在独立线程中运行，不会阻塞主UI线程
-7. 自动管理客户端连接状态，当客户端断开时自动清理资源
-
-## 技术细节
-- 节点使用QWebSocketServer和QWebSocket实现WebSocket通信
-- 支持多客户端同时连接
-- 通信过程在单独的线程中运行，确保UI响应性
-- 端口切换、消息收发均为线程安全
+## 使用步骤
+1. 设置 PORT 启动监听（端口变更会自动重启服务）。
+2. 客户端发送的数据会从 RESULT 输出。
+3. 要广播时：设置 VALUE（或点 Send）即可向所有已连接客户端广播。 

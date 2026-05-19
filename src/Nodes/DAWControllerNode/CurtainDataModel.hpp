@@ -50,6 +50,10 @@ namespace Nodes
         Q_OBJECT
         Q_PROPERTY(QString host READ getHost WRITE setHost NOTIFY hostChanged)
         Q_PROPERTY(int port READ getPort WRITE setPort NOTIFY portChanged)
+        Q_PROPERTY(bool status READ status NOTIFY statusChanged)
+        Q_PROPERTY(bool open READ open WRITE setOpen NOTIFY openChanged)
+        Q_PROPERTY(bool close READ close WRITE setClose NOTIFY closeChanged)
+        Q_PROPERTY(bool reset READ reset WRITE setReset NOTIFY resetChanged)
 
     public:
         /**
@@ -74,13 +78,42 @@ namespace Nodes
             m_heartbeatTimer->setInterval(3000); // 3秒间隔
             connect(m_heartbeatTimer, &QTimer::timeout, this, &CurtainDataModel::sendHeartbeat);
 
-            // 注册外部控制
-            AbstractDelegateModel::registerExternalControl("/host", widget->hostEdit);
-            AbstractDelegateModel::registerExternalControl("/port", widget->portSpinBox);
-            AbstractDelegateModel::registerExternalControl("/open", widget->openButton);
-            AbstractDelegateModel::registerExternalControl("/close", widget->closeButton);
-            AbstractDelegateModel::registerExternalControl("/reset", widget->resetButton);
-            AbstractDelegateModel::registerExternalControl("/status", widget->connectionStatusLabel);
+            // 注册外部控制（属性化绑定）
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "host";
+                b.control = widget->hostEdit;
+                AbstractDelegateModel::registerExternalBinding("/host", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                b.control = widget->portSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/port", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "open";
+                b.control = widget->openButton;
+                AbstractDelegateModel::registerExternalBinding("/open", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "close";
+                b.control = widget->closeButton;
+                AbstractDelegateModel::registerExternalBinding("/close", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "reset";
+                b.control = widget->resetButton;
+                AbstractDelegateModel::registerExternalBinding("/reset", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "status";
+                AbstractDelegateModel::registerExternalBinding("/status", this, b);
+            }
 
             // 同步UI初始值
             m_host = widget->hostEdit->text();
@@ -106,13 +139,13 @@ namespace Nodes
             connect(this, &CurtainDataModel::stopTCPClient, client, &TcpClient::stopTimer, Qt::QueuedConnection);
             
             connect(widget->openButton, &QPushButton::clicked, this, [this]() {
-                sendCurtainCommand("01");
+                setOpen(true);
             });
             connect(widget->closeButton, &QPushButton::clicked, this, [this]() {
-                sendCurtainCommand("02");
+                setClose(true);
             });
             connect(widget->resetButton, &QPushButton::clicked, this, [this]() {
-                sendCurtainCommand("FF");
+                setReset(true);
             });
 
             // 自动连接
@@ -250,7 +283,10 @@ namespace Nodes
         void setHost(const QString &host) {
             if (m_host == host) return;
             m_host = host;
-            widget->hostEdit->setText(m_host);
+            if (widget && widget->hostEdit) {
+                const QSignalBlocker blocker(widget->hostEdit);
+                widget->hostEdit->setText(m_host);
+            }
             emit hostChanged();
             hostChange();
         }
@@ -259,36 +295,87 @@ namespace Nodes
         void setPort(int port) {
             if (m_port == port) return;
             m_port = port;
-            widget->portSpinBox->setValue(m_port);
+            if (widget && widget->portSpinBox) {
+                const QSignalBlocker blocker(widget->portSpinBox);
+                widget->portSpinBox->setValue(m_port);
+            }
             emit portChanged();
             hostChange();
+        }
+
+        bool status() const { return m_status; }
+        bool open() const { return m_open; }
+        bool close() const { return m_close; }
+        bool reset() const { return m_reset; }
+
+        void setOpen(bool v)
+        {
+            if (!v) return;
+            if (m_open) return;
+            m_open = true;
+            emit openChanged(true);
+            sendCurtainCommand("01");
+            m_open = false;
+            emit openChanged(false);
+        }
+
+        void setClose(bool v)
+        {
+            if (!v) return;
+            if (m_close) return;
+            m_close = true;
+            emit closeChanged(true);
+            sendCurtainCommand("02");
+            m_close = false;
+            emit closeChanged(false);
+        }
+
+        void setReset(bool v)
+        {
+            if (!v) return;
+            if (m_reset) return;
+            m_reset = true;
+            emit resetChanged(true);
+            sendCurtainCommand("FF");
+            m_reset = false;
+            emit resetChanged(false);
         }
 
     signals:
         void hostChanged();
         void portChanged();
+        void statusChanged(bool status);
+        void openChanged(bool v);
+        void closeChanged(bool v);
+        void resetChanged(bool v);
         void connectTCPServer(QString host, int port);
         void stopTCPClient();
 
     public slots:
         void onGlobalEvent(const GlobalEvent& ev)
         {
-            if (ev.kind == GlobalEventKind::Command) {
-                QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
-                if (localPath == "open") sendCurtainCommand("01");
-                else if (localPath == "close") sendCurtainCommand("02");
-                else if (localPath == "reset") sendCurtainCommand("FF");
-                else if (localPath == "host") setHost(ev.payload.toString());
-                else if (localPath == "port") setPort(ev.payload.toInt());
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
             }
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            if (localPath == "open") setOpen(ev.payload.toBool());
+            else if (localPath == "close") setClose(ev.payload.toBool());
+            else if (localPath == "reset") setReset(ev.payload.toBool());
+            else if (localPath == "host") setHost(ev.payload.toString());
+            else if (localPath == "port") setPort(ev.payload.toInt());
         }
 
         void onConnectionStatusChanged(const bool &isReady)
         {
             m_connectionStatus = std::make_shared<VariableData>(isReady);
-            widget->updateConnectionStatus(isReady);
-            stateFeedBack("/status", isReady);
-            
+            if (widget) {
+                widget->updateConnectionStatus(isReady);
+            }
+            if (m_status != isReady) {
+                m_status = isReady;
+                emit statusChanged(m_status);
+            }
+
             if (isReady) {
                 m_heartbeatTimer->start();
             } else {
@@ -367,5 +454,10 @@ namespace Nodes
         QTimer *m_heartbeatTimer;
         bool m_isRunning = false;
         qint64 m_lastCommandTime = 0;
+
+        bool m_status = false;
+        bool m_open = false;
+        bool m_close = false;
+        bool m_reset = false;
     };
 }

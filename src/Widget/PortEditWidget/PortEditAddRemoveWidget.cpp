@@ -28,7 +28,7 @@ PortEditAddRemoveWidget::PortEditAddRemoveWidget(NodeId nodeId, CustomDataFlowGr
 
 
     hl->addLayout(_left,1);
-    hl->addStretch();
+    hl->addSpacing(10); // 添加固定间隔
     hl->addLayout(_right,1);
 //    hl->addSpacing(5);
 //    addButtonGroupToLayout(_left ,  0);
@@ -71,16 +71,16 @@ QHBoxLayout *PortEditAddRemoveWidget::addButtonGroupToLayout(QVBoxLayout *vbl, u
     l->setContentsMargins(0, 0, 0, 0);
 
     auto button = new QPushButton("+");
-    button->setFixedSize(23,23);
-    // 强制去除样式表中的最小高度和内边距限制
-    button->setStyleSheet("QPushButton { min-height: 23px; max-height: 23px; padding: 0px; border: 1px solid #555; border-radius: 2px; font-size: 8px; }");
+    // button->setFixedSize(23,23);
+    // // 强制去除样式表中的最小高度和内边距限制
+    // button->setStyleSheet("QPushButton { min-height: 23px; max-height: 23px; padding: 0px; border: 1px solid #555; border-radius: 2px; font-size: 8px; }");
     l->addWidget(button);
     connect(button, &QPushButton::clicked, this, &PortEditAddRemoveWidget::onPlusClicked);
 
 	button = new QPushButton("-");
-    button->setFixedSize(23,23);
-    // 强制去除样式表中的最小高度和内边距限制
-    button->setStyleSheet("QPushButton { min-height: 23px; max-height: 23px; padding: 0px; border: 1px solid #555; border-radius: 2px; font-size: 8px; }");
+    // button->setFixedSize(23,23);
+    // // 强制去除样式表中的最小高度和内边距限制
+    // button->setStyleSheet("QPushButton { min-height: 23px; max-height: 23px; padding: 0px; border: 1px solid #555; border-radius: 2px; font-size: 8px; }");
     l->addWidget(button);
     connect(button, &QPushButton::clicked, this, &PortEditAddRemoveWidget::onMinusClicked);
 

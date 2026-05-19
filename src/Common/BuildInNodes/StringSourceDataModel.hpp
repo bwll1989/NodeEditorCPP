@@ -37,13 +37,18 @@ namespace Nodes {
             Caption="String Source";
             WidgetEmbeddable=true;
             Resizable=false;
-            AbstractDelegateModel::registerExternalControl("/string",_lineEdit);
+            NodeDelegateModel::ExternalBinding binding;
+            binding.member = "value";
+            binding.control=_lineEdit;
+            AbstractDelegateModel::registerExternalBinding("/string", this, binding);
+            // AbstractDelegateModel::registerExternalControl("/string",_lineEdit);
             _lineEdit->setText(m_value);
             connect(_lineEdit, &QLineEdit::textChanged, this, &TextSourceDataModel::onTextEdited);
             connect(this, &TextSourceDataModel::valueChanged, this, [this](const QString &){
                 if (_lineEdit->text()!=m_value)
+                    _lineEdit->blockSignals(true);
                     _lineEdit->setText(m_value);
-                stateFeedBack("/string", m_value);
+                    _lineEdit->blockSignals(false);
             });
         }
 

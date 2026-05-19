@@ -5,7 +5,9 @@
 #include <QLineEdit>
 #include "QWidget"
 #include "QLabel"
-#include "QGridLayout"
+#include <QHBoxLayout>
+#include <QSpacerItem>
+#include <QVBoxLayout>
 #include <QSpinBox>
 #include <QPushButton>
 
@@ -20,30 +22,36 @@ namespace Nodes
         Q_OBJECT
     public:
         explicit NDVServerInterface(QWidget *parent = nullptr){
-            // 网络配置
-            main_layout->addWidget(new QLabel("IP:", this), 0, 0, 1, 1);
-            main_layout->addWidget(IP, 0, 1, 1, 1);
-            main_layout->addWidget(new QLabel("Port:", this), 1, 0, 1, 1);
-            main_layout->addWidget(Port, 1, 1, 1, 1);
-            
-        
+            auto *layout = new QVBoxLayout(this);
+            layout->setContentsMargins(5, 5, 5, 5);
+            layout->setSpacing(5);
+
+            const auto addRow = [this, layout](const QString& labelText, QWidget* editor) {
+                auto *row = new QWidget(this);
+                auto *rowLayout = new QHBoxLayout(row);
+                rowLayout->setContentsMargins(0, 0, 0, 0);
+                rowLayout->setSpacing(8);
+
+                auto *label = new QLabel(labelText, row);
+                rowLayout->addWidget(label, 0);
+                rowLayout->addWidget(editor, 1);
+
+                layout->addWidget(row);
+            };
+
+            addRow("IP:", IP);
+            addRow("Port:", Port);
 
             Port->setRange(1000, 65535);
             Port->setValue(9008);
             
-            main_layout->setColumnStretch(0, 1);
-            main_layout->setColumnStretch(1, 2);
-            main_layout->setSpacing(5);
-            main_layout->setContentsMargins(5, 5, 5, 5);
-
-            this->setLayout(main_layout);
+            layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
         }
 
     signals:
         void AddressChanged(const int &port);
 
     public:
-        QGridLayout *main_layout = new QGridLayout(this);
         QLineEdit *IP = new QLineEdit("0.0.0.0", this);
         IntDragValueWidget *Port = new IntDragValueWidget(this);
 

@@ -14,13 +14,7 @@
  * @note 使用组织名与产品名组合，保证不同产品互不冲突，且应用名变化不影响单实例机制
  */
 static QString makeSingleInstanceKey() {
-    const QString org = QApplication::organizationName().isEmpty()
-        ? AppConstants::COMPANY_NAME
-        : QApplication::organizationName();
-    const QString prod = QApplication::applicationName().isEmpty()
-        ? AppConstants::PRODUCT_NAME
-        : QApplication::applicationName();
-    return org + "_" + prod;
+    return QString(AppConstants::COMPANY_NAME) + "_" + QString(AppConstants::PRODUCT_NAME);
 }
 
 /**
@@ -134,8 +128,8 @@ int main(int argc, char *argv[])
         QThread::msleep(static_cast<unsigned long>(restartDelayMs));
     }
 
-    // 检查应用程序是否已经在运行
-    QSharedMemory sharedMemory(app.applicationName());
+    // 检查应用程序是否已经在运行（GUI 与 headless 互斥）
+    QSharedMemory sharedMemory(makeSingleInstanceKey());
     if (isApplicationRunning(sharedMemory)) {
         QMessageBox::warning(nullptr, "", "应用程序已经在运行中。");
         return 1;

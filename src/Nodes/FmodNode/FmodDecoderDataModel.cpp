@@ -25,8 +25,20 @@ FmodDecoderDataModel::FmodDecoderDataModel()
     // Create widget
     widget = new FmodDecoderInterface();
 
-    // 注册外部控制并将 UI 文本作为属性入口
-    AbstractDelegateModel::registerExternalControl("/file", widget->fileSelectComboBox);
+    // 属性化外部控制：/file -> bankPath
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "bankPath";
+        b.control = widget->fileSelectComboBox;
+        AbstractDelegateModel::registerExternalBinding("/file", this, b);
+    }
+    // 属性化外部控制：/event -> currentEvent（无固定控件时也支持外部命令与状态反馈）
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "currentEvent";
+        AbstractDelegateModel::registerExternalBinding("/event", this, b);
+    }
+
     connect(widget->fileSelectComboBox, &QLineEdit::textChanged, this, &FmodDecoderDataModel::setBankPath);
     connect(this, &FmodDecoderDataModel::bankPathChanged, this, [this](const QString&){
         {
@@ -41,7 +53,6 @@ FmodDecoderDataModel::FmodDecoderDataModel()
                 Q_ARG(QString, m_bankPath)
             );
         }
-        AbstractDelegateModel::stateFeedBack("/file", m_bankPath);
     });
 
     connect(this, &FmodDecoderDataModel::currentEventChanged, this, [this](const QString&){
@@ -54,7 +65,6 @@ FmodDecoderDataModel::FmodDecoderDataModel()
             Qt::QueuedConnection,
             Q_ARG(QString, m_currentEvent)
         );
-        AbstractDelegateModel::stateFeedBack("/event", m_currentEvent);
     });
     
     // Initialize buffers
@@ -178,7 +188,7 @@ void FmodDecoderDataModel::updateEventListUI(const QStringList& events)
         }
         
         QPushButton* btn = new QPushButton(btnText);
-        AbstractDelegateModel::registerExternalControl("/"+btnText, btn);
+        // AbstractDelegateModel::registerExternalControl("/"+btnText, btn);
         btn->setToolTip(eventPath);
         // Style the button to look better
 

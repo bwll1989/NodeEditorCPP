@@ -48,7 +48,11 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outIniData=std::make_shared<VariableData>();
-            AbstractDelegateModel::registerExternalControl("/file",_fileSelectComboBox);
+            NodeDelegateModel::ExternalBinding binding;
+            binding.member = "file";
+            binding.control = _fileSelectComboBox;
+            AbstractDelegateModel::registerExternalBinding("/file", this, binding);
+
             connect(_fileSelectComboBox, &SelectorComboBox::textChanged, this, &IniLoaderModel::setFile);
             connect(this, &IniLoaderModel::fileChanged, this, [this](const QString&){
                 {
@@ -56,7 +60,6 @@ namespace Nodes
                     _fileSelectComboBox->setText(m_file);
                 }
                 loadIni(m_file);
-                AbstractDelegateModel::stateFeedBack("/file", m_file);
             });
         }
         ~IniLoaderModel() override = default;

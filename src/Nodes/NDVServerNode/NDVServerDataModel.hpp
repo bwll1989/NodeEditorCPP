@@ -4,16 +4,16 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <iostream>
-#include <QPushButton>
 #include <QtCore/qglobal.h>
-#include "NDVServerInterface.hpp"
-#include "Common/Devices/TcpServer/TcpServer.h"
+
 #include <QVariantMap>
 #include <QMap>
 #include <QDateTime>
 #include <QTimer>
-#include "QThread"
+
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include "Common/Devices/TcpServer/TcpServer.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -56,6 +56,8 @@ namespace Nodes
     class NDVServerDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+        Q_PROPERTY(QString ip READ ip WRITE setIp NOTIFY ipChanged)
+        Q_PROPERTY(int port READ port WRITE setPort NOTIFY portChanged)
 
     public:
         NDVServerDataModel()
@@ -69,25 +71,24 @@ namespace Nodes
             PortEditable = true;
             inData = std::make_shared<VariableData>();
 
-            // 初始化 TcpServer
-            mSender = new TcpServer("0.0.0.0", widget->Port->value());
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "ip";
+                AbstractDelegateModel::registerExternalBinding("/ip", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "port";
+                AbstractDelegateModel::registerExternalBinding("/port", this, b);
+            }
 
-            // 初始化握手定时器
+            mSender = new TcpServer(m_ip, m_port);
+
             handshakeTimer = new QTimer(this);
-            handshakeTimer->setInterval(5000); // 5秒间隔
+            handshakeTimer->setInterval(5000);
             connect(handshakeTimer, &QTimer::timeout, this, &NDVServerDataModel::sendHandshakeToAllClients);
-            handshakeTimer->start(); // 启动定时器
+            handshakeTimer->start();
 
-            // 连接界面信号到 TcpServer
-            connect(widget->IP, &QLineEdit::textChanged, this, [this](const QString &text) {
-                mSender->setHost(text, widget->Port->value());
-            });
-
-            connect(widget->Port, &IntDragValueWidget::valueChanged, this, [this](int value){
-                mSender->setHost(widget->IP->text(), value);
-            });
-
-            // 连接 TcpServer 的信号到数据更新
             connect(mSender, &TcpServer::recMsg, this, &NDVServerDataModel::handleIncomingData);
 
         }
@@ -98,7 +99,6 @@ namespace Nodes
                 delete handshakeTimer;
             }
             delete mSender;
-            delete widget;
         }
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
@@ -147,8 +147,8 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
-            modelJson1["IP"] = widget->IP->text();
-            modelJson1["Port"] = widget->Port->value();
+            modelJson1["IP"] = m_ip;
+            modelJson1["Port"] = m_port;
             modelJson1["HandshakeEnabled"] = handshakeTimer->isActive();
             
             // 保存客户端映射关系
@@ -172,8 +172,8 @@ namespace Nodes
         {
             QJsonValue v = p["Address"];
             if (!v.isUndefined() && v.isObject()) {
-                widget->IP->setText(v.toObject()["IP"].toString());
-                widget->Port->setValue(v.toObject()["Port"].toInt());
+                setIp(v.toObject()["IP"].toString());
+                setPort(v.toObject()["Port"].toInt());
                 
                 // 恢复握手定时器状态
                 bool handshakeEnabled = v.toObject()["HandshakeEnabled"].toBool();
@@ -203,8 +203,12 @@ namespace Nodes
             }
         }
 
-        QWidget *embeddedWidget() override {
-            return widget;
+        void afterModelReady() override
+        {
+            AbstractDelegateModel::afterModelReady();
+            auto bus = GlobalEventBus::instance();
+            bus->subscribe(makeFullOscAddress("/ip"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            bus->subscribe(makeFullOscAddress("/port"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
         ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
@@ -400,6 +404,20 @@ namespace Nodes
 
     private Q_SLOTS:
         /**
+         * @brief 处理外部命令事件（属性化控制入口）
+         */
+        void onGlobalEvent(const GlobalEvent& ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) return;
+            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+            if (localPath == "ip") {
+                setIp(ev.payload.toString());
+            } else if (localPath == "port") {
+                setPort(ev.payload.toInt());
+            }
+        }
+
+        /**
          * @brief 处理接收到的NDV数据，解析握手请求并维护客户端映射关系
          * @param data 包含16进制数据的QVariantMap
          */
@@ -424,13 +442,58 @@ namespace Nodes
             }
         }
 
+    public:
+        /**
+         * @brief 获取当前绑定IP
+         */
+        QString ip() const { return m_ip; }
+
+        /**
+         * @brief 设置绑定IP，并同步到 TcpServer
+         */
+        void setIp(const QString& value)
+        {
+            if (m_ip == value) return;
+            m_ip = value;
+            if (mSender) {
+                mSender->setHost(m_ip, m_port);
+            }
+            Q_EMIT ipChanged(m_ip);
+            AbstractDelegateModel::stateFeedBack("/ip", m_ip);
+        }
+
+        /**
+         * @brief 获取当前监听端口
+         */
+        int port() const { return m_port; }
+
+        /**
+         * @brief 设置监听端口，并同步到 TcpServer
+         */
+        void setPort(int value)
+        {
+            if (m_port == value) return;
+            m_port = value;
+            if (mSender) {
+                mSender->setHost(m_ip, m_port);
+            }
+            Q_EMIT portChanged(m_port);
+            AbstractDelegateModel::stateFeedBack("/port", m_port);
+        }
+
+    Q_SIGNALS:
+        void ipChanged(QString value);
+        void portChanged(int value);
+
     private:
         std::shared_ptr<VariableData> inData;
         std::shared_ptr<VariableData> currentCommandData;
         int currentTargetId = 0;
         QTimer* handshakeTimer;  // 握手定时器
-        NDVServerInterface * widget = new NDVServerInterface();
         TcpServer * mSender = nullptr;
         QMap<int, NDVClientInfo> ndvClients;
+
+        QString m_ip = "0.0.0.0";
+        int m_port = 9008;
     };
 }

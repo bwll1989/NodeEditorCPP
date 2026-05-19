@@ -5,14 +5,16 @@
 #include <QtNodes/NodeDelegateModel>
 
 #include <QtCore/QObject>
-#include <QtWidgets/QComboBox>
+
 #include <iostream>
-#include <QAbstractScrollArea>
 #include <vector>
+#include <unordered_map>
+#include <cmath>
+
 #include <QtCore/qglobal.h>
+
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
-#include <QSignalBlocker>
 #if defined(UNTITLED_LIBRARY)
 #  define UNTITLED_EXPORT Q_DECL_EXPORT
 #else
@@ -26,50 +28,36 @@ using QtNodes::PortType;
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class MathOperationDataModel : public AbstractDelegateModel
+    enum class MathMethod : int {
+        Add = 0,
+        Sub = 1,
+        Mul = 2,
+        Div = 3,
+        Mod = 4,
+        Pow = 5,
+    };
+    class MathOperationBaseDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
-        Q_PROPERTY(int mathMethod READ mathMethod WRITE setMathMethod NOTIFY mathMethodChanged)
+
+
 
     public:
-        MathOperationDataModel()
+        explicit MathOperationBaseDataModel(MathMethod method, const QString& caption)
+            : m_mathMethod(method)
         {
             InPortCount =2;
             OutPortCount=1;
             CaptionVisible=true;
-            Caption="Math Operation";
+            Caption = caption;
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= false;
-            widget->setFixedWidth(80);
-            widget->addItems(*methods);
 
             val=QVariant(0.0);
-            connect(widget, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MathOperationDataModel::setMathMethod);
-            // AbstractDelegateModel::registerExternalControl("/math",widget);
-            AbstractDelegateModel::registerExternalControl("/math",widget);
         }
 
-        virtual ~MathOperationDataModel() override{}
-
-        int mathMethod() const { return m_mathMethod; }
-
-    public Q_SLOTS:
-        void setMathMethod(int value)
-        {
-            if (m_mathMethod == value) return;
-            m_mathMethod = value;
-            methodChanged();
-            Q_EMIT mathMethodChanged(value);
-            {
-                QSignalBlocker blocker(widget);
-                widget->setCurrentIndex(value);
-            }
-            AbstractDelegateModel::stateFeedBack("/math", m_mathMethod);
-        }
-
-    Q_SIGNALS:
-        void mathMethodChanged(int value);
+        virtual ~MathOperationBaseDataModel() override{}
 
     public:
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
@@ -110,65 +98,39 @@ namespace Nodes
             }
 
         }
+        QWidget* embeddedWidget() override {
+            return nullptr;
+        }
         void methodChanged()
         {
-
-
-
-                switch (m_mathMethod) {
-                case 0:
-                    val=in_dictionary[0].toDouble()+in_dictionary[1].toDouble();
-                    break;
-                case 1:
-                    val=in_dictionary[0].toDouble()-in_dictionary[1].toDouble();
-                    break;
-                case 2:
-                    val=in_dictionary[0].toDouble()*in_dictionary[1].toDouble();
-                    break;
-                case 3:
-                    if (in_dictionary[1].toDouble()==0){
-                        val=0;
-                        break;
-                    }
-                    val=in_dictionary[0].toDouble()/in_dictionary[1].toDouble();
-                    break;
-                case 4:
-                    val=fmod(in_dictionary[0].toDouble(),in_dictionary[1].toDouble());
-                    break;
-                case 5:
-                    val=pow(in_dictionary[0].toDouble(),in_dictionary[1].toDouble());
+            switch (m_mathMethod) {
+            case MathMethod::Add:
+                val=in_dictionary[0].toDouble()+in_dictionary[1].toDouble();
+                break;
+            case MathMethod::Sub:
+                val=in_dictionary[0].toDouble()-in_dictionary[1].toDouble();
+                break;
+            case MathMethod::Mul:
+                val=in_dictionary[0].toDouble()*in_dictionary[1].toDouble();
+                break;
+            case MathMethod::Div:
+                if (in_dictionary[1].toDouble()==0){
+                    val=0;
                     break;
                 }
-
+                val=in_dictionary[0].toDouble()/in_dictionary[1].toDouble();
+                break;
+            case MathMethod::Mod:
+                val=std::fmod(in_dictionary[0].toDouble(),in_dictionary[1].toDouble());
+                break;
+            case MathMethod::Pow:
+                val=std::pow(in_dictionary[0].toDouble(),in_dictionary[1].toDouble());
+                break;
+            }
 
             Q_EMIT dataUpdated(0);
         }
 
-        void afterModelReady() override
-        {
-            AbstractDelegateModel::afterModelReady();
-            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/math"), this,SLOT(onGlobalEvent(GlobalEvent)));
-
-        }
-
-        QJsonObject save() const override
-        {
-            QJsonObject modelJson;
-            modelJson["math"] = m_mathMethod;
-            return modelJson;
-        }
-
-        void load(QJsonObject const &p) override
-        {
-            if (p.contains("math")) {
-                setMathMethod(p["math"].toInt());
-            }
-        }
-
-        QWidget *embeddedWidget() override
-        {
-            return widget;
-        }
         ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
             auto result = ConnectionPolicy::One;
             switch (portType) {
@@ -184,21 +146,45 @@ namespace Nodes
 
             return result;
         }
-    public Q_SLOTS:
-        void onGlobalEvent(const GlobalEvent& ev)
-        {
-            if (ev.kind != GlobalEventKind::Command) return;
-            const QString addr = makeFullOscAddress("/math");
-            if (ev.address == addr) {
-                setMathMethod(ev.payload.toInt());
-            }
-        }
     private:
-
-        QComboBox *widget=new QComboBox();
-        QStringList *methods=new QStringList {"+","-","*","/","%","^"};
         std::unordered_map<unsigned int, QVariant> in_dictionary;
         QVariant val;
-        int m_mathMethod = 0;
+        MathMethod m_mathMethod = MathMethod::Add;
+    };
+
+    class MathAddDataModel final : public MathOperationBaseDataModel
+    {
+    public:
+        MathAddDataModel() : MathOperationBaseDataModel(MathMethod::Add, "Math Add") {}
+    };
+
+    class MathSubDataModel final : public MathOperationBaseDataModel
+    {
+    public:
+        MathSubDataModel() : MathOperationBaseDataModel(MathMethod::Sub, "Math Sub") {}
+    };
+
+    class MathMulDataModel final : public MathOperationBaseDataModel
+    {
+    public:
+        MathMulDataModel() : MathOperationBaseDataModel(MathMethod::Mul, "Math Mul") {}
+    };
+
+    class MathDivDataModel final : public MathOperationBaseDataModel
+    {
+    public:
+        MathDivDataModel() : MathOperationBaseDataModel(MathMethod::Div, "Math Div") {}
+    };
+
+    class MathModDataModel final : public MathOperationBaseDataModel
+    {
+    public:
+        MathModDataModel() : MathOperationBaseDataModel(MathMethod::Mod, "Math Mod") {}
+    };
+
+    class MathPowDataModel final : public MathOperationBaseDataModel
+    {
+    public:
+        MathPowDataModel() : MathOperationBaseDataModel(MathMethod::Pow, "Math Pow") {}
     };
 }

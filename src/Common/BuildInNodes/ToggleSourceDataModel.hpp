@@ -41,7 +41,11 @@ namespace Nodes {
             button->setCheckable(true);
             // button->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
             button->setMinimumWidth(80);
-            AbstractDelegateModel::registerExternalControl("/bool", button);
+            NodeDelegateModel::ExternalBinding binding;
+            binding.member = "value";
+            binding.control=button;
+            AbstractDelegateModel::registerExternalBinding("/bool", this, binding);
+            // AbstractDelegateModel::registerExternalControl("/bool", button);
             button->setChecked(false);
             // 用户点击直接驱动属性 setValue
             connect(button, &QPushButton::clicked, this, &TogglePluginDataModel::setValue);
@@ -49,9 +53,10 @@ namespace Nodes {
             connect(this, &TogglePluginDataModel::valueChanged, this, [this](bool){
                 // 1. 界面状态和属性自动对齐
                 if (button->isChecked() != lastValue.toBool()) {
+                    button->blockSignals(true);
                     button->setChecked(lastValue.toBool());
-                }   
-                stateFeedBack("/bool", lastValue);
+                    button->blockSignals(false);
+                }
             });
         }
         ~TogglePluginDataModel(){

@@ -44,11 +44,48 @@ namespace Nodes
             PortEditable=true;
             CaptionVisible=true;
             Caption=PLUGIN_NAME;
-            WidgetEmbeddable= true;
+            WidgetEmbeddable= false;
             Resizable=true;
             m_inData=std::make_shared<VariableData>();
             m_outData=std::make_shared<VariableData>();
-            
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "targetHost";
+                b.control=widget->targetHostEdit;
+                AbstractDelegateModel::registerExternalBinding("/targetHost", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "targetPort";
+                b.control=widget->targetPortSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/targetPort", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "value";
+                b.control=widget->valueEdit;
+                AbstractDelegateModel::registerExternalBinding("/value", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "listeningHost";
+                b.control=widget->listeningHostEdit;
+                AbstractDelegateModel::registerExternalBinding("/listeningHost", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "listeningPort";
+                b.control=widget->listeningPortSpinBox;
+                AbstractDelegateModel::registerExternalBinding("/listeningPort", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "send";
+                b.control=widget->sendButton;
+                AbstractDelegateModel::registerExternalBinding("/send", this, b);
+            }
+
+         
             connect(this, &UDPSocketDataModel::sendUDPMessage, client, &UdpSocket::sendMessage, Qt::QueuedConnection);
             connect(widget,&UDPSocketInterface::hostChanged,client, &UdpSocket::setHost,Qt::QueuedConnection);
             connect(client, &UdpSocket::recMsg, this, &UDPSocketDataModel::recMsg, Qt::QueuedConnection);
@@ -69,11 +106,11 @@ namespace Nodes
             connect(widget->sendButton, &QPushButton::clicked, this, [this]() {
                 sendMessage();
             });
-             AbstractDelegateModel::registerExternalControl("/send",widget->sendButton);
-            AbstractDelegateModel::registerExternalControl("/targetHost",widget->targetHostEdit);
-            AbstractDelegateModel::registerExternalControl("/targetPort",widget->targetPortSpinBox);
-            AbstractDelegateModel::registerExternalControl("/value",widget->valueEdit);
-            AbstractDelegateModel::registerExternalControl("/format",widget->format);
+            //  AbstractDelegateModel::registerExternalControl("/send",widget->sendButton);
+            // AbstractDelegateModel::registerExternalControl("/targetHost",widget->targetHostEdit);
+            // AbstractDelegateModel::registerExternalControl("/targetPort",widget->targetPortSpinBox);
+            // AbstractDelegateModel::registerExternalControl("/value",widget->valueEdit);
+            // AbstractDelegateModel::registerExternalControl("/format",widget->format);
             // Initialize from widget defaults
             m_targetHost = widget->targetHostEdit->text();
             m_targetPort = widget->targetPortSpinBox->value();
@@ -116,7 +153,6 @@ namespace Nodes
                 widget->targetHostEdit->setText(host);
             }
             emit targetHostChanged(m_targetHost);
-            AbstractDelegateModel::stateFeedBack("/targetHost", m_targetHost);
         }
 
         void setTargetPort(int port) {
@@ -127,7 +163,6 @@ namespace Nodes
                 widget->targetPortSpinBox->setValue(port);
             }
             emit targetPortChanged(m_targetPort);
-            AbstractDelegateModel::stateFeedBack("/targetPort", m_targetPort);
         }
 
         void setValue(const QString &val) {
@@ -138,7 +173,6 @@ namespace Nodes
                 widget->valueEdit->setText(val);
             }
             emit valueChanged(m_value);
-            AbstractDelegateModel::stateFeedBack("/value", m_value);
         }
         
         void setListeningHost(const QString &host) {
@@ -150,7 +184,6 @@ namespace Nodes
             }
             updateListening();
             emit listeningHostChanged(m_listeningHost);
-            AbstractDelegateModel::stateFeedBack("/listeningHost", m_listeningHost);
         }
 
         void setListeningPort(int port) {
@@ -162,7 +195,6 @@ namespace Nodes
             }
             updateListening();
             emit listeningPortChanged(m_listeningPort);
-            AbstractDelegateModel::stateFeedBack("/listeningPort", m_listeningPort);
         }
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
@@ -334,8 +366,9 @@ namespace Nodes
         }
         
         void sendMessage() {
-            emit sendUDPMessage(m_targetHost, m_targetPort, m_value, widget->format->currentIndex());
             AbstractDelegateModel::stateFeedBack("/send", true);
+            emit sendUDPMessage(m_targetHost, m_targetPort, m_value, widget->format->currentIndex());
+            AbstractDelegateModel::stateFeedBack("/send", false);
         }
 
     signals:

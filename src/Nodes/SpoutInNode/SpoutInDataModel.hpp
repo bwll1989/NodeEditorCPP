@@ -58,14 +58,26 @@ namespace Nodes
         {
             InPortCount = 2;  // Spout输入不需要输入端口
             OutPortCount = 1;
-            CaptionVisible = true;
+            CaptionVisible = false;
             Caption = "Spout In";
-            WidgetEmbeddable = true;
+            WidgetEmbeddable=false;
             Resizable = false;
             PortEditable = false;
             initializeReceiver();
-            AbstractDelegateModel::registerExternalControl("/source",m_widget->m_senderComboBox);
-            AbstractDelegateModel::registerExternalControl("/enable",m_widget->m_startStopButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "source";
+                b.control=m_widget->m_senderComboBox;
+                AbstractDelegateModel::registerExternalBinding("/source", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/source",m_widget->m_senderComboBox);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "enable";
+                b.control=m_widget->m_startStopButton;
+                AbstractDelegateModel::registerExternalBinding("/enable", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/enable",m_widget->m_startStopButton);
         }
 
         /**
@@ -227,7 +239,6 @@ namespace Nodes
             }
 
             emit sourceChanged(value);
-            AbstractDelegateModel::stateFeedBack("/source", value);
         }
 
         bool getEnable() const { return m_isReceiving; }
@@ -248,7 +259,6 @@ namespace Nodes
             }
 
             emit enableChanged(value);
-            AbstractDelegateModel::stateFeedBack("/enable", value);
         }
 
     signals:

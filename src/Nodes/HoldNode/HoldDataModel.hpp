@@ -6,10 +6,8 @@
 #include "QTimer"
 #include <iostream>
 #include <QtCore/qglobal.h>
-#include "HoldInterface.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
-#include <QSignalBlocker>
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -55,26 +53,26 @@ namespace Nodes
             WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = false;
-            
-            // 初始化空的输出数据
+
             outputData = std::make_shared<VariableData>();
             isHolding = false;
-            
-            // 设置定时器为单次触发
+
             timer->setSingleShot(true);
             connect(timer, &QTimer::timeout, this, &HoldDataModel::holdTimeExpired);
-            AbstractDelegateModel::registerExternalControl("/time",widget->value);
-            AbstractDelegateModel::registerExternalControl("/ignoreRepeat",widget->ignoreRepeatCheckBox);
 
-            // 初始化属性值
-            m_holdTime = widget->value->value();
-            m_ignoreRepeat = widget->ignoreRepeatCheckBox->isChecked();
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "holdTime";
+                AbstractDelegateModel::registerExternalBinding("/time", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "ignoreRepeat";
+                AbstractDelegateModel::registerExternalBinding("/ignoreRepeat", this, b);
+            }
 
-            // UI 与属性联动
-            connect(widget->value, &IntDragValueWidget::valueChanged, this,&HoldDataModel::setHoldTime);
-            connect(widget->ignoreRepeatCheckBox, &QCheckBox::toggled, this, [this](bool checked){
-                setIgnoreRepeat(checked);
-            });
+            m_holdTime = 1000;
+            m_ignoreRepeat = false;
         }
 
         /**
@@ -86,8 +84,6 @@ namespace Nodes
             {
                 timer->stop();
             }
-            timer->deleteLater();
-            widget->deleteLater();
         }
 
         /**
@@ -202,10 +198,6 @@ namespace Nodes
          * @brief 获取嵌入式控件
          * @return 控件指针
          */
-        QWidget *embeddedWidget() override
-        {
-            return widget;
-        }
 
 
     public slots:
@@ -218,13 +210,7 @@ namespace Nodes
             if (m_holdTime == timeMs)
                 return;
             m_holdTime = timeMs;
-            if (widget)
-            {
-                const QSignalBlocker blocker(widget->value);
-                widget->value->setValue(timeMs);
-            }
             Q_EMIT holdTimeChanged(timeMs);
-            AbstractDelegateModel::stateFeedBack("/time", timeMs);
         }
 
         /**
@@ -236,13 +222,7 @@ namespace Nodes
             if (m_ignoreRepeat == ignore)
                 return;
             m_ignoreRepeat = ignore;
-            if (widget)
-            {
-                const QSignalBlocker blocker(widget->ignoreRepeatCheckBox);
-                widget->ignoreRepeatCheckBox->setChecked(ignore);
-            }
             Q_EMIT ignoreRepeatChanged(ignore);
-            AbstractDelegateModel::stateFeedBack("/ignoreRepeat", ignore);
         }
 
         /**
@@ -329,7 +309,6 @@ namespace Nodes
         }
 
     private:
-        HoldInterface *widget = new HoldInterface();           // 界面控件
         std::shared_ptr<VariableData> outputData;              // 输出数据
         QTimer *timer = new QTimer(this);                      // 保持时间定时器
         bool isHolding = false;                                // 是否正在保持状态

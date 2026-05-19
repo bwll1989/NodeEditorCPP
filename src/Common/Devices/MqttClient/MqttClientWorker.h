@@ -56,6 +56,12 @@ private slots:
     void onError(QMQTT::ClientError error);
     void reConnect();
 
+    void doConnect();
+    bool shouldAttemptConnect() const;
+    QString normalizeHost(const QString& host) const;
+    bool isSameConnectionTarget(const QString& host, int port,
+                                const QString& username, const QString& password) const;
+
 signals:
     void isConnectedChanged(bool connected);
     void messageReceived(const QString &topic, const QByteArray &payload);
@@ -68,5 +74,11 @@ private:
     int m_port = 1883;
     QString m_username;
     QString m_password;
+    QString m_clientId;
     bool m_isConnected = false;
+    bool m_connectInProgress = false;
+    bool m_pendingConnect = false;
+    bool m_autoReconnect = true;
+    qint64 m_lastConnectedAt = 0;
+    int m_flapCount = 0;
 };

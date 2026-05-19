@@ -223,7 +223,7 @@ namespace Nodes
             OutPortCount = 1;
             CaptionVisible = true;
             Caption = "Camera";
-            WidgetEmbeddable = true;
+            WidgetEmbeddable = false;
             Resizable = false;
             
             // 创建摄像头捕获线程

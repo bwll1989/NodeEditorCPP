@@ -38,8 +38,6 @@ namespace Nodes
         QPushButton *clearButton = new QPushButton("清空数据", this);
         // QPushButton *selectFileButton = new QPushButton("选择视频", this);
         QPushButton *playButton = new QPushButton("播放", this);
-        QPushButton *stopButton = new QPushButton("停止", this);
-        
         // 循环播放控制
         QCheckBox *loopCheckBox = new QCheckBox("循环播放", this);  // 新增：循环播放复选框
         SelectorComboBox* _fileSelectComboBox = new SelectorComboBox(MediaLibrary::Category::DMX);
@@ -69,8 +67,7 @@ namespace Nodes
          * @param playing 是否正在播放
          */
         void updatePlaybackState(bool playing) {
-            playButton->setEnabled(!playing);
-            stopButton->setEnabled(playing);
+            playButton->setChecked(playing);
             statusLabel->setText(playing ? "播放中" : "已停止");
         }
         
@@ -93,17 +90,6 @@ namespace Nodes
          * @brief 选择文件按钮点击信号
          */
         void selectFileClicked(QString fileName);
-        
-        /**
-         * @brief 播放按钮点击信号
-         */
-        void playClicked();
-        
-        /**
-         * @brief 停止按钮点击信号
-         */
-        void stopClicked();
-        
         /**
          * @brief 循环播放状态改变信号
          * @param enabled 是否启用循环播放
@@ -202,15 +188,14 @@ namespace Nodes
             playbackLayout->addWidget(loopCheckBox,1,0,1,2);
 
             playButton->setToolTip("开始播放视频（25fps）");
-
-            connect(playButton, &QPushButton::clicked, this, &UniversePlaybackInterface::playClicked);
-            playbackLayout->addWidget(playButton,2,0,1,1);
+            playButton->setCheckable(true);
+            // connect(playButton, &QPushButton::chec, this, &UniversePlaybackInterface::playClicked);
+            playbackLayout->addWidget(playButton,2,0,1,2);
             
-            stopButton->setToolTip("停止播放并重置到开头");
-            stopButton->setEnabled(false);
 
-            connect(stopButton, &QPushButton::clicked, this, &UniversePlaybackInterface::stopClicked);
-            playbackLayout->addWidget(stopButton,2,1,1,1);
+
+            // connect(stopButton, &QPushButton::clicked, this, &UniversePlaybackInterface::stopClicked);
+            // playbackLayout->addWidget(stopButton,2,1,1,1);
 
             // 清空按钮
             clearButton->setToolTip("清空当前Universe的所有DMX数据（将所有512个通道设置为0）");

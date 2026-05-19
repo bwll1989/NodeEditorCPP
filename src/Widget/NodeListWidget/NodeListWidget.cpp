@@ -40,21 +40,23 @@ NodeListWidget::NodeListWidget(DataflowViewsManger* viewsManager, QWidget *paren
     nodeTree = new QTreeView(this);
     nodeModel = new QStandardItemModel(this);
     nodeModel->setHorizontalHeaderLabels(QStringList() << "Nodes");
+    nodeTree->setHeaderHidden(true);
     nodeModel->setColumnCount(1);
     nodeTree->setModel(nodeModel);
     // 禁用编辑，双击展开
     nodeTree->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
-    // 顶部行：下拉框 + 刷新按钮
+    // 顶部行：下拉框 + 搜索框 + 刷新按钮
     QHBoxLayout* topRow = new QHBoxLayout();
-    topRow->addWidget(sceneSelector,10);
-    topRow->addWidget(refreshButton,1);
-    topRow->addStretch();
+    topRow->setContentsMargins(0, 0, 0, 0);
+    topRow->setSpacing(4);
+    topRow->addWidget(sceneSelector, 3);
+    topRow->addWidget(searchBox, 7);
+    topRow->addWidget(refreshButton, 0, Qt::AlignRight | Qt::AlignVCenter);
 
     // 布局
     auto layout = new QVBoxLayout(this);
     layout->addLayout(topRow);
-    layout->addWidget(searchBox);
     layout->addWidget(nodeTree);
     setLayout(layout);
 
@@ -193,9 +195,11 @@ void NodeListWidget::onTreeItemSelectionChanged() {
     QModelIndexList selectedIndexes = nodeTree->selectionModel()->selectedIndexes();
     if (selectedIndexes.isEmpty()) return;
     QModelIndex index = selectedIndexes.first();
-    while (index.parent().isValid()) index = index.parent();
+    if (index.parent().isValid()) return;
     QString nodeText = nodeModel->data(index, Qt::DisplayRole).toString();
-    NodeId nodeId = nodeText.section(':', 0, 0).toInt();
+    bool ok = false;
+    NodeId nodeId = nodeText.section(':', 0, 0).toInt(&ok);
+    if (!ok || !dataFlowModel->nodeExists(nodeId)) return;
     
     isUpdatingSelection = true;
     dataFlowScene->clearSelection();
@@ -251,13 +255,15 @@ void NodeListWidget::populateNodeTree() {
         auto* positionItem = new QStandardItem(QString("Position: (%1, %2)").arg(nodePosition.x()).arg(nodePosition.y()));
         propertiesGroup->appendRow(positionItem);
         // 添加 Controls 分组
-        auto mapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
-        if(mapping.size()<=0){
+        auto mapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QtNodes::NodeDelegateModel::ExternalBinding>>();
+        if(mapping.empty()){
            continue;
         }
         auto* controlsGroup = new QStandardItem(QIcon(":/icons/icons/command.png"), "Commands");
         nodeItem->appendRow(controlsGroup);
-        for(auto it:mapping){
+        for (auto const &it : mapping) {
+            if (!it.second.control)
+                continue;
             auto* controlItem = new QStandardItem("/dataflow/" + dataFlowModel->nodeData(nodeId, NodeRole::ModelAlias).toString() + "/" + QString::number(nodeId)+it.first);
             controlsGroup->appendRow(controlItem);
         }
@@ -282,13 +288,15 @@ void NodeListWidget::onNodeCreated(NodeId nodeId) {
     auto* remarksItem = new QStandardItem(QString("Type: %1").arg(dataFlowModel->nodeData(nodeId, NodeRole::Type).toString()));
     propertiesGroup->appendRow(remarksItem);
     // 添加 Controls 分组
-    auto mapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
-    if(mapping.size()<=0){
+    auto mapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QtNodes::NodeDelegateModel::ExternalBinding>>();
+    if(mapping.empty()){
         return;
     }
     auto* controlsGroup = new QStandardItem(QIcon(":/icons/icons/command.png"), "Commands");
     nodeItem->appendRow(controlsGroup);
-    for(auto it:mapping){
+    for (auto const &it : mapping) {
+        if (!it.second.control)
+            continue;
         auto* controlItem = new QStandardItem("/dataflow/"+dataFlowModel->nodeData(nodeId, NodeRole::ModelAlias).toString() + "/" + QString::number(nodeId)+it.first);
         controlsGroup->appendRow(controlItem);
     }
@@ -310,7 +318,7 @@ void NodeListWidget::onNodeUpdated(NodeId nodeId) {
     QString nodeName = dataFlowModel->nodeData(nodeId, NodeRole::Remarks).toString();
     QPointF nodePosition = dataFlowModel->nodeData(nodeId, NodeRole::Position).toPointF();
     QString nodeType = dataFlowModel->nodeData(nodeId, NodeRole::Type).toString();
-    auto oscMapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QWidget*>>();
+    auto oscMapping = dataFlowModel->nodeData(nodeId, NodeRole::OSCAddress).value<std::unordered_map<QString, QtNodes::NodeDelegateModel::ExternalBinding>>();
 
     // 查找节点项
     QStandardItem* nodeItem = nullptr;
@@ -507,8 +515,8 @@ void NodeListWidget::showContextMenu(const QPoint &pos) {
     contextMenu.setAttribute(Qt::WA_TranslucentBackground, false);
     QAction* focusAction = contextMenu.addAction("Focus Node");
     focusAction->setIcon(QIcon(":/icons/icons/focus.png"));
-    QAction* expandAction = contextMenu.addAction("Switch expand");
-    expandAction->setIcon(QIcon(":/icons/icons/expand.png"));
+    // QAction* expandAction = contextMenu.addAction("Switch expand");
+    // expandAction->setIcon(QIcon(":/icons/icons/expand.png"));
     QAction* updateAction = contextMenu.addAction("Update Node");
     updateAction->setIcon(QIcon(":/icons/icons/restore.png"));
     QAction* deleteAction = contextMenu.addAction("Delete Node");
@@ -527,13 +535,13 @@ void NodeListWidget::showContextMenu(const QPoint &pos) {
             dataFlowScene->centerOnNode(nodeId);
         }
     });
-    connect(expandAction, &QAction::triggered, [this, nodeId]() {
-        if (dataFlowModel) {
-            dataFlowModel->setNodeData(nodeId,NodeRole::WidgetEmbeddable,!dataFlowModel->nodeData(nodeId, NodeRole::WidgetEmbeddable).toBool());
-        }
-    });
+    // connect(expandAction, &QAction::triggered, [this, nodeId]() {
+    //     if (dataFlowModel) {
+    //         dataFlowModel->setNodeData(nodeId,NodeRole::WidgetEmbeddable,!dataFlowModel->nodeData(nodeId, NodeRole::WidgetEmbeddable).toBool());
+    //     }
+    // });
     if(dataFlowModel && dataFlowModel->getNodesLocked()){
-        expandAction->setEnabled(false);
+        // expandAction->setEnabled(false);
         deleteAction->setEnabled(false);
     }
     connect(updateAction, &QAction::triggered, [this, nodeId]() {

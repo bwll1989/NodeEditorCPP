@@ -7,6 +7,8 @@
 #include "QWidget"
 #include "QLabel"
 #include "QLayout"
+#include <QGridLayout>
+#include <QSpacerItem>
 #include <QSpinBox>
 #include <QVariantMap>
 #include <QPushButton>
@@ -20,25 +22,30 @@ namespace Nodes
     explicit OscOutInterface(QWidget *parent = nullptr) : QWidget(parent) {
         // 初始化主布局
         main_layout = new QGridLayout(this);
+        main_layout->setContentsMargins(0, 0, 0, 0);
+        main_layout->setSpacing(6);
 
         // 布局设置
-        main_layout->addWidget(hostlabel, 0,0);
-        main_layout->addWidget(hostLineEdit, 0,1);
-        main_layout->addWidget(portlabel, 1,0);
-        main_layout->addWidget(portSpinBox, 1,1);
-        main_layout->addWidget(addresslabel, 2,0);
-        main_layout->addWidget(addressLineEdit, 2,1);
-        main_layout->addWidget(typelabel, 3,0);
-        main_layout->addWidget(typeComboBox, 3,1);
+        main_layout->addWidget(hostlabel, 0, 0);
+        main_layout->addWidget(hostLineEdit, 0, 1);
+        main_layout->addWidget(portlabel, 1, 0);
+        main_layout->addWidget(portSpinBox, 1, 1);
+        main_layout->addWidget(addresslabel, 2, 0);
+        main_layout->addWidget(addressLineEdit, 2, 1);
+        main_layout->addWidget(typelabel, 3, 0);
+        main_layout->addWidget(typeComboBox, 3, 1);
         typeComboBox->addItem("Int");
         typeComboBox->addItem("Float");
         typeComboBox->addItem("String");
-        main_layout->addWidget(valuelabel, 4,0);
-        main_layout->addWidget(valueLineEdit, 4,1);
-        main_layout->addWidget(sendButton, 5,0,1,2);
+        main_layout->addWidget(valuelabel, 4, 0);
+        main_layout->addWidget(valueLineEdit, 4, 1);
+        main_layout->addWidget(sendButton, 5, 0, 1, 2);
+        main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 6, 0, 1, 2);
+        main_layout->setRowStretch(6, 1);
+        main_layout->setColumnStretch(0, 1);
+        main_layout->setColumnStretch(1, 2);
         portSpinBox->setRange(1000,66535);
         portSpinBox->setValue(8000);
-        main_layout->setContentsMargins(0, 0, 0, 0);
         // 信号槽连接
         connect(hostLineEdit, &QLineEdit::editingFinished, this, &OscOutInterface::valueChanged);
         connect(portSpinBox, &IntDragValueWidget::valueChanged, this, &OscOutInterface::valueChanged);

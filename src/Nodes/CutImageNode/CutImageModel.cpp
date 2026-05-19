@@ -20,22 +20,22 @@ CutImageModel::CutImageModel() {
     Caption="CutImage";
     WidgetEmbeddable=false;
     Resizable=false;
-    connect(widget->pos_x, &IntDragValueWidget::valueChanged, this, [this]() {
-        setTopLeftX(widget->pos_x->value());
-    });
-    connect(widget->pos_y, &IntDragValueWidget::valueChanged,this, [this]() {
-        setTopLeftY(widget->pos_y->value());
-    });
-    connect(widget->widthEdit, &IntDragValueWidget::valueChanged, this, [this]() {
-        setWidth(widget->widthEdit->value());
-    });
-    connect(widget->heightEdit, &IntDragValueWidget::valueChanged, this, [this]() {
-        setHeight(widget->heightEdit->value());
-    });
-    AbstractDelegateModel::registerExternalControl("/topLeftX",widget->pos_x);
-    AbstractDelegateModel::registerExternalControl("/topLeftY",widget->pos_y);
-    AbstractDelegateModel::registerExternalControl("/width",widget->widthEdit);
-    AbstractDelegateModel::registerExternalControl("/height",widget->heightEdit);
+    NodeDelegateModel::ExternalBinding ui;
+    ui.member="topLeftX";
+    AbstractDelegateModel::registerExternalBinding("/topLeftX", this, ui);
+    // AbstractDelegateModel::registerExternalControl("/topLeftX",widget->pos_x);
+    NodeDelegateModel::ExternalBinding ui1;
+    ui1.member="topLeftY";
+    AbstractDelegateModel::registerExternalBinding("/topLeftY", this, ui1);
+    // AbstractDelegateModel::registerExternalControl("/topLeftY",widget->pos_y);
+    NodeDelegateModel::ExternalBinding ui3;
+    ui3.member="width";
+    AbstractDelegateModel::registerExternalBinding("/width", this, ui3);
+    // AbstractDelegateModel::registerExternalControl("/width",widget->widthEdit);
+    NodeDelegateModel::ExternalBinding ui4;
+    ui4.member="height";
+    AbstractDelegateModel::registerExternalBinding("/height", this, ui4);
+    // AbstractDelegateModel::registerExternalControl("/height",widget->heightEdit);
 }
 
 QString CutImageModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
@@ -88,56 +88,48 @@ void CutImageModel::setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const
     switch (portIndex) {
         case 0:
             m_inImageData = std::dynamic_pointer_cast<ImageData>(nodeData);
+            processImage();
             break;
-        case 1:
-            if (nodeData== nullptr){
+        case 1: {
+            if (nodeData == nullptr) {
                 return;
             }
-            m_inData = std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            {
-                const QRect rect = m_inData.toRect();
-                setTopLeftX(rect.left());
-                setTopLeftY(rect.top());
-                setWidth(rect.width());
-                setHeight(rect.height());
-            }
+            const QRect rect = std::dynamic_pointer_cast<VariableData>(nodeData)->value().toRect();
+            setTopLeftX(rect.left());
+            setTopLeftY(rect.top());
+            setWidth(rect.width());
+            setHeight(rect.height());
             break;
+        }
         case 2:
-            if (nodeData== nullptr){
+            if (nodeData == nullptr) {
                 return;
             }
-            m_inData = std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            setTopLeftX(m_inData.toInt());
+            setTopLeftX(std::dynamic_pointer_cast<VariableData>(nodeData)->value().toInt());
             break;
         case 3:
-            if (nodeData== nullptr){
+            if (nodeData == nullptr) {
                 return;
             }
-            m_inData=std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            setTopLeftY(m_inData.toInt());
+            setTopLeftY(std::dynamic_pointer_cast<VariableData>(nodeData)->value().toInt());
             break;
         case 4:
-            if (nodeData== nullptr){
+            if (nodeData == nullptr) {
                 return;
             }
-            m_inData=std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            setWidth(m_inData.toInt());
+            setWidth(std::dynamic_pointer_cast<VariableData>(nodeData)->value().toInt());
             break;
         case 5:
-            if (nodeData== nullptr){
+            if (nodeData == nullptr) {
                 return;
             }
-            m_inData=std::dynamic_pointer_cast<VariableData>(nodeData)->value();
-            setHeight(m_inData.toInt());
+            setHeight(std::dynamic_pointer_cast<VariableData>(nodeData)->value().toInt());
+            break;
     }
 }
 
 std::shared_ptr<QtNodes::NodeData> CutImageModel::outData(const QtNodes::PortIndex port) {
     return m_outImageData;
-}
-
-QWidget* CutImageModel::embeddedWidget() {
-    return widget;
 }
 
 // 函数级注释：模型就绪后订阅全局事件总线，实现外部命令控制裁剪参数
@@ -166,7 +158,7 @@ void CutImageModel::afterModelReady()
 }
 
 void CutImageModel::processImage() {
-    if (m_outRect.width() <= 0 || m_outRect.height() <= 0) {
+    if (m_width <= 0 || m_height <= 0) {
         m_outImageData.reset();
         emit dataUpdated(0);
         return;
@@ -177,10 +169,10 @@ void CutImageModel::processImage() {
 
         // 边界检查
         cv::Rect validRect(
-            std::max(0, m_outRect.x()),
-            std::max(0, m_outRect.y()),
-            std::min(inputMat.cols - m_outRect.x(), m_outRect.width()),
-            std::min(inputMat.rows - m_outRect.y(), m_outRect.height())
+            std::max(0, m_topLeftX),
+            std::max(0, m_topLeftY),
+            std::min(inputMat.cols - m_topLeftX, m_width),
+            std::min(inputMat.rows - m_topLeftY, m_height)
         );
 
         if (validRect.width <= 0 || validRect.height <= 0) {
@@ -202,11 +194,10 @@ QJsonObject CutImageModel::save() const {
 
     QJsonObject modelJson  = NodeDelegateModel::save();
     QJsonObject modelJson1;
-    modelJson1["values"]=modelJson1;
-    modelJson1["pos_x"] = widget->pos_x->value();
-    modelJson1["pos_y"] = widget->pos_y->value();
-    modelJson1["width"] = widget->widthEdit->value();
-    modelJson1["height"] = widget->heightEdit->value();
+    modelJson1["pos_x"] = topLeftX();
+    modelJson1["pos_y"] = topLeftY();
+    modelJson1["width"] = width();
+    modelJson1["height"] = height();
     modelJson["values"]=modelJson1;
     return modelJson;
 }
@@ -227,65 +218,51 @@ void CutImageModel::load(const QJsonObject& data) {
 // 函数级注释：设置裁剪矩形左上角 X 坐标属性，并更新界面与状态
 void CutImageModel::setTopLeftX(int x)
 {
-    if (m_outRect.left() == x) {
+    if (m_topLeftX== x) {
         return;
     }
-    m_outRect.setLeft(x);
-    if (widget && widget->pos_x) {
-        QSignalBlocker blocker(widget->pos_x);
-        widget->pos_x->setValue(x);
-    }
+    m_topLeftX = x;
+
     processImage();
     Q_EMIT topLeftXChanged(x);
-    AbstractDelegateModel::stateFeedBack("/topLeftX", x);
+
 }
 
 // 函数级注释：设置裁剪矩形左上角 Y 坐标属性，并更新界面与状态
 void CutImageModel::setTopLeftY(int y)
 {
-    if (m_outRect.top() == y) {
+    if (m_topLeftY == y) {
         return;
     }
-    m_outRect.setTop(y);
-    if (widget && widget->pos_y) {
-        QSignalBlocker blocker(widget->pos_y);
-        widget->pos_y->setValue(y);
-    }
+    m_topLeftY = y;
+
     processImage();
     Q_EMIT topLeftYChanged(y);
-    AbstractDelegateModel::stateFeedBack("/topLeftY", y);
+
 }
 
 // 函数级注释：设置裁剪矩形宽度属性，并更新界面与状态
 void CutImageModel::setWidth(int w)
 {
-    if (m_outRect.width() == w) {
+    if (m_width == w) {
         return;
     }
-    m_outRect.setWidth(w);
-    if (widget && widget->widthEdit) {
-        QSignalBlocker blocker(widget->widthEdit);
-        widget->widthEdit->setValue(w);
-    }
+    m_width = w;
     processImage();
     Q_EMIT widthChanged(w);
-    AbstractDelegateModel::stateFeedBack("/width", w);
+    // AbstractDelegateModel::stateFeedBack("/width", w);
 }
 
 // 函数级注释：设置裁剪矩形高度属性，并更新界面与状态
 void CutImageModel::setHeight(int h)
 {
-    if (m_outRect.height() == h) {
+    if (m_height == h) {
         return;
     }
-    m_outRect.setHeight(h);
-    if (widget && widget->heightEdit) {
-        QSignalBlocker blocker(widget->heightEdit);
-        widget->heightEdit->setValue(h);
-    }
+    m_height = h;
     processImage();
     Q_EMIT heightChanged(h);
-    AbstractDelegateModel::stateFeedBack("/height", h);
+    // AbstractDelegateModel::stateFeedBack("/height", h);
 }
 // 函数级注释：处理来自全局事件总线的裁剪命令，映射到对应属性
 void CutImageModel::onGlobalEvent(const GlobalEvent& ev)

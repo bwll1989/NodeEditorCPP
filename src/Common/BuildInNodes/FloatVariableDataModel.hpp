@@ -44,13 +44,15 @@ class FloatVariableDataModel : public AbstractDelegateModel
             widget->setFixedSize(80,30);
             widget->setValue(m_value);
             connect(widget, &FloatDragValueWidget::valueChanged, this, &FloatVariableDataModel::setValue);
-            AbstractDelegateModel::registerExternalControl("/float",widget);
-            // registerExternalControl("/float",widget);
-            
+            NodeDelegateModel::ExternalBinding binding;
+            binding.member = "value";
+            binding.control=widget;
+            AbstractDelegateModel::registerExternalBinding("/float", this, binding);
             connect(this, &FloatVariableDataModel::valueChanged, this, [this](double){
                 if (widget->value() != m_value)
+                    widget->blockSignals(true);
                     widget->setValue(m_value);
-                stateFeedBack("/float", m_value);
+                    widget->blockSignals(false);
             });
         }
 

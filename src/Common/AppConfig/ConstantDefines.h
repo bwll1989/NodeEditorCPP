@@ -12,17 +12,18 @@
 namespace AppConstants {
     // 产品信息
     const QString COMPANY_NAME = "WuBin";
-    const QString PRODUCT_NAME = "NodeStudio";
-    const QString FILE_DESCRIPTION = "NodeStudio based on Qt 6.10.1 (MSVC, 64 bit)";
-    const QString LEGAL_COPYRIGHT = "Copyright 2008-2025 The Qt Company Ltd. All rights reserved.";
+    const QString PRODUCT_NAME = "Flow";
+    const QString PRODUCT_RUNTIME_NAME = "FlowRuntime";
+    const QString FILE_DESCRIPTION = "Flow based on Qt 6.10.1 (MSVC, 64 bit)";
+    const QString LEGAL_COPYRIGHT = "Copyright 2008-2025 WuBin. All rights reserved.";
     // 日志存储目录
-    const QString LOGS_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/NodeStudio/Logs";
+    const QString LOGS_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Logs";
     // 媒体库存储目录
-    const QString MEDIA_LIBRARY_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/NodeStudio/Medias";
+    const QString MEDIA_LIBRARY_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Medias";
     // FLOW文件存储目录
-    const QString MEDIA_LIBRARY_FLOW_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/NodeStudio/Flows";
+    const QString MEDIA_LIBRARY_FLOW_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Flows";
     // 最近打开文件存储路径
-    const QString RECENT_FILES_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/NodeStudio/Cfg";
+    const QString RECENT_FILES_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cfg";
     // Art-Net 相关常量
     constexpr int ARTNET_PORT = 6454;
     // Art-Net 输出FPS
@@ -51,8 +52,18 @@ namespace AppConfigs {
     // 使用暗色主题
     constexpr bool DEFAULT_DARK_THEME = true;
     // 网页访问密码
-    constexpr const char* WEB_ACCESS_PASSWORD = "wb@niubility";
+    constexpr const char* WEB_ACCESS_PASSWORD = "wubin@niubility";
     // 是否启用OSC外部反馈/控制
     constexpr bool OSC_ENABLED = false;
+    // 是否启用MQTT外部反馈/控制
+    constexpr bool MQTT_ENABLED = false;
+    // MQTT Broker 地址
+    constexpr const char* MQTT_HOST = "127.0.0.1";
+    // MQTT Broker 端口
+    constexpr int MQTT_PORT = 1883;
+    // MQTT 控制主题（订阅，接收外部控制指令）
+    constexpr const char* MQTT_CONTROL_TOPIC = "flow/control";
+    // MQTT 反馈主题（发布，向外推送状态）
+    constexpr const char* MQTT_FEEDBACK_TOPIC = "flow/feedback";
 
 }

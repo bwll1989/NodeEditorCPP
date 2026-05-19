@@ -16,10 +16,11 @@
 #include <QtCore/QEvent>
 #include <QtWidgets/QFileDialog>
 #include <QtCore/qglobal.h>
-#include "AudioCrossFaderInterface.h"
+#include <QSignalBlocker>
 #include <QComboBox>
 #include <QJsonArray>
 #include <QJsonObject>
+#include "AudioCrossFaderInterface.h"
 #include "PluginDefinition.hpp"
 #include "AudioCrossFaderWorker.hpp"
 #include "Common/BuildInNodes/AbstractDelegateModel.h"
@@ -57,24 +58,41 @@ namespace Nodes {
             Resizable = false;
             PortEditable = false;
             Caption = "Audio Cross Fader";
-            AbstractDelegateModel::registerExternalControl("/mix", widget->mixSpin);
-            AbstractDelegateModel::registerExternalControl("/fade_ms", widget->fadeDurationSpin);
-            AbstractDelegateModel::registerExternalControl("/action", widget->actionCombo);
+
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "mix";
+                b.control = widget->mixSpin;
+                AbstractDelegateModel::registerExternalBinding("/mix", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "fadeMs";
+                b.control = widget->fadeDurationSpin;
+                AbstractDelegateModel::registerExternalBinding("/fade_ms", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "controlAction";
+                b.control = widget->actionCombo;
+                AbstractDelegateModel::registerExternalBinding("/action", this, b);
+            }
+
             // Initialize buffers in worker
             _worker->initializeBuffers(InPortCount, OutPortCount);
-            
+
             _worker->moveToThread(_workerThread);
 
             connect(_workerThread, &QThread::started, this, [this]() {
                 QMetaObject::invokeMethod(_worker, "startProcessing", Qt::QueuedConnection);
             });
             connect(_workerThread, &QThread::finished, _worker, &AudioCrossFaderWorker::stopProcessing);
-            
+
             connect(widget->mixSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioCrossFaderDataModel::setMix);
             connect(this, &AudioCrossFaderDataModel::mixChanged, this, [this](double){
                 {
-                    QSignalBlocker blocker(widget->mixSpin);
+                    const QSignalBlocker blocker(widget->mixSpin);
                     widget->mixSpin->setValue(m_mix);
                 }
                 QMetaObject::invokeMethod(
@@ -83,14 +101,13 @@ namespace Nodes {
                     Qt::QueuedConnection,
                     Q_ARG(double, m_mix)
                 );
-                AbstractDelegateModel::stateFeedBack("/mix", m_mix);
             });
 
             connect(widget->fadeDurationSpin, &FloatDragValueWidget::valueChanged,
                     this, &AudioCrossFaderDataModel::setFadeMs);
             connect(this, &AudioCrossFaderDataModel::fadeMsChanged, this, [this](double){
                 {
-                    QSignalBlocker blocker(widget->fadeDurationSpin);
+                    const QSignalBlocker blocker(widget->fadeDurationSpin);
                     widget->fadeDurationSpin->setValue(m_fadeMs);
                 }
                 QMetaObject::invokeMethod(
@@ -99,16 +116,15 @@ namespace Nodes {
                     Qt::QueuedConnection,
                     Q_ARG(double, m_fadeMs)
                 );
-                AbstractDelegateModel::stateFeedBack("/fade_ms", m_fadeMs);
             });
+
             connect(widget->actionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                    this, &AudioCrossFaderDataModel::onActionComboIndexChanged);
+                    this, &AudioCrossFaderDataModel::setControlActionProperty);
             connect(this, &AudioCrossFaderDataModel::controlActionChanged, this, [this](int){
-                QSignalBlocker blocker(widget->actionCombo);
+                const QSignalBlocker blocker(widget->actionCombo);
                 widget->actionCombo->setCurrentIndex(m_controlAction);
-                AbstractDelegateModel::stateFeedBack("/action", m_controlAction);
             });
-            
+
             _workerThread->start();
         }
     
@@ -214,58 +230,53 @@ namespace Nodes {
             if (port >= InPortCount) {
                 return;
             }
-            
+
             auto audioData = std::dynamic_pointer_cast<AudioData>(nodeData);
             std::shared_ptr<AudioTimestampRingQueue> audioBuffer = nullptr;
-            
+
             if (audioData && audioData->isConnectedToSharedBuffer()) {
                 audioBuffer = audioData->getSharedAudioBuffer();
             }
-            
-            QMetaObject::invokeMethod(_worker, "setInputBuffer", 
+
+            QMetaObject::invokeMethod(_worker, "setInputBuffer",
                                     Qt::QueuedConnection,
                                     Q_ARG(int, port),
                                     Q_ARG(std::shared_ptr<AudioTimestampRingQueue>, audioBuffer));
         }
-    
+
         QWidget *embeddedWidget() override { return widget; }
-        
+    
         QJsonObject save() const override
         {
-            QJsonObject modelJson;
-            modelJson["mix"] = mix();
-            modelJson["fade_ms"] = fadeMs();
+            QJsonObject values;
+            values["mix"] = mix();
+            values["fade_ms"] = fadeMs();
+            values["action"] = controlActionProperty();
+
+            QJsonObject modelJson = NodeDelegateModel::save();
+            modelJson["values"] = values;
             return modelJson;
         }
 
         void load(QJsonObject const &p) override
         {
-            if (p.contains("mix")) {
-                setMix(p["mix"].toDouble());
-            }
-            if (p.contains("fade_ms")) {
-                setFadeMs(p["fade_ms"].toDouble());
-            }
-        }
+            NodeDelegateModel::load(p);
 
-    public slots:
-        /**
-         * @brief 重新发送当前混合比例到工作线程，效果等同于 mixSpin 的 valueChanged
-         */
-        void onResetButtonClicked() {
-            double v = widget->mixSpin->value();
-            QMetaObject::invokeMethod(_worker, "setMix", Qt::QueuedConnection, Q_ARG(double, v));
-        }
-
-        /**
-         * 函数级注释：处理下拉菜单索引变化并通过属性系统触发控制动作
-         */
-        void onActionComboIndexChanged(int index)
-        {
-            if (index < 0 || index > 2) {
+            const QJsonValue vv = p.value("values");
+            if (!vv.isObject()) {
                 return;
             }
-            setControlActionProperty(index);
+            const QJsonObject v = vv.toObject();
+
+            if (v.contains("mix")) {
+                setMix(v.value("mix").toDouble());
+            }
+            if (v.contains("fade_ms")) {
+                setFadeMs(v.value("fade_ms").toDouble());
+            }
+            if (v.contains("action")) {
+                setControlActionProperty(v.value("action").toInt());
+            }
         }
     signals:
         void mixChanged(double value);
@@ -314,7 +325,7 @@ namespace Nodes {
         }
 
     private:
-        AudioCrossFaderInterface *widget;
+        AudioCrossFaderInterface *widget = nullptr;
         AudioCrossFaderWorker* _worker;
         QThread* _workerThread;
         double m_mix = 0.5;

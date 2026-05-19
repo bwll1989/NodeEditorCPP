@@ -36,6 +36,7 @@ namespace Nodes
             main_layout->addWidget(item_4);
             main_layout->addWidget(item_5);
             main_layout->setContentsMargins(4,2,4,4);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
             this->setLayout(main_layout);
         }
     public:

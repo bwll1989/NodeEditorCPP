@@ -80,10 +80,9 @@ public:
        
 
 signals:
-    // 发送解码后的音频数据
     void audioFrameReady(AudioFrame frame);
-    // 播放进度信号 (当前时间秒, 总时间秒)
     void playbackProgress(double currentSec, double totalSec);
+    void playbackFinished();
 
 public slots:
     /**

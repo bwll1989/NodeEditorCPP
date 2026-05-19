@@ -42,7 +42,7 @@ namespace Nodes {
             OutPortCount=1;
             CaptionVisible=true;
             Caption="To JSON";
-            WidgetEmbeddable=true;
+            WidgetEmbeddable=false;
             Resizable=true; // 允许调整大小
             connect(_textEdit, &QPlainTextEdit::textChanged, this, &ToJsonDataModel::onTextEdited);
         }

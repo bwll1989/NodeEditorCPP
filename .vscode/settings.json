@@ -167,6 +167,8 @@
         "qmessagebox": "cpp",
         "qinputdialog": "cpp",
         "qdropevent": "cpp",
-        "qmimedata": "cpp"
+        "qmimedata": "cpp",
+        "qvector": "cpp",
+        "nodedelegatemodelregistry": "cpp"
     }
 }

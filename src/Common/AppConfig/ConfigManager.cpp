@@ -9,6 +9,42 @@
 #include <QDebug>
 #include <QSettings>
 
+namespace {
+
+QString sanitizeMqttHost(QString host)
+{
+    host = host.trimmed();
+    static const QStringList prefixes = {
+        QStringLiteral("mqtts://"),
+        QStringLiteral("mqtt://"),
+        QStringLiteral("ssl://"),
+        QStringLiteral("tcp://"),
+        QStringLiteral("ws://"),
+        QStringLiteral("wss://"),
+    };
+    for (const QString& prefix : prefixes) {
+        if (host.startsWith(prefix, Qt::CaseInsensitive)) {
+            host = host.mid(prefix.size());
+            break;
+        }
+    }
+    const int slash = host.indexOf(QLatin1Char('/'));
+    if (slash > 0) {
+        host = host.left(slash);
+    }
+    const int colon = host.lastIndexOf(QLatin1Char(':'));
+    if (colon > 0) {
+        bool ok = false;
+        host.mid(colon + 1).toUShort(&ok);
+        if (ok) {
+            host = host.left(colon);
+        }
+    }
+    return host.trimmed();
+}
+
+} // namespace
+
 ConfigManager& ConfigManager::instance()
 {
     static ConfigManager instance;
@@ -23,6 +59,11 @@ ConfigManager::ConfigManager()
     , m_extraControlPort(AppConfigs::EXTRA_CONTROL_PORT)
     , m_oscInternalControlHost(AppConfigs::OSC_INTERNAL_CONTROL_HOST)
     , m_oscEnabled(AppConfigs::OSC_ENABLED)
+    , m_mqttEnabled(AppConfigs::MQTT_ENABLED)
+    , m_mqttHost(AppConfigs::MQTT_HOST)
+    , m_mqttPort(AppConfigs::MQTT_PORT)
+    , m_mqttControlTopic(AppConfigs::MQTT_CONTROL_TOPIC)
+    , m_mqttFeedbackTopic(AppConfigs::MQTT_FEEDBACK_TOPIC)
     , m_webAccessPassword(AppConfigs::WEB_ACCESS_PASSWORD)
     , m_defaultDarkTheme(AppConfigs::DEFAULT_DARK_THEME)
     , m_MaxLogEntries(AppConfigs::MAX_LOG_ENTRIES)
@@ -45,6 +86,13 @@ int ConfigManager::getMaxLogEntries() const { return m_MaxLogEntries; }
 QStringList ConfigManager::getRecentFiles() const { return m_recentFiles; }
 QString ConfigManager::getCurrentFlowPath() const { return m_currentFlowPath; }
 bool ConfigManager::isOscEnabled() const { return m_oscEnabled; }
+bool ConfigManager::isMqttEnabled() const { return m_mqttEnabled; }
+QString ConfigManager::getMqttHost() const { return m_mqttHost; }
+int ConfigManager::getMqttPort() const { return m_mqttPort; }
+QString ConfigManager::getMqttUsername() const { return m_mqttUsername; }
+QString ConfigManager::getMqttPassword() const { return m_mqttPassword; }
+QString ConfigManager::getMqttControlTopic() const { return m_mqttControlTopic; }
+QString ConfigManager::getMqttFeedbackTopic() const { return m_mqttFeedbackTopic; }
 QString ConfigManager::getWebAccessPassword() const { return m_webAccessPassword; }
 
 void ConfigManager::addRecentFile(const QString& path)
@@ -80,6 +128,13 @@ void ConfigManager::loadConfig()
     m_extraControlPort = settings.value("Network/ExtraControlPort", AppConfigs::EXTRA_CONTROL_PORT).toInt();
     m_oscInternalControlHost = settings.value("Network/OscInternalControlHost", AppConfigs::OSC_INTERNAL_CONTROL_HOST).toString();
     m_oscEnabled = settings.value("Network/OscEnabled", AppConfigs::OSC_ENABLED).toBool();
+    m_mqttEnabled = settings.value("Network/MqttEnabled", AppConfigs::MQTT_ENABLED).toBool();
+    m_mqttHost = sanitizeMqttHost(settings.value("Network/MqttHost", AppConfigs::MQTT_HOST).toString());
+    m_mqttPort = settings.value("Network/MqttPort", AppConfigs::MQTT_PORT).toInt();
+    m_mqttUsername = settings.value("Network/MqttUsername").toString();
+    m_mqttPassword = settings.value("Network/MqttPassword").toString();
+    m_mqttControlTopic = settings.value("Network/MqttControlTopic", AppConfigs::MQTT_CONTROL_TOPIC).toString();
+    m_mqttFeedbackTopic = settings.value("Network/MqttFeedbackTopic", AppConfigs::MQTT_FEEDBACK_TOPIC).toString();
     m_webAccessPassword = settings.value("Network/WebAccessPassword", AppConfigs::WEB_ACCESS_PASSWORD).toString();
     // Log
     m_MaxLogEntries = settings.value("Log/MaxLogEntries", AppConfigs::MAX_LOG_ENTRIES).toInt();
@@ -107,6 +162,13 @@ void ConfigManager::saveConfig()
     settings.setValue("Network/ExtraControlPort", m_extraControlPort);
     settings.setValue("Network/OscInternalControlHost", m_oscInternalControlHost);
     settings.setValue("Network/OscEnabled", m_oscEnabled);
+    settings.setValue("Network/MqttEnabled", m_mqttEnabled);
+    settings.setValue("Network/MqttHost", m_mqttHost);
+    settings.setValue("Network/MqttPort", m_mqttPort);
+    settings.setValue("Network/MqttUsername", m_mqttUsername);
+    settings.setValue("Network/MqttPassword", m_mqttPassword);
+    settings.setValue("Network/MqttControlTopic", m_mqttControlTopic);
+    settings.setValue("Network/MqttFeedbackTopic", m_mqttFeedbackTopic);
     settings.setValue("Network/WebAccessPassword", m_webAccessPassword);
     // Log
     settings.setValue("Log/MaxLogEntries", m_MaxLogEntries);
@@ -125,6 +187,13 @@ void ConfigManager::updateConfig(const QJsonObject& newConfig)
     if (newConfig.contains("DefaultDarkTheme")) m_defaultDarkTheme = newConfig["DefaultDarkTheme"].toBool();
     if (newConfig.contains("MaxLogEntries")) m_MaxLogEntries = newConfig["MaxLogEntries"].toInt();
     if (newConfig.contains("OscEnabled")) m_oscEnabled = newConfig["OscEnabled"].toBool();
+    if (newConfig.contains("MqttEnabled")) m_mqttEnabled = newConfig["MqttEnabled"].toBool();
+    if (newConfig.contains("MqttHost")) m_mqttHost = sanitizeMqttHost(newConfig["MqttHost"].toString());
+    if (newConfig.contains("MqttPort")) m_mqttPort = newConfig["MqttPort"].toInt();
+    if (newConfig.contains("MqttUsername")) m_mqttUsername = newConfig["MqttUsername"].toString();
+    if (newConfig.contains("MqttPassword")) m_mqttPassword = newConfig["MqttPassword"].toString();
+    if (newConfig.contains("MqttControlTopic")) m_mqttControlTopic = newConfig["MqttControlTopic"].toString();
+    if (newConfig.contains("MqttFeedbackTopic")) m_mqttFeedbackTopic = newConfig["MqttFeedbackTopic"].toString();
     if (newConfig.contains("WebAccessPassword")) m_webAccessPassword = newConfig["WebAccessPassword"].toString();
 
     saveConfig();

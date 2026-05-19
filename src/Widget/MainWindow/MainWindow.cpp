@@ -189,7 +189,7 @@ void MainWindow::init()
     // menuBar->views->addAction(mediaLibraryDockWidget->toggleViewAction());
     mediaLibraryDockWidget->setTitleBarActions({makeOptionsMenu(mediaLibraryWidget, mediaLibraryWidget->getActions())->menuAction()});
     emit initStatus("Initialization Media Library Widget success");
-    propertyDockWidget = m_DockManager->createDockWidget("属性");
+    propertyDockWidget = m_DockManager->createDockWidget("节点属性");
     propertyDockWidget->setObjectName("property");
     propertyDockWidget->setIcon(QIcon(":/icons/icons/property.png"));
     propertyWidget = new PropertyWidget(nullptr, propertyDockWidget);
@@ -197,36 +197,36 @@ void MainWindow::init()
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, propertyDockWidget);
     emit initStatus("Initialization Property Widget success");
 
-    // connect(dataflowViewsManger, &DataflowViewsManger::sceneIsActive, this, [this](const QString& title) {
-    //     if (!propertyWidget || !dataflowViewsManger) return;
+    connect(dataflowViewsManger, &DataflowViewsManger::sceneIsActive, this, [this](const QString& title) {
+        if (!propertyWidget || !dataflowViewsManger) return;
 
-    //     if (propertySelectionConn) {
-    //         QObject::disconnect(propertySelectionConn);
-    //         propertySelectionConn = QMetaObject::Connection();
-    //     }
+        if (propertySelectionConn) {
+            QObject::disconnect(propertySelectionConn);
+            propertySelectionConn = QMetaObject::Connection();
+        }
 
-    //     auto* model = dataflowViewsManger->modelByTitle(title);
-    //     propertyWidget->setModel(model);
+        auto* model = dataflowViewsManger->modelByTitle(title);
+        propertyWidget->setModel(model);
 
-    //     auto* scene = dataflowViewsManger->sceneByTitle(title);
-    //     if (!scene) {
-    //         propertyWidget->update(QtNodes::NodeId{});
-    //         return;
-    //     }
+        auto* scene = dataflowViewsManger->sceneByTitle(title);
+        if (!scene) {
+            propertyWidget->update(QtNodes::InvalidNodeId);
+            return;
+        }
 
-    //     propertySelectionConn = QObject::connect(scene, &QGraphicsScene::selectionChanged, this, [this, title]() {
-    //         if (!propertyWidget || !dataflowViewsManger) return;
-    //         auto* s = dataflowViewsManger->sceneByTitle(title);
-    //         if (!s) return;
-    //         const auto nodes = s->selectedNodes();
-    //         const QtNodes::NodeId id = nodes.empty() ? QtNodes::NodeId{} : nodes.front();
-    //         propertyWidget->update(id);
-    //     });
+        propertySelectionConn = QObject::connect(scene, &QGraphicsScene::selectionChanged, this, [this, title]() {
+            if (!propertyWidget || !dataflowViewsManger) return;
+            auto* s = dataflowViewsManger->sceneByTitle(title);
+            if (!s) return;
+            const auto nodes = s->selectedNodes();
+            const QtNodes::NodeId id = nodes.empty() ? QtNodes::InvalidNodeId : nodes.front();
+            propertyWidget->update(id);
+        });
 
-    //     const auto nodes = scene->selectedNodes();
-    //     const QtNodes::NodeId id = nodes.empty() ? QtNodes::NodeId{} : nodes.front();
-    //     propertyWidget->update(id);
-    // });
+        const auto nodes = scene->selectedNodes();
+        const QtNodes::NodeId id = nodes.empty() ? QtNodes::InvalidNodeId : nodes.front();
+        propertyWidget->update(id);
+    });
     // 外部控制器
     controller=new ExternalControler();
 

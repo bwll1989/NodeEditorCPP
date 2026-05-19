@@ -33,6 +33,13 @@ public:
     QStringList getRecentFiles() const;
     QString getCurrentFlowPath() const;
     bool isOscEnabled() const;
+    bool isMqttEnabled() const;
+    QString getMqttHost() const;
+    int getMqttPort() const;
+    QString getMqttUsername() const;
+    QString getMqttPassword() const;
+    QString getMqttControlTopic() const;
+    QString getMqttFeedbackTopic() const;
     QString getWebAccessPassword() const;
     /**
      * 函数级注释：将新路径加入最近文件列表
@@ -68,6 +75,13 @@ private:
     int m_extraControlPort;
     QString m_oscInternalControlHost;
     bool m_oscEnabled;
+    bool m_mqttEnabled;
+    QString m_mqttHost;
+    int m_mqttPort;
+    QString m_mqttUsername;
+    QString m_mqttPassword;
+    QString m_mqttControlTopic;
+    QString m_mqttFeedbackTopic;
     QString m_webAccessPassword;
     bool m_defaultDarkTheme;
     int m_MaxLogEntries;

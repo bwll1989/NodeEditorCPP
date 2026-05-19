@@ -392,12 +392,24 @@ namespace Nodes
             OutPortCount = 0;  // NDI输出不需要输出端口
             CaptionVisible = true;
             Caption = "NDI Out";
-            WidgetEmbeddable = true;
+            WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = false;
 
             initializeSender();
-            AbstractDelegateModel::registerExternalControl("/enable",m_widget->m_startStopButton);
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "enable";
+
+                AbstractDelegateModel::registerExternalBinding("/enable", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = "senderName";
+
+                AbstractDelegateModel::registerExternalBinding("/senderName", this, b);
+            }
+            // AbstractDelegateModel::registerExternalControl("/enable",m_widget->m_startStopButton);
 
         }
 
@@ -510,14 +522,14 @@ namespace Nodes
          * @brief 获取嵌入式控件
          * @return 控件指针
          */
-        QWidget *embeddedWidget() override {
-
-            // 连接信号
-            connect(m_widget, &NDIOutInterface::senderNameChanged, this, &NDIOutDataModel::setSenderName);
-            connect(m_widget->m_startStopButton, &QPushButton::toggled, this, &NDIOutDataModel::setEnable);
-
-            return m_widget;
-        }
+        // QWidget *embeddedWidget() override {
+        //
+        //     // 连接信号
+        //     connect(m_widget, &NDIOutInterface::senderNameChanged, this, &NDIOutDataModel::setSenderName);
+        //     connect(m_widget->m_startStopButton, &QPushButton::toggled, this, &NDIOutDataModel::setEnable);
+        //
+        //     return m_widget;
+        // }
 
     Q_SIGNALS:
         void senderNameChanged(QString senderName);
@@ -538,7 +550,7 @@ namespace Nodes
                 m_widget->m_senderNameEdit->setText(senderName);
             }
             emit senderNameChanged(senderName);
-            AbstractDelegateModel::stateFeedBack("/name", senderName);
+            // AbstractDelegateModel::stateFeedBack("/name", senderName);
         }
 
         bool enable() const { return m_isSending; }
@@ -557,13 +569,13 @@ namespace Nodes
             }
             
             emit enableChanged(enable);
-            AbstractDelegateModel::stateFeedBack("/enable", enable);
+            // AbstractDelegateModel::stateFeedBack("/enable", enable);
         }
 
     protected:
         void afterModelReady() override {
             AbstractDelegateModel::afterModelReady();
-            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/name"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/senderName"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
@@ -571,7 +583,7 @@ namespace Nodes
         void onGlobalEvent(const GlobalEvent& ev) {
             if (ev.kind != GlobalEventKind::Command) return;
             QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
-            if (localPath == "name") {
+            if (localPath == "senderName") {
                 setSenderName(ev.payload.toString());
             } else if (localPath == "enable") {
                 setEnable(ev.payload.toBool());
