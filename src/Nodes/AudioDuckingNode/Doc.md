@@ -1,27 +1,30 @@
-# AudioDuckingNode 使用说明
+﻿# Audio Ducking 节点
 
-## 用途
-AudioDuckingNode 用于“旁链压低”：当旁链/前景音（如人声、解说）出现时，自动降低背景音乐音量。
+## 1. 节点说明
 
-## 输入端口（AudioData）
-- In0：背景音（BGM）。
-- In1：旁链/前景音（人声/提示音）。
+侧链压限：当 Sidechain（如话筒、解说）有信号时，自动降低 Music（背景音乐）电平，常用于自动闪避。
 
-## 输出端口（AudioData）
-- Out0：压低后的混合输出。
+## 2. 端口说明
 
-## 常用参数
-- Threshold：触发压低的阈值。
-- Attack / Release：压低进入/恢复速度。
-- Ratio / Depth：压低强度。
-- Mix：整体混合比例（如果界面提供）。
+### 输入
 
-## 快速上手
-1. 把 BGM 接到 In0，把人声/提示音接到 In1。
-2. 先把 Threshold 调低一些，确认能触发压低。
-3. 调 Attack/Release，让压低更自然。
-4. 根据需要调强度（Ratio/Depth）。
+- **Music**（AudioData）：被压低的主音乐/背景。
+- **Sidechain**（AudioData）：触发压限的参考信号（如人声）。
 
-## 注意事项
-- 压得太狠：降低强度或提高 Threshold。
-- 压不下去：提高旁链电平或降低 Threshold。
+### 输出
+
+- **Out**（AudioData）：处理后的音乐。
+
+## 3. 界面说明
+
+阈值、比率、启动/释放时间等压限参数（依界面控件为准）。
+
+## 4. 使用说明
+
+1. 背景音乐接 Music，话筒接 Sidechain。
+2. 调节阈值等，使人声出现时 BGM 自动变小。
+3. Out 接 Audio Device Out 或录像链路。
+
+## 5. 示例
+
+BGM 播放器 → Music；主持麦 → Sidechain → Ducking → 主混音 LR。

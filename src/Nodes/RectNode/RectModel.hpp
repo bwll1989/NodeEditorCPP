@@ -8,7 +8,7 @@
 
 #include <opencv2/core/types.hpp>
 #include <QtNodes/NodeDelegateModel>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QPointF>
 #include <QRectF>
 #include <QtWidgets/QWidget>
@@ -17,7 +17,7 @@
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QSpacerItem>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 

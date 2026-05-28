@@ -1,29 +1,30 @@
-# AudioCrossFaderNode 使用说明
+﻿# Audio CrossFader 节点
 
-## 用途
-AudioCrossFaderNode 用于在两路音频 A / B 之间做平滑过渡（交叉淡化），常用于场景切换、音乐/语音切换等。
+## 1. 节点说明
 
-## 输入端口（AudioData）
-- In0：A 路音频
-- In1：B 路音频
+在两路音频 A、B 之间做交叉淡入淡出（Crossfade），用 mix 参数控制比例。
 
-## 输出端口（AudioData）
-- Out0：混合后的音频
+## 2. 端口说明
 
-## 界面参数
-- Mix（0=A，1=B）：手动混合比例。
-- Fade Time (ms)：自动过渡时长（毫秒）。
-- Start A -> B：按 Fade Time 从 A 过渡到 B。
-- Start B -> A：按 Fade Time 从 B 过渡到 A。
-- Reset Mix：把当前 Mix 立即应用到输出。
+### 输入
 
-## 快速上手
-1. 把两路音频源分别接到 In0/In1。
-2. 手动模式：直接调 Mix。
-3. 自动模式：设置 Fade Time，然后点 Start A -> B 或 Start B -> A。
-4. 将 Out0 连接到音频输出或后续处理节点。
+- **A**（AudioData）：音源 A。
+- **B**（AudioData）：音源 B。
 
-## 注意事项
-- 只有一路输入时，会直接输出现有输入；另一侧为空不会报错。
-- 如果听不到声音：确认 Out0 已连接到音频输出节点，且上游音量正常。
+### 输出
 
+- **Out**（AudioData）：混合结果。
+
+## 3. 界面说明
+
+Mix 滑块或旋钮：0 为全 A，1 为全 B，中间为过渡。
+
+## 4. 使用说明
+
+1. 两路音源分别接 A、B。
+2. 拖动 mix 或外部控制实现平滑切换。
+3. Out 接主输出。
+
+## 5. 示例
+
+曲目 A / 曲目 B → CrossFader；TimeLine 驱动 mix → 自动淡入下一曲。

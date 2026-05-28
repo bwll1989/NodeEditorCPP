@@ -6,7 +6,6 @@
 #include "Nodes/NodeEditorStyle.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "QFile"
-#include"Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "BaseTimeLineModel.h"
 #include <QSettings>
@@ -57,10 +56,8 @@ void MainWindowHeadLess::init()
     m_DockManager = new ads::CDockManager(this);
     DockHub::instance().setDockManager(m_DockManager);
     emit initStatus("Initialization ADS success");
-    // 终端显示控件
-    logTable=new LogWidget();
-    logTable->resize(800,200);
-    log=new LogHandler(logTable);
+    // 无头模式：仅写入文件日志，不创建终端 UI
+    log = new LogHandler(nullptr);
     emit initStatus("load nodes success");
     dataflowViewsManger=new DataflowViewsManger(m_DockManager,this);
 
@@ -105,12 +102,6 @@ void MainWindowHeadLess::init()
             qApp->quit();
             });
         trayIcon->setContextMenu(trayMenu);
-        // 双击/单击托盘图标时还原
-        connect(trayIcon, &QSystemTrayIcon::activated, this, [this](QSystemTrayIcon::ActivationReason reason) {
-            if (reason == QSystemTrayIcon::DoubleClick) {
-             logTable->show();
-            }
-            });
         trayIcon->show();
     }
 }

@@ -1,35 +1,41 @@
-# TSETLNode 使用说明
+﻿# TSETLNode
 
-## 用途
-连接到 TSETL 服务端（TCP），接收并解析消息，输出 SignalID 与原始 JSON 数据。
+## 1. 节点说明
 
-说明：
-- 节点仅处理 `MsgID=SignalID` 的消息，其它消息会忽略。
-- 连接成功后会自动发送心跳维持连接（约每 5 秒一次）。
+作为 **TSETL** 触发事件系统的 TCP 客户端：连接服务器、解析二进制帧中的 JSON，在收到 `SignalID` 消息时输出信号 ID 与完整 JSON；并每 5 秒发送心跳维持连接。
 
-## 端口
-### 输入（VariableData）
-- HOST：服务器地址（string）
-- PORT：服务器端口（int）
+## 2. 端口说明
 
-### 输出（VariableData）
-- SIGNAL_ID：提取到的 SignalID（string）
-- JSON_DATA：原始 JSON 数据（键值表或字符串，取决于消息内容）
-- CONNECTION：连接状态（bool）
+### 输入
 
-## 参数/界面
-- Host / Port：连接设置
-- Connection：连接状态显示
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| HOST | VariableData | 服务器 IP 或主机名 |
+| PORT | VariableData | 端口号（默认 11001） |
 
-## 外部控制（可选）
-### 属性（写入）
-- /host（string）
-- /port（int）
+### 输出
 
-### 反馈（只读）
-- /connect：连接状态
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| SIGNAL_ID | VariableData | 解析出的 SignalID 字符串 |
+| JSON_DATA | VariableData | 完整 JSON 消息（键值表） |
+| CONNECTION | VariableData | TCP 是否已连接（布尔） |
 
-## 使用步骤
-1. 设置 HOST/PORT，节点会自动连接。
-2. 从 SIGNAL_ID 获取触发信号编号；需要更多字段时读取 JSON_DATA。
-3. 用 CONNECTION 或 /connect 监控在线状态。 
+## 3. 界面说明
+
+- **主机 / 端口**：连接地址，修改后自动重连。
+- **连接状态**：是否在线。
+- **最近信号**：显示最后一次 SignalID 与时间。
+
+外部控制：`/host`、`/port`、`/connect`（状态）。
+
+## 4. 使用说明
+
+1. 填写 TSETL 服务器地址与端口。
+2. 连接成功后等待 `SignalID` 类消息。
+3. SIGNAL_ID 可驱动场景切换；JSON_DATA 可接解析或记录。
+4. CONNECTION 可用于界面或联锁（未连接时不执行）。
+
+## 5. 示例
+
+TSETL 服务器推送 SignalID `Scene_A` → SIGNAL_ID 接 Switch 选路 → JSON_DATA 接日志节点存档。

@@ -1,32 +1,31 @@
-# FmodNode 使用说明
+﻿# Fmod Node 节点
 
-## 用途
-FmodNode 用于加载 FMOD Bank 目录并播放指定事件（Event）。节点会输出多路音频（AudioData），可连接到后续的音频处理/输出节点。
+## 1. 节点说明
 
-## 端口
-- 输入（2）
-  - Event（端口 0）：事件路径（VariableData，string），写入后立即触发播放
-  - Index（端口 1）：事件索引（VariableData，int），按当前事件列表索引触发播放
-- 输出（12）
-  - Out 1..Out 12：AudioData
+加载 FMOD Bank 并播放其中的事件，最多 12 路音频输出。适合游戏音效、互动装置等由 FMOD Studio 导出的内容。
 
-## 节点界面
-- Bank 目录选择：选择包含 `.bank` 等文件的目录
-- 事件列表：加载成功后显示可播放事件按钮，点击即可播放
+## 2. 端口说明
 
-## 使用步骤
-1. 在节点里选择 FMOD Bank 目录（或通过外部控制设置）。
-2. 等待事件列表刷新出来。
-3. 触发播放：
-   - 方式 A：点击某个事件按钮
-   - 方式 B：给输入端口 Event 传入事件路径
-   - 方式 C：给输入端口 Index 传入索引（从 0 开始）
-4. 将 Out 1..Out 12 连接到音频输出/混音/分析类节点。
+### 输入
 
-## 外部控制（可选）
-- `/file`：设置 Bank 目录路径（string）
-- `/event`：播放指定事件（string）
+- **Event**（VariableData）：事件路径字符串，用于触发播放。
+- **Index**（VariableData）：按索引选择事件。
 
-## 注意事项
-- Index 方式依赖“当前事件列表”的顺序；建议优先使用 Event 事件路径触发。
-- 未加载到事件时不会有音频输出；先检查 Bank 目录是否正确。
+### 输出
+
+- **Out 1**～**Out 12**（AudioData）：FMOD 各总线/声道输出。
+
+## 3. 界面说明
+
+- Bank 目录路径输入框。
+- 事件列表（加载 Bank 后刷新），选择后播放。
+
+## 4. 使用说明
+
+1. 填写 Bank 文件夹路径（`/file` 或界面）。
+2. 等待事件列表加载，选择事件或通过 `/event`、Event 端口触发。
+3. 将 Out n 接到混音或声卡。
+
+## 5. 示例
+
+OSC → Event 端口 → Fmod Node → Audio Matrix，现场按曲目触发 FMOD 事件。

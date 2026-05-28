@@ -1,49 +1,57 @@
-# WebSocketClientNode 使用说明
+﻿# WebSocket Client 节点
 
-## 用途
-连接 WebSocket 服务器（ws/wss），发送消息并接收返回数据。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- URL：服务器地址（string，例如 ws://127.0.0.1:2003）
-- VALUE：要发送的内容（string）。更新时会立即发送一次
-- TRIGGER：触发发送（任意类型）。收到输入即发送一次（发送当前 VALUE）
+WebSocket 客户端节点，连接到远程 WebSocket 服务并收发消息。适合对接云端 WS API、其他软件的 WebSocket 接口或本机 WebSocket 服务。
 
-### 输出（VariableData）
-- RESULT：收到的数据（键值表）
-- URL：当前连接 URL（string）
-- STRING：收到的默认内容（等同 RESULT.default）
+## 2. 端口说明
 
-## 参数/界面
-- URL：服务器地址
-- Value：要发送的内容
-- Type：消息类型（0=文本，1=二进制）
-- Format：发送编码（0=HEX，1=UTF-8，2=ASCII）
-- Connected：连接状态显示（只读）
-- Send：发送一次
+### 输入
 
-## 外部控制（可选）
-### 属性（写入）
-- /url（string）
-- /host（string）：/url 的别名
-- /value（string）
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | URL | 设置连接地址（如 `ws://127.0.0.1:2003`） |
+| 1 | VALUE | 设置发送内容并立即发送 |
+| 2 | TRIGGER | 收到数据即按当前内容发送 |
 
-### 命令（触发）
-- /send（bool 或任意值）：触发发送一次
+### 输出
 
-### 反馈（只读）
-- /connected：连接状态
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | RESULT | 完整接收消息 |
+| 1 | URL | 当前连接的 URL |
+| 2 | STRING | 接收到的文本内容 |
 
-## 输出字段（RESULT）
-RESULT 常用字段：
-- url：对端地址（string）
-- hex：收到数据的 hex（string 或 bytearray，取决于消息类型）
-- utf-8：按 UTF-8 解码后的文本（string）
-- ascii：按 ASCII/Latin1 解码后的文本（string，可能为空）
-- default：默认内容（通常为文本，string）
-- type：消息类型标记（string）
+## 3. 界面说明
 
-## 使用步骤
-1. 设置 URL，等待 Connected 显示为已连接。
-2. 设置 VALUE 并发送（点 Send，或写入 VALUE 输入端口）。
-3. 从 RESULT/STRING 获取收到的数据，并按需要选择 utf-8/ascii/hex 字段使用。 
+- **URL**：WebSocket 地址，默认 `ws://127.0.0.1:2003`。
+- **Value**：发送内容。
+- **Message Type**：TEXT 或 BINARY。
+- **Format**：HEX / UTF-8 / ASCII。
+- **Connected / Disconnected**：连接状态（只读）。
+- **Send**：发送；仅已连接时可点。
+
+## 4. 使用说明
+
+1. 填写 **URL** 后自动连接；修改 URL 会重连。
+2. 连接成功后接收数据从 **RESULT**、**STRING** 输出。
+3. 通过 **Send** 或 **VALUE** / **TRIGGER** 发送；发送时使用界面上的 **Message Type** 与 **Format**。
+4. 工程会保存 URL、格式与消息类型。
+
+**外部控制路径**（完整地址：`/dataflow/{父级别名}/{节点ID}{相对路径}`）：
+
+| 相对路径 | 作用 |
+|----------|------|
+| `/url` | 设置 WebSocket 地址 |
+| `/host` | 与 `/url` 相同（别名，兼容旧地址） |
+| `/value` | 设置发送内容 |
+| `/connected` | 连接状态（绑定状态按钮） |
+| `/send` | 触发发送（命令） |
+
+支持 OSC / 全局事件总线；`/host` 与 `/url` 均可写 URL 字符串。
+
+## 5. 示例
+
+- **订阅推送服务**：URL 填 `wss://api.example.com/live`，**STRING** 连解析节点处理推送 JSON。
+- **与 Server 节点联调**：本机 WebSocket Server 在 2003 端口，Client URL 填 `ws://127.0.0.1:2003` 做回环测试。
+- **外部触发**：OSC 写 `/value` 为 `{"action":"play"}`，再命令 `/send` 发到云端。

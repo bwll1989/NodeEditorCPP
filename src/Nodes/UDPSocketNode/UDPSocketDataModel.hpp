@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 #include <QHostAddress>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "QThread"
 #include <QtNodes/NodeDelegateModel>
 #include "UDPSocketInterface.hpp"
@@ -16,7 +16,7 @@
 #include <QThread>
 #include "Common/Devices/UdpSocket/UdpSocket.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;

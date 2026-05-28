@@ -3,7 +3,7 @@
 #include <QtCore/QObject>
 #include <iostream>
 #include <QPushButton>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "VideoDecoderInterface.hpp"
 #include "QFileDialog"
 #include <memory>
@@ -14,7 +14,7 @@
 #include "VideoDecoder.hpp"
 #include "QThread"
 #include "Common/AppConfig/ConfigManager.h"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
 using namespace std;

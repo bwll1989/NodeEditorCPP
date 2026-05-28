@@ -5,7 +5,7 @@
 #include <QVector>
 #include <thread>
 #include <atomic>
-#include "DataTypes/AudioTimestampRingQueue.h"
+#include "NodeDataList.hpp"
 #include "TimeCodeDefines.h"
 #include <ltc.h>
 static const int SAMPLE_RATE = 48000;

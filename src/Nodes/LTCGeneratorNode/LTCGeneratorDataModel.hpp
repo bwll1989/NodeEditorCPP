@@ -9,8 +9,7 @@
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
-#include "DataTypes/NodeDataList.hpp"
-#include "DataTypes/AudioTimestampRingQueue.h"
+#include "NodeDataList.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
@@ -20,7 +19,7 @@
 #include <QComboBox>
 #include <QJsonObject>
 #include "PluginDefinition.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "LTCGeneratorWorker.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;

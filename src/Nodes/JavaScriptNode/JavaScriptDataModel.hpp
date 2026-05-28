@@ -5,7 +5,7 @@
 #include <QtQml/QJSValue>
 #include <QtQml/QJSValueList>
 #include <QtQml/QJSValueIterator> 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "QDir"
 #include <QtNodes/NodeDelegateModel>
 #include "QThread"
@@ -24,7 +24,7 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QMetaObject>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;

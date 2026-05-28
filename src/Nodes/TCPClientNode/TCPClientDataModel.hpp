@@ -1,7 +1,7 @@
 #pragma once
 
 #include <QtCore/QObject>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include "TCPClientInterface.hpp"
 #include <iostream>
@@ -13,7 +13,7 @@
 #include <QThread>
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
 using QtNodes::NodeData;
@@ -165,12 +165,10 @@ namespace Nodes
 
         QString getValue() const { return m_value; }
         void setValue(const QString& value) {
-            if (m_value == value) return;
             m_value = value;
             QSignalBlocker blocker(widget->valueEdit);
             widget->valueEdit->setText(m_value);
             emit valueChanged(m_value);
-            AbstractDelegateModel::stateFeedBack("/value", m_value);
         }
 
         bool getConnected() const { return m_connected; }

@@ -1,5 +1,7 @@
 <RCC>
-  <qresource prefix="/">
-    <file>Qml/main.qml</file>
-  </qresource>
+    <qresource prefix="/">
+        <file>qml/main.qml</file>
+        <file>qml/SchemaField.qml</file>
+        <file>resources/defaultScript.js</file>
+    </qresource>
 </RCC>

@@ -3,14 +3,14 @@
 
 #include <QtCore/QObject>
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 #include "MergeInterface.hpp"
 #include <iostream>
 #include <QtWidgets/QLineEdit>
 #include <QtCore/qglobal.h>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;

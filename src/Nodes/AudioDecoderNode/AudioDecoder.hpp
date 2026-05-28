@@ -5,7 +5,7 @@
 #include <condition_variable>
 #include <QtCore/QObject>
 #include "QJsonObject"
-#include "DataTypes/AudioData.h"  // 确保包含此头文件
+#include "Common/DataTypes/AudioData.h"  // 确保包含此头文件
 #include "Common/Devices/TimestampGenerator/TimestampGenerator.hpp"  // 添加时间戳生成器头文件
 extern "C" {
 #include <libavformat/avformat.h>

@@ -1,34 +1,34 @@
-# RectNode 使用说明
+﻿# Rect 节点
 
-## 用途
-生成/拆分矩形数据：输入 x/y/width/height，输出 Rect、Size、Center 等信息，供图像裁切、布局、区域计算等下游节点使用。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- POS_X：x
-- POS_Y：y
-- WIDTH：宽
-- HEIGHT：高
+定义或接收一个矩形区域，并输出矩形本身及其派生几何量，供裁剪、布局等节点使用。
 
-### 输出（VariableData）
-- Rect：QRectF
-- SIZE：QSizeF
-- CENTER：QPointF
-- BOTTOM_RIGHT：QPointF
+## 2. 端口说明
 
-## 外部控制（可选）
-- /x（double）
-- /y（double）
-- /width（double）
-- /height（double）
+### 输入
 
-## 使用步骤
-1. 连接数值到 POS_X/POS_Y/WIDTH/HEIGHT（或用外部控制设置 /x /y /width /height）。
-2. 按需连接输出：
-   - Rect：用于需要 QRect 的节点
-   - SIZE：用于需要尺寸的节点
-   - CENTER/BOTTOM_RIGHT：用于锚点/对齐计算
+- **POS_X**（VariableData）：左上角 X。
+- **POS_Y**（VariableData）：左上角 Y。
+- **WIDTH**（VariableData）：宽度。
+- **HEIGHT**（VariableData）：高度。
 
-## 注意事项
-- 输出为 VariableData 承载的 Qt 几何类型；下游若只接受数值，需再做拆分/提取。 
+### 输出
 
+- **Rect**（VariableData）：完整矩形（QRectF）。
+- **SIZE**（VariableData）：宽高（QSizeF）。
+- **CENTER**（VariableData）：中心点。
+- **BOTTOM_RIGHT**（VariableData）：右下角坐标。
+
+## 3. 界面说明
+
+无内嵌面板；通过属性 `x`、`y`、`width`、`height` 或 `/x`、`/y`、`/width`、`/height` 外部控制。
+
+## 4. 使用说明
+
+1. 在属性中设置默认矩形，或用输入端口动态更新。
+2. 将 **Rect** 接到 CutImage 的 RECT，或将 **SIZE** 接到 Scale Image。
+
+## 5. 示例
+
+触摸坐标 → POS_X/POS_Y → Rect → CutImage，实现可移动裁剪框。

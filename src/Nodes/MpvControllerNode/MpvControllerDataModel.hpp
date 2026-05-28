@@ -1,7 +1,7 @@
 #pragma once
 
 #include <QtCore/QObject>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <iostream>
 #include <QtWidgets/QLineEdit>
@@ -13,7 +13,7 @@
 
 #include "Common/Devices/HttpClient/HttpClient.h"
 #include "QTimer"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
 using QtNodes::NodeData;

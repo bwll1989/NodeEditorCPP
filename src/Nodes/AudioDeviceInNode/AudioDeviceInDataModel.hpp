@@ -7,14 +7,14 @@
 #include <iostream>
 #include <QPushButton>
 #include "PluginDefinition.hpp"
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 #include "AudioDeviceInInterface.hpp"
-#include "DataTypes/AudioTimestampRingQueue.h"
+#include "Common/DataTypes/AudioTimestampRingQueue.h"
 #include <portaudio.h>
 #include <memory>
 #include <map>
 #include "TimestampGenerator/TimestampGenerator.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;

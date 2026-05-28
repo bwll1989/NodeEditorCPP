@@ -1,28 +1,33 @@
-# NDIOutNode 使用说明
+﻿# NDI Out 节点
 
-## 用途
-NDIOutNode 用于把流程中的图像（ImageData）通过 NDI 协议发送到局域网，让其他支持 NDI 的软件/设备接收（例如 OBS、vMix 等）。
+## 1. 节点说明
 
-## 端口
-- 输入（2）
-  - IMAGE（端口 0）：ImageData
-  - ENABLE（端口 1）：VariableData（bool），true 开始发送，false 停止
-- 输出：无
+将图像以 NDI 流形式发送到网络，供 vMix、OBS、其他 NDI 接收端使用。
 
-## 节点参数
-- senderName：NDI 发送器名称（默认 `NodeEditor NDI Output`）
-- enable：是否发送
+## 2. 端口说明
 
-## 外部控制（可选）
-- `/senderName`：设置发送器名称（string）
-- `/enable`：启动/停止发送（bool）
+### 输入
 
-## 使用步骤
-1. 将上游图像连接到 IMAGE。
-2. 设置 senderName（可选）。
-3. 把 ENABLE 设为 true（或点击 Start/Stop）。
-4. 在其他 NDI 软件中选择该 senderName 作为输入源。
+- **IMAGE**（ImageData）：要发送的视频帧。
+- **ENABLE**（VariableData）：是否发送（布尔）。
 
-## 注意事项
-- 需要安装并可用 NDI Runtime。
-- 未启用 ENABLE 时，即使有图像输入也不会发送。
+### 输出
+
+无输出端口。
+
+## 3. 界面说明
+
+- NDI 发送名称。
+- 开始/停止发送及状态指示。
+
+## 4. 使用说明
+
+1. 填写发送名称（接收端可见的 NDI 源名）。
+2. 连接 IMAGE，ENABLE 为 true 时开始推流。
+3. 在接收软件中选择对应 NDI 源。
+
+外部地址：`/enable`、`/senderName`。
+
+## 5. 示例
+
+合成画面 → NDI Out（「Program」）→ vMix 作为 NDI 输入。

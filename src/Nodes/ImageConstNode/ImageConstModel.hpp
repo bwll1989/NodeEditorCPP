@@ -12,9 +12,9 @@
 
 #include "Elements/ColorEditorWidget/ColorEditorWidget.hpp"
 #include "ImageConstInterface.hpp"
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "opencv2/imgcodecs/imgcodecs.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace Nodes;
 namespace Nodes

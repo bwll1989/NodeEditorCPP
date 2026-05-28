@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include "QTimer"
@@ -8,7 +8,7 @@
 #include <iostream>
 #include <QtCore/qglobal.h>
 #include "DelayInterface.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;

@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <QtCore/QTimer>
@@ -26,7 +26,7 @@
 #include <iostream>
 #include <vector>
 #include <memory>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;

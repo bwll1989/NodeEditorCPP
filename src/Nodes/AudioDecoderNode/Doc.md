@@ -1,32 +1,31 @@
-# AudioDecoderNode 使用说明
+﻿# Audio Decoder 节点
 
-## 用途
-AudioDecoderNode 用于加载音频文件并输出音频流，供后续节点处理或播放。
+## 1. 节点说明
 
-## 输入端口（VariableData）
-- PLAY：播放/暂停（bool）。
-- STOP：停止（bool，true 触发一次）。
-- LOOP：循环播放（bool）。
-- GAIN / VOLUME：音量（数值）。
+播放媒体库中的音频文件，按声道分离输出。通道数随文件自动调整。
 
-## 输出端口（AudioData）
-- 输出端口数量会随音频声道数变化：
-  - 立体声通常为 2 路输出。
-  - 多声道文件会分离为多路输出。
+## 2. 端口说明
 
-## 常用操作
-1. 选择/设置要播放的音频文件。
-2. 设置音量（建议先调小再逐步增大）。
-3. 需要循环时打开 LOOP。
-4. 触发 PLAY 开始播放，触发 STOP 停止。
-5. 将输出连接到音频处理/混音/输出设备节点。
+### 输入
 
-## 外部控制（OSC）
-- `/volume`：设置音量。
-- `/loop`：设置循环。
-- `/play`：播放/暂停。
-- `/stop`：停止。
+- **PLAY**（VariableData）：播放/停止（布尔）。
+- **LOOP**（VariableData）：是否循环。
+- **GAIN**（VariableData）：音量（dB）。
 
-## 注意事项
-- 如果没有声音：确认已连接到音频输出节点，并检查音量是否过低。
-- 多声道文件会产生更多输出端口，确保下游连接了你需要的通道。
+### 输出
+
+- **CH 0**、**CH 1**…（AudioData）：各声道，数量动态变化。
+
+## 3. 界面说明
+
+文件选择、播放按钮、循环、音量滑块；`/progress` 反馈播放进度。
+
+## 4. 使用说明
+
+1. 选择音频文件并播放。
+2. 将各 CH 接到矩阵、混音或 Audio Device Out。
+3. 外部：`/file`、`/volume`、`/loop`、`/play`。
+
+## 5. 示例
+
+Audio Decoder → Audio Matrix → Audio Device Out，多轨预览。

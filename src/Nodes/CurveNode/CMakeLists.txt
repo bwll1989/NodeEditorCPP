@@ -16,6 +16,7 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 # target_compile_definitions(CurveNodeTarget PRIVATE PLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         CurveDataModel.hpp
+        CurveInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
         res.qrc)

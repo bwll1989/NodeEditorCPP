@@ -3,15 +3,14 @@
 #include <QtCore/QObject>
 #include <iostream>
 #include <QPushButton>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "FmodDecoderInterface.hpp"
 #include "QFileDialog"
 #include <memory>
 #include "QtNodes/Definitions"
 #include "QTimer"
 #include "QThread"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
-#include "DataTypes/AudioData.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "FmodDecoderWorker.h"
 
 using namespace std;

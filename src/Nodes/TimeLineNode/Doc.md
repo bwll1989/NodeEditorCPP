@@ -1,30 +1,51 @@
-# TimeLineNode 使用说明
+﻿# TimeLineNode 节点
 
-## 用途
-在节点图中嵌入时间线（Timeline）编辑与播放控制，用于统一管理片段、时间轴播放、循环与定位帧等操作。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- PLAY：播放开关（bool）
-- STOP：停止（bool，true 时停止）
-- PAUSE：暂停（bool，true 时暂停）
-- LOOP：循环开关（bool）
+TimeLineNode 是工程内的**多轨时间轴**节点：可编排轨道与剪辑，控制播放、暂停、停止与循环，并支持通过数据流端口或外部命令驱动。时间轴状态（轨道、剪辑、当前帧等）随工程保存。
+
+无数据输出端口，主要用于集中管理时间线播放与同步子剪辑。
+
+## 2. 端口说明
+
+### 输入
+
+| 端口 | 名称 | 数据类型 | 说明 |
+|------|------|----------|------|
+| 0 | PLAY | VariableData | 布尔 true → 开始播放 |
+| 1 | STOP | VariableData | 布尔 true → 停止播放 |
+| 2 | PAUSE | VariableData | 布尔 true → 暂停 |
+| 3 | LOOP | VariableData | 布尔 → 设置是否循环 |
 
 ### 输出
-无
 
-## 外部控制（可选）
-TimeLineNode 使用内部总线地址（会自动带上节点所在的 dataflow 路径）。完整地址格式：
-- `/dataflow/<ParentAlias>/<NodeID>/play`（bool 或任意值）
-- `/dataflow/<ParentAlias>/<NodeID>/stop`（bool 或任意值）
-- `/dataflow/<ParentAlias>/<NodeID>/pause`（bool 或任意值）
-- `/dataflow/<ParentAlias>/<NodeID>/loop`（bool）
-- `/dataflow/<ParentAlias>/<NodeID>/currentFrame`（int64）：跳转到指定帧
+无。
 
-同时会发布状态（State）：
-- `/dataflow/<ParentAlias>/<NodeID>/play`、`/stop`、`/loop`、`/currentFrame`
+## 3. 界面说明
 
-## 使用步骤
-1. 在 TimeLineNode 内创建/编辑轨道与片段。
-2. 通过输入端口或总线地址控制播放/停止/暂停/循环。
-3. 需要定位时发送 currentFrame（帧号）。 
+节点内嵌**时间轴编辑器**（轨道列表、剪辑、播放控制条等），具体布局以界面为准。常见操作包括：播放/停止、循环、拖动播放头、编辑轨道上的剪辑。
+
+**外部控制地址：**
+
+| 地址 | 说明 |
+|------|------|
+| `/play` | 播放（布尔；无效载荷时视为 true） |
+| `/stop` | 停止 |
+| `/pause` | 暂停 |
+| `/loop` | 循环开关（布尔） |
+| `/currentFrame` | 设置当前帧（整型） |
+
+播放状态、循环与当前帧变化时，节点会向总线**反馈**对应状态（便于控台同步）。
+
+## 4. 使用说明
+
+1. 在节点内创建轨道与剪辑，保存工程。
+2. 用 PLAY/STOP/PAUSE/LOOP 端口或外部地址驱动演出控制。
+3. 需要与其它节点同步时，将 `/currentFrame` 或反馈帧号接到自定义逻辑。
+
+时间轴数据保存在节点 `values` 中（由内部 `TimeLineNodeModel` 序列化）。
+
+## 5. 示例
+
+**自动开场：** 上游 Condition 为真时向 PLAY 发送 true，时间轴开始播放开场序列。  
+**控台同步：** 外部 OSC 映射到 `/currentFrame`，跳转到指定帧做 cue 点定位。

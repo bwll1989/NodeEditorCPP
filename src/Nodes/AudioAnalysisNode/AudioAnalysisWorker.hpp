@@ -5,7 +5,7 @@
 #include <QTimer>
 #include <QMutex>
 #include <QWaitCondition>
-#include "DataTypes/AudioTimestampRingQueue.h"
+#include "Common/DataTypes/AudioTimestampRingQueue.h"
 #include "TimeCodeDefines.h"
 #include "Eigen/Core"
 #include "Gist.h"  // 添加GIST库头文件

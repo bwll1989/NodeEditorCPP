@@ -1,12 +1,12 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include "QTimer"
 #include <iostream>
 #include <QtCore/qglobal.h>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;

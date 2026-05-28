@@ -4,7 +4,7 @@
 
 #pragma once
 #include <QtCore/QObject>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/qglobal.h>
 #include <cstdio>

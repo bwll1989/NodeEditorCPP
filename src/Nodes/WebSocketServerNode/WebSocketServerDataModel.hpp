@@ -1,6 +1,6 @@
 #pragma once
 #include <QtCore/QObject>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "QThread"
 #include <QtNodes/NodeDelegateModel>
 #include "WebSocketServerInterface.hpp"
@@ -11,7 +11,7 @@
 #include <QtWidgets/QSpinBox>
 #include <QSignalBlocker>
 #include "Common/Devices/WebSocketServer/WebSocketServer.h"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
 using QtNodes::NodeData;

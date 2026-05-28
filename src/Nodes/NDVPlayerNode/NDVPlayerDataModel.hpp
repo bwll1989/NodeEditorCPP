@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <iostream>
@@ -8,7 +8,7 @@
 #include <QtCore/qglobal.h>
 #include "NDVPlayerInterface.hpp"
 #include <QVariantMap>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
 

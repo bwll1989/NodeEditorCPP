@@ -27,10 +27,10 @@
 
 #include "Elements/ColorEditorWidget/ColorEditorWidget.hpp"
 #include "ImageLayoutInterface.hpp"
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "opencv2/imgcodecs/imgcodecs.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace Nodes;
 

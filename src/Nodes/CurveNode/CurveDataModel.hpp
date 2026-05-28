@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
@@ -11,7 +11,8 @@
 #include <vector>
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "CurveInterface.hpp"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QCheckBox>
 #include <QFont>
@@ -22,7 +23,6 @@
 #include <QSizePolicy>
 #include <QTime>
 #include <QTimeEdit>
-#include <QVBoxLayout>
 #include <QWidget>
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -60,20 +60,25 @@ namespace Nodes
             Resizable=false;
             PortEditable= true;
 
-            widget = new QWidget();
-            widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-            auto *mainLayout = new QVBoxLayout(widget);
-            mainLayout->setContentsMargins(0, 0, 0, 0);
-            mainLayout->setSpacing(0);
+            m_interface = new CurveInterface();
+            m_interface->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
             m_view = new QQuickView();
             m_view->setResizeMode(QQuickView::SizeRootObjectToView);
             m_view->rootContext()->setContextProperty("CppBridge", this);
             m_view->setSource(QUrl("qrc:/qml/content/main.qml"));
 
-            editorContainer = QWidget::createWindowContainer(m_view, widget);
+            editorContainer = QWidget::createWindowContainer(m_view, m_interface.data());
             editorContainer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-            mainLayout->addWidget(editorContainer, 1);
+            m_interface->setEditorWidget(editorContainer);
+            statusLabel = m_interface->statusLabel;
+
+            connect(m_interface->startButton, &QPushButton::toggled, this, [this](bool checked) {
+                setStart(checked);
+            });
+            connect(m_interface->loopCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
+                setLoop(checked);
+            });
 
             {
                 NodeDelegateModel::ExternalBinding b;
@@ -93,13 +98,10 @@ namespace Nodes
             if (m_view && m_view->rootContext()) {
                 m_view->rootContext()->setContextProperty("CppBridge", nullptr);
             }
-            if (widget) {
-                widget->setParent(nullptr);
-                widget->deleteLater();
-                widget = nullptr;
-                editorContainer = nullptr;
-                m_view = nullptr;
-            }
+            editorContainer = nullptr;
+            m_view = nullptr;
+            m_interface = nullptr;
+            statusLabel = nullptr;
         }
 
     public:
@@ -238,9 +240,8 @@ namespace Nodes
         }
 
 
-        QWidget *embeddedWidget() override{
-
-            return widget;
+        QWidget *embeddedWidget() override {
+            return m_interface.data();
         }
 
     protected:
@@ -286,6 +287,10 @@ namespace Nodes
                 }
             }
 
+            if (m_interface) {
+                m_interface->setPlayingState(m_start);
+            }
+
             Q_EMIT startChanged(m_start);
         }
 
@@ -318,6 +323,10 @@ namespace Nodes
                 }
             }
 
+            if (m_interface) {
+                m_interface->setLoopState(m_loop);
+            }
+
             Q_EMIT loopChanged(m_loop);
         }
 
@@ -343,10 +352,11 @@ namespace Nodes
             // 更新顶部 QTimeEdit 显示（将秒转为 mm:ss.zzz）
             if (okTime) {
                 const int ms = static_cast<int>(timeSec * 1000.0 + 0.5);
-                QTime base(0, 0, 0, 0);
-                if (statusLabel)
-                    statusLabel->setTime(base.addMSecs(ms));
-                currentTime =std::make_shared<VariableData>(timeSec);
+                const QTime t = QTime(0, 0, 0, 0).addMSecs(ms);
+                if (m_interface) {
+                    m_interface->setPlayheadTime(t);
+                }
+                currentTime = std::make_shared<VariableData>(timeSec);
             } else {
                 currentTime.reset();
             }
@@ -357,6 +367,9 @@ namespace Nodes
                 currentStatus = std::make_shared<VariableData>(isPlaying);
                 if (m_start != isPlaying) {
                     m_start = isPlaying;
+                    if (m_interface) {
+                        m_interface->setPlayingState(m_start);
+                    }
                     Q_EMIT startChanged(m_start);
                 }
             }
@@ -367,7 +380,7 @@ namespace Nodes
         }
 
     public:
-        QPointer<QWidget> widget;
+        QPointer<CurveInterface> m_interface;
         QPointer<QWidget> editorContainer;
         QPointer<QTimeEdit> statusLabel;
         std::shared_ptr<VariableData> inData;

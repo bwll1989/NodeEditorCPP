@@ -1,43 +1,39 @@
-# showStoreGBxNode 使用说明
+﻿# showStoreGBxNode
 
-## 用途
-通过 TCP 连接 showStoreGBx 设备，触发 4 路播放（Channel1~4）以及停止播放，并输出设备返回的日志文本。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- SHOW 0：触发通道 1（value 为 true 时触发一次）
-- SHOW 1：触发通道 2（value 为 true 时触发一次）
-- SHOW 2：触发通道 3（value 为 true 时触发一次）
-- SHOW 3：触发通道 4（value 为 true 时触发一次）
+通过 TCP 连接 showStore GBx 播放设备，发送节目切换与停止命令（如 `ST01`～`ST04`、`SP`），并将设备返回的文本记录到日志输出。
 
-### 输出（VariableData）
-- LOG 0：日志/返回信息（RESULT.default 为文本）
+## 2. 端口说明
 
-## 参数/界面
-- Host：设备 IP（默认 127.0.0.1）
-- Port：设备端口（默认 23）
-- Channel 1~4：播放按钮（触发一次播放）
-- Stop：停止按钮
-- Connected：连接状态显示
+### 输入
 
-## 外部控制（可选）
-### 属性（写入）
-- /host（string）：设置主机并重连
-- /port（int）：设置端口并重连
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| SHOW 0～3 | VariableData | 收到 `true` 时播放对应通道节目（1～4） |
+| STOP | VariableData | 收到 `true` 时停止播放 |
 
-### 命令（触发）
-- /channel1 ~ /channel4（bool 或任意值）：触发对应通道一次
-- /stop（bool 或任意值）：触发停止一次
+### 输出
 
-### 反馈（只读）
-- /connected：连接状态
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| LOG 0 | VariableData | 设备返回的文本（`default` 字段） |
 
-## 输出字段（LOG 0）
-- default：设备返回的文本（QString）
+## 3. 界面说明
 
-## 使用步骤
-1. 设置 Host/Port，确认已连接（/connected 或界面状态）。
-2. 用 SHOW 0~3 输入端口触发通道播放，或直接点界面按钮。
-3. 需要停止时发送 /stop 或点 Stop。
-4. 从 LOG 0 查看设备返回信息。 
+- **主机 / 端口**：TCP 地址（默认 `127.0.0.1:23`）。
+- **连接状态**：是否已连接。
+- **节目 1～4、停止**：与输入端口等效的按钮。
 
+外部控制：`/host`、`/port`、`/channel1`～`/channel4`、`/stop`、`/connected`。
+
+## 4. 使用说明
+
+1. 填写设备 IP 与端口，等待连接成功。
+2. 点击节目按钮或向 SHOW 端口发送 `true` 切换场景。
+3. STOP 或停止按钮发送停止命令。
+4. LOG 0 可接显示或记录节点查看设备回复。
+
+## 5. 示例
+
+Inject 触发 SHOW 0 → 播放第 1 路节目；另一路 Inject 触发 STOP → 全场停止；LOG 接文本显示。

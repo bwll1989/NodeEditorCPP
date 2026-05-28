@@ -3,9 +3,8 @@
 #include <QtCore/QObject>
 #include <iostream>
 #include <QPushButton>
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 #include "AudioDecoderInterface.hpp"
-#include "QFileDialog"
 #include <memory>
 
 #include "QtNodes/Definitions"
@@ -14,7 +13,7 @@
 #include "AudioDecoder.hpp"
 #include "QThread"
 #include "Common/AppConfig/ConfigManager.h"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
 using namespace std;

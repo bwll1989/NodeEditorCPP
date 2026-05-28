@@ -1,36 +1,53 @@
-# Logic Operation 节点使用说明
+﻿# Logic Operation 节点
 
-## 用途
-本插件提供 9 个“逻辑/比较”节点：每个节点固定一种运算方式，对两路输入进行判断并输出结果。适用于条件判断、阈值触发、流程分支等场景。
+## 1. 节点说明
 
-## 节点列表（9 个）
-- Logic And：判等（按字符串比较 INPUT0 与 INPUT1 是否相等）
-- Logic Or：或运算（按 bool 做 OR）
-- Logic NotEqual：不等（按字符串比较 INPUT0 与 INPUT1 是否不相等）
-- Logic Max：取大（按 double 取较大值，再转为 bool 输出）
-- Logic Min：取小（按 double 取较小值，再转为 bool 输出）
-- Logic Less：小于（按 float 比较 INPUT0 < INPUT1）
-- Logic LessEqual：小于等于（按 float 比较 INPUT0 <= INPUT1）
-- Logic Greater：大于（按 float 比较 INPUT0 > INPUT1）
-- Logic GreaterEqual：大于等于（按 float 比较 INPUT0 >= INPUT1）
+Logic Operation 插件提供一组**双输入逻辑/比较**节点，对两个 VariableData 输入做运算后，从单一输出端口给出结果（布尔或数值，视变体而定）。无内嵌界面，适合在数据流中做条件判断、取极值或比较大小。
 
-## 端口（所有节点一致）
-- 输入（2）
-  - INPUT 0：VariableData
-  - INPUT 1：VariableData
-- 输出（1）
-  - OUTPUT 0：VariableData（bool）
+本插件包含以下变体（在节点库中分别添加）：
 
-## 使用步骤
-1. 从节点面板中选择需要的逻辑节点（例如 Logic Less）。
-2. 将两个输入信号分别连接到 INPUT 0 / INPUT 1。
-3. 从 OUTPUT 0 读取 bool 结果，连接到 Condition/Switch/Hold 等节点实现流程控制。
+| 变体名称 | 运算说明 |
+|----------|----------|
+| Logic And | 两路输入转为**字符串**后比较是否相等（`==`），结果为布尔 |
+| Logic Or | 两路输入转为**布尔**后做逻辑或 |
+| Logic NotEqual | 两路输入转为**字符串**后比较是否不等 |
+| Logic Max | 两路数值取较大值（`qMax`，按 double） |
+| Logic Min | 两路数值取较小值（`qMin`，按 double） |
+| Logic Less | 按 float 比较：输入 0 小于 输入 1 |
+| Logic LessEqual | 按 float 比较：输入 0 小于等于 输入 1 |
+| Logic Greater | 按 float 比较：输入 0 大于 输入 1 |
+| Logic GreaterEqual | 按 float 比较：输入 0 大于等于 输入 1 |
 
-## 注意事项
-- 类型转换规则与实现一致：
-  - And / NotEqual：使用 `toString()` 比较（例如 "1" 与 "1.0" 会被视为不同）
-  - Or：使用 `toBool()`（非空字符串通常为 true）
-  - Less/LessEqual/Greater/GreaterEqual：使用 `toFloat()`
-  - Max/Min：使用 `toDouble()` 取值后再转 bool 输出
-- 这些节点不再支持 `/method` 切换方法：方法已通过“节点类型”固定。
+任一输入更新后，输出会立即刷新。
 
+## 2. 端口说明
+
+### 输入
+
+| 端口 | 名称 | 数据类型 | 说明 |
+|------|------|----------|------|
+| 0 | （无单独标题） | VariableData | 运算左操作数 / 第一路数据 |
+| 1 | （无单独标题） | VariableData | 运算右操作数 / 第二路数据 |
+
+### 输出
+
+| 端口 | 名称 | 数据类型 | 说明 |
+|------|------|----------|------|
+| 0 | （无单独标题） | VariableData | 运算结果（布尔或数值） |
+
+## 3. 界面说明
+
+各变体**无节点内嵌面板**，参数在连线上体现。在节点属性或外部控制中无额外配置项。
+
+## 4. 使用说明
+
+1. 从节点库选择需要的变体（如 Logic Greater）。
+2. 将两路 VariableData 分别接到输入 0 和输入 1。
+3. 将输出接到 Condition、Switch、Inject 等下游节点。
+
+**注意：** 「Logic And」在实现上是比较**字符串相等**，并非布尔与运算；若需要布尔与，请先用其它节点将数据转为布尔，或使用 Logic Or 等变体配合 Condition 节点。
+
+## 5. 示例
+
+**阈值判断：** 用 Logic Greater 比较传感器数值（输入 0）与常量阈值（输入 1），输出接 Condition 或 Switch 的 INDEX。  
+**取两路最大值：** 使用 Logic Max，两路接不同计算结果，输出接后续数学或显示节点。

@@ -1,6 +1,6 @@
 #pragma once
 #include <QtCore/QObject>
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include "ConditionInterface.hpp"
 #include <iostream>
@@ -11,7 +11,7 @@
 #include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include "JSEngineDefines/JSEngineDefines.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;

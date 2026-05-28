@@ -21,6 +21,9 @@ public:
     showStoreGBxInterface(QWidget *parent = nullptr)
         : QWidget(parent)
     {
+        Stop = new QPushButton(QStringLiteral("Stop"), this);
+        status = new QPushButton(QStringLiteral("Disconnected"), this);
+
         auto layout = new QGridLayout(this);
         layout->setContentsMargins(0, 0, 0, 0);
         layout->setSpacing(6);
@@ -116,10 +119,10 @@ public:
         return 23;
     }
 
-    QPushButton *_playButtons[4];
-    QPushButton *Stop=new QPushButton("Stop");
-    QPushButton *status=new QPushButton("Disconnected");
-    QLineEdit *_hostEdit;
+    QPushButton *_playButtons[4] = {};
+    QPushButton *Stop = nullptr;
+    QPushButton *status = nullptr;
+    QLineEdit *_hostEdit = nullptr;
 signals:
 
     void hostChanged(const QString &host);

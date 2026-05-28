@@ -1,45 +1,59 @@
-# UDPSocketNode 使用说明
+﻿# UDP Socket 节点
 
-## 用途
-同时支持 UDP 发送与接收：本地监听一个端口接收数据报，并按指定目标地址发送数据。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- TARGET HOST：目标地址（string）
-- TARGET PORT：目标端口（int）
-- VALUE：要发送的内容（string）。更新时会立即发送一次
-- TRIGGER：触发发送（任意类型）。收到输入即发送一次（发送当前 VALUE）
+UDP 套接字节点，同时支持在本机监听（收包）和向目标地址发送（发包）。无连接、低延迟，适合发现广播、实时控制、音视频同步信号等场景。
 
-### 输出（VariableData）
-- RESULT：收到的数据（键值表）
-- HOST：发送方地址（string，等同 RESULT.host）
-- VALUE：收到的原始字节（QByteArray，等同 RESULT.default）
-- HEX：收到数据的十六进制（string，等同 RESULT.hex）
+## 2. 端口说明
 
-## 参数/界面
-- listening host / listening port：本地监听（默认 127.0.0.1:6000）
-- target host / target port：目标地址（默认 127.0.0.1:6011）
-- value：发送内容
-- format：发送编码（0=HEX，1=UTF-8，2=ASCII）
-- Send：发送一次
+### 输入
 
-## 外部控制（可选）
-- /listeningHost（string）
-- /listeningPort（int）
-- /targetHost（string）
-- /targetPort（int）
-- /value（string）
-- /send（bool 或任意值）：触发发送一次
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | TARGET HOST | 设置发送目标 IP |
+| 1 | TARGET PORT | 设置发送目标端口 |
+| 2 | VALUE | 设置发送内容并立即发送 |
+| 3 | TRIGGER | 收到数据即按当前内容发送 |
 
-## 输出字段（RESULT）
-RESULT 常用字段：
-- host：发送方地址（string）
-- hex：收到数据的 hex（string）
-- utf-8：按 UTF-8 解码后的文本（string）
-- ascii：按 ASCII/Latin1 解码后的文本（string）
-- default：原始字节（QByteArray）
+### 输出
 
-## 使用步骤
-1. 设置 listening host/port 作为本地接收端口。
-2. 设置 target host/port 作为发送目标。
-3. 写入 VALUE（或点 Send）发送；从 RESULT/HEX 获取接收数据。 
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | RESULT | 完整接收消息 |
+| 1 | HOST | 发送方地址 |
+| 2 | VALUE | 接收文本 |
+| 3 | HEX | 接收数据十六进制 |
+
+## 3. 界面说明
+
+- **Listening host / port**：本机监听地址与端口（默认 `127.0.0.1:6000`）。
+- **Target host / port**：发送目标地址与端口（默认 `127.0.0.1:6011`）。
+- **value**：发送内容。
+- **Format**：HEX / UTF-8 / ASCII。
+- **Send**：手动发送。
+
+## 4. 使用说明
+
+1. 配置 **Listening** 以接收 UDP 包；配置 **Target** 以指定发送目的地。
+2. 收到数据时四个输出端口同时更新。
+3. 点 **Send** 或从 **VALUE** / **TRIGGER** 触发发送。
+4. 监听地址或端口变化后，节点会重新绑定监听套接字。
+
+**外部控制路径**（完整地址：`/dataflow/{父级别名}/{节点ID}{相对路径}`）：
+
+| 相对路径 | 作用 |
+|----------|------|
+| `/targetHost` | 发送目标 IP |
+| `/targetPort` | 发送目标端口 |
+| `/value` | 发送内容 |
+| `/listeningHost` | 监听 IP |
+| `/listeningPort` | 监听端口 |
+| `/send` | 触发发送（命令） |
+
+支持 OSC / 全局事件总线。
+
+## 5. 示例
+
+- **Art-Net 类控制**：监听端口收设备反馈，**Target** 指向控台 IP 发 DMX 类 UDP 包（HEX 格式）。
+- **心跳广播**：定时 **TRIGGER**，**value** 固定为 `PING`，发往 `255.255.255.255` 的广播端口。
+- **分路输出**：**HEX** 连十六进制显示，**HOST** 连日志节点记录来源设备。

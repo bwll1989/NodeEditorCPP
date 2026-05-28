@@ -1,35 +1,30 @@
-# StyleTransferONNXNode 使用说明
+﻿# StyleTransfer 节点
 
-## 用途
-对输入图像进行 ONNX 风格迁移，并输出迁移后的图像与处理状态信息。
+## 1. 节点说明
 
-## 端口
+使用 ONNX 模型对图像做风格迁移（默认 AnimeGAN 模型）。输入一帧即推理一帧，输出风格化图像及结果变量。
+
+## 2. 端口说明
+
 ### 输入
-- IMAGE（ImageData）：输入图像
+
+- **IMAGE**（ImageData）：原始图像。
 
 ### 输出
-- IMAGE 0（ImageData）：风格迁移后的图像
-- RESULT（VariableData）：处理状态/信息
 
-## 参数
-- enable（bool）：启用/禁用风格迁移
+- **IMAGE 0**（ImageData）：风格化后的图像。
+- **RESULT**（VariableData）：推理相关结果数据。
 
-## 外部控制（可选）
-- /enable（bool）：启用/禁用
+## 3. 界面说明
 
-## 输出字段（RESULT）
-RESULT 为一个键值表，常用字段：
-- status：success / error
-- input_size：原图尺寸（例如 1920x1080）
-- output_size：输出尺寸（例如 1920x1080）
-- model_input_size：模型输入尺寸（例如 720x720）
-- timestamp：时间戳（毫秒）
-- error_message：错误信息（仅 status=error 时）
+无复杂面板；可通过 `/enable` 控制是否处理。模型文件位于 `plugins/Models/`（如 `AnimeGANv3_Hayao_36.onnx`）。
 
-## 使用步骤
-1. 将图像源连接到 IMAGE。
-2. 设置 enable=true（或通过 /enable 启用）。
-3. 从 IMAGE 0 获取风格化图像；从 RESULT 获取状态与尺寸信息。
+## 4. 使用说明
 
-## 注意事项
-- enable=false 或无输入时，RESULT 会输出空/默认值（不做风格迁移）。 
+1. 确认 ONNX 模型已部署。
+2. 连接图像源到 IMAGE。
+3. 使用 IMAGE 0 显示或继续处理；RESULT 可供调试或逻辑判断。
+
+## 5. 示例
+
+摄像头 → StyleTransfer → NDI Out，实时漫画风直播画面。

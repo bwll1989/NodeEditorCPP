@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -13,7 +13,7 @@
 #include "QSpinBox"
 #include "HotKeyInterface.hpp"
 #include "HotKeyItem.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;

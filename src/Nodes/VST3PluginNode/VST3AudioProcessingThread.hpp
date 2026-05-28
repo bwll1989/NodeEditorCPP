@@ -5,7 +5,7 @@
 #include <QWaitCondition>
 #include <QAtomicInt>
 #include <memory>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 // #include "VST3PluginDataModel.hpp"  // 删除这行，避免循环依赖
 #include "pluginterfaces/base/funknown.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"

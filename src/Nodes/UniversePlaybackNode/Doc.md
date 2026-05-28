@@ -1,49 +1,43 @@
-# UniversePlaybackNode 使用说明
+﻿# UniversePlaybackNode
 
-## 用途
-把一个特定格式的视频文件解码为多路 Art-Net Universe 数据输出（每个输出端口对应 1 个 Universe）。
+## 1. 节点说明
 
-## 文件要求（重要）
-- 使用 FFmpeg 7.1 解码。
-- 编码必须为 FFV1。
-- 分辨率必须为 512xH（H≥1）。
-  - H = 输出 Universe 的数量。
-- 像素格式：
-  - 灰度（GRAY8）：每行 512 个字节直接映射为 DMX 512 通道。
-  - 其它格式：每行按 4 字节/像素取第 1 个字节（R 通道）映射为 DMX（仍输出 512 通道）。
+从媒体库中的 **FFV1** 视频文件回放 DMX 数据：视频须为宽 512 像素、高为 Universe 路数；每行 512 字节对应一路 Universe 的 512 通道。支持播放、循环、停止、清空，并可输出多路 Universe 数据包（与 DMX Universe 格式兼容）。
 
-## 端口
-### 输入（VariableData）
-- PLAY：播放开关（bool）
-- LOOP：循环开关（bool）
-- STOP：停止（bool，true 时停止）
-- CLEAR：清空 DMX 数据（bool，true 时清空）
+## 2. 端口说明
 
-### 输出（VariableData，动态）
-- UNIVERSE1..UNIVERSEN：N = 视频高度 H
-  - 每个端口的 default 为一个键值表（见下方输出字段）
+### 输入
 
-## 外部控制（可选）
-- /universe（int，0-15）：起始 Universe
-- /subnet（int，0-15）
-- /net（int，0-127）
-- /loop（bool）
-- /play（bool）
-- /clear（bool 或任意值）：清空一次
-- /filename（string）：选择文件
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| PLAY | VariableData | `true` 开始播放，`false` 暂停 |
+| LOOP | VariableData | 是否循环播放 |
+| STOP | VariableData | `true` 时停止 |
+| CLEAR | VariableData | `true` 时清空所有 DMX 数据 |
 
-## 输出字段（UNIVERSE*）
-每个输出端口的 `default` 是一个键值表，常用字段：
-- protocol：Art-Net
-- opcode：0x5000
-- universe / subnet / net：当前输出地址
-- fullUniverse：(net<<8) | (subnet<<4) | universe
-- dmxData：长度 512 的数组（0-255）
-- dataLength：512
-- timestamp：时间戳（ms）
+### 输出
 
-## 使用步骤
-1. 选择视频文件（/filename 或界面选择）。
-2. 设置 universe/subnet/net。
-3. 将 PLAY 置为 true 开始输出；需要循环则开启 LOOP。
-4. 将 UNIVERSE1..N 连接到下游 Art-Net 发送节点（或其他消费 DMX 数据的节点）。 
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| UNIVERSE1 … UNIVERSEn | VariableData | 各 Universe 的 Art-Net 数据包；数量由视频高度决定，默认 4 个端口可编辑 |
+
+## 3. 界面说明
+
+- **Universe / Subnet / Net**：起始 Universe 编号；多路时按索引递增 Universe（模 16）。
+- **文件**：从媒体库选择 FFV1 视频（512×N）。
+- **播放 / 循环**：控制回放。
+- **清空**：清零 DMX 缓冲。
+- **当前时间**：显示回放进度。
+
+外部控制：`/universe`、`/subnet`、`/net`、`/play`、`/loop`、`/clear`、`/filename`。
+
+## 4. 使用说明
+
+1. 准备 FFV1、分辨率 512×Universe 数量的视频，放入媒体库。
+2. 选择文件后，输出端口数量随视频高度自动调整。
+3. 各 UNIVERSE 输出可接 **Artnet Out**。
+4. 也可用 PLAY / STOP 等输入端口做远程触发。
+
+## 5. 示例
+
+预录灯光秀视频 → 本节点播放 → UNIVERSE1～4 分别接 4 个 Artnet Out 端口或合并后发送。

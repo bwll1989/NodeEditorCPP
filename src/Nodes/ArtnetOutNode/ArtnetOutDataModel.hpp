@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <iostream>
@@ -13,7 +13,7 @@
 #include <QTimer>
 #include <QDateTime>
 #include <QSignalBlocker>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
 struct GlobalEvent;

@@ -10,7 +10,7 @@
 #include <QVariantMap>
 #include <QByteArray>
 #include <QJsonArray>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
 struct GlobalEvent;

@@ -1,6 +1,6 @@
 #pragma once
 #include <QtCore/QObject>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/qglobal.h>
 #include <cstdio>
@@ -27,7 +27,7 @@
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "Vst3DataStream.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;

@@ -15,13 +15,13 @@
 #include <QMediaDevices>
 #include <QCameraDevice>
 #include <QList>
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 #include "ui_CameraForm.h"
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
 #include <vector>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 namespace Ui {
     class CameraForm;
 }

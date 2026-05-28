@@ -1,33 +1,42 @@
-# ArtnetInNode 使用说明
+﻿# ArtnetInNode
 
-## 用途
-ArtnetInNode 用于从网络接收 Art-Net / DMX 数据，并输出为一份可在流程中继续处理的变量数据。
+## 1. 节点说明
 
-## 输入端口
-- UNIVERSE：要监听的 Universe 编号（整数）。
-- CHANNELS：需要过滤的通道列表（字符串，可为空）。示例：`1,2,5-10`。
-- FILTER：是否启用通道过滤（布尔）。
+从局域网接收 Art-Net / DMX 数据，并输出为可在流程中继续使用的变量数据。可指定 Universe、按通道过滤，也支持通过外部命令或输入端口动态修改这些参数。
 
-## 输出端口
-- OUTPUT：接收到的数据（VariableData）。
-  - 未开启过滤：输出上游完整数据（包含 `universe`、`host`、`default` 等字段）。
-  - 开启过滤：输出一个简化对象，包含 `universe`、`host`，以及你指定通道的键值对。
+## 2. 端口说明
 
-## 外部控制（OSC）
-- `/universe`：设置 Universe（int）。
-- `/channels`：设置通道列表（string）。
-- `/filter`：开关过滤（bool）。
+### 输入
 
-## 快速上手
-1. 将 ArtnetInNode 放入流程。
-2. 直接连接 OUTPUT 到下游节点即可查看数据；默认不过滤。
-3. 若只关心部分通道：
-   - 设置 FILTER 为 true。
-   - 在 CHANNELS 填写通道列表，例如 `1,2,5-10`。
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| UNIVERSE | VariableData | Universe 编号（整数） |
+| CHANNELS | VariableData | 通道过滤列表，如 `1,2,5-10`；留空表示不过滤具体通道 |
+| FILTER | VariableData | 是否启用通道过滤（布尔） |
 
-## 通道号说明
-- 通道列表使用“索引”方式过滤，范围为 `0~512`（与接收到的 DMX 数据字节序列下标一致）。
+### 输出
 
-## 常见问题
-- 没有输出：确认网络中确实有 Art-Net 数据；Universe 过滤条件是否匹配。
-- 过滤后没有字段：确认 CHANNELS 不为空，且通道号在有效范围内。
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| OUTPUT | VariableData | 接收到的数据。未过滤时含 `universe`、`host`、`default` 等；过滤后含 `universe`、`host` 及指定通道键值 |
+
+## 3. 界面说明
+
+本节点无可嵌入界面，参数通过输入端口或外部控制设置。
+
+## 4. 使用说明
+
+1. 将节点放入流程，默认监听全部 Art-Net 数据（FILTER 为 false）。
+2. 若只关心某个 Universe：向 UNIVERSE 写入编号，或将 FILTER 设为 true 并填写 CHANNELS。
+3. 通道号为 0～512，与 DMX 字节下标一致；支持逗号与范围，如 `1,2,5-10`。
+4. 外部控制：`/universe`、`/channels`、`/filter`。
+
+## 5. 示例
+
+只取 Universe 0 的通道 1、2、10：
+
+- UNIVERSE = `0`
+- CHANNELS = `1,2,10`
+- FILTER = `true`
+
+将 OUTPUT 接到需要 DMX 数值的下游节点即可。

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <QPushButton>
 #include "QLayout"
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 #include "AudioDeviceOutInterface.hpp"
 #include <portaudio.h>
 #include "QThread"
@@ -20,7 +20,7 @@
 #include <QRegularExpression>  // 添加 QRegExp 头文件
 #include <QTimer>
 #include "TimestampGenerator/TimestampGenerator.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;

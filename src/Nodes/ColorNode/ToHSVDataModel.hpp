@@ -9,8 +9,8 @@
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtConcurrent/QtConcurrent>
 #include <QColor>
-#include "DataTypes/NodeDataList.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/DataTypes/NodeDataList.hpp"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using namespace NodeDataTypes;
 
 

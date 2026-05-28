@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -12,7 +12,7 @@
 
 #include <QtWidgets/QSpinBox>
 #include <QtCore/qglobal.h>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
 

@@ -14,6 +14,7 @@ set(ALL_NODES
     TCPClientNode                             #TCP客户端模块
     TimeLineNode                              #时间轴模块
     UDPSocketNode                             #UDP模块
+    SerialPortNode                            #串口模块
     DelayNode                                 #延迟模块
     LogicOperationNode                        #逻辑操作模块
     MathOperationNode                         #数学操作模块
@@ -43,12 +44,11 @@ set(ALL_NODES
     WebSocketServerNode                       #WebSocket服务器
     WebSocketClientNode                       #WebSocket客户端
     JavaScriptNode                            #JavaScript脚本
-    InternalControlNode                       #内部控制
     ImageThresholdNode                        #图像二值化
     ImageCompareNode                          #图像对比
     ImageSwitchNode                           #图像切换
     showStoreGBxNode                          #ELC showStoreGBx 控制器
-    USR-IO808Node                             #基于Modbus Master实现与USR-IO808 控制器对接
+    USR_IO808Node                           #基于Modbus Master实现与USR-IO808 控制器对接
     TSETLNode                                 #对接TSETL
     HoldNode                                  #信号保持
     SpoutInNode                               #Spout输入
@@ -70,7 +70,7 @@ set(ALL_NODES
     AudioMatrixNode                             #音频矩阵节点
     AudioAnalysisNode                           #音频分析节点
 #    PythonScriptNode                            #python脚本节点
-    DAWControllerNode                           #DAW控制器节点
+    DAWController                          #DAW控制器节点
     StyleTransferONNXNode                       #神经网络风格迁移
     DataVisualNode                              #数据可视化
     FileLoadNode                                #文件导入
@@ -79,13 +79,15 @@ set(ALL_NODES
     AudioDuckingNode                            #音频闪避
     AudioCrossFaderNode                         #音频交叉淡化过渡
     AudioPriorityNode                           #音频优先级
-#    AudioASRNode                                #音频关键词识别
     PoseDetectionNode                            #Yolo v11n 姿态
-    ObjectDetectionNode                       #Yolo v11n 检测
+    ObjectDetectionNode                         #Yolo v11n 检测
     FaceDetectionNode                              #人脸检测
     VideoDecoderNode                              #视频解码器节点
     PLC-ModBus                                  #modbus控制PLC
+    InternalCommandsNode                        #内部控制节点
     QmlScriptNode
+    InjectNode                                  #数据注入
+    ValueLookupNode                          #值查表 Value Lookup
 #    AudioIntentNode                              #音频意图分析（弃用）
 )
 
@@ -114,6 +116,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(TCPClientNode)                             #TCP客户端模块
     add_subdirectory(TimeLineNode)                              #时间轴模块
     add_subdirectory(UDPSocketNode)                             #UDP模块
+    add_subdirectory(SerialPortNode)                            #串口模块
     add_subdirectory(DelayNode)                                 #延迟模块
     add_subdirectory(LogicOperationNode)                        #逻辑操作模块
     add_subdirectory(MathOperationNode)                         #数学操作模块
@@ -143,12 +146,12 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(WebSocketServerNode)                       #WebSocket服务器
     add_subdirectory(WebSocketClientNode)                       #WebSocket客户端
     add_subdirectory(JavaScriptNode)                            #JavaScript脚本
-    add_subdirectory(InternalControlNode)                       #内部控制
+    add_subdirectory(InternalCommandsNode)                       #内部控制
     add_subdirectory(ImageThresholdNode)                        #图像二值化
     add_subdirectory(ImageCompareNode)                          #图像对比
     add_subdirectory(ImageSwitchNode)                           #图像切换
     add_subdirectory(showStoreGBxNode)                          #ELC showStoreGBx 控制器
-    add_subdirectory(USR-IO808Node)                             #基于Modbus Master实现与USR-IO808 控制器对接
+    add_subdirectory(USR_IO808Node)                             #基于Modbus Master实现与USR-IO808 控制器对接
     add_subdirectory(TSETLNode)                                 #对接TSETL
     add_subdirectory(HoldNode)                                  #信号保持
     add_subdirectory(SpoutInNode)                               #Spout输入
@@ -180,9 +183,11 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(ObjectDetectionNode)                       #对象识别
     add_subdirectory(FaceDetectionNode)                            #人脸检测
     add_subdirectory(VideoDecoderNode)                          #视频解码器节点
-    add_subdirectory(DAWControllerNode)                          #DAW控制器节点
+    add_subdirectory(DAWController)                          #DAW控制器节点
     add_subdirectory(PLC-ModBus)                                #Modbus控制PLC节点
     add_subdirectory(QmlScriptNode)
+    add_subdirectory(InjectNode)                                #数据注入节点
+    add_subdirectory(ValueLookupNode)                        #值查表 Value Lookup
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()

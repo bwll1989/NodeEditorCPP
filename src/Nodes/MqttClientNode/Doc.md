@@ -1,51 +1,61 @@
-# MqttClientNode 使用说明
+﻿# Mqtt Client 节点
 
-## 用途
-MqttClientNode 用于连接 MQTT Broker，发布消息到指定 Topic，并接收订阅 Topic 的消息输出到下游节点。
+## 1. 节点说明
 
-## 端口
-- 输入（5）
-  - HOST（端口 0）：Broker 地址（string）
-  - PORT（端口 1）：端口（int，默认 1883）
-  - TOPIC（端口 2）：订阅/发布的 Topic（string）
-  - VALUE（端口 3）：要发布的消息内容（string）；写入后会立刻发布一次
-  - TRIGGER（端口 4）：触发发布（任意值/true 触发一次）
-- 输出（3）
-  - RESULT（端口 0）：VariableData（收到的消息）
-  - TOPIC（端口 1）：VariableData（string，当前消息 topic）
-  - VALUE（端口 2）：VariableData（string，当前消息 payload）
+MQTT 客户端节点，连接 Broker 后订阅主题、接收消息，并可向主题发布内容。适合物联网设备、智能家居、分布式状态同步等场景。
 
-RESULT 字段：
-- `topic`：消息 topic（string）
-- `default`：payload（UTF-8 string）
-- `hex`：payload 的十六进制字符串（便于查看二进制数据）
+## 2. 端口说明
 
-## 节点界面
-- host/port/username/password：连接参数
-- topic：当前订阅 topic
-- payload：发布内容
-- QoS：订阅/发布 QoS
-- Publish：手动发布按钮
-- 状态按钮：显示连接状态（Connected/Disconnect）
+### 输入
 
-## 外部控制（可选）
-- `/host`：设置 host（string）
-- `/port`：设置 port（int）
-- `/topic`：设置 topic（string）
-- `/payload`：设置 payload（string）
-- `/publish`：触发发布一次（任意值/true 触发）
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | HOST | 设置 Broker 地址 |
+| 1 | PORT | 设置 Broker 端口 |
+| 2 | TOPIC | 设置主题（并重新订阅） |
+| 3 | VALUE | 设置发布内容并立即发布 |
+| 4 | TRIGGER | 收到数据即按当前 **payload** 发布 |
 
-反馈：
-- `/connect`：连接状态（bool，true=已连接）
+### 输出
 
-## 使用步骤
-1. 设置 host/port（需要认证则填写 username/password）。
-2. 设置 topic，连接成功后会自动订阅该 topic。
-3. 发布：
-   - 在 payload 输入内容，点 Publish
-   - 或给 VALUE 输入端口写入内容（会立刻发布）
-4. 接收：当收到订阅消息时，RESULT/TOPIC/VALUE 输出会更新。
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | RESULT | 完整消息（含 topic、default、hex 等） |
+| 1 | TOPIC | 收到消息的主题 |
+| 2 | VALUE | 收到消息的文本内容 |
 
-## 注意事项
-- topic 改变会重新订阅新 topic。
-- payload 默认为 UTF-8 字符串；若发送/接收的是二进制内容，可用 hex 字段查看。
+## 3. 界面说明
+
+- **Host / Port**：Broker 地址与端口，默认 `127.0.0.1:1883`（支持 `mqtt://` 等前缀，会自动剥离）。
+- **Username / Password**：可选认证信息；修改后会延迟约 400ms 自动重连。
+- **Topic**：订阅与发布使用的主题。
+- **Payload**：要发布的消息体。
+- **QoS**：服务质量 0、1 或 2（影响订阅与发布）。
+- **Connected / Disconnect**：连接状态（只读，绿色为已连接）。
+- **Publish**：手动发布。
+
+## 4. 使用说明
+
+1. 填写 Broker **Host**、**Port** 及可选账号密码；节点会自动连接。
+2. 设置 **Topic** 后，连接成功即订阅该主题；收到消息从 **RESULT** 等端口输出。
+3. 填写 **Payload** 后点 **Publish**，或从 **VALUE** / **TRIGGER** 触发发布。
+4. 修改 Host、Port、用户名或密码会触发防抖重连；工程保存全部连接参数与 QoS。
+
+**外部控制路径**（完整地址：`/dataflow/{父级别名}/{节点ID}{相对路径}`）：
+
+| 相对路径 | 作用 |
+|----------|------|
+| `/host` | Broker 地址 |
+| `/port` | Broker 端口 |
+| `/topic` | 主题 |
+| `/payload` | 发布内容 |
+| `/publish` | 触发发布（命令） |
+| `/connect` | 连接状态（只读反馈，`true`/`false`） |
+
+`/host`、`/port`、`/topic`、`/payload`、`/publish` 支持 OSC / 全局事件总线；`/connect` 在连接变化时自动反馈。
+
+## 5. 示例
+
+- **传感器上报**：主题 `home/temp`，上游数值连 **VALUE**，定时 **TRIGGER** 发布 JSON。
+- **灯控订阅**：订阅 `building/floor1/light/#`，**TOPIC** 连路由节点，**VALUE** 解析开关状态。
+- **远程改 Broker**：OSC 更新 `/host` 为 `mqtt.example.com`，`/port` 为 `8883`，节点自动重连并重新订阅。

@@ -3,73 +3,145 @@
 // Created by Administrator on 2023/12/13.
 //
 #include "QWidget"
-#include "QLayout"
+#include "QGridLayout"
 #include "QPushButton"
 #include "QCheckBox"
-#include <QQuickWidget>
-#include <QTimeEdit>
-#include <QUrl>
+#include "QTimeEdit"
+#include "QFont"
+#include "QEvent"
+#include "QSignalBlocker"
+
 using namespace std;
 namespace Nodes {
     class CurveInterface : public QWidget {
         Q_OBJECT
     public:
-        // 函数级注释：构造界面，使用 QQuickWidget 加载 qml 的 main.qml，
-        // 其中 WebEngineView 渲染 main.html，所有按钮与状态文本均由 QML 控件实现。
-        explicit CurveInterface(QWidget *parent = nullptr){
-            this->setLayout(mainlayout);
-            this->layout()->setContentsMargins(0,0,0,0);
-            startButton = new QPushButton("Start");
-            loopCheckBox = new QCheckBox("Loop"); // 循环播放复选框
+        explicit CurveInterface(QWidget *parent = nullptr)
+            : QWidget(parent)
+        {
+            setLayout(mainlayout);
+            layout()->setContentsMargins(0, 0, 0, 0);
+
             statusLabel = new QTimeEdit(this);
             statusLabel->setDisplayFormat("hh:mm:ss:zzz");
             statusLabel->setAlignment(Qt::AlignCenter);
-            statusLabel->setTime(QTime(0,0,0,0));
+            statusLabel->setTime(QTime(0, 0, 0, 0));
             statusLabel->setReadOnly(true);
             statusLabel->setButtonSymbols(QAbstractSpinBox::NoButtons);
-            // 设置字体加粗并放大
             QFont font = statusLabel->font();
             font.setBold(true);
             font.setPointSize(font.pointSize() + 8);
             statusLabel->setFont(font);
 
-            mainlayout->addWidget(statusLabel,0,0,1,3);
-            mainlayout->addWidget(startButton,1,0,1,2);
-
-            mainlayout->addWidget(loopCheckBox,1,2,1,1); // 添加循环播放复选框
-
+            startButton = new QPushButton(tr("启动"), this);
             startButton->setCheckable(true);
-            // stopButton->setCheckable(true);
-            // 创建编辑图标按钮（更小尺寸）
-            editButton = new QPushButton("编辑曲线");
-            mainlayout->addWidget(editButton,3,0,1,3);
-            this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-            // 连接控制按钮到模型
+            loopCheckBox = new QCheckBox(tr("循环"), this);
+            editButton = new QPushButton(tr("编辑曲线"), this);
+            editButton->setToolTip(tr("打开曲线编辑窗口"));
 
-            // // 监听时钟播放状态变化，自动更新状态
-            // if (timeline && timeline->model && timeline->model->getClock()) {
-            //     connect(timeline->model->getClock(), &TimeLineNodeClock::timecodePlayingChanged,
-            //             this, &TimelineInterface::onPlaybackStateChanged);
-            //     connect(timeline->model->getClock(), &TimeLineNodeClock::timecodeFinished,
-            //             this, &TimelineInterface::onPlaybackFinished);
-            //     connect(timeline->model->getClock(), &TimeLineNodeClock::timecodeChanged,
-            //             this, &TimelineInterface::onTimeUpdated);
-            // }
+            mainlayout->addWidget(statusLabel, 0, 0, 1, 3);
+            mainlayout->addWidget(startButton, 1, 0, 1, 2);
+            mainlayout->addWidget(loopCheckBox, 1, 2, 1, 1);
+            mainlayout->addWidget(editButton, 2, 0, 1, 3);
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            setMinimumSize(180, 120);
+
+            connect(editButton, &QPushButton::clicked, this, &CurveInterface::toggleEditorMode);
         }
-        /**
-         * @brief 析构函数，确保在销毁时强制关闭独立窗口
-         */
-        ~CurveInterface() {
 
+        void setEditorWidget(QWidget *editor) {
+            if (m_editor == editor) {
+                return;
+            }
+            if (m_editor) {
+                m_editor->removeEventFilter(this);
+            }
+            m_editor = editor;
+            if (m_editor) {
+                m_editor->hide();
+                m_editor->installEventFilter(this);
+            }
+        }
+
+        QWidget *editorWidget() const { return m_editor; }
+
+        void setPlayheadTime(const QTime &time) {
+            if (statusLabel) {
+                statusLabel->setTime(time);
+            }
+        }
+
+        void setPlayingState(bool playing) {
+            if (!startButton) {
+                return;
+            }
+            QSignalBlocker blocker(startButton);
+            startButton->setChecked(playing);
+            startButton->setText(playing ? tr("停止") : tr("启动"));
+        }
+
+        void setLoopState(bool loop) {
+            if (!loopCheckBox) {
+                return;
+            }
+            QSignalBlocker blocker(loopCheckBox);
+            loopCheckBox->setChecked(loop);
+        }
+
+        void toggleEditorMode() {
+            if (!m_editor) {
+                return;
+            }
+            if (m_editor->isVisible() && (m_editor->windowFlags() & Qt::Window)) {
+                hideEditorWindow();
+                return;
+            }
+            m_editor->setParent(nullptr);
+            m_editor->setWindowTitle(tr("曲线编辑器"));
+            m_editor->setWindowFlags(Qt::Window | Qt::WindowCloseButtonHint);
+            m_editor->setAttribute(Qt::WA_DeleteOnClose, false);
+            m_editor->setAttribute(Qt::WA_QuitOnClose, false);
+            m_editor->resize(900, 400);
+            m_editor->show();
+            m_editor->activateWindow();
+            m_editor->raise();
+            editButton->setText(tr("隐藏编辑器"));
+        }
+
+        ~CurveInterface() override {
+            if (m_editor) {
+                m_editor->hide();
+                m_editor->setParent(this);
+            }
+        }
+
+    protected:
+        bool eventFilter(QObject *watched, QEvent *event) override {
+            if (watched == m_editor && event->type() == QEvent::Close) {
+                hideEditorWindow();
+                return true;
+            }
+            return QWidget::eventFilter(watched, event);
+        }
+
+    private:
+        void hideEditorWindow() {
+            if (!m_editor) {
+                return;
+            }
+            m_editor->hide();
+            m_editor->setParent(this);
+            editButton->setText(tr("编辑曲线"));
         }
 
     public:
         QGridLayout *mainlayout = new QGridLayout();
-        QPushButton *editButton; // 编辑按钮
-        QPushButton *startButton; // 启动按钮
-        // QPushButton *stopButton; // 停止按钮
-        QCheckBox *loopCheckBox; // 循环播放复选框
-        QTimeEdit *statusLabel;
+        QPushButton *editButton = nullptr;
+        QPushButton *startButton = nullptr;
+        QCheckBox *loopCheckBox = nullptr;
+        QTimeEdit *statusLabel = nullptr;
 
+    private:
+        QWidget *m_editor = nullptr;
     };
 }

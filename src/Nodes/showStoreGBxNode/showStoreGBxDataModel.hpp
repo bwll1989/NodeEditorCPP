@@ -10,9 +10,9 @@
 #include <QtQml/QJSValueList>
 #include <QtQml/QJSValueIterator> 
 #include "../../Common/Devices/TcpClient/TcpClient.h"
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "showStoreGBxInterface.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
 #include <QSignalBlocker>
@@ -154,12 +154,12 @@ private:
     void connectToServer();
 
 private:
+    QString m_host = "127.0.0.1";
+    int m_port = 23;
+
     showStoreGBxInterface *_interface;
     TcpClient *_tcpClient;
     std::shared_ptr<NodeDataTypes::VariableData> logData;
-
-    QString m_host = "127.0.0.1";
-    int m_port = 23;
     bool m_connected = false;
 
     bool m_stop = false;

@@ -11,7 +11,7 @@
 #include "TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
-#include "../AbstractClipDelegateModel.h"
+#include "../../Common/BaseClass/AbstractClipDelegateModel.h"
 #include "Common/AppConfig/ConfigManager.h"
 #include "../../Common/Devices/ClientController/SocketTransmitter.h"
 #include "ArtnetSender/ArtnetTransmitter.h"

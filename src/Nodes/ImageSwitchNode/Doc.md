@@ -1,25 +1,30 @@
-# ImageSwitchNode 使用说明
+﻿# Image Switch 节点
 
-## 用途
-ImageSwitchNode 用于在多路图像输入中选择一路输出。常用于多路摄像头/素材切换、A/B 画面切换等。
+## 1. 节点说明
 
-## 端口
-- 输入（可编辑）
-  - IMAGE 0..IMAGE N：图像输入（ImageData）
-  - INDEX：索引输入（VariableData，int），始终是最后一个输入端口
-- 输出（1）
-  - IMAGE 0：ImageData（被选中的那一路图像）
+多路图像输入，根据索引选择其中一路输出。输入端口数量可编辑，最后一路固定为索引控制。
 
-说明：
-- INDEX=0 对应 IMAGE 0，INDEX=1 对应 IMAGE 1，以此类推。
-- 如果 INDEX 指向的输入没有连接或为空，输出为空。
+## 2. 端口说明
 
-## 外部控制（可选）
-- `/index`：设置当前输出索引（int）
+### 输入
 
-## 使用步骤
-1. 在“端口编辑”里增加需要的图像输入数量。
-2. 连接多路图像到 IMAGE 输入端口。
-3. 用数值源节点连接 INDEX（或用外部控制设置 /index）。
-4. 将输出 IMAGE 0 连接到下游节点。
+- **IMAGE 0**、**IMAGE 1**…（ImageData）：候选图像，数量可增删。
+- **INDEX**（VariableData）：要输出的图像索引（整数，从 0 起）。
 
+### 输出
+
+- **IMAGE 0**（ImageData）：当前索引对应的图像；无匹配时无输出。
+
+## 3. 界面说明
+
+无内嵌面板；通过 INDEX 端口或属性 `index`、外部地址 `/index` 切换。
+
+## 4. 使用说明
+
+1. 按需添加 IMAGE 输入并连接各源。
+2. 将索引信号接到 INDEX（或设置属性）。
+3. 下游只接一路输出即可实现多源切换。
+
+## 5. 示例
+
+主画面、备用画面、Logo 图 → Image Switch；INDEX 来自 OSC `/scene` → 大屏显示。

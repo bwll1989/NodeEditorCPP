@@ -29,8 +29,8 @@ set(SOURCES
     Artnetclipplugin.hpp
 
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
-    ../AbstractClipDelegateModel.cpp
-    ../AbstractClipDelegateModel.h
+        ../../Common/BaseClass/AbstractClipDelegateModel.cpp
+        ../../Common/BaseClass/AbstractClipDelegateModel.h
 #        ../../Widget/ExternalControl/ExternalControler.cpp
 #       ../../Widget/ExternalControl/ExternalControler.hpp
 

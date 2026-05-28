@@ -23,8 +23,8 @@ set(SOURCES
     triggerclipmodel.hpp
     triggerclipplugin.hpp
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
-        ../AbstractClipDelegateModel.cpp
-        ../AbstractClipDelegateModel.h
+        ../../Common/BaseClass/AbstractClipDelegateModel.cpp
+        ../../Common/BaseClass/AbstractClipDelegateModel.h
 )
 
 #    ${Devices_DIR}/OSCSender/OSCSender.h
@@ -58,6 +58,7 @@ target_link_libraries(TriggerClip PRIVATE
     Qt${QT_VERSION_MAJOR}::Qml
         GUIElements
         StatusContainer
+        AppConfig
 )
 
 # 包含目录

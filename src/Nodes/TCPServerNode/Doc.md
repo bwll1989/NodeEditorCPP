@@ -1,42 +1,57 @@
-# TCPServerNode 使用说明
+﻿# TCP Server 节点
 
-## 用途
-启动一个 TCP 服务器（监听指定 host/port），接收客户端发送的数据，并可向所有客户端广播消息。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- HOST：监听地址（string，例如 0.0.0.0 表示监听所有网卡）
-- PORT：监听端口（int）
-- VALUE：要广播的内容（string）。更新时会立即广播一次
-- TRIGGER：触发广播（bool）。为 true 时会把 TRIGGER 端口的内容转成字符串并广播
+TCP 服务端节点，在本机指定地址和端口监听，接受客户端连接并收发数据。适合作为中控被多台客户端连接，或接收局域网内设备的 TCP 上报。
 
-### 输出（VariableData）
-- RESULT：收到的数据（键值表）
-- HOST：发送方地址（string，等同 RESULT.host）
-- VALUE：收到的原始字节（QByteArray，等同 RESULT.default）
-- HEX：收到数据的十六进制（string，等同 RESULT.hex）
+## 2. 端口说明
 
-## 参数/界面
-- Host / Port：监听设置
-- Value：要广播的内容
-- Format：发送编码（0=HEX，1=UTF-8，2=ASCII）
-- Send：广播一次
+### 输入
 
-## 外部控制（可选）
-- /host（string）
-- /port（int）
-- /value（string）
-- /send（bool 或任意值）：触发广播一次
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | HOST | 设置监听地址（如 `0.0.0.0` 表示所有网卡） |
+| 1 | PORT | 设置监听端口 |
+| 2 | VALUE | 设置发送内容并立即发送给已连接客户端 |
+| 3 | TRIGGER | 输入为 `true` 时，按当前界面内容发送 |
 
-## 输出字段（RESULT）
-RESULT 常用字段：
-- host：发送方地址（string）
-- hex：收到数据的 hex（string）
-- utf-8：按 UTF-8 解码后的文本（string）
-- ascii：按 ASCII/Latin1 解码后的文本（string）
-- default：原始字节（QByteArray）
+### 输出
 
-## 使用步骤
-1. 设置 HOST/PORT 启动监听。
-2. 客户端连接后，发送的数据会从 RESULT 输出。
-3. 要广播时：设置 VALUE（或点 Send）即可向所有已连接客户端广播。 
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | RESULT | 完整接收消息（VariableData） |
+| 1 | HOST | 发送方 IP 地址 |
+| 2 | VALUE | 接收到的文本内容 |
+| 3 | HEX | 接收数据的十六进制字符串 |
+
+## 3. 界面说明
+
+- **host**：监听 IP，默认 `0.0.0.0`。
+- **port**：监听端口，默认 2001。
+- **value**：要发送给客户端的文本。
+- **Format**：发送编码（HEX / UTF-8 / ASCII）。
+- **Send**：向所有已连接客户端广播发送。
+
+## 4. 使用说明
+
+1. 设置 **host** 与 **port**；修改后会自动重启监听。
+2. 客户端连接后，收到的数据从 **RESULT**、**HOST**、**VALUE**、**HEX** 输出。
+3. 填写 **value** 后点 **Send**，或从 **VALUE** / **TRIGGER** 端口触发发送。
+4. 也可通过输入端口动态改监听地址、端口或发送内容。
+
+**外部控制路径**（完整地址：`/dataflow/{父级别名}/{节点ID}{相对路径}`）：
+
+| 相对路径 | 作用 |
+|----------|------|
+| `/host` | 设置监听地址 |
+| `/port` | 设置监听端口 |
+| `/value` | 设置发送内容 |
+| `/send` | 触发发送（命令） |
+
+支持 OSC / 全局事件总线；`/send` 执行时会有状态反馈。
+
+## 5. 示例
+
+- **灯光控台回传**：客户端连上后，收到的 JSON 从 **VALUE** 连到解析节点。
+- **广播指令**：**value** 填 `{"cmd":"allOff"}`，**Send** 或 **TRIGGER** 一次，所有已连接客户端同时收到。
+- **远程改端口**：OSC 命令写 `/dataflow/Main/5/port` 为 `9000`，服务在新端口监听。

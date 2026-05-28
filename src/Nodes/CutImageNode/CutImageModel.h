@@ -7,8 +7,8 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QFutureWatcher>
 
-#include "DataTypes/NodeDataList.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/DataTypes/NodeDataList.hpp"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 using namespace NodeDataTypes;
 struct GlobalEvent;

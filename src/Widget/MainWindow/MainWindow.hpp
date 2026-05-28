@@ -47,8 +47,8 @@ public:
     // 节点库控件
     ads::CDockWidget *nodeDockLibraryWidget=nullptr;
     // 属性面板 Dock
-    ads::CDockWidget *propertyDockWidget=nullptr;
-    PropertyWidget *propertyWidget=nullptr;
+    // ads::CDockWidget *propertyDockWidget=nullptr;
+    // PropertyWidget *propertyWidget=nullptr;
     QMetaObject::Connection propertySelectionConn;
     // 锁定状态
     bool isLocked= false;

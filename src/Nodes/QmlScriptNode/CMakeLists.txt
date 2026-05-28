@@ -6,7 +6,6 @@ set(MAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 string(TIMESTAMP BUILD_TS "%Y%m%d")
-# 将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
 add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 set(QScintilla_DIR "${DEPENDS_DIR}/QScintilla_src-2.14.1/src/install" )
 set(QScintilla_LIBRARIES "${QScintilla_DIR}/lib/qscintilla2_qt6.lib")
@@ -14,25 +13,23 @@ INCLUDE_DIRECTORIES("${QScintilla_DIR}/include")
 message("--Found QScintilla  ${QScintilla_DIR}")
 
 set(SOURCE_FILES
-        QmlScriptInterface.hpp
         QmlScriptDataModel.hpp
         QmlScriptDataModel.cpp
-#        SupportWidgets.hpp
+        QmlScriptRuntime.h
+        QmlScriptRuntime.cpp
+        QmlScriptView.h
+        QmlScriptView.cpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp
-        ../../Common/Devices/JSEngineDefines/SupportWidgets.hpp
         JsCodeEditor.cpp
         JsCodeEditor.h
-        ./res.qrc
-        qml/qml-creative-controls-2.0/com_github_jcelerier_qml-creative-controls.qrc)
+        ./res.qrc)
+
 add_library(${Module_Name} SHARED
         ${SOURCE_FILES}
         PluginDefinition.hpp
         PluginDefinition.cpp)
 
-#set_target_properties(TextSourceNode PROPERTIES LINKER_LANGUAGE C)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
-        Qt${QT_VERSION_MAJOR}::Concurrent
-        Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::Qml
         Qt${QT_VERSION_MAJOR}::Quick
         Qt${QT_VERSION_MAJOR}::QuickWidgets
@@ -43,11 +40,9 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 
-SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 
+SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
         LIBRARY_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
         ARCHIVE_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
         PREFIX ""
         SUFFIX ".node")
-
-

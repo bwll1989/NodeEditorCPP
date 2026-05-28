@@ -6,7 +6,7 @@
 #include <QtCore/QObject>
 #include "QJsonObject"
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "Common/Devices/TimestampGenerator/TimestampGenerator.hpp"  // 添加时间戳生成器头文件
 
 extern "C" {

@@ -5,7 +5,7 @@
 #include <QtQml/QJSValue>
 #include <QtQml/QJSValueList>
 #include <QtQml/QJSValueIterator> 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "QDir"
 #include <QtNodes/NodeDelegateModel>
 #include "QThread"

@@ -1,31 +1,40 @@
-# QmlScriptNode 使用说明
+﻿# QmlScriptNode
 
-## 用途
-在流程里执行 JavaScript 脚本：读取输入端口的数据、计算后写入输出端口；并支持用 QML 面板动态生成/编辑脚本参数（settings/uiSchema）。
+## 1. 节点说明
 
-## 端口
-- 输入（默认 4 个，可编辑）：VariableData
-- 输出（默认 1 个，可编辑）：VariableData
+使用 **JavaScript + QML** 声明式 UI 的脚本节点：脚本定义 `initInterface`、设置项（settings）与界面描述（uiSchema），由 QML 渲染控件；支持输入事件与多路输入/输出，适合较复杂的可配置面板。
 
-说明：
-- 当前端口标题显示为 “OUT n/IN n”，可能与实际方向相反；以连线方向为准即可。
+## 2. 端口说明
 
-## 快速上手
-1. 添加 QmlScriptNode，打开脚本编辑器并写入代码。
-2. 连接上游到输入端口，连接下游到输出端口。
-3. 在脚本里实现 `inputEventHandler(index)`，当输入更新时计算并输出。
+### 输入
 
-## 常用 API（脚本侧）
-- `Node.getInputValue(portIndex)`：获取输入（对象/键值表）
-- `Node.setOutputValue(outIndex, value)`：写入输出
-- `Node.getOutputValue(outIndex)`：读取当前输出
-- `Node.inputIndex()`：当前触发的输入端口索引
-- `Node.getInputCount()` / `Node.getOutputCount()`：端口数量
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| IN 0 … IN n | VariableData | 上游数据（默认 4 个，可编辑） |
 
-## QML 面板能力（可选）
-- settings：脚本可读写的持久化配置（随工程保存/加载）
-- uiSchema：用于描述面板控件的结构（由脚本设置，供面板生成控件）
+### 输出
 
-## 注意事项
-- 端口数据以键值表（VariableData）传递；多数情况下读写 `default` 即可。
-- 脚本执行耗时过长会影响整体刷新，建议把重计算拆分/节流。 
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| OUT 0 … OUT n | VariableData | 脚本写出的数据（默认 1 个，可编辑） |
+
+## 3. 界面说明
+
+- **QML 视图区**：根据 `uiSchema` 显示控件。
+- **脚本编辑器**（可打开）：编辑 JS；保存后重新加载脚本。
+- **刷新 UI**：按当前脚本重建界面。
+- **设置项**：脚本内通过 `Node.setSetting` / `getSettings` 管理，变更时触发 `onSettingChanged`。
+
+脚本 API 含：`Node.getInputValue`、`Node.setOutputValue`、`Node.setUiSchema`、`Node.runScript` 等。
+
+## 4. 使用说明
+
+1. 打开编辑器编写或修改默认脚本，保存后自动重载。
+2. 在 `initInterface` 中配置 UI 与默认 settings。
+3. 上游接 IN 端口；下游接 OUT 端口。
+4. 若出现 `scriptError`，在界面或日志中查看脚本错误信息。
+5. 加载过程中 `initializing` 为 true，避免此时依赖 UI 的逻辑。
+
+## 5. 示例
+
+脚本声明一个滑块 setting `gain`，`onSettingChanged` 里根据 IN 0 与 gain 计算后 `setOutputValue(0, …)`；IN 0 接音频分析，OUT 0 接下游处理。

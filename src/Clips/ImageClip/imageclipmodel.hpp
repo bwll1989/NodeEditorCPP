@@ -17,7 +17,7 @@
 #include "Common/Devices/ClientController/SocketTransmitter.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "MediaLibrary/MediaLibrary.h"
-#include "AbstractClipDelegateModel.h"
+#include "../../Common/BaseClass/AbstractClipDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 namespace Clips
 {

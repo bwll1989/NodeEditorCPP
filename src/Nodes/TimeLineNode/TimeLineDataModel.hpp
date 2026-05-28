@@ -3,7 +3,7 @@
 
 #include <QtCore/QObject>
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 
@@ -18,9 +18,9 @@
 #include "TimeLineNodeWidget.hpp"
 #include "TimeLineNodeModel.h"
 #include "BasePluginLoader.h"
-// #include "TimelineInterface.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
-#include "AbstractClipDelegateModel.h"
+#include "TimelineInterface.hpp"
+#include "Common/BaseClass/AbstractDelegateModel.h"
+#include "../../Common/BaseClass/AbstractClipDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace std;
 using QtNodes::NodeData;
@@ -56,7 +56,7 @@ public:
         PortEditable=false;
         model = new TimeLineNodeModel(this);
 
-        widget=new TimelineNodeWidget(model);
+        widget = new Nodes::TimelineInterface(model);
         if (model && model->getClock()) {
             m_currentFrame = model->getClock()->getCurrentFrame();
             m_looping = model->getClock()->isLooping();
@@ -95,8 +95,9 @@ public:
     void afterModelReady() override {
         model->setModelAlias("dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()));
 
-        if (widget && widget->toolbar) {
-            if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(widget->toolbar)) {
+        auto* editor = widget ? widget->editorWidget() : nullptr;
+        if (editor && editor->toolbar) {
+            if (auto* tb = dynamic_cast<TimeLineNodeToolBar*>(editor->toolbar)) {
                 tb->bindBus(getParentAlias(), getNodeID());
                 connect(tb, &TimeLineNodeToolBar::setCurrentFrame, this, [this](qint64 frame) {
                     if (model && model->getClock()) {
@@ -373,8 +374,7 @@ private slots:
 
 private:
     TimeLineNodeModel* model;
-    // Nodes::TimelineInterface  *widget;
-    TimelineNodeWidget *widget;
+    Nodes::TimelineInterface* widget;
     bool m_playing = false;
     bool m_looping = false;
     qint64 m_currentFrame = 0;

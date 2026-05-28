@@ -130,7 +130,7 @@ message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets Graphs)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
         QmlWorkerScript
-        QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets Graphs)
+        QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets Graphs SerialPort)
 #分组模块
 # 添加Clips模块
 add_subdirectory(src/Clips)
@@ -148,9 +148,9 @@ add_subdirectory(src/Common/Devices/TimestampGenerator)
 add_subdirectory(src/Common/Devices/MediaLibrary)
 add_subdirectory(src/Common/Devices/ModelDataBridge)
 add_subdirectory(src/Common/GUI/DelayListWidget)
-add_subdirectory(src/Common/BuildInNodes)
+add_subdirectory(src/Nodes/BuildInNodes)
 add_subdirectory(src/Common/GUI/DockHub)
-add_subdirectory(src/DataTypes)
+add_subdirectory(src/Common/DataTypes)
 add_subdirectory(src/Common/Devices/StatusContainer)
 add_subdirectory(src/Common/AppConfig)
 add_subdirectory(src/Common/GUI/PropertyTreeWidget)
@@ -208,6 +208,10 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/TcpClient/TcpClientWorker.cpp
         src/Common/Devices/UdpSocket/UdpSocket.cpp
         src/Common/Devices/UdpSocket/UdpSocket.h
+        src/Common/Devices/SerialPort/SerialPort.cpp
+        src/Common/Devices/SerialPort/SerialPort.h
+        src/Common/Devices/SerialPort/SerialPortWorker.cpp
+        src/Common/Devices/SerialPort/SerialPortWorker.h
         src/Common/Devices/WebSocketServer/WebSocketServer.cpp
         src/Common/Devices/WebSocketServer/WebSocketServer.h
         src/Common/Devices/WebSocketClient/WebSocketClient.cpp
@@ -281,8 +285,8 @@ set(CALC_SOURCE_FILES
 )
 # 函数级注释：定义 Headless 版本源文件（用 headless_main.cpp 替换 main.cpp）
 set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES}
-        src/Clips/AbstractClipDelegateModel.cpp
-        src/Clips/AbstractClipDelegateModel.h)
+        src/Common/BaseClass/AbstractClipDelegateModel.cpp
+        src/Common/BaseClass/AbstractClipDelegateModel.h)
 list(REMOVE_ITEM HEADLESS_SOURCE_FILES main.cpp)
 list(APPEND HEADLESS_SOURCE_FILES headless_main.cpp)
 
@@ -335,6 +339,7 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::Quick
             Qt${QT_VERSION_MAJOR}::QuickWidgets
             Qt${QT_VERSION_MAJOR}::Network
+            Qt${QT_VERSION_MAJOR}::SerialPort
             Qt${QT_VERSION_MAJOR}::Concurrent
             Qt${QT_VERSION_MAJOR}::Multimedia
             Qt${QT_VERSION_MAJOR}::MultimediaWidgets
@@ -400,6 +405,7 @@ target_link_libraries(${HeadlessProjectName}
             Qt${QT_VERSION_MAJOR}::Quick
             Qt${QT_VERSION_MAJOR}::QuickWidgets
             Qt${QT_VERSION_MAJOR}::Network
+            Qt${QT_VERSION_MAJOR}::SerialPort
             Qt${QT_VERSION_MAJOR}::Concurrent
             Qt${QT_VERSION_MAJOR}::Multimedia
             Qt${QT_VERSION_MAJOR}::MultimediaWidgets

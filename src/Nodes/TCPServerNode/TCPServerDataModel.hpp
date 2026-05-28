@@ -2,7 +2,7 @@
 
 
 #include <QtCore/QObject>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "QThread"
 #include <QtNodes/NodeDelegateModel>
 #include "TCPServerInterface.hpp"
@@ -18,7 +18,7 @@
 #include "QMutex"
 #include "Common/Devices/TcpServer/TcpServer.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;

@@ -18,10 +18,10 @@
 #include <QtQml/QJSValueList>
 #include <QtQml/QJSValueIterator> 
 #include "../../Common/Devices/TcpClient/TcpClient.h"
-#include "../../DataTypes/VariableData.h"
+#include "NodeDataList.hpp"
 #include "PLC_ModBusInterface.hpp"
 #include "IPlcRegisterMapping.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
 using QtNodes::NodeData;

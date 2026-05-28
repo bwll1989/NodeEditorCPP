@@ -15,10 +15,10 @@ namespace Nodes {
 
 showStoreGBxDataModel::showStoreGBxDataModel()
     : _interface(new showStoreGBxInterface())
-    , _tcpClient(new TcpClient(m_host, m_port))
+    , _tcpClient(new TcpClient(QStringLiteral("127.0.0.1"), 23))
     , logData(std::shared_ptr<NodeDataTypes::VariableData>())
 {
-    InPortCount =4;
+    InPortCount =5;
     OutPortCount=1;
     PortEditable=false;
     CaptionVisible=true;
@@ -133,6 +133,10 @@ void showStoreGBxDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex 
 
     if (port >= 0 && port < 4) {
         triggerChannel(port);
+        return;
+    }
+    if (port==4) {
+        stopPlay();
     }
 }
 
@@ -140,6 +144,9 @@ QString showStoreGBxDataModel::portCaption(QtNodes::PortType portType, QtNodes::
 {
     switch (portType) {
     case PortType::In:
+            if (portIndex==4) {
+                return tr("STOP");
+            }
         return "SHOW "+QString::number(portIndex);
     case PortType::Out:
 

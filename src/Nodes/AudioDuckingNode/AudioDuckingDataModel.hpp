@@ -9,8 +9,8 @@
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeDelegateModelRegistry>
-#include "DataTypes/NodeDataList.hpp"
-#include "DataTypes/AudioTimestampRingQueue.h"
+#include "Common/DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/AudioTimestampRingQueue.h"
 #include "TimestampGenerator/TimestampGenerator.hpp"
 #include <QtCore/QDir>
 #include <QtCore/QEvent>
@@ -20,7 +20,7 @@
 #include <QJsonObject>
 #include "PluginDefinition.hpp"
 #include "AudioDuckingWorker.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
 using QtNodes::NodeData;

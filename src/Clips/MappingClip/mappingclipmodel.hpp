@@ -6,7 +6,7 @@
 #include "../../Common/Devices/OSCSender/OSCSender.h"
 #include "OscListWidget/OSCMessageListWidget.hpp"
 #include "OscListWidget/OSCMessageItemWidget.hpp"
-#include "AbstractClipDelegateModel.h"
+#include "../../Common/BaseClass/AbstractClipDelegateModel.h"
 namespace Clips
 {
     class MappingClipModel : public AbstractClipDelegateModel {

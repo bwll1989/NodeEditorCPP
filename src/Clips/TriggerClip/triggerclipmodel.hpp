@@ -4,7 +4,7 @@
 #include "AbstractClipModel.hpp"
 #include <QJsonArray>
 
-#include "AbstractClipDelegateModel.h"
+#include "Common/BaseClass/AbstractClipDelegateModel.h"
 #include "OscListWidget/OSCMessageListWidget.hpp"
 namespace Clips
 {

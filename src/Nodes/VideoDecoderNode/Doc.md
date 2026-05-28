@@ -1,33 +1,36 @@
-# VideoDecoderNode 使用说明
+﻿# Video Decoder 节点
 
-## 用途
-使用 FFmpeg 7.1 解码媒体文件（视频+音频），输出视频帧（ImageData）与按声道拆分的音频流（AudioData）。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- PLAY/STOP：播放开关（bool）
-- STOP：停止（bool，true 时停止）
-- LOOP：循环（bool）
-- GAIN：音量（double，单位 dB）
+播放媒体库中的视频文件，输出视频帧和多路音频。输出音频通道数随文件自动增减。
+
+## 2. 端口说明
+
+### 输入
+
+- **PLAY/STOP**（VariableData）：播放/暂停（布尔）。
+- **STOP**（VariableData）：为 true 时停止。
+- **LOOP**（VariableData）：是否循环。
+- **GAIN**（VariableData）：音量（dB）。
 
 ### 输出
-- Image（ImageData）：解码后的视频帧
-- CH 1..CH N（AudioData）：按声道拆分的音频输出（N 会随文件实际声道数动态变化）
 
-## 参数/界面
-- File：选择媒体库中的文件
-- Play：播放/暂停
-- Loop：循环
-- Volume：音量（dB）
-- 进度条/时间：显示播放进度
+- **Image**（ImageData）：当前视频帧。
+- **CH 1**、**CH 2**…（AudioData）：各音频声道，数量随文件变化。
 
-## 外部控制（可选）
-- /fileName（string）：设置文件名（媒体库条目）
-- /play（bool）：播放/停止
-- /loop（bool）：循环开关
-- /volume（double）：音量（dB）
+## 3. 界面说明
 
-## 使用步骤
-1. 选择文件（File 或 /fileName）。
-2. 将 Image 连接到图像处理/显示节点；将 CH 1..N 连接到音频处理/输出节点。
-3. 通过 PLAY/STOP 或 /play 开始播放；需要循环则打开 LOOP。 
+- 文件选择框（媒体库路径）。
+- 播放/停止、循环、音量滑块。
+
+## 4. 使用说明
+
+1. 选择视频文件。
+2. 点击播放或通过 PLAY/STOP 端口控制。
+3. Image 接显示或处理；CH n 接 Audio Device Out 等。
+
+外部地址：`/fileName`、`/loop`、`/volume`、`/play`。
+
+## 5. 示例
+
+Video Decoder → Image + CH1/CH2 → NDI Out + 声卡输出，音视频同步播放。

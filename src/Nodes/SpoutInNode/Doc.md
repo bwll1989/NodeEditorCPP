@@ -1,26 +1,34 @@
-# SpoutInNode 使用说明
+﻿# Spout In 节点
 
-## 用途
-从其他支持 Spout 的软件接收实时画面，并输出为 ImageData。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- SOURCE：发送源名称（string）
-- ENABLE：启用/停止接收（bool）
+从本机 Spout 发送端接收实时画面，并输出为图像流。适用于与 Resolume、TouchDesigner 等软件互通。
 
-### 输出（ImageData）
-- IMAGE 0：接收到的图像
+## 2. 端口说明
 
-## 参数/界面
-- Sender：发送源下拉选择
-- Start/Stop：开始/停止接收
+### 输入
 
-## 外部控制（可选）
-- /source（string）：设置发送源名称
-- /enable（bool）：启用/停止接收
+- **端口 0**（VariableData）：发送端名称（字符串），可远程指定源。
+- **端口 1**（VariableData）：启用/停止接收（布尔）。
 
-## 使用步骤
-1. 确认发送端软件已开启 Spout 输出。
-2. 在 SpoutInNode 里选择 Sender（或通过 /source 设置）。
-3. 将 ENABLE 置为 true（或通过 /enable 启用）。
-4. 把 IMAGE 0 连接到下游图像处理/显示节点。 
+### 输出
+
+- **输出 0**（ImageData）：当前 Spout 帧。
+
+## 3. 界面说明
+
+- 发送端下拉列表：选择 Spout 源。
+- 开始/停止按钮：控制是否接收。
+- 连接状态指示。
+
+## 4. 使用说明
+
+1. 确保发送端软件已开启 Spout 输出。
+2. 在节点中选择发送端并点击开始。
+3. 将图像输出接到处理链或 Spout/NDI 转发节点。
+
+外部控制：`/source`（名称）、`/enable`（布尔）。
+
+## 5. 示例
+
+TouchDesigner Spout Out → Spout In → 特效链 → Spout Out → 投影软件。

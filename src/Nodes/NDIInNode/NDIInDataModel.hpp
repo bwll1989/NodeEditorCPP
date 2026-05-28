@@ -13,7 +13,7 @@
 #undef max
 #endif
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <QtCore/QTimer>
@@ -23,7 +23,7 @@
 #include <QtWidgets/QComboBox>
 #include <QJsonObject>
 #include <QJsonValue>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include <Processing.NDI.Lib.h>
 
 // 再次确保没有 min/max 宏定义

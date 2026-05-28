@@ -5,8 +5,7 @@
 #include <condition_variable>
 #include <QtCore/QObject>
 #include "QJsonObject"
-#include "DataTypes/AudioData.h"  // 确保包含此头文件
-#include "DataTypes/ImageData.h"
+#include "NodeDataList.hpp"  // 确保包含此头文件
 #include "VideoDecoder.hpp"
 extern "C" {
 #include <libavformat/avformat.h>

@@ -1,49 +1,59 @@
-# TCPClientNode 使用说明
+﻿# TCP Client 节点
 
-## 用途
-连接到远端 TCP 服务器，发送数据并接收返回数据。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- HOST：服务器地址（string）
-- PORT：服务器端口（int）
-- VALUE：要发送的内容（string）。更新时会立即发送一次
-- TRIGGER：触发发送（bool）。为 true 时发送一次（发送当前 VALUE）
+TCP 客户端节点，主动连接指定服务器并收发数据。适合连接第三方 TCP 服务、PLC 网关或本机其他程序的 TCP 端口。
 
-### 输出（VariableData）
-- RESULT：收到的数据（键值表）
-- HOST：当前连接目标 host（string）
-- VALUE：当前待发送 value（string）
-- HEX：收到数据的十六进制（string，等同 RESULT.hex）
+## 2. 端口说明
 
-## 参数/界面
-- Host / Port：连接目标
-- Value：要发送的内容
-- Format：发送编码（0=HEX，1=UTF-8，2=ASCII）
-- Connected：连接状态显示（只读）
-- Send：发送一次
+### 输入
 
-## 外部控制（可选）
-### 属性（写入）
-- /host（string）
-- /port（int）
-- /value（string）
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | HOST | 设置服务器 IP 或主机名 |
+| 1 | PORT | 设置服务器端口 |
+| 2 | VALUE | 设置发送内容并立即发送 |
+| 3 | TRIGGER | 输入为 `true` 时，按当前 **value** 发送 |
 
-### 命令（触发）
-- /send（bool 或任意值）：触发发送一次
+### 输出
 
-### 反馈（只读）
-- /connected：连接状态
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | RESULT | 完整接收消息 |
+| 1 | HOST | 当前连接的服务器地址 |
+| 2 | VALUE | 当前发送/接收的文本（VALUE 输出为界面保存值） |
+| 3 | HEX | 接收数据的十六进制形式 |
 
-## 输出字段（RESULT）
-RESULT 常用字段：
-- host：对端地址（string）
-- hex：收到数据的 hex（string）
-- utf-8：按 UTF-8 解码后的文本（string）
-- ascii：按 ASCII/Latin1 解码后的文本（string）
-- default：原始字节（QByteArray）
+## 3. 界面说明
 
-## 使用步骤
-1. 设置 HOST/PORT，等待连接成功（Connected 变为已连接）。
-2. 设置 VALUE 并发送（点 Send，或写入 VALUE 输入端口）。
-3. 从 RESULT/HEX 获取接收数据，并按需要选择 utf-8/ascii/hex 字段使用。 
+- **Host**：服务器地址，默认 `127.0.0.1`。
+- **port**：端口，默认 2001。
+- **value**：发送内容。
+- **Format**：HEX / UTF-8 / ASCII。
+- **Connected / Disconnect**：连接状态（只读，绿色为已连接）。
+- **Send**：发送；仅已连接时可点。
+
+## 4. 使用说明
+
+1. 填写 **Host** 和 **port**；修改后会自动尝试连接。
+2. 连接成功后从 **RESULT** 等端口获取服务器回传数据。
+3. 通过 **value** + **Send**，或 **VALUE** / **TRIGGER** 输入端口发送。
+4. 工程会保存 IP、端口、发送格式等配置。
+
+**外部控制路径**（完整地址：`/dataflow/{父级别名}/{节点ID}{相对路径}`）：
+
+| 相对路径 | 作用 |
+|----------|------|
+| `/host` | 设置服务器地址 |
+| `/port` | 设置端口 |
+| `/value` | 设置发送内容 |
+| `/connected` | 连接状态（只读反馈） |
+| `/send` | 触发发送（命令） |
+
+支持 OSC / 全局事件总线命令。
+
+## 5. 示例
+
+- **查询设备状态**：**value** 写 `GET_STATUS\r\n`，连 **TRIGGER** 定时触发。
+- **联动上游**：字符串节点 → **VALUE**，每次变量更新自动发到服务器。
+- **远程切换服务器**：OSC 写 `/dataflow/Scene/8/host` 为 `192.168.1.100`，写 `/port` 为 `502`，节点自动重连。

@@ -3,12 +3,12 @@
 #include <QtCore/QObject>
 #include <iostream>
 #include <QPushButton>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "NoiseGeneratorInterface.hpp"
 #include <memory>
 #include <TimestampGenerator/TimestampGenerator.hpp>
 #include "QtNodes/Definitions"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "QTimer"
 #include "NoiseGenerator.hpp"
 #include "QThread"

@@ -1,42 +1,40 @@
-# MpvControllerNode 使用说明
+﻿# MpvControllerNode
 
-## 用途
-MpvControllerNode 用于通过 HTTP 接口控制 MPV（暂停/全屏/播放列表切换/变速/音量等），并输出 MPV 的状态信息。
+## 1. 节点说明
 
-说明：节点会向 `http://<host>:8080/api/...` 发送请求，因此需要你的 MPV 控制服务在目标机器上运行并监听 8080 端口。
+通过 HTTP 控制运行在本机或局域网内的 **MPV 播放服务**（默认端口 8080）：播放/暂停、全屏、音量、播放列表、倍速等。输入端口可发送任意 API 路径；输出端口返回播放器状态 JSON。
 
-## 端口
-- 输入（1）
-  - COMMAND（端口 0）：VariableData（string）
+## 2. 端口说明
 
-当输入一个字符串（例如 `toggle_pause`），节点会请求：
-`http://<host>:8080/api/toggle_pause`
+### 输入
 
-- 输出（1）
-  - STATUS（端口 0）：VariableData（状态信息，JSON）
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| 输入 0 | VariableData | 写入 API 路径字符串（如 `toggle_pause`），将 POST 到 `http://<主机>:8080/api/<路径>` |
 
-## 节点参数
-- hostAddress：控制服务地址（默认 127.0.0.1）
-- volume：音量（0~100 的浮点值）
+### 输出
 
-## 外部控制（可选）
-属性：
-- `/host`：设置 hostAddress（string）
-- `/volume`：设置 volume（double）
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| 输出 0 | VariableData | 播放器状态（JSON，由 GET `/api/status` 更新） |
 
-命令（发送任意值或 true 触发一次）：
-- `/play`：切换暂停/播放（toggle_pause）
-- `/fullscreen`：切换全屏
-- `/playlist_prev`：上一项
-- `/playlist_next`：下一项
-- `/speed_add`：速度 * 1.1
-- `/speed_sub`：速度 * 0.9
-- `/speed_reset`：速度重置
+## 3. 界面说明
 
-## 使用步骤
-1. 设置 hostAddress 指向运行 MPV 控制服务的机器。
-2. 直接点击节点里的按钮，或通过外部控制地址触发。
-3. 从 STATUS 输出读取当前状态（用于显示/逻辑判断）。
+- **主机地址**：MPV HTTP 服务 IP（默认 `127.0.0.1`）。
+- **音量**：滑块调节，会调用 `set_volume` API。
+- **播放、全屏、上一首、下一首、加速、减速、复位速度**：对应各 API 按钮。
 
-## 注意事项
-- hostAddress 不可达或服务未启动时，命令不会生效，STATUS 也不会更新。
+外部控制：`/host`、`/volume`、`/play`、`/fullscreen`、`/playlist_prev`、`/playlist_next`、`/speed_add`、`/speed_sub`、`/speed_reset`。
+
+## 4. 使用说明
+
+1. 确保目标机器已启动带 HTTP API 的 MPV 服务（8080）。
+2. 填写主机地址；用按钮或输入端口发送命令。
+3. 操作后约 0.9 秒会自动拉取一次状态；也可从输出端口读取。
+4. 输入端口适合接 Inject、逻辑节点，传入 API 子路径字符串。
+
+## 5. 示例
+
+- 界面点「播放」控制暂停/继续。
+- Inject 向输入 0 发送字符串 `playlist_next` 切歌。
+- 输出 0 接显示或条件节点，根据 JSON 中的播放状态分支。

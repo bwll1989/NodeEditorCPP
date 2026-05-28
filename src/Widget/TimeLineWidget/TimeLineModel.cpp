@@ -5,7 +5,7 @@
 #include "TimeLineModel.h"
 #include <QMessageBox>
 
-#include "AbstractClipDelegateModel.h"
+#include "Common/BaseClass/AbstractClipDelegateModel.h"
 
 TimeLineModel::TimeLineModel(QObject* parent):m_stage(new TimeLineStage()),m_clock(new TimeLineClock(this))
 {

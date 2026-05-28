@@ -9,8 +9,8 @@
 #include <QtConcurrent/QtConcurrent>
 #include "Elements/ColorEditorWidget/ColorEditorWidget.hpp"
 #include "ColorInterface.hpp"
-#include "DataTypes/NodeDataList.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/DataTypes/NodeDataList.hpp"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 using namespace NodeDataTypes;
 using namespace Nodes;

@@ -1,21 +1,29 @@
-# SizeVarNode 使用说明
+﻿# Size Source 节点
 
-## 用途
-把宽高两个数值组合为一个 Size（QSizeF），便于在下游节点中作为“尺寸”参数使用。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- Width：宽
-- Height：高
+输出一个尺寸（QSize），用于驱动缩放、布局等需要宽高的节点。
 
-### 输出（VariableData）
-- SIZE：QSizeF
+## 2. 端口说明
 
-## 外部控制（可选）
-- /width（double）
-- /height（double）
+### 输入
 
-## 使用步骤
-1. 将数值连接到 Width/Height（或用外部控制设置 /width /height）。
-2. 将 SIZE 输出连接到需要 QSize/QSizeF 的下游节点。 
+- **Width**（VariableData）：宽度。
+- **Height**（VariableData）：高度。
 
+### 输出
+
+- **SIZE**（VariableData）：合并后的 QSize。
+
+## 3. 界面说明
+
+无内嵌面板；通过属性 `width`、`height` 或 `/width`、`/height` 设置。
+
+## 4. 使用说明
+
+1. 设置或通过端口传入宽高。
+2. 将 SIZE 接到 Scale Image 的 SIZE 端口，或供其他逻辑读取。
+
+## 5. 示例
+
+Size Source（1920×1080）→ Scale Image / SIZE，统一下游分辨率。

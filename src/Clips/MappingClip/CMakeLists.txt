@@ -23,8 +23,8 @@ set(SOURCES
     mappingclipmodel.hpp
     mappingclipplugin.hpp
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
-        ../AbstractClipDelegateModel.cpp
-        ../AbstractClipDelegateModel.h
+        ../../Common/BaseClass/AbstractClipDelegateModel.cpp
+        ../../Common/BaseClass/AbstractClipDelegateModel.h
 )
 
 # 创建插件库

@@ -5,8 +5,8 @@
 #include <QTimer>
 #include <QMutex>
 #include <QWaitCondition>
-#include "DataTypes/AudioTimestampRingQueue.h"
-#include "../../Common/Devices/LtcDecoder/ltcdecoder.h"
+#include "NodeDataList.hpp"
+#include "Common/Devices/LtcDecoder/ltcdecoder.h"
 #include "TimeCodeDefines.h"
 
 namespace Nodes

@@ -13,9 +13,9 @@
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
 #include "Common/AppConfig/ConfigManager.h"
-#include "../../Common/Devices/ClientController/SocketTransmitter.h"
+#include "Common/Devices/ClientController/SocketTransmitter.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
-#include "AbstractClipDelegateModel.h"
+#include "Common/BaseClass/AbstractClipDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 // #include "Widget/ExternalControl/ExternalControler.hpp"
 extern "C" {

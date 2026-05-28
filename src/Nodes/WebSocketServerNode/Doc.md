@@ -1,41 +1,55 @@
-# WebSocketServerNode 使用说明
+﻿# WebSocket Server 节点
 
-## 用途
-启动一个 WebSocket 服务器（监听指定端口），接收客户端消息，并可向所有客户端广播消息。
+## 1. 节点说明
 
-## 端口
-### 输入（VariableData）
-- PORT：监听端口（int）
-- VALUE：要广播的内容（string）。更新时会立即广播一次
-- TRIGGER：触发广播（任意类型）。收到输入即广播一次（广播当前 VALUE）
+WebSocket 服务端节点，在指定端口启动 WS 服务，接受浏览器或客户端连接，支持文本与二进制消息的双向收发。适合 Web 面板、移动端与节点图实时通信。
 
-### 输出（VariableData）
-- RESULT：收到的数据（键值表）
-- HOST：发送方地址（string，等同 RESULT.host）
-- VALUE：收到的原始字节（QByteArray，等同 RESULT.default）
-- HEX：收到数据的十六进制（string，等同 RESULT.hex）
+## 2. 端口说明
 
-## 参数/界面
-- Port：监听端口
-- Value：要广播的内容
-- Message Type：消息类型（0=文本，1=二进制）
-- Format：发送编码（0=HEX，1=UTF-8，2=ASCII）
-- Send：广播一次
+### 输入
 
-## 外部控制（可选）
-- /port（int）
-- /value（string）
-- /send（bool 或任意值）：触发广播一次
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | PORT | 设置监听端口 |
+| 1 | VALUE | 设置发送内容并广播给所有已连接客户端 |
+| 2 | TRIGGER | 收到数据即按当前内容广播发送 |
 
-## 输出字段（RESULT）
-RESULT 常用字段：
-- host：发送方地址（string）
-- hex：收到数据的 hex（string）
-- utf-8：按 UTF-8 解码后的文本（string）
-- ascii：按 ASCII/Latin1 解码后的文本（string）
-- default：原始字节（QByteArray）
+### 输出
 
-## 使用步骤
-1. 设置 PORT 启动监听（端口变更会自动重启服务）。
-2. 客户端发送的数据会从 RESULT 输出。
-3. 要广播时：设置 VALUE（或点 Send）即可向所有已连接客户端广播。 
+| 端口 | 名称 | 说明 |
+|------|------|------|
+| 0 | RESULT | 完整接收消息（含 utf-8、ascii、hex、host 等字段） |
+| 1 | HOST | 客户端 IP |
+| 2 | VALUE | 接收文本 |
+| 3 | HEX | 接收数据十六进制 |
+
+## 3. 界面说明
+
+- **port**：监听端口，默认 2003。
+- **value**：要广播的消息内容。
+- **Message Type**：TEXT（文本帧）或 BINARY（二进制帧）。
+- **Format**：发送时编码方式（HEX / UTF-8 / ASCII）。
+- **Send**：向所有已连接 WebSocket 客户端广播。
+
+## 4. 使用说明
+
+1. 设置 **port** 后服务自动启动；改端口会重启服务。
+2. 客户端连上后，消息从 **RESULT** 等端口输出。
+3. 填写 **value**，选择 **Message Type** 与 **Format**，点 **Send** 或从输入端口触发。
+4. 工程保存端口、消息类型与编码格式。
+
+**外部控制路径**（完整地址：`/dataflow/{父级别名}/{节点ID}{相对路径}`）：
+
+| 相对路径 | 作用 |
+|----------|------|
+| `/port` | 设置监听端口 |
+| `/value` | 设置发送内容 |
+| `/send` | 触发广播发送（命令） |
+
+支持 OSC / 全局事件总线；`/send` 有状态反馈。
+
+## 5. 示例
+
+- **网页控台**：前端 `ws://本机IP:2003` 连接，按钮发 JSON，节点 **RESULT** 驱动场景切换。
+- **二进制协议**：**Message Type** 选 BINARY，**Format** 选 HEX，发送固件升级数据包。
+- **远程改文案**：OSC 更新 `/value` 后触发 `/send`，所有已打开页面的客户端同步显示新文字。

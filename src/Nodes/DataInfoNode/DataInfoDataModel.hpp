@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include "Common/GUI/DataTreeModel/QmlDataBrowser.h"
 #include <iostream>
@@ -10,7 +10,7 @@
 #include <QtQuickWidgets/QQuickWidget>
 // #include "DockManager.h"
 // #include "DockHub/DockHub.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -34,12 +34,14 @@ namespace Nodes
             Caption = "Data Info";
             WidgetEmbeddable = false;
             Resizable = false;
-
+            WidgetEmbeddable = true;
+            Resizable = false;
+            viewButton=new QPushButton("View");
             // 使用QML版本的数据浏览器
             qmlWidget = new QmlDataBrowser();
             qmlWidget->setLazyLoadingEnabled(true);
             qmlWidget->setMaxVisibleItems(1000);
-            // connect(viewButton,&QPushButton::clicked,this,&DataInfoDataModel::toggleEditorMode);
+            connect(viewButton,&QPushButton::clicked,this,&DataInfoDataModel::toggleEditorMode);
         }
          ~DataInfoDataModel() override {
             if (qmlWidget) {
@@ -72,7 +74,7 @@ namespace Nodes
         }
 
         QWidget *embeddedWidget() override {
-            return qmlWidget;
+            return viewButton;
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
@@ -124,6 +126,7 @@ namespace Nodes
         }
 
     private:
+        QPushButton *viewButton;
         QVariantMap model;
         QmlDataBrowser *qmlWidget;
         std::shared_ptr<VariableData> inData;

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
@@ -15,7 +15,7 @@
 #include <vector>
 #include <QtCore/qglobal.h>
 // #include "DataVisualInterface.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;

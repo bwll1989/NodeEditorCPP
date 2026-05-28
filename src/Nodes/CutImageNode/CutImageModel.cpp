@@ -4,7 +4,7 @@
 //
 
 #include "CutImageModel.h"
-#include "DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/NodeDataList.hpp"
 #include <QSignalBlocker>
 using namespace NodeDataTypes;
 using namespace Nodes;

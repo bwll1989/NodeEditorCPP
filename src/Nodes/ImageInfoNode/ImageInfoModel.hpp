@@ -4,9 +4,9 @@
 #pragma once
 #include <qtreeview.h>
 #include <QtNodes/NodeDelegateModel>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include "QPropertyBrowser.h"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;

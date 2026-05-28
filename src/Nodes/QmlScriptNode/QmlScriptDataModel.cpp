@@ -1,63 +1,264 @@
-#pragma once
-
-#include <QtCore/QObject>
-#include <QtQml/QJSEngine>
-#include <QtQml/QJSValue>
-#include <QtQml/QJSValueList>
-#include <QtQml/QJSValueIterator> 
-#include "DataTypes/NodeDataList.hpp"
-#include "QDir"
-#include <QtNodes/NodeDelegateModel>
-#include "QThread"
-#include <iostream>
-#include "QmlScriptInterface.hpp"
-#include <QtCore/qglobal.h>
-#include "QPushButton"
-#include <QDebug>
-#include <QLabel>
-#include <QLineEdit>
-#include "QCheckBox"
-#include <QSignalBlocker>
-#include <QAbstractSlider>
 #include "QmlScriptDataModel.hpp"
 
+#include <QApplication>
+#include <QJsonArray>
+#include <QFile>
+#include <QJSValueIterator>
+#include <QPointer>
+#include <QPushButton>
+#include <QThread>
+
 using QtNodes::NodeData;
-using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-using namespace Nodes;
+using namespace NodeDataTypes;
 
+namespace Nodes {
 
+namespace {
 
-
-unsigned int QmlScriptDataModel::getInputCount() {
-    return InPortCount;
-}
-
-
-unsigned int QmlScriptDataModel::getOutputCount() {
-    return OutPortCount;
-}
-
-unsigned int QmlScriptDataModel::inputIndex() {
-    return inputPortIndex;
-}
-
-// 函数级注释：供 QML 触发脚本运行（等价于点击原“运行”按钮）。
-void QmlScriptDataModel::runScript()
+bool isGuiThread()
 {
-    onRunButtonClicked();
+    return QThread::currentThread() == QApplication::instance()->thread();
 }
 
-// 函数级注释：供 QML 打开脚本编辑器窗口。
-void QmlScriptDataModel::openEditor()
+} // namespace
+
+QString QmlScriptDataModel::loadDefaultScript()
 {
-    if (widget) {
-        widget->toggleEditorMode();
+    QFile file(QStringLiteral(":/resources/defaultScript.js"));
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return QString::fromUtf8(file.readAll());
+    }
+    qWarning() << "QmlScript: 无法加载默认脚本";
+    return QString();
+}
+
+QmlScriptDataModel::QmlScriptDataModel()
+    : m_view(new QmlScriptView())
+    , m_runtime(new QmlScriptRuntime(this, this))
+    , m_script(loadDefaultScript())
+{
+    InPortCount = 4;
+    OutPortCount = 1;
+    CaptionVisible = true;
+    Caption = QStringLiteral("QML JS Script");
+    WidgetEmbeddable = false;
+    Resizable = true;
+    PortEditable = true;
+
+    connect(m_view, &QmlScriptView::qmlReady, this, &QmlScriptDataModel::onQmlReady);
+    m_view->setBackend(this);
+
+    connect(m_view->editor()->importJS, &QPushButton::clicked, this, &QmlScriptDataModel::onEditorSave);
+    connect(m_view->editor()->updateUI, &QPushButton::clicked, this, &QmlScriptDataModel::onEditorRefreshUi);
+}
+
+QVariantMap QmlScriptDataModel::settings() const
+{
+    QMutexLocker locker(&m_dataMutex);
+    return m_settings;
+}
+
+QVariantList QmlScriptDataModel::uiSchema() const
+{
+    QMutexLocker locker(&m_dataMutex);
+    return m_uiSchema;
+}
+
+void QmlScriptDataModel::onQmlReady()
+{
+    if (m_qmlReady) {
+        return;
+    }
+    m_qmlReady = true;
+    if (m_pendingReload || !m_script.isEmpty()) {
+        reloadScript();
     }
 }
 
-// 函数级注释：供 QML 写入单个持久化配置项，并通知界面刷新。
+void QmlScriptDataModel::scheduleScriptReload()
+{
+    if (!m_qmlReady) {
+        m_pendingReload = true;
+        return;
+    }
+    if (m_reloading) {
+        m_pendingReload = true;
+        return;
+    }
+    m_pendingReload = false;
+    reloadScript();
+}
+
+void QmlScriptDataModel::beginReload()
+{
+    m_reloading = true;
+    m_initializing = true;
+    emit initializingChanged();
+
+    {
+        QMutexLocker locker(&m_dataMutex);
+        m_uiSchema.clear();
+    }
+    emit uiSchemaChanged();
+    setScriptError(QString());
+}
+
+void QmlScriptDataModel::continueReloadAfterUiCleared()
+{
+    if (!m_reloading) {
+        return;
+    }
+
+    m_runtime->ensureEngine();
+
+    QString error;
+    if (!m_runtime->evaluateScript(m_script, &error)) {
+        setScriptError(error);
+        completeReload();
+        return;
+    }
+
+    m_runtime->registerUiSchemaBuilders();
+
+    QPointer<QmlScriptDataModel> guard(this);
+    QTimer::singleShot(0, this, [guard]() {
+        if (!guard || !guard->m_reloading) {
+            return;
+        }
+
+        QString initError;
+        if (!guard->m_runtime->callInitInterface(&initError)) {
+            guard->setScriptError(initError);
+        }
+
+        QTimer::singleShot(0, guard.data(), [guard]() {
+            if (!guard || !guard->m_reloading) {
+                return;
+            }
+            guard->completeReload();
+        });
+    });
+}
+
+void QmlScriptDataModel::completeReload()
+{
+    if (!m_reloading) {
+        return;
+    }
+    m_reloading = false;
+    m_initializing = false;
+    emit initializingChanged();
+
+    if (m_pendingReload) {
+        m_pendingReload = false;
+        scheduleScriptReload();
+    }
+}
+
+void QmlScriptDataModel::reloadScript()
+{
+    if (!ensureGuiThread(__func__)) {
+        QMetaObject::invokeMethod(this, &QmlScriptDataModel::reloadScript, Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_reloading) {
+        return;
+    }
+
+    beginReload();
+
+    QPointer<QmlScriptDataModel> guard(this);
+    QTimer::singleShot(0, this, [guard]() {
+        if (guard) {
+            guard->continueReloadAfterUiCleared();
+        }
+    });
+}
+
+void QmlScriptDataModel::setScriptError(const QString &message)
+{
+    if (m_scriptError == message) {
+        return;
+    }
+    m_scriptError = message;
+    emit scriptErrorChanged();
+}
+
+bool QmlScriptDataModel::ensureGuiThread(const char *caller) const
+{
+    if (isGuiThread()) {
+        return true;
+    }
+    qWarning() << "QmlScript:" << caller << "必须在 GUI 线程调用";
+    return false;
+}
+
+void QmlScriptDataModel::runScript()
+{
+    onEditorSave();
+}
+
+void QmlScriptDataModel::refreshUi()
+{
+    if (m_reloading) {
+        return;
+    }
+    if (m_view && m_view->editor()) {
+        m_script = m_view->editor()->saveCode();
+    }
+    scheduleScriptReload();
+}
+
+void QmlScriptDataModel::openEditor()
+{
+    if (m_view) {
+        m_view->openScriptEditor();
+    }
+}
+
+void QmlScriptDataModel::onEditorSave()
+{
+    if (m_reloading || !m_view || !m_view->editor()) {
+        return;
+    }
+    m_script = m_view->editor()->saveCode();
+
+    m_runtime->ensureEngine();
+
+    m_executing = true;
+    emit executingChanged();
+
+    QString error;
+    if (!m_runtime->evaluateScript(m_script, &error)) {
+        setScriptError(error);
+    } else {
+        setScriptError(QString());
+    }
+
+    m_executing = false;
+    emit executingChanged();
+}
+
+void QmlScriptDataModel::onEditorRefreshUi()
+{
+    refreshUi();
+}
+
+void QmlScriptDataModel::applySettingDefault(const QString &key, const QVariant &value)
+{
+    {
+        QMutexLocker locker(&m_dataMutex);
+        if (m_settings.contains(key)) {
+            return;
+        }
+        m_settings.insert(key, value);
+    }
+    emit settingsChanged();
+}
+
 void QmlScriptDataModel::setSettingValue(const QString &key, const QVariant &value)
 {
     {
@@ -65,19 +266,9 @@ void QmlScriptDataModel::setSettingValue(const QString &key, const QVariant &val
         m_settings.insert(key, value);
     }
     emit settingsChanged();
-
-    if (m_jsEngine) {
-        QJSValue func = m_jsEngine->globalObject().property("onSettingChanged");
-        if (func.isCallable()) {
-            QJSValueList args;
-            args << m_jsEngine->toScriptValue(key);
-            args << m_jsEngine->toScriptValue(value);
-            func.call(args);
-        }
-    }
+    dispatchSettingChanged(key, value);
 }
 
-// 函数级注释：供 QML 删除持久化配置项，并通知界面刷新。
 void QmlScriptDataModel::removeSetting(const QString &key)
 {
     {
@@ -85,30 +276,49 @@ void QmlScriptDataModel::removeSetting(const QString &key)
         m_settings.remove(key);
     }
     emit settingsChanged();
+    dispatchSettingRemoved(key);
+}
 
-    if (m_jsEngine) {
-        QJSValue func = m_jsEngine->globalObject().property("onSettingRemoved");
-        if (func.isCallable()) {
-            QJSValueList args;
-            args << m_jsEngine->toScriptValue(key);
-            func.call(args);
-        }
+void QmlScriptDataModel::dispatchSettingChanged(const QString &key, const QVariant &value)
+{
+    if (m_initializing || m_reloading || !m_runtime->engine()) {
+        return;
+    }
+    QString error;
+    QVariantList args{key, value};
+    m_runtime->callGlobalFunction(QStringLiteral("onSettingChanged"), args, nullptr, &error);
+    if (!error.isEmpty()) {
+        setScriptError(error);
     }
 }
 
-// 函数级注释：供脚本将动态控件声明（UI Schema）下发到 QML。
-void QmlScriptDataModel::setUiSchema(const QJSValue &schema)
+void QmlScriptDataModel::dispatchSettingRemoved(const QString &key)
 {
-    if (!schema.isArray() && !schema.isObject()) {
+    if (m_initializing || m_reloading || !m_runtime->engine()) {
         return;
     }
+    QString error;
+    m_runtime->callGlobalFunction(QStringLiteral("onSettingRemoved"), {key}, nullptr, &error);
+    if (!error.isEmpty()) {
+        setScriptError(error);
+    }
+}
 
+void QmlScriptDataModel::setUiSchema(const QJSValue &schema)
+{
     QVariantList list;
-    const QVariant v = schema.toVariant();
-    if (v.typeId() == QMetaType::QVariantList) {
-        list = v.toList();
-    } else if (v.typeId() == QMetaType::QVariantMap) {
-        list.append(v.toMap());
+
+    if (schema.isArray()) {
+        const int length = schema.property(QStringLiteral("length")).toInt();
+        list.reserve(length);
+        for (int i = 0; i < length; ++i) {
+            const QJSValue item = schema.property(static_cast<quint32>(i));
+            list.append(item.isObject() || item.isArray() ? item.toVariant() : QVariant());
+        }
+    } else if (schema.isObject()) {
+        list.append(schema.toVariant().toMap());
+    } else {
+        return;
     }
 
     {
@@ -118,415 +328,323 @@ void QmlScriptDataModel::setUiSchema(const QJSValue &schema)
     emit uiSchemaChanged();
 }
 
-Q_INVOKABLE void QmlScriptDataModel::clearLayout() {
-    // 确保在主线程中执行
-    if (QThread::currentThread() != QApplication::instance()->thread()) {
-        QMetaObject::invokeMethod(this, "clearLayout", Qt::BlockingQueuedConnection);
-        return;
-    }
-    
-    // 删除所有控件
-    for (QWidget* widget : m_widgets.values()) {
-        // unregisterOSCControl(QString("/%1").arg(m_widgets.key(widget)));
-        // 立即删除而不是使用deleteLater
-        delete widget;
-    }
-    m_widgets.clear();
-    m_widgetCounter = 0;
-}
-
-Q_INVOKABLE int QmlScriptDataModel::addToLayout(QObject* widgetObj, int x, int y,int rowSpan, int columnSpan) {
-    QWidget* widget_obj = qobject_cast<QWidget*>(widgetObj);
-    if (!widget_obj) {
-        return -1; // 转换失败
-    }
-    // 统一设置控件尺寸策略
-    widget_obj->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-
-    if (x != -1 && y != -1) {
-
-        widget->top_layout->addWidget(widget_obj, x, y, rowSpan, columnSpan);
-    } else {
-        widget->top_layout->addWidget(widget_obj);
-    }
-    for (int c = 0; c < widget->top_layout->columnCount(); c++) {
-        if (widget->top_layout->columnStretch(c) == 0) {
-            widget->top_layout->setColumnStretch(c, 1); // 新列设置拉伸因子
-            widget->top_layout->setColumnMinimumWidth(c, 1);
-        }
-    }
-    for (int r = 0; r < widget->top_layout->rowCount(); r++) {
-        if (widget->top_layout->rowStretch(r) == 0) {
-            widget->top_layout->setRowStretch(r, 1); // 新列设置拉伸因子
-            widget->top_layout->setRowMinimumHeight(r, 1);
-        }
-    }
-    int id = m_widgetCounter++;
-    m_widgets[id] = widget_obj;
-
-    bindAutoSave(widget_obj, id, x, y);
-    QMetaObject::invokeMethod(this, [this, widget_obj, id, x, y]() {
-        restoreAutoSavedValue(widget_obj, id, x, y);
-    }, Qt::QueuedConnection);
-
-    // registerOSCControl(QString("/%1").arg(id),widget_obj);
-    return id;
-}
-
-void QmlScriptDataModel::loadScripts(QString code) {
-    if (code.isEmpty()) {
-        return;
-    }
-
-    if (QThread::currentThread() != QApplication::instance()->thread()) {
-        QMetaObject::invokeMethod(this, [this, code]() {
-            loadScripts(code);
-        }, Qt::QueuedConnection);
-        return;
-    }
-
-    // 如果已经有一个脚本在执行，则不启动新的执行
-    if (m_jsExecuting) {
-        return;
-    }
-
-    if (!m_jsEngine) {
-        return;
-    }
-
-    m_jsExecuting = true;
-    emit executingChanged();
-
-    QJSValue result = m_jsEngine->evaluate(code);
-    if (result.isError()) {
-        qWarning() << "QmlScript执行错误:"
-                   << result.property("lineNumber").toInt()
-                   << result.toString();
-    }
-
-    m_jsExecuting = false;
-    emit executingChanged();
-}
-
-void QmlScriptDataModel::handleJsExecutionFinished() {
-    // 重置执行状态
-    m_jsExecuting = false;
-    
-    QJSValue result = m_jsWatcher.result();
-    
-    if (result.isError()) {
-        qWarning() << "QmlScript执行错误:"
-                  << result.property("lineNumber").toInt()
-                  << result.toString();
-    }
-    
-}
-
-void QmlScriptDataModel::initJSEngine() {
-    // 创建QmlScript引擎
-    m_jsEngine = new QJSEngine(this);
-    m_jsEngine->installExtensions(QJSEngine::AllExtensions);
-    // 创建Node全局对象
-    QJSValue jsObject = m_jsEngine->newQObject(this);
-    m_jsEngine->globalObject().setProperty("Node", jsObject);
-
-    auto defineBuilder = [this](const QString& name, const QString& type) {
-        const QString code = QString("(function(spec){ spec = spec || {}; spec.type = '%1'; return spec; })").arg(type);
-        m_jsEngine->globalObject().setProperty(name, m_jsEngine->evaluate(code));
-    };
-
-    defineBuilder("SpinBox", "spinbox");
-    defineBuilder("VSlider", "slider");
-    defineBuilder("HSlider", "slider");
-    defineBuilder("CheckBox", "checkbox");
-    defineBuilder("LineEdit", "lineedit");
-    defineBuilder("ComboBox", "combobox");
-    defineBuilder("Label", "label");
-    defineBuilder("Button", "button");
-
-    // 先执行脚本，但不直接调用initInterface
-    if (!script.isEmpty()) {
-        QJSValue result = m_jsEngine->evaluate(script);
-        if (result.isError()) {
-            qWarning() << "QmlScript初始化错误:"
-                      << result.property("lineNumber").toInt()
-                      << result.toString();
-            return;
-        }
-        
-        // 脚本加载完成后，通过C++方法调用initInterface
-        // 这样确保UI操作在主线程中进行
-        initInterface();
-    }
-}
-
-/**
- * @brief 在主线程中执行QmlScript的initInterface函数
- * 解决跨线程UI操作问题
- */
-Q_INVOKABLE void QmlScriptDataModel::initInterface() {
-
-    // 确保在主线程中执行
-    if (QThread::currentThread() != QApplication::instance()->thread()) {
-        // 如果不在主线程，使用QMetaObject::invokeMethod切换到主线程
-        QMetaObject::invokeMethod(this, "initInterface", Qt::QueuedConnection);
-        return;
-    }
-    
-    if (!m_jsEngine) {
-        qWarning() << "QmlScript引擎未初始化";
-        return;
-    }
-
-    // 检查并执行QmlScript中的initInterface函数
-    QJSValue initInterfaceFunc = m_jsEngine->globalObject().property("initInterface");
-    if (initInterfaceFunc.isCallable()) {
-        QJSValue initResult = initInterfaceFunc.call();
-        if (initResult.isError()) {
-            qWarning() << "initInterface执行错误:"
-                      << initResult.property("lineNumber").toInt()
-                      << initResult.toString();
-        }
-    } else {
-        qDebug() << "QmlScript中未找到initInterface函数";
-    }
-}
-
-/**
- * @brief 处理输入端口事件，并将参数传递给QmlScript函数
- * @param portIndex 触发事件的端口索引
- */
-Q_INVOKABLE void QmlScriptDataModel::inputEventHandler(int portIndex)
-{
-    if (!m_jsEngine) {
-        qWarning() << "QmlScript引擎未初始化";
-        return;
-    }
-
-    // 检查并执行QmlScript中的inputEventHandler函数
-    QJSValue inputEventHandlerFunc = m_jsEngine->globalObject().property("inputEventHandler");
-    if (inputEventHandlerFunc.isCallable()) {
-        // 创建参数列表并传递portIndex
-        QJSValueList args;
-        args << portIndex;
-
-        // 调用QmlScript函数并传递参数
-        QJSValue result = inputEventHandlerFunc.call(args);
-        if (result.isError()) {
-            qWarning() << "inputEventHandler执行错误:"
-                      << result.property("lineNumber").toInt()
-                      << result.toString();
-        }
-    } else {
-        qDebug() << "QmlScript中未找到inputEventHandler函数";
-    }
-}
-
-// 函数级注释：供 QML 调用脚本中的全局函数（用于控件事件回调）。
 QVariant QmlScriptDataModel::callJsFunction(const QString &functionName, const QVariantList &args)
 {
-    if (!m_jsEngine) {
-        return QVariant();
+    if (m_initializing || m_reloading || !m_runtime->engine()) {
+        return {};
     }
 
-    if (QThread::currentThread() != QApplication::instance()->thread()) {
+    if (!ensureGuiThread(__func__)) {
         QVariant result;
-        QMetaObject::invokeMethod(this, [this, &result, functionName, args]() {
-            result = callJsFunction(functionName, args);
-        }, Qt::BlockingQueuedConnection);
+        const QString fn = functionName;
+        const QVariantList fnArgs = args;
+        QMetaObject::invokeMethod(
+            this,
+            [this, &result, fn, fnArgs]() { result = callJsFunction(fn, fnArgs); },
+            Qt::BlockingQueuedConnection);
         return result;
     }
 
-    QJSValue func = m_jsEngine->globalObject().property(functionName);
-    if (!func.isCallable()) {
-        return QVariant();
+    QString error;
+    QVariant result;
+    if (!m_runtime->callGlobalFunction(functionName, args, &result, &error)) {
+        setScriptError(error);
+        return {};
     }
-
-    QJSValueList jsArgs;
-    jsArgs.reserve(args.size());
-    for (const QVariant &v : args) {
-        jsArgs << m_jsEngine->toScriptValue(v);
-    }
-
-    const QJSValue ret = func.call(jsArgs);
-    if (ret.isError()) {
-        qWarning() << "callJsFunction执行错误:"
-                   << ret.property("lineNumber").toInt()
-                   << ret.toString();
-        return QVariant();
-    }
-    return ret.toVariant();
+    return result;
 }
 
-/**
- * @brief 为指定控件生成用于持久化的Key（不依赖脚本手动设置）
- */
-QString QmlScriptDataModel::makeAutoSaveKey(QWidget* widget, int id, int x, int y, const QString& field) const
+unsigned int QmlScriptDataModel::getInputCount()
 {
-    const QString typeName = widget ? QString::fromLatin1(widget->metaObject()->className()) : QString("Widget");
-    const QString loc = (x >= 0 && y >= 0) ? QString("r%1c%2").arg(x).arg(y) : QString("id%1").arg(id);
-    return QString("%1/%2/%3").arg(typeName, loc, field);
+    return InPortCount;
 }
 
-/**
- * @brief 自动为控件绑定“变更即保存”逻辑（无需脚本改动）
- */
-void QmlScriptDataModel::bindAutoSave(QWidget* widget, int id, int x, int y)
+unsigned int QmlScriptDataModel::getOutputCount()
 {
-    if (!widget) {
+    return OutPortCount;
+}
+
+unsigned int QmlScriptDataModel::inputIndex()
+{
+    return m_inputPortIndex;
+}
+
+QJSValue QmlScriptDataModel::getInputValue(int portIndex)
+{
+    auto *engine = m_runtime->engine();
+    if (!engine) {
+        return {};
+    }
+
+    QMutexLocker locker(&m_dataMutex);
+    if (portIndex >= 0 && portIndex < static_cast<int>(InPortCount) && m_inData.contains(portIndex)) {
+        return JSEngineDefines::variantMapToJSValue(engine, m_inData[portIndex]);
+    }
+    return engine->newObject();
+}
+
+QJSValue QmlScriptDataModel::getOutputValue(int portIndex)
+{
+    auto *engine = m_runtime->engine();
+    if (!engine) {
+        return {};
+    }
+
+    QMutexLocker locker(&m_dataMutex);
+    if (portIndex >= 0 && portIndex < static_cast<int>(OutPortCount) && m_outData.contains(portIndex)) {
+        return JSEngineDefines::variantMapToJSValue(engine, m_outData[portIndex]);
+    }
+    return engine->newObject();
+}
+
+void QmlScriptDataModel::setOutputValue(int portIndex, const QJSValue &value)
+{
+    if (portIndex < 0 || portIndex >= static_cast<int>(OutPortCount) || !m_runtime->engine()) {
         return;
     }
 
-    if (auto spin = qobject_cast<QSpinBox*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "value");
-        connect(spin, qOverload<int>(&QSpinBox::valueChanged), this, [this, key](int v) {
+    const QVariantMap map = JSEngineDefines::jsValueToVariantMap(value);
+    auto apply = [this, portIndex, map]() {
+        {
             QMutexLocker locker(&m_dataMutex);
-            m_settings.insert(key, v);
-        });
-        return;
-    }
+            m_outData[portIndex] = map;
+        }
+        emit dataUpdated(portIndex);
+    };
 
-    if (auto dspin = qobject_cast<QDoubleSpinBox*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "value");
-        connect(dspin, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this, key](double v) {
-            QMutexLocker locker(&m_dataMutex);
-            m_settings.insert(key, v);
-        });
-        return;
-    }
-
-    if (auto slider = qobject_cast<QAbstractSlider*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "value");
-        connect(slider, &QAbstractSlider::valueChanged, this, [this, key](int v) {
-            QMutexLocker locker(&m_dataMutex);
-            m_settings.insert(key, v);
-        });
-        return;
-    }
-
-    if (auto edit = qobject_cast<QLineEdit*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "text");
-        connect(edit, &QLineEdit::textChanged, this, [this, key](const QString& t) {
-            QMutexLocker locker(&m_dataMutex);
-            m_settings.insert(key, t);
-        });
-        return;
-    }
-
-    if (auto cb = qobject_cast<QCheckBox*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "checked");
-        connect(cb, &QCheckBox::toggled, this, [this, key](bool on) {
-            QMutexLocker locker(&m_dataMutex);
-            m_settings.insert(key, on);
-        });
-        return;
-    }
-
-    if (auto combo = qobject_cast<QComboBox*>(widget)) {
-        const QString keyIndex = makeAutoSaveKey(widget, id, x, y, "index");
-        const QString keyText = makeAutoSaveKey(widget, id, x, y, "text");
-        connect(combo, qOverload<int>(&QComboBox::currentIndexChanged), this, [this, keyIndex, keyText, combo](int idx) {
-            QMutexLocker locker(&m_dataMutex);
-            m_settings.insert(keyIndex, idx);
-            m_settings.insert(keyText, combo->currentText());
-        });
-        return;
+    if (isGuiThread()) {
+        apply();
+    } else {
+        QTimer::singleShot(0, this, apply);
     }
 }
 
-/**
- * @brief 自动恢复控件值（在UI创建完成后调用）
- */
-void QmlScriptDataModel::restoreAutoSavedValue(QWidget* widget, int id, int x, int y)
+void QmlScriptDataModel::setSetting(const QString &key, const QJSValue &value)
 {
-    if (!widget) {
+    setSettingValue(key, value.toVariant());
+}
+
+void QmlScriptDataModel::setSettings(const QJSValue &obj)
+{
+    if (!obj.isObject()) {
         return;
     }
 
-    if (auto spin = qobject_cast<QSpinBox*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "value");
-        QVariant v;
-        {
-            QMutexLocker locker(&m_dataMutex);
-            v = m_settings.value(key);
+    {
+        QMutexLocker locker(&m_dataMutex);
+        QJSValueIterator it(obj);
+        while (it.hasNext()) {
+            it.next();
+            m_settings.insert(it.name(), it.value().toVariant());
         }
-        if (v.isValid()) {
-            QSignalBlocker b(spin);
-            spin->setValue(v.toInt());
-        }
+    }
+    emit settingsChanged();
+}
+
+QJSValue QmlScriptDataModel::getSetting(const QString &key)
+{
+    auto *engine = m_runtime->engine();
+    if (!engine) {
+        return {};
+    }
+
+    QMutexLocker locker(&m_dataMutex);
+    if (!m_settings.contains(key)) {
+        return {};
+    }
+    return engine->toScriptValue(m_settings.value(key));
+}
+
+bool QmlScriptDataModel::hasSetting(const QString &key) const
+{
+    QMutexLocker locker(&m_dataMutex);
+    return m_settings.contains(key);
+}
+
+QJSValue QmlScriptDataModel::getSettings()
+{
+    auto *engine = m_runtime->engine();
+    if (!engine) {
+        return {};
+    }
+
+    QJSValue obj = engine->newObject();
+    QMutexLocker locker(&m_dataMutex);
+    for (auto it = m_settings.constBegin(); it != m_settings.constEnd(); ++it) {
+        obj.setProperty(it.key(), engine->toScriptValue(it.value()));
+    }
+    return obj;
+}
+
+QString QmlScriptDataModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
+{
+    switch (portType) {
+    case PortType::In:
+        return QStringLiteral("IN %1").arg(portIndex);
+    case PortType::Out:
+        return QStringLiteral("OUT %1").arg(portIndex);
+    default:
+        break;
+    }
+    return {};
+}
+
+unsigned int QmlScriptDataModel::nPorts(PortType portType) const
+{
+    switch (portType) {
+    case PortType::In:
+        return InPortCount;
+    case PortType::Out:
+        return OutPortCount;
+    default:
+        break;
+    }
+    return 0;
+}
+
+QtNodes::NodeDataType QmlScriptDataModel::dataType(PortType portType, PortIndex portIndex) const
+{
+    Q_UNUSED(portType)
+    Q_UNUSED(portIndex)
+    return VariableData().type();
+}
+
+std::shared_ptr<NodeData> QmlScriptDataModel::outData(PortIndex portIndex)
+{
+    QMutexLocker locker(&m_dataMutex);
+    if (m_outData.contains(portIndex)) {
+        return std::make_shared<VariableData>(m_outData[portIndex]);
+    }
+    return std::make_shared<VariableData>();
+}
+
+void QmlScriptDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex portIndex)
+{
+    auto variable = std::dynamic_pointer_cast<VariableData>(data);
+    if (!variable) {
         return;
     }
 
-    if (auto dspin = qobject_cast<QDoubleSpinBox*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "value");
-        QVariant v;
-        {
-            QMutexLocker locker(&m_dataMutex);
-            v = m_settings.value(key);
-        }
-        if (v.isValid()) {
-            QSignalBlocker b(dspin);
-            dspin->setValue(v.toDouble());
-        }
+    {
+        QMutexLocker locker(&m_dataMutex);
+        m_inputPortIndex = portIndex;
+        m_inData[portIndex] = variable->getMap();
+    }
+
+    if (!m_runtime->engine() || m_initializing || m_reloading) {
         return;
     }
 
-    if (auto slider = qobject_cast<QAbstractSlider*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "value");
-        QVariant v;
-        {
-            QMutexLocker locker(&m_dataMutex);
-            v = m_settings.value(key);
-        }
-        if (v.isValid()) {
-            QSignalBlocker b(slider);
-            slider->setValue(v.toInt());
-        }
+    if (!ensureGuiThread(__func__)) {
+        const PortIndex idx = portIndex;
+        QMetaObject::invokeMethod(
+            this,
+            [this, idx]() {
+                QString error;
+                if (!m_runtime->callInputEventHandler(static_cast<int>(idx), &error)) {
+                    setScriptError(error);
+                }
+            },
+            Qt::QueuedConnection);
         return;
     }
 
-    if (auto edit = qobject_cast<QLineEdit*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "text");
-        QVariant v;
-        {
-            QMutexLocker locker(&m_dataMutex);
-            v = m_settings.value(key);
-        }
-        if (v.isValid()) {
-            QSignalBlocker b(edit);
-            edit->setText(v.toString());
-        }
-        return;
+    QString error;
+    if (!m_runtime->callInputEventHandler(static_cast<int>(portIndex), &error)) {
+        setScriptError(error);
+    }
+}
+
+QWidget *QmlScriptDataModel::embeddedWidget()
+{
+    if (m_view && m_view->editor()) {
+        m_view->editor()->loadCodeFromCode(m_script);
     }
 
-    if (auto cb = qobject_cast<QCheckBox*>(widget)) {
-        const QString key = makeAutoSaveKey(widget, id, x, y, "checked");
-        QVariant v;
+    if (m_qmlReady && !m_script.isEmpty()) {
+        bool schemaEmpty = false;
         {
             QMutexLocker locker(&m_dataMutex);
-            v = m_settings.value(key);
+            schemaEmpty = m_uiSchema.isEmpty();
         }
-        if (v.isValid()) {
-            QSignalBlocker b(cb);
-            cb->setChecked(v.toBool());
+        if (schemaEmpty) {
+            scheduleScriptReload();
         }
-        return;
     }
 
-    if (auto combo = qobject_cast<QComboBox*>(widget)) {
-        const QString keyIndex = makeAutoSaveKey(widget, id, x, y, "index");
-        QVariant v;
-        {
-            QMutexLocker locker(&m_dataMutex);
-            v = m_settings.value(keyIndex);
-        }
-        if (v.isValid()) {
-            const int idx = v.toInt();
-            if (idx >= 0 && idx < combo->count()) {
-                QSignalBlocker b(combo);
-                combo->setCurrentIndex(idx);
+    return m_view;
+}
+
+QJsonObject QmlScriptDataModel::save() const
+{
+    QString scriptOnDisk = m_script;
+    if (m_view && m_view->editor()) {
+        scriptOnDisk = const_cast<JsCodeEditor *>(m_view->editor())->saveCode();
+    }
+
+    QJsonObject values;
+    values[QStringLiteral("scripts")] = scriptOnDisk;
+    {
+        QMutexLocker locker(&m_dataMutex);
+        values[QStringLiteral("settings")] = QJsonObject::fromVariantMap(m_settings);
+
+        QJsonArray schemaArr;
+        for (const QVariant &item : m_uiSchema) {
+            if (item.metaType().id() == QMetaType::QVariantMap) {
+                schemaArr.append(QJsonObject::fromVariantMap(item.toMap()));
             }
         }
+        values[QStringLiteral("uiSchema")] = schemaArr;
+    }
+
+    QJsonObject modelJson = NodeDelegateModel::save();
+    modelJson[QStringLiteral("values")] = values;
+    modelJson[QStringLiteral("InPortCount")] = static_cast<int>(InPortCount);
+    modelJson[QStringLiteral("OutPortCount")] = static_cast<int>(OutPortCount);
+    return modelJson;
+}
+
+void QmlScriptDataModel::load(const QJsonObject &p)
+{
+    const QJsonValue valuesNode = p.value(QStringLiteral("values"));
+    if (!valuesNode.isObject()) {
         return;
     }
+
+    const QJsonObject valuesObj = valuesNode.toObject();
+    m_script = valuesObj.value(QStringLiteral("scripts")).toString();
+    if (m_script.isEmpty()) {
+        m_script = loadDefaultScript();
+    }
+
+    {
+        QMutexLocker locker(&m_dataMutex);
+        m_settings = valuesObj.value(QStringLiteral("settings")).toObject().toVariantMap();
+
+        m_uiSchema.clear();
+        const QJsonValue schemaNode = valuesObj.value(QStringLiteral("uiSchema"));
+        if (schemaNode.isArray()) {
+            const QJsonArray schemaArr = schemaNode.toArray();
+            m_uiSchema.reserve(schemaArr.size());
+            for (const QJsonValue &item : schemaArr) {
+                if (item.isObject()) {
+                    m_uiSchema.append(item.toObject().toVariantMap());
+                }
+            }
+        }
+    }
+
+    InPortCount = static_cast<unsigned int>(p.value(QStringLiteral("InPortCount")).toInt(static_cast<int>(InPortCount)));
+    OutPortCount = static_cast<unsigned int>(p.value(QStringLiteral("OutPortCount")).toInt(static_cast<int>(OutPortCount)));
+
+    emit settingsChanged();
+    emit uiSchemaChanged();
+
+    if (m_view && m_view->editor()) {
+        m_view->editor()->loadCodeFromCode(m_script);
+    }
+
+    scheduleScriptReload();
 }
+
+} // namespace Nodes

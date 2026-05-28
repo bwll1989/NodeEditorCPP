@@ -1,37 +1,32 @@
-# NDIInNode 使用说明
+﻿# NDI In 节点
 
-## 用途
-NDIInNode 用于从网络上的 NDI 发送端接收视频，并输出为 ImageData，供下游图像处理/显示/录制节点使用。
+## 1. 节点说明
 
-## 端口
-- 输入（2）
-  - SOURCE（端口 0）：VariableData（string），NDI 源名称
-  - ENABLE（端口 1）：VariableData（bool），true 开始接收，false 停止
-- 输出（1）
-  - IMAGE（端口 0）：ImageData（接收到的视频帧）
+从局域网接收 NDI 视频流并输出为图像。可扫描并选择 NDI 源，支持远程控制启停与切源。
 
-## 节点界面
-- 发送器列表：选择/输入 NDI 源名称
-- Refresh：刷新发送器列表
-- Start/Stop：启动/停止接收
-- 状态显示：连接状态
+## 2. 端口说明
 
-## 外部控制（可选）
-推荐使用以下地址：
-- `/source`：设置 SOURCE（string）
-- `/enable`：设置 ENABLE（bool）
-- `/refresh`：刷新发送器列表（true/任意值触发）
+### 输入
 
-兼容：
-- 部分版本也会使用 `/sourceName` 写入源名称（等同于设置 SOURCE）。
+- **SOURCE**（VariableData）：NDI 源名称（字符串）。
+- **ENABLE**（VariableData）：开始/停止接收（布尔）。
 
-## 使用步骤
-1. 点击 Refresh 刷新发送器列表。
-2. 选择一个 NDI 源，或手动输入完整名称。
-3. 启动 ENABLE（或点击 Start/Stop）。
-4. 将 IMAGE 输出连接到下游节点。
+### 输出
 
-## 注意事项
-- 必须安装并可用 NDI Runtime，且发送端与本机网络互通。
-- 切换源名称后需要确保 ENABLE 为 true 才会继续输出画面。
+- **IMAGE**（ImageData）：当前 NDI 视频帧。
 
+## 3. 界面说明
+
+- NDI 源列表与刷新按钮。
+- 开始/停止接收按钮。
+- 连接状态显示。
+
+## 4. 使用说明
+
+1. 点击刷新，从列表选择 NDI 源。
+2. 开始接收后连接下游图像节点。
+3. 可用 SOURCE、ENABLE 端口或 `/sourceName`、`/enable`、`/refresh` 外部控制。
+
+## 5. 示例
+
+现场 NDI 摄像机 → NDI In → Pose Detection → 大屏预览。

@@ -7,12 +7,12 @@
 
 
 #include <QtNodes/NodeDelegateModel>
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QElapsedTimer>
 #include <QFileDialog>
 #include <QtConcurrent/QtConcurrent>
 #include <opencv2/imgproc.hpp>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
 using namespace NodeDataTypes;

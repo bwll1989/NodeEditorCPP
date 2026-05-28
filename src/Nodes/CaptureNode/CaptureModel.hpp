@@ -7,8 +7,8 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QFutureWatcher>
 #include <QPushButton>
-#include "DataTypes/NodeDataList.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/DataTypes/NodeDataList.hpp"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 class QPushButton;
 using namespace QtNodes;

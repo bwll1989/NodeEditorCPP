@@ -6,7 +6,6 @@
 
 #include <QMainWindow>
 #include <QMenuBar>
-#include "Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "DockHub/DockHub.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
@@ -45,8 +44,8 @@ public:
     PluginsManagerWidget *pluginsManagerDlg;
     // 节点库控件
     ads::CDockWidget *nodeDockLibraryWidget;
-    // 节点库
-    NodeLibraryWidget *nodeLibrary;
+    // // 节点库
+    // NodeLibraryWidget *nodeLibrary;
     // 时间线
     TimelineWidget *timeline;
     // 时间线模型
@@ -67,7 +66,7 @@ Q_SIGNALS:
 public Q_SLOTS:
     /**
      * @brief 初始化无头主窗口依赖的后台模块
-     * 函数级注释：创建 DockManager / 日志 / DataflowViewsManger / 时间线与舞台 / 计划任务 / 外部控制器 / HTTP 服务器 / 托盘等。
+     * 函数级注释：创建 DockManager / 文件日志 / DataflowViewsManger / 时间线与舞台 / 计划任务 / 外部控制器 / HTTP 服务器 / 托盘等。
      *            无头模式不展示 Dock 的 UI，但仍复用其数据与逻辑。
      */
     void init();
@@ -109,9 +108,7 @@ protected:
      */
     void closeEvent(QCloseEvent* event) override;
 private:
-    // 日志表：用于在无头模式下承载日志显示与调试输出
-    LogWidget *logTable;
-    // 日志处理器：将运行信息写入日志表
+    // 日志处理器：将运行信息写入文件（无 UI）
     LogHandler *log;
     // 当前项目路径：非空表示本进程已经加载过一个项目（后续再打开新项目将走“重启打开”）
     QString currentProjectPath;

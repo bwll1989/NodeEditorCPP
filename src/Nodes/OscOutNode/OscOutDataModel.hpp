@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <iostream>
@@ -9,7 +9,7 @@
 #include "Common/Devices/OSCSender/OSCSender.h"
 #include "OscOutInterface.hpp"
 #include <QVariantMap>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/AppConfig/ConfigManager.h"
 #include "QThread"
 #include "spdlog/fmt/bundled/base.h"

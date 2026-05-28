@@ -1,29 +1,48 @@
-# Math Operation 节点使用说明
+﻿# Math Operation 节点
 
-## 用途
-本插件提供 6 个“数学运算”节点：每个节点固定一种运算方式，对两路输入进行计算并输出结果。
+## 1. 节点说明
 
-## 节点列表（6 个）
-- Math Add：加法（INPUT0 + INPUT1）
-- Math Sub：减法（INPUT0 - INPUT1）
-- Math Mul：乘法（INPUT0 * INPUT1）
-- Math Div：除法（INPUT0 / INPUT1）
-- Math Mod：取模（fmod(INPUT0, INPUT1)）
-- Math Pow：幂（pow(INPUT0, INPUT1)）
+Math Operation 插件提供一组**双输入算术**节点，对两个数值型 VariableData 做运算，结果从单一输出端口输出。无内嵌界面。
 
-## 端口（所有节点一致）
-- 输入（2）
-  - INPUT 0：VariableData
-  - INPUT 1：VariableData
-- 输出（1）
-  - OUTPUT 0：VariableData（double）
+| 变体名称 | 运算 |
+|----------|------|
+| Math Add | 加法 |
+| Math Sub | 减法 |
+| Math Mul | 乘法 |
+| Math Div | 除法（除数为 0 时结果为 0） |
+| Math Mod | 浮点取模（`fmod`） |
+| Math Pow | 幂运算（`pow`） |
 
-## 使用步骤
-1. 从节点面板中选择需要的数学节点（例如 Math Div）。
-2. 将两路数值分别连接到 INPUT 0 / INPUT 1。
-3. 从 OUTPUT 0 读取结果并接入下游节点。
+输入会按 `toDouble()` 转为浮点数参与计算；任一输入更新后输出立即刷新。
 
-## 注意事项
-- 所有运算都使用 `toDouble()` 转换输入值；非数值输入可能会得到 0 或非预期结果。
-- Math Div：当 INPUT 1 转换后为 0 时，输出固定为 0。
-- 这些节点不再支持 `/math` 切换运算：运算已通过“节点类型”固定。
+## 2. 端口说明
+
+### 输入
+
+| 端口 | 名称 | 数据类型 | 说明 |
+|------|------|----------|------|
+| 0 | INPUT 0 | VariableData | 第一操作数 |
+| 1 | INPUT 1 | VariableData | 第二操作数 |
+
+### 输出
+
+| 端口 | 名称 | 数据类型 | 说明 |
+|------|------|----------|------|
+| 0 | OUTPUT 0 | VariableData | 运算结果（数值） |
+
+## 3. 界面说明
+
+各变体无内嵌面板，无额外控件。
+
+## 4. 使用说明
+
+1. 在节点库中选择所需变体（如 Math Mul）。
+2. 将两路数值数据接到 INPUT 0、INPUT 1。
+3. 将 OUTPUT 0 接到后续节点（如 Extract、Merge、显示等）。
+
+除法节点在除数为 0 时输出 0，避免异常中断流程。
+
+## 5. 示例
+
+**亮度缩放：** Math Mul 将 0–1 的系数（INPUT 1）与 DMX 通道值（INPUT 0）相乘，输出接 Artnet 或下游控制。  
+**周期性数值：** Math Mod 对递增计数取模，实现循环索引。

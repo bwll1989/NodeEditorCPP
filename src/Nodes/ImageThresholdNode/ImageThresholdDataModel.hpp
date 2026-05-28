@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <QtWidgets/QComboBox>
@@ -10,7 +10,7 @@
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
 #include "ImageThresholdInterface.hpp"
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
 struct GlobalEvent;

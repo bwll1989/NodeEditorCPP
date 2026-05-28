@@ -13,7 +13,7 @@
 #undef max
 #endif
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
 #include <QtCore/QTimer>
@@ -28,7 +28,7 @@
 #include <QtGui/QSurfaceFormat>
 #include <QtCore/QMetaType>
 #include <QDebug>
-#include "Common/BuildInNodes/AbstractDelegateModel.h"
+#include "Common/BaseClass/AbstractDelegateModel.h"
 // 使用 SpoutLibrary API
 #include "SpoutLibrary.h"
 

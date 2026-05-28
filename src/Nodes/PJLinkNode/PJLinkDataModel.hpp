@@ -9,7 +9,7 @@
 #include <QtCore/QDateTime>
 #include <QtCore/QTimer>
 
-#include "DataTypes/NodeDataList.hpp"
+#include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include "PJLinkInterface.hpp"
 #include <iostream>
@@ -23,7 +23,7 @@
 #include "Common/Devices/TcpClient/TcpClient.h"
 #include "QMutex"
 #include "PluginDefinition.hpp"
-#include  "Common/BuildInNodes/AbstractDelegateModel.h"
+#include  "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
 using QtNodes::NodeData;
