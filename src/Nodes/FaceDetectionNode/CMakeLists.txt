@@ -25,7 +25,8 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 		onnxruntime_providers_cuda  # 如果使用CUDA
 		onnxruntime_providers_shared
 		BuildInNodes
-		DataTypes)
+		DataTypes
+		GUIElements)
 
 
 

@@ -7,12 +7,12 @@
 #include "QWidget"
 #include "QLayout"
 #include "QLabel"
-#include <QDoubleSpinBox>
 #include <QGridLayout>
 #include <QSpacerItem>
-#include <QSpinBox>
 #include <QVariantMap>
 #include <QPushButton>
+#include <QCheckBox>
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 // COCO数据集类别名称
 static const std::vector<std::string> classNames = {
     "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck",
@@ -46,33 +46,48 @@ namespace Nodes
 class ObjectDetectionInterface final : public QWidget{
         Q_OBJECT
     public:
-        explicit ObjectDetectionInterface(QWidget *parent = nullptr) {
+        explicit ObjectDetectionInterface(
+            const std::vector<std::string>& names = classNames,
+            QWidget *parent = nullptr)
+        {
             main_layout = new QGridLayout(this);
             main_layout->setContentsMargins(4, 2, 4, 4);
             main_layout->setSpacing(6);
 
-            ConfidenceFilterSpinBox = new QDoubleSpinBox(this);
-            ConfidenceFilterSpinBox->setMinimum(0);
-            ConfidenceFilterSpinBox->setMaximum(1);
-            ConfidenceFilterSpinBox->setSingleStep(0.1);
-            ConfidenceFilterSpinBox->setDecimals(2);
-            ConfidenceFilterSpinBox->setValue(0.4);
+            ConfidenceFilter = new FloatDragValueWidget(this);
+            ConfidenceFilter->setRange(0, 1);
+            ConfidenceFilter->setSingleStep(0.01);
+            ConfidenceFilter->setDecimals(2);
+            ConfidenceFilter->setValue(0.4);
             main_layout->addWidget(new QLabel("置信度阈值:", this), 0, 0);
-            main_layout->addWidget(ConfidenceFilterSpinBox, 0, 1);
+            main_layout->addWidget(ConfidenceFilter, 0, 1);
 
             ClassSelectorComboBox = new QComboBox(this);
-            for (const auto &name : classNames) {
+            for (const auto &name : names) {
                 ClassSelectorComboBox->addItem(QString::fromStdString(name));
             }
             ClassSelectorComboBox->setCurrentIndex(0);
             main_layout->addWidget(new QLabel("检测对象:", this), 1, 0);
             main_layout->addWidget(ClassSelectorComboBox, 1, 1);
 
-            EnableBtn = new QPushButton("Enable", this);
+            MaxFpsFilter = new FloatDragValueWidget(this);
+            MaxFpsFilter->setRange(1, 30);
+            MaxFpsFilter->setSingleStep(1);
+            MaxFpsFilter->setDecimals(0);
+            MaxFpsFilter->setValue(15);
+            main_layout->addWidget(new QLabel("最大帧率 (FPS):", this), 2, 0);
+            main_layout->addWidget(MaxFpsFilter, 2, 1);
+
+            DrawOverlayCheck = new QCheckBox("绘制检测框 (关闭可降 CPU)", this);
+            DrawOverlayCheck->setChecked(true);
+            main_layout->addWidget(DrawOverlayCheck, 3, 0, 1, 2);
+
+            main_layout->addWidget(new QLabel("启停 (ENABLE 端口):", this), 4, 0);
+            EnableBtn = new QPushButton("启动检测", this);
             EnableBtn->setCheckable(true);
-            main_layout->addWidget(EnableBtn, 2, 0, 1, 2);
-            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 3, 0, 1, 2);
-            main_layout->setRowStretch(3, 1);
+            main_layout->addWidget(EnableBtn, 4, 1);
+            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), 5, 0, 1, 2);
+            main_layout->setRowStretch(5, 1);
             main_layout->setColumnStretch(0, 1);
             main_layout->setColumnStretch(1, 2);
             this->setLayout(main_layout);
@@ -82,8 +97,10 @@ class ObjectDetectionInterface final : public QWidget{
 
     public:
         QGridLayout *main_layout;
-        QDoubleSpinBox *ConfidenceFilterSpinBox;
+        FloatDragValueWidget* ConfidenceFilter;
         QComboBox *ClassSelectorComboBox;
+        FloatDragValueWidget* MaxFpsFilter;
+        QCheckBox* DrawOverlayCheck;
         QPushButton *EnableBtn;
 
     };

@@ -10,6 +10,8 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         LFODataModel.hpp
         LFOInterface.hpp
+        MetronomeDataModel.hpp
+        MetronomeInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} OSCTransmitter DataTypes BuildInNodes)

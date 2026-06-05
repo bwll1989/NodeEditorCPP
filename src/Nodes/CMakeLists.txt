@@ -38,6 +38,7 @@ set(ALL_NODES
     OscOutNode                                #OSC输出
     ArtnetInNode                              #Arnet输入
     MpvControllerNode                         #mpv控制
+    VLC_RemoteNode                            #VLC远程控制
     SwitchNode                                #输入切换
     NDVServerNode                             #NDV控制
     ConditionNode                             #条件判断
@@ -52,6 +53,7 @@ set(ALL_NODES
     TSETLNode                                 #对接TSETL
     HoldNode                                  #信号保持
     SpoutInNode                               #Spout输入
+    RTSPNode                                #RTSP拉流输入
     SpoutOutNode                              #Spout输出
     NDVPlayerNode                             #NDV player
     DMXDeviceNode                             #DMX 设备
@@ -74,6 +76,7 @@ set(ALL_NODES
     StyleTransferONNXNode                       #神经网络风格迁移
     DataVisualNode                              #数据可视化
     FileLoadNode                                #文件导入
+    ToFiles                                     #文件导出（图像/视频/音频）
     ColorNode                                   #颜色节点
     FmodNode                                    #Fmod 节点
     AudioDuckingNode                            #音频闪避
@@ -82,6 +85,7 @@ set(ALL_NODES
     PoseDetectionNode                            #Yolo v11n 姿态
     ObjectDetectionNode                         #Yolo v11n 检测
     FaceDetectionNode                              #人脸检测
+    MediaPipe                                      #MediaPipe 人体关节点
     VideoDecoderNode                              #视频解码器节点
     PLC-ModBus                                  #modbus控制PLC
     InternalCommandsNode                        #内部控制节点
@@ -140,6 +144,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(OscOutNode)                                #OSC输出
     add_subdirectory(ArtnetInNode)                              #Arnet输入
     add_subdirectory(MpvControllerNode)                         #mpv控制
+    add_subdirectory(VLC_RemoteNode)                            #VLC远程控制
     add_subdirectory(SwitchNode)                                #输入切换
     add_subdirectory(NDVServerNode)                            #NDV控制
     add_subdirectory(ConditionNode)                             #条件判断
@@ -155,6 +160,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(TSETLNode)                                 #对接TSETL
     add_subdirectory(HoldNode)                                  #信号保持
     add_subdirectory(SpoutInNode)                               #Spout输入
+    add_subdirectory(RTSPNode)                                #RTSP拉流输入
     add_subdirectory(SpoutOutNode)                              #Spout输出
     add_subdirectory(NDVPlayerNode)                             #NDV player
     add_subdirectory(DMXDeviceNode)                             #DMX 设备
@@ -173,6 +179,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(AudioMatrixNode)                           #音频矩阵节点
     add_subdirectory(DataVisualNode)                            #数据可视化节点
     add_subdirectory(FileLoadNode)                             #文档导入节点
+    add_subdirectory(ToFiles)                                #文件导出节点
     add_subdirectory(ColorNode)                                 #颜色节点
     add_subdirectory(FmodNode)                                  #Fmod 节点
     add_subdirectory(AudioDuckingNode)                          #音频闪避
@@ -182,6 +189,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(PoseDetectionNode)                        #动作识别
     add_subdirectory(ObjectDetectionNode)                       #对象识别
     add_subdirectory(FaceDetectionNode)                            #人脸检测
+    add_subdirectory(MediaPipe)                                    #MediaPipe 人体关节点
     add_subdirectory(VideoDecoderNode)                          #视频解码器节点
     add_subdirectory(DAWController)                          #DAW控制器节点
     add_subdirectory(PLC-ModBus)                                #Modbus控制PLC节点

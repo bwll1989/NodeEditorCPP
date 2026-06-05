@@ -13,6 +13,7 @@ link_directories("${ONNXRUNTIME_ROOTDIR}/lib")
 option(onnxruntime_USE_CUDA "Build with CUDA support" OFF)
 add_library(${Module_Name}  SHARED
 		ObjectDetectionDataModel.hpp
+		ObjectDetectionHytchDataModel.hpp
 		ObjectDetectionInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp)
@@ -25,7 +26,8 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 		onnxruntime_providers_cuda  # 如果使用CUDA
 		onnxruntime_providers_shared
 		BuildInNodes
-		DataTypes)
+		DataTypes
+		GUIElements)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

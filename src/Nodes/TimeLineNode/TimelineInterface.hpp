@@ -72,7 +72,7 @@ namespace Nodes
             }
             timeline->setParent(nullptr);
             timeline->setWindowTitle(tr("时间轴编辑器"));
-            timeline->setWindowFlags(Qt::Window | Qt::WindowCloseButtonHint);
+            timeline->setWindowFlags(Qt::Window | Qt::WindowCloseButtonHint | Qt::WindowStaysOnTopHint);
             timeline->setAttribute(Qt::WA_DeleteOnClose, false);
             timeline->setAttribute(Qt::WA_QuitOnClose, false);
             timeline->resize(1000, 600);

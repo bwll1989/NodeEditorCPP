@@ -1,6 +1,7 @@
 #include "PluginDefinition.hpp"
 #include <onnxruntime_cxx_api.h>
 #include "ObjectDetectionDataModel.hpp"
+#include "ObjectDetectionHytchDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +19,7 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-        reg->registerModel<Nodes::ObjectDetectionDataModel>(name(),tag());
+    reg->registerModel<Nodes::ObjectDetectionDataModel>(name(), tag());
+    reg->registerModel<Nodes::ObjectDetectionHytchDataModel>(
+        QStringLiteral("Object Detection (Hytch)"), tag());
 }

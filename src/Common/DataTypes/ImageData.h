@@ -12,7 +12,6 @@
 #include <cstdio>     // 添加FILE类型支持
 #include <QVariant>  // 添加QVariant头文件
 #include "DataTypesExport.h"
-Q_DECLARE_METATYPE(cv::Mat);
 namespace NodeDataTypes
 {
     class DATATYPES_EXPORT ImageData final : public QtNodes::NodeData {
