@@ -30,6 +30,7 @@ public:
     QString getOscInternalControlHost() const;
     bool isDefaultDarkTheme() const;
     int getMaxLogEntries() const;
+    int getMaxLogSaveEntries() const;
     QStringList getRecentFiles() const;
     QString getCurrentFlowPath() const;
     bool isOscEnabled() const;
@@ -41,6 +42,8 @@ public:
     QString getMqttControlTopic() const;
     QString getMqttFeedbackTopic() const;
     QString getWebAccessPassword() const;
+    bool isAutosaveEnabled() const;
+    int getAutosaveIntervalSeconds() const;
     /**
      * 函数级注释：将新路径加入最近文件列表
      * - 规则：去重后插入到首位；保留最多 MaxRecentFiles 个
@@ -85,6 +88,9 @@ private:
     QString m_webAccessPassword;
     bool m_defaultDarkTheme;
     int m_MaxLogEntries;
+    int m_MaxLogSaveEntries;
+    bool m_autosaveEnabled;
+    int m_autosaveIntervalSeconds;
     QStringList m_recentFiles;
     QString m_currentFlowPath;
 };

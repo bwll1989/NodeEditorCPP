@@ -24,6 +24,8 @@ namespace AppConstants {
     const QString MEDIA_LIBRARY_FLOW_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Flows";
     // 最近打开文件存储路径
     const QString RECENT_FILES_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cfg";
+    // 崩溃恢复自动保存目录
+    const QString RECOVERY_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Recovery";
     // Art-Net 相关常量
     constexpr int ARTNET_PORT = 6454;
     // Art-Net 输出FPS
@@ -35,8 +37,10 @@ namespace AppConstants {
 
 }
 namespace AppConfigs {
-    // 日志显示最多条目数
+    // 日志界面显示最多条目数
     constexpr int MAX_LOG_ENTRIES = 200;
+    // 日志磁盘最多保存文件数（按天轮转，每天一个 txt）
+    constexpr int MAX_LOG_SAVE_ENTRIES = 90;
     // 保存最近打开文件最大数量
     constexpr int MAX_RECENT_FILES = 10 ;
     // OSC 外部反馈主机，即OSC向外发送主机地址，默认值为广播地址
@@ -65,5 +69,9 @@ namespace AppConfigs {
     constexpr const char* MQTT_CONTROL_TOPIC = "flow/control";
     // MQTT 反馈主题（发布，向外推送状态）
     constexpr const char* MQTT_FEEDBACK_TOPIC = "flow/feedback";
+    // 自动保存间隔（秒）
+    constexpr int AUTOSAVE_INTERVAL_SECONDS = 60;
+    // 是否默认启用自动保存
+    constexpr bool AUTOSAVE_ENABLED = true;
 
 }

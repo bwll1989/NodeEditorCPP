@@ -7,9 +7,48 @@
 #include <QMessageBox>
 #include <QDesktopServices>
 #include <QFile>
+#include <QKeySequence>
 #include "AboutWidget.hpp"
 #include "SystemInfoWidget.h"
 #include "Common/AppConfig/ConfigManager.h"
+
+namespace {
+
+/** @brief 设置应用级快捷键（焦点在子控件时仍生效） */
+void setAppShortcut(QAction* action, const QKeySequence& sequence)
+{
+    if (!action) {
+        return;
+    }
+    action->setShortcut(sequence);
+    action->setShortcutContext(Qt::ApplicationShortcut);
+}
+
+void setupMenuShortcuts(MenuBarWidget* bar)
+{
+    setAppShortcut(bar->loadAction, QKeySequence::Open);
+    setAppShortcut(bar->saveAction, QKeySequence::Save);
+    setAppShortcut(bar->saveAsAction, QKeySequence::SaveAs);
+    setAppShortcut(bar->exitAction, QKeySequence::Quit);
+
+    setAppShortcut(bar->New_dataflow, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+    setAppShortcut(bar->Clear_dataflows, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Delete));
+    setAppShortcut(bar->lockAction, QKeySequence(Qt::CTRL | Qt::Key_L));
+    setAppShortcut(bar->clearAction, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
+    setAppShortcut(bar->Setting, QKeySequence(Qt::CTRL | Qt::Key_Comma));
+
+    setAppShortcut(bar->switchTheme, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
+    setAppShortcut(bar->restoreLayout, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R));
+    setAppShortcut(bar->saveLayout, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
+
+    setAppShortcut(bar->pluginsManagerAction, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P));
+    setAppShortcut(bar->pluginsFloderAction, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P));
+
+    setAppShortcut(bar->WebInterface, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_H));
+    setAppShortcut(bar->helpAction, QKeySequence::HelpContents);
+}
+
+} // namespace
 
 MenuBarWidget::MenuBarWidget(QWidget *parent) : QMenuBar(parent) {
     this->setFont(QApplication::font());
@@ -126,6 +165,8 @@ void MenuBarWidget::setupMenu() {
     aboutQtAction = About_menu->addAction(QIcon(":/icons/icons/about.png"),"关于QT");
     connect(aboutQtAction, &QAction::triggered, this, &QApplication::aboutQt);
     // 关于qt窗口
+
+    setupMenuShortcuts(this);
 }
 
 
@@ -194,12 +235,20 @@ void MenuBarWidget::updateRecentFileActions(const QStringList& files) {
         recentFileActs[i]->setData(path);
         recentFileActs[i]->setToolTip(path);
         recentFileActs[i]->setVisible(true);
+        // 最近文件 1~9：Ctrl+1 … Ctrl+9
+        if (i < 9) {
+            setAppShortcut(recentFileActs[i],
+                           QKeySequence(Qt::CTRL | static_cast<Qt::Key>(Qt::Key_1 + i)));
+        } else {
+            recentFileActs[i]->setShortcut(QKeySequence());
+        }
     }
     for (int j = count; j < recentFileActs.size(); ++j) {
         recentFileActs[j]->setVisible(false);
         recentFileActs[j]->setData(QString());
         recentFileActs[j]->setText(QString());
         recentFileActs[j]->setToolTip(QString());
+        recentFileActs[j]->setShortcut(QKeySequence());
     }
 }
 void MenuBarWidget::showSetting() {

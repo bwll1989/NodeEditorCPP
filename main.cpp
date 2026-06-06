@@ -4,10 +4,13 @@
 #include <QScopedPointer>
 #include <QCoreApplication>
 #include "Widget/MainWindow/MainWindow.hpp"
+#include "Widget/MainWindow/ProjectSnapshotBuilder.hpp"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Common/AppConfig/ConfigManager.h"
+#include "Common/AppConfig/ProjectPersistence.h"
 #include <QtWebEngineQuick/QtWebEngineQuick>
+#include <optional>
 /**
  * @brief 生成单实例共享内存的唯一键
  * @return QString 格式为 "Organization_Product" 的稳定键值
@@ -50,19 +53,6 @@ bool isApplicationRunning(QSharedMemory& sharedMemory) {
 }
 
 /**
- * @brief 处理命令行参数
- * @param parser 命令行解析器
- * @param mainWindow 主窗口引用
- */
-void handleCommandLineArguments(const QCommandLineParser& parser, MainWindow& mainWindow) {
-    const QStringList args = parser.positionalArguments();
-    if (!args.isEmpty()) {
-        const QString& filePath = args.first();
-        mainWindow.loadFileFromPath(filePath);
-    }
-}
-
-/**
  * @brief 安全关闭启动界面并断开所有相关信号
  * @param splashScreen 启动画面指针
  * @param mainWindow 主窗口指针
@@ -84,6 +74,26 @@ static void closeSplashSafely(const QScopedPointer<CustomSplashScreen>& splashSc
 }
 
 /**
+ * @brief 在 Splash 显示前询问是否恢复自动保存
+ */
+static std::optional<ProjectLoadResolution> promptRecoveryBeforeSplash(const QString& cmdFilePath)
+{
+    QString promptPath = cmdFilePath;
+    if (promptPath.isEmpty()) {
+        promptPath = ProjectPersistence::normalizeProjectPath(
+            ProjectPersistence::readRecovery().projectPath);
+    }
+
+    if (!shouldOfferRecovery(cmdFilePath)) {
+        return std::nullopt;
+    }
+
+    return resolveProjectLoadPath(promptPath,
+                                  nullptr,
+                                  RecoveryPromptPolicy::Dialog);
+}
+
+/**
  * @brief 应用程序入口函数
  * @param argc 命令行参数数量
  * @param argv 命令行参数数组
@@ -102,6 +112,7 @@ int main(int argc, char *argv[])
 
     // 设置应用程序基本信息
     setupAppInfo();
+    ProjectPersistence::onApplicationStartup();
 
     // 设置应用程序样式
     QApplication::setStyle(QStyleFactory::create("Fusion"));
@@ -135,6 +146,13 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    const QStringList positionalArgs = parser.positionalArguments();
+    const QString cmdFilePath = positionalArgs.isEmpty() ? QString() : positionalArgs.first();
+
+    // 在 Splash 之前弹出恢复对话框
+    const std::optional<ProjectLoadResolution> startupRecovery =
+        promptRecoveryBeforeSplash(cmdFilePath);
+
     // 创建启动画面
     QScopedPointer<CustomSplashScreen> splashScreen(new CustomSplashScreen());
     splashScreen->updateStatus("Preparing to open the program...");
@@ -157,10 +175,10 @@ int main(int argc, char *argv[])
     mainWindow->pluginsManagerDlg->loadPluginsFromFolder();
     mainWindow->initNodelist();
     
-    // 如果有命令行参数，则处理命令行参数，由于处理命令行时也会有恢复视觉效果，所以这里不需要再恢复视觉状态
-    if (!parser.positionalArguments().isEmpty()) {
-        // 处理命令行参数可能触发文件加载
-        handleCommandLineArguments(parser, *mainWindow);
+    if (startupRecovery.has_value()) {
+        mainWindow->applyStartupLoadResolution(*startupRecovery, cmdFilePath);
+    } else if (!cmdFilePath.isEmpty()) {
+        mainWindow->loadFileFromPath(cmdFilePath);
     }
 
     // 所有都处理完成后再显示主窗口，并关闭启动界面

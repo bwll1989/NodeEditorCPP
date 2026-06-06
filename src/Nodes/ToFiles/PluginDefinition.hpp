@@ -15,7 +15,7 @@
 #define PLUGIN_VERSION "dev"
 #endif
 #define PLUGIN_DESCRIBE "将图像/音频/变量数据保存为文件"
-#define PLUGIN_TAG "IO"
+#define PLUGIN_TAG "Controls"
 
 class DLL_EXPORT Plugin
     : public QObject

@@ -12,11 +12,19 @@
 #include "CustomGraphicsView.h"
 #include "ModelDataBridge/ModelDataBridge.hpp"
 
+/** @brief 数据流呈现模式：完整 UI 或仅加载/运行模型 */
+enum class DataflowPresentationMode {
+    WithUi,    ///< 创建 Dock + View + Scene（GUI 主窗口）
+    ModelOnly  ///< 仅维护 CustomDataFlowGraphModel，不实例化图形界面
+};
+
 class DataflowViewsManger : public QObject
 {
     Q_OBJECT
 public:
-    explicit DataflowViewsManger( ads::CDockManager* dockManager,QObject* parent = nullptr);
+    explicit DataflowViewsManger(ads::CDockManager* dockManager,
+                                 QObject* parent = nullptr,
+                                 DataflowPresentationMode mode = DataflowPresentationMode::WithUi);
     
     ~DataflowViewsManger();
     /**
@@ -38,6 +46,11 @@ public:
      * @param model 数据流程模型指针
      */
     void addNewSceneFromeModel(const QString& title = QString(), QJsonObject const &jsonDocument=QJsonObject());
+    /**
+     * @brief 为已存在的模型补建 Dock/View/Scene（延迟加载 UI 时使用）
+     */
+    void attachSceneUi(const QString& title);
+    DataflowPresentationMode presentationMode() const { return _mode; }
     /**
      * @brief 保存所有场景的状态到JSON对象
      *
@@ -70,7 +83,11 @@ public Q_SLOTS:
     /**
      * @brief 获取当前聚焦场景的标题（若可用）
      */
-    void focusedSceneTitle() ;
+    QString currentFocusedSceneTitle() const;
+    /**
+     * @brief 通知外部当前聚焦场景已变化
+     */
+    void focusedSceneTitle();
     /**
      * @brief 强制刷新所有场景和视图
      */
@@ -112,6 +129,11 @@ public:
     CustomDataFlowGraphModel* modelByTitle(const QString& title) const;
 
 private:
+    CustomDataFlowGraphModel* ensureModel(const QString& title);
+    void createSceneUi(const QString& title);
+    bool wantsUi() const { return _mode == DataflowPresentationMode::WithUi; }
+
+    DataflowPresentationMode _mode = DataflowPresentationMode::WithUi;
     // 键：标题（addNewScene 传入的 title）；值：对应的数据流模型
     std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>> _models;
     // 保存所有已创建的ads::CDockWidget指针，键：标题（addNewScene 传入的 title）；值：指针

@@ -67,6 +67,9 @@ ConfigManager::ConfigManager()
     , m_webAccessPassword(AppConfigs::WEB_ACCESS_PASSWORD)
     , m_defaultDarkTheme(AppConfigs::DEFAULT_DARK_THEME)
     , m_MaxLogEntries(AppConfigs::MAX_LOG_ENTRIES)
+    , m_MaxLogSaveEntries(AppConfigs::MAX_LOG_SAVE_ENTRIES)
+    , m_autosaveEnabled(AppConfigs::AUTOSAVE_ENABLED)
+    , m_autosaveIntervalSeconds(AppConfigs::AUTOSAVE_INTERVAL_SECONDS)
 {
     QString configDir = AppConstants::RECENT_FILES_STORAGE_DIR;
     QDir().mkpath(configDir);
@@ -83,6 +86,7 @@ int ConfigManager::getExtraControlPort() const { return m_extraControlPort; }
 QString ConfigManager::getOscInternalControlHost() const { return m_oscInternalControlHost; }
 bool ConfigManager::isDefaultDarkTheme() const { return m_defaultDarkTheme; }
 int ConfigManager::getMaxLogEntries() const { return m_MaxLogEntries; }
+int ConfigManager::getMaxLogSaveEntries() const { return m_MaxLogSaveEntries; }
 QStringList ConfigManager::getRecentFiles() const { return m_recentFiles; }
 QString ConfigManager::getCurrentFlowPath() const { return m_currentFlowPath; }
 bool ConfigManager::isOscEnabled() const { return m_oscEnabled; }
@@ -94,6 +98,8 @@ QString ConfigManager::getMqttPassword() const { return m_mqttPassword; }
 QString ConfigManager::getMqttControlTopic() const { return m_mqttControlTopic; }
 QString ConfigManager::getMqttFeedbackTopic() const { return m_mqttFeedbackTopic; }
 QString ConfigManager::getWebAccessPassword() const { return m_webAccessPassword; }
+bool ConfigManager::isAutosaveEnabled() const { return m_autosaveEnabled; }
+int ConfigManager::getAutosaveIntervalSeconds() const { return m_autosaveIntervalSeconds; }
 
 void ConfigManager::addRecentFile(const QString& path)
 {
@@ -137,7 +143,13 @@ void ConfigManager::loadConfig()
     m_mqttFeedbackTopic = settings.value("Network/MqttFeedbackTopic", AppConfigs::MQTT_FEEDBACK_TOPIC).toString();
     m_webAccessPassword = settings.value("Network/WebAccessPassword", AppConfigs::WEB_ACCESS_PASSWORD).toString();
     // Log
-    m_MaxLogEntries = settings.value("Log/MaxLogEntries", AppConfigs::MAX_LOG_ENTRIES).toInt();
+    m_MaxLogEntries = qBound(1, settings.value("Log/MaxLogEntries", AppConfigs::MAX_LOG_ENTRIES).toInt(), 10000);
+    m_MaxLogSaveEntries = qBound(1, settings.value("Log/MaxLogSaveEntries", AppConfigs::MAX_LOG_SAVE_ENTRIES).toInt(), 3650);
+    // Autosave
+    m_autosaveEnabled = settings.value("Autosave/Enabled", AppConfigs::AUTOSAVE_ENABLED).toBool();
+    m_autosaveIntervalSeconds = settings.value("Autosave/IntervalSeconds",
+                                                AppConfigs::AUTOSAVE_INTERVAL_SECONDS).toInt();
+    m_autosaveIntervalSeconds = qBound(5, m_autosaveIntervalSeconds, 3600);
 }
 
 void ConfigManager::createDefaultConfig()
@@ -172,6 +184,10 @@ void ConfigManager::saveConfig()
     settings.setValue("Network/WebAccessPassword", m_webAccessPassword);
     // Log
     settings.setValue("Log/MaxLogEntries", m_MaxLogEntries);
+    settings.setValue("Log/MaxLogSaveEntries", m_MaxLogSaveEntries);
+    // Autosave
+    settings.setValue("Autosave/Enabled", m_autosaveEnabled);
+    settings.setValue("Autosave/IntervalSeconds", m_autosaveIntervalSeconds);
 
     settings.sync();
 }
@@ -185,7 +201,12 @@ void ConfigManager::updateConfig(const QJsonObject& newConfig)
     if (newConfig.contains("ExtraControlPort")) m_extraControlPort = newConfig["ExtraControlPort"].toInt();
     if (newConfig.contains("OscInternalControlHost")) m_oscInternalControlHost = newConfig["OscInternalControlHost"].toString();
     if (newConfig.contains("DefaultDarkTheme")) m_defaultDarkTheme = newConfig["DefaultDarkTheme"].toBool();
-    if (newConfig.contains("MaxLogEntries")) m_MaxLogEntries = newConfig["MaxLogEntries"].toInt();
+    if (newConfig.contains("MaxLogEntries")) {
+        m_MaxLogEntries = qBound(1, newConfig["MaxLogEntries"].toInt(), 10000);
+    }
+    if (newConfig.contains("MaxLogSaveEntries")) {
+        m_MaxLogSaveEntries = qBound(1, newConfig["MaxLogSaveEntries"].toInt(), 3650);
+    }
     if (newConfig.contains("OscEnabled")) m_oscEnabled = newConfig["OscEnabled"].toBool();
     if (newConfig.contains("MqttEnabled")) m_mqttEnabled = newConfig["MqttEnabled"].toBool();
     if (newConfig.contains("MqttHost")) m_mqttHost = sanitizeMqttHost(newConfig["MqttHost"].toString());
@@ -195,6 +216,10 @@ void ConfigManager::updateConfig(const QJsonObject& newConfig)
     if (newConfig.contains("MqttControlTopic")) m_mqttControlTopic = newConfig["MqttControlTopic"].toString();
     if (newConfig.contains("MqttFeedbackTopic")) m_mqttFeedbackTopic = newConfig["MqttFeedbackTopic"].toString();
     if (newConfig.contains("WebAccessPassword")) m_webAccessPassword = newConfig["WebAccessPassword"].toString();
+    if (newConfig.contains("AutosaveEnabled")) m_autosaveEnabled = newConfig["AutosaveEnabled"].toBool();
+    if (newConfig.contains("AutosaveIntervalSeconds")) {
+        m_autosaveIntervalSeconds = qBound(5, newConfig["AutosaveIntervalSeconds"].toInt(), 3600);
+    }
 
     saveConfig();
 }

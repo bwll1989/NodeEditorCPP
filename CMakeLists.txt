@@ -177,6 +177,8 @@ set(CALC_SOURCE_FILES
         src/Widget/MainWindow/MainWindow.cpp
         src/Widget/MainWindow/MainWindowHeadLess.cpp
         src/Widget/MainWindow/MainWindowHeadLess.hpp
+        src/Widget/MainWindow/ProjectSnapshotBuilder.hpp
+        src/Widget/MainWindow/ProjectSnapshotBuilder.cpp
         src/Widget/SplashWidget/CustomSplashScreen.cpp
         src/Widget/SplashWidget/CustomSplashScreen.hpp
         src/Widget/ExternalControl/ExternalControler.cpp

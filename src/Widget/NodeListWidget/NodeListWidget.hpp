@@ -23,6 +23,9 @@ public:
      */
     explicit NodeListWidget(DataflowViewsManger* viewsManager, QWidget *parent = nullptr);
 
+    /** @brief 将节点列表同步到当前聚焦的 dataflow 页面 */
+    void syncToActiveScene();
+
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;
     // void mouseReleaseEvent(QMouseEvent *event) override;
@@ -51,6 +54,8 @@ private:
      * 填充节点树（从当前 dataFlowModel）
      */
     void populateNodeTree();
+    /** @brief 从 DataflowViewsManger 刷新场景下拉列表 */
+    void updateSceneSelectorFromManager();
     /**
      * 节点创建
      * @param NodeId nodeId 节点ID

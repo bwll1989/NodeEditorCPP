@@ -16,6 +16,7 @@ public:
      * @param level 日志级别 ("All", "Debug", "Info", "Warn", "Critical", "Fatal")
      */
     void setLogFilter(const QString &level);
+    QString logFilter() const { return m_currentFilter; }
     /**
      * 获取所有操作项
      * @return QList<QAction*> 操作项列表

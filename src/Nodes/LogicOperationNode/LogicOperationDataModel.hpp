@@ -8,6 +8,8 @@
 
 #include <iostream>
 #include <vector>
+#include <unordered_map>
+#include <optional>
 #include <QtCore/qglobal.h>
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
@@ -24,19 +26,45 @@ using QtNodes::PortType;
 using namespace NodeDataTypes;
 
 namespace Nodes
-
 {
     enum class LogicMethod : int {
         And = 0,
         Or = 1,
         NotEqual = 2,
-        Max = 3,
-        Min = 4,
-        Less = 5,
-        LessEqual = 6,
-        Greater = 7,
-        GreaterEqual = 8
+        Less = 3,
+        LessEqual = 4,
+        Greater = 5,
+        GreaterEqual = 6,
+        Equal = 7,
+        Xor = 8,
+        Nand = 9,
+        Nor = 10,
+        Not = 11,
+        IsEmpty = 12,
+        EqualNum = 13,
     };
+
+    enum class LogicInputMode {
+        Unary,
+        Binary,
+    };
+
+    struct LogicPortConfig {
+        LogicInputMode inputMode = LogicInputMode::Binary;
+        unsigned int defaultInPortCount = 2;
+    };
+
+    inline LogicPortConfig portConfigFor(LogicMethod method)
+    {
+        switch (method) {
+        case LogicMethod::Not:
+        case LogicMethod::IsEmpty:
+            return {LogicInputMode::Unary, 1};
+        default:
+            return {LogicInputMode::Binary, 2};
+        }
+    }
+
     class LogicOperationBaseDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
@@ -44,35 +72,41 @@ namespace Nodes
     public:
         explicit LogicOperationBaseDataModel(LogicMethod method, const QString& caption)
             : m_logicMethod(method)
+            , m_portConfig(portConfigFor(method))
         {
-            InPortCount =2;
-            OutPortCount=1;
-            CaptionVisible=true;
+            InPortCount = m_portConfig.defaultInPortCount;
+            OutPortCount = 1;
+            CaptionVisible = true;
             Caption = caption;
-            WidgetEmbeddable= false;
-            Resizable=false;
-            PortEditable= false;
+            WidgetEmbeddable = false;
+            Resizable = false;
+            PortEditable = false;
 
-            val=QVariant(false);
+            val = QVariant(false);
         }
 
-        virtual ~LogicOperationBaseDataModel() override{}
+        virtual ~LogicOperationBaseDataModel() override {}
 
     public:
-        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
             switch (portType) {
             case PortType::In:
-                return VariableData().type();
+                if (m_portConfig.inputMode == LogicInputMode::Unary) {
+                    return QStringLiteral("INPUT");
+                }
+                return QStringLiteral("INPUT ") + QString::number(portIndex);
             case PortType::Out:
-                return VariableData().type();
-            case PortType::None:
-                break;
+                return QStringLiteral("OUTPUT ") + QString::number(portIndex);
             default:
-                break;
+                return {};
             }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
+        }
 
+        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
+        {
+            Q_UNUSED(portIndex);
+            Q_UNUSED(portType);
             return VariableData().type();
         }
 
@@ -81,79 +115,131 @@ namespace Nodes
             Q_UNUSED(port);
             return std::make_shared<VariableData>(val);
         }
-        QWidget* embeddedWidget() override {
+
+        QWidget* embeddedWidget() override
+        {
             return nullptr;
         }
+
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            if (data== nullptr){
+            if (data == nullptr) {
+                in_dictionary.erase(portIndex);
+                methodChanged();
                 return;
             }
-            if (auto textData = std::dynamic_pointer_cast<VariableData>(data)) {
-                in_dictionary[portIndex]=textData->value();
-                methodChanged();
 
+            if (auto textData = std::dynamic_pointer_cast<VariableData>(data)) {
+                in_dictionary[portIndex] = textData->value();
+                methodChanged();
             }
         }
+
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override
+        {
+            Q_UNUSED(index);
+            switch (portType) {
+            case PortType::In:
+            case PortType::Out:
+                return ConnectionPolicy::Many;
+            case PortType::None:
+            default:
+                break;
+            }
+            return ConnectionPolicy::One;
+        }
+
+    private:
+        std::optional<QVariant> inputValue(PortIndex portIndex) const
+        {
+            const auto it = in_dictionary.find(portIndex);
+            if (it == in_dictionary.end()) {
+                return std::nullopt;
+            }
+            return it->second;
+        }
+
+        static bool toBool(const QVariant& value)
+        {
+            return value.toBool();
+        }
+
+        static bool isEmptyValue(const QVariant& value)
+        {
+            if (!value.isValid() || value.isNull()) {
+                return true;
+            }
+            if (value.typeId() == QMetaType::QString) {
+                return value.toString().isEmpty();
+            }
+            if (value.canConvert<double>()) {
+                return false;
+            }
+            return !value.isValid();
+        }
+
         void methodChanged()
         {
-            bool tempVal=false;
+            bool tempVal = false;
 
-                switch (m_logicMethod) {
-                case LogicMethod::And:
-                    tempVal=in_dictionary[0].toString()==in_dictionary[1].toString();
-                    break;
-                case LogicMethod::Or:
-                    tempVal=in_dictionary[0].toBool()||in_dictionary[1].toBool();
-                    break;
-                case LogicMethod::NotEqual:
-                    tempVal=in_dictionary[0].toString()!=in_dictionary[1].toString();
-                    break;
-                case LogicMethod::Max:
-                    tempVal=qMax(in_dictionary[0].toDouble(),in_dictionary[1].toDouble());
-                    break;
-                case LogicMethod::Min:
-                    tempVal=qMin(in_dictionary[0].toDouble(),in_dictionary[1].toDouble());
-                    break;
-                case LogicMethod::Less:
-                    tempVal=in_dictionary[0].toFloat()<in_dictionary[1].toFloat();
-                    break;
-                case LogicMethod::LessEqual:
-                    tempVal=in_dictionary[0].toFloat()<=in_dictionary[1].toFloat();
-                    break;
-                case LogicMethod::Greater:
-                    tempVal=in_dictionary[0].toFloat()>in_dictionary[1].toFloat();
-                    break;
-                case LogicMethod::GreaterEqual:
-                    tempVal=in_dictionary[0].toFloat()>=in_dictionary[1].toFloat();
-                    break;
-                }
-            // qDebug()<<"tempVal:"<<tempVal;
+            const auto a = inputValue(0).value_or(QVariant());
+            const auto b = inputValue(1).value_or(QVariant());
+
+            switch (m_logicMethod) {
+            case LogicMethod::And:
+                tempVal = toBool(a) && toBool(b);
+                break;
+            case LogicMethod::Or:
+                tempVal = toBool(a) || toBool(b);
+                break;
+            case LogicMethod::Xor:
+                tempVal = toBool(a) ^ toBool(b);
+                break;
+            case LogicMethod::Nand:
+                tempVal = !(toBool(a) && toBool(b));
+                break;
+            case LogicMethod::Nor:
+                tempVal = !(toBool(a) || toBool(b));
+                break;
+            case LogicMethod::Not:
+                tempVal = !toBool(a);
+                break;
+            case LogicMethod::Equal:
+                tempVal = a.toString() == b.toString();
+                break;
+            case LogicMethod::NotEqual:
+                tempVal = a.toString() != b.toString();
+                break;
+            case LogicMethod::EqualNum:
+                tempVal = qFuzzyCompare(a.toDouble(), b.toDouble())
+                          || (a.toDouble() == 0.0 && b.toDouble() == 0.0);
+                break;
+            case LogicMethod::Less:
+                tempVal = a.toFloat() < b.toFloat();
+                break;
+            case LogicMethod::LessEqual:
+                tempVal = a.toFloat() <= b.toFloat();
+                break;
+            case LogicMethod::Greater:
+                tempVal = a.toFloat() > b.toFloat();
+                break;
+            case LogicMethod::GreaterEqual:
+                tempVal = a.toFloat() >= b.toFloat();
+                break;
+            case LogicMethod::IsEmpty:
+                tempVal = isEmptyValue(a);
+                break;
+            }
+
             val = tempVal;
             Q_EMIT dataUpdated(0);
         }
 
-        // QWidget *embeddedWidget() override { return widget; }
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-            auto result = ConnectionPolicy::One;
-            switch (portType) {
-                case PortType::In:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::Out:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::None:
-                    break;
-            }
-
-            return result;
-        }
     private:
-
         std::unordered_map<unsigned int, QVariant> in_dictionary;
         QVariant val;
         LogicMethod m_logicMethod = LogicMethod::And;
+        LogicPortConfig m_portConfig;
     };
 
     class LogicAndDataModel final : public LogicOperationBaseDataModel
@@ -168,22 +254,52 @@ namespace Nodes
         LogicOrDataModel() : LogicOperationBaseDataModel(LogicMethod::Or, "Logic Or") {}
     };
 
+    class LogicXorDataModel final : public LogicOperationBaseDataModel
+    {
+    public:
+        LogicXorDataModel() : LogicOperationBaseDataModel(LogicMethod::Xor, "Logic Xor") {}
+    };
+
+    class LogicNandDataModel final : public LogicOperationBaseDataModel
+    {
+    public:
+        LogicNandDataModel() : LogicOperationBaseDataModel(LogicMethod::Nand, "Logic Nand") {}
+    };
+
+    class LogicNorDataModel final : public LogicOperationBaseDataModel
+    {
+    public:
+        LogicNorDataModel() : LogicOperationBaseDataModel(LogicMethod::Nor, "Logic Nor") {}
+    };
+
+    class LogicNotDataModel final : public LogicOperationBaseDataModel
+    {
+    public:
+        LogicNotDataModel() : LogicOperationBaseDataModel(LogicMethod::Not, "Logic Not") {}
+    };
+
+    class LogicEqualDataModel final : public LogicOperationBaseDataModel
+    {
+    public:
+        LogicEqualDataModel() : LogicOperationBaseDataModel(LogicMethod::Equal, "Logic Equal") {}
+    };
+
     class LogicNotEqualDataModel final : public LogicOperationBaseDataModel
     {
     public:
         LogicNotEqualDataModel() : LogicOperationBaseDataModel(LogicMethod::NotEqual, "Logic NotEqual") {}
     };
 
-    class LogicMaxDataModel final : public LogicOperationBaseDataModel
+    class LogicEqualNumDataModel final : public LogicOperationBaseDataModel
     {
     public:
-        LogicMaxDataModel() : LogicOperationBaseDataModel(LogicMethod::Max, "Logic Max") {}
+        LogicEqualNumDataModel() : LogicOperationBaseDataModel(LogicMethod::EqualNum, "Logic EqualNum") {}
     };
 
-    class LogicMinDataModel final : public LogicOperationBaseDataModel
+    class LogicIsEmptyDataModel final : public LogicOperationBaseDataModel
     {
     public:
-        LogicMinDataModel() : LogicOperationBaseDataModel(LogicMethod::Min, "Logic Min") {}
+        LogicIsEmptyDataModel() : LogicOperationBaseDataModel(LogicMethod::IsEmpty, "Logic IsEmpty") {}
     };
 
     class LogicLessDataModel final : public LogicOperationBaseDataModel

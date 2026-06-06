@@ -80,33 +80,71 @@ NodeListWidget::NodeListWidget(DataflowViewsManger* viewsManager, QWidget *paren
     connect(nodeTree, &QTreeView::doubleClicked, this, &NodeListWidget::onTreeDoubleClicked);
 
     connect(viewsManager, &DataflowViewsManger::createNewScene, this, [this](QString title) {
-        onRefreshClicked();
-        sceneSelector->setCurrentText(title);
+        Q_UNUSED(title);
+        updateSceneSelectorFromManager();
+        syncToActiveScene();
     });
-    // 连接：场景激活
+    // 连接：场景激活（切换 dataflow 标签页时）
     connect(viewsManager, &DataflowViewsManger::sceneIsActive, this, [this](QString title) {
-        sceneSelector->setCurrentText(title);
+        sceneSelector->blockSignals(true);
+        const int idx = sceneSelector->findText(title);
+        if (idx >= 0) {
+            sceneSelector->setCurrentIndex(idx);
+        }
+        sceneSelector->blockSignals(false);
+        onSceneSwitched(title);
     });
 
     // 连接：场景移除
     connect(viewsManager, &DataflowViewsManger::removeScene, this, [this](QString title) {
         int idx = sceneSelector->findText(title);
-        if (idx >= 0) sceneSelector->removeItem(idx);
+        if (idx >= 0) {
+            sceneSelector->removeItem(idx);
+        }
+        syncToActiveScene();
     });
 
-    // 选择默认场景：优先当前聚焦场景，否则选择第一个
-    // QString activeTitle;
-    // if (viewsManager) {
-    //     activeTitle = viewsManager->focusedSceneTitle();
-    //     if (activeTitle.isEmpty() && sceneSelector->count() > 0) {
-    //         activeTitle = sceneSelector->itemText(0);
-    //     }
-    // }
-    // if (!activeTitle.isEmpty()) {
-    //     int idx = sceneSelector->findText(activeTitle);
-    //     if (idx >= 0) sceneSelector->setCurrentIndex(idx);
-    //     onSceneSwitched(activeTitle);
-    // }
+    syncToActiveScene();
+}
+
+void NodeListWidget::updateSceneSelectorFromManager()
+{
+    if (!viewsManager) {
+        return;
+    }
+    const QStringList titles = viewsManager->sceneTitles();
+    sceneSelector->blockSignals(true);
+    sceneSelector->clear();
+    sceneSelector->addItems(titles);
+    sceneSelector->blockSignals(false);
+}
+
+void NodeListWidget::syncToActiveScene()
+{
+    if (!viewsManager) {
+        return;
+    }
+
+    QString title = viewsManager->currentFocusedSceneTitle();
+    if (title.isEmpty()) {
+        if (sceneSelector->count() > 0) {
+            title = sceneSelector->itemText(0);
+        } else {
+            return;
+        }
+    }
+
+    if (sceneSelector->findText(title) < 0) {
+        updateSceneSelectorFromManager();
+    }
+
+    sceneSelector->blockSignals(true);
+    const int idx = sceneSelector->findText(title);
+    if (idx >= 0) {
+        sceneSelector->setCurrentIndex(idx);
+    }
+    sceneSelector->blockSignals(false);
+    onSceneSwitched(title);
 }
 
 void NodeListWidget::onSceneSwitched(const QString& title)
@@ -606,37 +644,17 @@ void NodeListWidget::startDrag(const QModelIndex& index) {
 void NodeListWidget::onRefreshClicked()
 {
     // 函数级注释：
-    // 说明：刷新按钮点击后，重新获取场景标题列表，尽量保持当前标题选择（若仍存在），
-    //       重新绑定模型与场景并重建节点树，强制更新显示。
+    // 说明：刷新场景列表并同步到当前聚焦的 dataflow 页面，重建节点树。
 
     if (!viewsManager) {
-        // 无管理器：仅重建列表
         populateNodeTree();
         nodeTree->viewport()->update();
         return;
     }
 
-    const QString prevTitle = sceneSelector->currentText();
-    const QStringList titles = viewsManager->sceneTitles();
+    updateSceneSelectorFromManager();
+    syncToActiveScene();
 
-    // 更新下拉框项目
-    sceneSelector->blockSignals(true);
-    sceneSelector->clear();
-    sceneSelector->addItems(titles);
-
-    // 保持当前选择（若仍存在），否则选择第一个
-    QString newTitle = prevTitle;
-    if (!titles.contains(prevTitle) && !titles.isEmpty()) {
-        newTitle = titles.first();
-    }
-    int idx = sceneSelector->findText(newTitle);
-    if (idx >= 0) sceneSelector->setCurrentIndex(idx);
-    sceneSelector->blockSignals(false);
-
-    // 触发场景重绑定与列表重建
-    onSceneSwitched(newTitle);
-
-    // 强制刷新显示
     nodeTree->viewport()->update();
     nodeTree->repaint();
 }

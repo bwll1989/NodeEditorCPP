@@ -46,6 +46,9 @@ private:
      * @param const QString &logMessage 日志消息
      */
     static void appendLogToTable(const QString &timestamp, const QString &level, const QIcon &icon, const QString &logMessage);
+
+    /** @brief 启动时按配置裁剪磁盘上多余的日志文件（删最早日期的 txt） */
+    static void pruneStoredLogFiles();
     
     /**
      * spdlog 日志器

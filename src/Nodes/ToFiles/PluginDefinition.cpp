@@ -18,8 +18,8 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::ToImageFileDataModel>(QStringLiteral("To Image File"), tag());
-    reg->registerModel<Nodes::ToVideoFileDataModel>(QStringLiteral("To Video File"), tag());
-    reg->registerModel<Nodes::ToAudioFileDataModel>(QStringLiteral("To Audio File"), tag());
+    reg->registerModel<Nodes::ToImageFileDataModel>(QStringLiteral("To Image File"), "Image");
+    reg->registerModel<Nodes::ToVideoFileDataModel>(QStringLiteral("To Video File"), "Image");
+    reg->registerModel<Nodes::ToAudioFileDataModel>(QStringLiteral("To Audio File"), "Audio");
     reg->registerModel<Nodes::ToTextFileDataModel>(QStringLiteral("To Text File"), tag());
 }

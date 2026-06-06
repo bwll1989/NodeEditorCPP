@@ -16,9 +16,14 @@
 #include <spdlog/sinks/daily_file_sink.h>
 #include <mutex>
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QRegularExpression>
+#include <QVector>
+#include <algorithm>
 #include "../../Common/AppConfig/ConfigManager.h"
+#include "../../Common/AppConfig/ConstantDefines.h"
 
 LogHandler::LogHandler(LogWidget *tableWidget) {
     // 设置静态成员
@@ -34,10 +39,49 @@ LogHandler::~LogHandler() {
     qInstallMessageHandler(nullptr);
 }
 
+void LogHandler::pruneStoredLogFiles()
+{
+    const int maxFiles = qMax(1, ConfigManager::instance().getMaxLogSaveEntries());
+    QDir dir(AppConstants::LOGS_STORAGE_DIR);
+    if (!dir.exists()) {
+        return;
+    }
+
+    struct LogFileInfo {
+        QString path;
+        QDateTime modified;
+    };
+
+    QVector<LogFileInfo> files;
+    const QStringList names = dir.entryList(QStringList{QStringLiteral("log*.txt")}, QDir::Files);
+    files.reserve(names.size());
+    for (const QString& name : names) {
+        const QString path = dir.absoluteFilePath(name);
+        LogFileInfo info;
+        info.path = path;
+        info.modified = QFileInfo(path).lastModified();
+        files.push_back(std::move(info));
+    }
+
+    if (files.size() <= maxFiles) {
+        return;
+    }
+
+    std::sort(files.begin(), files.end(), [](const LogFileInfo& a, const LogFileInfo& b) {
+        return a.modified < b.modified;
+    });
+
+    const int toRemove = files.size() - maxFiles;
+    for (int i = 0; i < toRemove; ++i) {
+        QFile::remove(files[i].path);
+    }
+}
+
 bool LogHandler::initLogHandler() {
     // 初始化 spdlog 日志器
     try{
         QDir().mkpath(AppConstants::LOGS_STORAGE_DIR);
+        pruneStoredLogFiles();
         std::string logFilePath = (AppConstants::LOGS_STORAGE_DIR.toStdString()+"/log.txt");
         auto dailySink = std::make_shared<spdlog::sinks::daily_file_sink_mt>(logFilePath, 0, 0);
         logger = std::make_shared<spdlog::logger>("logger", dailySink);
@@ -109,10 +153,9 @@ void LogHandler::appendLogToTable(const QString &timestamp, const QString &level
     
     // 将 UI 更新操作转移到主线程
     QMetaObject::invokeMethod(logTableWidget, [=]() {
-        // 检查是否需要应用过滤器
-        QString currentFilter = logTableWidget->property("currentFilter").toString();
-        if (!currentFilter.isEmpty() && currentFilter != "All" && currentFilter != level) {
-            return; // 如果不符合过滤条件，不添加此日志
+        const QString currentFilter = logTableWidget->logFilter();
+        if (currentFilter != QStringLiteral("All") && currentFilter != level) {
+            return;
         }
         
         // 解析 spdlog 格式的日志信息，按 [] 分隔
@@ -120,7 +163,7 @@ void LogHandler::appendLogToTable(const QString &timestamp, const QString &level
         QStringList logParts = logMessage.split(regex, Qt::SkipEmptyParts);
         
         // 检查是否需要删除旧日志条目以保持在最大条目数限制内
-        int maxEntries = ConfigManager::instance().getMaxLogEntries();
+        const int maxEntries = qMax(1, ConfigManager::instance().getMaxLogEntries());
         while (logTableWidget->rowCount() >= maxEntries) {
             logTableWidget->removeRow(0); // 删除最早的日志条目
         }

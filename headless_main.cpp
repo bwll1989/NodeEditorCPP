@@ -5,6 +5,8 @@
 #include <QCoreApplication>
 #include <QFileInfo>
 #include <QDebug>
+#include <QThread>
+
 #include "Widget/MainWindow/MainWindowHeadLess.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Common/AppConfig/ConstantDefines.h"
@@ -126,10 +128,8 @@ int main(int argc, char *argv[])
                      splashScreen.data(), &CustomSplashScreen::updateStatus);
     // 初始化主窗口与插件
     mainWindow->init();
-    // 加载插件与初始化节点列表（保持 GUI 版本顺序）
-    if (mainWindow->pluginsManagerDlg) {
-        mainWindow->pluginsManagerDlg->loadPluginsFromFolder();
-    }
+    // 加载插件（无插件管理对话框）
+    mainWindow->loadPlugins();
     // 加载 flow 文件（无视觉状态恢复）
     if (!flowFile.isEmpty()) {
         splashScreen->updateStatus( "Loading: " + flowFile);

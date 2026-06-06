@@ -28,6 +28,8 @@ private:
     // General Settings
     IntDragValueWidget* m_maxRecentFilesSpin;
     QCheckBox* m_darkThemeCheck;
+    QCheckBox* m_autosaveEnabledCheck;
+    IntDragValueWidget* m_autosaveIntervalSpin;
 
     // Network Settings
     IntDragValueWidget* m_httpPortSpin;
@@ -47,4 +49,5 @@ private:
 
     // Log Settings
     IntDragValueWidget* m_maxLogEntriesSpin;
+    IntDragValueWidget* m_maxLogSaveEntriesSpin;
 };

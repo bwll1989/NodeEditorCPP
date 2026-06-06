@@ -5,6 +5,8 @@
 #include <QStandardItemModel>
 #include <QtNodes/PluginsManager>
 
+#include <functional>
+
 using QtNodes::PluginsManager;
 
 class PluginsManagerWidget : public QDialog
@@ -39,6 +41,10 @@ public:
      * 加载插件从文件夹
      */
     void loadPluginsFromFolder();
+    /**
+     * @brief 无 UI 加载内建与第三方插件（Headless 等场景使用）
+     */
+    static void loadAllFromDefaultFolder(const std::function<void(const QString&)>& onStatus = {});
     /**
      * 加载内建插件
      */

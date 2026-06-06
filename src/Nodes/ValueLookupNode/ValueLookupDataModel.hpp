@@ -29,7 +29,7 @@ namespace Nodes
         {
             InPortCount = 1;
             OutPortCount = 1;
-            Caption = "Value Lookup";
+            Caption = "Lookup";
             CaptionVisible = true;
             WidgetEmbeddable = false;
             PortEditable = false;

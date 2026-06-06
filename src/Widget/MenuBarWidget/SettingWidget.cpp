@@ -87,6 +87,20 @@ SettingWidget::SettingWidget(QWidget* parent)
 
     m_darkThemeCheck = new QCheckBox("启用暗色主题", this);
     formGeneral->addRow("主题:", m_darkThemeCheck);
+
+    auto* lblAutosave = new QLabel(QStringLiteral("自动保存"));
+    lblAutosave->setFont(titleFont);
+    formGeneral->addRow(lblAutosave);
+
+    m_autosaveEnabledCheck = new QCheckBox(QStringLiteral("启用自动保存"), this);
+    formGeneral->addRow(QStringLiteral("自动保存:"), m_autosaveEnabledCheck);
+
+    m_autosaveIntervalSpin = new IntDragValueWidget(this);
+    m_autosaveIntervalSpin->setRange(5, 3600);
+    m_autosaveIntervalSpin->setSuffix(QStringLiteral(" 秒"));
+    formGeneral->addRow(QStringLiteral("保存间隔:"), m_autosaveIntervalSpin);
+    connect(m_autosaveEnabledCheck, &QCheckBox::toggled,
+            m_autosaveIntervalSpin, &QWidget::setEnabled);
     
     layoutGeneral->addLayout(formGeneral);
     layoutGeneral->addStretch();
@@ -192,6 +206,10 @@ SettingWidget::SettingWidget(QWidget* parent)
     m_maxLogEntriesSpin->setRange(1, 10000);
     formLog->addRow("最大日志显示条目:", m_maxLogEntriesSpin);
 
+    m_maxLogSaveEntriesSpin = new IntDragValueWidget(this);
+    m_maxLogSaveEntriesSpin->setRange(1, 3650);
+    formLog->addRow("最大日志保存文件数:", m_maxLogSaveEntriesSpin);
+
     layoutLog->addLayout(formLog);
     layoutLog->addStretch();
     m_stackedWidget->addWidget(pageLog);
@@ -219,7 +237,10 @@ void SettingWidget::loadCurrentSettings() {
     
     m_maxRecentFilesSpin->setValue(config.getMaxRecentFiles());
     m_darkThemeCheck->setChecked(config.isDefaultDarkTheme());
-    
+    m_autosaveEnabledCheck->setChecked(config.isAutosaveEnabled());
+    m_autosaveIntervalSpin->setValue(config.getAutosaveIntervalSeconds());
+    m_autosaveIntervalSpin->setEnabled(m_autosaveEnabledCheck->isChecked());
+
     m_httpPortSpin->setValue(config.getHttpServerPort());
     m_extraFeedbackHostEdit->setText(config.getExtraFeedbackHost());
     m_extraFeedbackPortSpin->setValue(config.getExtraFeedbackPort());
@@ -236,6 +257,7 @@ void SettingWidget::loadCurrentSettings() {
     m_webPasswordEdit->setText(config.getWebAccessPassword());
     // Log Settings
     m_maxLogEntriesSpin->setValue(config.getMaxLogEntries());
+    m_maxLogSaveEntriesSpin->setValue(config.getMaxLogSaveEntries());
 }
 
 void SettingWidget::saveSettings() {
@@ -248,6 +270,8 @@ void SettingWidget::saveSettings() {
     obj["ExtraControlPort"] = m_extraControlPortSpin->value();
     obj["OscInternalControlHost"] = m_oscInternalHostEdit->text();
     obj["DefaultDarkTheme"] = m_darkThemeCheck->isChecked();
+    obj["AutosaveEnabled"] = m_autosaveEnabledCheck->isChecked();
+    obj["AutosaveIntervalSeconds"] = m_autosaveIntervalSpin->value();
     obj["OscEnabled"] = m_oscEnabledCheck->isChecked();
     obj["MqttEnabled"] = m_mqttEnabledCheck->isChecked();
     obj["MqttHost"] = m_mqttHostEdit->text();
@@ -259,6 +283,7 @@ void SettingWidget::saveSettings() {
     obj["WebAccessPassword"] = m_webPasswordEdit->text();
     // Log Settings
     obj["MaxLogEntries"] = m_maxLogEntriesSpin->value();
+    obj["MaxLogSaveEntries"] = m_maxLogSaveEntriesSpin->value();
 
     ConfigManager::instance().updateConfig(obj);
     

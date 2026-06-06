@@ -73,16 +73,11 @@ void LogWidget::clearTableWidget() {
 
 void LogWidget::setLogFilter(const QString &level) {
     m_currentFilter = level;
-    
-    // 应用过滤器
+    setProperty("currentFilter", level);
+
     for (int row = 0; row < rowCount(); ++row) {
-        bool show = true;
-        if (level != "All") {
-            QTableWidgetItem *levelItem = item(row, 1);
-            if (levelItem && levelItem->text() != level) {
-                show = false;
-            }
-        }
+        const bool show = (level == QStringLiteral("All"))
+            || (item(row, 1) && item(row, 1)->text() == level);
         setRowHidden(row, !show);
     }
 }

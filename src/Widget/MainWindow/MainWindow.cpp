@@ -16,8 +16,12 @@
 #include "Widget/PropertyWidget/PropertyWidget.hpp"
 #include <QSettings>
 #include <exception>
+#include "../../Common/AppConfig/AutosaveManager.h"
 #include "../../Common/AppConfig/ConfigManager.h"
+#include "../../Common/AppConfig/ProjectPersistence.h"
+#include "ProjectSnapshotBuilder.hpp"
 #include <QMetaObject>
+#include <QTimer>
 using namespace ads;
 
 /**
@@ -82,7 +86,6 @@ MainWindow::~MainWindow()
 {
     delete controller;
     delete timeline;
-
 }
 
 void MainWindow::init()
@@ -277,8 +280,6 @@ void MainWindow::init()
 
     setAcceptDrops(true);
 
-    connect(menuBar->clearAction, &QAction::triggered, this,&MainWindow::createDataflowWidget);
-
      if (QSystemTrayIcon::isSystemTrayAvailable()) {
         trayIcon = new QSystemTrayIcon(this);
         trayIcon->setIcon(QIcon(":/icons/icons/NodeStudio.png"));
@@ -307,6 +308,8 @@ void MainWindow::init()
         resetVisualState();
 
     }
+
+    setupAutosave();
 }
 
 void MainWindow::switchVisibleFromTray()
@@ -336,6 +339,8 @@ void MainWindow::restartAndOpenFlow(const QString& path)
         return;
     }
 
+    finalizeAutosave();
+
     if (httpServer && httpServer->running()) {
         httpServer->stop();
         QCoreApplication::processEvents();
@@ -356,7 +361,9 @@ void MainWindow::restartAndOpenFlow(const QString& path)
         QMessageBox::warning(this, "", tr("重启打开失败：无法启动新进程"));
         return;
     }
-
+    if (autosaveManager) {
+        autosaveManager->clearRecovery();
+    }
     isRestarting = true;
     QCoreApplication::quit();
 }
@@ -421,6 +428,31 @@ void MainWindow::loadFileFromPath(const QString &path)
         return;
     }
 
+    ProjectLoadResolution resolution;
+    if (forcedLoadResolution_) {
+        resolution = *forcedLoadResolution_;
+        forcedLoadResolution_.reset();
+    } else if (skipRecoveryPrompt_) {
+        resolution.loadPath = path;
+        resolution.projectPath = path;
+    } else {
+        resolution = resolveRecoveryLoadPath(path);
+    }
+
+    const QString loadPath = resolution.loadPath.isEmpty() ? path : resolution.loadPath;
+
+    QString logicalProjectPath = ProjectPersistence::normalizeProjectPath(resolution.projectPath);
+    if (logicalProjectPath.isEmpty() && resolution.fromRecovery) {
+        logicalProjectPath = ProjectPersistence::normalizeProjectPath(
+            ProjectPersistence::readRecovery().projectPath);
+    }
+    if (logicalProjectPath.isEmpty()) {
+        const QString normalizedArg = ProjectPersistence::normalizeProjectPath(path);
+        if (!normalizedArg.isEmpty() && !ProjectPersistence::isAutosavePath(normalizedArg)) {
+            logicalProjectPath = normalizedArg;
+        }
+    }
+
     struct SplashProxy {
         MainWindow* self = nullptr;
         void updateStatus(const QString& msg) {
@@ -436,203 +468,131 @@ void MainWindow::loadFileFromPath(const QString &path)
         QApplication::processEvents();
     };
 
-    splashScreen.updateStatus(tr("Prepare to open: %1").arg(path));
-    pumpUi();
-
-    if (!path.isEmpty())
-    {
-        QFileInfo fileInfo(path);
-        QString absolutePath = fileInfo.absoluteFilePath();
-
-        absolutePath = absolutePath.replace("\\", "/");
-        splashScreen.updateStatus(tr("Analyze path: %1").arg(absolutePath));
+    const auto reportStatus = [&splashScreen, &pumpUi](const QString& msg) {
+        splashScreen.updateStatus(msg);
         pumpUi();
+    };
 
-        QFile file(absolutePath);
-        if (!file.open(QIODevice::ReadOnly))
-        {
-            splashScreen.updateStatus(tr("Open file failed: %1").arg(file.errorString()));
-            pumpUi();
-            splashScreen.finish(this);
-            QMessageBox::warning(this, "",
-                                 tr("无法打开文件 %1:\n%2").arg(absolutePath).arg(file.errorString()));
-            return;
+    if (loadPath.isEmpty()) {
+        reportStatus(tr("Path is empty"));
+        return;
+    }
+
+    const ProjectFileReadResult readResult = readProjectFile(loadPath, reportStatus);
+    if (!readResult.success) {
+        QMessageBox::warning(this, "", readResult.errorMessage);
+        return;
+    }
+
+    if (autosaveManager) {
+        autosaveManager->setPaused(true);
+    }
+
+    const auto abortLoad = [&](const QString& msg) {
+        if (autosaveManager) {
+            autosaveManager->setPaused(false);
         }
+        reportStatus(msg);
+        QMessageBox::warning(this, "", msg);
+    };
 
-        const qint64 fileSize = file.size();
-        if (fileSize > 2147483647LL) {
-            splashScreen.updateStatus(tr("File is too large: %1 bytes").arg(fileSize));
-            pumpUi();
-            splashScreen.finish(this);
-            QMessageBox::warning(this, "",
-                                 tr("文件过大，无法加载 %1\n大小: %2 bytes").arg(absolutePath).arg(fileSize));
-            return;
+    ProjectLoadTargets targets;
+    targets.dataflowViewsManger = dataflowViewsManger;
+    targets.timeline = timeline;
+    targets.scheduledTaskWidget = scheduledTaskWidget;
+    targets.dockManager = m_DockManager;
+    targets.httpServer = httpServer;
+
+    ProjectLoadOptions options;
+    options.restoreVisualLayout = true;
+    options.loadWebLayout = true;
+    options.onMissingVisualLayout = [this]() { resetVisualState(); };
+
+    const auto dataflowProgress = [&splashScreen, &pumpUi](const QString& sceneTitle,
+                                                           const QString& phase,
+                                                           int current,
+                                                           int total) {
+        if (total > 0) {
+            const int pct = qBound(0, (current * 100) / total, 100);
+            splashScreen.updateStatus(QObject::tr("DataFlow [%1] %2 %3% (%4/%5)")
+                                         .arg(sceneTitle, phase)
+                                         .arg(pct)
+                                         .arg(current)
+                                         .arg(total));
+        } else {
+            splashScreen.updateStatus(QObject::tr("DataFlow [%1] %2 %3")
+                                         .arg(sceneTitle, phase)
+                                         .arg(current));
         }
-
-        splashScreen.updateStatus(tr("Read file: %1").arg(absolutePath));
         pumpUi();
+    };
 
-        QByteArray wholeFile;
-        wholeFile.reserve((int)qMax<qint64>(0, fileSize));
-        qint64 readBytes = 0;
-        const qint64 chunkSize = 1024 * 1024;
-        while (!file.atEnd()) {
-            const QByteArray chunk = file.read(chunkSize);
-            if (chunk.isEmpty() && file.error() != QFile::NoError) break;
-            wholeFile.append(chunk);
-            readBytes += chunk.size();
+    QString loadError;
+    if (!loadProjectModulesFromJson(readResult.root,
+                                    targets,
+                                    options,
+                                    reportStatus,
+                                    dataflowProgress,
+                                    &loadError)) {
+        abortLoad(loadError);
+        return;
+    }
 
-            if (fileSize > 0) {
-                int pct = (int)((readBytes * 100) / fileSize);
-                if (pct > 100) pct = 100;
-                splashScreen.updateStatus(tr("Read file... %1% (%2/%3)").arg(pct).arg(readBytes).arg(fileSize));
-            } else {
-                splashScreen.updateStatus(tr("Read file... %1 bytes").arg(readBytes));
+    if (nodeListWidget) {
+        QTimer::singleShot(0, nodeListWidget, [this]() {
+            if (nodeListWidget) {
+                nodeListWidget->syncToActiveScene();
             }
-            pumpUi();
-        }
+        });
+    }
 
-        if (file.error() != QFile::NoError) {
-            splashScreen.updateStatus(tr("Read file failed: %1").arg(file.errorString()));
-            pumpUi();
-            splashScreen.finish(this);
-            QMessageBox::warning(this, "",
-                                 tr("读取文件失败 %1:\n%2").arg(absolutePath).arg(file.errorString()));
-            return;
-        }
-
-        splashScreen.updateStatus(tr("Parse the flow file..."));
-        pumpUi();
-
-        auto jsonDoc = QJsonDocument::fromJson(wholeFile);
-        if (jsonDoc.isNull() || !jsonDoc.isObject()) {
-            splashScreen.updateStatus(tr("Parse the flow file failed"));
-            pumpUi();
-            splashScreen.finish(this);
-            QMessageBox::warning(this, "",
-                                 tr("无法解析文件 %1:\n%2").arg(absolutePath));
-            return;
-        }
-
-        const QJsonObject root = jsonDoc.object();
-        const auto abortLoad = [&](const QString& msg) {
-            splashScreen.updateStatus(msg);
-            pumpUi();
-            splashScreen.finish(this);
-            QMessageBox::warning(this, "", msg);
-        };
-
-        splashScreen.updateStatus(tr("Load the dataflow model ..."));
-        pumpUi();
-
-        QMetaObject::Connection dfConn;
-        if (dataflowViewsManger) {
-            dfConn = QObject::connect(dataflowViewsManger,
-                                      &DataflowViewsManger::loadProgress,
-                                      this,
-                                      [&splashScreen, &pumpUi](const QString& sceneTitle, const QString& phase, int current, int total) {
-                                          if (total > 0) {
-                                              const int pct = qBound(0, (current * 100) / total, 100);
-                                              splashScreen.updateStatus(QObject::tr("DataFlow [%1] %2 %3% (%4/%5)")
-                                                                           .arg(sceneTitle, phase)
-                                                                           .arg(pct)
-                                                                           .arg(current)
-                                                                           .arg(total));
-                                          } else {
-                                              splashScreen.updateStatus(QObject::tr("DataFlow [%1] %2 %3")
-                                                                           .arg(sceneTitle, phase)
-                                                                           .arg(current));
-                                          }
-                                          pumpUi();
-                                      });
-        }
-
-        try {
-            const QJsonValue v = root.value("DataFlow");
-            if (!v.isObject()) {
-                if (dfConn) QObject::disconnect(dfConn);
-                abortLoad(tr("DataFlow 数据缺失或格式错误"));
-                return;
-            }
-            dataflowViewsManger->load(v.toObject());
-            if (dfConn) QObject::disconnect(dfConn);
-        } catch (const std::exception& e) {
-            if (dfConn) QObject::disconnect(dfConn);
-            abortLoad(tr("加载 DataFlow 失败: %1").arg(QString::fromUtf8(e.what())));
-            return;
-        } catch (...) {
-            if (dfConn) QObject::disconnect(dfConn);
-            abortLoad(tr("加载 DataFlow 失败"));
-            return;
-        }
-
-        splashScreen.updateStatus(tr("Load the timeline model ..."));
-        pumpUi();
-        try {
-            const QJsonValue v = root.value("TimeLine");
-            if (!v.isObject()) {
-                abortLoad(tr("TimeLine 数据缺失或格式错误"));
-                return;
-            }
-            timeline->load(v.toObject());
-        } catch (const std::exception& e) {
-            abortLoad(tr("加载 TimeLine 失败: %1").arg(QString::fromUtf8(e.what())));
-            return;
-        } catch (...) {
-            abortLoad(tr("加载 TimeLine 失败"));
-            return;
-        }
-
-        splashScreen.updateStatus(tr("Load the scheduled tasks model ..."));
-        pumpUi();
-        try {
-            const QJsonValue v = root.value("ScheduledTasks");
-            if (!v.isObject()) {
-                abortLoad(tr("ScheduledTasks 数据缺失或格式错误"));
-                return;
-            }
-            scheduledTaskWidget->load(v.toObject());
-        } catch (const std::exception& e) {
-            abortLoad(tr("加载 ScheduledTasks 失败: %1").arg(QString::fromUtf8(e.what())));
-            return;
-        } catch (...) {
-            abortLoad(tr("加载 ScheduledTasks 失败"));
-            return;
-        }
-
-        const QString layoutBase64 = jsonDoc.object()["VisualLayout"].toString();
-        if (!layoutBase64.isEmpty()) {
-            splashScreen.updateStatus(tr("Load the visual layout ..."));
-            pumpUi();
-            const QByteArray layoutBytes = QByteArray::fromBase64(layoutBase64.toLatin1());
-            m_DockManager->restoreState(layoutBytes);
-        }else {
-            resetVisualState();
-        }
-
-        const QJsonObject webLayout = jsonDoc.object().value("WebLayout").toObject();
-        if (!webLayout.isEmpty() && httpServer) {
-            splashScreen.updateStatus(tr("Load the web layout..."));
-            pumpUi();
-            httpServer->load(webLayout);
-        }
-
-        ConfigManager::instance().addRecentFile(absolutePath);
+    const QString normalizedLogicalPath = logicalProjectPath;
+    if (!normalizedLogicalPath.isEmpty()) {
+        ConfigManager::instance().addRecentFile(normalizedLogicalPath);
         menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
-
-        currentProjectPath=absolutePath;
-
-        this->setWindowTitle(ConfigManager::instance().getCurrentFlowPath().split("/").last());
-        splashScreen.updateStatus(tr("Load flow file completed"));
-        pumpUi();
-        splashScreen.finish(this);
+        onProjectLoaded(normalizedLogicalPath);
+        this->setWindowTitle(QFileInfo(normalizedLogicalPath).fileName());
+    } else {
+        onProjectLoaded(QString());
+        this->setWindowTitle(tr("未命名项目"));
     }
-    else {
-        splashScreen.updateStatus(tr("Path is empty"));
-        pumpUi();
-        splashScreen.finish(this);
+
+    if (resolution.fromRecovery) {
+        reportStatus(tr("Recovered from autosave"));
     }
+    reportStatus(tr("Load flow file completed"));
 }
+
+/**
+ * @brief 应用启动前已确认的加载/恢复结果
+ * @param resolution 启动前 resolveProjectLoadPath 的解析结果（含是否从 recovery 恢复）
+ * @param cmdFilePath 命令行传入的 .flow 路径，可为空
+ * 函数级注释：在 Splash 初始化完成后调用；若用户选择恢复自动保存，则加载 recovery 文件；
+ *            否则按命令行路径打开，并跳过重复的恢复弹窗。
+ */
+void MainWindow::applyStartupLoadResolution(const ProjectLoadResolution& resolution,
+                                            const QString& cmdFilePath)
+{
+    if (!currentProjectPath.isEmpty()) {
+        return;
+    }
+
+    if (resolution.fromRecovery) {
+        forcedLoadResolution_ = resolution;
+        const QString openArg = ProjectPersistence::normalizeProjectPath(resolution.projectPath);
+        loadFileFromPath(openArg);
+        return;
+    }
+
+    if (cmdFilePath.isEmpty()) {
+        return;
+    }
+
+    skipRecoveryPrompt_ = true;
+    loadFileFromPath(cmdFilePath);
+    skipRecoveryPrompt_ = false;
+}
+
 //从文件管理器打开文件
 /**
  * @brief 从资源管理器选择并打开 .flow 文件
@@ -650,32 +610,105 @@ void MainWindow::loadFileFromExplorer() {
 
 }
 
+/**
+ * @brief 序列化当前项目为 .flow JSON 对象
+ * @return 包含 DataFlow、TimeLine、布局等模块的完整项目快照
+ * 函数级注释：供手动保存与自动保存共用，确保写入内容一致。
+ */
+QJsonObject MainWindow::serializeProject() const
+{
+    ProjectSnapshotSources sources;
+    sources.dataflowViewsManger = dataflowViewsManger;
+    sources.timeline = timeline;
+    sources.scheduledTaskWidget = scheduledTaskWidget;
+    sources.dockManager = m_DockManager;
+    sources.httpServer = httpServer;
+    return buildProjectSnapshot(sources);
+}
+
+/**
+ * @brief 初始化自动保存管理器
+ * 函数级注释：按配置启用周期性 recovery 保存；退出时写入最后一次快照并标记正常关闭。
+ */
+void MainWindow::setupAutosave()
+{
+    if (autosaveManager) {
+        return;
+    }
+
+    autosaveManager = new AutosaveManager(this);
+    autosaveManager->setEnabled(ConfigManager::instance().isAutosaveEnabled());
+    autosaveManager->setIntervalSeconds(ConfigManager::instance().getAutosaveIntervalSeconds());
+    autosaveManager->setSerializer([this]() {
+        return serializeProject();
+    });
+    autosaveManager->setProjectPath(QString());
+    autosaveManager->start();
+
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+        finalizeAutosave();
+        ProjectPersistence::markCleanShutdown();
+    });
+}
+
+/**
+ * @brief 立即执行一次自动保存
+ * 函数级注释：在程序退出或关闭窗口时调用，将当前项目写入 recovery 目录。
+ */
+void MainWindow::finalizeAutosave()
+{
+    if (!autosaveManager) {
+        return;
+    }
+    autosaveManager->saveRecoveryNow();
+}
+
+/**
+ * @brief 项目加载完成后的回调
+ * @param projectPath 逻辑项目路径（用户保存用的 .flow 路径，非 recovery 文件路径）
+ * 函数级注释：更新 currentProjectPath，并同步自动保存管理器中的项目路径；
+ *            若实际加载的是 autosave.flow，则从 meta 中还原原项目路径。
+ */
+void MainWindow::onProjectLoaded(const QString& projectPath)
+{
+    QString normalizedPath = ProjectPersistence::normalizeProjectPath(projectPath);
+    if (ProjectPersistence::isAutosavePath(normalizedPath)) {
+        normalizedPath = ProjectPersistence::normalizeProjectPath(
+            ProjectPersistence::readRecovery().projectPath);
+    }
+    currentProjectPath = normalizedPath;
+    if (!autosaveManager) {
+        return;
+    }
+    autosaveManager->setPaused(true);
+    autosaveManager->setProjectPath(normalizedPath);
+    autosaveManager->setPaused(false);
+}
+
+/**
+ * @brief 解析启动/打开时应加载的文件路径
+ * @param requestedPath 用户请求打开的路径，空表示启动时无命令行文件
+ * @return 实际加载路径与逻辑项目路径；若需恢复则 fromRecovery 为 true
+ * 函数级注释：检测到异常退出且存在 recovery 时弹出恢复对话框，供 loadFileFromPath 使用。
+ */
+ProjectLoadResolution MainWindow::resolveRecoveryLoadPath(const QString& requestedPath) const
+{
+    return resolveProjectLoadPath(requestedPath, const_cast<MainWindow*>(this));
+}
+
 //保存文件到路径
 void MainWindow::saveFileToPath(){
     if(currentProjectPath.isEmpty()){
         saveFileToExplorer();
+        qDebug() << "Saved data to" << currentProjectPath;
         return;
     }
-    QFile file(currentProjectPath);
-    //不存在则创建,默认覆盖
-    if (file.open(QIODevice::WriteOnly)) {
-        QJsonObject flowJson;
-        // 保存数据流
-        flowJson["DataFlow"]=dataflowViewsManger->save();
-        // 保存时间轴
-        flowJson["TimeLine"]=timeline->save();
-        // 保存计划任务
-        flowJson["ScheduledTasks"]=scheduledTaskWidget->save();
-        // 保存布局信息
-        const QByteArray layoutBytes = m_DockManager->saveState();
-        flowJson["VisualLayout"] = QString::fromLatin1(layoutBytes.toBase64());
-        // 保存网页布局（HTTP Server）
-        flowJson["WebLayout"] = httpServer ? httpServer->save() : QJsonObject{};
-        
-        file.write(QJsonDocument(flowJson).toJson(QJsonDocument::Compact));
-        file.close();
+    if (saveProjectSnapshotAtomic(currentProjectPath, serializeProject())) {
+        qDebug() << "Saved data to" << currentProjectPath;
+        if (autosaveManager) {
+            autosaveManager->clearRecovery();
+        }
     }
-    
 }
 //保存文件到资源管理器
 void MainWindow::saveFileToExplorer() {
@@ -687,31 +720,18 @@ void MainWindow::saveFileToExplorer() {
         if (!fileName.endsWith("flow", Qt::CaseInsensitive))
             fileName += ".flow";
 
-        QFile file(fileName);
-        //不存在则创建,默认覆盖
-        if (file.open(QIODevice::WriteOnly)) {
-            QJsonObject flowJson;
-            // 保存数据流
-            flowJson["DataFlow"]=dataflowViewsManger->save();
-            // 保存时间轴
-            flowJson["TimeLine"]=timeline->save();
-            // 保存计划任务
-            flowJson["ScheduledTasks"]=scheduledTaskWidget->save();
-            // 保存布局信息
-            const QByteArray layoutBytes = m_DockManager->saveState();
-            flowJson["VisualLayout"] = QString::fromLatin1(layoutBytes.toBase64());
-            // 保存网页布局（HTTP Server）
-            flowJson["WebLayout"] = httpServer ? httpServer->save() : QJsonObject{};
-
-            file.write(QJsonDocument(flowJson).toJson(QJsonDocument::Compact));
-            file.close();
-            currentProjectPath=fileName;
-            this->setWindowTitle(file.fileName());
-            // 保存后加入最近文件并刷新菜单
+        if (saveProjectSnapshotAtomic(fileName, serializeProject())) {
+            onProjectLoaded(fileName);
+            this->setWindowTitle(QFileInfo(fileName).fileName());
             ConfigManager::instance().addRecentFile(currentProjectPath);
             menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
+            qDebug() << "Saved data to" << currentProjectPath;
+            if (autosaveManager) {
+                autosaveManager->clearRecovery();
+            }
         }
     }
+
 }
 // 保存布局
 void MainWindow::updateVisualState()
@@ -766,15 +786,16 @@ void MainWindow::closeEvent(QCloseEvent* event)
             this->hide();
             event->ignore(); // 保持进程运行
         } else if (reply == QMessageBox::No) {
-            // 选择否：保存布局并退出
             qDebug() << "The program exits manually";
-
+            finalizeAutosave();
+            ProjectPersistence::markCleanShutdown();
             event->accept();
         } else {
             event->ignore();
         }
     } else {
-
+        finalizeAutosave();
+        ProjectPersistence::markCleanShutdown();
         event->accept();
     }
 }

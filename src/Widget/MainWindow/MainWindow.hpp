@@ -4,7 +4,9 @@
 
 #pragma once
 
+#include <QJsonObject>
 #include <QMainWindow>
+#include <optional>
 #include <QMetaObject>
 #include "Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
@@ -24,6 +26,8 @@
 #include <QSystemTrayIcon>
 #include <QMenu>
 #include "../ExternalControl/HttpServer.hpp"
+class AutosaveManager;
+#include "ProjectSnapshotBuilder.hpp"
 class PropertyWidget;
 
 class MainWindow : public QMainWindow
@@ -115,6 +119,13 @@ public Q_SLOTS:
      */
     void loadFileFromPath(const QString &path);
     /**
+     * @brief 应用启动前已确认的加载/恢复结果（Splash 之前弹窗）
+     * @param resolution 启动前 resolveProjectLoadPath 的结果
+     * @param cmdFilePath 命令行传入的 .flow 路径（可为空）
+     */
+    void applyStartupLoadResolution(const ProjectLoadResolution& resolution,
+                                    const QString& cmdFilePath = QString());
+    /**
      * 从资源管理器加载文件
      */
     /**
@@ -186,6 +197,12 @@ protected:
      */
     void restartAndOpenFlow(const QString& path);
 
+    QJsonObject serializeProject() const;
+    void setupAutosave();
+    void finalizeAutosave();
+    void onProjectLoaded(const QString& projectPath);
+    ProjectLoadResolution resolveRecoveryLoadPath(const QString& requestedPath) const;
+
 private:
     //日志表
     LogWidget *logTable;
@@ -203,8 +220,9 @@ private:
     bool isDarkTheme = false;
     // 标记当前是否处于“自重启退出”流程；用于绕过 closeEvent 中的“是否最小化到托盘”弹窗
     bool isRestarting = false;
-
-  
+    AutosaveManager* autosaveManager = nullptr;
+    std::optional<ProjectLoadResolution> forcedLoadResolution_;
+    bool skipRecoveryPrompt_ = false;
 
 };
 

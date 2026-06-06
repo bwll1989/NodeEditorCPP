@@ -14,10 +14,19 @@
 
 using namespace QtNodes;
 
-DataflowViewsManger::DataflowViewsManger(ads::CDockManager* dockManager,QObject* parent)
+DataflowViewsManger::DataflowViewsManger(ads::CDockManager* dockManager,
+                                         QObject* parent,
+                                         DataflowPresentationMode mode)
     : QObject(parent),
-    m_DockManager(dockManager) {
-    connect(m_DockManager, &ads::CDockManager::focusedDockWidgetChanged, this, &DataflowViewsManger::focusedSceneTitle);
+      m_DockManager(dockManager),
+      _mode(mode)
+{
+    if (m_DockManager && wantsUi()) {
+        connect(m_DockManager,
+                &ads::CDockManager::focusedDockWidgetChanged,
+                this,
+                &DataflowViewsManger::focusedSceneTitle);
+    }
 }
 
 DataflowViewsManger::~DataflowViewsManger()
@@ -29,13 +38,20 @@ DataflowViewsManger::~DataflowViewsManger()
 
 void DataflowViewsManger::setDockManager(ads::CDockManager* dockManager)
 {
+    if (m_DockManager) {
+        disconnect(m_DockManager, nullptr, this, nullptr);
+    }
     m_DockManager = dockManager;
+    if (m_DockManager && wantsUi()) {
+        connect(m_DockManager,
+                &ads::CDockManager::focusedDockWidgetChanged,
+                this,
+                &DataflowViewsManger::focusedSceneTitle);
+    }
 }
 
-void DataflowViewsManger::addNewScene(const QString& title)
+CustomDataFlowGraphModel* DataflowViewsManger::ensureModel(const QString& title)
 {
-    if (!m_DockManager) return;
-
     auto mit = _models.find(title);
     if (mit == _models.end()) {
         _models.emplace(title, std::make_unique<CustomDataFlowGraphModel>(PluginsManager::instance()->registry()));
@@ -44,7 +60,22 @@ void DataflowViewsManger::addNewScene(const QString& title)
             mit->second->setModelAlias(title);
         }
     }
-    if (mit == _models.end() || !mit->second) return;
+    if (mit == _models.end() || !mit->second) {
+        return nullptr;
+    }
+    return mit->second.get();
+}
+
+void DataflowViewsManger::createSceneUi(const QString& title)
+{
+    if (!m_DockManager) {
+        return;
+    }
+
+    auto mit = _models.find(title);
+    if (mit == _models.end() || !mit->second) {
+        return;
+    }
 
     auto dit = _DockWidget.find(title);
     if (dit != _DockWidget.end() && dit->second) {
@@ -121,26 +152,40 @@ void DataflowViewsManger::addNewScene(const QString& title)
     }
 
     emit createNewScene(title);
-
 }
 
+void DataflowViewsManger::addNewScene(const QString& title)
+{
+    if (!ensureModel(title)) {
+        return;
+    }
+    if (wantsUi()) {
+        createSceneUi(title);
+    }
+}
+
+void DataflowViewsManger::attachSceneUi(const QString& title)
+{
+    createSceneUi(title);
+}
 
 void DataflowViewsManger::addNewSceneFromeModel(const QString& title, QJsonObject const &jsonDocument) {
-    addNewScene(title);
-
-    auto it = _models.find(title);
-    if (it != _models.end() && it->second) {
-        QObject::connect(it->second.get(),
-                         &CustomDataFlowGraphModel::loadProgress,
-                         this,
-                         [this, title](const QString& phase, int current, int total) {
-                             Q_EMIT loadProgress(title, phase, current, total);
-                         });
-        it->second->load(jsonDocument);
+    auto* model = ensureModel(title);
+    if (!model) {
         return;
     }
 
-    _models[title]->load(jsonDocument);
+    if (wantsUi()) {
+        createSceneUi(title);
+    }
+
+    QObject::connect(model,
+                     &CustomDataFlowGraphModel::loadProgress,
+                     this,
+                     [this, title](const QString& phase, int current, int total) {
+                         Q_EMIT loadProgress(title, phase, current, total);
+                     });
+    model->load(jsonDocument);
     // if (_models.count(title)) return;
     // _models.emplace(title, std::unique_ptr<CustomDataFlowGraphModel>(model));
     //
@@ -277,7 +322,7 @@ QStringList DataflowViewsManger::sceneTitles() const
     // 函数级注释：
     // 说明：返回当前管理器维护的所有场景标题，便于外部（如 NodeListWidget）构建场景选择列表。
     QStringList titles;
-    for (const auto& kv : _DockWidget) {
+    for (const auto& kv : _models) {
         titles << kv.first;
     }
     return titles;
@@ -305,18 +350,27 @@ CustomDataFlowGraphModel* DataflowViewsManger::modelByTitle(const QString& title
     return it->second.get();
 }
 
-void DataflowViewsManger::focusedSceneTitle()
+QString DataflowViewsManger::currentFocusedSceneTitle() const
 {
-    // 函数级注释：
-    // 说明：若 DockManager 可用且存在聚焦的 DockWidget，返回其窗口标题作为场景标题。
     if (m_DockManager && m_DockManager->focusedDockWidget()) {
-        for (auto& kv : _DockWidget) {
+        for (const auto& kv : _DockWidget) {
             if (kv.second == m_DockManager->focusedDockWidget()) {
-                emit sceneIsActive(kv.first);
+                return kv.first;
             }
         }
     }
+    if (!_models.empty()) {
+        return _models.begin()->first;
+    }
+    return {};
+}
 
+void DataflowViewsManger::focusedSceneTitle()
+{
+    const QString title = currentFocusedSceneTitle();
+    if (!title.isEmpty()) {
+        emit sceneIsActive(title);
+    }
 }
 
 void DataflowViewsManger::refreshAllScenes()

@@ -13,6 +13,10 @@ set(AppConfig_sources
         ConfigManager.cpp
         ConfigManager.h
         ConstantDefines.h
+        ProjectPersistence.cpp
+        ProjectPersistence.h
+        AutosaveManager.cpp
+        AutosaveManager.h
 )
 
 #target_link_libraries(MYLIBRARY_LIBRARY PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::WebSockets)

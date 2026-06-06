@@ -2,21 +2,26 @@
 
 ## 1. 节点说明
 
-Logic Operation 插件提供一组**双输入逻辑/比较**节点，对两个 VariableData 输入做运算后，从单一输出端口给出结果（布尔或数值，视变体而定）。无内嵌界面，适合在数据流中做条件判断、取极值或比较大小。
+Logic Operation 插件提供一组逻辑/比较节点，对 VariableData 输入做运算后，从单一输出端口给出**布尔**结果。无内嵌界面。
 
-本插件包含以下变体（在节点库中分别添加）：
+| 变体名称 | 运算说明 | 输入端口 |
+|----------|----------|----------|
+| Logic And | 布尔与（`toBool`） | 2 |
+| Logic Or | 布尔或 | 2 |
+| Logic Xor | 布尔异或 | 2 |
+| Logic Nand | 布尔与非 | 2 |
+| Logic Nor | 布尔或非 | 2 |
+| Logic Not | 布尔取反 | 1 |
+| Logic Equal | 字符串相等 | 2 |
+| Logic NotEqual | 字符串不等 | 2 |
+| Logic EqualNum | 数值近似相等（`qFuzzyCompare`） | 2 |
+| Logic IsEmpty | 输入为空/无效 | 1 |
+| Logic Less | float 比较：输入 0 < 输入 1 | 2 |
+| Logic LessEqual | float 比较：输入 0 ≤ 输入 1 | 2 |
+| Logic Greater | float 比较：输入 0 > 输入 1 | 2 |
+| Logic GreaterEqual | float 比较：输入 0 ≥ 输入 1 | 2 |
 
-| 变体名称 | 运算说明 |
-|----------|----------|
-| Logic And | 两路输入转为**字符串**后比较是否相等（`==`），结果为布尔 |
-| Logic Or | 两路输入转为**布尔**后做逻辑或 |
-| Logic NotEqual | 两路输入转为**字符串**后比较是否不等 |
-| Logic Max | 两路数值取较大值（`qMax`，按 double） |
-| Logic Min | 两路数值取较小值（`qMin`，按 double） |
-| Logic Less | 按 float 比较：输入 0 小于 输入 1 |
-| Logic LessEqual | 按 float 比较：输入 0 小于等于 输入 1 |
-| Logic Greater | 按 float 比较：输入 0 大于 输入 1 |
-| Logic GreaterEqual | 按 float 比较：输入 0 大于等于 输入 1 |
+已移除 Logic Max / Logic Min（请使用 Math Operation 插件中的 Math Max / Math Min）。
 
 任一输入更新后，输出会立即刷新。
 
@@ -26,28 +31,28 @@ Logic Operation 插件提供一组**双输入逻辑/比较**节点，对两个 V
 
 | 端口 | 名称 | 数据类型 | 说明 |
 |------|------|----------|------|
-| 0 | （无单独标题） | VariableData | 运算左操作数 / 第一路数据 |
-| 1 | （无单独标题） | VariableData | 运算右操作数 / 第二路数据 |
+| 0…n | INPUT / INPUT n | VariableData | 操作数；一元运算仅 1 个端口 |
 
 ### 输出
 
 | 端口 | 名称 | 数据类型 | 说明 |
 |------|------|----------|------|
-| 0 | （无单独标题） | VariableData | 运算结果（布尔或数值） |
+| 0 | OUTPUT 0 | VariableData | 布尔运算结果 |
 
 ## 3. 界面说明
 
-各变体**无节点内嵌面板**，参数在连线上体现。在节点属性或外部控制中无额外配置项。
+各变体无内嵌面板，无额外控件。
 
 ## 4. 使用说明
 
 1. 从节点库选择需要的变体（如 Logic Greater）。
-2. 将两路 VariableData 分别接到输入 0 和输入 1。
+2. 将 VariableData 接到输入端口。
 3. 将输出接到 Condition、Switch、Inject 等下游节点。
 
-**注意：** 「Logic And」在实现上是比较**字符串相等**，并非布尔与运算；若需要布尔与，请先用其它节点将数据转为布尔，或使用 Logic Or 等变体配合 Condition 节点。
+**注意：** 旧版 Logic And 实际做的是字符串相等比较；现已改为真正的布尔与。若需字符串相等，请使用 **Logic Equal**。
 
 ## 5. 示例
 
-**阈值判断：** 用 Logic Greater 比较传感器数值（输入 0）与常量阈值（输入 1），输出接 Condition 或 Switch 的 INDEX。  
-**取两路最大值：** 使用 Logic Max，两路接不同计算结果，输出接后续数学或显示节点。
+**阈值判断：** Logic Greater 比较传感器数值与阈值，输出接 Switch 的 INDEX。  
+**开关组合：** Logic And / Or / Xor 组合多路布尔信号。  
+**空值检测：** Logic IsEmpty 判断字符串或无效输入。

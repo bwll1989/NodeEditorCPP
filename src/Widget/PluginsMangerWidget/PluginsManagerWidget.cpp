@@ -126,10 +126,16 @@ void PluginsManagerWidget::initLayout()
     });
 }
 
-void PluginsManagerWidget::loadBuildInPlugin()
+namespace {
+
+QString defaultDataFlowPluginsFolder()
 {
-    PluginsManager *pluginsManager = PluginsManager::instance();
-    emit loadPluginStatus("Loading build in plugins");
+    return QDir::cleanPath(QCoreApplication::applicationDirPath()
+                           + QDir::separator() + QStringLiteral("plugins/DataFlow"));
+}
+
+void registerBuildInPlugins(QtNodes::PluginsManager* pluginsManager)
+{
     pluginsManager->registry()->registerModel<VariableOutDataModel>("Variable Out","Variable");
     pluginsManager->registry()->registerModel<VariableInDataModel>("Variable In","Variable");
     pluginsManager->registry()->registerModel<AudioInDataModel>("Audio In","Audio");
@@ -151,7 +157,43 @@ void PluginsManagerWidget::loadBuildInPlugin()
     pluginsManager->registry()->registerModel<BoolVariableDataModel>("Bool Variable","Variable");
     pluginsManager->registry()->registerModel<TextVariableDataModel>("String Variable","Variable");
     pluginsManager->registry()->registerModel<ToggleVariableDataModel>("Toggle Variable","Variable");
+}
 
+} // namespace
+
+void PluginsManagerWidget::loadBuildInPlugin()
+{
+    emit loadPluginStatus("Loading build in plugins");
+    registerBuildInPlugins(PluginsManager::instance());
+}
+
+void PluginsManagerWidget::loadAllFromDefaultFolder(const std::function<void(const QString&)>& onStatus)
+{
+    const auto report = [&onStatus](const QString& message) {
+        if (onStatus) {
+            onStatus(message);
+        }
+    };
+
+    PluginsManager* pluginsManager = PluginsManager::instance();
+    auto registry = pluginsManager->registry();
+
+    report(QStringLiteral("Loading build in plugins"));
+    registerBuildInPlugins(pluginsManager);
+    report(QObject::tr("Build in plugins loading finished"));
+
+    pluginsManager->loadPlugins(defaultDataFlowPluginsFolder(),
+                                QStringList() << QStringLiteral("*.node")
+                                              << QStringLiteral("*.js"));
+
+    for (const auto& loaderEntry : pluginsManager->loaders()) {
+        PluginInterface* plugin = qobject_cast<PluginInterface*>(loaderEntry.second->instance());
+        if (!plugin) {
+            continue;
+        }
+        report(QObject::tr("loading %1").arg(plugin->name()));
+        plugin->registerDataModels(registry);
+    }
 }
 
 //打开插件目录
@@ -168,39 +210,28 @@ QString PluginsManagerWidget::pluginsFolderPath() const
 //从目录加载所有插件
 void PluginsManagerWidget::loadPluginsFromFolder()
 {
-    PluginsManager *pluginsManager = PluginsManager::instance();
-    std::shared_ptr<NodeDelegateModelRegistry> registry = pluginsManager->registry();
-    // 首先加载内建插件
-    loadBuildInPlugin();
-    emit loadPluginStatus("Build in plugins loading finished");
-    // 加载plugins目录下的第三方插件
-    pluginsManager->loadPlugins(_pluginsFolder.absolutePath(),
-                                QStringList() << "*.node"
-                                              << "*.js");
+    loadAllFromDefaultFolder([this](const QString& status) {
+        emit loadPluginStatus(status);
+    });
 
-    for (auto l : pluginsManager->loaders()) {
-        PluginInterface *plugin = qobject_cast<PluginInterface *>(l.second->instance());
-        if (!plugin)
+    PluginsManager* pluginsManager = PluginsManager::instance();
+    for (const auto& loaderEntry : pluginsManager->loaders()) {
+        PluginInterface* plugin = qobject_cast<PluginInterface*>(loaderEntry.second->instance());
+        if (!plugin) {
             continue;
-        emit loadPluginStatus("loading "+plugin->name());
-//        发送正在加载的插件
-        QStandardItem *name_item = new QStandardItem(plugin->name());
-//        qDebug()<<l.second->fileName();
+        }
+
+        QStandardItem* nameItem = new QStandardItem(plugin->name());
         QList<QStandardItem*> row;
-        name_item->setData(l.second->fileName());
-        row.append(name_item);
-        QStandardItem *version_item = new QStandardItem(plugin->version());
-        row.append(version_item);
-        QStandardItem *describe_item = new QStandardItem(plugin->describe());
-        row.append(describe_item);
-        version_item->setData(Qt::AlignCenter,Qt::TextAlignmentRole);
-        name_item->setData(Qt::AlignCenter,Qt::TextAlignmentRole);
-        describe_item->setData(Qt::AlignCenter,Qt::TextAlignmentRole);
+        nameItem->setData(loaderEntry.second->fileName());
+        row.append(nameItem);
+        QStandardItem* versionItem = new QStandardItem(plugin->version());
+        row.append(versionItem);
+        QStandardItem* describeItem = new QStandardItem(plugin->describe());
+        row.append(describeItem);
+        versionItem->setData(Qt::AlignCenter, Qt::TextAlignmentRole);
+        nameItem->setData(Qt::AlignCenter, Qt::TextAlignmentRole);
+        describeItem->setData(Qt::AlignCenter, Qt::TextAlignmentRole);
         _model->appendRow(row);
-
-        plugin->registerDataModels(registry);
-
     }
-
-//    插件加载完成发送信号
 }
