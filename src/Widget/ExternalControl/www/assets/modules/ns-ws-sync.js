@@ -7,33 +7,64 @@
   const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const wsUrl = wsProtocol + '//' + location.host + '/ws';
 
-  // 函数级注释：更新顶部菜单中“主机”状态显示文本（基于 WebSocket 连接状态）
   function updateWebSocketStatusLabel(stateText) {
     try {
       const el = document.getElementById('wsStatusItem');
-      if (!el) return;
-      const txt = String(stateText || '').trim();
-      el.textContent = '主机：' + (txt || '未知');
-      if (txt === '已连接') {
-        el.classList.remove('text-danger', 'text-warning');
-        el.classList.add('text-success');
-      } else if (txt === '连接中…') {
-        el.classList.remove('text-success', 'text-danger');
-        el.classList.add('text-warning');
-      } else {
-        el.classList.remove('text-success', 'text-warning');
-        el.classList.add('text-danger');
+      if (el) {
+        const txt = String(stateText || '').trim();
+        el.textContent = '主机：' + (txt || '未知');
+        if (txt === '已连接') {
+          el.classList.remove('text-danger', 'text-warning');
+          el.classList.add('text-success');
+        } else if (txt === '连接中…') {
+          el.classList.remove('text-success', 'text-danger');
+          el.classList.add('text-warning');
+        } else {
+          el.classList.remove('text-success', 'text-warning');
+          el.classList.add('text-danger');
+        }
+      }
+    } catch {}
+    try {
+      if (window.NSWsStatus && typeof window.NSWsStatus.setStatus === 'function') {
+        window.NSWsStatus.setStatus(stateText);
       }
     } catch {}
   }
 
-  // 函数级注释：查询所有已加载控件的状态（发送 query 指令），增加防抖处理避免短时间内多次查询
+  // 函数级注释：收集指定分页画布上的 commandId（含 Timeline items）
+  function collectCommandIdsForTab(tid) {
+    const ids = new Set();
+    const info = tid ? NS.grids.get(tid) : null;
+    if (!info || !info.grid) return ids;
+    const host = info.grid.el || info.grid;
+    if (!host || !host.querySelectorAll) return ids;
+    try {
+      host.querySelectorAll('.grid-stack-item').forEach(node => {
+        const cmd = String(node.__nsCommandId || '').trim();
+        if (cmd) ids.add(cmd);
+        try {
+          const props = EPWidgets.getProps(node);
+          const items = Array.isArray(props && props.items) ? props.items : null;
+          if (items) {
+            items.forEach(it => {
+              const id = it && (it.id ?? it.commandId);
+              const s = (id !== undefined && id !== null) ? String(id).trim() : '';
+              if (s) ids.add(s);
+            });
+          }
+        } catch {}
+      });
+    } catch {}
+    return ids;
+  }
+
+  // 函数级注释：查询当前可见页控件的状态（发送 query 指令），增加防抖处理避免短时间内多次查询
   function queryAllStatuses() {
     if (NS.queryStatusTimer) clearTimeout(NS.queryStatusTimer);
     NS.queryStatusTimer = setTimeout(() => {
       if (!NS.ws || NS.ws.readyState !== WebSocket.OPEN) return;
-      // 直接从索引表读取所有 commandId，无需遍历 DOM
-      const ids = new Set(EPWidgets.getCommandIndex().keys());
+      const ids = collectCommandIdsForTab(NS.activeTabId);
       const arr = Array.from(ids);
       if (arr.length > 0) {
         const CHUNK = 128;
@@ -45,37 +76,30 @@
     }, 300); // 300ms 防抖
   }
 
-  // 函数级注释：跳转到设置页面（setting.html）
-  function openSettingsPage() {
-    window.location.href = 'setting.html';
+  // 函数级注释：跳转到设置页面（在用户点击时先完成鉴权，避免 setting.html 加载时 prompt 被拦截）
+  async function openSettingsPage() {
+    const auth = window.NSAuth;
+    if (auth && typeof auth.requireSettingAuth === 'function') {
+      const ok = await auth.requireSettingAuth({ title: '请输入设置页面密码' });
+      if (!ok) return;
+    }
+    window.location.assign('setting.html');
   }
 
-  // 函数级注释：向服务器提交设置页/编辑模式密码进行校验（POST /api/auth/setting）
   async function verifySettingPassword(password) {
-    try {
-      const resp = await fetch('/api/auth/setting', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: password || '' })
-      });
-      const j = await resp.json().catch(() => null);
-      return !!(resp.ok && j && j.ok);
-    } catch {
-      return false;
+    const auth = window.NSAuth;
+    if (auth && typeof auth.verifySettingPassword === 'function') {
+      return auth.verifySettingPassword(password);
     }
+    return false;
   }
 
-  // 函数级注释：进入编辑模式前进行密码校验（若服务器未配置密码，则自动通过）
   async function requireSettingAuth() {
-    const okEmpty = await verifySettingPassword('');
-    if (okEmpty) return true;
-    while (true) {
-      const pw = window.prompt('请输入编辑模式密码');
-      if (pw === null) return false;
-      const ok = await verifySettingPassword(pw);
-      if (ok) return true;
-      window.alert('密码错误');
+    const auth = window.NSAuth;
+    if (auth && typeof auth.requireSettingAuth === 'function') {
+      return auth.requireSettingAuth({ title: '请输入编辑模式密码' });
     }
+    return false;
   }
 
   // 函数级注释：初始化全屏控制（按钮绑定与状态同步）
@@ -236,7 +260,7 @@
     const main = document.querySelector('.main-area');
     const right = document.querySelector('.sidebar-right');
     if (!shell || !main || !right || typeof window.Split === 'undefined') return;
-    const MIN_RIGHT = 0, GUTTER = 6;
+    const MIN_RIGHT = 280, GUTTER = 6;
 
     let sizesPct = null;
     try {
@@ -257,7 +281,7 @@
       gutterSize: GUTTER,
       cursor: 'col-resize',
       minSize: [240, MIN_RIGHT],
-      sizes: sizesPct || [75, 25],
+      sizes: sizesPct || [72, 28],
       onDragEnd: (sizes) => {
         try {
           const total = shell.clientWidth || 1;

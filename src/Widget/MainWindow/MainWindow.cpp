@@ -339,12 +339,14 @@ void MainWindow::restartAndOpenFlow(const QString& path)
         return;
     }
 
-    finalizeAutosave();
-
     if (httpServer && httpServer->running()) {
         httpServer->stop();
         QCoreApplication::processEvents();
         QThread::msleep(200);
+    }
+
+    if (autosaveManager) {
+        autosaveManager->clearRecovery();
     }
 
     const QString exe = QCoreApplication::applicationFilePath();
@@ -361,9 +363,11 @@ void MainWindow::restartAndOpenFlow(const QString& path)
         QMessageBox::warning(this, "", tr("重启打开失败：无法启动新进程"));
         return;
     }
-    if (autosaveManager) {
-        autosaveManager->clearRecovery();
-    }
+
+    // 新进程在 main() 入口即读取 LastShutdownClean，必须在 startDetached 成功后、
+    // 旧进程 aboutToQuit 之前同步写入，否则会被误判为异常退出并弹出恢复对话框。
+    ProjectPersistence::markCleanShutdown();
+
     isRestarting = true;
     QCoreApplication::quit();
 }
@@ -646,6 +650,9 @@ void MainWindow::setupAutosave()
     autosaveManager->start();
 
     connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+        if (isRestarting) {
+            return;
+        }
         finalizeAutosave();
         ProjectPersistence::markCleanShutdown();
     });

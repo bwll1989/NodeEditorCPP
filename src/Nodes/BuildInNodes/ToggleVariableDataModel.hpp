@@ -43,7 +43,7 @@ namespace Nodes {
             button->setMinimumWidth(80);
             NodeDelegateModel::ExternalBinding binding;
             binding.member = "value";
-            // binding.control=button;
+            binding.control=button;
             AbstractDelegateModel::registerExternalBinding("/bool", this, binding);
             // AbstractDelegateModel::registerExternalControl("/bool", button);
             button->setChecked(false);

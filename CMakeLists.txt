@@ -79,12 +79,13 @@ set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc-msvc")
 include_directories(${tinyosc_DIR})
 message("-- Found tinyosc ${tinyosc_DIR}")
 
-# 设置FFMPEG库
-set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-184-gdc07f98934-win64-gpl-shared-7.1/include")
-set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-184-gdc07f98934-win64-gpl-shared-7.1/lib")
+# FFmpeg：主工程仅配置路径变量与头文件搜索路径，不在 Flow/Runtime 上 link；插件/Clip 自行 target_link_libraries
+set(FFMPEG_ROOT "${DEPENDS_DIR}/ffmpeg-n7.1-184-gdc07f98934-win64-gpl-shared-7.1")
+set(FFMPEG_INCLUDE_DIRS "${FFMPEG_ROOT}/include")
+set(FFMPEG_LIB_DIRS "${FFMPEG_ROOT}/lib")
 include_directories(${FFMPEG_INCLUDE_DIRS})
-link_directories("${FFMPEG_LIB_DIRS}")
-message("-- Found ffmpeg ${FFMPEG_INCLUDE_DIRS}")
+message(STATUS "FFmpeg include: ${FFMPEG_INCLUDE_DIRS}")
+message(STATUS "FFmpeg lib dir: ${FFMPEG_LIB_DIRS}")
 
 # 设置Eigen3库
 set(Eigen3_DIR "${DEPENDS_DIR}/eigen-3.4.0/INSTALL/share/eigen3/cmake")
@@ -274,12 +275,14 @@ set(CALC_SOURCE_FILES
         src/Widget/CalendarWidget/TaskItemWidget.hpp
         src/Widget/CalendarWidget/TaskListWidget.cpp
         src/Widget/CalendarWidget/TaskListWidget.hpp
+        src/Widget/CalendarWidget/TaskRowDelegate.cpp
+        src/Widget/CalendarWidget/TaskRowDelegate.h
+        src/Widget/CalendarWidget/TaskDetailPanel.cpp
+        src/Widget/CalendarWidget/TaskDetailPanel.hpp
         src/Widget/CalendarWidget/ScheduledTaskFilterProxyModel.cpp
         src/Widget/CalendarWidget/ScheduledTaskFilterProxyModel.hpp
         src/Widget/CalendarWidget/ScheduledTaskManager.cpp
         src/Widget/CalendarWidget/ScheduledTaskManager.hpp
-        src/Widget/CalendarWidget/TaskItemDelegate.cpp
-        src/Widget/CalendarWidget/TaskItemDelegate.h
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.cpp
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.h
         src/Widget/ExternalControl/HttpServer.cpp
@@ -353,7 +356,6 @@ target_link_libraries(${ProjectName}
             ${QtNodes_LIBRARIES}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
-            ${Libpd_LIBRARIES}
             ${Libltc_LIBRARIES}
             ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}
@@ -364,14 +366,6 @@ target_link_libraries(${ProjectName}
             Poco::Net
             Poco::JSON
             GUIElements
-            avcodec
-            avdevice
-            avfilter
-            avformat
-            avutil
-            postproc
-            swresample
-            swscale
             Opengl32
             glu32
             OSCTransmitter
@@ -395,7 +389,7 @@ target_link_libraries(${ProjectName}
 target_compile_definitions(${HeadlessProjectName} PRIVATE -DNODE_EDITOR_SHARED NODE_TIMELINE_SHARED)
 target_compile_definitions(${HeadlessProjectName} PRIVATE CLIENTCONTROLLER_LIBRARY)
 target_compile_definitions(${HeadlessProjectName} PRIVATE OSCLISTWIDGET_LIBRARY)
-# 为 Headless 目标链接与主程序一致的库（含 FFmpeg 7.1）
+# 为 Headless 目标链接与主程序一致的库（不含 FFmpeg，FFmpeg 由插件按需链接）
 target_link_libraries(${HeadlessProjectName}
         PUBLIC
             Qt${QT_VERSION_MAJOR}::Widgets
@@ -420,14 +414,6 @@ target_link_libraries(${HeadlessProjectName}
             Poco::Net
             Poco::JSON
             GUIElements
-            avcodec
-            avdevice
-            avfilter
-            avformat
-            avutil
-            postproc
-            swresample
-            swscale
             Opengl32
             glu32
             OSCTransmitter
@@ -437,7 +423,6 @@ target_link_libraries(${HeadlessProjectName}
             ${QtNodes_LIBRARIES}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
-            ${Libpd_LIBRARIES}
             ${Libltc_LIBRARIES}
             Eigen3::Eigen
             ${QtTimeLine_LIBRARIES}
@@ -449,7 +434,6 @@ target_link_libraries(${HeadlessProjectName}
             ModelDataBridge
             DelayListWidget
             DockHub
-            SpoutReceiver
             StatusContainer
             AppConfig
             PropertyTreeWidget

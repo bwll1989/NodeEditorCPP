@@ -10,9 +10,10 @@
 #include "Common/Devices/OSCSender/OSCSender.h"
 #include "Common/AppConfig/ConfigManager.h"
 #include "OSCMessage.h"
-#include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/Net/HTTPServerRequest.h>
+#include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/Net/NetException.h>
+#include <Poco/Timespan.h>
 #include <Poco/URI.h>
 #include <Poco/FileStream.h>
 #include <Poco/Path.h>
@@ -29,14 +30,31 @@ using namespace Poco::Net;
 using namespace Poco;
 using namespace NodeStudio;
 
+namespace {
+
+void setDynamicCacheControl(HTTPServerResponse& response) {
+    response.set("Cache-Control", "no-cache");
+}
+
+/** @brief WebSocket 长连接：禁用 Poco 默认 60s 连接/读超时 */
+void configureWebSocketTimeouts(Poco::Net::WebSocket& ws)
+{
+    ws.setReceiveTimeout(Poco::Timespan(0, 0));
+    ws.setSendTimeout(Poco::Timespan(0, 0));
+}
+
+} // namespace
+
 // ===== PageWebSocketHandler =====
 PageWebSocketHandler::PageWebSocketHandler(NodeHttpServer& server)
     : _server(server) {}
 
 void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
                                          HTTPServerResponse& response) {
+    setDynamicCacheControl(response);
     try {
         Poco::Net::WebSocket ws(request, response);
+        configureWebSocketTimeouts(ws);
         _ws = &ws;
         _server.registerWebSocket(this);
         
@@ -46,7 +64,12 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
         std::string accum;
         do {
             n = ws.receiveFrame(chunk.data(), (int)chunk.size(), flags);
-            if (n > 0 && (flags & WebSocket::FRAME_OP_BITMASK) != WebSocket::FRAME_OP_CLOSE) {
+            const int op = flags & WebSocket::FRAME_OP_BITMASK;
+            if (n > 0 && op == WebSocket::FRAME_OP_PING) {
+                ws.sendFrame(chunk.data(), n, WebSocket::FRAME_OP_PONG | WebSocket::FRAME_FLAG_FIN);
+                continue;
+            }
+            if (n > 0 && op != WebSocket::FRAME_OP_CLOSE) {
                 accum.append(chunk.data(), n);
                 if (flags & WebSocket::FRAME_FLAG_FIN) {
                     QByteArray payload(accum.data(), (int)accum.size());
@@ -99,15 +122,16 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
         case WebSocket::WS_ERR_NO_HANDSHAKE:
         case WebSocket::WS_ERR_HANDSHAKE_NO_VERSION:
         case WebSocket::WS_ERR_HANDSHAKE_NO_KEY:
+            setDynamicCacheControl(response);
             response.setStatusAndReason(HTTPResponse::HTTP_BAD_REQUEST);
             response.setContentLength(0);
             response.send();
             break;
         }
-    } catch (const Poco::Exception&) {
+    } catch (const Poco::Exception& exc) {
         _server.unregisterWebSocket(this);
         _ws = nullptr;
-        // qWarning() << "WebSocket Poco Exception: " << exc.displayText().c_str();
+        qWarning() << "WebSocket Poco Exception:" << exc.displayText().c_str();
     }
 }
 
@@ -125,6 +149,7 @@ void PageWebSocketHandler::send(const std::string& message) {
 void StaticRequestHandler::sendJsonResponse(HTTPServerResponse& response, const std::string& json, HTTPResponse::HTTPStatus status) {
     response.setStatus(status);
     response.setContentType("application/json; charset=utf-8");
+    setDynamicCacheControl(response);
     std::ostream& ostr = response.send();
     ostr << json;
 }
@@ -287,6 +312,7 @@ void StaticRequestHandler::handleStaticFile(HTTPServerRequest& request, HTTPServ
         const std::string html = builtInIndexHtml();
         response.setStatus(HTTPResponse::HTTP_OK);
         response.setContentType("text/html; charset=utf-8");
+        response.set("Cache-Control", "no-cache");
         std::ostream& ostr = response.send();
         ostr << html;
         return;
@@ -301,6 +327,7 @@ void StaticRequestHandler::handleStaticFile(HTTPServerRequest& request, HTTPServ
     // 禁止使用 .. 穿越
     if (rel.find("..") != std::string::npos) {
         response.setStatus(HTTPResponse::HTTP_FORBIDDEN);
+        setDynamicCacheControl(response);
         std::ostream& ostr = response.send();
         ostr << "403 Forbidden";
         return;
@@ -308,6 +335,7 @@ void StaticRequestHandler::handleStaticFile(HTTPServerRequest& request, HTTPServ
     Path relPath(rel);
     if (relPath.isAbsolute()) {
         response.setStatus(HTTPResponse::HTTP_FORBIDDEN);
+        setDynamicCacheControl(response);
         std::ostream& ostr = response.send();
         ostr << "403 Forbidden";
         return;
@@ -323,6 +351,7 @@ void StaticRequestHandler::handleStaticFile(HTTPServerRequest& request, HTTPServ
     std::transform(baseStr.begin(), baseStr.end(), baseStr.begin(), ::tolower);
     if (absStr.compare(0, baseStr.size(), baseStr) != 0) {
         response.setStatus(HTTPResponse::HTTP_FORBIDDEN);
+        setDynamicCacheControl(response);
         std::ostream& ostr = response.send();
         ostr << "403 Forbidden";
         return;
@@ -331,6 +360,7 @@ void StaticRequestHandler::handleStaticFile(HTTPServerRequest& request, HTTPServ
     File file(absPath);
     if (!file.exists() || file.isDirectory()) {
         response.setStatus(HTTPResponse::HTTP_NOT_FOUND);
+        setDynamicCacheControl(response);
         std::ostream& ostr = response.send();
         ostr << "404 Not Found";
         return;
@@ -402,10 +432,12 @@ void StaticRequestHandler::handleRequest(HTTPServerRequest& request,
         }
     } catch (const Poco::Exception& e) {
         response.setStatus(HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+        setDynamicCacheControl(response);
         std::ostream& ostr = response.send();
         ostr << "500 Internal Server Error: " << e.displayText();
     } catch (const std::exception& e) {
         response.setStatus(HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+        setDynamicCacheControl(response);
         std::ostream& ostr = response.send();
         ostr << "500 Internal Server Error: " << e.what();
     }
@@ -556,6 +588,7 @@ void StaticRequestHandler::handleDownloadCurrentFlow(HTTPServerRequest& request,
 
     response.setStatus(HTTPResponse::HTTP_OK);
     response.setContentType("application/octet-stream");
+    setDynamicCacheControl(response);
 
     // Set filename in Content-Disposition
     Poco::Path p(recentFile.toStdString());
@@ -659,7 +692,11 @@ bool NodeHttpServer::start(int port) {
         ServerSocket svs(static_cast<Poco::UInt16>(_port));
         auto params = new HTTPServerParams();
         params->setMaxQueued(64);
-        params->setMaxThreads(4);
+        params->setMaxThreads(16);
+        // 勿设为 Timespan(0,0)：会导致 poll 立即超时，WebSocket 握手失败
+        // 长连接读超时在 WebSocket 升级后由 configureWebSocketTimeouts() 单独关闭
+        params->setTimeout(Poco::Timespan(3600, 0));
+        params->setKeepAliveTimeout(Poco::Timespan(3600, 0));
         
         _server = std::make_unique<HTTPServer>(new StaticRequestHandlerFactory(_docRoot, *this), svs, params);
         _server->start();

@@ -319,21 +319,62 @@ window.EPWidgets = {
   // 函数级注释：清理整个索引表（页面全量清空时调用）
   clearCommandIndex() {
     commandIndex.clear();
-  },
-  // 函数级注释：向后端发送指令JSON（addr/value）
-  sendCommand(addr, value) {
-    if (this.isRemoteUpdating) return Promise.resolve({ ok: true });
-    try {
-      const payload = { addr: String(addr || ''), value: String(value ?? '') };
-      return fetch('/api/command', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).then(r => r.text()).then(t => {
-        try { return JSON.parse(t); } catch { return { ok: true, raw: t }; }
-      }).catch(() => ({ ok: false }));
-    } catch {
-      return Promise.resolve({ ok: false });
-    }
   }
+};
+
+// 函数级注释：高频控件（滑块等）指令节流，避免 WS/HTTP 被刷爆
+const __pendingCmds = new Map();
+const __lastSentCmd = new Map();
+const __CMD_DEBOUNCE_MS = 48;
+
+function __sendCommandImmediate(address, val) {
+  try {
+    const NS = window.NS;
+    if (NS && NS.ws && NS.ws.readyState === WebSocket.OPEN) {
+      NS.ws.send(JSON.stringify({ address, value: val }));
+      return Promise.resolve({ ok: true });
+    }
+  } catch {}
+  try {
+    const payload = { addr: address, value: val };
+    return fetch('/api/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(r => r.text()).then(t => {
+      try { return JSON.parse(t); } catch { return { ok: true, raw: t }; }
+    }).catch(() => ({ ok: false }));
+  } catch {
+    return Promise.resolve({ ok: false });
+  }
+}
+
+window.EPWidgets.sendCommand = function(addr, value) {
+  if (this.isRemoteUpdating) return Promise.resolve({ ok: true });
+  const address = String(addr || '');
+  const val = String(value ?? '');
+  if (!address) return Promise.resolve({ ok: false });
+
+  let entry = __pendingCmds.get(address);
+  if (!entry) {
+    __lastSentCmd.set(address, val);
+    const p = __sendCommandImmediate(address, val);
+    entry = { value: val, timer: null, promise: p };
+    __pendingCmds.set(address, entry);
+  } else {
+    entry.value = val;
+  }
+
+  if (entry.timer) clearTimeout(entry.timer);
+  entry.timer = setTimeout(() => {
+    const cur = __pendingCmds.get(address);
+    if (!cur) return;
+    __pendingCmds.delete(address);
+    const latest = cur.value;
+    if (__lastSentCmd.get(address) === latest) return;
+    __lastSentCmd.set(address, latest);
+    __sendCommandImmediate(address, latest);
+  }, __CMD_DEBOUNCE_MS);
+
+  return entry.promise || Promise.resolve({ ok: true });
 };

@@ -48,6 +48,8 @@ private:
     CustomFlowGraphicsScene* dataFlowScene;
     //是否正在更新选择
     bool isUpdatingSelection = false;
+    // 当前绑定的场景标题（用于避免重复重建节点树）
+    QString _currentSceneTitle;
     QPoint dragStartPosition;
     bool isDragging = false;
     /**

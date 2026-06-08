@@ -117,6 +117,11 @@ public:
     void removeItem(int index);
 
     /**
+     * @brief 批量更新任务项（避免逐字段写回导致过滤/选中异常）
+     */
+    bool updateTaskFields(int row, const OSCMessage& osc, const ScheduledInfo& sched);
+
+    /**
      * @brief 根据日期筛选当天应显示的任务项
      * once: 任务日期 == 指定日期
      * loop: 指定日期的星期在 Conditions 中

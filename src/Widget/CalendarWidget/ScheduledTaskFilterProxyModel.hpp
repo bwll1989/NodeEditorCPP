@@ -24,14 +24,10 @@ protected:
 
         const QString schedType = sourceModel()->data(idx, ScheduledTaskModel::RoleScheduleType).toString();
         const QTime t = sourceModel()->data(idx, ScheduledTaskModel::RoleTime).toTime();
-        const QStringList loopDays = sourceModel()->data(idx, ScheduledTaskModel::RoleLoopDays).toStringList();
 
-        if (schedType.compare("loop", Qt::CaseInsensitive) == 0) {
-            // 映射星期几
-            const int dow = m_date.dayOfWeek(); // 1=Mon ... 7=Sun
-            static const QStringList names = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"};
-            const QString name = names.value(dow - 1);
-            return loopDays.contains(name, Qt::CaseInsensitive);
+        if (schedType.compare(QStringLiteral("loop"), Qt::CaseInsensitive) == 0) {
+            // 循环任务：列表中始终可见，便于在任何日期下编辑
+            return true;
         } else {
             // 一次性任务：需要模型提供日期。若暂未提供，则默认不过滤（保留显示）
             const QVariant dVar = sourceModel()->data(idx, ScheduledTaskModel::RoleDate);

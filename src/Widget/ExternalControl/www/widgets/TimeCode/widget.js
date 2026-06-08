@@ -30,7 +30,7 @@
 
     return window.EPWidgets.createVueWidget(grid, {
       type: '时间码',
-      templatePath: 'widgets/Timecode/widget.html',
+      templatePath: 'widgets/TimeCode/widget.html',
       initialProps,
       opts,
       defaultW: 28,

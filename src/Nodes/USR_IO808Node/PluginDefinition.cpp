@@ -1,7 +1,7 @@
 #include "PluginDefinition.hpp"
 
 #include "USR-IO808DataModel.hpp"
-
+#include "USR-IO424DataModel.hpp"
 Plugin *Plugin::_this_plugin = nullptr;
 
 Plugin::Plugin()
@@ -18,4 +18,5 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
     reg->registerModel<Nodes::USR_IO808DataModel>(name(),tag());
+    reg->registerModel<Nodes::USR_IO424DataModel>("USR-IO424",tag());
 }

@@ -6,6 +6,37 @@
   const NSWsSync = window.NSWsSync;
   const NSUtils = window.NSUtils;
 
+  function __dashboard() { return window.NSDashboard || null; }
+  function __dashCtx() {
+    try { return window.NSDashboardCtx || null; } catch { return null; }
+  }
+  function __groupSelIds() {
+    const c = __dashCtx();
+    return (c && c.state && c.state.selectedGroupIds) ? c.state.selectedGroupIds : null;
+  }
+  function __groupDrillId() {
+    const c = __dashCtx();
+    return c ? String(c.state.groupDrillId || '').trim() : '';
+  }
+  function __seedHistoryAfterLoad(tid, grid) {
+    try {
+      const c = __dashCtx();
+      if (c && c.history && typeof c.history.seedHistorySnapshot === 'function') {
+        c.history.seedHistorySnapshot(tid, grid);
+      }
+    } catch {}
+  }
+  function __markGridLoaded(tid, grid) {
+    try {
+      if (tid) {
+        const info = NS.grids.get(tid);
+        if (info) { info.loaded = true; info.rendering = false; }
+      } else if (grid) {
+        NS.grids.forEach((info, key) => { if (info.grid === grid) { info.loaded = true; info.rendering = false; } });
+      }
+    } catch {}
+  }
+
   // ===== 工具函数 =====
 
   // 函数级注释：判断是否为移动端设备
@@ -108,7 +139,7 @@
       }
 
       try {
-        const gs = (window && window.__selectedGroupIds && typeof window.__selectedGroupIds.has === 'function') ? window.__selectedGroupIds : null;
+        const gs = __groupSelIds();
         const isSel = !!(gs && gs.has(gid));
         box.classList.toggle('group-selected', !!isSel);
       } catch {}
@@ -141,18 +172,67 @@
     });
   }
 
+  // 函数级注释：等待指针移动超过阈值后再启动拖拽（单击仅选中，按住并移动才拖拽）
+  function __bindDragThreshold(captureEl, startEv, onThreshold, onClick) {
+    if (!captureEl || !startEv || typeof onThreshold !== 'function') return;
+
+    let moved = false;
+    const sx = Number(startEv.clientX) || 0;
+    const sy = Number(startEv.clientY) || 0;
+    const pid = startEv.pointerId;
+
+    const cleanup = () => {
+      captureEl.removeEventListener('pointermove', onMove);
+      captureEl.removeEventListener('pointerup', onUp);
+      captureEl.removeEventListener('pointercancel', onUp);
+      try { captureEl.releasePointerCapture(pid); } catch {}
+    };
+
+    const onMove = (ev) => {
+      if (ev.pointerId !== pid) return;
+      if ((ev.buttons & 1) === 0) {
+        cleanup();
+        return;
+      }
+      const dx = (Number(ev.clientX) || 0) - sx;
+      const dy = (Number(ev.clientY) || 0) - sy;
+      if (!moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        moved = true;
+        cleanup();
+        onThreshold(startEv);
+      }
+    };
+
+    const onUp = (ev) => {
+      if (ev.pointerId !== pid) return;
+      cleanup();
+      if (!moved && typeof onClick === 'function') onClick();
+    };
+
+    try { captureEl.setPointerCapture(pid); } catch {}
+    captureEl.addEventListener('pointermove', onMove);
+    captureEl.addEventListener('pointerup', onUp);
+    captureEl.addEventListener('pointercancel', onUp);
+  }
+
   // 函数级注释：拖拽指定节点集合（用于多选控件拖拽、整组拖拽等）
   function __startDragNodes(captureEl, targets, ev) {
     if (!captureEl || !targets || !targets.length || !ev) return;
 
     const startX = Number(ev.clientX) || 0;
     const startY = Number(ev.clientY) || 0;
+    const pid = ev.pointerId;
     const startRects = new Map();
     targets.forEach(n => { try { startRects.set(n, NSUtils.__readRectPx(n)); } catch {} });
 
-    try { captureEl.setPointerCapture(ev.pointerId); } catch {}
+    try { captureEl.setPointerCapture(pid); } catch {}
 
     const onMove = (e) => {
+      if (e.pointerId !== pid) return;
+      if ((e.buttons & 1) === 0) {
+        onUp(e);
+        return;
+      }
       try { if (e && e.cancelable) e.preventDefault(); } catch {}
       const dx0 = (Number(e.clientX) || 0) - startX;
       const dy0 = (Number(e.clientY) || 0) - startY;
@@ -177,14 +257,19 @@
     };
 
     const onUp = (e) => {
-      try { captureEl.releasePointerCapture(e.pointerId); } catch {}
+      if (e.pointerId !== pid) return;
+      try { captureEl.releasePointerCapture(pid); } catch {}
       captureEl.removeEventListener('pointermove', onMove);
       captureEl.removeEventListener('pointerup', onUp);
       captureEl.removeEventListener('pointercancel', onUp);
       try {
-        if (NS.activeTabId && typeof window.__saveLayoutLocal === 'function') {
+        if (NS.activeTabId) {
           const info = NS.grids.get(NS.activeTabId);
-          if (info && info.grid) window.__saveLayoutLocal(NS.activeTabId, info.grid);
+          const dash = __dashboard();
+          if (info && info.grid && dash) {
+            if (typeof dash.commitLayoutLocal === 'function') dash.commitLayoutLocal(NS.activeTabId, info.grid);
+            else if (typeof dash.saveLayoutLocal === 'function') dash.saveLayoutLocal(NS.activeTabId, info.grid);
+          }
         }
       } catch {}
     };
@@ -207,11 +292,17 @@
     if (!overlay || !node || !ev) return;
     const startX = Number(ev.clientX) || 0;
     const startY = Number(ev.clientY) || 0;
+    const pid = ev.pointerId;
     const r0 = NSUtils.__readRectPx(node);
 
-    try { overlay.setPointerCapture(ev.pointerId); } catch {}
+    try { overlay.setPointerCapture(pid); } catch {}
 
     const onMove = (e) => {
+      if (e.pointerId !== pid) return;
+      if ((e.buttons & 1) === 0) {
+        onUp(e);
+        return;
+      }
       try { if (e && e.cancelable) e.preventDefault(); } catch {}
       const dx0 = (Number(e.clientX) || 0) - startX;
       const dy0 = (Number(e.clientY) || 0) - startY;
@@ -271,14 +362,19 @@
     };
 
     const onUp = (e) => {
-      try { overlay.releasePointerCapture(e.pointerId); } catch {}
+      if (e.pointerId !== pid) return;
+      try { overlay.releasePointerCapture(pid); } catch {}
       overlay.removeEventListener('pointermove', onMove);
       overlay.removeEventListener('pointerup', onUp);
       overlay.removeEventListener('pointercancel', onUp);
       try {
-        if (NS.activeTabId && typeof window.__saveLayoutLocal === 'function') {
+        if (NS.activeTabId) {
           const info = NS.grids.get(NS.activeTabId);
-          if (info && info.grid) window.__saveLayoutLocal(NS.activeTabId, info.grid);
+          const dash = __dashboard();
+          if (info && info.grid && dash) {
+            if (typeof dash.commitLayoutLocal === 'function') dash.commitLayoutLocal(NS.activeTabId, info.grid);
+            else if (typeof dash.saveLayoutLocal === 'function') dash.saveLayoutLocal(NS.activeTabId, info.grid);
+          }
         }
       } catch {}
     };
@@ -361,43 +457,14 @@
       return;
     }
 
-    if (!__isTextInputNode(node) || toggle) {
-      __setNodeInteract(node, false);
-      __startDrag(overlay, node, e);
-      return;
-    }
-
     __setNodeInteract(node, false);
-    let moved = false;
-    const sx = Number(e.clientX) || 0;
-    const sy = Number(e.clientY) || 0;
+    const isInput = __isTextInputNode(node) && !toggle;
 
-    const cleanup = () => {
-      overlay.removeEventListener('pointermove', onMove);
-      overlay.removeEventListener('pointerup', onUp);
-      overlay.removeEventListener('pointercancel', onUp);
-      try { overlay.releasePointerCapture(e.pointerId); } catch {}
-    };
-
-    const onMove = (ev) => {
-      const dx = (Number(ev.clientX) || 0) - sx;
-      const dy = (Number(ev.clientY) || 0) - sy;
-      if (!moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
-        moved = true;
-        cleanup();
-        __startDrag(overlay, node, e);
-      }
-    };
-
-    const onUp = () => {
-      cleanup();
-      if (!moved) __enterInputInteractIfNeeded(node, { toggle: false });
-    };
-
-    try { overlay.setPointerCapture(e.pointerId); } catch {}
-    overlay.addEventListener('pointermove', onMove);
-    overlay.addEventListener('pointerup', onUp);
-    overlay.addEventListener('pointercancel', onUp);
+    __bindDragThreshold(overlay, e, () => {
+      __startDrag(overlay, node, e);
+    }, isInput ? () => {
+      __enterInputInteractIfNeeded(node, { toggle: false });
+    } : null);
   }
 
   // 函数级注释：绑定一次全局退出交互模式事件（Esc 或点击控件外部）
@@ -435,6 +502,8 @@
   function attachOverlay(node) {
     const overlay = node.querySelector('.widget-overlay-mask');
     if (!overlay) return;
+    if (overlay.dataset.nsOverlayBound === '1') return;
+    overlay.dataset.nsOverlayBound = '1';
 
     __ensureResizeHandles(overlay);
 
@@ -451,7 +520,7 @@
       const leafGid = (chain && chain.length) ? String(chain[chain.length - 1] || '').trim() : '';
       let gid = leafGid;
       try {
-        const gs0 = (window && window.__selectedGroupIds && typeof window.__selectedGroupIds.has === 'function') ? window.__selectedGroupIds : null;
+        const gs0 = __groupSelIds();
         if (gs0 && gs0.size && chain && chain.length) {
           for (let i = chain.length - 1; i >= 0; i--) {
             const g = String(chain[i] || '').trim();
@@ -462,7 +531,7 @@
 
       if (gid) {
         const nodeIsSelected = !!(node && node.classList && node.classList.contains('grid-selected'));
-        const drill = String((window && window.__groupDrillId) || '').trim();
+        const drill = __groupDrillId();
         const inDrill = !!(drill && drill === gid);
         const NSDashboard = window.NSDashboard;
         const sn = NSDashboard && NSDashboard._getSelectedNodes ? NSDashboard._getSelectedNodes() : null;
@@ -470,18 +539,16 @@
 
         // 处于组内钻取/控件选择模式时：点击组内控件直接走控件选择（支持 Ctrl/Shift 多选）
         if (nodeIsSelected || inDrill || hasNodeSelection) {
-          if (typeof window.__selectNode === 'function') window.__selectNode(node, { toggle });
+          try { __dashboard()?.selectNode(node, { toggle }); } catch {}
           __startDragOrEnterInput(overlay, node, e, { toggle });
           return;
         }
 
-        const gs = (window && window.__selectedGroupIds && typeof window.__selectedGroupIds.has === 'function') ? window.__selectedGroupIds : null;
+        const gs = __groupSelIds();
         const wasGroupSelected = !!(gs && gs.has(gid));
 
         // 第一次点击：只选中分组，不选中组内控件
-        if (typeof window.__selectGroup === 'function') {
-          if (!wasGroupSelected) window.__selectGroup(gid, { toggle });
-        }
+        if (!wasGroupSelected) { try { __dashboard()?.selectGroup(gid, { toggle }); } catch {} }
 
         let moved = false;
         const sx = Number(e.clientX) || 0;
@@ -500,7 +567,7 @@
           const canvas = wrap.querySelector('.pixel-canvas');
           if (!canvas) return [node];
 
-          const gs2 = (window && window.__selectedGroupIds && typeof window.__selectedGroupIds.has === 'function') ? window.__selectedGroupIds : null;
+          const gs2 = __groupSelIds();
           const raw = (gs2 && gs2.size && gs2.has(gid)) ? Array.from(gs2) : [gid];
           const gids = NSUtils.__normalizeSelectedGroupIds(canvas, raw);
 
@@ -521,6 +588,10 @@
         };
 
         const onMove = (ev) => {
+          if ((ev.buttons & 1) === 0) {
+            cleanup();
+            return;
+          }
           const dx = (Number(ev.clientX) || 0) - sx;
           const dy = (Number(ev.clientY) || 0) - sy;
           if (!moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
@@ -534,7 +605,7 @@
           cleanup();
           // 分组已选中时的再次点击：进入控件选择模式（支持 Ctrl/Shift 多选）
           if (!moved && wasGroupSelected) {
-            if (typeof window.__selectNode === 'function') window.__selectNode(node, { toggle });
+            try { __dashboard()?.selectNode(node, { toggle }); } catch {}
             __enterInputInteractIfNeeded(node, { toggle });
           }
         };
@@ -546,7 +617,7 @@
         return;
       }
 
-      if (typeof window.__selectNode === 'function') window.__selectNode(node, { toggle });
+      try { __dashboard()?.selectNode(node, { toggle }); } catch {}
       __startDragOrEnterInput(overlay, node, e, { toggle });
     });
   }
@@ -577,14 +648,14 @@
           e.preventDefault();
           try { e.stopPropagation(); } catch {}
           try { e.stopImmediatePropagation(); } catch {}
-          if (typeof window.__copySelection === 'function') window.__copySelection();
+          try { __dashboard()?.copySelection(); } catch {}
           return;
         }
         if (isV) {
           e.preventDefault();
           try { e.stopPropagation(); } catch {}
           try { e.stopImmediatePropagation(); } catch {}
-          if (typeof window.__pasteSelection === 'function') window.__pasteSelection();
+          try { __dashboard()?.pasteSelection(); } catch {}
           return;
         }
         if (isZ) {
@@ -609,7 +680,7 @@
 
       // 函数级注释：收集当前页被选中的分组成员节点（用于键盘移动/删除）
       function __collectSelectedGroupNodes(canvasEl) {
-        const gs = (window && window.__selectedGroupIds && typeof window.__selectedGroupIds.has === 'function') ? window.__selectedGroupIds : null;
+        const gs = __groupSelIds();
         if (!gs || !gs.size || !canvasEl) return [];
         const out = [];
         const seen = new Set();
@@ -653,15 +724,16 @@
 
         try { __scheduleGroupIndicatorsUpdate(); } catch {}
         try {
-          if (NS.activeTabId && typeof window.__saveLayoutLocal === 'function') {
+          if (NS.activeTabId) {
             const info2 = NS.grids.get(NS.activeTabId);
-            if (info2 && info2.grid) window.__saveLayoutLocal(NS.activeTabId, info2.grid);
+            const dash = __dashboard();
+            if (info2 && info2.grid && dash && typeof dash.saveLayoutLocal === 'function') dash.saveLayoutLocal(NS.activeTabId, info2.grid);
           }
         } catch {}
         return;
       }
 
-      if ((e.key === 'Delete' || e.key === 'Backspace') && typeof window.__clearSelection === 'function') {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
         const activeWrap = Array.from(document.querySelectorAll('#tabsContent [data-tab-id]')).find(el => el.style.display !== 'none');
         const selectedList = activeWrap ? Array.from(activeWrap.querySelectorAll('.grid-stack-item.grid-selected')) : [];
         const groupList = (!selectedList || selectedList.length === 0) ? __collectSelectedGroupNodes(canvas) : [];
@@ -669,13 +741,14 @@
         if (targets && targets.length) {
           e.preventDefault();
           targets.forEach(n => { try { if (n && n.parentElement) n.parentElement.removeChild(n); } catch {} });
-          try { window.__clearSelection(); } catch {}
+          try { __dashboard()?.clearSelection(); } catch {}
           const NSDashboard = window.NSDashboard;
           if (NSDashboard && typeof NSDashboard.updatePropPanel === 'function') NSDashboard.updatePropPanel(null);
           try {
-            if (NS.activeTabId && typeof window.__saveLayoutLocal === 'function') {
+            if (NS.activeTabId) {
               const info3 = NS.grids.get(NS.activeTabId);
-              if (info3 && info3.grid) window.__saveLayoutLocal(NS.activeTabId, info3.grid);
+              const dash = __dashboard();
+              if (info3 && info3.grid && dash && typeof dash.commitLayoutLocal === 'function') dash.commitLayoutLocal(NS.activeTabId, info3.grid);
             }
           } catch {}
           try { __scheduleGroupIndicatorsUpdate(); } catch {}
@@ -703,22 +776,23 @@
 
            if (tid) {
              NSCanvas.clearLayoutContainer(grid);
-             const seq = (window && typeof window.__beginTabRender === 'function') ? window.__beginTabRender(tid) : 0;
+             const __dashSeq = __dashboard(); const seq = __dashSeq ? __dashSeq.beginTabRender(tid) : 0;
              NSUtils.ensureWidgetTypesReady((items || []).map(s => s && s.type), () => {
-               if (seq && window && typeof window.__isTabRenderCurrent === 'function' && !window.__isTabRenderCurrent(tid, seq)) return;
+               if (seq && __dashSeq && !__dashSeq.isTabRenderCurrent(tid, seq)) return;
                items.forEach(spec => { NSUtils.createWidgetFromSpec(grid, spec); });
                try { NSWsSync.queryAllStatuses(); } catch {}
+               __markGridLoaded(tid, grid);
+               __seedHistoryAfterLoad(tid, grid);
              });
            } else {
              NSCanvas.clearLayoutContainer(grid);
+             __markGridLoaded(null, grid);
            }
         } else {
           NSCanvas.clearLayoutContainer(grid);
+          __markGridLoaded(null, grid);
         }
 
-        try {
-          NS.grids.forEach(info => { if (info.grid === grid) info.loaded = true; });
-        } catch {}
         if (items.length > 0) {
           if (!silent) alert('布局加载成功');
         } else {
@@ -735,11 +809,13 @@
                 const items = data.items || [];
                 if (items.length > 0) {
                   NSCanvas.clearLayoutContainer(grid);
-                  const seq = (window && typeof window.__beginTabRender === 'function') ? window.__beginTabRender(NS.activeTabId) : 0;
+                  const __dashSeq = __dashboard(); const seq = __dashSeq ? __dashSeq.beginTabRender(NS.activeTabId) : 0;
                   NSUtils.ensureWidgetTypesReady((items || []).map(s => s && s.type), () => {
-                    if (seq && window && typeof window.__isTabRenderCurrent === 'function' && !window.__isTabRenderCurrent(NS.activeTabId, seq)) return;
+                    if (seq && __dashSeq && !__dashSeq.isTabRenderCurrent(NS.activeTabId, seq)) return;
                     items.forEach(spec => { NSUtils.createWidgetFromSpec(grid, spec); });
                     try { NSWsSync.queryAllStatuses(); } catch {}
+                    __markGridLoaded(NS.activeTabId, grid);
+                    __seedHistoryAfterLoad(NS.activeTabId, grid);
                   });
                   if (!silent) alert('离线布局加载成功');
                   return;
@@ -821,8 +897,9 @@
             // 重建一个空白默认页，并标记为已加载（避免切换时再次触发本地/服务端加载）
             let defaultId = null;
             try {
-              if (window.__createTab) {
-                defaultId = window.__createTab('页面1', null, { skipLocalLoad: true, skipSwitch: true });
+              const __dashTab = __dashboard();
+              if (__dashTab) {
+                defaultId = __dashTab.createTab('页面1', null, { skipLocalLoad: true, skipSwitch: true });
               }
             } catch {}
             if (!defaultId) {
@@ -837,7 +914,7 @@
             } catch {}
             try { localStorage.setItem('ns_tabs', JSON.stringify([{ id: defaultId, name: '页面1' }])); } catch {}
             try { localStorage.setItem('ns_active_tab', defaultId); } catch {}
-            try { if (window.__switchTab) window.__switchTab(defaultId); } catch {}
+            try { __dashboard()?.switchTab(defaultId); } catch {}
           } catch (e) {
             console.error('resetToEmptyFromServer failed', e);
           }
@@ -859,13 +936,14 @@
               const info = tid ? NS.grids.get(tid) : null;
               if (info && info.grid) {
                 NSCanvas.clearLayoutContainer(info.grid);
-                const seq = (window && typeof window.__beginTabRender === 'function') ? window.__beginTabRender(tid) : 0;
+                const __dashSeq = __dashboard(); const seq = __dashSeq ? __dashSeq.beginTabRender(tid) : 0;
                 NSUtils.ensureWidgetTypesReady((items || []).map(s => s && s.type), () => {
-                  if (seq && window && typeof window.__isTabRenderCurrent === 'function' && !window.__isTabRenderCurrent(tid, seq)) return;
+                  if (seq && __dashSeq && !__dashSeq.isTabRenderCurrent(tid, seq)) return;
                   items.forEach(spec => { NSUtils.createWidgetFromSpec(info.grid, spec); });
                   try { NSWsSync.queryAllStatuses(); } catch {}
+                  __markGridLoaded(tid, info.grid);
+                  __seedHistoryAfterLoad(tid, info.grid);
                 });
-                try { info.loaded = true; } catch {}
               }
             } catch {}
             return;
@@ -896,7 +974,7 @@
           } catch {}
           // 重建分页
           data.tabs.forEach(t => {
-            if (window.__createTab) window.__createTab(t.name, t.id, { skipLocalLoad: true, skipSwitch: true });
+            try { __dashboard()?.createTab(t.name, t.id, { skipLocalLoad: true, skipSwitch: true }); } catch {}
           });
           // 渲染各页内容（带渲染序号防重复 & 渲染中禁止 switchTab 再触发加载）
           Object.keys(data.pages).forEach(tid => {
@@ -907,17 +985,18 @@
             if (page.design) NSCanvas.applyPageDesign(tid, page.design);
             NSCanvas.clearLayoutContainer(info.grid);
             try { info.rendering = true; } catch {}
-            const seq = (window && typeof window.__beginTabRender === 'function') ? window.__beginTabRender(tid) : 0;
+            const __dashSeq = __dashboard(); const seq = __dashSeq ? __dashSeq.beginTabRender(tid) : 0;
             NSUtils.ensureWidgetTypesReady((items || []).map(s => s && s.type), () => {
-              if (seq && window && typeof window.__isTabRenderCurrent === 'function' && !window.__isTabRenderCurrent(tid, seq)) return;
+              if (seq && __dashSeq && !__dashSeq.isTabRenderCurrent(tid, seq)) return;
               items.forEach(spec => { NSUtils.createWidgetFromSpec(info.grid, spec); });
               const info2 = NS.grids.get(tid);
               if (info2) { info2.loaded = true; info2.rendering = false; }
+              __seedHistoryAfterLoad(tid, info.grid);
             });
           });
           const targetActive = data.activeTabId && NS.grids.has(data.activeTabId) ? data.activeTabId : (data.tabs[0] && data.tabs[0].id);
           if (targetActive) {
-            if (window.__switchTab) window.__switchTab(targetActive);
+            try { __dashboard()?.switchTab(targetActive); } catch {}
           }
           
           // 布局加载完成后，延迟查询状态以确保控件已创建

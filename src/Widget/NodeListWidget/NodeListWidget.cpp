@@ -144,6 +144,7 @@ void NodeListWidget::syncToActiveScene()
         sceneSelector->setCurrentIndex(idx);
     }
     sceneSelector->blockSignals(false);
+    _currentSceneTitle.clear();
     onSceneSwitched(title);
 }
 
@@ -152,6 +153,10 @@ void NodeListWidget::onSceneSwitched(const QString& title)
     // 函数级注释：
     // 说明：当用户选择了不同的场景标题时，解绑旧的模型/场景信号，绑定到新的模型/场景，
     //       并重建节点树，保持 UI 同步。
+    if (_currentSceneTitle == title && dataFlowModel && dataFlowScene) {
+        return;
+    }
+    _currentSceneTitle = title;
 
     // 解绑旧信号
     if (dataFlowModel) {
@@ -238,7 +243,12 @@ void NodeListWidget::onTreeItemSelectionChanged() {
     bool ok = false;
     NodeId nodeId = nodeText.section(':', 0, 0).toInt(&ok);
     if (!ok || !dataFlowModel->nodeExists(nodeId)) return;
-    
+
+    const auto selectedNodes = dataFlowScene->selectedNodes();
+    if (selectedNodes.size() == 1 && selectedNodes.front() == nodeId) {
+        return;
+    }
+
     isUpdatingSelection = true;
     dataFlowScene->clearSelection();
     if (auto nodeObj = dataFlowScene->nodeGraphicsObject(nodeId)) {
@@ -251,14 +261,36 @@ void NodeListWidget::onSceneSelectionChanged() {
     if (isUpdatingSelection) return;
     if (!dataFlowScene) return;
 
+    const auto selectedNodes = dataFlowScene->selectedNodes();
+    NodeId targetId = selectedNodes.empty() ? QtNodes::InvalidNodeId : selectedNodes.front();
+
+    NodeId currentTreeId = QtNodes::InvalidNodeId;
+    const QModelIndexList treeSelected = nodeTree->selectionModel()->selectedIndexes();
+    if (!treeSelected.isEmpty()) {
+        const QModelIndex treeIndex = treeSelected.first();
+        if (!treeIndex.parent().isValid()) {
+            bool ok = false;
+            currentTreeId = nodeModel->data(treeIndex, Qt::DisplayRole)
+                                .toString()
+                                .section(':', 0, 0)
+                                .toInt(&ok);
+            if (!ok) {
+                currentTreeId = QtNodes::InvalidNodeId;
+            }
+        }
+    }
+
+    if (targetId == currentTreeId) {
+        return;
+    }
+
     isUpdatingSelection = true;
     nodeTree->selectionModel()->clearSelection();
-    auto selectedNodes = dataFlowScene->selectedNodes();
-    for (NodeId nodeId : selectedNodes) {
-        if (QStandardItem* item = findNodeItem(nodeId)) {
-            QModelIndex idx = item->index();
+    if (targetId != QtNodes::InvalidNodeId) {
+        if (QStandardItem* item = findNodeItem(targetId)) {
+            const QModelIndex idx = item->index();
             nodeTree->selectionModel()->select(idx, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-            nodeTree->scrollTo(idx);
+            nodeTree->scrollTo(idx, QAbstractItemView::EnsureVisible);
         }
     }
     isUpdatingSelection = false;

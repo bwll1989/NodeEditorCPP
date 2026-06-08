@@ -1,0 +1,42 @@
+/* 标准属性补齐（配合 Bootstrap / Element Plus 中的 vendor 前缀） */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.sidebar-section-header,
+.widget-thumb {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.form-control,
+.form-select,
+.form-check-input {
+  -webkit-appearance: auto;
+  -moz-appearance: auto;
+  appearance: auto;
+}
+
+.el-scrollbar__wrap {
+  scrollbar-width: thin;
+}
+
+/* Element Plus 不确定进度条：用 compositor 友好的 transform 动画（vendor 已 patch，此处作兜底） */
+.el-progress-bar__inner--indeterminate {
+  left: 0 !important;
+  animation: ns-indeterminate-progress 3s infinite linear !important;
+  will-change: transform;
+}
+
+@keyframes ns-indeterminate-progress {
+  0% { transform: translate3d(-100%, 0, 0); }
+  100% { transform: translate3d(100%, 0, 0); }
+}
+
+@media print {
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

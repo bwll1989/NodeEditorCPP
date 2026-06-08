@@ -10,7 +10,7 @@ set(CMAKE_AUTORCC ON)
 
 string(TIMESTAMP BUILD_TS "%Y%m%d")
 add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
-
+link_directories("${FFMPEG_LIB_DIRS}")
 add_library(${Module_Name} SHARED
         FfmpegWriters.hpp
         FfmpegWriters.cpp

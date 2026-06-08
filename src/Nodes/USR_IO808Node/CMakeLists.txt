@@ -13,6 +13,10 @@ add_library(${Module_Name} SHARED
         USR-IO808DataModel.cpp
         USR-IO808Interface.hpp
         USR-IO808Interface.cpp
+        USR-IO424DataModel.cpp
+        USR-IO424DataModel.hpp
+        USR-IO424Interface.cpp
+        USR-IO424Interface.hpp
          ../../Common/Devices/TcpClient/TcpClient.h
         ../../Common/Devices/TcpClient/TcpClient.cpp
         ../../Common/Devices/TcpClient/TcpClientWorker.h

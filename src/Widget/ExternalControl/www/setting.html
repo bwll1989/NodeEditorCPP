@@ -11,9 +11,28 @@
     .container { max-width: 960px; padding-top: 24px; padding-bottom: 24px; }
     .card { margin-bottom: 16px; }
     .progress { height: 6px; }
+    #authGate {
+      max-width: 420px;
+      margin: 80px auto 0;
+      padding: 0 16px;
+    }
   </style>
 </head>
 <body>
+  <div id="authGate" class="d-none">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">设置页面验证</h5>
+        <input type="password" id="authGatePassword" class="form-control mb-2" placeholder="请输入设置页面密码" autocomplete="current-password" />
+        <div id="authGateError" class="text-danger small mb-2 d-none"></div>
+        <div class="d-flex gap-2">
+          <button id="authGateSubmit" type="button" class="btn btn-primary btn-sm">进入设置</button>
+          <a class="btn btn-outline-secondary btn-sm" href="index.html">返回仪表盘</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="container" id="pageContent" style="display:none;">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1 class="h4 mb-0">设置</h1>
@@ -67,33 +86,73 @@
     </div>
   </div>
 
+  <script src="assets/vendor/bootstrap.bundle.min.js"></script>
+  <script src="assets/modules/ns-auth.js"></script>
   <script>
-    // 函数级注释：向服务器提交设置页密码进行校验（POST /api/auth/setting）
-    async function verifySettingPassword(password) {
-      try {
-        const resp = await fetch('/api/auth/setting', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: password || '' })
-        });
-        const j = await resp.json().catch(() => null);
-        return !!(resp.ok && j && j.ok);
-      } catch {
-        return false;
+    function bindSettingPageEvents() {
+      document.getElementById('uploadMediaBtn').onclick = uploadMedia;
+      document.getElementById('uploadFlowBtn').onclick = uploadFlow;
+      document.getElementById('downloadFlowBtn').onclick = downloadFlow;
+      fetchCurrentFlowInfo();
+    }
+
+    function showSettingContent() {
+      document.getElementById('authGate').classList.add('d-none');
+      document.getElementById('pageContent').style.display = '';
+      bindSettingPageEvents();
+    }
+
+    function showAuthGate(message) {
+      const gate = document.getElementById('authGate');
+      const errEl = document.getElementById('authGateError');
+      gate.classList.remove('d-none');
+      if (message && errEl) {
+        errEl.textContent = message;
+        errEl.classList.remove('d-none');
+      } else if (errEl) {
+        errEl.textContent = '';
+        errEl.classList.add('d-none');
       }
     }
 
-    // 函数级注释：进入设置页前进行密码校验（若服务器未配置密码，则自动通过）
-    async function requireSettingAuth() {
-      const okEmpty = await verifySettingPassword('');
-      if (okEmpty) return true;
+    async function tryAuthGateSubmit() {
+      const input = document.getElementById('authGatePassword');
+      const pw = input ? String(input.value || '') : '';
+      const ok = await window.NSAuth.verifySettingPassword(pw);
+      if (ok) {
+        window.NSAuth.markSettingAuthed();
+        showSettingContent();
+        return;
+      }
+      showAuthGate('密码错误，请重试');
+      try { input.focus(); input.select(); } catch {}
+    }
 
-      while (true) {
-        const pw = window.prompt('请输入设置页面密码');
-        if (pw === null) return false;
-        const ok = await verifySettingPassword(pw);
-        if (ok) return true;
-        window.alert('密码错误');
+    async function initSettingPage() {
+      if (window.NSAuth && window.NSAuth.isSettingAuthedRecently()) {
+        showSettingContent();
+        return;
+      }
+
+      const okEmpty = await window.NSAuth.verifySettingPassword('');
+      if (okEmpty) {
+        window.NSAuth.markSettingAuthed();
+        showSettingContent();
+        return;
+      }
+
+      showAuthGate('');
+      const submitBtn = document.getElementById('authGateSubmit');
+      const input = document.getElementById('authGatePassword');
+      if (submitBtn) submitBtn.onclick = tryAuthGateSubmit;
+      if (input) {
+        input.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            tryAuthGateSubmit();
+          }
+        };
+        setTimeout(() => { try { input.focus(); } catch {} }, 50);
       }
     }
 
@@ -220,21 +279,6 @@
     }
 
     // 函数级注释：初始化页面（先鉴权，再绑定事件并加载数据）
-    async function initSettingPage() {
-      const content = document.getElementById('pageContent');
-      const ok = await requireSettingAuth();
-      if (!ok) {
-        window.location.href = 'index.html';
-        return;
-      }
-
-      content.style.display = '';
-      document.getElementById('uploadMediaBtn').onclick = uploadMedia;
-      document.getElementById('uploadFlowBtn').onclick = uploadFlow;
-      document.getElementById('downloadFlowBtn').onclick = downloadFlow;
-      fetchCurrentFlowInfo();
-    }
-
     document.addEventListener('DOMContentLoaded', initSettingPage);
   </script>
 </body>

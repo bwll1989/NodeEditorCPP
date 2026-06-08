@@ -367,9 +367,19 @@ QString DataflowViewsManger::currentFocusedSceneTitle() const
 
 void DataflowViewsManger::focusedSceneTitle()
 {
-    const QString title = currentFocusedSceneTitle();
-    if (!title.isEmpty()) {
-        emit sceneIsActive(title);
+    // 仅在聚焦的 Dock 为 dataflow 场景页时通知外部，避免焦点切到节点列表等面板时误触发重建
+    if (!m_DockManager) {
+        return;
+    }
+    ads::CDockWidget* focused = m_DockManager->focusedDockWidget();
+    if (!focused) {
+        return;
+    }
+    for (const auto& kv : _DockWidget) {
+        if (kv.second == focused) {
+            emit sceneIsActive(kv.first);
+            return;
+        }
     }
 }
 

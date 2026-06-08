@@ -13,6 +13,10 @@ add_library(${Module_Name} SHARED
         CurtainDataModel.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
+        FTControlBoxDataModel.hpp
+        FTControlBoxDataModel.cpp
+        FTControlBoxInterface.hpp
+        FTControlBoxInterface.cpp
         ../../Common/Devices/TcpClient/TcpClient.h
         ../../Common/Devices/TcpClient/TcpClient.cpp
         ../../Common/Devices/TcpClient/TcpClientWorker.h

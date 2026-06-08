@@ -1,0 +1,507 @@
+#include "USR-IO424DataModel.hpp"
+
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QDebug>
+
+namespace Nodes {
+
+USR_IO424DataModel::USR_IO424DataModel()
+    : _interface(new USR_IO424Interface())
+    , _tcpClient(new TcpClient("127.0.0.1", 8080))
+    , _readTimer(new QTimer(this))
+    , _writeQueueTimer(new QTimer(this))
+    , _transactionId(0)
+    , _host("127.0.0.1")
+    , _port(8080)
+    , _serverId(1)
+{
+    InPortCount = kChannelCount;
+    OutPortCount = kChannelCount;
+    PortEditable = false;
+    CaptionVisible = true;
+    Caption = "USR-IO424";
+    WidgetEmbeddable = false;
+    Resizable = false;
+
+    for (int i = 0; i < kChannelCount; ++i) {
+        _inputStates[i] = false;
+        _outputStates[i] = false;
+        _outputData[i] = std::make_shared<NodeDataTypes::VariableData>();
+    }
+
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "host";
+        b.control = _interface->_hostEdit;
+        AbstractDelegateModel::registerExternalBinding("/host", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "port";
+        b.control = _interface->_portEdit;
+        AbstractDelegateModel::registerExternalBinding("/port", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "serverId";
+        b.control = _interface->_serverId;
+        AbstractDelegateModel::registerExternalBinding("/serverId", this, b);
+    }
+    {
+        NodeDelegateModel::ExternalBinding b;
+        b.member = "connected";
+        b.control = _interface->_statusLabel;
+        AbstractDelegateModel::registerExternalBinding("/connect", this, b);
+    }
+
+    connect(_interface->_hostEdit, &QLineEdit::editingFinished, this, [this]() {
+        setHost(_interface->_hostEdit->text());
+    });
+
+    connect(_interface->_portEdit, &IntDragValueWidget::valueChanged, this, [this](int val) {
+        setPort(val);
+    });
+
+    connect(_interface->_serverId, &IntDragValueWidget::valueChanged, this, [this](int val) {
+        setServerId(val);
+    });
+
+    for (int i = 0; i < kChannelCount; ++i) {
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.control = _interface->_outputCheckBoxes[i];
+            AbstractDelegateModel::registerExternalBinding("/DO" + QString::number(i), nullptr, b);
+        }
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.control = _interface->_inputLabels[i];
+            AbstractDelegateModel::registerExternalBinding("/DI" + QString::number(i), nullptr, b);
+        }
+        connect(_interface->_outputCheckBoxes[i], &QCheckBox::clicked, this, [this, i](bool checked) {
+            setOutput(i, checked);
+        });
+    }
+
+    connect(_interface->_readAll, &QPushButton::clicked, this, [this]() { readAllData(); });
+
+    connect(_tcpClient, &TcpClient::recMsg, this, [this](const QVariantMap &dataMap) {
+        if (dataMap.contains("default")) {
+            recMsg(dataMap.value("default").toByteArray(), dataMap["host"].toString(), 0);
+        }
+    });
+
+    connect(_tcpClient, &TcpClient::isReady, this, [this](const bool &isReady) {
+        setConnected(isReady);
+    });
+
+    connect(_readTimer, &QTimer::timeout, this, &USR_IO424DataModel::readAllData);
+
+    _writeQueueTimer->setInterval(1000);
+    connect(_writeQueueTimer, &QTimer::timeout, this, &USR_IO424DataModel::processWriteQueue);
+
+    _interface->_hostEdit->setText(_host);
+    _interface->_portEdit->setValue(_port);
+    _interface->_serverId->setValue(_serverId);
+}
+
+USR_IO424DataModel::~USR_IO424DataModel()
+{
+    if (_tcpClient) {
+        _tcpClient->disconnectFromServer();
+        delete _tcpClient;
+    }
+    if (_readTimer) {
+        _readTimer->stop();
+    }
+    if (_writeQueueTimer) {
+        _writeQueueTimer->stop();
+    }
+}
+
+void USR_IO424DataModel::setHost(const QString& host)
+{
+    if (_host == host) return;
+    _host = host;
+
+    QSignalBlocker blocker(_interface->_hostEdit);
+    _interface->_hostEdit->setText(_host);
+
+    emit hostChanged(_host);
+
+    _tcpClient->disconnectFromServer();
+    _tcpClient->connectToServer(_host, _port);
+}
+
+void USR_IO424DataModel::setPort(int port)
+{
+    if (_port == port) return;
+    _port = port;
+
+    QSignalBlocker blocker(_interface->_portEdit);
+    _interface->_portEdit->setValue(_port);
+
+    emit portChanged(_port);
+
+    _tcpClient->disconnectFromServer();
+    _tcpClient->connectToServer(_host, _port);
+}
+
+void USR_IO424DataModel::setServerId(int serverId)
+{
+    if (_serverId == serverId) return;
+    _serverId = serverId;
+
+    QSignalBlocker blocker(_interface->_serverId);
+    _interface->_serverId->setValue(_serverId);
+
+    emit serverIdChanged(_serverId);
+}
+
+void USR_IO424DataModel::onGlobalEvent(const GlobalEvent& ev)
+{
+    if (ev.kind != GlobalEventKind::Command) {
+        return;
+    }
+
+    QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
+    if (localPath == "host") {
+        setHost(ev.payload.toString());
+    } else if (localPath == "port") {
+        setPort(ev.payload.toInt());
+    } else if (localPath == "serverId") {
+        setServerId(ev.payload.toInt());
+    } else if (localPath.startsWith("DO")) {
+        bool ok;
+        int index = localPath.mid(2).toInt(&ok);
+        if (ok && index >= 0 && index < kChannelCount) {
+            setOutput(index, ev.payload.toBool());
+        }
+    }
+}
+
+void USR_IO424DataModel::afterModelReady()
+{
+    AbstractDelegateModel::afterModelReady();
+    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/host"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/port"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/serverId"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
+    for (int i = 0; i < kChannelCount; ++i) {
+        GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress(QString("/DO%1").arg(i)), this, SLOT(onGlobalEvent(GlobalEvent)));
+    }
+}
+
+NodeDataType USR_IO424DataModel::dataType(PortType portType, PortIndex portIndex) const
+{
+    Q_UNUSED(portType);
+    Q_UNUSED(portIndex);
+    return NodeDataTypes::VariableData().type();
+}
+
+std::shared_ptr<NodeData> USR_IO424DataModel::outData(PortIndex port)
+{
+    if (port >= 0 && port < kChannelCount) {
+        return _outputData[port];
+    }
+    return nullptr;
+}
+
+void USR_IO424DataModel::setInData(std::shared_ptr<NodeData> data, PortIndex port)
+{
+    auto varData = std::dynamic_pointer_cast<NodeDataTypes::VariableData>(data);
+
+    if (!varData || port < 0 || port >= kChannelCount) {
+        return;
+    }
+
+    setOutput(port, varData->value().toBool());
+}
+
+QString USR_IO424DataModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
+{
+    switch (portType) {
+    case PortType::In:
+        return QString("DO %1").arg(portIndex);
+    case PortType::Out:
+        return QString("DI %1").arg(portIndex);
+    default:
+        break;
+    }
+    return "";
+}
+
+QJsonObject USR_IO424DataModel::save() const
+{
+    QJsonObject modelJson = NodeDelegateModel::save();
+    QJsonObject values;
+    values["host"] = _host;
+    values["port"] = _port;
+    values["serverId"] = _serverId;
+    modelJson["values"] = values;
+    return modelJson;
+}
+
+void USR_IO424DataModel::load(QJsonObject const &p)
+{
+    QJsonValue v = p["values"];
+    if (!v.isUndefined() && v.isObject()) {
+        QJsonObject values = v.toObject();
+        if (values.contains("host")) setHost(values["host"].toString());
+        if (values.contains("port")) setPort(values["port"].toInt());
+        if (values.contains("serverId")) setServerId(values["serverId"].toInt());
+    }
+}
+
+ConnectionPolicy USR_IO424DataModel::portConnectionPolicy(PortType portType, PortIndex index) const
+{
+    Q_UNUSED(index);
+    switch (portType) {
+    case PortType::In:
+    case PortType::Out:
+        return ConnectionPolicy::Many;
+    case PortType::None:
+        break;
+    }
+    return ConnectionPolicy::One;
+}
+
+void USR_IO424DataModel::recMsg(QByteArray msg, QString ip, int port)
+{
+    Q_UNUSED(ip);
+    Q_UNUSED(port);
+    processModbusResponse(msg);
+}
+
+void USR_IO424DataModel::readAllInputs()
+{
+    QByteArray command = generateReadDiscreteInputsCommand(kDiAddressBase, kChannelCount);
+    sendModbusCommand(command);
+}
+
+void USR_IO424DataModel::readAllOutputs()
+{
+    QByteArray command = generateReadCoilsCommand(kDoAddressBase, kChannelCount);
+    sendModbusCommand(command);
+}
+
+void USR_IO424DataModel::readAllData()
+{
+    readAllInputs();
+    QTimer::singleShot(100, this, [this]() {
+        readAllOutputs();
+    });
+}
+
+void USR_IO424DataModel::setConnected(bool connected)
+{
+    if (_connected == connected) {
+        return;
+    }
+
+    _connected = connected;
+    emit connectedChanged(_connected);
+
+    if (_interface) {
+        _interface->setConnectionStatus(_connected);
+    }
+    if (_connected) {
+        readAllData();
+        _readTimer->start(1000);
+    } else {
+        _readTimer->stop();
+    }
+}
+
+void USR_IO424DataModel::setOutput(int index, bool state)
+{
+    if (index < 0 || index >= kChannelCount) return;
+
+    _outputStates[index] = state;
+
+    QSignalBlocker blocker(_interface->_outputCheckBoxes[index]);
+    _interface->_outputCheckBoxes[index]->setChecked(state);
+
+    AbstractDelegateModel::stateFeedBack(QString("/DO%1").arg(index), state);
+
+    _writeQueue.enqueue({index, state});
+
+    if (!_writeQueueTimer->isActive()) {
+        _writeQueueTimer->start(0);
+    }
+}
+
+void USR_IO424DataModel::processWriteQueue()
+{
+    if (_writeQueue.isEmpty()) {
+        _writeQueueTimer->stop();
+        return;
+    }
+
+    WriteCommand cmd = _writeQueue.dequeue();
+    QByteArray command = generateWriteSingleCoilCommand(kDoAddressBase + cmd.index, cmd.state);
+    sendModbusCommand(command);
+
+    _writeQueueTimer->start(1000);
+}
+
+void USR_IO424DataModel::processModbusResponse(const QByteArray &response)
+{
+    if (response.size() < 8) return;
+
+    quint16 protocolId = (static_cast<quint8>(response[2]) << 8) | static_cast<quint8>(response[3]);
+    quint8 functionCode = static_cast<quint8>(response[7]);
+
+    if (protocolId != 0) return;
+
+    switch (functionCode) {
+    case 0x01:
+        if (response.size() >= 10) {
+            quint8 byteCount = static_cast<quint8>(response[8]);
+            if (response.size() >= 9 + byteCount) {
+                quint8 coilData = static_cast<quint8>(response[9]);
+                for (int i = 0; i < kChannelCount; ++i) {
+                    bool state = (coilData & (1 << i)) != 0;
+                    if (_outputStates[i] != state) {
+                        _outputStates[i] = state;
+                        QSignalBlocker blocker(_interface->_outputCheckBoxes[i]);
+                        _interface->_outputCheckBoxes[i]->setChecked(state);
+                        AbstractDelegateModel::stateFeedBack(QString("/DO%1").arg(i), state);
+                    }
+                }
+            }
+        }
+        break;
+
+    case 0x02:
+        if (response.size() >= 10) {
+            quint8 byteCount = static_cast<quint8>(response[8]);
+            if (response.size() >= 9 + byteCount) {
+                quint8 inputData = static_cast<quint8>(response[9]);
+                for (int i = 0; i < kChannelCount; ++i) {
+                    bool state = (inputData & (1 << i)) != 0;
+                    if (_inputStates[i] != state) {
+                        _inputStates[i] = state;
+                        _interface->setInputState(i, state);
+                        updateOutputData(i, state);
+                        AbstractDelegateModel::stateFeedBack(QString("/DI%1").arg(i), state);
+                    }
+                }
+            }
+        }
+        break;
+
+    case 0x05:
+    case 0x0F:
+        break;
+
+    default:
+        break;
+    }
+}
+
+QByteArray USR_IO424DataModel::generateReadCoilsCommand(quint16 startAddress, quint16 quantity)
+{
+    QByteArray command;
+    command.append(static_cast<char>(_transactionId >> 8));
+    command.append(static_cast<char>(_transactionId & 0xFF));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x06));
+    command.append(static_cast<char>(_serverId));
+    command.append(static_cast<char>(0x01));
+    command.append(static_cast<char>(startAddress >> 8));
+    command.append(static_cast<char>(startAddress & 0xFF));
+    command.append(static_cast<char>(quantity >> 8));
+    command.append(static_cast<char>(quantity & 0xFF));
+    _transactionId++;
+    return command;
+}
+
+QByteArray USR_IO424DataModel::generateReadDiscreteInputsCommand(quint16 startAddress, quint16 quantity)
+{
+    QByteArray command;
+    command.append(static_cast<char>(_transactionId >> 8));
+    command.append(static_cast<char>(_transactionId & 0xFF));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x06));
+    command.append(static_cast<char>(_serverId));
+    command.append(static_cast<char>(0x02));
+    command.append(static_cast<char>(startAddress >> 8));
+    command.append(static_cast<char>(startAddress & 0xFF));
+    command.append(static_cast<char>(quantity >> 8));
+    command.append(static_cast<char>(quantity & 0xFF));
+    _transactionId++;
+    return command;
+}
+
+QByteArray USR_IO424DataModel::generateWriteSingleCoilCommand(quint16 address, bool value)
+{
+    QByteArray command;
+    command.append(static_cast<char>(_transactionId >> 8));
+    command.append(static_cast<char>(_transactionId & 0xFF));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x06));
+    command.append(static_cast<char>(_serverId));
+    command.append(static_cast<char>(0x05));
+    command.append(static_cast<char>(address >> 8));
+    command.append(static_cast<char>(address & 0xFF));
+    command.append(static_cast<char>(value ? 0xFF : 0x00));
+    command.append(static_cast<char>(0x00));
+    _transactionId++;
+    return command;
+}
+
+QByteArray USR_IO424DataModel::generateWriteMultipleCoilsCommand(quint16 startAddress, const QVector<bool> &values, quint16 quantity)
+{
+    QByteArray command;
+    quint8 byteCount = (quantity + 7) / 8;
+
+    command.append(static_cast<char>(_transactionId >> 8));
+    command.append(static_cast<char>(_transactionId & 0xFF));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(0x00));
+    command.append(static_cast<char>(7 + byteCount));
+    command.append(static_cast<char>(_serverId));
+    command.append(static_cast<char>(0x0F));
+    command.append(static_cast<char>(startAddress >> 8));
+    command.append(static_cast<char>(startAddress & 0xFF));
+    command.append(static_cast<char>(quantity >> 8));
+    command.append(static_cast<char>(quantity & 0xFF));
+    command.append(static_cast<char>(byteCount));
+
+    for (int i = 0; i < byteCount; ++i) {
+        quint8 byteValue = 0;
+        for (int j = 0; j < 8 && (i * 8 + j) < values.size(); ++j) {
+            if (values[i * 8 + j]) {
+                byteValue |= (1 << j);
+            }
+        }
+        command.append(static_cast<char>(byteValue));
+    }
+    _transactionId++;
+    return command;
+}
+
+void USR_IO424DataModel::updateOutputData(int port, bool value)
+{
+    if (port >= 0 && port < kChannelCount) {
+        _outputData[port] = std::make_shared<NodeDataTypes::VariableData>(value);
+        Q_EMIT dataUpdated(port);
+    }
+}
+
+void USR_IO424DataModel::sendModbusCommand(const QByteArray &command)
+{
+    if (_tcpClient) {
+        _tcpClient->sendMessage(command.toHex(), 0);
+    }
+}
+
+} // namespace Nodes

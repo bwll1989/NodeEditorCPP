@@ -105,9 +105,11 @@ bool ScheduledTaskModel::setData(const QModelIndex& idx, const QVariant& value, 
     case RoleRemarks:
         it.remarks = value.toString(); break;
     default:
-        break;
+        return false;
     }
-    return false;
+
+    emit dataChanged(idx, idx, {role});
+    return true;
 }
 
 /**
@@ -175,6 +177,31 @@ void ScheduledTaskModel::removeItem(int index) {
     emit modelChanged();
 }
 
+bool ScheduledTaskModel::updateTaskFields(int row, const OSCMessage& osc, const ScheduledInfo& sched)
+{
+    if (row < 0 || row >= m_items.size()) {
+        return false;
+    }
+
+    auto& it = m_items[row];
+    it.osc = osc;
+    it.scheduled.type = sched.type;
+
+    const QTime time = sched.time.time().isValid() ? sched.time.time() : QTime(9, 0, 0);
+    if (sched.type.compare(QStringLiteral("loop"), Qt::CaseInsensitive) == 0) {
+        it.scheduled.time.setTime(time);
+        it.scheduled.conditions = sched.conditions;
+    } else {
+        const QDate date = sched.time.date().isValid() ? sched.time.date() : QDate::currentDate();
+        it.scheduled.time = QDateTime(date, time);
+        it.scheduled.conditions.clear();
+    }
+
+    const QModelIndex idx = index(row, 0);
+    emit dataChanged(idx, idx);
+    return true;
+}
+
 /**
  * @brief 根据日期筛选当天的任务项
  */
@@ -189,7 +216,11 @@ QVector<ScheduledTaskItem> ScheduledTaskModel::itemsForDate(const QDate& date) c
                 result.push_back(item);
             }
         } else if (item.scheduled.type.compare("loop", Qt::CaseInsensitive) == 0) {
-            if (item.scheduled.conditions.contains(dowName, Qt::CaseInsensitive)) {
+            if (item.scheduled.conditions.isEmpty()) {
+                if (item.scheduled.time.date() == date) {
+                    result.push_back(item);
+                }
+            } else if (item.scheduled.conditions.contains(dowName, Qt::CaseInsensitive)) {
                 result.push_back(item);
             }
         }

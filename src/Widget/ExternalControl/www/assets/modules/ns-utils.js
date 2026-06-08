@@ -237,31 +237,12 @@
 
   // ===== 控件按需加载 =====
 
-  const __nsWidgetTypeToScript = {
-    '按钮': 'widgets/Button/widget.js',
-    '滑块': 'widgets/Slider/widget.js',
-    '浮点滑块': 'widgets/FloatSlider/widget.js',
-    '竖向滑动条': 'widgets/VSlider/widget.js',
-    '竖向浮点滑块': 'widgets/VFloatSlider/widget.js',
-    '勾选': 'widgets/Checkbox/widget.js',
-    '开关': 'widgets/Switch/widget.js',
-    '输入框': 'widgets/Input/widget.js',
-    '切换按钮': 'widgets/ToggleButton/widget.js',
-    '分割线': 'widgets/Divider/widget.js',
-    '竖向分割线': 'widgets/VDivider/widget.js',
-    '标签': 'widgets/Label/widget.js',
-    '旋钮': 'widgets/Knob/widget.js',
-    '时间码': 'widgets/Timecode/widget.js',
-    '时间线': 'widgets/Timeline/widget.js',
-    '数值': 'widgets/Number/widget.js',
-    'Frame': 'widgets/Frame/widget.js',
-    '卡片': 'widgets/Frame/widget.js',
-    '超链接': 'widgets/Hyperlink/widget.js'
-  };
-
   function __getWidgetScriptByType(type) {
     const t = String(type || '').trim();
-    return __nsWidgetTypeToScript[t] || '';
+    if (window.NSWidgetManifest && typeof window.NSWidgetManifest.getScriptByType === 'function') {
+      return window.NSWidgetManifest.getScriptByType(t) || '';
+    }
+    return '';
   }
 
   // 函数级注释：限制同时加载的脚本数量，避免移动端/弱网环境下出现大量请求排队或资源不足
