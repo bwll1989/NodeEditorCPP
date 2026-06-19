@@ -1,13 +1,11 @@
 #include "TimestampGenerator.hpp"
+#include "Common/AppConfig/ConfigManager.h"
 #include <QDebug>
 #include <QCoreApplication>
 
 // 静态成员初始化
 TimestampGenerator* TimestampGenerator::instance_ = nullptr;
 QMutex TimestampGenerator::instanceMutex_;
-const double TimestampGenerator::FRAME_INTERVAL_MS = 1000.0 / FRAME_RATE;
-const std::chrono::nanoseconds TimestampGenerator::FRAME_INTERVAL_NS = 
-    std::chrono::nanoseconds(static_cast<long long>(1000000000.0 / FRAME_RATE));
 
 /**
  * @brief 导出函数：获取帧计数器生成器实例
@@ -45,9 +43,13 @@ TimestampGenerator::TimestampGenerator(QObject *parent)
     , isRunning_(false)
     , shouldStop_(false)
     , timerThread_(nullptr)
+    , frameRate_(ConfigManager::instance().getTimestampFrameRate())
+    , frameIntervalMs_(0.0)
+    , frameIntervalNs_(std::chrono::nanoseconds(0))
     , baseAbsoluteTime_(0)
 {
-    // qDebug() << "FrameCounter created with frequency:" << FRAME_RATE << "fps, interval:" << FRAME_INTERVAL_MS << "ms";
+    applyFrameRate(frameRate_);
+    // qDebug() << "FrameCounter created with frequency:" << frameRate_ << "fps, interval:" << frameIntervalMs_ << "ms";
 }
 
 /**
@@ -117,6 +119,49 @@ void TimestampGenerator::restart()
 {
     stop();
     start();
+}
+
+/**
+ * @brief 获取当前帧率
+ * @return 当前帧率
+ */
+double TimestampGenerator::getFrameRate() const
+{
+    QMutexLocker locker(&configMutex_);
+    return frameRate_;
+}
+
+/**
+ * @brief 获取当前帧间隔
+ * @return 当前帧间隔（毫秒）
+ */
+double TimestampGenerator::getFrameInterval() const
+{
+    QMutexLocker locker(&configMutex_);
+    return frameIntervalMs_;
+}
+
+/**
+ * @brief 设置新的时间戳帧率
+ * @param frameRate 新帧率
+ */
+void TimestampGenerator::setFrameRate(double frameRate)
+{
+    applyFrameRate(frameRate);
+}
+
+/**
+ * @brief 根据采样率计算每帧采样数
+ * @param sampleRate 音频采样率
+ * @return 每帧采样数
+ */
+int TimestampGenerator::getSamplesPerFrame(int sampleRate) const
+{
+    const double fps = getFrameRate();
+    if (sampleRate <= 0 || fps <= 0.0) {
+        return 1;
+    }
+    return std::max(1, static_cast<int>(std::lround(sampleRate / fps)));
 }
 
 /**
@@ -204,8 +249,13 @@ void TimestampGenerator::timerThreadFunction()
     auto nextFrameTime = startTime_;
     
     while (!shouldStop_.load()) {
+        std::chrono::nanoseconds frameIntervalNs;
+        {
+            QMutexLocker locker(&configMutex_);
+            frameIntervalNs = frameIntervalNs_;
+        }
         // 计算下一帧的时间点
-        nextFrameTime += FRAME_INTERVAL_NS;
+        nextFrameTime += frameIntervalNs;
         
         // 高精度睡眠到下一帧时间
         std::this_thread::sleep_until(nextFrameTime);
@@ -238,7 +288,7 @@ void TimestampGenerator::generateFrameCount()
     // // 每1000帧输出一次调试信息
     // if (currentFrame % 1000 == 0) {
     //     double actualFps = currentFrame * 1000.0 / frameInfo.getRelativeTimeMs(startTime_);
-    //     double theoreticalTime = frameInfo.getTheoreticalTimeMs(FRAME_RATE);
+    //     double theoreticalTime = frameInfo.getTheoreticalTimeMs(static_cast<int>(frameRate_));
     //     double actualTime = frameInfo.getRelativeTimeMs(startTime_);
     //     double drift = actualTime - theoreticalTime;
     //
@@ -261,9 +311,10 @@ qint64 TimestampGenerator::calculateFrameCountByTimeDelta(double timeDeltaMs) co
 {
     // 获取当前帧计数
     qint64 currentFrame = frameCounter_.loadAcquire();
+    const double frameIntervalMs = getFrameInterval();
     
     // 计算时间差对应的帧数变化
-    double frameDelta = timeDeltaMs / FRAME_INTERVAL_MS;
+    double frameDelta = timeDeltaMs / frameIntervalMs;
     
     // 计算新的帧计数（四舍五入到最近的整数）
     qint64 newFrameCount = currentFrame + static_cast<qint64>(std::round(frameDelta));
@@ -324,10 +375,25 @@ qint64 TimestampGenerator::calculateFrameCountByRelativeTime(double relativeTime
     if (relativeTimeMs < 0) {
         return 0;
     }
+    const double frameIntervalMs = getFrameInterval();
     
     // 根据帧率计算帧计数
-    double frameCount = relativeTimeMs / FRAME_INTERVAL_MS;
+    double frameCount = relativeTimeMs / frameIntervalMs;
     
     // 四舍五入到最近的整数
     return static_cast<qint64>(std::round(frameCount));
-} 
+}
+
+/**
+ * @brief 应用帧率并刷新内部缓存
+ * @param frameRate 帧率
+ */
+void TimestampGenerator::applyFrameRate(double frameRate)
+{
+    const double safeFrameRate = frameRate > 0.0 ? frameRate : ConfigManager::instance().getTimestampFrameRate();
+    QMutexLocker locker(&configMutex_);
+    frameRate_ = safeFrameRate > 0.0 ? safeFrameRate : 23.4375;
+    frameIntervalMs_ = 1000.0 / frameRate_;
+    frameIntervalNs_ = std::chrono::nanoseconds(
+        static_cast<long long>(std::llround(1000000000.0 / frameRate_)));
+}

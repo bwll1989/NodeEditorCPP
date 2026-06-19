@@ -24,11 +24,14 @@ add_library(${Module_Name} SHARED
         ColorConvertInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Network
         ${QtNodes_LIBRARIES}
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         ${QtColorWidgets_LIBRARIES}
         GUIElements
         DataTypes)

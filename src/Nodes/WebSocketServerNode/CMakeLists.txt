@@ -12,13 +12,16 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp
         WebSocketServerInterface.hpp
         ../../Common/Devices/WebSocketServer/WebSocketServer.h
-         ../../Common/Devices/WebSocketServer/WebSocketServer.cpp)
+         ../../Common/Devices/WebSocketServer/WebSocketServer.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h)
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
         Qt${QT_VERSION_MAJOR}::Network
         Qt${QT_VERSION_MAJOR}::WebSockets
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

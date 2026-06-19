@@ -5,7 +5,14 @@
 #include "TimestampGenerator/TimestampGenerator.hpp"
 
 // PortAudio缓冲区大小（帧数）
-static const int FRAMES_PER_BUFFER = 48000/(TimestampGenerator::getInstance()->getFrameRate());
+/**
+ * @brief 根据当前全局时间戳帧率获取噪声节点缓冲块大小
+ * @return PortAudio 缓冲块大小
+ */
+static int noiseFramesPerBuffer()
+{
+    return TimestampGenerator::getInstance()->getSamplesPerFrame(48000);
+}
 
 /**
  * @brief 构造函数，初始化噪音生成器
@@ -88,7 +95,7 @@ void NoiseGenerator::startGeneration() {
         nullptr,  // 无输入
         &outputParameters,
         sampleRate,
-        FRAMES_PER_BUFFER,
+        noiseFramesPerBuffer(),
         paClipOff,  // 不进行削波
         audioCallback,
         this  // 用户数据指针

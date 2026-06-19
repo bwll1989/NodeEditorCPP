@@ -23,6 +23,7 @@ set(GIST_SOURCES
         ${Gist_DIR}/src/WindowFunctions.cpp
         ${Gist_DIR}/src/Yin.cpp
         ${Gist_DIR}/libs/kiss_fft130/kiss_fft.c
+
 )
 
 add_library(${Module_Name} SHARED
@@ -34,6 +35,8 @@ add_library(${Module_Name} SHARED
         AudioAnalysisWorker.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
 
 )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
@@ -41,7 +44,8 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
         TimestampGenerator
         GUIElements
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes
         )
 

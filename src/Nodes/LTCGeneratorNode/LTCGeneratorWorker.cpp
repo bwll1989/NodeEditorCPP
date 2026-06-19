@@ -11,6 +11,38 @@
 // 2) 以“帧”为单位推进 UI 时间码：仅在消费完整帧样本后才更新，避免 UI 领先实际音频
 // 3) 输出 float32 单声道音频，环形队列中带系统时间戳供下游使用
 
+namespace
+{
+    struct LtcEncoderConfig {
+        double fps = 25.0;
+        LTC_TV_STANDARD standard = LTC_TV_FILM_24;
+    };
+
+    LtcEncoderConfig resolveLtcEncoderConfig(TimeCodeType type)
+    {
+        LtcEncoderConfig cfg;
+
+        switch (type) {
+            case TimeCodeType::Film:    cfg.fps = 24.0; break;
+            case TimeCodeType::Film_DF: cfg.fps = 23.976; break;
+            case TimeCodeType::NTSC:    cfg.fps = 30.0; break;
+            case TimeCodeType::NTSC_DF: cfg.fps = 29.97; break;
+            case TimeCodeType::PAL:
+            case TimeCodeType::HD:      cfg.fps = 25.0; break;
+            default:                    cfg.fps = 25.0; break;
+        }
+
+        cfg.standard = LTC_TV_FILM_24;
+        if (std::fabs(cfg.fps - 25.0) < 0.5) {
+            cfg.standard = LTC_TV_625_50;
+        } else if (std::fabs(cfg.fps - 30.0) < 0.6 || std::fabs(cfg.fps - 29.97) < 0.6) {
+            cfg.standard = LTC_TV_525_60;
+        }
+
+        return cfg;
+    }
+}
+
 namespace Nodes
 {
     /**
@@ -79,6 +111,8 @@ namespace Nodes
             _outputBuffer->setActive(true);
         }
 
+        ensureEncoderLocked();
+
         // 启动独立生成线程
         _running = true;
         _generationThread = std::make_unique<std::thread>(&LTCGeneratorWorker::generationLoop, this);
@@ -130,7 +164,6 @@ namespace Nodes
     void LTCGeneratorWorker::setTimeCodeType(TimeCodeType type)
     {
         QMutexLocker locker(&_mutex);
-        _typeOverride = true;
         if (type == TimeCodeType::HD) {
             type = TimeCodeType::PAL;
         }
@@ -140,6 +173,8 @@ namespace Nodes
             ltc_encoder_free(_encoder);
             _encoder = nullptr;
         }
+        _configuredFps = 0.0;
+        _configuredStandard = LTC_TV_FILM_24;
         _pendingSamples.clear();
         _pendingReadOffset = 0;
         _frameSampleCounts.clear();
@@ -164,12 +199,10 @@ namespace Nodes
         std::memset(&zero, 0, sizeof(zero));
         strncpy_s(zero.timezone, sizeof(zero.timezone), "+0000", _TRUNCATE);
 
-        ensureEncoderLocked();
-        if (_encoder) {
-            ltc_encoder_set_timecode(_encoder, &zero);
-        }
-
         _timecode = zero;
+
+        ensureEncoderLocked();
+        syncEncoderFromTimecodeLocked();
 
         _pendingSamples.clear();
         _pendingReadOffset = 0;
@@ -206,50 +239,61 @@ namespace Nodes
      * - 默认使 LTC 帧率跟随全局帧率（TimestampGenerator）
      * - 根据帧率选择最接近的 TV standard
      */
-    void LTCGeneratorWorker::ensureEncoderLocked()
+    void LTCGeneratorWorker::applyDropFrameFlagLocked()
     {
-        if (_encoder) {
+        if (!_encoder) {
             return;
         }
 
-        if (_typeOverride) {
-            switch (_forcedType) {
-                case TimeCodeType::Film: _fps = 24.0; break;
-                case TimeCodeType::Film_DF: _fps = 23.976; break;
-                case TimeCodeType::NTSC: _fps = 30.0; break;
-                case TimeCodeType::NTSC_DF: _fps = 29.97; break;
-                case TimeCodeType::PAL: _fps = 25.0; break;
-                case TimeCodeType::HD: _fps = 25.0; break;
-                default: _fps = 25.0; break;
-            }
-        } else {
-            const double globalFps = TimestampGenerator::getInstance()->getFrameRate();
-            _fps = (globalFps > 0.0) ? globalFps : 25.0;
+        LTCFrame frame;
+        ltc_encoder_get_frame(_encoder, &frame);
+        const bool useDropFrame =
+            (_forcedType == TimeCodeType::NTSC_DF || _forcedType == TimeCodeType::Film_DF);
+        frame.dfbit = useDropFrame ? 1 : 0;
+        ltc_encoder_set_frame(_encoder, &frame);
+    }
+
+    void LTCGeneratorWorker::syncEncoderFromTimecodeLocked()
+    {
+        if (!_encoder) {
+            return;
         }
 
-        // 根据 fps 选择最接近的电视标准，保证编码参数正确
-        LTC_TV_STANDARD standard = LTC_TV_FILM_24;
-        if (std::fabs(_fps - 25.0) < 0.5) {
-            standard = LTC_TV_625_50;
-        } else if (std::fabs(_fps - 30.0) < 0.6 || std::fabs(_fps - 29.97) < 0.6) {
-            standard = LTC_TV_525_60;
-        } else {
-            standard = LTC_TV_FILM_24;
-        }
+        ltc_encoder_set_timecode(_encoder, &_timecode);
+        ltc_encoder_reset(_encoder);
+        applyDropFrameFlagLocked();
+    }
 
-        // 使用固定采样率 48000Hz（SAMPLE_RATE），确保下游设备兼容
-        _encoder = ltc_encoder_create(SAMPLE_RATE, _fps, standard, 0);
+    void LTCGeneratorWorker::ensureEncoderLocked()
+    {
+        const LtcEncoderConfig cfg = resolveLtcEncoderConfig(_forcedType);
+        _fps = cfg.fps;
+
         if (_encoder) {
-            ltc_encoder_set_timecode(_encoder, &_timecode);
+            if (std::fabs(_configuredFps - cfg.fps) < 1e-6 && _configuredStandard == cfg.standard) {
+                return;
+            }
+
+            if (ltc_encoder_reinit(_encoder, SAMPLE_RATE, cfg.fps, cfg.standard, 0) != 0) {
+                ltc_encoder_free(_encoder);
+                _encoder = nullptr;
+            } else {
+                _configuredFps = cfg.fps;
+                _configuredStandard = cfg.standard;
+                ltc_encoder_set_volume(_encoder, 0.0);
+                ltc_encoder_set_filter(_encoder, 0.0);
+                syncEncoderFromTimecodeLocked();
+                return;
+            }
+        }
+
+        _encoder = ltc_encoder_create(SAMPLE_RATE, cfg.fps, cfg.standard, 0);
+        if (_encoder) {
+            _configuredFps = cfg.fps;
+            _configuredStandard = cfg.standard;
             ltc_encoder_set_volume(_encoder, 0.0);
             ltc_encoder_set_filter(_encoder, 0.0);
-
-            if (_typeOverride && (_forcedType == TimeCodeType::NTSC_DF || _forcedType == TimeCodeType::Film_DF)) {
-                LTCFrame frame;
-                ltc_encoder_get_frame(_encoder, &frame);
-                frame.dfbit = 1;
-                ltc_encoder_set_frame(_encoder, &frame);
-            }
+            syncEncoderFromTimecodeLocked();
         }
     }
 
@@ -383,24 +427,17 @@ namespace Nodes
         frame.seconds = t.secs;
         frame.frames = t.frame;
 
-        if (_typeOverride) {
-            frame.type = _forcedType;
-            return frame;
-        }
-
-        if (std::fabs(_fps - 25.0) < 0.5) {
-            frame.type = TimeCodeType::PAL;
-        } else if (std::fabs(_fps - 30.0) < 0.6) {
-            frame.type = TimeCodeType::NTSC;
-        } else if (std::fabs(_fps - 29.97) < 0.6) {
-            frame.type = TimeCodeType::NTSC_DF;
-        } else if (std::fabs(_fps - 23.976) < 0.2) {
-            frame.type = TimeCodeType::Film_DF;
-        } else {
-            frame.type = TimeCodeType::Film;
-        }
-
+        frame.type = _forcedType;
         return frame;
+    }
+
+    /**
+     * @brief 根据当前全局时间戳帧率计算 LTC 输出缓冲块大小
+     * @return 每次系统节拍需要输出的采样数
+     */
+    int LTCGeneratorWorker::getBufferSize() const
+    {
+        return TimestampGenerator::getInstance()->getSamplesPerFrame(SAMPLE_RATE);
     }
 
     /**
@@ -412,24 +449,24 @@ namespace Nodes
     {
         while (_running) {
             auto start = std::chrono::steady_clock::now();
-            double currentFps = 25.0;
+            double globalFps = TimestampGenerator::getInstance()->getFrameRate();
 
             {
                 QMutexLocker locker(&_mutex);
                 if (_isProcessing) {
-                    currentFps = _fps;
-                    // 保持小缓冲（≈1帧，2048样本）以降低端到端延迟，避免停止/开始时时间码跳变
-                    if ((_pendingSamples.size() - _pendingReadOffset) < 2048) {
-                        int generated = encodeOneLtcFrameLocked();
-                        // 生成线程不触发 UI 时间码，防止“未播放的未来时间码”导致不一致
+                    ensureEncoderLocked();
+                    // 预填缓冲：按 TimestampGenerator 每块采样数（如 2048@23.4375fps）保持约 1 块余量
+                    const int pendingTarget = getBufferSize();
+                    if ((_pendingSamples.size() - _pendingReadOffset) < pendingTarget) {
+                        encodeOneLtcFrameLocked();
                     }
                 }
             }
 
-            // 动态休眠：目标帧间隔(1/FPS) - 本次循环耗时
+            // 预填节奏跟随全局时钟帧率，而非 LTC SMPTE 帧率
             auto end = std::chrono::steady_clock::now();
             std::chrono::duration<double, std::milli> elapsed = end - start;
-            double frameDurationMs = (currentFps > 0.0001) ? (1000.0 / currentFps) : 40.0;
+            double frameDurationMs = (globalFps > 0.0001) ? (1000.0 / globalFps) : 40.0;
             double sleepTimeMs = frameDurationMs - elapsed.count();
             // 至少休眠1ms，避免忙等导致CPU占用
             if (sleepTimeMs < 1.0) sleepTimeMs = 1.0;
@@ -450,8 +487,8 @@ namespace Nodes
             return;
         }
 
-        // 读取“整帧样本数”（BUFFER_SIZE = SAMPLE_RATE / fps），保证与时间码帧边界严格对齐
-        const int samplesNeeded = BUFFER_SIZE;
+        // 读取“整帧样本数”，保证与当前全局时间戳帧率保持一致
+        const int samplesNeeded = getBufferSize();
         QVector<float> block;
         
         // 从缓存中取出数据；不足时会尝试补编码或以静音填充，保证输出节拍稳定
@@ -461,8 +498,8 @@ namespace Nodes
         outFrame.sampleRate = static_cast<int>(SAMPLE_RATE);
         outFrame.channels = 1;
         outFrame.bitsPerSample = 32;
-        // 使用系统时间戳标记此音频块；如需校准系统时钟与 LTC 边界，可通过外部配置调整偏移
-        outFrame.timestamp = frameCount+2; // 使用系统传入的时间戳
+        // 时间戳领先若干帧，使 AudioDeviceOut / LTCDecoder 按当前全局帧计数取块时数据已就绪
+        outFrame.timestamp = frameCount + LTC_TIMESTAMP_LEAD_FRAMES;
         
         outFrame.data = QByteArray(reinterpret_cast<const char*>(block.constData()),
                                    block.size() * static_cast<int>(sizeof(float)));

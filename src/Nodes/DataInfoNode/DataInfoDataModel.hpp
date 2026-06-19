@@ -24,7 +24,7 @@ namespace Nodes
     class DataInfoDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
-    
+
     public:
         DataInfoDataModel()
         {
@@ -83,17 +83,17 @@ namespace Nodes
             if (data == nullptr) {
                 return;
             }
-            
+
             if (inData = std::dynamic_pointer_cast<VariableData>(data)) {
                 QVariantMap newModel = inData->getMap();
-                
+
                 // 使用高性能的增量更新
                 if (model.isEmpty()) {
                     qmlWidget->buildPropertiesFromMap(newModel);
                 } else {
                     qmlWidget->updatePropertiesIncremental(newModel);
                 }
-                
+
                 model = newModel;
                 Q_EMIT dataUpdated(0);
             }

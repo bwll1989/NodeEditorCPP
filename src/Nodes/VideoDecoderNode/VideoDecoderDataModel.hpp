@@ -344,11 +344,11 @@ namespace Nodes
                     emit playChanged(false);
                     return;
                 }
-                
+
                 // 动态更新端口数量
                 unsigned int channels = player->getChannels();
                 unsigned int newOutPortCount = 1 + channels; // 1 Video + N Audio
-                
+
                 if (newOutPortCount != OutPortCount) {
                     if (newOutPortCount > OutPortCount) {
                         emit portsAboutToBeInserted(PortType::Out, OutPortCount, newOutPortCount - OutPortCount);
@@ -360,7 +360,7 @@ namespace Nodes
                         emit portsDeleted();
                     }
                 }
-                
+
                 isReady = true;
 
                 if (resumePlay) {

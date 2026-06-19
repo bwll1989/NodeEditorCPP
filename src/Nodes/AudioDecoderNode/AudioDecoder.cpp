@@ -26,7 +26,15 @@ extern "C" {
 static const int SAMPLE_RATE = 48000;
 static const int LOOP_INTERVAL = 800;
 static const int FIXED_DELAY_FRAMES = 5;
-static const int SAMPLES_PER_CHANNEL = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();;
+
+/**
+ * @brief 根据当前全局时间戳帧率获取每帧采样数
+ * @return 每帧采样数
+ */
+static int samplesPerChannelForTimestampFrame()
+{
+    return TimestampGenerator::getInstance()->getSamplesPerFrame(SAMPLE_RATE);
+}
 // 在构造函数中添加新的成员变量初始化
 AudioDecoder::AudioDecoder(QObject *parent)
     : QThread(parent)
@@ -189,13 +197,14 @@ void AudioDecoder::startPlay(){
         if (swrContext) {
             uint8_t* flushBuffer = nullptr;
             // 这个大小足够容纳重采样器内部可能残留的数据
-            int flushSize = SAMPLES_PER_CHANNEL * 2 * 4;  // samples × channels × bytes_per_sample (float)
+            const int samplesPerChannel = samplesPerChannelForTimestampFrame();
+            int flushSize = samplesPerChannel * 2 * 4;  // samples × channels × bytes_per_sample (float)
             flushBuffer = (uint8_t*)av_malloc(flushSize);
             if (flushBuffer) {
                 // 调用swr_convert清空内部缓冲区
                 // 输入nullptr和0表示不提供新数据，只是刷新内部缓冲区
                 // 输出到临时缓冲区，然后丢弃这些数据
-                swr_convert(swrContext, &flushBuffer, SAMPLES_PER_CHANNEL, nullptr, 0);
+                swr_convert(swrContext, &flushBuffer, samplesPerChannel, nullptr, 0);
                 av_freep(&flushBuffer);  // 释放临时缓冲区
 
                 // 彻底重置重采样器状态，清除任何内部滤波器状态
@@ -613,7 +622,7 @@ int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
                                                int sampleRate)
 {
     const int bytesPerSample = 4; // Float
-    const int targetSamplesPerChannel = SAMPLES_PER_CHANNEL;
+    const int targetSamplesPerChannel = samplesPerChannelForTimestampFrame();
     const int chunkBytes = targetSamplesPerChannel * channels * bytesPerSample;
     const int inputBytes = samplesPerChannel * channels * bytesPerSample;
 
@@ -668,7 +677,6 @@ int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
 
     return emitted;
 }
-
 
 
 

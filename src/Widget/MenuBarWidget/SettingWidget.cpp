@@ -101,6 +101,14 @@ SettingWidget::SettingWidget(QWidget* parent)
     formGeneral->addRow(QStringLiteral("保存间隔:"), m_autosaveIntervalSpin);
     connect(m_autosaveEnabledCheck, &QCheckBox::toggled,
             m_autosaveIntervalSpin, &QWidget::setEnabled);
+
+    m_timestampFrameRateSpin = new FloatDragValueWidget(this);
+    m_timestampFrameRateSpin->setRange(1.0, 240.0);
+    m_timestampFrameRateSpin->setDecimals(4);
+    m_timestampFrameRateSpin->setSingleStep(0.0001);
+    m_timestampFrameRateSpin->setSuffix(QStringLiteral(" fps"));
+    m_timestampFrameRateSpin->setToolTip(QStringLiteral("全局时钟的帧率，用于时间戳计算，设置过高可能影响性能，但是可以提高音频的同步精度，降低时延"));
+    formGeneral->addRow(QStringLiteral("全局时钟频率:"), m_timestampFrameRateSpin);
     
     layoutGeneral->addLayout(formGeneral);
     layoutGeneral->addStretch();
@@ -240,6 +248,7 @@ void SettingWidget::loadCurrentSettings() {
     m_autosaveEnabledCheck->setChecked(config.isAutosaveEnabled());
     m_autosaveIntervalSpin->setValue(config.getAutosaveIntervalSeconds());
     m_autosaveIntervalSpin->setEnabled(m_autosaveEnabledCheck->isChecked());
+    m_timestampFrameRateSpin->setValue(config.getTimestampFrameRate());
 
     m_httpPortSpin->setValue(config.getHttpServerPort());
     m_extraFeedbackHostEdit->setText(config.getExtraFeedbackHost());
@@ -272,6 +281,7 @@ void SettingWidget::saveSettings() {
     obj["DefaultDarkTheme"] = m_darkThemeCheck->isChecked();
     obj["AutosaveEnabled"] = m_autosaveEnabledCheck->isChecked();
     obj["AutosaveIntervalSeconds"] = m_autosaveIntervalSpin->value();
+    obj["TimestampFrameRate"] = m_timestampFrameRateSpin->value();
     obj["OscEnabled"] = m_oscEnabledCheck->isChecked();
     obj["MqttEnabled"] = m_mqttEnabledCheck->isChecked();
     obj["MqttHost"] = m_mqttHostEdit->text();

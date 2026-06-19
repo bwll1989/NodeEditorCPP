@@ -2,9 +2,12 @@
 
 ## 1. 节点说明
 
-Data Info 用于**查看**流经节点的 VariableData 结构：在独立窗口中以树形方式展示所有字段，支持增量更新，便于调试数据流、确认 OSC/脚本 输出格式。
+Data Info 用于**查看**流经节点的数据结构：在独立窗口中以树形方式展示 VariableData 或 ImageData 的字段，支持增量更新，便于调试数据流、确认 OSC/脚本输出格式或图像元信息。
 
-输出与输入**相同**（透传），不改变数据内容。
+- **VariableData**：输出 0 透传原数据，并在 View 窗口中展示全部字段。
+- **ImageData**：输出 0 提供宽高等元数据（VariableData），输出 1 透传原图像；View 窗口展示 `width`、`height`、`channels`、`isNull` 等字段。
+
+（原 Image Info 节点功能已合并至本节点。）
 
 ## 2. 端口说明
 
@@ -12,13 +15,14 @@ Data Info 用于**查看**流经节点的 VariableData 结构：在独立窗口�
 
 | 端口 | 名称 | 数据类型 | 说明 |
 |------|------|----------|------|
-| 0 | （默认） | VariableData | 任意键值数据 |
+| 0 | DATA | VariableData | 可接 VariableData；也可接 ImageData（输入端口兼容任意类型） |
 
 ### 输出
 
 | 端口 | 名称 | 数据类型 | 说明 |
 |------|------|----------|------|
-| 0 | （默认） | VariableData | 与输入相同（透传） |
+| 0 | DATA | VariableData | VariableData 透传；或 ImageData 对应的元数据 |
+| 1 | IMAGE | ImageData | 输入为 ImageData 时透传图像，否则为空 |
 
 ## 3. 界面说明
 
@@ -30,13 +34,13 @@ Data Info 用于**查看**流经节点的 VariableData 结构：在独立窗口�
 
 ## 4. 使用说明
 
-1. 将待观察的数据流串在链路中（串联在 Inject 与下游之间）。
+1. 将待观察的数据流或图像源串在链路中。
 2. 运行后点击 **View** 查看实时字段与值。
-3. 输出仍可接后续节点，不影响业务逻辑。
+3. VariableData 从输出 0 继续接下游；ImageData 可从输出 1 继续处理图像，从输出 0 读取宽高等数值。
 
 适合开发阶段；正式演出可移除或保留在旁路。
 
 ## 5. 示例
 
 **OSC 调试：** Osc In → Data Info → Extract。在 View 中确认 `address`、`args` 等键名后再写 Extract 表达式。  
-**脚本输出验证：** JavaScript 节点输出接 Data Info，检查是否包含期望的 `default` 与子对象。
+**图像尺寸判断：** 摄像头 → Data Info → 输出 0 → Condition（判断 `width` 是否达到 1920）。

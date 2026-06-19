@@ -12,9 +12,17 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp
         UDPSocketInterface.hpp
         ../../Common/Devices/UdpSocket/UdpSocket.h
-        ../../Common/Devices/UdpSocket/UdpSocket.cpp)
+        ../../Common/Devices/UdpSocket/UdpSocket.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h)
 
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} Qt${QT_VERSION_MAJOR}::Network BuildInNodes DataTypes)
+target_link_libraries(${Module_Name} PRIVATE
+        Qt${QT_VERSION_MAJOR}::Widgets
+        ${QtNodes_LIBRARIES}
+        Qt${QT_VERSION_MAJOR}::Network
+        PropertyTreeWidget
+        StatusContainer
+        DataTypes)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

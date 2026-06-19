@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"

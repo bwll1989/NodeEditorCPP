@@ -22,7 +22,7 @@ namespace Nodes
             start = new QPushButton(this);
 
             interval->setValue(1000);
-            interval->setRange(1, 360000);
+            interval->setRange(1, 3600000);
 
             signalValue->setText(QStringLiteral("tick"));
 

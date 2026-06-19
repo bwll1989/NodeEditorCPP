@@ -21,6 +21,8 @@ set(SOURCE_FILES
 #        SupportWidgets.hpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp
         ../../Common/Devices/JSEngineDefines/SupportWidgets.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
         JsCodeEditor.cpp
         JsCodeEditor.h)
 add_library(${Module_Name} SHARED
@@ -35,7 +37,8 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Qml
         ${QtNodes_LIBRARIES}
         ${QScintilla_LIBRARIES}
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

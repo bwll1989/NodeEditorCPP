@@ -73,5 +73,7 @@ namespace AppConfigs {
     constexpr int AUTOSAVE_INTERVAL_SECONDS = 60;
     // 是否默认启用自动保存
     constexpr bool AUTOSAVE_ENABLED = true;
+    // 全局时间戳帧率
+    constexpr double TIMESTAMP_FRAME_RATE = 23.4375;
 
 }

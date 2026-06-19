@@ -17,13 +17,16 @@ add_library(${Module_Name} SHARED
         ../../Common/Devices/SerialPort/SerialPort.cpp
         ../../Common/Devices/SerialPort/SerialPortWorker.h
         ../../Common/Devices/SerialPort/SerialPortWorker.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::SerialPort
         ${QtNodes_LIBRARIES}
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes
 )
 

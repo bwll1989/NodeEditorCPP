@@ -15,7 +15,9 @@ add_library(${Module_Name}  SHARED
 		PoseDetectionDataModel.hpp
 		PoseDetectionInterface.hpp
         PluginDefinition.hpp
-        PluginDefinition.cpp)
+        PluginDefinition.cpp
+		../../Common/BaseClass/AbstractDelegateModel.cpp
+		../../Common/BaseClass/AbstractDelegateModel.h)
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 		Qt${QT_VERSION_MAJOR}::Concurrent
@@ -24,9 +26,11 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 		onnxruntime
 		onnxruntime_providers_cuda  # 如果使用CUDA
 		onnxruntime_providers_shared
-		BuildInNodes
+		PropertyTreeWidget
+		StatusContainer
 		DataTypes
-		GUIElements)
+		GUIElements
+		TimestampGenerator)
 
 
 

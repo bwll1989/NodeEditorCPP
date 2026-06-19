@@ -163,7 +163,7 @@ QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
                 }
             }
         }
-    
+
     // 检查是否需要重采样
     bool needsResampling = (codecContext->sample_rate != SAMPLE_RATE) ||
                           (codecContext->sample_fmt != AV_SAMPLE_FMT_FLT);
@@ -236,7 +236,7 @@ QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
     res->insert("sample_rate",QString::number(codecContext->sample_rate));
     res->insert("codec",codec->name);
     res->insert("frame_rate",codec->name);
-    
+
     if (videoStreamIndex != -1) {
         res->insert("has_video", true);
         res->insert("video_width", videoWidth);
@@ -523,7 +523,7 @@ void VideoDecoder::processVideoFrame() {
 
     cv::Mat img(videoCodecContext->height, videoCodecContext->width, CV_8UC3,
                 videoDstData[0], videoDstLinesize[0]);
-    
+
     // 使用clone确保数据被复制，避免缓冲区重用导致的问题
     NodeDataTypes::ImageData imageData(img.clone());
     emit videoFrameReady(imageData);

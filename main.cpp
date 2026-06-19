@@ -102,6 +102,7 @@ static std::optional<ProjectLoadResolution> promptRecoveryBeforeSplash(const QSt
 
 int main(int argc, char *argv[])
 {
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     // 设置高DPI支持
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     // 创建Qt应用程序实例

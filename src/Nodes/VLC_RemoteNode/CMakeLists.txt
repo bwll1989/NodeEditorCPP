@@ -18,13 +18,16 @@ add_library(${Module_Name} SHARED
         VlcHttpClient.h               # VLC HTTP 客户端
         PluginDefinition.hpp          # 插件接口声明
         PluginDefinition.cpp          # 插件注册实现
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         ${QtNodes_LIBRARIES}
         Qt${QT_VERSION_MAJOR}::Network
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes
 )
 

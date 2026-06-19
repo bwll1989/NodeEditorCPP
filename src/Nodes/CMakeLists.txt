@@ -24,11 +24,10 @@ set(ALL_NODES
     AudioDeviceOutNode                        #音频输出模块
     HotKeyNode                                #热键模块
     ExtractNode                               #数据分离模块
-    ImageInfoNode                             #图像信息
-    ImageScaleNode                            #图像缩放
     CameraNode                                #摄像头输入
     CaptureNode                               #图像捕获
-    CutImageNode                              #图像切割
+
+#    ROINode                                   #交互式 ROI 裁剪
     ImageConstNode                            #图像常量
     CountNode                                 #条件计数
     RectNode                                  #矩形模块
@@ -45,9 +44,9 @@ set(ALL_NODES
     WebSocketServerNode                       #WebSocket服务器
     WebSocketClientNode                       #WebSocket客户端
     JavaScriptNode                            #JavaScript脚本
-    ImageThresholdNode                        #图像二值化
+
     ImageCompareNode                          #图像对比
-    ImageSwitchNode                           #图像切换
+#    ImageOperates                             #图像操作集合
     showStoreGBxNode                          #ELC showStoreGBx 控制器
     USR_IO808Node                           #基于Modbus Master实现与USR-IO808 控制器对接
     TSETLNode                                 #对接TSETL
@@ -85,7 +84,9 @@ set(ALL_NODES
     PoseDetectionNode                            #Yolo v11n 姿态
     ObjectDetectionNode                         #Yolo v11n 检测
     FaceDetectionNode                              #人脸检测
-    MediaPipe                                      #MediaPipe 人体关节点
+    MediaPipe/HandPoseEstimationMediaPipeNode      #MediaPipe 手部关节点
+    MediaPipe/PoseEstimationMediaPipeNode          #MediaPipe 人体姿态
+    MediaPipe/HumanSegmentationPPHumanSegNode      #MediaPipe 人体分割
     VideoDecoderNode                              #视频解码器节点
     PLC-ModBus                                  #modbus控制PLC
     InternalCommandsNode                        #内部控制节点
@@ -130,11 +131,9 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(AudioDeviceOutNode)                        #音频输出模块
     add_subdirectory(HotKeyNode)                                #热键模块
     add_subdirectory(ExtractNode)                               #数据分离模块
-    add_subdirectory(ImageInfoNode)                             #图像信息
-    add_subdirectory(ImageScaleNode)                            #图像缩放
     add_subdirectory(CameraNode)                                #摄像头输入
     add_subdirectory(CaptureNode)                               #图像捕获
-    add_subdirectory(CutImageNode)                              #图像切割
+#    add_subdirectory(ROINode)                                   #交互式 ROI 裁剪
     add_subdirectory(ImageConstNode)                            #图像常量
     add_subdirectory(CountNode)                                 #条件计数
     add_subdirectory(RectNode)                                  #矩形模块
@@ -152,9 +151,8 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(WebSocketClientNode)                       #WebSocket客户端
     add_subdirectory(JavaScriptNode)                            #JavaScript脚本
     add_subdirectory(InternalCommandsNode)                       #内部控制
-    add_subdirectory(ImageThresholdNode)                        #图像二值化
     add_subdirectory(ImageCompareNode)                          #图像对比
-    add_subdirectory(ImageSwitchNode)                           #图像切换
+#    add_subdirectory(ImageOperates)                             #图像操作集合
     add_subdirectory(showStoreGBxNode)                          #ELC showStoreGBx 控制器
     add_subdirectory(USR_IO808Node)                             #基于Modbus Master实现与USR-IO808 控制器对接
     add_subdirectory(TSETLNode)                                 #对接TSETL
@@ -185,11 +183,12 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(AudioDuckingNode)                          #音频闪避
     add_subdirectory(AudioCrossFaderNode)                       #音频交叉淡化过渡
     add_subdirectory(AudioPriorityNode)                         #音频优先级
-#    add_subdirectory(AudioASRNode)                              #音频关键词识别
     add_subdirectory(PoseDetectionNode)                        #动作识别
     add_subdirectory(ObjectDetectionNode)                       #对象识别
     add_subdirectory(FaceDetectionNode)                            #人脸检测
-    add_subdirectory(MediaPipe)                                    #MediaPipe 人体关节点
+    add_subdirectory(MediaPipe/HandPoseEstimationMediaPipeNode)    #MediaPipe 手部关节点
+    add_subdirectory(MediaPipe/PoseEstimationMediaPipeNode)        #MediaPipe 人体姿态
+    add_subdirectory(MediaPipe/HumanSegmentationPPHumanSegNode)    #MediaPipe 人体分割
     add_subdirectory(VideoDecoderNode)                          #视频解码器节点
     add_subdirectory(DAWController)                          #DAW控制器节点
     add_subdirectory(PLC-ModBus)                                #Modbus控制PLC节点
@@ -203,8 +202,9 @@ endif()
 # 可单独构建全部节点的聚合目标（不依赖选项）
 add_custom_target(BuildAllNodes)
 foreach(NODE_NAME ${ALL_NODES})
-    if (TARGET ${NODE_NAME})
-        add_dependencies(BuildAllNodes ${NODE_NAME})
+    get_filename_component(NODE_TARGET ${NODE_NAME} NAME)
+    if (TARGET ${NODE_TARGET})
+        add_dependencies(BuildAllNodes ${NODE_TARGET})
     endif()
 endforeach()
 

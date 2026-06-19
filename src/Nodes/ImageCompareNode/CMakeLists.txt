@@ -11,15 +11,18 @@ add_library(${Module_Name}  SHARED
 		ImageCompareDataModel.hpp
 		ImageCompareInterface.hpp
         PluginDefinition.hpp
-        PluginDefinition.cpp)
+        PluginDefinition.cpp
+		../../Common/BaseClass/AbstractDelegateModel.cpp
+		../../Common/BaseClass/AbstractDelegateModel.h)
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
-		Qt${QT_VERSION_MAJOR}::Concurrent
-        Qt${QT_VERSION_MAJOR}::Network
+		Qt${QT_VERSION_MAJOR}::Network
 		${QtNodes_LIBRARIES}
 		${OpenCV_LIBRARIES}
-		BuildInNodes
-		DataTypes)
+		PropertyTreeWidget
+		StatusContainer
+		DataTypes
+		TimestampGenerator)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

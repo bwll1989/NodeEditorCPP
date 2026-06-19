@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ImageOperateCommon.hpp"
 #include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
@@ -9,7 +10,6 @@
 #include <vector>
 #include <QtCore/qglobal.h>
 #include "PluginDefinition.hpp"
-#include "ImageThresholdInterface.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include <QSignalBlocker>
@@ -46,11 +46,16 @@ namespace Nodes
             InPortCount =4;
             OutPortCount=1;
             CaptionVisible=true;
-            Caption=PLUGIN_NAME;
+            Caption="Image Threshold";
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= false;
-            m_outImage=std::make_shared<ImageData>();
+            ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
+            m_worker.setParent(this);
+            m_worker.setFinishedCallback([this](cv::Mat&& image, qint64 outputTimestamp, qint64 inputTimestamp, std::uint64_t) {
+                ImageOperateHelpers::pushWorkerResult(
+                    m_outBuffer, std::move(image), outputTimestamp, m_lastPushedTimestamp, m_tick, inputTimestamp);
+            });
             // connect(widget->threshEdit,&IntDragValueWidget::valueChanged,this,[this](int v){ setThresh(v); });
             // connect(widget->maxvalEdit,&IntDragValueWidget::valueChanged,this,[this](int v){ setMaxval(v); });
             // connect(widget->methodEdit,&QComboBox::currentIndexChanged,this,[this](int v){ setMethod(static_cast<ThresholdMethod>(v)); });
@@ -76,9 +81,29 @@ namespace Nodes
             // m_thresh = widget->threshEdit->value();
             // m_maxval = widget->maxvalEdit->value();
             // m_method = static_cast<ThresholdMethod>(widget->methodEdit->currentIndex());
+
+            connect(TimestampGenerator::getInstance(),
+                    &TimestampGenerator::frameCountUpdated,
+                    this,
+                    [this](qint64 frameCount) {
+                        if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
+                            return;
+                        }
+                        if (!m_tick.beginFrameTick(frameCount)) {
+                            return;
+                        }
+                        requestProcess(frameCount);
+                    },
+                    Qt::QueuedConnection);
         }
 
-        virtual ~ImageThresholdDataModel() override{}
+        /**
+         * @brief 析构函数，解除事件总线订阅，避免节点销毁后订阅残留导致内存增长
+         */
+        ~ImageThresholdDataModel() override
+        {
+            GlobalEventBus::instance()->unsubscribe(this);
+        }
 
         int thresh() const { return m_thresh; }
         int maxval() const { return m_maxval; }
@@ -140,19 +165,34 @@ namespace Nodes
         std::shared_ptr<NodeData> outData(PortIndex const port) override
         {
             Q_UNUSED(port);
-            return m_outImage;
+            return m_outImageData;
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            if (data== nullptr){
+            if (data == nullptr) {
+                if (portIndex == 0) {
+                    m_inImage.reset();
+                    if (m_outBuffer) {
+                        m_outBuffer->clear();
+                    }
+                    m_lastPushedTimestamp = -1;
+                    Q_EMIT dataUpdated(0);
+                }
                 return;
             }
             switch (portIndex)
             {
             case 0:
                 m_inImage=std::dynamic_pointer_cast<ImageData>(data);
-                updateImage();
+                ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
+                if (m_inImage) {
+                    m_tick.markInputConnected();
+                    Q_EMIT dataUpdated(0);
+                    if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
+                        requestProcess();
+                    }
+                }
                 break;
             case 1:
                 setThresh(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
@@ -165,25 +205,55 @@ namespace Nodes
                 break;
             }
         }
-        void updateImage()
+        void requestProcess(qint64 targetTimestamp = -1)
         {
-            if (m_inImage) {
-                cv::Mat inputMat = m_inImage->imgMat();
-                cv::Mat thresholdedMat;
+            ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
+            const qint64 outputTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
 
-                // 转换为灰度图像（如果输入是彩色）
-                if (inputMat.channels() > 1) {
-                    cv::cvtColor(inputMat, inputMat, cv::COLOR_BGR2GRAY);
+            if (imageDataIsEmpty(m_inImage)) {
+                m_worker.cancelPending();
+                if (m_outBuffer) {
+                    m_outBuffer->clear();
                 }
-
-                double thresh = m_thresh;
-                double maxval = m_maxval;
-                const int method = static_cast<int>(m_method);
-                cv::threshold(inputMat, thresholdedMat, thresh, maxval, method);
-
-                m_outImage = std::make_shared<ImageData>(thresholdedMat);
+                m_lastPushedTimestamp = -1;
+                m_tick.resetOutputState();
+                return;
             }
-            Q_EMIT dataUpdated(0);
+
+            ImageFrame inputFrame;
+            if (!ImageOperateHelpers::resolveImageFrameAtTimestamp(m_inImage, outputTimestamp, inputFrame) ||
+                inputFrame.image.empty()) {
+                m_worker.cancelPending();
+                if (m_outBuffer) {
+                    m_outBuffer->clear();
+                }
+                m_lastPushedTimestamp = -1;
+                return;
+            }
+
+            if (!m_tick.shouldProcess(inputFrame.timestamp)) {
+                return;
+            }
+
+            const int thresh = m_thresh;
+            const int maxval = m_maxval;
+            const int method = static_cast<int>(m_method);
+
+            m_worker.submit(
+                [input = inputFrame.image.clone(), thresh, maxval, method]() {
+                    cv::Mat inputMat = input;
+                    if (inputMat.empty()) {
+                        return cv::Mat();
+                    }
+                    if (inputMat.channels() > 1) {
+                        cv::cvtColor(inputMat, inputMat, cv::COLOR_BGR2GRAY);
+                    }
+                    cv::Mat thresholdedMat;
+                    cv::threshold(inputMat, thresholdedMat, thresh, maxval, method);
+                    return thresholdedMat;
+                },
+                outputTimestamp,
+                inputFrame.timestamp);
         }
         // QWidget *embeddedWidget() override
         // {
@@ -215,9 +285,13 @@ namespace Nodes
     private:
 
         // ImageThresholdInterface *widget=new ImageThresholdInterface();
-        std::shared_ptr<NodeData> m_outImage;
+        std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
+        std::shared_ptr<ImageData> m_outImageData;
         std::shared_ptr<ImageData> m_inImage;
         std::shared_ptr<VariableData> m_inVariable;
+        ImageOperateHelpers::ImageOperateWorkerQueue m_worker;
+        ImageOperateHelpers::ImageOperateTickState m_tick;
+        qint64 m_lastPushedTimestamp = -1;
         int m_thresh = 0;
         int m_maxval = 0;
         ThresholdMethod m_method = ThresholdMethod::Binary;
@@ -231,7 +305,7 @@ namespace Nodes
             //     const QSignalBlocker blocker(widget->threshEdit);
             //     widget->threshEdit->setValue(v);
             // }
-            updateImage();
+            m_tick.markParamsDirty();
             Q_EMIT threshChanged(v);
         }
 
@@ -243,7 +317,7 @@ namespace Nodes
             //     const QSignalBlocker blocker(widget->maxvalEdit);
             //     widget->maxvalEdit->setValue(v);
             // }
-            updateImage();
+            m_tick.markParamsDirty();
             Q_EMIT maxvalChanged(v);
         }
 
@@ -251,7 +325,7 @@ namespace Nodes
         {
             if (m_method == v) return;
             m_method = v;
-            updateImage();
+            m_tick.markParamsDirty();
             Q_EMIT methodChanged();
             Q_EMIT methodIndexChanged(methodIndex());
         }

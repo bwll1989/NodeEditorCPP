@@ -18,6 +18,6 @@ set(TimestampGenerator_sources
 
 add_library(TimestampGenerator SHARED ${TimestampGenerator_sources})
 
-target_link_libraries(TimestampGenerator PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+target_link_libraries(TimestampGenerator PRIVATE Qt${QT_VERSION_MAJOR}::Core AppConfig)
 
 target_compile_definitions(TimestampGenerator PRIVATE TIMESTAMPGENERATOR_LIBRARY)

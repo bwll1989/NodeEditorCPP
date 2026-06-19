@@ -129,13 +129,26 @@ public:
      * @brief 获取帧率
      * @return 帧率（fps）
      */
-    double getFrameRate() const { return FRAME_RATE; }
+    double getFrameRate() const;
     
     /**
      * @brief 获取帧间隔
      * @return 间隔（毫秒）
      */
-    double getFrameInterval() const { return FRAME_INTERVAL_MS; }
+    double getFrameInterval() const;
+
+    /**
+     * @brief 设置帧率
+     * @param frameRate 新的帧率
+     */
+    void setFrameRate(double frameRate);
+
+    /**
+     * @brief 根据采样率计算每帧采样数
+     * @param sampleRate 音频采样率
+     * @return 每帧采样数，至少为 1
+     */
+    int getSamplesPerFrame(int sampleRate) const;
     
     /**
      * @brief 检查帧计数器是否正在运行
@@ -221,6 +234,12 @@ private:
      * @brief 生成帧计数
      */
     void generateFrameCount();
+
+    /**
+     * @brief 应用新的帧率并同步更新间隔缓存
+     * @param frameRate 帧率
+     */
+    void applyFrameRate(double frameRate);
     
     /**
      * @brief 创建当前帧信息
@@ -232,17 +251,17 @@ private:
     // 静态成员
     static TimestampGenerator* instance_;           // 单例实例
     static QMutex instanceMutex_;                   // 实例创建互斥锁
-    static inline double FRAME_RATE = 23.4375;              // 23.4375fps
-    static const double FRAME_INTERVAL_MS;         // 帧间隔（毫秒）
-    static const std::chrono::nanoseconds FRAME_INTERVAL_NS; // 帧间隔（纳秒）
     
     // 成员变量
     mutable QMutex frameCountMutex_;                // 帧计数保护互斥锁
+    mutable QMutex configMutex_;                    // 帧率配置保护互斥锁
     QAtomicInteger<qint64> frameCounter_;           // 原子帧计数器
     std::atomic<bool> isRunning_;                   // 运行状态
     std::atomic<bool> shouldStop_;                  // 停止标志
     std::unique_ptr<std::thread> timerThread_;      // 高精度计时线程
-    
+    double frameRate_;                              // 当前帧率
+    double frameIntervalMs_;                        // 当前帧间隔（毫秒）
+    std::chrono::nanoseconds frameIntervalNs_;      // 当前帧间隔（纳秒）
     std::chrono::high_resolution_clock::time_point startTime_; // 开始时间点
     qint64 baseAbsoluteTime_;                       // 基准绝对时间（毫秒）
 };

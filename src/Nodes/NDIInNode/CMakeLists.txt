@@ -17,7 +17,9 @@ add_library(${Module_Name}  SHARED
 		NDIInDataModel.hpp
 		NDIInInterface.hpp
         PluginDefinition.hpp
-        PluginDefinition.cpp)
+        PluginDefinition.cpp
+		../../Common/BaseClass/AbstractDelegateModel.cpp
+		../../Common/BaseClass/AbstractDelegateModel.h)
 
 target_link_libraries(${Module_Name}  
 		PRIVATE
@@ -27,11 +29,13 @@ target_link_libraries(${Module_Name}
 		${OpenCV_LIBRARIES}
 		${NDI_LIBRARIES}
 		Qt${QT_VERSION_MAJOR}::OpenGL
-		BuildInNodes
+		PropertyTreeWidget
+		StatusContainer
 		opengl32  # 添加OpenGL32库
 		glu32     # 添加GLU32库
 		DataTypes
 		GUIElements
+		TimestampGenerator
 )
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

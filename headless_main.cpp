@@ -76,6 +76,7 @@ QString parseFlowFileArg(const QCommandLineParser& parser) {
  */
 int main(int argc, char *argv[])
 {
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     // 创建Qt应用程序实例
     QApplication app(argc, argv);
     // 无窗口也不自动退出（维持事件循环）

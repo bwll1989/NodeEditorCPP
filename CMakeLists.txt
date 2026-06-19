@@ -80,7 +80,8 @@ include_directories(${tinyosc_DIR})
 message("-- Found tinyosc ${tinyosc_DIR}")
 
 # FFmpeg：主工程仅配置路径变量与头文件搜索路径，不在 Flow/Runtime 上 link；插件/Clip 自行 target_link_libraries
-set(FFMPEG_ROOT "${DEPENDS_DIR}/ffmpeg-n7.1-184-gdc07f98934-win64-gpl-shared-7.1")
+#set(FFMPEG_ROOT "${DEPENDS_DIR}/ffmpeg-n7.1-184-gdc07f98934-win64-gpl-shared-7.1")
+set(FFMPEG_ROOT "${DEPENDS_DIR}/ffmpeg-8.1.1-full_build-shared")
 set(FFMPEG_INCLUDE_DIRS "${FFMPEG_ROOT}/include")
 set(FFMPEG_LIB_DIRS "${FFMPEG_ROOT}/lib")
 include_directories(${FFMPEG_INCLUDE_DIRS})

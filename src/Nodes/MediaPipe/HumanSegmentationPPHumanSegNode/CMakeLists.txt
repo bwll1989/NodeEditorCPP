@@ -12,16 +12,20 @@ add_library(${Module_Name} SHARED
         HumanSegmentationPPHumanSegDataModel.hpp
         HumanSegmentationPPHumanSegInterface.hpp
         PluginDefinition.hpp
-        PluginDefinition.cpp)
+        PluginDefinition.cpp
+        ../../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../../Common/BaseClass/AbstractDelegateModel.h)
 
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
         ${QtNodes_LIBRARIES}
         ${OpenCV_LIBRARIES}
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes
-        GUIElements)
+        GUIElements
+        TimestampGenerator)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

@@ -20,14 +20,17 @@ add_library(${Module_Name} SHARED
          ../../Common/Devices/TcpClient/TcpClient.h
         ../../Common/Devices/TcpClient/TcpClient.cpp
         ../../Common/Devices/TcpClient/TcpClientWorker.h
-       ../../Common/Devices/TcpClient/TcpClientWorker.cpp)
+       ../../Common/Devices/TcpClient/TcpClientWorker.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h)
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
         Qt${QT_VERSION_MAJOR}::Qml
         ${QtNodes_LIBRARIES}
         Qt${QT_VERSION_MAJOR}::Network
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

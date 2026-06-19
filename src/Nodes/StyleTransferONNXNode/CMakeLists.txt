@@ -15,18 +15,22 @@ add_library(${Module_Name}  SHARED
 		StyleTransferONNXDataModel.hpp
 		StyleTransferONNXInterface.hpp
         PluginDefinition.hpp
-        PluginDefinition.cpp)
+        PluginDefinition.cpp
+		../../Common/BaseClass/AbstractDelegateModel.cpp
+		../../Common/BaseClass/AbstractDelegateModel.h)
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 		Qt${QT_VERSION_MAJOR}::Network
 		Qt${QT_VERSION_MAJOR}::Concurrent
 		${QtNodes_LIBRARIES}
 		${OpenCV_LIBRARIES}
-		BuildInNodes
+		PropertyTreeWidget
+		StatusContainer
 		onnxruntime
 		onnxruntime_providers_cuda  # 如果使用CUDA
 		onnxruntime_providers_shared
-		DataTypes)
+		DataTypes
+		TimestampGenerator)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

@@ -7,7 +7,6 @@ string(TIMESTAMP BUILD_TS "%Y%m%d")
 # 函数级注释：将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
 add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
-
         TimeLineDataModel.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
@@ -26,6 +25,8 @@ add_library(${Module_Name} SHARED
         TimeLineNodeToolbar.cpp
         TimeLineNodeToolbar.h
         TimelineInterface.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
@@ -33,7 +34,9 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
                         ${QtNodes_LIBRARIES}
                         ${QtTimeLine_LIBRARIES}
                         DataTypes
-                        BuildInNodes)
+                        PropertyTreeWidget
+                        StatusContainer
+)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED NODE_TIMELINE_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

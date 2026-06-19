@@ -5,10 +5,19 @@
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QLabel>
+#include <QProcess>
+#include <QScrollArea>
+#include <QCoreApplication>
+#include <QFileInfo>
 #include <QSettings>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QStandardPaths>
 #include <QDebug>
+
+#include <opencv2/core.hpp>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/core/ocl.hpp>
 #ifdef Q_OS_WIN
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
@@ -26,7 +35,19 @@ SystemInfoWidget::SystemInfoWidget(QWidget* parent)
     setWindowTitle(QStringLiteral("系统信息"));
     setMinimumWidth(600);
 
-    QVBoxLayout* root = new QVBoxLayout(this);
+    QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->setSpacing(0);
+    layout->setContentsMargins(0, 0, 0, 0);
+
+    QScrollArea* scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    layout->addWidget(scrollArea);
+
+    QWidget* container = new QWidget(scrollArea);
+    scrollArea->setWidget(container);
+
+    QVBoxLayout* root = new QVBoxLayout(container);
     root->setSpacing(15);
     root->setContentsMargins(25, 25, 25, 25);
 
@@ -36,11 +57,11 @@ SystemInfoWidget::SystemInfoWidget(QWidget* parent)
         row->setAlignment(Qt::AlignTop);
 
         // 标题标签
-        QLabel* titleLabel = new QLabel(label, this);
+        QLabel* titleLabel = new QLabel(label, container);
         titleLabel->setFixedWidth(50);
         titleLabel->setAlignment(Qt::AlignTop | Qt::AlignRight);
         // 内容标签
-        QLabel* contentLabel = new QLabel(content, this);
+        QLabel* contentLabel = new QLabel(content, container);
         contentLabel->setWordWrap(true);
         contentLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
         contentLabel->setTextInteractionFlags(Qt::TextSelectableByMouse); // 允许复制
@@ -50,8 +71,8 @@ SystemInfoWidget::SystemInfoWidget(QWidget* parent)
         root->addLayout(row);
 
         // 添加分割线（除了最后一项）
-        if (label != "显卡") {
-            QFrame* line = new QFrame(this);
+        if (label != QStringLiteral("FFmpeg")) {
+            QFrame* line = new QFrame(container);
             line->setFrameShape(QFrame::HLine);
             line->setFrameShadow(QFrame::Plain);
             root->addWidget(line);
@@ -64,6 +85,8 @@ SystemInfoWidget::SystemInfoWidget(QWidget* parent)
     addSection(QStringLiteral("硬盘"), getDiskInfo());
     addSection(QStringLiteral("网络"), getNetworkInfo());
     addSection(QStringLiteral("显卡"), getGPUInfo());
+    addSection(QStringLiteral("OpenCV"), getOpenCvInfo());
+    addSection(QStringLiteral("FFmpeg"), getFfmpegInfo());
 
     root->addStretch();
 }
@@ -374,3 +397,177 @@ QString SystemInfoWidget::getNetworkInfo() const {
     return QStringLiteral("不支持的平台");
 }
 
+/**
+ * 函数级注释：运行外部程序并抓取输出（stdout+stderr）
+ */
+static QString runAndCapture(const QString& program, const QStringList& args, int timeoutMs, QString* errorOut = nullptr)
+{
+    QProcess proc;
+    proc.setProgram(program);
+    proc.setArguments(args);
+    proc.start();
+    if (!proc.waitForStarted(timeoutMs)) {
+        if (errorOut) {
+            *errorOut = QStringLiteral("启动失败: %1").arg(program);
+        }
+        return QString();
+    }
+    if (!proc.waitForFinished(timeoutMs)) {
+        proc.kill();
+        proc.waitForFinished(1000);
+        if (errorOut) {
+            *errorOut = QStringLiteral("执行超时: %1").arg(program);
+        }
+        return QString();
+    }
+    const QString out = QString::fromLocal8Bit(proc.readAllStandardOutput());
+    const QString err = QString::fromLocal8Bit(proc.readAllStandardError());
+    return (out + err).trimmed();
+}
+
+/**
+ * 函数级注释：打印 OpenCV 的 GPU 能力信息（CUDA/OpenCL/UMat），返回可展示的文本
+ */
+static QString PrintOpenCvGpuCapabilities()
+{
+    QStringList lines;
+    lines << QStringLiteral("OpenCV 版本: %1").arg(QString::fromLatin1(CV_VERSION));
+
+    const QString buildInfo = QString::fromLocal8Bit(cv::getBuildInformation().c_str());
+    const bool buildCuda = buildInfo.contains(QStringLiteral("NVIDIA CUDA: YES"), Qt::CaseInsensitive);
+    const bool buildOpenCL = buildInfo.contains(QStringLiteral("OpenCL: YES"), Qt::CaseInsensitive);
+    lines << QStringLiteral("Build CUDA: %1").arg(buildCuda ? "YES" : "NO");
+    lines << QStringLiteral("Build OpenCL: %1").arg(buildOpenCL ? "YES" : "NO");
+
+    int cudaCount = 0;
+    QString cudaError;
+    try {
+        cudaCount = cv::cuda::getCudaEnabledDeviceCount();
+    } catch (const cv::Exception& e) {
+        cudaError = QString::fromLocal8Bit(e.what());
+    }
+    if (cudaError.isEmpty()) {
+        lines << QStringLiteral("CUDA 设备数: %1").arg(cudaCount);
+    } else {
+        lines << QStringLiteral("CUDA 探测异常: %1").arg(cudaError);
+    }
+
+    const bool haveOpenCL = cv::ocl::haveOpenCL();
+    lines << QStringLiteral("OpenCL 可用(运行时): %1").arg(haveOpenCL ? "YES" : "NO");
+    if (haveOpenCL) {
+        cv::ocl::setUseOpenCL(true);
+        lines << QStringLiteral("OpenCL 已启用: %1").arg(cv::ocl::useOpenCL() ? "YES" : "NO");
+
+        cv::ocl::Context ctx;
+        if (ctx.create(cv::ocl::Device::TYPE_ALL) && ctx.ndevices() > 0) {
+            const auto dev = ctx.device(0);
+            lines << QStringLiteral("OpenCL 设备: %1").arg(QString::fromLocal8Bit(dev.name().c_str()));
+            lines << QStringLiteral("OpenCL 厂商: %1").arg(QString::fromLocal8Bit(dev.vendorName().c_str()));
+        } else {
+            lines << QStringLiteral("OpenCL 设备: 未能创建 Context");
+        }
+    }
+
+    return lines.join("\n");
+}
+
+/**
+ * 函数级注释：获取 OpenCV 的 GPU 能力信息（CUDA/OpenCL/UMat）
+ */
+QString SystemInfoWidget::getOpenCvInfo() const
+{
+    return PrintOpenCvGpuCapabilities();
+}
+
+/**
+ * 函数级注释：获取系统可调用的 FFmpeg 可执行文件信息（路径与版本）
+ */
+QString SystemInfoWidget::getFfmpegInfo() const
+{
+    QStringList lines;
+
+    QString ffmpegExePath;
+    QString ffmpegVersionLine;
+
+#ifdef Q_OS_WIN
+    auto findLoadedFfmpegDllPath = []() -> QString {
+        const wchar_t* candidates[] = {
+            L"avcodec-61.dll",
+            L"avformat-61.dll",
+            L"avutil-59.dll",
+            L"swscale-8.dll",
+            L"swresample-5.dll",
+            L"avcodec-60.dll",
+            L"avformat-60.dll",
+            L"avutil-58.dll",
+        };
+
+        for (const auto* name : candidates) {
+            HMODULE mod = GetModuleHandleW(name);
+            if (!mod) {
+                continue;
+            }
+            wchar_t buf[MAX_PATH] = {0};
+            const DWORD len = GetModuleFileNameW(mod, buf, MAX_PATH);
+            if (len > 0) {
+                return QString::fromWCharArray(buf, static_cast<int>(len));
+            }
+        }
+        return QString();
+    };
+
+    const QString ffmpegDllPath = findLoadedFfmpegDllPath();
+    if (!ffmpegDllPath.isEmpty()) {
+        const QFileInfo dllInfo(ffmpegDllPath);
+        const QString dllDir = dllInfo.absolutePath();
+        const QString candidateExe = dllDir + QLatin1String("/ffmpeg.exe");
+        if (QFileInfo::exists(candidateExe)) {
+            ffmpegExePath = candidateExe;
+        }
+        if (ffmpegExePath.isEmpty()) {
+            lines << QStringLiteral("FFmpeg DLL: %1").arg(ffmpegDllPath);
+        }
+    }
+#endif
+
+    if (ffmpegExePath.isEmpty()) {
+        const QString appDir = QCoreApplication::applicationDirPath();
+        const QStringList candidates = {
+            appDir + QLatin1String("/ffmpeg.exe"),
+            appDir + QLatin1String("/bin/ffmpeg.exe"),
+            appDir + QLatin1String("/ffmpeg/bin/ffmpeg.exe"),
+            appDir + QLatin1String("/../ffmpeg/bin/ffmpeg.exe"),
+            appDir + QLatin1String("/../bin/ffmpeg.exe"),
+        };
+        for (const auto& c : candidates) {
+            if (QFileInfo::exists(c)) {
+                ffmpegExePath = QFileInfo(c).absoluteFilePath();
+                break;
+            }
+        }
+    }
+
+    if (ffmpegExePath.isEmpty()) {
+        lines << QStringLiteral("ffmpeg 路径: 未找到（未使用系统 PATH）");
+        lines << QStringLiteral("ffmpeg 版本: 未知");
+        return lines.join("\n");
+    }
+
+    lines << QStringLiteral("ffmpeg 路径: %1").arg(ffmpegExePath);
+
+    QString err;
+    const QString raw = runAndCapture(ffmpegExePath, {QStringLiteral("-version")}, 2000, &err);
+    if (!raw.isEmpty()) {
+        ffmpegVersionLine = raw.split('\n').value(0).trimmed();
+    }
+
+    if (!ffmpegVersionLine.isEmpty()) {
+        lines << QStringLiteral("ffmpeg 版本: %1").arg(ffmpegVersionLine);
+    } else if (!err.isEmpty()) {
+        lines << QStringLiteral("ffmpeg 版本: 获取失败（%1）").arg(err);
+    } else {
+        lines << QStringLiteral("ffmpeg 版本: 未知");
+    }
+
+    return lines.join("\n");
+}

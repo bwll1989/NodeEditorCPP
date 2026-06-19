@@ -16,8 +16,17 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         SizeVarModel.hpp
         PluginDefinition.cpp
-        PluginDefinition.hpp)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} Qt${QT_VERSION_MAJOR}::Network BuildInNodes DataTypes GUIElements)
+        PluginDefinition.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h)
+target_link_libraries(${Module_Name} PRIVATE
+        Qt${QT_VERSION_MAJOR}::Widgets
+        ${QtNodes_LIBRARIES}
+        Qt${QT_VERSION_MAJOR}::Network
+        PropertyTreeWidget
+        StatusContainer
+        DataTypes
+        GUIElements)
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"

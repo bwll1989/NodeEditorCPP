@@ -10,7 +10,9 @@ add_library(${Module_Name} SHARED
         AudioDeviceInDataModel.hpp
         AudioDeviceInInterface.hpp
         PluginDefinition.cpp
-        PluginDefinition.hpp)
+        PluginDefinition.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h)
 
 
 target_link_libraries(${Module_Name}
@@ -20,7 +22,8 @@ target_link_libraries(${Module_Name}
         ${QtNodes_LIBRARIES}
         ${portaudio_LIBRARIES}
         TimestampGenerator
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes
         GUIElements
 )

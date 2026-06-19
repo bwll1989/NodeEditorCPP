@@ -85,6 +85,18 @@ namespace Nodes {
             
             // 启动工作线程
             _workerThread->start();
+
+            // 同步 UI 初始制式与音量到 worker（LTC 编码用 SMPTE 帧率，与 TimestampGenerator 块率无关）
+            QMetaObject::invokeMethod(
+                _worker,
+                "setTimeCodeType",
+                Qt::QueuedConnection,
+                Q_ARG(TimeCodeType, timecode_type_from_label(_label->timeCodeTypeComboBox->currentText(), TimeCodeType::PAL)));
+            QMetaObject::invokeMethod(
+                _worker,
+                "setVolume",
+                Qt::QueuedConnection,
+                Q_ARG(float, static_cast<float>(_label->volumeSlider->value())));
         }
     
         /**
@@ -239,11 +251,9 @@ namespace Nodes {
          */
         void onReceivedTimecodeFrame(TimeCodeFrame frame)
         {
-            // 应用偏移
+            // 更新界面显示（setTimeStamp 内部会应用 offset）
+            _label->setTimeStamp(frame);
             _timeCodeFrame = timecode_frame_add(frame, _label->timeCodeOffsetSpinBox->value());
-            
-            // 更新界面显示（主线程安全）
-            _label->setTimeStamp(_timeCodeFrame);
             _label->setStatus(false, "Generating");
             
             // 通知输出端口数据更新

@@ -12,9 +12,17 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp
         PluginDefinition.hpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} Qt${QT_VERSION_MAJOR}::Qml DataTypes BuildInNodes)
+target_link_libraries(${Module_Name} PRIVATE
+        Qt${QT_VERSION_MAJOR}::Widgets
+        ${QtNodes_LIBRARIES}
+        Qt${QT_VERSION_MAJOR}::Qml
+        DataTypes
+        PropertyTreeWidget
+        StatusContainer)
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"

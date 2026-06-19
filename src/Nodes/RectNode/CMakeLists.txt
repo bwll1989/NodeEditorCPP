@@ -16,13 +16,16 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         RectModel.hpp
         PluginDefinition.cpp
-        PluginDefinition.hpp)
+        PluginDefinition.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h)
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
         Qt${QT_VERSION_MAJOR}::Multimedia
         ${QtNodes_LIBRARIES}
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes
         GUIElements
 )

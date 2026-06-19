@@ -15,15 +15,20 @@ add_library(${Module_Name} SHARED
         IniLoaderModel.hpp
         ImageLoaderModel.hpp
         PluginDefinition.hpp
-        PluginDefinition.cpp)
+        PluginDefinition.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES}
         ${OpenCV_LIBRARIES}
         MediaManger
         GUIElements
         Qt${QT_VERSION_MAJOR}::Network
         DataTypes
-        BuildInNodes
-        AppConfig)
+        PropertyTreeWidget
+        StatusContainer
+        AppConfig
+        TimestampGenerator
+)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

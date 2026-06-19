@@ -324,6 +324,7 @@ namespace Nodes
             if (isRecording_) {
                 return;
             }
+            refreshFramesPerBuffer();
             
             PaError err = Pa_Initialize();
             if (err != paNoError) {
@@ -529,12 +530,19 @@ namespace Nodes
         }
 
     private:
+        /**
+         * @brief 根据当前全局时间戳帧率刷新输入缓冲块大小
+         */
+        void refreshFramesPerBuffer() {
+            framesPerBuffer_ = TimestampGenerator::getInstance()->getSamplesPerFrame(sampleRate_);
+        }
+
         // 界面组件
         AudioDeviceInInterface *widget = new AudioDeviceInInterface();
         
         // 音频参数
         int sampleRate_ = 48000;
-        int framesPerBuffer_ = sampleRate_/TimestampGenerator::getInstance()->getFrameRate();
+        int framesPerBuffer_ = TimestampGenerator::getInstance()->getSamplesPerFrame(sampleRate_);
         int channels_ = 2;
         
         // 设备和状态

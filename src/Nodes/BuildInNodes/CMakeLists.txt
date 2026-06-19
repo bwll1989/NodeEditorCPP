@@ -16,6 +16,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets Network OpenGL OpenGLWidgets )
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets Network OpenGL OpenGLWidgets )
 
+# 查找 OpenCV（WindowDisplayModel 等节点使用 cv::Mat）
+find_package(OpenCV REQUIRED)
+
 # 源文件列表
 set(BuildInNodes_sources
         AudioInDataModel.cpp
@@ -72,6 +75,9 @@ target_link_libraries(BuildInNodes PRIVATE
     ModelDataBridge
     StatusContainer
 )
+
+# BuildInNodes 内部实现使用 OpenCV；对静态库而言需要向上游传播链接依赖
+target_link_libraries(BuildInNodes PUBLIC ${OpenCV_LIBRARIES})
 
 # 暴露包含目录；INSTALL_INTERFACE 供 FlowSDK install(EXPORT) 使用
 target_include_directories(BuildInNodes PUBLIC

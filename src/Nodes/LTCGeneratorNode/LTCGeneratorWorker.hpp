@@ -7,9 +7,12 @@
 #include <atomic>
 #include "NodeDataList.hpp"
 #include "TimeCodeDefines.h"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 #include <ltc.h>
 static const int SAMPLE_RATE = 48000;
-static const size_t BUFFER_SIZE = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();
+// 写入环形队列时的时间戳领先量，补偿 QueuedConnection 与 PortAudio 回调延迟（同 AudioDecoder 的 FIXED_DELAY_FRAMES）
+static const int LTC_TIMESTAMP_LEAD_FRAMES = 2;
+
 namespace Nodes
 {
     /**
@@ -120,6 +123,22 @@ namespace Nodes
         TimeCodeFrame toTimeCodeFrameLocked(const SMPTETimecode& t) const;
         void advancePlaybackFramesLocked(int consumedSamples);
 
+        /**
+         * @brief 根据当前全局时间戳帧率获取 LTC 输出缓冲块大小
+         * @return 每个系统节拍对应的采样数
+         */
+        int getBufferSize() const;
+
+        /**
+         * @brief 将当前 _timecode 写入编码器并重置 LTC 波形相位状态
+         */
+        void syncEncoderFromTimecodeLocked();
+
+        /**
+         * @brief 按 Drop Frame 制式设置 dfbit
+         */
+        void applyDropFrameFlagLocked();
+
     private:
         std::shared_ptr<AudioTimestampRingQueue> _outputBuffer;         ///< 输出音频缓冲区（写侧）
         mutable QMutex _mutex;                                          ///< 互斥锁
@@ -127,13 +146,14 @@ namespace Nodes
         std::atomic<bool> _running{false};                              ///< 线程运行标志
         std::unique_ptr<std::thread> _generationThread;                 ///< 独立生成线程
         bool _enabled = true;                                           ///< 是否输出 LTC（否则输出静音）
-        float _volumeDb = 18.0f;
+        float _volumeDb = -25.0f;
         
         LTCEncoder* _encoder = nullptr;                                 ///< libltc 编码器
         SMPTETimecode _timecode {};                                     ///< 当前时间码（由编码器推进）
-        double _fps = 0.0;                                              ///< 当前 LTC 帧率（默认跟随全局帧率）
-        bool _typeOverride = false;
-        TimeCodeType _forcedType = TimeCodeType::PAL;
+        double _fps = 25.0;                                             ///< LTC SMPTE 编码帧率（由 UI 制式决定）
+        double _configuredFps = 0.0;                                    ///< 编码器已配置的帧率
+        LTC_TV_STANDARD _configuredStandard = LTC_TV_FILM_24;           ///< 编码器已配置的 TV 标准
+        TimeCodeType _forcedType = TimeCodeType::PAL;                   ///< UI 选择的 SMPTE 制式
 
         QVector<float> _pendingSamples;                                 ///< 音频缓存（float32）
         int _pendingReadOffset = 0;                                     ///< 待输出样本读偏移（避免频繁移除头部）

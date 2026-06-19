@@ -15,7 +15,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "数值显示"
+#define PLUGIN_DESCRIBE "数据与图像信息显示"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject

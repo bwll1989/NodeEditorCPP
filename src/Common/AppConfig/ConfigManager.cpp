@@ -70,6 +70,7 @@ ConfigManager::ConfigManager()
     , m_MaxLogSaveEntries(AppConfigs::MAX_LOG_SAVE_ENTRIES)
     , m_autosaveEnabled(AppConfigs::AUTOSAVE_ENABLED)
     , m_autosaveIntervalSeconds(AppConfigs::AUTOSAVE_INTERVAL_SECONDS)
+    , m_timestampFrameRate(AppConfigs::TIMESTAMP_FRAME_RATE)
 {
     QString configDir = AppConstants::RECENT_FILES_STORAGE_DIR;
     QDir().mkpath(configDir);
@@ -100,6 +101,7 @@ QString ConfigManager::getMqttFeedbackTopic() const { return m_mqttFeedbackTopic
 QString ConfigManager::getWebAccessPassword() const { return m_webAccessPassword; }
 bool ConfigManager::isAutosaveEnabled() const { return m_autosaveEnabled; }
 int ConfigManager::getAutosaveIntervalSeconds() const { return m_autosaveIntervalSeconds; }
+double ConfigManager::getTimestampFrameRate() const { return m_timestampFrameRate; }
 
 void ConfigManager::addRecentFile(const QString& path)
 {
@@ -150,6 +152,11 @@ void ConfigManager::loadConfig()
     m_autosaveIntervalSeconds = settings.value("Autosave/IntervalSeconds",
                                                 AppConfigs::AUTOSAVE_INTERVAL_SECONDS).toInt();
     m_autosaveIntervalSeconds = qBound(5, m_autosaveIntervalSeconds, 3600);
+    // Timestamp
+    m_timestampFrameRate = settings.value("Timestamp/FrameRate", AppConfigs::TIMESTAMP_FRAME_RATE).toDouble();
+    if (m_timestampFrameRate <= 0.0) {
+        m_timestampFrameRate = AppConfigs::TIMESTAMP_FRAME_RATE;
+    }
 }
 
 void ConfigManager::createDefaultConfig()
@@ -188,6 +195,8 @@ void ConfigManager::saveConfig()
     // Autosave
     settings.setValue("Autosave/Enabled", m_autosaveEnabled);
     settings.setValue("Autosave/IntervalSeconds", m_autosaveIntervalSeconds);
+    // Timestamp
+    settings.setValue("Timestamp/FrameRate", m_timestampFrameRate);
 
     settings.sync();
 }
@@ -220,7 +229,12 @@ void ConfigManager::updateConfig(const QJsonObject& newConfig)
     if (newConfig.contains("AutosaveIntervalSeconds")) {
         m_autosaveIntervalSeconds = qBound(5, newConfig["AutosaveIntervalSeconds"].toInt(), 3600);
     }
+    if (newConfig.contains("TimestampFrameRate")) {
+        m_timestampFrameRate = newConfig["TimestampFrameRate"].toDouble();
+        if (m_timestampFrameRate <= 0.0) {
+            m_timestampFrameRate = AppConfigs::TIMESTAMP_FRAME_RATE;
+        }
+    }
 
     saveConfig();
 }
-

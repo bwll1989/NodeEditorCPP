@@ -15,7 +15,6 @@ INCLUDE_DIRECTORIES("${DEPENDS_DIR}/libltc_cmake/src")
 message("-- Found libltc ${DEPENDS_DIR}/libltc_cmake/src")
 
 add_library(${Module_Name} SHARED
-
         LTCGeneratorInterface.h
         LTCGeneratorInterface.cpp
         LTCGeneratorDataModel.hpp
@@ -23,6 +22,8 @@ add_library(${Module_Name} SHARED
         LTCGeneratorWorker.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
 
 )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
@@ -30,7 +31,8 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${Libltc_LIBRARIES}
         TimestampGenerator
         DataTypes
-        BuildInNodes)
+        PropertyTreeWidget
+        StatusContainer)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

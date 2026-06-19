@@ -92,12 +92,13 @@ void AudioDeviceOutDataModel::updateDeviceList() {
 /**
  * 打开并启动音频输出流
  * - 根据当前选择设备设置通道数、采样格式、建议延迟
- * - 使用 BUFFER_SIZE 作为帧块大小，来源于 SAMPLE_RATE 与全局帧率的比值
+ * - 使用当前时间戳帧率换算得到的缓冲块大小，保证和统一时钟一致
  * - 绑定静态回调 paCallback 执行实时输出
  * - 失败时更新节点状态并返回 false
  */
 bool AudioDeviceOutDataModel::startAudioOutput() {
     if (isPlaying) return true;
+    const int bufferSize = getBufferSize();
 
     PaStreamParameters outputParameters;
     outputParameters.device = selectedDeviceIndex;
@@ -112,7 +113,7 @@ bool AudioDeviceOutDataModel::startAudioOutput() {
         nullptr,
         &outputParameters,
         SAMPLE_RATE,
-        BUFFER_SIZE,
+        bufferSize,
         paClipOff | paDitherOff,  // 添加 paDitherOff 减少数字噪声
         paCallback,
         this

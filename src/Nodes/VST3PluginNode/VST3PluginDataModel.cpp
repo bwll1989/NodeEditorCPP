@@ -24,7 +24,7 @@ VST3PluginDataModel::VST3PluginDataModel(const QString& path){
 
     // 初始化音频处理参数
     sampleRate_ = 48000;
-    blockSize_ = sampleRate_/TimestampGenerator::getInstance()->getFrameRate();
+    refreshBlockSize();
 
     // 创建音频处理线程
     audioProcessingThread_ = std::make_unique<VST3AudioProcessingThread>(this);
@@ -409,6 +409,7 @@ void VST3PluginDataModel::initializeAudioProcessing()
         qWarning() << "VST3 components not initialized";
         return;
     }
+    refreshBlockSize();
 
     // 1. 检查处理精度支持
     bool supportsDouble = (audioEffect_->canProcessSampleSize(Vst::kSample64) == kResultOk);
@@ -455,6 +456,14 @@ void VST3PluginDataModel::initializeAudioProcessing()
         vstPlug_->setActive(false);
         return;
     }
+}
+
+/**
+ * @brief 按当前全局时间戳帧率刷新插件处理块大小
+ */
+void VST3PluginDataModel::refreshBlockSize()
+{
+    blockSize_ = TimestampGenerator::getInstance()->getSamplesPerFrame(static_cast<int>(sampleRate_));
 }
 
 /**

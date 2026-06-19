@@ -11,6 +11,7 @@ set(CMAKE_AUTORCC ON)
 string(TIMESTAMP BUILD_TS "%Y%m%d")
 # 将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
 add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
+link_directories("${FFMPEG_LIB_DIRS}")
 add_library(${Module_Name} SHARED
         NoiseGeneratorDataModel.hpp
         NoiseGeneratorInterface.hpp
@@ -18,6 +19,8 @@ add_library(${Module_Name} SHARED
         NoiseGenerator.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
         )
 
 target_link_libraries(${Module_Name}  PRIVATE
@@ -29,12 +32,12 @@ target_link_libraries(${Module_Name}  PRIVATE
         avfilter
         avformat
         avutil
-        postproc
         swresample
         swscale
         ${portaudio_LIBRARIES}
         TimestampGenerator
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes)
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

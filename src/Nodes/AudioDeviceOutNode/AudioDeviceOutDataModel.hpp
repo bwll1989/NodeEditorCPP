@@ -30,7 +30,6 @@ using namespace NodeDataTypes;
 
 
 static const int SAMPLE_RATE = 48000;
-static const size_t BUFFER_SIZE = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();
 namespace Nodes
 {
     /**
@@ -281,6 +280,14 @@ namespace Nodes
         }
 private:
         /**
+         * @brief 根据当前全局时间戳帧率获取输出缓冲块大小
+         * @return 每次 PortAudio 回调的帧数
+         */
+        int getBufferSize() const {
+            return TimestampGenerator::getInstance()->getSamplesPerFrame(SAMPLE_RATE);
+        }
+
+        /**
          * @brief PortAudio 回调函数
          */
         /**
@@ -319,4 +326,3 @@ private:
         std::map<int, qint64> lastConsumedTimestamps;  // 每个端口上次成功消费的时间戳
     };
 }
-

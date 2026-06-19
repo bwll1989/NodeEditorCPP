@@ -116,4 +116,3 @@ QVariantMap ImageData::getMap() {
     NodeValues.insert("channels", QVariant::fromValue(m_image.channels()));
     return NodeValues;
 }
-

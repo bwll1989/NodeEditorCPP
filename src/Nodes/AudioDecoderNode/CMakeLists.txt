@@ -19,6 +19,8 @@ add_library(${Module_Name} SHARED
         AudioDecoder.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
         )
 
 target_link_libraries(${Module_Name}  PRIVATE
@@ -31,7 +33,6 @@ target_link_libraries(${Module_Name}  PRIVATE
         avfilter
         avformat
         avutil
-        postproc
         swresample
         swscale
         ${portaudio_LIBRARIES}
@@ -39,7 +40,8 @@ target_link_libraries(${Module_Name}  PRIVATE
         MediaManger
         GUIElements
         DataTypes
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
 )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

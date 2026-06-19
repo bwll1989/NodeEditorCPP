@@ -31,6 +31,10 @@ private:
     QString getDiskInfo() const;
     // 函数级注释：获取网络信息（使用 Windows API GetAdaptersAddresses，包括网关）
     QString getNetworkInfo() const;
+    // 函数级注释：获取 OpenCV 的 GPU 能力信息（CUDA/OpenCL/UMat）
+    QString getOpenCvInfo() const;
+    // 函数级注释：获取系统可调用的 FFmpeg 可执行文件信息（路径与版本）
+    QString getFfmpegInfo() const;
 };
 
 #endif //SYSTEMINFOWIDGET_H

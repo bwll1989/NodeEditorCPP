@@ -33,7 +33,7 @@ namespace Nodes
             InPortCount =2;
             OutPortCount=1;
             CaptionVisible=true;
-            Caption=PLUGIN_NAME;
+            Caption="Image Switch";
             WidgetEmbeddable= false;
             Resizable=false;
             PortEditable= true;

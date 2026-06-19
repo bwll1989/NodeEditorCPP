@@ -2,33 +2,34 @@
 // Created by pablo on 3/5/24.
 //
 
-#ifndef SCALEIMAGEMODEL_H
-#define SCALEIMAGEMODEL_H
+#ifndef ImageScaleDataModel_H
+#define ImageScaleDataModel_H
 
 
 #include <QtNodes/NodeDelegateModel>
 #include "NodeDataList.hpp"
+#include "ImageOperateCommon.hpp"
 #include <QElapsedTimer>
 #include <QFileDialog>
-#include <QtConcurrent/QtConcurrent>
 #include <opencv2/imgproc.hpp>
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 
 using namespace NodeDataTypes;
 namespace Nodes
 {
-    class ScaleImageModel final : public AbstractDelegateModel {
+    class ImageScaleDataModel final : public AbstractDelegateModel {
         Q_OBJECT
         Q_PROPERTY(int width READ width WRITE setWidth NOTIFY widthChanged)
         Q_PROPERTY(int height READ height WRITE setHeight NOTIFY heightChanged)
 
     public:
-        ScaleImageModel() {
+        ImageScaleDataModel() {
             InPortCount =4;
             OutPortCount=1;
             CaptionVisible=true;
-            Caption="Scale Image";
+            Caption="Image Scale";
             WidgetEmbeddable=false;
             Resizable=false;
             PortEditable=false;
@@ -47,9 +48,33 @@ namespace Nodes
             m_width = 0;
             m_height = 0;
             m_inScaleFactor = QSize(m_width, m_height);
+
+            ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
+            m_worker.setParent(this);
+            m_worker.setFinishedCallback([this](cv::Mat&& image, qint64 outputTimestamp, qint64 inputTimestamp, std::uint64_t) {
+                ImageOperateHelpers::pushWorkerResult(
+                    m_outBuffer, std::move(image), outputTimestamp, m_lastPushedTimestamp, m_tick, inputTimestamp);
+            });
+
+            connect(TimestampGenerator::getInstance(),
+                    &TimestampGenerator::frameCountUpdated,
+                    this,
+                    [this](qint64 frameCount) {
+                        if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImageData)) {
+                            return;
+                        }
+                        if (!m_tick.beginFrameTick(frameCount)) {
+                            return;
+                        }
+                        requestProcess(frameCount);
+                    },
+                    Qt::QueuedConnection);
         };
 
-        ~ScaleImageModel() override = default;
+        ~ImageScaleDataModel() override
+        {
+            GlobalEventBus::instance()->unsubscribe(this);
+        }
         int width() const { return m_width; }
         int height() const { return m_height; }
 
@@ -108,8 +133,13 @@ namespace Nodes
             switch (portIndex) {
             case 0:
                 m_inImageData = std::dynamic_pointer_cast<ImageData>(nodeData);
-                if (m_inImageData.lock()) {
-                    requestProcess();
+                ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
+                if (m_inImageData) {
+                    m_tick.markInputConnected();
+                    emit dataUpdated(0);
+                    if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImageData)) {
+                        requestProcess();
+                    }
                 }
                 break;
             case 1:
@@ -144,11 +174,6 @@ namespace Nodes
             return m_outImageData;
         }
 
-        // QWidget* embeddedWidget() override {
-        //
-        //     return m_widget;
-        // }
-
         QJsonObject save() const override
         {
             QJsonObject modelJson1;
@@ -174,7 +199,7 @@ namespace Nodes
             if (m_width == w) return;
             m_width = w;
             m_inScaleFactor.setWidth(w);
-            requestProcess();
+            m_tick.markParamsDirty();
             Q_EMIT widthChanged(w);
         }
 
@@ -183,7 +208,7 @@ namespace Nodes
             if (m_height == h) return;
             m_height = h;
             m_inScaleFactor.setHeight(h);
-            requestProcess();
+            m_tick.markParamsDirty();
             Q_EMIT heightChanged(h);
         }
 
@@ -204,63 +229,72 @@ namespace Nodes
         void heightChanged(int height);
         void lastProcessMsChanged(qint64 ms);
     private:
-         static QPair<cv::Mat, quint64> processImage(const cv::Mat& inputImage, const QSize& scaleFactor) {
-            QElapsedTimer timer;
-            timer.start();
-
+         static cv::Mat processImage(const cv::Mat& inputImage, const QSize& scaleFactor) {
             if (inputImage.empty() || scaleFactor.width() <= 0 || scaleFactor.height() <= 0) {
-                return {cv::Mat(), 0};
+                return cv::Mat();
             }
 
-            // 转换Qt的缩放模式到OpenCV插值方式
-            int interpolation = cv::INTER_LINEAR;
             cv::Mat outputImage;
             try {
                 cv::resize(inputImage, outputImage,
                           cv::Size(scaleFactor.width(), scaleFactor.height()),
-                          0, 0, interpolation);
+                          0, 0, cv::INTER_LINEAR);
             } catch (const cv::Exception& e) {
                 qWarning() << "OpenCV resize error:" << e.what();
-                return {cv::Mat(), 0};
+                return cv::Mat();
             }
 
-            return {outputImage, static_cast<quint64>(timer.elapsed())};
+            return outputImage;
         }
 
-        void requestProcess() {
-            const auto lockImage = m_inImageData.lock();
-            if (lockImage) {
-                const auto cvImage = lockImage->imgMat(); // 获取OpenCV矩阵
+        void requestProcess(qint64 targetTimestamp = -1) {
+            ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
+            const qint64 outputTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
 
-                if (cvImage.empty()) {
-                    m_outImageData.reset();
-                    return;
+            if (imageDataIsEmpty(m_inImageData)) {
+                m_worker.cancelPending();
+                if (m_outBuffer) {
+                    m_outBuffer->clear();
                 }
-
-
-                const auto [processedMat, elapsedTime] = processImage(cvImage, m_inScaleFactor);
-
-                if (!processedMat.empty()) {
-                    m_outImageData = std::make_shared<ImageData>(processedMat);
-                } else {
-                    m_outImageData.reset();
-                }
-            } else {
-                m_outImageData.reset();
+                m_lastPushedTimestamp = -1;
+                m_tick.resetOutputState();
+                return;
             }
-            emit dataUpdated(0);
+
+            ImageFrame frame;
+            if (!ImageOperateHelpers::resolveImageFrameAtTimestamp(m_inImageData, outputTimestamp, frame) ||
+                frame.image.empty()) {
+                m_worker.cancelPending();
+                if (m_outBuffer) {
+                    m_outBuffer->clear();
+                }
+                m_lastPushedTimestamp = -1;
+                return;
+            }
+
+            if (!m_tick.shouldProcess(frame.timestamp)) {
+                return;
+            }
+
+            const QSize scaleFactor = m_inScaleFactor;
+            m_worker.submit(
+                [input = frame.image.clone(), scaleFactor]() {
+                    return processImage(input, scaleFactor);
+                },
+                outputTimestamp,
+                frame.timestamp);
         }
 
     private:
-        // 0
-        std::weak_ptr<ImageData> m_inImageData;
-        // 1
+        std::shared_ptr<ImageData> m_inImageData;
         QSize m_inScaleFactor;
-        // out
-        // 0
         std::shared_ptr<ImageData> m_outImageData;
+        std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
+        ImageOperateHelpers::ImageOperateWorkerQueue m_worker;
+        ImageOperateHelpers::ImageOperateTickState m_tick;
         int m_width = 0;
         int m_height = 0;
+        qint64 m_lastPushedTimestamp = -1;
 
     protected:
         void afterModelReady() override
@@ -270,4 +304,4 @@ namespace Nodes
         }
     };
 }
-#endif //SCALEIMAGEMODEL_H
+#endif //ImageScaleDataModel_H

@@ -19,7 +19,9 @@ add_library(${Module_Name} SHARED
         CurveInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        res.qrc)
+        res.qrc
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h)
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Core
@@ -27,7 +29,8 @@ target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Quick
         Qt${QT_VERSION_MAJOR}::QuickWidgets
         Qt${QT_VERSION_MAJOR}::Network
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         ${QtNodes_LIBRARIES}
         DataTypes
 )

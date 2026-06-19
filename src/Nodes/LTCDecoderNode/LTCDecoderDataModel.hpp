@@ -228,11 +228,8 @@ namespace Nodes {
          */
         void onReceivedTimecodeFrame(TimeCodeFrame frame)
         {
-            // 应用偏移
+            _label->setTimeStamp(frame);
             _timeCodeFrame = timecode_frame_add(frame, _label->timeCodeOffsetSpinBox->value());
-            
-            // 更新界面显示（主线程安全）
-            _label->setTimeStamp(_timeCodeFrame);
             _label->setStatus(false, "Decoding");
             
             // 通知输出端口数据更新

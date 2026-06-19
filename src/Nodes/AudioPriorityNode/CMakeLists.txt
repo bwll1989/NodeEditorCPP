@@ -32,6 +32,8 @@ add_library(${Module_Name} SHARED
         AudioPriorityWorker.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
+        ../../Common/BaseClass/AbstractDelegateModel.cpp
+        ../../Common/BaseClass/AbstractDelegateModel.h
 
 )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
@@ -40,7 +42,8 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         TimestampGenerator
         Eigen3::Eigen
         GUIElements
-        BuildInNodes
+        PropertyTreeWidget
+        StatusContainer
         DataTypes
         )
 

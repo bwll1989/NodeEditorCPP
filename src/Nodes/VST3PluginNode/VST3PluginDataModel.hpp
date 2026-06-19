@@ -144,6 +144,11 @@ namespace Nodes
         void initializeAudioBuffers();
 
         /**
+         * @brief 按当前全局时间戳帧率刷新插件处理块大小
+         */
+        void refreshBlockSize();
+
+        /**
          * @brief 读取VST3处理器状态
          * @return 序列化的处理器状态数据
          */
