@@ -1,5 +1,12 @@
 #pragma once
 
+/**
+ * @file CropImageOperateModel.hpp
+ * @brief Image Crop — 按四边百分比裁剪（GPU resample 子矩形）
+ *
+ * 百分比基于输入宽高；输出尺寸 = 原尺寸 − 四边像素。无效区域返回空纹理。
+ */
+
 #include "ImageOperateCommon.hpp"
 #include "NodeDataList.hpp"
 
@@ -7,10 +14,7 @@
 #include <QtCore/QObject>
 #include <QtNodes/NodeDelegateModel>
 
-#include <opencv2/core.hpp>
-
 #include <algorithm>
-#include <cmath>
 
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
@@ -23,6 +27,39 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
+namespace CropImageOperateGpu
+{
+inline GpuTextureHandle run(const GpuTextureHandle& src,
+                            double leftPercent,
+                            double rightPercent,
+                            double topPercent,
+                            double bottomPercent)
+{
+    if (!src.valid()) {
+        return {};
+    }
+
+    const int left = static_cast<int>(std::round(src.width * std::clamp(leftPercent, 0.0, 100.0) / 100.0));
+    const int right = static_cast<int>(std::round(src.width * std::clamp(rightPercent, 0.0, 100.0) / 100.0));
+    const int top = static_cast<int>(std::round(src.height * std::clamp(topPercent, 0.0, 100.0) / 100.0));
+    const int bottom = static_cast<int>(std::round(src.height * std::clamp(bottomPercent, 0.0, 100.0) / 100.0));
+
+    const int outW = src.width - left - right;
+    const int outH = src.height - top - bottom;
+    if (outW <= 0 || outH <= 0) {
+        return {};
+    }
+
+    const float u0 = static_cast<float>(left) / static_cast<float>(src.width);
+    const float v0 = static_cast<float>(top) / static_cast<float>(src.height);
+    const float u1 = static_cast<float>(src.width - right) / static_cast<float>(src.width);
+    const float v1 = static_cast<float>(src.height - bottom) / static_cast<float>(src.height);
+
+    return ImageGpuPass::instance().resample(src, outW, outH, u0, v0, u1, v1);
+}
+} // namespace CropImageOperateGpu
+
+/** @brief 百分比裁剪 — 单输入 GPU 算子 */
 class CropImageOperateModel final : public AbstractDelegateModel
 {
     Q_OBJECT
@@ -64,22 +101,15 @@ public:
         }
 
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        m_worker.setParent(this);
-        m_worker.setFinishedCallback([this](cv::Mat&& image, qint64 outputTimestamp, qint64 inputTimestamp, std::uint64_t) {
-            ImageOperateHelpers::pushWorkerResult(
-                m_outBuffer, std::move(image), outputTimestamp, m_lastPushedTimestamp, m_tick, inputTimestamp);
-        });
 
         connect(TimestampGenerator::getInstance(),
                 &TimestampGenerator::frameCountUpdated,
                 this,
                 [this](qint64 frameCount) {
-                    if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
+                    if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
                         return;
                     }
-                    if (!m_tick.beginFrameTick(frameCount)) {
-                        return;
-                    }
+                    m_lastRequestedFrame = frameCount;
                     requestProcess(frameCount);
                 },
                 Qt::QueuedConnection);
@@ -127,13 +157,9 @@ public:
         case 0:
             m_inImage = std::dynamic_pointer_cast<ImageData>(data);
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            if (m_inImage) {
-                m_tick.markInputConnected();
-                Q_EMIT dataUpdated(0);
-                if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
-                    requestProcess();
-                }
-            }
+            m_lastProcessedInputTimestamp = -1;
+            m_paramsDirty = true;
+            Q_EMIT dataUpdated(0);
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
@@ -198,7 +224,7 @@ public slots:
             return;
         }
         m_leftPercent = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT leftPercentChanged(m_leftPercent);
     }
 
@@ -209,7 +235,7 @@ public slots:
             return;
         }
         m_rightPercent = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT rightPercentChanged(m_rightPercent);
     }
 
@@ -220,7 +246,7 @@ public slots:
             return;
         }
         m_topPercent = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT topPercentChanged(m_topPercent);
     }
 
@@ -231,7 +257,7 @@ public slots:
             return;
         }
         m_bottomPercent = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT bottomPercentChanged(m_bottomPercent);
     }
 
@@ -274,84 +300,53 @@ private:
         return std::clamp(value, 0.0, 100.0);
     }
 
-    static int percentToPixels(int size, double percent)
+    void clearOutput()
     {
-        return static_cast<int>(std::round(static_cast<double>(size) * percent / 100.0));
+        if (m_outBuffer) {
+            m_outBuffer->clear();
+        }
+        m_lastPushedTimestamp = -1;
+        m_lastProcessedInputTimestamp = -1;
+        m_paramsDirty = false;
     }
 
     void requestProcess(qint64 targetTimestamp = -1)
     {
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        const qint64 outputTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
+        const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
 
-        if (imageDataIsEmpty(m_inImage)) {
-            m_worker.cancelPending();
-            if (m_outBuffer) {
-                m_outBuffer->clear();
-            }
-            m_lastPushedTimestamp = -1;
-            m_tick.resetOutputState();
+        if (!m_inImage || imageDataIsEmpty(m_inImage)) {
+            clearOutput();
             return;
         }
 
         ImageFrame inputFrame;
-        if (!ImageOperateHelpers::resolveImageFrameAtTimestamp(m_inImage, outputTimestamp, inputFrame) ||
-            inputFrame.image.empty()) {
-            m_worker.cancelPending();
-            if (m_outBuffer) {
-                m_outBuffer->clear();
+        if (!ImageOperateHelpers::resolveInputGpuFrame(m_inImage, lookupTimestamp, inputFrame)) {
+            if (!ImageOperateHelpers::hasInputImage(m_inImage)) {
+                clearOutput();
             }
-            m_lastPushedTimestamp = -1;
             return;
         }
 
-        if (!m_tick.shouldProcess(inputFrame.timestamp)) {
+        if (!m_paramsDirty && inputFrame.timestamp == m_lastProcessedInputTimestamp) {
             return;
         }
 
-        const double leftPercent = m_leftPercent;
-        const double rightPercent = m_rightPercent;
-        const double topPercent = m_topPercent;
-        const double bottomPercent = m_bottomPercent;
+        GpuTextureHandle out = CropImageOperateGpu::run(
+            inputFrame.texture, m_leftPercent, m_rightPercent, m_topPercent, m_bottomPercent);
+        ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp);
 
-        if (leftPercent <= 0.0 && rightPercent <= 0.0 && topPercent <= 0.0 && bottomPercent <= 0.0) {
-            m_worker.submit(
-                [input = inputFrame.image.clone()]() { return input; },
-                outputTimestamp,
-                inputFrame.timestamp);
-            return;
-        }
-
-        m_worker.submit(
-            [input = inputFrame.image.clone(), leftPercent, rightPercent, topPercent, bottomPercent]() {
-                const int left = percentToPixels(input.cols, leftPercent);
-                const int right = percentToPixels(input.cols, rightPercent);
-                const int top = percentToPixels(input.rows, topPercent);
-                const int bottom = percentToPixels(input.rows, bottomPercent);
-
-                const int outputWidth = input.cols - left - right;
-                const int outputHeight = input.rows - top - bottom;
-                if (outputWidth <= 0 || outputHeight <= 0) {
-                    return cv::Mat();
-                }
-
-                if (left == 0 && right == 0 && top == 0 && bottom == 0) {
-                    return input;
-                }
-
-                const cv::Rect roi(left, top, outputWidth, outputHeight);
-                return input(roi).clone();
-            },
-            outputTimestamp,
-            inputFrame.timestamp);
+        m_lastProcessedInputTimestamp = inputFrame.timestamp;
+        m_paramsDirty = false;
     }
 
     std::shared_ptr<ImageData> m_inImage;
     std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
     std::shared_ptr<ImageData> m_outImageData;
-    ImageOperateHelpers::ImageOperateWorkerQueue m_worker;
-    ImageOperateHelpers::ImageOperateTickState m_tick;
+    qint64 m_lastRequestedFrame = -1;
+    qint64 m_lastProcessedInputTimestamp = -1;
     qint64 m_lastPushedTimestamp = -1;
+    bool m_paramsDirty = false;
     double m_leftPercent = 0.0;
     double m_rightPercent = 0.0;
     double m_topPercent = 0.0;

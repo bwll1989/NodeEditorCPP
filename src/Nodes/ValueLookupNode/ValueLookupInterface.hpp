@@ -1,7 +1,5 @@
 #pragma once
 
-#include "../InjectNode/ConditionMatch.hpp"
-
 #include <QWidget>
 #include <QTableView>
 #include <QPushButton>
@@ -10,9 +8,68 @@
 #include <QStandardItemModel>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QStyledItemDelegate>
+#include <QPainter>
+#include <QLineEdit>
 
 namespace Nodes
 {
+    namespace
+    {
+        inline QString jsExpressionPlaceholderText()
+        {
+            return QStringLiteral("JS Expression (e.g., \"input['key']\")");
+        }
+
+        class JsExpressionItemDelegate : public QStyledItemDelegate
+        {
+        public:
+            using QStyledItemDelegate::QStyledItemDelegate;
+
+            void paint(QPainter *painter, const QStyleOptionViewItem &option,
+                       const QModelIndex &index) const override
+            {
+                QStyledItemDelegate::paint(painter, option, index);
+
+                if (option.state.testFlag(QStyle::State_Editing)) {
+                    return;
+                }
+
+                if (!index.data(Qt::DisplayRole).toString().isEmpty()) {
+                    return;
+                }
+
+                QStyleOptionViewItem opt(option);
+                initStyleOption(&opt, index);
+
+                painter->save();
+                const bool selected = opt.state.testFlag(QStyle::State_Selected);
+                const QColor color = selected
+                    ? opt.palette.color(QPalette::HighlightedText)
+                    : opt.palette.color(QPalette::PlaceholderText);
+                painter->setPen(color);
+
+                const QRect rect = opt.rect.adjusted(4, 0, -4, 0);
+                const QString placeholder = jsExpressionPlaceholderText();
+                painter->drawText(
+                    rect,
+                    Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine,
+                    opt.fontMetrics.elidedText(placeholder, Qt::ElideRight, rect.width()));
+                painter->restore();
+            }
+
+            QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
+                                  const QModelIndex &index) const override
+            {
+                Q_UNUSED(option);
+                Q_UNUSED(index);
+                auto *edit = new QLineEdit(parent);
+                edit->setPlaceholderText(jsExpressionPlaceholderText());
+                return edit;
+            }
+        };
+    } // namespace
+
     class ValueLookupInterface : public QWidget {
         Q_OBJECT
 
@@ -83,16 +140,6 @@ namespace Nodes
             }
             QStandardItem *item = model->item(row, 1);
             return item ? item->text() : QString();
-        }
-
-        int findMatchingRow(const QVariant &input) const
-        {
-            for (int row = 0; row < model->rowCount(); ++row) {
-                if (ConditionMatch::matches(input, conditionAt(row))) {
-                    return row;
-                }
-            }
-            return -1;
         }
 
     signals:
@@ -166,6 +213,10 @@ namespace Nodes
             tableView->verticalHeader()->setVisible(false);
             tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
             tableView->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+
+            auto *expressionDelegate = new JsExpressionItemDelegate(tableView);
+            tableView->setItemDelegateForColumn(0, expressionDelegate);
+            tableView->setItemDelegateForColumn(1, expressionDelegate);
 
             addRowButton = new QPushButton(tr("Add Rule"), this);
             connect(addRowButton, &QPushButton::clicked, this, &ValueLookupInterface::addRow);

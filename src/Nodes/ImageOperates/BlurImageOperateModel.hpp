@@ -1,5 +1,13 @@
 #pragma once
 
+/**
+ * @file BlurImageOperateModel.hpp
+ * @brief Image Blur — 可分离高斯模糊（GLSL 1.x，双 pass）
+ *
+ * BlurImageOperateGpu::run 先水平后垂直；半径 clamp 0–32。
+ * 节点 tick / setInData 约定同 FlipImageOperateModel（见 Doc.md §3）。
+ */
+
 #include "ImageOperateCommon.hpp"
 #include "NodeDataList.hpp"
 
@@ -7,10 +15,13 @@
 #include <QtCore/QJsonObject>
 #include <QtCore/QObject>
 
-#include <opencv2/imgproc.hpp>
-
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
+
+#include <QOpenGLFunctions>
+#include <QOpenGLShaderProgram>
+
+#include <algorithm>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
@@ -20,6 +31,78 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
+namespace BlurImageOperateGpu
+{
+/** 单方向高斯卷积；uHorizontal 区分水平/垂直 pass */
+static const char kFragBlur[] = R"(
+uniform sampler2D uTexture;
+uniform vec2 uTexelSize;
+uniform int uRadius;
+uniform bool uHorizontal;
+varying vec2 vTexCoord;
+void main() {
+    const int MAX_R = 32;
+    vec4 sum = vec4(0.0);
+    float wSum = 0.0;
+    float sigma = max(float(uRadius), 1.0) * 0.5;
+    float invTwoSigma2 = 1.0 / (2.0 * sigma * sigma);
+    for (int i = -MAX_R; i <= MAX_R; ++i) {
+        if (i < -uRadius || i > uRadius) continue;
+        float w = exp(-float(i * i) * invTwoSigma2);
+        vec2 offset = uHorizontal ? vec2(float(i) * uTexelSize.x, 0.0)
+                                  : vec2(0.0, float(i) * uTexelSize.y);
+        sum += texture2D(uTexture, vTexCoord + offset) * w;
+        wSum += w;
+    }
+    gl_FragColor = sum / max(wSum, 0.0001);
+}
+)";
+
+inline GpuTextureHandle blurPass(const GpuTextureHandle& src, int radius, bool horizontal)
+{
+    if (radius <= 0) {
+        return src;
+    }
+    const float invW = 1.f / static_cast<float>(src.width);
+    const float invH = 1.f / static_cast<float>(src.height);
+    return ImageGpuPass::instance().runFragmentPass(
+        src.width,
+        src.height,
+        kFragBlur,
+        [=](QOpenGLShaderProgram& program) {
+            program.setUniformValue("uTexture", 0);
+            program.setUniformValue("uTexelSize", invW, invH);
+            program.setUniformValue("uRadius", radius);
+            program.setUniformValue("uHorizontal", horizontal);
+        },
+        [&](QOpenGLFunctions* f) { ImageGpuPass::bindTexture(f, 0, src.textureId); });
+}
+
+inline GpuTextureHandle run(const GpuTextureHandle& src, int radiusX, int radiusY)
+{
+    if (!src.valid()) {
+        return {};
+    }
+    const int rx = std::clamp(radiusX, 0, 32);
+    const int ry = std::clamp(radiusY, 0, 32);
+    if (rx == 0 && ry == 0) {
+        return ImageGpuPass::instance().resize(src, src.width, src.height);
+    }
+    GpuTextureHandle current = src;
+    if (rx > 0) {
+        current = blurPass(current, rx, true);
+    }
+    if (!current.valid()) {
+        return {};
+    }
+    if (ry > 0) {
+        current = blurPass(current, ry, false);
+    }
+    return current;
+}
+} // namespace BlurImageOperateGpu
+
+/** @brief 高斯模糊 — GPU 双 pass，半径由 RADIUS X/Y 控制 */
 class BlurImageOperateModel final : public AbstractDelegateModel
 {
     Q_OBJECT
@@ -49,22 +132,15 @@ public:
         }
 
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        m_worker.setParent(this);
-        m_worker.setFinishedCallback([this](cv::Mat&& image, qint64 outputTimestamp, qint64 inputTimestamp, std::uint64_t) {
-            ImageOperateHelpers::pushWorkerResult(
-                m_outBuffer, std::move(image), outputTimestamp, m_lastPushedTimestamp, m_tick, inputTimestamp);
-        });
 
         connect(TimestampGenerator::getInstance(),
                 &TimestampGenerator::frameCountUpdated,
                 this,
                 [this](qint64 frameCount) {
-                    if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
+                    if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
                         return;
                     }
-                    if (!m_tick.beginFrameTick(frameCount)) {
-                        return;
-                    }
+                    m_lastRequestedFrame = frameCount;
                     requestProcess(frameCount);
                 },
                 Qt::QueuedConnection);
@@ -108,13 +184,9 @@ public:
         case 0:
             m_inImage = std::dynamic_pointer_cast<ImageData>(data);
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            if (m_inImage) {
-                m_tick.markInputConnected();
-                Q_EMIT dataUpdated(0);
-                if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
-                    requestProcess();
-                }
-            }
+            m_lastProcessedInputTimestamp = -1;
+            m_paramsDirty = true;
+            Q_EMIT dataUpdated(0);
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
@@ -160,7 +232,7 @@ public slots:
             return;
         }
         m_radiusX = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT radiusXChanged(m_radiusX);
     }
 
@@ -171,7 +243,7 @@ public slots:
             return;
         }
         m_radiusY = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT radiusYChanged(m_radiusY);
     }
 
@@ -200,68 +272,53 @@ private:
         bus->subscribe(makeFullOscAddress("/radiusY"), this, SLOT(onGlobalEvent(GlobalEvent)));
     }
 
+    void clearOutput()
+    {
+        if (m_outBuffer) {
+            m_outBuffer->clear();
+        }
+        m_lastPushedTimestamp = -1;
+        m_lastProcessedInputTimestamp = -1;
+        m_paramsDirty = false;
+    }
+
     void requestProcess(qint64 targetTimestamp = -1)
     {
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        const qint64 outputTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
+        const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
 
-        if (imageDataIsEmpty(m_inImage)) {
-            m_worker.cancelPending();
-            if (m_outBuffer) {
-                m_outBuffer->clear();
-            }
-            m_lastPushedTimestamp = -1;
-            m_tick.resetOutputState();
+        if (!m_inImage || imageDataIsEmpty(m_inImage)) {
+            clearOutput();
             return;
         }
 
         ImageFrame inputFrame;
-        if (!ImageOperateHelpers::resolveImageFrameAtTimestamp(m_inImage, outputTimestamp, inputFrame) ||
-            inputFrame.image.empty()) {
-            m_worker.cancelPending();
-            if (m_outBuffer) {
-                m_outBuffer->clear();
+        if (!ImageOperateHelpers::resolveInputGpuFrame(m_inImage, lookupTimestamp, inputFrame)) {
+            if (!ImageOperateHelpers::hasInputImage(m_inImage)) {
+                clearOutput();
             }
-            m_lastPushedTimestamp = -1;
             return;
         }
 
-        if (!m_tick.shouldProcess(inputFrame.timestamp)) {
+        if (!m_paramsDirty && inputFrame.timestamp == m_lastProcessedInputTimestamp) {
             return;
         }
 
-        const int radiusX = m_radiusX;
-        const int radiusY = m_radiusY;
+        GpuTextureHandle out = BlurImageOperateGpu::run(
+            inputFrame.texture, m_radiusX, m_radiusY);
+        ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp);
 
-        if (radiusX == 0 && radiusY == 0) {
-            m_worker.submit(
-                [input = inputFrame.image.clone()]() { return input; },
-                outputTimestamp,
-                inputFrame.timestamp);
-            return;
-        }
-
-        m_worker.submit(
-            [input = inputFrame.image.clone(), radiusX, radiusY]() {
-                if (input.empty()) {
-                    return cv::Mat();
-                }
-                const int kernelWidth = std::max(1, radiusX * 2 + 1);
-                const int kernelHeight = std::max(1, radiusY * 2 + 1);
-                cv::Mat output;
-                cv::GaussianBlur(input, output, cv::Size(kernelWidth, kernelHeight), 0.0, 0.0, cv::BORDER_REPLICATE);
-                return output;
-            },
-            outputTimestamp,
-            inputFrame.timestamp);
+        m_lastProcessedInputTimestamp = inputFrame.timestamp;
+        m_paramsDirty = false;
     }
 
     std::shared_ptr<ImageData> m_inImage;
     std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
     std::shared_ptr<ImageData> m_outImageData;
-    ImageOperateHelpers::ImageOperateWorkerQueue m_worker;
-    ImageOperateHelpers::ImageOperateTickState m_tick;
+    qint64 m_lastRequestedFrame = -1;
+    qint64 m_lastProcessedInputTimestamp = -1;
     qint64 m_lastPushedTimestamp = -1;
+    bool m_paramsDirty = false;
     int m_radiusX = 8;
     int m_radiusY = 8;
 };

@@ -1,13 +1,23 @@
 #pragma once
 
+/**
+ * @file FlipImageOperateModel.hpp
+ * @brief Image Flip — 水平/垂直翻转（GPU resample）
+ *
+ * 本文件是 ImageOperates GPU 算子的**参考模板**，新增算子请对齐以下约定：
+ * - setInData：只更新连接与 m_paramsDirty，不在此跑 GPU / clearOutput
+ * - 参数 setter：只 m_paramsDirty = true
+ * - tick (frameCountUpdated) → requestProcess → clearOutput 或 pushGpuResult
+ *
+ * @see Doc.md §3  ImageOperateCommon.hpp
+ */
+
 #include "ImageOperateCommon.hpp"
 #include "NodeDataList.hpp"
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QJsonObject>
 #include <QtCore/QObject>
-
-#include <opencv2/imgproc.hpp>
 
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
@@ -20,9 +30,20 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
-/**
- * @brief 图像翻转节点，类似 TD 的 Flip TOP
- */
+namespace FlipImageOperateGpu
+{
+/** 通过 resample UV 区间实现镜像；horizontal/vertical 控制是否翻转对应轴 */
+inline GpuTextureHandle run(const GpuTextureHandle& src, bool horizontal, bool vertical)
+{
+    if (!src.valid()) {
+        return {};
+    }
+    return ImageGpuPass::instance().resample(
+        src, src.width, src.height, 0.f, 0.f, 1.f, 1.f, horizontal, vertical);
+}
+} // namespace FlipImageOperateGpu
+
+/** @brief 图像翻转节点 — 行为约定见文件头与 Doc.md §3 */
 class FlipImageOperateModel final : public AbstractDelegateModel
 {
     Q_OBJECT
@@ -52,31 +73,22 @@ public:
         }
 
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        m_worker.setParent(this);
-        m_worker.setFinishedCallback([this](cv::Mat&& image, qint64 outputTimestamp, qint64 inputTimestamp, std::uint64_t) {
-            ImageOperateHelpers::pushWorkerResult(
-                m_outBuffer, std::move(image), outputTimestamp, m_lastPushedTimestamp, m_tick, inputTimestamp);
-        });
 
+        // tick 驱动：同帧且参数未脏则跳过；否则 requestProcess
         connect(TimestampGenerator::getInstance(),
                 &TimestampGenerator::frameCountUpdated,
                 this,
                 [this](qint64 frameCount) {
-                    if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
+                    if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
                         return;
                     }
-                    if (!m_tick.beginFrameTick(frameCount)) {
-                        return;
-                    }
+                    m_lastRequestedFrame = frameCount;
                     requestProcess(frameCount);
                 },
                 Qt::QueuedConnection);
     }
 
-    ~FlipImageOperateModel() override
-    {
-        GlobalEventBus::instance()->unsubscribe(this);
-    }
+    ~FlipImageOperateModel() override { GlobalEventBus::instance()->unsubscribe(this); }
 
     bool horizontal() const { return m_horizontal; }
     bool vertical() const { return m_vertical; }
@@ -112,15 +124,11 @@ public:
     {
         switch (portIndex) {
         case 0:
+            // 图像口：仅保存上游句柄并重置输入去重；清空/计算留给 tick
             m_inImage = std::dynamic_pointer_cast<ImageData>(data);
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            if (m_inImage) {
-                m_tick.markInputConnected();
-                Q_EMIT dataUpdated(0);
-                if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
-                    requestProcess();
-                }
-            }
+            m_lastProcessedInputTimestamp = -1;
+            m_paramsDirty = true;
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
@@ -146,7 +154,6 @@ public:
         QJsonObject values;
         values["horizontal"] = m_horizontal;
         values["vertical"] = m_vertical;
-
         QJsonObject modelJson = NodeDelegateModel::save();
         modelJson["values"] = values;
         return modelJson;
@@ -166,7 +173,7 @@ public slots:
             return;
         }
         m_horizontal = value;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT horizontalChanged(value);
     }
 
@@ -176,7 +183,7 @@ public slots:
             return;
         }
         m_vertical = value;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT verticalChanged(value);
     }
 
@@ -185,7 +192,6 @@ public slots:
         if (ev.kind != GlobalEventKind::Command) {
             return;
         }
-
         if (ev.address == makeFullOscAddress("/horizontal")) {
             setHorizontal(ev.payload.toBool());
         } else if (ev.address == makeFullOscAddress("/vertical")) {
@@ -206,64 +212,62 @@ private:
         bus->subscribe(makeFullOscAddress("/vertical"), this, SLOT(onGlobalEvent(GlobalEvent)));
     }
 
+    /** 清空输出 ring buffer 并重置去重状态；Display 在下一 tick 通过 isEmpty() 清屏 */
+    void clearOutput()
+    {
+        if (m_outBuffer) {
+            m_outBuffer->clear();
+        }
+        m_lastPushedTimestamp = -1;
+        m_lastProcessedInputTimestamp = -1;
+        m_paramsDirty = false;
+    }
+
+    /**
+     * @brief 按目标帧号取输入、执行 GPU 翻转，并将结果写入输出 ring buffer
+     * @param targetTimestamp 上游对齐用的查找帧号；传 -1 时使用当前系统帧号
+     */
     void requestProcess(qint64 targetTimestamp = -1)
     {
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        const qint64 outputTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
 
-        if (imageDataIsEmpty(m_inImage)) {
-            m_worker.cancelPending();
-            if (m_outBuffer) {
-                m_outBuffer->clear();
-            }
-            m_lastPushedTimestamp = -1;
-            m_tick.resetOutputState();
+        const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
+
+        if (!m_inImage || imageDataIsEmpty(m_inImage)) {
+            clearOutput();
             return;
         }
 
         ImageFrame inputFrame;
-        if (!ImageOperateHelpers::resolveImageFrameAtTimestamp(m_inImage, outputTimestamp, inputFrame) ||
-            inputFrame.image.empty()) {
-            m_worker.cancelPending();
-            if (m_outBuffer) {
-                m_outBuffer->clear();
+        if (!ImageOperateHelpers::resolveInputGpuFrame(m_inImage, lookupTimestamp, inputFrame)) {
+            // 上游尚无可用帧：保留现有输出，避免重连瞬间误清空
+            if (!ImageOperateHelpers::hasInputImage(m_inImage)) {
+                clearOutput();
             }
-            m_lastPushedTimestamp = -1;
             return;
         }
 
-        if (!m_tick.shouldProcess(inputFrame.timestamp)) {
+        // 输入帧与参数均未变则跳过 GPU（静态图不重复算）
+        if (!m_paramsDirty && inputFrame.timestamp == m_lastProcessedInputTimestamp) {
             return;
         }
 
-        const bool horizontal = m_horizontal;
-        const bool vertical = m_vertical;
-        const int flipCode = horizontal && vertical ? -1 : (vertical ? 0 : 1);
+        GpuTextureHandle out = FlipImageOperateGpu::run(
+            inputFrame.texture, m_horizontal, m_vertical);
+        ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp);
 
-        if (!horizontal && !vertical) {
-            m_worker.submit(
-                [input = inputFrame.image.clone()]() { return input; },
-                outputTimestamp,
-                inputFrame.timestamp);
-            return;
-        }
-
-        m_worker.submit(
-            [input = inputFrame.image.clone(), flipCode]() {
-                cv::Mat output;
-                cv::flip(input, output, flipCode);
-                return output;
-            },
-            outputTimestamp,
-            inputFrame.timestamp);
+        m_lastProcessedInputTimestamp = inputFrame.timestamp;
+        m_paramsDirty = false;
     }
 
-    std::shared_ptr<ImageData> m_inImage;
-    std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
-    std::shared_ptr<ImageData> m_outImageData;
-    ImageOperateHelpers::ImageOperateWorkerQueue m_worker;
-    ImageOperateHelpers::ImageOperateTickState m_tick;
-    qint64 m_lastPushedTimestamp = -1;
+    std::shared_ptr<ImageData> m_inImage;                       ///< 上游 ImageData 句柄（非像素副本）
+    std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;       ///< 本节点输出 ring buffer
+    std::shared_ptr<ImageData> m_outImageData;                  ///< 稳定输出句柄，outData() 始终返回同一对象
+
+    qint64 m_lastRequestedFrame = -1;              ///< tick 同帧去重
+    qint64 m_lastProcessedInputTimestamp = -1;     ///< 输入帧未变 + 参数未脏 → 跳过 GPU
+    qint64 m_lastPushedTimestamp = -1;             ///< pushGpuResult 辅助
+    bool m_paramsDirty = false;                    ///< 输入/参数变化后由 tick 消费
     bool m_horizontal = true;
     bool m_vertical = false;
 };

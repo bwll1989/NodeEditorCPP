@@ -16,6 +16,7 @@
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
+#include "Common/DataTypes/ImageGpuUpload.h"
 
 using namespace std;
 using QtNodes::NodeData;
@@ -30,6 +31,40 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
+    /**
+     * @file VideoDecoderDataModel.hpp
+     * @brief QtNodes 视频解码节点模型：UI + 端口 + 与 VideoDecoder 引擎桥接
+     *
+     * ## 端口
+     *
+     * | 方向 | 索引 | 类型        | 说明                          |
+     * |------|------|-------------|-------------------------------|
+     * | In   | 0    | Variable    | PLAY/STOP（bool）             |
+     * | In   | 1    | Variable    | STOP（bool，true 则停止）     |
+     * | In   | 2    | Variable    | LOOP                          |
+     * | In   | 3    | Variable    | GAIN（dB）                    |
+     * | Out  | 0    | ImageData   | 视频帧（共享 Image ring buffer）|
+     * | Out  | 1..N | AudioData   | 各声道（共享 Audio ring buffer）|
+     *
+     * ## 视频数据流（与 ImageLoader / Capture 一致）
+     *
+     * ```
+     * VideoDecoder (videoLoop)
+     *       → processVideoFrame / uploadPendingVideoFrame (GUI)
+     *       → ImageTimestampRingQueue::pushFrame
+     * m_outImageData ──共享句柄──→ 下游 WindowDisplay / ImageShow
+     *       下游按 TimestampGenerator tick 调用 getLatestFrame()，无需 dataUpdated
+     * ```
+     *
+     * ## 音频数据流
+     *
+     * VideoDecoder::getAudioBuffer(ch) 提供各声道 AudioTimestampRingQueue；
+     * outData(port>0) 每次返回绑定对应 buffer 的 AudioData 共享句柄。
+     *
+     * ## OSC / 属性绑定
+     *
+     * ExternalBinding 将 fileName / loop / volume / play 暴露给 GlobalEventBus 与属性树。
+     */
     class VideoDecoderDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
@@ -40,16 +75,23 @@ namespace Nodes
 
     public:
         /**
-       * @brief 构造函数，初始化音频解码Node，支持动态多通道分离输出
-       */
+         * @brief 构造节点：UI 绑定、ring buffer 初始化、GL 预热、信号连接
+         *
+         * - ensureImageDataBuffer：创建 m_outImageData + m_outputBuffer（默认 8 槽）
+         * - setVideoImageBuffer：注入 VideoDecoder，供解码后 push 纹理帧
+         * - ImageGpuUpload::warmup()：在 GUI 线程预创建 QOffscreenSurface，避免解码首帧报错
+         * - playbackProgress / playbackFinished 使用 QueuedConnection 更新 UI
+         */
         VideoDecoderDataModel(){
             InPortCount = 4;
-            OutPortCount = 3;  // 初始输出端口数，可动态调整
+            OutPortCount = 3;  ///< 初始 1 视频 + 2 音频；loadVideoFile 后按实际声道数调整
             CaptionVisible = true;
             Caption = "Video Decoder";
             WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = true;
+
+            // ── 属性 ↔ UI 控件 OSC 绑定 ──
             {
                 NodeDelegateModel::ExternalBinding b;
                 b.member = "fileName";
@@ -74,40 +116,29 @@ namespace Nodes
                 b.control=widget->playButton;
                 AbstractDelegateModel::registerExternalBinding("/play", this, b);
             }
-            // {
-            //     NodeDelegateModel::ExternalBinding b;
-            //     b.member = "stop";
-            //     b.control=widget->stopButton;
-            //     AbstractDelegateModel::registerExternalBinding("/stop", this, b);
-            // }
-            // UI Connections
+
+            // ── UI 事件 → 模型属性 ──
             connect(widget->fileSelectComboBox, &SelectorComboBox::textChanged, this, &VideoDecoderDataModel::setFileName);
             connect(widget->playButton, &QPushButton::clicked, this, &VideoDecoderDataModel::setPlay);
-            // connect(widget->stopButton, &QPushButton::clicked, this, &VideoDecoderDataModel::stop);
-            
             connect(widget->volumeSlider, &FloatDragValueWidget::valueChanged, this, &VideoDecoderDataModel::setVolume);
             connect(widget->loopCheckBox, &QCheckBox::toggled, this, &VideoDecoderDataModel::setLoop);
 
-            // Player Connections
-            connect(player, &VideoDecoder::videoFrameReady, this, &VideoDecoderDataModel::onVideoFrameReady, Qt::QueuedConnection);
+            // ── 视频输出：共享 Image ring buffer ──
+            ensureImageDataBuffer(m_outImageData, m_outputBuffer);
+            player->setVideoImageBuffer(m_outputBuffer);
+            ImageGpuUpload::instance().warmup();
+
+            // ── 解码引擎 → UI 反馈（跨线程，Queued）──
             connect(player, &VideoDecoder::playbackProgress, this, &VideoDecoderDataModel::onPlaybackProgress, Qt::QueuedConnection);
             connect(player, &VideoDecoder::playbackFinished, this, [this]() {
                 setPlay(false);
             }, Qt::QueuedConnection);
 
-            // Initial State
             widget->volumeSlider->setValue(-10.0);
-            // AbstractDelegateModel::registerExternalControl("/volume", widget->volumeSlider);
-            // AbstractDelegateModel::registerExternalControl("/loop", widget->loopCheckBox);
-            // AbstractDelegateModel::registerExternalControl("/play",widget->playButton);
-            // AbstractDelegateModel::registerExternalControl("/stop",widget->stopButton);
-            // AbstractDelegateModel::registerExternalControl("/file",widget->fileSelectComboBox);
             m_volume = -10.0;
         }
 
-        /**
-         * @brief 析构函数，释放资源
-         */
+        /** @brief 停止播放并等待 VideoDecoder 线程退出 */
         ~VideoDecoderDataModel(){
             if (player->getPlaying()){
                 player->stopPlay();
@@ -115,6 +146,8 @@ namespace Nodes
         }
         
         QString getFileName() const { return m_fileName; }
+
+        /** @brief 设置媒体库相对路径并触发 loadVideoFile */
         void setFileName(const QString& fileName) {
             if (m_fileName == fileName) return;
             m_fileName = fileName;
@@ -153,6 +186,7 @@ namespace Nodes
             emit volumeChanged(m_volume);
         }
         
+        /** @brief 订阅 GlobalEventBus，支持 OSC 远程控制 file / loop / volume / play */
         void afterModelReady() override {
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/fileName"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
@@ -161,12 +195,6 @@ namespace Nodes
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
-        /**
-     * @brief 获取端口标题
-     * @param portType 端口类型（输入/输出）
-     * @param portIndex 端口索引
-     * @return 端口标题字符串
-     */
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             switch (portType) {
@@ -185,30 +213,25 @@ namespace Nodes
         }
 
         /**
-         * @brief 获取指定端口的输出数据（建立连接时调用）
-         * @param port 端口索引 (0-N对应不同声道)
-         * @return 包含共享环形缓冲区的音频数据
+         * @brief 返回各输出端口的共享数据句柄
+         *
+         * - port 0：稳定的 m_outImageData（内含 m_outputBuffer 共享指针）
+         * - port ≥1：AudioData，绑定 player->getAudioBuffer(port - 1)
+         *
+         * 连接建立时调用；下游持有同一 shared_ptr，实时读 ring buffer 最新帧。
          */
         std::shared_ptr<NodeData> outData(PortIndex port) override
         {
             if (port == 0) {
-                return lastVideoFrame;
+                return m_outImageData;
             }
             
-            // 创建新的AudioData并设置共享环形缓冲区
             auto audioData = std::make_shared<AudioData>();
             audioData->setSharedAudioBuffer(player->getAudioBuffer(port - 1));
 
             return audioData;
         }
 
-
-        /**
-         * @brief 获取端口显示的标题
-         * @param portType 端口类型
-         * @param portIndex 端口索引
-         * @return 端口标题
-         */
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
             switch(portType)
@@ -236,11 +259,8 @@ namespace Nodes
 
 
         }
-        /**
-         * @brief 设置端口输入
-         * @param data 输入数据
-         * @param portIndex 端口索引
-         */
+
+        /** @brief 外部 Variable 端口驱动播放控制 */
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
             auto d = std::dynamic_pointer_cast<VariableData>(data);
@@ -264,13 +284,9 @@ namespace Nodes
 
         QWidget *embeddedWidget() override
         {
-
             return widget;
         }
 
-        /**
-     * @brief 保存节点状态
-     */
         QJsonObject save() const override
         {
             QJsonObject modelJson = NodeDelegateModel::save();
@@ -281,9 +297,6 @@ namespace Nodes
             return modelJson;
         }
 
-        /**
-     * @brief 加载节点状态
-     */
         void load(const QJsonObject &p) override
         {
             QJsonObject modelJson = p;
@@ -304,9 +317,7 @@ namespace Nodes
                 setVolume(modelJson["volume"].toDouble());
             }
 
-            // 如果有文件路径，重新初始化解码器
             if (!filePath.isEmpty() && QFile::exists(filePath)) {
-                // setFileName 已经处理了初始化逻辑
                 if (isReady && autoPlay) {
                     QTimer::singleShot(100, this, [this](){ setPlay(true); });
                 }
@@ -315,6 +326,7 @@ namespace Nodes
 
     public slots:
 
+        /** @brief 处理 OSC Command：/file /loop /volume /play */
         void onGlobalEvent(const GlobalEvent& ev) {
             if (ev.kind == GlobalEventKind::Command) {
                 QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
@@ -326,6 +338,14 @@ namespace Nodes
             }
         }
 
+        /**
+         * @brief 加载媒体库文件并初始化解码器
+         *
+         * 1. 拼接绝对路径 MEDIA_LIBRARY_STORAGE_DIR + fileName
+         * 2. 清空 m_outputBuffer（换源时不保留旧帧）
+         * 3. initializeFFmpeg → 动态增删音频输出端口（1 视频 + N 声道）
+         * 4. 若换源前正在播放则 resumePlay
+         */
         void loadVideoFile(QString fileName)
         {
             if(fileName != "")
@@ -333,8 +353,11 @@ namespace Nodes
                 filePath = AppConstants::MEDIA_LIBRARY_STORAGE_DIR + "/" + fileName;
                 const bool resumePlay = isPlaying || player->getPlaying();
 
-                lastVideoFrame = std::make_shared<NodeDataTypes::ImageData>(cv::Mat());
-                emit dataUpdated(0);
+                ensureImageDataBuffer(m_outImageData, m_outputBuffer);
+                player->setVideoImageBuffer(m_outputBuffer);
+                if (m_outputBuffer) {
+                    m_outputBuffer->clear();
+                }
 
                 auto res = player->initializeFFmpeg(filePath);
 
@@ -344,10 +367,11 @@ namespace Nodes
                     emit playChanged(false);
                     return;
                 }
+                delete res;
 
-                // 动态更新端口数量
+                // 按实际声道数调整 Out 端口：port0=视频，port1..N=各声道
                 unsigned int channels = player->getChannels();
-                unsigned int newOutPortCount = 1 + channels; // 1 Video + N Audio
+                unsigned int newOutPortCount = 1 + channels;
 
                 if (newOutPortCount != OutPortCount) {
                     if (newOutPortCount > OutPortCount) {
@@ -370,7 +394,10 @@ namespace Nodes
         }
 
         /**
-         * 播放音频
+         * @brief 开始/停止播放
+         *
+         * 开始前会先 stopPlay 再 startPlay，确保从文件头重新解码。
+         * 未 loadVideoFile 成功（!isReady）时忽略播放请求。
          */
         void setPlay(bool toPlay) {
 
@@ -384,7 +411,7 @@ namespace Nodes
                 isPlaying=false;
                 emit playChanged(false);
             }else {
-                player->stopPlay(); // 先停止之前的播放
+                player->stopPlay();
                 player->startPlay();
                 isPlaying=true;
                 emit playChanged(true);
@@ -400,12 +427,7 @@ namespace Nodes
             return isPlaying;
         }
 
-
-        void onVideoFrameReady(NodeDataTypes::ImageData frame) {
-            lastVideoFrame = std::make_shared<NodeDataTypes::ImageData>(frame);
-            emit dataUpdated(0);
-        }
-
+        /** @brief 更新进度条与时间标签（由 playbackProgress 信号驱动） */
         void onPlaybackProgress(double currentSec, double totalSec) {
             if (totalSec > 0) {
                 int value = static_cast<int>((currentSec / totalSec) * 1000);
@@ -424,30 +446,29 @@ namespace Nodes
         void loopChanged(bool loop);
         void volumeChanged(double volume);
         void playChanged(bool playing);
+
     private:
-        /**
-         * @brief 格式化时间显示 (MM:SS)
-         * @param seconds 秒数
-         * @return 格式化后的时间字符串
-         */
         QString formatTime(double seconds) {
             int m = static_cast<int>(seconds) / 60;
             int s = static_cast<int>(seconds) % 60;
             return QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
         }
 
-        std::shared_ptr<NodeDataTypes::ImageData> lastVideoFrame;
+        /** 输出端口 0：ImageData 共享句柄，指向 m_outputBuffer */
+        std::shared_ptr<NodeDataTypes::ImageData> m_outImageData;
+        /** 视频帧 GPU 纹理 ring buffer，由 VideoDecoder 在 GUI 线程 push */
+        std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue> m_outputBuffer;
 
-        VideoDecoderInterface *widget=new VideoDecoderInterface();
-        //    界面控件
-        VideoDecoder *player=new VideoDecoder();
-        QString filePath=""; // Full path
-        QString m_fileName=""; // File name (relative)
+        VideoDecoderInterface *widget=new VideoDecoderInterface();  ///< 文件选择 / 播放 / 进度 UI
+        VideoDecoder *player=new VideoDecoder();                    ///< 解码引擎
+
+        QString filePath="";      ///< 媒体库绝对路径（MEDIA_LIBRARY_STORAGE_DIR + fileName）
+        QString m_fileName="";    ///< 媒体库相对文件名（save/load 用）
         bool m_loop=false;
         double m_volume = -10.0;
-        bool autoPlay=false;
-        bool isReady= false;
-        bool isPlaying= false;
+        bool autoPlay=false;      ///< load 后是否自动播放
+        bool isReady= false;      ///< initializeFFmpeg 是否成功
+        bool isPlaying= false;    ///< 与 UI playButton 同步的播放状态
 
     };
 }

@@ -1,5 +1,13 @@
 #pragma once
 
+/**
+ * @file ImageSwitchDataModel.hpp
+ * @brief Image Switch — 多路图像透传路由（无 GPU、无 tick）
+ *
+ * 动态输入口（PortEditable）；末口 INDEX 选择 outData() 返回哪一路 ImageData。
+ * 与 GPU 算子不同：换源/改索引时立即 dataUpdated，下游自行 tick 拉帧。
+ */
+
 #include "NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include <QtCore/QObject>
@@ -22,6 +30,7 @@ using namespace NodeDataTypes;
 using namespace std;
 namespace Nodes
 {
+    /** @brief 多路图像选择器 — 透传选中输入的 shared_ptr，不做像素处理 */
     class ImageSwitchDataModel : public AbstractDelegateModel
     {
         Q_OBJECT

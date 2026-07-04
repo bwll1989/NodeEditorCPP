@@ -1,12 +1,27 @@
 #pragma once
 
+/**
+ * @file HandPoseEstimationMediaPipeDataModel.hpp
+ * @brief MediaPipe 手部姿态估计节点（PalmDetector + HandPoseEstimator）
+ *
+ * 架构与 PoseEstimationMediaPipeDataModel 相同，差异：
+ * - 模型：palm_detection + handpose_estimation
+ * - RESULT 含 handedness / handedness_label
+ * - 模型加载失败时仍 emit 空 detections（便于下游感知异常）
+ *
+ * 详见 Pose 节点文件头「数据流 / 调度 / 线程约束」说明。
+ */
+
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 #include "MediaPipeHandEngine.hpp"
+#include "Common/DataTypes/ImageGpuUpload.h"
+#include "Common/DataTypes/ImageReadback.h"
 #include "NodeDataList.hpp"
 #include "PluginDefinition.hpp"
 #include "HandPoseEstimationMediaPipeInterface.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 #include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFutureWatcher>
@@ -26,8 +41,93 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
 
+namespace
+{
+/** 转 BGR + 长边 1280 缩放；Hand 引擎要求三通道 BGR 输入 */
+inline cv::Mat scaleMatForInference(const cv::Mat& src)
+{
+    if (src.empty()) {
+        return {};
+    }
+
+    cv::Mat bgr;
+    if (src.channels() == 4) {
+        cv::cvtColor(src, bgr, cv::COLOR_BGRA2BGR);
+    } else if (src.channels() == 1) {
+        cv::cvtColor(src, bgr, cv::COLOR_GRAY2BGR);
+    } else if (src.channels() == 3) {
+        bgr = src;
+    } else {
+        return {};
+    }
+
+    constexpr int kMaxSide = 1280;
+    const int maxDim = std::max(bgr.cols, bgr.rows);
+    if (maxDim <= kMaxSide) {
+        return bgr.clone();
+    }
+    const double scale = static_cast<double>(kMaxSide) / static_cast<double>(maxDim);
+    cv::Mat scaled;
+    cv::resize(bgr, scaled, cv::Size(), scale, scale, cv::INTER_AREA);
+    return scaled;
+}
+
+/** @see PoseEstimationMediaPipeDataModel::readInputMatForInference（须 GUI 线程） */
+inline cv::Mat readInputMatForInference(const std::shared_ptr<ImageData>& input)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return {};
+    }
+    return scaleMatForInference(ImageReadback::matFromFrame(frame));
+}
+
+/** 只读最新帧 timestamp，用于调度门控，不触发 GPU 读回 */
+inline bool peekLatestInputTimestamp(const std::shared_ptr<ImageData>& input, qint64& timestamp)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return false;
+    }
+    timestamp = frame.timestamp;
+    return true;
+}
+
+/** 叠加图 push 到输出 ring buffer（含 CPU 副本 + GPU 纹理） */
+inline void pushMatToRingBuffer(std::shared_ptr<ImageData>& outData,
+                                std::shared_ptr<ImageTimestampRingQueue>& buffer,
+                                qint64& lastPushed,
+                                cv::Mat&& mat)
+{
+    if (mat.empty()) {
+        return;
+    }
+    ensureImageDataBuffer(outData, buffer);
+    const qint64 ts = TimestampGenerator::getInstance()->getCurrentFrameCount();
+    pushFrameToImageBufferDedup(
+        buffer, ImageFrame::fromMat(std::move(mat), ts), lastPushed);
+}
+
+/** 断开/禁用时清空输出 ring buffer */
+inline void clearRingBufferOutput(std::shared_ptr<ImageData>& outData,
+                                  std::shared_ptr<ImageTimestampRingQueue>& buffer,
+                                  qint64& lastPushed)
+{
+    lastPushed = -1;
+    ensureImageDataBuffer(outData, buffer);
+    if (buffer) {
+        buffer->clear();
+    }
+}
+} // namespace
+
 namespace Nodes
 {
+/**
+ * @brief MediaPipe 手部姿态估计节点
+ *
+ * 端口：IN IMAGE / ENABLE；OUT IMAGE（overlay）/ RESULT（关键点 JSON）
+ */
 class HandPoseEstimationMediaPipeDataModel : public AbstractDelegateModel
 {
     Q_OBJECT
@@ -50,7 +150,7 @@ public:
         Resizable = false;
         PortEditable = false;
         m_outVariable = std::make_shared<VariableData>();
-        m_outImage = std::make_shared<ImageData>();
+        ensureImageDataBuffer(m_outImage, m_outImageBuffer);
         palm_model_path_ = "./plugins/Models/palm_detection_mediapipe_2023feb.onnx";
         hand_model_path_ = "./plugins/Models/handpose_estimation_mediapipe_2023feb.onnx";
 
@@ -101,14 +201,22 @@ public:
         GlobalEventBus::instance()->unsubscribe(this);
     }
 
+    /** 预创建离屏 GL；OSC 订阅；挂接 frameCountUpdated → tryScheduleInference */
     void afterModelReady() override
     {
         AbstractDelegateModel::afterModelReady();
+        ImageGpuUpload::instance().warmup();
         auto bus = GlobalEventBus::instance();
         bus->subscribe(makeFullOscAddress("/palmScore"), this, SLOT(onGlobalEvent(GlobalEvent)));
         bus->subscribe(makeFullOscAddress("/nms"), this, SLOT(onGlobalEvent(GlobalEvent)));
         bus->subscribe(makeFullOscAddress("/confidence"), this, SLOT(onGlobalEvent(GlobalEvent)));
         bus->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
+        connect(TimestampGenerator::getInstance(),
+                &TimestampGenerator::frameCountUpdated,
+                this,
+                [this](qint64) { tryScheduleInference(); },
+                Qt::QueuedConnection);
     }
 
     double getPalmScore() const { return m_palmScore; }
@@ -174,6 +282,7 @@ public:
         if (!m_enabled) {
             cancelPendingInference();
             m_outVariable = std::make_shared<VariableData>();
+            clearRingBufferOutput(m_outImage, m_outImageBuffer, m_lastPushedTimestamp);
             Q_EMIT dataUpdated(1);
             return;
         }
@@ -228,10 +337,7 @@ public:
 
     void requestInferenceRefresh()
     {
-        if (m_inImage0) {
-            QMutexLocker locker(&m_pendingMutex);
-            m_hasPendingFrame = true;
-        }
+        m_lastSeenInputTimestamp = -1;
         tryScheduleInference();
     }
 
@@ -309,19 +415,14 @@ private Q_SLOTS:
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
     {
-        if (data == nullptr) {
-            return;
-        }
         switch (portIndex) {
         case 0: {
-            auto imageData = std::dynamic_pointer_cast<ImageData>(data);
-            if (!imageData) {
+            m_inImage0 = std::dynamic_pointer_cast<ImageData>(data);
+            m_lastSeenInputTimestamp = -1;
+            if (!m_inImage0) {
+                cancelPendingInference();
+                clearRingBufferOutput(m_outImage, m_outImageBuffer, m_lastPushedTimestamp);
                 return;
-            }
-            m_inImage0 = imageData;
-            {
-                QMutexLocker locker(&m_pendingMutex);
-                m_hasPendingFrame = true;
             }
             tryScheduleInference();
             break;
@@ -385,9 +486,10 @@ private Q_SLOTS:
         }
     }
 
+    /** 推理调度（GUI）：enabled → 串行 → 新 timestamp → maxFps → 读 Mat → QtConcurrent */
     void tryScheduleInference()
     {
-        if (!m_enabled || (!m_hasPendingFrame && !m_inImage0)) {
+        if (!m_enabled || !m_inImage0 || imageDataIsEmpty(m_inImage0)) {
             return;
         }
 
@@ -402,32 +504,25 @@ private Q_SLOTS:
             return;
         }
 
+        qint64 latestTs = -1;
+        if (!peekLatestInputTimestamp(m_inImage0, latestTs)) {
+            return;
+        }
+        if (latestTs >= 0 && latestTs <= m_lastSeenInputTimestamp) {
+            return;
+        }
+
         const qint64 intervalMs = inferenceIntervalMs();
-        if (m_inferenceTimer.isValid()) {
-            const qint64 elapsed = m_inferenceTimer.elapsed();
-            if (elapsed < intervalMs) {
-                QTimer::singleShot(
-                    static_cast<int>(intervalMs - elapsed),
-                    this,
-                    [this]() { tryScheduleInference(); });
-                return;
-            }
+        if (m_inferenceTimer.isValid() && m_inferenceTimer.elapsed() < intervalMs) {
+            return;
         }
 
-        cv::Mat frame;
-        {
-            QMutexLocker locker(&m_pendingMutex);
-            if (!m_hasPendingFrame || !m_inImage0) {
-                return;
-            }
-            frame = cloneFrameForInference(m_inImage0->mat());
-            m_hasPendingFrame = false;
-        }
-
+        cv::Mat frame = readInputMatForInference(m_inImage0);
         if (frame.empty()) {
             return;
         }
 
+        m_lastSeenInputTimestamp = latestTs;
         m_inferenceTimer.start();
         m_cancelRequested.store(false);
         const double palmScore = m_palmScore;
@@ -438,37 +533,12 @@ private Q_SLOTS:
         const QString handPath = hand_model_path_;
 
         auto future = QtConcurrent::run([this, frame = std::move(frame), palmScore, nms, conf, draw, palmPath, handPath]() mutable {
+            if (m_cancelRequested.load()) {
+                return;
+            }
             runInferenceOnImage(std::move(frame), palmScore, nms, conf, draw, palmPath, handPath);
         });
         m_inferenceWatcher->setFuture(future);
-    }
-
-    static cv::Mat cloneFrameForInference(const cv::Mat& src)
-    {
-        if (src.empty()) {
-            return {};
-        }
-
-        cv::Mat bgr;
-        if (src.channels() == 4) {
-            cv::cvtColor(src, bgr, cv::COLOR_BGRA2BGR);
-        } else if (src.channels() == 1) {
-            cv::cvtColor(src, bgr, cv::COLOR_GRAY2BGR);
-        } else if (src.channels() == 3) {
-            bgr = src;
-        } else {
-            return {};
-        }
-
-        constexpr int kMaxSide = 1280;
-        const int maxDim = std::max(bgr.cols, bgr.rows);
-        if (maxDim <= kMaxSide) {
-            return bgr.clone();
-        }
-        const double scale = static_cast<double>(kMaxSide) / static_cast<double>(maxDim);
-        cv::Mat scaled;
-        cv::resize(bgr, scaled, cv::Size(), scale, scale, cv::INTER_AREA);
-        return scaled;
     }
 
     qint64 inferenceIntervalMs() const
@@ -616,6 +686,7 @@ private Q_SLOTS:
         return results;
     }
 
+    /** 工作线程：PalmDetector + HandPoseEstimator；失败时 emit 空 RESULT */
     void runInferenceOnImage(cv::Mat inputImage,
                              double palmScore,
                              double nmsThreshold,
@@ -680,8 +751,8 @@ private Q_SLOTS:
                     m_outVariable = std::make_shared<VariableData>(detectionResults);
                     Q_EMIT dataUpdated(1);
                     if (drawOverlay) {
-                        m_outImage = std::make_shared<ImageData>(std::move(resultImage));
-                        Q_EMIT dataUpdated(0);
+                        pushMatToRingBuffer(
+                            m_outImage, m_outImageBuffer, m_lastPushedTimestamp, std::move(resultImage));
                     }
                 },
                 Qt::QueuedConnection);
@@ -723,16 +794,18 @@ private Q_SLOTS:
         if (m_inferenceWatcher && m_inferenceWatcher->isRunning()) {
             m_inferenceWatcher->waitForFinished();
         }
-        QMutexLocker locker(&m_pendingMutex);
-        m_hasPendingFrame = false;
     }
 
 private:
     QFutureWatcher<void>* m_inferenceWatcher = nullptr;
+
     HandPoseEstimationMediaPipeInterface* widget = new HandPoseEstimationMediaPipeInterface();
     std::shared_ptr<ImageData> m_inImage0;
     std::shared_ptr<VariableData> m_outVariable;
     std::shared_ptr<ImageData> m_outImage;
+    std::shared_ptr<ImageTimestampRingQueue> m_outImageBuffer;
+    qint64 m_lastPushedTimestamp = -1;
+    qint64 m_lastSeenInputTimestamp = -1;
     QString palm_model_path_;
     QString hand_model_path_;
     double m_palmScore = 0.3;
@@ -745,9 +818,7 @@ private:
     bool m_cudaUnavailable = false;
     QVariantMap m_lastDetectionResults;
 
-    QMutex m_pendingMutex;
-    QMutex m_modelsMutex;
-    bool m_hasPendingFrame = false;
+    QMutex m_modelsMutex;                    ///< 保护 Palm/Hand DNN 实例
     QElapsedTimer m_inferenceTimer;
     std::atomic<bool> m_cancelRequested{false};
 

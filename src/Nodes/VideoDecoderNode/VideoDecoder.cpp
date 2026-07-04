@@ -1,4 +1,14 @@
-#pragma once
+/**
+ * @file VideoDecoder.cpp
+ * @brief VideoDecoder 实现：FFmpeg 双路解码 + 视频 BGRA 双缓冲 + GUI 线程 GPU 上传
+ *
+ * 常量说明：
+ *   SAMPLE_RATE           — 系统统一音频采样率 48000 Hz
+ *   SAMPLES_PER_CHANNEL   — 每个音频 tick 块包含的采样数（48000 / 帧率）
+ *   FIXED_DELAY_FRAMES    — 音频时间戳相对系统 tick 的固定超前量
+ *   LOOP_INTERVAL         — 循环播放 seek 回起点前的间隔 ms
+ */
+
 #include <QDebug>
 #include <queue>
 #include <mutex>
@@ -26,15 +36,22 @@ extern "C" {
 #include <QDateTime>
 #include <QElapsedTimer>
 // #include <Common/Devices/AudioPipe/AudioPipe.h>
+
+/** 系统统一输出采样率（Hz） */
 static const int SAMPLE_RATE = 48000;
+/** 循环播放 seek 回文件头前的等待（ms），避免连续 seek 过于激进 */
 static const int LOOP_INTERVAL = 800;
+/** 音频帧 timestamp 相对 TimestampGenerator 的固定超前帧数 */
 static const int FIXED_DELAY_FRAMES = 5;
+/** 每个音频输出块：每声道采样数 = 48000 / 系统 tick 帧率 */
 static const int SAMPLES_PER_CHANNEL = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();;
-// 在构造函数中添加新的成员变量初始化
+
 /**
  * @brief 构造函数
- * 初始化成员变量，注册元数据类型，连接信号槽
- * @param parent 父对象指针
+ *
+ * - 对象 thread affinity 为创建者线程（通常为 GUI / 节点线程）
+ * - audioFrameReady → handleAudioFrame 使用 DirectConnection：
+ *   在 audioLoop 线程内同步完成声道分离与 ring buffer push，避免音频队列延迟
  */
 VideoDecoder::VideoDecoder(QObject *parent)
     : QThread(parent)
@@ -60,14 +77,7 @@ VideoDecoder::VideoDecoder(QObject *parent)
     , volume(-10.0f)
     , timestampGenerator_(TimestampGenerator::getInstance())  // 获取全局时间戳生成器实例
 {
-    // 初始化视频目标数据指针
-    for (int i = 0; i < 4; i++) {
-        videoDstData[i] = nullptr;
-        videoDstLinesize[i] = 0;
-    }
-
     qRegisterMetaType<AudioFrame>("AudioFrame");
-    qRegisterMetaType<NodeDataTypes::ImageData>("NodeDataTypes::ImageData");
     connect(this, &VideoDecoder::audioFrameReady,
             this, &VideoDecoder::handleAudioFrame,
             Qt::DirectConnection);
@@ -79,14 +89,11 @@ VideoDecoder::~VideoDecoder() {
 }
 
 /**
- * @brief 初始化音频与视频的FFmpeg上下文
- * 
- * 为了实现音视频独立解码互不阻塞，这里会分别打开两次文件：
- * 1. formatContext: 用于音频解码
- * 2. formatContextVideo: 用于视频解码
- * 
- * @param filePath 媒体文件路径
- * @return 包含媒体信息的JSON对象
+ * @brief 初始化音视频 FFmpeg 上下文
+ *
+ * 双 AVFormatContext 并行读同一文件；**音频轨可选**（纯视频文件仅初始化视频链）。
+ * 至少需存在一条有效视频轨或音频轨，否则 cleanup 后返回 nullptr。
+ * 所有失败路径均调用 cleanupFFmpeg()，避免半初始化状态下 av_seek_frame(-1) 崩溃。
  */
 QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
     // 切换媒体前必须停掉解码线程并释放旧上下文，否则播放中换片会崩溃
@@ -99,151 +106,162 @@ QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
     lastTimestamp_ = timestampGenerator_->getCurrentFrameCount();
 
     avformat_network_init();
-    // 打开音频上下文
-    if (avformat_open_input(&formatContext, filePath.toStdString().c_str(), nullptr, nullptr) != 0) {
-        qDebug()<<"打开文件失败"<<filePath.toStdString().c_str();
-        return nullptr;
-    }
-    // 打开视频上下文（独立）
-    if (avformat_open_input(&formatContextVideo, filePath.toStdString().c_str(), nullptr, nullptr) != 0) {
-        qDebug()<<"打开文件失败(视频)"<<filePath.toStdString().c_str();
-        return nullptr;
-    }
-    //读取格式信息
 
-    if (avformat_find_stream_info(formatContext, nullptr) != 0) {
-        qDebug()<<"找不到流信息";
+    // ── 视频上下文（独立读包线程使用）──
+    if (avformat_open_input(&formatContextVideo, filePath.toStdString().c_str(), nullptr, nullptr) != 0) {
+        qDebug() << "打开文件失败(视频)" << filePath;
+        cleanupFFmpeg();
         return nullptr;
     }
     if (avformat_find_stream_info(formatContextVideo, nullptr) != 0) {
-        qDebug()<<"找不到视频流信息";
-        return nullptr;
-    }
-    
-    audioStreamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
-    if (audioStreamIndex==-1) {
+        qDebug() << "找不到视频流信息";
+        cleanupFFmpeg();
         return nullptr;
     }
 
-    codec = avcodec_find_decoder(formatContext->streams[audioStreamIndex]->codecpar->codec_id);//获取codec
-
-    if (!codec) {
-        // 找不到解码器
-        return nullptr;
+    videoStreamIndex = av_find_best_stream(formatContextVideo, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    if (videoStreamIndex != -1) {
+        videoCodec = avcodec_find_decoder(formatContextVideo->streams[videoStreamIndex]->codecpar->codec_id);
+        if (videoCodec) {
+            videoCodecContext = avcodec_alloc_context3(videoCodec);
+            if (videoCodecContext) {
+                if (avcodec_parameters_to_context(videoCodecContext,
+                                                  formatContextVideo->streams[videoStreamIndex]->codecpar) >= 0 &&
+                    avcodec_open2(videoCodecContext, videoCodec, nullptr) >= 0) {
+                    videoWidth = videoCodecContext->width;
+                    videoHeight = videoCodecContext->height;
+                } else {
+                    avcodec_free_context(&videoCodecContext);
+                    videoCodecContext = nullptr;
+                    videoStreamIndex = -1;
+                }
+            }
+        }
     }
-    //查找解码器
 
-    codecContext= avcodec_alloc_context3(codec);
-    int ret=avcodec_parameters_to_context(codecContext, formatContext->streams[audioStreamIndex]->codecpar);
-    if (ret< 0) {
-        qDebug()<<"解码器参数设置失败";
-        // 解码器参数设置失败
-        return nullptr;
-    }
-    if (avcodec_open2(codecContext, codec, nullptr) < 0) {
-        qDebug()<<"打开解码器失败";
-        return nullptr;
-    }
-
-        // 初始化视频（独立上下文）
-        videoStreamIndex = av_find_best_stream(formatContextVideo, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
-        if (videoStreamIndex != -1) {
-            videoCodec = avcodec_find_decoder(formatContextVideo->streams[videoStreamIndex]->codecpar->codec_id);
-            if (videoCodec) {
-                videoCodecContext = avcodec_alloc_context3(videoCodec);
-                if (videoCodecContext) {
-                    avcodec_parameters_to_context(videoCodecContext, formatContextVideo->streams[videoStreamIndex]->codecpar);
-                    if (avcodec_open2(videoCodecContext, videoCodec, nullptr) >= 0) {
-                        videoWidth = videoCodecContext->width;
-                        videoHeight = videoCodecContext->height;
-                    } else {
-                        avcodec_free_context(&videoCodecContext);
-                        videoCodecContext = nullptr;
-                    }
+    // ── 音频上下文（可选；纯视频文件无音频轨时跳过）──
+    if (avformat_open_input(&formatContext, filePath.toStdString().c_str(), nullptr, nullptr) != 0) {
+        qDebug() << "打开文件失败(音频)" << filePath;
+        if (!hasVideoStream()) {
+            cleanupFFmpeg();
+            return nullptr;
+        }
+        // 纯视频：音频容器打开失败可忽略
+    } else if (avformat_find_stream_info(formatContext, nullptr) != 0) {
+        qDebug() << "找不到音频流信息";
+        avformat_close_input(&formatContext);
+        formatContext = nullptr;
+    } else {
+        audioStreamIndex = av_find_best_stream(formatContext, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
+        if (audioStreamIndex >= 0) {
+            codec = avcodec_find_decoder(formatContext->streams[audioStreamIndex]->codecpar->codec_id);
+            if (!codec) {
+                qDebug() << "找不到音频解码器";
+                audioStreamIndex = -1;
+            } else {
+                codecContext = avcodec_alloc_context3(codec);
+                const int ret = avcodec_parameters_to_context(codecContext,
+                                                              formatContext->streams[audioStreamIndex]->codecpar);
+                if (ret < 0 || avcodec_open2(codecContext, codec, nullptr) < 0) {
+                    qDebug() << "打开音频解码器失败";
+                    avcodec_free_context(&codecContext);
+                    codecContext = nullptr;
+                    codec = nullptr;
+                    audioStreamIndex = -1;
                 }
             }
         }
 
-    // 检查是否需要重采样
-    bool needsResampling = (codecContext->sample_rate != SAMPLE_RATE) ||
-                          (codecContext->sample_fmt != AV_SAMPLE_FMT_FLT);
-
-    // // 只有在需要重采样时才初始化重采样器
-    if (needsResampling) {
-        // 在initializeFFmpeg中改进通道布局设置
-        AVChannelLayout outChannelLayout;
-        AVChannelLayout inChannelLayout = codecContext->ch_layout;
-
-        // 保持原始通道数，避免不必要的通道转换
-        if (inChannelLayout.nb_channels == 1) {
-            outChannelLayout = AV_CHANNEL_LAYOUT_MONO;
-        } else if (inChannelLayout.nb_channels == 2) {
-            outChannelLayout = AV_CHANNEL_LAYOUT_STEREO;
-        } else {
-            // 对于多声道音频，保持原始布局
-            outChannelLayout = inChannelLayout;
-        }
-
-        // 在initializeFFmpeg中改进重采样器配置
-        if (swr_alloc_set_opts2(&swrContext,
-                                &outChannelLayout,
-                                AV_SAMPLE_FMT_FLT,
-                                SAMPLE_RATE, // 输出采样率
-                                &inChannelLayout,
-                                codecContext->sample_fmt,
-                                codecContext->sample_rate,
-                                0,
-                                nullptr)!= 0)
-        {
-            qDebug()<<"swr_alloc_set_opts2 fail";
-            return nullptr;
-        }
-
-        // 针对不同采样率优化重采样质量参数
-        if (codecContext->sample_rate == 44100) {
-            // 44100Hz到48000Hz的特殊优化
-            av_opt_set(swrContext, "resampler", "swr", 0);
-            av_opt_set_int(swrContext, "filter_size", 64, 0);  // 更大的滤波器
-            av_opt_set_int(swrContext, "phase_shift", 12, 0);  // 更高的相位偏移
-            av_opt_set_double(swrContext, "cutoff", 0.99, 0);  // 更高的截止频率
-            av_opt_set(swrContext, "dither_method", "shibata", 0); // 更好的抖动方法
-            av_opt_set_int(swrContext, "linear_interp", 1, 0);
-            av_opt_set_int(swrContext, "exact_rational", 1, 0);
-        } else {
-            // 通用重采样参数
-            av_opt_set(swrContext, "resampler", "swr", 0);
-            av_opt_set_int(swrContext, "filter_size", 32, 0);
-            av_opt_set_int(swrContext, "phase_shift", 10, 0);
-            av_opt_set_double(swrContext, "cutoff", 0.98, 0);
-            av_opt_set(swrContext, "dither_method", "triangular", 0);
-            av_opt_set_int(swrContext, "linear_interp", 1, 0);
-            av_opt_set_int(swrContext, "exact_rational", 1, 0);
-        }
-
-        ret=swr_init(swrContext);
-        if(ret<0)
-        {
-            qDebug()<<"swrContext fail"<<ret;
-            return nullptr;
+        // 无音频轨或音频打开失败：关闭音频 formatContext，避免后续误用
+        if (audioStreamIndex < 0) {
+            avformat_close_input(&formatContext);
+            formatContext = nullptr;
         }
     }
 
-    auto *res= new QJsonObject();
-    res->insert("path",filePath);
-    res->insert("bit_rate",QString::number(codecContext->bit_rate));
-    res->insert("sample_fmt",codecContext->sample_fmt);
-    res->insert("channels",QString::number(codecContext->ch_layout.nb_channels));
-    res->insert("sample_rate",QString::number(codecContext->sample_rate));
-    res->insert("codec",codec->name);
-    res->insert("frame_rate",codec->name);
+    if (!hasVideoStream() && !hasAudioStream()) {
+        qDebug() << "文件中既无有效视频轨也无有效音频轨:" << filePath;
+        cleanupFFmpeg();
+        return nullptr;
+    }
 
-    if (videoStreamIndex != -1) {
-        res->insert("has_video", true);
+    // ── 音频重采样（仅在有音频轨时）──
+    if (hasAudioStream()) {
+        const bool needsResampling = (codecContext->sample_rate != SAMPLE_RATE) ||
+                                    (codecContext->sample_fmt != AV_SAMPLE_FMT_FLT);
+
+        if (needsResampling) {
+            AVChannelLayout outChannelLayout;
+            AVChannelLayout inChannelLayout = codecContext->ch_layout;
+
+            if (inChannelLayout.nb_channels == 1) {
+                outChannelLayout = AV_CHANNEL_LAYOUT_MONO;
+            } else if (inChannelLayout.nb_channels == 2) {
+                outChannelLayout = AV_CHANNEL_LAYOUT_STEREO;
+            } else {
+                outChannelLayout = inChannelLayout;
+            }
+
+            if (swr_alloc_set_opts2(&swrContext,
+                                    &outChannelLayout,
+                                    AV_SAMPLE_FMT_FLT,
+                                    SAMPLE_RATE,
+                                    &inChannelLayout,
+                                    codecContext->sample_fmt,
+                                    codecContext->sample_rate,
+                                    0,
+                                    nullptr) != 0) {
+                qDebug() << "swr_alloc_set_opts2 fail";
+                cleanupFFmpeg();
+                return nullptr;
+            }
+
+            if (codecContext->sample_rate == 44100) {
+                av_opt_set(swrContext, "resampler", "swr", 0);
+                av_opt_set_int(swrContext, "filter_size", 64, 0);
+                av_opt_set_int(swrContext, "phase_shift", 12, 0);
+                av_opt_set_double(swrContext, "cutoff", 0.99, 0);
+                av_opt_set(swrContext, "dither_method", "shibata", 0);
+                av_opt_set_int(swrContext, "linear_interp", 1, 0);
+                av_opt_set_int(swrContext, "exact_rational", 1, 0);
+            } else {
+                av_opt_set(swrContext, "resampler", "swr", 0);
+                av_opt_set_int(swrContext, "filter_size", 32, 0);
+                av_opt_set_int(swrContext, "phase_shift", 10, 0);
+                av_opt_set_double(swrContext, "cutoff", 0.98, 0);
+                av_opt_set(swrContext, "dither_method", "triangular", 0);
+                av_opt_set_int(swrContext, "linear_interp", 1, 0);
+                av_opt_set_int(swrContext, "exact_rational", 1, 0);
+            }
+
+            const int swrRet = swr_init(swrContext);
+            if (swrRet < 0) {
+                qDebug() << "swrContext fail" << swrRet;
+                cleanupFFmpeg();
+                return nullptr;
+            }
+        }
+    }
+
+    auto *res = new QJsonObject();
+    res->insert("path", filePath);
+    res->insert("has_audio", hasAudioStream());
+    res->insert("has_video", hasVideoStream());
+
+    if (hasAudioStream()) {
+        res->insert("bit_rate", QString::number(codecContext->bit_rate));
+        res->insert("sample_fmt", codecContext->sample_fmt);
+        res->insert("channels", QString::number(codecContext->ch_layout.nb_channels));
+        res->insert("sample_rate", QString::number(codecContext->sample_rate));
+        res->insert("codec", codec->name);
+    }
+
+    if (hasVideoStream()) {
         res->insert("video_width", videoWidth);
         res->insert("video_height", videoHeight);
         res->insert("video_codec", videoCodec->name);
     }
-    
+
     return res;
 }
 
@@ -257,28 +275,21 @@ QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
 void VideoDecoder::startPlay(){
     QMutexLocker locker(&mutex);
 
-    // 重置文件指针到开始位置（音频）
-    if (formatContext) {
-        // 将音频流定位到起始位置，使用向后搜索标志确保精确定位
+    // 重置文件指针到开始位置（音频，纯视频文件跳过）
+    if (hasAudioStream()) {
         av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
 
-        // 清空解码器内部缓冲区，移除之前解码但未输出的帧数据
         if (codecContext) {
             avcodec_flush_buffers(codecContext);
         }
 
-        // 清空重采样器内部缓冲区，避免上次播放的残留数据造成杂音
         if (swrContext) {
             uint8_t* flushBuffer = nullptr;
-            // 这个大小足够容纳重采样器内部可能残留的数据
             int flushSize = SAMPLES_PER_CHANNEL * 2 * 4;  // samples × channels × bytes_per_sample (float)
             flushBuffer = (uint8_t*)av_malloc(flushSize);
             if (flushBuffer) {
-                // 调用swr_convert清空内部缓冲区
-                // 输入nullptr和0表示不提供新数据，只是刷新内部缓冲区
-                // 输出到临时缓冲区，然后丢弃这些数据
                 swr_convert(swrContext, &flushBuffer, SAMPLES_PER_CHANNEL, nullptr, 0);
-                av_freep(&flushBuffer);  // 释放临时缓冲区
+                av_freep(&flushBuffer);
             }
         }
     }
@@ -291,14 +302,14 @@ void VideoDecoder::startPlay(){
     }
 
     isPlaying.store(true);
-    // 启动音频线程
-    if (!audioRunning.load()) {
+    // 启动音频线程（纯视频文件无音频轨时不启动）
+    if (hasAudioStream() && !audioRunning.load()) {
         if (audioThread.joinable()) audioThread.join();
         audioRunning.store(true);
         audioThread = std::thread([this]() { audioLoop(); });
     }
     // 启动视频线程
-    if (!videoRunning.load() && videoCodecContext && formatContextVideo) {
+    if (!videoRunning.load() && hasVideoStream()) {
         if (videoThread.joinable()) videoThread.join();
         videoRunning.store(true);
         videoThread = std::thread([this]() { videoLoop(); });
@@ -332,10 +343,14 @@ void VideoDecoder::stopPlay() {
         if (videoThread.joinable()) videoThread.join();
     }
 
-    // 线程停止后再清理缓冲区
+    // 线程停止后清理：丢弃未上传的 pending，重置上传调度标志
     {
         QMutexLocker locker(&mutex);
-        
+
+        pendingVideoFrame_.release();
+        pendingVideoTimestamp_ = -1;
+        videoUploadScheduled_.store(false);
+
         // 先停用所有音频缓冲区
         for (auto& pair : channelAudioBuffers) {
             if (pair.second) {
@@ -362,8 +377,8 @@ void VideoDecoder::stopPlay() {
             }
         }
         
-        // 重置文件指针到开始位置
-        if (formatContext) {
+        // 重置文件指针到开始位置（仅在有音频轨时）
+        if (hasAudioStream()) {
             av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
             if (codecContext) {
                 avcodec_flush_buffers(codecContext);
@@ -410,6 +425,12 @@ bool VideoDecoder::getPlaying() const
 }
        
 
+/**
+ * @brief 音频帧声道分离并 push 到各 AudioTimestampRingQueue
+ *
+ * 输入为交错 float PCM（audioLoop emit）；此处拆为单声道 planar 块，
+ * 每声道独立 ring buffer，供 outData(port) 的 AudioData 共享读取。
+ */
 void VideoDecoder::handleAudioFrame(AudioFrame frame) {
 
     int bytesPerSample = frame.bitsPerSample / 8;
@@ -466,8 +487,14 @@ std::shared_ptr<AudioTimestampRingQueue> VideoDecoder::getAudioBuffer(int index)
     return channelAudioBuffers[index];
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 视频后处理：sws BGRA 双缓冲 + GUI 线程 GPU 上传
+// ═══════════════════════════════════════════════════════════════════════════
+
 /**
- * @brief 处理视频帧：将解码后的视频帧转换为RGB格式并发送
+ * @brief 释放 sws 上下文与 decodeFrame_ CPU 缓冲
+ *
+ * 分辨率变化、换文件或 cleanupFFmpeg 时调用；pendingVideoFrame_ 由 stopPlay 单独清理。
  */
 void VideoDecoder::releaseVideoScaler()
 {
@@ -475,15 +502,125 @@ void VideoDecoder::releaseVideoScaler()
         sws_freeContext(swsContext);
         swsContext = nullptr;
     }
-    if (videoDstData[0]) {
-        av_freep(&videoDstData[0]);
-        for (int i = 0; i < 4; ++i) {
-            videoDstData[i] = nullptr;
-            videoDstLinesize[i] = 0;
+    decodeFrame_.release();
+}
+
+/**
+ * @brief 确保 swsContext 与 decodeFrame_ 与当前视频尺寸匹配
+ *
+ * @param width  视频帧宽（来自 videoCodecContext）
+ * @param height 视频帧高
+ *
+ * 尺寸不变但 decodeFrame_ 因 swap 为空时，仅 recreate Mat，不重建 swsContext。
+ */
+void VideoDecoder::ensureVideoDecodeBuffer(int width, int height)
+{
+    if (width <= 0 || height <= 0 || !videoCodecContext) {
+        return;
+    }
+
+    const bool sizeChanged = videoWidth != width || videoHeight != height || !swsContext;
+    if (sizeChanged) {
+        if (swsContext) {
+            sws_freeContext(swsContext);
+            swsContext = nullptr;
         }
+        videoWidth = width;
+        videoHeight = height;
+
+        swsContext = sws_getContext(width, height,
+                                    videoCodecContext->pix_fmt,
+                                    width, height,
+                                    AV_PIX_FMT_BGRA,
+                                    SWS_BILINEAR, nullptr, nullptr, nullptr);
+        if (!swsContext) {
+            qDebug() << "Could not initialize swsContext";
+            videoWidth = 0;
+            videoHeight = 0;
+            decodeFrame_.release();
+            return;
+        }
+    }
+
+    if (decodeFrame_.empty() || decodeFrame_.cols != width || decodeFrame_.rows != height ||
+        decodeFrame_.type() != CV_8UC4) {
+        decodeFrame_.create(height, width, CV_8UC4);
     }
 }
 
+void VideoDecoder::setVideoImageBuffer(std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue> buffer)
+{
+    QMutexLocker locker(&mutex);
+    videoImageBuffer_ = std::move(buffer);
+}
+
+/**
+ * @brief 向 GUI 事件队列投递一次 uploadPendingVideoFrame
+ *
+ * videoUploadScheduled_ 保证同一时刻至多一个上传任务在队列中；
+ * 解码快于上传时，pending 会被新帧覆盖（swap），上传完成后 hasPending 检查会补调度。
+ */
+void VideoDecoder::scheduleVideoUploadIfNeeded()
+{
+    if (!videoUploadScheduled_.exchange(true)) {
+        QMetaObject::invokeMethod(this, "uploadPendingVideoFrame", Qt::QueuedConnection);
+    }
+}
+
+/**
+ * @brief 【GUI 线程槽】BGRA Mat → GPU 纹理 → ImageTimestampRingQueue
+ *
+ * 1. move 取走 pendingVideoFrame_（释放 mutex 后做 GL 上传，缩短持锁时间）
+ * 2. ImageFrame::fromBgra8Mat 走 uploadBgra8 快路径，并保留 CPU 副本供下游 OpenCV 读 frame.image
+ * 3. pushFrame 覆盖 ring 最旧槽时，旧纹理经 ImageGpuUpload::destroyTexture 释放
+ */
+void VideoDecoder::uploadPendingVideoFrame()
+{
+    videoUploadScheduled_.store(false);
+
+    cv::Mat mat;
+    qint64 timestamp = -1;
+    std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue> buffer;
+    {
+        QMutexLocker locker(&mutex);
+        mat = std::move(pendingVideoFrame_);
+        timestamp = pendingVideoTimestamp_;
+        pendingVideoTimestamp_ = -1;
+        buffer = videoImageBuffer_;
+    }
+
+    if (!buffer || mat.empty() || timestamp < 0) {
+        return;
+    }
+
+    NodeDataTypes::ImageFrame frame = NodeDataTypes::ImageFrame::fromBgra8Mat(
+        std::move(mat), timestamp);
+    if (!frame.texture.valid()) {
+        return;
+    }
+
+    buffer->pushFrame(std::move(frame));
+
+    bool hasPending = false;
+    {
+        QMutexLocker locker(&mutex);
+        hasPending = !pendingVideoFrame_.empty();
+    }
+    if (hasPending) {
+        scheduleVideoUploadIfNeeded();
+    }
+}
+
+/**
+ * @brief 【videoLoop 线程】解码后单帧处理
+ *
+ * 流程：
+ *   sws_scale(YUV → BGRA) 写入 decodeFrame_
+ *   → swap(decodeFrame_, pendingVideoFrame_)  零拷贝交给上传侧
+ *   → scheduleVideoUploadIfNeeded()           异步触发 GUI 上传
+ *
+ * timestamp 取 TimestampGenerator 当前帧号，供下游 WindowDisplay 等按 tick 对齐。
+ */
 void VideoDecoder::processVideoFrame() {
     if (!videoFrame || !videoCodecContext) return;
 
@@ -493,40 +630,34 @@ void VideoDecoder::processVideoFrame() {
         return;
     }
 
-    if (!swsContext || videoWidth != frameW || videoHeight != frameH) {
-        releaseVideoScaler();
-        videoWidth = frameW;
-        videoHeight = frameH;
+    ensureVideoDecodeBuffer(frameW, frameH);
+    if (!swsContext || decodeFrame_.empty()) {
+        return;
+    }
 
-        swsContext = sws_getContext(frameW, frameH,
-                                    videoCodecContext->pix_fmt,
-                                    frameW, frameH,
-                                    AV_PIX_FMT_BGR24,
-                                    SWS_BILINEAR, nullptr, nullptr, nullptr);
-
-        if (!swsContext) {
-            qDebug() << "Could not initialize swsContext";
-            return;
-        }
-
-        if (av_image_alloc(videoDstData, videoDstLinesize,
-                           frameW, frameH,
-                           AV_PIX_FMT_BGR24, 1) < 0) {
-            qDebug() << "Could not allocate raw video buffer";
-            releaseVideoScaler();
-            return;
-        }
+    // 将 decodeFrame_ 内存布局告知 FFmpeg，作为 sws_scale 输出目标
+    uint8_t* dstData[4] = {nullptr};
+    int dstLinesize[4] = {0};
+    if (av_image_fill_arrays(dstData, dstLinesize, decodeFrame_.data,
+                             AV_PIX_FMT_BGRA, frameW, frameH, 1) < 0) {
+        return;
     }
 
     sws_scale(swsContext, videoFrame->data, videoFrame->linesize, 0,
-              videoCodecContext->height, videoDstData, videoDstLinesize);
+              frameH, dstData, dstLinesize);
 
-    cv::Mat img(videoCodecContext->height, videoCodecContext->width, CV_8UC3,
-                videoDstData[0], videoDstLinesize[0]);
+    const qint64 timestamp = static_cast<qint64>(timestampGenerator_->getCurrentFrameCount());
+    {
+        QMutexLocker locker(&mutex);
+        if (!videoImageBuffer_) {
+            return;
+        }
+        // 双缓冲交换：decodeFrame_ 交给 pending，原 pending（可能为空或旧缓冲）成为新 decode 目标
+        std::swap(decodeFrame_, pendingVideoFrame_);
+        pendingVideoTimestamp_ = timestamp;
+    }
 
-    // 使用clone确保数据被复制，避免缓冲区重用导致的问题
-    NodeDataTypes::ImageData imageData(img.clone());
-    emit videoFrameReady(imageData);
+    scheduleVideoUploadIfNeeded();
 }
 
 /**
@@ -544,14 +675,23 @@ void VideoDecoder::playAudio() {
 }
 
 /**
- * @brief 音频解码主循环
- * 运行在独立线程中，负责：
- * 1. 读取音频包并解码
- * 2. 进行音频重采样（如需）
- * 3. 将PCM数据切片为固定大小的块（SAMPLES_PER_CHANNEL）
- * 4. 控制音频播放进度信号
+ * @brief 音频解码主循环（std::thread / audioThread）
+ *
+ * 职责：
+ *   1. 从 formatContext 读音频包并解码
+ *   2. 按需 swr 重采样至 48000 Hz / FLT
+ *   3. processPcmAndEmitFixedFrames 切片为 SAMPLES_PER_CHANNEL 块
+ *   4. emit playbackProgress（约 100ms 节流）供 UI 进度条
+ *   5. 循环模式下 EOF 后 seek 回起点
+ *
+ * 自然结束时 emit playbackFinished，并停止 videoRunning。
  */
 void VideoDecoder::audioLoop() {
+    if (!hasAudioStream()) {
+        audioRunning.store(false);
+        return;
+    }
+
     AVPacket packet;
     audioFrame = av_frame_alloc();
     uint8_t* outputBuffer = nullptr;
@@ -635,7 +775,7 @@ void VideoDecoder::audioLoop() {
                         int64_t maxOutputSamples = (audioFrame->nb_samples * SAMPLE_RATE / originalSampleRate) + 64;
                         if (outputSamples > maxOutputSamples) {
                             outputSamples = maxOutputSamples;
-                            qDebug() << "Warning: Output samples clamped from" << outputSamples << "to" << maxOutputSamples;
+                            // qDebug() << "Warning: Output samples clamped from" << outputSamples << "to" << maxOutputSamples;
                         }
 
                         // 确保最小输出采样数
@@ -723,12 +863,15 @@ void VideoDecoder::audioLoop() {
 }
 
 /**
- * @brief 视频解码主循环
- * 运行在独立线程中，负责：
- * 1. 使用独立的 AVFormatContext 读取视频包
- * 2. 解码视频帧
- * 3. 根据 PTS (Presentation Time Stamp) 进行帧同步，使用 sleep 控制播放速度
- * 4. 转换 YUV 到 BGR 并发送图像信号
+ * @brief 视频解码主循环（std::thread / videoThread）
+ *
+ * 职责：
+ *   1. 从 formatContextVideo 独立读包，与 audioLoop 互不阻塞
+ *   2. avcodec 解码得到 YUV AVFrame
+ *   3. 按 PTS 与 QElapsedTimer 做 sleep，控制输出帧率接近源视频
+ *   4. 调用 processVideoFrame 完成 BGRA 转换并投递 GUI 上传
+ *
+ * EOF 行为：isLooping 为 true 则 seek 回起点；否则退出循环。
  */
 void VideoDecoder::videoLoop() {
     AVPacket packet;
@@ -736,7 +879,8 @@ void VideoDecoder::videoLoop() {
     QElapsedTimer timer;
     bool started = false;
     double firstPtsSec = 0.0;
-    // 主循环（按PTS节奏输出，避免UI被淹没）
+    double lastEmitTime = -1.0;
+    // 主循环：按 PTS 节奏输出，避免解码速度远快于实时导致 pending/GPU 积压
     while (videoRunning.load() && isPlaying.load()) {
         int ret = av_read_frame(formatContextVideo, &packet);
         if (ret < 0) {
@@ -763,11 +907,24 @@ void VideoDecoder::videoLoop() {
                             firstPtsSec = ptsSec;
                             timer.start();
                         } else {
+                            // 相对首帧 PTS 计算目标时刻，sleep 追赶播放节奏
                             const qint64 targetMs = static_cast<qint64>((ptsSec - firstPtsSec) * 1000.0);
                             const qint64 nowMs = timer.elapsed();
                             const qint64 sleepMs = targetMs - nowMs;
                             if (sleepMs > 0 && sleepMs < 1000) {
                                 QThread::msleep(static_cast<unsigned long>(sleepMs));
+                            }
+                        }
+
+                        // 纯视频文件：由视频 PTS 驱动进度条（有音频时由 audioLoop 负责）
+                        if (!hasAudioStream()) {
+                            double totalSec = 0.0;
+                            if (formatContextVideo->duration != AV_NOPTS_VALUE) {
+                                totalSec = formatContextVideo->duration / static_cast<double>(AV_TIME_BASE);
+                            }
+                            if (std::abs(ptsSec - lastEmitTime) >= 0.1) {
+                                emit playbackProgress(ptsSec, totalSec);
+                                lastEmitTime = ptsSec;
                             }
                         }
                     }
@@ -780,7 +937,13 @@ void VideoDecoder::videoLoop() {
     if (videoFrame) {
         av_frame_free(&videoFrame);
     }
+    const bool finishedNaturally = videoRunning.load() && isPlaying.load() && !isLooping.load();
     videoRunning.store(false);
+    // 纯视频：播放结束时由 videoLoop 发出 finished（有音频时由 audioLoop 负责）
+    if (finishedNaturally && !hasAudioStream()) {
+        isPlaying.store(false);
+        Q_EMIT playbackFinished();
+    }
 }
 
 /**

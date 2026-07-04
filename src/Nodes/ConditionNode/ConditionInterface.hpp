@@ -18,12 +18,13 @@ namespace Nodes
         explicit ConditionInterface(QWidget *parent = nullptr){
             main_layout->setContentsMargins(0,0,0,0);
             this->setLayout(main_layout);
+            Editor->setPlaceholderText(QStringLiteral("JS Expression (e.g., \"$input['key']\")"));
             main_layout->addWidget(Editor);
 
         }
     public:
         QVBoxLayout *main_layout=new QVBoxLayout(this);
-        QLineEdit *Editor=new QLineEdit("$input[\"default\"]");
+        QLineEdit *Editor=new QLineEdit();
 
 
     };

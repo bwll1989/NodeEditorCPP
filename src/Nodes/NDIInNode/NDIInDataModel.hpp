@@ -24,6 +24,8 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 #include <Processing.NDI.Lib.h>
 
 // 再次确保没有 min/max 宏定义
@@ -43,7 +45,9 @@
 #include <memory>
 #include "OSCSender/OSCSender.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include <QPointer>
 #include <QSignalBlocker>
+#include <atomic>
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
@@ -233,20 +237,7 @@ namespace Nodes
         }
 
         bool connectToSender(const QString& senderName) {
-            if (!m_ndi_find || senderName.isEmpty()) return false;
-
-            const NDIlib_source_t* target_source = nullptr;
-            // First try to find in current sources
-            for (uint32_t i = 0; i < m_no_sources; i++) {
-                QString currentName = QString::fromUtf8(m_p_sources[i].p_ndi_name);
-                if (currentName == senderName) {
-                    target_source = &m_p_sources[i];
-                    break;
-                }
-            }
-            
-            if (!target_source) {
-                qDebug() << "未找到指定的NDI发送器:" << senderName;
+            if (!m_ndi_find || senderName.isEmpty()) {
                 return false;
             }
 
@@ -255,8 +246,13 @@ namespace Nodes
                 m_ndi_recv = nullptr;
             }
 
+            // 按名称连接：p_ndi_name 必须在 NDIlib_recv_create_v3 调用期间有效，用局部 QByteArray 持有
+            const QByteArray nameBytes = senderName.toUtf8();
+            NDIlib_source_t source{};
+            source.p_ndi_name = nameBytes.constData();
+
             NDIlib_recv_create_v3_t recv_create;
-            recv_create.source_to_connect_to = *target_source;
+            recv_create.source_to_connect_to = source;
             recv_create.color_format = NDIlib_recv_color_format_BGRX_BGRA;
             recv_create.bandwidth = NDIlib_recv_bandwidth_highest;
             recv_create.allow_video_fields = false;
@@ -359,6 +355,8 @@ namespace Nodes
             , m_receiveThread(nullptr)
             , m_isReceiving(false)
         {
+            qRegisterMetaType<cv::Mat>("cv::Mat");
+
             InPortCount = 2;
             OutPortCount = 1;
             CaptionVisible = true;
@@ -366,6 +364,7 @@ namespace Nodes
             WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = false;
+            ensureImageDataBuffer(m_outputImageData, m_outputBuffer);
             {
                 NodeDelegateModel::ExternalBinding b;
                 b.member = "enable";
@@ -401,17 +400,27 @@ namespace Nodes
          * @brief 析构函数
          */
         ~NDIInDataModel() override {
-            setEnable(false); // 停止接收
+            m_shuttingDown.store(true);
+            GlobalEventBus::instance()->unsubscribe(this);
+
+            setEnable(false);
+
             if (m_receiveThread) {
+                disconnect(m_receiveThread, nullptr, this, nullptr);
                 m_receiveThread->stopThread();
-                if (!m_receiveThread->wait(2000)) {
+                if (!m_receiveThread->wait(3000)) {
+                    qWarning() << "NDIInDataModel: receive thread did not stop cleanly";
                     m_receiveThread->terminate();
                     m_receiveThread->wait();
                 }
                 delete m_receiveThread;
+                m_receiveThread = nullptr;
             }
-            if (m_widget) {
-                m_widget->deleteLater();
+
+            m_uploadScheduled.store(false);
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                m_pendingFrame.release();
             }
         }
 
@@ -505,12 +514,12 @@ namespace Nodes
         void afterModelReady() override
         {
             AbstractDelegateModel::afterModelReady();
+            ImageGpuUpload::instance().warmup();
             auto bus = GlobalEventBus::instance();
             
             bus->subscribe(makeFullOscAddress("/source"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/refresh"), this, SLOT(onGlobalEvent(GlobalEvent)));
-
         }
 
     public slots:
@@ -531,21 +540,25 @@ namespace Nodes
         }
 
         /**
-         * @brief 处理接收到的帧数据
+         * @brief NDI 接收线程回调 — 合并 pending 帧，GUI 线程上传并 push ring buffer
          */
         void onFrameReceived(const cv::Mat& frame) {
-            if (!frame.empty()) {
-                m_outputImageData = std::make_shared<ImageData>(frame);
-                emit dataUpdated(0);
+            if (m_shuttingDown.load() || !m_isReceiving || frame.empty()) {
+                return;
             }
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                m_pendingFrame = frame;
+            }
+            scheduleUploadIfNeeded();
         }
         
         /**
          * @brief 处理连接状态变化
          */
         void onConnectionStatusChanged(bool connected) {
-            if (m_widget) {
-                m_widget->updateConnectionStatus(connected);
+            if (NDIInInterface* widget = m_widget.data()) {
+                widget->updateConnectionStatus(connected);
             }
         }
         
@@ -553,8 +566,8 @@ namespace Nodes
          * @brief 处理发送器列表更新
          */
         void onSenderListUpdated(const QStringList& senders) {
-            if (m_widget) {
-                m_widget->updateSenderList(senders);
+            if (NDIInInterface* widget = m_widget.data()) {
+                widget->updateSenderList(senders);
             }
         }
         
@@ -595,9 +608,11 @@ namespace Nodes
             if (m_currentSender == value) return;
             m_currentSender = value;
             
-            if (m_widget && m_widget->m_senderComboBox->currentText() != value) {
-                QSignalBlocker blocker(m_widget->m_senderComboBox);
-                m_widget->m_senderComboBox->setCurrentText(value);
+            if (NDIInInterface* widget = m_widget.data()) {
+                if (widget->m_senderComboBox->currentText() != value) {
+                    QSignalBlocker blocker(widget->m_senderComboBox);
+                    widget->m_senderComboBox->setCurrentText(value);
+                }
             }
             
             // Logic to select sender
@@ -614,22 +629,31 @@ namespace Nodes
             if (m_isReceiving == value) return;
             
             if (value) {
-                // Start receiving logic
                 if (m_receiveThread) {
                     m_receiveThread->startCapturing(m_currentSender);
                 }
             } else {
-                // Stop receiving logic
                 if (m_receiveThread) {
                     m_receiveThread->stopCapturing();
                 }
+                {
+                    QMutexLocker locker(&m_pendingMutex);
+                    m_pendingFrame.release();
+                }
+                m_uploadScheduled.store(false);
+                if (m_outputBuffer) {
+                    m_outputBuffer->clear();
+                }
+                m_lastPushedTimestamp = -1;
             }
             
             m_isReceiving = value;
             
-            if (m_widget && m_widget->m_startStopButton->isChecked() != value) {
-                QSignalBlocker blocker(m_widget->m_startStopButton);
-                m_widget->m_startStopButton->setChecked(value);
+            if (NDIInInterface* widget = m_widget.data()) {
+                if (widget->m_startStopButton->isChecked() != value) {
+                    QSignalBlocker blocker(widget->m_startStopButton);
+                    widget->m_startStopButton->setChecked(value);
+                }
             }
 
             emit enableChanged(value);
@@ -640,20 +664,71 @@ namespace Nodes
         void sourceNameChanged(QString value);
         void enableChanged(bool value);
 
+    private Q_SLOTS:
+        /** GUI 线程：NDI 帧 → GPU 纹理 + CPU 缓存 → 输出 ring buffer */
+        void publishPendingFrame()
+        {
+            m_uploadScheduled.store(false);
+
+            if (m_shuttingDown.load() || !m_isReceiving) {
+                return;
+            }
+
+            cv::Mat mat;
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                mat = std::move(m_pendingFrame);
+            }
+
+            if (!m_outputBuffer || mat.empty()) {
+                return;
+            }
+
+            ensureImageDataBuffer(m_outputImageData, m_outputBuffer);
+            const qint64 timestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
+            ImageFrame imageFrame = ImageFrame::fromMat(std::move(mat), timestamp);
+            if (!imageFrame.texture.valid()) {
+                qWarning() << "NDI In: GPU upload failed";
+                return;
+            }
+
+            pushFrameToImageBufferDedup(m_outputBuffer, std::move(imageFrame), m_lastPushedTimestamp);
+
+            bool hasPending = false;
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                hasPending = !m_pendingFrame.empty();
+            }
+            if (hasPending && !m_shuttingDown.load() && m_isReceiving) {
+                scheduleUploadIfNeeded();
+            }
+        }
+
     private:
-        // 界面组件
-        NDIInInterface *m_widget;
-        
-        // NDI接收线程
-        NDIReceiveThread *m_receiveThread;
-        
-        // 输出数据
+        void scheduleUploadIfNeeded()
+        {
+            if (m_shuttingDown.load() || !m_isReceiving) {
+                return;
+            }
+            if (!m_uploadScheduled.exchange(true)) {
+                QMetaObject::invokeMethod(this, "publishPendingFrame", Qt::QueuedConnection);
+            }
+        }
+
+        QPointer<NDIInInterface> m_widget;
+        NDIReceiveThread* m_receiveThread = nullptr;
+
         std::shared_ptr<ImageData> m_outputImageData;
-        
-        // 状态变量
+        std::shared_ptr<ImageTimestampRingQueue> m_outputBuffer;
+        qint64 m_lastPushedTimestamp = -1;
+
+        QMutex m_pendingMutex;
+        cv::Mat m_pendingFrame;
+        std::atomic<bool> m_uploadScheduled{false};
+        std::atomic<bool> m_shuttingDown{false};
+
         QString m_currentSender;
         bool m_isReceiving;
-        
         /**
          * @brief 初始化接收器
          */

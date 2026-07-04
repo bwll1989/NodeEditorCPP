@@ -3,7 +3,6 @@
 #include <QtCore/QObject>
 #include <QtWidgets/QLabel>
 #include <QtCore/QTimer>
-#include <QtCore/QQueue>
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeData>
@@ -122,20 +121,14 @@ private slots:
      */
     void readAllData();
 
-private slots:
-    void processWriteQueue();
-
 private:
     USR_IO808Interface *_interface;
     TcpClient *_tcpClient;
     QTimer *_readTimer;  // 定时读取定时器
-    QTimer *_writeQueueTimer; // 写队列定时器
+    QTimer *_writeResponseTimer; // 写响应超时定时器
 
-    struct WriteCommand {
-        int index;
-        bool state;
-    };
-    QQueue<WriteCommand> _writeQueue; // 写命令队列
+    bool _writeInFlight = false; // 是否有未确认的写多个线圈请求
+    bool _writePending = false;  // 写期间又有新状态变化，待补发
 
     // 设备状态
     bool _inputStates[8];   // DI状态数组
@@ -176,14 +169,6 @@ private:
     QByteArray generateReadDiscreteInputsCommand(quint16 startAddress, quint16 quantity);
     
     /**
-     * @brief 生成Modbus TCP写单个线圈命令
-     * @param address 线圈地址
-     * @param value 线圈值
-     * @return Modbus TCP命令字节数组
-     */
-    QByteArray generateWriteSingleCoilCommand(quint16 address, bool value);
-    
-    /**
      * @brief 生成Modbus TCP写多个线圈命令
      * @param startAddress 起始地址
      * @param values 线圈值数组
@@ -211,6 +196,11 @@ private:
      * @param command 命令数据
      */
     void sendModbusCommand(const QByteArray &command);
+
+    void requestWriteAllOutputs();
+    void writeAllOutputs();
+    void onWriteCompleted(bool success);
+    void onWriteTimeout();
 };
 
 } // namespace Nodes

@@ -64,16 +64,16 @@ namespace Nodes
         }
 
         /**
-         * @brief 处理输出数据，使用JS引擎评估表达式，并在表达式成立时计数器+1
-         * @param portIndex 端口索引
-         * @return 提取后的数据，包含当前计数值
+         * @brief 条件成立时返回输入数据副本，并将 default 设为条件结果
          */
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
 
-            // 返回当前计数值
-            return std::make_shared<VariableData>(count);
+            if (!m_outputData) {
+                return std::make_shared<VariableData>();
+            }
+            return m_outputData;
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
@@ -116,31 +116,32 @@ namespace Nodes
                return;
             }
 
-            QString expression = widget->Editor->text();
-            bool expressionResult = false;
+            const QString expression = widget->Editor->text();
 
             // 将整个输入数据注册为JS全局变量$input
             QJSValue jsInput = m_jsEngine->toScriptValue(m_InData->getMap());
             m_jsEngine->globalObject().setProperty("$input", jsInput);
 
-            // 执行表达式
-            QJSValue result = m_jsEngine->evaluate(expression);
+            const QJSValue result = m_jsEngine->evaluate(expression);
 
-
-
-            // 获取表达式结果的布尔值
-            if (result.toBool()) {
-                count=true;
-                Q_EMIT dataUpdated(0);
+            if (result.isError()) {
+                qDebug() << "Filter JS表达式错误:" << result.toString();
+                return;
             }
 
+            if (result.toBool()) {
+                QVariantMap outputMap = m_InData->getMap();
+                outputMap.insert(QStringLiteral("default"), result.toBool());
+                m_outputData = std::make_shared<VariableData>(outputMap);
+                Q_EMIT dataUpdated(0);
+            }
         }
         
 
     private:
         ConditionInterface *widget=new ConditionInterface();
         std::shared_ptr<VariableData> m_InData;
-        bool count=false;
+        std::shared_ptr<VariableData> m_outputData;
         QJSEngine *m_jsEngine = nullptr;
 
 

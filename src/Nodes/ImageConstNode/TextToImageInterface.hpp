@@ -3,13 +3,12 @@
 //
 #pragma once
 
-#include <QLineEdit>
 #include <QTextEdit>
 #include <QFontComboBox>
-#include <QSpinBox>
 #include <QComboBox>
 #include <QCheckBox>
-#include <QIntValidator>
+
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 
 #include "QWidget"
 #include "QLabel"
@@ -34,8 +33,10 @@ class TextToImageInterface final : public QWidget{
             display->setAlignment(Qt::AlignCenter);
             display->setScaledContents(false);
 
-            widthEdit->setValidator(new QIntValidator(1, 32768, this));
-            heightEdit->setValidator(new QIntValidator(1, 32768, this));
+            widthEdit->setRange(1, 32768);
+            widthEdit->setValue(512);
+            heightEdit->setRange(1, 32768);
+            heightEdit->setValue(256);
 
             fontSizeSpin->setRange(1, 300);
             fontSizeSpin->setValue(48);
@@ -97,20 +98,19 @@ class TextToImageInterface final : public QWidget{
 
             this->setLayout(main_layout);
 
-            /* 函数级注释：移除固定大小，采用最小尺寸 + 可扩展策略 */
-            this->setMinimumSize(280, 450);
+      
             this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         }
 
     public:
         QGridLayout *main_layout;
-        QLineEdit *widthEdit=new QLineEdit("512");
-        QLineEdit *heightEdit=new QLineEdit("256");
+        IntDragValueWidget *widthEdit = new IntDragValueWidget();
+        IntDragValueWidget *heightEdit = new IntDragValueWidget();
         QLabel *display=new QLabel();
         QTextEdit *textEdit = new QTextEdit();
 
         QFontComboBox *fontCombo = new QFontComboBox();
-        QSpinBox *fontSizeSpin = new QSpinBox();
+        IntDragValueWidget *fontSizeSpin = new IntDragValueWidget();
 
         QCheckBox *boldCheck = new QCheckBox();
         QCheckBox *italicCheck = new QCheckBox();
@@ -120,7 +120,7 @@ class TextToImageInterface final : public QWidget{
 
         QComboBox *alignHCombo = new QComboBox();
         QComboBox *alignVCombo = new QComboBox();
-        QSpinBox *paddingSpin = new QSpinBox();
+        IntDragValueWidget *paddingSpin = new IntDragValueWidget();
 
         QPushButton *textColorButton = new QPushButton("Text Color");
         QPushButton *bgColorButton = new QPushButton("Background Color");

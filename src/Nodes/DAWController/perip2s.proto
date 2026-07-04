@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+// 与外部设备共享的proto 文件
+package peripheral.proto;
+
+// 消息id枚举
+enum CmdType
+{
+	CMD_MIN		= 0;
+	//公用消息，心跳
+	CMD_HEARTBEAT     = 1;
+
+	//----------外部设备到服务器----------
+	CMD_PERIP2SERVER_MIN = 1601;
+
+	// 船只定位系统注册到服务器
+	CMD_P2S_BOAT_POSITIONING_SYS_REGISTER = 1602;
+
+	// 船只定位系统更新UWB位置
+	CMD_P2S_BOAT_POSITIONING_SYS_UPDATE_POS = 1603;
+
+	// 船只定位系统更新RFID点
+	CMD_P2S_BOAT_POSITIONING_SYS_UPDATE_POINT = 1604;
+
+	CMD_PERIP2SERVER_MAX = 1700;
+
+	//----------服务器到外部设备----------
+	CMD_SERVER2PERIP_MIN = 1701;
+
+	// 船只定位系统注册到服务器响应
+	CMD_S2P_BOAT_POSITIONING_SYS_REGISTER = 1702;
+
+	CMD_SERVER2PERIP_MAX = 1800;
+}
+
+// 心跳
+message Heartbeat
+{
+}
+
+// -------------------------
+// 船只定位系统
+// -------------------------
+
+// 船只定位系统注册
+message P2SBoatPositioningSysRegister{
+
+}
+
+// 船只定位系统注册
+message S2PBoatPositioningSysRegister{
+	// 0 成功 目前肯定会注册成功
+	int32 ret = 1;
+}
+
+// 位置坐标
+message Position{
+	float x = 1;
+	float y = 2;
+	float z = 3;
+}
+
+// 船只定位系统更新位置坐标
+message P2SBoatPositioningSysUpdatePos{
+	// 船只id
+	int32 boat_id = 1;
+	// 位置坐标
+	Position pos = 2;
+	// 13位毫秒时间戳
+	int64 timestamp = 3;
+}
+
+// 船只定位系统更新位置点
+message P2SBoatPositioningSysUpdatePoint{
+	// 船只id
+	int32 boat_id = 1;
+	// 位置点id
+	int32 point_id = 2;
+	// 13位毫秒时间戳
+	int64 timestamp = 3;
+}

@@ -45,7 +45,7 @@
 
 ### 1. 节点说明
 
-通过 TCP 接收 **点播盒子** 上报的按键事件，并把每个按键转换成一个短脉冲输出。适合接到 Switch、Hold、Trigger、内部控制等节点，作为人工触发入口使用。
+通过 TCP 接收 **点播盒子** 上报的按键事件，并把每个按键转换成一个短脉冲输出。适合接到 Switch、Hold、Trigger、内部控制等节点，作为人工触发入口使用。点播盒子需配置为TCP Server。
 
 点播盒子包含两组按钮：
 - 薄膜按钮：`BB1` ～ `BB6`
@@ -98,3 +98,86 @@
 - `YY 2` 接“继续”
 
 这样，点播盒子上的不同按钮就可以直接控制不同流程。
+
+---
+
+## FT-LocationProto（船只定位协议服务）
+
+### 1. 节点说明
+
+作为 **TCP Protobuf 服务端**，接收外部船只定位系统上报的位置与 RFID 点位信息，并转换为 `VariableData` 输出到下游节点。协议定义见 `perip2s.proto`（perip2s 帧格式）。
+
+定位设备以 TCP 客户端身份连接本节点；节点自动处理心跳与注册握手，无需额外配置。
+
+**支持的入站消息：**
+
+| 命令 ID | 说明 | 节点行为 |
+|---------|------|----------|
+| `1` | 心跳 `Heartbeat` | 自动回复心跳 |
+| `1602` | 定位系统注册 | 自动回复注册成功（`ret = 1`） |
+| `1603` | UWB 位置更新 | 输出到 **POS** 端口 |
+| `1604` | RFID 点位更新 | 输出到 **POINT** 端口 |
+
+**TCP 帧格式（大端序）：** `[4 字节 data_len][4 字节 msg_id][msg_body]`，其中 `data_len = 4 + msg_body 长度`，`msg_body` 为 Protobuf 序列化数据。
+
+### 2. 端口说明
+
+#### 输入
+
+无输入端口。
+
+#### 输出
+
+| 端口 | 类型 | 说明 |
+|------|------|------|
+| POS | VariableData | UWB 位置更新（命令 `1603`） |
+| POINT | VariableData | RFID 点位更新（命令 `1604`） |
+
+**POS 输出字段（`P2SBoatPositioningSysUpdatePos`）：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `boatId` | int | 船只 ID |
+| `pos` | object | 位置坐标 `{ x, y, z }`（float） |
+| `timestamp` | int64 | 13 位毫秒时间戳 |
+
+**POINT 输出字段（`P2SBoatPositioningSysUpdatePoint`）：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `boatId` | int | 船只 ID |
+| `pointId` | int | 位置点 ID |
+| `timestamp` | int64 | 13 位毫秒时间戳 |
+
+说明：Protobuf 转 JSON 时字段名为驼峰形式（如 `boat_id` → `boatId`）。每次收到对应消息时更新输出并触发下游刷新。
+
+### 3. 界面说明
+
+本节点无可嵌入界面（`WidgetEmbeddable = false`），通过属性与外部控制配置：
+
+- **主机**：监听地址（默认 `0.0.0.0`，表示所有网卡）。
+- **端口**：监听端口（默认 `9001`）。
+- **listening**（内部属性）：TCP 服务是否已成功监听。
+
+外部控制：
+
+- `/host` — 设置监听地址
+- `/port` — 设置监听端口
+
+修改主机或端口后会自动重启 TCP 服务。
+
+### 4. 使用说明
+
+1. 在节点编辑器中添加 **FT-LocationProto**，确认监听端口（默认 `9001`）未被占用。
+2. 将定位设备配置为 TCP 客户端，连接到本机 IP 与对应端口。
+3. 设备连接后会自动完成注册与心跳；上报位置或点位时，**POS** / **POINT** 端口输出最新数据。
+4. 将 POS 输出接到 Extract、Lookup、Distribute 等节点，可按 `boatId`、`pos.x` 等字段做条件分支或数值处理。
+5. 将 POINT 输出接到流程触发逻辑，实现“到达某 RFID 点位即触发动作”。
+
+### 5. 示例
+
+- **实时位置驱动显示**：POS → Extract（`$input.pos`）→ 下游显示或映射节点。
+- **按船只分流**：POS → Distribute（条件 `$input.boatId == 1` → 端口 0，`$input.boatId == 2` → 端口 1）。
+- **到点触发**：POINT → Filter（`$input.pointId == 5`）→ 触发对应场景。
+
+定位设备需实现 `perip2s.proto` 中 P2S 侧协议；本节点负责 S2P 侧注册应答与心跳回复。

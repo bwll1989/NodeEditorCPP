@@ -4,6 +4,7 @@
 
 #include <QMessageBox>
 #include "MainWindow.hpp"
+#include "Common/AppConfig/ConstantDefines.h"
 #include "Nodes/NodeEditorStyle.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "QFile"
@@ -12,6 +13,10 @@
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QMimeData>
+
+#include <QWKWidgets/widgetwindowagent.h>
+#include <widgetframe/windowbar.h>
+#include <widgetframe/windowbutton.h>
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "Widget/PropertyWidget/PropertyWidget.hpp"
 #include <QSettings>
@@ -66,8 +71,62 @@ static void applyGlobalStyleSheet(const QString& styleSheet)
     }
 }
 
-MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
+/** @brief 获取应用图标（优先 QApplication，回退到 NodeStudio 资源） */
+static QIcon applicationIcon()
+{
+    if (!QApplication::windowIcon().isNull()) {
+        return QApplication::windowIcon();
+    }
+    return QIcon(QStringLiteral(":/icons/icons/NodeStudio.png"));
+}
 
+/**
+ * @brief 手动模拟控件的鼠标离开事件，清除 hover 高亮状态
+ *
+ * 背景：点击标题栏「最大化/还原」按钮时，会先触发 QPushButton::clicked，再改变窗口
+ *       状态（showMaximized / showNormal）。Qt 在此场景下有时不会向按钮发送
+ *       QEvent::Leave / QHoverEvent::HoverLeave，导致按钮仍显示 :hover 样式，
+ *       直到用户再次移动鼠标。该问题在无边框自定义标题栏中较常见。
+ *
+ * 做法：在窗口状态切换后的下一事件循环（singleShot(0)）检查光标是否已不在控件
+ *       区域内；若是，则向控件投递 Leave 与 HoverLeave 事件，强制结束 hover 态。
+ *
+ * @param widget 需要清除 hover 状态的控件（当前用于最大化按钮 maxButton）
+ */
+static void emulateLeaveEvent(QWidget *widget)
+{
+    if (!widget) {
+        return;
+    }
+    // 延迟到下一事件循环：等窗口几何/状态更新完成后再判断光标位置
+    QTimer::singleShot(0, widget, [widget]() {
+        const QScreen *screen = widget->screen();
+        const QPoint globalPos = QCursor::pos(screen);
+        // 光标已离开控件区域时，才需要补发离开事件
+        if (!QRect(widget->mapToGlobal(QPoint{0, 0}), widget->size()).contains(globalPos)) {
+            QCoreApplication::postEvent(widget, new QEvent(QEvent::Leave));
+            if (widget->testAttribute(Qt::WA_Hover)) {
+                const QPoint scenePos = widget->window()->mapFromGlobal(globalPos);
+                static constexpr const auto oldPos = QPoint{};
+                const Qt::KeyboardModifiers modifiers = QGuiApplication::keyboardModifiers();
+                const auto event =
+                    new QHoverEvent(QEvent::HoverLeave, scenePos, globalPos, oldPos, modifiers);
+                QCoreApplication::postEvent(widget, event);
+            }
+        }
+    });
+}
+
+MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
+    setAttribute(Qt::WA_DontCreateNativeAncestors);
+    // QWindowKit：尽早 setup，以便接管无边框窗口的尺寸与原生行为
+    windowAgent = new QWK::WidgetWindowAgent(this);
+    windowAgent->setup(this);
+    setWindowTitle(AppConstants::PRODUCT_NAME);
+    // 同步应用/窗口图标，供标题栏左上角与任务栏使用
+    const QIcon appIcon = applicationIcon();
+    QApplication::setWindowIcon(appIcon);
+    setWindowIcon(appIcon);
 
     ads::CDockManager::setConfigFlag(ads::CDockManager::FocusHighlighting, true);
     //    聚焦高亮
@@ -103,7 +162,7 @@ void MainWindow::init()
              this, &MainWindow::openRecentFile);
      // 初始化时刷新最近文件菜单
     menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
-    this->setMenuBar(menuBar);
+    setupFramelessWindow();
     emit initStatus("Initialization MenuBar success");
     // 首先实例化终端显示控件，保证日志输出正常
     auto *logDockViewer= m_DockManager->createDockWidget("终端显示");
@@ -318,6 +377,7 @@ void MainWindow::switchVisibleFromTray()
         this->showMaximized();
         this->raise();
         this->activateWindow();
+        syncFramelessWindowState();
     }else {
         this->hide();
     }
@@ -842,6 +902,186 @@ QMenu* MainWindow::makeOptionsMenu(QWidget* parent, const QList<QAction*>& actio
     return menu;
 }
 
+/**
+ * @brief 构建 QWindowKit 无边框标题栏并完成 WindowAgent 绑定
+ *
+ * 布局结构（自左向右）：
+ *   [应用图标] [菜单栏 MenuBarWidget] [居中标题] [最小化] [最大化/还原] [关闭]
+ *
+ * 说明：
+ * - 通过 setMenuWidget(windowBar) 将自定义标题栏挂到 QMainWindow 顶部
+ * - WindowAgent 负责无边框拖拽、边缘缩放、Snap Layout 等 Windows 原生行为
+ * - 标题栏内除 setHitTestVisible 标记的控件外，其余区域均可拖拽移动窗口
+ */
+void MainWindow::setupFramelessWindow()
+{
+    if (!windowAgent || !menuBar) {
+        return;
+    }
+
+    // 供 QSS 选择器 QMenuBar#win-menu-bar 定位样式
+    menuBar->setObjectName(QStringLiteral("win-menu-bar"));
+
+    // 居中显示窗口标题（项目名 / 文件名），样式见 QSS #win-title-label
+    auto *titleLabel = new QLabel(this);
+    titleLabel->setAlignment(Qt::AlignCenter);
+    titleLabel->setObjectName(QStringLiteral("win-title-label"));
+
+    // --- 标题栏左侧：应用图标 ---
+    // WindowButton 须用 setIconNormal 设置图标，不能仅用 QPushButton::setIcon
+    auto *iconButton = new QWK::WindowButton(this);
+    iconButton->setObjectName(QStringLiteral("icon-button"));
+    iconButton->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    iconButton->setIconNormal(applicationIcon());
+
+    // --- 标题栏右侧：最小化 / 最大化(可切换) / 关闭 ---
+    auto *minButton = new QWK::WindowButton(this);
+    minButton->setObjectName(QStringLiteral("min-button"));
+    minButton->setProperty("system-button", true);  // QSS 统一样式
+    minButton->setIconSize(QSize(16, 16));
+    minButton->setFixedHeight(32);
+    minButton->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+
+    auto *maxButton = new QWK::WindowButton(this);
+    maxButton->setCheckable(true);  // 最大化时 checked，显示还原图标
+    maxButton->setObjectName(QStringLiteral("max-button"));
+    maxButton->setProperty("system-button", true);
+    maxButton->setIconSize(QSize(16, 16));
+    maxButton->setFixedHeight(32);
+    maxButton->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+
+    auto *closeButton = new QWK::WindowButton(this);
+    closeButton->setObjectName(QStringLiteral("close-button"));
+    closeButton->setProperty("system-button", true);
+    closeButton->setIconSize(QSize(16, 16));
+    closeButton->setFixedHeight(32);
+    closeButton->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+
+    // --- 组装 WindowBar ---
+    windowBar = new QWK::WindowBar(this);
+    windowBar->setObjectName(QStringLiteral("win-window-bar"));
+    // 必须先绑定 hostWidget，再设置 titleLabel / iconButton，
+    // 这样 WindowBar 的事件过滤器才能收到 WindowTitleChange / WindowStateChange
+    windowBar->setHostWidget(this);
+    windowBar->setIconFollowWindow(true);  // 窗口图标变化时自动更新左上角按钮
+    windowBar->setIconButton(iconButton);
+    windowBar->setMinButton(minButton);
+    windowBar->setMaxButton(maxButton);
+    windowBar->setCloseButton(closeButton);
+    windowBar->setMenuBar(menuBar);
+    windowBar->setTitleLabel(titleLabel);
+
+    // --- 注册到 QWindowKit WindowAgent ---
+    windowAgent->setTitleBar(windowBar);
+    // 声明各按钮的系统角色，使 Windows Snap Layout、任务栏预览等原生特性正常工作
+    windowAgent->setSystemButton(QWK::WindowAgentBase::WindowIcon, iconButton);
+    windowAgent->setSystemButton(QWK::WindowAgentBase::Minimize, minButton);
+    windowAgent->setSystemButton(QWK::WindowAgentBase::Maximize, maxButton);
+    windowAgent->setSystemButton(QWK::WindowAgentBase::Close, closeButton);
+    // 菜单栏需要接收鼠标点击；未标记 hit-test 的区域默认作为拖拽区
+    windowAgent->setHitTestVisible(menuBar, true);
+
+    setMenuWidget(windowBar);
+
+    // --- 信号连接 ---
+    // 点击左上角图标：弹出 Windows 系统菜单（还原 / 移动 / 大小 / 最小化 / 最大化 / 关闭）
+    connect(iconButton, &QAbstractButton::clicked, this, [this, iconButton]() {
+        if (windowAgent) {
+            windowAgent->showSystemMenu(
+                iconButton->mapToGlobal(QPoint(0, iconButton->height())));
+        }
+    });
+    connect(windowBar, &QWK::WindowBar::minimizeRequested, this, &QWidget::showMinimized);
+    connect(windowBar, &QWK::WindowBar::maximizeRequested, this, [this, maxButton](bool max) {
+        if (max) {
+            showMaximized();
+        } else {
+            showNormal();
+        }
+        // 窗口状态改变后，清除最大化按钮残留的 hover 高亮
+        emulateLeaveEvent(maxButton);
+    });
+    connect(windowBar, &QWK::WindowBar::closeRequested, this, &QWidget::close);
+
+    syncFramelessWindowState();
+}
+
+/**
+ * @brief 同步无边框标题栏的显示状态
+ *
+ * 在以下场景被调用：初始化完成、showEvent、窗口状态变化、
+ * 激活/失活、主题切换、从托盘恢复等。
+ *
+ * 同步内容：
+ * - 标题文字（与 windowTitle() 一致）
+ * - 左上角应用图标
+ * - 最大化按钮的 checked 状态（最大化 ↔ 还原图标）
+ * - 标题栏激活/失活样式（QSS 属性 bar-active）
+ */
+void MainWindow::syncFramelessWindowState()
+{
+    if (!windowBar) {
+        return;
+    }
+
+    if (auto *label = windowBar->titleLabel()) {
+        label->setText(windowTitle());
+    }
+    if (auto *iconBtn = qobject_cast<QWK::WindowButton *>(windowBar->iconButton())) {
+        const QIcon icon = windowIcon().isNull() ? applicationIcon() : windowIcon();
+        iconBtn->setIconNormal(icon);
+    }
+    if (auto *maxBtn = windowBar->maxButton()) {
+        maxBtn->setChecked(isMaximized());
+    }
+    if (auto *bar = menuWidget()) {
+        bar->setProperty("bar-active", isActiveWindow());
+        if (style()) {
+            style()->polish(bar);
+        }
+    }
+}
+
+/**
+ * @brief 窗口首次显示时同步标题栏状态
+ * @note main.cpp 中以 showMaximized() 启动，此处确保最大化按钮图标正确
+ */
+void MainWindow::showEvent(QShowEvent *event)
+{
+    QMainWindow::showEvent(event);
+    syncFramelessWindowState();
+}
+
+/**
+ * @brief 窗口状态变化（最大化 / 还原 / 最小化）时同步标题栏
+ */
+void MainWindow::changeEvent(QEvent *event)
+{
+    QMainWindow::changeEvent(event);
+    if (event->type() == QEvent::WindowStateChange) {
+        syncFramelessWindowState();
+    }
+}
+
+/**
+ * @brief 处理窗口激活/失活，切换标题栏前景样式
+ *
+ * 激活时 bar-active=true（深色主题 #353535 / 浅色主题 #F6F6F6），
+ * 失活时 bar-active=false（颜色略暗），对应 DefaultDark/Light.qss。
+ */
+bool MainWindow::event(QEvent *event)
+{
+    switch (event->type()) {
+    case QEvent::WindowActivate:
+    case QEvent::WindowDeactivate:
+        syncFramelessWindowState();
+        break;
+    default:
+        break;
+    }
+    return QMainWindow::event(event);
+}
+
 void MainWindow::switchTheme(bool isDark) {
     isDarkTheme = isDark;
     const QString qss = isDarkTheme ? AppConstants::DARK_STYLESHEET
@@ -881,6 +1121,7 @@ void MainWindow::switchTheme(bool isDark) {
         menuBar->switchTheme->setIcon(isDarkTheme ? QIcon(":/icons/icons/landscape.png")
                                                   : QIcon(":/icons/icons/night_landscape.png"));
     }
+    syncFramelessWindowState();
     QJsonObject config;
     config["DefaultDarkTheme"] = isDarkTheme;
     ConfigManager::instance().updateConfig(config);

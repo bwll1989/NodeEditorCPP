@@ -1,5 +1,6 @@
 #include "AudioData.h"
-#include  "ImageData.h"
+#include "ImageData.h"
+#include "ImageTimestampRingQueue.h"
 #include "RectsData.h"
 #include "RectData.h"
 #include "VariableData.h"

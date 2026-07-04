@@ -1,11 +1,27 @@
 #pragma once
 
+/**
+ * @file ImageOperateCommon.hpp
+ * @brief ImageOperates 插件内部公共辅助（取帧、GPU 输出、CPU 回退路径）
+ *
+ * ## 数据流
+ * - 节点间通过 ImageData 共享句柄 + ImageTimestampRingQueue 交换 ImageFrame
+ * - GPU 算子主路径只读写 GpuTextureHandle；CPU Mat 辅助函数供 legacy 或读回场景
+ *
+ * ## 与节点生命周期的关系（详见 Doc.md §3）
+ * - resolveInputGpuFrame / resolveDualInputGpuFrames：tick 内取输入纹理（含静态源回退）
+ * - pushGpuResult：tick 内写输出，时间戳用 currentSystemTimestamp()
+ * - ensureSharedOutput：保证 m_outImageData / m_outBuffer 单例，避免每帧新建 ImageData
+ *
+ * 其他模块请使用 ImageData.h 公开 API，勿直接 include 本文件。
+ */
+
 // 仅供 ImageOperates 插件内部使用的公共辅助头文件，其他模块请使用 ImageData.h 中的 API。
 
 #include "NodeDataList.hpp"
+#include "ImageReadback.h"
+#include "ImageGpuPass.h"
 #include "TimestampGenerator/TimestampGenerator.hpp"
-#include "Common/NodeWorker/NodeProcessCommon.hpp"
-#include "Common/NodeWorker/NodeWorkerQueue.hpp"
 
 #include <opencv2/imgproc.hpp>
 
@@ -16,10 +32,6 @@ namespace Nodes
 {
 namespace ImageOperateHelpers
 {
-using ImageOperateTickState = NodeWorker::NodeTickState;
-using ImageOperateDualTickState = NodeWorker::NodeDualTickState;
-using ImageOperateWorkerQueue = NodeWorker::NodeWorkerQueue<cv::Mat>;
-
 /**
  * @brief 将未指定的目标时间戳规整为当前全局时间戳
  * @param targetTimestamp 目标时间戳，传负数时自动使用当前全局时间戳
@@ -28,6 +40,12 @@ using ImageOperateWorkerQueue = NodeWorker::NodeWorkerQueue<cv::Mat>;
 inline qint64 normalizeTargetTimestamp(qint64 targetTimestamp)
 {
     return targetTimestamp >= 0 ? targetTimestamp : TimestampGenerator::getInstance()->getCurrentFrameCount();
+}
+
+/** @brief 当前系统帧号，用于算子输出帧打戳（与输入帧时间戳解耦） */
+inline qint64 currentSystemTimestamp()
+{
+    return TimestampGenerator::getInstance()->getCurrentFrameCount();
 }
 
 /**
@@ -115,7 +133,7 @@ inline bool hasSharedImageBufferInput(const ImageArgs&... imageData)
  */
 inline void ensureSharedOutput(std::shared_ptr<NodeDataTypes::ImageData>& outImageData,
                                std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue>& outBuffer,
-                               int maxSize = 64)
+                               int maxSize = 8)
 {
     NodeDataTypes::ensureImageDataBuffer(outImageData, outBuffer, maxSize);
 }
@@ -139,10 +157,9 @@ inline bool pushOutputFrame(const std::shared_ptr<NodeDataTypes::ImageTimestampR
     if (lastPushedTimestamp == timestamp) {
         return true;
     }
-    NodeDataTypes::ImageFrame frame;
-    frame.image = std::move(image);
-    frame.timestamp = timestamp;
-    const bool pushed = outBuffer->pushFrame(frame);
+    // 上传 GPU 纹理并保留 BGR CPU 副本，供下游 OpenCV 节点避免重复读回
+    NodeDataTypes::ImageFrame frame = NodeDataTypes::ImageFrame::fromMat(image, timestamp);
+    const bool pushed = outBuffer->pushFrame(std::move(frame));
     if (pushed) {
         lastPushedTimestamp = timestamp;
     }
@@ -150,18 +167,43 @@ inline bool pushOutputFrame(const std::shared_ptr<NodeDataTypes::ImageTimestampR
 }
 
 /**
- * @brief 按目标时间戳解析输入图像对应的当前帧，优先从共享环形缓存读取
- * @param imageData 输入图像数据
- * @param targetTimestamp 目标时间戳
- * @param frame 输出帧
- * @return 命中可用图像返回 true
+ * @brief 按目标时间戳解析输入帧（先 normalize，再委托 ImageData API）
  */
-inline bool resolveImageFrameAtTimestamp(const std::shared_ptr<NodeDataTypes::ImageData>& imageData,
-                                         qint64 targetTimestamp,
-                                         NodeDataTypes::ImageFrame& frame)
+inline bool resolveImageFrameAtTargetTimestamp(const std::shared_ptr<NodeDataTypes::ImageData>& imageData,
+                                               qint64 targetTimestamp,
+                                               NodeDataTypes::ImageFrame& frame)
 {
     const qint64 normalizedTimestamp = normalizeTargetTimestamp(targetTimestamp);
     return NodeDataTypes::resolveImageFrameAtTimestamp(imageData, normalizedTimestamp, frame);
+}
+
+/**
+ * @brief 从 ImageFrame 解析 BGR Mat，供 OpenCV 算子使用
+ *
+ * 1. matFromFrame 取 CPU 缓存或 GPU 读回
+ * 2. ensureBgr 按需做 BGRA/灰度 → BGR（缓存阶段不再提前转换）
+ *
+ * OpenCV 算子节点应使用本函数，而非直接读 frame.image。
+ */
+inline cv::Mat resolveBgrMatFromFrame(const NodeDataTypes::ImageFrame& frame,
+                                      QOpenGLFunctions* f = nullptr)
+{
+    return ensureBgr(NodeDataTypes::ImageReadback::matFromFrame(frame, f));
+}
+
+/**
+ * @brief 解析输入帧并取 BGR Mat（优先 CPU 缓存，否则经 ImageGpuUpload 读回纹理）
+ */
+inline bool resolveInputBgrMat(const std::shared_ptr<NodeDataTypes::ImageData>& imageData,
+                               qint64 targetTimestamp,
+                               NodeDataTypes::ImageFrame& frame,
+                               cv::Mat& outMat)
+{
+    if (!resolveImageFrameAtTargetTimestamp(imageData, targetTimestamp, frame) || frame.empty()) {
+        return false;
+    }
+    outMat = resolveBgrMatFromFrame(frame);
+    return !outMat.empty();
 }
 
 /**
@@ -177,13 +219,13 @@ inline bool hasInputImage(const std::shared_ptr<NodeDataTypes::ImageData>& image
         return false;
     }
     NodeDataTypes::ImageFrame frame;
-    return buffer->getLatestFrame(frame) && !frame.image.empty();
+    return buffer->getLatestFrame(frame) && !frame.empty();
 }
 
 /**
  * @brief 为合成/双输入节点解析帧：先按时间戳检索，失败则回退到最新帧
  *
- * 静态背景或更新较慢的输入往往只有旧时间戳；全局 resolveImageFrameAtTimestamp
+ * 静态背景或更新较慢的输入往往只有旧时间戳；ImageData::resolveImageFrameAtTimestamp
  * 在 latest.timestamp > target 时会直接失败，导致整帧合成被清空。
  */
 inline bool resolveInputFrameForOperate(const std::shared_ptr<NodeDataTypes::ImageData>& imageData,
@@ -206,13 +248,13 @@ inline bool resolveInputFrameForOperate(const std::shared_ptr<NodeDataTypes::Ima
         if (candidateTimestamp < 0) {
             break;
         }
-        if (buffer->getFrameByTimestamp(candidateTimestamp, frame) && !frame.image.empty()) {
+        if (buffer->getFrameByTimestamp(candidateTimestamp, frame) && !frame.empty()) {
             return true;
         }
     }
 
     NodeDataTypes::ImageFrame latestFrame;
-    if (buffer->getLatestFrame(latestFrame) && !latestFrame.image.empty()) {
+    if (buffer->getLatestFrame(latestFrame) && !latestFrame.empty()) {
         frame = latestFrame;
         return true;
     }
@@ -236,47 +278,102 @@ inline bool resolveDualInputFramesForOperate(const std::shared_ptr<NodeDataTypes
     }
     const bool okA = resolveInputFrameForOperate(inputA, targetTimestamp, frameA, searchBackRange);
     const bool okB = resolveInputFrameForOperate(inputB, targetTimestamp, frameB, searchBackRange);
-    return okA && okB && !frameA.image.empty() && !frameB.image.empty();
+    return okA && okB && !frameA.empty() && !frameB.empty();
 }
 
-inline void clearDualInputOutput(ImageOperateWorkerQueue& worker,
-                                 const std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue>& outBuffer,
-                                 qint64& lastPushedTimestamp,
-                                 ImageOperateDualTickState& tickState)
+/**
+ * @brief 双路输入：解析帧并取 BGR Mat
+ */
+inline bool resolveDualInputBgrMatsForOperate(const std::shared_ptr<NodeDataTypes::ImageData>& inputA,
+                                              const std::shared_ptr<NodeDataTypes::ImageData>& inputB,
+                                              qint64 targetTimestamp,
+                                              NodeDataTypes::ImageFrame& frameA,
+                                              NodeDataTypes::ImageFrame& frameB,
+                                              cv::Mat& matA,
+                                              cv::Mat& matB,
+                                              qint64 searchBackRange = 64)
 {
-    worker.cancelPending();
-    if (outBuffer) {
-        outBuffer->clear();
+    if (!resolveDualInputFramesForOperate(inputA, inputB, targetTimestamp, frameA, frameB, searchBackRange)) {
+        return false;
     }
-    lastPushedTimestamp = -1;
-    tickState.resetOutputState();
+    matA = resolveBgrMatFromFrame(frameA);
+    matB = resolveBgrMatFromFrame(frameB);
+    return !matA.empty() && !matB.empty();
 }
 
-inline void pushWorkerResult(const std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue>& outBuffer,
-                             cv::Mat&& image,
-                             qint64 outputTimestamp,
-                             qint64& lastPushedTimestamp,
-                             ImageOperateTickState& tickState,
-                             qint64 inputTimestamp)
+// ---------------------------------------------------------------------------
+// GPU pass 辅助（具体 fragment shader 定义在各节点的 {Name}Gpu 命名空间内）
+// ---------------------------------------------------------------------------
+
+/** @brief 将纹理缩放到目标尺寸（尺寸已匹配则零拷贝返回原句柄） */
+inline NodeDataTypes::GpuTextureHandle matchTextureSize(const NodeDataTypes::GpuTextureHandle& src,
+                                                        int outWidth,
+                                                        int outHeight)
 {
-    if (!image.empty()) {
-        pushOutputFrame(outBuffer, std::move(image), outputTimestamp, lastPushedTimestamp);
+    if (!src.valid()) {
+        return {};
     }
-    tickState.markProcessed(inputTimestamp);
+    if (src.width == outWidth && src.height == outHeight) {
+        return src;
+    }
+    return NodeDataTypes::ImageGpuPass::instance().resize(src, outWidth, outHeight);
 }
 
-inline void pushWorkerResultDual(const std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue>& outBuffer,
-                                 cv::Mat&& image,
-                                 qint64 outputTimestamp,
-                                 qint64& lastPushedTimestamp,
-                                 ImageOperateDualTickState& tickState,
-                                 qint64 inputTimestampA,
-                                 qint64 inputTimestampB)
+/** @brief 确保 ImageFrame 含有效 GPU 纹理（必要时从 CPU 缓存上传） */
+inline bool ensureFrameGpuTexture(NodeDataTypes::ImageFrame& frame)
 {
-    if (!image.empty()) {
-        pushOutputFrame(outBuffer, std::move(image), outputTimestamp, lastPushedTimestamp);
+    if (frame.texture.valid()) {
+        return true;
     }
-    tickState.markProcessed(inputTimestampA, inputTimestampB);
+    return frame.ensureGpuTexture();
+}
+
+/** @brief 解析输入帧并保证 texture 可用（支持静态源：精确帧号未命中时回退最新帧） */
+inline bool resolveInputGpuFrame(const std::shared_ptr<NodeDataTypes::ImageData>& imageData,
+                                 qint64 targetTimestamp,
+                                 NodeDataTypes::ImageFrame& frame,
+                                 qint64 searchBackRange = 64)
+{
+    if (!resolveInputFrameForOperate(imageData, targetTimestamp, frame, searchBackRange) || frame.empty()) {
+        return false;
+    }
+    return ensureFrameGpuTexture(frame);
+}
+
+/** @brief 双路输入解析并保证 texture 可用 */
+inline bool resolveDualInputGpuFrames(const std::shared_ptr<NodeDataTypes::ImageData>& inputA,
+                                      const std::shared_ptr<NodeDataTypes::ImageData>& inputB,
+                                      qint64 targetTimestamp,
+                                      NodeDataTypes::ImageFrame& frameA,
+                                      NodeDataTypes::ImageFrame& frameB,
+                                      qint64 searchBackRange = 64)
+{
+    if (!resolveDualInputFramesForOperate(inputA, inputB, targetTimestamp, frameA, frameB, searchBackRange)) {
+        return false;
+    }
+    return ensureFrameGpuTexture(frameA) && ensureFrameGpuTexture(frameB);
+}
+
+/** @brief 将 GPU 纹理写入输出 ring buffer；时间戳为当前系统帧号，不写 CPU 副本 */
+inline void pushGpuResult(const std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue>& outBuffer,
+                          NodeDataTypes::GpuTextureHandle&& texture,
+                          qint64& lastPushedTimestamp)
+{
+    if (!outBuffer || !texture.valid()) {
+        return;
+    }
+    const qint64 outputTimestamp = currentSystemTimestamp();
+    NodeDataTypes::ImageFrame frame = NodeDataTypes::ImageFrame::fromTexture(std::move(texture), outputTimestamp);
+    if (outBuffer->pushFrame(std::move(frame))) {
+        lastPushedTimestamp = outputTimestamp;
+    }
+}
+
+inline void pushGpuResultDual(const std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue>& outBuffer,
+                              NodeDataTypes::GpuTextureHandle&& texture,
+                              qint64& lastPushedTimestamp)
+{
+    pushGpuResult(outBuffer, std::move(texture), lastPushedTimestamp);
 }
 } // namespace ImageOperateHelpers
 } // namespace Nodes

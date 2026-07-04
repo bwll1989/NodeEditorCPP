@@ -19,8 +19,8 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::ScatterSeriesDataModel>("ScatterSeries",tag());
-    reg->registerModel<Nodes::ScatterSingleDataModel>("ScatterSingle",tag());
+    reg->registerModel<Nodes::ScatterSeriesDataModel>("Scatter Series",tag());
+    reg->registerModel<Nodes::ScatterSingleDataModel>("Scatter Single",tag());
 
 
 }

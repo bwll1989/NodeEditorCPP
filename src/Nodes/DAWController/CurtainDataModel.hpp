@@ -65,7 +65,7 @@ namespace Nodes
             OutPortCount = 1; // 输出端口：接收到的信号（解析后）
             CaptionVisible = true;
             PortEditable = false;
-            Caption = "Curtain Controller";
+            Caption = "FT-CurtainController";
             WidgetEmbeddable = false;
             Resizable = false;
             

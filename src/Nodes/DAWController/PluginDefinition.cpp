@@ -3,6 +3,7 @@
 #include "DAWControllerDataModel.hpp"
 #include "CurtainDataModel.hpp"
 #include "FTControlBoxDataModel.hpp"
+#include "PeripProtoServerDataModel.hpp"
 Plugin *Plugin::_this_plugin = nullptr;
 
 Plugin::Plugin()
@@ -19,7 +20,8 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::DAWControllerNode>("DAW Controller",tag());
-    reg->registerModel<Nodes::CurtainDataModel>("Curtain Controller",tag());
+    reg->registerModel<Nodes::DAWControllerNode>("FT-DAWController",tag());
+    reg->registerModel<Nodes::CurtainDataModel>("FT-CurtainController",tag());
     reg->registerModel<Nodes::FTControlBoxDataModel>("FT-ControlBox", tag());
+    reg->registerModel<Nodes::PeripProtoServerDataModel>("FT-LocationProto", tag());
 }

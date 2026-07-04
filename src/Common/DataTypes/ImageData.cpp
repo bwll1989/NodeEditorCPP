@@ -3,116 +3,128 @@
 //
 
 #include "ImageData.h"
-using namespace  NodeDataTypes;
 
+using namespace NodeDataTypes;
 
-ImageData::ImageData(QImage const &image) {
-    if (image.isNull()) return;
-
-    // 转换为OpenCV兼容的BGR格式
-    QImage swapped = image.convertToFormat(QImage::Format_RGB888).rgbSwapped();
-
-    // 创建深拷贝的cv::Mat
-    m_image = cv::Mat(
-        swapped.height(),
-        swapped.width(),
-        CV_8UC3,
-        const_cast<uchar*>(swapped.bits()),
-        static_cast<size_t>(swapped.bytesPerLine())
-    ).clone();
-    NodeValues.insert("default", QVariant::fromValue(m_image));
-}
-
-ImageData::ImageData(QString const &fileName) {
-    // 使用Windows API处理中文路径
-    const std::wstring wpath = fileName.toStdWString();
-    FILE* fp = nullptr;
-    errno_t err = _wfopen_s(&fp, wpath.c_str(), L"rb");
-    if (err == 0 && fp) {
-        // 读取文件内容到内存缓冲区
-        fseek(fp, 0, SEEK_END);
-        const long size = ftell(fp);
-        rewind(fp);
-        std::vector<uchar> buffer(size);
-        fread(buffer.data(), 1, size, fp);
-        fclose(fp);
-
-        // 使用imdecode解码图像
-        m_image = cv::imdecode(buffer, cv::IMREAD_UNCHANGED);
-    } else {
-        qWarning() << "无法打开文件:" << fileName;
-        m_image = cv::Mat();
-    }
-    NodeValues.insert("default", QVariant::fromValue(m_image));
-}
-
-ImageData::ImageData(cv::Mat const &mat) : m_image(cv::Mat(mat))
+ImageData::ImageData()
 {
-    NodeValues.insert("default", QVariant::fromValue(m_image));
+    qRegisterMetaType<ImageData>("ImageData");
 }
 
-QtNodes::NodeDataType ImageData::type() const {
+QtNodes::NodeDataType ImageData::type() const
+{
     return QtNodes::NodeDataType{"image", "image"};
 }
 
-// bool isNull() const { return m_image.isNull(); }
-//
-// bool isGrayScale() const { return m_image.isGrayscale(); }
-//
-// bool hasAlphaChannel() const { return m_image.hasAlphaChannel(); }
-//
-QImage ImageData::image() const {
-    if (m_image.empty()) return QImage();
+void ImageData::setSharedImageBuffer(std::shared_ptr<ImageTimestampRingQueue> buffer)
+{
+    sharedImageBuffer_ = std::move(buffer);
+}
 
-    cv::Mat outputMat;
-    QImage::Format targetFormat = QImage::Format_RGB888;
+std::shared_ptr<ImageTimestampRingQueue> ImageData::getSharedImageBuffer() const
+{
+    return sharedImageBuffer_;
+}
 
-    // 根据通道数处理颜色转换
-    if (m_image.channels() == 4) {
-        cv::cvtColor(m_image, outputMat, cv::COLOR_BGRA2RGBA);
-        targetFormat = QImage::Format_RGBA8888;
-    } else {
-        cv::cvtColor(m_image, outputMat, cv::COLOR_BGR2RGB);
+bool ImageData::isConnectedToSharedBuffer() const
+{
+    return sharedImageBuffer_ != nullptr;
+}
+
+void ImageData::disconnect()
+{
+    sharedImageBuffer_.reset();
+}
+
+bool ImageData::isEmpty() const
+{
+    if (!isConnectedToSharedBuffer()) {
+        return true;
+    }
+    ImageFrame frame;
+    return !sharedImageBuffer_->getLatestFrame(frame) || frame.empty();
+}
+
+void NodeDataTypes::ensureImageDataBuffer(std::shared_ptr<ImageData>& outImageData,
+                                          std::shared_ptr<ImageTimestampRingQueue>& outBuffer,
+                                          int maxSize)
+{
+    // buffer 与 ImageData 分开持有：节点可同时访问 buffer（push）与 ImageData（outData 返回）
+    if (!outBuffer) {
+        outBuffer = std::make_shared<ImageTimestampRingQueue>(maxSize);
+    }
+    if (!outImageData) {
+        outImageData = std::make_shared<ImageData>();
+    }
+    outImageData->setSharedImageBuffer(outBuffer);
+}
+
+bool NodeDataTypes::usesSharedImageBuffer(const std::shared_ptr<ImageData>& imageData)
+{
+    return imageData && imageData->isConnectedToSharedBuffer();
+}
+
+bool NodeDataTypes::imageDataIsEmpty(const std::shared_ptr<ImageData>& imageData)
+{
+    if (!imageData) {
+        return true;
+    }
+    return imageData->isEmpty();
+}
+
+bool NodeDataTypes::getLatestImageFrame(const std::shared_ptr<ImageData>& imageData, ImageFrame& frame)
+{
+    frame = ImageFrame();
+    if (!imageData || !imageData->isConnectedToSharedBuffer()) {
+        return false;
+    }
+    const auto buffer = imageData->getSharedImageBuffer();
+    if (!buffer) {
+        return false;
+    }
+    return buffer->getLatestFrame(frame) && !frame.empty();
+}
+
+bool NodeDataTypes::resolveImageFrameAtTimestamp(const std::shared_ptr<ImageData>& imageData,
+                                                 qint64 targetTimestamp,
+                                                 ImageFrame& frame)
+{
+    frame = ImageFrame();
+    if (!imageData || !imageData->isConnectedToSharedBuffer()) {
+        return false;
     }
 
-    return QImage(
-        outputMat.data,
-        outputMat.cols,
-        outputMat.rows,
-        static_cast<int>(outputMat.step),
-        targetFormat
-    ).copy();
+    const auto buffer = imageData->getSharedImageBuffer();
+    if (!buffer) {
+        return false;
+    }
+
+    return buffer->getFrameByTimestamp(targetTimestamp, frame) && !frame.empty();
 }
 
-QPixmap ImageData::pixmap() const {
-    return QPixmap::fromImage(image());
+bool NodeDataTypes::pushFrameToImageBufferDedup(const std::shared_ptr<ImageTimestampRingQueue>& buffer,
+                                                ImageFrame&& frame,
+                                                qint64& lastPushedTimestamp)
+{
+    if (!buffer || frame.empty() || frame.timestamp < 0) {
+        return false;
+    }
+    // 同一 tick 已 push 过则跳过（返回 true 表示"无需再处理"）
+    if (lastPushedTimestamp == frame.timestamp) {
+        return true;
+    }
+    const bool pushed = buffer->pushFrame(frame);
+    if (pushed) {
+        lastPushedTimestamp = frame.timestamp;
+    }
+    return pushed;
 }
 
-cv::Mat ImageData::imgMat() const {
-    return m_image.clone();
-}
-
-/**
- * @brief 以只读引用形式返回内部图像矩阵（避免深拷贝）
- */
-const cv::Mat& ImageData::mat() const {
-    return m_image;
-}
-bool ImageData::hasKey(const QString &key) const {
-    return NodeValues.contains(key);
-}
-
-bool ImageData::isEmpty() const {
-    return NodeValues.isEmpty();
-}
-
-QVariant ImageData::value(const QString &key ) const {
-    return hasKey(key) ? NodeValues.value(key) : QVariant();
-}
-QVariantMap ImageData::getMap() {
-    NodeValues.insert("width", QVariant::fromValue(m_image.size().width));
-    NodeValues.insert("height", QVariant::fromValue(m_image.size().height));
-    NodeValues.insert("isNull", isEmpty());
-    NodeValues.insert("channels", QVariant::fromValue(m_image.channels()));
-    return NodeValues;
+bool NodeDataTypes::pushFrameToImageBufferDedup(const std::shared_ptr<ImageTimestampRingQueue>& buffer,
+                                                cv::Mat&& image,
+                                                qint64 timestamp,
+                                                qint64& lastPushedTimestamp)
+{
+    return pushFrameToImageBufferDedup(
+        buffer, ImageFrame::fromMat(std::move(image), timestamp), lastPushedTimestamp);
 }

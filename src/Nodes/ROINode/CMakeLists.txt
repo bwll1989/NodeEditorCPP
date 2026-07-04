@@ -12,6 +12,8 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 
 add_library(${Module_Name} SHARED
         ROIDataModel.hpp
+        ROICommon.hpp
+        ROIGpu.hpp
         ROIInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp

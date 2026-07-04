@@ -1,5 +1,13 @@
 #pragma once
 
+/**
+ * @file ChromaKeyImageOperateModel.hpp
+ * @brief Image Chroma Key — 色相区间抠像（输出 BGRA）
+ *
+ * Shader 在 RGB→Hue 空间判断 keyAlpha，支持 hue 环绕与 soft 过渡带。
+ * 输入 alpha 与抠像 alpha 相乘。
+ */
+
 #include "ImageOperateCommon.hpp"
 #include "NodeDataList.hpp"
 
@@ -7,10 +15,10 @@
 #include <QtCore/QObject>
 #include <QtNodes/NodeDelegateModel>
 
-#include <opencv2/imgproc.hpp>
-
 #include <algorithm>
-#include <array>
+
+#include <QOpenGLFunctions>
+#include <QOpenGLShaderProgram>
 
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
@@ -23,6 +31,80 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
+namespace ChromaKeyImageOperateGpu
+{
+static const char kFragChromaKey[] = R"(
+uniform sampler2D uTexture;
+uniform float uHueMin;
+uniform float uHueMax;
+uniform float uSoftLow;
+uniform float uSoftHigh;
+varying vec2 vTexCoord;
+
+float rgb2hue(vec3 bgr) {
+    float maxc = max(max(bgr.r, bgr.g), bgr.b);
+    float minc = min(min(bgr.r, bgr.g), bgr.b);
+    if (maxc - minc < 0.00001) return 0.0;
+    float h;
+    if (maxc == bgr.r) h = mod((bgr.g - bgr.b) / (maxc - minc), 6.0);
+    else if (maxc == bgr.g) h = (bgr.b - bgr.r) / (maxc - minc) + 2.0;
+    else h = (bgr.r - bgr.g) / (maxc - minc) + 4.0;
+    h *= 60.0;
+    if (h < 0.0) h += 360.0;
+    return h;
+}
+
+float keyAlpha(float hueDeg) {
+    float intervalMax = uHueMax;
+    if (intervalMax < uHueMin) intervalMax += 360.0;
+    if ((intervalMax - uHueMin) >= 360.0) return 0.0;
+    float alpha = 1.0;
+    for (int k = -1; k <= 1; ++k) {
+        float candidate = hueDeg + float(k) * 360.0;
+        if (candidate >= uHueMin && candidate <= intervalMax) return 0.0;
+        if (candidate < uHueMin && uSoftLow > 0.0 && candidate >= uHueMin - uSoftLow) {
+            alpha = min(alpha, (uHueMin - candidate) / uSoftLow);
+        } else if (candidate > intervalMax && uSoftHigh > 0.0 && candidate <= intervalMax + uSoftHigh) {
+            alpha = min(alpha, (candidate - intervalMax) / uSoftHigh);
+        }
+    }
+    return alpha;
+}
+
+void main() {
+    vec4 c = texture2D(uTexture, vTexCoord);
+    vec3 bgr = vec3(c.b, c.g, c.r);
+    float hue = rgb2hue(bgr);
+    float a = keyAlpha(hue);
+    gl_FragColor = vec4(c.rgb, c.a * a);
+}
+)";
+
+inline GpuTextureHandle run(const GpuTextureHandle& src,
+                            double hueMin,
+                            double hueMax,
+                            double softLow,
+                            double softHigh)
+{
+    if (!src.valid()) {
+        return {};
+    }
+    return ImageGpuPass::instance().runFragmentPass(
+        src.width,
+        src.height,
+        kFragChromaKey,
+        [=](QOpenGLShaderProgram& program) {
+            program.setUniformValue("uTexture", 0);
+            program.setUniformValue("uHueMin", static_cast<float>(hueMin));
+            program.setUniformValue("uHueMax", static_cast<float>(hueMax));
+            program.setUniformValue("uSoftLow", static_cast<float>(softLow));
+            program.setUniformValue("uSoftHigh", static_cast<float>(softHigh));
+        },
+        [&](QOpenGLFunctions* f) { ImageGpuPass::bindTexture(f, 0, src.textureId); });
+}
+} // namespace ChromaKeyImageOperateGpu
+
+/** @brief 色相抠像 — 单输入 GPU 算子，输出带 alpha */
 class ChromaKeyImageOperateModel final : public AbstractDelegateModel
 {
     Q_OBJECT
@@ -64,22 +146,15 @@ public:
         }
 
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        m_worker.setParent(this);
-        m_worker.setFinishedCallback([this](cv::Mat&& image, qint64 outputTimestamp, qint64 inputTimestamp, std::uint64_t) {
-            ImageOperateHelpers::pushWorkerResult(
-                m_outBuffer, std::move(image), outputTimestamp, m_lastPushedTimestamp, m_tick, inputTimestamp);
-        });
 
         connect(TimestampGenerator::getInstance(),
                 &TimestampGenerator::frameCountUpdated,
                 this,
                 [this](qint64 frameCount) {
-                    if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
+                    if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
                         return;
                     }
-                    if (!m_tick.beginFrameTick(frameCount)) {
-                        return;
-                    }
+                    m_lastRequestedFrame = frameCount;
                     requestProcess(frameCount);
                 },
                 Qt::QueuedConnection);
@@ -127,13 +202,9 @@ public:
         case 0:
             m_inImage = std::dynamic_pointer_cast<ImageData>(data);
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            if (m_inImage) {
-                m_tick.markInputConnected();
-                Q_EMIT dataUpdated(0);
-                if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImage)) {
-                    requestProcess();
-                }
-            }
+            m_lastProcessedInputTimestamp = -1;
+            m_paramsDirty = true;
+            Q_EMIT dataUpdated(0);
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
@@ -198,7 +269,7 @@ public slots:
             return;
         }
         m_hueMin = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT hueMinChanged(m_hueMin);
     }
 
@@ -209,7 +280,7 @@ public slots:
             return;
         }
         m_hueMax = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT hueMaxChanged(m_hueMax);
     }
 
@@ -220,7 +291,7 @@ public slots:
             return;
         }
         m_hueSoftLow = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT hueSoftLowChanged(m_hueSoftLow);
     }
 
@@ -231,7 +302,7 @@ public slots:
             return;
         }
         m_hueSoftHigh = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT hueSoftHighChanged(m_hueSoftHigh);
     }
 
@@ -279,145 +350,53 @@ private:
         return std::clamp(value, 0.0, 360.0);
     }
 
-    static uchar computeAlpha(double hueDegrees, double hueMin, double hueMax, double softLow, double softHigh)
+    void clearOutput()
     {
-        double intervalMin = hueMin;
-        double intervalMax = hueMax;
-        if (intervalMax < intervalMin) {
-            intervalMax += 360.0;
+        if (m_outBuffer) {
+            m_outBuffer->clear();
         }
-
-        if ((intervalMax - intervalMin) >= 360.0) {
-            return 0;
-        }
-
-        double alpha = 255.0;
-        const std::array<double, 3> candidates {hueDegrees - 360.0, hueDegrees, hueDegrees + 360.0};
-
-        for (double candidate : candidates) {
-            if (candidate >= intervalMin && candidate <= intervalMax) {
-                return 0;
-            }
-
-            if (candidate < intervalMin && softLow > 0.0 && candidate >= intervalMin - softLow) {
-                const double t = (intervalMin - candidate) / softLow;
-                alpha = std::min(alpha, t * 255.0);
-            } else if (candidate > intervalMax && softHigh > 0.0 && candidate <= intervalMax + softHigh) {
-                const double t = (candidate - intervalMax) / softHigh;
-                alpha = std::min(alpha, t * 255.0);
-            }
-        }
-
-        return static_cast<uchar>(std::clamp(alpha, 0.0, 255.0));
-    }
-
-    static void splitColorAndAlpha(const cv::Mat& input, cv::Mat& bgr, cv::Mat& baseAlpha)
-    {
-        cv::Mat normalized = ImageOperateHelpers::normalizeTo8Bit(input);
-        if (normalized.empty()) {
-            bgr.release();
-            baseAlpha.release();
-            return;
-        }
-
-        if (normalized.channels() == 4) {
-            std::vector<cv::Mat> channels;
-            cv::split(normalized, channels);
-            baseAlpha = channels[3].clone();
-            cv::cvtColor(normalized, bgr, cv::COLOR_BGRA2BGR);
-            return;
-        }
-
-        bgr = ImageOperateHelpers::ensureBgr(normalized);
-        baseAlpha = cv::Mat(bgr.rows, bgr.cols, CV_8UC1, cv::Scalar(255));
-    }
-
-    static cv::Mat applyChromaKey(const cv::Mat& input,
-                                  double hueMin,
-                                  double hueMax,
-                                  double hueSoftLow,
-                                  double hueSoftHigh)
-    {
-        cv::Mat bgr;
-        cv::Mat baseAlpha;
-        splitColorAndAlpha(input, bgr, baseAlpha);
-        if (bgr.empty() || baseAlpha.empty()) {
-            return cv::Mat();
-        }
-
-        cv::Mat hsv;
-        cv::cvtColor(bgr, hsv, cv::COLOR_BGR2HSV);
-
-        cv::Mat alpha = cv::Mat::zeros(hsv.rows, hsv.cols, CV_8UC1);
-        for (int y = 0; y < hsv.rows; ++y) {
-            const auto* hsvRow = hsv.ptr<cv::Vec3b>(y);
-            const auto* baseAlphaRow = baseAlpha.ptr<uchar>(y);
-            auto* alphaRow = alpha.ptr<uchar>(y);
-            for (int x = 0; x < hsv.cols; ++x) {
-                const double hueDegrees = static_cast<double>(hsvRow[x][0]) * 2.0;
-                const uchar maskAlpha = computeAlpha(hueDegrees, hueMin, hueMax, hueSoftLow, hueSoftHigh);
-                alphaRow[x] = static_cast<uchar>((static_cast<int>(baseAlphaRow[x]) * static_cast<int>(maskAlpha)) / 255);
-            }
-        }
-
-        cv::Mat output;
-        cv::cvtColor(bgr, output, cv::COLOR_BGR2BGRA);
-        std::vector<cv::Mat> channels;
-        cv::split(output, channels);
-        channels[3] = alpha;
-        cv::merge(channels, output);
-        return output;
+        m_lastPushedTimestamp = -1;
+        m_lastProcessedInputTimestamp = -1;
+        m_paramsDirty = false;
     }
 
     void requestProcess(qint64 targetTimestamp = -1)
     {
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        const qint64 outputTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
+        const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
 
-        if (imageDataIsEmpty(m_inImage)) {
-            m_worker.cancelPending();
-            if (m_outBuffer) {
-                m_outBuffer->clear();
-            }
-            m_lastPushedTimestamp = -1;
-            m_tick.resetOutputState();
+        if (!m_inImage || imageDataIsEmpty(m_inImage)) {
+            clearOutput();
             return;
         }
 
         ImageFrame inputFrame;
-        if (!ImageOperateHelpers::resolveImageFrameAtTimestamp(m_inImage, outputTimestamp, inputFrame) ||
-            inputFrame.image.empty()) {
-            m_worker.cancelPending();
-            if (m_outBuffer) {
-                m_outBuffer->clear();
+        if (!ImageOperateHelpers::resolveInputGpuFrame(m_inImage, lookupTimestamp, inputFrame)) {
+            if (!ImageOperateHelpers::hasInputImage(m_inImage)) {
+                clearOutput();
             }
-            m_lastPushedTimestamp = -1;
             return;
         }
 
-        if (!m_tick.shouldProcess(inputFrame.timestamp)) {
+        if (!m_paramsDirty && inputFrame.timestamp == m_lastProcessedInputTimestamp) {
             return;
         }
 
-        const double hueMin = m_hueMin;
-        const double hueMax = m_hueMax;
-        const double hueSoftLow = m_hueSoftLow;
-        const double hueSoftHigh = m_hueSoftHigh;
+        GpuTextureHandle out = ChromaKeyImageOperateGpu::run(
+            inputFrame.texture, m_hueMin, m_hueMax, m_hueSoftLow, m_hueSoftHigh);
+        ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp);
 
-        m_worker.submit(
-            [input = inputFrame.image.clone(), hueMin, hueMax, hueSoftLow, hueSoftHigh]() {
-                return applyChromaKey(input, hueMin, hueMax, hueSoftLow, hueSoftHigh);
-            },
-            outputTimestamp,
-            inputFrame.timestamp);
+        m_lastProcessedInputTimestamp = inputFrame.timestamp;
+        m_paramsDirty = false;
     }
 
     std::shared_ptr<ImageData> m_inImage;
     std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
     std::shared_ptr<ImageData> m_outImageData;
-    ImageOperateHelpers::ImageOperateWorkerQueue m_worker;
-    ImageOperateHelpers::ImageOperateTickState m_tick;
+    qint64 m_lastRequestedFrame = -1;
+    qint64 m_lastProcessedInputTimestamp = -1;
     qint64 m_lastPushedTimestamp = -1;
+    bool m_paramsDirty = false;
     double m_hueMin = 80.0;
     double m_hueMax = 160.0;
     double m_hueSoftLow = 10.0;

@@ -5,13 +5,18 @@
 #include "RtspStreamReceiver.h"
 
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
 #include "StatusContainer/GlobalEventBus.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 
 #include <QtCore/QObject>
 #include <QtCore/QTimer>
+#include <QtCore/QMutex>
 #include <QtCore/QMetaType>
 #include <QJsonObject>
+#include <QPointer>
 #include <QSignalBlocker>
+#include <atomic>
 #include <opencv2/opencv.hpp>
 
 using QtNodes::ConnectionPolicy;
@@ -51,6 +56,9 @@ namespace Nodes
             Resizable = false;
             PortEditable = false;
 
+            qRegisterMetaType<cv::Mat>("cv::Mat");
+            ensureImageDataBuffer(m_outputImageData, m_outputBuffer);
+
             m_widget->m_urlEdit->setText(m_url);
 
             {
@@ -78,35 +86,36 @@ namespace Nodes
                     this, &RTSPInDataModel::onErrorOccurred, Qt::QueuedConnection);
 
             connect(this, &RTSPInDataModel::urlChanged, this, [this](const QString& value) {
-                QSignalBlocker blocker(m_widget->m_urlEdit);
-                m_widget->m_urlEdit->setText(value);
+                if (RTSPInInterface* widget = m_widget.data()) {
+                    QSignalBlocker blocker(widget->m_urlEdit);
+                    widget->m_urlEdit->setText(value);
+                }
             });
             connect(this, &RTSPInDataModel::enableChanged, this, [this](bool value) {
-                QSignalBlocker blocker(m_widget->m_startStopButton);
-                m_widget->m_startStopButton->setChecked(value);
+                if (RTSPInInterface* widget = m_widget.data()) {
+                    QSignalBlocker blocker(widget->m_startStopButton);
+                    widget->m_startStopButton->setChecked(value);
+                }
             });
         }
 
         ~RTSPInDataModel() override
         {
+            m_shuttingDown.store(true);
+            GlobalEventBus::instance()->unsubscribe(this);
+
+            setEnable(false);
+
             if (m_receiver) {
                 disconnect(m_receiver, nullptr, this, nullptr);
                 m_receiver->stop();
             }
 
-            GlobalEventBus::instance()->unsubscribe(this);
-
-            if (m_widget) {
-                m_widget->blockSignals(true);
-                if (m_widget->m_urlEdit) {
-                    m_widget->m_urlEdit->blockSignals(true);
-                }
-                if (m_widget->m_startStopButton) {
-                    m_widget->m_startStopButton->blockSignals(true);
-                }
+            m_uploadScheduled.store(false);
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                m_pendingFrame.release();
             }
-
-            m_isReceiving = false;
         }
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -166,7 +175,7 @@ namespace Nodes
 
         QWidget* embeddedWidget() override
         {
-            return m_widget;
+            return m_widget.data();
         }
 
         QJsonObject save() const override
@@ -193,7 +202,11 @@ namespace Nodes
                 setUrl(values["url"].toString());
             }
             if (values.contains("enable") && values["enable"].toBool()) {
-                QTimer::singleShot(500, this, [this]() { setEnable(true); });
+                QTimer::singleShot(500, this, [self = QPointer<RTSPInDataModel>(this)]() {
+                    if (self && !self->m_shuttingDown.load()) {
+                        self->setEnable(true);
+                    }
+                });
             }
         }
 
@@ -201,6 +214,9 @@ namespace Nodes
 
         void setUrl(const QString& value)
         {
+            if (m_shuttingDown.load()) {
+                return;
+            }
             const QString trimmed = value.trimmed();
             if (m_url == trimmed) {
                 return;
@@ -217,6 +233,9 @@ namespace Nodes
 
         void setEnable(bool value)
         {
+            if (m_shuttingDown.load()) {
+                return;
+            }
             if (m_isReceiving == value) {
                 return;
             }
@@ -224,19 +243,34 @@ namespace Nodes
             if (value) {
                 if (m_url.trimmed().isEmpty()) {
                     onErrorOccurred(QStringLiteral("RTSP 地址不能为空"));
-                    if (m_widget && m_widget->m_startStopButton) {
-                        QSignalBlocker blocker(m_widget->m_startStopButton);
-                        m_widget->m_startStopButton->setChecked(false);
+                    if (RTSPInInterface* widget = m_widget.data()) {
+                        if (widget->m_startStopButton) {
+                            QSignalBlocker blocker(widget->m_startStopButton);
+                            widget->m_startStopButton->setChecked(false);
+                        }
                     }
                     return;
                 }
-                m_receiver->start(m_url);
+                if (m_receiver) {
+                    m_receiver->start(m_url);
+                }
                 m_isReceiving = true;
             } else {
-                m_receiver->stop();
+                if (m_receiver) {
+                    m_receiver->stop();
+                }
                 m_isReceiving = false;
-                if (m_widget) {
-                    m_widget->updateConnectionStatus(false);
+                m_uploadScheduled.store(false);
+                {
+                    QMutexLocker locker(&m_pendingMutex);
+                    m_pendingFrame.release();
+                }
+                if (m_outputBuffer) {
+                    m_outputBuffer->clear();
+                }
+                m_lastPushedTimestamp = -1;
+                if (RTSPInInterface* widget = m_widget.data()) {
+                    widget->updateConnectionStatus(false);
                 }
             }
 
@@ -250,6 +284,8 @@ namespace Nodes
     protected:
         void afterModelReady() override
         {
+            AbstractDelegateModel::afterModelReady();
+            ImageGpuUpload::instance().warmup();
             GlobalEventBus::instance()->subscribe(makeFullOscAddress("/url"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
@@ -257,41 +293,90 @@ namespace Nodes
     private Q_SLOTS:
         void onFrameReceived(const cv::Mat& frame)
         {
-            if (frame.empty()) {
+            if (m_shuttingDown.load() || !m_isReceiving || frame.empty()) {
                 return;
             }
-            m_outputImageData = std::make_shared<ImageData>(frame);
-            Q_EMIT dataUpdated(0);
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                m_pendingFrame = frame;
+            }
+            scheduleUploadIfNeeded();
+        }
+
+        /** GUI 线程：RTSP 帧 → GPU 纹理 + CPU 缓存 → 输出 ring buffer */
+        void publishPendingFrame()
+        {
+            m_uploadScheduled.store(false);
+
+            if (m_shuttingDown.load() || !m_isReceiving) {
+                return;
+            }
+
+            cv::Mat mat;
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                mat = std::move(m_pendingFrame);
+            }
+
+            if (!m_outputBuffer || mat.empty()) {
+                return;
+            }
+
+            ensureImageDataBuffer(m_outputImageData, m_outputBuffer);
+            const qint64 timestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
+            ImageFrame imageFrame = ImageFrame::fromMat(std::move(mat), timestamp);
+            if (!imageFrame.texture.valid()) {
+                qWarning() << "RTSP In: GPU upload failed";
+                return;
+            }
+
+            pushFrameToImageBufferDedup(m_outputBuffer, std::move(imageFrame), m_lastPushedTimestamp);
+
+            bool hasPending = false;
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                hasPending = !m_pendingFrame.empty();
+            }
+            if (hasPending && !m_shuttingDown.load() && m_isReceiving) {
+                scheduleUploadIfNeeded();
+            }
         }
 
         void onConnectionStatusChanged(bool connected)
         {
-            if (!m_widget) {
+            if (m_shuttingDown.load()) {
+                return;
+            }
+            RTSPInInterface* widget = m_widget.data();
+            if (!widget) {
                 return;
             }
 
             if (connected) {
-                m_widget->updateConnectionStatus(true);
+                widget->updateConnectionStatus(true);
                 return;
             }
 
             if (m_isReceiving) {
-                m_widget->showError(QStringLiteral("RTSP 连接中断，正在重连..."));
+                widget->showError(QStringLiteral("RTSP 连接中断，正在重连..."));
             } else {
-                m_widget->updateConnectionStatus(false);
+                widget->updateConnectionStatus(false);
             }
         }
 
         void onErrorOccurred(const QString& message)
         {
-            if (m_widget) {
-                m_widget->showError(message);
+            if (m_shuttingDown.load()) {
+                return;
+            }
+            if (RTSPInInterface* widget = m_widget.data()) {
+                widget->showError(message);
             }
         }
 
         void onGlobalEvent(const GlobalEvent& ev)
         {
-            if (ev.kind != GlobalEventKind::Command) {
+            if (m_shuttingDown.load() || ev.kind != GlobalEventKind::Command) {
                 return;
             }
 
@@ -304,9 +389,28 @@ namespace Nodes
         }
 
     private:
-        RTSPInInterface* m_widget = nullptr;
+        void scheduleUploadIfNeeded()
+        {
+            if (m_shuttingDown.load() || !m_isReceiving) {
+                return;
+            }
+            if (!m_uploadScheduled.exchange(true)) {
+                QMetaObject::invokeMethod(this, "publishPendingFrame", Qt::QueuedConnection);
+            }
+        }
+
+        QPointer<RTSPInInterface> m_widget;
         RtspStreamReceiver* m_receiver = nullptr;
+
         std::shared_ptr<ImageData> m_outputImageData;
+        std::shared_ptr<ImageTimestampRingQueue> m_outputBuffer;
+        qint64 m_lastPushedTimestamp = -1;
+
+        QMutex m_pendingMutex;
+        cv::Mat m_pendingFrame;
+        std::atomic<bool> m_uploadScheduled{false};
+        std::atomic<bool> m_shuttingDown{false};
+
         QString m_url = QStringLiteral("rtsp://127.0.0.1:8554/live");
         bool m_isReceiving = false;
     };

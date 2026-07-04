@@ -23,6 +23,16 @@ set(DataTypes_sources
         TimestampRingQueueLockFree.hpp
         AudioData.h
         AudioData.cpp
+        GpuTextureHandle.h
+        GpuTextureHandle.cpp
+        ImageGpuUpload.h
+        ImageGpuUpload.cpp
+        ImageGpuPass.h
+        ImageGpuPass.cpp
+        ImageReadback.h
+        ImageReadback.cpp
+        ImageTimestampRingQueue.cpp
+        ImageTimestampRingQueue.h
         ImageData.h
         ImageData.cpp
         NodeDataList.hpp
@@ -37,13 +47,15 @@ set(DataTypes_sources
 add_library(DataTypes SHARED ${DataTypes_sources})
 
 # 链接 Qt 和 QtNodes（QtNodes_LIBRARIES 在主工程中全局设置）
-target_link_libraries(DataTypes PRIVATE
-    Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Gui
-    Qt${QT_VERSION_MAJOR}::Widgets
-    Qt${QT_VERSION_MAJOR}::OpenGL
-    ${OpenCV_LIBRARIES}
-    ${QtNodes_LIBRARIES}
+target_link_libraries(DataTypes
+    PUBLIC
+        Qt${QT_VERSION_MAJOR}::Core
+        Qt${QT_VERSION_MAJOR}::Gui
+    PRIVATE
+        Qt${QT_VERSION_MAJOR}::Widgets
+        Qt${QT_VERSION_MAJOR}::OpenGL
+        ${OpenCV_LIBRARIES}
+        ${QtNodes_LIBRARIES}
 )
 
 # 暴露包含目录；INSTALL_INTERFACE 供 FlowSDK install(EXPORT) 使用

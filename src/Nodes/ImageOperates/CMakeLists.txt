@@ -13,11 +13,17 @@ add_library(${Module_Name} SHARED
         ImageOperateCommon.hpp
         FlipImageOperateModel.hpp
         CrossImageOperateModel.hpp
+        AddImageOperateModel.hpp
+        SubtractImageOperateModel.hpp
         DifferenceImageOperateModel.hpp
         BlurImageOperateModel.hpp
         CropImageOperateModel.hpp
         ChromaKeyImageOperateModel.hpp
         UnderImageOperateModel.hpp
+        OverImageOperateModel.hpp
+        MonochromeImageOperateModel.hpp
+        LevelImageOperateModel.hpp
+        ChannelImageOperateModel.hpp
         ImageSwitchDataModel.hpp
         ImageThresholdDataModel.hpp
         ImageScaleDataModel.hpp
@@ -30,6 +36,7 @@ add_library(${Module_Name} SHARED
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Network
+        Qt${QT_VERSION_MAJOR}::OpenGL
         ${QtNodes_LIBRARIES}
         ${OpenCV_LIBRARIES}
         PropertyTreeWidget

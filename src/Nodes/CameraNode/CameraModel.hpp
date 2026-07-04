@@ -1,65 +1,64 @@
 //
-// Created by pablo on 3/9/24.
-// Modified to use OpenCV for better performance with threading
+// CameraModel.hpp — OpenCV 摄像头采集 → ImageTimestampRingQueue
 //
-#pragma once
-#include <QtNodes/NodeDelegateModel>
-#include <QFutureWatcher>
-#include <QTimer>
-#include <QVariant>
-#include <QDebug>
-#include <QThread>
-#include <QMutex>
-#include <QPointer>
+// 数据流：
+//   CameraCaptureThread (OpenCV VideoCapture::read)
+//     → frameAvailable(cv::Mat)  [QueuedConnection → GUI 线程]
+//     → pending 合并 → ImageFrame::fromMat → pushFrame
+//   m_outImageData ──共享句柄──→ 下游 Display / ImageOperates
+//   下游按 TimestampGenerator tick 调用 getLatestFrame()，无需每帧 dataUpdated
+//
 
+#pragma once
+
+#include <QtNodes/NodeDelegateModel>
+#include <QComboBox>
+#include <QDebug>
 #include <QMediaDevices>
 #include <QCameraDevice>
-#include <QList>
-#include "Common/DataTypes/NodeDataList.hpp"
-#include "ui_CameraForm.h"
+#include <QMutex>
+#include <QPointer>
+#include <QScopedPointer>
+#include <QThread>
+#include <QVariant>
+
+#include <atomic>
 
 #include <opencv2/opencv.hpp>
 #include <opencv2/videoio.hpp>
-#include <vector>
+
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
+#include "Common/DataTypes/NodeDataList.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
+#include "ui_CameraForm.h"
+
 namespace Ui {
-    class CameraForm;
+class CameraForm;
 }
 
-class QLabel;
-class QComboBox;
 using namespace NodeDataTypes;
 
 /**
- * @brief 摄像头捕获线程类
- * 在单独的线程中运行摄像头捕获，避免阻塞主UI线程
+ * @brief 摄像头捕获线程 — OpenCV VideoCapture 在独立线程中 read()
  */
 class CameraCaptureThread : public QThread {
     Q_OBJECT
 
 public:
-    /**
-     * @brief 构造函数
-     * @param parent 父对象
-     */
     explicit CameraCaptureThread(QObject* parent = nullptr)
-        : QThread(parent), m_running(false), m_deviceIndex(-1) {}
+        : QThread(parent)
+        , m_deviceIndex(-1)
+    {}
 
-    /**
-     * @brief 析构函数，确保线程安全退出
-     */
-    ~CameraCaptureThread() override {
+    ~CameraCaptureThread() override
+    {
         stop();
-        wait(); // 等待线程结束
+        wait();
     }
 
-    /**
-     * @brief 启动摄像头捕获线程
-     * @param deviceIndex 摄像头设备索引
-     */
-    void startCapture(int deviceIndex) {
-        // 如果线程已经在运行，先停止它
-        // 注意：不要在这里持有互斥锁，否则wait()会死锁（因为run()中退出需要获取锁）
+    void startCapture(int deviceIndex)
+    {
         if (isRunning()) {
             stop();
             wait();
@@ -67,404 +66,312 @@ public:
 
         QMutexLocker locker(&m_mutex);
         m_deviceIndex = deviceIndex;
-        m_running = true;
-        
-        // 启动线程
-        start(QThread::HighPriority); // 以高优先级启动线程
+        m_running.store(true);
+        start(QThread::HighPriority);
     }
 
-    /**
-     * @brief 停止摄像头捕获线程
-     */
-    void stop() {
+    void stop()
+    {
         QMutexLocker locker(&m_mutex);
-        m_running = false;
-        // m_condition.wakeOne(); // 唤醒线程，使其能够检查m_running并退出
+        m_running.store(false);
     }
 
 signals:
-    /**
-     * @brief 当新帧可用时发出信号
-     * @param frame 捕获的帧
-     */
     void frameAvailable(const cv::Mat& frame);
-    
-    /**
-     * @brief 当捕获状态改变时发出信号
-     * @param isCapturing 是否正在捕获
-     */
     void captureStateChanged(bool isCapturing);
 
 protected:
-    /**
-     * @brief 线程执行函数
-     */
-    void run() override {
+    void run() override
+    {
         cv::VideoCapture capture;
         bool captureOpened = false;
-        
-        // 尝试打开摄像头
+
         {
             QMutexLocker locker(&m_mutex);
             try {
-                capture.open(m_deviceIndex);
-
+                capture.open(m_deviceIndex, cv::CAP_ANY);
                 if (capture.isOpened()) {
-                    // 显式设置分辨率为 3840x2160
-                    // 如果不设置，OpenCV 默认通常使用 640x480
-                    capture.set(cv::CAP_PROP_FRAME_WIDTH, 3840);
-                    capture.set(cv::CAP_PROP_FRAME_HEIGHT, 2160);
+                    // 请求常见分辨率；实际以设备支持为准
+                    capture.set(cv::CAP_PROP_FRAME_WIDTH, 1920);
+                    capture.set(cv::CAP_PROP_FRAME_HEIGHT, 1080);
                 }
-
                 captureOpened = capture.isOpened();
                 emit captureStateChanged(captureOpened);
             } catch (const cv::Exception& e) {
-                qWarning() << "OpenCV异常(打开摄像头): " << e.what();
-                emit captureStateChanged(false);
-                return;
-            } catch (const std::exception& e) {
-                qWarning() << "标准异常(打开摄像头): " << e.what();
-                emit captureStateChanged(false);
-                return;
-            } catch (...) {
-                qWarning() << "未知异常(打开摄像头)";
+                qWarning() << "OpenCV exception (open camera):" << e.what();
                 emit captureStateChanged(false);
                 return;
             }
         }
-        
+
         if (!captureOpened) {
-            qWarning() << "无法在线程中打开摄像头设备 " << m_deviceIndex;
+            qWarning() << "Failed to open camera device" << m_deviceIndex;
             return;
         }
-        
-        // 获取摄像头实际参数
-        double actualWidth = capture.get(cv::CAP_PROP_FRAME_WIDTH);
-        double actualHeight = capture.get(cv::CAP_PROP_FRAME_HEIGHT);
-        double actualFps = capture.get(cv::CAP_PROP_FPS);
-        
-        qInfo() << "摄像头线程初始化，分辨率: " << actualWidth << "x" << actualHeight 
-                << " @ " << actualFps << " fps";
-        
-        // 主捕获循环
-        while (m_running) {
-            try {
-                cv::Mat frame;
-                bool success = capture.read(frame);
-                
-                // 读取后再次检查运行状态，防止在读取过程中被停止
-                {
-                    QMutexLocker locker(&m_mutex);
-                    if (!m_running) break;
-                }
-                
-                if (success && !frame.empty()) {
-                    // 使用 clone() 进行深拷贝，确保数据独立于 VideoCapture 的内部缓冲区
-                    // 这可以防止在 VideoCapture 释放或重用缓冲区时，接收端访问无效内存
-                    emit frameAvailable(frame.clone());
-                } else if (!success || frame.empty()) {
-                    // 只有在确实应该运行时才警告
-                    if (m_running) {
-                        qWarning() << "捕获帧失败";
-                    }
-                }
-                
-                // 根据帧率控制捕获频率，避免CPU占用过高
-                int delayMs = actualFps > 0 ? 1000 / static_cast<int>(actualFps) : 33;
-                msleep(delayMs / 2); // 使用一半的延迟，确保不会错过帧
-                
-                // 检查是否应该停止
-                {
-                    QMutexLocker locker(&m_mutex);
-                    if (!m_running) break;
-                }
-            } catch (const cv::Exception& e) {
-                qWarning() << "OpenCV异常(捕获线程): " << e.what();
-                msleep(1000); // 出错时等待一段时间再重试
-            } catch (const std::exception& e) {
-                qWarning() << "标准异常(捕获线程): " << e.what();
-                msleep(1000);
-            } catch (...) {
-                qWarning() << "未知异常(捕获线程)";
-                msleep(1000);
+
+        const double actualFps = capture.get(cv::CAP_PROP_FPS);
+        qInfo() << "Camera thread started, resolution:"
+                << capture.get(cv::CAP_PROP_FRAME_WIDTH) << "x"
+                << capture.get(cv::CAP_PROP_FRAME_HEIGHT)
+                << "@" << actualFps << "fps";
+
+        while (m_running.load()) {
+            cv::Mat frame;
+            const bool success = capture.read(frame);
+
+            if (!m_running.load()) {
+                break;
             }
-        }
-        
-        // 释放摄像头资源
-        try {
-            if (capture.isOpened()) {
-                capture.release();
-                qInfo() << "摄像头资源已在线程中释放";
+
+            if (success && !frame.empty()) {
+                emit frameAvailable(frame.clone());
+            } else if (m_running.load()) {
+                qWarning() << "Camera read failed";
             }
-            emit captureStateChanged(false);
-        } catch (...) {
-            qWarning() << "释放摄像头资源时发生异常";
+
+            const int delayMs = actualFps > 1.0 ? static_cast<int>(500.0 / actualFps) : 16;
+            msleep(static_cast<unsigned long>(delayMs));
         }
+
+        if (capture.isOpened()) {
+            capture.release();
+        }
+        emit captureStateChanged(false);
     }
 
 private:
-    QMutex m_mutex;              // 互斥锁，保护共享数据
-    // QWaitCondition m_condition;  // Removed: redundant
-    QAtomicInt m_running;        // 原子变量，控制线程运行状态
-    int m_deviceIndex;           // 摄像头设备索引
+    QMutex m_mutex;
+    std::atomic<bool> m_running{false};
+    int m_deviceIndex = -1;
 };
 
 namespace Nodes
 {
-    class CameraModel final : public AbstractDelegateModel {
-        Q_OBJECT
+class CameraModel final : public AbstractDelegateModel {
+    Q_OBJECT
 
-    public:
-        /**
-         * @brief 构造函数，初始化摄像头节点
-         */
-        CameraModel() {
-            InPortCount = 1;
-            OutPortCount = 1;
-            CaptionVisible = true;
-            Caption = "Camera";
-            WidgetEmbeddable = false;
-            Resizable = false;
-            
-            // 创建摄像头捕获线程
-            m_captureThread = new CameraCaptureThread(this);
-            connect(m_captureThread, &CameraCaptureThread::frameAvailable, 
-                    this, &CameraModel::onFrameAvailable, Qt::QueuedConnection);
-            connect(m_captureThread, &CameraCaptureThread::captureStateChanged,
-                    this, &CameraModel::onCaptureStateChanged, Qt::QueuedConnection);
+public:
+    CameraModel()
+    {
+        InPortCount = 1;
+        OutPortCount = 1;
+        CaptionVisible = true;
+        Caption = "Camera";
+        WidgetEmbeddable = false;
+        Resizable = false;
+
+        qRegisterMetaType<cv::Mat>("cv::Mat");
+
+        ensureImageDataBuffer(m_outImageData, m_outputBuffer);
+        ImageGpuUpload::instance().warmup();
+
+        m_captureThread = new CameraCaptureThread(this);
+        connect(m_captureThread,
+                &CameraCaptureThread::frameAvailable,
+                this,
+                &CameraModel::onFrameAvailable,
+                Qt::QueuedConnection);
+        connect(m_captureThread,
+                &CameraCaptureThread::captureStateChanged,
+                this,
+                &CameraModel::onCaptureStateChanged,
+                Qt::QueuedConnection);
+    }
+
+    ~CameraModel() override
+    {
+        stopCamera(true);
+        if (m_captureThread) {
+            m_captureThread->stop();
+            m_captureThread->wait();
         }
+    }
 
-        /**
-         * @brief 析构函数
-         */
-        ~CameraModel() override {
-            try {
-                // 停止摄像头 (通知是析构调用)
-                stopCamera(true);
-                
-                // 停止摄像头线程
-                if (m_captureThread) {
-                    m_captureThread->stop();
-                    m_captureThread->wait(); // 等待线程结束
-                }
-                
-                // 清除图像数据
-                m_outImageData.reset();
+    QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+    {
+        Q_UNUSED(portIndex);
+        return ImageData().type();
+    }
 
-            } catch (const std::exception& e) {
-                qWarning() << "CameraModel析构函数中的异常: " << e.what();
-            } catch (...) {
-                qWarning() << "CameraModel析构函数中的未知异常";
+    void setInData(std::shared_ptr<QtNodes::NodeData>, const QtNodes::PortIndex portIndex) override
+    {
+        Q_UNUSED(portIndex);
+    }
+
+    std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override
+    {
+        Q_UNUSED(port);
+        return m_outImageData;
+    }
+
+    QWidget* embeddedWidget() override
+    {
+        if (!m_widget) {
+            m_ui.reset(new Ui::CameraForm);
+            m_widget = new QWidget();
+            m_ui->setupUi(m_widget);
+            updateCameras();
+
+            if (m_ui->cb_devices->count() > 0
+                && m_ui->cb_devices->itemText(0) != "No video input devices available") {
+                m_ui->cb_devices->setCurrentIndex(0);
+                initializeCamera(0);
             }
         }
+        return m_widget;
+    }
 
-
-        QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override{  switch (portType) {
-            case QtNodes::PortType::In:
-                return ImageData().type();
-            case QtNodes::PortType::Out:
-                return ImageData().type();
-            default:
-                return ImageData().type();
-        }}
-
-        void setInData(std::shared_ptr<QtNodes::NodeData> nodeData, const QtNodes::PortIndex portIndex) override{}
-
-        std::shared_ptr<QtNodes::NodeData> outData(const QtNodes::PortIndex port) override {
-            return m_outImageData;
+private slots:
+    void onDeviceChanged(int index)
+    {
+        if (index < 0 || !m_ui) {
+            return;
         }
 
-        QWidget* embeddedWidget() override {
-            if (!m_widget) {
-                m_ui.reset(new Ui::CameraForm);
-                m_widget = new QWidget();
-                m_ui->setupUi(m_widget);
-                // cb_devices QComboBox
-                updateCameras();
-                
-                // 如果有可用摄像头，自动选择第一个
-                if (m_ui->cb_devices->count() > 0 && 
-                    m_ui->cb_devices->itemText(0) != "No video input devices available") {
-                    m_ui->cb_devices->setCurrentIndex(0);
-                    initializeCamera(0);
-                }
-            }
-            return m_widget;
-        }
-
-
-    private slots:
-        /**
-         * @brief 处理设备选择变更
-         * @param index 下拉列表中的索引
-         */
-        void onDeviceChanged(int index) {
-            if (index < 0 || !m_ui) {
-                return;
-            }
-            
-            QString deviceName = m_ui->cb_devices->itemText(index);
-            if (deviceName == "无可用视频输入设备" || 
-                deviceName == "枚举摄像头时出错") {
-                stopCamera();
-                return;
-            }
-            
-            // 获取设备索引（从QComboBox的userData中获取）
-            QVariant userData = m_ui->cb_devices->itemData(index);
-            int deviceIndex = userData.isValid() ? userData.toInt() : index;
-            
-            qInfo() << "切换到摄像头设备: " << deviceName << " (索引: " << deviceIndex << ")";
-            
-            // 停止当前摄像头
+        const QString deviceName = m_ui->cb_devices->itemText(index);
+        if (deviceName == "无可用视频输入设备" || deviceName == "枚举摄像头时出错") {
             stopCamera();
-            
-            // 初始化新选择的摄像头
-                initializeCamera(deviceIndex);
-            
-        }
-    /**
-         * @brief 处理线程中捕获的新帧
-         * @param frame 捕获的帧
-         */
-        void onFrameAvailable(const cv::Mat& frame) {
-            try {
-                if (!frame.empty()) {
-                    // 创建ImageData对象并更新输出
-                    m_outImageData = std::make_shared<ImageData>(frame);
-                    emit dataUpdated(0);
-                } else {
-                    qWarning() << "接收到空帧";
-                }
-            } catch (const cv::Exception& e) {
-                qWarning() << "OpenCV异常(处理帧): " << e.what();
-            } catch (const std::exception& e) {
-                qWarning() << "标准异常(处理帧): " << e.what();
-            } catch (...) {
-                qWarning() << "未知异常(处理帧)";
-            }
-        }
-        
-        /**
-         * @brief 处理摄像头捕获状态变更
-         * @param isCapturing 是否正在捕获
-         */
-        void onCaptureStateChanged(bool isCapturing) {
-            if (m_ui && m_widget) {
-                m_ui->cb_takingFrame->setChecked(isCapturing);
-            }
+            return;
         }
 
-        /**
-         * @brief 更新可用摄像头列表
-         * 使用Qt的QMediaDevices API获取摄像头列表和名称
-         */
-        void updateCameras() {
-            if (!m_ui || !m_widget) {
-                return;
-            }
-            
-            // 断开之前的连接，避免重复连接
-            disconnect(m_ui->cb_devices, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                     this, &CameraModel::onDeviceChanged);
-            
-            m_ui->cb_devices->clear();
-            
-            try {
-                // 使用Qt的QMediaDevices API获取摄像头列表
-                QList<QCameraDevice> cameras = QMediaDevices::videoInputs();
-                
-                if (cameras.isEmpty()) {
-                    m_ui->cb_devices->addItem("无可用视频输入设备");
-                    qWarning() << "未找到视频输入设备";
-                    return;
-                }
-                
-                // 添加可用摄像头到下拉列表
-                for (int i = 0; i < cameras.size(); ++i) {
-                    const QCameraDevice& camera = cameras.at(i);
-                    QString deviceName = camera.description();
-                    // 构建完整的摄像头名称
-                    QString cameraName = deviceName;
-                    // 添加到下拉列表，使用索引作为用户数据
-                    m_ui->cb_devices->addItem(cameraName, i);
-                }
-            } catch (const std::exception& e) {
-                qWarning() << "标准异常(updateCameras): " << e.what();
-                m_ui->cb_devices->addItem("枚举摄像头时出错");
-            } catch (...) {
-                qWarning() << "未知异常(updateCameras)";
-                m_ui->cb_devices->addItem("枚举摄像头时出错");
-            }
-            
-            // 连接设备选择变更信号
-            connect(m_ui->cb_devices, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                    this, &CameraModel::onDeviceChanged);
+        const QVariant userData = m_ui->cb_devices->itemData(index);
+        const int deviceIndex = userData.isValid() ? userData.toInt() : index;
+
+        qInfo() << "Switch camera:" << deviceName << "index" << deviceIndex;
+        stopCamera();
+        initializeCamera(deviceIndex);
+    }
+
+    /** 捕获线程回调：仅缓存最新 Mat，在 GUI 线程合并上传 */
+    void onFrameAvailable(const cv::Mat& frame)
+    {
+        if (frame.empty()) {
+            return;
         }
 
-        /**
-         * @brief 初始化摄像头
-         * @param deviceIndex 摄像头设备索引
-         */
-        void initializeCamera(int deviceIndex) {
-            try {
-                // 先停止当前摄像头
-                stopCamera();
-                
-                // 在线程中启动摄像头捕获
-                m_captureThread->startCapture(deviceIndex);
-                
-                qInfo() << "摄像头初始化请求，设备索引: " << deviceIndex;
-                
-            } catch (const std::exception& e) {
-                qWarning() << "初始化摄像头异常: " << e.what();
-                if (m_ui && m_widget) {
-                    m_ui->cb_takingFrame->setChecked(false);
-                }
-            } catch (...) {
-                qWarning() << "初始化摄像头时发生未知异常";
-                if (m_ui && m_widget) {
-                    m_ui->cb_takingFrame->setChecked(false);
-                }
-            }
+        {
+            QMutexLocker locker(&m_pendingMutex);
+            m_pendingFrame = frame;
         }
-        
-        /**
-         * @brief 停止摄像头
-         */
-        void stopCamera(bool fromDestructor = false) {
-            try {
-                // 停止捕获线程
-                if (m_captureThread) {
-                    m_captureThread->stop();
-                }
-                
-                // 更新UI状态 (仅在非析构且UI有效时)
-                if (!fromDestructor && m_ui && m_widget) {
-                    m_ui->cb_takingFrame->setChecked(false);
-                }
-                
-                // 清除输出数据
-                m_outImageData.reset();
-                if (!fromDestructor) {
-                    emit dataUpdated(0);
-                }
-            } catch (const std::exception& e) {
-                qWarning() << "停止摄像头异常: " << e.what();
-            } catch (...) {
-                qWarning() << "停止摄像头时发生未知异常";
-            }
+        scheduleUploadIfNeeded();
+    }
+
+    void onCaptureStateChanged(bool isCapturing)
+    {
+        if (m_ui && m_widget) {
+            m_ui->cb_takingFrame->setChecked(isCapturing);
         }
-        
+    }
 
+    void updateCameras()
+    {
+        if (!m_ui || !m_widget) {
+            return;
+        }
 
+        disconnect(m_ui->cb_devices,
+                   QOverload<int>::of(&QComboBox::currentIndexChanged),
+                   this,
+                   &CameraModel::onDeviceChanged);
 
-    private:
-        QPointer<QWidget> m_widget;
-        QScopedPointer<Ui::CameraForm> m_ui;
-        CameraCaptureThread* m_captureThread = nullptr; // 摄像头捕获线程
+        m_ui->cb_devices->clear();
 
-        // 输出图像数据
-        std::shared_ptr<ImageData> m_outImageData;
-    };
-}
+        const QList<QCameraDevice> cameras = QMediaDevices::videoInputs();
+        if (cameras.isEmpty()) {
+            m_ui->cb_devices->addItem("无可用视频输入设备");
+            return;
+        }
+
+        for (int i = 0; i < cameras.size(); ++i) {
+            m_ui->cb_devices->addItem(cameras.at(i).description(), i);
+        }
+
+        connect(m_ui->cb_devices,
+                QOverload<int>::of(&QComboBox::currentIndexChanged),
+                this,
+                &CameraModel::onDeviceChanged);
+    }
+
+    void initializeCamera(int deviceIndex)
+    {
+        stopCamera();
+        m_captureThread->startCapture(deviceIndex);
+    }
+
+    void stopCamera(bool fromDestructor = false)
+    {
+        if (m_captureThread) {
+            m_captureThread->stop();
+        }
+
+        {
+            QMutexLocker locker(&m_pendingMutex);
+            m_pendingFrame.release();
+        }
+        m_uploadScheduled.store(false);
+
+        if (m_outputBuffer) {
+            m_outputBuffer->clear();
+        }
+
+        if (!fromDestructor && m_ui && m_widget) {
+            m_ui->cb_takingFrame->setChecked(false);
+        }
+    }
+
+    void scheduleUploadIfNeeded()
+    {
+        if (!m_uploadScheduled.exchange(true)) {
+            QMetaObject::invokeMethod(this, "publishPendingFrame", Qt::QueuedConnection);
+        }
+    }
+
+    /** GUI 线程：cv::Mat → GPU 纹理 → push 到 ring buffer */
+    void publishPendingFrame()
+    {
+        m_uploadScheduled.store(false);
+
+        cv::Mat mat;
+        {
+            QMutexLocker locker(&m_pendingMutex);
+            mat = std::move(m_pendingFrame);
+        }
+
+        if (!m_outputBuffer || mat.empty()) {
+            return;
+        }
+
+        ensureImageDataBuffer(m_outImageData, m_outputBuffer);
+
+        const qint64 timestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
+        ImageFrame imageFrame = ImageFrame::fromMat(mat, timestamp);
+        if (!imageFrame.texture.valid()) {
+            qWarning() << "Camera frame GPU upload failed";
+            return;
+        }
+
+        m_outputBuffer->pushFrame(std::move(imageFrame));
+
+        bool hasPending = false;
+        {
+            QMutexLocker locker(&m_pendingMutex);
+            hasPending = !m_pendingFrame.empty();
+        }
+        if (hasPending) {
+            scheduleUploadIfNeeded();
+        }
+    }
+
+private:
+    QPointer<QWidget> m_widget;
+    QScopedPointer<Ui::CameraForm> m_ui;
+    CameraCaptureThread* m_captureThread = nullptr;
+
+    std::shared_ptr<ImageData> m_outImageData;
+    std::shared_ptr<ImageTimestampRingQueue> m_outputBuffer;
+
+    QMutex m_pendingMutex;
+    cv::Mat m_pendingFrame;
+    std::atomic<bool> m_uploadScheduled{false};
+};
+} // namespace Nodes

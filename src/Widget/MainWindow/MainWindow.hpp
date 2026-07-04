@@ -26,6 +26,12 @@
 #include <QSystemTrayIcon>
 #include <QMenu>
 #include "../ExternalControl/HttpServer.hpp"
+
+namespace QWK {
+    class WidgetWindowAgent;
+    class WindowBar;
+}
+
 class AutosaveManager;
 #include "ProjectSnapshotBuilder.hpp"
 class PropertyWidget;
@@ -161,6 +167,7 @@ public Q_SLOTS:
     void openRecentFile(const QString& path);
 
 protected:
+    bool event(QEvent *event) override;
     /**
      * @brief 关闭事件
      *
@@ -188,6 +195,13 @@ protected:
     QMenu* makeOptionsMenu(QWidget* parent, const QList<QAction*>& actions);
 
     void switchTheme(bool isDark);
+
+    /** @brief 构建 QWindowKit 无边框标题栏并绑定 WindowAgent */
+    void setupFramelessWindow();
+    /** @brief 同步无边框标题栏的标题、图标与窗口状态 */
+    void syncFramelessWindowState();
+    void showEvent(QShowEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
     /**
      * @brief 重启进程并在新进程中打开指定 .flow 文件
@@ -224,5 +238,7 @@ private:
     std::optional<ProjectLoadResolution> forcedLoadResolution_;
     bool skipRecoveryPrompt_ = false;
 
+    QWK::WidgetWindowAgent *windowAgent = nullptr;  ///< QWindowKit 无边框窗口代理
+    QWK::WindowBar *windowBar = nullptr;          ///< 自定义标题栏（菜单 + 标题 + 系统按钮）
 };
 

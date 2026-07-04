@@ -10,7 +10,7 @@ USR_IO424DataModel::USR_IO424DataModel()
     : _interface(new USR_IO424Interface())
     , _tcpClient(new TcpClient("127.0.0.1", 8080))
     , _readTimer(new QTimer(this))
-    , _writeQueueTimer(new QTimer(this))
+    , _writeResponseTimer(new QTimer(this))
     , _transactionId(0)
     , _host("127.0.0.1")
     , _port(8080)
@@ -97,8 +97,9 @@ USR_IO424DataModel::USR_IO424DataModel()
 
     connect(_readTimer, &QTimer::timeout, this, &USR_IO424DataModel::readAllData);
 
-    _writeQueueTimer->setInterval(1000);
-    connect(_writeQueueTimer, &QTimer::timeout, this, &USR_IO424DataModel::processWriteQueue);
+    _writeResponseTimer->setSingleShot(true);
+    _writeResponseTimer->setInterval(800);
+    connect(_writeResponseTimer, &QTimer::timeout, this, &USR_IO424DataModel::onWriteTimeout);
 
     _interface->_hostEdit->setText(_host);
     _interface->_portEdit->setValue(_port);
@@ -114,8 +115,8 @@ USR_IO424DataModel::~USR_IO424DataModel()
     if (_readTimer) {
         _readTimer->stop();
     }
-    if (_writeQueueTimer) {
-        _writeQueueTimer->stop();
+    if (_writeResponseTimer) {
+        _writeResponseTimer->stop();
     }
 }
 
@@ -287,6 +288,10 @@ void USR_IO424DataModel::readAllOutputs()
 
 void USR_IO424DataModel::readAllData()
 {
+    if (_writeInFlight || _writePending) {
+        return;
+    }
+
     readAllInputs();
     QTimer::singleShot(100, this, [this]() {
         readAllOutputs();
@@ -306,10 +311,14 @@ void USR_IO424DataModel::setConnected(bool connected)
         _interface->setConnectionStatus(_connected);
     }
     if (_connected) {
+        requestWriteAllOutputs();
         readAllData();
         _readTimer->start(1000);
     } else {
         _readTimer->stop();
+        _writeInFlight = false;
+        _writePending = false;
+        _writeResponseTimer->stop();
     }
 }
 
@@ -324,25 +333,66 @@ void USR_IO424DataModel::setOutput(int index, bool state)
 
     AbstractDelegateModel::stateFeedBack(QString("/DO%1").arg(index), state);
 
-    _writeQueue.enqueue({index, state});
-
-    if (!_writeQueueTimer->isActive()) {
-        _writeQueueTimer->start(0);
-    }
+    requestWriteAllOutputs();
 }
 
-void USR_IO424DataModel::processWriteQueue()
+void USR_IO424DataModel::requestWriteAllOutputs()
 {
-    if (_writeQueue.isEmpty()) {
-        _writeQueueTimer->stop();
+    if (!_connected) {
         return;
     }
 
-    WriteCommand cmd = _writeQueue.dequeue();
-    QByteArray command = generateWriteSingleCoilCommand(kDoAddressBase + cmd.index, cmd.state);
-    sendModbusCommand(command);
+    if (_writeInFlight) {
+        _writePending = true;
+        return;
+    }
 
-    _writeQueueTimer->start(1000);
+    writeAllOutputs();
+}
+
+void USR_IO424DataModel::writeAllOutputs()
+{
+    if (!_connected || _writeInFlight) {
+        return;
+    }
+
+    QVector<bool> values;
+    values.reserve(kChannelCount);
+    for (int i = 0; i < kChannelCount; ++i) {
+        values.append(_outputStates[i]);
+    }
+
+    _writeInFlight = true;
+    _writePending = false;
+    QByteArray command = generateWriteMultipleCoilsCommand(kDoAddressBase, values, kChannelCount);
+    sendModbusCommand(command);
+    _writeResponseTimer->start();
+}
+
+void USR_IO424DataModel::onWriteCompleted(bool success)
+{
+    if (!_writeInFlight) {
+        return;
+    }
+
+    Q_UNUSED(success);
+    _writeResponseTimer->stop();
+    _writeInFlight = false;
+
+    if (_writePending) {
+        _writePending = false;
+        writeAllOutputs();
+    }
+}
+
+void USR_IO424DataModel::onWriteTimeout()
+{
+    if (!_writeInFlight) {
+        return;
+    }
+
+    _writeInFlight = false;
+    writeAllOutputs();
 }
 
 void USR_IO424DataModel::processModbusResponse(const QByteArray &response)
@@ -354,6 +404,13 @@ void USR_IO424DataModel::processModbusResponse(const QByteArray &response)
 
     if (protocolId != 0) return;
 
+    if (functionCode & 0x80) {
+        if ((functionCode & 0x7F) == 0x0F) {
+            onWriteCompleted(false);
+        }
+        return;
+    }
+
     switch (functionCode) {
     case 0x01:
         if (response.size() >= 10) {
@@ -361,6 +418,9 @@ void USR_IO424DataModel::processModbusResponse(const QByteArray &response)
             if (response.size() >= 9 + byteCount) {
                 quint8 coilData = static_cast<quint8>(response[9]);
                 for (int i = 0; i < kChannelCount; ++i) {
+                    if (_writeInFlight || _writePending) {
+                        continue;
+                    }
                     bool state = (coilData & (1 << i)) != 0;
                     if (_outputStates[i] != state) {
                         _outputStates[i] = state;
@@ -391,8 +451,8 @@ void USR_IO424DataModel::processModbusResponse(const QByteArray &response)
         }
         break;
 
-    case 0x05:
     case 0x0F:
+        onWriteCompleted(true);
         break;
 
     default:
@@ -434,25 +494,6 @@ QByteArray USR_IO424DataModel::generateReadDiscreteInputsCommand(quint16 startAd
     command.append(static_cast<char>(startAddress & 0xFF));
     command.append(static_cast<char>(quantity >> 8));
     command.append(static_cast<char>(quantity & 0xFF));
-    _transactionId++;
-    return command;
-}
-
-QByteArray USR_IO424DataModel::generateWriteSingleCoilCommand(quint16 address, bool value)
-{
-    QByteArray command;
-    command.append(static_cast<char>(_transactionId >> 8));
-    command.append(static_cast<char>(_transactionId & 0xFF));
-    command.append(static_cast<char>(0x00));
-    command.append(static_cast<char>(0x00));
-    command.append(static_cast<char>(0x00));
-    command.append(static_cast<char>(0x06));
-    command.append(static_cast<char>(_serverId));
-    command.append(static_cast<char>(0x05));
-    command.append(static_cast<char>(address >> 8));
-    command.append(static_cast<char>(address & 0xFF));
-    command.append(static_cast<char>(value ? 0xFF : 0x00));
-    command.append(static_cast<char>(0x00));
     _transactionId++;
     return command;
 }

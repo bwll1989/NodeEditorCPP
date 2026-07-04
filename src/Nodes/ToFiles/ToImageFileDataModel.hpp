@@ -1,10 +1,11 @@
 #pragma once
 
 #include <QDir>
-#include <QTimer>
+#include <QElapsedTimer>
 
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageReadback.h"
 #include "Common/DataTypes/NodeDataList.hpp"
 #include "FfmpegWriters.hpp"
 #include "StatusContainer/GlobalEventBus.hpp"
@@ -12,12 +13,27 @@
 #include "ToFilePath.hpp"
 #include "ToImageFileInterface.hpp"
 
+#include <QPointer>
+#include <atomic>
+
 using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
 
 struct GlobalEvent;
+
+namespace ToImageFileDetail
+{
+inline cv::Mat readLatestMatForWrite(const std::shared_ptr<ImageData>& input)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return {};
+    }
+    return ImageReadback::matFromFrame(frame);
+}
+} // namespace
 
 namespace Nodes
 {
@@ -42,10 +58,6 @@ public:
         m_file = QStringLiteral("capture.png");
         _widget = new ToImageFileInterface();
 
-        _saveTimer = new QTimer(this);
-        _saveTimer->setSingleShot(true);
-        connect(_saveTimer, &QTimer::timeout, this, &ToImageFileDataModel::saveCurrentFrame);
-
         {
             NodeDelegateModel::ExternalBinding binding;
             binding.member = "file";
@@ -68,6 +80,18 @@ public:
         connect(_widget, &ToImageFileInterface::fileTextChanged, this, &ToImageFileDataModel::setFile);
         connect(_widget, &ToImageFileInterface::outputDirChanged, this, &ToImageFileDataModel::setOutputDir);
         connect(_widget, &ToImageFileInterface::recordingToggled, this, &ToImageFileDataModel::setRecording);
+    }
+
+    ~ToImageFileDataModel() override
+    {
+        m_shuttingDown.store(true);
+        disconnect(TimestampGenerator::getInstance(), nullptr, this, nullptr);
+        GlobalEventBus::instance()->unsubscribe(this);
+        if (_widget) {
+            disconnect(_widget.data(), nullptr, this, nullptr);
+        }
+        stopRecording();
+        m_inImage.reset();
     }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -108,9 +132,7 @@ public:
         switch (portIndex) {
         case 0: {
             m_inImage = std::dynamic_pointer_cast<ImageData>(nodeData);
-            if (m_recording) {
-                scheduleSave();
-            }
+            m_lastSeenInputTimestamp = -1;
             break;
         }
         case 1: {
@@ -142,7 +164,7 @@ public:
 
     QWidget* embeddedWidget() override
     {
-        return _widget;
+        return _widget.data();
     }
 
     QJsonObject save() const override
@@ -174,9 +196,9 @@ public:
             return;
         }
         m_file = trimmed;
-        {
-            QSignalBlocker blocker(_widget->fileEdit());
-            _widget->fileEdit()->setText(m_file);
+        if (ToImageFileInterface* widget = _widget.data()) {
+            QSignalBlocker blocker(widget->fileEdit());
+            widget->fileEdit()->setText(m_file);
         }
         emit fileChanged(m_file);
     }
@@ -188,13 +210,18 @@ public:
             return;
         }
         m_outputDir = trimmed;
-        _widget->setOutputDir(m_outputDir);
+        if (ToImageFileInterface* widget = _widget.data()) {
+            widget->setOutputDir(m_outputDir);
+        }
         emit outputDirChanged(m_outputDir);
     }
 
 public slots:
     void setRecording(bool recording)
     {
+        if (m_shuttingDown.load()) {
+            return;
+        }
         if (recording == m_recording) {
             return;
         }
@@ -207,21 +234,27 @@ public slots:
 
     void startRecording()
     {
-        if (m_recording) {
+        if (m_shuttingDown.load() || m_recording) {
             return;
         }
         if (m_file.isEmpty()) {
             updateNodeState(QtNodes::NodeValidationState::State::Error, QStringLiteral("请设置输出文件名"));
-            _widget->setRecording(false);
+            if (ToImageFileInterface* widget = _widget.data()) {
+                widget->setRecording(false);
+            }
             return;
         }
 
         m_recording = true;
-        _widget->setRecording(true);
+        m_lastSeenInputTimestamp = -1;
+        m_saveTimer.invalidate();
+        if (ToImageFileInterface* widget = _widget.data()) {
+            widget->setRecording(true);
+        }
         emit recordingChanged(m_recording);
         AbstractDelegateModel::stateFeedBack("/recording", m_recording);
         updateRecordingOutput();
-        scheduleSave();
+        trySaveFrame();
     }
 
     void stopRecording()
@@ -231,8 +264,12 @@ public slots:
         }
 
         m_recording = false;
-        _saveTimer->stop();
-        _widget->setRecording(false);
+        if (m_shuttingDown.load()) {
+            return;
+        }
+        if (ToImageFileInterface* widget = _widget.data()) {
+            widget->setRecording(false);
+        }
         emit recordingChanged(m_recording);
         AbstractDelegateModel::stateFeedBack("/recording", m_recording);
         updateRecordingOutput();
@@ -246,15 +283,27 @@ signals:
 protected:
     void afterModelReady() override
     {
+        AbstractDelegateModel::afterModelReady();
         GlobalEventBus::instance()->subscribe(makeFullOscAddress("/file"), this, SLOT(onGlobalEvent(GlobalEvent)));
         GlobalEventBus::instance()->subscribe(makeFullOscAddress("/outputDir"), this, SLOT(onGlobalEvent(GlobalEvent)));
         GlobalEventBus::instance()->subscribe(makeFullOscAddress("/recording"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
+        connect(TimestampGenerator::getInstance(),
+                &TimestampGenerator::frameCountUpdated,
+                this,
+                [self = QPointer<ToImageFileDataModel>(this)](qint64) {
+                    if (!self || self->m_shuttingDown.load()) {
+                        return;
+                    }
+                    self->trySaveFrame();
+                },
+                Qt::QueuedConnection);
     }
 
 private Q_SLOTS:
     void onGlobalEvent(const GlobalEvent& ev)
     {
-        if (ev.kind != GlobalEventKind::Command) {
+        if (m_shuttingDown.load() || ev.kind != GlobalEventKind::Command) {
             return;
         }
         const QString localPath = ev.address.mid(ev.address.lastIndexOf('/') + 1);
@@ -269,40 +318,55 @@ private Q_SLOTS:
 
     void updateRecordingOutput()
     {
+        if (m_shuttingDown.load()) {
+            return;
+        }
         m_outRecording = std::make_shared<VariableData>(m_recording);
         emit dataUpdated(0);
     }
 
-    void scheduleSave()
+    /** 系统 tick：录制中按帧率间隔写文件 */
+    void trySaveFrame()
     {
-        if (!m_recording || m_saving || _saveTimer->isActive()) {
-            return;
-        }
-        const int intervalMs = qMax(1, static_cast<int>(1000.0 / TimestampGenerator::getInstance()->getFrameRate()));
-        _saveTimer->start(intervalMs);
-    }
-
-    void saveCurrentFrame()
-    {
-        if (!m_recording || m_saving) {
+        if (m_shuttingDown.load() || !m_recording || m_saving || !m_inImage
+            || imageDataIsEmpty(m_inImage)) {
             return;
         }
 
-        const auto image = m_inImage.lock();
-        if (!image || image->isEmpty()) {
+        ImageFrame peek;
+        if (!getLatestImageFrame(m_inImage, peek) || peek.empty()) {
             return;
         }
+        if (peek.timestamp >= 0 && peek.timestamp <= m_lastSeenInputTimestamp) {
+            return;
+        }
+
+        const int intervalMs = qMax(
+            1,
+            static_cast<int>(1000.0 / TimestampGenerator::getInstance()->getFrameRate()));
+        if (m_saveTimer.isValid() && m_saveTimer.elapsed() < intervalMs) {
+            return;
+        }
+
         if (m_file.isEmpty()) {
             updateNodeState(QtNodes::NodeValidationState::State::Error, QStringLiteral("请设置输出文件名"));
             stopRecording();
             return;
         }
 
+        cv::Mat mat = ToImageFileDetail::readLatestMatForWrite(m_inImage);
+        if (mat.empty()) {
+            return;
+        }
+
+        m_lastSeenInputTimestamp = peek.timestamp;
+        m_saveTimer.start();
+
         m_saving = true;
         const QString outputPath = resolveOutputPath(m_outputDir, m_file);
 
         QString error;
-        const bool ok = FfmpegImageWriter::saveImage(image->mat(), outputPath, &error);
+        const bool ok = FfmpegImageWriter::saveImage(mat, outputPath, &error);
         m_saving = false;
 
         if (!ok) {
@@ -312,17 +376,18 @@ private Q_SLOTS:
         }
 
         updateNodeState(QtNodes::NodeValidationState::State::Valid);
-        scheduleSave();
     }
 
 private:
-    ToImageFileInterface* _widget = nullptr;
+    QPointer<ToImageFileInterface> _widget;
     std::shared_ptr<VariableData> m_outRecording;
-    QTimer* _saveTimer = nullptr;
-    std::weak_ptr<ImageData> m_inImage;
+    std::shared_ptr<ImageData> m_inImage;
+    qint64 m_lastSeenInputTimestamp = -1;
+    QElapsedTimer m_saveTimer;
     QString m_file;
     QString m_outputDir;
     bool m_recording = false;
     bool m_saving = false;
+    std::atomic<bool> m_shuttingDown{false};
 };
 } // namespace Nodes

@@ -7,7 +7,7 @@
 #include "QJsonObject"
 
 #include "NodeDataList.hpp"
-#include "Common/Devices/TimestampGenerator/TimestampGenerator.hpp"  // 添加时间戳生成器头文件
+#include "Common/Devices/TimestampGenerator/TimestampGenerator.hpp"
 
 extern "C" {
 #include <libavformat/avformat.h>
@@ -30,79 +30,79 @@ extern "C" {
 
 
 /**
- * @brief 视频解码器类
- * 
- * 继承自 QThread，负责在单独的线程中进行音视频文件的解码。
- * 支持视频帧转 RGB 输出和音频帧重采样输出。
- * 使用 FFmpeg 进行解码。
+ * @file VideoDecoder.hpp
+ * @brief 基于 FFmpeg 的音视频文件解码引擎（节点内部使用，非 QtNodes 模型本身）
+ *
+ * ## 总体架构
+ *
+ * ```
+ *                    ┌──────────────── audioLoop (std::thread) ────────────────┐
+ *                    │  读包 → 解码 → 重采样 → 切片 → audioFrameReady 信号    │
+ *                    │                          ↓ DirectConnection            │
+ *                    │                   handleAudioFrame                     │
+ *                    │                          ↓                             │
+ *                    │              AudioTimestampRingQueue (每声道)          │
+ *                    └────────────────────────────────────────────────────────┘
+ *
+ *                    ┌──────────────── videoLoop (std::thread) ────────────────┐
+ *                    │  读包 → 解码 → PTS 节流 → processVideoFrame              │
+ *                    │              YUV → BGRA (sws_scale)                      │
+ *                    │              swap(decodeFrame_, pendingVideoFrame_)      │
+ *                    │                          ↓ QueuedConnection            │
+ *                    └────────────── uploadPendingVideoFrame (GUI 线程) ────────┘
+ *                                   BGRA → GPU 纹理 → ImageTimestampRingQueue
+ * ```
+ *
+ * ## 设计要点
+ *
+ * - **双 AVFormatContext**：同一文件打开两次，音频/视频各一条独立读包链路，互不阻塞。
+ * - **三线程模型**：audioLoop / videoLoop 为 std::thread；VideoDecoder 对象驻留 GUI 线程，
+ *   GPU 上传通过 QMetaObject::invokeMethod 投递回 GUI 线程（QOffscreenSurface 须在 GUI 创建）。
+ * - **视频零拷贝 CPU 路径**：decodeFrame_ 与 pendingVideoFrame_ 双缓冲 swap，无每帧 clone。
+ * - **sws 直出 BGRA**：与 ImageReadback::uploadBgra8Mat 对齐，跳过 BGR→BGRA 色彩转换。
+ * - **QThread 继承**：run() 已弃用，仅保留空实现以兼容 QThread 接口；实际工作在 std::thread 中。
  */
 class VideoDecoder : public QThread {
 Q_OBJECT
 
 public:
-    // 在构造函数中添加新的成员变量初始化
     explicit VideoDecoder(QObject *parent = nullptr);
 
     ~VideoDecoder();
+
     /**
-     * @brief 初始化ffmpeg
-     * @param filePath 视频文件路径
-     * @return 返回包含媒体信息的 JSON 对象（如比特率、采样率、分辨率等），失败返回 nullptr
+     * @brief 打开媒体文件并初始化 FFmpeg 解码器
+     *
+     * 会 stopPlay + cleanupFFmpeg 清理旧状态，再分别打开音频/视频 formatContext。
+     * 调用方须在 GUI 或节点线程调用；内部会阻塞直至初始化完成。
+     *
+     * @param filePath 媒体文件绝对路径
+     * @return 含 bit_rate / channels / video_width 等字段的 JSON；失败返回 nullptr
      */
     QJsonObject* initializeFFmpeg(const QString &filePath);
 
-    /**
-     * @brief 开始播放
-     * 重置所有缓冲区状态并启动解码线程
-     */
+    /** @brief 从头 seek 并启动 audioLoop + videoLoop */
     void startPlay();
-    
-    /**
-     * @brief 停止播放
-     * 停止解码线程并清理资源
-     */
-    void stopPlay() ;
-    
-    /**
-     * @brief 设置音量
-     * @param vol 音量值 (dB)
-     */
-    void setVolume(double vol) ;
-    
-    /**
-     * @brief 获取当前音量
-     * @return 当前音量值 (dB)
-     */
-    float getVolume() const ;
-    
-    /**
-     * @brief 设置循环播放
-     * @param loop 是否循环播放
-     */
-    void setLooping(bool loop) ;
 
-    /**
-     * @brief 获取循环播放状态
-     * @return 是否循环播放
-     */
-    bool getLooping() const ;
+    /** @brief join 解码线程，清空 pending 帧与各 Audio ring buffer */
+    void stopPlay();
 
-    /**
-     * @brief 获取播放状态
-     * @return true 表示正在播放，false 表示已停止
-     */
+    /** @brief 设置音量增益，单位 dB（applyVolume 内转为线性增益） */
+    void setVolume(double vol);
+
+    float getVolume() const;
+
+    void setLooping(bool loop);
+
+    bool getLooping() const;
+
+    /** @brief 是否处于播放状态（isPlaying 原子标志） */
     bool getPlaying() const;
-       
-    /**
-     * @brief 播放音频（兼容性接口）
-     * 内部调用 startPlay() 启动解码线程
-     */
+
+    /** @brief 兼容旧接口，等同 startPlay() */
     void playAudio();
 
-    /**
-     * @brief 获取音频通道数
-     * @return 通道数，如果未初始化则返回0
-     */
+    /** @brief 返回音频流声道数；无音频轨或未初始化时返回 0 */
     int getChannels() const {
         if (codecContext) {
             return codecContext->ch_layout.nb_channels;
@@ -110,131 +110,165 @@ public:
         return 0;
     }
 
-signals:
-    // 发送解码后的音频数据
-    void audioFrameReady(AudioFrame frame);
-    // 发送解码后的视频数据
-    void videoFrameReady(NodeDataTypes::ImageData frame);
-    // 播放进度信号 (当前时间秒, 总时间秒)
-    void playbackProgress(double currentSec, double totalSec);
+    /** @brief 是否已成功打开音频轨（纯视频文件为 false） */
+    bool hasAudioStream() const {
+        return audioStreamIndex >= 0 && codecContext != nullptr && formatContext != nullptr;
+    }
+
+    /** @brief 是否已成功打开视频轨 */
+    bool hasVideoStream() const {
+        return videoStreamIndex >= 0 && videoCodecContext != nullptr && formatContextVideo != nullptr;
+    }
+
     /**
-     * @brief 播放自然结束信号
-     * @details 在未开启循环播放且媒体读到末尾时发出；主动 stopPlay() 不会触发该信号
+     * @brief 绑定视频输出的共享 ImageTimestampRingQueue
+     *
+     * 由 VideoDecoderDataModel 在构造/换文件时调用。
+     * 解码线程只写 pendingVideoFrame_；pushFrame 在 GUI 线程 uploadPendingVideoFrame 中执行。
+     */
+    void setVideoImageBuffer(std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue> buffer);
+
+signals:
+    /** @brief 音频固定帧块就绪；DirectConnection 到 handleAudioFrame 做声道分离 */
+    void audioFrameReady(AudioFrame frame);
+
+    /** @brief 播放进度 (当前秒, 总时长秒)，约 100ms 节流 */
+    void playbackProgress(double currentSec, double totalSec);
+
+    /**
+     * @brief 非循环模式下自然播放到文件末尾时发出
+     * @note 主动 stopPlay() 不会触发
      */
     void playbackFinished();
 
 public slots:
     /**
-     * @brief 处理音频帧，支持动态通道数，使用内存块拷贝优化的音频通道分离
-     * @param frame 音频帧数据
+     * @brief 将交错 PCM 拆分为单声道帧并 push 到各 AudioTimestampRingQueue
+     * @param frame 交错 float PCM，channels 为原始声道数
      */
-    void handleAudioFrame(AudioFrame frame) ;
+    void handleAudioFrame(AudioFrame frame);
 
-    /**
-     * @brief 获取指定通道的音频环形缓冲区
-     * @param index 通道索引
-     * @return 音频环形缓冲区智能指针
-     */
+    /** @brief 获取指定声道的共享音频 ring buffer（按需懒创建） */
     std::shared_ptr<AudioTimestampRingQueue> getAudioBuffer(int index);
-protected:
+
+private slots:
     /**
-     * @brief 线程运行入口（已弃用）
-     * 保留为空实现以兼容 QThread 接口，实际解码在 audioLoop 和 videoLoop 中进行
+     * @brief 【GUI 线程】取走 pendingVideoFrame_，上传 BGRA 纹理并 push 到 videoImageBuffer_
+     *
+     * 若上传期间解码线程又 swap 了新帧（pending 非空），会再次 scheduleVideoUploadIfNeeded，
+     * 实现"只保留最新帧"的合并，避免事件队列堆积。
      */
-    void run() override ;
+    void uploadPendingVideoFrame();
+
+protected:
+    /** @brief QThread 入口（已弃用，空实现） */
+    void run() override;
 
     /**
-     * @brief 辅助函数：处理视频帧
-     * 将解码后的 YUV 数据转换为 BGR 格式并发送信号
+     * @brief 【videoLoop 线程】单帧后处理
+     *
+     * 1. ensureVideoDecodeBuffer → sws_scale 输出 BGRA 到 decodeFrame_
+     * 2. swap(decodeFrame_, pendingVideoFrame_) 与 GUI 侧交换缓冲
+     * 3. scheduleVideoUploadIfNeeded 投递 GPU 上传
      */
     void processVideoFrame();
 
+    /**
+     * @brief 合并多次上传请求：同一时刻至多一个 QueuedConnection 在途
+     *
+     * videoUploadScheduled_ 为 false 时才 invokeMethod，防止 GUI 事件队列无限增长。
+     */
+    void scheduleVideoUploadIfNeeded();
+
 private:
-    /**
-     * @brief 音频解码主循环（独立线程）
-     */
+    /** @brief 【std::thread】音频读包/解码/重采样/切片主循环 */
     void audioLoop();
-    /**
-     * @brief 视频解码主循环（独立线程）
-     */
+
+    /** @brief 【std::thread】视频读包/解码/PTS 同步/processVideoFrame 主循环 */
     void videoLoop();
-    /**
-     * @brief 应用音量增益
-     * @param data 音频数据指针
-     * @param sampleCount 采样数
-     * @param channels 通道数
-     */
+
+    /** @brief 将 dB 音量转为线性增益并削波到 [-1, 1] */
     void applyVolume(uint8_t* data, int sampleCount, int channels);
 
     /**
-     * @brief 处理 PCM 数据并按固定帧大小发射
-     * @param interleavedPcm 交错的 PCM 数据
-     * @param samplesPerChannel 每通道采样数
-     * @param channels 通道数
-     * @param sampleRate 采样率
-     * @return 处理结果
+     * @brief 累积 PCM 至 SAMPLES_PER_CHANNEL 后 emit audioFrameReady
+     * @return 本次调用 emit 的帧数
      */
     int processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm, int samplesPerChannel, int channels, int sampleRate);
-    
-    /**
-     * @brief 清理 FFmpeg 资源
-     */
+
+    /** @brief 释放全部 FFmpeg 上下文与帧缓冲 */
     void cleanupFFmpeg();
 
-    /**
-     * @brief 释放视频色彩空间转换缓冲（分辨率变化或切换文件时需重建）
-     */
+    /** @brief 释放 swsContext 与 decodeFrame_（分辨率变化或换文件时调用） */
     void releaseVideoScaler();
 
-private:
-    mutable QMutex mutex;       ///< 互斥锁，保护共享资源
-    QWaitCondition condition;   ///< 条件变量，用于线程同步
-    
-    // FFmpeg 相关
-    AVFormatContext *formatContext;       ///< 音频格式上下文
-    AVFormatContext *formatContextVideo;  ///< 视频格式上下文
-    
-    // 音频相关
-    AVCodecContext *codecContext;   ///< 音频解码器上下文
-    const AVCodec *codec;           ///< 音频解码器
-    AVFrame *audioFrame;            ///< 音频帧缓冲区
-    SwrContext *swrContext;         ///< 音频重采样上下文
-    int audioStreamIndex;           ///< 音频流索引
-    
-    // 视频相关
-    AVCodecContext *videoCodecContext;  ///< 视频解码器上下文
-    const AVCodec *videoCodec;          ///< 视频解码器
-    AVFrame *videoFrame;                ///< 视频帧缓冲区
-    SwsContext *swsContext;             ///< 视频格式转换上下文（YUV -> RGB）
-    int videoStreamIndex;               ///< 视频流索引
-    uint8_t *videoDstData[4];           ///< 视频转换目标数据缓冲区
-    int videoDstLinesize[4];            ///< 视频转换目标行大小
-    int videoWidth;                     ///< 视频宽度
-    int videoHeight;                    ///< 视频高度
-    double videoClock;                  ///< 视频时钟
+    /**
+     * @brief 按当前视频尺寸（重新）创建 swsContext 与 decodeFrame_
+     *
+     * sws 输出 AV_PIX_FMT_BGRA；decodeFrame_ 为 CV_8UC4 连续 Mat。
+     * swap 后 decodeFrame_ 可能为空，本函数会在尺寸不变时仅 recreate Mat。
+     */
+    void ensureVideoDecodeBuffer(int width, int height);
 
-    AVPacket *packet;               ///< 数据包
-    uint8_t *resampledBuffer;       ///< 重采样缓冲区
-    
-    // 播放状态
-    std::atomic<bool> isPlaying;     ///< 是否正在播放
-    std::atomic<bool> isLooping;     ///< 是否循环播放
-    float volume;       ///< 音量 (dB)
-    std::atomic<bool> audioRunning{false};
-    std::atomic<bool> videoRunning{false};
+private:
+    // ── 线程同步 ──────────────────────────────────────────────────────────
+    mutable QMutex mutex;       ///< 保护 videoImageBuffer_ / pending 帧 / 音量 / 循环标志等
+    QWaitCondition condition;   ///< 预留：线程间等待唤醒
+
+    // ── FFmpeg：双 formatContext ───────────────────────────────────────────
+    AVFormatContext *formatContext;       ///< 音频专用：读包、seek、duration
+    AVFormatContext *formatContextVideo;  ///< 视频专用：与音频并行读同一文件
+
+    // ── 音频解码链 ─────────────────────────────────────────────────────────
+    AVCodecContext *codecContext;   ///< 音频 AVCodecContext
+    const AVCodec *codec;           ///< 音频解码器
+    AVFrame *audioFrame;            ///< 解码输出帧（audioLoop 内 alloc）
+    SwrContext *swrContext;         ///< 重采样至 48000 Hz / FLT（按需创建）
+    int audioStreamIndex;           ///< 音频流在 formatContext 中的索引
+
+    // ── 视频解码链 ─────────────────────────────────────────────────────────
+    AVCodecContext *videoCodecContext;  ///< 视频 AVCodecContext
+    const AVCodec *videoCodec;          ///< 视频解码器
+    AVFrame *videoFrame;                ///< 解码输出帧（videoLoop 内 alloc，YUV）
+    SwsContext *swsContext;             ///< YUV → BGRA 色彩空间转换
+    int videoStreamIndex;               ///< 视频流索引
+    cv::Mat decodeFrame_;               ///< sws 写入目标；与 pendingVideoFrame_ swap 双缓冲
+    int videoWidth;                     ///< 当前视频宽（用于 sws 重建判断）
+    int videoHeight;                    ///< 当前视频高
+    double videoClock;                  ///< 预留：视频时钟
+
+    AVPacket *packet;               ///< 预留 packet 指针
+    uint8_t *resampledBuffer;       ///< 预留重采样缓冲
+
+    // ── 播放状态（跨线程原子标志）──────────────────────────────────────────
+    std::atomic<bool> isPlaying;     ///< 用户期望的播放状态
+    std::atomic<bool> isLooping;     ///< 到 EOF 是否 seek 回起点
+    float volume;                    ///< 音量 dB，applyVolume 读取
+    std::atomic<bool> audioRunning{false};  ///< audioLoop 是否在运行
+    std::atomic<bool> videoRunning{false};  ///< videoLoop 是否在运行
     std::thread audioThread;
     std::thread videoThread;
-    
-    // 缓冲区管理
-    // 使用map管理多通道缓冲区，key为通道索引(0,1,2...)
+
+    // ── 输出缓冲 ───────────────────────────────────────────────────────────
+    /** 每声道一个 AudioTimestampRingQueue，handleAudioFrame push */
     std::map<int, std::shared_ptr<AudioTimestampRingQueue>> channelAudioBuffers;
-    
-    // 临时存储未发送的数据
-    QByteArray pendingInterleavedPcm_;  // 存储交错的PCM数据
-    int pendingSamplesPerChannel_ = 0;  // 当前存储的每通道采样数
-    int lastChannels_ = 0;              // 上次处理的通道数
-    
-    // 时间戳相关
-    TimestampGenerator* timestampGenerator_;
-    uint64_t lastTimestamp_ = 0;
+
+    /** 视频 ImageTimestampRingQueue，由 DataModel 注入；push 在 GUI 线程 */
+    std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue> videoImageBuffer_;
+
+    /** 待上传 BGRA 帧（与 decodeFrame_ swap 获得所有权） */
+    cv::Mat pendingVideoFrame_;
+    /** 对应 pending 帧的 TimestampGenerator 帧号 */
+    qint64 pendingVideoTimestamp_ = -1;
+    /** 是否已有 uploadPendingVideoFrame 在 Qt 事件队列中 */
+    std::atomic<bool> videoUploadScheduled_{false};
+
+    // ── 音频 PCM 切片累积 ───────────────────────────────────────────────────
+    QByteArray pendingInterleavedPcm_;  ///< 不足 SAMPLES_PER_CHANNEL 的尾部 PCM
+    int pendingSamplesPerChannel_ = 0;
+    int lastChannels_ = 0;              ///< 声道数变化时清空 pendingInterleavedPcm_
+
+    // ── 时间戳 ─────────────────────────────────────────────────────────────
+    TimestampGenerator* timestampGenerator_;  ///< 全局 tick；视频 pending / 音频 frame 对齐用
+    uint64_t lastTimestamp_ = 0;              ///< 音频 emit 递增帧号基准
 };

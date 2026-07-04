@@ -10,11 +10,11 @@
 
 | 场景 | 典型用法 |
 |------|----------|
-| 灯光控制 | Art-Net / DMX 收发、Universe 回放、与 Reaper 等软件联动 |
-| 音视频 | 摄像头 / NDI / Spout 采集、解码播放、VST3 效果链、LTC 时间码 |
-| 设备通信 | 串口、TCP/UDP、WebSocket、OSC、MQTT、Modbus PLC |
+| 灯光控制 | Art-Net / DMX 收发、Universe录制与回放、与 Reaper 等软件联动 |
+| 音视频 | 摄像头 / NDI / Spout 采集、RTSP采集、解码播放、VST3 效果链、LTC 时间码 |
+| 设备通信 | 串口、TCP/UDP、WebSocket、OSC、MQTT、Modbus TCP|
 | 现场自动化 | 热键触发、条件分支、延迟队列、值查表、脚本扩展 |
-| AI 视觉 | YOLO 目标/姿态/人脸检测（ONNX 推理） |
+| AI 视觉 | YOLO 目标/姿态/人脸检测（ONNX 推理）、MediaPipe人物动作/手势识别 |
 | 远程控制 | 内置 HTTP 网页控制台、全局 OSC 地址树、计划任务 |
 
 ---
@@ -240,7 +240,7 @@ Object Detection、Pose Detection、Face Detection、StyleTransfer（YOLO v11n�
 - CMake 3.10+
 - C++17
 
-**第三方依赖** 位于 `3rdParty/`，包括 QtNodes、ADS、PortAudio、FFmpeg、OpenCV、ONNX、NDI、Spout、Poco 等，详见 [`res/README.md`](res/README.md)。
+**第三方依赖** 见 [`res/README.md`](res/README.md)（开源项目声明与致谢）。
 
 ```bash
 # 配置（示例）
@@ -339,4 +339,4 @@ NodeEditorCPP/
 
 Copyright © 2008–2025 WuBin. All rights reserved.
 
-本项目使用了大量优秀的开源库，完整清单与链接见 [`res/README.md`](res/README.md)。
+本项目使用了第三方开源项目及 SDK，声明与致谢见 [`res/README.md`](res/README.md)。

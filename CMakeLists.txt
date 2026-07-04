@@ -62,6 +62,12 @@ set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/lib/qtadvanced
 INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
 message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
 
+# 设置 QWindowKit 库（无边框窗口）
+set(QWINDOWKIT_INSTALL_DIR "${DEPENDS_DIR}/qwindowkit/install")
+set(QWindowKit_DIR "${QWINDOWKIT_INSTALL_DIR}/lib/cmake/QWindowKit")
+find_package(QWindowKit COMPONENTS Core Widgets REQUIRED)
+message(STATUS "Found QWindowKit ${QWINDOWKIT_INSTALL_DIR}")
+
 # 设置portaudio库
 set(portaudio_DIR "${DEPENDS_DIR}/portaudio/include")
 set(portaudio_LIBRARIES "${DEPENDS_DIR}/portaudio/build/MSVC/lib/portaudio.lib")
@@ -177,6 +183,12 @@ set(CALC_SOURCE_FILES
         src/Widget/MenuBarWidget/AboutWidget.hpp
         src/Widget/MainWindow/MainWindow.hpp
         src/Widget/MainWindow/MainWindow.cpp
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.cpp
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.h
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbar_p.h
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbutton.cpp
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbutton.h
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbutton_p.h
         src/Widget/MainWindow/MainWindowHeadLess.cpp
         src/Widget/MainWindow/MainWindowHeadLess.hpp
         src/Widget/MainWindow/ProjectSnapshotBuilder.hpp
@@ -294,6 +306,16 @@ set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES}
         src/Common/BaseClass/AbstractClipDelegateModel.cpp
         src/Common/BaseClass/AbstractClipDelegateModel.h)
 list(REMOVE_ITEM HEADLESS_SOURCE_FILES main.cpp)
+# FlowRuntime 使用 MainWindowHeadLess，无需 GUI 主窗口与 QWindowKit 标题栏源码
+list(REMOVE_ITEM HEADLESS_SOURCE_FILES
+        src/Widget/MainWindow/MainWindow.cpp
+        src/Widget/MainWindow/MainWindow.hpp
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.cpp
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.h
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbar_p.h
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbutton.cpp
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbutton.h
+        3rdParty/qwindowkit/examples/shared/widgetframe/windowbutton_p.h)
 list(APPEND HEADLESS_SOURCE_FILES headless_main.cpp)
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -334,6 +356,9 @@ target_compile_definitions(${ProjectName} PRIVATE -DNODE_EDITOR_SHARED NODE_TIME
 target_compile_definitions(${ProjectName} PRIVATE CLIENTCONTROLLER_LIBRARY)
 target_compile_definitions(${ProjectName} PRIVATE OSCLISTWIDGET_LIBRARY)
 #target_compile_definitions(${ProjectName} PRIVATE OSCTRANSMITTER_LIBRARY)
+# 设置QWindowKit的示例共享文件路径
+target_include_directories(${ProjectName} PRIVATE
+        "${DEPENDS_DIR}/qwindowkit/examples/shared")
 target_link_libraries(${ProjectName}
         PUBLIC
             Qt${QT_VERSION_MAJOR}::Widgets
@@ -384,6 +409,7 @@ target_link_libraries(${ProjectName}
             AppConfig
             PropertyTreeWidget
             MqttClient
+            QWindowKit::Widgets
 )
 
 # 为 Headless 目标定义编译宏（与主程序一致）

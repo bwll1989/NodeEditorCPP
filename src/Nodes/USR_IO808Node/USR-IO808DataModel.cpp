@@ -17,7 +17,7 @@ USR_IO808DataModel::USR_IO808DataModel()
     : _interface(new USR_IO808Interface())
     , _tcpClient(new TcpClient("127.0.0.1", 8080))  // Modbus TCP默认端口502
     , _readTimer(new QTimer(this))
-    , _writeQueueTimer(new QTimer(this))
+    , _writeResponseTimer(new QTimer(this))
     , _transactionId(0)
     , _host("127.0.0.1")
     , _port(8080)
@@ -108,9 +108,9 @@ USR_IO808DataModel::USR_IO808DataModel()
 
     connect(_readTimer, &QTimer::timeout, this, &USR_IO808DataModel::readAllData);
 
-    // Write Queue Timer Setup
-    _writeQueueTimer->setInterval(1000); // 1s interval
-    connect(_writeQueueTimer, &QTimer::timeout, this, &USR_IO808DataModel::processWriteQueue);
+    _writeResponseTimer->setSingleShot(true);
+    _writeResponseTimer->setInterval(800);
+    connect(_writeResponseTimer, &QTimer::timeout, this, &USR_IO808DataModel::onWriteTimeout);
 
     // Initial sync
     _interface->_hostEdit->setText(_host);
@@ -127,8 +127,8 @@ USR_IO808DataModel::~USR_IO808DataModel()
     if (_readTimer) {
         _readTimer->stop();
     }
-    if (_writeQueueTimer) {
-        _writeQueueTimer->stop();
+    if (_writeResponseTimer) {
+        _writeResponseTimer->stop();
     }
 }
 
@@ -315,6 +315,10 @@ void USR_IO808DataModel::readAllOutputs()
 
 void USR_IO808DataModel::readAllData()
 {
+    if (_writeInFlight || _writePending) {
+        return;
+    }
+
     readAllInputs();
     QTimer::singleShot(100, this, [this]() {
         readAllOutputs();
@@ -338,10 +342,14 @@ void USR_IO808DataModel::setConnected(bool connected)
         }
     }
     if (_connected) {
+        requestWriteAllOutputs();
         readAllData();
         _readTimer->start(1000);
     } else {
         _readTimer->stop();
+        _writeInFlight = false;
+        _writePending = false;
+        _writeResponseTimer->stop();
     }
 }
 
@@ -356,30 +364,67 @@ void USR_IO808DataModel::setOutput(int index, bool state)
     _interface->_outputCheckBoxes[index]->setChecked(state);
 
     AbstractDelegateModel::stateFeedBack(QString("/DO%1").arg(index), state);
-    
-    // 添加到队列
-    _writeQueue.enqueue({index, state});
-    
-    // 如果定时器未运行，立即触发
-    if (!_writeQueueTimer->isActive()) {
-        _writeQueueTimer->start(0);
-    }
+
+    requestWriteAllOutputs();
 }
 
-void USR_IO808DataModel::processWriteQueue()
+void USR_IO808DataModel::requestWriteAllOutputs()
 {
-    if (_writeQueue.isEmpty()) {
-        _writeQueueTimer->stop();
+    if (!_connected) {
         return;
     }
 
-    // 取出最早的一个指令
-    WriteCommand cmd = _writeQueue.dequeue();
-    QByteArray command = generateWriteSingleCoilCommand(cmd.index, cmd.state);
-    sendModbusCommand(command);
+    if (_writeInFlight) {
+        _writePending = true;
+        return;
+    }
 
-    // 设置下一次触发为1秒后
-    _writeQueueTimer->start(1000);
+    writeAllOutputs();
+}
+
+void USR_IO808DataModel::writeAllOutputs()
+{
+    if (!_connected || _writeInFlight) {
+        return;
+    }
+
+    QVector<bool> values;
+    values.reserve(8);
+    for (int i = 0; i < 8; ++i) {
+        values.append(_outputStates[i]);
+    }
+
+    _writeInFlight = true;
+    _writePending = false;
+    QByteArray command = generateWriteMultipleCoilsCommand(0x0000, values, 8);
+    sendModbusCommand(command);
+    _writeResponseTimer->start();
+}
+
+void USR_IO808DataModel::onWriteCompleted(bool success)
+{
+    if (!_writeInFlight) {
+        return;
+    }
+
+    Q_UNUSED(success);
+    _writeResponseTimer->stop();
+    _writeInFlight = false;
+
+    if (_writePending) {
+        _writePending = false;
+        writeAllOutputs();
+    }
+}
+
+void USR_IO808DataModel::onWriteTimeout()
+{
+    if (!_writeInFlight) {
+        return;
+    }
+
+    _writeInFlight = false;
+    writeAllOutputs();
 }
 
 void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
@@ -392,8 +437,15 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
     quint16 length = (static_cast<quint8>(response[4]) << 8) | static_cast<quint8>(response[5]);
     quint8 unitId = static_cast<quint8>(response[6]);
     quint8 functionCode = static_cast<quint8>(response[7]);
-    
+
     if (protocolId != 0) return;
+
+    if (functionCode & 0x80) {
+        if ((functionCode & 0x7F) == 0x0F) {
+            onWriteCompleted(false);
+        }
+        return;
+    }
     
     switch (functionCode) {
     case 0x01: // 读取线圈状态响应
@@ -403,6 +455,9 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
                 quint8 coilData = static_cast<quint8>(response[9]);
                 // 更新DO状态
                 for (int i = 0; i < 8; ++i) {
+                    if (_writeInFlight || _writePending) {
+                        continue;
+                    }
                     bool state = (coilData & (1 << i)) != 0;
                     if (_outputStates[i] != state) {
                         _outputStates[i] = state;
@@ -435,10 +490,8 @@ void USR_IO808DataModel::processModbusResponse(const QByteArray &response)
         }
         break;
         
-    case 0x05: // 写单个线圈响应
-        break;
-        
     case 0x0F: // 写多个线圈响应
+        onWriteCompleted(true);
         break;
         
     default:
@@ -480,25 +533,6 @@ QByteArray USR_IO808DataModel::generateReadDiscreteInputsCommand(quint16 startAd
     command.append(static_cast<char>(startAddress & 0xFF));
     command.append(static_cast<char>(quantity >> 8));
     command.append(static_cast<char>(quantity & 0xFF));
-    _transactionId++;
-    return command;
-}
-
-QByteArray USR_IO808DataModel::generateWriteSingleCoilCommand(quint16 address, bool value)
-{
-    QByteArray command;
-    command.append(static_cast<char>(_transactionId >> 8));
-    command.append(static_cast<char>(_transactionId & 0xFF));
-    command.append(static_cast<char>(0x00));
-    command.append(static_cast<char>(0x00));
-    command.append(static_cast<char>(0x00));
-    command.append(static_cast<char>(0x06));
-    command.append(static_cast<char>(_serverId));
-    command.append(static_cast<char>(0x05));
-    command.append(static_cast<char>(address >> 8));
-    command.append(static_cast<char>(address & 0xFF));
-    command.append(static_cast<char>(value ? 0xFF : 0x00));
-    command.append(static_cast<char>(0x00));
     _transactionId++;
     return command;
 }

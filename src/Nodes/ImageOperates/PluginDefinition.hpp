@@ -19,6 +19,9 @@
 
 /**
  * @brief ImageOperates 插件入口
+ *
+ * 注册 Doc.md §1 所列全部图像算子；GPU 算子实现见各 *Model.hpp，
+ * 公共约定见 ImageOperateCommon.hpp 与 FlipImageOperateModel.hpp（模板）。
  */
 class DLL_EXPORT Plugin
     : public QObject

@@ -51,7 +51,7 @@ namespace Nodes
             OutPortCount = 1; // 输出端口：STATUS (包含连接状态、最后消息、时间戳)
             CaptionVisible = true;
             PortEditable = false;
-            Caption = PLUGIN_NAME;
+            Caption = "FT-DAWController";
             WidgetEmbeddable = false;
             Resizable = false;
             

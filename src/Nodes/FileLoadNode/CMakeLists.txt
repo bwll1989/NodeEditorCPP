@@ -18,7 +18,11 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp
         ../../Common/BaseClass/AbstractDelegateModel.cpp
         ../../Common/BaseClass/AbstractDelegateModel.h)
-target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES}
+target_link_libraries(${Module_Name} PRIVATE 
+        Qt${QT_VERSION_MAJOR}::Widgets 
+        Qt${QT_VERSION_MAJOR}::OpenGL 
+        Qt${QT_VERSION_MAJOR}::OpenGLWidgets
+        ${QtNodes_LIBRARIES}
         ${OpenCV_LIBRARIES}
         MediaManger
         GUIElements

@@ -1,13 +1,20 @@
 #pragma once
 
+#include <atomic>
 #include <cmath>
+#include <memory>
+
 #include <QJsonObject>
 #include <QPointer>
 #include <QRectF>
 #include <QtNodes/NodeDelegateModel>
-#include <memory>
+
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
+#include "Common/DataTypes/ImageReadback.h"
 #include "NodeDataList.hpp"
+#include "ROICommon.hpp"
+#include "ROIGpu.hpp"
 #include "ROIInterface.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
 
@@ -55,16 +62,11 @@ public:
                 &ROIImageView::roiRectChanged,
                 this,
                 &ROIDataModel::onWidgetRoiRectChanged);
-
-        connect(TimestampGenerator::getInstance(),
-                &TimestampGenerator::frameCountUpdated,
-                this,
-                &ROIDataModel::onSystemFrameTick,
-                Qt::QueuedConnection);
     }
 
     ~ROIDataModel() override
     {
+        m_shuttingDown.store(true);
         disconnect(TimestampGenerator::getInstance(), nullptr, this, nullptr);
 
         if (m_widget) {
@@ -83,6 +85,27 @@ public:
             m_outputBuffer->clear();
         }
         m_inputImage.reset();
+    }
+
+    void afterModelReady() override
+    {
+        AbstractDelegateModel::afterModelReady();
+        ImageGpuUpload::instance().warmup();
+
+        connect(TimestampGenerator::getInstance(),
+                &TimestampGenerator::frameCountUpdated,
+                this,
+                [self = QPointer<ROIDataModel>(this)](qint64 frameCount) {
+                    if (!self || self->m_shuttingDown.load()) {
+                        return;
+                    }
+                    self->onSystemFrameTick(frameCount);
+                },
+                Qt::QueuedConnection);
+
+        if (m_inputImage) {
+            updateFromSharedBuffer(TimestampGenerator::getInstance()->getCurrentFrameCount());
+        }
     }
 
     /**
@@ -168,6 +191,7 @@ public:
             }
 
             ensureImageDataBuffer(m_outputImage, m_outputBuffer);
+            m_lastProcessedInputTimestamp = -1;
             emit dataUpdated(0);
 
             updateFromSharedBuffer(TimestampGenerator::getInstance()->getCurrentFrameCount());
@@ -340,10 +364,9 @@ private slots:
      */
     void onSystemFrameTick(qint64 frameCount)
     {
-        if (!m_inputImage || !m_inputImage->isConnectedToSharedBuffer() || m_lastTick == frameCount) {
+        if (m_shuttingDown.load() || !m_inputImage) {
             return;
         }
-        m_lastTick = frameCount;
         updateFromSharedBuffer(frameCount);
     }
 
@@ -404,6 +427,7 @@ private:
                 emit dataUpdated(1);
             }
             syncWidgetState();
+            m_roiParamsDirty = true;
             processImage();
             return;
         }
@@ -423,6 +447,7 @@ private:
         if (!qFuzzyCompare(oldNorm.height(), m_roiNormRect.height())) emit roiHeightNormChanged(m_roiNormRect.height());
 
         syncWidgetState();
+        m_roiParamsDirty = true;
         processImage();
     }
 
@@ -565,6 +590,14 @@ private:
         m_widget->setRoiInfo(m_roiRectPx, m_inputImageSize);
     }
 
+    void clearOutputBuffer()
+    {
+        if (m_outputBuffer) {
+            m_outputBuffer->clear();
+        }
+        m_lastPushedTimestamp = -1;
+    }
+
     /**
      * @brief 根据当前 ROI 重新裁剪输出图像
      */
@@ -574,73 +607,105 @@ private:
         const qint64 outputTimestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
 
         if (!m_inputImage) {
-            if (m_outputBuffer) {
-                m_outputBuffer->clear();
-            }
-            m_lastPushedTimestamp = -1;
+            clearOutputBuffer();
             return;
         }
 
-        cv::Mat inputMat;
         ImageFrame frame;
-        if (!resolveImageFrameAtTimestamp(m_inputImage, outputTimestamp, frame)) {
-            if (m_outputBuffer) {
-                m_outputBuffer->clear();
-            }
-            m_lastPushedTimestamp = -1;
+        if (!ROINode::resolveInputFrame(m_inputImage, outputTimestamp, frame)) {
+            clearOutputBuffer();
             return;
         }
 
-        if (frame.image.empty()) {
-            if (m_outputBuffer) {
-                m_outputBuffer->clear();
-            }
-            m_lastPushedTimestamp = -1;
+        const bool inputUpdated = frame.timestamp != m_lastProcessedInputTimestamp;
+        if (!inputUpdated && !m_roiParamsDirty) {
             return;
         }
 
-        inputMat = frame.image.clone();
+        processImageFrame(frame, outputTimestamp);
+        m_roiParamsDirty = false;
+        if (frame.timestamp >= 0) {
+            m_lastProcessedInputTimestamp = frame.timestamp;
+        }
+    }
 
+    void processImageFrame(const ImageFrame& inputFrame, qint64 outputTimestamp)
+    {
         if (!m_roiRectPx.isValid() || m_roiRectPx.width() <= 0 || m_roiRectPx.height() <= 0) {
-            if (m_outputBuffer) {
-                m_outputBuffer->clear();
-            }
-            m_lastPushedTimestamp = -1;
+            clearOutputBuffer();
             return;
         }
 
         const QRect validRoi = clampRectToImagePx(m_roiRectPx);
         if (!validRoi.isValid() || validRoi.width() <= 0 || validRoi.height() <= 0) {
-            if (m_outputBuffer) {
-                m_outputBuffer->clear();
-            }
-            m_lastPushedTimestamp = -1;
+            clearOutputBuffer();
             return;
         }
 
-        const cv::Rect cvRoi(validRoi.x(), validRoi.y(), validRoi.width(), validRoi.height());
-        cv::Mat cropped = inputMat(cvRoi).clone();
-        pushFrameToImageBufferDedup(m_outputBuffer, std::move(cropped), outputTimestamp, m_lastPushedTimestamp);
+        ImageFrame frame = inputFrame;
+        if (!frame.texture.valid() && !frame.ensureGpuTexture()) {
+            const cv::Mat inputMat = ImageReadback::matFromFrame(frame);
+            if (inputMat.empty()) {
+                clearOutputBuffer();
+                return;
+            }
+
+            const cv::Rect cvRoi(validRoi.x(), validRoi.y(), validRoi.width(), validRoi.height());
+            cv::Mat cropped = inputMat(cvRoi).clone();
+            pushFrameToImageBufferDedup(m_outputBuffer, std::move(cropped), outputTimestamp, m_lastPushedTimestamp);
+            return;
+        }
+
+        auto outTex = ROINode::cropTexture(frame.texture, validRoi);
+        if (!outTex.valid()) {
+            clearOutputBuffer();
+            return;
+        }
+
+        ROINode::pushTextureToOutput(m_outputBuffer, m_lastPushedTimestamp, std::move(outTex), outputTimestamp);
     }
 
     void updateFromSharedBuffer(qint64 frameCount)
     {
-        if (!m_inputImage || !m_inputImage->isConnectedToSharedBuffer()) {
+        if (m_shuttingDown.load() || !m_inputImage) {
             return;
         }
 
         ImageFrame frame;
-        if (!resolveImageFrameAtTimestamp(m_inputImage, frameCount, frame)) {
+        if (!ROINode::resolveInputFrame(m_inputImage, frameCount, frame)) {
             return;
         }
 
-        m_inputImageSize = QSize(frame.image.cols, frame.image.rows);
-        if (m_widget && m_widget->imageView) {
-            m_widget->imageView->setImage(frame.image);
+        const int fw = ROINode::frameWidth(frame);
+        const int fh = ROINode::frameHeight(frame);
+        if (fw <= 0 || fh <= 0) {
+            return;
         }
-        updateDerivedRoiPxFromNorm();
-        syncWidgetState();
-        processImage();
+
+        const QSize newSize(fw, fh);
+        const bool sizeChanged = newSize != m_inputImageSize;
+        const bool inputUpdated = frame.timestamp != m_lastProcessedInputTimestamp;
+
+        if (sizeChanged) {
+            m_inputImageSize = newSize;
+            updateDerivedRoiPxFromNorm();
+        }
+
+        if (inputUpdated && m_widget && m_widget->imageView) {
+            m_widget->imageView->setImage(ImageReadback::matFromFrame(frame));
+        }
+
+        if (inputUpdated || sizeChanged) {
+            syncWidgetState();
+        }
+
+        if (inputUpdated || m_roiParamsDirty) {
+            processImageFrame(frame, frameCount);
+            m_roiParamsDirty = false;
+            if (frame.timestamp >= 0) {
+                m_lastProcessedInputTimestamp = frame.timestamp;
+            }
+        }
     }
 
 private:
@@ -655,7 +720,9 @@ private:
     QRectF m_roiNormRect;
     QRect m_roiRectPx;
     QSize m_inputImageSize;
-    qint64 m_lastTick = -1;
+    qint64 m_lastProcessedInputTimestamp = -1;
+    std::atomic<bool> m_shuttingDown{false};
+    bool m_roiParamsDirty = false;
 
     bool m_hasPendingRectInput = false;
     bool m_pendingRectInputIsNorm = false;

@@ -1,5 +1,13 @@
 #pragma once
 
+/**
+ * @file CrossImageOperateModel.hpp
+ * @brief Image Cross — 双图线性混合 mix(A, B, blend)
+ *
+ * A 决定输出尺寸；B 经 matchTextureSize 对齐。blend∈[0,1] 在 GPU 端 mix。
+ * 节点 tick / setInData 约定同 Doc.md §3。
+ */
+
 #include "ImageOperateCommon.hpp"
 #include "NodeDataList.hpp"
 
@@ -10,7 +18,10 @@
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
-#include <opencv2/imgproc.hpp>
+#include <QOpenGLFunctions>
+#include <QOpenGLShaderProgram>
+
+#include <algorithm>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
@@ -20,6 +31,53 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
+namespace CrossImageOperateGpu
+{
+static const char kFragCross[] = R"(
+uniform sampler2D uTextureA;
+uniform sampler2D uTextureB;
+uniform float uBlend;
+varying vec2 vTexCoord;
+void main() {
+    vec4 a = texture2D(uTextureA, vTexCoord);
+    vec4 b = texture2D(uTextureB, vTexCoord);
+    gl_FragColor = mix(a, b, uBlend);
+}
+)";
+
+inline GpuTextureHandle run(const GpuTextureHandle& a, const GpuTextureHandle& b, double blend)
+{
+    if (!a.valid()) {
+        return {};
+    }
+    if (blend <= 0.0) {
+        return ImageGpuPass::instance().resize(a, a.width, a.height);
+    }
+    if (!b.valid() || blend >= 1.0) {
+        return ImageGpuPass::instance().resize(b, a.width, a.height);
+    }
+
+    const GpuTextureHandle bMatched = ImageOperateHelpers::matchTextureSize(b, a.width, a.height);
+    if (!bMatched.valid()) {
+        return {};
+    }
+    return ImageGpuPass::instance().runFragmentPass(
+        a.width,
+        a.height,
+        kFragCross,
+        [=](QOpenGLShaderProgram& program) {
+            program.setUniformValue("uTextureA", 0);
+            program.setUniformValue("uTextureB", 1);
+            program.setUniformValue("uBlend", static_cast<float>(blend));
+        },
+        [&](QOpenGLFunctions* f) {
+            ImageGpuPass::bindTexture(f, 0, a.textureId);
+            ImageGpuPass::bindTexture(f, 1, bMatched.textureId);
+        });
+}
+} // namespace CrossImageOperateGpu
+
+/** @brief 双路交叉混合 — 双输入 GPU 算子 */
 class CrossImageOperateModel final : public AbstractDelegateModel
 {
     Q_OBJECT
@@ -41,24 +99,15 @@ public:
         AbstractDelegateModel::registerExternalBinding("/blend", this, binding);
 
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        m_worker.setParent(this);
-        m_worker.setFinishedCallback([this](cv::Mat&& image, qint64 outputTimestamp, qint64, std::uint64_t) {
-            if (!image.empty()) {
-                ImageOperateHelpers::pushOutputFrame(
-                    m_outBuffer, std::move(image), outputTimestamp, m_lastPushedTimestamp);
-            }
-        });
 
         connect(TimestampGenerator::getInstance(),
                 &TimestampGenerator::frameCountUpdated,
                 this,
                 [this](qint64 frameCount) {
-                    if (!ImageOperateHelpers::hasSharedImageBufferInput(m_inputA, m_inputB)) {
+                    if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
                         return;
                     }
-                    if (!m_tick.beginFrameTick(frameCount)) {
-                        return;
-                    }
+                    m_lastRequestedFrame = frameCount;
                     requestProcess(frameCount);
                 },
                 Qt::QueuedConnection);
@@ -101,24 +150,18 @@ public:
         case 0:
             m_inputA = std::dynamic_pointer_cast<ImageData>(data);
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            if (m_inputA) {
-                m_tick.markInputConnected();
-                Q_EMIT dataUpdated(0);
-                if (!ImageOperateHelpers::hasSharedImageBufferInput(m_inputA, m_inputB)) {
-                    requestProcess();
-                }
-            }
+            m_lastProcessedInputTimestampA = -1;
+            m_lastProcessedInputTimestampB = -1;
+            m_paramsDirty = true;
+            Q_EMIT dataUpdated(0);
             break;
         case 1:
             m_inputB = std::dynamic_pointer_cast<ImageData>(data);
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            if (m_inputB) {
-                m_tick.markInputConnected();
-                Q_EMIT dataUpdated(0);
-                if (!ImageOperateHelpers::hasSharedImageBufferInput(m_inputA, m_inputB)) {
-                    requestProcess();
-                }
-            }
+            m_lastProcessedInputTimestampA = -1;
+            m_lastProcessedInputTimestampB = -1;
+            m_paramsDirty = true;
+            Q_EMIT dataUpdated(0);
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
@@ -156,7 +199,7 @@ public slots:
             return;
         }
         m_blend = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT blendChanged(m_blend);
     }
 
@@ -181,92 +224,59 @@ private:
         GlobalEventBus::instance()->subscribe(makeFullOscAddress("/blend"), this, SLOT(onGlobalEvent(GlobalEvent)));
     }
 
+    void clearOutput()
+    {
+        if (m_outBuffer) {
+            m_outBuffer->clear();
+        }
+        m_lastPushedTimestamp = -1;
+        m_lastProcessedInputTimestampA = -1;
+        m_lastProcessedInputTimestampB = -1;
+        m_paramsDirty = false;
+    }
+
     void requestProcess(qint64 targetTimestamp = -1)
     {
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        const qint64 outputTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
+        const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
 
         if (!ImageOperateHelpers::hasInputImage(m_inputA) || !ImageOperateHelpers::hasInputImage(m_inputB)) {
-            ImageOperateHelpers::clearDualInputOutput(
-                m_worker, m_outBuffer, m_lastPushedTimestamp, m_tick);
+            clearOutput();
             return;
         }
 
         ImageFrame inputAFrame;
         ImageFrame inputBFrame;
-        if (!ImageOperateHelpers::resolveDualInputFramesForOperate(
-                m_inputA, m_inputB, outputTimestamp, inputAFrame, inputBFrame)) {
-            m_worker.cancelPending();
+        if (!ImageOperateHelpers::resolveDualInputGpuFrames(
+                m_inputA, m_inputB, lookupTimestamp, inputAFrame, inputBFrame)) {
+            clearOutput();
             return;
         }
 
-        if (!m_tick.shouldProcess(inputAFrame.timestamp, inputBFrame.timestamp)) {
+        if (!m_paramsDirty
+            && inputAFrame.timestamp == m_lastProcessedInputTimestampA
+            && inputBFrame.timestamp == m_lastProcessedInputTimestampB) {
             return;
         }
 
-        const double blend = m_blend;
-        const qint64 tsA = inputAFrame.timestamp;
-        const qint64 tsB = inputBFrame.timestamp;
+        GpuTextureHandle out = CrossImageOperateGpu::run(
+            inputAFrame.texture, inputBFrame.texture, m_blend);
+        ImageOperateHelpers::pushGpuResultDual(m_outBuffer, std::move(out), m_lastPushedTimestamp);
 
-        if (blend <= 0.0) {
-            m_worker.setFinishedCallback([this, tsA, tsB](cv::Mat&& image, qint64 outTs, qint64, std::uint64_t) {
-                ImageOperateHelpers::pushWorkerResultDual(
-                    m_outBuffer, std::move(image), outTs, m_lastPushedTimestamp, m_tick, tsA, tsB);
-            });
-            m_worker.submit(
-                [input = inputAFrame.image.clone()]() { return input; },
-                outputTimestamp,
-                tsA);
-            return;
-        }
-
-        if (blend >= 1.0) {
-            m_worker.setFinishedCallback([this, tsA, tsB](cv::Mat&& image, qint64 outTs, qint64, std::uint64_t) {
-                ImageOperateHelpers::pushWorkerResultDual(
-                    m_outBuffer, std::move(image), outTs, m_lastPushedTimestamp, m_tick, tsA, tsB);
-            });
-            m_worker.submit(
-                [input = inputBFrame.image.clone()]() { return input; },
-                outputTimestamp,
-                tsA);
-            return;
-        }
-
-        m_worker.setFinishedCallback([this, tsA, tsB](cv::Mat&& image, qint64 outTs, qint64, std::uint64_t) {
-            ImageOperateHelpers::pushWorkerResultDual(
-                m_outBuffer, std::move(image), outTs, m_lastPushedTimestamp, m_tick, tsA, tsB);
-        });
-
-        m_worker.submit(
-            [inputA = inputAFrame.image.clone(), inputB = inputBFrame.image.clone(), blend]() {
-                const cv::Mat normalizedA = ImageOperateHelpers::ensureBgr(ImageOperateHelpers::normalizeTo8Bit(inputA));
-                const cv::Mat normalizedBSource = ImageOperateHelpers::ensureBgr(ImageOperateHelpers::normalizeTo8Bit(inputB));
-                if (normalizedA.empty() || normalizedBSource.empty()) {
-                    return cv::Mat();
-                }
-
-                cv::Mat normalizedB;
-                if (normalizedA.size() == normalizedBSource.size()) {
-                    normalizedB = normalizedBSource;
-                } else {
-                    cv::resize(normalizedBSource, normalizedB, normalizedA.size(), 0.0, 0.0, cv::INTER_LINEAR);
-                }
-
-                cv::Mat output;
-                cv::addWeighted(normalizedA, 1.0 - blend, normalizedB, blend, 0.0, output);
-                return output;
-            },
-            outputTimestamp,
-            tsA);
+        m_lastProcessedInputTimestampA = inputAFrame.timestamp;
+        m_lastProcessedInputTimestampB = inputBFrame.timestamp;
+        m_paramsDirty = false;
     }
 
     std::shared_ptr<ImageData> m_inputA;
     std::shared_ptr<ImageData> m_inputB;
     std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
     std::shared_ptr<ImageData> m_outImageData;
-    ImageOperateHelpers::ImageOperateWorkerQueue m_worker;
-    ImageOperateHelpers::ImageOperateDualTickState m_tick;
+    qint64 m_lastRequestedFrame = -1;
+    qint64 m_lastProcessedInputTimestampA = -1;
+    qint64 m_lastProcessedInputTimestampB = -1;
     qint64 m_lastPushedTimestamp = -1;
+    bool m_paramsDirty = false;
     double m_blend = 0.0;
 };
 } // namespace Nodes

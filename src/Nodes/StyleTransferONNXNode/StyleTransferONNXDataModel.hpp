@@ -18,12 +18,65 @@
 
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
+#include "Common/DataTypes/ImageReadback.h"
+#include "TimestampGenerator/TimestampGenerator.hpp"
+#include <QElapsedTimer>
+#include <QFutureWatcher>
+#include <atomic>
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
 using namespace std;
+
+namespace
+{
+inline bool peekLatestInputTimestamp(const std::shared_ptr<ImageData>& input, qint64& timestamp)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return false;
+    }
+    timestamp = frame.timestamp;
+    return true;
+}
+
+inline cv::Mat readInputMatForInference(const std::shared_ptr<ImageData>& input)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return {};
+    }
+    cv::Mat mat = ImageReadback::matFromFrame(frame);
+    return mat.empty() ? cv::Mat{} : mat.clone();
+}
+
+inline void pushMatToRingBuffer(std::shared_ptr<ImageData>& outData,
+                                std::shared_ptr<ImageTimestampRingQueue>& buffer,
+                                qint64& lastPushed,
+                                cv::Mat&& mat)
+{
+    if (mat.empty()) {
+        return;
+    }
+    ensureImageDataBuffer(outData, buffer);
+    const qint64 ts = TimestampGenerator::getInstance()->getCurrentFrameCount();
+    pushFrameToImageBufferDedup(buffer, ImageFrame::fromMat(std::move(mat), ts), lastPushed);
+}
+
+inline void clearRingBufferOutput(std::shared_ptr<ImageData>& outData,
+                                  std::shared_ptr<ImageTimestampRingQueue>& buffer,
+                                  qint64& lastPushed)
+{
+    lastPushed = -1;
+    ensureImageDataBuffer(outData, buffer);
+    if (buffer) {
+        buffer->clear();
+    }
+}
+} // namespace
 
 namespace Nodes
 {
@@ -42,7 +95,7 @@ namespace Nodes
             Resizable=false;
             PortEditable= false;
             m_outVariable=std::make_shared<VariableData>();
-            m_outImage=std::make_shared<ImageData>();
+            ensureImageDataBuffer(m_outImage, m_outImageBuffer);
             model_path="./plugins/Models/AnimeGANv3_Hayao_36.onnx";
             {
                 NodeDelegateModel::ExternalBinding b;
@@ -52,7 +105,15 @@ namespace Nodes
 
         }
 
-        ~YoloDetectionONNXDataModel() override{}
+        ~YoloDetectionONNXDataModel() override
+        {
+            cancelPendingInference();
+            disconnect(TimestampGenerator::getInstance(), nullptr, this, nullptr);
+            GlobalEventBus::instance()->unsubscribe(this);
+            m_ortSession.reset();
+            m_sessionOptions.reset();
+            m_ortEnv.reset();
+        }
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
@@ -99,93 +160,137 @@ namespace Nodes
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            if (data== nullptr){
+            if (portIndex != 0 || !data) {
                 return;
             }
-            switch (portIndex)
-            {
-            case 0:
-                m_inImage0=std::dynamic_pointer_cast<ImageData>(data);
-                imageReasoning();
-                break;
-            case 1:
-                m_inImage0=std::dynamic_pointer_cast<ImageData>(data);
-                imageReasoning();
-                break;
+            m_inImage0 = std::dynamic_pointer_cast<ImageData>(data);
+            m_lastSeenInputTimestamp = -1;
+            if (!m_inImage0) {
+                cancelPendingInference();
+                clearRingBufferOutput(m_outImage, m_outImageBuffer, m_lastPushedTimestamp);
+                return;
             }
+            tryScheduleInference();
         }
        /**
      * @brief 性能优化的ONNX Runtime图像推理函数
      * @details 使用缓存的会话和预分配内存，优化图像预处理流程，支持CUDA加速
      */
-    void imageReasoning()
+    void tryScheduleInference()
     {
-        if (!m_inImage0 || !m_enable) {
-            m_outVariable = std::make_shared<VariableData>();
-            emit dataUpdated(1);
+        if (!m_enable || !m_inImage0 || imageDataIsEmpty(m_inImage0)) {
+            return;
+        }
+
+        if (!m_inferenceWatcher) {
+            m_inferenceWatcher = new QFutureWatcher<void>(this);
+            connect(m_inferenceWatcher, &QFutureWatcher<void>::finished, this, [this]() {
+                tryScheduleInference();
+            });
+        }
+
+        if (m_inferenceWatcher->isRunning()) {
+            return;
+        }
+
+        qint64 latestTs = -1;
+        if (!peekLatestInputTimestamp(m_inImage0, latestTs)) {
+            return;
+        }
+        if (latestTs >= 0 && latestTs <= m_lastSeenInputTimestamp) {
+            return;
+        }
+
+        const qint64 intervalMs = inferenceIntervalMs();
+        if (m_inferenceTimer.isValid() && m_inferenceTimer.elapsed() < intervalMs) {
+            return;
+        }
+
+        cv::Mat frame = readInputMatForInference(m_inImage0);
+        if (frame.empty()) {
+            return;
+        }
+
+        m_lastSeenInputTimestamp = latestTs;
+        m_inferenceTimer.start();
+        m_cancelRequested.store(false);
+
+        auto future = QtConcurrent::run([this, frame = std::move(frame)]() mutable {
+            runInferenceOnImage(std::move(frame));
+        });
+        m_inferenceWatcher->setFuture(future);
+    }
+
+    qint64 inferenceIntervalMs() const
+    {
+        return static_cast<qint64>(std::lround(1000.0 / std::max(1.0, m_maxFps)));
+    }
+
+    void runInferenceOnImage(cv::Mat inputImage)
+    {
+        if (inputImage.empty() || m_cancelRequested.load()) {
             return;
         }
 
         try {
-
-            // 获取输入图像
-            cv::Mat inputImage = m_inImage0->imgMat();
-
-            if (inputImage.empty()) {
-                qDebug() << "输入图像为空";
-                return;
-            }
-
-            // 初始化ONNX Runtime会话（仅在需要时）
             if (!initializeOnnxSession()) {
                 return;
             }
+            if (m_cancelRequested.load()) {
+                return;
+            }
 
-            // 高效的图像预处理
             cv::resize(inputImage, m_resizedImage, m_modelInputSize, 0, 0, cv::INTER_LINEAR);
-
-            // 优化的颜色空间转换和归一化
             cv::cvtColor(m_resizedImage, m_rgbImage, cv::COLOR_BGR2RGB);
             m_rgbImage.convertTo(m_rgbImage, CV_32F, 1.0 / 255.0);
 
-            // 高效的HWC到CHW转换（使用OpenCV的split和merge）
+            const int channelSize = m_modelInputSize.height * m_modelInputSize.width;
             std::vector<cv::Mat> channels(3);
             cv::split(m_rgbImage, channels);
-
-            // 直接复制到输入缓冲区
-            const int channelSize = m_modelInputSize.height * m_modelInputSize.width;
             for (int c = 0; c < 3; ++c) {
                 std::memcpy(m_inputBuffer.data() + c * channelSize,
                            channels[c].ptr<float>(),
                            channelSize * sizeof(float));
             }
 
-            // 创建输入张量（复用内存）
-            std::vector<int64_t> inputTensorShape = {1,m_modelInputSize.height, m_modelInputSize.width,3};
+            std::vector<int64_t> inputTensorShape = {1, m_modelInputSize.height, m_modelInputSize.width, 3};
             Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
             Ort::Value inputTensor = Ort::Value::CreateTensor<float>(
                 memoryInfo, m_inputBuffer.data(), m_inputBuffer.size(),
                 inputTensorShape.data(), inputTensorShape.size());
 
-            // 执行推理
             auto outputTensors = m_ortSession->Run(Ort::RunOptions{nullptr},
                                                  m_inputNames.data(), &inputTensor, 1,
                                                  m_outputNames.data(), m_outputNames.size());
 
-            // 处理输出结果
-            cv::Mat resultImage = postProcessOnnxResults(outputTensors, inputImage, m_modelInputSize);
+            if (m_cancelRequested.load()) {
+                return;
+            }
 
-            // 更新输出图像数据
-            m_outImage = std::make_shared<ImageData>(resultImage);
-            emit dataUpdated(0);
+            QVariantMap transferResults;
+            cv::Mat resultImage = postProcessOnnxResults(
+                outputTensors, inputImage, m_modelInputSize, transferResults);
 
+            QMetaObject::invokeMethod(this, [this, resultImage = std::move(resultImage), transferResults]() mutable {
+                m_outVariable = std::make_shared<VariableData>(transferResults);
+                emit dataUpdated(1);
+                pushMatToRingBuffer(m_outImage, m_outImageBuffer, m_lastPushedTimestamp, std::move(resultImage));
+            }, Qt::QueuedConnection);
         } catch (const Ort::Exception& e) {
             qDebug() << "ONNX Runtime错误:" << e.what();
-            m_isModelInitialized = false;  // 强制重新初始化
+            m_isModelInitialized = false;
         } catch (const std::exception& e) {
             qDebug() << "推理错误:" << e.what();
         } catch (...) {
             qDebug() << "未知错误";
+        }
+    }
+
+    void cancelPendingInference()
+    {
+        m_cancelRequested.store(true);
+        if (m_inferenceWatcher && m_inferenceWatcher->isRunning()) {
+            m_inferenceWatcher->waitForFinished();
         }
     }
 
@@ -197,7 +302,10 @@ namespace Nodes
      * @param inputSize 模型输入尺寸
      * @return 风格迁移后的图像
      */
-    cv::Mat postProcessOnnxResults(std::vector<Ort::Value>& outputTensors, const cv::Mat& originalImage, const cv::Size& inputSize)
+    cv::Mat postProcessOnnxResults(std::vector<Ort::Value>& outputTensors,
+                                   const cv::Mat& originalImage,
+                                   const cv::Size& inputSize,
+                                   QVariantMap& transferResults)
     {
         if (outputTensors.empty()) {
             qDebug() << "输出张量为空";
@@ -252,32 +360,21 @@ namespace Nodes
             // 转换颜色空间 (RGB -> BGR，因为OpenCV使用BGR)
             cv::cvtColor(result, result, cv::COLOR_RGB2BGR);
             
-            // 构建风格迁移结果信息并输出到第二个端口
-            QVariantMap transferResults;
             transferResults["status"] = "success";
             transferResults["input_size"] = QString("%1x%2").arg(originalImage.cols).arg(originalImage.rows);
             transferResults["output_size"] = QString("%1x%2").arg(result.cols).arg(result.rows);
             transferResults["model_input_size"] = QString("%1x%2").arg(inputSize.width).arg(inputSize.height);
             transferResults["timestamp"] = QDateTime::currentMSecsSinceEpoch();
-            
-            // 输出处理结果到第二个端口
-            m_outVariable = std::make_shared<VariableData>(transferResults);
-            emit dataUpdated(1);
-            
+
             return result;
             
         } catch (const std::exception& e) {
             qDebug() << "风格迁移后处理错误:" << e.what();
             
-            // 构建错误信息
-            QVariantMap errorResults;
-            errorResults["status"] = "error";
-            errorResults["error_message"] = QString::fromStdString(e.what());
-            errorResults["timestamp"] = QDateTime::currentMSecsSinceEpoch();
-            
-            m_outVariable = std::make_shared<VariableData>(errorResults);
-            emit dataUpdated(1);
-            
+            transferResults["status"] = "error";
+            transferResults["error_message"] = QString::fromStdString(e.what());
+            transferResults["timestamp"] = QDateTime::currentMSecsSinceEpoch();
+
             return originalImage;
         }
     }
@@ -431,14 +528,31 @@ namespace Nodes
         if (m_enable != enable) {
             m_enable = enable;
             emit enableChanged();
+            if (!m_enable) {
+                cancelPendingInference();
+                clearRingBufferOutput(m_outImage, m_outImageBuffer, m_lastPushedTimestamp);
+                m_outVariable = std::make_shared<VariableData>();
+                emit dataUpdated(1);
+                return;
+            }
+            m_lastSeenInputTimestamp = -1;
+            tryScheduleInference();
         }
     }
         /**
          * @brief 在模型准备就绪后订阅事件总线
          */
         void afterModelReady() override {
+            AbstractDelegateModel::afterModelReady();
+            ImageGpuUpload::instance().warmup();
             auto bus = GlobalEventBus::instance();
             bus->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
+            connect(TimestampGenerator::getInstance(),
+                    &TimestampGenerator::frameCountUpdated,
+                    this,
+                    [this](qint64) { tryScheduleInference(); },
+                    Qt::QueuedConnection);
         }
 
 private Q_SLOTS:
@@ -457,11 +571,16 @@ private Q_SLOTS:
         void enableChanged();
 
     private:
-        QFutureWatcher<double>* m_watcher = nullptr;
+        QFutureWatcher<void>* m_inferenceWatcher = nullptr;
         std::shared_ptr<ImageData> m_inImage0;
-        // std::shared_ptr<ImageData> m_inImage1;
         std::shared_ptr<VariableData> m_outVariable;
         std::shared_ptr<ImageData> m_outImage;
+        std::shared_ptr<ImageTimestampRingQueue> m_outImageBuffer;
+        qint64 m_lastPushedTimestamp = -1;
+        qint64 m_lastSeenInputTimestamp = -1;
+        QElapsedTimer m_inferenceTimer;
+        double m_maxFps = 15.0;
+        std::atomic<bool> m_cancelRequested{false};
         QString model_path;
          // ONNX Runtime缓存资源
         std::unique_ptr<Ort::Env> m_ortEnv;

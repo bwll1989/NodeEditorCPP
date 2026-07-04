@@ -37,7 +37,7 @@ namespace Nodes
             CaptionVisible=true;
             WidgetEmbeddable= false;
             Resizable=true;
-            widget->setPlaceholderText("JS Expression (e.g., \"input['key']\")");
+            widget->setPlaceholderText("JS Expression (e.g., \"$input['key']\")");
             connect(widget, &QLineEdit::editingFinished, this, &ExtractDataModel::outDataSlot);
             m_jsEngine = new QJSEngine(this);
         }
@@ -98,8 +98,8 @@ namespace Nodes
             QJSValue jsData = JSEngineDefines::variantMapToJSValue(m_jsEngine, dataMap);
             QJSValue global = m_jsEngine->globalObject();
         
-            // 保持兼容：提供 data 与 obj 两个入口变量
-            global.setProperty("input", jsData);
+            // 将整个输入数据注册为 JS 全局变量 $input
+            global.setProperty("$input", jsData);
         
             // 便捷访问：注入顶层键到全局对象，支持直接编写 key.subkey 的表达式
             for (auto it = dataMap.begin(); it != dataMap.end(); ++it) {

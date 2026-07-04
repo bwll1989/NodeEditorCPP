@@ -9,6 +9,7 @@
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/AppConfig/ProjectPersistence.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
 #include <QtWebEngineQuick/QtWebEngineQuick>
 #include <optional>
 /**
@@ -102,12 +103,19 @@ static std::optional<ProjectLoadResolution> promptRecoveryBeforeSplash(const QSt
 
 int main(int argc, char *argv[])
 {
+    // 设置Qt属性，禁用原生小部件兄弟关系创建
+    QCoreApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
+    // 设置Qt属性，共享OpenGL上下文
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+    // 设置Qt属性，启用高DPI支持
     // 设置高DPI支持
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     // 创建Qt应用程序实例
     QApplication app(argc, argv);
     app.setApplicationName(AppConstants::PRODUCT_NAME);
+    // 应用级图标：任务栏、标题栏左上角、系统托盘等共用
+    app.setWindowIcon(QIcon(QStringLiteral(":/icons/icons/NodeStudio.png")));
+    NodeDataTypes::ImageGpuUpload::instance().warmup();
     // 设置工作目录为可执行文件所在目录
     QDir::setCurrent(QCoreApplication::applicationDirPath());
 

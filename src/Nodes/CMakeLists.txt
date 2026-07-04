@@ -27,7 +27,7 @@ set(ALL_NODES
     CameraNode                                #摄像头输入
     CaptureNode                               #图像捕获
 
-#    ROINode                                   #交互式 ROI 裁剪
+    ROINode                                   #交互式 ROI 裁剪
     ImageConstNode                            #图像常量
     CountNode                                 #条件计数
     RectNode                                  #矩形模块
@@ -45,8 +45,8 @@ set(ALL_NODES
     WebSocketClientNode                       #WebSocket客户端
     JavaScriptNode                            #JavaScript脚本
 
-    ImageCompareNode                          #图像对比
-#    ImageOperates                             #图像操作集合
+#    ImageCompareNode                          #图像对比
+    ImageOperates                             #图像操作集合
     showStoreGBxNode                          #ELC showStoreGBx 控制器
     USR_IO808Node                           #基于Modbus Master实现与USR-IO808 控制器对接
     TSETLNode                                 #对接TSETL
@@ -133,7 +133,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(ExtractNode)                               #数据分离模块
     add_subdirectory(CameraNode)                                #摄像头输入
     add_subdirectory(CaptureNode)                               #图像捕获
-#    add_subdirectory(ROINode)                                   #交互式 ROI 裁剪
+    add_subdirectory(ROINode)                                   #交互式 ROI 裁剪
     add_subdirectory(ImageConstNode)                            #图像常量
     add_subdirectory(CountNode)                                 #条件计数
     add_subdirectory(RectNode)                                  #矩形模块
@@ -151,8 +151,8 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(WebSocketClientNode)                       #WebSocket客户端
     add_subdirectory(JavaScriptNode)                            #JavaScript脚本
     add_subdirectory(InternalCommandsNode)                       #内部控制
-    add_subdirectory(ImageCompareNode)                          #图像对比
-#    add_subdirectory(ImageOperates)                             #图像操作集合
+#    add_subdirectory(ImageCompareNode)                          #图像对比
+    add_subdirectory(ImageOperates)                             #图像操作集合
     add_subdirectory(showStoreGBxNode)                          #ELC showStoreGBx 控制器
     add_subdirectory(USR_IO808Node)                             #基于Modbus Master实现与USR-IO808 控制器对接
     add_subdirectory(TSETLNode)                                 #对接TSETL

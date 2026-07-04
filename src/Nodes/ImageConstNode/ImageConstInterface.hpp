@@ -31,6 +31,7 @@ class ImageConstInterface final : public QWidget{
             main_layout->setRowStretch(5, 1);
 
             this->setLayout(main_layout);
+            this->setFixedSize(220,220);
             this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         }
 

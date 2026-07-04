@@ -57,11 +57,11 @@ inline bool readRingEntry(const LockFreeSlot<FrameT>& ringSlot, FrameT& out)
 }
 
 template <typename FrameT>
-inline void writeRingEntry(LockFreeSlot<FrameT>& ringSlot, const FrameT& in)
+inline void writeRingEntry(LockFreeSlot<FrameT>& ringSlot, FrameT in)
 {
     const uint32_t seq = ringSlot.seq.load(std::memory_order_relaxed);
     ringSlot.seq.store(seq + 1, std::memory_order_release);
-    ringSlot.frame = in;
+    ringSlot.frame = std::move(in);
     ringSlot.seq.store(seq + 2, std::memory_order_release);
 }
 
@@ -102,7 +102,7 @@ inline bool lookupFrameByTimestamp(const std::vector<LockFreeSlot<FrameT>>& ring
         }
     }
 
-    if (latestTimestamp <= 0 || latestIndex < 0) {
+    if (latestTimestamp < 0 || latestIndex < 0) {
         return false;
     }
 

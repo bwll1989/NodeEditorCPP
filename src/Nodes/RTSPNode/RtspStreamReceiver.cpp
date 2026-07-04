@@ -53,6 +53,8 @@ void RtspStreamReceiver::stop()
         return;
     }
 
+    disconnect(m_worker, nullptr, this, nullptr);
+
     m_worker->stopReceiving();
     if (m_worker->isRunning()) {
         if (!m_worker->wait(5000)) {
@@ -61,11 +63,20 @@ void RtspStreamReceiver::stop()
             m_worker->wait();
         }
     }
+
+    connect(m_worker, &RtspStreamReceiverWorker::frameReceived,
+            this, &RtspStreamReceiver::frameReceived, Qt::QueuedConnection);
+    connect(m_worker, &RtspStreamReceiverWorker::connectionStatusChanged,
+            this, &RtspStreamReceiver::connectionStatusChanged, Qt::QueuedConnection);
+    connect(m_worker, &RtspStreamReceiverWorker::errorOccurred,
+            this, &RtspStreamReceiver::errorOccurred, Qt::QueuedConnection);
 }
 
 void RtspStreamReceiver::setUrl(const QString& url)
 {
-    m_worker->setUrl(url);
+    if (m_worker) {
+        m_worker->setUrl(url);
+    }
 }
 
 RtspStreamReceiverWorker::RtspStreamReceiverWorker(QObject* parent)
@@ -83,7 +94,7 @@ RtspStreamReceiverWorker::~RtspStreamReceiverWorker()
             wait();
         }
     }
-    cleanupFFmpeg();
+    // cleanupFFmpeg 仅在工作线程 run() 退出时调用，避免跨线程释放 FFmpeg 上下文
 }
 
 bool RtspStreamReceiverWorker::shouldAbort() const
@@ -151,6 +162,9 @@ void RtspStreamReceiverWorker::cleanupFFmpeg()
         m_codecContext = nullptr;
     }
     if (m_formatContext) {
+        // 断开 interrupt 回调，避免 stop/析构后 FFmpeg 仍回调已销毁的 worker
+        m_formatContext->interrupt_callback.callback = nullptr;
+        m_formatContext->interrupt_callback.opaque = nullptr;
         avformat_close_input(&m_formatContext);
         m_formatContext = nullptr;
     }
@@ -315,6 +329,20 @@ bool RtspStreamReceiverWorker::readFrame(cv::Mat& output)
 
 void RtspStreamReceiverWorker::run()
 {
+    struct RunCleanup {
+        RtspStreamReceiverWorker* self = nullptr;
+        explicit RunCleanup(RtspStreamReceiverWorker* worker)
+            : self(worker)
+        {
+        }
+        ~RunCleanup()
+        {
+            if (self) {
+                self->cleanupFFmpeg();
+            }
+        }
+    } runCleanup(this);
+
     bool connected = false;
 
     while (true) {
@@ -389,7 +417,6 @@ void RtspStreamReceiverWorker::run()
         }
     }
 
-    cleanupFFmpeg();
     if (connected) {
         emit connectionStatusChanged(false);
     }

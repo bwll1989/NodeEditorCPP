@@ -2,7 +2,6 @@
 
 #include <QtCore/QObject>
 #include <QtCore/QTimer>
-#include <QtCore/QQueue>
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeData>
@@ -80,19 +79,15 @@ private slots:
     void readAllOutputs();
     void setOutput(int index, bool state);
     void readAllData();
-    void processWriteQueue();
 
 private:
     USR_IO424Interface *_interface;
     TcpClient *_tcpClient;
     QTimer *_readTimer;
-    QTimer *_writeQueueTimer;
+    QTimer *_writeResponseTimer;
 
-    struct WriteCommand {
-        int index;
-        bool state;
-    };
-    QQueue<WriteCommand> _writeQueue;
+    bool _writeInFlight = false;
+    bool _writePending = false;
 
     bool _inputStates[kChannelCount];
     bool _outputStates[kChannelCount];
@@ -109,10 +104,14 @@ private:
     void processModbusResponse(const QByteArray &response);
     QByteArray generateReadCoilsCommand(quint16 startAddress, quint16 quantity);
     QByteArray generateReadDiscreteInputsCommand(quint16 startAddress, quint16 quantity);
-    QByteArray generateWriteSingleCoilCommand(quint16 address, bool value);
     QByteArray generateWriteMultipleCoilsCommand(quint16 startAddress, const QVector<bool> &values, quint16 quantity);
     void updateOutputData(int port, bool value);
     void sendModbusCommand(const QByteArray &command);
+
+    void requestWriteAllOutputs();
+    void writeAllOutputs();
+    void onWriteCompleted(bool success);
+    void onWriteTimeout();
 };
 
 } // namespace Nodes

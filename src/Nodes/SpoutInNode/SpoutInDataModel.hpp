@@ -27,7 +27,13 @@
 #include <vector>
 #include <memory>
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
+#include <QPointer>
+#include <QSignalBlocker>
+#include <atomic>
+
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -58,11 +64,13 @@ namespace Nodes
         {
             InPortCount = 2;  // Spout输入不需要输入端口
             OutPortCount = 1;
-            CaptionVisible = false;
+            CaptionVisible = true;
             Caption = "Spout In";
             WidgetEmbeddable=false;
             Resizable = false;
             PortEditable = false;
+            qRegisterMetaType<cv::Mat>("cv::Mat");
+            ensureImageDataBuffer(m_outputImageData, m_outputBuffer);
             initializeReceiver();
             {
                 NodeDelegateModel::ExternalBinding b;
@@ -84,17 +92,28 @@ namespace Nodes
          * @brief 析构函数
          */
         ~SpoutInDataModel() override {
-            stopReceiving();
+            m_shuttingDown.store(true);
+            GlobalEventBus::instance()->unsubscribe(this);
+
+            setEnable(false);
+
             if (m_receiveThread) {
+                disconnect(m_receiveThread, nullptr, this, nullptr);
+                m_receiveThread->stop();
                 delete m_receiveThread;
+                m_receiveThread = nullptr;
             }
-            if (m_widget) {
-                m_widget->deleteLater();
+
+            m_uploadScheduled.store(false);
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                m_pendingFrame.release();
             }
         }
 
         void afterModelReady() override {
             AbstractDelegateModel::afterModelReady();
+            ImageGpuUpload::instance().warmup();
             auto bus = GlobalEventBus::instance();
             bus->subscribe(makeFullOscAddress("/source"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
@@ -233,9 +252,9 @@ namespace Nodes
             }
             
             // Sync UI
-            if (m_widget) {
-                QSignalBlocker blocker(m_widget->m_senderComboBox);
-                m_widget->m_senderComboBox->setCurrentText(value);
+            if (SpoutInInterface* widget = m_widget.data()) {
+                QSignalBlocker blocker(widget->m_senderComboBox);
+                widget->m_senderComboBox->setCurrentText(value);
             }
 
             emit sourceChanged(value);
@@ -253,9 +272,9 @@ namespace Nodes
             // startReceiving/stopReceiving update m_isReceiving
             
             // Sync UI
-            if (m_widget) {
-                QSignalBlocker blocker(m_widget->m_startStopButton);
-                m_widget->m_startStopButton->setChecked(value);
+            if (SpoutInInterface* widget = m_widget.data()) {
+                QSignalBlocker blocker(widget->m_startStopButton);
+                widget->m_startStopButton->setChecked(value);
             }
 
             emit enableChanged(value);
@@ -283,10 +302,14 @@ namespace Nodes
          * @param frame 接收到的图像帧
          */
         void onFrameReceived(const cv::Mat& frame) {
-            if (!frame.empty()) {
-                m_outputImageData = std::make_shared<ImageData>(frame);
-                emit dataUpdated(0);
+            if (m_shuttingDown.load() || !m_isReceiving || frame.empty()) {
+                return;
             }
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                m_pendingFrame = frame;
+            }
+            scheduleUploadIfNeeded();
         }
         
         /**
@@ -294,8 +317,8 @@ namespace Nodes
          * @param connected 连接状态
          */
         void onConnectionStatusChanged(bool connected) {
-            if (m_widget) {
-                m_widget->updateConnectionStatus(connected);
+            if (SpoutInInterface* widget = m_widget.data()) {
+                widget->updateConnectionStatus(connected);
             }
         }
         
@@ -317,8 +340,18 @@ namespace Nodes
             if (m_receiveThread && m_isReceiving) {
                 m_receiveThread->stop();
                 m_isReceiving = false;
-                emit onConnectionStatusChanged(false); // 通知 UI
+                emit onConnectionStatusChanged(false);
             }
+
+            m_uploadScheduled.store(false);
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                m_pendingFrame.release();
+            }
+            if (m_outputBuffer) {
+                m_outputBuffer->clear();
+            }
+            m_lastPushedTimestamp = -1;
         }
         
         /**
@@ -333,44 +366,92 @@ namespace Nodes
          * @brief 刷新发送器列表
          */
         void refreshSenders() {
-            // 使用 SpoutReceiver 提供的静态方法直接在主线程查询
             QStringList senders = SpoutReceiver::getSenderList();
-            m_widget->updateSenderList(senders);
+            if (SpoutInInterface* widget = m_widget.data()) {
+                widget->updateSenderList(senders);
+            }
+        }
+
+        /** GUI 线程：Spout 帧 → GPU 纹理 + CPU 缓存 → 输出 ring buffer */
+        void publishPendingFrame()
+        {
+            m_uploadScheduled.store(false);
+
+            if (m_shuttingDown.load() || !m_isReceiving) {
+                return;
+            }
+
+            cv::Mat mat;
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                mat = std::move(m_pendingFrame);
+            }
+
+            if (!m_outputBuffer || mat.empty()) {
+                return;
+            }
+
+            ensureImageDataBuffer(m_outputImageData, m_outputBuffer);
+            const qint64 timestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
+            ImageFrame imageFrame = ImageFrame::fromMat(std::move(mat), timestamp);
+            if (!imageFrame.texture.valid()) {
+                qWarning() << "Spout In: GPU upload failed";
+                return;
+            }
+
+            pushFrameToImageBufferDedup(m_outputBuffer, std::move(imageFrame), m_lastPushedTimestamp);
+
+            bool hasPending = false;
+            {
+                QMutexLocker locker(&m_pendingMutex);
+                hasPending = !m_pendingFrame.empty();
+            }
+            if (hasPending && !m_shuttingDown.load() && m_isReceiving) {
+                scheduleUploadIfNeeded();
+            }
         }
 
         /**
          * @brief 初始化接收器
          */
         void initializeReceiver() {
-            qRegisterMetaType<cv::Mat>("cv::Mat");
             m_receiveThread = new SpoutReceiver(this);
-            // 连接信号
             connect(m_receiveThread, &SpoutReceiver::frameReceived,
                     this, &SpoutInDataModel::onFrameReceived, Qt::QueuedConnection);
             connect(m_receiveThread, &SpoutReceiver::connectionStatusChanged,
                     this, &SpoutInDataModel::onConnectionStatusChanged, Qt::QueuedConnection);
-            
-            // UI signals to Property Setters
+
             connect(m_widget, &SpoutInInterface::startReceiving, this, [this](){ setEnable(true); });
             connect(m_widget, &SpoutInInterface::stopReceiving, this, [this](){ setEnable(false); });
             connect(m_widget, &SpoutInInterface::senderSelected, this, &SpoutInDataModel::setSource);
             connect(m_widget, &SpoutInInterface::refreshRequested, this, &SpoutInDataModel::refreshSenders);
         }
+
+        void scheduleUploadIfNeeded()
+        {
+            if (m_shuttingDown.load() || !m_isReceiving) {
+                return;
+            }
+            if (!m_uploadScheduled.exchange(true)) {
+                QMetaObject::invokeMethod(this, "publishPendingFrame", Qt::QueuedConnection);
+            }
+        }
+
     private:
-        // 界面组件
-        SpoutInInterface *m_widget=new SpoutInInterface();
-        
-        // Spout接收线程
-        SpoutReceiver *m_receiveThread;
-        
-        // 输出数据
+        QPointer<SpoutInInterface> m_widget = new SpoutInInterface();
+
+        SpoutReceiver* m_receiveThread = nullptr;
+
         std::shared_ptr<ImageData> m_outputImageData;
-        
-        // 状态变量
+        std::shared_ptr<ImageTimestampRingQueue> m_outputBuffer;
+        qint64 m_lastPushedTimestamp = -1;
+
+        QMutex m_pendingMutex;
+        cv::Mat m_pendingFrame;
+        std::atomic<bool> m_uploadScheduled{false};
+        std::atomic<bool> m_shuttingDown{false};
+
         QString m_currentSender;
-        bool m_isReceiving;
-
-
-
+        bool m_isReceiving = false;
     };
 }

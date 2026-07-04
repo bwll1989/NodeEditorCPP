@@ -1,5 +1,7 @@
 //
-// Created by pablo on 3/5/24.
+// ImageScaleDataModel.hpp — 缩放到指定宽/高（GPU resize）
+//
+// 单输入 GPU 算子；width/height 为输出像素尺寸。tick 约定见 Doc.md §3。
 //
 
 #ifndef ImageScaleDataModel_H
@@ -9,9 +11,6 @@
 #include <QtNodes/NodeDelegateModel>
 #include "NodeDataList.hpp"
 #include "ImageOperateCommon.hpp"
-#include <QElapsedTimer>
-#include <QFileDialog>
-#include <opencv2/imgproc.hpp>
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
@@ -19,6 +18,19 @@
 using namespace NodeDataTypes;
 namespace Nodes
 {
+namespace ImageScaleGpu
+{
+/** 双线性缩放至 outWidth×outHeight */
+inline GpuTextureHandle run(const GpuTextureHandle& src, int outWidth, int outHeight)
+{
+    if (!src.valid() || outWidth <= 0 || outHeight <= 0) {
+        return {};
+    }
+    return ImageGpuPass::instance().resize(src, outWidth, outHeight);
+}
+} // namespace ImageScaleGpu
+
+    /** @brief 图像缩放 — 单输入 GPU 算子 */
     class ImageScaleDataModel final : public AbstractDelegateModel {
         Q_OBJECT
         Q_PROPERTY(int width READ width WRITE setWidth NOTIFY widthChanged)
@@ -50,22 +62,15 @@ namespace Nodes
             m_inScaleFactor = QSize(m_width, m_height);
 
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            m_worker.setParent(this);
-            m_worker.setFinishedCallback([this](cv::Mat&& image, qint64 outputTimestamp, qint64 inputTimestamp, std::uint64_t) {
-                ImageOperateHelpers::pushWorkerResult(
-                    m_outBuffer, std::move(image), outputTimestamp, m_lastPushedTimestamp, m_tick, inputTimestamp);
-            });
 
             connect(TimestampGenerator::getInstance(),
                     &TimestampGenerator::frameCountUpdated,
                     this,
                     [this](qint64 frameCount) {
-                        if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImageData)) {
+                        if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
                             return;
                         }
-                        if (!m_tick.beginFrameTick(frameCount)) {
-                            return;
-                        }
+                        m_lastRequestedFrame = frameCount;
                         requestProcess(frameCount);
                     },
                     Qt::QueuedConnection);
@@ -134,13 +139,9 @@ namespace Nodes
             case 0:
                 m_inImageData = std::dynamic_pointer_cast<ImageData>(nodeData);
                 ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-                if (m_inImageData) {
-                    m_tick.markInputConnected();
-                    emit dataUpdated(0);
-                    if (!ImageOperateHelpers::usesSharedImageBuffer(m_inImageData)) {
-                        requestProcess();
-                    }
-                }
+                m_lastProcessedInputTimestamp = -1;
+                m_paramsDirty = true;
+                emit dataUpdated(0);
                 break;
             case 1:
 
@@ -199,7 +200,7 @@ namespace Nodes
             if (m_width == w) return;
             m_width = w;
             m_inScaleFactor.setWidth(w);
-            m_tick.markParamsDirty();
+            m_paramsDirty = true;
             Q_EMIT widthChanged(w);
         }
 
@@ -208,7 +209,7 @@ namespace Nodes
             if (m_height == h) return;
             m_height = h;
             m_inScaleFactor.setHeight(h);
-            m_tick.markParamsDirty();
+            m_paramsDirty = true;
             Q_EMIT heightChanged(h);
         }
 
@@ -229,60 +230,43 @@ namespace Nodes
         void heightChanged(int height);
         void lastProcessMsChanged(qint64 ms);
     private:
-         static cv::Mat processImage(const cv::Mat& inputImage, const QSize& scaleFactor) {
-            if (inputImage.empty() || scaleFactor.width() <= 0 || scaleFactor.height() <= 0) {
-                return cv::Mat();
+        void clearOutput()
+        {
+            if (m_outBuffer) {
+                m_outBuffer->clear();
             }
-
-            cv::Mat outputImage;
-            try {
-                cv::resize(inputImage, outputImage,
-                          cv::Size(scaleFactor.width(), scaleFactor.height()),
-                          0, 0, cv::INTER_LINEAR);
-            } catch (const cv::Exception& e) {
-                qWarning() << "OpenCV resize error:" << e.what();
-                return cv::Mat();
-            }
-
-            return outputImage;
+            m_lastPushedTimestamp = -1;
+            m_lastProcessedInputTimestamp = -1;
+            m_paramsDirty = false;
         }
 
         void requestProcess(qint64 targetTimestamp = -1) {
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            const qint64 outputTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
+            const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
 
-            if (imageDataIsEmpty(m_inImageData)) {
-                m_worker.cancelPending();
-                if (m_outBuffer) {
-                    m_outBuffer->clear();
-                }
-                m_lastPushedTimestamp = -1;
-                m_tick.resetOutputState();
+            if (!m_inImageData || imageDataIsEmpty(m_inImageData)) {
+                clearOutput();
                 return;
             }
 
             ImageFrame frame;
-            if (!ImageOperateHelpers::resolveImageFrameAtTimestamp(m_inImageData, outputTimestamp, frame) ||
-                frame.image.empty()) {
-                m_worker.cancelPending();
-                if (m_outBuffer) {
-                    m_outBuffer->clear();
+            if (!ImageOperateHelpers::resolveInputGpuFrame(m_inImageData, lookupTimestamp, frame)) {
+                if (!ImageOperateHelpers::hasInputImage(m_inImageData)) {
+                    clearOutput();
                 }
-                m_lastPushedTimestamp = -1;
                 return;
             }
 
-            if (!m_tick.shouldProcess(frame.timestamp)) {
+            if (!m_paramsDirty && frame.timestamp == m_lastProcessedInputTimestamp) {
                 return;
             }
 
-            const QSize scaleFactor = m_inScaleFactor;
-            m_worker.submit(
-                [input = frame.image.clone(), scaleFactor]() {
-                    return processImage(input, scaleFactor);
-                },
-                outputTimestamp,
-                frame.timestamp);
+            GpuTextureHandle out = ImageScaleGpu::run(
+                frame.texture, m_width, m_height);
+            ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp);
+
+            m_lastProcessedInputTimestamp = frame.timestamp;
+            m_paramsDirty = false;
         }
 
     private:
@@ -290,8 +274,9 @@ namespace Nodes
         QSize m_inScaleFactor;
         std::shared_ptr<ImageData> m_outImageData;
         std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
-        ImageOperateHelpers::ImageOperateWorkerQueue m_worker;
-        ImageOperateHelpers::ImageOperateTickState m_tick;
+        qint64 m_lastRequestedFrame = -1;
+        qint64 m_lastProcessedInputTimestamp = -1;
+        bool m_paramsDirty = false;
         int m_width = 0;
         int m_height = 0;
         qint64 m_lastPushedTimestamp = -1;

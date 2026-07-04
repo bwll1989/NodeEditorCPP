@@ -11,8 +11,6 @@
 #include <QPushButton>
 #include <QVariantMap>
 #include <QComboBox>
-#include <QSpinBox>
-#include <QIntValidator>
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 namespace Nodes
 {

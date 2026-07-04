@@ -8,6 +8,7 @@
 #include <QFutureWatcher>
 #include <QPushButton>
 #include "Common/DataTypes/NodeDataList.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 class QPushButton;
@@ -146,10 +147,17 @@ namespace Nodes
          * 函数级注释：执行一次图像捕获并输出到下游
          */
         void captureOnce(){
+            ensureImageDataBuffer(m_outImageData, m_outputBuffer);
             if (const auto lock = m_inImageData.lock()) {
-                m_outImageData = std::make_shared<ImageData>(lock->imgMat());
+                ImageFrame frame;
+                if (getLatestImageFrame(lock, frame)) {
+                    frame.timestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
+                    pushFrameToImageBufferDedup(m_outputBuffer, std::move(frame), m_lastPushedTimestamp);
+                }
             } else {
                 m_outImageData.reset();
+                m_outputBuffer.reset();
+                m_lastPushedTimestamp = -1;
             }
             AbstractDelegateModel::stateFeedBack("/capture", true);
             emit dataUpdated(0);
@@ -182,6 +190,8 @@ namespace Nodes
         // out
         // 0
         std::shared_ptr<ImageData> m_outImageData;
+        std::shared_ptr<ImageTimestampRingQueue> m_outputBuffer;
+        qint64 m_lastPushedTimestamp = -1;
 
     };
 }

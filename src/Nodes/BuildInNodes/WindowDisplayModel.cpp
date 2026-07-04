@@ -1,22 +1,30 @@
 #include "WindowDisplayModel.hpp"
-#include <QtNodes/NodeDelegateModelRegistry>
-#include <QtCore/QDir>
-#include <QtCore/QEvent>
+
 #include <QLabel>
+#include <QSpacerItem>
+
+#include <QtCore/QCoreApplication>
+#include <QtCore/QEvent>
+#include <QtNodes/NodeDelegateModelRegistry>
+
 using namespace Nodes;
 using namespace NodeDataTypes;
-/**
- * @brief 构造函数，初始化图像显示标签
- */
+
+// ---------------------------------------------------------------------------
+// WindowDisplayModel — 全屏独立窗口图像显示节点
+//
+// 显示刷新仅由 TimestampGenerator tick 驱动；数据仅来自 ImageTimestampRingQueue。
+// ---------------------------------------------------------------------------
+
 WindowDisplayModel::WindowDisplayModel()
 {
-    InPortCount =2;
-    OutPortCount=1;
-    CaptionVisible=true;
-    Caption="Window Display";
-    WidgetEmbeddable=false;
-    Resizable=false;
-    // 控制面板
+    InPortCount = 2;
+    OutPortCount = 1;
+    CaptionVisible = true;
+    Caption = "Window Display";
+    WidgetEmbeddable = false;
+    Resizable = false;
+
     _panel = new QWidget();
     _layout = new QGridLayout();
     _panel->setLayout(_layout);
@@ -27,86 +35,179 @@ WindowDisplayModel::WindowDisplayModel()
     _layout->addWidget(_openBtn, 1, 0, 1, 2);
     _layout->addItem(new QSpacerItem(20, 20, QSizePolicy::Expanding, QSizePolicy::MinimumExpanding), 2, 0, 1, 2);
     _panel->setMinimumSize(240, 80);
-    // OpenGL窗口
-    _glWindow = new ImageOpenGLWindow();
-    _glWindow->onClosed = [this](){
-        if (_openBtn) _openBtn->setText("打开窗口");
+
+    _glWindow = new ImageTextureWindow();
+    _glWindow->onClosed = [this]() {
+        if (_openBtn) {
+            _openBtn->setText("打开窗口");
+        }
     };
+
+    if (QCoreApplication* app = QCoreApplication::instance()) {
+        QObject::connect(app, &QCoreApplication::aboutToQuit, this, [this]() {
+            closeOutputWindow();
+        }, Qt::DirectConnection);
+    }
+
     refreshScreens();
-    QObject::connect(_screenCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-                     [this](int idx){ onScreenChanged(idx); });
-    QObject::connect(_openBtn, &QPushButton::clicked, [this](){ toggleWindow(); });
+    QObject::connect(_screenCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+        onScreenChanged(idx);
+    });
+    QObject::connect(_openBtn, &QPushButton::clicked, this, [this]() {
+        toggleWindow();
+    });
+
+    connect(TimestampGenerator::getInstance(),
+            &TimestampGenerator::frameCountUpdated,
+            this,
+            &WindowDisplayModel::onSystemFrameTick,
+            Qt::QueuedConnection);
 }
 
 WindowDisplayModel::~WindowDisplayModel()
 {
-    if (_glWindow) {
-        _glWindow->close();
-        delete _glWindow;
-        _glWindow = nullptr;
+    disconnect(TimestampGenerator::getInstance(), nullptr, this, nullptr);
+    closeOutputWindow();
+}
+
+void WindowDisplayModel::closeOutputWindow()
+{
+    if (!_glWindow) {
+        return;
     }
+    _glWindow->onClosed = nullptr;
+    if (_glWindow->isVisible()) {
+        _glWindow->hide();
+    }
+    _glWindow->close();
+    _glWindow->destroy();
+    delete _glWindow;
+    _glWindow = nullptr;
 }
 
-/**
- * @brief 返回端口数据类型
- */
-QtNodes::NodeDataType WindowDisplayModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const {
-
-        switch (portType) {
-            case PortType::In:
-                switch (portIndex) {
-                    case 0:
-                        return ImageData().type();
-                    default:
-                        return VariableData().type();
-                }
-            case PortType::Out:
-                return ImageData().type();
-            case PortType::None:
-                break;
-            default:
-                break;
+QtNodes::NodeDataType WindowDisplayModel::dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
+{
+    switch (portType) {
+    case PortType::In:
+        switch (portIndex) {
+        case 0:
+            return ImageData().type();
+        default:
+            return VariableData().type();
         }
-        return VariableData().type();
+    case PortType::Out:
+        return ImageData().type();
+    default:
+        break;
+    }
+    return VariableData().type();
 }
 
-/**
- * @brief 输出当前缓存的图像数据
- */
-std::shared_ptr<QtNodes::NodeData> WindowDisplayModel::outData(QtNodes::PortIndex) {
+std::shared_ptr<QtNodes::NodeData> WindowDisplayModel::outData(QtNodes::PortIndex)
+{
     return m_outData;
 }
 
-/**
- * @brief 设置输入图像数据并刷新显示
- * 使用 QLabel 的缩放功能，避免每帧创建缩放后的 QPixmap 导致内存增长
- */
-void WindowDisplayModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex const portIndex) {
+void WindowDisplayModel::setInData(const std::shared_ptr<QtNodes::NodeData> nodeData, QtNodes::PortIndex const portIndex)
+{
     if (portIndex == 0) {
-        m_outData = std::dynamic_pointer_cast<ImageData>(nodeData);
-        if (m_outData) {
-            const QImage img = m_outData->image();
-            if (!img.isNull() && _glWindow) {
-                _glWindow->setFrame(img);
-            }
-        } else {
-            if (_glWindow) _glWindow->setFrame(QImage());
+        m_inImage = std::dynamic_pointer_cast<ImageData>(nodeData);
+        m_outData = m_inImage;
+        if (m_inImage) {
+            m_lastDisplayedTimestamp = -1;
+            m_lastDisplayedTextureId = 0;
         }
     } else if (portIndex == 1) {
-        auto varData = std::dynamic_pointer_cast<VariableData>(nodeData);
-        if (varData) {
-            bool show = varData->value().toBool();
-            setWindowVisible(show);
+        if (const auto varData = std::dynamic_pointer_cast<VariableData>(nodeData)) {
+            setWindowVisible(varData->value().toBool());
         }
     }
 
     Q_EMIT dataUpdated(0);
 }
 
-/**
- * @brief 刷新系统显示器列表
- */
-void WindowDisplayModel::refreshScreens(){
+void WindowDisplayModel::clearDisplayIfNeeded()
+{
+    if (!_glWindow || m_lastDisplayedTimestamp < 0) {
+        return;
+    }
+    m_lastDisplayedTimestamp = -1;
+    m_lastDisplayedTextureId = 0;
+    _glWindow->clearTexture();
+}
+
+bool WindowDisplayModel::applyFrameIfChanged(const ImageFrame& frame)
+{
+    if (!frame.texture.valid() || !_glWindow) {
+        return false;
+    }
+
+    if (m_lastDisplayedTimestamp >= 0
+        && frame.timestamp == m_lastDisplayedTimestamp
+        && frame.texture.textureId == m_lastDisplayedTextureId) {
+        return true;
+    }
+
+    _glWindow->setTexture(frame.texture);
+    m_lastDisplayedTimestamp = frame.timestamp;
+    m_lastDisplayedTextureId = frame.texture.textureId;
+    return true;
+}
+
+void WindowDisplayModel::updateDisplayFromInput(qint64 frameCount)
+{
+    if (!_glWindow) {
+        return;
+    }
+
+    if (!m_inImage) {
+        clearDisplayIfNeeded();
+        return;
+    }
+
+    if (!m_inImage->isConnectedToSharedBuffer()) {
+        clearDisplayIfNeeded();
+        return;
+    }
+
+    ImageFrame frame;
+    const auto buffer = m_inImage->getSharedImageBuffer();
+    if (!buffer) {
+        clearDisplayIfNeeded();
+        return;
+    }
+
+    if (m_inImage->isEmpty()) {
+        if (_glWindow) {
+            _glWindow->clearTexture();
+        }
+        m_lastDisplayedTimestamp = -1;
+        m_lastDisplayedTextureId = 0;
+        return;
+    }
+
+    if (buffer->getLatestFrame(frame) && frame.texture.valid()) {
+        applyFrameIfChanged(frame);
+        return;
+    }
+
+    if (m_lastDisplayedTimestamp < 0 &&
+        buffer->getFrameByTimestamp(frameCount, frame) &&
+        frame.texture.valid()) {
+        applyFrameIfChanged(frame);
+        return;
+    }
+
+    clearDisplayIfNeeded();
+}
+
+void WindowDisplayModel::onSystemFrameTick(qint64 frameCount)
+{
+    updateDisplayFromInput(frameCount);
+}
+
+void WindowDisplayModel::refreshScreens()
+{
     _screenCombo->clear();
     const auto screens = QGuiApplication::screens();
     for (int i = 0; i < screens.size(); ++i) {
@@ -118,34 +219,35 @@ void WindowDisplayModel::refreshScreens(){
     _currentScreenIndex = _screenCombo->currentIndex();
 }
 
-/**
- * @brief 当选择的显示器改变时移动窗口到目标屏幕
- */
-void WindowDisplayModel::onScreenChanged(int index){
+void WindowDisplayModel::onScreenChanged(int index)
+{
     _currentScreenIndex = index;
-    if (!_glWindow) return;
+    if (!_glWindow) {
+        return;
+    }
+
     const auto screens = QGuiApplication::screens();
     if (index >= 0 && index < screens.size()) {
         QScreen* target = screens[index];
         _glWindow->setScreen(target);
-        const QRect geo = target->geometry();
-        _glWindow->setGeometry(geo);
+        _glWindow->setGeometry(target->geometry());
     }
 }
 
-/**
- * @brief 打开或关闭OpenGL显示窗口
- */
-void WindowDisplayModel::toggleWindow(){
-    if (!_glWindow) return;
+void WindowDisplayModel::toggleWindow()
+{
+    if (!_glWindow) {
+        return;
+    }
     setWindowVisible(!_glWindow->isVisible());
 }
 
-/**
- * @brief 设置窗口可见性
- */
-void WindowDisplayModel::setWindowVisible(bool visible) {
-    if (!_glWindow) return;
+void WindowDisplayModel::setWindowVisible(bool visible)
+{
+    if (!_glWindow) {
+        return;
+    }
+
     if (visible) {
         if (!_glWindow->isVisible()) {
             onScreenChanged(_currentScreenIndex);
@@ -154,25 +256,25 @@ void WindowDisplayModel::setWindowVisible(bool visible) {
             _glWindow->requestActivate();
             _openBtn->setText("关闭窗口");
         }
-    } else {
-        if (_glWindow->isVisible()) {
-            _glWindow->hide();
-            _openBtn->setText("打开窗口");
-        }
+    } else if (_glWindow->isVisible()) {
+        _glWindow->hide();
+        _openBtn->setText("打开窗口");
     }
 }
 
-QJsonObject WindowDisplayModel::save() const {
+QJsonObject WindowDisplayModel::save() const
+{
     QJsonObject modelJson = AbstractDelegateModel::save();
     modelJson["screenIndex"] = _currentScreenIndex;
     return modelJson;
 }
 
-void WindowDisplayModel::load(const QJsonObject &p) {
+void WindowDisplayModel::load(const QJsonObject& p)
+{
     AbstractDelegateModel::load(p);
-    QJsonValue v = p["screenIndex"];
+    const QJsonValue v = p["screenIndex"];
     if (!v.isUndefined()) {
-        int idx = v.toInt();
+        const int idx = v.toInt();
         if (idx >= 0 && idx < _screenCombo->count()) {
             _screenCombo->setCurrentIndex(idx);
             onScreenChanged(idx);

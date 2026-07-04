@@ -13,6 +13,9 @@
 #include "ToFilePath.hpp"
 #include "ToAudioFileInterface.hpp"
 
+#include <QPointer>
+#include <atomic>
+
 using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
@@ -75,7 +78,17 @@ public:
 
     ~ToAudioFileDataModel() override
     {
+        m_shuttingDown.store(true);
+        GlobalEventBus::instance()->unsubscribe(this);
+        if (_pollTimer) {
+            _pollTimer->stop();
+            disconnect(_pollTimer, nullptr, this, nullptr);
+        }
+        if (_widget) {
+            disconnect(_widget.data(), nullptr, this, nullptr);
+        }
         stopRecording();
+        m_audioQueues.clear();
     }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -138,7 +151,7 @@ public:
 
     QWidget* embeddedWidget() override
     {
-        return _widget;
+        return _widget.data();
     }
 
     QJsonObject save() const override
@@ -170,9 +183,9 @@ public:
             return;
         }
         m_file = trimmed;
-        {
-            QSignalBlocker blocker(_widget->fileEdit());
-            _widget->fileEdit()->setText(m_file);
+        if (ToAudioFileInterface* widget = _widget.data()) {
+            QSignalBlocker blocker(widget->fileEdit());
+            widget->fileEdit()->setText(m_file);
         }
         emit fileChanged(m_file);
     }
@@ -184,13 +197,18 @@ public:
             return;
         }
         m_outputDir = trimmed;
-        _widget->setOutputDir(m_outputDir);
+        if (ToAudioFileInterface* widget = _widget.data()) {
+            widget->setOutputDir(m_outputDir);
+        }
         emit outputDirChanged(m_outputDir);
     }
 
 public slots:
     void setRecording(bool recording)
     {
+        if (m_shuttingDown.load()) {
+            return;
+        }
         if (recording == m_recording) {
             return;
         }
@@ -203,12 +221,14 @@ public slots:
 
     void startRecording()
     {
-        if (m_recording) {
+        if (m_shuttingDown.load() || m_recording) {
             return;
         }
         if (m_file.isEmpty()) {
             updateNodeState(QtNodes::NodeValidationState::State::Error, QStringLiteral("请设置输出文件名"));
-            _widget->setRecording(false);
+            if (ToAudioFileInterface* widget = _widget.data()) {
+                widget->setRecording(false);
+            }
             return;
         }
 
@@ -216,8 +236,12 @@ public slots:
         m_recordChannelCount = audioPortCount();
         m_nextTimestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
         const int intervalMs = qMax(1, static_cast<int>(1000.0 / TimestampGenerator::getInstance()->getFrameRate()));
-        _pollTimer->start(intervalMs);
-        _widget->setRecording(true);
+        if (_pollTimer) {
+            _pollTimer->start(intervalMs);
+        }
+        if (ToAudioFileInterface* widget = _widget.data()) {
+            widget->setRecording(true);
+        }
         emit recordingChanged(m_recording);
         updateRecordingOutput();
         updateNodeState(QtNodes::NodeValidationState::State::Valid);
@@ -231,9 +255,16 @@ public slots:
 
         m_recording = false;
         m_recordChannelCount = 0;
-        _pollTimer->stop();
+        if (_pollTimer) {
+            _pollTimer->stop();
+        }
         m_encoder.close();
-        _widget->setRecording(false);
+        if (m_shuttingDown.load()) {
+            return;
+        }
+        if (ToAudioFileInterface* widget = _widget.data()) {
+            widget->setRecording(false);
+        }
         emit recordingChanged(m_recording);
         updateRecordingOutput();
     }
@@ -254,7 +285,7 @@ protected:
 private Q_SLOTS:
     void onGlobalEvent(const GlobalEvent& ev)
     {
-        if (ev.kind != GlobalEventKind::Command) {
+        if (m_shuttingDown.load() || ev.kind != GlobalEventKind::Command) {
             return;
         }
         const QString localPath = ev.address.mid(ev.address.lastIndexOf('/') + 1);
@@ -269,13 +300,16 @@ private Q_SLOTS:
 
     void updateRecordingOutput()
     {
+        if (m_shuttingDown.load()) {
+            return;
+        }
         m_outRecording = std::make_shared<VariableData>(m_recording);
         emit dataUpdated(0);
     }
 
     void pollAudioFrame()
     {
-        if (!m_recording || m_recordChannelCount <= 0 || m_audioQueues.empty()) {
+        if (m_shuttingDown.load() || !m_recording || m_recordChannelCount <= 0 || m_audioQueues.empty()) {
             return;
         }
 
@@ -366,7 +400,7 @@ private Q_SLOTS:
     }
 
 private:
-    ToAudioFileInterface* _widget = nullptr;
+    QPointer<ToAudioFileInterface> _widget;
     std::shared_ptr<VariableData> m_outRecording;
     QTimer* _pollTimer = nullptr;
     FfmpegAudioEncoder m_encoder;
@@ -376,5 +410,6 @@ private:
     qint64 m_nextTimestamp = 0;
     int m_recordChannelCount = 0;
     bool m_recording = false;
+    std::atomic<bool> m_shuttingDown{false};
 };
 } // namespace Nodes

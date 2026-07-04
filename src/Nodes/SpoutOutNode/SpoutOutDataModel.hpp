@@ -29,6 +29,9 @@
 #include <QtCore/QMetaType>
 #include <QDebug>
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
+#include "Common/DataTypes/ImageReadback.h"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 // 使用 SpoutLibrary API
 #include "SpoutLibrary.h"
 
@@ -44,6 +47,8 @@
 #include <opencv2/opencv.hpp>
 
 #include "SpoutOutInterface.hpp"
+#include <QPointer>
+#include <atomic>
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -55,8 +60,46 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
 
+namespace
+{
+/** 从 ImageData ring buffer 取最新 Mat（须在 GUI 线程） */
+inline cv::Mat readLatestMatForSend(const std::shared_ptr<ImageData>& input)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return {};
+    }
+    return ImageReadback::matFromFrame(frame);
+}
+} // namespace
+
 namespace Nodes
 {
+namespace
+{
+/** SetSenderName 需要字节数组在调用期间保持有效 */
+void setSpoutSenderName(SPOUTHANDLE spout, const QString& senderName)
+{
+    if (!spout) {
+        return;
+    }
+    const QByteArray nameBytes = senderName.isEmpty()
+                                     ? QByteArray("NodeEditor Spout")
+                                     : senderName.toLocal8Bit();
+    spout->SetSenderName(nameBytes.constData());
+}
+
+void destroyGlContextInWorkerThread(QOpenGLContext*& context)
+{
+    if (!context) {
+        return;
+    }
+    context->doneCurrent();
+    delete context;
+    context = nullptr;
+}
+} // namespace
+
     /**
      * @brief Spout发送线程类
      * 
@@ -74,7 +117,6 @@ namespace Nodes
          */
         explicit SpoutSenderThread(QObject* parent = nullptr)
             : QThread(parent)
-            , m_running(false)
             , m_spout(nullptr)
             , m_context(nullptr)
             , m_surface(nullptr)
@@ -95,19 +137,14 @@ namespace Nodes
          */
         ~SpoutSenderThread() override {
             stopSending();
-            wait();
-            // m_surface 在主线程创建，应在主线程销毁
+            if (isRunning()) {
+                wait(3000);
+            }
+            // m_surface 在主线程创建/销毁；m_context 仅在工作线程 run() 内创建/销毁
             if (m_surface) {
                 m_surface->destroy();
                 delete m_surface;
                 m_surface = nullptr;
-            }
-            
-            // 线程结束前清理 OpenGL 上下文
-            if (m_context) {
-                // 注意：这里可能需要在 run() 结束前清理，或者确保 context 没有被 current
-                delete m_context;
-                m_context = nullptr;
             }
         }
 
@@ -116,7 +153,7 @@ namespace Nodes
          */
         void startSending() {
             QMutexLocker locker(&m_mutex);
-            m_running = true;
+            m_running.store(true, std::memory_order_release);
             if (!isRunning()) {
                 start();
             }
@@ -126,8 +163,7 @@ namespace Nodes
          * @brief 停止发送Spout数据
          */
         void stopSending() {
-            QMutexLocker locker(&m_mutex);
-            m_running = false;
+            m_running.store(false, std::memory_order_release);
         }
 
         /**
@@ -177,52 +213,47 @@ namespace Nodes
          * @brief 线程主循环
          */
         void run() override {
-            // 创建并设置 OpenGL 上下文 (在工作线程中)
             m_context = new QOpenGLContext();
             m_context->setFormat(m_surface->format());
             if (!m_context->create()) {
                 qDebug() << "SpoutSenderThread: Failed to create OpenGL context";
+                delete m_context;
+                m_context = nullptr;
                 return;
             }
 
-            // 使用主线程创建的 surface
             if (!m_context->makeCurrent(m_surface)) {
                 qDebug() << "SpoutSenderThread: Failed to make OpenGL context current";
+                destroyGlContextInWorkerThread(m_context);
                 return;
             }
 
-            // 初始化 Spout
             m_spout = GetSpout();
             if (!m_spout) {
                 qDebug() << "SpoutSenderThread: Failed to create Spout instance";
+                destroyGlContextInWorkerThread(m_context);
                 return;
             }
 
-            // 初始设置发送器名称
             {
                 QMutexLocker locker(&m_mutex);
-                if (!m_senderName.isEmpty()) {
-                    m_spout->SetSenderName(m_senderName.toLocal8Bit().data());
-                } else {
-                    m_spout->SetSenderName("NodeEditor Spout");
-                }
+                setSpoutSenderName(m_spout, m_senderName);
             }
-            
+
             emit connectionStatusChanged(true);
 
             cv::Mat currentFrame;
-            
-            while (m_running) {
-                // 检查名称变更
+
+            while (m_running.load(std::memory_order_acquire)) {
                 {
                     QMutexLocker locker(&m_mutex);
                     if (m_nameChanged) {
                         m_spout->ReleaseSender();
-                        m_spout->SetSenderName(m_senderName.toLocal8Bit().data());
+                        setSpoutSenderName(m_spout, m_senderName);
                         m_nameChanged = false;
                         qDebug() << "SpoutSenderThread: Sender name changed to" << m_senderName;
                     }
-                    
+
                     if (m_newFrameAvailable) {
                         m_nextFrame.copyTo(currentFrame);
                         m_newFrameAvailable = false;
@@ -230,47 +261,29 @@ namespace Nodes
                 }
 
                 if (!currentFrame.empty()) {
-                    // 发送图像
-                    // SendImage(pixels, width, height, glFormat, bInvert)
-                    // 使用 GL_BGRA 因为我们已经转换过了
-                    bool success = m_spout->SendImage(
+                    m_spout->SendImage(
                         currentFrame.data,
                         currentFrame.cols,
                         currentFrame.rows,
                         GL_BGRA,
-                        false // bInvert (OpenCV 通常是 top-down, OpenGL 纹理通常是 bottom-up, Spout 可能处理这个? 通常不需要反转如果 Spout 内部处理了)
-                        // Spout documentation says: bInvert - Flip the image vertically.
-                        // OpenCV is Top-Left origin. OpenGL is Bottom-Left origin.
-                        // If we send as is, it might be upside down in Spout Receiver.
-                        // Let's try false first (default), change to true if needed.
-                        // Usually Spout SendImage handles texture upload which flips it effectively for GL.
-                    );
-                    
-                    if (!success) {
-                        // qDebug() << "SpoutSenderThread: SendImage failed";
-                    }
+                        false);
                 }
 
-                // 保持 ~60fps
                 msleep(16);
             }
-            
-            // 清理
+
             if (m_spout) {
                 m_spout->ReleaseSender();
                 m_spout->Release();
                 m_spout = nullptr;
             }
-            
+
             emit connectionStatusChanged(false);
-            
-            if (m_context) {
-                m_context->doneCurrent();
-            }
+            destroyGlContextInWorkerThread(m_context);
         }
 
     private:
-        bool m_running;
+        std::atomic<bool> m_running{false};
         QMutex m_mutex;
         
         QString m_senderName;
@@ -319,14 +332,38 @@ namespace Nodes
          * @brief 析构函数
          */
         ~SpoutOutDataModel() override {
+            m_shuttingDown.store(true);
+
+            disconnect(TimestampGenerator::getInstance(), nullptr, this, nullptr);
+
+            if (m_isSending) {
+                m_isSending = false;
+                if (m_sendThread) {
+                    m_sendThread->stopSending();
+                }
+            }
+
             if (m_sendThread) {
-                m_sendThread->stopSending();
-                m_sendThread->wait();
+                disconnect(m_sendThread, nullptr, this, nullptr);
+                if (m_sendThread->isRunning()) {
+                    m_sendThread->wait(3000);
+                }
                 delete m_sendThread;
+                m_sendThread = nullptr;
             }
-            if (m_widget) {
-                m_widget->deleteLater();
-            }
+
+            m_inImage0.reset();
+        }
+
+        void afterModelReady() override {
+            AbstractDelegateModel::afterModelReady();
+            ImageGpuUpload::instance().warmup();
+
+            connect(TimestampGenerator::getInstance(),
+                    &TimestampGenerator::frameCountUpdated,
+                    this,
+                    [this](qint64) { trySendLatestFrame(); },
+                    Qt::QueuedConnection);
         }
 
         /**
@@ -378,11 +415,8 @@ namespace Nodes
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
             switch (portIndex) {
             case 0: {
-                if (!m_isSending || !m_sendThread) return;
-                auto imageData = std::dynamic_pointer_cast<ImageData>(data);
-                if (imageData && !imageData->isEmpty()) {
-                    m_sendThread->updateFrame(imageData->imgMat());
-                }
+                m_inImage0 = std::dynamic_pointer_cast<ImageData>(data);
+                m_lastSeenInputTimestamp = -1;
                 return;
             }
             case 1: {
@@ -407,21 +441,15 @@ namespace Nodes
         QWidget* embeddedWidget() override {
             if (!m_widget) {
                 m_widget = new SpoutOutInterface();
-                
-                // 连接信号
+
                 connect(m_widget, &SpoutOutInterface::startSending,
                         this, &SpoutOutDataModel::onStartSending);
                 connect(m_widget, &SpoutOutInterface::stopSending,
                         this, &SpoutOutDataModel::onStopSending);
                 connect(m_widget, &SpoutOutInterface::senderNameChanged,
                         this, &SpoutOutDataModel::onSenderNameChanged);
-                
-                // 初始状态
-                if (m_sendThread) {
-                     // 如果需要同步状态
-                }
             }
-            return m_widget;
+            return m_widget.data();
         }
 
         /**
@@ -472,19 +500,18 @@ namespace Nodes
         }
 
     private:
-        SpoutOutInterface* m_widget;
-        SpoutSenderThread* m_sendThread;
-        bool m_isSending;
-        QString m_senderName;
-
         /**
          * @brief 设置发送启停状态（UI/端口统一入口）
          * @param enabled true 开始发送，false 停止发送
          */
         void setSendingEnabled(bool enabled) {
+            if (m_shuttingDown.load()) {
+                return;
+            }
+
             if (m_isSending == enabled) {
-                if (m_widget) {
-                    m_widget->updateConnectionStatus(m_isSending);
+                if (SpoutOutInterface* widget = m_widget.data()) {
+                    widget->updateConnectionStatus(m_isSending);
                 }
                 return;
             }
@@ -492,24 +519,60 @@ namespace Nodes
             m_isSending = enabled;
             if (m_sendThread) {
                 if (enabled) {
+                    m_lastSeenInputTimestamp = -1;
                     m_sendThread->startSending();
+                    trySendLatestFrame();
                 } else {
                     m_sendThread->stopSending();
                 }
             }
-            if (m_widget) {
-                m_widget->updateConnectionStatus(enabled);
+            if (SpoutOutInterface* widget = m_widget.data()) {
+                widget->updateConnectionStatus(enabled);
             }
+        }
+
+        /** 系统 tick：有新输入帧且正在发送时，读 Mat 并交给 Spout 发送线程 */
+        void trySendLatestFrame()
+        {
+            if (m_shuttingDown.load() || !m_isSending || !m_sendThread || !m_inImage0
+                || imageDataIsEmpty(m_inImage0)) {
+                return;
+            }
+
+            ImageFrame peek;
+            if (!getLatestImageFrame(m_inImage0, peek) || peek.empty()) {
+                return;
+            }
+            if (peek.timestamp >= 0 && peek.timestamp <= m_lastSeenInputTimestamp) {
+                return;
+            }
+
+            cv::Mat mat = readLatestMatForSend(m_inImage0);
+            if (mat.empty()) {
+                return;
+            }
+
+            m_lastSeenInputTimestamp = peek.timestamp;
+            m_sendThread->updateFrame(mat);
         }
 
         void initializeSender() {
             m_sendThread = new SpoutSenderThread(this);
             connect(m_sendThread, &SpoutSenderThread::connectionStatusChanged,
-                    this, &SpoutOutDataModel::onThreadStatusChanged);
-            
-            // 默认名称
+                    this, &SpoutOutDataModel::onThreadStatusChanged, Qt::QueuedConnection);
+
             m_senderName = "NodeEditor Spout";
             m_sendThread->setSenderName(m_senderName);
         }
+
+        QPointer<SpoutOutInterface> m_widget;
+        SpoutSenderThread* m_sendThread = nullptr;
+
+        std::shared_ptr<ImageData> m_inImage0;
+        qint64 m_lastSeenInputTimestamp = -1;
+
+        bool m_isSending = false;
+        QString m_senderName;
+        std::atomic<bool> m_shuttingDown{false};
     };
 }

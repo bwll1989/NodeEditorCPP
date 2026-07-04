@@ -1,5 +1,12 @@
 #pragma once
 
+/**
+ * @file DifferenceImageOperateModel.hpp
+ * @brief Image Difference — 双路绝对差 |A−B|×gain
+ *
+ * 双输入算子；B 对齐到 A 尺寸。gain≥1，结果 clamp 到 [0,1]。
+ */
+
 #include "ImageOperateCommon.hpp"
 #include "NodeDataList.hpp"
 
@@ -7,10 +14,13 @@
 #include <QtCore/QJsonObject>
 #include <QtCore/QObject>
 
-#include <opencv2/imgproc.hpp>
-
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
+
+#include <QOpenGLFunctions>
+#include <QOpenGLShaderProgram>
+
+#include <algorithm>
 
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
@@ -20,6 +30,48 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
+namespace DifferenceImageOperateGpu
+{
+static const char kFragDifference[] = R"(
+uniform sampler2D uTextureA;
+uniform sampler2D uTextureB;
+uniform float uGain;
+varying vec2 vTexCoord;
+void main() {
+    vec3 a = texture2D(uTextureA, vTexCoord).rgb;
+    vec3 b = texture2D(uTextureB, vTexCoord).rgb;
+    vec3 d = abs(a - b) * uGain;
+    gl_FragColor = vec4(clamp(d, 0.0, 1.0), 1.0);
+}
+)";
+
+inline GpuTextureHandle run(const GpuTextureHandle& a, const GpuTextureHandle& b, int gain)
+{
+    if (!a.valid() || !b.valid()) {
+        return {};
+    }
+    const float g = static_cast<float>(std::max(1, gain));
+    const GpuTextureHandle bMatched = ImageOperateHelpers::matchTextureSize(b, a.width, a.height);
+    if (!bMatched.valid()) {
+        return {};
+    }
+    return ImageGpuPass::instance().runFragmentPass(
+        a.width,
+        a.height,
+        kFragDifference,
+        [=](QOpenGLShaderProgram& program) {
+            program.setUniformValue("uTextureA", 0);
+            program.setUniformValue("uTextureB", 1);
+            program.setUniformValue("uGain", g);
+        },
+        [&](QOpenGLFunctions* f) {
+            ImageGpuPass::bindTexture(f, 0, a.textureId);
+            ImageGpuPass::bindTexture(f, 1, bMatched.textureId);
+        });
+}
+} // namespace DifferenceImageOperateGpu
+
+/** @brief 差异图 — 双输入 GPU 算子 */
 class DifferenceImageOperateModel final : public AbstractDelegateModel
 {
     Q_OBJECT
@@ -41,24 +93,15 @@ public:
         AbstractDelegateModel::registerExternalBinding("/gain", this, binding);
 
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        m_worker.setParent(this);
-        m_worker.setFinishedCallback([this](cv::Mat&& image, qint64 outputTimestamp, qint64, std::uint64_t) {
-            if (!image.empty()) {
-                ImageOperateHelpers::pushOutputFrame(
-                    m_outBuffer, std::move(image), outputTimestamp, m_lastPushedTimestamp);
-            }
-        });
 
         connect(TimestampGenerator::getInstance(),
                 &TimestampGenerator::frameCountUpdated,
                 this,
                 [this](qint64 frameCount) {
-                    if (!ImageOperateHelpers::hasSharedImageBufferInput(m_inputA, m_inputB)) {
+                    if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
                         return;
                     }
-                    if (!m_tick.beginFrameTick(frameCount)) {
-                        return;
-                    }
+                    m_lastRequestedFrame = frameCount;
                     requestProcess(frameCount);
                 },
                 Qt::QueuedConnection);
@@ -101,24 +144,18 @@ public:
         case 0:
             m_inputA = std::dynamic_pointer_cast<ImageData>(data);
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            if (m_inputA) {
-                m_tick.markInputConnected();
-                Q_EMIT dataUpdated(0);
-                if (!ImageOperateHelpers::hasSharedImageBufferInput(m_inputA, m_inputB)) {
-                    requestProcess();
-                }
-            }
+            m_lastProcessedInputTimestampA = -1;
+            m_lastProcessedInputTimestampB = -1;
+            m_paramsDirty = true;
+            Q_EMIT dataUpdated(0);
             break;
         case 1:
             m_inputB = std::dynamic_pointer_cast<ImageData>(data);
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            if (m_inputB) {
-                m_tick.markInputConnected();
-                Q_EMIT dataUpdated(0);
-                if (!ImageOperateHelpers::hasSharedImageBufferInput(m_inputA, m_inputB)) {
-                    requestProcess();
-                }
-            }
+            m_lastProcessedInputTimestampA = -1;
+            m_lastProcessedInputTimestampB = -1;
+            m_paramsDirty = true;
+            Q_EMIT dataUpdated(0);
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
@@ -154,7 +191,7 @@ public slots:
             return;
         }
         m_gain = clamped;
-        m_tick.markParamsDirty();
+        m_paramsDirty = true;
         Q_EMIT gainChanged(m_gain);
     }
 
@@ -178,71 +215,59 @@ private:
         GlobalEventBus::instance()->subscribe(makeFullOscAddress("/gain"), this, SLOT(onGlobalEvent(GlobalEvent)));
     }
 
+    void clearOutput()
+    {
+        if (m_outBuffer) {
+            m_outBuffer->clear();
+        }
+        m_lastPushedTimestamp = -1;
+        m_lastProcessedInputTimestampA = -1;
+        m_lastProcessedInputTimestampB = -1;
+        m_paramsDirty = false;
+    }
+
     void requestProcess(qint64 targetTimestamp = -1)
     {
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        const qint64 outputTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
+        const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
 
         if (!ImageOperateHelpers::hasInputImage(m_inputA) || !ImageOperateHelpers::hasInputImage(m_inputB)) {
-            ImageOperateHelpers::clearDualInputOutput(
-                m_worker, m_outBuffer, m_lastPushedTimestamp, m_tick);
+            clearOutput();
             return;
         }
 
         ImageFrame inputAFrame;
         ImageFrame inputBFrame;
-        if (!ImageOperateHelpers::resolveDualInputFramesForOperate(
-                m_inputA, m_inputB, outputTimestamp, inputAFrame, inputBFrame)) {
-            m_worker.cancelPending();
+        if (!ImageOperateHelpers::resolveDualInputGpuFrames(
+                m_inputA, m_inputB, lookupTimestamp, inputAFrame, inputBFrame)) {
+            clearOutput();
             return;
         }
 
-        if (!m_tick.shouldProcess(inputAFrame.timestamp, inputBFrame.timestamp)) {
+        if (!m_paramsDirty
+            && inputAFrame.timestamp == m_lastProcessedInputTimestampA
+            && inputBFrame.timestamp == m_lastProcessedInputTimestampB) {
             return;
         }
 
-        const int gain = m_gain;
-        const qint64 tsA = inputAFrame.timestamp;
-        const qint64 tsB = inputBFrame.timestamp;
+        GpuTextureHandle out = DifferenceImageOperateGpu::run(
+            inputAFrame.texture, inputBFrame.texture, m_gain);
+        ImageOperateHelpers::pushGpuResultDual(m_outBuffer, std::move(out), m_lastPushedTimestamp);
 
-        m_worker.setFinishedCallback([this, tsA, tsB](cv::Mat&& image, qint64 outTs, qint64, std::uint64_t) {
-            ImageOperateHelpers::pushWorkerResultDual(
-                m_outBuffer, std::move(image), outTs, m_lastPushedTimestamp, m_tick, tsA, tsB);
-        });
-
-        m_worker.submit(
-            [inputA = inputAFrame.image.clone(), inputB = inputBFrame.image.clone(), gain]() {
-                cv::Mat normalizedA = ImageOperateHelpers::ensureBgr(ImageOperateHelpers::normalizeTo8Bit(inputA));
-                cv::Mat normalizedBSource = ImageOperateHelpers::ensureBgr(ImageOperateHelpers::normalizeTo8Bit(inputB));
-                if (normalizedA.empty() || normalizedBSource.empty()) {
-                    return cv::Mat();
-                }
-
-                cv::Mat normalizedB;
-                if (normalizedA.size() == normalizedBSource.size()) {
-                    normalizedB = normalizedBSource;
-                } else {
-                    cv::resize(normalizedBSource, normalizedB, normalizedA.size(), 0.0, 0.0, cv::INTER_LINEAR);
-                }
-
-                cv::Mat difference;
-                cv::absdiff(normalizedA, normalizedB, difference);
-                if (gain > 1) {
-                    difference.convertTo(difference, -1, static_cast<double>(gain), 0.0);
-                }
-                return difference;
-            },
-            outputTimestamp,
-            tsA);
+        m_lastProcessedInputTimestampA = inputAFrame.timestamp;
+        m_lastProcessedInputTimestampB = inputBFrame.timestamp;
+        m_paramsDirty = false;
     }
 
     std::shared_ptr<ImageData> m_inputA;
     std::shared_ptr<ImageData> m_inputB;
     std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
     std::shared_ptr<ImageData> m_outImageData;
-    ImageOperateHelpers::ImageOperateWorkerQueue m_worker;
-    ImageOperateHelpers::ImageOperateDualTickState m_tick;
+    qint64 m_lastRequestedFrame = -1;
+    qint64 m_lastProcessedInputTimestampA = -1;
+    qint64 m_lastProcessedInputTimestampB = -1;
     qint64 m_lastPushedTimestamp = -1;
+    bool m_paramsDirty = false;
     int m_gain = 1;
 };
 } // namespace Nodes

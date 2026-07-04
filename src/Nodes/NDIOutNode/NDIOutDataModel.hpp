@@ -25,7 +25,10 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
+#include "Common/DataTypes/ImageReadback.h"
 #include "StatusContainer/GlobalEventBus.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 #include <Processing.NDI.Lib.h>
 
 // 再次确保没有 min/max 宏定义
@@ -49,6 +52,19 @@ using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
+
+namespace
+{
+/** 从 ImageData ring buffer 取最新 BGR/BGRA Mat（须在 GUI 线程） */
+inline cv::Mat readLatestMatForSend(const std::shared_ptr<ImageData>& input)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return {};
+    }
+    return ImageReadback::matFromFrame(frame);
+}
+} // namespace
 
 struct GlobalEvent;
 
@@ -290,7 +306,7 @@ namespace Nodes
             video_frame.frame_format_type = NDIlib_frame_format_type_progressive;
             video_frame.timecode = NDIlib_send_timecode_synthesize;
             video_frame.p_data = ndiFrame.data;
-            video_frame.line_stride_in_bytes = ndiFrame.step[0];
+            video_frame.line_stride_in_bytes = static_cast<int>(ndiFrame.step[0]);
             video_frame.p_metadata = nullptr;
 
             // 发送视频帧
@@ -468,28 +484,24 @@ namespace Nodes
         }
 
         /**
-         * @brief 设置输入数据
-         * @param data 输入数据
-         * @param portIndex 端口索引
+         * @brief 设置输入数据 — 仅保存 ImageData 句柄，发送由 tick 驱动
          */
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
             switch (portIndex) {
                 case 0: {
-                    auto imageData = std::dynamic_pointer_cast<ImageData>(data);
-                    if (imageData && m_sendThread) {
-                        // 发送图像数据
-                        m_sendThread->sendFrame(imageData->imgMat());
-                        }
-                    }
+                    m_inImage0 = std::dynamic_pointer_cast<ImageData>(data);
+                    m_lastSeenInputTimestamp = -1;
                     break;
+                }
                 case 1: {
                     auto Data = std::dynamic_pointer_cast<VariableData>(data);
-                    if (Data)
+                    if (Data) {
                         setEnable(Data->value().toBool());
-
-                }
+                    }
                     break;
-                    default: {break;}
+                }
+                default:
+                    break;
             }
         }
 
@@ -575,8 +587,40 @@ namespace Nodes
     protected:
         void afterModelReady() override {
             AbstractDelegateModel::afterModelReady();
+            ImageGpuUpload::instance().warmup();
             GlobalEventBus::instance()->subscribe(makeFullOscAddress("/senderName"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
+            connect(TimestampGenerator::getInstance(),
+                    &TimestampGenerator::frameCountUpdated,
+                    this,
+                    [this](qint64) { trySendLatestFrame(); },
+                    Qt::QueuedConnection);
+        }
+
+    private:
+        /** 系统 tick：有新输入帧且正在发送时，读 Mat 并交给 NDI 发送线程 */
+        void trySendLatestFrame()
+        {
+            if (!m_isSending || !m_sendThread || !m_inImage0 || imageDataIsEmpty(m_inImage0)) {
+                return;
+            }
+
+            ImageFrame peek;
+            if (!getLatestImageFrame(m_inImage0, peek) || peek.empty()) {
+                return;
+            }
+            if (peek.timestamp >= 0 && peek.timestamp <= m_lastSeenInputTimestamp) {
+                return;
+            }
+
+            cv::Mat mat = readLatestMatForSend(m_inImage0);
+            if (mat.empty()) {
+                return;
+            }
+
+            m_lastSeenInputTimestamp = peek.timestamp;
+            m_sendThread->sendFrame(mat);
         }
 
     private Q_SLOTS:
@@ -624,8 +668,10 @@ namespace Nodes
          */
         void startSending() {
             if (!m_isSending && m_sendThread) {
+                m_lastSeenInputTimestamp = -1;
                 m_sendThread->startSending(m_currentSenderName);
                 m_isSending = true;
+                trySendLatestFrame();
                 qDebug() << "NDI输出开始发送:" << m_currentSenderName;
             }
         }
@@ -668,16 +714,13 @@ namespace Nodes
 
 
     private:
-        // 界面组件
         NDIOutInterface *m_widget;
-        
-        // NDI发送线程
         NDISendThread *m_sendThread;
-        
-        // 状态变量
+
+        std::shared_ptr<ImageData> m_inImage0;
+        qint64 m_lastSeenInputTimestamp = -1;
+
         QString m_currentSenderName;
         bool m_isSending;
-        
-
     };
 }

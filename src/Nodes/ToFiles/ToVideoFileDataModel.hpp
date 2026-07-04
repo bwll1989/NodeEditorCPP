@@ -5,11 +5,16 @@
 
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageReadback.h"
 #include "Common/DataTypes/NodeDataList.hpp"
 #include "FfmpegWriters.hpp"
 #include "StatusContainer/GlobalEventBus.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 #include "ToFilePath.hpp"
 #include "ToVideoFileInterface.hpp"
+
+#include <QPointer>
+#include <atomic>
 
 using QtNodes::NodeDataType;
 using QtNodes::PortIndex;
@@ -17,6 +22,22 @@ using QtNodes::PortType;
 using namespace NodeDataTypes;
 
 struct GlobalEvent;
+
+namespace ToVideoFileDetail
+{
+inline cv::Mat readLatestMatForWrite(const std::shared_ptr<ImageData>& input,
+                                     qint64* outSourceTimestamp = nullptr)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return {};
+    }
+    if (outSourceTimestamp) {
+        *outSourceTimestamp = frame.timestamp;
+    }
+    return ImageReadback::matFromFrame(frame);
+}
+} // namespace
 
 namespace Nodes
 {
@@ -76,7 +97,15 @@ public:
 
     ~ToVideoFileDataModel() override
     {
+        m_shuttingDown.store(true);
+        disconnect(TimestampGenerator::getInstance(), nullptr, this, nullptr);
+        GlobalEventBus::instance()->unsubscribe(this);
+        if (_widget) {
+            disconnect(_widget.data(), nullptr, this, nullptr);
+        }
         stopRecording();
+        m_inImage.reset();
+        m_cachedWriteMat.release();
     }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -116,11 +145,7 @@ public:
     {
         switch (portIndex) {
         case 0: {
-            const auto image = std::dynamic_pointer_cast<ImageData>(nodeData);
-            if (!image || image->isEmpty() || !m_recording) {
-                return;
-            }
-            appendFrame(image->mat());
+            m_inImage = std::dynamic_pointer_cast<ImageData>(nodeData);
             break;
         }
         case 1: {
@@ -152,7 +177,7 @@ public:
 
     QWidget* embeddedWidget() override
     {
-        return _widget;
+        return _widget.data();
     }
 
     QJsonObject save() const override
@@ -189,9 +214,9 @@ public:
             return;
         }
         m_file = trimmed;
-        {
-            QSignalBlocker blocker(_widget->fileEdit());
-            _widget->fileEdit()->setText(m_file);
+        if (ToVideoFileInterface* widget = _widget.data()) {
+            QSignalBlocker blocker(widget->fileEdit());
+            widget->fileEdit()->setText(m_file);
         }
         emit fileChanged(m_file);
     }
@@ -203,7 +228,9 @@ public:
             return;
         }
         m_outputDir = trimmed;
-        _widget->setOutputDir(m_outputDir);
+        if (ToVideoFileInterface* widget = _widget.data()) {
+            widget->setOutputDir(m_outputDir);
+        }
         emit outputDirChanged(m_outputDir);
     }
 
@@ -217,13 +244,18 @@ public:
             return;
         }
         m_fps = clamped;
-        _widget->setFps(m_fps);
+        if (ToVideoFileInterface* widget = _widget.data()) {
+            widget->setFps(m_fps);
+        }
         emit fpsChanged(m_fps);
     }
 
 public slots:
     void setRecording(bool recording)
     {
+        if (m_shuttingDown.load()) {
+            return;
+        }
         if (recording == m_recording) {
             return;
         }
@@ -236,21 +268,29 @@ public slots:
 
     void startRecording()
     {
-        if (m_recording) {
+        if (m_shuttingDown.load() || m_recording) {
             return;
         }
         if (m_file.isEmpty()) {
             updateNodeState(QtNodes::NodeValidationState::State::Error, QStringLiteral("请设置输出文件名"));
-            _widget->setRecording(false);
+            if (ToVideoFileInterface* widget = _widget.data()) {
+                widget->setRecording(false);
+            }
             return;
         }
 
         m_recording = true;
-        m_frameTimer.invalidate();
-        _widget->setRecording(true);
+        m_writtenFrameCount = 0;
+        m_cachedSourceTimestamp = -1;
+        m_cachedWriteMat.release();
+        m_recordingClock.start();
+        if (ToVideoFileInterface* widget = _widget.data()) {
+            widget->setRecording(true);
+        }
         emit recordingChanged(m_recording);
         updateRecordingOutput();
         updateNodeState(QtNodes::NodeValidationState::State::Valid);
+        tryCaptureFrame();
     }
 
     void stopRecording()
@@ -261,7 +301,12 @@ public slots:
 
         m_recording = false;
         m_encoder.close();
-        _widget->setRecording(false);
+        if (m_shuttingDown.load()) {
+            return;
+        }
+        if (ToVideoFileInterface* widget = _widget.data()) {
+            widget->setRecording(false);
+        }
         emit recordingChanged(m_recording);
         updateRecordingOutput();
     }
@@ -275,16 +320,28 @@ signals:
 protected:
     void afterModelReady() override
     {
+        AbstractDelegateModel::afterModelReady();
         GlobalEventBus::instance()->subscribe(makeFullOscAddress("/file"), this, SLOT(onGlobalEvent(GlobalEvent)));
         GlobalEventBus::instance()->subscribe(makeFullOscAddress("/outputDir"), this, SLOT(onGlobalEvent(GlobalEvent)));
         GlobalEventBus::instance()->subscribe(makeFullOscAddress("/fps"), this, SLOT(onGlobalEvent(GlobalEvent)));
         GlobalEventBus::instance()->subscribe(makeFullOscAddress("/recording"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
+        connect(TimestampGenerator::getInstance(),
+                &TimestampGenerator::frameCountUpdated,
+                this,
+                [self = QPointer<ToVideoFileDataModel>(this)](qint64) {
+                    if (!self || self->m_shuttingDown.load()) {
+                        return;
+                    }
+                    self->tryCaptureFrame();
+                },
+                Qt::QueuedConnection);
     }
 
 private Q_SLOTS:
     void onGlobalEvent(const GlobalEvent& ev)
     {
-        if (ev.kind != GlobalEventKind::Command) {
+        if (m_shuttingDown.load() || ev.kind != GlobalEventKind::Command) {
             return;
         }
         const QString localPath = ev.address.mid(ev.address.lastIndexOf('/') + 1);
@@ -301,20 +358,59 @@ private Q_SLOTS:
 
     void updateRecordingOutput()
     {
+        if (m_shuttingDown.load()) {
+            return;
+        }
         m_outRecording = std::make_shared<VariableData>(m_recording);
         emit dataUpdated(0);
     }
 
+    /** 按 wall-clock + m_fps 采样；上游帧率低于录制 fps 时重复写入同一帧 */
+    void tryCaptureFrame()
+    {
+        if (m_shuttingDown.load() || !m_recording || !m_inImage || imageDataIsEmpty(m_inImage)) {
+            return;
+        }
+
+        if (!m_recordingClock.isValid()) {
+            return;
+        }
+
+        refreshWriteCache();
+        if (m_cachedWriteMat.empty()) {
+            return;
+        }
+
+        const qint64 elapsedMs = m_recordingClock.elapsed();
+        const qint64 targetFrameCount =
+            static_cast<qint64>(elapsedMs * m_fps / 1000.0);
+
+        while (m_writtenFrameCount < targetFrameCount) {
+            appendFrame(m_cachedWriteMat);
+            ++m_writtenFrameCount;
+        }
+    }
+
+    void refreshWriteCache()
+    {
+        qint64 sourceTimestamp = -1;
+        const cv::Mat mat =
+            ToVideoFileDetail::readLatestMatForWrite(m_inImage, &sourceTimestamp);
+        if (mat.empty()) {
+            return;
+        }
+        if (sourceTimestamp == m_cachedSourceTimestamp && !m_cachedWriteMat.empty()) {
+            return;
+        }
+        m_cachedSourceTimestamp = sourceTimestamp;
+        m_cachedWriteMat = mat;
+    }
+
     void appendFrame(const cv::Mat& frame)
     {
-        const int minIntervalMs = qMax(1, static_cast<int>(1000.0 / m_fps));
-        if (m_frameTimer.isValid()) {
-            if (m_frameTimer.elapsed() < minIntervalMs) {
-                return;
-            }
+        if (m_shuttingDown.load()) {
+            return;
         }
-        m_frameTimer.start();
-
         if (!m_encoder.isOpen()) {
             const QString outputPath = resolveOutputPath(m_outputDir, m_file);
             QString error;
@@ -333,13 +429,18 @@ private Q_SLOTS:
     }
 
 private:
-    ToVideoFileInterface* _widget = nullptr;
+    QPointer<ToVideoFileInterface> _widget;
     std::shared_ptr<VariableData> m_outRecording;
+    std::shared_ptr<ImageData> m_inImage;
+    qint64 m_writtenFrameCount = 0;
+    qint64 m_cachedSourceTimestamp = -1;
+    cv::Mat m_cachedWriteMat;
     FfmpegVideoEncoder m_encoder;
-    QElapsedTimer m_frameTimer;
+    QElapsedTimer m_recordingClock;
     QString m_file;
     QString m_outputDir;
     double m_fps = 25.0;
     bool m_recording = false;
+    std::atomic<bool> m_shuttingDown{false};
 };
 } // namespace Nodes

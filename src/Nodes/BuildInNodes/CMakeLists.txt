@@ -74,6 +74,7 @@ target_link_libraries(BuildInNodes PRIVATE
     GUIElements
     ModelDataBridge
     StatusContainer
+    TimestampGenerator
 )
 
 # BuildInNodes 内部实现使用 OpenCV；对静态库而言需要向上游传播链接依赖

@@ -8,8 +8,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets Network Gui Qml)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Network Gui Qml)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets Network Gui Qml OpenGL OpenGLWidgets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Network Gui Qml OpenGL OpenGLWidgets)
 # 创建共享库
 add_library(${Module_Name} SHARED
     FaderWidget/FaderWidget.cpp
@@ -36,6 +36,12 @@ add_library(${Module_Name} SHARED
     FloatDragValueWidget/FloatDragValueWidget.hpp
     TriggerWidget/TriggerWidget.cpp
     TriggerWidget/TriggerWidget.hpp
+    ImageTextureView/ImageTextureView.cpp
+    ImageTextureView/ImageTextureView.hpp
+    ImageTextureView/ImageTextureViewHost.cpp
+    ImageTextureView/ImageTextureViewHost.hpp
+    ImageTextureWindow/ImageTextureWindow.cpp
+    ImageTextureWindow/ImageTextureWindow.hpp
 )
 
 # 链接Qt库
@@ -43,8 +49,11 @@ target_link_libraries(${Module_Name} PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::OpenGL
+    Qt${QT_VERSION_MAJOR}::OpenGLWidgets
     MediaManger
     ModelDataBridge
+    DataTypes
     ${QtColorWidgets_LIBRARIES}
 
 )

@@ -7,7 +7,6 @@
 #include <QtConcurrent/QtConcurrent>
 #include <QAbstractScrollArea>
 #include <QFutureWatcher>
-#include <QMutex>
 #include <opencv2/dnn.hpp>
 #include <vector>
 #include <array>
@@ -15,7 +14,6 @@
 #include <thread>
 #include <QtCore/qglobal.h>
 #include <QElapsedTimer>
-#include <QTimer>
 #include "PluginDefinition.hpp"
 #include "FaceDetectionInterface.hpp"
 #include <onnxruntime_cxx_api.h>
@@ -24,7 +22,10 @@
 #include <algorithm>
 #include <cmath>
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/ImageGpuUpload.h"
+#include "Common/DataTypes/ImageReadback.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
@@ -32,6 +33,68 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
 using namespace std;
+
+namespace
+{
+inline cv::Mat scaleMatForInference(const cv::Mat& src)
+{
+    if (src.empty()) {
+        return {};
+    }
+    constexpr int kMaxSide = 1280;
+    const int maxDim = std::max(src.cols, src.rows);
+    if (maxDim <= kMaxSide) {
+        return src.clone();
+    }
+    const double scale = static_cast<double>(kMaxSide) / static_cast<double>(maxDim);
+    cv::Mat scaled;
+    cv::resize(src, scaled, cv::Size(), scale, scale, cv::INTER_AREA);
+    return scaled;
+}
+
+inline bool peekLatestInputTimestamp(const std::shared_ptr<ImageData>& input, qint64& timestamp)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return false;
+    }
+    timestamp = frame.timestamp;
+    return true;
+}
+
+inline cv::Mat readInputMatForInference(const std::shared_ptr<ImageData>& input)
+{
+    ImageFrame frame;
+    if (!input || !getLatestImageFrame(input, frame) || frame.empty()) {
+        return {};
+    }
+    return scaleMatForInference(ImageReadback::matFromFrame(frame));
+}
+
+inline void pushMatToRingBuffer(std::shared_ptr<ImageData>& outData,
+                                std::shared_ptr<ImageTimestampRingQueue>& buffer,
+                                qint64& lastPushed,
+                                cv::Mat&& mat)
+{
+    if (mat.empty()) {
+        return;
+    }
+    ensureImageDataBuffer(outData, buffer);
+    const qint64 ts = TimestampGenerator::getInstance()->getCurrentFrameCount();
+    pushFrameToImageBufferDedup(buffer, ImageFrame::fromMat(std::move(mat), ts), lastPushed);
+}
+
+inline void clearRingBufferOutput(std::shared_ptr<ImageData>& outData,
+                                  std::shared_ptr<ImageTimestampRingQueue>& buffer,
+                                  qint64& lastPushed)
+{
+    lastPushed = -1;
+    ensureImageDataBuffer(outData, buffer);
+    if (buffer) {
+        buffer->clear();
+    }
+}
+} // namespace
 
 namespace Nodes
 {
@@ -55,7 +118,7 @@ namespace Nodes
             Resizable = false;
             PortEditable = false;
             m_outVariable = std::make_shared<VariableData>();
-            m_outImage = std::make_shared<ImageData>();
+            ensureImageDataBuffer(m_outImage, m_outImageBuffer);
             model_path = "./plugins/Models/yolo11n-face-detection.onnx";
 
             {
@@ -106,6 +169,7 @@ namespace Nodes
         ~FaceDetectionDataModel() override
         {
             cancelPendingInference();
+            disconnect(TimestampGenerator::getInstance(), nullptr, this, nullptr);
             GlobalEventBus::instance()->unsubscribe(this);
             m_ortSession.reset();
             m_sessionOptions.reset();
@@ -115,10 +179,17 @@ namespace Nodes
         void afterModelReady() override
         {
             AbstractDelegateModel::afterModelReady();
+            ImageGpuUpload::instance().warmup();
             auto bus = GlobalEventBus::instance();
             bus->subscribe(makeFullOscAddress("/confidence"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/nms"), this, SLOT(onGlobalEvent(GlobalEvent)));
             bus->subscribe(makeFullOscAddress("/enable"), this, SLOT(onGlobalEvent(GlobalEvent)));
+
+            connect(TimestampGenerator::getInstance(),
+                    &TimestampGenerator::frameCountUpdated,
+                    this,
+                    [this](qint64) { tryScheduleInference(); },
+                    Qt::QueuedConnection);
         }
 
     public:
@@ -177,10 +248,7 @@ namespace Nodes
 
         void requestInferenceRefresh()
         {
-            if (m_inImage0) {
-                QMutexLocker locker(&m_pendingMutex);
-                m_hasPendingFrame = true;
-            }
+            m_lastSeenInputTimestamp = -1;
             tryScheduleInference();
         }
 
@@ -194,6 +262,7 @@ namespace Nodes
             emit enabledChanged(value);
             if (!m_enabled) {
                 cancelPendingInference();
+                clearRingBufferOutput(m_outImage, m_outImageBuffer, m_lastPushedTimestamp);
                 m_outVariable = std::make_shared<VariableData>();
                 Q_EMIT dataUpdated(1);
                 return;
@@ -273,14 +342,12 @@ namespace Nodes
             }
             switch (portIndex) {
             case 0: {
-                auto imageData = std::dynamic_pointer_cast<ImageData>(data);
-                if (!imageData) {
+                m_inImage0 = std::dynamic_pointer_cast<ImageData>(data);
+                m_lastSeenInputTimestamp = -1;
+                if (!m_inImage0) {
+                    cancelPendingInference();
+                    clearRingBufferOutput(m_outImage, m_outImageBuffer, m_lastPushedTimestamp);
                     return;
-                }
-                m_inImage0 = imageData;
-                {
-                    QMutexLocker locker(&m_pendingMutex);
-                    m_hasPendingFrame = true;
                 }
                 tryScheduleInference();
                 break;
@@ -300,10 +367,7 @@ namespace Nodes
 
         void tryScheduleInference()
         {
-            if (!m_enabled) {
-                return;
-            }
-            if (!m_hasPendingFrame && !m_inImage0) {
+            if (!m_enabled || !m_inImage0 || imageDataIsEmpty(m_inImage0)) {
                 return;
             }
 
@@ -318,32 +382,25 @@ namespace Nodes
                 return;
             }
 
+            qint64 latestTs = -1;
+            if (!peekLatestInputTimestamp(m_inImage0, latestTs)) {
+                return;
+            }
+            if (latestTs >= 0 && latestTs <= m_lastSeenInputTimestamp) {
+                return;
+            }
+
             const qint64 intervalMs = inferenceIntervalMs();
-            if (m_inferenceTimer.isValid()) {
-                const qint64 elapsed = m_inferenceTimer.elapsed();
-                if (elapsed < intervalMs) {
-                    QTimer::singleShot(
-                        static_cast<int>(intervalMs - elapsed),
-                        this,
-                        [this]() { tryScheduleInference(); });
-                    return;
-                }
+            if (m_inferenceTimer.isValid() && m_inferenceTimer.elapsed() < intervalMs) {
+                return;
             }
 
-            cv::Mat frame;
-            {
-                QMutexLocker locker(&m_pendingMutex);
-                if (!m_hasPendingFrame || !m_inImage0) {
-                    return;
-                }
-                frame = cloneFrameForInference(m_inImage0->mat());
-                m_hasPendingFrame = false;
-            }
-
+            cv::Mat frame = readInputMatForInference(m_inImage0);
             if (frame.empty()) {
                 return;
             }
 
+            m_lastSeenInputTimestamp = latestTs;
             m_inferenceTimer.start();
             m_cancelRequested.store(false);
             const double conf = m_confThreshold;
@@ -354,22 +411,6 @@ namespace Nodes
                 runInferenceOnImage(std::move(frame), conf, nms, draw);
             });
             m_inferenceWatcher->setFuture(future);
-        }
-
-        static cv::Mat cloneFrameForInference(const cv::Mat& src)
-        {
-            if (src.empty()) {
-                return {};
-            }
-            constexpr int kMaxSide = 1280;
-            const int maxDim = std::max(src.cols, src.rows);
-            if (maxDim <= kMaxSide) {
-                return src.clone();
-            }
-            const double scale = static_cast<double>(kMaxSide) / static_cast<double>(maxDim);
-            cv::Mat scaled;
-            cv::resize(src, scaled, cv::Size(), scale, scale, cv::INTER_AREA);
-            return scaled;
         }
 
         qint64 inferenceIntervalMs() const
@@ -434,8 +475,8 @@ namespace Nodes
                         Q_EMIT dataUpdated(1);
                     }
                     if (m_drawOverlay) {
-                        m_outImage = std::make_shared<ImageData>(std::move(resultImage));
-                        Q_EMIT dataUpdated(0);
+                        pushMatToRingBuffer(
+                            m_outImage, m_outImageBuffer, m_lastPushedTimestamp, std::move(resultImage));
                     }
                 }, Qt::QueuedConnection);
             } catch (const Ort::Exception& e) {
@@ -456,8 +497,6 @@ namespace Nodes
                     m_inferenceWatcher->waitForFinished();
                 }
             }
-            QMutexLocker locker(&m_pendingMutex);
-            m_hasPendingFrame = false;
         }
 
         cv::Mat postProcessOnnxResults(
@@ -774,6 +813,9 @@ namespace Nodes
         std::shared_ptr<ImageData> m_inImage0;
         std::shared_ptr<VariableData> m_outVariable;
         std::shared_ptr<ImageData> m_outImage;
+        std::shared_ptr<ImageTimestampRingQueue> m_outImageBuffer;
+        qint64 m_lastPushedTimestamp = -1;
+        qint64 m_lastSeenInputTimestamp = -1;
         QString model_path;
         double m_confThreshold = 0.25;
         double m_nmsThreshold = 0.45;
@@ -782,8 +824,6 @@ namespace Nodes
         bool m_drawOverlay = true;
         QVariantMap m_lastDetectionResults;
 
-        QMutex m_pendingMutex;
-        bool m_hasPendingFrame = false;
         QElapsedTimer m_inferenceTimer;
 
         std::unique_ptr<Ort::Env> m_ortEnv;

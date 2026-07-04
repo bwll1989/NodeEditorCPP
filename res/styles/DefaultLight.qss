@@ -886,3 +886,94 @@ BaseTracklistView {
     qproperty-trackSelectedColor: #0078d4;
     qproperty-trackHoverColor: #2a292f;
 }
+
+/* ======= QWindowKit 无边框标题栏 ======= */
+QWK--WindowBar {
+    min-height: 32px;
+    border: none;
+    border-bottom: 1px solid rgba(0, 0, 0, 12%);
+}
+
+QWK--WindowBar[bar-active=true] {
+    background-color: #F6F6F6;
+}
+
+QWK--WindowBar[bar-active=false] {
+    background-color: #E8E8E8;
+}
+
+QWK--WindowBar>QLabel#win-title-label {
+    padding: 0;
+    border: none;
+    color: #000000;
+    background-color: transparent;
+    min-height: 28px;
+}
+
+QWK--WindowBar>QAbstractButton[system-button=true] {
+    qproperty-iconSize: 16px 16px;
+    min-width: 48px;
+    min-height: 32px;
+    max-height: 32px;
+    border: none;
+    padding: 0;
+    background-color: transparent;
+}
+
+QWK--WindowBar>QAbstractButton#min-button {
+    qproperty-iconNormal: url(":/ads_icons/ads_icons/minimize-button.svg");
+}
+
+QWK--WindowBar>QAbstractButton#min-button:hover,
+QWK--WindowBar>QAbstractButton#min-button:pressed {
+    background-color: rgba(0, 0, 0, 8%);
+}
+
+QWK--WindowBar>QAbstractButton#max-button {
+    qproperty-iconNormal: url(":/ads_icons/ads_icons/maximize-button.svg");
+    qproperty-iconChecked: url(":/ads_icons/ads_icons/restore-button.svg");
+}
+
+QWK--WindowBar>QAbstractButton#max-button:hover,
+QWK--WindowBar>QAbstractButton#max-button:pressed {
+    background-color: rgba(0, 0, 0, 8%);
+}
+
+QWK--WindowBar>QAbstractButton#close-button {
+    qproperty-iconNormal: url(":/ads_icons/ads_icons/close-button.svg");
+}
+
+QWK--WindowBar>QAbstractButton#close-button:hover,
+QWK--WindowBar>QAbstractButton#close-button:pressed {
+    background-color: #e81123;
+}
+
+QWK--WindowBar>QAbstractButton#icon-button {
+    qproperty-iconNormal: url(":/icons/icons/NodeStudio.png");
+    qproperty-iconSize: 18px 18px;
+    min-width: 40px;
+    border: none;
+    padding: 0;
+    background-color: transparent;
+}
+
+QMenuBar#win-menu-bar {
+    background-color: transparent;
+    border: none;
+}
+
+QMenuBar#win-menu-bar::item {
+    color: #000000;
+    border: none;
+    padding: 8px 12px;
+    background-color: transparent;
+}
+
+QMenuBar#win-menu-bar::item:selected {
+    background-color: rgba(0, 0, 0, 8%);
+}
+
+QMenuBar#win-menu-bar>QToolButton#qt_menubar_ext_button:hover,
+QMenuBar#win-menu-bar>QToolButton#qt_menubar_ext_button:pressed {
+    background-color: rgba(0, 0, 0, 8%);
+}

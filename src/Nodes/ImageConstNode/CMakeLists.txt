@@ -12,10 +12,13 @@ INCLUDE_DIRECTORIES("${QtColorWidgets_DIR}/install/include")
 add_library(${Module_Name} SHARED
         ImageConstModel.hpp
         ImageConstInterface.hpp
+        ImageConstCommon.hpp
+        ImageConstGpu.hpp
         TextToImageModel.hpp
         TextToImageInterface.hpp
         ImageLayoutInterface.hpp
         ImageLayoutModel.hpp
+        ImageLayoutGpu.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
         ../../Common/BaseClass/AbstractDelegateModel.cpp
