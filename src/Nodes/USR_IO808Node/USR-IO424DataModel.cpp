@@ -6,11 +6,14 @@
 
 namespace Nodes {
 
+namespace {
+constexpr int kSyncIntervalMs = 100;  // 10Hz
+}
+
 USR_IO424DataModel::USR_IO424DataModel()
     : _interface(new USR_IO424Interface())
     , _tcpClient(new TcpClient("127.0.0.1", 8080))
-    , _readTimer(new QTimer(this))
-    , _writeResponseTimer(new QTimer(this))
+    , _syncTimer(new QTimer(this))
     , _transactionId(0)
     , _host("127.0.0.1")
     , _port(8080)
@@ -83,8 +86,6 @@ USR_IO424DataModel::USR_IO424DataModel()
         });
     }
 
-    connect(_interface->_readAll, &QPushButton::clicked, this, [this]() { readAllData(); });
-
     connect(_tcpClient, &TcpClient::recMsg, this, [this](const QVariantMap &dataMap) {
         if (dataMap.contains("default")) {
             recMsg(dataMap.value("default").toByteArray(), dataMap["host"].toString(), 0);
@@ -95,11 +96,8 @@ USR_IO424DataModel::USR_IO424DataModel()
         setConnected(isReady);
     });
 
-    connect(_readTimer, &QTimer::timeout, this, &USR_IO424DataModel::readAllData);
-
-    _writeResponseTimer->setSingleShot(true);
-    _writeResponseTimer->setInterval(800);
-    connect(_writeResponseTimer, &QTimer::timeout, this, &USR_IO424DataModel::onWriteTimeout);
+    _syncTimer->setInterval(kSyncIntervalMs);
+    connect(_syncTimer, &QTimer::timeout, this, &USR_IO424DataModel::syncCycle);
 
     _interface->_hostEdit->setText(_host);
     _interface->_portEdit->setValue(_port);
@@ -112,11 +110,8 @@ USR_IO424DataModel::~USR_IO424DataModel()
         _tcpClient->disconnectFromServer();
         delete _tcpClient;
     }
-    if (_readTimer) {
-        _readTimer->stop();
-    }
-    if (_writeResponseTimer) {
-        _writeResponseTimer->stop();
+    if (_syncTimer) {
+        _syncTimer->stop();
     }
 }
 
@@ -280,22 +275,14 @@ void USR_IO424DataModel::readAllInputs()
     sendModbusCommand(command);
 }
 
-void USR_IO424DataModel::readAllOutputs()
+void USR_IO424DataModel::syncCycle()
 {
-    QByteArray command = generateReadCoilsCommand(kDoAddressBase, kChannelCount);
-    sendModbusCommand(command);
-}
-
-void USR_IO424DataModel::readAllData()
-{
-    if (_writeInFlight || _writePending) {
+    if (!_connected) {
         return;
     }
 
     readAllInputs();
-    QTimer::singleShot(100, this, [this]() {
-        readAllOutputs();
-    });
+    writeAllOutputs();
 }
 
 void USR_IO424DataModel::setConnected(bool connected)
@@ -311,14 +298,10 @@ void USR_IO424DataModel::setConnected(bool connected)
         _interface->setConnectionStatus(_connected);
     }
     if (_connected) {
-        requestWriteAllOutputs();
-        readAllData();
-        _readTimer->start(1000);
+        syncCycle();
+        _syncTimer->start(kSyncIntervalMs);
     } else {
-        _readTimer->stop();
-        _writeInFlight = false;
-        _writePending = false;
-        _writeResponseTimer->stop();
+        _syncTimer->stop();
     }
 }
 
@@ -332,27 +315,11 @@ void USR_IO424DataModel::setOutput(int index, bool state)
     _interface->_outputCheckBoxes[index]->setChecked(state);
 
     AbstractDelegateModel::stateFeedBack(QString("/DO%1").arg(index), state);
-
-    requestWriteAllOutputs();
-}
-
-void USR_IO424DataModel::requestWriteAllOutputs()
-{
-    if (!_connected) {
-        return;
-    }
-
-    if (_writeInFlight) {
-        _writePending = true;
-        return;
-    }
-
-    writeAllOutputs();
 }
 
 void USR_IO424DataModel::writeAllOutputs()
 {
-    if (!_connected || _writeInFlight) {
+    if (!_connected) {
         return;
     }
 
@@ -362,37 +329,8 @@ void USR_IO424DataModel::writeAllOutputs()
         values.append(_outputStates[i]);
     }
 
-    _writeInFlight = true;
-    _writePending = false;
     QByteArray command = generateWriteMultipleCoilsCommand(kDoAddressBase, values, kChannelCount);
     sendModbusCommand(command);
-    _writeResponseTimer->start();
-}
-
-void USR_IO424DataModel::onWriteCompleted(bool success)
-{
-    if (!_writeInFlight) {
-        return;
-    }
-
-    Q_UNUSED(success);
-    _writeResponseTimer->stop();
-    _writeInFlight = false;
-
-    if (_writePending) {
-        _writePending = false;
-        writeAllOutputs();
-    }
-}
-
-void USR_IO424DataModel::onWriteTimeout()
-{
-    if (!_writeInFlight) {
-        return;
-    }
-
-    _writeInFlight = false;
-    writeAllOutputs();
 }
 
 void USR_IO424DataModel::processModbusResponse(const QByteArray &response)
@@ -405,34 +343,10 @@ void USR_IO424DataModel::processModbusResponse(const QByteArray &response)
     if (protocolId != 0) return;
 
     if (functionCode & 0x80) {
-        if ((functionCode & 0x7F) == 0x0F) {
-            onWriteCompleted(false);
-        }
         return;
     }
 
     switch (functionCode) {
-    case 0x01:
-        if (response.size() >= 10) {
-            quint8 byteCount = static_cast<quint8>(response[8]);
-            if (response.size() >= 9 + byteCount) {
-                quint8 coilData = static_cast<quint8>(response[9]);
-                for (int i = 0; i < kChannelCount; ++i) {
-                    if (_writeInFlight || _writePending) {
-                        continue;
-                    }
-                    bool state = (coilData & (1 << i)) != 0;
-                    if (_outputStates[i] != state) {
-                        _outputStates[i] = state;
-                        QSignalBlocker blocker(_interface->_outputCheckBoxes[i]);
-                        _interface->_outputCheckBoxes[i]->setChecked(state);
-                        AbstractDelegateModel::stateFeedBack(QString("/DO%1").arg(i), state);
-                    }
-                }
-            }
-        }
-        break;
-
     case 0x02:
         if (response.size() >= 10) {
             quint8 byteCount = static_cast<quint8>(response[8]);
@@ -451,32 +365,9 @@ void USR_IO424DataModel::processModbusResponse(const QByteArray &response)
         }
         break;
 
-    case 0x0F:
-        onWriteCompleted(true);
-        break;
-
     default:
         break;
     }
-}
-
-QByteArray USR_IO424DataModel::generateReadCoilsCommand(quint16 startAddress, quint16 quantity)
-{
-    QByteArray command;
-    command.append(static_cast<char>(_transactionId >> 8));
-    command.append(static_cast<char>(_transactionId & 0xFF));
-    command.append(static_cast<char>(0x00));
-    command.append(static_cast<char>(0x00));
-    command.append(static_cast<char>(0x00));
-    command.append(static_cast<char>(0x06));
-    command.append(static_cast<char>(_serverId));
-    command.append(static_cast<char>(0x01));
-    command.append(static_cast<char>(startAddress >> 8));
-    command.append(static_cast<char>(startAddress & 0xFF));
-    command.append(static_cast<char>(quantity >> 8));
-    command.append(static_cast<char>(quantity & 0xFF));
-    _transactionId++;
-    return command;
 }
 
 QByteArray USR_IO424DataModel::generateReadDiscreteInputsCommand(quint16 startAddress, quint16 quantity)

@@ -5,6 +5,7 @@
 #include <memory>
 
 #include <QJsonObject>
+#include <QMetaObject>
 #include <QPointer>
 #include <QRectF>
 #include <QtNodes/NodeDelegateModel>
@@ -181,10 +182,14 @@ public:
                 if (m_outputRectData) {
                     m_outputRectData->insert("default", m_roiRectPx);
                 }
-                if (m_widget && m_widget->imageView) {
-                    m_widget->imageView->setImage(cv::Mat());
+                if (m_widget && m_widget->imageViewHost) {
+                    m_widget->imageViewHost->clearTexture();
                     m_widget->setRoiInfo(QRect(), QSize());
                 }
+                m_lastPreviewTimestamp = -1;
+                m_lastPreviewTextureId = 0;
+                QObject::disconnect(m_bufferFrameConnection);
+                m_bufferFrameConnection = {};
                 emit dataUpdated(0);
                 emit dataUpdated(1);
                 return;
@@ -192,6 +197,9 @@ public:
 
             ensureImageDataBuffer(m_outputImage, m_outputBuffer);
             m_lastProcessedInputTimestamp = -1;
+            m_lastPreviewTimestamp = -1;
+            m_lastPreviewTextureId = 0;
+            bindInputBuffer();
             emit dataUpdated(0);
 
             updateFromSharedBuffer(TimestampGenerator::getInstance()->getCurrentFrameCount());
@@ -583,10 +591,10 @@ private:
      */
     void syncWidgetState()
     {
-        if (!m_widget || !m_widget->imageView) {
+        if (!m_widget || !m_widget->imageViewHost) {
             return;
         }
-        m_widget->imageView->setRoiRect(m_roiRectPx);
+        m_widget->imageViewHost->setRoiRect(m_roiRectPx);
         m_widget->setRoiInfo(m_roiRectPx, m_inputImageSize);
     }
 
@@ -665,6 +673,67 @@ private:
         ROINode::pushTextureToOutput(m_outputBuffer, m_lastPushedTimestamp, std::move(outTex), outputTimestamp);
     }
 
+    void bindInputBuffer()
+    {
+        QObject::disconnect(m_bufferFrameConnection);
+        m_bufferFrameConnection = {};
+
+        if (!m_inputImage || !m_inputImage->isConnectedToSharedBuffer()) {
+            return;
+        }
+
+        const auto buffer = m_inputImage->getSharedImageBuffer();
+        if (!buffer) {
+            return;
+        }
+
+        m_bufferFrameConnection = connect(
+            buffer.get(),
+            &ImageTimestampRingQueue::newFrameWritten,
+            this,
+            [self = QPointer<ROIDataModel>(this)](const ImageFrame&) {
+                if (!self || self->m_shuttingDown.load()) {
+                    return;
+                }
+                self->updateFromSharedBuffer(
+                    TimestampGenerator::getInstance()->getCurrentFrameCount());
+            },
+            Qt::QueuedConnection);
+    }
+
+    void updatePreviewFromFrame(const ImageFrame& frame)
+    {
+        if (!m_widget || !m_widget->imageViewHost) {
+            return;
+        }
+
+        ImageFrame displayFrame = frame;
+        if (!displayFrame.texture.valid() && displayFrame.hasCpuCache()) {
+            ImageFrame uploadFrame = displayFrame;
+            if (uploadFrame.ensureGpuTexture()) {
+                displayFrame = std::move(uploadFrame);
+            }
+        }
+
+        if (displayFrame.texture.valid()) {
+            if (m_lastPreviewTimestamp >= 0
+                && displayFrame.timestamp == m_lastPreviewTimestamp
+                && displayFrame.texture.textureId == m_lastPreviewTextureId) {
+                return;
+            }
+            m_widget->imageViewHost->setTexture(displayFrame.texture);
+            m_lastPreviewTimestamp = displayFrame.timestamp;
+            m_lastPreviewTextureId = displayFrame.texture.textureId;
+            return;
+        }
+
+        if (!displayFrame.image.empty()) {
+            m_widget->imageViewHost->setImage(displayFrame.image);
+            m_lastPreviewTimestamp = displayFrame.timestamp;
+            m_lastPreviewTextureId = 0;
+        }
+    }
+
     void updateFromSharedBuffer(qint64 frameCount)
     {
         if (m_shuttingDown.load() || !m_inputImage) {
@@ -691,8 +760,8 @@ private:
             updateDerivedRoiPxFromNorm();
         }
 
-        if (inputUpdated && m_widget && m_widget->imageView) {
-            m_widget->imageView->setImage(ImageReadback::matFromFrame(frame));
+        if (inputUpdated && m_widget && m_widget->imageViewHost) {
+            updatePreviewFromFrame(frame);
         }
 
         if (inputUpdated || sizeChanged) {
@@ -721,6 +790,9 @@ private:
     QRect m_roiRectPx;
     QSize m_inputImageSize;
     qint64 m_lastProcessedInputTimestamp = -1;
+    qint64 m_lastPreviewTimestamp = -1;
+    unsigned int m_lastPreviewTextureId = 0;
+    QMetaObject::Connection m_bufferFrameConnection;
     std::atomic<bool> m_shuttingDown{false};
     bool m_roiParamsDirty = false;
 

@@ -30,7 +30,7 @@ namespace Nodes {
  * 实现基于Modbus TCP协议的主机节点，支持：
  * - DO部分：8个线圈读写，寄存器地址范围0x0000~0x0007
  * - DI部分：8个离散量输入只读，寄存器地址范围0x0020~0x0027
- * - Read All功能：同步从机数据
+ * - 连接后以 10Hz 周期同步：读 DI（变化时更新界面/输出端口），写 DO（强制下发本地缓存，不等响应）
  */
 class USR_IO808DataModel : public AbstractDelegateModel
 {
@@ -105,11 +105,6 @@ private slots:
     void readAllInputs();
     
     /**
-     * @brief 读取所有输出状态
-     */
-    void readAllOutputs();
-    
-    /**
      * @brief 设置单个输出状态
      * @param index 输出索引(0-7)
      * @param state 输出状态
@@ -117,18 +112,14 @@ private slots:
     void setOutput(int index, bool state);
     
     /**
-     * @brief 读取所有数据（输入和输出）
+     * @brief 10Hz 周期同步：读 DI + 强制写 DO 缓存
      */
-    void readAllData();
+    void syncCycle();
 
 private:
     USR_IO808Interface *_interface;
     TcpClient *_tcpClient;
-    QTimer *_readTimer;  // 定时读取定时器
-    QTimer *_writeResponseTimer; // 写响应超时定时器
-
-    bool _writeInFlight = false; // 是否有未确认的写多个线圈请求
-    bool _writePending = false;  // 写期间又有新状态变化，待补发
+    QTimer *_syncTimer;
 
     // 设备状态
     bool _inputStates[8];   // DI状态数组
@@ -152,14 +143,6 @@ private:
      */
     void processModbusResponse(const QByteArray &response);
 
-    /**
-     * @brief 生成Modbus TCP读取线圈命令
-     * @param startAddress 起始地址
-     * @param quantity 数量
-     * @return Modbus TCP命令字节数组
-     */
-    QByteArray generateReadCoilsCommand(quint16 startAddress, quint16 quantity);
-    
     /**
      * @brief 生成Modbus TCP读取离散输入命令
      * @param startAddress 起始地址
@@ -197,10 +180,7 @@ private:
      */
     void sendModbusCommand(const QByteArray &command);
 
-    void requestWriteAllOutputs();
     void writeAllOutputs();
-    void onWriteCompleted(bool success);
-    void onWriteTimeout();
 };
 
 } // namespace Nodes

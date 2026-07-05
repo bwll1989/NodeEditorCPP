@@ -38,3 +38,4 @@
 install.iss
 .vscode/settings.json
 /mcp-bridge
+/build_agent

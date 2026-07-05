@@ -300,6 +300,7 @@ namespace Nodes
             }
             m_command = cmd;
             Q_EMIT commandChanged(cmd);
+            setSend(true);
         }
 
         void onGlobalEvent(const GlobalEvent& ev)

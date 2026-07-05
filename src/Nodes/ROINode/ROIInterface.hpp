@@ -1,6 +1,9 @@
 #pragma once
 
+#include "Common/DataTypes/GpuTextureHandle.h"
+
 #include <memory>
+#include <cstring>
 #include <QColor>
 #include <QFrame>
 #include <QLabel>
@@ -11,6 +14,7 @@
 #include <QOpenGLWidget>
 #include <QPainter>
 #include <QRect>
+#include <QSurfaceFormat>
 #include <QVBoxLayout>
 #include <QtGlobal>
 #include <opencv2/core/mat.hpp>
@@ -21,8 +25,8 @@ namespace Nodes
 /**
  * @brief 基于 OpenGL 的 ROI 预览控件
  *
- * 该控件直接接收 `cv::Mat`，上传为 OpenGL 纹理进行显示，
- * 避免在预览路径中反复转换成 `QImage`。
+ * 主路径通过 `setTexture` 零拷贝绑定共享组内 GPU 纹理；
+ * 仅在上游仅有 CPU Mat 时回退到 `setImage` 上传。
  * 鼠标拖拽交互仍以原图像像素坐标维护 ROI。
  */
 class ROIImageView final : public QOpenGLWidget, protected QOpenGLFunctions
@@ -37,6 +41,10 @@ public:
     explicit ROIImageView(QWidget* parent = nullptr)
         : QOpenGLWidget(parent)
     {
+        QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
+        fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
+        setFormat(fmt);
+        setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
         setMinimumSize(320, 200);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         setMouseTracking(true);
@@ -60,15 +68,41 @@ public:
      * @brief 设置当前预览图像
      * @param image OpenCV 图像
      */
-    void setImage(const cv::Mat& image)
+    void setTexture(const NodeDataTypes::GpuTextureHandle& texture, bool repaint = true)
     {
+        if (!texture.valid()) {
+            clearTexture(repaint);
+            return;
+        }
+
+        m_frame = cv::Mat();
+        m_useGpuTexture = true;
+        m_gpuTexture = texture;
+        m_frameSize = QSize(texture.width, texture.height);
+        m_roiRect = clampRectToImage(m_roiRect);
+        m_textureDirty = false;
+        scheduleRepaint(repaint);
+    }
+
+    void clearTexture(bool repaint = true)
+    {
+        m_frame = cv::Mat();
+        m_gpuTexture = {};
+        m_useGpuTexture = false;
+        m_frameSize = QSize();
+        m_roiRect = QRect();
+        m_dragging = false;
+        m_textureDirty = true;
+        scheduleRepaint(repaint);
+    }
+
+    void setImage(const cv::Mat& image, bool repaint = true)
+    {
+        m_gpuTexture = {};
+        m_useGpuTexture = false;
+
         if (image.empty()) {
-            m_frame = cv::Mat();
-            m_frameSize = QSize();
-            m_roiRect = QRect();
-            m_dragging = false;
-            m_textureDirty = true;
-            update();
+            clearTexture(repaint);
             return;
         }
 
@@ -89,21 +123,18 @@ public:
         m_frameSize = QSize(m_frame.cols, m_frame.rows);
         m_roiRect = clampRectToImage(m_roiRect);
         m_textureDirty = true;
-        update();
+        scheduleRepaint(repaint);
     }
 
-    /**
-     * @brief 程序化设置 ROI 选区
-     * @param rect 以原图像像素坐标表示的矩形
-     */
-    void setRoiRect(const QRect& rect)
+    void setRoiRect(const QRect& rect, bool repaint = true)
     {
         const QRect clamped = clampRectToImage(rect);
         if (m_roiRect == clamped) {
+            scheduleRepaint(repaint);
             return;
         }
         m_roiRect = clamped;
-        update();
+        scheduleRepaint(repaint);
     }
 
     /**
@@ -121,7 +152,7 @@ public:
      */
     bool hasImage() const
     {
-        return !m_frame.empty();
+        return m_useGpuTexture ? m_gpuTexture.valid() : !m_frame.empty();
     }
 
 signals:
@@ -193,8 +224,10 @@ protected:
     {
         glClear(GL_COLOR_BUFFER_BIT);
 
-        if (!m_frame.empty()) {
-            uploadTextureIfNeeded();
+        if (hasImage()) {
+            if (!m_useGpuTexture) {
+                uploadTextureIfNeeded();
+            }
             drawTextureQuad();
             drawRoiOverlay();
             return;
@@ -213,7 +246,7 @@ protected:
      */
     void mousePressEvent(QMouseEvent* event) override
     {
-        if (event->button() != Qt::LeftButton || m_frame.empty()) {
+        if (event->button() != Qt::LeftButton || !hasImage()) {
             return;
         }
         const QRect target = imageTargetRect();
@@ -231,7 +264,7 @@ protected:
      */
     void mouseMoveEvent(QMouseEvent* event) override
     {
-        if (!m_dragging || m_frame.empty()) {
+        if (!m_dragging || !hasImage()) {
             return;
         }
         const QPoint currentImagePos = widgetPointToImagePoint(event->pos());
@@ -330,7 +363,8 @@ private:
      */
     void drawTextureQuad()
     {
-        if (m_textureId == 0 || !m_program) {
+        const GLuint textureId = m_useGpuTexture ? m_gpuTexture.textureId : m_textureId;
+        if (textureId == 0 || !m_program) {
             return;
         }
 
@@ -344,12 +378,14 @@ private:
         const float top = static_cast<float>(1.0 - 2.0 * target.top() / height());
         const float bottom = static_cast<float>(1.0 - 2.0 * (target.bottom() + 1) / height());
 
-        const GLfloat vertices[] = {
+        GLfloat vertices[16];
+        const GLfloat quadVertices[] = {
             left,  top,    0.0f, 0.0f,
             left,  bottom, 0.0f, 1.0f,
             right, top,    1.0f, 0.0f,
             right, bottom, 1.0f, 1.0f
         };
+        std::memcpy(vertices, quadVertices, sizeof(vertices));
 
         if (!m_vertexBuffer.isCreated()) {
             m_vertexBuffer.create();
@@ -361,9 +397,9 @@ private:
 
         m_program->bind();
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, m_textureId);
+        glBindTexture(GL_TEXTURE_2D, textureId);
         m_program->setUniformValue("uTexture", 0);
-        m_program->setUniformValue("uChannels", m_textureChannels);
+        m_program->setUniformValue("uChannels", m_useGpuTexture ? 3 : m_textureChannels);
         m_program->setUniformValue("uUseTexture", 1);
         m_program->setUniformValue("uSolidColor", QColor(0, 0, 0, 0));
 
@@ -575,16 +611,29 @@ private:
     {
         const QRect clamped = clampRectToImage(rect);
         if (m_roiRect == clamped) {
-            update();
+            scheduleRepaint();
             return;
         }
         m_roiRect = clamped;
-        update();
+        scheduleRepaint();
         emit roiRectChanged(m_roiRect);
+    }
+
+    void scheduleRepaint(bool repaint = true)
+    {
+        if (!repaint) {
+            return;
+        }
+        update();
+        if (auto* host = qobject_cast<QWidget*>(parent())) {
+            host->update();
+        }
     }
 
 private:
     cv::Mat m_frame;
+    NodeDataTypes::GpuTextureHandle m_gpuTexture;
+    bool m_useGpuTexture = false;
     QSize m_frameSize;
     QRect m_roiRect;
     bool m_dragging = false;
@@ -595,6 +644,88 @@ private:
     int m_textureChannels = 3;
     std::unique_ptr<QOpenGLShaderProgram> m_program;
     QOpenGLBuffer m_vertexBuffer{QOpenGLBuffer::VertexBuffer};
+};
+
+/**
+ * @brief ROIImageView 的外层 QWidget 宿主（QtNodes 节点嵌入专用）
+ *
+ * QOpenGLWidget 嵌入 QGraphicsProxyWidget 时，直接 update() 常无法触发 paintGL。
+ * 通过 Host::update() → paintEvent → ROIImageView::update() 链保证刷新。
+ */
+class ROIImageViewHost final : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit ROIImageViewHost(QWidget* parent = nullptr)
+        : QWidget(parent)
+    {
+        auto* layout = new QVBoxLayout(this);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+
+        m_view = new ROIImageView(this);
+        layout->addWidget(m_view);
+
+        setMinimumSize(320, 200);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    }
+
+    ROIImageView* view() const { return m_view; }
+
+    void setTexture(const NodeDataTypes::GpuTextureHandle& texture)
+    {
+        if (!m_view) {
+            return;
+        }
+        m_view->setTexture(texture, false);
+        update();
+    }
+
+    void setImage(const cv::Mat& image)
+    {
+        if (!m_view) {
+            return;
+        }
+        m_view->setImage(image, false);
+        update();
+    }
+
+    void clearTexture()
+    {
+        if (!m_view) {
+            return;
+        }
+        m_view->clearTexture(false);
+        update();
+    }
+
+    void setRoiRect(const QRect& rect)
+    {
+        if (!m_view) {
+            return;
+        }
+        m_view->setRoiRect(rect, false);
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        QWidget::paintEvent(event);
+        if (m_view) {
+            m_view->update();
+        }
+    }
+
+    void resizeEvent(QResizeEvent* event) override
+    {
+        QWidget::resizeEvent(event);
+        update();
+    }
+
+private:
+    ROIImageView* m_view = nullptr;
 };
 
 /**
@@ -625,8 +756,9 @@ public:
         hintLabel->setWordWrap(true);
         layout->addWidget(hintLabel);
 
-        imageView = new ROIImageView(this);
-        layout->addWidget(imageView, 1);
+        imageViewHost = new ROIImageViewHost(this);
+        layout->addWidget(imageViewHost, 1);
+        imageView = imageViewHost->view();
 
         infoLabel = new QLabel(tr("当前 ROI：未选择"), this);
         infoLabel->setWordWrap(true);
@@ -656,6 +788,7 @@ public:
 
 public:
     QLabel* hintLabel = nullptr;
+    ROIImageViewHost* imageViewHost = nullptr;
     ROIImageView* imageView = nullptr;
     QLabel* infoLabel = nullptr;
 };

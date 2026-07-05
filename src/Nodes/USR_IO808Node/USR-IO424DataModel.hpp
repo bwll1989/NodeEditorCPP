@@ -76,18 +76,13 @@ private slots:
     void onGlobalEvent(const GlobalEvent& ev);
     void recMsg(QByteArray msg, QString ip, int port);
     void readAllInputs();
-    void readAllOutputs();
     void setOutput(int index, bool state);
-    void readAllData();
+    void syncCycle();
 
 private:
     USR_IO424Interface *_interface;
     TcpClient *_tcpClient;
-    QTimer *_readTimer;
-    QTimer *_writeResponseTimer;
-
-    bool _writeInFlight = false;
-    bool _writePending = false;
+    QTimer *_syncTimer;
 
     bool _inputStates[kChannelCount];
     bool _outputStates[kChannelCount];
@@ -102,16 +97,12 @@ private:
     std::shared_ptr<NodeDataTypes::VariableData> _outputData[kChannelCount];
 
     void processModbusResponse(const QByteArray &response);
-    QByteArray generateReadCoilsCommand(quint16 startAddress, quint16 quantity);
     QByteArray generateReadDiscreteInputsCommand(quint16 startAddress, quint16 quantity);
     QByteArray generateWriteMultipleCoilsCommand(quint16 startAddress, const QVector<bool> &values, quint16 quantity);
     void updateOutputData(int port, bool value);
     void sendModbusCommand(const QByteArray &command);
 
-    void requestWriteAllOutputs();
     void writeAllOutputs();
-    void onWriteCompleted(bool success);
-    void onWriteTimeout();
 };
 
 } // namespace Nodes

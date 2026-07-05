@@ -18,7 +18,6 @@
  * - 连接设置（IP地址、端口、服务器ID）
  * - DI状态显示（8个离散输入）
  * - DO控制（8个数字输出）
- * - Read All按钮
  */
 class USR_IO808Interface : public QWidget
 {
@@ -62,11 +61,6 @@ public:
         connectionLayout->addWidget(_statusLabel, 3, 0, 1, 2);
 
         mainLayout->addWidget(connectionGroup);
-
-        _readAll = new QPushButton("Read All", this);
-        _readAll->setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 8px; }");
-        _readAll->setEnabled(false);
-        mainLayout->addWidget(_readAll);
 
         // DI 状态（4×2 网格，保持原有布局）
         auto inputGroup = new QGroupBox("DI 状态 (0x0020~0x0027)", this);
@@ -117,7 +111,7 @@ public:
         
         // 设置大小策略
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        setMinimumSize(220, 380);
+        setMinimumSize(220, 340);
     }
     
     /**
@@ -178,20 +172,16 @@ public:
      */
     void setConnectionStatus(bool connected) {
         if (connected) {
-            // 启用所有输出复选框和Read All按钮
             for (int i = 0; i < 8; ++i) {
                 _outputCheckBoxes[i]->setEnabled(true);
             }
-            _readAll->setEnabled(true);
             _statusLabel->setChecked(true);
             _statusLabel->setText("状态: 已连接");
             _statusLabel->setStyleSheet("color: green; font-weight: bold;");
         } else {
-            // 禁用所有输出复选框和Read All按钮
             for (int i = 0; i < 8; ++i) {
                 _outputCheckBoxes[i]->setEnabled(false);
             }
-            _readAll->setEnabled(false);
             _statusLabel->setChecked(false);
             _statusLabel->setText("状态: 未连接");
             _statusLabel->setStyleSheet("color: red; font-weight: bold;");
@@ -248,7 +238,6 @@ public:
 
     // 公共成员，供外部访问
     QCheckBox *_outputCheckBoxes[8];
-    QPushButton *_readAll;
 
 signals:
     /**

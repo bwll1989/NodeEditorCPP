@@ -50,6 +50,7 @@ set(ALL_NODES
     showStoreGBxNode                          #ELC showStoreGBx 控制器
     USR_IO808Node                           #基于Modbus Master实现与USR-IO808 控制器对接
     TSETLNode                                 #对接TSETL
+    AuroraSNode                               #Aurora S 设备状态
     HoldNode                                  #信号保持
     SpoutInNode                               #Spout输入
     RTSPNode                                #RTSP拉流输入
@@ -156,6 +157,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(showStoreGBxNode)                          #ELC showStoreGBx 控制器
     add_subdirectory(USR_IO808Node)                             #基于Modbus Master实现与USR-IO808 控制器对接
     add_subdirectory(TSETLNode)                                 #对接TSETL
+    add_subdirectory(AuroraSNode)                               #Aurora S 设备状态
     add_subdirectory(HoldNode)                                  #信号保持
     add_subdirectory(SpoutInNode)                               #Spout输入
     add_subdirectory(RTSPNode)                                #RTSP拉流输入
