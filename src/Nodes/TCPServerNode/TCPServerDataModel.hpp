@@ -92,7 +92,9 @@ namespace Nodes
             });
 
             connect(widget->sendButton, &QPushButton::clicked, this, &TCPServerDataModel::sendMessage, Qt::QueuedConnection);
-            
+            connect(this,&TCPServerDataModel::valueChanged,[this]() {
+               sendMessage();
+            });
             // Initial sync
             m_host = widget->hostLineEdit->text();
             m_port = widget->portSpinBox->value();
@@ -230,11 +232,11 @@ namespace Nodes
                     break;
                 case 2:
                     setValue(m_inData->value().toString());
-                    sendMessage();
+
                     break;
                 case 3:
                     if (m_inData->value().toBool()) {
-                        setValue(m_inData->value().toString());
+
                         sendMessage();
                     }
                     break;

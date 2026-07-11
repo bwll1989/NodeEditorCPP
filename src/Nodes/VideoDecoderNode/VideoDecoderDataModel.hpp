@@ -292,36 +292,63 @@ namespace Nodes
             QJsonObject modelJson = NodeDelegateModel::save();
             modelJson["filePath"] = m_fileName;
             modelJson["isLoop"] = m_loop;
-            modelJson["autoPlay"] = autoPlay;
             modelJson["volume"] = m_volume;
+            modelJson["play"] = isPlaying;
+            modelJson["autoPlay"] = isPlaying;
             return modelJson;
         }
 
         void load(const QJsonObject &p) override
         {
-            QJsonObject modelJson = p;
-            
-            if (modelJson.contains("filePath")) {
-                setFileName(modelJson["filePath"].toString());
+            const QJsonObject modelJson = p;
+
+            bool shouldPlay = false;
+            if (modelJson.contains(QStringLiteral("play"))) {
+                shouldPlay = modelJson[QStringLiteral("play")].toBool();
+            } else if (modelJson.contains(QStringLiteral("autoPlay"))) {
+                shouldPlay = modelJson[QStringLiteral("autoPlay")].toBool();
             }
-            
-            if (modelJson.contains("isLoop")) {
-                setLoop(modelJson["isLoop"].toBool());
-            }
-            
-            if (modelJson.contains("autoPlay")) {
-                autoPlay = modelJson["autoPlay"].toBool();
-            }
-            
-            if (modelJson.contains("volume")) {
-                setVolume(modelJson["volume"].toDouble());
+            autoPlay = shouldPlay;
+
+            if (modelJson.contains(QStringLiteral("isLoop"))) {
+                setLoop(modelJson[QStringLiteral("isLoop")].toBool());
             }
 
-            if (!filePath.isEmpty() && QFile::exists(filePath)) {
-                if (isReady && autoPlay) {
-                    QTimer::singleShot(100, this, [this](){ setPlay(true); });
+            if (modelJson.contains(QStringLiteral("volume"))) {
+                setVolume(modelJson[QStringLiteral("volume")].toDouble());
+            }
+
+            const QString savedFile = modelJson.value(QStringLiteral("filePath")).toString();
+            if (!savedFile.isEmpty() && savedFile != m_fileName) {
+                isPlaying = false;
+                setFileName(savedFile);
+            } else if (!savedFile.isEmpty() && !isReady) {
+                isPlaying = false;
+                m_fileName = savedFile;
+                {
+                    QSignalBlocker blocker(widget->fileSelectComboBox);
+                    widget->fileSelectComboBox->setText(m_fileName);
+                }
+                loadVideoFile(m_fileName);
+            }
+
+            const auto applyPlayState = [this, shouldPlay]() {
+                if (shouldPlay && isReady) {
+                    setPlay(true);
+                } else {
+                    setPlay(false);
+                }
+            };
+
+            if (!savedFile.isEmpty()) {
+                const QString absPath = AppConstants::MEDIA_LIBRARY_STORAGE_DIR + QStringLiteral("/") + savedFile;
+                if (QFile::exists(absPath)) {
+                    QTimer::singleShot(100, this, applyPlayState);
+                    return;
                 }
             }
+
+            applyPlayState();
         }
 
     public slots:

@@ -102,7 +102,7 @@ namespace Nodes
                 setListeningHost(widget->listeningHostEdit->text());
             });
             connect(widget->listeningPortSpinBox, &QSpinBox::valueChanged, this, &UDPSocketDataModel::setListeningPort);
-            
+            connect(this,&UDPSocketDataModel::valueChanged,this,&UDPSocketDataModel::sendMessage);
             connect(widget->sendButton, &QPushButton::clicked, this, [this]() {
                 sendMessage();
             });
@@ -273,7 +273,6 @@ namespace Nodes
                 break;
             case 2:
                 setValue(m_inData->value().toString());
-                sendMessage();
                 break;
             case 3:
                 // Trigger send with current value

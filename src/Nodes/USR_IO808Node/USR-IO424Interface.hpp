@@ -61,6 +61,11 @@ public:
 
         mainLayout->addWidget(connectionGroup);
 
+        _readAll = new QPushButton("Read All", this);
+        _readAll->setStyleSheet("QPushButton { background-color: #4CAF50; color: white; font-weight: bold; padding: 8px; }");
+        _readAll->setEnabled(false);
+        mainLayout->addWidget(_readAll);
+
         auto inputGroup = new QGroupBox("DI 状态 (0x0020~0x0023)", this);
         auto inputLayout = new QGridLayout(inputGroup);
         inputLayout->setContentsMargins(6, 8, 6, 6);
@@ -105,7 +110,7 @@ public:
         });
 
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        setMinimumSize(220, 280);
+        setMinimumSize(220, 320);
     }
 
     void setInputState(int index, bool state) {
@@ -145,6 +150,7 @@ public:
         for (int i = 0; i < kChannelCount; ++i) {
             _outputCheckBoxes[i]->setEnabled(connected);
         }
+        _readAll->setEnabled(connected);
         _statusLabel->setChecked(connected);
         _statusLabel->setText(connected ? "状态: 已连接" : "状态: 未连接");
         _statusLabel->setStyleSheet(connected ? "color: green; font-weight: bold;" : "color: red; font-weight: bold;");
@@ -158,6 +164,7 @@ public:
     void setServerId(int id) { _serverId->setValue(id); }
 
     QCheckBox *_outputCheckBoxes[kChannelCount];
+    QPushButton *_readAll;
 
 signals:
     void hostChanged(const QString &host);

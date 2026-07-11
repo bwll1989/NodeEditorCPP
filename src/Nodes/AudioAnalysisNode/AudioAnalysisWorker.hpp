@@ -1,99 +1,81 @@
 #pragma once
 
 #include <QObject>
-#include <QThread>
-#include <QTimer>
 #include <QMutex>
-#include <QWaitCondition>
+#include <vector>
 #include "Common/DataTypes/AudioTimestampRingQueue.h"
-#include "TimeCodeDefines.h"
-#include "Eigen/Core"
-#include "Gist.h"  // 添加GIST库头文件
+#include "Gist.h"
 
 namespace Nodes
 {
-    /**
-     * @brief 音频分析工作线程类
-     * 负责在独立线程中处理音频数据分析
-     */
+    struct AudioAnalysisParams
+    {
+        float lowMinHz = 20.0f;
+        float lowMaxHz = 250.0f;
+        float midMinHz = 250.0f;
+        float midMaxHz = 4000.0f;
+        float highMinHz = 4000.0f;
+        float highMaxHz = 20000.0f;
+        int frameSize = 2048;
+        int beatIntervalMs = 120;
+        float bandAttackMs = 20.0f;
+        float bandReleaseMs = 120.0f;
+        float beatFluxMultiplier = 1.8f;
+        float beatFluxSmoothing = 0.92f;
+    };
+
     class AudioAnalysisWorker : public QObject
     {
         Q_OBJECT
 
     public:
-        /**
-         * @brief 构造函数
-         * @param parent 父对象
-         */
         explicit AudioAnalysisWorker(QObject *parent = nullptr);
-        
-        /**
-         * @brief 析构函数
-         */
         ~AudioAnalysisWorker();
 
     public slots:
-        /**
-         * @brief 开始处理音频数据
-         */
         void startProcessing();
-        
-        /**
-         * @brief 停止处理音频数据
-         */
         void stopProcessing();
-        
-        /**
-         * @brief 处理音频数据的主循环
-         */
-        void processAudioData();
-
-        /**
-         * @brief 执行音频分析操作
-         * @param inputFrames 输入音频帧向量
-         * @param timestamp 时间戳
-         */
-        void performAnalysisOperation(const AudioFrame& inputFrames, qint64 timestamp);
-        
-    signals:
-        /**
-         * @brief 处理状态变化信号
-         * @param isProcessing 是否正在处理
-         */
-        void processingStatusChanged(bool isProcessing);
-        
-        /**
-         * @brief RMS值变化信号
-         * @param rmsValue RMS值
-         * @param channel 通道索引
-         */
-        void analysisValueChanged(const QVariantMap &values);
-
-    public slots:
-        /**
-         * @brief 设置指定端口的缓冲区
-         * @param port 端口索引
-         * @param buffer 音频缓冲区
-         */
         void setInputBuffer(int port, std::shared_ptr<AudioTimestampRingQueue> buffer);
-        
+        void setAnalysisParams(float lowMinHz, float lowMaxHz,
+                               float midMinHz, float midMaxHz,
+                               float highMinHz, float highMaxHz,
+                               int frameSize, int beatIntervalMs,
+                               float bandAttackMs, float bandReleaseMs);
+
+    signals:
+        void processingStatusChanged(bool isProcessing);
+        void analysisOutputsChanged(double low, double mid, double high, double level, bool beat);
+
+    private slots:
+        void onFrameTick(qint64 frameCount);
+
     private:
-        std::shared_ptr<AudioTimestampRingQueue> _inputBuffers;    ///< 输入音频缓冲区数组
-        QTimer* _processingTimer;                                              ///< 处理定时器
-        QMutex _mutex;                                                         ///< 互斥锁
-        bool _isProcessing;                                                    ///< 处理状态标志
-        qint64 _lastProcessedTimestamp;                                        ///< 上次处理的时间戳
-        
-        // GIST相关成员变量
-        std::unique_ptr<Gist<float>> _gistAnalyzer;                           ///< GIST分析器
-        int _frameSize;                                                        ///< 分析帧大小
-        int _sampleRate;                                                       ///< 采样率
-        
-        /**
-         * @brief 初始化GIST分析器
-         * @param frameSize 帧大小
-         * @param sampleRate 采样率
-         */
         void initializeGist(int frameSize, int sampleRate);
+        void performAnalysisOperation(const AudioFrame &inputFrame);
+        std::vector<float> extractMonoSamples(const AudioFrame &frame) const;
+        void appendSamples(const std::vector<float> &samples);
+        bool consumeAnalysisFrame(std::vector<float> &frameOut, int frameSize);
+        float computeBandEnergy(const std::vector<float> &magnitudeSpectrum,
+                                float lowHz, float highHz, int sampleRate) const;
+        float smoothBand(float target, float current, float dtSeconds,
+                         float attackMs, float releaseMs) const;
+        bool detectBeat(float spectralFlux, qint64 timestampMs, const AudioAnalysisParams &params);
+
+        std::shared_ptr<AudioTimestampRingQueue> _inputBuffers;
+        QMutex _mutex;
+        bool _isProcessing = false;
+        qint64 _lastProcessedTimestamp = 0;
+
+        std::unique_ptr<Gist<float>> _gistAnalyzer;
+        int _sampleRate = 48000;
+        AudioAnalysisParams _params;
+
+        std::vector<float> _sampleAccumulator;
+        float _lowSmoothed = 0.0f;
+        float _midSmoothed = 0.0f;
+        float _highSmoothed = 0.0f;
+
+        float _fluxAverage = 0.0f;
+        qint64 _lastBeatTimestamp = 0;
     };
 }

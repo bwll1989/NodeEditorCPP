@@ -164,6 +164,11 @@ namespace Nodes
          * @brief 将保存的状态写入VST3插件
          */
         void writeState();
+
+        /**
+         * @brief 将序列化状态应用到已加载的插件（Snapshot 召回用，不重新 loadPlugin）
+         */
+        void applySavedState(const QByteArray &processorState, const QByteArray &controllerState);
         /**
      * @brief 将端口索引转换为总线和通道索引
      * @param portIndex 端口索引

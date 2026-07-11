@@ -16,6 +16,10 @@ add_library(${Module_Name} SHARED
         InternalControlInterface.hpp
         OscOutGroupModel.hpp
         OscOutGroupModel.cpp
+        SnapshotInterface.hpp
+        SnapshotInterface.cpp
+        SnapshotModel.hpp
+        SnapshotModel.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
         ../../Common/BaseClass/AbstractDelegateModel.cpp
@@ -30,6 +34,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         OSCTransmitter
         PropertyTreeWidget
         StatusContainer
+        GraphSnapshotBridge
         DataTypes
         AppConfig)
 

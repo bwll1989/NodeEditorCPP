@@ -2,6 +2,7 @@
 // Created by WuBin on 2025/8/21.
 //
 #include "UniversePlaybackDataModel.hpp"
+#include <QFile>
 using namespace Nodes;
 
 UniversePlaybackDataModel::UniversePlaybackDataModel()
@@ -294,6 +295,9 @@ QJsonObject UniversePlaybackDataModel::save() const
     modelJson1["net"] = m_net;
     modelJson1["isLooping"] = m_isLooping;
     modelJson1["videoFilePath"] = m_fileName;
+    modelJson1["isPlaying"] = m_isPlaying;
+    modelJson1["play"] = m_isPlaying;
+    modelJson1["autoPlay"] = m_isPlaying;
 
     QJsonObject modelJson = NodeDelegateModel::save();
     modelJson["UniverseSettings"] = modelJson1;
@@ -302,24 +306,81 @@ QJsonObject UniversePlaybackDataModel::save() const
 
 void UniversePlaybackDataModel::load(const QJsonObject &p)
 {
-    // Load runs on creation, usually safe.
-    QJsonValue v = p["UniverseSettings"];
-    if (!v.isUndefined() && v.isObject()) {
-        auto settings = v.toObject();
+    NodeDelegateModel::load(p);
 
-        setUniverse(settings["universe"].toInt(0));
-        setSubnet(settings["subnet"].toInt(0));
-        setNet(settings["net"].toInt(0));
-        setIsLooping(settings["isLooping"].toBool(false));
-        
-        QString videoFilePath = settings["videoFilePath"].toString();
-        if (!videoFilePath.isEmpty()) {
-            setFileName(videoFilePath);
-        }
-
-        // updateAllUniverseData is called by setters
-        NodeDelegateModel::load(p);
+    QJsonObject settings;
+    const QJsonValue v = p.value(QStringLiteral("UniverseSettings"));
+    if (v.isObject()) {
+        settings = v.toObject();
+    } else {
+        settings = p;
     }
+
+    bool shouldPlay = false;
+    if (settings.contains(QStringLiteral("play"))) {
+        shouldPlay = settings[QStringLiteral("play")].toBool();
+    } else if (settings.contains(QStringLiteral("isPlaying"))) {
+        shouldPlay = settings[QStringLiteral("isPlaying")].toBool();
+    } else if (settings.contains(QStringLiteral("autoPlay"))) {
+        shouldPlay = settings[QStringLiteral("autoPlay")].toBool();
+    }
+
+    setUniverse(settings.value(QStringLiteral("universe")).toInt(0));
+    setSubnet(settings.value(QStringLiteral("subnet")).toInt(0));
+    setNet(settings.value(QStringLiteral("net")).toInt(0));
+    setIsLooping(settings.value(QStringLiteral("isLooping")).toBool(false));
+
+    const QString savedFile = settings.value(QStringLiteral("videoFilePath")).toString();
+    if (!savedFile.isEmpty() && savedFile != m_fileName) {
+        {
+            QMutexLocker locker(&m_mutex);
+            m_isPlaying = false;
+        }
+        setFileName(savedFile);
+    } else if (!savedFile.isEmpty() && !m_formatContext) {
+        {
+            QMutexLocker locker(&m_mutex);
+            m_isPlaying = false;
+            m_fileName = savedFile;
+            {
+                QSignalBlocker blocker(widget->_fileSelectComboBox);
+                widget->_fileSelectComboBox->setText(m_fileName);
+            }
+            const QString filePath = AppConstants::MEDIA_LIBRARY_STORAGE_DIR + QStringLiteral("/") + m_fileName;
+            if (openVideo(filePath)) {
+                widget->updateFileInfo(filePath, m_duration, m_fps, m_videoHeight);
+                updateNodeState(QtNodes::NodeValidationState::State::Valid);
+            } else {
+                updateNodeState(QtNodes::NodeValidationState::State::Error, QStringLiteral("cannot open file"));
+                widget->showError(QStringLiteral("无法打开视频文件"));
+            }
+        }
+        emit fileNameChanged(m_fileName);
+    }
+
+    const auto applyPlayState = [this, shouldPlay]() {
+        if (shouldPlay) {
+            {
+                QMutexLocker locker(&m_mutex);
+                if (m_isPlaying) {
+                    m_isPlaying = false;
+                }
+            }
+            setIsPlaying(true);
+        } else {
+            setIsPlaying(false);
+        }
+    };
+
+    if (!savedFile.isEmpty()) {
+        const QString absPath = AppConstants::MEDIA_LIBRARY_STORAGE_DIR + QStringLiteral("/") + savedFile;
+        if (QFile::exists(absPath)) {
+            QTimer::singleShot(100, this, applyPlayState);
+            return;
+        }
+    }
+
+    applyPlayState();
 }
 
 void UniversePlaybackDataModel::onClearDataClicked() {

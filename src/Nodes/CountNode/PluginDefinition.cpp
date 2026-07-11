@@ -1,6 +1,7 @@
 #include "PluginDefinition.hpp"
 
 #include "CountDataModel.hpp"
+#include "RangeMapDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +19,6 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::CountDataModel>(name(),tag());
+    reg->registerModel<Nodes::CountDataModel>(name(), tag());
+    reg->registerModel<Nodes::RangeMapDataModel>(QStringLiteral("Range Map"), tag());
 }

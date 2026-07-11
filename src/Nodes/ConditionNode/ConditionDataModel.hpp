@@ -1,128 +1,115 @@
 #pragma once
+
 #include <QtCore/QObject>
 #include "Common/DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include "ConditionInterface.hpp"
-#include <iostream>
 
 #include <QtWidgets/QLineEdit>
-#include <QtWidgets/QSlider>
-#include <QtWidgets/QSpinBox>
-#include "QGridLayout"
 #include <QtCore/qglobal.h>
 #include "JSEngineDefines/JSEngineDefines.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-class QLineEdit;
+
 using namespace QtNodes;
 using namespace NodeDataTypes;
+
 namespace Nodes
 {
     class ConditionDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
 
-    public:
+        enum OutputPort : PortIndex {
+            ConditionPort = 0,
+            DataPort = 1
+        };
 
-        ConditionDataModel(){
-            InPortCount =1;
-            OutPortCount=1;
-            Caption="Condition";
-            CaptionVisible=true;
-            WidgetEmbeddable= true;
-            Resizable=true;
-            PortEditable=false;
-            connect(widget->Editor, &QLineEdit::editingFinished, this, &ConditionDataModel::outDataSlot);
+    public:
+        ConditionDataModel()
+        {
+            InPortCount = 1;
+            OutPortCount = 2;
+            Caption = QStringLiteral("Condition");
+            CaptionVisible = true;
+            WidgetEmbeddable = true;
+            Resizable = false;
+            PortEditable = false;
+
+            m_boolOutput = std::make_shared<VariableData>(QVariant(false));
+
+            connect(widget->Editor, &QLineEdit::editingFinished, this, &ConditionDataModel::onExpressionEdited);
             m_jsEngine = new QJSEngine(this);
         }
-        ~ConditionDataModel() override {
-            if(m_jsEngine) {
-                delete m_jsEngine;
-                m_jsEngine = nullptr;
-            }
-        }
-    public:
+
+        ~ConditionDataModel() override = default;
+
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             Q_UNUSED(portIndex)
-            switch (portType) {
-            case PortType::In:
-                return VariableData().type();
-            case PortType::Out:
-                return VariableData().type();
-            case PortType::None:
-                break;
-            default:
-                break;
-            }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
-
+            Q_UNUSED(portType)
             return VariableData().type();
         }
 
-        /**
-         * @brief 处理输出数据，使用JS引擎评估表达式，并在表达式成立时计数器+1
-         * @param portIndex 端口索引
-         * @return 提取后的数据，包含当前计数值
-         */
+        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        {
+            switch (portType) {
+            case PortType::In:
+                return QStringLiteral("INPUT");
+            case PortType::Out:
+                switch (portIndex) {
+                case ConditionPort:
+                    return QStringLiteral("CONDITION");
+                case DataPort:
+                    return QStringLiteral("DATA");
+                default:
+                    return QString();
+                }
+            default:
+                return QString();
+            }
+        }
+
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
+            switch (portIndex) {
+            case ConditionPort:
+                return m_boolOutput ? m_boolOutput : std::make_shared<VariableData>(QVariant(false));
+            case DataPort:
+                return m_dataOutput ? m_dataOutput : std::make_shared<VariableData>();
+            default:
+                return std::make_shared<VariableData>();
+            }
+        }
+
+        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
+        {
             Q_UNUSED(portIndex)
-            if(m_InData==nullptr) {
-                // 输入数据为空时，直接返回当前计数值
-                return std::make_shared<VariableData>(count);
+            if (data == nullptr) {
+                return;
             }
-            
-            QString expression = widget->Editor->text();
-            bool expressionResult = false;
-            
-            // 将整个输入数据注册为JS全局变量$input
-            QJSValue jsInput = m_jsEngine->toScriptValue(m_InData->getMap());
-            m_jsEngine->globalObject().setProperty("$input", jsInput);
-            
-            // 执行表达式
-            QJSValue result = m_jsEngine->evaluate(expression);
-            
-            if (result.isError()) {
-                qDebug() << "JS表达式错误:" << result.toString();
-                return std::make_shared<VariableData>(QVariant(false));
-            }
-            
-            // 获取表达式结果的布尔值
-            expressionResult = result.toBool();
-            count=expressionResult;
-            // 返回当前计数值
-            return std::make_shared<VariableData>(count);
+            m_inData = std::dynamic_pointer_cast<VariableData>(data);
+            evaluateAndEmit();
         }
-
-        void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
-            {
-                Q_UNUSED(portIndex);
-                if (data== nullptr){
-                    return;
-                }
-                m_InData = std::dynamic_pointer_cast<VariableData>(data);
-                Q_EMIT dataUpdated(0);
-
-            }
-        }
-
 
         QJsonObject save() const override
         {
-            QJsonObject modelJson1;
-            modelJson1["expression"] = widget->Editor->text();
-            QJsonObject modelJson  = NodeDelegateModel::save();
-            modelJson["values"]=modelJson1;
+            QJsonObject values;
+            values["expression"] = widget->Editor->text();
+
+            QJsonObject modelJson = NodeDelegateModel::save();
+            modelJson["values"] = values;
             return modelJson;
         }
+
         void load(const QJsonObject &p) override
         {
             QJsonValue v = p["values"];
-            if (!v.isUndefined()&&v.isObject()) {
+            if (!v.isUndefined() && v.isObject()) {
                 widget->Editor->setText(v["expression"].toString());
             }
         }
@@ -133,17 +120,50 @@ namespace Nodes
         }
 
     private slots:
-        void outDataSlot() {
-            Q_EMIT dataUpdated(0);
+        void onExpressionEdited()
+        {
+            evaluateAndEmit();
         }
-        
 
     private:
-        ConditionInterface *widget=new ConditionInterface();
-        std::shared_ptr<VariableData> m_InData;
-        bool count=false;
+        void evaluateAndEmit()
+        {
+            if (!m_inData) {
+                m_boolOutput = std::make_shared<VariableData>(QVariant(false));
+                Q_EMIT dataUpdated(ConditionPort);
+                return;
+            }
+
+            const QString expression = widget->Editor->text();
+
+            QJSValue jsInput = m_jsEngine->toScriptValue(m_inData->getMap());
+            m_jsEngine->globalObject().setProperty("$input", jsInput);
+
+            const QJSValue result = m_jsEngine->evaluate(expression);
+            if (result.isError()) {
+                qDebug() << "Condition JS表达式错误:" << result.toString();
+                m_boolOutput = std::make_shared<VariableData>(QVariant(false));
+                Q_EMIT dataUpdated(ConditionPort);
+                return;
+            }
+
+            const bool expressionResult = result.toBool();
+            m_boolOutput = std::make_shared<VariableData>(expressionResult);
+            Q_EMIT dataUpdated(ConditionPort);
+
+            if (expressionResult) {
+                QVariantMap outputMap = m_inData->getMap();
+                outputMap.insert(QStringLiteral("default"), true);
+                m_dataOutput = std::make_shared<VariableData>(outputMap);
+                Q_EMIT dataUpdated(DataPort);
+            }
+        }
+
+    private:
+        ConditionInterface *widget = new ConditionInterface();
+        std::shared_ptr<VariableData> m_inData;
+        std::shared_ptr<VariableData> m_boolOutput;
+        std::shared_ptr<VariableData> m_dataOutput;
         QJSEngine *m_jsEngine = nullptr;
-
-
     };
 }

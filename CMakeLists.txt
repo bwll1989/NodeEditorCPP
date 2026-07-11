@@ -155,6 +155,7 @@ add_subdirectory(src/Common/Devices/ArtnetSender)
 add_subdirectory(src/Common/Devices/TimestampGenerator)
 add_subdirectory(src/Common/Devices/MediaLibrary)
 add_subdirectory(src/Common/Devices/ModelDataBridge)
+add_subdirectory(src/Common/Devices/GraphSnapshotBridge)
 add_subdirectory(src/Common/GUI/DelayListWidget)
 add_subdirectory(src/Nodes/BuildInNodes)
 add_subdirectory(src/Common/GUI/DockHub)
@@ -403,6 +404,7 @@ target_link_libraries(${ProjectName}
             TimestampGenerator
             MediaManger
             ModelDataBridge
+            GraphSnapshotBridge
             DelayListWidget
             DockHub
             StatusContainer
@@ -459,6 +461,7 @@ target_link_libraries(${HeadlessProjectName}
             TimestampGenerator
             MediaManger
             ModelDataBridge
+            GraphSnapshotBridge
             DelayListWidget
             DockHub
             StatusContainer

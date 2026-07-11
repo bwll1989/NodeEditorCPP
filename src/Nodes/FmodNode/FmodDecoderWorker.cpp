@@ -13,6 +13,7 @@ namespace Nodes {
 FmodDecoderWorker::FmodDecoderWorker(QObject *parent)
     : QObject(parent)
 {
+    samplesPerFrame_ = TimestampGenerator::getInstance()->getSamplesPerFrame(sampleRate_);
 }
 
 FmodDecoderWorker::~FmodDecoderWorker()
@@ -105,10 +106,7 @@ void FmodDecoderWorker::initFMOD()
 
     // 设置软件格式为 48kHz RAW 12 声道（7.1.4），保证所有通道可被捕获
     coreSystem_->setSoftwareFormat(48000, FMOD_SPEAKERMODE_RAW, 12);
-
-    // 设置 DSP 缓冲区大小为 2048 采样点，缓冲数量 8
-    // 2048 对应我们的帧大小，有助于减少抖动
-    coreSystem_->setDSPBufferSize(2048, 8);
+    coreSystem_->setDSPBufferSize(static_cast<unsigned int>(samplesPerFrame_), 8);
     
     // 4. 初始化 Studio System
     // 启用 Live Update 以便 FMOD Studio 可以连接并实时调试
@@ -306,7 +304,6 @@ FMOD_RESULT F_CALLBACK FmodDecoderWorker::captureDSPCallback(FMOD_DSP_STATE *dsp
         if (!self->timestampAligned_) {
             self->baseFrameCount_ = TimestampGenerator::getInstance()->getCurrentFrameCount();
             self->emittedFrameCount_ = 0;
-            self->samplesPerFrame_ = 2048; // 强制 2048
             self->timestampAligned_ = true;
             
             // 初始化通道缓存

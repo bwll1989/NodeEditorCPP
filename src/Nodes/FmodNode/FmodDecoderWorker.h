@@ -103,7 +103,7 @@ private:
     // --- 时间戳同步相关 ---
     qint64 baseFrameCount_ = 0;       // 播放开始时的基准帧号
     bool timestampAligned_ = false;   // 是否已对齐时间戳
-    int samplesPerFrame_ = 2048;      // 每帧采样数 (Node Editor 标准)
+    int samplesPerFrame_ = 0;         // 每帧采样数，实例化时按全局时钟帧率计算
     qint64 emittedFrameCount_ = 0;    // 已输出的帧计数
     
     // --- 数据缓冲 (用于适配 FMOD buffer size 到 samplesPerFrame_) ---

@@ -696,6 +696,62 @@ QJsonObject CustomDataFlowGraphModel::saveNode(NodeId const nodeId) const
     return nodeJson;
 }
 
+QJsonArray CustomDataFlowGraphModel::captureSnapshotNodes(const QVector<NodeId> &nodeIds) const
+{
+    QJsonArray nodesJson;
+    for (const NodeId nodeId : nodeIds) {
+        if (!nodeExists(nodeId)) {
+            continue;
+        }
+        nodesJson.append(saveNode(nodeId));
+    }
+    return nodesJson;
+}
+
+bool CustomDataFlowGraphModel::applySnapshotNodes(const QJsonArray &nodesJson)
+{
+    bool anyApplied = false;
+
+    for (const QJsonValue &value : nodesJson) {
+        if (!value.isObject()) {
+            continue;
+        }
+
+        const QJsonObject nodeJson = value.toObject();
+        const NodeId nodeId = static_cast<NodeId>(nodeJson.value(QStringLiteral("id")).toInt());
+        if (!nodeExists(nodeId)) {
+            continue;
+        }
+
+        auto it = _models.find(nodeId);
+        if (it == _models.end() || !it->second) {
+            continue;
+        }
+
+        const QString savedType = nodeJson.value(QStringLiteral("type")).toString();
+        if (!savedType.isEmpty() && it->second->type() != savedType) {
+            continue;
+        }
+
+        setNodeData(nodeId, NodeRole::Remarks, nodeJson.value(QStringLiteral("remarks")).toString());
+        setNodeData(nodeId, NodeRole::PortEditable, nodeJson.value(QStringLiteral("port-editable")).toBool());
+        setNodeData(nodeId, NodeRole::InPortCount, nodeJson.value(QStringLiteral("input-count")).toInt());
+        setNodeData(nodeId, NodeRole::OutPortCount, nodeJson.value(QStringLiteral("output-count")).toInt());
+
+        const QJsonObject internalData = nodeJson.value(QStringLiteral("internal-data")).toObject();
+        it->second->load(internalData);
+
+        const unsigned int outCount = it->second->nPorts(PortType::Out);
+        for (PortIndex portIndex = 0; portIndex < outCount; ++portIndex) {
+            onOutPortDataUpdated(nodeId, portIndex);
+        }
+
+        anyApplied = true;
+    }
+
+    return anyApplied;
+}
+
 QJsonObject CustomDataFlowGraphModel::save() const
 {
     QJsonObject sceneJson;

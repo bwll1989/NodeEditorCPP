@@ -2,6 +2,7 @@
 // 依赖：QtNodes 的 DataFlowGraphicsScene / GraphicsView；QJsonObject / QJsonArray
 
 #include "DataflowViewsManger.hpp"
+#include "GraphSnapshotBridge/GraphSnapshotBridge.hpp"
 
 
 #include "CustomFlowGraphicsScene.h"
@@ -13,6 +14,39 @@
 #include "QtNodes/internal/PluginsManager.hpp"
 
 using namespace QtNodes;
+
+using QtNodes::NodeId;
+
+namespace {
+
+void registerSnapshotHooks(DataflowViewsManger *self, const QString &title, CustomDataFlowGraphModel *model)
+{
+    if (!self || !model || title.isEmpty()) {
+        return;
+    }
+
+    GraphSnapshotBridge::instance()->registerScene(
+        title,
+        [model](const QString &, const QVector<NodeId> &nodeIds) {
+            return model->captureSnapshotNodes(nodeIds);
+        },
+        [model](const QString &, const QJsonArray &nodesJson) {
+            return model->applySnapshotNodes(nodesJson);
+        },
+        [self, title](const QString &) {
+            QVector<NodeId> ids;
+            if (CustomFlowGraphicsScene *scene = self->sceneByTitle(title)) {
+                const auto selected = scene->selectedNodes();
+                ids.reserve(static_cast<int>(selected.size()));
+                for (NodeId id : selected) {
+                    ids.append(id);
+                }
+            }
+            return ids;
+        });
+}
+
+} // namespace
 
 DataflowViewsManger::DataflowViewsManger(ads::CDockManager* dockManager,
                                          QObject* parent,
@@ -58,6 +92,7 @@ CustomDataFlowGraphModel* DataflowViewsManger::ensureModel(const QString& title)
         mit = _models.find(title);
         if (mit != _models.end() && mit->second) {
             mit->second->setModelAlias(title);
+            registerSnapshotHooks(this, title, mit->second.get());
         }
     }
     if (mit == _models.end() || !mit->second) {
@@ -121,6 +156,7 @@ void DataflowViewsManger::createSceneUi(const QString& title)
     QObject::connect(b, &QAction::triggered, scene, &CustomFlowGraphicsScene::save);
     auto c = OptionsMenu->addAction(QIcon(":/icons/icons/delete_database.png"),QObject::tr("Delete Dataflow"));
     QObject::connect(c, &QAction::triggered, this, [this, DockWidget, title](){
+        GraphSnapshotBridge::instance()->unregisterScene(title);
         _DockWidget.erase(title);
         emit removeScene(title);
 
@@ -245,6 +281,7 @@ void DataflowViewsManger::addNewSceneFromeModel(const QString& title, QJsonObjec
 }
 
 void DataflowViewsManger::clearAllScenes() {
+    GraphSnapshotBridge::instance()->clearAll();
     // 函数级注释：
     // 作用：批量关闭并删除所有 DockWidget（连带 View/Scene 按父子关系销毁）， subsequent safe release model;
     // 关键：阻塞 DockManager 信号，避免批量关闭时触发重布局和回调造成重入/性能问题

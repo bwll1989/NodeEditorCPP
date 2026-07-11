@@ -222,34 +222,47 @@ void VST3PluginDataModel::load(const QJsonObject &p)
     QJsonValue v = p["values"];
     if (!v.isUndefined() && v.isObject()) {
         QJsonObject values = v.toObject();
-        
-        // 恢复插件路径
-        if (values.contains("PluginPath")) {
-            QString pluginPath = values["PluginPath"].toString();
+
+        if (!values.contains("PluginPath")) {
+            return;
+        }
+
+        const QString pluginPath = values["PluginPath"].toString();
+        if (values.contains("PluginUID")) {
             pluginUID_ = values["PluginUID"].toString();
-            
-            if (values.contains("ProcessorState")) {
-                savedProcessorState_ = QByteArray::fromBase64(
-                    values["ProcessorState"].toString().toUtf8());
-            }
-            if (values.contains("ControllerState")) {
-                savedControllerState_ = QByteArray::fromBase64(
-                    values["ControllerState"].toString().toUtf8());
-            }
-            
-            // 先加载插件，再恢复状态与参数（保证状态写入时接口已可用）
+        }
+
+        QByteArray processorState;
+        QByteArray controllerState;
+        if (values.contains("ProcessorState")) {
+            processorState = QByteArray::fromBase64(
+                values["ProcessorState"].toString().toUtf8());
+        }
+        if (values.contains("ControllerState")) {
+            controllerState = QByteArray::fromBase64(
+                values["ControllerState"].toString().toUtf8());
+        }
+
+        // 插件已加载且路径相同：仅恢复状态（Snapshot 召回 / 重复 load 快速路径）
+        const QString loadedPath = pluginInfo_.value(QStringLiteral("Plugin Path")).toString();
+        const bool samePluginLoaded = vstPlug_ != nullptr && !loadedPath.isEmpty() && loadedPath == pluginPath;
+
+        if (samePluginLoaded) {
+            applySavedState(processorState, controllerState);
+        } else {
+            savedProcessorState_ = processorState;
+            savedControllerState_ = controllerState;
             loadPlugin(pluginPath);
-            writeState();
-            
-            if (values.contains("Parameters")) {
-                QJsonObject params = values["Parameters"].toObject();
-                for (auto it = params.begin(); it != params.end(); ++it) {
-                    Vst::ParamID paramId = it.key().toUInt();
-                    Vst::ParamValue value = it.value().toDouble();
-                    currentParameterValues_[paramId] = value;
-                    if (editController_) {
-                        editController_->setParamNormalized(paramId, value);
-                    }
+        }
+
+        if (values.contains("Parameters")) {
+            QJsonObject params = values["Parameters"].toObject();
+            for (auto it = params.begin(); it != params.end(); ++it) {
+                Vst::ParamID paramId = it.key().toUInt();
+                Vst::ParamValue value = it.value().toDouble();
+                currentParameterValues_[paramId] = value;
+                if (editController_) {
+                    editController_->setParamNormalized(paramId, value);
                 }
             }
         }
@@ -630,33 +643,56 @@ QByteArray VST3PluginDataModel::readControllerState() const
 }
 
 /**
- * @brief 将保存的状态写入VST3插件
+ * @brief 将序列化状态应用到已加载的 VST3 插件（不重新 loadPlugin）
  */
-void VST3PluginDataModel::writeState()
+void VST3PluginDataModel::applySavedState(const QByteArray &processorState,
+                                          const QByteArray &controllerState)
 {
-    if (vstPlug_ && !savedProcessorState_.isEmpty()) {
-        QDataStream stream(savedProcessorState_);
+    if (!vstPlug_ && !editController_) {
+        return;
+    }
+
+    const bool wasProcessing = audioEffect_ != nullptr;
+    if (wasProcessing) {
+        audioEffect_->setProcessing(false);
+    }
+
+    if (vstPlug_ && !processorState.isEmpty()) {
+        QDataStream stream(processorState);
         stream.setByteOrder(QDataStream::LittleEndian);
         Vst3DataStream vstStream(stream);
         vstPlug_->setState(&vstStream);
-        
-        // 同步到控制器
+
         if (editController_) {
-            QDataStream stream2(savedProcessorState_);
+            QDataStream stream2(processorState);
             stream2.setByteOrder(QDataStream::LittleEndian);
             Vst3DataStream vstStream2(stream2);
             editController_->setComponentState(&vstStream2);
         }
-        
-        savedProcessorState_.clear();
     }
-    
-    if (editController_ && !savedControllerState_.isEmpty()) {
-        QDataStream stream(savedControllerState_);
+
+    if (editController_ && !controllerState.isEmpty()) {
+        QDataStream stream(controllerState);
         stream.setByteOrder(QDataStream::LittleEndian);
         Vst3DataStream vstStream(stream);
         editController_->setState(&vstStream);
-        
-        savedControllerState_.clear();
     }
+
+    if (wasProcessing) {
+        audioEffect_->setProcessing(true);
+    }
+}
+
+/**
+ * @brief 将保存的状态写入VST3插件
+ */
+void VST3PluginDataModel::writeState()
+{
+    if (savedProcessorState_.isEmpty() && savedControllerState_.isEmpty()) {
+        return;
+    }
+
+    applySavedState(savedProcessorState_, savedControllerState_);
+    savedProcessorState_.clear();
+    savedControllerState_.clear();
 }

@@ -3,6 +3,7 @@
 #include <QtCore/QObject>
 #include <QtWidgets/QLabel>
 #include <QtCore/QTimer>
+#include <QList>
 
 #include <QtNodes/NodeDelegateModel>
 #include <QtNodes/NodeData>
@@ -30,7 +31,9 @@ namespace Nodes {
  * 实现基于Modbus TCP协议的主机节点，支持：
  * - DO部分：8个线圈读写，寄存器地址范围0x0000~0x0007
  * - DI部分：8个离散量输入只读，寄存器地址范围0x0020~0x0027
- * - 连接后以 10Hz 周期同步：读 DI（变化时更新界面/输出端口），写 DO（强制下发本地缓存，不等响应）
+ * - 命令串行队列：上一帧响应后再发下一帧
+ * - DO 以 10Hz 轮询同步：先读设备 DO，与 _outputStates 不一致时才写 8 路 DO
+ * - _outputStates 仅由用户/输入端口维护，读 DO 不反向覆盖缓存
  */
 class USR_IO808DataModel : public AbstractDelegateModel
 {
@@ -53,18 +56,8 @@ public:
     int getServerId() const { return _serverId; }
     void setServerId(int serverId);
 
-    /**
-     * @brief 获取当前 TCP 连接状态
-     * @return 已连接返回 true，否则返回 false
-     */
     bool isConnected() const { return _connected; }
-
-    /**
-     * @brief 设置当前 TCP 连接状态，并同步界面与定时读取行为
-     * @param connected 已连接状态
-     */
     void setConnected(bool connected);
-
 
     void afterModelReady() override;
 
@@ -82,105 +75,69 @@ signals:
     void hostChanged(QString host);
     void portChanged(int port);
     void serverIdChanged(int serverId);
-
-    /**
-     * @brief 连接状态变化通知
-     * @param connected 已连接状态
-     */
     void connectedChanged(bool connected);
+
+private:
+    enum class ModbusCommandKind {
+        ReadDiscreteInputs,
+        ReadCoils,
+        WriteMultipleCoils,
+    };
+
+    struct ModbusCommand {
+        QByteArray payload;
+        quint16 transactionId = 0;
+        ModbusCommandKind kind = ModbusCommandKind::ReadDiscreteInputs;
+    };
 
 private slots:
     void onGlobalEvent(const GlobalEvent& ev);
-    /**
-     * @brief 接收TCP消息处理槽函数
-     * @param msg 接收到的消息数据
-     * @param ip 发送方IP地址
-     * @param port 发送方端口
-     */
     void recMsg(QByteArray msg, QString ip, int port);
-    
-    /**
-     * @brief 读取所有输入状态
-     */
     void readAllInputs();
-    
-    /**
-     * @brief 设置单个输出状态
-     * @param index 输出索引(0-7)
-     * @param state 输出状态
-     */
+    void readAllOutputs();
     void setOutput(int index, bool state);
-    
-    /**
-     * @brief 10Hz 周期同步：读 DI + 强制写 DO 缓存
-     */
-    void syncCycle();
+    void readAllData();
 
 private:
     USR_IO808Interface *_interface;
     TcpClient *_tcpClient;
-    QTimer *_syncTimer;
+    QTimer *_readTimer;
+    QTimer *_responseTimer;
 
-    // 设备状态
-    bool _inputStates[8];   // DI状态数组
-    bool _outputStates[8];  // DO状态数组
-    
-    // Modbus协议相关
-    quint16 _transactionId; // 事务标识符
-    
-    // Properties
+    QList<ModbusCommand> _commandQueue;
+    bool _awaitingResponse = false;
+    ModbusCommandKind _activeKind = ModbusCommandKind::ReadDiscreteInputs;
+    quint16 _activeTransactionId = 0;
+
+    bool _inputStates[8];
+    bool _outputStates[8];
+
+    quint16 _transactionId;
+
     QString _host = "127.0.0.1";
     int _port = 502;
-    int _serverId = 1;       // 服务器ID
-    bool _connected = false;  // 连接状态
-    
-    // 输出数据缓存
+    int _serverId = 1;
+    bool _connected = false;
+
     std::shared_ptr<NodeDataTypes::VariableData> _outputData[8];
 
-    /**
-     * @brief 处理Modbus TCP响应
-     * @param response 响应数据
-     */
     void processModbusResponse(const QByteArray &response);
+    void handleSingleFrame(const QByteArray &frame);
+    void finishActiveCommand(bool success);
 
-    /**
-     * @brief 生成Modbus TCP读取离散输入命令
-     * @param startAddress 起始地址
-     * @param quantity 数量
-     * @return Modbus TCP命令字节数组
-     */
+    QByteArray generateReadCoilsCommand(quint16 startAddress, quint16 quantity);
     QByteArray generateReadDiscreteInputsCommand(quint16 startAddress, quint16 quantity);
-    
-    /**
-     * @brief 生成Modbus TCP写多个线圈命令
-     * @param startAddress 起始地址
-     * @param values 线圈值数组
-     * @param quantity 数量
-     * @return Modbus TCP命令字节数组
-     */
     QByteArray generateWriteMultipleCoilsCommand(quint16 startAddress, const QVector<bool> &values, quint16 quantity);
-    
-    /**
-     * @brief 计算CRC16校验码（如果需要）
-     * @param data 数据
-     * @return CRC16校验码
-     */
-    quint16 calculateCRC16(const QByteArray &data);
-    
-    /**
-     * @brief 更新输出端口数据
-     * @param port 端口索引
-     * @param value 数据值
-     */
+
+    quint16 transactionIdFromCommand(const QByteArray &command) const;
+
     void updateOutputData(int port, bool value);
-    
-    /**
-     * @brief 发送Modbus命令
-     * @param command 命令数据
-     */
-    void sendModbusCommand(const QByteArray &command);
+    void enqueueModbusCommand(const QByteArray &command, ModbusCommandKind kind);
+    void pumpCommandQueue();
+    void clearCommandQueue();
 
     void writeAllOutputs();
+    void onResponseTimeout();
 };
 
 } // namespace Nodes

@@ -69,7 +69,7 @@ Distribute 根据**单路输入**匹配规则表，在命中的输出端口发�
 
 同一输入可匹配**多行**规则，从而同时触发多个输出端口。输出端口数量会随规则中的最大 Port 号自动扩展（默认至少 5 个）。
 
-条件列支持 **JavaScript 表达式**，整份输入 `VariableData` 注册为全局变量 `$input`（与 Extract、Lookup、Filter 等节点一致）。
+条件列支持 **JavaScript 表达式**，整份输入 `VariableData` 注册为全局变量 `$input`（与 Extract、Lookup、Condition 等节点一致）。
 
 ### 2. 端口说明
 

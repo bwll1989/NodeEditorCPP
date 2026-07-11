@@ -14,6 +14,8 @@
 #include "QtNodes/StyleCollection"
 #include "Widget/PortEditWidget/PortEditAddRemoveWidget.hpp"
 #include <QJsonObject>
+#include <QJsonArray>
+#include <QVector>
 using QtNodes::AbstractGraphModel;
 using QtNodes::Serializable;
 using QtNodes::NodeDelegateModelRegistry;
@@ -187,6 +189,14 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
     void updateGroup(GroupId const oldGroupId,GroupId const newGroupId) override;
 
     QJsonObject saveNode(NodeId const) const override;
+    /**
+     * @brief 捕获指定节点的快照 JSON（与 saveNode 格式一致）
+     */
+    QJsonArray captureSnapshotNodes(const QVector<NodeId> &nodeIds) const;
+    /**
+     * @brief 将快照 JSON 应用到已存在的节点（调用 load，不创建新节点）
+     */
+    bool applySnapshotNodes(const QJsonArray &nodesJson);
     /**
      * 保存
      * @return QJsonObject 节点数据

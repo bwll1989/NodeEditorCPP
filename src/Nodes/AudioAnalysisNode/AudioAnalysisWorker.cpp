@@ -6,312 +6,305 @@
 
 namespace Nodes
 {
-    /**
-     * @brief 构造函数
-     * @param parent 父对象
-     */
     AudioAnalysisWorker::AudioAnalysisWorker(QObject *parent)
         : QObject(parent)
-        , _processingTimer(new QTimer(this))
-        , _isProcessing(false)
-        , _lastProcessedTimestamp(0)
-        , _frameSize(2048)  // 默认帧大小
-        , _sampleRate(48000)  // 默认采样率
     {
-        // 设置处理定时器
-        _processingTimer->setInterval(15); // 15ms间隔处理音频数据
-        connect(_processingTimer, &QTimer::timeout, this, &AudioAnalysisWorker::processAudioData);
-        
-        // 初始化GIST分析器
-        initializeGist(_frameSize, _sampleRate);
+        initializeGist(_params.frameSize, _sampleRate);
     }
-    
-    /**
-     * @brief 析构函数
-     */
+
     AudioAnalysisWorker::~AudioAnalysisWorker()
     {
         stopProcessing();
     }
-    
-    /**
-     * @brief 初始化GIST分析器
-     * @param frameSize 帧大小
-     * @param sampleRate 采样率
-     */
+
     void AudioAnalysisWorker::initializeGist(int frameSize, int sampleRate)
     {
-        _frameSize = frameSize;
-        _sampleRate = sampleRate;
-        
         try {
             _gistAnalyzer = std::make_unique<Gist<float>>(frameSize, sampleRate);
-            qDebug() << "GIST analyzer initialized with frame size:" << frameSize << "sample rate:" << sampleRate;
-        } catch (const std::exception& e) {
+            qDebug() << "GIST analyzer initialized with frame size:" << frameSize
+                     << "sample rate:" << sampleRate;
+        } catch (const std::exception &e) {
             qWarning() << "Failed to initialize GIST analyzer:" << e.what();
         }
     }
-    
-    /**
-     * @brief 开始处理音频数据
-     */
+
+    void AudioAnalysisWorker::setAnalysisParams(float lowMinHz, float lowMaxHz,
+                                                float midMinHz, float midMaxHz,
+                                                float highMinHz, float highMaxHz,
+                                                int frameSize, int beatIntervalMs,
+                                                float bandAttackMs, float bandReleaseMs)
+    {
+        QMutexLocker locker(&_mutex);
+
+        const int normalizedFrameSize = std::max(256, frameSize);
+        const bool frameSizeChanged = normalizedFrameSize != _params.frameSize;
+
+        _params.lowMinHz = std::min(lowMinHz, lowMaxHz);
+        _params.lowMaxHz = std::max(lowMinHz, lowMaxHz);
+        _params.midMinHz = std::min(midMinHz, midMaxHz);
+        _params.midMaxHz = std::max(midMinHz, midMaxHz);
+        _params.highMinHz = std::min(highMinHz, highMaxHz);
+        _params.highMaxHz = std::max(highMinHz, highMaxHz);
+        _params.frameSize = normalizedFrameSize;
+        _params.beatIntervalMs = std::max(50, beatIntervalMs);
+        _params.bandAttackMs = std::max(1.0f, bandAttackMs);
+        _params.bandReleaseMs = std::max(1.0f, bandReleaseMs);
+
+        if (frameSizeChanged) {
+            initializeGist(_params.frameSize, _sampleRate);
+            _sampleAccumulator.clear();
+            _lowSmoothed = 0.0f;
+            _midSmoothed = 0.0f;
+            _highSmoothed = 0.0f;
+            _fluxAverage = 0.0f;
+            _lastBeatTimestamp = 0;
+        }
+    }
+
     void AudioAnalysisWorker::startProcessing()
     {
         QMutexLocker locker(&_mutex);
-        // 如果已经在处理，直接返回
         if (_isProcessing) {
-            qDebug() << "AudioAnalysisWorker: Already processing, ignoring duplicate call";
             return;
         }
+
         _isProcessing = true;
         _lastProcessedTimestamp = 0;
-        // 启动处理定时器
-        _processingTimer->start();
+        _sampleAccumulator.clear();
+        _lowSmoothed = 0.0f;
+        _midSmoothed = 0.0f;
+        _highSmoothed = 0.0f;
+        _fluxAverage = 0.0f;
+        _lastBeatTimestamp = 0;
+
+        QObject::connect(TimestampGenerator::getInstance(),
+                         &TimestampGenerator::frameCountUpdated,
+                         this,
+                         &AudioAnalysisWorker::onFrameTick,
+                         Qt::QueuedConnection);
         emit processingStatusChanged(true);
     }
-    
-    /**
-     * @brief 停止处理音频数据
-     */
+
     void AudioAnalysisWorker::stopProcessing()
     {
         QMutexLocker locker(&_mutex);
-        
-        if (_isProcessing) {
-            _isProcessing = false;
-            
-            // 停止处理定时器
-            if (_processingTimer->isActive()) {
-                _processingTimer->stop();
-            }
-            
-            emit processingStatusChanged(false);
-
+        if (!_isProcessing) {
+            return;
         }
+
+        _isProcessing = false;
+        QObject::disconnect(TimestampGenerator::getInstance(),
+                            &TimestampGenerator::frameCountUpdated,
+                            this,
+                            &AudioAnalysisWorker::onFrameTick);
+        emit processingStatusChanged(false);
     }
 
-    
-    /**
-     * @brief 处理音频数据的主循环
-     */
-    void AudioAnalysisWorker::processAudioData()
+    void AudioAnalysisWorker::onFrameTick(qint64 frameCount)
     {
-
         if (!_isProcessing || !_inputBuffers) {
+            return;
+        }
+        if (frameCount == _lastProcessedTimestamp) {
+            return;
+        }
 
-            return;
-        }
-        
-        auto currentTime = TimestampGenerator::getInstance()->getCurrentFrameCount();
-        
-        if (currentTime == _lastProcessedTimestamp) {
-            return;
-        }
-        
-        // 尝试从输入缓冲区获取音频帧
         AudioFrame inputFrame;
-        bool hasValidInput = false;
-
-        if (_inputBuffers && _inputBuffers->isActive()) {
-            if (_inputBuffers->getFrameByTimestamp(currentTime, inputFrame)) {
-                hasValidInput = true;
-            }
-        }
-        
-
-        if (!hasValidInput) {
+        if (!_inputBuffers->isActive()
+            || !_inputBuffers->getFrameByTimestamp(frameCount, inputFrame)
+            || inputFrame.data.isEmpty()) {
             return;
         }
 
-        // 将单个音频帧转换为向量格式，以兼容现有的performAnalysisOperation方法
-        // std::vector<AudioFrame> inputFrames;
-        // inputFrames.push_back(inputFrame);
-        
-        // 执行音频分析操作
-        performAnalysisOperation(inputFrame, currentTime);
-        
-        _lastProcessedTimestamp = currentTime;
-
+        performAnalysisOperation(inputFrame);
+        _lastProcessedTimestamp = frameCount;
     }
-    
-    /**
-     * @brief 使用矩阵运算执行音频矩阵操作
-     * @param inputFrame 输入音频帧
-     * @param timestamp 时间戳
-     */
-    void AudioAnalysisWorker::performAnalysisOperation(const AudioFrame& inputFrame, qint64 timestamp)
+
+    std::vector<float> AudioAnalysisWorker::extractMonoSamples(const AudioFrame &frame) const
     {
-
-        if (!_gistAnalyzer || inputFrame.data.isEmpty()) {
-            return;
-        }
-
-        // 遍历每个输入通道
-       
-        const AudioFrame& frame = inputFrame;
-        
-        // 检查音频帧是否有效
-        if (frame.data.isEmpty()) {
-            return;
-        }
-        
-        // 准备音频数据用于GIST分析
         std::vector<float> audioBuffer;
-        
-        // 将QByteArray转换为float指针
-        const float* samples = reinterpret_cast<const float*>(frame.data.constData());
-        int totalSamples = frame.data.size() / sizeof(float);
-        int samplesPerChannel = totalSamples / frame.channels;
-        
-        // 根据音频帧的通道数处理数据
+        const float *samples = reinterpret_cast<const float *>(frame.data.constData());
+        const int totalSamples = frame.data.size() / static_cast<int>(sizeof(float));
+        if (totalSamples <= 0 || frame.channels <= 0) {
+            return audioBuffer;
+        }
+
+        const int samplesPerChannel = totalSamples / frame.channels;
+        audioBuffer.reserve(static_cast<size_t>(samplesPerChannel));
+
         if (frame.channels == 1) {
-            // 单声道：直接复制
             audioBuffer.assign(samples, samples + samplesPerChannel);
         } else if (frame.channels == 2) {
-            // 立体声：混合左右声道为单声道
-            audioBuffer.reserve(samplesPerChannel);
-            for (int i = 0; i < samplesPerChannel; i++) {
-                float leftSample = samples[i * 2];
-                float rightSample = samples[i * 2 + 1];
-                float mixedSample = (leftSample + rightSample) * 0.5f;
-                audioBuffer.push_back(mixedSample);
+            for (int i = 0; i < samplesPerChannel; ++i) {
+                audioBuffer.push_back((samples[i * 2] + samples[i * 2 + 1]) * 0.5f);
             }
         } else {
-            // 多声道：提取第一个声道
-            audioBuffer.reserve(samplesPerChannel);
-            for (int i = 0; i < samplesPerChannel; i++) {
+            for (int i = 0; i < samplesPerChannel; ++i) {
                 audioBuffer.push_back(samples[i * frame.channels]);
             }
         }
-        
-        // 确保有足够的数据进行分析
-        if (audioBuffer.size() < static_cast<size_t>(_frameSize)) {
-            // 如果数据不足，用零填充
-            audioBuffer.resize(_frameSize, 0.0f);
-        } else if (audioBuffer.size() > static_cast<size_t>(_frameSize)) {
-            // 如果数据过多，截取前面的部分
-            audioBuffer.resize(_frameSize);
+
+        return audioBuffer;
+    }
+
+    void AudioAnalysisWorker::appendSamples(const std::vector<float> &samples)
+    {
+        _sampleAccumulator.insert(_sampleAccumulator.end(), samples.begin(), samples.end());
+        const size_t maxBufferedSamples = static_cast<size_t>(_params.frameSize) * 4;
+        if (_sampleAccumulator.size() > maxBufferedSamples) {
+            _sampleAccumulator.erase(
+                _sampleAccumulator.begin(),
+                _sampleAccumulator.begin() + static_cast<std::ptrdiff_t>(_sampleAccumulator.size() - maxBufferedSamples));
         }
-        QVariantMap analysisValues;
+    }
+
+    bool AudioAnalysisWorker::consumeAnalysisFrame(std::vector<float> &frameOut, int frameSize)
+    {
+        if (_sampleAccumulator.size() < static_cast<size_t>(frameSize)) {
+            return false;
+        }
+
+        frameOut.assign(_sampleAccumulator.begin(), _sampleAccumulator.begin() + frameSize);
+        _sampleAccumulator.erase(_sampleAccumulator.begin(), _sampleAccumulator.begin() + frameSize);
+        return true;
+    }
+
+    float AudioAnalysisWorker::computeBandEnergy(const std::vector<float> &magnitudeSpectrum,
+                                                 float lowHz, float highHz, int sampleRate) const
+    {
+        if (magnitudeSpectrum.empty() || sampleRate <= 0) {
+            return 0.0f;
+        }
+
+        const float nyquistFreq = static_cast<float>(sampleRate) * 0.5f;
+        const int spectrumSize = static_cast<int>(magnitudeSpectrum.size());
+        const float freqResolution = nyquistFreq / std::max(1, spectrumSize - 1);
+
+        const int startIndex = std::clamp(
+            static_cast<int>(std::floor(lowHz / freqResolution)), 0, spectrumSize - 1);
+        const int endIndex = std::clamp(
+            static_cast<int>(std::ceil(highHz / freqResolution)), startIndex, spectrumSize - 1);
+
+        double energy = 0.0;
+        for (int i = startIndex; i <= endIndex; ++i) {
+            const float magnitude = magnitudeSpectrum[static_cast<size_t>(i)];
+            energy += static_cast<double>(magnitude) * static_cast<double>(magnitude);
+        }
+        return static_cast<float>(energy);
+    }
+
+    float AudioAnalysisWorker::smoothBand(float target, float current, float dtSeconds,
+                                          float attackMs, float releaseMs) const
+    {
+        const float attackSec = std::max(0.001f, attackMs / 1000.0f);
+        const float releaseSec = std::max(0.001f, releaseMs / 1000.0f);
+        const float coeff = (target > current)
+            ? std::exp(-dtSeconds / attackSec)
+            : std::exp(-dtSeconds / releaseSec);
+
+        return std::clamp(coeff * current + (1.0f - coeff) * target, 0.0f, 1.0f);
+    }
+
+    bool AudioAnalysisWorker::detectBeat(float spectralFlux, qint64 timestampMs,
+                                         const AudioAnalysisParams &params)
+    {
+        _fluxAverage = params.beatFluxSmoothing * _fluxAverage
+            + (1.0f - params.beatFluxSmoothing) * spectralFlux;
+        const float threshold = std::max(0.0005f, _fluxAverage * params.beatFluxMultiplier);
+
+        if (spectralFlux <= threshold) {
+            return false;
+        }
+        if (_lastBeatTimestamp > 0 && (timestampMs - _lastBeatTimestamp) < params.beatIntervalMs) {
+            return false;
+        }
+
+        _lastBeatTimestamp = timestampMs;
+        return true;
+    }
+
+    void AudioAnalysisWorker::performAnalysisOperation(const AudioFrame &inputFrame)
+    {
+        AudioAnalysisParams params;
+        {
+            QMutexLocker locker(&_mutex);
+            if (!_gistAnalyzer || inputFrame.data.isEmpty()) {
+                return;
+            }
+            params = _params;
+        }
+
+        if (inputFrame.sampleRate > 0 && inputFrame.sampleRate != _sampleRate) {
+            QMutexLocker locker(&_mutex);
+            _sampleRate = inputFrame.sampleRate;
+            initializeGist(_params.frameSize, _sampleRate);
+            _sampleAccumulator.clear();
+        }
+
+        const std::vector<float> monoSamples = extractMonoSamples(inputFrame);
+        if (monoSamples.empty()) {
+            return;
+        }
+
+        appendSamples(monoSamples);
+
+        std::vector<float> analysisFrame;
+        if (!consumeAnalysisFrame(analysisFrame, params.frameSize)) {
+            return;
+        }
+
+        const float dtSeconds = static_cast<float>(params.frameSize) / static_cast<float>(_sampleRate);
+
         try {
-            // 使用GIST进行音频分析
-            _gistAnalyzer->processAudioFrame(audioBuffer);
-            
-            // 获取RMS值
-            float rmsValue = _gistAnalyzer->rootMeanSquare();
-            analysisValues["Rms"] = rmsValue;
-            // 获取Peak值
-            float peakValue = _gistAnalyzer->peakEnergy();
-            analysisValues["Peak"] = peakValue;
-            // 获取零交叉率
-            // 零交叉率：人声通常高于乐器
-            float zcr = _gistAnalyzer->zeroCrossingRate();
-            analysisValues["Zcr"] = zcr;
-            
-            // 频谱质心：乐器通常高于人声
-            float spectralCentroid = _gistAnalyzer->spectralCentroid();
-            analysisValues["SpectralCentroid"] = spectralCentroid;
-            
-            // 频谱滚降点：人声通常低于乐器
-            float spectralRolloff = _gistAnalyzer->spectralRolloff();
-            analysisValues["SpectralRolloff"] = spectralRolloff;
-            
-            // 频谱通量：人声变化更剧烈
-            float spectralFlux = _gistAnalyzer->spectralDifference();
-            analysisValues["SpectralFlux"] = spectralFlux;
-             // 音高检测：人声通常高于乐器
-            float pitch = _gistAnalyzer->pitch();
-            analysisValues["Pitch"] = pitch;
-            
-            /**
-             * @brief 分析10段频率能量分布
-             * 将频谱分为10个等对数频段，计算每段能量在总能量中的归一化分布
-             * 频段划分：20Hz-63Hz, 63Hz-200Hz, 200Hz-630Hz, 630Hz-2kHz, 2kHz-6.3kHz, 
-             *          6.3kHz-20kHz等（基于1/3倍频程划分）
-             */
-            const std::vector<float>& magnitudeSpectrum = _gistAnalyzer->getMagnitudeSpectrum();
-            int spectrumSize = magnitudeSpectrum.size();
-            float nyquistFreq = _sampleRate / 2.0f;
-            
-            // 计算频率分辨率
-            float freqResolution = nyquistFreq / (spectrumSize - 1);
-            
-            // 定义10个频段的边界频率 (Hz) - 基于对数分布
-            std::vector<float> freqBands = {
-                20.0f, 63.0f, 200.0f, 630.0f, 2000.0f, 
-                6300.0f, 12500.0f, 16000.0f, 18000.0f, 20000.0f
-            };
-            
-            // 计算每个频段对应的频谱索引
-            std::vector<int> bandIndices;
-            for (float freq : freqBands) {
-                int index = static_cast<int>(freq / freqResolution);
-                index = std::min(index, spectrumSize - 1);
-                bandIndices.push_back(index);
-            }
-            
-            // 计算10个频段的能量
-            std::vector<float> bandEnergies(10, 0.0f);
-            
-            // 第1段：0 - bandIndices[0]
-            for (int i = 0; i <= bandIndices[0]; ++i) {
-                bandEnergies[0] += magnitudeSpectrum[i] * magnitudeSpectrum[i];
-            }
-            
-            // 第2-9段：bandIndices[i-1]+1 - bandIndices[i]
-            for (int band = 1; band < 9; ++band) {
-                for (int i = bandIndices[band-1] + 1; i <= bandIndices[band]; ++i) {
-                    bandEnergies[band] += magnitudeSpectrum[i] * magnitudeSpectrum[i];
-                }
-            }
-            
-            // 第10段：bandIndices[8]+1 - end
-            for (int i = bandIndices[8] + 1; i < spectrumSize; ++i) {
-                bandEnergies[9] += magnitudeSpectrum[i] * magnitudeSpectrum[i];
-            }
-            
-            // 计算总能量
-            float totalEnergy = 0.0f;
-            for (float energy : bandEnergies) {
-                totalEnergy += energy;
-            }
-            
-            // 输出归一化能量分布 (避免除零)
+            _gistAnalyzer->processAudioFrame(analysisFrame);
+
+            const float rmsValue = _gistAnalyzer->rootMeanSquare();
+            const float spectralFlux = _gistAnalyzer->spectralDifference();
+            const std::vector<float> &magnitudeSpectrum = _gistAnalyzer->getMagnitudeSpectrum();
+
+            const float lowEnergy = computeBandEnergy(
+                magnitudeSpectrum, params.lowMinHz, params.lowMaxHz, _sampleRate);
+            const float midEnergy = computeBandEnergy(
+                magnitudeSpectrum, params.midMinHz, params.midMaxHz, _sampleRate);
+            const float highEnergy = computeBandEnergy(
+                magnitudeSpectrum, params.highMinHz, params.highMaxHz, _sampleRate);
+            const float totalEnergy = lowEnergy + midEnergy + highEnergy;
+
+            float low = 0.0f;
+            float mid = 0.0f;
+            float high = 0.0f;
             if (totalEnergy > 0.0f) {
-                for (int i = 0; i < 10; ++i) {
-                    QString key = "Band" + QString::number(i + 1) + "EnergyRatio";
-                    analysisValues[key] = bandEnergies[i] / totalEnergy;
-                }
-            } else {
-                for (int i = 0; i < 10; ++i) {
-                    QString key = "Band" + QString::number(i + 1) + "EnergyRatio";
-                    analysisValues[key] = 0.0f;
-                }
+                low = lowEnergy / totalEnergy;
+                mid = midEnergy / totalEnergy;
+                high = highEnergy / totalEnergy;
             }
 
-        } catch (const std::exception& e) {
-            qWarning() << "GIST analysis error for channel" << ":" << e.what();
+            _lowSmoothed = smoothBand(low, _lowSmoothed, dtSeconds, params.bandAttackMs, params.bandReleaseMs);
+            _midSmoothed = smoothBand(mid, _midSmoothed, dtSeconds, params.bandAttackMs, params.bandReleaseMs);
+            _highSmoothed = smoothBand(high, _highSmoothed, dtSeconds, params.bandAttackMs, params.bandReleaseMs);
+
+            const float level = std::clamp(rmsValue, 0.0f, 1.0f);
+            const qint64 nowMs = TimestampGenerator::getInstance()->getCurrentFrameInfo().absoluteTimeMs;
+            const bool beat = detectBeat(spectralFlux, nowMs, params);
+
+            emit analysisOutputsChanged(static_cast<double>(_lowSmoothed),
+                                         static_cast<double>(_midSmoothed),
+                                         static_cast<double>(_highSmoothed),
+                                         static_cast<double>(level),
+                                         beat);
+        } catch (const std::exception &e) {
+            qWarning() << "GIST analysis error:" << e.what();
         }
-        emit analysisValueChanged(analysisValues);
     }
 
+    void AudioAnalysisWorker::setInputBuffer(int port, std::shared_ptr<AudioTimestampRingQueue> buffer)
+    {
+        QMutexLocker locker(&_mutex);
 
-/**
- * @brief 设置指定末端端口缓冲区
- * @param port 端口索引
- * @param buffer 音频缓冲区
- */
-void AudioAnalysisWorker::setInputBuffer(int port, std::shared_ptr<AudioTimestampRingQueue> buffer)
-{
-    QMutexLocker locker(&_mutex);
-    
-    if (port >= 0 ) {
-        _inputBuffers = buffer;
-    } else {
-        qWarning() << "AudioAnalysisWorker: Invalid input port index:" << port
-                   << "(valid range: 0 -";
+        if (port >= 0) {
+            _inputBuffers = buffer;
+        } else {
+            qWarning() << "AudioAnalysisWorker: Invalid input port index:" << port;
+        }
     }
 }
-
-}
-

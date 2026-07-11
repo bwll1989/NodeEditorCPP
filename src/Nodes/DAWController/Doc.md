@@ -178,6 +178,6 @@
 
 - **实时位置驱动显示**：POS → Extract（`$input.pos`）→ 下游显示或映射节点。
 - **按船只分流**：POS → Distribute（条件 `$input.boatId == 1` → 端口 0，`$input.boatId == 2` → 端口 1）。
-- **到点触发**：POINT → Filter（`$input.pointId == 5`）→ 触发对应场景。
+- **到点触发**：POINT → Condition（`$input.pointId == 5`，接 **DATA** 端口）→ 触发对应场景。
 
 定位设备需实现 `perip2s.proto` 中 P2S 侧协议；本节点负责 S2P 侧注册应答与心跳回复。

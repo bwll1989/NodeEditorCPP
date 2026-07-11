@@ -5,6 +5,7 @@
 #include <QPushButton>
 #include "Common/DataTypes/NodeDataList.hpp"
 #include "AudioDecoderInterface.hpp"
+#include <QFile>
 #include <memory>
 
 #include "QtNodes/Definitions"
@@ -266,8 +267,9 @@ namespace Nodes
             QJsonObject values;
             values["filePath"] = m_filePath;
             values["isLoop"] = loopProperty();
-            values["autoPlay"] = autoPlay;
             values["volume"] = volumeProperty();
+            values["play"] = m_playing;
+            values["autoPlay"] = m_playing;
 
             QJsonObject modelJson = NodeDelegateModel::save();
             modelJson["values"] = values;
@@ -289,32 +291,59 @@ namespace Nodes
                 values = p;
             }
 
-            if (values.contains("filePath")) {
-                setFilePathProperty(values.value("filePath").toString());
+            bool shouldPlay = false;
+            if (values.contains(QStringLiteral("play"))) {
+                shouldPlay = values[QStringLiteral("play")].toBool();
+            } else if (values.contains(QStringLiteral("autoPlay"))) {
+                shouldPlay = values[QStringLiteral("autoPlay")].toBool();
+            }
+            autoPlay = shouldPlay;
+
+            if (values.contains(QStringLiteral("isLoop"))) {
+                setLoopProperty(values[QStringLiteral("isLoop")].toBool());
             }
 
-            if (values.contains("isLoop")) {
-                setLoopProperty(values.value("isLoop").toBool());
+            if (values.contains(QStringLiteral("volume"))) {
+                setVolumeProperty(values[QStringLiteral("volume")].toDouble());
             }
 
-            if (values.contains("autoPlay")) {
-                autoPlay = values.value("autoPlay").toBool();
+            const QString savedFile = values.value(QStringLiteral("filePath")).toString();
+            if (!savedFile.isEmpty() && savedFile != m_filePath) {
+                m_playing = false;
+                setFilePathProperty(savedFile);
+            } else if (!savedFile.isEmpty() && !isReady) {
+                m_playing = false;
+                m_filePath = savedFile;
+                {
+                    QSignalBlocker blocker(widget->fileSelectComboBox);
+                    widget->fileSelectComboBox->setText(m_filePath);
+                }
+                if (player->getPlaying()) {
+                    player->stopPlay();
+                }
+                const auto res = player->initializeFFmpeg(
+                    AppConstants::MEDIA_LIBRARY_STORAGE_DIR + QStringLiteral("/") + m_filePath);
+                isReady = res != nullptr;
             }
 
-            if (values.contains("volume")) {
-                setVolumeProperty(values.value("volume").toDouble());
-            }
+            const auto applyPlayState = [this, shouldPlay]() {
+                if (shouldPlay && isReady) {
+                    m_playing = false;
+                    playAudio();
+                } else {
+                    stopAudio();
+                }
+            };
 
-            // 如果有文件路径，重新初始化解码器
-            if (!m_filePath.isEmpty()) {
-                auto res = player->initializeFFmpeg(AppConstants::MEDIA_LIBRARY_STORAGE_DIR + "/" + m_filePath);
-                if (res) {
-                    isReady = true;
-                    if (autoPlay) {
-                        QTimer::singleShot(100, this, &AudioDecoderDataModel::playAudio);
-                    }
+            if (!savedFile.isEmpty()) {
+                const QString absPath = AppConstants::MEDIA_LIBRARY_STORAGE_DIR + QStringLiteral("/") + savedFile;
+                if (QFile::exists(absPath)) {
+                    QTimer::singleShot(100, this, applyPlayState);
+                    return;
                 }
             }
+
+            applyPlayState();
         }
 
     public slots:

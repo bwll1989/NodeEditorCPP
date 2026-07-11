@@ -43,6 +43,7 @@ set(ALL_NODES
     ConditionNode                             #条件判断
     WebSocketServerNode                       #WebSocket服务器
     WebSocketClientNode                       #WebSocket客户端
+    HttpClientNode                            #HTTP客户端
     JavaScriptNode                            #JavaScript脚本
 
 #    ImageCompareNode                          #图像对比
@@ -150,6 +151,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(ConditionNode)                             #条件判断
     add_subdirectory(WebSocketServerNode)                       #WebSocket服务器
     add_subdirectory(WebSocketClientNode)                       #WebSocket客户端
+    add_subdirectory(HttpClientNode)                              #HTTP客户端
     add_subdirectory(JavaScriptNode)                            #JavaScript脚本
     add_subdirectory(InternalCommandsNode)                       #内部控制
 #    add_subdirectory(ImageCompareNode)                          #图像对比

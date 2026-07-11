@@ -94,6 +94,9 @@ namespace Nodes
             
             connect(m_client, &WebSocketClient::recMsg, this, &WebSocketClientDataModel::recMsg, Qt::QueuedConnection);
             connect(m_client, &WebSocketClient::isReady, this, &WebSocketClientDataModel::onConnected, Qt::QueuedConnection);
+            connect(this,&WebSocketClientDataModel::valueChanged,this,[this](){
+                sendMessage();
+            });
         }
 
         ~WebSocketClientDataModel() {
@@ -195,7 +198,6 @@ namespace Nodes
                 break;
             case 1:
                 setValue(m_inData->value().toString());
-                sendMessage();
                 break;
             case 2:
                 sendMessage(); // Just trigger

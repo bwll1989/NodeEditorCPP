@@ -91,7 +91,7 @@ namespace Nodes
             connect(widget->portSpinBox, &IntDragValueWidget::valueChanged, this, [this](int val) {
                 setPort(val);
             });
-
+            connect(this,&TCPClientDataModel::valueChanged,this,&TCPClientDataModel::sendMessage);
             connect(widget->valueEdit, &QLineEdit::editingFinished, this, [this]() {
                 setValue(widget->valueEdit->text());
             });
@@ -245,7 +245,7 @@ namespace Nodes
             case 1: setPort(m_inData->value().toInt()); break;
             case 2: 
                 setValue(m_inData->value().toString()); 
-                sendMessage(); 
+
                 break;
             case 3:
                 if (m_inData->value().toBool()) {

@@ -88,6 +88,9 @@ namespace Nodes
                 msgMap.insert("default", message);
                 recMsg(msgMap);
             }, Qt::QueuedConnection);
+            connect(this,&WebSocketServerDataModel::valueChanged,this,[this](){
+                sendMessage();
+            });
         }
 
         ~WebSocketServerDataModel(){
@@ -179,7 +182,7 @@ namespace Nodes
                     break;
                 case 1:
                     setValue(m_inData->value().toString());
-                    sendMessage();
+                    
                     break;
                 case 2:
                     sendMessage(); // Just trigger
