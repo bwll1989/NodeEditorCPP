@@ -1,4 +1,4 @@
-﻿# Data Info 节点
+# Data Info
 
 ## 1. 节点说明
 

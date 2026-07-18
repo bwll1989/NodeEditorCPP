@@ -10,14 +10,14 @@ FTControlBoxDataModel::FTControlBoxDataModel()
     , _tcpClient(new TcpClient("127.0.0.1", 2001))
 {
     InPortCount = 0;
-    OutPortCount = kTotalButtonCount;
+    OutPortCount = kIoCount;
     PortEditable = false;
     CaptionVisible = true;
     Caption = "FT-ControlBox";
     WidgetEmbeddable = false;
     Resizable = false;
 
-    for (int i = 0; i < kTotalButtonCount; ++i) {
+    for (int i = 0; i < kIoCount; ++i) {
         _outputData[i] = std::make_shared<NodeDataTypes::VariableData>(false);
     }
 
@@ -46,15 +46,10 @@ FTControlBoxDataModel::FTControlBoxDataModel()
         AbstractDelegateModel::registerExternalBinding("/connected", this, b);
     }
 
-    for (int i = 0; i < kFilmButtonCount; ++i) {
+    for (int i = 0; i < kIoCount; ++i) {
         NodeDelegateModel::ExternalBinding b;
-        b.control = _interface->_filmButtons[i];
-        AbstractDelegateModel::registerExternalBinding("/BB" + QString::number(i + 1), nullptr, b);
-    }
-    for (int i = 0; i < kRemoteButtonCount; ++i) {
-        NodeDelegateModel::ExternalBinding b;
-        b.control = _interface->_remoteButtons[i];
-        AbstractDelegateModel::registerExternalBinding("/YY" + QString::number(i + 1), nullptr, b);
+        b.control = _interface->_ioButtons[i];
+        AbstractDelegateModel::registerExternalBinding("/IO" + QString::number(i + 1), nullptr, b);
     }
 
     connect(_interface->_hostEdit, &QLineEdit::editingFinished, this, [this]() {
@@ -67,14 +62,9 @@ FTControlBoxDataModel::FTControlBoxDataModel()
         setAddr485(val);
     });
 
-    for (int i = 0; i < kFilmButtonCount; ++i) {
-        connect(_interface->_filmButtons[i], &QPushButton::clicked, this, [this, i]() {
-            triggerFilmButton(i);
-        });
-    }
-    for (int i = 0; i < kRemoteButtonCount; ++i) {
-        connect(_interface->_remoteButtons[i], &QPushButton::clicked, this, [this, i]() {
-            triggerRemoteButton(i);
+    for (int i = 0; i < kIoCount; ++i) {
+        connect(_interface->_ioButtons[i], &QPushButton::clicked, this, [this, i]() {
+            triggerIo(i);
         });
     }
 
@@ -145,6 +135,7 @@ void FTControlBoxDataModel::setConnected(bool connected)
 void FTControlBoxDataModel::connectToServer()
 {
     if (!_tcpClient || _host.isEmpty()) return;
+    _recvBuffer.clear();
     _tcpClient->disconnectFromServer();
     _tcpClient->connectToServer(_host, _port);
 }
@@ -169,7 +160,7 @@ NodeDataType FTControlBoxDataModel::dataType(PortType portType, PortIndex portIn
 
 std::shared_ptr<NodeData> FTControlBoxDataModel::outData(PortIndex port)
 {
-    if (port >= 0 && port < kTotalButtonCount) {
+    if (port >= 0 && port < kIoCount) {
         return _outputData[port];
     }
     return nullptr;
@@ -186,11 +177,8 @@ QString FTControlBoxDataModel::portCaption(QtNodes::PortType portType, QtNodes::
     if (portType != PortType::Out) {
         return QString();
     }
-    if (portIndex < kFilmButtonCount) {
-        return QString("BB %1").arg(portIndex + 1);
-    }
-    if (portIndex < kTotalButtonCount) {
-        return QString("YY %1").arg(portIndex - kFilmButtonCount + 1);
+    if (portIndex >= 0 && portIndex < kIoCount) {
+        return QString("IO %1").arg(portIndex + 1);
     }
     return QString();
 }
@@ -248,66 +236,64 @@ void FTControlBoxDataModel::onGlobalEvent(const GlobalEvent& ev)
 
 void FTControlBoxDataModel::recMsg(const QVariantMap& dataMap)
 {
-    const QString msg = dataMap.value("ascii").toString().trimmed();
-    if (msg.isEmpty()) {
+    const QString chunk = dataMap.value("ascii").toString();
+    if (chunk.isEmpty()) {
         return;
     }
-    processMessage(msg);
+
+    _recvBuffer.append(chunk);
+    _recvBuffer.replace("\r\n", "\n");
+    _recvBuffer.replace('\r', '\n');
+
+    int newlinePos = 0;
+    while ((newlinePos = _recvBuffer.indexOf('\n')) >= 0) {
+        const QString line = _recvBuffer.left(newlinePos).trimmed();
+        _recvBuffer.remove(0, newlinePos + 1);
+        if (!line.isEmpty()) {
+            processMessage(line);
+        }
+    }
 }
 
 void FTControlBoxDataModel::processMessage(const QString& msg)
 {
+    // 格式：addr + $XX^ + index（XX 可为 BB / YY / KK 等，不校验类型）
     const QString addr = QString::number(_addr485);
-    const QString filmPrefix = addr + "$BB^";
-    const QString remotePrefix = addr + "$YY^";
-
-    if (msg.startsWith(filmPrefix)) {
-        bool ok = false;
-        const int index = msg.mid(filmPrefix.length()).toInt(&ok);
-        if (ok && index >= 1 && index <= kFilmButtonCount) {
-            triggerFilmButton(index - 1);
-        }
+    const QString prefix = addr + "$";
+    if (!msg.startsWith(prefix)) {
         return;
     }
 
-    if (msg.startsWith(remotePrefix)) {
-        bool ok = false;
-        const int index = msg.mid(remotePrefix.length()).toInt(&ok);
-        if (ok && index >= 1 && index <= kRemoteButtonCount) {
-            triggerRemoteButton(index - 1);
-        }
+    const QString rest = msg.mid(prefix.length());
+    // 至少 "XX^N"：两个类型字符 + '^' + 索引
+    const int caretPos = rest.indexOf('^');
+    if (caretPos < 1) {
+        return;
+    }
+
+    bool ok = false;
+    const int index = rest.mid(caretPos + 1).toInt(&ok);
+    if (ok && index >= 1 && index <= kIoCount) {
+        triggerIo(index - 1);
     }
 }
 
-void FTControlBoxDataModel::triggerFilmButton(int index)
+void FTControlBoxDataModel::triggerIo(int index)
 {
-    if (index < 0 || index >= kFilmButtonCount) {
+    if (index < 0 || index >= kIoCount) {
         return;
     }
-    _interface->flashFilmButton(index);
+    _interface->flashIoButton(index);
     pulseOutput(index);
-    AbstractDelegateModel::stateFeedBack(QString("/BB%1").arg(index + 1), true);
+    AbstractDelegateModel::stateFeedBack(QString("/IO%1").arg(index + 1), true);
     QTimer::singleShot(200, this, [this, index]() {
-        AbstractDelegateModel::stateFeedBack(QString("/BB%1").arg(index + 1), false);
-    });
-}
-
-void FTControlBoxDataModel::triggerRemoteButton(int index)
-{
-    if (index < 0 || index >= kRemoteButtonCount) {
-        return;
-    }
-    _interface->flashRemoteButton(index);
-    pulseOutput(kFilmButtonCount + index);
-    AbstractDelegateModel::stateFeedBack(QString("/YY%1").arg(index + 1), true);
-    QTimer::singleShot(200, this, [this, index]() {
-        AbstractDelegateModel::stateFeedBack(QString("/YY%1").arg(index + 1), false);
+        AbstractDelegateModel::stateFeedBack(QString("/IO%1").arg(index + 1), false);
     });
 }
 
 void FTControlBoxDataModel::pulseOutput(int port)
 {
-    if (port < 0 || port >= kTotalButtonCount) {
+    if (port < 0 || port >= kIoCount) {
         return;
     }
     _outputData[port] = std::make_shared<NodeDataTypes::VariableData>(true);

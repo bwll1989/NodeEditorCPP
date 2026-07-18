@@ -1,4 +1,4 @@
-﻿# WebSocket Client 节点
+# WebSocket Client
 
 ## 1. 节点说明
 

@@ -1,0 +1,167 @@
+<script lang="ts">
+import type { WidgetMeta } from '../widget-types';
+
+export const widgetMeta: WidgetMeta = {
+  type: '竖向滑动条',
+  factory: 'createEPVSliderWidget',
+  defaultW: 4,
+  defaultH: 10,
+  defaults: {
+    commandId: '/cmd/demo',
+    bgColor: 'transparent',
+    fontSize: '14',
+    min: 0,
+    max: 100,
+    value: 0,
+    height: '100%',
+    barColor: '#e5e7eb',
+    fillColor: '#2b6cb0',
+    valueColor: '#111827',
+    borderColor: '#e5e7eb',
+    borderStyle: 'none',
+  },
+  coercers: {
+    fontSize: (v) => String(v ?? '14'),
+    min: (v) => Number(v),
+    max: (v) => Number(v),
+    value: (v) => Number(v),
+    height: (v) => String(v ?? '100%'),
+  },
+  valueMapper(value) {
+    return { value: Number(value) };
+  },
+};
+</script>
+
+<script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue';
+import { useWidgetState, sendCommand } from '../useWidgetState';
+
+const s = useWidgetState<{
+  commandId: string;
+  min: number;
+  max: number;
+  value: number;
+  height: string;
+  barColor: string;
+  fillColor: string;
+  valueColor: string;
+  borderColor: string;
+  borderStyle: string;
+  fontSize: string;
+}>();
+
+const barRef = ref<HTMLElement | null>(null);
+const fillRef = ref<HTMLElement | null>(null);
+const valRef = ref<HTMLElement | null>(null);
+let dragging = false;
+
+const barStyle = computed(() => ({
+  position: 'relative',
+  width: '100%',
+  height: '100%',
+  backgroundColor: s.barColor,
+  borderRadius: '4px',
+  cursor: 'pointer',
+  borderColor: s.borderColor,
+  borderStyle: s.borderStyle,
+  touchAction: 'none',
+}));
+
+const fillStyle = computed(() => ({
+  position: 'absolute',
+  left: '0',
+  bottom: '0',
+  width: '100%',
+  height: '0',
+  backgroundColor: s.fillColor,
+  borderRadius: '4px',
+}));
+
+const valueStyle = computed(() => ({
+  position: 'absolute',
+  left: '50%',
+  top: '50%',
+  transform: 'translate(-50%,-50%)',
+  pointerEvents: 'none',
+  color: s.valueColor,
+  fontWeight: 600,
+  fontSize: s.fontSize + 'px',
+}));
+
+function applyHeight() {
+  const bar = barRef.value;
+  if (bar) bar.style.height = String(s.height || '100%');
+}
+
+function draw() {
+  const fill = fillRef.value;
+  const valEl = valRef.value;
+  const range = Math.max(0.0001, s.max - s.min);
+  const r = Math.max(0, Math.min(1, (s.value - s.min) / range));
+  if (fill) fill.style.height = (r * 100).toFixed(2) + '%';
+  if (valEl) valEl.textContent = String(Math.round(s.value));
+}
+
+function toVal(evt: PointerEvent) {
+  const bar = barRef.value;
+  if (!bar) return s.value;
+  const rect = bar.getBoundingClientRect();
+  const y = evt.clientY - rect.top;
+  const h = rect.height;
+  const r = Math.max(0, Math.min(1, 1 - y / Math.max(1, h)));
+  return Math.round(s.min + r * (s.max - s.min));
+}
+
+function onPointerDown(e: PointerEvent) {
+  dragging = true;
+  try {
+    barRef.value?.setPointerCapture(e.pointerId);
+  } catch {}
+}
+
+function onPointerUp(e: PointerEvent) {
+  dragging = false;
+  try {
+    barRef.value?.releasePointerCapture(e.pointerId);
+  } catch {}
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (!dragging) return;
+  e.preventDefault();
+  s.value = toVal(e);
+  draw();
+}
+
+watch(() => s.value, (nv) => {
+  sendCommand(s.commandId || '/cmd/demo', String(nv));
+});
+
+watch([() => s.value, () => s.min, () => s.max], draw);
+watch(() => s.height, () => {
+  applyHeight();
+  draw();
+});
+
+onMounted(() => {
+  applyHeight();
+  draw();
+});
+</script>
+
+<template>
+  <div style="width:100%;height:100%;display:flex;">
+    <div
+      ref="barRef"
+      :style="barStyle"
+      @pointerdown="onPointerDown"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerUp"
+      @pointermove="onPointerMove"
+    >
+      <div ref="fillRef" :style="fillStyle" />
+      <div ref="valRef" :style="valueStyle" />
+    </div>
+  </div>
+</template>

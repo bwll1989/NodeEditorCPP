@@ -37,9 +37,10 @@
             const items = ctx.services.NSUtils.collectGridItems(grid);
             const info = ctx.services.NS.grids.get(tid);
             const design = (info && info.design) ? info.design : {
-              width: EPWidgets.layoutDefaults.designWidth,
-              height: EPWidgets.layoutDefaults.designHeight,
-              bgColor: EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc'
+              width: 320,
+              height: 240,
+              bgColor: EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc',
+              auto: true
             };
             return { design, items };
           },
@@ -81,6 +82,7 @@
         ctx.services.NSUtils.ensureWidgetTypesReady((items || []).map(s => s && s.type), () => {
           if (!ctx.history.isTabRenderCurrent(tid, seq)) return;
           items.forEach(spec => { ctx.services.NSUtils.createWidgetFromSpec(grid, spec); });
+          try { ctx.services.NSCanvas.fitCanvasToWidgets(tid); } catch {}
           try { const info2 = ctx.services.NS.grids.get(tid); if (info2) { info2.loaded = true; info2.rendering = false; } } catch {}
           try { if (typeof NSInteract !== 'undefined' && typeof ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate === 'function') ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate(); } catch {}
           try { ctx.services.NSWsSync.queryAllStatuses(); } catch {}
@@ -109,7 +111,7 @@
         const pages = {};
         ctx.services.NS.grids.forEach((info, tid) => {
           const items = ctx.services.NSUtils.collectGridItems(info.grid);
-          const design = (info && info.design) ? info.design : { width: EPWidgets.layoutDefaults.designWidth, height: EPWidgets.layoutDefaults.designHeight };
+          const design = (info && info.design) ? info.design : { width: 320, height: 240, auto: true };
           pages[tid] = { design, items };
         });
         const payload = { tabs: ctx.services.NS.tabs, activeTabId: ctx.services.NS.activeTabId, pages };

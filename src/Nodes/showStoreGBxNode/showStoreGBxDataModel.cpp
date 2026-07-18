@@ -22,7 +22,7 @@ showStoreGBxDataModel::showStoreGBxDataModel()
     OutPortCount=1;
     PortEditable=false;
     CaptionVisible=true;
-    Caption="showStoreGBx";
+    Caption="ShowStoreGBx";
     WidgetEmbeddable= false;
     Resizable=false;
 

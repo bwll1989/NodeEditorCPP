@@ -1,4 +1,4 @@
-﻿# showStoreGBxNode
+﻿# ShowStoreGBx
 
 ## 1. 节点说明
 

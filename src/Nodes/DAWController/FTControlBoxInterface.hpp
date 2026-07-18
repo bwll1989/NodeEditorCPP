@@ -14,16 +14,15 @@
 /**
  * @brief FT-ControlBox 控制盒界面
  *
- * - 薄膜按钮：6 路
- * - 遥控器按钮：8 路
+ * 设备三组 IO（面板 $BB^ / 遥控 $YY^ / IO 线 $KK^）统一映射为 8 路输出，
+ * 界面提供 8 个联调按钮。
  */
 class FTControlBoxInterface : public QWidget
 {
     Q_OBJECT
 
 public:
-    static constexpr int kFilmButtonCount = 6;
-    static constexpr int kRemoteButtonCount = 8;
+    static constexpr int kIoCount = 8;
 
     FTControlBoxInterface(QWidget *parent = nullptr)
         : QWidget(parent)
@@ -62,47 +61,31 @@ public:
 
         mainLayout->addWidget(connectionGroup);
 
-        auto filmGroup = new QGroupBox("薄膜按钮 ($BB^)", this);
-        auto filmLayout = new QGridLayout(filmGroup);
-        filmLayout->setContentsMargins(6, 8, 6, 6);
-        filmLayout->setSpacing(4);
+        auto ioGroup = new QGroupBox("IO 输出 ($BB^/$YY^/$KK^)", this);
+        auto ioLayout = new QGridLayout(ioGroup);
+        ioLayout->setContentsMargins(6, 8, 6, 6);
+        ioLayout->setSpacing(4);
 
-        for (int i = 0; i < kFilmButtonCount; ++i) {
-            _filmButtons[i] = new QPushButton(QString("BB%1").arg(i + 1), this);
-            _filmButtons[i]->setAutoDefault(false);
-            _filmButtons[i]->setStyleSheet(_filmNormalStyle);
-            filmLayout->addWidget(_filmButtons[i], i / 3, i % 3);
+        for (int i = 0; i < kIoCount; ++i) {
+            _ioButtons[i] = new QPushButton(QString("IO%1").arg(i + 1), this);
+            _ioButtons[i]->setAutoDefault(false);
+            _ioButtons[i]->setStyleSheet(_ioNormalStyle);
+            ioLayout->addWidget(_ioButtons[i], i / 4, i % 4);
         }
 
-        mainLayout->addWidget(filmGroup);
-
-        auto remoteGroup = new QGroupBox("遥控器按钮 ($YY^)", this);
-        auto remoteLayout = new QGridLayout(remoteGroup);
-        remoteLayout->setContentsMargins(6, 8, 6, 6);
-        remoteLayout->setSpacing(4);
-
-        for (int i = 0; i < kRemoteButtonCount; ++i) {
-            _remoteButtons[i] = new QPushButton(QString("YY%1").arg(i + 1), this);
-            _remoteButtons[i]->setAutoDefault(false);
-            _remoteButtons[i]->setStyleSheet(_remoteNormalStyle);
-            remoteLayout->addWidget(_remoteButtons[i], i / 4, i % 4);
-        }
-
-        mainLayout->addWidget(remoteGroup);
+        mainLayout->addWidget(ioGroup);
         mainLayout->addStretch();
 
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-        setMinimumSize(240, 360);
+        setMinimumSize(240, 220);
     }
 
-    void flashFilmButton(int index)
+    void flashIoButton(int index)
     {
-        flashButton(_filmButtons[index], _filmFlashStyle, _filmNormalStyle);
-    }
-
-    void flashRemoteButton(int index)
-    {
-        flashButton(_remoteButtons[index], _remoteFlashStyle, _remoteNormalStyle);
+        if (index < 0 || index >= kIoCount) {
+            return;
+        }
+        flashButton(_ioButtons[index], _ioFlashStyle, _ioNormalStyle);
     }
 
     void setConnectionStatus(bool connected)
@@ -117,8 +100,7 @@ public:
     IntDragValueWidget *_portEdit = nullptr;
     IntDragValueWidget *_addr485Edit = nullptr;
     QPushButton *_statusLabel = nullptr;
-    QPushButton *_filmButtons[kFilmButtonCount] = {};
-    QPushButton *_remoteButtons[kRemoteButtonCount] = {};
+    QPushButton *_ioButtons[kIoCount] = {};
 
 private:
     static void flashButton(QPushButton *button, const QString &flashStyle, const QString &normalStyle)
@@ -130,10 +112,7 @@ private:
         });
     }
 
-    static constexpr const char *_filmNormalStyle = "";
-    static constexpr const char *_filmFlashStyle =
+    static constexpr const char *_ioNormalStyle = "";
+    static constexpr const char *_ioFlashStyle =
         "background-color: #4CAF50; color: white; font-weight: bold;";
-    static constexpr const char *_remoteNormalStyle = "";
-    static constexpr const char *_remoteFlashStyle =
-        "background-color: #2196F3; color: white; font-weight: bold;";
 };

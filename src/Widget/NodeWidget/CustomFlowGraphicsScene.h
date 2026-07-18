@@ -44,12 +44,6 @@ public Q_SLOTS:
      * @return bool 是否加载
      */
     bool load();
-    /**
-     * 测试
-     * @param NodeId node 节点
-     */
-	void test(const NodeId node);
-
 
 Q_SIGNALS:
     /**

@@ -74,6 +74,7 @@ set(ALL_NODES
     AudioAnalysisNode                           #音频分析节点
 #    PythonScriptNode                            #python脚本节点
     DAWController                          #DAW控制器节点
+    OMVController                          #安卓播放器 OMV 控制节点
     StyleTransferONNXNode                       #神经网络风格迁移
     DataVisualNode                              #数据可视化
     FileLoadNode                                #文件导入
@@ -195,6 +196,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(MediaPipe/HumanSegmentationPPHumanSegNode)    #MediaPipe 人体分割
     add_subdirectory(VideoDecoderNode)                          #视频解码器节点
     add_subdirectory(DAWController)                          #DAW控制器节点
+    add_subdirectory(OMVController)                          #安卓播放器 OMV 控制节点
     add_subdirectory(PLC-ModBus)                                #Modbus控制PLC节点
     add_subdirectory(QmlScriptNode)
     add_subdirectory(InjectNode)                                #数据注入节点

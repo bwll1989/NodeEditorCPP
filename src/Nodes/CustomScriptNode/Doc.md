@@ -1,4 +1,4 @@
-﻿# CustomScriptNode
+# Custom Script
 
 ## 1. 节点说明
 

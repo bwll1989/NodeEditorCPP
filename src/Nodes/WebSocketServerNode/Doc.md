@@ -1,4 +1,4 @@
-﻿# WebSocket Server 节点
+# WebSocket Server
 
 ## 1. 节点说明
 

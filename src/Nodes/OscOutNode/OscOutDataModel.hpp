@@ -153,7 +153,6 @@ namespace Nodes
 
         QString getValue() const { return m_value; }
         void setValue(const QString& value) {
-            if (m_value == value) return;
             m_value = value;
             if (widget && widget->valueLineEdit->text() != value) {
                 QSignalBlocker blocker(widget->valueLineEdit);

@@ -1,4 +1,4 @@
-﻿# MpvControllerNode
+# Mpv Controller
 
 ## 1. 节点说明
 

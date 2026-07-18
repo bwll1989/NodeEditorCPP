@@ -1,4 +1,4 @@
-# VLC Remote 节点
+# VLC Remote
 
 ## 1. 节点说明
 

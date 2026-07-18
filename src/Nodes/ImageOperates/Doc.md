@@ -1,4 +1,4 @@
-# ImageOperates 节点包
+**ImageOperates 节点包**
 
 ## 1. 概述
 
@@ -110,126 +110,6 @@ Display 侧应在 tick 发现 `isEmpty()` 后直接 `clearTexture()`，不依赖
 
 ---
 
-## 4. 子节点说明
-
-### Image Flip
-
-- **输入**：`IMAGE`；`H`（水平翻转）；`V`（垂直翻转）
-- **输出**：`IMAGE`
-- **GPU**：`ImageGpuPass::resample`，UV 镜像
-
-### Image Cross
-
-- **输入**：`A`；`B`；`BLEND`（0→A，1→B，中间线性混合）
-- **输出**：`IMAGE`
-- B 尺寸与 A 不一致时先 `matchTextureSize`
-
-### Image Add
-
-- **输入**：`A`；`B`
-- **输出**：`IMAGE`（尺寸同 A）
-- **GPU**：`clamp(A + B, 0, 1)`，类似 TD Add TOP
-- B 尺寸与 A 不一致时先 `matchTextureSize`
-
-### Image Subtract
-
-- **输入**：`A`；`B`
-- **输出**：`IMAGE`（尺寸同 A）
-- **GPU**：`clamp(A - B, 0, 1)`，类似 TD Subtract TOP
-- B 尺寸与 A 不一致时先 `matchTextureSize`
-
-### Image Difference
-
-- **输入**：`A`；`B`；`GAIN`（≥1，默认 1）
-- **输出**：`IMAGE`
-- **GPU**：`|A - B| * gain`，clamp 到 [0,1]
-
-### Image Blur
-
-- **输入**：`IMAGE`；`RADIUS X`；`RADIUS Y`（0–32）
-- **输出**：`IMAGE`
-- **GPU**：可分离高斯；半径 0 透传；X/Y 各一次 pass
-
-### Image Crop
-
-- **输入**：`IMAGE`；`LEFT %` / `RIGHT %` / `TOP %` / `BOTTOM %`（0–100）
-- **输出**：`IMAGE`（裁剪后尺寸）
-- 四边合计导致宽或高 ≤0 时输出无效纹理
-
-### Image Chroma Key
-
-- **输入**：`IMAGE`；`HUE MIN` / `HUE MAX`（0–360）；`SOFT LOW` / `SOFT HIGH`
-- **输出**：`IMAGE`（BGRA，alpha 为抠像结果）
-- 输入原有 alpha 与抠像 alpha 相乘
-
-### Image Under
-
-- **输入**：`A`（遮罩）；`B`（图像）
-- **输出**：`IMAGE`
-- **语义**：`B over A`；遮罩通道值越高，B 越不可见（可选 B/G/R/A 通道）
-
-### Image Over
-
-- **输入**：`A`（Input1 / 前景）；`B`（Input2 / 背景）
-- **输出**：`IMAGE`（尺寸同 A）
-- **GPU**：Porter-Duff Over，`A` 叠在 `B` 上；`A.alpha` 决定 `B` 的可见区域
-- B 尺寸与 A 不一致时先 `matchTextureSize`
-
-### Image Monochrome
-
-- **输入**：`IMAGE`；`MONO`（0–255）；`RGB`；`ALPHA`
-- **输出**：`IMAGE`
-- **MONO**：灰度混合量，0=保留原色，255=完全黑白（对齐 TD mono 0–1）
-- **RGB / ALPHA 通道选择**（索引）：
-  - `0` Luminance（BT.601）
-  - `1` Red、`2` Green、`3` Blue、`4` Alpha
-  - `5` RGB Average、`6` RGBA Average
-- **GPU**：分别按 RGB/Alpha 菜单取样灰度值，`mix(原色, 灰度, mono/255)`
-
-### Image Level
-
-- **输入**：`IMAGE`；`BRIGHTNESS`；`GAMMA`；`BLACK`；`STEP`；`OPACITY`
-- **输出**：`IMAGE`
-- **BRIGHTNESS**：亮度偏移 -255–255（默认 0）
-- **GAMMA**：伽马 ×100，10–400 表示 0.1–4.0（默认 100 = 1.0）
-- **BLACK**：黑电平 0–255，低于此值的源通道像素压到 0
-- **STEP**：量化/色阶 0=关闭，1–255 对应 TD stepSize（色带数 ≈ 255/STEP）
-- **OPACITY**：不透明度 0–255（默认 255）
-- **Source**（属性/OSC `/source`）：0 Luminance、1 R、2 G、3 B、4 A、5 RGB Avg、6 RGBA Avg
-- **GPU**：Luma Level 风格 `out.rgb = in.rgb * lookup(src)/src`，保持色相
-
-### Image Channel
-
-- **输入**：`IMAGE`；`R GAIN`；`G GAIN`；`B GAIN`；`A GAIN`
-- **输出**：`IMAGE`
-- **增益**（端口或属性）：-400–400，×100 为倍率（100 = 1.0，默认直通）
-- **偏移**（属性/OSC）：-255–255，各通道独立常数偏移
-- **GPU**：`out.ch = clamp(in.ch * gain + offset, 0, 1)`，无通道交叉混合
-
-### Image Scale
-
-- **输入**：`IMAGE`；`Width`；`Height`（像素，0 表示保持比例或使用输入尺寸逻辑）
-- **输出**：`IMAGE`
-- **GPU**：`ImageGpuPass::resize`
-
-### Image Threshold
-
-- **输入**：`IMAGE`；`THRESHOLD`（0–255）；`COMPARATOR`；`SOURCE`
-- **输出**：`IMAGE`（保留原 RGB；满足条件 alpha=1，否则 alpha=0）
-- **SOURCE**：`0` 亮度 LUM（BT.601）、`1` R、`2` G、`3` B
-- **COMPARATOR**：`0` Less、`1` Greater、`2` LessOrEqual、`3` GreaterOrEqual、`4` Equal、`5` NotEqual（默认 GreaterOrEqual）
-- **THRESHOLD**：0–255，内部归一化到 [0,1] 比较（TD 阈值 0.259 ≈ 66）
-- **GPU**：仅按选定通道做阈值判断，输出 alpha 遮罩，颜色来自输入
-
-### Image Switch
-
-- **输入**：动态 `IMAGE 0…N-1` + 末口 `INDEX`
-- **输出**：`IMAGE`（透传选中输入的 `ImageData`，**无 GPU、无 tick**）
-- `PortEditable = true`，可增删输入口
-- 索引变化或选中口换源时 `dataUpdated`
-
----
-
 ## 5. 使用建议
 
 - **Flip**：镜像、纹理方向修正
@@ -271,3 +151,153 @@ Image Loader (前景) ──┴→ Image Cross → Window Display
 | `Common/DataTypes/ImageGpuPass.*` | GPU pass 基础设施 |
 | `Common/DataTypes/ImageTimestampRingQueue.*` | 环形帧队列 |
 | `Nodes/BuildInNodes/ImageShowModel.cpp` | 嵌入式显示 tick 刷新 |
+
+---
+
+# Image Flip
+
+- **输入**：`IMAGE`；`H`（水平翻转）；`V`（垂直翻转）
+- **输出**：`IMAGE`
+- **GPU**：`ImageGpuPass::resample`，UV 镜像
+
+---
+
+# Image Cross
+
+- **输入**：`A`；`B`；`BLEND`（0→A，1→B，中间线性混合）
+- **输出**：`IMAGE`
+- B 尺寸与 A 不一致时先 `matchTextureSize`
+
+---
+
+# Image Add
+
+- **输入**：`A`；`B`
+- **输出**：`IMAGE`（尺寸同 A）
+- **GPU**：`clamp(A + B, 0, 1)`，类似 TD Add TOP
+- B 尺寸与 A 不一致时先 `matchTextureSize`
+
+---
+
+# Image Subtract
+
+- **输入**：`A`；`B`
+- **输出**：`IMAGE`（尺寸同 A）
+- **GPU**：`clamp(A - B, 0, 1)`，类似 TD Subtract TOP
+- B 尺寸与 A 不一致时先 `matchTextureSize`
+
+---
+
+# Image Difference
+
+- **输入**：`A`；`B`；`GAIN`（≥1，默认 1）
+- **输出**：`IMAGE`
+- **GPU**：`|A - B| * gain`，clamp 到 [0,1]
+
+---
+
+# Image Blur
+
+- **输入**：`IMAGE`；`RADIUS X`；`RADIUS Y`（0–32）
+- **输出**：`IMAGE`
+- **GPU**：可分离高斯；半径 0 透传；X/Y 各一次 pass
+
+---
+
+# Image Crop
+
+- **输入**：`IMAGE`；`LEFT %` / `RIGHT %` / `TOP %` / `BOTTOM %`（0–100）
+- **输出**：`IMAGE`（裁剪后尺寸）
+- 四边合计导致宽或高 ≤0 时输出无效纹理
+
+---
+
+# Image Chroma Key
+
+- **输入**：`IMAGE`；`HUE MIN` / `HUE MAX`（0–360）；`SOFT LOW` / `SOFT HIGH`
+- **输出**：`IMAGE`（BGRA，alpha 为抠像结果）
+- 输入原有 alpha 与抠像 alpha 相乘
+
+---
+
+# Image Under
+
+- **输入**：`A`（遮罩）；`B`（图像）
+- **输出**：`IMAGE`
+- **语义**：`B over A`；遮罩通道值越高，B 越不可见（可选 B/G/R/A 通道）
+
+---
+
+# Image Over
+
+- **输入**：`A`（Input1 / 前景）；`B`（Input2 / 背景）
+- **输出**：`IMAGE`（尺寸同 A）
+- **GPU**：Porter-Duff Over，`A` 叠在 `B` 上；`A.alpha` 决定 `B` 的可见区域
+- B 尺寸与 A 不一致时先 `matchTextureSize`
+
+---
+
+# Image Monochrome
+
+- **输入**：`IMAGE`；`MONO`（0–255）；`RGB`；`ALPHA`
+- **输出**：`IMAGE`
+- **MONO**：灰度混合量，0=保留原色，255=完全黑白（对齐 TD mono 0–1）
+- **RGB / ALPHA 通道选择**（索引）：
+  - `0` Luminance（BT.601）
+  - `1` Red、`2` Green、`3` Blue、`4` Alpha
+  - `5` RGB Average、`6` RGBA Average
+- **GPU**：分别按 RGB/Alpha 菜单取样灰度值，`mix(原色, 灰度, mono/255)`
+
+---
+
+# Image Level
+
+- **输入**：`IMAGE`；`BRIGHTNESS`；`GAMMA`；`BLACK`；`STEP`；`OPACITY`
+- **输出**：`IMAGE`
+- **BRIGHTNESS**：亮度偏移 -255–255（默认 0）
+- **GAMMA**：伽马 ×100，10–400 表示 0.1–4.0（默认 100 = 1.0）
+- **BLACK**：黑电平 0–255，低于此值的源通道像素压到 0
+- **STEP**：量化/色阶 0=关闭，1–255 对应 TD stepSize（色带数 ≈ 255/STEP）
+- **OPACITY**：不透明度 0–255（默认 255）
+- **Source**（属性/OSC `/source`）：0 Luminance、1 R、2 G、3 B、4 A、5 RGB Avg、6 RGBA Avg
+- **GPU**：Luma Level 风格 `out.rgb = in.rgb * lookup(src)/src`，保持色相
+
+---
+
+# Image Channel
+
+- **输入**：`IMAGE`；`R GAIN`；`G GAIN`；`B GAIN`；`A GAIN`
+- **输出**：`IMAGE`
+- **增益**（端口或属性）：-400–400，×100 为倍率（100 = 1.0，默认直通）
+- **偏移**（属性/OSC）：-255–255，各通道独立常数偏移
+- **GPU**：`out.ch = clamp(in.ch * gain + offset, 0, 1)`，无通道交叉混合
+
+---
+
+# Image Scale
+
+- **输入**：`IMAGE`；`Width`；`Height`（像素，0 表示保持比例或使用输入尺寸逻辑）
+- **输出**：`IMAGE`
+- **GPU**：`ImageGpuPass::resize`
+
+---
+
+# Image Threshold
+
+- **输入**：`IMAGE`；`THRESHOLD`（0–255）；`COMPARATOR`；`SOURCE`
+- **输出**：`IMAGE`（保留原 RGB；满足条件 alpha=1，否则 alpha=0）
+- **SOURCE**：`0` 亮度 LUM（BT.601）、`1` R、`2` G、`3` B
+- **COMPARATOR**：`0` Less、`1` Greater、`2` LessOrEqual、`3` GreaterOrEqual、`4` Equal、`5` NotEqual（默认 GreaterOrEqual）
+- **THRESHOLD**：0–255，内部归一化到 [0,1] 比较（TD 阈值 0.259 ≈ 66）
+- **GPU**：仅按选定通道做阈值判断，输出 alpha 遮罩，颜色来自输入
+
+---
+
+# Image Switch
+
+- **输入**：动态 `IMAGE 0…N-1` + 末口 `INDEX`
+- **输出**：`IMAGE`（透传选中输入的 `ImageData`，**无 GPU、无 tick**）
+- `PortEditable = true`，可增删输入口
+- 索引变化或选中口换源时 `dataUpdated`
+
+---

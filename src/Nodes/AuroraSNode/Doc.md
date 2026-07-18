@@ -1,4 +1,4 @@
-﻿# AuroraSNode
+# Aurora S
 
 ## 1. 节点说明
 

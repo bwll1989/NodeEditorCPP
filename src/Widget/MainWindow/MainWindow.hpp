@@ -16,7 +16,6 @@
 #include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
 #include "Widget/TimeLineWidget/TimeLineWidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
-#include "Widget/StageWidget/StageWidget.hpp"
 #include "Widget/TimeLineWidget/TimeLineModel.h"
 #include "Widget/ExternalControl/ExternalControler.hpp"
 #include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
@@ -55,7 +54,7 @@ public:
     //插件管理器
     PluginsManagerWidget *pluginsManagerDlg=nullptr;
     // 节点库控件
-    ads::CDockWidget *nodeDockLibraryWidget=nullptr;
+    // ads::CDockWidget *nodeDockLibraryWidget=nullptr;
     // 属性面板 Dock
     // ads::CDockWidget *propertyDockWidget=nullptr;
     // PropertyWidget *propertyWidget=nullptr;
@@ -63,15 +62,13 @@ public:
     // 锁定状态
     bool isLocked= false;
     // 节点库
-    NodeLibraryWidget *nodeLibrary=nullptr;
+    // NodeLibraryWidget *nodeLibrary=nullptr;
     // 节点列表
     NodeListWidget *nodeListWidget=nullptr;
     // 时间线
     TimelineWidget *timeline     = nullptr;
     // 时间线模型
     TimeLineModel *timelineModel=nullptr;
-    // 舞台控件
-    StageWidget *stageWidget=nullptr;
     // osc 日历控件
     ScheduledTaskWidget *scheduledTaskWidget=nullptr;
     // 媒体库
@@ -89,10 +86,10 @@ public Q_SLOTS:
      * 函数级注释：创建 DockManager 与各 DockWidget，初始化菜单栏、日志、节点编辑器、时间线、舞台、媒体库、外部控制与 HTTP 服务等。
      */
     void init();
-    /**
-     * 初始化节点列表
-     */
-    void initNodelist();
+    // /**
+    //  * 初始化节点列表
+    //  */
+    // void initNodelist();
     /**
      * 更新默认可视化布局状态
      */
@@ -194,7 +191,8 @@ protected:
      */
     QMenu* makeOptionsMenu(QWidget* parent, const QList<QAction*>& actions);
 
-    void switchTheme(bool isDark);
+    /** @brief 按配置在启动时应用主题（不支持运行时切换） */
+    void applyTheme(bool isDark);
 
     /** @brief 构建 QWindowKit 无边框标题栏并绑定 WindowAgent */
     void setupFramelessWindow();
@@ -231,7 +229,6 @@ private:
     QSystemTrayIcon* trayIcon = nullptr;
     QMenu* trayMenu = nullptr;
     QAction* trayExitAction = nullptr;
-    bool isDarkTheme = false;
     // 标记当前是否处于“自重启退出”流程；用于绕过 closeEvent 中的“是否最小化到托盘”弹窗
     bool isRestarting = false;
     AutosaveManager* autosaveManager = nullptr;

@@ -6,7 +6,7 @@
     function snapshotGrid(tid, grid) {
       try {
         const info = ctx.services.NS.grids.get(tid);
-        const design = (info && info.design) ? info.design : { width: EPWidgets.layoutDefaults.designWidth, height: EPWidgets.layoutDefaults.designHeight, bgColor: EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc' };
+        const design = (info && info.design) ? info.design : { width: 320, height: 240, bgColor: EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc', auto: true };
         const items = ctx.services.NSUtils.collectGridItems(grid);
         return { design, items };
       } catch { return { design: {}, items: [] }; }
@@ -82,6 +82,7 @@
         ctx.services.NSUtils.ensureWidgetTypesReady((data.items || []).map(s => s && s.type), () => {
           if (!isTabRenderCurrent(tid, seq)) return;
           (data.items || []).forEach(spec => { ctx.services.NSUtils.createWidgetFromSpec(grid, spec); });
+          try { ctx.services.NSCanvas.fitCanvasToWidgets(tid); } catch {}
           try { ctx.services.NSWsSync.queryAllStatuses(); } catch {}
           try {
             const payload = { design: data.design || {}, items: data.items || [] };

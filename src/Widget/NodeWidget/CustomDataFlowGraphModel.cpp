@@ -14,6 +14,7 @@
 
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/DataTypes/NodeDataList.hpp"
+#include "QtNodes/NodeStyle"
 using QtNodes::InvalidNodeId;
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeDataType;
@@ -150,18 +151,17 @@ bool CustomDataFlowGraphModel::connectionPossible(ConnectionId const connectionI
 
     };
 
-//
-    if (portVacant(PortType::Out) && portVacant(PortType::In)){
-//        接口未占用时，判断数据类型是否一致，或端口类型为万能类
-        return getDataType(PortType::Out).id == getDataType(PortType::In).id or
-           getDataType(PortType::In).id == VariableData().type().id;
-
-    } else{
-//        返回不允许连接
-        return false;
+    if (portVacant(PortType::Out) && portVacant(PortType::In)) {
+        const auto outType = getDataType(PortType::Out);
+        const auto inType = getDataType(PortType::In);
+        const QString varId = VariableData().type().id;
+        const QString vecId = VecData().type().id;
+        // 同类型 / 万能 VariableData 输入 / Vec ↔ VariableData（投递时自动转换）
+        return outType.id == inType.id
+            || inType.id == varId
+            || (inType.id == vecId && outType.id == varId);
     }
-
-//    输入接口未被
+    return false;
 }
 
 void CustomDataFlowGraphModel::addConnection(ConnectionId const connectionId)
@@ -296,8 +296,7 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
             break;
 
         case NodeRole::Style: {
-            auto style = StyleCollection::nodeStyle();
-            result = style.toJson().toVariantMap();
+            result = model->nodeStyle().toJson().toVariantMap();
         } break;
 
         case NodeRole::InternalData: {
@@ -425,8 +424,20 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
         }
             break;
 
-        case NodeRole::Style:
-            break;
+        case NodeRole::Style: {
+            auto it = _models.find(nodeId);
+            if (it != _models.end() && it->second) {
+                QJsonObject styleJson;
+                if (value.canConvert<QVariantMap>()) {
+                    styleJson = QJsonObject::fromVariantMap(value.toMap());
+                } else {
+                    styleJson = value.toJsonObject();
+                }
+                it->second->setNodeStyle(QtNodes::NodeStyle(styleJson));
+                Q_EMIT nodeUpdated(nodeId);
+                result = true;
+            }
+        } break;
 
         case NodeRole::InternalData:
             break;
@@ -583,7 +594,27 @@ bool CustomDataFlowGraphModel::setPortData(
     switch (role) {
         case PortRole::Data:
             if (portType == PortType::In) {
-                model->setInData(value.value<std::shared_ptr<NodeData>>(), portIndex);
+                auto data = value.value<std::shared_ptr<NodeData>>();
+                if (data) {
+                    const QString inTypeId = model->dataType(PortType::In, portIndex).id;
+                    const QString varId = VariableData().type().id;
+                    const QString vecId = VecData().type().id;
+                    // Vec → VariableData：旧节点只需 cast VariableData 即可继续用
+                    if (inTypeId == varId) {
+                        if (auto vec = std::dynamic_pointer_cast<VecData>(data)) {
+                            data = vec->toVariableData();
+                        }
+                    }
+                    // VariableData → Vec：专用向量口自动解析
+                    else if (inTypeId == vecId) {
+                        if (std::dynamic_pointer_cast<VecData>(data) == nullptr) {
+                            if (auto var = std::dynamic_pointer_cast<VariableData>(data)) {
+                                data = std::make_shared<VecData>(VecData::fromVariableData(var));
+                            }
+                        }
+                    }
+                }
+                model->setInData(data, portIndex);
 
                 // Triggers repainting on the scene.
                 Q_EMIT inPortDataWasSet(nodeId, portType, portIndex);
@@ -681,6 +712,7 @@ QJsonObject CustomDataFlowGraphModel::saveNode(NodeId const nodeId) const
     nodeJson["input-count"] = nodeData(nodeId, NodeRole::InPortCount).toInt();
     nodeJson["output-count"] = nodeData(nodeId, NodeRole::OutPortCount).toInt();
     nodeJson["port-editable"] = nodeData(nodeId, NodeRole::PortEditable).toBool();
+    nodeJson["title-color"] = _models.at(nodeId)->nodeStyle().TitleColor.name(QColor::HexRgb);
 
     {
         QPointF const pos = nodeData(nodeId, NodeRole::Position).value<QPointF>();
@@ -737,6 +769,14 @@ bool CustomDataFlowGraphModel::applySnapshotNodes(const QJsonArray &nodesJson)
         setNodeData(nodeId, NodeRole::PortEditable, nodeJson.value(QStringLiteral("port-editable")).toBool());
         setNodeData(nodeId, NodeRole::InPortCount, nodeJson.value(QStringLiteral("input-count")).toInt());
         setNodeData(nodeId, NodeRole::OutPortCount, nodeJson.value(QStringLiteral("output-count")).toInt());
+
+        if (nodeJson.contains(QStringLiteral("title-color"))) {
+            QtNodes::NodeStyle style = it->second->nodeStyle();
+            style.TitleColor = QColor(nodeJson.value(QStringLiteral("title-color")).toString());
+            style.SelectedBoundaryColor = style.TitleColor;
+            it->second->setNodeStyle(style);
+            Q_EMIT nodeUpdated(nodeId);
+        }
 
         const QJsonObject internalData = nodeJson.value(QStringLiteral("internal-data")).toObject();
         it->second->load(internalData);
@@ -816,6 +856,12 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
         setNodeData(restoredNodeId, NodeRole::PortEditable, nodeJson["port-editable"].toBool());
         setNodeData(restoredNodeId, NodeRole::InPortCount, nodeJson["input-count"].toInt());
         setNodeData(restoredNodeId, NodeRole::OutPortCount, nodeJson["output-count"].toInt());
+        if (nodeJson.contains(QStringLiteral("title-color"))) {
+            QtNodes::NodeStyle style = _models[restoredNodeId]->nodeStyle();
+            style.TitleColor = QColor(nodeJson.value(QStringLiteral("title-color")).toString());
+            style.SelectedBoundaryColor = style.TitleColor;
+            _models[restoredNodeId]->setNodeStyle(style);
+        }
         _models[restoredNodeId]->load(internalDataJson);
 
         if (auto derived = dynamic_cast<AbstractDelegateModel*>(_models[restoredNodeId].get())) {

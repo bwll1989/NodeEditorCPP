@@ -112,12 +112,154 @@
       try { if (typeof NSInteract !== 'undefined' && typeof ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate === 'function') ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate(); } catch {}
     }
 
+    function selectNodes(nodes) {
+      const list = Array.from(nodes || []).filter(Boolean);
+      ctx.state.selectedGroupIds = new Set();
+      ctx.state.selectedGroupAnchor = '';
+      ctx.state.groupDrillId = '';
+      try {
+        ctx.state.selectedNodes.forEach(n => { try { n.classList.remove('grid-selected'); } catch {} });
+      } catch {}
+      ctx.state.selectedNodes.clear();
+      if (!list.length) {
+        ctx.state.currentSelected = null;
+        ctx.state.anchorSelected = null;
+        updateAlignHint();
+        ctx.props.updatePropPanel(null);
+        try { if (typeof NSInteract !== 'undefined' && typeof ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate === 'function') ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate(); } catch {}
+        return;
+      }
+      list.forEach(node => {
+        ctx.state.selectedNodes.add(node);
+        node.classList.add('grid-selected');
+      });
+      ctx.state.anchorSelected = list[0];
+      ctx.state.currentSelected = list[list.length - 1];
+      try { ctx.state.groupDrillId = String((list[list.length - 1].dataset && list[list.length - 1].dataset.groupId) || '').trim(); } catch {}
+      updateAlignHint();
+      ctx.props.updatePropPanel(ctx.state.currentSelected);
+      try { if (typeof NSInteract !== 'undefined' && typeof ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate === 'function') ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate(); } catch {}
+    }
+
+    function bindMarqueeSelection() {
+      const host = document.getElementById('tabsContent');
+      if (!host || host.dataset.marqueeBound) return;
+      host.dataset.marqueeBound = '1';
+
+      const MARQUEE_MIN = 4;
+
+      function rectsIntersect(a, b) {
+        if (!a || !b || a.w <= 0 || a.h <= 0 || b.w <= 0 || b.h <= 0) return false;
+        return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+      }
+
+      function resolveCanvasFromEvent(e) {
+        let canvas = (e.target && e.target.closest) ? e.target.closest('.pixel-canvas') : null;
+        if (!canvas) {
+          const vp = (e.target && e.target.closest) ? e.target.closest('.canvas-viewport') : null;
+          if (vp) canvas = vp.querySelector('.pixel-canvas');
+        }
+        return canvas;
+      }
+
+      let active = null;
+
+      function removeMarquee() {
+        if (active && active.marqueeEl && active.marqueeEl.parentElement) {
+          try { active.marqueeEl.parentElement.removeChild(active.marqueeEl); } catch {}
+        }
+        active = null;
+      }
+
+      function finishMarquee(selectRect) {
+        if (!active) return;
+        const canvas = active.canvas;
+        const hits = [];
+        if (selectRect && selectRect.w >= MARQUEE_MIN && selectRect.h >= MARQUEE_MIN) {
+          canvas.querySelectorAll('.grid-stack-item').forEach(node => {
+            const r = ctx.services.NSUtils.__readRectPx(node);
+            if (rectsIntersect(selectRect, r)) hits.push(node);
+          });
+        }
+        removeMarquee();
+        if (hits.length) selectNodes(hits);
+        else if (selectRect && selectRect.w >= MARQUEE_MIN && selectRect.h >= MARQUEE_MIN) clearSelection();
+      }
+
+      host.addEventListener('pointerdown', (e) => {
+        if (!e || e.button !== 0 || !e.shiftKey) return;
+        if (e.ctrlKey || e.metaKey) return;
+        try { if (!document.body.classList.contains('edit-mode')) return; } catch {}
+        try { if (ctx.services.NSInteract.__isMobileLike && ctx.services.NSInteract.__isMobileLike()) return; } catch {}
+        const canvas = resolveCanvasFromEvent(e);
+        if (!canvas) return;
+        if ((e.target && e.target.closest) ? e.target.closest('.grid-stack-item') : null) return;
+
+        try { if (e.cancelable) e.preventDefault(); } catch {}
+        try { e.stopPropagation(); } catch {}
+        try { e.stopImmediatePropagation(); } catch {}
+
+        const p0 = ctx.services.NSCanvas.__clientToCanvasDesignXY(canvas, e.clientX, e.clientY);
+        const marqueeEl = document.createElement('div');
+        marqueeEl.className = 'ns-marquee-select';
+        marqueeEl.style.left = p0.x + 'px';
+        marqueeEl.style.top = p0.y + 'px';
+        marqueeEl.style.width = '0px';
+        marqueeEl.style.height = '0px';
+        canvas.appendChild(marqueeEl);
+
+        active = {
+          canvas,
+          marqueeEl,
+          startX: Number(p0.x) || 0,
+          startY: Number(p0.y) || 0,
+          pointerId: e.pointerId,
+        };
+
+        const onMove = (ev) => {
+          if (!active || ev.pointerId !== active.pointerId) return;
+          const p1 = ctx.services.NSCanvas.__clientToCanvasDesignXY(active.canvas, ev.clientX, ev.clientY);
+          const x = Math.min(active.startX, p1.x);
+          const y = Math.min(active.startY, p1.y);
+          const w = Math.abs(p1.x - active.startX);
+          const h = Math.abs(p1.y - active.startY);
+          active.marqueeEl.style.left = x + 'px';
+          active.marqueeEl.style.top = y + 'px';
+          active.marqueeEl.style.width = w + 'px';
+          active.marqueeEl.style.height = h + 'px';
+        };
+
+        const onUp = (ev) => {
+          if (!active || ev.pointerId !== active.pointerId) return;
+          document.removeEventListener('pointermove', onMove, true);
+          document.removeEventListener('pointerup', onUp, true);
+          document.removeEventListener('pointercancel', onUp, true);
+          try { active.canvas.releasePointerCapture(ev.pointerId); } catch {}
+
+          const p1 = ctx.services.NSCanvas.__clientToCanvasDesignXY(active.canvas, ev.clientX, ev.clientY);
+          finishMarquee({
+            x: Math.min(active.startX, p1.x),
+            y: Math.min(active.startY, p1.y),
+            w: Math.abs(p1.x - active.startX),
+            h: Math.abs(p1.y - active.startY),
+          });
+        };
+
+        try { canvas.setPointerCapture(e.pointerId); } catch {}
+        document.addEventListener('pointermove', onMove, true);
+        document.addEventListener('pointerup', onUp, true);
+        document.addEventListener('pointercancel', onUp, true);
+      }, true);
+    }
+
     function bindGroupHitTestOnCanvas() {
       const host = document.getElementById('tabsContent');
       if (!host) return;
       if (host.dataset.groupHitBound) return;
       host.dataset.groupHitBound = '1';
       host.addEventListener('pointerdown', (e) => {
+        if (!e || e.button !== 0) return;
+        if (e.shiftKey && !e.ctrlKey && !e.metaKey) return;
         try { if (ctx.services.NSInteract.__isMobileLike && ctx.services.NSInteract.__isMobileLike()) return; } catch {}
         try { if (!document.body.classList.contains('edit-mode')) return; } catch {}
         const canvas = (e.target && e.target.closest) ? e.target.closest('.pixel-canvas') : null;
@@ -272,9 +414,6 @@
         refEntity = entities[0]; refRect = refEntity.r;
       }
       if (!refRect) return;
-      const info = ctx.services.NS.activeTabId ? ctx.services.NS.grids.get(ctx.services.NS.activeTabId) : null;
-      const boundW = info && info.design ? Number(info.design.width) : NaN;
-      const boundH = info && info.design ? Number(info.design.height) : NaN;
       entities.forEach(it => {
         if (it.type === 'group' && it.id === refEntity.id) return;
         if (it.type === 'node' && it.node === refEntity.node) return;
@@ -287,11 +426,9 @@
         else if (mode === 'vcenter') y = refRect.y + Math.round((refRect.h - it.r.h) / 2);
         if (it.type === 'group') {
           const dx = x - it.r.x; const dy = y - it.r.y;
-          ctx.services.NSUtils.__shiftGroup(canvas, it.id, dx, dy, boundW, boundH);
+          ctx.services.NSUtils.__shiftGroup(canvas, it.id, dx, dy);
         } else {
-          if (Number.isFinite(boundW)) x = Math.max(0, Math.min(boundW - it.r.w, x));
-          if (Number.isFinite(boundH)) y = Math.max(0, Math.min(boundH - it.r.h, y));
-          ctx.services.NSUtils.__writeRectPx(it.node, { x, y, w: it.r.w, h: it.r.h });
+          ctx.services.NSUtils.__writeRectPx(it.node, { x: Math.max(0, x), y: Math.max(0, y), w: it.r.w, h: it.r.h });
         }
       });
       try { if (ctx.services.NS.activeTabId) ctx.layout.commitLayoutLocal(ctx.services.NS.activeTabId, grid); } catch {}
@@ -363,9 +500,6 @@
       const canvas = __getActiveCanvasEl(); if (!canvas) return;
       const { entities } = __getSelectedEntities(canvas);
       if (entities.length < 3) return;
-      const info = ctx.services.NS.activeTabId ? ctx.services.NS.grids.get(ctx.services.NS.activeTabId) : null;
-      const boundW = info && info.design ? Number(info.design.width) : NaN;
-      const boundH = info && info.design ? Number(info.design.height) : NaN;
       if (axis === 'h') {
         entities.sort((a, b) => (a.r.x - b.r.x) || (a.r.y - b.r.y));
         const minX = Math.min.apply(null, entities.map(it => it.r.x));
@@ -374,7 +508,7 @@
         const gap = (maxR - minX - sumW) / (entities.length - 1);
         let cursor = minX;
         entities.forEach(it => {
-          if (it.type === 'group') { const dx = cursor - it.r.x; ctx.services.NSUtils.__shiftGroup(canvas, it.id, dx, 0, boundW, boundH); }
+          if (it.type === 'group') { const dx = cursor - it.r.x; ctx.services.NSUtils.__shiftGroup(canvas, it.id, dx, 0); }
           else { ctx.services.NSUtils.__writeRectPx(it.node, { x: cursor, y: it.r.y, w: it.r.w, h: it.r.h }); }
           cursor = cursor + it.r.w + gap;
         });
@@ -386,7 +520,7 @@
         const gap = (maxB - minY - sumH) / (entities.length - 1);
         let cursor = minY;
         entities.forEach(it => {
-          if (it.type === 'group') { const dy = cursor - it.r.y; ctx.services.NSUtils.__shiftGroup(canvas, it.id, 0, dy, boundW, boundH); }
+          if (it.type === 'group') { const dy = cursor - it.r.y; ctx.services.NSUtils.__shiftGroup(canvas, it.id, 0, dy); }
           else { ctx.services.NSUtils.__writeRectPx(it.node, { x: it.r.x, y: cursor, w: it.r.w, h: it.r.h }); }
           cursor = cursor + it.r.h + gap;
         });
@@ -413,18 +547,12 @@
       }
       if (!refRect) return;
       const targetW = Math.max(10, refRect.w); const targetH = Math.max(10, refRect.h);
-      const info = ctx.services.NS.activeTabId ? ctx.services.NS.grids.get(ctx.services.NS.activeTabId) : null;
-      const boundW = info && info.design ? Number(info.design.width) : NaN;
-      const boundH = info && info.design ? Number(info.design.height) : NaN;
       entities.forEach(it => {
         if (it.type === 'group' && it.id === refEntity.id) return;
         if (it.type === 'node' && it.node === refEntity.node) return;
-        if (it.type === 'group') { ctx.services.NSUtils.__resizeGroupTo(canvas, it.id, targetW, targetH, boundW, boundH); }
+        if (it.type === 'group') { ctx.services.NSUtils.__resizeGroupTo(canvas, it.id, targetW, targetH); }
         else {
-          let x = it.r.x, y = it.r.y;
-          if (Number.isFinite(boundW)) x = Math.max(0, Math.min(boundW - targetW, x));
-          if (Number.isFinite(boundH)) y = Math.max(0, Math.min(boundH - targetH, y));
-          ctx.services.NSUtils.__writeRectPx(it.node, { x, y, w: targetW, h: targetH });
+          ctx.services.NSUtils.__writeRectPx(it.node, { x: Math.max(0, it.r.x), y: Math.max(0, it.r.y), w: targetW, h: targetH });
         }
       });
       try { if (ctx.services.NS.activeTabId) ctx.layout.commitLayoutLocal(ctx.services.NS.activeTabId, grid); } catch {}
@@ -451,13 +579,60 @@
       safe('redoBtn', () => ctx.history.redoLayout());
     }
 
+    function getEditSelectionState() {
+      const canvas = __getActiveCanvasEl();
+      if (!canvas) return { entityCount: 0, nodeCount: 0, groupCount: 0 };
+      const { entities, gids } = __getSelectedEntities(canvas);
+      return {
+        entityCount: entities.length,
+        nodeCount: ctx.state.selectedNodes.size,
+        groupCount: gids.length,
+      };
+    }
+
+    function deleteSelected() {
+      if (!ctx.edit.getGlobalEditMode()) return;
+      const canvas = __getActiveCanvasEl();
+      if (!canvas) return;
+      let targets = Array.from(canvas.querySelectorAll('.grid-stack-item.grid-selected'));
+      if (!targets.length && ctx.state.selectedGroupIds && ctx.state.selectedGroupIds.size) {
+        const seen = new Set();
+        targets = [];
+        ctx.state.selectedGroupIds.forEach(gid => {
+          ctx.services.NSUtils.__getGroupMembers(canvas, String(gid || '').trim()).forEach(n => {
+            if (n && !seen.has(n)) { seen.add(n); targets.push(n); }
+          });
+        });
+      }
+      if (!targets.length) return;
+      targets.forEach(n => {
+        try { if (window.EPWidgets && typeof EPWidgets.unindexNode === 'function') EPWidgets.unindexNode(n); } catch {}
+        try {
+          const c = n && n.closest ? n.closest('.pixel-canvas') : null;
+          if (c && window.NSCanvas && typeof NSCanvas.scheduleFitCanvasToWidgets === 'function') {
+            let tid = null;
+            ctx.services.NS.grids.forEach((info, key) => { if (info && info.canvasEl === c) tid = key; });
+            if (tid) NSCanvas.scheduleFitCanvasToWidgets(tid);
+          }
+        } catch {}
+        try { if (n && n.parentElement) n.parentElement.removeChild(n); } catch {}
+      });
+      clearSelection();
+      try {
+        if (ctx.services.NS.activeTabId) ctx.layout.commitLayoutLocal(ctx.services.NS.activeTabId, ctx.layout.getActiveGrid());
+      } catch {}
+      try { if (typeof NSInteract !== 'undefined' && typeof ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate === 'function') ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate(); } catch {}
+    }
+
 
     return {
       updateAlignHint,
       clearSelection,
       removeFromSelection,
       selectNode,
+      selectNodes,
       selectGroup,
+      bindMarqueeSelection,
       bindGroupHitTestOnCanvas,
       __getActiveCanvasEl,
       bindMousePosTracking,
@@ -466,6 +641,8 @@
       ungroupSelected,
       distributeSelected,
       sameSizeSelected,
+      deleteSelected,
+      getEditSelectionState,
       bindAlignActions
     };
   }

@@ -1,4 +1,4 @@
-﻿# Face Detection 节点
+# Face Detection
 
 ## 1. 节点说明
 

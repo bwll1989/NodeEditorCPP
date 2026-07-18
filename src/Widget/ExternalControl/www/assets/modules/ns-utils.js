@@ -151,6 +151,14 @@
       node.dataset.pxW = String(w);
       node.dataset.pxH = String(h);
     } catch {}
+    try {
+      const canvas = node && node.closest ? node.closest('.pixel-canvas') : null;
+      if (canvas && window.NS && window.NSCanvas && typeof NSCanvas.scheduleFitCanvasToWidgets === 'function') {
+        let tid = null;
+        NS.grids.forEach((info, key) => { if (info && info.canvasEl === canvas) tid = key; });
+        if (tid) NSCanvas.scheduleFitCanvasToWidgets(tid);
+      }
+    } catch {}
   }
 
   // ===== 布局项收集 =====
@@ -209,7 +217,10 @@
     if (t === '时间码' && typeof EPWidgets.createEPTimecodeWidget === 'function') return EPWidgets.createEPTimecodeWidget(grid, p, o);
     if (t === '时间线' && typeof EPWidgets.createEPTimelineWidget === 'function') return EPWidgets.createEPTimelineWidget(grid, p, o);
     if (t === '数值' && typeof EPWidgets.createEPNumberWidget === 'function') return EPWidgets.createEPNumberWidget(grid, p, o);
-    if ((t === 'Frame' || t === '卡片') && typeof EPWidgets.createEPFrameWidget === 'function') return EPWidgets.createEPFrameWidget(grid, p, o);
+    if (t === '3D散点' && typeof EPWidgets.createEPScatter3DWidget === 'function') return EPWidgets.createEPScatter3DWidget(grid, p, o);
+    if (t === '3D折线' && typeof EPWidgets.createEPLine3DWidget === 'function') return EPWidgets.createEPLine3DWidget(grid, p, o);
+    if ((t === 'Frame') && typeof EPWidgets.createEPFrameWidget === 'function') return EPWidgets.createEPFrameWidget(grid, p, o);
+    if (t === '卡片' && typeof EPWidgets.createEPCardWidget === 'function') return EPWidgets.createEPCardWidget(grid, p, o);
     if (t === '超链接' && typeof EPWidgets.createEPLinkWidget === 'function') return EPWidgets.createEPLinkWidget(grid, p, o);
     return null;
   }
@@ -325,9 +336,15 @@
   function ensureWidgetTypesReady(types, callback) {
     const list = Array.isArray(types) ? types : [];
     const uniq = Array.from(new Set(list.map(t => String(t || '').trim()).filter(Boolean)));
-    const scripts = uniq.map(__getWidgetScriptByType).filter(Boolean);
+    const scripts = [];
+    uniq.forEach((t) => {
+      const script = __getWidgetScriptByType(t);
+      if (script) scripts.push(script);
+    });
+    const uniqScripts = Array.from(new Set(scripts));
     ensureEPReady(() => {
-      Promise.all(scripts.map(__loadScriptOnce)).then(() => { callback(); }).catch(() => { callback(); });
+      if (uniqScripts.length === 0) { callback(); return; }
+      Promise.all(uniqScripts.map(__loadScriptOnce)).then(() => { callback(); }).catch(() => { callback(); });
     });
   }
 
@@ -347,20 +364,18 @@
     return { x: minX, y: minY, w: Math.max(0, maxR - minX), h: Math.max(0, maxB - minY) };
   }
 
-  function __shiftGroup(canvas, gid, dx, dy, boundW, boundH) {
+  function __shiftGroup(canvas, gid, dx, dy) {
     const members = __getGroupMembers(canvas, gid);
     if (!members || members.length === 0) return;
     members.forEach(n => {
       const r = __readRectPx(n);
-      let x = r.x + (Number(dx) || 0);
-      let y = r.y + (Number(dy) || 0);
-      if (Number.isFinite(boundW)) x = Math.max(0, Math.min(boundW - r.w, x));
-      if (Number.isFinite(boundH)) y = Math.max(0, Math.min(boundH - r.h, y));
+      const x = Math.max(0, r.x + (Number(dx) || 0));
+      const y = Math.max(0, r.y + (Number(dy) || 0));
       __writeRectPx(n, { x, y, w: r.w, h: r.h });
     });
   }
 
-  function __resizeGroupTo(canvas, gid, targetW, targetH, boundW, boundH) {
+  function __resizeGroupTo(canvas, gid, targetW, targetH) {
     const members = __getGroupMembers(canvas, gid);
     if (!members || members.length === 0) return;
     const base = __getGroupRect(canvas, gid);
@@ -369,12 +384,10 @@
     const sy = Math.max(0.05, Number(targetH) / base.h);
     members.forEach(n => {
       const r = __readRectPx(n);
-      let x = base.x + (r.x - base.x) * sx;
-      let y = base.y + (r.y - base.y) * sy;
-      let w = r.w * sx;
-      let h = r.h * sy;
-      if (Number.isFinite(boundW)) x = Math.max(0, Math.min(boundW - w, x));
-      if (Number.isFinite(boundH)) y = Math.max(0, Math.min(boundH - h, y));
+      const x = Math.max(0, base.x + (r.x - base.x) * sx);
+      const y = Math.max(0, base.y + (r.y - base.y) * sy);
+      const w = r.w * sx;
+      const h = r.h * sy;
       __writeRectPx(n, { x, y, w, h });
     });
   }

@@ -1,4 +1,4 @@
-﻿# Video Decoder 节点
+# Video Decoder
 
 ## 1. 节点说明
 

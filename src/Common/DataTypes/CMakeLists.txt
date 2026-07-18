@@ -36,10 +36,11 @@ set(DataTypes_sources
         ImageData.h
         ImageData.cpp
         NodeDataList.hpp
-        RectData.h
-        RectsData.h
+
         VariableData.h
         VariableData.cpp
+        VecData.h
+        VecData.cpp
         DataTypesExport.h
 )
 

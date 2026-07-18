@@ -1,4 +1,4 @@
-﻿# ArtnetOutNode
+# Artnet Out
 
 ## 1. 节点说明
 

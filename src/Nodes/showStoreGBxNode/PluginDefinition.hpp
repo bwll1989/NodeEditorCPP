@@ -6,13 +6,13 @@
 
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
-#ifdef showStoreGBxNode_EXPORTS
+#ifdef ShowStoreGBxNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "showStoreGBx"
+#define PLUGIN_NAME "ShowStoreGBx"
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif

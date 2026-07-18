@@ -1,4 +1,4 @@
-﻿# OSC Output 节点
+# OSC Output
 
 ## 1. 节点说明
 

@@ -1,4 +1,4 @@
-# MediaPipe Hand Pose Estimation 节点
+# MediaPipe Hand Pose
 
 ## 1. 节点说明
 

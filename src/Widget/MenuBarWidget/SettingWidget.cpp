@@ -85,7 +85,7 @@ SettingWidget::SettingWidget(QWidget* parent)
     m_maxRecentFilesSpin->setRange(1, 50);
     formGeneral->addRow("最近文件数量:", m_maxRecentFilesSpin);
 
-    m_darkThemeCheck = new QCheckBox("启用暗色主题", this);
+    m_darkThemeCheck = new QCheckBox("启用暗色主题（重启生效）", this);
     formGeneral->addRow("主题:", m_darkThemeCheck);
 
     auto* lblAutosave = new QLabel(QStringLiteral("自动保存"));

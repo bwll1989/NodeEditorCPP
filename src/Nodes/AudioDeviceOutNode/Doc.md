@@ -1,4 +1,4 @@
-﻿# Audio Device Out 节点
+# Audio Device Out
 
 ## 1. 节点说明
 

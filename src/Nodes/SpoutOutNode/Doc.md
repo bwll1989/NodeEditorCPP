@@ -1,4 +1,4 @@
-﻿# Spout Out 节点
+# Spout Out
 
 ## 1. 节点说明
 

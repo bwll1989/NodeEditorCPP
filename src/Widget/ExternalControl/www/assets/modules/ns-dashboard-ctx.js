@@ -54,6 +54,8 @@
       selectNode: (...args) => ctx.selection.selectNode(...args),
       clearSelection: () => ctx.selection.clearSelection(),
       selectGroup: (...args) => ctx.selection.selectGroup(...args),
+      deleteSelected: () => ctx.selection.deleteSelected(),
+      alignSelected: (...args) => ctx.selection.alignSelected(...args),
       createTab: (...args) => ctx.tabs.createTab(...args),
       switchTab: (...args) => ctx.tabs.switchTab(...args),
       beginTabRender: (...args) => ctx.history.beginTabRender(...args),

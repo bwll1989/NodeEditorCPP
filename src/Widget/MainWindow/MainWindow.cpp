@@ -50,27 +50,6 @@ static bool startHttpServerWithRetry(NodeStudio::NodeHttpServer* server, int por
     return false;
 }
 
-/**
- * @brief 全局应用样式表并强制重新抛光所有已存在控件
- * @param styleSheet 目标 QSS 内容
- * 函数级注释：用于主题切换后立即刷新所有已创建控件的显示效果。
- */
-static void applyGlobalStyleSheet(const QString& styleSheet)
-{
-    if (auto* app = qobject_cast<QApplication*>(QApplication::instance())) {
-        app->setStyleSheet(styleSheet);
-        const auto widgets = QApplication::allWidgets();
-        for (QWidget* w : widgets) {
-            if (!w) continue;
-            if (w->style()) {
-                w->style()->unpolish(w);
-                w->style()->polish(w);
-            }
-            w->update();
-        }
-    }
-}
-
 /** @brief 获取应用图标（优先 QApplication，回退到 NodeStudio 资源） */
 static QIcon applicationIcon()
 {
@@ -176,8 +155,8 @@ void MainWindow::init()
     logDockViewer->setTitleBarActions({OptionsMenu->menuAction()});
     emit initStatus("Initialization console widget");
    
-    //读取主题设置
-    switchTheme(ConfigManager::instance().isDefaultDarkTheme());
+    // 按配置应用主题（重启后生效）
+    applyTheme(ConfigManager::instance().isDefaultDarkTheme());
     // 节点编辑控件
     auto *NodeDockWidget = m_DockManager->createDockWidget("节点编辑");
     NodeDockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
@@ -188,10 +167,10 @@ void MainWindow::init()
     pluginsManagerDlg=new PluginsManagerWidget();
     emit initStatus("initialization pluginsManager success");
     // 节点库控件
-    nodeDockLibraryWidget = m_DockManager->createDockWidget("节点库");
-    nodeDockLibraryWidget->setIcon(QIcon(":/icons/icons/library.png"));
-    m_DockManager->addDockWidget(ads::BottomDockWidgetArea, nodeDockLibraryWidget);
-    emit initStatus("Initialization nodeLibrary success");
+    // nodeDockLibraryWidget = m_DockManager->createDockWidget("节点库");
+    // nodeDockLibraryWidget->setIcon(QIcon(":/icons/icons/library.png"));
+    // m_DockManager->addDockWidget(ads::BottomDockWidgetArea, nodeDockLibraryWidget);
+    // emit initStatus("Initialization nodeLibrary success");
     // 时间轴控件
     // 创建时间线模型
     timelineModel = new TimeLineModel();
@@ -216,22 +195,6 @@ void MainWindow::init()
     // QMenu* Options = makeOptionsMenu(scheduledTaskWidget, scheduledTaskWidget->getActions());
     calendarDockWidget->setTitleBarActions({makeOptionsMenu(scheduledTaskWidget, scheduledTaskWidget->getActions())->menuAction()});
     emit initStatus("Initialization Scheduled Task success");
-    
-    // 添加舞台控件
-    auto *stageDockWidget = m_DockManager->createDockWidget("舞台");
-    stageDockWidget->setObjectName("stage");
-    stageDockWidget->setIcon(QIcon(":/icons/icons/stage.png"));
-    stageWidget = new StageWidget();
-    stageDockWidget->setWidget(stageWidget);
-    m_DockManager->addDockWidget(ads::RightDockWidgetArea, stageDockWidget);
-    // 从timelinemodel中获取stage
-    stageWidget->setStage(timeline->model->getStage());
-     // 当 stage初始化完成或重新设置时，更新
-     // connect(timeline->model, &TimelineModel::S_stageInited, [this]() {
-     //     stageWidget->setStage(timeline->model->getStage());
-     // });
-    emit initStatus("Initialization Stage Widget success");
-
     // 节点列表显示控件
     auto *nodeListDockWidget = m_DockManager->createDockWidget("节点列表");
     nodeListDockWidget->setObjectName("nodeList");
@@ -325,10 +288,6 @@ void MainWindow::init()
     // 刷新菜单栏视图选项
     connect(menuBar->views, &QMenu::aboutToShow, this, [this]() {
         updateViewMenu(menuBar->views);
-    });
-    // 切换主题
-    connect(menuBar->switchTheme, &QAction::triggered, this, [this]() {
-        switchTheme(!isDarkTheme);
     });
     //清空所有数据流
     connect(menuBar->Clear_dataflows, &QAction::triggered, dataflowViewsManger, &DataflowViewsManger::clearAllScenes);
@@ -443,11 +402,11 @@ void MainWindow::openRecentFile(const QString& path)
 }
 
 //显示属性
-void MainWindow::initNodelist() {
-    nodeLibrary=new NodeLibraryWidget();
-    this->nodeDockLibraryWidget->setWidget(nodeLibrary);
-    emit initStatus("Initialization nodes library success");
-}
+// void MainWindow::initNodelist() {
+//     nodeLibrary=new NodeLibraryWidget();
+//     this->nodeDockLibraryWidget->setWidget(nodeLibrary);
+//     emit initStatus("Initialization nodes library success");
+// }
 
 // 锁定切换
 void MainWindow::locked_switch() {
@@ -1082,15 +1041,14 @@ bool MainWindow::event(QEvent *event)
     return QMainWindow::event(event);
 }
 
-void MainWindow::switchTheme(bool isDark) {
-    isDarkTheme = isDark;
-    const QString qss = isDarkTheme ? AppConstants::DARK_STYLESHEET
-                                    : AppConstants::LIGHT_STYLESHEET;
+void MainWindow::applyTheme(bool isDark)
+{
+    const QString qss = isDark ? AppConstants::DARK_STYLESHEET
+                               : AppConstants::LIGHT_STYLESHEET;
     QFile qssFile(qss);
     if (!qssFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         qWarning() << "Failed to load QSS file:" << qssFile.errorString();
-        isDarkTheme = !isDarkTheme;
-        return ;
+        return;
     }
 
     QTextStream stream(&qssFile);
@@ -1098,31 +1056,15 @@ void MainWindow::switchTheme(bool isDark) {
     qssFile.close();
 
     if (styleSheet.isEmpty()) {
-        isDarkTheme = !isDarkTheme;
         qWarning() << "QSS file is empty or could not be read properly";
-        return ;
+        return;
     }
 
-    if (!styleSheet.isEmpty()) {
-        applyGlobalStyleSheet(styleSheet);
-         if (m_DockManager) m_DockManager->setStyleSheet(styleSheet);
+    if (auto* app = qobject_cast<QApplication*>(QApplication::instance())) {
+        app->setStyleSheet(styleSheet);
     }
-    // 初始化节点编辑器样式表
+    if (m_DockManager) {
+        m_DockManager->setStyleSheet(styleSheet);
+    }
     setNodeEditorDarkStyle(isDark);
-
-    // 强制刷新所有场景
-    if (dataflowViewsManger) {
-        dataflowViewsManger->refreshAllScenes();
-    }
-
-    if (menuBar && menuBar->switchTheme) {
-        menuBar->switchTheme->setText(isDarkTheme ? tr("切换到浅色主题")
-                                                  : tr("切换到深色主题"));
-        menuBar->switchTheme->setIcon(isDarkTheme ? QIcon(":/icons/icons/landscape.png")
-                                                  : QIcon(":/icons/icons/night_landscape.png"));
-    }
-    syncFramelessWindowState();
-    QJsonObject config;
-    config["DefaultDarkTheme"] = isDarkTheme;
-    ConfigManager::instance().updateConfig(config);
 }

@@ -1,4 +1,4 @@
-﻿# Audio Analysis 节点
+# Audio Analysis
 
 ## 1. 节点说明
 

@@ -1,4 +1,4 @@
-﻿# Noise Generator 节点
+# Noise Generator
 
 ## 1. 节点说明
 

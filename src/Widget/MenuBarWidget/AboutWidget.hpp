@@ -15,7 +15,43 @@
 #include <QTextBrowser>
 #include <QTextStream>
 #include <QTextDocument>
+#include <QTextCursor>
+#include <QTextBlock>
+#include <QTextFragment>
+#include <QColor>
 #include "../../Common/AppConfig/ConfigManager.h"
+
+namespace {
+
+constexpr char kAboutLinkColor[] = "#81a4b2";
+
+/** setMarkdown 会给锚点写入内联蓝色，需事后覆盖前景色。 */
+void recolorDocumentAnchors(QTextDocument *doc, const QColor &color)
+{
+    if (!doc) {
+        return;
+    }
+    for (QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
+        for (auto it = block.begin(); !it.atEnd(); ++it) {
+            const QTextFragment frag = it.fragment();
+            if (!frag.isValid()) {
+                continue;
+            }
+            QTextCharFormat fmt = frag.charFormat();
+            if (!fmt.isAnchor()) {
+                continue;
+            }
+            fmt.setForeground(color);
+            QTextCursor cursor(doc);
+            cursor.setPosition(frag.position());
+            cursor.setPosition(frag.position() + frag.length(), QTextCursor::KeepAnchor);
+            cursor.setCharFormat(fmt);
+        }
+    }
+}
+
+} // namespace
+
 class AboutWidget : public QDialog
 {
 public:
@@ -67,14 +103,11 @@ private:
             const QString baseDir = QFileInfo(filePath).absolutePath();
             textBrowser->document()->setBaseUrl(QUrl::fromLocalFile(baseDir + "/"));
 
-            const bool isMarkdown = filePath.endsWith(".md", Qt::CaseInsensitive);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
-            if (isMarkdown) {
-                textBrowser->document()->setMarkdown(fileContent);
-            } else {
-                textBrowser->document()->setMarkdown(fileContent);
-            }
+            textBrowser->document()->setMarkdown(fileContent);
+            recolorDocumentAnchors(textBrowser->document(), QColor(QLatin1String(kAboutLinkColor)));
 #else
+            Q_UNUSED(filePath);
             textBrowser->setPlainText(fileContent);
 #endif
         } else {

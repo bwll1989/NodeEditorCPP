@@ -16,8 +16,10 @@
       try { ctx.services.NSUtils.mergeLeftSidebarIntoRight(); } catch {}
 
       try { ctx.selection.bindMousePosTracking(); } catch (err) { console.error('bindMousePosTracking failed', err); }
+      try { ctx.selection.bindMarqueeSelection(); } catch (err) { console.error('bindMarqueeSelection failed', err); }
       try { ctx.selection.bindGroupHitTestOnCanvas(); } catch (err) { console.error('bindGroupHitTestOnCanvas failed', err); }
       try { ctx.selection.bindAlignActions(); } catch (err) { console.error('bindAlignActions failed', err); }
+      try { window.NSDashboardContextMenu.init(ctx); } catch (err) { console.error('contextMenu init failed', err); }
 
       document.querySelectorAll('.sidebar-section-header').forEach(header => {
         header.onclick = () => { header.parentElement.classList.toggle('collapsed'); };

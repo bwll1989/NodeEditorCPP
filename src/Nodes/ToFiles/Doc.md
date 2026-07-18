@@ -1,82 +1,218 @@
-# To Files 节点
+# To Image File
 
 ## 1. 节点说明
 
-将流程中的图像或音频数据保存为媒体库文件，编码基于 FFmpeg。
+将输入图像持续保存为图片文件。录制开启后，会按当前帧**覆盖写入**同一文件（扩展名决定格式，如 `.png` / `.jpg`）。
 
-包含四个节点：
-
-- **To Image File**：触发时将当前图像保存为 PNG/JPG/BMP。
-- **To Video File**：录制时将连续图像帧编码为 MP4。
-- **To Audio File**：录制时将音频流保存为 WAV/MP3/AAC。
-- **To Text File**：录制时将 VariableData 保存为 JSON 文本文件。
-
-输出目录：`Documents/Flow/Medias/`（媒体库）。
+默认文件名：`capture.png`
 
 ## 2. 端口说明
 
-### To Image File
+### 输入
 
-| 端口 | 类型 | 说明 |
-|------|------|------|
+| 端口 | 数据类型 | 说明 |
+|------|----------|------|
 | IMAGE | ImageData | 待保存的图像 |
-| START | VariableData | 为 `true` 时开始录制（持续覆盖保存当前帧） |
+| START | VariableData | 为 `true` 时开始录制 |
 | STOP | VariableData | 为 `true` 时停止录制 |
 
-### To Video File
+### 输出
 
-| 端口 | 类型 | 说明 |
-|------|------|------|
+| 端口 | 数据类型 | 说明 |
+|------|----------|------|
+| RECORDING | VariableData | 当前是否正在录制（布尔） |
+
+## 3. 界面说明
+
+| 控件 | 说明 |
+|------|------|
+| 状态文字 | **录制中**（红）或 **未录制**（灰） |
+| 文件名 | 输出文件名，如 `shot.png` |
+| **...** | 选择输出文件夹；悬停可查看当前目录 |
+| 开始 / 停止 | 手动切换录制（与 START / STOP、`/recording` 联动） |
+
+`outputDir` 留空时使用默认媒体库目录 `Documents/Flow/Medias/`。
+
+## 4. 外部控制
+
+| 地址 | 说明 |
+|------|------|
+| `/file` | 输出文件名 |
+| `/outputDir` | 输出文件夹 |
+| `/recording` | 读写录制状态 |
+
+## 5. 使用说明
+
+1. 设置文件名（含扩展名）。
+2. 图像源 → IMAGE。
+3. 通过 START、界面按钮或 `/recording` 开始；STOP 或再次切换结束。
+4. 录制期间持续用最新帧覆盖同一文件。
+
+## 6. 示例
+
+Camera → **To Image File**（`capture.png`）→ START 触发一次快照录制 → STOP。
+
+---
+
+# To Video File
+
+## 1. 节点说明
+
+将连续图像帧编码为视频文件。START 开始录制，STOP 结束并写入文件。按 wall-clock 与设定帧率采样；上游帧率低于录制 fps 时会重复写入同一帧。
+
+默认文件名：`output.mp4`  
+默认帧率：`25`
+
+## 2. 端口说明
+
+### 输入
+
+| 端口 | 数据类型 | 说明 |
+|------|----------|------|
 | IMAGE | ImageData | 连续视频帧 |
 | START | VariableData | 为 `true` 时开始录制 |
-| STOP | VariableData | 为 `true` 时停止录制并写入文件 |
+| STOP | VariableData | 为 `true` 时停止录制并收尾写入 |
 
-### To Audio File
+### 输出
 
-| 端口 | 类型 | 说明 |
-|------|------|------|
-| AUDIO 0 … AUDIO N | AudioData | 可编辑的音频输入端口；端口索引对应输出文件的声道索引 |
-| START | VariableData | 为 `true` 时开始录制 |
-| STOP | VariableData | 为 `true` 时停止录制并写入文件 |
+| 端口 | 数据类型 | 说明 |
+|------|----------|------|
+| RECORDING | VariableData | 当前是否正在录制（布尔） |
 
-端口可编辑：在节点属性面板中通过 **+ / -** 增减 `AUDIO` 端口。`START` 与 `STOP` 始终位于最后两个输入端口。录制开始时，输出文件的声道数等于当前 `AUDIO` 端口数量；每个端口输入的音频写入对应声道（多声道输入仅取第一声道）。
+## 3. 界面说明
 
-### To Text File
+| 控件 | 说明 |
+|------|------|
+| 状态文字 | **录制中** / **未录制** |
+| 文件名 | 如 `clip.mp4` |
+| **...** | 选择输出文件夹 |
+| fps | 输出帧率，默认 `25` |
+| 开始 / 停止 | 手动切换录制 |
 
-| 端口 | 类型 | 说明 |
-|------|------|------|
+## 4. 外部控制
+
+| 地址 | 说明 |
+|------|------|
+| `/file` | 输出文件名 |
+| `/outputDir` | 输出文件夹 |
+| `/fps` | 输出帧率 |
+| `/recording` | 读写录制状态 |
+
+## 5. 使用说明
+
+1. 设置文件名与 fps。
+2. 图像源 → IMAGE。
+3. START 开始录制，STOP 结束并生成文件。
+4. 在 `outputDir` 或默认媒体库中查看成片。
+
+## 6. 示例
+
+NDI In → **To Video File**（`output.mp4`，fps=25）→ 录制约 10 秒后 STOP → 在媒体库查看。
+
+---
+
+# To Audio File
+
+## 1. 节点说明
+
+将一个或多个音频输入录制为音频文件。每个 `AUDIO` 端口对应输出文件的一个声道；多声道输入仅取第一声道。
+
+默认文件名：`output.wav`
+
+## 2. 端口说明
+
+### 输入
+
+| 端口 | 数据类型 | 说明 |
+|------|----------|------|
+| AUDIO 0 … AUDIO N | AudioData | 可编辑的音频输入；端口索引 = 输出声道索引 |
+| START | VariableData | 为 `true` 时开始录制（始终为倒数第二个输入口） |
+| STOP | VariableData | 为 `true` 时停止并写入文件（始终为最后一个输入口） |
+
+输入端口**可编辑**：在节点属性中用 **+ / -** 增减 `AUDIO` 端口；`START` / `STOP` 始终固定在末尾。录制开始时，声道数等于当前 `AUDIO` 端口数量。
+
+### 输出
+
+| 端口 | 数据类型 | 说明 |
+|------|----------|------|
+| RECORDING | VariableData | 当前是否正在录制（布尔） |
+
+## 3. 界面说明
+
+| 控件 | 说明 |
+|------|------|
+| 状态文字 | **录制中** / **未录制** |
+| 文件名 | 如 `take.wav` |
+| **...** | 选择输出文件夹 |
+| 开始 / 停止 | 手动切换录制 |
+
+## 4. 外部控制
+
+| 地址 | 说明 |
+|------|------|
+| `/file` | 输出文件名 |
+| `/outputDir` | 输出文件夹 |
+| `/recording` | 读写录制状态 |
+
+## 5. 使用说明
+
+1. 按需要增减 `AUDIO` 端口（端口 0 → 声道 0，端口 1 → 声道 1，…）。
+2. 音频源接到对应端口。
+3. START 开始，STOP 结束并写入文件。
+
+## 6. 示例
+
+Audio Decoder → **To Audio File**（双端口立体声）→ 导出 `track.wav`。
+
+---
+
+# To Text File
+
+## 1. 节点说明
+
+将 VariableData 以 **JSON（UTF-8）** 持续覆盖写入文本文件。录制期间，每次 `DATA` 更新都会保存当前值：单值写成 `{"default": ...}`，多键写成完整 JSON 对象（`toJsonString()`）。
+
+默认文件名：`output.json`
+
+## 2. 端口说明
+
+### 输入
+
+| 端口 | 数据类型 | 说明 |
+|------|----------|------|
 | DATA | VariableData | 待保存的变量数据 |
 | START | VariableData | 为 `true` 时开始录制 |
 | STOP | VariableData | 为 `true` 时停止录制 |
 
-录制期间，每次 `DATA` 更新都会将当前 VariableData 以 JSON 格式覆盖写入同一文件（使用 `toJsonString()`，UTF-8 编码）。单值写入 `{"default": ...}`，多键值写入完整 JSON 对象。
+### 输出
 
-## 3. 属性说明
+| 端口 | 数据类型 | 说明 |
+|------|----------|------|
+| RECORDING | VariableData | 当前是否正在录制（布尔） |
 
-| 属性 / 界面 | 说明 |
+## 3. 界面说明
+
+| 控件 | 说明 |
 |------|------|
-| file | 输出文件名，如 `shot.png`、`clip.mp4`、`take.wav` |
-| outputDir | 输出文件夹；留空则使用默认媒体库目录 `Documents/Flow/Medias/` |
-| fps | 仅 To Video File：输出帧率，默认 25 |
-| 状态标签 | 显示 **录制中**（红色）或 **未录制**（灰色） |
-| 开始 / 停止按钮 | 界面手动控制录制 |
+| 状态文字 | **录制中** / **未录制** |
+| 文件名 | 如 `state.json` |
+| **...** | 选择输出文件夹 |
+| 开始 / 停止 | 手动切换录制 |
 
-界面中文件名输入框右侧 **...** 按钮可打开文件夹选择对话框。鼠标悬停可查看当前输出目录。
+## 4. 外部控制
 
-外部控制地址：`/file`、`/outputDir`、`/fps`、`/start`、`/stop`、`/recording`（状态反馈）。
+| 地址 | 说明 |
+|------|------|
+| `/file` | 输出文件名 |
+| `/outputDir` | 输出文件夹 |
+| `/recording` | 读写录制状态 |
 
-## 4. 使用说明
+## 5. 使用说明
 
-1. 设置 `file` 属性（含扩展名，扩展名决定编码格式）。
-2. **图像**：图像源 → IMAGE，START 开始持续保存当前帧到同一文件，STOP 结束。
-3. **视频**：图像源 → IMAGE，START 开始录制，STOP 结束并写入文件。
-4. **音频**：一个或多个音频源 → 对应 `AUDIO` 端口（端口 0 → 左声道，端口 1 → 右声道，以此类推），START 开始录制，STOP 结束并写入文件。
-5. **文本**：变量源 → DATA，START 开始录制并持续覆盖保存当前数据，STOP 结束。
+1. 设置输出文件名（建议 `.json`）。
+2. 变量源 → DATA。
+3. START 后每次 DATA 更新都会覆盖写入；STOP 结束。
 
-## 5. 示例
+## 6. 示例
 
-NDI In → To Video File（record=true）→ 录制 10 秒后 record=false → 在媒体库查看 `output.mp4`。
-
-Audio Decoder → To Audio File → 导出 `track.wav`。
-
-Variable Out → To Text File → 导出 `state.json`。
+Variable Out → **To Text File** → 导出 `state.json`。

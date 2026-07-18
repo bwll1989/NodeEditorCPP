@@ -233,7 +233,7 @@ namespace Nodes
          */
         void sendHandshakeToAllClients() {
             if (ndvClients.isEmpty()) {
-                qDebug() << "没有已连接的客户端，跳过握手发送";
+                // qDebug() << "没有已连接的客户端，跳过握手发送";
                 return;
             }
 

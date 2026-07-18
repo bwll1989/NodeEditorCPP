@@ -1,4 +1,4 @@
-﻿# LTC Decoder 节点
+# LTC Decoder
 
 ## 1. 节点说明
 

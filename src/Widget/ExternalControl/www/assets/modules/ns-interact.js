@@ -239,18 +239,12 @@
       const step = e && e.shiftKey ? 1 : 5;
       const snap = !(e && e.altKey);
 
-      const info = NS.activeTabId ? NS.grids.get(NS.activeTabId) : null;
-      const boundW = info && info.design ? Number(info.design.width) : NaN;
-      const boundH = info && info.design ? Number(info.design.height) : NaN;
-
       const dx = snap ? Math.round(dx0 / step) * step : dx0;
       const dy = snap ? Math.round(dy0 / step) * step : dy0;
 
       startRects.forEach((r, n) => {
-        let x = r.x + dx;
-        let y = r.y + dy;
-        if (Number.isFinite(boundW)) x = Math.max(0, Math.min(boundW - r.w, x));
-        if (Number.isFinite(boundH)) y = Math.max(0, Math.min(boundH - r.h, y));
+        const x = Math.max(0, r.x + dx);
+        const y = Math.max(0, r.y + dy);
         NSUtils.__writeRectPx(n, { x, y, w: r.w, h: r.h });
       });
       try { __scheduleGroupIndicatorsUpdate(); } catch {}
@@ -312,10 +306,6 @@
       const minW = 40;
       const minH = 30;
 
-      const info = NS.activeTabId ? NS.grids.get(NS.activeTabId) : null;
-      const boundW = info && info.design ? Number(info.design.width) : NaN;
-      const boundH = info && info.design ? Number(info.design.height) : NaN;
-
       const dx = snap ? Math.round(dx0 / step) * step : dx0;
       const dy = snap ? Math.round(dy0 / step) * step : dy0;
 
@@ -328,8 +318,6 @@
         h = r0.h + dy;
         w = Math.max(minW, w);
         h = Math.max(minH, h);
-        if (Number.isFinite(boundW)) w = Math.min(w, boundW - x);
-        if (Number.isFinite(boundH)) h = Math.min(h, boundH - y);
       } else if (dir === 'sw') {
         x = r0.x + dx;
         h = r0.h + dy;
@@ -337,7 +325,6 @@
         h = Math.max(minH, h);
         w = right0 - x;
         if (w < minW) { x = right0 - minW; w = minW; }
-        if (Number.isFinite(boundH)) h = Math.min(h, boundH - y);
       } else if (dir === 'ne') {
         y = r0.y + dy;
         w = r0.w + dx;
@@ -345,7 +332,6 @@
         w = Math.max(minW, w);
         h = bottom0 - y;
         if (h < minH) { y = bottom0 - minH; h = minH; }
-        if (Number.isFinite(boundW)) w = Math.min(w, boundW - x);
       } else if (dir === 'nw') {
         x = r0.x + dx;
         y = r0.y + dy;
@@ -508,6 +494,7 @@
     __ensureResizeHandles(overlay);
 
     overlay.addEventListener('pointerdown', (e) => {
+      if (!e || e.button !== 0) return;
       try { if (e && e.cancelable) e.preventDefault(); } catch {}
       try { e.stopPropagation(); } catch {}
 
@@ -516,6 +503,10 @@
       if (!node.closest || !node.closest('.pixel-canvas')) return;
 
       const toggle = !!(e && (e.ctrlKey || e.metaKey || e.shiftKey));
+      const NSDashboard = window.NSDashboard;
+      const sn = NSDashboard && NSDashboard._getSelectedNodes ? NSDashboard._getSelectedNodes() : null;
+      const multiSelected = !!(sn && sn.size > 1);
+      const nodeIsSelected = !!(node && node.classList && node.classList.contains('grid-selected'));
       const chain = NSUtils.__getNodeGroupChain(node);
       const leafGid = (chain && chain.length) ? String(chain[chain.length - 1] || '').trim() : '';
       let gid = leafGid;
@@ -530,16 +521,15 @@
       } catch {}
 
       if (gid) {
-        const nodeIsSelected = !!(node && node.classList && node.classList.contains('grid-selected'));
         const drill = __groupDrillId();
         const inDrill = !!(drill && drill === gid);
-        const NSDashboard = window.NSDashboard;
-        const sn = NSDashboard && NSDashboard._getSelectedNodes ? NSDashboard._getSelectedNodes() : null;
         const hasNodeSelection = !!(sn && sn.size > 0);
 
         // 处于组内钻取/控件选择模式时：点击组内控件直接走控件选择（支持 Ctrl/Shift 多选）
         if (nodeIsSelected || inDrill || hasNodeSelection) {
-          try { __dashboard()?.selectNode(node, { toggle }); } catch {}
+          if (!(nodeIsSelected && multiSelected && !toggle)) {
+            try { __dashboard()?.selectNode(node, { toggle }); } catch {}
+          }
           __startDragOrEnterInput(overlay, node, e, { toggle });
           return;
         }
@@ -617,7 +607,9 @@
         return;
       }
 
-      try { __dashboard()?.selectNode(node, { toggle }); } catch {}
+      if (!(nodeIsSelected && multiSelected && !toggle)) {
+        try { __dashboard()?.selectNode(node, { toggle }); } catch {}
+      }
       __startDragOrEnterInput(overlay, node, e, { toggle });
     });
   }
@@ -709,16 +701,10 @@
         const dx = (e.key === 'ArrowLeft') ? -step : (e.key === 'ArrowRight') ? step : 0;
         const dy = (e.key === 'ArrowUp') ? -step : (e.key === 'ArrowDown') ? step : 0;
 
-        const info = NS.activeTabId ? NS.grids.get(NS.activeTabId) : null;
-        const boundW = info && info.design ? Number(info.design.width) : NaN;
-        const boundH = info && info.design ? Number(info.design.height) : NaN;
-
         targets.forEach(n => {
           const r = NSUtils.__readRectPx(n);
-          let x = r.x + dx;
-          let y = r.y + dy;
-          if (Number.isFinite(boundW)) x = Math.max(0, Math.min(boundW - r.w, x));
-          if (Number.isFinite(boundH)) y = Math.max(0, Math.min(boundH - r.h, y));
+          const x = Math.max(0, r.x + dx);
+          const y = Math.max(0, r.y + dy);
           NSUtils.__writeRectPx(n, { x, y, w: r.w, h: r.h });
         });
 
@@ -740,16 +726,9 @@
         const targets = (selectedList && selectedList.length) ? selectedList : groupList;
         if (targets && targets.length) {
           e.preventDefault();
-          targets.forEach(n => { try { if (n && n.parentElement) n.parentElement.removeChild(n); } catch {} });
-          try { __dashboard()?.clearSelection(); } catch {}
-          const NSDashboard = window.NSDashboard;
-          if (NSDashboard && typeof NSDashboard.updatePropPanel === 'function') NSDashboard.updatePropPanel(null);
           try {
-            if (NS.activeTabId) {
-              const info3 = NS.grids.get(NS.activeTabId);
-              const dash = __dashboard();
-              if (info3 && info3.grid && dash && typeof dash.commitLayoutLocal === 'function') dash.commitLayoutLocal(NS.activeTabId, info3.grid);
-            }
+            const dash = __dashboard();
+            if (dash && typeof dash.deleteSelected === 'function') dash.deleteSelected();
           } catch {}
           try { __scheduleGroupIndicatorsUpdate(); } catch {}
         }
@@ -780,6 +759,7 @@
              NSUtils.ensureWidgetTypesReady((items || []).map(s => s && s.type), () => {
                if (seq && __dashSeq && !__dashSeq.isTabRenderCurrent(tid, seq)) return;
                items.forEach(spec => { NSUtils.createWidgetFromSpec(grid, spec); });
+               try { NSCanvas.fitCanvasToWidgets(tid); } catch {}
                try { NSWsSync.queryAllStatuses(); } catch {}
                __markGridLoaded(tid, grid);
                __seedHistoryAfterLoad(tid, grid);
@@ -813,6 +793,7 @@
                   NSUtils.ensureWidgetTypesReady((items || []).map(s => s && s.type), () => {
                     if (seq && __dashSeq && !__dashSeq.isTabRenderCurrent(NS.activeTabId, seq)) return;
                     items.forEach(spec => { NSUtils.createWidgetFromSpec(grid, spec); });
+                    try { NSCanvas.fitCanvasToWidgets(NS.activeTabId); } catch {}
                     try { NSWsSync.queryAllStatuses(); } catch {}
                     __markGridLoaded(NS.activeTabId, grid);
                     __seedHistoryAfterLoad(NS.activeTabId, grid);
@@ -940,6 +921,7 @@
                 NSUtils.ensureWidgetTypesReady((items || []).map(s => s && s.type), () => {
                   if (seq && __dashSeq && !__dashSeq.isTabRenderCurrent(tid, seq)) return;
                   items.forEach(spec => { NSUtils.createWidgetFromSpec(info.grid, spec); });
+                  try { NSCanvas.fitCanvasToWidgets(tid); } catch {}
                   try { NSWsSync.queryAllStatuses(); } catch {}
                   __markGridLoaded(tid, info.grid);
                   __seedHistoryAfterLoad(tid, info.grid);
@@ -989,6 +971,7 @@
             NSUtils.ensureWidgetTypesReady((items || []).map(s => s && s.type), () => {
               if (seq && __dashSeq && !__dashSeq.isTabRenderCurrent(tid, seq)) return;
               items.forEach(spec => { NSUtils.createWidgetFromSpec(info.grid, spec); });
+              try { NSCanvas.fitCanvasToWidgets(tid); } catch {}
               const info2 = NS.grids.get(tid);
               if (info2) { info2.loaded = true; info2.rendering = false; }
               __seedHistoryAfterLoad(tid, info.grid);

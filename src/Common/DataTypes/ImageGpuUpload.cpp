@@ -11,6 +11,7 @@ namespace NodeDataTypes
 {
 ImageGpuUpload& ImageGpuUpload::instance()
 {
+    qDebug() << "ImageGpuUpload::instance()";
     static ImageGpuUpload uploadService;
     return uploadService;
 }

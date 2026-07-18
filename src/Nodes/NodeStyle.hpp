@@ -42,6 +42,7 @@ static void setStyle()
     "ShadowEnabled": false,
     "FontColor" : [53, 53, 53],
     "FontColorFaded" : "gray",
+    "TitleColor": [180, 200, 80],
     "ConnectionPointColor": [169, 169, 169],
     "FilledConnectionPointColor": "cyan",
     "ErrorColor": "red",

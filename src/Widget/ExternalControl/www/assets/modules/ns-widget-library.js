@@ -21,6 +21,8 @@
     addTimecodeWidget: '<rect x="4" y="6" width="16" height="12" rx="2"></rect><path d="M8 10h2"></path><path d="M14 10h2"></path>',
     addTimelineWidget: '<path d="M4 12h16"></path><circle cx="6" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="18" cy="12" r="2"></circle>',
     addNumberWidget: '<path d="M4 12h16"></path><path d="M10 6v12"></path>',
+    addScatter3DWidget: '<circle cx="8" cy="14" r="1.5"></circle><circle cx="12" cy="9" r="1.5"></circle><circle cx="16" cy="13" r="1.5"></circle><path d="M5 18h14"></path><path d="M5 18V7"></path>',
+    addLine3DWidget: '<path d="M5 16 L9 10 L13 13 L18 7"></path><circle cx="5" cy="16" r="1.2"></circle><circle cx="9" cy="10" r="1.2"></circle><circle cx="13" cy="13" r="1.2"></circle><circle cx="18" cy="7" r="1.2"></circle>',
     addFrameWidget: '<rect x="5" y="6" width="14" height="12" rx="2"></rect>',
     addLinkWidget: '<path d="M10 13a5 5 0 0 1 0-7l2-2a5 5 0 0 1 7 7l-2 2"></path><path d="M14 11a5 5 0 0 1 0 7l-2 2a5 5 0 0 1-7-7l2-2"></path>'
   };
@@ -85,16 +87,10 @@
         if (typeof px === 'number' && typeof py === 'number') {
           try {
             const r0 = window.NSUtils.__readRectPx(node);
-            const NS = window.NS;
-            const info = NS && NS.activeTabId ? NS.grids.get(NS.activeTabId) : null;
-            const boundW = info && info.design ? Number(info.design.width) : NaN;
-            const boundH = info && info.design ? Number(info.design.height) : NaN;
             const w = Math.max(40, Math.round(Number(r0.w) || 40));
             const hgt = Math.max(30, Math.round(Number(r0.h) || 30));
-            let x = Math.round(px - w / 2);
-            let y = Math.round(py - hgt / 2);
-            if (Number.isFinite(boundW)) x = Math.max(0, Math.min(boundW - w, x));
-            if (Number.isFinite(boundH)) y = Math.max(0, Math.min(boundH - hgt, y));
+            const x = Math.max(0, Math.round(px - w / 2));
+            const y = Math.max(0, Math.round(py - hgt / 2));
             window.NSUtils.__writeRectPx(node, { x, y, w, h: hgt });
           } catch {}
         }

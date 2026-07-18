@@ -37,7 +37,6 @@ void setupMenuShortcuts(MenuBarWidget* bar)
     setAppShortcut(bar->clearAction, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
     setAppShortcut(bar->Setting, QKeySequence(Qt::CTRL | Qt::Key_Comma));
 
-    setAppShortcut(bar->switchTheme, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T));
     setAppShortcut(bar->restoreLayout, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R));
     setAppShortcut(bar->saveLayout, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_L));
 
@@ -108,8 +107,6 @@ void MenuBarWidget::setupMenu() {
     View_menu=this->addMenu("视图");
     View_menu->setWindowFlags(View_menu->windowFlags() | Qt::NoDropShadowWindowHint);
     View_menu->setAttribute(Qt::WA_TranslucentBackground, false);
-    //切换主题
-    switchTheme=View_menu->addAction(QIcon(":/icons/icons/landscape.png"),"切换主题");
 
     views=View_menu->addMenu(QIcon(":/icons/icons/statistics.png"),"显示窗口");
     views->setWindowFlags(views->windowFlags() | Qt::NoDropShadowWindowHint);

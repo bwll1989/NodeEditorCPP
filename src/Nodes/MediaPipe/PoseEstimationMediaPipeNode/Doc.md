@@ -1,4 +1,4 @@
-# MediaPipe Body Pose 节点
+# MediaPipe Body Pose
 
 ## 1. 节点说明
 

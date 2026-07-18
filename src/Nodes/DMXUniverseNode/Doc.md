@@ -1,4 +1,4 @@
-﻿# DMXUniverseNode
+# DMX Universe
 
 ## 1. 节点说明
 

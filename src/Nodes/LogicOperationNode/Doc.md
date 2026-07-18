@@ -1,4 +1,6 @@
-﻿# Logic Operation 节点
+# Logic And
+
+**Logic Operation 节点**
 
 ## 1. 节点说明
 
@@ -56,3 +58,81 @@ Logic Operation 插件提供一组逻辑/比较节点，对 VariableData 输入�
 **阈值判断：** Logic Greater 比较传感器数值与阈值，输出接 Switch 的 INDEX。  
 **开关组合：** Logic And / Or / Xor 组合多路布尔信号。  
 **空值检测：** Logic IsEmpty 判断字符串或无效输入。
+
+---
+
+# Logic Or
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic Xor
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic Nand
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic Nor
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic Not
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic Equal
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic NotEqual
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic EqualNum
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic IsEmpty
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic Less
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic LessEqual
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic Greater
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。
+
+---
+
+# Logic GreaterEqual
+
+与 `Logic And` 同属本插件；端口与用法见 [Logic And](LogicAnd.md)。

@@ -158,7 +158,6 @@ void SnapshotModel::setActiveIndex(int index)
     m_activeIndex = index;
     syncUi();
     Q_EMIT activeIndexChanged(index);
-    AbstractDelegateModel::stateFeedBack("/index", index);
 }
 
 void SnapshotModel::recallPreset(int index)
@@ -259,7 +258,6 @@ void SnapshotModel::afterModelReady()
 {
     GlobalEventBus::instance()->subscribe(makeFullOscAddress("/index"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(makeFullOscAddress("/capture"), this, SLOT(onGlobalEvent(GlobalEvent)));
-    AbstractDelegateModel::stateFeedBack("/index", m_activeIndex);
 
     if (!m_recallActiveOnReady) {
         return;

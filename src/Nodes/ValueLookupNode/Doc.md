@@ -1,4 +1,4 @@
-﻿# Value Lookup 节点
+# Lookup
 
 ## 1. 节点说明
 

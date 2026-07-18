@@ -1,4 +1,4 @@
-﻿# Capture 节点
+# Capture
 
 ## 1. 节点说明
 

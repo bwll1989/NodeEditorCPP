@@ -24,9 +24,12 @@ namespace Nodes {
 /**
  * @brief FT-ControlBox 控制盒节点
  *
- * 通过 TCP 接收控制盒上抛的按钮事件：
- * - 薄膜按钮：{485地址}$BB^{索引}，索引 1~6
- * - 遥控器按钮：{485地址}$YY^{索引}，索引 1~8
+ * 通过 TCP 接收控制盒上抛的按键/IO 事件。设备三组 IO 共用同一套 index 映射：
+ * - 薄膜按钮：{485地址}$BB^{索引}
+ * - 遥控器按钮：{485地址}$YY^{索引}
+ * - IO 线：{485地址}$KK^{索引}
+ *
+ * 节点不校验类型前缀，只校验地址与索引（1~8），统一输出到 8 个端口。
  */
 class FTControlBoxDataModel : public AbstractDelegateModel
 {
@@ -37,9 +40,7 @@ class FTControlBoxDataModel : public AbstractDelegateModel
     Q_PROPERTY(bool connected READ isConnected WRITE setConnected NOTIFY connectedChanged)
 
 public:
-    static constexpr int kFilmButtonCount = FTControlBoxInterface::kFilmButtonCount;
-    static constexpr int kRemoteButtonCount = FTControlBoxInterface::kRemoteButtonCount;
-    static constexpr int kTotalButtonCount = kFilmButtonCount + kRemoteButtonCount;
+    static constexpr int kIoCount = FTControlBoxInterface::kIoCount;
 
     FTControlBoxDataModel();
     ~FTControlBoxDataModel() override;
@@ -80,19 +81,19 @@ private slots:
 private:
     void connectToServer();
     void processMessage(const QString& msg);
-    void triggerFilmButton(int index);
-    void triggerRemoteButton(int index);
+    void triggerIo(int index);
     void pulseOutput(int port);
 
     FTControlBoxInterface *_interface;
     TcpClient *_tcpClient;
+    QString _recvBuffer;
 
     QString _host = "127.0.0.1";
     int _port = 2001;
     int _addr485 = 1;
     bool _connected = false;
 
-    std::shared_ptr<NodeDataTypes::VariableData> _outputData[kTotalButtonCount];
+    std::shared_ptr<NodeDataTypes::VariableData> _outputData[kIoCount];
 };
 
 } // namespace Nodes

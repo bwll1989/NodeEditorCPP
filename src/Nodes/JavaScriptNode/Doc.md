@@ -1,4 +1,6 @@
-﻿# JavaScriptNode
+# JS Script
+
+**JavaScriptNode**
 
 ## 1. 节点说明
 

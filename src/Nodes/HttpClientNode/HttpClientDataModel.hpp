@@ -348,9 +348,7 @@ namespace Nodes
         /** @brief 设置 HTTP 方法并同步到界面 */
         void setMethod(HttpMethod method)
         {
-            if (m_method == method) {
-                return;
-            }
+
             m_method = method;
             {
                 QSignalBlocker blocker(widget->method);
@@ -362,9 +360,7 @@ namespace Nodes
         /** @brief 设置请求路径并同步到界面 */
         void setPath(const QString &path)
         {
-            if (m_path == path) {
-                return;
-            }
+
             m_path = path;
             {
                 QSignalBlocker blocker(widget->pathEdit);
@@ -376,9 +372,7 @@ namespace Nodes
         /** @brief 设置请求体并同步到界面 */
         void setBody(const QString &body)
         {
-            if (m_body == body) {
-                return;
-            }
+
             m_body = body;
             {
                 QSignalBlocker blocker(widget->bodyEdit);
@@ -390,9 +384,7 @@ namespace Nodes
         /** @brief 设置请求头 JSON 并同步到界面 */
         void setHeaders(const QString &headers)
         {
-            if (m_headers == headers) {
-                return;
-            }
+
             m_headers = headers;
             {
                 QSignalBlocker blocker(widget->headersEdit);

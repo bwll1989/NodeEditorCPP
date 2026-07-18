@@ -1,4 +1,4 @@
-﻿# Image Compare 节点
+# Image Compare
 
 ## 1. 节点说明
 

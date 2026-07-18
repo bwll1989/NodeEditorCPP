@@ -1,4 +1,4 @@
-﻿# VST3 Plugin 节点
+# VST3 Plugin
 
 ## 1. 节点说明
 

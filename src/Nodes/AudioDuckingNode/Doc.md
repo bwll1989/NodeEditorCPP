@@ -1,4 +1,4 @@
-﻿# Audio Ducking 节点
+# Audio Ducking
 
 ## 1. 节点说明
 

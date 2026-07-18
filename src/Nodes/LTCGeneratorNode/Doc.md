@@ -1,4 +1,4 @@
-﻿# LTC Generator 节点
+# LTC Generator
 
 ## 1. 节点说明
 

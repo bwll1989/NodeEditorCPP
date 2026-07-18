@@ -1,4 +1,4 @@
-﻿# Audio Matrix 节点
+# Audio Matrix
 
 ## 1. 节点说明
 

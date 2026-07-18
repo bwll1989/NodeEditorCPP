@@ -4,7 +4,6 @@
 
 #pragma once
 #include "BaseTimeLineModel.h"
-#include  "./TimelineStageWidget/TimeLineStage.hpp"
 #include  "TimeCodeDefines.h"
 #include "./TimeLineClock/TimeLineClock.hpp"
 #include "TimeLineDefines.h"
@@ -14,11 +13,6 @@ class TimeLineModel : public BaseTimeLineModel {
 public:
     explicit TimeLineModel(QObject* parent = nullptr);
     ~TimeLineModel() override;
-    /**
-     * 获取舞台对象
-     * @return TimelineStage* 舞台对象
-     */
-    TimeLineStage* getStage() const { return m_stage; }
 
     QJsonObject save() const override;
 
@@ -49,9 +43,7 @@ public slots:
 
     QList<QVariantMap> onGetClipCurrentData(qint64 currentFrame) const;
 private:
-    // 舞台对象
-    TimeLineStage* m_stage;
     //时钟对象
     TimeLineClock* m_clock;
-    // mutable qint64 lastFrame = 0;
+
 };

@@ -1,4 +1,6 @@
-﻿# QmlScriptNode
+# QML JS Script
+
+**QmlScriptNode**
 
 ## 1. 节点说明
 

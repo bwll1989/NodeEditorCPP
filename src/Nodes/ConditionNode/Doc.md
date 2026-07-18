@@ -1,10 +1,4 @@
-﻿# Condition 插件
-
-本插件（Controls）包含两个节点：**Condition**（条件判断与门控）与 **Edge Trigger**（边沿触发）。
-
----
-
-# Condition 节点
+﻿# Condition
 
 ## 1. 节点说明
 
@@ -85,7 +79,7 @@ Condition 使用 **JavaScript** 对输入 `VariableData` 求值（表达式内�
 
 ---
 
-# Edge Trigger 节点
+# Edge Trigger
 
 ## 1. 节点说明
 

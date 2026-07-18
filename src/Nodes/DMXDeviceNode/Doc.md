@@ -1,4 +1,4 @@
-﻿# DMXDeviceNode
+# DMX Device
 
 ## 1. 节点说明
 

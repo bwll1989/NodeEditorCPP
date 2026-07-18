@@ -65,7 +65,7 @@
       tabsContent.appendChild(pageWrap);
 
       const grid = { el: canvasEl, __pixel: true };
-      ctx.services.NS.grids.set(tid, { name, tabBtn, pageWrap, viewportEl, grid, canvasEl, view: null, design: { width: EPWidgets.layoutDefaults.designWidth, height: EPWidgets.layoutDefaults.designHeight, bgColor: EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc' }, loaded: false, renderSeq: 0, rendering: false });
+      ctx.services.NS.grids.set(tid, { name, tabBtn, pageWrap, viewportEl, grid, canvasEl, view: null, design: { width: 320, height: 240, bgColor: EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc', auto: true }, loaded: false, renderSeq: 0, rendering: false });
       ctx.services.NSCanvas.applyPageDesign(tid);
       try { ctx.services.NSCanvas.__initCanvasPanZoom(tid); } catch {}
 

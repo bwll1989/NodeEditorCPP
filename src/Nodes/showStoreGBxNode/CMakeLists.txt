@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
-set(Module_Name "showStoreGBxNode")
+set(Module_Name "ShowStoreGBxNode")
 project(${Module_Name})
 set(CMAKE_CXX_STANDARD 17)
 set(MAKE_CXX_STANDARD_REQUIRED ON)

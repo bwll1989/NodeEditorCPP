@@ -1,4 +1,6 @@
-﻿# Math Operation 节点
+# Math Add
+
+**Math Operation 节点**
 
 ## 1. 节点说明
 
@@ -55,3 +57,93 @@ Math Operation 插件提供一组算术节点，对数值型 VariableData 做运
 
 **亮度缩放：** Math Mul 将 0–1 的系数（INPUT 1）与 DMX 通道值（INPUT 0）相乘，输出接 Artnet 或下游控制。  
 **周期性数值：** Math Mod 对递增计数取模，实现循环索引。
+
+---
+
+# Math Sub
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Mul
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Div
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Mod
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Pow
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Max
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Min
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Abs
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Floor
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Ceil
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Round
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Sqrt
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Log
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Avg
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。
+
+---
+
+# Math Hypot
+
+与 `Math Add` 同属本插件；端口与用法见 [Math Add](MathAdd.md)。

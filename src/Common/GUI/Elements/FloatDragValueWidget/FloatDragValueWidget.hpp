@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QLineEdit>
 #include <QVariant>
+#include <limits>
 #ifdef GUI_ELEMENTS_LIBRARY
 #define GUI_ELEMENTS_EXPORT Q_DECL_EXPORT
 #else

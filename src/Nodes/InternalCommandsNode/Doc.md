@@ -1,4 +1,4 @@
-﻿# Internal Commands 节点
+# Internal Commands
 
 ## 1. 节点说明
 
@@ -52,28 +52,44 @@ Internal Commands 适合控制本应用内路由；Osc Out Group 适合发到外
 
 ---
 
-## Snapshot
+# Osc Out Group
 
-### 1. 节点说明
+## 1. 节点说明
+
+与 **Internal Commands** 界面相同：编辑 OSC 消息列表并批量发送。区别在于通过 **OSCSender** 向**外部**发送（节点库标签为 Connect），而非仅交给应用内 `StatusContainer`。
+
+端口、界面与触发方式见 [Internal Commands](InternalCommands.md)（同一套 TRIGGER / 消息列表 / `/trigger`）。
+
+## 2. 使用说明
+
+1. 配置对外 OSC 地址与参数。
+2. TRIGGER 或发送按钮触发后，按列表顺序发往外部。
+
+---
+
+# Snapshot
+
+
+## 1. 节点说明
 
 Snapshot 将当前 dataflow 中**选中节点**的配置序列化为快照，存入预设槽位。点击互斥预设按钮（同一时刻仅一个高亮）时，对原节点调用 `load()` 恢复参数，**不会创建新节点**。
 
-### 2. 端口说明
+## 2. 端口说明
 
-#### 输入
+### 输入
 
 | 端口 | 名称 | 说明 |
 |------|------|------|
 | 0 | INDEX | 收到索引值时召回对应预设 |
 | 1 | CAPTURE | 收到 `true` 时捕获当前选中节点到活动预设 |
 
-#### 输出
+### 输出
 
 | 端口 | 名称 | 说明 |
 |------|------|------|
 | 0 | ACTIVE | 当前活动预设索引 |
 
-### 3. 界面说明
+## 3. 界面说明
 
 | 控件 | 说明 |
 |------|------|
@@ -84,7 +100,7 @@ Snapshot 将当前 dataflow 中**选中节点**的配置序列化为快照，存
 
 **外部控制：** `/index` 召回指定预设；`/capture` 发送 `true` 捕获。
 
-### 4. 使用说明
+## 4. 使用说明
 
 1. 在画布中选中要纳入快照的节点（如 Switch、Color、DMX Device 等）。
 2. 在 Snapshot 节点点「捕获选中」，保存到当前预设。

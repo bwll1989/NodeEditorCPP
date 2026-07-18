@@ -166,6 +166,32 @@
       { key: 'textColor', label: '文字颜色', type: 'color', fallback: '#ffffff' },
       { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#409EFF' },
       { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
+    ],
+    '3D散点': [
+      COMMAND_ID,
+      { key: 'maxPoints', label: '最大点数', type: 'number' },
+      { key: 'symbolSize', label: '点大小', type: 'number' },
+      { key: 'pointColor', label: '点颜色', type: 'color', fallback: '#38bdf8' },
+      { key: 'xLabel', label: 'X 轴标签', type: 'text' },
+      { key: 'yLabel', label: 'Y 轴标签', type: 'text' },
+      { key: 'zLabel', label: 'Z 轴标签', type: 'text' },
+      { key: 'showAxes', label: '显示坐标轴', type: 'checkbox' },
+      { key: 'autoRotate', label: '自动旋转', type: 'checkbox' },
+      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#334155' },
+      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
+    ],
+    '3D折线': [
+      COMMAND_ID,
+      { key: 'maxPoints', label: '最大点数', type: 'number' },
+      { key: 'lineWidth', label: '线宽', type: 'number' },
+      { key: 'lineColor', label: '线颜色', type: 'color', fallback: '#38bdf8' },
+      { key: 'xLabel', label: 'X 轴标签', type: 'text' },
+      { key: 'yLabel', label: 'Y 轴标签', type: 'text' },
+      { key: 'zLabel', label: 'Z 轴标签', type: 'text' },
+      { key: 'showAxes', label: '显示坐标轴', type: 'checkbox' },
+      { key: 'autoRotate', label: '自动旋转', type: 'checkbox' },
+      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#334155' },
+      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
     ]
   };
 

@@ -1,4 +1,4 @@
-﻿# Audio Decoder 节点
+# Audio Decoder
 
 ## 1. 节点说明
 

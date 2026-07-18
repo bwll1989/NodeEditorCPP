@@ -1,4 +1,6 @@
-# PPHumanSeg 人物分割节点
+# Human Segmentation Node
+
+**PPHumanSeg 人物分割节点**
 
 ## 1. 节点说明
 

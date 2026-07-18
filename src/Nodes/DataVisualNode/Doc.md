@@ -1,4 +1,6 @@
-﻿# DataVisualNode 节点
+# Scatter Series
+
+**DataVisualNode 节点**
 
 ## 1. 节点说明
 
@@ -41,3 +43,9 @@ ScatterSeries 长时间运行会累积大量点，注意性能与清晰度。
 
 **单点跟踪：** ScatterSingle，三路接陀螺仪或模拟数据，观察当前姿态点。  
 **轨迹记录：** ScatterSeries，接无人机或鼠标三维坐标，回放运动路径。
+
+---
+
+# Scatter Single
+
+与 `Scatter Series` 同属本插件；端口与用法见 [Scatter Series](ScatterSeries.md)。

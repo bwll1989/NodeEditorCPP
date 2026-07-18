@@ -480,7 +480,7 @@ QTreeView::item:selected {
 
 QTreeView::item:hover:!selected {
     background-color: #2a292f;
-    
+
     padding-left: 10px;
 }
 
@@ -557,7 +557,7 @@ QCalendarWidget QTableView QHeaderView::section {
 QCalendarWidget QTableView
 {
     alternate-background-color:#3e3e3e;
-    
+
 }
 
 QCalendarWidget QTableView QHeaderView {

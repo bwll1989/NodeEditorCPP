@@ -53,7 +53,7 @@
                 try { inp.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
                 try { inp.dispatchEvent(new Event('change', { bubbles: true })); } catch {}
               }},
-              template: '<el-color-picker v-model="color" :disabled="disabled" :teleported="false" popper-class="ns-color-popper" show-alpha color-format="rgb" clearable />'
+              template: '<el-color-picker v-model="color" :disabled="disabled" teleported popper-class="ns-color-popper" show-alpha color-format="rgb" clearable />'
             });
             try { app.use(EPG); } catch {}
             app.mount(mountEl);
@@ -123,7 +123,7 @@
             return;
           }
           const info = ctx.services.NS.activeTabId ? ctx.services.NS.grids.get(ctx.services.NS.activeTabId) : null;
-          const d = (info && info.design) ? info.design : { width: EPWidgets.layoutDefaults.designWidth, height: EPWidgets.layoutDefaults.designHeight, bgColor: EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc' };
+          const d = (info && info.design) ? info.design : { bgColor: EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc' };
           const canEdit = (function(){
             try { return !!ctx.edit.getGlobalEditMode(); } catch {}
             try { return !!(document.body && document.body.classList && document.body.classList.contains('edit-mode')); } catch {}
@@ -141,68 +141,13 @@
           box.className = 'mb-2 p-2 bg-light border rounded';
           box.innerHTML = '<div class="prop-label fw-bold mb-1">画布设置</div>';
 
-          const presetRow = document.createElement('div');
-          presetRow.className = 'mb-1';
-          presetRow.innerHTML = '<div class="prop-label">常用尺寸</div>';
-          const presetSelect = document.createElement('select');
-          presetSelect.className = 'form-select form-select-sm';
-          if (!canEdit) presetSelect.disabled = true;
-          const presets = [
-            { w: 1280, h: 720, label: '1280×720 (720p)' },
-            { w: 1366, h: 768, label: '1366×768' },
-            { w: 1920, h: 1080, label: '1920×1080 (1080p)' },
-            { w: 2560, h: 1440, label: '2560×1440 (2K)' },
-            { w: 3840, h: 2160, label: '3840×2160 (4K)' },
-            { w: 1080, h: 1920, label: '1080×1920 (竖屏)' }
-          ];
-          const optCustom = document.createElement('option');
-          optCustom.value = '';
-          optCustom.textContent = '自定义';
-          presetSelect.appendChild(optCustom);
-          presets.forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = String(p.w) + 'x' + String(p.h);
-            opt.textContent = p.label;
-            presetSelect.appendChild(opt);
-          });
-          presetRow.appendChild(presetSelect);
-          box.appendChild(presetRow);
-          try { if (window.NSA11y) window.NSA11y.wirePropRow(presetRow, presetSelect, '常用尺寸'); } catch {}
-
-          const wRow = document.createElement('div');
-          wRow.className = 'mb-1';
-          wRow.innerHTML = '<div class="prop-label">画布宽度 (px)</div>';
-          const wInput = document.createElement('input');
-          wInput.type = 'number';
-          wInput.className = 'form-control form-control-sm';
-          wInput.min = '320';
-          wInput.value = String(Math.floor(Number(d.width) || EPWidgets.layoutDefaults.designWidth || 1280));
-          if (!canEdit) wInput.disabled = true;
-          wRow.appendChild(wInput);
-          box.appendChild(wRow);
-          try { if (window.NSA11y) window.NSA11y.wirePropRow(wRow, wInput, '画布宽度 (px)'); } catch {}
-
-          const hRow = document.createElement('div');
-          hRow.className = 'mb-1';
-          hRow.innerHTML = '<div class="prop-label">画布高度 (px)</div>';
-          const hInput = document.createElement('input');
-          hInput.type = 'number';
-          hInput.className = 'form-control form-control-sm';
-          hInput.min = '240';
-          hInput.value = String(Math.floor(Number(d.height) || EPWidgets.layoutDefaults.designHeight || 720));
-          if (!canEdit) hInput.disabled = true;
-          hRow.appendChild(hInput);
-          box.appendChild(hRow);
-          try { if (window.NSA11y) window.NSA11y.wirePropRow(hRow, hInput, '画布高度 (px)'); } catch {}
-
-          try {
-            const curKey = String(wInput.value || '') + 'x' + String(hInput.value || '');
-            if (presetSelect && presetSelect.querySelector && presetSelect.querySelector('option[value="' + curKey.replace(/"/g, '\\"') + '"]')) {
-              presetSelect.value = curKey;
-            } else if (presetSelect) {
-              presetSelect.value = '';
-            }
-          } catch {}
+          const autoRow = document.createElement('div');
+          autoRow.className = 'mb-2 text-muted';
+          autoRow.style.fontSize = '12px';
+          const curW = Math.floor(Number(d.width) || 320);
+          const curH = Math.floor(Number(d.height) || 240);
+          autoRow.textContent = '画布尺寸随控件自动调整（当前约 ' + curW + ' × ' + curH + ' px）';
+          box.appendChild(autoRow);
 
           const bgRow = document.createElement('div');
           bgRow.className = 'mb-1 d-flex align-items-center justify-content-between';
@@ -227,44 +172,12 @@
           form.appendChild(box);
 
           if (canEdit && info) {
-            // 函数级注释：读取表单值并应用画布属性（尺寸/背景），并保存到本地布局
             const applyCanvasProps = () => {
-              const nextW = Math.max(320, Math.floor(Number(wInput.value) || 0));
-              const nextH = Math.max(240, Math.floor(Number(hInput.value) || 0));
               const nextBg = String(bgInput.value || '').trim() || String(EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc');
-              const key = String(nextW) + 'x' + String(nextH);
-              try {
-                if (presetSelect && presetSelect.querySelector && presetSelect.querySelector('option[value="' + key.replace(/"/g, '\\"') + '"]')) presetSelect.value = key;
-                else if (presetSelect) presetSelect.value = '';
-              } catch {}
-              ctx.services.NSCanvas.applyPageDesign(ctx.services.NS.activeTabId, { width: nextW, height: nextH, bgColor: nextBg });
+              ctx.services.NSCanvas.applyPageDesign(ctx.services.NS.activeTabId, { bgColor: nextBg });
               try { ctx.layout.saveLayoutLocal(ctx.services.NS.activeTabId, info.grid); } catch {}
             };
-
-            presetSelect.onchange = () => {
-              const v = String(presetSelect.value || '').trim();
-              if (!v) return;
-              const parts = v.split('x');
-              if (parts.length === 2) {
-                wInput.value = String(parts[0] || '').trim();
-                hInput.value = String(parts[1] || '').trim();
-              }
-              applyCanvasProps();
-            };
-
-            wInput.onchange = () => applyCanvasProps();
-            hInput.onchange = () => applyCanvasProps();
             bgInput.onchange = () => applyCanvasProps();
-
-            const applyRow = document.createElement('div');
-            applyRow.className = 'mt-2';
-            const applyBtn = document.createElement('button');
-            applyBtn.className = 'btn btn-sm btn-primary';
-            applyBtn.textContent = '应用画布修改';
-            applyRow.appendChild(applyBtn);
-            form.appendChild(applyRow);
-
-            applyBtn.onclick = () => applyCanvasProps();
           }
 
           panel.appendChild(form);

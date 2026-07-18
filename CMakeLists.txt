@@ -147,6 +147,7 @@ add_subdirectory(src/Nodes)
 add_subdirectory(src/Common/Devices/OSCSender)
 add_subdirectory(src/Common/Devices/MqttClient)
 add_subdirectory(src/Common/Devices/FTDAWController)
+add_subdirectory(src/Common/Devices/FTOMVController)
 add_subdirectory(src/Common/Devices/SpoutReceiver)
 add_subdirectory(src/Common/GUI/OscListWidget)
 add_subdirectory(src/Common/GUI/Elements)
@@ -177,6 +178,8 @@ set(CALC_SOURCE_FILES
         src/Widget/NodeWidget/CustomDataFlowGraphModel.cpp
         src/Widget/NodeWidget/CustomFlowGraphicsScene.cpp
         src/Widget/NodeWidget/CustomFlowGraphicsScene.h
+        src/Widget/NodeWidget/NodeCreateSceneMenu.cpp
+        src/Widget/NodeWidget/NodeCreateSceneMenu.hpp
         src/Widget/NodeWidget/DataflowViewsManger.hpp
         src/Widget/NodeWidget/DataflowViewsManger.cpp
         src/Widget/PortEditWidget/PortEditAddRemoveWidget.hpp
@@ -213,8 +216,8 @@ set(CALC_SOURCE_FILES
         src/Widget/PropertyWidget/PropertyWidget.hpp
         src/Widget/NodeLibraryWidget/draggabletreewidget.cpp
         src/Widget/NodeLibraryWidget/draggabletreewidget.hpp
-        src/Widget/NodeLibraryWidget/NodeLibraryWidget.cpp
-        src/Widget/NodeLibraryWidget/NodeLibraryWidget.h
+#        src/Widget/NodeLibraryWidget/NodeLibraryWidget.cpp
+#        src/Widget/NodeLibraryWidget/NodeLibraryWidget.h
         src/Widget/NodeListWidget/NodeListWidget.cpp
         src/Widget/NodeListWidget/NodeListWidget.hpp
         src/Common/Devices/TcpServer/TcpServer.cpp
@@ -249,30 +252,20 @@ set(CALC_SOURCE_FILES
         src/Common/GUI/DataTreeModel/DataTreeModel.cpp
         src/Common/GUI/DataTreeModel/QmlDataBrowser.h
         src/Common/GUI/DataTreeModel/QmlDataBrowser.cpp
-#        src/Common/GUI/DockHub/DockHub.cpp
-#        src/Common/GUI/DockHub/DockHub.hpp
         src/Widget/TimeLineWidget/timelinewidget.cpp
         src/Widget/TimeLineWidget/timelinewidget.hpp
-        src/Widget/TimeLineWidget/TimelineScreenWidget/AbstractTimelineScreen.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/LtcSettingWidget.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/MtcSettingWidget.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/AudioSettingWidget.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/VideoSettingWidget.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/TimeLineSetting.hpp
         src/Widget/TimeLineWidget/TimelineSettingWidget/TimeLineSetting.cpp
-        src/Widget/StageWidget/stagewidget.hpp
-        src/Widget/StageWidget/stagewidget.cpp
-        src/Widget/TimeLineWidget/TimelineStageWidget/TimeLineStage.hpp
-        src/Widget/TimeLineWidget/TimelineStageWidget/TimeLineStage.cpp
-        src/Widget/TimeLineWidget/TimelineScreenWidget/TimeLineScreen.hpp
-        src/Widget/TimeLineWidget/TimelineScreenWidget/TimeLineScreen.cpp
         src/Widget/TimeLineWidget/TimeLineToolbar.h
         src/Widget/TimeLineWidget/TimeLineToolbar.cpp
         src/Widget/TimeLineWidget/TimeLineClock/TimeLineClock.hpp
         src/Widget/TimeLineWidget/TimeLineClock/TimeLineClock.cpp
         src/Widget/TimeLineWidget/TimeLineClock/TimeSyncServer.hpp
         src/Widget/TimeLineWidget/TimeLineClock/TimeSyncServer.cpp
-        src/Widget/TimeLineWidget/TimelineProducer/timelineimageproducer.hpp
         src/Widget/TimeLineWidget/TimeLineModel.cpp
         src/Widget/TimeLineWidget/TimeLineModel.h
         src/Widget/TimeLineWidget/TimeLineView.cpp

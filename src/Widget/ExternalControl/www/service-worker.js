@@ -1,5 +1,5 @@
 // 函数级注释：Service Worker - 缓存静态资源以提升慢网速下的加载与刷新体验
-const CACHE_NAME = 'ns-cache-v16';
+const CACHE_NAME = 'ns-cache-v18';
 const CORE_URLS = [
   'index.html',
   'setting.html',
@@ -13,6 +13,8 @@ const CORE_URLS = [
   'assets/vendor/split.min.js',
   'assets/widgets.js',
   'assets/ep-widgets.js',
+  'assets/style.css',
+  'assets/widgets-sfc.js',
   'assets/widget-manifest.js',
   'assets/modules/ns-namespace.js',
   'assets/modules/ns-layout-persist.js',
@@ -35,32 +37,20 @@ const CORE_URLS = [
   'assets/modules/ns-dashboard.js'
 ];
 
-const WIDGET_URLS = [
-  'widgets/Button/widget.js', 'widgets/Button/widget.html',
-  'widgets/Slider/widget.js', 'widgets/Slider/widget.html',
-  'widgets/FloatSlider/widget.js', 'widgets/FloatSlider/widget.html',
-  'widgets/VSlider/widget.js', 'widgets/VSlider/widget.html',
-  'widgets/VFloatSlider/widget.js', 'widgets/VFloatSlider/widget.html',
-  'widgets/Checkbox/widget.js', 'widgets/Checkbox/widget.html',
-  'widgets/Switch/widget.js', 'widgets/Switch/widget.html',
-  'widgets/Input/widget.js', 'widgets/Input/widget.html',
-  'widgets/ToggleButton/widget.js', 'widgets/ToggleButton/widget.html',
-  'widgets/Divider/widget.js', 'widgets/Divider/widget.html',
-  'widgets/VDivider/widget.js', 'widgets/VDivider/widget.html',
-  'widgets/Label/widget.js', 'widgets/Label/widget.html',
-  'widgets/Knob/widget.js', 'widgets/Knob/widget.html',
-  'widgets/TimeCode/widget.js', 'widgets/TimeCode/widget.html',
-  'widgets/Timeline/widget.js', 'widgets/Timeline/widget.html',
-  'widgets/Number/widget.js', 'widgets/Number/widget.html',
-  'widgets/Frame/widget.js', 'widgets/Frame/widget.html',
-  'widgets/Hyperlink/widget.js', 'widgets/Hyperlink/widget.html'
-];
-
-const URLS_TO_CACHE = CORE_URLS.concat(WIDGET_URLS);
+const URLS_TO_CACHE = CORE_URLS;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(URLS_TO_CACHE)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(async (cache) => {
+      // 逐个预热，避免 addAll 因单个 404 导致整批失败，也降低 install 时对服务器的并发冲击
+      await Promise.all(
+        URLS_TO_CACHE.map(async (url) => {
+          try {
+            await cache.add(url);
+          } catch {}
+        })
+      );
+    }).then(() => self.skipWaiting())
   );
 });
 
@@ -71,6 +61,29 @@ self.addEventListener('activate', (event) => {
     ).then(() => self.clients.claim())
   );
 });
+
+async function matchCachedHtml(cache, req) {
+  const hit = await cache.match(req);
+  if (hit) return hit;
+  try {
+    const url = new URL(req.url);
+    if (url.pathname === '/' || url.pathname === '') {
+      return (await cache.match('index.html')) || (await cache.match('/index.html'));
+    }
+  } catch {}
+  return null;
+}
+
+function revalidateInBackground(cache, req) {
+  return (async () => {
+    try {
+      const res = await fetch(req);
+      if (res && res.ok) {
+        await cache.put(req, res.clone());
+      }
+    } catch {}
+  })();
+}
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -95,7 +108,13 @@ self.addEventListener('fetch', (event) => {
     const accept = req.headers.get('accept') || '';
     const isHtmlNav = req.mode === 'navigate' || accept.includes('text/html');
 
+    // HTML 导航：cache-first + 后台更新（避免 network-first 在 C++ 服务繁忙时阻塞 20s）
     if (isHtmlNav) {
+      const cached = await matchCachedHtml(cache, req);
+      if (cached) {
+        event.waitUntil(revalidateInBackground(cache, req));
+        return cached;
+      }
       try {
         const res = await fetch(req);
         if (res && res.ok) {
@@ -103,22 +122,13 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       } catch {
-        const cached = await cache.match(req);
-        if (cached) return cached;
         return new Response('离线不可用', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       }
     }
 
     const cached = await cache.match(req);
     if (cached) {
-      event.waitUntil((async () => {
-        try {
-          const res = await fetch(req);
-          if (res && res.ok) {
-            await cache.put(req, res.clone());
-          }
-        } catch {}
-      })());
+      event.waitUntil(revalidateInBackground(cache, req));
       return cached;
     }
 

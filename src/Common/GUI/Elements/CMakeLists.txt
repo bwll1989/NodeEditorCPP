@@ -34,6 +34,8 @@ add_library(${Module_Name} SHARED
     IntDragValueWidget/IntDragValueWidget.hpp
     FloatDragValueWidget/FloatDragValueWidget.cpp
     FloatDragValueWidget/FloatDragValueWidget.hpp
+    VectorDragValueWidget/VectorDragValueWidget.cpp
+    VectorDragValueWidget/VectorDragValueWidget.hpp
     TriggerWidget/TriggerWidget.cpp
     TriggerWidget/TriggerWidget.hpp
     ImageTextureView/ImageTextureView.cpp

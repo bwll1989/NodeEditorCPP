@@ -166,7 +166,6 @@ namespace Nodes
         }
 
         void setValue(const QString &val) {
-            if (m_value == val) return;
             m_value = val;
             if (widget && widget->valueEdit) {
                 QSignalBlocker blocker(widget->valueEdit);

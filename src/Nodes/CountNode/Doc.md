@@ -1,10 +1,4 @@
-﻿# Count 插件
-
-本插件（Controls）包含两个节点：**Count**（条件计数）与 **Range Map**（数值范围映射）。
-
----
-
-# Count 节点
+﻿# Count
 
 ## 1. 节点说明
 
@@ -57,7 +51,7 @@ Count 在每次输入更新时，用 **JavaScript 条件表达式**判断是否�
 
 ---
 
-# Range Map 节点
+# Range Map
 
 ## 1. 节点说明
 

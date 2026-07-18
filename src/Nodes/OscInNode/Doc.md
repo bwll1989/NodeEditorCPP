@@ -1,4 +1,4 @@
-﻿# OSC Source 节点
+# OSC Source
 
 ## 1. 节点说明
 

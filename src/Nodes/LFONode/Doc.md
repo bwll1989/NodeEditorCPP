@@ -1,10 +1,10 @@
-﻿# LFONode 插件文档
+**LFONode 插件文档**
 
 本插件（`Controls` 分类）包含两个节点：**LFO** 与 **Metronome**。
 
 ---
 
-# LFO 节点
+# LFO
 
 ## 1. 节点说明
 
@@ -63,7 +63,7 @@ LFO（低频振荡器）按设定波形、频率和振幅**持续输出**变化�
 
 ---
 
-# Metronome 节点
+# Metronome
 
 ## 1. 节点说明
 

@@ -3,36 +3,145 @@
   'use strict';
   const NS = window.NS;
 
+  const __fitCanvasTimers = new Map();
+
+  function __canvasMinSize() {
+    const defs = EPWidgets.layoutDefaults || {};
+    return {
+      w: Math.max(160, Math.floor(Number(defs.designWidthMin) || 320)),
+      h: Math.max(120, Math.floor(Number(defs.designHeightMin) || 240)),
+      pad: Math.max(0, Math.floor(Number(defs.canvasAutoPad) || 32)),
+    };
+  }
+
+  function __defaultCanvasBg(info) {
+    const raw = (info && info.design && info.design.bgColor !== undefined && info.design.bgColor !== null)
+      ? String(info.design.bgColor)
+      : String((EPWidgets.layoutDefaults && EPWidgets.layoutDefaults.canvasBgColor) || '#f8fafc');
+    const bg = (raw || '').trim();
+    return bg || String((EPWidgets.layoutDefaults && EPWidgets.layoutDefaults.canvasBgColor) || '#f8fafc');
+  }
+
+  // 函数级注释：根据控件包围盒计算画布尺寸（含 padding）
+  function computeCanvasBoundsFromGrid(grid, pad) {
+    const { w: minW, h: minH, pad: defaultPad } = __canvasMinSize();
+    const padding = Math.max(0, Number(pad) || defaultPad);
+    const el = grid && grid.el ? grid.el : null;
+    if (!el) return { width: minW, height: minH };
+    const items = el.querySelectorAll('.grid-stack-item');
+    if (!items || items.length === 0) return { width: minW, height: minH };
+    let maxR = 0;
+    let maxB = 0;
+    items.forEach(node => {
+      try {
+        const r = window.NSUtils && typeof NSUtils.__readRectPx === 'function' ? NSUtils.__readRectPx(node) : null;
+        if (!r) return;
+        maxR = Math.max(maxR, r.x + r.w);
+        maxB = Math.max(maxB, r.y + r.h);
+      } catch {}
+    });
+    return {
+      width: Math.max(minW, Math.ceil(maxR + padding)),
+      height: Math.max(minH, Math.ceil(maxB + padding)),
+    };
+  }
+
+  function __clampCanvasTranslate(info, scale, tx, ty) {
+    try {
+      const rect = info.viewportEl.getBoundingClientRect();
+      const vpW = Math.max(1, Number(rect.width) || 1);
+      const vpH = Math.max(1, Number(rect.height) || 1);
+      const d = info.design || {};
+      const cw = Math.max(1, Number(d.width) || 320);
+      const ch = Math.max(1, Number(d.height) || 240);
+      const s = Math.max(0.1, Math.min(8, Number(scale) || 1));
+      const canvasW = cw * s;
+      const canvasH = ch * s;
+      let nextTx = Number(tx) || 0;
+      let nextTy = Number(ty) || 0;
+      if (canvasW <= vpW) nextTx = (vpW - canvasW) / 2;
+      else nextTx = Math.max(vpW - canvasW, Math.min(0, nextTx));
+      if (canvasH <= vpH) nextTy = (vpH - canvasH) / 2;
+      else nextTy = Math.max(vpH - canvasH, Math.min(0, nextTy));
+      return { tx: nextTx, ty: nextTy };
+    } catch {
+      return { tx: Number(tx) || 0, ty: Number(ty) || 0 };
+    }
+  }
+
+  // 函数级注释：按当前控件布局自动调整画布尺寸
+  function fitCanvasToWidgets(tid) {
+    const info = tid ? NS.grids.get(tid) : null;
+    if (!info || !info.grid) return null;
+    const bounds = computeCanvasBoundsFromGrid(info.grid);
+    const bg = __defaultCanvasBg(info);
+    info.design = { width: bounds.width, height: bounds.height, bgColor: bg, auto: true };
+    if (info.canvasEl) {
+      info.canvasEl.style.width = bounds.width + 'px';
+      info.canvasEl.style.height = bounds.height + 'px';
+      info.canvasEl.style.backgroundColor = bg;
+    }
+    if (info.viewportEl) {
+      const v = __getCanvasViewState(tid);
+      const t = __clampCanvasTranslate(info, v.scale, v.tx, v.ty);
+      v.tx = t.tx;
+      v.ty = t.ty;
+      __applyCanvasViewTransform(tid);
+    }
+    return bounds;
+  }
+
+  function scheduleFitCanvasToWidgets(tid) {
+    if (!tid) return;
+    if (__fitCanvasTimers.has(tid)) clearTimeout(__fitCanvasTimers.get(tid));
+    __fitCanvasTimers.set(tid, setTimeout(() => {
+      __fitCanvasTimers.delete(tid);
+      try { fitCanvasToWidgets(tid); } catch {}
+    }, 32));
+  }
+
+  function __tidFromGrid(grid) {
+    let tid = null;
+    try {
+      NS.grids.forEach((info, key) => {
+        if (info && info.grid === grid) tid = key;
+      });
+    } catch {}
+    return tid;
+  }
+
   // 函数级注释：清空布局容器（像素画布），同时清理 commandId 索引
   function clearLayoutContainer(grid) {
     try {
       const el = grid && grid.el ? grid.el : null;
       if (el) {
-        // 先逐个 unindex，再清空 DOM
         const items = el.querySelectorAll('.grid-stack-item');
         items.forEach(item => {
           try { EPWidgets.unindexNode(item); } catch {}
         });
         el.innerHTML = '';
       }
+      const tid = __tidFromGrid(grid);
+      if (tid) scheduleFitCanvasToWidgets(tid);
     } catch {}
   }
 
-  // 函数级注释：设置并应用页面设计尺寸与背景（像素画布使用）
+  // 函数级注释：应用画布背景色，尺寸随控件自动计算
   function applyPageDesign(tid, design) {
     const info = NS.grids.get(tid);
     if (!info) return;
     const d = design && typeof design === 'object' ? design : null;
-    const w = Math.max(320, Math.floor(Number(d && d.width) || (info.design && info.design.width) || EPWidgets.layoutDefaults.designWidth || 1280));
-    const h = Math.max(240, Math.floor(Number(d && d.height) || (info.design && info.design.height) || EPWidgets.layoutDefaults.designHeight || 720));
-    const bgRaw = (d && d.bgColor !== undefined && d.bgColor !== null) ? String(d.bgColor) : String((info.design && info.design.bgColor) || (EPWidgets.layoutDefaults && EPWidgets.layoutDefaults.canvasBgColor) || '#f8fafc');
-    const bg = (bgRaw || '').trim() || String((EPWidgets.layoutDefaults && EPWidgets.layoutDefaults.canvasBgColor) || '#f8fafc');
-    info.design = { width: w, height: h, bgColor: bg };
-    if (info.canvasEl) {
-      info.canvasEl.style.width = w + 'px';
-      info.canvasEl.style.height = h + 'px';
-      info.canvasEl.style.backgroundColor = bg;
+    const bgRaw = (d && d.bgColor !== undefined && d.bgColor !== null)
+      ? String(d.bgColor)
+      : __defaultCanvasBg(info);
+    const bg = (bgRaw || '').trim() || __defaultCanvasBg(info);
+    if (!info.design || typeof info.design !== 'object') {
+      info.design = { width: 320, height: 240, bgColor: bg, auto: true };
+    } else {
+      info.design.bgColor = bg;
     }
+    if (info.canvasEl) info.canvasEl.style.backgroundColor = bg;
+    scheduleFitCanvasToWidgets(tid);
   }
 
   // 函数级注释：获取指定分页的画布视图状态（缩放/平移），若不存在则创建默认值
@@ -93,7 +202,7 @@
     if (!info || !info.viewportEl) return;
     const v = __getCanvasViewState(tid || NS.activeTabId);
     const vpRect = info.viewportEl.getBoundingClientRect();
-    const d = info.design || { width: EPWidgets.layoutDefaults.designWidth, height: EPWidgets.layoutDefaults.designHeight };
+    const d = info.design || { width: 320, height: 240 };
     const cw = Number(d.width) || 1280;
     const ch = Number(d.height) || 720;
     const s = Math.max(0.1, Math.min(8, Number(v.scale) || 1));
@@ -115,14 +224,11 @@
     const v = tid ? __getCanvasViewState(tid) : { scale: 1, tx: 0, ty: 0 };
     const scale = Math.max(0.1, Math.min(8, Number(v.scale) || 1));
 
-    const designW = Math.max(320, Math.floor(Number((info && info.design && info.design.width) || EPWidgets.layoutDefaults.designWidth || 1280)));
-    const designH = Math.max(240, Math.floor(Number((info && info.design && info.design.height) || EPWidgets.layoutDefaults.designHeight || 720)));
-
     const vx = (Number(clientX) || 0) - rect.left;
     const vy = (Number(clientY) || 0) - rect.top;
     const lx0 = (vx - (Number(v.tx) || 0)) / scale;
     const ly0 = (vy - (Number(v.ty) || 0)) / scale;
-    const x = Math.max(0, Math.min(designW - 1, lx0));
+    const x = Math.max(0, lx0);
     const y = Math.max(0, ly0);
     return { x, y };
   }
@@ -158,7 +264,7 @@
         const rect = info.viewportEl.getBoundingClientRect();
         const vpW = Math.max(1, Number(rect.width) || 1);
         const vpH = Math.max(1, Number(rect.height) || 1);
-        const d = info.design || { width: EPWidgets.layoutDefaults.designWidth, height: EPWidgets.layoutDefaults.designHeight };
+        const d = info.design || { width: 320, height: 240 };
         const cw = Math.max(1, Number(d.width) || 1280);
         const ch = Math.max(1, Number(d.height) || 720);
         const s = Math.max(0.1, Math.min(8, Number(scale) || 1));
@@ -194,7 +300,7 @@
     if (!hadSavedView && info.view) {
       try {
         const vpRect = info.viewportEl.getBoundingClientRect();
-        const d = info.design || { width: EPWidgets.layoutDefaults.designWidth, height: EPWidgets.layoutDefaults.designHeight };
+        const d = info.design || { width: 320, height: 240 };
         const cw = Number(d.width) || 1280;
         const ch = Number(d.height) || 720;
         const nextTx = Math.max(0, (vpRect.width - cw * info.view.scale) / 2);
@@ -270,6 +376,7 @@
         try { if (isTouch && e.target && e.target.closest && e.target.closest('.grid-stack-item')) return; } catch {}
         const isMiddle = e.button === 1;
         const isLeft = e.button === 0;
+        try { if (isLeft && e.shiftKey && document.body.classList.contains('edit-mode')) return; } catch {}
         const isSpacePan = !!(window.__nsSpaceDown) && isLeft;
         // 左键：只有点击空白区域才触发平移；中键始终可以平移
         const onWidget = !!(e.target && e.target.closest && e.target.closest('.grid-stack-item'));
@@ -362,6 +469,9 @@
   window.NSCanvas = {
     clearLayoutContainer,
     applyPageDesign,
+    fitCanvasToWidgets,
+    scheduleFitCanvasToWidgets,
+    computeCanvasBoundsFromGrid,
     resetCanvasView,
     __getCanvasViewState,
     __applyCanvasViewTransform,

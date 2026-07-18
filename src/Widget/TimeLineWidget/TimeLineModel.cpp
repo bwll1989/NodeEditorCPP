@@ -7,19 +7,18 @@
 
 #include "Common/BaseClass/AbstractClipDelegateModel.h"
 
-TimeLineModel::TimeLineModel(QObject* parent):m_stage(new TimeLineStage()),m_clock(new TimeLineClock(this))
+TimeLineModel::TimeLineModel(QObject* parent):m_clock(new TimeLineClock(this))
 {
     connect(m_clock,&TimeLineClock::currentFrameChanged,this,&TimeLineModel::onGetClipCurrentData);
 }
 TimeLineModel::~TimeLineModel()
 {
-    delete m_stage;
+    // delete m_stage;
 }
 
 QJsonObject TimeLineModel::save() const
 {
     auto res=BaseTimeLineModel::save();
-    res["stage"]=m_stage->save();
     res["clock"]=m_clock->save();
     return res;
 }
@@ -45,13 +44,6 @@ void TimeLineModel::load(const QJsonObject& json)
                 }
             }
         }
-    try { // 舞台数据加载
-        m_stage->load(json["stage"].toObject());
-    } catch (const std::exception& e) {
-        qCritical() << tr("舞台数据加载失败:\n%1").arg(e.what());
-        return;
-    }
-
 
 }
 

@@ -190,6 +190,78 @@ function toBool(v) {
   return !!v;
 }
 
+// ===== 共享 Vue 应用（全局只 createApp + use(ElementPlus) 一次） =====
+let __sharedWidgetApp = null;
+let __sharedWidgetAppContext = null;
+
+// 函数级注释：获取/创建共享控件 Vue 应用上下文（ElementPlus 仅注册一次）
+function ensureSharedWidgetApp() {
+  if (__sharedWidgetAppContext) return __sharedWidgetAppContext;
+  const vue = getVue();
+  if (!vue || !window.ElementPlus) return null;
+
+  let host = document.getElementById('ep-shared-widget-app-host');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'ep-shared-widget-app-host';
+    host.style.display = 'none';
+    host.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(host);
+  }
+
+  const app = vue.createApp({ render: () => null });
+  app.use(window.ElementPlus);
+  app.mount(host);
+  __sharedWidgetApp = app;
+  __sharedWidgetAppContext = app._context;
+  return __sharedWidgetAppContext;
+}
+
+// 函数级注释：在共享 appContext 下将 SFC/组件渲染到 mount 节点
+function mountWidgetComponent(mountNode, component, state) {
+  const vue = getVue();
+  const appContext = ensureSharedWidgetApp();
+  if (!vue || !appContext || !mountNode || !component) return null;
+
+  let rootComponent = component;
+  if (state !== undefined && state !== null) {
+    rootComponent = {
+      name: 'EpWidgetHost',
+      setup() {
+        vue.provide('epWidgetState', state);
+        return () => vue.h(component);
+      }
+    };
+  }
+
+  const vnode = vue.createVNode(rootComponent);
+  vnode.appContext = appContext;
+  vue.render(vnode, mountNode);
+  try { mountNode.__nsVueVnode = vnode; } catch {}
+  return vnode.component ? vnode.component.proxy : null;
+}
+
+// 函数级注释：卸载 mount 节点上的 Vue 组件（清空布局/删除控件时调用）
+function unmountWidgetComponent(mountNode) {
+  if (!mountNode) return;
+  const vue = getVue();
+  if (!vue || typeof vue.render !== 'function') return;
+  try {
+    vue.render(null, mountNode);
+  } catch {}
+  try { mountNode.__nsVueVnode = null; } catch {}
+}
+
+// 函数级注释：从 grid-stack-item 节点卸载内部 Vue 组件
+function unmountWidgetNode(node) {
+  if (!node || !node.querySelector) return;
+  try {
+    const mount = node.querySelector('.widget-mount');
+    if (mount) unmountWidgetComponent(mount);
+  } catch {}
+  try { node.vm = null; } catch {}
+}
+
 // 函数级注释：应用通用容器样式（背景色与字号），用于所有控件一致的外观
 function applyCommonStyle(node, props) {
   try {
@@ -203,20 +275,36 @@ function applyCommonStyle(node, props) {
 }
 
 // 函数级注释：基于 defaults/initialProps/vm 自动生成 getProps/setProps，减少每个控件重复代码
+// propKeys：仅控制布局持久化（getProps）；setProps 仍可写入 defaults 中的运行时字段（如 incoming/points）
 function createPropsApi(params) {
   const { node, initialProps, vm, defaults, propKeys, valueMapper, coercers } = params || {};
-  const keys = Array.isArray(propKeys) ? propKeys : Object.keys(defaults || {});
+  const defaultKeys = Object.keys(defaults || {});
+  const persistKeys = Array.isArray(propKeys) ? propKeys : defaultKeys;
+  // 可写入：defaults 全量 ∪ propKeys ∪ valueMapper 产出字段
+  const settableKeySet = new Set(persistKeys.concat(defaultKeys));
 
   if (defaults && initialProps) {
-    keys.forEach(k => {
+    defaultKeys.forEach(k => {
       if (initialProps[k] === undefined) initialProps[k] = defaults[k];
     });
+  }
+
+  function applyKey(k, patch) {
+    if (patch[k] === undefined) return;
+    let val = patch[k];
+    if (coercers && coercers[k]) {
+      try { val = coercers[k](val); } catch {}
+    }
+    if (initialProps) initialProps[k] = val;
+    if (vm) {
+      try { vm[k] = val; } catch {}
+    }
   }
 
   return {
     getProps() {
       const out = {};
-      keys.forEach(k => {
+      persistKeys.forEach(k => {
         if (vm && vm[k] !== undefined) out[k] = vm[k];
         else if (initialProps && initialProps[k] !== undefined) out[k] = initialProps[k];
         else if (defaults && defaults[k] !== undefined) out[k] = defaults[k];
@@ -226,24 +314,22 @@ function createPropsApi(params) {
     setProps(p) {
       if (!p) return;
       let patch = p;
+      let mapped = null;
       if (p.value !== undefined && typeof valueMapper === 'function') {
         try {
-          const mapped = valueMapper(p.value);
+          mapped = valueMapper(p.value);
           if (mapped && typeof mapped === 'object') patch = Object.assign({}, p, mapped);
         } catch {}
       }
 
-      keys.forEach(k => {
-        if (patch[k] === undefined) return;
-        let val = patch[k];
-        if (coercers && coercers[k]) {
-          try { val = coercers[k](val); } catch {}
-        }
-        if (initialProps) initialProps[k] = val;
-        if (vm) {
-          try { vm[k] = val; } catch {}
-        }
-      });
+      settableKeySet.forEach(k => applyKey(k, patch));
+      // valueMapper 产生的运行时字段即使不在 defaults/propKeys 也要写入（兜底）
+      if (mapped && typeof mapped === 'object') {
+        Object.keys(mapped).forEach(k => {
+          if (settableKeySet.has(k)) return;
+          applyKey(k, patch);
+        });
+      }
 
       if (patch.bgColor !== undefined || patch.fontSize !== undefined) {
         applyCommonStyle(node, initialProps || patch);
@@ -271,9 +357,7 @@ function createVueWidget(grid, cfg) {
 
   loadTemplate(templatePath).then(template => {
     const appOptions = (typeof appFactory === 'function') ? appFactory(template) : { template };
-    const app = vue.createApp(appOptions);
-    app.use(window.ElementPlus);
-    const vm = app.mount(mountNode);
+    const vm = mountWidgetComponent(mountNode, appOptions);
     node.vm = vm;
 
     applyCommonStyle(node, initialProps || {});
@@ -281,6 +365,41 @@ function createVueWidget(grid, cfg) {
   }).catch(err => {
     mountNode.innerHTML = `<div style="color:red;font-size:12px;">加载模板失败: ${err}</div>`;
   });
+
+  return node;
+}
+
+// 函数级注释：创建并挂载基于 Vue SFC 的控件（widgets-sfc.js 构建产物注册用）
+function createVueSfcWidget(grid, cfg) {
+  const { type, component, initialProps, opts, defaultW, defaultH, defaults, propKeys, valueMapper, coercers, onNodeCreated } = cfg || {};
+  const vue = getVue();
+  const ready = !!vue && !!window.ElementPlus;
+  const title = (initialProps && initialProps.title) || type || '控件';
+  const { node, mountNode } = createContainer(grid, title, defaultW || 4, defaultH || 2, opts || {});
+
+  const state = vue.reactive(Object.assign({}, defaults || {}, initialProps || {}));
+  if (defaults) {
+    Object.keys(defaults).forEach((k) => {
+      if (state[k] === undefined) state[k] = defaults[k];
+    });
+  }
+
+  registerNode(node, type || title, createPropsApi({ node, initialProps: state, vm: state, defaults: defaults || {}, propKeys, valueMapper, coercers }));
+
+  if (!ready) {
+    mountNode.innerHTML = '<div style="color:#b91c1c;font-size:12px;">Vue/ElementPlus 未加载或路径错误</div>';
+    if (typeof onNodeCreated === 'function') { try { onNodeCreated(node); } catch {} }
+    return node;
+  }
+
+  node.vm = mountWidgetComponent(mountNode, component, state);
+
+  applyCommonStyle(node, state);
+  registerNode(node, type || title, createPropsApi({ node, initialProps: state, vm: state, defaults: defaults || {}, propKeys, valueMapper, coercers }));
+
+  if (typeof onNodeCreated === 'function') {
+    try { onNodeCreated(node); } catch {}
+  }
 
   return node;
 }
@@ -297,11 +416,15 @@ window.EPWidgets = {
   applyCommonStyle,
   createPropsApi,
   createVueWidget,
+  createVueSfcWidget,
+  ensureSharedWidgetApp,
+  unmountWidgetNode,
   // 函数级注释：获取 commandId 索引表（供 index.html 的 WS 同步使用）
   getCommandIndex() { return commandIndex; },
   // 函数级注释：从索引中移除一个节点（控件销毁时调用）
   unindexNode(node) {
     if (!node) return;
+    unmountWidgetNode(node);
     const oldCmd = node.__nsCommandId || '';
     if (oldCmd && commandIndex.has(oldCmd)) {
       commandIndex.get(oldCmd).delete(node);
@@ -378,3 +501,5 @@ window.EPWidgets.sendCommand = function(addr, value) {
 
   return entry.promise || Promise.resolve({ ok: true });
 };
+
+try { ensureSharedWidgetApp(); } catch {}

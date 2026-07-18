@@ -39,3 +39,5 @@ install.iss
 .vscode/settings.json
 /mcp-bridge
 /build_agent
+/src/Widget/www1
+/src/Widget/WebInterface

@@ -146,6 +146,9 @@ void registerBuildInPlugins(QtNodes::PluginsManager* pluginsManager)
     pluginsManager->registry()->registerModel<TextSourceDataModel>("String Source","Property");
     pluginsManager->registry()->registerModel<IntSourceDataModel>("Int Source","Property");
     pluginsManager->registry()->registerModel<FloatSourceDataModel>("Float Source","Property");
+    pluginsManager->registry()->registerModel<Vec2SourceDataModel>("Vec2 Source","Property");
+    pluginsManager->registry()->registerModel<Vec3SourceDataModel>("Vec3 Source","Property");
+    pluginsManager->registry()->registerModel<Vec4SourceDataModel>("Vec4 Source","Property");
     pluginsManager->registry()->registerModel<ImageShowModel>("Image Display","Image");
     pluginsManager->registry()->registerModel<ToJsonDataModel>("To JSON","Controls");
     pluginsManager->registry()->registerModel<FromJsonDataModel>("From JSON","Controls");

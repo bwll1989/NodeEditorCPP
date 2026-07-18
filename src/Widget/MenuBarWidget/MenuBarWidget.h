@@ -44,8 +44,6 @@ public:
     QAction *Setting;
     //视图菜单
     QMenu *View_menu;
-    //切换主题
-    QAction *switchTheme;
     //恢复布局
     QAction *restoreLayout;
     //保存布局

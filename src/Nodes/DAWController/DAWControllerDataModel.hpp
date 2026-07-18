@@ -283,9 +283,6 @@ namespace Nodes
 
         void setHost(const QString& host)
         {
-            if (m_host == host) {
-                return;
-            }
             m_host = host;
             Q_EMIT hostChanged(host);
             if (m_controller) {
@@ -295,9 +292,7 @@ namespace Nodes
 
         void setCommand(const QString& cmd)
         {
-            if (m_command == cmd) {
-                return;
-            }
+
             m_command = cmd;
             Q_EMIT commandChanged(cmd);
             setSend(true);
