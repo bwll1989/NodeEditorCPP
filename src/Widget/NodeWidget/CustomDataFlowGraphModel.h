@@ -16,6 +16,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QVector>
+
 using QtNodes::AbstractGraphModel;
 using QtNodes::Serializable;
 using QtNodes::NodeDelegateModelRegistry;

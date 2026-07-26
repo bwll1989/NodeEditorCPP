@@ -1,186 +1,611 @@
 #include "CalendarWidget.hpp"
+
 #include <QPainter>
-#include <QApplication>
-#include <QInputDialog>
-#include <QMessageBox>
-#include <QJsonParseError>
-#include <QTextStream>
-#include <QTextCharFormat>  // 新增：用于设置周标题与日期的文本格式
+#include <QPainterPath>
+#include <QMouseEvent>
+#include <QContextMenuEvent>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QShowEvent>
+#include <QMimeData>
+#include <QMenu>
+#include <QTableView>
+#include <QDataStream>
+#include <QFontMetrics>
+#include <QTimer>
+#include <QAbstractItemView>
+#include <QTextCharFormat>
+#include <QModelIndex>
+#include <algorithm>
 
-OscCalendarWidget::OscCalendarWidget(ScheduledTaskModel* model,QWidget *parent)
-    :m_model(model),
-    QCalendarWidget(parent)
+namespace {
+
+constexpr int kDayNumberHeight = 18;
+constexpr int kChipHeight = 16;
+constexpr int kChipGap = 2;
+constexpr int kCellPad = 3;
+constexpr int kMaxChips = 5;
+const char kOscMime[] = "application/x-osc-address";
+const QColor kAccent(0, 120, 212); // 与 QSS #0078d4 一致
+
+/** 日历绘制用色，按亮/暗主题分支 */
+struct ThemeColors {
+    QColor cellBg;
+    QColor outsideBg;
+    QColor dayText;
+    QColor weekendText;
+    QColor selectionFill;
+    QColor todayBorder;
+    QColor chipOnceBg;
+    QColor chipOnceFg;
+    QColor chipLoopBg;
+    QColor chipLoopFg;
+    QColor chipActiveBg;
+    QColor chipActiveFg;
+    QColor moreText;
+};
+
+ThemeColors themeColors(const QPalette& pal)
 {
-    // 启用拖拽功能
+    ThemeColors c;
+    const bool dark = pal.color(QPalette::Base).lightness() < 128;
+
+    if (dark) {
+        c.cellBg = QColor(53, 53, 53);
+        c.outsideBg = QColor(45, 45, 45);
+        c.dayText = QColor(220, 220, 220);
+        c.weekendText = QColor(180, 140, 140);
+        c.selectionFill = QColor(0, 120, 212, 40);
+        c.todayBorder = kAccent;
+        c.chipOnceBg = QColor(55, 100, 140, 200);
+        c.chipOnceFg = QColor(230, 240, 250);
+        c.chipLoopBg = QColor(55, 120, 105, 200);
+        c.chipLoopFg = QColor(225, 245, 238);
+        c.chipActiveBg = kAccent;
+        c.chipActiveFg = Qt::white;
+        c.moreText = QColor(150, 150, 155);
+    } else {
+        c.cellBg = QColor(255, 255, 255);
+        c.outsideBg = QColor(245, 245, 245);
+        c.dayText = QColor(45, 45, 45);
+        c.weekendText = QColor(160, 100, 100);
+        c.selectionFill = QColor(0, 120, 212, 28);
+        c.todayBorder = kAccent;
+        c.chipOnceBg = QColor(227, 240, 250);
+        c.chipOnceFg = QColor(30, 90, 140);
+        c.chipLoopBg = QColor(228, 243, 236);
+        c.chipLoopFg = QColor(40, 110, 90);
+        c.chipActiveBg = kAccent;
+        c.chipActiveFg = Qt::white;
+        c.moreText = QColor(130, 130, 130);
+    }
+    return c;
+}
+
+} // namespace
+
+OscCalendarWidget::OscCalendarWidget(ScheduledTaskModel* model, QWidget* parent)
+    : QCalendarWidget(parent)
+    , m_model(model)
+{
     setAcceptDrops(true);
-    
-    // 连接日期选择变化信号
-    connect(this, &QCalendarWidget::selectionChanged,
-            this, &OscCalendarWidget::onDateSelectionChanged);
-    
-    // 设置日历样式
-    setGridVisible(true);
-    setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);//不显示星期数
-    // setHorizontalHeaderFormat(QCalendarWidget::NoHorizontalHeader);
+    setGridVisible(false);
+    setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
     setNavigationBarVisible(true);
-
     setDateEditEnabled(false);
+    setFirstDayOfWeek(Qt::Monday);
+    setContextMenuPolicy(Qt::DefaultContextMenu);
+    applyWeekdayFormats();
 
+    // 内部 QTableView 在构造后才可用，延迟挂接事件
+    QTimer::singleShot(0, this, &OscCalendarWidget::ensureViewHooks);
 }
 
-OscCalendarWidget::~OscCalendarWidget()
-{
+OscCalendarWidget::~OscCalendarWidget() = default;
 
+bool OscCalendarWidget::hasTasksOnDate(const QDate& date) const
+{
+    return m_model && !m_model->rowIndexesForDate(date).isEmpty();
 }
 
-bool OscCalendarWidget::hasOscMessageForDate(const QDate& date) const
+void OscCalendarWidget::clearSelectedSourceRow()
 {
-    return m_model->itemsForDate(date).count()>0;
-}
-
-
-
-void OscCalendarWidget::contextMenuEvent(QContextMenuEvent *event)
-{
-    // 获取右键点击位置对应的日期
-    QDate date = getDateAtPosition(event->pos());
-    if (!date.isValid()) {
-        QCalendarWidget::contextMenuEvent(event);
+    if (m_selectedSourceRow < 0) {
         return;
     }
-    
-    m_contextMenuDate = date;
-    
-    // 创建并显示右键菜单
-    QMenu* menu = createContextMenu(date);
-    if (menu) {
-        menu->exec(event->globalPos());
-        menu->deleteLater();
+    m_selectedSourceRow = -1;
+    updateCells();
+}
+
+void OscCalendarWidget::refresh()
+{
+    updateCells();
+}
+
+void OscCalendarWidget::applyWeekdayFormats()
+{
+    // 覆盖 Qt 默认周末大红字
+    const ThemeColors colors = themeColors(palette());
+    QTextCharFormat weekendFmt;
+    weekendFmt.setForeground(colors.weekendText);
+    setWeekdayTextFormat(Qt::Saturday, weekendFmt);
+    setWeekdayTextFormat(Qt::Sunday, weekendFmt);
+
+    QTextCharFormat weekdayFmt;
+    weekdayFmt.setForeground(colors.dayText);
+    for (int d = Qt::Monday; d <= Qt::Friday; ++d) {
+        setWeekdayTextFormat(static_cast<Qt::DayOfWeek>(d), weekdayFmt);
     }
 }
 
-void OscCalendarWidget::paintCell(QPainter *painter, const QRect &rect, QDate date) const
+void OscCalendarWidget::showEvent(QShowEvent* event)
 {
-    /**
-     * 函数：OscCalendarWidget::paintCell
-     * 作用：尽可能使用 QSS/调色板进行绘制，仅在必要处做叠加绘制。
-     * 策略：
-     * - 非本月：只填充基础背景，保持留空（不绘制日期与计数）
-     * - 本月：使用基类默认绘制（受 QSS 与主题控制），叠加“今天”边框与右上角计数
-     */
+    QCalendarWidget::showEvent(event);
+    ensureViewHooks();
+}
+
+void OscCalendarWidget::ensureViewHooks()
+{
+    if (m_viewHooksInstalled) {
+        return;
+    }
+
+    QTableView* view = calendarView();
+    if (!view) {
+        QTimer::singleShot(50, this, &OscCalendarWidget::ensureViewHooks);
+        return;
+    }
+
+    // 默认 NoDragDrop，必须显式打开，否则拖放无效
+    view->setDragDropMode(QAbstractItemView::DropOnly);
+    view->setDefaultDropAction(Qt::CopyAction);
+    view->setAcceptDrops(true);
+    view->viewport()->setAcceptDrops(true);
+    view->viewport()->setContextMenuPolicy(Qt::CustomContextMenu);
+    view->viewport()->installEventFilter(this);
+
+    connect(view->viewport(), &QWidget::customContextMenuRequested, this,
+            [this, view](const QPoint& pos) {
+                const QPoint globalPos = view->viewport()->mapToGlobal(pos);
+                QDate date = dateAtGlobalPos(globalPos);
+                if (!date.isValid()) {
+                    date = selectedDate();
+                }
+                if (date.isValid()) {
+                    showDateContextMenu(date, globalPos);
+                }
+            });
+
+    m_viewHooksInstalled = true;
+}
+
+QTableView* OscCalendarWidget::calendarView() const
+{
+    return findChild<QTableView*>();
+}
+
+bool OscCalendarWidget::isOscMime(const QMimeData* mime)
+{
+    return mime && mime->hasFormat(QLatin1String(kOscMime));
+}
+
+OSCMessage OscCalendarWidget::oscFromMime(const QMimeData* mime)
+{
+    OSCMessage msg;
+    if (!isOscMime(mime)) {
+        return msg;
+    }
+    QByteArray data = mime->data(QLatin1String(kOscMime));
+    QDataStream stream(data);
+    stream >> msg.host >> msg.port >> msg.address >> msg.type >> msg.value;
+    return msg;
+}
+
+QDate OscCalendarWidget::dateFromModelIndex(const QModelIndex& index) const
+{
+    if (!index.isValid()) {
+        return {};
+    }
+
+    QDate date = index.data(Qt::UserRole).toDate();
+    if (date.isValid()) {
+        return date;
+    }
+
+    // 兼容：个别环境下 UserRole 无日期时，用显示日 + 当前月推算
+    const int day = index.data(Qt::DisplayRole).toInt();
+    if (day > 0) {
+        const QDate candidate(yearShown(), monthShown(), day);
+        if (candidate.isValid()) {
+            return candidate;
+        }
+    }
+    return {};
+}
+
+QDate OscCalendarWidget::dateAtGlobalPos(const QPoint& globalPos) const
+{
+    QTableView* view = calendarView();
+    if (!view || !view->model()) {
+        return {};
+    }
+    const QPoint local = view->viewport()->mapFromGlobal(globalPos);
+    return dateFromModelIndex(view->indexAt(local));
+}
+
+QRect OscCalendarWidget::cellRectInViewport(const QDate& date) const
+{
+    QTableView* view = calendarView();
+    if (!view || !view->model() || !date.isValid()) {
+        return {};
+    }
+
+    const QAbstractItemModel* model = view->model();
+    for (int row = 0; row < model->rowCount(); ++row) {
+        for (int col = 0; col < model->columnCount(); ++col) {
+            const QModelIndex idx = model->index(row, col);
+            if (dateFromModelIndex(idx) == date) {
+                return view->visualRect(idx);
+            }
+        }
+    }
+    return {};
+}
+
+int OscCalendarWidget::maxChipsForHeight(int cellHeight)
+{
+    const int available = cellHeight - kDayNumberHeight - kCellPad;
+    return std::clamp((available + kChipGap) / (kChipHeight + kChipGap), 0, kMaxChips);
+}
+
+QString OscCalendarWidget::shortAddress(const QString& address)
+{
+    if (address.isEmpty()) {
+        return QStringLiteral("(空)");
+    }
+    const int slash = address.lastIndexOf(QLatin1Char('/'));
+    return (slash >= 0 && slash + 1 < address.size()) ? address.mid(slash + 1) : address;
+}
+
+OscCalendarWidget::ChipLayout OscCalendarWidget::buildChipLayout(const QDate& date,
+                                                                const QRect& cellRect) const
+{
+    ChipLayout layout;
+    if (!m_model || !cellRect.isValid()) {
+        return layout;
+    }
+
+    const QVector<int> allRows = m_model->rowIndexesForDate(date);
+    const int maxChips = maxChipsForHeight(cellRect.height());
+    // 任务过多时预留一行显示 "+N"
+    const bool needMore = allRows.size() > maxChips && maxChips > 0;
+    const int showCount = needMore ? std::max(0, maxChips - 1)
+                                   : std::min(static_cast<int>(allRows.size()), maxChips);
+
+    layout.rows = allRows.mid(0, showCount);
+    layout.overflow = allRows.size() - showCount;
+
+    const int lineCount = layout.rows.size()
+                          + (layout.overflow > 0 && maxChips > layout.rows.size() ? 1 : 0);
+    int y = cellRect.top() + kDayNumberHeight;
+    for (int i = 0; i < lineCount; ++i) {
+        layout.rects.push_back(QRect(cellRect.left() + kCellPad,
+                                     y,
+                                     cellRect.width() - 2 * kCellPad,
+                                     kChipHeight));
+        y += kChipHeight + kChipGap;
+    }
+    return layout;
+}
+
+OscCalendarWidget::ChipHit OscCalendarWidget::hitTest(const QPoint& globalPos) const
+{
+    ChipHit hit;
+    hit.date = dateAtGlobalPos(globalPos);
+    if (!hit.date.isValid()) {
+        return hit;
+    }
+
+    QTableView* view = calendarView();
+    if (!view) {
+        return hit;
+    }
+
+    const QRect cell = cellRectInViewport(hit.date);
+    if (!cell.isValid()) {
+        return hit;
+    }
+
+    const QPoint local = view->viewport()->mapFromGlobal(globalPos);
+    const ChipLayout layout = buildChipLayout(hit.date, cell);
+    for (int i = 0; i < layout.rows.size() && i < layout.rects.size(); ++i) {
+        if (layout.rects[i].contains(local)) {
+            hit.sourceRow = layout.rows[i];
+            break;
+        }
+    }
+    return hit;
+}
+
+void OscCalendarWidget::paintCell(QPainter* painter, const QRect& rect, QDate date) const
+{
     painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
 
-    const int shownMonth = monthShown();
-    const int shownYear  = yearShown();
-    const bool inCurrentMonth = (date.month() == shownMonth && date.year() == shownYear);
+    const ThemeColors colors = themeColors(palette());
+    const bool inMonth = (date.month() == monthShown() && date.year() == yearShown());
+    const bool selected = (date == selectedDate());
+    const bool today = (date == QDate::currentDate());
 
-    // 非本月：填充基础背景，留空
-    if (!inCurrentMonth) {
-        painter->fillRect(rect, palette().base());
+    painter->fillRect(rect, inMonth ? colors.cellBg : colors.outsideBg);
+    if (!inMonth) {
         painter->restore();
         return;
     }
 
-    const bool isSelected = (date == selectedDate());
-    const bool isToday    = (date == QDate::currentDate());
-
-    // 使用默认绘制（文本、选中样式等由样式/QSS控制）
-    QCalendarWidget::paintCell(painter, rect, date);
-
-    // 叠加“今天”边框（采用主题高亮色）
-    if (isToday) {
-        painter->setRenderHint(QPainter::Antialiasing, true);
-        painter->setPen(QPen(palette().highlight().color(), 2));
-        QRect borderRect = rect.adjusted(2, 2, -2, -2);
-        painter->drawRoundedRect(borderRect, 4, 4);
+    if (selected) {
+        painter->fillRect(rect.adjusted(1, 1, -1, -1), colors.selectionFill);
+    }
+    if (today) {
+        painter->setPen(QPen(colors.todayBorder, 1.5));
+        painter->drawRoundedRect(rect.adjusted(2, 2, -2, -2), 4, 4);
     }
 
-    // 右上角显示该日期的 OSC 任务数量（采用主题高亮色）
-    if (hasOscMessageForDate(date)) {
-        const QString countText = QString::number(m_model->itemsForDate(date).count());
-        painter->setPen(palette().highlight().color());
-        const int textWidth = painter->fontMetrics().horizontalAdvance(countText);
-        const int x = rect.right() - textWidth - 4;
-        const int y = rect.top() + painter->fontMetrics().ascent() + 4;
-        painter->drawText(x, y, countText);
+    // 日期数字
+    painter->setPen(date.dayOfWeek() >= 6 ? colors.weekendText : colors.dayText);
+    QFont dayFont = painter->font();
+    dayFont.setBold(today || selected);
+    painter->setFont(dayFont);
+    painter->drawText(QRect(rect.left() + kCellPad, rect.top() + 1,
+                            rect.width() - 2 * kCellPad, kDayNumberHeight),
+                      Qt::AlignLeft | Qt::AlignVCenter,
+                      QString::number(date.day()));
+
+    // 任务条（paintCell 的 rect 已是 viewport 坐标，与 hitTest 共用布局算法）
+    const ChipLayout layout = buildChipLayout(date, rect);
+
+    QFont chipFont = painter->font();
+    chipFont.setBold(false);
+    chipFont.setPointSize(std::max(8, chipFont.pointSize() - 1));
+    painter->setFont(chipFont);
+    const QFontMetrics fm(chipFont);
+
+    for (int i = 0; i < layout.rows.size() && i < layout.rects.size(); ++i) {
+        const int sourceRow = layout.rows[i];
+        const QModelIndex idx = m_model->index(sourceRow, 0);
+        const QTime t = idx.data(ScheduledTaskModel::RoleTime).toTime();
+        const QString remarks = idx.data(ScheduledTaskModel::RoleRemarks).toString().trimmed();
+        const QString label = remarks.isEmpty()
+            ? shortAddress(idx.data(ScheduledTaskModel::RoleAddress).toString())
+            : remarks;
+        const bool isLoop = idx.data(ScheduledTaskModel::RoleScheduleType).toString()
+                                .compare(QStringLiteral("loop"), Qt::CaseInsensitive) == 0;
+        const bool active = (sourceRow == m_selectedSourceRow);
+
+        QColor bg = colors.chipOnceBg;
+        QColor fg = colors.chipOnceFg;
+        if (active) {
+            bg = colors.chipActiveBg;
+            fg = colors.chipActiveFg;
+        } else if (isLoop) {
+            bg = colors.chipLoopBg;
+            fg = colors.chipLoopFg;
+        }
+
+        const QRect chip = layout.rects[i];
+        QPainterPath path;
+        path.addRoundedRect(chip, 3, 3);
+        painter->fillPath(path, bg);
+        painter->setPen(fg);
+
+        QString text = QStringLiteral("%1 %2")
+                           .arg(t.isValid() ? t.toString(QStringLiteral("HH:mm")) : QStringLiteral("--:--"),
+                                label);
+        if (isLoop) {
+            text.prepend(QStringLiteral("↻ "));
+        }
+        painter->drawText(chip.adjusted(4, 0, -4, 0), Qt::AlignVCenter | Qt::AlignLeft,
+                          fm.elidedText(text, Qt::ElideRight, chip.width() - 6));
+    }
+
+    if (layout.overflow > 0 && layout.rects.size() > layout.rows.size()) {
+        painter->setPen(colors.moreText);
+        painter->drawText(layout.rects[layout.rows.size()].adjusted(4, 0, -4, 0),
+                          Qt::AlignVCenter | Qt::AlignLeft,
+                          tr("+%1 项").arg(layout.overflow));
     }
 
     painter->restore();
 }
 
-
-void OscCalendarWidget::onDateSelectionChanged()
+bool OscCalendarWidget::eventFilter(QObject* watched, QEvent* event)
 {
+    QTableView* view = calendarView();
+    if (!view || watched != view->viewport()) {
+        return QCalendarWidget::eventFilter(watched, event);
+    }
 
-
-
+    switch (event->type()) {
+    case QEvent::MouseButtonPress:
+        if (onViewportMousePress(static_cast<QMouseEvent*>(event))) {
+            return true;
+        }
+        break;
+    case QEvent::MouseButtonDblClick:
+        if (onViewportMouseDoubleClick(static_cast<QMouseEvent*>(event))) {
+            return true;
+        }
+        break;
+    case QEvent::DragEnter:
+    case QEvent::DragMove:
+    case QEvent::Drop:
+        if (onViewportDrag(event)) {
+            return true;
+        }
+        break;
+    default:
+        break;
+    }
+    return false; // 未处理则交给 viewport 默认逻辑
 }
 
-
-QDate OscCalendarWidget::getDateAtPosition(const QPoint& pos)
+bool OscCalendarWidget::onViewportMousePress(QMouseEvent* event)
 {
-    // 这是一个简化的实现，实际可能需要更复杂的计算
-    // 获取当前显示的月份和年份
-    QDate currentDate = selectedDate();
-    int year = currentDate.year();
-    int month = currentDate.month();
-    
-    // 计算单元格大小
-    QRect calendarRect = rect();
-    int cellWidth = calendarRect.width() / 7;  // 7天一周
-    int cellHeight = (calendarRect.height() - 50) / 6;  // 大约6行，减去标题栏
-    
-    // 计算点击的是第几行第几列
-    int col = pos.x() / cellWidth;
-    int row = (pos.y() - 50) / cellHeight;  // 减去标题栏高度
-    
-    if (col < 0 || col >= 7 || row < 0 || row >= 6) {
-        return QDate();
+    if (event->button() != Qt::LeftButton) {
+        return false;
     }
-    
-    // 计算该月第一天是星期几
-    QDate firstDay(year, month, 1);
-    int firstDayOfWeek = firstDay.dayOfWeek() - 1;  // Qt中周一是1，我们需要周日是0
-    
-    // 计算日期
-    int dayNumber = row * 7 + col - firstDayOfWeek + 1;
-    
-    if (dayNumber < 1 || dayNumber > firstDay.daysInMonth()) {
-        return QDate();
+
+    const ChipHit hit = hitTest(event->globalPosition().toPoint());
+    if (hit.date.isValid()) {
+        setSelectedDate(hit.date);
     }
-    
-    return QDate(year, month, dayNumber);
+
+    if (hit.sourceRow >= 0) {
+        m_selectedSourceRow = hit.sourceRow;
+        updateCells();
+        emit taskChipClicked(hit.sourceRow, event->globalPosition().toPoint());
+        return true; // 吞掉事件，避免与表格默认选中逻辑冲突
+    }
+
+    if (m_selectedSourceRow >= 0) {
+        m_selectedSourceRow = -1;
+        updateCells();
+    }
+    return false;
 }
 
-QMenu* OscCalendarWidget::createContextMenu(const QDate& date)
+bool OscCalendarWidget::onViewportMouseDoubleClick(QMouseEvent* event)
 {
-    QMenu* menu = new QMenu(this);
-    menu->setWindowFlags(menu->windowFlags() | Qt::NoDropShadowWindowHint);
-    menu->setAttribute(Qt::WA_TranslucentBackground, false);
-    
-    // 显示日期信息
-    QAction* dateAction = menu->addAction(QString("日期: %1").arg(date.toString("yyyy-MM-dd")));
-    dateAction->setEnabled(false);
-    
-    menu->addSeparator();
-    
-    if (hasOscMessageForDate(date)) {
-        // 如果有OSC数据，显示编辑和删除选项
-        // QAction* editAction = menu->addAction("编辑OSC数据");
-        // connect(editAction, &QAction::triggered, this, &OscCalendarWidget::editCurrentDateOscData);
-        
-        // QAction* deleteAction = menu->addAction("删除OSC数据");
-        // connect(deleteAction, &QAction::triggered, this, &OscCalendarWidget::deleteCurrentDateOscData);
-        
-        menu->addSeparator();
-
-    } else {
-        // 如果没有OSC数据，显示提示
-        QAction* noDataAction = menu->addAction("no scheduled");
-        noDataAction->setEnabled(false);
+    if (event->button() != Qt::LeftButton) {
+        return false;
     }
-    
-    return menu;
+    const ChipHit hit = hitTest(event->globalPosition().toPoint());
+    if (hit.date.isValid() && hit.sourceRow < 0) {
+        emit emptyDateDoubleClicked(hit.date);
+        return true;
+    }
+    return false;
 }
 
+void OscCalendarWidget::showDateContextMenu(const QDate& date, const QPoint& globalPos)
+{
+    if (!date.isValid()) {
+        return;
+    }
+    setSelectedDate(date);
 
+    QMenu menu(this);
+    menu.setWindowFlags(menu.windowFlags() | Qt::NoDropShadowWindowHint);
+
+    QAction* title = menu.addAction(date.toString(QStringLiteral("yyyy-MM-dd")));
+    title->setEnabled(false);
+    menu.addSeparator();
+
+    connect(menu.addAction(tr("新建任务")), &QAction::triggered, this, [this, date]() {
+        emit requestAddTask(date);
+    });
+
+    QAction* clearAction = menu.addAction(tr("清空当日任务"));
+    clearAction->setEnabled(hasTasksOnDate(date));
+    connect(clearAction, &QAction::triggered, this, [this, date]() {
+        emit requestClearDate(date);
+    });
+
+    if (m_selectedSourceRow >= 0) {
+        menu.addSeparator();
+        connect(menu.addAction(tr("删除选中任务")), &QAction::triggered,
+                this, &OscCalendarWidget::requestDeleteSelectedTask);
+    }
+
+    menu.exec(globalPos);
+}
+
+bool OscCalendarWidget::onViewportDrag(QEvent* event)
+{
+    if (event->type() == QEvent::DragEnter) {
+        auto* e = static_cast<QDragEnterEvent*>(event);
+        if (!isOscMime(e->mimeData())) {
+            return false;
+        }
+        e->acceptProposedAction();
+        return true;
+    }
+
+    if (event->type() == QEvent::DragMove) {
+        auto* e = static_cast<QDragMoveEvent*>(event);
+        if (!isOscMime(e->mimeData())) {
+            return false;
+        }
+        // 进入 viewport 即接受，日期在 Drop 时再解析
+        e->acceptProposedAction();
+        return true;
+    }
+
+    if (event->type() == QEvent::Drop) {
+        auto* e = static_cast<QDropEvent*>(event);
+        if (!isOscMime(e->mimeData())) {
+            return false;
+        }
+        QTableView* view = calendarView();
+        const QPoint global = view ? view->viewport()->mapToGlobal(e->position().toPoint())
+                                   : mapToGlobal(e->position().toPoint());
+        acceptOscDrop(global, e->mimeData());
+        e->acceptProposedAction();
+        return true;
+    }
+
+    return false;
+}
+
+void OscCalendarWidget::acceptOscDrop(const QPoint& globalPos, const QMimeData* mime)
+{
+    QDate date = dateAtGlobalPos(globalPos);
+    if (!date.isValid()) {
+        date = selectedDate();
+    }
+    if (!date.isValid()) {
+        return;
+    }
+    setSelectedDate(date);
+    emit oscMessageDropped(date, oscFromMime(mime));
+}
+
+void OscCalendarWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+    const QDate date = dateAtGlobalPos(event->globalPos());
+    if (date.isValid()) {
+        showDateContextMenu(date, event->globalPos());
+        return;
+    }
+    QCalendarWidget::contextMenuEvent(event);
+}
+
+// 以下三个重写作为导航栏等非 viewport 区域的拖放兜底
+void OscCalendarWidget::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (isOscMime(event->mimeData())) {
+        event->acceptProposedAction();
+        return;
+    }
+    QCalendarWidget::dragEnterEvent(event);
+}
+
+void OscCalendarWidget::dragMoveEvent(QDragMoveEvent* event)
+{
+    if (isOscMime(event->mimeData())) {
+        event->acceptProposedAction();
+        return;
+    }
+    event->ignore();
+}
+
+void OscCalendarWidget::dropEvent(QDropEvent* event)
+{
+    if (!isOscMime(event->mimeData())) {
+        event->ignore();
+        return;
+    }
+    acceptOscDrop(mapToGlobal(event->position().toPoint()), event->mimeData());
+    event->acceptProposedAction();
+}

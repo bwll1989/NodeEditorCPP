@@ -20,6 +20,9 @@ public:
     ScheduledInfo getScheduledInfo() const;
     void setScheduledInfo(const ScheduledInfo& info);
 
+    QString getRemarks() const;
+    void setRemarks(const QString& remarks);
+
 public slots:
     void testCommand() const;
 
@@ -35,6 +38,7 @@ private:
 
     QLineEdit* addressEdit = nullptr;
     QLineEdit* valueEdit = nullptr;
+    QLineEdit* remarksEdit = nullptr;
     QTimeEdit* timeEdit = nullptr;
     QPushButton* btnTest = nullptr;
 

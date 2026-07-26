@@ -2,17 +2,19 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
-  <title>NodeStudio Dashboard</title>
+  <title>Flow</title>
   <link rel="icon" href="favicon.png" type="image/png">
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link href="assets/vendor/bootstrap.min.css" rel="stylesheet">
   <link href="assets/vendor/index.css" rel="stylesheet"/>
   <link href="assets/ns-compat.css" rel="stylesheet"/>
+  <link href="assets/ns-tokens.css" rel="stylesheet"/>
+  <link href="assets/ns-ui.css" rel="stylesheet"/>
   <link href="assets/style.css" rel="stylesheet"/>
   <style>
-    body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; }
+    body { font-family: var(--ns-font, "Segoe UI", Arial, sans-serif); margin: 0; color: var(--ns-text, #1e293b); }
     h1 { color: #2b6cb0; margin-bottom: 12px; }
-    .app-shell { display: flex; height: 100vh; }
+    .app-shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    .app-body { flex: 1; min-height: 0; display: flex; flex-direction: row; overflow: hidden; width: 100%; }
     .main-area { flex: 1; padding: 0; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 
     .sidebar-left { display: none !important; }
@@ -22,16 +24,14 @@
       flex-shrink: 0;
       display: flex;
       flex-direction: column;
-      transition: width 0.3s ease, padding 0.3s ease;
+      transition: width 0.3s ease;
       overflow-y: auto;
       overflow-x: hidden;
-      padding-top: 56px;
       box-sizing: border-box;
-      background: linear-gradient(#525c66 0 56px, #fff 56px);
-      border-left: none;
+      background: #fff;
+      border-left: 1px solid #e1e4e8;
       position: relative;
     }
-    .sidebar-right::before { content: ''; position: absolute; left: 0; top: 56px; bottom: 0; width: 1px; background: #e1e4e8; }
     .sidebar-right.collapsed { width: 0; padding: 0; border: none; overflow: hidden; }
     .sidebar-right::-webkit-scrollbar { width: 5px; }
     .sidebar-right::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
@@ -46,11 +46,26 @@
     .sidebar-right .prop-label { font-size: 12px; color: #64748b; font-weight: 500; }
     .sidebar-right .prop-value { font-size: 13px; color: #334155; }
 
-    .gutter.gutter-horizontal { position: relative; background: linear-gradient(#525c66 0 56px, rgba(203,213,225,0.4) 56px); }
-    .gutter.gutter-horizontal:hover { background: linear-gradient(#525c66 0 56px, rgba(148,163,184,0.6) 56px); }
-    .gutter.gutter-horizontal .gutter-handle { position:absolute; left:0; right:0; top:56px; bottom:0; display:flex; align-items:center; justify-content:center; }
-    .gutter.gutter-horizontal .gutter-handle::before { content:''; width:2px; height:20px; background:#94a3b8; border-radius:1px; }
-    /* 使用 Split.js 的 gutter；移除旧手柄样式 */
+    .gutter.gutter-horizontal {
+      position: relative;
+      background: rgba(203,213,225,0.45);
+      flex-shrink: 0;
+    }
+    .gutter.gutter-horizontal:hover { background: rgba(148,163,184,0.55); }
+    .gutter.gutter-horizontal .gutter-handle {
+      position: absolute;
+      left: 0; right: 0; top: 0; bottom: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .gutter.gutter-horizontal .gutter-handle::before {
+      content: '';
+      width: 2px;
+      height: 28px;
+      background: #94a3b8;
+      border-radius: 1px;
+    }
 
     .sidebar-section { padding: 12px; }
     .sidebar-section + .sidebar-section { border-top: 1px solid #e1e4e8; }
@@ -179,45 +194,291 @@
     .toggle-icon { transition: transform 0.3s ease; }
     .sidebar-section.collapsed .toggle-icon { transform: rotate(-90deg); }
     #tabsBar { overflow: visible; }
-    .top-nav { height: 56px; background: #525c66; color: #f8fafc; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-bottom: 1px solid rgba(255,255,255,0.12); position: relative; }
-    .top-nav-left { display: flex; align-items: center; gap: 10px; }
-    .top-nav-brand-btn { width: 40px; height: 40px !important; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: none !important; background: transparent !important; box-shadow: none !important; border-radius: 0 !important; }
-    .top-nav-brand-btn svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .top-nav-brand-btn img { width: 40px; height: 40px; object-fit: contain; border-radius: 4px; }
-    .top-nav-brand-img { width: 40px; height: 40px; }
-    .top-nav-center { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .top-nav .dropdown { position: static; }
+    .top-nav {
+      height: var(--ns-nav-height, 56px);
+      background: var(--ns-nav-bg, #3d4650);
+      color: var(--ns-nav-text, #f8fafc);
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 0 10px 0 8px;
+      border-bottom: 1px solid var(--ns-nav-border, rgba(255,255,255,0.12));
+      position: relative;
+      z-index: 30;
+      flex-shrink: 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .top-nav-left {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-shrink: 0;
+      height: 100%;
+    }
+    .top-nav-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      height: 100%;
+      padding: 0 12px 0 6px;
+      margin-right: 4px;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .top-nav-brand-img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .top-nav-brand-text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.15;
+      min-width: 0;
+    }
+    .top-nav-brand-name {
+      font-size: 13px;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      color: #fff;
+    }
+    .top-nav-brand-sub {
+      font-size: 10px;
+      color: rgba(255,255,255,0.48);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .top-nav-divider {
+      width: 1px;
+      height: 22px;
+      background: rgba(255,255,255,0.14);
+      margin: 0 6px 0 2px;
+      flex-shrink: 0;
+    }
+    .top-nav-center {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      height: 100%;
+      padding-left: 2px;
+    }
+    .top-nav #tabsList {
+      display: flex;
+      flex-wrap: nowrap !important;
+      gap: 2px;
+      align-items: stretch;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      min-width: 0;
+      padding: 0;
+      margin: 0;
+      border-bottom: none;
+      scrollbar-width: none;
+    }
+    .top-nav #tabsList::-webkit-scrollbar { display: none; }
+    .top-nav #tabsList .nav-link {
+      background: transparent !important;
+      border: none !important;
+      color: rgba(255,255,255,0.72);
+      padding: 0 14px;
+      height: 56px;
+      border-radius: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      position: relative;
+    }
+    .top-nav #tabsList .nav-link:hover { color: #ffffff; background: rgba(255,255,255,0.06) !important; }
+    .top-nav #tabsList .nav-link.active {
+      color: #ffffff;
+      font-weight: 600;
+    }
+    .top-nav #tabsList .nav-link.active::after {
+      content: '';
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 0;
+      height: 3px;
+      border-radius: 3px 3px 0 0;
+      background: #f59e0b;
+    }
+    .top-nav .tab-close { color: rgba(255,255,255,0.45); font-size: 14px; }
+    .top-nav .tab-close:hover { color: #fca5a5; }
+    .top-nav .top-nav-add {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: transparent;
+      color: rgba(255,255,255,0.78);
+      font-size: 16px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .top-nav .top-nav-add:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border-color: rgba(255,255,255,0.28);
+    }
+    .top-nav-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      flex-shrink: 0;
+      padding-left: 10px;
+      height: 100%;
+    }
+    .top-nav-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding-left: 4px;
+      border-left: 1px solid rgba(255,255,255,0.12);
+      margin-left: 2px;
+    }
+    .ns-nav-icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 32px;
+      min-width: 32px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: rgba(255,255,255,0.82);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .ns-nav-icon-btn svg {
+      width: 16px;
+      height: 16px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+    .ns-nav-icon-btn svg[data-filled] circle,
+    .ns-nav-icon-btn svg.ns-icon-dots circle {
+      fill: currentColor;
+      stroke: none;
+    }
+    #toggleFullscreen .ns-fs-exit { display: none; }
+    #toggleFullscreen[data-fs="1"] .ns-fs-enter { display: none; }
+    #toggleFullscreen[data-fs="1"] .ns-fs-exit { display: block; }
+    .ns-nav-icon-btn:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    .ns-nav-icon-btn:focus-visible {
+      outline: 2px solid rgba(245,158,11,0.55);
+      outline-offset: 1px;
+    }
+    .ns-nav-icon-btn.is-icon-only { padding: 0; width: 32px; }
+    .ns-nav-edit-btn[data-editing="0"] {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.14);
+    }
+    .ns-nav-edit-btn[data-editing="1"] {
+      color: #fff7ed;
+      background: rgba(245, 158, 11, 0.28);
+      border-color: rgba(245, 158, 11, 0.45);
+    }
+    .ns-nav-edit-btn[data-editing="1"]:hover {
+      background: rgba(245, 158, 11, 0.4);
+    }
+    .top-nav .dropdown { position: relative; }
     .top-nav .dropdown-menu {
-      margin-top: 0;
-      top: 56px !important;
-      left: 0 !important;
-      right: auto !important;
+      margin-top: 6px;
+      right: 0 !important;
+      left: auto !important;
+      top: 100% !important;
       transform: none !important;
       border-radius: 10px;
-      min-width: 220px;
+      min-width: 180px;
       padding: 6px;
-      box-shadow: 0 12px 28px rgba(0,0,0,0.22);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.28);
       border: 1px solid rgba(255,255,255,0.10);
       z-index: 1060;
     }
-    .top-nav .dropdown-menu .dropdown-item { border-radius: 8px; padding: 10px 12px; }
-    .top-nav .dropdown-item.active { background: rgba(245,158,11,0.22); }
-    .top-nav #tabsList { display: flex; flex-wrap: nowrap !important; gap: 0; align-items: stretch; overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; padding: 0; margin: 0; border-bottom: none; }
-    .top-nav #tabsList .nav-link { background: transparent !important; border: none !important; color: rgba(255,255,255,0.78); padding: 0 12px; height: 56px; border-radius: 0; display: inline-flex; align-items: center; }
-    .top-nav #tabsList .nav-link:hover { color: #ffffff; background: rgba(255,255,255,0.08) !important; }
-    .top-nav #tabsList .nav-link.active { color: #ffffff; border-bottom: 3px solid #f59e0b !important; }
-    .top-nav .tab-close { color: rgba(255,255,255,0.6); }
-    .top-nav .tab-close:hover { color: #fca5a5; }
-    .top-nav .btn { height: 32px; border-radius: 6px; }
-    .top-nav .btn-outline-light { border-color: rgba(255,255,255,0.45); color: #ffffff; }
-    .top-nav .btn-outline-light:hover { background: rgba(255,255,255,0.12); }
-    .top-nav .top-nav-add { width: 34px; padding-left: 0; padding-right: 0; }
+    .top-nav .dropdown-menu .dropdown-item {
+      border-radius: 8px;
+      padding: 9px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .top-nav .dropdown-menu .dropdown-item svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      opacity: 0.75;
+    }
+    .ns-edit-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 14px;
+      font-size: 12px;
+      color: #78350f;
+      background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%);
+      border-bottom: 1px solid rgba(245, 158, 11, 0.35);
+      z-index: 25;
+    }
+    .ns-edit-banner[data-visible="1"] { display: flex; }
+    .ns-edit-banner-text { font-weight: 500; }
+    .ns-edit-banner-done {
+      height: 28px;
+      padding: 0 12px;
+      border-radius: 7px;
+      border: 1px solid rgba(146, 64, 14, 0.25);
+      background: #fff;
+      color: #92400e;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ns-edit-banner-done:hover { background: #fffbeb; }
     .main-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 16px; }
     #tabsContent { position: relative; height: 100%; }
 
     @media (max-width: 900px) {
-      #toggleEditMode { display: none !important; }
+      .top-nav-brand-text { display: none; }
+      .ns-nav-btn-label { display: none; }
+      .ns-nav-edit-btn { display: none !important; }
+      .ns-edit-banner { display: none !important; }
       .sidebar-right { display: none !important; }
+    }
+    @media (max-width: 640px) {
+      .top-nav-divider { display: none; }
+      .ns-mode-badge .ns-mode-badge-label { display: none; }
+      .ns-mode-badge { width: 26px; padding: 0; justify-content: center; }
+      .ns-mode-badge::before {
+        content: '';
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: currentColor;
+      }
     }
     #tabsList { display: flex; flex-wrap: nowrap !important; gap: 6px; }
     #tabsList .nav-link { white-space: nowrap; display: inline-flex; align-items: center; }
@@ -258,7 +519,7 @@
     .ws-status-bar {
       display: none;
       position: relative;
-      z-index: 20;
+      z-index: var(--ns-z-status, 20);
       padding: 6px 12px;
       font-size: 12px;
       text-align: center;
@@ -270,74 +531,111 @@
     .ws-status-bar[data-level="warn"] { background: #b45309; }
   </style>
 </head>
-<body>
+<body class="view-mode">
+  <div id="nsBootSkeleton" class="ns-boot-skeleton" aria-busy="true" aria-label="正在加载仪表盘">
+    <div class="ns-boot-skeleton-nav"></div>
+    <div class="ns-boot-skeleton-body">
+      <div class="ns-boot-skeleton-canvas"></div>
+    </div>
+  </div>
   <div class="app-shell">
-    <div class="main-area">
-      <div id="tabsBar" class="top-nav">
-        <div class="top-nav-left">
-          <div class="dropdown">
-            <button id="appMenuBtn" type="button" class="btn btn-sm top-nav-brand-btn" data-bs-toggle="dropdown" aria-expanded="false" title="菜单">
-              <img src="favicon.png" alt="菜单" class="top-nav-brand-img" />
+    <div id="tabsBar" class="top-nav" role="banner">
+      <div class="top-nav-left">
+        <div class="top-nav-brand" title="Flow">
+          <img src="favicon.png" alt="" class="top-nav-brand-img" />
+          <div class="top-nav-brand-text">
+            <span class="top-nav-brand-name">Flow</span>
+            <span class="top-nav-brand-sub">Remote</span>
+          </div>
+        </div>
+        <div class="top-nav-divider" aria-hidden="true"></div>
+      </div>
+      <div class="top-nav-center">
+        <div id="tabsList" class="nav" role="tablist"></div>
+        <button id="sidebarAddTab" type="button" class="top-nav-add" title="新增页面" aria-label="新增页面">+</button>
+      </div>
+      <div class="top-nav-right">
+        <span id="modeBadge" class="ns-mode-badge" data-mode="view" title="当前为运行模式">
+          <span class="ns-mode-badge-label">运行</span>
+        </span>
+        <span id="wsStatusPill" class="ns-ws-pill" data-level="unknown" title="主机：未知">
+          <span class="ns-ws-dot" aria-hidden="true"></span>
+          <span class="ns-ws-text">未知</span>
+        </span>
+        <div class="top-nav-actions">
+          <button id="toggleEditMode" type="button" class="ns-nav-icon-btn ns-nav-edit-btn" data-editing="0" title="进入编辑模式">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+            <span class="ns-nav-btn-label" data-edit-label>编辑</span>
+          </button>
+          <button id="toggleFullscreen" type="button" class="ns-nav-icon-btn is-icon-only" title="全屏" aria-label="全屏" data-fs="0">
+            <svg class="ns-fs-enter" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+            <svg class="ns-fs-exit" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+          </button>
+          <div class="dropdown ns-menu">
+            <button id="appMoreBtn" type="button" class="ns-nav-icon-btn is-icon-only" data-ns-menu-toggle aria-expanded="false" title="更多" aria-label="更多">
+              <svg class="ns-icon-dots" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
             </button>
             <ul class="dropdown-menu dropdown-menu-dark">
-              <li><button id="toggleEditMode" type="button" class="dropdown-item">编辑模式</button></li>
-              <li><button id="resetCanvasView" type="button" class="dropdown-item">重置画布视图</button></li>
-              <li><button id="openSettings" type="button" class="dropdown-item">设置</button></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><button id="wsStatusItem" type="button" class="dropdown-item" disabled>主机：未知</button></li>
-              <li><button id="toggleFullscreen" type="button" class="dropdown-item">全屏</button></li>
+              <li>
+                <button id="openSettings" type="button" class="dropdown-item">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                  设置
+                </button>
+              </li>
             </ul>
           </div>
         </div>
-        <div class="top-nav-center">
-          <div id="tabsList" class="nav"></div>
-          <button id="sidebarAddTab" type="button" class="btn btn-sm btn-outline-light top-nav-add" title="新增页面">+</button>
-        </div>
-      </div>
-      <div class="main-body">
-        <div id="tabsContent">
-          <!-- 动态插入每个页面的 grid 容器 -->
-        </div>
       </div>
     </div>
-    <div class="sidebar-right collapsed">
-
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">
-          <div class="d-flex align-items-center justify-content-between flex-grow-1">
-            <strong>控件库</strong>
-            <small class="text-muted me-2" style="font-weight:normal; font-size: 0.8em;">拖拽后再调整</small>
+    <div id="editModeBanner" class="ns-edit-banner" data-visible="0" role="status">
+      <span class="ns-edit-banner-text">正在编辑布局 — 可拖拽控件、调整属性；完成后请退出编辑</span>
+      <button type="button" class="ns-edit-banner-done" id="editBannerDone" data-edit-done>完成编辑</button>
+    </div>
+    <div class="app-body">
+      <div class="main-area">
+        <div class="main-body">
+          <div id="tabsContent">
+            <!-- 动态插入每个页面的 grid 容器 -->
           </div>
-          <span class="toggle-icon">▼</span>
-        </div>
-        <div class="sidebar-section-content mt-2">
-          <div id="widgetLibraryGrid" class="widget-thumb-grid"></div>
         </div>
       </div>
+      <div class="sidebar-right collapsed">
 
-      <span id="alignSelectionHint" style="display:none" aria-hidden="true">已选0</span>
-
-      <div class="sidebar-section">
-        <div class="sidebar-section-header">
-          <strong>属性</strong>
-          <span class="toggle-icon">▼</span>
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
+            <div class="d-flex align-items-center justify-content-between flex-grow-1">
+              <strong>控件库</strong>
+              <small class="text-muted me-2" style="font-weight:normal; font-size: 0.8em;">拖拽后再调整</small>
+            </div>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="sidebar-section-content mt-2">
+            <div id="widgetLibraryGrid" class="widget-thumb-grid"></div>
+          </div>
         </div>
-        <div class="sidebar-section-content mt-2">
-          <div id="propPanel">
-            <!-- 动态生成属性表单 -->
+
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
+            <strong>属性</strong>
+            <span id="alignSelectionHint" class="ns-sel-chip" data-active="0">未选中</span>
+            <span class="toggle-icon">▼</span>
+          </div>
+          <div class="sidebar-section-content mt-2">
+            <div id="propPanel">
+              <!-- 动态生成属性表单 -->
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="assets/vendor/bootstrap.bundle.min.js"></script>
   <script src="assets/vendor/vue.global.prod.js"></script>
   <script src="assets/vendor/index.full.min.js"></script>
   <script src="assets/vendor/split.min.js"></script>
   <script src="assets/widgets.js"></script>
   <script src="assets/ep-widgets.js"></script>
-  <script src="assets/widgets-sfc.js"></script>
+  <!-- widgets-sfc.js 按需加载（图表/控件包较大），见 NSUtils.ensureWidgetTypesReady -->
   <script>
     const EPWidgets = window.EPWidgets || {};
     EPWidgets.isRemoteUpdating = false;
@@ -350,6 +648,10 @@
   </script>
   <script src="assets/widget-manifest.js"></script>
   <script src="assets/modules/ns-namespace.js"></script>
+  <script src="assets/modules/ns-boot.js"></script>
+  <script src="assets/modules/ns-toast.js"></script>
+  <script src="assets/modules/ns-menu.js"></script>
+  <script src="assets/modules/ns-empty-state.js"></script>
   <script src="assets/modules/ns-layout-persist.js"></script>
   <script src="assets/modules/ns-canvas.js"></script>
   <script src="assets/modules/ns-auth.js"></script>

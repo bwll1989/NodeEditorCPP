@@ -41,3 +41,7 @@ install.iss
 /build_agent
 /src/Widget/www1
 /src/Widget/WebInterface
+
+# Frontend widget build deps (reinstall via npm install in dashboard/)
+**/node_modules/
+src/Widget/ExternalControl/dashboard/node_modules/

@@ -639,8 +639,38 @@ QCalendarWidget QTableView QTableCornerButton::section {
      background-color: #F8F8F8;
      color: #4D4D4D;
      outline: 0;
-     selection-background-color: #EAEAEA;
+     selection-background-color: transparent;
      selection-color: #1A1A1A;
+ }
+
+ /* 计划任务浮层编辑器 */
+ #taskEditPopup {
+     background-color: #FFFFFF;
+     border: 1px solid rgba(0,0,0,40);
+     border-radius: 8px;
+ }
+ #taskEditPopupTitle {
+     color: #1A1A1A;
+ }
+ #taskEditPopupClose {
+     color: #888888;
+     background: transparent;
+     border: none;
+     font-size: 16px;
+ }
+ #taskEditPopupClose:hover {
+     color: #1A1A1A;
+ }
+ #taskEditPopupDelete {
+     color: #C62828;
+     background: transparent;
+     border: 1px solid rgba(198,40,40,80);
+     border-radius: 4px;
+     padding: 4px 12px;
+     min-height: 28px;
+ }
+ #taskEditPopupDelete:hover {
+     background-color: rgba(198,40,40,20);
  }
 
  /* ======= TableWidget控件样式 ======= */

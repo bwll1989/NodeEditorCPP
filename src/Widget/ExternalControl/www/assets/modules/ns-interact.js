@@ -774,7 +774,7 @@
         }
 
         if (items.length > 0) {
-          if (!silent) alert('布局加载成功');
+          if (!silent && window.NSToast) window.NSToast.success('布局加载成功', { duration: 1800 });
         } else {
           console.log('当前没有保存的布局，显示空页面');
         }
@@ -797,8 +797,9 @@
                     try { NSWsSync.queryAllStatuses(); } catch {}
                     __markGridLoaded(NS.activeTabId, grid);
                     __seedHistoryAfterLoad(NS.activeTabId, grid);
+                    try { if (window.NSEmptyState) window.NSEmptyState.refreshTab(NS.activeTabId); } catch {}
                   });
-                  if (!silent) alert('离线布局加载成功');
+                  if (!silent && window.NSToast) window.NSToast.success('已从离线缓存加载布局', { duration: 2000 });
                   return;
                 }
               }
@@ -806,7 +807,7 @@
           } catch(err) {
             console.error('Local load failed:', err);
           }
-          if (!silent) alert('加载失败: ' + e);
+          if (!silent && window.NSToast) window.NSToast.error('加载失败: ' + e);
           else console.error('Auto-load failed:', e);
       });
   }
@@ -986,8 +987,12 @@
           setTimeout(NSWsSync.queryAllStatuses, 500);
          
         }
+        try { if (window.NSBoot) window.NSBoot.hide(); } catch {}
       })
-      .catch(e => alert('加载失败: ' + e));
+      .catch(e => {
+        if (window.NSToast) window.NSToast.error('加载失败: ' + e);
+        try { if (window.NSBoot) window.NSBoot.hide(); } catch {}
+      });
   }
 
   // ===== 导出 =====

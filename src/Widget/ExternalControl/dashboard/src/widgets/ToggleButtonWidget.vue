@@ -3,7 +3,7 @@ import type { WidgetMeta } from '../widget-types';
 import { toBool } from '../useWidgetState';
 
 export const widgetMeta: WidgetMeta = {
-  type: '切换按钮',
+  type: 'Toggle 按钮',
   factory: 'createEPToggleButtonWidget',
   defaultW: 8,
   defaultH: 2,
@@ -14,11 +14,15 @@ export const widgetMeta: WidgetMeta = {
     labelOn: '开启',
     labelOff: '关闭',
     active: false,
-    buttonColor: '#409EFF',
-    activeColor: '#0e5d45',
-    pressColor: '#0e5d45',
-    textColor: '#ffffff',
-    borderColor: '#409EFF',
+    buttonType: 'primary',
+    activeType: 'success',
+    plain: false,
+    round: false,
+    buttonColor: '',
+    activeColor: '',
+    pressColor: '',
+    textColor: '',
+    borderColor: '',
     borderStyle: 'none',
   },
   valueMapper(value) {
@@ -36,6 +40,10 @@ const s = useWidgetState<{
   labelOn: string;
   labelOff: string;
   active: boolean;
+  buttonType: string;
+  activeType: string;
+  plain: boolean;
+  round: boolean;
   buttonColor: string;
   activeColor: string;
   pressColor: string;
@@ -47,19 +55,38 @@ const s = useWidgetState<{
 
 const isPressed = ref(false);
 
+function normalizeType(v: unknown, fallback: string) {
+  const t = String(v || fallback).toLowerCase();
+  if (['primary', 'success', 'warning', 'danger', 'info', 'default'].includes(t)) return t;
+  return fallback;
+}
+
+const epType = computed(() =>
+  normalizeType(s.active ? s.activeType : s.buttonType, s.active ? 'success' : 'primary')
+);
+
 const buttonStyle = computed(() => {
-  const bg = isPressed.value ? s.pressColor : s.active ? s.activeColor : s.buttonColor;
-  return {
+  const style: Record<string, string> = {
     width: '100%',
     height: '100%',
-    '--el-button-bg-color': bg,
-    '--el-button-hover-bg-color': bg,
-    '--el-button-active-bg-color': s.pressColor,
-    '--el-button-text-color': s.textColor,
-    '--el-button-border-color': s.borderColor,
-    borderStyle: s.borderStyle,
-    fontSize: s.fontSize + 'px',
+    fontSize: (s.fontSize || '14') + 'px',
   };
+  if (s.borderStyle && s.borderStyle !== 'none') {
+    style.borderStyle = s.borderStyle;
+  }
+  const bg = isPressed.value && s.pressColor
+    ? s.pressColor
+    : s.active && s.activeColor
+      ? s.activeColor
+      : s.buttonColor;
+  if (bg) {
+    style['--el-button-bg-color'] = bg;
+    style['--el-button-hover-bg-color'] = bg;
+    style['--el-button-active-bg-color'] = s.pressColor || bg;
+  }
+  if (s.textColor) style['--el-button-text-color'] = s.textColor;
+  if (s.borderColor) style['--el-button-border-color'] = s.borderColor;
+  return style;
 });
 
 function toggle() {
@@ -78,15 +105,30 @@ function onUp() {
 
 <template>
   <el-button
-    type="primary"
+    class="ns-ep-btn"
+    :type="epType === 'default' ? undefined : (epType as any)"
+    :plain="!!s.plain && !s.active"
+    :round="!!s.round"
     :style="buttonStyle"
     @click="toggle"
     @mousedown="onDown"
     @mouseup="onUp"
     @mouseleave="onUp"
-    @touchstart="onDown"
+    @touchstart.passive="onDown"
     @touchend="onUp"
   >
     {{ s.active ? s.labelOn : s.labelOff }}
   </el-button>
 </template>
+
+<style scoped>
+.ns-ep-btn {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ns-ep-btn :deep(span) {
+  line-height: 1.2;
+}
+</style>

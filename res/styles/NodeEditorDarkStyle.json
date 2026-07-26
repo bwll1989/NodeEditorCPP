@@ -44,13 +44,13 @@
     "PointDiameter": 8.0,
 
     "UseDataDefinedColors": true,
-    "InArrow" : true,
+    "InArrow" : false,
     "OutArrow" : false
 },
 
   "GroupStyle": {
     "NormalBoundaryColor": [200,200,200],
-    "FontColor" : [255, 255, 255],
+    "FontColor" : [53, 53, 53],
     "NormalColor": [255, 255, 255],
     "SelectedColor": [255, 165, 0],
     "SelectedHaloColor": "orange",
@@ -58,13 +58,13 @@
     "PortColor": "gray",
     "PortHeight": 0.6,
     "PortWidth": 12.0,
-    "Opacity": 1,
+    "Opacity": 0.12,
     "PenWidth": 1.0,
     "HoveredPenWidth": 2,
     "BoundaryRadius" : 6,
     "GradientColor0": "gray",
     "CaptionHeight": 30.0,
-    "CollapsedHeight": 200.0,
+    "CollapsedHeight": 100.0,
     "GradientColor1": [80, 80, 80],
     "GradientColor2": [64, 64, 64],
     "GradientColor3": [58, 58, 58]

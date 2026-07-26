@@ -9,10 +9,69 @@
       const gs = ctx.state.selectedGroupIds;
       const gCount = gs ? Number(gs.size || 0) : 0;
       const nCount = Number(ctx.state.selectedNodes.size || 0);
-      if (nCount > 0 && gCount > 0) { el.textContent = '已选组' + String(gCount) + ' 控件' + String(nCount); return; }
-      if (nCount > 0) { el.textContent = '已选' + String(nCount); return; }
-      if (gCount > 0) { el.textContent = '已选组' + String(gCount); return; }
-      el.textContent = '已选0';
+      let text = '未选中';
+      let active = false;
+      if (nCount > 0 && gCount > 0) {
+        text = '组' + gCount + ' · 控件' + nCount;
+        active = true;
+      } else if (nCount > 0) {
+        text = '已选 ' + nCount;
+        active = true;
+      } else if (gCount > 0) {
+        text = '已选组 ' + gCount;
+        active = true;
+      }
+      el.textContent = text;
+      el.dataset.active = active ? '1' : '0';
+      el.setAttribute('aria-hidden', 'false');
+      el.style.display = '';
+    }
+
+    function flashAlignGuides(canvas, refRect, mode) {
+      if (!canvas || !refRect) return;
+      try {
+        Array.from(canvas.querySelectorAll('.ns-align-guide')).forEach(el => {
+          try { el.parentNode && el.parentNode.removeChild(el); } catch {}
+        });
+      } catch {}
+      const lines = [];
+      const addV = (x) => {
+        const el = document.createElement('div');
+        el.className = 'ns-align-guide';
+        el.dataset.axis = 'v';
+        el.style.left = Math.round(x) + 'px';
+        canvas.appendChild(el);
+        lines.push(el);
+      };
+      const addH = (y) => {
+        const el = document.createElement('div');
+        el.className = 'ns-align-guide';
+        el.dataset.axis = 'h';
+        el.style.top = Math.round(y) + 'px';
+        canvas.appendChild(el);
+        lines.push(el);
+      };
+      if (mode === 'left') addV(refRect.x);
+      else if (mode === 'right') addV(refRect.x + refRect.w);
+      else if (mode === 'hcenter') addV(refRect.x + refRect.w / 2);
+      else if (mode === 'top') addH(refRect.y);
+      else if (mode === 'bottom') addH(refRect.y + refRect.h);
+      else if (mode === 'vcenter') addH(refRect.y + refRect.h / 2);
+      else {
+        addV(refRect.x);
+        addH(refRect.y);
+      }
+      requestAnimationFrame(() => {
+        lines.forEach(el => el.classList.add('ns-align-guide-show'));
+      });
+      setTimeout(() => {
+        lines.forEach(el => {
+          try {
+            el.classList.remove('ns-align-guide-show');
+            setTimeout(() => { try { el.parentNode && el.parentNode.removeChild(el); } catch {} }, 160);
+          } catch {}
+        });
+      }, 520);
     }
 
     function clearSelection() {
@@ -433,6 +492,7 @@
       });
       try { if (ctx.services.NS.activeTabId) ctx.layout.commitLayoutLocal(ctx.services.NS.activeTabId, grid); } catch {}
       try { if (typeof NSInteract !== 'undefined' && typeof ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate === 'function') ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate(); } catch {}
+      try { flashAlignGuides(canvas, refRect, mode); } catch {}
     }
 
     function groupSelected() {

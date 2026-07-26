@@ -201,27 +201,48 @@
     const t = String(type || '').trim();
     const p = props && typeof props === 'object' ? props : {};
     const o = opts && typeof opts === 'object' ? opts : {};
-    if (t === '按钮' && typeof EPWidgets.createEPButtonWidget === 'function') return EPWidgets.createEPButtonWidget(grid, p, o);
-    if (t === '滑块' && typeof EPWidgets.createEPSliderWidget === 'function') return EPWidgets.createEPSliderWidget(grid, p, o);
-    if (t === '浮点滑块' && typeof EPWidgets.createEPFloatSliderWidget === 'function') return EPWidgets.createEPFloatSliderWidget(grid, p, o);
+    if ((t === 'Trigger 按钮' || t === '按钮') && typeof EPWidgets.createEPButtonWidget === 'function') return EPWidgets.createEPButtonWidget(grid, p, o);
+    if ((t === '滑块' || t === '浮点滑块' || t === '竖向滑动条' || t === '竖向浮点滑块')
+      && typeof EPWidgets.createEPSliderWidget === 'function') {
+      const patch = {};
+      if (t === '浮点滑块') {
+        if (p.direction == null || p.direction === '') patch.direction = 'horizontal';
+        if (p.step == null) patch.step = 0.01;
+        if (p.max == null && p.min == null) { patch.min = 0; patch.max = 1; }
+      } else if (t === '竖向滑动条') {
+        if (p.direction == null || p.direction === '') patch.direction = 'vertical';
+        if (p.step == null) patch.step = 1;
+      } else if (t === '竖向浮点滑块') {
+        if (p.direction == null || p.direction === '') patch.direction = 'vertical';
+        if (p.step == null) patch.step = 0.01;
+        if (p.max == null && p.min == null) { patch.min = 0; patch.max = 1; }
+      }
+      return EPWidgets.createEPSliderWidget(grid, Object.keys(patch).length ? Object.assign({}, p, patch) : p, o);
+    }
     if (t === '勾选' && typeof EPWidgets.createEPCheckboxWidget === 'function') return EPWidgets.createEPCheckboxWidget(grid, p, o);
     if (t === '开关' && typeof EPWidgets.createEPSwitchWidget === 'function') return EPWidgets.createEPSwitchWidget(grid, p, o);
+    if (t === 'LED' && typeof EPWidgets.createEPLedWidget === 'function') return EPWidgets.createEPLedWidget(grid, p, o);
     if (t === '输入框' && typeof EPWidgets.createEPInputWidget === 'function') return EPWidgets.createEPInputWidget(grid, p, o);
-    if (t === '切换按钮' && typeof EPWidgets.createEPToggleButtonWidget === 'function') return EPWidgets.createEPToggleButtonWidget(grid, p, o);
-    if (t === '分割线' && typeof EPWidgets.createEPDividerWidget === 'function') return EPWidgets.createEPDividerWidget(grid, p, o);
-    if (t === '竖向分割线' && typeof EPWidgets.createEPVDividerWidget === 'function') return EPWidgets.createEPVDividerWidget(grid, p, o);
+    if ((t === 'Toggle 按钮' || t === '切换按钮') && typeof EPWidgets.createEPToggleButtonWidget === 'function') return EPWidgets.createEPToggleButtonWidget(grid, p, o);
+    if ((t === '分割线' || t === '竖向分割线') && typeof EPWidgets.createEPDividerWidget === 'function') {
+      // 旧「竖向分割线」布局兼容：缺省方向设为 vertical
+      if (t === '竖向分割线' && (p.direction === undefined || p.direction === null || p.direction === '')) {
+        p = Object.assign({}, p, { direction: 'vertical' });
+      }
+      return EPWidgets.createEPDividerWidget(grid, p, o);
+    }
     if (t === '标签' && typeof EPWidgets.createEPLabelWidget === 'function') return EPWidgets.createEPLabelWidget(grid, p, o);
-    if (t === '竖向滑动条' && typeof EPWidgets.createEPVSliderWidget === 'function') return EPWidgets.createEPVSliderWidget(grid, p, o);
-    if (t === '竖向浮点滑块' && typeof EPWidgets.createEPVFloatSliderWidget === 'function') return EPWidgets.createEPVFloatSliderWidget(grid, p, o);
+    if ((t === 'Text' || t === '文本') && typeof EPWidgets.createEPTextWidget === 'function') return EPWidgets.createEPTextWidget(grid, p, o);
     if (t === '旋钮' && typeof EPWidgets.createEPKnobWidget === 'function') return EPWidgets.createEPKnobWidget(grid, p, o);
     if (t === '时间码' && typeof EPWidgets.createEPTimecodeWidget === 'function') return EPWidgets.createEPTimecodeWidget(grid, p, o);
-    if (t === '时间线' && typeof EPWidgets.createEPTimelineWidget === 'function') return EPWidgets.createEPTimelineWidget(grid, p, o);
     if (t === '数值' && typeof EPWidgets.createEPNumberWidget === 'function') return EPWidgets.createEPNumberWidget(grid, p, o);
+    if (t === '步进器' && typeof EPWidgets.createEPStepperWidget === 'function') return EPWidgets.createEPStepperWidget(grid, p, o);
     if (t === '3D散点' && typeof EPWidgets.createEPScatter3DWidget === 'function') return EPWidgets.createEPScatter3DWidget(grid, p, o);
     if (t === '3D折线' && typeof EPWidgets.createEPLine3DWidget === 'function') return EPWidgets.createEPLine3DWidget(grid, p, o);
     if ((t === 'Frame') && typeof EPWidgets.createEPFrameWidget === 'function') return EPWidgets.createEPFrameWidget(grid, p, o);
-    if (t === '卡片' && typeof EPWidgets.createEPCardWidget === 'function') return EPWidgets.createEPCardWidget(grid, p, o);
     if (t === '超链接' && typeof EPWidgets.createEPLinkWidget === 'function') return EPWidgets.createEPLinkWidget(grid, p, o);
+    if (t === '单选框' && typeof EPWidgets.createEPRadioWidget === 'function') return EPWidgets.createEPRadioWidget(grid, p, o);
+    if (t === 'Web' && typeof EPWidgets.createEPWebWidget === 'function') return EPWidgets.createEPWebWidget(grid, p, o);
     return null;
   }
 
@@ -317,7 +338,7 @@
     if (loaded()) { callback(); return; }
     if (typeof window.Vue === 'undefined' && typeof Vue === 'undefined') {
       var s = document.createElement('script');
-      s.src = 'assets/vendor/vue.global.js';
+      s.src = 'assets/vendor/vue.global.prod.js';
       s.onload = function(){ callback(); };
       s.onerror = function(){ callback(); };
       document.head.appendChild(s);

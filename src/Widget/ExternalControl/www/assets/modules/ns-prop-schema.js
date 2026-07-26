@@ -3,11 +3,19 @@
   'use strict';
 
   const BORDER_STYLE_OPTS = ['none', 'solid', 'dashed', 'dotted', 'double'];
+  const BUTTON_TYPE_OPTS = [
+    { v: 'primary', t: 'primary' },
+    { v: 'success', t: 'success' },
+    { v: 'warning', t: 'warning' },
+    { v: 'danger', t: 'danger' },
+    { v: 'info', t: 'info' },
+    { v: 'default', t: 'default' }
+  ];
   const COMMAND_ID = { key: 'commandId', label: 'Command ID', type: 'text' };
 
   const LEGACY_PROP_TYPES = new Set([]);
 
-  const CUSTOM_PANEL_TYPES = new Set(['Frame', '时间线', '时间码', '卡片']);
+  const CUSTOM_PANEL_TYPES = new Set(['Frame', '时间码', '单选框']);
 
   const FRAME_SHADOW_PRESETS = [
     { v: 'none', t: '无' },
@@ -17,57 +25,28 @@
   ];
 
   const SCHEMA_BY_TYPE = {
-    '按钮': [
+    'Trigger 按钮': [
       COMMAND_ID,
       { key: 'label', label: '文本', type: 'text' },
-      { key: 'buttonColor', label: '按钮颜色', type: 'color', fallback: '#409EFF' },
-      { key: 'activeColor', label: '按下颜色', type: 'color', fallback: '#3a8ee6' },
-      { key: 'textColor', label: '文字颜色', type: 'color', fallback: '#ffffff' },
-      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#409EFF' },
+      { key: 'buttonType', label: '类型', type: 'select', options: BUTTON_TYPE_OPTS },
+      { key: 'plain', label: '朴素按钮', type: 'checkbox' },
+      { key: 'round', label: '圆角按钮', type: 'checkbox' },
+      { key: 'buttonColor', label: '按钮颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'activeColor', label: '按下颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'textColor', label: '文字颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'borderColor', label: '边框颜色(可选覆盖)', type: 'color', fallback: '' },
       { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
     ],
     '滑块': [
       COMMAND_ID,
-      { key: 'min', label: '最小值', type: 'number' },
-      { key: 'max', label: '最大值', type: 'number' },
-      { key: 'value', label: '当前值', type: 'number' },
-      { key: 'barColor', label: '轨道颜色', type: 'color', fallback: '#e5e7eb' },
-      { key: 'fillColor', label: '进度颜色', type: 'color', fallback: '#2b6cb0' },
-      { key: 'valueColor', label: '数值颜色', type: 'color', fallback: '#111827' },
-      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
-      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
-    ],
-    '浮点滑块': [
-      COMMAND_ID,
+      { key: 'direction', label: '方向', type: 'select', options: [
+        { v: 'horizontal', t: '横向' },
+        { v: 'vertical', t: '纵向' }
+      ]},
       { key: 'min', label: '最小值', type: 'number' },
       { key: 'max', label: '最大值', type: 'number' },
       { key: 'step', label: '步进', type: 'number' },
       { key: 'value', label: '当前值', type: 'number' },
-      { key: 'barColor', label: '轨道颜色', type: 'color', fallback: '#e5e7eb' },
-      { key: 'fillColor', label: '进度颜色', type: 'color', fallback: '#2b6cb0' },
-      { key: 'valueColor', label: '数值颜色', type: 'color', fallback: '#111827' },
-      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
-      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
-    ],
-    '竖向滑动条': [
-      COMMAND_ID,
-      { key: 'min', label: '最小值', type: 'number' },
-      { key: 'max', label: '最大值', type: 'number' },
-      { key: 'value', label: '当前值', type: 'number' },
-      { key: 'height', label: '高度', type: 'text' },
-      { key: 'barColor', label: '轨道颜色', type: 'color', fallback: '#e5e7eb' },
-      { key: 'fillColor', label: '进度颜色', type: 'color', fallback: '#2b6cb0' },
-      { key: 'valueColor', label: '数值颜色', type: 'color', fallback: '#111827' },
-      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
-      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
-    ],
-    '竖向浮点滑块': [
-      COMMAND_ID,
-      { key: 'min', label: '最小值', type: 'number' },
-      { key: 'max', label: '最大值', type: 'number' },
-      { key: 'step', label: '步进', type: 'number' },
-      { key: 'value', label: '当前值', type: 'number' },
-      { key: 'height', label: '高度', type: 'text' },
       { key: 'barColor', label: '轨道颜色', type: 'color', fallback: '#e5e7eb' },
       { key: 'fillColor', label: '进度颜色', type: 'color', fallback: '#2b6cb0' },
       { key: 'valueColor', label: '数值颜色', type: 'color', fallback: '#111827' },
@@ -76,18 +55,26 @@
     ],
     '勾选': [
       COMMAND_ID,
-      { key: 'label', label: '文本', type: 'text' },
       { key: 'checked', label: '选中', type: 'checkbox' },
       { key: 'activeColor', label: '选中颜色', type: 'color', fallback: '#409EFF' },
-      { key: 'textColor', label: '文字颜色', type: 'color', fallback: '#334155' },
-      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
+      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#94a3b8' },
       { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
     ],
     '开关': [
       COMMAND_ID,
       { key: 'checked', label: '选中', type: 'checkbox' },
-      { key: 'onColor', label: '开启颜色', type: 'color', fallback: '#409EFF' },
-      { key: 'offColor', label: '关闭颜色', type: 'color', fallback: '#dcdfe6' },
+      { key: 'onColor', label: '开启颜色', type: 'color', fallback: '#13ce66' },
+      { key: 'offColor', label: '关闭颜色', type: 'color', fallback: '#cbd5e1' },
+      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
+      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
+    ],
+    'LED': [
+      COMMAND_ID,
+      // on 仅作编辑态预览/初始态；运行时由 WebSocket 状态只读驱动
+      { key: 'on', label: '初始点亮', type: 'checkbox' },
+      { key: 'blink', label: '闪烁', type: 'checkbox' },
+      { key: 'onColor', label: '点亮颜色', type: 'color', fallback: '#22c55e' },
+      { key: 'offColor', label: '熄灭颜色', type: 'color', fallback: '#cbd5e1' },
       { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
       { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
     ],
@@ -106,17 +93,43 @@
       { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
       { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
     ],
-    '分割线': [
-      { key: 'text', label: '文本', type: 'text' },
-      { key: 'textColor', label: '文字颜色', type: 'color', fallback: '#64748b' },
-      { key: 'lineColor', label: '线条颜色', type: 'color', fallback: '#cbd5e1' },
-      { key: 'lineWidth', label: '线宽 (px)', type: 'number' },
+    'Text': [
+      COMMAND_ID,
+      { key: 'text', label: '文本（支持多行）', type: 'textarea', rows: 5 },
+      { key: 'textType', label: '类型', type: 'select', options: [
+        { v: '', t: '默认' },
+        { v: 'primary', t: 'primary' },
+        { v: 'success', t: 'success' },
+        { v: 'info', t: 'info' },
+        { v: 'warning', t: 'warning' },
+        { v: 'danger', t: 'danger' }
+      ]},
+      { key: 'truncated', label: '单行省略', type: 'checkbox' },
+      { key: 'lineClamp', label: '最大行数 (0=不限)', type: 'number' },
+      { key: 'align', label: '水平对齐', type: 'select', options: [
+        { v: 'left', t: '左' },
+        { v: 'center', t: '中' },
+        { v: 'right', t: '右' }
+      ]},
+      { key: 'textColor', label: '文字颜色(覆盖类型色)', type: 'color', fallback: '#111827' },
+      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
       { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
     ],
-    '竖向分割线': [
-      { key: 'lineColor', label: '线条颜色', type: 'color', fallback: '#cbd5e1' },
+    '分割线': [
+      { key: 'direction', label: '方向', type: 'select', options: [
+        { v: 'horizontal', t: '横向' },
+        { v: 'vertical', t: '纵向' }
+      ]},
+      { key: 'text', label: '文本', type: 'text' },
+      { key: 'contentPosition', label: '文本位置', type: 'select', options: [
+        { v: 'left', t: '左' },
+        { v: 'center', t: '中' },
+        { v: 'right', t: '右' }
+      ]},
+      { key: 'textColor', label: '文字颜色', type: 'color', fallback: '#909399' },
+      { key: 'lineColor', label: '线条颜色', type: 'color', fallback: '#dcdfe6' },
       { key: 'lineWidth', label: '线宽 (px)', type: 'number' },
-      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
+      { key: 'borderStyle', label: '线条样式', type: 'select', options: BORDER_STYLE_OPTS }
     ],
     '旋钮': [
       COMMAND_ID,
@@ -144,16 +157,33 @@
       { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
       { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
     ],
-    '切换按钮': [
+    '步进器': [
+      COMMAND_ID,
+      { key: 'min', label: '最小值', type: 'number' },
+      { key: 'max', label: '最大值', type: 'number' },
+      { key: 'step', label: '步进', type: 'number' },
+      { key: 'precision', label: '精度 (小数位)', type: 'number' },
+      { key: 'value', label: '当前值', type: 'number' },
+      { key: 'readOnly', label: '只读', type: 'checkbox' },
+      { key: 'buttonColor', label: '按钮颜色', type: 'color', fallback: '#409EFF' },
+      { key: 'textColor', label: '文字颜色', type: 'color', fallback: '#111827' },
+      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
+      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
+    ],
+    'Toggle 按钮': [
       COMMAND_ID,
       { key: 'labelOn', label: '开启文本', type: 'text' },
       { key: 'labelOff', label: '关闭文本', type: 'text' },
       { key: 'active', label: '当前状态', type: 'checkbox' },
-      { key: 'buttonColor', label: '按钮颜色', type: 'color', fallback: '#409EFF' },
-      { key: 'pressColor', label: '按下颜色', type: 'color', fallback: '#3a8ee6' },
-      { key: 'activeColor', label: '激活颜色', type: 'color', fallback: '#0e5d45' },
-      { key: 'textColor', label: '文字颜色', type: 'color', fallback: '#ffffff' },
-      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#409EFF' },
+      { key: 'buttonType', label: '关闭类型', type: 'select', options: BUTTON_TYPE_OPTS },
+      { key: 'activeType', label: '开启类型', type: 'select', options: BUTTON_TYPE_OPTS },
+      { key: 'plain', label: '朴素(关闭时)', type: 'checkbox' },
+      { key: 'round', label: '圆角按钮', type: 'checkbox' },
+      { key: 'buttonColor', label: '按钮颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'pressColor', label: '按下颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'activeColor', label: '激活颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'textColor', label: '文字颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'borderColor', label: '边框颜色(可选覆盖)', type: 'color', fallback: '' },
       { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
     ],
     '超链接': [
@@ -161,10 +191,22 @@
       { key: 'label', label: '文本', type: 'text' },
       { key: 'href', label: '链接', type: 'text' },
       { key: 'targetBlank', label: '新窗口打开', type: 'checkbox' },
-      { key: 'buttonColor', label: '按钮颜色', type: 'color', fallback: '#409EFF' },
-      { key: 'activeColor', label: '按下颜色', type: 'color', fallback: '#3a8ee6' },
-      { key: 'textColor', label: '文字颜色', type: 'color', fallback: '#ffffff' },
-      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#409EFF' },
+      { key: 'buttonType', label: '类型', type: 'select', options: BUTTON_TYPE_OPTS },
+      { key: 'plain', label: '朴素按钮', type: 'checkbox' },
+      { key: 'round', label: '圆角按钮', type: 'checkbox' },
+      { key: 'buttonColor', label: '按钮颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'activeColor', label: '按下颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'textColor', label: '文字颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'borderColor', label: '边框颜色(可选覆盖)', type: 'color', fallback: '' },
+      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
+    ],
+    'Web': [
+      COMMAND_ID,
+      { key: 'url', label: '网页 URL', type: 'text' },
+      { key: 'allowScripts', label: '允许脚本', type: 'checkbox' },
+      { key: 'allowForms', label: '允许表单', type: 'checkbox' },
+      { key: 'allowSameOrigin', label: '允许同源', type: 'checkbox' },
+      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
       { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS }
     ],
     '3D散点': [
@@ -198,29 +240,67 @@
   function supportsType(type) {
     const t = String(type || '').trim();
     if (LEGACY_PROP_TYPES.has(t)) return false;
-    return CUSTOM_PANEL_TYPES.has(t) || !!SCHEMA_BY_TYPE[t];
+    if (CUSTOM_PANEL_TYPES.has(t) || !!SCHEMA_BY_TYPE[t]) return true;
+    if (t === '按钮' || t === '切换按钮' || t === '竖向分割线'
+      || t === '浮点滑块' || t === '竖向滑动条' || t === '竖向浮点滑块') return true;
+    return false;
+  }
+
+  function resolvePropType(type) {
+    const t = String(type || '').trim();
+    if (t === '按钮') return 'Trigger 按钮';
+    if (t === '切换按钮') return 'Toggle 按钮';
+    if (t === '竖向分割线') return '分割线';
+    if (t === '浮点滑块' || t === '竖向滑动条' || t === '竖向浮点滑块') return '滑块';
+    return t;
   }
 
   function appendMultiHint(form, multiCount) {
     if (!(multiCount > 1)) return;
     const multiRow = document.createElement('div');
-    multiRow.className = 'mb-2 p-2 bg-light border rounded';
-    multiRow.innerHTML = '<div class="prop-label">提示</div><div class="prop-value">当前已选择 ' + multiCount + ' 个控件，属性面板仅显示最后选中控件</div>';
+    multiRow.className = 'ns-prop-section';
+    multiRow.innerHTML =
+      '<div class="ns-prop-section-body">' +
+        '<div class="prop-label">多选提示</div>' +
+        '<div class="prop-value text-muted">已选择 ' + multiCount + ' 个控件，属性面板仅显示最后选中控件</div>' +
+      '</div>';
     form.appendChild(multiRow);
   }
 
   function appendTypeRow(form, type) {
-    const typeRow = document.createElement('div');
-    typeRow.className = 'mb-2';
-    typeRow.innerHTML = '<div class="prop-label">类型</div><div class="prop-value text-muted">' + type + '</div>';
-    form.appendChild(typeRow);
+    const pill = document.createElement('div');
+    pill.className = 'ns-prop-type-pill';
+    pill.textContent = String(type || '未知');
+    form.appendChild(pill);
+  }
+
+  function createPropSection(title, openByDefault) {
+    const sec = document.createElement('div');
+    sec.className = 'ns-prop-section' + (openByDefault === false ? ' collapsed' : '');
+    const head = document.createElement('button');
+    head.type = 'button';
+    head.className = 'ns-prop-section-head';
+    head.innerHTML = '<span></span><span class="ns-prop-section-caret" aria-hidden="true">▼</span>';
+    head.querySelector('span').textContent = title;
+    head.addEventListener('click', () => sec.classList.toggle('collapsed'));
+    const body = document.createElement('div');
+    body.className = 'ns-prop-section-body';
+    sec.appendChild(head);
+    sec.appendChild(body);
+    return { sec, body, head };
+  }
+
+  function classifyFieldGroup(field) {
+    const key = String((field && field.key) || '');
+    if (key === 'commandId') return 'bind';
+    if (field && field.type === 'color') return 'appearance';
+    if (/Color|border|font|shadow|radius|stroke|bg|opacity/i.test(key)) return 'appearance';
+    return 'content';
   }
 
   function appendCommandIdRow(form, props, onChange, options) {
     const opts = options || {};
-    const idRow = document.createElement('div');
-    idRow.className = 'mb-2 p-2 bg-light border rounded';
-    idRow.innerHTML = '<div class="prop-label fw-bold mb-1">ID 设置</div>';
+    const section = createPropSection(opts.sectionTitle || '命令绑定', true);
     const cmdIdDiv = document.createElement('div');
     cmdIdDiv.className = 'mb-1';
     cmdIdDiv.innerHTML = '<div class="prop-label">' + (opts.label || 'Command ID') + '</div>';
@@ -230,8 +310,9 @@
     cmdIdInput.value = props.commandId || '/cmd/demo';
     cmdIdInput.addEventListener('change', () => onChange({ commandId: cmdIdInput.value }));
     cmdIdDiv.appendChild(cmdIdInput);
-    idRow.appendChild(cmdIdDiv);
-    form.appendChild(idRow);
+    section.body.appendChild(cmdIdDiv);
+    form.appendChild(section.sec);
+    return section;
   }
 
   function appendBgColorRow(styleRow, props, onChange, hooks, node) {
@@ -255,10 +336,8 @@
 
   function createStyleSection(form, props, onChange, hooks, node, options) {
     const opts = options || {};
-    const styleRow = document.createElement('div');
-    styleRow.className = 'mb-2 p-2 bg-light border rounded';
-    styleRow.innerHTML = '<div class="prop-label fw-bold mb-1">样式设置</div>';
-    appendBgColorRow(styleRow, props, onChange, hooks, node);
+    const section = createPropSection(opts.title || '外观', true);
+    appendBgColorRow(section.body, props, onChange, hooks, node);
     if (opts.showFontSize !== false) {
       const fontSizeDiv = document.createElement('div');
       fontSizeDiv.className = 'mb-1';
@@ -272,10 +351,10 @@
         try { if (node) node.style.fontSize = fontSizeInput.value + 'px'; } catch {}
       });
       fontSizeDiv.appendChild(fontSizeInput);
-      styleRow.appendChild(fontSizeDiv);
+      section.body.appendChild(fontSizeDiv);
     }
-    form.appendChild(styleRow);
-    return styleRow;
+    form.appendChild(section.sec);
+    return section.body;
   }
 
   function renderFramePanel(form, ctx) {
@@ -364,220 +443,6 @@
     return true;
   }
 
-  function renderCardPanel(form, ctx) {
-    const { node, type, props, multiCount, initColorInput, onChange } = ctx || {};
-    if (!form || !node) return false;
-    appendMultiHint(form, multiCount);
-    appendTypeRow(form, type || '卡片');
-
-    const styleRow = document.createElement('div');
-    styleRow.className = 'mb-2 p-2 bg-light border rounded';
-    styleRow.innerHTML = '<div class="prop-label fw-bold mb-1">样式设置</div>';
-    appendBgColorRow(styleRow, props, onChange, { initColorInput }, node);
-
-    const fontSizeDiv = document.createElement('div');
-    fontSizeDiv.className = 'mb-1';
-    fontSizeDiv.innerHTML = '<div class="prop-label">标题字号 (px)</div>';
-    const fontSizeInput = document.createElement('input');
-    fontSizeInput.type = 'number';
-    fontSizeInput.className = 'form-control form-control-sm';
-    fontSizeInput.min = '10';
-    fontSizeInput.max = '64';
-    fontSizeInput.value = String(props.fontSize ?? props.labelFontSize ?? 14);
-    const applyFontSize = () => {
-      const v = fontSizeInput.value;
-      onChange({ fontSize: v, labelFontSize: Number(v) || 14 });
-      try { node.style.fontSize = v + 'px'; } catch {}
-    };
-    fontSizeInput.addEventListener('change', applyFontSize);
-    fontSizeInput.addEventListener('input', applyFontSize);
-    fontSizeDiv.appendChild(fontSizeInput);
-    styleRow.appendChild(fontSizeDiv);
-    form.appendChild(styleRow);
-
-    const specBox = document.createElement('div');
-    specBox.className = 'mb-2 p-2 bg-light border rounded';
-    specBox.innerHTML = '<div class="prop-label fw-bold mb-1">卡片属性</div>';
-    const hooks = { initColorInput };
-
-    const titleRow = document.createElement('div');
-    titleRow.className = 'mb-2';
-    titleRow.innerHTML = '<div class="prop-label">标题</div>';
-    const titleInput = document.createElement('input');
-    titleInput.type = 'text';
-    titleInput.className = 'form-control form-control-sm';
-    titleInput.value = String(props.title ?? props.label ?? '');
-    const applyTitle = () => {
-      const v = String(titleInput.value ?? '');
-      onChange({ title: v, label: v });
-    };
-    titleInput.addEventListener('change', applyTitle);
-    titleInput.addEventListener('input', applyTitle);
-    titleRow.appendChild(titleInput);
-    specBox.appendChild(titleRow);
-
-    specBox.appendChild(createFieldRow(
-      { key: 'textColor', label: '标题颜色', type: 'color', fallback: '#111827' },
-      props.textColor ?? props.labelColor ?? '#111827',
-      (_k, v) => onChange({ textColor: v, labelColor: v }),
-      hooks
-    ));
-    specBox.appendChild(createFieldRow(
-      { key: 'labelBgColor', label: '标题背景', type: 'color', fallback: '#f8fafc' },
-      props.labelBgColor ?? '#f8fafc',
-      (_k, v) => onChange({ labelBgColor: v }),
-      hooks
-    ));
-
-    const fwRow = document.createElement('div');
-    fwRow.className = 'mb-2';
-    fwRow.innerHTML = '<div class="prop-label">标题字重</div>';
-    const fwSelect = document.createElement('select');
-    fwSelect.className = 'form-select form-select-sm';
-    ['300', '400', '500', '600', '700', '800'].forEach(w => {
-      const opt = document.createElement('option');
-      opt.value = w;
-      opt.textContent = w;
-      if (String(props.labelFontWeight ?? '600') === w) opt.selected = true;
-      fwSelect.appendChild(opt);
-    });
-    fwSelect.addEventListener('change', () => onChange({ labelFontWeight: fwSelect.value }));
-    fwRow.appendChild(fwSelect);
-    specBox.appendChild(fwRow);
-
-    specBox.appendChild(createFieldRow(
-      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
-      props.borderColor ?? '#e5e7eb',
-      (_k, v) => onChange({ borderColor: v }),
-      hooks
-    ));
-    specBox.appendChild(createFieldRow(
-      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS },
-      props.borderStyle || 'solid',
-      (_k, v) => onChange({ borderStyle: v }),
-      hooks
-    ));
-    specBox.appendChild(createFieldRow(
-      { key: 'radius', label: '圆角 (px)', type: 'number' },
-      props.radius ?? 10,
-      (_k, v) => onChange({ radius: Number(v) }),
-      hooks
-    ));
-
-    const shadowRow = document.createElement('div');
-    shadowRow.className = 'mb-2';
-    shadowRow.innerHTML = '<div class="prop-label">阴影</div>';
-    const shadowSelect = document.createElement('select');
-    shadowSelect.className = 'form-select form-select-sm';
-    FRAME_SHADOW_PRESETS.forEach(p => {
-      const opt = document.createElement('option');
-      opt.value = p.v;
-      opt.textContent = p.t;
-      if (String(props.shadow || 'none') === p.v) opt.selected = true;
-      shadowSelect.appendChild(opt);
-    });
-    shadowSelect.addEventListener('change', () => onChange({ shadow: shadowSelect.value }));
-    shadowRow.appendChild(shadowSelect);
-    specBox.appendChild(shadowRow);
-
-    form.appendChild(specBox);
-    return true;
-  }
-
-  function renderTimelinePanel(form, ctx) {
-    const { node, type, props, multiCount, initColorInput, onChange, refreshPanel } = ctx || {};
-    if (!form || !node) return false;
-    appendMultiHint(form, multiCount);
-    appendTypeRow(form, type || '时间线');
-    appendCommandIdRow(form, props, onChange, { label: '游标 Command ID', inputId: 'propTimelineCommandId' });
-
-    const specBox = document.createElement('div');
-    specBox.className = 'mb-2 p-2 bg-light border rounded';
-    specBox.innerHTML = '<div class="prop-label fw-bold mb-1">控件属性</div>';
-    specBox.appendChild(createFieldRow({ key: 'fps', label: '帧率 (fps)', type: 'number' }, props.fps ?? 25, (k, v) => onChange({ [k]: Number(v) }), { initColorInput }));
-    specBox.appendChild(createFieldRow({ key: 'tickStepSec', label: '刻度步进 (秒)', type: 'number' }, props.tickStepSec ?? 15, (k, v) => onChange({ [k]: Number(v) }), { initColorInput }));
-    form.appendChild(specBox);
-
-    const itemsBox = document.createElement('div');
-    itemsBox.className = 'mb-2 p-2 bg-light border rounded';
-    itemsBox.innerHTML = '<div class="prop-label fw-bold mb-1">节点列表（CommandID → 备注）</div>';
-    const items = Array.isArray(props.items) ? props.items : [];
-    const updateItems = (next) => {
-      onChange({ items: next });
-      if (typeof refreshPanel === 'function') refreshPanel();
-    };
-    items.forEach((it, idx) => {
-      const row = document.createElement('div');
-      row.className = 'd-flex gap-2 align-items-center mb-1';
-      const idInput = document.createElement('input');
-      idInput.type = 'text';
-      idInput.className = 'form-control form-control-sm';
-      idInput.style.width = '220px';
-      idInput.value = (it && it.id !== undefined) ? String(it.id) : '';
-      idInput.placeholder = 'CommandID';
-      idInput.addEventListener('change', () => {
-        const next = items.map((x, i) => (i === idx ? Object.assign({}, x || {}, { id: idInput.value }) : x));
-        updateItems(next);
-      });
-      const textInput = document.createElement('input');
-      textInput.type = 'text';
-      textInput.className = 'form-control form-control-sm';
-      textInput.value = (it && it.text !== undefined) ? String(it.text) : '';
-      textInput.placeholder = '备注';
-      textInput.addEventListener('change', () => {
-        const next = items.map((x, i) => (i === idx ? Object.assign({}, x || {}, { text: textInput.value }) : x));
-        updateItems(next);
-      });
-      const rmBtn = document.createElement('button');
-      rmBtn.type = 'button';
-      rmBtn.className = 'btn btn-sm btn-outline-danger';
-      rmBtn.textContent = '删除';
-      rmBtn.addEventListener('click', () => updateItems(items.filter((_, i) => i !== idx)));
-      row.appendChild(idInput);
-      row.appendChild(textInput);
-      row.appendChild(rmBtn);
-      itemsBox.appendChild(row);
-    });
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'btn btn-sm btn-outline-primary mt-2';
-    addBtn.textContent = '添加节点';
-    addBtn.addEventListener('click', () => {
-      const next = items.slice();
-      next.push({ id: String(next.length), text: '节点' + (next.length + 1) });
-      updateItems(next);
-    });
-    itemsBox.appendChild(addBtn);
-    form.appendChild(itemsBox);
-
-    const styleRow = createStyleSection(form, props, onChange, { initColorInput }, node);
-    const timelineColors = [
-      { key: 'lineColor', label: '连线颜色', fallback: '#e5e7eb' },
-      { key: 'pointColor', label: '点颜色', fallback: '#2563eb' },
-      { key: 'textColor', label: '文字颜色', fallback: '#111827' },
-      { key: 'labelBgColor', label: '节点背景色', fallback: '#ffffff' },
-      { key: 'borderColor', label: '边框颜色', fallback: '#e5e7eb' }
-    ];
-    timelineColors.forEach(field => {
-      const val = field.key === 'pointColor'
-        ? (props.pointColor || props.activeColor || field.fallback)
-        : (props[field.key] || field.fallback);
-      styleRow.appendChild(createFieldRow(
-        { key: field.key, label: field.label, type: 'color', fallback: field.fallback },
-        val,
-        (k, v) => onChange({ [k]: v }),
-        { initColorInput }
-      ));
-    });
-    styleRow.appendChild(createFieldRow(
-      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS },
-      props.borderStyle || 'none',
-      (k, v) => onChange({ [k]: v }),
-      { initColorInput }
-    ));
-    return true;
-  }
-
   function renderTimecodePanel(form, ctx) {
     const { node, type, props, multiCount, initColorInput, onChange } = ctx || {};
     if (!form || !node) return false;
@@ -585,13 +450,12 @@
     appendTypeRow(form, type || '时间码');
     appendCommandIdRow(form, props, onChange, { label: 'Command ID' });
 
-    const specBox = document.createElement('div');
-    specBox.className = 'mb-2 p-2 bg-light border rounded';
-    specBox.innerHTML = '<div class="prop-label fw-bold mb-1">控件属性</div>';
+    const specBoxWrap = createPropSection('控件属性', true);
+    const specBox = specBoxWrap.body;
     specBox.appendChild(createFieldRow({ key: 'fps', label: '帧率 (fps)', type: 'number' }, props.fps ?? 25, (k, v) => onChange({ [k]: Number(v) }), { initColorInput }));
     specBox.appendChild(createFieldRow({ key: 'readOnly', label: '只读（隐藏按钮）', type: 'checkbox' }, props.readOnly, (k, v) => onChange({ [k]: v }), { initColorInput }));
     specBox.appendChild(createFieldRow({ key: 'value', label: '帧数', type: 'number' }, props.value ?? 0, (k, v) => onChange({ [k]: Number(v) }), { initColorInput }));
-    form.appendChild(specBox);
+    form.appendChild(specBoxWrap.sec);
 
     const styleRow = createStyleSection(form, props, onChange, { initColorInput }, node);
     styleRow.appendChild(createFieldRow({ key: 'textColor', label: '文字颜色', type: 'color', fallback: '#111827' }, props.textColor, (k, v) => onChange({ [k]: v }), { initColorInput }));
@@ -602,6 +466,139 @@
       (k, v) => onChange({ [k]: v }),
       { initColorInput }
     ));
+    return true;
+  }
+
+  function renderRadioPanel(form, ctx) {
+    const { node, type, props, multiCount, initColorInput, onChange } = ctx || {};
+    if (!form || !node) return false;
+    appendMultiHint(form, multiCount);
+    appendTypeRow(form, type || '单选框');
+    appendCommandIdRow(form, props, onChange, { label: 'Command ID（收发 index）' });
+
+    const clampCount = (n) => {
+      const v = Math.floor(Number(n));
+      if (!Number.isFinite(v)) return 3;
+      return Math.max(2, Math.min(16, v));
+    };
+    const asList = (v) => (Array.isArray(v) ? v.map((x) => String(x ?? '')) : []);
+    const pad = (list, count) => {
+      const out = list.slice(0, count);
+      while (out.length < count) out.push('选项 ' + (out.length + 1));
+      return out;
+    };
+
+    let count = clampCount(props.count);
+    let labels = pad(asList(props.labels), count);
+
+    const optSection = createPropSection('选项', true);
+
+    const dirRow = document.createElement('div');
+    dirRow.className = 'mb-2';
+    dirRow.innerHTML = '<label class="prop-label d-block mb-1">排列方向</label>';
+    const dirSelect = document.createElement('select');
+    dirSelect.className = 'form-select form-select-sm';
+    const curDir = String(props.direction || 'vertical');
+    const dirIsH = curDir === 'horizontal' || curDir === '横向' || curDir === 'row';
+    [
+      { v: 'vertical', t: '纵向' },
+      { v: 'horizontal', t: '横向' }
+    ].forEach((opt) => {
+      const o = document.createElement('option');
+      o.value = opt.v;
+      o.textContent = opt.t;
+      if ((opt.v === 'horizontal' && dirIsH) || (opt.v === 'vertical' && !dirIsH)) o.selected = true;
+      dirSelect.appendChild(o);
+    });
+    dirSelect.addEventListener('change', () => {
+      onChange({ direction: dirSelect.value });
+    });
+    dirRow.appendChild(dirSelect);
+    optSection.body.appendChild(dirRow);
+
+    const countRow = document.createElement('div');
+    countRow.className = 'mb-2';
+    countRow.innerHTML = '<label class="prop-label d-block mb-1">选项数量</label>';
+    const countInput = document.createElement('input');
+    countInput.type = 'number';
+    countInput.min = '2';
+    countInput.max = '16';
+    countInput.className = 'form-control form-control-sm';
+    countInput.value = String(count);
+    countRow.appendChild(countInput);
+    optSection.body.appendChild(countRow);
+
+    const listHost = document.createElement('div');
+    optSection.body.appendChild(listHost);
+    form.appendChild(optSection.sec);
+
+    function rebuildList() {
+      listHost.innerHTML = '';
+      for (let i = 0; i < count; i++) {
+        const row = document.createElement('div');
+        row.className = 'mb-2';
+        row.innerHTML = '<label class="prop-label d-block mb-1">选项 [' + i + '] 文字</label>';
+        const labelInput = document.createElement('input');
+        labelInput.type = 'text';
+        labelInput.className = 'form-control form-control-sm';
+        labelInput.value = labels[i] || '';
+        const applyLabel = () => {
+          labels[i] = labelInput.value;
+          onChange({ labels: labels.slice(), count });
+        };
+        labelInput.addEventListener('change', applyLabel);
+        labelInput.addEventListener('input', applyLabel);
+        row.appendChild(labelInput);
+        listHost.appendChild(row);
+      }
+    }
+
+    countInput.addEventListener('change', () => {
+      count = clampCount(countInput.value);
+      countInput.value = String(count);
+      labels = pad(labels, count);
+      onChange({
+        count,
+        labels: labels.slice(),
+        selected: Math.min(Number(props.selected) || 0, count - 1)
+      });
+      rebuildList();
+    });
+    rebuildList();
+
+    const styleSection = createPropSection('外观', true);
+    const hooks = { initColorInput };
+    styleSection.body.appendChild(createFieldRow(
+      { key: 'selected', label: '当前选中 index', type: 'number' },
+      props.selected ?? 0,
+      (_k, v) => onChange({ selected: Number(v) }),
+      hooks
+    ));
+    styleSection.body.appendChild(createFieldRow(
+      { key: 'activeColor', label: '选中颜色', type: 'color', fallback: '#409EFF' },
+      props.activeColor ?? '#409EFF',
+      (_k, v) => onChange({ activeColor: v }),
+      hooks
+    ));
+    styleSection.body.appendChild(createFieldRow(
+      { key: 'textColor', label: '文字颜色', type: 'color', fallback: '#111827' },
+      props.textColor ?? '#111827',
+      (_k, v) => onChange({ textColor: v }),
+      hooks
+    ));
+    styleSection.body.appendChild(createFieldRow(
+      { key: 'borderColor', label: '边框颜色', type: 'color', fallback: '#e5e7eb' },
+      props.borderColor ?? '#e5e7eb',
+      (_k, v) => onChange({ borderColor: v }),
+      hooks
+    ));
+    styleSection.body.appendChild(createFieldRow(
+      { key: 'borderStyle', label: '边框样式', type: 'select', options: BORDER_STYLE_OPTS },
+      props.borderStyle || 'none',
+      (_k, v) => onChange({ borderStyle: v }),
+      hooks
+    ));
+    form.appendChild(styleSection.sec);
     return true;
   }
 
@@ -630,9 +627,15 @@
       input.className = 'form-select form-select-sm';
       (field.options || []).forEach(opt => {
         const o = document.createElement('option');
-        o.value = opt;
-        o.textContent = opt;
-        if (String(value ?? field.default ?? '') === String(opt)) o.selected = true;
+        if (opt && typeof opt === 'object') {
+          o.value = String(opt.v);
+          o.textContent = String(opt.t != null ? opt.t : opt.v);
+          if (String(value ?? field.default ?? '') === String(opt.v)) o.selected = true;
+        } else {
+          o.value = opt;
+          o.textContent = opt;
+          if (String(value ?? field.default ?? '') === String(opt)) o.selected = true;
+        }
         input.appendChild(o);
       });
       input.addEventListener('change', () => onChange(field.key, input.value));
@@ -647,6 +650,18 @@
       if (typeof initColor === 'function') initColor(input, raw, field.fallback || '#ffffff');
       else input.value = String(raw || '#ffffff');
       input.addEventListener('change', () => onChange(field.key, input.value));
+      row.appendChild(label);
+      row.appendChild(input);
+    } else if (field.type === 'textarea') {
+      input = document.createElement('textarea');
+      input.className = 'form-control form-control-sm';
+      input.rows = Number(field.rows) > 0 ? Number(field.rows) : 4;
+      input.style.resize = 'vertical';
+      input.style.minHeight = '72px';
+      input.value = value !== undefined && value !== null ? String(value) : '';
+      const apply = () => onChange(field.key, input.value);
+      input.addEventListener('change', apply);
+      input.addEventListener('input', apply);
       row.appendChild(label);
       row.appendChild(input);
     } else {
@@ -679,23 +694,33 @@
     if (!form || !node || !type) return false;
 
     if (type === 'Frame') return renderFramePanel(form, ctx);
-    if (type === '卡片') return renderCardPanel(form, ctx);
-    if (type === '时间线') return renderTimelinePanel(form, ctx);
     if (type === '时间码') return renderTimecodePanel(form, ctx);
+    if (type === '单选框') return renderRadioPanel(form, ctx);
 
-    const schema = SCHEMA_BY_TYPE[type];
+    const schemaType = resolvePropType(type);
+    const schema = SCHEMA_BY_TYPE[schemaType];
     if (!schema) return false;
 
     appendMultiHint(form, multiCount);
-    appendTypeRow(form, type);
+    appendTypeRow(form, schemaType);
 
-    const styleRow = document.createElement('div');
-    styleRow.className = 'mb-2 p-2 bg-light border rounded';
-    styleRow.innerHTML = '<div class="prop-label fw-bold mb-1">样式设置</div>';
-    appendBgColorRow(styleRow, props, onChange, { initColorInput }, node);
+    const groups = { bind: [], content: [], appearance: [] };
+    schema.forEach(field => {
+      groups[classifyFieldGroup(field)].push(field);
+    });
 
+    const hooks = { initColorInput };
+    const SECTION_META = [
+      { id: 'bind', title: '命令绑定', open: true },
+      { id: 'content', title: '内容 / 行为', open: true },
+      { id: 'appearance', title: '外观', open: true }
+    ];
+
+    // 通用外观：背景 + 字号放在外观分组最前
+    const appearanceSection = createPropSection('外观', true);
+    appendBgColorRow(appearanceSection.body, props, onChange, hooks, node);
     const fontSizeDiv = document.createElement('div');
-    fontSizeDiv.className = 'mb-1';
+    fontSizeDiv.className = 'mb-2';
     fontSizeDiv.innerHTML = '<label class="prop-label d-block mb-1">字体大小 (px)</label>';
     const fontSizeInput = document.createElement('input');
     fontSizeInput.type = 'number';
@@ -707,19 +732,29 @@
     });
     fontSizeDiv.appendChild(fontSizeInput);
     try { if (window.NSA11y) window.NSA11y.wirePropRow(fontSizeDiv, fontSizeInput, '字体大小 (px)'); } catch {}
-    styleRow.appendChild(fontSizeDiv);
-    form.appendChild(styleRow);
+    appearanceSection.body.appendChild(fontSizeDiv);
 
-    const specBox = document.createElement('div');
-    specBox.className = 'mb-2 p-2 bg-light border rounded';
-    specBox.innerHTML = '<div class="prop-label fw-bold mb-1">控件属性</div>';
-    const hooks = { initColorInput };
-    schema.forEach(field => {
-      specBox.appendChild(createFieldRow(field, props[field.key], (key, val) => {
-        onChange({ [key]: val });
-      }, hooks));
+    SECTION_META.forEach(meta => {
+      const fields = groups[meta.id] || [];
+      if (meta.id === 'appearance') {
+        fields.forEach(field => {
+          appearanceSection.body.appendChild(createFieldRow(field, props[field.key], (key, val) => {
+            onChange({ [key]: val });
+          }, hooks));
+        });
+        form.appendChild(appearanceSection.sec);
+        return;
+      }
+      if (!fields.length) return;
+      const section = createPropSection(meta.title, meta.open);
+      fields.forEach(field => {
+        section.body.appendChild(createFieldRow(field, props[field.key], (key, val) => {
+          onChange({ [key]: val });
+        }, hooks));
+      });
+      form.appendChild(section.sec);
     });
-    form.appendChild(specBox);
+
     return true;
   }
 
@@ -730,11 +765,11 @@
     supportsType,
     renderWidgetPanel,
     renderFramePanel,
-    renderCardPanel,
-    renderTimelinePanel,
     renderTimecodePanel,
+    renderRadioPanel,
     getSchema(type) {
-      return SCHEMA_BY_TYPE[String(type || '').trim()] || null;
+      const t = resolvePropType(type);
+      return SCHEMA_BY_TYPE[t] || null;
     }
   };
 })();

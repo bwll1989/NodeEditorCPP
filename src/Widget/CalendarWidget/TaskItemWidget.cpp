@@ -43,21 +43,26 @@ void TaskItemWidget::setupUI()
     timeEdit->setMinimumHeight(28);
     addFieldRow(0, tr("时间"), timeEdit);
 
+    remarksEdit = new QLineEdit(this);
+    remarksEdit->setPlaceholderText(tr("可选，用于日历显示"));
+    remarksEdit->setMinimumHeight(28);
+    addFieldRow(1, tr("备注"), remarksEdit);
+
     addressEdit = new QLineEdit(this);
     addressEdit->setPlaceholderText(QStringLiteral("/address"));
     addressEdit->setMinimumHeight(28);
-    addFieldRow(1, tr("地址"), addressEdit);
+    addFieldRow(2, tr("地址"), addressEdit);
 
     valueEdit = new QLineEdit(this);
     valueEdit->setPlaceholderText(tr("值"));
     valueEdit->setMinimumHeight(28);
-    addFieldRow(2, tr("数值"), valueEdit);
+    addFieldRow(3, tr("数值"), valueEdit);
 
     loopCheck = new QCheckBox(tr("按星期循环"), this);
     auto* loopLabel = new QLabel(tr("循环"), this);
     loopLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    grid->addWidget(loopLabel, 3, 0);
-    grid->addWidget(loopCheck, 3, 1);
+    grid->addWidget(loopLabel, 4, 0);
+    grid->addWidget(loopCheck, 4, 1);
 
     daysWidget = new QWidget(this);
     auto* daysGrid = new QGridLayout(daysWidget);
@@ -82,7 +87,7 @@ void TaskItemWidget::setupUI()
         daysGrid->addWidget(chk, 0, i);
     }
 
-    grid->addWidget(daysWidget, 4, 0, 1, 2, Qt::AlignLeft);
+    grid->addWidget(daysWidget, 5, 0, 1, 2, Qt::AlignLeft);
     daysWidget->setVisible(false);
 
     root->addLayout(grid);
@@ -96,7 +101,6 @@ void TaskItemWidget::setupUI()
     btnTest->setMinimumWidth(96);
     actionRow->addWidget(btnTest);
     root->addLayout(actionRow);
-    root->addStretch();
 }
 
 void TaskItemWidget::connectSignals()
@@ -109,6 +113,8 @@ void TaskItemWidget::connectSignals()
     connect(addressEdit, &QLineEdit::editingFinished, this, emitChange);
     connect(valueEdit, &QLineEdit::textEdited, this, emitChange);
     connect(valueEdit, &QLineEdit::editingFinished, this, emitChange);
+    connect(remarksEdit, &QLineEdit::textEdited, this, emitChange);
+    connect(remarksEdit, &QLineEdit::editingFinished, this, emitChange);
     connect(timeEdit, &QTimeEdit::timeChanged, this, emitChange);
     connect(timeEdit, &QTimeEdit::editingFinished, this, emitChange);
 
@@ -238,4 +244,16 @@ void TaskItemWidget::setScheduledInfo(const ScheduledInfo& info)
     chkFriday->setChecked(isLoop && containsDay("Friday"));
     chkSaturday->setChecked(isLoop && containsDay("Saturday"));
     chkSunday->setChecked(isLoop && containsDay("Sunday"));
+}
+
+QString TaskItemWidget::getRemarks() const
+{
+    return remarksEdit ? remarksEdit->text().trimmed() : QString();
+}
+
+void TaskItemWidget::setRemarks(const QString& remarks)
+{
+    if (remarksEdit) {
+        remarksEdit->setText(remarks);
+    }
 }

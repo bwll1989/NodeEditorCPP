@@ -1,4 +1,4 @@
-// ns-auth.js —— 设置页/编辑模式密码校验（Bootstrap 模态框，避免 window.prompt 被浏览器拦截）
+// ns-auth.js —— 设置页/编辑模式密码校验（自研模态框，不依赖 Bootstrap）
 (function() {
   'use strict';
 
@@ -38,23 +38,25 @@
 
     root = document.createElement('div');
     root.id = 'nsAuthModal';
-    root.className = 'modal fade';
-    root.tabIndex = -1;
+    root.className = 'ns-modal';
     root.setAttribute('aria-hidden', 'true');
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
     root.setAttribute('aria-labelledby', 'nsAuthModalTitle');
     root.innerHTML =
-      '<div class="modal-dialog modal-dialog-centered modal-sm">' +
-        '<div class="modal-content">' +
-          '<div class="modal-header py-2">' +
-            '<h5 class="modal-title fs-6" id="nsAuthModalTitle">身份验证</h5>' +
-            '<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>' +
+      '<div class="ns-modal-backdrop" data-ns-auth-backdrop></div>' +
+      '<div class="ns-modal-dialog modal-sm">' +
+        '<div class="ns-modal-content modal-content">' +
+          '<div class="ns-modal-header modal-header">' +
+            '<h5 class="modal-title" id="nsAuthModalTitle">身份验证</h5>' +
+            '<button type="button" class="btn-close" data-ns-auth-cancel aria-label="关闭"></button>' +
           '</div>' +
-          '<div class="modal-body">' +
-            '<label for="nsAuthPasswordInput" class="form-label small mb-1">密码</label>' +
+          '<div class="ns-modal-body modal-body">' +
+            '<label for="nsAuthPasswordInput" class="form-label">密码</label>' +
             '<input type="password" id="nsAuthPasswordInput" class="form-control form-control-sm" placeholder="请输入密码" autocomplete="current-password" aria-label="密码" />' +
             '<div id="nsAuthError" class="text-danger small mt-2 d-none"></div>' +
           '</div>' +
-          '<div class="modal-footer py-2">' +
+          '<div class="ns-modal-footer modal-footer">' +
             '<button type="button" class="btn btn-secondary btn-sm" data-ns-auth-cancel>取消</button>' +
             '<button type="button" class="btn btn-primary btn-sm" data-ns-auth-ok>确定</button>' +
           '</div>' +
@@ -71,9 +73,8 @@
       const input = document.getElementById('nsAuthPasswordInput');
       const errEl = document.getElementById('nsAuthError');
       const btnOk = root.querySelector('[data-ns-auth-ok]');
-      const btnCancel = root.querySelector('[data-ns-auth-cancel]');
-      const btnClose = root.querySelector('.btn-close');
-      if (!input || !btnOk || !btnCancel) {
+      const cancelBtns = root.querySelectorAll('[data-ns-auth-cancel]');
+      if (!input || !btnOk) {
         resolve(null);
         return;
       }
@@ -91,25 +92,13 @@
       }
 
       let settled = false;
-      let modal = null;
-      let backdrop = null;
-
-      function cleanupFallback() {
-        root.classList.remove('show');
-        root.style.display = 'none';
-        root.setAttribute('aria-hidden', 'true');
-        document.body.classList.remove('modal-open');
-        if (backdrop) {
-          try { backdrop.remove(); } catch {}
-          backdrop = null;
-        }
-      }
 
       function finish(value) {
         if (settled) return;
         settled = true;
-        try { modal && modal.hide(); } catch {}
-        cleanupFallback();
+        root.classList.remove('open', 'show');
+        root.setAttribute('aria-hidden', 'true');
+        document.body.classList.remove('modal-open');
         resolve(value);
       }
 
@@ -118,8 +107,9 @@
       }
 
       btnOk.onclick = submit;
-      btnCancel.onclick = () => finish(null);
-      if (btnClose) btnClose.onclick = () => finish(null);
+      cancelBtns.forEach(btn => {
+        btn.onclick = () => finish(null);
+      });
       input.onkeydown = (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -130,30 +120,16 @@
         }
       };
 
-      root.addEventListener('hidden.bs.modal', () => finish(null), { once: true });
-
-      try {
-        if (window.bootstrap && window.bootstrap.Modal) {
-          modal = window.bootstrap.Modal.getOrCreateInstance(root, { backdrop: 'static', keyboard: true });
-          modal.show();
-          setTimeout(() => { try { input.focus(); } catch {} }, 150);
-          return;
-        }
-      } catch {}
-
-      root.classList.add('show');
-      root.style.display = 'block';
-      root.removeAttribute('aria-hidden');
+      root.classList.add('open', 'show');
+      root.setAttribute('aria-hidden', 'false');
       document.body.classList.add('modal-open');
-      backdrop = document.createElement('div');
-      backdrop.className = 'modal-backdrop fade show';
-      backdrop.onclick = () => finish(null);
-      document.body.appendChild(backdrop);
-      setTimeout(() => { try { input.focus(); } catch {} }, 50);
+      setTimeout(() => { try { input.focus(); input.select(); } catch {} }, 40);
     });
   }
 
   async function requireSettingAuth(options) {
+    if (isSettingAuthedRecently()) return true;
+
     const title = (options && options.title) || '请输入密码';
     const okEmpty = await verifySettingPassword('');
     if (okEmpty) {

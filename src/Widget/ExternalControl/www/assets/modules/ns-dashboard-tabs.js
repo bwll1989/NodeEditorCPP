@@ -68,6 +68,7 @@
       ctx.services.NS.grids.set(tid, { name, tabBtn, pageWrap, viewportEl, grid, canvasEl, view: null, design: { width: 320, height: 240, bgColor: EPWidgets.layoutDefaults.canvasBgColor || '#f8fafc', auto: true }, loaded: false, renderSeq: 0, rendering: false });
       ctx.services.NSCanvas.applyPageDesign(tid);
       try { ctx.services.NSCanvas.__initCanvasPanZoom(tid); } catch {}
+      try { if (window.NSEmptyState) window.NSEmptyState.observeTab(tid); } catch {}
 
       if (!ctx.services.NS.tabs.find(t => t.id === tid)) {
         ctx.services.NS.tabs.push({ id: tid, name });
@@ -95,8 +96,14 @@
 
     function deleteTab(tid) {
       try {
-        if (!ctx.edit.getGlobalEditMode()) { alert('请切换到编辑模式后删除页面'); return; }
-        if (ctx.services.NS.grids.size <= 1) { alert('至少保留一个页面'); return; }
+        if (!ctx.edit.getGlobalEditMode()) {
+          if (window.NSToast) window.NSToast.warn('请先切换到编辑模式后再删除页面');
+          return;
+        }
+        if (ctx.services.NS.grids.size <= 1) {
+          if (window.NSToast) window.NSToast.warn('至少保留一个页面');
+          return;
+        }
         const info = ctx.services.NS.grids.get(tid);
         if (!info) return;
         const nameLabel = (info && info.name) ? String(info.name) : String(tid);
@@ -122,7 +129,7 @@
           }
         }
       } catch (err) {
-        alert('删除页面失败: ' + err);
+        if (window.NSToast) window.NSToast.error('删除页面失败: ' + err);
       }
     }
 
@@ -147,6 +154,7 @@
         if (info && info.loaded && info.grid) ctx.history.seedHistorySnapshot(id, info.grid);
       } catch {}
       try { ctx.services.NSWsSync.queryAllStatuses(); } catch {}
+      try { if (window.NSEmptyState) window.NSEmptyState.refreshTab(id); } catch {}
     }
     return {
       createTab,

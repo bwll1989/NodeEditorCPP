@@ -1,112 +1,102 @@
-//
-// Created by Administrator on 2023/12/13.
-//
+/**
+ * @file MpvControllerInterface.hpp
+ * @brief MPV Controller 嵌入式界面（布局对齐 SlideShow / VLC Remote）
+ *
+ * Base URL → Index/播放/停止 → 连接与状态 → 媒体列表。
+ */
 #pragma once
-#include "QWidget"
-#include "QLabel"
-#include "QLayout"
-#include "QPushButton"
-#include "QComboBox"
-#include "QSpinBox"
-#include "QLineEdit"
-#include "QTextBrowser"
-#include "QComboBox"
+
+#include <QWidget>
+#include <QLabel>
+#include <QPushButton>
+#include <QLineEdit>
+#include <QSpinBox>
+#include <QListWidget>
 #include <QHBoxLayout>
-#include <QSpacerItem>
 #include <QVBoxLayout>
-#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
-// #include "Common/GUI/QPropertyBrowser/QPropertyBrowser.h"
-using namespace std;
-using namespace NodeDataTypes;
+
 namespace Nodes
 {
-    class MpvControllerInterface: public QWidget{
-        Q_OBJECT
-        public:
-        explicit MpvControllerInterface(QWidget *parent = nullptr){
+    class MpvControllerInterface : public QWidget
+    {
+    public:
+        explicit MpvControllerInterface(QWidget *parent = nullptr)
+        {
             auto *layout = new QVBoxLayout(this);
             layout->setContentsMargins(0, 0, 0, 0);
             layout->setSpacing(6);
 
-            const auto addRow = [this, layout](const QString& labelText, QWidget* editor) {
-                auto *row = new QWidget(this);
+            const auto addRow = [layout](const QString &labelText, QWidget *editor) {
+                auto *row = new QWidget();
                 auto *rowLayout = new QHBoxLayout(row);
                 rowLayout->setContentsMargins(0, 0, 0, 0);
                 rowLayout->setSpacing(8);
-
-                auto *label = new QLabel(labelText, row);
-                rowLayout->addWidget(label, 0);
+                rowLayout->addWidget(new QLabel(labelText));
                 rowLayout->addWidget(editor, 1);
-
                 layout->addWidget(row);
             };
 
-            {
-                auto *row = new QWidget(this);
-                auto *rowLayout = new QHBoxLayout(row);
-                rowLayout->setContentsMargins(0, 0, 0, 0);
-                rowLayout->setSpacing(8);
-                rowLayout->addWidget(hostLabel, 0);
-                rowLayout->addWidget(hostEdit, 1);
-                layout->addWidget(row);
-            }
+            baseUrlEdit->setPlaceholderText(QStringLiteral("http://127.0.0.1:8995"));
+            baseUrlEdit->setText(QStringLiteral("http://127.0.0.1:8995"));
 
-            layout->addWidget(Play);
+            indexSpinBox->setMinimum(0);
+            indexSpinBox->setMaximum(9999);
+            indexSpinBox->setValue(0);
+            indexSpinBox->setToolTip(QStringLiteral("媒体库排序号（从 0 起）"));
 
-            auto *playlistRow = new QWidget(this);
-            auto *playlistLayout = new QHBoxLayout(playlistRow);
-            playlistLayout->setContentsMargins(0, 0, 0, 0);
-            playlistLayout->setSpacing(8);
-            playlistLayout->addWidget(playlist_prev);
-            playlistLayout->addWidget(playlist_next);
-            layout->addWidget(playlistRow);
+            playButton->setText(QStringLiteral("播放"));
+            playButton->setToolTip(QStringLiteral("按当前 Index 播放媒体"));
+            stopButton->setText(QStringLiteral("停止"));
+            stopButton->setToolTip(QStringLiteral("停止当前播放（不影响 Index）"));
 
-            auto *speedRow = new QWidget(this);
-            auto *speedLayout = new QHBoxLayout(speedRow);
-            speedLayout->setContentsMargins(0, 0, 0, 0);
-            speedLayout->setSpacing(8);
-            speedLayout->addWidget(speedSub);
-            speedLayout->addWidget(speedAdd);
-            layout->addWidget(speedRow);
+            connectionLabel->setFlat(true);
+            connectionLabel->setCheckable(true);
+            connectionLabel->setEnabled(false);
+            connectionLabel->setText(QStringLiteral("连接: 未连接"));
+            connectionLabel->setStyleSheet(QStringLiteral("color: red; font-weight: bold;"));
 
-            layout->addWidget(speedReset);
+            statusLabel->setWordWrap(true);
+            statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
+            statusLabel->setText(QStringLiteral("状态: —"));
 
-            addRow("Volume:", volumeEditor);
-            volumeEditor->setRange(0,150);
-            volumeEditor->setSingleStep(1);
-            volumeEditor->setValue(100);
+            addRow(QStringLiteral("Base URL:"), baseUrlEdit);
+            addRow(QStringLiteral("Index:"), indexSpinBox);
 
-            layout->addWidget(Fullscreen);
-            layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
+            auto *actionRow = new QWidget();
+            auto *actionLayout = new QHBoxLayout(actionRow);
+            actionLayout->setContentsMargins(0, 0, 0, 0);
+            actionLayout->setSpacing(8);
+            actionLayout->addWidget(playButton, 1);
+            actionLayout->addWidget(stopButton, 1);
+            layout->addWidget(actionRow);
+
+            layout->addWidget(connectionLabel);
+            layout->addWidget(statusLabel);
+
+            layout->addWidget(new QLabel(QStringLiteral("媒体列表:")));
+            mediaListWidget->setMinimumHeight(120);
+            layout->addWidget(mediaListWidget, 1);
+
+            setMinimumSize(320, 400);
         }
 
-        signals:
-            // 当 Host 或 Port 发生变化时触发
-            void hostChanged(QString host);
-    public slots:
-        // 处理属性值变化
-        void valueChanged(const QString &propertyName, const QVariant &value) {
-
-        if ( propertyName == "Host") {
-            // 获取 Host 和 Port 的最新值
-            QString host = hostEdit->text();
-            emit hostChanged(host);
+        void updateConnectionStatus(bool connected)
+        {
+            connectionLabel->setChecked(connected);
+            connectionLabel->setText(connected
+                                         ? QStringLiteral("连接: 已连接")
+                                         : QStringLiteral("连接: 未连接"));
+            connectionLabel->setStyleSheet(connected
+                                               ? QStringLiteral("color: green; font-weight: bold;")
+                                               : QStringLiteral("color: red; font-weight: bold;"));
         }
-    }
-    public:
 
-        QLabel *hostLabel=new QLabel("Host: ");
-        QLineEdit *hostEdit=new QLineEdit("127.0.0.1");
-        QPushButton *Play=new QPushButton("play");
-        QPushButton *playlist_prev=new QPushButton("playlist_prev");
-        QPushButton *playlist_next=new QPushButton("playlist_next");
-        QPushButton *speedAdd=new QPushButton("speedAdd");
-        QPushButton *speedSub=new QPushButton("speedSub");
-        QLabel *volumeLabel=new QLabel("Volume: ");
-        FloatDragValueWidget *volumeEditor=new FloatDragValueWidget(this);
-        QPushButton *speedReset=new QPushButton("speedReset");
-        QPushButton *Fullscreen=new QPushButton("fullscreen");
-
-
+        QLineEdit *baseUrlEdit = new QLineEdit();
+        QSpinBox *indexSpinBox = new QSpinBox();
+        QPushButton *playButton = new QPushButton();
+        QPushButton *stopButton = new QPushButton();
+        QPushButton *connectionLabel = new QPushButton();
+        QLabel *statusLabel = new QLabel();
+        QListWidget *mediaListWidget = new QListWidget();
     };
 }

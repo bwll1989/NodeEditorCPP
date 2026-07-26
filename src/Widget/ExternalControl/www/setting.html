@@ -2,284 +2,559 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"/>
-  <title>设置 - NodeStudio</title>
+  <title>设置 - Flow</title>
   <link rel="icon" href="favicon.png" type="image/png">
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link href="assets/vendor/bootstrap.min.css" rel="stylesheet">
+  <link href="assets/vendor/index.css" rel="stylesheet"/>
+  <link href="assets/ns-tokens.css" rel="stylesheet"/>
   <style>
-    body { font-family: "Segoe UI", Arial, sans-serif; }
-    .container { max-width: 960px; padding-top: 24px; padding-bottom: 24px; }
-    .card { margin-bottom: 16px; }
-    .progress { height: 6px; }
-    #authGate {
-      max-width: 420px;
-      margin: 80px auto 0;
+    body { margin: 0; }
+    .ns-settings-page {
+      min-height: 100vh;
+      background: #eef2f6;
+      font-family: var(--ns-font, system-ui, sans-serif);
+      color: var(--ns-text, #1f2937);
+    }
+    .ns-settings-top {
+      height: var(--ns-nav-height, 48px);
+      background: var(--ns-nav-bg, #1e293b);
+      color: var(--ns-nav-text, #f8fafc);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
       padding: 0 16px;
+      border-bottom: 1px solid var(--ns-nav-border, #334155);
+    }
+    .ns-settings-top a {
+      color: var(--ns-nav-text, #f8fafc);
+      text-decoration: none;
+      font-size: 14px;
+      opacity: 0.88;
+    }
+    .ns-settings-top a:hover { opacity: 1; }
+    .ns-settings-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 16px;
+    }
+    .ns-settings-brand img {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      object-fit: contain;
+    }
+    .ns-settings-wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .ns-settings-auth {
+      max-width: 420px;
+      margin: 72px auto 0;
+      padding: 0 16px;
+    }
+    .ns-settings-status {
+      font-size: 12px;
+      color: var(--ns-text-secondary, #64748b);
+      line-height: 1.4;
+      word-break: break-all;
+    }
+    .ns-settings-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .ns-settings-help {
+      margin: 0 0 12px;
+      color: var(--el-text-color-secondary);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .ns-settings-upload {
+      width: 100%;
+    }
+    .ns-settings-upload .el-upload,
+    .ns-settings-upload .el-upload-dragger {
+      width: 100%;
+    }
+    .ns-upload-icon {
+      font-size: 48px;
+      color: #c0c4cc;
+      margin-bottom: 8px;
+      line-height: 1;
+    }
+    .ns-upload-icon svg {
+      width: 48px;
+      height: 48px;
+      display: block;
+      margin: 0 auto;
     }
   </style>
 </head>
-<body>
-  <div id="authGate" class="d-none">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <h5 class="card-title mb-3">设置页面验证</h5>
-        <input type="password" id="authGatePassword" class="form-control mb-2" placeholder="请输入设置页面密码" autocomplete="current-password" />
-        <div id="authGateError" class="text-danger small mb-2 d-none"></div>
-        <div class="d-flex gap-2">
-          <button id="authGateSubmit" type="button" class="btn btn-primary btn-sm">进入设置</button>
-          <a class="btn btn-outline-secondary btn-sm" href="index.html">返回仪表盘</a>
-        </div>
-      </div>
+<body class="ns-settings-page">
+  <div class="ns-settings-top">
+    <div class="ns-settings-brand">
+      <img src="favicon.png" alt="" />
+      <span>设置</span>
     </div>
+    <a href="index.html">返回仪表盘</a>
   </div>
 
-  <div class="container" id="pageContent" style="display:none;">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h1 class="h4 mb-0">设置</h1>
-      <a class="btn btn-sm btn-outline-secondary" href="index.html">返回仪表盘</a>
-    </div>
+  <div id="app"></div>
 
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">上传媒体文件</h5>
-        <p class="text-muted">支持常见音视频/图片等文件</p>
-        <div class="mb-2">
-          <input type="file" id="mediaFile" class="form-control" accept="video/*,audio/*,image/*,.mp4,.mov,.avi,.mkv,.mp3,.wav,.png,.jpg,.jpeg,.gif"/>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-          <button id="uploadMediaBtn" class="btn btn-primary btn-sm">上传媒体</button>
-          <span id="mediaStatus" class="text-muted small"></span>
-        </div>
-        <div class="progress mt-2 d-none" id="mediaProgressWrap">
-          <div class="progress-bar" role="progressbar" style="width: 0%;" id="mediaProgress"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">上传项目文件（.flow）</h5>
-        <p class="text-muted">仅允许 <code>.flow</code> 扩展名</p>
-        <div class="mb-2">
-          <input type="file" id="flowFile" class="form-control" accept=".flow"/>
-        </div>
-        <div class="d-flex align-items-center gap-2">
-          <button id="uploadFlowBtn" class="btn btn-primary btn-sm">上传项目</button>
-          <span id="flowStatus" class="text-muted small"></span>
-        </div>
-        <div class="progress mt-2 d-none" id="flowProgressWrap">
-          <div class="progress-bar" role="progressbar" style="width: 0%;" id="flowProgress"></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body">
-        <h5 class="card-title">下载当前项目</h5>
-        <p class="text-muted">下载当前正在运行的项目文件</p>
-        <p class="text-muted small">当前文件：<code id="currentFlowName">检测中...</code></p>
-        <div class="d-flex align-items-center gap-2">
-          <button id="downloadFlowBtn" class="btn btn-success btn-sm">下载文件</button>
-          <span id="downloadStatus" class="text-muted small"></span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script src="assets/vendor/bootstrap.bundle.min.js"></script>
+  <script src="assets/vendor/vue.global.prod.js"></script>
+  <script src="assets/vendor/index.full.min.js"></script>
+  <script src="assets/modules/ns-toast.js"></script>
   <script src="assets/modules/ns-auth.js"></script>
   <script>
-    function bindSettingPageEvents() {
-      document.getElementById('uploadMediaBtn').onclick = uploadMedia;
-      document.getElementById('uploadFlowBtn').onclick = uploadFlow;
-      document.getElementById('downloadFlowBtn').onclick = downloadFlow;
-      fetchCurrentFlowInfo();
-    }
+    const { createApp, ref, reactive, onMounted, nextTick } = Vue;
 
-    function showSettingContent() {
-      document.getElementById('authGate').classList.add('d-none');
-      document.getElementById('pageContent').style.display = '';
-      bindSettingPageEvents();
-    }
+    const UploadIcon = {
+      template: `
+        <div class="ns-upload-icon el-icon--upload">
+          <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path fill="currentColor" d="M544 864V672h128L512 480 352 672h128v192H544zM160 704a32 32 0 0 1-32-32V224a64 64 0 0 1 64-64h640a64 64 0 0 1 64 64v448a32 32 0 0 1-64 0V224H192v448a32 32 0 0 1-32 32zm704 64H704v-64h160a32 32 0 1 1 0 64zM160 768h160v64H160a32 32 0 0 1 0-64z"/>
+            <path fill="currentColor" d="M192 160h640a64 64 0 0 1 64 64v192h-64V224H192v512h160v64H192a64 64 0 0 1-64-64V224a64 64 0 0 1 64-64zm352 384 192 192h-128v192H448V736H320l224-192z"/>
+          </svg>
+        </div>
+      `
+    };
 
-    function showAuthGate(message) {
-      const gate = document.getElementById('authGate');
-      const errEl = document.getElementById('authGateError');
-      gate.classList.remove('d-none');
-      if (message && errEl) {
-        errEl.textContent = message;
-        errEl.classList.remove('d-none');
-      } else if (errEl) {
-        errEl.textContent = '';
-        errEl.classList.add('d-none');
-      }
-    }
+    createApp({
+      components: { UploadIcon },
+      setup() {
+        const authed = ref(false);
+        const authChecking = ref(true);
+        const authPassword = ref('');
+        const authError = ref('');
+        const authLoading = ref(false);
 
-    async function tryAuthGateSubmit() {
-      const input = document.getElementById('authGatePassword');
-      const pw = input ? String(input.value || '') : '';
-      const ok = await window.NSAuth.verifySettingPassword(pw);
-      if (ok) {
-        window.NSAuth.markSettingAuthed();
-        showSettingContent();
-        return;
-      }
-      showAuthGate('密码错误，请重试');
-      try { input.focus(); input.select(); } catch {}
-    }
+        const mediaFileList = ref([]);
+        const flowFileList = ref([]);
+        const mediaStatus = ref('');
+        const flowStatus = ref('');
+        const downloadStatus = ref('');
+        const currentFlowName = ref('检测中...');
 
-    async function initSettingPage() {
-      if (window.NSAuth && window.NSAuth.isSettingAuthedRecently()) {
-        showSettingContent();
-        return;
-      }
+        const mediaProgress = reactive({ show: false, percent: 0, label: '' });
+        const flowProgress = reactive({ show: false, percent: 0 });
+        const mediaUploading = ref(false);
+        const flowUploading = ref(false);
+        const downloading = ref(false);
 
-      const okEmpty = await window.NSAuth.verifySettingPassword('');
-      if (okEmpty) {
-        window.NSAuth.markSettingAuthed();
-        showSettingContent();
-        return;
-      }
+        const mediaAccept = 'video/*,audio/*,image/*,.mp4,.mov,.avi,.mkv,.mp3,.wav,.png,.jpg,.jpeg,.gif';
 
-      showAuthGate('');
-      const submitBtn = document.getElementById('authGateSubmit');
-      const input = document.getElementById('authGatePassword');
-      if (submitBtn) submitBtn.onclick = tryAuthGateSubmit;
-      if (input) {
-        input.onkeydown = (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            tryAuthGateSubmit();
+        function toast(type, message) {
+          try {
+            if (window.NSToast && typeof window.NSToast[type] === 'function') {
+              window.NSToast[type](message);
+              return;
+            }
+          } catch {}
+          try {
+            const ElMessage = window.ElementPlus && window.ElementPlus.ElMessage;
+            if (ElMessage) ElMessage[type === 'warn' ? 'warning' : type](message);
+          } catch {}
+        }
+
+        function uploadFileBinary(url, file, onProgress) {
+          return new Promise((resolve, reject) => {
+            if (!file || typeof file.size !== 'number') {
+              reject(new Error('invalid_file'));
+              return;
+            }
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+            xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+            xhr.upload.onprogress = (e) => {
+              if (!onProgress) return;
+              if (e.lengthComputable && e.total > 0) {
+                onProgress(Math.round((e.loaded / e.total) * 100));
+              } else if (file.size > 0) {
+                onProgress(Math.min(99, Math.round((e.loaded / file.size) * 100)));
+              }
+            };
+            xhr.onload = () => {
+              const text = xhr.responseText || '';
+              let j = null;
+              try { j = JSON.parse(text); } catch {}
+              if (xhr.status >= 200 && xhr.status < 300 && j && j.ok) {
+                if (onProgress) onProgress(100);
+                resolve({ ok: true, path: j.path || '', raw: j });
+                return;
+              }
+              reject(new Error((j && j.error) ? j.error : (xhr.status + ' ' + text)));
+            };
+            xhr.onerror = () => reject(new Error('network_error'));
+            xhr.onabort = () => reject(new Error('aborted'));
+            // 直接发送原始 File/Blob，避免 stream 重打包带来的损坏风险
+            xhr.send(file);
+          });
+        }
+
+        function onMediaChange(_file, fileList) {
+          mediaFileList.value = fileList.slice();
+        }
+
+        function onMediaRemove(_file, fileList) {
+          mediaFileList.value = fileList.slice();
+        }
+
+        function onFlowChange(file, fileList) {
+          // 仅保留最后一个，确保单文件
+          const last = fileList[fileList.length - 1];
+          flowFileList.value = last ? [last] : [];
+        }
+
+        function onFlowRemove() {
+          flowFileList.value = [];
+        }
+
+        function onFlowExceed(files) {
+          const file = files && files[0];
+          if (!file) return;
+          flowFileList.value = [{
+            name: file.name,
+            percentage: 0,
+            status: 'ready',
+            size: file.size,
+            raw: file,
+            uid: Date.now()
+          }];
+          toast('warn', '仅支持上传 1 个 .flow 文件，已替换为最新选择');
+        }
+
+        async function uploadMedia() {
+          const list = (mediaFileList.value || [])
+            .map((f) => f && f.raw)
+            .filter((f) => f instanceof Blob);
+          if (!list.length) {
+            mediaStatus.value = '请选择媒体文件';
+            toast('warn', '请选择媒体文件');
+            return;
           }
+
+          mediaUploading.value = true;
+          mediaProgress.show = true;
+          mediaProgress.percent = 0;
+          const results = [];
+          try {
+            for (let i = 0; i < list.length; i++) {
+              const file = list[i];
+              mediaProgress.label = (i + 1) + '/' + list.length + ' ' + file.name;
+              mediaStatus.value = '正在上传：' + mediaProgress.label;
+              const url = '/api/upload/media?filename=' + encodeURIComponent(file.name);
+              try {
+                const r = await uploadFileBinary(url, file, (pct) => {
+                  const base = (i / list.length) * 100;
+                  const part = pct / list.length;
+                  mediaProgress.percent = Math.min(100, Math.round(base + part));
+                });
+                results.push({ name: file.name, ok: true, path: r.path });
+                const item = mediaFileList.value[i];
+                if (item) item.status = 'success';
+              } catch (e) {
+                results.push({ name: file.name, ok: false, error: String(e && e.message ? e.message : e) });
+                const item = mediaFileList.value[i];
+                if (item) item.status = 'fail';
+              }
+            }
+            mediaProgress.percent = 100;
+            const okCount = results.filter((r) => r.ok).length;
+            const failCount = results.length - okCount;
+            mediaStatus.value = '完成：成功 ' + okCount + '，失败 ' + failCount
+              + (failCount ? '；失败：' + results.filter((r) => !r.ok).map((r) => r.name + '(' + r.error + ')').join('；') : '');
+            if (failCount === 0) toast('success', '媒体上传成功（' + okCount + '）');
+            else if (okCount === 0) toast('error', '媒体上传失败');
+            else toast('warn', '部分上传成功（' + okCount + '/' + results.length + '）');
+          } catch (e) {
+            mediaStatus.value = '上传异常：' + e;
+            toast('error', '上传异常：' + e);
+          } finally {
+            mediaUploading.value = false;
+          }
+        }
+
+        async function uploadFlow() {
+          const item = (flowFileList.value || [])[0];
+          const file = item && item.raw;
+          if (!(file instanceof Blob)) {
+            flowStatus.value = '请选择.flow文件';
+            toast('warn', '请选择 .flow 文件');
+            return;
+          }
+          if (!String(file.name || '').toLowerCase().endsWith('.flow')) {
+            flowStatus.value = '文件扩展名必须为 .flow';
+            toast('warn', '文件扩展名必须为 .flow');
+            return;
+          }
+          flowUploading.value = true;
+          flowProgress.show = true;
+          flowProgress.percent = 0;
+          flowStatus.value = '开始上传...';
+          try {
+            const url = '/api/upload/flow?filename=' + encodeURIComponent(file.name);
+            const r = await uploadFileBinary(url, file, (pct) => { flowProgress.percent = pct; });
+            flowProgress.percent = 100;
+            flowStatus.value = '上传成功：' + (r.path || '');
+            if (item) item.status = 'success';
+            toast('success', '上传成功');
+          } catch (e) {
+            flowStatus.value = '上传失败：' + (e && e.message ? e.message : e);
+            if (item) item.status = 'fail';
+            toast('error', '上传失败');
+          } finally {
+            flowUploading.value = false;
+          }
+        }
+
+        async function downloadFlow() {
+          downloadStatus.value = '正在请求...';
+          downloading.value = true;
+          try {
+            const resp = await fetch('/api/download/current_flow');
+            if (!resp.ok) {
+              const j = await resp.json().catch(() => ({}));
+              throw new Error(j.error || resp.statusText);
+            }
+            const blob = await resp.blob();
+            const disposition = resp.headers.get('Content-Disposition') || '';
+            let filename = 'project.flow';
+            const matches = /filename="([^"]*)"/.exec(disposition);
+            if (matches && matches[1]) filename = matches[1];
+
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            downloadStatus.value = '下载完成';
+            toast('success', '下载完成');
+          } catch (e) {
+            downloadStatus.value = '下载失败：' + (e && e.message ? e.message : e);
+            toast('error', '下载失败：' + (e && e.message ? e.message : e));
+          } finally {
+            downloading.value = false;
+          }
+        }
+
+        async function fetchCurrentFlowInfo() {
+          try {
+            const resp = await fetch('/api/info/current_flow');
+            if (resp.ok) {
+              const j = await resp.json();
+              currentFlowName.value = (j.ok && j.filename) ? j.filename : '无项目运行';
+            } else {
+              currentFlowName.value = '获取失败';
+            }
+          } catch {
+            currentFlowName.value = '连接异常';
+          }
+        }
+
+        async function submitAuth() {
+          authLoading.value = true;
+          authError.value = '';
+          try {
+            const ok = await window.NSAuth.verifySettingPassword(String(authPassword.value || ''));
+            if (ok) {
+              window.NSAuth.markSettingAuthed();
+              authed.value = true;
+              await fetchCurrentFlowInfo();
+              return;
+            }
+            authError.value = '密码错误，请重试';
+            await nextTick();
+          } finally {
+            authLoading.value = false;
+          }
+        }
+
+        async function initAuth() {
+          authChecking.value = true;
+          try {
+            if (window.NSAuth && window.NSAuth.isSettingAuthedRecently()) {
+              authed.value = true;
+              await fetchCurrentFlowInfo();
+              return;
+            }
+            const okEmpty = await window.NSAuth.verifySettingPassword('');
+            if (okEmpty) {
+              window.NSAuth.markSettingAuthed();
+              authed.value = true;
+              await fetchCurrentFlowInfo();
+              return;
+            }
+            authed.value = false;
+          } finally {
+            authChecking.value = false;
+          }
+        }
+
+        onMounted(initAuth);
+
+        return {
+          authed,
+          authChecking,
+          authPassword,
+          authError,
+          authLoading,
+          mediaFileList,
+          flowFileList,
+          mediaStatus,
+          flowStatus,
+          downloadStatus,
+          currentFlowName,
+          mediaProgress,
+          flowProgress,
+          mediaUploading,
+          flowUploading,
+          downloading,
+          mediaAccept,
+          submitAuth,
+          onMediaChange,
+          onMediaRemove,
+          onFlowChange,
+          onFlowRemove,
+          onFlowExceed,
+          uploadMedia,
+          uploadFlow,
+          downloadFlow,
         };
-        setTimeout(() => { try { input.focus(); } catch {} }, 50);
-      }
-    }
+      },
+      template: `
+        <div v-if="authChecking" class="ns-settings-auth">
+          <el-card shadow="hover">
+            <div style="text-align:center;padding:12px 0;color:var(--el-text-color-secondary);">正在验证...</div>
+          </el-card>
+        </div>
 
-    // 函数级注释：将文件通过二进制流上传到指定接口（带进度显示）
-    async function uploadFileBinary(url, file, progressEl, progressWrap, statusEl) {
-      if (!file) { statusEl.textContent = '请选择文件'; return; }
-      progressWrap.classList.remove('d-none');
-      progressEl.style.width = '0%';
-      statusEl.textContent = '开始上传...';
+        <div v-else-if="!authed" class="ns-settings-auth">
+          <el-card shadow="hover">
+            <template #header>
+              <span style="font-weight:600;">设置页面验证</span>
+            </template>
+            <p class="ns-settings-help">请输入密码以继续</p>
+            <el-input
+              v-model="authPassword"
+              type="password"
+              show-password
+              placeholder="请输入设置页面密码"
+              autocomplete="current-password"
+              @keyup.enter="submitAuth"
+            />
+            <el-alert
+              v-if="authError"
+              :title="authError"
+              type="error"
+              :closable="false"
+              show-icon
+              style="margin-top:12px;"
+            />
+            <div class="ns-settings-actions">
+              <el-button type="primary" :loading="authLoading" @click="submitAuth">进入设置</el-button>
+              <el-button @click="() => location.href = 'index.html'">返回仪表盘</el-button>
+            </div>
+          </el-card>
+        </div>
 
-      try {
-        const total = file.size || 0;
-        let uploaded = 0;
+        <div v-else class="ns-settings-wrap">
+          <el-card shadow="hover">
+            <template #header>
+              <span style="font-weight:600;">上传媒体文件</span>
+            </template>
+            <p class="ns-settings-help">将文件拖拽到下方区域，或点击选择。支持多文件。</p>
+            <el-upload
+              class="ns-settings-upload"
+              drag
+              multiple
+              :auto-upload="false"
+              :file-list="mediaFileList"
+              :accept="mediaAccept"
+              :disabled="mediaUploading"
+              :on-change="onMediaChange"
+              :on-remove="onMediaRemove"
+            >
+              <upload-icon />
+              <div class="el-upload__text">将文件拖到此处，或<em>点击上传</em></div>
+              <template #tip>
+                <div class="el-upload__tip">支持常见音视频 / 图片，可一次选择多个文件</div>
+              </template>
+            </el-upload>
+            <div class="ns-settings-actions">
+              <el-button type="primary" :loading="mediaUploading" @click="uploadMedia">上传媒体</el-button>
+              <span class="ns-settings-status">{{ mediaStatus }}</span>
+            </div>
+            <el-progress
+              v-if="mediaProgress.show"
+              :percentage="mediaProgress.percent"
+              :format="() => mediaProgress.label || (mediaProgress.percent + '%')"
+              style="margin-top:12px;"
+            />
+          </el-card>
 
-        const stream = file.stream();
-        const reader = stream.getReader();
-        const chunks = [];
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          chunks.push(value);
-          uploaded += value.byteLength;
-          const pct = total ? Math.round((uploaded / total) * 100) : 0;
-          progressEl.style.width = pct + '%';
-        }
-        const blob = new Blob(chunks, { type: 'application/octet-stream' });
+          <el-card shadow="hover">
+            <template #header>
+              <span style="font-weight:600;">上传项目文件（.flow）</span>
+            </template>
+            <el-upload
+              class="ns-settings-flow-upload"
+              :limit="1"
+              :auto-upload="false"
+              :file-list="flowFileList"
+              accept=".flow"
+              :disabled="flowUploading"
+              :on-change="onFlowChange"
+              :on-remove="onFlowRemove"
+              :on-exceed="onFlowExceed"
+            >
+              <template #trigger>
+                <el-button type="primary" :disabled="flowUploading">选择文件</el-button>
+              </template>
+              <el-button
+                style="margin-left: 12px;"
+                type="success"
+                :loading="flowUploading"
+                @click="uploadFlow"
+              >上传到服务器</el-button>
+              <template #tip>
+                <div class="el-upload__tip">仅允许单个 .flow 项目文件</div>
+              </template>
+            </el-upload>
+            <div v-if="flowStatus" class="ns-settings-status" style="margin-top:8px;">{{ flowStatus }}</div>
+            <el-progress
+              v-if="flowProgress.show"
+              :percentage="flowProgress.percent"
+              style="margin-top:12px;"
+            />
+          </el-card>
 
-        const resp = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/octet-stream' },
-          body: blob
-        });
-        const text = await resp.text();
-        let j = null;
-        try { j = JSON.parse(text); } catch {}
-        if (resp.ok && j && j.ok) {
-          statusEl.textContent = '上传成功：' + (j.path || '');
-          progressEl.style.width = '100%';
-        } else {
-          statusEl.textContent = '上传失败：' + (j && j.error ? j.error : resp.status + ' ' + text);
-        }
-      } catch (e) {
-        statusEl.textContent = '上传异常：' + e;
-      }
-    }
-
-    // 函数级注释：上传媒体文件（POST /api/upload/media?filename=xxx）
-    function uploadMedia() {
-      const file = document.getElementById('mediaFile').files[0];
-      const statusEl = document.getElementById('mediaStatus');
-      const progressEl = document.getElementById('mediaProgress');
-      const progressWrap = document.getElementById('mediaProgressWrap');
-      if (!file) { statusEl.textContent = '请选择媒体文件'; return; }
-      const url = '/api/upload/media?filename=' + encodeURIComponent(file.name);
-      uploadFileBinary(url, file, progressEl, progressWrap, statusEl);
-    }
-
-    // 函数级注释：上传.flow项目文件（POST /api/upload/flow?filename=xxx）
-    function uploadFlow() {
-      const file = document.getElementById('flowFile').files[0];
-      const statusEl = document.getElementById('flowStatus');
-      const progressEl = document.getElementById('flowProgress');
-      const progressWrap = document.getElementById('flowProgressWrap');
-      if (!file) { statusEl.textContent = '请选择.flow文件'; return; }
-      if (!file.name.toLowerCase().endsWith('.flow')) {
-        statusEl.textContent = '文件扩展名必须为 .flow';
-        return;
-      }
-      const url = '/api/upload/flow?filename=' + encodeURIComponent(file.name);
-      uploadFileBinary(url, file, progressEl, progressWrap, statusEl);
-    }
-
-    // 函数级注释：下载当前.flow项目文件
-    async function downloadFlow() {
-      const statusEl = document.getElementById('downloadStatus');
-      statusEl.textContent = '正在请求...';
-      try {
-        const resp = await fetch('/api/download/current_flow');
-        if (!resp.ok) {
-          const j = await resp.json().catch(() => ({}));
-          throw new Error(j.error || resp.statusText);
-        }
-
-        const blob = await resp.blob();
-        const disposition = resp.headers.get('Content-Disposition') || '';
-        let filename = 'project.flow';
-        const matches = /filename="([^"]*)"/.exec(disposition);
-        if (matches && matches[1]) {
-            filename = matches[1];
-        }
-
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(url);
-        statusEl.textContent = '下载完成';
-      } catch (e) {
-        statusEl.textContent = '下载失败：' + e.message;
-      }
-    }
-
-    // 函数级注释：获取当前Flow文件信息并显示
-    async function fetchCurrentFlowInfo() {
-      const nameEl = document.getElementById('currentFlowName');
-      try {
-        const resp = await fetch('/api/info/current_flow');
-        if (resp.ok) {
-          const j = await resp.json();
-          if (j.ok && j.filename) {
-            nameEl.textContent = j.filename;
-          } else {
-            nameEl.textContent = '无项目运行';
-          }
-        } else {
-          nameEl.textContent = '获取失败';
-        }
-      } catch (e) {
-        nameEl.textContent = '连接异常';
-      }
-    }
-
-    // 函数级注释：初始化页面（先鉴权，再绑定事件并加载数据）
-    document.addEventListener('DOMContentLoaded', initSettingPage);
+          <el-card shadow="hover">
+            <template #header>
+              <span style="font-weight:600;">下载当前项目</span>
+            </template>
+            <p class="ns-settings-help">下载当前正在运行的项目文件</p>
+            <p class="ns-settings-help" style="margin-bottom:0;">
+              当前文件：<el-tag type="info" size="small">{{ currentFlowName }}</el-tag>
+            </p>
+            <div class="ns-settings-actions">
+              <el-button type="success" :loading="downloading" @click="downloadFlow">下载文件</el-button>
+              <span class="ns-settings-status">{{ downloadStatus }}</span>
+            </div>
+          </el-card>
+        </div>
+      `
+    }).use(ElementPlus).mount('#app');
   </script>
 </body>
 </html>

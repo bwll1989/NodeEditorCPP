@@ -1,5 +1,7 @@
 #include "ScheduledTaskModel.hpp"
 
+#include <algorithm>
+
 /**
  * @brief 构造函数：加载初始示例数据
  */
@@ -177,7 +179,10 @@ void ScheduledTaskModel::removeItem(int index) {
     emit modelChanged();
 }
 
-bool ScheduledTaskModel::updateTaskFields(int row, const OSCMessage& osc, const ScheduledInfo& sched)
+bool ScheduledTaskModel::updateTaskFields(int row,
+                                          const OSCMessage& osc,
+                                          const ScheduledInfo& sched,
+                                          const QString& remarks)
 {
     if (row < 0 || row >= m_items.size()) {
         return false;
@@ -185,6 +190,7 @@ bool ScheduledTaskModel::updateTaskFields(int row, const OSCMessage& osc, const 
 
     auto& it = m_items[row];
     it.osc = osc;
+    it.remarks = remarks;
     it.scheduled.type = sched.type;
 
     const QTime time = sched.time.time().isValid() ? sched.time.time() : QTime(9, 0, 0);
@@ -207,24 +213,43 @@ bool ScheduledTaskModel::updateTaskFields(int row, const OSCMessage& osc, const 
  */
 QVector<ScheduledTaskItem> ScheduledTaskModel::itemsForDate(const QDate& date) const {
     QVector<ScheduledTaskItem> result;
+    const QVector<int> rows = rowIndexesForDate(date);
+    result.reserve(rows.size());
+    for (int row : rows) {
+        result.push_back(m_items.at(row));
+    }
+    return result;
+}
+
+QVector<int> ScheduledTaskModel::rowIndexesForDate(const QDate& date) const {
+    QVector<int> result;
+    if (!date.isValid()) {
+        return result;
+    }
+
     const int qtDow = date.dayOfWeek(); // 1=Monday ... 7=Sunday
     const QString dowName = dayOfWeekToName(qtDow);
 
-    for (const auto& item : m_items) {
+    for (int i = 0; i < m_items.size(); ++i) {
+        const auto& item = m_items.at(i);
+        bool match = false;
         if (item.scheduled.type.compare("once", Qt::CaseInsensitive) == 0) {
-            if (item.scheduled.time.date() == date) {
-                result.push_back(item);
-            }
+            match = (item.scheduled.time.date() == date);
         } else if (item.scheduled.type.compare("loop", Qt::CaseInsensitive) == 0) {
             if (item.scheduled.conditions.isEmpty()) {
-                if (item.scheduled.time.date() == date) {
-                    result.push_back(item);
-                }
-            } else if (item.scheduled.conditions.contains(dowName, Qt::CaseInsensitive)) {
-                result.push_back(item);
+                match = (item.scheduled.time.date() == date);
+            } else {
+                match = item.scheduled.conditions.contains(dowName, Qt::CaseInsensitive);
             }
         }
+        if (match) {
+            result.push_back(i);
+        }
     }
+
+    std::sort(result.begin(), result.end(), [this](int a, int b) {
+        return m_items.at(a).scheduled.time.time() < m_items.at(b).scheduled.time.time();
+    });
     return result;
 }
 

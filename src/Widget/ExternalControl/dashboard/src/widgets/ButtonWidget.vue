@@ -3,7 +3,7 @@ import type { WidgetMeta } from '../widget-types';
 import { toBool } from '../useWidgetState';
 
 export const widgetMeta: WidgetMeta = {
-  type: '按钮',
+  type: 'Trigger 按钮',
   factory: 'createEPButtonWidget',
   defaultW: 8,
   defaultH: 2,
@@ -12,10 +12,13 @@ export const widgetMeta: WidgetMeta = {
     bgColor: 'transparent',
     fontSize: '14',
     label: '执行',
-    buttonColor: '#409EFF',
-    activeColor: '#0e5d45',
-    textColor: '#ffffff',
-    borderColor: '#409EFF',
+    buttonType: 'primary',
+    plain: false,
+    round: false,
+    buttonColor: '',
+    activeColor: '',
+    textColor: '',
+    borderColor: '',
     borderStyle: 'none',
     isActive: false,
   },
@@ -32,6 +35,9 @@ import { useWidgetState, sendCommand } from '../useWidgetState';
 const s = useWidgetState<{
   commandId: string;
   label: string;
+  buttonType: string;
+  plain: boolean;
+  round: boolean;
   buttonColor: string;
   activeColor: string;
   textColor: string;
@@ -41,19 +47,30 @@ const s = useWidgetState<{
   isActive: boolean;
 }>();
 
+const epType = computed(() => {
+  const t = String(s.buttonType || 'primary').toLowerCase();
+  if (['primary', 'success', 'warning', 'danger', 'info', 'default'].includes(t)) return t;
+  return 'primary';
+});
+
 const buttonStyle = computed(() => {
-  const bg = s.isActive ? s.activeColor : s.buttonColor;
-  return {
+  const style: Record<string, string> = {
     width: '100%',
     height: '100%',
-    '--el-button-bg-color': bg,
-    '--el-button-hover-bg-color': bg,
-    '--el-button-active-bg-color': s.activeColor,
-    '--el-button-text-color': s.textColor,
-    '--el-button-border-color': s.borderColor,
-    borderStyle: s.borderStyle,
-    fontSize: s.fontSize + 'px',
+    fontSize: (s.fontSize || '14') + 'px',
   };
+  if (s.borderStyle && s.borderStyle !== 'none') {
+    style.borderStyle = s.borderStyle;
+  }
+  const bg = s.isActive && s.activeColor ? s.activeColor : s.buttonColor;
+  if (bg) {
+    style['--el-button-bg-color'] = bg;
+    style['--el-button-hover-bg-color'] = bg;
+    style['--el-button-active-bg-color'] = s.activeColor || bg;
+  }
+  if (s.textColor) style['--el-button-text-color'] = s.textColor;
+  if (s.borderColor) style['--el-button-border-color'] = s.borderColor;
+  return style;
 });
 
 function exec() {
@@ -71,15 +88,30 @@ function onUp() {
 
 <template>
   <el-button
-    type="primary"
+    class="ns-ep-btn"
+    :type="epType === 'default' ? undefined : (epType as any)"
+    :plain="!!s.plain"
+    :round="!!s.round"
     :style="buttonStyle"
     @click="exec"
     @mousedown="onDown"
     @mouseup="onUp"
     @mouseleave="onUp"
-    @touchstart="onDown"
+    @touchstart.passive="onDown"
     @touchend="onUp"
   >
     {{ s.label }}
   </el-button>
 </template>
+
+<style scoped>
+.ns-ep-btn {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ns-ep-btn :deep(span) {
+  line-height: 1.2;
+}
+</style>

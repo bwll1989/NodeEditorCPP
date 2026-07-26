@@ -1,330 +1,207 @@
 /**
  * @file VlcRemoteDataModel.hpp
- * @brief VLC Remote 节点核心数据模型
+ * @brief VLC Remote 节点（交互逻辑对齐 Mpv Controller）
  *
- * 通过 VLC HTTP Web 接口（Lua HTTP）远程控制播放器，功能包括：
- * - 播放 / 停止 / 全屏 / 音量 / 列表切换
- * - 实时状态 JSON 输出（STATUS 端口）
- * - 嵌入式 UI 与 GlobalEventBus OSC 外部控制
+ * - 每 5 秒 GET playlist.json（查询列表 + 保活）
+ * - 切换：status.json?command=pl_play&id={playlistId}（由排序号取 ID）
+ * - 停止：status.json?command=pl_stop
  *
- * VLC 需启用 HTTP 接口，例如：
- *   vlc --extraintf http --http-password xxx --http-port 8080
+ * 切换入口：
+ * - PLAY(true) / 「播放」 → 按 Index 控件值切换并同步控件
+ * - INDEX 端口 → 整数排序号，同步 Index 并播放
+ * - 双击列表项 → 按该项切换，不改 Index 控件
+ * - STOP 端口 / 「停止」 / OSC /stop(true) → 停止播放，不改 Index
  *
- * 输入端口（5 个）：
- *   0 PLAY/STOP  - true 播放，false 停止
- *   1 STOP       - true 停止
- *   2 VOLUME     - 0～100 百分比
- *   3 INDEX      - playlistID 切换列表项
- *   4 FULLSCREEN - true 切换全屏
+ * 端口：PLAY / INDEX / STOP → DONE / CONNECTED
+ * 密码不进属性系统（仅界面 + 本地存盘）
  *
- * 输出端口（1 个）：
- *   0 STATUS     - VariableData JSON 播放状态
+ * VLC：vlc --extraintf http --http-password xxx --http-port 8080
  */
 #pragma once
 
-#include <QtCore/QObject>
-#include <QtCore/QTimer>
-#include <QtCore/QUrlQuery>
-#include <QtCore/QHash>
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QListWidget>
-#include <QSignalBlocker>
+#include <QBrush>
 #include <QColor>
+#include <QHash>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QListWidget>
+#include <QSignalBlocker>
+#include <QSpinBox>
+#include <QTimer>
+#include <QUrl>
+#include <QUrlQuery>
 
-#include "NodeDataList.hpp"
-#include "VlcRemoteInterface.hpp"
+#include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/NodeDataList.hpp"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "PluginDefinition.hpp"
 #include "VlcHttpClient.h"
-#include "Common/GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
-#include "Common/BaseClass/AbstractDelegateModel.h"
-#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include "VlcRemoteInterface.hpp"
 
+using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
+using QtNodes::NodeDataType;
+using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
 
 namespace Nodes
 {
-    /**
-     * @class VlcRemoteDataModel
-     * @brief VLC HTTP 远程控制节点
-     *
-     * 架构说明：
-     * - client：处理 status.json（状态查询 + 命令发送）
-     * - playlistClient：独立处理 playlist.json，避免与状态轮询互相阻塞
-     * - refreshTimer：命令发送后延迟 900ms 再刷新状态，等待 VLC 更新
-     *
-     * 音量换算：VLC 内部 256 = 100%，发送命令时使用绝对值而非 "50%" 字符串，
-     * 避免部分 VLC 版本解析百分号时返回非 JSON 响应。
-     */
     class VlcRemoteDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
+
+        static constexpr int kPollIntervalMs = 5000;
+
+        /** 列表项：UserRole = VLC playlistId，UserRole+1 = 排序号 */
+        static constexpr int kRolePlaylistId = Qt::UserRole;
+        static constexpr int kRoleIndex = Qt::UserRole + 1;
+
+        enum InputPort : PortIndex { PlayPort = 0, IndexPort = 1, StopPort = 2 };
+        enum OutputPort : PortIndex { DonePort = 0, ConnectedPort = 1 };
+
+        // 密码故意不声明 Q_PROPERTY
         Q_PROPERTY(QString hostAddress READ hostAddress WRITE setHostAddress NOTIFY hostAddressChanged)
         Q_PROPERTY(int port READ port WRITE setPort NOTIFY portChanged)
-        Q_PROPERTY(QString password READ password WRITE setPassword NOTIFY passwordChanged)
-        Q_PROPERTY(int volume READ volume WRITE setVolume NOTIFY volumeChanged)
+        Q_PROPERTY(int index READ index WRITE setIndex NOTIFY indexChanged)
+        Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
 
     public:
         VlcRemoteDataModel()
         {
-            InPortCount = 5;
-            OutPortCount = 1;
-            CaptionVisible = true;
+            InPortCount = 3;
+            OutPortCount = 2;
             Caption = PLUGIN_NAME;
-            WidgetEmbeddable = false;
+            CaptionVisible = true;
+            WidgetEmbeddable = true;
             Resizable = true;
+            PortEditable = false;
 
-            // --- 网络与 UI 组件 ---
-            client = new VlcHttpClient(this);
-            playlistClient = new VlcHttpClient(this);
-            widget = new VlcRemoteInterface();
+            m_doneOutput = std::make_shared<VariableData>(QVariant(false));
+            m_connectedOutput = std::make_shared<VariableData>(QVariant(false));
 
-            // 命令发送后延迟刷新状态（单次触发）
-            refreshTimer = new QTimer(this);
-            refreshTimer->setInterval(900);
-            refreshTimer->setSingleShot(true);
+            m_statusClient = new VlcHttpClient(this);
+            m_playlistClient = new VlcHttpClient(this);
 
-            // --- 外部 OSC 绑定：按钮触发类 ---
-            const auto bindTrigger = [this](const QString &path, QPushButton *button) {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = QStringLiteral("trigger");
-                b.control = button;
-                AbstractDelegateModel::registerExternalBinding(path, this, b);
-            };
-            bindTrigger("/play", widget->playPauseButton);
-            bindTrigger("/stop", widget->stopButton);
-            bindTrigger("/fullscreen", widget->fullscreenButton);
-            bindTrigger("/refresh_playlist", widget->refreshPlaylistButton);
+            connect(m_statusClient, &VlcHttpClient::jsonReady,
+                    this, &VlcRemoteDataModel::onStatusResponse);
+            connect(m_statusClient, &VlcHttpClient::requestFailed,
+                    this, &VlcRemoteDataModel::onStatusFailed);
+            connect(m_playlistClient, &VlcHttpClient::jsonReady,
+                    this, &VlcRemoteDataModel::onPlaylistResponse);
+            connect(m_playlistClient, &VlcHttpClient::requestFailed,
+                    this, &VlcRemoteDataModel::onPlaylistFailed);
 
-            // --- 外部 OSC 绑定：属性同步类 ---
-            const auto bindProperty = [this](const QString &path, const char *member, QWidget *control) {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = QString::fromUtf8(member);
-                b.control = control;
-                AbstractDelegateModel::registerExternalBinding(path, this, b);
-            };
-            bindProperty("/host", "hostAddress", widget->hostEdit);
-            bindProperty("/port", "port", widget->portSpinBox);
-            bindProperty("/password", "password", widget->passwordEdit);
-            bindProperty("/volume", "volume", widget->volumeEditor);
+            m_pollTimer = new QTimer(this);
+            m_pollTimer->setInterval(kPollIntervalMs);
+            connect(m_pollTimer, &QTimer::timeout, this, &VlcRemoteDataModel::fetchPlaylists);
 
-            // --- HTTP 响应回调 ---
-            connect(client, &VlcHttpClient::jsonReady, this, &VlcRemoteDataModel::onStatusResponse);
-            connect(client, &VlcHttpClient::requestFailed, this, &VlcRemoteDataModel::onStatusRequestFailed);
-            connect(playlistClient, &VlcHttpClient::jsonReady, this, &VlcRemoteDataModel::onPlaylistResponse);
-            connect(playlistClient, &VlcHttpClient::requestFailed, this, &VlcRemoteDataModel::onPlaylistRequestFailed);
+            syncParametersFromWidget();
+            m_index = widget->indexSpinBox->value();
+            widget->updateConnectionStatus(false);
 
-            // --- UI → 模型 信号 ---
-            connect(widget->hostEdit, &QLineEdit::textChanged, this, &VlcRemoteDataModel::setHostAddress);
-            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
-                    this, &VlcRemoteDataModel::setPort);
-            connect(widget->passwordEdit, &QLineEdit::textChanged, this, &VlcRemoteDataModel::setPassword);
-            connect(widget->volumeEditor, &IntDragValueWidget::valueChanged,
-                    this, &VlcRemoteDataModel::setVolume);
-
-            connect(widget->playPauseButton, &QPushButton::clicked, this, &VlcRemoteDataModel::onPlayPause);
-            connect(widget->stopButton, &QPushButton::clicked, this, &VlcRemoteDataModel::onStop);
-            connect(widget->fullscreenButton, &QPushButton::clicked, this, &VlcRemoteDataModel::onFullscreen);
-            connect(widget->refreshPlaylistButton, &QPushButton::clicked, this, &VlcRemoteDataModel::refreshPlaylist);
-
-            connect(widget->playlistWidget, &QListWidget::itemClicked,
-                    this, &VlcRemoteDataModel::onPlaylistItemActivated);
-            connect(widget->playlistWidget, &QListWidget::itemDoubleClicked,
-                    this, &VlcRemoteDataModel::onPlaylistItemActivated);
-
-            connect(refreshTimer, &QTimer::timeout, this, &VlcRemoteDataModel::refreshStatus);
-
-            // 从 UI 初始值同步到模型
-            m_hostAddress = widget->hostEdit->text();
-            m_port = widget->portSpinBox->value();
-            m_password = widget->passwordEdit->text();
-            m_volume = widget->volumeEditor->value();
+            connectUiSignals();
+            registerOscBindings();
         }
 
-        ~VlcRemoteDataModel() override = default;
-
-        /** @brief 端口显示名称 */
-        QString portCaption(PortType portType, PortIndex portIndex) const override
+        NodeDataType dataType(PortType, PortIndex) const override
         {
-            if (portType == PortType::In) {
-                switch (portIndex) {
-                case 0: return QStringLiteral("PLAY/STOP");
-                case 1: return QStringLiteral("STOP");
-                case 2: return QStringLiteral("VOLUME");
-                case 3: return QStringLiteral("INDEX");
-                case 4: return QStringLiteral("FULLSCREEN");
-                default: break;
-                }
-            }
-            if (portType == PortType::Out && portIndex == 0) {
-                return QStringLiteral("STATUS");
-            }
-            return AbstractDelegateModel::portCaption(portType, portIndex);
-        }
-
-        /** @brief 所有端口均为 VariableData 类型 */
-        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
-        {
-            Q_UNUSED(portIndex)
             return VariableData().type();
         }
 
-        /** @brief 输出 STATUS JSON */
+        QString portCaption(PortType portType, PortIndex portIndex) const override
+        {
+            if (portType == PortType::In) {
+                static const char *const kIn[] = {"PLAY", "INDEX", "STOP"};
+                return (portIndex >= 0 && portIndex < 3) ? QString::fromLatin1(kIn[portIndex]) : QString();
+            }
+            if (portType == PortType::Out) {
+                static const char *const kOut[] = {"DONE", "CONNECTED"};
+                return (portIndex >= 0 && portIndex < 2) ? QString::fromLatin1(kOut[portIndex]) : QString();
+            }
+            return {};
+        }
+
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
-            Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(&statusOutput);
+            if (portIndex == DonePort) {
+                return m_doneOutput;
+            }
+            if (portIndex == ConnectedPort) {
+                return m_connectedOutput;
+            }
+            return nullptr;
         }
 
-        /**
-         * @brief 处理输入端口数据
-         *
-         * 各端口语义见类头注释；触发类端口通过 isTriggerTrue/False 解析布尔值。
-         */
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            if (!data) {
+            auto var = std::dynamic_pointer_cast<VariableData>(data);
+            if (!var) {
                 return;
             }
 
-            auto variableData = std::dynamic_pointer_cast<VariableData>(data);
-            if (!variableData || variableData->isEmpty()) {
-                return;
-            }
-
-            switch (portIndex) {
-            case 0: // PLAY/STOP：true 播放，false 停止
-                if (isTriggerTrue(*variableData)) {
-                    onPlay();
-                } else if (isTriggerFalse(*variableData)) {
-                    onStop();
+            if (portIndex == PlayPort) {
+                if (isTriggerTrue(*var)) {
+                    playByIndex(widget->indexSpinBox->value(), true);
                 }
-                break;
-            case 1: // STOP：true 时停止
-                if (isTriggerTrue(*variableData)) {
-                    onStop();
+            } else if (portIndex == IndexPort) {
+                setIndex(extractIndexFromData(var));
+            } else if (portIndex == StopPort) {
+                if (isTriggerTrue(*var)) {
+                    stopPlayback();
                 }
-                break;
-            case 2: // VOLUME：0～100 百分比
-                setVolumeFromInput(variableData->value());
-                break;
-            case 3: // INDEX：按 playlistID 切换
-            {
-                const QString playlistId = playlistIdFromInput(variableData->value());
-                if (!playlistId.isEmpty()) {
-                    playPlaylistItemById(playlistId);
-                }
-                break;
-            }
-            case 4: // FULLSCREEN：true 时切换全屏
-                if (isTriggerTrue(*variableData)) {
-                    onFullscreen();
-                }
-                break;
-            default:
-                break;
             }
         }
 
-        /** @brief 持久化连接配置与音量 */
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex) const override
+        {
+            return (portType == PortType::In || portType == PortType::Out)
+                ? ConnectionPolicy::Many
+                : ConnectionPolicy::One;
+        }
+
         QJsonObject save() const override
         {
-            QJsonObject modelJson = NodeDelegateModel::save();
             QJsonObject values;
-            values["hostAddress"] = m_hostAddress;
-            values["port"] = m_port;
-            values["password"] = m_password;
-            values["volume"] = m_volume;
-            modelJson["values"] = values;
+            values[QStringLiteral("hostAddress")] = m_hostAddress;
+            values[QStringLiteral("port")] = m_port;
+            values[QStringLiteral("password")] = m_password;
+            values[QStringLiteral("index")] = m_index;
+
+            QJsonObject modelJson = NodeDelegateModel::save();
+            modelJson[QStringLiteral("values")] = values;
             return modelJson;
         }
 
-        /** @brief 恢复持久化配置 */
         void load(const QJsonObject &p) override
         {
-            const QJsonValue v = p["values"];
+            const QJsonValue v = p.value(QStringLiteral("values"));
             if (!v.isObject()) {
                 return;
             }
-
             const QJsonObject values = v.toObject();
-            if (values.contains("hostAddress")) {
-                setHostAddress(values["hostAddress"].toString());
+
+            setHostAddress(values.value(QStringLiteral("hostAddress")).toString(m_hostAddress));
+            setPort(values.value(QStringLiteral("port")).toInt(m_port));
+
+            m_password = values.value(QStringLiteral("password")).toString(m_password);
+            {
+                QSignalBlocker blocker(widget->passwordEdit);
+                widget->passwordEdit->setText(m_password);
             }
-            if (values.contains("port")) {
-                setPort(values["port"].toInt(8080));
-            }
-            if (values.contains("password")) {
-                setPassword(values["password"].toString());
-            }
-            if (values.contains("volume")) {
-                setVolume(values["volume"].toInt(100));
+
+            if (values.contains(QStringLiteral("index"))) {
+                applyIndexToControl(values.value(QStringLiteral("index")).toInt());
             }
         }
 
         QWidget *embeddedWidget() override { return widget; }
 
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex) const override
-        {
-            Q_UNUSED(portType)
-            return ConnectionPolicy::Many;
-        }
-
-        /**
-         * @brief 节点就绪后订阅 GlobalEventBus 并拉取初始状态
-         *
-         * OSC 地址格式：/{nodeId}/host、/{nodeId}/volume 等
-         */
-        void afterModelReady() override
-        {
-            AbstractDelegateModel::afterModelReady();
-            auto bus = GlobalEventBus::instance();
-            bus->subscribe(makeFullOscAddress("/host"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/port"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/password"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/volume"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/index"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/fullscreen"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/refresh_playlist"), this, SLOT(onGlobalEvent(GlobalEvent)));
-
-            refreshStatus();
-            refreshPlaylist();
-        }
-
-        // ===== Q_PROPERTY 访问器 =====
-
         QString hostAddress() const { return m_hostAddress; }
         int port() const { return m_port; }
-        QString password() const { return m_password; }
-        int volume() const { return m_volume; }
-
-        /**
-         * @brief 设置音量并发送到 VLC
-         * @param value 0～100 百分比
-         *
-         * 用户主动修改时调用，会发送 HTTP volume 命令。
-         * 从 VLC 状态回显时应使用 syncVolumeFromStatus() 避免循环发送。
-         */
-        void setVolume(int value)
-        {
-            value = qBound(0, value, 100);
-            if (m_volume == value) {
-                return;
-            }
-            m_volume = value;
-
-            if (widget->volumeEditor->value() != value) {
-                QSignalBlocker blocker(widget->volumeEditor);
-                widget->volumeEditor->setValue(value);
-            }
-
-            sendCommand(QStringLiteral("volume"), QString::number(vlcPercentToAbsolute(value)));
-            emit volumeChanged(value);
-        }
+        int index() const { return m_index; }
+        bool connected() const { return m_connected; }
 
         void setHostAddress(const QString &value)
         {
@@ -332,138 +209,425 @@ namespace Nodes
                 return;
             }
             m_hostAddress = value;
-            syncLineEdit(widget->hostEdit, value);
-            emit hostAddressChanged(value);
+            {
+                QSignalBlocker blocker(widget->hostEdit);
+                widget->hostEdit->setText(value);
+            }
+            Q_EMIT hostAddressChanged(value);
         }
 
         void setPort(int value)
         {
+            value = qBound(1, value, 65535);
             if (m_port == value) {
                 return;
             }
             m_port = value;
-            if (widget->portSpinBox->value() != value) {
+            {
                 QSignalBlocker blocker(widget->portSpinBox);
                 widget->portSpinBox->setValue(value);
             }
-            emit portChanged(value);
+            Q_EMIT portChanged(value);
         }
 
-        /** @brief 密码变更后重新拉取状态与列表 */
-        void setPassword(const QString &value)
+        void setIndex(int index)
         {
-            if (m_password == value) {
+            if (index < 0) {
                 return;
             }
-            m_password = value;
-            syncLineEdit(widget->passwordEdit, value);
-            emit passwordChanged(value);
-            refreshStatus();
-            refreshPlaylist();
+            playByIndex(index, true);
         }
 
     Q_SIGNALS:
-        void hostAddressChanged(QString value);
+        void hostAddressChanged(const QString &value);
         void portChanged(int value);
-        void passwordChanged(QString value);
-        void volumeChanged(int value);
+        void indexChanged(int index);
+        void connectedChanged(bool connected);
 
-    private Q_SLOTS:
-        /** @brief GlobalEventBus 外部命令分发 */
+    protected:
+        void afterModelReady() override
+        {
+            auto *bus = GlobalEventBus::instance();
+            for (const char *path : {"/host", "/port", "/index", "/play", "/stop"}) {
+                bus->subscribe(makeFullOscAddress(QLatin1String(path)),
+                               this, SLOT(onGlobalEvent(GlobalEvent)));
+            }
+            m_pollTimer->start();
+            QTimer::singleShot(0, this, &VlcRemoteDataModel::fetchPlaylists);
+        }
+
+    private slots:
+        /** 拉取 playlist.json：刷新列表 + 保活 */
+        void fetchPlaylists()
+        {
+            if (m_pendingPlaylist) {
+                return;
+            }
+            syncParametersFromWidget();
+            const QUrl url = buildUrl(QStringLiteral("playlist.json"), {});
+            if (!url.isValid() || url.host().isEmpty()) {
+                setConnected(false);
+                setStatus(QStringLiteral("Invalid host"));
+                return;
+            }
+            m_pendingPlaylist = true;
+            if (!m_connected) {
+                setStatus(QStringLiteral("正在连接..."));
+            }
+            m_playlistClient->sendGet(url, m_password);
+        }
+
+        /** 双击：按该项播放，不改 Index */
+        void onPlaylistItemPlay(QListWidgetItem *item)
+        {
+            if (!item) {
+                return;
+            }
+            playByIndex(item->data(kRoleIndex).toInt(), false);
+        }
+
+        /**
+         * 按排序号切换播放
+         * @param updateIndexControl true 时同步 Index 控件；双击传 false
+         */
+        void playByIndex(int index, bool updateIndexControl = true)
+        {
+            if (m_pendingPlay || m_pendingStop) {
+                m_resendPlay = true;
+                m_resendStop = false;
+                if (index >= 0) {
+                    m_pendingIndex = index;
+                    m_pendingUpdateIndex = updateIndexControl;
+                    if (updateIndexControl) {
+                        applyIndexToControl(index);
+                    }
+                }
+                setStatus(QStringLiteral("Queued..."));
+                return;
+            }
+
+            syncParametersFromWidget();
+            if (index < 0) {
+                setStatus(QStringLiteral("无效的播放列表序号"));
+                publishDone(false);
+                return;
+            }
+
+            if (updateIndexControl) {
+                applyIndexToControl(index);
+            }
+
+            const QString playlistId = playlistIdAtIndex(index);
+            if (playlistId.isEmpty()) {
+                setStatus(QStringLiteral("序号 %1 无对应播放项").arg(index));
+                publishDone(false);
+                return;
+            }
+
+            QUrlQuery query;
+            query.addQueryItem(QStringLiteral("command"), QStringLiteral("pl_play"));
+            query.addQueryItem(QStringLiteral("id"), playlistId);
+
+            const QUrl url = buildUrl(QStringLiteral("status.json"), query);
+            if (!url.isValid()) {
+                setStatus(QStringLiteral("Invalid URL"));
+                publishDone(false);
+                return;
+            }
+
+            m_pendingPlay = true;
+            m_pendingPlayId = playlistId;
+            m_pendingPlayIndex = index;
+            m_pendingIndex = -1;
+            m_pendingUpdateIndex = true;
+            setStatus(QStringLiteral("切换 [%1] id=%2...").arg(index).arg(playlistId));
+            AbstractDelegateModel::stateFeedBack("/play", true);
+            m_statusClient->sendGet(url, m_password);
+        }
+
+        /** 停止当前播放；不修改 Index */
+        void stopPlayback()
+        {
+            if (m_pendingPlay || m_pendingStop) {
+                m_resendStop = true;
+                m_resendPlay = false;
+                setStatus(QStringLiteral("Queued stop..."));
+                return;
+            }
+
+            syncParametersFromWidget();
+            QUrlQuery query;
+            query.addQueryItem(QStringLiteral("command"), QStringLiteral("pl_stop"));
+
+            const QUrl url = buildUrl(QStringLiteral("status.json"), query);
+            if (!url.isValid()) {
+                setStatus(QStringLiteral("Invalid URL"));
+                publishDone(false);
+                return;
+            }
+
+            m_pendingStop = true;
+            setStatus(QStringLiteral("正在停止..."));
+            AbstractDelegateModel::stateFeedBack("/stop", true);
+            m_statusClient->sendGet(url, m_password);
+        }
+
         void onGlobalEvent(const GlobalEvent &ev)
         {
             if (ev.kind != GlobalEventKind::Command) {
                 return;
             }
-
-            const QString localPath = ev.address.mid(ev.address.lastIndexOf('/') + 1);
-            if (localPath == "host") {
+            const QString addr = ev.address;
+            if (addr == makeFullOscAddress("/host")) {
                 setHostAddress(ev.payload.toString());
-            } else if (localPath == "port") {
+                fetchPlaylists();
+            } else if (addr == makeFullOscAddress("/port")) {
                 setPort(ev.payload.toInt());
-            } else if (localPath == "password") {
-                setPassword(ev.payload.toString());
-            } else if (localPath == "play") {
-                onPlay();
-            } else if (localPath == "stop") {
-                onStop();
-            } else if (localPath == "volume") {
-                setVolume(ev.payload.toInt());
-            } else if (localPath == "index") {
-                const QString playlistId = playlistIdFromInput(ev.payload);
-                if (!playlistId.isEmpty()) {
-                    playPlaylistItemById(playlistId);
-                }
-            } else if (localPath == "fullscreen") {
-                onFullscreen();
-            } else if (localPath == "refresh_playlist") {
-                refreshPlaylist();
+                fetchPlaylists();
+            } else if (addr == makeFullOscAddress("/index")) {
+                setIndex(ev.payload.toInt());
+            } else if (addr == makeFullOscAddress("/play") && ev.payload.toBool()) {
+                playByIndex(widget->indexSpinBox->value(), true);
+            } else if (addr == makeFullOscAddress("/stop") && ev.payload.toBool()) {
+                stopPlayback();
             }
         }
 
-        /** @brief 播放（pl_play，无 id 时继续/启动列表） */
-        void onPlay()
+        void onPlaylistResponse(const QJsonObject &json)
         {
-            AbstractDelegateModel::stateFeedBack("/play", true);
-            sendCommand(QStringLiteral("pl_play"));
-            AbstractDelegateModel::stateFeedBack("/play", false);
+            m_pendingPlaylist = false;
+            setConnected(true);
+            updatePlaylistView(json);
+            setStatus(QStringLiteral("已加载 %1 个播放项").arg(widget->playlistWidget->count()));
         }
 
-        /** @brief 播放/暂停切换（pl_pause，界面按钮专用） */
-        void onPlayPause()
+        void onPlaylistFailed(const QString &message, int)
         {
-            AbstractDelegateModel::stateFeedBack("/play", true);
-            sendCommand(QStringLiteral("pl_pause"));
-            AbstractDelegateModel::stateFeedBack("/play", false);
+            m_pendingPlaylist = false;
+            setConnected(false);
+            setStatus(QStringLiteral("连接失败: %1").arg(message));
         }
 
-        /** @brief 停止播放 */
-        void onStop()
+        void onStatusResponse(const QJsonObject &json)
         {
-            AbstractDelegateModel::stateFeedBack("/stop", true);
-            sendCommand("pl_stop");
-            AbstractDelegateModel::stateFeedBack("/stop", false);
-        }
-
-        /** @brief 切换全屏 */
-        void onFullscreen()
-        {
-            AbstractDelegateModel::stateFeedBack("/fullscreen", true);
-            sendCommand("fullscreen");
-            AbstractDelegateModel::stateFeedBack("/fullscreen", false);
-        }
-
-        /** @brief 拉取 status.json */
-        void refreshStatus()
-        {
-            sendRequest("status.json", {}, false);
-        }
-
-        /** @brief 拉取 playlist.json */
-        void refreshPlaylist()
-        {
-            sendRequest("playlist.json", {}, true);
-        }
-
-        /** @brief 列表项单击/双击 → 按 playlistID 切换 */
-        void onPlaylistItemActivated(QListWidgetItem *item)
-        {
-            if (!item) {
+            if (m_pendingStop) {
+                m_pendingStop = false;
+                AbstractDelegateModel::stateFeedBack("/stop", false);
+                m_playingPlaylistId.clear();
+                syncPlayingHighlight();
+                publishDone(true);
+                setStatus(QStringLiteral("已停止"));
+                flushQueuedControl();
                 return;
             }
 
-            const QString playlistId = item->data(Qt::UserRole).toString();
-            if (playlistId.isEmpty()) {
+            if (m_pendingPlay) {
+                m_pendingPlay = false;
+                AbstractDelegateModel::stateFeedBack("/play", false);
+                m_playingPlaylistId = m_pendingPlayId;
+                syncPlayingHighlight();
+                publishDone(true);
+                setStatus(QStringLiteral("正在播放 [%1] id=%2")
+                              .arg(m_pendingPlayIndex)
+                              .arg(m_playingPlaylistId));
+                QTimer::singleShot(300, this, &VlcRemoteDataModel::fetchPlaylists);
+                flushQueuedControl();
                 return;
             }
 
-            playPlaylistItemById(playlistId);
+            // 保活/状态回显：更新当前播放高亮
+            const QString currentId = json.value(QStringLiteral("currentplid")).toVariant().toString();
+            if (!currentId.isEmpty() && currentId != QStringLiteral("-1")) {
+                m_playingPlaylistId = currentId;
+                syncPlayingHighlight();
+            }
+            setConnected(true);
+        }
+
+        void onStatusFailed(const QString &message, int)
+        {
+            if (m_pendingStop) {
+                m_pendingStop = false;
+                AbstractDelegateModel::stateFeedBack("/stop", false);
+                publishDone(false);
+                setStatus(QStringLiteral("停止失败: %1").arg(message));
+                flushQueuedControl();
+                return;
+            }
+            if (m_pendingPlay) {
+                m_pendingPlay = false;
+                AbstractDelegateModel::stateFeedBack("/play", false);
+                publishDone(false);
+                setStatus(QStringLiteral("切换失败: %1").arg(message));
+                flushQueuedControl();
+            }
         }
 
     private:
-        // ===== 输入值解析 =====
+        void connectUiSignals()
+        {
+            connect(widget->hostEdit, &QLineEdit::editingFinished, this, [this]() {
+                setHostAddress(widget->hostEdit->text().trimmed());
+                fetchPlaylists();
+            });
+            connect(widget->portSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, [this](int value) {
+                        setPort(value);
+                        fetchPlaylists();
+                    });
+            connect(widget->passwordEdit, &QLineEdit::editingFinished, this, [this]() {
+                m_password = widget->passwordEdit->text();
+                fetchPlaylists();
+            });
+            connect(widget->indexSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
+                    this, [this](int value) {
+                        if (m_index == value) {
+                            return;
+                        }
+                        m_index = value;
+                        Q_EMIT indexChanged(m_index);
+                    });
+            connect(widget->playButton, &QPushButton::clicked, this, [this]() {
+                setIndex(widget->indexSpinBox->value());
+            });
+            connect(widget->stopButton, &QPushButton::clicked, this, [this]() {
+                stopPlayback();
+            });
+            connect(widget->playlistWidget, &QListWidget::itemDoubleClicked,
+                    this, &VlcRemoteDataModel::onPlaylistItemPlay);
+        }
 
-        /** @brief 判断 VariableData 是否为 true/1/"true" */
+        void registerOscBindings()
+        {
+            registerBinding("/host", "hostAddress", widget->hostEdit);
+            registerBinding("/port", "port", widget->portSpinBox);
+            registerBinding("/index", "index", widget->indexSpinBox);
+            registerBinding("/connected", "connected", widget->connectionLabel);
+            registerBinding("/play", "trigger", nullptr);
+            registerBinding("/stop", "trigger", nullptr);
+        }
+
+        void registerBinding(const QString &path, const char *member, QWidget *control)
+        {
+            NodeDelegateModel::ExternalBinding b;
+            b.member = QString::fromUtf8(member);
+            b.control = control;
+            AbstractDelegateModel::registerExternalBinding(path, this, b);
+        }
+
+        void syncParametersFromWidget()
+        {
+            m_hostAddress = widget->hostEdit->text().trimmed();
+            m_port = widget->portSpinBox->value();
+            m_password = widget->passwordEdit->text();
+        }
+
+        void setStatus(const QString &text)
+        {
+            widget->statusLabel->setText(QStringLiteral("状态: %1").arg(text));
+        }
+
+        void setConnected(bool connected)
+        {
+            if (m_connected == connected) {
+                return;
+            }
+            m_connected = connected;
+            widget->updateConnectionStatus(m_connected);
+            m_connectedOutput = std::make_shared<VariableData>(QVariant(m_connected));
+            Q_EMIT dataUpdated(ConnectedPort);
+            Q_EMIT connectedChanged(m_connected);
+        }
+
+        void publishDone(bool success)
+        {
+            m_doneOutput = std::make_shared<VariableData>(QVariant(success));
+            Q_EMIT dataUpdated(DonePort);
+        }
+
+        void applyIndexToControl(int index)
+        {
+            if (m_index != index) {
+                m_index = index;
+                Q_EMIT indexChanged(m_index);
+            }
+            QSignalBlocker blocker(widget->indexSpinBox);
+            if (widget->indexSpinBox->value() != index) {
+                widget->indexSpinBox->setValue(index);
+            }
+        }
+
+        void syncPlayingHighlight()
+        {
+            QSignalBlocker blocker(widget->playlistWidget);
+            QListWidgetItem *matched = nullptr;
+            for (int i = 0; i < widget->playlistWidget->count(); ++i) {
+                auto *item = widget->playlistWidget->item(i);
+                const bool current = (item->data(kRolePlaylistId).toString() == m_playingPlaylistId);
+                item->setBackground(current ? QColor(60, 100, 160, 80) : QBrush());
+                if (current) {
+                    matched = item;
+                }
+            }
+            widget->playlistWidget->setCurrentItem(matched);
+        }
+
+        QString playlistIdAtIndex(int index) const
+        {
+            if (index < 0 || index >= widget->playlistWidget->count()) {
+                return {};
+            }
+            auto *item = widget->playlistWidget->item(index);
+            return item ? item->data(kRolePlaylistId).toString() : QString();
+        }
+
+        QUrl buildUrl(const QString &resource, const QUrlQuery &query) const
+        {
+            QUrl url;
+            url.setScheme(QStringLiteral("http"));
+            url.setHost(m_hostAddress.isEmpty() ? QStringLiteral("127.0.0.1") : m_hostAddress);
+            url.setPort(m_port > 0 ? m_port : 8080);
+            url.setPath(QStringLiteral("/requests/") + resource);
+            if (!query.isEmpty()) {
+                url.setQuery(query);
+            }
+            return url;
+        }
+
+        static int extractIndexFromData(const std::shared_ptr<VariableData> &data)
+        {
+            if (!data || data->isEmpty()) {
+                return -1;
+            }
+            if (data->hasKey(QStringLiteral("index"))) {
+                bool ok = false;
+                const int index = data->value(QStringLiteral("index")).toInt(&ok);
+                return ok ? index : -1;
+            }
+            if (!data->hasKey(QStringLiteral("default"))) {
+                return -1;
+            }
+            const QVariant value = data->value(QStringLiteral("default"));
+            if (value.typeId() == QMetaType::Bool) {
+                return -1;
+            }
+            bool ok = false;
+            const int index = value.toInt(&ok);
+            if (!ok) {
+                return -1;
+            }
+            const auto tid = value.typeId();
+            if (tid == QMetaType::Int || tid == QMetaType::LongLong
+                || tid == QMetaType::Double || tid == QMetaType::UInt) {
+                return index;
+            }
+            if (tid == QMetaType::QString
+                && value.toString().trimmed() == QString::number(index)) {
+                return index;
+            }
+            return -1;
+        }
+
         static bool isTriggerTrue(const VariableData &data)
         {
             const QVariant value = data.value();
@@ -474,307 +638,24 @@ namespace Nodes
                 return value.toInt() != 0;
             }
             const QString text = value.toString().trimmed().toLower();
-            return text == QStringLiteral("true") || text == QStringLiteral("1");
+            return text == QLatin1String("true") || text == QLatin1String("1");
         }
 
-        /** @brief 判断 VariableData 是否为 false/0/"false" */
-        static bool isTriggerFalse(const VariableData &data)
-        {
-            const QVariant value = data.value();
-            if (value.typeId() == QMetaType::Bool) {
-                return !value.toBool();
-            }
-            if (value.canConvert<int>()) {
-                return value.toInt() == 0;
-            }
-            const QString text = value.toString().trimmed().toLower();
-            return text == QStringLiteral("false") || text == QStringLiteral("0");
-        }
-
-        // ===== 音量换算（VLC：256 = 100%） =====
-
-        /** @brief VLC 绝对音量 → 百分比 */
-        static int vlcVolumeToPercent(int volume)
-        {
-            return qBound(0, qRound(volume * 100.0 / 256.0), 200);
-        }
-
-        /** @brief 百分比 → VLC 绝对音量 */
-        static int vlcPercentToAbsolute(int volumePercent)
-        {
-            volumePercent = qBound(0, volumePercent, 100);
-            return qRound(volumePercent * 256.0 / 100.0);
-        }
-
-        /** @brief 从输入端口/O SC 解析 playlistID */
-        static QString playlistIdFromInput(const QVariant &value)
-        {
-            if (value.typeId() == QMetaType::Int || value.typeId() == QMetaType::LongLong
-                || value.typeId() == QMetaType::Double) {
-                const int id = value.toInt();
-                return id >= 0 ? QString::number(id) : QString();
-            }
-
-            const QString text = value.toString().trimmed();
-            if (text.isEmpty()) {
-                return QString();
-            }
-
-            bool ok = false;
-            const int id = text.toInt(&ok);
-            return ok && id >= 0 ? QString::number(id) : text;
-        }
-
-        /** @brief VOLUME 输入端口入口，解析后调用 setVolume */
-        void setVolumeFromInput(const QVariant &value)
-        {
-            bool ok = false;
-            int volumePercent = value.toInt(&ok);
-            if (!ok) {
-                volumePercent = static_cast<int>(value.toDouble());
-            }
-            setVolume(qBound(0, volumePercent, 100));
-        }
-
-        /**
-         * @brief 从 VLC 状态回显音量到 UI（不发送 HTTP 命令）
-         *
-         * 防止状态轮询与用户拖动形成反馈循环。
-         */
-        void syncVolumeFromStatus(int volumePercent)
-        {
-            volumePercent = qBound(0, volumePercent, 100);
-            if (m_volume == volumePercent) {
-                return;
-            }
-            m_volume = volumePercent;
-
-            if (widget->volumeEditor->value() != volumePercent) {
-                QSignalBlocker blocker(widget->volumeEditor);
-                widget->volumeEditor->setValue(volumePercent);
-            }
-            emit volumeChanged(volumePercent);
-        }
-
-        /** @brief 同步 QLineEdit 文本，阻塞信号避免循环 */
-        static void syncLineEdit(QLineEdit *edit, const QString &value)
-        {
-            if (edit && edit->text() != value) {
-                QSignalBlocker blocker(edit);
-                edit->setText(value);
-            }
-        }
-
-        // ===== HTTP 请求 =====
-
-        /** @brief 构建 VLC HTTP 请求 URL */
-        QUrl buildRequestUrl(const QString &resource, const QUrlQuery &query) const
-        {
-            QUrl url;
-            url.setScheme("http");
-            url.setHost(m_hostAddress.isEmpty() ? QStringLiteral("127.0.0.1") : m_hostAddress);
-            url.setPort(m_port > 0 ? m_port : 8080);
-            url.setPath("/requests/" + resource);
-            if (!query.isEmpty()) {
-                url.setQuery(query);
-            }
-            return url;
-        }
-
-        /**
-         * @brief 发送 GET 请求
-         * @param playlistRequest true 时使用 playlistClient，false 时使用 client 并启动刷新定时器
-         */
-        void sendRequest(const QString &resource, const QUrlQuery &query, bool playlistRequest)
-        {
-            const QUrl url = buildRequestUrl(resource, query);
-            if (playlistRequest) {
-                playlistClient->sendGet(url, m_password);
-            } else {
-                client->sendGet(url, m_password);
-                refreshTimer->start();
-            }
-        }
-
-        /**
-         * @brief 向 status.json 发送 VLC 命令
-         * @param command VLC 命令名（pl_play、pl_stop、volume、fullscreen 等）
-         * @param value   可选参数，如音量绝对值
-         */
-        void sendCommand(const QString &command, const QString &value = QString())
-        {
-            QUrlQuery query;
-            query.addQueryItem("command", command);
-            if (!value.isEmpty()) {
-                query.addQueryItem("val", value);
-            }
-            sendRequest("status.json", query, false);
-            if (command == "pl_play") {
-                QTimer::singleShot(300, this, &VlcRemoteDataModel::refreshPlaylist);
-            }
-        }
-
-        // ===== 状态 JSON 构建 =====
-
-        /** @brief 从 status.json 的 information.meta 提取当前文件名 */
-        static QString extractCurrentFileFromMeta(const QJsonObject &json)
-        {
-            const QJsonObject information = json.value(QStringLiteral("information")).toObject();
-            const QJsonObject category = information.value(QStringLiteral("category")).toObject();
-            const QJsonObject meta = category.value(QStringLiteral("meta")).toObject();
-
-            const QStringList keys = {
-                QStringLiteral("filename"),
-                QStringLiteral("title"),
-                QStringLiteral("artist"),
-                QStringLiteral("album")
-            };
-            for (const QString &key : keys) {
-                const QString value = meta.value(key).toString();
-                if (!value.isEmpty()) {
-                    return value;
-                }
-            }
-            return QString();
-        }
-
-        /**
-         * @brief 将 VLC 原始 status.json 转换为 STATUS 输出 JSON
-         *
-         * 输出字段：connected、playing、paused、stopped、state、volume、
-         * volumePercent、time、length、position、progressPercent、
-         * currentFile、currentPlId、fullscreen、rate
-         */
-        QJsonObject buildStatusOutput(const QJsonObject &raw) const
-        {
-            const QString state = raw.value(QStringLiteral("state")).toString();
-            const int volume = raw.value(QStringLiteral("volume")).toInt();
-            const qint64 timeSec = raw.value(QStringLiteral("time")).toVariant().toLongLong();
-            const qint64 lengthSec = raw.value(QStringLiteral("length")).toVariant().toLongLong();
-            const double position = raw.value(QStringLiteral("position")).toDouble();
-            const bool fullscreen = raw.value(QStringLiteral("fullscreen")).toBool()
-                || raw.value(QStringLiteral("fullscreen")).toInt() != 0;
-            const double rate = raw.value(QStringLiteral("rate")).toDouble(1.0);
-            const QString currentPlId = raw.value(QStringLiteral("currentplid")).toVariant().toString();
-
-            QString currentFile = extractCurrentFileFromMeta(raw);
-            if (currentFile.isEmpty() && !currentPlId.isEmpty()) {
-                currentFile = m_playlistTitles.value(currentPlId);
-            }
-
-            QJsonObject out;
-            out.insert(QStringLiteral("connected"), m_connected);
-            out.insert(QStringLiteral("state"), state);
-            out.insert(QStringLiteral("playing"), state == QStringLiteral("playing"));
-            out.insert(QStringLiteral("paused"), state == QStringLiteral("paused"));
-            out.insert(QStringLiteral("stopped"), state == QStringLiteral("stopped"));
-            out.insert(QStringLiteral("volume"), volume);
-            out.insert(QStringLiteral("volumePercent"), vlcVolumeToPercent(volume));
-            out.insert(QStringLiteral("time"), static_cast<double>(timeSec));
-            out.insert(QStringLiteral("length"), static_cast<double>(lengthSec));
-            out.insert(QStringLiteral("position"), position);
-            out.insert(QStringLiteral("progressPercent"), qRound(position * 100.0));
-            out.insert(QStringLiteral("currentFile"), currentFile);
-            out.insert(QStringLiteral("currentPlId"), currentPlId);
-            out.insert(QStringLiteral("fullscreen"), fullscreen);
-            out.insert(QStringLiteral("rate"), rate);
-            return out;
-        }
-
-        // ===== HTTP 响应处理 =====
-
-        void onStatusResponse(const QJsonObject &json)
-        {
-            m_rawStatus = json;
-            m_connected = true;
-            statusOutput = buildStatusOutput(json);
-            syncVolumeFromStatus(statusOutput.value(QStringLiteral("volumePercent")).toInt());
-            updateStatusLabel(statusOutput);
-            emit dataUpdated(0);
-        }
-
-        void onPlaylistResponse(const QJsonObject &json)
-        {
-            m_connected = true;
-            updatePlaylistView(json);
-
-            if (!m_rawStatus.isEmpty()) {
-                statusOutput = buildStatusOutput(m_rawStatus);
-                syncVolumeFromStatus(statusOutput.value(QStringLiteral("volumePercent")).toInt());
-                updateStatusLabel(statusOutput);
-                emit dataUpdated(0);
-            }
-        }
-
-        void onStatusRequestFailed(const QString &message, int httpStatus)
-        {
-            Q_UNUSED(httpStatus)
-            m_connected = false;
-            statusOutput = QJsonObject{
-                {QStringLiteral("connected"), false},
-                {QStringLiteral("error"), message}
-            };
-            widget->statusLabel->setText(QString("连接失败: %1").arg(message));
-            emit dataUpdated(0);
-        }
-
-        void onPlaylistRequestFailed(const QString &message, int httpStatus)
-        {
-            Q_UNUSED(httpStatus)
-            if (!m_connected) {
-                widget->statusLabel->setText(QString("连接失败: %1").arg(message));
-            }
-        }
-
-        /** @brief 更新界面底部状态栏文字 */
-        void updateStatusLabel(const QJsonObject &status)
-        {
-            widget->statusLabel->setText(
-                QString("已连接 | 状态: %1 | 音量: %2% | 文件: %3 | 进度: %4 / %5 秒")
-                    .arg(status.value(QStringLiteral("state")).toString("unknown"))
-                    .arg(status.value(QStringLiteral("volumePercent")).toInt())
-                    .arg(status.value(QStringLiteral("currentFile")).toString("-"))
-                    .arg(status.value(QStringLiteral("time")).toInt())
-                    .arg(status.value(QStringLiteral("length")).toInt()));
-        }
-
-        /**
-         * @brief 按 playlistID 切换播放项
-         *
-         * VLC 命令：GET status.json?command=pl_play&id={playlistId}
-         */
-        void playPlaylistItemById(const QString &playlistId)
-        {
-            QUrlQuery query;
-            query.addQueryItem(QStringLiteral("command"), QStringLiteral("pl_play"));
-            query.addQueryItem(QStringLiteral("id"), playlistId);
-            sendRequest(QStringLiteral("status.json"), query, false);
-            QTimer::singleShot(300, this, &VlcRemoteDataModel::refreshPlaylist);
-            QTimer::singleShot(300, this, &VlcRemoteDataModel::refreshStatus);
-        }
-
-        // ===== 播放列表解析 =====
-
-        /**
-         * @brief 添加单个播放列表叶子节点到 QListWidget
-         * @param titleMap playlistID → 文件名，供 STATUS 输出 currentFile 回退查找
-         *
-         * 显示格式：[playlistID] 文件名；当前播放项高亮。
-         */
         static void appendPlaylistLeaf(const QJsonObject &obj,
                                        QListWidget *listWidget,
-                                       QHash<QString, QString> &titleMap)
+                                       int &displayIndex,
+                                       QString *currentPlayingId)
         {
             const QString type = obj.value(QStringLiteral("type")).toString();
-            if (type == QStringLiteral("node")) {
-                return;  // 跳过分组节点
+            if (type == QLatin1String("node")) {
+                return;
             }
 
             QString playlistId = obj.value(QStringLiteral("id")).toString();
             if (playlistId.isEmpty()) {
                 playlistId = QString::number(obj.value(QStringLiteral("id")).toInt());
             }
-            if (playlistId.isEmpty() || playlistId == QStringLiteral("-1")) {
+            if (playlistId.isEmpty() || playlistId == QLatin1String("-1")) {
                 return;
             }
 
@@ -787,23 +668,23 @@ namespace Nodes
                 name = QStringLiteral("Item %1").arg(playlistId);
             }
 
-            titleMap.insert(playlistId, name);
+            const int index = displayIndex++;
+            const QString text = QStringLiteral("[%1] %2").arg(index).arg(name);
+            auto *item = new QListWidgetItem(text, listWidget);
+            item->setData(kRolePlaylistId, playlistId);
+            item->setData(kRoleIndex, index);
+            item->setToolTip(QStringLiteral("index=%1\nid=%2\n%3").arg(index).arg(playlistId, uri));
 
-            const QString displayText = QStringLiteral("[%1] %2").arg(playlistId, name);
-            auto *item = new QListWidgetItem(displayText, listWidget);
-            item->setData(Qt::UserRole, playlistId);
-            item->setToolTip(uri);
-
-            if (obj.value(QStringLiteral("current")).toString() == QStringLiteral("current")) {
-                item->setBackground(QColor(60, 100, 160, 80));
-                listWidget->setCurrentItem(item);
+            if (currentPlayingId
+                && obj.value(QStringLiteral("current")).toString() == QLatin1String("current")) {
+                *currentPlayingId = playlistId;
             }
         }
 
-        /** @brief 递归遍历 playlist.json 树形 children */
         static void collectPlaylistItems(const QJsonArray &children,
                                          QListWidget *listWidget,
-                                         QHash<QString, QString> &titleMap)
+                                         int &displayIndex,
+                                         QString *currentPlayingId)
         {
             for (const QJsonValue &value : children) {
                 if (!value.isObject()) {
@@ -811,66 +692,108 @@ namespace Nodes
                 }
                 const QJsonObject obj = value.toObject();
                 if (obj.contains(QStringLiteral("children")) && obj[QStringLiteral("children")].isArray()) {
-                    collectPlaylistItems(obj[QStringLiteral("children")].toArray(), listWidget, titleMap);
+                    collectPlaylistItems(obj[QStringLiteral("children")].toArray(),
+                                         listWidget, displayIndex, currentPlayingId);
                     continue;
                 }
-                appendPlaylistLeaf(obj, listWidget, titleMap);
+                appendPlaylistLeaf(obj, listWidget, displayIndex, currentPlayingId);
             }
         }
 
-        /**
-         * @brief 解析 playlist.json 并刷新列表 UI
-         *
-         * 兼容三种 JSON 结构：
-         * 1. 扁平数组（VlcHttpClient 包装后的 _playlistItems）
-         * 2. 顶层 children 数组
-         * 3. root.children 嵌套结构
-         */
         void updatePlaylistView(const QJsonObject &json)
         {
+            QSignalBlocker blocker(widget->playlistWidget);
             widget->playlistWidget->clear();
-            m_playlistTitles.clear();
 
+            int displayIndex = 0;
+            QString currentId;
             if (json.contains(QStringLiteral("_playlistItems"))
                 && json[QStringLiteral("_playlistItems")].isArray()) {
-                const QJsonArray items = json[QStringLiteral("_playlistItems")].toArray();
-                for (const QJsonValue &value : items) {
+                for (const QJsonValue &value : json[QStringLiteral("_playlistItems")].toArray()) {
                     if (value.isObject()) {
-                        appendPlaylistLeaf(value.toObject(), widget->playlistWidget, m_playlistTitles);
+                        appendPlaylistLeaf(value.toObject(), widget->playlistWidget,
+                                           displayIndex, &currentId);
                     }
                 }
-                return;
+            } else if (json.contains(QStringLiteral("children"))
+                       && json[QStringLiteral("children")].isArray()) {
+                collectPlaylistItems(json[QStringLiteral("children")].toArray(),
+                                     widget->playlistWidget, displayIndex, &currentId);
+            } else if (json.contains(QStringLiteral("root"))
+                       && json[QStringLiteral("root")].isObject()) {
+                const QJsonObject root = json[QStringLiteral("root")].toObject();
+                if (root.contains(QStringLiteral("children"))
+                    && root[QStringLiteral("children")].isArray()) {
+                    collectPlaylistItems(root[QStringLiteral("children")].toArray(),
+                                         widget->playlistWidget, displayIndex, &currentId);
+                }
             }
 
-            if (json.contains(QStringLiteral("children")) && json[QStringLiteral("children")].isArray()) {
-                collectPlaylistItems(json[QStringLiteral("children")].toArray(),
-                                     widget->playlistWidget,
-                                     m_playlistTitles);
-            } else if (json.contains(QStringLiteral("root")) && json[QStringLiteral("root")].isObject()) {
-                const QJsonObject root = json[QStringLiteral("root")].toObject();
-                if (root.contains(QStringLiteral("children")) && root[QStringLiteral("children")].isArray()) {
-                    collectPlaylistItems(root[QStringLiteral("children")].toArray(),
-                                         widget->playlistWidget,
-                                         m_playlistTitles);
+            if (!currentId.isEmpty()) {
+                m_playingPlaylistId = currentId;
+            }
+
+            const int count = widget->playlistWidget->count();
+            {
+                QSignalBlocker spinBlocker(widget->indexSpinBox);
+                const int maxIndex = qMax(0, count - 1);
+                widget->indexSpinBox->setMaximum(maxIndex);
+                if (count > 0 && m_index > maxIndex) {
+                    m_index = 0;
+                    Q_EMIT indexChanged(m_index);
                 }
+                widget->indexSpinBox->setValue(m_index);
+            }
+
+            syncPlayingHighlight();
+        }
+
+        /** 播放/停止互斥排队：完成当前请求后执行最新意图 */
+        void flushQueuedControl()
+        {
+            if (m_resendStop) {
+                m_resendStop = false;
+                m_resendPlay = false;
+                QTimer::singleShot(0, this, &VlcRemoteDataModel::stopPlayback);
+                return;
+            }
+            if (m_resendPlay) {
+                m_resendPlay = false;
+                const int index = (m_pendingIndex >= 0)
+                    ? m_pendingIndex
+                    : widget->indexSpinBox->value();
+                const bool updateIndex = m_pendingUpdateIndex;
+                m_pendingIndex = -1;
+                m_pendingUpdateIndex = true;
+                QTimer::singleShot(0, this, [this, index, updateIndex]() {
+                    playByIndex(index, updateIndex);
+                });
             }
         }
 
-        // ===== 成员变量 =====
+        VlcRemoteInterface *widget = new VlcRemoteInterface();
+        VlcHttpClient *m_statusClient = nullptr;
+        VlcHttpClient *m_playlistClient = nullptr;
+        QTimer *m_pollTimer = nullptr;
 
-        VlcHttpClient *client = nullptr;           ///< 状态/命令 HTTP 客户端
-        VlcHttpClient *playlistClient = nullptr;   ///< 播放列表 HTTP 客户端（独立并发）
-        VlcRemoteInterface *widget = nullptr;      ///< 嵌入式 UI
-        QTimer *refreshTimer = nullptr;            ///< 命令后延迟刷新定时器
-        bool m_connected = false;                  ///< 最近一次 HTTP 是否成功
+        std::shared_ptr<VariableData> m_doneOutput;
+        std::shared_ptr<VariableData> m_connectedOutput;
 
-        QString m_hostAddress = "127.0.0.1";
+        QString m_hostAddress;
         int m_port = 8080;
         QString m_password;
-        int m_volume = 100;
+        int m_index = 0;
+        bool m_connected = false;
 
-        QJsonObject m_rawStatus;                   ///< 最近一次原始 status.json
-        QJsonObject statusOutput;                  ///< 格式化后的 STATUS 输出
-        QHash<QString, QString> m_playlistTitles;  ///< playlistID → 文件名映射
+        bool m_pendingPlaylist = false;
+        bool m_pendingPlay = false;
+        bool m_pendingStop = false;
+        bool m_resendPlay = false;
+        bool m_resendStop = false;
+        int m_pendingIndex = -1;
+        bool m_pendingUpdateIndex = true;
+        QString m_pendingPlayId;
+        int m_pendingPlayIndex = -1;
+        QString m_playingPlaylistId;
     };
 }

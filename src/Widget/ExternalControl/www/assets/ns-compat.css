@@ -1,4 +1,4 @@
-/* 标准属性补齐（配合 Bootstrap / Element Plus 中的 vendor 前缀） */
+/* 标准属性补齐（配合 Element Plus / 自研 ns-ui） */
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;

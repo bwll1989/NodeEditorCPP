@@ -7,7 +7,7 @@ export interface WidgetMeta {
   defaultH?: number;
   defaults: Record<string, unknown>;
   propKeys?: string[];
-  valueMapper?: (value: unknown) => Record<string, unknown>;
+  valueMapper?: (value: unknown, ctx?: { address?: string; props?: Record<string, unknown> }) => Record<string, unknown>;
   coercers?: Record<string, (v: unknown) => unknown>;
   onNodeCreated?: (node: HTMLElement) => void;
 }

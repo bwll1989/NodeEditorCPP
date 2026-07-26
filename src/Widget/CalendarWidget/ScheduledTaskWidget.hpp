@@ -1,51 +1,50 @@
 #pragma once
 
 #include <QWidget>
-#include <QVBoxLayout>
-#include <QSplitter>
 #include <QDate>
 #include <QJsonObject>
-#include <QModelIndex>
+#include <QMenu>
+#include <QAction>
 
 #include "CalendarWidget.hpp"
-#include "TaskListWidget.hpp"
-#include "TaskDetailPanel.hpp"
+#include "TaskEditPopup.hpp"
 #include "ScheduledTaskModel.hpp"
 #include "ScheduledTaskManager.hpp"
 
+/**
+ * @brief 计划任务面板：单日历 + 浮层编辑 + 定时调度
+ */
 class ScheduledTaskWidget : public QWidget {
     Q_OBJECT
 public:
     explicit ScheduledTaskWidget(QWidget* parent = nullptr);
-    ~ScheduledTaskWidget();
+    ~ScheduledTaskWidget() override;
 
     QVector<OSCMessage> tasksForDate(const QDate& date) const;
-    void setTasksForDate(const QDate& date, const QVector<OSCMessage>& tasks);
     void addTask(const OSCMessage& message, const QDate& date = QDate());
     QJsonObject save() const;
     void load(const QJsonObject& json);
+
+    /** 供 Dock 标题栏菜单使用 */
     QList<QAction*> getActions();
 
 signals:
     void dateTasksChanged(const QDate& date, const QVector<OSCMessage>& tasks);
 
-private slots:
-    void onCalendarSelectionChanged();
-    void onCalendarMessageDropped(const QDate& date, const OSCMessage& oscMessage);
-    void onCurrentTaskChanged(const QModelIndex& proxyIndex);
-
 private:
-    void updateTaskListForDate(const QDate& date);
+    void setupUi();
+    void setupConnections();
+    void setupActions();
 
-    static QJsonObject messageToJson(const OSCMessage& message);
-    static OSCMessage jsonToMessage(const QJsonObject& json);
-    static QVector<OSCMessage> itemsToMessages(const QVector<ScheduledTaskItem>& items);
+    void openTaskEditor(int sourceRow, const QPoint& globalPos);
+    void deleteSourceRow(int sourceRow);
+    void clearTasksOnDate(const QDate& date);
+    void refreshCalendar();
+    void notifyDateChanged(const QDate& date);
 
     OscCalendarWidget* m_calendar = nullptr;
-    TaskListWidget* m_taskList = nullptr;
-    TaskDetailPanel* m_detailPanel = nullptr;
-    QSplitter* m_splitter = nullptr;
-    QVBoxLayout* m_layout = nullptr;
+    TaskEditPopup* m_popup = nullptr;
     ScheduledTaskModel* m_model = nullptr;
     ScheduledTaskManager* m_manager = nullptr;
+    QMenu* m_actionsMenu = nullptr;
 };

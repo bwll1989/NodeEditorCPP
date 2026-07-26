@@ -231,7 +231,8 @@ void StaticRequestHandler::handleApiAuthSetting(HTTPServerRequest& request, HTTP
             return;
         }
 
-        sendJsonResponse(response, "{\"ok\":false,\"error\":\"unauthorized\"}", HTTPResponse::HTTP_UNAUTHORIZED);
+        // 密码错误用 200 + ok:false：属于业务校验失败，避免浏览器控制台刷 401 红字
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"unauthorized\"}", HTTPResponse::HTTP_OK);
     } catch (const Poco::Exception& e) {
         sendJsonResponse(response, "{\"ok\":false,\"error\":\"" + e.displayText() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
     }
@@ -503,12 +504,10 @@ void StaticRequestHandler::handleUploadMedia(HTTPServerRequest& request, HTTPSer
         QDir().mkpath(mediaDir);
         const QString qFilePath = QDir(mediaDir).filePath(QString::fromStdString(safeName));
         const std::string absPath = qFilePath.toStdString();
-        // 写入文件
+        // 写入文件：必须 out|trunc|binary，否则同名较短文件覆盖后会残留旧尾部数据
         std::istream& in = request.stream();
-        std::ostringstream buffer;
-        Poco::StreamCopier::copyStream(in, buffer);
-        Poco::FileOutputStream fos(absPath, std::ios::binary);
-        fos.write(buffer.str().data(), (std::streamsize)buffer.str().size());
+        Poco::FileOutputStream fos(absPath, std::ios::out | std::ios::trunc | std::ios::binary);
+        Poco::StreamCopier::copyStream(in, fos);
         fos.close();
         // 返回
         std::ostringstream oss;
@@ -545,12 +544,11 @@ void StaticRequestHandler::handleUploadFlow(HTTPServerRequest& request, HTTPServ
         QDir().mkpath(mediaDir);
         const QString qFilePath = QDir(mediaDir).filePath(QString::fromStdString(safeName));
         const std::string absPath = qFilePath.toStdString();
-        // 写入文件
+        // 写入文件：必须 out|trunc|binary，否则同名较短文件覆盖后会残留旧尾部数据，
+        // 解析时表现为 "garbage at the end of the document"
         std::istream& in = request.stream();
-        std::ostringstream buffer;
-        Poco::StreamCopier::copyStream(in, buffer);
-        Poco::FileOutputStream fos(absPath, std::ios::binary);
-        fos.write(buffer.str().data(), (std::streamsize)buffer.str().size());
+        Poco::FileOutputStream fos(absPath, std::ios::out | std::ios::trunc | std::ios::binary);
+        Poco::StreamCopier::copyStream(in, fos);
         fos.close();
 
         // 通知主窗口加载文件

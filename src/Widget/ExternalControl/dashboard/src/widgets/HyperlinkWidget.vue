@@ -12,10 +12,13 @@ export const widgetMeta: WidgetMeta = {
     label: '打开链接',
     href: 'https://example.com',
     targetBlank: true,
-    buttonColor: '#409EFF',
-    activeColor: '#0e5d45',
-    textColor: '#ffffff',
-    borderColor: '#409EFF',
+    buttonType: 'primary',
+    plain: false,
+    round: false,
+    buttonColor: '',
+    activeColor: '',
+    textColor: '',
+    borderColor: '',
     borderStyle: 'none',
     fontSize: '14',
     bgColor: 'transparent',
@@ -36,6 +39,9 @@ const s = useWidgetState<{
   label: string;
   href: string;
   targetBlank: boolean;
+  buttonType: string;
+  plain: boolean;
+  round: boolean;
   buttonColor: string;
   activeColor: string;
   textColor: string;
@@ -46,19 +52,30 @@ const s = useWidgetState<{
 
 const isActive = ref(false);
 
+const epType = computed(() => {
+  const t = String(s.buttonType || 'primary').toLowerCase();
+  if (['primary', 'success', 'warning', 'danger', 'info', 'default'].includes(t)) return t;
+  return 'primary';
+});
+
 const buttonStyle = computed(() => {
-  const bg = isActive.value ? s.activeColor : s.buttonColor;
-  return {
+  const style: Record<string, string> = {
     width: '100%',
     height: '100%',
-    '--el-button-bg-color': bg,
-    '--el-button-hover-bg-color': bg,
-    '--el-button-active-bg-color': s.activeColor,
-    '--el-button-text-color': s.textColor,
-    '--el-button-border-color': s.borderColor,
-    borderStyle: s.borderStyle,
-    fontSize: s.fontSize + 'px',
+    fontSize: (s.fontSize || '14') + 'px',
   };
+  if (s.borderStyle && s.borderStyle !== 'none') {
+    style.borderStyle = s.borderStyle;
+  }
+  const bg = isActive.value && s.activeColor ? s.activeColor : s.buttonColor;
+  if (bg) {
+    style['--el-button-bg-color'] = bg;
+    style['--el-button-hover-bg-color'] = bg;
+    style['--el-button-active-bg-color'] = s.activeColor || bg;
+  }
+  if (s.textColor) style['--el-button-text-color'] = s.textColor;
+  if (s.borderColor) style['--el-button-border-color'] = s.borderColor;
+  return style;
 });
 
 function openLink() {
@@ -78,15 +95,30 @@ function onUp() {
 
 <template>
   <el-button
-    type="primary"
+    class="ns-ep-btn"
+    :type="epType === 'default' ? undefined : (epType as any)"
+    :plain="!!s.plain"
+    :round="!!s.round"
     :style="buttonStyle"
     @click="openLink"
     @mousedown="onDown"
     @mouseup="onUp"
     @mouseleave="onUp"
-    @touchstart="onDown"
+    @touchstart.passive="onDown"
     @touchend="onUp"
   >
     {{ s.label }}
   </el-button>
 </template>
+
+<style scoped>
+.ns-ep-btn {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ns-ep-btn :deep(span) {
+  line-height: 1.2;
+}
+</style>

@@ -15,6 +15,7 @@ export const widgetMeta: WidgetMeta = {
     borderColor: '#e5e7eb',
     borderStyle: 'none',
   },
+  // 状态经 ep-widgets setProps({value}) → valueMapper 写入，勿再监听 ws-message
   valueMapper(value) {
     return { text: String(value ?? '') };
   },
@@ -22,7 +23,7 @@ export const widgetMeta: WidgetMeta = {
 </script>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed } from 'vue';
 import { useWidgetState } from '../useWidgetState';
 
 const s = useWidgetState<{
@@ -33,22 +34,6 @@ const s = useWidgetState<{
   borderStyle: string;
   fontSize: string;
 }>();
-
-function handleWsMessage(e: Event) {
-  const msg = (e as CustomEvent).detail;
-  if (msg && msg.commandId === s.commandId) {
-    if (msg.value !== undefined) s.text = String(msg.value);
-    else if (msg.text !== undefined) s.text = String(msg.text);
-  }
-}
-
-onMounted(() => {
-  window.addEventListener('ws-message', handleWsMessage);
-});
-
-onBeforeUnmount(() => {
-  window.removeEventListener('ws-message', handleWsMessage);
-});
 
 const containerStyle = computed(() => ({
   width: '100%',
@@ -62,7 +47,7 @@ const containerStyle = computed(() => ({
 
 const labelStyle = computed(() => ({
   color: s.textColor,
-  fontSize: s.fontSize + 'px',
+  fontSize: (s.fontSize || '14') + 'px',
 }));
 </script>
 

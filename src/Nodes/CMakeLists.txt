@@ -44,6 +44,7 @@ set(ALL_NODES
     WebSocketServerNode                       #WebSocket服务器
     WebSocketClientNode                       #WebSocket客户端
     HttpClientNode                            #HTTP客户端
+    SlideShowNode                             #SlideShow 数字标牌控制
     JavaScriptNode                            #JavaScript脚本
 
 #    ImageCompareNode                          #图像对比
@@ -74,7 +75,6 @@ set(ALL_NODES
     AudioAnalysisNode                           #音频分析节点
 #    PythonScriptNode                            #python脚本节点
     DAWController                          #DAW控制器节点
-    OMVController                          #安卓播放器 OMV 控制节点
     StyleTransferONNXNode                       #神经网络风格迁移
     DataVisualNode                              #数据可视化
     FileLoadNode                                #文件导入
@@ -153,6 +153,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(WebSocketServerNode)                       #WebSocket服务器
     add_subdirectory(WebSocketClientNode)                       #WebSocket客户端
     add_subdirectory(HttpClientNode)                              #HTTP客户端
+    add_subdirectory(SlideShowNode)                             #SlideShow 数字标牌控制
     add_subdirectory(JavaScriptNode)                            #JavaScript脚本
     add_subdirectory(InternalCommandsNode)                       #内部控制
 #    add_subdirectory(ImageCompareNode)                          #图像对比
@@ -196,7 +197,6 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(MediaPipe/HumanSegmentationPPHumanSegNode)    #MediaPipe 人体分割
     add_subdirectory(VideoDecoderNode)                          #视频解码器节点
     add_subdirectory(DAWController)                          #DAW控制器节点
-    add_subdirectory(OMVController)                          #安卓播放器 OMV 控制节点
     add_subdirectory(PLC-ModBus)                                #Modbus控制PLC节点
     add_subdirectory(QmlScriptNode)
     add_subdirectory(InjectNode)                                #数据注入节点

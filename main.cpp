@@ -179,7 +179,8 @@ int main(int argc, char *argv[])
     // 插件加载状态也显示在启动画面
     QObject::connect(mainWindow->pluginsManagerDlg, &PluginsManagerWidget::loadPluginStatus,
                      splashScreen.data(), &CustomSplashScreen::updateStatus);
-    
+
+
     // 加载插件和初始化节点列表（保持原有顺序）
     mainWindow->pluginsManagerDlg->loadPluginsFromFolder();
     // mainWindow->initNodelist();

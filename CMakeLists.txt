@@ -147,7 +147,6 @@ add_subdirectory(src/Nodes)
 add_subdirectory(src/Common/Devices/OSCSender)
 add_subdirectory(src/Common/Devices/MqttClient)
 add_subdirectory(src/Common/Devices/FTDAWController)
-add_subdirectory(src/Common/Devices/FTOMVController)
 add_subdirectory(src/Common/Devices/SpoutReceiver)
 add_subdirectory(src/Common/GUI/OscListWidget)
 add_subdirectory(src/Common/GUI/Elements)
@@ -280,14 +279,8 @@ set(CALC_SOURCE_FILES
         src/Widget/CalendarWidget/ScheduledTaskModel.hpp
         src/Widget/CalendarWidget/TaskItemWidget.cpp
         src/Widget/CalendarWidget/TaskItemWidget.hpp
-        src/Widget/CalendarWidget/TaskListWidget.cpp
-        src/Widget/CalendarWidget/TaskListWidget.hpp
-        src/Widget/CalendarWidget/TaskRowDelegate.cpp
-        src/Widget/CalendarWidget/TaskRowDelegate.h
-        src/Widget/CalendarWidget/TaskDetailPanel.cpp
-        src/Widget/CalendarWidget/TaskDetailPanel.hpp
-        src/Widget/CalendarWidget/ScheduledTaskFilterProxyModel.cpp
-        src/Widget/CalendarWidget/ScheduledTaskFilterProxyModel.hpp
+        src/Widget/CalendarWidget/TaskEditPopup.cpp
+        src/Widget/CalendarWidget/TaskEditPopup.hpp
         src/Widget/CalendarWidget/ScheduledTaskManager.cpp
         src/Widget/CalendarWidget/ScheduledTaskManager.hpp
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.cpp

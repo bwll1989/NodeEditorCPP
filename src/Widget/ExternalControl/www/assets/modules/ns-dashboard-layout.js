@@ -63,7 +63,7 @@
       try {
         const raw = localStorage.getItem('ns_layout_' + tid);
         if (!raw) {
-          if (!silent) alert('当前页面没有本地保存的布局');
+          if (!silent && window.NSToast) window.NSToast.info('当前页面没有本地保存的布局');
           return false;
         }
         const data = JSON.parse(raw);
@@ -72,7 +72,7 @@
         if (design) ctx.services.NSCanvas.applyPageDesign(tid, design);
 
         if (items.length === 0) {
-          if (!silent) alert('当前页面本地布局为空');
+          if (!silent && window.NSToast) window.NSToast.info('当前页面本地布局为空');
           return false;
         }
 
@@ -87,17 +87,20 @@
           try { if (typeof NSInteract !== 'undefined' && typeof ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate === 'function') ctx.services.NSInteract.__scheduleGroupIndicatorsUpdate(); } catch {}
           try { ctx.services.NSWsSync.queryAllStatuses(); } catch {}
           try { ctx.history.seedHistorySnapshot(tid, grid); } catch {}
+          try { if (window.NSEmptyState) window.NSEmptyState.refreshTab(tid); } catch {}
         });
         return true;
       } catch (err) {
         console.error('loadLayoutLocal failed', err);
-        if (!silent) alert('本地布局加载失败: ' + err);
+        if (!silent && window.NSToast) window.NSToast.error('本地布局加载失败: ' + err);
         return false;
       }
     }
 
     function saveLayout(grid) {
-      try { saveAllLayouts(); } catch (e) { alert('保存失败: ' + e); }
+      try { saveAllLayouts(); } catch (e) {
+        if (window.NSToast) window.NSToast.error('保存失败: ' + e);
+      }
     }
 
     function saveAllLayouts() {
@@ -125,14 +128,20 @@
           try {
             const j = JSON.parse(text);
             if (j.ok) { /* saved */ }
-            else alert('保存失败: ' + (j.error || '未知错误'));
+            else if (window.NSToast) {
+              window.NSToast.error('保存失败: ' + (j.error || '未知错误'));
+            }
           } catch (e) {
             if (text.includes('"ok":true')) { /* saved */ }
-            else throw new Error('服务器响应格式错误: ' + text.substring(0, 50) + '...');
+            else {
+              throw new Error('服务器响应格式错误: ' + text.substring(0, 50) + '...');
+            }
           }
         })
-        .catch(e => alert('保存请求失败: ' + e));
-      } catch (err) { alert('保存异常: ' + err); }
+        .catch(e => { if (window.NSToast) window.NSToast.error('保存请求失败: ' + e); });
+      } catch (err) {
+        if (window.NSToast) window.NSToast.error('保存异常: ' + err);
+      }
     }
 
     return {

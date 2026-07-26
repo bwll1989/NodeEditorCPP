@@ -258,7 +258,7 @@ void FTControlBoxDataModel::recMsg(const QVariantMap& dataMap)
 void FTControlBoxDataModel::processMessage(const QString& msg)
 {
     // 格式：addr + $XX^ + index（XX 可为 BB / YY / KK 等，不校验类型）
-    const QString addr = QString::number(_addr485);
+    const QString addr = QString::number(_addr485).rightJustified(2,'0');
     const QString prefix = addr + "$";
     if (!msg.startsWith(prefix)) {
         return;

@@ -90,8 +90,11 @@
           });
         }
       } catch (err) { console.error('NSWidgetLibrary init failed', err); }
+
+      try { if (window.NSBoot) window.NSBoot.armFallback(2200); } catch {}
     } catch (err) {
       console.error('initDashboard failed', err);
+      try { if (window.NSBoot) window.NSBoot.hide(); } catch {}
     }
   }
 

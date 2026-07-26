@@ -1,58 +1,26 @@
 #include "ScheduledTaskWidget.hpp"
 
-#include <QDateTime>
+#include <QVBoxLayout>
+#include <QIcon>
+#include <QScreen>
+#include <QGuiApplication>
+#include <QCursor>
+#include <algorithm>
 
 ScheduledTaskWidget::ScheduledTaskWidget(QWidget* parent)
     : QWidget(parent)
 {
     m_model = new ScheduledTaskModel(this);
     m_calendar = new OscCalendarWidget(m_model, this);
-    m_taskList = new TaskListWidget(m_model, this);
-    m_detailPanel = new TaskDetailPanel(m_model, m_taskList->proxyModel(), this);
+    m_popup = new TaskEditPopup(this);
+    m_manager = new ScheduledTaskManager(m_model, this);
 
-    m_calendar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    setupUi();
+    setupActions();
+    setupConnections();
 
-    m_splitter = new QSplitter(Qt::Horizontal, this);
-    m_splitter->setObjectName(QStringLiteral("taskMainSplitter"));
-    m_splitter->addWidget(m_taskList);
-    m_splitter->addWidget(m_detailPanel);
-    m_splitter->setStretchFactor(0, 2);
-    m_splitter->setStretchFactor(1, 3);
-    m_splitter->setChildrenCollapsible(false);
-    m_splitter->setHandleWidth(4);
-
-    m_layout = new QVBoxLayout(this);
-    m_layout->setContentsMargins(0, 0, 0, 0);
-    m_layout->setSpacing(6);
-    m_layout->addWidget(m_calendar, 1);
-    m_layout->addWidget(m_splitter, 1);
-    setLayout(m_layout);
-
-    connect(m_model, &ScheduledTaskModel::modelChanged, m_calendar, [this]() {
-        m_calendar->update();
-    });
-    connect(m_model, &QAbstractItemModel::dataChanged, m_calendar, [this]() {
-        m_calendar->update();
-    });
-    connect(m_calendar, &QCalendarWidget::selectionChanged,
-            this, &ScheduledTaskWidget::onCalendarSelectionChanged);
-    connect(m_calendar, &OscCalendarWidget::oscMessageDropped,
-            this, &ScheduledTaskWidget::onCalendarMessageDropped);
-    connect(m_taskList, &TaskListWidget::currentTaskChanged,
-            this, &ScheduledTaskWidget::onCurrentTaskChanged);
-    connect(m_detailPanel, &TaskDetailPanel::taskCommitted, this, [this]() {
-        if (m_taskList && m_taskList->listView()) {
-            m_taskList->listView()->viewport()->update();
-        }
-    });
-
-    onCalendarSelectionChanged();
-
-    if (!m_manager) {
-        m_manager = new ScheduledTaskManager(m_model, this);
-        m_manager->setToleranceSeconds(1);
-        m_manager->start(1000);
-    }
+    m_manager->setToleranceSeconds(1);
+    m_manager->start(1000);
 }
 
 ScheduledTaskWidget::~ScheduledTaskWidget()
@@ -62,19 +30,91 @@ ScheduledTaskWidget::~ScheduledTaskWidget()
     }
 }
 
-QVector<OSCMessage> ScheduledTaskWidget::tasksForDate(const QDate& date) const
+void ScheduledTaskWidget::setupUi()
 {
-    if (!m_model) {
-        return {};
-    }
-    return itemsToMessages(m_model->itemsForDate(date));
+    m_calendar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    m_calendar->setMinimumHeight(280);
+
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->addWidget(m_calendar, 1);
 }
 
-void ScheduledTaskWidget::setTasksForDate(const QDate& date, const QVector<OSCMessage>& tasks)
+void ScheduledTaskWidget::setupConnections()
 {
-    Q_UNUSED(tasks);
-    updateTaskListForDate(date);
-    emit dateTasksChanged(date, tasks);
+    // 模型变化时刷新格内任务条
+    const auto refresh = [this]() { refreshCalendar(); };
+    connect(m_model, &ScheduledTaskModel::modelChanged, this, refresh);
+    connect(m_model, &QAbstractItemModel::dataChanged, this, refresh);
+    connect(m_model, &QAbstractItemModel::rowsInserted, this, refresh);
+    connect(m_model, &QAbstractItemModel::rowsRemoved, this, refresh);
+    connect(m_model, &QAbstractItemModel::modelReset, this, refresh);
+
+    connect(m_calendar, &OscCalendarWidget::oscMessageDropped, this,
+            [this](const QDate& date, const OSCMessage& msg) { addTask(msg, date); });
+    connect(m_calendar, &OscCalendarWidget::taskChipClicked, this,
+            &ScheduledTaskWidget::openTaskEditor);
+    connect(m_calendar, &OscCalendarWidget::emptyDateDoubleClicked, this,
+            [this](const QDate& date) { addTask(OSCMessage(), date); });
+    connect(m_calendar, &OscCalendarWidget::requestAddTask, this,
+            [this](const QDate& date) { addTask(OSCMessage(), date); });
+    connect(m_calendar, &OscCalendarWidget::requestClearDate, this,
+            &ScheduledTaskWidget::clearTasksOnDate);
+    connect(m_calendar, &OscCalendarWidget::requestDeleteSelectedTask, this, [this]() {
+        const int row = m_calendar->selectedSourceRow();
+        if (row >= 0) {
+            deleteSourceRow(row);
+        }
+    });
+
+    connect(m_popup, &TaskEditPopup::taskDeleted, this, &ScheduledTaskWidget::deleteSourceRow);
+    connect(m_popup, &TaskEditPopup::taskChanged, this, [this]() {
+        refreshCalendar();
+        notifyDateChanged(m_calendar->selectedDate());
+    });
+    connect(m_popup, &TaskEditPopup::closed, m_calendar, &OscCalendarWidget::clearSelectedSourceRow);
+}
+
+void ScheduledTaskWidget::setupActions()
+{
+    m_actionsMenu = new QMenu(this);
+
+    QAction* addAction = m_actionsMenu->addAction(tr("添加任务"));
+    addAction->setIcon(QIcon(QStringLiteral(":/icons/icons/add.png")));
+    connect(addAction, &QAction::triggered, this, [this]() {
+        addTask(OSCMessage(), m_calendar->selectedDate());
+    });
+
+    QAction* clearAction = m_actionsMenu->addAction(tr("清空全部"));
+    clearAction->setIcon(QIcon(QStringLiteral(":/icons/icons/clear.png")));
+    connect(clearAction, &QAction::triggered, this, [this]() {
+        m_popup->closePopup();
+        for (int r = m_model->rowCount() - 1; r >= 0; --r) {
+            m_model->removeItem(r);
+        }
+        m_calendar->clearSelectedSourceRow();
+        notifyDateChanged(m_calendar->selectedDate());
+    });
+}
+
+QList<QAction*> ScheduledTaskWidget::getActions()
+{
+    return m_actionsMenu ? m_actionsMenu->actions() : QList<QAction*>{};
+}
+
+QVector<OSCMessage> ScheduledTaskWidget::tasksForDate(const QDate& date) const
+{
+    QVector<OSCMessage> messages;
+    if (!m_model) {
+        return messages;
+    }
+    const auto items = m_model->itemsForDate(date);
+    messages.reserve(items.size());
+    for (const auto& item : items) {
+        messages.push_back(item.osc);
+    }
+    return messages;
 }
 
 void ScheduledTaskWidget::addTask(const OSCMessage& message, const QDate& date)
@@ -82,24 +122,25 @@ void ScheduledTaskWidget::addTask(const OSCMessage& message, const QDate& date)
     if (!m_model) {
         return;
     }
-    QDate target = date.isValid() ? date : m_calendar->selectedDate();
 
+    const QDate target = date.isValid() ? date : m_calendar->selectedDate();
     ScheduledTaskItem item;
     item.osc = message;
     item.scheduled.type = QStringLiteral("once");
     item.scheduled.time = QDateTime(target, QTime(9, 0, 0));
-    item.scheduled.conditions.clear();
 
     m_model->addItem(item);
-    emit dateTasksChanged(target, tasksForDate(target));
+    notifyDateChanged(target);
+
+    const int newRow = m_model->rowCount() - 1;
+    if (newRow >= 0) {
+        openTaskEditor(newRow, QCursor::pos());
+    }
 }
 
 QJsonObject ScheduledTaskWidget::save() const
 {
-    if (!m_model) {
-        return {};
-    }
-    return m_model->toJson();
+    return m_model ? m_model->toJson() : QJsonObject{};
 }
 
 void ScheduledTaskWidget::load(const QJsonObject& json)
@@ -107,72 +148,72 @@ void ScheduledTaskWidget::load(const QJsonObject& json)
     if (!m_model) {
         return;
     }
+    m_popup->closePopup();
     m_model->fromJson(json);
-    onCalendarSelectionChanged();
+    m_calendar->clearSelectedSourceRow();
+    refreshCalendar();
 }
 
-void ScheduledTaskWidget::onCalendarSelectionChanged()
+void ScheduledTaskWidget::openTaskEditor(int sourceRow, const QPoint& globalPos)
 {
-    updateTaskListForDate(m_calendar->selectedDate());
-}
-
-void ScheduledTaskWidget::onCalendarMessageDropped(const QDate& date, const OSCMessage& oscMessage)
-{
-    addTask(oscMessage, date);
-}
-
-void ScheduledTaskWidget::onCurrentTaskChanged(const QModelIndex& proxyIndex)
-{
-    if (!m_detailPanel) {
+    if (!m_popup || !m_model || sourceRow < 0 || sourceRow >= m_model->rowCount()) {
         return;
     }
-    if (proxyIndex.isValid()) {
-        m_detailPanel->loadTask(proxyIndex);
-    } else {
-        m_detailPanel->clearTask();
+
+    m_popup->editTask(m_model, sourceRow);
+    m_popup->adjustSize();
+
+    // 尽量把浮层放在点击点附近，并限制在屏幕可见区域内
+    QPoint pos = globalPos + QPoint(8, 8);
+    if (QScreen* screen = QGuiApplication::screenAt(globalPos)) {
+        const QRect ag = screen->availableGeometry();
+        const QSize sz = m_popup->size();
+        pos.setX(std::clamp(pos.x(), ag.left() + 8, ag.right() - sz.width() - 8));
+        pos.setY(std::clamp(pos.y(), ag.top() + 8, ag.bottom() - sz.height() - 8));
+    }
+    m_popup->move(pos);
+    m_popup->show();
+}
+
+void ScheduledTaskWidget::deleteSourceRow(int sourceRow)
+{
+    if (!m_model || sourceRow < 0 || sourceRow >= m_model->rowCount()) {
+        return;
+    }
+
+    const QDate date = m_model->index(sourceRow, 0).data(ScheduledTaskModel::RoleDate).toDate();
+    if (m_popup->currentSourceRow() == sourceRow) {
+        m_popup->closePopup();
+    }
+    m_model->removeItem(sourceRow);
+    m_calendar->clearSelectedSourceRow();
+    notifyDateChanged(date.isValid() ? date : m_calendar->selectedDate());
+}
+
+void ScheduledTaskWidget::clearTasksOnDate(const QDate& date)
+{
+    if (!m_model || !date.isValid()) {
+        return;
+    }
+
+    m_popup->closePopup();
+    QVector<int> rows = m_model->rowIndexesForDate(date);
+    std::sort(rows.begin(), rows.end(), std::greater<int>());
+    for (int row : rows) {
+        m_model->removeItem(row);
+    }
+    m_calendar->clearSelectedSourceRow();
+    notifyDateChanged(date);
+}
+
+void ScheduledTaskWidget::refreshCalendar()
+{
+    if (m_calendar) {
+        m_calendar->refresh();
     }
 }
 
-void ScheduledTaskWidget::updateTaskListForDate(const QDate& date)
+void ScheduledTaskWidget::notifyDateChanged(const QDate& date)
 {
-    if (m_taskList) {
-        m_taskList->setDate(date);
-    }
-}
-
-QJsonObject ScheduledTaskWidget::messageToJson(const OSCMessage& message)
-{
-    QJsonObject obj;
-    obj[QStringLiteral("host")] = message.host;
-    obj[QStringLiteral("port")] = message.port;
-    obj[QStringLiteral("address")] = message.address;
-    obj[QStringLiteral("type")] = message.type;
-    obj[QStringLiteral("value")] = message.value.toString();
-    return obj;
-}
-
-OSCMessage ScheduledTaskWidget::jsonToMessage(const QJsonObject& json)
-{
-    OSCMessage msg;
-    msg.host = json[QStringLiteral("host")].toString(QStringLiteral("127.0.0.1"));
-    msg.port = json[QStringLiteral("port")].toInt(6001);
-    msg.address = json[QStringLiteral("address")].toString();
-    msg.type = json[QStringLiteral("type")].toString(QStringLiteral("string"));
-    msg.value = json[QStringLiteral("value")].toString();
-    return msg;
-}
-
-QVector<OSCMessage> ScheduledTaskWidget::itemsToMessages(const QVector<ScheduledTaskItem>& items)
-{
-    QVector<OSCMessage> messages;
-    messages.reserve(items.size());
-    for (const auto& it : items) {
-        messages.push_back(it.osc);
-    }
-    return messages;
-}
-
-QList<QAction*> ScheduledTaskWidget::getActions()
-{
-    return m_taskList->getMenu()->actions();
+    emit dateTasksChanged(date, tasksForDate(date));
 }

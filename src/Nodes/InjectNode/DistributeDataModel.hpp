@@ -41,7 +41,7 @@ namespace Nodes
             m_jsEngine = new QJSEngine(this);
             m_emptyOutput = std::make_shared<VariableData>(QVariant(false));
             connect(widget, &DistributeInterface::rulesChanged, this, &DistributeDataModel::onRulesChanged);
-            syncOutputPortCount();
+            // syncOutputPortCount();
         }
 
         ~DistributeDataModel() override = default;
@@ -105,7 +105,7 @@ namespace Nodes
                 widget->importRulesArray(p["rules"].toArray());
             }
 
-            syncOutputPortCount();
+            // syncOutputPortCount();
         }
 
         QWidget *embeddedWidget() override { return widget; }
@@ -113,21 +113,21 @@ namespace Nodes
     private slots:
         void onRulesChanged()
         {
-            syncOutputPortCount();
+            // syncOutputPortCount();
             if (m_inputData) {
                 distributeInput(m_inputData);
             }
         }
 
     private:
-        void syncOutputPortCount()
-        {
-            const int maxPort = widget->maxConfiguredOutputPort();
-            const unsigned int required = static_cast<unsigned int>(maxPort + 1);
-            if (required > OutPortCount) {
-                OutPortCount = required;
-            }
-        }
+        // void syncOutputPortCount()
+        // {
+        //     const int maxPort = widget->maxConfiguredOutputPort();
+        //     const unsigned int required = static_cast<unsigned int>(maxPort + 1);
+        //     if (required > OutPortCount) {
+        //         OutPortCount = required;
+        //     }
+        // }
 
         void setupJsInput(const VariableData &input)
         {

@@ -31,19 +31,6 @@ function registerNode(node, type, api) {
   }
   node.__nsCommandId = newCmd;
 
-  // 同时索引 Timeline 等控件的 items[].id
-  const pItems = Array.isArray(props.items) ? props.items : null;
-  if (pItems) {
-    pItems.forEach(it => {
-      const id = it && (it.id ?? it.commandId);
-      const s = (id !== undefined && id !== null) ? String(id).trim() : '';
-      if (s) {
-        if (!commandIndex.has(s)) commandIndex.set(s, new Set());
-        commandIndex.get(s).add(node);
-      }
-    });
-  }
-
   widgetRegistry.set(node, api);
 }
 
@@ -317,7 +304,11 @@ function createPropsApi(params) {
       let mapped = null;
       if (p.value !== undefined && typeof valueMapper === 'function') {
         try {
-          mapped = valueMapper(p.value);
+          const ctx = {
+            address: p.__address !== undefined ? String(p.__address) : undefined,
+            props: vm || initialProps || {},
+          };
+          mapped = valueMapper(p.value, ctx);
           if (mapped && typeof mapped === 'object') patch = Object.assign({}, p, mapped);
         } catch {}
       }
@@ -333,6 +324,13 @@ function createPropsApi(params) {
 
       if (patch.bgColor !== undefined || patch.fontSize !== undefined) {
         applyCommonStyle(node, initialProps || patch);
+      }
+      // 若写入了 commandIds，同步多地址索引（单选框等）
+      if (patch.commandIds !== undefined && typeof window.EPWidgets.syncNodeCommandIds === 'function') {
+        try {
+          const ids = Array.isArray(patch.commandIds) ? patch.commandIds : [];
+          window.EPWidgets.syncNodeCommandIds(node, ids.map(String));
+        } catch {}
       }
     }
   };
@@ -384,6 +382,8 @@ function createVueSfcWidget(grid, cfg) {
     });
   }
 
+  try { node.__epWidgetState = state; } catch {}
+
   registerNode(node, type || title, createPropsApi({ node, initialProps: state, vm: state, defaults: defaults || {}, propKeys, valueMapper, coercers }));
 
   if (!ready) {
@@ -421,23 +421,46 @@ window.EPWidgets = {
   unmountWidgetNode,
   // 函数级注释：获取 commandId 索引表（供 index.html 的 WS 同步使用）
   getCommandIndex() { return commandIndex; },
+  // 函数级注释：为节点注册多个 commandId（单选框按 index 绑定）
+  syncNodeCommandIds(node, ids) {
+    if (!node) return;
+    const prev = Array.isArray(node.__nsAllCommandIds) ? node.__nsAllCommandIds : [];
+    prev.forEach((cmd) => {
+      const c = String(cmd || '').trim();
+      if (!c || !commandIndex.has(c)) return;
+      commandIndex.get(c).delete(node);
+      if (commandIndex.get(c).size === 0) commandIndex.delete(c);
+    });
+    const next = [];
+    const seen = new Set();
+    (Array.isArray(ids) ? ids : []).forEach((raw) => {
+      const c = String(raw || '').trim();
+      if (!c || seen.has(c)) return;
+      seen.add(c);
+      next.push(c);
+      if (!commandIndex.has(c)) commandIndex.set(c, new Set());
+      commandIndex.get(c).add(node);
+    });
+    node.__nsAllCommandIds = next;
+    // 主 commandId 取列表第一项，兼容旧查询逻辑
+    const primary = next[0] || '';
+    node.__nsCommandId = primary;
+  },
   // 函数级注释：从索引中移除一个节点（控件销毁时调用）
   unindexNode(node) {
     if (!node) return;
     unmountWidgetNode(node);
+    const all = Array.isArray(node.__nsAllCommandIds) ? node.__nsAllCommandIds.slice() : [];
     const oldCmd = node.__nsCommandId || '';
-    if (oldCmd && commandIndex.has(oldCmd)) {
-      commandIndex.get(oldCmd).delete(node);
-      if (commandIndex.get(oldCmd).size === 0) commandIndex.delete(oldCmd);
-    }
-    // 清理 items 索引：遍历所有 commandIndex 条目，移除包含该 node 的引用
-    commandIndex.forEach((nodes, addr) => {
-      if (nodes.has(node)) {
-        nodes.delete(node);
-        if (nodes.size === 0) commandIndex.delete(addr);
-      }
+    if (oldCmd && !all.includes(oldCmd)) all.push(oldCmd);
+    all.forEach((cmd) => {
+      const c = String(cmd || '').trim();
+      if (!c || !commandIndex.has(c)) return;
+      commandIndex.get(c).delete(node);
+      if (commandIndex.get(c).size === 0) commandIndex.delete(c);
     });
     node.__nsCommandId = '';
+    node.__nsAllCommandIds = [];
   },
   // 函数级注释：清理整个索引表（页面全量清空时调用）
   clearCommandIndex() {

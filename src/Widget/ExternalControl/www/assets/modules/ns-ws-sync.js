@@ -9,30 +9,13 @@
 
   function updateWebSocketStatusLabel(stateText) {
     try {
-      const el = document.getElementById('wsStatusItem');
-      if (el) {
-        const txt = String(stateText || '').trim();
-        el.textContent = '主机：' + (txt || '未知');
-        if (txt === '已连接') {
-          el.classList.remove('text-danger', 'text-warning');
-          el.classList.add('text-success');
-        } else if (txt === '连接中…') {
-          el.classList.remove('text-success', 'text-danger');
-          el.classList.add('text-warning');
-        } else {
-          el.classList.remove('text-success', 'text-warning');
-          el.classList.add('text-danger');
-        }
-      }
-    } catch {}
-    try {
       if (window.NSWsStatus && typeof window.NSWsStatus.setStatus === 'function') {
         window.NSWsStatus.setStatus(stateText);
       }
     } catch {}
   }
 
-  // 函数级注释：收集指定分页画布上的 commandId（含 Timeline items）
+  // 函数级注释：收集指定分页画布上的 commandId
   function collectCommandIdsForTab(tid) {
     const ids = new Set();
     const info = tid ? NS.grids.get(tid) : null;
@@ -41,19 +24,16 @@
     if (!host || !host.querySelectorAll) return ids;
     try {
       host.querySelectorAll('.grid-stack-item').forEach(node => {
+        const all = Array.isArray(node.__nsAllCommandIds) ? node.__nsAllCommandIds : null;
+        if (all && all.length) {
+          all.forEach((c) => {
+            const cmd = String(c || '').trim();
+            if (cmd) ids.add(cmd);
+          });
+          return;
+        }
         const cmd = String(node.__nsCommandId || '').trim();
         if (cmd) ids.add(cmd);
-        try {
-          const props = EPWidgets.getProps(node);
-          const items = Array.isArray(props && props.items) ? props.items : null;
-          if (items) {
-            items.forEach(it => {
-              const id = it && (it.id ?? it.commandId);
-              const s = (id !== undefined && id !== null) ? String(id).trim() : '';
-              if (s) ids.add(s);
-            });
-          }
-        } catch {}
       });
     } catch {}
     return ids;
@@ -127,13 +107,15 @@
     }
   }
 
-  // 函数级注释：根据当前全屏状态更新按钮文本
+  // 函数级注释：根据当前全屏状态更新按钮外观
   function updateFullscreenButton() {
     const btn = document.getElementById('toggleFullscreen');
     if (!btn) return;
     const doc = document;
-    const isFs = doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement;
-    btn.textContent = isFs ? '退出全屏' : '全屏';
+    const isFs = !!(doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement);
+    btn.dataset.fs = isFs ? '1' : '0';
+    btn.title = isFs ? '退出全屏' : '全屏';
+    btn.setAttribute('aria-label', isFs ? '退出全屏' : '全屏');
   }
 
   // 函数级注释：启动 WebSocket 心跳定时器（每隔固定时间发送一次无副作用 JSON，维持连接活跃）
@@ -191,7 +173,7 @@
             targets.forEach(item => {
               // 确认节点仍在 DOM 中（防止已删除但未清理的残留引用）
               if (item.isConnected) {
-                EPWidgets.setProps(item, { value: msg.value });
+                EPWidgets.setProps(item, { value: msg.value, __address: String(msg.address) });
               }
             });
           }
@@ -256,16 +238,16 @@
   // 函数级注释：使用 Split.js 初始化分栏（画布 + 右侧边栏），并持久化右侧宽度
   function setupSplitPanels() {
     try { NSUtils.mergeLeftSidebarIntoRight(); } catch {}
-    const shell = document.querySelector('.app-shell');
+    const body = document.querySelector('.app-body') || document.querySelector('.app-shell');
     const main = document.querySelector('.main-area');
     const right = document.querySelector('.sidebar-right');
-    if (!shell || !main || !right || typeof window.Split === 'undefined') return;
+    if (!body || !main || !right || typeof window.Split === 'undefined') return;
     const MIN_RIGHT = 280, GUTTER = 6;
 
     let sizesPct = null;
     try {
       const rw = Number(localStorage.getItem('ns_sidebar_right_w') || 0);
-      const total = shell.clientWidth || 1;
+      const total = body.clientWidth || 1;
       if (rw > 0) {
         const rp = Math.max(MIN_RIGHT, rw) / total * 100;
         const mp = Math.max(0, 100 - rp);
@@ -284,7 +266,7 @@
       sizes: sizesPct || [72, 28],
       onDragEnd: (sizes) => {
         try {
-          const total = shell.clientWidth || 1;
+          const total = body.clientWidth || 1;
           const rp = sizes[1] / 100 * total;
           localStorage.setItem('ns_sidebar_right_w', String(Math.floor(rp)));
           localStorage.setItem('ns_split_sizes', JSON.stringify(sizes));

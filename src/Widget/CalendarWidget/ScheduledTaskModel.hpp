@@ -119,7 +119,10 @@ public:
     /**
      * @brief 批量更新任务项（避免逐字段写回导致过滤/选中异常）
      */
-    bool updateTaskFields(int row, const OSCMessage& osc, const ScheduledInfo& sched);
+    bool updateTaskFields(int row,
+                          const OSCMessage& osc,
+                          const ScheduledInfo& sched,
+                          const QString& remarks = QString());
 
     /**
      * @brief 根据日期筛选当天应显示的任务项
@@ -127,6 +130,11 @@ public:
      * loop: 指定日期的星期在 Conditions 中
      */
     QVector<ScheduledTaskItem> itemsForDate(const QDate& date) const;
+
+    /**
+     * @brief 返回指定日期应显示的任务在模型中的行号（按时间升序）
+     */
+    QVector<int> rowIndexesForDate(const QDate& date) const;
 
     /**
      * @brief 序列化为 JSON（与示例一致）

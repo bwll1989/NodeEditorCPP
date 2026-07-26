@@ -1,69 +1,96 @@
-# VLC Remote
+# VLC Controller
 
 ## 1. 节点说明
 
-通过 **VLC HTTP Web 接口**远程控制本机或局域网内的 VLC 播放器，支持播放/暂停、停止、音量、切换播放列表、全屏。输出端口以 JSON 形式提供播放状态。需先在 VLC 中启用 Web 界面并设置密码。
+通过 **VLC HTTP Web 接口**远程控制播放器。交互与 **Mpv Controller** 对齐：固定轮询保活、按排序号切换、双击播放；播放与停止均可走端口。
 
-## 2. 端口说明
+| 能力 | API | 说明 |
+|------|-----|------|
+| 查询 / 保活 | `GET /requests/playlist.json` | 节点就绪后立即查询，之后固定每 **5 秒** |
+| 切换播放 | `GET /requests/status.json?command=pl_play&id=...` | 由排序号（从 0 起）取 playlistId 后切换 |
+| 停止 | `GET /requests/status.json?command=pl_stop` | 停止当前播放；不修改 Index |
 
-### 输入
+VLC 启用示例：
 
-| 端口 | 名称 | 类型 | 说明 |
-|------|------|------|------|
-| 0 | PLAY/STOP | VariableData | 传入 `true` / `1` 播放，传入 `false` / `0` 停止 |
-| 1 | STOP | VariableData | 传入 `true` / `1` 时停止播放 |
-| 2 | VOLUME | VariableData | 设置音量；传入 0～100 的数值（百分比，内部换算为 VLC 绝对值 256=100%） |
-| 3 | INDEX | VariableData | 按 playlistID 切换文件；传入列表项 ID（整数） |
-| 4 | FULLSCREEN | VariableData | 传入 `true` / `1` 时切换全屏 |
+```text
+vlc --extraintf http --http-password xxx --http-port 8080
+```
 
-### 输出
+鉴权：HTTP Basic（密码与 VLC Lua HTTP 密码一致）。
 
-| 端口 | 名称 | 类型 | 说明 |
-|------|------|------|------|
-| 0 | STATUS | VariableData | 播放状态 JSON（见下表） |
+## 2. 端口
 
-**STATUS 输出字段：**
+**输入（3）：** PLAY / INDEX / STOP  
+**输出（2）：** DONE / CONNECTED
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `connected` | bool | 是否已连接 VLC |
-| `playing` | bool | 是否正在播放 |
-| `paused` | bool | 是否暂停 |
-| `stopped` | bool | 是否停止 |
-| `state` | string | VLC 原始状态（playing / paused / stopped） |
-| `volume` | int | VLC 原始音量值（256 = 100%） |
-| `volumePercent` | int | 音量百分比（0～100，基于 256 = 100% 换算） |
-| `currentFile` | string | 当前播放文件名 |
-| `time` | number | 当前进度（秒） |
-| `length` | number | 总时长（秒） |
-| `position` | number | 进度比例（0～1） |
-| `progressPercent` | int | 进度百分比（0～100） |
-| `currentPlId` | string | 当前播放列表项 ID |
-| `fullscreen` | bool | 是否全屏 |
-| `rate` | number | 播放倍速 |
+| 输入 | 行为 |
+|------|------|
+| PLAY | 仅为 **true** / `1` / `"true"` 时触发；按 **Index 控件** 当前值播放 |
+| INDEX | 整数（从 0 起）→ 同步 Index 控件并播放 |
+| STOP | 仅为 **true** / `1` / `"true"` 时触发；停止当前播放，不修改 Index |
 
-## 3. 界面说明
+| 输出 | 含义 |
+|------|------|
+| DONE | 最近一次播放 **或停止** 请求是否成功（`true` / `false`） |
+| CONNECTED | 最近一次列表查询是否成功（与属性 `connected` 同步） |
 
-- **主机 / 端口 / 密码**：VLC HTTP 服务地址（默认端口 8080）。密码须与 VLC 中 Lua HTTP 密码一致。
-- **播放/暂停、停止、全屏**：常用播放控制。
-- **音量**：`IntDragValueWidget` 滑块，范围 0～100%，拖动或输入后同步到 VLC；状态刷新时自动回显当前音量。
-- **播放列表**：显示当前列表；单击或双击条目切换播放；当前项高亮，格式为 `[playlistID] 文件名`。
-- **状态栏**：简要显示连接与播放信息。
+### 其它控制入口
 
-外部控制：`/host`、`/port`、`/password`、`/play`、`/stop`、`/volume`、`/index`、`/fullscreen`、`/refresh_playlist`。
+| 入口 | 行为 |
+|------|------|
+| 「播放」按钮 | 按 Index 控件当前值播放 |
+| 「停止」按钮 | 停止当前播放，**不修改** Index |
+| 双击列表项 | 按该项排序号播放，**不修改** Index |
+| OSC `/play` | `true` 时按当前 Index 播放 |
+| OSC `/stop` | `true` 时停止播放 |
 
-## 4. 使用说明
+播放路径：`index → playlistId → pl_play`。  
+停止路径：`pl_stop`。
 
-1. 启动 VLC 并开启 HTTP 接口（`--extraintf http --http-password xxx --http-port 8080`）。
-2. 在节点中填写主机、端口、密码。
-3. 用界面按钮控制播放，或从输入端口远程控制。
-4. 从 STATUS 端口读取 JSON 状态；操作后约 0.9 秒自动刷新。
+## 3. 界面
 
-## 5. 示例
+| 控件 | 说明 |
+|------|------|
+| 主机 / 端口 | VLC HTTP 地址（默认 `127.0.0.1:8080`） |
+| 密码 | **仅界面 + 本地存盘**，不进属性系统 |
+| Index | 排序号，默认 **0**；与 INDEX 端口 / 属性 `index` 同步 |
+| 播放 | 按当前 Index 切换 |
+| 停止 | 停止当前播放 |
+| 连接 | 已连接（绿）/ 未连接（红） |
+| 状态 | 操作摘要 |
+| 播放列表 | `[排序号] 名称`；双击切换；当前项高亮（停止后清除） |
 
-- Inject 向 PLAY/STOP 发送 `true` 开始播放，发送 `false` 停止播放。
-- Inject 向 STOP 发送 `true` 停止播放。
-- Inject 向 VOLUME 发送 `80` 将音量设为 80%。
-- Inject 向 INDEX 发送 `3` 切换到 playlistID 为 3 的列表项。
-- Inject 向 FULLSCREEN 发送 `true` 切换全屏。
-- STATUS 接 Data Info 或 Extract，读取 `playing`、`currentFile`、`progressPercent` 等字段做条件分支。
+列表显示为连续排序号；内部仍用 VLC 的 playlistId 发命令。
+
+## 4. 属性与 OSC
+
+| 属性 | OSC | 说明 |
+|------|-----|------|
+| `hostAddress` | `/host` | 主机 |
+| `port` | `/port` | 端口 |
+| `index` | `/index` | 排序号；写入会切换 |
+| `connected` | `/connected` | 只读连接状态 |
+| （触发） | `/play` | `true` 时按当前 Index 切换 |
+| （触发） | `/stop` | `true` 时停止当前播放 |
+
+**不进属性系统：** 密码。
+
+## 5. 使用提示
+
+1. 启动带 HTTP 接口的 VLC，填写主机 / 端口 / 密码。  
+2. 等待「连接: 已连接」与播放列表加载。  
+3. 用 Index / 「播放」/ PLAY / INDEX 播放；双击列表可临时切曲且不改 Index。  
+4. 需要收场时用 STOP 端口、「停止」按钮或 OSC `/stop`。  
+5. 从 DONE / CONNECTED 接后续逻辑（播放与停止都会更新 DONE）。
+
+## 6. 与 Mpv / SlideShow 的对应
+
+| 维度 | VLC Remote | Mpv Controller | SlideShow |
+|------|------------|----------------|-----------|
+| 保活 | 5s `playlist.json` | 5s `GET /library` | 5s `content/get` |
+| 切换 | `pl_play&id=` | `POST /playback/play` | `playlist/set` |
+| 停止 | STOP / 按钮 / OSC | 相同 | — |
+| INDEX | 排序号 → playlistId | 排序号 → 媒体 id | 排序号 → 名称 |
+| 端口 | PLAY / INDEX / STOP → DONE / CONNECTED | 相同 | TRIGGER / INDEX → DONE / CONNECTED |
+| 双击 | 播放且不改 Index | 相同 | 相同 |
+| 凭据 | 密码不进属性 | — | Username/Password 不进属性 |

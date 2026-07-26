@@ -1,13 +1,13 @@
 // 函数级注释：Service Worker - 缓存静态资源以提升慢网速下的加载与刷新体验
-const CACHE_NAME = 'ns-cache-v18';
+const CACHE_NAME = 'ns-cache-v28';
 const CORE_URLS = [
   'index.html',
   'setting.html',
   'favicon.png',
-  'assets/vendor/bootstrap.min.css',
   'assets/vendor/index.css',
   'assets/ns-compat.css',
-  'assets/vendor/bootstrap.bundle.min.js',
+  'assets/ns-tokens.css',
+  'assets/ns-ui.css',
   'assets/vendor/vue.global.prod.js',
   'assets/vendor/index.full.min.js',
   'assets/vendor/split.min.js',
@@ -17,6 +17,10 @@ const CORE_URLS = [
   'assets/widgets-sfc.js',
   'assets/widget-manifest.js',
   'assets/modules/ns-namespace.js',
+  'assets/modules/ns-boot.js',
+  'assets/modules/ns-toast.js',
+  'assets/modules/ns-menu.js',
+  'assets/modules/ns-empty-state.js',
   'assets/modules/ns-layout-persist.js',
   'assets/modules/ns-canvas.js',
   'assets/modules/ns-auth.js',
@@ -34,6 +38,7 @@ const CORE_URLS = [
   'assets/modules/ns-dashboard-selection.js',
   'assets/modules/ns-dashboard-edit.js',
   'assets/modules/ns-dashboard-tabs.js',
+  'assets/modules/ns-dashboard-context-menu.js',
   'assets/modules/ns-dashboard.js'
 ];
 

@@ -196,23 +196,6 @@
     }, 200);
   }
 
-  // 函数级注释：重置当前画布视图为居中状态
-  function resetCanvasView(tid) {
-    const info = (tid || NS.activeTabId) ? NS.grids.get(tid || NS.activeTabId) : null;
-    if (!info || !info.viewportEl) return;
-    const v = __getCanvasViewState(tid || NS.activeTabId);
-    const vpRect = info.viewportEl.getBoundingClientRect();
-    const d = info.design || { width: 320, height: 240 };
-    const cw = Number(d.width) || 1280;
-    const ch = Number(d.height) || 720;
-    const s = Math.max(0.1, Math.min(8, Number(v.scale) || 1));
-    v.scale = s;
-    v.tx = Math.max(0, (vpRect.width - cw * s) / 2);
-    v.ty = Math.max(0, (vpRect.height - ch * s) / 2);
-    __applyCanvasViewTransform(tid || NS.activeTabId);
-    __persistCanvasViewState(tid || NS.activeTabId);
-  }
-
   // 函数级注释：将鼠标/触点 client 坐标转换为画布设计坐标系 px（考虑缩放/平移）
   function __clientToCanvasDesignXY(canvasEl, clientX, clientY) {
     const c = canvasEl;
@@ -321,7 +304,19 @@
 
     const clampScale = (s) => Math.max(0.1, Math.min(8, Number(s) || 1));
     const getViewportRect = () => info.viewportEl.getBoundingClientRect();
-    const setView = (next) => {
+
+    // rAF 合并同一帧内多次 wheel/拖拽，避免掉帧；读取时用 pending 作为有效视图
+    let pendingView = null;
+    let viewRafId = 0;
+    const getEffectiveView = () => {
+      if (pendingView) return pendingView;
+      return __getCanvasViewState(tid);
+    };
+    const flushPendingView = () => {
+      viewRafId = 0;
+      if (!pendingView) return;
+      const next = pendingView;
+      pendingView = null;
       const v = __getCanvasViewState(tid);
       const s = clampScale(next.scale);
       const t = __clampTranslate(s, next.tx, next.ty);
@@ -331,40 +326,88 @@
       __applyCanvasViewTransform(tid);
       __persistCanvasViewState(tid);
     };
+    const setView = (next) => {
+      pendingView = {
+        scale: clampScale(next.scale),
+        tx: Number(next.tx) || 0,
+        ty: Number(next.ty) || 0
+      };
+      if (!viewRafId) {
+        viewRafId = requestAnimationFrame(flushPendingView);
+      }
+    };
 
-    const shouldIgnoreWheel = (e) => {
-      if (!e) return true;
+    // 仅少数真正需要滚轮的控件让出；Ctrl/⌘ 缩放永不让出
+    const shouldYieldWheelToWidget = (e) => {
+      if (!e || !e.target) return false;
+      if (e.ctrlKey || e.metaKey) return false;
       const t = e.target;
-      try { if (t && t.closest && t.closest('.grid-stack-item')) return true; } catch {}
+      try {
+        if (!t.closest) return false;
+        if (t.closest('[data-ns-scroll], [data-ns-scrollable]')) return true;
+        if (t.closest('textarea, select')) return true;
+        // 已聚焦且可编辑的文本输入：保留原生滚轮改值/光标行为
+        if (t.closest('input:not([type="button"]):not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="range"])')) {
+          const ae = document.activeElement;
+          if (ae && (ae === t || (t.contains && t.contains(ae)))) return true;
+        }
+      } catch {}
       return false;
     };
 
     const onWheel = (e) => {
       try {
         if (!e) return;
-        if (shouldIgnoreWheel(e)) return;
-        const v = __getCanvasViewState(tid);
+        if (shouldYieldWheelToWidget(e)) return;
+
+        const v = getEffectiveView();
         const rect = getViewportRect();
         const mx = (Number(e.clientX) || 0) - rect.left;
         const my = (Number(e.clientY) || 0) - rect.top;
 
         const isZoom = !!(e.ctrlKey || e.metaKey);
-        const delta = Number(e.deltaY) || 0;
-        const deltaX = Number(e.deltaX) || 0;
+        let deltaY = Number(e.deltaY) || 0;
+        let deltaX = Number(e.deltaX) || 0;
+        // 统一成像素近似（LINE 模式常见于鼠标滚轮）
+        if (e.deltaMode === 1) {
+          deltaY *= 16;
+          deltaX *= 16;
+        } else if (e.deltaMode === 2) {
+          deltaY *= rect.height;
+          deltaX *= rect.width;
+        }
 
         if (e.cancelable) e.preventDefault();
 
         if (isZoom) {
-          const factor = Math.exp(-delta * 0.0015);
+          const factor = Math.exp(-deltaY * 0.0015);
           const nextScale = clampScale((Number(v.scale) || 1) * factor);
           const worldX = (mx - (Number(v.tx) || 0)) / (Number(v.scale) || 1);
           const worldY = (my - (Number(v.ty) || 0)) / (Number(v.scale) || 1);
-          const nextTx = mx - worldX * nextScale;
-          const nextTy = my - worldY * nextScale;
-          setView({ scale: nextScale, tx: nextTx, ty: nextTy });
-        } else {
-          setView({ scale: v.scale, tx: (Number(v.tx) || 0) - deltaX, ty: (Number(v.ty) || 0) - delta });
+          setView({
+            scale: nextScale,
+            tx: mx - worldX * nextScale,
+            ty: my - worldY * nextScale
+          });
+          return;
         }
+
+        // Shift+滚轮：强制横向平移（补只有纵向 delta 的鼠标）
+        if (e.shiftKey) {
+          const horiz = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY;
+          setView({
+            scale: v.scale,
+            tx: (Number(v.tx) || 0) - horiz,
+            ty: Number(v.ty) || 0
+          });
+          return;
+        }
+
+        setView({
+          scale: v.scale,
+          tx: (Number(v.tx) || 0) - deltaX,
+          ty: (Number(v.ty) || 0) - deltaY
+        });
       } catch {}
     };
 
@@ -388,10 +431,16 @@
 
         pointers.set(e.pointerId, { x: Number(e.clientX) || 0, y: Number(e.clientY) || 0 });
 
-        const v = __getCanvasViewState(tid);
+        const v = getEffectiveView();
         if (pointers.size === 1) {
           isPanning = true;
-          panStart = { x: Number(e.clientX) || 0, y: Number(e.clientY) || 0, tx: Number(v.tx) || 0, ty: Number(v.ty) || 0 };
+          panStart = {
+            x: Number(e.clientX) || 0,
+            y: Number(e.clientY) || 0,
+            tx: Number(v.tx) || 0,
+            ty: Number(v.ty) || 0,
+            scale: Number(v.scale) || 1
+          };
           try { info.viewportEl.style.cursor = 'grabbing'; } catch {}
         } else if (pointers.size === 2) {
           isPanning = false;
@@ -415,7 +464,6 @@
         if (!e) return;
         if (!pointers.has(e.pointerId)) return;
         pointers.set(e.pointerId, { x: Number(e.clientX) || 0, y: Number(e.clientY) || 0 });
-        const v = __getCanvasViewState(tid);
 
         if (pointers.size === 2 && pinchStart) {
           const pts = Array.from(pointers.values());
@@ -435,7 +483,11 @@
         if (!isPanning) return;
         const dx = (Number(e.clientX) || 0) - (Number(panStart.x) || 0);
         const dy = (Number(e.clientY) || 0) - (Number(panStart.y) || 0);
-        setView({ scale: v.scale, tx: (Number(panStart.tx) || 0) + dx, ty: (Number(panStart.ty) || 0) + dy });
+        setView({
+          scale: Number(panStart.scale) || 1,
+          tx: (Number(panStart.tx) || 0) + dx,
+          ty: (Number(panStart.ty) || 0) + dy
+        });
       } catch {}
     };
 
@@ -472,7 +524,6 @@
     fitCanvasToWidgets,
     scheduleFitCanvasToWidgets,
     computeCanvasBoundsFromGrid,
-    resetCanvasView,
     __getCanvasViewState,
     __applyCanvasViewTransform,
     __loadCanvasViewState,

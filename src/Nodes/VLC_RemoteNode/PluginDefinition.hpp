@@ -11,17 +11,17 @@
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/PluginInterface>
 
-#ifdef VLC_RemoteNode_EXPORTS
+#ifdef VLC_ControllerNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "VLC Remote"
+#define PLUGIN_NAME "VLC Controller"
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"
 #endif
-#define PLUGIN_DESCRIBE "VLC 播放器 HTTP 远程控制"
+#define PLUGIN_DESCRIBE "VLC 远程控制（Index/保活，对齐 SlideShow）"
 #define PLUGIN_TAG "Devices"
 
 /**
