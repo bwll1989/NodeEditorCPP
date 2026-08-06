@@ -9,6 +9,7 @@
 #include "Common/Devices/StatusContainer/StatusContainer.h"
 #include "Common/Devices/OSCSender/OSCSender.h"
 #include "Common/AppConfig/ConfigManager.h"
+#include "Common/AppConfig/ConstantDefines.h"
 #include "OSCMessage.h"
 #include <Poco/Net/HTTPServerRequest.h>
 #include <Poco/Net/HTTPServerResponse.h>
@@ -428,6 +429,8 @@ void StaticRequestHandler::handleRequest(HTTPServerRequest& request,
             handleDownloadCurrentFlow(request, response);
         } else if (path == "/api/info/current_flow") {
             handleGetCurrentFlowInfo(request, response);
+        } else if (path == "/api/info/app") {
+            handleGetAppInfo(request, response);
         } else {
             handleStaticFile(request, response, path);
         }
@@ -624,6 +627,21 @@ void StaticRequestHandler::handleGetCurrentFlowInfo(HTTPServerRequest& request, 
         }
     }
     
+    QJsonDocument doc(json);
+    sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString());
+}
+
+// 函数级注释：返回软件名称与版本（与 ConstantDefines.h / 关于窗口同源）
+void StaticRequestHandler::handleGetAppInfo(HTTPServerRequest& request, HTTPServerResponse& response) {
+    if (request.getMethod() != "GET") {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+        return;
+    }
+
+    QJsonObject json;
+    json["ok"] = true;
+    json["name"] = AppConstants::PRODUCT_NAME;
+    json["version"] = QStringLiteral(PRODUCT_VERSION);
     QJsonDocument doc(json);
     sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString());
 }

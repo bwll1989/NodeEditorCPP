@@ -15,8 +15,7 @@ add_library(${Module_Name} SHARED
         # ArtnetOutInterface.hpp
         ../../Common/Devices/UdpSocket/UdpSocket.cpp
         ../../Common/Devices/UdpSocket/UdpSocket.h
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
+)
 # 添加ArtnetTransmitter的头文件路径
 target_include_directories(${Module_Name} PRIVATE
         ../../Common/Devices/ArtnetSender
@@ -30,6 +29,7 @@ target_link_libraries(${Module_Name} PRIVATE
         ArtnetTransmitter
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes)
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

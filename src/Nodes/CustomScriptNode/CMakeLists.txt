@@ -25,10 +25,8 @@ add_library(${Module_Name} SHARED
         ${SOURCE_FILES}
         PluginDefinition.hpp
         PluginDefinition.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
-
-# 移除 QScintilla 库链接
+)
+# 移除 QScintilla 库链接)
 target_link_libraries(${Module_Name} PRIVATE 
     Qt${QT_VERSION_MAJOR}::Widgets 
     Qt${QT_VERSION_MAJOR}::Concurrent 
@@ -37,6 +35,7 @@ target_link_libraries(${Module_Name} PRIVATE
     ${QtNodes_LIBRARIES}
     PropertyTreeWidget
     StatusContainer
+    BaseClass
     DataTypes
     )
 

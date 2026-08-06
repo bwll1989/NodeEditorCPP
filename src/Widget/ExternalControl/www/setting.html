@@ -45,6 +45,26 @@
       border-radius: 6px;
       object-fit: contain;
     }
+    .ns-settings-version {
+      font-size: 12px;
+      font-weight: 500;
+      opacity: 0.72;
+      margin-left: 4px;
+    }
+    .ns-settings-about-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .ns-settings-about-meta {
+      font-size: 14px;
+      color: var(--ns-text, #1f2937);
+    }
+    .ns-settings-about-meta strong {
+      font-weight: 600;
+    }
     .ns-settings-wrap {
       max-width: 720px;
       margin: 0 auto;
@@ -99,14 +119,6 @@
   </style>
 </head>
 <body class="ns-settings-page">
-  <div class="ns-settings-top">
-    <div class="ns-settings-brand">
-      <img src="favicon.png" alt="" />
-      <span>设置</span>
-    </div>
-    <a href="index.html">返回仪表盘</a>
-  </div>
-
   <div id="app"></div>
 
   <script src="assets/vendor/vue.global.prod.js"></script>
@@ -142,6 +154,8 @@
         const flowStatus = ref('');
         const downloadStatus = ref('');
         const currentFlowName = ref('检测中...');
+        const appName = ref('Flow');
+        const appVersion = ref('…');
 
         const mediaProgress = reactive({ show: false, percent: 0, label: '' });
         const flowProgress = reactive({ show: false, percent: 0 });
@@ -348,6 +362,25 @@
           }
         }
 
+        async function fetchAppInfo() {
+          try {
+            const resp = await fetch('/api/info/app');
+            if (!resp.ok) {
+              appVersion.value = '未知';
+              return;
+            }
+            const j = await resp.json();
+            if (j && j.ok) {
+              if (j.name) appName.value = String(j.name);
+              appVersion.value = j.version ? String(j.version) : '未知';
+            } else {
+              appVersion.value = '未知';
+            }
+          } catch {
+            appVersion.value = '获取失败';
+          }
+        }
+
         async function fetchCurrentFlowInfo() {
           try {
             const resp = await fetch('/api/info/current_flow');
@@ -383,6 +416,7 @@
         async function initAuth() {
           authChecking.value = true;
           try {
+            await fetchAppInfo();
             if (window.NSAuth && window.NSAuth.isSettingAuthedRecently()) {
               authed.value = true;
               await fetchCurrentFlowInfo();
@@ -415,6 +449,8 @@
           flowStatus,
           downloadStatus,
           currentFlowName,
+          appName,
+          appVersion,
           mediaProgress,
           flowProgress,
           mediaUploading,
@@ -433,6 +469,15 @@
         };
       },
       template: `
+        <div class="ns-settings-top">
+          <div class="ns-settings-brand">
+            <img src="favicon.png" alt="" />
+            <span>设置</span>
+            <span class="ns-settings-version">{{ appName }} v{{ appVersion }}</span>
+          </div>
+          <a href="index.html">返回仪表盘</a>
+        </div>
+
         <div v-if="authChecking" class="ns-settings-auth">
           <el-card shadow="hover">
             <div style="text-align:center;padding:12px 0;color:var(--el-text-color-secondary);">正在验证...</div>
@@ -550,6 +595,19 @@
             <div class="ns-settings-actions">
               <el-button type="success" :loading="downloading" @click="downloadFlow">下载文件</el-button>
               <span class="ns-settings-status">{{ downloadStatus }}</span>
+            </div>
+          </el-card>
+
+          <el-card shadow="hover">
+            <template #header>
+              <span style="font-weight:600;">关于软件</span>
+            </template>
+            <div class="ns-settings-about-row">
+              <div class="ns-settings-about-meta">
+                <strong>{{ appName }}</strong>
+                <span style="margin-left:8px;color:var(--el-text-color-secondary);">版本 {{ appVersion }}</span>
+              </div>
+              <el-tag type="success" size="small" effect="plain">v{{ appVersion }}</el-tag>
             </div>
           </el-card>
         </div>

@@ -11,10 +11,8 @@ add_library(${Module_Name} SHARED
         AudioDeviceInInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
 
-
+)
 target_link_libraries(${Module_Name}
         PUBLIC
         Qt${QT_VERSION_MAJOR}::Widgets
@@ -24,6 +22,7 @@ target_link_libraries(${Module_Name}
         TimestampGenerator
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes
         GUIElements
 )

@@ -35,8 +35,6 @@ add_library(${Module_Name} SHARED
         Container.cpp
         Container.h
         ParameterChanges.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 #set(APP_PROPERTIES
 #        LINK_FLAGS "/SUBSYSTEM:windows"
@@ -57,6 +55,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         TimestampGenerator
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes)
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

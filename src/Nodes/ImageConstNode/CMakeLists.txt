@@ -21,8 +21,6 @@ add_library(${Module_Name} SHARED
         ImageLayoutGpu.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
         )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Gui
@@ -35,6 +33,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         ${QtColorWidgets_LIBRARIES}
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         GUIElements
         DataTypes
         Opengl32

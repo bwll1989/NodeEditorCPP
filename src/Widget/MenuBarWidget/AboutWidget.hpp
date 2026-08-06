@@ -63,7 +63,7 @@ public:
     AboutWidget(const QString &filePath, QWidget *parent = nullptr)
             : QDialog(parent)
     {
-        setWindowTitle(QString("关于 %1 v%2")
+        setWindowTitle(QString("关于 %1 Version %2")
                            .arg(AppConstants::PRODUCT_NAME)
                            .arg(QApplication::applicationVersion()));
 

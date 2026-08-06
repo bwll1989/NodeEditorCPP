@@ -28,8 +28,9 @@ export const widgetMeta: WidgetMeta = {
 </script>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useWidgetState, sendCommand } from '../useWidgetState';
+import { useContainerSize } from '../useFitSize';
 
 const s = useWidgetState<{
   commandId: string;
@@ -39,6 +40,9 @@ const s = useWidgetState<{
   borderColor: string;
   borderStyle: string;
 }>();
+
+const rootRef = ref<HTMLElement | null>(null);
+const { width, height } = useContainerSize(rootRef);
 
 watch(
   () => s.checked,
@@ -56,15 +60,25 @@ const containerStyle = computed(() => ({
   borderColor: s.borderColor,
   borderStyle: s.borderStyle,
   boxSizing: 'border-box' as const,
-  containerType: 'size' as const,
 }));
+
+const trackSize = computed(() => {
+  const cw = width.value;
+  const ch = height.value;
+  if (!cw || !ch) return { w: 0, h: 0 };
+  return {
+    w: Math.min(cw, ch * 1.8),
+    h: Math.min(ch, cw / 1.8),
+  };
+});
 
 // 轨道尽量填满容器，保持约 1.8:1 的开关比例
 const trackStyle = computed(() => {
   const on = !!s.checked;
+  const { w: tw, h: th } = trackSize.value;
   return {
-    width: 'min(100cqw, calc(100cqh * 1.8))',
-    height: 'min(100cqh, calc(100cqw / 1.8))',
+    width: tw ? `${tw}px` : '100%',
+    height: th ? `${th}px` : '56%',
     borderRadius: '999px',
     background: on ? s.onColor : s.offColor,
     display: 'flex',
@@ -79,14 +93,18 @@ const trackStyle = computed(() => {
   };
 });
 
-const knobStyle = {
-  height: '100%',
-  aspectRatio: '1',
-  borderRadius: '50%',
-  background: '#ffffff',
-  flexShrink: 0,
-  boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
-};
+const knobStyle = computed(() => {
+  // 内容区高度 = 轨道高度扣除上下各 8% padding
+  const knob = trackSize.value.h ? trackSize.value.h * 0.84 : 0;
+  return {
+    height: knob ? `${knob}px` : '100%',
+    width: knob ? `${knob}px` : '56%',
+    borderRadius: '50%',
+    background: '#ffffff',
+    flexShrink: 0,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+  };
+});
 
 function toggle() {
   s.checked = !s.checked;
@@ -94,7 +112,7 @@ function toggle() {
 </script>
 
 <template>
-  <div :style="containerStyle">
+  <div ref="rootRef" :style="containerStyle">
     <button
       type="button"
       class="ns-switch"

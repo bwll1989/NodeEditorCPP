@@ -15,9 +15,7 @@ add_library(${Module_Name} SHARED
         IniLoaderModel.hpp
         ImageLoaderModel.hpp
         PluginDefinition.hpp
-        PluginDefinition.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
+        PluginDefinition.cpp)
 target_link_libraries(${Module_Name} PRIVATE 
         Qt${QT_VERSION_MAJOR}::Widgets 
         Qt${QT_VERSION_MAJOR}::OpenGL 
@@ -30,6 +28,7 @@ target_link_libraries(${Module_Name} PRIVATE
         DataTypes
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         AppConfig
         TimestampGenerator
 )

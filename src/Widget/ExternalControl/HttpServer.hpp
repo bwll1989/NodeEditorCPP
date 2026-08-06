@@ -72,6 +72,8 @@ namespace NodeStudio {
         void handleDownloadCurrentFlow(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         // 函数级注释：获取当前Flow文件信息（返回JSON）
         void handleGetCurrentFlowInfo(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
+        // 函数级注释：获取软件名称与版本（返回JSON）
+        void handleGetAppInfo(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         void handleStaticFile(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& path);
         
         // Utility to send JSON response

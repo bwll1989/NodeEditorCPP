@@ -10,8 +10,8 @@ enable_language(C)
 # 设置输出目录
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/TimeLine)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/plugins/TimeLine)
-set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/include")
-set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-n7.1-39-g64e2864cb9-win64-gpl-shared-7.1/lib")
+set(FFMPEG_INCLUDE_DIRS "${DEPENDS_DIR}/ffmpeg-8.1.1-full_build-shared/include")
+set(FFMPEG_LIB_DIRS "${DEPENDS_DIR}/ffmpeg-8.1.1-full_build-shared/lib")
 include_directories(${FFMPEG_INCLUDE_DIRS})
 link_directories("${FFMPEG_LIB_DIRS}")
 # 查找Qt包
@@ -27,8 +27,6 @@ set(SOURCES
     audioclipmodel.hpp
     audioclipplugin.hpp
     ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
-        ../../Common/BaseClass/AbstractClipDelegateModel.cpp
-        ../../Common/BaseClass/AbstractClipDelegateModel.h
 )
 
 # 创建插件库
@@ -60,7 +58,6 @@ target_link_libraries(AudioClip PUBLIC
     avfilter
     avformat
     avutil
-    postproc
     swresample
     swscale
     ${QtTimeLine_LIBRARIES}
@@ -68,6 +65,7 @@ target_link_libraries(AudioClip PUBLIC
     MediaManger
     GUIElements
     StatusContainer
+    BaseClass
 )
 
 # 包含目录

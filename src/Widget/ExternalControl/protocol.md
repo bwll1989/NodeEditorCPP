@@ -94,6 +94,7 @@ ws.onmessage = (ev) => {
 | `POST` | `/api/upload/flow?filename=` | 上传 `.flow` 并触发加载 |
 | `GET` | `/api/download/current_flow` | 下载当前 Flow |
 | `GET` | `/api/info/current_flow` | 查询当前 Flow 信息 |
+| `GET` | `/api/info/app` | 查询软件名称与版本 |
 | `*` | 其它路径 | 静态文件服务 |
 
 ---
@@ -279,6 +280,22 @@ ws.onmessage = (ev) => {
 | 无当前路径 | 200 | `{"ok":false,"error":"no_recent_file"}` |
 | 文件不存在 | 200 | `{"ok":false,"error":"file_not_found"}` |
 | 非 GET | 405 | `{"ok":false,"error":"no_file_running"}` |
+
+---
+
+### `GET /api/info/app`
+
+查询软件名称与版本（与桌面端「关于」同源，`PRODUCT_VERSION`）。
+
+成功：
+
+```json
+{"ok":true,"name":"Flow","version":"1.6.14"}
+```
+
+| 结果 | HTTP | 响应 |
+|---|---|---|
+| 非 GET | 405 | `{"ok":false,"error":"method_not_allowed"}` |
 
 ---
 

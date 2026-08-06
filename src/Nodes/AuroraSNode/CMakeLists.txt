@@ -21,8 +21,6 @@ add_library(${Module_Name} SHARED
         AuroraSWorker.cpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 
 target_link_libraries(${Module_Name} PRIVATE
@@ -31,6 +29,7 @@ target_link_libraries(${Module_Name} PRIVATE
         ${AURORA_LIB_NAME}
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes
         GUIElements
         AppConfig

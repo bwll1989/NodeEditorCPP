@@ -12,16 +12,16 @@ add_library(${Module_Name} SHARED
         MqttInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
+)
 #add_subdirectory(../../Common/Devices/MqttClient MqttClient)
-#link_directories("${QMQTT_INSTALL_DIR}/lib")
+#link_directories("${QMQTT_INSTALL_DIR}/lib"))
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
         Qt${QT_VERSION_MAJOR}::Network
         ${QtNodes_LIBRARIES}
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes
         MqttClient
 )

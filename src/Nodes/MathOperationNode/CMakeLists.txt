@@ -10,8 +10,6 @@ add_library(${Module_Name}  SHARED
 		MathOperationDataModel.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-		../../Common/BaseClass/AbstractDelegateModel.cpp
-		../../Common/BaseClass/AbstractDelegateModel.h
 		)
 
 target_link_libraries(${Module_Name}  
@@ -20,6 +18,7 @@ target_link_libraries(${Module_Name}
         Qt${QT_VERSION_MAJOR}::Network
         ${QtNodes_LIBRARIES}
 		PropertyTreeWidget
+		BaseClass
         DataTypes
         StatusContainer)
 

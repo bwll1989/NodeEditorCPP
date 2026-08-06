@@ -18,9 +18,7 @@ add_library(${Module_Name}  SHARED
 		NDIOutInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-		../../Common/BaseClass/AbstractDelegateModel.cpp
-		../../Common/BaseClass/AbstractDelegateModel.h)
-
+)
 target_link_libraries(${Module_Name}  
 		PRIVATE
 		Qt${QT_VERSION_MAJOR}::Widgets
@@ -30,6 +28,7 @@ target_link_libraries(${Module_Name}
 		${NDI_LIBRARIES}
 		PropertyTreeWidget
 		StatusContainer
+		BaseClass
 		Qt${QT_VERSION_MAJOR}::OpenGL
 		opengl32  # 添加OpenGL32库
 		glu32     # 添加GLU32库

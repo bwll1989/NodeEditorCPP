@@ -13,15 +13,14 @@ add_library(${Module_Name} SHARED
         DMXUniverseDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        DMXUniverseInterface.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
+        DMXUniverseInterface.hpp)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Network
         ${QtNodes_LIBRARIES}
         DataTypes
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         )
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

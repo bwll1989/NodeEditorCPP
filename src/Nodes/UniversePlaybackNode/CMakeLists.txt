@@ -15,14 +15,13 @@ add_library(${Module_Name} SHARED
         PluginDefinition.cpp
         PluginDefinition.hpp
         UniversePlaybackInterface.hpp
-        UniversePlaybackDataModel.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
+        UniversePlaybackDataModel.hpp)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Network
         ${QtNodes_LIBRARIES}
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         avcodec
         avdevice
         avfilter

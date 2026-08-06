@@ -23,7 +23,7 @@ static QString makeSingleInstanceKey() {
 /**
  * @brief 设置应用程序基本信息
  * 配置应用程序的显示名称、版本号、组织名称和域名
- * @note 版本号从 PRODUCT_VERSION 宏获取，若未定义则使用默认值 "dev"
+ * @note 版本号来自 ConstantDefines.h 中的 PRODUCT_VERSION
  */
 void setupAppInfo() {
     QApplication::setApplicationDisplayName(AppConstants::PRODUCT_NAME);

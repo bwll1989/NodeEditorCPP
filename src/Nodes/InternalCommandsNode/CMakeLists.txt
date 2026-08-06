@@ -22,8 +22,6 @@ add_library(${Module_Name} SHARED
         SnapshotModel.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
         )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
@@ -34,6 +32,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         OSCTransmitter
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         GraphSnapshotBridge
         DataTypes
         AppConfig)

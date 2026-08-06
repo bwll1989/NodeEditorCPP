@@ -29,8 +29,6 @@ add_library(${Module_Name} SHARED
         ImageScaleDataModel.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 
 target_link_libraries(${Module_Name} PRIVATE
@@ -42,6 +40,7 @@ target_link_libraries(${Module_Name} PRIVATE
         PropertyTreeWidget
         DataTypes
         StatusContainer
+        BaseClass
         TimestampGenerator
 )
 

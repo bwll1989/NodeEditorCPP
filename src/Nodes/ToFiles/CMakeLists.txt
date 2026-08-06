@@ -25,8 +25,6 @@ add_library(${Module_Name} SHARED
         ToTextFileDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 
 target_link_libraries(${Module_Name} PRIVATE
@@ -43,6 +41,7 @@ target_link_libraries(${Module_Name} PRIVATE
         DataTypes
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         AppConfig
         GUIElements
         TimestampGenerator

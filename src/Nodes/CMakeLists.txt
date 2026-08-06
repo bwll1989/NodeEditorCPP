@@ -38,6 +38,7 @@ set(ALL_NODES
     ArtnetInNode                              #Arnet输入
     MpvControllerNode                         #mpv控制
     VLC_RemoteNode                            #VLC远程控制
+    SPlayControllerNode                       #ENTTEC S-Play 多 playlist 控制
     SwitchNode                                #输入切换
     NDVServerNode                             #NDV控制
     ConditionNode                             #条件判断
@@ -96,7 +97,7 @@ set(ALL_NODES
     QmlScriptNode
     InjectNode                                  #数据注入
     ValueLookupNode                          #值查表 Value Lookup
-#    AudioIntentNode                              #音频意图分析（弃用）
+    FT_C040ANode                            #触摸屏
 )
 
 # 根据选项决定构建方式
@@ -147,6 +148,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(ArtnetInNode)                              #Arnet输入
     add_subdirectory(MpvControllerNode)                         #mpv控制
     add_subdirectory(VLC_RemoteNode)                            #VLC远程控制
+    add_subdirectory(SPlayControllerNode)                       #ENTTEC S-Play 多 playlist 控制
     add_subdirectory(SwitchNode)                                #输入切换
     add_subdirectory(NDVServerNode)                            #NDV控制
     add_subdirectory(ConditionNode)                             #条件判断
@@ -201,6 +203,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(QmlScriptNode)
     add_subdirectory(InjectNode)                                #数据注入节点
     add_subdirectory(ValueLookupNode)                        #值查表 Value Lookup
+    add_subdirectory(FT_C040ANode)                          #触摸屏
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()

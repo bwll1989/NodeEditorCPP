@@ -5,23 +5,10 @@
 #include "AbstractDelegateModel.h"
 
 #include "Common/GUI/PropertyTreeWidget/PropertyTreeWidget.h"
+#include "Common/Devices/StatusContainer/StatusContainer.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
 #include <QCoreApplication>
-#include <QCheckBox>
-#include <QClipboard>
-#include <QComboBox>
-#include <QDoubleSpinBox>
-#include <QAbstractButton>
-#include <QAbstractSlider>
-#include <QSpinBox>
-#include <QLineEdit>
-
-#include "Common/AppConfig/ConfigManager.h"
-#include "../Devices/StatusContainer/StatusContainer.h"
-#include "../Devices/StatusContainer/GlobalEventBus.hpp"
-#include "OSCSender/OSCSender.h"
-
-class QCheckBox;
 
 
 

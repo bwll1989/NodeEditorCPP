@@ -74,7 +74,7 @@ namespace Nodes
             OutPortCount = 2;
             Caption = PLUGIN_NAME;
             CaptionVisible = true;
-            WidgetEmbeddable = true;
+            WidgetEmbeddable = false;
             Resizable = true;
             PortEditable = false;
 

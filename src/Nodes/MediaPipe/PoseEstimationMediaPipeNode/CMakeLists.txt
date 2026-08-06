@@ -13,9 +13,7 @@ add_library(${Module_Name} SHARED
         PoseEstimationMediaPipeInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-        ../../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../../Common/BaseClass/AbstractDelegateModel.h)
-
+)
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
@@ -23,6 +21,7 @@ target_link_libraries(${Module_Name} PRIVATE
         ${OpenCV_LIBRARIES}
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes
         GUIElements
         TimestampGenerator)

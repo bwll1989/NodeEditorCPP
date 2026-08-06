@@ -46,8 +46,14 @@ add_library(${Module_Name} SHARED
     ImageTextureWindow/ImageTextureWindow.hpp
 )
 
+target_include_directories(${Module_Name} PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/Common/Gui>
+    $<INSTALL_INTERFACE:include/Common/Gui>
+)
+
 # 链接Qt库
-target_link_libraries(${Module_Name} PRIVATE 
+target_link_libraries(${Module_Name} PRIVATE
     Qt${QT_VERSION_MAJOR}::Widgets
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
@@ -57,8 +63,7 @@ target_link_libraries(${Module_Name} PRIVATE
     ModelDataBridge
     DataTypes
     ${QtColorWidgets_LIBRARIES}
-
 )
 
 # 导出符号
-target_compile_definitions(${Module_Name} PRIVATE GUI_ELEMENTS_LIBRARY -DNODE_EDITOR_SHARED)
+target_compile_definitions(${Module_Name} PRIVATE GUI_ELEMENTS_LIBRARY NODE_EDITOR_SHARED)

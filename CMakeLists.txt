@@ -5,9 +5,7 @@ set(ProjectName "Flow")
 set(HeadlessProjectName ${ProjectName}Runtime)
 project(${ProjectName} VERSION 1.1 LANGUAGES CXX)
 # set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
-string(TIMESTAMP BUILD_TS "%Y%m%d")
-# 函数级注释：将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
-add_definitions(-DPRODUCT_VERSION="${BUILD_TS}")
+# 产品版本号见 src/Common/AppConfig/ConstantDefines.h（PRODUCT_VERSION）
 # 设置所有目标的默认输出目录
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -54,6 +52,16 @@ set(QtNodes_DIR "${DEPENDS_DIR}/nodeeditor/MSVC/include")
 set(QtNodes_LIBRARIES "${DEPENDS_DIR}/nodeeditor/MSVC/lib/QtNodes.lib")
 INCLUDE_DIRECTORIES(${QtNodes_DIR})
 message("-- Found QtNodes ${QtNodes_DIR}")
+# 函数级注释：提供可导出的 IMPORTED 目标，供 BaseClass/DataTypes 与 FlowSDK 使用
+if(NOT TARGET QtNodes::QtNodes)
+    add_library(QtNodes::QtNodes SHARED IMPORTED GLOBAL)
+    set_target_properties(QtNodes::QtNodes PROPERTIES
+        IMPORTED_IMPLIB "${QtNodes_LIBRARIES}"
+        IMPORTED_LOCATION "${DEPENDS_DIR}/nodeeditor/MSVC/bin/QtNodes.dll"
+        INTERFACE_INCLUDE_DIRECTORIES "${QtNodes_DIR}"
+        INTERFACE_COMPILE_DEFINITIONS "NODE_EDITOR_SHARED"
+    )
+endif()
 
 
 # 设置ADS库
@@ -112,6 +120,20 @@ message("-- Found OpenCV ${OpenCV_DIR}")
 set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
 set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
 INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
+# 函数级注释：QtTimeLine IMPORTED 目标（BaseClass / Clip / FlowSDK）
+if(NOT TARGET QtTimeLine::QtTimeLine)
+    add_library(QtTimeLine::QtTimeLine SHARED IMPORTED GLOBAL)
+    set(_qtl_dll "${QtTimeLine_DIR}/install/bin/QtTimeLine.dll")
+    if(NOT EXISTS "${_qtl_dll}")
+        set(_qtl_dll "${QtTimeLine_DIR}/install/QtTimeLine.dll")
+    endif()
+    set_target_properties(QtTimeLine::QtTimeLine PROPERTIES
+        IMPORTED_IMPLIB "${QtTimeLine_LIBRARIES}"
+        IMPORTED_LOCATION "${_qtl_dll}"
+        INTERFACE_INCLUDE_DIRECTORIES "${QtTimeLine_DIR}/install/include"
+        INTERFACE_COMPILE_DEFINITIONS "NODE_TIMELINE_SHARED"
+    )
+endif()
 
 # 设置QtColorWidgets库
 set(QtColorWidgets_DIR "${DEPENDS_DIR}/Qt-Color-Widgets")
@@ -163,6 +185,7 @@ add_subdirectory(src/Common/DataTypes)
 add_subdirectory(src/Common/Devices/StatusContainer)
 add_subdirectory(src/Common/AppConfig)
 add_subdirectory(src/Common/GUI/PropertyTreeWidget)
+add_subdirectory(src/Common/BaseClass)
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -289,9 +312,7 @@ set(CALC_SOURCE_FILES
         src/Widget/ExternalControl/HttpServer.hpp
 )
 # 函数级注释：定义 Headless 版本源文件（用 headless_main.cpp 替换 main.cpp）
-set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES}
-        src/Common/BaseClass/AbstractClipDelegateModel.cpp
-        src/Common/BaseClass/AbstractClipDelegateModel.h)
+set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES})
 list(REMOVE_ITEM HEADLESS_SOURCE_FILES main.cpp)
 # FlowRuntime 使用 MainWindowHeadLess，无需 GUI 主窗口与 QWindowKit 标题栏源码
 list(REMOVE_ITEM HEADLESS_SOURCE_FILES
@@ -396,6 +417,7 @@ target_link_libraries(${ProjectName}
             StatusContainer
             AppConfig
             PropertyTreeWidget
+            BaseClass
             MqttClient
             QWindowKit::Widgets
 )
@@ -453,6 +475,7 @@ target_link_libraries(${HeadlessProjectName}
             StatusContainer
             AppConfig
             PropertyTreeWidget
+            BaseClass
             MqttClient
 )
 # 设置主程序属性
@@ -477,6 +500,12 @@ install(TARGETS ${HeadlessProjectName}
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
+
+# 函数级注释：安装第三方节点/Clip 开发用 FlowSDK（cmake --install --component FlowSDK）
+option(FLOW_INSTALL_SDK "Generate FlowSDK install rules" ON)
+if(FLOW_INSTALL_SDK)
+    include("${CMAKE_SOURCE_DIR}/cmake/FlowSDKInstall.cmake")
+endif()
 
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(${ProjectName})

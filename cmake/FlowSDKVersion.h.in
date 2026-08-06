@@ -1,0 +1,15 @@
+#pragma once
+
+/**
+ * FlowSDK 版本（与 Flow 产品版本一致）
+ * 来源：src/Common/AppConfig/ConstantDefines.h → PRODUCT_VERSION
+ */
+#define FLOW_SDK_VERSION_STR "@FLOW_SDK_VERSION@"
+#define FLOW_SDK_VERSION_MAJOR @FLOW_SDK_VERSION_MAJOR@
+#define FLOW_SDK_VERSION_MINOR @FLOW_SDK_VERSION_MINOR@
+#define FLOW_SDK_VERSION_PATCH @FLOW_SDK_VERSION_PATCH@
+
+#define FLOW_SDK_VERSION_CHECK(major, minor, patch) \
+    ((FLOW_SDK_VERSION_MAJOR > (major)) || \
+     (FLOW_SDK_VERSION_MAJOR == (major) && FLOW_SDK_VERSION_MINOR > (minor)) || \
+     (FLOW_SDK_VERSION_MAJOR == (major) && FLOW_SDK_VERSION_MINOR == (minor) && FLOW_SDK_VERSION_PATCH >= (patch)))

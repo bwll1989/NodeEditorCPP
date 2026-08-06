@@ -12,8 +12,6 @@ add_library(${Module_Name} SHARED
         MpvControllerInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 
 target_link_libraries(${Module_Name} PRIVATE
@@ -22,6 +20,7 @@ target_link_libraries(${Module_Name} PRIVATE
         ${QtNodes_LIBRARIES}
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

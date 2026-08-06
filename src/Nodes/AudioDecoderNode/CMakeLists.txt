@@ -19,8 +19,6 @@ add_library(${Module_Name} SHARED
         AudioDecoder.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
         )
 
 target_link_libraries(${Module_Name}  PRIVATE
@@ -42,6 +40,7 @@ target_link_libraries(${Module_Name}  PRIVATE
         DataTypes
         PropertyTreeWidget
         StatusContainer
+        BaseClass
 )
 
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

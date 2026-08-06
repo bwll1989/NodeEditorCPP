@@ -14,9 +14,11 @@
 #include <unordered_map>
 
 #include "AbstractClipModel.hpp"
+#include "Common/BaseClass/BaseClassExport.h"
 #include "Common/Devices/StatusContainer/StatusContainer.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
-class AbstractClipDelegateModel :  public AbstractClipModel {
+
+class BASECLASS_EXPORT AbstractClipDelegateModel : public AbstractClipModel {
     Q_OBJECT
 public:
     explicit AbstractClipDelegateModel(int start,const QString& filePath = QString(), QObject* parent = nullptr);

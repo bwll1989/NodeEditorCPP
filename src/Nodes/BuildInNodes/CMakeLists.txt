@@ -49,8 +49,6 @@ set(BuildInNodes_sources
         WindowDisplayModel.hpp
         ToJsonDataModel.hpp
         FromJsonDataModel.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
         FloatVariableDataModel.hpp
         IntVariableDataModel.hpp
         BoolVariableDataModel.hpp
@@ -77,6 +75,7 @@ target_link_libraries(BuildInNodes PRIVATE
     GUIElements
     ModelDataBridge
     StatusContainer
+    BaseClass
     TimestampGenerator
 )
 

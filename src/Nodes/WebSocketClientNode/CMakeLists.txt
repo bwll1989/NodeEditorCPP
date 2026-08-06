@@ -15,8 +15,6 @@ add_library(${Module_Name} SHARED
        ../../Common/Devices/WebSocketClient/WebSocketClient.cpp
         ../../Common/Devices/WebSocketClient/WebSocketClientWorker.h
       ../../Common/Devices/WebSocketClient/WebSocketClientWorker.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
 )
 
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES}
@@ -24,6 +22,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${Qt
         Qt${QT_VERSION_MAJOR}::WebSockets
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

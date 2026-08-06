@@ -24,8 +24,6 @@ set(SOURCES
         imageclipmodel.hpp
         imageclipplugin.hpp
         ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
-        ../../Common/BaseClass/AbstractClipDelegateModel.cpp
-        ../../Common/BaseClass/AbstractClipDelegateModel.h
 )
 
 # 创建插件库
@@ -55,6 +53,7 @@ target_link_libraries(ImageClip PUBLIC
         MediaManger
         GUIElements
         StatusContainer
+        BaseClass
         AppConfig
 )
 

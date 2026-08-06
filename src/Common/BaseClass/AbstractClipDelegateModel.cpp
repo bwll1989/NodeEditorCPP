@@ -3,7 +3,10 @@
 //
 
 #include "Common/BaseClass/AbstractClipDelegateModel.h"
-AbstractClipDelegateModel::AbstractClipDelegateModel(int start, const QString &filePath, QObject *parent): AbstractClipModel(start, filePath, parent) {
+
+AbstractClipDelegateModel::AbstractClipDelegateModel(int start, const QString &filePath, QObject *parent)
+    : AbstractClipModel(start, filePath, parent)
+{
     // 函数级注释：构造剪辑委托模型，初始化 OSC 连接代理对象
     _oscConnectionProxy = new QObject(this);
 }

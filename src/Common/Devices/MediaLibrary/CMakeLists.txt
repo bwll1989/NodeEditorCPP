@@ -18,6 +18,11 @@ set(MediaManger_sources
 
 add_library(MediaManger SHARED ${MediaManger_sources})
 
+target_include_directories(MediaManger PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include/Common/Devices/MediaLibrary>
+)
+
 target_link_libraries(MediaManger PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets AppConfig)
 
 target_compile_definitions(MediaManger PRIVATE MEDIAMANGER_LIBRARY)

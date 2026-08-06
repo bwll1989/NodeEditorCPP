@@ -18,6 +18,13 @@ set(TimestampGenerator_sources
 
 add_library(TimestampGenerator SHARED ${TimestampGenerator_sources})
 
+target_include_directories(TimestampGenerator PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/Common/Devices>
+    $<INSTALL_INTERFACE:include>
+    $<INSTALL_INTERFACE:include/Common/Devices>
+)
+
 target_link_libraries(TimestampGenerator PRIVATE Qt${QT_VERSION_MAJOR}::Core AppConfig)
 
 target_compile_definitions(TimestampGenerator PRIVATE TIMESTAMPGENERATOR_LIBRARY)

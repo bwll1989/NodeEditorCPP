@@ -16,9 +16,7 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         CaptureModel.hpp
         PluginDefinition.cpp
-        PluginDefinition.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
+        PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
@@ -28,6 +26,7 @@ target_link_libraries(${Module_Name} PRIVATE
         DataTypes
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         TimestampGenerator
 )
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

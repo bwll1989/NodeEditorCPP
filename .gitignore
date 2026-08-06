@@ -27,6 +27,11 @@
 /3rdParty
 /cmake-build-release-mingw
 /build
+# FlowSDK 安装产物（模板与 README 保留在版本库）
+/sdk/bin/
+/sdk/lib/
+/sdk/include/
+/sdk/VERSION
 /NodeStudio
 /build1
 /cmake-build-debug-visual-studio
@@ -45,3 +50,4 @@ install.iss
 # Frontend widget build deps (reinstall via npm install in dashboard/)
 **/node_modules/
 src/Widget/ExternalControl/dashboard/node_modules/
+/sdk

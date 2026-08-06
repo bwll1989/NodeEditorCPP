@@ -21,6 +21,13 @@ set(OSCTransmitter_sources
 
 add_library(OSCTransmitter SHARED ${OSCTransmitter_sources})
 
+target_include_directories(OSCTransmitter PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/Common/Devices>
+    $<INSTALL_INTERFACE:include>
+    $<INSTALL_INTERFACE:include/Common/Devices>
+)
+
 # 将 Qt 依赖改为 PUBLIC，保证使用方自动继承 QtNetwork 的包含和使用需求
 target_link_libraries(OSCTransmitter PUBLIC Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Network)
 

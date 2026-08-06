@@ -4,9 +4,9 @@
 #pragma once
 // #include <QDesktopServices>
 #include <QStandardPaths>
-// 版本宏的默认值；若构建系统已注入，则使用注入值
+// 产品版本号（关于窗口、工程元数据、QApplication::applicationVersion 等共用）
 #ifndef PRODUCT_VERSION
-#define PRODUCT_VERSION "dev"  // 构建系统注入时会覆盖
+#define PRODUCT_VERSION "1.6.15"
 #endif
 // 应用程序常量定义
 namespace AppConstants {

@@ -33,8 +33,9 @@ export const widgetMeta: WidgetMeta = {
 </script>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useWidgetState } from '../useWidgetState';
+import { useContainerSize } from '../useFitSize';
 
 const s = useWidgetState<{
   commandId: string;
@@ -46,6 +47,9 @@ const s = useWidgetState<{
   borderStyle: string;
 }>();
 
+const rootRef = ref<HTMLElement | null>(null);
+const { width, height } = useContainerSize(rootRef);
+
 const containerStyle = computed(() => ({
   width: '100%',
   height: '100%',
@@ -55,14 +59,14 @@ const containerStyle = computed(() => ({
   borderColor: s.borderColor,
   borderStyle: s.borderStyle,
   boxSizing: 'border-box' as const,
-  containerType: 'size' as const,
 }));
 
 const ledStyle = computed(() => {
   const color = s.on ? s.onColor : s.offColor;
+  const side = Math.max(0, Math.min(width.value, height.value) * 0.8);
   return {
-    width: 'min(80cqw, 80cqh)',
-    height: 'min(80cqw, 80cqh)',
+    width: side ? `${side}px` : '80%',
+    height: side ? `${side}px` : '80%',
     borderRadius: '50%',
     background: color,
     boxShadow: 'none',
@@ -74,6 +78,7 @@ const ledStyle = computed(() => {
 
 <template>
   <div
+    ref="rootRef"
     class="ns-led-widget"
     :style="containerStyle"
     role="status"

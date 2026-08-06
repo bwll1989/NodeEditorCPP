@@ -13,8 +13,6 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         ../../Common/Devices/TcpServer/TcpServer.cpp
         ../../Common/Devices/TcpServer/TcpServer.h
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
         NDVServerDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
@@ -25,6 +23,7 @@ target_link_libraries(${Module_Name} PRIVATE
         ${QtNodes_LIBRARIES}
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes)
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

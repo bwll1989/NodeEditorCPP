@@ -27,8 +27,9 @@ export const widgetMeta: WidgetMeta = {
 </script>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useWidgetState, sendCommand } from '../useWidgetState';
+import { useContainerSize } from '../useFitSize';
 
 const s = useWidgetState<{
   commandId: string;
@@ -37,6 +38,9 @@ const s = useWidgetState<{
   borderColor: string;
   borderStyle: string;
 }>();
+
+const rootRef = ref<HTMLElement | null>(null);
+const { width, height } = useContainerSize(rootRef);
 
 watch(
   () => s.checked,
@@ -54,24 +58,23 @@ const containerStyle = computed(() => ({
   borderColor: s.borderColor,
   borderStyle: s.borderStyle,
   boxSizing: 'border-box' as const,
-  containerType: 'size' as const,
 }));
 
 const boxStyle = computed(() => {
   const on = !!s.checked;
+  const side = Math.max(0, Math.min(width.value, height.value) * 0.8);
   return {
-    width: 'min(80cqw, 80cqh)',
-    height: 'min(80cqw, 80cqh)',
+    width: side ? `${side}px` : '80%',
+    height: side ? `${side}px` : '80%',
     borderRadius: '12%',
     boxSizing: 'border-box' as const,
-    border: `max(1px, 0.08em) solid ${on ? s.activeColor : s.borderColor}`,
+    border: `${Math.max(1, side * 0.08)}px solid ${on ? s.activeColor : s.borderColor}`,
     background: on ? s.activeColor : 'transparent',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     cursor: 'pointer',
     flexShrink: 0,
-    fontSize: 'min(80cqw, 80cqh)',
   };
 });
 
@@ -81,7 +84,7 @@ function toggle() {
 </script>
 
 <template>
-  <div :style="containerStyle">
+  <div ref="rootRef" :style="containerStyle">
     <button
       type="button"
       class="ns-check-box"

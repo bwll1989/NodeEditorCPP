@@ -10,6 +10,7 @@
 #include <QPointer>
 #include <QtWidgets/QWidget>
 #include <QtNodes/internal/NodeDelegateModel.hpp>
+#include "Common/BaseClass/BaseClassExport.h"
 
 class PropertyTreeWidget;
 
@@ -25,7 +26,7 @@ using QtNodes::ConnectionPolicy;
  * - 提供统一的控件注册与状态反馈到 StatusContainer 的能力
  * - 你的具体节点应继承该类并实现数据流相关的纯虚函数
  */
-class AbstractDelegateModel : public QtNodes::NodeDelegateModel {
+class BASECLASS_EXPORT AbstractDelegateModel : public QtNodes::NodeDelegateModel {
     Q_OBJECT
 public:
     /**

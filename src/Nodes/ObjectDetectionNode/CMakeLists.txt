@@ -17,9 +17,7 @@ add_library(${Module_Name}  SHARED
 		ObjectDetectionInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-		../../Common/BaseClass/AbstractDelegateModel.cpp
-		../../Common/BaseClass/AbstractDelegateModel.h)
-
+)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 		Qt${QT_VERSION_MAJOR}::Concurrent
 		${QtNodes_LIBRARIES}
@@ -29,6 +27,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 		onnxruntime_providers_shared
 		PropertyTreeWidget
 		StatusContainer
+		BaseClass
 		DataTypes
 		GUIElements
 		TimestampGenerator)

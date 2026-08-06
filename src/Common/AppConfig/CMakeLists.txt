@@ -23,6 +23,11 @@ set(AppConfig_sources
 
 add_library(AppConfig SHARED ${AppConfig_sources})
 
+target_include_directories(AppConfig PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include/Common/AppConfig>
+)
+
 # 将 Qt 依赖改为 PUBLIC，保证使用方自动继承 QtNetwork 的包含和使用需求
 target_link_libraries(AppConfig PUBLIC Qt${QT_VERSION_MAJOR}::Core)
 

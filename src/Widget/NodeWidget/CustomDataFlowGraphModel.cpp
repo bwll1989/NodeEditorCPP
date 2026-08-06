@@ -105,7 +105,10 @@ NodeId CustomDataFlowGraphModel::addNode(QString const nodeType)
         connect(model.get(),
                 &NodeDelegateModel::portsDeleted,
                 this,
-                &CustomDataFlowGraphModel::portsDeleted);
+                [newId, this]() {
+                    portsDeleted();
+                    Q_EMIT nodeUpdated(newId);
+                });
 
         connect(model.get(),
                 &NodeDelegateModel::portsAboutToBeInserted,
@@ -117,7 +120,10 @@ NodeId CustomDataFlowGraphModel::addNode(QString const nodeType)
         connect(model.get(),
                 &NodeDelegateModel::portsInserted,
                 this,
-                &CustomDataFlowGraphModel::portsInserted);
+                [newId, this]() {
+                    portsInserted();
+                    Q_EMIT nodeUpdated(newId);
+                });
 
         _models[newId] = std::move(model);
 
@@ -841,6 +847,32 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
                 [restoredNodeId, this](PortIndex const portIndex) {
                     onOutPortDataUpdated(restoredNodeId, portIndex);
                 });
+        connect(model.get(),
+                &NodeDelegateModel::portsAboutToBeDeleted,
+                this,
+                [restoredNodeId, this](PortType const portType, PortIndex const first, PortIndex const last) {
+                    portsAboutToBeDeleted(restoredNodeId, portType, first, last);
+                });
+        connect(model.get(),
+                &NodeDelegateModel::portsDeleted,
+                this,
+                [restoredNodeId, this]() {
+                    portsDeleted();
+                    Q_EMIT nodeUpdated(restoredNodeId);
+                });
+        connect(model.get(),
+                &NodeDelegateModel::portsAboutToBeInserted,
+                this,
+                [restoredNodeId, this](PortType const portType, PortIndex const first, PortIndex const last) {
+                    portsAboutToBeInserted(restoredNodeId, portType, first, last);
+                });
+        connect(model.get(),
+                &NodeDelegateModel::portsInserted,
+                this,
+                [restoredNodeId, this]() {
+                    portsInserted();
+                    Q_EMIT nodeUpdated(restoredNodeId);
+                });
         model->setNodeID(restoredNodeId);
         model->setParentAlias(modelAlias());
         _models[restoredNodeId] = std::move(model);
@@ -867,6 +899,9 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
         if (auto derived = dynamic_cast<AbstractDelegateModel*>(_models[restoredNodeId].get())) {
             derived->onModelReady();
         }
+
+        // 内部 load 可能再次改动端口数，强制刷新几何
+        Q_EMIT nodeUpdated(restoredNodeId);
     } else {
         //创建失败，抛出异常
         qCritical() << "Failed to load node: " << nodeJson["id"].toString();

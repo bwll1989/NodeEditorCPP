@@ -11,8 +11,6 @@ add_library(${Module_Name} SHARED
         ValueLookupDataModel.hpp
         ValueLookupInterface.hpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
         PluginDefinition.cpp
         PluginDefinition.hpp
 )
@@ -23,6 +21,7 @@ target_link_libraries(${Module_Name} PRIVATE
         ${QtNodes_LIBRARIES}
         DataTypes
         PropertyTreeWidget
+        BaseClass
         GUIElements
         StatusContainer)
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

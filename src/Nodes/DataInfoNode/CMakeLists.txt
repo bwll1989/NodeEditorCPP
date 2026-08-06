@@ -15,8 +15,6 @@ add_library(${Module_Name} SHARED
         ../../Common/GUI/DataTreeModel/DataTreeModel.h
         ../../Common/GUI/DataTreeModel/QmlDataBrowser.cpp
         ../../Common/GUI/DataTreeModel/QmlDataBrowser.h
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
 
 )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
@@ -27,6 +25,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         DataTypes
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         TimestampGenerator
 #        DockHub
 )

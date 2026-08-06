@@ -71,7 +71,7 @@ namespace Nodes
             OutPortCount = 2;
             Caption = QStringLiteral("SlideShow");
             CaptionVisible = true;
-            WidgetEmbeddable = true;
+            WidgetEmbeddable = false;
             Resizable = true;
             PortEditable = false;
 

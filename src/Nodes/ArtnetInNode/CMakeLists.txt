@@ -14,9 +14,7 @@ add_library(${Module_Name} SHARED
         ../../Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
         ../../Common/Devices/ArtnetReceiver/ArtnetReceiver.h
         ../../Common/Devices/UdpSocket/UdpSocket.cpp
-        ../../Common/Devices/UdpSocket/UdpSocket.h
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
+        ../../Common/Devices/UdpSocket/UdpSocket.h)
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Network
@@ -24,6 +22,7 @@ target_link_libraries(${Module_Name} PRIVATE
         DataTypes
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         AppConfig
         GUIElements)
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

@@ -1,0 +1,98 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# 与 Flow PRODUCT_VERSION 一致（ConstantDefines.h）
+set(FlowSDK_VERSION "@FLOW_SDK_VERSION@")
+set(FlowSDK_VERSION_MAJOR @FLOW_SDK_VERSION_MAJOR@)
+set(FlowSDK_VERSION_MINOR @FLOW_SDK_VERSION_MINOR@)
+set(FlowSDK_VERSION_PATCH @FLOW_SDK_VERSION_PATCH@)
+
+# Qt（与宿主同 major；请使用与 Flow 匹配的 kit）
+find_dependency(Qt6 COMPONENTS Core Gui Widgets Network)
+
+get_filename_component(_FLOW_SDK_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+set(FlowSDK_ROOT "${_FLOW_SDK_ROOT}")
+
+# ---------------------------------------------------------------------------
+# 预编译第三方：QtNodes
+# ---------------------------------------------------------------------------
+if(NOT TARGET QtNodes::QtNodes)
+    add_library(QtNodes::QtNodes SHARED IMPORTED)
+    set_target_properties(QtNodes::QtNodes PROPERTIES
+        IMPORTED_IMPLIB "${_FLOW_SDK_ROOT}/lib/QtNodes.lib"
+        IMPORTED_LOCATION "${_FLOW_SDK_ROOT}/bin/QtNodes.dll"
+        INTERFACE_INCLUDE_DIRECTORIES "${_FLOW_SDK_ROOT}/include"
+        INTERFACE_COMPILE_DEFINITIONS "NODE_EDITOR_SHARED"
+    )
+endif()
+
+# ---------------------------------------------------------------------------
+# 预编译第三方：QtTimeLine（BaseClass / Clip 需要）
+# ---------------------------------------------------------------------------
+if(NOT TARGET QtTimeLine::QtTimeLine)
+    add_library(QtTimeLine::QtTimeLine SHARED IMPORTED)
+    set_target_properties(QtTimeLine::QtTimeLine PROPERTIES
+        IMPORTED_IMPLIB "${_FLOW_SDK_ROOT}/lib/QtTimeLine.lib"
+        IMPORTED_LOCATION "${_FLOW_SDK_ROOT}/bin/QtTimeLine.dll"
+        INTERFACE_INCLUDE_DIRECTORIES "${_FLOW_SDK_ROOT}/include"
+        INTERFACE_COMPILE_DEFINITIONS "NODE_TIMELINE_SHARED"
+    )
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/FlowSDKTargets.cmake")
+
+# ---------------------------------------------------------------------------
+# 便捷接口目标
+# ---------------------------------------------------------------------------
+if(NOT TARGET Flow::NodeSDK)
+    add_library(Flow::NodeSDK INTERFACE IMPORTED)
+    target_link_libraries(Flow::NodeSDK INTERFACE
+        Flow::BaseClass
+        Flow::DataTypes
+    )
+    target_compile_definitions(Flow::NodeSDK INTERFACE
+        NODE_EDITOR_SHARED
+    )
+    target_include_directories(Flow::NodeSDK INTERFACE
+        "${_FLOW_SDK_ROOT}/include"
+        "${_FLOW_SDK_ROOT}/include/DataTypes"
+        "${_FLOW_SDK_ROOT}/include/Common/Devices"
+        "${_FLOW_SDK_ROOT}/include/Common/Gui"
+    )
+endif()
+
+if(NOT TARGET Flow::ClipSDK)
+    add_library(Flow::ClipSDK INTERFACE IMPORTED)
+    target_link_libraries(Flow::ClipSDK INTERFACE
+        Flow::BaseClass
+        Flow::DataTypes
+        QtTimeLine::QtTimeLine
+    )
+    target_compile_definitions(Flow::ClipSDK INTERFACE
+        NODE_EDITOR_SHARED
+        NODE_TIMELINE_SHARED
+    )
+    target_include_directories(Flow::ClipSDK INTERFACE
+        "${_FLOW_SDK_ROOT}/include"
+        "${_FLOW_SDK_ROOT}/include/DataTypes"
+        "${_FLOW_SDK_ROOT}/include/Common/Devices"
+        "${_FLOW_SDK_ROOT}/include/Common/Gui"
+    )
+endif()
+
+# 兼容 COMPONENTS 参数（Node / Clip）
+set(FlowSDK_Node_FOUND TRUE)
+set(FlowSDK_Clip_FOUND TRUE)
+set(_FlowSDK_known_components Node Clip)
+foreach(_comp ${FlowSDK_FIND_COMPONENTS})
+    if(NOT _comp IN_LIST _FlowSDK_known_components)
+        set(FlowSDK_${_comp}_FOUND FALSE)
+        if(FlowSDK_FIND_REQUIRED_${_comp})
+            set(FlowSDK_FOUND FALSE)
+            set(FlowSDK_NOT_FOUND_MESSAGE "Unknown FlowSDK component: ${_comp}")
+        endif()
+    endif()
+endforeach()
+
+check_required_components(FlowSDK)

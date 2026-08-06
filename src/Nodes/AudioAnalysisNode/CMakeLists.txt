@@ -34,8 +34,6 @@ add_library(${Module_Name} SHARED
         AudioAnalysisWorker.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h
 
 )
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
@@ -45,6 +43,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         GUIElements
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes
         )
 

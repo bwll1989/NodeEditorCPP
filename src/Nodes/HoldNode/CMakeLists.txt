@@ -11,9 +11,7 @@ add_library(${Module_Name} SHARED
         HoldDataModel.hpp
         HoldInterface.hpp
         PluginDefinition.cpp
-        PluginDefinition.hpp
-        ../../Common/BaseClass/AbstractDelegateModel.cpp
-        ../../Common/BaseClass/AbstractDelegateModel.h)
+        PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
         Qt${QT_VERSION_MAJOR}::Network
@@ -22,6 +20,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
 
         PropertyTreeWidget
         StatusContainer
+        BaseClass
         DataTypes
 )
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)

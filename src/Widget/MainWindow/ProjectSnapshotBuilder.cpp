@@ -3,6 +3,7 @@
 //
 #include "ProjectSnapshotBuilder.hpp"
 
+#include "Common/AppConfig/ConstantDefines.h"
 #include "Common/AppConfig/ProjectPersistence.h"
 #include "Widget/CalendarWidget/ScheduledTaskModel.hpp"
 #include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
@@ -19,6 +20,7 @@
 #include <QJsonParseError>
 #include <QMessageBox>
 #include <QObject>
+#include <QDebug>
 
 #include <exception>
 
@@ -26,11 +28,12 @@
  * @brief 从各模块收集数据，组装为 .flow 项目快照 JSON
  * @param sources 数据流、时间轴、计划任务、停靠布局、网页布局等模块指针
  * @return 完整的项目 JSON 对象，供保存与自动保存使用
- * 函数级注释：各模块独立序列化后合并为单一根对象，缺失的模块对应字段可省略或为空。
+ * 函数级注释：写入 appVersion，并将各模块独立序列化后合并为单一根对象。
  */
 QJsonObject buildProjectSnapshot(const ProjectSnapshotSources& sources)
 {
     QJsonObject flowJson;
+    flowJson[QStringLiteral("appVersion")] = QStringLiteral(PRODUCT_VERSION);
     if (sources.dataflowViewsManger) {
         flowJson[QStringLiteral("DataFlow")] = sources.dataflowViewsManger->save();
     }
@@ -173,6 +176,14 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
         report(message);
         return false;
     };
+    // 检查文件版本，不符时提示
+    const QString fileVersion = root.value(QStringLiteral("appVersion")).toString();
+    const QString currentVersion = QStringLiteral(PRODUCT_VERSION);
+    if (fileVersion != currentVersion) {
+        qDebug() << "Flow file version mismatch:"
+                 << "file =" << (fileVersion.isEmpty() ? QStringLiteral("(none)") : fileVersion)
+                 << ", current =" << currentVersion;
+    }
 
     report(QObject::tr("Load the dataflow model ..."));
     if (!targets.dataflowViewsManger) {

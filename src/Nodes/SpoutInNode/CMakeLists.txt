@@ -22,9 +22,7 @@ add_library(${Module_Name}  SHARED
 		SpoutInInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
-		../../Common/BaseClass/AbstractDelegateModel.cpp
-		../../Common/BaseClass/AbstractDelegateModel.h)
-
+)
 target_link_libraries(${Module_Name}  
 		PRIVATE
 		Qt${QT_VERSION_MAJOR}::Widgets 
@@ -37,6 +35,7 @@ target_link_libraries(${Module_Name}
 		glu32     # 添加GLU32库
 		PropertyTreeWidget
 		StatusContainer
+		BaseClass
 		DataTypes
 		TimestampGenerator)
 

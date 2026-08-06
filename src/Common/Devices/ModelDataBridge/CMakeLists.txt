@@ -18,6 +18,18 @@ set(ModelDataBridge_sources
 
 add_library(ModelDataBridge SHARED ${ModelDataBridge_sources})
 
-target_link_libraries(ModelDataBridge PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Gui Qt${QT_VERSION_MAJOR}::Widgets ${QtNodes_LIBRARIES} OSCTransmitter DataTypes)
+target_include_directories(ModelDataBridge PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include/Common/Devices/ModelDataBridge>
+)
 
-target_compile_definitions(ModelDataBridge PRIVATE MODELDATABRIDGE_LIBRARY -DNODE_EDITOR_SHARED)
+target_link_libraries(ModelDataBridge PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    QtNodes::QtNodes
+    OSCTransmitter
+    DataTypes
+)
+
+target_compile_definitions(ModelDataBridge PRIVATE MODELDATABRIDGE_LIBRARY NODE_EDITOR_SHARED)
