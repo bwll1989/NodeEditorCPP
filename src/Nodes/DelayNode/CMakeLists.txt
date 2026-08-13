@@ -10,6 +10,8 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         DelayDataModel.hpp
         DelayInterface.hpp
+        StepperDataModel.hpp
+        StepperInterface.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets

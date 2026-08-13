@@ -24,7 +24,7 @@
 #include <QProcess>
 #include <QThread>
 
-static bool startHttpServerWithRetry(NodeStudio::NodeHttpServer* server, int port, int waitMs)
+static bool startHttpServerWithRetry(Flow::NodeHttpServer* server, int port, int waitMs)
 {
     if (!server) {
         return false;
@@ -118,17 +118,17 @@ void MainWindowHeadLess::init()
     controller = new ExternalControler();
     emit initStatus(tr("Initialization external controler success"));
 
-    httpServer = new NodeStudio::NodeHttpServer(this);
+    httpServer = new Flow::NodeHttpServer(this);
     const int port = ConfigManager::instance().getHttpServerPort();
     if (!startHttpServerWithRetry(httpServer, port, 3000)) {
         emit initStatus(tr("HTTP Server 启动失败，端口可能被占用: %1").arg(port));
     }
-    connect(httpServer, &NodeStudio::NodeHttpServer::flowFileUploaded, this, &MainWindowHeadLess::loadFileFromPath);
+    connect(httpServer, &Flow::NodeHttpServer::flowFileUploaded, this, &MainWindowHeadLess::loadFileFromPath);
     emit initStatus(tr("Initialization Http Server success"));
 
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
         trayIcon = new QSystemTrayIcon(this);
-        trayIcon->setIcon(QIcon(":/icons/icons/NodeStudioRed.png"));
+        trayIcon->setIcon(QIcon(":/icons/icons/FlowRed.png"));
         trayMenu = new QMenu(this);
         trayExitAction = trayMenu->addAction(tr("  退出  "));
         connect(trayExitAction, &QAction::triggered, this, []() {

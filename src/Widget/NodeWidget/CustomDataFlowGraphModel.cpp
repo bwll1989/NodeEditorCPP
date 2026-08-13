@@ -374,6 +374,9 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
         case NodeRole::ModelAlias:
             result= modelAlias();
             break;
+        case NodeRole::Muted:
+            result = (_mutedNodes.find(nodeId) != _mutedNodes.end());
+            break;
         default:
             break;
     }
@@ -384,16 +387,17 @@ QVariant CustomDataFlowGraphModel::nodeData(NodeId nodeId, NodeRole role) const
 NodeFlags CustomDataFlowGraphModel::nodeFlags(NodeId nodeId) const
 {
     auto it = _models.find(nodeId);
-    auto basicFlags = AbstractGraphModel::nodeFlags(nodeId);
+    NodeFlags flags = AbstractGraphModel::nodeFlags(nodeId);
     if (_nodesLocked) {
-        basicFlags |= NodeFlag::Locked;
-
-        return basicFlags;
+        flags |= NodeFlag::Locked;
+    } else if (it != _models.end() && it->second->widgetEmbeddable() && it->second->resizable()) {
+        flags |= NodeFlag::Resizable;
     }
-    if (it != _models.end() && it->second->widgetEmbeddable() && it->second->resizable())
-        return NodeFlag::Resizable;
 
-    return NodeFlag::NoFlags;
+    if (_mutedNodes.find(nodeId) != _mutedNodes.end())
+        flags |= NodeFlag::Muted;
+
+    return flags;
 }
 
 bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVariant value)
@@ -533,6 +537,45 @@ bool CustomDataFlowGraphModel::setNodeData(NodeId nodeId, NodeRole role, QVarian
             auto &model = it->second;
             model->setParentAlias(this->modelAlias());
         }
+            break;
+        case NodeRole::Muted: {
+            if (!nodeExists(nodeId))
+                break;
+
+            // Accept bool, or map: { "muted": bool, "sync": bool }.
+            // sync=true with muted=false => Unmute Input & Sync (pull all upstream ports).
+            bool muted = false;
+            bool sync = false;
+            if (value.canConvert<QVariantMap>()) {
+                QVariantMap const map = value.toMap();
+                muted = map.value(QStringLiteral("muted")).toBool();
+                sync = map.value(QStringLiteral("sync")).toBool();
+            } else {
+                muted = value.toBool();
+            }
+
+            bool const wasMuted = _mutedNodes.find(nodeId) != _mutedNodes.end();
+            if (muted == wasMuted) {
+                // Already unmuted: Sync alone can still refresh inputs.
+                if (!muted && sync) {
+                    pullCurrentInputs(nodeId);
+                    result = true;
+                }
+                break;
+            }
+
+            if (muted) {
+                _mutedNodes.insert(nodeId);
+            } else {
+                _mutedNodes.erase(nodeId);
+                if (sync)
+                    pullCurrentInputs(nodeId);
+            }
+
+            Q_EMIT nodeFlagsUpdated(nodeId);
+            Q_EMIT nodeUpdated(nodeId);
+            result = true;
+        } break;
         default:
             break;
     }
@@ -600,6 +643,10 @@ bool CustomDataFlowGraphModel::setPortData(
     switch (role) {
         case PortRole::Data:
             if (portType == PortType::In) {
+                // Mute Input: ignore incoming data, preserve current state.
+                if (_mutedNodes.find(nodeId) != _mutedNodes.end())
+                    return false;
+
                 auto data = value.value<std::shared_ptr<NodeData>>();
                 if (data) {
                     const QString inTypeId = model->dataType(PortType::In, portIndex).id;
@@ -675,6 +722,7 @@ bool CustomDataFlowGraphModel::deleteNode(NodeId const nodeId)
     }
 
     _nodeGeometryData.erase(nodeId);
+    _mutedNodes.erase(nodeId);
     _models.erase(nodeId);
 
     Q_EMIT nodeDeleted(nodeId);
@@ -718,6 +766,7 @@ QJsonObject CustomDataFlowGraphModel::saveNode(NodeId const nodeId) const
     nodeJson["input-count"] = nodeData(nodeId, NodeRole::InPortCount).toInt();
     nodeJson["output-count"] = nodeData(nodeId, NodeRole::OutPortCount).toInt();
     nodeJson["port-editable"] = nodeData(nodeId, NodeRole::PortEditable).toBool();
+    nodeJson["muted"] = (_mutedNodes.find(nodeId) != _mutedNodes.end());
     nodeJson["title-color"] = _models.at(nodeId)->nodeStyle().TitleColor.name(QColor::HexRgb);
 
     {
@@ -786,6 +835,8 @@ bool CustomDataFlowGraphModel::applySnapshotNodes(const QJsonArray &nodesJson)
 
         const QJsonObject internalData = nodeJson.value(QStringLiteral("internal-data")).toObject();
         it->second->load(internalData);
+
+        setNodeData(nodeId, NodeRole::Muted, nodeJson.value(QStringLiteral("muted")).toBool());
 
         const unsigned int outCount = it->second->nPorts(PortType::Out);
         for (PortIndex portIndex = 0; portIndex < outCount; ++portIndex) {
@@ -896,6 +947,12 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
         }
         _models[restoredNodeId]->load(internalDataJson);
 
+        // Apply mute after load so subsequent connection restores skip setInData.
+        if (nodeJson.value(QStringLiteral("muted")).toBool()) {
+            _mutedNodes.insert(restoredNodeId);
+            Q_EMIT nodeFlagsUpdated(restoredNodeId);
+        }
+
         if (auto derived = dynamic_cast<AbstractDelegateModel*>(_models[restoredNodeId].get())) {
             derived->onModelReady();
         }
@@ -925,6 +982,7 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
 
     _groups.clear();
     _connectivity.clear();
+    _mutedNodes.clear();
 
     const auto emitProgress = [this](const QString& phase, int current, int total) {
         if (current == 0 || current == total || (current % 20) == 0) {
@@ -1012,6 +1070,21 @@ void CustomDataFlowGraphModel::propagateEmptyDataTo(NodeId const nodeId, PortInd
     QVariant emptyData{};
 
     setPortData(nodeId, PortType::In, portIndex, emptyData, PortRole::Data);
+}
+
+void CustomDataFlowGraphModel::pullCurrentInputs(NodeId const nodeId)
+{
+    unsigned int const inCount = nodeData(nodeId, NodeRole::InPortCount).toUInt();
+    for (PortIndex portIndex = 0; portIndex < inCount; ++portIndex) {
+        auto const connected = connections(nodeId, PortType::In, portIndex);
+        for (auto const &cid : connected) {
+            QVariant const upstream = portData(cid.outNodeId,
+                                               PortType::Out,
+                                               cid.outPortIndex,
+                                               PortRole::Data);
+            setPortData(nodeId, PortType::In, portIndex, upstream, PortRole::Data);
+        }
+    }
 }
 
 bool CustomDataFlowGraphModel::detachPossible(ConnectionId const) const  { return _detachPossible; }

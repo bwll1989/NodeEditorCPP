@@ -37,10 +37,11 @@ set(ALL_NODES
     OscOutNode                                #OSC输出
     ArtnetInNode                              #Arnet输入
     MpvControllerNode                         #mpv控制
+    PingNode                                  #ICMP ping 连通性
     VLC_RemoteNode                            #VLC远程控制
     SPlayControllerNode                       #ENTTEC S-Play 多 playlist 控制
     SwitchNode                                #输入切换
-    NDVServerNode                             #NDV控制
+#    NDVServerNode                             #NDV控制
     ConditionNode                             #条件判断
     WebSocketServerNode                       #WebSocket服务器
     WebSocketClientNode                       #WebSocket客户端
@@ -147,10 +148,11 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(OscOutNode)                                #OSC输出
     add_subdirectory(ArtnetInNode)                              #Arnet输入
     add_subdirectory(MpvControllerNode)                         #mpv控制
+    add_subdirectory(PingNode)                                  #ICMP ping 连通性
     add_subdirectory(VLC_RemoteNode)                            #VLC远程控制
     add_subdirectory(SPlayControllerNode)                       #ENTTEC S-Play 多 playlist 控制
     add_subdirectory(SwitchNode)                                #输入切换
-    add_subdirectory(NDVServerNode)                            #NDV控制
+#    add_subdirectory(NDVServerNode)                            #NDV控制
     add_subdirectory(ConditionNode)                             #条件判断
     add_subdirectory(WebSocketServerNode)                       #WebSocket服务器
     add_subdirectory(WebSocketClientNode)                       #WebSocket客户端

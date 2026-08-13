@@ -80,12 +80,12 @@
     <file>icons/unknown.png</file>
     <file>icons/options.png</file>
     <file>icons/explore.png</file>
-    <file>icons/NodeStudio.svg</file>
-    <file>icons/NodeStudio.png</file>
-    <file>icons/NodeStudioBlue.png</file>
-    <file>icons/NodeStudioOrange.png</file>
-    <file>icons/NodeStudioPurple.png</file>
-    <file>icons/NodeStudioRed.png</file>
+    <file>icons/Flow.svg</file>
+    <file>icons/Flow.png</file>
+    <file>icons/FlowBlue.png</file>
+    <file>icons/FlowOrange.png</file>
+    <file>icons/FlowPurple.png</file>
+    <file>icons/FlowRed.png</file>
     <file>icons/search.png</file>
     <file>icons/curve.png</file>
     <file>icons/export.png</file>

@@ -20,7 +20,7 @@
 #include "Poco/Net/HTTPResponse.h"
 #include "StatusContainer/StatusItem.h"
 
-namespace NodeStudio {
+namespace Flow {
 
     class NodeHttpServer; // Forward declaration
 

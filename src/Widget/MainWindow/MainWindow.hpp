@@ -13,7 +13,7 @@
 #include "DockHub/DockHub.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/MenuBarWidget/MenuBarWidget.h"
-#include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
+// #include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
 #include "Widget/TimeLineWidget/TimeLineWidget.hpp"
 #include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "Widget/TimeLineWidget/TimeLineModel.h"
@@ -76,7 +76,7 @@ public:
     //节点视图
     DataflowViewsManger *dataflowViewsManger=nullptr;
     // http 服务器
-    NodeStudio::NodeHttpServer *httpServer=nullptr;
+    Flow::NodeHttpServer *httpServer=nullptr;
 Q_SIGNALS:
     //初始化状态信号
     void initStatus(const QString &message);

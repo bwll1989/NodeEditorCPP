@@ -13,7 +13,7 @@ class ScheduledTaskModel;
 class TimelineWidget;
 class TimeLineModel;
 namespace ads { class CDockManager; }
-namespace NodeStudio { class NodeHttpServer; }
+namespace Flow { class NodeHttpServer; }
 
 /**
  * @brief 构建项目快照所需的各模块指针
@@ -24,7 +24,7 @@ struct ProjectSnapshotSources {
     ScheduledTaskWidget* scheduledTaskWidget = nullptr;
     ScheduledTaskModel* scheduledTaskModel = nullptr;
     ads::CDockManager* dockManager = nullptr;
-    NodeStudio::NodeHttpServer* httpServer = nullptr;
+    Flow::NodeHttpServer* httpServer = nullptr;
 };
 
 /** @brief 从各模块收集 DataFlow / TimeLine / 布局等，组装为 .flow JSON */
@@ -42,7 +42,7 @@ struct ProjectLoadTargets {
     ScheduledTaskWidget* scheduledTaskWidget = nullptr;
     ScheduledTaskModel* scheduledTaskModel = nullptr;
     ads::CDockManager* dockManager = nullptr;
-    NodeStudio::NodeHttpServer* httpServer = nullptr;
+    Flow::NodeHttpServer* httpServer = nullptr;
 };
 
 /**

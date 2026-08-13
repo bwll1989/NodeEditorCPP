@@ -37,7 +37,7 @@ using namespace ads;
  * @return true 启动成功；false 启动失败
  * 函数级注释：用于解决“重启切换项目后端口尚未完全释放”导致网页不可访问的问题。
  */
-static bool startHttpServerWithRetry(NodeStudio::NodeHttpServer* server, int port, int waitMs)
+static bool startHttpServerWithRetry(Flow::NodeHttpServer* server, int port, int waitMs)
 {
     if (!server) return false;
     const int step = 200;
@@ -50,13 +50,13 @@ static bool startHttpServerWithRetry(NodeStudio::NodeHttpServer* server, int por
     return false;
 }
 
-/** @brief 获取应用图标（优先 QApplication，回退到 NodeStudio 资源） */
+/** @brief 获取应用图标（优先 QApplication，回退到 Flow 资源） */
 static QIcon applicationIcon()
 {
     if (!QApplication::windowIcon().isNull()) {
         return QApplication::windowIcon();
     }
-    return QIcon(QStringLiteral(":/icons/icons/NodeStudio.png"));
+    return QIcon(QStringLiteral(":/icons/icons/Flow.png"));
 }
 
 /**
@@ -257,9 +257,9 @@ void MainWindow::init()
 
     emit initStatus("Initialization external controler success");
 	 // http 服务器
-    httpServer=new NodeStudio::NodeHttpServer();
+    httpServer=new Flow::NodeHttpServer();
     //http服务器文件上传后，直接打开（若已加载过项目，则自动走重启打开）
-    connect(httpServer, &NodeStudio::NodeHttpServer::flowFileUploaded, this, &MainWindow::loadFileFromPath);
+    connect(httpServer, &Flow::NodeHttpServer::flowFileUploaded, this, &MainWindow::loadFileFromPath);
     const int port = ConfigManager::instance().getHttpServerPort();
     if (!startHttpServerWithRetry(httpServer, port, 3000)) {
         emit initStatus(tr("HTTP Server 启动失败，端口可能被占用: %1").arg(port));
@@ -300,8 +300,8 @@ void MainWindow::init()
 
      if (QSystemTrayIcon::isSystemTrayAvailable()) {
         trayIcon = new QSystemTrayIcon(this);
-        trayIcon->setIcon(QIcon(":/icons/icons/NodeStudio.png"));
-        trayIcon->setToolTip(tr("NodeStudio"));
+        trayIcon->setIcon(QIcon(":/icons/icons/Flow.png"));
+        trayIcon->setToolTip(tr("Flow"));
         // 托盘菜单
         trayMenu = new QMenu(this);
         trayMenu->setWindowFlags(trayMenu->windowFlags() | Qt::NoDropShadowWindowHint);

@@ -15,7 +15,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "延时"
+#define PLUGIN_DESCRIBE "延时 / 步进"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject

@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
     QApplication app(argc, argv);
     app.setApplicationName(AppConstants::PRODUCT_NAME);
     // 应用级图标：任务栏、标题栏左上角、系统托盘等共用
-    app.setWindowIcon(QIcon(QStringLiteral(":/icons/icons/NodeStudio.png")));
+    app.setWindowIcon(QIcon(QStringLiteral(":/icons/icons/Flow.png")));
     // ImageGpuUpload 不在启动时 warmup：首次创建 OpenGL 上下文会拉起约百兆级 GPU 驱动工作集。
     // 各图像节点构造 / upload/runGl 时会经 ensureContext() 懒创建，空工程无需提前付费。
     // 设置工作目录为可执行文件所在目录

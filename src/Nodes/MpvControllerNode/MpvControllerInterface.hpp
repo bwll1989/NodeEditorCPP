@@ -2,13 +2,14 @@
  * @file MpvControllerInterface.hpp
  * @brief MPV Controller 嵌入式界面（布局对齐 SlideShow / VLC Remote）
  *
- * Base URL → Index/播放/停止 → 连接与状态 → 媒体列表。
+ * Base URL → Index/播放/停止/循环 → 连接与状态 → 媒体列表。
  */
 #pragma once
 
 #include <QWidget>
 #include <QLabel>
 #include <QPushButton>
+#include <QCheckBox>
 #include <QLineEdit>
 #include <QSpinBox>
 #include <QListWidget>
@@ -49,6 +50,10 @@ namespace Nodes
             stopButton->setText(QStringLiteral("停止"));
             stopButton->setToolTip(QStringLiteral("停止当前播放（不影响 Index）"));
 
+            loopCheckBox->setText(QStringLiteral("循环"));
+            loopCheckBox->setChecked(false);
+            loopCheckBox->setToolTip(QStringLiteral("单文件循环（file）；关闭为 off"));
+
             connectionLabel->setFlat(true);
             connectionLabel->setCheckable(true);
             connectionLabel->setEnabled(false);
@@ -68,6 +73,7 @@ namespace Nodes
             actionLayout->setSpacing(8);
             actionLayout->addWidget(playButton, 1);
             actionLayout->addWidget(stopButton, 1);
+            actionLayout->addWidget(loopCheckBox);
             layout->addWidget(actionRow);
 
             layout->addWidget(connectionLabel);
@@ -95,6 +101,7 @@ namespace Nodes
         QSpinBox *indexSpinBox = new QSpinBox();
         QPushButton *playButton = new QPushButton();
         QPushButton *stopButton = new QPushButton();
+        QCheckBox *loopCheckBox = new QCheckBox();
         QPushButton *connectionLabel = new QPushButton();
         QLabel *statusLabel = new QLabel();
         QListWidget *mediaListWidget = new QListWidget();

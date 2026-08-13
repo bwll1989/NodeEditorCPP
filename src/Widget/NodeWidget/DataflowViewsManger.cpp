@@ -11,6 +11,9 @@
 #include <QJsonArray>
 #include <QSignalBlocker>
 #include "DockWidget.h"
+// #include "Nodes/TimeLineNode/NodeTimeSync.hpp"
+#include <QTimer>
+
 #include "QtNodes/internal/PluginsManager.hpp"
 
 using namespace QtNodes;
@@ -177,6 +180,10 @@ void DataflowViewsManger::createSceneUi(const QString& title)
         e->setText(model.getNodesLocked()?QObject::tr("Unlock Dataflow"):QObject::tr("Lock Dataflow"));
 
     });
+    // Search Node 快捷键已在 GraphicsView::setScene 中注册；此处仅提供菜单入口
+    auto searchAction = OptionsMenu->addAction(QIcon(":/icons/icons/search.png"),
+                                               QObject::tr("Search Node"));
+    QObject::connect(searchAction, &QAction::triggered, scene, &CustomFlowGraphicsScene::showSearchNodeBar);
 
       // 安全添加到区域：优先使用当前聚焦区域，其次回退到中心区域
     if (m_DockManager && m_DockManager->focusedDockWidget() && m_DockManager->focusedDockWidget()->dockAreaWidget()) {
@@ -414,6 +421,16 @@ void DataflowViewsManger::focusedSceneTitle()
     }
     for (const auto& kv : _DockWidget) {
         if (kv.second == focused) {
+            // 切页时键盘焦点常停在标签栏，View 上的 WidgetWithChildrenShortcut（如 Ctrl+F）会失效；
+            // 延迟一帧再 setFocus，避免与 Dock 焦点切换过程冲突。
+            if (auto *view = qobject_cast<CustomGraphicsView *>(focused->widget())) {
+                QPointer<CustomGraphicsView> viewPtr(view);
+                QTimer::singleShot(0, view, [viewPtr]() {
+                    if (viewPtr) {
+                        viewPtr->setFocus(Qt::OtherFocusReason);
+                    }
+                });
+            }
             emit sceneIsActive(kv.first);
             return;
         }

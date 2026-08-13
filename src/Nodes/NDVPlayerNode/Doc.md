@@ -2,40 +2,39 @@
 
 ## 1. 节点说明
 
-**NDV 播放器控制端**：选择文件索引与目标播放器 ID，生成播放/停止/循环/上一首/下一首等指令，供 **NDV Server** 转发到 NDV 设备；并输出当前播放器状态。
+按 **Player ID** 通过全局 **NDVController**（TCP `0.0.0.0:9008`）控制对应 NDV 客户端。界面显示连接状态与设备 IP；仅输出是否已停止（不解析播放进度）。
 
-## 2. 端口说明
+## 2. 端口
 
-### 输入
+**输入（4）：** INDEX / PLAY / STOP / LOOP  
+**输出（1）：** STOPPED
 
-| 端口 | 类型 | 说明 |
-|------|------|------|
-| INDEX | VariableData | 文件索引（整数） |
-| PLAY | VariableData | `true` 播放，`false` 停止 |
-| STOP | VariableData | `true` 时停止 |
-| LOOP | VariableData | `true` 时循环播放当前索引 |
+| 端口 | 行为 |
+|------|------|
+| INDEX | 文件索引 |
+| PLAY | `true` 播放，`false` 停止 |
+| STOP | `true` 停止 |
+| LOOP | `true` 循环播放当前索引 |
+| STOPPED | `true`：在线且未在播放；`false`：正在播放（发 play/loop 后乐观置位，或收到停播回包 `20`） |
 
-### 输出
+## 3. 界面
 
-| 端口 | 类型 | 说明 |
-|------|------|------|
-| COMMAND | VariableData | 发往 NDV Server 的指令（`type`、`fileIndex`、`targetId` 等） |
-| STATUS | VariableData | `playerId`、`currentFile`、`state`、`lastUpdate` |
+- Player ID / File Index
+- 连接状态（Button，可拖拽绑定）
+- Host / IP（Button，可拖拽绑定）
+- Play / Loop Play / Stop
 
-## 3. 界面说明
-
-- **文件索引 / 播放器 ID**：目标素材与设备编号。
-- **播放、停止、循环、上一首、下一首**：生成对应 COMMAND。
-
-外部控制：`/index`、`/playerID`、`/play`、`/stop`、`/loop`、`/next`、`/prev`。
+外部控制：`/index`、`/playerID`、`/play`、`/stop`、`/loop`。  
+只读反馈：`connected` / `/connected`，`host` / `/host`。
 
 ## 4. 使用说明
 
-1. 设置播放器 ID 与文件索引。
-2. COMMAND 接到 **NDV Server** 的 PLAYER 输入。
-3. 可用输入端口远程触发，或点界面按钮。
-4. STATUS 可显示当前状态（Playing / Stopped 等）。
-
-## 5. 示例
-
-Inject 设置 INDEX=3 → PLAY 触发 → COMMAND → NDV Server → 指定 ID 的客户端播放第 3 号文件。
+1. 拖入 NDV Player，设置 Player ID（与 NDV 握手 ID 一致）。
+2. NDV 客户端连接本机 9008，握手成功后显示在线与 IP。
+3. 设备 ID 绑定在对应 TCP 连接上。
+4. 播放/停止状态来源：
+   - 本软件发 play/loop/stop 时乐观更新
+   - 设备回包 `0E`：视为在播（不解析进度数值，状态不变则不刷 UI）
+   - 设备回包 `20`：视为停播
+   - 在播后约 0.8s 无 `0E`：视为停播
+5. 多个 Player 共享同一个 NDVController。

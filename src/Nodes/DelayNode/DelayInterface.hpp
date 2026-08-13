@@ -61,6 +61,16 @@ namespace Nodes
             progressBar->setFormat("空闲");
         }
 
+        // 函数级注释：自定义进度条文案（Sequencer 用「步骤 i/n」等）。
+        void setProgressStatus(const QString &text, int percent = 0)
+        {
+            if (!progressBar) {
+                return;
+            }
+            progressBar->setFormat(text);
+            progressBar->setValue(std::max(0, std::min(100, percent)));
+        }
+
     public:
         QGridLayout *main_layout=new QGridLayout(this);
         DelayMessageListWidget *delay_message_list_widget=new DelayMessageListWidget(this);

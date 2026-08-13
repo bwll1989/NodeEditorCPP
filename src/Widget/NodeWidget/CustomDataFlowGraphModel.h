@@ -298,6 +298,9 @@ private:
      */
     void propagateEmptyDataTo(NodeId const nodeId, PortIndex const portIndex);
 
+    /// Pull current upstream data into all In ports (used by Unmute Input & Sync).
+    void pullCurrentInputs(NodeId const nodeId);
+
 
 private:
     //注册节点模型
@@ -320,6 +323,9 @@ private:
     std::unordered_set<ConnectionId> _connectivity;
 
     std::unordered_set<GroupId> _groups;
+
+    /// Mute Input: nodes that skip setInData while muted
+    std::unordered_set<NodeId> _mutedNodes;
 
     mutable std::unordered_map<NodeId, NodeGeometryData> _nodeGeometryData;
     };

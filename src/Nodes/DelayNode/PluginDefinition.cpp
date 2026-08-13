@@ -1,6 +1,7 @@
 #include "PluginDefinition.hpp"
 
 #include "DelayDataModel.hpp"
+#include "StepperDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +19,6 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::DelayDataModel>(name(),tag());
+    reg->registerModel<Nodes::DelayDataModel>(name(), tag());
+    reg->registerModel<Nodes::StepperDataModel>(QStringLiteral("Stepper"), tag());
 }

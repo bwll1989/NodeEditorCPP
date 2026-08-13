@@ -16,7 +16,7 @@
     "ShadowColor": [255, 20, 20],
     "ShadowEnabled":false,
     "FontColor" : [26, 26, 26],
-    "FontColorFaded" : "gray",
+    "FontColorFaded" : [150, 150, 150],
     "TitleColor": [180, 200, 80],
     "ConnectionPointColor": [169, 169, 169],
     "FilledConnectionPointColor": "cyan",
@@ -64,7 +64,7 @@
     "BoundaryRadius" : 6,
     "GradientColor0": "gray",
     "CaptionHeight": 30.0,
-    "CollapsedHeight": 100.0,
+    "CollapsedHeight": 150.0,
     "GradientColor1": [80, 80, 80],
     "GradientColor2": [64, 64, 64],
     "GradientColor3": [58, 58, 58]

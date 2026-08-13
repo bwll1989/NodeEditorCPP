@@ -2,10 +2,10 @@
 
 本地 REST API，由 mpv 内置脚本 `portable_config/scripts/media-api.lua` 提供。
 
-- **Base URL**：`http://127.0.0.1:8995`
+- **Base URL**：`http://127.0.0.1:8080`
 - **API 前缀**：`/api/v1`
-- **验证网页**：`http://127.0.0.1:8995/`
-- **默认监听**：仅本机 `127.0.0.1:8995`（可在 `portable_config/script-opts/media-api.conf` 修改）
+- **验证网页**：`http://127.0.0.1:8080/`
+- **默认监听**：仅本机 `127.0.0.1:8080`（可在 `portable_config/script-opts/media-api.conf` 修改）
 
 ---
 
@@ -115,7 +115,7 @@
   "ok": true,
   "data": {
     "service": "mpv-media-api",
-    "version": "1",
+    "version": "1.0.4",
     "idle": true
   },
   "error": null
@@ -203,12 +203,7 @@
   "data": {
     "deleted": true,
     "id": "demo.mp4",
-    "library": {
-      "root": "C:/Users/.../mpv-media-console/medias",
-      "scanned_at": 1721640000,
-      "count": 1,
-      "items": []
-    }
+    "count": 1
   },
   "error": null
 }
@@ -225,7 +220,7 @@
 - 文件名从 `Content-Disposition` 读取
 
 ```bash
-curl -F "file=@demo.mp4" http://127.0.0.1:8995/api/v1/library/upload
+curl -F "file=@demo.mp4" http://127.0.0.1:8080/api/v1/library/upload
 ```
 
 #### 方式 B：原始二进制
@@ -234,7 +229,7 @@ curl -F "file=@demo.mp4" http://127.0.0.1:8995/api/v1/library/upload
 - 通过 Query `filename=` 或请求头 `X-Filename` 指定文件名
 
 ```bash
-curl -X POST "http://127.0.0.1:8995/api/v1/library/upload?filename=demo.mp4" \
+curl -X POST "http://127.0.0.1:8080/api/v1/library/upload?filename=demo.mp4" \
   -H "Content-Type: application/octet-stream" \
   --data-binary @demo.mp4
 ```
@@ -256,17 +251,15 @@ curl -X POST "http://127.0.0.1:8995/api/v1/library/upload?filename=demo.mp4" \
     "id": "demo.mp4",
     "name": "demo.mp4",
     "path": "D:/.../medias/demo.mp4",
-    "size": 12345678,
-    "library": {
-      "root": "D:/.../medias",
-      "scanned_at": 1721640000,
-      "count": 2,
-      "items": []
-    }
+    "size": "11.8 MB",
+    "kind": "video",
+    "count": 2
   },
   "error": null
 }
 ```
+
+上传成功后响应不再嵌入完整 `library.items`（避免媒体库很大时响应超时）；前端可另行调用 `GET /api/v1/library` 刷新列表。
 
 ---
 
@@ -282,14 +275,24 @@ curl -X POST "http://127.0.0.1:8995/api/v1/library/upload?filename=demo.mp4" \
   "media": {
     "id": "demo.mp4",
     "name": "demo.mp4",
-    "path": "D:/.../medias/demo.mp4"
+    "path": "D:/.../medias/demo.mp4",
+    "kind": "video"
   },
   "time_pos": 12.3,
   "duration": 120.0,
   "pause": false,
   "fullscreen": true,
   "volume": 80,
-  "mute": false
+  "mute": false,
+  "props": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 29.97,
+    "video_format": "h264",
+    "audio_format": "aac",
+    "hwdec": "d3d11va",
+    "video_bitrate": 4500000
+  }
 }
 ```
 
@@ -303,6 +306,13 @@ curl -X POST "http://127.0.0.1:8995/api/v1/library/upload?filename=demo.mp4" \
 | `fullscreen` | boolean | 是否全屏 |
 | `volume` | number | 音量 `0–100` |
 | `mute` | boolean | 是否静音 |
+| `props` | object | 当前媒体技术属性（分辨率、帧率、编码等；空闲时为 `{}`） |
+| `props.width` / `props.height` | number | 画面宽高 |
+| `props.fps` | number | 帧率 |
+| `props.video_format` | string | 视频编码（如 `h264`） |
+| `props.audio_format` | string | 音频编码 |
+| `props.hwdec` | string | 当前硬解 |
+| `props.video_bitrate` | number | 视频码率（bps） |
 
 ### `GET /api/v1/playback`
 
@@ -509,37 +519,37 @@ stop_position=first
 
 ```bash
 # 健康检查
-curl http://127.0.0.1:8995/api/v1/health
+curl http://127.0.0.1:8080/api/v1/health
 
 # 媒体列表
-curl http://127.0.0.1:8995/api/v1/library
+curl http://127.0.0.1:8080/api/v1/library
 
 # 播放
-curl -X POST http://127.0.0.1:8995/api/v1/playback/play ^
+curl -X POST http://127.0.0.1:8080/api/v1/playback/play ^
   -H "Content-Type: application/json" ^
   -d "{\"id\":\"demo.mp4\"}"
 
 # 暂停切换
-curl -X POST http://127.0.0.1:8995/api/v1/playback/pause ^
+curl -X POST http://127.0.0.1:8080/api/v1/playback/pause ^
   -H "Content-Type: application/json" ^
   -d "{}"
 
 # 跳到 30%
-curl -X POST http://127.0.0.1:8995/api/v1/playback/seek ^
+curl -X POST http://127.0.0.1:8080/api/v1/playback/seek ^
   -H "Content-Type: application/json" ^
   -d "{\"percent\":30}"
 
 # 音量
-curl -X POST http://127.0.0.1:8995/api/v1/playback/volume ^
+curl -X POST http://127.0.0.1:8080/api/v1/playback/volume ^
   -H "Content-Type: application/json" ^
   -d "{\"volume\":50}"
 
 # 停止
-curl -X POST http://127.0.0.1:8995/api/v1/playback/stop
+curl -X POST http://127.0.0.1:8080/api/v1/playback/stop
 
 # 上传
-curl -F "file=@demo.mp4" http://127.0.0.1:8995/api/v1/library/upload
+curl -F "file=@demo.mp4" http://127.0.0.1:8080/api/v1/library/upload
 
 # 重启
-curl -X POST http://127.0.0.1:8995/api/v1/system/restart
+curl -X POST http://127.0.0.1:8080/api/v1/system/restart
 ```

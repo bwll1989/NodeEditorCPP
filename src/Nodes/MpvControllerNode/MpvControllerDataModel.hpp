@@ -11,8 +11,9 @@
  * - INDEX 端口 → 整数排序号，同步 Index 并播放
  * - 双击列表项 → 按该项切换，不改 Index 控件
  * - STOP 端口 / 「停止」 / OSC /stop(true) → 停止播放，不改 Index
+ * - LOOP 端口 / 「循环」勾选 / OSC /loop → POST /api/v1/settings（file / off）
  *
- * 端口：PLAY / INDEX / STOP → DONE / CONNECTED
+ * 端口：PLAY / INDEX / STOP / LOOP → DONE / CONNECTED
  *
  * 协议见 media-api.md
  */
@@ -58,17 +59,18 @@ namespace Nodes
         static constexpr int kRoleMediaId = Qt::UserRole;
         static constexpr int kRoleIndex = Qt::UserRole + 1;
 
-        enum InputPort : PortIndex { PlayPort = 0, IndexPort = 1, StopPort = 2 };
+        enum InputPort : PortIndex { PlayPort = 0, IndexPort = 1, StopPort = 2, LoopPort = 3 };
         enum OutputPort : PortIndex { DonePort = 0, ConnectedPort = 1 };
 
         Q_PROPERTY(QString baseUrl READ baseUrl WRITE setBaseUrl NOTIFY baseUrlChanged)
         Q_PROPERTY(int index READ index WRITE setIndex NOTIFY indexChanged)
+        Q_PROPERTY(bool loop READ loop WRITE setLoop NOTIFY loopChanged)
         Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
 
     public:
         MpvControllerDataModel()
         {
-            InPortCount = 3;
+            InPortCount = 4;
             OutPortCount = 2;
             Caption = PLUGIN_NAME;
             CaptionVisible = true;
@@ -89,6 +91,7 @@ namespace Nodes
 
             m_baseUrl = widget->baseUrlEdit->text().trimmed();
             m_index = widget->indexSpinBox->value();
+            m_loop = widget->loopCheckBox->isChecked();
             widget->updateConnectionStatus(false);
 
             connectUiSignals();
@@ -103,8 +106,8 @@ namespace Nodes
         QString portCaption(PortType portType, PortIndex portIndex) const override
         {
             if (portType == PortType::In) {
-                static const char *const kIn[] = {"PLAY", "INDEX", "STOP"};
-                return (portIndex >= 0 && portIndex < 3) ? QString::fromLatin1(kIn[portIndex]) : QString();
+                static const char *const kIn[] = {"PLAY", "INDEX", "STOP", "LOOP"};
+                return (portIndex >= 0 && portIndex < 4) ? QString::fromLatin1(kIn[portIndex]) : QString();
             }
             if (portType == PortType::Out) {
                 static const char *const kOut[] = {"DONE", "CONNECTED"};
@@ -141,6 +144,8 @@ namespace Nodes
                 if (isTriggerTrue(*var)) {
                     stopPlayback();
                 }
+            } else if (portIndex == LoopPort) {
+                setLoop(isTriggerTrue(*var));
             }
         }
 
@@ -156,6 +161,7 @@ namespace Nodes
             QJsonObject values;
             values[QStringLiteral("baseUrl")] = m_baseUrl;
             values[QStringLiteral("index")] = m_index;
+            values[QStringLiteral("loop")] = m_loop;
 
             QJsonObject modelJson = NodeDelegateModel::save();
             modelJson[QStringLiteral("values")] = values;
@@ -173,12 +179,16 @@ namespace Nodes
             if (values.contains(QStringLiteral("index"))) {
                 applyIndexToControl(values.value(QStringLiteral("index")).toInt());
             }
+            if (values.contains(QStringLiteral("loop"))) {
+                applyLoopToControl(values.value(QStringLiteral("loop")).toBool(), false);
+            }
         }
 
         QWidget *embeddedWidget() override { return widget; }
 
         QString baseUrl() const { return m_baseUrl; }
         int index() const { return m_index; }
+        bool loop() const { return m_loop; }
         bool connected() const { return m_connected; }
 
         void setBaseUrl(const QString &url)
@@ -206,16 +216,22 @@ namespace Nodes
             playByIndex(index, true);
         }
 
+        void setLoop(bool loop)
+        {
+            applyLoopToControl(loop, true);
+        }
+
     Q_SIGNALS:
         void baseUrlChanged(const QString &url);
         void indexChanged(int index);
+        void loopChanged(bool loop);
         void connectedChanged(bool connected);
 
     protected:
         void afterModelReady() override
         {
             auto *bus = GlobalEventBus::instance();
-            for (const char *path : {"/baseUrl", "/index", "/play", "/stop"}) {
+            for (const char *path : {"/baseUrl", "/index", "/play", "/stop", "/loop"}) {
                 bus->subscribe(makeFullOscAddress(QLatin1String(path)),
                                this, SLOT(onGlobalEvent(GlobalEvent)));
             }
@@ -370,6 +386,46 @@ namespace Nodes
             AbstractDelegateModel::stateFeedBack("/stop", true);
         }
 
+        /** POST /api/v1/settings：循环 file / off */
+        void applyLoopSetting(bool loop)
+        {
+            if (m_pendingSettings) {
+                m_pendingLoopValue = loop;
+                m_resendLoop = true;
+                setStatus(QStringLiteral("Queued loop..."));
+                return;
+            }
+
+            syncParametersFromWidget();
+            const QUrl url = QUrl::fromUserInput(apiRoot() + QStringLiteral("/settings"));
+            if (!url.isValid() || url.host().isEmpty()) {
+                setStatus(QStringLiteral("Invalid URL"));
+                return;
+            }
+
+            QJsonObject body;
+            body.insert(QStringLiteral("loop"),
+                        loop ? QStringLiteral("file") : QStringLiteral("off"));
+
+            QNetworkRequest request(url);
+            request.setHeader(QNetworkRequest::ContentTypeHeader,
+                              QStringLiteral("application/json"));
+
+            QNetworkReply *reply = m_manager->post(
+                request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+            if (!reply) {
+                setStatus(QStringLiteral("请求失败"));
+                return;
+            }
+
+            reply->setProperty("op", QStringLiteral("settings"));
+            reply->setProperty("loop", loop);
+            m_pendingSettings = true;
+            m_resendLoop = false;
+            setStatus(QStringLiteral("设置循环: %1...")
+                          .arg(loop ? QStringLiteral("file") : QStringLiteral("off")));
+        }
+
         void onReplyFinished(QNetworkReply *reply)
         {
             if (!reply) {
@@ -382,6 +438,8 @@ namespace Nodes
                 handlePlayFinished(reply);
             } else if (op == QLatin1String("stop")) {
                 handleStopFinished(reply);
+            } else if (op == QLatin1String("settings")) {
+                handleSettingsFinished(reply);
             }
             reply->deleteLater();
         }
@@ -401,6 +459,8 @@ namespace Nodes
                 playByIndex(widget->indexSpinBox->value(), true);
             } else if (addr == makeFullOscAddress("/stop") && ev.payload.toBool()) {
                 stopPlayback();
+            } else if (addr == makeFullOscAddress("/loop")) {
+                setLoop(ev.payload.toBool());
             }
         }
 
@@ -425,6 +485,9 @@ namespace Nodes
             connect(widget->stopButton, &QPushButton::clicked, this, [this]() {
                 stopPlayback();
             });
+            connect(widget->loopCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
+                setLoop(checked);
+            });
             connect(widget->mediaListWidget, &QListWidget::itemDoubleClicked,
                     this, &MpvControllerDataModel::onMediaItemPlay);
         }
@@ -433,6 +496,7 @@ namespace Nodes
         {
             registerBinding("/baseUrl", "baseUrl", widget->baseUrlEdit);
             registerBinding("/index", "index", widget->indexSpinBox);
+            registerBinding("/loop", "loop", widget->loopCheckBox);
             registerBinding("/connected", "connected", widget->connectionLabel);
             registerBinding("/play", "trigger", nullptr);
             registerBinding("/stop", "trigger", nullptr);
@@ -501,6 +565,27 @@ namespace Nodes
             QSignalBlocker blocker(widget->indexSpinBox);
             if (widget->indexSpinBox->value() != index) {
                 widget->indexSpinBox->setValue(index);
+            }
+        }
+
+        /**
+         * 同步循环勾选；pushToServer 为 true 时 POST /settings
+         */
+        void applyLoopToControl(bool loop, bool pushToServer)
+        {
+            const bool changed = (m_loop != loop);
+            if (changed) {
+                m_loop = loop;
+                Q_EMIT loopChanged(m_loop);
+            }
+            {
+                QSignalBlocker blocker(widget->loopCheckBox);
+                if (widget->loopCheckBox->isChecked() != loop) {
+                    widget->loopCheckBox->setChecked(loop);
+                }
+            }
+            if (pushToServer && (changed || m_resendLoop)) {
+                applyLoopSetting(loop);
             }
         }
 
@@ -666,6 +751,36 @@ namespace Nodes
             flushQueuedControl();
         }
 
+        void handleSettingsFinished(QNetworkReply *reply)
+        {
+            m_pendingSettings = false;
+
+            bool ok = false;
+            const QJsonObject dataOrError = parseEnvelope(reply, &ok);
+            if (!ok) {
+                const QString msg = dataOrError.value(QStringLiteral("message")).toString();
+                setStatus(msg.isEmpty()
+                              ? QStringLiteral("设置循环失败")
+                              : QStringLiteral("设置循环失败: %1").arg(msg));
+            } else {
+                const QString loopStr = dataOrError.value(QStringLiteral("loop")).toString();
+                const bool serverLoop = loopStr.isEmpty()
+                    ? reply->property("loop").toBool()
+                    : (loopStr == QLatin1String("file"));
+                applyLoopToControl(serverLoop, false);
+                setStatus(QStringLiteral("循环: %1")
+                              .arg(serverLoop ? QStringLiteral("file") : QStringLiteral("off")));
+            }
+
+            if (m_resendLoop) {
+                m_resendLoop = false;
+                const bool pending = m_pendingLoopValue;
+                QTimer::singleShot(0, this, [this, pending]() {
+                    applyLoopSetting(pending);
+                });
+            }
+        }
+
         /** 播放/停止互斥排队：完成当前请求后执行最新意图 */
         void flushQueuedControl()
         {
@@ -745,14 +860,18 @@ namespace Nodes
 
         QString m_baseUrl;
         int m_index = 0;
+        bool m_loop = false;
         bool m_connected = false;
         QString m_playingMediaId;
 
         bool m_pendingLibrary = false;
         bool m_pendingPlay = false;
         bool m_pendingStop = false;
+        bool m_pendingSettings = false;
         bool m_resendPlay = false;
         bool m_resendStop = false;
+        bool m_resendLoop = false;
+        bool m_pendingLoopValue = false;
         int m_pendingIndex = -1;
         bool m_pendingUpdateIndex = true;
     };

@@ -29,7 +29,7 @@
 Q_DECLARE_METATYPE(OSCMessage)
 using namespace Poco::Net;
 using namespace Poco;
-using namespace NodeStudio;
+using namespace Flow;
 
 namespace {
 

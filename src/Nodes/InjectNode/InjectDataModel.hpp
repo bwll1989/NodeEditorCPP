@@ -36,7 +36,6 @@ namespace Nodes
             Resizable = true;
 
             m_outputData = std::make_shared<VariableData>();
-            connect(widget, &InjectInterface::listChanged, this, &InjectDataModel::onListChanged);
         }
 
         ~InjectDataModel() override = default;
@@ -56,8 +55,6 @@ namespace Nodes
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            widget->ensureRowCount(static_cast<int>(InPortCount));
-
             if (data == nullptr) {
                 return;
             }
@@ -100,18 +97,11 @@ namespace Nodes
             if (p.contains("list")) {
                 widget->importValuesArray(p["list"].toArray());
             }
-
-            widget->ensureRowCount(static_cast<int>(InPortCount));
         }
 
         QWidget *embeddedWidget() override { return widget; }
 
     private slots:
-        void onListChanged()
-        {
-            widget->ensureRowCount(static_cast<int>(InPortCount));
-        }
-
         void outDataSlot()
         {
             for (unsigned int i = 0; i < OutPortCount; ++i) {

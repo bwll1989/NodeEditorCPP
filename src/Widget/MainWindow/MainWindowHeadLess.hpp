@@ -17,7 +17,7 @@ class ScheduledTaskModel;
 class ScheduledTaskManager;
 class DataflowViewsManger;
 class CustomSplashScreen;
-namespace NodeStudio { class NodeHttpServer; }
+namespace Flow { class NodeHttpServer; }
 
 /**
  * @brief 无界面后台运行主窗口
@@ -51,7 +51,7 @@ private:
     TimeLineModel* timelineModel = nullptr;
     ScheduledTaskModel* scheduledTaskModel = nullptr;
     ScheduledTaskManager* scheduledTaskManager = nullptr;
-    NodeStudio::NodeHttpServer* httpServer = nullptr;
+    Flow::NodeHttpServer* httpServer = nullptr;
 
     LogHandler* log = nullptr;
     ExternalControler* controller = nullptr;

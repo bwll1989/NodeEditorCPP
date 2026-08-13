@@ -1,19 +1,22 @@
+/**
+ * @file NDVPlayerDataModel.hpp
+ * @brief NDV Player：按 ID 经全局 NDVController 发指令；仅输出 STOPPED
+ */
 #pragma once
 
-#include "NodeDataList.hpp"
-#include <QtNodes/NodeDelegateModel>
-#include <QtCore/QObject>
-#include <iostream>
 #include <QPushButton>
-#include <QtCore/qglobal.h>
-#include "NDVPlayerInterface.hpp"
-#include <QVariantMap>
-#include "Common/BaseClass/AbstractDelegateModel.h"
-#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include <QPointer>
 #include <QSignalBlocker>
+
+#include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/NodeDataList.hpp"
+#include "Common/Devices/NDVController/NDVController.h"
+#include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include "NDVPlayerInterface.hpp"
 
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeData;
+using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
@@ -21,411 +24,360 @@ using namespace NodeDataTypes;
 
 namespace Nodes
 {
-    /**
-     * @brief NDV播放器节点 - 抽象化NDV播放器功能
-     * 这个节点负责播放器逻辑，将指令传递给NDVControlNode
-     */
     class NDVPlayerDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
         Q_PROPERTY(int fileIndex READ getFileIndex WRITE setFileIndex NOTIFY fileIndexChanged)
         Q_PROPERTY(int playerId READ getPlayerId WRITE setPlayerId NOTIFY playerIdChanged)
+        Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+        Q_PROPERTY(QString host READ host NOTIFY hostChanged)
+
+        enum InputPort : PortIndex { IndexPort = 0, PlayPort = 1, StopPort = 2, LoopPort = 3 };
+        enum OutputPort : PortIndex { StoppedPort = 0 };
 
     public:
         NDVPlayerDataModel()
         {
-            InPortCount = 4;  // 文件索引、播放、停止、循环播放
-            OutPortCount = 2; // 指令输出、状态输出
+            InPortCount = 4;
+            OutPortCount = 1;
             CaptionVisible = true;
-            Caption = "NDV Player";
+            Caption = QStringLiteral("NDV Player");
             WidgetEmbeddable = false;
             Resizable = false;
-            
-            commandData = std::make_shared<VariableData>();
-            statusData = std::make_shared<VariableData>();
+
+            m_stoppedOutput = std::make_shared<VariableData>(QVariant(false));
+            m_controller = NDVController::getInstance();
+
             {
                 NodeDelegateModel::ExternalBinding b;
-                b.member = "play";
+                b.member = QStringLiteral("play");
                 b.control = widget->Play;
-                AbstractDelegateModel::registerExternalBinding("/play", this,b);
+                AbstractDelegateModel::registerExternalBinding("/play", this, b);
             }
-            // AbstractDelegateModel::registerExternalControl("/play",widget->Play);
-            // 注册停止按钮
             {
                 NodeDelegateModel::ExternalBinding b;
-                b.member = "stop";
+                b.member = QStringLiteral("stop");
                 b.control = widget->Stop;
-                AbstractDelegateModel::registerExternalBinding("/stop", this,b);
+                AbstractDelegateModel::registerExternalBinding("/stop", this, b);
             }
-            // AbstractDelegateModel::registerExternalControl("/stop",widget->Stop);
-            // 注册循环播放按钮
             {
                 NodeDelegateModel::ExternalBinding b;
-                b.member = "loop";
+                b.member = QStringLiteral("loop");
                 b.control = widget->LoopPlay;
-                AbstractDelegateModel::registerExternalBinding("/loop", this,b);
+                AbstractDelegateModel::registerExternalBinding("/loop", this, b);
             }
-            // AbstractDelegateModel::registerExternalControl("/loop",widget->LoopPlay);
-            // 注册下一首按钮
             {
                 NodeDelegateModel::ExternalBinding b;
-                b.member = "next";
-                b.control = widget->Next;
-                AbstractDelegateModel::registerExternalBinding("/next", this,b);
-            }
-            // AbstractDelegateModel::registerExternalControl("/next",widget->Next);
-            // 注册上一首按钮
-            {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = "prev";
-                b.control = widget->Prev;
-                AbstractDelegateModel::registerExternalBinding("/prev", this,b);
-            }
-            // AbstractDelegateModel::registerExternalControl("/prev",widget->Prev);    
-            {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = "fileIndex";
+                b.member = QStringLiteral("fileIndex");
                 b.control = widget->FileIndex;
-                AbstractDelegateModel::registerExternalBinding("/index", this,b);
+                AbstractDelegateModel::registerExternalBinding("/index", this, b);
             }
             {
                 NodeDelegateModel::ExternalBinding b;
-                b.member = "playerId";
+                b.member = QStringLiteral("playerId");
                 b.control = widget->PlayerID;
-                AbstractDelegateModel::registerExternalBinding("/playerID", this,b);
+                AbstractDelegateModel::registerExternalBinding("/playerID", this, b);
             }
-            // AbstractDelegateModel::registerExternalControl("/playerID",widget->PlayerID);
-            
-            // 初始化内部状态
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = QStringLiteral("connected");
+                b.control = widget->connectionButton;
+                AbstractDelegateModel::registerExternalBinding("/connected", this, b);
+            }
+            {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = QStringLiteral("host");
+                b.control = widget->hostButton;
+                AbstractDelegateModel::registerExternalBinding("/host", this, b);
+            }
+
             currentFileIndex = widget->FileIndex->value();
             currentPlayerId = widget->PlayerID->value();
 
-            // 连接界面按钮
-            connect(widget->Play, &QPushButton::clicked, this, [this]() {
-                sendPlayCommand();
-            });
+            connect(widget->Play, &QPushButton::clicked, this, &NDVPlayerDataModel::sendPlayCommand);
+            connect(widget->Stop, &QPushButton::clicked, this, &NDVPlayerDataModel::sendStopCommand);
+            connect(widget->LoopPlay, &QPushButton::clicked, this, &NDVPlayerDataModel::sendLoopCommand);
+            connect(widget->FileIndex, &IntDragValueWidget::valueChanged,
+                    this, &NDVPlayerDataModel::setFileIndex);
+            connect(widget->PlayerID, &IntDragValueWidget::valueChanged,
+                    this, &NDVPlayerDataModel::setPlayerId);
 
-            connect(widget->Stop, &QPushButton::clicked, this, [this]() {
-                sendStopCommand();
-            });
+            connect(m_controller, &NDVController::clientStatusChanged,
+                    this, &NDVPlayerDataModel::onClientStatusChanged);
+            connect(m_controller, &NDVController::clientListChanged,
+                    this, &NDVPlayerDataModel::refreshFromController);
 
-            connect(widget->LoopPlay, &QPushButton::clicked, this, [this]() {
-                sendLoopCommand();
-            });
-
-            connect(widget->Next, &QPushButton::clicked, this, [this]() {
-                sendNextCommand();
-            });
-
-            connect(widget->Prev, &QPushButton::clicked, this, [this]() {
-                sendPrevCommand();
-            });
-
-            // 文件索引变化时更新
-            connect(widget->FileIndex, &IntDragValueWidget::valueChanged, this, &NDVPlayerDataModel::setFileIndex);
-
-            // 播放器ID变化时更新
-            connect(widget->PlayerID, &IntDragValueWidget::valueChanged, this, &NDVPlayerDataModel::setPlayerId);
-
-            // 初始化状态
-            updateStatus();
+            refreshFromController();
         }
 
-        ~NDVPlayerDataModel() override {
-            delete widget;
-        }
-
-        QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
+        ~NDVPlayerDataModel() override
         {
-            if (portType == PortType::In) {
-                switch (portIndex) {
-                case 0:
-                    return "INDEX";    // 文件索引输入
-                case 1:
-                    return "PLAY";          // 播放触发
-                case 2:
-                    return "STOP";          // 停止触发
-                case 3:
-                    return "LOOP";          // 循环播放触发
-                default:
-                    return "";
-                }
-            } else {
-                switch (portIndex) {
-                case 0:
-                    return "COMMAND";   // 指令输出到NDVControlNode
-                case 1:
-                    return "STATUS";    // 播放器状态输出
-                default:
-                    return "";
-                }
+            GlobalEventBus::instance()->unsubscribe(this);
+
+            if (m_controller) {
+                disconnect(m_controller, nullptr, this, nullptr);
+                m_controller = nullptr;
+            }
+
+            if (widget) {
+                widget->setParent(nullptr);
+                delete widget;
             }
         }
 
-        NodeDataType dataType(PortType portType, PortIndex portIndex) const override
+        QString portCaption(PortType portType, PortIndex portIndex) const override
         {
-            Q_UNUSED(portIndex)
-            Q_UNUSED(portType)
+            if (portType == PortType::In) {
+                static const char *const kIn[] = {"INDEX", "PLAY", "STOP", "LOOP"};
+                return (portIndex >= 0 && portIndex < 4)
+                    ? QString::fromLatin1(kIn[portIndex])
+                    : QString();
+            }
+            if (portType == PortType::Out && portIndex == StoppedPort) {
+                return QStringLiteral("STOPPED");
+            }
+            return {};
+        }
+
+        NodeDataType dataType(PortType, PortIndex) const override
+        {
             return VariableData().type();
         }
 
         std::shared_ptr<NodeData> outData(PortIndex const port) override
         {
-            switch (port) {
-            case 0:
-                return commandData;  // 指令数据
-            case 1:
-                return statusData;   // 状态数据
-            default:
-                return nullptr;
+            if (port == StoppedPort) {
+                return m_stoppedOutput;
             }
+            return nullptr;
         }
 
-        /**
-         * @brief 处理输入数据
-         * @param data 输入数据
-         * @param portIndex 端口索引
-         */
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            if (data == nullptr) {
+            if (!data) {
                 return;
             }
-            
             auto variableData = std::dynamic_pointer_cast<VariableData>(data);
             if (!variableData) {
                 return;
             }
 
             switch (portIndex) {
-                case 0: // 文件索引
-                {
-                    int fileIndex = variableData->value().toInt();
-                    setFileIndex(fileIndex);
-                    break;
+            case IndexPort:
+                setFileIndex(variableData->value().toInt());
+                break;
+            case PlayPort:
+                if (variableData->value().toBool()) {
+                    sendPlayCommand();
+                } else {
+                    sendStopCommand();
                 }
-                case 1: // 播放触发
-                {
-                    if (variableData->value().toBool()) {
-                        sendPlayCommand();
-                    }else{
-                        sendStopCommand();
-                    }
-                    break;
+                break;
+            case StopPort:
+                if (variableData->value().toBool()) {
+                    sendStopCommand();
                 }
-                case 2: // 停止触发
-                {
-                    if (variableData->value().toBool()) {
-                        sendStopCommand();
-                    }
-                    break;
+                break;
+            case LoopPort:
+                if (variableData->value().toBool()) {
+                    sendLoopCommand();
                 }
-                case 3: // 循环播放触发
-                {
-                    if (variableData->value().toBool()) {
-                        sendLoopCommand();
-                    }
-                    break;
-                }
+                break;
+            default:
+                break;
             }
         }
 
         QJsonObject save() const override
         {
-            QJsonObject modelJson1;
-            modelJson1["FileIndex"] = currentFileIndex;
-            modelJson1["PlayerID"] = currentPlayerId;
+            QJsonObject settings;
+            settings[QStringLiteral("FileIndex")] = currentFileIndex;
+            settings[QStringLiteral("PlayerID")] = currentPlayerId;
             QJsonObject modelJson = NodeDelegateModel::save();
-            modelJson["PlayerSettings"] = modelJson1;
+            modelJson[QStringLiteral("PlayerSettings")] = settings;
             return modelJson;
         }
 
         void load(const QJsonObject &p) override
         {
-            QJsonValue v = p["PlayerSettings"];
-            if (!v.isUndefined() && v.isObject()) {
-                if (v.toObject().contains("FileIndex"))
-                    setFileIndex(v.toObject()["FileIndex"].toInt());
-                if (v.toObject().contains("PlayerID"))
-                    setPlayerId(v.toObject()["PlayerID"].toInt());
-                
-                NodeDelegateModel::load(p);
+            const QJsonValue v = p.value(QStringLiteral("PlayerSettings"));
+            if (!v.isObject()) {
+                return;
             }
-        }
-
-        QWidget *embeddedWidget() override {
-            return widget;
-        }
-
-        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex index) const override {
-            auto result = ConnectionPolicy::One;
-            switch (portType) {
-                case PortType::In:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::Out:
-                    result = ConnectionPolicy::Many;
-                    break;
-                case PortType::None:
-                    break;
+            const QJsonObject obj = v.toObject();
+            if (obj.contains(QStringLiteral("FileIndex"))) {
+                setFileIndex(obj.value(QStringLiteral("FileIndex")).toInt());
             }
-
-            return result;
+            if (obj.contains(QStringLiteral("PlayerID"))) {
+                setPlayerId(obj.value(QStringLiteral("PlayerID")).toInt());
+            }
+            NodeDelegateModel::load(p);
         }
 
-        void afterModelReady() override {
+        QWidget *embeddedWidget() override { return widget; }
+
+        ConnectionPolicy portConnectionPolicy(PortType portType, PortIndex) const override
+        {
+            return (portType == PortType::In || portType == PortType::Out)
+                ? ConnectionPolicy::Many
+                : ConnectionPolicy::One;
+        }
+
+        void afterModelReady() override
+        {
             AbstractDelegateModel::afterModelReady();
-            auto bus = GlobalEventBus::instance();
-            bus->subscribe(makeFullOscAddress("/index"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/playerID"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/next"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            bus->subscribe(makeFullOscAddress("/prev"), this, SLOT(onGlobalEvent(GlobalEvent)));
-            
-        
+            auto *bus = GlobalEventBus::instance();
+            for (const char *path : {"/index", "/playerID", "/play", "/stop", "/loop"}) {
+                bus->subscribe(makeFullOscAddress(QLatin1String(path)),
+                               this, SLOT(onGlobalEvent(GlobalEvent)));
+            }
+            refreshFromController();
         }
 
-    public:
         int getFileIndex() const { return currentFileIndex; }
-        void setFileIndex(int value) {
-            if (currentFileIndex == value) return;
+        int getPlayerId() const { return currentPlayerId; }
+        bool connected() const { return m_online; }
+        QString host() const { return m_deviceIp; }
+
+        void setFileIndex(int value)
+        {
+            if (currentFileIndex == value) {
+                return;
+            }
             currentFileIndex = value;
             if (widget && widget->FileIndex->value() != value) {
                 QSignalBlocker blocker(widget->FileIndex);
                 widget->FileIndex->setValue(value);
             }
-            emit fileIndexChanged(value);
-  
-            updateStatus();
+            Q_EMIT fileIndexChanged(value);
         }
 
-        int getPlayerId() const { return currentPlayerId; }
-        void setPlayerId(int value) {
-            if (currentPlayerId == value) return;
+        void setPlayerId(int value)
+        {
+            if (currentPlayerId == value) {
+                return;
+            }
             currentPlayerId = value;
             if (widget && widget->PlayerID->value() != value) {
                 QSignalBlocker blocker(widget->PlayerID);
                 widget->PlayerID->setValue(value);
             }
-            emit playerIdChanged(value);
-
-            updateStatus();
+            Q_EMIT playerIdChanged(value);
+            refreshFromController();
         }
 
     Q_SIGNALS:
         void fileIndexChanged(int value);
         void playerIdChanged(int value);
+        void connectedChanged(bool connected);
+        void hostChanged(const QString &host);
 
-    private Q_SLOTS:
-        void onGlobalEvent(const GlobalEvent& ev) {
-            if (ev.kind != GlobalEventKind::Command) return;
-            QString localPath = ev.address.mid(ev.address.lastIndexOf("/") + 1);
-            
-            if (localPath == "index") setFileIndex(ev.payload.toInt());
-            else if (localPath == "playerID") setPlayerId(ev.payload.toInt());
-            else if (localPath == "play") sendPlayCommand();
-            else if (localPath == "stop") sendStopCommand();
-            else if (localPath == "loop") sendLoopCommand();
-            else if (localPath == "next") sendNextCommand();
-            else if (localPath == "prev") sendPrevCommand();
+    private slots:
+        void onGlobalEvent(const GlobalEvent &ev)
+        {
+            if (ev.kind != GlobalEventKind::Command) {
+                return;
+            }
+            const QString localPath = ev.address.mid(ev.address.lastIndexOf(QLatin1Char('/')) + 1);
+            if (localPath == QLatin1String("index")) {
+                setFileIndex(ev.payload.toInt());
+            } else if (localPath == QLatin1String("playerID")) {
+                setPlayerId(ev.payload.toInt());
+            } else if (localPath == QLatin1String("play")) {
+                sendPlayCommand();
+            } else if (localPath == QLatin1String("stop")) {
+                sendStopCommand();
+            } else if (localPath == QLatin1String("loop")) {
+                sendLoopCommand();
+            }
+        }
+
+        void onClientStatusChanged(int deviceId, const NDVClientInfo &info)
+        {
+            if (deviceId != currentPlayerId) {
+                return;
+            }
+            applyClientInfo(info);
+        }
+
+        void refreshFromController()
+        {
+            if (!m_controller) {
+                return;
+            }
+            applyClientInfo(m_controller->clientInfo(currentPlayerId));
         }
 
     private:
-        /**
-         * @brief 发送播放指令
-         */
-        void sendPlayCommand() {
-            sendCommand("play", currentFileIndex);
-            currentState = "Playing";
-            AbstractDelegateModel::stateFeedBack("/play", true);
-            updateStatus();
+        void sendPlayCommand()
+        {
+            if (m_controller) {
+                m_controller->sendCommand(QStringLiteral("play"), currentFileIndex, currentPlayerId);
+            }
+
         }
 
-        /**
-         * @brief 发送停止指令
-         */
-        void sendStopCommand() {
-            sendCommand("stop", 0);
+        void sendStopCommand()
+        {
+            if (m_controller) {
+                m_controller->sendCommand(QStringLiteral("stop"), 0, currentPlayerId);
+            }
             AbstractDelegateModel::stateFeedBack("/stop", true);
-            currentState = "Stopped";
-            updateStatus();
         }
 
-        /**
-         * @brief 发送循环播放指令
-         */
-        void sendLoopCommand() {
-            sendCommand("loop", currentFileIndex);
-            currentState = "Loop Playing";
+        void sendLoopCommand()
+        {
+            if (m_controller) {
+                m_controller->sendCommand(QStringLiteral("loop"), currentFileIndex, currentPlayerId);
+            }
             AbstractDelegateModel::stateFeedBack("/loop", true);
-            updateStatus();
         }
 
-        /**
-         * @brief 发送下一个文件指令
-         */
-        void sendNextCommand() {
-            sendCommand("next", 0);
-            AbstractDelegateModel::stateFeedBack("/next", true);
+        void applyClientInfo(const NDVClientInfo &info)
+        {
+            const bool wasOnline = m_online;
+            const QString prevIp = m_deviceIp;
+            m_online = info.online;
+            m_deviceIp = info.ipAddress;
+            // 在线且非 Playing 视为已停止；离线不报停止
+            const bool stopped = info.online && (info.state != QLatin1String("Playing"));
+            if (widget) {
+                QString displayIp = m_deviceIp;
+                if (displayIp.startsWith(QLatin1String("::ffff:"), Qt::CaseInsensitive)) {
+                    displayIp = displayIp.mid(7);
+                }
+                widget->updateConnectionDisplay(m_online, displayIp);
+            }
+            if (wasOnline != m_online) {
+                Q_EMIT connectedChanged(m_online);
+
+            }
+            if (prevIp != m_deviceIp) {
+                Q_EMIT hostChanged(m_deviceIp);
+
+            }
+            publishStopped(stopped);
         }
 
-        /**
-         * @brief 发送上一个文件指令
-         */
-        void sendPrevCommand() {
-            sendCommand("prev", 0);
-            AbstractDelegateModel::stateFeedBack("/prev", true);
+        void publishStopped(bool stopped)
+        {
+            if (m_stopped == stopped && m_stoppedOutput) {
+                return;
+            }
+            m_stopped = stopped;
+            m_stoppedOutput = std::make_shared<VariableData>(QVariant(m_stopped));
+            Q_EMIT dataUpdated(StoppedPort);
         }
 
-        /**
-         * @brief 发送指令到NDVControlNode
-         * @param commandType 指令类型
-         * @param fileIndex 文件索引
-         */
-        void sendCommand(const QString& commandType, int fileIndex) {
-            commandData = std::make_shared<VariableData>();
-            
-            commandData->insert("type", commandType);
-            commandData->insert("fileIndex", fileIndex);
-            commandData->insert("targetId", currentPlayerId);
-            commandData->insert("playerId", currentPlayerId);
-            commandData->insert("timestamp", QDateTime::currentDateTime().toString());
-            
-            // 发出数据更新信号
-            Q_EMIT dataUpdated(0);
-        }
+        std::shared_ptr<VariableData> m_stoppedOutput;
+        NDVController *m_controller = nullptr;
 
-        /**
-         * @brief 更新播放器状态
-         */
-        void updateStatus() {
-            statusData = std::make_shared<VariableData>();
-            
-            QVariantMap statusMap;
-            statusMap["playerId"] = currentPlayerId;
-            statusMap["currentFile"] = currentFileIndex;
-            statusMap["state"] = currentState;
-            statusMap["lastUpdate"] = QDateTime::currentDateTime().toString();
-            
-            statusData->insert("status", statusMap);
-            statusData->insert("playerId", currentPlayerId);
-            statusData->insert("state", currentState);
-            statusData->insert("currentFile", currentFileIndex);
-            
-            // 发出状态更新信号
-            Q_EMIT dataUpdated(1);
-        }
-
-    private:
-        std::shared_ptr<VariableData> commandData;  // 指令输出数据
-        std::shared_ptr<VariableData> statusData;   // 状态输出数据
-        
-        int currentFileIndex = 1;
+        int currentFileIndex = 0;
         int currentPlayerId = 1;
-        QString currentState = "Stopped";
-        
-        NDVPlayerInterface * widget = new NDVPlayerInterface();
+        bool m_online = false;
+        bool m_stopped = false;
+        QString m_deviceIp;
+
+        QPointer<NDVPlayerInterface> widget{new NDVPlayerInterface()};
     };
 }
