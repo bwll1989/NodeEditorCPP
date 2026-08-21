@@ -271,8 +271,8 @@ namespace Nodes
             }
 
             // 设置对应通道的值（如果通道索引在当前通道数范围内）
-            if (portIndex < m_channelCount) {
-                int channelValue = qBound(0, variableData->value().toInt(), 255);
+            if (portIndex < static_cast<PortIndex>(m_channelCount)) {
+                const int channelValue = qBound(0, variableData->asInt(), 255);
                 updateChannelState(portIndex, channelValue);
             }
         }

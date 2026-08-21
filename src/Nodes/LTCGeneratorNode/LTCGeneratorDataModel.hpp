@@ -182,7 +182,7 @@ namespace Nodes {
             if (!varData) {
                 return;
             }
-            const bool v = varData->value().toBool();
+            const bool v = varData->asBool();
 
             switch (port) {
                 case 0: // TOGGLE

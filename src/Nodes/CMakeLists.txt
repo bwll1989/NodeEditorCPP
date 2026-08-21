@@ -9,7 +9,6 @@ option(BUILD_NODES_INDIVIDUALLY "Build nodes individually (default behavior)" ON
 set(ALL_NODES
     VST3PluginNode
     DataInfoNode                              #数据显示
-#    LuaScriptNode                             #Lua脚本模块(弃用）
     TCPServerNode                             #TCP服务器模块
     TCPClientNode                             #TCP客户端模块
     TimeLineNode                              #时间轴模块
@@ -26,12 +25,9 @@ set(ALL_NODES
     ExtractNode                               #数据分离模块
     CameraNode                                #摄像头输入
     CaptureNode                               #图像捕获
-
     ROINode                                   #交互式 ROI 裁剪
     ImageConstNode                            #图像常量
     CountNode                                 #条件计数
-    RectNode                                  #矩形模块
-    SizeVarNode                               #尺寸模块
     MergeNode                                 #数据合并
     OscInNode                                 #OSC输入
     OscOutNode                                #OSC输出
@@ -41,15 +37,12 @@ set(ALL_NODES
     VLC_RemoteNode                            #VLC远程控制
     SPlayControllerNode                       #ENTTEC S-Play 多 playlist 控制
     SwitchNode                                #输入切换
-#    NDVServerNode                             #NDV控制
     ConditionNode                             #条件判断
     WebSocketServerNode                       #WebSocket服务器
     WebSocketClientNode                       #WebSocket客户端
     HttpClientNode                            #HTTP客户端
     SlideShowNode                             #SlideShow 数字标牌控制
     JavaScriptNode                            #JavaScript脚本
-
-#    ImageCompareNode                          #图像对比
     ImageOperates                             #图像操作集合
     showStoreGBxNode                          #ELC showStoreGBx 控制器
     USR_IO808Node                           #基于Modbus Master实现与USR-IO808 控制器对接
@@ -75,7 +68,6 @@ set(ALL_NODES
     LTCGeneratorNode                            #LTC时间码生成节点
     AudioMatrixNode                             #音频矩阵节点
     AudioAnalysisNode                           #音频分析节点
-#    PythonScriptNode                            #python脚本节点
     DAWController                          #DAW控制器节点
     StyleTransferONNXNode                       #神经网络风格迁移
     DataVisualNode                              #数据可视化
@@ -95,7 +87,6 @@ set(ALL_NODES
     VideoDecoderNode                              #视频解码器节点
     PLC-ModBus                                  #modbus控制PLC
     InternalCommandsNode                        #内部控制节点
-    QmlScriptNode
     InjectNode                                  #数据注入
     ValueLookupNode                          #值查表 Value Lookup
     FT_C040ANode                            #触摸屏
@@ -141,8 +132,6 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(ROINode)                                   #交互式 ROI 裁剪
     add_subdirectory(ImageConstNode)                            #图像常量
     add_subdirectory(CountNode)                                 #条件计数
-    add_subdirectory(RectNode)                                  #矩形模块
-    add_subdirectory(SizeVarNode)                               #尺寸模块
     add_subdirectory(MergeNode)                                 #数据合并
     add_subdirectory(OscInNode)                                 #OSC输入
     add_subdirectory(OscOutNode)                                #OSC输出
@@ -202,7 +191,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(VideoDecoderNode)                          #视频解码器节点
     add_subdirectory(DAWController)                          #DAW控制器节点
     add_subdirectory(PLC-ModBus)                                #Modbus控制PLC节点
-    add_subdirectory(QmlScriptNode)
+#    add_subdirectory(QmlScriptNode)                            #QML JS 脚本（弃用）
     add_subdirectory(InjectNode)                                #数据注入节点
     add_subdirectory(ValueLookupNode)                        #值查表 Value Lookup
     add_subdirectory(FT_C040ANode)                          #触摸屏

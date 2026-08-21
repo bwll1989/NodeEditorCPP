@@ -214,14 +214,14 @@ void FmodDecoderDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex c
 
     switch (portIndex) {
     case 0: { // 文本事件触发
-        const QString eventPath = variableData->value().toString();
+        const QString eventPath = variableData->asString();
         if (!eventPath.isEmpty()) {
             setCurrentEvent(eventPath);
         }
         break;
     }
     case 1: { // 索引事件触发
-        const int idx = variableData->value().toInt();
+        const int idx = variableData->asNumber();
         if (idx >= 0 && idx < availableEvents_.size()) {
             const QString& eventPath = availableEvents_.at(idx);
             setCurrentEvent(eventPath);

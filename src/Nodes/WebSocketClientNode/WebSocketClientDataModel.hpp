@@ -193,10 +193,10 @@ namespace Nodes
             m_inData = std::dynamic_pointer_cast<VariableData>(data);
             switch (portIndex) {
             case 0:
-                setUrl(m_inData->value().toString());
+                setUrl(m_inData->asString());
                 break;
             case 1:
-                setValue(m_inData->value().toString());
+                setValue(m_inData->asString());
                 break;
             case 2:
                 sendMessage(); // Just trigger

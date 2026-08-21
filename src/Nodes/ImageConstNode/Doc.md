@@ -14,7 +14,7 @@
 
 - **WIDTH**（VariableData）：宽度（像素）。
 - **HEIGHT**（VariableData）：高度。
-- **RED**（VariableData）：颜色（字符串或 QColor 形式），会更新颜色编辑器。
+- **RGBA**（VariableData）：颜色，`[r, g, b, a]` 浮点 0～1（3 元则 a=1，超出截断）。旧工程 `#hex` 仍可加载。
 
 ### 输出
 
@@ -48,7 +48,7 @@ Image Constant（1920×1080 黑色）→ 作为 Image Layout 的背景层。
 - **WIDTH** / **HEIGHT**：画布尺寸。
 - **TEXT**：文字内容。
 - **FONT** / **FONTSIZE**：字体与字号。
-- **TEXT_COLOR** / **BG_COLOR**：文字色与背景色。
+- **TEXT_RGBA** / **BG_RGBA**：文字色与背景色，`[r, g, b, a]` 浮点 0～1（3 元则 a=1）。
 - **HALIGN** / **VALIGN**：水平、垂直对齐（索引）。
 
 ### 输出

@@ -3,6 +3,58 @@
 #include <QScreen>
 #include <QApplication>
 #include <QWindow>
+#include <QSignalBlocker>
+#include <cmath>
+
+namespace {
+
+double wrapHueF(double h)
+{
+    if (!std::isfinite(h)) {
+        return 0.0;
+    }
+    h -= std::floor(h);
+    if (h < 0.0) {
+        h += 1.0;
+    }
+    if (h >= 1.0) {
+        h = 0.0;
+    }
+    return h;
+}
+
+int hueToDeg(double hueF)
+{
+    const int deg = int(std::lround(wrapHueF(hueF) * 360.0)) % 360;
+    return deg < 0 ? deg + 360 : deg;
+}
+
+int wrapHueDeg(int h)
+{
+    h %= 360;
+    if (h < 0) {
+        h += 360;
+    }
+    return h;
+}
+
+QColor colorFromHsv(int h, int s, int v, int a)
+{
+    return QColor::fromHsv(wrapHueDeg(h),
+                           qBound(0, s, 255),
+                           qBound(0, v, 255),
+                           qBound(0, a, 255));
+}
+
+QColor colorFromHsvF(double h, double s, double v, double a)
+{
+    return QColor::fromHsvF(wrapHueF(h),
+                            qBound(0.0, s, 1.0),
+                            qBound(0.0, v, 1.0),
+                            qBound(0.0, a, 1.0));
+}
+
+} // namespace
 /* 函数级注释：构造，初始化 UI 与信号 */
 // 类 ColorEditorWidget 构造函数
 ColorEditorWidget::ColorEditorWidget(QWidget* parent)
@@ -35,6 +87,41 @@ void ColorEditorWidget::setColor(const QColor& c)
 {
     editHex->setModified(false);
     setColorInternal(c);
+}
+
+void ColorEditorWidget::setHsvF(double h, double s, double v, double a)
+{
+    h = wrapHueF(h);
+    s = qBound(0.0, s, 1.0);
+    v = qBound(0.0, v, 1.0);
+    a = qBound(0.0, a, 1.0);
+    if (wheel) {
+        const QSignalBlocker b(wheel);
+        wheel->setHue(h);
+        wheel->setSaturation(s);
+        wheel->setValue(v);
+    }
+    editHex->setModified(false);
+    setColorInternal(colorFromHsvF(h, s, v, a), /*updateWheel*/false, h, s, v);
+}
+
+double ColorEditorWidget::hueF() const
+{
+    if (wheel) {
+        return wrapHueF(wheel->hue());
+    }
+    const int h = m_color.hsvHue();
+    return h < 0 ? 0.0 : wrapHueF(m_color.hsvHueF());
+}
+
+double ColorEditorWidget::saturationF() const
+{
+    return slideSaturation ? slideSaturation->value() / 255.0 : m_color.hsvSaturationF();
+}
+
+double ColorEditorWidget::valueF() const
+{
+    return slideValue ? slideValue->value() / 255.0 : m_color.valueF();
 }
 
 /* 函数级注释：设置是否启用 alpha 编辑（显示/隐藏 alpha 行） */
@@ -114,13 +201,17 @@ void ColorEditorWidget::set_hsv()
 {
     /* 函数级注释：HSV 变化统一走内部更新，内部会更新色轮与其他控件 */
     if (signalsBlocked()) return;
-    QColor col = QColor::fromHsv(
-        slideHue->value(),
-        slideSaturation->value(),
-        slideValue->value(),
-        slideAlpha->value()
-    );
-    setColorInternal(col, /*updateWheel*/true);
+    const int h = wrapHueDeg(slideHue->value());
+    const int s = qBound(0, slideSaturation->value(), 255);
+    const int v = qBound(0, slideValue->value(), 255);
+    const int a = qBound(0, slideAlpha->value(), 255);
+    if (wheel) {
+        const QSignalBlocker b(wheel);
+        wheel->setHue(h / 360.0);
+        wheel->setSaturation(s / 255.0);
+        wheel->setValue(v / 255.0);
+    }
+    setColorInternal(colorFromHsv(h, s, v, a), /*updateWheel*/false, h / 360.0, s / 255.0, v / 255.0);
 }
 
 void ColorEditorWidget::set_alpha()
@@ -143,7 +234,7 @@ void ColorEditorWidget::set_rgb()
         slideAlpha->value()
     );
     if (col.saturation() == 0)
-        col = QColor::fromHsv(slideHue->value(), 0, col.value(), slideAlpha->value());
+        col = colorFromHsv(slideHue->value(), 0, col.value(), slideAlpha->value());
 
     setColorInternal(col, /*updateWheel*/true);
 }
@@ -203,26 +294,40 @@ void ColorEditorWidget::mouseMoveEvent(QMouseEvent* event)
 /* 函数级注释：内部统一更新颜色（阻塞信号，保持控件一致） */
 void ColorEditorWidget::setColorInternal(const QColor& col, bool updateWheel)
 {
-    // 先记录颜色
+    if (updateWheel && wheel) {
+        wheel->setColor(col);
+    }
+    const double hueF = (col.hsvHue() < 0 && wheel)
+        ? wrapHueF(wheel->hue())
+        : wrapHueF(qMax(0.0, col.hsvHueF()));
+    const double satF = (col.value() == 0 && slideSaturation)
+        ? slideSaturation->value() / 255.0
+        : col.saturationF();
+    setColorInternal(col, false, hueF, satF, col.valueF());
+}
+
+void ColorEditorWidget::setColorInternal(const QColor& col, bool updateWheel,
+                                         double hueF, double satF, double valF)
+{
+    hueF = wrapHueF(hueF);
+    satF = qBound(0.0, satF, 1.0);
+    valF = qBound(0.0, valF, 1.0);
     m_color = col;
 
-    // 立即阻塞本控件与所有子控件的信号，避免回环
     bool blocked = signalsBlocked();
     blockSignals(true);
-    for (QObject* obj : this->children())
-        if (auto* w = qobject_cast<QWidget*>(obj))
+    for (QObject* obj : this->children()) {
+        if (auto* w = qobject_cast<QWidget*>(obj)) {
             w->blockSignals(true);
+        }
+    }
 
-    // 根据需要更新色轮（来自滑条/Hex/外部时更新；来自色轮时不更新）
-    if (updateWheel && wheel)
-        wheel->setColor(col);
+    if (updateWheel && wheel) {
+        wheel->setHue(hueF);
+        wheel->setSaturation(satF);
+        wheel->setValue(valF);
+    }
 
-    // 计算用于 HSV/渐变的参数（保持饱和度为0时沿用现有 hue）
-    const double hueF = (col.saturation() == 0 && wheel) ? wheel->hue() : col.hsvHueF();
-    const double satF = col.saturationF();
-    const double valF = col.valueF();
-
-    // RGB 滑块与渐变
     slideRed->setValue(col.red());
     spinRed->setValue(slideRed->value());
     slideRed->setFirstColor(QColor(0, col.green(), col.blue(), col.alpha()));
@@ -238,21 +343,20 @@ void ColorEditorWidget::setColorInternal(const QColor& col, bool updateWheel)
     slideBlue->setFirstColor(QColor(col.red(), col.green(), 0, col.alpha()));
     slideBlue->setLastColor(QColor(col.red(), col.green(), 255, col.alpha()));
 
-    // Hue / Saturation / Value（HueSlider 需要当前 sat/value 绘制轨迹）
-    slideHue->setValue(qRound(hueF * 360.0));
+    slideHue->setValue(hueToDeg(hueF));
     slideHue->setColorSaturation(satF);
     slideHue->setColorValue(valF);
     spinHue->setValue(slideHue->value());
 
-    slideSaturation->setValue(qRound(satF * 255.0));
+    slideSaturation->setValue(qBound(0, qRound(satF * 255.0), 255));
     spinSaturation->setValue(slideSaturation->value());
-    slideSaturation->setFirstColor(QColor::fromHsvF(hueF, 0, valF, col.alphaF()));
-    slideSaturation->setLastColor(QColor::fromHsvF(hueF, 1, valF, col.alphaF()));
+    slideSaturation->setFirstColor(colorFromHsvF(hueF, 0, valF, col.alphaF()));
+    slideSaturation->setLastColor(colorFromHsvF(hueF, 1, valF, col.alphaF()));
 
-    slideValue->setValue(qRound(valF * 255.0));
+    slideValue->setValue(qBound(0, qRound(valF * 255.0), 255));
     spinValue->setValue(slideValue->value());
-    slideValue->setFirstColor(QColor::fromHsvF(hueF, satF, 0, col.alphaF()));
-    slideValue->setLastColor(QColor::fromHsvF(hueF, satF, 1, col.alphaF()));
+    slideValue->setFirstColor(colorFromHsvF(hueF, satF, 0, col.alphaF()));
+    slideValue->setLastColor(colorFromHsvF(hueF, satF, 1, col.alphaF()));
 
     // Alpha
     slideAlpha->setValue(col.alpha());
@@ -335,8 +439,8 @@ void ColorEditorWidget::buildUI()
         label->setMinimumWidth(72);
         label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
         slideHue->setOrientation(Qt::Horizontal);
-        slideHue->setRange(0, 360);
-        spinHue->setRange(0, 360);
+        slideHue->setRange(0, 359);
+        spinHue->setRange(0, 359);
         right->addWidget(label, 0, 0);
         right->addWidget(slideHue, 0, 1);
         right->addWidget(spinHue, 0, 2);

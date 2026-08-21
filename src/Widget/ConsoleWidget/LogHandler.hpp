@@ -15,6 +15,7 @@
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/daily_file_sink.h>
 #include <mutex>
+#include <string>
 #include "LogWidget.hpp"
 
 class LogHandler {
@@ -39,19 +40,18 @@ public:
 
 private:
     /**
-     * 追加日志到表格
-     * @param const QString &timestamp 时间戳
-     * @param const QString &level 日志级别
-     * @param const QIcon &icon 图标
-     * @param const QString &logMessage 日志消息
+     * 追加日志到表格（图标在 GUI 线程按 level 解析，避免工作线程创建 QIcon）
      */
-    static void appendLogToTable(const QString &timestamp, const QString &level, const QIcon &icon, const QString &logMessage);
+    static void appendLogToTable(const QString &timestamp, const QString &level, const QString &logMessage);
 
     /** @brief 启动时按配置裁剪磁盘上多余的日志文件（删最早日期的 txt） */
     static void pruneStoredLogFiles();
-    
+
+    /** @brief 写入 spdlog（调用方负责吞掉写失败异常） */
+    static void writeToLogger(QtMsgType type, const std::string &logMsg);
+
     /**
-     * spdlog 日志器
+     * spdlog 日志器（单文件按天滚动：log_YYYY-MM-DD.txt）
      */
     static std::shared_ptr<spdlog::logger> logger;
     

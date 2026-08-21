@@ -3,11 +3,137 @@
 //
 
 #include "OSCSender.h"
-#include <QJsonObject>
 #include <QByteArray>
 #include <QHostAddress>
+#include <QMetaType>
+#include <QVariantList>
+#include <QtEndian>
+#include <cstring>
 #include <limits>
-#include "tinyosc.h"
+
+namespace {
+
+void pad4(QByteArray &packet)
+{
+    while (packet.size() % 4 != 0) {
+        packet.append('\0');
+    }
+}
+
+void appendBigEndianU32(QByteArray &packet, quint32 value)
+{
+    const quint32 be = qToBigEndian(value);
+    packet.append(reinterpret_cast<const char *>(&be), 4);
+}
+
+void appendOscFloat(QByteArray &packet, float value)
+{
+    quint32 bits = 0;
+    memcpy(&bits, &value, sizeof(bits));
+    appendBigEndianU32(packet, bits);
+}
+
+void appendOscInt(QByteArray &packet, int32_t value)
+{
+    appendBigEndianU32(packet, static_cast<quint32>(value));
+}
+
+bool flattenVariant(const QVariant &value, QString &format, QVariantList &args)
+{
+    const int typeId = value.typeId();
+
+    if (typeId == QMetaType::QVariantList || typeId == QMetaType::QStringList) {
+        const QVariantList list = value.toList();
+        for (const QVariant &item : list) {
+            if (!flattenVariant(item, format, args)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    switch (typeId) {
+    case QMetaType::Float:
+    case QMetaType::Double:
+        format += QLatin1Char('f');
+        args.append(value.toFloat());
+        return true;
+    case QMetaType::Bool:
+    case QMetaType::Int:
+    case QMetaType::UInt:
+        format += QLatin1Char('i');
+        args.append(value.toInt());
+        return true;
+    case QMetaType::LongLong: {
+        const qint64 v = value.toLongLong();
+        if (v < std::numeric_limits<int32_t>::min() || v > std::numeric_limits<int32_t>::max()) {
+            return false;
+        }
+        format += QLatin1Char('i');
+        args.append(static_cast<int>(v));
+        return true;
+    }
+    case QMetaType::ULongLong: {
+        const quint64 v = value.toULongLong();
+        if (v > static_cast<quint64>(std::numeric_limits<int32_t>::max())) {
+            return false;
+        }
+        format += QLatin1Char('i');
+        args.append(static_cast<int>(v));
+        return true;
+    }
+    case QMetaType::QString:
+        format += QLatin1Char('s');
+        args.append(value.toString());
+        return true;
+    default:
+        if (value.canConvert<double>() && value.userType() != QMetaType::QString) {
+            format += QLatin1Char('f');
+            args.append(float(value.toDouble()));
+            return true;
+        }
+        return false;
+    }
+}
+
+QByteArray encodeOscMessage(const QString &address, const QVariant &value, QString *error)
+{
+    QString format;
+    QVariantList args;
+    if (value.isValid() && !flattenVariant(value, format, args)) {
+        if (error) {
+            *error = QStringLiteral("Unsupported OSC value type: %1").arg(value.typeName());
+        }
+        return {};
+    }
+
+    QByteArray packet;
+    packet.append(address.toUtf8());
+    packet.append('\0');
+    pad4(packet);
+
+    packet.append(',');
+    packet.append(format.toLatin1());
+    packet.append('\0');
+    pad4(packet);
+
+    for (int i = 0; i < format.size(); ++i) {
+        const QChar t = format.at(i);
+        const QVariant &arg = args.at(i);
+        if (t == QLatin1Char('f')) {
+            appendOscFloat(packet, arg.toFloat());
+        } else if (t == QLatin1Char('i')) {
+            appendOscInt(packet, static_cast<int32_t>(arg.toInt()));
+        } else if (t == QLatin1Char('s')) {
+            packet.append(arg.toString().toUtf8());
+            packet.append('\0');
+            pad4(packet);
+        }
+    }
+    return packet;
+}
+
+} // namespace
 
 OSCSender* OSCSender::instance() {
     static OSCSender* sender = nullptr;
@@ -16,227 +142,147 @@ OSCSender* OSCSender::instance() {
     }
     return sender;
 }
-/**
- * @brief OSCSender构造函数 - 自动启动传输器
- */
-OSCSender::OSCSender(QString dstHost,quint16 port, QObject *parent):
-        mPort(port),
-        mHost(dstHost),
-        m_timer(new QTimer(this))
-        {
-        qRegisterMetaType<QVariantMap >("QVariantMap&");
-        //注册信号传递数值类型
-        mThread = new QThread(this);
-        this->moveToThread(mThread);
-        m_timer->setInterval(PROCESS_INTERVAL);
-        m_timer->moveToThread(mThread);
-        connect(mThread, &QThread::started, this, &OSCSender::initializeSocket);
-        connect(mThread, &QThread::finished, this, &OSCSender::cleanup);
-        connect(m_timer, &QTimer::timeout, this, &OSCSender::processQueue);
-        
-        // 自动启动传输器
-        mThread->start();
-        // 在主线程中启动定时器
-        QMetaObject::invokeMethod(m_timer, "start", Qt::QueuedConnection);
+
+OSCSender::OSCSender(QString dstHost, quint16 port, QObject *parent)
+    : QObject(parent)
+    , m_timer(nullptr)
+    , mPort(port)
+    , mHost(dstHost)
+    , mThread(nullptr)
+    , mSocket(nullptr)
+{
+    qRegisterMetaType<QVariantMap>("QVariantMap&");
+
+    // 记录创建线程（通常是主线程）；QThread 必须留在该线程
+    QThread *ownerThread = QThread::currentThread();
+    mThread = new QThread();
+    m_timer = new QTimer();
+    m_timer->setInterval(PROCESS_INTERVAL);
+
+    connect(mThread, &QThread::started, this, &OSCSender::initializeSocket);
+    connect(m_timer, &QTimer::timeout, this, &OSCSender::processQueue);
+
+    this->moveToThread(mThread);
+    m_timer->moveToThread(mThread);
+
+    mThread->start();
+    QMetaObject::invokeMethod(m_timer, "start", Qt::QueuedConnection);
+
+    // 供析构时迁回（捕获 ownerThread，避免在错误线程调用 moveToThread）
+    m_ownerThread = ownerThread;
 }
 
-OSCSender::~OSCSender() {
-    cleanup();
-    mThread->quit();
-    mThread->wait();
-}
-
-void OSCSender::initializeSocket() {
-    mSocket = new QUdpSocket(this);
-    if (mSocket->bind(QHostAddress::AnyIPv4, 0,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)) {
+OSCSender::~OSCSender()
+{
+    if (mThread && mThread->isRunning()) {
+        // moveToThread 必须在「对象当前线程」里调用，故在工作线程内完成 cleanup + 迁回
+        QMetaObject::invokeMethod(this, "prepareToQuit", Qt::BlockingQueuedConnection);
+        mThread->quit();
+        mThread->wait();
     }
+
+    delete m_timer;
+    m_timer = nullptr;
+    delete mThread;
+    mThread = nullptr;
 }
-void OSCSender::cleanup() {
+
+void OSCSender::prepareToQuit()
+{
+    cleanup();
+    if (!m_ownerThread) {
+        return;
+    }
+    if (m_timer) {
+        m_timer->moveToThread(m_ownerThread);
+    }
+    moveToThread(m_ownerThread);
+}
+
+void OSCSender::initializeSocket()
+{
+    if (mSocket) {
+        return;
+    }
+    mSocket = new QUdpSocket(this);
+    mSocket->bind(QHostAddress::AnyIPv4, 0,
+                  QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint);
+}
+
+void OSCSender::cleanup()
+{
     if (m_timer) {
         m_timer->stop();
-        delete m_timer;
-        m_timer = nullptr;
     }
     if (mSocket) {
+        mSocket->disconnect();
         mSocket->close();
-        mSocket->deleteLater();
+        delete mSocket;
         mSocket = nullptr;
     }
 }
-void OSCSender::setHost(QString address,int port) {
-    mHost=address;
+
+void OSCSender::setHost(QString address, int port)
+{
+    mHost = address;
     mPort = port;
 }
 
-void OSCSender::processQueue(){
-
-    // 处理队列中的消息，首先需要加锁，避免多线程冲突
-    QMutexLocker locker(&m_mutex);
-    //当队列不为空时，处理队列中的消息，直到队列为空
-    while (!m_messageQueue.isEmpty()){
-        OSCMessage msg = m_messageQueue.dequeue();
-        char buffer[1024];
-        mHost = msg.host;
-        mPort = msg.port;
-        const QString &address = msg.address;
-        const QVariant &value = msg.value;
-
-        QString format;
-        std::vector<float> floatArgs;
-        std::vector<int32_t> intArgs;
-        std::vector<const char*> stringArgs;
-
-        // 构造格式字符串并根据值类型准备参数
-        if (value.typeId() == QMetaType::Double) {
-            format += "f";
-            floatArgs.push_back(static_cast<float>(value.toDouble()));
-        } else if (value.typeId() == QMetaType::Int) {
-            format += "i";
-            intArgs.push_back(value.toInt());
-        } else if (value.typeId() == QMetaType::QString) {
-            format += "s";
-            QByteArray ba = value.toString().toLatin1(); // must
-            stringArgs.push_back(ba.data());
-        } else if (value.typeId() == QMetaType::Bool) {
-            format += "i";
-            intArgs.push_back(value.toInt());
-        } else if (value.typeId() == QMetaType::LongLong) {
-            const qint64 v = value.toLongLong();
-            if (v < std::numeric_limits<int32_t>::min() || v > std::numeric_limits<int32_t>::max()) {
-                qWarning() << "OSC int32 overflow (qlonglong):" << v << "address:" << address;
-                continue;
-            }
-            format += "i";
-            intArgs.push_back(static_cast<int32_t>(v));
-        } else if (value.typeId() == QMetaType::ULongLong) {
-            const quint64 v = value.toULongLong();
-            if (v > static_cast<quint64>(std::numeric_limits<int32_t>::max())) {
-                qWarning() << "OSC int32 overflow (qulonglong):" << v << "address:" << address;
-                continue;
-            }
-            format += "i";
-            intArgs.push_back(static_cast<int32_t>(v));
-        } else {
-            qWarning() << "Unsupported value type in QVariantMap:" << value;
-            continue; // 跳过不支持的类型
-        }
-
-        // 写入 OSC 消息
-        uint32_t len = 0;
-        if (floatArgs.size() + intArgs.size() + stringArgs.size() == 0) {
-            len = tosc_writeMessage(buffer, sizeof(buffer), address.toStdString().c_str(), "");
-        } else {
-            // 动态展开参数
-            if (!floatArgs.empty()) {
-                len = tosc_writeMessage(buffer, sizeof(buffer), address.toStdString().c_str(),
-                                        format.toStdString().c_str(), floatArgs[0]);
-            } else if (!intArgs.empty()) {
-                len = tosc_writeMessage(buffer, sizeof(buffer), address.toStdString().c_str(),
-                                        format.toStdString().c_str(), intArgs[0]);
-            } else if (!stringArgs.empty()) {
-                len = tosc_writeMessage(buffer, sizeof(buffer), address.toStdString().c_str(),
-                                        format.toStdString().c_str(), stringArgs[0]);
-            }
-        }
-        // 检查写入是否成功
-        if (len == 0) {
-            qWarning() << "Failed to write OSC message for address" << address;
-            continue; // 跳过失败的消息
-        }
-        // 通过 QUdpSocket 发送数据
-        qint64 bytesSent = mSocket->writeDatagram(buffer, len, QHostAddress(mHost), mPort);
-        if (bytesSent < 0) {
-            qWarning() << "Failed to send OSC message for address" << address << "via QUdpSocket."<<mHost;
-            
-        }
+bool OSCSender::writeAndSend(const OSCMessage &msg)
+{
+    if (!mSocket) {
+        return false;
     }
-    
+
+    mHost = msg.host;
+    mPort = msg.port;
+
+    QString error;
+    const QByteArray packet = encodeOscMessage(msg.address, msg.value, &error);
+    if (packet.isEmpty()) {
+        qWarning() << (error.isEmpty() ? QStringLiteral("Failed to encode OSC message") : error)
+                   << "address:" << msg.address << "value:" << msg.value;
+        return false;
+    }
+
+    const qint64 bytesSent = mSocket->writeDatagram(packet, QHostAddress(mHost), mPort);
+    if (bytesSent < 0) {
+        qWarning() << "Failed to send OSC message for address" << msg.address << "via QUdpSocket." << mHost;
+        return false;
+    }
+    return true;
 }
 
-bool OSCSender::sendOSCMessageWithQueue(const OSCMessage &message){
-    // 将OSCMessage加入队列，首先需要加锁，避免多线程冲突
+void OSCSender::processQueue()
+{
     QMutexLocker locker(&m_mutex);
-    //将OSCMessage加入队列
+    while (!m_messageQueue.isEmpty()) {
+        const OSCMessage msg = m_messageQueue.dequeue();
+        writeAndSend(msg);
+    }
+}
+
+bool OSCSender::sendOSCMessageWithQueue(const OSCMessage &message)
+{
+    QMutexLocker locker(&m_mutex);
     m_messageQueue.enqueue(message);
     emit messageSent(message);
     return true;
 }
 
-bool OSCSender::sendOSCMessageDirectly(const OSCMessage &message){
-    // 直接发送消息，不加入队列，首先需要加锁，避免多线程冲突
+bool OSCSender::sendOSCMessageDirectly(const OSCMessage &message)
+{
+    // 直接发送必须在 socket 所在线程执行
+    if (QThread::currentThread() != thread()) {
+        bool ok = false;
+        QMetaObject::invokeMethod(this, [this, message, &ok]() {
+            ok = sendOSCMessageDirectly(message);
+        }, Qt::BlockingQueuedConnection);
+        return ok;
+    }
+
     QMutexLocker locker(&m_mutex);
-    char buffer[1024];
-    mHost = message.host;
-    mPort = message.port;
-    const QString &address = message.address;
-    const QVariant &value = message.value;
-
-    QString format;
-    std::vector<float> floatArgs;
-    std::vector<int32_t> intArgs;
-    std::vector<const char*> stringArgs;
-
-    // 构造格式字符串并根据值类型准备参数
-    if (value.typeId() == QMetaType::Double) {
-        format += "f";
-        floatArgs.push_back(static_cast<float>(value.toDouble()));
-    } else if (value.typeId() == QMetaType::Int) {
-        format += "i";
-        intArgs.push_back(value.toInt());
-    } else if (value.typeId() == QMetaType::QString) {
-        format += "s";
-        QByteArray ba = value.toString().toLatin1(); // must
-        stringArgs.push_back(ba.data());
-    } else if (value.typeId() == QMetaType::Bool) {
-        format += "i";
-        intArgs.push_back(value.toInt());
-    } else if (value.typeId() == QMetaType::LongLong) {
-        const qint64 v = value.toLongLong();
-        if (v < std::numeric_limits<int32_t>::min() || v > std::numeric_limits<int32_t>::max()) {
-            qWarning() << "OSC int32 overflow (qlonglong):" << v << "address:" << address;
-            return false;
-        }
-        format += "i";
-        intArgs.push_back(static_cast<int32_t>(v));
-    } else if (value.typeId() == QMetaType::ULongLong) {
-        const quint64 v = value.toULongLong();
-        if (v > static_cast<quint64>(std::numeric_limits<int32_t>::max())) {
-            qWarning() << "OSC int32 overflow (qulonglong):" << v << "address:" << address;
-            return false;
-        }
-        format += "i";
-        intArgs.push_back(static_cast<int32_t>(v));
-    } else {
-        qWarning() << "Unsupported value type in QVariantMap:" << value;
-        return false; // 跳过不支持的类型
-    }
-
-    // 写入 OSC 消息
-    uint32_t len = 0;
-    if (floatArgs.size() + intArgs.size() + stringArgs.size() == 0) {
-        len = tosc_writeMessage(buffer, sizeof(buffer), address.toStdString().c_str(), "");
-    } else {
-        // 动态展开参数
-        if (!floatArgs.empty()) {
-            len = tosc_writeMessage(buffer, sizeof(buffer), address.toStdString().c_str(),
-                                    format.toStdString().c_str(), floatArgs[0]);
-        } else if (!intArgs.empty()) {
-            len = tosc_writeMessage(buffer, sizeof(buffer), address.toStdString().c_str(),
-                                    format.toStdString().c_str(), intArgs[0]);
-        } else if (!stringArgs.empty()) {
-            len = tosc_writeMessage(buffer, sizeof(buffer), address.toStdString().c_str(),
-                                    format.toStdString().c_str(), stringArgs[0]);
-        }
-    }
-    // 检查写入是否成功
-    if (len == 0) {
-        qWarning() << "Failed to write OSC message for address" << address;
-        return false; // 跳过失败的消息
-    }
-    // 通过 QUdpSocket 发送数据
-    qint64 bytesSent = mSocket->writeDatagram(buffer, len, QHostAddress(mHost), mPort);
-    if (bytesSent < 0) {
-        qWarning() << "Failed to send OSC message for address" << address << "via QUdpSocket."<<mHost;
+    if (!writeAndSend(message)) {
         return false;
     }
     emit messageSent(message);

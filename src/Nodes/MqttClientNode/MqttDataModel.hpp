@@ -186,16 +186,16 @@ namespace Nodes
             if (!v) return;
             switch (portIndex) {
             case 0:
-                setHost(v->value().toString());
+                setHost(v->asString());
                 break;
             case 1:
-                setPort(v->value().toInt());
+                setPort(v->asInt());
                 break;
             case 2:
-                setTopic(v->value().toString());
+                setTopic(v->asString());
                 break;
             case 3:
-                setPayload(v->value().toString());
+                setPayload(v->asString());
                 publishMessage();
                 break;
             case 4:

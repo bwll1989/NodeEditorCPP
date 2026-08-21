@@ -178,15 +178,15 @@ namespace Nodes
 
             const QString expression = widget->expression->text().trimmed();
             if (expression.isEmpty()) {
-                return m_inData->value().toBool();
+                return m_inData->asBool();
             }
 
-            QJSValue jsInput = m_jsEngine->toScriptValue(m_inData->getMap());
+            QJSValue jsInput = m_jsEngine->toScriptValue(m_inData->asMap());
             m_jsEngine->globalObject().setProperty("$input", jsInput);
 
             const QJSValue result = m_jsEngine->evaluate(expression);
             if (result.isError()) {
-                qDebug() << "EdgeTrigger JS表达式错误:" << result.toString();
+                qDebug() << "EdgeTrigger JS表达式错误" << result.toString();
                 return false;
             }
 
@@ -216,7 +216,7 @@ namespace Nodes
                 m_pulseOutput = std::make_shared<VariableData>(QVariant(true));
                 Q_EMIT dataUpdated(PulsePort);
 
-                QVariantMap outputMap = m_inData->getMap();
+                QVariantMap outputMap = m_inData->asMap();
                 outputMap.insert(QStringLiteral("default"), true);
                 m_dataOutput = std::make_shared<VariableData>(outputMap);
                 Q_EMIT dataUpdated(DataPort);

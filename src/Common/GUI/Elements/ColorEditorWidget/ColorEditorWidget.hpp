@@ -51,6 +51,16 @@ public:
     void setColor(const QColor& c);
 
     /**
+     * 按 HSV（0–1）设置颜色。无彩（S=0 或 V=0）时仍保留色相，QColor 做不到这一点。
+     */
+    void setHsvF(double h, double s, double v, double a = 1.0);
+
+    /** 当前色相 0–1（无彩时仍有效，来自色轮/滑条而非 QColor） */
+    double hueF() const;
+    double saturationF() const;
+    double valueF() const;
+
+    /**
      * 设置是否启用 Alpha 编辑
      * @param enabled 为 true 显示并允许编辑 alpha；否则隐藏并固定为 255
      */
@@ -193,8 +203,12 @@ private:
      * 内部：统一更新颜色到控件（阻塞信号），并发出 colorChanged
      * @param col 目标颜色
      * @param updateWheel 是否更新色轮（来自色轮时应为 false，避免回环）
+     * @param hueF 用于滑条/色轮的色相 0–1（无彩时 QColor 不可靠）
+     * @param satF 饱和度 0–1
+     * @param valF 明度 0–1
      */
     void setColorInternal(const QColor& col, bool updateWheel = true);
+    void setColorInternal(const QColor& col, bool updateWheel, double hueF, double satF, double valF);
 
     /**
      * 内部：创建并布置所有子控件

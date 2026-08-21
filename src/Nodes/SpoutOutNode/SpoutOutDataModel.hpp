@@ -424,7 +424,7 @@ void destroyGlContextInWorkerThread(QOpenGLContext*& context)
                 if (data) {
                     auto variableData = std::dynamic_pointer_cast<VariableData>(data);
                     if (variableData) {
-                        enabled = variableData->value().toBool();
+                        enabled = variableData->asBool();
                     }
                 }
                 setSendingEnabled(enabled);

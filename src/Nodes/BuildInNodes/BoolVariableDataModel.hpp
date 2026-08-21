@@ -95,12 +95,7 @@ namespace Nodes {
                 return;
             }
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
-            bool v = false;
-            if (textData && textData->value().canConvert<bool>()) {
-                v = textData->value().toBool();
-            }
-            // 端口输入同样通过属性接口驱动业务
-            setValue(v);
+            setValue(textData ? textData->asBool() : false);
         }
 
 

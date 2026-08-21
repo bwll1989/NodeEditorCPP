@@ -139,7 +139,7 @@ namespace Nodes
             if (!v) {
                 return;
             }
-            if (v->value().toBool()) {
+            if (v->asBool()) {
                 setRunning(true);
             }
         }

@@ -159,12 +159,19 @@ namespace Nodes
                 widget->valueLineEdit->setText(value);
             }
             emit valueChanged(value);
-            // AbstractDelegateModel::stateFeedBack("/value", value);
-            // Auto-send when value changes? The original code connected textChanged to sendOSCMessage.
-            // Let's keep it consistent: manual send or via trigger. 
-            // BUT wait, original line 55: connect(widget->valueLineEdit,&QLineEdit::textChanged,this,&OscOutDataModel::sendOSCMessage);
-            // So yes, value change triggers send.
-            sendOSCMessage(); 
+            sendOSCMessage();
+        }
+
+        /** VALUE 口 / 外部命令：按 VariableData 消费端约定取展示串后发送 */
+        void setValueFromData(const VariableData &data)
+        {
+            m_value = data.asDisplay();
+            if (widget && widget->valueLineEdit->text() != m_value) {
+                QSignalBlocker blocker(widget->valueLineEdit);
+                widget->valueLineEdit->setText(m_value);
+            }
+            emit valueChanged(m_value);
+            sendOSCMessage();
         }
 
         int getTypeIndex() const { return m_typeIndex; }
@@ -242,32 +249,31 @@ namespace Nodes
                 return;
             }
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
+            if (!textData) {
+                return;
+            }
 
             switch (portIndex)
             {
                 case 0:
-                    setHost(textData->value().toString());
+                    setHost(textData->asString());
                     break;
                 case 1:
-                    setPort(textData->value().toInt());
+                    setPort(textData->asInt());
                     break;
                 case 2:
-                    setAddress(textData->value().toString());
+                    setAddress(textData->asString());
                     sendOSCMessage();
                     break;
                 case 3:
-                    setValue(textData->value().toString());
-                    // setValue already calls sendOSCMessage()
+                    setValueFromData(*textData);
                     break;
                 case 4:
-                    if(textData->value().toBool())
-                    {
+                    if (textData->asBool()) {
                         setSend(true);
                     }
                     break;
             }
-
-
         }
 
         // void stateFeedBack(const QString& oscAddress,QVariant value) override {
@@ -332,36 +338,34 @@ namespace Nodes
             msg.host = m_host;
             msg.port = m_port;
             msg.address = m_address;
-            msg.type = widget->typeComboBox->currentText(); // Type string might still be useful from combo
-            // OR derive type string from m_typeIndex if possible, but combo has text.
-            // Let's keep accessing combo text for type name as we only store index.
-            // Or better: store type names in a list if we want to be pure.
-            // For now, accessing widget for READ-ONLY properties like items list is fine, 
-            // but we should probably cache it if we want to be fully headless-capable.
-            // However, type string is derived from type index.
-            
-            // To support headless, we should know what index 0, 1, 2 map to.
-            // Assuming 0: Int, 1: Float, 2: String based on original switch.
+
+            // 消费端：fromDisplay 识别 [..] 为列表，OSCSender 再展开多参
+            const QVariant payload = VariableData::fromDisplay(m_value);
+            if (payload.typeId() == QMetaType::QVariantList) {
+                msg.type = QStringLiteral("List");
+                msg.value = payload;
+                emit onHasOSC(msg);
+                return;
+            }
 
             switch (m_typeIndex)
             {
             case 0: // Int
-                msg.type = "Int";
-                msg.value = m_value.toInt();
+                msg.type = QStringLiteral("Int");
+                msg.value = payload.isValid() ? payload.toInt() : m_value.toInt();
                 break;
             case 1: // Float
-                msg.type = "Float";
-                msg.value = m_value.toDouble();
+                msg.type = QStringLiteral("Float");
+                msg.value = payload.isValid() ? payload.toDouble() : m_value.toDouble();
                 break;
             case 2: // String
-                msg.type = "String";
+                msg.type = QStringLiteral("String");
                 msg.value = m_value;
                 break;
             default:
-                msg.type = "String";
+                msg.type = QStringLiteral("String");
                 msg.value = m_value;
             }
-            // AbstractDelegateModel::stateFeedBack("/send",true);
             emit onHasOSC(msg);
         }
 
@@ -387,7 +391,7 @@ namespace Nodes
             } else if (localPath == "address") {
                 setAddress(ev.payload.toString());
             } else if (localPath == "value") {
-                setValue(ev.payload.toString());
+                setValueFromData(VariableData(ev.payload));
             } else if (localPath == "type") {
                 setTypeIndex(ev.payload.toInt());
             } else if (localPath == "send") {

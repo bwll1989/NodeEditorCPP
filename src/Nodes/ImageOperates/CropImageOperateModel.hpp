@@ -5,6 +5,7 @@
  * @brief Image Crop — 按四边百分比裁剪（GPU resample 子矩形）
  *
  * 百分比基于输入宽高；输出尺寸 = 原尺寸 − 四边像素。无效区域返回空纹理。
+ * 末口 CROP 与 ROI 一致：0–1 的 [x, y, w, h]。
  */
 
 #include "ImageOperateCommon.hpp"
@@ -71,7 +72,7 @@ class CropImageOperateModel final : public AbstractDelegateModel
 public:
     CropImageOperateModel()
     {
-        InPortCount = 5;
+        InPortCount = 6;
         OutPortCount = 1;
         CaptionVisible = true;
         Caption = "Image Crop";
@@ -139,6 +140,7 @@ public:
             case 2: return "RIGHT %";
             case 3: return "TOP %";
             case 4: return "BOTTOM %";
+            case 5: return "CROP";
             default: return QString();
             }
         }
@@ -163,30 +165,36 @@ public:
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setLeftPercent(variable->value().toDouble());
+                setLeftPercent(variable->asNumber());
             } else if (!data) {
                 setLeftPercent(0.0);
             }
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setRightPercent(variable->value().toDouble());
+                setRightPercent(variable->asNumber());
             } else if (!data) {
                 setRightPercent(0.0);
             }
             break;
         case 3:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setTopPercent(variable->value().toDouble());
+                setTopPercent(variable->asNumber());
             } else if (!data) {
                 setTopPercent(0.0);
             }
             break;
         case 4:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setBottomPercent(variable->value().toDouble());
+                setBottomPercent(variable->asNumber());
             } else if (!data) {
                 setBottomPercent(0.0);
+            }
+            break;
+        case 5:
+            if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
+                const QVector<float> crop = variable->asFloats(4);
+                setCropNorm(double(crop[0]), double(crop[1]), double(crop[2]), double(crop[3]));
             }
             break;
         default:
@@ -259,6 +267,23 @@ public slots:
         m_bottomPercent = clamped;
         m_paramsDirty = true;
         Q_EMIT bottomPercentChanged(m_bottomPercent);
+    }
+
+    void setCropNorm(double x, double y, double w, double h)
+    {
+        x = std::clamp(x, 0.0, 1.0);
+        y = std::clamp(y, 0.0, 1.0);
+        w = std::clamp(w, 0.0, 1.0);
+        h = std::clamp(h, 0.0, 1.0);
+        w = std::min(w, 1.0 - x);
+        h = std::min(h, 1.0 - y);
+        if (w <= 0.0 || h <= 0.0) {
+            return;
+        }
+        setLeftPercent(x * 100.0);
+        setTopPercent(y * 100.0);
+        setRightPercent((1.0 - x - w) * 100.0);
+        setBottomPercent((1.0 - y - h) * 100.0);
     }
 
     void onGlobalEvent(const GlobalEvent& ev)

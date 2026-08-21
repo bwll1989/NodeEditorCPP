@@ -5,6 +5,8 @@
 #include <QSignalBlocker>
 #include <QtMath>
 
+#include <Eigen/Core>
+
 #include "Common/DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
 #include "RangeMapInterface.hpp"
@@ -103,7 +105,7 @@ namespace Nodes
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            return std::make_shared<VariableData>(mapValue(extractInputValue()));
+            return computeOutput();
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
@@ -288,10 +290,10 @@ namespace Nodes
 
             const QString expression = widget->expression->text().trimmed();
             if (expression.isEmpty()) {
-                return m_inData->value().toDouble();
+                return m_inData->asNumber();
             }
 
-            const QVariantMap dataMap = m_inData->getMap();
+            const QVariantMap dataMap = m_inData->asMap();
             QJSValue jsData = JSEngineDefines::variantMapToJSValue(m_jsEngine, dataMap);
             QJSValue global = m_jsEngine->globalObject();
             global.setProperty("$input", jsData);
@@ -302,11 +304,27 @@ namespace Nodes
 
             QJSValue result = m_jsEngine->evaluate(expression);
             if (result.isError()) {
-                qDebug() << "RangeMap JS表达式错误:" << result.toString();
+                qDebug() << "RangeMap JS表达式错误" << result.toString();
                 return 0.0;
             }
 
             return result.toVariant().toDouble();
+        }
+
+        /** 表达式为空且 default 为列表时，逐元素映射；否则按标量映射 */
+        std::shared_ptr<VariableData> computeOutput() const
+        {
+            if (!m_inData) {
+                return std::make_shared<VariableData>(0.0);
+            }
+
+            const QString expression = widget->expression->text().trimmed();
+            if (expression.isEmpty() && m_inData->isList()) {
+                return std::make_shared<VariableData>(
+                    floatVectorToList(mapVector(m_inData->asFloats())));
+            }
+
+            return std::make_shared<VariableData>(mapValue(extractInputValue()));
         }
 
         double mapValue(double value) const
@@ -320,6 +338,35 @@ namespace Nodes
                 t = qBound(0.0, t, 1.0);
             }
             return m_outMin + t * (m_outMax - m_outMin);
+        }
+
+        /** Eigen 向量化：out = outMin + clamp01((x-inMin)/(inMax-inMin)) * (outMax-outMin) */
+        QVector<float> mapVector(const QVector<float> &input) const
+        {
+            const int n = input.size();
+            if (n <= 0) {
+                return {};
+            }
+            if (qFuzzyCompare(m_inMin, m_inMax)) {
+                return QVector<float>(n, float(m_outMin));
+            }
+
+            QVector<float> output(n);
+            const Eigen::Map<const Eigen::ArrayXf> in(input.constData(), n);
+            Eigen::Map<Eigen::ArrayXf> out(output.data(), n);
+
+            const float inMin = float(m_inMin);
+            const float inMax = float(m_inMax);
+            const float outMin = float(m_outMin);
+            const float outMax = float(m_outMax);
+            const float inv = 1.0f / (inMax - inMin);
+
+            out = (in - inMin) * inv;
+            if (m_clamp) {
+                out = out.max(0.0f).min(1.0f);
+            }
+            out = outMin + out * (outMax - outMin);
+            return output;
         }
 
     private:

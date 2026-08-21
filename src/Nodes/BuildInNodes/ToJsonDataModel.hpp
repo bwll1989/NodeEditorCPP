@@ -97,11 +97,7 @@ namespace Nodes {
                 return;
             }
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
-            if (textData->value().canConvert<QString>()) {
-                _textEdit->setPlainText(textData->value().toString());
-            } else {
-                _textEdit->setPlainText("");
-            }
+            _textEdit->setPlainText(textData ? textData->asString() : QString());
 
             Q_EMIT dataUpdated(portIndex);
         }

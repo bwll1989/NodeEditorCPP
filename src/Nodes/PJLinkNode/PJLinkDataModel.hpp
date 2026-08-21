@@ -307,7 +307,7 @@ namespace Nodes
             m_inData = std::dynamic_pointer_cast<VariableData>(data);
             switch (portIndex) {
             case 0: {
-                if (m_inData && m_inData->value().toBool()) {
+                if (m_inData && m_inData->asBool()) {
                     setPowerOn(true);
                 } else {
                     setPowerOff(true);
@@ -315,14 +315,14 @@ namespace Nodes
             }
                 break;
             case 1:{
-                if (m_inData && m_inData->value().toBool()) {
+                if (m_inData && m_inData->asBool()) {
                     setMuteOn(true);
                 } else {
                     setMuteOff(true);
                 }
                 }
             case 2: {
-                if (m_inData && m_inData->value().toBool()) {
+                if (m_inData && m_inData->asBool()) {
                     setSendCustom(true);
                 }
             }

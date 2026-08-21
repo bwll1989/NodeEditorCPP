@@ -281,7 +281,7 @@ namespace Nodes
 
             switch (portIndex) {
             case 0:
-                setHost(variableData->value().toString());
+                setHost(variableData->asString());
                 break;
             default:
                 break;

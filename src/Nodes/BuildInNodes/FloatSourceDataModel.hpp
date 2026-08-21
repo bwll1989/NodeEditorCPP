@@ -112,12 +112,7 @@ class FloatSourceDataModel : public AbstractDelegateModel
                 }
 
                 auto textData = std::dynamic_pointer_cast<VariableData>(data);
-                double v = 0.0;
-                if (textData && textData->value().canConvert<double>()) {
-                    v = textData->value().toDouble();
-                }
-                setValue(v);
-
+                setValue(textData ? textData->asNumber() : 0.0);
             }
         }
 

@@ -118,13 +118,13 @@ namespace Nodes
 
             switch (portIndex) {
             case 0: // TRIGGER：仅布尔 true 时步进
-                if (!var->value().toBool()) {
+                if (!var->asBool()) {
                     return;
                 }
                 advanceStep();
                 break;
             case 1: // RESET：仅布尔 true 时复位
-                if (!var->value().toBool()) {
+                if (!var->asBool()) {
                     return;
                 }
                 setReset(true);

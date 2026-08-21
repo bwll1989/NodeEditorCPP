@@ -84,7 +84,7 @@ namespace Nodes
             }
         
             // 获取输入数据的完整映射
-            const QVariantMap dataMap = m_proprtyData->getMap();
+            const QVariantMap dataMap = m_proprtyData->asMap();
         
             // 获取表达式（支持任意 JS 表达式）
             const QString expression = widget->text().trimmed();

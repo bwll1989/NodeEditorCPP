@@ -10,7 +10,9 @@
 #include "QPointF"
 
 class QUndoStack;
+class QMenu;
 using QtNodes::BasicGraphicsScene;
+using QtNodes::ContextMenuKind;
 class CustomFlowGraphicsScene : public BasicGraphicsScene
 {
     Q_OBJECT
@@ -27,11 +29,15 @@ public:
 
 public:
     /**
-     * 创建场景菜单
+     * 空白处双击：创建节点菜单（NodeCreateSceneMenu）
      */
     QMenu *createSceneMenu(QPointF const scenePos) override;
 
-
+    /**
+     * 按对象/画布类型追加共享编辑菜单项。
+     * Scene：空白处右键（粘贴/搜索等）；Node/Connection/Group：图元右键尾部。
+     */
+    void appendContextMenuActions(QMenu &menu, ContextMenuKind kind) override;
 
 public Q_SLOTS:
     /**

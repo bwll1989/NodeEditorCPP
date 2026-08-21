@@ -1,138 +1,490 @@
-# 常用关键字
+# =============================================================================
+# JS Script 自动补全（QJSEngine + Node / 控件绑定）
+# 以 # 或 // 开头的行会被编辑器忽略
+# =============================================================================
+
+# --- 关键字 ---
 var
 let
 const
 function
+function ()
 return
+if
 if ()
 else
+else if ()
+switch
 switch ()
 case
+default
 break
 continue
+for
 for ()
+for (var i = 0; i < n; i++)
+for (const item of list)
+for (const key in obj)
+while
 while ()
 do
+of
+in
 new
 typeof
 instanceof
+this
+super
+class
+extends
+static
 try
 catch
 finally
 throw
+async
+await
+yield
+debugger
+void
+delete
 null
 undefined
 true
 false
-console.log()
-console.warn()
-console.error()
-console.debug()
+NaN
+Infinity
+
+# --- 全局函数 ---
+parseInt(string, radix)
+parseFloat(string)
+isNaN(value)
+isFinite(value)
+Number(value)
+String(value)
+Boolean(value)
+Array(length)
+Object(value)
+RegExp(pattern, flags)
+encodeURI(uri)
+encodeURIComponent(str)
+decodeURI(uri)
+decodeURIComponent(str)
+setTimeout(callback, ms)
+setInterval(callback, ms)
+clearTimeout(id)
+clearInterval(id)
 print()
-Math.abs()
-Math.max()
-Math.min()
-Math.floor()
-Math.ceil()
-Math.round()
-Math.random()
-Math.pow()
-Math.sqrt()
-JSON.stringify()
-JSON.parse()
-Array.isArray()
-[].push()
-[].pop()
-[].shift()
-[].unshift()
-[].slice()
-[].splice()
-[].map()
-[].filter()
-[].reduce()
-[].find()
-[].indexOf()
-[].includes()
-[].forEach()
-"".includes()
-"".indexOf()
-"".toLowerCase()
-"".toUpperCase()
-"".trim()
-"".replace()
-"".split()
-"".substr()
-"".substring()
-Date
-Date.now()
-new Date()
-setTimeout()
-setInterval()
-clearTimeout()
-clearInterval()
-# 常用函数
-Node.inputIndex
-Node.inputIndex()
-Node.getOutputCount
-Node.getOutputCount()
-Node.getInputCount
+gc()
+
+# --- console（QJSEngine ConsoleExtension） ---
+console
+console.log(value)
+console.info(value)
+console.debug(value)
+console.warn(value)
+console.error(value)
+console.assert(condition, message)
+
+# --- 节点生命周期（脚本里实现） ---
+function initInterface()
+function inputEventHandler(index)
+initInterface()
+inputEventHandler(index)
+
+# --- Node（JavaScriptDataModel Q_INVOKABLE） ---
+Node
 Node.getInputCount()
-Node.getInputValue
-Node.getInputValue()
-Node.setOutputValue
-Node.setOutputValue()
-Node.addToLayout
-Node.addToLayout()
-Node.clearLayout
+Node.getOutputCount()
+Node.inputIndex()
+Node.getInputValue(index)
+Node.getOutputValue(index)
+Node.setOutputValue(index, value)
+Node.addToLayout(widget)
+Node.addToLayout(widget, row, column)
+Node.addToLayout(widget, row, column, rowSpan, columnSpan)
 Node.clearLayout()
-Node.nPorts()
-Node.portCaption()
-# 常用控件
-Label
-LineEdit
+["default"]
+
+# --- 控件构造（SupportWidgets newQMetaObject） ---
+new SpinBox()
+new DoubleSpinBox()
+new Button()
+new Label()
+new LineEdit()
+new CheckBox()
+new ComboBox()
+new HSlider()
+new VSlider()
 SpinBox
 DoubleSpinBox
+Button
+Label
+LineEdit
+CheckBox
+ComboBox
 HSlider
 VSlider
-Button
-ComboBox
-CheckBox
-setText
-setText()
-text
-text()
-value
+
+# --- 控件通用（继承 QWidget / QObject，JS 可调） ---
+setEnabled(enabled)
+isEnabled()
+setVisible(visible)
+isVisible()
+show()
+hide()
+setToolTip(text)
+setStyleSheet(css)
+setFixedSize(w, h)
+setFixedWidth(w)
+setFixedHeight(h)
+resize(w, h)
+setFocus()
+setParent(parent)
+objectName
+setObjectName(name)
+deleteLater()
+
+# --- 取值 / 设值 ---
 value()
-setValue
-setValue()
-setRange
-setRange()
-setMinimum
-setMinimum()
-setMaximum
-setMaximum()
-setSingleStep
-setSingleStep()
-clicked.connect
-valueChanged.connect
-textChanged.connect
-checkStateChanged.connect
-currentIndexChanged.connect
-addItem
-addItem()
-setItems
-setItems()
-currentIndex
+setValue(v)
+setRange(min, max)
+setMinimum(min)
+setMaximum(max)
+setSingleStep(step)
+setDecimals(n)
+setPrefix(text)
+setSuffix(text)
+setWrapping(on)
+text()
+setText(text)
+setPlaceholderText(text)
+setReadOnly(on)
+setMaxLength(n)
+clear()
+selectAll()
+isChecked()
+setChecked(on)
+setCheckable(on)
+setAlignment(align)
+setWordWrap(on)
+addItem(text)
+addItems(list)
+count()
 currentIndex()
-setCurrentIndex
-setCurrentIndex()
-JSUtil.setProperty
-JSUtil.setProperty()
-JSUtil.getProperty
-JSUtil.getProperty()
-console.log
-if ()
-switch ()
-while ()
-for ()
-function ()
+currentText()
+setCurrentIndex(i)
+setCurrentText(text)
+findText(text)
+itemText(index)
+removeItem(index)
+click()
+
+# --- 信号连接 ---
+clicked.connect(callback)
+pressed.connect(callback)
+released.connect(callback)
+toggled.connect(callback)
+valueChanged.connect(callback)
+textChanged.connect(callback)
+editingFinished.connect(callback)
+returnPressed.connect(callback)
+currentIndexChanged.connect(callback)
+currentTextChanged.connect(callback)
+stateChanged.connect(callback)
+checkStateChanged.connect(callback)
+
+# --- Math ---
+Math
+Math.E
+Math.LN10
+Math.LN2
+Math.LOG10E
+Math.LOG2E
+Math.PI
+Math.SQRT1_2
+Math.SQRT2
+Math.abs(x)
+Math.acos(x)
+Math.acosh(x)
+Math.asin(x)
+Math.asinh(x)
+Math.atan(x)
+Math.atan2(y, x)
+Math.atanh(x)
+Math.cbrt(x)
+Math.ceil(x)
+Math.clz32(x)
+Math.cos(x)
+Math.cosh(x)
+Math.exp(x)
+Math.expm1(x)
+Math.floor(x)
+Math.fround(x)
+Math.hypot(a, b)
+Math.imul(a, b)
+Math.log(x)
+Math.log10(x)
+Math.log1p(x)
+Math.log2(x)
+Math.max(a, b)
+Math.min(a, b)
+Math.pow(x, y)
+Math.random()
+Math.round(x)
+Math.sign(x)
+Math.sin(x)
+Math.sinh(x)
+Math.sqrt(x)
+Math.tan(x)
+Math.tanh(x)
+Math.trunc(x)
+
+# --- Number ---
+Number.EPSILON
+Number.MAX_SAFE_INTEGER
+Number.MAX_VALUE
+Number.MIN_SAFE_INTEGER
+Number.MIN_VALUE
+Number.NaN
+Number.NEGATIVE_INFINITY
+Number.POSITIVE_INFINITY
+Number.isFinite(value)
+Number.isInteger(value)
+Number.isNaN(value)
+Number.isSafeInteger(value)
+Number.parseFloat(string)
+Number.parseInt(string, radix)
+(0).toExponential(digits)
+(0).toFixed(digits)
+(0).toPrecision(digits)
+(0).toString(radix)
+(0).valueOf()
+
+# --- String ---
+"".at(index)
+"".charAt(index)
+"".charCodeAt(index)
+"".codePointAt(index)
+"".concat(str)
+"".endsWith(search)
+"".includes(search)
+"".indexOf(search)
+"".lastIndexOf(search)
+"".localeCompare(other)
+"".match(regexp)
+"".matchAll(regexp)
+"".normalize()
+"".padEnd(length, fill)
+"".padStart(length, fill)
+"".repeat(count)
+"".replace(search, repl)
+"".replaceAll(search, repl)
+"".search(regexp)
+"".slice(start, end)
+"".split(sep)
+"".startsWith(search)
+"".substring(start, end)
+"".substr(start, length)
+"".toLowerCase()
+"".toUpperCase()
+"".toLocaleLowerCase()
+"".toLocaleUpperCase()
+"".trim()
+"".trimStart()
+"".trimEnd()
+"".valueOf()
+String.fromCharCode(n)
+String.fromCodePoint(n)
+String.raw
+
+# --- Array ---
+Array.isArray(value)
+Array.from(arrayLike)
+Array.of(a, b)
+[].at(index)
+[].concat(other)
+[].copyWithin(target, start)
+[].entries()
+[].every(fn)
+[].fill(value)
+[].filter(fn)
+[].find(fn)
+[].findIndex(fn)
+[].findLast(fn)
+[].findLastIndex(fn)
+[].flat(depth)
+[].flatMap(fn)
+[].forEach(fn)
+[].includes(value)
+[].indexOf(value)
+[].join(sep)
+[].keys()
+[].lastIndexOf(value)
+[].map(fn)
+[].pop()
+[].push(value)
+[].reduce(fn, init)
+[].reduceRight(fn, init)
+[].reverse()
+[].shift()
+[].slice(start, end)
+[].some(fn)
+[].sort(fn)
+[].splice(start, deleteCount)
+[].toLocaleString()
+[].toReversed()
+[].toSorted(fn)
+[].toSpliced(start, deleteCount)
+[].toString()
+[].unshift(value)
+[].values()
+[].with(index, value)
+[].length
+
+# --- Object ---
+Object.assign(target, source)
+Object.create(proto)
+Object.defineProperty(obj, key, desc)
+Object.entries(obj)
+Object.freeze(obj)
+Object.fromEntries(entries)
+Object.getOwnPropertyDescriptor(obj, key)
+Object.getOwnPropertyNames(obj)
+Object.getOwnPropertySymbols(obj)
+Object.getPrototypeOf(obj)
+Object.hasOwn(obj, key)
+Object.is(a, b)
+Object.isExtensible(obj)
+Object.isFrozen(obj)
+Object.isSealed(obj)
+Object.keys(obj)
+Object.preventExtensions(obj)
+Object.seal(obj)
+Object.setPrototypeOf(obj, proto)
+Object.values(obj)
+obj.hasOwnProperty(key)
+obj.toString()
+obj.valueOf()
+
+# --- JSON ---
+JSON
+JSON.parse(text)
+JSON.stringify(value)
+JSON.stringify(value, replacer, space)
+
+# --- Date ---
+Date
+Date.now()
+Date.parse(text)
+Date.UTC(y, m, d)
+new Date()
+new Date(ms)
+(new Date()).getTime()
+(new Date()).getFullYear()
+(new Date()).getMonth()
+(new Date()).getDate()
+(new Date()).getDay()
+(new Date()).getHours()
+(new Date()).getMinutes()
+(new Date()).getSeconds()
+(new Date()).getMilliseconds()
+(new Date()).getTimezoneOffset()
+(new Date()).setTime(ms)
+(new Date()).setFullYear(y)
+(new Date()).setMonth(m)
+(new Date()).setDate(d)
+(new Date()).setHours(h)
+(new Date()).setMinutes(m)
+(new Date()).setSeconds(s)
+(new Date()).toISOString()
+(new Date()).toJSON()
+(new Date()).toLocaleString()
+(new Date()).toLocaleDateString()
+(new Date()).toLocaleTimeString()
+(new Date()).toString()
+(new Date()).toUTCString()
+(new Date()).valueOf()
+
+# --- RegExp ---
+new RegExp(pattern, flags)
+/pattern/g
+/pattern/i
+/pattern/m
+regexp.test(string)
+regexp.exec(string)
+regexp.source
+regexp.flags
+regexp.global
+regexp.ignoreCase
+regexp.multiline
+regexp.lastIndex
+
+# --- Map / Set / WeakMap / WeakSet ---
+new Map()
+Map
+map.get(key)
+map.set(key, value)
+map.has(key)
+map.delete(key)
+map.clear()
+map.size
+map.forEach(fn)
+map.keys()
+map.values()
+map.entries()
+new Set()
+Set
+set.add(value)
+set.has(value)
+set.delete(value)
+set.clear()
+set.size
+set.forEach(fn)
+set.keys()
+set.values()
+new WeakMap()
+new WeakSet()
+
+# --- Promise ---
+Promise
+Promise.resolve(value)
+Promise.reject(reason)
+Promise.all(list)
+Promise.allSettled(list)
+Promise.race(list)
+Promise.any(list)
+new Promise(function(resolve, reject) {})
+promise.then(onFulfilled, onRejected)
+promise.catch(onRejected)
+promise.finally(onFinally)
+
+# --- 其它内置 ---
+Symbol
+Symbol.for(key)
+Symbol.iterator
+Symbol.toStringTag
+Reflect
+Reflect.get(obj, key)
+Reflect.set(obj, key, value)
+Reflect.has(obj, key)
+Reflect.ownKeys(obj)
+Proxy
+Error
+Error(message)
+TypeError
+RangeError
+SyntaxError
+ReferenceError
+URIError
+Int8Array
+Uint8Array
+Uint8ClampedArray
+Int16Array
+Uint16Array
+Int32Array
+Uint32Array
+Float32Array
+Float64Array
+ArrayBuffer
+DataView

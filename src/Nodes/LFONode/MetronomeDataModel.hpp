@@ -147,13 +147,13 @@ namespace Nodes
 
             switch (portIndex) {
             case IntervalPort:
-                setInterval(v->value().toInt());
+                setInterval(v->asInt());
                 break;
             case ValuePort:
-                setSignalValue(v->value().toString());
+                setSignalValue(v->asString());
                 break;
             case EnablePort:
-                setRunning(v->value().toBool());
+                setRunning(v->asBool());
                 break;
             default:
                 break;

@@ -206,10 +206,10 @@ namespace Nodes
             }
 
             if (portIndex == 0) {
-                setCommand(varData->value().toString());
+                setCommand(varData->asString());
             }
             else if (portIndex == 1) {
-                if (varData->value().toBool() && !command().isEmpty()) {
+                if (varData->asBool() && !command().isEmpty()) {
                    setSend(true);
                 }
             }

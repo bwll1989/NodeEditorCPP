@@ -342,7 +342,7 @@ private Q_SLOTS:
             if (!enableData) {
                 return;
             }
-            setEnabled(enableData->value().toBool());
+            setEnabled(enableData->asBool());
             break;
         }
         default:

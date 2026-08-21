@@ -54,7 +54,7 @@ public:
         PortEditable = false;
 
         m_widget = new ROIInterface();
-        m_outputRectData = std::make_shared<VariableData>(QRect());
+        m_outputRectData = std::make_shared<VariableData>(QVariantList{0.0, 0.0, 0.0, 0.0});
         m_emptyImage = std::make_shared<ImageData>();
         m_emptyVariable = std::make_shared<VariableData>();
         ensureImageDataBuffer(m_outputImage, m_outputBuffer);
@@ -180,7 +180,7 @@ public:
                 m_lastPushedTimestamp = -1;
                 m_roiRectPx = QRect();
                 if (m_outputRectData) {
-                    m_outputRectData->insert("default", m_roiRectPx);
+                    publishRectOutput();
                 }
                 if (m_widget && m_widget->imageViewHost) {
                     m_widget->imageViewHost->clearTexture();
@@ -203,11 +203,6 @@ public:
             emit dataUpdated(0);
 
             updateFromSharedBuffer(TimestampGenerator::getInstance()->getCurrentFrameCount());
-
-            if (m_hasPendingRectInput) {
-                applyRectInput(m_pendingRectInput, m_pendingRectInputIsNorm);
-                m_hasPendingRectInput = false;
-            }
             return;
         }
         case 1: {
@@ -219,20 +214,18 @@ public:
                 return;
             }
 
-            const QRectF rectF = varData->value().toRectF();
-            if (!rectF.isValid() || rectF.width() <= 0.0 || rectF.height() <= 0.0) {
+            const QVector<float> components = varData->asFloats(4);
+            const QRectF incomingRect{
+                double(components[0]),
+                double(components[1]),
+                double(components[2]),
+                double(components[3])
+            };
+            if (!incomingRect.isValid() || incomingRect.width() <= 0.0 || incomingRect.height() <= 0.0) {
                 return;
             }
 
-            const bool isNorm = isNormalizedRect(rectF);
-            if (m_inputImageSize.isEmpty()) {
-                m_pendingRectInput = rectF;
-                m_pendingRectInputIsNorm = isNorm;
-                m_hasPendingRectInput = true;
-                return;
-            }
-
-            applyRectInput(rectF, isNorm);
+            setRoiNormRect(incomingRect);
             return;
         }
         default:
@@ -379,32 +372,6 @@ private slots:
     }
 
 private:
-    bool isNormalizedRect(const QRectF& rectF) const
-    {
-        const double eps = 1e-6;
-        if (rectF.x() < -eps || rectF.y() < -eps) return false;
-        if (rectF.width() <= eps || rectF.height() <= eps) return false;
-        if (rectF.x() > 1.0 + eps || rectF.y() > 1.0 + eps) return false;
-        if (rectF.width() > 1.0 + eps || rectF.height() > 1.0 + eps) return false;
-        if (rectF.x() + rectF.width() > 1.0 + eps) return false;
-        if (rectF.y() + rectF.height() > 1.0 + eps) return false;
-        return true;
-    }
-
-    void applyRectInput(const QRectF& rectF, bool isNorm)
-    {
-        if (isNorm) {
-            setRoiNormRect(rectF);
-            return;
-        }
-
-        const int x = qMax(0, static_cast<int>(std::floor(rectF.x())));
-        const int y = qMax(0, static_cast<int>(std::floor(rectF.y())));
-        const int w = qMax(1, static_cast<int>(std::ceil(rectF.width())));
-        const int h = qMax(1, static_cast<int>(std::ceil(rectF.height())));
-        setRoiRectPx(QRect(x, y, w, h));
-    }
-
     /**
      * @brief 设置完整 ROI 矩形（像素坐标）
      * @param rectPx 新的 ROI 像素矩形
@@ -428,12 +395,7 @@ private:
     {
         const QRectF normalizedNorm = normalizeRectNorm(rectNorm);
         if (normalizedNorm == m_roiNormRect) {
-            const QRect oldPx = m_roiRectPx;
             updateDerivedRoiPxFromNorm();
-            if (oldPx != m_roiRectPx && m_outputRectData) {
-                m_outputRectData->insert("default", m_roiRectPx);
-                emit dataUpdated(1);
-            }
             syncWidgetState();
             m_roiParamsDirty = true;
             processImage();
@@ -441,11 +403,10 @@ private:
         }
 
         const QRectF oldNorm = m_roiNormRect;
-        const QRect oldPx = m_roiRectPx;
         m_roiNormRect = normalizedNorm;
         updateDerivedRoiPxFromNorm();
-        if (oldPx != m_roiRectPx && m_outputRectData) {
-            m_outputRectData->insert("default", m_roiRectPx);
+        if (m_outputRectData) {
+            publishRectOutput();
             emit dataUpdated(1);
         }
 
@@ -589,6 +550,19 @@ private:
     /**
      * @brief 同步内嵌界面的图像与 ROI 信息
      */
+    void publishRectOutput()
+    {
+        if (!m_outputRectData) {
+            return;
+        }
+        m_outputRectData->insert(QStringLiteral("default"), floatVectorToList({
+            float(m_roiNormRect.x()),
+            float(m_roiNormRect.y()),
+            float(m_roiNormRect.width()),
+            float(m_roiNormRect.height())
+        }));
+    }
+
     void syncWidgetState()
     {
         if (!m_widget || !m_widget->imageViewHost) {
@@ -795,9 +769,5 @@ private:
     QMetaObject::Connection m_bufferFrameConnection;
     std::atomic<bool> m_shuttingDown{false};
     bool m_roiParamsDirty = false;
-
-    bool m_hasPendingRectInput = false;
-    bool m_pendingRectInputIsNorm = false;
-    QRectF m_pendingRectInput;
 };
 } // namespace Nodes

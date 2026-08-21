@@ -109,7 +109,7 @@ public:
         case 0: {
             const auto variable = std::dynamic_pointer_cast<VariableData>(nodeData);
             if (variable) {
-                m_inVariable = std::make_shared<VariableData>(variable->getMap());
+                m_inVariable = std::make_shared<VariableData>(variable->asMap());
             } else {
                 m_inVariable.reset();
             }
@@ -120,14 +120,14 @@ public:
         }
         case 1: {
             const auto trigger = std::dynamic_pointer_cast<VariableData>(nodeData);
-            if (trigger && trigger->value().toBool()) {
+            if (trigger && trigger->asBool()) {
                 startRecording();
             }
             break;
         }
         case 2: {
             const auto trigger = std::dynamic_pointer_cast<VariableData>(nodeData);
-            if (trigger && trigger->value().toBool()) {
+            if (trigger && trigger->asBool()) {
                 stopRecording();
             }
             break;

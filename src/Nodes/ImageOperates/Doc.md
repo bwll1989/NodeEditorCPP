@@ -206,7 +206,8 @@ Image Loader (前景) ──┴→ Image Cross → Window Display
 
 # Image Crop
 
-- **输入**：`IMAGE`；`LEFT %` / `RIGHT %` / `TOP %` / `BOTTOM %`（0–100）
+- **输入**：`IMAGE`；`LEFT %` / `RIGHT %` / `TOP %` / `BOTTOM %`（0–100）；`CROP`（0–1 `[x, y, w, h]`，与 ROI 一致）
+- **CROP**：解析 `VariableData.default`，不足补 0、超出截断；写入后换算成四边百分比
 - **输出**：`IMAGE`（裁剪后尺寸）
 - 四边合计导致宽或高 ≤0 时输出无效纹理
 
@@ -276,7 +277,8 @@ Image Loader (前景) ──┴→ Image Cross → Window Display
 
 # Image Scale
 
-- **输入**：`IMAGE`；`Width`；`Height`（像素，0 表示保持比例或使用输入尺寸逻辑）
+- **输入**：`IMAGE`；`SIZE`（`[w, h]`）；`Width`；`Height`（像素）
+- **SIZE**：解析 `VariableData.default` 为 2 维向量，不足补 0、超出截断
 - **输出**：`IMAGE`
 - **GPU**：`ImageGpuPass::resize`
 

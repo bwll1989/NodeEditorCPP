@@ -262,8 +262,7 @@ void UniversePlaybackDataModel::setInData(std::shared_ptr<NodeData> data, PortIn
     auto variableData = std::dynamic_pointer_cast<VariableData>(data);
     if (!variableData) return;
 
-    QVariant value = variableData->value();
-    bool trigger = value.toBool();
+    bool trigger = variableData->asBool();
 
     switch (portIndex) {
     case 0: // 播放

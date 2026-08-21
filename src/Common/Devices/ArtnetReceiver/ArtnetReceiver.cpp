@@ -6,7 +6,6 @@
 #include <QJsonObject>
 #include <QByteArray>
 #include <QHostAddress>
-#include "tinyosc.h"
 #include <QThread>
 #include <QtEndian>
 ArtnetReceiver::ArtnetReceiver(QObject *parent)

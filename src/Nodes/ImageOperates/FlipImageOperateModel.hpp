@@ -132,14 +132,14 @@ public:
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setHorizontal(variable->value().toBool());
+                setHorizontal(variable->asBool());
             } else if (!data) {
                 setHorizontal(false);
             }
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setVertical(variable->value().toBool());
+                setVertical(variable->asBool());
             } else if (!data) {
                 setVertical(false);
             }

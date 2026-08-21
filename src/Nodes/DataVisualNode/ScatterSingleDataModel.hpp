@@ -26,7 +26,7 @@ namespace Nodes
     public:
         ScatterSingleDataModel()
         {
-            InPortCount =3;
+            InPortCount =1;
             OutPortCount=0;
             CaptionVisible=true;
             Caption="Scatter Single";
@@ -54,20 +54,11 @@ namespace Nodes
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
-            switch (portType) {
-            case PortType::In:
-                    switch (portIndex) {
-                        case 0:  return "VALUE_X";
-                        case 1:  return "VALUE_Y";
-                        case 2:  return "VALUE_Z";
-                        default: break;
-                    }
-            case PortType::Out:
-                break;
-            default:
-                break;
+            Q_UNUSED(portIndex)
+            if (portType == PortType::In) {
+                return QStringLiteral("XYZ");
             }
-            return "";
+            return QString();
         }
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -83,30 +74,29 @@ namespace Nodes
             return nullptr;
         }
 
-        // 函数级注释：根据输入端口更新 x/y/z；当三者均就绪时，调用 QML 的 appendPoint(x,y,z) 追加散点
+        // 单口 XYZ：从 default 按需截取/补 0 得到 [x,y,z]，调用 QML updatePoint 移动单点
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-            if (!data) { return; }
+            Q_UNUSED(portIndex)
+            if (!data) {
+                return;
+            }
             auto var = std::dynamic_pointer_cast<VariableData>(data);
-            if (!var) { return; }
-
-            const double v = var->value().toDouble();
-            switch (portIndex) {
-                case 0: m_x = v; break; // X
-                case 1: m_y = v; break; // Y
-                case 2: m_z = v; break; // Z
-                default:
-                    return;
-
+            if (!var) {
+                return;
             }
 
-            if (QObject* root = m_quickWidget->rootObject()) {
+            const QVector<float> xyz = var->asFloats(3);
+            m_x = double(xyz[0]);
+            m_y = double(xyz[1]);
+            m_z = double(xyz[2]);
+
+            if (QObject *root = m_quickWidget->rootObject()) {
                 QMetaObject::invokeMethod(root, "updatePoint",
                     Q_ARG(QVariant, QVariant(m_x)),
                     Q_ARG(QVariant, QVariant(m_y)),
                     Q_ARG(QVariant, QVariant(m_z)));
             }
-
         }
 
         // 函数级注释：保存节点状态到 JSON（当前示例不持久化图数据）

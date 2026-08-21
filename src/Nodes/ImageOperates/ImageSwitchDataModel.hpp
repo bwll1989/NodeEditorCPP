@@ -115,7 +115,7 @@ namespace Nodes
                 else{
                     auto var = std::dynamic_pointer_cast<VariableData>(data);
                     if (var) {
-                        setIndex(var->value().toInt());
+                        setIndex(var->asInt());
                     }
                 }
                 return;

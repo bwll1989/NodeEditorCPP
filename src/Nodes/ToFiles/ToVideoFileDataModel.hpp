@@ -150,14 +150,14 @@ public:
         }
         case 1: {
             const auto trigger = std::dynamic_pointer_cast<VariableData>(nodeData);
-            if (trigger && trigger->value().toBool()) {
+            if (trigger && trigger->asBool()) {
                 startRecording();
             }
             break;
         }
         case 2: {
             const auto trigger = std::dynamic_pointer_cast<VariableData>(nodeData);
-            if (trigger && trigger->value().toBool()) {
+            if (trigger && trigger->asBool()) {
                 stopRecording();
             }
             break;

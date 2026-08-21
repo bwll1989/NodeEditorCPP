@@ -58,10 +58,9 @@ void InternalControlModel::setInData(const std::shared_ptr<QtNodes::NodeData> no
     if (!nodeData) return;
     auto v = std::dynamic_pointer_cast<VariableData>(nodeData);
     if (!v) return;
-    QVariant val = v->value();
     switch (port) {
         case 0: // Trigger
-            if (val.toBool())
+            if (v->asBool())
                 setTrigger(true);
             break;
         default:

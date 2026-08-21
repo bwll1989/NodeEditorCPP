@@ -271,35 +271,35 @@ public:
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setBrightness(variable->value().toInt());
+                setBrightness(variable->asNumber());
             } else if (!data) {
                 setBrightness(0);
             }
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setGamma(variable->value().toInt());
+                setGamma(variable->asNumber());
             } else if (!data) {
                 setGamma(100);
             }
             break;
         case 3:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setBlackLevel(variable->value().toInt());
+                setBlackLevel(variable->asNumber());
             } else if (!data) {
                 setBlackLevel(0);
             }
             break;
         case 4:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setStepSize(variable->value().toInt());
+                setStepSize(variable->asNumber());
             } else if (!data) {
                 setStepSize(0);
             }
             break;
         case 5:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setOpacity(variable->value().toInt());
+                setOpacity(variable->asNumber());
             } else if (!data) {
                 setOpacity(255);
             }

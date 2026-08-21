@@ -8,7 +8,6 @@
 #include <QByteArray>
 #include <QHostAddress>
 #include <QJsonParseError>
-#include "tinyosc.h"
 #include <QCheckBox>
 #include <QSpinBox>
 #include <QDoubleSpinBox>

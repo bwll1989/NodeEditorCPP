@@ -6,6 +6,8 @@
 #include <iostream>
 #include <QPushButton>
 #include <QtCore/qglobal.h>
+#include <QJsonArray>
+#include <QJsonDocument>
 #include "Common/Devices/OSCReceiver/OSCReceiver.h"
 #include "OscInInterface.hpp"
 #include <QVariantMap>
@@ -132,7 +134,8 @@ namespace Nodes
                 case 1:
                     return std::make_shared<VariableData>(inData->value("address").toString());
                 case 2:
-                    return std::make_shared<VariableData>(inData->value().toString());
+                    // 多参时 default 为列表，原样输出；单参仍为标量
+                    return std::make_shared<VariableData>(inData->value());
                 default:
                     break;
             }
@@ -199,9 +202,18 @@ namespace Nodes
             emit dataUpdated(0);
             emit dataUpdated(1);
             emit dataUpdated(2);
-            widget->addressEdit->setText(data["address"].toString());
-            widget->valueEdit->setText(data["default"].toString());
+            widget->addressEdit->setText(data.value(QStringLiteral("address")).toString());
+            widget->valueEdit->setText(formatOscValue(data.value(QStringLiteral("default"))));
+        }
 
+        static QString formatOscValue(const QVariant &value)
+        {
+            if (value.typeId() == QMetaType::QVariantList) {
+                return QString::fromUtf8(
+                    QJsonDocument(QJsonArray::fromVariantList(value.toList()))
+                        .toJson(QJsonDocument::Compact));
+            }
+            return value.toString();
         }
     private:
 

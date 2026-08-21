@@ -372,8 +372,9 @@ QComboBox::drop-down:pressed {
 
 
 /* ======= 列表视图样式 ======= */
+/* 需实心背景：QScintilla 补全框等为独立 Tool 窗口，transparent 会露出系统深色底导致黑字不可见 */
 QListView {
-    background-color: transparent;
+    background-color: #FFFFFF;
     color: #000000;
     border: 1px solid rgba(0,0,0,20);
     border-radius: 6px;
@@ -384,6 +385,8 @@ QListView::item {
     height: 26px;
     padding: 2px 8px;
     border-left: 2px solid transparent;
+    background-color: #FFFFFF;
+    color: #000000;
 }
 
 QListView::item:selected {
@@ -396,6 +399,7 @@ QListView::item:selected {
 
 QListView::item:hover:!selected {
     background-color: #b8b8b8;
+    color: #1A1A1A;
     border-left-color: #0078d4;
     border-left-width: 2px;
     padding-left: 10px;

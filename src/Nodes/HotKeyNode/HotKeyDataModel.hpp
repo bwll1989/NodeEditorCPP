@@ -5,24 +5,25 @@
 #include <QtNodes/NodeDelegateModel>
 
 #include <QtCore/QObject>
-#include <QtWidgets/QLabel>
-#include "QTimer"
-#include <iostream>
-#include <vector>
+#include <QtCore/QJsonArray>
+#include <QtCore/QJsonObject>
 #include <QtCore/qglobal.h>
-#include "QSpinBox"
+
 #include "HotKeyInterface.hpp"
 #include "HotKeyItem.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
-using QtNodes::ConnectionPolicy;
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
-using namespace std;
 using namespace NodeDataTypes;
+
 namespace Nodes
 {
+    /**
+     * Keyboard In：列表行与输出端口数量相互独立，均由用户自行配置（同 Delay）。
+     */
     class HotKeyDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
@@ -30,158 +31,117 @@ namespace Nodes
     public:
         HotKeyDataModel()
         {
-            InPortCount =0;
-            OutPortCount=5;
-            CaptionVisible=true;
-            Caption="HotKey";
-            WidgetEmbeddable= false;
-            Resizable=false;
-            PortEditable= false;
+            InPortCount = 0;
+            OutPortCount = 1;
+            CaptionVisible = true;
+            Caption = QStringLiteral("Keyboard In");
+            WidgetEmbeddable = false;
+            Resizable = true;
+            PortEditable = true;
 
-            //        connect(this->hotkey_1, &QHotkey::activated,
-            //                this->widget, &HotKeyInterface::increase_1);
-
-            connect(this->widget->item_1->hotkey, &QHotkey::activated,
-                [this]() { hotkeyChanged(0); });
-            connect(this->widget->item_2->hotkey, &QHotkey::activated,
-                    [this]() { hotkeyChanged(1); });
-            connect(this->widget->item_3->hotkey, &QHotkey::activated,
-                    [this]() { hotkeyChanged(2); });
-            connect(this->widget->item_4->hotkey, &QHotkey::activated,
-                    [this]() { hotkeyChanged(3); });
-            connect(this->widget->item_5->hotkey, &QHotkey::activated,
-                    [this]() { hotkeyChanged(4); });
-
+            connect(widget, &HotKeyInterface::keyStateChanged,
+                    this, &HotKeyDataModel::onKeyStateChanged);
+            connect(widget, &HotKeyInterface::listChanged,
+                    this, &HotKeyDataModel::onListChanged);
         }
 
-        virtual ~HotKeyDataModel() override=default;
-
-    private slots:
-        void hotkeyChanged(int port) {
-        Q_EMIT dataUpdated(port);
-    }
-
-    public:
+        ~HotKeyDataModel() override = default;
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             Q_UNUSED(portIndex)
-            switch (portType) {
-            case PortType::In:
-                return VariableData().type();
-            case PortType::Out:
-                return VariableData().type();
-            case PortType::None:
-                break;
-            default:
-                break;
-            }
-            // FIXME: control may reach end of non-void function [-Wreturn-type]
-
+            Q_UNUSED(portType)
             return VariableData().type();
+        }
+
+        QString portCaption(PortType portType, PortIndex portIndex) const override
+        {
+            if (portType != PortType::Out) {
+                return QString();
+            }
+            return QStringLiteral("K%1").arg(portIndex);
+        }
+
+        bool portCaptionVisible(PortType portType, PortIndex portIndex) const override
+        {
+            Q_UNUSED(portIndex)
+            return portType == PortType::Out;
         }
 
         std::shared_ptr<NodeData> outData(PortIndex const port) override
         {
-            //        Q_UNUSED(port);
-            //
-            // da->insert("count",)
-            auto item = this->widget->findChild<HotKeyItem*>(QString("item_%1").arg(port + 1));
-
-            auto da=std::make_shared<VariableData>(QVariant(item->boolDisplay->isChecked()));
-            da->insert("count",item->boolDisplay->text().toInt());
-            return da;
-            // auto ptr = std::make_shared<VariableData>(QVariant(this->widget->item_1->boolDisplay->isChecked()));
-
-
-
-
+            return std::make_shared<VariableData>(
+                QVariant(widget->isPortPressed(static_cast<int>(port)) ? 1 : 0));
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
-
-            if (data== nullptr){
-                return;
-            }
-            // if ((inData = std::dynamic_pointer_cast<VariableData>(data))) {
-            //
-            // }
+            Q_UNUSED(data)
+            Q_UNUSED(portIndex)
         }
 
         QJsonObject save() const override
         {
-            QJsonObject modelJson  = NodeDelegateModel::save();
-
-            QJsonObject modelJson1;
-            modelJson1["enable"] =widget->item_1->EnableButton->isChecked();
-            modelJson1["value"] = widget->item_1->Editor->keySequence().toString();
-            modelJson["hotkey1"]=modelJson1;
-
-            QJsonObject modelJson2;
-            modelJson2["enable"] =widget->item_2->EnableButton->isChecked();
-            modelJson2["value"] = widget->item_2->Editor->keySequence().toString();
-            modelJson["hotkey2"]=modelJson2;
-
-            QJsonObject modelJson3;
-
-            modelJson3["enable"] =widget->item_3->EnableButton->isChecked();
-            modelJson3["value"] = widget->item_3->Editor->keySequence().toString();
-            modelJson["hotkey3"]=modelJson3;
-
-            QJsonObject modelJson4;
-            modelJson4["enable"] =widget->item_4->EnableButton->isChecked();
-            modelJson4["value"] = widget->item_4->Editor->keySequence().toString();
-            modelJson["hotkey4"]=modelJson4;
-
-            QJsonObject modelJson5;
-            modelJson5["enable"] =widget->item_5->EnableButton->isChecked();
-            modelJson5["value"] = widget->item_5->Editor->keySequence().toString();
-            modelJson["hotkey5"]=modelJson5;
+            QJsonObject modelJson = NodeDelegateModel::save();
+            modelJson[QStringLiteral("active")] = widget->activeCheck->isChecked();
+            modelJson[QStringLiteral("modifiers")] = widget->modifierCombo->currentData().toInt();
+            modelJson[QStringLiteral("keys")] = widget->exportKeys();
             return modelJson;
         }
 
         void load(const QJsonObject &p) override
         {
-
-            QJsonValue v1 = p["hotkey1"];
-            if (!v1.isUndefined()&&v1.isObject()) {
-                widget->item_1->Editor->setKeySequence(QKeySequence(v1["value"].toString()));
-                widget->item_1->EnableButton->setChecked(v1["enable"].toBool());
-
+            if (p.contains(QStringLiteral("active"))) {
+                widget->activeCheck->setChecked(p[QStringLiteral("active")].toBool(true));
             }
-            QJsonValue v2 = p["hotkey2"];
-            if (!v2.isUndefined()&&v2.isObject()) {
-                widget->item_2->Editor->setKeySequence(QKeySequence(v2["value"].toString()));
-                widget->item_2->EnableButton->setChecked(v2["enable"].toBool());
+            if (p.contains(QStringLiteral("modifiers"))) {
+                widget->setModifierMode(p[QStringLiteral("modifiers")].toInt(0));
             }
 
-            QJsonValue v3 = p["hotkey3"];
-            if (!v3.isUndefined()&&v3.isObject()) {
-                widget->item_3->Editor->setKeySequence(QKeySequence(v3["value"].toString()));
-                widget->item_3->EnableButton->setChecked(v3["enable"].toBool());
+            if (p.contains(QStringLiteral("keys")) && p[QStringLiteral("keys")].isArray()) {
+                widget->importKeys(p[QStringLiteral("keys")].toArray());
+            } else {
+                // 兼容旧版固定 5 路 hotkey1…hotkey5
+                QJsonArray legacy;
+                for (int i = 1; i <= 5; ++i) {
+                    const QString key = QStringLiteral("hotkey%1").arg(i);
+                    if (!p.contains(key) || !p[key].isObject()) {
+                        continue;
+                    }
+                    QJsonObject obj = p[key].toObject();
+                    obj[QStringLiteral("port")] = i - 1;
+                    legacy.append(obj);
+                }
+                if (!legacy.isEmpty()) {
+                    widget->importKeys(legacy);
+                }
             }
-
-            QJsonValue v4 = p["hotkey4"];
-            if (!v4.isUndefined()&&v4.isObject()) {
-                widget->item_4->Editor->setKeySequence(QKeySequence(v4["value"].toString()));
-                widget->item_4->EnableButton->setChecked(v4["enable"].toBool());
-            }
-
-            QJsonValue v5 = p["hotkey5"];
-            if (!v5.isUndefined()&&v5.isObject()) {
-                widget->item_5->Editor->setKeySequence(QKeySequence(v5["value"].toString()));
-                widget->item_5->EnableButton->setChecked(v5["enable"].toBool());
-            }
-
         }
 
-        QWidget *embeddedWidget() override{
-
+        QWidget *embeddedWidget() override
+        {
             return widget;
         }
 
+    private slots:
+        void onKeyStateChanged(int port)
+        {
+            // 与 Delay 一致：端口是否存在由用户配置；越界则忽略
+            if (port < 0 || static_cast<unsigned int>(port) >= OutPortCount) {
+                return;
+            }
+            Q_EMIT dataUpdated(static_cast<PortIndex>(port));
+        }
+
+        void onListChanged()
+        {
+            for (unsigned int i = 0; i < OutPortCount; ++i) {
+                Q_EMIT dataUpdated(i);
+            }
+            Q_EMIT embeddedWidgetSizeUpdated();
+        }
+
     private:
-        HotKeyInterface *widget=new HotKeyInterface();
+        HotKeyInterface *widget = new HotKeyInterface();
     };
 }

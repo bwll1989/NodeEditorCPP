@@ -236,21 +236,21 @@ public:
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setThresh(variable->value().toInt());
+                setThresh(variable->asNumber());
             } else if (!data) {
                 setThresh(128);
             }
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setComparatorIndex(variable->value().toInt());
+                setComparatorIndex(variable->asNumber());
             } else if (!data) {
                 setComparatorIndex(static_cast<int>(ThresholdComparator::GreaterOrEqual));
             }
             break;
         case 3:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setSourceIndex(variable->value().toInt());
+                setSourceIndex(variable->asNumber());
             } else if (!data) {
                 setSourceIndex(static_cast<int>(ThresholdSource::Luminance));
             }

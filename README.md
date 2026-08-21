@@ -191,7 +191,7 @@ CMake 选项 **`BUILD_ALL_NODES`**（默认 ON）可一次编译全部节点插�
 
 ### Controls — 控制与逻辑
 
-Delay、Switch、Merge、Condition、Edge Trigger、Count、Range Map、Hold、Inject、Distribute、Value Lookup、HotKey、Extract、LFO、Curve、Math / Logic 运算、TimeLineNode、Data Info、Data Visual、File Load（JSON / INI / Image）、To Files（图像 / 视频 / 音频 / 文本导出）、JavaScript、QML Script、CustomScript、Internal Commands、Snapshot 等。
+Delay、Switch、Merge、Condition、Edge Trigger、Count、Range Map、Hold、Inject、Distribute、Value Lookup、Keyboard In、Extract、LFO、Curve、Math / Logic 运算、TimeLineNode、Data Info、Data Visual、File Load（JSON / INI / Image）、To Files（图像 / 视频 / 音频 / 文本导出）、JavaScript、QML Script、CustomScript、Internal Commands、Snapshot 等。
 
 ### Connect — 网络与协议
 

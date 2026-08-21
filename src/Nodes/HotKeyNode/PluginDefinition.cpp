@@ -1,6 +1,7 @@
 #include "PluginDefinition.hpp"
 
 #include "HotKeyDataModel.hpp"
+#include "MouseInDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +19,8 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::HotKeyDataModel>(name(),tag());
+    reg->registerModel<Nodes::HotKeyDataModel>(name(), tag());
+    // 兼容旧工程中保存的 "HotKey" 类型名
+    reg->registerModel<Nodes::HotKeyDataModel>(QStringLiteral("HotKey"), tag());
+    reg->registerModel<Nodes::MouseInDataModel>(QStringLiteral("Mouse In"), tag());
 }

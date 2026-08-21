@@ -55,7 +55,7 @@ Value 解析规则：优先整数，其次浮点，再识别 `true`/`false`，�
 
 ## 5. 示例
 
-**五键场景：** 五行 Value 分别为 `1`…`5`，HotKey 五路输出分别接 TRIGGER 0–4，OUTPUT 接 Switch 的 INDEX 或场景加载逻辑。
+**五键场景：** 五行 Value 分别为 `1`…`5`，Keyboard In 五路输出分别接 TRIGGER 0–4，OUTPUT 接 Switch 的 INDEX 或场景加载逻辑。
 
 **同一值重复触发：** 下游根据 `_pulse` 区分每次按键，即使 Value 同为 `1` 也能计数。
 

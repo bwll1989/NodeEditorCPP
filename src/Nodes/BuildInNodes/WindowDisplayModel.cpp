@@ -119,7 +119,7 @@ void WindowDisplayModel::setInData(const std::shared_ptr<QtNodes::NodeData> node
         }
     } else if (portIndex == 1) {
         if (const auto varData = std::dynamic_pointer_cast<VariableData>(nodeData)) {
-            setWindowVisible(varData->value().toBool());
+            setWindowVisible(varData->asBool());
         }
     }
 

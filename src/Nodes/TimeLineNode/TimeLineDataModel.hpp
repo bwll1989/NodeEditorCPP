@@ -242,22 +242,20 @@ public:
             return;
         }
         if (auto textData = std::dynamic_pointer_cast<VariableData>(data)) {
-            if (textData->value().canConvert<bool>()) {
-                bool b=textData->value().toBool();
-                switch (portIndex) {
-                    case 0: // PLAY
-                        setPlaying(b);
-                        break;
-                    case 1: // STOP
-                        if (b) setPlaying(false);
-                        break;
-                    case 2: // PAUSE
-                        if (b && model) model->onPausePlay();
-                        break;
-                    case 3: // LOOP
-                        setLooping(b);
-                        break;
-                }
+            bool b = textData->asBool();
+            switch (portIndex) {
+            case 0: // PLAY
+                setPlaying(b);
+                break;
+            case 1: // STOP
+                if (b) setPlaying(false);
+                break;
+            case 2: // PAUSE
+                if (b && model) model->onPausePlay();
+                break;
+            case 3: // LOOP
+                setLooping(b);
+                break;
             }
         }
         Q_EMIT dataUpdated(portIndex);

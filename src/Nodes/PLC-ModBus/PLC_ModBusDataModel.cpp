@@ -284,7 +284,7 @@ void PLC_ModBusDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex po
         return;
     }
 
-    bool newState = varData->value().toBool();
+    bool newState = varData->asBool();
     setControlOutput(port, newState);
 }
 

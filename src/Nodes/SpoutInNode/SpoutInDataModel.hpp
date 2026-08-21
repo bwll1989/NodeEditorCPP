@@ -155,14 +155,14 @@ namespace Nodes
                 case 0: {
                     auto Data = std::dynamic_pointer_cast<VariableData>(data);
                     if (Data) {
-                        setSource(Data->value().toString());
+                        setSource(Data->asString());
                     }
                 }
                     break;
                 case 1: {
                     auto Data = std::dynamic_pointer_cast<VariableData>(data);
                     if (Data)
-                        setEnable(Data->value().toBool());
+                        setEnable(Data->asBool());
 
                 }
                     break;

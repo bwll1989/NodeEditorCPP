@@ -333,7 +333,7 @@ namespace Nodes {
             } else {
                 auto data = std::dynamic_pointer_cast<VariableData>(nodeData);
                 if (data) {
-                    setEnabled(data->value().toBool());
+                    setEnabled(data->asBool());
                 }
             }
         }

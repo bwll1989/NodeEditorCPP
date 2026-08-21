@@ -152,7 +152,7 @@ namespace Nodes
             Q_UNUSED(portIndex)
             if (!data) { return; }
             inData = std::dynamic_pointer_cast<VariableData>(data);
-            setStart(inData ? inData->value().toBool() : false);
+            setStart(inData ? inData->asBool() : false);
         }
         
         // 函数级注释：保存节点状态到 JSON。
@@ -363,7 +363,7 @@ namespace Nodes
             currentTime = std::make_shared<VariableData>(valueX);
             Q_EMIT dataUpdated(0);
 
-            if (currentStatus->value().toBool() != isPlaying) {
+            if (currentStatus->asBool() != isPlaying) {
                 currentStatus = std::make_shared<VariableData>(isPlaying);
                 if (m_start != isPlaying) {
                     m_start = isPlaying;

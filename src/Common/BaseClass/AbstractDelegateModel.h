@@ -54,7 +54,9 @@ public:
 
 protected:
     /**
-     * 函数级注释：构造完整的 OSC 地址（/dataflow/<alias>/<nodeId><relative>）
+     * 函数级注释：构造完整的 OSC 地址
+     * - 根层：/dataflow/<nodeId><relative>
+     * - 嵌套：/dataflow/<parentAlias>/<nodeId><relative>
      */
     QString makeFullOscAddress(const QString& relative) const;
 

@@ -268,16 +268,16 @@ namespace Nodes
 
             switch (portIndex) {
             case 0: 
-                setPlay(d->value().toBool());
+                setPlay(d->asBool());
                 break;
             case 1: 
-                if (d->value().toBool()) setPlay(false);
+                if (d->asBool()) setPlay(false);
                 break;
             case 2:
-                setLoop(d->value().toBool());
+                setLoop(d->asBool());
                 break;
             case 3:
-                setVolume(d->value().toDouble());
+                setVolume(d->asNumber());
                 break;
             }
         }

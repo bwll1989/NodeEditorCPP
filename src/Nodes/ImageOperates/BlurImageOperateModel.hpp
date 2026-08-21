@@ -190,14 +190,14 @@ public:
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setRadiusX(variable->value().toInt());
+                setRadiusX(variable->asNumber());
             } else if (!data) {
                 setRadiusX(0);
             }
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setRadiusY(variable->value().toInt());
+                setRadiusY(variable->asNumber());
             } else if (!data) {
                 setRadiusY(0);
             }

@@ -3,47 +3,73 @@
 //
 
 #include "OSCReceiver.h"
-#include <QJsonObject>
 #include <QByteArray>
 #include <QHostAddress>
+#include <QVariantList>
 #include "tinyosc.h"
 #include <QThread>
 
 OSCReceiver::OSCReceiver(quint16 port, QObject *parent)
-        : QObject(parent), mPort(port), mHost("0.0.0.0"), mSocket(nullptr) {
-    // 启动线程
-    qRegisterMetaType<QVariantMap >("QVariantMap&");
-    //注册信号传递数值类型
-    mThread = new QThread(this);
+    : QObject(parent)
+    , mPort(port)
+    , mHost("0.0.0.0")
+    , mSocket(nullptr)
+    , mThread(nullptr)
+    , m_ownerThread(nullptr)
+{
+    qRegisterMetaType<QVariantMap>("QVariantMap&");
+
+    m_ownerThread = QThread::currentThread();
+    mThread = new QThread();
     this->moveToThread(mThread);
     connect(mThread, &QThread::started, this, &OSCReceiver::initializeSocket);
-    connect(mThread, &QThread::finished, this, &OSCReceiver::cleanup);
-
     mThread->start();
 }
 
-OSCReceiver::~OSCReceiver() {
-    mThread->quit();
-    mThread->wait();
+OSCReceiver::~OSCReceiver()
+{
+    if (mThread && mThread->isRunning()) {
+        QMetaObject::invokeMethod(this, "prepareToQuit", Qt::BlockingQueuedConnection);
+        mThread->quit();
+        mThread->wait();
+    }
+    delete mThread;
+    mThread = nullptr;
 }
 
-void OSCReceiver::initializeSocket() {
+void OSCReceiver::prepareToQuit()
+{
+    cleanup();
+    if (m_ownerThread) {
+        moveToThread(m_ownerThread);
+    }
+}
+
+void OSCReceiver::initializeSocket()
+{
+    if (mSocket) {
+        return;
+    }
     mSocket = new QUdpSocket(this);
 
-    if (mSocket->bind(QHostAddress(mHost), mPort,QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)) {
+    if (mSocket->bind(QHostAddress(mHost), mPort,
+                      QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint)) {
         connect(mSocket, &QUdpSocket::readyRead, this, &OSCReceiver::processPendingDatagrams);
     }
 }
 
-void OSCReceiver::cleanup() {
+void OSCReceiver::cleanup()
+{
     if (mSocket) {
+        mSocket->disconnect();
         mSocket->close();
-        mSocket->deleteLater();
+        delete mSocket;
         mSocket = nullptr;
     }
 }
 
-void OSCReceiver::processPendingDatagrams() {
+void OSCReceiver::processPendingDatagrams()
+{
     while (mSocket && mSocket->hasPendingDatagrams()) {
         QByteArray datagram;
         datagram.resize(mSocket->pendingDatagramSize());
@@ -52,7 +78,6 @@ void OSCReceiver::processPendingDatagrams() {
         quint16 senderPort;
         mSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
 
-        // 使用 tinyosc 解析 OSC 数据
         tosc_message oscMessage;
         if (tosc_parseMessage(&oscMessage, datagram.data(), datagram.size()) == 0) {
             const char *address = tosc_getAddress(&oscMessage);
@@ -61,25 +86,31 @@ void OSCReceiver::processPendingDatagrams() {
             message.port = mPort;
 
             const char *format = tosc_getFormat(&oscMessage);
+            QVariantList values;
+            QString lastType;
 
-            for (int i = 0; format[i] != '\0'; i++) {
+            for (int i = 0; format && format[i] != '\0'; i++) {
                 const char type = format[i];
                 if (type == 'f') {
-                    double value = tosc_getNextFloat(&oscMessage);
-                    result.insert("type", "Float");
-                    result.insert("default", value);
-                    message.value = value;
+                    lastType = QStringLiteral("Float");
+                    values.append(tosc_getNextFloat(&oscMessage));
                 } else if (type == 'i') {
-                    int32_t value = tosc_getNextInt32(&oscMessage);
-                    result.insert("type", "Int");
-                    result.insert("default", QVariant::fromValue(value));
-                    message.value = value;
+                    lastType = QStringLiteral("Int");
+                    values.append(QVariant::fromValue(tosc_getNextInt32(&oscMessage)));
                 } else if (type == 's') {
-                    const char *value = tosc_getNextString(&oscMessage);
-                    result.insert("type", "String");
-                    result.insert("default", value);
-                    message.value = QString(value);
+                    lastType = QStringLiteral("String");
+                    values.append(QString::fromUtf8(tosc_getNextString(&oscMessage)));
                 }
+            }
+
+            result.insert("type", lastType);
+            if (values.size() <= 1) {
+                const QVariant v = values.isEmpty() ? QVariant() : values.first();
+                result.insert("default", v);
+                message.value = v;
+            } else {
+                result.insert("default", values);
+                message.value = values;
             }
             emit receiveOSC(result);
             emit receiveOSCMessage(message);
@@ -87,14 +118,18 @@ void OSCReceiver::processPendingDatagrams() {
     }
 }
 
-
-
-void OSCReceiver::setPort(const int &port) {
-    if (mSocket) {
-        mSocket->close();
+void OSCReceiver::setPort(const int &port)
+{
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, port]() { setPort(port); }, Qt::QueuedConnection);
+        return;
     }
+
     mPort = port;
-    if (mSocket) {
-        mSocket->bind(QHostAddress(mHost), mPort);
+    if (!mSocket) {
+        return;
     }
+    mSocket->close();
+    mSocket->bind(QHostAddress(mHost), mPort,
+                  QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint);
 }

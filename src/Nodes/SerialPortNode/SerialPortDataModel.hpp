@@ -226,7 +226,7 @@ namespace Nodes
             m_inData = std::dynamic_pointer_cast<VariableData>(data);
             switch (portIndex) {
             case 0:
-                setValue(m_inData->value().toString());
+                setValue(m_inData->asString());
                 sendMessage();
                 break;
             case 1:

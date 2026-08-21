@@ -8,13 +8,11 @@ CustomScriptInterface::CustomScriptInterface(QWidget *parent)
 {
     // 创建主布局
     mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
 
-    // 控件布局区域
     controlLayout = new QGridLayout();
     mainLayout->addLayout(controlLayout);
     mainLayout->addStretch();
-    
-    setLayout(mainLayout);
 }
 
 /**

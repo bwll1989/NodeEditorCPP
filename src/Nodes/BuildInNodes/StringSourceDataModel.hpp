@@ -103,11 +103,7 @@ namespace Nodes {
                 return;
             }
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
-            QString v;
-            if (textData && textData->value().canConvert<QString>()) {
-                v = textData->value().toString();
-            }
-            setValue(v);
+            setValue(textData ? textData->asString() : QString());
         }
 
 

@@ -36,10 +36,12 @@
     "ConstructionColor": "gray",
     "NormalColor": "black",
     "SelectedColor": "gray",
-    "SelectedHaloColor": "deepskyblue",
-    "HoveredColor": "deepskyblue",
-
-    "LineWidth": 3.0,
+    "SelectedHaloColor": "orange",
+    "HoveredColor": "orange",
+    "FontColor": [30, 30, 30],
+    "LineWidth": 2.0,
+    "LineHoverWidth": 4.0,
+    "LineSelectedWidth": 3.0,
     "ConstructionLineWidth": 2.0,
     "PointDiameter": 8.0,
 

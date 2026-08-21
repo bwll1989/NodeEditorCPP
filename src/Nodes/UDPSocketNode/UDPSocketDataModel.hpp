@@ -265,13 +265,13 @@ namespace Nodes
             m_inData = std::dynamic_pointer_cast<VariableData>(data);
             switch (portIndex) {
             case 0:
-                setTargetHost(m_inData->value().toString());
+                setTargetHost(m_inData->asString());
                 break;
             case 1:
-                setTargetPort(m_inData->value().toInt());
+                setTargetPort(m_inData->asInt());
                 break;
             case 2:
-                setValue(m_inData->value().toString());
+                setValue(m_inData->asString());
                 break;
             case 3:
                 // Trigger send with current value

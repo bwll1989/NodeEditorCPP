@@ -74,10 +74,10 @@ void SnapshotModel::setInData(std::shared_ptr<NodeData> nodeData, PortIndex port
 
     switch (port) {
     case 0:
-        recallPreset(var->value().toInt());
+        recallPreset(var->asInt());
         break;
     case 1:
-        if (var->value().toBool()) {
+        if (var->asBool()) {
             captureActivePreset();
         }
         break;

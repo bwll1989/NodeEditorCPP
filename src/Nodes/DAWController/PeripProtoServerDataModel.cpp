@@ -157,7 +157,19 @@ void PeripProtoServerDataModel::onGlobalEvent(const GlobalEvent &ev)
 
 void PeripProtoServerDataModel::onPosReceived(const QVariantMap &data)
 {
-    m_posOut = std::make_shared<VariableData>(data);
+    QVariantMap map = data;
+    float x = 0.f;
+    float y = 0.f;
+    float z = 0.f;
+    const QVariant posVar = map.value(QStringLiteral("pos"));
+    if (posVar.canConvert<QVariantMap>()) {
+        const QVariantMap pos = posVar.toMap();
+        x = pos.value(QStringLiteral("x")).toFloat();
+        y = pos.value(QStringLiteral("y")).toFloat();
+        z = pos.value(QStringLiteral("z")).toFloat();
+    }
+    map.insert(QStringLiteral("default"), QVariantList{x, y, z});
+    m_posOut = std::make_shared<VariableData>(map);
     Q_EMIT dataUpdated(0);
 }
 

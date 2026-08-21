@@ -496,7 +496,7 @@ namespace Nodes
                 case 1: {
                     auto Data = std::dynamic_pointer_cast<VariableData>(data);
                     if (Data) {
-                        setEnable(Data->value().toBool());
+                        setEnable(Data->asBool());
                     }
                     break;
                 }

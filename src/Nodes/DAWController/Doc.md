@@ -137,8 +137,9 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
+| `default` | float 列表 | 位置向量 `[x, y, z]`（由 `pos` 收成，便于下游按向量消费） |
 | `boatId` | int | 船只 ID |
-| `pos` | object | 位置坐标 `{ x, y, z }`（float） |
+| `pos` | object | 位置坐标 `{ x, y, z }`（float，原始嵌套字段保留） |
 | `timestamp` | int64 | 13 位毫秒时间戳 |
 
 **POINT 输出字段（`P2SBoatPositioningSysUpdatePoint`）：**
@@ -171,12 +172,12 @@
 1. 在节点编辑器中添加 **FT-LocationProto**，确认监听端口（默认 `9001`）未被占用。
 2. 将定位设备配置为 TCP 客户端，连接到本机 IP 与对应端口。
 3. 设备连接后会自动完成注册与心跳；上报位置或点位时，**POS** / **POINT** 端口输出最新数据。
-4. 将 POS 输出接到 Extract、Lookup、Distribute 等节点，可按 `boatId`、`pos.x` 等字段做条件分支或数值处理。
+4. 将 POS 输出接到 Extract、Lookup、Distribute 等节点，可按 `default`（`[x,y,z]`）、`boatId`、`pos.x` 等字段做条件分支或数值处理。
 5. 将 POINT 输出接到流程触发逻辑，实现“到达某 RFID 点位即触发动作”。
 
 ## 5. 示例
 
-- **实时位置驱动显示**：POS → Extract（`$input.pos`）→ 下游显示或映射节点。
+- **实时位置驱动显示**：POS → 下游向量口（直接用 `default` 的 `[x,y,z]`），或 Extract（`$input.pos`）→ 显示/映射节点。
 - **按船只分流**：POS → Distribute（条件 `$input.boatId == 1` → 端口 0，`$input.boatId == 2` → 端口 1）。
 - **到点触发**：POINT → Condition（`$input.pointId == 5`，接 **DATA** 端口）→ 触发对应场景。
 

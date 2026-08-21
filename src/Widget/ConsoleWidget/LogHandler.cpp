@@ -3,40 +3,96 @@
 //
 
 #include "LogHandler.hpp"
-#include "spdlog/sinks/rotating_file_sink.h"
 
-#include <QTableWidget>
-#include <QVBoxLayout>
-#include <QWidget>
-#include <QHeaderView>
-#include <QDebug>
-#include <QMutex>
-#include <spdlog/spdlog.h>
-#include <spdlog/sinks/basic_file_sink.h>
-#include <spdlog/sinks/daily_file_sink.h>
-#include <mutex>
+#include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QMessageBox>
+#include <QIcon>
+#include <QMetaObject>
 #include <QRegularExpression>
+#include <QTableWidget>
+#include <QTableWidgetItem>
 #include <QVector>
 #include <algorithm>
+#include <mutex>
+
+#include <spdlog/spdlog.h>
+#include <spdlog/sinks/daily_file_sink.h>
+
 #include "../../Common/AppConfig/ConfigManager.h"
 #include "../../Common/AppConfig/ConstantDefines.h"
 
-LogHandler::LogHandler(LogWidget *tableWidget) {
-    // 设置静态成员
+namespace {
+
+QIcon iconForLevel(const QString &level)
+{
+    if (level == QStringLiteral("Debug")) {
+        return QIcon(QStringLiteral(":/icons/icons/debug.png"));
+    }
+    if (level == QStringLiteral("Warn")) {
+        return QIcon(QStringLiteral(":/icons/icons/warn.png"));
+    }
+    if (level == QStringLiteral("Critical")) {
+        return QIcon(QStringLiteral(":/icons/icons/trace.png"));
+    }
+    if (level == QStringLiteral("Info")) {
+        return QIcon(QStringLiteral(":/icons/icons/info.png"));
+    }
+    if (level == QStringLiteral("Fatal")) {
+        return QIcon(QStringLiteral(":/icons/icons/critical.png"));
+    }
+    return {};
+}
+
+} // namespace
+
+std::shared_ptr<spdlog::logger> LogHandler::logger = nullptr;
+LogWidget *LogHandler::logTableWidget = nullptr;
+
+void LogHandler::writeToLogger(QtMsgType type, const std::string &logMsg)
+{
+    if (!logger) {
+        return;
+    }
+
+    switch (type) {
+    case QtDebugMsg:
+        logger->debug(logMsg);
+        break;
+    case QtWarningMsg:
+        logger->warn(logMsg);
+        break;
+    case QtCriticalMsg:
+        logger->critical(logMsg);
+        break;
+    case QtInfoMsg:
+        logger->info(logMsg);
+        break;
+    case QtFatalMsg:
+        logger->critical(logMsg);
+        break;
+    }
+}
+
+LogHandler::LogHandler(LogWidget *tableWidget)
+{
     LogHandler::logTableWidget = tableWidget;
-    // 安装自定义的消息处理器
-    if(initLogHandler()){
+    if (initLogHandler()) {
         qInstallMessageHandler(LogHandler::customMessageHandler);
     }
 }
 
-LogHandler::~LogHandler() {
-    // 解除消息处理器
+LogHandler::~LogHandler()
+{
     qInstallMessageHandler(nullptr);
+    if (logger) {
+        try {
+            logger->flush();
+        } catch (...) {
+        }
+    }
 }
 
 void LogHandler::pruneStoredLogFiles()
@@ -55,11 +111,10 @@ void LogHandler::pruneStoredLogFiles()
     QVector<LogFileInfo> files;
     const QStringList names = dir.entryList(QStringList{QStringLiteral("log*.txt")}, QDir::Files);
     files.reserve(names.size());
-    for (const QString& name : names) {
-        const QString path = dir.absoluteFilePath(name);
+    for (const QString &name : names) {
         LogFileInfo info;
-        info.path = path;
-        info.modified = QFileInfo(path).lastModified();
+        info.path = dir.absoluteFilePath(name);
+        info.modified = QFileInfo(info.path).lastModified();
         files.push_back(std::move(info));
     }
 
@@ -67,7 +122,7 @@ void LogHandler::pruneStoredLogFiles()
         return;
     }
 
-    std::sort(files.begin(), files.end(), [](const LogFileInfo& a, const LogFileInfo& b) {
+    std::sort(files.begin(), files.end(), [](const LogFileInfo &a, const LogFileInfo &b) {
         return a.modified < b.modified;
     });
 
@@ -77,125 +132,124 @@ void LogHandler::pruneStoredLogFiles()
     }
 }
 
-bool LogHandler::initLogHandler() {
-    // 初始化 spdlog 日志器
-    try{
+bool LogHandler::initLogHandler()
+{
+    try {
         QDir().mkpath(AppConstants::LOGS_STORAGE_DIR);
         pruneStoredLogFiles();
-        std::string logFilePath = (AppConstants::LOGS_STORAGE_DIR.toStdString()+"/log.txt");
-        auto dailySink = std::make_shared<spdlog::sinks::daily_file_sink_mt>(logFilePath, 0, 0);
-        logger = std::make_shared<spdlog::logger>("logger", dailySink);
-        spdlog::register_logger(logger);
+
+        const std::string logFilePath =
+            (AppConstants::LOGS_STORAGE_DIR + QStringLiteral("/log.txt")).toStdString();
+
+        if (auto existing = spdlog::get("logger")) {
+            logger = existing;
+        } else {
+            auto dailySink = std::make_shared<spdlog::sinks::daily_file_sink_mt>(logFilePath, 0, 0);
+            logger = std::make_shared<spdlog::logger>("logger", dailySink);
+            spdlog::register_logger(logger);
+        }
+
         spdlog::set_default_logger(logger);
-        logger->set_level(spdlog::level::debug);  // 设置日志级别
-        logger->flush_on(spdlog::level::debug);   // 确保每条日志立即写入
-        logger->set_pattern("[%Y-%m-%d %H:%M:%S] [%l] %v");// 设置日志格式，包含文件名和行号
+        logger->set_level(spdlog::level::debug);
+        // 全量落盘：每条 debug 也立即 flush，保证信息尽量不丢
+        logger->flush_on(spdlog::level::debug);
+        // 写失败不抛到业务/QML（记事本长时间占用日志文件时只丢本条）
+        spdlog::set_error_handler([](const std::string &) {});
+        logger->set_pattern("[%Y-%m-%d %H:%M:%S] [%l] %v");
 
         return true;
-    }
-    catch (const spdlog::spdlog_ex& ex) {
-        QMessageBox::warning(nullptr, "日志初始化失败", QString("无法初始化日志系统：%1").arg(ex.what()));
+    } catch (const spdlog::spdlog_ex &ex) {
+        qWarning() << "Failed to initialize log handler with spdlog exception:" << ex.what();
+        return false;
+    } catch (const std::exception &ex) {
+        qWarning() << "Failed to initialize log handler with std exception:" << ex.what();
         return false;
     }
 }
 
-void LogHandler::customMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+void LogHandler::customMessageHandler(QtMsgType type,
+                                      const QMessageLogContext &context,
+                                      const QString &msg)
+{
     static std::mutex log_mutex;
-    std::lock_guard<std::mutex> lock(log_mutex);  // 确保多线程安全
-    
-    // 生成时间戳
-    QString timestamp = QDateTime::currentDateTime().toString("HH:mm:ss.zzz");
+    std::lock_guard<std::mutex> lock(log_mutex);
 
-    // 提取debug信息中的函数名、文件名和行号
-    QString logMessage = QString("[%1:%2] %3").arg(context.function)
-            .arg(context.line)
-            .arg(msg);
-    std::string log_msg = logMessage.toStdString();
+    const QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss.zzz"));
+    const QString logMessage = QStringLiteral("[%1:%2] %3")
+                                   .arg(context.function)
+                                   .arg(context.line)
+                                   .arg(msg);
+
     QString level;
-    QIcon icon;
-    
-    // 将日志重定向到 spdlog
     switch (type) {
-        case QtDebugMsg:
-            logger->debug(log_msg);
-            level="Debug";
-            icon=QIcon(":/icons/icons/debug.png");
-            break;
-        case QtWarningMsg:
-            logger->warn(log_msg);
-            level="Warn";
-            icon=QIcon(":/icons/icons/warn.png");
-            break;
-        case QtCriticalMsg:
-            logger->critical(log_msg);
-            level="Critical";
-            icon=QIcon(":/icons/icons/trace.png");
-            break;
-        case QtInfoMsg:
-            logger->info(log_msg);
-            level="Info";
-            icon=QIcon(":/icons/icons/info.png");
-            break;
-        case QtFatalMsg:
-            logger->critical(log_msg);
-            level="Fatal";
-            icon=QIcon(":/icons/icons/critical.png");
-            // abort();
+    case QtDebugMsg:
+        level = QStringLiteral("Debug");
+        break;
+    case QtWarningMsg:
+        level = QStringLiteral("Warn");
+        break;
+    case QtCriticalMsg:
+        level = QStringLiteral("Critical");
+        break;
+    case QtInfoMsg:
+        level = QStringLiteral("Info");
+        break;
+    case QtFatalMsg:
+        level = QStringLiteral("Fatal");
+        break;
     }
 
-    // 将日志显示在 QTableWidget 中
-    appendLogToTable(timestamp, level, icon, logMessage);
+    try {
+        writeToLogger(type, logMessage.toStdString());
+    } catch (const std::exception &) {
+        // 文件被占用、磁盘满等：丢弃本条，保证进程继续
+    } catch (...) {
+    }
+
+    appendLogToTable(timestamp, level, logMessage);
 }
 
-// 追加日志到 QTableWidget
-void LogHandler::appendLogToTable(const QString &timestamp, const QString &level, const QIcon &icon, const QString &logMessage) {
-    if (!logTableWidget) return;
-    
-    // 将 UI 更新操作转移到主线程
-    QMetaObject::invokeMethod(logTableWidget, [=]() {
-        const QString currentFilter = logTableWidget->logFilter();
-        if (currentFilter != QStringLiteral("All") && currentFilter != level) {
-            return;
-        }
-        
-        // 解析 spdlog 格式的日志信息，按 [] 分隔
-        QRegularExpression regex("\\[|\\]");
-        QStringList logParts = logMessage.split(regex, Qt::SkipEmptyParts);
-        
-        // 检查是否需要删除旧日志条目以保持在最大条目数限制内
-        const int maxEntries = qMax(1, ConfigManager::instance().getMaxLogEntries());
-        while (logTableWidget->rowCount() >= maxEntries) {
-            logTableWidget->removeRow(0); // 删除最早的日志条目
-        }
-        
-        // 插入新行并填充数据
-        int rowCount = logTableWidget->rowCount();
-        logTableWidget->insertRow(rowCount);
-        
-        // 使用setItem而不是每次创建新的QTableWidgetItem，减少内存分配
-        logTableWidget->setItem(rowCount, 0, new QTableWidgetItem(timestamp));  // 第一列为时间戳
-        
-        QTableWidgetItem *levelItem = new QTableWidgetItem(icon, level);
-        logTableWidget->setItem(rowCount, 1, levelItem);  // 第二列为类型
-        
-        // 优化循环，减少不必要的条件检查
-        int colCount = logTableWidget->columnCount();
-        for (int i = 0; i < logParts.size() && i + 2 < colCount; ++i) {
-            logTableWidget->setItem(rowCount, i + 2, new QTableWidgetItem(logParts[i].trimmed()));
-        }
-        
-        // 仅在添加新日志时滚动到底部，避免频繁重绘
-        static int lastScrollRow = -1;
-        if (lastScrollRow != rowCount) {
-            logTableWidget->scrollToBottom();
-            lastScrollRow = rowCount;
-        }
-    }, Qt::QueuedConnection);
+void LogHandler::appendLogToTable(const QString &timestamp,
+                                  const QString &level,
+                                  const QString &logMessage)
+{
+    if (!logTableWidget) {
+        return;
+    }
+
+    QMetaObject::invokeMethod(
+        logTableWidget,
+        [timestamp, level, logMessage]() {
+            const QString currentFilter = logTableWidget->logFilter();
+            if (currentFilter != QStringLiteral("All") && currentFilter != level) {
+                return;
+            }
+
+            const QRegularExpression regex(QStringLiteral("\\[|\\]"));
+            const QStringList logParts = logMessage.split(regex, Qt::SkipEmptyParts);
+
+            const int maxEntries = qMax(1, ConfigManager::instance().getMaxLogEntries());
+            while (logTableWidget->rowCount() >= maxEntries) {
+                logTableWidget->removeRow(0);
+            }
+
+            const int rowCount = logTableWidget->rowCount();
+            logTableWidget->insertRow(rowCount);
+            logTableWidget->setItem(rowCount, 0, new QTableWidgetItem(timestamp));
+
+            auto *levelItem = new QTableWidgetItem(iconForLevel(level), level);
+            logTableWidget->setItem(rowCount, 1, levelItem);
+
+            const int colCount = logTableWidget->columnCount();
+            for (int i = 0; i < logParts.size() && i + 2 < colCount; ++i) {
+                logTableWidget->setItem(rowCount, i + 2, new QTableWidgetItem(logParts[i].trimmed()));
+            }
+
+            static int lastScrollRow = -1;
+            if (lastScrollRow != rowCount) {
+                logTableWidget->scrollToBottom();
+                lastScrollRow = rowCount;
+            }
+        },
+        Qt::QueuedConnection);
 }
-
-// 静态成员的初始化
-std::shared_ptr<spdlog::logger> LogHandler::logger = nullptr;
-LogWidget* LogHandler::logTableWidget = nullptr;
-
-
-

@@ -488,7 +488,7 @@ void ModBusMasterCoilControllerDataModel::setInData(std::shared_ptr<NodeData> da
     if (!varData || port < 0 || port >= _coilCount) {
         return;
     }
-    setCoil(port, varData->value().toBool());
+    setCoil(port, varData->asBool());
 }
 
 QString ModBusMasterCoilControllerDataModel::portCaption(QtNodes::PortType portType,

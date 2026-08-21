@@ -60,8 +60,8 @@ public:
         connect(widget->bgColorButton, &QPushButton::clicked, this, &TextToImageModel::toggleBackgroundColorEditor);
         m_textColorEditorWidget->setAlphaEnabled(true);
         m_bgColorEditorWidget->setAlphaEnabled(true);
-        m_textColorEditorWidget->setColor(m_textColor);
-        m_bgColorEditorWidget->setColor(m_bgColor);
+        ImageConstHelpers::applyRgbaToEditor(m_textColorEditorWidget, m_textRgba);
+        ImageConstHelpers::applyRgbaToEditor(m_bgColorEditorWidget, m_bgRgba);
         connect(m_textColorEditorWidget, &ColorEditorWidget::colorChanged, this, &TextToImageModel::onTextColorChanged);
         connect(m_bgColorEditorWidget, &ColorEditorWidget::colorChanged, this, &TextToImageModel::onBackgroundColorChanged);
     }
@@ -128,9 +128,9 @@ public:
             case 4:
                 return "FONTSIZE";
             case 5:
-                return "TEXT_COLOR";
+                return "TEXT_RGBA";
             case 6:
-                return "BG_COLOR";
+                return "BG_RGBA";
             case 7:
                 return "HALIGN";
             case 8:
@@ -157,36 +157,35 @@ public:
         if (!v) {
             return;
         }
-        const QVariant val = v->value();
 
         switch (port) {
         case 0:
-            m_width = val.toInt();
+            m_width = v->asInt();
             widget->widthEdit->setValue(m_width);
             break;
         case 1:
-            m_height = val.toInt();
+            m_height = v->asInt();
             widget->heightEdit->setValue(m_height);
             break;
         case 2:
-            widget->textEdit->setPlainText(val.toString());
+            widget->textEdit->setPlainText(v->asString());
             break;
         case 3:
-            widget->fontCombo->setCurrentText(val.toString());
+            widget->fontCombo->setCurrentText(v->asString());
             break;
         case 4:
-            widget->fontSizeSpin->setValue(val.toInt());
+            widget->fontSizeSpin->setValue(v->asInt());
             break;
         case 5:
-            m_textColor = QColor(val.toString());
-            m_textColorEditorWidget->setColor(m_textColor);
+            m_textRgba = rgbaVectorFromVariant(v->value());
+            ImageConstHelpers::applyRgbaToEditor(m_textColorEditorWidget, m_textRgba);
             break;
         case 6:
-            m_bgColor = QColor(val.toString());
-            m_bgColorEditorWidget->setColor(m_bgColor);
+            m_bgRgba = rgbaVectorFromVariant(v->value());
+            ImageConstHelpers::applyRgbaToEditor(m_bgColorEditorWidget, m_bgRgba);
             break;
         case 7:
-            m_hAlign = val.toInt();
+            m_hAlign = v->asInt();
             if (m_hAlign < 0) {
                 m_hAlign = 0;
             }
@@ -196,7 +195,7 @@ public:
             widget->alignHCombo->setCurrentIndex(m_hAlign);
             break;
         case 8:
-            m_vAlign = val.toInt();
+            m_vAlign = v->asInt();
             if (m_vAlign < 0) {
                 m_vAlign = 0;
             }
@@ -223,8 +222,8 @@ public:
         modelJson1["text"] = widget->textEdit->toPlainText();
         modelJson1["font"] = widget->fontCombo->currentFont().family();
         modelJson1["fontSize"] = widget->fontSizeSpin->value();
-        modelJson1["textColor"] = m_textColor.name(QColor::HexArgb);
-        modelJson1["bgColor"] = m_bgColor.name(QColor::HexArgb);
+        modelJson1["textRgba"] = QJsonArray::fromVariantList(floatVectorToList(m_textRgba));
+        modelJson1["bgRgba"] = QJsonArray::fromVariantList(floatVectorToList(m_bgRgba));
         modelJson1["hAlign"] = m_hAlign;
         modelJson1["vAlign"] = m_vAlign;
         modelJson1["padding"] = widget->paddingSpin->value();
@@ -249,8 +248,12 @@ public:
             widget->textEdit->setPlainText(v["text"].toString());
             widget->fontCombo->setCurrentText(v["font"].toString());
             widget->fontSizeSpin->setValue(v["fontSize"].toInt());
-            m_textColor = QColor(v["textColor"].toString());
-            m_bgColor = QColor(v["bgColor"].toString());
+            m_textRgba = ImageConstHelpers::loadRgbaValue(v.toObject(),
+                QStringLiteral("textRgba"), QStringLiteral("textColor"), m_textRgba);
+            m_bgRgba = ImageConstHelpers::loadRgbaValue(v.toObject(),
+                QStringLiteral("bgRgba"), QStringLiteral("bgColor"), m_bgRgba);
+            ImageConstHelpers::applyRgbaToEditor(m_textColorEditorWidget, m_textRgba);
+            ImageConstHelpers::applyRgbaToEditor(m_bgColorEditorWidget, m_bgRgba);
             widget->alignHCombo->setCurrentIndex(v["hAlign"].toInt());
             widget->alignVCombo->setCurrentIndex(v["vAlign"].toInt());
             widget->paddingSpin->setValue(v["padding"].toInt());
@@ -285,14 +288,14 @@ private Q_SLOTS:
 
     void onTextColorChanged(const QColor& c)
     {
-        m_textColor = c;
+        m_textRgba = rgbaFromQColor(c);
         m_paramsDirty = true;
         renderImage();
     }
 
     void onBackgroundColorChanged(const QColor& c)
     {
-        m_bgColor = c;
+        m_bgRgba = rgbaFromQColor(c);
         m_paramsDirty = true;
         renderImage();
     }
@@ -377,7 +380,7 @@ private:
                                  "text-align:%7;"
                                  "white-space:%8;"
                                  "\">%9</div>")
-                                 .arg(rgbaCss(m_textColor))
+                                 .arg(rgbaCss(qcolorFromRgba(m_textRgba)))
                                  .arg(font.family().toHtmlEscaped())
                                  .arg(font.pointSize())
                                  .arg(font.bold() ? "bold" : "normal")
@@ -388,7 +391,7 @@ private:
                                  .arg(escaped);
 
         QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
-        image.fill(m_bgColor);
+        image.fill(qcolorFromRgba(m_bgRgba));
 
         QPainter painter(&image);
         painter.setRenderHint(QPainter::Antialiasing, antialias);
@@ -421,9 +424,9 @@ private:
         painter.restore();
 
         widget->textColorButton->setStyleSheet(
-            QString("background-color:%1;").arg(m_textColor.name(QColor::HexArgb)));
+            QString("background-color:%1;").arg(qcolorFromRgba(m_textRgba).name(QColor::HexArgb)));
         widget->bgColorButton->setStyleSheet(
-            QString("background-color:%1;").arg(m_bgColor.name(QColor::HexArgb)));
+            QString("background-color:%1;").arg(qcolorFromRgba(m_bgRgba).name(QColor::HexArgb)));
 
         const QSize previewSize = widget->display->size().isEmpty() ? QSize(260, 90) : widget->display->size();
         widget->display->setPixmap(
@@ -451,8 +454,8 @@ private:
     qint64 m_lastPushedTimestamp = -1;
     int m_width = 512;
     int m_height = 256;
-    QColor m_textColor = Qt::white;
-    QColor m_bgColor = Qt::black;
+    QVector<float> m_textRgba{1.0f, 1.0f, 1.0f, 1.0f};
+    QVector<float> m_bgRgba{0.0f, 0.0f, 0.0f, 1.0f};
     int m_hAlign = 0;
     int m_vAlign = 0;
     cv::Mat m_renderedBgra;

@@ -11,11 +11,11 @@
 #define DLL_EXPORT Q_DECL_IMPORT
 #endif
 
-#define PLUGIN_NAME "HotKey"
+#define PLUGIN_NAME "Keyboard In"
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "热键"
+#define PLUGIN_DESCRIBE "键盘 / 鼠标输入监视"
 #define PLUGIN_TAG "Controls"
 class DLL_EXPORT Plugin
     : public QObject

@@ -41,8 +41,7 @@ namespace Nodes
         QString loadCode(QString path);
         void loadCodeFromCode(QString code);
         QPushButton *importJS=new QPushButton("保存");
-        QPushButton *updateUI=new QPushButton("更新UI");
-        QPushButton *exportJS=new QPushButton("导出js节点");
+        QPushButton *exportJS=new QPushButton("导出为节点");
 
     public Q_SLOTS:
         QString saveCode();

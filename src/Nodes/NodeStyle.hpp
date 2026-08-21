@@ -16,8 +16,11 @@ static void setStyle()
       "SelectedColor": "gray",
       "SelectedHaloColor": "deepskyblue",
       "HoveredColor": "deepskyblue",
+      "FontColor": [30, 30, 30],
 
       "LineWidth": 3.0,
+      "LineHoverWidth": 5.0,
+      "LineSelectedWidth": 6.0,
       "ConstructionLineWidth": 2.0,
       "PointDiameter": 8.0,
 

@@ -671,7 +671,7 @@ namespace Nodes
             }
 
             if (data->hasKey(QStringLiteral("default")) && data->value().typeId() == QMetaType::QString) {
-                setBody(data->value().toString());
+                setBody(data->asString());
             }
         }
 
@@ -727,7 +727,7 @@ namespace Nodes
                 }
             }
 
-            const QVariantMap map = data->getMap();
+            const QVariantMap map = data->asMap();
             if (!map.isEmpty()) {
                 return serializeHeadersMap(map);
             }
@@ -819,9 +819,9 @@ namespace Nodes
             QString bodyText = m_body;
             if (m_bodyData && !m_bodyData->isEmpty()) {
                 if (m_bodyData->value().typeId() == QMetaType::QString) {
-                    bodyText = m_bodyData->value().toString();
+                    bodyText = m_bodyData->asString();
                 } else {
-                    const QJsonObject obj = QJsonObject::fromVariantMap(m_bodyData->getMap());
+                    const QJsonObject obj = QJsonObject::fromVariantMap(m_bodyData->asMap());
                     bodyText = QString::fromUtf8(QJsonDocument(obj).toJson(QJsonDocument::Compact));
                 }
             } else if (m_triggerData && m_triggerData->hasKey(QStringLiteral("body"))) {

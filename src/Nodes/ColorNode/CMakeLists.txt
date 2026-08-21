@@ -12,14 +12,8 @@ INCLUDE_DIRECTORIES("${QtColorWidgets_DIR}/install/include")
 add_library(${Module_Name} SHARED
         ColorDataModel.cpp
         ColorDataModel.hpp
-        ColorFDataModel.cpp
-        ColorFDataModel.hpp
-        ToRGBAFloatDataModel.hpp
-        ToRGBAFloatDataModel.cpp
-        ToRGBADataModel.cpp
-        ToRGBADataModel.hpp
-        ToHSVDataModel.hpp
-        ToHSVDataModel.cpp
+        HsvColorDataModel.hpp
+        HsvColorDataModel.cpp
         ColorInterface.hpp
         ColorConvertInterface.hpp
         PluginDefinition.cpp

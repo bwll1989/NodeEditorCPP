@@ -176,13 +176,13 @@ namespace Nodes
                 if (auto variableData = std::dynamic_pointer_cast<VariableData>(data)) {
                     switch (portIndex) {
                     case 0: // 音量控制
-                        setVolume(variableData->value().toDouble());
+                        setVolume(variableData->asNumber());
                         break;
                     case 1: // 噪音类型控制
-                        setNoiseType(variableData->value().toInt());
+                        setNoiseType(variableData->asInt());
                         break;
                     case 2: // 启动停止
-                        setGenerating(variableData->value().toBool());
+                        setGenerating(variableData->asBool());
                         break;
                     }
                 }

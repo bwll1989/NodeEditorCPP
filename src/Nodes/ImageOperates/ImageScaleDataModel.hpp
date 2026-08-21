@@ -147,21 +147,21 @@ inline GpuTextureHandle run(const GpuTextureHandle& src, int outWidth, int outHe
 
                 if (auto data=std::dynamic_pointer_cast<VariableData>(nodeData))
                 {
-                    m_inScaleFactor=data->value().toSize();
-                    setWidth(m_inScaleFactor.width());
-                    setHeight(m_inScaleFactor.height());
+                    const QVector<float> sz = data->asFloats(2);
+                    setWidth(qRound(double(sz[0])));
+                    setHeight(qRound(double(sz[1])));
                 }
                 break;
             case 2:
                 if (auto data=std::dynamic_pointer_cast<VariableData>(nodeData))
                 {
-                    setWidth(data->value().toInt());
+                    setWidth(data->asInt());
                 }
                 break;
             case 3:
                 if (auto data=std::dynamic_pointer_cast<VariableData>(nodeData))
                 {
-                    setHeight(data->value().toInt());
+                    setHeight(data->asInt());
                 }
                 break;
             default:

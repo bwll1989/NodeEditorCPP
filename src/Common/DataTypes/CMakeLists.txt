@@ -35,9 +35,9 @@ set(DataTypes_sources
         NodeDataList.hpp
         VariableData.h
         VariableData.cpp
-        VecData.h
-        VecData.cpp
+        DataConvert.hpp
         DataTypesExport.h
+
 )
 
 add_library(DataTypes SHARED ${DataTypes_sources})

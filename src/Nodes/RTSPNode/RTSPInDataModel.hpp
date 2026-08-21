@@ -146,10 +146,10 @@ namespace Nodes
 
             switch (portIndex) {
             case UrlPort:
-                setUrl(v->value().toString());
+                setUrl(v->asString());
                 break;
             case EnablePort:
-                setEnable(v->value().toBool());
+                setEnable(v->asBool());
                 break;
             default:
                 break;

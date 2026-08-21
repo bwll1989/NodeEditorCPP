@@ -25,11 +25,13 @@ public slots:
     void setPort(const int &port);
     void initializeSocket();
     void cleanup();
+    void prepareToQuit();
 private:
     quint16 mPort;
     QString mHost;
     QThread *mThread;
     QUdpSocket *mSocket;
+    QThread *m_ownerThread = nullptr;
     QVariantMap result;
     OSCMessage message;
 };

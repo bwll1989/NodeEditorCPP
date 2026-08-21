@@ -39,9 +39,8 @@ set(BuildInNodes_sources
         StringSourceDataModel.hpp
         IntSourceDataModel.hpp
         FloatSourceDataModel.hpp
-        Vec2SourceDataModel.hpp
-        Vec3SourceDataModel.hpp
-        Vec4SourceDataModel.hpp
+        VecSourceDataModel.hpp
+        VecSourceInterface.hpp
         BuildInNodes.hpp
         ImageShowModel.cpp
         ImageShowModel.hpp

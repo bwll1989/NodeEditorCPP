@@ -112,7 +112,7 @@ namespace Nodes
     private:
         void setupJsInput(const VariableData &input)
         {
-            QJSValue jsInput = m_jsEngine->toScriptValue(input.getMap());
+            QJSValue jsInput = m_jsEngine->toScriptValue(input.asMap());
             m_jsEngine->globalObject().setProperty("$input", jsInput);
         }
 
@@ -158,7 +158,7 @@ namespace Nodes
 
             const QJSValue result = m_jsEngine->evaluate(condition);
             if (result.isError()) {
-                qDebug() << "ValueLookup Condition JS表达式错误:" << result.toString();
+                qDebug() << "ValueLookup Condition JS表达式错误" << result.toString();
                 return false;
             }
 

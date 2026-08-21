@@ -208,28 +208,28 @@ public:
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setHueMin(variable->value().toDouble());
+                setHueMin(variable->asNumber());
             } else if (!data) {
                 setHueMin(0.0);
             }
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setHueMax(variable->value().toDouble());
+                setHueMax(variable->asNumber());
             } else if (!data) {
                 setHueMax(120.0);
             }
             break;
         case 3:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setHueSoftLow(variable->value().toDouble());
+                setHueSoftLow(variable->asNumber());
             } else if (!data) {
                 setHueSoftLow(0.0);
             }
             break;
         case 4:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setHueSoftHigh(variable->value().toDouble());
+                setHueSoftHigh(variable->asNumber());
             } else if (!data) {
                 setHueSoftHigh(0.0);
             }

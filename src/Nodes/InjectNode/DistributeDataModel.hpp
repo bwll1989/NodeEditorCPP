@@ -131,7 +131,7 @@ namespace Nodes
 
         void setupJsInput(const VariableData &input)
         {
-            QJSValue jsInput = m_jsEngine->toScriptValue(input.getMap());
+            QJSValue jsInput = m_jsEngine->toScriptValue(input.asMap());
             m_jsEngine->globalObject().setProperty("$input", jsInput);
         }
 

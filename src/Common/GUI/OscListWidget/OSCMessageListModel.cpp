@@ -252,7 +252,11 @@ QJsonObject OSCMessageListModel::messageToJson(const OSCMessage& message)
     obj["port"]    = message.port;
     obj["address"] = message.address;
     obj["type"]    = message.type;
-    obj["value"]   = message.value.toString();
+    if (message.value.typeId() == QMetaType::QVariantList) {
+        obj["value"] = QJsonArray::fromVariantList(message.value.toList());
+    } else {
+        obj["value"] = QJsonValue::fromVariant(message.value);
+    }
     return obj;
 }
 
@@ -267,6 +271,18 @@ OSCMessage OSCMessageListModel::jsonToMessage(const QJsonObject& json)
     msg.port    = json["port"].toInt();
     msg.address = json["address"].toString();
     msg.type    = json["type"].toString();
-    msg.value   = json["value"].toString();
+    const QJsonValue value = json["value"];
+    if (value.isArray()) {
+        msg.value = value.toArray().toVariantList();
+        if (msg.type.isEmpty()) {
+            msg.type = QStringLiteral("List");
+        }
+    } else if (value.isDouble()) {
+        msg.value = value.toDouble();
+    } else if (value.isBool()) {
+        msg.value = value.toBool();
+    } else {
+        msg.value = value.toString();
+    }
     return msg;
 }

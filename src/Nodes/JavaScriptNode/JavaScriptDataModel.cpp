@@ -1,240 +1,489 @@
-#pragma once
-
-#include <QtCore/QObject>
-#include <QtQml/QJSEngine>
-#include <QtQml/QJSValue>
-#include <QtQml/QJSValueList>
-#include <QtQml/QJSValueIterator> 
-#include "NodeDataList.hpp"
-#include "QDir"
-#include <QtNodes/NodeDelegateModel>
-#include "QThread"
-#include <iostream>
-#include "JavaScriptInterface.hpp"
-#include <QtCore/qglobal.h>
-#include "QPushButton"
-#include <QDebug>
-#include <QLabel>
-#include <QLineEdit>
-#include <QCheckBox>
 #include "JavaScriptDataModel.hpp"
 
+#include "JSEngineDefines/SupportWidgets.hpp"
+
+#include <QApplication>
+#include <QGridLayout>
+#include <QMetaObject>
+#include <QPushButton>
+#include <QSizePolicy>
+#include <QThread>
+#include <QTimer>
+
 using QtNodes::NodeData;
-using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace Nodes;
 
+QString JavaScriptDataModel::defaultScript()
+{
+    return QStringLiteral(R"(function initInterface() {
+    // 在这里编写初始化界面的代码
+    // 例如：创建按钮、文本框等
+}
+function inputEventHandler(index){
+    console.log(index)
+    console.log(Node.getInputValue(index)["default"]);
+}
+)");
+}
 
+JavaScriptDataModel::JavaScriptDataModel()
+    : widget(new JavaScriptInterface())
+    , script(defaultScript())
+{
+    InPortCount = 4;
+    OutPortCount = 1;
+    CaptionVisible = true;
+    Caption = QStringLiteral("JS Script");
+    WidgetEmbeddable = false;
+    Resizable = true;
+    PortEditable = true;
 
+    if (widget && widget->codeWidget) {
+        widget->codeWidget->loadCodeFromCode(script);
+        connect(widget->codeWidget->importJS, &QPushButton::clicked,
+                this, &JavaScriptDataModel::onRunButtonClicked);
+    }
 
-unsigned int JavaScriptDataModel::getInputCount() {
+    reloadScript(script, true);
+}
+
+JavaScriptDataModel::~JavaScriptDataModel()
+{
+    m_shuttingDown = true;
+    if (widget) {
+        widget->closeEditorWindow();
+    }
+    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
+        if (it.value()) {
+            it.value()->blockSignals(true);
+        }
+    }
+    destroyJsEngine();
+    m_widgets.clear();
+    // 已被 Node 图形项接管的控件不要再删，避免双重释�?
+    if (widget && widget->parent() == nullptr) {
+        widget->deleteLater();
+    }
+    widget = nullptr;
+}
+
+QString JavaScriptDataModel::portCaption(PortType portType, PortIndex portIndex) const
+{
+    switch (portType) {
+    case PortType::In:
+        return QStringLiteral("IN %1").arg(portIndex);
+    case PortType::Out:
+        return QStringLiteral("OUT %1").arg(portIndex);
+    default:
+        break;
+    }
+    return {};
+}
+
+unsigned int JavaScriptDataModel::nPorts(PortType portType) const
+{
+    switch (portType) {
+    case PortType::In:
+        return InPortCount;
+    case PortType::Out:
+        return OutPortCount;
+    default:
+        break;
+    }
+    return 0;
+}
+
+NodeDataType JavaScriptDataModel::dataType(PortType portType, PortIndex portIndex) const
+{
+    Q_UNUSED(portType)
+    Q_UNUSED(portIndex)
+    return VariableData().type();
+}
+
+std::shared_ptr<NodeData> JavaScriptDataModel::outData(PortIndex const portIndex)
+{
+    QMutexLocker locker(&m_dataMutex);
+    if (out_data.contains(portIndex)) {
+        return std::make_shared<VariableData>(out_data[portIndex]);
+    }
+    return std::make_shared<VariableData>();
+}
+
+void JavaScriptDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex)
+{
+    auto variable = std::dynamic_pointer_cast<VariableData>(data);
+    if (!variable) {
+        return;
+    }
+
+    {
+        QMutexLocker locker(&m_dataMutex);
+        inputPortIndex = portIndex;
+        in_data[portIndex] = variable->asMap();
+    }
+
+    if (m_shuttingDown || m_reloading) {
+        return;
+    }
+
+    if (!isGuiThread()) {
+        const int index = static_cast<int>(portIndex);
+        QMetaObject::invokeMethod(
+            this,
+            [this, index]() { inputEventHandler(index); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    inputEventHandler(static_cast<int>(portIndex));
+}
+
+QWidget *JavaScriptDataModel::embeddedWidget()
+{
+    return widget;
+}
+
+QJsonObject JavaScriptDataModel::save() const
+{
+    QString code = script;
+    if (widget && widget->codeWidget) {
+        code = widget->codeWidget->saveCode();
+    }
+
+    QJsonObject values;
+    values[QStringLiteral("scripts")] = code;
+
+    QJsonObject modelJson = NodeDelegateModel::save();
+    modelJson[QStringLiteral("values")] = values;
+    modelJson[QStringLiteral("InPortCount")] = static_cast<int>(InPortCount);
+    modelJson[QStringLiteral("OutPortCount")] = static_cast<int>(OutPortCount);
+    return modelJson;
+}
+
+void JavaScriptDataModel::load(const QJsonObject &p)
+{
+    const QJsonValue valuesNode = p.value(QStringLiteral("values"));
+    if (!valuesNode.isObject()) {
+        return;
+    }
+
+    InPortCount = static_cast<unsigned int>(p.value(QStringLiteral("InPortCount")).toInt(static_cast<int>(InPortCount)));
+    OutPortCount = static_cast<unsigned int>(p.value(QStringLiteral("OutPortCount")).toInt(static_cast<int>(OutPortCount)));
+
+    script = valuesNode.toObject().value(QStringLiteral("scripts")).toString();
+    if (script.isEmpty()) {
+        script = defaultScript();
+    }
+
+    if (widget && widget->codeWidget) {
+        widget->codeWidget->loadCodeFromCode(script);
+    }
+
+    reloadScript(script, true);
+}
+
+void JavaScriptDataModel::onRunButtonClicked()
+{
+    if (!widget || !widget->codeWidget || m_reloading || m_shuttingDown) {
+        return;
+    }
+    script = widget->codeWidget->saveCode();
+    reloadScript(script, true);
+}
+
+unsigned int JavaScriptDataModel::getInputCount()
+{
     return InPortCount;
 }
 
-
-unsigned int JavaScriptDataModel::getOutputCount() {
+unsigned int JavaScriptDataModel::getOutputCount()
+{
     return OutPortCount;
 }
 
-unsigned int JavaScriptDataModel::inputIndex() {
+unsigned int JavaScriptDataModel::inputIndex()
+{
     return inputPortIndex;
 }
 
-Q_INVOKABLE void JavaScriptDataModel::clearLayout() {
-    // 确保在主线程中执行
-    if (QThread::currentThread() != QApplication::instance()->thread()) {
-        QMetaObject::invokeMethod(this, "clearLayout", Qt::BlockingQueuedConnection);
+bool JavaScriptDataModel::isGuiThread() const
+{
+    return QThread::currentThread() == this->thread();
+}
+
+void JavaScriptDataModel::logJsError(const char *context, const QJSValue &result) const
+{
+    qWarning() << "JavaScript" << context << "错误:"
+               << result.property(QStringLiteral("lineNumber")).toInt()
+               << result.toString();
+}
+
+void JavaScriptDataModel::takeWidgetOwnership()
+{
+    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
+        QWidget *w = it.value();
+        if (w) {
+            QJSEngine::setObjectOwnership(w, QJSEngine::CppOwnership);
+        }
+    }
+}
+
+void JavaScriptDataModel::destroyJsEngine()
+{
+    takeWidgetOwnership();
+    if (!m_jsEngine) {
         return;
     }
-    
-    // 删除所有控件
-    for (QWidget* widget : m_widgets.values()) {
-        // unregisterOSCControl(QString("/%1").arg(m_widgets.key(widget)));
-        // 立即删除而不是使用deleteLater
-        delete widget;
+    m_jsEngine->globalObject().setProperty(QStringLiteral("Node"), QJSValue());
+    delete m_jsEngine;
+    m_jsEngine = nullptr;
+}
+
+void JavaScriptDataModel::createJsEngine()
+{
+    m_jsEngine = new QJSEngine(this);
+    m_jsEngine->installExtensions(QJSEngine::AllExtensions);
+
+    QJSValue nodeObject = m_jsEngine->newQObject(this);
+    QJSEngine::setObjectOwnership(this, QJSEngine::CppOwnership);
+    m_jsEngine->globalObject().setProperty(QStringLiteral("Node"), nodeObject);
+    m_jsEngine->globalObject().setProperty(QStringLiteral("SpinBox"), m_jsEngine->newQMetaObject<SpinBox>());
+    m_jsEngine->globalObject().setProperty(QStringLiteral("VSlider"), m_jsEngine->newQMetaObject<VSlider>());
+    m_jsEngine->globalObject().setProperty(QStringLiteral("HSlider"), m_jsEngine->newQMetaObject<HSlider>());
+    m_jsEngine->globalObject().setProperty(QStringLiteral("CheckBox"), m_jsEngine->newQMetaObject<CheckBox>());
+    m_jsEngine->globalObject().setProperty(QStringLiteral("LineEdit"), m_jsEngine->newQMetaObject<LineEdit>());
+    m_jsEngine->globalObject().setProperty(QStringLiteral("ComboBox"), m_jsEngine->newQMetaObject<ComboBox>());
+    m_jsEngine->globalObject().setProperty(QStringLiteral("Label"), m_jsEngine->newQMetaObject<Label>());
+    m_jsEngine->globalObject().setProperty(QStringLiteral("Button"), m_jsEngine->newQMetaObject<Button>());
+    m_jsEngine->globalObject().setProperty(QStringLiteral("DoubleSpinBox"), m_jsEngine->newQMetaObject<DoubleSpinBox>());
+}
+
+void JavaScriptDataModel::reloadScript(const QString &code, bool runInitInterface)
+{
+    if (m_shuttingDown) {
+        return;
+    }
+
+    if (!isGuiThread()) {
+        const QString copied = code;
+        const bool runInit = runInitInterface;
+        QMetaObject::invokeMethod(
+            this,
+            [this, copied, runInit]() { reloadScript(copied, runInit); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    if (m_reloading) {
+        return;
+    }
+
+    m_reloading = true;
+    script = code;
+
+    // 先断开并释放控件，再销毁引擎，避免残留信号进入已删除的 QJSEngine
+    clearLayout();
+    destroyJsEngine();
+    createJsEngine();
+
+    if (!script.isEmpty() && m_jsEngine) {
+        const QJSValue result = m_jsEngine->evaluate(script);
+        if (result.isError()) {
+            logJsError("evaluate", result);
+            m_reloading = false;
+            return;
+        }
+        if (runInitInterface) {
+            initInterface();
+        }
+    }
+
+    m_reloading = false;
+}
+
+void JavaScriptDataModel::clearLayout()
+{
+    if (m_shuttingDown) {
+        m_widgets.clear();
+        m_widgetCounter = 0;
+        return;
+    }
+
+    if (!isGuiThread()) {
+        QMetaObject::invokeMethod(this, &JavaScriptDataModel::clearLayout, Qt::QueuedConnection);
+        return;
+    }
+
+    takeWidgetOwnership();
+    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
+        QWidget *w = it.value();
+        if (!w) {
+            continue;
+        }
+        w->blockSignals(true);
+        w->hide();
+        w->setParent(nullptr);
+        w->deleteLater();
     }
     m_widgets.clear();
     m_widgetCounter = 0;
 }
 
-Q_INVOKABLE int JavaScriptDataModel::addToLayout(QObject* widgetObj, int x, int y,int rowSpan, int columnSpan) {
-    QWidget* widget_obj = qobject_cast<QWidget*>(widgetObj);
-    if (!widget_obj) {
-        return -1; // 转换失败
+int JavaScriptDataModel::addToLayout(QObject *widgetObj, int x, int y, int rowSpan, int columnSpan)
+{
+    if (m_shuttingDown || !isGuiThread() || !widget || !widget->top_layout) {
+        return -1;
     }
-    // 统一设置控件尺寸策略
+
+    QWidget *widget_obj = qobject_cast<QWidget *>(widgetObj);
+    if (!widget_obj) {
+        return -1;
+    }
+
+    QJSEngine::setObjectOwnership(widget_obj, QJSEngine::CppOwnership);
     widget_obj->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     if (x != -1 && y != -1) {
-
         widget->top_layout->addWidget(widget_obj, x, y, rowSpan, columnSpan);
     } else {
         widget->top_layout->addWidget(widget_obj);
     }
-    for (int c = 0; c < widget->top_layout->columnCount(); c++) {
+
+    for (int c = 0; c < widget->top_layout->columnCount(); ++c) {
         if (widget->top_layout->columnStretch(c) == 0) {
-            widget->top_layout->setColumnStretch(c, 1); // 新列设置拉伸因子
+            widget->top_layout->setColumnStretch(c, 1);
             widget->top_layout->setColumnMinimumWidth(c, 1);
         }
     }
-    for (int r = 0; r < widget->top_layout->rowCount(); r++) {
+    for (int r = 0; r < widget->top_layout->rowCount(); ++r) {
         if (widget->top_layout->rowStretch(r) == 0) {
-            widget->top_layout->setRowStretch(r, 1); // 新列设置拉伸因子
+            widget->top_layout->setRowStretch(r, 1);
             widget->top_layout->setRowMinimumHeight(r, 1);
         }
     }
-    int id = m_widgetCounter++;
+
+    const int id = m_widgetCounter++;
     m_widgets[id] = widget_obj;
-    // registerOSCControl(QString("/%1").arg(id),widget_obj);
     return id;
 }
 
-void JavaScriptDataModel::loadScripts(QString code) {
-    if (code.isEmpty()) {
+void JavaScriptDataModel::initInterface()
+{
+    if (m_shuttingDown) {
         return;
     }
 
-    // 如果已经有一个脚本在执行，则不启动新的执行
-    if (m_jsExecuting) {
+    if (!isGuiThread()) {
+        QMetaObject::invokeMethod(this, &JavaScriptDataModel::initInterface, Qt::QueuedConnection);
         return;
     }
 
-    try {
-        // 标记JavaScript正在执行
-        m_jsExecuting = true;
-        
-        // 使用QtConcurrent在后台线程中执行JavaScript代码
-        QFuture<QJSValue> future = QtConcurrent::run(
-            [this, code]() -> QJSValue {
-                try {
-                    // 在后台线程中执行JavaScript代码
-                    return m_jsEngine->evaluate(code);
-                } catch (const std::exception& e) {
-                    qWarning() << "JavaScript执行异常:" << e.what();
-                    // 创建一个错误对象返回
-                    QJSValue errorObj = m_jsEngine->newObject();
-                    errorObj.setProperty("isError", true);
-                    errorObj.setProperty("message", QString(e.what()));
-                    errorObj.setProperty("lineNumber", -1);
-                    return errorObj;
-                }
-            }
-        );
-        
-        // 设置watcher监视执行结果
-        m_jsWatcher.setFuture(future);
-    } catch (const std::exception& e) {
-        m_jsExecuting = false;
-        qWarning() << "JavaScript执行异常:" << e.what();
-    }
-}
-
-void JavaScriptDataModel::handleJsExecutionFinished() {
-    // 重置执行状态
-    m_jsExecuting = false;
-    
-    QJSValue result = m_jsWatcher.result();
-    
-    if (result.isError()) {
-        qWarning() << "JavaScript执行错误:"
-                  << result.property("lineNumber").toInt()
-                  << result.toString();
-    }
-    
-}
-
-void JavaScriptDataModel::initJSEngine() {
-    // 创建JavaScript引擎
-    m_jsEngine = new QJSEngine(this);
-    m_jsEngine->installExtensions(QJSEngine::AllExtensions);
-    // 创建Node全局对象
-    QJSValue jsObject = m_jsEngine->newQObject(this);
-    m_jsEngine->globalObject().setProperty("Node", jsObject);
-    m_jsEngine->globalObject().setProperty("SpinBox",  m_jsEngine->newQMetaObject<SpinBox>());
-    m_jsEngine->globalObject().setProperty("VSlider",  m_jsEngine->newQMetaObject<VSlider>());
-    m_jsEngine->globalObject().setProperty("HSlider",  m_jsEngine->newQMetaObject<HSlider>());
-    m_jsEngine->globalObject().setProperty("CheckBox",  m_jsEngine->newQMetaObject<CheckBox>());
-    m_jsEngine->globalObject().setProperty("LineEdit",  m_jsEngine->newQMetaObject<LineEdit>());
-    m_jsEngine->globalObject().setProperty("ComboBox",  m_jsEngine->newQMetaObject<ComboBox>());
-    m_jsEngine->globalObject().setProperty("Label",  m_jsEngine->newQMetaObject<Label>());
-    m_jsEngine->globalObject().setProperty("Button",  m_jsEngine->newQMetaObject<Button>());
-    m_jsEngine->globalObject().setProperty("DoubleSpinBox",  m_jsEngine->newQMetaObject<DoubleSpinBox>());
-    
-    // 先执行脚本，但不直接调用initInterface
-    if (!script.isEmpty()) {
-        QJSValue result = m_jsEngine->evaluate(script);
-        if (result.isError()) {
-            qWarning() << "JavaScript初始化错误:"
-                      << result.property("lineNumber").toInt()
-                      << result.toString();
-            return;
-        }
-        
-        // 脚本加载完成后，通过C++方法调用initInterface
-        // 这样确保UI操作在主线程中进行
-        initInterface();
-    }
-}
-
-/**
- * @brief 在主线程中执行JavaScript的initInterface函数
- * 解决跨线程UI操作问题
- */
-Q_INVOKABLE void JavaScriptDataModel::initInterface() {
-
-    // 确保在主线程中执行
-    if (QThread::currentThread() != QApplication::instance()->thread()) {
-        // 如果不在主线程，使用QMetaObject::invokeMethod切换到主线程
-        QMetaObject::invokeMethod(this, "initInterface", Qt::QueuedConnection);
-        return;
-    }
-    
     if (!m_jsEngine) {
         qWarning() << "JavaScript引擎未初始化";
         return;
     }
 
-    // 检查并执行JavaScript中的initInterface函数
-    QJSValue initInterfaceFunc = m_jsEngine->globalObject().property("initInterface");
-    if (initInterfaceFunc.isCallable()) {
-        QJSValue initResult = initInterfaceFunc.call();
-        if (initResult.isError()) {
-            qWarning() << "initInterface执行错误:"
-                      << initResult.property("lineNumber").toInt()
-                      << initResult.toString();
-        }
-    } else {
-        qDebug() << "JavaScript中未找到initInterface函数";
+    const QJSValue initInterfaceFunc = m_jsEngine->globalObject().property(QStringLiteral("initInterface"));
+    if (!initInterfaceFunc.isCallable()) {
+        return;
+    }
+
+    const QJSValue initResult = initInterfaceFunc.call();
+    if (initResult.isError()) {
+        logJsError("initInterface", initResult);
     }
 }
 
-/**
- * @brief 处理输入端口事件，并将参数传递给JavaScript函数
- * @param portIndex 触发事件的端口索引
- */
-Q_INVOKABLE void JavaScriptDataModel::inputEventHandler(int portIndex)
+void JavaScriptDataModel::inputEventHandler(int portIndex)
+{
+    if (m_shuttingDown || m_reloading || m_handlingInput || !m_jsEngine) {
+        return;
+    }
+
+    if (!isGuiThread()) {
+        QMetaObject::invokeMethod(
+            this,
+            [this, portIndex]() { inputEventHandler(portIndex); },
+            Qt::QueuedConnection);
+        return;
+    }
+
+    const QJSValue handler = m_jsEngine->globalObject().property(QStringLiteral("inputEventHandler"));
+    if (!handler.isCallable()) {
+        return;
+    }
+
+    struct HandlingGuard {
+        bool &flag;
+        explicit HandlingGuard(bool &f) : flag(f) { flag = true; }
+        ~HandlingGuard() { flag = false; }
+    } guard(m_handlingInput);
+
+    const QJSValue result = handler.call(QJSValueList() << portIndex);
+    if (result.isError()) {
+        logJsError("inputEventHandler", result);
+    }
+}
+
+QJSValue JavaScriptDataModel::getInputValue(int portIndex)
 {
     if (!m_jsEngine) {
-        qWarning() << "JavaScript引擎未初始化";
+        return {};
+    }
+
+    QVariantMap map;
+    {
+        QMutexLocker locker(&m_dataMutex);
+        if (portIndex >= 0 && portIndex < static_cast<int>(InPortCount) && in_data.contains(portIndex)) {
+            map = in_data[portIndex];
+        } else {
+            return m_jsEngine->newObject();
+        }
+    }
+    return JSEngineDefines::variantMapToJSValue(m_jsEngine, map);
+}
+
+QJSValue JavaScriptDataModel::getOutputValue(int portIndex)
+{
+    if (!m_jsEngine) {
+        return {};
+    }
+
+    QVariantMap map;
+    {
+        QMutexLocker locker(&m_dataMutex);
+        if (portIndex >= 0 && portIndex < static_cast<int>(OutPortCount) && out_data.contains(portIndex)) {
+            map = out_data[portIndex];
+        } else {
+            return m_jsEngine->newObject();
+        }
+    }
+    return JSEngineDefines::variantMapToJSValue(m_jsEngine, map);
+}
+
+void JavaScriptDataModel::setOutputValue(int portIndex, const QJSValue &value)
+{
+    if (m_shuttingDown || portIndex < 0 || portIndex >= static_cast<int>(OutPortCount)) {
         return;
     }
 
-    // 检查并执行JavaScript中的inputEventHandler函数
-    QJSValue inputEventHandlerFunc = m_jsEngine->globalObject().property("inputEventHandler");
-    if (inputEventHandlerFunc.isCallable()) {
-        // 创建参数列表并传递portIndex
-        QJSValueList args;
-        args << portIndex;
-        
-        // 调用JavaScript函数并传递参数
-        QJSValue result = inputEventHandlerFunc.call(args);
-        if (result.isError()) {
-            qWarning() << "inputEventHandler执行错误:"
-                      << result.property("lineNumber").toInt()
-                      << result.toString();
+    const QVariantMap map = JSEngineDefines::jsValueToVariantMap(value);
+    auto apply = [this, portIndex, map]() {
+        if (m_shuttingDown) {
+            return;
         }
+        {
+            QMutexLocker locker(&m_dataMutex);
+            out_data[portIndex] = map;
+        }
+        emit dataUpdated(portIndex);
+    };
+
+    if (isGuiThread()) {
+        apply();
     } else {
-        qDebug() << "JavaScript中未找到inputEventHandler函数";
+        QTimer::singleShot(0, this, apply);
     }
 }

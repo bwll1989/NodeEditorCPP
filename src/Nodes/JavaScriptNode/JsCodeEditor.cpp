@@ -44,75 +44,91 @@
 #include <QStringConverter>
 
 using namespace Nodes;
+
 /**
- * 批量注册内置的单行提示词与少量多行模板
- * 使用 QStringList 循环，显著减少逐条 apis->add() 的样板代码。
+ * 多行代码片段（.api 文件只能一行一词条）。
  */
-static void registerDefaultJsApis(QsciAPIs* apis)
+static void registerJsSnippets(QsciAPIs *apis)
 {
-    // 单行提示词（类名、方法、关键字等）
-    const QStringList items = {
-        "Node.inputIndex()",
-        "Node.getOutputCount()",
-        "Node.getInputCount()",
-        "Node.getInputValue()",
-        "Node.setOutputValue()",
-        "print()",
-        "typeof",
-        "var",
-        "null",
-        "new",
-        "SpinBox",
-        "CheckBox",
-        "LineEdit",
-        "Label",
-        "Button",
-        "VSlider",
-        "HSlider",
-        "DoubleSpinBox",
-        "ComboBox",
-        "clearLayout",
-        "setRange",
-        "setValue",
-        "Node.addToLayout",
-        "while()",
-        "else",
-        "for",
-        "break",
-        "continue",
-        "function",
-        "console.log()"
-    };
-    for (const auto& s : items) {
-        apis->add(s);
-    }
-
-    // 多行模板示例：保留为单独的大字符串添加
-    apis->add(QString(R"(if (condition){
-        // 执行代码块 1
-    }else{
-        // 执行代码块 2
-    })"));
-
-    apis->add(QString(R"(switch() {
+    apis->add(QStringLiteral(R"(function initInterface() {
+    // 创建控件并用 Node.addToLayout 加入界面
+})"));
+    apis->add(QStringLiteral(R"(function inputEventHandler(index) {
+    var v = Node.getInputValue(index)["default"];
+    Node.setOutputValue(0, v);
+})"));
+    apis->add(QStringLiteral(R"(if (condition) {
+    // ...
+} else {
+    // ...
+})"));
+    apis->add(QStringLiteral(R"(switch (value) {
     case 1:
-        // 执行代码块 1
-        break;
-    case 2:
-        // 执行代码块 2
         break;
     default:
-        // 默认代码块
+        break;
+})"));
+    apis->add(QStringLiteral(R"(for (var i = 0; i < n; i++) {
+    // ...
+})"));
+    apis->add(QStringLiteral(R"(for (const item of list) {
+    // ...
 })"));
 }
+
 /**
- * 尝试从文件加载 API 列表
- * 优先从 Qt 资源路径（如 :/res/js_apis.api）或磁盘路径读取，每行一个词条。
- * 成功返回 true；失败返回 false（由调用方回退到默认列表）。
+ * 资源文件缺失时的最小回退（与 JavaScriptDataModel 绑定一致）。
  */
-static bool registerApisFromFile(QsciAPIs* apis, const QString& filePath)
+static void registerFallbackJsApis(QsciAPIs *apis)
 {
-    return apis->load(filePath);
+    const QStringList items = {
+        QStringLiteral("Node.getInputCount()"),
+        QStringLiteral("Node.getOutputCount()"),
+        QStringLiteral("Node.inputIndex()"),
+        QStringLiteral("Node.getInputValue(index)"),
+        QStringLiteral("Node.getOutputValue(index)"),
+        QStringLiteral("Node.setOutputValue(index, value)"),
+        QStringLiteral("Node.addToLayout(widget, row, column, rowSpan, columnSpan)"),
+        QStringLiteral("Node.clearLayout()"),
+        QStringLiteral("function initInterface()"),
+        QStringLiteral("function inputEventHandler(index)"),
+        QStringLiteral("new SpinBox()"),
+        QStringLiteral("new DoubleSpinBox()"),
+        QStringLiteral("new Button()"),
+        QStringLiteral("new Label()"),
+        QStringLiteral("new LineEdit()"),
+        QStringLiteral("new CheckBox()"),
+        QStringLiteral("new ComboBox()"),
+        QStringLiteral("new HSlider()"),
+        QStringLiteral("new VSlider()"),
+        QStringLiteral("console.log()"),
+        QStringLiteral("Math.abs()"),
+        QStringLiteral("JSON.parse()"),
+        QStringLiteral("JSON.stringify()"),
+    };
+    for (const auto &s : items) {
+        apis->add(s);
+    }
+}
+
+/**
+ * 从 Qt 资源或磁盘加载补全词表。# / // 行视为注释。
+ */
+static bool registerApisFromFile(QsciAPIs *apis, const QString &filePath)
+{
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+    while (!file.atEnd()) {
+        const QString line = QString::fromUtf8(file.readLine()).trimmed();
+        if (line.isEmpty() || line.startsWith(QLatin1Char('#'))
+            || line.startsWith(QStringLiteral("//"))) {
+            continue;
+        }
+        apis->add(line);
+    }
+    return true;
 }
 JsCodeEditor::JsCodeEditor(QString code,QWidget* parent):
         m_code(code),
@@ -199,11 +215,11 @@ void JsCodeEditor::createWidgets()
     // 括号匹配：宽松匹配提高效果
     m_codeEditor->setBraceMatching(QsciScintilla::SloppyBraceMatch);
     
-    //常用关键字支持自动补全
     QsciAPIs *apis = new QsciAPIs(textLexer);
-    // 加载提示词文件（类名、方法、关键字等）
-    registerApisFromFile(apis, ":/JS_API/js_apis.api");
-
+    if (!registerApisFromFile(apis, QStringLiteral(":/JS_API/js_apis.api"))) {
+        registerFallbackJsApis(apis);
+    }
+    registerJsSnippets(apis);
     apis->prepare();
 
     //设置编码为UTF-8
@@ -228,7 +244,6 @@ void JsCodeEditor::createWidgets()
     // connect(saveShortcutAction , &QShortcut::activated, this, &CodeEditor::saveCode);
     m_setupLayout->addWidget(m_readOnlyCheckBox);
     m_setupLayout->addWidget(importJS);
-    m_setupLayout->addWidget(updateUI);
     m_setupLayout->addWidget(exportJS);
     m_setupLayout->addSpacerItem(new QSpacerItem(1, 2, QSizePolicy::Minimum, QSizePolicy::Expanding));
 }
@@ -318,8 +333,8 @@ void JsCodeEditor::exportCode()
     
     // 分类
     QComboBox* categoryCombo = new QComboBox();
-    categoryCombo->addItems({"Controls", "Audio", "Video", "Data", "Network", "Utility", "Custom"});
-    categoryCombo->setCurrentText("Controls");
+    categoryCombo->addItems({"JS Plugins", "Controls", "Audio", "Video", "Data", "Network", "Utility", "Custom"});
+    categoryCombo->setCurrentText("JS Plugins");
     categoryCombo->setToolTip("插件分类，用于在节点库中分组显示");
     formLayout->addRow("分类:", categoryCombo);
     

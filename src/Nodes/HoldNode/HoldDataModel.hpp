@@ -157,7 +157,7 @@ namespace Nodes
                 {
                     auto timeData = std::dynamic_pointer_cast<VariableData>(data);
                     if (timeData) {
-                        int holdTime = timeData->value().toInt();
+                        int holdTime = timeData->asNumber();
                         setHoldTime(holdTime);
                     }
                 }

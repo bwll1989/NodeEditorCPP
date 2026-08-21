@@ -75,9 +75,14 @@ public slots:
     void initializeSocket();
     
     /**
-     * @brief 清理资源
+     * @brief 清理资源（必须在工作线程调用）
      */
     void cleanup();
+
+    /**
+     * @brief 工作线程内停表/关 socket，并把对象迁回创建线程，供安全析构
+     */
+    void prepareToQuit();
 signals:
     /**
      * @brief 发送 OSC 消息的信号
@@ -93,7 +98,10 @@ private:
     QUdpSocket *mSocket;                ///< UDP套接字
     QMutex m_mutex;                     ///< 线程同步互斥锁
     QQueue<OSCMessage> m_messageQueue;  ///< OSC消息队列
-    
+    QThread *m_ownerThread = nullptr;      ///< 创建时所在线程（析构时迁回）
+
+    bool writeAndSend(const OSCMessage &msg);
+
     /// 消息处理间隔时间（毫秒）
     static const int PROCESS_INTERVAL = 16;
 };

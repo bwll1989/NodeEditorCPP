@@ -82,9 +82,8 @@ void AbstractDelegateModel::stateFeedBack(const QString& oscAddress, QVariant va
 }
 
 QString AbstractDelegateModel::makeFullOscAddress(const QString& relative) const {
-    // 函数级注释：拼接完整地址，确保以 '/' 开头的相对路径正确连接
-    const QString norm = relative.startsWith('/') ? relative : ("/" + relative);
-    return "/dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()) + norm;
+    // 根层 parentAlias 为空 → /dataflow/<nodeId>/...；嵌套则带路径段
+    return NodeDelegateModel::makeFullOscAddress(relative);
 }
 
 void AbstractDelegateModel::onModelReady() {

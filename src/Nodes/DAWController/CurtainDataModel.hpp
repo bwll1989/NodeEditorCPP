@@ -240,7 +240,7 @@ namespace Nodes
         {
             if (!data) return;
             auto varData = std::dynamic_pointer_cast<VariableData>(data);
-            if (varData && varData->value().toBool()) {
+            if (varData && varData->asBool()) {
                 switch(portIndex) {
                     case 0: // Open
                         sendCurtainCommand("01");

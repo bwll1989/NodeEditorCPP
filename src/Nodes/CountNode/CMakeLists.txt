@@ -11,6 +11,7 @@ add_library(${Module_Name} SHARED
         CountDataModel.hpp
         RangeMapDataModel.hpp
         RangeMapInterface.hpp
+        FeedbackDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp
@@ -24,6 +25,7 @@ target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
         StatusContainer
         BaseClass
         DataTypes
+        Eigen3::Eigen
 )
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

@@ -218,21 +218,21 @@ public:
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setMono(variable->value().toInt());
+                setMono(variable->asNumber());
             } else if (!data) {
                 setMono(255);
             }
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setRgbSourceIndex(variable->value().toInt());
+                setRgbSourceIndex(variable->asNumber());
             } else if (!data) {
                 setRgbSourceIndex(static_cast<int>(MonoChannelSource::Luminance));
             }
             break;
         case 3:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setAlphaSourceIndex(variable->value().toInt());
+                setAlphaSourceIndex(variable->asNumber());
             } else if (!data) {
                 setAlphaSourceIndex(static_cast<int>(MonoChannelSource::Luminance));
             }

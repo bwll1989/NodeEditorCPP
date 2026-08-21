@@ -127,7 +127,7 @@ void showStoreGBxDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex 
     if (!varData) {
         return;
     }
-    if (!varData->value().toBool()) {
+    if (!varData->asBool()) {
         return;
     }
 

@@ -164,22 +164,22 @@ namespace Nodes
 
             switch (portIndex) {
             case IndexPort:
-                setFileIndex(variableData->value().toInt());
+                setFileIndex(variableData->asInt());
                 break;
             case PlayPort:
-                if (variableData->value().toBool()) {
+                if (variableData->asBool()) {
                     sendPlayCommand();
                 } else {
                     sendStopCommand();
                 }
                 break;
             case StopPort:
-                if (variableData->value().toBool()) {
+                if (variableData->asBool()) {
                     sendStopCommand();
                 }
                 break;
             case LoopPort:
-                if (variableData->value().toBool()) {
+                if (variableData->asBool()) {
                     sendLoopCommand();
                 }
                 break;

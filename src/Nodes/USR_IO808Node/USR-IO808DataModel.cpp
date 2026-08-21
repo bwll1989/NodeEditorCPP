@@ -229,7 +229,7 @@ void USR_IO808DataModel::setInData(std::shared_ptr<NodeData> data, PortIndex por
         return;
     }
 
-    setOutput(port, varData->value().toBool());
+    setOutput(port, varData->asBool());
 }
 
 QString USR_IO808DataModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const

@@ -165,7 +165,7 @@ public:
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setBlend(variable->value().toDouble());
+                setBlend(variable->asNumber());
             } else if (!data) {
                 setBlend(0.0);
             }

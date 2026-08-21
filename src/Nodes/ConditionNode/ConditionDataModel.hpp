@@ -136,12 +136,12 @@ namespace Nodes
 
             const QString expression = widget->Editor->text();
 
-            QJSValue jsInput = m_jsEngine->toScriptValue(m_inData->getMap());
+            QJSValue jsInput = m_jsEngine->toScriptValue(m_inData->asMap());
             m_jsEngine->globalObject().setProperty("$input", jsInput);
 
             const QJSValue result = m_jsEngine->evaluate(expression);
             if (result.isError()) {
-                qDebug() << "Condition JS表达式错误:" << result.toString();
+                qDebug() << "Condition JS表达式错误" << result.toString();
                 m_boolOutput = std::make_shared<VariableData>(QVariant(false));
                 Q_EMIT dataUpdated(ConditionPort);
                 return;
@@ -152,7 +152,7 @@ namespace Nodes
             Q_EMIT dataUpdated(ConditionPort);
 
             if (expressionResult) {
-                QVariantMap outputMap = m_inData->getMap();
+                QVariantMap outputMap = m_inData->asMap();
                 outputMap.insert(QStringLiteral("default"), true);
                 m_dataOutput = std::make_shared<VariableData>(outputMap);
                 Q_EMIT dataUpdated(DataPort);

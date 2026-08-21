@@ -120,13 +120,13 @@ public:
         switch(portIndex)
         {
             case 0:
-                setUniverse(std::dynamic_pointer_cast<VariableData>(data)->value().toInt());
+                setUniverse(std::dynamic_pointer_cast<VariableData>(data)->asInt());
                 break;
             case 1:
-                setChannels(std::dynamic_pointer_cast<VariableData>(data)->value().toString());
+                setChannels(std::dynamic_pointer_cast<VariableData>(data)->asString());
                 break;
             case 2:
-                setFilterEnabled(std::dynamic_pointer_cast<VariableData>(data)->value().toBool());
+                setFilterEnabled(std::dynamic_pointer_cast<VariableData>(data)->asBool());
                 break;
             default:
                 return;

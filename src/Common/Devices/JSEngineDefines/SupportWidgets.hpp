@@ -51,7 +51,10 @@ class VSlider : public QSlider
     Q_OBJECT
 public:
     Q_INVOKABLE VSlider(QWidget *parent = nullptr)
-        : QSlider(parent) {}
+        : QSlider(parent)
+    {
+        this->setOrientation(Qt::Vertical);
+    }
     Q_INVOKABLE int value() const
     {
         return QSlider::value();

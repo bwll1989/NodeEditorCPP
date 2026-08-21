@@ -82,10 +82,9 @@ namespace Nodes
         }
 
         /**
-         * @brief 处理输出数据，使用JS引擎评估表达式，并在表达式成立时计数器+1
+         * @brief 处理输出数据，使用JS引擎评估表达式，并在表达式成立时计数�?1
          * @param portIndex 端口索引
-         * @return 提取后的数据，包含当前计数值
-         */
+         * @return 提取后的数据，包含当前计数�?         */
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
@@ -97,18 +96,18 @@ namespace Nodes
             bool expressionResult = false;
             
             // 将整个输入数据注册为JS全局变量$input
-            QJSValue jsInput = m_jsEngine->toScriptValue(m_InData->getMap());
+            QJSValue jsInput = m_jsEngine->toScriptValue(m_InData->asMap());
             m_jsEngine->globalObject().setProperty("$input", jsInput);
             
-            // 执行表达式
+            // 执行表达�?
             QJSValue result = m_jsEngine->evaluate(expression);
             
             if (result.isError()) {
-                qDebug() << "JS表达式错误:" << result.toString();
+                qDebug() << "JS表达式错误" << result.toString();
                 return std::make_shared<VariableData>(m_count);
             }
             
-            // 获取表达式结果的布尔值
+            // 获取表达式结果的布尔�?
             expressionResult = result.toBool();
             
             // 如果表达式结果为true，计数器+1
@@ -179,8 +178,7 @@ namespace Nodes
         }
 
         /**
-         * @brief 清除计数器值
-         */
+         * @brief 清除计数器�?         */
         void clearCount() {
             setCount(0);
             m_InData=nullptr;

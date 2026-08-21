@@ -159,7 +159,7 @@ public:
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setGain(variable->value().toInt());
+                setGain(variable->asNumber());
             } else if (!data) {
                 setGain(1);
             }

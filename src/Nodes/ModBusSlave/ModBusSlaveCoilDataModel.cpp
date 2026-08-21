@@ -418,13 +418,13 @@ void ModBusSlaveCoilDataModel::setInData(std::shared_ptr<NodeData> data, PortInd
     }
     switch (port) {
     case 0:
-        setHost(varData->value().toString());
+        setHost(varData->asString());
         break;
     case 1:
-        setPort(varData->value().toInt());
+        setPort(varData->asInt());
         break;
     case 2:
-        setServerId(varData->value().toInt());
+        setServerId(varData->asInt());
         break;
     default:
         break;

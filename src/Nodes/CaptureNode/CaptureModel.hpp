@@ -97,7 +97,7 @@ namespace Nodes
             case 1:
                 m_inData=std::dynamic_pointer_cast<VariableData>(nodeData);
                 if (const auto lock = m_inData.lock()) {
-                    if (lock->value().toBool()) {
+                    if (lock->asBool()) {
                         captureOnce();
                     }
                 }

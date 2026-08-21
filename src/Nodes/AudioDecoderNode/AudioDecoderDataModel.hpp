@@ -231,7 +231,7 @@ namespace Nodes
             case 0: {
                     auto d = std::dynamic_pointer_cast<VariableData>(data);
                     if (d != nullptr) {
-                        setPlayingProperty(d->value().toBool());
+                        setPlayingProperty(d->asBool());
                     }
                     return;
             }
@@ -239,14 +239,14 @@ namespace Nodes
             case 1:{
                     auto d = std::dynamic_pointer_cast<VariableData>(data);
                     if (d != nullptr) {
-                        setLoopProperty(d->value().toBool());
+                        setLoopProperty(d->asBool());
                     }
                     return;
             }
             case 2:{
                     auto d = std::dynamic_pointer_cast<VariableData>(data);
                     if (d != nullptr) {
-                        setVolumeProperty(d->value().toDouble());
+                        setVolumeProperty(d->asNumber());
                     }
                     return;
             }

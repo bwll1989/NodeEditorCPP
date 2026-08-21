@@ -250,7 +250,7 @@ Toggle Source → Audio Device Out 的静音/使能逻辑。
 
 ## 5. 示例
 
-HotKey → Toggle Variable → Switch。
+Keyboard In → Toggle Variable → Switch。
 
 ---
 
@@ -282,93 +282,35 @@ Trigger Source → Inject 的 TRIGGER；或 → Osc Out Group 的 TRIGGER。
 
 ---
 
-# Vec2 Source
+# Vec Source
 
 ## 1. 节点说明
 
-二维向量编辑源。内嵌 `VectorDragValueWidget`（X/Y），输出 **VecData**（类型 id `vec`，长度 2）。支持整体输入或分分量覆盖。值可持久化。
+可变长度向量源。分量是 **float 列表**，输出 **VariableData**（`default` 为列表）。维数由 Size 决定；输入端口可编辑（默认 5 路，末口为整段向量）。
 
 ## 2. 端口说明
 
 ### 输入
 
-| 端口 | 类型 | 说明 |
+| 端口 | 名称 | 说明 |
 |------|------|------|
-| input | VariableData / VecData | 整体覆盖（取前 2 分量） |
-| X | VariableData | 覆盖 X |
-| Y | VariableData | 覆盖 Y |
+| 0 … n-2 | `0`… | 覆盖对应下标分量（超出当前 Size 则忽略） |
+| n-1 | Vec | 整段向量；按当前 Size 截断或补 0 |
 
 ### 输出
 
 | 端口 | 类型 | 说明 |
 |------|------|------|
-| Vec2 | VecData | 当前二维向量 |
+| Vec | VariableData | `default` 为当前 float 列表 |
 
 ## 3. 界面说明
 
-双分量拖拽（步进 0.01，小数 3 位）。外部控制：`/vec2`（对象含 `x`/`y`/`values`）。
+- **N**：分量个数（1–16）
+- 下方按 0、1、2… 编辑各分量
 
 ## 4. 使用说明
 
-位置、UV、二维参数；可与分路 Float 组合写入 X/Y。
-
-## 5. 示例
-
-Vec2 Source → 自定义脚本或映射节点驱动二维坐标。
-
----
-
-# Vec3 Source
-
-## 1. 节点说明
-
-三维向量源。输出 VecData 长度 3。端口：`input` / `X` / `Y` / `Z`。外部控制：`/vec3`。值可持久化。
-
-## 2. 端口说明
-
-| 方向 | 端口 | 说明 |
-|------|------|------|
-| 入 | input, X, Y, Z | 整体或分量覆盖 |
-| 出 | Vec3 | VecData(3) |
-
-## 3. 界面说明
-
-三分量拖拽控件。
-
-## 4. 使用说明
-
-位置、颜色 RGB 浮点、姿态等。
-
-## 5. 示例
-
-Vec3 Source → Scatter Series 的 X/Y/Z（经拆分或脚本）。
-
----
-
-# Vec4 Source
-
-## 1. 节点说明
-
-四维向量源。输出 VecData 长度 4。端口：`input` / `X` / `Y` / `Z` / `W`。外部控制：`/vec4`。值可持久化。
-
-## 2. 端口说明
-
-| 方向 | 端口 | 说明 |
-|------|------|------|
-| 入 | input, X, Y, Z, W | 整体或分量覆盖 |
-| 出 | Vec4 | VecData(4) |
-
-## 3. 界面说明
-
-四分量拖拽控件。
-
-## 4. 使用说明
-
-RGBA 浮点、四元数近似分量、四路参数打包。
-
-## 5. 示例
-
-Vec4 Source → 脚本解包为颜色或矩阵参数。
+改 Size 只影响向量长度，不会增删端口；改端口数量也不会改 Size。解析统一走 `floatVectorFromVariant`（列表 / 标量 / 旧几何类型均可）。
 
 ---
 

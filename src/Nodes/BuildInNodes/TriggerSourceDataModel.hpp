@@ -83,11 +83,8 @@ namespace Nodes {
             if (!data) return;
             
             auto varData = std::dynamic_pointer_cast<VariableData>(data);
-            if (varData) {
-                // 输入端口收到true时触发
-                if (varData->value().toBool()) {
-                    setTrigger();
-                }
+            if (varData && varData->asBool()) {
+                setTrigger();
             }
         }
 

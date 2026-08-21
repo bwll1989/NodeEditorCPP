@@ -85,7 +85,7 @@ namespace Nodes
             }
 
             if (inData = std::dynamic_pointer_cast<VariableData>(data)) {
-                QVariantMap newModel = inData->getMap();
+                QVariantMap newModel = inData->asMap();
 
                 // 使用高性能的增量更新
                 if (model.isEmpty()) {

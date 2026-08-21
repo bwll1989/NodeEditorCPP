@@ -120,14 +120,14 @@ public:
     {
         if (portIndex == InPortCount - 1) {
             const auto trigger = std::dynamic_pointer_cast<VariableData>(nodeData);
-            if (trigger && trigger->value().toBool()) {
+            if (trigger && trigger->asBool()) {
                 stopRecording();
             }
             return;
         }
         if (portIndex == InPortCount - 2) {
             const auto trigger = std::dynamic_pointer_cast<VariableData>(nodeData);
-            if (trigger && trigger->value().toBool()) {
+            if (trigger && trigger->asBool()) {
                 startRecording();
             }
             return;

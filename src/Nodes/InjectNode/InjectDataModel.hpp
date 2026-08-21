@@ -64,7 +64,7 @@ namespace Nodes
                 return;
             }
 
-            if (!varData->value().toBool()) {
+            if (!varData->asBool()) {
                 return;
             }
 

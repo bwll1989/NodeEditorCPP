@@ -213,28 +213,28 @@ public:
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setRedGain(variable->value().toInt());
+                setRedGain(variable->asNumber());
             } else if (!data) {
                 setRedGain(100);
             }
             break;
         case 2:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setGreenGain(variable->value().toInt());
+                setGreenGain(variable->asNumber());
             } else if (!data) {
                 setGreenGain(100);
             }
             break;
         case 3:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setBlueGain(variable->value().toInt());
+                setBlueGain(variable->asNumber());
             } else if (!data) {
                 setBlueGain(100);
             }
             break;
         case 4:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
-                setAlphaGain(variable->value().toInt());
+                setAlphaGain(variable->asNumber());
             } else if (!data) {
                 setAlphaGain(100);
             }

@@ -44,6 +44,7 @@ public:
         connect(widget->heightEdit, &IntDragValueWidget::valueChanged, this, &ImageConstModel::onInputChanged);
         connect(colorEditorWidget, &ColorEditorWidget::colorChanged, this, &ImageConstModel::onInputChanged);
         connect(widget->colorEditButton, &QPushButton::clicked, this, &ImageConstModel::toggleEditorMode);
+        ImageConstHelpers::applyRgbaToEditor(colorEditorWidget, m_rgba);
         refreshPreview();
     }
 
@@ -98,7 +99,7 @@ public:
             case 1:
                 return "HEIGHT";
             case 2:
-                return "RED";
+                return "RGBA";
             default:
                 return "";
             }
@@ -121,18 +122,18 @@ public:
         if (!v) {
             return;
         }
-        const QVariant val = v->value();
         switch (port) {
         case 0:
-            m_width = val.toInt();
+            m_width = v->asInt();
             widget->widthEdit->setValue(m_width);
             break;
         case 1:
-            m_height = val.toInt();
+            m_height = v->asInt();
             widget->heightEdit->setValue(m_height);
             break;
         case 2:
-            colorEditorWidget->setColor(val.toString());
+            m_rgba = rgbaVectorFromVariant(v->value());
+            ImageConstHelpers::applyRgbaToEditor(colorEditorWidget, m_rgba);
             break;
         default:
             break;
@@ -149,7 +150,7 @@ public:
         QJsonObject modelJson1;
         modelJson1["width"] = widget->widthEdit->value();
         modelJson1["height"] = widget->heightEdit->value();
-        modelJson1["color"] = colorEditorWidget->getColor().name(QColor::HexArgb);
+        modelJson1["rgba"] = QJsonArray::fromVariantList(floatVectorToList(m_rgba));
         QJsonObject modelJson = NodeDelegateModel::save();
         modelJson["values"] = modelJson1;
         return modelJson;
@@ -161,8 +162,11 @@ public:
         if (!v.isUndefined() && v.isObject()) {
             widget->widthEdit->setValue(v["width"].toInt());
             widget->heightEdit->setValue(v["height"].toInt());
-            colorEditorWidget->setColor(QColor(v["color"].toString()));
-            syncParamsFromWidget();
+            m_rgba = ImageConstHelpers::loadRgbaValue(v.toObject(),
+                QStringLiteral("rgba"), QStringLiteral("color"), m_rgba);
+            ImageConstHelpers::applyRgbaToEditor(colorEditorWidget, m_rgba);
+            m_width = widget->widthEdit->value();
+            m_height = widget->heightEdit->value();
             m_paramsDirty = true;
             refreshPreview();
         }
@@ -196,7 +200,7 @@ private:
     {
         m_width = widget->widthEdit->value();
         m_height = widget->heightEdit->value();
-        m_color = QColor(colorEditorWidget->getColor());
+        m_rgba = rgbaFromQColor(colorEditorWidget->getColor());
     }
 
     void refreshPreview()
@@ -208,7 +212,7 @@ private:
             m_height = 1;
         }
         QPixmap pix(widget->display->width(), widget->display->height());
-        pix.fill(m_color);
+        pix.fill(qcolorFromRgba(m_rgba));
         widget->display->setPixmap(pix);
     }
 
@@ -227,7 +231,7 @@ private:
             return;
         }
 
-        GpuTextureHandle texture = ImageConstGpu::solidColor(m_width, m_height, m_color);
+        GpuTextureHandle texture = ImageConstGpu::solidColor(m_width, m_height, qcolorFromRgba(m_rgba));
         if (!texture.valid()) {
             return;
         }
@@ -244,7 +248,7 @@ private:
     qint64 m_lastPushedTimestamp = -1;
     int m_width = 100;
     int m_height = 100;
-    QColor m_color = QColor(0, 0, 0, 255);
+    QVector<float> m_rgba{0.0f, 0.0f, 0.0f, 1.0f};
     bool m_paramsDirty = true;
     std::atomic<bool> m_shuttingDown{false};
 };

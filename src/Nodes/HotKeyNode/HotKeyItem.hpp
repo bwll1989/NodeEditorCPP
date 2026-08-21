@@ -1,86 +1,131 @@
-//
-// Created by Administrator on 2023/12/13.
-//
 #pragma once
-#include <QCheckBox>
-#include <QLCDNumber>
-#include <QKeySequenceEdit>
-#include "QWidget"
-#include "QLabel"
-#include "QLayout"
-#include "QPushButton"
-#include "QComboBox"
-#include "QSpinBox"
-#include "QLineEdit"
-#include "QTextBrowser"
-#include "QComboBox"
-#include "QHotkey"
 
-class HotKeyItem: public QWidget{
+#include <QWidget>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QFrame>
+#include <QKeySequenceEdit>
+#include <QJsonObject>
+#include <QPixmap>
+#include <QSizePolicy>
+
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+
+/**
+ * 单行按键配置：Key + Index；默认适配 240 宽，可随节点拉伸。
+ */
+class HotKeyItem : public QWidget
+{
     Q_OBJECT
 public:
-    explicit HotKeyItem(QWidget *parent = nullptr){
-
-//        this->setStyleSheet("QFrame{background-color:transparent}");
-        boolDisplay->setCheckable(true);
-        boolDisplay->setChecked(false);
-        boolDisplay->setStyleSheet(boolDisplay->isChecked() ? "QPushButton{background-color: #00FF00;}" : "QPushButton{background-color: #FF0000;}");
-        main_layout->addWidget(EnableButton,1);
-        main_layout->addWidget(Editor,3);
-        main_layout->addWidget(boolDisplay,1);
-        main_layout->addWidget(resetButton,1);
-        main_layout->setContentsMargins(4,2,4,4);
-        this->setLayout(main_layout);
-//        connect(this->EnableButton, &QCheckBox::toggled,
-//                this->Editor, &QKeySequenceEdit::setEnabled);
-        connect(this->hotkey, &QHotkey::activated,
-                this, &HotKeyItem::valueDisplay);
-        connect(this->EnableButton, &QCheckBox::toggled,
-                this->hotkey, &QHotkey::setRegistered);
-        connect(this->resetButton, &QPushButton::clicked,
-            this,&HotKeyItem::valueReset);
-        connect(this->Editor, &QKeySequenceEdit::keySequenceChanged,
-                this, &HotKeyItem::setShortcut);
-    }
-
-public slots:
-    void valueDisplay()
+    explicit HotKeyItem(QWidget *parent = nullptr)
+        : QWidget(parent)
     {
-        Count++;
-        this->boolDisplay->setText(QString::number(Count));
-        this->boolDisplay->setChecked(!boolDisplay->isChecked());
-        this->boolDisplay->setStyleSheet(boolDisplay->isChecked() ? "QPushButton{background-color: #00FF00;}" : "QPushButton{background-color: #FF0000;}");
+        auto *layout = new QHBoxLayout(this);
+        layout->setContentsMargins(2, 0, 2, 0);
+        layout->setSpacing(4);
+        layout->setAlignment(Qt::AlignVCenter);
+
+        portIndex->setMinimum(0);
+        portIndex->setFixedWidth(32);
+        portIndex->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        portIndex->setToolTip(QStringLiteral("输出端口索引"));
+
+        keyEdit->setMaximumSequenceLength(1);
+        keyEdit->setMinimumWidth(96);
+        keyEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        keyEdit->setToolTip(QStringLiteral("录制要监视的按键"));
+
+        stateIndicator->setFixedSize(10, 10);
+        stateIndicator->setToolTip(QStringLiteral("按下状态"));
+        updateStyle();
+
+        auto *keyLabel = new QLabel(QStringLiteral("Key"), this);
+        auto *idxLabel = new QLabel(QStringLiteral("Idx"), this);
+
+        auto *moveLabel = new QLabel(this);
+        moveLabel->setFixedSize(12, 12);
+        moveLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        moveLabel->setPixmap(QPixmap(QStringLiteral(":/icons/icons/move.png"))
+                                 .scaled(moveLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        moveLabel->setAlignment(Qt::AlignCenter);
+
+        layout->addWidget(keyLabel, 0, Qt::AlignVCenter);
+        layout->addWidget(keyEdit, 1, Qt::AlignVCenter);
+        layout->addWidget(idxLabel, 0, Qt::AlignVCenter);
+        layout->addWidget(portIndex, 0, Qt::AlignVCenter);
+        layout->addWidget(stateIndicator, 0, Qt::AlignVCenter);
+        layout->addWidget(moveLabel, 0, Qt::AlignVCenter);
+        layout->setStretch(1, 1);
+
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setMinimumWidth(220);
+        setFixedHeight(28);
+
+        connect(portIndex, &IntDragValueWidget::valueChanged,
+                this, &HotKeyItem::configChanged);
+        connect(keyEdit, &QKeySequenceEdit::keySequenceChanged,
+                this, [this](const QKeySequence &) { Q_EMIT configChanged(); });
     }
 
-    void valueReset()
+    QSize sizeHint() const override
     {
-        Count=0;
-        this->boolDisplay->setText(QString::number(Count));
-        this->boolDisplay->setChecked(false);
-        this->boolDisplay->setStyleSheet(boolDisplay->isChecked() ? "QPushButton{background-color: #00FF00;}" : "QPushButton{background-color: #FF0000;}");
+        return QSize(240, 26);
     }
 
-    void setShortcut(const QKeySequence &sequence)
+    QSize minimumSizeHint() const override
     {
-
-        this->hotkey->setShortcut(sequence, false);
+        return QSize(240, 26);
     }
 
+    int outPort() const { return portIndex->value(); }
+
+    void setOutPort(int port) { portIndex->setValue(port); }
+
+    QKeySequence keySequence() const { return keyEdit->keySequence(); }
+
+    void setKeySequence(const QKeySequence &seq) { keyEdit->setKeySequence(seq); }
+
+    bool isPressed() const { return m_pressed; }
+
+    bool setPressed(bool pressed)
+    {
+        if (m_pressed == pressed) {
+            return false;
+        }
+        m_pressed = pressed;
+        updateStyle();
+        return true;
+    }
+
+    QJsonObject toJson() const
+    {
+        QJsonObject obj;
+        obj[QStringLiteral("port")] = portIndex->value();
+        obj[QStringLiteral("value")] = keyEdit->keySequence().toString();
+        return obj;
+    }
+
+    void fromJson(const QJsonObject &obj)
+    {
+        portIndex->setValue(obj[QStringLiteral("port")].toInt(0));
+        keyEdit->setKeySequence(QKeySequence(obj[QStringLiteral("value")].toString()));
+    }
 
 signals:
+    void configChanged();
 
-    void countChanged(int count);
+private:
+    void updateStyle()
+    {
+        stateIndicator->setStyleSheet(
+            m_pressed
+                ? QStringLiteral("QFrame{background-color:#00C853;border:none;border-radius:5px;}")
+                : QStringLiteral("QFrame{background-color:#E53935;border:none;border-radius:5px;}"));
+    }
 
-    void boolChanged(bool val);
-
-public:
-    QHBoxLayout *main_layout=new QHBoxLayout(this);
-    QCheckBox *EnableButton=new QCheckBox("HotKey");
-    QKeySequenceEdit *Editor=new QKeySequenceEdit();
-    QPushButton *boolDisplay=new QPushButton(" ");
-    QPushButton *resetButton=new QPushButton("reset");
-    int Count=0;
-    QHotkey *hotkey=new QHotkey(this);
-
+    IntDragValueWidget *portIndex = new IntDragValueWidget(this);
+    QKeySequenceEdit *keyEdit = new QKeySequenceEdit(this);
+    QFrame *stateIndicator = new QFrame(this);
+    bool m_pressed = false;
 };
-

@@ -28,6 +28,7 @@ using QtNodes::PortIndex;
 using QtNodes::NodeRole;
 using QtNodes::NodeFlags;
 using QtNodes::PortRole;
+using QtNodes::ConnectionRole;
 using QtNodes::NodeDelegateModel;
 class PortEditAddRemoveWidget;
 class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
@@ -178,6 +179,13 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
      * @return bool 是否删除成功
      */
     bool deleteConnection(ConnectionId const connectionId) override;
+
+    QVariant connectionData(ConnectionId const connectionId, ConnectionRole role) const override;
+
+    bool setConnectionData(ConnectionId const connectionId,
+                           ConnectionRole role,
+                           QVariant const &value) override;
+
     /**
      * 删除节点
      * @param NodeId const nodeId 节点ID
@@ -298,7 +306,7 @@ private:
      */
     void propagateEmptyDataTo(NodeId const nodeId, PortIndex const portIndex);
 
-    /// Pull current upstream data into all In ports (used by Unmute Input & Sync).
+    /// Pull current upstream data into all In ports (used by 取消屏蔽变量输入并同步).
     void pullCurrentInputs(NodeId const nodeId);
 
 
@@ -322,9 +330,16 @@ private:
     //连接
     std::unordered_set<ConnectionId> _connectivity;
 
+    struct ConnectionDisplayData
+    {
+        bool isVirtual = false;
+        QString label;
+    };
+    std::unordered_map<ConnectionId, ConnectionDisplayData> _connectionDisplay;
+
     std::unordered_set<GroupId> _groups;
 
-    /// Mute Input: nodes that skip setInData while muted
+    /// 屏蔽变量输入: nodes that skip VariableData setInData while muted
     std::unordered_set<NodeId> _mutedNodes;
 
     mutable std::unordered_map<NodeId, NodeGeometryData> _nodeGeometryData;

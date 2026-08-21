@@ -7,6 +7,9 @@
 #include <QFrame>
 #include <QGraphicsDropShadowEffect>
 #include <QPushButton>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QVariantList>
 OSCMessageItemWidget::OSCMessageItemWidget(bool onlyInternal, QWidget* parent)
     : QWidget(parent), OnlyInternal(onlyInternal)
 {
@@ -71,7 +74,7 @@ void OSCMessageItemWidget::setupUI()
 
     // Value
     valueEdit = new QLineEdit(this);
-    valueEdit->setPlaceholderText("value");
+    valueEdit->setPlaceholderText("value 或 [0.1,0.2,0.3]");
     valueEdit->setMinimumHeight(22);
     valueEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
@@ -144,30 +147,52 @@ OSCMessage OSCMessageItemWidget::getMessage() const
             }
         }
     }
-    
+
     message.address = addressEdit->text();
-    
     message.type = typeCombo->currentText();
-    QString value = valueEdit->text();
-    if (message.type == "Int") {
-        QJSValue result = engine.evaluate("with(Math) { " + value + " }");
-        if (result.isError()) {
-            // qWarning() << "表达式错误:" << expr << "->" << result.toString();
-            message.value=0; // 回退到直接转换
+    const QString value = valueEdit->text();
+    const QString trimmed = value.trimmed();
+
+    auto parseList = [this](const QString &text) -> QVariant {
+        QJSValue result = engine.evaluate(QStringLiteral("with(Math) { (%1) }").arg(text));
+        if (!result.isError() && result.isArray()) {
+            QVariantList list;
+            const int n = result.property(QStringLiteral("length")).toInt();
+            list.reserve(n);
+            for (int i = 0; i < n; ++i) {
+                const QJSValue el = result.property(i);
+                if (el.isNumber()) {
+                    list.append(el.toNumber());
+                } else if (el.isBool()) {
+                    list.append(el.toBool());
+                } else {
+                    list.append(el.toString());
+                }
+            }
+            return list;
         }
 
-        message.value = result.toInt();
-    } else if (message.type == "Float") {
-        QJSValue result = engine.evaluate("with(Math) { " + value + " }");
-        if (result.isError()) {
-            // qWarning() << "表达式错误:" << expr << "->" << result.toString();
-            message.value=0.0; // 回退到直接转换
+        const QJsonDocument doc = QJsonDocument::fromJson(text.toUtf8());
+        if (doc.isArray()) {
+            return doc.array().toVariantList();
         }
-        message.value = result.toNumber();
-    } else if (message.type == "String") {
-        message.value = valueEdit->text();
+        return QVariantList{};
+    };
+
+    if (trimmed.startsWith(QLatin1Char('['))) {
+        message.type = QStringLiteral("List");
+        message.value = parseList(trimmed);
+    } else if (message.type == QLatin1String("Int")) {
+        QJSValue result = engine.evaluate(QStringLiteral("with(Math) { %1 }").arg(value));
+        message.value = result.isError() ? 0 : result.toInt();
+    } else if (message.type == QLatin1String("Float")) {
+        QJSValue result = engine.evaluate(QStringLiteral("with(Math) { %1 }").arg(value));
+        message.value = result.isError() ? 0.0 : result.toNumber();
+    } else {
+        message.type = QStringLiteral("String");
+        message.value = value;
     }
-    
+
     return message;
 }
 
@@ -181,12 +206,24 @@ void OSCMessageItemWidget::setMessage(const OSCMessage& message)
         }
         hostEdit->setText(hostPort);
     }
-    
-    addressEdit->setText(message.address);
-    
-    // 设置类型和值
-    typeCombo->setCurrentText(message.type.isEmpty() ? "String" : message.type);
 
+    addressEdit->setText(message.address);
+
+    // 列表：value 写 JSON 数组即可，type 下拉仍用 Float（兼容旧 type=List）
+    if (message.value.typeId() == QMetaType::QVariantList
+        || message.type.compare(QStringLiteral("List"), Qt::CaseInsensitive) == 0) {
+        typeCombo->setCurrentText(QStringLiteral("Float"));
+        if (message.value.typeId() == QMetaType::QVariantList) {
+            setExpression(QString::fromUtf8(
+                QJsonDocument(QJsonArray::fromVariantList(message.value.toList()))
+                    .toJson(QJsonDocument::Compact)));
+        } else {
+            setExpression(message.value.toString());
+        }
+        return;
+    }
+
+    typeCombo->setCurrentText(message.type.isEmpty() ? QStringLiteral("String") : message.type);
     setExpression(message.value.toString());
 }
 

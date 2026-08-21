@@ -85,7 +85,7 @@ namespace Nodes
 
             auto textData = std::dynamic_pointer_cast<VariableData>(data);
             if(portIndex==InPortCount-1){
-                setIndex(textData->value().toInt());
+                setIndex(textData->asInt());
             }
             else{
                 in_dictionary[portIndex]=std::dynamic_pointer_cast<VariableData>(textData);

@@ -97,12 +97,7 @@ namespace Nodes
                     return;
                 }
                 auto textData = std::dynamic_pointer_cast<VariableData>(data);
-                int v = 0;
-                if (textData && textData->value().canConvert<int>()) {
-                    v = textData->value().toInt();
-                }
-                setValue(v);
-
+                setValue(textData ? textData->asInt() : 0);
             }
         }
 
