@@ -3,16 +3,16 @@
 
 /* ======= 基础元素 ======= */
 QMainWindow {
-    background-color: #F6F6F6;
+    background-color: #E8E9ED;
 }
 
 QWidget {
-    background-color: #F6F6F6;
+    background-color: #E8E9ED;
     color: #000000;
 }
 
 QDialog {
-    background-color: #F6F6F6;
+    background-color: #E8E9ED;
     color: #000000;
 }
 
@@ -167,7 +167,7 @@ QMenuBar::item {
 }
 
 QMenuBar::item:hover {
-    background: #353535;
+    background: #DEDFE4;
     border-left-color: #0078d4;
     color: #1A1A1A;
 }
@@ -563,7 +563,7 @@ QCalendarWidget QTableView
 
 QCalendarWidget QTableView QHeaderView {
     background-color: #F5F5F5;
-    border: 1px solid rgba(0,0，0,20);
+    border: 1px solid rgba(0,0,0,20);
 }
 QCalendarWidget QTableView QTableCornerButton::section {
     background-color: #b8b8b8;
@@ -581,7 +581,7 @@ QCalendarWidget QTableView QTableCornerButton::section {
 
  /* 导航条（上一月/下一月、月份/年份按钮区域） */
  QCalendarWidget QWidget#qt_calendar_navigationbar {
-     background-color: #F6F6F6;
+     background-color: #E8E9ED;
      padding: 4px;
  }
 
@@ -677,6 +677,35 @@ QCalendarWidget QTableView QTableCornerButton::section {
      background-color: rgba(198,40,40,20);
  }
 
+ /* 导出到网页控制台 */
+ #exportActionDialog {
+     background-color: #FFFFFF;
+     border: 1px solid rgba(0,0,0,40);
+     border-radius: 8px;
+ }
+ #exportActionDialogTitle {
+     color: #1A1A1A;
+     background: transparent;
+ }
+ #exportActionDialogHeader {
+     background: transparent;
+ }
+ #exportActionDialogAddress {
+     color: #666666;
+     background-color: #F5F5F5;
+     border: 1px solid rgba(0,0,0,20);
+ }
+ #exportActionDialogOk {
+     background-color: #0078d4;
+     border: 1px solid #0078d4;
+     color: #FFFFFF;
+ }
+ #exportActionDialogOk:hover {
+     background-color: #1084d8;
+     border-left-color: #1084d8;
+     border-left-width: 1px;
+ }
+
  /* ======= TableWidget控件样式 ======= */
 QTableWidget {
     background-color: #F8F8F8;
@@ -719,9 +748,9 @@ QTableWidget QTableCornerButton::section {
 }
 
 QTabWidget::pane {
-    border: 1px solid rgba(255,255,255,20);
+    border: 1px solid rgba(0,0,0,20);
     top: -1px;
-    background-color: #353535;
+    background-color: #E8E9ED;
 }
 
 QTabBar {
@@ -763,7 +792,7 @@ QTabBar::tab:disabled {
 
 /* ======= ADS样式 ======= */
 ads--CDockWidget {
-    background-color: #F6F6F6;
+    background-color: #E8E9ED;
     color: #1A1A1A;
 }
 
@@ -929,7 +958,7 @@ QWK--WindowBar {
 }
 
 QWK--WindowBar[bar-active=true] {
-    background-color: #F6F6F6;
+    background-color: #E8E9ED;
 }
 
 QWK--WindowBar[bar-active=false] {
@@ -1010,4 +1039,94 @@ QMenuBar#win-menu-bar::item:selected {
 QMenuBar#win-menu-bar>QToolButton#qt_menubar_ext_button:hover,
 QMenuBar#win-menu-bar>QToolButton#qt_menubar_ext_button:pressed {
     background-color: rgba(0, 0, 0, 8%);
+}
+
+/* ======= 数据流导航（ADS Dock 标题栏 Action，规格对齐 #detachGroupButton） ======= */
+ads--CTitleBarButton#dataflowNavHome,
+ads--CTitleBarButton#dataflowNavBack,
+ads--CTitleBarButton#optionsMenu {
+    padding: 0px;
+    border: none;
+    background: transparent;
+    qproperty-iconSize: 16px;
+    min-width: 24px;
+    min-height: 24px;
+}
+
+ads--CTitleBarButton#dataflowNavBack {
+    margin-left: 8px;
+}
+
+ads--CTitleBarButton#dataflowNavHome:hover,
+ads--CTitleBarButton#dataflowNavBack:hover,
+ads--CTitleBarButton#optionsMenu:hover {
+    border: 1px solid rgba(0, 0, 0, 20);
+    background: rgba(0, 0, 0, 8);
+    border-radius: 3px;
+}
+
+ads--CTitleBarButton#dataflowNavHome:pressed,
+ads--CTitleBarButton#dataflowNavBack:pressed,
+ads--CTitleBarButton#optionsMenu:pressed {
+    background: rgba(0, 0, 0, 16);
+}
+
+ads--CTitleBarButton#dataflowNavPath {
+    padding: 0px 8px;
+    margin: 0px;
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    color: #4b5563;
+}
+
+ads--CTitleBarButton#dataflowNavPath::menu-indicator {
+    image: none;
+    width: 0px;
+}
+
+ads--CTitleBarButton#dataflowNavPath:hover {
+    color: #111827;
+}
+
+/* ======= 画布视口内嵌节点搜索条 ======= */
+QFrame#nodeSearchBar {
+    background-color: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 28);
+    border-radius: 8px;
+}
+
+QFrame#nodeSearchBar QLineEdit#searchNodeEdit {
+    background-color: #f3f4f6;
+    border: 1px solid rgba(0, 0, 0, 22);
+    border-radius: 4px;
+    color: #111827;
+    padding: 2px 8px;
+    min-height: 24px;
+}
+
+QFrame#nodeSearchBar QLineEdit#searchNodeEdit:focus {
+    border: 1px solid #0078d4;
+    padding-left: 8px;
+}
+
+QFrame#nodeSearchBar QLabel#searchNodeCount {
+    color: #6b7280;
+    font-size: 12px;
+}
+
+QFrame#nodeSearchBar QToolButton {
+    color: #4b5563;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+QFrame#nodeSearchBar QToolButton:hover {
+    background: rgba(0, 0, 0, 8);
+}
+
+QFrame#nodeSearchBar QToolButton:disabled {
+    color: #c4c9d1;
 }

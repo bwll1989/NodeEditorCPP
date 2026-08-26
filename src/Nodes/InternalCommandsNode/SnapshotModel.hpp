@@ -52,9 +52,10 @@ namespace Nodes
     public slots:
         void setActiveIndex(int index);
         void recallPreset(int index);
+        void updatePreset(int index);
         void captureActivePreset();
         void addPreset();
-        void removeActivePreset();
+        void removePresetAt(int index);
         void onGlobalEvent(const GlobalEvent &ev);
 
     signals:

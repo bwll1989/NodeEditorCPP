@@ -22,9 +22,9 @@ SnapshotModel::SnapshotModel()
     syncUi();
 
     connect(widget, &SnapshotInterface::presetRecallRequested, this, &SnapshotModel::recallPreset);
-    connect(widget, &SnapshotInterface::captureRequested, this, &SnapshotModel::captureActivePreset);
+    connect(widget, &SnapshotInterface::presetUpdateRequested, this, &SnapshotModel::updatePreset);
+    connect(widget, &SnapshotInterface::presetRemoveRequested, this, &SnapshotModel::removePresetAt);
     connect(widget, &SnapshotInterface::addPresetRequested, this, &SnapshotModel::addPreset);
-    connect(widget, &SnapshotInterface::removePresetRequested, this, &SnapshotModel::removeActivePreset);
 
     {
         NodeDelegateModel::ExternalBinding binding;
@@ -177,7 +177,7 @@ void SnapshotModel::recallPreset(int index)
 
     const SnapshotPreset &preset = m_presets.at(index);
     if (preset.nodes.isEmpty()) {
-        widget->setStatusText(tr("预设「%1」为空，请先捕获").arg(preset.name));
+        widget->setStatusText(tr("预设「%1」为空，请先点「更新」写入").arg(preset.name));
         return;
     }
 
@@ -191,9 +191,10 @@ void SnapshotModel::recallPreset(int index)
     widget->setStatusText(tr("已召回预设「%1」").arg(preset.name));
 }
 
-void SnapshotModel::captureActivePreset()
+void SnapshotModel::updatePreset(int index)
 {
-    if (m_activeIndex < 0 || m_activeIndex >= m_presets.size()) {
+    if (index < 0 || index >= m_presets.size()) {
+        widget->setStatusText(tr("预设索引无效"));
         return;
     }
 
@@ -205,14 +206,19 @@ void SnapshotModel::captureActivePreset()
 
     const QVector<NodeId> nodeIds = collectCaptureNodeIds();
     if (nodeIds.isEmpty()) {
-        widget->setStatusText(tr("请先在画布中选中要捕获的节点"));
+        widget->setStatusText(tr("请先在画布中选中要写入的节点"));
         return;
     }
 
-    m_presets[m_activeIndex].nodes = GraphSnapshotBridge::instance()->captureNodes(title, nodeIds);
-    widget->setStatusText(tr("已捕获 %1 个节点到「%2」")
-                              .arg(m_presets[m_activeIndex].nodes.size())
-                              .arg(m_presets[m_activeIndex].name));
+    m_presets[index].nodes = GraphSnapshotBridge::instance()->captureNodes(title, nodeIds);
+    widget->setStatusText(tr("已更新 %1 个节点到「%2」")
+                              .arg(m_presets[index].nodes.size())
+                              .arg(m_presets[index].name));
+}
+
+void SnapshotModel::captureActivePreset()
+{
+    updatePreset(m_activeIndex);
 }
 
 void SnapshotModel::addPreset()
@@ -224,18 +230,26 @@ void SnapshotModel::addPreset()
     syncUi();
 }
 
-void SnapshotModel::removeActivePreset()
+void SnapshotModel::removePresetAt(int index)
 {
+    if (index < 0 || index >= m_presets.size()) {
+        return;
+    }
+
     if (m_presets.size() <= 1) {
         widget->setStatusText(tr("至少保留一个预设"));
         return;
     }
 
-    m_presets.removeAt(m_activeIndex);
-    if (m_activeIndex >= m_presets.size()) {
+    const QString removedName = m_presets.at(index).name;
+    m_presets.removeAt(index);
+    if (m_activeIndex > index) {
+        --m_activeIndex;
+    } else if (m_activeIndex >= m_presets.size()) {
         m_activeIndex = m_presets.size() - 1;
     }
     syncUi();
+    widget->setStatusText(tr("已删除「%1」").arg(removedName));
 }
 
 void SnapshotModel::onGlobalEvent(const GlobalEvent &ev)
@@ -298,7 +312,10 @@ void SnapshotModel::syncUi()
 
 QString SnapshotModel::sceneTitle() const
 {
-    return getParentAlias();
+    // 与 DataflowViewsManger::snapshotKeyFor 对齐：
+    // 根图 parentAlias 为空，Bridge 注册键为 "dataflow"
+    QString const alias = getParentAlias().trimmed();
+    return alias.isEmpty() ? QStringLiteral("dataflow") : alias;
 }
 
 QVector<NodeId> SnapshotModel::collectCaptureNodeIds() const

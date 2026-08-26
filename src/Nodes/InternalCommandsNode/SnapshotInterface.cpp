@@ -2,6 +2,9 @@
 
 #include <QSignalBlocker>
 #include <QSizePolicy>
+#include <QAbstractButton>
+#include <QIcon>
+#include <QSize>
 
 namespace Nodes
 {
@@ -19,20 +22,9 @@ SnapshotInterface::SnapshotInterface(QWidget *parent)
     m_toolbarLayout = new QHBoxLayout();
     m_toolbarLayout->setSpacing(4);
     m_addButton = new QPushButton(tr("添加"), this);
-    m_removeButton = new QPushButton(tr("删除"), this);
-    m_captureButton = new QPushButton(tr("捕获选中"), this);
-
-    const auto makeToolbarButton = [](QPushButton *button) {
-        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        button->setMinimumHeight(28);
-    };
-    makeToolbarButton(m_addButton);
-    makeToolbarButton(m_removeButton);
-    makeToolbarButton(m_captureButton);
-
+    m_addButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_addButton->setMinimumHeight(28);
     m_toolbarLayout->addWidget(m_addButton, 1);
-    m_toolbarLayout->addWidget(m_removeButton, 1);
-    m_toolbarLayout->addWidget(m_captureButton, 1);
     m_rootLayout->addLayout(m_toolbarLayout);
 
     m_scrollArea = new QScrollArea(this);
@@ -47,15 +39,13 @@ SnapshotInterface::SnapshotInterface(QWidget *parent)
     m_scrollArea->setWidget(m_buttonHost);
     m_rootLayout->addWidget(m_scrollArea, 1);
 
-    m_statusLabel = new QLabel(tr("选中节点后点「捕获选中」保存当前预设"), this);
+    m_statusLabel = new QLabel(tr("选中节点后点预设旁「更新」保存到该预设"), this);
     m_statusLabel->setWordWrap(true);
     m_rootLayout->addWidget(m_statusLabel);
 
     connect(m_addButton, &QPushButton::clicked, this, &SnapshotInterface::addPresetRequested);
-    connect(m_removeButton, &QPushButton::clicked, this, &SnapshotInterface::removePresetRequested);
-    connect(m_captureButton, &QPushButton::clicked, this, &SnapshotInterface::captureRequested);
 
-    setMinimumWidth(220);
+    setMinimumWidth(260);
     setMinimumHeight(160);
 }
 
@@ -83,21 +73,57 @@ void SnapshotInterface::rebuildButtons(const QStringList &names)
 
     for (QAbstractButton *button : m_buttonGroup->buttons()) {
         m_buttonGroup->removeButton(button);
-        m_buttonLayout->removeWidget(button);
-        button->deleteLater();
+    }
+
+    while (QLayoutItem *item = m_buttonLayout->takeAt(0)) {
+        if (QWidget *w = item->widget()) {
+            w->deleteLater();
+        }
+        delete item;
     }
 
     for (int i = 0; i < names.size(); ++i) {
-        auto *button = new QPushButton(names.at(i), m_buttonHost);
+        auto *row = new QWidget(m_buttonHost);
+        auto *rowLayout = new QHBoxLayout(row);
+        rowLayout->setContentsMargins(0, 0, 0, 0);
+        rowLayout->setSpacing(4);
+
+        auto *button = new QPushButton(names.at(i), row);
         button->setCheckable(true);
         button->setMinimumHeight(32);
+        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         m_buttonGroup->addButton(button, i);
-        m_buttonLayout->insertWidget(i, button);
         connect(button, &QPushButton::clicked, this, [this, i]() {
             onPresetButtonClicked(i);
         });
+
+        auto *updateBtn = new QPushButton(row);
+        updateBtn->setIcon(QIcon(QStringLiteral(":/icons/icons/reload.png")));
+        updateBtn->setIconSize(QSize(16, 16));
+        updateBtn->setFixedSize(28, 28);
+        updateBtn->setFlat(true);
+        updateBtn->setToolTip(tr("更新：将当前选中节点状态写入此预设"));
+        connect(updateBtn, &QPushButton::clicked, this, [this, i]() {
+            emit presetUpdateRequested(i);
+        });
+
+        auto *removeBtn = new QPushButton(row);
+        removeBtn->setIcon(QIcon(QStringLiteral(":/icons/icons/remove.png")));
+        removeBtn->setIconSize(QSize(16, 16));
+        removeBtn->setFixedSize(28, 28);
+        removeBtn->setFlat(true);
+        removeBtn->setToolTip(tr("删除此预设"));
+        connect(removeBtn, &QPushButton::clicked, this, [this, i]() {
+            emit presetRemoveRequested(i);
+        });
+
+        rowLayout->addWidget(button, 1);
+        rowLayout->addWidget(updateBtn, 0);
+        rowLayout->addWidget(removeBtn, 0);
+        m_buttonLayout->addWidget(row);
     }
 
+    m_buttonLayout->addStretch(1);
     m_updatingUi = false;
 }
 

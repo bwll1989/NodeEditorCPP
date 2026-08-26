@@ -21,6 +21,8 @@
 #include <QMessageBox>
 #include <QObject>
 #include <QDebug>
+#include <QDateTime>
+#include <QSysInfo>
 
 #include <exception>
 
@@ -30,10 +32,20 @@
  * @return 完整的项目 JSON 对象，供保存与自动保存使用
  * 函数级注释：写入 appVersion，并将各模块独立序列化后合并为单一根对象。
  */
-QJsonObject buildProjectSnapshot(const ProjectSnapshotSources& sources)
+QJsonObject buildProjectSnapshot(const ProjectSnapshotSources& sources, ProjectSaveOrigin origin)
 {
     QJsonObject flowJson;
     flowJson[QStringLiteral("appVersion")] = QStringLiteral(PRODUCT_VERSION);
+
+    QJsonObject meta;
+    meta[QStringLiteral("savedAt")] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+    meta[QStringLiteral("savedOnHost")] = QSysInfo::machineHostName();
+    meta[QStringLiteral("savedBy")] = origin == ProjectSaveOrigin::Autosave
+                                            ? QStringLiteral("autosave")
+                                            : QStringLiteral("user");
+    meta[QStringLiteral("appVersion")] = QStringLiteral(PRODUCT_VERSION);
+    flowJson[QStringLiteral("meta")] = meta;
+
     if (sources.dataflowViewsManger) {
         flowJson[QStringLiteral("DataFlow")] = sources.dataflowViewsManger->save();
     }

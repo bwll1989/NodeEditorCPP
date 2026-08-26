@@ -9,6 +9,7 @@
 #include <QHeaderView>
 #include <QStandardItemModel>
 #include <QJsonArray>
+#include "CompactTableView/CompactTableView.hpp"
 
 namespace Nodes
 {
@@ -148,6 +149,8 @@ namespace Nodes
             tableView->verticalHeader()->setVisible(false);
             tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
             tableView->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+            Gui::setupCompactTableView(tableView);
+            tableView->setItemDelegateForColumn(1, new Gui::CompactTableTextDelegate(tableView));
 
             addRowButton = new QPushButton(tr("Add Item"), this);
             connect(addRowButton, &QPushButton::clicked, this, &InjectInterface::addRow);
@@ -198,6 +201,7 @@ namespace Nodes
             clearActionButtons();
             for (int row = 0; row < model->rowCount(); ++row) {
                 auto *deleteButton = new QPushButton(tr("Delete"), this);
+                deleteButton->setFixedHeight(Gui::kCompactTableRowHeight - 4);
                 connect(deleteButton, &QPushButton::clicked, this, [this, row]() {
                     deleteRow(row);
                 });
@@ -209,7 +213,7 @@ namespace Nodes
         {
             refreshIndexColumn();
             rebuildActionButtons();
-            tableView->resizeRowsToContents();
+            Gui::applyCompactTableRows(tableView);
             tableView->viewport()->update();
         }
     };

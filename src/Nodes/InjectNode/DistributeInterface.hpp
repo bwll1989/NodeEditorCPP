@@ -12,6 +12,7 @@
 #include <QStyledItemDelegate>
 #include <QPainter>
 #include <QLineEdit>
+#include "CompactTableView/CompactTableView.hpp"
 
 namespace Nodes
 {
@@ -67,6 +68,14 @@ namespace Nodes
                 auto *edit = new QLineEdit(parent);
                 edit->setPlaceholderText(jsExpressionPlaceholderText());
                 return edit;
+            }
+
+            QSize sizeHint(const QStyleOptionViewItem &option,
+                           const QModelIndex &index) const override
+            {
+                Q_UNUSED(index)
+                return QSize(QStyledItemDelegate::sizeHint(option, index).width(),
+                             Gui::kCompactTableRowHeight);
             }
         };
     } // namespace
@@ -206,9 +215,11 @@ namespace Nodes
             tableView->verticalHeader()->setVisible(false);
             tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
             tableView->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+            Gui::setupCompactTableView(tableView);
 
             auto *expressionDelegate = new JsExpressionItemDelegate(tableView);
             tableView->setItemDelegateForColumn(0, expressionDelegate);
+            tableView->setItemDelegateForColumn(1, new Gui::CompactTableTextDelegate(tableView));
 
             addRowButton = new QPushButton(tr("Add Rule"), this);
             connect(addRowButton, &QPushButton::clicked, this, &DistributeInterface::addRow);
@@ -240,6 +251,7 @@ namespace Nodes
             clearActionButtons();
             for (int row = 0; row < model->rowCount(); ++row) {
                 auto *deleteButton = new QPushButton(tr("Delete"), this);
+                deleteButton->setFixedHeight(Gui::kCompactTableRowHeight - 4);
                 connect(deleteButton, &QPushButton::clicked, this, [this, row]() {
                     deleteRow(row);
                 });
@@ -250,7 +262,7 @@ namespace Nodes
         void finishTableUpdate()
         {
             rebuildActionButtons();
-            tableView->resizeRowsToContents();
+            Gui::applyCompactTableRows(tableView);
             tableView->viewport()->update();
         }
     };

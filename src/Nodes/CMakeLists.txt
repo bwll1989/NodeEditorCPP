@@ -34,7 +34,7 @@ set(ALL_NODES
     ArtnetInNode                              #Arnet输入
     MpvControllerNode                         #mpv控制
     PingNode                                  #ICMP ping 连通性
-    VLC_RemoteNode                            #VLC远程控制
+    VLC_ControllerNode                            #VLC远程控制
     SPlayControllerNode                       #ENTTEC S-Play 多 playlist 控制
     SwitchNode                                #输入切换
     ConditionNode                             #条件判断
@@ -44,7 +44,7 @@ set(ALL_NODES
     SlideShowNode                             #SlideShow 数字标牌控制
     JavaScriptNode                            #JavaScript脚本
     ImageOperates                             #图像操作集合
-    showStoreGBxNode                          #ELC showStoreGBx 控制器
+    ShowStoreGBxNode                         #ELC showStoreGBx 控制器
     USR_IO808Node                           #基于Modbus Master实现与USR-IO808 控制器对接
     TSETLNode                                 #对接TSETL
     AuroraSNode                               #Aurora S 设备状态
@@ -86,6 +86,8 @@ set(ALL_NODES
     MediaPipe/HumanSegmentationPPHumanSegNode      #MediaPipe 人体分割
     VideoDecoderNode                              #视频解码器节点
     PLC-ModBus                                  #modbus控制PLC
+    ModBusSlave                                 #Modbus从机节点
+    ModBusMaster                                #Modbus主机节点
     InternalCommandsNode                        #内部控制节点
     InjectNode                                  #数据注入
     ValueLookupNode                          #值查表 Value Lookup
@@ -138,10 +140,9 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(ArtnetInNode)                              #Arnet输入
     add_subdirectory(MpvControllerNode)                         #mpv控制
     add_subdirectory(PingNode)                                  #ICMP ping 连通性
-    add_subdirectory(VLC_RemoteNode)                            #VLC远程控制
+    add_subdirectory(VLC_ControllerNode)                            #VLC远程控制
     add_subdirectory(SPlayControllerNode)                       #ENTTEC S-Play 多 playlist 控制
     add_subdirectory(SwitchNode)                                #输入切换
-#    add_subdirectory(NDVServerNode)                            #NDV控制
     add_subdirectory(ConditionNode)                             #条件判断
     add_subdirectory(WebSocketServerNode)                       #WebSocket服务器
     add_subdirectory(WebSocketClientNode)                       #WebSocket客户端
@@ -149,7 +150,6 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(SlideShowNode)                             #SlideShow 数字标牌控制
     add_subdirectory(JavaScriptNode)                            #JavaScript脚本
     add_subdirectory(InternalCommandsNode)                       #内部控制
-#    add_subdirectory(ImageCompareNode)                          #图像对比
     add_subdirectory(ImageOperates)                             #图像操作集合
     add_subdirectory(showStoreGBxNode)                          #ELC showStoreGBx 控制器
     add_subdirectory(USR_IO808Node)                             #基于Modbus Master实现与USR-IO808 控制器对接
@@ -191,7 +191,11 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(VideoDecoderNode)                          #视频解码器节点
     add_subdirectory(DAWController)                          #DAW控制器节点
     add_subdirectory(PLC-ModBus)                                #Modbus控制PLC节点
-#    add_subdirectory(QmlScriptNode)                            #QML JS 脚本（弃用）
+    add_subdirectory(VLC_RemoteNode)                            #VLC远程控制
+    add_subdirectory(StyleTransferONNXNode)                      #神经网络风格迁移
+    add_subdirectory(ModBusSlave)                              #Modbus从机节点
+    add_subdirectory(ModBusMaster)                             #Modbus主机节点
+    add_subdirectory(showStoreGBxNode)
     add_subdirectory(InjectNode)                                #数据注入节点
     add_subdirectory(ValueLookupNode)                        #值查表 Value Lookup
     add_subdirectory(FT_C040ANode)                          #触摸屏

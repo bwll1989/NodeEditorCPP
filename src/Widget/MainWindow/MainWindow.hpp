@@ -7,15 +7,12 @@
 #include <QJsonObject>
 #include <QMainWindow>
 #include <optional>
-#include <QMetaObject>
 #include "Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "DockHub/DockHub.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/MenuBarWidget/MenuBarWidget.h"
-// #include "Widget/NodeLibraryWidget/NodeLibraryWidget.h"
 #include "Widget/TimeLineWidget/TimeLineWidget.hpp"
-#include "Widget/NodeListWidget/NodeListWidget.hpp"
 #include "Widget/TimeLineWidget/TimeLineModel.h"
 #include "Widget/ExternalControl/ExternalControler.hpp"
 #include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
@@ -33,7 +30,6 @@ namespace QWK {
 
 class AutosaveManager;
 #include "ProjectSnapshotBuilder.hpp"
-class PropertyWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -53,18 +49,8 @@ public:
     ads::CDockManager* m_DockManager=nullptr;
     //插件管理器
     PluginsManagerWidget *pluginsManagerDlg=nullptr;
-    // 节点库控件
-    // ads::CDockWidget *nodeDockLibraryWidget=nullptr;
-    // 属性面板 Dock
-    // ads::CDockWidget *propertyDockWidget=nullptr;
-    // PropertyWidget *propertyWidget=nullptr;
-    QMetaObject::Connection propertySelectionConn;
     // 锁定状态
     bool isLocked= false;
-    // 节点库
-    // NodeLibraryWidget *nodeLibrary=nullptr;
-    // 节点列表
-    NodeListWidget *nodeListWidget=nullptr;
     // 时间线
     TimelineWidget *timeline     = nullptr;
     // 时间线模型
@@ -86,10 +72,6 @@ public Q_SLOTS:
      * 函数级注释：创建 DockManager 与各 DockWidget，初始化菜单栏、日志、节点编辑器、时间线、舞台、媒体库、外部控制与 HTTP 服务等。
      */
     void init();
-    // /**
-    //  * 初始化节点列表
-    //  */
-    // void initNodelist();
     /**
      * 更新默认可视化布局状态
      */
@@ -140,10 +122,6 @@ public Q_SLOTS:
      * 保存文件到路径
      */
     void saveFileToPath();
-    /**
-     * 创建数据流程视图
-     */
-    void createDataflowWidget();
     /**
      * 更新菜单栏视图action
      */
@@ -209,7 +187,7 @@ protected:
      */
     void restartAndOpenFlow(const QString& path);
 
-    QJsonObject serializeProject() const;
+    QJsonObject serializeProject(ProjectSaveOrigin origin = ProjectSaveOrigin::User) const;
     void setupAutosave();
     void finalizeAutosave();
     void onProjectLoaded(const QString& projectPath);

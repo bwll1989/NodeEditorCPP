@@ -51,6 +51,7 @@ class CustomDataFlowGraphModel: public AbstractGraphModel, public Serializable
      * @param std::shared_ptr<NodeDelegateModelRegistry> registry 注册表
      */
     CustomDataFlowGraphModel(std::shared_ptr<NodeDelegateModelRegistry> registry);
+    ~CustomDataFlowGraphModel() override;
 
     /**
      * 数据模型注册表

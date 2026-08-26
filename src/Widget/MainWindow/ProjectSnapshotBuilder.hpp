@@ -27,8 +27,15 @@ struct ProjectSnapshotSources {
     Flow::NodeHttpServer* httpServer = nullptr;
 };
 
+/** @brief 项目快照写入来源（写入 meta.savedBy，便于追溯） */
+enum class ProjectSaveOrigin {
+    User,     ///< 用户手动保存到 .flow
+    Autosave  ///< 周期性/退出时的 recovery 快照
+};
+
 /** @brief 从各模块收集 DataFlow / TimeLine / 布局等，组装为 .flow JSON */
-QJsonObject buildProjectSnapshot(const ProjectSnapshotSources& sources);
+QJsonObject buildProjectSnapshot(const ProjectSnapshotSources& sources,
+                                 ProjectSaveOrigin origin = ProjectSaveOrigin::User);
 /** @brief 原子写入用户指定的 .flow 文件 */
 bool saveProjectSnapshotAtomic(const QString& path, const QJsonObject& json);
 

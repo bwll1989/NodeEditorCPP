@@ -5,6 +5,7 @@
 #include "ImageInDataModel.hpp"
 #include "VariableOutDataModel.hpp"
 #include "VariableInDataModel.hpp"
+#include "ContainerDataModel.hpp"
 #include "BoolSourceDataModel.hpp"
 #include "StringSourceDataModel.hpp"
 #include "IntSourceDataModel.hpp"

@@ -17,8 +17,7 @@
 #include <QWKWidgets/widgetwindowagent.h>
 #include <widgetframe/windowbar.h>
 #include <widgetframe/windowbutton.h>
-#include "Widget/NodeListWidget/NodeListWidget.hpp"
-#include "Widget/PropertyWidget/PropertyWidget.hpp"
+// #include "Widget/PropertyWidget/PropertyWidget.hpp"
 #include <QSettings>
 #include <exception>
 #include "../../Common/AppConfig/AutosaveManager.h"
@@ -157,15 +156,14 @@ void MainWindow::init()
    
     // 按配置应用主题（重启后生效）
     applyTheme(ConfigManager::instance().isDefaultDarkTheme());
-    // 节点编辑控件
-    auto *NodeDockWidget = m_DockManager->createDockWidget("节点编辑");
-    NodeDockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
+    // 节点编辑：由 DataflowViewsManger 创建单画布 Dock
     emit initStatus("load node editor style success");
     dataflowViewsManger=new DataflowViewsManger(m_DockManager,this);
-    emit initStatus("Init node editor success");
-    // 插件管理器控件
+    // 插件需先注册再创建根图（否则 Container/内置节点不在 registry）
     pluginsManagerDlg=new PluginsManagerWidget();
     emit initStatus("initialization pluginsManager success");
+    dataflowViewsManger->resetDataflow(QStringLiteral("dataflow"));
+    emit initStatus("Init node editor success");
     // 节点库控件
     // nodeDockLibraryWidget = m_DockManager->createDockWidget("节点库");
     // nodeDockLibraryWidget->setIcon(QIcon(":/icons/icons/library.png"));
@@ -195,15 +193,6 @@ void MainWindow::init()
     // QMenu* Options = makeOptionsMenu(scheduledTaskWidget, scheduledTaskWidget->getActions());
     calendarDockWidget->setTitleBarActions({makeOptionsMenu(scheduledTaskWidget, scheduledTaskWidget->getActions())->menuAction()});
     emit initStatus("Initialization Scheduled Task success");
-    // 节点列表显示控件
-    auto *nodeListDockWidget = m_DockManager->createDockWidget("节点列表");
-    nodeListDockWidget->setObjectName("nodeList");
-    nodeListDockWidget->setIcon(QIcon(":/icons/icons/list.png"));
-    nodeListWidget = new NodeListWidget(dataflowViewsManger, this);
-    nodeListDockWidget->setWidget(nodeListWidget);
-    m_DockManager->addDockWidget(ads::RightDockWidgetArea, nodeListDockWidget);
-    menuBar->views->addAction(nodeListDockWidget->toggleViewAction());
-    emit initStatus("Initialization Node List Widget success");
     // 媒体库控件
     auto *mediaLibraryDockWidget = m_DockManager->createDockWidget("媒体库");
     mediaLibraryDockWidget->setObjectName("mediaLibrary");
@@ -266,6 +255,9 @@ void MainWindow::init()
     } else {
         emit initStatus("Initialization Http Server success");
     }
+    if (dataflowViewsManger) {
+        dataflowViewsManger->setHttpServer(httpServer);
+    }
     // 更新默认布局
     connect(menuBar->saveLayout, &QAction::triggered, this, &MainWindow::updateVisualState);
     //恢复布局
@@ -289,10 +281,10 @@ void MainWindow::init()
     connect(menuBar->views, &QMenu::aboutToShow, this, [this]() {
         updateViewMenu(menuBar->views);
     });
-    //清空所有数据流
-    connect(menuBar->Clear_dataflows, &QAction::triggered, dataflowViewsManger, &DataflowViewsManger::clearAllScenes);
-    //新建数据流程
-    connect(menuBar->New_dataflow, &QAction::triggered, this, &MainWindow::createDataflowWidget);
+    //清空数据流
+    connect(menuBar->Clear_dataflow, &QAction::triggered, this, [this]() {
+        dataflowViewsManger->resetDataflow();
+    });
     //    日志清空功能
     connect(menuBar->clearAction, &QAction::triggered, logTable, &LogWidget::clearTableWidget);
 
@@ -411,7 +403,7 @@ void MainWindow::openRecentFile(const QString& path)
 // 锁定切换
 void MainWindow::locked_switch() {
     isLocked=!isLocked;
-    dataflowViewsManger->setSceneLocked(isLocked);
+    dataflowViewsManger->setDataflowLocked(isLocked);
 }
 //拖拽进入
 void MainWindow::dragEnterEvent(QDragEnterEvent *event) {
@@ -561,14 +553,6 @@ void MainWindow::loadFileFromPath(const QString &path)
         return;
     }
 
-    if (nodeListWidget) {
-        QTimer::singleShot(0, nodeListWidget, [this]() {
-            if (nodeListWidget) {
-                nodeListWidget->syncToActiveScene();
-            }
-        });
-    }
-
     const QString normalizedLogicalPath = logicalProjectPath;
     if (!normalizedLogicalPath.isEmpty()) {
         ConfigManager::instance().addRecentFile(normalizedLogicalPath);
@@ -638,7 +622,7 @@ void MainWindow::loadFileFromExplorer() {
  * @return 包含 DataFlow、TimeLine、布局等模块的完整项目快照
  * 函数级注释：供手动保存与自动保存共用，确保写入内容一致。
  */
-QJsonObject MainWindow::serializeProject() const
+QJsonObject MainWindow::serializeProject(ProjectSaveOrigin origin) const
 {
     ProjectSnapshotSources sources;
     sources.dataflowViewsManger = dataflowViewsManger;
@@ -646,7 +630,7 @@ QJsonObject MainWindow::serializeProject() const
     sources.scheduledTaskWidget = scheduledTaskWidget;
     sources.dockManager = m_DockManager;
     sources.httpServer = httpServer;
-    return buildProjectSnapshot(sources);
+    return buildProjectSnapshot(sources, origin);
 }
 
 /**
@@ -663,7 +647,7 @@ void MainWindow::setupAutosave()
     autosaveManager->setEnabled(ConfigManager::instance().isAutosaveEnabled());
     autosaveManager->setIntervalSeconds(ConfigManager::instance().getAutosaveIntervalSeconds());
     autosaveManager->setSerializer([this]() {
-        return serializeProject();
+        return serializeProject(ProjectSaveOrigin::Autosave);
     });
     autosaveManager->setProjectPath(QString());
     autosaveManager->start();
@@ -730,7 +714,7 @@ void MainWindow::saveFileToPath(){
         return;
     }
     if (saveProjectSnapshotAtomic(currentProjectPath, serializeProject())) {
-        qDebug() << "Saved data to" << currentProjectPath;
+        // qDebug() << "Saved data to" << currentProjectPath;
         if (autosaveManager) {
             autosaveManager->clearRecovery();
         }
@@ -824,22 +808,6 @@ void MainWindow::closeEvent(QCloseEvent* event)
         ProjectPersistence::markCleanShutdown();
         event->accept();
     }
-}
-
-void MainWindow::createDataflowWidget()
-{
-    
-    bool ok;
-    QString name = QInputDialog::getText(this,
-                                         tr("新建Dataflow"),
-                                         tr("请输入名称（不可变更）:"),
-                                         QLineEdit::Normal,
-                                         tr("Dataflow"),
-                                         &ok);
-    if (!ok || name.isEmpty())
-        return;
-    // 用户取消或空名称则直接返回，重名判断在DataflowViewsManger中
-    dataflowViewsManger->addNewScene(name);
 }
 
 void MainWindow::updateViewMenu(QMenu* menu)
@@ -1025,7 +993,7 @@ void MainWindow::changeEvent(QEvent *event)
 /**
  * @brief 处理窗口激活/失活，切换标题栏前景样式
  *
- * 激活时 bar-active=true（深色主题 #353535 / 浅色主题 #F6F6F6），
+ * 激活时 bar-active=true（深色主题 #2f3034 / 浅色主题 #E8E9ED），
  * 失活时 bar-active=false（颜色略暗），对应 DefaultDark/Light.qss。
  */
 bool MainWindow::event(QEvent *event)

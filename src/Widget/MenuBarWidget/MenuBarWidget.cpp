@@ -31,8 +31,7 @@ void setupMenuShortcuts(MenuBarWidget* bar)
     setAppShortcut(bar->saveAsAction, QKeySequence::SaveAs);
     setAppShortcut(bar->exitAction, QKeySequence::Quit);
 
-    setAppShortcut(bar->New_dataflow, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
-    setAppShortcut(bar->Clear_dataflows, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Delete));
+    setAppShortcut(bar->Clear_dataflow, QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Delete));
     setAppShortcut(bar->lockAction, QKeySequence(Qt::CTRL | Qt::Key_L));
     setAppShortcut(bar->clearAction, QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
     setAppShortcut(bar->Setting, QKeySequence(Qt::CTRL | Qt::Key_Comma));
@@ -87,10 +86,8 @@ void MenuBarWidget::setupMenu() {
     Edit_menu=this->addMenu("编辑");
     Edit_menu->setWindowFlags(Edit_menu->windowFlags() | Qt::NoDropShadowWindowHint);
     Edit_menu->setAttribute(Qt::WA_TranslucentBackground, false);
-    //新建数据流程
-    New_dataflow=Edit_menu->addAction(QIcon(":/icons/icons/add_database.png"),"新建数据流");
     //清空数据流
-    Clear_dataflows=Edit_menu->addAction(QIcon(":/icons/icons/delete_database.png"),"清空所有数据流");
+    Clear_dataflow=Edit_menu->addAction(QIcon(":/icons/icons/delete_database.png"),"清空数据流");
     lockAction = Edit_menu->addAction(QIcon(":/icons/icons/unlock.png"),"编辑模式");
     lockAction->setCheckable(true);
     lockAction->setIcon(lockAction->isChecked()?QIcon(":/icons/icons/lock.png"):QIcon(":/icons/icons/unlock.png"));

@@ -1,0 +1,29 @@
+{
+  "name": "flow-web-interface",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint:types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@egjs/hammerjs": "^2.0.17",
+    "@lit/context": "^1.1.6",
+    "@mdi/js": "^7.4.47",
+    "echarts": "^6.1.0",
+    "echarts-gl": "^2.1.0",
+    "lit": "^3.3.3",
+    "marked": "^18.0.10",
+    "sortablejs": "^1.15.7",
+    "xss": "^1.0.15"
+  },
+  "devDependencies": {
+    "@types/hammerjs": "^2.0.46",
+    "@types/sortablejs": "^1.15.9",
+    "typescript": "~5.6.2",
+    "vite": "^5.4.11"
+  }
+}

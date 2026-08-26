@@ -11,6 +11,9 @@ DelayMessageItemWidget::DelayMessageItemWidget(QWidget* parent)
 
 void DelayMessageItemWidget::setupUI()
 {
+    setFixedHeight(28);
+    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+
     auto* layout = new QHBoxLayout(this);
     layout->setContentsMargins(2, 0, 2, 0);
     layout->setSpacing(4);

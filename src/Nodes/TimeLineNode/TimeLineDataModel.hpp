@@ -93,7 +93,13 @@ public:
      * - 同步设置 timeline 的 modelAlias，并让已加载的剪辑立刻完成控件注册与初始状态反馈
      */
     void afterModelReady() override {
-        model->setModelAlias("dataflow/" + getParentAlias() + "/" + QString::number(getNodeID()));
+        // 与 NodeDelegateModel::makeFullOscAddress 对齐：根层不插入空 parent 段
+        // setModelAlias 会补前导 '/'，最终为 /dataflow/<nodeId> 或 /dataflow/<parent>/<nodeId>
+        const QString parent = getParentAlias().trimmed();
+        const QString alias = parent.isEmpty()
+            ? QStringLiteral("dataflow/%1").arg(getNodeID())
+            : QStringLiteral("dataflow/%1/%2").arg(parent).arg(getNodeID());
+        model->setModelAlias(alias);
 
         auto* editor = widget ? widget->editorWidget() : nullptr;
         if (editor && editor->toolbar) {

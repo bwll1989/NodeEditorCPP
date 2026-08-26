@@ -25,7 +25,8 @@ namespace Nodes
 {
     /**
      * @brief 通道设备节点 - 多通道数据处理节点
-     * 支持设置起始DMX地址、通道数，每个通道的值，并通过输入和输出端口接收和发送值
+     * 支持设置起始DMX地址、通道数，每个通道的值，并通过输入和输出端口接收和发送值。
+     * 前 n-1 口为单通道（CH0…）；最后一口为 Vec，接收列表并按当前通道数截取/补 0。
      */
     class DMXDeviceDataModel : public AbstractDelegateModel
     {
@@ -39,7 +40,7 @@ namespace Nodes
          */
         DMXDeviceDataModel()
         {
-            InPortCount = 5;   // 默认5个输入端口
+            InPortCount = 5;   // 默认 4 路单通道 + 1 路 Vec
             OutPortCount = 1;   // 只有一个通道数据输出
             PortEditable=true;
             CaptionVisible = true;
@@ -224,6 +225,9 @@ namespace Nodes
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
             if (portType == PortType::In) {
+                if (isVecInPort(portIndex)) {
+                    return QStringLiteral("VECTOR");
+                }
                 return QString("CH%1").arg(portIndex);  // 从CH0开始，对应设备通道
             } else {
                 return "DEVICE";    // 通道数据输出
@@ -270,7 +274,13 @@ namespace Nodes
                 return;
             }
 
-            // 设置对应通道的值（如果通道索引在当前通道数范围内）
+            if (isVecInPort(portIndex)) {
+                // 整段通道值：按当前通道数截取/补 0
+                applyChannelValues(variableData->asFloats(m_channelCount));
+                return;
+            }
+
+            // 单通道口：标量或列表首元
             if (portIndex < static_cast<PortIndex>(m_channelCount)) {
                 const int channelValue = qBound(0, variableData->asInt(), 255);
                 updateChannelState(portIndex, channelValue);
@@ -337,6 +347,38 @@ namespace Nodes
         }
 
     private:
+        bool isVecInPort(PortIndex portIndex) const
+        {
+            return InPortCount > 0 && portIndex == InPortCount - 1;
+        }
+
+        /**
+         * @brief 用列表覆盖全部通道值（长度已按通道数对齐）
+         */
+        void applyChannelValues(const QVector<float> &values) {
+            const int count = m_channelCount;
+            if (count <= 0 || values.size() != count) {
+                return;
+            }
+
+            bool changed = false;
+            for (int i = 0; i < count; ++i) {
+                const int newVal = qBound(0, qRound(values[i]), 255);
+                if (channelValues[i] == newVal) {
+                    continue;
+                }
+                channelValues[i] = newVal;
+                changed = true;
+            }
+
+            if (!changed) {
+                return;
+            }
+
+            updateChannelSliders();
+            updateChannelData();
+        }
+
         /**
          * @brief 连接通道滑块信号，并将每个滑块注册到外部控制映射
          */
@@ -441,7 +483,7 @@ namespace Nodes
         QVector<int> channelValues;                 // 通道值数组
         
         Nodes::DMXDeviceInterface * widget = new Nodes::DMXDeviceInterface();
-        int m_channelCount = 5;
+        int m_channelCount = 4;
         int m_startAddress = 1;
         bool m_enabled = true;
     };

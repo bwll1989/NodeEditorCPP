@@ -1,22 +1,22 @@
 {
   "GraphicsViewStyle": {
-    "BackgroundColor": [53, 53, 53],
-    "FineGridColor": [60, 60, 60],
-    "CoarseGridColor": [25, 25, 25]
+    "BackgroundColor": [26, 27, 31],
+    "FineGridColor": [40, 41, 46],
+    "CoarseGridColor": [72, 74, 82]
   },
 
   "NodeStyle": {
-    "NormalBoundaryColor": [200, 200, 200],
+    "NormalBoundaryColor": [120, 122, 132],
     "SelectedBoundaryColor": [255, 165, 0],
 
-    "GradientColor0": "gray",
-    "GradientColor1": [80, 80, 80],
-    "GradientColor2": [64, 64, 64],
-    "GradientColor3": [58, 58, 58],
-    "ShadowColor": [255, 20, 20],
-    "ShadowEnabled":false,
-    "FontColor" : [26, 26, 26],
-    "FontColorFaded" : [150, 150, 150],
+    "GradientColor0": [70, 72, 80],
+    "GradientColor1": [56, 58, 66],
+    "GradientColor2": [46, 48, 54],
+    "GradientColor3": [40, 42, 48],
+    "ShadowColor": [0, 0, 0],
+    "ShadowEnabled": false,
+    "FontColor": [28, 28, 30],
+    "FontColorFaded": [168, 170, 178],
     "TitleColor": [180, 200, 80],
     "ConnectionPointColor": [169, 169, 169],
     "FilledConnectionPointColor": "cyan",
@@ -26,16 +26,16 @@
 
     "PenWidth": 1.0,
     "HoveredPenWidth": 4.0,
-    "BoundaryRadius" : 6,
+    "BoundaryRadius": 6,
     "ConnectionPointDiameter": 10.0,
 
-    "Opacity": 0.96
+    "Opacity": 1.0
   },
 
   "ConnectionStyle": {
     "ConstructionColor": "gray",
-    "NormalColor": "black",
-    "SelectedColor": "gray",
+    "NormalColor": [200, 200, 200],
+    "SelectedColor": [220, 220, 220],
     "SelectedHaloColor": "orange",
     "HoveredColor": "orange",
     "FontColor": [30, 30, 30],
@@ -46,29 +46,29 @@
     "PointDiameter": 8.0,
 
     "UseDataDefinedColors": true,
-    "InArrow" : false,
-    "OutArrow" : false
-},
+    "InArrow": false,
+    "OutArrow": false
+  },
 
   "GroupStyle": {
-    "NormalBoundaryColor": [200,200,200],
-    "FontColor" : [53, 53, 53],
-    "NormalColor": [255, 255, 255],
+    "NormalBoundaryColor": [140, 142, 150],
+    "FontColor": [220, 222, 228],
+    "NormalColor": [120, 150, 170],
     "SelectedColor": [255, 165, 0],
     "SelectedHaloColor": "orange",
     "CaptionColor": "darkcyan",
     "PortColor": "gray",
     "PortHeight": 0.6,
     "PortWidth": 12.0,
-    "Opacity": 0.12,
+    "Opacity": 1.0,
     "PenWidth": 1.0,
     "HoveredPenWidth": 2,
-    "BoundaryRadius" : 6,
-    "GradientColor0": "gray",
+    "BoundaryRadius": 6,
+    "GradientColor0": [48, 50, 58],
     "CaptionHeight": 30.0,
     "CollapsedHeight": 150.0,
-    "GradientColor1": [80, 80, 80],
-    "GradientColor2": [64, 64, 64],
-    "GradientColor3": [58, 58, 58]
+    "GradientColor1": [44, 46, 54],
+    "GradientColor2": [38, 40, 48],
+    "GradientColor3": [34, 36, 42]
   }
 }

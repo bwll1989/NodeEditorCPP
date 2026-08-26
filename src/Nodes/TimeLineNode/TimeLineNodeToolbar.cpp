@@ -21,8 +21,15 @@ TimeLineNodeToolBar::~TimeLineNodeToolBar()
 
 QString TimeLineNodeToolBar::makeBusAddress(const QString& relative) const
 {
+    // 与 NodeDelegateModel::makeFullOscAddress 对齐：
+    // 根层 parentAlias 为空 → /dataflow/<nodeId><relative>
+    // 嵌套 → /dataflow/<parentAlias>/<nodeId><relative>
     const QString norm = relative.startsWith('/') ? relative : ("/" + relative);
-    return "/dataflow" + m_parentAlias + "/" + QString::number(m_nodeId) + norm;
+    const QString parent = m_parentAlias.trimmed();
+    if (parent.isEmpty()) {
+        return QStringLiteral("/dataflow/%1%2").arg(m_nodeId).arg(norm);
+    }
+    return QStringLiteral("/dataflow/%1/%2%3").arg(parent).arg(m_nodeId).arg(norm);
 }
 
 void TimeLineNodeToolBar::bindBus(const QString& parentAlias, int nodeId)
@@ -30,11 +37,11 @@ void TimeLineNodeToolBar::bindBus(const QString& parentAlias, int nodeId)
     if (m_busBound) {
         return;
     }
-    if (parentAlias.isEmpty() || nodeId < 0) {
+    // 根层 parentAlias 为空是合法的，仅 nodeId 无效时拒绝绑定
+    if (nodeId < 0) {
         return;
     }
-    //首先校验起始，保证以/开头
-    m_parentAlias = parentAlias.startsWith('/') ? parentAlias : ("/" + parentAlias);
+    m_parentAlias = parentAlias.trimmed();
     m_nodeId = nodeId;
     m_busBound = true;
 }

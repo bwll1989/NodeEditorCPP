@@ -235,14 +235,14 @@ set(CALC_SOURCE_FILES
         src/Widget/MenuBarWidget/SettingWidget.cpp
         src/Widget/MenuBarWidget/SettingWidget.h
 
-        src/Widget/PropertyWidget/PropertyWidget.cpp
-        src/Widget/PropertyWidget/PropertyWidget.hpp
+#        src/Widget/PropertyWidget/PropertyWidget.cpp
+#        src/Widget/PropertyWidget/PropertyWidget.hpp
         src/Widget/NodeLibraryWidget/draggabletreewidget.cpp
         src/Widget/NodeLibraryWidget/draggabletreewidget.hpp
 #        src/Widget/NodeLibraryWidget/NodeLibraryWidget.cpp
 #        src/Widget/NodeLibraryWidget/NodeLibraryWidget.h
-        src/Widget/NodeListWidget/NodeListWidget.cpp
-        src/Widget/NodeListWidget/NodeListWidget.hpp
+#        src/Widget/NodeListWidget/NodeListWidget.cpp
+#        src/Widget/NodeListWidget/NodeListWidget.hpp
         src/Common/Devices/TcpServer/TcpServer.cpp
         src/Common/Devices/TcpServer/TcpServer.h
         src/Common/Devices/TcpClient/TcpClient.cpp
@@ -311,6 +311,10 @@ set(CALC_SOURCE_FILES
         src/Widget/MediaLibraryWidget/MediaLibraryWidget.h
         src/Widget/ExternalControl/HttpServer.cpp
         src/Widget/ExternalControl/HttpServer.hpp
+        src/Widget/ExternalControl/ActionRegistry.cpp
+        src/Widget/ExternalControl/ActionRegistry.h
+        src/Widget/ExternalControl/ExportActionDialog.cpp
+        src/Widget/ExternalControl/ExportActionDialog.h
 )
 # 函数级注释：定义 Headless 版本源文件（用 headless_main.cpp 替换 main.cpp）
 set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES})

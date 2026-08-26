@@ -37,11 +37,15 @@ namespace Nodes
             PortEditable= true;
 
             timer->setParent(this);
+            timer->setSingleShot(true);
+            // 默认 CoarseTimer 在 Windows 上约 15ms 粒度，长序列会明显抖动
+            timer->setTimerType(Qt::PreciseTimer);
+
             progressTimer->setParent(this);
             progressTimer->setInterval(100);
 
-            connect(timer, SIGNAL(timeout()), this, SLOT(onSingleTimerTimeout()));
-            connect(progressTimer, SIGNAL(timeout()), this, SLOT(updateProgress()));
+            connect(timer, &QTimer::timeout, this, &DelayDataModel::onSingleTimerTimeout);
+            connect(progressTimer, &QTimer::timeout, this, &DelayDataModel::updateProgress);
 
             updateProgress();
         }
@@ -134,14 +138,11 @@ namespace Nodes
                 m_totalDurationMs = std::max(0, m_schedule.last().time);
                 m_elapsed.restart();
 
-                // 启动第一个间隔：从0到第一个延迟的绝对时间
-                const int firstDelay = std::max(0, m_schedule.first().time);
-                timer->setInterval(firstDelay);
-
-                timer->start();
                 if (!progressTimer->isActive()) {
                     progressTimer->start();
                 }
+                // 按墙钟绝对时间调度；0ms 批次会在 arm 时立即发出
+                armNextFromElapsed();
                 updateProgress();
                 break;
             }
@@ -204,19 +205,19 @@ namespace Nodes
             }
 
             const int totalMs = std::max(0, m_totalDurationMs);
-            const int elapsedMs = m_elapsed.isValid() ? static_cast<int>(m_elapsed.elapsed()) : 0;
+            const int nowMs = static_cast<int>(elapsedMs());
 
             if (totalMs <= 0) {
                 widget->setProgressPercent(100);
                 return;
             }
 
-            const int percent = std::max(0, std::min(100, (elapsedMs * 100) / totalMs));
+            const int percent = std::max(0, std::min(100, (nowMs * 100) / totalMs));
             widget->setProgressPercent(percent);
         }
 
         // 函数级注释：单定时器超时回调。
-        // 触发当前时间批次内的所有端口，计算到下一批次的时间差并继续启动定时器；队列结束则清理。
+        // 以 QElapsedTimer 墙钟为准触发所有已到期批次，再按「目标绝对时间 - 已耗时」补偿下一次间隔，避免相对链式计时漂移。
         void onSingleTimerTimeout()
         {
             if (m_schedule.isEmpty() || m_cursor >= m_schedule.size()) {
@@ -224,26 +225,12 @@ namespace Nodes
                 return;
             }
 
-            const int currentTime = std::max(0, m_schedule[m_cursor].time);
+            fireDueItems();
 
-            // 发出当前时刻的所有端口触发
-            int i = m_cursor;
-            while (i < m_schedule.size() && std::max(0, m_schedule[i].time) == currentTime) {
-                const int outPort = std::max(0, m_schedule[i].port);
-                Q_EMIT dataUpdated(outPort);
-                ++i;
-            }
-            m_cursor = i;
-
-            // 还有后续批次：按时间差继续单次定时
             if (m_cursor < m_schedule.size()) {
-                const int nextTime = std::max(0, m_schedule[m_cursor].time);
-                const int delta = std::max(0, nextTime - currentTime);
-                timer->setInterval(delta);
-                timer->start();
+                armNextFromElapsed();
                 updateProgress();
             } else {
-                // 队列完成
                 stopAndClearSchedule();
             }
         }
@@ -258,9 +245,6 @@ namespace Nodes
         QElapsedTimer m_elapsed;
         int m_totalDurationMs = 0;
 
-    private:
-
-    private:
         // 函数级注释：停止定时器并清空队列状态。
         void stopAndClearSchedule()
         {
@@ -279,7 +263,45 @@ namespace Nodes
             }
         }
 
-        // 单定时器的顺序执行队列与游标
+        qint64 elapsedMs() const
+        {
+            return m_elapsed.isValid() ? m_elapsed.elapsed() : 0;
+        }
+
+        // 发出所有「绝对时间 <= 当前墙钟」的批次（含事件循环卡顿时的追赶）
+        void fireDueItems()
+        {
+            const qint64 now = elapsedMs();
+            while (m_cursor < m_schedule.size()) {
+                const int dueTime = std::max(0, m_schedule[m_cursor].time);
+                if (dueTime > now) {
+                    break;
+                }
+                while (m_cursor < m_schedule.size()
+                       && std::max(0, m_schedule[m_cursor].time) == dueTime) {
+                    Q_EMIT dataUpdated(std::max(0, m_schedule[m_cursor].port));
+                    ++m_cursor;
+                }
+            }
+        }
+
+        // 按墙钟剩余时间武装下一次单次定时；已到期则 interval=0 尽快触发
+        void armNextFromElapsed()
+        {
+            fireDueItems();
+
+            if (m_cursor >= m_schedule.size()) {
+                stopAndClearSchedule();
+                return;
+            }
+
+            const int nextAbs = std::max(0, m_schedule[m_cursor].time);
+            const int waitMs = std::max(0, static_cast<int>(nextAbs - elapsedMs()));
+            timer->setInterval(waitMs);
+            timer->start();
+        }
+
+        // 单定时器的顺序执行队列与游标（time 为相对触发起点的绝对毫秒）
         QVector<delay_item> m_schedule;
         int m_cursor = 0;
     };

@@ -19,6 +19,8 @@
 #include <QModelIndex>
 #include <algorithm>
 
+#include "Common/AppConfig/ConfigManager.h"
+
 namespace {
 
 constexpr int kDayNumberHeight = 18;
@@ -37,6 +39,7 @@ struct ThemeColors {
     QColor weekendText;
     QColor selectionFill;
     QColor todayBorder;
+    QColor cellBorder;
     QColor chipOnceBg;
     QColor chipOnceFg;
     QColor chipLoopBg;
@@ -46,39 +49,42 @@ struct ThemeColors {
     QColor moreText;
 };
 
-ThemeColors themeColors(const QPalette& pal)
+ThemeColors themeColors()
 {
     ThemeColors c;
-    const bool dark = pal.color(QPalette::Base).lightness() < 128;
+    // QSS 不更新 QPalette，不能用 Base.lightness 判断主题
+    const bool dark = ConfigManager::instance().isDefaultDarkTheme();
 
     if (dark) {
-        c.cellBg = QColor(53, 53, 53);
-        c.outsideBg = QColor(45, 45, 45);
-        c.dayText = QColor(220, 220, 220);
-        c.weekendText = QColor(180, 140, 140);
-        c.selectionFill = QColor(0, 120, 212, 40);
-        c.todayBorder = kAccent;
-        c.chipOnceBg = QColor(55, 100, 140, 200);
-        c.chipOnceFg = QColor(230, 240, 250);
-        c.chipLoopBg = QColor(55, 120, 105, 200);
-        c.chipLoopFg = QColor(225, 245, 238);
+        c.cellBg = QColor(37, 38, 42);
+        c.outsideBg = QColor(28, 29, 32);
+        c.dayText = QColor(236, 238, 242);
+        c.weekendText = QColor(255, 138, 128); // 周末高对比粉红
+        c.selectionFill = QColor(0, 120, 212, 70);
+        c.todayBorder = QColor(100, 181, 246);
+        c.cellBorder = QColor(255, 255, 255, 22);
+        c.chipOnceBg = QColor(21, 101, 192);
+        c.chipOnceFg = QColor(255, 255, 255);
+        c.chipLoopBg = QColor(0, 121, 107);
+        c.chipLoopFg = QColor(255, 255, 255);
         c.chipActiveBg = kAccent;
         c.chipActiveFg = Qt::white;
-        c.moreText = QColor(150, 150, 155);
+        c.moreText = QColor(180, 184, 192);
     } else {
         c.cellBg = QColor(255, 255, 255);
-        c.outsideBg = QColor(245, 245, 245);
-        c.dayText = QColor(45, 45, 45);
-        c.weekendText = QColor(160, 100, 100);
+        c.outsideBg = QColor(245, 245, 247);
+        c.dayText = QColor(40, 42, 48);
+        c.weekendText = QColor(198, 40, 40);
         c.selectionFill = QColor(0, 120, 212, 28);
         c.todayBorder = kAccent;
+        c.cellBorder = QColor(0, 0, 0, 18);
         c.chipOnceBg = QColor(227, 240, 250);
-        c.chipOnceFg = QColor(30, 90, 140);
+        c.chipOnceFg = QColor(21, 90, 140);
         c.chipLoopBg = QColor(228, 243, 236);
-        c.chipLoopFg = QColor(40, 110, 90);
+        c.chipLoopFg = QColor(30, 100, 85);
         c.chipActiveBg = kAccent;
         c.chipActiveFg = Qt::white;
-        c.moreText = QColor(130, 130, 130);
+        c.moreText = QColor(110, 112, 118);
     }
     return c;
 }
@@ -120,13 +126,14 @@ void OscCalendarWidget::clearSelectedSourceRow()
 
 void OscCalendarWidget::refresh()
 {
+    applyWeekdayFormats();
     updateCells();
 }
 
 void OscCalendarWidget::applyWeekdayFormats()
 {
-    // 覆盖 Qt 默认周末大红字
-    const ThemeColors colors = themeColors(palette());
+    // 覆盖 Qt 默认周末大红字；暗色下必须用高对比前景，否则星期栏几乎不可读
+    const ThemeColors colors = themeColors();
     QTextCharFormat weekendFmt;
     weekendFmt.setForeground(colors.weekendText);
     setWeekdayTextFormat(Qt::Saturday, weekendFmt);
@@ -142,6 +149,7 @@ void OscCalendarWidget::applyWeekdayFormats()
 void OscCalendarWidget::showEvent(QShowEvent* event)
 {
     QCalendarWidget::showEvent(event);
+    applyWeekdayFormats();
     ensureViewHooks();
 }
 
@@ -333,12 +341,17 @@ void OscCalendarWidget::paintCell(QPainter* painter, const QRect& rect, QDate da
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing, true);
 
-    const ThemeColors colors = themeColors(palette());
+    const ThemeColors colors = themeColors();
     const bool inMonth = (date.month() == monthShown() && date.year() == yearShown());
     const bool selected = (date == selectedDate());
     const bool today = (date == QDate::currentDate());
 
     painter->fillRect(rect, inMonth ? colors.cellBg : colors.outsideBg);
+
+    // 细分割线，暗色下区分日期格
+    painter->setPen(QPen(colors.cellBorder, 1));
+    painter->drawRect(rect.adjusted(0, 0, -1, -1));
+
     if (!inMonth) {
         painter->restore();
         return;

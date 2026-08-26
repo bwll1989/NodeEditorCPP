@@ -1,16 +1,30 @@
 #pragma once
 
-#include <QTabWidget>
+#include <functional>
 #include <memory>
 #include <vector>
+
+#include <QHash>
+#include <QObject>
+#include <QPointer>
+#include <QString>
+
 #include "DockManager.h"
 #include "CustomDataFlowGraphModel.h"
 #include "CustomFlowGraphicsScene.h"
-#include <QtNodes/GraphicsView>
+#include "CustomGraphicsView.h"
+#include <QtNodes/internal/GraphicsView.hpp>
 #include <QtNodes/NodeDelegateModelRegistry>
 
-#include "CustomGraphicsView.h"
-#include "ModelDataBridge/ModelDataBridge.hpp"
+class QAction;
+class QMenu;
+class QWidget;
+
+namespace Flow { class NodeHttpServer; }
+
+namespace Nodes {
+class ContainerDataModel;
+}
 
 /** @brief 数据流呈现模式：完整 UI 或仅加载/运行模型 */
 enum class DataflowPresentationMode {
@@ -18,128 +32,108 @@ enum class DataflowPresentationMode {
     ModelOnly  ///< 仅维护 CustomDataFlowGraphModel，不实例化图形界面
 };
 
+/**
+ * 单画布 + 导航栈：根 DataFlow 与 Container 内嵌 DataFlow 之间进入/返回。
+ * 替代原先的多 Tab 分页。
+ */
 class DataflowViewsManger : public QObject
 {
     Q_OBJECT
 public:
-    explicit DataflowViewsManger(ads::CDockManager* dockManager,
-                                 QObject* parent = nullptr,
+    explicit DataflowViewsManger(ads::CDockManager *dockManager,
+                                 QObject *parent = nullptr,
                                  DataflowPresentationMode mode = DataflowPresentationMode::WithUi);
-    
-    ~DataflowViewsManger();
-    /**
-     * @brief 设置DockManager指针
-     *
-     * @param dockManager DockManager指针
-     */
-    void setDockManager(ads::CDockManager* dockManager);
-    /**
-     * @brief 创建新空场景
-     *
-     * @param title 场景标题
-     */
-    void addNewScene(const QString& title = QString());
-    /**
-     * @brief 从已有的模型创建新场景
-     *
-     * @param title 场景标题
-     * @param model 数据流程模型指针
-     */
-    void addNewSceneFromeModel(const QString& title = QString(), QJsonObject const &jsonDocument=QJsonObject());
-    /**
-     * @brief 为已存在的模型补建 Dock/View/Scene（延迟加载 UI 时使用）
-     */
-    void attachSceneUi(const QString& title);
-    DataflowPresentationMode presentationMode() const { return _mode; }
-    /**
-     * @brief 保存所有场景的状态到JSON对象
-     *
-     * @return QJsonObject JSON对象
-     */
-    QJsonObject save() const;
-    /**
-     * @brief 从JSON加载场景
-     *
-     * @param nodeJson JSON对象
-     */
-    void load(QJsonObject const &nodeJson);
-    /**
-     * @brief 获取所有模型的引用
-     *
-     * @return std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>>& 模型映射
-     */
-    std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>> *getModel();
-public Q_SLOTS:
-    /**
-     * @brief 批量设置所有模型的节点锁定状态
-     *
-     * @param locked 是否锁定节点
-     */
-    void setSceneLocked(bool locked);
-    /**
-     * @brief 清空所有场景，包括模型、视图和停靠窗口
-     */
-    void clearAllScenes();
-    /**
-     * @brief 获取当前聚焦场景的标题（若可用）
-     */
-    QString currentFocusedSceneTitle() const;
-    /**
-     * @brief 通知外部当前聚焦场景已变化
-     */
-    void focusedSceneTitle();
-    /**
-     * @brief 强制刷新所有场景和视图
-     */
-    void refreshAllScenes();
-Q_SIGNALS:
-    void createNewScene(QString title);
-    void sceneIsActive(QString title);
-    void removeScene(QString title);
 
-    /**
-     * @brief 加载进度（用于 SplashScreen 显示更精细进度）
-     * @param sceneTitle 场景标题
-     * @param phase 阶段（例如：节点/连接/分组）
-     * @param current 当前完成数量
-     * @param total 总数量（未知传 0）
-     */
-    void loadProgress(const QString& sceneTitle, const QString& phase, int current, int total);
+    ~DataflowViewsManger() override;
+
+    void setDockManager(ads::CDockManager *dockManager);
+    DataflowPresentationMode presentationMode() const { return _mode; }
+
+    /// 创建/重置根画布为空白图
+    CustomFlowGraphicsScene *resetDataflow(const QString &title = QStringLiteral("dataflow"));
+
+    CustomFlowGraphicsScene *currentScene() const;
+    CustomDataFlowGraphModel *currentModel() const;
+    CustomDataFlowGraphModel *rootModel() const { return _rootModel.get(); }
+    CustomGraphicsView *view() const { return _view; }
+
+    bool canGoBack() const { return _stack.size() > 1; }
+    QString currentPath() const;
+
+    QJsonObject save() const;
+    void load(QJsonObject const &nodeJson);
+
+    /** @brief 关联 HTTP 服务，用于节点 OSC 菜单发送到网页面板 */
+    void setHttpServer(Flow::NodeHttpServer *server);
+
+public Q_SLOTS:
+    void goBack();
+    void setDataflowLocked(bool locked);
+    /// 销毁当前数据流（不自动重建；析构 / 关机时用）
+    void clearDataflow();
+    void refreshView();
+
+Q_SIGNALS:
+    /// 即将清空/重建数据流（NodeList 等应先解绑）
+    void dataflowAboutToClear(QString path);
+    void currentLevelChanged(QString path);
+
+    void loadProgress(const QString &sceneTitle, const QString &phase, int current, int total);
 
 public:
-    /**
-     * @brief 获取所有场景标题
-     *
-     * @return QStringList 所有场景标题列表
-     */
-    QStringList sceneTitles() const;
-    /**
-     * @brief 根据标题获取场景指针
-     *
-     * @param title 场景标题
-     * @return CustomFlowGraphicsScene* 指针；不存在返回 nullptr
-     */
-    CustomFlowGraphicsScene* sceneByTitle(const QString& title) const;
-    /**
-     * @brief 根据标题获取模型指针
-     *
-     * @param title 场景标题
-     * @return CustomDataFlowGraphModel* 指针；不存在返回 nullptr
-     */
-    CustomDataFlowGraphModel* modelByTitle(const QString& title) const;
+    /// Snapshot / OSC 场景键：根为 "dataflow"，嵌套为 modelAlias 路径
+    QString snapshotKeyFor(CustomDataFlowGraphModel *model) const;
 
 private:
-    CustomDataFlowGraphModel* ensureModel(const QString& title);
-    void createSceneUi(const QString& title);
+    struct Level {
+        CustomDataFlowGraphModel *model = nullptr;
+        CustomFlowGraphicsScene *scene = nullptr;
+        QString title;
+        Nodes::ContainerDataModel *container = nullptr;
+    };
+
     bool wantsUi() const { return _mode == DataflowPresentationMode::WithUi; }
+    void ensureEditorUi();
+    void pushLevel(Level level);
+    void connectSceneNavigation(CustomFlowGraphicsScene *scene);
+    void connectHttpServerToScene(CustomFlowGraphicsScene *scene);
+    void onSendOscBindingToWebPanel(QJsonObject const &binding);
+    void onNodeDoubleClicked(QtNodes::NodeId nodeId);
+    void updateBreadcrumb();
+    void rememberCurrentViewport();
+    void restoreOrCenterViewport(CustomFlowGraphicsScene *scene, bool forceCenter = false);
+    void switchToScene(CustomFlowGraphicsScene *scene);
+    void runWithoutViewportRepaint(std::function<void()> fn);
+    void notifyLevelChanged();
+    void registerSnapshotForModel(CustomDataFlowGraphModel *model);
+    void clearStackAndScenes();
+    /// 断开导航/model 信号后删除 scene（不 clearScene，避免误删 model 节点）
+    void destroyScene(CustomFlowGraphicsScene *scene);
+    CustomFlowGraphicsScene *findSceneForModel(CustomDataFlowGraphModel *model) const;
+    void lockModelRecursive(CustomDataFlowGraphModel *model, bool locked);
+    /// 返回到导航栈指定层（含该层），供面包屑点击
+    void goBackToLevel(int levelIndex);
+    /// 直接返回根数据流
+    void goHome();
 
     DataflowPresentationMode _mode = DataflowPresentationMode::WithUi;
-    // 键：标题（addNewScene 传入的 title）；值：对应的数据流模型
-    std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>> _models;
-    // 保存所有已创建的ads::CDockWidget指针，键：标题（addNewScene 传入的 title）；值：指针
-    std::map<QString, QPointer<ads::CDockWidget>> _DockWidget;
-    // 默认注册器（可选），用于创建未指定注册器的场景
-    std::shared_ptr<QtNodes::NodeDelegateModelRegistry> _defaultRegistry;
-    // ads::CDockManager指针，用于创建和管理DockWidget,来自主窗口
-    ads::CDockManager* m_DockManager;
+    ads::CDockManager *m_DockManager = nullptr;
+    /// 批量清空/重建期间禁止导航回调（避免删 scene/model 时重入）
+    bool _isClearing = false;
+
+    std::unique_ptr<CustomDataFlowGraphModel> _rootModel;
+    std::vector<Level> _stack;
+
+    /// 各 scene 独立的缩放/平移（与导航栈解耦，返回后子 scene 仍可复用视口）。
+    QHash<CustomFlowGraphicsScene *, QtNodes::GraphicsView::ViewportState> _sceneViewports;
+    bool _suppressViewportSave = false;
+
+    QPointer<ads::CDockWidget> _dockWidget;
+    QPointer<QWidget> _hostWidget;
+    QPointer<QAction> _homeAction;
+    QPointer<QAction> _backAction;
+    QPointer<QAction> _pathAction;
+    QPointer<QMenu> _pathMenu;
+    QPointer<CustomGraphicsView> _view;
+    Flow::NodeHttpServer *_httpServer = nullptr;
 };

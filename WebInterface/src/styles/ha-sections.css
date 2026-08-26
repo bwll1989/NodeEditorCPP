@@ -1,0 +1,65 @@
+/* HA Sections design tokens */
+
+:root {
+  --ha-font-size-s: 12px;
+  --ha-font-size-xs: 11px;
+  --ha-font-size-m: 14px;
+  --ha-font-size-l: 18px;
+  --ha-font-size-xl: 22px;
+  --ha-font-size-2xl: 28px;
+  --ha-border-radius-circle: 50%;
+  --ha-border-radius-pill: 999px;
+  --ha-font-weight-normal: 400;
+  --ha-font-weight-medium: 500;
+  --ha-line-height-normal: 1.4;
+  --ha-line-height-condensed: 1.25;
+  --ha-space-1: 4px;
+  --ha-space-2: 8px;
+  --ha-space-3: 12px;
+  --ha-space-4: 16px;
+  --ha-border-radius-lg: 12px;
+  --ha-border-radius-xl: 16px;
+
+  --ha-view-sections-row-height: 56px;
+  --ha-view-sections-row-gap: 24px;
+  --ha-view-sections-column-gap: 32px;
+  --ha-view-sections-column-max-width: 500px;
+  --ha-view-sections-column-min-width: 320px;
+  --ha-view-sections-narrow-column-gap: 8px;
+  --ha-view-sections-extra-top-margin: 24px;
+
+  --ha-section-grid-row-gap: 8px;
+  --ha-section-grid-column-gap: 8px;
+  --ha-section-grid-row-height: 56px;
+
+  --ha-section-border-radius: var(--ha-border-radius-xl);
+  --ha-section-background-color: var(--secondary-background-color);
+  --ha-card-border-radius: var(--ha-border-radius-lg);
+  --ha-card-border-width: 1px;
+  --ha-card-box-shadow:
+    0px 2px 1px -1px rgba(0, 0, 0, 0.06),
+    0px 1px 1px 0px rgba(0, 0, 0, 0.04),
+    0px 1px 3px 0px rgba(0, 0, 0, 0.04);
+
+  --primary-color: #03a9f4;
+  --primary-text-color: rgba(0, 0, 0, 0.87);
+  --secondary-text-color: rgba(0, 0, 0, 0.6);
+  --primary-background-color: #fafafa;
+  --secondary-background-color: #e5e5e5;
+  --card-background-color: #ffffff;
+  --divider-color: rgba(0, 0, 0, 0.12);
+  --state-inactive-color: var(--grey-color, #9e9e9e);
+  --state-icon-color: #44739e;
+
+  --ha-heading-card-title-font-size: var(--ha-font-size-l);
+  --ha-heading-card-title-font-weight: var(--ha-font-weight-normal);
+  --ha-heading-card-title-color: var(--primary-text-color);
+  --ha-heading-card-subtitle-color: var(--secondary-text-color);
+  --ha-heading-card-subtitle-font-size: var(--ha-font-size-m);
+}
+
+@media (max-width: 600px) {
+  :root {
+    --ha-view-sections-column-gap: var(--ha-view-sections-narrow-column-gap);
+  }
+}

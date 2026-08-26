@@ -32,10 +32,8 @@ public:
     QAction *exitAction;
     //编辑菜单
     QMenu *Edit_menu;
-    //新建数据流程
-    QAction *New_dataflow;
-    //清空所有数据流
-    QAction *Clear_dataflows;
+    //清空数据流
+    QAction *Clear_dataflow;
     //锁定
     QAction *lockAction ;
     //清除

@@ -39,7 +39,7 @@ flowchart TB
         TL[时间轴]
         ST[舞台 / 屏幕视图]
         ML[媒体库]
-        EC[网页控制台]
+        EC[WebInterface 网页控制台]
         LG[日志与属性面板]
     end
 
@@ -58,7 +58,7 @@ flowchart TB
     end
 
     subgraph Plugins["插件体系"]
-        Nodes[".node 节点插件 × 83"]
+        Nodes[".node 节点插件 × 85"]
         BuildIn[BuildInNodes 内置节点]
         Clips["时间轴 Clip 插件"]
         JS["CustomScript / QML Script"]
@@ -77,6 +77,7 @@ flowchart TB
     BR --> DF
     BR --> TL
     GS --> DF
+    EC --> HTTP
 ```
 
 **一条工程（`.flow`）通常包含：**
@@ -86,7 +87,7 @@ flowchart TB
 - **舞台**（Stage）：与时间轴关联的可视化布局
 - **媒体库**、**计划任务**、**外部控制**配置
 
-数据流之间可通过 **ModelDataBridge** 与时间轴、子流程（`.childflow`）互相驱动，实现「时间轴控节点、节点控时间轴」的双向联动。**GraphSnapshotBridge** 为 Snapshot 节点提供图级快照捕获与召回能力。
+数据流之间可通过 **ModelDataBridge** 与时间轴互相驱动，实现「时间轴控节点、节点控时间轴」的双向联动。**GraphSnapshotBridge** 为 Snapshot 节点提供图级快照捕获与召回能力。
 
 ---
 
@@ -100,7 +101,7 @@ flowchart TB
 - 多个数据流标签页，每个数据流独立运行
 - 节点内嵌参数面板；部分节点支持动态端口数量
 - **BuildInNodes** 静态库提供 Source / Variable / In / Out / Image Show / Window Display 等基础节点
-- **83 个官方 `.node` 插件**，注册 **110+ 节点模型**（部分插件含多个变体），按类别组织在节点库中
+- **85 个官方节点插件目录**（见 `src/Nodes/CMakeLists.txt` 的 `ALL_NODES`），注册 **110+ 节点模型**（部分插件含多个变体），按类别组织在节点库中
 
 每个节点插件目录下均有面向用户的 **`Doc.md`**（节点说明、端口、界面、用法、示例）。
 
@@ -149,13 +150,41 @@ Flow 通过 **GlobalEventBus** 将节点参数映射为统一的 OSC 风格地�
 | 方式 | 说明 |
 |------|------|
 | OSC | 节点 Q_PROPERTY 与 ExternalBinding 自动暴露为地址 |
-| HTTP / WebSocket | 菜单 **工具 → 打开网页控制台**（默认 `http://127.0.0.1:8992`） |
+| HTTP / WebSocket | 菜单 **工具 → 打开网页控制台**（快捷键 `Ctrl+Alt+H`，默认 `http://127.0.0.1:8992`） |
 | MQTT | 可选启用，主题 `flow/control` / `flow/feedback` |
 | 计划任务 | 日历式定时触发，与时间轴 / 数据流配合 |
 
-网页控制台支持项目上传下载、媒体上传、Dashboard 布局保存等 API，适合平板或远程运维。
+#### Flow WebInterface
 
-### 4. 插件化扩展
+网页控制台前端位于 [`WebInterface/`](WebInterface/)，采用 **Lit 3 + TypeScript** 重构，布局与交互大量参考 [Home Assistant Lovelace Sections](https://demo.home-assistant.io/?demo=sections)：
+
+| 能力 | 实现 |
+|------|------|
+| 布局 | **View → Section → Card** + CSS Grid（布局格式 v2） |
+| 状态 | **FlowStore**（对标 `hass.states`） |
+| 通信 | **WebSocket**（Flow 现有 `/ws` 协议） |
+| 卡片 | 注册表 + `createCardElement`（tile、slider、switch、chart 2D/3D、climate、media 等） |
+| 扩展 | `registerCard` 注册第三方卡片 |
+
+**从桌面端导出控件到网页：**
+
+在数据流画布中，对节点参数右键选择发送到网页控制台，通过 **ExportActionDialog** 配置名称与实体地址，写入服务端 **ActionRegistry**，即可在 WebInterface 编辑器中拖拽使用。
+
+**HTTP API 与协议细节**见 [`src/Widget/ExternalControl/protocol.md`](src/Widget/ExternalControl/protocol.md)（布局存取、媒体 / 工程上传下载、鉴权等）。
+
+**开发与部署**详见 [`WebInterface/README.md`](WebInterface/README.md)；第三方卡片开发见 [`WebInterface/docs/third-party-cards.md`](WebInterface/docs/third-party-cards.md)。
+
+静态资源部署目录（与 `Flow.exe` 同目录）：
+
+```
+build/bin/www/
+├── index.html
+└── assets/
+```
+
+> 程序启动时会将工作目录设为 exe 所在目录，因此 `www/` 应放在 `build/bin/` 下。若缺少 `www/index.html`，HTTP 服务会回退到内置占位页。
+
+### 4. Snapshot 与内部命令
 
 **Internal Commands** 插件提供三种节点变体：
 
@@ -178,6 +207,7 @@ Snapshot 典型流程：画布选中节点 →「捕获选中」→ 点击互斥
 | QML Script 节点 | 同上 | 支持 `setUiSchema` 声明式面板 |
 | VST3 插件 | `<程序目录>/plugins/VST3/*.vst3` | 每个插件注册为独立节点 |
 | 时间轴片段 | Clip 插件 | 参考 `src/Clips/` |
+| WebInterface 卡片 | 前端注册表 | 参考 `WebInterface/src/panels/lovelace/cards/` |
 
 菜单 **插件 → 插件管理器** 可加载 / 卸载节点；**插件 → 打开插件文件夹** 快速定位插件目录。
 
@@ -195,7 +225,7 @@ Delay、Switch、Merge、Condition、Edge Trigger、Count、Range Map、Hold、I
 
 ### Connect — 网络与协议
 
-Serial Port、TCP Server / Client、UDP Socket、WebSocket Server / Client、HTTP Client、OSC In / Out、Mqtt Client、PJLink。
+Serial Port、TCP Server / Client、UDP Socket、WebSocket Server / Client、HTTP Client、OSC In / Out、Mqtt Client、PJLink、Ping（ICMP 连通性）。
 
 ### Image — 图像与视频
 
@@ -211,7 +241,7 @@ Artnet In / Out、DMX Device、DMX Universe、Universe Playback。
 
 ### Devices — 现场设备
 
-Mpv Controller、VLC Remote、NDV Server / Player、PLC ModBus、DAW Controller、TSETL、showStoreGBx、USR-IO808 / USR-IO424、Aurora S 等。
+Mpv Controller、VLC Remote、NDV Server / Player、PLC ModBus、Modbus Master / Slave、DAW Controller、TSETL、showStoreGBx、USR-IO808 / USR-IO424、Aurora S、SlideShow 数字标牌、ENTTEC S-Play、FT-C040A 触摸屏等。
 
 ### ONNX — AI 推理
 
@@ -237,14 +267,11 @@ Object Detection、Pose Detection、Face Detection、Style Transfer（YOLO v11n�
 | 类型 | 默认位置（Windows） |
 |------|---------------------|
 | 工程文件 `.flow` | 用户自选路径 |
-| 子数据流 `.childflow` | 与主工程同目录或相对引用 |
 | 媒体库 | `文档/Flow/Medias` |
 | 默认 Flow 目录 | `文档/Flow/Flows` |
 | 日志 | `文档/Flow/Logs` |
 | 配置 / 最近文件 | `文档/Flow/Cfg` |
 | 崩溃恢复 | `文档/Flow/Recovery` |
-
-子数据流适合模块化复用（如「音频子系统」「灯光子系统」）。
 
 ### 示例工程
 
@@ -277,21 +304,33 @@ Object Detection、Pose Detection、Face Detection、Style Transfer（YOLO v11n�
 | Qt | 6.5+（CMakeLists 默认 `C:/Qt/6.5.3/msvc2019_64`，需按本机修改） |
 | CMake | 3.10+ |
 | 语言标准 | C++17 |
+| Node.js | 18+（仅构建 WebInterface 时需要） |
 
 **第三方依赖** 见 [`res/README.md`](res/README.md)（开源声明与致谢）。预编译库位于 `3rdParty/`。
 
-### 编译命令
+### 编译 C++ 主程序
 
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
+### 编译网页控制台（可选）
+
+```bash
+cd WebInterface
+npm install
+npm run build
+```
+
+将 `WebInterface/dist/` **内的全部文件**复制到 `build/bin/www/`（与 `Flow.exe` 同级），详见 [`WebInterface/README.md`](WebInterface/README.md)。
+
 ### 输出目录
 
 ```
 build/bin/Flow.exe
 build/bin/FlowRuntime.exe
+build/bin/www/                  # WebInterface 静态资源（需手动或脚本部署）
 build/bin/plugins/DataFlow/*.node
 ```
 
@@ -304,8 +343,12 @@ NodeEditorCPP/
 ├── main.cpp                      # Flow 入口
 ├── headless_main.cpp             # FlowRuntime 入口
 ├── CMakeLists.txt                # 主工程与依赖配置
+├── WebInterface/                 # 网页控制台前端（Lit + TypeScript + Vite）
+│   ├── src/                      # 卡片、布局编辑器、FlowStore
+│   ├── docs/                     # 第三方卡片开发指南
+│   └── dist/                     # npm run build 输出（部署到 bin/www）
 ├── src/
-│   ├── Nodes/                    # C++ 节点插件（每目录编译为一个 .node）
+│   ├── Nodes/                    # C++ 节点插件（每目录编译为一个或多个 .node）
 │   │   ├── CMakeLists.txt        # ALL_NODES 列表
 │   │   ├── BuildInNodes/         # 内置节点静态库
 │   │   └── <NodeName>/           # 插件源码 + Doc.md
@@ -325,10 +368,10 @@ NodeEditorCPP/
 │       ├── MainWindow/
 │       ├── NodeWidget/           # 数据流视图与 GraphModel
 │       ├── TimeLineWidget/
-│       ├── ExternalControl/      # HTTP 服务与网页控制台
+│       ├── ExternalControl/      # HTTP 服务、ActionRegistry、protocol.md
 │       ├── MediaLibraryWidget/
 │       └── ...
-├── example/                      # 示例 .flow / .childflow 工程
+├── example/                      # 示例 .flow 工程
 ├── res/                          # 资源、样式、第三方说明
 └── 3rdParty/                     # 预编译依赖（QtNodes、FFmpeg、OpenCV 等）
 ```
@@ -361,6 +404,10 @@ NodeEditorCPP/
 
 参考 `src/Clips/VideoClip` 等，实现 `AbstractClipDelegateModel`。
 
+### WebInterface 卡片
+
+参考 [`WebInterface/docs/third-party-cards.md`](WebInterface/docs/third-party-cards.md)：在 `src/panels/lovelace/cards/` 新建 `hui-xxx-card.ts`，实现 `LovelaceCard` 接口并在 `register-cards.ts` 中注册。
+
 ---
 
 ## 路线图
@@ -368,7 +415,7 @@ NodeEditorCPP/
 - [ ] 优化性能与长时间运行稳定性
 - [ ] 扩展节点类型（音频 / 视频 / 控制 / 设备对接）
 - [ ] 增强时间轴功能（编辑体验、同步精度）
-- [ ] 完善 Dashboard / 网页控制台集成度
+- [x] 重构 Dashboard / 网页控制台（WebInterface，Lit + Lovelace 布局）
 - [ ] 统一节点 `save()/load()` 与 Snapshot 兼容性
 - [ ] 优化交互与文档体系
 

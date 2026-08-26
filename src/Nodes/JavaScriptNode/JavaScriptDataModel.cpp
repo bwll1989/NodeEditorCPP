@@ -3,6 +3,7 @@
 #include "JSEngineDefines/SupportWidgets.hpp"
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QGridLayout>
 #include <QMetaObject>
 #include <QPushButton>
@@ -52,16 +53,15 @@ JavaScriptDataModel::JavaScriptDataModel()
 JavaScriptDataModel::~JavaScriptDataModel()
 {
     m_shuttingDown = true;
+    discardPendingWork();
+    if (widget && widget->codeWidget) {
+        disconnect(widget->codeWidget->importJS, nullptr, this, nullptr);
+    }
     if (widget) {
         widget->closeEditorWindow();
     }
-    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
-        if (it.value()) {
-            it.value()->blockSignals(true);
-        }
-    }
+    destroyLayoutWidgets();
     destroyJsEngine();
-    m_widgets.clear();
     // 已被 Node 图形项接管的控件不要再删，避免双重释�?
     if (widget && widget->parent() == nullptr) {
         widget->deleteLater();
@@ -130,9 +130,14 @@ void JavaScriptDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex co
 
     if (!isGuiThread()) {
         const int index = static_cast<int>(portIndex);
+        QPointer<JavaScriptDataModel> self(this);
         QMetaObject::invokeMethod(
             this,
-            [this, index]() { inputEventHandler(index); },
+            [self, index]() {
+                if (self) {
+                    self->inputEventHandler(index);
+                }
+            },
             Qt::QueuedConnection);
         return;
     }
@@ -213,6 +218,40 @@ bool JavaScriptDataModel::isGuiThread() const
     return QThread::currentThread() == this->thread();
 }
 
+void JavaScriptDataModel::discardPendingWork()
+{
+    if (QCoreApplication::instance()) {
+        QCoreApplication::removePostedEvents(this);
+    }
+}
+
+void JavaScriptDataModel::destroyLayoutWidgets()
+{
+    takeWidgetOwnership();
+    if (widget && widget->top_layout) {
+        for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
+            QWidget *w = it.value();
+            if (!w) {
+                continue;
+            }
+            widget->top_layout->removeWidget(w);
+        }
+    }
+    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
+        QWidget *w = it.value();
+        if (!w) {
+            continue;
+        }
+        w->blockSignals(true);
+        disconnect(w, nullptr, nullptr, nullptr);
+        w->hide();
+        w->setParent(nullptr);
+        delete w;
+    }
+    m_widgets.clear();
+    m_widgetCounter = 0;
+}
+
 void JavaScriptDataModel::logJsError(const char *context, const QJSValue &result) const
 {
     qWarning() << "JavaScript" << context << "错误:"
@@ -269,9 +308,14 @@ void JavaScriptDataModel::reloadScript(const QString &code, bool runInitInterfac
     if (!isGuiThread()) {
         const QString copied = code;
         const bool runInit = runInitInterface;
+        QPointer<JavaScriptDataModel> self(this);
         QMetaObject::invokeMethod(
             this,
-            [this, copied, runInit]() { reloadScript(copied, runInit); },
+            [self, copied, runInit]() {
+                if (self) {
+                    self->reloadScript(copied, runInit);
+                }
+            },
             Qt::QueuedConnection);
         return;
     }
@@ -280,11 +324,20 @@ void JavaScriptDataModel::reloadScript(const QString &code, bool runInitInterfac
         return;
     }
 
+    if (m_handlingInput) {
+        const QString copied = code;
+        const bool runInit = runInitInterface;
+        QTimer::singleShot(0, this, [this, copied, runInit]() {
+            reloadScript(copied, runInit);
+        });
+        return;
+    }
+
     m_reloading = true;
     script = code;
 
-    // 先断开并释放控件，再销毁引擎，避免残留信号进入已删除的 QJSEngine
-    clearLayout();
+    // 先同步销毁控件并断开信号，再销毁引擎，避免 JS 回调进入已删除的 QJSEngine
+    destroyLayoutWidgets();
     destroyJsEngine();
     createJsEngine();
 
@@ -295,9 +348,11 @@ void JavaScriptDataModel::reloadScript(const QString &code, bool runInitInterfac
             m_reloading = false;
             return;
         }
+        m_reloading = false;
         if (runInitInterface) {
             initInterface();
         }
+        return;
     }
 
     m_reloading = false;
@@ -312,28 +367,24 @@ void JavaScriptDataModel::clearLayout()
     }
 
     if (!isGuiThread()) {
-        QMetaObject::invokeMethod(this, &JavaScriptDataModel::clearLayout, Qt::QueuedConnection);
+        QPointer<JavaScriptDataModel> self(this);
+        QMetaObject::invokeMethod(
+            this,
+            [self]() {
+                if (self) {
+                    self->clearLayout();
+                }
+            },
+            Qt::QueuedConnection);
         return;
     }
 
-    takeWidgetOwnership();
-    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
-        QWidget *w = it.value();
-        if (!w) {
-            continue;
-        }
-        w->blockSignals(true);
-        w->hide();
-        w->setParent(nullptr);
-        w->deleteLater();
-    }
-    m_widgets.clear();
-    m_widgetCounter = 0;
+    destroyLayoutWidgets();
 }
 
 int JavaScriptDataModel::addToLayout(QObject *widgetObj, int x, int y, int rowSpan, int columnSpan)
 {
-    if (m_shuttingDown || !isGuiThread() || !widget || !widget->top_layout) {
+    if (m_shuttingDown || !m_jsEngine || !isGuiThread() || !widget || !widget->top_layout) {
         return -1;
     }
 
@@ -376,7 +427,15 @@ void JavaScriptDataModel::initInterface()
     }
 
     if (!isGuiThread()) {
-        QMetaObject::invokeMethod(this, &JavaScriptDataModel::initInterface, Qt::QueuedConnection);
+        QPointer<JavaScriptDataModel> self(this);
+        QMetaObject::invokeMethod(
+            this,
+            [self]() {
+                if (self) {
+                    self->initInterface();
+                }
+            },
+            Qt::QueuedConnection);
         return;
     }
 
@@ -403,9 +462,14 @@ void JavaScriptDataModel::inputEventHandler(int portIndex)
     }
 
     if (!isGuiThread()) {
+        QPointer<JavaScriptDataModel> self(this);
         QMetaObject::invokeMethod(
             this,
-            [this, portIndex]() { inputEventHandler(portIndex); },
+            [self, portIndex]() {
+                if (self) {
+                    self->inputEventHandler(portIndex);
+                }
+            },
             Qt::QueuedConnection);
         return;
     }
@@ -429,7 +493,7 @@ void JavaScriptDataModel::inputEventHandler(int portIndex)
 
 QJSValue JavaScriptDataModel::getInputValue(int portIndex)
 {
-    if (!m_jsEngine) {
+    if (m_shuttingDown || !m_jsEngine) {
         return {};
     }
 
@@ -447,7 +511,7 @@ QJSValue JavaScriptDataModel::getInputValue(int portIndex)
 
 QJSValue JavaScriptDataModel::getOutputValue(int portIndex)
 {
-    if (!m_jsEngine) {
+    if (m_shuttingDown || !m_jsEngine) {
         return {};
     }
 
@@ -465,7 +529,8 @@ QJSValue JavaScriptDataModel::getOutputValue(int portIndex)
 
 void JavaScriptDataModel::setOutputValue(int portIndex, const QJSValue &value)
 {
-    if (m_shuttingDown || portIndex < 0 || portIndex >= static_cast<int>(OutPortCount)) {
+    if (m_shuttingDown || m_reloading || !m_jsEngine
+        || portIndex < 0 || portIndex >= static_cast<int>(OutPortCount)) {
         return;
     }
 

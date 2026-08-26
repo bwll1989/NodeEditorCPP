@@ -184,7 +184,7 @@ void MediaLibraryWidget::importFiles()
     // 函数级注释：打开多文件选择对话框，把选中的绝对路径批量加入模型
     const QStringList files = QFileDialog::getOpenFileNames(
         this, tr("选择媒体文件"), QString(),
-        tr("所有文件 (*.*)"));
+        tr("媒体与流程 (*.mp4 *.mov *.mkv *.avi *.wav *.mp3 *.jpg *.jpeg *.png *.bmp *.gif *.dmx *.json *.ini *.childflow);;Childflow (*.childflow);;所有文件 (*.*)"));
     if (files.isEmpty()) return;
     m_model->addFiles(files);
 }
@@ -312,6 +312,7 @@ QIcon MediaLibraryWidget::categoryIcon(int cat) const
     case Cat::Image: return QIcon(":/icons/icons/image.png");
     case Cat::Model:   return QIcon(":/icons/icons/model_1.png");
     case Cat::Document:   return QIcon(":/icons/icons/document.png");
+    case Cat::ChildFlow: return QIcon(":/icons/icons/Flow.png");
     case Cat::Unknown: return QIcon(":/icons/icons/unknown.png");
     default:           return QIcon();
     }

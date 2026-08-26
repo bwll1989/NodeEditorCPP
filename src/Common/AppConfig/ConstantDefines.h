@@ -6,7 +6,7 @@
 #include <QStandardPaths>
 // 产品版本号（关于窗口、工程元数据、QApplication::applicationVersion 等共用）
 #ifndef PRODUCT_VERSION
-#define PRODUCT_VERSION "1.7.00"
+#define PRODUCT_VERSION "1.7.01"
 #endif
 // 应用程序常量定义
 namespace AppConstants {

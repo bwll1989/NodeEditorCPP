@@ -33,6 +33,8 @@ set(BuildInNodes_sources
         VariableInDataModel.hpp
         VariableOutDataModel.cpp
         VariableOutDataModel.hpp
+        ContainerDataModel.cpp
+        ContainerDataModel.hpp
         BoolSourceDataModel.hpp
         ToggleSourceDataModel.hpp
         TriggerSourceDataModel.hpp
@@ -72,7 +74,6 @@ target_link_libraries(BuildInNodes PRIVATE
     OSCTransmitter
     DataTypes
     GUIElements
-    ModelDataBridge
     StatusContainer
     BaseClass
     TimestampGenerator
@@ -82,9 +83,15 @@ target_link_libraries(BuildInNodes PRIVATE
 target_link_libraries(BuildInNodes PUBLIC ${OpenCV_LIBRARIES})
 
 # 暴露包含目录；INSTALL_INTERFACE 供 FlowSDK install(EXPORT) 使用
+# Container 依赖 CustomDataFlowGraphModel（主程序目标提供符号）
 target_include_directories(BuildInNodes PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:include/Common/BuildInNodes>
+)
+target_include_directories(BuildInNodes PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/src/Widget/NodeWidget
+    ${CMAKE_SOURCE_DIR}/src/Widget/PortEditWidget
 )
 
 # 编译定义（与工程中节点模块保持一致，必要时可调整）

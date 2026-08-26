@@ -1,10 +1,13 @@
 #include "HttpServer.hpp"
+#include "ActionRegistry.h"
 #include <QDebug>
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QMetaObject>
 #include <QCoreApplication>
 #include <QJsonArray>
+#include <QDateTime>
+#include <QUuid>
 
 #include "Common/Devices/StatusContainer/StatusContainer.h"
 #include "Common/Devices/OSCSender/OSCSender.h"
@@ -256,19 +259,16 @@ void StaticRequestHandler::handleApiExec(HTTPServerRequest& request, HTTPServerR
 }
 
 void StaticRequestHandler::handleLayoutSave(HTTPServerRequest& request, HTTPServerResponse& response) {
-    // 函数级注释：接收前端提交的布局JSON，仅保存到服务器内存，避免写入磁盘
+    // 函数级注释：接收前端提交的布局JSON，保存到服务器内存并同步动作库 used 标记
     try {
         std::istream& in = request.stream();
         std::ostringstream body;
         StreamCopier::copyStream(in, body);
-        // 同步到服务器内存布局
-        {
-            const QByteArray payload = QByteArray::fromStdString(body.str());
-            QJsonParseError err;
-            QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
-            if (err.error == QJsonParseError::NoError && doc.isObject()) {
-                _server.load(doc.object());
-            }
+        const QByteArray payload = QByteArray::fromStdString(body.str());
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
+        if (err.error == QJsonParseError::NoError && doc.isObject()) {
+            _server.applyLayoutSave(doc.object());
         }
         sendJsonResponse(response, "{\"ok\":true}");
     } catch (const Poco::Exception& e) {
@@ -277,19 +277,114 @@ void StaticRequestHandler::handleLayoutSave(HTTPServerRequest& request, HTTPServ
 }
 
 void StaticRequestHandler::handleLayoutLoad(HTTPServerRequest& request, HTTPServerResponse& response) {
-    // 函数级注释：仅从服务器内存返回当前布局；不读取磁盘文件
-    // 优先使用服务器内存布局
-    {
-        QJsonObject obj = _server.save();
-        if (!obj.isEmpty()) {
-            QJsonDocument doc(obj);
-            // qDebug()<<"doc:"<<doc.toJson(QJsonDocument::Compact);
-            sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString(), HTTPResponse::HTTP_OK);
-            return;
-        }
+    Q_UNUSED(request);
+    QJsonObject obj = _server.save();
+    if (!obj.isEmpty()) {
+        QJsonDocument doc(obj);
+        sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString(), HTTPResponse::HTTP_OK);
+        return;
     }
-    // 返回空布局（兼容旧格式 items）
     sendJsonResponse(response, "{\"ok\":true,\"items\":[]}");
+}
+
+void StaticRequestHandler::handleActions(HTTPServerRequest& request, HTTPServerResponse& response, const std::string& subPath)
+{
+    const std::string method = request.getMethod();
+    auto& registry = _server.actionRegistry();
+
+    auto readBodyObject = [&request]() -> QJsonObject {
+        std::istream& in = request.stream();
+        std::ostringstream body;
+        StreamCopier::copyStream(in, body);
+        const QByteArray payload = QByteArray::fromStdString(body.str());
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
+        if (err.error != QJsonParseError::NoError || !doc.isObject()) {
+            return {};
+        }
+        return doc.object();
+    };
+
+    if (subPath == "patch" && method == "POST") {
+        try {
+            const QJsonObject body = readBodyObject();
+            const QString entity = body.value(QStringLiteral("entity")).toString().trimmed();
+            if (entity.isEmpty()) {
+                sendJsonResponse(response, "{\"ok\":false,\"error\":\"missing_entity\"}", HTTPResponse::HTTP_BAD_REQUEST);
+                return;
+            }
+            const bool ok = _server.patchAction(entity, body);
+            QJsonObject json;
+            json[QStringLiteral("ok")] = ok;
+            if (!ok) {
+                json[QStringLiteral("error")] = QStringLiteral("not_found");
+                sendJsonResponse(response, QJsonDocument(json).toJson(QJsonDocument::Compact).toStdString(), HTTPResponse::HTTP_NOT_FOUND);
+                return;
+            }
+            json[QStringLiteral("item")] = registry.findByEntity(entity);
+            sendJsonResponse(response, QJsonDocument(json).toJson(QJsonDocument::Compact).toStdString());
+        } catch (const Poco::Exception& e) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"" + e.displayText() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+        return;
+    }
+
+    if (subPath == "remove" && method == "POST") {
+        try {
+            const QJsonObject body = readBodyObject();
+            const QString entity = body.value(QStringLiteral("entity")).toString().trimmed();
+            if (entity.isEmpty()) {
+                sendJsonResponse(response, "{\"ok\":false,\"error\":\"missing_entity\"}", HTTPResponse::HTTP_BAD_REQUEST);
+                return;
+            }
+            const bool ok = _server.removeAction(entity);
+            QJsonObject json;
+            json[QStringLiteral("ok")] = ok;
+            if (!ok) {
+                json[QStringLiteral("error")] = QStringLiteral("not_found");
+                sendJsonResponse(response, QJsonDocument(json).toJson(QJsonDocument::Compact).toStdString(), HTTPResponse::HTTP_NOT_FOUND);
+                return;
+            }
+            sendJsonResponse(response, QJsonDocument(json).toJson(QJsonDocument::Compact).toStdString());
+        } catch (const Poco::Exception& e) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"" + e.displayText() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+        return;
+    }
+
+    if (!subPath.empty()) {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"not_found\"}", HTTPResponse::HTTP_NOT_FOUND);
+        return;
+    }
+
+    if (method == "GET") {
+        QJsonObject json;
+        json[QStringLiteral("ok")] = true;
+        json[QStringLiteral("items")] = registry.all();
+        QJsonDocument doc(json);
+        sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString());
+        return;
+    }
+    if (method == "POST") {
+        try {
+            const QJsonObject body = readBodyObject();
+            const QString entity = _server.addAction(body);
+            if (entity.isEmpty()) {
+                sendJsonResponse(response, "{\"ok\":false,\"error\":\"missing_entity\"}", HTTPResponse::HTTP_BAD_REQUEST);
+                return;
+            }
+            QJsonObject json;
+            json[QStringLiteral("ok")] = true;
+            json[QStringLiteral("entity")] = entity;
+            json[QStringLiteral("item")] = registry.findByEntity(entity);
+            QJsonDocument out(json);
+            sendJsonResponse(response, out.toJson(QJsonDocument::Compact).toStdString());
+        } catch (const Poco::Exception& e) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"" + e.displayText() + "\"}", HTTPResponse::HTTP_INTERNAL_SERVER_ERROR);
+        }
+        return;
+    }
+    sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
 }
 
 void StaticRequestHandler::handleStaticFile(HTTPServerRequest& request, HTTPServerResponse& response, const std::string& path) {
@@ -421,6 +516,11 @@ void StaticRequestHandler::handleRequest(HTTPServerRequest& request,
             handleLayoutSave(request, response);
         } else if (path == "/api/layout/load") {
             handleLayoutLoad(request, response);
+        } else if (path == "/api/actions") {
+            handleActions(request, response, "");
+        } else if (path.rfind("/api/actions/", 0) == 0) {
+            const std::string subPath = path.substr(std::string("/api/actions/").size());
+            handleActions(request, response, subPath);
         } else if (path == "/api/upload/media") {
             handleUploadMedia(request, response);
         } else if (path == "/api/upload/flow") {
@@ -746,6 +846,7 @@ void NodeHttpServer::stop() {
     
     // 清空内存中的布局，避免新项目继承旧布局
     _layout = QJsonObject();
+    _actionRegistry.clear();
 }
 
 void NodeHttpServer::registerWebSocket(PageWebSocketHandler* handler) {
@@ -771,7 +872,82 @@ void NodeHttpServer::onOscMessageSent(const StatusItem& message) {
     }
 }
 
-// 函数级注释：加载并设置当前布局；仅保存于内存，不写入磁盘
-void NodeHttpServer::load(const QJsonObject& layout) {
+QJsonObject NodeHttpServer::save() const
+{
+    QJsonObject obj = _layout;
+    obj[QStringLiteral("actions")] = _actionRegistry.save();
+    return obj;
+}
+
+void NodeHttpServer::load(const QJsonObject& layout)
+{
+    if (layout.contains(QStringLiteral("actions")) && layout.value(QStringLiteral("actions")).isArray()) {
+        _actionRegistry.load(layout.value(QStringLiteral("actions")).toArray());
+    }
     _layout = layout;
+    _actionRegistry.syncUsedFromLayout(layout);
+}
+
+void NodeHttpServer::applyLayoutSave(const QJsonObject& layout)
+{
+    load(layout);
+    notifyActionsChanged(QStringLiteral("sync"), QJsonObject());
+}
+
+QString NodeHttpServer::addAction(const QJsonObject& binding)
+{
+    const QString entity = _actionRegistry.addOrUpdate(binding);
+    if (entity.isEmpty()) {
+        return {};
+    }
+    const QJsonObject item = _actionRegistry.findByEntity(entity);
+    notifyActionsChanged(QStringLiteral("add"), item);
+    return entity;
+}
+
+bool NodeHttpServer::removeAction(const QString& entity)
+{
+    const QString key = _actionRegistry.resolveEntityKey(entity);
+    const QJsonObject item = _actionRegistry.findByEntity(key);
+    if (item.isEmpty()) {
+        return false;
+    }
+    if (!_actionRegistry.remove(key)) {
+        return false;
+    }
+    notifyActionsChanged(QStringLiteral("remove"), item);
+    return true;
+}
+
+bool NodeHttpServer::patchAction(const QString& entity, const QJsonObject& patch)
+{
+    const QString key = _actionRegistry.resolveEntityKey(entity);
+    if (!_actionRegistry.patch(key, patch)) {
+        return false;
+    }
+    const QJsonObject item = _actionRegistry.findByEntity(key);
+    notifyActionsChanged(QStringLiteral("patch"), item);
+    return true;
+}
+
+void NodeHttpServer::broadcastJson(const QJsonObject& payload)
+{
+    QJsonDocument doc(payload);
+    const std::string jsonStr = doc.toJson(QJsonDocument::Compact).toStdString();
+    QMutexLocker locker(&_wsMutex);
+    for (auto* handler : _wsHandlers) {
+        handler->send(jsonStr);
+    }
+}
+
+void NodeHttpServer::notifyActionsChanged(const QString& action, const QJsonObject& item)
+{
+    QJsonObject evt;
+    evt[QStringLiteral("event")] = QStringLiteral("actions_changed");
+    evt[QStringLiteral("action")] = action;
+    if (!item.isEmpty()) {
+        evt[QStringLiteral("item")] = item;
+    }
+    evt[QStringLiteral("count")] = _actionRegistry.all().size();
+    broadcastJson(evt);
 }

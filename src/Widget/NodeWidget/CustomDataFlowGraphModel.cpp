@@ -25,9 +25,18 @@ using QtNodes::groupToJson;
 using QtNodes::NodeData;
 using namespace NodeDataTypes;
 CustomDataFlowGraphModel::CustomDataFlowGraphModel(std::shared_ptr<NodeDelegateModelRegistry> registry)
-        : _registry(std::move(registry))
-        , _nextNodeId{0}
+    : _registry(std::move(registry))
+    , _nextNodeId{0}
 {}
+
+CustomDataFlowGraphModel::~CustomDataFlowGraphModel()
+{
+    // 先清 UI 控件（持有 model 引用），再析构节点，避免退出/换工程时悬空访问
+    for (auto &kv : _nodeWidgets)
+        delete kv.second;
+    _nodeWidgets.clear();
+    _models.clear();
+}
 
 std::unordered_set<NodeId> CustomDataFlowGraphModel::allNodeIds() const
 {
@@ -91,6 +100,7 @@ NodeId CustomDataFlowGraphModel::addNode(QString const nodeType)
         }
         connect(model.get(),
                 &NodeDelegateModel::dataUpdated,
+                this,
                 [newId, this](PortIndex const portIndex) {
                     onOutPortDataUpdated(newId, portIndex);
                 });
@@ -786,7 +796,8 @@ bool CustomDataFlowGraphModel::deleteNode(NodeId const nodeId)
     if (wit != _nodeWidgets.end()) {
         auto* w = wit->second;
         _nodeWidgets.erase(wit);
-        if (w) w->deleteLater();
+        // 立即删除：deleteLater 会在 model 已销毁后仍访问 _graphModel
+        delete w;
     }
 
     _nodeGeometryData.erase(nodeId);
@@ -893,6 +904,13 @@ bool CustomDataFlowGraphModel::applySnapshotNodes(const QJsonArray &nodesJson)
 
         setNodeData(nodeId, NodeRole::Remarks, nodeJson.value(QStringLiteral("remarks")).toString());
         setNodeData(nodeId, NodeRole::PortEditable, nodeJson.value(QStringLiteral("port-editable")).toBool());
+
+        // 先 load：Container 会在内部 sync 外壳端口。若先改 port count 再整图重建，
+        // 中间态会拆掉外层连线。
+        const QJsonObject internalData = nodeJson.value(QStringLiteral("internal-data")).toObject();
+        it->second->load(internalData);
+
+        // 普通可编辑端口节点仍按快照恢复数量；若 load/sync 已设好则同值写入无害
         setNodeData(nodeId, NodeRole::InPortCount, nodeJson.value(QStringLiteral("input-count")).toInt());
         setNodeData(nodeId, NodeRole::OutPortCount, nodeJson.value(QStringLiteral("output-count")).toInt());
 
@@ -904,10 +922,17 @@ bool CustomDataFlowGraphModel::applySnapshotNodes(const QJsonArray &nodesJson)
             Q_EMIT nodeUpdated(nodeId);
         }
 
-        const QJsonObject internalData = nodeJson.value(QStringLiteral("internal-data")).toObject();
-        it->second->load(internalData);
-
         setNodeData(nodeId, NodeRole::Muted, nodeJson.value(QStringLiteral("muted")).toBool());
+
+        // 外层仍连着该节点时，把上游现有值重新注入（Container In 映射重建后需要）
+        {
+            unsigned int const inCount = it->second->nPorts(PortType::In);
+            for (PortIndex portIndex = 0; portIndex < inCount; ++portIndex) {
+                for (ConnectionId const &cid : connections(nodeId, PortType::In, portIndex)) {
+                    onOutPortDataUpdated(cid.outNodeId, cid.outPortIndex);
+                }
+            }
+        }
 
         const unsigned int outCount = it->second->nPorts(PortType::Out);
         for (PortIndex portIndex = 0; portIndex < outCount; ++portIndex) {
@@ -973,6 +998,7 @@ void CustomDataFlowGraphModel::loadNode(QJsonObject const &nodeJson)
     if (model) {
         connect(model.get(),
                 &NodeDelegateModel::dataUpdated,
+                this,
                 [restoredNodeId, this](PortIndex const portIndex) {
                     onOutPortDataUpdated(restoredNodeId, portIndex);
                 });
@@ -1054,7 +1080,7 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
         deleteNode(nodeId);
     }
     for (auto& kv : _nodeWidgets) {
-        if (kv.second) kv.second->deleteLater();
+        delete kv.second;
     }
     _nodeWidgets.clear();
 

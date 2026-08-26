@@ -72,7 +72,7 @@ void MainWindowHeadLess::shutdown()
     }
 
     if (dataflowViewsManger) {
-        dataflowViewsManger->clearAllScenes();
+        dataflowViewsManger->clearDataflow();
     }
 
     if (scheduledTaskManager) {
@@ -148,6 +148,9 @@ void MainWindowHeadLess::loadPlugins()
     PluginsManagerWidget::loadAllFromDefaultFolder([this](const QString& status) {
         emit initStatus(status);
     });
+    // 插件就绪后再建根图，保证 Container 子图 registry 完整
+    if (dataflowViewsManger)
+        dataflowViewsManger->resetDataflow(QStringLiteral("dataflow"));
 }
 
 bool MainWindowHeadLess::loadFileFromPath(const QString &path)

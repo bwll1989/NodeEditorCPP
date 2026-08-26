@@ -79,7 +79,7 @@ public:
     /** @brief 注销单个场景（dataflow 删除时调用） */
     void unregisterScene(const QString &sceneTitle);
 
-    /** @brief 清空所有场景注册（工程切换 / clearAllScenes 时调用） */
+    /** @brief 清空所有场景注册（工程切换 / clearDataflow 时调用） */
     void clearAll();
 
     /**

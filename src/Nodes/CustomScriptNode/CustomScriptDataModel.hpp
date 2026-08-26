@@ -67,6 +67,8 @@ public:
 
 private:
     bool isGuiThread() const;
+    void discardPendingWork();
+    void destroyLayoutWidgets();
     void applyPluginInfo(const JSPluginInfo &pluginInfo);
     void createJsEngine();
     void destroyJsEngine();

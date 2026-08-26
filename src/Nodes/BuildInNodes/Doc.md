@@ -369,30 +369,73 @@ Merge / Extract 结果 → From JSON → TCP Client 发送。
 
 ---
 
+# Container
+
+## 1. 节点说明
+
+**子图封装**节点：内部维护一张独立的数据流图（`inner-scene`），外壳端口由子图内全部 **Variable / Image / Audio** 的 In/Out 接口节点汇总暴露。
+
+- 多个 **In** 节点：各自 **Out** 口依次映射到 Container 外壳 **In** 口。
+- 多个 **Out** 节点：各自 **In** 口依次映射到 Container 外壳 **Out** 口。
+- 双击 Container 进入子图编辑；面包屑返回时自动 `syncInterfaceFromInner` 刷新外壳端口。
+- 新建空 Container 时默认放入一对 **Variable In** + **Variable Out**。
+- 支持嵌套 Container（`modelAlias` 为 `父别名/节点Id` 链式路径）。
+- 子图随 Container 节点一并写入工程（`inner-scene` 字段）。
+
+## 2. 端口说明
+
+外壳端口**数量与类型**由子图接口节点动态决定，不可手动编辑（`PortEditable=false`）。
+
+| 方向 | 类型 | 说明 |
+|------|------|------|
+| 入 | 随映射 | 外层数据 → 对应 In 节点的 Out 口 |
+| 出 | 随映射 | 对应 Out 节点的 In 口 → 外层数据 |
+
+端口标题（caption）取接口节点 **remarks 第一行** + 本地端口序号（如 `score.0`）；同备注重名时加 `#节点Id` 消歧（如 `score#12.0`）。接口节点增删或改 remarks 时，外壳端口会自动增减并刷新标签。
+
+## 3. 界面说明
+
+无内嵌控件。双击进入子图画布；子图使用与主流程相同的节点库与编辑能力。
+
+## 4. 使用说明
+
+1. 放置 Container，双击进入子图。
+2. 在子图内添加 **Variable/Image/Audio In/Out**，按需增删端口（`PortEditable=true`）。
+3. 为 In/Out 设置 **remarks**（第一行作为外壳端口名）；子图内完成内部连线。
+4. 返回外层，将外层链路接到 Container 外壳端口。
+5. 子图内也可再嵌套 Container，形成分层模块。
+
+## 5. 示例
+
+外层 **Float Source** → Container In（子图内 Variable In，备注 `gain`）→ 子图内 Audio Matrix → Variable Out（`level`）→ Container Out → **Audio Device Out**。
+
+---
+
 # Variable In
 
 ## 1. 节点说明
 
-数据流**入口**：从 `ModelDataBridge` 按备注名订阅上游导出的 VariableData，输出到本图。无输入口，输出口数量可编辑。用于跨数据流、时间轴桥接。
+**Container 子图变量入口**：无输入口；外壳 Container 的 In 口注入的数据经 `setInData` 写入后，从本节点 **Out** 口送入子图内部。输出口数量可编辑（`PortEditable=true`）。通常只在 Container 子图内使用。
 
 ## 2. 端口说明
 
 | 方向 | 类型 | 说明 |
 |------|------|------|
-| 出 | VariableData | 桥接来的变量（可多口） |
+| 出 | VariableData | 外壳注入的变量（可多口） |
 
 ## 3. 界面说明
 
-`DataBridgeSelectorBox`：选择/填写备注名（quoted address）。外部：`/input`（备注）。
+无内嵌控件。**remarks** 第一行用作 Container 外壳 In 口标题。外部控制：`/input`（写入 remarks 字符串）。
 
 ## 4. 使用说明
 
-1. 在另一侧用 Variable Out 导出并设相同备注。
-2. 本节点选择该备注，即可读到数据。
+1. 放入 Container 子图，设置 remarks 命名外壳端口。
+2. 将子图内下游接到本节点 Out 口。
+3. 外层向 Container 对应 In 口送 VariableData 即可驱动子图。
 
 ## 5. 示例
 
-子图 Variable Out（备注 `score`）→ 主图 Variable In（`score`）→ Condition。
+Container In（备注 `scene`）→ 子图 Variable In → Switch 的 INDEX。
 
 ---
 
@@ -400,25 +443,27 @@ Merge / Extract 结果 → From JSON → TCP Client 发送。
 
 ## 1. 节点说明
 
-数据流**出口**：将本图 VariableData 注册到 `ModelDataBridge`，供 Variable In 或其它桥接消费者读取。无输出端口；输入口可编辑，允许多连。
+**Container 子图变量出口**：子图内部 VariableData 从本节点 **In** 口写入后，由 Container 外壳 **Out** 口中继到外层。无输出口；输入口可编辑（`PortEditable=true`）。
 
 ## 2. 端口说明
 
 | 方向 | 类型 | 说明 |
 |------|------|------|
-| 入 | VariableData | 待导出数据（可多口） |
+| 入 | VariableData | 待导出到外壳的变量（可多口） |
 
 ## 3. 界面说明
 
-无内嵌控件；通过节点备注（remarks）标识导出名。
+无内嵌控件。**remarks** 第一行用作 Container 外壳 Out 口标题。
 
 ## 4. 使用说明
 
-设置备注后，对端 Variable In 选择同名即可接收。
+1. 将子图内计算链路末级接到 Variable Out 的 In 口。
+2. 设置 remarks 命名外壳 Out 口。
+3. 外层从 Container 对应 Out 口读取数据。
 
 ## 5. 示例
 
-计算链路末级 → Variable Out（`dmx_level`）→ 另一数据流 Variable In。
+子图 Count → Variable Out（`total`）→ Container Out → Condition。
 
 ---
 
@@ -426,25 +471,27 @@ Merge / Extract 结果 → From JSON → TCP Client 发送。
 
 ## 1. 节点说明
 
-图像桥接入口：从 ModelDataBridge 按备注拉取 **ImageData**。用法同 Variable In，数据类型为图像。外部：`/input`。
+**Container 子图图像入口**：用法同 Variable In，数据类型为 **ImageData**。外壳 Container In 注入图像后，从 Out 口送入子图。外部：`/input`（remarks）。
 
 ## 2. 端口说明
 
 | 方向 | 类型 | 说明 |
 |------|------|------|
-| 出 | ImageData | 桥接图像（可多口） |
+| 出 | ImageData | 外壳注入的图像（可多口） |
 
 ## 3. 界面说明
 
-`DataBridgeSelectorBox`。
+无内嵌控件。**remarks** 第一行用作 Container 外壳 In 口标题。
 
 ## 4. 使用说明
 
-对端使用 Image Out 并匹配备注。
+1. 在 Container 子图内放置 Image In，设置 remarks。
+2. 外层图像源接到 Container 对应 In 口。
+3. 子图内从 Image In Out 口继续接 Image 算子或 Display。
 
 ## 5. 示例
 
-渲染数据流 Image Out → 主流程 Image In → Image Display。
+外层 Camera → Container In（`cam_a`）→ 子图 Image In → Image Display。
 
 ---
 
@@ -452,25 +499,25 @@ Merge / Extract 结果 → From JSON → TCP Client 发送。
 
 ## 1. 节点说明
 
-图像桥接出口：向 ModelDataBridge 导出 ImageData。无输出端口。
+**Container 子图图像出口**：子图内 ImageData 从 In 口写入，由 Container 外壳 Out 中继到外层。无输出口；输入口可编辑。
 
 ## 2. 端口说明
 
 | 方向 | 类型 | 说明 |
 |------|------|------|
-| 入 | ImageData | 待导出图像 |
+| 入 | ImageData | 待导出到外壳的图像（可多口） |
 
 ## 3. 界面说明
 
-无内嵌控件；靠备注标识。
+无内嵌控件。**remarks** 第一行用作 Container 外壳 Out 口标题。
 
 ## 4. 使用说明
 
-与 Image In 成对使用。
+将子图内渲染/处理链路末级接到 Image Out，外层从 Container Out 取图。
 
 ## 5. 示例
 
-Video Decoder → Image Out（`cam_a`）。
+子图 Video Decoder → Image Out（`preview`）→ Container Out → Spout Out。
 
 ---
 
@@ -478,25 +525,26 @@ Video Decoder → Image Out（`cam_a`）。
 
 ## 1. 节点说明
 
-音频桥接入口：从 ModelDataBridge 按备注拉取 **AudioData**。选择备注时会 `requestDataManual` 主动拉一次。外部：`/input`。
+**Container 子图音频入口**：用法同 Variable In，数据类型为 **AudioData**。仅接受已连接共享缓冲区的 AudioData（`isConnectedToSharedBuffer()`）；否则该口输出为空。外部：`/input`（remarks）。
 
 ## 2. 端口说明
 
 | 方向 | 类型 | 说明 |
 |------|------|------|
-| 出 | AudioData | 桥接音频 |
+| 出 | AudioData | 外壳注入的音频（可多口） |
 
 ## 3. 界面说明
 
-`DataBridgeSelectorBox`。
+无内嵌控件。**remarks** 第一行用作 Container 外壳 In 口标题。
 
 ## 4. 使用说明
 
-对端 Audio Out 匹配备注。
+1. 外层音频源（Decoder、Device In 等共享缓冲链路）接到 Container In。
+2. 子图内从 Audio In Out 口接 Audio 处理或 Device Out。
 
 ## 5. 示例
 
-Audio Out（`music`）→ Audio In → Audio Device Out。
+外层 Audio Decoder → Container In（`music`）→ 子图 Audio In → Audio Matrix。
 
 ---
 
@@ -504,25 +552,25 @@ Audio Out（`music`）→ Audio In → Audio Device Out。
 
 ## 1. 节点说明
 
-音频桥接出口：导出 AudioData 到 ModelDataBridge。
+**Container 子图音频出口**：子图内 AudioData 从 In 口写入，由 Container 外壳 Out 中继到外层。仅缓存已连接共享缓冲区的 AudioData。无输出口；输入口可编辑。
 
 ## 2. 端口说明
 
 | 方向 | 类型 | 说明 |
 |------|------|------|
-| 入 | AudioData | 待导出音频 |
+| 入 | AudioData | 待导出到外壳的音频（可多口） |
 
 ## 3. 界面说明
 
-无内嵌控件；靠备注标识。
+无内嵌控件。**remarks** 第一行用作 Container 外壳 Out 口标题。
 
 ## 4. 使用说明
 
-与 Audio In 成对使用。
+子图内音频链路末级 → Audio Out → 外层从 Container Out 取音频。
 
 ## 5. 示例
 
-Audio Decoder → Audio Out（`bed`）。
+子图 Audio CrossFader → Audio Out（`bed`）→ Container Out → Audio Device Out。
 
 ---
 

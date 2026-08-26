@@ -30,7 +30,7 @@ namespace Nodes
          */
         explicit DMXDeviceInterface(QWidget *parent = nullptr){
             setupUI();
-            updateChannelControls(5); // 默认5个通道
+            updateChannelControls(4); // 默认4个通道
         }
 
         /**
@@ -148,7 +148,7 @@ namespace Nodes
             // 通道数量设置
             configLayout->addWidget(new QLabel("通道数:", this), 2, 0);
             channelCountSpinBox->setRange(1, 512);
-            channelCountSpinBox->setValue(5);
+            channelCountSpinBox->setValue(4);
             channelCountSpinBox->setToolTip("通道数量 (1-512)");
             configLayout->addWidget(channelCountSpinBox, 2, 1);
             

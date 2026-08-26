@@ -9,6 +9,9 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 
 add_library(${Module_Name} SHARED
         PingDataModel.hpp
+        PingDataModel.cpp
+        IcmpPing.hpp
+        IcmpPing.cpp
         PingInterface.hpp
         PluginDefinition.hpp
         PluginDefinition.cpp
@@ -16,11 +19,17 @@ add_library(${Module_Name} SHARED
 
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
+        Qt${QT_VERSION_MAJOR}::Network
+        Qt${QT_VERSION_MAJOR}::Concurrent
         ${QtNodes_LIBRARIES}
         PropertyTreeWidget
         StatusContainer
         BaseClass
         DataTypes)
+
+if(WIN32)
+    target_link_libraries(${Module_Name} PRIVATE iphlpapi ws2_32)
+endif()
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES

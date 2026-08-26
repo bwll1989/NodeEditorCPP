@@ -1,6 +1,9 @@
 #include "MediaLibrary.h"
 #include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QFile>
+#include <QSet>
 // 新增：定位 Windows 文档库路径
 #include <QMimeData>
 #include <QStandardPaths>
@@ -23,7 +26,8 @@ MediaLibrary::MediaLibrary(QObject* parent)
 {
     setColumnCount(1);
     // 初始化五个类别为顶层组节点
-    for (Category cat : { Category::Video, Category::Audio, Category::DMX, Category::Image, Category::Model ,Category::Document,Category::Unknown }) {
+    for (Category cat : { Category::Video, Category::Audio, Category::DMX, Category::Image,
+                          Category::Model, Category::Document, Category::ChildFlow, Category::Unknown }) {
         auto* group = new QStandardItem(categoryName(cat));
         group->setEditable(false);
         group->setData(static_cast<int>(cat), CategoryRole);
@@ -301,6 +305,7 @@ QJsonObject MediaLibrary::toJson() const
     collect(Category::Image, "Image");
     collect(Category::Model,   "Model");
     collect(Category::Document,    "Document");
+    collect(Category::ChildFlow, "ChildFlow");
     collect(Category::Unknown, "Unknown");
     return root;
 }
@@ -323,6 +328,7 @@ bool MediaLibrary::fromJson(const QJsonObject& obj)
     load(Category::Image, "Picture");
     load(Category::Model,   "Model");
     load(Category::Document,    "Document");
+    load(Category::ChildFlow, "ChildFlow");
     load(Category::Unknown, "Unknown");
     emit libraryChanged();
     return true;
@@ -374,11 +380,13 @@ MediaLibrary::Category MediaLibrary::detectCategory(const QString& absPath) cons
     static const QSet<QString> model = { "obj", "fbx", "stl", "gltf", "glb" };
     // other
     static const QSet<QString> other = { "txt", "json", "xml", "cfg", "log" , "md" , "csv","ini" };
+    static const QSet<QString> childFlow = { "childflow" };
     if (video.contains(ext)) return Category::Video;
     if (sound.contains(ext)) return Category::Audio;
     if (dmx.contains(ext))  return Category::DMX;
     if (pic.contains(ext))   return Category::Image;
     if (model.contains(ext)) return Category::Model;
+    if (childFlow.contains(ext)) return Category::ChildFlow;
     // 其他文件（如脚本、配置等）
     if (other.contains(ext)) return Category::Document;
     return Category::Unknown;
@@ -396,6 +404,7 @@ QString MediaLibrary::categoryName(Category cat) const
     case Category::Image: return QStringLiteral("Image Files");
     case Category::Model:   return QStringLiteral("3D Models");
     case Category::Document:   return QStringLiteral("Documents");
+    case Category::ChildFlow: return QStringLiteral("Child Flows");
     case Category::Unknown: return QStringLiteral("Unknown");
     }
     return QStringLiteral("Unknown");
@@ -483,6 +492,7 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
             {Category::Image,    "Image"},
             {Category::Model,    "Model"},
             {Category::Document, "Document"},
+            {Category::ChildFlow,"ChildFlow"},
             {Category::Unknown,  "Unknown"}
         };
         const QString tagKey = tagMap.value(cat, "Unknown");
@@ -516,6 +526,39 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
                     const QString ext = fi.suffix().toLower();
                     if (ext == "json") tpl = JsonFileNode.arg(fileName);
                     else if (ext == "ini") tpl = IniFileNode.arg(fileName);
+                }
+                    break;
+                case Category::ChildFlow: {
+                    // 读取 .childflow 场景，包装为 Container 节点供画布 Paste
+                    QFile cf(path);
+                    if (!cf.open(QIODevice::ReadOnly))
+                        break;
+                    QJsonParseError perr;
+                    const QJsonDocument sceneDoc = QJsonDocument::fromJson(cf.readAll(), &perr);
+                    if (perr.error != QJsonParseError::NoError || !sceneDoc.isObject())
+                        break;
+
+                    QJsonObject internalData;
+                    internalData.insert(QStringLiteral("inner-scene"), sceneDoc.object());
+
+                    QJsonObject pos;
+                    pos.insert(QStringLiteral("x"), 0);
+                    pos.insert(QStringLiteral("y"), 0);
+
+                    const QString remarks = fi.completeBaseName();
+                    QJsonObject node;
+                    node.insert(QStringLiteral("id"), 1);
+                    node.insert(QStringLiteral("input-count"), 0);
+                    node.insert(QStringLiteral("output-count"), 0);
+                    node.insert(QStringLiteral("internal-data"), internalData);
+                    node.insert(QStringLiteral("position"), pos);
+                    node.insert(QStringLiteral("type"), QStringLiteral("Container"));
+                    node.insert(QStringLiteral("remarks"), remarks);
+
+                    QJsonObject pasteScene;
+                    pasteScene.insert(QStringLiteral("nodes"), QJsonArray{node});
+                    tpl = QString::fromUtf8(
+                        QJsonDocument(pasteScene).toJson(QJsonDocument::Compact));
                 }
                     break;
                 case Category::Unknown:

@@ -32,6 +32,7 @@ public:
         Image,
         Model,
         Document,
+        ChildFlow,
         Unknown
     };
     Q_ENUM(Category)

@@ -39,23 +39,7 @@ public:
      */
     void appendContextMenuActions(QMenu &menu, ContextMenuKind kind) override;
 
-public Q_SLOTS:
-    /**
-     * 保存
-     * @return bool 是否保存
-     */
-    bool save() const ;
-    /**
-     * 加载
-     * @return bool 是否加载
-     */
-    bool load();
-
 Q_SIGNALS:
-    /**
-     * 场景加载
-     */
-    void sceneLoaded();
     /**
      * 端口编辑
      */

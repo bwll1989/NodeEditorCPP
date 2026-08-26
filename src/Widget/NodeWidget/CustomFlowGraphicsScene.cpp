@@ -4,25 +4,21 @@
 
 #include "CustomFlowGraphicsScene.h"
 #include "NodeCreateSceneMenu.hpp"
-
-#include <QMessageBox>
+#include "ContainerDataModel.hpp"
 
 #include "QtNodes/internal/GraphicsView.hpp"
 #include "QtNodes/internal/NodeGraphicsObject.hpp"
 
-#include <QtWidgets/QFileDialog>
+#include <QAction>
+#include <QIcon>
 #include <QtWidgets/QGraphicsSceneMouseEvent>
 #include <QtWidgets/QMenu>
 
-#include <QtCore/QDebug>
-#include <QtCore/QDir>
-#include <QtCore/QFile>
-#include <QtCore/QFileInfo>
-#include <QtCore/QJsonDocument>
 #include <QTransform>
 
 using QtNodes::GraphicsView;
 using QtNodes::NodeGraphicsObject;
+using Nodes::ContainerDataModel;
 
 namespace {
 
@@ -116,6 +112,23 @@ void CustomFlowGraphicsScene::appendContextMenuActions(QMenu &menu, ContextMenuK
     case ContextMenuKind::Node:
         // 节点：编辑/剪贴板 → 布局 → 工具 → 撤销
         addSepIfNeeded();
+        {
+            // 选中的 Container：导出内嵌子图为 .childflow
+            QWidget *menuParent = view;
+            for (NodeId id : selectedNodes()) {
+                auto *container = _graphModel.delegateModel<ContainerDataModel>(id);
+                if (!container)
+                    continue;
+                QString label = container->getRemarks().section(QLatin1Char('\n'), 0, 0).trimmed();
+                if (label.isEmpty())
+                    label = QStringLiteral("Container");
+                auto *exportAct = menu.addAction(
+                    tr("导出为 Childflow (%1)").arg(label));
+                QObject::connect(exportAct, &QAction::triggered, container, [container, menuParent]() {
+                    container->exportChildFlow(menuParent);
+                });
+            }
+        }
         addActionIfPresent(menu, view->deleteSelectionAction());
         addActionIfPresent(menu, view->duplicateSelectionAction());
         addActionIfPresent(menu, view->copySelectionAction());
@@ -139,58 +152,6 @@ void CustomFlowGraphicsScene::appendContextMenuActions(QMenu &menu, ContextMenuK
         addUndoRedo();
         break;
     }
-}
-
-bool CustomFlowGraphicsScene::save() const
-{
-    QString fileName = QFileDialog::getSaveFileName(nullptr,
-                                                    tr("Open Flow Scene"),
-                                                    QDir::homePath(),
-                                                    tr("Flow Scene Files (*.childflow)"));
-
-    if (!fileName.isEmpty()) {
-        if (!fileName.endsWith("childflow", Qt::CaseInsensitive))
-            fileName += ".childflow";
-
-        QFile file(fileName);
-        if (file.open(QIODevice::WriteOnly)) {
-            file.write(QJsonDocument(_graphModel.save()).toJson());
-            return true;
-        }
-    }
-    return false;
-}
-
-bool CustomFlowGraphicsScene::load()
-{
-    QString fileName = QFileDialog::getOpenFileName(nullptr,
-                                                    tr("Open Child Flow "),
-                                                    QDir::homePath(),
-                                                    tr("Flow Scene Files (*.childflow)"));
-
-    if (!QFileInfo::exists(fileName))
-        return false;
-
-    QFile file(fileName);
-
-    if (!file.open(QIODevice::ReadOnly)) {
-        QMessageBox::warning(nullptr, tr("打开失败"),
-                             tr("无法打开文件 %1:\n%2").arg(fileName).arg(file.errorString()));
-        return false;
-    }
-
-    QByteArray const wholeFile = file.readAll();
-    auto jsonDoc = QJsonDocument::fromJson(wholeFile);
-    if (jsonDoc.isNull()) {
-        QMessageBox::warning(nullptr, tr("打开失败"), tr("无法解析文件 %1").arg(fileName));
-        return false;
-    }
-    clearScene();
-    _graphModel.load(jsonDoc.object());
-
-    Q_EMIT sceneLoaded();
-
-    return true;
 }
 
 void CustomFlowGraphicsScene::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)

@@ -2,6 +2,7 @@
 
 #include "JSEngineDefines/SupportWidgets.hpp"
 
+#include <QCoreApplication>
 #include <QDebug>
 #include <QGridLayout>
 #include <QMetaObject>
@@ -37,13 +38,9 @@ CustomScriptDataModel::CustomScriptDataModel(const JSPluginInfo &pluginInfo)
 CustomScriptDataModel::~CustomScriptDataModel()
 {
     m_shuttingDown = true;
-    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
-        if (it.value()) {
-            it.value()->blockSignals(true);
-        }
-    }
+    discardPendingWork();
+    destroyLayoutWidgets();
     destroyJsEngine();
-    m_widgets.clear();
     if (widget && widget->parent() == nullptr) {
         widget->deleteLater();
     }
@@ -136,9 +133,14 @@ void CustomScriptDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex 
 
     if (!isGuiThread()) {
         const int index = static_cast<int>(portIndex);
+        QPointer<CustomScriptDataModel> self(this);
         QMetaObject::invokeMethod(
             this,
-            [this, index]() { inputEventHandler(index); },
+            [self, index]() {
+                if (self) {
+                    self->inputEventHandler(index);
+                }
+            },
             Qt::QueuedConnection);
         return;
     }
@@ -179,6 +181,40 @@ unsigned int CustomScriptDataModel::inputIndex()
 bool CustomScriptDataModel::isGuiThread() const
 {
     return QThread::currentThread() == this->thread();
+}
+
+void CustomScriptDataModel::discardPendingWork()
+{
+    if (QCoreApplication::instance()) {
+        QCoreApplication::removePostedEvents(this);
+    }
+}
+
+void CustomScriptDataModel::destroyLayoutWidgets()
+{
+    takeWidgetOwnership();
+    if (widget && widget->controlLayout) {
+        for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
+            QWidget *w = it.value();
+            if (!w) {
+                continue;
+            }
+            widget->controlLayout->removeWidget(w);
+        }
+    }
+    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
+        QWidget *w = it.value();
+        if (!w) {
+            continue;
+        }
+        w->blockSignals(true);
+        disconnect(w, nullptr, nullptr, nullptr);
+        w->hide();
+        w->setParent(nullptr);
+        delete w;
+    }
+    m_widgets.clear();
+    m_widgetCounter = 0;
 }
 
 void CustomScriptDataModel::logJsError(const char *context, const QJSValue &result) const
@@ -237,9 +273,14 @@ void CustomScriptDataModel::reloadScript(const QString &code, bool runInitInterf
     if (!isGuiThread()) {
         const QString copied = code;
         const bool runInit = runInitInterface;
+        QPointer<CustomScriptDataModel> self(this);
         QMetaObject::invokeMethod(
             this,
-            [this, copied, runInit]() { reloadScript(copied, runInit); },
+            [self, copied, runInit]() {
+                if (self) {
+                    self->reloadScript(copied, runInit);
+                }
+            },
             Qt::QueuedConnection);
         return;
     }
@@ -248,11 +289,20 @@ void CustomScriptDataModel::reloadScript(const QString &code, bool runInitInterf
         return;
     }
 
+    if (m_handlingInput) {
+        const QString copied = code;
+        const bool runInit = runInitInterface;
+        QTimer::singleShot(0, this, [this, copied, runInit]() {
+            reloadScript(copied, runInit);
+        });
+        return;
+    }
+
     m_reloading = true;
     script = code;
 
-    // 先断开并释放控件，再销毁引擎，避免残留信号进入已删除的 QJSEngine
-    clearLayout();
+    // 先同步销毁控件并断开信号，再销毁引擎，避免 JS 回调进入已删除的 QJSEngine
+    destroyLayoutWidgets();
     destroyJsEngine();
     createJsEngine();
 
@@ -263,9 +313,11 @@ void CustomScriptDataModel::reloadScript(const QString &code, bool runInitInterf
             m_reloading = false;
             return;
         }
+        m_reloading = false;
         if (runInitInterface) {
             initInterface();
         }
+        return;
     }
 
     m_reloading = false;
@@ -280,28 +332,24 @@ void CustomScriptDataModel::clearLayout()
     }
 
     if (!isGuiThread()) {
-        QMetaObject::invokeMethod(this, &CustomScriptDataModel::clearLayout, Qt::QueuedConnection);
+        QPointer<CustomScriptDataModel> self(this);
+        QMetaObject::invokeMethod(
+            this,
+            [self]() {
+                if (self) {
+                    self->clearLayout();
+                }
+            },
+            Qt::QueuedConnection);
         return;
     }
 
-    takeWidgetOwnership();
-    for (auto it = m_widgets.begin(); it != m_widgets.end(); ++it) {
-        QWidget *w = it.value();
-        if (!w) {
-            continue;
-        }
-        w->blockSignals(true);
-        w->hide();
-        w->setParent(nullptr);
-        w->deleteLater();
-    }
-    m_widgets.clear();
-    m_widgetCounter = 0;
+    destroyLayoutWidgets();
 }
 
 int CustomScriptDataModel::addToLayout(QObject *widgetObj, int x, int y, int rowSpan, int columnSpan)
 {
-    if (m_shuttingDown || !isGuiThread() || !widget || !widget->controlLayout) {
+    if (m_shuttingDown || !m_jsEngine || !isGuiThread() || !widget || !widget->controlLayout) {
         return -1;
     }
 
@@ -344,7 +392,15 @@ void CustomScriptDataModel::initInterface()
     }
 
     if (!isGuiThread()) {
-        QMetaObject::invokeMethod(this, &CustomScriptDataModel::initInterface, Qt::QueuedConnection);
+        QPointer<CustomScriptDataModel> self(this);
+        QMetaObject::invokeMethod(
+            this,
+            [self]() {
+                if (self) {
+                    self->initInterface();
+                }
+            },
+            Qt::QueuedConnection);
         return;
     }
 
@@ -371,9 +427,14 @@ void CustomScriptDataModel::inputEventHandler(int portIndex)
     }
 
     if (!isGuiThread()) {
+        QPointer<CustomScriptDataModel> self(this);
         QMetaObject::invokeMethod(
             this,
-            [this, portIndex]() { inputEventHandler(portIndex); },
+            [self, portIndex]() {
+                if (self) {
+                    self->inputEventHandler(portIndex);
+                }
+            },
             Qt::QueuedConnection);
         return;
     }
@@ -397,7 +458,7 @@ void CustomScriptDataModel::inputEventHandler(int portIndex)
 
 QJSValue CustomScriptDataModel::getInputValue(int portIndex)
 {
-    if (!m_jsEngine) {
+    if (m_shuttingDown || !m_jsEngine) {
         return {};
     }
 
@@ -415,7 +476,7 @@ QJSValue CustomScriptDataModel::getInputValue(int portIndex)
 
 QJSValue CustomScriptDataModel::getOutputValue(int portIndex)
 {
-    if (!m_jsEngine) {
+    if (m_shuttingDown || !m_jsEngine) {
         return {};
     }
 
@@ -433,7 +494,8 @@ QJSValue CustomScriptDataModel::getOutputValue(int portIndex)
 
 void CustomScriptDataModel::setOutputValue(int portIndex, const QJSValue &value)
 {
-    if (m_shuttingDown || portIndex < 0 || portIndex >= static_cast<int>(OutPortCount)) {
+    if (m_shuttingDown || m_reloading || !m_jsEngine
+        || portIndex < 0 || portIndex >= static_cast<int>(OutPortCount)) {
         return;
     }
 

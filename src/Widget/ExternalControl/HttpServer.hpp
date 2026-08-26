@@ -15,10 +15,12 @@
 #include <Poco/Net/NetException.h>
 #include <set>
 #include <QMutex>
+#include <QJsonArray>
 #include <QJsonObject>
 #include "OSCMessage.h"
 #include "Poco/Net/HTTPResponse.h"
 #include "StatusContainer/StatusItem.h"
+#include "ActionRegistry.h"
 
 namespace Flow {
 
@@ -64,6 +66,7 @@ namespace Flow {
         void handleApiExec(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& query);
         void handleLayoutSave(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         void handleLayoutLoad(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
+        void handleActions(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& subPath);
         // 函数级注释：处理媒体文件上传（octet-stream，query中携带filename）
         void handleUploadMedia(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         // 函数级注释：处理.flow项目文件上传（octet-stream，query中携带filename，仅允许.flow扩展名）
@@ -119,10 +122,28 @@ namespace Flow {
         bool running() const { return _running; }
         // 函数级注释：获取当前监听端口
         int port() const { return _port; }
-        // 函数级注释：获取当前布局配置
-        QJsonObject save() const { return _layout; }
+        // 函数级注释：获取当前布局配置（含 actions）
+        QJsonObject save() const;
         // 函数级注释：设置布局配置
         void load(const QJsonObject& layout);
+
+        /** @brief 保存布局并同步动作库 used 标记 */
+        void applyLayoutSave(const QJsonObject& layout);
+
+        ActionRegistry& actionRegistry() { return _actionRegistry; }
+        const ActionRegistry& actionRegistry() const { return _actionRegistry; }
+
+        /**
+         * @brief 添加动作到库（主键 entity）
+         * @return entity；无效时返回空字符串
+         */
+        QString addAction(const QJsonObject& binding);
+
+        bool patchAction(const QString& entity, const QJsonObject& patch);
+        bool removeAction(const QString& entity);
+
+        /** @brief 向所有 WebSocket 客户端广播 JSON */
+        void broadcastJson(const QJsonObject& payload);
 
         // 函数级注释：通知Flow文件上传完成
         void notifyFlowFileUploaded(const QString& path) {
@@ -151,5 +172,8 @@ namespace Flow {
         std::set<PageWebSocketHandler*> _wsHandlers;
         QMutex _wsMutex;
         QJsonObject _layout;
+        ActionRegistry _actionRegistry;
+
+        void notifyActionsChanged(const QString& action, const QJsonObject& item);
     };
 }

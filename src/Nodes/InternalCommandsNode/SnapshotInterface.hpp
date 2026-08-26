@@ -11,7 +11,7 @@
 namespace Nodes
 {
     /**
-     * @brief Snapshot 节点界面：互斥预设按钮 + 捕获/增删
+     * @brief Snapshot 节点界面：预设列表（召回 / 更新 / 删除）+ 添加
      */
     class SnapshotInterface final : public QWidget
     {
@@ -26,9 +26,11 @@ namespace Nodes
 
     signals:
         void presetRecallRequested(int index);
-        void captureRequested();
+        /// 将当前选中节点状态写入指定预设（无需先选中该预设）
+        void presetUpdateRequested(int index);
+        /// 删除指定预设
+        void presetRemoveRequested(int index);
         void addPresetRequested();
-        void removePresetRequested();
 
     private slots:
         void onPresetButtonClicked(int index);
@@ -39,8 +41,6 @@ namespace Nodes
         QVBoxLayout *m_rootLayout = nullptr;
         QHBoxLayout *m_toolbarLayout = nullptr;
         QPushButton *m_addButton = nullptr;
-        QPushButton *m_removeButton = nullptr;
-        QPushButton *m_captureButton = nullptr;
         QLabel *m_statusLabel = nullptr;
         QScrollArea *m_scrollArea = nullptr;
         QWidget *m_buttonHost = nullptr;

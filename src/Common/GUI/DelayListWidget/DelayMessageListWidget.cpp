@@ -23,13 +23,14 @@ DelayMessageListWidget::DelayMessageListWidget(QWidget* parent)
 
 void DelayMessageListWidget::addDelayMessage(const delay_item& message)
 {
+    static const int kRowHeight = 28;
+
     auto* item = new QListWidgetItem(this);
     auto* widget = new DelayMessageItemWidget(this);
     widget->setMessage(message);
     addItem(item);
     setItemWidget(item, widget);
-    widget->adjustSize();
-    item->setSizeHint(widget->sizeHint()*1.5);
+    item->setSizeHint(QSize(0, kRowHeight));
 }
 
 QVector<delay_item> DelayMessageListWidget::getDelayMessages() const

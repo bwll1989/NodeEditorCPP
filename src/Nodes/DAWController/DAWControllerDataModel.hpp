@@ -82,6 +82,7 @@ namespace Nodes
             {
                 NodeDelegateModel::ExternalBinding b;
                 b.member = "connected";
+                b.control=widget->connectionStatusLabel;
                 AbstractDelegateModel::registerExternalBinding("/connected", this, b);
             }
 

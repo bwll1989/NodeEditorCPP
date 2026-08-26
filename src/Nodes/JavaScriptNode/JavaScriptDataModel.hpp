@@ -66,6 +66,8 @@ private slots:
 
 private:
     bool isGuiThread() const;
+    void discardPendingWork();
+    void destroyLayoutWidgets();
     void createJsEngine();
     void destroyJsEngine();
     void takeWidgetOwnership();

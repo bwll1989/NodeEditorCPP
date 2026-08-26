@@ -136,28 +136,32 @@ QString defaultDataFlowPluginsFolder()
 
 void registerBuildInPlugins(QtNodes::PluginsManager* pluginsManager)
 {
-    pluginsManager->registry()->registerModel<VariableOutDataModel>("Variable Out","Variable");
-    pluginsManager->registry()->registerModel<VariableInDataModel>("Variable In","Variable");
-    pluginsManager->registry()->registerModel<AudioInDataModel>("Audio In","Audio");
-    pluginsManager->registry()->registerModel<AudioOutDataModel>("Audio Out","Audio");
-    pluginsManager->registry()->registerModel<ImageInDataModel>("Image In","Image");
-    pluginsManager->registry()->registerModel<ImageOutDataModel>("Image Out","Image");
-    pluginsManager->registry()->registerModel<BoolPluginDataModel>("Bool Source","Property");
-    pluginsManager->registry()->registerModel<TextSourceDataModel>("String Source","Property");
-    pluginsManager->registry()->registerModel<IntSourceDataModel>("Int Source","Property");
-    pluginsManager->registry()->registerModel<FloatSourceDataModel>("Float Source","Property");
-    pluginsManager->registry()->registerModel<VecSourceDataModel>("Vector Source","Property");
-    pluginsManager->registry()->registerModel<ImageShowModel>("Image Display","Image");
-    pluginsManager->registry()->registerModel<ToJsonDataModel>("To JSON","Controls");
-    pluginsManager->registry()->registerModel<FromJsonDataModel>("From JSON","Controls");
-    pluginsManager->registry()->registerModel<WindowDisplayModel>("Window Display","Image");
-    pluginsManager->registry()->registerModel<TogglePluginDataModel>("Toggle Source","Property");
-    pluginsManager->registry()->registerModel<TriggerSourceDataModel>("Trigger Source","Variable");
-    pluginsManager->registry()->registerModel<FloatVariableDataModel>("Float Variable","Variable");
-    pluginsManager->registry()->registerModel<IntVariableDataModel>("Int Variable","Variable");
-    pluginsManager->registry()->registerModel<BoolVariableDataModel>("Bool Variable","Variable");
-    pluginsManager->registry()->registerModel<TextVariableDataModel>("String Variable","Variable");
-    pluginsManager->registry()->registerModel<ToggleVariableDataModel>("Toggle Variable","Variable");
+    auto registry = pluginsManager->registry();
+    registry->registerModel<VariableOutDataModel>("Variable Out","Variable");
+    registry->registerModel<VariableInDataModel>("Variable In","Variable");
+    registry->registerModel<AudioInDataModel>("Audio In","Audio");
+    registry->registerModel<AudioOutDataModel>("Audio Out","Audio");
+    registry->registerModel<ImageInDataModel>("Image In","Image");
+    registry->registerModel<ImageOutDataModel>("Image Out","Image");
+    registry->registerModel<ContainerDataModel>("Container","Interface");
+    registry->registerModel<BoolPluginDataModel>("Bool Source","Property");
+    registry->registerModel<TextSourceDataModel>("String Source","Property");
+    registry->registerModel<IntSourceDataModel>("Int Source","Property");
+    registry->registerModel<FloatSourceDataModel>("Float Source","Property");
+    registry->registerModel<VecSourceDataModel>("Vector Source","Property");
+    registry->registerModel<ImageShowModel>("Image Display","Image");
+    registry->registerModel<ToJsonDataModel>("To JSON","Controls");
+    registry->registerModel<FromJsonDataModel>("From JSON","Controls");
+    registry->registerModel<WindowDisplayModel>("Window Display","Image");
+    registry->registerModel<TogglePluginDataModel>("Toggle Source","Property");
+    registry->registerModel<TriggerSourceDataModel>("Trigger Source","Variable");
+    registry->registerModel<FloatVariableDataModel>("Float Variable","Variable");
+    registry->registerModel<IntVariableDataModel>("Int Variable","Variable");
+    registry->registerModel<BoolVariableDataModel>("Bool Variable","Variable");
+    registry->registerModel<TextVariableDataModel>("String Variable","Variable");
+    registry->registerModel<ToggleVariableDataModel>("Toggle Variable","Variable");
+    // 子图与根图共用同一 registry，便于 Container 创建 inner model
+    ContainerDataModel::setSharedRegistry(registry);
 }
 
 } // namespace
@@ -195,6 +199,8 @@ void PluginsManagerWidget::loadAllFromDefaultFolder(const std::function<void(con
         report(QObject::tr("loading %1").arg(plugin->name()));
         plugin->registerDataModels(registry);
     }
+    // 外部插件注册后再刷一次，保证 Container 子图能创建全部节点类型
+    ContainerDataModel::setSharedRegistry(registry);
 }
 
 //打开插件目录

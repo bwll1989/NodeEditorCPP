@@ -97,7 +97,9 @@ public slots:
     void bindBus(const QString& parentAlias, int nodeId);
 private:
     /**
-     * 函数级注释：拼接工具栏对应的完整总线地址（/dataflow/<alias>/<id><relative>）
+     * 函数级注释：拼接工具栏对应的完整总线地址
+     * - 根层：/dataflow/<nodeId><relative>
+     * - 嵌套：/dataflow/<parentAlias>/<nodeId><relative>
      */
     QString makeBusAddress(const QString& relative) const;
 

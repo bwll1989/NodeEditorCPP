@@ -1,460 +1,684 @@
-// 文件：ViewsTabWidget.cpp（类 ViewsTabWidget 的成员实现）
-// 依赖：QtNodes 的 DataFlowGraphicsScene / GraphicsView；QJsonObject / QJsonArray
-
 #include "DataflowViewsManger.hpp"
+
+#include "ContainerDataModel.hpp"
 #include "GraphSnapshotBridge/GraphSnapshotBridge.hpp"
 
-
-#include "CustomFlowGraphicsScene.h"
-#include "CustomGraphicsView.h"
-#include <QJsonObject>
 #include <QJsonArray>
-#include <QSignalBlocker>
-#include "DockWidget.h"
-// #include "Nodes/TimeLineNode/NodeTimeSync.hpp"
-#include <QTimer>
+#include <QJsonObject>
+#include <QMenu>
+#include <QAction>
+#include "Widget/ExternalControl/ExportActionDialog.h"
+#include <QMessageBox>
+#include <QVBoxLayout>
+#include <QIcon>
+#include <QPixmap>
+#include <QDebug>
 
+#include "DockWidget.h"
+#include "Widget/ExternalControl/HttpServer.hpp"
+#include "QtNodes/internal/BasicGraphicsScene.hpp"
 #include "QtNodes/internal/PluginsManager.hpp"
+#include "QtNodes/StyleCollection"
 
 using namespace QtNodes;
-
-using QtNodes::NodeId;
+using Nodes::ContainerDataModel;
 
 namespace {
 
-void registerSnapshotHooks(DataflowViewsManger *self, const QString &title, CustomDataFlowGraphModel *model)
+void registerSnapshotHooks(DataflowViewsManger *self,
+                           const QString &key,
+                           CustomDataFlowGraphModel *model)
 {
-    if (!self || !model || title.isEmpty()) {
+    if (!self || !model || key.isEmpty())
         return;
-    }
 
     GraphSnapshotBridge::instance()->registerScene(
-        title,
+        key,
         [model](const QString &, const QVector<NodeId> &nodeIds) {
             return model->captureSnapshotNodes(nodeIds);
         },
         [model](const QString &, const QJsonArray &nodesJson) {
             return model->applySnapshotNodes(nodesJson);
         },
-        [self, title](const QString &) {
+        [self, key](const QString &) {
             QVector<NodeId> ids;
-            if (CustomFlowGraphicsScene *scene = self->sceneByTitle(title)) {
-                const auto selected = scene->selectedNodes();
-                ids.reserve(static_cast<int>(selected.size()));
-                for (NodeId id : selected) {
-                    ids.append(id);
+            // 仅当该 key 对应当前层时返回选中节点
+            if (self->currentModel()
+                && self->snapshotKeyFor(self->currentModel()) == key) {
+                if (CustomFlowGraphicsScene *scene = self->currentScene()) {
+                    const auto selected = scene->selectedNodes();
+                    ids.reserve(static_cast<int>(selected.size()));
+                    for (NodeId id : selected)
+                        ids.append(id);
                 }
             }
             return ids;
         });
 }
 
+QIcon titleBarNavIcon(const QString &resourcePath)
+{
+    return QIcon(QPixmap(resourcePath).scaled(16, 16, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+}
+
 } // namespace
 
-DataflowViewsManger::DataflowViewsManger(ads::CDockManager* dockManager,
-                                         QObject* parent,
+DataflowViewsManger::DataflowViewsManger(ads::CDockManager *dockManager,
+                                         QObject *parent,
                                          DataflowPresentationMode mode)
-    : QObject(parent),
-      m_DockManager(dockManager),
-      _mode(mode)
+    : QObject(parent)
+    , _mode(mode)
+    , m_DockManager(dockManager)
 {
-    if (m_DockManager && wantsUi()) {
-        connect(m_DockManager,
-                &ads::CDockManager::focusedDockWidgetChanged,
-                this,
-                &DataflowViewsManger::focusedSceneTitle);
-    }
+    if (wantsUi())
+        ensureEditorUi();
 }
 
 DataflowViewsManger::~DataflowViewsManger()
 {
-    // 函数级注释：
-    // 说明：析构时确保场景和 DockWidget 全部关闭并释放，避免外部仍持有指向模型的引用导致悬挂指针。
-    clearAllScenes();
+    clearDataflow();
 }
 
-void DataflowViewsManger::setDockManager(ads::CDockManager* dockManager)
+QString DataflowViewsManger::snapshotKeyFor(CustomDataFlowGraphModel *model) const
 {
-    if (m_DockManager) {
-        disconnect(m_DockManager, nullptr, this, nullptr);
-    }
+    if (!model)
+        return {};
+    QString const alias = model->modelAlias().trimmed();
+    return alias.isEmpty() ? QStringLiteral("dataflow") : alias;
+}
+
+void DataflowViewsManger::registerSnapshotForModel(CustomDataFlowGraphModel *model)
+{
+    registerSnapshotHooks(this, snapshotKeyFor(model), model);
+}
+
+void DataflowViewsManger::setDockManager(ads::CDockManager *dockManager)
+{
     m_DockManager = dockManager;
-    if (m_DockManager && wantsUi()) {
-        connect(m_DockManager,
-                &ads::CDockManager::focusedDockWidgetChanged,
-                this,
-                &DataflowViewsManger::focusedSceneTitle);
-    }
+    if (wantsUi())
+        ensureEditorUi();
 }
 
-CustomDataFlowGraphModel* DataflowViewsManger::ensureModel(const QString& title)
+void DataflowViewsManger::ensureEditorUi()
 {
-    auto mit = _models.find(title);
-    if (mit == _models.end()) {
-        _models.emplace(title, std::make_unique<CustomDataFlowGraphModel>(PluginsManager::instance()->registry()));
-        mit = _models.find(title);
-        if (mit != _models.end() && mit->second) {
-            mit->second->setModelAlias(title);
-            registerSnapshotHooks(this, title, mit->second.get());
-        }
-    }
-    if (mit == _models.end() || !mit->second) {
-        return nullptr;
-    }
-    return mit->second.get();
-}
-
-void DataflowViewsManger::createSceneUi(const QString& title)
-{
-    if (!m_DockManager) {
+    if (!wantsUi() || !m_DockManager || _dockWidget)
         return;
-    }
 
-    auto mit = _models.find(title);
-    if (mit == _models.end() || !mit->second) {
-        return;
-    }
+    _dockWidget = m_DockManager->createDockWidget(QStringLiteral("节点编辑"));
+    _dockWidget->setObjectName(QStringLiteral("dataflowEditor"));
+    _dockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
 
-    auto dit = _DockWidget.find(title);
-    if (dit != _DockWidget.end() && dit->second) {
-        return;
-    }
+    _hostWidget = new QWidget(_dockWidget);
+    auto *layout = new QVBoxLayout(_hostWidget);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
 
-    auto& model = *mit->second;
-    ads::CDockWidget* DockWidget = m_DockManager->createDockWidget(title);
+    _view = new CustomGraphicsView(_hostWidget);
+    connect(_view, &GraphicsView::scaleChanged, this, [this](double) { rememberCurrentViewport(); });
+    connect(_view, &GraphicsView::viewportChanged, this, [this]() { rememberCurrentViewport(); });
+    layout->addWidget(_view, 1);
+    _dockWidget->setWidget(_hostWidget);
 
-    // 以 DockWidget 为父对象，确保其关闭时 View/Scene 一并销毁
-    auto view  = new CustomGraphicsView(DockWidget);
-    auto scene = new CustomFlowGraphicsScene(model, view);
-    // 函数级注释：
-    // 说明：确保 Scene 作为 QObject 的父对象是 View，从而在 DockWidget 关闭时按父子链自动析构
-    scene->setParent(view);
-    view->setScene(scene);
+    // 导航挂到 ADS Dock 标题栏：地址 → 上一级 → 主页 → Options
+    _pathMenu = new QMenu(_dockWidget);
+    _pathAction = new QAction(QStringLiteral("dataflow"), _dockWidget);
+    _pathAction->setObjectName(QStringLiteral("dataflowNavPath"));
+    _pathAction->setMenu(_pathMenu);
+    _pathAction->setToolTip(QStringLiteral("当前数据流路径"));
 
-    // 便捷行为：加载后居中显示
-    // QObject::connect(scene, &CustomFlowGraphicsScene::sceneLoaded, view, &GraphicsView::centerScene);
+    _backAction = new QAction(titleBarNavIcon(QStringLiteral(":/icons/icons/arror_left.png")),
+                              QString(),
+                              _dockWidget);
+    _backAction->setObjectName(QStringLiteral("dataflowNavBack"));
+    _backAction->setToolTip(QStringLiteral("上一级"));
+    _backAction->setVisible(false);
+    connect(_backAction, &QAction::triggered, this, &DataflowViewsManger::goBack);
 
-    // 仅保存弱引用，避免二次释放
-    _DockWidget[title] = DockWidget;
+    _homeAction = new QAction(titleBarNavIcon(QStringLiteral(":/icons/icons/home.png")),
+                              QString(),
+                              _dockWidget);
+    _homeAction->setObjectName(QStringLiteral("dataflowNavHome"));
+    _homeAction->setToolTip(QStringLiteral("返回主页"));
+    _homeAction->setVisible(false);
+    connect(_homeAction, &QAction::triggered, this, &DataflowViewsManger::goHome);
 
-    DockWidget->setWidget(view);
-    DockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
+    QMenu *optionsMenu = new QMenu(_dockWidget);
+    optionsMenu->setTitle(QObject::tr("Options"));
+    optionsMenu->setToolTip(optionsMenu->title());
+    optionsMenu->setIcon(QIcon(":/ads_icons/ads_icons/custom-menu-button.svg"));
+    auto *menuAction = optionsMenu->menuAction();
+    menuAction->setObjectName(QStringLiteral("optionsMenu"));
 
-    // addAction(DockWidget->toggleViewAction());
+    _dockWidget->setTitleBarActions({_pathAction, _backAction, _homeAction, menuAction});
 
-    QMenu* OptionsMenu = new QMenu(DockWidget);
-    OptionsMenu->setTitle(QObject::tr("Options"));
-    OptionsMenu->setToolTip(OptionsMenu->title());
-    OptionsMenu->setIcon(QIcon(":/ads_icons/ads_icons/custom-menu-button.svg"));
-    auto MenuAction = OptionsMenu->menuAction();
-    // The object name of the action will be set for the QToolButton that
-    // is created in the dock area title bar. You can use this name for CSS
-    // styling
-    MenuAction->setObjectName("optionsMenu");
-    DockWidget->setTitleBarActions({OptionsMenu->menuAction()});
-    auto a = OptionsMenu->addAction(QIcon(":/icons/icons/clear.png"),QObject::tr("Clear Dataflow"));
-    // c->connect(a, SIGNAL(triggered()), SLOT(clear()));
-    QObject::connect(a, &QAction::triggered, scene, &CustomFlowGraphicsScene::clearScene);
-    auto b = OptionsMenu->addAction(QIcon(":/icons/icons/save.png"),QObject::tr("Save Child Dataflow"));
-    QObject::connect(b, &QAction::triggered, scene, &CustomFlowGraphicsScene::save);
-    auto c = OptionsMenu->addAction(QIcon(":/icons/icons/delete_database.png"),QObject::tr("Delete Dataflow"));
-    QObject::connect(c, &QAction::triggered, this, [this, DockWidget, title](){
-        GraphSnapshotBridge::instance()->unregisterScene(title);
-        _DockWidget.erase(title);
-        emit removeScene(title);
-
-        if (m_DockManager && DockWidget) {
-            m_DockManager->removeDockWidget(DockWidget);
-            delete DockWidget;
-        }
-
-        _models.erase(title);
+    auto *clearAct = optionsMenu->addAction(QIcon(":/icons/icons/clear.png"),
+                                            QObject::tr("Clear Dataflow"));
+    connect(clearAct, &QAction::triggered, this, [this]() {
+        if (auto *scene = currentScene())
+            scene->clearScene();
     });
 
-    auto d = OptionsMenu->addAction(QIcon(":/icons/icons/folder.png"),QObject::tr("Load Child Dataflow"));
-    QObject::connect(d, &QAction::triggered, scene, &CustomFlowGraphicsScene::load);
-    auto e = OptionsMenu->addAction(QIcon(":/icons/icons/lock.png"),QObject::tr("Lock Dataflow"));
-    QObject::connect(e, &QAction::triggered, this, [this, title, e](){
-        auto& model = *_models.at(title);
-        model.setNodesLocked(!model.getNodesLocked());
-        e->setText(model.getNodesLocked()?QObject::tr("Unlock Dataflow"):QObject::tr("Lock Dataflow"));
-
+    auto *lockAct = optionsMenu->addAction(QIcon(":/icons/icons/lock.png"),
+                                           QObject::tr("Lock Dataflow"));
+    connect(lockAct, &QAction::triggered, this, [this, lockAct]() {
+        auto *model = currentModel();
+        if (!model)
+            return;
+        model->setNodesLocked(!model->getNodesLocked());
+        lockAct->setText(model->getNodesLocked() ? QObject::tr("Unlock Dataflow")
+                                                 : QObject::tr("Lock Dataflow"));
     });
-    // Search Node 快捷键已在 GraphicsView::setScene 中注册；此处仅提供菜单入口
-    auto searchAction = OptionsMenu->addAction(QIcon(":/icons/icons/search.png"),
-                                               QObject::tr("Search Node"));
-    QObject::connect(searchAction, &QAction::triggered, scene, &CustomFlowGraphicsScene::showSearchNodeBar);
 
-      // 安全添加到区域：优先使用当前聚焦区域，其次回退到中心区域
-    if (m_DockManager && m_DockManager->focusedDockWidget() && m_DockManager->focusedDockWidget()->dockAreaWidget()) {
-        m_DockManager->addDockWidgetTabToArea(DockWidget, m_DockManager->focusedDockWidget()->dockAreaWidget());
-        m_DockManager->setWidgetFocus(DockWidget);
+    auto *searchAct = optionsMenu->addAction(QIcon(":/icons/icons/search.png"),
+                                             QObject::tr("Search Node"));
+    connect(searchAct, &QAction::triggered, this, [this]() {
+        if (auto *scene = currentScene())
+            scene->showSearchNodeBar();
+    });
+
+    updateBreadcrumb();
+
+    if (m_DockManager->focusedDockWidget()
+        && m_DockManager->focusedDockWidget()->dockAreaWidget()) {
+        m_DockManager->addDockWidgetTabToArea(_dockWidget,
+                                              m_DockManager->focusedDockWidget()->dockAreaWidget());
     } else {
-        m_DockManager->addDockWidgetTab(ads::CenterDockWidgetArea, DockWidget);
-        m_DockManager->setWidgetFocus(DockWidget);
+        m_DockManager->addDockWidgetTab(ads::CenterDockWidgetArea, _dockWidget);
     }
-
-    emit createNewScene(title);
+    m_DockManager->setWidgetFocus(_dockWidget);
 }
 
-void DataflowViewsManger::addNewScene(const QString& title)
+void DataflowViewsManger::destroyScene(CustomFlowGraphicsScene *scene)
 {
-    if (!ensureModel(title)) {
+    if (!scene)
+        return;
+    _sceneViewports.remove(scene);
+    if (_view && _view->scene() == scene)
+        _view->setScene(nullptr);
+    QObject::disconnect(&scene->graphModel(), nullptr, scene, nullptr);
+    QObject::disconnect(scene, nullptr, this, nullptr);
+    scene->setParent(nullptr);
+    delete scene;
+}
+
+CustomFlowGraphicsScene *DataflowViewsManger::findSceneForModel(CustomDataFlowGraphModel *model) const
+{
+    if (!model)
+        return nullptr;
+    for (CustomFlowGraphicsScene *s : findChildren<CustomFlowGraphicsScene *>()) {
+        if (s && &s->graphModel() == model)
+            return s;
+    }
+    return nullptr;
+}
+
+void DataflowViewsManger::clearStackAndScenes()
+{
+    _isClearing = true;
+
+    // Dock 可能已先于本对象销毁，_view 必须用 QPointer 判断
+    if (_view)
+        _view->setScene(nullptr);
+
+    _stack.clear();
+    _sceneViewports.clear();
+
+    // 绝不能 clearScene()：会 deleteNode，嵌套 Container 的 inner model
+    // 可能先于其 scene 被销毁。递归查找以免 reparent 后漏删。
+    const auto scenes = findChildren<CustomFlowGraphicsScene *>();
+    for (CustomFlowGraphicsScene *s : scenes)
+        destroyScene(s);
+
+    _rootModel.reset();
+    _isClearing = false;
+}
+
+CustomFlowGraphicsScene *DataflowViewsManger::resetDataflow(const QString &title)
+{
+    QString const oldPath = currentPath();
+
+    // 先通知外围（如 NodeList）解绑旧 model/scene，再销毁
+    if (!oldPath.isEmpty())
+        emit dataflowAboutToClear(oldPath);
+
+    GraphSnapshotBridge::instance()->clearAll();
+    clearStackAndScenes();
+
+    auto registry = PluginsManager::instance()->registry();
+    ContainerDataModel::setSharedRegistry(registry);
+
+    _rootModel = std::make_unique<CustomDataFlowGraphModel>(registry);
+    // 根层 alias 为空：OSC 为 /dataflow/<nodeId>/...
+    _rootModel->setModelAlias(QString());
+    registerSnapshotForModel(_rootModel.get());
+
+    if (wantsUi())
+        ensureEditorUi();
+
+    CustomFlowGraphicsScene *scene = nullptr;
+    if (wantsUi()) {
+        scene = new CustomFlowGraphicsScene(*_rootModel, this);
+        connectSceneNavigation(scene);
+    }
+
+    Level root;
+    root.model = _rootModel.get();
+    root.scene = scene;
+    root.title = title.isEmpty() ? QStringLiteral("dataflow") : title;
+    root.container = nullptr;
+    _stack.push_back(root);
+
+    if (scene)
+        switchToScene(scene);
+    else
+        updateBreadcrumb();
+
+    notifyLevelChanged();
+    return scene;
+}
+
+void DataflowViewsManger::connectSceneNavigation(CustomFlowGraphicsScene *scene)
+{
+    if (!scene)
+        return;
+
+    connectHttpServerToScene(scene);
+
+    connect(scene,
+            &BasicGraphicsScene::nodeDoubleClicked,
+            this,
+            &DataflowViewsManger::onNodeDoubleClicked);
+
+    auto *gm = dynamic_cast<CustomDataFlowGraphModel *>(&scene->graphModel());
+    if (!gm)
+        return;
+
+    // 删除 Container 前清掉其子 scene，并弹出导航栈中对应层
+    connect(gm,
+            &AbstractGraphModel::nodeAboutToBeDeleted,
+            this,
+            [this, gm](NodeId id) {
+                if (_isClearing)
+                    return;
+
+                auto *container = gm->delegateModel<ContainerDataModel>(id);
+                if (!container)
+                    return;
+
+                CustomDataFlowGraphModel *inner = container->innerModel();
+                if (inner)
+                    GraphSnapshotBridge::instance()->unregisterScene(snapshotKeyFor(inner));
+
+                // 若当前正停留在该 Container（或其更深层），先退回安全层再删 scene
+                for (size_t i = 0; i < _stack.size(); ++i) {
+                    if (_stack[i].container == container) {
+                        rememberCurrentViewport();
+                        while (_stack.size() > i)
+                            _stack.pop_back();
+                        if (!_stack.empty())
+                            switchToScene(_stack.back().scene);
+                        else if (_view)
+                            _view->setScene(nullptr);
+                        updateBreadcrumb();
+                        notifyLevelChanged();
+                        break;
+                    }
+                }
+
+                if (!inner)
+                    return;
+
+                // 同一 inner 可能只有一个 scene；逐个销毁以防万一
+                while (CustomFlowGraphicsScene *s = findSceneForModel(inner))
+                    destroyScene(s);
+            });
+}
+
+void DataflowViewsManger::setHttpServer(Flow::NodeHttpServer *server)
+{
+    _httpServer = server;
+    for (CustomFlowGraphicsScene *scene : findChildren<CustomFlowGraphicsScene *>())
+        connectHttpServerToScene(scene);
+}
+
+void DataflowViewsManger::connectHttpServerToScene(CustomFlowGraphicsScene *scene)
+{
+    if (!scene)
+        return;
+
+    connect(scene,
+            &BasicGraphicsScene::sendOscBindingToWebPanel,
+            this,
+            &DataflowViewsManger::onSendOscBindingToWebPanel,
+            Qt::UniqueConnection);
+}
+
+void DataflowViewsManger::onSendOscBindingToWebPanel(QJsonObject const &binding)
+{
+    if (!_httpServer)
+        return;
+
+    QWidget *parent = _view ? static_cast<QWidget *>(_view.data()) : nullptr;
+    Flow::ExportActionDraft draft;
+    if (!Flow::ExportActionDialog::prompt(parent, binding, draft)) {
         return;
     }
-    if (wantsUi()) {
-        createSceneUi(title);
+
+    QJsonObject item = binding;
+    item[QStringLiteral("entity")] = draft.entity;
+    item[QStringLiteral("name")] = draft.name;
+    item[QStringLiteral("suggestedName")] = draft.name;
+
+    const QString entity = _httpServer->addAction(item);
+    if (entity.isEmpty()) {
+        QMessageBox::warning(parent, tr("网页面板"), tr("发送失败：地址无效。"));
+        return;
     }
+    QMessageBox::information(parent, tr("网页面板"), tr("已添加到网页动作库：%1").arg(draft.name));
 }
 
-void DataflowViewsManger::attachSceneUi(const QString& title)
+void DataflowViewsManger::runWithoutViewportRepaint(std::function<void()> fn)
 {
-    createSceneUi(title);
+    if (!_view || !fn)
+        return;
+
+    _view->setUpdatesEnabled(false);
+    _suppressViewportSave = true;
+    fn();
+    _suppressViewportSave = false;
+    _view->setUpdatesEnabled(true);
+    _view->viewport()->update();
 }
 
-void DataflowViewsManger::addNewSceneFromeModel(const QString& title, QJsonObject const &jsonDocument) {
-    auto* model = ensureModel(title);
-    if (!model) {
+void DataflowViewsManger::rememberCurrentViewport()
+{
+    if (_suppressViewportSave || !_view || _view->isRestoringViewport() || !_view->scene())
+        return;
+
+    auto *currentScene = qobject_cast<CustomFlowGraphicsScene *>(_view->scene());
+    if (!currentScene)
+        return;
+
+    _sceneViewports.insert(currentScene, _view->viewportState());
+}
+
+void DataflowViewsManger::restoreOrCenterViewport(CustomFlowGraphicsScene *scene, bool forceCenter)
+{
+    if (!scene || !_view || _view->scene() != scene)
+        return;
+
+    if (!forceCenter && _sceneViewports.contains(scene)) {
+        _view->setViewportState(_sceneViewports.value(scene));
         return;
     }
 
-    if (wantsUi()) {
-        createSceneUi(title);
+    _view->centerScene();
+    _sceneViewports.insert(scene, _view->viewportState());
+}
+
+void DataflowViewsManger::switchToScene(CustomFlowGraphicsScene *scene)
+{
+    if (!scene || !_view)
+        return;
+
+    rememberCurrentViewport();
+
+    runWithoutViewportRepaint([this, scene]() {
+        _view->setScene(scene);
+        restoreOrCenterViewport(scene);
+    });
+
+    updateBreadcrumb();
+}
+
+void DataflowViewsManger::pushLevel(Level level)
+{
+    _stack.push_back(level);
+    switchToScene(level.scene);
+    notifyLevelChanged();
+}
+
+void DataflowViewsManger::updateBreadcrumb()
+{
+    const bool canBack = canGoBack();
+    if (_homeAction) {
+        _homeAction->setEnabled(canBack);
+        _homeAction->setVisible(canBack);
+    }
+    if (_backAction) {
+        _backAction->setEnabled(canBack);
+        _backAction->setVisible(canBack);
+    }
+    if (!_pathAction)
+        return;
+
+    if (_stack.empty()) {
+        _pathAction->setText(QStringLiteral("dataflow"));
+        _pathAction->setToolTip(QString());
+        if (_pathMenu)
+            _pathMenu->clear();
+        return;
     }
 
-    QObject::connect(model,
+    QStringList parts;
+    parts.reserve(static_cast<int>(_stack.size()));
+    for (auto const &lv : _stack)
+        parts << lv.title;
+
+    const QString pathText = parts.join(QStringLiteral(" > "));
+    _pathAction->setText(pathText);
+    _pathAction->setToolTip(pathText);
+
+    if (!_pathMenu)
+        return;
+
+    _pathMenu->clear();
+    const int n = static_cast<int>(_stack.size());
+    for (int i = 0; i < n; ++i) {
+        QAction *item = _pathMenu->addAction(_stack[static_cast<size_t>(i)].title);
+        const bool isCurrent = (i == n - 1);
+        item->setEnabled(!isCurrent);
+        item->setCheckable(true);
+        item->setChecked(isCurrent);
+        if (!isCurrent) {
+            connect(item, &QAction::triggered, this, [this, i]() {
+                goBackToLevel(i);
+            });
+        }
+    }
+}
+
+void DataflowViewsManger::goBackToLevel(int levelIndex)
+{
+    if (_isClearing || levelIndex < 0
+        || levelIndex >= static_cast<int>(_stack.size()) - 1) {
+        return;
+    }
+
+    rememberCurrentViewport();
+
+    while (static_cast<int>(_stack.size()) - 1 > levelIndex) {
+        if (_stack.back().container)
+            _stack.back().container->syncInterfaceFromInner();
+        _stack.pop_back();
+    }
+    switchToScene(_stack.back().scene);
+    notifyLevelChanged();
+}
+
+void DataflowViewsManger::goHome()
+{
+    goBackToLevel(0);
+}
+
+QString DataflowViewsManger::currentPath() const
+{
+    if (_stack.empty())
+        return {};
+    QStringList parts;
+    for (auto const &lv : _stack)
+        parts << lv.title;
+    return parts.join(QStringLiteral(" / "));
+}
+
+void DataflowViewsManger::notifyLevelChanged()
+{
+    emit currentLevelChanged(currentPath());
+}
+
+CustomFlowGraphicsScene *DataflowViewsManger::currentScene() const
+{
+    if (_stack.empty())
+        return nullptr;
+    return _stack.back().scene;
+}
+
+CustomDataFlowGraphModel *DataflowViewsManger::currentModel() const
+{
+    if (_stack.empty())
+        return nullptr;
+    return _stack.back().model;
+}
+
+void DataflowViewsManger::onNodeDoubleClicked(NodeId nodeId)
+{
+    if (_isClearing)
+        return;
+
+    auto *model = currentModel();
+    auto *scene = currentScene();
+    if (!model || !scene)
+        return;
+
+    auto *container = model->delegateModel<ContainerDataModel>(nodeId);
+    if (!container)
+        return;
+
+    // 双击在库里会切换 WidgetEmbeddable；Container 不需要嵌入控件
+    model->setNodeData(nodeId, NodeRole::WidgetEmbeddable, false);
+
+    container->setParentAlias(model->modelAlias());
+    container->setNodeID(nodeId);
+
+    auto &inner = container->ensureInnerModel();
+    // 仅空子图补默认 In/Out；已有内容时不要每次进入都 sync（会刷 dataUpdated）
+    if (inner.allNodeIds().empty())
+        container->seedDefaultInterfaceNodes();
+    container->refreshInnerModelAlias();
+    registerSnapshotForModel(&inner);
+
+    for (auto const &lv : _stack) {
+        if (lv.container == container && lv.scene)
+            return; // 已在栈上，禁止重复进入
+    }
+
+    CustomFlowGraphicsScene *innerScene = findSceneForModel(&inner);
+    if (!innerScene) {
+        innerScene = new CustomFlowGraphicsScene(inner, this);
+        connectSceneNavigation(innerScene);
+    }
+
+    QString title = container->getRemarks().trimmed();
+    if (title.isEmpty())
+        title = QStringLiteral("Container");
+
+    Level level;
+    level.model = &inner;
+    level.scene = innerScene;
+    level.title = title;
+    level.container = container;
+    pushLevel(level);
+}
+
+void DataflowViewsManger::goBack()
+{
+    if (_isClearing || !canGoBack())
+        return;
+
+    if (_stack.back().container)
+        _stack.back().container->syncInterfaceFromInner();
+
+    rememberCurrentViewport();
+
+    _stack.pop_back();
+    switchToScene(_stack.back().scene);
+    notifyLevelChanged();
+}
+
+void DataflowViewsManger::clearDataflow()
+{
+    QString const oldPath = currentPath();
+    if (!oldPath.isEmpty())
+        emit dataflowAboutToClear(oldPath);
+
+    GraphSnapshotBridge::instance()->clearAll();
+    clearStackAndScenes();
+    updateBreadcrumb();
+}
+
+void DataflowViewsManger::load(QJsonObject const &nodeJson)
+{
+    resetDataflow(QStringLiteral("dataflow"));
+    if (!_rootModel)
+        return;
+
+    QJsonObject sceneJson = nodeJson.value(QStringLiteral("scene")).toObject();
+    if (sceneJson.isEmpty())
+        return;
+
+    QObject::connect(_rootModel.get(),
                      &CustomDataFlowGraphModel::loadProgress,
                      this,
-                     [this, title](const QString& phase, int current, int total) {
-                         Q_EMIT loadProgress(title, phase, current, total);
+                     [this](const QString &phase, int current, int total) {
+                         Q_EMIT loadProgress(QStringLiteral("dataflow"), phase, current, total);
                      });
-    model->load(jsonDocument);
-    // if (_models.count(title)) return;
-    // _models.emplace(title, std::unique_ptr<CustomDataFlowGraphModel>(model));
-    //
-    // ads::CDockWidget* DockWidget = new ads::CDockWidget(m_DockManager,title);
-    //
-    // _DockWidget[title] = DockWidget;
-    //
-    // auto view  = new CustomGraphicsView(DockWidget);
-    //
-    // auto scene = new CustomFlowGraphicsScene(*model, view);
-    // // 说明：确保 Scene 作为 QObject 的父对象是 View，从而在 DockWidget 关闭时按父子链自动析构
-    // scene->setParent(view);
-    // view->setScene(scene);
-    //
-    // // 便捷行为：加载后居中显示
-    // QObject::connect(scene, &CustomFlowGraphicsScene::sceneLoaded, view, &GraphicsView::centerScene);
-    //
-    // DockWidget->setWidget(view);
-    // DockWidget->setIcon(QIcon(":/icons/icons/genealogy.png"));
-    // QMenu* OptionsMenu = new QMenu(DockWidget);
-    // OptionsMenu->setTitle(QObject::tr("Options"));
-    // OptionsMenu->setToolTip(OptionsMenu->title());
-    // OptionsMenu->setIcon(QIcon(":/icons/icons/options.png"));
-    // auto MenuAction = OptionsMenu->menuAction();
-    // // The object name of the action will be set for the QToolButton that
-    // // is created in the dock area title bar. You can use this name for CSS
-    // // styling
-    // MenuAction->setObjectName("optionsMenu");
-    // DockWidget->setTitleBarActions({OptionsMenu->menuAction()});
-    // auto a = OptionsMenu->addAction(QIcon(":/icons/icons/clear.png"),QObject::tr("Clear Dataflow"));
-    // // c->connect(a, SIGNAL(triggered()), SLOT(clear()));
-    // QObject::connect(a, &QAction::triggered, scene, &CustomFlowGraphicsScene::clear);
-    // auto b = OptionsMenu->addAction(QIcon(":/icons/icons/save.png"),QObject::tr("Save Child Dataflow"));
-    // QObject::connect(b, &QAction::triggered, scene, &CustomFlowGraphicsScene::save);
-    // auto c = OptionsMenu->addAction(QIcon(":/icons/icons/delete_database.png"),QObject::tr("Delete Dataflow"));
-    // QObject::connect(c, &QAction::triggered, this, [this, DockWidget, title](){
-    //     m_DockManager->removeDockWidget(DockWidget);
-    //     _models.erase(title);
-    //     emit removeScene(title);
-    // });
-    // auto d = OptionsMenu->addAction(QIcon(":/icons/icons/folder.png"),QObject::tr("Load Child Dataflow"));
-    // QObject::connect(d, &QAction::triggered, scene, &CustomFlowGraphicsScene::load);
-    // auto e = OptionsMenu->addAction(QIcon(":/icons/icons/lock.png"),QObject::tr("Lock Dataflow"));
-    // QObject::connect(e, &QAction::triggered, this, [this, title, e](){
-    //     auto& model = *_models.at(title);
-    //     model.setNodesLocked(!model.getNodesLocked());
-    //     e->setText(model.getNodesLocked()?QObject::tr("Unlock Dataflow"):QObject::tr("Lock Dataflow"));
-    //
-    // });
-    //
-    // if (m_DockManager) {
-    //     m_DockManager->addDockWidgetTab(ads::CenterDockWidgetArea, DockWidget);
-    //     m_DockManager->setWidgetFocus(DockWidget);
-    // }
-    // emit createNewScene(title);
 
-}
-
-void DataflowViewsManger::clearAllScenes() {
-    GraphSnapshotBridge::instance()->clearAll();
-    // 函数级注释：
-    // 作用：批量关闭并删除所有 DockWidget（连带 View/Scene 按父子关系销毁）， subsequent safe release model;
-    // 关键：阻塞 DockManager 信号，避免批量关闭时触发重布局和回调造成重入/性能问题
-     for (auto& kv : _models) {
-        emit removeScene(kv.first);
-    }
-    if (!m_DockManager) {
-        _DockWidget.clear();
-        _models.clear();
-        return;
-    }
-    const QSignalBlocker blocker(m_DockManager);
-
-    std::vector<ads::CDockWidget*> docks;
-    docks.reserve(_DockWidget.size());
-    for (auto& kv : _DockWidget) {
-        if (kv.second) docks.push_back(kv.second);
-    }
-    _DockWidget.clear();
-
-    for (auto* dock : docks) {
-        m_DockManager->removeDockWidget(dock);
-        delete dock;
+    try {
+        _rootModel->load(sceneJson);
+    } catch (std::exception const &e) {
+        qWarning() << "Dataflow load failed:" << e.what();
     }
 
-    _models.clear();
-}
-
-void DataflowViewsManger::load(QJsonObject const &nodeJson) {
-    clearAllScenes();
-    if (nodeJson.contains("tabs")) {
-        QJsonArray tabsArray = nodeJson["tabs"].toArray();
-        for (const auto& tabObj : tabsArray) {
-            if (tabObj.isObject()) {
-                QJsonObject tab = tabObj.toObject();
-                for (auto it = tab.begin(); it != tab.end(); ++it) {
-                    QString tabTitle = it.key();
-                    QJsonObject tabJson = it.value().toObject();
-                    addNewSceneFromeModel(tabTitle,tabJson);
-                }
-            }
-        }
+    if (wantsUi() && !_stack.empty() && _stack.back().scene) {
+        runWithoutViewportRepaint([this]() { restoreOrCenterViewport(_stack.back().scene, true); });
     }
 }
 
-QJsonObject DataflowViewsManger::save() const {
+QJsonObject DataflowViewsManger::save() const
+{
     QJsonObject root;
-    QJsonArray tabsArray;
-
-    for (const auto& mod : _models) {
-        QJsonObject tabObj;
-        tabObj.insert(mod.first, mod.second->save());
-        tabsArray.append(tabObj);   // 关键：把每个 tabObj 加到数组里
-    }
-
-    root.insert("tabs", tabsArray);  // 关键：把数组写进 root
+    if (_rootModel)
+        root[QStringLiteral("scene")] = _rootModel->save();
+    else
+        root[QStringLiteral("scene")] = QJsonObject{};
     return root;
 }
 
-std::map<QString, std::unique_ptr<CustomDataFlowGraphModel>> *DataflowViewsManger::getModel()
+void DataflowViewsManger::lockModelRecursive(CustomDataFlowGraphModel *model, bool locked)
 {
-    return &_models;
-}
-
-
-void DataflowViewsManger::setSceneLocked(bool locked)
-{
-    for (auto& kv : _models) {
-        kv.second->setNodesLocked(locked);
-    }
-}
-
-QStringList DataflowViewsManger::sceneTitles() const
-{
-    // 函数级注释：
-    // 说明：返回当前管理器维护的所有场景标题，便于外部（如 NodeListWidget）构建场景选择列表。
-    QStringList titles;
-    for (const auto& kv : _models) {
-        titles << kv.first;
-    }
-    return titles;
-}
-
-CustomFlowGraphicsScene* DataflowViewsManger::sceneByTitle(const QString& title) const
-{
-    // 函数级注释：
-    // 说明：通过 DockWidget -> CustomGraphicsView -> scene 链获取对应的 CustomFlowGraphicsScene 指针。
-    auto it = _DockWidget.find(title);
-    if (it == _DockWidget.end()) return nullptr;
-    ads::CDockWidget* dock = it->second;
-    if (!dock) return nullptr;
-    auto view = qobject_cast<CustomGraphicsView*>(dock->widget());
-    if (!view) return nullptr;
-    return qobject_cast<CustomFlowGraphicsScene*>(view->scene());
-}
-
-CustomDataFlowGraphModel* DataflowViewsManger::modelByTitle(const QString& title) const
-{
-    // 函数级注释：
-    // 说明：返回指定标题对应的数据流模型的裸指针，若不存在返回 nullptr。
-    auto it = _models.find(title);
-    if (it == _models.end()) return nullptr;
-    return it->second.get();
-}
-
-QString DataflowViewsManger::currentFocusedSceneTitle() const
-{
-    if (m_DockManager && m_DockManager->focusedDockWidget()) {
-        for (const auto& kv : _DockWidget) {
-            if (kv.second == m_DockManager->focusedDockWidget()) {
-                return kv.first;
-            }
-        }
-    }
-    if (!_models.empty()) {
-        return _models.begin()->first;
-    }
-    return {};
-}
-
-void DataflowViewsManger::focusedSceneTitle()
-{
-    // 仅在聚焦的 Dock 为 dataflow 场景页时通知外部，避免焦点切到节点列表等面板时误触发重建
-    if (!m_DockManager) {
+    if (!model)
         return;
-    }
-    ads::CDockWidget* focused = m_DockManager->focusedDockWidget();
-    if (!focused) {
-        return;
-    }
-    for (const auto& kv : _DockWidget) {
-        if (kv.second == focused) {
-            // 切页时键盘焦点常停在标签栏，View 上的 WidgetWithChildrenShortcut（如 Ctrl+F）会失效；
-            // 延迟一帧再 setFocus，避免与 Dock 焦点切换过程冲突。
-            if (auto *view = qobject_cast<CustomGraphicsView *>(focused->widget())) {
-                QPointer<CustomGraphicsView> viewPtr(view);
-                QTimer::singleShot(0, view, [viewPtr]() {
-                    if (viewPtr) {
-                        viewPtr->setFocus(Qt::OtherFocusReason);
-                    }
-                });
-            }
-            emit sceneIsActive(kv.first);
-            return;
+    model->setNodesLocked(locked);
+    for (NodeId id : model->allNodeIds()) {
+        if (auto *c = model->delegateModel<ContainerDataModel>(id)) {
+            if (auto *inner = c->innerModel())
+                lockModelRecursive(inner, locked);
         }
     }
 }
 
-void DataflowViewsManger::refreshAllScenes()
+void DataflowViewsManger::setDataflowLocked(bool locked)
 {
-    // 函数级注释：
-    // 说明：强制刷新所有场景和视图，用于主题切换后更新显示
+    lockModelRecursive(_rootModel.get(), locked);
+}
+
+void DataflowViewsManger::refreshView()
+{
     auto const &flowViewStyle = StyleCollection::flowViewStyle();
-    for (auto& kv : _DockWidget) {
-        ads::CDockWidget* dock = kv.second;
-        if (!dock) continue;
-        auto view = qobject_cast<CustomGraphicsView*>(dock->widget());
-        if (view) {
-            // 更新背景颜色
-            view->setBackgroundBrush(flowViewStyle.BackgroundColor);
-            // 强制更新视图（背景等）
-            view->update();
-            if (view->scene()) {
-                // 强制更新场景项
-                view->scene()->update();
-            }
-        }
-    }
+    if (!_view)
+        return;
+    _view->setBackgroundBrush(flowViewStyle.BackgroundColor);
+    _view->update();
+    if (_view->scene())
+        _view->scene()->update();
 }
