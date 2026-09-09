@@ -65,7 +65,10 @@ endif()
 
 
 # 设置ADS库
-set(ADS_INCLUDE_DIRS "${DEPENDS_DIR}/Qt-Advanced-Docking-System/src" )
+# ADS 5.x 起 ads_version.h 由 CMake 生成并安装到 MSVC/include/...，
+set(ADS_INCLUDE_DIRS
+    "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/include/qtadvanceddocking-qt6"
+)
 set(ADS_LIBRARIES "${DEPENDS_DIR}/Qt-Advanced-Docking-System/MSVC/lib/qtadvanceddocking-qt6.lib")
 INCLUDE_DIRECTORIES(${ADS_INCLUDE_DIRS})
 message("-- Found qt6advanceddocking ${ADS_INCLUDE_DIRS}")
@@ -228,6 +231,8 @@ set(CALC_SOURCE_FILES
         src/Widget/ConsoleWidget/LogWidget.cpp
         src/Widget/ConsoleWidget/LogHandler.cpp
         src/Widget/ConsoleWidget/LogHandler.hpp
+        src/Common/Log/LogRingBuffer.hpp
+        src/Common/Log/LogRingBuffer.cpp
         src/Widget/MenuBarWidget/MenuBarWidget.cpp
         src/Widget/MenuBarWidget/MenuBarWidget.h
         src/Widget/MenuBarWidget/SystemInfoWidget.cpp

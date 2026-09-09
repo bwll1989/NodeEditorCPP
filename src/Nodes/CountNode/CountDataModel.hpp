@@ -39,6 +39,10 @@ namespace Nodes
             Resizable=false;
             PortEditable=true;
 
+            // 计数仅显示，不可拖动/编辑
+            widget->countDisplay->setEnabled(false);
+            widget->countDisplay->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+
             {
                 NodeDelegateModel::ExternalBinding b;
                 b.member = "clear";
@@ -82,52 +86,25 @@ namespace Nodes
         }
 
         /**
-         * @brief 处理输出数据，使用JS引擎评估表达式，并在表达式成立时计数�?1
-         * @param portIndex 端口索引
-         * @return 提取后的数据，包含当前计数�?         */
+         * @brief 输出当前计数值
+         */
         std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
         {
             Q_UNUSED(portIndex)
-            if(m_InData==nullptr) {
-                return std::make_shared<VariableData>(m_count);
-            }
-
-            QString expression = widget->Editor->text();
-            bool expressionResult = false;
-            
-            // 将整个输入数据注册为JS全局变量$input
-            QJSValue jsInput = m_jsEngine->toScriptValue(m_InData->asMap());
-            m_jsEngine->globalObject().setProperty("$input", jsInput);
-            
-            // 执行表达�?
-            QJSValue result = m_jsEngine->evaluate(expression);
-            
-            if (result.isError()) {
-                qDebug() << "JS表达式错误" << result.toString();
-                return std::make_shared<VariableData>(m_count);
-            }
-            
-            // 获取表达式结果的布尔�?
-            expressionResult = result.toBool();
-            
-            // 如果表达式结果为true，计数器+1
-            if (expressionResult) {
-                setCount(m_count + 1);
-            }
-
             return std::make_shared<VariableData>(m_count);
         }
 
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override {
-            {
-                Q_UNUSED(portIndex);
-                if (data== nullptr){
-                    return;
-                }
-                m_InData = std::dynamic_pointer_cast<VariableData>(data);
-                Q_EMIT dataUpdated(0);
-
+            Q_UNUSED(portIndex);
+            if (data == nullptr) {
+                return;
             }
+            m_InData = std::dynamic_pointer_cast<VariableData>(data);
+            if (!m_InData) {
+                return;
+            }
+            evaluateAndMaybeCount();
+            Q_EMIT dataUpdated(0);
         }
 
 
@@ -165,6 +142,9 @@ namespace Nodes
         }
     private slots:
         void outDataSlot() {
+            if (m_InData) {
+                evaluateAndMaybeCount();
+            }
             Q_EMIT dataUpdated(0);
         }
 
@@ -178,7 +158,8 @@ namespace Nodes
         }
 
         /**
-         * @brief 清除计数器�?         */
+         * @brief 清除计数器
+         */
         void clearCount() {
             setCount(0);
             m_InData=nullptr;
@@ -215,6 +196,28 @@ namespace Nodes
             clearCount();
             m_clear = false;
             Q_EMIT clearChanged(false);
+        }
+
+        /** 用 JS 条件求值；为真则计数 +1 */
+        void evaluateAndMaybeCount()
+        {
+            if (!m_InData || !m_jsEngine) {
+                return;
+            }
+
+            const QString expression = widget->Editor->text();
+            QJSValue jsInput = m_jsEngine->toScriptValue(m_InData->asMap());
+            m_jsEngine->globalObject().setProperty("$input", jsInput);
+
+            QJSValue result = m_jsEngine->evaluate(expression);
+            if (result.isError()) {
+                qDebug() << "JS表达式错误" << result.toString();
+                return;
+            }
+
+            if (result.toBool()) {
+                setCount(m_count + 1);
+            }
         }
 
     signals:

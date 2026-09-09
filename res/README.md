@@ -35,7 +35,6 @@ Flow / FlowRuntime 在开发与分发过程中使用了以下第三方开源项�
 
 布局与交互模式参考 [Home Assistant Frontend](https://github.com/home-assistant/frontend)（Sections / Lovelace 风格）；**并非直接打包 HA 前端 npm 包**，而是在 Flow 中独立实现同类架构（`FlowStore`、`registerCard`、`createCardElement` 等）。
 
-> 仓库中仍保留早期 Vue 仪表盘控件源码（`src/Widget/ExternalControl/dashboard/`），供部分内置页面与 `ep-widgets` 兼容；新功能以 WebInterface 为主。
 
 ## 网络与通信
 

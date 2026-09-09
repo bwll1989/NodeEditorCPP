@@ -1,7 +1,7 @@
 #pragma once
 
 #include <QtCore/QVariantMap>
-#include <QtCore/QtMath>
+#include <QtCore/QVariantList>
 #include <QtWidgets/QWidget>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
@@ -73,24 +73,25 @@ namespace Nodes
             }
         }
 
-        /// 显示当前 Roll/Pitch/Yaw（度）
+        /// 显示 Roll/Pitch/Yaw：优先用 map.deg 向量（度）
         void updateOrientation(const QVariantMap& orientation)
         {
+            const QVariantList deg = orientation.value(QStringLiteral("deg")).toList();
             orientationLabel->setText(
                 QStringLiteral("R:%1° P:%2° Y:%3°")
-                    .arg(orientation.value(QStringLiteral("roll_deg")).toDouble(), 0, 'f', 2)
-                    .arg(orientation.value(QStringLiteral("pitch_deg")).toDouble(), 0, 'f', 2)
-                    .arg(orientation.value(QStringLiteral("yaw_deg")).toDouble(), 0, 'f', 2));
+                    .arg(deg.value(0).toDouble(), 0, 'f', 2)
+                    .arg(deg.value(1).toDouble(), 0, 'f', 2)
+                    .arg(deg.value(2).toDouble(), 0, 'f', 2));
         }
 
-        /// 显示当前 X/Y/Z 位置（米）
-        void updatePosition(const QVariantMap& position)
+        /// 显示当前 X/Y/Z 位置（米，列表 [x,y,z]）
+        void updatePosition(const QVariantList& position)
         {
             positionLabel->setText(
                 QStringLiteral("(%1, %2, %3) m")
-                    .arg(position.value(QStringLiteral("x")).toDouble(), 0, 'f', 3)
-                    .arg(position.value(QStringLiteral("y")).toDouble(), 0, 'f', 3)
-                    .arg(position.value(QStringLiteral("z")).toDouble(), 0, 'f', 3));
+                    .arg(position.value(0).toDouble(), 0, 'f', 3)
+                    .arg(position.value(1).toDouble(), 0, 'f', 3)
+                    .arg(position.value(2).toDouble(), 0, 'f', 3));
         }
 
         void showError(const QString& message)

@@ -69,15 +69,13 @@ export class FlowManualActionForm extends LitElement {
           <input
             type="text"
             .value=${this._name}
-            placeholder="留空则使用控制地址"
+            placeholder="留空则用地址"
             ?disabled=${this._adding}
             @input=${(ev: Event) => {
               this._name = (ev.target as HTMLInputElement).value;
             }}
           />
         </label>
-        ${this._error ? html`<p class="error">${this._error}</p>` : nothing}
-        ${this._success ? html`<p class="success">${this._success}</p>` : nothing}
         <div class="actions">
           <button
             type="button"
@@ -85,10 +83,12 @@ export class FlowManualActionForm extends LitElement {
             ?disabled=${this._adding}
             @click=${() => void this._submit()}
           >
-            ${this._adding ? "添加中…" : "添加到动作库"}
+            ${this._adding ? "添加中…" : "添加"}
           </button>
         </div>
       </div>
+      ${this._error ? html`<p class="error">${this._error}</p>` : nothing}
+      ${this._success ? html`<p class="success">${this._success}</p>` : nothing}
     `;
   }
 
@@ -97,51 +97,53 @@ export class FlowManualActionForm extends LitElement {
       display: block;
     }
     .help {
-      margin: 0 0 12px;
-      font-size: 13px;
-      line-height: 1.45;
+      margin: 0 0 8px;
+      font-size: 12px;
+      line-height: 1.4;
       color: var(--secondary-text-color);
     }
     .form {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: end;
     }
     .field {
       display: flex;
       flex-direction: column;
-      gap: 6px;
-      margin-bottom: 12px;
+      gap: 4px;
+      min-width: 0;
     }
     .label {
-      font-size: 13px;
+      font-size: 12px;
       color: var(--secondary-text-color);
     }
     input {
       width: 100%;
       box-sizing: border-box;
+      height: 32px;
       font: inherit;
+      font-size: 13px;
       border: 1px solid var(--divider-color);
       border-radius: 8px;
-      padding: 8px 10px;
+      padding: 0 8px;
       color: var(--primary-text-color);
       background: #fff;
     }
-    .error {
-      margin: -4px 0 8px;
+    .error,
+    .success {
+      margin: 6px 0 0;
       font-size: 12px;
+    }
+    .error {
       color: var(--error-color, #db4437);
     }
     .success {
-      margin: -4px 0 8px;
-      font-size: 12px;
       color: var(--success-color, #0f9d58);
     }
     .actions {
       display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
+      align-items: flex-end;
     }
     .btn {
       border: 1px solid var(--divider-color);
@@ -151,8 +153,10 @@ export class FlowManualActionForm extends LitElement {
       font: inherit;
       font-size: 13px;
       font-weight: 600;
-      padding: 8px 14px;
+      height: 32px;
+      padding: 0 12px;
       cursor: pointer;
+      white-space: nowrap;
     }
     .btn.primary {
       border-color: var(--primary-color);
@@ -162,6 +166,14 @@ export class FlowManualActionForm extends LitElement {
     .btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
+    }
+    @media (max-width: 520px) {
+      .form {
+        grid-template-columns: 1fr;
+      }
+      .actions {
+        justify-content: flex-start;
+      }
     }
   `;
 }

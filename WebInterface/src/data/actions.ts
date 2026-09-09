@@ -105,6 +105,7 @@ export async function patchAction(
     });
     if (!res.ok) return undefined;
     const data = (await res.json()) as { ok?: boolean; item?: FlowAction };
+    notifyActionsChanged();
     return data.item;
   } catch {
     return undefined;
@@ -120,7 +121,9 @@ export async function deleteAction(entity: string): Promise<boolean> {
     });
     if (!res.ok) return false;
     const data = (await res.json()) as { ok?: boolean };
-    return Boolean(data.ok);
+    const ok = Boolean(data.ok);
+    if (ok) notifyActionsChanged();
+    return ok;
   } catch {
     return false;
   }

@@ -128,7 +128,7 @@ void MainWindowHeadLess::init()
 
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
         trayIcon = new QSystemTrayIcon(this);
-        trayIcon->setIcon(QIcon(":/icons/icons/FlowRed.png"));
+        trayIcon->setIcon(QIcon(":/icons/icons/FlowMono.png"));
         trayMenu = new QMenu(this);
         trayExitAction = trayMenu->addAction(tr("  退出  "));
         connect(trayExitAction, &QAction::triggered, this, []() {

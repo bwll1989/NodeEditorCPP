@@ -288,7 +288,7 @@ export class HaEntityPicker extends LitElement {
           ? html`
               <div class="menu" style=${styleMap(this._menuStyle)}>
                 <div class="section empty-hint">
-                  <p>未找到匹配动作，请先在设置页添加到动作库</p>
+                  <p>未找到匹配动作，请先在侧边栏「动作库」中添加</p>
                 </div>
               </div>
             `

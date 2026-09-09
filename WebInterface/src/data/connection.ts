@@ -40,10 +40,27 @@ export class FlowWebSocketConnection implements FlowConnection {
           heartbeat?: boolean;
           query?: unknown;
           event?: string;
+          seq?: number;
+          timestamp?: string;
+          level?: string;
+          message?: string;
         };
         if (msg.heartbeat) return;
         if (msg.event === "actions_changed") {
           document.dispatchEvent(new CustomEvent("flow-actions-changed", { detail: msg }));
+          return;
+        }
+        if (msg.event === "log") {
+          document.dispatchEvent(
+            new CustomEvent("flow-log-entry", {
+              detail: {
+                seq: Number(msg.seq ?? 0),
+                timestamp: String(msg.timestamp ?? ""),
+                level: String(msg.level ?? "Info"),
+                message: String(msg.message ?? ""),
+              },
+            }),
+          );
           return;
         }
         const address = msg.address || msg.addr;

@@ -48,15 +48,15 @@ namespace Nodes
             WidgetEmbeddable = false;
             Resizable = false;
 
-            // 初始化四个输出端口的默认数据
-            m_orientationData = std::make_shared<VariableData>(QVariantMap{});
-            m_positionData = std::make_shared<VariableData>(QVariantMap{});
-            m_connectionData = std::make_shared<VariableData>(false);
-            m_localizationData = std::make_shared<VariableData>(QVariantMap{
-                {QStringLiteral("state"), QStringLiteral("unknown")},
-                {QStringLiteral("state_text"), QStringLiteral("未知")},
-                {QStringLiteral("localized"), false},
+            // ORIENTATION：map{rad,deg,default}；POSITION：[x,y,z]；LOCALIZATION：bool
+            m_orientationData = std::make_shared<VariableData>(QVariantMap{
+                {QStringLiteral("rad"), QVariantList{0.0, 0.0, 0.0}},
+                {QStringLiteral("deg"), QVariantList{0.0, 0.0, 0.0}},
+                {QStringLiteral("default"), QVariantList{0.0, 0.0, 0.0}},
             });
+            m_positionData = std::make_shared<VariableData>(QVariantList{0.0, 0.0, 0.0});
+            m_connectionData = std::make_shared<VariableData>(false);
+            m_localizationData = std::make_shared<VariableData>(false);
 
             // worker 运行在独立线程，避免阻塞 UI
             m_worker = new AuroraSWorker();
@@ -127,7 +127,10 @@ namespace Nodes
 
             m_uiUpdateTimer.start();
             m_workerThread->start();
-            restartMonitor();
+            // 注意：不在构造里 restartMonitor。
+            // 打开工程时顺序是 ctor → load(存盘地图) → afterModelReady；
+            // 若此处先用默认 auroramap.stcm 启动，随后 load 再 queue 一次 runSession
+            // 会被 sessionActive 挡掉，表现为「保存的地图不会自动上传」。
         }
 
         ~AuroraSDataModel() override
@@ -136,29 +139,45 @@ namespace Nodes
             m_restartPending = false;
             GlobalEventBus::instance()->unsubscribe(this);
 
-            if (m_worker) {
-                disconnect(m_worker, nullptr, this, nullptr);
-                m_worker->requestStop();
+            if (!m_worker) {
+                return;
+            }
 
-                // 等待 runSession 退出（最多约 8 秒）
-                for (int i = 0; i < 800 && m_worker->isSessionActive(); ++i) {
-                    QThread::msleep(10);
-                }
+            // 断开回 UI 的信号，避免析构后 queued slot 再碰已销毁对象
+            disconnect(m_worker, nullptr, this, nullptr);
+            m_worker->requestStop();
 
-                if (m_workerThread && m_workerThread->isRunning()) {
-                    // 在 worker 线程内 delete worker，避免跨线程析构 SDK
-                    QMetaObject::invokeMethod(
-                        m_worker, "shutdownAndDelete", Qt::BlockingQueuedConnection);
-                    m_worker = nullptr;
-                    m_workerThread->quit();
-                    if (!m_workerThread->wait(5000)) {
-                        m_workerThread->terminate();
-                        m_workerThread->wait(1000);
-                    }
-                } else if (m_worker) {
-                    m_worker->shutdown();
-                    m_worker = nullptr;
+            QThread* thread = m_workerThread;
+            AuroraSWorker* worker = m_worker;
+            m_worker = nullptr;
+            m_workerThread = nullptr;
+
+            if (!thread) {
+                worker->shutdown();
+                delete worker;
+                return;
+            }
+
+            // 拆离线程：不在 UI 线程 wait / BlockingQueued，避免删除节点时卡死
+            // （原先最长约 8s 自旋 + 同步 SDK cleanup + 最多 6s wait）
+            thread->setParent(nullptr);
+            QObject::connect(thread, &QThread::finished, worker, &QObject::deleteLater);
+            QObject::connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+            if (worker->isSessionActive()) {
+                // runSession 退出时会 cleanupSdk 并 emit sessionFinished → quit
+                QObject::connect(worker,
+                                 &AuroraSWorker::sessionFinished,
+                                 thread,
+                                 &QThread::quit,
+                                 Qt::QueuedConnection);
+                // 竞态：连接前会话已结束，补一次 quit
+                if (!worker->isSessionActive()) {
+                    thread->quit();
                 }
+            } else {
+                // 无活跃会话：在 worker 线程清理 SDK 后 quit
+                QMetaObject::invokeMethod(worker, "prepareThreadExit", Qt::QueuedConnection);
             }
         }
 
@@ -176,7 +195,9 @@ namespace Nodes
             }
 
             emit hostChanged(m_host);
-            restartMonitor();
+            if (m_sessionBootstrapped) {
+                restartMonitor();
+            }
         }
 
         QString getMapFilePath() const { return m_mapFilePath; }
@@ -189,11 +210,15 @@ namespace Nodes
 
             if (widget) {
                 QSignalBlocker blocker(widget->mapFileSelector);
+                // 存盘路径若不在媒体库列表里，补进下拉，避免只显示文本却像未选中
+                widget->mapFileSelector->addIfNotExists(m_mapFilePath);
                 widget->mapFileSelector->setCurrentValue(m_mapFilePath);
             }
 
             emit mapFilePathChanged(m_mapFilePath);
-            restartMonitor();
+            if (m_sessionBootstrapped) {
+                restartMonitor();
+            }
         }
 
         bool getConnected() const { return m_connected; }
@@ -308,6 +333,7 @@ namespace Nodes
         {
             const QJsonValue values = json.value(QStringLiteral("values"));
             if (values.isObject()) {
+                // load 阶段不启动会话（见 m_sessionBootstrapped）；只写入最终 host/地图
                 setHost(values[QStringLiteral("Host")].toString(m_host));
                 setMapFilePath(values[QStringLiteral("MapFilePath")].toString(m_mapFilePath));
             }
@@ -339,6 +365,10 @@ namespace Nodes
                 AbstractDelegateModel::makeFullOscAddress("/reinitialize"),
                 this,
                 SLOT(onGlobalEvent(GlobalEvent)));
+
+            // 工程 load 完成后再连设备并上传存盘地图
+            m_sessionBootstrapped = true;
+            restartMonitor();
         }
 
     public slots:
@@ -375,7 +405,7 @@ namespace Nodes
             Q_EMIT dataUpdated(2);
         }
 
-        void onPoseSampleReady(const QVariantMap& orientation, const QVariantMap& position)
+        void onPoseSampleReady(const QVariantMap& orientation, const QVariantList& position)
         {
             if (m_shuttingDown) {
                 return;
@@ -403,7 +433,9 @@ namespace Nodes
             if (m_shuttingDown || !widget) {
                 return;
             }
-            m_localizationData = std::make_shared<VariableData>(status);
+            // 端口仅输出 localized 布尔；面板仍用完整状态 map
+            m_localizationData = std::make_shared<VariableData>(
+                status.value(QStringLiteral("localized")).toBool());
             widget->updateLocalizationStatus(status);
             Q_EMIT dataUpdated(3);
         }
@@ -423,21 +455,39 @@ namespace Nodes
         /// 会话因 restartMonitor 停止后，用 pending 参数重新启动
         void onSessionFinished()
         {
+            m_sessionStartQueued = false;
             if (m_shuttingDown || !m_restartPending) {
                 return;
             }
 
             m_restartPending = false;
-            if (!m_worker || !m_workerThread || !m_workerThread->isRunning()) {
+            queueSessionStart();
+        }
+
+        /// 在事件队列中启动会话，执行时再读 pending，避免 ctor/load 竞态用错地图
+        void startSessionFromPending()
+        {
+            m_sessionStartQueued = false;
+            if (m_shuttingDown || !m_sessionBootstrapped || !m_worker || !m_workerThread
+                || !m_workerThread->isRunning()) {
                 return;
             }
 
+            if (m_worker->isSessionActive()) {
+                m_restartPending = true;
+                m_worker->requestStop();
+                return;
+            }
+
+            // 此刻再取 pending：load / 连续改地图后仍是最终值
+            const QString host = m_pendingHost;
+            const QString mapFile = m_pendingMapFilePath;
             QMetaObject::invokeMethod(
                 m_worker,
                 "runSession",
                 Qt::QueuedConnection,
-                Q_ARG(QString, m_pendingHost),
-                Q_ARG(QString, m_pendingMapFilePath));
+                Q_ARG(QString, host),
+                Q_ARG(QString, mapFile));
         }
 
     signals:
@@ -447,10 +497,25 @@ namespace Nodes
         void reinitializeChanged(bool value);
 
     private:
+        void queueSessionStart()
+        {
+            m_pendingHost = m_host;
+            m_pendingMapFilePath = m_mapFilePath;
+            if (m_sessionStartQueued) {
+                return; // 已有排队启动，只会用最新 pending
+            }
+            m_sessionStartQueued = true;
+            QMetaObject::invokeMethod(
+                this,
+                "startSessionFromPending",
+                Qt::QueuedConnection);
+        }
+
         /// host/地图变更时重启监控：若会话活跃则先 requestStop，等 sessionFinished 后再 runSession
         void restartMonitor()
         {
-            if (m_shuttingDown || !m_worker || !m_workerThread || !m_workerThread->isRunning()) {
+            if (m_shuttingDown || !m_sessionBootstrapped || !m_worker || !m_workerThread
+                || !m_workerThread->isRunning()) {
                 return;
             }
 
@@ -463,12 +528,7 @@ namespace Nodes
                 return;
             }
 
-            QMetaObject::invokeMethod(
-                m_worker,
-                "runSession",
-                Qt::QueuedConnection,
-                Q_ARG(QString, m_host),
-                Q_ARG(QString, m_mapFilePath));
+            queueSessionStart();
         }
 
         void requestReinitialize()
@@ -495,6 +555,8 @@ namespace Nodes
         bool m_connected = false;
         bool m_reinitialize = false;
         bool m_restartPending = false;
+        bool m_sessionBootstrapped = false; ///< afterModelReady 后才允许连设备/传图
+        bool m_sessionStartQueued = false;  ///< 已 queue runSession、尚未真正进入会话
         std::atomic<bool> m_shuttingDown{false};
 
         QElapsedTimer m_uiUpdateTimer;

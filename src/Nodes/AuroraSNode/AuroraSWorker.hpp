@@ -3,6 +3,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QPointer>
 #include <QtCore/QString>
+#include <QtCore/QVariantList>
 #include <QtCore/QVariantMap>
 #include <QtCore/QMutex>
 #include <atomic>
@@ -45,12 +46,13 @@ public slots:
     void reinitializeSession(const QString& mapFilePath);
     void stopSession();
     void shutdown();
-    /// 在 worker 线程内清理 SDK 并 delete this（析构路径专用）
-    void shutdownAndDelete();
+    /// 无活跃会话时：在 worker 线程清理 SDK 并 quit 所属 QThread（异步析构路径）
+    void prepareThreadExit();
 
 signals:
     void connectionChanged(bool connected);
-    void poseSampleReady(const QVariantMap& orientation, const QVariantMap& position);
+    /// ORIENTATION map：`rad`/`deg` 均为 [roll,pitch,yaw]；POSITION = [x,y,z] m
+    void poseSampleReady(const QVariantMap& orientation, const QVariantList& position);
     void localizationStatusReady(const QVariantMap& status);
     void errorOccurred(const QString& message);
     void sessionFinished();
@@ -58,10 +60,8 @@ signals:
 private:
     class SdkListener;
 
-    static QVariantMap orientationToMap(uint64_t timestampNs,
-                                        const slamtec_aurora_sdk_pose_se3_t& pose);
-    static QVariantMap positionToMap(uint64_t timestampNs,
-                                     const slamtec_aurora_sdk_pose_se3_t& pose);
+    static QVariantMap orientationToMap(const slamtec_aurora_sdk_pose_se3_t& pose);
+    static QVariantList positionToList(const slamtec_aurora_sdk_pose_se3_t& pose);
     static QVariantMap localizationStatusToMap(const QString& state);
     static QString localizationStateText(const QString& state);
 

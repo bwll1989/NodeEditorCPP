@@ -121,6 +121,13 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
 
 MainWindow::~MainWindow()
 {
+    if (httpServer) {
+        if (httpServer->running()) {
+            httpServer->stop();
+        }
+        delete httpServer;
+        httpServer = nullptr;
+    }
     delete controller;
     delete timeline;
 }
@@ -656,6 +663,9 @@ void MainWindow::setupAutosave()
         if (isRestarting) {
             return;
         }
+        if (httpServer && httpServer->running()) {
+            httpServer->stop();
+        }
         finalizeAutosave();
         ProjectPersistence::markCleanShutdown();
     });
@@ -714,7 +724,7 @@ void MainWindow::saveFileToPath(){
         return;
     }
     if (saveProjectSnapshotAtomic(currentProjectPath, serializeProject())) {
-        // qDebug() << "Saved data to" << currentProjectPath;
+        qDebug() << "Saved data to" << currentProjectPath;
         if (autosaveManager) {
             autosaveManager->clearRecovery();
         }
@@ -796,6 +806,10 @@ void MainWindow::closeEvent(QCloseEvent* event)
             this->hide();
             event->ignore(); // 保持进程运行
         } else if (reply == QMessageBox::No) {
+            // 先停 HTTP/WebSocket，再打退出日志，避免日志广播 sendFrame 拖慢关闭
+            if (httpServer && httpServer->running()) {
+                httpServer->stop();
+            }
             qDebug() << "The program exits manually";
             finalizeAutosave();
             ProjectPersistence::markCleanShutdown();
@@ -804,6 +818,9 @@ void MainWindow::closeEvent(QCloseEvent* event)
             event->ignore();
         }
     } else {
+        if (httpServer && httpServer->running()) {
+            httpServer->stop();
+        }
         finalizeAutosave();
         ProjectPersistence::markCleanShutdown();
         event->accept();

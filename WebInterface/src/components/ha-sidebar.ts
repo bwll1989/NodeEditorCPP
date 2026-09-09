@@ -1,10 +1,10 @@
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import { mdiCog, mdiHome, mdiMenu, mdiMenuOpen } from "@mdi/js";
+import { mdiClipboardTextOutline, mdiCog, mdiHome, mdiLightningBolt, mdiMenu, mdiMenuOpen, mdiPlayBoxMultipleOutline } from "@mdi/js";
 import { fireEvent } from "../common/dom/fire_event";
 import "./ha-icon";
 
-export type FlowPanel = "home" | "config";
+export type FlowPanel = "home" | "actions" | "logs" | "media" | "config";
 
 const SIDEBAR_TITLE = "Flow Dashboard";
 const SIDEBAR_EXPANDED_KEY = "flow_sidebar_expanded";
@@ -115,6 +115,21 @@ export class HaSidebar extends LitElement {
               panel: "home",
               iconPath: mdiHome,
               label: "Home",
+            })}
+            ${this._renderNavItem({
+              panel: "actions",
+              iconPath: mdiLightningBolt,
+              label: "动作库",
+            })}
+            ${this._renderNavItem({
+              panel: "logs",
+              iconPath: mdiClipboardTextOutline,
+              label: "日志",
+            })}
+            ${this._renderNavItem({
+              panel: "media",
+              iconPath: mdiPlayBoxMultipleOutline,
+              label: "媒体",
             })}
           </div>
 

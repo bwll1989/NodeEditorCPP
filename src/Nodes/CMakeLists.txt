@@ -14,6 +14,9 @@ set(ALL_NODES
     TimeLineNode                              #时间轴模块
     UDPSocketNode                             #UDP模块
     SerialPortNode                            #串口模块
+    CanBusNode                                #CAN (candleLight/gs_usb)
+    RangerMiniNode                            #AgileX Ranger Mini 3.0 (+ Nav Controller)
+    MissionNode                               #导航任务 Nav Missions
     DelayNode                                 #延迟模块
     LogicOperationNode                        #逻辑操作模块
     MathOperationNode                         #数学操作模块
@@ -31,11 +34,13 @@ set(ALL_NODES
     MergeNode                                 #数据合并
     OscInNode                                 #OSC输入
     OscOutNode                                #OSC输出
+    SyncNode                                  #跨主机 Variable 同步 Sync Out/In
     ArtnetInNode                              #Arnet输入
     MpvControllerNode                         #mpv控制
     PingNode                                  #ICMP ping 连通性
     VLC_ControllerNode                            #VLC远程控制
     SPlayControllerNode                       #ENTTEC S-Play 多 playlist 控制
+    QSysQrcNode                               #Q-SYS ECP（Extract Named Controls XML）
     SwitchNode                                #输入切换
     ConditionNode                             #条件判断
     WebSocketServerNode                       #WebSocket服务器
@@ -120,6 +125,9 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(TimeLineNode)                              #时间轴模块
     add_subdirectory(UDPSocketNode)                             #UDP模块
     add_subdirectory(SerialPortNode)                            #串口模块
+    add_subdirectory(CanBusNode)                                #CAN (candleLight/gs_usb)
+    add_subdirectory(RangerMiniNode)                            #AgileX Ranger Mini 3.0 (+ Nav Controller)
+    add_subdirectory(MissionNode)                               #导航任务 Nav Missions
     add_subdirectory(DelayNode)                                 #延迟模块
     add_subdirectory(LogicOperationNode)                        #逻辑操作模块
     add_subdirectory(MathOperationNode)                         #数学操作模块
@@ -137,11 +145,13 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(MergeNode)                                 #数据合并
     add_subdirectory(OscInNode)                                 #OSC输入
     add_subdirectory(OscOutNode)                                #OSC输出
+    add_subdirectory(SyncNode)                                  #跨主机 Variable 同步
     add_subdirectory(ArtnetInNode)                              #Arnet输入
     add_subdirectory(MpvControllerNode)                         #mpv控制
     add_subdirectory(PingNode)                                  #ICMP ping 连通性
     add_subdirectory(VLC_ControllerNode)                            #VLC远程控制
     add_subdirectory(SPlayControllerNode)                       #ENTTEC S-Play 多 playlist 控制
+    add_subdirectory(QSysQrcNode)                               #Q-SYS ECP（Extract Named Controls XML）
     add_subdirectory(SwitchNode)                                #输入切换
     add_subdirectory(ConditionNode)                             #条件判断
     add_subdirectory(WebSocketServerNode)                       #WebSocket服务器

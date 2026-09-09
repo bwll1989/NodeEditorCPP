@@ -12,6 +12,7 @@ add_library(${Module_Name} SHARED
         RangeMapDataModel.hpp
         RangeMapInterface.hpp
         FeedbackDataModel.hpp
+        LogOutDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
         ../../Common/Devices/JSEngineDefines/JSEngineDefines.hpp

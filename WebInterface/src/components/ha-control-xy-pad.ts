@@ -2,6 +2,7 @@ import { css, html, LitElement } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
 import {
+  centerXyPoint,
   normalizeXyPoint,
   type XyPoint,
 } from "../common/entity/xy-pad";
@@ -9,6 +10,7 @@ import {
 /**
  * HA-style 2D XY pad control (pointer + keyboard).
  * Emits `value-changed` with `{ x, y }` in configured axis ranges.
+ * Default Y: pad top = yMax. When invertY, pad top = yMin (up = negative).
  */
 @customElement("ha-control-xy-pad")
 export class HaControlXyPad extends LitElement {
@@ -26,10 +28,13 @@ export class HaControlXyPad extends LitElement {
 
   @property({ type: Number }) public step = 0.01;
 
-  /** When true, top of pad maps to yMax (screen-style). */
-  @property({ type: Boolean, attribute: "invert-y" }) public invertY = true;
+  /** When true, pad top maps to yMin (upward is negative). */
+  @property({ type: Boolean }) public invertY = false;
 
-  @property({ type: Boolean, attribute: "show-grid" }) public showGrid = true;
+  @property({ type: Boolean }) public showGrid = true;
+
+  /** When true, pointer release snaps handle to range center. */
+  @property({ type: Boolean }) public snapCenter = false;
 
   @property({ type: Boolean, reflect: true }) public disabled = false;
 
@@ -69,7 +74,7 @@ export class HaControlXyPad extends LitElement {
     const py = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
 
     const x = this.xMin + px * (this.xMax - this.xMin);
-    const yRatio = this.invertY ? 1 - py : py;
+    const yRatio = this.invertY ? py : 1 - py;
     const y = this.yMin + yRatio * (this.yMax - this.yMin);
 
     const next = this._normalize({ x, y });
@@ -101,6 +106,16 @@ export class HaControlXyPad extends LitElement {
     } catch {
       // ignore
     }
+
+    if (this.snapCenter) {
+      const center = this._normalize(
+        centerXyPoint(this.xMin, this.xMax, this.yMin, this.yMax),
+      );
+      this.x = center.x;
+      this.y = center.y;
+      this._emitChange(center);
+    }
+
     this.dispatchEvent(
       new CustomEvent("drag-end", {
         bubbles: true,
@@ -124,10 +139,10 @@ export class HaControlXyPad extends LitElement {
         nextX -= step;
         break;
       case "ArrowUp":
-        nextY += this.invertY ? step : -step;
+        nextY += this.invertY ? -step : step;
         break;
       case "ArrowDown":
-        nextY += this.invertY ? -step : step;
+        nextY += this.invertY ? step : -step;
         break;
       case "Home":
         nextX = this.xMin;
@@ -153,7 +168,7 @@ export class HaControlXyPad extends LitElement {
     const ySpan = this.yMax - this.yMin || 1;
     const left = ((this.x - this.xMin) / xSpan) * 100;
     const yRatio = (this.y - this.yMin) / ySpan;
-    const top = (this.invertY ? 1 - yRatio : yRatio) * 100;
+    const top = (this.invertY ? yRatio : 1 - yRatio) * 100;
     return {
       left: `${left}%`,
       top: `${top}%`,

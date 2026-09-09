@@ -37,10 +37,14 @@ namespace Flow {
                            
         // 函数级注释：发送数据给客户端
         void send(const std::string& message);
+
+        /** @brief 强制关闭套接字，解除 receiveFrame 阻塞以便服务端快速退出 */
+        void forceClose();
         
     private:
         NodeHttpServer& _server;
         Poco::Net::WebSocket* _ws = nullptr;
+        QMutex _sendMutex;
     };
 
     class StaticRequestHandler final : public Poco::Net::HTTPRequestHandler {
@@ -77,6 +81,8 @@ namespace Flow {
         void handleGetCurrentFlowInfo(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
         // 函数级注释：获取软件名称与版本（返回JSON）
         void handleGetAppInfo(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response);
+        void handleApiLogs(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& subPath);
+        void handleApiMedia(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& subPath);
         void handleStaticFile(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response, const std::string& path);
         
         // Utility to send JSON response

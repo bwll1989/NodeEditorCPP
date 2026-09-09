@@ -23,6 +23,7 @@
 
 #include "../../Common/AppConfig/ConfigManager.h"
 #include "../../Common/AppConfig/ConstantDefines.h"
+#include "../../Common/Log/LogRingBuffer.hpp"
 
 namespace {
 
@@ -206,6 +207,7 @@ void LogHandler::customMessageHandler(QtMsgType type,
     } catch (...) {
     }
 
+    LogRingBuffer::instance().append(timestamp, level, logMessage);
     appendLogToTable(timestamp, level, logMessage);
 }
 

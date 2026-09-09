@@ -4,6 +4,7 @@
 #include <QtCore/QAbstractEventDispatcher>
 #include <QtCore/QEventLoop>
 #include <QtCore/QFileInfo>
+#include <QtCore/QThread>
 #include <QtCore/QtMath>
 
 #include "Common/AppConfig/ConstantDefines.h"
@@ -162,6 +163,7 @@ AuroraSWorker::~AuroraSWorker()
 void AuroraSWorker::requestStop()
 {
     m_running.store(false);
+    m_abortSleep.store(true); // 立即打断 interruptibleSleep，缩短会话退出时间
 }
 
 void AuroraSWorker::stopSession()
@@ -177,10 +179,17 @@ void AuroraSWorker::shutdown()
     m_sessionActive.store(false);
 }
 
-void AuroraSWorker::shutdownAndDelete()
+void AuroraSWorker::prepareThreadExit()
 {
-    shutdown();
-    delete this;
+    // 仅在无 runSession 栈帧时清理；活跃会话由 runSession 自己 cleanupSdk
+    if (!m_sessionActive.load()) {
+        shutdown();
+    } else {
+        requestStop();
+    }
+    if (QThread* t = thread()) {
+        t->quit();
+    }
 }
 
 void AuroraSWorker::notifyConnectionChanged(bool connected)
@@ -283,6 +292,10 @@ void AuroraSWorker::cleanupSdk()
     m_listener.reset();
 
     if (m_sdk != nullptr) {
+        // 删除节点时尽快打断可能仍在进行的地图上传
+        if (m_sdk->mapManager.isSessionActive()) {
+            m_sdk->mapManager.abortSession();
+        }
         m_sdk->dataProvider.stopPoseAugmentation();
         m_sdk->disconnect();
         RemoteSDK::DestroySession(m_sdk);
@@ -290,32 +303,27 @@ void AuroraSWorker::cleanupSdk()
     }
 }
 
-QVariantMap AuroraSWorker::orientationToMap(uint64_t timestampNs,
-                                            const slamtec_aurora_sdk_pose_se3_t& pose)
+QVariantMap AuroraSWorker::orientationToMap(const slamtec_aurora_sdk_pose_se3_t& pose)
 {
     slamtec_aurora_sdk_euler_angle_t euler{};
     slamtec_aurora_sdk_convert_quaternion_to_euler(&pose.quaternion, &euler);
 
+    const QVariantList rad{euler.roll, euler.pitch, euler.yaw};
+    const QVariantList deg{qRadiansToDegrees(euler.roll),
+                           qRadiansToDegrees(euler.pitch),
+                           qRadiansToDegrees(euler.yaw)};
+
     QVariantMap map;
-    map.insert(QStringLiteral("timestamp_ns"), static_cast<qulonglong>(timestampNs));
-    map.insert(QStringLiteral("roll"), euler.roll);
-    map.insert(QStringLiteral("pitch"), euler.pitch);
-    map.insert(QStringLiteral("yaw"), euler.yaw);
-    map.insert(QStringLiteral("roll_deg"), qRadiansToDegrees(euler.roll));
-    map.insert(QStringLiteral("pitch_deg"), qRadiansToDegrees(euler.pitch));
-    map.insert(QStringLiteral("yaw_deg"), qRadiansToDegrees(euler.yaw));
+    map.insert(QStringLiteral("rad"), rad);
+    map.insert(QStringLiteral("deg"), deg);
+    // 主载荷：asFloats() 默认读 default → 弧度向量
+    map.insert(QStringLiteral("default"), rad);
     return map;
 }
 
-QVariantMap AuroraSWorker::positionToMap(uint64_t timestampNs,
-                                         const slamtec_aurora_sdk_pose_se3_t& pose)
+QVariantList AuroraSWorker::positionToList(const slamtec_aurora_sdk_pose_se3_t& pose)
 {
-    QVariantMap map;
-    map.insert(QStringLiteral("timestamp_ns"), static_cast<qulonglong>(timestampNs));
-    map.insert(QStringLiteral("x"), pose.translation.x);
-    map.insert(QStringLiteral("y"), pose.translation.y);
-    map.insert(QStringLiteral("z"), pose.translation.z);
-    return map;
+    return QVariantList{pose.translation.x, pose.translation.y, pose.translation.z};
 }
 
 QString AuroraSWorker::localizationStateText(const QString& state)
@@ -495,7 +503,8 @@ bool AuroraSWorker::performRelocalizationWithRetry()
 void AuroraSWorker::emitPoseSample(uint64_t timestampNs,
                                    const slamtec_aurora_sdk_pose_se3_t& pose)
 {
-    emit poseSampleReady(orientationToMap(timestampNs, pose), positionToMap(timestampNs, pose));
+    Q_UNUSED(timestampNs)
+    emit poseSampleReady(orientationToMap(pose), positionToList(pose));
 }
 
 bool AuroraSWorker::connectToDevice(const QString& host,
@@ -666,7 +675,7 @@ void AuroraSWorker::runSession(const QString& host, const QString& mapFilePath)
             m_mapUploadedInSession.store(false);
         }
 
-        runConnectedSession(host, mapFilePath);
+        runConnectedSession(host, m_sessionMapFilePath);
 
         if (!m_running.load()) {
             break;

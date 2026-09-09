@@ -35,7 +35,7 @@ class VecSourceDataModel : public AbstractDelegateModel
 public:
     VecSourceDataModel()
     {
-        InPortCount = 5;
+        InPortCount = 4;
         OutPortCount = 1;
         CaptionVisible = true;
         Caption = QStringLiteral("Vector Source");

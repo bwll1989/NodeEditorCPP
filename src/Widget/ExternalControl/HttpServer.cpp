@@ -13,10 +13,12 @@
 #include "Common/Devices/OSCSender/OSCSender.h"
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/AppConfig/ConstantDefines.h"
+#include "Common/Log/LogRingBuffer.hpp"
 #include "OSCMessage.h"
 #include <Poco/Net/HTTPServerRequest.h>
 #include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/Net/NetException.h>
+#include <Poco/Exception.h>
 #include <Poco/Timespan.h>
 #include <Poco/URI.h>
 #include <Poco/FileStream.h>
@@ -27,8 +29,8 @@
 #include <algorithm>
 #include <cctype>
 #include <QMetaType>
-#include <QDir>
 #include <QFileInfo>
+#include <QDir>
 Q_DECLARE_METATYPE(OSCMessage)
 using namespace Poco::Net;
 using namespace Poco;
@@ -40,14 +42,107 @@ void setDynamicCacheControl(HTTPServerResponse& response) {
     response.set("Cache-Control", "no-cache");
 }
 
-/** @brief WebSocket 长连接：禁用 Poco 默认 60s 连接/读超时 */
-void configureWebSocketTimeouts(Poco::Net::WebSocket& ws)
+bool isBenignWebSocketDisconnect(const Poco::Exception& exc) {
+    const std::string msg = exc.displayText();
+    return msg.find("Connection reset by peer") != std::string::npos
+        || msg.find("Broken pipe") != std::string::npos
+        || msg.find("Connection aborted") != std::string::npos;
+}
+
+void logWebSocketPocoException(const char* context, const Poco::Exception& exc) {
+    if (isBenignWebSocketDisconnect(exc)) {
+        qDebug() << context << exc.displayText().c_str();
+    } else {
+        qWarning() << context << exc.displayText().c_str();
+    }
+}
+
+/** @brief 解析并校验磁盘日志文件名，防止路径穿越 */
+QString resolveLogFilePath(const QString& name)
 {
-    ws.setReceiveTimeout(Poco::Timespan(0, 0));
-    ws.setSendTimeout(Poco::Timespan(0, 0));
+    if (name.isEmpty()) {
+        return {};
+    }
+
+    const QString base = QFileInfo(name.trimmed()).fileName();
+    if (base.isEmpty() || base != name.trimmed()) {
+        return {};
+    }
+    if (!base.startsWith(QStringLiteral("log")) || !base.endsWith(QStringLiteral(".txt"))) {
+        return {};
+    }
+    if (base.contains(QLatin1Char('/')) || base.contains(QLatin1Char('\\'))) {
+        return {};
+    }
+
+    QDir logsDir(AppConstants::LOGS_STORAGE_DIR);
+    if (!logsDir.exists()) {
+        return {};
+    }
+
+    const QString absPath = logsDir.absoluteFilePath(base);
+    const QFileInfo info(absPath);
+    if (!info.exists() || !info.isFile()) {
+        return {};
+    }
+
+    const QString canonicalLogs = logsDir.canonicalPath();
+    const QString canonicalFile = info.canonicalFilePath();
+    if (canonicalFile.isEmpty() || !canonicalFile.startsWith(canonicalLogs)) {
+        return {};
+    }
+
+    return canonicalFile;
+}
+
+/** @brief 解析并校验媒体库文件名，防止路径穿越 */
+QString resolveMediaFilePath(const QString& name)
+{
+    if (name.isEmpty()) {
+        return {};
+    }
+
+    const QString base = QFileInfo(name.trimmed()).fileName();
+    if (base.isEmpty() || base != name.trimmed()) {
+        return {};
+    }
+    if (base == QStringLiteral(".") || base == QStringLiteral("..")) {
+        return {};
+    }
+    if (base.contains(QLatin1Char('/')) || base.contains(QLatin1Char('\\'))) {
+        return {};
+    }
+
+    QDir mediaDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR);
+    if (!mediaDir.exists()) {
+        return {};
+    }
+
+    const QString absPath = mediaDir.absoluteFilePath(base);
+    const QFileInfo info(absPath);
+    if (!info.exists() || !info.isFile()) {
+        return {};
+    }
+
+    const QString canonicalRoot = mediaDir.canonicalPath();
+    const QString canonicalFile = info.canonicalFilePath();
+    if (canonicalFile.isEmpty() || !canonicalFile.startsWith(canonicalRoot)) {
+        return {};
+    }
+
+    return canonicalFile;
 }
 
 } // namespace
+
+/** @brief WebSocket 长连接超时：读侧保持长等待；发送必须有上限，避免退出/广播卡死主线程 */
+void configureWebSocketTimeouts(Poco::Net::WebSocket& ws)
+{
+    // 读超时：周期醒来以便连接被对端/本端关闭后能尽快退出循环（0=无限，会导致 stop 卡住）
+    ws.setReceiveTimeout(Poco::Timespan(30, 0));
+    // 发送超时：半开连接上 SO_SNDTIMEO=0 可能永久阻塞 broadcastJson（Qt 主线程）
+    ws.setSendTimeout(Poco::Timespan(2, 0));
+}
 
 // ===== PageWebSocketHandler =====
 PageWebSocketHandler::PageWebSocketHandler(NodeHttpServer& server)
@@ -63,54 +158,64 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
         _server.registerWebSocket(this);
         
         std::vector<char> chunk(65536);
-        int flags;
-        int n;
+        int flags = 0;
+        int n = 0;
         std::string accum;
-        do {
-            n = ws.receiveFrame(chunk.data(), (int)chunk.size(), flags);
+        for (;;) {
+            try {
+                n = ws.receiveFrame(chunk.data(), (int)chunk.size(), flags);
+            } catch (const Poco::TimeoutException&) {
+                // 读超时：继续等；若 stop()/forceClose() 已关掉套接字，下次会抛其它异常退出
+                if (!_ws) {
+                    break;
+                }
+                continue;
+            }
+            if (n <= 0 || (flags & WebSocket::FRAME_OP_BITMASK) == WebSocket::FRAME_OP_CLOSE) {
+                break;
+            }
             const int op = flags & WebSocket::FRAME_OP_BITMASK;
-            if (n > 0 && op == WebSocket::FRAME_OP_PING) {
+            if (op == WebSocket::FRAME_OP_PING) {
+                QMutexLocker locker(&_sendMutex);
                 ws.sendFrame(chunk.data(), n, WebSocket::FRAME_OP_PONG | WebSocket::FRAME_FLAG_FIN);
                 continue;
             }
-            if (n > 0 && op != WebSocket::FRAME_OP_CLOSE) {
-                accum.append(chunk.data(), n);
-                if (flags & WebSocket::FRAME_FLAG_FIN) {
-                    QByteArray payload(accum.data(), (int)accum.size());
-                    QJsonParseError err;
-                    QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
-                    if (err.error == QJsonParseError::NoError && doc.isObject()) {
-                        QJsonObject obj = doc.object();
-                        if (obj.contains("query") && obj["query"].isArray()) {
-                            QJsonArray queries = obj["query"].toArray();
-                            for (const auto& val : queries) {
-                                QString addr = val.toString();
-                                if (StatusContainer::instance()->contains(addr)) {
-                                    StatusItem item = StatusContainer::instance()->last(addr);
-                                    QJsonObject resp = item.toJsonObject();
-                                    std::string msg = QJsonDocument(resp).toJson(QJsonDocument::Compact).toStdString();
-                                    send(msg);
-                                }
+            accum.append(chunk.data(), n);
+            if (flags & WebSocket::FRAME_FLAG_FIN) {
+                QByteArray payload(accum.data(), (int)accum.size());
+                QJsonParseError err;
+                QJsonDocument doc = QJsonDocument::fromJson(payload, &err);
+                if (err.error == QJsonParseError::NoError && doc.isObject()) {
+                    QJsonObject obj = doc.object();
+                    if (obj.contains("query") && obj["query"].isArray()) {
+                        QJsonArray queries = obj["query"].toArray();
+                        for (const auto& val : queries) {
+                            QString addr = val.toString();
+                            if (StatusContainer::instance()->contains(addr)) {
+                                StatusItem item = StatusContainer::instance()->last(addr);
+                                QJsonObject resp = item.toJsonObject();
+                                std::string msg = QJsonDocument(resp).toJson(QJsonDocument::Compact).toStdString();
+                                send(msg);
                             }
                         }
-                        QString addr = obj.value("address").toString();
-                        if (addr.isEmpty()) addr = obj.value("addr").toString();
-                        if (!addr.isEmpty()) {
-                            OSCMessage msg;
-                            msg.host = "127.0.0.1";
-                            msg.port = ConfigManager::instance().getExtraControlPort();
-                            msg.address = addr;
-                            msg.value = obj["value"].toVariant();
-                            QMetaObject::invokeMethod(StatusContainer::instance(),
-                                                      "parseOSC",
-                                                      Qt::QueuedConnection,
-                                                      Q_ARG(OSCMessage, msg));
-                        }
                     }
-                    accum.clear();
+                    QString addr = obj.value("address").toString();
+                    if (addr.isEmpty()) addr = obj.value("addr").toString();
+                    if (!addr.isEmpty()) {
+                        OSCMessage msg;
+                        msg.host = "127.0.0.1";
+                        msg.port = ConfigManager::instance().getExtraControlPort();
+                        msg.address = addr;
+                        msg.value = obj["value"].toVariant();
+                        QMetaObject::invokeMethod(StatusContainer::instance(),
+                                                  "parseOSC",
+                                                  Qt::QueuedConnection,
+                                                  Q_ARG(OSCMessage, msg));
+                    }
                 }
+                accum.clear();
             }
-        } while (n > 0 && (flags & WebSocket::FRAME_OP_BITMASK) != WebSocket::FRAME_OP_CLOSE);
+        }
         
         _server.unregisterWebSocket(this);
         _ws = nullptr;
@@ -135,18 +240,36 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
     } catch (const Poco::Exception& exc) {
         _server.unregisterWebSocket(this);
         _ws = nullptr;
-        qWarning() << "WebSocket Poco Exception:" << exc.displayText().c_str();
+        logWebSocketPocoException("WebSocket Poco Exception:", exc);
     }
 }
 
 void PageWebSocketHandler::send(const std::string& message) {
-    if (_ws) {
-        try {
-            _ws->sendFrame(message.data(), (int)message.size(), WebSocket::FRAME_TEXT);
-        } catch (const Poco::Exception& e) {
-            qWarning() << "WebSocket send failed:" << e.displayText().c_str();
-        }
+    QMutexLocker locker(&_sendMutex);
+    if (!_ws) {
+        return;
     }
+    try {
+        _ws->sendFrame(message.data(), (int)message.size(), WebSocket::FRAME_TEXT);
+    } catch (const Poco::Exception& e) {
+        logWebSocketPocoException("WebSocket send failed:", e);
+    }
+}
+
+void PageWebSocketHandler::forceClose() {
+    QMutexLocker locker(&_sendMutex);
+    if (!_ws) {
+        return;
+    }
+    try {
+        _ws->shutdown();
+    } catch (...) {
+    }
+    try {
+        _ws->close();
+    } catch (...) {
+    }
+    _ws = nullptr;
 }
 
 // ===== StaticRequestHandler =====
@@ -499,6 +622,203 @@ void StaticRequestHandler::handleStaticFile(HTTPServerRequest& request, HTTPServ
     StreamCopier::copyStream(fis, ostr);
 }
 
+void StaticRequestHandler::handleApiLogs(HTTPServerRequest& request, HTTPServerResponse& response, const std::string& subPath)
+{
+    URI uri(request.getURI());
+    const std::string query = uri.getQuery();
+
+    if (subPath == "files") {
+        if (request.getMethod() != "GET") {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+            return;
+        }
+
+        QDir logsDir(AppConstants::LOGS_STORAGE_DIR);
+        QJsonArray items;
+        if (logsDir.exists()) {
+            const QStringList names = logsDir.entryList(
+                QStringList{QStringLiteral("log*.txt")},
+                QDir::Files,
+                QDir::Time | QDir::Reversed);
+
+            for (const QString& name : names) {
+                const QFileInfo info(logsDir.absoluteFilePath(name));
+                if (!info.isFile()) {
+                    continue;
+                }
+                QJsonObject item;
+                item[QStringLiteral("name")] = name;
+                item[QStringLiteral("size")] = static_cast<double>(info.size());
+                item[QStringLiteral("modified")] = info.lastModified().toString(Qt::ISODate);
+                items.append(item);
+            }
+        }
+
+        QJsonObject payload;
+        payload[QStringLiteral("ok")] = true;
+        payload[QStringLiteral("items")] = items;
+        payload[QStringLiteral("count")] = items.size();
+        payload[QStringLiteral("dir")] = AppConstants::LOGS_STORAGE_DIR;
+
+        QJsonDocument doc(payload);
+        sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString());
+        return;
+    }
+
+    if (subPath == "download") {
+        if (request.getMethod() != "GET") {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+            return;
+        }
+
+        const std::string fileParam = parseQueryParam(query, "file");
+        const QString filePath = resolveLogFilePath(QString::fromStdString(fileParam));
+        if (filePath.isEmpty()) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"file_not_found\"}", HTTPResponse::HTTP_NOT_FOUND);
+            return;
+        }
+
+        Poco::File file(filePath.toStdString());
+        if (!file.exists() || !file.isFile()) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"file_not_found\"}", HTTPResponse::HTTP_NOT_FOUND);
+            return;
+        }
+
+        response.setStatus(HTTPResponse::HTTP_OK);
+        response.setContentType("text/plain; charset=utf-8");
+        setDynamicCacheControl(response);
+        response.setContentLength(file.getSize());
+        response.set("Content-Disposition",
+                       "attachment; filename=\"" + QFileInfo(filePath).fileName().toStdString() + "\"");
+
+        std::ostream& ostr = response.send();
+        Poco::FileInputStream fis(file.path());
+        StreamCopier::copyStream(fis, ostr);
+        return;
+    }
+
+    if (subPath != "tail") {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"not_found\"}", HTTPResponse::HTTP_NOT_FOUND);
+        return;
+    }
+
+    if (request.getMethod() != "GET") {
+        sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+        return;
+    }
+
+    int limit = 200;
+    QString levelFilter = QStringLiteral("All");
+    qint64 sinceSeq = 0;
+
+    const std::string limitStr = parseQueryParam(query, "limit");
+    if (!limitStr.empty()) {
+        bool ok = false;
+        const int parsed = QString::fromStdString(limitStr).toInt(&ok);
+        if (ok) {
+            limit = parsed;
+        }
+    }
+
+    const std::string levelStr = parseQueryParam(query, "level");
+    if (!levelStr.empty()) {
+        levelFilter = QString::fromStdString(levelStr);
+    }
+
+    const std::string sinceStr = parseQueryParam(query, "since");
+    if (!sinceStr.empty()) {
+        bool ok = false;
+        const qint64 parsed = QString::fromStdString(sinceStr).toLongLong(&ok);
+        if (ok) {
+            sinceSeq = parsed;
+        }
+    }
+
+    const QJsonArray items = LogRingBuffer::instance().tail(limit, levelFilter, sinceSeq);
+    QJsonObject payload;
+    payload[QStringLiteral("ok")] = true;
+    payload[QStringLiteral("items")] = items;
+    payload[QStringLiteral("count")] = items.size();
+
+    QJsonDocument doc(payload);
+    sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString());
+}
+
+void StaticRequestHandler::handleApiMedia(HTTPServerRequest& request, HTTPServerResponse& response, const std::string& subPath)
+{
+    URI uri(request.getURI());
+    const std::string query = uri.getQuery();
+
+    if (subPath == "files") {
+        if (request.getMethod() != "GET") {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+            return;
+        }
+
+        QDir mediaDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR);
+        QJsonArray items;
+        if (mediaDir.exists()) {
+            const QStringList names = mediaDir.entryList(QDir::Files, QDir::Time | QDir::Reversed);
+            for (const QString& name : names) {
+                const QFileInfo info(mediaDir.absoluteFilePath(name));
+                if (!info.isFile()) {
+                    continue;
+                }
+                QJsonObject item;
+                item[QStringLiteral("name")] = name;
+                item[QStringLiteral("size")] = static_cast<double>(info.size());
+                item[QStringLiteral("modified")] = info.lastModified().toString(Qt::ISODate);
+                items.append(item);
+            }
+        }
+
+        QJsonObject payload;
+        payload[QStringLiteral("ok")] = true;
+        payload[QStringLiteral("items")] = items;
+        payload[QStringLiteral("count")] = items.size();
+        payload[QStringLiteral("dir")] = AppConstants::MEDIA_LIBRARY_STORAGE_DIR;
+
+        QJsonDocument doc(payload);
+        sendJsonResponse(response, doc.toJson(QJsonDocument::Compact).toStdString());
+        return;
+    }
+
+    if (subPath == "download") {
+        if (request.getMethod() != "GET") {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"method_not_allowed\"}", HTTPResponse::HTTP_METHOD_NOT_ALLOWED);
+            return;
+        }
+
+        const std::string fileParam = parseQueryParam(query, "file");
+        const QString filePath = resolveMediaFilePath(QString::fromStdString(fileParam));
+        if (filePath.isEmpty()) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"file_not_found\"}", HTTPResponse::HTTP_NOT_FOUND);
+            return;
+        }
+
+        Poco::File file(filePath.toStdString());
+        if (!file.exists() || !file.isFile()) {
+            sendJsonResponse(response, "{\"ok\":false,\"error\":\"file_not_found\"}", HTTPResponse::HTTP_NOT_FOUND);
+            return;
+        }
+
+        Poco::Path p(filePath.toStdString());
+        response.setStatus(HTTPResponse::HTTP_OK);
+        response.setContentType(guessContentType(p.getExtension()));
+        setDynamicCacheControl(response);
+        response.setContentLength(file.getSize());
+        response.set("Content-Disposition",
+                       "attachment; filename=\"" + p.getFileName() + "\"");
+
+        std::ostream& ostr = response.send();
+        Poco::FileInputStream fis(file.path());
+        StreamCopier::copyStream(fis, ostr);
+        return;
+    }
+
+    sendJsonResponse(response, "{\"ok\":false,\"error\":\"not_found\"}", HTTPResponse::HTTP_NOT_FOUND);
+}
+
 void StaticRequestHandler::handleRequest(HTTPServerRequest& request,
                                          HTTPServerResponse& response) {
     try {
@@ -531,6 +851,12 @@ void StaticRequestHandler::handleRequest(HTTPServerRequest& request,
             handleGetCurrentFlowInfo(request, response);
         } else if (path == "/api/info/app") {
             handleGetAppInfo(request, response);
+        } else if (path.rfind("/api/logs/", 0) == 0) {
+            const std::string subPath = path.substr(std::string("/api/logs/").size());
+            handleApiLogs(request, response, subPath);
+        } else if (path.rfind("/api/media/", 0) == 0) {
+            const std::string subPath = path.substr(std::string("/api/media/").size());
+            handleApiMedia(request, response, subPath);
         } else {
             handleStaticFile(request, response, path);
         }
@@ -810,7 +1136,7 @@ bool NodeHttpServer::start(int port) {
         params->setMaxQueued(64);
         params->setMaxThreads(16);
         // 勿设为 Timespan(0,0)：会导致 poll 立即超时，WebSocket 握手失败
-        // 长连接读超时在 WebSocket 升级后由 configureWebSocketTimeouts() 单独关闭
+        // WebSocket 读写超时见 configureWebSocketTimeouts()
         params->setTimeout(Poco::Timespan(3600, 0));
         params->setKeepAliveTimeout(Poco::Timespan(3600, 0));
         
@@ -821,6 +1147,13 @@ bool NodeHttpServer::start(int port) {
         
         // 连接 OSCSender 信号
         connect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, &NodeHttpServer::onOscMessageSent, Qt::UniqueConnection);
+
+        LogRingBuffer::instance().setBroadcastCallback([this](const QJsonObject& payload) {
+            QMetaObject::invokeMethod(
+                this,
+                [this, payload]() { broadcastJson(payload); },
+                Qt::QueuedConnection);
+        });
         
         return true;
     } catch (const Poco::Exception& e) {
@@ -833,17 +1166,42 @@ bool NodeHttpServer::start(int port) {
 
 void NodeHttpServer::stop() {
     if (!_running) return;
-    _server->stop();
-    _server.reset();
     _running = false;
+
+    // 先切断日志广播，避免退出期 qDebug 再排队同步 sendFrame 卡住主线程
+    LogRingBuffer::instance().setBroadcastCallback({});
+    disconnect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, &NodeHttpServer::onOscMessageSent);
+
+    // 先拷贝再关连接：forceClose 可能唤醒 worker，worker 会抢 _wsMutex 做 unregister
+    std::vector<PageWebSocketHandler*> handlers;
+    {
+        QMutexLocker locker(&_wsMutex);
+        handlers.assign(_wsHandlers.begin(), _wsHandlers.end());
+    }
+    for (auto* handler : handlers) {
+        if (handler) {
+            handler->forceClose();
+        }
+    }
+    {
+        QMutexLocker locker(&_wsMutex);
+        _wsHandlers.clear();
+    }
+
+    if (_server) {
+        // abortCurrent=true：关闭活跃连接底层套接字，避免 stop 等待长连接收尾
+        try {
+            _server->stopAll(true);
+        } catch (...) {
+        }
+        try {
+            _server->stop();
+        } catch (...) {
+        }
+        _server.reset();
+    }
     emit serverStopped();
 
-    disconnect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, &NodeHttpServer::onOscMessageSent);
-    
-    // 清理 WebSocket 处理器
-    QMutexLocker locker(&_wsMutex);
-    _wsHandlers.clear();
-    
     // 清空内存中的布局，避免新项目继承旧布局
     _layout = QJsonObject();
     _actionRegistry.clear();
@@ -860,6 +1218,9 @@ void NodeHttpServer::unregisterWebSocket(PageWebSocketHandler* handler) {
 }
 
 void NodeHttpServer::onOscMessageSent(const StatusItem& message) {
+    if (!_running) {
+        return;
+    }
     // 将 OSC 消息转为 JSON
     QJsonObject json;
     json= message.toJsonObject();
@@ -932,6 +1293,9 @@ bool NodeHttpServer::patchAction(const QString& entity, const QJsonObject& patch
 
 void NodeHttpServer::broadcastJson(const QJsonObject& payload)
 {
+    if (!_running) {
+        return;
+    }
     QJsonDocument doc(payload);
     const std::string jsonStr = doc.toJson(QJsonDocument::Compact).toStdString();
     QMutexLocker locker(&_wsMutex);

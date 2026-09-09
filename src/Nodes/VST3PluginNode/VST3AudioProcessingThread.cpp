@@ -98,11 +98,17 @@ void VST3AudioProcessingThread::startProcessing()
     
     running_.storeRelease(1);
     paused_.storeRelease(0);
+    {
+        QMutexLocker locker(&mutex_);
+        tickPending_ = false;
+    }
+    // DirectConnection：在 TimestampGenerator 时钟线程内直接 wake，
+    // 避免 QueuedConnection 把 onFrameTick 投递到主线程（QThread 对象亲和性）。
     QObject::connect(TimestampGenerator::getInstance(),
                      &TimestampGenerator::frameCountUpdated,
                      this,
                      &VST3AudioProcessingThread::onFrameTick,
-                     Qt::QueuedConnection);
+                     Qt::DirectConnection);
     start();
 }
 
@@ -123,6 +129,7 @@ void VST3AudioProcessingThread::stopProcessing()
                         &VST3AudioProcessingThread::onFrameTick);
     {
         QMutexLocker locker(&mutex_);
+        tickPending_ = true;
         condition_.wakeAll();
     }
 }
@@ -134,6 +141,8 @@ void VST3AudioProcessingThread::pauseProcessing(bool pause)
 {
     paused_.storeRelease(pause ? 1 : 0);
     if (!pause) {
+        QMutexLocker locker(&mutex_);
+        tickPending_ = true;
         condition_.wakeAll();
     }
     
@@ -145,7 +154,6 @@ void VST3AudioProcessingThread::pauseProcessing(bool pause)
  */
 void VST3AudioProcessingThread::run()
 {
-
     while (running_.loadAcquire()) {
         // 检查是否暂停
         if (paused_.loadAcquire()) {
@@ -166,7 +174,13 @@ void VST3AudioProcessingThread::run()
         processAudioFrame();
         {
             QMutexLocker locker(&mutex_);
-            condition_.wait(&mutex_, 50);
+            // 等待下一拍时钟；tickPending_ 防止 DirectConnection 在 wait 前到达导致丢唤醒
+            while (running_.loadAcquire() && !paused_.loadAcquire() && !tickPending_) {
+                if (!condition_.wait(&mutex_, 50)) {
+                    break; // 超时兜底，主动轮询一帧
+                }
+            }
+            tickPending_ = false;
         }
     }
     
@@ -198,14 +212,14 @@ void VST3AudioProcessingThread::processAudioFrame()
 
 /**
  * 按全局帧计数驱动的处理槽函数
- * - 由 TimestampGenerator::frameCountUpdated 触发
- * - 唤醒处理线程以执行单次音频处理
+ * - DirectConnection：在时钟线程调用，仅置位 + wake，不碰主线程
  * @param frameCount 当前全局帧计数
  */
 void VST3AudioProcessingThread::onFrameTick(qint64 frameCount)
 {
     Q_UNUSED(frameCount)
     QMutexLocker locker(&mutex_);
+    tickPending_ = true;
     condition_.wakeOne();
 }
 

@@ -1,6 +1,7 @@
 import type { ConfigFieldSchema } from "../../../types";
 import { CHART2D_DEFAULTS } from "../../../common/chart/chart-2d-entity";
 import { CHART3D_DEFAULTS } from "../../../common/chart/chart-3d-entity";
+import { XY_PAD_DEFAULTS } from "../../../common/entity/xy-pad";
 import { CONTENT_LAYOUT_FIELD, entityCardSchema } from "./card-common-schemas";
 
 const CHART2D_APPEARANCE_FIELDS: ConfigFieldSchema[] = [
@@ -228,7 +229,12 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
         },
         CONTENT_LAYOUT_FIELD,
         { name: "show_grid", label: "显示十字线", type: "boolean" },
-        { name: "invert_y", label: "Y 轴向上为正", type: "boolean", helper: "开启后触控板顶部对应 y_max" },
+        {
+          name: "invert_y",
+          label: "Y 轴向上为负",
+          type: "boolean",
+          helper: "开启后触控板顶部对应 y_min",
+        },
         { name: "snap_center", label: "松手回中", type: "boolean" },
       ],
     },
@@ -720,6 +726,17 @@ export function denormalizeCardConfig(config: Record<string, unknown>): Record<s
     if (!next.entities) next.entities = [];
     if (!next.icon) next.icon = "mdi:lan-connect";
     next.list_columns = Number(next.list_columns) === 2 ? "2" : "1";
+  }
+
+  if (next.type === "xy-pad") {
+    if (next.show_grid === undefined) next.show_grid = XY_PAD_DEFAULTS.show_grid;
+    if (next.snap_center === undefined) next.snap_center = XY_PAD_DEFAULTS.snap_center;
+    if (next.invert_y === undefined) next.invert_y = XY_PAD_DEFAULTS.invert_y;
+    if (next.x_min === undefined) next.x_min = XY_PAD_DEFAULTS.x_min;
+    if (next.x_max === undefined) next.x_max = XY_PAD_DEFAULTS.x_max;
+    if (next.y_min === undefined) next.y_min = XY_PAD_DEFAULTS.y_min;
+    if (next.y_max === undefined) next.y_max = XY_PAD_DEFAULTS.y_max;
+    if (next.step === undefined) next.step = XY_PAD_DEFAULTS.step;
   }
 
   if (next.type === "link") {

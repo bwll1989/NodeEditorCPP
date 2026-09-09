@@ -372,9 +372,7 @@ void DataflowViewsManger::onSendOscBindingToWebPanel(QJsonObject const &binding)
     const QString entity = _httpServer->addAction(item);
     if (entity.isEmpty()) {
         QMessageBox::warning(parent, tr("网页面板"), tr("发送失败：地址无效。"));
-        return;
     }
-    QMessageBox::information(parent, tr("网页面板"), tr("已添加到网页动作库：%1").arg(draft.name));
 }
 
 void DataflowViewsManger::runWithoutViewportRepaint(std::function<void()> fn)

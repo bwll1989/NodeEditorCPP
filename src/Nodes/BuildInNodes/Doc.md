@@ -21,16 +21,17 @@
 拖拽或 OSC 改值；需要记忆时用 Source，仅运行时用 Int Variable。
 
 ## 5. 示例
-
-Int Source（场景号）→ Switch 的 INDEX。
-
+### 数学运算
+![数学运算]({05C2E71C-DA12-43B4-8A59-6C5E3558905C}.png)
+### 转bool类型
+![转bool]({13B035C9-9FA7-417D-A329-9226154D36A7}.png)
 ---
 
 # Int Variable
 
 ## 1. 节点说明
 
-与 Int Source 相同的端口与界面，**工程不持久化数值**（运行时变量）。
+与 Int Source 相同的端口与界面，**工程不持久化数值**（即保存时不会保存当前值，下次打开恢复默认）。
 
 ## 2. 端口说明
 
@@ -46,7 +47,7 @@ Int Source（场景号）→ Switch 的 INDEX。
 
 ## 5. 示例
 
-Count → Int Variable → 下游显示。
+同`Int Source`。
 
 ---
 
@@ -73,8 +74,11 @@ Count → Int Variable → 下游显示。
 
 ## 5. 示例
 
-Float Source → Audio Matrix 的增益口。
-
+### 数学运算
+![数学运算]({1A687154-04C3-4E8A-A734-263EA68B18D0}.png)
+### 类型转换
+![类型转换]({ABC085DF-7D8E-48A5-885E-C2A39608A8DD}.png)
+### 
 ---
 
 # Float Variable
@@ -97,7 +101,7 @@ LFO / 分析节点的中间结果暂存。
 
 ## 5. 示例
 
-Audio Analysis → Float Variable → Condition。
+同 `Float Source`。
 
 ---
 
@@ -105,7 +109,7 @@ Audio Analysis → Float Variable → Condition。
 
 ## 1. 节点说明
 
-字符串常量源。内嵌单行编辑框，值可持久化。
+字符串常量源。内嵌单行编辑框，值可持久化。支持与float、int、bool间动态类型转换
 
 ## 2. 端口说明
 
@@ -124,8 +128,10 @@ Audio Analysis → Float Variable → Condition。
 
 ## 5. 示例
 
-String Source → HTTP Client 的 URL 相关口。
-
+### 数学运算
+![数学运算]({91AF9C9D-5004-4C3F-963F-3431B0439218}.png)
+### 数值转换
+![类型转换]({C79BEE72-D6EC-4FC4-BFC9-1E8F411047CD}.png)
 ---
 
 # String Variable
@@ -175,8 +181,10 @@ Extract 字符串字段 → String Variable → To JSON。
 
 ## 5. 示例
 
-Bool Source → Object Detection 的 ENABLE。
-
+### 类型转换
+![类型转换]({AF9BEE90-BBE3-4004-815E-B34F2A89DDEB}.png)
+### 逻辑运算
+![逻辑运算]({33F84C7F-0CEC-41F5-90B9-12DD4475F5A8}.png)
 ---
 
 # Bool Variable
@@ -199,7 +207,7 @@ Bool Source → Object Detection 的 ENABLE。
 
 ## 5. 示例
 
-Edge Trigger → Bool Variable → Hold。
+同 Bool Source。
 
 ---
 
@@ -226,7 +234,7 @@ Edge Trigger → Bool Variable → Hold。
 
 ## 5. 示例
 
-Toggle Source → Audio Device Out 的静音/使能逻辑。
+同 Bool Source。
 
 ---
 
@@ -234,15 +242,15 @@ Toggle Source → Audio Device Out 的静音/使能逻辑。
 
 ## 1. 节点说明
 
-与 Toggle Source 相同交互，**不持久化**。外部控制：`/bool`。
+与 Bool Source。 相同交互，**不持久化**。外部控制：`/bool`。
 
 ## 2. 端口说明
 
-同 Toggle Source。
+同 Bool Source。
 
 ## 3. 界面说明
 
-同 Toggle Source。
+同 Bool Source。
 
 ## 4. 使用说明
 
@@ -250,7 +258,7 @@ Toggle Source → Audio Device Out 的静音/使能逻辑。
 
 ## 5. 示例
 
-Keyboard In → Toggle Variable → Switch。
+同 Bool Source。
 
 ---
 
@@ -278,11 +286,12 @@ Keyboard In → Toggle Variable → Switch。
 
 ## 5. 示例
 
-Trigger Source → Inject 的 TRIGGER；或 → Osc Out Group 的 TRIGGER。
+### 脉冲计数
+![脉冲计数]({57EDA714-DC4C-4D67-867E-7077ED2CB033}.png)
 
 ---
 
-# Vec Source
+# Vector Source
 
 ## 1. 节点说明
 
@@ -312,6 +321,11 @@ Trigger Source → Inject 的 TRIGGER；或 → Osc Out Group 的 TRIGGER。
 
 改 Size 只影响向量长度，不会增删端口；改端口数量也不会改 Size。解析统一走 `floatVectorFromVariant`（列表 / 标量 / 旧几何类型均可）。
 
+## 5. 示例
+### 数据构建
+![数据构建]({0D079760-7029-47A9-BF7C-F20C3B9575BE}.png)
+### 转颜色数据
+![转颜色数据]({C25BA757-92F0-4425-93D5-61238B99984D}.png)
 ---
 
 # To JSON
@@ -338,7 +352,8 @@ Trigger Source → Inject 的 TRIGGER；或 → Osc Out Group 的 TRIGGER。
 
 ## 5. 示例
 
-HTTP Client 响应字符串 → To JSON → Extract `$input.status`。
+### 文本转json
+![文本转json]({7FF225A1-6B2A-4A99-A6E4-974FF3D1FB38}.png)
 
 ---
 
@@ -364,9 +379,10 @@ HTTP Client 响应字符串 → To JSON → Extract `$input.status`。
 调试查看对象结构，或把结构化数据发给只收字符串的节点。
 
 ## 5. 示例
-
-Merge / Extract 结果 → From JSON → TCP Client 发送。
-
+### JSON转文本
+![JSON转文本]({799904CF-E011-47E8-A7A5-A946209764EB}.png)
+### Variable转文本
+![alt text]({A27E6285-3B5C-423C-9816-57690C4263A6}.png)
 ---
 
 # Container
@@ -406,9 +422,10 @@ Merge / Extract 结果 → From JSON → TCP Client 发送。
 5. 子图内也可再嵌套 Container，形成分层模块。
 
 ## 5. 示例
-
-外层 **Float Source** → Container In（子图内 Variable In，备注 `gain`）→ 子图内 Audio Matrix → Variable Out（`level`）→ Container Out → **Audio Device Out**。
-
+### 打包Container，并暴露端口
+![container]({8C5CAC74-1D51-4247-96AE-CD57FCF1EB18}.png)
+### 直接使用
+![dataflow]({36CD60C0-2A0E-496B-9EC2-90FD7AE70883}.png)
 ---
 
 # Variable In
@@ -435,7 +452,7 @@ Merge / Extract 结果 → From JSON → TCP Client 发送。
 
 ## 5. 示例
 
-Container In（备注 `scene`）→ 子图 Variable In → Switch 的 INDEX。
+同 Container 示例
 
 ---
 
@@ -463,7 +480,7 @@ Container In（备注 `scene`）→ 子图 Variable In → Switch 的 INDEX。
 
 ## 5. 示例
 
-子图 Count → Variable Out（`total`）→ Container Out → Condition。
+同 Container 示例
 
 ---
 
@@ -491,8 +508,8 @@ Container In（备注 `scene`）→ 子图 Variable In → Switch 的 INDEX。
 
 ## 5. 示例
 
-外层 Camera → Container In（`cam_a`）→ 子图 Image In → Image Display。
-
+![alt text](image.png)
+![alt text](image-2.png)
 ---
 
 # Image Out
@@ -517,7 +534,7 @@ Container In（备注 `scene`）→ 子图 Variable In → Switch 的 INDEX。
 
 ## 5. 示例
 
-子图 Video Decoder → Image Out（`preview`）→ Container Out → Spout Out。
+同 Image In 示例
 
 ---
 
@@ -544,8 +561,8 @@ Container In（备注 `scene`）→ 子图 Variable In → Switch 的 INDEX。
 
 ## 5. 示例
 
-外层 Audio Decoder → Container In（`music`）→ 子图 Audio In → Audio Matrix。
-
+![alt text]({04705BD7-315A-48DC-9A36-27BE90D58115}.png)
+![alt text]({183965CF-E9C6-4311-BBB5-6B869361B0AB}.png)
 ---
 
 # Audio Out
@@ -570,8 +587,7 @@ Container In（备注 `scene`）→ 子图 Variable In → Switch 的 INDEX。
 
 ## 5. 示例
 
-子图 Audio CrossFader → Audio Out（`bed`）→ Container Out → Audio Device Out。
-
+同 Audio In 示例
 ---
 
 # Image Display
@@ -597,8 +613,7 @@ Container In（备注 `scene`）→ 子图 Variable In → Switch 的 INDEX。
 
 ## 5. 示例
 
-Camera → Image Display → Spout Out。
-
+同 Image In示例
 ---
 
 # Window Display

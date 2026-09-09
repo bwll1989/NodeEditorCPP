@@ -82,10 +82,7 @@
     <file>icons/explore.png</file>
     <file>icons/Flow.svg</file>
     <file>icons/Flow.png</file>
-    <file>icons/FlowBlue.png</file>
-    <file>icons/FlowOrange.png</file>
-    <file>icons/FlowPurple.png</file>
-    <file>icons/FlowRed.png</file>
+    <file>icons/FlowMono.png</file>
     <file>icons/search.png</file>
     <file>icons/curve.png</file>
     <file>icons/export.png</file>
@@ -110,6 +107,7 @@
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>
+    <file>images/loading.svg</file>
   </qresource>
   <qresource prefix="styles">
     <file>styles/NodeEditorDarkStyle.json</file>

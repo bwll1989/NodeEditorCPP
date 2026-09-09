@@ -7,7 +7,7 @@
 #include <QEventLoop>
 
 CustomSplashScreen::CustomSplashScreen() {
-    basePixmap = QPixmap(":/images/images/loading.png");
+    basePixmap = QPixmap(":/images/images/loading.svg");
     splash = new QSplashScreen(basePixmap);
     splash->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     splash->show();

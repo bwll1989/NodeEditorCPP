@@ -25,6 +25,11 @@ function configNumber(value: unknown, fallback: number): number {
   return Number.isNaN(parsed) ? fallback : parsed;
 }
 
+function configBool(value: unknown, fallback: boolean): boolean {
+  if (value === undefined || value === null) return fallback;
+  return Boolean(value);
+}
+
 @customElement("hui-xy-pad-card")
 export class HuiXyPadCard extends LitElement implements LovelaceCard {
   public static getStubConfig(): LovelaceCardConfig {
@@ -51,6 +56,11 @@ export class HuiXyPadCard extends LitElement implements LovelaceCard {
   /** Local drag value so remote updates don't fight while dragging. */
   @state() private _local?: XyPoint;
 
+  /** Serialize service writes so snap-to-center is not overwritten by an older drag write. */
+  private _writeChain: Promise<void> = Promise.resolve();
+
+  private _releaseLocalTimer?: number;
+
   setConfig(config: LovelaceCardConfig): void {
     this._config = config;
     this._local = undefined;
@@ -75,15 +85,9 @@ export class HuiXyPadCard extends LitElement implements LovelaceCard {
       yMin: configNumber(this._config?.y_min, XY_PAD_DEFAULTS.y_min),
       yMax: configNumber(this._config?.y_max, XY_PAD_DEFAULTS.y_max),
       step: configNumber(this._config?.step, XY_PAD_DEFAULTS.step),
-      invertY:
-        this._config?.invert_y === undefined
-          ? XY_PAD_DEFAULTS.invert_y
-          : Boolean(this._config.invert_y),
-      showGrid:
-        this._config?.show_grid === undefined
-          ? XY_PAD_DEFAULTS.show_grid
-          : Boolean(this._config.show_grid),
-      snapCenter: Boolean(this._config?.snap_center),
+      invertY: configBool(this._config?.invert_y, XY_PAD_DEFAULTS.invert_y),
+      showGrid: configBool(this._config?.show_grid, XY_PAD_DEFAULTS.show_grid),
+      snapCenter: configBool(this._config?.snap_center, XY_PAD_DEFAULTS.snap_center),
     };
   }
 
@@ -131,22 +135,37 @@ export class HuiXyPadCard extends LitElement implements LovelaceCard {
     return this._local ?? this._readRemotePoint();
   }
 
-  private async _writePoint(point: XyPoint): Promise<void> {
-    if (!this.flow) return;
+  private _writePoint(point: XyPoint): Promise<void> {
+    const task = async () => {
+      if (!this.flow) return;
 
-    if (this._usesDualEntities()) {
-      const xEntity = this._entityX()!;
-      const yEntity = this._entityY()!;
-      await Promise.all([
-        this.flow.callService(xEntity, point.x),
-        this.flow.callService(yEntity, point.y),
-      ]);
-      return;
+      if (this._usesDualEntities()) {
+        const xEntity = this._entityX()!;
+        const yEntity = this._entityY()!;
+        await Promise.all([
+          this.flow.callService(xEntity, point.x),
+          this.flow.callService(yEntity, point.y),
+        ]);
+        return;
+      }
+
+      const entity = this._config?.entity;
+      if (!entity) return;
+      await this.flow.callService(entity, xyToFlowValue(point));
+    };
+
+    this._writeChain = this._writeChain.then(task, task);
+    return this._writeChain;
+  }
+
+  private _scheduleReleaseLocal(ms: number): void {
+    if (this._releaseLocalTimer !== undefined) {
+      window.clearTimeout(this._releaseLocalTimer);
     }
-
-    const entity = this._config?.entity;
-    if (!entity) return;
-    await this.flow.callService(entity, xyToFlowValue(point));
+    this._releaseLocalTimer = window.setTimeout(() => {
+      this._releaseLocalTimer = undefined;
+      this._local = undefined;
+    }, ms);
   }
 
   private async _onValueChanged(ev: CustomEvent<XyPoint>): Promise<void> {
@@ -162,11 +181,19 @@ export class HuiXyPadCard extends LitElement implements LovelaceCard {
       const center = centerXyPoint(xMin, xMax, yMin, yMax);
       this._local = center;
       await this._writePoint(center);
+      // Keep local center until remote state is likely to echo back.
+      this._scheduleReleaseLocal(500);
+      return;
     }
-    // Allow remote state to take over after a short settle.
-    window.setTimeout(() => {
-      this._local = undefined;
-    }, 250);
+    this._scheduleReleaseLocal(250);
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    if (this._releaseLocalTimer !== undefined) {
+      window.clearTimeout(this._releaseLocalTimer);
+      this._releaseLocalTimer = undefined;
+    }
   }
 
   protected render() {
@@ -204,8 +231,9 @@ export class HuiXyPadCard extends LitElement implements LovelaceCard {
               .yMin=${ranges.yMin}
               .yMax=${ranges.yMax}
               .step=${ranges.step}
-              ?invert-y=${ranges.invertY}
-              ?show-grid=${ranges.showGrid}
+              .invertY=${ranges.invertY}
+              .showGrid=${ranges.showGrid}
+              .snapCenter=${ranges.snapCenter}
               @value-changed=${this._onValueChanged}
               @drag-end=${this._onDragEnd}
               @click=${(ev: Event) => ev.stopPropagation()}

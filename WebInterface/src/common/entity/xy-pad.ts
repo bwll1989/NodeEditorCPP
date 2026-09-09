@@ -6,7 +6,8 @@ export const XY_PAD_DEFAULTS = {
   y_min: 0,
   y_max: 1,
   step: 0.01,
-  invert_y: true,
+  /** When true, pad top maps to y_min (up = negative). Default: top = y_max. */
+  invert_y: false,
   snap_center: false,
   show_grid: true,
 } as const;

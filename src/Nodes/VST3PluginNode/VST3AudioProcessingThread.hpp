@@ -95,8 +95,8 @@ private:
 public slots:
     /**
      * 按全局帧计数驱动的处理槽函数
-     * - 由 TimestampGenerator::frameCountUpdated 触发
-     * - 唤醒处理线程以执行单次音频处理
+     * - 由 TimestampGenerator::frameCountUpdated 以 DirectConnection 触发
+     * - 在时钟线程内仅置位并 wake，不经主线程事件队列
      * @param frameCount 当前全局帧计数
      */
     void onFrameTick(qint64 frameCount);
@@ -107,6 +107,7 @@ private:
     QAtomicInt paused_;
     QMutex mutex_;
     QWaitCondition condition_;
+    bool tickPending_ = false;  // 与 mutex_ 一起使用，防止 wake 丢失
     
     // 音频参数
     double sampleRate_;

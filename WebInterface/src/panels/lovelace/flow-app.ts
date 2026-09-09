@@ -49,6 +49,9 @@ import "./editor/flow-card-picker";
 import "./editor/flow-section-editor";
 import "./editor/flow-view-editor";
 import "../settings/flow-settings-panel";
+import "../actions/flow-actions-panel";
+import "../logs/flow-logs-panel";
+import "../media/flow-media-panel";
 import "../../dialogs/flow-confirm-dialog";
 import "../../dialogs/flow-delete-card-dialog";
 import "../../components/ha-sidebar";
@@ -242,7 +245,8 @@ export class FlowApp extends LitElement {
     const raw = location.hash.replace(/^#\/?/, "").trim();
     if (!raw) return undefined;
     const segment = decodeURIComponent(raw.split(/[/?#]/)[0] ?? "");
-    if (!segment || segment === "config" || segment === "settings") return undefined;
+    if (!segment || segment === "config" || segment === "settings" || segment === "actions" || segment === "logs" || segment === "media")
+      return undefined;
     return segment;
   }
 
@@ -453,6 +457,9 @@ export class FlowApp extends LitElement {
 
   private _headerTitle(viewTitle: string): string {
     if (this._panel === "config") return "设置";
+    if (this._panel === "actions") return "动作库";
+    if (this._panel === "logs") return "运行日志";
+    if (this._panel === "media") return "媒体库";
     return viewTitle;
   }
 
@@ -809,9 +816,15 @@ export class FlowApp extends LitElement {
                     .layoutRevision=${this._layoutRevision}
                   ></flow-view>
                 `
-              : this._panel === "config"
-                ? html`<flow-settings-panel .flow=${this.flow}></flow-settings-panel>`
-                : nothing}
+              : this._panel === "actions"
+                ? html`<flow-actions-panel .flow=${this.flow}></flow-actions-panel>`
+                : this._panel === "logs"
+                  ? html`<flow-logs-panel .wsConnected=${this._connected}></flow-logs-panel>`
+                  : this._panel === "media"
+                    ? html`<flow-media-panel></flow-media-panel>`
+                : this._panel === "config"
+                  ? html`<flow-settings-panel .flow=${this.flow}></flow-settings-panel>`
+                  : nothing}
           </div>
         </div>
       </ha-drawer>

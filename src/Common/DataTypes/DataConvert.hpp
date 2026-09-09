@@ -56,8 +56,17 @@ inline QVector<float> floatVectorFromVariant(const QVariant &val, int size = 0)
             values = {float(p.x()), float(p.y())};
         } else if (typeId == QMetaType::QVariantMap) {
             return floatVectorFromVariant(val.toMap().value(QStringLiteral("default")), size);
-        } else if (typeId != QMetaType::QString && typeId != QMetaType::QByteArray
-                   && val.canConvert<double>()) {
+        } else if (typeId == QMetaType::QString || typeId == QMetaType::QByteArray) {
+            // 仅接受可完整解析的数字串；避免任意文本经 canConvert<double> 变成 0
+            bool ok = false;
+            const QString text = typeId == QMetaType::QString
+                ? val.toString().trimmed()
+                : QString::fromUtf8(val.toByteArray()).trimmed();
+            const double d = text.toDouble(&ok);
+            if (ok) {
+                values = {float(d)};
+            }
+        } else if (val.canConvert<double>()) {
             values = {float(val.toDouble())};
         }
     }
