@@ -1,6 +1,8 @@
 #include "AudioMatrixWorker.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
 #include <QDebug>
+#include <QtGlobal>
+#include <utility>
 
 namespace Nodes
 {
@@ -153,9 +155,23 @@ namespace Nodes
             return;
         }
 
-        const size_t frameSize = 2048 * 4 / sizeof(float);
+        constexpr int kSampleRate = 48000;
+        const size_t frameSize = static_cast<size_t>(
+            TimestampGenerator::getInstance()->getSamplesPerFrame(kSampleRate));
+        if (frameSize == 0) {
+            return;
+        }
+
         const int inputChannels = _matrix.rows();
         const int outputChannels = _matrix.cols();
+
+        int sampleRate = kSampleRate;
+        for (const auto& frame : inputFrames) {
+            if (frame.sampleRate > 0) {
+                sampleRate = frame.sampleRate;
+                break;
+            }
+        }
         
         // 创建输入矩阵：inputChannels × frameSize
         Eigen::MatrixXf inputMatrix(inputChannels, frameSize);
@@ -192,7 +208,7 @@ namespace Nodes
             if (outChannel < static_cast<int>(_outputBuffers.size()) && _outputBuffers[outChannel]) {
                 AudioFrame outputFrame;
                 outputFrame.timestamp = timestamp + 2;
-                outputFrame.sampleRate = inputFrames[0].sampleRate;
+                outputFrame.sampleRate = sampleRate;
                 outputFrame.channels = 1;
                 outputFrame.bitsPerSample = 32;
                 
@@ -224,28 +240,26 @@ namespace Nodes
  */
 void AudioMatrixWorker::initializeBuffers(int inputCount, int outputCount, const Eigen::MatrixXd& matrix)
 {
-    // 停止当前处理
-    if (_isProcessing) {
-        stopProcessing();
-    }
-    
-    // 初始化输入缓冲区
-    _inputBuffers.clear();
-    _inputBuffers.resize(inputCount);
-    for (int i = 0; i < inputCount; ++i) {
-        _inputBuffers[i] = std::make_shared<AudioTimestampRingQueue>();
-    }
-    
-    // 初始化输出缓冲区
-    _outputBuffers.clear();
-    _outputBuffers.resize(outputCount);
-    for (int i = 0; i < outputCount; ++i) {
-        _outputBuffers[i] = std::make_shared<AudioTimestampRingQueue>();
-    }
-    
-    // 设置矩阵
-    _matrix = matrix;
+    QMutexLocker locker(&_mutex);
 
+    inputCount = qMax(1, inputCount);
+    outputCount = qMax(1, outputCount);
+
+    // 输入：保留已有范围内的连接；超出部分自然丢弃，新增为空（由 setInData 填入）
+    _inputBuffers.resize(static_cast<size_t>(inputCount));
+
+    // 输出：尽量保留已有 ring queue 的 shared_ptr，避免下游断链
+    std::vector<std::shared_ptr<AudioTimestampRingQueue>> oldOutputs = std::move(_outputBuffers);
+    _outputBuffers.resize(static_cast<size_t>(outputCount));
+    for (int i = 0; i < outputCount; ++i) {
+        if (i < static_cast<int>(oldOutputs.size()) && oldOutputs[static_cast<size_t>(i)]) {
+            _outputBuffers[static_cast<size_t>(i)] = oldOutputs[static_cast<size_t>(i)];
+        } else {
+            _outputBuffers[static_cast<size_t>(i)] = std::make_shared<AudioTimestampRingQueue>();
+        }
+    }
+
+    _matrix = matrix;
 }
 
 /**

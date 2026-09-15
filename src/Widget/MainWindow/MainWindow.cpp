@@ -4,6 +4,7 @@
 
 #include <QMessageBox>
 #include "MainWindow.hpp"
+#include "FramelessConfirmDialog.hpp"
 #include "Common/AppConfig/ConstantDefines.h"
 #include "Nodes/NodeEditorStyle.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
@@ -136,7 +137,7 @@ void MainWindow::init()
 {
     m_DockManager = new ads::CDockManager(this);
     // 注册到 DockHub，供外部模块统一挂载
-    DockHub::instance().setDockManager(m_DockManager);
+    //DockHub::instance().setDockManager(m_DockManager);
 
     m_DockManager->setDockWidgetToolBarStyle(Qt::ToolButtonStyle::ToolButtonIconOnly,CDockWidget::eState::StateDocked);
     this->setCentralWidget(m_DockManager);
@@ -795,17 +796,23 @@ void MainWindow::closeEvent(QCloseEvent* event)
     }
 
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
-        QMessageBox::StandardButton reply =
-            QMessageBox::question(this, "",
-                                  tr("是否最小化到系统托盘？"),
-                                  QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
-                                  QMessageBox::Cancel); // 默认按钮为 Cancel
+        const FramelessConfirmDialog::ButtonTexts buttons{
+            tr("最小化到托盘"),
+            tr("退出程序"),
+            tr("取消"),
+        };
+        const auto reply = FramelessConfirmDialog::question(
+            this,
+            tr("退出"),
+            tr("关闭窗口时，可以将程序最小化到系统托盘继续在后台运行，也可以直接退出。"),
+            buttons,
+            FramelessConfirmDialog::Result::Cancel);
 
-        if (reply == QMessageBox::Yes) {
+        if (reply == FramelessConfirmDialog::Result::Primary) {
             qDebug() << "Minimize to system tray";
             this->hide();
             event->ignore(); // 保持进程运行
-        } else if (reply == QMessageBox::No) {
+        } else if (reply == FramelessConfirmDialog::Result::Secondary) {
             // 先停 HTTP/WebSocket，再打退出日志，避免日志广播 sendFrame 拖慢关闭
             if (httpServer && httpServer->running()) {
                 httpServer->stop();

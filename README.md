@@ -11,8 +11,8 @@
 | 场景 | 典型用法 |
 |------|----------|
 | 灯光控制 | Art-Net / DMX 收发、Universe 录制与回放、与 Reaper 等 DAW 联动 |
-| 音视频 | 摄像头 / NDI / Spout / RTSP 采集，解码播放，VST3 效果链，LTC 时间码 |
-| 设备通信 | 串口、TCP/UDP、WebSocket、HTTP、OSC、MQTT、Modbus TCP |
+| 音视频 | 摄像头 / NDI / Spout / RTSP 采集，解码播放，VST3 / FMOD，LTC 时间码；**ISF** 着色器特效、**Vioso** 投影 Warp+Blend |
+| 设备通信 | 串口、TCP/UDP、WebSocket、HTTP、OSC、MQTT、Modbus TCP、CAN、PJLink、Q-SYS |
 | 现场自动化 | 热键触发、条件分支、边沿检测、延迟队列、值查表、Snapshot 切场、脚本扩展 |
 | AI 视觉 | YOLO 目标/姿态/人脸检测（ONNX）、MediaPipe 手势/姿态/分割、风格迁移 |
 | 远程控制 | 内置 HTTP 网页控制台、全局 OSC 地址树、计划任务 |
@@ -58,7 +58,7 @@ flowchart TB
     end
 
     subgraph Plugins["插件体系"]
-        Nodes[".node 节点插件 × 85"]
+        Nodes[".node 节点插件 × 90+"]
         BuildIn[BuildInNodes 内置节点]
         Clips["时间轴 Clip 插件"]
         JS["CustomScript / QML Script"]
@@ -100,12 +100,28 @@ flowchart TB
 - 拖拽节点、连接端口、分组、撤销/重做
 - 多个数据流标签页，每个数据流独立运行
 - 节点内嵌参数面板；部分节点支持动态端口数量
-- **BuildInNodes** 静态库提供 Source / Variable / In / Out / Image Show / Window Display 等基础节点
-- **85 个官方节点插件目录**（见 `src/Nodes/CMakeLists.txt` 的 `ALL_NODES`），注册 **110+ 节点模型**（部分插件含多个变体），按类别组织在节点库中
+- **BuildInNodes** 静态库提供 Source / Variable / In / Out / Image Show / Window Display / Container 等基础节点
+- **90+ 个官方节点插件目录**（见 `src/Nodes/CMakeLists.txt` 的 `ALL_NODES`），注册 **110+ 节点模型**（部分插件含多个变体），按类别组织在节点库中
 
 每个节点插件目录下均有面向用户的 **`Doc.md`**（节点说明、端口、界面、用法、示例）。
 
-### 2. 时间轴
+### 2. 媒体库
+
+媒体库按扩展名自动分类，分组**默认折叠**（文件多时减少滚动）。分类包括：
+
+| 分类 | 典型扩展名 |
+|------|------------|
+| Video / Audio / Image | `.mp4` `.wav` `.png` 等 |
+| DMX | `.dmx` |
+| 3D Models | `.obj` `.fbx` `.gltf` 等 |
+| Documents | `.json` `.ini` `.txt` `.csv` 等 |
+| **Vioso** | `.vwf`（投影校准） |
+| **ISF** | `.fs`（Interactive Shader Format） |
+| Child Flows | `.childflow` |
+
+导入对话框按上述分类提供筛选；可将文件拖入画布创建对应节点（如 Video Decoder、Vioso、ISF、Container 等）。存储目录默认：`文档/Flow/Medias`。
+
+### 3. 时间轴
 
 基于 [QtTimeLine](https://github.com/bwll1989/QtTimeLine) 的非线性时间编排：
 
@@ -126,7 +142,7 @@ flowchart TB
 
 > AudioClip、PlayerClip 源码存在，默认未纳入构建。
 
-### 3. 外部控制与网页控制台
+### 4. 外部控制与网页控制台
 
 Flow 通过 **GlobalEventBus** 将节点参数映射为统一的 OSC 风格地址树，便于外部系统读写。
 
@@ -184,7 +200,7 @@ build/bin/www/
 
 > 程序启动时会将工作目录设为 exe 所在目录，因此 `www/` 应放在 `build/bin/` 下。若缺少 `www/index.html`，HTTP 服务会回退到内置占位页。
 
-### 4. Snapshot 与内部命令
+### 5. Snapshot 与内部命令
 
 **Internal Commands** 插件提供三种节点变体：
 
@@ -198,7 +214,7 @@ Snapshot 典型流程：画布选中节点 →「捕获选中」→ 点击互斥
 
 > 各节点需在 `save()/load()` 中完整持久化运行时状态（如播放中、设备连接参数等），Snapshot 才能正确切场。详见各节点 `Doc.md`。
 
-### 5. 插件化扩展
+### 6. 插件化扩展
 
 | 类型 | 输出位置 | 说明 |
 |------|----------|------|
@@ -221,15 +237,17 @@ CMake 选项 **`BUILD_ALL_NODES`**（默认 ON）可一次编译全部节点插�
 
 ### Controls — 控制与逻辑
 
-Delay、Switch、Merge、Condition、Edge Trigger、Count、Range Map、Hold、Inject、Distribute、Value Lookup、Keyboard In、Extract、LFO、Curve、Math / Logic 运算、TimeLineNode、Data Info、Data Visual、File Load（JSON / INI / Image）、To Files（图像 / 视频 / 音频 / 文本导出）、JavaScript、QML Script、CustomScript、Internal Commands、Snapshot 等。
+Delay、Switch、Merge、Condition、Edge Trigger、Count、Range Map、Hold、Inject、Distribute、Value Lookup、Keyboard In、Extract、LFO、Curve、Math / Logic 运算、TimeLineNode、Data Info、Data Visual、File Load（JSON / INI / Image）、To Files（图像 / 视频 / 音频 / 文本导出）、JavaScript、QML Script、CustomScript、Internal Commands、Snapshot、Container（子图）等。
 
 ### Connect — 网络与协议
 
-Serial Port、TCP Server / Client、UDP Socket、WebSocket Server / Client、HTTP Client、OSC In / Out、Mqtt Client、PJLink、Ping（ICMP 连通性）。
+Serial Port、TCP Server / Client、UDP Socket、WebSocket Server / Client、HTTP Client、OSC In / Out、Mqtt Client、PJLink、Ping（ICMP）、Sync Out / In（跨主机 Variable 同步）、CAN Bus 等。
 
 ### Image — 图像与视频
 
-Camera、Capture、ROI、Scale / Crop / Threshold / Switch 等 Image Operates 算子集、NDI In / Out、Spout In / Out、RTSP、Color 系列、Video Decoder、Image Const / Text To Image / Image Layout、Rect、Size Var 等。
+Camera、Capture、ROI、Scale / Crop / Threshold / Switch 等 Image Operates 算子集、NDI In / Out、Spout In / Out、RTSP、Color 系列、Video Decoder、Image Const / Text To Image / Image Layout、Rect、Size Var、**Vioso**（`.vwf` Warp+Blend，多投影通道动态输出口）、**ISF**（`.fs` 着色器，INPUTS 动态映射为端口，含 audio / audioFFT）等。
+
+详见 [`src/Nodes/ViosoNode/Doc.md`](src/Nodes/ViosoNode/Doc.md)、[`src/Nodes/ISFNode/Doc.md`](src/Nodes/ISFNode/Doc.md)。
 
 ### Audio — 音频
 
@@ -241,7 +259,7 @@ Artnet In / Out、DMX Device、DMX Universe、Universe Playback。
 
 ### Devices — 现场设备
 
-Mpv Controller、VLC Remote、NDV Server / Player、PLC ModBus、Modbus Master / Slave、DAW Controller、TSETL、showStoreGBx、USR-IO808 / USR-IO424、Aurora S、SlideShow 数字标牌、ENTTEC S-Play、FT-C040A 触摸屏等。
+Mpv Controller、VLC Remote、NDV Server / Player、PLC ModBus、Modbus Master / Slave、DAW Controller、TSETL、showStoreGBx、USR-IO808 / USR-IO424、Aurora S、SlideShow 数字标牌、ENTTEC S-Play、FT-C040A 触摸屏、Q-SYS QRC、AgileX Ranger Mini / Nav Controller / Mission 等。
 
 ### ONNX — AI 推理
 
@@ -306,7 +324,14 @@ Object Detection、Pose Detection、Face Detection、Style Transfer（YOLO v11n�
 | 语言标准 | C++17 |
 | Node.js | 18+（仅构建 WebInterface 时需要） |
 
-**第三方依赖** 见 [`res/README.md`](res/README.md)（开源声明与致谢）。预编译库位于 `3rdParty/`。
+**第三方依赖** 见 [`res/README.md`](res/README.md)（开源声明、SDK 用途、`3rdParty/` 目录对照与运行时 DLL 说明）。预编译 / 源码依赖位于 `3rdParty/`。
+
+与 GPU 特效相关的新增依赖：
+
+| 目录 | 用途 | 运行时 |
+|------|------|--------|
+| `3rdParty/VIOSO_API` | Vioso 节点 Warp+Blend | 拷贝 `VIOSOWarpBlend64.dll` 到 `bin/` |
+| `3rdParty/VVISF-GL` | ISF 节点（VVGL / VVISF / GLEW） | 需 `glew32.dll` |
 
 ### 编译 C++ 主程序
 
@@ -365,15 +390,15 @@ NodeEditorCPP/
 │   │   │   └── ...               # OSC / MQTT / Artnet / TCP 等
 │   │   └── GUI/                  # 通用 UI 组件
 │   └── Widget/                   # 主窗口与各功能面板
-│       ├── MainWindow/
+│       ├── MainWindow/           # 主窗口、无边框退出确认等
 │       ├── NodeWidget/           # 数据流视图与 GraphModel
 │       ├── TimeLineWidget/
 │       ├── ExternalControl/      # HTTP 服务、ActionRegistry、protocol.md
-│       ├── MediaLibraryWidget/
+│       ├── MediaLibraryWidget/   # 媒体库树（分类默认折叠）
 │       └── ...
 ├── example/                      # 示例 .flow 工程
-├── res/                          # 资源、样式、第三方说明
-└── 3rdParty/                     # 预编译依赖（QtNodes、FFmpeg、OpenCV 等）
+├── res/                          # 资源、样式、第三方说明（README.md）
+└── 3rdParty/                     # 依赖（QtNodes、FFmpeg、OpenCV、VIOSO_API、VVISF-GL 等）
 ```
 
 ---
@@ -395,10 +420,9 @@ NodeEditorCPP/
 - `save()` — 序列化全部需恢复的状态
 - `load()` — 异步初始化（如解码器、设备连接）完成后，再恢复播放 / 连接等运行时状态
 
-### JS / QML 节点
+### JS节点
 
 - **CustomScriptNode**：在扫描目录放置 JS，通过元数据声明 `name`、`inputs`、`outputs` 与 UI
-- **QmlScriptNode**：支持 `setUiSchema` 声明式面板
 
 ### 时间轴片段
 
@@ -409,13 +433,29 @@ NodeEditorCPP/
 参考 [`WebInterface/docs/third-party-cards.md`](WebInterface/docs/third-party-cards.md)：在 `src/panels/lovelace/cards/` 新建 `hui-xxx-card.ts`，实现 `LovelaceCard` 接口并在 `register-cards.ts` 中注册。
 
 ---
+## 示例
+### 表演控制
+![表演控制](res/images/example1.png)
+### 图像识别表演控制
+![image.png](res/images/image.png)
+### web Dashboard
+![image2.png](res/images/image2.png)
+### web Dashboard
+![image1.png](res/images/image1.png)
+### ISF+Vioso
+![image3.png](res/images/image3.png)
+### Video+Auido+VST3
+![image4.png](res/images/image4.png)
+### 
 
 ## 路线图
 
 - [ ] 优化性能与长时间运行稳定性
-- [ ] 扩展节点类型（音频 / 视频 / 控制 / 设备对接）
+- [x] 扩展 GPU 特效节点（**Vioso** Warp+Blend、**ISF** 着色器）
+- [ ] 继续扩展节点类型（音频 / 视频 / 控制 / 设备对接）
 - [ ] 增强时间轴功能（编辑体验、同步精度）
 - [x] 重构 Dashboard / 网页控制台（WebInterface，Lit + Lovelace 布局）
+- [x] 媒体库分类细化（含 Vioso / ISF / Documents，分组默认折叠）
 - [ ] 统一节点 `save()/load()` 与 Snapshot 兼容性
 - [ ] 优化交互与文档体系
 

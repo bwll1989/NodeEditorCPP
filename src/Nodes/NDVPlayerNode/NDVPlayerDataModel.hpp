@@ -120,8 +120,11 @@ namespace Nodes
             }
 
             if (widget) {
-                widget->setParent(nullptr);
-                delete widget;
+                // Already destroyed by QGraphicsProxyWidget when expanded.
+                if (widget->parent() == nullptr) {
+                    widget->setParent(nullptr);
+                    delete widget.data();
+                }
             }
         }
 

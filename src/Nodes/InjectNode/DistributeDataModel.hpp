@@ -31,17 +31,20 @@ namespace Nodes
         DistributeDataModel()
         {
             InPortCount = 1;
-            OutPortCount = 5;
+            OutPortCount = 4;
             Caption = "Distribute";
             CaptionVisible = true;
             WidgetEmbeddable = false;
-            PortEditable = true;
+            PortEditable = false;
             Resizable = true;
 
             m_jsEngine = new QJSEngine(this);
             m_emptyOutput = std::make_shared<VariableData>(QVariant(false));
+            widget->setRowCount(static_cast<int>(OutPortCount));
+
             connect(widget, &DistributeInterface::rulesChanged, this, &DistributeDataModel::onRulesChanged);
-            // syncOutputPortCount();
+            connect(widget, &DistributeInterface::rowAppended, this, &DistributeDataModel::onRowAppended);
+            connect(widget, &DistributeInterface::rowRemoved, this, &DistributeDataModel::onRowRemoved);
         }
 
         ~DistributeDataModel() override = default;
@@ -105,7 +108,8 @@ namespace Nodes
                 widget->importRulesArray(p["rules"].toArray());
             }
 
-            // syncOutputPortCount();
+            syncOutputPortCount(static_cast<unsigned int>(qMax(1, widget->rowCount())), false);
+            Q_EMIT embeddedWidgetSizeUpdated();
         }
 
         QWidget *embeddedWidget() override { return widget; }
@@ -113,21 +117,63 @@ namespace Nodes
     private slots:
         void onRulesChanged()
         {
-            // syncOutputPortCount();
+            if (m_inputData) {
+                distributeInput(m_inputData);
+            }
+        }
+
+        void onRowAppended()
+        {
+            const unsigned int oldCount = OutPortCount;
+            Q_EMIT portsAboutToBeInserted(PortType::Out, oldCount, oldCount);
+            OutPortCount = oldCount + 1;
+            Q_EMIT portsInserted();
+            Q_EMIT embeddedWidgetSizeUpdated();
+        }
+
+        void onRowRemoved(int index)
+        {
+            if (index < 0 || OutPortCount <= 1) {
+                return;
+            }
+            // 与 Inject 一致：删除对应索引端口，其后端口与连线向上补位
+            const auto portIndex = static_cast<PortIndex>(index);
+            Q_EMIT portsAboutToBeDeleted(PortType::Out, portIndex, portIndex);
+            OutPortCount -= 1;
+            Q_EMIT portsDeleted();
+            Q_EMIT embeddedWidgetSizeUpdated();
+
+            // 端口索引变化后清掉旧缓存，按需用当前输入重算
+            m_portOutputs.clear();
             if (m_inputData) {
                 distributeInput(m_inputData);
             }
         }
 
     private:
-        // void syncOutputPortCount()
-        // {
-        //     const int maxPort = widget->maxConfiguredOutputPort();
-        //     const unsigned int required = static_cast<unsigned int>(maxPort + 1);
-        //     if (required > OutPortCount) {
-        //         OutPortCount = required;
-        //     }
-        // }
+        /** 仅用于 load：无连线迁移时直接对齐端口数 */
+        void syncOutputPortCount(unsigned int newCount, bool notifyPorts)
+        {
+            const unsigned int oldCount = OutPortCount;
+            if (newCount == oldCount || newCount < 1) {
+                return;
+            }
+
+            if (notifyPorts) {
+                if (newCount > oldCount) {
+                    Q_EMIT portsAboutToBeInserted(PortType::Out, oldCount, newCount - 1);
+                    OutPortCount = newCount;
+                    Q_EMIT portsInserted();
+                } else {
+                    Q_EMIT portsAboutToBeDeleted(PortType::Out, newCount, oldCount - 1);
+                    OutPortCount = newCount;
+                    Q_EMIT portsDeleted();
+                }
+                Q_EMIT embeddedWidgetSizeUpdated();
+            } else {
+                OutPortCount = newCount;
+            }
+        }
 
         void setupJsInput(const VariableData &input)
         {
@@ -156,33 +202,24 @@ namespace Nodes
             return result.toBool();
         }
 
+        /** 按当前界面行号分发输入，一行对应一个输出端口。 */
         void distributeInput(const std::shared_ptr<VariableData> &input)
         {
-            QList<int> matchedRows;
+            m_portOutputs.clear();
+
             for (int row = 0; row < widget->rowCount(); ++row) {
-                if (matchesCondition(*input, widget->conditionAt(row))) {
-                    matchedRows.append(row);
-                }
-            }
-
-            if (matchedRows.isEmpty()) {
-                return;
-            }
-
-            for (const int row : matchedRows) {
-                bool ok = false;
-                const int outPort = widget->outputPortAt(row).toInt(&ok);
-                if (!ok || outPort < 0 || outPort >= static_cast<int>(OutPortCount)) {
+                if (!matchesCondition(*input, widget->conditionAt(row))) {
                     continue;
                 }
 
+                const auto outPort = static_cast<PortIndex>(row);
                 auto output = std::make_shared<VariableData>(QVariant(true));
                 output->insert(QStringLiteral("_pulse"), ++m_pulseCounter);
-                output->insert(QStringLiteral("_distributedPort"), outPort);
+                output->insert(QStringLiteral("_distributedPort"), row);
                 output->insert(QStringLiteral("_matchedRow"), row);
 
-                m_portOutputs[static_cast<PortIndex>(outPort)] = output;
-                Q_EMIT dataUpdated(static_cast<PortIndex>(outPort));
+                m_portOutputs[outPort] = output;
+                Q_EMIT dataUpdated(outPort);
             }
         }
 

@@ -188,47 +188,72 @@
 
 ## 1. 节点说明
 
-通过 TCP 连接自研 **DAW 控制器**，向设备发送自定义指令字符串（常见为 JSON + 后缀）。底层由 `FTDAWController` 单例负责连接与发送；本节点负责配置主机、编辑指令，并在触发时下发。
+面向自研 **DAW 控制器**的播放列表驱动节点，与 SPlayControllerNode 的"轮询 + 端口映射"模式对齐：
 
-修改指令内容时会**自动发送一次**；也可通过 Trigger 端口或界面 Send 按钮手动发送。
+- 通过 HTTP **GET `http://127.0.0.1:2004/players`**（默认主机 `127.0.0.1`，端口固定 `2004`）每 2 秒轮询一次播放列表。
+- 解析返回 JSON 中的 `players[]`（字段：`id / name / type / status / enable / sort`），按 `sort` 升序排序后作为端口顺序。
+- **端口数量完全由播放列表驱动，不可手动编辑**：新列表到达后自动增删输入/输出端口，始终保持 **In = N，Out = N**（N = 播放器数量），输入输出端口 i 都对应排序第 i 个播放器。
+- 输入端口写 `true` → 向该播放器下发 `play`；写 `false` → 下发 `stop`。
+- 指令通过 `FTDAWController` 单例（全局 TCP Client，默认端口 2003）发出，格式严格为：
+  ```
+  {"type":"player","id":"1","operate":"play"}/0
+  ```
 
 ## 2. 端口说明
 
-### 输入
+### 输入（全部 VariableData / Bool）
 
 | 端口 | 类型 | 说明 |
 |------|------|------|
-| Command | VariableData | 指令字符串；写入后更新界面并立即发送 |
-| Trigger | VariableData | 为 `true` 且当前指令非空时，发送一次 |
+| `[i] <播放器名称>` | VariableData | 第 i 个播放器控制：写入 `true`=PLAY，`false`=STOP；每次写入都发令，便于 Trigger 再次 true 重放 |
 
-### 输出
+### 输出（全部 VariableData / Bool）
 
 | 端口 | 类型 | 说明 |
 |------|------|------|
-| STATUS | VariableData | 最近一次发送信息：`last_message`（指令原文）、`timestamp`（发送时间） |
+| `[i] <播放器名称>` | VariableData | 第 i 个播放器当前是否在播放（`isPlayingStatus()` 判定）；**仅状态变化时才输出** |
+
+> 删除播放器后对应输入/输出端口会自动减少（按 QtNodes 约定先发 `portsAboutToBeDeleted` 再 `portsDeleted`）；连线会按框架策略处理。
 
 ## 3. 界面说明
 
-- **主机地址**：设备 IP（默认 `127.0.0.1`）；修改后自动重连。
-- **指令编辑框**：待发送内容；默认示例  
-  `{"type": "player","id": "1","operate": "play"}/0`
-- **Send**：手动发送当前指令。
-- **连接状态**：是否已与设备就绪（绿=已连接 / 红=未连接）。
+- **主机**：DAW HTTP 接口所在主机（默认 `127.0.0.1`）；编辑框回车后立即重连并刷新一次列表，HTTP 端口固定为 `2004`。
+- **刷新列表**：立即手动 `GET /players` 一次。
+- **连接状态**：
+  - 绿/已连接 = 最近一次 `/players` 请求成功；
+  - 红/未连接 = 连续失败或从未成功。
+  - 下方灰色状态栏显示最近请求提示（请求中 / 加载 N 个 / JSON 解析失败 / 超时原因等）。
+- **播放器列表（点击图标切换播放/停止）**：每行结构
+  - `[播放/停止按钮]`（checkable，图标 = `:/icons/icons/play.png` / `stop.png`，无背景）：点击即 toggle 该播放器；
+  - `[<真实ID>]`：接口返回的 `players[i].id`；
+  - `<名称>`：`players[i].name`，鼠标悬停显示完整字段（index / id / name / type / status / enable / sort）。
+  - 正在播放的行自带淡绿底色；已启用但未播放为淡蓝底色。
 
-外部控制：`/host`、`/command`、`/send`、`/connected`（只读）。
+### OSC 外部控制
 
-工程会持久化 **主机** 与 **指令** 内容。
+| 相对地址 | 说明 |
+|---|---|
+| `/host` | 写入新主机字符串（同时自动刷新一次） |
+| `/refresh` | 写入 `true` 立即刷新列表 |
+
+> 节点持久化字段：**host**（兼容旧版存档中的 `IP` / `port` 字段，port 字段已忽略，内部固定 2004）。
 
 ## 4. 使用说明
 
-1. 填写主机 IP，等待状态变为「已连接」。
-2. 在编辑框写入设备协议要求的指令（或由 Command 端口写入）。
-3. 点 Send，或向 Trigger 送入 `true` 发送；也可直接改 Command 触发自动发送。
-4. 将 STATUS 接到 Data Info / Extract，便于核对最近下发内容与时间。
+1. 若 DAW HTTP 接口不在本机，将 **主机** 改为对应 IP（端口 2004 由 DAW 提供，无需配置）。
+2. 等状态栏显示 "已加载 N 个播放器"，节点左右两侧会出现对应数量的控制 / 状态端口。
+3. 上游连线：
+   - 直接 Bool 驱动：某条件成立 → `In[i]=true` 开始播放，条件失效 → `In[i]=false` 停止；
+   - 脉冲驱动：Trigger 脉冲 → `In[i]=true` 开始播放，再次 true 也会重新发 play（因为每次写入都发令）。
+4. 下游：把 `Out[i]` 接 DataInfo / Condition，仅在状态切换时产生值，避免无谓重算。
+5. 界面调试可直接点播放/停止图标按钮，效果等同于对应端口写入 true/false。
 
 ## 5. 示例
-
-时间线片段结束 → Trigger 送入 `true`，指令为  
-`{"type": "player","id": "1","operate": "stop"}/0`，停止对应播放器。
-DAW播放器默认为tcp server，端口2003，此节点只定义了一个全局tcp client用于发送数据，具体指令需自行配置
+![alt text]({021D75D8-EB37-474B-AB42-3989766CCDD3}.png)
+时间线片段到 "梦境二"：Trigger 端口 `In[11]` 送 true →
+```
+{"type":"player","id":"8","operate":"play"}/0
+```
+DAW 控制器按 id=8 命中 `8-梦境三` 并播放；片段结束时 `In[11]=false` → 对应 stop 指令。
+DAW 端默认为 TCP Server（端口 2003，FTDAWController 全局 TCP Client），节点 HTTP 列表端口才是 2004；指令结构保持原生 `{"type":"player","id":"<id>","operate":"play|stop"}/0` 即可，无需在节点内再次编辑。
 

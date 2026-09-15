@@ -29,6 +29,7 @@ public:
     double singleStep() const;
     int decimals() const;
     QString suffix() const;
+    bool compactMode() const;
 
 public slots:
     void setValue(double val);
@@ -38,6 +39,8 @@ public slots:
     void setDecimals(int prec);
     void setRange(double min, double max);
     void setSuffix(const QString &s);
+    /** 紧凑模式：可双向拉伸，小尺寸时用色块代替数字 */
+    void setCompactMode(bool enabled);
 
 signals:
     void valueChanged(double value);
@@ -50,6 +53,8 @@ protected:
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
 
 private slots:
     void onEditingFinished();
@@ -69,4 +74,5 @@ private:
 
     QLineEdit *m_lineEdit;
     QString m_suffix;
+    bool m_compactMode = false;
 };

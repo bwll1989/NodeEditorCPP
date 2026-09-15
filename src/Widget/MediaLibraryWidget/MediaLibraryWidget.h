@@ -78,7 +78,7 @@ private slots:
     /**
      * @brief 监听媒体库数据变更并刷新所有显示
      * 函数级注释：当 MediaLibrary 发出 libraryChanged 时，强制重绑模型以刷新树视图，
-     *            重新设置组图标与展开状态，并为子项补充类型图标，确保 UI 同步。
+     *            重新设置组图标与默认折叠状态，并为子项补充类型图标，确保 UI 同步。
      */
     void onLibraryChanged();
 

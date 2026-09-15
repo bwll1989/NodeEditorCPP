@@ -45,11 +45,11 @@ namespace Nodes
             main_layout->addWidget(sendButton, row++, 0, 1, 2);
 
             statusLabel->setStyleSheet(QStringLiteral("color: gray;"));
-            main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding), row, 0);
+            // main_layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Expanding, QSizePolicy::Expanding), row, 0);
             main_layout->setRowStretch(row, 1);
             main_layout->setColumnStretch(1, 1);
-            // setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-            setFixedSize(500,300);
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            setMinimumSize(300,200);
         }
 
     public:

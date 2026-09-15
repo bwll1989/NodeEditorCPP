@@ -1,90 +1,80 @@
 #pragma once
 
-#include <QWidget>
 #include <QHBoxLayout>
-#include <QLabel>
-#include <QFrame>
-#include <QKeySequenceEdit>
+#include <QIcon>
 #include <QJsonObject>
-#include <QPixmap>
+#include <QKeySequenceEdit>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QSizePolicy>
-
-#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include <QWidget>
 
 /**
- * 单行按键配置：Key + Index；默认适配 240 宽，可随节点拉伸。
+ * HotKey 单行：左侧删除 + 按键录制。
+ * 行索引即输出端口索引；行高由外部传入（与 port step 一致）。
  */
 class HotKeyItem : public QWidget
 {
     Q_OBJECT
 public:
-    explicit HotKeyItem(QWidget *parent = nullptr)
+    explicit HotKeyItem(int rowHeight, QWidget *parent = nullptr)
         : QWidget(parent)
+        , m_rowHeight(qMax(1, rowHeight))
     {
+        setObjectName(QStringLiteral("HotKeyItem"));
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setFixedHeight(m_rowHeight);
+        setMinimumHeight(m_rowHeight);
+        setMaximumHeight(m_rowHeight);
+
+        const int inner = qMax(1, m_rowHeight - 2);
+        const int icon = qBound(10, 14, inner - 2);
+
         auto *layout = new QHBoxLayout(this);
         layout->setContentsMargins(2, 0, 2, 0);
-        layout->setSpacing(4);
-        layout->setAlignment(Qt::AlignVCenter);
+        layout->setSpacing(2);
 
-        portIndex->setMinimum(0);
-        portIndex->setFixedWidth(32);
-        portIndex->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-        portIndex->setToolTip(QStringLiteral("输出端口索引"));
+        m_deleteBtn = new QPushButton(this);
+        m_deleteBtn->setIcon(QIcon(QStringLiteral(":/icons/icons/remove.png")));
+        m_deleteBtn->setIconSize(QSize(icon, icon));
+        m_deleteBtn->setFixedSize(inner, inner);
+        m_deleteBtn->setFlat(true);
+        m_deleteBtn->setFocusPolicy(Qt::NoFocus);
+        m_deleteBtn->setCursor(Qt::PointingHandCursor);
+        m_deleteBtn->setToolTip(QStringLiteral("删除"));
+        connect(m_deleteBtn, &QPushButton::clicked, this, &HotKeyItem::deleteRequested);
 
-        keyEdit->setMaximumSequenceLength(1);
-        keyEdit->setMinimumWidth(96);
-        keyEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        keyEdit->setToolTip(QStringLiteral("录制要监视的按键"));
-
-        stateIndicator->setFixedSize(10, 10);
-        stateIndicator->setToolTip(QStringLiteral("按下状态"));
-        updateStyle();
-
-        auto *keyLabel = new QLabel(QStringLiteral("Key"), this);
-        auto *idxLabel = new QLabel(QStringLiteral("Idx"), this);
-
-        auto *moveLabel = new QLabel(this);
-        moveLabel->setFixedSize(12, 12);
-        moveLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-        moveLabel->setPixmap(QPixmap(QStringLiteral(":/icons/icons/move.png"))
-                                 .scaled(moveLabel->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
-        moveLabel->setAlignment(Qt::AlignCenter);
-
-        layout->addWidget(keyLabel, 0, Qt::AlignVCenter);
-        layout->addWidget(keyEdit, 1, Qt::AlignVCenter);
-        layout->addWidget(idxLabel, 0, Qt::AlignVCenter);
-        layout->addWidget(portIndex, 0, Qt::AlignVCenter);
-        layout->addWidget(stateIndicator, 0, Qt::AlignVCenter);
-        layout->addWidget(moveLabel, 0, Qt::AlignVCenter);
-        layout->setStretch(1, 1);
-
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        setMinimumWidth(220);
-        setFixedHeight(28);
-
-        connect(portIndex, &IntDragValueWidget::valueChanged,
-                this, &HotKeyItem::configChanged);
-        connect(keyEdit, &QKeySequenceEdit::keySequenceChanged,
+        m_keyEdit = new QKeySequenceEdit(this);
+        m_keyEdit->setMaximumSequenceLength(1);
+        m_keyEdit->setFixedHeight(inner);
+        m_keyEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        m_keyEdit->setToolTip(QStringLiteral("录制要监视的按键"));
+        connect(m_keyEdit, &QKeySequenceEdit::keySequenceChanged,
                 this, [this](const QKeySequence &) { Q_EMIT configChanged(); });
+
+        if (auto *lineEdit = m_keyEdit->findChild<QLineEdit *>()) {
+            lineEdit->setFixedHeight(inner);
+            lineEdit->setMinimumHeight(inner);
+            lineEdit->setMaximumHeight(inner);
+            lineEdit->setFrame(false);
+            lineEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        }
+
+        layout->addWidget(m_deleteBtn, 0, Qt::AlignVCenter);
+        layout->addWidget(m_keyEdit, 1, Qt::AlignVCenter);
     }
 
-    QSize sizeHint() const override
+    QKeySequence keySequence() const
     {
-        return QSize(240, 26);
+        return m_keyEdit ? m_keyEdit->keySequence() : QKeySequence();
     }
 
-    QSize minimumSizeHint() const override
+    void setKeySequence(const QKeySequence &seq)
     {
-        return QSize(240, 26);
+        if (m_keyEdit) {
+            m_keyEdit->setKeySequence(seq);
+        }
     }
-
-    int outPort() const { return portIndex->value(); }
-
-    void setOutPort(int port) { portIndex->setValue(port); }
-
-    QKeySequence keySequence() const { return keyEdit->keySequence(); }
-
-    void setKeySequence(const QKeySequence &seq) { keyEdit->setKeySequence(seq); }
 
     bool isPressed() const { return m_pressed; }
 
@@ -94,38 +84,24 @@ public:
             return false;
         }
         m_pressed = pressed;
-        updateStyle();
         return true;
     }
 
-    QJsonObject toJson() const
+    QJsonObject toJson(int port) const
     {
         QJsonObject obj;
-        obj[QStringLiteral("port")] = portIndex->value();
-        obj[QStringLiteral("value")] = keyEdit->keySequence().toString();
+        obj.insert(QStringLiteral("port"), port);
+        obj.insert(QStringLiteral("value"), keySequence().toString());
         return obj;
-    }
-
-    void fromJson(const QJsonObject &obj)
-    {
-        portIndex->setValue(obj[QStringLiteral("port")].toInt(0));
-        keyEdit->setKeySequence(QKeySequence(obj[QStringLiteral("value")].toString()));
     }
 
 signals:
     void configChanged();
+    void deleteRequested();
 
 private:
-    void updateStyle()
-    {
-        stateIndicator->setStyleSheet(
-            m_pressed
-                ? QStringLiteral("QFrame{background-color:#00C853;border:none;border-radius:5px;}")
-                : QStringLiteral("QFrame{background-color:#E53935;border:none;border-radius:5px;}"));
-    }
-
-    IntDragValueWidget *portIndex = new IntDragValueWidget(this);
-    QKeySequenceEdit *keyEdit = new QKeySequenceEdit(this);
-    QFrame *stateIndicator = new QFrame(this);
+    QPushButton *m_deleteBtn = nullptr;
+    QKeySequenceEdit *m_keyEdit = nullptr;
+    int m_rowHeight = 23;
     bool m_pressed = false;
 };

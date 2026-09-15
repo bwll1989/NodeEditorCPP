@@ -22,7 +22,6 @@ set(_FLOW_SDK_EXPORT_TARGETS
     AppConfig
     OSCTransmitter
     MediaManger
-    ModelDataBridge
     TimestampGenerator
 )
 
@@ -298,7 +297,6 @@ add_dependencies(install-FlowSDK
     AppConfig
     OSCTransmitter
     MediaManger
-    ModelDataBridge
     TimestampGenerator
 )
 

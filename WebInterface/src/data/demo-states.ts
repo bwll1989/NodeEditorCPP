@@ -37,6 +37,13 @@ export function seedDemoStates(store: FlowStore): void {
       },
     },
     "/demo/brightness": 70,
+    "/demo/path_progress": {
+      value: 0.35,
+      attributes: {
+        friendly_name: "轨迹进度",
+        icon: "mdi:robot-industrial",
+      },
+    },
     "/demo/trigger": false,
     "/demo/switch": false,
     "/demo/climate": {

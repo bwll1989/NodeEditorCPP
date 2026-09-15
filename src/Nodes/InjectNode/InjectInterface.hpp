@@ -1,121 +1,260 @@
 #pragma once
 
+#include "PortAlignedColumn/PortAlignedColumn.hpp"
+
 #include <cmath>
 
-#include <QWidget>
-#include <QTableView>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include <QHeaderView>
-#include <QStandardItemModel>
+#include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonArray>
-#include "CompactTableView/CompactTableView.hpp"
+#include <QJsonValue>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QSignalBlocker>
+#include <QSizePolicy>
+#include <QVBoxLayout>
 
 namespace Nodes
 {
-    class InjectInterface : public QWidget {
+    /**
+     * Inject 单行：输入框 + 右侧删除。
+     * 行高 = step；1px 边框含在高度内（margins=1），避免下边线被裁切。
+     */
+    class InjectPresetRow : public QWidget
+    {
+        Q_OBJECT
+    public:
+        explicit InjectPresetRow(int rowHeight, const QString &placeholder, QWidget *parent = nullptr)
+            : QWidget(parent)
+        {
+            setObjectName(QStringLiteral("InjectPresetRow"));
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            setFixedHeight(rowHeight);
+            setMinimumHeight(rowHeight);
+            setMaximumHeight(rowHeight);
+
+            const int inner = qMax(1, rowHeight - 2);
+
+            auto *lay = new QHBoxLayout(this);
+            lay->setContentsMargins(1, 1, 1, 1);
+            lay->setSpacing(0);
+
+            m_edit = new QLineEdit(this);
+            m_edit->setPlaceholderText(placeholder);
+            m_edit->setFixedHeight(inner);
+            m_edit->setFrame(false);
+            m_edit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            connect(m_edit, &QLineEdit::editingFinished, this, &InjectPresetRow::valueChanged);
+            connect(m_edit, &QLineEdit::textEdited, this, &InjectPresetRow::valueChanged);
+
+            m_deleteBtn = new QPushButton(this);
+            m_deleteBtn->setIcon(QIcon(QStringLiteral(":/icons/icons/remove.png")));
+            m_deleteBtn->setIconSize(QSize(14, 14));
+            m_deleteBtn->setFixedSize(inner, inner);
+            m_deleteBtn->setFlat(true);
+            m_deleteBtn->setFocusPolicy(Qt::NoFocus);
+            m_deleteBtn->setToolTip(QStringLiteral("删除"));
+            connect(m_deleteBtn, &QPushButton::clicked, this, &InjectPresetRow::deleteRequested);
+
+            lay->addWidget(m_edit, 1);
+            lay->addWidget(m_deleteBtn, 0);
+        }
+
+        QString text() const { return m_edit ? m_edit->text() : QString(); }
+        void setText(const QString &text)
+        {
+            if (m_edit) {
+                m_edit->setText(text);
+            }
+        }
+
+    signals:
+        void valueChanged();
+        void deleteRequested();
+
+    private:
+        QLineEdit *m_edit = nullptr;
+        QPushButton *m_deleteBtn = nullptr;
+    };
+
+    /**
+     * Inject 嵌入界面：PortAlignedColumn 行槽 + 右侧添加按钮 + 每行右侧删除。
+     */
+    class InjectInterface : public QWidget
+    {
         Q_OBJECT
 
     public:
+        /** 与 Distribute 嵌入区同宽，保证两节点默认宽度一致 */
+        static constexpr int kEmbeddedWidth = 260;
+
         explicit InjectInterface(QWidget *parent = nullptr)
             : QWidget(parent)
-            , tableView(new QTableView(this))
-            , model(new QStandardItemModel(0, 3, this))
+            , m_column(new PortAlignedColumn(this))
+            , m_rowHeight(PortAlignedColumn::rowPitch())
+            , m_placeholder(QStringLiteral("触发后输出的值"))
         {
-            setupUI();
-            connect(model, &QStandardItemModel::itemChanged, this, &InjectInterface::onItemChanged);
-            importValuesArray({});
-            ensureRowCount(5);
+            setObjectName(QStringLiteral("InjectInterface"));
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            setMinimumWidth(kEmbeddedWidth);
+
+            const int inner = qMax(1, m_rowHeight - 2);
+            m_addButton = new QPushButton(this);
+            m_addButton->setIcon(QIcon(QStringLiteral(":/icons/icons/add.png")));
+            m_addButton->setIconSize(QSize(14, 14));
+            m_addButton->setFixedSize(inner, inner);
+            m_addButton->setFlat(true);
+            m_addButton->setFocusPolicy(Qt::NoFocus);
+            m_addButton->setToolTip(QStringLiteral("添加"));
+            connect(m_addButton, &QPushButton::clicked, this, &InjectInterface::onAddClicked);
+
+            auto *right = new QVBoxLayout();
+            right->setContentsMargins(0, 1, 1, 1);
+            right->setSpacing(0);
+            right->addWidget(m_addButton, 0, Qt::AlignTop);
+            right->addStretch(1);
+
+            auto *root = new QHBoxLayout(this);
+            root->setContentsMargins(0, 0, 0, 0);
+            root->setSpacing(0);
+            root->addWidget(m_column, 1);
+            root->addLayout(right, 0);
+            setLayout(root);
+
+            setMinimumRows(1);
+            setRowCount(4);
+        }
+
+        int rowCount() const { return m_column->rowCount(); }
+
+        QString valueAt(int index) const
+        {
+            if (auto *row = rowAt(index)) {
+                return row->text();
+            }
+            return {};
+        }
+
+        void setRowCount(int count)
+        {
+            count = qMax(m_minimumRows, count);
+            const QSignalBlocker blocker(this);
+            while (m_column->rowCount() < count) {
+                appendRowInternal(QString());
+            }
+            while (m_column->rowCount() > count) {
+                m_column->removeRow(m_column->rowCount() - 1);
+            }
+            updateGeometry();
+        }
+
+        void setMinimumRows(int count)
+        {
+            m_minimumRows = qMax(1, count);
+            if (m_column->rowCount() < m_minimumRows) {
+                setRowCount(m_minimumRows);
+            }
         }
 
         QJsonArray exportValuesArray() const
         {
-            QJsonArray valuesArray;
-            for (int row = 0; row < model->rowCount(); ++row) {
-                valuesArray.append(valueAt(row));
+            QJsonArray arr;
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                arr.append(valueAt(i));
             }
-            return valuesArray;
+            return arr;
         }
 
         void importValuesArray(const QJsonArray &valuesArray)
         {
-            m_batchEditing = true;
-            clearActionButtons();
-            model->removeRows(0, model->rowCount());
-
-            for (const QJsonValue &value : valuesArray) {
-                appendRow(jsonValueToString(value));
+            const QSignalBlocker blocker(this);
+            QStringList values;
+            values.reserve(valuesArray.size());
+            for (const QJsonValue &v : valuesArray) {
+                values.append(jsonValueToString(v));
             }
-            m_batchEditing = false;
 
-            finishTableUpdate();
+            const int target = qMax(m_minimumRows, values.size());
+            while (m_column->rowCount() < target) {
+                appendRowInternal(QString());
+            }
+            while (m_column->rowCount() > target) {
+                m_column->removeRow(m_column->rowCount() - 1);
+            }
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                if (auto *row = rowAt(i)) {
+                    row->setText(i < values.size() ? values.at(i) : QString());
+                }
+            }
+            updateGeometry();
         }
 
-        int rowCount() const
+        QSize sizeHint() const override
         {
-            return model->rowCount();
+            const int rows = qMax(1, m_column->rowCount());
+            return QSize(kEmbeddedWidth, rows * m_rowHeight);
         }
 
-        QString valueAt(int index) const
+        QSize minimumSizeHint() const override
         {
-            if (index < 0 || index >= model->rowCount()) {
-                return {};
-            }
-            QStandardItem *item = model->item(index, 1);
-            return item ? item->text() : QString();
-        }
-
-        void ensureRowCount(int count)
-        {
-            if (count < 0 || model->rowCount() >= count) {
-                return;
-            }
-
-            m_batchEditing = true;
-            while (model->rowCount() < count) {
-                appendRow(QString());
-            }
-            m_batchEditing = false;
-
-            finishTableUpdate();
+            const int rows = qMax(1, m_column->rowCount());
+            return QSize(kEmbeddedWidth, rows * m_rowHeight);
         }
 
     signals:
         void listChanged();
+        void rowAppended();
+        void rowRemoved(int index);
 
     private slots:
-        void deleteRow(int row)
+        void onAddClicked()
         {
-            if (row < 0 || row >= model->rowCount()) {
-                return;
-            }
-
-            clearActionButtons();
-            model->removeRow(row);
-            finishTableUpdate();
+            appendRowInternal(QString());
+            updateGeometry();
             emit listChanged();
+            emit rowAppended();
         }
 
-        void addRow()
+        void onRowDeleteRequested()
         {
-            appendRow(QString());
-            finishTableUpdate();
-            emit listChanged();
-        }
-
-        void onItemChanged(QStandardItem *item)
-        {
-            if (m_batchEditing || !item || item->column() != 1) {
+            auto *row = qobject_cast<InjectPresetRow *>(sender());
+            if (!row) {
                 return;
             }
+            const int index = indexOfRow(row);
+            if (index < 0 || m_column->rowCount() <= m_minimumRows) {
+                return;
+            }
+            m_column->removeRow(index);
+            updateGeometry();
             emit listChanged();
+            emit rowRemoved(index);
         }
 
     private:
-        QTableView *tableView;
-        QStandardItemModel *model;
-        QPushButton *addRowButton;
-        bool m_batchEditing = false;
+        InjectPresetRow *rowAt(int index) const
+        {
+            return qobject_cast<InjectPresetRow *>(m_column->rowContent(index));
+        }
+
+        int indexOfRow(InjectPresetRow *row) const
+        {
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                if (m_column->rowContent(i) == row) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        void appendRowInternal(const QString &value)
+        {
+            auto *row = new InjectPresetRow(m_rowHeight, m_placeholder, m_column);
+            row->setText(value);
+            connect(row, &InjectPresetRow::valueChanged, this, &InjectInterface::listChanged);
+            connect(row, &InjectPresetRow::deleteRequested, this, &InjectInterface::onRowDeleteRequested);
+            m_column->appendRow(row);
+        }
 
         static QString jsonValueToString(const QJsonValue &value)
         {
@@ -138,83 +277,10 @@ namespace Nodes
             return value.toVariant().toString();
         }
 
-        void setupUI()
-        {
-            model->setHorizontalHeaderLabels({tr("Index"), tr("Value"), tr("Action")});
-            tableView->setModel(model);
-            tableView->setSortingEnabled(false);
-            tableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-            tableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-            tableView->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-            tableView->verticalHeader()->setVisible(false);
-            tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
-            tableView->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
-            Gui::setupCompactTableView(tableView);
-            tableView->setItemDelegateForColumn(1, new Gui::CompactTableTextDelegate(tableView));
-
-            addRowButton = new QPushButton(tr("Add Item"), this);
-            connect(addRowButton, &QPushButton::clicked, this, &InjectInterface::addRow);
-
-            auto *mainLayout = new QVBoxLayout(this);
-            mainLayout->addWidget(tableView);
-            mainLayout->addWidget(addRowButton);
-            setLayout(mainLayout);
-        }
-
-        void appendRow(const QString &value)
-        {
-            const int row = model->rowCount();
-            model->insertRow(row);
-
-            auto *indexItem = new QStandardItem(QString::number(row));
-            indexItem->setEditable(false);
-            indexItem->setTextAlignment(Qt::AlignCenter);
-            model->setItem(row, 0, indexItem);
-
-            model->setItem(row, 1, new QStandardItem(value));
-            model->setItem(row, 2, new QStandardItem());
-        }
-
-        void refreshIndexColumn()
-        {
-            for (int row = 0; row < model->rowCount(); ++row) {
-                QStandardItem *indexItem = model->item(row, 0);
-                if (!indexItem) {
-                    indexItem = new QStandardItem();
-                    indexItem->setEditable(false);
-                    indexItem->setTextAlignment(Qt::AlignCenter);
-                    model->setItem(row, 0, indexItem);
-                }
-                indexItem->setText(QString::number(row));
-            }
-        }
-
-        void clearActionButtons()
-        {
-            for (int row = 0; row < model->rowCount(); ++row) {
-                tableView->setIndexWidget(model->index(row, 2), nullptr);
-            }
-        }
-
-        void rebuildActionButtons()
-        {
-            clearActionButtons();
-            for (int row = 0; row < model->rowCount(); ++row) {
-                auto *deleteButton = new QPushButton(tr("Delete"), this);
-                deleteButton->setFixedHeight(Gui::kCompactTableRowHeight - 4);
-                connect(deleteButton, &QPushButton::clicked, this, [this, row]() {
-                    deleteRow(row);
-                });
-                tableView->setIndexWidget(model->index(row, 2), deleteButton);
-            }
-        }
-
-        void finishTableUpdate()
-        {
-            refreshIndexColumn();
-            rebuildActionButtons();
-            Gui::applyCompactTableRows(tableView);
-            tableView->viewport()->update();
-        }
+        PortAlignedColumn *m_column = nullptr;
+        QPushButton *m_addButton = nullptr;
+        QString m_placeholder;
+        int m_rowHeight = 23;
+        int m_minimumRows = 1;
     };
 }

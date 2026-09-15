@@ -21,6 +21,7 @@ import { HuiMultiFaderCard } from "./hui-multi-fader-card";
 import { HuiXyPadCard } from "./hui-xy-pad-card";
 import { HuiMediaCard } from "./hui-media-card";
 import { HuiStatusCard } from "./hui-status-card";
+import { HuiPathBadgeCard } from "./hui-path-badge-card";
 
 function registerLazyChartCard(
   type: string,
@@ -214,6 +215,14 @@ export function registerBuiltinCards(): void {
     icon: "mdi:floor-plan",
     category: "container",
     constructor: HuiPictureElementsCard,
+  });
+  registerCard({
+    type: "path-badge",
+    name: "轨迹元素",
+    description: "在底图上绘制轨迹，并让多个徽章按各自的 0-1 值沿轨迹运动",
+    icon: "mdi:map-marker-path",
+    category: "container",
+    constructor: HuiPathBadgeCard,
   });
   registerLazyChartCard(
     "line3d",

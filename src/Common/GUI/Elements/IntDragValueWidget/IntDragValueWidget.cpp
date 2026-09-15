@@ -94,8 +94,14 @@ void IntDragValueWidget::setSuffix(const QString &s)
 void IntDragValueWidget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
-      QPainter painter(this);
-    
+
+    // 编辑态由 QLineEdit 负责显示，不再绘制底层文字，避免透明背景时重叠
+    if (m_lineEdit && m_lineEdit->isVisible()) {
+        return;
+    }
+
+    QPainter painter(this);
+
     QStyleOptionFrame option;
     option.initFrom(this); // 从当前控件获取状态、调色板等
     option.rect = rect();
@@ -168,11 +174,22 @@ void IntDragValueWidget::mouseReleaseEvent(QMouseEvent *event)
 void IntDragValueWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
+        m_isDragging = false;
+        unsetCursor();
+
         m_lineEdit->setText(QString::number(m_value));
         m_lineEdit->setGeometry(rect());
+        // 不透明底，防止父级/全局透明样式透出底层绘制
+        QPalette pal = m_lineEdit->palette();
+        pal.setColor(QPalette::Base, palette().color(QPalette::Base));
+        pal.setColor(QPalette::Text, palette().color(QPalette::Text));
+        m_lineEdit->setPalette(pal);
+        m_lineEdit->setAutoFillBackground(true);
         m_lineEdit->show();
+        m_lineEdit->raise();
         m_lineEdit->setFocus();
         m_lineEdit->selectAll();
+        update();
         event->accept();
     } else {
         QWidget::mouseDoubleClickEvent(event);
@@ -199,5 +216,6 @@ void IntDragValueWidget::onEditingFinished()
         setValue(val);
     }
     m_lineEdit->hide();
+    update();
     emit editingFinished();
 }

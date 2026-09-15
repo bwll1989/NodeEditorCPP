@@ -141,8 +141,8 @@ export class HuiPictureActionElement extends LitElement {
       color: var(--primary-text-color);
     }
     .circle {
-      width: 40px;
-      height: 40px;
+      width: 56px;
+      height: 56px;
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -166,7 +166,7 @@ export class HuiPictureActionElement extends LitElement {
       filter: brightness(0.96);
     }
     ha-icon {
-      --mdc-icon-size: 22px;
+      --mdc-icon-size: 20px;
     }
     .label {
       font-size: 12px;

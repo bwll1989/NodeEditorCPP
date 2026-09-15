@@ -5,6 +5,8 @@ import type {
   LovelaceBarEntityConfig,
   LovelaceCardConfig,
   LovelaceHeadingBadgeConfig,
+  LovelacePathBadgeConfig,
+  LovelacePathPoint,
   LovelacePictureElementConfig,
   LovelaceStatusEntityConfig,
 } from "../../../types";
@@ -23,6 +25,8 @@ import "./flow-heading-badges-editor";
 import "./flow-bar-entities-editor";
 import "./flow-status-entities-editor";
 import "./flow-picture-elements-editor";
+import "./flow-path-badges-editor";
+import "./flow-path-points-editor";
 import { DEFAULT_FLOORPLAN } from "../picture-elements/default-floorplan";
 
 @customElement("flow-card-config-editor")
@@ -324,6 +328,39 @@ export class FlowCardConfigEditor extends LitElement {
               this._setField("elements", ev.detail.elements);
             }}
           ></flow-picture-elements-editor>
+        `;
+
+      case "path_points":
+        return html`
+          <flow-path-points-editor
+            .label=${schema.label}
+            .helper=${schema.helper ?? ""}
+            .image=${String(data.image ?? DEFAULT_FLOORPLAN)}
+            .points=${((data.points as LovelacePathPoint[]) ?? [])}
+            .path=${String(data.path ?? "")}
+            @points-changed=${(
+              ev: CustomEvent<{
+                points: LovelacePathPoint[];
+                path: string;
+              }>,
+            ) => {
+              ev.stopPropagation();
+              this._emit({ points: ev.detail.points, path: ev.detail.path });
+            }}
+          ></flow-path-points-editor>
+        `;
+
+      case "path_badges":
+        return html`
+          <flow-path-badges-editor
+            .badges=${((data.badges as LovelacePathBadgeConfig[]) ?? [])}
+            @badges-changed=${(
+              ev: CustomEvent<{ badges: LovelacePathBadgeConfig[] }>,
+            ) => {
+              ev.stopPropagation();
+              this._setField("badges", ev.detail.badges);
+            }}
+          ></flow-path-badges-editor>
         `;
 
       case "text":

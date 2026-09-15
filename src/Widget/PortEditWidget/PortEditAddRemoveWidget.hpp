@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QHBoxLayout>
-#include "QGroupBox"
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -15,28 +14,11 @@ using QtNodes::PortType;
 class CustomDataFlowGraphModel;
 
 /**
- *                PortEditWidget
+ * PortEditWidget：左右两列 [+][-]，每行固定高度 = 端口 step
+ * （与 PortAlignedColumn / DefaultHorizontalNodeGeometry 一致）。
  *
- * ```
- *       _left                         _right
- *       layout                        layout
- *     ----------------------------------------
- *     |         |                  |         |
- *     | [+] [-] |                  | [+] [-] |
- *     |         |                  |         |
- *     | [+] [-] |                  | [+] [-] |
- *     |         |                  |         |
- *     | [+] [-] |                  | [+] [-] |
- *     |         |                  |         |
- *     | [+] [-] |                  |         |
- *     |         |                  |         |
- *     |_________|__________________|_________|
- * ```
- *
- * The widget has two main vertical layouts containing groups of buttons for
- * adding and removing ports. Each such a `[+] [-]` group is contained in a
- * dedicated QHVBoxLayout.
- *
+ * 每行用固定高度 QWidget 包裹，避免全局 QSS 的 padding/border 撑破行高导致累积错位。
+ * 行高与 PortAlignedColumn::rowPitch() 一致。
  */
 class PortEditAddRemoveWidget : public QWidget
 {
@@ -46,21 +28,15 @@ public:
 
     ~PortEditAddRemoveWidget();
 
-    /**
-     * Called from constructor, creates all button groups according to models'port
-     * counts.
-     */
     void populateButtons(PortType portType, unsigned int nPorts);
 
-    /**
-     * Adds a single `[+][-]` button group to a given layout.
-     */
+    /** 在指定索引插入一行；返回行内按钮布局 */
     QHBoxLayout *addButtonGroupToLayout(QVBoxLayout *vbl, unsigned int portIndex);
 
-    /**
-     * Removes a single `[+][-]` button group from a given layout.
-     */
     void removeButtonGroupFromLayout(QVBoxLayout *vbl, unsigned int portIndex);
+
+    /** 与几何 port step 相同：fontHeight + 10 */
+    static int portRowHeight();
 
 private Q_SLOTS:
     void onPlusClicked();
@@ -68,18 +44,13 @@ private Q_SLOTS:
     void onMinusClicked();
 
 private:
-    /**
-     * @param buttonIndex is the index of a button in the layout.
-     * Plus button has the index 0.
-     * Minus button has the index 1.
-     */
     std::pair<PortType, PortIndex> findWhichPortWasClicked(QObject *sender, int const buttonIndex);
 
     NodeId const _nodeId;
-    
     CustomDataFlowGraphModel &_model;
+    int _rowHeight = 23;
+
 public:
     QVBoxLayout *_left;
-
     QVBoxLayout *_right;
 };

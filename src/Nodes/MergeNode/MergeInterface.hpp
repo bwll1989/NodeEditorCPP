@@ -1,153 +1,326 @@
-//
-// Created by Administrator on 2023/12/13.
-//
 #pragma once
-#pragma once
-#include <QWidget>
-#include <QTableView>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include <QHeaderView>
-#include <QStandardItemModel>
-#include <QJsonObject>
+
+#include "PortAlignedColumn/PortAlignedColumn.hpp"
+
+#include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonArray>
-using namespace NodeDataTypes;
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QSignalBlocker>
+#include <QSizePolicy>
+#include <QVBoxLayout>
+#include <QWidget>
+
 namespace Nodes
 {
-    class MergeInterface : public QWidget {
+    /**
+     * Merge 单行：Name + Rename + 右侧删除。
+     * 行索引即对应输入端口索引；行高 = step。
+     */
+    class MergeRuleRow : public QWidget
+    {
+        Q_OBJECT
+    public:
+        explicit MergeRuleRow(int rowHeight, QWidget *parent = nullptr)
+            : QWidget(parent)
+        {
+            setObjectName(QStringLiteral("MergeRuleRow"));
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            setFixedHeight(rowHeight);
+            setMinimumHeight(rowHeight);
+            setMaximumHeight(rowHeight);
+
+            const int inner = qMax(1, rowHeight - 2);
+
+            auto *lay = new QHBoxLayout(this);
+            lay->setContentsMargins(1, 1, 1, 1);
+            lay->setSpacing(2);
+
+            m_nameEdit = new QLineEdit(this);
+            m_nameEdit->setPlaceholderText(QStringLiteral("Name"));
+            m_nameEdit->setFixedHeight(inner);
+            m_nameEdit->setFrame(false);
+            m_nameEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            connect(m_nameEdit, &QLineEdit::editingFinished, this, &MergeRuleRow::valueChanged);
+            connect(m_nameEdit, &QLineEdit::textEdited, this, &MergeRuleRow::valueChanged);
+
+            m_renameEdit = new QLineEdit(this);
+            m_renameEdit->setPlaceholderText(QStringLiteral("Rename"));
+            m_renameEdit->setFixedHeight(inner);
+            m_renameEdit->setFrame(false);
+            m_renameEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            connect(m_renameEdit, &QLineEdit::editingFinished, this, &MergeRuleRow::valueChanged);
+            connect(m_renameEdit, &QLineEdit::textEdited, this, &MergeRuleRow::valueChanged);
+
+            m_deleteBtn = new QPushButton(this);
+            m_deleteBtn->setIcon(QIcon(QStringLiteral(":/icons/icons/remove.png")));
+            m_deleteBtn->setIconSize(QSize(14, 14));
+            m_deleteBtn->setFixedSize(inner, inner);
+            m_deleteBtn->setFlat(true);
+            m_deleteBtn->setFocusPolicy(Qt::NoFocus);
+            m_deleteBtn->setToolTip(QStringLiteral("删除"));
+            connect(m_deleteBtn, &QPushButton::clicked, this, &MergeRuleRow::deleteRequested);
+
+            lay->addWidget(m_nameEdit, 1);
+            lay->addWidget(m_renameEdit, 1);
+            lay->addWidget(m_deleteBtn, 0);
+        }
+
+        QString name() const { return m_nameEdit ? m_nameEdit->text() : QString(); }
+        QString rename() const { return m_renameEdit ? m_renameEdit->text() : QString(); }
+
+        void setName(const QString &text)
+        {
+            if (m_nameEdit) {
+                m_nameEdit->setText(text);
+            }
+        }
+
+        void setRename(const QString &text)
+        {
+            if (m_renameEdit) {
+                m_renameEdit->setText(text);
+            }
+        }
+
+    signals:
+        void valueChanged();
+        void deleteRequested();
+
+    private:
+        QLineEdit *m_nameEdit = nullptr;
+        QLineEdit *m_renameEdit = nullptr;
+        QPushButton *m_deleteBtn = nullptr;
+    };
+
+    /**
+     * Merge 嵌入界面：PortAlignedColumn 行槽 + 右侧添加；每行对应一个 In 端口。
+     */
+    class MergeInterface : public QWidget
+    {
         Q_OBJECT
 
     public:
-        MergeInterface(QWidget *parent = nullptr)
-            : QWidget(parent), tableView(new QTableView(this)), model(new QStandardItemModel(0, 3, this)) {  // 3列模型
-            setupUI();
-            // 连接 itemChanged 信号
-            connect(model, &QStandardItemModel::itemChanged, this, &MergeInterface::onItemChanged);
+        static constexpr int kEmbeddedWidth = 280;
+
+        explicit MergeInterface(QWidget *parent = nullptr)
+            : QWidget(parent)
+            , m_column(new PortAlignedColumn(this))
+            , m_rowHeight(PortAlignedColumn::rowPitch())
+        {
+            setObjectName(QStringLiteral("MergeInterface"));
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            setMinimumWidth(kEmbeddedWidth);
+
+            const int inner = qMax(1, m_rowHeight - 2);
+            m_addButton = new QPushButton(this);
+            m_addButton->setIcon(QIcon(QStringLiteral(":/icons/icons/add.png")));
+            m_addButton->setIconSize(QSize(14, 14));
+            m_addButton->setFixedSize(inner, inner);
+            m_addButton->setFlat(true);
+            m_addButton->setFocusPolicy(Qt::NoFocus);
+            m_addButton->setToolTip(QStringLiteral("添加"));
+            connect(m_addButton, &QPushButton::clicked, this, &MergeInterface::onAddClicked);
+
+            auto *right = new QVBoxLayout();
+            right->setContentsMargins(0, 1, 1, 1);
+            right->setSpacing(0);
+            right->addWidget(m_addButton, 0, Qt::AlignTop);
+            right->addStretch(1);
+
+            auto *root = new QHBoxLayout(this);
+            root->setContentsMargins(0, 0, 0, 0);
+            root->setSpacing(0);
+            root->addWidget(m_column, 1);
+            root->addLayout(right, 0);
+            setLayout(root);
+
+            setMinimumRows(1);
+            setRowCount(4);
         }
 
-        // 导出数据到 QJsonObject
-        QJsonObject exportToJson() {
+        int rowCount() const { return m_column->rowCount(); }
+
+        QString nameAt(int index) const
+        {
+            if (auto *row = rowAt(index)) {
+                return row->name();
+            }
+            return {};
+        }
+
+        QString renameAt(int index) const
+        {
+            if (auto *row = rowAt(index)) {
+                return row->rename();
+            }
+            return {};
+        }
+
+        /** 兼容旧 DataModel：返回 [Name, Rename]；端口索引即行号，不再带 ID。 */
+        QStringList getRowValues(int row) const
+        {
+            if (row < 0 || row >= m_column->rowCount()) {
+                return {};
+            }
+            return {nameAt(row), renameAt(row)};
+        }
+
+        void setRowCount(int count)
+        {
+            count = qMax(m_minimumRows, count);
+            const QSignalBlocker blocker(this);
+            while (m_column->rowCount() < count) {
+                appendRowInternal(QStringLiteral("default"), QString());
+            }
+            while (m_column->rowCount() > count) {
+                m_column->removeRow(m_column->rowCount() - 1);
+            }
+            updateGeometry();
+        }
+
+        void setMinimumRows(int count)
+        {
+            m_minimumRows = qMax(1, count);
+            if (m_column->rowCount() < m_minimumRows) {
+                setRowCount(m_minimumRows);
+            }
+        }
+
+        QJsonObject exportToJson() const
+        {
             QJsonArray rowsArray;
-
-            // 遍历每一行
-            for (int row = 0; row < model->rowCount(); ++row) {
+            for (int row = 0; row < m_column->rowCount(); ++row) {
                 QJsonObject rowObject;
-                rowObject["ID"] = model->item(row, 0)->text();
-                rowObject["Name"] = model->item(row, 1)->text();
-                rowObject["Rename"] = model->item(row, 2)->text();
-
-                // 将当前行的数据添加到 JSON 数组
+                rowObject.insert(QStringLiteral("ID"), QString::number(row));
+                rowObject.insert(QStringLiteral("Name"), nameAt(row));
+                rowObject.insert(QStringLiteral("Rename"), renameAt(row));
                 rowsArray.append(rowObject);
             }
-
-            // 将 JSON 数组存储到 JSON 对象
             QJsonObject jsonObject;
-            jsonObject["rows"] = rowsArray;
-
+            jsonObject.insert(QStringLiteral("rows"), rowsArray);
             return jsonObject;
         }
 
-        // 从 QJsonObject 导入数据
-        void importFromJson(const QJsonObject &jsonObject) {
-            QJsonArray rowsArray = jsonObject["rows"].toArray();
+        void importFromJson(const QJsonObject &jsonObject)
+        {
+            const QSignalBlocker blocker(this);
+            const QJsonArray rowsArray = jsonObject.value(QStringLiteral("rows")).toArray();
 
-            // 清空现有的模型数据
-            model->removeRows(0, model->rowCount());
-
-            // 遍历 JSON 数组并将数据插入到模型中
-            for (int row = 0; row < rowsArray.size(); ++row) {
-                QJsonObject rowObject = rowsArray[row].toObject();
-                addRow();  // 添加新行
-                model->setItem(row, 0, new QStandardItem(rowObject["ID"].toString()));
-                model->setItem(row, 1, new QStandardItem(rowObject["Name"].toString()));
-                model->setItem(row, 2, new QStandardItem(rowObject["Rename"].toString()));
+            const int target = qMax(m_minimumRows, rowsArray.size());
+            while (m_column->rowCount() < target) {
+                appendRowInternal(QString(), QString());
             }
-        }
+            while (m_column->rowCount() > target) {
+                m_column->removeRow(m_column->rowCount() - 1);
+            }
 
-        int rowCount() const {
-            return model->rowCount();
-        }
-
-        // 根据行号返回该行的所有值
-        QStringList getRowValues(int row) const {
-            QStringList rowValues;
-
-            // 检查行号有效性
-            if (row >= 0 && row < model->rowCount()) {
-                // 获取该行所有单元格的值
-                for (int col = 0; col < model->columnCount(); ++col) {
-                    QStandardItem *item = model->item(row, col);
-                    rowValues.append(item ? item->text() : "");
+            for (int row = 0; row < m_column->rowCount(); ++row) {
+                auto *item = rowAt(row);
+                if (!item) {
+                    continue;
+                }
+                if (row < rowsArray.size()) {
+                    const QJsonObject rowObject = rowsArray.at(row).toObject();
+                    item->setName(rowObject.value(QStringLiteral("Name")).toString());
+                    item->setRename(rowObject.value(QStringLiteral("Rename")).toString());
+                } else {
+                    item->setName(QStringLiteral("default"));
+                    item->setRename(QString());
                 }
             }
-
-            return rowValues;
+            updateGeometry();
         }
 
-        signals:
-            // 自定义信号，当表格发生变化时发出
-            void tableChanged();
+        QSize sizeHint() const override
+        {
+            const int rows = qMax(1, m_column->rowCount());
+            return QSize(kEmbeddedWidth, rows * m_rowHeight);
+        }
 
-        // 自定义信号，发出被修改的行号
+        QSize minimumSizeHint() const override
+        {
+            const int rows = qMax(1, m_column->rowCount());
+            return QSize(kEmbeddedWidth, rows * m_rowHeight);
+        }
+
+    signals:
+        void tableChanged();
         void rowChanged(int row);
+        void rowAppended();
+        void rowRemoved(int index);
 
     private slots:
-        // 槽函数：删除指定行
-        void deleteRow(int row) {
-        model->removeRow(row);
-        emit tableChanged();  // 发出表格内容发生变化的信号
-    }
+        void onAddClicked()
+        {
+            appendRowInternal(QStringLiteral("default"), QString());
+            updateGeometry();
+            emit tableChanged();
+            emit rowAppended();
+        }
 
-        // 槽函数：新增一行
-        void addRow() {
-        int rowCount = model->rowCount();
+        void onRowDeleteRequested()
+        {
+            auto *row = qobject_cast<MergeRuleRow *>(sender());
+            if (!row) {
+                return;
+            }
+            const int index = indexOfRow(row);
+            if (index < 0 || m_column->rowCount() <= m_minimumRows) {
+                return;
+            }
+            m_column->removeRow(index);
+            updateGeometry();
+            emit tableChanged();
+            emit rowRemoved(index);
+        }
 
-        // 插入新行
-        model->insertRow(rowCount);
-
-        // 设置新行的默认值
-        model->setItem(rowCount, 0, new QStandardItem("0"));  // ID 列示例默认值
-        model->setItem(rowCount, 1, new QStandardItem("default"));
-        model->setItem(rowCount, 2, new QStandardItem("Rename"));
-
-        // 创建删除按钮
-        QPushButton *deleteButton = new QPushButton("Delete");
-        connect(deleteButton, &QPushButton::clicked, this, [this, row = rowCount]() {
-            deleteRow(row);
-        });
-        tableView->setIndexWidget(model->index(rowCount, 3), deleteButton);
-
-        emit tableChanged();  // 发出表格内容发生变化的信号
-    }
-
-        void onItemChanged(QStandardItem *item) {
-        int row = item->row();  // 获取被修改单元格的行号
-        emit rowChanged(row);    // 发出行号信号
-    }
+        void onRowValueChanged()
+        {
+            auto *row = qobject_cast<MergeRuleRow *>(sender());
+            if (!row) {
+                return;
+            }
+            const int index = indexOfRow(row);
+            if (index < 0) {
+                return;
+            }
+            emit rowChanged(index);
+            emit tableChanged();
+        }
 
     private:
-        QTableView *tableView;
-        QStandardItemModel *model;
-        QPushButton *addRowButton;
-
-        void setupUI() {
-            // 设置表格初始表头
-            model->setHorizontalHeaderLabels({"ID", "Name", "Rename", "Action"});
-            tableView->setModel(model);
-            tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-            tableView->verticalHeader()->setVisible(false);  // 隐藏行号
-
-            // 创建新增行按钮
-            addRowButton = new QPushButton("Add Row");
-            connect(addRowButton, &QPushButton::clicked, this, &MergeInterface::addRow);
-
-            // 设置布局
-            QVBoxLayout *mainLayout = new QVBoxLayout(this);
-            mainLayout->addWidget(tableView);
-
-            // 将按钮添加到布局中
-            mainLayout->addWidget(addRowButton);
-            setLayout(mainLayout);
+        MergeRuleRow *rowAt(int index) const
+        {
+            return qobject_cast<MergeRuleRow *>(m_column->rowContent(index));
         }
+
+        int indexOfRow(MergeRuleRow *row) const
+        {
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                if (m_column->rowContent(i) == row) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        void appendRowInternal(const QString &name, const QString &rename)
+        {
+            auto *row = new MergeRuleRow(m_rowHeight, m_column);
+            row->setName(name);
+            row->setRename(rename);
+            connect(row, &MergeRuleRow::valueChanged, this, &MergeInterface::onRowValueChanged);
+            connect(row, &MergeRuleRow::deleteRequested, this, &MergeInterface::onRowDeleteRequested);
+            m_column->appendRow(row);
+        }
+
+        PortAlignedColumn *m_column = nullptr;
+        QPushButton *m_addButton = nullptr;
+        int m_rowHeight = 23;
+        int m_minimumRows = 1;
     };
 }

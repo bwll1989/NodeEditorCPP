@@ -1,111 +1,135 @@
 #pragma once
 
-#include <QWidget>
-#include <QTableView>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include <QHeaderView>
-#include <QStandardItemModel>
+#include "PortAlignedColumn/PortAlignedColumn.hpp"
+
+#include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonArray>
 #include <QJsonObject>
-#include <QList>
-#include <QStyledItemDelegate>
-#include <QPainter>
+#include <QJsonValue>
 #include <QLineEdit>
-#include "CompactTableView/CompactTableView.hpp"
+#include <QMap>
+#include <QPushButton>
+#include <QSignalBlocker>
+#include <QSizePolicy>
+#include <QVBoxLayout>
+#include <QWidget>
 
 namespace Nodes
 {
-    namespace
+    /**
+     * Distribute 单行：左侧删除 + 条件输入。
+     * 行高 = step；1px 边框画在高度内部（layout margins=1），避免下边线被裁切。
+     */
+    class DistributeRuleRow : public QWidget
     {
-        inline QString jsExpressionPlaceholderText()
+        Q_OBJECT
+    public:
+        explicit DistributeRuleRow(int rowHeight, const QString &placeholder, QWidget *parent = nullptr)
+            : QWidget(parent)
         {
-            return QStringLiteral("JS Expression (e.g., \"$input['key']\")");
+            setObjectName(QStringLiteral("DistributeRuleRow"));
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            setFixedHeight(rowHeight);
+            setMinimumHeight(rowHeight);
+            setMaximumHeight(rowHeight);
+
+            const int inner = qMax(1, rowHeight - 2);
+
+            auto *lay = new QHBoxLayout(this);
+            lay->setContentsMargins(1, 1, 1, 1);
+            lay->setSpacing(0);
+
+            m_deleteBtn = new QPushButton(this);
+            m_deleteBtn->setIcon(QIcon(QStringLiteral(":/icons/icons/remove.png")));
+            m_deleteBtn->setIconSize(QSize(14, 14));
+            m_deleteBtn->setFixedSize(inner, inner);
+            m_deleteBtn->setFlat(true);
+            m_deleteBtn->setFocusPolicy(Qt::NoFocus);
+            m_deleteBtn->setToolTip(QStringLiteral("删除"));
+            connect(m_deleteBtn, &QPushButton::clicked, this, &DistributeRuleRow::deleteRequested);
+
+            m_edit = new QLineEdit(this);
+            m_edit->setPlaceholderText(placeholder);
+            m_edit->setFixedHeight(inner);
+            m_edit->setFrame(false);
+            m_edit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            connect(m_edit, &QLineEdit::editingFinished, this, &DistributeRuleRow::conditionChanged);
+            connect(m_edit, &QLineEdit::textEdited, this, &DistributeRuleRow::conditionChanged);
+
+            lay->addWidget(m_deleteBtn, 0);
+            lay->addWidget(m_edit, 1);
         }
 
-        class JsExpressionItemDelegate : public QStyledItemDelegate
+        QString condition() const { return m_edit ? m_edit->text() : QString(); }
+        void setCondition(const QString &text)
         {
-        public:
-            using QStyledItemDelegate::QStyledItemDelegate;
-
-            void paint(QPainter *painter, const QStyleOptionViewItem &option,
-                       const QModelIndex &index) const override
-            {
-                QStyledItemDelegate::paint(painter, option, index);
-
-                if (option.state.testFlag(QStyle::State_Editing)) {
-                    return;
-                }
-
-                if (!index.data(Qt::DisplayRole).toString().isEmpty()) {
-                    return;
-                }
-
-                QStyleOptionViewItem opt(option);
-                initStyleOption(&opt, index);
-
-                painter->save();
-                const bool selected = opt.state.testFlag(QStyle::State_Selected);
-                const QColor color = selected
-                    ? opt.palette.color(QPalette::HighlightedText)
-                    : opt.palette.color(QPalette::PlaceholderText);
-                painter->setPen(color);
-
-                const QRect rect = opt.rect.adjusted(4, 0, -4, 0);
-                const QString placeholder = jsExpressionPlaceholderText();
-                painter->drawText(
-                    rect,
-                    Qt::AlignVCenter | Qt::AlignLeft | Qt::TextSingleLine,
-                    opt.fontMetrics.elidedText(placeholder, Qt::ElideRight, rect.width()));
-                painter->restore();
+            if (m_edit) {
+                m_edit->setText(text);
             }
+        }
 
-            QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
-                                  const QModelIndex &index) const override
-            {
-                Q_UNUSED(option);
-                Q_UNUSED(index);
-                auto *edit = new QLineEdit(parent);
-                edit->setPlaceholderText(jsExpressionPlaceholderText());
-                return edit;
-            }
+    signals:
+        void conditionChanged();
+        void deleteRequested();
 
-            QSize sizeHint(const QStyleOptionViewItem &option,
-                           const QModelIndex &index) const override
-            {
-                Q_UNUSED(index)
-                return QSize(QStyledItemDelegate::sizeHint(option, index).width(),
-                             Gui::kCompactTableRowHeight);
-            }
-        };
-    } // namespace
+    private:
+        QLineEdit *m_edit = nullptr;
+        QPushButton *m_deleteBtn = nullptr;
+    };
 
-    class DistributeInterface : public QWidget {
+    class DistributeInterface : public QWidget
+    {
         Q_OBJECT
 
     public:
+        /** 与 Inject 嵌入区同宽，保证两节点默认宽度一致 */
+        static constexpr int kEmbeddedWidth = 260;
+
         explicit DistributeInterface(QWidget *parent = nullptr)
             : QWidget(parent)
-            , tableView(new QTableView(this))
-            , model(new QStandardItemModel(0, 3, this))
+            , m_column(new PortAlignedColumn(this))
+            , m_rowHeight(PortAlignedColumn::rowPitch())
+            , m_placeholder(QStringLiteral("JS Expression (e.g., \"$input['key']\")"))
         {
-            setupUI();
-            connect(model, &QStandardItemModel::itemChanged, this, &DistributeInterface::onItemChanged);
-            importRulesArray({});
-            if (model->rowCount() == 0) {
-                appendRow(QStringLiteral("$input.default == 0"), QStringLiteral("0"));
-                appendRow(QStringLiteral("*"), QStringLiteral("0"));
-                finishTableUpdate();
-            }
+            setObjectName(QStringLiteral("DistributeInterface"));
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            setMinimumWidth(kEmbeddedWidth);
+
+            const int inner = qMax(1, m_rowHeight - 2);
+            m_addButton = new QPushButton(this);
+            m_addButton->setIcon(QIcon(QStringLiteral(":/icons/icons/add.png")));
+            m_addButton->setIconSize(QSize(14, 14));
+            m_addButton->setFixedSize(inner, inner);
+            m_addButton->setFlat(true);
+            m_addButton->setFocusPolicy(Qt::NoFocus);
+            m_addButton->setToolTip(QStringLiteral("添加"));
+            connect(m_addButton, &QPushButton::clicked, this, &DistributeInterface::onAddClicked);
+
+            auto *left = new QVBoxLayout();
+            left->setContentsMargins(1, 1, 0, 1);
+            left->setSpacing(0);
+            left->addWidget(m_addButton, 0, Qt::AlignTop);
+            left->addStretch(1);
+
+            auto *root = new QHBoxLayout(this);
+            root->setContentsMargins(0, 0, 0, 0);
+            root->setSpacing(0);
+            root->addLayout(left, 0);
+            root->addWidget(m_column, 1);
+            setLayout(root);
+
+            setMinimumRows(1);
+            setRowCount(4);
         }
 
         QJsonArray exportRulesArray() const
         {
             QJsonArray rulesArray;
-            for (int row = 0; row < model->rowCount(); ++row) {
+            for (int row = 0; row < m_column->rowCount(); ++row) {
                 QJsonObject rule;
                 rule["condition"] = conditionAt(row);
-                rule["port"] = outputPortAt(row);
+                rule["port"] = QString::number(row);
                 rulesArray.append(rule);
             }
             return rulesArray;
@@ -113,157 +137,149 @@ namespace Nodes
 
         void importRulesArray(const QJsonArray &rulesArray)
         {
-            m_batchEditing = true;
-            clearActionButtons();
-            model->removeRows(0, model->rowCount());
+            const QSignalBlocker blocker(this);
+            QMap<int, QString> conditionsByPort;
+            int maxPort = -1;
+            int fallbackPort = 0;
 
             for (const QJsonValue &ruleValue : rulesArray) {
-                if (ruleValue.isObject()) {
-                    const QJsonObject rule = ruleValue.toObject();
-                    appendRow(rule["condition"].toString(), rule["port"].toString());
+                if (!ruleValue.isObject()) {
+                    continue;
+                }
+                const QJsonObject rule = ruleValue.toObject();
+                bool ok = false;
+                int port = rule["port"].toString().toInt(&ok);
+                if (!ok || port < 0) {
+                    port = fallbackPort;
+                }
+                conditionsByPort[port] = rule["condition"].toString();
+                maxPort = qMax(maxPort, port);
+                fallbackPort = qMax(fallbackPort, port + 1);
+            }
+
+            const int target = qMax(m_minimumRows, maxPort + 1);
+            while (m_column->rowCount() < target) {
+                appendRowInternal(QString());
+            }
+            while (m_column->rowCount() > target) {
+                m_column->removeRow(m_column->rowCount() - 1);
+            }
+            for (int row = 0; row < m_column->rowCount(); ++row) {
+                if (auto *ruleRow = rowAt(row)) {
+                    ruleRow->setCondition(conditionsByPort.value(row));
                 }
             }
-            m_batchEditing = false;
-
-            finishTableUpdate();
-            emit rulesChanged();
+            updateGeometry();
         }
 
-        int rowCount() const
-        {
-            return model->rowCount();
-        }
-
+        int rowCount() const { return m_column->rowCount(); }
         QString conditionAt(int row) const
         {
-            if (row < 0 || row >= model->rowCount()) {
-                return {};
+            if (auto *ruleRow = rowAt(row)) {
+                return ruleRow->condition();
             }
-            QStandardItem *item = model->item(row, 0);
-            return item ? item->text() : QString();
+            return {};
         }
 
         QString outputPortAt(int row) const
         {
-            if (row < 0 || row >= model->rowCount()) {
-                return {};
-            }
-            QStandardItem *item = model->item(row, 1);
-            return item ? item->text() : QString();
+            return row >= 0 && row < m_column->rowCount() ? QString::number(row) : QString();
         }
 
-        int maxConfiguredOutputPort() const
+        int maxConfiguredOutputPort() const { return qMax(0, m_column->rowCount() - 1); }
+
+        void setRowCount(int count)
         {
-            int maxPort = 0;
-            for (int row = 0; row < model->rowCount(); ++row) {
-                bool ok = false;
-                const int port = outputPortAt(row).toInt(&ok);
-                if (ok && port > maxPort) {
-                    maxPort = port;
-                }
+            count = qMax(m_minimumRows, count);
+            const QSignalBlocker blocker(this);
+            while (m_column->rowCount() < count) {
+                appendRowInternal(QString());
             }
-            return maxPort;
+            while (m_column->rowCount() > count) {
+                m_column->removeRow(m_column->rowCount() - 1);
+            }
+            updateGeometry();
+        }
+
+        void setMinimumRows(int count)
+        {
+            m_minimumRows = qMax(1, count);
+            if (m_column->rowCount() < m_minimumRows) {
+                setRowCount(m_minimumRows);
+            }
+        }
+
+        QSize sizeHint() const override
+        {
+            const int rows = qMax(1, m_column->rowCount());
+            return QSize(kEmbeddedWidth, rows * m_rowHeight);
+        }
+
+        QSize minimumSizeHint() const override
+        {
+            const int rows = qMax(1, m_column->rowCount());
+            return QSize(kEmbeddedWidth, rows * m_rowHeight);
         }
 
     signals:
         void rulesChanged();
+        void rowAppended();
+        void rowRemoved(int index);
 
     private slots:
-        void deleteRow(int row)
+        void onAddClicked()
         {
-            if (row < 0 || row >= model->rowCount()) {
-                return;
-            }
-
-            clearActionButtons();
-            model->removeRow(row);
-            finishTableUpdate();
+            appendRowInternal(QString());
+            updateGeometry();
             emit rulesChanged();
+            emit rowAppended();
         }
 
-        void addRow()
+        void onRowDeleteRequested()
         {
-            appendRow(QString(), QStringLiteral("0"));
-            finishTableUpdate();
-            emit rulesChanged();
-        }
-
-        void onItemChanged(QStandardItem *item)
-        {
-            if (m_batchEditing || !item) {
+            auto *row = qobject_cast<DistributeRuleRow *>(sender());
+            if (!row) {
                 return;
             }
-            if (item->column() == 0 || item->column() == 1) {
-                emit rulesChanged();
+            const int index = indexOfRow(row);
+            if (index < 0 || m_column->rowCount() <= m_minimumRows) {
+                return;
             }
+            m_column->removeRow(index);
+            updateGeometry();
+            emit rulesChanged();
+            emit rowRemoved(index);
         }
 
     private:
-        QTableView *tableView;
-        QStandardItemModel *model;
-        QPushButton *addRowButton;
-        bool m_batchEditing = false;
-
-        void setupUI()
+        DistributeRuleRow *rowAt(int index) const
         {
-            model->setHorizontalHeaderLabels({tr("Condition"), tr("Port"), tr("Action")});
-            tableView->setModel(model);
-            tableView->setSortingEnabled(false);
-            tableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-            tableView->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-            tableView->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-            tableView->verticalHeader()->setVisible(false);
-            tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
-            tableView->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
-            Gui::setupCompactTableView(tableView);
-
-            auto *expressionDelegate = new JsExpressionItemDelegate(tableView);
-            tableView->setItemDelegateForColumn(0, expressionDelegate);
-            tableView->setItemDelegateForColumn(1, new Gui::CompactTableTextDelegate(tableView));
-
-            addRowButton = new QPushButton(tr("Add Rule"), this);
-            connect(addRowButton, &QPushButton::clicked, this, &DistributeInterface::addRow);
-
-            auto *mainLayout = new QVBoxLayout(this);
-            mainLayout->addWidget(tableView);
-            mainLayout->addWidget(addRowButton);
-            setLayout(mainLayout);
+            return qobject_cast<DistributeRuleRow *>(m_column->rowContent(index));
         }
 
-        void appendRow(const QString &condition, const QString &port)
+        int indexOfRow(DistributeRuleRow *row) const
         {
-            const int row = model->rowCount();
-            model->insertRow(row);
-            model->setItem(row, 0, new QStandardItem(condition));
-            model->setItem(row, 1, new QStandardItem(port));
-            model->setItem(row, 2, new QStandardItem());
-        }
-
-        void clearActionButtons()
-        {
-            for (int row = 0; row < model->rowCount(); ++row) {
-                tableView->setIndexWidget(model->index(row, 2), nullptr);
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                if (m_column->rowContent(i) == row) {
+                    return i;
+                }
             }
+            return -1;
         }
 
-        void rebuildActionButtons()
+        void appendRowInternal(const QString &condition)
         {
-            clearActionButtons();
-            for (int row = 0; row < model->rowCount(); ++row) {
-                auto *deleteButton = new QPushButton(tr("Delete"), this);
-                deleteButton->setFixedHeight(Gui::kCompactTableRowHeight - 4);
-                connect(deleteButton, &QPushButton::clicked, this, [this, row]() {
-                    deleteRow(row);
-                });
-                tableView->setIndexWidget(model->index(row, 2), deleteButton);
-            }
+            auto *row = new DistributeRuleRow(m_rowHeight, m_placeholder, m_column);
+            row->setCondition(condition);
+            connect(row, &DistributeRuleRow::conditionChanged, this, &DistributeInterface::rulesChanged);
+            connect(row, &DistributeRuleRow::deleteRequested, this, &DistributeInterface::onRowDeleteRequested);
+            m_column->appendRow(row);
         }
 
-        void finishTableUpdate()
-        {
-            rebuildActionButtons();
-            Gui::applyCompactTableRows(tableView);
-            tableView->viewport()->update();
-        }
+        PortAlignedColumn *m_column = nullptr;
+        QPushButton *m_addButton = nullptr;
+        QString m_placeholder;
+        int m_rowHeight = 23;
+        int m_minimumRows = 1;
     };
 }

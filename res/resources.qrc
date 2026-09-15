@@ -104,6 +104,8 @@
     <file>icons/collapse.png</file>
     <file>icons/home.png</file>
     <file>icons/cursor.png</file>
+    <file>icons/isf.png</file>
+    <file>icons/vioso.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

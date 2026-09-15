@@ -32,6 +32,8 @@ public:
         Image,
         Model,
         Document,
+        Vioso,
+        ISF,
         ChildFlow,
         Unknown
     };

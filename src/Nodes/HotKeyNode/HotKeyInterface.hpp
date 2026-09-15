@@ -1,30 +1,33 @@
 #pragma once
 
+#include "PortAlignedColumn/PortAlignedColumn.hpp"
+#include "HotKeyItem.hpp"
+
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QEvent>
-#include <QFrame>
-#include <QGridLayout>
+#include <QHBoxLayout>
+#include <QIcon>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QMap>
 #include <QKeySequenceEdit>
 #include <QLabel>
-#include <QListWidget>
-#include <QListWidgetItem>
-#include <QMenu>
+#include <QPushButton>
 #include <QSet>
+#include <QSignalBlocker>
+#include <QSizePolicy>
+#include <QVBoxLayout>
 #include <QWidget>
-
-#include "HotKeyItem.hpp"
 
 namespace Nodes
 {
     /**
-     * Keyboard In 界面：参考 DelayInterface，列表与输出端口数量相互独立。
+     * Keyboard In：一行对应一个输出端口；左侧为添加与全局选项。
      */
-    class HotKeyInterface : public QFrame
+    class HotKeyInterface : public QWidget
     {
         Q_OBJECT
     public:
@@ -40,54 +43,66 @@ namespace Nodes
             ShiftControlAndAlt
         };
 
+        static constexpr int kEmbeddedWidth = 320;
+
         explicit HotKeyInterface(QWidget *parent = nullptr)
-            : QFrame(parent)
+            : QWidget(parent)
+            , m_column(new PortAlignedColumn(this))
+            , m_rowHeight(PortAlignedColumn::rowPitch())
         {
-            keyList->setDragEnabled(true);
-            keyList->setAcceptDrops(true);
-            keyList->setDragDropMode(QAbstractItemView::InternalMove);
-            keyList->setSelectionMode(QAbstractItemView::SingleSelection);
-            keyList->setContextMenuPolicy(Qt::CustomContextMenu);
-            keyList->setMinimumHeight(64);
-            keyList->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-            keyList->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-            keyList->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            setObjectName(QStringLiteral("HotKeyInterface"));
+            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            setMinimumWidth(kEmbeddedWidth);
 
-            activeCheck->setChecked(true);
-            activeCheck->setText(QStringLiteral("On"));
-            activeCheck->setToolTip(QStringLiteral("开启后监视键盘；关闭时不再更新输出"));
+            m_addButton = new QPushButton(this);
+            m_addButton->setIcon(QIcon(QStringLiteral(":/icons/icons/add.png")));
+            m_addButton->setIconSize(QSize(14, 14));
+            m_addButton->setFlat(true);
+            m_addButton->setToolTip(QStringLiteral("添加输出按键行"));
+            connect(m_addButton, &QPushButton::clicked, this, &HotKeyInterface::onAddClicked);
 
-            modifierCombo->addItem(QStringLiteral("Ignore"), Ignore);
-            modifierCombo->addItem(QStringLiteral("None"), None);
-            modifierCombo->addItem(QStringLiteral("Ctrl"), Control);
-            modifierCombo->addItem(QStringLiteral("Alt"), Alt);
-            modifierCombo->addItem(QStringLiteral("Ctrl+Alt"), ControlAndAlt);
-            modifierCombo->addItem(QStringLiteral("Shift"), Shift);
-            modifierCombo->addItem(QStringLiteral("Shift+Alt"), ShiftAndAlt);
-            modifierCombo->addItem(QStringLiteral("Shift+Ctrl"), ShiftAndControl);
-            modifierCombo->addItem(QStringLiteral("Shift+Ctrl+Alt"), ShiftControlAndAlt);
-            modifierCombo->setToolTip(QStringLiteral("修饰键过滤"));
-            modifierCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+            m_activeCheck = new QCheckBox(QStringLiteral("On"), this);
+            m_activeCheck->setChecked(true);
+            m_activeCheck->setToolTip(QStringLiteral("使能监视键盘（与 ENABLE 输入同一状态）"));
+            connect(m_activeCheck, &QCheckBox::toggled, this, &HotKeyInterface::onActiveToggled);
 
             auto *modLabel = new QLabel(QStringLiteral("Mod"), this);
 
-            main_layout->addWidget(keyList, 0, 0, 1, 3);
-            main_layout->addWidget(activeCheck, 1, 0);
-            main_layout->addWidget(modLabel, 1, 1);
-            main_layout->addWidget(modifierCombo, 1, 2);
-            main_layout->setContentsMargins(4, 2, 4, 4);
-            main_layout->setHorizontalSpacing(4);
-            main_layout->setVerticalSpacing(2);
-            main_layout->setColumnStretch(2, 1);
-            setLayout(main_layout);
-            // 默认 240，可拉伸；内容最小 240，更窄时列表出横向滚动条
-            resize(240, 120);
-            setMinimumWidth(120);
-            setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            m_modifierCombo = new QComboBox(this);
+            m_modifierCombo->addItem(QStringLiteral("Ignore"), Ignore);
+            m_modifierCombo->addItem(QStringLiteral("None"), None);
+            m_modifierCombo->addItem(QStringLiteral("Ctrl"), Control);
+            m_modifierCombo->addItem(QStringLiteral("Alt"), Alt);
+            m_modifierCombo->addItem(QStringLiteral("Ctrl+Alt"), ControlAndAlt);
+            m_modifierCombo->addItem(QStringLiteral("Shift"), Shift);
+            m_modifierCombo->addItem(QStringLiteral("Shift+Alt"), ShiftAndAlt);
+            m_modifierCombo->addItem(QStringLiteral("Shift+Ctrl"), ShiftAndControl);
+            m_modifierCombo->addItem(QStringLiteral("Shift+Ctrl+Alt"), ShiftControlAndAlt);
+            m_modifierCombo->setToolTip(QStringLiteral("修饰键过滤"));
+            m_modifierCombo->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
-            connect(keyList, &QListWidget::customContextMenuRequested,
-                    this, &HotKeyInterface::showContextMenu);
-            connect(activeCheck, &QCheckBox::toggled, this, &HotKeyInterface::onActiveToggled);
+            auto *left = new QVBoxLayout();
+            left->setContentsMargins(4, 2, 6, 2);
+            left->setSpacing(6);
+            left->addWidget(m_addButton, 0, Qt::AlignLeft);
+            left->addWidget(m_activeCheck, 0, Qt::AlignLeft);
+            left->addWidget(modLabel, 0, Qt::AlignLeft);
+            left->addWidget(m_modifierCombo, 0);
+            left->addStretch(1);
+
+            auto *leftWrap = new QWidget(this);
+            leftWrap->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+            leftWrap->setLayout(left);
+
+            auto *root = new QHBoxLayout(this);
+            root->setContentsMargins(2, 2, 2, 2);
+            root->setSpacing(6);
+            root->addWidget(leftWrap, 0);
+            root->addWidget(m_column, 1);
+            setLayout(root);
+
+            setMinimumRows(1);
+            setRowCount(4);
 
             if (qApp) {
                 qApp->installEventFilter(this);
@@ -101,61 +116,46 @@ namespace Nodes
             }
         }
 
-        QSize sizeHint() const override
-        {
-            return QSize(240, 120);
-        }
-
-        QSize minimumSizeHint() const override
-        {
-            return QSize(120, 80);
-        }
-
-        void addKey(int port = 0, const QKeySequence &key = {})
-        {
-            auto *listItem = new QListWidgetItem(keyList);
-            auto *row = new HotKeyItem(keyList);
-            row->setOutPort(port);
-            if (!key.isEmpty()) {
-                row->setKeySequence(key);
-            }
-            keyList->addItem(listItem);
-            keyList->setItemWidget(listItem, row);
-            listItem->setSizeHint(QSize(240, 32));
-
-            connect(row, &HotKeyItem::configChanged, this, &HotKeyInterface::listChanged);
-            if (!signalsBlocked()) {
-                Q_EMIT listChanged();
-            }
-        }
-
-        QVector<HotKeyItem *> items() const
-        {
-            QVector<HotKeyItem *> result;
-            for (int i = 0; i < keyList->count(); ++i) {
-                if (auto *row = itemWidgetAt(i)) {
-                    result.append(row);
-                }
-            }
-            return result;
-        }
+        int rowCount() const { return m_column->rowCount(); }
 
         bool isPortPressed(int port) const
         {
-            for (HotKeyItem *item : items()) {
-                if (item && item->outPort() == port && item->isPressed()) {
-                    return true;
-                }
+            if (!isActive()) {
+                return false;
+            }
+            if (auto *row = rowAt(port)) {
+                return row->isPressed();
             }
             return false;
+        }
+
+        void setRowCount(int count)
+        {
+            count = qMax(m_minimumRows, count);
+            const QSignalBlocker blocker(this);
+            while (m_column->rowCount() < count) {
+                appendRowInternal(QKeySequence());
+            }
+            while (m_column->rowCount() > count) {
+                m_column->removeRow(m_column->rowCount() - 1);
+            }
+            updateGeometry();
+        }
+
+        void setMinimumRows(int count)
+        {
+            m_minimumRows = qMax(1, count);
+            if (m_column->rowCount() < m_minimumRows) {
+                setRowCount(m_minimumRows);
+            }
         }
 
         QJsonArray exportKeys() const
         {
             QJsonArray arr;
-            for (HotKeyItem *item : items()) {
-                if (item) {
-                    arr.append(item->toJson());
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                if (auto *row = rowAt(i)) {
+                    arr.append(row->toJson(i));
                 }
             }
             return arr;
@@ -163,45 +163,94 @@ namespace Nodes
 
         void importKeys(const QJsonArray &arr)
         {
-            const bool blocked = blockSignals(true);
-            keyList->clear();
+            const QSignalBlocker blocker(this);
+
+            // 兼容旧数据：按 port 落位；无 port 时按数组顺序
+            QMap<int, QKeySequence> byPort;
+            int maxPort = -1;
+            int fallback = 0;
             for (const QJsonValue &v : arr) {
                 if (!v.isObject()) {
                     continue;
                 }
                 const QJsonObject obj = v.toObject();
-                addKey(obj.value(QStringLiteral("port")).toInt(0),
-                       QKeySequence(obj.value(QStringLiteral("value")).toString()));
+                int port = obj.value(QStringLiteral("port")).toInt(-1);
+                if (port < 0) {
+                    port = fallback;
+                }
+                byPort.insert(port, QKeySequence(obj.value(QStringLiteral("value")).toString()));
+                maxPort = qMax(maxPort, port);
+                fallback = qMax(fallback, port + 1);
             }
-            blockSignals(blocked);
-            Q_EMIT listChanged();
+
+            const int target = qMax(m_minimumRows, maxPort + 1);
+            while (m_column->rowCount() < target) {
+                appendRowInternal(QKeySequence());
+            }
+            while (m_column->rowCount() > target) {
+                m_column->removeRow(m_column->rowCount() - 1);
+            }
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                if (auto *row = rowAt(i)) {
+                    row->setKeySequence(byPort.value(i));
+                }
+            }
+            updateGeometry();
         }
 
-        bool isActive() const { return activeCheck->isChecked(); }
+        bool isActive() const { return m_activeCheck && m_activeCheck->isChecked(); }
+
+        void setActive(bool active)
+        {
+            if (!m_activeCheck || m_activeCheck->isChecked() == active) {
+                return;
+            }
+            const QSignalBlocker blocker(m_activeCheck);
+            m_activeCheck->setChecked(active);
+            if (!active) {
+                releaseAllPressed();
+            }
+        }
 
         ModifierMode modifierMode() const
         {
-            return static_cast<ModifierMode>(modifierCombo->currentData().toInt());
+            return static_cast<ModifierMode>(m_modifierCombo->currentData().toInt());
         }
 
         void setModifierMode(int mode)
         {
-            const int idx = modifierCombo->findData(mode);
+            const int idx = m_modifierCombo->findData(mode);
             if (idx >= 0) {
-                modifierCombo->setCurrentIndex(idx);
+                m_modifierCombo->setCurrentIndex(idx);
             }
+        }
+
+        int modifierModeValue() const { return m_modifierCombo->currentData().toInt(); }
+
+        QSize sizeHint() const override
+        {
+            const int rows = qMax(1, m_column->rowCount());
+            return QSize(kEmbeddedWidth, qMax(rows * m_rowHeight, 80));
+        }
+
+        QSize minimumSizeHint() const override
+        {
+            const int rows = qMax(1, m_column->rowCount());
+            return QSize(kEmbeddedWidth, qMax(rows * m_rowHeight, 80));
         }
 
     signals:
         void keyStateChanged(int port);
         void listChanged();
+        void rowAppended();
+        void rowRemoved(int index);
 
     protected:
         bool eventFilter(QObject *watched, QEvent *event) override
         {
             Q_UNUSED(watched)
 
-            if (!activeCheck->isChecked()) {
+            if (!isActive()) {
                 return false;
             }
 
@@ -225,7 +274,8 @@ namespace Nodes
             }
 
             const bool pressed = (type == QEvent::KeyPress);
-            for (HotKeyItem *item : items()) {
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                HotKeyItem *item = rowAt(i);
                 if (!item || item->keySequence().isEmpty()) {
                     continue;
                 }
@@ -233,7 +283,7 @@ namespace Nodes
                     continue;
                 }
                 if (item->setPressed(pressed)) {
-                    Q_EMIT keyStateChanged(item->outPort());
+                    Q_EMIT keyStateChanged(i);
                 }
             }
 
@@ -241,37 +291,31 @@ namespace Nodes
         }
 
     private slots:
-        void showContextMenu(const QPoint &pos)
+        void onAddClicked()
         {
-            QMenu menu(this);
-            QAction *addAction = menu.addAction(QStringLiteral("Add Key"));
-            QAction *deleteAction = menu.addAction(QStringLiteral("Delete Key"));
-            QAction *clearAction = menu.addAction(QStringLiteral("Clear All Keys"));
-
-            connect(addAction, &QAction::triggered, this, [this]() { addKey(); });
-            connect(deleteAction, &QAction::triggered, this, &HotKeyInterface::deleteSelected);
-            connect(clearAction, &QAction::triggered, this, [this]() {
-                keyList->clear();
-                Q_EMIT listChanged();
-            });
-
-            menu.exec(keyList->mapToGlobal(pos));
+            appendRowInternal(QKeySequence());
+            updateGeometry();
+            Q_EMIT listChanged();
+            Q_EMIT rowAppended();
         }
 
-        void deleteSelected()
+        void onRowDeleteRequested()
         {
-            QListWidgetItem *item = keyList->currentItem();
-            if (!item) {
+            auto *row = qobject_cast<HotKeyItem *>(sender());
+            if (!row) {
                 return;
             }
-            HotKeyItem *row = qobject_cast<HotKeyItem *>(keyList->itemWidget(item));
-            const int port = row ? row->outPort() : -1;
-            const bool wasPressed = row && row->isPressed();
-            delete item;
-            keyList->clearSelection();
+            const int index = indexOfRow(row);
+            if (index < 0 || m_column->rowCount() <= m_minimumRows) {
+                return;
+            }
+            const bool wasPressed = row->isPressed();
+            m_column->removeRow(index);
+            updateGeometry();
             Q_EMIT listChanged();
-            if (wasPressed && port >= 0) {
-                Q_EMIT keyStateChanged(port);
+            Q_EMIT rowRemoved(index);
+            if (wasPressed) {
+                Q_EMIT keyStateChanged(index);
             }
         }
 
@@ -280,24 +324,43 @@ namespace Nodes
             if (!active) {
                 releaseAllPressed();
             }
+            Q_EMIT listChanged();
         }
 
     private:
-        HotKeyItem *itemWidgetAt(int index) const
+        HotKeyItem *rowAt(int index) const
         {
-            QListWidgetItem *item = keyList->item(index);
-            if (!item) {
-                return nullptr;
+            return qobject_cast<HotKeyItem *>(m_column->rowContent(index));
+        }
+
+        int indexOfRow(HotKeyItem *row) const
+        {
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                if (m_column->rowContent(i) == row) {
+                    return i;
+                }
             }
-            return qobject_cast<HotKeyItem *>(keyList->itemWidget(item));
+            return -1;
+        }
+
+        void appendRowInternal(const QKeySequence &key)
+        {
+            auto *row = new HotKeyItem(m_rowHeight, m_column);
+            if (!key.isEmpty()) {
+                row->setKeySequence(key);
+            }
+            connect(row, &HotKeyItem::configChanged, this, &HotKeyInterface::listChanged);
+            connect(row, &HotKeyItem::deleteRequested, this, &HotKeyInterface::onRowDeleteRequested);
+            m_column->appendRow(row);
         }
 
         void releaseAllPressed()
         {
             QSet<int> ports;
-            for (HotKeyItem *item : items()) {
+            for (int i = 0; i < m_column->rowCount(); ++i) {
+                HotKeyItem *item = rowAt(i);
                 if (item && item->isPressed() && item->setPressed(false)) {
-                    ports.insert(item->outPort());
+                    ports.insert(i);
                 }
             }
             for (int port : ports) {
@@ -343,10 +406,11 @@ namespace Nodes
             return static_cast<int>(combo.key()) == key;
         }
 
-    public:
-        QGridLayout *main_layout = new QGridLayout(this);
-        QListWidget *keyList = new QListWidget(this);
-        QCheckBox *activeCheck = new QCheckBox(this);
-        QComboBox *modifierCombo = new QComboBox(this);
+        PortAlignedColumn *m_column = nullptr;
+        QPushButton *m_addButton = nullptr;
+        QCheckBox *m_activeCheck = nullptr;
+        QComboBox *m_modifierCombo = nullptr;
+        int m_rowHeight = 23;
+        int m_minimumRows = 1;
     };
 }

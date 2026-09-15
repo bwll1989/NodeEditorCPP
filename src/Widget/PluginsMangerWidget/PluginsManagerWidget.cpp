@@ -143,7 +143,7 @@ void registerBuildInPlugins(QtNodes::PluginsManager* pluginsManager)
     registry->registerModel<AudioOutDataModel>("Audio Out","Audio");
     registry->registerModel<ImageInDataModel>("Image In","Image");
     registry->registerModel<ImageOutDataModel>("Image Out","Image");
-    registry->registerModel<ContainerDataModel>("Container","Interface");
+    registry->registerModel<ContainerDataModel>("Container","Controls");
     registry->registerModel<BoolPluginDataModel>("Bool Source","Property");
     registry->registerModel<TextSourceDataModel>("String Source","Property");
     registry->registerModel<IntSourceDataModel>("Int Source","Property");

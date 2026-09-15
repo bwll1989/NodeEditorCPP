@@ -1,30 +1,24 @@
 #pragma once
 
-#include <iostream>
-
 #include <QtCore/QObject>
-#include <QtWidgets/QLabel>
-#include <QTimer>
 #include <QDebug>
-
-#include <QtNodes/NodeDelegateModel>
-#include <QtNodes/NodeDelegateModelRegistry>
-#include "Common/DataTypes/NodeDataList.hpp"
-#include "Common/DataTypes/AudioTimestampRingQueue.h"
-#include "TimestampGenerator/TimestampGenerator.hpp"
-#include <QtCore/QDir>
-#include <QtCore/QEvent>
-#include <QtWidgets/QFileDialog>
-#include <QtCore/qglobal.h>
-#include "AudioMatrixInterface.h"
-#include <QComboBox>
+#include <QThread>
+#include <QTimer>
 #include <QJsonArray>
 #include <QJsonObject>
-#include "PluginDefinition.hpp"
-#include "AudioMatrixWorker.hpp"
-#include "Eigen/Core"
-#include "opencv2/flann/matrix.h"
+#include <QMetaObject>
+#include <QMetaType>
+
+#include <QtNodes/NodeDelegateModel>
+
+#include "Common/DataTypes/NodeDataList.hpp"
+#include "Common/DataTypes/AudioTimestampRingQueue.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "AudioMatrixInterface.h"
+#include "AudioMatrixWorker.hpp"
+#include "PluginDefinition.hpp"
+#include "Eigen/Core"
+
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 using QtNodes::NodeDelegateModel;
@@ -32,269 +26,243 @@ using QtNodes::PortIndex;
 using QtNodes::PortType;
 using namespace NodeDataTypes;
 
-namespace Nodes {
+namespace Nodes
+{
     /**
-     * @brief LTC解码节点模型
-     * 接收AudioData输入，解码为时间码并输出小时、分钟、秒、帧
+     * @brief 音频路由矩阵
+     * 行 = In 端口，列 = Out 端口；端口可编辑，矩阵尺寸跟随端口数
      */
-    // 修改后的AudioMatrixDataModel类（关键部分）
     class AudioMatrixDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
-    
+
     public:
-        /**
-         * @brief 音频矩阵路由节点构造函数
-         */
         AudioMatrixDataModel()
             : _worker(new AudioMatrixWorker())
             , _workerThread(new QThread(this))
         {
-            InPortCount = 8;
-            OutPortCount = 8;
-            widget = new AudioMatrixInterface(InPortCount, OutPortCount);
+            InPortCount = AudioMatrixInterface::kDefaultChannels;
+            OutPortCount = AudioMatrixInterface::kDefaultChannels;
+            widget = new AudioMatrixInterface(static_cast<int>(InPortCount),
+                                             static_cast<int>(OutPortCount));
             CaptionVisible = true;
-            WidgetEmbeddable = false;
-            Resizable = false;
-            PortEditable = false;
+            WidgetEmbeddable = true;
+            Resizable = true;
+            PortEditable = true;
             Caption = PLUGIN_NAME;
-            
-            // 初始化矩阵
-            int rows = widget->mMatrixWidget->getRows();
-            int cols = widget->mMatrixWidget->getCols();
-            matrix = Eigen::MatrixXd::Zero(rows, cols);
-            _worker->initializeBuffers(InPortCount,OutPortCount,matrix);
-            // 设置工作线程
+
+            qRegisterMetaType<Eigen::MatrixXd>("Eigen::MatrixXd");
+
+            matrix = widget->matrixWidget()->getLinearValuesAsMatrix();
+            _worker->initializeBuffers(static_cast<int>(InPortCount),
+                                       static_cast<int>(OutPortCount),
+                                       matrix);
             _worker->moveToThread(_workerThread);
-            // for (int i = 0; i < widget->mMatrixWidget->getRows(); i++) {
-            //     for (int j = 0; j < widget->mMatrixWidget->getCols(); j++) {
-            //         AbstractDelegateModel::registerOSCControl(QString("/%1-%2").arg(i).arg(j), widget->mMatrixWidget->getMatrixElement(i*widget->mMatrixWidget->getCols()+j));
-            //     }
-            // }
 
-
-
-
-            // 连接信号槽
             connect(_workerThread, &QThread::started, this, [this]() {
-                // 确保在缓冲区初始化后启动处理
                 QMetaObject::invokeMethod(_worker, "startProcessing", Qt::QueuedConnection);
-                // 更新矩阵数据
                 QMetaObject::invokeMethod(_worker, "updateMatrix",
-                                       Qt::QueuedConnection,
-                                       Q_ARG(Eigen::MatrixXd, matrix));
+                                          Qt::QueuedConnection,
+                                          Q_ARG(Eigen::MatrixXd, matrix));
             });
             connect(_workerThread, &QThread::finished, _worker, &AudioMatrixWorker::stopProcessing);
-            connect(widget->mMatrixWidget, &MatrixWidget::valueChanged, this, &AudioMatrixDataModel::setMatrix);
-            connect(_worker, &AudioMatrixWorker::processingStatusChanged, this, &AudioMatrixDataModel::onProcessingStatusChanged);
-            
-            // 启动工作线程
+            connect(widget->matrixWidget(), &MatrixWidget::valueChanged,
+                    this, &AudioMatrixDataModel::setMatrix);
+            connect(_worker, &AudioMatrixWorker::processingStatusChanged,
+                    this, &AudioMatrixDataModel::onProcessingStatusChanged);
+
+            // 框架直接改 In/OutPortCount，无专用回调；轮询对齐矩阵尺寸
+            _portSyncTimer = new QTimer(this);
+            _portSyncTimer->setInterval(100);
+            connect(_portSyncTimer, &QTimer::timeout, this, &AudioMatrixDataModel::syncMatrixToPorts);
+            _portSyncTimer->start();
+
             _workerThread->start();
         }
-    
-        /**
-         * @brief 析构函数
-         */
-        ~AudioMatrixDataModel()
+
+        ~AudioMatrixDataModel() override
         {
-            // 安全停止工作线程
+            if (_portSyncTimer) {
+                _portSyncTimer->stop();
+            }
             if (_workerThread && _workerThread->isRunning()) {
                 _workerThread->quit();
-                _workerThread->wait(3000); // 等待最多3秒
+                _workerThread->wait(3000);
             }
-            
             if (_worker) {
                 _worker->deleteLater();
             }
         }
 
-        /**
-         * @brief 获取端口数据类型
-         * @param portType 端口类型
-         * @param portIndex 端口索引
-         * @return 数据类型
-         */
         NodeDataType dataType(PortType const portType, PortIndex const portIndex) const override
         {
             Q_UNUSED(portIndex);
-            switch (portType) {
-                case PortType::In:
-                    return AudioData().type();
-                case PortType::Out:
-                    return AudioData().type();
-                default:
-                    return AudioData().type();
-            }
+            Q_UNUSED(portType);
+            return AudioData().type();
         }
-        
-        /**
-         * @brief 获取端口标题
-         * @param portType 端口类型
-         * @param portIndex 端口索引
-         * @return 端口标题
-         */
+
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
             switch (portType) {
-                case PortType::In:
-                    return QString("IN%1").arg(portIndex + 1);
-                case PortType::Out:
-                    return QString("OUT%1").arg(portIndex + 1);
-                default:
-                    return "";
+            case PortType::In:
+                return QStringLiteral("IN%1").arg(portIndex + 1);
+            case PortType::Out:
+                return QStringLiteral("OUT%1").arg(portIndex + 1);
+            default:
+                return {};
             }
         }
-        
-         /**
-         * @brief 获取输出数据
-         * @param port 端口索引
-         * @return 输出数据
-         */
+
         std::shared_ptr<NodeData> outData(PortIndex const port) override
         {
             if (port >= OutPortCount) {
                 return std::make_shared<AudioData>();
             }
 
-            // 从Worker获取输出数据
-            std::shared_ptr<AudioData> outputData = std::make_shared<AudioData>();
-            // 直接访问Worker的输出缓冲区
-            std::shared_ptr<AudioTimestampRingQueue> outputBuffer = _worker->getOutputBuffer(port);
+            auto outputData = std::make_shared<AudioData>();
+            auto outputBuffer = _worker->getOutputBuffer(static_cast<int>(port));
             if (outputBuffer) {
                 outputData->setSharedAudioBuffer(outputBuffer);
             }
             return outputData;
         }
-    
-        /**
-         * @brief 设置输入数据
-         * @param nodeData 输入节点数据
-         * @param port 端口索引
-         */
+
         void setInData(std::shared_ptr<NodeData> nodeData, PortIndex const port) override
         {
             if (port >= InPortCount) {
                 return;
             }
-            
+
             auto audioData = std::dynamic_pointer_cast<AudioData>(nodeData);
-            std::shared_ptr<AudioTimestampRingQueue> audioBuffer = nullptr;
-            
+            std::shared_ptr<AudioTimestampRingQueue> audioBuffer;
             if (audioData && audioData->isConnectedToSharedBuffer()) {
                 audioBuffer = audioData->getSharedAudioBuffer();
             }
-            
-            // 直接更新Worker中的指定端口缓冲区
-            QMetaObject::invokeMethod(_worker, "setInputBuffer", 
-                                    Qt::QueuedConnection,
-                                    Q_ARG(int, port),
-                                    Q_ARG(std::shared_ptr<AudioTimestampRingQueue>, audioBuffer));
 
-        }
-    
-    public slots:
-        /**
-         * @brief 设置矩阵数据
-         * @param mat 新的矩阵数据
-         */
-        void setMatrix(Eigen::MatrixXd mat) {
-            matrix = mat;
-            // 更新Worker中的矩阵
-            QMetaObject::invokeMethod(_worker, "updateMatrix", 
-                                    Qt::QueuedConnection,
-                                    Q_ARG(Eigen::MatrixXd, matrix));
+            QMetaObject::invokeMethod(_worker, "setInputBuffer",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(int, static_cast<int>(port)),
+                                      Q_ARG(std::shared_ptr<AudioTimestampRingQueue>, audioBuffer));
         }
 
         QWidget *embeddedWidget() override { return widget; }
 
-        /**
-         * @brief 保存节点配置
-         * @return JSON对象
-         */
         QJsonObject save() const override
         {
             QJsonObject modelJson = NodeDelegateModel::save();
 
-            // 保存矩阵数据
             QJsonObject matrixJson;
-            auto matrixData=widget->mMatrixWidget->getValuesAsMatrix();
-            matrixJson["rows"] = static_cast<int>(matrixData.rows());
-            matrixJson["cols"] = static_cast<int>(matrixData.cols());
-            
-            // 将矩阵数据序列化为数组
-            QJsonArray Data;
-            for (int i = 0; i < matrixData.rows(); ++i) {
-                for (int j = 0; j < matrixData.cols(); ++j) {
-                    Data.append(matrixData(i, j));
+            const Eigen::MatrixXd dbMatrix = widget->matrixWidget()->getValuesAsMatrix();
+            matrixJson.insert(QStringLiteral("rows"), static_cast<int>(dbMatrix.rows()));
+            matrixJson.insert(QStringLiteral("cols"), static_cast<int>(dbMatrix.cols()));
 
+            QJsonArray data;
+            for (int i = 0; i < dbMatrix.rows(); ++i) {
+                for (int j = 0; j < dbMatrix.cols(); ++j) {
+                    data.append(dbMatrix(i, j));
                 }
             }
-            matrixJson["data"] = Data;
-            modelJson["matrix"] = matrixJson;
-            
-
-            
+            matrixJson.insert(QStringLiteral("data"), data);
+            modelJson.insert(QStringLiteral("matrix"), matrixJson);
             return modelJson;
         }
-        
-        /**
-         * @brief 加载节点配置
-         * @param jsonObj JSON对象
-         */
-        void load(QJsonObject const& jsonObj) override
+
+        void load(QJsonObject const &jsonObj) override
         {
-            // 首先调用基类的load方法
             NodeDelegateModel::load(jsonObj);
 
-            // 加载矩阵数据
-            if (jsonObj.contains("matrix")) {
-                QJsonObject matrixJson = jsonObj["matrix"].toObject();
-                int rows = matrixJson["rows"].toInt();
-                int cols = matrixJson["cols"].toInt();
-                
-                if (rows > 0 && cols > 0) {
-                    // 重新创建矩阵
-                    matrix = Eigen::MatrixXd::Zero(rows, cols);
-
-                    // 从数组中恢复矩阵数据
-                    QJsonArray matrixData = matrixJson["data"].toArray();
-                    int index = 0;
-                    for (int i = 0; i < rows && index < matrixData.size(); ++i) {
-                        for (int j = 0; j < cols && index < matrixData.size(); ++j) {
-                            matrix(i, j) = matrixData[index].toDouble();
-
-                            ++index;
-
-                        }
-                    }
-                }
-
-                widget->mMatrixWidget->setValuesFromMatrix(matrix);
-
+            // 端口数由场景 json 的 input-count/output-count 恢复；此处只恢复增益
+            // 若 internal 里带有行列，在端口尚未写入前先按矩阵数据尺寸对齐一次
+            if (!jsonObj.contains(QStringLiteral("matrix"))) {
+                syncMatrixToPorts();
+                return;
             }
 
+            const QJsonObject matrixJson = jsonObj.value(QStringLiteral("matrix")).toObject();
+            const int rows = qMax(AudioMatrixInterface::kMinChannels,
+                                  matrixJson.value(QStringLiteral("rows")).toInt(static_cast<int>(InPortCount)));
+            const int cols = qMax(AudioMatrixInterface::kMinChannels,
+                                  matrixJson.value(QStringLiteral("cols")).toInt(static_cast<int>(OutPortCount)));
+
+            widget->setChannelCounts(rows, cols);
+
+            Eigen::MatrixXd dbMatrix = Eigen::MatrixXd::Constant(rows, cols, -60.0);
+            const QJsonArray data = matrixJson.value(QStringLiteral("data")).toArray();
+            int index = 0;
+            for (int i = 0; i < rows && index < data.size(); ++i) {
+                for (int j = 0; j < cols && index < data.size(); ++j) {
+                    dbMatrix(i, j) = data.at(index).toDouble();
+                    ++index;
+                }
+            }
+
+            widget->matrixWidget()->setValuesFromMatrix(dbMatrix);
+            matrix = widget->matrixWidget()->getLinearValuesAsMatrix();
+            QMetaObject::invokeMethod(_worker, "initializeBuffers",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(int, rows),
+                                      Q_ARG(int, cols),
+                                      Q_ARG(Eigen::MatrixXd, matrix));
+
+            // 随后场景会写入最终端口数，定时器会再对齐
+            _lastSyncedIn = static_cast<unsigned int>(rows);
+            _lastSyncedOut = static_cast<unsigned int>(cols);
         }
 
     public slots:
-        /**
-         * @brief 处理状态变化槽函数
-         * @param isProcessing 是否正在处理
-         */
+        void setMatrix(Eigen::MatrixXd mat)
+        {
+            matrix = std::move(mat);
+            QMetaObject::invokeMethod(_worker, "updateMatrix",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(Eigen::MatrixXd, matrix));
+        }
+
         void onProcessingStatusChanged(bool isProcessing)
         {
-            if (isProcessing) {
-                // widget->setStatus(false, "Processing");
-            } else {
-                // widget->setStatus(true, "Idle");
-            }
+            Q_UNUSED(isProcessing);
         }
-    
+
+        void syncMatrixToPorts()
+        {
+            // 矩阵尺寸跟随端口数（无硬上限；过大时 UI 控件数量会先成为瓶颈）
+            const unsigned int inCount = qMax(
+                static_cast<unsigned int>(AudioMatrixInterface::kMinChannels),
+                InPortCount);
+            const unsigned int outCount = qMax(
+                static_cast<unsigned int>(AudioMatrixInterface::kMinChannels),
+                OutPortCount);
+
+            if (inCount == _lastSyncedIn && outCount == _lastSyncedOut
+                && widget->inputCount() == static_cast<int>(inCount)
+                && widget->outputCount() == static_cast<int>(outCount)) {
+                return;
+            }
+
+            _lastSyncedIn = inCount;
+            _lastSyncedOut = outCount;
+
+            widget->setChannelCounts(static_cast<int>(inCount), static_cast<int>(outCount));
+            matrix = widget->matrixWidget()->getLinearValuesAsMatrix();
+            QMetaObject::invokeMethod(_worker, "initializeBuffers",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(int, static_cast<int>(inCount)),
+                                      Q_ARG(int, static_cast<int>(outCount)),
+                                      Q_ARG(Eigen::MatrixXd, matrix));
+
+            for (unsigned int i = 0; i < OutPortCount; ++i) {
+                Q_EMIT dataUpdated(static_cast<PortIndex>(i));
+            }
+            Q_EMIT embeddedWidgetSizeUpdated();
+        }
+
     private:
-        AudioMatrixWorker* _worker;                                      ///< 工作线程对象
-        QThread* _workerThread;                                         ///< 工作线程
-        // 移除这行：std::vector<std::shared_ptr<AudioTimestampRingQueue>> _audioBuffer;
-        AudioMatrixInterface* widget;
-        Eigen::MatrixXd matrix;                                         ///< 矩阵数据
-        // 移除这行：std::vector<std::shared_ptr<AudioData>> _outputData;
+        AudioMatrixWorker *_worker = nullptr;
+        QThread *_workerThread = nullptr;
+        AudioMatrixInterface *widget = nullptr;
+        Eigen::MatrixXd matrix;
+        QTimer *_portSyncTimer = nullptr;
+        unsigned int _lastSyncedIn = 0;
+        unsigned int _lastSyncedOut = 0;
     };
 }

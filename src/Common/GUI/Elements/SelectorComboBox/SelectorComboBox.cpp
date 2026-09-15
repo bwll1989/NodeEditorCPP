@@ -30,6 +30,12 @@ SelectorComboBox::SelectorComboBox(MediaLibrary::Category category, QWidget* par
     //     "  border-radius: 6px;"
     //     "}"
     // );
+    // 仅加宽弹出面板内的滚动条：popup 为 Qt::Popup 顶层窗口，可能无法完整继承全局 QSS，
+    // 故显式兜底一份滚动条宽高样式，保证滚动条易点击；横向滚动条只在需要时出现。
+    m_popupFrame->setStyleSheet(
+        "#SelectorComboBoxPopup QScrollBar:vertical   { width:  8px; }"
+        "#SelectorComboBoxPopup QScrollBar:horizontal { height: 8px; }"
+    );
     auto* layout = new QVBoxLayout(m_popupFrame);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);

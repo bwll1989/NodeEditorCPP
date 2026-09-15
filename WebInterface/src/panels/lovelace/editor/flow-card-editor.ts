@@ -120,6 +120,7 @@ export class FlowCardEditor extends LitElement {
       markdown: "Markdown",
       link: "超链接",
       "picture-elements": "图片元素",
+      "path-badge": "轨迹元素",
       line2d: "2D 折线",
       scatter2d: "2D 散点",
       bar: "柱状图",

@@ -180,11 +180,11 @@ add_subdirectory(src/Common/Devices/ClientController)
 add_subdirectory(src/Common/Devices/ArtnetSender)
 add_subdirectory(src/Common/Devices/TimestampGenerator)
 add_subdirectory(src/Common/Devices/MediaLibrary)
-add_subdirectory(src/Common/Devices/ModelDataBridge)
+#add_subdirectory(src/Common/Devices/ModelDataBridge)
 add_subdirectory(src/Common/Devices/GraphSnapshotBridge)
-add_subdirectory(src/Common/GUI/DelayListWidget)
+#add_subdirectory(src/Common/GUI/DelayListWidget)
 add_subdirectory(src/Nodes/BuildInNodes)
-add_subdirectory(src/Common/GUI/DockHub)
+#add_subdirectory(src/Common/GUI/DockHub)
 add_subdirectory(src/Common/DataTypes)
 add_subdirectory(src/Common/Devices/StatusContainer)
 add_subdirectory(src/Common/AppConfig)
@@ -213,6 +213,8 @@ set(CALC_SOURCE_FILES
         src/Widget/MenuBarWidget/AboutWidget.hpp
         src/Widget/MainWindow/MainWindow.hpp
         src/Widget/MainWindow/MainWindow.cpp
+        src/Widget/MainWindow/FramelessConfirmDialog.hpp
+        src/Widget/MainWindow/FramelessConfirmDialog.cpp
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.cpp
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.h
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar_p.h
@@ -328,6 +330,8 @@ list(REMOVE_ITEM HEADLESS_SOURCE_FILES main.cpp)
 list(REMOVE_ITEM HEADLESS_SOURCE_FILES
         src/Widget/MainWindow/MainWindow.cpp
         src/Widget/MainWindow/MainWindow.hpp
+        src/Widget/MainWindow/FramelessConfirmDialog.cpp
+        src/Widget/MainWindow/FramelessConfirmDialog.hpp
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.cpp
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.h
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar_p.h
@@ -420,10 +424,10 @@ target_link_libraries(${ProjectName}
             OscListWidget
             TimestampGenerator
             MediaManger
-            ModelDataBridge
+#            ModelDataBridge
             GraphSnapshotBridge
-            DelayListWidget
-            DockHub
+#            DelayListWidget
+#            DockHub
             StatusContainer
             AppConfig
             PropertyTreeWidget
@@ -478,10 +482,10 @@ target_link_libraries(${HeadlessProjectName}
             OscListWidget
             TimestampGenerator
             MediaManger
-            ModelDataBridge
+#            ModelDataBridge
             GraphSnapshotBridge
-            DelayListWidget
-            DockHub
+#            DelayListWidget
+#            DockHub
             StatusContainer
             AppConfig
             PropertyTreeWidget

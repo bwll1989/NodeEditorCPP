@@ -97,6 +97,26 @@ export interface LovelacePictureElementStyle {
   left?: string | number;
 }
 
+export interface LovelacePathPoint {
+  x: number;
+  y: number;
+}
+
+export interface LovelacePathBadgeConfig {
+  entity: string;
+  type?: "state-badge" | "button" | string;
+  name?: string;
+  icon?: string;
+  color?: string;
+  unit?: string;
+  text?: string;
+  show_icon?: boolean;
+  show_name?: boolean;
+  attribute?: string;
+  show_state?: boolean;
+  value?: FlowValue;
+}
+
 /** Overlay on a picture-elements card (HA state-badge / button). */
 export interface LovelacePictureElementConfig {
   type: "state-badge" | "button" | string;
@@ -191,7 +211,9 @@ export interface ConfigFieldSchema {
     | "bar_entities"
     | "status_entities"
     | "image"
-    | "picture_elements";
+    | "picture_elements"
+    | "path_points"
+    | "path_badges";
   helper?: string;
   placeholder?: string;
   optional?: boolean;

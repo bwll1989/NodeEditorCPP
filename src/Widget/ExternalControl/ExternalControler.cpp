@@ -18,8 +18,6 @@
 #include <QLineEdit>
 #include "OSCMessage.h"
 #include <QToolButton>
-
-#include "Common/GUI/Elements/FaderWidget/FaderWidget.h"
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/Devices/MqttClient/MqttClient.h"
 

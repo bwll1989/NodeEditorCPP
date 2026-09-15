@@ -20,6 +20,9 @@ inline QString IniFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-cou
 inline QString DmxFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 4, "internal-data": {"UniverseSettings": { "isLooping": false, "net": 0, "subnet": 0, "universe": 0, "videoFilePath": "%1" } }, "output-count": 4, "port-editable": true, "position": {"x": %2, "y": %3}, "remarks": "Universe Playback", "type": "Universe Playback"}]})");
 inline QString AudioFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 3, "internal-data": {"autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 2, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Audio Decoder", "type": "Audio Decoder" } ] })");
 inline QString VideoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 4, "internal-data": {"autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 3, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Video Decoder", "type": "Video Decoder" } ] })");
+// internal-data 须与节点 save()/load() 一致：属性在 values 下；坐标占位符由画布 drop 填入
+inline QString ViosoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"values": {"configFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "Vioso"}]})");
+inline QString IsfFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"values": {"shaderFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "ISF"}]})");
 
 MediaLibrary::MediaLibrary(QObject* parent)
     : QStandardItemModel(parent)
@@ -27,7 +30,8 @@ MediaLibrary::MediaLibrary(QObject* parent)
     setColumnCount(1);
     // 初始化五个类别为顶层组节点
     for (Category cat : { Category::Video, Category::Audio, Category::DMX, Category::Image,
-                          Category::Model, Category::Document, Category::ChildFlow, Category::Unknown }) {
+                          Category::Model, Category::Document, Category::Vioso, Category::ISF,
+                          Category::ChildFlow, Category::Unknown }) {
         auto* group = new QStandardItem(categoryName(cat));
         group->setEditable(false);
         group->setData(static_cast<int>(cat), CategoryRole);
@@ -305,6 +309,8 @@ QJsonObject MediaLibrary::toJson() const
     collect(Category::Image, "Image");
     collect(Category::Model,   "Model");
     collect(Category::Document,    "Document");
+    collect(Category::Vioso,   "Vioso");
+    collect(Category::ISF,     "ISF");
     collect(Category::ChildFlow, "ChildFlow");
     collect(Category::Unknown, "Unknown");
     return root;
@@ -328,6 +334,8 @@ bool MediaLibrary::fromJson(const QJsonObject& obj)
     load(Category::Image, "Picture");
     load(Category::Model,   "Model");
     load(Category::Document,    "Document");
+    load(Category::Vioso,   "Vioso");
+    load(Category::ISF,     "ISF");
     load(Category::ChildFlow, "ChildFlow");
     load(Category::Unknown, "Unknown");
     emit libraryChanged();
@@ -380,12 +388,16 @@ MediaLibrary::Category MediaLibrary::detectCategory(const QString& absPath) cons
     static const QSet<QString> model = { "obj", "fbx", "stl", "gltf", "glb" };
     // other
     static const QSet<QString> other = { "txt", "json", "xml", "cfg", "log" , "md" , "csv","ini" };
+    static const QSet<QString> vioso = { "vwf" };
+    static const QSet<QString> isf = { "fs" };
     static const QSet<QString> childFlow = { "childflow" };
     if (video.contains(ext)) return Category::Video;
     if (sound.contains(ext)) return Category::Audio;
     if (dmx.contains(ext))  return Category::DMX;
     if (pic.contains(ext))   return Category::Image;
     if (model.contains(ext)) return Category::Model;
+    if (vioso.contains(ext)) return Category::Vioso;
+    if (isf.contains(ext)) return Category::ISF;
     if (childFlow.contains(ext)) return Category::ChildFlow;
     // 其他文件（如脚本、配置等）
     if (other.contains(ext)) return Category::Document;
@@ -404,6 +416,8 @@ QString MediaLibrary::categoryName(Category cat) const
     case Category::Image: return QStringLiteral("Image Files");
     case Category::Model:   return QStringLiteral("3D Models");
     case Category::Document:   return QStringLiteral("Documents");
+    case Category::Vioso:   return QStringLiteral("Vioso");
+    case Category::ISF:     return QStringLiteral("ISF");
     case Category::ChildFlow: return QStringLiteral("Child Flows");
     case Category::Unknown: return QStringLiteral("Unknown");
     }
@@ -492,6 +506,8 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
             {Category::Image,    "Image"},
             {Category::Model,    "Model"},
             {Category::Document, "Document"},
+            {Category::Vioso,    "Vioso"},
+            {Category::ISF,      "ISF"},
             {Category::ChildFlow,"ChildFlow"},
             {Category::Unknown,  "Unknown"}
         };
@@ -527,6 +543,12 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
                     if (ext == "json") tpl = JsonFileNode.arg(fileName);
                     else if (ext == "ini") tpl = IniFileNode.arg(fileName);
                 }
+                    break;
+                case Category::Vioso:
+                    tpl = ViosoFileNode.arg(fileName);
+                    break;
+                case Category::ISF:
+                    tpl = IsfFileNode.arg(fileName);
                     break;
                 case Category::ChildFlow: {
                     // 读取 .childflow 场景，包装为 Container 节点供画布 Paste
@@ -705,35 +727,58 @@ void MediaLibrary::refresh() {
         storageFiles.insert(fi.absoluteFilePath());
     }
 
-    // 当前模型中记录的所有路径集合
+    // 清理失效项，并按扩展名重新归类（例如原 Documents 下的 .vwf/.fs）
     QSet<QString> modelPaths;
+    QSet<Category> dirtyGroups;
+    QVector<QPair<Category, QString>> pendingReadd;
     for (auto it = m_categories.begin(); it != m_categories.end(); ++it) {
+        const Category storedCat = it.key();
         QStandardItem* group = it.value();
         if (!group) continue;
-        bool groupChanged = false;
         for (int r = group->rowCount() - 1; r >= 0; --r) {
             QStandardItem* item = group->child(r);
             if (!item) continue;
             const QString path = item->data(PathRole).toString();
             if (path.isEmpty()) continue;
 
-            // 若磁盘上该文件已不存在，则移除项
             if (!QFileInfo(path).exists()) {
                 group->removeRow(r);
-                groupChanged = true;
+                dirtyGroups.insert(storedCat);
                 anyChange = true;
+                continue;
             }
+
+            const Category detected = detectCategory(path);
+            if (detected != storedCat) {
+                group->removeRow(r);
+                dirtyGroups.insert(storedCat);
+                pendingReadd.append({detected, path});
+                anyChange = true;
+                continue;
+            }
+
+            modelPaths.insert(path);
         }
-        if (groupChanged) {
-            renumberCategory(group);
+    }
+    for (Category cat : dirtyGroups) {
+        renumberCategory(m_categories.value(cat));
+    }
+    for (const auto& entry : pendingReadd) {
+        if (modelPaths.contains(entry.second)) {
+            continue;
+        }
+        if (addFile(entry.second).isValid()) {
+            modelPaths.insert(entry.second);
+            anyChange = true;
         }
     }
 
     // 将存储目录中新出现的文件加入模型
     for (const QString& absPath : storageFiles) {
         if (!modelPaths.contains(absPath)) {
-            addFile(absPath);
-            anyChange = true;
+            if (addFile(absPath).isValid()) {
+                anyChange = true;
+            }
         }
     }
 

@@ -4,6 +4,26 @@ import { CHART3D_DEFAULTS } from "../../../common/chart/chart-3d-entity";
 import { XY_PAD_DEFAULTS } from "../../../common/entity/xy-pad";
 import { CONTENT_LAYOUT_FIELD, entityCardSchema } from "./card-common-schemas";
 
+const DEFAULT_PATH_BADGE_POINTS = [
+  { x: 10, y: 88 },
+  { x: 28, y: 18 },
+  { x: 72, y: 18 },
+  { x: 90, y: 88 },
+];
+
+const DEFAULT_PATH_ELEMENT_BADGES = [
+  {
+    type: "state-badge",
+    entity: "/demo/path_progress",
+    name: "轨迹点 1",
+    icon: "mdi:robot-industrial",
+    color: "accent",
+    show_icon: true,
+    show_name: false,
+    show_state: false,
+  },
+];
+
 const CHART2D_APPEARANCE_FIELDS: ConfigFieldSchema[] = [
   { name: "bg_color", label: "背景色", type: "color", optional: true },
 ];
@@ -392,6 +412,57 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
     { name: "elements", label: "元素", type: "picture_elements" },
   ],
 
+  "path-badge": [
+    { name: "title", label: "标题", type: "text", optional: true, placeholder: "" },
+    { name: "image", label: "底图", type: "image", optional: true },
+    {
+      name: "points",
+      label: "轨迹绘制",
+      type: "path_points",
+      helper: "点击底图新增轨迹点，拖动点调整位置；值变化时只会移动徽章，轨迹本身保持不动",
+    },
+    {
+      name: "badges",
+      label: "轨迹徽章",
+      type: "path_badges",
+    },
+    {
+      name: "",
+      label: "",
+      type: "grid",
+      schema: [
+        { name: "track_color", label: "轨迹颜色", type: "color" },
+        { name: "track_width", label: "轨迹线宽", type: "number" },
+      ],
+    },
+    {
+      name: "",
+      label: "",
+      type: "grid",
+      schema: [
+        {
+          name: "progress_min",
+          label: "范围最小值",
+          type: "number",
+        },
+        {
+          name: "progress_max",
+          label: "范围最大值",
+          type: "number",
+        },
+      ],
+    },
+    {
+      name: "",
+      label: "",
+      type: "grid",
+      schema: [
+        { name: "badge_size", label: "徽章尺寸", type: "number" },
+        { name: "caption", label: "说明文字", type: "text", optional: true, placeholder: "可选" },
+      ],
+    },
+  ],
+
   line3d: [
     { name: "entity", label: "动作", type: "entity" },
     { name: "name", label: "名称", type: "text", optional: true },
@@ -616,6 +687,12 @@ export function normalizeCardConfig(
     }
   }
 
+  if (next.type === "path-badge") {
+    if (!String(next.caption ?? "").trim()) {
+      delete next.caption;
+    }
+  }
+
   return next;
 }
 
@@ -686,6 +763,38 @@ export function denormalizeCardConfig(config: Record<string, unknown>): Record<s
 
   if (!next.elements && next.type === "picture-elements") {
     next.elements = [];
+  }
+
+  if (next.type === "path-badge") {
+    if (!next.image) next.image = "";
+    if (next.progress_min === undefined) next.progress_min = 0;
+    if (next.progress_max === undefined) next.progress_max = 1;
+    if (
+      (!Array.isArray(next.points) || next.points.length === 0) &&
+      !String(next.path ?? "").trim()
+    ) {
+      next.points = DEFAULT_PATH_BADGE_POINTS.map((point) => ({ ...point }));
+    }
+    if (!Array.isArray(next.badges) || next.badges.length === 0) {
+      const legacyEntity = String(next.entity ?? "").trim();
+      if (legacyEntity) {
+        next.badges = [
+          {
+            type: "state-badge",
+            entity: legacyEntity,
+            name: String(next.name ?? "").trim() || undefined,
+            icon: String(next.icon ?? "").trim() || undefined,
+            color: String(next.badge_color ?? "").trim() || undefined,
+            show_icon: true,
+            show_name: Boolean(next.show_state),
+            show_state: Boolean(next.show_state),
+            attribute: String(next.attribute ?? "").trim() || undefined,
+          },
+        ];
+      } else {
+        next.badges = DEFAULT_PATH_ELEMENT_BADGES.map((badge) => ({ ...badge }));
+      }
+    }
   }
 
   if (next.type === "line3d") {

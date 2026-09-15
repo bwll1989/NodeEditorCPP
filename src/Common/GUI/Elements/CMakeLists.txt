@@ -12,20 +12,14 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets Network Gui Qml O
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets Network Gui Qml OpenGL OpenGLWidgets)
 # 创建共享库
 add_library(${Module_Name} SHARED
-    FaderWidget/FaderWidget.cpp
-    FaderWidget/FaderWidget.h
     MartixWidget/MatrixWidget.cpp
     MartixWidget/MatrixWidget.h
     XYPad/XYPad.cpp
     XYPad/XYPad.h
     BarButton/BarButton.cpp
     BarButton/BarButton.h
-    FlowWidget/FlowWidget.cpp
-    FlowWidget/FlowWidget.h
     SelectorComboBox/SelectorComboBox.cpp
     SelectorComboBox/SelectorComboBox.hpp
-    DataBridgeSelectorBox/DataBridgeSelectorBox.cpp
-    DataBridgeSelectorBox/DataBridgeSelectorBox.hpp
     ColorEditorWidget/ColorEditorWidget.cpp
     ColorEditorWidget/ColorEditorWidget.hpp
     QGridView/QGridView.cpp
@@ -44,6 +38,8 @@ add_library(${Module_Name} SHARED
     ImageTextureView/ImageTextureViewHost.hpp
     ImageTextureWindow/ImageTextureWindow.cpp
     ImageTextureWindow/ImageTextureWindow.hpp
+    PortAlignedColumn/PortAlignedColumn.cpp
+    PortAlignedColumn/PortAlignedColumn.hpp
 )
 
 target_include_directories(${Module_Name} PUBLIC
@@ -60,7 +56,6 @@ target_link_libraries(${Module_Name} PRIVATE
     Qt${QT_VERSION_MAJOR}::OpenGL
     Qt${QT_VERSION_MAJOR}::OpenGLWidgets
     MediaManger
-    ModelDataBridge
     DataTypes
     ${QtColorWidgets_LIBRARIES}
 )

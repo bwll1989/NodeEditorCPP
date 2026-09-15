@@ -9,7 +9,6 @@
 #include <QLineEdit>
 #include <QToolButton>
 #include <QTimer>
-#include "Elements/FaderWidget/FaderWidget.h"
 
 StatusContainer* StatusContainer::instance() {
     static StatusContainer inst;

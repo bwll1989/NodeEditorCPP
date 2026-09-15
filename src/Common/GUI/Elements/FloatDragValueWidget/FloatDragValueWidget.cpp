@@ -4,6 +4,8 @@
 #include <QStyleOption>
 #include <QApplication>
 #include <QDoubleValidator>
+#include <QColor>
+#include <QPen>
 #include <cmath>
 
 FloatDragValueWidget::FloatDragValueWidget(QWidget *parent)
@@ -102,29 +104,112 @@ void FloatDragValueWidget::setSuffix(const QString &s)
     update();
 }
 
+bool FloatDragValueWidget::compactMode() const
+{
+    return m_compactMode;
+}
+
+void FloatDragValueWidget::setCompactMode(bool enabled)
+{
+    if (m_compactMode == enabled) {
+        return;
+    }
+    m_compactMode = enabled;
+    if (m_compactMode) {
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        setMinimumSize(12, 12);
+    } else {
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        setMinimumHeight(25);
+        setMinimumWidth(0);
+    }
+    updateGeometry();
+    update();
+}
+
+QSize FloatDragValueWidget::sizeHint() const
+{
+    return m_compactMode ? QSize(24, 24) : QSize(60, 25);
+}
+
+QSize FloatDragValueWidget::minimumSizeHint() const
+{
+    return m_compactMode ? QSize(12, 12) : QSize(40, 25);
+}
+
 void FloatDragValueWidget::paintEvent(QPaintEvent *event)
 {
     Q_UNUSED(event);
     QPainter painter(this);
-    
-    QStyleOptionFrame option;
-    option.initFrom(this); // 从当前控件获取状态、调色板等
-    option.rect = rect();
-    option.lineWidth = style()->pixelMetric(QStyle::PM_DefaultFrameWidth, &option, this);
-    
-    // 使用 LineEdit 的样式原语进行绘制
-    style()->drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter, this);
-    
-    // 使用调色板中的文本颜色
-    painter.setPen(option.palette.text().color());
-    QString text = QString::number(m_value, 'f', m_decimals);
-    if (!m_suffix.isEmpty()) {
-        text += m_suffix;
+
+    if (!m_compactMode) {
+        painter.setRenderHint(QPainter::Antialiasing, false);
+        QStyleOptionFrame option;
+        option.initFrom(this);
+        option.rect = rect();
+        option.lineWidth = style()->pixelMetric(QStyle::PM_DefaultFrameWidth, &option, this);
+        style()->drawPrimitive(QStyle::PE_PanelLineEdit, &option, &painter, this);
+        painter.setPen(option.palette.text().color());
+        QString text = QString::number(m_value, 'f', m_decimals);
+        if (!m_suffix.isEmpty()) {
+            text += m_suffix;
+        }
+        painter.drawText(rect(), Qt::AlignCenter, text);
+        return;
     }
-    painter.drawText(rect(), Qt::AlignCenter, text);
-    
-    // Draw active indicator if focused or hovering? 
-    // For now simple style is enough.
+
+    // 热力格：浅紫 → 靛蓝；静音 = 浅底描边
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    const QRectF cell = QRectF(rect()).adjusted(1.0, 1.0, -1.0, -1.0);
+    const qreal radius = qMin(4.0, qMin(cell.width(), cell.height()) * 0.18);
+
+    const bool finiteRange = std::isfinite(m_minimum) && std::isfinite(m_maximum) && m_maximum > m_minimum;
+    const double t = finiteRange
+                         ? qBound(0.0, (m_value - m_minimum) / (m_maximum - m_minimum), 1.0)
+                         : 0.0;
+    const bool muted = !finiteRange || m_value <= m_minimum + 0.05;
+
+    QColor fill;
+    QColor border;
+    QColor textColor;
+    if (muted) {
+        fill = QColor(245, 242, 250);
+        border = QColor(180, 175, 195);
+        textColor = QColor(120, 115, 140);
+    } else {
+        const QColor cLow(232, 224, 245);
+        const QColor cMid(120, 100, 210);
+        const QColor cHigh(45, 40, 150);
+        if (t < 0.5) {
+            const double u = t * 2.0;
+            fill.setRgbF(cLow.redF() + (cMid.redF() - cLow.redF()) * u,
+                         cLow.greenF() + (cMid.greenF() - cLow.greenF()) * u,
+                         cLow.blueF() + (cMid.blueF() - cLow.blueF()) * u);
+        } else {
+            const double u = (t - 0.5) * 2.0;
+            fill.setRgbF(cMid.redF() + (cHigh.redF() - cMid.redF()) * u,
+                         cMid.greenF() + (cHigh.greenF() - cMid.greenF()) * u,
+                         cMid.blueF() + (cHigh.blueF() - cMid.blueF()) * u);
+        }
+        border = fill.darker(110);
+        textColor = (t > 0.38) ? QColor(255, 255, 255) : QColor(50, 40, 90);
+    }
+
+    painter.setPen(QPen(border, 1.0));
+    painter.setBrush(fill);
+    painter.drawRoundedRect(cell, radius, radius);
+
+    if (width() >= 28 && height() >= 16) {
+        painter.setPen(textColor);
+        QFont f = font();
+        f.setPointSizeF(qMax(7.0, qMin(cell.height() * 0.36, 10.0)));
+        painter.setFont(f);
+        QString text = QString::number(m_value, 'f', m_decimals);
+        if (!m_suffix.isEmpty() && width() >= 42) {
+            text += m_suffix;
+        }
+        painter.drawText(cell, Qt::AlignCenter, text);
+    }
 }
 
 void FloatDragValueWidget::mousePressEvent(QMouseEvent *event)

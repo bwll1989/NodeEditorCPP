@@ -97,6 +97,7 @@ set(ALL_NODES
     InjectNode                                  #数据注入
     ValueLookupNode                          #值查表 Value Lookup
     FT_C040ANode                            #触摸屏
+    ViosoNode                               #Vioso节点
 )
 
 # 根据选项决定构建方式
@@ -209,6 +210,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(InjectNode)                                #数据注入节点
     add_subdirectory(ValueLookupNode)                        #值查表 Value Lookup
     add_subdirectory(FT_C040ANode)                          #触摸屏
+    add_subdirectory(ViosoNode)                              #Vioso节点 
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()

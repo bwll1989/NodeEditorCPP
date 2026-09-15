@@ -9,7 +9,7 @@
 #include <optional>
 #include "Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
-#include "DockHub/DockHub.hpp"
+// #include "DockHub/DockHub.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/MenuBarWidget/MenuBarWidget.h"
 #include "Widget/TimeLineWidget/TimeLineWidget.hpp"

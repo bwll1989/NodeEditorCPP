@@ -27,15 +27,19 @@ namespace Nodes
     public:
         InjectDataModel()
         {
-            InPortCount = 5;
+            InPortCount = 4;
             OutPortCount = 1;
             Caption = "Inject";
             CaptionVisible = true;
             WidgetEmbeddable = false;
-            PortEditable = true;
+            PortEditable = false;
             Resizable = true;
 
             m_outputData = std::make_shared<VariableData>();
+            widget->setRowCount(static_cast<int>(InPortCount));
+
+            connect(widget, &InjectInterface::rowAppended, this, &InjectDataModel::onRowAppended);
+            connect(widget, &InjectInterface::rowRemoved, this, &InjectDataModel::onRowRemoved);
         }
 
         ~InjectDataModel() override = default;
@@ -97,6 +101,8 @@ namespace Nodes
             if (p.contains("list")) {
                 widget->importValuesArray(p["list"].toArray());
             }
+            widget->setRowCount(static_cast<int>(InPortCount));
+            Q_EMIT embeddedWidgetSizeUpdated();
         }
 
         QWidget *embeddedWidget() override { return widget; }
@@ -107,6 +113,27 @@ namespace Nodes
             for (unsigned int i = 0; i < OutPortCount; ++i) {
                 Q_EMIT dataUpdated(i);
             }
+        }
+
+        void onRowAppended()
+        {
+            const unsigned int oldCount = InPortCount;
+            Q_EMIT portsAboutToBeInserted(PortType::In, oldCount, oldCount);
+            InPortCount = oldCount + 1;
+            Q_EMIT portsInserted();
+            Q_EMIT embeddedWidgetSizeUpdated();
+        }
+
+        void onRowRemoved(int index)
+        {
+            if (index < 0 || InPortCount <= 1) {
+                return;
+            }
+            const auto portIndex = static_cast<PortIndex>(index);
+            Q_EMIT portsAboutToBeDeleted(PortType::In, portIndex, portIndex);
+            InPortCount -= 1;
+            Q_EMIT portsDeleted();
+            Q_EMIT embeddedWidgetSizeUpdated();
         }
 
     private:

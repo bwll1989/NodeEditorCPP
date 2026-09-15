@@ -7,7 +7,7 @@
 
   "NodeStyle": {
     "NormalBoundaryColor": [168, 170, 178],
-    "SelectedBoundaryColor": [255, 165, 0],
+    "SelectedBoundaryColor": [180, 200, 80],
 
     "GradientColor0": [250, 250, 252],
     "GradientColor1": [244, 244, 247],
@@ -27,7 +27,7 @@
     "PenWidth": 1.0,
     "HoveredPenWidth": 4.0,
     "ConnectionPointDiameter": 10.0,
-    "BoundaryRadius": 6,
+    "BoundaryRadius": 0,
     "Opacity": 1.0
   },
 
@@ -62,7 +62,7 @@
     "Opacity": 1.0,
     "PenWidth": 1.0,
     "HoveredPenWidth": 2,
-    "BoundaryRadius": 6,
+    "BoundaryRadius": 0,
     "GradientColor0": "lightgray",
     "CaptionHeight": 30.0,
     "CollapsedHeight": 150.0,

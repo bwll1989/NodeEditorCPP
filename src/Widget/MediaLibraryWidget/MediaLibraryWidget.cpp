@@ -84,8 +84,8 @@ void MediaLibraryWidget::initializeTreeView()
         if (!ic.isNull()) {
             group->setIcon(ic);
         }
-        // 展开
-        m_tree->setExpanded(group->index(), true);
+        // 分组默认折叠，文件多时避免一次性展开过长列表
+        m_tree->setExpanded(group->index(), false);
     }
     // 视图侧：既支持拖也支持放置（内部拖拽）
     m_tree->setDragEnabled(true);
@@ -181,10 +181,31 @@ void MediaLibraryWidget::setChildrenFlag(QStandardItem* groupItem)
  */
 void MediaLibraryWidget::importFiles()
 {
-    // 函数级注释：打开多文件选择对话框，把选中的绝对路径批量加入模型
+    // 函数级注释：打开多文件选择对话框，按媒体库分类提供筛选，把选中路径批量入库
+    // 扩展名与 MediaLibrary::detectCategory 保持一致
+    const QString filter = tr(
+        "全部支持格式 ("
+        "*.mp4 *.mov *.mkv *.avi *.wmv *.flv *.webm "
+        "*.wav *.mp3 *.flac *.aac *.ogg *.m4a "
+        "*.jpg *.jpeg *.png *.bmp *.gif *.webp *.tiff "
+        "*.dmx "
+        "*.obj *.fbx *.stl *.gltf *.glb "
+        "*.txt *.json *.xml *.cfg *.log *.md *.csv *.ini "
+        "*.vwf *.fs *.childflow"
+        ");;"
+        "视频 (*.mp4 *.mov *.mkv *.avi *.wmv *.flv *.webm);;"
+        "音频 (*.wav *.mp3 *.flac *.aac *.ogg *.m4a);;"
+        "图片 (*.jpg *.jpeg *.png *.bmp *.gif *.webp *.tiff);;"
+        "DMX (*.dmx);;"
+        "3D 模型 (*.obj *.fbx *.stl *.gltf *.glb);;"
+        "文档 (*.txt *.json *.xml *.cfg *.log *.md *.csv *.ini);;"
+        "Vioso (*.vwf);;"
+        "ISF (*.fs);;"
+        "Child Flow (*.childflow);;"
+        "所有文件 (*.*)");
+
     const QStringList files = QFileDialog::getOpenFileNames(
-        this, tr("选择媒体文件"), QString(),
-        tr("媒体与流程 (*.mp4 *.mov *.mkv *.avi *.wav *.mp3 *.jpg *.jpeg *.png *.bmp *.gif *.dmx *.json *.ini *.childflow);;Childflow (*.childflow);;所有文件 (*.*)"));
+        this, tr("导入媒体文件"), QString(), filter);
     if (files.isEmpty()) return;
     m_model->addFiles(files);
 }
@@ -312,6 +333,8 @@ QIcon MediaLibraryWidget::categoryIcon(int cat) const
     case Cat::Image: return QIcon(":/icons/icons/image.png");
     case Cat::Model:   return QIcon(":/icons/icons/model_1.png");
     case Cat::Document:   return QIcon(":/icons/icons/document.png");
+    case Cat::Vioso:   return QIcon(":/icons/icons/vioso.png");
+    case Cat::ISF:     return QIcon(":/icons/icons/isf.png");
     case Cat::ChildFlow: return QIcon(":/icons/icons/Flow.png");
     case Cat::Unknown: return QIcon(":/icons/icons/unknown.png");
     default:           return QIcon();
@@ -377,7 +400,7 @@ void MediaLibraryWidget::onLibraryChanged()
     // 函数级注释：
     // 1) refresh() 过程中屏蔽了模型信号，视图未收到 rowsInserted/rowsRemoved，
     //    因此此处强制重绑模型以刷新显示；
-    // 2) 重新初始化组图标与展开状态；
+    // 2) 重新初始化组图标与默认折叠状态；
     // 3) 为所有子项补充类型图标，避免在刷新过程中遗漏。
 
     // 记录当前选中项（可选）
@@ -387,7 +410,7 @@ void MediaLibraryWidget::onLibraryChanged()
     m_tree->setModel(nullptr);
     m_tree->setModel(m_model);
 
-    // 重新初始化视图外观（组图标、展开等）
+    // 重新初始化视图外观（组图标、默认折叠等）
     initializeTreeView();
 
     // 为所有组刷新子项图标
