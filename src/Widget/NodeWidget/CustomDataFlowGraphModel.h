@@ -317,7 +317,7 @@ private:
     //布局控件
     PortEditAddRemoveWidget  *layoutWidget(NodeId) const;
     //节点部件
-    mutable std::unordered_map<NodeId, PortEditAddRemoveWidget *> _nodeWidgets;
+    // mutable std::unordered_map<NodeId, PortEditAddRemoveWidget *> _nodeWidgets;
     //下一个节点ID
     NodeId _nextNodeId;
     //分离是否可能

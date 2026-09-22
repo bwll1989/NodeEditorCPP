@@ -1,280 +1,295 @@
 #include "AudioDuckingWorker.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
-#include <QDebug>
-#include <cmath>
+
+#include <QtGlobal>
 #include <algorithm>
+#include <cmath>
+#include <cstring>
 
 namespace Nodes
 {
     AudioDuckingWorker::AudioDuckingWorker(QObject *parent)
         : QObject(parent)
-        , _isProcessing(false)
-        , _lastProcessedTimestamp(0)
-        , _frameSize(2048)
-        , _sampleRate(48000)
-    {
-        initializeGist(_frameSize, _sampleRate);
-    }
-    
+    {}
+
     AudioDuckingWorker::~AudioDuckingWorker()
     {
         stopProcessing();
     }
-    
-    void AudioDuckingWorker::initializeGist(int frameSize, int sampleRate)
-    {
-        _frameSize = frameSize;
-        _sampleRate = sampleRate;
-        try {
-            _gistAnalyzer = std::make_unique<Gist<float>>(frameSize, sampleRate);
-        } catch (const std::exception& e) {
-            qWarning() << "AudioDuckingWorker: Failed to initialize GIST:" << e.what();
-        }
-    }
 
     void AudioDuckingWorker::startProcessing()
     {
-        QMutexLocker locker(&_mutex);
-        if (_isProcessing) return;
-        
-        _isProcessing = true;
-        _lastProcessedTimestamp = 0;
-        QObject::connect(TimestampGenerator::getInstance(),
-                         &TimestampGenerator::frameCountUpdated,
-                         this,
-                         &AudioDuckingWorker::onFrameTick,
-                         Qt::QueuedConnection);
+        {
+            QMutexLocker locker(&_mutex);
+            if (_isProcessing) {
+                return;
+            }
+            _isProcessing = true;
+            _lastProcessedTimestamp = 0;
+            _gainDb = 0.0f;
+            _holdLeftSec = 0.0f;
+        }
+
+        _stopRequested.store(false, std::memory_order_release);
+        _tickWaiter.reset();
+        TimestampGenerator::getInstance()->registerAudioTickWaiter(&_tickWaiter);
+        _audioThread = std::thread([this]() { audioLoop(); });
         emit processingStatusChanged(true);
     }
-    
+
     void AudioDuckingWorker::stopProcessing()
     {
-        QMutexLocker locker(&_mutex);
-        if (_isProcessing) {
-            _isProcessing = false;
-            QObject::disconnect(TimestampGenerator::getInstance(),
-                                &TimestampGenerator::frameCountUpdated,
-                                this,
-                                &AudioDuckingWorker::onFrameTick);
-            emit processingStatusChanged(false);
-        }
-    }
-    
-    void AudioDuckingWorker::processAudioData()
-    {
-        // Not used when driven by TimestampGenerator, but kept for compatibility
-    }
+        _stopRequested.store(true, std::memory_order_release);
+        _tickWaiter.requestStop();
+        TimestampGenerator::getInstance()->unregisterAudioTickWaiter(&_tickWaiter);
 
-    void AudioDuckingWorker::onFrameTick(qint64 frameCount)
-    {
-        if (!_isProcessing || _inputBuffers.empty() || _outputBuffers.empty()) return;
-        if (frameCount == _lastProcessedTimestamp) return;
-        
-        // We expect at least Input 0 (Music) to process. Input 1 (Sidechain) is optional (if missing, no ducking).
-        if (_inputBuffers.size() < 1) return;
-
-        std::vector<AudioFrame> inputFrames(_inputBuffers.size());
-        bool hasMusicInput = false;
-        
-        // Get Music Frame (Input 0)
-        if (_inputBuffers[0] && _inputBuffers[0]->isActive()) {
-            if (_inputBuffers[0]->getFrameByTimestamp(frameCount, inputFrames[0])) {
-                hasMusicInput = true;
-            }
-        }
-        
-        // Get Sidechain Frame (Input 1)
-        if (_inputBuffers.size() > 1 && _inputBuffers[1] && _inputBuffers[1]->isActive()) {
-            _inputBuffers[1]->getFrameByTimestamp(frameCount, inputFrames[1]);
-        }
-        
-        if (!hasMusicInput) return;
-
-        performDuckingOperation(inputFrames, frameCount);
-        _lastProcessedTimestamp = frameCount;
-        emit audioProcessed(_outputBuffers);
-    }
-    
-    void AudioDuckingWorker::performDuckingOperation(const std::vector<AudioFrame>& inputFrames, qint64 timestamp)
-    {
-        if (inputFrames.empty() || inputFrames[0].data.isEmpty()) return;
-
-        const AudioFrame& musicFrame = inputFrames[0];
-        const float* musicData = reinterpret_cast<const float*>(musicFrame.data.constData());
-        size_t sampleCount = musicFrame.data.size() / sizeof(float);
-        
-        std::vector<float> sidechainData;
-        bool hasSidechain = false;
-
-        // Check sidechain input
-        if (inputFrames.size() > 1 && !inputFrames[1].data.isEmpty()) {
-            const AudioFrame& sidechainFrame = inputFrames[1];
-            size_t scSamples = sidechainFrame.data.size() / sizeof(float);
-            // Only process if we have data
-            if (scSamples > 0) {
-                const float* scRaw = reinterpret_cast<const float*>(sidechainFrame.data.constData());
-                sidechainData.assign(scRaw, scRaw + scSamples);
-                
-                // Pad or trim to match music frame size if necessary
-                // Use cyclic padding to maintain RMS level if data is smaller than frame size
-                if (sidechainData.size() < (size_t)_frameSize) {
-                    size_t originalSize = sidechainData.size();
-                    sidechainData.resize(_frameSize);
-                    for (size_t i = originalSize; i < (size_t)_frameSize; ++i) {
-                        sidechainData[i] = sidechainData[i % originalSize];
-                    }
-                } else if (sidechainData.size() > (size_t)_frameSize) {
-                    sidechainData.resize(_frameSize);
-                }
-                hasSidechain = true;
-            }
-        }
-
-        float gainReduction = 1.0f;
-        
-        if (hasSidechain) {
-            // Apply Sidechain Gain before analysis
-            if (_sidechainGain > 0.001f) {
-                float scGainLinear = std::pow(10.0f, _sidechainGain / 20.0f);
-                for (float& s : sidechainData) {
-                    s *= scGainLinear;
-                }
-            }
-
-            // Calculate RMS manually to avoid Gist windowing attenuation
-            double sumSq = 0.0;
-            for (float s : sidechainData) {
-                sumSq += s * s;
-            }
-            float rms = 0.0f;
-            if (!sidechainData.empty()) {
-                rms = std::sqrt((float)(sumSq / sidechainData.size()));
-            }
-
-            // Keep Gist analysis call to satisfy requirement (maybe used for other features later)
-            if (_gistAnalyzer) {
-                _gistAnalyzer->processAudioFrame(sidechainData);
-            }
-            
-            // Convert RMS to dB
-            float rmsDb = (rms > 0.000001f) ? 20.0f * std::log10(rms) : -100.0f;
-            
-            // Calculate gain reduction with maximum ducking depth
-            if (rmsDb > _threshold) {
-                float overshoot = rmsDb - _threshold;
-                // Use ratio to scale reduction and clamp by depth
-                float grDb = std::min(_depthDb, overshoot * _ratio);
-                gainReduction = std::pow(10.0f, -grDb / 20.0f);
-            }
-        }
-        
-        // Apply envelope (Attack/Release) - simplified block processing
-        // Ideally we do this sample by sample, but frame-based is okay for simple ducking 
-        // if frame rate is high enough (approx 21ms at 48k/1024, or 42ms at 2048).
-        // 42ms might be too slow for fast attack. 
-        // But since we are using Gist which is frame-based, we are limited to frame granularity unless we do sample-based RMS.
-        // Given the prompt "use gist analysis", I will stick to frame-based RMS from Gist.
-        
-        // Smooth the gain
-        float targetGain = gainReduction;
-        // Simple smoothing: alpha filter
-        // We can't do proper attack/release per sample with just one RMS value per frame.
-        // We will apply the target gain to the whole frame, but smoothed from previous frame's gain.
-        
-        // Prepare output
-        AudioFrame outputFrame = musicFrame;
-        outputFrame.timestamp = timestamp + 2; // Latency compensation
-        outputFrame.data.resize(sampleCount * sizeof(float));
-        float* outputData = reinterpret_cast<float*>(outputFrame.data.data());
-        
-        float currentGain = _envelope;
-        
-        // Time constants
-        float dt = (float)sampleCount / _sampleRate; // Duration of this frame
-        float attackCoeff = std::exp(-dt / (_attack / 1000.0f)); 
-        
-        // Apply smoothing toward targetGain
-        if (targetGain < currentGain) {
-            // Attack phase: Exponential convergence (Linear domain)
-            _envelope = attackCoeff * currentGain + (1.0f - attackCoeff) * targetGain;
-        } else {
-            // Release phase: Linear dB ramp (Constant dB/sec)
-            // This provides a uniform volume recovery that feels "slower" and more natural than exponential
-            // We define Release Time as the time to recover 30dB
-            // Rate (dB/s) = 30.0 / (ReleaseTime_ms / 1000.0)
-            
-            float releaseTimeSec = std::max(0.001f, _release / 1000.0f);
-            float recoveryRateDbPerSec = 30.0f / releaseTimeSec;
-            float maxRecoveryDb = recoveryRateDbPerSec * dt;
-            
-            // Convert current gain to dB (handle near-zero case)
-            float currentDb = (currentGain > 0.000001f) ? 20.0f * std::log10(currentGain) : -120.0f;
-            float targetDb = (targetGain > 0.000001f) ? 20.0f * std::log10(targetGain) : -120.0f;
-            
-            if (currentDb < targetDb) {
-                currentDb += maxRecoveryDb;
-                if (currentDb > targetDb) currentDb = targetDb;
-                _envelope = std::pow(10.0f, currentDb / 20.0f);
+        if (_audioThread.joinable()) {
+            if (_audioThread.get_id() != std::this_thread::get_id()) {
+                _audioThread.join();
             } else {
-                _envelope = targetGain;
+                _audioThread.detach();
             }
         }
-        
-        // Apply makeup gain
-        float makeupLinear = std::pow(10.0f, _makeupGain / 20.0f);
-        float finalGain = _envelope * makeupLinear;
-        
-        for (size_t i = 0; i < sampleCount; ++i) {
-            outputData[i] = musicData[i] * finalGain;
+
+        QMutexLocker locker(&_mutex);
+        if (!_isProcessing) {
+            return;
         }
-        
-        if (!_outputBuffers.empty() && _outputBuffers[0]) {
-            _outputBuffers[0]->pushFrame(outputFrame);
+        _isProcessing = false;
+        emit processingStatusChanged(false);
+    }
+
+    void AudioDuckingWorker::audioLoop()
+    {
+        while (!_stopRequested.load(std::memory_order_acquire)
+               && !_tickWaiter.isStopRequested()) {
+            if (!_tickWaiter.wait(50)) {
+                continue;
+            }
+            if (_stopRequested.load(std::memory_order_acquire)
+                || _tickWaiter.isStopRequested()) {
+                break;
+            }
+            processCurrentFrame();
         }
     }
 
-    void AudioDuckingWorker::initializeBuffers(int inputCount, int outputCount)
+    void AudioDuckingWorker::processCurrentFrame()
     {
-        if (_isProcessing) stopProcessing();
-        
-        _inputBuffers.clear();
-        _inputBuffers.resize(inputCount);
-        for (int i = 0; i < inputCount; ++i) {
-            _inputBuffers[i] = std::make_shared<AudioTimestampRingQueue>();
+        const qint64 currentFrame = TimestampGenerator::getInstance()->getCurrentFrameCount();
+
+        std::vector<std::shared_ptr<AudioTimestampRingQueue>> inputs;
+        std::vector<std::shared_ptr<AudioTimestampRingQueue>> outputs;
+        Params params;
+        bool duckActive = false;
+        {
+            QMutexLocker locker(&_mutex);
+            if (!_isProcessing || _inputBuffers.empty() || _outputBuffers.empty()) {
+                return;
+            }
+            if (currentFrame == _lastProcessedTimestamp) {
+                return;
+            }
+            inputs = _inputBuffers;
+            outputs = _outputBuffers;
+            params = _params;
+            duckActive = _duckActive;
         }
-        
-        _outputBuffers.clear();
-        _outputBuffers.resize(outputCount);
-        for (int i = 0; i < outputCount; ++i) {
-            _outputBuffers[i] = std::make_shared<AudioTimestampRingQueue>();
+
+        std::vector<AudioFrame> inputFrames(inputs.size());
+        bool hasAny = false;
+        for (size_t i = 0; i < inputs.size(); ++i) {
+            if (inputs[i] && inputs[i]->isActive()
+                && inputs[i]->getFrameByTimestamp(currentFrame, inputFrames[i])) {
+                hasAny = true;
+            }
+        }
+        if (!hasAny) {
+            return;
+        }
+
+        performDucking(inputFrames, outputs, currentFrame, params, duckActive);
+
+        QMutexLocker locker(&_mutex);
+        _lastProcessedTimestamp = currentFrame;
+    }
+
+    AudioDuckingWorker::ChannelView AudioDuckingWorker::viewOf(const AudioFrame &frame)
+    {
+        ChannelView view;
+        if (frame.data.isEmpty() || frame.channels <= 0) {
+            return view;
+        }
+        const int total = frame.data.size() / static_cast<int>(sizeof(float));
+        const int frames = total / frame.channels;
+        if (frames <= 0) {
+            return view;
+        }
+        view.data = reinterpret_cast<const float *>(frame.data.constData());
+        view.channels = frame.channels;
+        view.frames = frames;
+        view.sampleRate = frame.sampleRate > 0 ? frame.sampleRate : 48000;
+        view.valid = true;
+        return view;
+    }
+
+    float AudioDuckingWorker::onePoleDb(float currentDb, float targetDb, float dtSec, float tauSec)
+    {
+        if (tauSec <= 0.0001f) {
+            return targetDb;
+        }
+        const float alpha = 1.0f - std::exp(-dtSec / tauSec);
+        return currentDb + (targetDb - currentDb) * alpha;
+    }
+
+    void AudioDuckingWorker::performDucking(const std::vector<AudioFrame> &inputFrames,
+                                            const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
+                                            qint64 timestamp,
+                                            const Params &params,
+                                            bool duckActive)
+    {
+        if (inputFrames.empty() || outputs.empty()) {
+            return;
+        }
+
+        int envFrames = 0;
+        int sampleRate = 48000;
+        for (const auto &frame : inputFrames) {
+            const ChannelView view = viewOf(frame);
+            if (view.valid) {
+                envFrames = view.frames;
+                sampleRate = view.sampleRate;
+                break;
+            }
+        }
+        if (envFrames <= 0) {
+            envFrames = qMax(1, TimestampGenerator::getInstance()->getSamplesPerFrame(sampleRate));
+        }
+
+        const float dt = static_cast<float>(envFrames) / static_cast<float>(qMax(1, sampleRate));
+        const float gainStartDb = _gainDb;
+        if (duckActive) {
+            _holdLeftSec = params.holdSec;
+            _gainDb = onePoleDb(_gainDb, -params.depthDb, dt, params.attackSec);
+        } else if (_holdLeftSec > 0.0f) {
+            _holdLeftSec = std::max(0.0f, _holdLeftSec - dt);
+            _gainDb = onePoleDb(_gainDb, -params.depthDb, dt, params.attackSec);
+        } else {
+            _gainDb = onePoleDb(_gainDb, 0.0f, dt, params.releaseSec);
+        }
+        const float gainEndDb = _gainDb;
+
+        const int outCount = static_cast<int>(outputs.size());
+        const int inCount = static_cast<int>(inputFrames.size());
+        for (int outIndex = 0; outIndex < outCount; ++outIndex) {
+            if (!outputs[static_cast<size_t>(outIndex)]) {
+                continue;
+            }
+
+            ChannelView program;
+            if (outIndex < inCount) {
+                program = viewOf(inputFrames[static_cast<size_t>(outIndex)]);
+            }
+
+            int channels = program.valid ? program.channels : 1;
+            int frames = program.valid ? program.frames : envFrames;
+            if (channels <= 0) {
+                channels = 1;
+            }
+            if (frames <= 0) {
+                frames = envFrames;
+            }
+
+            std::vector<float> mixed(static_cast<size_t>(frames * channels), 0.0f);
+            if (program.valid) {
+                const int denom = qMax(1, frames - 1);
+                const int total = frames * channels;
+                for (int i = 0; i < frames; ++i) {
+                    const float t = static_cast<float>(i) / static_cast<float>(denom);
+                    const float gainDb = gainStartDb + (gainEndDb - gainStartDb) * t;
+                    const float duck = std::pow(10.0f, gainDb / 20.0f);
+                    for (int c = 0; c < channels; ++c) {
+                        const int idx = i * channels + c;
+                        if (idx < total && idx < program.frames * program.channels) {
+                            mixed[static_cast<size_t>(idx)] = program.data[idx] * duck;
+                        }
+                    }
+                }
+            }
+
+            AudioFrame outputFrame;
+            outputFrame.sampleRate = program.valid ? program.sampleRate : sampleRate;
+            outputFrame.channels = channels;
+            outputFrame.bitsPerSample = 32;
+            outputFrame.timestamp = timestamp + TimestampGenerator::getInstance()->getAudioOutputDelayFrames();
+            outputFrame.data = QByteArray(reinterpret_cast<const char *>(mixed.data()),
+                                          static_cast<int>(mixed.size() * sizeof(float)));
+            outputs[static_cast<size_t>(outIndex)]->pushFrame(outputFrame);
+        }
+    }
+
+    void AudioDuckingWorker::initializeBuffers(int audioChannelCount)
+    {
+        QMutexLocker locker(&_mutex);
+        audioChannelCount = qMax(1, audioChannelCount);
+
+        _inputBuffers.resize(static_cast<size_t>(audioChannelCount));
+
+        std::vector<std::shared_ptr<AudioTimestampRingQueue>> oldOutputs = std::move(_outputBuffers);
+        _outputBuffers.resize(static_cast<size_t>(audioChannelCount));
+        for (int i = 0; i < audioChannelCount; ++i) {
+            if (i < static_cast<int>(oldOutputs.size()) && oldOutputs[static_cast<size_t>(i)]) {
+                _outputBuffers[static_cast<size_t>(i)] = oldOutputs[static_cast<size_t>(i)];
+            } else {
+                _outputBuffers[static_cast<size_t>(i)] = std::make_shared<AudioTimestampRingQueue>();
+            }
         }
     }
 
     void AudioDuckingWorker::setInputBuffer(int port, std::shared_ptr<AudioTimestampRingQueue> buffer)
     {
         QMutexLocker locker(&_mutex);
-        if (port >= 0 && port < (int)_inputBuffers.size()) {
-            _inputBuffers[port] = buffer;
+        if (port >= 0 && port < static_cast<int>(_inputBuffers.size())) {
+            _inputBuffers[static_cast<size_t>(port)] = buffer;
         }
     }
 
     std::shared_ptr<AudioTimestampRingQueue> AudioDuckingWorker::getOutputBuffer(int port)
     {
-        if (port >= 0 && port < (int)_outputBuffers.size()) {
-            return _outputBuffers[port];
+        QMutexLocker locker(&_mutex);
+        if (port >= 0 && port < static_cast<int>(_outputBuffers.size())) {
+            return _outputBuffers[static_cast<size_t>(port)];
         }
         return nullptr;
     }
 
-    void AudioDuckingWorker::setThreshold(double val) { QMutexLocker l(&_mutex); _threshold = (float)val; }
-    void AudioDuckingWorker::setRatio(double val) { QMutexLocker l(&_mutex); _ratio = (float)val; }
-    void AudioDuckingWorker::setAttack(double val) { QMutexLocker l(&_mutex); _attack = (float)val; }
-    void AudioDuckingWorker::setRelease(double val) { QMutexLocker l(&_mutex); _release = (float)val; }
-    void AudioDuckingWorker::setMakeupGain(double val) { QMutexLocker l(&_mutex); _makeupGain = (float)val; }
-    void AudioDuckingWorker::setSidechainGain(double val) { QMutexLocker l(&_mutex); _sidechainGain = (float)val; }
-    /**
-     * @brief 设置最大压低深度（dB）
-     * @param val 压低深度，单位 dB
-     */
-    void AudioDuckingWorker::setDepth(double val) { QMutexLocker l(&_mutex); _depthDb = (float)val; }
+    void AudioDuckingWorker::setDepth(double val)
+    {
+        QMutexLocker locker(&_mutex);
+        _params.depthDb = static_cast<float>(qMax(0.0, val));
+    }
+
+    void AudioDuckingWorker::setAttack(double val)
+    {
+        QMutexLocker locker(&_mutex);
+        _params.attackSec = static_cast<float>(qMax(0.0005, val / 1000.0));
+    }
+
+    void AudioDuckingWorker::setHold(double val)
+    {
+        QMutexLocker locker(&_mutex);
+        _params.holdSec = static_cast<float>(qMax(0.0, val / 1000.0));
+    }
+
+    void AudioDuckingWorker::setRelease(double val)
+    {
+        QMutexLocker locker(&_mutex);
+        _params.releaseSec = static_cast<float>(qMax(0.001, val / 1000.0));
+    }
+
+    void AudioDuckingWorker::setDuckActive(bool active)
+    {
+        QMutexLocker locker(&_mutex);
+        _duckActive = active;
+    }
 }

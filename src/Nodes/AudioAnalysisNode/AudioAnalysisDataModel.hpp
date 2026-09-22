@@ -96,7 +96,6 @@ namespace Nodes {
                 QMetaObject::invokeMethod(_worker, "startProcessing", Qt::QueuedConnection);
                 pushConfigToWorker();
             });
-            connect(_workerThread, &QThread::finished, _worker, &AudioAnalysisWorker::stopProcessing);
             connect(_worker, &AudioAnalysisWorker::processingStatusChanged, this, &AudioAnalysisDataModel::onProcessingStatusChanged);
             connect(_worker, &AudioAnalysisWorker::analysisOutputsChanged, this, &AudioAnalysisDataModel::onGetResult);
             _workerThread->start();
@@ -104,6 +103,9 @@ namespace Nodes {
 
         ~AudioAnalysisDataModel()
         {
+            if (_worker) {
+                _worker->stopProcessing();
+            }
             if (_workerThread && _workerThread->isRunning()) {
                 _workerThread->quit();
                 _workerThread->wait(3000);

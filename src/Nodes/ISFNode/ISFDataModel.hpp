@@ -256,20 +256,26 @@ public:
         }
 
         connect(m_ui->fileSelectComboBox, &SelectorComboBox::textChanged,
-                this, &ISFDataModel::setShaderFile);
+                this, &ISFDataModel::setShaderFile, Qt::AutoConnection);
         connect(this, &ISFDataModel::shaderFileChanged, this, [this](const QString&) {
+            if (m_destructing || !m_ui) {
+                return;
+            }
             QSignalBlocker blocker(m_ui->fileSelectComboBox);
             m_ui->fileSelectComboBox->setText(m_shaderFile);
-        });
+        }, Qt::AutoConnection);
         connect(m_ui->reloadButton, &QPushButton::clicked, this, [this]() {
             setReload(true);
-        });
+        }, Qt::AutoConnection);
         connect(m_ui, &ISFInterface::parameterChanged, this,
                 [this](const QString& name, const QVariant& value) {
+                    if (m_destructing) {
+                        return;
+                    }
                     m_scalarValues[name] = value;
                     m_scalarDefaults[name] = value; // 断线回退到「上次面板值」
                     m_paramsDirty = true;
-                });
+                }, Qt::AutoConnection);
 
         m_clock.start();
 
@@ -277,6 +283,9 @@ public:
                 &TimestampGenerator::frameCountUpdated,
                 this,
                 [this](qint64 frameCount) {
+                    if (m_destructing) {
+                        return;
+                    }
                     // 同帧且无参数/重载请求则跳过，减轻空转
                     if (m_lastRequestedFrame == frameCount && !m_paramsDirty && !m_needsReinit) {
                         return;
@@ -284,14 +293,38 @@ public:
                     m_lastRequestedFrame = frameCount;
                     requestProcess(frameCount);
                 },
-                Qt::QueuedConnection);
+                Qt::AutoConnection);
     }
 
     ~ISFDataModel() override
     {
+        m_destructing = true;
+
         GlobalEventBus::instance()->unsubscribe(this);
-        // ISFRenderer 析构内部会 runGl(destroy)
+
+        // —— 第一优先级：断开所有会回调到 this 的信号 ——
+        // TimestampGenerator 是全局单例，可能晚于本节点销毁；Queued 也可能还在队列
+        TimestampGenerator::getInstance()->disconnect(this);
+
+        // UI 子控件 lambda + m_ui 自身信号
+        if (m_ui) {
+            m_ui->fileSelectComboBox->disconnect(this);
+            m_ui->reloadButton->disconnect(this);
+            m_ui->disconnect(this);
+            this->disconnect(m_ui);
+        }
+        this->disconnect(SIGNAL(shaderFileChanged(QString)));
+        this->disconnect(SIGNAL(reloadChanged()));
+
+        // ISFRenderer 析构内部会 runGl(destroy)；必须在 TimestampGenerator 断连后再释放，
+        // 防止 requestProcess 回调访问已处于销毁中的 renderer / widget
         m_renderer.reset();
+
+        // —— 最后释放 UI 控件（无 parent，需手动 deleteLater）——
+        if (m_ui) {
+            m_ui->deleteLater();
+            m_ui = nullptr;
+        }
     }
 
     QString shaderFile() const { return m_shaderFile; }
@@ -337,6 +370,9 @@ public:
 
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
     {
+        if (m_destructing || !m_ui) {
+            return;
+        }
         if (portIndex < 0 || portIndex >= m_ports.size()) {
             return;
         }
@@ -397,6 +433,9 @@ public:
 
     void load(const QJsonObject& data) override
     {
+        if (m_destructing || !m_ui) {
+            return;
+        }
         const QJsonObject values = data[QStringLiteral("values")].toObject();
         m_shaderFile = values.value(QStringLiteral("shaderFile")).toString().trimmed();
         m_scalarDefaults.clear();
@@ -422,6 +461,9 @@ public:
 public slots:
     void setShaderFile(const QString& path)
     {
+        if (m_destructing || !m_ui) {
+            return;
+        }
         const QString trimmed = path.trimmed();
         if (trimmed == m_shaderFile) {
             return;
@@ -435,6 +477,9 @@ public slots:
 
     void setReload(bool value)
     {
+        if (m_destructing || !m_ui) {
+            return;
+        }
         if (!value) {
             return;
         }
@@ -447,6 +492,9 @@ public slots:
 
     void onGlobalEvent(const GlobalEvent& ev)
     {
+        if (m_destructing) {
+            return;
+        }
         if (ev.kind != GlobalEventKind::Command) {
             return;
         }
@@ -476,6 +524,9 @@ private:
      */
     void rebuildPortsFromFile(bool notifyPorts)
     {
+        if (m_destructing || !m_ui) {
+            return;
+        }
         QVector<ISFPortDesc> newPorts;
         const QString absPath = resolveFsAbsolutePath(m_shaderFile);
         QString error;
@@ -673,6 +724,9 @@ private:
     /** 清掉所有 event 脉冲（渲染成功后调用） */
     void clearEventPulses()
     {
+        if (m_destructing || !m_ui) {
+            return;
+        }
         for (const auto& p : m_ports) {
             if (p.kind != ISFPortDesc::Kind::Event) {
                 continue;
@@ -687,6 +741,9 @@ private:
 
     void requestProcess(qint64 targetTimestamp = -1)
     {
+        if (m_destructing) {
+            return;
+        }
         ensureImageDataBuffer(m_outImageData, m_outBuffer);
 
         const QString absPath = resolveFsAbsolutePath(m_shaderFile);
@@ -826,6 +883,7 @@ private:
     qint64 m_lastProcessedAudioTimestamp = -1;
     bool m_paramsDirty = false; ///< 参数或接线变化，需重渲
     bool m_needsReinit = true;  ///< 需 forceReload GL scene
+    bool m_destructing = false; ///< 析构阶段标志：禁止所有回调访问成员
 };
 
 } // namespace Nodes

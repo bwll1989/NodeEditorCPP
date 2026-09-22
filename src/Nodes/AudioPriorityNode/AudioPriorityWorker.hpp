@@ -1,19 +1,22 @@
 #pragma once
 
 #include <QObject>
-#include <QThread>
-#include <QTimer>
 #include <QMutex>
-#include <QWaitCondition>
-#include "Common/DataTypes/AudioTimestampRingQueue.h"
-#include "TimeCodeDefines.h"
-#include "Gist.h"
+#include <atomic>
 #include <memory>
+#include <thread>
+#include <vector>
+
+#include "Common/DataTypes/AudioTimestampRingQueue.h"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 
 namespace Nodes
 {
     /**
-     * @brief 音频闪避处理工作线程类
+     * @brief QSC Priority Ducker 工作线程
+     * 最后一路输入为 Priority：其 RMS 超过 Threshold 后，其余通道按 Depth 衰减，
+     * 再把带 Priority Gain 的 Priority 混入这些输出。最后一路输出为 Priority 本身。
+     * 由 TimestampGenerator 时钟线程直接 wake，不经 QueuedConnection
      */
     class AudioPriorityWorker : public QObject
     {
@@ -21,59 +24,67 @@ namespace Nodes
 
     public:
         explicit AudioPriorityWorker(QObject *parent = nullptr);
-        ~AudioPriorityWorker();
+        ~AudioPriorityWorker() override;
+
+        std::shared_ptr<AudioTimestampRingQueue> getOutputBuffer(int port);
 
     public slots:
         void startProcessing();
         void stopProcessing();
-        void processAudioData();
-        void onFrameTick(qint64 frameCount);
 
         void setThreshold(double val);
-        void setRatio(double val);
-        void setAttack(double val);
-        void setRelease(double val);
-        void setMakeupGain(double val);
-        void setSidechainGain(double val);
-        /**
-         * @brief 设置最大压低深度（dB）
-         * @param val 压低深度，单位 dB
-         */
         void setDepth(double val);
+        void setPriorityGain(double val);
+        void setAttack(double val);
+        void setHold(double val);
+        void setRelease(double val);
 
         void initializeBuffers(int inputCount, int outputCount);
         void setInputBuffer(int port, std::shared_ptr<AudioTimestampRingQueue> buffer);
-        std::shared_ptr<AudioTimestampRingQueue> getOutputBuffer(int port);
 
     signals:
         void processingStatusChanged(bool isProcessing);
-        void audioProcessed(const std::vector<std::shared_ptr<AudioTimestampRingQueue>>& outputBuffers);
 
     private:
-        void performDuckingOperation(const std::vector<AudioFrame>& inputFrames, qint64 timestamp);
-        void initializeGist(int frameSize, int sampleRate);
+        struct Params {
+            float thresholdDb = -40.0f;
+            float depthDb = 20.0f;
+            float priorityGainDb = 0.0f;
+            float attackSec = 0.010f;
+            float holdSec = 0.200f;
+            float releaseSec = 1.0f;
+        };
+
+        struct ChannelView {
+            const float *data = nullptr;
+            int channels = 0;
+            int frames = 0;
+            int sampleRate = 0;
+            bool valid = false;
+        };
+
+        void audioLoop();
+        void processCurrentFrame();
+        void performDucking(const std::vector<AudioFrame> &inputFrames,
+                            const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
+                            qint64 timestamp,
+                            const Params &params);
+        static ChannelView viewOf(const AudioFrame &frame);
+        static float readSample(const ChannelView &view, int frameIndex, int channel, int outChannels);
+        static float onePoleDb(float currentDb, float targetDb, float dtSec, float tauSec);
 
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _inputBuffers;
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _outputBuffers;
         QMutex _mutex;
-        bool _isProcessing;
-        qint64 _lastProcessedTimestamp;
+        bool _isProcessing = false;
+        qint64 _lastProcessedTimestamp = 0;
 
-        // Gist analyzer for sidechain
-        std::unique_ptr<Gist<float>> _gistAnalyzer;
-        int _frameSize = 2048;
-        int _sampleRate = 48000;
+        Params _params;
+        float _gainDb = 0.0f;
+        float _holdLeftSec = 0.0f;
 
-        // Ducking parameters
-        float _threshold = -20.0f; // dB
-        float _ratio = 4.0f;
-        float _attack = 10.0f;     // ms
-        float _release = 100.0f;   // ms
-        float _makeupGain = 0.0f;  // dB
-        float _sidechainGain = 0.0f; // dB
-        float _depthDb = 24.0f;    // 最大压低深度 dB
-
-        // Envelope follower state
-        float _envelope = 1.0f;
+        AudioTickWaiter _tickWaiter;
+        std::atomic<bool> _stopRequested{false};
+        std::thread _audioThread;
     };
 }

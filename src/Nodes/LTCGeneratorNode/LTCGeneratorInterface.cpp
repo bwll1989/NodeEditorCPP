@@ -1,6 +1,7 @@
 #include "LTCGeneratorInterface.h"
 #include "QtDebug"
 #include <QHBoxLayout>
+#include <QSignalBlocker>
 #include <QSpacerItem>
 #include <QVBoxLayout>
 
@@ -11,9 +12,8 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     , timeCodeStatusLabel(new QLabel(this))
     , timeCodeOffsetSpinBox(new IntDragValueWidget(this))
     , timeCodeTypeComboBox(new QComboBox(this))
-    , startButton(new QPushButton("Start", this))
-    , stopButton(new QPushButton("Stop", this))
-    , resetButton(new QPushButton("Reset", this))
+    , startButton(new QPushButton(QStringLiteral("Start"), this))
+    , resetButton(new QPushButton(QStringLiteral("Reset"), this))
     , volumeSlider(new FloatDragValueWidget(this))
 {
     auto *layout = new QVBoxLayout(this);
@@ -46,8 +46,9 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     addRow("Type:", timeCodeTypeComboBox);
     addRow("Volume:", volumeSlider);
 
+    startButton->setCheckable(true);
+    startButton->setAutoExclusive(false);
     layout->addWidget(startButton);
-    layout->addWidget(stopButton);
     layout->addWidget(resetButton);
 
     layout->addItem(new QSpacerItem(0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding));
@@ -61,13 +62,19 @@ TimeCodeInterface::TimeCodeInterface(QWidget *parent)
     volumeSlider->setRange(-60, 24);
     volumeSlider->setValue(-25);
     volumeSlider->setSuffix(" dB");
-    connect(startButton, &QPushButton::clicked, this, &TimeCodeInterface::startRequested);
-    connect(stopButton, &QPushButton::clicked, this, &TimeCodeInterface::stopRequested);
+    connect(startButton, &QPushButton::toggled, this, &TimeCodeInterface::runningToggled);
     connect(resetButton, &QPushButton::clicked, this, &TimeCodeInterface::resetRequested);
     connect(timeCodeTypeComboBox, &QComboBox::currentTextChanged, this, [this](const QString& text) {
         emit timeCodeTypeChanged(timecode_type_from_label(text, TimeCodeType::PAL));
     });
     connect(volumeSlider, &FloatDragValueWidget::valueChanged, this, &TimeCodeInterface::volumeChanged);
+}
+
+void TimeCodeInterface::setRunningChecked(bool running)
+{
+    QSignalBlocker blocker(startButton);
+    startButton->setChecked(running);
+    startButton->setText(running ? QStringLiteral("Stop") : QStringLiteral("Start"));
 }
 
 QStringList Nodes::timecode_type_labels()

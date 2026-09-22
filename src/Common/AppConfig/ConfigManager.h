@@ -45,6 +45,7 @@ public:
     bool isAutosaveEnabled() const;
     int getAutosaveIntervalSeconds() const;
     double getTimestampFrameRate() const;
+    int getAudioOutputDelayFrames() const;
     /**
      * 函数级注释：将新路径加入最近文件列表
      * - 规则：去重后插入到首位；保留最多 MaxRecentFiles 个
@@ -93,6 +94,7 @@ private:
     bool m_autosaveEnabled;
     int m_autosaveIntervalSeconds;
     double m_timestampFrameRate;
+    int m_audioOutputDelayFrames;
     QStringList m_recentFiles;
     QString m_currentFlowPath;
 };

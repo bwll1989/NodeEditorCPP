@@ -12,8 +12,6 @@ namespace Nodes
      */
     AudioMatrixWorker::AudioMatrixWorker(QObject *parent)
         : QObject(parent)
-        , _isProcessing(false)
-        , _lastProcessedTimestamp(0)
     {}
     
     /**
@@ -31,37 +29,57 @@ namespace Nodes
      */
     void AudioMatrixWorker::startProcessing()
     {
-        QMutexLocker locker(&_mutex);
-        if (_isProcessing) {
-            qDebug() << "AudioMatrixWorker: Already processing, ignoring duplicate call";
-            return;
+        {
+            QMutexLocker locker(&_mutex);
+            if (_isProcessing) {
+                qDebug() << "AudioMatrixWorker: Already processing, ignoring duplicate call";
+                return;
+            }
+            _isProcessing = true;
+            _lastProcessedTimestamp = 0;
         }
-        _isProcessing = true;
-        _lastProcessedTimestamp = 0;
-        QObject::connect(TimestampGenerator::getInstance(),
-                         &TimestampGenerator::frameCountUpdated,
-                         this,
-                         &AudioMatrixWorker::onFrameTick,
-                         Qt::QueuedConnection);
+
+        _stopRequested.store(false, std::memory_order_release);
+        _tickWaiter.reset();
+        TimestampGenerator::getInstance()->registerAudioTickWaiter(&_tickWaiter);
+        _audioThread = std::thread([this]() { audioLoop(); });
         emit processingStatusChanged(true);
     }
-    
-    /**
-     * @brief 停止处理音频数据
-     */
+
     void AudioMatrixWorker::stopProcessing()
     {
-        QMutexLocker locker(&_mutex);
-        
-        if (_isProcessing) {
-            _isProcessing = false;
+        _stopRequested.store(true, std::memory_order_release);
+        _tickWaiter.requestStop();
+        TimestampGenerator::getInstance()->unregisterAudioTickWaiter(&_tickWaiter);
 
-            QObject::disconnect(TimestampGenerator::getInstance(),
-                                &TimestampGenerator::frameCountUpdated,
-                                this,
-                                &AudioMatrixWorker::onFrameTick);
-            
-            emit processingStatusChanged(false);
+        if (_audioThread.joinable()) {
+            if (_audioThread.get_id() != std::this_thread::get_id()) {
+                _audioThread.join();
+            } else {
+                _audioThread.detach();
+            }
+        }
+
+        QMutexLocker locker(&_mutex);
+        if (!_isProcessing) {
+            return;
+        }
+        _isProcessing = false;
+        emit processingStatusChanged(false);
+    }
+
+    void AudioMatrixWorker::audioLoop()
+    {
+        while (!_stopRequested.load(std::memory_order_acquire)
+               && !_tickWaiter.isStopRequested()) {
+            if (!_tickWaiter.wait(50)) {
+                continue;
+            }
+            if (_stopRequested.load(std::memory_order_acquire)
+                || _tickWaiter.isStopRequested()) {
+                break;
+            }
+            processCurrentFrame();
         }
     }
     
@@ -115,23 +133,20 @@ namespace Nodes
         emit audioProcessed(_outputBuffers);
     }
 
-    /**
-     * 按全局帧计数驱动的混音回调
-     * @param frameCount 当前全局帧计数
-     */
-    void AudioMatrixWorker::onFrameTick(qint64 frameCount)
+    void AudioMatrixWorker::processCurrentFrame()
     {
         if (!_isProcessing || _inputBuffers.empty() || _outputBuffers.empty()) {
             return;
         }
-        if (frameCount == _lastProcessedTimestamp) {
+        const qint64 currentFrame = TimestampGenerator::getInstance()->getCurrentFrameCount();
+        if (currentFrame == _lastProcessedTimestamp) {
             return;
         }
         std::vector<AudioFrame> inputFrames(_inputBuffers.size());
         bool hasValidInput = false;
         for (size_t i = 0; i < _inputBuffers.size(); ++i) {
             if (_inputBuffers[i] && _inputBuffers[i]->isActive()) {
-                if (_inputBuffers[i]->getFrameByTimestamp(frameCount, inputFrames[i])) {
+                if (_inputBuffers[i]->getFrameByTimestamp(currentFrame, inputFrames[i])) {
                     hasValidInput = true;
                 }
             }
@@ -139,8 +154,8 @@ namespace Nodes
         if (!hasValidInput) {
             return;
         }
-        performMatrixOperation(inputFrames, frameCount);
-        _lastProcessedTimestamp = frameCount;
+        performMatrixOperation(inputFrames, currentFrame);
+        _lastProcessedTimestamp = currentFrame;
         emit audioProcessed(_outputBuffers);
     }
     
@@ -207,7 +222,7 @@ namespace Nodes
         for (int outChannel = 0; outChannel < outputChannels; ++outChannel) {
             if (outChannel < static_cast<int>(_outputBuffers.size()) && _outputBuffers[outChannel]) {
                 AudioFrame outputFrame;
-                outputFrame.timestamp = timestamp + 2;
+                outputFrame.timestamp = timestamp + TimestampGenerator::getInstance()->getAudioOutputDelayFrames();
                 outputFrame.sampleRate = sampleRate;
                 outputFrame.channels = 1;
                 outputFrame.bitsPerSample = 32;

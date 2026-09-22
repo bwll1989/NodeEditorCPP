@@ -40,15 +40,31 @@ public:
     QJsonObject* initializeFFmpeg(const QString &filePath);
 
     /**
-     * @brief 开始播放音频，重置所有缓冲区状态
+     * @brief 开始播放音频，从当前起始位置（默认 0，可由 seekTo 设置）解码
      */
     void startPlay();
     
     /**
      * @brief 停止解码
+     * @param resetPosition true 时将起始位置复位到 0（用户停止 / EOF）；false 保留当前 seek（便于重新 startPlay）
      */
-    void stopPlay() ;
+    void stopPlay(bool resetPosition = true) ;
     
+    /**
+     * @brief 跳转到指定时间（秒）。未播放时作为下次 startPlay 起点；播放中则尽快生效
+     */
+    void seekTo(double sec);
+
+    /**
+     * @brief 当前起始/定位时间（秒）
+     */
+    double startPositionSec() const;
+
+    /**
+     * @brief 媒体总时长（秒），未初始化则为 0
+     */
+    double durationSec() const;
+
     /**
      * @brief 设置音量
      * @param vol 音量值 (dB)
@@ -123,6 +139,16 @@ private:
                                      int channels,
                                      int sampleRate);
 
+    /**
+     * @brief 将文件指针定位到指定秒；调用方需已持有 mutex（除 play 线程内直接调用外）
+     */
+    bool seekFileToSec(double sec);
+
+    /**
+     * @brief 清空 PCM 累积缓冲与通道环形队列（停止/seek 时调用）
+     */
+    void clearPcmAndChannelBuffers();
+
  
     
     // 添加新的成员变量
@@ -141,7 +167,7 @@ private:
     QWaitCondition condition;
     bool isPlaying;             //播放标志位
     bool isLooping = false;  // 循环播放标志
-    float volume = 0.5f;     // 音量控制 (0.0 - 1.0)
+    float volume = 0.0f;     // 音量控制 (0.0 - 1.0)
     std::map<int, std::shared_ptr<AudioTimestampRingQueue>> channelAudioBuffers;  // 动态通道环形缓冲区
 
     // 固定帧大小切片的累积缓冲（Float32交织）
@@ -149,6 +175,8 @@ private:
     int pendingSamplesPerChannel_ = 0;
     int lastChannels_ = 0;
     qint64 lastTimestamp_ = 0;
+
+    double m_durationSec = 0.0;       // 媒体总时长
+    double m_startPositionSec = 0.0;  // 下次 startPlay / 当前定位
+    double m_pendingSeekSec = -1.0;   // >=0 表示播放线程需执行的 seek
 };
-
-

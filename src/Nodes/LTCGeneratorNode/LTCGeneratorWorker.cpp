@@ -86,60 +86,70 @@ namespace Nodes
 
     /**
      * @brief 开始生成
-     * - 连接 TimestampGenerator 的统一时钟信号
+     * - 启动编码线程；由 TimestampGenerator 直接 wake 输出，不经 QueuedConnection
      */
     void LTCGeneratorWorker::startProcessing()
     {
-        QMutexLocker locker(&_mutex);
+        {
+            QMutexLocker locker(&_mutex);
 
-        if (_isProcessing) {
-            return;
+            if (_isProcessing) {
+                return;
+            }
+
+            _isProcessing = true;
+            _lastOutputTimestamp = 0;
+            // 使用当前全局帧计数作为起始点
+            // 启动生成时重置样本缓存与“帧队列”，避免历史状态导致时间码跳变
+            _pendingSamples.clear();
+            _pendingReadOffset = 0;
+            _frameSampleCounts.clear();    // 每个编码帧对应的样本数
+            _frameTimecodes.clear();       // 编码时刻的时间码快照（与样本数一一对应）
+            _frameQueueHead = 0;           // 消费队列头索引
+            _frameHeadConsumed = 0;        // 头帧已消费样本数，用于判断“整帧已播放”
+
+            if (_outputBuffer) {
+                _outputBuffer->clear();
+                _outputBuffer->setActive(true);
+            }
+
+            ensureEncoderLocked();
+
+            // 启动独立生成线程
+            _running = true;
+            _generationThread = std::make_unique<std::thread>(&LTCGeneratorWorker::generationLoop, this);
         }
 
-        _isProcessing = true;
-        // 使用当前全局帧计数作为起始点
-        // 启动生成时重置样本缓存与“帧队列”，避免历史状态导致时间码跳变
-        _pendingSamples.clear();
-        _pendingReadOffset = 0;
-        _frameSampleCounts.clear();    // 每个编码帧对应的样本数
-        _frameTimecodes.clear();       // 编码时刻的时间码快照（与样本数一一对应）
-        _frameQueueHead = 0;           // 消费队列头索引
-        _frameHeadConsumed = 0;        // 头帧已消费样本数，用于判断“整帧已播放”
+        _stopTickRequested.store(false, std::memory_order_release);
+        _tickWaiter.reset();
+        TimestampGenerator::getInstance()->registerAudioTickWaiter(&_tickWaiter);
+        _tickThread = std::thread([this]() { audioLoop(); });
 
-        if (_outputBuffer) {
-            _outputBuffer->clear();
-            _outputBuffer->setActive(true);
-        }
-
-        ensureEncoderLocked();
-
-        // 启动独立生成线程
-        _running = true;
-        _generationThread = std::make_unique<std::thread>(&LTCGeneratorWorker::generationLoop, this);
-
-        // 连接系统时间戳信号
-        connect(TimestampGenerator::getInstance(), &TimestampGenerator::frameCountUpdated, 
-                this, &LTCGeneratorWorker::onSystemFrameTick, Qt::QueuedConnection);
-        
         emit processingStatusChanged(true);
     }
 
     /**
      * @brief 停止生成
-     * - 断开统一时钟信号
      */
     void LTCGeneratorWorker::stopProcessing()
     {
-        // 先停止线程
+        _stopTickRequested.store(true, std::memory_order_release);
+        _tickWaiter.requestStop();
+        TimestampGenerator::getInstance()->unregisterAudioTickWaiter(&_tickWaiter);
+        if (_tickThread.joinable()) {
+            if (_tickThread.get_id() != std::this_thread::get_id()) {
+                _tickThread.join();
+            } else {
+                _tickThread.detach();
+            }
+        }
+
+        // 先停止编码线程
         _running = false;
         if (_generationThread && _generationThread->joinable()) {
             _generationThread->join();
         }
         _generationThread.reset();
-
-        // // // 断开信号连接
-        disconnect(TimestampGenerator::getInstance(), &TimestampGenerator::frameCountUpdated,
-                   this, &LTCGeneratorWorker::onSystemFrameTick);
 
         QMutexLocker locker(&_mutex);
 
@@ -149,6 +159,21 @@ namespace Nodes
 
         _isProcessing = false;
         emit processingStatusChanged(false);
+    }
+
+    void LTCGeneratorWorker::audioLoop()
+    {
+        while (!_stopTickRequested.load(std::memory_order_acquire)
+               && !_tickWaiter.isStopRequested()) {
+            if (!_tickWaiter.wait(50)) {
+                continue;
+            }
+            if (_stopTickRequested.load(std::memory_order_acquire)
+                || _tickWaiter.isStopRequested()) {
+                break;
+            }
+            processCurrentFrame();
+        }
     }
 
     /**
@@ -229,7 +254,7 @@ namespace Nodes
             // Can't easily access the static bool inside encodeOneLtcFrameLocked without changing scope or making it member
             // But we can add a member or just rely on the first print.
             // Let's add a simple debug here
-            qDebug() << "LTC Volume set to:" << db << "dB";
+            // qDebug() << "LTC Volume set to:" << db << "dB";
             lastVol = db;
         }
     }
@@ -345,7 +370,7 @@ namespace Nodes
         if (!debugPrinted && sampleCount > 0) {
              int v = static_cast<int>(buf[0]) - 128;
              float f = (static_cast<float>(v) / 128.0f) * linearGain;
-             qDebug() << "LTC Debug: Raw[0]=" << (int)buf[0] << " Val=" << v << " Gain=" << linearGain << " Result=" << f;
+             // qDebug() << "LTC Debug: Raw[0]=" << (int)buf[0] << " Val=" << v << " Gain=" << linearGain << " Result=" << f;
              debugPrinted = true;
         }
 
@@ -476,14 +501,19 @@ namespace Nodes
 
     /**
      * @brief 系统时间戳驱动的消费回调
-     * - 从缓存中读取 2048 个采样
-     * - 打上系统时间戳
+     * - 从缓存中读取整帧采样
+     * - 打上「当前帧 + 源端固定超前」时间戳（不使用设置里的处理节点延时）
      * - 放入环形队列
      */
-    void LTCGeneratorWorker::onSystemFrameTick(qint64 frameCount)
+    void LTCGeneratorWorker::processCurrentFrame()
     {
+        const qint64 currentFrame = TimestampGenerator::getInstance()->getCurrentFrameCount();
+
         QMutexLocker locker(&_mutex);
         if (!_isProcessing || !_outputBuffer || !_outputBuffer->isActive()) {
+            return;
+        }
+        if (currentFrame == _lastOutputTimestamp) {
             return;
         }
 
@@ -498,13 +528,14 @@ namespace Nodes
         outFrame.sampleRate = static_cast<int>(SAMPLE_RATE);
         outFrame.channels = 1;
         outFrame.bitsPerSample = 32;
-        // 时间戳领先若干帧，使 AudioDeviceOut / LTCDecoder 按当前全局帧计数取块时数据已就绪
-        outFrame.timestamp = frameCount + LTC_TIMESTAMP_LEAD_FRAMES;
+        // 源端只超前固定 1 拍；中间 VST/Router 再叠加设置中的「音频输出延时」
+        outFrame.timestamp = currentFrame + kLtcSourceLeadFrames;
         
         outFrame.data = QByteArray(reinterpret_cast<const char*>(block.constData()),
                                    block.size() * static_cast<int>(sizeof(float)));
         
         _outputBuffer->pushFrame(outFrame);
+        _lastOutputTimestamp = currentFrame;
     }
     void LTCGeneratorWorker::advancePlaybackFramesLocked(int consumedSamples)
     {

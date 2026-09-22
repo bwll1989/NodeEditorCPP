@@ -50,11 +50,11 @@ bool isBenignWebSocketDisconnect(const Poco::Exception& exc) {
 }
 
 void logWebSocketPocoException(const char* context, const Poco::Exception& exc) {
+    // Client closed / Wi‑Fi drop: expected noise, do not spam the log console.
     if (isBenignWebSocketDisconnect(exc)) {
-        qDebug() << context << exc.displayText().c_str();
-    } else {
-        qWarning() << context << exc.displayText().c_str();
+        return;
     }
+    qWarning() << context << exc.displayText().c_str();
 }
 
 /** @brief 解析并校验磁盘日志文件名，防止路径穿越 */

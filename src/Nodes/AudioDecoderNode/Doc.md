@@ -4,6 +4,8 @@
 
 播放媒体库中的音频文件，按声道分离输出。通道数随文件自动调整。
 
+多曲目列表请用独立节点 **Audio List Decoder**（`AudioListDecoderNode`）。
+
 ## 2. 端口说明
 
 ### 输入

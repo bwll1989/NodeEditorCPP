@@ -144,7 +144,7 @@ set(QtColorWidgets_LIBRARIES "${QtColorWidgets_DIR}/install/lib/QtColorWidgets.l
 INCLUDE_DIRECTORIES("${QtColorWidgets_DIR}/install/include")
 
 #设置Poco库
-set(Poco_DIR "${DEPENDS_DIR}/poco-1.14.2/install/cmake")
+set(Poco_DIR "${DEPENDS_DIR}/poco-1.15.3-all/install/cmake")
 find_package(Poco CONFIG REQUIRED Foundation Util Net JSON)
 include_directories(${Poco_INCLUDE_DIRS})
 message("-- Found Poco ${Poco_DIR}")

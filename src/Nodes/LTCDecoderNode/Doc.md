@@ -29,5 +29,5 @@
 3. 用各输出口驱动 TimeLine、字幕或逻辑节点。
 
 ## 5. 示例
-
+![img.png](img.png)
 播放机 LTC → 声卡输入 → LTC Decoder → TimeLine `/currentFrame`。

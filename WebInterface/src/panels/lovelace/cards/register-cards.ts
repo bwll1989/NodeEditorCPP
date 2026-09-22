@@ -20,6 +20,7 @@ import { HuiHsvCard } from "./hui-hsv-card";
 import { HuiMultiFaderCard } from "./hui-multi-fader-card";
 import { HuiXyPadCard } from "./hui-xy-pad-card";
 import { HuiMediaCard } from "./hui-media-card";
+import { HuiMicCard } from "./hui-mic-card";
 import { HuiStatusCard } from "./hui-status-card";
 import { HuiPathBadgeCard } from "./hui-path-badge-card";
 
@@ -191,6 +192,14 @@ export function registerBuiltinCards(): void {
     icon: "mdi:cast-audio",
     category: "control",
     constructor: HuiMediaCard,
+  });
+  registerCard({
+    type: "mic",
+    name: "对讲麦克风",
+    description: "按住说话，实时 PCM 推送到 Web Mic 节点",
+    icon: "mdi:microphone",
+    category: "control",
+    constructor: HuiMicCard,
   });
   registerCard({
     type: "markdown",

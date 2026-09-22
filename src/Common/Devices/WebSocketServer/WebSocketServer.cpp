@@ -57,9 +57,7 @@ void WebSocketWorker::initialize(quint16 port) {
     cleanup();
     m_server = new QWebSocketServer("WebSocketServer", QWebSocketServer::NonSecureMode);
     connect(m_server, &QWebSocketServer::newConnection, this, &WebSocketWorker::onNewConnection);
-    if (m_server->listen(QHostAddress::Any, port)) {
-        qDebug() << "WebSocketWorker listening on port" << port;
-    } else {
+    if (!m_server->listen(QHostAddress::Any, port)) {
         qWarning() << "WebSocketWorker failed to start on port" << port;
     }
 }

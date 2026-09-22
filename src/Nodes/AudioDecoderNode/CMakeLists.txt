@@ -19,6 +19,8 @@ add_library(${Module_Name} SHARED
         AudioDecoder.cpp
         PluginDefinition.cpp
         PluginDefinition.hpp
+        AudioPeakDecoder.cpp
+        AudioPeakDecoder.hpp
         )
 
 target_link_libraries(${Module_Name}  PRIVATE

@@ -2,10 +2,60 @@
 #include "Common/AppConfig/ConfigManager.h"
 #include <QDebug>
 #include <QCoreApplication>
+#include <algorithm>
 
 // 静态成员初始化
 TimestampGenerator* TimestampGenerator::instance_ = nullptr;
 QMutex TimestampGenerator::instanceMutex_;
+
+void AudioTickWaiter::reset()
+{
+    QMutexLocker locker(&mutex_);
+    pending_ = false;
+    stop_ = false;
+}
+
+void AudioTickWaiter::notifyFromClock()
+{
+    QMutexLocker locker(&mutex_);
+    pending_ = true;
+    condition_.wakeOne();
+}
+
+bool AudioTickWaiter::wait(int timeoutMs)
+{
+    QMutexLocker locker(&mutex_);
+    if (stop_) {
+        return true;
+    }
+    if (pending_) {
+        pending_ = false;
+        return true;
+    }
+    condition_.wait(&mutex_, static_cast<unsigned long>(std::max(0, timeoutMs)));
+    if (stop_) {
+        return true;
+    }
+    if (pending_) {
+        pending_ = false;
+        return true;
+    }
+    return false;
+}
+
+void AudioTickWaiter::requestStop()
+{
+    QMutexLocker locker(&mutex_);
+    stop_ = true;
+    pending_ = true;
+    condition_.wakeAll();
+}
+
+bool AudioTickWaiter::isStopRequested() const
+{
+    QMutexLocker locker(&mutex_);
+    return stop_;
+}
 
 /**
  * @brief 导出函数：获取帧计数器生成器实例
@@ -122,9 +172,13 @@ void TimestampGenerator::restart()
 }
 
 /**
- * @brief 获取当前帧率
- * @return 当前帧率
+ * @brief 音频处理节点写出时追加的时间戳帧数
  */
+int TimestampGenerator::getAudioOutputDelayFrames() const
+{
+    return ConfigManager::instance().getAudioOutputDelayFrames();
+}
+
 double TimestampGenerator::getFrameRate() const
 {
     QMutexLocker locker(&configMutex_);
@@ -162,6 +216,41 @@ int TimestampGenerator::getSamplesPerFrame(int sampleRate) const
         return 1;
     }
     return std::max(1, static_cast<int>(std::lround(sampleRate / fps)));
+}
+
+void TimestampGenerator::registerAudioTickWaiter(AudioTickWaiter *waiter)
+{
+    if (!waiter) {
+        return;
+    }
+    QMutexLocker locker(&audioWaitersMutex_);
+    if (std::find(audioWaiters_.begin(), audioWaiters_.end(), waiter) == audioWaiters_.end()) {
+        audioWaiters_.push_back(waiter);
+    }
+}
+
+void TimestampGenerator::unregisterAudioTickWaiter(AudioTickWaiter *waiter)
+{
+    if (!waiter) {
+        return;
+    }
+    QMutexLocker locker(&audioWaitersMutex_);
+    audioWaiters_.erase(std::remove(audioWaiters_.begin(), audioWaiters_.end(), waiter),
+                        audioWaiters_.end());
+}
+
+void TimestampGenerator::notifyAudioTickWaiters()
+{
+    std::vector<AudioTickWaiter *> waiters;
+    {
+        QMutexLocker locker(&audioWaitersMutex_);
+        waiters = audioWaiters_;
+    }
+    for (AudioTickWaiter *waiter : waiters) {
+        if (waiter) {
+            waiter->notifyFromClock();
+        }
+    }
 }
 
 /**
@@ -280,26 +369,13 @@ void TimestampGenerator::generateFrameCount()
     
     // 创建帧信息
     FrameInfo frameInfo = createFrameInfo(currentFrame);
+
+    // 音频处理：时钟线程直接 wake，避免 QueuedConnection 抖动
+    notifyAudioTickWaiters();
     
-    // 发送信号
+    // 图像等非实时组件仍可通过信号订阅
     emit frameInfoUpdated(frameInfo);
     emit frameCountUpdated(currentFrame);
-    
-    // // 每1000帧输出一次调试信息
-    // if (currentFrame % 1000 == 0) {
-    //     double actualFps = currentFrame * 1000.0 / frameInfo.getRelativeTimeMs(startTime_);
-    //     double theoreticalTime = frameInfo.getTheoreticalTimeMs(static_cast<int>(frameRate_));
-    //     double actualTime = frameInfo.getRelativeTimeMs(startTime_);
-    //     double drift = actualTime - theoreticalTime;
-    //
-    //     qDebug() << "FrameCounter frame:" << currentFrame
-    //              << "absolute time:" << frameInfo.absoluteTimeMs
-    //              << "relative time:" << actualTime << "ms"
-    //              << "theoretical time:" << theoreticalTime << "ms"
-    //              << "drift:" << drift << "ms"
-    //              << "actual fps:" << actualFps
-    //     << QDateTime::currentMSecsSinceEpoch();
-    // }
 }
 
 /**
@@ -392,7 +468,7 @@ void TimestampGenerator::applyFrameRate(double frameRate)
 {
     const double safeFrameRate = frameRate > 0.0 ? frameRate : ConfigManager::instance().getTimestampFrameRate();
     QMutexLocker locker(&configMutex_);
-    frameRate_ = safeFrameRate > 0.0 ? safeFrameRate : 23.4375;
+    frameRate_ = safeFrameRate > 0.0 ? safeFrameRate : AppConfigs::TIMESTAMP_FRAME_RATE;
     frameIntervalMs_ = 1000.0 / frameRate_;
     frameIntervalNs_ = std::chrono::nanoseconds(
         static_cast<long long>(std::llround(1000000000.0 / frameRate_)));

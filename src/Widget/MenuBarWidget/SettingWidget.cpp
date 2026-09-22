@@ -102,13 +102,17 @@ SettingWidget::SettingWidget(QWidget* parent)
     connect(m_autosaveEnabledCheck, &QCheckBox::toggled,
             m_autosaveIntervalSpin, &QWidget::setEnabled);
 
-    m_timestampFrameRateSpin = new FloatDragValueWidget(this);
-    m_timestampFrameRateSpin->setRange(1.0, 240.0);
-    m_timestampFrameRateSpin->setDecimals(4);
-    m_timestampFrameRateSpin->setSingleStep(0.0001);
-    m_timestampFrameRateSpin->setSuffix(QStringLiteral(" fps"));
-    m_timestampFrameRateSpin->setToolTip(QStringLiteral("全局时钟的帧率，用于时间戳计算，设置过高可能影响性能，但是可以提高音频的同步精度，降低时延"));
-    formGeneral->addRow(QStringLiteral("全局时钟频率:"), m_timestampFrameRateSpin);
+    m_timestampFrameRateLabel = new QLabel(QStringLiteral("30 Hz"), this);
+    m_timestampFrameRateLabel->setToolTip(QStringLiteral("全局时钟频率已固定为 30 Hz，不可修改"));
+    formGeneral->addRow(QStringLiteral("全局时钟频率:"), m_timestampFrameRateLabel);
+
+    m_audioOutputDelaySpin = new IntDragValueWidget(this);
+    m_audioOutputDelaySpin->setRange(0, 16);
+    m_audioOutputDelaySpin->setSuffix(QStringLiteral(" 帧"));
+    m_audioOutputDelaySpin->setToolTip(QStringLiteral(
+        "每个音频处理节点写出时在时间戳上追加的帧数，经过一级节点就叠加一次。"
+        "30 Hz 下 1 帧约 33 ms。越大越稳，延迟越高。"));
+    formGeneral->addRow(QStringLiteral("音频输出延时:"), m_audioOutputDelaySpin);
     
     layoutGeneral->addLayout(formGeneral);
     layoutGeneral->addStretch();
@@ -248,7 +252,7 @@ void SettingWidget::loadCurrentSettings() {
     m_autosaveEnabledCheck->setChecked(config.isAutosaveEnabled());
     m_autosaveIntervalSpin->setValue(config.getAutosaveIntervalSeconds());
     m_autosaveIntervalSpin->setEnabled(m_autosaveEnabledCheck->isChecked());
-    m_timestampFrameRateSpin->setValue(config.getTimestampFrameRate());
+    m_audioOutputDelaySpin->setValue(config.getAudioOutputDelayFrames());
 
     m_httpPortSpin->setValue(config.getHttpServerPort());
     m_extraFeedbackHostEdit->setText(config.getExtraFeedbackHost());
@@ -281,7 +285,7 @@ void SettingWidget::saveSettings() {
     obj["DefaultDarkTheme"] = m_darkThemeCheck->isChecked();
     obj["AutosaveEnabled"] = m_autosaveEnabledCheck->isChecked();
     obj["AutosaveIntervalSeconds"] = m_autosaveIntervalSpin->value();
-    obj["TimestampFrameRate"] = m_timestampFrameRateSpin->value();
+    obj["AudioOutputDelayFrames"] = m_audioOutputDelaySpin->value();
     obj["OscEnabled"] = m_oscEnabledCheck->isChecked();
     obj["MqttEnabled"] = m_mqttEnabledCheck->isChecked();
     obj["MqttHost"] = m_mqttHostEdit->text();

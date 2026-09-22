@@ -40,6 +40,10 @@ add_library(${Module_Name} SHARED
     ImageTextureWindow/ImageTextureWindow.hpp
     PortAlignedColumn/PortAlignedColumn.cpp
     PortAlignedColumn/PortAlignedColumn.hpp
+    AudioWaveformWidget/AudioWaveformPeaks.cpp
+    AudioWaveformWidget/AudioWaveformPeaks.hpp
+    AudioWaveformWidget/AudioWaveformWidget.cpp
+    AudioWaveformWidget/AudioWaveformWidget.hpp
 )
 
 target_include_directories(${Module_Name} PUBLIC

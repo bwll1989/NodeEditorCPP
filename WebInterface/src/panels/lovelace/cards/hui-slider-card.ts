@@ -54,14 +54,34 @@ export class HuiSliderCard extends LitElement implements LovelaceCard {
     return typeof v === "number" ? v : Number(v) || 0;
   }
 
+  /**
+   * 根据 step 在百分比空间的精度计算需要保留的小数位数。
+   * 例：range=1  step=0.001 → pctStep=0.1 → 1 位小数
+   *     range=100 step=1    → pctStep=1   → 0 位小数
+   */
+  private _percentFractionDigits(min: number, max: number, step: number): number {
+    if (max - min === 0 || step <= 0) return 2;
+    const pctStep = (Math.abs(step) / Math.abs(max - min)) * 100;
+    if (pctStep <= 0) return 2;
+    const digits = Math.max(0, Math.ceil(-Math.log10(pctStep)));
+    return Math.min(digits, 6);
+  }
+
+  /**
+   * 将 value 按 min/max 范围映射为 0-100 的百分比文本。
+   * 任何 min/max 范围（包括 0-1、10-90、0-100）都统一显示百分比，
+   * 小数精度匹配 step 在百分比空间的粒度。
+   */
   private _formatValue(value: number): string {
     const max = Number(this._config?.max ?? 100);
     const min = Number(this._config?.min ?? 0);
-    const rounded = Math.round(value);
-    if (max === 100 && min === 0) {
-      return `${rounded}%`;
-    }
-    return String(rounded);
+    const step = Number(this._config?.step ?? 1);
+    const bounded = Math.min(Math.max(value, min), max);
+    const percent = max - min === 0 ? 0 : ((bounded - min) / (max - min)) * 100;
+    const fracDigits = this._percentFractionDigits(min, max, step);
+    // toFixed 后去掉末尾多余的 0 和孤立的小数点
+    const text = percent.toFixed(fracDigits).replace(/\.0+$/, "").replace(/(\.\d*?)0+$/, "$1");
+    return `${text}%`;
   }
 
   private async _onSliderChange(ev: CustomEvent<{ value: number }>): Promise<void> {

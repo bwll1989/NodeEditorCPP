@@ -4,11 +4,11 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QLineEdit>
+#include <QLabel>
 #include <QDialogButtonBox>
 #include <QListWidget>
 #include <QStackedWidget>
 #include "../GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
-#include "../GUI/Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 class SettingWidget : public QDialog {
     Q_OBJECT
 public:
@@ -31,7 +31,8 @@ private:
     QCheckBox* m_darkThemeCheck;
     QCheckBox* m_autosaveEnabledCheck;
     IntDragValueWidget* m_autosaveIntervalSpin;
-    FloatDragValueWidget* m_timestampFrameRateSpin;
+    QLabel* m_timestampFrameRateLabel;
+    IntDragValueWidget* m_audioOutputDelaySpin;
 
     // Network Settings
     IntDragValueWidget* m_httpPortSpin;

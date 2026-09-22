@@ -1,8 +1,12 @@
 {
   "GraphicsViewStyle": {
-    "BackgroundColor": [255, 255, 255],
+    "BackgroundColor": [253, 246, 227],
     "FineGridColor": [235, 236, 240],
-    "CoarseGridColor": [196, 198, 206]
+    "CoarseGridColor": [196, 198, 206],
+    "AxisGridColor": [205, 0, 0],
+    "AxisLineWidth": 3.0,
+    "BackgroundGrid": true,
+    "BackgroundAxis": false
   },
 
   "NodeStyle": {
@@ -66,8 +70,8 @@
     "GradientColor0": "lightgray",
     "CaptionHeight": 30.0,
     "CollapsedHeight": 150.0,
-    "GradientColor1": [246, 247, 250],
-    "GradientColor2": [240, 242, 246],
-    "GradientColor3": [234, 236, 240]
+    "GradientColor1": [240, 233, 215],
+    "GradientColor2": [240, 233, 215],
+    "GradientColor3": [240, 233, 215]
   }
 }

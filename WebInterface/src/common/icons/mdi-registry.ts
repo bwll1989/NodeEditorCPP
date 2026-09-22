@@ -28,6 +28,7 @@ import {
   mdiMagnify,
   mdiMenu,
   mdiMenuOpen,
+  mdiMicrophone,
   mdiMoleculeCo2,
   mdiCastAudio,
   mdiClockOutline,
@@ -115,6 +116,7 @@ const STATIC_PATHS: Record<string, string> = {
   "mdi:delete": mdiDelete,
   "mdi:cursor-move": mdiCursorMove,
   "mdi:magnify": mdiMagnify,
+  "mdi:microphone": mdiMicrophone,
 };
 
 /** Convert mdi:kebab-name to @mdi/js export key */

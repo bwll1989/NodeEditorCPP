@@ -23,21 +23,19 @@ namespace Nodes
         IntDragValueWidget *timeCodeOffsetSpinBox;
         QComboBox* timeCodeTypeComboBox;
         QPushButton* startButton;
-        QPushButton* stopButton;
         QPushButton* resetButton;
         FloatDragValueWidget* volumeSlider;
 
+        void setRunningChecked(bool running);
+
     signals:
         /**
-         * 函数级注释：请求开始生成
+         * @brief 启停切换（checkable 按钮 / 外部同步）
+         * @param running true 启动，false 停止
          */
-        void startRequested();
+        void runningToggled(bool running);
         /**
-         * 函数级注释：请求停止生成
-         */
-        void stopRequested();
-        /**
-         * 函数级注释：请求时间码归零
+         * @brief 请求时间码归零
          */
         void resetRequested();
         void timeCodeTypeChanged(TimeCodeType type);

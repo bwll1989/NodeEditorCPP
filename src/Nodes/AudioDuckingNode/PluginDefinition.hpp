@@ -15,7 +15,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"  // 构建系统注入时会覆盖
 #endif
-#define PLUGIN_DESCRIBE "音频闪避"
+#define PLUGIN_DESCRIBE "Variable触发闪避"
 #define PLUGIN_TAG "Audio"
 class DLL_EXPORT Plugin
     : public QObject

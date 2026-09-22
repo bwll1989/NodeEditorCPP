@@ -1,23 +1,11 @@
 #pragma once
 
-#include <iostream>
-
 #include <QtCore/QObject>
-#include <QtWidgets/QLabel>
-#include <QTimer>
-#include <QDebug>
-
+#include <QThread>
 #include <QtNodes/NodeDelegateModel>
-#include <QtNodes/NodeDelegateModelRegistry>
 #include "Common/DataTypes/NodeDataList.hpp"
 #include "Common/DataTypes/AudioTimestampRingQueue.h"
-#include "TimestampGenerator/TimestampGenerator.hpp"
-#include <QtCore/QDir>
-#include <QtCore/QEvent>
-#include <QtWidgets/QFileDialog>
-#include <QtCore/qglobal.h>
-#include <QJsonArray>
-#include <QJsonObject>
+#include "AudioPriorityInterface.h"
 #include "PluginDefinition.hpp"
 #include "AudioPriorityWorker.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
@@ -34,139 +22,96 @@ struct GlobalEvent;
 
 namespace Nodes {
     /**
-     * @brief Audio Ducking Node Model
+     * @brief QSC 风格 Priority Ducker
+     * 用 Channels 配置端口数（含 Priority），最后一路为 Priority；输出与输入一一对应。
      */
     class AudioPriorityDataModel : public AbstractDelegateModel
     {
         Q_OBJECT
-        Q_PROPERTY(double threshold READ threshold WRITE setThreshold NOTIFY thresholdChanged)
-        Q_PROPERTY(double ratio READ ratio WRITE setRatio NOTIFY ratioChanged)
-        Q_PROPERTY(double attack READ attack WRITE setAttack NOTIFY attackChanged)
-        Q_PROPERTY(double release READ release WRITE setRelease NOTIFY releaseChanged)
-        Q_PROPERTY(double makeupGain READ makeupGain WRITE setMakeupGain NOTIFY makeupGainChanged)
-        Q_PROPERTY(double sidechainGain READ sidechainGain WRITE setSidechainGain NOTIFY sidechainGainChanged)
+        Q_PROPERTY(int channels READ channels WRITE setChannels NOTIFY channelsChanged)
+        Q_PROPERTY(double thresholdLevel READ thresholdLevel WRITE setThresholdLevel NOTIFY thresholdLevelChanged)
         Q_PROPERTY(double depth READ depth WRITE setDepth NOTIFY depthChanged)
-    
+        Q_PROPERTY(double priorityGain READ priorityGain WRITE setPriorityGain NOTIFY priorityGainChanged)
+        Q_PROPERTY(double attackTime READ attackTime WRITE setAttackTime NOTIFY attackTimeChanged)
+        Q_PROPERTY(double holdTime READ holdTime WRITE setHoldTime NOTIFY holdTimeChanged)
+        Q_PROPERTY(double releaseTime READ releaseTime WRITE setReleaseTime NOTIFY releaseTimeChanged)
+
     public:
-       /**
-        * 函数级注释：构造函数，初始化音频优先级节点并绑定属性与控件
-        */
-       AudioPriorityDataModel()
+        AudioPriorityDataModel()
             : _worker(new AudioPriorityWorker())
             , _workerThread(new QThread(this))
         {
-            InPortCount = 2; // 0: Music, 1: Sidechain
-            OutPortCount = 1; // Ducked Music
+            widget = new AudioPriorityInterface();
+            m_channels = AudioPriorityInterface::kDefaultChannels;
+            InPortCount = static_cast<unsigned int>(m_channels);
+            OutPortCount = static_cast<unsigned int>(m_channels);
             CaptionVisible = true;
-            WidgetEmbeddable = true;
+            WidgetEmbeddable = false;
             Resizable = false;
             PortEditable = false;
-            Caption = "Audio Priority";
+            Caption = PLUGIN_NAME;
 
-            m_threshold = -20.0;
-            m_ratio = 4.0;
-            m_attack = 10.0;
-            m_release = 100.0;
-            m_makeupGain = 0.0;
-            m_depth = 24.0;
-            m_sidechainGain = 0.0;
+            m_thresholdLevel = widget->thresholdSpin->value();
+            m_depth = widget->depthSpin->value();
+            m_priorityGain = widget->priorityGainSpin->value();
+            m_attackTime = widget->attackSpin->value();
+            m_holdTime = widget->holdSpin->value();
+            m_releaseTime = widget->releaseSpin->value();
 
-            {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = "threshold";
-                AbstractDelegateModel::registerExternalBinding("/threshold", this, b);
-            }
-            {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = "ratio";
-                AbstractDelegateModel::registerExternalBinding("/ratio", this, b);
-            }
-            {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = "attack";
-                AbstractDelegateModel::registerExternalBinding("/attack", this, b);
-            }
-            {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = "release";
-                AbstractDelegateModel::registerExternalBinding("/release", this, b);
-            }
-            {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = "makeupGain";
-                AbstractDelegateModel::registerExternalBinding("/makeup", this, b);
-            }
-            {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = "sidechainGain";
-                AbstractDelegateModel::registerExternalBinding("/sidechain_gain", this, b);
-            }
-            {
-                NodeDelegateModel::ExternalBinding b;
-                b.member = "depth";
-                AbstractDelegateModel::registerExternalBinding("/depth", this, b);
-            }
+            registerBindings();
 
-            _worker->initializeBuffers(InPortCount, OutPortCount);
+            _worker->initializeBuffers(m_channels, m_channels);
             _worker->moveToThread(_workerThread);
-            
+
             connect(_workerThread, &QThread::started, this, [this]() {
                 QMetaObject::invokeMethod(_worker, "startProcessing", Qt::QueuedConnection);
+                pushParamsToWorker();
             });
-            connect(_workerThread, &QThread::finished, _worker, &AudioPriorityWorker::stopProcessing);
+            connect(widget->channelsSpin, &IntDragValueWidget::valueChanged, this, &AudioPriorityDataModel::setChannels);
+            connect(widget->thresholdSpin, &FloatDragValueWidget::valueChanged, this, &AudioPriorityDataModel::setThresholdLevel);
+            connect(widget->depthSpin, &FloatDragValueWidget::valueChanged, this, &AudioPriorityDataModel::setDepth);
+            connect(widget->priorityGainSpin, &FloatDragValueWidget::valueChanged, this, &AudioPriorityDataModel::setPriorityGain);
+            connect(widget->attackSpin, &FloatDragValueWidget::valueChanged, this, &AudioPriorityDataModel::setAttackTime);
+            connect(widget->holdSpin, &FloatDragValueWidget::valueChanged, this, &AudioPriorityDataModel::setHoldTime);
+            connect(widget->releaseSpin, &FloatDragValueWidget::valueChanged, this, &AudioPriorityDataModel::setReleaseTime);
 
-            connect(this, &AudioPriorityDataModel::thresholdChanged, this, [this](double value){
-                QMetaObject::invokeMethod(_worker, "setThreshold",
-                                          Qt::QueuedConnection,
-                                          Q_ARG(double, value));
+            connect(this, &AudioPriorityDataModel::channelsChanged, this, [this](int value) {
+                widget->channelsSpin->setValue(value);
+                applyChannelCount(value, true);
+            });
+            connect(this, &AudioPriorityDataModel::thresholdLevelChanged, this, [this](double value) {
+                widget->thresholdSpin->setValue(value);
+                QMetaObject::invokeMethod(_worker, "setThreshold", Qt::QueuedConnection, Q_ARG(double, value));
+            });
+            connect(this, &AudioPriorityDataModel::depthChanged, this, [this](double value) {
+                widget->depthSpin->setValue(value);
+                QMetaObject::invokeMethod(_worker, "setDepth", Qt::QueuedConnection, Q_ARG(double, value));
+            });
+            connect(this, &AudioPriorityDataModel::priorityGainChanged, this, [this](double value) {
+                widget->priorityGainSpin->setValue(value);
+                QMetaObject::invokeMethod(_worker, "setPriorityGain", Qt::QueuedConnection, Q_ARG(double, value));
+            });
+            connect(this, &AudioPriorityDataModel::attackTimeChanged, this, [this](double value) {
+                widget->attackSpin->setValue(value);
+                QMetaObject::invokeMethod(_worker, "setAttack", Qt::QueuedConnection, Q_ARG(double, value));
+            });
+            connect(this, &AudioPriorityDataModel::holdTimeChanged, this, [this](double value) {
+                widget->holdSpin->setValue(value);
+                QMetaObject::invokeMethod(_worker, "setHold", Qt::QueuedConnection, Q_ARG(double, value));
+            });
+            connect(this, &AudioPriorityDataModel::releaseTimeChanged, this, [this](double value) {
+                widget->releaseSpin->setValue(value);
+                QMetaObject::invokeMethod(_worker, "setRelease", Qt::QueuedConnection, Q_ARG(double, value));
             });
 
-            connect(this, &AudioPriorityDataModel::ratioChanged, this, [this](double value){
-                QMetaObject::invokeMethod(_worker, "setRatio",
-                                          Qt::QueuedConnection,
-                                          Q_ARG(double, value));
-            });
-
-            connect(this, &AudioPriorityDataModel::attackChanged, this, [this](double value){
-                QMetaObject::invokeMethod(_worker, "setAttack",
-                                          Qt::QueuedConnection,
-                                          Q_ARG(double, value));
-            });
-
-            connect(this, &AudioPriorityDataModel::releaseChanged, this, [this](double value){
-                QMetaObject::invokeMethod(_worker, "setRelease",
-                                          Qt::QueuedConnection,
-                                          Q_ARG(double, value));
-            });
-
-            connect(this, &AudioPriorityDataModel::makeupGainChanged, this, [this](double value){
-                QMetaObject::invokeMethod(_worker, "setMakeupGain",
-                                          Qt::QueuedConnection,
-                                          Q_ARG(double, value));
-            });
-
-            connect(this, &AudioPriorityDataModel::sidechainGainChanged, this, [this](double value){
-                QMetaObject::invokeMethod(_worker, "setSidechainGain",
-                                          Qt::QueuedConnection,
-                                          Q_ARG(double, value));
-            });
-
-            connect(this, &AudioPriorityDataModel::depthChanged, this, [this](double value){
-                QMetaObject::invokeMethod(_worker, "setDepth",
-                                          Qt::QueuedConnection,
-                                          Q_ARG(double, value));
-            });
-            
-            connect(_worker, &AudioPriorityWorker::processingStatusChanged, this, &AudioPriorityDataModel::onProcessingStatusChanged);
-            
             _workerThread->start();
         }
-    
-        /**
-         * 函数级注释：析构函数，安全停止工作线程并释放资源
-         */
-        ~AudioPriorityDataModel()
+
+        ~AudioPriorityDataModel() override
         {
+            if (_worker) {
+                _worker->stopProcessing();
+            }
             if (_workerThread && _workerThread->isRunning()) {
                 _workerThread->quit();
                 _workerThread->wait(3000);
@@ -176,202 +121,96 @@ namespace Nodes {
             }
         }
 
-        /**
-         * 函数级注释：返回指定端口的数据类型
-         */
         NodeDataType dataType(PortType const portType, PortIndex const portIndex) const override
         {
+            Q_UNUSED(portType);
             Q_UNUSED(portIndex);
             return AudioData().type();
         }
-        
-        /**
-         * 函数级注释：返回端口标题字符串
-         */
+
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
-            switch (portType) {
-                case PortType::In:
-                    if (portIndex == 0) return "Low priority";
-                    if (portIndex == 1) return "High priority";
-                    break;
-                case PortType::Out:
-                    return "Out";
-                default:
-                    break;
+            const unsigned int count = (portType == PortType::In) ? InPortCount : OutPortCount;
+            const bool isPriority = count > 0 && portIndex + 1 == count;
+            if (isPriority) {
+                return QStringLiteral("Priority");
             }
-            return "";
+            switch (portType) {
+            case PortType::In:
+                return QStringLiteral("In %1").arg(portIndex + 1);
+            case PortType::Out:
+                return QStringLiteral("Out %1").arg(portIndex + 1);
+            default:
+                return {};
+            }
         }
-        
+
         std::shared_ptr<NodeData> outData(PortIndex const port) override
         {
             if (port >= OutPortCount) {
                 return std::make_shared<AudioData>();
             }
-
-            std::shared_ptr<AudioData> outputData = std::make_shared<AudioData>();
-            std::shared_ptr<AudioTimestampRingQueue> outputBuffer = _worker->getOutputBuffer(port);
+            auto outputData = std::make_shared<AudioData>();
+            auto outputBuffer = _worker->getOutputBuffer(static_cast<int>(port));
             if (outputBuffer) {
                 outputData->setSharedAudioBuffer(outputBuffer);
             }
             return outputData;
         }
-    
-        /**
-         * 函数级注释：设置输入端口的音频缓冲区
-         */
+
         void setInData(std::shared_ptr<NodeData> nodeData, PortIndex const port) override
         {
             if (port >= InPortCount) {
                 return;
             }
-            
+
             auto audioData = std::dynamic_pointer_cast<AudioData>(nodeData);
-            std::shared_ptr<AudioTimestampRingQueue> audioBuffer = nullptr;
-            
+            std::shared_ptr<AudioTimestampRingQueue> audioBuffer;
             if (audioData && audioData->isConnectedToSharedBuffer()) {
                 audioBuffer = audioData->getSharedAudioBuffer();
             }
-            
-            QMetaObject::invokeMethod(_worker, "setInputBuffer", 
-                                    Qt::QueuedConnection,
-                                    Q_ARG(int, port),
-                                    Q_ARG(std::shared_ptr<AudioTimestampRingQueue>, audioBuffer));
-        }
-    
-        /**
-         * 函数级注释：获取当前压限阈值属性（单位 dB）
-         */
-        double threshold() const
-        {
-            return m_threshold;
+
+            QMetaObject::invokeMethod(_worker, "setInputBuffer",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(int, static_cast<int>(port)),
+                                      Q_ARG(std::shared_ptr<AudioTimestampRingQueue>, audioBuffer));
         }
 
-        /**
-         * 函数级注释：设置压限阈值属性并触发变化信号
-         */
-        void setThreshold(double value)
+        QWidget *embeddedWidget() override { return widget; }
+
+        int channels() const { return m_channels; }
+        double thresholdLevel() const { return m_thresholdLevel; }
+        double depth() const { return m_depth; }
+        double priorityGain() const { return m_priorityGain; }
+        double attackTime() const { return m_attackTime; }
+        double holdTime() const { return m_holdTime; }
+        double releaseTime() const { return m_releaseTime; }
+
+        void setChannels(int value)
         {
-            if (qFuzzyCompare(value + 1.0, m_threshold + 1.0)) {
+            value = qBound(AudioPriorityInterface::kMinChannels,
+                           value,
+                           AudioPriorityInterface::kMaxChannels);
+            if (value == m_channels) {
                 return;
             }
-            m_threshold = value;
-            Q_EMIT thresholdChanged(value);
+            m_channels = value;
+            Q_EMIT channelsChanged(value);
         }
 
-        /**
-         * 函数级注释：获取压缩比属性
-         */
-        double ratio() const
+        void setThresholdLevel(double value)
         {
-            return m_ratio;
-        }
-
-        /**
-         * 函数级注释：设置压缩比属性并触发变化信号
-         */
-        void setRatio(double value)
-        {
-            if (qFuzzyCompare(value + 1.0, m_ratio + 1.0)) {
+            value = qBound(-60.0, value, 20.0);
+            if (qFuzzyCompare(value + 1.0, m_thresholdLevel + 1.0)) {
                 return;
             }
-            m_ratio = value;
-            Q_EMIT ratioChanged(value);
+            m_thresholdLevel = value;
+            Q_EMIT thresholdLevelChanged(value);
         }
 
-        /**
-         * 函数级注释：获取攻击时间属性（毫秒）
-         */
-        double attack() const
-        {
-            return m_attack;
-        }
-
-        /**
-         * 函数级注释：设置攻击时间属性并触发变化信号
-         */
-        void setAttack(double value)
-        {
-            if (qFuzzyCompare(value + 1.0, m_attack + 1.0)) {
-                return;
-            }
-            m_attack = value;
-            Q_EMIT attackChanged(value);
-        }
-
-        /**
-         * 函数级注释：获取释放时间属性（毫秒）
-         */
-        double release() const
-        {
-            return m_release;
-        }
-
-        /**
-         * 函数级注释：设置释放时间属性并触发变化信号
-         */
-        void setRelease(double value)
-        {
-            if (qFuzzyCompare(value + 1.0, m_release + 1.0)) {
-                return;
-            }
-            m_release = value;
-            Q_EMIT releaseChanged(value);
-        }
-
-        /**
-         * 函数级注释：获取化妆增益属性（单位 dB）
-         */
-        double makeupGain() const
-        {
-            return m_makeupGain;
-        }
-
-        /**
-         * 函数级注释：设置化妆增益属性并触发变化信号
-         */
-        void setMakeupGain(double value)
-        {
-            if (qFuzzyCompare(value + 1.0, m_makeupGain + 1.0)) {
-                return;
-            }
-            m_makeupGain = value;
-            Q_EMIT makeupGainChanged(value);
-        }
-
-        /**
-         * 函数级注释：获取侧链增益属性（单位 dB）
-         */
-        double sidechainGain() const
-        {
-            return m_sidechainGain;
-        }
-
-        /**
-         * 函数级注释：设置侧链增益属性并触发变化信号
-         */
-        void setSidechainGain(double value)
-        {
-            if (qFuzzyCompare(value + 1.0, m_sidechainGain + 1.0)) {
-                return;
-            }
-            m_sidechainGain = value;
-            Q_EMIT sidechainGainChanged(value);
-        }
-
-        /**
-         * 函数级注释：获取压低深度属性（单位 dB）
-         */
-        double depth() const
-        {
-            return m_depth;
-        }
-
-        /**
-         * 函数级注释：设置压低深度属性并触发变化信号
-         */
         void setDepth(double value)
         {
+            value = qBound(0.0, value, 100.0);
             if (qFuzzyCompare(value + 1.0, m_depth + 1.0)) {
                 return;
             }
@@ -379,178 +218,229 @@ namespace Nodes {
             Q_EMIT depthChanged(value);
         }
 
-        /**
-         * 函数级注释：返回嵌入式界面控件
-         */
-        
-        /**
-         * 函数级注释：保存节点配置为 JSON
-         */
+        void setPriorityGain(double value)
+        {
+            value = qBound(-100.0, value, 20.0);
+            if (qFuzzyCompare(value + 1.0, m_priorityGain + 1.0)) {
+                return;
+            }
+            m_priorityGain = value;
+            Q_EMIT priorityGainChanged(value);
+        }
+
+        void setAttackTime(double value)
+        {
+            value = qBound(5.0, value, 10000.0);
+            if (qFuzzyCompare(value + 1.0, m_attackTime + 1.0)) {
+                return;
+            }
+            m_attackTime = value;
+            Q_EMIT attackTimeChanged(value);
+        }
+
+        void setHoldTime(double value)
+        {
+            value = qBound(1.0, value, 30000.0);
+            if (qFuzzyCompare(value + 1.0, m_holdTime + 1.0)) {
+                return;
+            }
+            m_holdTime = value;
+            Q_EMIT holdTimeChanged(value);
+        }
+
+        void setReleaseTime(double value)
+        {
+            value = qBound(10.0, value, 10000.0);
+            if (qFuzzyCompare(value + 1.0, m_releaseTime + 1.0)) {
+                return;
+            }
+            m_releaseTime = value;
+            Q_EMIT releaseTimeChanged(value);
+        }
+
         QJsonObject save() const override
         {
             QJsonObject values;
-            values["threshold"] = threshold();
-            values["ratio"] = ratio();
-            values["attack"] = attack();
-            values["release"] = release();
-            values["makeup"] = makeupGain();
-            values["sidechain_gain"] = sidechainGain();
+            values["channels"] = channels();
+            values["threshold"] = thresholdLevel();
             values["depth"] = depth();
+            values["priorityGain"] = priorityGain();
+            values["attack"] = attackTime();
+            values["hold"] = holdTime();
+            values["release"] = releaseTime();
 
             QJsonObject modelJson = NodeDelegateModel::save();
             modelJson["values"] = values;
             return modelJson;
         }
 
-        /**
-         * 函数级注释：从 JSON 加载节点配置并更新属性
-         */
         void load(QJsonObject const &p) override
         {
             NodeDelegateModel::load(p);
 
-            QJsonObject values;
-            const QJsonValue vv = p.value("values");
-            if (vv.isObject()) {
-                values = vv.toObject();
-            } else {
+            QJsonObject values = p.value(QStringLiteral("values")).toObject();
+            if (values.isEmpty()) {
                 values = p;
             }
 
-            if (values.contains("threshold")) setThreshold(values["threshold"].toDouble());
-            if (values.contains("ratio")) setRatio(values["ratio"].toDouble());
-            if (values.contains("attack")) setAttack(values["attack"].toDouble());
-            if (values.contains("release")) setRelease(values["release"].toDouble());
-            if (values.contains("makeup")) setMakeupGain(values["makeup"].toDouble());
-            if (values.contains("sidechain_gain")) setSidechainGain(values["sidechain_gain"].toDouble());
-            if (values.contains("depth")) setDepth(values["depth"].toDouble());
-        }
+            // load 阶段不发 portsInserted，避免与场景反序列化抢连线
+            if (values.contains("channels")) {
+                const int count = qBound(AudioPriorityInterface::kMinChannels,
+                                         values["channels"].toInt(m_channels),
+                                         AudioPriorityInterface::kMaxChannels);
+                m_channels = count;
+                widget->channelsSpin->setValue(count);
+                applyChannelCount(count, false);
+            }
 
-    public slots:
-        /**
-         * 函数级注释：处理工作线程状态变化（预留界面更新扩展点）
-         */
-        void onProcessingStatusChanged(bool isProcessing) {
-            Q_UNUSED(isProcessing);
+            if (values.contains("threshold")) {
+                setThresholdLevel(values["threshold"].toDouble());
+            }
+            if (values.contains("depth")) {
+                setDepth(values["depth"].toDouble());
+            }
+            if (values.contains("priorityGain")) {
+                setPriorityGain(values["priorityGain"].toDouble());
+            } else if (values.contains("priority_gain")) {
+                setPriorityGain(values["priority_gain"].toDouble());
+            }
+            if (values.contains("attack")) {
+                setAttackTime(values["attack"].toDouble());
+            }
+            if (values.contains("hold")) {
+                setHoldTime(values["hold"].toDouble());
+            }
+            if (values.contains("release")) {
+                setReleaseTime(values["release"].toDouble());
+            }
         }
 
     signals:
-        /**
-         * 函数级注释：阈值属性变化通知信号
-         */
-        void thresholdChanged(double value);
-        /**
-         * 函数级注释：压缩比属性变化通知信号
-         */
-        void ratioChanged(double value);
-        /**
-         * 函数级注释：攻击时间属性变化通知信号
-         */
-        void attackChanged(double value);
-        /**
-         * 函数级注释：释放时间属性变化通知信号
-         */
-        void releaseChanged(double value);
-        /**
-         * 函数级注释：化妆增益属性变化通知信号
-         */
-        void makeupGainChanged(double value);
-        /**
-         * 函数级注释：侧链增益属性变化通知信号
-         */
-        void sidechainGainChanged(double value);
-        /**
-         * 函数级注释：压低深度属性变化通知信号
-         */
+        void channelsChanged(int value);
+        void thresholdLevelChanged(double value);
         void depthChanged(double value);
+        void priorityGainChanged(double value);
+        void attackTimeChanged(double value);
+        void holdTimeChanged(double value);
+        void releaseTimeChanged(double value);
 
     protected:
-        /**
-         * 函数级注释：模型就绪后订阅全局事件总线命令
-         */
         void afterModelReady() override
         {
-            GlobalEventBus::instance()->subscribe(
-                makeFullOscAddress("/threshold"),
-                this,
-                SLOT(onGlobalEvent(GlobalEvent))
-            );
-            GlobalEventBus::instance()->subscribe(
-                makeFullOscAddress("/ratio"),
-                this,
-                SLOT(onGlobalEvent(GlobalEvent))
-            );
-            GlobalEventBus::instance()->subscribe(
-                makeFullOscAddress("/attack"),
-                this,
-                SLOT(onGlobalEvent(GlobalEvent))
-            );
-            GlobalEventBus::instance()->subscribe(
-                makeFullOscAddress("/release"),
-                this,
-                SLOT(onGlobalEvent(GlobalEvent))
-            );
-            GlobalEventBus::instance()->subscribe(
-                makeFullOscAddress("/makeup"),
-                this,
-                SLOT(onGlobalEvent(GlobalEvent))
-            );
-            GlobalEventBus::instance()->subscribe(
-                makeFullOscAddress("/sidechain_gain"),
-                this,
-                SLOT(onGlobalEvent(GlobalEvent))
-            );
-            GlobalEventBus::instance()->subscribe(
-                makeFullOscAddress("/depth"),
-                this,
-                SLOT(onGlobalEvent(GlobalEvent))
-            );
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/channels"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/threshold"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/depth"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/priority_gain"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/attack"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/hold"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(makeFullOscAddress("/release"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
     private Q_SLOTS:
-        /**
-         * 函数级注释：处理来自全局事件总线的外部控制命令
-         */
-        void onGlobalEvent(const GlobalEvent& ev)
+        void onGlobalEvent(const GlobalEvent &ev)
         {
             if (ev.kind != GlobalEventKind::Command) {
                 return;
             }
-
-            const QString addrThreshold = makeFullOscAddress("/threshold");
-            const QString addrRatio = makeFullOscAddress("/ratio");
-            const QString addrAttack = makeFullOscAddress("/attack");
-            const QString addrRelease = makeFullOscAddress("/release");
-            const QString addrMakeup = makeFullOscAddress("/makeup");
-            const QString addrSidechain = makeFullOscAddress("/sidechain_gain");
-            const QString addrDepth = makeFullOscAddress("/depth");
-
-            if (ev.address == addrThreshold) {
-                setThreshold(ev.payload.toDouble());
-            } else if (ev.address == addrRatio) {
-                setRatio(ev.payload.toDouble());
-            } else if (ev.address == addrAttack) {
-                setAttack(ev.payload.toDouble());
-            } else if (ev.address == addrRelease) {
-                setRelease(ev.payload.toDouble());
-            } else if (ev.address == addrMakeup) {
-                setMakeupGain(ev.payload.toDouble());
-            } else if (ev.address == addrSidechain) {
-                setSidechainGain(ev.payload.toDouble());
-            } else if (ev.address == addrDepth) {
+            if (ev.address == makeFullOscAddress("/channels")) {
+                setChannels(ev.payload.toInt());
+            } else if (ev.address == makeFullOscAddress("/threshold")) {
+                setThresholdLevel(ev.payload.toDouble());
+            } else if (ev.address == makeFullOscAddress("/depth")) {
                 setDepth(ev.payload.toDouble());
+            } else if (ev.address == makeFullOscAddress("/priority_gain")) {
+                setPriorityGain(ev.payload.toDouble());
+            } else if (ev.address == makeFullOscAddress("/attack")) {
+                setAttackTime(ev.payload.toDouble());
+            } else if (ev.address == makeFullOscAddress("/hold")) {
+                setHoldTime(ev.payload.toDouble());
+            } else if (ev.address == makeFullOscAddress("/release")) {
+                setReleaseTime(ev.payload.toDouble());
             }
         }
 
     private:
-        AudioPriorityWorker* _worker;
-        QThread* _workerThread;
-        double m_threshold = 0.0;
-        double m_ratio = 0.0;
-        double m_attack = 0.0;
-        double m_release = 0.0;
-        double m_makeupGain = 0.0;
-        double m_sidechainGain = 0.0;
-        double m_depth = 0.0;
+        void applyPortCount(PortType portType, unsigned int newCount, bool notifyPorts)
+        {
+            unsigned int &count = (portType == PortType::In) ? InPortCount : OutPortCount;
+            const unsigned int oldCount = count;
+            if (newCount == oldCount) {
+                return;
+            }
+            if (notifyPorts) {
+                if (newCount > oldCount) {
+                    Q_EMIT portsAboutToBeInserted(portType, oldCount, newCount - 1);
+                    count = newCount;
+                    Q_EMIT portsInserted();
+                } else {
+                    Q_EMIT portsAboutToBeDeleted(portType, newCount, oldCount - 1);
+                    count = newCount;
+                    Q_EMIT portsDeleted();
+                }
+            } else {
+                count = newCount;
+            }
+        }
+
+        void applyChannelCount(int channelCount, bool notifyPorts)
+        {
+            const unsigned int count = static_cast<unsigned int>(
+                qBound(AudioPriorityInterface::kMinChannels,
+                       channelCount,
+                       AudioPriorityInterface::kMaxChannels));
+
+            applyPortCount(PortType::In, count, notifyPorts);
+            applyPortCount(PortType::Out, count, notifyPorts);
+
+            QMetaObject::invokeMethod(_worker, "initializeBuffers",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(int, static_cast<int>(count)),
+                                      Q_ARG(int, static_cast<int>(count)));
+
+            if (notifyPorts) {
+                for (unsigned int i = 0; i < OutPortCount; ++i) {
+                    Q_EMIT dataUpdated(static_cast<PortIndex>(i));
+                }
+                Q_EMIT embeddedWidgetSizeUpdated();
+            }
+        }
+
+        void registerBindings()
+        {
+            auto bind = [this](const char *member, const QString &address, QWidget *control) {
+                NodeDelegateModel::ExternalBinding b;
+                b.member = member;
+                b.control = control;
+                AbstractDelegateModel::registerExternalBinding(address, this, b);
+            };
+            bind("channels", QStringLiteral("/channels"), widget->channelsSpin);
+            bind("thresholdLevel", QStringLiteral("/threshold"), widget->thresholdSpin);
+            bind("depth", QStringLiteral("/depth"), widget->depthSpin);
+            bind("priorityGain", QStringLiteral("/priority_gain"), widget->priorityGainSpin);
+            bind("attackTime", QStringLiteral("/attack"), widget->attackSpin);
+            bind("holdTime", QStringLiteral("/hold"), widget->holdSpin);
+            bind("releaseTime", QStringLiteral("/release"), widget->releaseSpin);
+        }
+
+        void pushParamsToWorker()
+        {
+            QMetaObject::invokeMethod(_worker, "setThreshold", Qt::QueuedConnection, Q_ARG(double, m_thresholdLevel));
+            QMetaObject::invokeMethod(_worker, "setDepth", Qt::QueuedConnection, Q_ARG(double, m_depth));
+            QMetaObject::invokeMethod(_worker, "setPriorityGain", Qt::QueuedConnection, Q_ARG(double, m_priorityGain));
+            QMetaObject::invokeMethod(_worker, "setAttack", Qt::QueuedConnection, Q_ARG(double, m_attackTime));
+            QMetaObject::invokeMethod(_worker, "setHold", Qt::QueuedConnection, Q_ARG(double, m_holdTime));
+            QMetaObject::invokeMethod(_worker, "setRelease", Qt::QueuedConnection, Q_ARG(double, m_releaseTime));
+        }
+
+        AudioPriorityWorker *_worker = nullptr;
+        QThread *_workerThread = nullptr;
+        AudioPriorityInterface *widget = nullptr;
+        int m_channels = AudioPriorityInterface::kDefaultChannels;
+        double m_thresholdLevel = -40.0;
+        double m_depth = 20.0;
+        double m_priorityGain = 0.0;
+        double m_attackTime = 10.0;
+        double m_holdTime = 200.0;
+        double m_releaseTime = 1000.0;
     };
 }

@@ -1,6 +1,7 @@
 #include "PluginDefinition.hpp"
 
 #include "AudioMatrixDataModel.hpp"
+#include "AudioRouterDataModel.hpp"
 
 Plugin *Plugin::_this_plugin = nullptr;
 
@@ -18,5 +19,6 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
 {
     assert(reg);
 
-    reg->registerModel<Nodes::AudioMatrixDataModel>(name(),tag());
+    reg->registerModel<Nodes::AudioMatrixDataModel>(name(), tag());
+    reg->registerModel<Nodes::AudioRouterDataModel>(QStringLiteral("Audio Router"), tag());
 }

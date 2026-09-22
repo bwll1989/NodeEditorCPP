@@ -23,6 +23,7 @@ set(ALL_NODES
     LFONode                                   #LFO模块
     CurveNode                               #曲线模块
     AudioDecoderNode                          #音频解码模块
+    AudioListDecoderNode                      #音频播放列表解码
     AudioDeviceOutNode                        #音频输出模块
     HotKeyNode                                #热键模块
     ExtractNode                               #数据分离模块
@@ -83,6 +84,8 @@ set(ALL_NODES
     AudioDuckingNode                            #音频闪避
     AudioCrossFaderNode                         #音频交叉淡化过渡
     AudioPriorityNode                           #音频优先级
+    WebMicNode                                  #网页对讲麦克风
+    AudioGate                                   #噪声门
     PoseDetectionNode                            #Yolo v11n 姿态
     ObjectDetectionNode                         #Yolo v11n 检测
     FaceDetectionNode                              #人脸检测
@@ -97,7 +100,10 @@ set(ALL_NODES
     InjectNode                                  #数据注入
     ValueLookupNode                          #值查表 Value Lookup
     FT_C040ANode                            #触摸屏
+    FT_AJTNode                              #FT-AJT 六路调光
     ViosoNode                               #Vioso节点
+    PosiStageNetClient                      #PosiStageNet数据接收
+    ISFNode                                 #ISF数据加载
 )
 
 # 根据选项决定构建方式
@@ -135,6 +141,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(LFONode)                                   #LFO模块
     add_subdirectory(CurveNode)                                #曲线模块
     add_subdirectory(AudioDecoderNode)                          #音频解码模块
+    add_subdirectory(AudioListDecoderNode)                      #音频播放列表解码
     add_subdirectory(AudioDeviceOutNode)                        #音频输出模块
     add_subdirectory(HotKeyNode)                                #热键模块
     add_subdirectory(ExtractNode)                               #数据分离模块
@@ -193,6 +200,8 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(AudioDuckingNode)                          #音频闪避
     add_subdirectory(AudioCrossFaderNode)                       #音频交叉淡化过渡
     add_subdirectory(AudioPriorityNode)                         #音频优先级
+    add_subdirectory(WebMicNode)                                #网页对讲麦克风
+    add_subdirectory(AudioGate)                                 #噪声门
     add_subdirectory(PoseDetectionNode)                        #动作识别
     add_subdirectory(ObjectDetectionNode)                       #对象识别
     add_subdirectory(FaceDetectionNode)                            #人脸检测
@@ -210,7 +219,10 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(InjectNode)                                #数据注入节点
     add_subdirectory(ValueLookupNode)                        #值查表 Value Lookup
     add_subdirectory(FT_C040ANode)                          #触摸屏
-    add_subdirectory(ViosoNode)                              #Vioso节点 
+    add_subdirectory(FT_AJTNode)                            #FT-AJT 六路调光
+    add_subdirectory(ViosoNode)                              #Vioso节点
+    add_subdirectory(PosiStageNetClient)                    #PosiStageNet(数据接收）
+    add_subdirectory(ISFNode)                               #ISF数据加载
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()

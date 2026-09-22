@@ -46,7 +46,7 @@ namespace Nodes
             widget = new AudioMatrixInterface(static_cast<int>(InPortCount),
                                              static_cast<int>(OutPortCount));
             CaptionVisible = true;
-            WidgetEmbeddable = true;
+            WidgetEmbeddable = false;
             Resizable = true;
             PortEditable = true;
             Caption = PLUGIN_NAME;
@@ -65,7 +65,6 @@ namespace Nodes
                                           Qt::QueuedConnection,
                                           Q_ARG(Eigen::MatrixXd, matrix));
             });
-            connect(_workerThread, &QThread::finished, _worker, &AudioMatrixWorker::stopProcessing);
             connect(widget->matrixWidget(), &MatrixWidget::valueChanged,
                     this, &AudioMatrixDataModel::setMatrix);
             connect(_worker, &AudioMatrixWorker::processingStatusChanged,
@@ -84,6 +83,9 @@ namespace Nodes
         {
             if (_portSyncTimer) {
                 _portSyncTimer->stop();
+            }
+            if (_worker) {
+                _worker->stopProcessing();
             }
             if (_workerThread && _workerThread->isRunning()) {
                 _workerThread->quit();

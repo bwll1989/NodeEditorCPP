@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html xmlns:MadCap="http://www.madcapsoftware.com/Schemas/MadCap.xsd" lang="en-us" xml:lang="en-us" data-mc-search-type="Stem" data-mc-help-system-file-name="Index.xml" data-mc-path-to-help-system="../../" data-mc-toc-path="Design|Schematic Elements|Components|Audio Components|Dynamics" data-mc-target-type="WebHelp2" data-mc-runtime-file-type="Topic" data-mc-preload-images="true" data-mc-in-preview-mode="false">
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta charset="utf-8" />
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><title>Gate</title>
+        <!-- Global site tag (gtag.js) - Google Analytics -->
+        <link href="../../Skins/Default/Stylesheets/Slideshow.css" rel="stylesheet" type="text/css" data-mc-generated="True" />
+        <link href="../../Skins/Default/Stylesheets/TextEffects.css" rel="stylesheet" type="text/css" data-mc-generated="True" />
+        <link href="../../Skins/Default/Stylesheets/Topic.css" rel="stylesheet" type="text/css" data-mc-generated="True" />
+        <link href="../../Skins/Default/Stylesheets/Components/Styles.css" rel="stylesheet" type="text/css" data-mc-generated="True" />
+        <link href="../../Skins/Default/Stylesheets/Components/Tablet.css" rel="stylesheet" type="text/css" data-mc-generated="True" />
+        <link href="../../Skins/Default/Stylesheets/Components/Mobile.css" rel="stylesheet" type="text/css" data-mc-generated="True" />
+        <link href="../../Skins/Default/Stylesheets/Components/Print.css" rel="stylesheet" type="text/css" data-mc-generated="True" />
+        <link href="../Resources/Stylesheets/DesignerStyles.css" rel="stylesheet" type="text/css" />
+        <link href="../Resources/TableStyles/Shaded Rows.css" rel="stylesheet" data-mc-stylesheet-type="table" />
+        <script src="../../Resources/Scripts/jquery.min.js" type="text/javascript">
+        </script>
+        <script src="../../Resources/Scripts/purify.min.js" type="text/javascript" defer="defer">
+        </script>
+        <script src="../../Resources/Scripts/require.min.js" type="text/javascript" defer="defer">
+        </script>
+        <script src="../../Resources/Scripts/require.config.js" type="text/javascript" defer="defer">
+        </script>
+        <script src="../../Resources/Scripts/foundation.min.js" type="text/javascript" defer="defer">
+        </script>
+        <script src="../../Resources/Scripts/plugins.min.js" type="text/javascript" defer="defer">
+        </script>
+        <script src="../../Resources/Scripts/MadCapAll.js" type="text/javascript" defer="defer">
+        </script>
+        <script async="async" src="https://www.googletagmanager.com/gtag/js?id=UA-119420296-1">
+        </script>
+        <script>/* <![CDATA[ */
+			window.dataLayer = window.dataLayer || [];
+			function gtag(){dataLayer.push(arguments);}
+			gtag('js', new Date());
+
+			gtag('config', 'UA-119420296-1');
+		/* ]]> */</script>
+    </head>
+    <body>
+        <p class="MCWebHelpFramesetLink MCWebHelpFramesetLinkTop"><a href="../../Index.htm#Schematic Library/gate.htm">Open topic with navigation</a>
+        </p>
+        <div class="nocontent">
+            <div class="MCBreadcrumbsBox_0 breadcrumbs" role="navigation" aria-label="Breadcrumbs" data-mc-breadcrumbs-divider=" &gt; " data-mc-breadcrumbs-count="5" data-mc-toc="True"><span class="MCBreadcrumbsPrefix">You are here: </span>
+            </div>
+        </div>
+        <div role="main" id="mc-main-content">
+            <h1 data-mc-autonum=""><span class="autonumber"><span></span></span>Gate</h1>
+            <p>The Gate Component (short for Noise Gate) is used to either pass or attenuate audio signals based on the RMS level of the input signal. If the signal is above the specified <b>Threshold</b>, the signal is passed un-attenuated. If the signal is below the <b>Threshold</b>, it is attenuated by the amount specified by the <b>Depth</b> control. </p>
+            <p>The Gate component controls its output based on the input level. If the input is lower than the Threshold level, it is attenuated. If the input is above the Threshold Level, it is amplified. You can use the Gate to prevent open microphones and other types of inputs, from introducing unwanted sounds into your system. </p>
+            <p>The Gate Component can be <b>Mono</b>, <b>Stereo</b>, or <b>Multi-channel</b>. The <b>Multi-channel</b> mode can have from 2 to 256 input/output channels. The Gate has an optional <b>Side Chain Input</b> for each input channel. The <b>Side Chain Input</b> provides a secondary input to the RMS Detector allowing the <b>Side Chain</b> to be used to trigger the Gate to open or close. The main <b>Input</b> is then attenuated or un-attenuated based on the <b>Side Chain Input</b> signal.</p>
+            <div class="DropDownList">
+                <div class="MCDropDown MCDropDown_Closed dropDown dropDownHeading"><span class="MCDropDownHead dropDownHead"><a class="MCDropDownHotSpot dropDownHotspot dropDownHotspotHeading MCDropDownHotSpot_ MCDropDownHotSpot_Heading MCHotSpotImage" href="javascript:void(0)" aria-expanded="false"><img class="MCDropDown_Image_Icon" src="../../Skins/Default/Stylesheets/Images/transparent.gif" height="11" width="16" alt="Closed" data-mc-alt2="Open" />Properties</a></span>
+                    <div class="MCDropDownBody dropDownBody">
+                        <h3 data-mc-autonum=""><span class="autonumber"><span></span></span>Gate Properties</h3>
+                        <h4 class="BridgeHead">Side Chain Input</h4>
+                        <p>For each standard input, an additional input is provided for alternate control of the Gate. When Side Chain is set to yes, the standard inputs have no control over the opening and closing of the gate.</p>
+                        <p><b>In Gain</b> is always applied to the Side Chain input signal, regardless of the state of <b>Bypass</b>. </p>
+                        <h4 class="BridgeHead">Detector Time </h4>
+                        <p>Sets one of three pre-set Detector Times, or the Detector Time control in the Control Panel.</p>
+                        <p>The <b>Detector Time</b> adjusts the time constant which determines the rate of change of the <b>Detector</b> level in response to changes in the input signal.<br />This adjustment is to prevent changes (spikes, low frequency signals) in the input from causing unwanted, momentary output.</p>
+                        <h4 class="BridgeHead">Bypass Gain Meter</h4>
+                        <p>When set to <b>Active</b>, the <b>Applied Gain</b> meter is active regardless of the state of the <b>Bypass</b> button. This means you can adjust the Gate in Bypass mode.</p>
+                        <p>When set to <b>Inactive</b>, the Applied Gain meter is inactive to indicate that the component is in Bypass mode.</p>
+                        <h3 data-mc-autonum=""><span class="autonumber"><span></span></span>Channels</h3>
+                        <h4 class="BridgeHead">Type </h4>
+                        <p>Sets the type of input and output channels. You can choose from <b>Mono</b>, <b>Stereo</b>, or <b>Multi-Channel</b>.</p>
+                        <h4 class="BridgeHead">Count</h4>
+                        <p>For Multi-Channel, sets the number of channels.</p>
+                        <h3 data-mc-autonum=""><span class="autonumber"><span></span></span>Graphic Properties</h3>
+                        <h4 class="BridgeHead">Label</h4>
+                        <p>Use the Label property to change the name of the component in the schematic. The Label property defaults to the component name. To learn more about renaming schematic elements, see <a href="../Q-SYS Designer/Using the Schematic/Labeling and Organizing Schematic Elements.htm" class="MCXref xref">Organizing Your Design</a>.</p>
+                        <h4 class="BridgeHead">Position</h4>
+                        <p>The coordinates reference a specific place in the schematic - for example,"100,100" (horizontal, vertical). 0,0 is the upper left corner of the schematic.</p>
+                        <h4 class="BridgeHead">Fill</h4>
+                        <p>Sets the fill color of the component in the schematic.</p>
+                        <h3 data-mc-autonum=""><span class="autonumber"><span></span></span>Script Access Properties</h3>
+                        <h4 class="BridgeHead">Code Name</h4>
+                        <p>Displays the currently assign name for control access. You can use the auto-assigned name or customize it. Q-SYS will automatically check all Code Names in the design to ensure name is unique.</p>
+                        <h4 class="BridgeHead">Script Access</h4>
+                        <p>Defines whether the component will be accessible by script and/or externally, or not at all. Choices include All, External, None (default), and Script.</p>
+                        <ul>
+                            <li><b>None </b>(default) - Not accessible by any script, plugin, or by <a href="../External_Control_APIs/QRC/QRC_Overview.htm" class="MCXref xref">Q-SYS Remote Control Protocol (QRC)</a>.</li>
+                            <li><b>Script </b>- Can be accessed by scripts, such as Text Controller, Block Controllers, and plugins only.</li>
+                            <li><b>External </b>- Can only be accessed by 3rd party controls systems using component commands from the <a href="../External_Control_APIs/QRC/QRC_Overview.htm" class="MCXref xref">Q-SYS Remote Control Protocol (QRC)</a>.</li>
+                            <li><b>All </b>- No restrictions, can be accessed by 3rd party control systems via <a href="../External_Control_APIs/QRC/QRC_Overview.htm" class="MCXref xref">Q-SYS Remote Control Protocol (QRC)</a>, or script objects or plugin objects.</li>
+                        </ul>
+                        <p class="tip" data-mc-autonum="&lt;b&gt;Tip: &lt;/b&gt;"><span class="autonumber"><span><b>Tip: </b></span></span>Use <a href="script_programmer_mode.htm" class="MCXref xref">Script Programmer Mode</a> to quickly view the Script Access setting directly on the component in the design schematic without the need to disconnect from the Q-SYS Core processor.</p>
+                    </div>
+                </div>
+                <div class="MCDropDown MCDropDown_Closed dropDown dropDownHeading"><span class="MCDropDownHead dropDownHead"><a class="MCDropDownHotSpot dropDownHotspot dropDownHotspotHeading MCDropDownHotSpot_ MCDropDownHotSpot_Heading MCHotSpotImage" href="javascript:void(0)" aria-expanded="false"><img class="MCDropDown_Image_Icon" src="../../Skins/Default/Stylesheets/Images/transparent.gif" height="11" width="16" alt="Closed" data-mc-alt2="Open" />Controls</a></span>
+                    <div class="MCDropDownBody dropDownBody">
+                        <h3 data-mc-autonum=""><span class="autonumber"><span></span></span>General</h3>
+                        <h4 class="BridgeHead">In Gain (dB)</h4>
+                        <p>Sets the Gain of the input. This is added to the level of the input source.</p>
+                        <h4 class="BridgeHead">Detector (dB)</h4>
+                        <p>Measures the level of either the main Input, or the Side Chain Input to determine when the Gate opens or closes. The range of the graphic display is -60 to 20 dB, the text readout is the sum of the Input level plus the In Gain control.</p>
+                        <h4 class="BridgeHead">Response Panel</h4>
+                        <p>The Response panel provides points at the Threshold Level and Depth that give current readings when the mouse passes over them. </p>
+                        <h4 class="BridgeHead">Bypass</h4>
+                        <p> Bypasses the Gate - forces the Gate open regardless of the Input level.</p>
+                        <h3 data-mc-autonum=""><span class="autonumber"><span></span></span>Gain Calculations</h3>
+                        <h4 class="BridgeHead">Threshold Level </h4>
+                        <p>Sets the level at which the Gate opens based on either the main Input level or the Side Chain level. The Threshold level is on the X axis of the graph.</p>
+                        <h4 class="BridgeHead">Depth (dB)</h4>
+                        <p>Sets how much attenuation (Applied Gain) is applied to the inputs when they are below the Threshold Level. This is a negative amount added to the Detector Level. The Depth is on the Y axis of the graph.</p>
+                        <h3 data-mc-autonum=""><span class="autonumber"><span></span></span>Time Constants</h3>
+                        <h4 class="BridgeHead">Attack Time (seconds)</h4>
+                        <p>The <b>Attack Time</b> adjusts the time it takes for the output amplitude to rise to equal 63% of the input amplitude once the <b>Threshold Level</b> is exceeded. This does not affect the decay of the signal.</p>
+                        <h4 class="BridgeHead">Hold Time (seconds)</h4>
+                        <p>The <b>Hold Time</b> determines the minimum time the Gate stays open once it is opened, or the length of time the Gate stays open after the RMS input level drops below the <b>Threshold Level</b>. This is to prevent the gate from opening and closing due to momentary pauses in the input.</p>
+                        <h4 class="BridgeHead">Release Time (seconds)</h4>
+                        <p>The <b>Release Time</b> adjusts the time it takes for the output to fall to 63% of the level set by the <b>Depth</b> control, after the <b>Detector</b> level drops below the <b>Threshold Level</b> and the <b>Hold Time</b> is expired.</p>
+                        <h4 class="BridgeHead">Detector Time (seconds)</h4>
+                        <p>Available only when the <b>Detector Time Property</b> is set to <b>Use Control</b>.</p>
+                        <p>The <b>Detector Time</b> adjusts the time constant which determines the rate of change of the <b>Detector</b> level in response to changes in the input signal.<br />This adjustment is to prevent changes (spikes, low frequency signals) in the input from causing unwanted, momentary output.</p>
+                        <h3 data-mc-autonum=""><span class="autonumber"><span></span></span>Gain</h3>
+                        <h4 class="BridgeHead">Open</h4>
+                        <p>The green LED <b>Open</b> indicator lights when the <b>Detector</b> level exceeds the <b>Threshold</b> and the Gate is open.</p>
+                        <h4 class="BridgeHead">Applied Gain (-dB)</h4>
+                        <p>The <b>Applied Gain</b> meter is a representation of the amount of attenuation ( <b>Depth</b>) applied to the input channel.</p>
+                        <h4 class="BridgeHead">Gain (dB)</h4>
+                        <p>Adjusts the output level of the Gate.</p>
+                    </div>
+                </div>
+                <div class="MCDropDown MCDropDown_Closed dropDown dropDownHeading"><span class="MCDropDownHead dropDownHead"><a class="MCDropDownHotSpot dropDownHotspot dropDownHotspotHeading MCDropDownHotSpot_ MCDropDownHotSpot_Heading MCHotSpotImage" href="javascript:void(0)" aria-expanded="false"><img class="MCDropDown_Image_Icon" src="../../Skins/Default/Stylesheets/Images/transparent.gif" height="11" width="16" alt="Closed" data-mc-alt2="Open" />Control Pins</a></span>
+                    <div class="MCDropDownBody dropDownBody">
+                        <table style="mc-table-style: url('../Resources/TableStyles/Shaded Rows.css');caption-side: top;" class="TableStyle-Shaded_Rows" cellspacing="0">
+                            <col class="TableStyle-Shaded_Rows-Column-Column1" />
+                            <col class="TableStyle-Shaded_Rows-Column-Column1" />
+                            <col class="TableStyle-Shaded_Rows-Column-Column1" />
+                            <col class="TableStyle-Shaded_Rows-Column-Column1" />
+                            <col class="TableStyle-Shaded_Rows-Column-Column1" />
+                            <thead>
+                                <tr class="TableStyle-Shaded_Rows-Head-Header1">
+                                    <th class="TableStyle-Shaded_Rows-HeadE-Column1-Header1">
+                                        <p>Pin Name</p>
+                                    </th>
+                                    <th class="TableStyle-Shaded_Rows-HeadE-Column1-Header1">
+                                        <p>Value</p>
+                                    </th>
+                                    <th class="TableStyle-Shaded_Rows-HeadE-Column1-Header1">
+                                        <p>String</p>
+                                    </th>
+                                    <th class="TableStyle-Shaded_Rows-HeadE-Column1-Header1">
+                                        <p>Position</p>
+                                    </th>
+                                    <th class="TableStyle-Shaded_Rows-HeadD-Column1-Header1">
+                                        <p>Pins Available</p>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body1">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1">
+                                        <p>Applied Gain</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0 to -40</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0 dB to -40 dB</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0.000 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body1" style="text-align: center;">
+                                        <p>Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body2">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2">
+                                        <p>Attack Time</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>0.0001 to 100</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>.100 ms to 100 ms</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>0.000 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body2" style="text-align: center;">
+                                        <p>Input / Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body1">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1">
+                                        <p>Bypass</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0</p>
+                                        <p>1</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>active</p>
+                                        <p>bypass</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0</p>
+                                        <p>1</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body1" style="text-align: center;">
+                                        <p>Input / Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body2">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2">
+                                        <p>Depth</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>0 to 60</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>0 dB to 60 dB</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>0.000 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body2" style="text-align: center;">
+                                        <p>Input / Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body1">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1">
+                                        <p>Detector Level</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>-60 to 20</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>-60 dB to 20 dB</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0.000 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body1" style="text-align: center;">
+                                        <p>Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body2">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2">
+                                        <p>Detector Time</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>0.0001 to 100</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>.100 ms to 100 ms</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>0.000 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body2" style="text-align: center;">
+                                        <p>Input / Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body1">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1">
+                                        <p>Hold Time</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0.010 to 10</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>10.0 ms to 10 s</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0.000 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body1" style="text-align: center;">
+                                        <p>Input / Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body2">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2">
+                                        <p>Input Gain</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>-20 to 20</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>-20 dB to 20 dB</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>0.000 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body2" style="text-align: center;">
+                                        <p>Input / Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body1">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1">
+                                        <p>Open</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0</p>
+                                        <p> 1</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>false</p>
+                                        <p>true</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0</p>
+                                        <p>1</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body1" style="text-align: center;">
+                                        <p>Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body2">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2">
+                                        <p>Output Gain</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>-20 to 20</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>-20 dB to 20 dB</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body2" style="text-align: center;">
+                                        <p>0.000 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body2" style="text-align: center;">
+                                        <p>Input / Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body1">
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1">
+                                        <p>Release Time</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0.010 to 10</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>10.0 ms to 10 s</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyE-Column1-Body1" style="text-align: center;">
+                                        <p>0.00 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyD-Column1-Body1" style="text-align: center;">
+                                        <p>Input / Output</p>
+                                    </td>
+                                </tr>
+                                <tr class="TableStyle-Shaded_Rows-Body-Body2">
+                                    <td class="TableStyle-Shaded_Rows-BodyB-Column1-Body2">
+                                        <p>Threshold Level</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyB-Column1-Body2" style="text-align: center;">
+                                        <p>-60 to 20</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyB-Column1-Body2" style="text-align: center;">
+                                        <p>-60 dB to 20 dB</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyB-Column1-Body2" style="text-align: center;">
+                                        <p>0.000 to 1.00</p>
+                                    </td>
+                                    <td class="TableStyle-Shaded_Rows-BodyA-Column1-Body2" style="text-align: center;">
+                                        <p>Input / Output</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <MadCap:pageFooter class="">
+            <div style="width: 100%;position: relative; border-top: solid 1px #c2c2c2; margin-top: 15px; padding-top: 8px">
+                <p style="text-align: center;"><a href="https://help.qsys.com/" target="_blank">Q-SYS Help (Latest Version)</a> | <a href="https://www.qsys.com/resources/software-and-firmware/" target="_blank">Software&#160;and&#160;Firmware</a> | <a href="https://www.qsys.com/resources/" target="_blank">Resources</a> | <a href="https://support.qsys.com/" target="_blank">Q-SYS Knowledge Base</a> | <a href="../Support.htm">Support</a></p>
+                <p class="legal">Copyright © 2023 QSC, LLC. Click <a href="../Legal.htm">here</a> for trademark and other legal notices. | <MadCap:conditionalText data-mc-conditions="Primary.Versioning-946-LTS">Q-SYS 9.4.6 (LTS)</MadCap:conditionalText></p>
+                <p style="text-align: center;"><a href="https://www.qsys.com/" target="_blank"><img src="../Resources/Images/Logos/Q-SYS_hex_logo_full_color_wide_final-01_reduced_250.png" /></a>
+                </p>
+            </div>
+        </MadCap:pageFooter>
+    </body>
+</html>

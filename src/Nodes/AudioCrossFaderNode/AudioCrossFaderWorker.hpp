@@ -1,18 +1,20 @@
 #pragma once
 
 #include <QObject>
-#include <QThread>
-#include <QTimer>
 #include <QMutex>
-#include <QWaitCondition>
-#include "Common/DataTypes/AudioTimestampRingQueue.h"
-#include "TimeCodeDefines.h"
+#include <atomic>
 #include <memory>
+#include <thread>
+#include <vector>
+
+#include "Common/DataTypes/AudioTimestampRingQueue.h"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 
 namespace Nodes
 {
     /**
-     * @brief 音频交叉淡化处理工作线程类
+     * @brief 多通道音频交叉淡化
+     * N 路 A 与 N 路 B 成对淡入淡出，共用 Mix；由 TimestampGenerator 时钟 wake
      */
     class AudioCrossFaderWorker : public QObject
     {
@@ -20,75 +22,64 @@ namespace Nodes
 
     public:
         explicit AudioCrossFaderWorker(QObject *parent = nullptr);
-        ~AudioCrossFaderWorker();
+        ~AudioCrossFaderWorker() override;
+
+        std::shared_ptr<AudioTimestampRingQueue> getOutputBuffer(int port);
 
     public slots:
-        /**
-         * @brief 启动处理
-         */
         void startProcessing();
-        /**
-         * @brief 停止处理
-         */
         void stopProcessing();
         void processAudioData();
-        void onFrameTick(qint64 frameCount);
 
-        /**
-         * @brief 设置交叉淡化混合比例 [0.0, 1.0]
-         * @param val 0 表示完全 A，1 表示完全 B
-         */
         void setMix(double val);
-        /**
-         * @brief 设置是否使用等功率曲线
-         * @param enabled true 使用等功率（Cos/Sin）曲线
-         */
-        /**
-         * @brief 设置淡入淡出时长（毫秒）
-         * @param ms 时长，单位毫秒
-         */
         void setFadeDuration(double ms);
-        /**
-         * @brief 启动 A->B 的淡入淡出
-         */
         void startFadeAToB();
-        /**
-         * @brief 启动 B->A 的淡入淡出
-         */
         void startFadeBToA();
 
-        void initializeBuffers(int inputCount, int outputCount);
+        void initializeBuffers(int channelCount);
         void setInputBuffer(int port, std::shared_ptr<AudioTimestampRingQueue> buffer);
-        std::shared_ptr<AudioTimestampRingQueue> getOutputBuffer(int port);
 
     signals:
         void processingStatusChanged(bool isProcessing);
         void audioProcessed(const std::vector<std::shared_ptr<AudioTimestampRingQueue>>& outputBuffers);
 
     private:
-        /**
-         * @brief 执行交叉淡化混合
-         */
-        void performCrossFadeOperation(const std::vector<AudioFrame>& inputFrames, qint64 timestamp);
+        struct ChannelView {
+            const float *data = nullptr;
+            int channels = 0;
+            int frames = 0;
+            int sampleRate = 0;
+            bool valid = false;
+        };
+
+        void audioLoop();
+        void processCurrentFrame();
+        void performCrossFadeOperation(const std::vector<AudioFrame> &inputFrames,
+                                       const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
+                                       qint64 timestamp,
+                                       int channelCount,
+                                       float mix);
+        static ChannelView viewOf(const AudioFrame &frame);
 
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _inputBuffers;
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _outputBuffers;
         QMutex _mutex;
-        bool _isProcessing;
-        qint64 _lastProcessedTimestamp;
+        bool _isProcessing = false;
+        qint64 _lastProcessedTimestamp = 0;
 
+        int _channelCount = 1;
         int _sampleRate = 48000;
 
-        // Crossfade parameters
-        float _mix = 0.5f;           // 0.0 -> A, 1.0 -> B（始终使用等功率曲线）
-        double _fadeDurationMs = 2000.0; // 淡入淡出时长（毫秒）
+        float _mix = 0.0f; // 默认输出 A
+        double _fadeDurationMs = 2000.0;
         bool _fadingActive = false;
         qint64 _fadeStartFrame = 0;
         qint64 _fadeEndFrame = 0;
         float _fadeStartMix = 0.0f;
         float _fadeTargetMix = 1.0f;
 
-        // 便于连续帧的平滑（可选）
-        float _lastMixApplied = 0.0f;
+        AudioTickWaiter _tickWaiter;
+        std::atomic<bool> _stopRequested{false};
+        std::thread _audioThread;
     };
 }

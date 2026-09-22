@@ -2,8 +2,13 @@
 
 #include <QObject>
 #include <QMutex>
+#include <atomic>
+#include <memory>
+#include <thread>
 #include <vector>
+
 #include "Common/DataTypes/AudioTimestampRingQueue.h"
+#include "TimestampGenerator/TimestampGenerator.hpp"
 #include "Gist.h"
 
 namespace Nodes
@@ -24,13 +29,17 @@ namespace Nodes
         float beatFluxSmoothing = 0.92f;
     };
 
+    /**
+     * @brief 音频分析（GIST）
+     * 由 TimestampGenerator 时钟线程直接 wake，不经 QueuedConnection
+     */
     class AudioAnalysisWorker : public QObject
     {
         Q_OBJECT
 
     public:
         explicit AudioAnalysisWorker(QObject *parent = nullptr);
-        ~AudioAnalysisWorker();
+        ~AudioAnalysisWorker() override;
 
     public slots:
         void startProcessing();
@@ -46,10 +55,9 @@ namespace Nodes
         void processingStatusChanged(bool isProcessing);
         void analysisOutputsChanged(double low, double mid, double high, double level, bool beat);
 
-    private slots:
-        void onFrameTick(qint64 frameCount);
-
     private:
+        void audioLoop();
+        void processCurrentFrame();
         void initializeGist(int frameSize, int sampleRate);
         void performAnalysisOperation(const AudioFrame &inputFrame);
         std::vector<float> extractMonoSamples(const AudioFrame &frame) const;
@@ -77,5 +85,9 @@ namespace Nodes
 
         float _fluxAverage = 0.0f;
         qint64 _lastBeatTimestamp = 0;
+
+        AudioTickWaiter _tickWaiter;
+        std::atomic<bool> _stopRequested{false};
+        std::thread _audioThread;
     };
 }

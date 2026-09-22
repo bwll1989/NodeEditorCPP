@@ -50,6 +50,9 @@ AudioDecoder::AudioDecoder(QObject *parent)
     , isLooping(false)
     , volume(0.5f)
     , timestampGenerator_(TimestampGenerator::getInstance())  // 获取全局时间戳生成器实例
+    , m_durationSec(0.0)
+    , m_startPositionSec(0.0)
+    , m_pendingSeekSec(-1.0)
 {
     qRegisterMetaType<AudioFrame>("AudioFrame");
     connect(this, &AudioDecoder::audioFrameReady,
@@ -63,10 +66,14 @@ AudioDecoder::~AudioDecoder() {
 }
 
 QJsonObject* AudioDecoder::initializeFFmpeg(const QString &filePath){
-    formatContext= nullptr;
-    codecContext= nullptr;
-    codec= nullptr;
-    swrContext= nullptr;
+    // 切换曲目 / 重复初始化前先释放旧上下文，避免泄漏与悬空指针
+    cleanupFFmpeg();
+    formatContext = nullptr;
+    codecContext = nullptr;
+    codec = nullptr;
+    swrContext = nullptr;
+    audioStreamIndex = -1;
+    m_durationSec = 0.0;
     avformat_network_init();
     if (avformat_open_input(&formatContext, filePath.toStdString().c_str(), nullptr, nullptr) != 0) {
         qDebug()<<"打开文件失败"<<filePath.toStdString().c_str();
@@ -176,113 +183,183 @@ QJsonObject* AudioDecoder::initializeFFmpeg(const QString &filePath){
     res->insert("sample_rate",QString::number(codecContext->sample_rate));
     res->insert("codec",codec->name);
     res->insert("frame_rate",codec->name);
+    // 精确时长（秒）：优先使用 AVStream.duration / AVStream.time_base，避免 duration_estimation 可能的空值
+    double totalSec = 0.0;
+    AVStream* st = formatContext->streams[audioStreamIndex];
+    if (st != nullptr && st->duration != AV_NOPTS_VALUE && st->time_base.num > 0 && st->time_base.den > 0) {
+        totalSec = static_cast<double>(st->duration) * static_cast<double>(st->time_base.num) / static_cast<double>(st->time_base.den);
+    }
+    if (totalSec <= 0.0 && formatContext->duration != AV_NOPTS_VALUE) {
+        // 回退：容器级 duration（AV_TIME_BASE = 1e-6）
+        totalSec = static_cast<double>(formatContext->duration) / static_cast<double>(AV_TIME_BASE);
+    }
+    if (totalSec < 0.0) totalSec = 0.0;
+    res->insert("duration", totalSec);
+    m_durationSec = totalSec;
+    m_startPositionSec = 0.0;
+    m_pendingSeekSec = -1.0;
     return res;
 }
 
+bool AudioDecoder::seekFileToSec(double sec)
+{
+    if (!formatContext || audioStreamIndex < 0) {
+        return false;
+    }
+    if (sec < 0.0) {
+        sec = 0.0;
+    }
+    if (m_durationSec > 0.0 && sec > m_durationSec) {
+        sec = m_durationSec;
+    }
+
+    AVStream* st = formatContext->streams[audioStreamIndex];
+    int64_t timestamp = 0;
+    if (st && st->time_base.num > 0 && st->time_base.den > 0) {
+        timestamp = static_cast<int64_t>(sec / av_q2d(st->time_base) + 0.5);
+    } else {
+        timestamp = static_cast<int64_t>(sec * AV_TIME_BASE);
+    }
+
+    const int seekRet = av_seek_frame(formatContext, audioStreamIndex, timestamp, AVSEEK_FLAG_BACKWARD);
+    if (seekRet < 0) {
+        // 回退：按时间戳全局 seek
+        const int64_t tsGlobal = static_cast<int64_t>(sec * AV_TIME_BASE);
+        av_seek_frame(formatContext, -1, tsGlobal, AVSEEK_FLAG_BACKWARD);
+    }
+
+    if (codecContext) {
+        avcodec_flush_buffers(codecContext);
+    }
+
+    if (swrContext) {
+        uint8_t* flushBuffer = nullptr;
+        const int samplesPerChannel = samplesPerChannelForTimestampFrame();
+        const int flushSize = samplesPerChannel * 2 * 4;
+        flushBuffer = static_cast<uint8_t*>(av_malloc(flushSize));
+        if (flushBuffer) {
+            swr_convert(swrContext, &flushBuffer, samplesPerChannel, nullptr, 0);
+            av_freep(&flushBuffer);
+            swr_init(swrContext);
+        }
+    }
+
+    pendingInterleavedPcm_.clear();
+    pendingSamplesPerChannel_ = 0;
+    lastChannels_ = 0;
+    return true;
+}
+
+void AudioDecoder::clearPcmAndChannelBuffers()
+{
+    for (auto& pair : channelAudioBuffers) {
+        if (pair.second) {
+            pair.second->setActive(false);
+            pair.second->clear();
+            pair.second->setActive(true);
+        }
+    }
+    pendingInterleavedPcm_.clear();
+    pendingSamplesPerChannel_ = 0;
+    lastChannels_ = 0;
+}
+
+void AudioDecoder::seekTo(double sec)
+{
+    QMutexLocker locker(&mutex);
+    if (sec < 0.0) {
+        sec = 0.0;
+    }
+    if (m_durationSec > 0.0 && sec > m_durationSec) {
+        sec = m_durationSec;
+    }
+    m_startPositionSec = sec;
+    if (isPlaying) {
+        // 播放中：交给解码线程尽快执行，避免在主线程 seek 与解码竞态
+        m_pendingSeekSec = sec;
+    } else if (formatContext) {
+        seekFileToSec(sec);
+    }
+}
+
+double AudioDecoder::startPositionSec() const
+{
+    return m_startPositionSec;
+}
+
+double AudioDecoder::durationSec() const
+{
+    return m_durationSec;
+}
 
 void AudioDecoder::startPlay(){
     QMutexLocker locker(&mutex);
 
-    // 重置文件指针到开始位置
+    // 定位到当前起始位置（支持拖拽后从中间开始播）
     if (formatContext) {
-        // 将音频流定位到起始位置，使用向后搜索标志确保精确定位
-        av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
-
-        // 清空解码器内部缓冲区，移除之前解码但未输出的帧数据
-        if (codecContext) {
-            avcodec_flush_buffers(codecContext);
-        }
-
-        // 清空重采样器内部缓冲区，避免上次播放的残留数据造成杂音
-        if (swrContext) {
-            uint8_t* flushBuffer = nullptr;
-            // 这个大小足够容纳重采样器内部可能残留的数据
-            const int samplesPerChannel = samplesPerChannelForTimestampFrame();
-            int flushSize = samplesPerChannel * 2 * 4;  // samples × channels × bytes_per_sample (float)
-            flushBuffer = (uint8_t*)av_malloc(flushSize);
-            if (flushBuffer) {
-                // 调用swr_convert清空内部缓冲区
-                // 输入nullptr和0表示不提供新数据，只是刷新内部缓冲区
-                // 输出到临时缓冲区，然后丢弃这些数据
-                swr_convert(swrContext, &flushBuffer, samplesPerChannel, nullptr, 0);
-                av_freep(&flushBuffer);  // 释放临时缓冲区
-
-                // 彻底重置重采样器状态，清除任何内部滤波器状态
-                swr_init(swrContext);
-            }
-        }
+        seekFileToSec(m_startPositionSec);
+        m_pendingSeekSec = -1.0;
     }
 
     isPlaying = true;
+    // 若线程仍在收尾，先等其退出再启动，避免 QThread::start 失败导致“假播放”
+    if (isRunning()) {
+        locker.unlock();
+        wait(3000);
+        locker.relock();
+        isPlaying = true;
+    }
     start();  // 启动线程开始播放
 }
 
 /**
  * @brief 停止音频播放
  * 确保线程安全地停止播放并清理所有缓冲区
+ * @param resetPosition 是否将解码起点复位到 0
  */
-void AudioDecoder::stopPlay() {
+void AudioDecoder::stopPlay(bool resetPosition) {
+    bool wasPlaying = false;
     {
         QMutexLocker locker(&mutex);
-        if (!isPlaying) {
-            return; // 已经停止，直接返回
-        }
+        wasPlaying = isPlaying;
         isPlaying = false;
+        m_pendingSeekSec = -1.0;
+        if (resetPosition) {
+            m_startPositionSec = 0.0;
+        }
         condition.wakeAll();
     }
 
-    // 等待线程结束（在锁外进行）
-    if (isRunning()) {
+    // 等待线程结束（在锁外进行）；EOF 路径下线程可能仍在收尾
+    if (wasPlaying && isRunning()) {
         wait(3000); // 等待最多3秒
+    } else if (!wasPlaying && isRunning()) {
+        // 播放线程已把 isPlaying 置 false 并正在 emit finished：再等一下收尾
+        wait(3000);
     }
 
     // 线程停止后再清理缓冲区
     {
         QMutexLocker locker(&mutex);
-        
-        // 先停用所有音频缓冲区
-        for (auto& pair : channelAudioBuffers) {
-            if (pair.second) {
-                pair.second->setActive(false);
-            }
-        }
-        
-        // 清空所有通道的音频缓冲区队列
-        for (auto& pair : channelAudioBuffers) {
-            if (pair.second) {
-                pair.second->clear();
-            }
-        }
-        
-        // 刷新重采样器缓冲区（但不处理输出）
+        clearPcmAndChannelBuffers();
+
         if (swrContext) {
             uint8_t* flushBuffer = nullptr;
             int flushSize = 2048 * 2 * 4;
             flushBuffer = (uint8_t*)av_malloc(flushSize);
             if (flushBuffer) {
-                // 刷新但丢弃输出，避免产生额外音频
                 swr_convert(swrContext, &flushBuffer, 2048, nullptr, 0);
                 av_freep(&flushBuffer);
             }
         }
-        
-        // 重置文件指针到开始位置
+
         if (formatContext) {
-            av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
-            if (codecContext) {
-                avcodec_flush_buffers(codecContext);
-            }
+            seekFileToSec(resetPosition ? 0.0 : m_startPositionSec);
         }
-    }
-    
-    // 重新激活所有缓冲区（为下次播放做准备）
-    {
-        QMutexLocker locker(&mutex);
-        for (auto& pair : channelAudioBuffers) {
-            if (pair.second) {
-                pair.second->setActive(true);
-            }
+        if (resetPosition) {
+            m_startPositionSec = 0.0;
         }
+        m_pendingSeekSec = -1.0;
     }
 }
 
@@ -405,18 +482,39 @@ void AudioDecoder::playAudio() {
         // 重置文件指针到开始位置（用于循环播放）
         if (frameCount > 0 && isLooping) {
             QThread::msleep(LOOP_INTERVAL);
-            av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
-            if (codecContext) {
-                avcodec_flush_buffers(codecContext);
+            {
+                QMutexLocker locker(&mutex);
+                seekFileToSec(0.0);
+                m_startPositionSec = 0.0;
             }
-
-            // 重置待发缓冲
-            pendingInterleavedPcm_.clear();
-            pendingSamplesPerChannel_ = 0;
-            lastChannels_ = 0;
         }
 
-        while (isPlaying && av_read_frame(formatContext, &packet) >= 0) {
+        while (isPlaying) {
+            // 处理拖拽 seek（播放中）
+            double seekProgressSec = -1.0;
+            double seekProgressTotal = 0.0;
+            {
+                QMutexLocker locker(&mutex);
+                if (m_pendingSeekSec >= 0.0) {
+                    const double seekSec = m_pendingSeekSec;
+                    m_pendingSeekSec = -1.0;
+                    seekFileToSec(seekSec);
+                    lastEmitTime = -1.0;
+                    clearPcmAndChannelBuffers();
+                    seekProgressSec = seekSec;
+                    seekProgressTotal = m_durationSec > 0.0 ? m_durationSec
+                        : (formatContext && formatContext->duration != AV_NOPTS_VALUE
+                               ? formatContext->duration / (double)AV_TIME_BASE : 0.0);
+                }
+            }
+            if (seekProgressSec >= 0.0) {
+                emit playbackProgress(seekProgressSec, seekProgressTotal);
+            }
+
+            if (av_read_frame(formatContext, &packet) < 0) {
+                break; // EOF 或读失败
+            }
+
             // 发送播放进度信号
             if (packet.stream_index == audioStreamIndex) {
                  double currentSec = 0.0;
@@ -424,8 +522,8 @@ void AudioDecoder::playAudio() {
                      currentSec = packet.pts * av_q2d(formatContext->streams[packet.stream_index]->time_base);
                  }
 
-                 double totalSec = 0.0;
-                 if (formatContext->duration != AV_NOPTS_VALUE) {
+                 double totalSec = m_durationSec;
+                 if (totalSec <= 0.0 && formatContext->duration != AV_NOPTS_VALUE) {
                      totalSec = formatContext->duration / (double)AV_TIME_BASE;
                  }
 
@@ -543,9 +641,16 @@ void AudioDecoder::playAudio() {
     } while (isPlaying && isLooping); // 循环播放条件
 
     if (endedByEof) {
+        const double totalSec = m_durationSec > 0.0 ? m_durationSec
+            : (formatContext && formatContext->duration != AV_NOPTS_VALUE
+                   ? formatContext->duration / (double)AV_TIME_BASE : 0.0);
+        // 先把进度推到末尾，再通知结束，便于 UI 一致复位
+        emit playbackProgress(totalSec, totalSec);
         {
             QMutexLocker locker(&mutex);
             isPlaying = false;
+            m_startPositionSec = 0.0;
+            m_pendingSeekSec = -1.0;
         }
         emit playbackFinished();
     }
@@ -577,8 +682,9 @@ void AudioDecoder::cleanupFFmpeg(){
     }
     if (resampledBuffer) {
         av_free(resampledBuffer);
+        resampledBuffer = nullptr;
     }
-
+    audioStreamIndex = -1;
 }
 
 /**
@@ -592,7 +698,7 @@ void AudioDecoder::applyVolume(uint8_t* data, int sampleCount, int channels) {
     if (volume == 0.0f) return;
     // 将分贝值转换为线性增益：gain = 10^(dB/20)
     float linearGain;
-    if (volume <= -40.0f) {
+    if (volume <= -100.0f) {
         linearGain = 0.0f; // 静音处理
     } else {
         linearGain = std::pow(10.0f, volume / 20.0f);

@@ -172,13 +172,13 @@ void AudioMatrixInterface::rebuildAxisLabels()
     const int cols = mMatrixWidget->getCols();
 
     for (int c = 0; c < cols; ++c) {
-        const QString name = QStringLiteral("out %1").arg(c);
+        const QString name = QStringLiteral("out %1").arg(c + 1);
         auto *label = new VerticalTextLabel(name, mOutHeader);
         mOutHeaderLayout->addWidget(label, 1);
     }
 
     for (int r = 0; r < rows; ++r) {
-        const QString name = QStringLiteral("in %1").arg(r);
+        const QString name = QStringLiteral("in %1").arg(r + 1);
         auto *label = new QLabel(name, mInHeader);
         label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
         label->setToolTip(name);

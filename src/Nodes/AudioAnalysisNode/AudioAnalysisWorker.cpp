@@ -63,61 +63,85 @@ namespace Nodes
 
     void AudioAnalysisWorker::startProcessing()
     {
-        QMutexLocker locker(&_mutex);
-        if (_isProcessing) {
-            return;
+        {
+            QMutexLocker locker(&_mutex);
+            if (_isProcessing) {
+                return;
+            }
+
+            _isProcessing = true;
+            _lastProcessedTimestamp = 0;
+            _sampleAccumulator.clear();
+            _lowSmoothed = 0.0f;
+            _midSmoothed = 0.0f;
+            _highSmoothed = 0.0f;
+            _fluxAverage = 0.0f;
+            _lastBeatTimestamp = 0;
         }
 
-        _isProcessing = true;
-        _lastProcessedTimestamp = 0;
-        _sampleAccumulator.clear();
-        _lowSmoothed = 0.0f;
-        _midSmoothed = 0.0f;
-        _highSmoothed = 0.0f;
-        _fluxAverage = 0.0f;
-        _lastBeatTimestamp = 0;
-
-        QObject::connect(TimestampGenerator::getInstance(),
-                         &TimestampGenerator::frameCountUpdated,
-                         this,
-                         &AudioAnalysisWorker::onFrameTick,
-                         Qt::QueuedConnection);
+        _stopRequested.store(false, std::memory_order_release);
+        _tickWaiter.reset();
+        TimestampGenerator::getInstance()->registerAudioTickWaiter(&_tickWaiter);
+        _audioThread = std::thread([this]() { audioLoop(); });
         emit processingStatusChanged(true);
     }
 
     void AudioAnalysisWorker::stopProcessing()
     {
+        _stopRequested.store(true, std::memory_order_release);
+        _tickWaiter.requestStop();
+        TimestampGenerator::getInstance()->unregisterAudioTickWaiter(&_tickWaiter);
+
+        if (_audioThread.joinable()) {
+            if (_audioThread.get_id() != std::this_thread::get_id()) {
+                _audioThread.join();
+            } else {
+                _audioThread.detach();
+            }
+        }
+
         QMutexLocker locker(&_mutex);
         if (!_isProcessing) {
             return;
         }
-
         _isProcessing = false;
-        QObject::disconnect(TimestampGenerator::getInstance(),
-                            &TimestampGenerator::frameCountUpdated,
-                            this,
-                            &AudioAnalysisWorker::onFrameTick);
         emit processingStatusChanged(false);
     }
 
-    void AudioAnalysisWorker::onFrameTick(qint64 frameCount)
+    void AudioAnalysisWorker::audioLoop()
+    {
+        while (!_stopRequested.load(std::memory_order_acquire)
+               && !_tickWaiter.isStopRequested()) {
+            if (!_tickWaiter.wait(50)) {
+                continue;
+            }
+            if (_stopRequested.load(std::memory_order_acquire)
+                || _tickWaiter.isStopRequested()) {
+                break;
+            }
+            processCurrentFrame();
+        }
+    }
+
+    void AudioAnalysisWorker::processCurrentFrame()
     {
         if (!_isProcessing || !_inputBuffers) {
             return;
         }
-        if (frameCount == _lastProcessedTimestamp) {
+        const qint64 currentFrame = TimestampGenerator::getInstance()->getCurrentFrameCount();
+        if (currentFrame == _lastProcessedTimestamp) {
             return;
         }
 
         AudioFrame inputFrame;
         if (!_inputBuffers->isActive()
-            || !_inputBuffers->getFrameByTimestamp(frameCount, inputFrame)
+            || !_inputBuffers->getFrameByTimestamp(currentFrame, inputFrame)
             || inputFrame.data.isEmpty()) {
             return;
         }
 
         performAnalysisOperation(inputFrame);
-        _lastProcessedTimestamp = frameCount;
+        _lastProcessedTimestamp = currentFrame;
     }
 
     std::vector<float> AudioAnalysisWorker::extractMonoSamples(const AudioFrame &frame) const

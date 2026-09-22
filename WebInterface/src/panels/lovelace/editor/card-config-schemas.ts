@@ -2,7 +2,7 @@ import type { ConfigFieldSchema } from "../../../types";
 import { CHART2D_DEFAULTS } from "../../../common/chart/chart-2d-entity";
 import { CHART3D_DEFAULTS } from "../../../common/chart/chart-3d-entity";
 import { XY_PAD_DEFAULTS } from "../../../common/entity/xy-pad";
-import { CONTENT_LAYOUT_FIELD, entityCardSchema } from "./card-common-schemas";
+import { CONTENT_LAYOUT_FIELD, CARD_CONTENT_SECTION, entityCardSchema } from "./card-common-schemas";
 
 const DEFAULT_PATH_BADGE_POINTS = [
   { x: 10, y: 88 },
@@ -107,6 +107,34 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
   switch: [...entityCardSchema([CONTENT_LAYOUT_FIELD])],
 
   trigger: [...entityCardSchema([CONTENT_LAYOUT_FIELD])],
+
+  mic: [
+    {
+      name: "entity",
+      label: "端口地址",
+      type: "entity",
+      helper: "绑定 Web Mic 节点的 /port（如 /dataflow/<id>/port）",
+    },
+    {
+      ...CARD_CONTENT_SECTION,
+      schema: [...(CARD_CONTENT_SECTION.schema ?? []), CONTENT_LAYOUT_FIELD],
+    },
+    {
+      name: "host",
+      label: "主机",
+      type: "text",
+      optional: true,
+      placeholder: "留空则用当前页面主机名",
+      helper: "Web Mic 节点所在机器；通常留空",
+    },
+    {
+      name: "port",
+      label: "备用端口",
+      type: "number",
+      optional: true,
+      helper: "端口地址无值时使用（调试用）",
+    },
+  ],
 
   slider: [
     ...entityCardSchema([CONTENT_LAYOUT_FIELD]),
@@ -564,6 +592,18 @@ export function syncLayoutGridOptions(config: Record<string, unknown>): void {
     return;
   }
 
+  if (type === "mic") {
+    const rows = vertical ? 2 : 1;
+    config.grid_options = {
+      ...existing,
+      columns: existing.columns ?? 6,
+      rows,
+      min_rows: rows,
+      min_columns: vertical ? 3 : 6,
+    };
+    return;
+  }
+
   if (type === "multi-fader") {
     const count = Math.max(1, Math.min(16, Math.round(Number(config.count) || 4)));
     const orientation = config.orientation === "horizontal" ? "horizontal" : "vertical";
@@ -640,6 +680,7 @@ export function normalizeCardConfig(
       next.type === "trigger" ||
       next.type === "sensor" ||
       next.type === "label" ||
+      next.type === "mic" ||
       next.type === "slider" ||
       next.type === "switch" ||
       next.type === "climate" ||
@@ -705,6 +746,7 @@ export function denormalizeCardConfig(config: Record<string, unknown>): Record<s
   } else if (
     next.type === "tile" ||
     next.type === "trigger" ||
+    next.type === "mic" ||
     next.type === "slider" ||
     next.type === "switch" ||
     next.type === "climate" ||

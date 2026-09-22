@@ -6,7 +6,7 @@
 #include <QStandardPaths>
 // 产品版本号（关于窗口、工程元数据、QApplication::applicationVersion 等共用）
 #ifndef PRODUCT_VERSION
-#define PRODUCT_VERSION "1.7.03"
+#define PRODUCT_VERSION "1.7.04"
 #endif
 // 应用程序常量定义
 namespace AppConstants {
@@ -73,7 +73,10 @@ namespace AppConfigs {
     constexpr int AUTOSAVE_INTERVAL_SECONDS = 60;
     // 是否默认启用自动保存
     constexpr bool AUTOSAVE_ENABLED = true;
-    // 全局时间戳帧率
-    constexpr double TIMESTAMP_FRAME_RATE = 23.4375;
+    // 全局时间戳帧率（固定，不在设置页修改）
+    constexpr double TIMESTAMP_FRAME_RATE = 30.0;
+    // 音频处理节点写出时追加的时间戳帧数。每经过一个节点叠加一次。
+    // 30 Hz 下 1 帧约 33 ms；越大越稳，延迟越高。
+    constexpr int AUDIO_OUTPUT_DELAY_FRAMES = 2;
 
 }

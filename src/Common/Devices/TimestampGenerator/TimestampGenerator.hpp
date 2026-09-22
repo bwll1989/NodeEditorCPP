@@ -4,12 +4,14 @@
 #include <QObject>
 #include <QThread>
 #include <QMutex>
+#include <QWaitCondition>
 #include <QAtomicInteger>
 #include <QDateTime>
 #include <memory>
 #include <chrono>
 #include <thread>
 #include <atomic>
+#include <vector>
 #include <cmath>  // 添加这个包含用于std::round和std::max
 
 #if defined(TIMESTAMPGENERATOR_LIBRARY)
@@ -17,6 +19,31 @@
 #else
 #define TIMESTAMPGENERATOR Q_DECL_IMPORT
 #endif
+
+/**
+ * @brief 音频处理线程等待时钟唤醒的句柄
+ * 由 TimestampGenerator 时钟线程直接 notify，不经过 Qt 信号队列
+ */
+class TIMESTAMPGENERATOR AudioTickWaiter
+{
+public:
+    void reset();
+    /** 时钟线程调用：置位并唤醒等待方 */
+    void notifyFromClock();
+    /**
+     * 处理线程调用：等待下一拍或超时
+     * @return true 表示收到 tick 或 stop；超时返回 false
+     */
+    bool wait(int timeoutMs);
+    void requestStop();
+    bool isStopRequested() const;
+
+private:
+    mutable QMutex mutex_;
+    QWaitCondition condition_;
+    bool pending_ = false;
+    bool stop_ = false;
+};
 
 /**
  * @brief 帧信息结构体
@@ -130,6 +157,12 @@ public:
      * @return 帧率（fps）
      */
     double getFrameRate() const;
+
+    /**
+     * @brief 音频处理节点写出时追加的时间戳帧数
+     * @return 延迟帧数，来自设置，默认见 AppConfigs::AUDIO_OUTPUT_DELAY_FRAMES
+     */
+    int getAudioOutputDelayFrames() const;
     
     /**
      * @brief 获取帧间隔
@@ -155,6 +188,16 @@ public:
      * @return 运行状态
      */
     bool isRunning() const;
+
+    /**
+     * @brief 注册音频 tick 等待者（时钟线程将直接 wake，不经 QueuedConnection）
+     */
+    void registerAudioTickWaiter(AudioTickWaiter *waiter);
+
+    /**
+     * @brief 取消注册音频 tick 等待者
+     */
+    void unregisterAudioTickWaiter(AudioTickWaiter *waiter);
     
     /**
      * @brief 获取基准时间点
@@ -236,6 +279,11 @@ private:
     void generateFrameCount();
 
     /**
+     * @brief 直接唤醒所有已注册的音频处理等待者
+     */
+    void notifyAudioTickWaiters();
+
+    /**
      * @brief 应用新的帧率并同步更新间隔缓存
      * @param frameRate 帧率
      */
@@ -264,6 +312,9 @@ private:
     std::chrono::nanoseconds frameIntervalNs_;      // 当前帧间隔（纳秒）
     std::chrono::high_resolution_clock::time_point startTime_; // 开始时间点
     qint64 baseAbsoluteTime_;                       // 基准绝对时间（毫秒）
+
+    mutable QMutex audioWaitersMutex_;
+    std::vector<AudioTickWaiter *> audioWaiters_;
 };
 
 /**

@@ -1,28 +1,30 @@
 #pragma once
 #include <QWidget>
-#include <QComboBox>
-#include <QLabel>
-#include <QSpinBox>
-#include <QDoubleSpinBox>
-#include <QPushButton>
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+
 namespace Nodes
 {
+    /**
+     * @brief Variable 触发的多通道闪避参数面板
+     * Channels + Depth / Attack / Hold / Release
+     */
     class AudioDuckingInterface : public QWidget
     {
         Q_OBJECT
 
     public:
-        AudioDuckingInterface(QWidget *parent = nullptr);
-        ~AudioDuckingInterface();
-        
-        FloatDragValueWidget* thresholdSpin;
-        FloatDragValueWidget* ratioSpin;
-        FloatDragValueWidget* attackSpin;
-        FloatDragValueWidget* releaseSpin;
-        FloatDragValueWidget* makeupGainSpin;
-        FloatDragValueWidget* sidechainGainSpin;
-        FloatDragValueWidget* depthSpin;
+        static constexpr int kMinChannels = 1;
+        static constexpr int kMaxChannels = 64;
+        static constexpr int kDefaultChannels = 2;
+
+        explicit AudioDuckingInterface(QWidget *parent = nullptr);
+        ~AudioDuckingInterface() override;
+
+        IntDragValueWidget *channelsSpin = nullptr;
+        FloatDragValueWidget *depthSpin = nullptr;
+        FloatDragValueWidget *attackSpin = nullptr;
+        FloatDragValueWidget *holdSpin = nullptr;
+        FloatDragValueWidget *releaseSpin = nullptr;
     };
 }
-

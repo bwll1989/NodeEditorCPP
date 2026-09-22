@@ -32,10 +32,10 @@ CustomDataFlowGraphModel::CustomDataFlowGraphModel(std::shared_ptr<NodeDelegateM
 CustomDataFlowGraphModel::~CustomDataFlowGraphModel()
 {
     // 先清 UI 控件（持有 model 引用），再析构节点，避免退出/换工程时悬空访问
-    for (auto &kv : _nodeWidgets)
-        delete kv.second;
-    _nodeWidgets.clear();
-    _models.clear();
+    // for (auto &kv : _nodeWidgets)
+    //     delete kv.second;
+    // _nodeWidgets.clear();
+    // _models.clear();
 }
 
 std::unordered_set<NodeId> CustomDataFlowGraphModel::allNodeIds() const
@@ -170,9 +170,8 @@ bool CustomDataFlowGraphModel::connectionPossible(ConnectionId const connectionI
     if (portVacant(PortType::Out) && portVacant(PortType::In)) {
         const auto outType = getDataType(PortType::Out);
         const auto inType = getDataType(PortType::In);
-        const QString varId = VariableData().type().id;
-        // 同类型，或输入口为万能 VariableData
-        return outType.id == inType.id || inType.id == varId;
+        // 仅端口类型完全一致才允许连接
+        return outType.id == inType.id;
     }
     return false;
 }
@@ -786,18 +785,9 @@ bool CustomDataFlowGraphModel::setConnectionData(ConnectionId const connectionId
 
 bool CustomDataFlowGraphModel::deleteNode(NodeId const nodeId)
 {
-    // Delete connections to this node first.
     auto connectionIds = allConnectionIds(nodeId);
     for (auto &cId : connectionIds) {
         deleteConnection(cId);
-    }
-
-    auto wit = _nodeWidgets.find(nodeId);
-    if (wit != _nodeWidgets.end()) {
-        auto* w = wit->second;
-        _nodeWidgets.erase(wit);
-        // 立即删除：deleteLater 会在 model 已销毁后仍访问 _graphModel
-        delete w;
     }
 
     _nodeGeometryData.erase(nodeId);
@@ -1079,10 +1069,10 @@ void CustomDataFlowGraphModel::load(QJsonObject const &jsonDocument)
     for (auto nodeId : existingNodes) {
         deleteNode(nodeId);
     }
-    for (auto& kv : _nodeWidgets) {
-        delete kv.second;
-    }
-    _nodeWidgets.clear();
+    // for (auto& kv : _nodeWidgets) {
+    //     delete kv.second;
+    // }
+    // _nodeWidgets.clear();
 
     _groups.clear();
     _connectivity.clear();
@@ -1268,13 +1258,18 @@ void CustomDataFlowGraphModel::removePort(NodeId nodeId, PortType portType, Port
 
 PortEditAddRemoveWidget *CustomDataFlowGraphModel::layoutWidget(NodeId nodeId) const
 {
-    auto it = _nodeWidgets.find(nodeId);
+    // 动态生成：不再在 map 中缓存，避免端口变更时 stale UI
+    auto *w = new PortEditAddRemoveWidget(nodeId,
+                                          *const_cast<CustomDataFlowGraphModel *>(this));
 
-    if (it == _nodeWidgets.end()) {
-        _nodeWidgets[nodeId] = new PortEditAddRemoveWidget(
-                                                       nodeId,
-                                                       *const_cast<CustomDataFlowGraphModel *>(this));
-    }
+    // 关键修复：PortEditAddRemoveWidget 每次返回新实例，此时 QLayout 已填充 +/- 按钮，
+    // 但 geometry() 仍是 QWidget 默认的 (0,0,100x30)。必须立即 adjustSize()，否则
+    //   - DefaultHorizontalNodeGeometry::recomputeSize 中 width += w->width()
+    //     会多累加 100px 默认宽（而不是按钮实际宽），导致节点看起来右侧被空白拉宽
+    //   - NodeGraphicsObject::syncEmbeddedWidgetSize 会用默认高度去同步 minHeight，
+    //     造成纵向高度偏差
+    w->ensurePolished();
+    w->adjustSize();
 
-    return _nodeWidgets[nodeId];
+    return w;
 }
