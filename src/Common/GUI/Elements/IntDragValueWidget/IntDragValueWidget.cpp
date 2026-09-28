@@ -122,6 +122,17 @@ void IntDragValueWidget::paintEvent(QPaintEvent *event)
     // For now simple style is enough.
 }
 
+double IntDragValueWidget::effectiveStep(Qt::KeyboardModifiers modifiers) const
+{
+    double step = m_singleStep;
+    if (modifiers & Qt::ShiftModifier) {
+        step *= 0.1;
+    } else if (modifiers & (Qt::ControlModifier | Qt::AltModifier)) {
+        step *= 10.0;
+    }
+    return step;
+}
+
 void IntDragValueWidget::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
@@ -129,6 +140,7 @@ void IntDragValueWidget::mousePressEvent(QMouseEvent *event)
         setCursor(Qt::SizeHorCursor);
         m_lastMousePos = event->globalPosition().toPoint();
         m_dragStartValue = m_value;
+        m_dragAccum = 0.0;
         event->accept();
     } else {
         QWidget::mousePressEvent(event);
@@ -140,18 +152,15 @@ void IntDragValueWidget::mouseMoveEvent(QMouseEvent *event)
     if (m_isDragging) {
         QPoint currentPos = event->globalPosition().toPoint();
         int deltaX = currentPos.x() - m_lastMousePos.x();
-        
-        // Calculate step based on modifiers (Shift for fine control)
-        double step = m_singleStep;
-        if (event->modifiers() & Qt::ShiftModifier) {
-            step *= 10;
+
+        // 累加小数步进，避免 Shift×0.1 时被 int 截断导致不动
+        m_dragAccum += deltaX * effectiveStep(event->modifiers());
+        const int intChange = static_cast<int>(m_dragAccum);
+        if (intChange != 0) {
+            setValue(m_value + intChange);
+            m_dragAccum -= intChange;
         }
-        
-        // Adjust value
-        // Use incremental change
-        double change = deltaX * step;
-        setValue(m_value + change);
-        
+
         m_lastMousePos = currentPos;
         event->accept();
     } else {
@@ -198,12 +207,16 @@ void IntDragValueWidget::mouseDoubleClickEvent(QMouseEvent *event)
 
 void IntDragValueWidget::wheelEvent(QWheelEvent *event)
 {
-    double steps = event->angleDelta().y() / 120.0;
-    double step = m_singleStep;
-    if (event->modifiers() & Qt::ShiftModifier) {
-        step *= 10;
+    const double steps = event->angleDelta().y() / 120.0;
+    const double change = steps * effectiveStep(event->modifiers());
+    int intChange = static_cast<int>(std::round(change));
+    // 整数最小步进为 1：精调时若单次不足 1 仍至少动一格
+    if (intChange == 0 && change != 0.0) {
+        intChange = change > 0.0 ? 1 : -1;
     }
-    setValue(m_value + steps * step);
+    if (intChange != 0) {
+        setValue(m_value + intChange);
+    }
     event->accept();
     emit editingFinished();
 }

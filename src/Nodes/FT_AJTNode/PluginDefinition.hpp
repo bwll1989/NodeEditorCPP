@@ -14,7 +14,7 @@
 #ifndef PLUGIN_VERSION
 #define PLUGIN_VERSION "dev"
 #endif
-#define PLUGIN_DESCRIBE "FT-AJT 六路调光控制器（TCP Client，默认端口 1001）"
+#define PLUGIN_DESCRIBE "AJT Dimming / Relay Node + Gateway（多设备调光与继电器，默认端口 1001）"
 #define PLUGIN_TAG "Devices"
 
 class DLL_EXPORT Plugin

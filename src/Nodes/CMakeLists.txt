@@ -100,7 +100,7 @@ set(ALL_NODES
     InjectNode                                  #数据注入
     ValueLookupNode                          #值查表 Value Lookup
     FT_C040ANode                            #触摸屏
-    FT_AJTNode                              #FT-AJT 六路调光
+    FT_AJTNode                              #AJT Node + AJT Gateway 六路调光
     ViosoNode                               #Vioso节点
     PosiStageNetClient                      #PosiStageNet数据接收
     ISFNode                                 #ISF数据加载
@@ -219,7 +219,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(InjectNode)                                #数据注入节点
     add_subdirectory(ValueLookupNode)                        #值查表 Value Lookup
     add_subdirectory(FT_C040ANode)                          #触摸屏
-    add_subdirectory(FT_AJTNode)                            #FT-AJT 六路调光
+    add_subdirectory(FT_AJTNode)                            #AJT Node + AJT Gateway 六路调光
     add_subdirectory(ViosoNode)                              #Vioso节点
     add_subdirectory(PosiStageNetClient)                    #PosiStageNet(数据接收）
     add_subdirectory(ISFNode)                               #ISF数据加载

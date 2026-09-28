@@ -8,9 +8,16 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         PluginDefinition.hpp
         PluginDefinition.cpp
-        FTAJTDataModel.hpp
-        FTAJTDataModel.cpp
-        FTAJTInterface.hpp
+        AJTProtocol.hpp
+        AJTNodeInterface.hpp
+        AJTNodeDataModel.hpp
+        AJTNodeDataModel.cpp
+        AJTRelayInterface.hpp
+        AJTRelayDataModel.hpp
+        AJTRelayDataModel.cpp
+        AJTGatewayInterface.hpp
+        AJTGatewayDataModel.hpp
+        AJTGatewayDataModel.cpp
         ../../Common/Devices/TcpClient/TcpClient.h
         ../../Common/Devices/TcpClient/TcpClient.cpp
         ../../Common/Devices/TcpClient/TcpClientWorker.h

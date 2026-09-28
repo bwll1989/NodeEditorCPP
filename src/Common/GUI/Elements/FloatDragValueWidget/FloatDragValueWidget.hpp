@@ -61,6 +61,8 @@ private slots:
 
 private:
     void updateText();
+    /** 无修饰=singleStep；Shift×0.1；Ctrl 或 Alt×10（Shift 优先于粗调） */
+    double effectiveStep(Qt::KeyboardModifiers modifiers) const;
 
     double m_value = 0.0;
     double m_minimum = -std::numeric_limits<double>::infinity();

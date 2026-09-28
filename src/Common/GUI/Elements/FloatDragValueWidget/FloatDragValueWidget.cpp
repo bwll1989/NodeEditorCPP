@@ -225,23 +225,26 @@ void FloatDragValueWidget::mousePressEvent(QMouseEvent *event)
     }
 }
 
+double FloatDragValueWidget::effectiveStep(Qt::KeyboardModifiers modifiers) const
+{
+    double step = m_singleStep;
+    if (modifiers & Qt::ShiftModifier) {
+        step *= 0.1;
+    } else if (modifiers & (Qt::ControlModifier | Qt::AltModifier)) {
+        step *= 10.0;
+    }
+    return step;
+}
+
 void FloatDragValueWidget::mouseMoveEvent(QMouseEvent *event)
 {
     if (m_isDragging) {
         QPoint currentPos = event->globalPosition().toPoint();
         int deltaX = currentPos.x() - m_lastMousePos.x();
-        
-        // Calculate step based on modifiers (Shift for fine control)
-        double step = m_singleStep;
-        if (event->modifiers() & Qt::ShiftModifier) {
-            step *= 0.1;
-        }
-        
-        // Adjust value
-        // Use incremental change
-        double change = deltaX * step;
+
+        double change = deltaX * effectiveStep(event->modifiers());
         setValue(m_value + change);
-        
+
         m_lastMousePos = currentPos;
         event->accept();
     } else {
@@ -278,11 +281,7 @@ void FloatDragValueWidget::mouseDoubleClickEvent(QMouseEvent *event)
 void FloatDragValueWidget::wheelEvent(QWheelEvent *event)
 {
     double steps = event->angleDelta().y() / 120.0;
-    double step = m_singleStep;
-    if (event->modifiers() & Qt::ShiftModifier) {
-        step *= 0.1;
-    }
-    setValue(m_value + steps * step);
+    setValue(m_value + steps * effectiveStep(event->modifiers()));
     event->accept();
     emit editingFinished();
 }
