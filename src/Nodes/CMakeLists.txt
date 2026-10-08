@@ -86,6 +86,7 @@ set(ALL_NODES
     AudioPriorityNode                           #音频优先级
     WebMicNode                                  #网页对讲麦克风
     AudioGate                                   #噪声门
+    AudioDelayNode                              #音频延时
     PoseDetectionNode                            #Yolo v11n 姿态
     ObjectDetectionNode                         #Yolo v11n 检测
     FaceDetectionNode                              #人脸检测
@@ -202,6 +203,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(AudioPriorityNode)                         #音频优先级
     add_subdirectory(WebMicNode)                                #网页对讲麦克风
     add_subdirectory(AudioGate)                                 #噪声门
+    add_subdirectory(AudioDelayNode)                            #音频延时
     add_subdirectory(PoseDetectionNode)                        #动作识别
     add_subdirectory(ObjectDetectionNode)                       #对象识别
     add_subdirectory(FaceDetectionNode)                            #人脸检测

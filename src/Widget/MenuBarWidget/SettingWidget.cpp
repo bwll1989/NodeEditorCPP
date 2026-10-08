@@ -102,18 +102,18 @@ SettingWidget::SettingWidget(QWidget* parent)
     connect(m_autosaveEnabledCheck, &QCheckBox::toggled,
             m_autosaveIntervalSpin, &QWidget::setEnabled);
 
-    m_timestampFrameRateLabel = new QLabel(QStringLiteral("30 Hz"), this);
-    m_timestampFrameRateLabel->setToolTip(QStringLiteral("全局时钟频率已固定为 30 Hz，不可修改"));
+    m_timestampFrameRateLabel = new QLabel(this);
+    m_timestampFrameRateLabel->setToolTip(QStringLiteral("全局时钟频率已固定，不可在此修改"));
     formGeneral->addRow(QStringLiteral("全局时钟频率:"), m_timestampFrameRateLabel);
 
     m_audioOutputDelaySpin = new IntDragValueWidget(this);
     m_audioOutputDelaySpin->setRange(0, 16);
     m_audioOutputDelaySpin->setSuffix(QStringLiteral(" 帧"));
     m_audioOutputDelaySpin->setToolTip(QStringLiteral(
-        "每个音频处理节点写出时在时间戳上追加的帧数，经过一级节点就叠加一次。"
-        "30 Hz 下 1 帧约 33 ms。越大越稳，延迟越高。"));
+        "多源音频处理节点写出时在时间戳上追加的帧数。"
+        "50 Hz 下 1 帧约 20 ms。越大越稳，延迟越高。"));
     formGeneral->addRow(QStringLiteral("音频输出延时:"), m_audioOutputDelaySpin);
-    
+
     layoutGeneral->addLayout(formGeneral);
     layoutGeneral->addStretch();
     m_stackedWidget->addWidget(pageGeneral);
@@ -252,6 +252,10 @@ void SettingWidget::loadCurrentSettings() {
     m_autosaveEnabledCheck->setChecked(config.isAutosaveEnabled());
     m_autosaveIntervalSpin->setValue(config.getAutosaveIntervalSeconds());
     m_autosaveIntervalSpin->setEnabled(m_autosaveEnabledCheck->isChecked());
+    {
+        const double fps = config.getTimestampFrameRate();
+        m_timestampFrameRateLabel->setText(QStringLiteral("%1 Hz").arg(fps, 0, 'f', 0));
+    }
     m_audioOutputDelaySpin->setValue(config.getAudioOutputDelayFrames());
 
     m_httpPortSpin->setValue(config.getHttpServerPort());

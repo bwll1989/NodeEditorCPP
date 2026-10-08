@@ -255,7 +255,7 @@ namespace Nodes
 
                     const float* input = reinterpret_cast<const float*>(frame.data.constData());
                     const int totalSamples = static_cast<int>(frame.data.size() / sizeof(float));
-                    const int samplesToProcess = std::min(frames, totalSamples);
+                    const int samplesToProcess = qMin(frames, totalSamples);
                     // Pointer stepping write, reducing multiplication
                     float* outPtr = output + portIndex;
                     const float* inPtr = input;

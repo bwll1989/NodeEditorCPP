@@ -14,7 +14,10 @@
 #include <Poco/Net/WebSocket.h>
 #include <Poco/Net/NetException.h>
 #include <set>
+#include <atomic>
 #include <QMutex>
+#include <QThread>
+#include <QByteArray>
 #include <QJsonArray>
 #include <QJsonObject>
 #include "OSCMessage.h"
@@ -26,6 +29,27 @@ namespace Flow {
 
     class NodeHttpServer; // Forward declaration
 
+    /**
+     * @brief 单个 WebSocket 会话（shared_ptr 管理），收发在 Poco 工作线程；
+     *        广播线程只通过 send() 排队写入，避免主线程阻塞。
+     */
+    class WsSession {
+    public:
+        /** @return false 表示套接字已失效，调用方应注销并 forceClose */
+        bool send(const std::string& message);
+        /** @brief 回复 PING（与 send 共用发送锁） */
+        bool sendPong(const char* data, int len);
+        void forceClose();
+        void bindSocket(Poco::Net::WebSocket* ws);
+        void clearSocket();
+        bool alive() const { return _alive.load(std::memory_order_acquire); }
+
+    private:
+        Poco::Net::WebSocket* _ws = nullptr;
+        QMutex _sendMutex;
+        std::atomic<bool> _alive{true};
+    };
+
     class PageWebSocketHandler : public Poco::Net::HTTPRequestHandler {
     public:
         // 函数级注释：构造 WebSocket 处理器，传入服务器实例以便注册
@@ -34,17 +58,9 @@ namespace Flow {
         // 函数级注释：处理 WebSocket 连接
         void handleRequest(Poco::Net::HTTPServerRequest& request,
                            Poco::Net::HTTPServerResponse& response) override;
-                           
-        // 函数级注释：发送数据给客户端
-        void send(const std::string& message);
-
-        /** @brief 强制关闭套接字，解除 receiveFrame 阻塞以便服务端快速退出 */
-        void forceClose();
         
     private:
         NodeHttpServer& _server;
-        Poco::Net::WebSocket* _ws = nullptr;
-        QMutex _sendMutex;
     };
 
     class StaticRequestHandler final : public Poco::Net::HTTPRequestHandler {
@@ -111,12 +127,16 @@ namespace Flow {
     public:
         // 函数级注释：构造函数，初始化服务器状态（QObject基类）
         explicit NodeHttpServer(QObject* parent = nullptr);
+        ~NodeHttpServer() override;
         
-        // 函数级注释：注册 WebSocket 处理器
-        void registerWebSocket(PageWebSocketHandler* handler);
+        // 函数级注释：注册 WebSocket 会话
+        void registerWebSocket(const std::shared_ptr<WsSession>& session);
         
-        // 函数级注释：注销 WebSocket 处理器
-        void unregisterWebSocket(PageWebSocketHandler* handler);
+        // 函数级注释：注销 WebSocket 会话
+        void unregisterWebSocket(const std::shared_ptr<WsSession>& session);
+
+        /** @brief 在广播线程执行实际 sendFrame（由 WsBroadcastWorker 调用） */
+        void deliverWsBroadcast(const QByteArray& jsonUtf8);
 
         // 函数级注释：设置静态文件文档根目录
         void setDocRoot(const std::string& docRoot);
@@ -125,7 +145,7 @@ namespace Flow {
         // 函数级注释：停止HTTP服务器，释放资源
         void stop();
         // 函数级注释：查询服务器是否正在运行
-        bool running() const { return _running; }
+        bool running() const { return _running.load(std::memory_order_acquire); }
         // 函数级注释：获取当前监听端口
         int port() const { return _port; }
         // 函数级注释：获取当前布局配置（含 actions）
@@ -173,13 +193,20 @@ namespace Flow {
         std::unique_ptr<Poco::Net::HTTPServer> _server;
         std::string _docRoot;
         int _port = 0;
-        bool _running = false;
+        std::atomic<bool> _running{false};
         
-        std::set<PageWebSocketHandler*> _wsHandlers;
+        std::set<std::shared_ptr<WsSession>> _wsHandlers;
         QMutex _wsMutex;
         QJsonObject _layout;
         ActionRegistry _actionRegistry;
 
+        QThread* _wsBroadcastThread = nullptr;
+        QObject* _wsBroadcastWorker = nullptr; // 广播线程上下文，仅作 QueuedConnection 目标
+        std::atomic<int> _wsBroadcastPending{0};
+
         void notifyActionsChanged(const QString& action, const QJsonObject& item);
+        void enqueueWsBroadcast(const QByteArray& jsonUtf8);
+        void startWsBroadcastThread();
+        void stopWsBroadcastThread();
     };
 }

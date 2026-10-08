@@ -1,5 +1,6 @@
 #include "LTCGeneratorWorker.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include "TimestampGenerator/AudioThreadRealtime.hpp"
 #include <QDebug>
 #include <QtCore/QMetaObject>
 #include <cmath>
@@ -163,6 +164,7 @@ namespace Nodes
 
     void LTCGeneratorWorker::audioLoop()
     {
+        AudioThreadRealtimeGuard realtimeGuard(L"Pro Audio");
         while (!_stopTickRequested.load(std::memory_order_acquire)
                && !_tickWaiter.isStopRequested()) {
             if (!_tickWaiter.wait(50)) {
@@ -502,7 +504,7 @@ namespace Nodes
     /**
      * @brief 系统时间戳驱动的消费回调
      * - 从缓存中读取整帧采样
-     * - 打上「当前帧 + 源端固定超前」时间戳（不使用设置里的处理节点延时）
+     * - 打上「当前帧 + 源端固定超前」时间戳
      * - 放入环形队列
      */
     void LTCGeneratorWorker::processCurrentFrame()
@@ -528,7 +530,7 @@ namespace Nodes
         outFrame.sampleRate = static_cast<int>(SAMPLE_RATE);
         outFrame.channels = 1;
         outFrame.bitsPerSample = 32;
-        // 源端只超前固定 1 拍；中间 VST/Router 再叠加设置中的「音频输出延时」
+        // 源端超前固定 1 拍；处理节点写出戳透传，不再叠加固定延时
         outFrame.timestamp = currentFrame + kLtcSourceLeadFrames;
         
         outFrame.data = QByteArray(reinterpret_cast<const char*>(block.constData()),

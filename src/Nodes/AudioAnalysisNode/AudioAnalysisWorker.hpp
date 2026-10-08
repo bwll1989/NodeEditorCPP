@@ -31,7 +31,7 @@ namespace Nodes
 
     /**
      * @brief 音频分析（GIST）
-     * 由 TimestampGenerator 时钟线程直接 wake，不经 QueuedConnection
+     * 由输入环 pushFrame 级联唤醒，不经 QueuedConnection
      */
     class AudioAnalysisWorker : public QObject
     {

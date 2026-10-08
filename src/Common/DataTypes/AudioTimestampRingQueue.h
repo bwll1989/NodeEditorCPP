@@ -5,6 +5,7 @@
 #include "TimestampRingQueueLockFree.hpp"
 #include "QtNodes/NodeData"
 #include <QMetaType>
+#include <QMutex>
 #include <QQueue>
 #include <atomic>
 #include <memory>
@@ -31,6 +32,7 @@ struct AudioFrame {
 /**
  * @brief 基于时间戳的环形音频队列
  * AudioDecoder始终写入队首，AudioDeviceOut根据时间戳提取帧
+ * 下游中间节点通过 registerFrameWaiter 由 pushFrame 直接唤醒（不经 Qt 信号）
  */
 class DATATYPES_EXPORT AudioTimestampRingQueue : public QObject {
     Q_OBJECT
@@ -74,6 +76,33 @@ public:
      */
     bool isActive() const ;
 
+    /**
+     * @brief 最近一次有效写入的时间戳（无有效帧时为 0）
+     * @note 多源对齐判据：target > latest 且 latest>0 → 尚未写到（NotYet，应等待）；
+     *       latest<=0 → 未播；latest>=target 但 get 失败 → 空洞（Missing）
+     */
+    qint64 latestTimestamp() const;
+
+    /**
+     * @brief 环中严格大于 afterTs 的最早时间戳（不拷贝音频数据，供追帧决策）
+     */
+    bool peekNextTimestampAfter(qint64 afterTs, qint64 &outTs) const;
+
+    /**
+     * @brief 取环中时间戳严格大于 afterTs 的最早一帧（跳过空洞，供追帧）
+     */
+    bool getNextFrameAfter(qint64 afterTs, AudioFrame &frame);
+
+    /**
+     * @brief 注册下游处理线程 Waiter；pushFrame 成功后直接 notify（非 Qt 信号）
+     */
+    void registerFrameWaiter(AudioTickWaiter *waiter);
+
+    /**
+     * @brief 取消注册下游 Waiter
+     */
+    void unregisterFrameWaiter(AudioTickWaiter *waiter);
+
 signals:
     /**
      * @brief 帧写入信号
@@ -87,6 +116,8 @@ signals:
     void newFrameWritten(AudioFrame);
 
 private:
+    void notifyFrameWaiters();
+
     using Slot = TimestampRingQueueDetail::LockFreeSlot<AudioFrame>;
 
     std::vector<Slot> slots_;                     // 固定大小的环形缓冲区
@@ -100,4 +131,7 @@ private:
     int lastHitIndex_ = -1;
     std::atomic<qint64> latestTimestamp_{0};
     std::atomic<int> latestIndex_{-1};
+
+    mutable QMutex waitersMutex_;
+    std::vector<AudioTickWaiter *> frameWaiters_;
 };

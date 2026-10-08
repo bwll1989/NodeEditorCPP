@@ -58,7 +58,7 @@ ws://<Flow主机IP>:<Port>
 
 1. **连接成功** → 节点认为开始对讲，`TALKING = true`。
 2. **持续发送** binary float32 PCM。
-3. **断开连接** → 停止对讲，`TALKING = false`，清空未满一帧的残留缓冲。
+3. **停止推流 / 断开连接** → 按 AudioDecoder 停播清缓冲：`setActive(false)` → `clear` → `setActive(true)`（`latest=0`）。停说后约 80ms 无新 PCM 也会先清 tip（不单等 WebSocket 断开），避免 Priority 被冻住。正式断线时 `TALKING = false`。迟到的断线后 PCM 包会被忽略。
 4. 同一端口**以后连客户端为准**：新连接会接管，只处理当前活跃连接的 PCM。
 
 无需握手包、无需鉴权（局域网场景）。若需安全接入，请在外层加 TLS / 反代，并改用 `wss://`（需服务端支持）。

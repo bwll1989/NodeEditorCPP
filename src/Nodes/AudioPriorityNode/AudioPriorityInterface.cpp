@@ -75,7 +75,7 @@ AudioPriorityInterface::AudioPriorityInterface(QWidget *parent)
     releaseSpin->setSuffix(QStringLiteral(" ms"));
     addFloatRow(6, QStringLiteral("Release Time"), releaseSpin);
 
-    auto *hint = new QLabel(QStringLiteral("Channels 含 Priority；最后一路为 Priority，超过阈值后压低其余通道并混入各输出。"));
+    auto *hint = new QLabel(QStringLiteral("Channels 为节目路数（不含 Priority）；最后一路输入为 Priority，超过阈值后压低其余通道并混入各输出，低于阈值后经 Hold/Release 恢复。"));
     hint->setWordWrap(true);
     layout->addWidget(hint, 7, 0, 1, 2);
 

@@ -61,7 +61,9 @@ AudioCrossFaderInterface::AudioCrossFaderInterface(QWidget *parent)
     actionLayout->addWidget(fadeToAButton);
     layout->addWidget(actionRow, 3, 1);
 
-    auto *hint = new QLabel(QStringLiteral("默认输出 A；SWTCH B=true→B，false→A。Channels=N：A1…AN / B1…BN + SWTCH B → Out 1…N。"));
+    auto *hint = new QLabel(QStringLiteral(
+        "默认输出 A。SWTCH B=true→B / false→A；MIX 输入 0~1 直接设混音比。"
+        "Channels=N：A1…AN / B1…BN + SWTCH B + MIX → Out 1…N。"));
     hint->setWordWrap(true);
     layout->addWidget(hint, 4, 0, 1, 2);
 

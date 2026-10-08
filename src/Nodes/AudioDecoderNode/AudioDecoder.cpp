@@ -22,9 +22,9 @@ extern "C" {
 #include <QWaitCondition>
 #include <portaudio.h>
 #include <QDateTime>
+#include "TimestampGenerator/AudioThreadRealtime.hpp"
 // #include <Common/Devices/AudioPipe/AudioPipe.h>
 static const int SAMPLE_RATE = 48000;
-static const int LOOP_INTERVAL = 800;
 static const int FIXED_DELAY_FRAMES = 5;
 
 /**
@@ -453,6 +453,9 @@ void AudioDecoder::run()  {
 
 
 void AudioDecoder::playAudio() {
+    // 解码生产线程纳入 MMCSS，降低 OS 忙时调度抖动
+    AudioThreadRealtimeGuard realtimeGuard(L"Pro Audio");
+
     AVPacket packet;
     audioFrame = av_frame_alloc();
     uint8_t* outputBuffer = nullptr;
@@ -479,14 +482,19 @@ void AudioDecoder::playAudio() {
 
     // 循环播放的主循环
     do {
-        // 重置文件指针到开始位置（用于循环播放）
+        // 重置文件指针到开始位置（用于循环播放；无额外间隔，避免听感中断）
         if (frameCount > 0 && isLooping) {
-            QThread::msleep(LOOP_INTERVAL);
+            double loopTotalSec = 0.0;
             {
                 QMutexLocker locker(&mutex);
                 seekFileToSec(0.0);
                 m_startPositionSec = 0.0;
+                lastEmitTime = -1.0;
+                loopTotalSec = m_durationSec > 0.0 ? m_durationSec
+                    : (formatContext && formatContext->duration != AV_NOPTS_VALUE
+                           ? formatContext->duration / (double)AV_TIME_BASE : 0.0);
             }
+            emit playbackProgress(0.0, loopTotalSec);
         }
 
         while (isPlaying) {
@@ -744,7 +752,6 @@ int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
     pendingSamplesPerChannel_ += samplesPerChannel;
 
     int emitted = 0;
-    double chunkMs = 1000.0 * targetSamplesPerChannel / static_cast<double>(sampleRate);
 
     while (pendingSamplesPerChannel_ >= targetSamplesPerChannel) {
         QByteArray chunk = pendingInterleavedPcm_.left(chunkBytes);
@@ -756,28 +763,23 @@ int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
         frame.sampleRate = sampleRate;
         frame.channels = channels;
         frame.bitsPerSample = 32;
-        frame.timestamp = ++lastTimestamp_+FIXED_DELAY_FRAMES;
+        frame.timestamp = ++lastTimestamp_ + FIXED_DELAY_FRAMES;
 
         emit audioFrameReady(frame);
         emitted++;
 
-        // 播放速度控制：每个固定块按其持续时间节拍
-        if (chunkMs > 0 && chunkMs < 1000.0) {
-            // qDebug()<<"frame.timestamp"<<frame.timestamp<<chunkMs;
-            qint64 currentSystemTimestamp = timestampGenerator_->getCurrentFrameCount();
-            
-            // 计算时间戳差异（生成帧时间戳 - 当前系统时间戳）
-            qint64 timestampDiff = frame.timestamp - currentSystemTimestamp;
-            if (timestampDiff<FIXED_DELAY_FRAMES+1)
-            {
-                chunkMs=chunkMs*0.5;
+        // 与 TimestampGenerator 同速：等 clock 追到 lastTimestamp_，
+        // 使 stamp(=lastTimestamp_+FIXED_DELAY) 相对 clock 稳定在约 +FIXED_DELAY，
+        // 避免按缓存 lead 加减速造成 push 突发/停顿，拖垮级联唤醒的中间节点。
+        while (isPlaying) {
+            const qint64 clockTs = timestampGenerator_->getCurrentFrameCount();
+            if (clockTs >= lastTimestamp_) {
+                break;
             }
-            if(timestampDiff>=8)
-            {
-                chunkMs=chunkMs*1.5;
-            }
-
-            QThread::msleep(static_cast<unsigned long>(chunkMs));
+            QThread::msleep(1);
+        }
+        if (!isPlaying) {
+            break;
         }
     }
 

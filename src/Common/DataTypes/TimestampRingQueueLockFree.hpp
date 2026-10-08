@@ -66,6 +66,23 @@ inline void writeRingEntry(LockFreeSlot<FrameT>& ringSlot, FrameT in)
 }
 
 template <typename FrameT>
+inline bool readRingEntryTimestamp(const LockFreeSlot<FrameT>& ringSlot, qint64& outTs)
+{
+    for (int attempt = 0; attempt < 32; ++attempt) {
+        const uint32_t seqBefore = ringSlot.seq.load(std::memory_order_acquire);
+        if (seqBefore & 1u) {
+            continue;
+        }
+        outTs = ringSlot.frame.timestamp;
+        const uint32_t seqAfter = ringSlot.seq.load(std::memory_order_acquire);
+        if (seqBefore == seqAfter) {
+            return true;
+        }
+    }
+    return false;
+}
+
+template <typename FrameT>
 inline bool lookupFrameByTimestamp(const std::vector<LockFreeSlot<FrameT>>& ringSlots,
                                    int maxSize,
                                    qint64 latestTimestamp,

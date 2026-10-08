@@ -31,7 +31,7 @@ namespace Nodes {
      * @brief 多通道交叉淡化节点
      * Channels 路 A/B 成对输入（A1…AN, B1…BN），输出 Out 1…N，共用 Mix
      * 默认 Mix=0（输出 A）；Action 为互斥按钮 A→B / B→A
-     * 末路输入 SWTCH B（Variable）：true→B，false→A
+     * 控制输入：SWTCH B（bool→淡入 A/B）、MIX（0~1 直接设 Mix）
      */
     class AudioCrossFaderDataModel : public AbstractDelegateModel
     {
@@ -48,7 +48,7 @@ namespace Nodes {
         {
             widget = new AudioCrossFaderInterface();
             m_channels = AudioCrossFaderInterface::kDefaultChannels;
-            InPortCount = static_cast<unsigned int>(m_channels * 2 + 1); // + SWTCH B
+            InPortCount = static_cast<unsigned int>(m_channels * 2 + 2); // + SWTCH B + MIX
             OutPortCount = static_cast<unsigned int>(m_channels);
             CaptionVisible = true;
             WidgetEmbeddable = false;
@@ -124,8 +124,11 @@ namespace Nodes {
 
         NodeDataType dataType(PortType const portType, PortIndex const portIndex) const override
         {
-            if (portType == PortType::In && static_cast<int>(portIndex) == switchPortIndex()) {
-                return VariableData().type();
+            if (portType == PortType::In) {
+                const int idx = static_cast<int>(portIndex);
+                if (idx == switchPortIndex() || idx == mixPortIndex()) {
+                    return VariableData().type();
+                }
             }
             return AudioData().type();
         }
@@ -137,6 +140,9 @@ namespace Nodes {
                 const int idx = static_cast<int>(portIndex);
                 if (idx == switchPortIndex()) {
                     return QStringLiteral("SWTCH B");
+                }
+                if (idx == mixPortIndex()) {
+                    return QStringLiteral("MIX");
                 }
                 if (idx < m_channels) {
                     return QStringLiteral("A%1").arg(idx + 1);
@@ -176,9 +182,19 @@ namespace Nodes {
                 return;
             }
 
-            // 最后一路：Variable 切换 A/B
+            // Variable：SWTCH B 淡入切换；MIX 直接设 0~1
             if (static_cast<int>(port) == switchPortIndex()) {
+                if (!nodeData) {
+                    return;
+                }
                 applySwitchB(isSwitchToB(nodeData));
+                return;
+            }
+            if (static_cast<int>(port) == mixPortIndex()) {
+                if (!nodeData) {
+                    return;
+                }
+                applyMixPort(nodeData);
                 return;
             }
 
@@ -277,17 +293,21 @@ namespace Nodes {
                 applyChannelCount(count, false);
             }
 
-            if (values.contains("mix")) {
-                setMix(values.value("mix").toDouble());
-            }
             if (values.contains("fade_ms")) {
                 setFadeMs(values.value("fade_ms").toDouble());
             }
             if (values.contains("action")) {
-                // 加载时只同步按钮状态，不立刻触发淡入淡出
+                // 加载时只同步按钮状态，不立刻触发淡入淡出；Mix 以 Action 为准对齐
                 m_controlAction = normalizeAction(values.value("action").toInt());
                 syncActionButtons();
+                snapMixToAction(/*pushToWorker=*/true);
+            } else if (values.contains("mix")) {
+                setMix(values.value("mix").toDouble());
             }
+            // 重开后控制口重连只作基线，不覆盖已恢复的 A/B / Mix
+            m_loadedFromFile = true;
+            m_switchSeen = false;
+            m_mixPortSeen = false;
         }
 
     signals:
@@ -326,7 +346,9 @@ namespace Nodes {
         }
 
     private:
+        /** SWTCH B 保持在 2N，兼容旧工程连线；MIX 为新增末路 2N+1 */
         int switchPortIndex() const { return m_channels * 2; }
+        int mixPortIndex() const { return m_channels * 2 + 1; }
 
         static bool variantIsSwitchToB(const QVariant &value)
         {
@@ -352,8 +374,83 @@ namespace Nodes {
             return variantIsSwitchToB(var->value());
         }
 
+        static bool tryParseMixValue(const QVariant &value, double &outMix)
+        {
+            if (!value.isValid()) {
+                return false;
+            }
+            if (value.typeId() == QMetaType::Bool) {
+                outMix = value.toBool() ? 1.0 : 0.0;
+                return true;
+            }
+            if (value.canConvert<double>()) {
+                outMix = value.toDouble();
+                return true;
+            }
+            const QString text = value.toString().trimmed().toLower();
+            if (text == QLatin1String("true")) {
+                outMix = 1.0;
+                return true;
+            }
+            if (text == QLatin1String("false")) {
+                outMix = 0.0;
+                return true;
+            }
+            bool ok = false;
+            const double v = text.toDouble(&ok);
+            if (!ok) {
+                return false;
+            }
+            outMix = v;
+            return true;
+        }
+
+        void applyMixPort(const std::shared_ptr<NodeData> &nodeData)
+        {
+            auto var = std::dynamic_pointer_cast<VariableData>(nodeData);
+            if (!var) {
+                return;
+            }
+            double mixValue = 0.0;
+            if (!tryParseMixValue(var->value(), mixValue)) {
+                return;
+            }
+            const double clamped = qBound(0.0, mixValue, 1.0);
+            // 加载后首次 MIX 重连：只对齐基线，避免覆盖已恢复的 Mix
+            if (m_loadedFromFile && !m_mixPortSeen) {
+                m_mixPortSeen = true;
+                m_lastMixPortValue = clamped;
+                if (m_switchSeen) {
+                    m_loadedFromFile = false;
+                }
+                return;
+            }
+            if (m_mixPortSeen && qFuzzyCompare(clamped + 1.0, m_lastMixPortValue + 1.0)) {
+                return;
+            }
+            m_mixPortSeen = true;
+            m_lastMixPortValue = clamped;
+            setMix(clamped);
+        }
+
         void applySwitchB(bool toB)
         {
+            // 工程加载后首次 setInData：只记录基线，避免 SWTCH 当前值覆盖已恢复的选择
+            if (m_loadedFromFile && !m_switchSeen) {
+                m_switchSeen = true;
+                m_lastSwitchToB = toB;
+                // 等 MIX 与 SWTCH 都至少见到一次后再清 loaded 标记
+                if (m_mixPortSeen) {
+                    m_loadedFromFile = false;
+                }
+                return;
+            }
+            if (m_switchSeen && toB == m_lastSwitchToB) {
+                return;
+            }
+            m_switchSeen = true;
+            m_lastSwitchToB = toB;
+
             const int action = toB
                 ? AudioCrossFaderInterface::kActionToB
                 : AudioCrossFaderInterface::kActionToA;
@@ -362,6 +459,23 @@ namespace Nodes {
                 return;
             }
             setControlActionProperty(action);
+        }
+
+        void snapMixToAction(bool pushToWorker)
+        {
+            const double target = (m_controlAction == AudioCrossFaderInterface::kActionToB)
+                ? 1.0
+                : 0.0;
+            m_mix = target;
+            if (widget && widget->mixSpin) {
+                const QSignalBlocker blocker(widget->mixSpin);
+                widget->mixSpin->setValue(m_mix);
+            }
+            if (pushToWorker && _worker) {
+                QMetaObject::invokeMethod(_worker, "setMix",
+                                          Qt::QueuedConnection,
+                                          Q_ARG(double, m_mix));
+            }
         }
 
         static int normalizeAction(int action)
@@ -431,7 +545,7 @@ namespace Nodes {
             const int audioCount = qBound(AudioCrossFaderInterface::kMinChannels,
                                           channelCount,
                                           AudioCrossFaderInterface::kMaxChannels);
-            const unsigned int inCount = static_cast<unsigned int>(audioCount * 2 + 1); // + SWTCH B
+            const unsigned int inCount = static_cast<unsigned int>(audioCount * 2 + 2); // + SWTCH B + MIX
             const unsigned int outCount = static_cast<unsigned int>(audioCount);
 
             applyPortCount(PortType::In, inCount, notifyPorts);
@@ -471,6 +585,11 @@ namespace Nodes {
 
         void executeControlAction(int action)
         {
+            // 立刻回写目标 Mix，保证 save/UI 与最终输出一致；不经 setMix，以免取消正在进行的淡入淡出
+            snapMixToAction(/*pushToWorker=*/false);
+            m_lastSwitchToB = (action == AudioCrossFaderInterface::kActionToB);
+            m_switchSeen = true;
+
             if (action == AudioCrossFaderInterface::kActionToB) {
                 QMetaObject::invokeMethod(_worker, "startFadeAToB", Qt::QueuedConnection);
             } else {
@@ -485,5 +604,10 @@ namespace Nodes {
         double m_mix = 0.0;
         double m_fadeMs = 2000.0;
         int m_controlAction = AudioCrossFaderInterface::kActionToA;
+        bool m_lastSwitchToB = false;
+        bool m_switchSeen = false;
+        bool m_mixPortSeen = false;
+        double m_lastMixPortValue = 0.0;
+        bool m_loadedFromFile = false;
     };
 }

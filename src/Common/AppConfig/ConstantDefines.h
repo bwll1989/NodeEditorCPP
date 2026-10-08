@@ -6,7 +6,7 @@
 #include <QStandardPaths>
 // 产品版本号（关于窗口、工程元数据、QApplication::applicationVersion 等共用）
 #ifndef PRODUCT_VERSION
-#define PRODUCT_VERSION "1.7.04"
+#define PRODUCT_VERSION "1.7.05"
 #endif
 // 应用程序常量定义
 namespace AppConstants {
@@ -15,7 +15,7 @@ namespace AppConstants {
     const QString PRODUCT_NAME = "Flow";
     const QString PRODUCT_RUNTIME_NAME = "FlowRuntime";
     const QString FILE_DESCRIPTION = "Flow based on Qt 6.10.1 (MSVC, 64 bit)";
-    const QString LEGAL_COPYRIGHT = "Copyright 2008-2025 WuBin. All rights reserved.";
+    const QString LEGAL_COPYRIGHT = "Copyright 2008-2026 WuBin. All rights reserved.";
     // 日志存储目录
     const QString LOGS_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Logs";
     // 媒体库存储目录
@@ -74,9 +74,8 @@ namespace AppConfigs {
     // 是否默认启用自动保存
     constexpr bool AUTOSAVE_ENABLED = true;
     // 全局时间戳帧率（固定，不在设置页修改）
-    constexpr double TIMESTAMP_FRAME_RATE = 30.0;
-    // 音频处理节点写出时追加的时间戳帧数。每经过一个节点叠加一次。
-    // 30 Hz 下 1 帧约 33 ms；越大越稳，延迟越高。
-    constexpr int AUDIO_OUTPUT_DELAY_FRAMES = 2;
+    constexpr double TIMESTAMP_FRAME_RATE = 50.0;
+    // 多源音频处理节点写出时追加的时间戳帧数（设置页可改；越大越稳，延迟越高）
+    constexpr int AUDIO_OUTPUT_DELAY_FRAMES = 0;
 
 }

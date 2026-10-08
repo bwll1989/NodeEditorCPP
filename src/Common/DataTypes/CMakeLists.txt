@@ -47,6 +47,7 @@ target_link_libraries(DataTypes
         Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Gui
         QtNodes::QtNodes
+        TimestampGenerator
     PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::OpenGL

@@ -5,6 +5,8 @@
 #include "TimestampRingQueueLockFree.hpp"
 #include "AudioTimestampRingQueue.h"
 
+#include <algorithm>
+
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;
 
@@ -16,6 +18,10 @@ AudioTimestampRingQueue::AudioTimestampRingQueue(int maxSize, QObject* parent)
 
 AudioTimestampRingQueue::~AudioTimestampRingQueue()
 {
+    {
+        QMutexLocker locker(&waitersMutex_);
+        frameWaiters_.clear();
+    }
     clear();
 }
 
@@ -54,6 +60,8 @@ bool AudioTimestampRingQueue::pushFrame(const AudioFrame& frame)
     }
 
     writeIndex_.store((wi + 1) % maxSize_, std::memory_order_release);
+
+    notifyFrameWaiters();
 
     emit frameWritten(wi);
     emit newFrameWritten(frame);
@@ -107,4 +115,112 @@ void AudioTimestampRingQueue::setActive(bool active)
 bool AudioTimestampRingQueue::isActive() const
 {
     return isActive_.load(std::memory_order_acquire);
+}
+
+qint64 AudioTimestampRingQueue::latestTimestamp() const
+{
+    return latestTimestamp_.load(std::memory_order_acquire);
+}
+
+bool AudioTimestampRingQueue::peekNextTimestampAfter(qint64 afterTs, qint64 &outTs) const
+{
+    if (!isActive_.load(std::memory_order_acquire) || maxSize_ <= 0) {
+        return false;
+    }
+
+    const qint64 latest = latestTimestamp_.load(std::memory_order_acquire);
+    const int latestIdx = latestIndex_.load(std::memory_order_acquire);
+    if (latest <= afterTs || latestIdx < 0 || latestIdx >= maxSize_) {
+        return false;
+    }
+
+    // 连续常见路径：afterTs+1 相对 latest 的槽位直接验戳（不拷贝 PCM）
+    const qint64 target = afterTs + 1;
+    if (target > 0 && target <= latest) {
+        const qint64 delta = latest - target;
+        if (delta >= 0 && delta < maxSize_) {
+            int idx = latestIdx - static_cast<int>(delta);
+            idx %= maxSize_;
+            if (idx < 0) {
+                idx += maxSize_;
+            }
+            qint64 ts = 0;
+            if (TimestampRingQueueDetail::readRingEntryTimestamp(slots_[static_cast<size_t>(idx)], ts)
+                && ts == target) {
+                outTs = target;
+                return true;
+            }
+        }
+    }
+
+    // 从最新槽沿写方向回溯：时间戳递减，找到仍 > afterTs 的最旧一帧
+    qint64 bestTs = -1;
+    int idx = latestIdx;
+    for (int step = 0; step < maxSize_; ++step) {
+        qint64 ts = 0;
+        if (TimestampRingQueueDetail::readRingEntryTimestamp(slots_[static_cast<size_t>(idx)], ts)
+            && ts > 0) {
+            if (ts <= afterTs) {
+                break; // 更旧的只会更小，可以停
+            }
+            bestTs = ts;
+        }
+        idx -= 1;
+        if (idx < 0) {
+            idx += maxSize_;
+        }
+    }
+
+    if (bestTs < 0) {
+        return false;
+    }
+    outTs = bestTs;
+    return true;
+}
+
+bool AudioTimestampRingQueue::getNextFrameAfter(qint64 afterTs, AudioFrame &frame)
+{
+    qint64 nextTs = 0;
+    if (!peekNextTimestampAfter(afterTs, nextTs)) {
+        return false;
+    }
+    if (!getFrameByTimestamp(nextTs, frame) || frame.timestamp != nextTs) {
+        return false;
+    }
+    return true;
+}
+
+void AudioTimestampRingQueue::registerFrameWaiter(AudioTickWaiter *waiter)
+{
+    if (!waiter) {
+        return;
+    }
+    QMutexLocker locker(&waitersMutex_);
+    if (std::find(frameWaiters_.begin(), frameWaiters_.end(), waiter) == frameWaiters_.end()) {
+        frameWaiters_.push_back(waiter);
+    }
+}
+
+void AudioTimestampRingQueue::unregisterFrameWaiter(AudioTickWaiter *waiter)
+{
+    if (!waiter) {
+        return;
+    }
+    QMutexLocker locker(&waitersMutex_);
+    frameWaiters_.erase(std::remove(frameWaiters_.begin(), frameWaiters_.end(), waiter),
+                        frameWaiters_.end());
+}
+
+void AudioTimestampRingQueue::notifyFrameWaiters()
+{
+    std::vector<AudioTickWaiter *> waiters;
+    {
+        QMutexLocker locker(&waitersMutex_);
+        waiters = frameWaiters_;
+    }
+    for (AudioTickWaiter *waiter : waiters) {
+        if (waiter) {
+            waiter->notifyFromClock();
+        }
+    }
 }

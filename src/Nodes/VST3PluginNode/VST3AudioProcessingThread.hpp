@@ -5,8 +5,9 @@
 #include <QWaitCondition>
 #include <QAtomicInt>
 #include <memory>
+#include <map>
 #include "NodeDataList.hpp"
-// #include "VST3PluginDataModel.hpp"  // 删除这行，避免循环依赖
+#include "TimestampGenerator/TimestampGenerator.hpp"
 #include "pluginterfaces/base/funknown.h"
 #include "pluginterfaces/vst/ivstaudioprocessor.h"
 // 前向声明
@@ -73,46 +74,43 @@ protected:
 
 private:
     /**
-     * @brief 处理单个音频帧
+     * @brief 环级联唤醒后追帧；有输入时写出 nextTs+D
      */
     void processAudioFrame();
-    
+
+    /** 已接线且 active 的输入路数 */
+    int connectedInputCount() const;
+
+    /** 所有已接线输入是否都有 contentTs 对应帧 */
+    bool allConnectedInputsPresentAt(qint64 contentTs) const;
+
     /**
      * @brief 双精度音频处理
+     * @param targetTimestamp 取帧对齐戳
+     * @param outputTimestamp 写出戳（多源为 target+固定延迟）
      */
-    /**
-     * @brief 双精度音频处理
-     * @param currentSystemTime 当前系统时间戳
-     */
-    void processAudioDouble(qint64 currentSystemTime);
-    
+    void processAudioDouble(qint64 targetTimestamp, qint64 outputTimestamp);
+
     /**
      * @brief 单精度音频处理
-     * @param currentSystemTime 当前系统时间戳
+     * @param targetTimestamp 取帧对齐戳
+     * @param outputTimestamp 写出戳（多源为 target+固定延迟）
      */
-    void processAudioFloat(qint64 currentSystemTime);
-    
-public slots:
-    /**
-     * 按全局帧计数驱动的处理槽函数
-     * - 由 TimestampGenerator::frameCountUpdated 以 DirectConnection 触发
-     * - 在时钟线程内仅置位并 wake，不经主线程事件队列
-     * @param frameCount 当前全局帧计数
-     */
-    void onFrameTick(qint64 frameCount);
-    
-private:
+    void processAudioFloat(qint64 targetTimestamp, qint64 outputTimestamp);
+
     // 线程控制
     QAtomicInt running_;
     QAtomicInt paused_;
     QMutex mutex_;
-    QWaitCondition condition_;
-    bool tickPending_ = false;  // 与 mutex_ 一起使用，防止 wake 丢失
-    
+    QWaitCondition pauseCondition_;
+    AudioTickWaiter tickWaiter_;
+
     // 音频参数
     double sampleRate_;
     int blockSize_;
     int64 lastProcessTimestamp_;
+    /** 缺帧 defer：同 nextTs 连续两次失败 → Missing */
+    qint64 deferredEmptyTs_ = 0;
     // 音频缓冲区
     std::map<int, std::shared_ptr<AudioTimestampRingQueue>>  inputBuffer_;
     std::map<int, std::shared_ptr<AudioTimestampRingQueue>> outputBuffer_;

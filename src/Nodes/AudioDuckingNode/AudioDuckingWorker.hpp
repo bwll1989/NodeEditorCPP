@@ -14,8 +14,8 @@ namespace Nodes
 {
     /**
      * @brief Variable 触发的多通道闪避
-     * Duck 为真时各音频通道按 Depth 衰减，带 Attack / Hold / Release。
-     * 由 TimestampGenerator 时钟线程直接 wake，不经 QueuedConnection
+     * 各音频通道独立追帧；Duck 包络每拍共享更新一次。
+     * 由输入环 pushFrame 级联唤醒（不经全局时钟抢跑）
      */
     class AudioDuckingWorker : public QObject
     {
@@ -61,19 +61,24 @@ namespace Nodes
 
         void audioLoop();
         void processCurrentFrame();
-        void performDucking(const std::vector<AudioFrame> &inputFrames,
-                            const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
-                            qint64 timestamp,
-                            const Params &params,
-                            bool duckActive);
+        int processChannel(int ch,
+                           const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &inputs,
+                           const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
+                           float gainStartDb,
+                           float gainEndDb,
+                           qint64 &inoutLastTs,
+                           qint64 &inoutDeferredEmptyTs,
+                           qint64 clockTs,
+                           int maxFramesPerWake);
         static ChannelView viewOf(const AudioFrame &frame);
         static float onePoleDb(float currentDb, float targetDb, float dtSec, float tauSec);
 
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _inputBuffers;
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _outputBuffers;
+        std::vector<qint64> _lastProcessedByOutput;
+        std::vector<qint64> _deferredEmptyTsByOutput;
         QMutex _mutex;
         bool _isProcessing = false;
-        qint64 _lastProcessedTimestamp = 0;
 
         Params _params;
         bool _duckActive = false;

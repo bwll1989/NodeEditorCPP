@@ -122,6 +122,27 @@ namespace Nodes
          * @param pluginPath 插件文件路径
          */
         void loadPlugin(const QString& pluginPath) ;
+
+        /**
+         * @brief 转为工程内保存用的相对路径：plugins/VST3/<文件名>
+         */
+        static QString toRelativePluginPath(const QString& pathOrName);
+
+        /**
+         * @brief 将相对（或历史绝对）路径解析为 applicationDirPath/plugins/VST3/<文件名>
+         * @details 只从当前可执行文件目录加载，不再使用工程里残留的绝对路径。
+         */
+        static QString toAbsolutePluginPath(const QString& savedPath);
+
+        /**
+         * @brief 判断两个路径是否指向同一 VST3 文件（按相对路径/文件名）
+         */
+        static bool isSamePluginFile(const QString& pathA, const QString& pathB);
+
+        /**
+         * @brief 重新加载插件前停止音频线程，避免线程仍持有旧组件指针
+         */
+        void stopAudioThreadForReload();
         
         /**
          * @brief 初始化VST3音频处理

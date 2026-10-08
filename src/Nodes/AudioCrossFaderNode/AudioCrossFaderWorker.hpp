@@ -14,7 +14,8 @@ namespace Nodes
 {
     /**
      * @brief 多通道音频交叉淡化
-     * N 路 A 与 N 路 B 成对淡入淡出，共用 Mix；由 TimestampGenerator 时钟 wake
+     * 每路 Out 只对齐对应 A/B 两输入；多组互不拖累。
+     * 由输入环 pushFrame 级联唤醒；缺帧同戳 defer 一次再 Missing
      */
     class AudioCrossFaderWorker : public QObject
     {
@@ -54,23 +55,29 @@ namespace Nodes
 
         void audioLoop();
         void processCurrentFrame();
-        void performCrossFadeOperation(const std::vector<AudioFrame> &inputFrames,
-                                       const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
-                                       qint64 timestamp,
-                                       int channelCount,
-                                       float mix);
+        void unregisterAllInputWaitersLocked();
+        int processOutputPair(int ch,
+                              int channelCount,
+                              const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &inputs,
+                              const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
+                              qint64 &inoutLastTs,
+                              qint64 &inoutDeferredEmptyTs,
+                              qint64 clockTs,
+                              int maxFramesPerWake);
+        float mixAtTimestamp(qint64 timestamp);
         static ChannelView viewOf(const AudioFrame &frame);
 
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _inputBuffers;
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _outputBuffers;
+        std::vector<qint64> _lastProcessedByOutput;
+        std::vector<qint64> _deferredEmptyTsByOutput;
         QMutex _mutex;
         bool _isProcessing = false;
-        qint64 _lastProcessedTimestamp = 0;
 
         int _channelCount = 1;
         int _sampleRate = 48000;
 
-        float _mix = 0.0f; // 默认输出 A
+        float _mix = 0.0f;
         double _fadeDurationMs = 2000.0;
         bool _fadingActive = false;
         qint64 _fadeStartFrame = 0;

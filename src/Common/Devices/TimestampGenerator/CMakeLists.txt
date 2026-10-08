@@ -12,6 +12,8 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core WebSockets Network)
 set(TimestampGenerator_sources
         TimestampGenerator.cpp
         TimestampGenerator.hpp
+        AudioThreadRealtime.cpp
+        AudioThreadRealtime.hpp
 )
 
 #target_link_libraries(MYLIBRARY_LIBRARY PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::WebSockets)
@@ -26,5 +28,9 @@ target_include_directories(TimestampGenerator PUBLIC
 )
 
 target_link_libraries(TimestampGenerator PRIVATE Qt${QT_VERSION_MAJOR}::Core AppConfig)
+
+if(WIN32)
+    target_link_libraries(TimestampGenerator PRIVATE Avrt)
+endif()
 
 target_compile_definitions(TimestampGenerator PRIVATE TIMESTAMPGENERATOR_LIBRARY)

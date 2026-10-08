@@ -16,7 +16,7 @@ namespace Nodes
     /**
      * @brief 音频路由工作线程：按 routingMap 将指定输入整帧拷贝到对应输出（无增益混音）
      * routingMap[out] = in，未连接为 -1
-     * 由 TimestampGenerator 时钟线程直接 wake，不经 QueuedConnection
+     * 由输入环 pushFrame 级联唤醒（不经全局时钟抢跑）
      */
     class AudioRouterWorker : public QObject
     {
@@ -42,17 +42,24 @@ namespace Nodes
     private:
         void audioLoop();
         void processCurrentFrame();
-        void performRouting(const std::vector<AudioFrame> &inputFrames,
-                            const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
-                            const QVector<int> &map,
-                            qint64 timestamp);
+        void unregisterAllInputWaitersLocked();
+        int processOutputRoute(int out,
+                               const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &inputs,
+                               const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
+                               const QVector<int> &map,
+                               qint64 &inoutLastTs,
+                               qint64 &inoutDeferredEmptyTs,
+                               qint64 clockTs,
+                               int maxFramesPerWake);
 
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _inputBuffers;
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _outputBuffers;
         QVector<int> _routingMap;
+        /** 每个输出口各自的已处理时间戳，避免多源共用一个 cursor */
+        std::vector<qint64> _lastProcessedByOutput;
+        std::vector<qint64> _deferredEmptyTsByOutput;
         QMutex _mutex;
         bool _isProcessing = false;
-        qint64 _lastProcessedTimestamp = 0;
 
         AudioTickWaiter _tickWaiter;
         std::atomic<bool> _stopRequested{false};

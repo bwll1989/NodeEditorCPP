@@ -1,4 +1,5 @@
 #include "TimestampGenerator.hpp"
+#include "AudioThreadRealtime.hpp"
 #include "Common/AppConfig/ConfigManager.h"
 #include <QDebug>
 #include <QCoreApplication>
@@ -171,18 +172,15 @@ void TimestampGenerator::restart()
     start();
 }
 
-/**
- * @brief 音频处理节点写出时追加的时间戳帧数
- */
-int TimestampGenerator::getAudioOutputDelayFrames() const
-{
-    return ConfigManager::instance().getAudioOutputDelayFrames();
-}
-
 double TimestampGenerator::getFrameRate() const
 {
     QMutexLocker locker(&configMutex_);
     return frameRate_;
+}
+
+int TimestampGenerator::getAudioOutputDelayFrames() const
+{
+    return ConfigManager::instance().getAudioOutputDelayFrames();
 }
 
 /**
@@ -335,6 +333,9 @@ FrameInfo TimestampGenerator::createFrameInfo(qint64 frameCount) const
  */
 void TimestampGenerator::timerThreadFunction()
 {
+    // 时钟线程纳入 MMCSS，降低 OS 忙时 wake 抖动
+    AudioThreadRealtimeGuard realtimeGuard(L"Pro Audio");
+
     auto nextFrameTime = startTime_;
     
     while (!shouldStop_.load()) {

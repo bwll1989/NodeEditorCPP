@@ -11,7 +11,6 @@
 #include <ltc.h>
 static const int SAMPLE_RATE = 48000;
 // 源端固定超前 1 拍：同拍被 wake 的下游按「当前帧」取数时，能取到上一拍已写入的块。
-// 不要用设置里的「音频输出延时」——那是处理节点（Router/VST 等）叠加用的。
 static constexpr int kLtcSourceLeadFrames = 1;
 
 namespace Nodes

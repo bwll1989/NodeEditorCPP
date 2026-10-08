@@ -14,9 +14,8 @@ namespace Nodes
 {
     /**
      * @brief QSC Noise Gate
-     * 各通道独立：RMS ≥ Threshold 时增益到 0 dB（无损通过）；
-     * 低于阈值时衰减到 -Depth，带 Attack / Hold / Release。
-     * 由 TimestampGenerator 时钟线程直接 wake，不经 QueuedConnection
+     * 各通道独立追帧与门限；多源互不拖累。
+     * 由输入环 pushFrame 级联唤醒（不经全局时钟抢跑）
      */
     class AudioGateWorker : public QObject
     {
@@ -68,10 +67,14 @@ namespace Nodes
 
         void audioLoop();
         void processCurrentFrame();
-        void performGate(const std::vector<AudioFrame> &inputFrames,
-                         const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
-                         qint64 timestamp,
-                         const Params &params);
+        int processChannel(int ch,
+                           const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &inputs,
+                           const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
+                           const Params &params,
+                           qint64 &inoutLastTs,
+                           qint64 &inoutDeferredEmptyTs,
+                           qint64 clockTs,
+                           int maxFramesPerWake);
         static ChannelView viewOf(const AudioFrame &frame);
         static float rmsDbOf(const ChannelView &view);
         static float onePoleDb(float currentDb, float targetDb, float dtSec, float tauSec);
@@ -79,9 +82,10 @@ namespace Nodes
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _inputBuffers;
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _outputBuffers;
         std::vector<ChannelState> _states;
+        std::vector<qint64> _lastProcessedByOutput;
+        std::vector<qint64> _deferredEmptyTsByOutput;
         QMutex _mutex;
         bool _isProcessing = false;
-        qint64 _lastProcessedTimestamp = 0;
         Params _params;
 
         AudioTickWaiter _tickWaiter;

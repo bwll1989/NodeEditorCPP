@@ -1,32 +1,36 @@
 #include "AudioMatrixWorker.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
-#include <QDebug>
+#include "TimestampGenerator/AudioThreadRealtime.hpp"
 #include <QtGlobal>
+#include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace Nodes
 {
-    /**
-     * @brief 构造函数
-     * @param parent 父对象
-     */
+    namespace
+    {
+        constexpr double kMuteFloorLinear = 1e-3; // 10^(-60/20)
+    }
+
     AudioMatrixWorker::AudioMatrixWorker(QObject *parent)
         : QObject(parent)
     {}
-    
-    /**
-     * @brief 析构函数
-     */
+
     AudioMatrixWorker::~AudioMatrixWorker()
     {
         stopProcessing();
     }
-    
-   
-    
-    /**
-     * @brief 开始处理音频数据
-     */
+
+    void AudioMatrixWorker::unregisterAllInputWaitersLocked()
+    {
+        for (auto &buf : _inputBuffers) {
+            if (buf) {
+                buf->unregisterFrameWaiter(&_tickWaiter);
+            }
+        }
+    }
+
     void AudioMatrixWorker::startProcessing()
     {
         {
@@ -36,12 +40,17 @@ namespace Nodes
                 return;
             }
             _isProcessing = true;
-            _lastProcessedTimestamp = 0;
+            _lastProcessedByOutput.assign(_outputBuffers.size(), 0);
+            _deferredEmptyTsByOutput.assign(_outputBuffers.size(), 0);
+            for (auto &buf : _inputBuffers) {
+                if (buf) {
+                    buf->registerFrameWaiter(&_tickWaiter);
+                }
+            }
         }
 
         _stopRequested.store(false, std::memory_order_release);
         _tickWaiter.reset();
-        TimestampGenerator::getInstance()->registerAudioTickWaiter(&_tickWaiter);
         _audioThread = std::thread([this]() { audioLoop(); });
         emit processingStatusChanged(true);
     }
@@ -49,8 +58,11 @@ namespace Nodes
     void AudioMatrixWorker::stopProcessing()
     {
         _stopRequested.store(true, std::memory_order_release);
+        {
+            QMutexLocker locker(&_mutex);
+            unregisterAllInputWaitersLocked();
+        }
         _tickWaiter.requestStop();
-        TimestampGenerator::getInstance()->unregisterAudioTickWaiter(&_tickWaiter);
 
         if (_audioThread.joinable()) {
             if (_audioThread.get_id() != std::this_thread::get_id()) {
@@ -70,11 +82,10 @@ namespace Nodes
 
     void AudioMatrixWorker::audioLoop()
     {
+        AudioThreadRealtimeGuard realtimeGuard(L"Pro Audio");
         while (!_stopRequested.load(std::memory_order_acquire)
                && !_tickWaiter.isStopRequested()) {
-            if (!_tickWaiter.wait(50)) {
-                continue;
-            }
+            _tickWaiter.wait(20);
             if (_stopRequested.load(std::memory_order_acquire)
                 || _tickWaiter.isStopRequested()) {
                 break;
@@ -82,232 +93,272 @@ namespace Nodes
             processCurrentFrame();
         }
     }
-    
-    /**
-     * @brief 更新矩阵数据
-     * @param matrix 新的矩阵数据
-     */
+
     void AudioMatrixWorker::updateMatrix(const Eigen::MatrixXd& matrix)
     {
         QMutexLocker locker(&_mutex);
         _matrix = matrix;
     }
-    
-    /**
-     * @brief 处理音频数据的主循环
-     */
+
     void AudioMatrixWorker::processAudioData()
     {
-        if (!_isProcessing || _inputBuffers.empty() || _outputBuffers.empty()) {
-            return;
-        }
-        
-        auto currentTime = TimestampGenerator::getInstance()->getCurrentFrameCount();
-        
-        if (currentTime == _lastProcessedTimestamp) {
-            return;
-        }
-        
-        // 收集所有输入通道的音频帧
-        std::vector<AudioFrame> inputFrames(_inputBuffers.size());
-        bool hasValidInput = false;
-
-        for (size_t i = 0; i < _inputBuffers.size(); ++i) {
-            if (_inputBuffers[i] && _inputBuffers[i]->isActive()) {
-                if (_inputBuffers[i]->getFrameByTimestamp(currentTime, inputFrames[i])) {
-                    hasValidInput = true;
-                }
-            }
-        }
-
-        if (!hasValidInput) {
-            return;
-        }
-
-        // 执行矩阵运算
-        performMatrixOperation(inputFrames, currentTime);
-        
-        _lastProcessedTimestamp = currentTime;
-        
-        // 发送处理完成信号
-        emit audioProcessed(_outputBuffers);
+        processCurrentFrame();
     }
 
     void AudioMatrixWorker::processCurrentFrame()
     {
-        if (!_isProcessing || _inputBuffers.empty() || _outputBuffers.empty()) {
-            return;
+        std::vector<std::shared_ptr<AudioTimestampRingQueue>> inputs;
+        std::vector<std::shared_ptr<AudioTimestampRingQueue>> outputs;
+        Eigen::MatrixXd matrix;
+        std::vector<qint64> lastByOut;
+        std::vector<qint64> deferredByOut;
+        {
+            QMutexLocker locker(&_mutex);
+            if (!_isProcessing || _inputBuffers.empty() || _outputBuffers.empty()) {
+                return;
+            }
+            inputs = _inputBuffers;
+            outputs = _outputBuffers;
+            matrix = _matrix;
+            if (_lastProcessedByOutput.size() != outputs.size()) {
+                _lastProcessedByOutput.assign(outputs.size(), 0);
+            }
+            if (_deferredEmptyTsByOutput.size() != outputs.size()) {
+                _deferredEmptyTsByOutput.assign(outputs.size(), 0);
+            }
+            lastByOut = _lastProcessedByOutput;
+            deferredByOut = _deferredEmptyTsByOutput;
         }
-        const qint64 currentFrame = TimestampGenerator::getInstance()->getCurrentFrameCount();
-        if (currentFrame == _lastProcessedTimestamp) {
-            return;
-        }
-        std::vector<AudioFrame> inputFrames(_inputBuffers.size());
-        bool hasValidInput = false;
-        for (size_t i = 0; i < _inputBuffers.size(); ++i) {
-            if (_inputBuffers[i] && _inputBuffers[i]->isActive()) {
-                if (_inputBuffers[i]->getFrameByTimestamp(currentFrame, inputFrames[i])) {
-                    hasValidInput = true;
-                }
+
+        const qint64 clockTs = TimestampGenerator::getInstance()->getCurrentFrameCount();
+        bool anyProgress = false;
+        const int outCount = static_cast<int>(outputs.size());
+        for (int out = 0; out < outCount; ++out) {
+            int maxFrames = 2;
+            if (clockTs > lastByOut[static_cast<size_t>(out)] + 2) {
+                maxFrames = static_cast<int>(
+                    qMin<qint64>(8, clockTs - lastByOut[static_cast<size_t>(out)]));
+            }
+            if (processOutputMix(out, inputs, outputs, matrix,
+                                 lastByOut[static_cast<size_t>(out)],
+                                 deferredByOut[static_cast<size_t>(out)],
+                                 clockTs, maxFrames) > 0) {
+                anyProgress = true;
             }
         }
-        if (!hasValidInput) {
-            return;
+
+        {
+            QMutexLocker locker(&_mutex);
+            _lastProcessedByOutput = std::move(lastByOut);
+            _deferredEmptyTsByOutput = std::move(deferredByOut);
         }
-        performMatrixOperation(inputFrames, currentFrame);
-        _lastProcessedTimestamp = currentFrame;
-        emit audioProcessed(_outputBuffers);
+        if (anyProgress) {
+            emit audioProcessed(outputs);
+        }
     }
-    
-    /**
-     * @brief 使用矩阵运算执行音频矩阵操作
-     * @param inputFrames 输入音频帧向量
-     * @param timestamp 时间戳
-     */
-    void AudioMatrixWorker::performMatrixOperation(const std::vector<AudioFrame>& inputFrames, qint64 timestamp)
+
+    int AudioMatrixWorker::processOutputMix(int out,
+                                            const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &inputs,
+                                            const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
+                                            const Eigen::MatrixXd &matrix,
+                                            qint64 &inoutLastTs,
+                                            qint64 &inoutDeferredEmptyTs,
+                                            qint64 clockTs,
+                                            int maxFramesPerWake)
     {
-        if (inputFrames.empty()) {
-            return;
+        if (out < 0 || out >= static_cast<int>(outputs.size()) || !outputs[static_cast<size_t>(out)]) {
+            return 0;
+        }
+        if (matrix.cols() <= out || matrix.rows() <= 0) {
+            return 0;
+        }
+
+        std::vector<int> contributors;
+        contributors.reserve(static_cast<size_t>(matrix.rows()));
+        for (int in = 0; in < matrix.rows(); ++in) {
+            if (std::abs(matrix(in, out)) <= kMuteFloorLinear) {
+                continue;
+            }
+            if (in < 0 || in >= static_cast<int>(inputs.size())) {
+                continue;
+            }
+            // Inactive / 断线：不参与齐套（等价 Stop→从混音集合移除）
+            if (!inputs[static_cast<size_t>(in)] || !inputs[static_cast<size_t>(in)]->isActive()) {
+                continue;
+            }
+            contributors.push_back(in);
+        }
+        if (contributors.empty()) {
+            return 0;
         }
 
         constexpr int kSampleRate = 48000;
         const size_t frameSize = static_cast<size_t>(
             TimestampGenerator::getInstance()->getSamplesPerFrame(kSampleRate));
         if (frameSize == 0) {
+            return 0;
+        }
+
+        const bool multiSourceMix = contributors.size() > 1;
+        // 找帧与透传一致：按 nextTs 前进；tip 未到只等；
+        // 单源二次缺→跳戳；多源二次缺→带戳出帧（缺路=0）。写出 nextTs+D。
+        constexpr qint64 kTipStaleFrames = 16;
+        const int delayFrames = TimestampGenerator::getInstance()->getAudioOutputDelayFrames();
+        qint64 tipLatest = 0;
+        bool haveTip = false;
+        for (int in : contributors) {
+            const qint64 L = inputs[static_cast<size_t>(in)]->latestTimestamp();
+            if (L <= 0) {
+                continue;
+            }
+            // tip 冻住过久的源不拖整路 NotYet，缺帧时按填 0 处理
+            if (clockTs > L && (clockTs - L) > kTipStaleFrames) {
+                continue;
+            }
+            if (!haveTip || L < tipLatest) {
+                tipLatest = L;
+            }
+            haveTip = true;
+        }
+        qint64 cursor = inoutLastTs;
+        if (cursor <= 0 || cursor < clockTs - 64) {
+            cursor = clockTs - 1;
+        }
+
+        const int framesThisWake = multiSourceMix ? 2 : maxFramesPerWake;
+
+        int processedCount = 0;
+        int holeSkips = 0;
+        while (processedCount < framesThisWake) {
+            const qint64 nextTs = cursor + 1;
+            if (!haveTip || nextTs > tipLatest) {
+                break; // NotYet：绝不填 0
+            }
+
+            std::vector<float> mixed(frameSize, 0.0f);
+            int sampleRate = kSampleRate;
+            bool allPresent = true;
+            for (int in : contributors) {
+                const auto &queue = inputs[static_cast<size_t>(in)];
+                if (!queue || !queue->isActive()) {
+                    allPresent = false;
+                    continue;
+                }
+                AudioFrame inFrame;
+                const bool got = queue->getFrameByTimestamp(nextTs, inFrame)
+                    && inFrame.timestamp == nextTs
+                    && !inFrame.data.isEmpty();
+                if (!got) {
+                    allPresent = false;
+                    continue; // 该路保持 0
+                }
+                if (inFrame.sampleRate > 0) {
+                    sampleRate = inFrame.sampleRate;
+                }
+                const float gain = static_cast<float>(matrix(in, out));
+                const float *src = reinterpret_cast<const float *>(inFrame.data.constData());
+                const size_t available = inFrame.data.size() / sizeof(float);
+                const size_t n = qMin(frameSize, available);
+                for (size_t s = 0; s < n; ++s) {
+                    mixed[s] += src[s] * gain;
+                }
+            }
+
+            if (!allPresent) {
+                if (inoutDeferredEmptyTs != nextTs) {
+                    inoutDeferredEmptyTs = nextTs;
+                    break; // 第一次缺：等
+                }
+                inoutDeferredEmptyTs = 0;
+                if (!multiSourceMix) {
+                    cursor = nextTs; // 单源二次缺：跳戳不 push
+                    if (++holeSkips > 16) {
+                        break;
+                    }
+                    continue;
+                }
+                // 多源二次缺：下面 push，缺路已是 0
+            } else {
+                inoutDeferredEmptyTs = 0;
+            }
+
+            AudioFrame outputFrame;
+            outputFrame.timestamp = nextTs + delayFrames;
+            outputFrame.sampleRate = sampleRate;
+            outputFrame.channels = 1;
+            outputFrame.bitsPerSample = 32;
+            outputFrame.data.resize(static_cast<int>(frameSize * sizeof(float)));
+            float *dst = reinterpret_cast<float *>(outputFrame.data.data());
+            for (size_t s = 0; s < frameSize; ++s) {
+                float v = mixed[s];
+                if (v > 1.0f) {
+                    v = 1.0f;
+                } else if (v < -1.0f) {
+                    v = -1.0f;
+                }
+                dst[s] = v;
+            }
+
+            outputs[static_cast<size_t>(out)]->pushFrame(outputFrame);
+            cursor = nextTs;
+            ++processedCount;
+            inoutDeferredEmptyTs = 0;
+        }
+
+        if (processedCount > 0) {
+            inoutLastTs = cursor;
+        }
+        return processedCount;
+    }
+
+    void AudioMatrixWorker::initializeBuffers(int inputCount, int outputCount, const Eigen::MatrixXd& matrix)
+    {
+        QMutexLocker locker(&_mutex);
+
+        inputCount = qMax(1, inputCount);
+        outputCount = qMax(1, outputCount);
+
+        unregisterAllInputWaitersLocked();
+        _inputBuffers.resize(static_cast<size_t>(inputCount));
+
+        std::vector<std::shared_ptr<AudioTimestampRingQueue>> oldOutputs = std::move(_outputBuffers);
+        _outputBuffers.resize(static_cast<size_t>(outputCount));
+        for (int i = 0; i < outputCount; ++i) {
+            if (i < static_cast<int>(oldOutputs.size()) && oldOutputs[static_cast<size_t>(i)]) {
+                _outputBuffers[static_cast<size_t>(i)] = oldOutputs[static_cast<size_t>(i)];
+            } else {
+                _outputBuffers[static_cast<size_t>(i)] = std::make_shared<AudioTimestampRingQueue>();
+            }
+        }
+
+        _matrix = matrix;
+        _lastProcessedByOutput.assign(static_cast<size_t>(outputCount), 0);
+        _deferredEmptyTsByOutput.assign(static_cast<size_t>(outputCount), 0);
+    }
+
+    void AudioMatrixWorker::setInputBuffer(int port, std::shared_ptr<AudioTimestampRingQueue> buffer)
+    {
+        QMutexLocker locker(&_mutex);
+        if (port < 0 || port >= static_cast<int>(_inputBuffers.size())) {
+            qWarning() << "AudioMatrixWorker: Invalid input port index:" << port
+                       << "(valid range: 0 -" << (_inputBuffers.size() - 1) << ")";
             return;
         }
-
-        const int inputChannels = _matrix.rows();
-        const int outputChannels = _matrix.cols();
-
-        int sampleRate = kSampleRate;
-        for (const auto& frame : inputFrames) {
-            if (frame.sampleRate > 0) {
-                sampleRate = frame.sampleRate;
-                break;
-            }
+        auto &slot = _inputBuffers[static_cast<size_t>(port)];
+        if (slot) {
+            slot->unregisterFrameWaiter(&_tickWaiter);
         }
-        
-        // 创建输入矩阵：inputChannels × frameSize
-        Eigen::MatrixXf inputMatrix(inputChannels, frameSize);
-        
-        // 填充输入矩阵数据
-        for (int inChannel = 0; inChannel < inputChannels; ++inChannel) {
-            if (inChannel < static_cast<int>(inputFrames.size())) {
-                const auto& frameData = inputFrames[inChannel].data;
-                const float* audioSamples = reinterpret_cast<const float*>(frameData.constData());
-                const size_t availableSamples = frameData.size() / sizeof(float);
-                const size_t samplesToCopy = std::min(frameSize, availableSamples);
-                
-                // 直接填充到矩阵中
-                for (size_t sample = 0; sample < samplesToCopy; ++sample) {
-                    inputMatrix(inChannel, sample) = audioSamples[sample];
-                }
-                
-                // 如果数据不足，填充零
-                for (size_t sample = samplesToCopy; sample < frameSize; ++sample) {
-                    inputMatrix(inChannel, sample) = 0.0f;
-                }
-            } else {
-                // 通道不存在，填充零
-                inputMatrix.row(inChannel).setZero();
-            }
-        }
-        
-        // 执行矩阵乘法：outputMatrix = _matrix^T × inputMatrix
-        // 结果矩阵维度：outputChannels × frameSize
-        Eigen::MatrixXf outputMatrix = _matrix.transpose().cast<float>() * inputMatrix;
-        
-        // 提取每个输出通道的数据并创建音频帧
-        for (int outChannel = 0; outChannel < outputChannels; ++outChannel) {
-            if (outChannel < static_cast<int>(_outputBuffers.size()) && _outputBuffers[outChannel]) {
-                AudioFrame outputFrame;
-                outputFrame.timestamp = timestamp + TimestampGenerator::getInstance()->getAudioOutputDelayFrames();
-                outputFrame.sampleRate = sampleRate;
-                outputFrame.channels = 1;
-                outputFrame.bitsPerSample = 32;
-                
-                // 分配输出数据内存
-                outputFrame.data.resize(frameSize * sizeof(float));
-                float* outputData = reinterpret_cast<float*>(outputFrame.data.data());
-                
-                // 从输出矩阵提取当前通道的数据
-                for (size_t sample = 0; sample < frameSize; ++sample) {
-                    float outputSample = outputMatrix(outChannel, sample);
-                    
-                    // 应用幅度限制（削波保护）
-                    if (outputSample > 1.0f) outputSample = 1.0f;
-                    else if (outputSample < -1.0f) outputSample = -1.0f;
-                    
-                    outputData[sample] = outputSample;
-                }
-                
-                // 将处理后的音频帧添加到输出缓冲区
-                _outputBuffers[outChannel]->pushFrame(outputFrame);
-            }
-        }
-    }
-    /**
- * @brief 初始化缓冲区
- * @param inputCount 输入端口数量
- * @param outputCount 输出端口数量
- * @param matrix 矩阵数据
- */
-void AudioMatrixWorker::initializeBuffers(int inputCount, int outputCount, const Eigen::MatrixXd& matrix)
-{
-    QMutexLocker locker(&_mutex);
-
-    inputCount = qMax(1, inputCount);
-    outputCount = qMax(1, outputCount);
-
-    // 输入：保留已有范围内的连接；超出部分自然丢弃，新增为空（由 setInData 填入）
-    _inputBuffers.resize(static_cast<size_t>(inputCount));
-
-    // 输出：尽量保留已有 ring queue 的 shared_ptr，避免下游断链
-    std::vector<std::shared_ptr<AudioTimestampRingQueue>> oldOutputs = std::move(_outputBuffers);
-    _outputBuffers.resize(static_cast<size_t>(outputCount));
-    for (int i = 0; i < outputCount; ++i) {
-        if (i < static_cast<int>(oldOutputs.size()) && oldOutputs[static_cast<size_t>(i)]) {
-            _outputBuffers[static_cast<size_t>(i)] = oldOutputs[static_cast<size_t>(i)];
-        } else {
-            _outputBuffers[static_cast<size_t>(i)] = std::make_shared<AudioTimestampRingQueue>();
+        slot = buffer;
+        if (slot && _isProcessing) {
+            slot->registerFrameWaiter(&_tickWaiter);
         }
     }
 
-    _matrix = matrix;
-}
-
-/**
- * @brief 设置指定末端端口缓冲区
- * @param port 端口索引
- * @param buffer 音频缓冲区
- */
-void AudioMatrixWorker::setInputBuffer(int port, std::shared_ptr<AudioTimestampRingQueue> buffer)
-{
-    QMutexLocker locker(&_mutex);
-    
-    if (port >= 0 && port < static_cast<int>(_inputBuffers.size())) {
-        _inputBuffers[port] = buffer;
-
-    } else {
-        qWarning() << "AudioMatrixWorker: Invalid input port index:" << port 
-                   << "(valid range: 0 -" << (_inputBuffers.size() - 1) << ")";
-    }
-}
-
-/**
- * @brief 获取指定输出端口的缓冲区
- * @param port 端口索引
- * @return 输出音频缓冲区
- */
-std::shared_ptr<AudioTimestampRingQueue> AudioMatrixWorker::getOutputBuffer(int port)
-{
-
-    if (port >= 0 && port < static_cast<int>(_outputBuffers.size())) {
-        return _outputBuffers[port];
-    }
+    std::shared_ptr<AudioTimestampRingQueue> AudioMatrixWorker::getOutputBuffer(int port)
+    {
+        if (port >= 0 && port < static_cast<int>(_outputBuffers.size())) {
+            return _outputBuffers[port];
+        }
         return nullptr;
-    
+    }
 }
-}
-

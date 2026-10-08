@@ -1,5 +1,6 @@
 #include "AudioAnalysisWorker.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include "TimestampGenerator/AudioThreadRealtime.hpp"
 #include <QDebug>
 #include <algorithm>
 #include <cmath>
@@ -77,11 +78,13 @@ namespace Nodes
             _highSmoothed = 0.0f;
             _fluxAverage = 0.0f;
             _lastBeatTimestamp = 0;
+            if (_inputBuffers) {
+                _inputBuffers->registerFrameWaiter(&_tickWaiter);
+            }
         }
 
         _stopRequested.store(false, std::memory_order_release);
         _tickWaiter.reset();
-        TimestampGenerator::getInstance()->registerAudioTickWaiter(&_tickWaiter);
         _audioThread = std::thread([this]() { audioLoop(); });
         emit processingStatusChanged(true);
     }
@@ -89,8 +92,13 @@ namespace Nodes
     void AudioAnalysisWorker::stopProcessing()
     {
         _stopRequested.store(true, std::memory_order_release);
+        {
+            QMutexLocker locker(&_mutex);
+            if (_inputBuffers) {
+                _inputBuffers->unregisterFrameWaiter(&_tickWaiter);
+            }
+        }
         _tickWaiter.requestStop();
-        TimestampGenerator::getInstance()->unregisterAudioTickWaiter(&_tickWaiter);
 
         if (_audioThread.joinable()) {
             if (_audioThread.get_id() != std::this_thread::get_id()) {
@@ -110,11 +118,10 @@ namespace Nodes
 
     void AudioAnalysisWorker::audioLoop()
     {
+        AudioThreadRealtimeGuard realtimeGuard(L"Pro Audio");
         while (!_stopRequested.load(std::memory_order_acquire)
                && !_tickWaiter.isStopRequested()) {
-            if (!_tickWaiter.wait(50)) {
-                continue;
-            }
+            _tickWaiter.wait(20);
             if (_stopRequested.load(std::memory_order_acquire)
                 || _tickWaiter.isStopRequested()) {
                 break;
@@ -125,23 +132,36 @@ namespace Nodes
 
     void AudioAnalysisWorker::processCurrentFrame()
     {
-        if (!_isProcessing || !_inputBuffers) {
-            return;
-        }
-        const qint64 currentFrame = TimestampGenerator::getInstance()->getCurrentFrameCount();
-        if (currentFrame == _lastProcessedTimestamp) {
-            return;
-        }
-
-        AudioFrame inputFrame;
-        if (!_inputBuffers->isActive()
-            || !_inputBuffers->getFrameByTimestamp(currentFrame, inputFrame)
-            || inputFrame.data.isEmpty()) {
-            return;
+        std::shared_ptr<AudioTimestampRingQueue> input;
+        qint64 lastProcessed = 0;
+        {
+            QMutexLocker locker(&_mutex);
+            if (!_isProcessing || !_inputBuffers) {
+                return;
+            }
+            input = _inputBuffers;
+            lastProcessed = _lastProcessedTimestamp;
         }
 
-        performAnalysisOperation(inputFrame);
-        _lastProcessedTimestamp = currentFrame;
+        constexpr int kMaxFramesPerWake = 2;
+        qint64 cursor = lastProcessed;
+        int processedCount = 0;
+        while (processedCount < kMaxFramesPerWake) {
+            AudioFrame inputFrame;
+            if (!input->isActive() || !input->getNextFrameAfter(cursor, inputFrame)
+                || inputFrame.data.isEmpty()) {
+                break;
+            }
+
+            performAnalysisOperation(inputFrame);
+            cursor = inputFrame.timestamp;
+            ++processedCount;
+        }
+
+        if (processedCount > 0) {
+            QMutexLocker locker(&_mutex);
+            _lastProcessedTimestamp = cursor;
+        }
     }
 
     std::vector<float> AudioAnalysisWorker::extractMonoSamples(const AudioFrame &frame) const
@@ -325,10 +345,16 @@ namespace Nodes
     {
         QMutexLocker locker(&_mutex);
 
-        if (port >= 0) {
-            _inputBuffers = buffer;
-        } else {
+        if (port < 0) {
             qWarning() << "AudioAnalysisWorker: Invalid input port index:" << port;
+            return;
+        }
+        if (_inputBuffers) {
+            _inputBuffers->unregisterFrameWaiter(&_tickWaiter);
+        }
+        _inputBuffers = buffer;
+        if (_inputBuffers && _isProcessing) {
+            _inputBuffers->registerFrameWaiter(&_tickWaiter);
         }
     }
 }

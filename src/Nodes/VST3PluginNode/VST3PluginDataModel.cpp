@@ -2,6 +2,11 @@
 
 #include "QtNodes/internal/NodeState.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
+
+#include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
+
 using QtNodes::NodeData;
 using QtNodes::NodeDelegateModel;
 using QtNodes::PortIndex;
@@ -10,6 +15,64 @@ using namespace Steinberg;
 using namespace VST3;
 using namespace Nodes;
 using namespace NodeDataTypes;
+
+namespace {
+
+constexpr auto kVst3RelativeDir = "plugins/VST3";
+
+QString vst3FileName(const QString& pathOrName)
+{
+    if (pathOrName.isEmpty()) {
+        return {};
+    }
+    return QFileInfo(pathOrName).fileName();
+}
+
+} // namespace
+
+QString VST3PluginDataModel::toRelativePluginPath(const QString& pathOrName)
+{
+    const QString fileName = vst3FileName(pathOrName);
+    if (fileName.isEmpty()) {
+        return {};
+    }
+    return QStringLiteral("%1/%2").arg(QLatin1String(kVst3RelativeDir), fileName);
+}
+
+QString VST3PluginDataModel::toAbsolutePluginPath(const QString& savedPath)
+{
+    const QString relative = toRelativePluginPath(savedPath);
+    if (relative.isEmpty()) {
+        return {};
+    }
+    // 只拼当前 exe 目录，忽略历史工程中的绝对路径
+    return QDir(QCoreApplication::applicationDirPath()).filePath(relative);
+}
+
+bool VST3PluginDataModel::isSamePluginFile(const QString& pathA, const QString& pathB)
+{
+    if (pathA.isEmpty() || pathB.isEmpty()) {
+        return false;
+    }
+    return toRelativePluginPath(pathA)
+        .compare(toRelativePluginPath(pathB), Qt::CaseInsensitive) == 0;
+}
+
+void VST3PluginDataModel::stopAudioThreadForReload()
+{
+    if (!audioProcessingThread_) {
+        return;
+    }
+    audioProcessingThread_->setVST3Components(nullptr, nullptr);
+    if (audioProcessingThread_->isRunning()) {
+        audioProcessingThread_->stopProcessing();
+        if (!audioProcessingThread_->wait(1000)) {
+            qWarning() << "Audio processing thread did not exit before plugin reload, terminating...";
+            audioProcessingThread_->terminate();
+            audioProcessingThread_->wait(1000);
+        }
+    }
+}
 
 
 VST3PluginDataModel::VST3PluginDataModel(const QString& path){
@@ -184,9 +247,10 @@ QJsonObject VST3PluginDataModel::save() const
     QJsonObject modelJson = NodeDelegateModel::save();
     QJsonObject values;
     
-    // 保存插件路径和状态
+    // 只保存相对路径：plugins/VST3/<文件名>
     if (!pluginInfo_.isEmpty()) {
-        values["PluginPath"] = pluginInfo_["Plugin Path"].toString();
+        const QString loadedPath = pluginInfo_.value(QStringLiteral("Plugin Path")).toString();
+        values["PluginPath"] = toRelativePluginPath(loadedPath);
     }
     if (!pluginUID_.isEmpty()) {
         values["PluginUID"] = pluginUID_;
@@ -227,7 +291,8 @@ void VST3PluginDataModel::load(const QJsonObject &p)
             return;
         }
 
-        const QString pluginPath = values["PluginPath"].toString();
+        // 只按相对路径加载：applicationDirPath/plugins/VST3/<文件名>
+        const QString pluginPath = toAbsolutePluginPath(values["PluginPath"].toString());
         if (values.contains("PluginUID")) {
             pluginUID_ = values["PluginUID"].toString();
         }
@@ -243,9 +308,11 @@ void VST3PluginDataModel::load(const QJsonObject &p)
                 values["ControllerState"].toString().toUtf8());
         }
 
-        // 插件已加载且路径相同：仅恢复状态（Snapshot 召回 / 重复 load 快速路径）
+        // 插件已加载且为同一文件：仅恢复状态（Snapshot 召回 / 重复 load 快速路径）
         const QString loadedPath = pluginInfo_.value(QStringLiteral("Plugin Path")).toString();
-        const bool samePluginLoaded = vstPlug_ != nullptr && !loadedPath.isEmpty() && loadedPath == pluginPath;
+        const bool samePluginLoaded = vstPlug_ != nullptr
+            && !loadedPath.isEmpty()
+            && isSamePluginFile(loadedPath, pluginPath);
 
         if (samePluginLoaded) {
             applySavedState(processorState, controllerState);
@@ -273,6 +340,9 @@ QWidget* VST3PluginDataModel::embeddedWidget()  { return widget; }
 
 
 void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
+    // 0. 先停音频线程，再拆组件，避免处理线程仍解引用旧 audioEffect_
+    stopAudioThreadForReload();
+
     // 2. 关闭界面窗口
     if (window && window->isVisible()) {
         window->close();
@@ -318,8 +388,8 @@ void VST3PluginDataModel::loadPlugin(const QString& pluginPath) {
 
     const auto& factory = module_->getFactory();
 
-    // 8. 更新插件信息
-    pluginInfo_["Plugin Path"] = pluginPath;
+    // 8. 更新插件信息（运行时用绝对路径加载，对外统一记相对路径）
+    pluginInfo_["Plugin Path"] = toRelativePluginPath(pluginPath);
     auto factoryInfo = module_->getFactory().info();
     pluginInfo_["Vendor"] = QString::fromStdString(factoryInfo.get().vendor);
     pluginInfo_["Version"] = QString::fromStdString(factoryInfo.get().url);

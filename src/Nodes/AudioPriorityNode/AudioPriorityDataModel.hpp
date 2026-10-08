@@ -23,7 +23,7 @@ struct GlobalEvent;
 namespace Nodes {
     /**
      * @brief QSC 风格 Priority Ducker
-     * 用 Channels 配置端口数（含 Priority），最后一路为 Priority；输出与输入一一对应。
+     * Channels 为节目路数（不含 Priority）；输入/输出均为 Channels+1，最后一路为 Priority。
      */
     class AudioPriorityDataModel : public AbstractDelegateModel
     {
@@ -43,8 +43,8 @@ namespace Nodes {
         {
             widget = new AudioPriorityInterface();
             m_channels = AudioPriorityInterface::kDefaultChannels;
-            InPortCount = static_cast<unsigned int>(m_channels);
-            OutPortCount = static_cast<unsigned int>(m_channels);
+            InPortCount = static_cast<unsigned int>(m_channels + 1);  // + Priority
+            OutPortCount = static_cast<unsigned int>(m_channels + 1); // + Priority
             CaptionVisible = true;
             WidgetEmbeddable = false;
             Resizable = false;
@@ -60,7 +60,7 @@ namespace Nodes {
 
             registerBindings();
 
-            _worker->initializeBuffers(m_channels, m_channels);
+            _worker->initializeBuffers(m_channels + 1, m_channels + 1);
             _worker->moveToThread(_workerThread);
 
             connect(_workerThread, &QThread::started, this, [this]() {
@@ -130,9 +130,7 @@ namespace Nodes {
 
         QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
         {
-            const unsigned int count = (portType == PortType::In) ? InPortCount : OutPortCount;
-            const bool isPriority = count > 0 && portIndex + 1 == count;
-            if (isPriority) {
+            if (static_cast<int>(portIndex) == m_channels) {
                 return QStringLiteral("Priority");
             }
             switch (portType) {
@@ -384,18 +382,18 @@ namespace Nodes {
 
         void applyChannelCount(int channelCount, bool notifyPorts)
         {
-            const unsigned int count = static_cast<unsigned int>(
-                qBound(AudioPriorityInterface::kMinChannels,
-                       channelCount,
-                       AudioPriorityInterface::kMaxChannels));
+            const int audioCount = qBound(AudioPriorityInterface::kMinChannels,
+                                          channelCount,
+                                          AudioPriorityInterface::kMaxChannels);
+            const unsigned int portCount = static_cast<unsigned int>(audioCount + 1); // + Priority
 
-            applyPortCount(PortType::In, count, notifyPorts);
-            applyPortCount(PortType::Out, count, notifyPorts);
+            applyPortCount(PortType::In, portCount, notifyPorts);
+            applyPortCount(PortType::Out, portCount, notifyPorts);
 
             QMetaObject::invokeMethod(_worker, "initializeBuffers",
                                       Qt::QueuedConnection,
-                                      Q_ARG(int, static_cast<int>(count)),
-                                      Q_ARG(int, static_cast<int>(count)));
+                                      Q_ARG(int, static_cast<int>(portCount)),
+                                      Q_ARG(int, static_cast<int>(portCount)));
 
             if (notifyPorts) {
                 for (unsigned int i = 0; i < OutPortCount; ++i) {

@@ -159,12 +159,6 @@ public:
     double getFrameRate() const;
 
     /**
-     * @brief 音频处理节点写出时追加的时间戳帧数
-     * @return 延迟帧数，来自设置，默认见 AppConfigs::AUDIO_OUTPUT_DELAY_FRAMES
-     */
-    int getAudioOutputDelayFrames() const;
-    
-    /**
      * @brief 获取帧间隔
      * @return 间隔（毫秒）
      */
@@ -182,6 +176,11 @@ public:
      * @return 每帧采样数，至少为 1
      */
     int getSamplesPerFrame(int sampleRate) const;
+
+    /**
+     * @brief 音频处理节点写出时追加的时间戳帧数（来自设置）
+     */
+    int getAudioOutputDelayFrames() const;
     
     /**
      * @brief 检查帧计数器是否正在运行

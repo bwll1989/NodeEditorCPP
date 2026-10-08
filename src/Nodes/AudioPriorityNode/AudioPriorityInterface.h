@@ -7,7 +7,7 @@ namespace Nodes
 {
     /**
      * @brief Priority Ducker 参数面板
-     * Channels + Threshold / Depth / Priority Gain / Attack / Hold / Release
+     * Channels（节目路数，不含 Priority）+ Threshold / Depth / Priority Gain / Attack / Hold / Release
      */
     class AudioPriorityInterface : public QWidget
     {

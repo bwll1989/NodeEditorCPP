@@ -135,13 +135,78 @@ QString resolveMediaFilePath(const QString& name)
 
 } // namespace
 
-/** @brief WebSocket 长连接超时：读侧保持长等待；发送必须有上限，避免退出/广播卡死主线程 */
+/** @brief WebSocket 超时：读侧周期醒来以便 forceClose；发送必须有上限，避免半开连接拖死广播线程 */
 void configureWebSocketTimeouts(Poco::Net::WebSocket& ws)
 {
     // 读超时：周期醒来以便连接被对端/本端关闭后能尽快退出循环（0=无限，会导致 stop 卡住）
     ws.setReceiveTimeout(Poco::Timespan(30, 0));
-    // 发送超时：半开连接上 SO_SNDTIMEO=0 可能永久阻塞 broadcastJson（Qt 主线程）
-    ws.setSendTimeout(Poco::Timespan(2, 0));
+    // 发送超时：半开连接上阻塞上限（广播已离主线程，但仍需避免广播队列堆积）
+    ws.setSendTimeout(Poco::Timespan(0, 500000)); // 500ms
+}
+
+// ===== WsSession =====
+void WsSession::bindSocket(Poco::Net::WebSocket* ws)
+{
+    QMutexLocker locker(&_sendMutex);
+    _ws = ws;
+    _alive.store(true, std::memory_order_release);
+}
+
+void WsSession::clearSocket()
+{
+    QMutexLocker locker(&_sendMutex);
+    _ws = nullptr;
+    _alive.store(false, std::memory_order_release);
+}
+
+bool WsSession::send(const std::string& message)
+{
+    QMutexLocker locker(&_sendMutex);
+    if (!_ws || !_alive.load(std::memory_order_relaxed)) {
+        return false;
+    }
+    try {
+        _ws->sendFrame(message.data(), (int)message.size(), WebSocket::FRAME_TEXT);
+        return true;
+    } catch (const Poco::Exception& e) {
+        logWebSocketPocoException("WebSocket send failed:", e);
+        _alive.store(false, std::memory_order_release);
+        return false;
+    }
+}
+
+bool WsSession::sendPong(const char* data, int len)
+{
+    QMutexLocker locker(&_sendMutex);
+    if (!_ws || !_alive.load(std::memory_order_relaxed) || !data || len < 0) {
+        return false;
+    }
+    try {
+        _ws->sendFrame(data, len, WebSocket::FRAME_OP_PONG | WebSocket::FRAME_FLAG_FIN);
+        return true;
+    } catch (const Poco::Exception& e) {
+        logWebSocketPocoException("WebSocket pong failed:", e);
+        _alive.store(false, std::memory_order_release);
+        return false;
+    }
+}
+
+void WsSession::forceClose()
+{
+    QMutexLocker locker(&_sendMutex);
+    _alive.store(false, std::memory_order_release);
+    if (!_ws) {
+        return;
+    }
+    try {
+        _ws->shutdown();
+    } catch (...) {
+    }
+    try {
+        _ws->close();
+    } catch (...) {
+    }
+    _ws = nullptr;
 }
 
 // ===== PageWebSocketHandler =====
@@ -151,11 +216,12 @@ PageWebSocketHandler::PageWebSocketHandler(NodeHttpServer& server)
 void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
                                          HTTPServerResponse& response) {
     setDynamicCacheControl(response);
+    auto session = std::make_shared<WsSession>();
     try {
         Poco::Net::WebSocket ws(request, response);
         configureWebSocketTimeouts(ws);
-        _ws = &ws;
-        _server.registerWebSocket(this);
+        session->bindSocket(&ws);
+        _server.registerWebSocket(session);
         
         std::vector<char> chunk(65536);
         int flags = 0;
@@ -166,7 +232,7 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
                 n = ws.receiveFrame(chunk.data(), (int)chunk.size(), flags);
             } catch (const Poco::TimeoutException&) {
                 // 读超时：继续等；若 stop()/forceClose() 已关掉套接字，下次会抛其它异常退出
-                if (!_ws) {
+                if (!session->alive()) {
                     break;
                 }
                 continue;
@@ -176,8 +242,9 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
             }
             const int op = flags & WebSocket::FRAME_OP_BITMASK;
             if (op == WebSocket::FRAME_OP_PING) {
-                QMutexLocker locker(&_sendMutex);
-                ws.sendFrame(chunk.data(), n, WebSocket::FRAME_OP_PONG | WebSocket::FRAME_FLAG_FIN);
+                if (!session->sendPong(chunk.data(), n)) {
+                    break;
+                }
                 continue;
             }
             accum.append(chunk.data(), n);
@@ -195,7 +262,7 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
                                 StatusItem item = StatusContainer::instance()->last(addr);
                                 QJsonObject resp = item.toJsonObject();
                                 std::string msg = QJsonDocument(resp).toJson(QJsonDocument::Compact).toStdString();
-                                send(msg);
+                                session->send(msg);
                             }
                         }
                     }
@@ -217,11 +284,11 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
             }
         }
         
-        _server.unregisterWebSocket(this);
-        _ws = nullptr;
+        _server.unregisterWebSocket(session);
+        session->clearSocket();
     } catch (const Poco::Net::WebSocketException& exc) {
-        _server.unregisterWebSocket(this);
-        _ws = nullptr;
+        _server.unregisterWebSocket(session);
+        session->clearSocket();
         // 日志记录异常
         qWarning() << "WebSocket Exception: " << exc.displayText().c_str();
         switch (exc.code()) {
@@ -238,38 +305,10 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
             break;
         }
     } catch (const Poco::Exception& exc) {
-        _server.unregisterWebSocket(this);
-        _ws = nullptr;
+        _server.unregisterWebSocket(session);
+        session->clearSocket();
         logWebSocketPocoException("WebSocket Poco Exception:", exc);
     }
-}
-
-void PageWebSocketHandler::send(const std::string& message) {
-    QMutexLocker locker(&_sendMutex);
-    if (!_ws) {
-        return;
-    }
-    try {
-        _ws->sendFrame(message.data(), (int)message.size(), WebSocket::FRAME_TEXT);
-    } catch (const Poco::Exception& e) {
-        logWebSocketPocoException("WebSocket send failed:", e);
-    }
-}
-
-void PageWebSocketHandler::forceClose() {
-    QMutexLocker locker(&_sendMutex);
-    if (!_ws) {
-        return;
-    }
-    try {
-        _ws->shutdown();
-    } catch (...) {
-    }
-    try {
-        _ws->close();
-    } catch (...) {
-    }
-    _ws = nullptr;
 }
 
 // ===== StaticRequestHandler =====
@@ -1115,12 +1154,103 @@ HTTPRequestHandler* StaticRequestHandlerFactory::createRequestHandler(
 // 函数级注释：构造函数，初始化QObject基类与内部状态
 NodeHttpServer::NodeHttpServer(QObject* parent) : QObject(parent) {}
 
+NodeHttpServer::~NodeHttpServer()
+{
+    if (_running.load(std::memory_order_acquire)) {
+        stop();
+    } else {
+        stopWsBroadcastThread();
+    }
+}
+
 void NodeHttpServer::setDocRoot(const std::string& docRoot) {
     _docRoot = docRoot;
 }
 
+void NodeHttpServer::startWsBroadcastThread()
+{
+    if (_wsBroadcastThread) {
+        return;
+    }
+    _wsBroadcastThread = new QThread();
+    _wsBroadcastWorker = new QObject();
+    _wsBroadcastWorker->moveToThread(_wsBroadcastThread);
+    _wsBroadcastThread->start();
+}
+
+void NodeHttpServer::stopWsBroadcastThread()
+{
+    if (!_wsBroadcastThread) {
+        return;
+    }
+    _wsBroadcastThread->quit();
+    if (!_wsBroadcastThread->wait(2000)) {
+        qWarning() << "WebSocket broadcast thread did not stop in time";
+    }
+    delete _wsBroadcastWorker;
+    _wsBroadcastWorker = nullptr;
+    delete _wsBroadcastThread;
+    _wsBroadcastThread = nullptr;
+    _wsBroadcastPending.store(0, std::memory_order_relaxed);
+}
+
+void NodeHttpServer::enqueueWsBroadcast(const QByteArray& jsonUtf8)
+{
+    if (!_running.load(std::memory_order_acquire) || !_wsBroadcastWorker) {
+        return;
+    }
+    // 断连风暴时避免无限堆积拖垮内存；丢掉旧流量优先保 UI
+    constexpr int kMaxPending = 256;
+    if (_wsBroadcastPending.load(std::memory_order_relaxed) >= kMaxPending) {
+        return;
+    }
+    _wsBroadcastPending.fetch_add(1, std::memory_order_relaxed);
+    const bool queued = QMetaObject::invokeMethod(
+        _wsBroadcastWorker,
+        [this, jsonUtf8]() {
+            deliverWsBroadcast(jsonUtf8);
+            _wsBroadcastPending.fetch_sub(1, std::memory_order_relaxed);
+        },
+        Qt::QueuedConnection);
+    if (!queued) {
+        _wsBroadcastPending.fetch_sub(1, std::memory_order_relaxed);
+    }
+}
+
+void NodeHttpServer::deliverWsBroadcast(const QByteArray& jsonUtf8)
+{
+    if (!_running.load(std::memory_order_acquire)) {
+        return;
+    }
+    const std::string jsonStr(jsonUtf8.constData(), static_cast<size_t>(jsonUtf8.size()));
+
+    std::vector<std::shared_ptr<WsSession>> sessions;
+    {
+        QMutexLocker locker(&_wsMutex);
+        sessions.assign(_wsHandlers.begin(), _wsHandlers.end());
+    }
+
+    std::vector<std::shared_ptr<WsSession>> dead;
+    for (const auto& session : sessions) {
+        if (!session || !session->alive()) {
+            if (session) {
+                dead.push_back(session);
+            }
+            continue;
+        }
+        if (!session->send(jsonStr)) {
+            dead.push_back(session);
+        }
+    }
+
+    for (const auto& session : dead) {
+        session->forceClose();
+        unregisterWebSocket(session);
+    }
+}
+
 bool NodeHttpServer::start(int port) {
-    if (_running) return true;
+    if (_running.load(std::memory_order_acquire)) return true;
     // 函数级注释：启动HTTP服务器
     try {
         _port = port;
@@ -1142,50 +1272,49 @@ bool NodeHttpServer::start(int port) {
         
         _server = std::make_unique<HTTPServer>(new StaticRequestHandlerFactory(_docRoot, *this), svs, params);
         _server->start();
-        _running = true;
+        startWsBroadcastThread();
+        _running.store(true, std::memory_order_release);
         emit serverStarted(_port);
         
-        // 连接 OSCSender 信号
+        // 连接 OSCSender 信号（槽在主线程只做入队，真正的 sendFrame 在广播线程）
         connect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, &NodeHttpServer::onOscMessageSent, Qt::UniqueConnection);
 
         LogRingBuffer::instance().setBroadcastCallback([this](const QJsonObject& payload) {
-            QMetaObject::invokeMethod(
-                this,
-                [this, payload]() { broadcastJson(payload); },
-                Qt::QueuedConnection);
+            broadcastJson(payload);
         });
         
         return true;
     } catch (const Poco::Exception& e) {
+        stopWsBroadcastThread();
         _server.reset();
-        _running = false;
+        _running.store(false, std::memory_order_release);
         qWarning() << "Failed to start HTTP server:" << e.displayText().c_str();
         return false;
     }
 }
 
 void NodeHttpServer::stop() {
-    if (!_running) return;
-    _running = false;
+    if (!_running.load(std::memory_order_acquire)) return;
+    _running.store(false, std::memory_order_release);
 
-    // 先切断日志广播，避免退出期 qDebug 再排队同步 sendFrame 卡住主线程
+    // 先切断日志广播，避免退出期再入队
     LogRingBuffer::instance().setBroadcastCallback({});
     disconnect(StatusContainer::instance(), &StatusContainer::statusUpdated, this, &NodeHttpServer::onOscMessageSent);
 
-    // 先拷贝再关连接：forceClose 可能唤醒 worker，worker 会抢 _wsMutex 做 unregister
-    std::vector<PageWebSocketHandler*> handlers;
+    // 先停广播线程，确保不会再对半开连接 sendFrame
+    stopWsBroadcastThread();
+
+    // 先拷贝再关连接：forceClose 唤醒 Poco receiveFrame，便于 HTTPServer::stop 收尾
+    std::vector<std::shared_ptr<WsSession>> sessions;
     {
         QMutexLocker locker(&_wsMutex);
-        handlers.assign(_wsHandlers.begin(), _wsHandlers.end());
-    }
-    for (auto* handler : handlers) {
-        if (handler) {
-            handler->forceClose();
-        }
-    }
-    {
-        QMutexLocker locker(&_wsMutex);
+        sessions.assign(_wsHandlers.begin(), _wsHandlers.end());
         _wsHandlers.clear();
+    }
+    for (const auto& session : sessions) {
+        if (session) {
+            session->forceClose();
+        }
     }
 
     if (_server) {
@@ -1207,30 +1336,28 @@ void NodeHttpServer::stop() {
     _actionRegistry.clear();
 }
 
-void NodeHttpServer::registerWebSocket(PageWebSocketHandler* handler) {
+void NodeHttpServer::registerWebSocket(const std::shared_ptr<WsSession>& session) {
+    if (!session) {
+        return;
+    }
     QMutexLocker locker(&_wsMutex);
-    _wsHandlers.insert(handler);
+    _wsHandlers.insert(session);
 }
 
-void NodeHttpServer::unregisterWebSocket(PageWebSocketHandler* handler) {
+void NodeHttpServer::unregisterWebSocket(const std::shared_ptr<WsSession>& session) {
+    if (!session) {
+        return;
+    }
     QMutexLocker locker(&_wsMutex);
-    _wsHandlers.erase(handler);
+    _wsHandlers.erase(session);
 }
 
 void NodeHttpServer::onOscMessageSent(const StatusItem& message) {
-    if (!_running) {
+    if (!_running.load(std::memory_order_acquire)) {
         return;
     }
-    // 将 OSC 消息转为 JSON
-    QJsonObject json;
-    json= message.toJsonObject();
-    QJsonDocument doc(json);
-    std::string jsonStr = doc.toJson(QJsonDocument::Compact).toStdString();
-    // 广播给所有 WebSocket 连接
-    QMutexLocker locker(&_wsMutex);
-    for (auto* handler : _wsHandlers) {
-        handler->send(jsonStr);
-    }
+    const QByteArray bytes = QJsonDocument(message.toJsonObject()).toJson(QJsonDocument::Compact);
+    enqueueWsBroadcast(bytes);
 }
 
 QJsonObject NodeHttpServer::save() const
@@ -1293,15 +1420,10 @@ bool NodeHttpServer::patchAction(const QString& entity, const QJsonObject& patch
 
 void NodeHttpServer::broadcastJson(const QJsonObject& payload)
 {
-    if (!_running) {
+    if (!_running.load(std::memory_order_acquire)) {
         return;
     }
-    QJsonDocument doc(payload);
-    const std::string jsonStr = doc.toJson(QJsonDocument::Compact).toStdString();
-    QMutexLocker locker(&_wsMutex);
-    for (auto* handler : _wsHandlers) {
-        handler->send(jsonStr);
-    }
+    enqueueWsBroadcast(QJsonDocument(payload).toJson(QJsonDocument::Compact));
 }
 
 void NodeHttpServer::notifyActionsChanged(const QString& action, const QJsonObject& item)

@@ -15,7 +15,8 @@ namespace Nodes
 {
     /**
      * @brief 音频矩阵混音工作线程
-     * 由 TimestampGenerator 时钟线程直接 wake，不经 QueuedConnection
+     * 各输出口仅跟随对本口有增益的输入追帧
+     * 由输入环 pushFrame 级联唤醒；缺帧同戳 defer 一次再 Missing
      */
     class AudioMatrixWorker : public QObject
     {
@@ -43,14 +44,24 @@ namespace Nodes
     private:
         void audioLoop();
         void processCurrentFrame();
-        void performMatrixOperation(const std::vector<AudioFrame>& inputFrames, qint64 timestamp);
+        void unregisterAllInputWaitersLocked();
+        int processOutputMix(int out,
+                             const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &inputs,
+                             const std::vector<std::shared_ptr<AudioTimestampRingQueue>> &outputs,
+                             const Eigen::MatrixXd &matrix,
+                             qint64 &inoutLastTs,
+                             qint64 &inoutDeferredEmptyTs,
+                             qint64 clockTs,
+                             int maxFramesPerWake);
 
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _inputBuffers;
         std::vector<std::shared_ptr<AudioTimestampRingQueue>> _outputBuffers;
         Eigen::MatrixXd _matrix;
+        std::vector<qint64> _lastProcessedByOutput;
+        /** 缺帧 defer：同 nextTs 连续两次失败 → Missing */
+        std::vector<qint64> _deferredEmptyTsByOutput;
         QMutex _mutex;
         bool _isProcessing = false;
-        qint64 _lastProcessedTimestamp = 0;
 
         AudioTickWaiter _tickWaiter;
         std::atomic<bool> _stopRequested{false};

@@ -1,100 +1,70 @@
+/**
+ * @file FmodDecoderDataModel.cpp
+ * @brief FmodDecoderDataModel 实现
+ */
+
 #include "FmodDecoderDataModel.hpp"
+
 #include <QDebug>
-#include <QDir>
-#include <QFileInfo>
+#include <QFileDialog>
+#include <QHash>
+#include <QJsonObject>
 #include <QLineEdit>
+#include <QPushButton>
 #include <QSignalBlocker>
-#include <set>
-#include "TimestampGenerator/TimestampGenerator.hpp"
-#include "StatusContainer/GlobalEventBus.hpp"
 
 namespace Nodes {
 
 FmodDecoderDataModel::FmodDecoderDataModel()
 {
-    qRegisterMetaType<std::vector<std::shared_ptr<AudioTimestampRingQueue>>>("std::vector<std::shared_ptr<AudioTimestampRingQueue>>");
+    qRegisterMetaType<std::vector<std::shared_ptr<AudioTimestampRingQueue>>>(
+        "std::vector<std::shared_ptr<AudioTimestampRingQueue>>");
+    qRegisterMetaType<Nodes::FmodParamDesc>("Nodes::FmodParamDesc");
+    qRegisterMetaType<QVector<Nodes::FmodParamDesc>>("QVector<Nodes::FmodParamDesc>");
 
-    InPortCount = 2;
+    InPortCount = 0;
     OutPortCount = 12;
     CaptionVisible = true;
-    Caption = "Fmod Node";
+    Caption = QStringLiteral("Fmod Node");
     WidgetEmbeddable = false;
-    Resizable = false;
+    Resizable = true;
     PortEditable = false;
-    
-    // Create widget
-    widget = new FmodDecoderInterface();
 
-    // 属性化外部控制：/file -> bankPath
-    {
-        NodeDelegateModel::ExternalBinding b;
-        b.member = "bankPath";
-        b.control = widget->fileSelectComboBox;
-        AbstractDelegateModel::registerExternalBinding("/file", this, b);
-    }
-    // 属性化外部控制：/event -> currentEvent（无固定控件时也支持外部命令与状态反馈）
-    {
-        NodeDelegateModel::ExternalBinding b;
-        b.member = "currentEvent";
-        AbstractDelegateModel::registerExternalBinding("/event", this, b);
-    }
+    widget_ = new FmodDecoderInterface();
 
-    connect(widget->fileSelectComboBox, &QLineEdit::textChanged, this, &FmodDecoderDataModel::setBankPath);
-    connect(this, &FmodDecoderDataModel::bankPathChanged, this, [this](const QString&){
-        {
-            QSignalBlocker blocker(widget->fileSelectComboBox);
-            widget->fileSelectComboBox->setText(m_bankPath);
-        }
-        if (!m_bankPath.isEmpty() && worker_) {
-            QMetaObject::invokeMethod(
-                worker_,
-                "loadBanks",
-                Qt::QueuedConnection,
-                Q_ARG(QString, m_bankPath)
-            );
-        }
-    });
+    connect(widget_->fileSelectComboBox, &QLineEdit::textChanged,
+            this, &FmodDecoderDataModel::setBankPath);
+    connect(widget_->selectButton, &QPushButton::clicked,
+            this, &FmodDecoderDataModel::selectBankFolder, Qt::QueuedConnection);
 
-    connect(this, &FmodDecoderDataModel::currentEventChanged, this, [this](const QString&){
-        if (m_currentEvent.isEmpty() || !worker_) {
-            return;
-        }
-        QMetaObject::invokeMethod(
-            worker_,
-            "playEvent",
-            Qt::QueuedConnection,
-            Q_ARG(QString, m_currentEvent)
-        );
-    });
-    
-    // Initialize buffers
+    connect(widget_, &FmodDecoderInterface::parameterChanged,
+            this, &FmodDecoderDataModel::onParameterChanged);
+    connect(widget_, &FmodDecoderInterface::eventTriggered,
+            this, &FmodDecoderDataModel::playEventPath);
+
     outputBuffers_.resize(OutPortCount);
     for (int i = 0; i < OutPortCount; ++i) {
         outputBuffers_[i] = std::make_shared<AudioTimestampRingQueue>();
     }
-    
-    // Setup Worker Thread
+
     worker_ = new FmodDecoderWorker();
     workerThread_ = new QThread(this);
     worker_->moveToThread(workerThread_);
-    
-    // Connect Signals
+
     connect(workerThread_, &QThread::started, worker_, &FmodDecoderWorker::startProcessing);
     connect(workerThread_, &QThread::finished, worker_, &FmodDecoderWorker::stopProcessing);
-    
-    connect(worker_, &FmodDecoderWorker::eventListUpdated, this, &FmodDecoderDataModel::updateEventListUI);
-    connect(worker_, &FmodDecoderWorker::errorOccurred, this, [](const QString& msg){
+    connect(worker_, &FmodDecoderWorker::eventCatalogUpdated,
+            this, &FmodDecoderDataModel::onEventCatalogUpdated);
+    connect(worker_, &FmodDecoderWorker::errorOccurred, this, [](const QString& msg) {
         qWarning() << "FmodDecoderWorker Error:" << msg;
     });
-    
-    // UI Connections
-    connect(widget->selectButton, &QPushButton::clicked, this, &FmodDecoderDataModel::select_audio_file, Qt::QueuedConnection);
 
-    // Start Thread
     workerThread_->start();
-    
-    // Initialize Worker with buffers
-    QMetaObject::invokeMethod(worker_, "initialize", Qt::QueuedConnection, Q_ARG(std::vector<std::shared_ptr<AudioTimestampRingQueue>>, outputBuffers_));
+    QMetaObject::invokeMethod(
+        worker_,
+        "initialize",
+        Qt::QueuedConnection,
+        Q_ARG(std::vector<std::shared_ptr<AudioTimestampRingQueue>>, outputBuffers_));
 }
 
 FmodDecoderDataModel::~FmodDecoderDataModel()
@@ -103,13 +73,13 @@ FmodDecoderDataModel::~FmodDecoderDataModel()
         workerThread_->quit();
         workerThread_->wait();
     }
-    if (worker_) {
-        delete worker_;
-    }
+    delete worker_;
+    worker_ = nullptr;
 }
 
 NodeDataType FmodDecoderDataModel::dataType(PortType portType, PortIndex portIndex) const
 {
+    Q_UNUSED(portIndex)
     switch (portType) {
     case PortType::In:
         return VariableData().type();
@@ -124,194 +94,229 @@ NodeDataType FmodDecoderDataModel::dataType(PortType portType, PortIndex portInd
 std::shared_ptr<NodeData> FmodDecoderDataModel::outData(PortIndex port)
 {
     auto audioData = std::make_shared<AudioData>();
-    if (port < outputBuffers_.size()) {
-        audioData->setSharedAudioBuffer(outputBuffers_[port]);
+    if (port >= 0 && static_cast<size_t>(port) < outputBuffers_.size()) {
+        audioData->setSharedAudioBuffer(outputBuffers_[static_cast<size_t>(port)]);
     }
     return audioData;
 }
 
-/**
- * @brief 保存节点状态（当前选中的 FMOD Bank 路径）
- */
 QJsonObject FmodDecoderDataModel::save() const
 {
     QJsonObject modelJson = NodeDelegateModel::save();
-    const QString pathText = bankPath();
-    if (!pathText.isEmpty()) {
-        modelJson["path"] = pathText;
+    if (!bankPath_.isEmpty()) {
+        modelJson.insert(QStringLiteral("path"), bankPath_);
+    }
+
+    QJsonObject params;
+    for (auto it = paramValues_.cbegin(); it != paramValues_.cend(); ++it) {
+        params.insert(it.key(), QJsonValue::fromVariant(it.value()));
+    }
+    if (!params.isEmpty()) {
+        modelJson.insert(QStringLiteral("params"), params);
     }
     return modelJson;
+}
+
+void FmodDecoderDataModel::load(QJsonObject const& p)
+{
+    AbstractDelegateModel::load(p);
+
+    const QJsonObject params = p.value(QStringLiteral("params")).toObject();
+    for (auto it = params.begin(); it != params.end(); ++it) {
+        paramValues_.insert(it.key(), it.value().toVariant());
+    }
+
+    QString path = p.value(QStringLiteral("path")).toString();
+    if (path.isEmpty() && widget_ && widget_->fileSelectComboBox) {
+        path = widget_->fileSelectComboBox->text();
+    }
+    if (!path.isEmpty()) {
+        setBankPath(path);
+    }
 }
 
 QString FmodDecoderDataModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
 {
     if (portType == QtNodes::PortType::Out) {
-        return QString("Out %1").arg(portIndex + 1);
+        return QStringLiteral("Out %1").arg(portIndex + 1);
     }
-    if (portType == QtNodes::PortType::In) {
-        switch (portIndex) {
-            case 0:
-                return QString("Event");
-            case 1:
-                return QString("Index");
-        }
+    if (portType == QtNodes::PortType::In
+        && portIndex >= 0
+        && portIndex < inPorts_.size()) {
+        return inPorts_.at(portIndex).caption;
     }
-    return QString("In %1").arg(portIndex + 1);
+    return QStringLiteral("In %1").arg(portIndex + 1);
 }
 
-void FmodDecoderDataModel::select_audio_file()
+void FmodDecoderDataModel::selectBankFolder()
 {
-    QString path = QFileDialog::getExistingDirectory(nullptr, "Select FMOD Bank Folder", "");
+    const QString path = QFileDialog::getExistingDirectory(
+        nullptr, QStringLiteral("Select FMOD Bank Folder"), QString());
     if (!path.isEmpty()) {
         setBankPath(path);
     }
-}
-
-void FmodDecoderDataModel::updateEventListUI(const QStringList& events)
-{
-    // 更新内部事件列表缓存
-    availableEvents_ = events;
-    // Clear existing buttons
-    QLayoutItem *item;
-    while ((item = widget->buttonLayout->takeAt(0)) != nullptr) {
-        if (item->widget()) {
-            delete item->widget();
-        }
-        delete item;
-    }
-
-    for (const QString& eventPath : events) {
-        QString btnText = eventPath;
-        if (btnText.startsWith("event:/")) {
-             btnText = btnText.mid(7);
-
-        }
-        
-        QPushButton* btn = new QPushButton(btnText);
-        // AbstractDelegateModel::registerExternalControl("/"+btnText, btn);
-        btn->setToolTip(eventPath);
-        // Style the button to look better
-
-        
-        connect(btn, &QPushButton::clicked, this, [this, eventPath]() {
-            onEventSelected(eventPath);
-        });
-        
-        widget->buttonLayout->addWidget(btn);
-    }
-}
-
-/**
- * @brief 处理输入端口
- * - 端口0：事件文本，直接播放对应事件路径或GUID
- * - 端口1：事件索引，按当前事件列表中的索引播放
- */
-void FmodDecoderDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex)
-{
-    if (!data) return;
-    auto variableData = std::dynamic_pointer_cast<VariableData>(data);
-    if (!variableData) return;
-
-    switch (portIndex) {
-    case 0: { // 文本事件触发
-        const QString eventPath = variableData->asString();
-        if (!eventPath.isEmpty()) {
-            setCurrentEvent(eventPath);
-        }
-        break;
-    }
-    case 1: { // 索引事件触发
-        const int idx = variableData->asNumber();
-        if (idx >= 0 && idx < availableEvents_.size()) {
-            const QString& eventPath = availableEvents_.at(idx);
-            setCurrentEvent(eventPath);
-        }
-        break;
-    }
-    default:
-        break;
-    }
-}
-
-void FmodDecoderDataModel::onEventSelected(const QString& eventPath)
-{
-    setCurrentEvent(eventPath);
-}
-
-void FmodDecoderDataModel::load(QJsonObject const &p)
-{
-    AbstractDelegateModel::load(p);
-    // 优先从保存的 JSON 中恢复路径，其次使用 UI 文本
-    QString path;
-    QJsonValue v = p["path"];
-    if (!v.isUndefined() && v.isString()) {
-        path = v.toString();
-    }
-    if (path.isEmpty() && widget && widget->fileSelectComboBox) {
-        path = widget->fileSelectComboBox->text();
-    }
-    if (!path.isEmpty()) {
-        setBankPath(path);
-    }
-}
-
-QString FmodDecoderDataModel::bankPath() const
-{
-    return m_bankPath;
 }
 
 void FmodDecoderDataModel::setBankPath(const QString& path)
 {
     const QString trimmed = path.trimmed();
-    if (trimmed == m_bankPath) {
+    if (trimmed == bankPath_) {
         return;
     }
-    m_bankPath = trimmed;
-    Q_EMIT bankPathChanged(trimmed);
-}
+    bankPath_ = trimmed;
 
-QString FmodDecoderDataModel::currentEvent() const
-{
-    return m_currentEvent;
-}
-
-void FmodDecoderDataModel::setCurrentEvent(const QString& eventPath)
-{
-    const QString trimmed = eventPath.trimmed();
-    if (trimmed == m_currentEvent) {
-        return;
-    }
-    m_currentEvent = trimmed;
-    Q_EMIT currentEventChanged(trimmed);
-}
-
-void FmodDecoderDataModel::afterModelReady()
-{
-    GlobalEventBus::instance()->subscribe(
-        makeFullOscAddress("/file"),
-        this,
-        SLOT(onGlobalEvent(GlobalEvent))
-    );
-    GlobalEventBus::instance()->subscribe(
-        makeFullOscAddress("/event"),
-        this,
-        SLOT(onGlobalEvent(GlobalEvent))
-    );
-}
-
-void FmodDecoderDataModel::onGlobalEvent(const GlobalEvent& ev)
-{
-    if (ev.kind != GlobalEventKind::Command) {
-        return;
+    if (widget_ && widget_->fileSelectComboBox) {
+        QSignalBlocker blocker(widget_->fileSelectComboBox);
+        widget_->fileSelectComboBox->setText(bankPath_);
     }
 
-    const QString addrFile = makeFullOscAddress("/file");
-    const QString addrEvent = makeFullOscAddress("/event");
+    if (!bankPath_.isEmpty() && worker_) {
+        QMetaObject::invokeMethod(
+            worker_,
+            "loadBanks",
+            Qt::QueuedConnection,
+            Q_ARG(QString, bankPath_));
+    }
+}
 
-    if (ev.address == addrFile) {
-        setBankPath(ev.payload.toString());
-    } else if (ev.address == addrEvent) {
-        setCurrentEvent(ev.payload.toString());
+void FmodDecoderDataModel::onEventCatalogUpdated(const QStringList& events,
+                                                 const QVector<Nodes::FmodParamDesc>& params)
+{
+    availableEvents_ = events;
+    availableParams_ = params;
+
+    for (const FmodParamDesc& p : availableParams_) {
+        const QString key = FmodDecoderInterface::makeKey(p.eventPath, p.paramName);
+        if (!paramValues_.contains(key)) {
+            paramValues_.insert(key, p.defaultValue);
+        }
+    }
+
+    rebuildInPorts();
+    syncInputPortCount();
+    if (widget_) {
+        widget_->rebuildCatalog(availableEvents_, availableParams_, paramValues_);
+    }
+
+    if (worker_) {
+        QHash<QString, QVariantMap> byEvent;
+        for (const FmodParamDesc& p : availableParams_) {
+            const QString key = FmodDecoderInterface::makeKey(p.eventPath, p.paramName);
+            byEvent[p.eventPath].insert(p.paramName, paramValues_.value(key, p.defaultValue));
+        }
+        for (auto it = byEvent.begin(); it != byEvent.end(); ++it) {
+            QMetaObject::invokeMethod(
+                worker_,
+                "setEventParameterMap",
+                Qt::QueuedConnection,
+                Q_ARG(QString, it.key()),
+                Q_ARG(QVariantMap, it.value()));
+        }
+    }
+
+    Q_EMIT embeddedWidgetSizeUpdated();
+}
+
+void FmodDecoderDataModel::rebuildInPorts()
+{
+    inPorts_.clear();
+
+    QHash<QString, QVector<FmodParamDesc>> paramsByEvent;
+    for (const FmodParamDesc& p : availableParams_) {
+        paramsByEvent[p.eventPath].append(p);
+    }
+
+    for (const QString& eventPath : availableEvents_) {
+        InPortDesc trigger;
+        trigger.kind = InPortKind::Trigger;
+        trigger.eventPath = eventPath;
+        trigger.caption = FmodDecoderInterface::eventDisplayName(eventPath);
+        inPorts_.append(trigger);
+
+        for (const FmodParamDesc& p : paramsByEvent.value(eventPath)) {
+            InPortDesc param;
+            param.kind = InPortKind::Parameter;
+            param.eventPath = p.eventPath;
+            param.paramName = p.paramName;
+            param.caption = p.caption;
+            inPorts_.append(param);
+        }
+    }
+}
+
+void FmodDecoderDataModel::syncInputPortCount()
+{
+    const unsigned int newCount = static_cast<unsigned int>(inPorts_.size());
+    const unsigned int oldCount = InPortCount;
+    if (newCount == oldCount) {
+        return;
+    }
+
+    if (newCount > oldCount) {
+        Q_EMIT portsAboutToBeInserted(PortType::In, oldCount, newCount - 1);
+        InPortCount = newCount;
+        Q_EMIT portsInserted();
+    } else {
+        Q_EMIT portsAboutToBeDeleted(PortType::In, newCount, oldCount - 1);
+        InPortCount = newCount;
+        Q_EMIT portsDeleted();
+    }
+}
+
+void FmodDecoderDataModel::onParameterChanged(const QString& eventPath,
+                                              const QString& paramName,
+                                              float value)
+{
+    paramValues_.insert(FmodDecoderInterface::makeKey(eventPath, paramName), value);
+    if (!worker_) {
+        return;
+    }
+    QMetaObject::invokeMethod(
+        worker_,
+        "setEventParameter",
+        Qt::QueuedConnection,
+        Q_ARG(QString, eventPath),
+        Q_ARG(QString, paramName),
+        Q_ARG(float, value));
+}
+
+void FmodDecoderDataModel::playEventPath(const QString& eventPath)
+{
+    if (eventPath.isEmpty() || !worker_) {
+        return;
+    }
+    QMetaObject::invokeMethod(
+        worker_,
+        "playEvent",
+        Qt::QueuedConnection,
+        Q_ARG(QString, eventPath));
+}
+
+void FmodDecoderDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex)
+{
+    if (!data) {
+        return;
+    }
+    const auto variableData = std::dynamic_pointer_cast<VariableData>(data);
+    if (!variableData) {
+        return;
+    }
+    if (portIndex < 0 || portIndex >= inPorts_.size()) {
+        return;
+    }
+
+    const InPortDesc& port = inPorts_.at(portIndex);
+    if (port.kind == InPortKind::Trigger) {
+        if (variableData->asBool()) {
+            playEventPath(port.eventPath);
+        }
+        return;
+    }
+
+    const float value = static_cast<float>(variableData->asNumber());
+    onParameterChanged(port.eventPath, port.paramName, value);
+    if (widget_) {
+        widget_->setParameterValue(port.eventPath, port.paramName, value);
     }
 }
 
