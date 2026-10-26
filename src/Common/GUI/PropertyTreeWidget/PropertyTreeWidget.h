@@ -13,6 +13,8 @@
 #include <QtVariantPropertyManager>
 #include <QtVariantEditorFactory>
 #include <QtVariantProperty>
+
+class QTreeWidget;
 #if defined(PROPERTYTREEWIDGET_LIBRARY)
 #define PROPERTYTREEWIDGET_EXPORT Q_DECL_EXPORT
 #else
@@ -71,24 +73,25 @@ private slots:
 
 private:
     void clear();
+    void disconnectNotifies();
     void connectNotifySignals();
     void syncOne(int metaPropertyIndex);
+    void applyMetaValue(const QMetaObject* metaObject, int metaPropertyIndex);
 
-    QtVariantProperty* createVariantProperty(const QMetaProperty& mp) const;
-    QVariant readMetaPropertyValue(const QMetaProperty& mp) const;
-    bool writeMetaPropertyValue(const QMetaProperty& mp, const QVariant& value) const;
+    QtVariantProperty* createVariantProperty(const QMetaProperty& mp);
 
-private:
     QPointer<QObject> m_object;
 
     QtTreePropertyBrowser* m_browser = nullptr;
+    QTreeWidget* m_tree = nullptr;
     QtVariantPropertyManager* m_manager = nullptr;
     QtVariantEditorFactory* m_factory = nullptr;
 
     QHash<QtProperty*, int> m_qtPropToMetaIndex;
     QHash<int, QtVariantProperty*> m_metaIndexToQtProp;
-    QHash<int, int> m_notifySignalIndexToMetaIndex;
+    QHash<int, QVector<int>> m_notifySignalToMetaIndexes;
     QVector<QMetaObject::Connection> m_connections;
+    int m_notifySlotIndex = -1;
 
     bool m_updating = false;
 };

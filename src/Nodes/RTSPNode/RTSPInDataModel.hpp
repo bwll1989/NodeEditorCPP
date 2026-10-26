@@ -323,7 +323,8 @@ namespace Nodes
             }
 
             ensureImageDataBuffer(m_outputImageData, m_outputBuffer);
-            const qint64 timestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
+            const qint64 timestamp = mediaOutputTimestamp(
+                TimestampGenerator::getInstance()->getCurrentFrameCount());
             ImageFrame imageFrame = ImageFrame::fromMat(std::move(mat), timestamp);
             if (!imageFrame.texture.valid()) {
                 qWarning() << "RTSP In: GPU upload failed";

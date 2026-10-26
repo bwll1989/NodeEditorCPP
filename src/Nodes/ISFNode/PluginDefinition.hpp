@@ -40,7 +40,7 @@ public:
     QString version() const override { return PLUGIN_VERSION; }
     QString describe() const override { return PLUGIN_DESCRIBE; }
     QString tag() const override { return PLUGIN_TAG; }
-
+    bool NeedAuthorized() const override { return true; }
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry>& reg) override;
 
 private:

@@ -86,6 +86,15 @@ export class FlowCardConfigEditor extends LitElement {
     return true;
   }
 
+  selectPictureElement(index: number): boolean {
+    const editor = this.renderRoot.querySelector("flow-picture-elements-editor") as
+      | import("./flow-picture-elements-editor").FlowPictureElementsEditor
+      | null;
+    if (!editor) return false;
+    editor.selectIndex(index);
+    return true;
+  }
+
   private _renderField(schema: ConfigFieldSchema, data: Record<string, unknown>): TemplateResult | typeof nothing {
     if (!this._isVisible(schema, data)) return nothing;
 

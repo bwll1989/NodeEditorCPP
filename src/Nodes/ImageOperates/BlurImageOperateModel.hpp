@@ -133,17 +133,10 @@ public:
 
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
 
-        connect(TimestampGenerator::getInstance(),
-                &TimestampGenerator::frameCountUpdated,
-                this,
-                [this](qint64 frameCount) {
-                    if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
-                        return;
-                    }
-                    m_lastRequestedFrame = frameCount;
-                    requestProcess(frameCount);
-                },
-                Qt::QueuedConnection);
+        m_cook = new ImageOperateHelpers::DirtyTickCook(
+            this,
+            [this]() { requestProcess(); },
+            &m_paramsDirty);
     }
 
     ~BlurImageOperateModel() override { GlobalEventBus::instance()->unsubscribe(this); }
@@ -186,6 +179,9 @@ public:
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
             m_lastProcessedInputTimestamp = -1;
             m_paramsDirty = true;
+            if (m_cook) {
+                m_cook->setWatchedInputs({m_inImage});
+            }
             Q_EMIT dataUpdated(0);
             break;
         case 1:
@@ -233,6 +229,9 @@ public slots:
         }
         m_radiusX = clamped;
         m_paramsDirty = true;
+        if (m_cook) {
+            m_cook->markDirty();
+        }
         Q_EMIT radiusXChanged(m_radiusX);
     }
 
@@ -244,6 +243,9 @@ public slots:
         }
         m_radiusY = clamped;
         m_paramsDirty = true;
+        if (m_cook) {
+            m_cook->markDirty();
+        }
         Q_EMIT radiusYChanged(m_radiusY);
     }
 
@@ -282,18 +284,16 @@ private:
         m_paramsDirty = false;
     }
 
-    void requestProcess(qint64 targetTimestamp = -1)
+    void requestProcess()
     {
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
-
         if (!m_inImage || imageDataIsEmpty(m_inImage)) {
             clearOutput();
             return;
         }
 
         ImageFrame inputFrame;
-        if (!ImageOperateHelpers::resolveInputGpuFrame(m_inImage, lookupTimestamp, inputFrame)) {
+        if (!ImageOperateHelpers::resolveInputGpuFrameLatest(m_inImage, inputFrame)) {
             if (!ImageOperateHelpers::hasInputImage(m_inImage)) {
                 clearOutput();
             }
@@ -306,7 +306,8 @@ private:
 
         GpuTextureHandle out = BlurImageOperateGpu::run(
             inputFrame.texture, m_radiusX, m_radiusY);
-        ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp);
+        ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp,
+            inputFrame.timestamp);
 
         m_lastProcessedInputTimestamp = inputFrame.timestamp;
         m_paramsDirty = false;
@@ -315,7 +316,7 @@ private:
     std::shared_ptr<ImageData> m_inImage;
     std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
     std::shared_ptr<ImageData> m_outImageData;
-    qint64 m_lastRequestedFrame = -1;
+    ImageOperateHelpers::DirtyTickCook* m_cook = nullptr;
     qint64 m_lastProcessedInputTimestamp = -1;
     qint64 m_lastPushedTimestamp = -1;
     bool m_paramsDirty = false;

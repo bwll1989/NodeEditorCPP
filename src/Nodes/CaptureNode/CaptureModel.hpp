@@ -151,7 +151,8 @@ namespace Nodes
             if (const auto lock = m_inImageData.lock()) {
                 ImageFrame frame;
                 if (getLatestImageFrame(lock, frame)) {
-                    frame.timestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
+                    frame.timestamp = mediaOutputTimestamp(
+                        TimestampGenerator::getInstance()->getCurrentFrameCount());
                     pushFrameToImageBufferDedup(m_outputBuffer, std::move(frame), m_lastPushedTimestamp);
                 }
             } else {

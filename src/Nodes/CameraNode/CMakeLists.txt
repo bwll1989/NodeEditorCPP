@@ -13,18 +13,27 @@ set(CMAKE_AUTORCC ON)
 string(TIMESTAMP BUILD_TS "%Y%m%d")
 # 将版本号以宏形式注入到编译器（目录作用域，兼容 3.10）
 add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
+
+# 使用主工程配置的 FFmpeg（3rdParty/ffmpeg-8.1.1-full_build-shared），不用 Qt Multimedia / OpenCV 自带解码
+link_directories("${FFMPEG_LIB_DIRS}")
+
 add_library(${Module_Name} SHARED
         CameraForm.ui
+        CameraCapture.h
+        CameraCapture.cpp
         CameraModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp)
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Concurrent
-        Qt${QT_VERSION_MAJOR}::Multimedia
-        Qt${QT_VERSION_MAJOR}::MultimediaWidgets
         ${QtNodes_LIBRARIES}
         ${OpenCV_LIBRARIES}
+        avcodec
+        avdevice
+        avformat
+        avutil
+        swscale
         DataTypes
         ${Qtpropertybrowser_LIBRARIES}
         PropertyTreeWidget
@@ -39,4 +48,3 @@ SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES
         ARCHIVE_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"
         PREFIX ""
         SUFFIX ".node")
-

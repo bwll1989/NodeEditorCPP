@@ -90,17 +90,10 @@ public:
 
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
 
-        connect(TimestampGenerator::getInstance(),
-                &TimestampGenerator::frameCountUpdated,
-                this,
-                [this](qint64 frameCount) {
-                    if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
-                        return;
-                    }
-                    m_lastRequestedFrame = frameCount;
-                    requestProcess(frameCount);
-                },
-                Qt::QueuedConnection);
+        m_cook = new ImageOperateHelpers::DirtyTickCook(
+            this,
+            [this]() { requestProcess(); },
+            &m_paramsDirty);
     }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -139,6 +132,9 @@ public:
             m_lastProcessedInputTimestampA = -1;
             m_lastProcessedInputTimestampB = -1;
             m_paramsDirty = true;
+            if (m_cook) {
+                m_cook->setWatchedInputs({m_inputA, m_inputB});
+            }
             Q_EMIT dataUpdated(0);
             break;
         case 1:
@@ -147,6 +143,9 @@ public:
             m_lastProcessedInputTimestampA = -1;
             m_lastProcessedInputTimestampB = -1;
             m_paramsDirty = true;
+            if (m_cook) {
+                m_cook->setWatchedInputs({m_inputA, m_inputB});
+            }
             Q_EMIT dataUpdated(0);
             break;
         default:
@@ -170,11 +169,9 @@ private:
         m_paramsDirty = false;
     }
 
-    void requestProcess(qint64 targetTimestamp = -1)
+    void requestProcess()
     {
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-        const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
-
         if (!ImageOperateHelpers::hasInputImage(m_inputA) || !ImageOperateHelpers::hasInputImage(m_inputB)) {
             clearOutput();
             return;
@@ -182,8 +179,8 @@ private:
 
         ImageFrame inputAFrame;
         ImageFrame inputBFrame;
-        if (!ImageOperateHelpers::resolveDualInputGpuFrames(
-                m_inputA, m_inputB, lookupTimestamp, inputAFrame, inputBFrame)) {
+        if (!ImageOperateHelpers::resolveDualInputGpuFramesLatest(
+                m_inputA, m_inputB, inputAFrame, inputBFrame)) {
             clearOutput();
             return;
         }
@@ -195,7 +192,8 @@ private:
         }
 
         GpuTextureHandle out = OverImageOperateGpu::run(inputAFrame.texture, inputBFrame.texture);
-        ImageOperateHelpers::pushGpuResultDual(m_outBuffer, std::move(out), m_lastPushedTimestamp);
+        ImageOperateHelpers::pushGpuResultDual(m_outBuffer, std::move(out), m_lastPushedTimestamp,
+            qMax(inputAFrame.timestamp, inputBFrame.timestamp));
 
         m_lastProcessedInputTimestampA = inputAFrame.timestamp;
         m_lastProcessedInputTimestampB = inputBFrame.timestamp;
@@ -207,7 +205,7 @@ private:
     std::shared_ptr<ImageData> m_inputB;
     std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
     std::shared_ptr<ImageData> m_outImageData;
-    qint64 m_lastRequestedFrame = -1;
+    ImageOperateHelpers::DirtyTickCook* m_cook = nullptr;
     qint64 m_lastProcessedInputTimestampA = -1;
     qint64 m_lastProcessedInputTimestampB = -1;
     qint64 m_lastPushedTimestamp = -1;

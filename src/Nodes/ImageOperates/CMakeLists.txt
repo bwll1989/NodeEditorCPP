@@ -11,6 +11,7 @@ include_directories(${OpenCV_DIR})
 
 add_library(${Module_Name} SHARED
         ImageOperateCommon.hpp
+        ImageOperateCookDriver.hpp
         FlipImageOperateModel.hpp
         CrossImageOperateModel.hpp
         AddImageOperateModel.hpp

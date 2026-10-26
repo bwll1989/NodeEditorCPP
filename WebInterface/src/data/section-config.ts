@@ -18,8 +18,9 @@ export const DEFAULT_HEADING_CARD_CONFIG: LovelaceCardConfig = {
       entity: "",
       icon: "mdi:gesture-tap-button",
       text: "触发",
-      value: true,
       show_name: true,
+      tap_action: { action: "trigger" },
+      action: "trigger",
     },
   ],
 };

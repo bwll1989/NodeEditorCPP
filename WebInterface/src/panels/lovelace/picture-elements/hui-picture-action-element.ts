@@ -2,13 +2,25 @@ import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import { styleMap } from "lit/directives/style-map.js";
-import type { Flow, FlowValue, LovelacePictureElementConfig } from "../../../types";
+import type { Flow, LovelacePictureElementConfig } from "../../../types";
 import { stateActive } from "../../../common/entity/state-active";
 import { computeTileColor } from "../../../common/entity/tile-color";
-import { parseBadgeWriteValue } from "../heading-badges/badge-value";
-import { badgeShowText } from "../heading-badges/badge-flags";
+import { isLatchBadgeAction, normalizeBadgeConfig } from "../heading-badges/badge-model";
+import {
+  badgePressedVisual,
+  badgeTapEnabled,
+  handleBadgeTap,
+  resolveLatchPressedFromState,
+} from "../heading-badges/handle-badge-action";
+import {
+  badgeShowBackground,
+  badgeShowText,
+  badgeVisualSize,
+  DEFAULT_BADGE_VISUAL_SIZE,
+} from "../heading-badges/badge-flags";
 import "../../../components/ha-icon";
 
+/** 与标题行控制徽章一致的横向胶囊（图像 / 轨迹共用）。 */
 @customElement("hui-picture-action-element")
 export class HuiPictureActionElement extends LitElement {
   @property({ attribute: false }) public flow?: Flow;
@@ -20,6 +32,8 @@ export class HuiPictureActionElement extends LitElement {
   @property({ type: Number, attribute: false }) public statesRevision = 0;
 
   @state() private _flashing = false;
+
+  @state() private _latched?: boolean;
 
   @state() private _tick = 0;
 
@@ -46,10 +60,17 @@ export class HuiPictureActionElement extends LitElement {
     if (changed.has("flow") || changed.has("config")) {
       this._syncSubscription();
     }
+    this._syncLatchedFromState();
   }
 
   private _entityId(): string {
     return this.config?.entity ? String(this.config.entity).trim() : "";
+  }
+
+  private _entityState() {
+    const entity = this._entityId();
+    if (!entity || !this.flow) return undefined;
+    return this.flow.states[entity];
   }
 
   private _syncSubscription(): void {
@@ -61,20 +82,26 @@ export class HuiPictureActionElement extends LitElement {
     if (!entity || !this.flow) return;
     this._subscribedEntity = entity;
     this._unsub = this.flow.subscribeEntity(entity, () => {
+      this._syncLatchedFromState();
       this._tick += 1;
     });
   }
 
-  private _circleColor(): string {
-    const entity = this._entityId();
-    const state = entity && this.flow ? this.flow.states[entity] : undefined;
-    const active = this._flashing || stateActive(state);
-
-    if (!active) {
-      return "#000";
+  private _syncLatchedFromState(): void {
+    if (typeof this._latched !== "boolean") return;
+    const resolved = resolveLatchPressedFromState(this.config, this._entityState());
+    if (resolved === this._latched) {
+      this._latched = undefined;
     }
+  }
 
-    return computeTileColor(true, this.config?.color) ?? "var(--state-icon-color)";
+  private _iconColor(pressed: boolean): string {
+    const active = pressed || stateActive(this._entityState());
+    if (!active) return "var(--state-inactive-color, var(--secondary-text-color))";
+    return (
+      computeTileColor(true, this.config?.color) ??
+      "var(--state-icon-color, var(--primary-color))"
+    );
   }
 
   private _pulse(): void {
@@ -88,12 +115,17 @@ export class HuiPictureActionElement extends LitElement {
 
   private async _tap(ev: Event): Promise<void> {
     ev.stopPropagation();
-    if (this.preview) return;
-    const entity = this.config?.entity ? String(this.config.entity).trim() : "";
-    if (!entity || !this.flow) return;
-    const value = parseBadgeWriteValue(this.config?.value) as FlowValue;
-    await this.flow.callService(entity, value);
-    this._pulse();
+    const result = await handleBadgeTap(this.flow, this.config, {
+      preview: this.preview,
+      latched: this._latched,
+    });
+    if (result.mode === "pulse") {
+      this._pulse();
+      return;
+    }
+    if (result.mode === "latch") {
+      this._latched = result.pressed;
+    }
   }
 
   protected render() {
@@ -102,24 +134,44 @@ export class HuiPictureActionElement extends LitElement {
     void this._tick;
     void this.statesRevision;
 
-    const icon = config.icon ? String(config.icon) : "mdi:gesture-tap-button";
-    const text = config.text ? String(config.text) : config.name ? String(config.name) : "";
+    const normalized = normalizeBadgeConfig(config);
+    const icon = normalized.icon || "mdi:gesture-tap-button";
+    const text = normalized.text || normalized.name || "";
     const showName = badgeShowText(config) && Boolean(text);
-    const color = this._circleColor();
-    const hasCustomColor = Boolean(config.color && String(config.color).trim() && String(config.color).trim() !== "none");
+    const showBackground = badgeShowBackground(config);
+    const height = badgeVisualSize(config, DEFAULT_BADGE_VISUAL_SIZE);
+    const iconSize = Math.max(12, Math.round((height * 16) / 26));
+    const fontSize = Math.max(11, Math.round((height * 12) / 26));
+    const isLatch = isLatchBadgeAction(normalized.tap_action.action);
+    const pressed = badgePressedVisual(config, this._entityState(), {
+      flashing: this._flashing,
+      latched: this._latched,
+    });
+    const color = this._iconColor(pressed);
+    const clickable = badgeTapEnabled(config, this.preview);
 
     return html`
       <button
         type="button"
-        class=${classMap({ badge: true, colored: hasCustomColor, flashing: this._flashing })}
-        style=${styleMap({ "--color": color })}
-        ?disabled=${this.preview || !config.entity}
+        class=${classMap({
+          badge: true,
+          "with-text": showName,
+          transparent: !showBackground,
+          flashing: !isLatch && this._flashing,
+          pressed: isLatch && pressed,
+        })}
+        style=${styleMap({
+          "--color": color,
+          "--badge-height": `${height}px`,
+          "--badge-icon-size": `${iconSize}px`,
+          "--badge-font-size": `${fontSize}px`,
+        })}
+        ?disabled=${!clickable}
+        aria-pressed=${isLatch ? (pressed ? "true" : "false") : "undefined"}
         @click=${this._tap}
       >
-        <span class="circle">
-          <ha-icon .icon=${icon}></ha-icon>
-        </span>
-        ${showName ? html`<span class="label">${text}</span>` : nothing}
+        <ha-icon .icon=${icon}></ha-icon>
+        ${showName ? html`<span class="text">${text}</span>` : nothing}
       </button>
     `;
   }
@@ -130,52 +182,54 @@ export class HuiPictureActionElement extends LitElement {
     }
     .badge {
       display: inline-flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      border: none;
-      background: transparent;
-      padding: 0;
-      cursor: pointer;
-      font: inherit;
-      color: var(--primary-text-color);
-    }
-    .circle {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      display: flex;
+      flex-direction: row;
       align-items: center;
       justify-content: center;
-      background: var(--card-background-color, #fff);
-      color: var(--color, var(--primary-color));
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
-      border: 2px solid color-mix(in srgb, var(--color, var(--primary-color)) 55%, transparent);
+      gap: 2px;
+      height: var(--badge-height, 26px);
+      min-width: var(--badge-height, 26px);
+      padding: 0;
+      border: none;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+      color: var(--color, var(--secondary-text-color));
+      cursor: pointer;
+      font: inherit;
+      font-size: var(--badge-font-size, 12px);
+      font-weight: 500;
+      line-height: 1;
+      white-space: nowrap;
+      user-select: none;
     }
-    .badge.colored .circle {
-      color: var(--color);
+    .badge.with-text {
+      padding: 0 8px;
     }
-    .badge.flashing .circle {
-      color: #fff;
-      background: var(--color, var(--primary-color));
+    .badge.transparent {
+      background: transparent;
+    }
+    .badge:not(.transparent).flashing,
+    .badge:not(.transparent).pressed {
+      background: color-mix(in srgb, var(--color, var(--primary-color)) 22%, transparent);
     }
     .badge:disabled {
       cursor: grab;
+      opacity: 0.55;
     }
-    .badge:not(:disabled):hover .circle {
+    .badge:not(:disabled):hover {
       filter: brightness(0.96);
     }
-    ha-icon {
-      --mdc-icon-size: 20px;
+    .badge.transparent:not(:disabled):hover {
+      filter: none;
+      opacity: 0.85;
     }
-    .label {
-      font-size: 12px;
-      font-weight: 500;
-      max-width: 88px;
+    ha-icon {
+      --mdc-icon-size: var(--badge-icon-size, 16px);
+    }
+    .text {
+      padding: 0 4px;
+      max-width: 96px;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
-      text-shadow: 0 0 4px var(--card-background-color, #fff);
     }
   `;
 }

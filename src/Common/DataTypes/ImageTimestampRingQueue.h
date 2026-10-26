@@ -2,8 +2,12 @@
 
 #include "GpuTextureHandle.h"
 #include "TimestampRingQueueLockFree.hpp"
+#include "TimestampGenerator/TimestampGenerator.hpp"
+#include "DataTypesExport.h"
 
+#include <QMutex>
 #include <QObject>
+
 #include <atomic>
 #include <memory>
 #include <vector>
@@ -18,9 +22,11 @@ namespace NodeDataTypes
  * 语义对齐 AudioTimestampRingQueue，供 ImageData 共享句柄引用。
  *
  * 生产者 / 消费者约定：
- *   - 生产者 pushFrame(ImageFrame)，timestamp 通常为 TimestampGenerator::getCurrentFrameCount()
- *   - 消费者 getLatestFrame() 取最新有效帧（显示节点主路径，O(1)）
- *   - 消费者 getFrameByTimestamp(n) 按帧号精确查找（tick 对齐；带 lastHit 局部性缓存）
+ *   - 生产者 pushFrame(ImageFrame)，timestamp 通常为 mediaOutputTimestamp(clock)
+ *     （clock + AppConfigs::FIXED_DELAY_FRAMES）
+ *   - pushFrame 后 notifyFrameWaiters，唤醒已 registerFrameWaiter 的下游 cook 线程
+ *   - 消费者 getLatestFrame() 取最新有效帧（显示节点 fallback，O(1)）
+ *   - 消费者 getFrameByTimestamp(n) 按帧号精确查找（Display 音画对齐主路径）
  *
  * 槽位存储 ImageFrame { GpuTextureHandle texture, cv::Mat image, qint64 timestamp }：
  *   - GPU 主路径通常仅填 texture（零 CPU 拷贝）
@@ -29,6 +35,7 @@ namespace NodeDataTypes
  * 线程安全：
  *   - 基于 TimestampRingQueueDetail 的无锁槽位读写（seqlock 语义）
  *   - 单生产者 + 多消费者场景下安全；多生产者需外部串行化 push
+ *   - frameWaiters_ 由 waitersMutex_ 保护
  *
  * 默认容量 8 帧（与 ensureImageDataBuffer 一致），覆盖约 8 个系统 tick 的历史，
  * 允许消费者在精确 timestamp 未命中时向前回溯若干帧。
@@ -48,13 +55,17 @@ public:
     /**
      * @brief 写入下一槽位（覆盖最旧帧）
      * @return 队列 active 且帧 timestamp >= 0 时成功
-     * @note 写入后 emit frameWritten(writeIndex) 与 newFrameWritten(frame)
+     * @note 写入后 notifyFrameWaiters，再 emit frameWritten / newFrameWritten
      */
     bool pushFrame(const ImageFrame& frame);
     bool pushFrame(ImageFrame&& frame);
 
     /** @brief 有效帧数 / 容量，用于监控缓冲占用（0.0 ~ 1.0） */
     double getUsedRatio() const;
+
+    int getMaxSize() const { return maxSize_; }
+    int getValidFrameCount() const { return validFrames_.load(std::memory_order_relaxed); }
+    qint64 getLatestTimestamp() const { return latestTimestamp_.load(std::memory_order_acquire); }
 
     /**
      * @brief 按目标帧号查找
@@ -77,6 +88,10 @@ public:
     void setActive(bool active);
     bool isActive() const;
 
+    /** @brief 与 AudioTimestampRingQueue 对称：push 后唤醒已注册的 AudioTickWaiter */
+    void registerFrameWaiter(AudioTickWaiter* waiter);
+    void unregisterFrameWaiter(AudioTickWaiter* waiter);
+
 signals:
     /** @brief 写入完成，参数为本次写入的槽索引 */
     void frameWritten(int writeIndex);
@@ -85,6 +100,8 @@ signals:
     void newFrameWritten(ImageFrame frame);
 
 private:
+    void notifyFrameWaiters();
+
     using Slot = TimestampRingQueueDetail::LockFreeSlot<ImageFrame>;
 
     std::vector<Slot> slots_;
@@ -100,6 +117,9 @@ private:
 
     std::atomic<qint64> latestTimestamp_{0}; ///< 最近一次 push 的有效 timestamp
     std::atomic<int> latestIndex_{-1};       ///< 最近一次 push 的槽索引
+
+    mutable QMutex waitersMutex_;
+    std::vector<AudioTickWaiter*> frameWaiters_;
 };
 
 } // namespace NodeDataTypes

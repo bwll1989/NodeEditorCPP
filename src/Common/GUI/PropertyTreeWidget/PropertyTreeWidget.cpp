@@ -12,6 +12,394 @@
 #include <QSignalBlocker>
 #include <QScopedValueRollback>
 #include <QTreeWidget>
+#include <QHash>
+#include <QEvent>
+#include <QSet>
+
+#include "IntDragValueWidget/IntDragValueWidget.hpp"
+#include "FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include "SelectorComboBox/SelectorComboBox.hpp"
+
+class DragVariantEditorFactory;
+
+/**
+ * 函数级注释：属性浏览器的 staticMetaObject 未导出，信号改由普通 QObject 用字符串方式接收
+ */
+class DragEditorSync : public QObject
+{
+    Q_OBJECT
+public:
+    explicit DragEditorSync(DragVariantEditorFactory* factory, QObject* parent = nullptr)
+        : QObject(parent)
+        , m_factory(factory)
+    {
+    }
+
+public slots:
+    void onManagerValueChanged(QtProperty* property, const QVariant& value);
+    void onManagerAttributeChanged(QtProperty* property, const QString& attribute, const QVariant& value);
+    void onManagerPropertyDestroyed(QtProperty* property);
+
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
+private:
+    DragVariantEditorFactory* m_factory = nullptr;
+    QSet<QObject*> m_filterFront;
+};
+
+/**
+ * 函数级注释：int 用 IntDragValueWidget，double/float 用 FloatDragValueWidget，枚举用 SelectorComboBox，其余类型仍交给 QtVariantEditorFactory
+ */
+class DragVariantEditorFactory : public QtVariantEditorFactory
+{
+    friend class DragEditorSync;
+public:
+    explicit DragVariantEditorFactory(QObject* parent = nullptr)
+        : QtVariantEditorFactory(parent)
+    {
+    }
+
+protected:
+    void connectPropertyManager(QtVariantPropertyManager* manager) override
+    {
+        QtVariantEditorFactory::connectPropertyManager(manager);
+        m_manager = manager;
+        if (!m_sync) {
+            m_sync = new DragEditorSync(this, this);
+        }
+        m_valueConn = connect(manager, SIGNAL(valueChanged(QtProperty*, const QVariant&)),
+                              m_sync, SLOT(onManagerValueChanged(QtProperty*, const QVariant&)));
+        m_attrConn = connect(manager, SIGNAL(attributeChanged(QtProperty*, const QString&, const QVariant&)),
+                             m_sync, SLOT(onManagerAttributeChanged(QtProperty*, const QString&, const QVariant&)));
+        m_destroyedConn = connect(manager, SIGNAL(propertyDestroyed(QtProperty*)),
+                                  m_sync, SLOT(onManagerPropertyDestroyed(QtProperty*)));
+    }
+
+    void disconnectPropertyManager(QtVariantPropertyManager* manager) override
+    {
+        disconnect(m_valueConn);
+        disconnect(m_attrConn);
+        disconnect(m_destroyedConn);
+        m_valueConn = {};
+        m_attrConn = {};
+        m_destroyedConn = {};
+        if (m_manager == manager) {
+            m_manager = nullptr;
+        }
+        QtVariantEditorFactory::disconnectPropertyManager(manager);
+    }
+
+    QWidget* createEditor(QtVariantPropertyManager* manager, QtProperty* property, QWidget* parent) override
+    {
+        const int propType = manager->propertyType(property);
+        if (propType == QMetaType::Int) {
+            auto* editor = new IntDragValueWidget(parent);
+            prepareEditor(editor, property);
+            applyIntAttributes(editor, property, true);
+            connect(editor, &IntDragValueWidget::valueChanged, this, [this, editor](int value) {
+                commit(editor, value);
+            });
+            return editor;
+        }
+        if (propType == QMetaType::Double) {
+            auto* editor = new FloatDragValueWidget(parent);
+            prepareEditor(editor, property);
+            applyFloatAttributes(editor, property, true);
+            connect(editor, &FloatDragValueWidget::valueChanged, this, [this, editor](double value) {
+                commit(editor, value);
+            });
+            return editor;
+        }
+        if (propType == QtVariantPropertyManager::enumTypeId()) {
+            auto* editor = new SelectorComboBox(QStringList(), parent);
+            editor->setAllowCustomInput(false);
+            editor->setCompleterEnabled(false);
+            editor->setAutoAddOnEditingFinished(false);
+            prepareEditor(editor, property);
+            applyEnumAttributes(editor, property, true);
+            connect(editor, &SelectorComboBox::selectionChanged, this, [this, editor](const QString& text) {
+                commitEnum(editor, text);
+            });
+            // 属性树代理会在弹出层抢焦点时关掉编辑器；显示后再把过滤器挪到最前才能拦住这次 FocusOut
+            if (m_sync) {
+                editor->installEventFilter(m_sync);
+            }
+            return editor;
+        }
+        return QtVariantEditorFactory::createEditor(manager, property, parent);
+    }
+
+private:
+    void prepareEditor(QWidget* editor, QtProperty* property)
+    {
+        editor->setFocusPolicy(Qt::StrongFocus);
+        editor->setMinimumHeight(16);
+        m_propertyToEditor.insert(property, editor);
+        m_editorToProperty.insert(editor, property);
+        connect(editor, &QObject::destroyed, this, [this](QObject* object) {
+            auto* widget = static_cast<QWidget*>(object);
+            QtProperty* property = m_editorToProperty.take(widget);
+            if (property && m_propertyToEditor.value(property) == widget) {
+                m_propertyToEditor.remove(property);
+            }
+        });
+    }
+
+    void commit(QWidget* editor, const QVariant& value)
+    {
+        if (!m_manager) {
+            return;
+        }
+        QtProperty* property = m_editorToProperty.value(editor, nullptr);
+        if (!property) {
+            return;
+        }
+        m_manager->setValue(property, value);
+    }
+
+    void syncEditorValue(QtProperty* property, const QVariant& value)
+    {
+        QWidget* widget = m_propertyToEditor.value(property, nullptr);
+        if (!widget) {
+            return;
+        }
+        if (auto* editor = qobject_cast<IntDragValueWidget*>(widget)) {
+            if (editor->value() == value.toInt()) {
+                return;
+            }
+            const QSignalBlocker blocker(editor);
+            editor->setValue(value.toInt());
+            return;
+        }
+        if (auto* editor = qobject_cast<FloatDragValueWidget*>(widget)) {
+            const QSignalBlocker blocker(editor);
+            editor->setValue(value.toDouble());
+            return;
+        }
+        if (auto* editor = qobject_cast<SelectorComboBox*>(widget)) {
+            const QString text = enumText(property, value.toInt());
+            if (editor->text() == text) {
+                return;
+            }
+            const QSignalBlocker blocker(editor);
+            editor->setCurrentValue(text);
+        }
+    }
+
+    void applyAttributes(QtProperty* property, bool includeValue)
+    {
+        QWidget* widget = m_propertyToEditor.value(property, nullptr);
+        if (!widget || !m_manager) {
+            return;
+        }
+        if (auto* editor = qobject_cast<IntDragValueWidget*>(widget)) {
+            applyIntAttributes(editor, property, includeValue);
+        } else if (auto* editor = qobject_cast<FloatDragValueWidget*>(widget)) {
+            applyFloatAttributes(editor, property, includeValue);
+        } else if (auto* editor = qobject_cast<SelectorComboBox*>(widget)) {
+            applyEnumAttributes(editor, property, includeValue);
+        }
+    }
+
+    void applyIntAttributes(IntDragValueWidget* editor, QtProperty* property, bool includeValue)
+    {
+        if (!m_manager) {
+            return;
+        }
+        const QSignalBlocker blocker(editor);
+        const QVariant min = m_manager->attributeValue(property, QStringLiteral("minimum"));
+        const QVariant max = m_manager->attributeValue(property, QStringLiteral("maximum"));
+        const QVariant step = m_manager->attributeValue(property, QStringLiteral("singleStep"));
+        if (min.isValid() && max.isValid()) {
+            editor->setRange(min.toInt(), max.toInt());
+        }
+        if (step.isValid() && step.toInt() != 0) {
+            editor->setSingleStep(step.toInt());
+        }
+        if (includeValue) {
+            editor->setValue(m_manager->value(property).toInt());
+        }
+    }
+
+    void applyFloatAttributes(FloatDragValueWidget* editor, QtProperty* property, bool includeValue)
+    {
+        if (!m_manager) {
+            return;
+        }
+        const QSignalBlocker blocker(editor);
+        const QVariant min = m_manager->attributeValue(property, QStringLiteral("minimum"));
+        const QVariant max = m_manager->attributeValue(property, QStringLiteral("maximum"));
+        const QVariant step = m_manager->attributeValue(property, QStringLiteral("singleStep"));
+        const QVariant decimals = m_manager->attributeValue(property, QStringLiteral("decimals"));
+        if (min.isValid() && max.isValid()) {
+            editor->setRange(min.toDouble(), max.toDouble());
+        }
+        if (step.isValid() && step.toDouble() != 0.0) {
+            editor->setSingleStep(step.toDouble());
+        }
+        if (decimals.isValid()) {
+            editor->setDecimals(decimals.toInt());
+        }
+        if (includeValue) {
+            editor->setValue(m_manager->value(property).toDouble());
+        }
+    }
+
+    QStringList enumNames(QtProperty* property) const
+    {
+        if (!m_manager) {
+            return {};
+        }
+        return m_manager->attributeValue(property, QStringLiteral("enumNames")).toStringList();
+    }
+
+    static QString enumTextAt(const QStringList& names, int index)
+    {
+        if (index < 0 || index >= names.size()) {
+            return {};
+        }
+        return names.at(index);
+    }
+
+    void applyEnumAttributes(SelectorComboBox* editor, QtProperty* property, bool includeValue)
+    {
+        if (!m_manager) {
+            return;
+        }
+        const QSignalBlocker blocker(editor);
+        const QStringList names = enumNames(property);
+        editor->setItems(names);
+        if (!includeValue) {
+            return;
+        }
+        editor->setCurrentValue(enumTextAt(names, m_manager->value(property).toInt()));
+    }
+
+    void commitEnum(SelectorComboBox* editor, const QString& text)
+    {
+        if (!m_manager) {
+            return;
+        }
+        QtProperty* property = m_editorToProperty.value(editor, nullptr);
+        if (!property) {
+            return;
+        }
+        const int index = enumNames(property).indexOf(text);
+        if (index < 0 || m_manager->value(property).toInt() == index) {
+            return;
+        }
+        m_manager->setValue(property, index);
+    }
+
+    QString enumText(QtProperty* property, int index) const
+    {
+        return enumTextAt(enumNames(property), index);
+    }
+
+    void forgetProperty(QtProperty* property)
+    {
+        QWidget* editor = m_propertyToEditor.take(property);
+        if (editor) {
+            m_editorToProperty.remove(editor);
+        }
+    }
+
+    QtVariantPropertyManager* m_manager = nullptr;
+    QHash<QtProperty*, QWidget*> m_propertyToEditor;
+    QHash<QWidget*, QtProperty*> m_editorToProperty;
+    DragEditorSync* m_sync = nullptr;
+    QMetaObject::Connection m_valueConn;
+    QMetaObject::Connection m_attrConn;
+    QMetaObject::Connection m_destroyedConn;
+};
+
+void DragEditorSync::onManagerValueChanged(QtProperty* property, const QVariant& value)
+{
+    if (m_factory) {
+        m_factory->syncEditorValue(property, value);
+    }
+}
+
+void DragEditorSync::onManagerAttributeChanged(QtProperty* property, const QString&, const QVariant&)
+{
+    if (m_factory) {
+        m_factory->applyAttributes(property, false);
+    }
+}
+
+void DragEditorSync::onManagerPropertyDestroyed(QtProperty* property)
+{
+    if (m_factory) {
+        m_factory->forgetProperty(property);
+    }
+}
+
+bool DragEditorSync::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::Show) {
+        if (!m_filterFront.contains(watched)) {
+            m_filterFront.insert(watched);
+            watched->installEventFilter(this);
+        }
+        return false;
+    }
+    if (event->type() == QEvent::Destroy) {
+        m_filterFront.remove(watched);
+        return false;
+    }
+    if (event->type() == QEvent::FocusOut) {
+        if (auto* editor = qobject_cast<SelectorComboBox*>(watched)) {
+            if (editor->isPopupVisible()) {
+                return true;
+            }
+        }
+    }
+    return QObject::eventFilter(watched, event);
+}
+
+namespace {
+
+int enumToIndex(const QMetaEnum& en, int enumValue)
+{
+    for (int i = 0; i < en.keyCount(); ++i) {
+        if (en.value(i) == enumValue) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+QVariant indexToEnumValue(const QMetaEnum& en, int index)
+{
+    if (index >= 0 && index < en.keyCount()) {
+        return en.value(index);
+    }
+    return en.value(0);
+}
+
+class TreeUpdateGuard
+{
+public:
+    explicit TreeUpdateGuard(QTreeWidget* tree)
+        : m_tree(tree)
+    {
+        if (m_tree) {
+            m_tree->setUpdatesEnabled(false);
+        }
+    }
+
+    ~TreeUpdateGuard()
+    {
+        if (m_tree) {
+            m_tree->setUpdatesEnabled(true);
+        }
+    }
+
+private:
+    QTreeWidget* m_tree;
+};
+
+} // namespace
 
 PropertyTreeWidget::PropertyTreeWidget(QWidget* parent)
     : QWidget(parent)
@@ -22,13 +410,15 @@ PropertyTreeWidget::PropertyTreeWidget(QWidget* parent)
     setObjectName("propertyTreeWidget");
 
     m_manager = new QtVariantPropertyManager(this);
-    m_factory = new QtVariantEditorFactory(this);
+    m_factory = new DragVariantEditorFactory(this);
     m_browser = new QtTreePropertyBrowser(this);
     m_browser->setFactoryForManager(m_manager, m_factory);
+    m_notifySlotIndex = metaObject()->indexOfSlot("onAnyPropertyNotify()");
 
-    if (auto* tree = m_browser->findChild<QTreeWidget*>()) {
-        tree->setObjectName("propertyTreeView");
-        tree->setUniformRowHeights(true);
+    m_tree = m_browser->findChild<QTreeWidget*>();
+    if (m_tree) {
+        m_tree->setObjectName("propertyTreeView");
+        m_tree->setUniformRowHeights(true);
     }
 
     auto* layout = new QVBoxLayout(this);
@@ -58,9 +448,7 @@ void PropertyTreeWidget::setObject(QObject* object)
         return;
     }
 
-    clear();
     m_object = object;
-
     rebuild();
 }
 
@@ -77,14 +465,16 @@ void PropertyTreeWidget::rebuild()
     /**
      * 函数级注释：扫描 QMetaObject 的 Q_PROPERTY 并构建属性树结构
      */
+    disconnectNotifies();
+    const TreeUpdateGuard updateGuard(m_tree);
     if (m_browser) {
         m_browser->clear();
     }
     m_qtPropToMetaIndex.clear();
     m_metaIndexToQtProp.clear();
-    m_notifySignalIndexToMetaIndex.clear();
+    m_notifySignalToMetaIndexes.clear();
 
-    if (!m_object) {
+    if (!m_object || !m_manager || !m_browser) {
         return;
     }
 
@@ -93,19 +483,17 @@ void PropertyTreeWidget::rebuild()
         return;
     }
 
+    const int offset = mo->propertyOffset();
+    const int count = mo->propertyCount() - offset;
+    m_qtPropToMetaIndex.reserve(count);
+    m_metaIndexToQtProp.reserve(count);
+
     const QScopedValueRollback<bool> updatingGuard(m_updating, true);
     const QSignalBlocker managerBlocker(m_manager);
 
-    for (int i = mo->propertyOffset(); i < mo->propertyCount(); ++i) {
+    for (int i = offset; i < mo->propertyCount(); ++i) {
         const QMetaProperty mp = mo->property(i);
-        if (!mp.isReadable()) {
-            continue;
-        }
-        if (!mp.isDesignable()) {
-            continue;
-        }
-        const QByteArray name = mp.name();
-        if (name == "objectName") {
+        if (!mp.isReadable() || !mp.isDesignable() || qstrcmp(mp.name(), "objectName") == 0) {
             continue;
         }
 
@@ -114,25 +502,8 @@ void PropertyTreeWidget::rebuild()
             continue;
         }
 
-        const QVariant v = readMetaPropertyValue(mp);
-        if (mp.isEnumType()) {
-            const QMetaEnum en = mp.enumerator();
-            const int enumValue = v.toInt();
-            int index = 0;
-            for (int k = 0; k < en.keyCount(); ++k) {
-                if (en.value(k) == enumValue) {
-                    index = k;
-                    break;
-                }
-            }
-            vp->setValue(index);
-        } else {
-            vp->setValue(v);
-        }
-
-        if (!mp.isWritable()) {
-            m_manager->setAttribute(vp, "readOnly", true);
-        }
+        const QVariant raw = mp.read(m_object);
+        vp->setValue(mp.isEnumType() ? enumToIndex(mp.enumerator(), raw.toInt()) : raw);
 
         m_browser->addProperty(vp);
         m_qtPropToMetaIndex.insert(vp, i);
@@ -141,7 +512,7 @@ void PropertyTreeWidget::rebuild()
         if (mp.hasNotifySignal()) {
             const int sigIndex = mp.notifySignalIndex();
             if (sigIndex >= 0) {
-                m_notifySignalIndexToMetaIndex.insert(sigIndex, i);
+                m_notifySignalToMetaIndexes[sigIndex].append(i);
             }
         }
     }
@@ -163,32 +534,10 @@ void PropertyTreeWidget::refresh()
         return;
     }
 
-    m_updating = true;
-    for (auto it = m_metaIndexToQtProp.constBegin(); it != m_metaIndexToQtProp.constEnd(); ++it) {
-        const int idx = it.key();
-        const QMetaProperty mp = mo->property(idx);
-        const QVariant v = readMetaPropertyValue(mp);
-        QtVariantProperty* vp = it.value();
-        if (!vp) {
-            continue;
-        }
-
-        if (mp.isEnumType()) {
-            const QMetaEnum en = mp.enumerator();
-            const int enumValue = v.toInt();
-            int index = 0;
-            for (int k = 0; k < en.keyCount(); ++k) {
-                if (en.value(k) == enumValue) {
-                    index = k;
-                    break;
-                }
-            }
-            vp->setValue(index);
-        } else {
-            vp->setValue(v);
-        }
+    const QScopedValueRollback<bool> updatingGuard(m_updating, true);
+    for (auto it = m_metaIndexToQtProp.cbegin(); it != m_metaIndexToQtProp.cend(); ++it) {
+        applyMetaValue(mo, it.key());
     }
-    m_updating = false;
 }
 
 void PropertyTreeWidget::onValueChanged(QtProperty* property, const QVariant& value)
@@ -221,29 +570,25 @@ void PropertyTreeWidget::onValueChanged(QtProperty* property, const QVariant& va
         return;
     }
 
-    QVariant newValue;
-    if (mp.isEnumType()) {
-        const QMetaEnum en = mp.enumerator();
-        const int enumIndex = value.toInt();
-        newValue = (enumIndex >= 0 && enumIndex < en.keyCount()) ? en.value(enumIndex) : en.value(0);
-    } else {
-        newValue = value;
-    }
-
+    QVariant newValue = mp.isEnumType() ? indexToEnumValue(mp.enumerator(), value.toInt()) : value;
     const QMetaType target = mp.metaType();
-    if (newValue.metaType() != target) {
-        if (!newValue.canConvert(target) || !newValue.convert(target)) {
-            syncOne(idx);
-            return;
-        }
-    }
-    
-    const QVariant cur = mp.read(m_object);
-    if (cur.isValid() && cur == newValue) {
+    if (newValue.metaType() != target && (!newValue.canConvert(target) || !newValue.convert(target))) {
+        syncOne(idx);
         return;
     }
 
-    if (!writeMetaPropertyValue(mp, newValue)) {
+    const QVariant current = mp.read(m_object);
+    if (current.isValid() && current == newValue) {
+        return;
+    }
+
+    bool wrote = false;
+    {
+        // 挡住 write 同步触发的 notify，避免拖拽时再读一遍属性刷回界面
+        const QScopedValueRollback<bool> updatingGuard(m_updating, true);
+        wrote = mp.write(m_object, newValue);
+    }
+    if (!wrote) {
         syncOne(idx);
         return;
     }
@@ -256,17 +601,25 @@ void PropertyTreeWidget::onAnyPropertyNotify()
     /**
      * 函数级注释：根据 senderSignalIndex() 找到对应的属性并刷新该属性的 UI 显示
      */
-    if (!m_object) {
+    if (!m_object || m_updating) {
         return;
     }
 
     const int sigIndex = senderSignalIndex();
-    const auto it = m_notifySignalIndexToMetaIndex.find(sigIndex);
-    if (it == m_notifySignalIndexToMetaIndex.end()) {
+    const auto it = m_notifySignalToMetaIndexes.constFind(sigIndex);
+    if (it == m_notifySignalToMetaIndexes.cend()) {
         return;
     }
 
-    syncOne(it.value());
+    const QMetaObject* mo = m_object->metaObject();
+    if (!mo) {
+        return;
+    }
+
+    const QScopedValueRollback<bool> updatingGuard(m_updating, true);
+    for (int metaIndex : it.value()) {
+        applyMetaValue(mo, metaIndex);
+    }
 }
 
 void PropertyTreeWidget::clear()
@@ -274,93 +627,70 @@ void PropertyTreeWidget::clear()
     /**
      * 函数级注释：断开所有已建立的动态连接，并清理 UI 与索引缓存
      */
-    for (const auto& c : m_connections) {
-        QObject::disconnect(c);
+    m_object = nullptr;
+    rebuild();
+}
+
+void PropertyTreeWidget::disconnectNotifies()
+{
+    for (const auto& connection : m_connections) {
+        QObject::disconnect(connection);
     }
     m_connections.clear();
-
-    if (m_browser) {
-        m_browser->clear();
-    }
-
-    m_qtPropToMetaIndex.clear();
-    m_metaIndexToQtProp.clear();
-    m_notifySignalIndexToMetaIndex.clear();
-    m_object = nullptr;
 }
 
 void PropertyTreeWidget::connectNotifySignals()
 {
     /**
-     * 函数级注释：将每个属性的 notify 信号动态连接到 onAnyPropertyNotify 以实现外部变化同步
+     * 函数级注释：每个 notify 信号只连一次，一个信号可刷新它对应的全部属性
      */
-    if (!m_object) {
+    if (!m_object || m_notifySlotIndex < 0) {
         return;
     }
 
-    const QMetaObject* mo = m_object->metaObject();
-    if (!mo) {
-        return;
-    }
-
-    const int slotIndex = this->metaObject()->indexOfSlot("onAnyPropertyNotify()");
-    if (slotIndex < 0) {
-        return;
-    }
-
-    for (auto it = m_notifySignalIndexToMetaIndex.constBegin(); it != m_notifySignalIndexToMetaIndex.constEnd(); ++it) {
+    m_connections.reserve(m_notifySignalToMetaIndexes.size());
+    for (auto it = m_notifySignalToMetaIndexes.cbegin(); it != m_notifySignalToMetaIndexes.cend(); ++it) {
         const int sigIndex = it.key();
         if (sigIndex < 0) {
             continue;
         }
-        m_connections.push_back(QMetaObject::connect(m_object, sigIndex, this, slotIndex, Qt::AutoConnection));
+        m_connections.push_back(QMetaObject::connect(
+            m_object, sigIndex, this, m_notifySlotIndex, Qt::AutoConnection));
     }
 }
 
 void PropertyTreeWidget::syncOne(int metaPropertyIndex)
 {
     /**
-     * 函数级注释：从对象读取指定 metaPropertyIndex 的值并更新到对应 UI 属性项
+     * 函数级注释：从对象读取指定属性并更新到对应 UI
      */
     if (!m_object) {
         return;
     }
-
     const QMetaObject* mo = m_object->metaObject();
     if (!mo) {
         return;
     }
+    const QScopedValueRollback<bool> updatingGuard(m_updating, true);
+    applyMetaValue(mo, metaPropertyIndex);
+}
 
+void PropertyTreeWidget::applyMetaValue(const QMetaObject* metaObject, int metaPropertyIndex)
+{
     QtVariantProperty* vp = m_metaIndexToQtProp.value(metaPropertyIndex, nullptr);
-    if (!vp) {
+    if (!vp || !m_object) {
         return;
     }
 
-    const QMetaProperty mp = mo->property(metaPropertyIndex);
-    const QVariant v = readMetaPropertyValue(mp);
-
-    m_updating = true;
-    if (mp.isEnumType()) {
-        const QMetaEnum en = mp.enumerator();
-        const int enumValue = v.toInt();
-        int index = 0;
-        for (int k = 0; k < en.keyCount(); ++k) {
-            if (en.value(k) == enumValue) {
-                index = k;
-                break;
-            }
-        }
-        vp->setValue(index);
-    } else {
-        vp->setValue(v);
-    }
-    m_updating = false;
+    const QMetaProperty mp = metaObject->property(metaPropertyIndex);
+    const QVariant raw = mp.read(m_object);
+    vp->setValue(mp.isEnumType() ? enumToIndex(mp.enumerator(), raw.toInt()) : raw);
 }
 
-QtVariantProperty* PropertyTreeWidget::createVariantProperty(const QMetaProperty& mp) const
+QtVariantProperty* PropertyTreeWidget::createVariantProperty(const QMetaProperty& mp)
 {
     /**
-     * 函数级注释：根据 QMetaProperty 的类型创建对应的 QtVariantProperty；不支持类型将降级为只读字符串
+     * 函数级注释：根据 QMetaProperty 的类型创建对应的 QtVariantProperty；不支持类型将降级为字符串
      */
     if (!m_manager) {
         return nullptr;
@@ -369,72 +699,36 @@ QtVariantProperty* PropertyTreeWidget::createVariantProperty(const QMetaProperty
     const QString name = QString::fromLatin1(mp.name());
 
     if (mp.isEnumType()) {
-        QtVariantProperty* p = m_manager->addProperty(QtVariantPropertyManager::enumTypeId(), name);
+        QtVariantProperty* property = m_manager->addProperty(QtVariantPropertyManager::enumTypeId(), name);
+        if (!property) {
+            return nullptr;
+        }
         const QMetaEnum en = mp.enumerator();
         QStringList enumNames;
         enumNames.reserve(en.keyCount());
         for (int i = 0; i < en.keyCount(); ++i) {
             enumNames.push_back(QString::fromLatin1(en.key(i)));
         }
-        m_manager->setAttribute(p, "enumNames", enumNames);
-        return p;
+        m_manager->setAttribute(property, QStringLiteral("enumNames"), enumNames);
+        return property;
     }
 
-    const int typeId = mp.metaType().id();
-    QtVariantProperty* p = m_manager->addProperty(typeId, name);
-    if (!p) {
-        p = m_manager->addProperty(QMetaType::QString, name);
-        m_manager->setAttribute(p, "readOnly", true);
+    int typeId = mp.metaType().id();
+    // QtVariantPropertyManager 没有 float 编辑器，按 double 建属性，写回时再转回 float
+    if (typeId == QMetaType::Float) {
+        typeId = QMetaType::Double;
     }
-    return p;
+    QtVariantProperty* property = m_manager->addProperty(typeId, name);
+    if (!property) {
+        return m_manager->addProperty(QMetaType::QString, name);
+    }
+    if (typeId == QMetaType::Double) {
+        // 与 FloatDragValueWidget 默认步进一致；Shift 精调，Ctrl/Alt 粗调
+        m_manager->setAttribute(property, QStringLiteral("singleStep"), 0.1);
+    }
+    return property;
 }
 
-QVariant PropertyTreeWidget::readMetaPropertyValue(const QMetaProperty& mp) const
-{
-    /**
-     * 函数级注释：从 QObject 读取属性值并做必要的降级处理
-     */
-    if (!m_object) {
-        return {};
-    }
-
-    QVariant v = mp.read(m_object);
-    if (!v.isValid()) {
-        return {};
-    }
-
-    if (mp.isEnumType()) {
-        return v.toInt();
-    }
-
-    return v;
-}
-
-bool PropertyTreeWidget::writeMetaPropertyValue(const QMetaProperty& mp, const QVariant& value) const
-{
-    /**
-     * 函数级注释：将值写入 QObject 的属性；对可转换类型做转换尝试
-     */
-    if (!m_object) {
-        return false;
-    }
-
-    if (!mp.isWritable()) {
-        return false;
-    }
-
-    QVariant v = value;
-    const QMetaType target = mp.metaType();
-    if (v.metaType() != target) {
-        if (!v.canConvert(target)) {
-            return false;
-        }
-        if (!v.convert(target)) {
-            return false;
-        }
-    }
-
-    return mp.write(m_object, v);
-}
+#include "PropertyTreeWidget.moc"
 
 

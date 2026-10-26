@@ -9,6 +9,7 @@
 #include "Common/Devices/WebSocketServer/WebSocketServer.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include "Common/AppConfig/ConstantDefines.h"
 
 #include <QtWebSockets/QWebSocket>
 #include <QJsonObject>
@@ -400,14 +401,13 @@ namespace Nodes
                 m_audioBuffer->setActive(true);
             }
 
-            // 与 Decoder FIXED_DELAY_FRAMES 同量级，过大 lead 停说后更容易把 tip 冻在未来/过去交界
-            constexpr qint64 kLeadFrames = 5;
+            // 与 AppConfigs::FIXED_DELAY_FRAMES 对齐；过大 lead 停说后更容易把 tip 冻在未来/过去交界
             while (static_cast<int>(m_pending.size()) >= frameSamples) {
                 const qint64 now = TimestampGenerator::getInstance()->getCurrentFrameCount();
                 if (m_nextTimestamp <= 0) {
-                    m_nextTimestamp = now + kLeadFrames;
+                    m_nextTimestamp = now + AppConfigs::FIXED_DELAY_FRAMES;
                 } else if (m_nextTimestamp < now + 2) {
-                    m_nextTimestamp = now + kLeadFrames;
+                    m_nextTimestamp = now + AppConfigs::FIXED_DELAY_FRAMES;
                 }
 
                 AudioFrame frame;

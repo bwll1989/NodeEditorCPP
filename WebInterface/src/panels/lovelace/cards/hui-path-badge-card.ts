@@ -14,7 +14,17 @@ import type {
 } from "../../../types";
 import { DEFAULT_FLOORPLAN } from "../picture-elements/default-floorplan";
 import { formatPictureBadgeState } from "../picture-elements/format-state";
-import { badgeShowIcon, badgeShowText } from "../heading-badges/badge-flags";
+import {
+  badgeShowBackground,
+  badgeShowIcon,
+  badgeShowText,
+  badgeVisualSize,
+} from "../heading-badges/badge-flags";
+import {
+  isButtonBadge,
+  normalizeBadgeConfig,
+  serializeBadgeConfig,
+} from "../heading-badges/badge-model";
 import "../../../components/ha-card";
 import "../../../components/ha-state-badge";
 import "../picture-elements/hui-picture-action-element";
@@ -28,14 +38,14 @@ const DEFAULT_POINTS: LovelacePathPoint[] = [
 const DEFAULT_TRACK_COLOR = "primary";
 const DEFAULT_BADGE_COLOR = "accent";
 const DEFAULT_ICON = "mdi:map-marker";
-const DEFAULT_BADGE_SIZE = 44;
+const DEFAULT_BADGE_SIZE = 26;
 const DEFAULT_TRACK_WIDTH = 1;
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DEFAULT_PROGRESS_MIN = 0;
 const DEFAULT_PROGRESS_MAX = 1;
 const DEFAULT_BADGES: LovelacePathBadgeConfig[] = [
-  {
-    type: "state-badge",
+  serializeBadgeConfig({
+    type: "entity",
     entity: "/demo/path_progress",
     name: "轨迹点 1",
     icon: "mdi:robot-industrial",
@@ -43,7 +53,7 @@ const DEFAULT_BADGES: LovelacePathBadgeConfig[] = [
     show_icon: true,
     show_name: false,
     show_state: false,
-  },
+  }) as LovelacePathBadgeConfig,
 ];
 
 function clampPercent(value: number): number {
@@ -84,22 +94,7 @@ function buildPath(points: LovelacePathPoint[]): string {
 }
 
 function normalizeBadge(badge: LovelacePathBadgeConfig): LovelacePathBadgeConfig {
-  return {
-    entity: String(badge.entity ?? "").trim(),
-    type: String(badge.type ?? "state-badge").trim() || "state-badge",
-    ...(String(badge.name ?? "").trim() ? { name: String(badge.name).trim() } : {}),
-    ...(String(badge.icon ?? "").trim() ? { icon: String(badge.icon).trim() } : {}),
-    ...(String(badge.color ?? "").trim() ? { color: String(badge.color).trim() } : {}),
-    ...(String(badge.unit ?? "").trim() ? { unit: String(badge.unit).trim() } : {}),
-    ...(String(badge.text ?? "").trim() ? { text: String(badge.text).trim() } : {}),
-    ...(badge.show_icon === false ? { show_icon: false } : {}),
-    ...(typeof badge.show_name === "boolean" ? { show_name: badge.show_name } : {}),
-    ...(String(badge.attribute ?? "").trim()
-      ? { attribute: String(badge.attribute).trim() }
-      : {}),
-    ...(typeof badge.show_state === "boolean" ? { show_state: badge.show_state } : {}),
-    ...(badge.value !== undefined ? { value: badge.value } : {}),
-  };
+  return serializeBadgeConfig(normalizeBadgeConfig(badge)) as LovelacePathBadgeConfig;
 }
 
 function pointAtProgress(pathData: string, progress: number): LovelacePathPoint | undefined {
@@ -221,10 +216,8 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
     const image = String(this._config.image ?? "");
     const badges = this._activeBadgesFromConfig(this._config);
     const pathData = this._pathData();
-    const badgeSize = Number(this._config.badge_size ?? DEFAULT_BADGE_SIZE);
     const trackColor = computeCssColor(String(this._config.track_color ?? DEFAULT_TRACK_COLOR));
     const caption = String(this._config.caption ?? "").trim();
-    const badgeScale = Math.max(0.5, badgeSize / 56);
 
     return html`
       <ha-card>
@@ -257,12 +250,8 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
               ? html`
                 <div
                   title=${badgeTitle}
-                  style=${[
-                    `left:${point.x}%`,
-                    `top:${point.y}%`,
-                    `--badge-scale:${badgeScale}`,
-                  ].join(";")}
-                  class=${this._isButtonBadge(badge) ? "badge interactive" : "badge"}
+                  style=${[`left:${point.x}%`, `top:${point.y}%`].join(";")}
+                  class=${isButtonBadge(badge) ? "badge interactive" : "badge"}
                 >
                   ${this._renderBadgeContent(badge, state)}
                 </div>
@@ -297,7 +286,7 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
     return [
       normalizeBadge({
         entity: legacyEntity,
-        type: "state-badge",
+        type: "entity",
         name: String(config.name ?? "").trim() || undefined,
         icon: String(config.icon ?? "").trim() || undefined,
         color: String(config.badge_color ?? "").trim() || DEFAULT_BADGE_COLOR,
@@ -421,13 +410,6 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
   }
 
   /**
-   * 判断当前轨迹徽章是否为控制徽章。
-   */
-  private _isButtonBadge(badge: LovelacePathBadgeConfig): boolean {
-    return String(badge.type ?? "state-badge") === "button";
-  }
-
-  /**
    * 生成状态徽章颜色，尽量和图片元素中的状态徽章行为保持一致。
    */
   private _stateBadgeColor(
@@ -455,15 +437,21 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
   /**
    * 按徽章类型渲染轨迹元素上的内容。
    */
+  private _cardBadgeSizeFallback(): number {
+    return Number(this._config?.badge_size ?? DEFAULT_BADGE_SIZE);
+  }
+
   private _renderBadgeContent(
     badge: LovelacePathBadgeConfig,
     state: FlowEntityState | undefined,
   ) {
-    if (this._isButtonBadge(badge)) {
+    const size = badgeVisualSize(badge, this._cardBadgeSizeFallback());
+
+    if (isButtonBadge(badge)) {
       return html`
         <hui-picture-action-element
           .flow=${this.flow}
-          .config=${this._buttonConfig(badge)}
+          .config=${this._buttonConfig(badge, size)}
           .preview=${false}
           .statesRevision=${this.flow?.statesRevision ?? 0}
         ></hui-picture-action-element>
@@ -481,6 +469,8 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
         .color=${this._stateBadgeColor(state, badge)}
         .showIcon=${badgeShowIcon(badge)}
         .showValue=${badgeShowText(badge)}
+        .size=${size}
+        .showBackground=${badgeShowBackground(badge)}
       ></ha-state-badge>
     `;
   }
@@ -488,17 +478,19 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
   /**
    * 转成控制徽章组件可直接复用的配置结构。
    */
-  private _buttonConfig(badge: LovelacePathBadgeConfig): LovelacePictureElementConfig {
-    return {
+  private _buttonConfig(
+    badge: LovelacePathBadgeConfig,
+    size: number,
+  ): LovelacePictureElementConfig {
+    return serializeBadgeConfig({
+      ...normalizeBadgeConfig(badge),
       type: "button",
-      entity: badge.entity,
-      name: badge.name,
       text: badge.text ?? badge.name,
       icon: badge.icon ?? DEFAULT_ICON,
-      color: badge.color,
       show_name: badgeShowText(badge),
-      value: badge.value,
-    };
+      show_background: badgeShowBackground(badge),
+      size,
+    });
   }
 
   static styles = css`
@@ -562,7 +554,7 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
     .badge {
       position: absolute;
       z-index: 2;
-      transform: translate(-50%, -50%) scale(var(--badge-scale, 1));
+      transform: translate(-50%, -50%);
       pointer-events: none;
       transform-origin: center center;
     }

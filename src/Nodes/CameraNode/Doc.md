@@ -2,15 +2,17 @@
 
 ## 1. 节点说明
 
-从本地摄像头采集实时画面，经 **OpenCV `VideoCapture`** 读取 `cv::Mat`，在 GUI 线程上传 GPU 纹理后写入 **ImageTimestampRingQueue**，输出稳定的 **ImageData** 共享句柄。
+从本地摄像头采集实时画面，经 **项目自带 FFmpeg（`avdevice` / DirectShow `dshow`）** 打开设备并解码，转为 `cv::Mat`（BGR）后在 GUI 线程上传 GPU 纹理，写入 **ImageTimestampRingQueue**，输出稳定的 **ImageData** 共享句柄。
 
-采集在独立线程中运行，避免阻塞界面；与 VideoDecoder / ImageLoader 一致，**不**每帧 `dataUpdated`，下游按 **TimestampGenerator tick** 调用 `getLatestFrame()`。
+采集在独立线程中运行，避免阻塞界面；与 VideoDecoder / RTSP / ImageLoader 一致，**不**每帧 `dataUpdated`，下游按 **TimestampGenerator tick** 调用 `getLatestFrame()`。
+
+不再使用 Qt Multimedia / OpenCV `VideoCapture`（及其捆绑 FFmpeg）。
 
 ## 2. 数据流
 
 ```text
 CameraCaptureThread
-  OpenCV VideoCapture::read → cv::Mat
+  FFmpeg dshow → avcodec → sws(BGR24) → cv::Mat
        ↓ QueuedConnection
 CameraModel::onFrameAvailable（合并为最新 pending 帧）
        ↓ GUI 线程
@@ -30,24 +32,29 @@ m_outImageData ──→ Image Display / ImageOperates / …
 
 ## 4. 界面说明
 
-- **设备下拉框**：列出可用摄像头（`QMediaDevices::videoInputs`），选择后自动开始采集。
+- **设备下拉框**：通过 `avdevice_list_input_sources(dshow)` 列出视频输入设备，选择后自动开始采集。当前设备（`device` / `displayName`）写入节点 JSON。
 - **采集状态**：勾选框反映当前是否正在捕获。
 
 ## 5. 使用说明
 
-1. 添加节点，在 embedded 面板中选择摄像头。
+1. 添加节点，在属性面板中选择摄像头。未保存过设备时，使用枚举到的第一路。
 2. 输出接到 Image Display、Image Scale、Image Blur 等下游节点。
-3. 更换设备时重新选择下拉项；停止时 ring buffer 会被清空，Display 下一 tick 清屏。
+3. 更换设备时重新选择下拉项并保存工程；停止时 ring buffer 会被清空，Display 下一 tick 清屏。
+4. FlowRuntime 不创建属性面板，加载工程后按保存的设备名直接 `startCapture`。旧工程没有设备字段时，同样回退到第一路摄像头。
+5. 运行时需能加载工程 `3rdParty/ffmpeg-*-full_build-shared/bin` 下的 `avdevice` 等 DLL（与 VideoDecoder / RTSP 相同）。
 
 ## 6. 实现要点
 
 | 项目 | 说明 |
 |------|------|
-| 采集 | `CameraCaptureThread` + `cv::VideoCapture` |
+| 采集 | `CameraCaptureThread` + FFmpeg `dshow`（`video=设备名`）；`load()` 后启动，不依赖界面 |
+| 持久化 | `values.device`（打开名）、`values.displayName`（友好名） |
+| 枚举 | `avdevice_list_input_sources`，仅视频设备 |
 | 上传 | `ImageGpuUpload::warmup()` + `ImageFrame::fromMat`（须 GUI 线程） |
 | 合并 | pending 帧合并，避免 GL 上传积压 |
 | 时间戳 | `TimestampGenerator::getCurrentFrameCount()` |
 | CPU 缓存 | `ImageFrame::fromMat` 始终保留 CPU 副本，便于下游 OpenCV 读 `frame.image` |
+| 停止 | `interrupt_callback` 打断阻塞的 `av_read_frame` |
 
 ## 7. 示例
 

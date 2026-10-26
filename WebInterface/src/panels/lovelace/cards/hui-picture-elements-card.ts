@@ -13,6 +13,13 @@ import type {
 import "../../../components/ha-card";
 import { DEFAULT_FLOORPLAN } from "../picture-elements/default-floorplan";
 import { clampPercent, elementPosition, withPosition } from "../picture-elements/position";
+import {
+  createButtonBadgeStub,
+  createEntityBadgeStub,
+  isButtonBadge,
+  normalizeBadgeConfig,
+  serializeBadgeConfig,
+} from "../heading-badges/badge-model";
 import "../picture-elements/hui-picture-state-element";
 import "../picture-elements/hui-picture-action-element";
 
@@ -23,23 +30,19 @@ export class HuiPictureElementsCard extends LitElement implements LovelaceCard {
       type: "picture-elements",
       image: DEFAULT_FLOORPLAN,
       elements: [
-        {
-          type: "state-badge",
+        createEntityBadgeStub({
           entity: "/demo/temperature",
           name: "温度",
           icon: "mdi:thermometer",
           color: "red",
           style: { top: "32%", left: "24%" },
-        },
-        {
-          type: "button",
+        }),
+        createButtonBadgeStub({
           entity: "/demo/trigger",
-          icon: "mdi:gesture-tap-button",
-          text: "触发",
           name: "触发",
-          value: true,
+          text: "触发",
           style: { top: "58%", left: "72%" },
-        },
+        }),
       ],
       grid_options: { columns: 12, rows: "auto", min_columns: 6, min_rows: 3 },
     };
@@ -53,17 +56,38 @@ export class HuiPictureElementsCard extends LitElement implements LovelaceCard {
 
   @state() private _elements: LovelacePictureElementConfig[] = [];
 
+  /** 编辑预览：当前选中的徽章下标 */
+  @state() private _highlightIndex = -1;
+
   @query(".root") private _root?: HTMLElement;
 
   private _dragIndex: number | null = null;
 
   private _moved = false;
 
+  private _onHighlight = (ev: Event): void => {
+    if (!this.preview) return;
+    const index = Number((ev as CustomEvent<{ index?: number }>).detail?.index);
+    this._highlightIndex = Number.isFinite(index) ? index : -1;
+  };
+
   setConfig(config: LovelaceCardConfig): void {
     this._config = config;
     if (this._dragIndex === null) {
-      this._elements = [...((config.elements ?? []) as LovelacePictureElementConfig[])];
+      this._elements = ((config.elements ?? []) as LovelacePictureElementConfig[]).map(
+        (element) => serializeBadgeConfig(normalizeBadgeConfig(element)),
+      );
     }
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    document.addEventListener("flow-picture-badge-highlight", this._onHighlight);
+  }
+
+  disconnectedCallback(): void {
+    document.removeEventListener("flow-picture-badge-highlight", this._onHighlight);
+    super.disconnectedCallback();
   }
 
   getGridOptions(): LovelaceGridOptions {
@@ -94,6 +118,11 @@ export class HuiPictureElementsCard extends LitElement implements LovelaceCard {
     ev.stopPropagation();
     this._dragIndex = index;
     this._moved = false;
+    this._highlightIndex = index;
+    fireEvent(this, "picture-element-select", { index });
+    document.dispatchEvent(
+      new CustomEvent("flow-picture-badge-highlight", { detail: { index } }),
+    );
     (ev.currentTarget as HTMLElement).setPointerCapture(ev.pointerId);
   }
 
@@ -125,10 +154,8 @@ export class HuiPictureElementsCard extends LitElement implements LovelaceCard {
 
   private _renderElement(element: LovelacePictureElementConfig, index: number) {
     const pos = elementPosition(element);
-    const type = String(element.type ?? "state-badge");
-    const inner =
-      type === "button"
-        ? html`
+    const inner = isButtonBadge(element)
+      ? html`
             <hui-picture-action-element
               .flow=${this.flow}
               .config=${element}
@@ -136,7 +163,7 @@ export class HuiPictureElementsCard extends LitElement implements LovelaceCard {
               .statesRevision=${this.flow?.statesRevision ?? 0}
             ></hui-picture-action-element>
           `
-        : html`
+      : html`
             <hui-picture-state-element
               .flow=${this.flow}
               .config=${element}
@@ -146,7 +173,11 @@ export class HuiPictureElementsCard extends LitElement implements LovelaceCard {
 
     return html`
       <div
-        class=${classMap({ element: true, preview: this.preview })}
+        class=${classMap({
+          element: true,
+          preview: this.preview,
+          selected: this.preview && this._highlightIndex === index,
+        })}
         style=${styleMap({ top: `${pos.top}%`, left: `${pos.left}%` })}
         @pointerdown=${(ev: PointerEvent) => this._onElementPointerDown(index, ev)}
         @pointermove=${this._onElementPointerMove}
@@ -230,6 +261,13 @@ export class HuiPictureElementsCard extends LitElement implements LovelaceCard {
     }
     .element.preview:active {
       cursor: grabbing;
+    }
+    .element.selected {
+      z-index: 3;
+      outline: 2px solid var(--primary-color);
+      outline-offset: 4px;
+      border-radius: 999px;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary-color) 25%, transparent);
     }
   `;
 }

@@ -50,7 +50,8 @@ inline QVector<float> loadRgbaValue(const QJsonObject &values,
 
 inline qint64 currentTimestamp()
 {
-    return TimestampGenerator::getInstance()->getCurrentFrameCount();
+    return NodeDataTypes::mediaOutputTimestamp(
+        TimestampGenerator::getInstance()->getCurrentFrameCount());
 }
 
 inline void ensureOutputBuffer(std::shared_ptr<NodeDataTypes::ImageData>& outData,

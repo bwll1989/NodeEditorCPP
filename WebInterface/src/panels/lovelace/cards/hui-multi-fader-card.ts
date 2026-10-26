@@ -60,11 +60,12 @@ export class HuiMultiFaderCard extends LitElement implements LovelaceCard {
     const count = clampFaderCount(this._config?.count);
     const orientation = this._orientation();
     if (orientation === "vertical") {
+      // 竖向推杆需要足够行高；自动高度时由 CSS min-height 兜底
       return {
         columns: Math.min(12, Math.max(6, count * 2)),
         rows: 4,
         min_columns: verticalLayout ? 3 : 6,
-        min_rows: 3,
+        min_rows: 4,
       };
     }
     const rows = Math.max(2, Math.min(8, 1 + Math.ceil(count / 2)));
@@ -203,6 +204,8 @@ export class HuiMultiFaderCard extends LitElement implements LovelaceCard {
         height: 100%;
         min-height: 0;
         --feature-border-radius: var(--ha-card-border-radius, 12px);
+        /* 竖向推杆轨道最小高度（自动高度 / 弹窗无也要可见） */
+        --multi-fader-track-min-height: 96px;
       }
       ha-card {
         height: 100%;
@@ -221,6 +224,8 @@ export class HuiMultiFaderCard extends LitElement implements LovelaceCard {
         box-sizing: border-box;
         min-height: 0;
         height: 100%;
+        /* 与 tile features 默认内边距一致，避免贴边 */
+        padding: 0 12px 12px;
         --feature-height: 28px;
         --feature-border-radius: 10px;
       }
@@ -230,6 +235,13 @@ export class HuiMultiFaderCard extends LitElement implements LovelaceCard {
         justify-content: space-evenly;
         gap: 6px;
         --feature-height: 28px;
+        padding: 4px 10px 14px !important;
+        /*
+          ha-tile-container[expand-features] 的 ::slotted 会把 min-height 设为 0，
+          自动高度时竖向推杆会被压没；用 !important 保证最小轨道高度。
+          预留：轨道 + 标签 + 底边距。
+         */
+        min-height: calc(var(--multi-fader-track-min-height) + 36px) !important;
       }
       .faders.horizontal {
         flex-direction: column;
@@ -245,11 +257,12 @@ export class HuiMultiFaderCard extends LitElement implements LovelaceCard {
         flex: 1 1 0;
         flex-direction: column;
         align-items: center;
-        gap: 4px;
+        gap: 6px;
+        min-height: 0;
       }
       .faders.vertical ha-control-slider {
         flex: 1 1 auto;
-        min-height: 0;
+        min-height: var(--multi-fader-track-min-height);
         width: var(--feature-height);
       }
       .faders.horizontal .fader {

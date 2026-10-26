@@ -5,8 +5,8 @@
  * 常量说明：
  *   SAMPLE_RATE           — 系统统一音频采样率 48000 Hz
  *   SAMPLES_PER_CHANNEL   — 每个音频 tick 块包含的采样数（48000 / 帧率）
- *   FIXED_DELAY_FRAMES    — 音频时间戳相对系统 tick 的固定超前量
- *   LOOP_INTERVAL         — 循环播放 seek 回起点前的间隔 ms
+ *   AppConfigs::FIXED_DELAY_FRAMES — 音/视频时间戳相对系统 tick 的固定超前量
+ *   LOOP_INTERVAL                  — 循环播放 seek 回起点前的间隔 ms
  */
 
 #include <QDebug>
@@ -35,14 +35,13 @@ extern "C" {
 #include <portaudio.h>
 #include <QDateTime>
 #include <QElapsedTimer>
+#include "Common/AppConfig/ConstantDefines.h"
 // #include <Common/Devices/AudioPipe/AudioPipe.h>
 
 /** 系统统一输出采样率（Hz） */
 static const int SAMPLE_RATE = 48000;
 /** 循环播放 seek 回文件头前的等待（ms），避免连续 seek 过于激进 */
 static const int LOOP_INTERVAL = 800;
-/** 音频帧 timestamp 相对 TimestampGenerator 的固定超前帧数 */
-static const int FIXED_DELAY_FRAMES = 5;
 /** 每个音频输出块：每声道采样数 = 48000 / 系统 tick 帧率 */
 static const int SAMPLES_PER_CHANNEL = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();;
 
@@ -646,7 +645,8 @@ void VideoDecoder::processVideoFrame() {
     sws_scale(swsContext, videoFrame->data, videoFrame->linesize, 0,
               frameH, dstData, dstLinesize);
 
-    const qint64 timestamp = static_cast<qint64>(timestampGenerator_->getCurrentFrameCount());
+    const qint64 timestamp = NodeDataTypes::mediaOutputTimestamp(
+        static_cast<qint64>(timestampGenerator_->getCurrentFrameCount()));
     {
         QMutexLocker locker(&mutex);
         if (!videoImageBuffer_) {
@@ -1076,7 +1076,7 @@ int VideoDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
         frame.sampleRate = sampleRate;
         frame.channels = channels;
         frame.bitsPerSample = 32;
-        frame.timestamp = ++lastTimestamp_+FIXED_DELAY_FRAMES;
+        frame.timestamp = ++lastTimestamp_ + AppConfigs::FIXED_DELAY_FRAMES;
 
         emit audioFrameReady(frame);
         emitted++;
@@ -1088,7 +1088,7 @@ int VideoDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
             
             // 计算时间戳差异（生成帧时间戳 - 当前系统时间戳）
             qint64 timestampDiff = frame.timestamp - currentSystemTimestamp;
-            if (timestampDiff<FIXED_DELAY_FRAMES+1)
+            if (timestampDiff < AppConfigs::FIXED_DELAY_FRAMES + 1)
             {
                 chunkMs=chunkMs*0.5;
             }

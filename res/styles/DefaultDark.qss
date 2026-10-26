@@ -303,7 +303,7 @@ PropertyTreeWidget#propertyTreeWidget QSpinBox,
 PropertyTreeWidget#propertyTreeWidget QDoubleSpinBox,
 PropertyTreeWidget#propertyTreeWidget QComboBox,
 PropertyTreeWidget#propertyTreeWidget QLineEdit {
-    min-height: 16px;
+    min-height: 14px;
     padding: 0px 0px;
 }
 

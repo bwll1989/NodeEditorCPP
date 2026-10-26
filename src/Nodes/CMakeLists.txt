@@ -28,6 +28,8 @@ set(ALL_NODES
     HotKeyNode                                #热键模块
     ExtractNode                               #数据分离模块
     CameraNode                                #摄像头输入
+    ScreenCaptureNode                         #显示器/窗口捕获
+    WebRenderNode                             #网页离屏渲染（TD Web Render TOP 模式）
     CaptureNode                               #图像捕获
     ROINode                                   #交互式 ROI 裁剪
     ImageConstNode                            #图像常量
@@ -89,6 +91,7 @@ set(ALL_NODES
     AudioDelayNode                              #音频延时
     PoseDetectionNode                            #Yolo v11n 姿态
     ObjectDetectionNode                         #Yolo v11n 检测
+    ObjectTrackNode                             #YOLOE 参考图跟踪
     FaceDetectionNode                              #人脸检测
     MediaPipe/HandPoseEstimationMediaPipeNode      #MediaPipe 手部关节点
     MediaPipe/PoseEstimationMediaPipeNode          #MediaPipe 人体姿态
@@ -147,6 +150,8 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(HotKeyNode)                                #热键模块
     add_subdirectory(ExtractNode)                               #数据分离模块
     add_subdirectory(CameraNode)                                #摄像头输入
+    add_subdirectory(ScreenCaptureNode)                         #显示器/窗口捕获
+    add_subdirectory(WebRenderNode)                             #网页离屏渲染
     add_subdirectory(CaptureNode)                               #图像捕获
     add_subdirectory(ROINode)                                   #交互式 ROI 裁剪
     add_subdirectory(ImageConstNode)                            #图像常量
@@ -206,6 +211,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(AudioDelayNode)                            #音频延时
     add_subdirectory(PoseDetectionNode)                        #动作识别
     add_subdirectory(ObjectDetectionNode)                       #对象识别
+    add_subdirectory(ObjectTrackNode)                           #参考图多目标跟踪
     add_subdirectory(FaceDetectionNode)                            #人脸检测
     add_subdirectory(MediaPipe/HandPoseEstimationMediaPipeNode)    #MediaPipe 手部关节点
     add_subdirectory(MediaPipe/PoseEstimationMediaPipeNode)        #MediaPipe 人体姿态

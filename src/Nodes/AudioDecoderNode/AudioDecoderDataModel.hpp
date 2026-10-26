@@ -6,6 +6,8 @@
 #include "Common/DataTypes/NodeDataList.hpp"
 #include "AudioDecoderInterface.hpp"
 #include <QFile>
+#include <QFileInfo>
+#include <QDir>
 #include <memory>
 
 #include "QtNodes/Definitions"
@@ -344,7 +346,7 @@ namespace Nodes
         QJsonObject save() const override
         {
             QJsonObject values;
-            values["filePath"] = m_filePath;
+            values["filePath"] = toMediaRelative(m_filePath);
             values["isLoop"] = loopProperty();
             values["volume"] = volumeProperty();
             values["play"] = m_playing;
@@ -386,7 +388,7 @@ namespace Nodes
                 setVolumeProperty(values[QStringLiteral("volume")].toDouble());
             }
 
-            const QString savedFile = values.value(QStringLiteral("filePath")).toString();
+            const QString savedFile = toMediaRelative(values.value(QStringLiteral("filePath")).toString());
             if (!savedFile.isEmpty() && savedFile != m_filePath) {
                 m_playing = false;
                 setFilePathProperty(savedFile);
@@ -501,6 +503,20 @@ namespace Nodes
             return m_filePath;
         }
 
+        static QString toMediaRelative(const QString& path)
+        {
+            const QString trimmed = QDir::cleanPath(path.trimmed());
+            if (trimmed.isEmpty() || !QFileInfo(trimmed).isAbsolute()) {
+                return trimmed;
+            }
+            const QString root = QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath();
+            const QString relative = QDir(root).relativeFilePath(trimmed);
+            if (relative.startsWith(QLatin1String("..")) || QFileInfo(relative).isAbsolute()) {
+                return QFileInfo(trimmed).fileName();
+            }
+            return relative;
+        }
+
         /**
          * 函数级注释：获取播放进度属性（0.0~1.0）
          */
@@ -511,7 +527,7 @@ namespace Nodes
 
         void setFilePathProperty(const QString& relative)
         {
-            const QString trimmed = relative.trimmed();
+            const QString trimmed = toMediaRelative(relative);
             if (trimmed == m_filePath) {
                 return;
             }

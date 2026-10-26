@@ -13,7 +13,6 @@
 #include "ImageOperateCommon.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
-#include "TimestampGenerator/TimestampGenerator.hpp"
 
 using namespace NodeDataTypes;
 namespace Nodes
@@ -63,17 +62,10 @@ inline GpuTextureHandle run(const GpuTextureHandle& src, int outWidth, int outHe
 
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
 
-            connect(TimestampGenerator::getInstance(),
-                    &TimestampGenerator::frameCountUpdated,
-                    this,
-                    [this](qint64 frameCount) {
-                        if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
-                            return;
-                        }
-                        m_lastRequestedFrame = frameCount;
-                        requestProcess(frameCount);
-                    },
-                    Qt::QueuedConnection);
+            m_cook = new ImageOperateHelpers::DirtyTickCook(
+                this,
+                [this]() { requestProcess(); },
+                &m_paramsDirty);
         };
 
         ~ImageScaleDataModel() override
@@ -141,6 +133,9 @@ inline GpuTextureHandle run(const GpuTextureHandle& src, int outWidth, int outHe
                 ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
                 m_lastProcessedInputTimestamp = -1;
                 m_paramsDirty = true;
+                if (m_cook) {
+                    m_cook->setWatchedInputs({m_inImageData});
+                }
                 emit dataUpdated(0);
                 break;
             case 1:
@@ -201,6 +196,9 @@ inline GpuTextureHandle run(const GpuTextureHandle& src, int outWidth, int outHe
             m_width = w;
             m_inScaleFactor.setWidth(w);
             m_paramsDirty = true;
+            if (m_cook) {
+                m_cook->markDirty();
+            }
             Q_EMIT widthChanged(w);
         }
 
@@ -210,6 +208,9 @@ inline GpuTextureHandle run(const GpuTextureHandle& src, int outWidth, int outHe
             m_height = h;
             m_inScaleFactor.setHeight(h);
             m_paramsDirty = true;
+            if (m_cook) {
+                m_cook->markDirty();
+            }
             Q_EMIT heightChanged(h);
         }
 
@@ -240,17 +241,16 @@ inline GpuTextureHandle run(const GpuTextureHandle& src, int outWidth, int outHe
             m_paramsDirty = false;
         }
 
-        void requestProcess(qint64 targetTimestamp = -1) {
+        void requestProcess()
+        {
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-            const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
-
             if (!m_inImageData || imageDataIsEmpty(m_inImageData)) {
                 clearOutput();
                 return;
             }
 
             ImageFrame frame;
-            if (!ImageOperateHelpers::resolveInputGpuFrame(m_inImageData, lookupTimestamp, frame)) {
+            if (!ImageOperateHelpers::resolveInputGpuFrameLatest(m_inImageData, frame)) {
                 if (!ImageOperateHelpers::hasInputImage(m_inImageData)) {
                     clearOutput();
                 }
@@ -263,7 +263,8 @@ inline GpuTextureHandle run(const GpuTextureHandle& src, int outWidth, int outHe
 
             GpuTextureHandle out = ImageScaleGpu::run(
                 frame.texture, m_width, m_height);
-            ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp);
+            ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp,
+                frame.timestamp);
 
             m_lastProcessedInputTimestamp = frame.timestamp;
             m_paramsDirty = false;
@@ -274,7 +275,7 @@ inline GpuTextureHandle run(const GpuTextureHandle& src, int outWidth, int outHe
         QSize m_inScaleFactor;
         std::shared_ptr<ImageData> m_outImageData;
         std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;
-        qint64 m_lastRequestedFrame = -1;
+        ImageOperateHelpers::DirtyTickCook* m_cook = nullptr;
         qint64 m_lastProcessedInputTimestamp = -1;
         bool m_paramsDirty = false;
         int m_width = 0;

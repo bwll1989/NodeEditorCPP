@@ -1,0 +1,6 @@
+<!DOCTYPE RCC>
+<RCC>
+  <qresource prefix="/license">
+    <file alias="license.png">../../../res/icons/license.png</file>
+  </qresource>
+</RCC>

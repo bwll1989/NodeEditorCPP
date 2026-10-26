@@ -6,7 +6,7 @@
 #include <QStandardPaths>
 // 产品版本号（关于窗口、工程元数据、QApplication::applicationVersion 等共用）
 #ifndef PRODUCT_VERSION
-#define PRODUCT_VERSION "1.7.05"
+#define PRODUCT_VERSION "1.7.06"
 #endif
 // 应用程序常量定义
 namespace AppConstants {
@@ -20,6 +20,10 @@ namespace AppConstants {
     const QString LOGS_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Logs";
     // 媒体库存储目录
     const QString MEDIA_LIBRARY_STORAGE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Medias";
+    // 物体跟踪取样缓存
+    const QString OBJECT_TRACK_REFS_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cache/ObjectTrackRefs";
+    // 音频波形峰值缓存
+    const QString AUDIO_PEAKS_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cache/Peaks";
     // FLOW文件存储目录
     const QString MEDIA_LIBRARY_FLOW_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Flows";
     // 最近打开文件存储路径
@@ -77,5 +81,9 @@ namespace AppConfigs {
     constexpr double TIMESTAMP_FRAME_RATE = 50.0;
     // 多源音频处理节点写出时追加的时间戳帧数（设置页可改；越大越稳，延迟越高）
     constexpr int AUDIO_OUTPUT_DELAY_FRAMES = 0;
+    // 生产者（音/视频）写出 timestamp 相对 TimestampGenerator 的固定超前帧数
+    constexpr int FIXED_DELAY_FRAMES = 5;
+    // 内部授权码
+    constexpr const char* InternalAuthorization = "FLOW-INTL-AUTH-KEY1";
 
 }

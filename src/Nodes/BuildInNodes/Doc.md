@@ -620,27 +620,30 @@ Extract 字符串字段 → String Variable → To JSON。
 
 ## 1. 节点说明
 
-在独立 OpenGL 窗口中全屏/开窗显示图像。刷新策略与 Image Display 同源（tick + ring buffer）。可选择目标显示器，并用布尔口控制窗口显隐。
+在指定显示器上打开独立 OpenGL 窗口显示图像（定位对齐 TouchDesigner Window COMP 常用子集）。刷新策略与 Image Display 同源（tick + `newFrameWritten` + ring buffer）。
 
 ## 2. 端口说明
 
 | 方向 | 端口 | 类型 | 说明 |
 |------|------|------|------|
-| 入 | 0 | ImageData | 显示图像 |
-| 入 | 1 | VariableData | `true`/`false` 打开/关闭窗口 |
-| 出 | （默认） | ImageData | 透传输入图像 |
+| 入 | IMAGE | ImageData | 显示图像 |
+| 入 | OPEN | VariableData | `true`/`false` 打开/关闭窗口 |
+| 出 | IMAGE | ImageData | 透传输入图像 |
 
 ## 3. 界面说明
 
-- **显示器**下拉框：选择目标屏幕  
-- **打开窗口**按钮：切换窗口显隐  
-工程保存屏幕索引与窗口状态。
+- **标题 / 显示器 / 尺寸**（填满显示器 | 自定义宽高）
+- **位置**：居中 | 左上 | 自定义。自定义时 X/Y 相对所选显示器区域左上角（忽略任务栏时按整屏）
+- **适配**：Contain / Cover / Stretch
+- **边框 / 置顶 / Esc 关闭 / 忽略任务栏**
+- **打开窗口**按钮；Esc（可关）或 Shift+Esc（始终）关闭窗口
+- 工程持久化上述参数及窗口开闭状态；热插拔显示器时会刷新列表
 
 ## 4. 使用说明
 
-1. 连接图像源到端口 0。  
-2. 选择显示器，点「打开窗口」或向端口 1 送布尔。  
-3. 退出应用时会关闭显示窗口。
+1. 连接图像源到 IMAGE。  
+2. 选择显示器与尺寸模式，点「打开窗口」或向 OPEN 口送布尔。  
+3. 投影建议：填满显示器 + Cover + 无边框 + 置顶。
 
 ## 5. 示例
 

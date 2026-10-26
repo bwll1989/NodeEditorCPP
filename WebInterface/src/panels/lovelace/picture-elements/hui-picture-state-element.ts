@@ -3,7 +3,12 @@ import { customElement, property, state } from "lit/decorators.js";
 import type { Flow, LovelacePictureElementConfig } from "../../../types";
 import { stateActive } from "../../../common/entity/state-active";
 import { formatPictureBadgeState } from "./format-state";
-import { badgeShowIcon, badgeShowText } from "../heading-badges/badge-flags";
+import {
+  badgeShowBackground,
+  badgeShowIcon,
+  badgeShowText,
+  badgeVisualSize,
+} from "../heading-badges/badge-flags";
 import "../../../components/ha-state-badge";
 
 @customElement("hui-picture-state-element")
@@ -98,6 +103,8 @@ export class HuiPictureStateElement extends LitElement {
         .color=${color}
         .showIcon=${showIcon}
         .showValue=${showText}
+        .size=${badgeVisualSize(config)}
+        .showBackground=${badgeShowBackground(config)}
       ></ha-state-badge>
     `;
   }

@@ -13,7 +13,6 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QSaveFile>
-#include <QStandardPaths>
 #include <cmath>
 #include <vector>
 #include <memory>
@@ -38,9 +37,7 @@ AudioPeakDecoder::~AudioPeakDecoder() = default;
 
 QString AudioPeakDecoder::cacheDirectory()
 {
-    // 和 MediaLibrary/Cfg/Recovery 等目录保持同级：Documents/Flow/Peaks
-    static const QString dir =
-        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) + QStringLiteral("/Flow/Peaks");
+    const QString dir = AppConstants::AUDIO_PEAKS_DIR;
     QDir().mkpath(dir);
     return dir;
 }
@@ -49,10 +46,18 @@ QString AudioPeakDecoder::cacheKeyForFile(const QString& absoluteFilePath)
 {
     QFileInfo fi(absoluteFilePath);
     if (!fi.exists()) return QString();
+    const QString root = QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath();
+    QString identity = QDir(root).relativeFilePath(fi.absoluteFilePath());
+    if (identity.startsWith(QLatin1String("..")) || QFileInfo(identity).isAbsolute()) {
+        identity = QDir::cleanPath(absoluteFilePath);
+        if (QFileInfo(identity).isAbsolute()) {
+            identity = fi.fileName();
+        }
+    }
     const QString raw = QStringLiteral("%1|%2|%3")
                             .arg(fi.size())
                             .arg(fi.lastModified().toMSecsSinceEpoch())
-                            .arg(fi.absoluteFilePath());
+                            .arg(identity);
     const QByteArray hash = QCryptographicHash::hash(raw.toUtf8(), QCryptographicHash::Sha1).toHex();
     return QString::fromUtf8(hash);
 }

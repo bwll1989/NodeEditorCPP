@@ -50,6 +50,11 @@ private:
     QLineEdit* m_mqttFeedbackTopicEdit;
     QLineEdit* m_webPasswordEdit;
 
+    // License
+    QLineEdit* m_machineCodeEdit;
+    QLineEdit* m_licenseCodeEdit;
+    QLabel* m_licenseStatusLabel;
+
     // Log Settings
     IntDragValueWidget* m_maxLogEntriesSpin;
     IntDragValueWidget* m_maxLogSaveEntriesSpin;

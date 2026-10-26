@@ -153,27 +153,24 @@ bool ImageShowModel::resolveDisplayFrame(const std::shared_ptr<ImageTimestampRin
         return false;
     }
 
-    // 主路径：取 ring buffer 中最新有效帧（O(1)）
-    if (buffer->getLatestFrame(frame)) {
-        // legacy 节点可能只写 CPU Mat；显示需要 GPU 纹理，尝试 lazy 上传
-        if (!frame.texture.valid() && frame.hasCpuCache()) {
-            ImageFrame uploadFrame = frame;
+    auto ensureTex = [](ImageFrame& f) -> bool {
+        if (!f.texture.valid() && f.hasCpuCache()) {
+            ImageFrame uploadFrame = f;
             if (uploadFrame.ensureGpuTexture()) {
-                frame = std::move(uploadFrame);
+                f = std::move(uploadFrame);
             }
         }
-        return frame.texture.valid();
+        return f.texture.valid();
+    };
+
+    // 音画对齐主路径：按当前 clock 取（生产者 stamp = clock+5）
+    if (buffer->getFrameByTimestamp(frameCount, frame) && ensureTex(frame)) {
+        return true;
     }
 
-    // 回退：按当前系统 tick 帧号精确查找（tick 对齐的上游帧）
-    if (buffer->getFrameByTimestamp(frameCount, frame)) {
-        if (!frame.texture.valid() && frame.hasCpuCache()) {
-            ImageFrame uploadFrame = frame;
-            if (uploadFrame.ensureGpuTexture()) {
-                frame = std::move(uploadFrame);
-            }
-        }
-        return frame.texture.valid();
+    // hold：仅接受 timestamp<=clock，避免提前显示未来戳帧
+    if (buffer->getLatestFrame(frame) && frame.timestamp <= frameCount && ensureTex(frame)) {
+        return true;
     }
 
     return false;

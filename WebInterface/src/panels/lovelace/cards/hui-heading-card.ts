@@ -8,6 +8,7 @@ import type {
   LovelaceHeadingBadgeConfig,
 } from "../../../types";
 import { DEFAULT_HEADING_CARD_CONFIG } from "../../../data/section-config";
+import { isButtonBadge, normalizeBadgeConfig, serializeBadgeConfig } from "../heading-badges/badge-model";
 import "../../../components/ha-icon";
 import "../../../components/ha-card";
 import "../heading-badges/hui-entity-heading-badge";
@@ -28,7 +29,12 @@ export class HuiHeadingCard extends LitElement implements LovelaceCard {
   private _subscribedKey = "";
 
   setConfig(config: LovelaceCardConfig): void {
-    this._config = config;
+    const badges = Array.isArray(config.badges)
+      ? (config.badges as LovelaceHeadingBadgeConfig[]).map((badge) =>
+          serializeBadgeConfig(normalizeBadgeConfig(badge)),
+        )
+      : config.badges;
+    this._config = badges ? { ...config, badges } : config;
     this._syncBadgeSubscriptions();
   }
 
@@ -78,10 +84,13 @@ export class HuiHeadingCard extends LitElement implements LovelaceCard {
   }
 
   private _renderBadge(badge: LovelaceHeadingBadgeConfig) {
-    const type = String(badge.type ?? "entity");
-    if (type === "button") {
+    if (isButtonBadge(badge)) {
       return html`
-        <hui-button-heading-badge .flow=${this.flow} .config=${badge}></hui-button-heading-badge>
+        <hui-button-heading-badge
+          .flow=${this.flow}
+          .config=${badge}
+          .statesRevision=${this.flow?.statesRevision ?? 0}
+        ></hui-button-heading-badge>
       `;
     }
     return html`

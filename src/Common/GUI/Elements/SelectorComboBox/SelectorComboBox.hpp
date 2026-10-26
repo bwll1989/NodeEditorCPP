@@ -31,9 +31,13 @@ class GUI_ELEMENTS_EXPORT SelectorComboBox final : public QLineEdit {
     Q_OBJECT
 public:
     explicit SelectorComboBox(MediaLibrary::Category category,QWidget* parent = nullptr);
+    /** 固定候选项，不从媒体库刷新 */
+    explicit SelectorComboBox(const QStringList& items, QWidget* parent = nullptr);
 
     // 替换候选项列表
     void updateItems(MediaLibrary::Category category);
+    /** 使用固定候选项，之后展开面板不再从媒体库覆盖 */
+    void setItems(const QStringList& items);
     // 若不存在则追加
     bool addIfNotExists(const QString& item);
     // 设置当前值（若存在候选则作为选择，否则直接设置文本）
@@ -51,6 +55,7 @@ public:
 
     bool isCompleterEnabled() const { return m_completerEnabled; }
     bool isAutoAddOnEditingFinished() const { return m_autoAddOnEditingFinished; }
+    bool isPopupVisible() const { return m_popupVisible; }
 
 signals:
     // 输入或选择变更
@@ -66,6 +71,7 @@ protected:
      */
     void focusOutEvent(QFocusEvent* e) override;
     void keyPressEvent(QKeyEvent* e) override;
+    bool eventFilter(QObject* watched, QEvent* event) override;
     /**
      * 移动事件
      * 控件在父窗口内移动时，若弹出层处于可见状态则重新定位弹出层。
@@ -80,6 +86,7 @@ private slots:
     void onTextEditedForward(const QString& text);
 
 private:
+    void initUi();
     void applyLineEditLocalStyle();
     void rebuildCompleter();
     QStringList allItems() const;
@@ -103,4 +110,5 @@ private:
     bool m_completerEnabled = true;
     bool m_autoAddOnEditingFinished = false;
     bool m_popupVisible = false;
+    bool m_customItems = false;
 };

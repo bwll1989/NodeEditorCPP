@@ -104,6 +104,7 @@ bool ConfigManager::isAutosaveEnabled() const { return m_autosaveEnabled; }
 int ConfigManager::getAutosaveIntervalSeconds() const { return m_autosaveIntervalSeconds; }
 double ConfigManager::getTimestampFrameRate() const { return AppConfigs::TIMESTAMP_FRAME_RATE; }
 int ConfigManager::getAudioOutputDelayFrames() const { return m_audioOutputDelayFrames; }
+QString ConfigManager::getLicenseCode() const { return m_licenseCode; }
 
 void ConfigManager::addRecentFile(const QString& path)
 {
@@ -159,6 +160,7 @@ void ConfigManager::loadConfig()
     m_audioOutputDelayFrames = settings.value("Timestamp/AudioOutputDelayFrames",
                                               AppConfigs::AUDIO_OUTPUT_DELAY_FRAMES).toInt();
     m_audioOutputDelayFrames = qBound(0, m_audioOutputDelayFrames, 16);
+    m_licenseCode = settings.value("License/Code").toString();
 }
 
 void ConfigManager::createDefaultConfig()
@@ -200,6 +202,7 @@ void ConfigManager::saveConfig()
     // Timestamp
     settings.setValue("Timestamp/FrameRate", AppConfigs::TIMESTAMP_FRAME_RATE);
     settings.setValue("Timestamp/AudioOutputDelayFrames", m_audioOutputDelayFrames);
+    settings.setValue("License/Code", m_licenseCode);
 
     settings.sync();
 }
@@ -236,6 +239,7 @@ void ConfigManager::updateConfig(const QJsonObject& newConfig)
     if (newConfig.contains("AudioOutputDelayFrames")) {
         m_audioOutputDelayFrames = qBound(0, newConfig["AudioOutputDelayFrames"].toInt(), 16);
     }
+    if (newConfig.contains("LicenseCode")) m_licenseCode = newConfig["LicenseCode"].toString();
 
     saveConfig();
 }

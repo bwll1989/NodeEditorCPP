@@ -39,16 +39,18 @@
 - **ImageFrame** 主路径仅填 `GpuTextureHandle texture` + `qint64 timestamp`；`cv::Mat image` 供 legacy CPU 节点读回。
 - 下游与上游连的是**同一个** `ImageData` 指针；内容变化发生在 ring buffer 内部。
 
-### 2.2 TimestampGenerator 驱动
+### 2.2 环形队列唤醒（对齐 AudioGateWorker）
 
-所有 GPU 算子订阅 `TimestampGenerator::frameCountUpdated`（`Qt::QueuedConnection`），在 tick 内调用 `requestProcess(frameCount)`：
+GPU 算子由 `DirtyTickCook`（`ImageOperateCookDriver.hpp`）驱动，**不**订阅全局 `frameCountUpdated`：
 
-1. 用 `normalizeTargetTimestamp(frameCount)` 对齐输入检索帧号；
-2. `resolveInputGpuFrame` / `resolveDualInputGpuFrames` 取输入纹理（静态源会回退 `getLatestFrame`）；
-3. 执行 `{Name}Gpu::run(...)`；
-4. `pushGpuResult` 写入输出 buffer（打**当前系统帧号**，与输入时间戳解耦）。
+1. 上游 `ImageTimestampRingQueue::pushFrame` → `registerFrameWaiter` / `notifyFrameWaiters`（`AudioTickWaiter`）；
+2. cook 线程 `wait` 被唤醒；多路输入注册同一 waiter，`pending_` 合并多次 notify；
+3. `QueuedConnection` 回到 GUI 调用 `requestProcess`（`ImageGpuUpload` 须 GUI 线程）；
+4. `resolveInputGpuFrameLatest` 取最新输入纹理 → `{Name}Gpu::run` → `pushGpuResult`（输出 stamp 沿用输入 timestamp）。
 
-**Display 节点**（Image Display / Window Display）同样由 tick 拉帧；上游 buffer 清空后，tick 内 `isEmpty()` 为真时应清屏（见 BuildInNodes 实现）。
+参数变更置 `m_paramsDirty`；cook 线程 20ms 超时轮询或下次 push 时结算。
+
+**Display 节点**仍由 tick 按 `clock` `getFrameByTimestamp` 拉帧（音画对齐）；未命中回退 `getLatestFrame`。
 
 ### 2.3 GPU 基础设施
 
@@ -103,10 +105,10 @@ Display 侧应在 tick 发现 `isEmpty()` 后直接 `clearTexture()`，不依赖
 
 | 成员 | 含义 |
 |------|------|
-| `m_lastRequestedFrame` | 同帧号去重，避免 QueuedConnection 重复处理 |
+| `m_cook` | `DirtyTickCook`：ring push / `markDirty` 唤醒 → GUI `requestProcess` |
 | `m_lastProcessedInputTimestamp` | 输入帧未变且参数未脏时跳过 GPU |
-| `m_lastPushedTimestamp` | 输出 push 去重辅助 |
-| `m_paramsDirty` | 输入/参数变化后置 true，处理完或 clear 后置 false |
+| `m_lastPushedTimestamp` | 记录上次输出 stamp（参数变更同 stamp 仍会再 push） |
+| `m_paramsDirty` | 输入/参数变化后置 true，处理完或 clear 后置 false；变更须同时 `m_cook->markDirty()` |
 
 ---
 

@@ -14,6 +14,7 @@
 #include <memory>
 #include <map>
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include "Common/AppConfig/ConstantDefines.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 using QtNodes::NodeData;
@@ -471,7 +472,7 @@ namespace Nodes
             frame.sampleRate = sampleRate_;
             frame.channels = channels_;
             frame.bitsPerSample = 32;
-            frame.timestamp = currentTimestamp+5;
+            frame.timestamp = currentTimestamp + AppConfigs::FIXED_DELAY_FRAMES;
             
             // 复制音频数据并应用音量
             int totalSamples = framesPerBuffer * channels_;

@@ -6,8 +6,8 @@
  *
  * 本文件是 ImageOperates GPU 算子的**参考模板**，新增算子请对齐以下约定：
  * - setInData：只更新连接与 m_paramsDirty，不在此跑 GPU / clearOutput
- * - 参数 setter：只 m_paramsDirty = true
- * - tick (frameCountUpdated) → requestProcess → clearOutput 或 pushGpuResult
+ * - 参数 setter：m_paramsDirty = true + m_cook->markDirty()
+ * - DirtyTickCook（队列唤醒）→ requestProcess → clearOutput 或 pushGpuResult
  *
  * @see Doc.md §3  ImageOperateCommon.hpp
  */
@@ -32,7 +32,7 @@ namespace Nodes
 {
 namespace FlipImageOperateGpu
 {
-/** 通过 resample UV 区间实现镜像；horizontal/vertical 控制是否翻转对应轴 */
+/** éè¿ resample UV åºé´å®ç°éåï¼horizontal/vertical æ§å¶æ¯å¦ç¿»è½¬å¯¹åºè½´ */
 inline GpuTextureHandle run(const GpuTextureHandle& src, bool horizontal, bool vertical)
 {
     if (!src.valid()) {
@@ -43,7 +43,7 @@ inline GpuTextureHandle run(const GpuTextureHandle& src, bool horizontal, bool v
 }
 } // namespace FlipImageOperateGpu
 
-/** @brief 图像翻转节点 — 行为约定见文件头与 Doc.md §3 */
+/** @brief å¾åç¿»è½¬èç¹ â è¡ä¸ºçº¦å®è§æä»¶å¤´ä¸ Doc.md Â§3 */
 class FlipImageOperateModel final : public AbstractDelegateModel
 {
     Q_OBJECT
@@ -74,18 +74,10 @@ public:
 
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
 
-        // tick 驱动：同帧且参数未脏则跳过；否则 requestProcess
-        connect(TimestampGenerator::getInstance(),
-                &TimestampGenerator::frameCountUpdated,
-                this,
-                [this](qint64 frameCount) {
-                    if (m_lastRequestedFrame == frameCount && !m_paramsDirty) {
-                        return;
-                    }
-                    m_lastRequestedFrame = frameCount;
-                    requestProcess(frameCount);
-                },
-                Qt::QueuedConnection);
+        m_cook = new ImageOperateHelpers::DirtyTickCook(
+            this,
+            [this]() { requestProcess(); },
+            &m_paramsDirty);
     }
 
     ~FlipImageOperateModel() override { GlobalEventBus::instance()->unsubscribe(this); }
@@ -124,11 +116,14 @@ public:
     {
         switch (portIndex) {
         case 0:
-            // 图像口：仅保存上游句柄并重置输入去重；清空/计算留给 tick
+            // å¾åå£ï¼ä»ä¿å­ä¸æ¸¸å¥æå¹¶éç½®è¾å¥å»éï¼æ¸ç©º/è®¡ç®çç» tick
             m_inImage = std::dynamic_pointer_cast<ImageData>(data);
             ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
             m_lastProcessedInputTimestamp = -1;
             m_paramsDirty = true;
+            if (m_cook) {
+                m_cook->setWatchedInputs({m_inImage});
+            }
             break;
         case 1:
             if (auto variable = std::dynamic_pointer_cast<VariableData>(data)) {
@@ -174,6 +169,9 @@ public slots:
         }
         m_horizontal = value;
         m_paramsDirty = true;
+        if (m_cook) {
+            m_cook->markDirty();
+        }
         Q_EMIT horizontalChanged(value);
     }
 
@@ -184,6 +182,9 @@ public slots:
         }
         m_vertical = value;
         m_paramsDirty = true;
+        if (m_cook) {
+            m_cook->markDirty();
+        }
         Q_EMIT verticalChanged(value);
     }
 
@@ -212,7 +213,7 @@ private:
         bus->subscribe(makeFullOscAddress("/vertical"), this, SLOT(onGlobalEvent(GlobalEvent)));
     }
 
-    /** 清空输出 ring buffer 并重置去重状态；Display 在下一 tick 通过 isEmpty() 清屏 */
+    /** æ¸ç©ºè¾åº ring buffer å¹¶éç½®å»éç¶æï¼Display å¨ä¸ä¸ tick éè¿ isEmpty() æ¸å± */
     void clearOutput()
     {
         if (m_outBuffer) {
@@ -224,50 +225,45 @@ private:
     }
 
     /**
-     * @brief 按目标帧号取输入、执行 GPU 翻转，并将结果写入输出 ring buffer
-     * @param targetTimestamp 上游对齐用的查找帧号；传 -1 时使用当前系统帧号
+     * @brief åææ°è¾å¥å¸§ãæ§è¡ GPU ç¿»è½¬ï¼å¹¶å°ç»æåå¥è¾åº ring buffer
      */
-    void requestProcess(qint64 targetTimestamp = -1)
+    void requestProcess()
     {
         ImageOperateHelpers::ensureSharedOutput(m_outImageData, m_outBuffer);
-
-        const qint64 lookupTimestamp = ImageOperateHelpers::normalizeTargetTimestamp(targetTimestamp);
-
         if (!m_inImage || imageDataIsEmpty(m_inImage)) {
             clearOutput();
             return;
         }
 
         ImageFrame inputFrame;
-        if (!ImageOperateHelpers::resolveInputGpuFrame(m_inImage, lookupTimestamp, inputFrame)) {
-            // 上游尚无可用帧：保留现有输出，避免重连瞬间误清空
+        if (!ImageOperateHelpers::resolveInputGpuFrameLatest(m_inImage, inputFrame)) {
             if (!ImageOperateHelpers::hasInputImage(m_inImage)) {
                 clearOutput();
             }
             return;
         }
 
-        // 输入帧与参数均未变则跳过 GPU（静态图不重复算）
         if (!m_paramsDirty && inputFrame.timestamp == m_lastProcessedInputTimestamp) {
             return;
         }
 
         GpuTextureHandle out = FlipImageOperateGpu::run(
             inputFrame.texture, m_horizontal, m_vertical);
-        ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp);
+        ImageOperateHelpers::pushGpuResult(m_outBuffer, std::move(out), m_lastPushedTimestamp,
+            inputFrame.timestamp);
 
         m_lastProcessedInputTimestamp = inputFrame.timestamp;
         m_paramsDirty = false;
     }
 
-    std::shared_ptr<ImageData> m_inImage;                       ///< 上游 ImageData 句柄（非像素副本）
-    std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;       ///< 本节点输出 ring buffer
-    std::shared_ptr<ImageData> m_outImageData;                  ///< 稳定输出句柄，outData() 始终返回同一对象
+    std::shared_ptr<ImageData> m_inImage;                       ///< ä¸æ¸¸ ImageData å¥æï¼éåç´ å¯æ¬ï¼
+    std::shared_ptr<ImageTimestampRingQueue> m_outBuffer;       ///< æ¬èç¹è¾åº ring buffer
+    std::shared_ptr<ImageData> m_outImageData;                  ///< ç¨³å®è¾åºå¥æï¼outData() å§ç»è¿ååä¸å¯¹è±¡
 
-    qint64 m_lastRequestedFrame = -1;              ///< tick 同帧去重
-    qint64 m_lastProcessedInputTimestamp = -1;     ///< 输入帧未变 + 参数未脏 → 跳过 GPU
-    qint64 m_lastPushedTimestamp = -1;             ///< pushGpuResult 辅助
-    bool m_paramsDirty = false;                    ///< 输入/参数变化后由 tick 消费
+    ImageOperateHelpers::DirtyTickCook* m_cook = nullptr;
+    qint64 m_lastProcessedInputTimestamp = -1;
+    qint64 m_lastPushedTimestamp = -1;
+    bool m_paramsDirty = false;
     bool m_horizontal = true;
     bool m_vertical = false;
 };

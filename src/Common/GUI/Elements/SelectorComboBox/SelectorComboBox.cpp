@@ -4,9 +4,24 @@
 #include <QKeyEvent>
 #include <QApplication>
 #include <QScreen>
+#include <QTimer>
 
 SelectorComboBox::SelectorComboBox(MediaLibrary::Category category, QWidget* parent)
     : QLineEdit(parent), m_mediaLibrary(MediaLibrary::instance()), m_category(category)
+{
+    initUi();
+    updateItems(m_category);
+}
+
+SelectorComboBox::SelectorComboBox(const QStringList& items, QWidget* parent)
+    : QLineEdit(parent)
+{
+    m_customItems = true;
+    initUi();
+    setItems(items);
+}
+
+void SelectorComboBox::initUi()
 {
     // 局部样式与行为
     applyLineEditLocalStyle();
@@ -22,6 +37,11 @@ SelectorComboBox::SelectorComboBox(MediaLibrary::Category category, QWidget* par
     // 侧边弹出面板（修复：将父对象设为 this，使其作为控件的“父弹窗”）
     m_popupFrame = new QFrame(this, Qt::Popup | Qt::FramelessWindowHint);
     m_popupFrame->setAttribute(Qt::WA_TranslucentBackground, false);
+    // 不抢焦点，避免属性树编辑器因 FocusOut 被立刻关掉；也不重放打开弹层的那次鼠标释放
+    m_popupFrame->setAttribute(Qt::WA_ShowWithoutActivating, true);
+    m_popupFrame->setAttribute(Qt::WA_NoMouseReplay, true);
+    m_popupFrame->setWindowFlag(Qt::WindowDoesNotAcceptFocus, true);
+    m_popupFrame->installEventFilter(this);
     m_popupFrame->setObjectName("SelectorComboBoxPopup");
     // m_popupFrame->setStyleSheet(
     //     "#SelectorComboBoxPopup {"
@@ -41,6 +61,7 @@ SelectorComboBox::SelectorComboBox(MediaLibrary::Category category, QWidget* par
     layout->setSpacing(0);
 
     m_listView = new QListView(m_popupFrame);
+    m_listView->setFocusPolicy(Qt::NoFocus);
     m_listView->setUniformItemSizes(true);
     m_listView->setSelectionMode(QAbstractItemView::SingleSelection);
     m_model = new QStringListModel(m_listView);
@@ -59,12 +80,23 @@ SelectorComboBox::SelectorComboBox(MediaLibrary::Category category, QWidget* par
 
     // 初始布局
     resizeEvent(nullptr);
-    updateItems(m_category);
 }
 
 void SelectorComboBox::updateItems(MediaLibrary::Category category) {
+    if (!m_mediaLibrary) {
+        return;
+    }
+    m_customItems = false;
     m_category = category;
     m_items = m_mediaLibrary->getFileList(category);
+    updateModel();
+    rebuildCompleter();
+}
+
+void SelectorComboBox::setItems(const QStringList& items)
+{
+    m_customItems = true;
+    m_items = items;
     updateModel();
     rebuildCompleter();
 }
@@ -113,19 +145,26 @@ void SelectorComboBox::onTogglePopup() {
         m_popupVisible = false;
         return;
     }
-    updateItems(m_category);
-    placePopup();
-    m_popupFrame->show();
-    m_popupVisible = true;
-
-    // 尝试选中当前文本对应的项
-    const QString txt = text();
-    const int row = m_items.indexOf(txt);
-    if (row >= 0) {
-        m_listView->setCurrentIndex(m_model->index(row));
-    } else {
-        m_listView->clearSelection();
+    if (!m_customItems) {
+        updateItems(m_category);
     }
+    // 等到这次鼠标释放处理完再显示，否则 Qt::Popup 会把打开它的释放当成“点在外面”立刻关掉
+    m_popupVisible = true;
+    QTimer::singleShot(0, this, [this]() {
+        if (!m_popupVisible || !m_popupFrame) {
+            return;
+        }
+        placePopup();
+        m_popupFrame->show();
+
+        const QString txt = text();
+        const int row = m_items.indexOf(txt);
+        if (row >= 0) {
+            m_listView->setCurrentIndex(m_model->index(row));
+        } else {
+            m_listView->clearSelection();
+        }
+    });
 }
 
 void SelectorComboBox::onItemClicked(const QModelIndex& index) {
@@ -229,15 +268,30 @@ void SelectorComboBox::moveEvent(QMoveEvent* e) {
     }
 }
 
+bool SelectorComboBox::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_popupFrame && (event->type() == QEvent::Hide || event->type() == QEvent::Close)) {
+        m_popupVisible = false;
+    }
+    return QLineEdit::eventFilter(watched, event);
+}
+
 void SelectorComboBox::focusOutEvent(QFocusEvent* e) {
     QLineEdit::focusOutEvent(e);
-    if (m_popupVisible) {
-        // 若焦点离开控件与弹出层，则关闭
-        if (!m_popupFrame->isActiveWindow() && !m_popupFrame->underMouse()) {
-            m_popupFrame->hide();
-            m_popupVisible = false;
-        }
+    if (!m_popupVisible || !m_popupFrame) {
+        return;
     }
+    // 弹出层自己引起的失焦不能把列表关掉
+    if (e->reason() == Qt::PopupFocusReason || e->reason() == Qt::ActiveWindowFocusReason) {
+        return;
+    }
+    const QWidget* focus = QApplication::focusWidget();
+    if (m_popupFrame->isActiveWindow() || m_popupFrame->underMouse()
+        || focus == m_popupFrame || (focus && m_popupFrame->isAncestorOf(focus))) {
+        return;
+    }
+    m_popupFrame->hide();
+    m_popupVisible = false;
 }
 
 void SelectorComboBox::keyPressEvent(QKeyEvent* e) {

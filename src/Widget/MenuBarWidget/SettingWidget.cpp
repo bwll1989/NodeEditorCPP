@@ -3,6 +3,7 @@
 //
 #include "SettingWidget.h"
 #include "Common/AppConfig/ConfigManager.h"
+#include "Common/AppConfig/LicenseManager.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFormLayout>
@@ -12,6 +13,9 @@
 #include <QScreen>
 #include <QGroupBox>
 #include <QScrollArea>
+#include <QGuiApplication>
+#include <QClipboard>
+#include <QPushButton>
 
 #include "PushButton.h"
 
@@ -37,7 +41,14 @@ SettingWidget::SettingWidget(QWidget* parent)
     m_listWidget->setFrameShape(QFrame::NoFrame);
     m_listWidget->setSpacing(6);
     {
-        const QStringList items = {QStringLiteral("常规设置"), QStringLiteral("网络设置"), QStringLiteral("日志设置")};
+        const QStringList items = {
+            QStringLiteral("常规设置"),
+            QStringLiteral("WEB设置"),
+            QStringLiteral("OSC设置"),
+            QStringLiteral("MQTT设置"),
+            QStringLiteral("日志设置"),
+            QStringLiteral("License"),
+        };
         QFontMetrics fm(m_listWidget->font());
         int maxTextW = 0;
         for (const auto& t : items) maxTextW = std::max(maxTextW, fm.horizontalAdvance(t));
@@ -48,12 +59,21 @@ SettingWidget::SettingWidget(QWidget* parent)
         auto* it1 = new QListWidgetItem(QStringLiteral("常规设置"));
         it1->setSizeHint(QSize(0, rowHeight));
         m_listWidget->addItem(it1);
-        auto* it2 = new QListWidgetItem(QStringLiteral("网络设置"));
-        it2->setSizeHint(QSize(0, rowHeight));
-        m_listWidget->addItem(it2);
+        auto* itWeb = new QListWidgetItem(QStringLiteral("WEB设置"));
+        itWeb->setSizeHint(QSize(0, rowHeight));
+        m_listWidget->addItem(itWeb);
+        auto* itOsc = new QListWidgetItem(QStringLiteral("OSC设置"));
+        itOsc->setSizeHint(QSize(0, rowHeight));
+        m_listWidget->addItem(itOsc);
+        auto* itMqtt = new QListWidgetItem(QStringLiteral("MQTT设置"));
+        itMqtt->setSizeHint(QSize(0, rowHeight));
+        m_listWidget->addItem(itMqtt);
         auto* it3 = new QListWidgetItem(QStringLiteral("日志设置"));
         it3->setSizeHint(QSize(0, rowHeight));
         m_listWidget->addItem(it3);
+        auto* it4 = new QListWidgetItem(QStringLiteral("License"));
+        it4->setSizeHint(QSize(0, rowHeight));
+        m_listWidget->addItem(it4);
         m_listWidget->setCurrentRow(0);
     }
     contentLayout->addWidget(m_listWidget);
@@ -101,7 +121,9 @@ SettingWidget::SettingWidget(QWidget* parent)
     formGeneral->addRow(QStringLiteral("保存间隔:"), m_autosaveIntervalSpin);
     connect(m_autosaveEnabledCheck, &QCheckBox::toggled,
             m_autosaveIntervalSpin, &QWidget::setEnabled);
-
+    auto* lblClock = new QLabel(QStringLiteral("时钟设置"));
+    lblClock->setFont(titleFont);
+    formGeneral->addRow(lblClock);
     m_timestampFrameRateLabel = new QLabel(this);
     m_timestampFrameRateLabel->setToolTip(QStringLiteral("全局时钟频率已固定，不可在此修改"));
     formGeneral->addRow(QStringLiteral("全局时钟频率:"), m_timestampFrameRateLabel);
@@ -118,85 +140,80 @@ SettingWidget::SettingWidget(QWidget* parent)
     layoutGeneral->addStretch();
     m_stackedWidget->addWidget(pageGeneral);
 
-    // --- 页面 2: 网络设置 ---
-    auto* pageNet = new QWidget();
-    auto* layoutNet = new QVBoxLayout(pageNet);
-    
-    auto* lblNet = new QLabel("网络设置 (重启生效)");
-    lblNet->setFont(titleFont);
-    layoutNet->addWidget(lblNet);
+    auto addPageTitle = [this, titleFont](QVBoxLayout* layout, const QString& title) {
+        auto* label = new QLabel(title, this);
+        label->setFont(titleFont);
+        layout->addWidget(label);
+        auto* line = new QFrame(this);
+        line->setFrameShape(QFrame::HLine);
+        line->setFrameShadow(QFrame::Sunken);
+        layout->addWidget(line);
+    };
 
-    auto* lineNet = new QFrame();
-    lineNet->setFrameShape(QFrame::HLine);
-    lineNet->setFrameShadow(QFrame::Sunken);
-    layoutNet->addWidget(lineNet);
-
-    auto* formNet = new QFormLayout();
-    auto* lblweb = new QLabel("WEB设置");
-    lblweb->setFont(titleFont);
-    formNet->addRow(lblweb);
-    formNet->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
-
+    // --- WEB 设置 ---
+    auto* pageWeb = new QWidget();
+    auto* layoutWeb = new QVBoxLayout(pageWeb);
+    addPageTitle(layoutWeb, QStringLiteral("WEB设置 (重启生效)"));
+    auto* formWeb = new QFormLayout();
+    formWeb->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_httpPortSpin = new IntDragValueWidget(this);
     m_httpPortSpin->setRange(1024, 65535);
-    formNet->addRow("HTTP 服务器端口:", m_httpPortSpin);
-
+    formWeb->addRow(QStringLiteral("HTTP 服务器端口:"), m_httpPortSpin);
     m_webPasswordEdit = new QLineEdit(this);
-    formNet->addRow("网页访问密码:", m_webPasswordEdit);
+    formWeb->addRow(QStringLiteral("网页访问密码:"), m_webPasswordEdit);
+    layoutWeb->addLayout(formWeb);
+    layoutWeb->addStretch();
+    m_stackedWidget->addWidget(pageWeb);
 
-    auto* lblosc = new QLabel("OSC设置 ");
-    lblosc->setFont(titleFont);
-    formNet->addRow(lblosc);
-
+    // --- OSC 设置 ---
+    auto* pageOsc = new QWidget();
+    auto* layoutOsc = new QVBoxLayout(pageOsc);
+    addPageTitle(layoutOsc, QStringLiteral("OSC设置 (重启生效)"));
+    auto* formOsc = new QFormLayout();
+    formOsc->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_extraFeedbackHostEdit = new QLineEdit(this);
-    formNet->addRow("OSC 反馈主机 IP:", m_extraFeedbackHostEdit);
-
+    formOsc->addRow(QStringLiteral("OSC 反馈主机 IP:"), m_extraFeedbackHostEdit);
     m_extraFeedbackPortSpin = new IntDragValueWidget(this);
     m_extraFeedbackPortSpin->setRange(1024, 65535);
-    formNet->addRow("OSC 反馈端口:", m_extraFeedbackPortSpin);
-
+    formOsc->addRow(QStringLiteral("OSC 反馈端口:"), m_extraFeedbackPortSpin);
     m_extraControlPortSpin = new IntDragValueWidget(this);
     m_extraControlPortSpin->setRange(1024, 65535);
-    formNet->addRow("OSC 控制端口:", m_extraControlPortSpin);
-
+    formOsc->addRow(QStringLiteral("OSC 控制端口:"), m_extraControlPortSpin);
     m_oscInternalHostEdit = new QLineEdit(this);
-    formNet->addRow("OSC 内部主机 IP:", m_oscInternalHostEdit);
+    formOsc->addRow(QStringLiteral("OSC 内部主机 IP:"), m_oscInternalHostEdit);
+    m_oscEnabledCheck = new QCheckBox(QStringLiteral("启用"), this);
+    formOsc->addRow(QStringLiteral("OSC外部反馈/控制:"), m_oscEnabledCheck);
+    layoutOsc->addLayout(formOsc);
+    layoutOsc->addStretch();
+    m_stackedWidget->addWidget(pageOsc);
 
-    m_oscEnabledCheck = new QCheckBox("启用", this);
-    formNet->addRow("OSC外部反馈/控制:", m_oscEnabledCheck);
-
-    auto* lblMqttSection = new QLabel(QStringLiteral("MQTT 设置"));
-    lblMqttSection->setFont(titleFont);
-    formNet->addRow(lblMqttSection);
-
+    // --- MQTT 设置 ---
+    auto* pageMqtt = new QWidget();
+    auto* layoutMqtt = new QVBoxLayout(pageMqtt);
+    addPageTitle(layoutMqtt, QStringLiteral("MQTT设置 (重启生效)"));
+    auto* formMqtt = new QFormLayout();
+    formMqtt->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     m_mqttHostEdit = new QLineEdit(this);
     m_mqttHostEdit->setPlaceholderText(QStringLiteral("broker.emqx.io（仅主机名，勿填 mqtt://）"));
-    formNet->addRow("MQTT Broker 地址:", m_mqttHostEdit);
-
+    formMqtt->addRow(QStringLiteral("MQTT Broker 地址:"), m_mqttHostEdit);
     m_mqttPortSpin = new IntDragValueWidget(this);
     m_mqttPortSpin->setRange(1, 65535);
-    formNet->addRow("MQTT Broker 端口:", m_mqttPortSpin);
-
+    formMqtt->addRow(QStringLiteral("MQTT Broker 端口:"), m_mqttPortSpin);
     m_mqttUsernameEdit = new QLineEdit(this);
     m_mqttUsernameEdit->setPlaceholderText(QStringLiteral("公共 Broker 可留空"));
-    formNet->addRow("MQTT 用户名:", m_mqttUsernameEdit);
-
+    formMqtt->addRow(QStringLiteral("MQTT 用户名:"), m_mqttUsernameEdit);
     m_mqttPasswordEdit = new QLineEdit(this);
     m_mqttPasswordEdit->setEchoMode(QLineEdit::Password);
-    formNet->addRow("MQTT 密码:", m_mqttPasswordEdit);
-
+    formMqtt->addRow(QStringLiteral("MQTT 密码:"), m_mqttPasswordEdit);
     m_mqttControlTopicEdit = new QLineEdit(this);
-    formNet->addRow("MQTT 控制主题:", m_mqttControlTopicEdit);
-
+    formMqtt->addRow(QStringLiteral("MQTT 控制主题:"), m_mqttControlTopicEdit);
     m_mqttFeedbackTopicEdit = new QLineEdit(this);
-    formNet->addRow("MQTT 反馈主题:", m_mqttFeedbackTopicEdit);
-
-    m_mqttEnabledCheck = new QCheckBox("启用", this);
-    formNet->addRow("MQTT外部反馈/控制:", m_mqttEnabledCheck);
-
-    layoutNet->addLayout(formNet);
-    layoutNet->addStretch();
-    m_stackedWidget->addWidget(pageNet);
+    formMqtt->addRow(QStringLiteral("MQTT 反馈主题:"), m_mqttFeedbackTopicEdit);
+    m_mqttEnabledCheck = new QCheckBox(QStringLiteral("启用"), this);
+    formMqtt->addRow(QStringLiteral("MQTT外部反馈/控制:"), m_mqttEnabledCheck);
+    layoutMqtt->addLayout(formMqtt);
+    layoutMqtt->addStretch();
+    m_stackedWidget->addWidget(pageMqtt);
 
     // --- 页面 3: 日志设置 ---
     auto* pageLog = new QWidget();
@@ -225,6 +242,52 @@ SettingWidget::SettingWidget(QWidget* parent)
     layoutLog->addLayout(formLog);
     layoutLog->addStretch();
     m_stackedWidget->addWidget(pageLog);
+
+    // --- 页面 4: 授权 ---
+    auto* pageLicense = new QWidget();
+    auto* layoutLicense = new QVBoxLayout(pageLicense);
+
+    auto* lblLicense = new QLabel(QStringLiteral("License"));
+    lblLicense->setFont(titleFont);
+    layoutLicense->addWidget(lblLicense);
+
+    auto* lineLicense = new QFrame();
+    lineLicense->setFrameShape(QFrame::HLine);
+    lineLicense->setFrameShadow(QFrame::Sunken);
+    layoutLicense->addWidget(lineLicense);
+
+    auto* formLicense = new QFormLayout();
+    formLicense->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+
+    m_machineCodeEdit = new QLineEdit(this);
+    m_machineCodeEdit->setReadOnly(true);
+    m_machineCodeEdit->setText(LicenseManager::machineCode());
+    auto* machineRow = new QHBoxLayout();
+    machineRow->addWidget(m_machineCodeEdit, 1);
+    auto* copyMachineButton = new QPushButton(QStringLiteral("复制"), this);
+    machineRow->addWidget(copyMachineButton);
+    connect(copyMachineButton, &QPushButton::clicked, this, [this]() {
+        if (auto* clipboard = QGuiApplication::clipboard()) {
+            clipboard->setText(m_machineCodeEdit->text());
+        }
+    });
+    formLicense->addRow(QStringLiteral("Machine Code:"), machineRow);
+
+    m_licenseCodeEdit = new QLineEdit(this);
+    m_licenseCodeEdit->setPlaceholderText(QStringLiteral("XXXX-XXXX-XXXX-XXXX"));
+    formLicense->addRow(QStringLiteral("License Code:"), m_licenseCodeEdit);
+
+    m_licenseStatusLabel = new QLabel(this);
+    formLicense->addRow(QStringLiteral("Status:"), m_licenseStatusLabel);
+    connect(m_licenseCodeEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
+        const bool valid = LicenseManager::isCodeValid(text);
+        m_licenseStatusLabel->setText(valid ? QStringLiteral("Advanced License") : QStringLiteral("Basic License"));
+        m_licenseStatusLabel->setStyleSheet(valid ? QStringLiteral("color: green;") : QStringLiteral("color: red;"));
+    });
+
+    layoutLicense->addLayout(formLicense);
+    layoutLicense->addStretch();
+    m_stackedWidget->addWidget(pageLicense);
 
     // 连接列表与页面切换
     connect(m_listWidget, &QListWidget::currentRowChanged, m_stackedWidget, &QStackedWidget::setCurrentIndex);
@@ -275,6 +338,7 @@ void SettingWidget::loadCurrentSettings() {
     // Log Settings
     m_maxLogEntriesSpin->setValue(config.getMaxLogEntries());
     m_maxLogSaveEntriesSpin->setValue(config.getMaxLogSaveEntries());
+    m_licenseCodeEdit->setText(config.getLicenseCode());
 }
 
 void SettingWidget::saveSettings() {
@@ -302,10 +366,15 @@ void SettingWidget::saveSettings() {
     // Log Settings
     obj["MaxLogEntries"] = m_maxLogEntriesSpin->value();
     obj["MaxLogSaveEntries"] = m_maxLogSaveEntriesSpin->value();
+    obj["LicenseCode"] = m_licenseCodeEdit->text().trimmed();
 
     ConfigManager::instance().updateConfig(obj);
-    
-    QMessageBox::information(this, "设置", "设置已保存，部分更改将在重启后生效。");
+
+    const QString licenseHint = LicenseManager::isAuthorized()
+        ? QStringLiteral("License有效，重启后将加载外部插件。")
+        : QStringLiteral("License无效，Advanced插件不会加载。");
+    QMessageBox::information(this, "设置",
+                             QStringLiteral("设置已保存，部分更改将在重启后生效。\n%1").arg(licenseHint));
     accept();
 }
 

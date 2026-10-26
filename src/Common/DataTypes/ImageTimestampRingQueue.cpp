@@ -1,5 +1,9 @@
 #include "ImageTimestampRingQueue.h"
 
+#include <QMutexLocker>
+
+#include <algorithm>
+
 namespace NodeDataTypes
 {
 
@@ -60,6 +64,8 @@ bool ImageTimestampRingQueue::pushFrame(ImageFrame&& frame)
 
     // 写入完成后推进 writeIndex_，形成环形覆盖
     writeIndex_.store((wi + 1) % maxSize_, std::memory_order_release);
+
+    notifyFrameWaiters();
 
     emit frameWritten(wi);
 
@@ -142,6 +148,41 @@ void ImageTimestampRingQueue::setActive(bool active)
 bool ImageTimestampRingQueue::isActive() const
 {
     return isActive_.load(std::memory_order_acquire);
+}
+
+void ImageTimestampRingQueue::registerFrameWaiter(AudioTickWaiter *waiter)
+{
+    if (!waiter) {
+        return;
+    }
+    QMutexLocker locker(&waitersMutex_);
+    if (std::find(frameWaiters_.begin(), frameWaiters_.end(), waiter) == frameWaiters_.end()) {
+        frameWaiters_.push_back(waiter);
+    }
+}
+
+void ImageTimestampRingQueue::unregisterFrameWaiter(AudioTickWaiter *waiter)
+{
+    if (!waiter) {
+        return;
+    }
+    QMutexLocker locker(&waitersMutex_);
+    frameWaiters_.erase(std::remove(frameWaiters_.begin(), frameWaiters_.end(), waiter),
+                        frameWaiters_.end());
+}
+
+void ImageTimestampRingQueue::notifyFrameWaiters()
+{
+    std::vector<AudioTickWaiter *> waiters;
+    {
+        QMutexLocker locker(&waitersMutex_);
+        waiters = frameWaiters_;
+    }
+    for (AudioTickWaiter *waiter : waiters) {
+        if (waiter) {
+            waiter->notifyFromClock();
+        }
+    }
 }
 
 } // namespace NodeDataTypes

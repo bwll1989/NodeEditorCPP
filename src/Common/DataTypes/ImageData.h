@@ -7,6 +7,7 @@
 #include <QtNodes/NodeData>
 
 #include "ImageTimestampRingQueue.h"
+#include "../AppConfig/ConstantDefines.h"
 
 #include <memory>
 
@@ -32,9 +33,21 @@ namespace NodeDataTypes
  * │  消费者节点  │ ◄─────────────────────────────────┘
  * └─────────────┘         ImageData 句柄
  *
- * 调度：消费者通常在 TimestampGenerator::frameCountUpdated（QueuedConnection）
- * 回调中按 tick 拉帧，而非在 setInData 中同步处理像素。
+ * 调度（对齐音频）：
+ *   - 生产者 push 时 stamp = mediaOutputTimestamp(clock)
+ *     （= clock + AppConfigs::FIXED_DELAY_FRAMES）
+ *   - pushFrame → registerFrameWaiter 唤醒下游 cook 线程（AudioTickWaiter）
+ *   - Display 按 clock getFrameByTimestamp，未命中则 getLatestFrame
  */
+
+/** @brief 与 AppConfigs::FIXED_DELAY_FRAMES 同一配置的媒体输出超前帧数 */
+inline constexpr int kMediaOutputDelayFrames = AppConfigs::FIXED_DELAY_FRAMES;
+
+/** @brief 生产者打戳：clock + AppConfigs::FIXED_DELAY_FRAMES */
+inline qint64 mediaOutputTimestamp(qint64 clockFrameCount)
+{
+    return clockFrameCount + AppConfigs::FIXED_DELAY_FRAMES;
+}
 
 /**
  * @brief 图像节点数据 — ImageTimestampRingQueue 的共享句柄

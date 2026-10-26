@@ -60,23 +60,71 @@ export interface LovelaceCardConfig {
   [key: string]: unknown;
 }
 
-export interface LovelaceHeadingBadgeConfig {
-  type: "entity" | "button" | string;
+/**
+ * 控制徽章 tap 行为：
+ * - trigger：触发，自动弹起，固定发 true
+ * - switch：开关，保持按下，固定发 true/false，跟随实体 active
+ * - rw：读写，保持按下，自定义按下/弹起值，接收值匹配时同步状态
+ * - open-card：弹出与主界面相同配置的卡片
+ *
+ * 兼容旧值：toggle→switch（有自定义值则→rw），set→trigger。
+ */
+export type BadgeTapActionKind =
+  | "none"
+  | "trigger"
+  | "switch"
+  | "rw"
+  | "open-card"
+  /** @deprecated → switch / rw */
+  | "toggle"
+  /** @deprecated → trigger */
+  | "set";
+
+/** @deprecated 使用 BadgeTapActionKind */
+export type BadgeControlAction = BadgeTapActionKind;
+
+export interface BadgeTapActionConfig {
+  action: BadgeTapActionKind | string;
+  /** @deprecated trigger/set 旧字段，新 trigger 不再使用 */
+  value?: FlowValue;
+  /** rw: 按下发送值 */
+  press_value?: FlowValue;
+  /** rw: 弹起发送值 */
+  release_value?: FlowValue;
+  /** open-card: 弹出的 Lovelace 卡片完整配置（含范围/样式等） */
+  card?: LovelaceCardConfig;
+}
+
+/** 标题行 / 图像 / 轨迹共用的徽章字段。 */
+export interface LovelaceBadgeConfigBase {
+  /** entity=状态（只读）；button=控制。旧数据 state-badge 读取时归一为 entity。 */
+  type: "entity" | "button" | "state-badge" | string;
   entity?: string;
   name?: string;
   icon?: string;
   color?: string;
-  /** entity / button: show icon (state only, default true) */
+  unit?: string;
+  text?: string;
   show_icon?: boolean;
-  /** show text: live state for entity, label for button (default true) */
   show_name?: boolean;
   /** @deprecated use show_name */
   show_state?: boolean;
-  /** button: label text */
-  text?: string;
-  /** button: value written to entity on tap (default true) */
+  /** 圆形/胶囊底色；false 时透明，图标颜色跟随状态 */
+  show_background?: boolean;
+  size?: number;
+  /** 新结构：点下去做什么 */
+  tap_action?: BadgeTapActionConfig;
+  /** @deprecated 扁平镜像，normalize 会并入 tap_action */
+  action?: BadgeTapActionKind | string;
+  /** @deprecated 扁平镜像 */
   value?: FlowValue;
+  /** @deprecated 扁平镜像 */
+  press_value?: FlowValue;
+  /** @deprecated 扁平镜像 */
+  release_value?: FlowValue;
 }
+
+export interface LovelaceHeadingBadgeConfig extends LovelaceBadgeConfigBase {}
 
 /** Bar chart column — each entry binds one OSC / entity address. */
 export interface LovelaceBarEntityConfig {
@@ -102,34 +150,13 @@ export interface LovelacePathPoint {
   y: number;
 }
 
-export interface LovelacePathBadgeConfig {
+export interface LovelacePathBadgeConfig extends LovelaceBadgeConfigBase {
   entity: string;
-  type?: "state-badge" | "button" | string;
-  name?: string;
-  icon?: string;
-  color?: string;
-  unit?: string;
-  text?: string;
-  show_icon?: boolean;
-  show_name?: boolean;
   attribute?: string;
-  show_state?: boolean;
-  value?: FlowValue;
 }
 
-/** Overlay on a picture-elements card (HA state-badge / button). */
-export interface LovelacePictureElementConfig {
-  type: "state-badge" | "button" | string;
-  entity?: string;
-  name?: string;
-  icon?: string;
-  color?: string;
-  unit?: string;
-  text?: string;
-  show_icon?: boolean;
-  show_name?: boolean;
-  show_state?: boolean;
-  value?: FlowValue;
+/** Overlay on a picture-elements card（状态 / 控制徽章）。 */
+export interface LovelacePictureElementConfig extends LovelaceBadgeConfigBase {
   style?: LovelacePictureElementStyle;
 }
 
@@ -259,6 +286,7 @@ declare global {
     "hass-drawer-closed": undefined;
     "hass-dock-sidebar": { dock: "docked" | "auto" };
     "picture-element-position": { left: number; top: number };
+    "picture-element-select": { index: number };
     "picture-elements-changed": { config: LovelaceCardConfig };
   }
 }

@@ -11,9 +11,21 @@
 #include <QtNodes/NodeDelegateModelRegistry>
 #include <QtNodes/PluginInterface>
 #include "BuildInNodes.hpp"
+#include "Common/AppConfig/LicenseManager.h"
+#include <QMessageBox>
 using QtNodes::NodeDelegateModelRegistry;
 using QtNodes::PluginInterface;
 using namespace Nodes;
+
+namespace {
+
+bool pluginAllowed(PluginInterface* plugin)
+{
+    return plugin && (!plugin->NeedAuthorized() || LicenseManager::isAuthorized());
+}
+
+} // namespace
+
 PluginsManagerWidget::PluginsManagerWidget(QWidget *parent)
     : QDialog(parent)
 {
@@ -77,6 +89,13 @@ void PluginsManagerWidget::initLayout()
         auto plugin = pluginsManager->loadPluginFromPath(newPath);
         if (!plugin) {
             QFile::remove(newPath);
+            return;
+        }
+        if (!pluginAllowed(plugin)) {
+            const QString pluginName = plugin->name();
+            pluginsManager->unloadPluginFromName(pluginName);
+            QMessageBox::warning(this, QStringLiteral("未授权"),
+                                 QStringLiteral("插件“%1”需要授权，当前未授权，未加载。").arg(pluginName));
             return;
         }
         QList<QStandardItem*> row;
@@ -194,6 +213,12 @@ void PluginsManagerWidget::loadAllFromDefaultFolder(const std::function<void(con
     for (const auto& loaderEntry : pluginsManager->loaders()) {
         PluginInterface* plugin = qobject_cast<PluginInterface*>(loaderEntry.second->instance());
         if (!plugin) {
+            continue;
+        }
+        if (!pluginAllowed(plugin)) {
+            const QString pluginName = plugin->name();
+            report(QStringLiteral("未授权，已跳过 %1").arg(pluginName));
+            pluginsManager->unloadPluginFromName(pluginName);
             continue;
         }
         report(QObject::tr("loading %1").arg(plugin->name()));

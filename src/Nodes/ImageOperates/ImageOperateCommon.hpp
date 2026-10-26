@@ -9,16 +9,15 @@
  * - GPU 算子主路径只读写 GpuTextureHandle；CPU Mat 辅助函数供 legacy 或读回场景
  *
  * ## 与节点生命周期的关系（详见 Doc.md §3）
- * - resolveInputGpuFrame / resolveDualInputGpuFrames：tick 内取输入纹理（含静态源回退）
- * - pushGpuResult：tick 内写输出，时间戳用 currentSystemTimestamp()
- * - ensureSharedOutput：保证 m_outImageData / m_outBuffer 单例，避免每帧新建 ImageData
+ * - DirtyTickCook：输入 ring push 唤醒 → GUI 上 requestProcess
+ * - resolveInputGpuFrameLatest / resolveDualInputGpuFramesLatest：取最新输入纹理
+ * - pushGpuResult：写输出；宜透传输入 timestamp（缺省才用 currentSystemTimestamp）
+ * - ensureSharedOutput：保证 m_outImageData / m_outBuffer 单例
  *
  * 其他模块请使用 ImageData.h 公开 API，勿直接 include 本文件。
  */
-
-// 仅供 ImageOperates 插件内部使用的公共辅助头文件，其他模块请使用 ImageData.h 中的 API。
-
 #include "NodeDataList.hpp"
+#include "ImageOperateCookDriver.hpp"
 #include "ImageReadback.h"
 #include "ImageGpuPass.h"
 #include "TimestampGenerator/TimestampGenerator.hpp"
@@ -340,6 +339,21 @@ inline bool resolveInputGpuFrame(const std::shared_ptr<NodeDataTypes::ImageData>
     return ensureFrameGpuTexture(frame);
 }
 
+/** @brief dirty/tick 路径：直接取 latest（持帧），保证 GPU 纹理可用 */
+inline bool resolveInputGpuFrameLatest(const std::shared_ptr<NodeDataTypes::ImageData>& imageData,
+                                       NodeDataTypes::ImageFrame& frame)
+{
+    frame = NodeDataTypes::ImageFrame();
+    if (!imageData || !imageData->isConnectedToSharedBuffer()) {
+        return false;
+    }
+    const auto buffer = imageData->getSharedImageBuffer();
+    if (!buffer || !buffer->getLatestFrame(frame) || frame.empty()) {
+        return false;
+    }
+    return ensureFrameGpuTexture(frame);
+}
+
 /** @brief 双路输入解析并保证 texture 可用 */
 inline bool resolveDualInputGpuFrames(const std::shared_ptr<NodeDataTypes::ImageData>& inputA,
                                       const std::shared_ptr<NodeDataTypes::ImageData>& inputB,
@@ -354,15 +368,30 @@ inline bool resolveDualInputGpuFrames(const std::shared_ptr<NodeDataTypes::Image
     return ensureFrameGpuTexture(frameA) && ensureFrameGpuTexture(frameB);
 }
 
-/** @brief 将 GPU 纹理写入输出 ring buffer；时间戳为当前系统帧号，不写 CPU 副本 */
+/** @brief 双路 latest（多输入 hold-last + dirty 合并） */
+inline bool resolveDualInputGpuFramesLatest(const std::shared_ptr<NodeDataTypes::ImageData>& inputA,
+                                            const std::shared_ptr<NodeDataTypes::ImageData>& inputB,
+                                            NodeDataTypes::ImageFrame& frameA,
+                                            NodeDataTypes::ImageFrame& frameB)
+{
+    return resolveInputGpuFrameLatest(inputA, frameA) && resolveInputGpuFrameLatest(inputB, frameB);
+}
+
+/**
+ * @brief 将 GPU 纹理写入输出 ring buffer
+ * @param outputTimestamp <0 时用当前 clock；算子应透传输入帧 timestamp
+ */
 inline void pushGpuResult(const std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue>& outBuffer,
                           NodeDataTypes::GpuTextureHandle&& texture,
-                          qint64& lastPushedTimestamp)
+                          qint64& lastPushedTimestamp,
+                          qint64 outputTimestamp = -1)
 {
     if (!outBuffer || !texture.valid()) {
         return;
     }
-    const qint64 outputTimestamp = currentSystemTimestamp();
+    if (outputTimestamp < 0) {
+        outputTimestamp = currentSystemTimestamp();
+    }
     NodeDataTypes::ImageFrame frame = NodeDataTypes::ImageFrame::fromTexture(std::move(texture), outputTimestamp);
     if (outBuffer->pushFrame(std::move(frame))) {
         lastPushedTimestamp = outputTimestamp;
@@ -371,9 +400,10 @@ inline void pushGpuResult(const std::shared_ptr<NodeDataTypes::ImageTimestampRin
 
 inline void pushGpuResultDual(const std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue>& outBuffer,
                               NodeDataTypes::GpuTextureHandle&& texture,
-                              qint64& lastPushedTimestamp)
+                              qint64& lastPushedTimestamp,
+                              qint64 outputTimestamp = -1)
 {
-    pushGpuResult(outBuffer, std::move(texture), lastPushedTimestamp);
+    pushGpuResult(outBuffer, std::move(texture), lastPushedTimestamp, outputTimestamp);
 }
 } // namespace ImageOperateHelpers
 } // namespace Nodes

@@ -78,6 +78,15 @@ export class FlowCardEditor extends LitElement {
     editor?.applyPictureElementPosition(ev.detail.left, ev.detail.top);
   }
 
+  private _onPictureElementSelect(ev: CustomEvent<{ index: number }>): void {
+    ev.stopPropagation();
+    if (this._tab !== "config") return;
+    const editor = this.renderRoot.querySelector("flow-card-config-editor") as
+      | import("./flow-card-config-editor").FlowCardConfigEditor
+      | null;
+    editor?.selectPictureElement(ev.detail.index);
+  }
+
   private _onPictureElementsChanged(ev: CustomEvent<{ config: LovelaceCardConfig }>): void {
     ev.stopPropagation();
     this._draft = ev.detail.config;
@@ -190,6 +199,7 @@ export class FlowCardEditor extends LitElement {
             <div
               class="preview-pane element-preview"
               @picture-element-position=${this._onPicturePosition}
+              @picture-element-select=${this._onPictureElementSelect}
               @picture-elements-changed=${this._onPictureElementsChanged}
             >
               <div class="preview-label">预览</div>

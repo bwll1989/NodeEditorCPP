@@ -12,6 +12,10 @@ import {
   showDeleteCardDialog,
 } from "../../dialogs/show-confirm-dialog";
 import {
+  resolveBadgeCardDialog,
+  type BadgeCardDialogParams,
+} from "../../dialogs/show-badge-card-dialog";
+import {
   addCard,
   addSection,
   addView,
@@ -54,6 +58,7 @@ import "../logs/flow-logs-panel";
 import "../media/flow-media-panel";
 import "../../dialogs/flow-confirm-dialog";
 import "../../dialogs/flow-delete-card-dialog";
+import "../../dialogs/flow-badge-card-dialog";
 import "../../components/ha-sidebar";
 import "../../components/ha-drawer";
 import "../../components/ha-menu-button";
@@ -98,6 +103,8 @@ export class FlowApp extends LitElement {
   @state() private _confirmParams?: ConfirmDialogParams;
   @state() private _deleteCardOpen = false;
   @state() private _deleteCardConfig?: LovelaceCardConfig;
+  @state() private _badgeCardOpen = false;
+  @state() private _badgeCardParams?: BadgeCardDialogParams;
   @state() private _layoutEditEnabled = false;
   /** Bumped on every layout mutation so children re-render without toggling edit mode. */
   @state() private _layoutRevision = 0;
@@ -146,6 +153,17 @@ export class FlowApp extends LitElement {
     this._deleteCardOpen = true;
   };
 
+  private _onShowBadgeCard = (ev: Event): void => {
+    this._badgeCardParams = (ev as CustomEvent<BadgeCardDialogParams>).detail;
+    this._badgeCardOpen = true;
+  };
+
+  private _onBadgeCardClosed = (): void => {
+    this._badgeCardOpen = false;
+    this._badgeCardParams = undefined;
+    resolveBadgeCardDialog();
+  };
+
   private _onLayoutEditEnabled = (ev: Event): void => {
     const enabled = Boolean((ev as CustomEvent<{ enabled?: boolean }>).detail?.enabled);
     this._layoutEditEnabled = enabled;
@@ -170,6 +188,7 @@ export class FlowApp extends LitElement {
     });
     document.addEventListener("flow-show-confirm", this._onShowConfirm);
     document.addEventListener("flow-show-delete-card", this._onShowDeleteCard);
+    document.addEventListener("flow-show-badge-card", this._onShowBadgeCard);
     this.addEventListener("add-section", this._onAddSection as EventListener);
     this.addEventListener("add-card", this._onAddCard as EventListener);
     this.addEventListener("layout-will-change", this._onLayoutWillChange as EventListener);
@@ -193,6 +212,7 @@ export class FlowApp extends LitElement {
     this._unsubConnection?.();
     document.removeEventListener("flow-show-confirm", this._onShowConfirm);
     document.removeEventListener("flow-show-delete-card", this._onShowDeleteCard);
+    document.removeEventListener("flow-show-badge-card", this._onShowBadgeCard);
     document.removeEventListener(LAYOUT_EDIT_ENABLED_EVENT, this._onLayoutEditEnabled);
     this.removeEventListener("add-section", this._onAddSection as EventListener);
     this.removeEventListener("add-card", this._onAddCard as EventListener);
@@ -898,6 +918,14 @@ export class FlowApp extends LitElement {
           .cardConfig=${this._deleteCardConfig}
           @dialog-result=${this._onDeleteCardResult}
         ></flow-delete-card-dialog>
+
+        <flow-badge-card-dialog
+          .open=${this._badgeCardOpen}
+          .flow=${this._badgeCardParams?.flow ?? this.flow}
+          .cardConfig=${this._badgeCardParams?.cardConfig}
+          .title=${this._badgeCardParams?.title ?? ""}
+          @dialog-closed=${this._onBadgeCardClosed}
+        ></flow-badge-card-dialog>
     `;
   }
 

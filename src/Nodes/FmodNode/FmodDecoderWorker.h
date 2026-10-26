@@ -10,6 +10,7 @@
 #include "fmod.hpp"
 #include "fmod_studio.hpp"
 #include "TimestampGenerator/AudioThreadRealtime.hpp"
+#include "Common/AppConfig/ConstantDefines.h"
 
 #include <QHash>
 #include <QMetaType>
@@ -142,7 +143,7 @@ private:
     qint64 baseFrameCount_ = 0;
     qint64 emittedFrameCount_ = 0;
     bool timestampAligned_ = false;
-    int latencyOffsetFrames_ = 2;
+    int latencyOffsetFrames_ = AppConfigs::FIXED_DELAY_FRAMES;
 
     std::vector<QVector<float>> pendingChannelData_;
     std::vector<int> pendingChannelSampleCount_;

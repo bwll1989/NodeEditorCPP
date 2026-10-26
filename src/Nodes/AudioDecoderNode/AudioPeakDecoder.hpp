@@ -29,7 +29,7 @@ public:
     std::shared_ptr<AudioWaveformPeaks> decodeSync(const QString& absoluteFilePath, QString* outErrorMsg = nullptr);
 
     /**
-     * @brief 返回缓存目录（Documents/Flow/Peaks），不存在会自动创建
+     * @brief 返回缓存目录（文档目录下的 Flow/Cache/Peaks），不存在会自动创建
      */
     static QString cacheDirectory();
 

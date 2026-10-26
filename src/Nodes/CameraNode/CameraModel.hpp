@@ -1,12 +1,13 @@
 //
-// CameraModel.hpp — OpenCV 摄像头采集 → ImageTimestampRingQueue
+// CameraModel.hpp — FFmpeg dshow 摄像头采集 → ImageTimestampRingQueue
 //
 // 数据流：
-//   CameraCaptureThread (OpenCV VideoCapture::read)
+//   CameraCaptureThread (项目 FFmpeg avdevice/dshow)
 //     → frameAvailable(cv::Mat)  [QueuedConnection → GUI 线程]
 //     → pending 合并 → ImageFrame::fromMat → pushFrame
 //   m_outImageData ──共享句柄──→ 下游 Display / ImageOperates
 //   下游按 TimestampGenerator tick 调用 getLatestFrame()，无需每帧 dataUpdated
+//   设备名写入 values.device，load() 后自行 startCapture（FlowRuntime 无属性面板）
 //
 
 #pragma once
@@ -14,19 +15,19 @@
 #include <QtNodes/NodeDelegateModel>
 #include <QComboBox>
 #include <QDebug>
-#include <QMediaDevices>
-#include <QCameraDevice>
+#include <QJsonObject>
 #include <QMutex>
 #include <QPointer>
 #include <QScopedPointer>
-#include <QThread>
+#include <QSignalBlocker>
+#include <QTimer>
 #include <QVariant>
 
 #include <atomic>
 
-#include <opencv2/opencv.hpp>
-#include <opencv2/videoio.hpp>
+#include <opencv2/core.hpp>
 
+#include "CameraCapture.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/DataTypes/ImageGpuUpload.h"
 #include "Common/DataTypes/NodeDataList.hpp"
@@ -38,112 +39,6 @@ class CameraForm;
 }
 
 using namespace NodeDataTypes;
-
-/**
- * @brief 摄像头捕获线程 — OpenCV VideoCapture 在独立线程中 read()
- */
-class CameraCaptureThread : public QThread {
-    Q_OBJECT
-
-public:
-    explicit CameraCaptureThread(QObject* parent = nullptr)
-        : QThread(parent)
-        , m_deviceIndex(-1)
-    {}
-
-    ~CameraCaptureThread() override
-    {
-        stop();
-        wait();
-    }
-
-    void startCapture(int deviceIndex)
-    {
-        if (isRunning()) {
-            stop();
-            wait();
-        }
-
-        QMutexLocker locker(&m_mutex);
-        m_deviceIndex = deviceIndex;
-        m_running.store(true);
-        start(QThread::HighPriority);
-    }
-
-    void stop()
-    {
-        QMutexLocker locker(&m_mutex);
-        m_running.store(false);
-    }
-
-signals:
-    void frameAvailable(const cv::Mat& frame);
-    void captureStateChanged(bool isCapturing);
-
-protected:
-    void run() override
-    {
-        cv::VideoCapture capture;
-        bool captureOpened = false;
-
-        {
-            QMutexLocker locker(&m_mutex);
-            try {
-                capture.open(m_deviceIndex, cv::CAP_ANY);
-                if (capture.isOpened()) {
-                    // 请求常见分辨率；实际以设备支持为准
-                    capture.set(cv::CAP_PROP_FRAME_WIDTH, 1920);
-                    capture.set(cv::CAP_PROP_FRAME_HEIGHT, 1080);
-                }
-                captureOpened = capture.isOpened();
-                emit captureStateChanged(captureOpened);
-            } catch (const cv::Exception& e) {
-                qWarning() << "OpenCV exception (open camera):" << e.what();
-                emit captureStateChanged(false);
-                return;
-            }
-        }
-
-        if (!captureOpened) {
-            qWarning() << "Failed to open camera device" << m_deviceIndex;
-            return;
-        }
-
-        const double actualFps = capture.get(cv::CAP_PROP_FPS);
-        qInfo() << "Camera thread started, resolution:"
-                << capture.get(cv::CAP_PROP_FRAME_WIDTH) << "x"
-                << capture.get(cv::CAP_PROP_FRAME_HEIGHT)
-                << "@" << actualFps << "fps";
-
-        while (m_running.load()) {
-            cv::Mat frame;
-            const bool success = capture.read(frame);
-
-            if (!m_running.load()) {
-                break;
-            }
-
-            if (success && !frame.empty()) {
-                emit frameAvailable(frame.clone());
-            } else if (m_running.load()) {
-                qWarning() << "Camera read failed";
-            }
-
-            const int delayMs = actualFps > 1.0 ? static_cast<int>(500.0 / actualFps) : 16;
-            msleep(static_cast<unsigned long>(delayMs));
-        }
-
-        if (capture.isOpened()) {
-            capture.release();
-        }
-        emit captureStateChanged(false);
-    }
-
-private:
-    QMutex m_mutex;
-    std::atomic<bool> m_running{false};
-    int m_deviceIndex = -1;
-};
 
 namespace Nodes
 {
@@ -176,6 +71,11 @@ public:
                 this,
                 &CameraModel::onCaptureStateChanged,
                 Qt::QueuedConnection);
+        connect(m_captureThread,
+                &CameraCaptureThread::errorOccurred,
+                this,
+                &CameraModel::onCaptureError,
+                Qt::QueuedConnection);
     }
 
     ~CameraModel() override
@@ -183,12 +83,13 @@ public:
         stopCamera(true);
         if (m_captureThread) {
             m_captureThread->stop();
-            m_captureThread->wait();
+            m_captureThread->wait(5000);
         }
     }
 
     QtNodes::NodeDataType dataType(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
     {
+        Q_UNUSED(portType);
         Q_UNUSED(portIndex);
         return ImageData().type();
     }
@@ -204,6 +105,32 @@ public:
         return m_outImageData;
     }
 
+    QJsonObject save() const override
+    {
+        QJsonObject modelJson = NodeDelegateModel::save();
+        QJsonObject values;
+        values[QStringLiteral("device")] = m_deviceOpenName;
+        values[QStringLiteral("displayName")] = m_deviceDisplayName;
+        modelJson[QStringLiteral("values")] = values;
+        return modelJson;
+    }
+
+    void load(const QJsonObject& jsonObject) override
+    {
+        NodeDelegateModel::load(jsonObject);
+
+        const QJsonObject values = jsonObject.value(QStringLiteral("values")).toObject();
+        m_deviceOpenName = values.value(QStringLiteral("device")).toString().trimmed();
+        m_deviceDisplayName = values.value(QStringLiteral("displayName")).toString().trimmed();
+
+        // 采集不依赖属性面板。FlowRuntime 没有界面，加载后必须自己打开设备。
+        QTimer::singleShot(0, this, [self = QPointer<CameraModel>(this)]() {
+            if (self) {
+                self->ensureCaptureStarted();
+            }
+        });
+    }
+
     QWidget* embeddedWidget() override
     {
         if (!m_widget) {
@@ -211,12 +138,7 @@ public:
             m_widget = new QWidget();
             m_ui->setupUi(m_widget);
             updateCameras();
-
-            if (m_ui->cb_devices->count() > 0
-                && m_ui->cb_devices->itemText(0) != "No video input devices available") {
-                m_ui->cb_devices->setCurrentIndex(0);
-                initializeCamera(0);
-            }
+            ensureCaptureStarted();
         }
         return m_widget;
     }
@@ -229,20 +151,19 @@ private slots:
         }
 
         const QString deviceName = m_ui->cb_devices->itemText(index);
-        if (deviceName == "无可用视频输入设备" || deviceName == "枚举摄像头时出错") {
+        if (deviceName == QStringLiteral("无可用视频输入设备")
+            || deviceName == QStringLiteral("枚举摄像头时出错")) {
             stopCamera();
             return;
         }
 
-        const QVariant userData = m_ui->cb_devices->itemData(index);
-        const int deviceIndex = userData.isValid() ? userData.toInt() : index;
-
-        qInfo() << "Switch camera:" << deviceName << "index" << deviceIndex;
-        stopCamera();
-        initializeCamera(deviceIndex);
+        const QString openName = m_ui->cb_devices->itemData(index).toString();
+        m_deviceDisplayName = deviceName;
+        m_deviceOpenName = openName.isEmpty() ? deviceName : openName;
+        qInfo() << "Switch camera:" << m_deviceDisplayName << "open as" << m_deviceOpenName;
+        initializeCamera(m_deviceOpenName);
     }
 
-    /** 捕获线程回调：仅缓存最新 Mat，在 GUI 线程合并上传 */
     void onFrameAvailable(const cv::Mat& frame)
     {
         if (frame.empty()) {
@@ -263,6 +184,11 @@ private slots:
         }
     }
 
+    void onCaptureError(const QString& message)
+    {
+        qWarning() << "Camera:" << message;
+    }
+
     void updateCameras()
     {
         if (!m_ui || !m_widget) {
@@ -276,47 +202,21 @@ private slots:
 
         m_ui->cb_devices->clear();
 
-        const QList<QCameraDevice> cameras = QMediaDevices::videoInputs();
+        const QList<CameraDeviceInfo> cameras = CameraCaptureThread::listVideoDevices();
         if (cameras.isEmpty()) {
-            m_ui->cb_devices->addItem("无可用视频输入设备");
+            m_ui->cb_devices->addItem(QStringLiteral("无可用视频输入设备"));
             return;
         }
 
-        for (int i = 0; i < cameras.size(); ++i) {
-            m_ui->cb_devices->addItem(cameras.at(i).description(), i);
+        for (const CameraDeviceInfo& cam : cameras) {
+            // 界面显示友好名，itemData 存 openName 供 dshow 打开
+            m_ui->cb_devices->addItem(cam.displayName, cam.openName);
         }
 
         connect(m_ui->cb_devices,
                 QOverload<int>::of(&QComboBox::currentIndexChanged),
                 this,
                 &CameraModel::onDeviceChanged);
-    }
-
-    void initializeCamera(int deviceIndex)
-    {
-        stopCamera();
-        m_captureThread->startCapture(deviceIndex);
-    }
-
-    void stopCamera(bool fromDestructor = false)
-    {
-        if (m_captureThread) {
-            m_captureThread->stop();
-        }
-
-        {
-            QMutexLocker locker(&m_pendingMutex);
-            m_pendingFrame.release();
-        }
-        m_uploadScheduled.store(false);
-
-        if (m_outputBuffer) {
-            m_outputBuffer->clear();
-        }
-
-        if (!fromDestructor && m_ui && m_widget) {
-            m_ui->cb_takingFrame->setChecked(false);
-        }
     }
 
     void scheduleUploadIfNeeded()
@@ -326,7 +226,6 @@ private slots:
         }
     }
 
-    /** GUI 线程：cv::Mat → GPU 纹理 → push 到 ring buffer */
     void publishPendingFrame()
     {
         m_uploadScheduled.store(false);
@@ -343,7 +242,8 @@ private slots:
 
         ensureImageDataBuffer(m_outImageData, m_outputBuffer);
 
-        const qint64 timestamp = TimestampGenerator::getInstance()->getCurrentFrameCount();
+        const qint64 timestamp = mediaOutputTimestamp(
+            TimestampGenerator::getInstance()->getCurrentFrameCount());
         ImageFrame imageFrame = ImageFrame::fromMat(mat, timestamp);
         if (!imageFrame.texture.valid()) {
             qWarning() << "Camera frame GPU upload failed";
@@ -363,9 +263,122 @@ private slots:
     }
 
 private:
+    static bool isPlaceholderDevice(const QString& name)
+    {
+        return name == QStringLiteral("无可用视频输入设备")
+            || name == QStringLiteral("枚举摄像头时出错");
+    }
+
+    /** 没有已保存设备时选用列表第一项，和编辑器里第一次打开面板的行为一致 */
+    bool pickFirstDevice()
+    {
+        if (m_ui && m_widget && m_ui->cb_devices->count() > 0) {
+            const QString text = m_ui->cb_devices->itemText(0);
+            if (!isPlaceholderDevice(text)) {
+                m_deviceDisplayName = text;
+                const QString openName = m_ui->cb_devices->itemData(0).toString().trimmed();
+                m_deviceOpenName = openName.isEmpty() ? text : openName;
+                return true;
+            }
+        }
+
+        const QList<CameraDeviceInfo> cameras = CameraCaptureThread::listVideoDevices();
+        if (cameras.isEmpty()) {
+            qWarning() << "Camera: no video input device";
+            return false;
+        }
+
+        m_deviceDisplayName = cameras.first().displayName;
+        m_deviceOpenName = cameras.first().openName.trimmed().isEmpty()
+            ? cameras.first().displayName
+            : cameras.first().openName.trimmed();
+        return !m_deviceOpenName.isEmpty();
+    }
+
+    void syncComboToSavedDevice()
+    {
+        if (!m_ui || !m_widget || m_deviceOpenName.isEmpty()) {
+            return;
+        }
+
+        QComboBox* box = m_ui->cb_devices;
+        int index = box->findData(m_deviceOpenName);
+        if (index < 0 && !m_deviceDisplayName.isEmpty()) {
+            index = box->findText(m_deviceDisplayName);
+        }
+        if (index < 0) {
+            index = box->findText(m_deviceOpenName);
+        }
+        QSignalBlocker blocker(box);
+        if (index < 0) {
+            const QString label = m_deviceDisplayName.isEmpty() ? m_deviceOpenName : m_deviceDisplayName;
+            box->addItem(label, m_deviceOpenName);
+            index = box->count() - 1;
+        }
+        box->setCurrentIndex(index);
+        m_deviceDisplayName = box->itemText(index);
+        const QString openName = box->itemData(index).toString().trimmed();
+        if (!openName.isEmpty()) {
+            m_deviceOpenName = openName;
+        }
+    }
+
+    void ensureCaptureStarted()
+    {
+        if (m_deviceOpenName.isEmpty() && !pickFirstDevice()) {
+            return;
+        }
+
+        syncComboToSavedDevice();
+        initializeCamera(m_deviceOpenName);
+    }
+
+    void initializeCamera(const QString& deviceName)
+    {
+        const QString trimmed = deviceName.trimmed();
+        if (trimmed.isEmpty()) {
+            stopCamera();
+            return;
+        }
+        if (trimmed == m_activeOpenName && m_captureThread && m_captureThread->isRunning()) {
+            return;
+        }
+
+        stopCamera();
+        m_deviceOpenName = trimmed;
+        m_activeOpenName = trimmed;
+        m_captureThread->startCapture(trimmed);
+    }
+
+    void stopCamera(bool fromDestructor = false)
+    {
+        m_activeOpenName.clear();
+        if (m_captureThread) {
+            m_captureThread->stop();
+        }
+
+        {
+            QMutexLocker locker(&m_pendingMutex);
+            m_pendingFrame.release();
+        }
+        m_uploadScheduled.store(false);
+
+        if (m_outputBuffer) {
+            m_outputBuffer->clear();
+        }
+
+        if (!fromDestructor && m_ui && m_widget) {
+            m_ui->cb_takingFrame->setChecked(false);
+        }
+    }
+
+private:
     QPointer<QWidget> m_widget;
     QScopedPointer<Ui::CameraForm> m_ui;
     CameraCaptureThread* m_captureThread = nullptr;
+    QString m_deviceOpenName;
+    QString m_deviceDisplayName;
+    QString m_activeOpenName;
 
     std::shared_ptr<ImageData> m_outImageData;
     std::shared_ptr<ImageTimestampRingQueue> m_outputBuffer;

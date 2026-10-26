@@ -23,9 +23,9 @@ extern "C" {
 #include <portaudio.h>
 #include <QDateTime>
 #include "TimestampGenerator/AudioThreadRealtime.hpp"
+#include "Common/AppConfig/ConstantDefines.h"
 // #include <Common/Devices/AudioPipe/AudioPipe.h>
 static const int SAMPLE_RATE = 48000;
-static const int FIXED_DELAY_FRAMES = 5;
 
 /**
  * @brief 根据当前全局时间戳帧率获取每帧采样数
@@ -763,7 +763,7 @@ int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
         frame.sampleRate = sampleRate;
         frame.channels = channels;
         frame.bitsPerSample = 32;
-        frame.timestamp = ++lastTimestamp_ + FIXED_DELAY_FRAMES;
+        frame.timestamp = ++lastTimestamp_ + AppConfigs::FIXED_DELAY_FRAMES;
 
         emit audioFrameReady(frame);
         emitted++;

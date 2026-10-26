@@ -13,7 +13,7 @@ const DEFAULT_PATH_BADGE_POINTS = [
 
 const DEFAULT_PATH_ELEMENT_BADGES = [
   {
-    type: "state-badge",
+    type: "entity",
     entity: "/demo/path_progress",
     name: "轨迹点 1",
     icon: "mdi:robot-industrial",
@@ -613,7 +613,8 @@ export function syncLayoutGridOptions(config: Record<string, unknown>): void {
       ...existing,
       columns: existing.columns ?? (orientation === "vertical" ? Math.min(12, Math.max(6, count * 2)) : 6),
       rows,
-      min_rows: orientation === "vertical" ? 3 : rows,
+      // 竖向推杆至少 4 行，避免自动高度时轨道被压没
+      min_rows: orientation === "vertical" ? 4 : rows,
       min_columns: vertical ? 3 : 6,
     };
     return;
@@ -822,7 +823,7 @@ export function denormalizeCardConfig(config: Record<string, unknown>): Record<s
       if (legacyEntity) {
         next.badges = [
           {
-            type: "state-badge",
+            type: "entity",
             entity: legacyEntity,
             name: String(next.name ?? "").trim() || undefined,
             icon: String(next.icon ?? "").trim() || undefined,

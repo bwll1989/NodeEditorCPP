@@ -3,6 +3,7 @@
 #include <QDateTime>
 #include <cstring>
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include "Common/AppConfig/ConstantDefines.h"
 
 // PortAudio缓冲区大小（帧数）
 /**
@@ -116,7 +117,8 @@ void NoiseGenerator::startGeneration() {
     }
     
     generating = true;
-    audioFrameSequence = TimestampGenerator::getInstance()->getCurrentFrameCount()+5;
+    audioFrameSequence = TimestampGenerator::getInstance()->getCurrentFrameCount()
+                         + AppConfigs::FIXED_DELAY_FRAMES;
 }
 
 /**

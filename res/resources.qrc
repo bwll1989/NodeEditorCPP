@@ -106,6 +106,7 @@
     <file>icons/cursor.png</file>
     <file>icons/isf.png</file>
     <file>icons/vioso.png</file>
+    <file>icons/license.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>
