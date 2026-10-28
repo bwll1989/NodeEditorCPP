@@ -3,11 +3,9 @@
 #include <QWidget>
 #include <QLineEdit>
 #include <QComboBox>
-#include <QGraphicsDropShadowEffect>
-#include <QHBoxLayout>
+#include <QFrame>
 #include <QJSEngine>
 
-#include "PushButton.h"
 #include "../../Common/Devices/OSCSender/OSCSender.h"
 #if defined(OSCLISTWIDGET_LIBRARY)
 #define OSCLISTWIDGET_EXPORT Q_DECL_EXPORT

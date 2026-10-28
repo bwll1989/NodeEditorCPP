@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-connect-console"
+description = "Allow the desktop shell to open a Flow console at a chosen address."
+commands.allow = ["connect_console"]

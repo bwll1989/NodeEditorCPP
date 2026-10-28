@@ -6,7 +6,6 @@
  *   SAMPLE_RATE           — 系统统一音频采样率 48000 Hz
  *   SAMPLES_PER_CHANNEL   — 每个音频 tick 块包含的采样数（48000 / 帧率）
  *   AppConfigs::FIXED_DELAY_FRAMES — 音/视频时间戳相对系统 tick 的固定超前量
- *   LOOP_INTERVAL                  — 循环播放 seek 回起点前的间隔 ms
  */
 
 #include <QDebug>
@@ -40,8 +39,6 @@ extern "C" {
 
 /** 系统统一输出采样率（Hz） */
 static const int SAMPLE_RATE = 48000;
-/** 循环播放 seek 回文件头前的等待（ms），避免连续 seek 过于激进 */
-static const int LOOP_INTERVAL = 800;
 /** 每个音频输出块：每声道采样数 = 48000 / 系统 tick 帧率 */
 static const int SAMPLES_PER_CHANNEL = SAMPLE_RATE/TimestampGenerator::getInstance()->getFrameRate();;
 
@@ -712,7 +709,6 @@ void VideoDecoder::audioLoop() {
     do {
         // 重置文件指针到开始位置（用于循环播放）
         if (frameCount > 0 && isLooping.load()) {
-            QThread::msleep(LOOP_INTERVAL);
             av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
             if (codecContext) {
                 avcodec_flush_buffers(codecContext);

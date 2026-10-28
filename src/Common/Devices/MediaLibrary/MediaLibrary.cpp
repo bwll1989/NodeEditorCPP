@@ -22,6 +22,7 @@ inline QString AudioFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-cou
 inline QString VideoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 4, "internal-data": {"autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 3, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Video Decoder", "type": "Video Decoder" } ] })");
 // internal-data 须与节点 save()/load() 一致：属性在 values 下；坐标占位符由画布 drop 填入
 inline QString ViosoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"values": {"configFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "Vioso"}]})");
+inline QString MpcdiFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"values": {"configFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "MPCDI"}]})");
 inline QString IsfFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"values": {"shaderFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "ISF"}]})");
 
 MediaLibrary::MediaLibrary(QObject* parent)
@@ -31,7 +32,7 @@ MediaLibrary::MediaLibrary(QObject* parent)
     // 初始化五个类别为顶层组节点
     for (Category cat : { Category::Video, Category::Audio, Category::DMX, Category::Image,
                           Category::Model, Category::Document, Category::Vioso, Category::ISF,
-                          Category::ChildFlow, Category::Unknown }) {
+                          Category::ChildFlow, Category::Mpcdi, Category::Unknown }) {
         auto* group = new QStandardItem(categoryName(cat));
         group->setEditable(false);
         group->setData(static_cast<int>(cat), CategoryRole);
@@ -312,6 +313,7 @@ QJsonObject MediaLibrary::toJson() const
     collect(Category::Vioso,   "Vioso");
     collect(Category::ISF,     "ISF");
     collect(Category::ChildFlow, "ChildFlow");
+    collect(Category::Mpcdi,   "MPCDI");
     collect(Category::Unknown, "Unknown");
     return root;
 }
@@ -337,6 +339,7 @@ bool MediaLibrary::fromJson(const QJsonObject& obj)
     load(Category::Vioso,   "Vioso");
     load(Category::ISF,     "ISF");
     load(Category::ChildFlow, "ChildFlow");
+    load(Category::Mpcdi,   "MPCDI");
     load(Category::Unknown, "Unknown");
     emit libraryChanged();
     return true;
@@ -391,6 +394,7 @@ MediaLibrary::Category MediaLibrary::detectCategory(const QString& absPath) cons
     static const QSet<QString> vioso = { "vwf" };
     static const QSet<QString> isf = { "fs" };
     static const QSet<QString> childFlow = { "childflow" };
+    static const QSet<QString> mpcdi = { "mpcdi" };
     if (video.contains(ext)) return Category::Video;
     if (sound.contains(ext)) return Category::Audio;
     if (dmx.contains(ext))  return Category::DMX;
@@ -399,6 +403,7 @@ MediaLibrary::Category MediaLibrary::detectCategory(const QString& absPath) cons
     if (vioso.contains(ext)) return Category::Vioso;
     if (isf.contains(ext)) return Category::ISF;
     if (childFlow.contains(ext)) return Category::ChildFlow;
+    if (mpcdi.contains(ext)) return Category::Mpcdi;
     // 其他文件（如脚本、配置等）
     if (other.contains(ext)) return Category::Document;
     return Category::Unknown;
@@ -419,6 +424,7 @@ QString MediaLibrary::categoryName(Category cat) const
     case Category::Vioso:   return QStringLiteral("Vioso");
     case Category::ISF:     return QStringLiteral("ISF");
     case Category::ChildFlow: return QStringLiteral("Child Flows");
+    case Category::Mpcdi:   return QStringLiteral("MPCDI");
     case Category::Unknown: return QStringLiteral("Unknown");
     }
     return QStringLiteral("Unknown");
@@ -509,6 +515,7 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
             {Category::Vioso,    "Vioso"},
             {Category::ISF,      "ISF"},
             {Category::ChildFlow,"ChildFlow"},
+            {Category::Mpcdi,    "MPCDI"},
             {Category::Unknown,  "Unknown"}
         };
         const QString tagKey = tagMap.value(cat, "Unknown");
@@ -546,6 +553,9 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
                     break;
                 case Category::Vioso:
                     tpl = ViosoFileNode.arg(fileName);
+                    break;
+                case Category::Mpcdi:
+                    tpl = MpcdiFileNode.arg(fileName);
                     break;
                 case Category::ISF:
                     tpl = IsfFileNode.arg(fileName);

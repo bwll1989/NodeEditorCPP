@@ -2,31 +2,34 @@
 
 ## 1. 节点说明
 
-将网页离屏渲染为图像，模式对齐 TouchDesigner **Web Render TOP**：
+把网页离屏渲染成图像，模式对齐 TouchDesigner **Web Render TOP**。
 
-- **独立浏览器进程**（本机 Microsoft Edge / Google Chrome，headless）
-- 通过 **Chrome DevTools Protocol (CDP)** 导航与截图
-- 输出走项目统一的 **ImageTimestampRingQueue / ImageData**，下游按 `TimestampGenerator` tick 取帧
+- 每个节点拉起自己的浏览器进程（本机 Microsoft Edge，没有则用 Google Chrome，`--headless=new`）
+- 通过 Chrome DevTools Protocol 导航，并用 `Page.startScreencast` 连续取 JPEG
+- 图像经 GPU 上传后写入 `ImageTimestampRingQueue`，下游按 `TimestampGenerator` 的 tick 取帧，节点不逐帧 `dataUpdated`
 
-不依赖 Qt WebEngine / CEF 静态库；需本机已安装 Edge 或 Chrome。
+不依赖 Qt WebEngine / CEF。本机需要已安装 Edge 或 Chrome。面板在侧栏，不嵌在节点上。
+
+缓存目录是系统临时目录下的 `NodeEditorWebRender/<uuid>/`，每个实例一份。节点销毁时删除。HTML 源会写成该目录里的 `webrender_source.html`，再以 `file://` 打开。
 
 ## 2. 数据流
 
 ```text
 WebRenderBrowserProcess
-  Edge/Chrome --headless --remote-debugging-port=0 --user-data-dir=<唯一目录>
+  Edge/Chrome --headless=new --enable-gpu --remote-debugging-port=0
+  --user-data-dir=<唯一目录> --window-size=<宽>,<高>
        ↓ DevToolsActivePort
 WebRenderCdpClient
-  Page.navigate / Page.reload
-  Page.startScreencast (JPEG + Ack 背压，客户端按 Max FPS 丢帧)
-       ↓ JPEG bytes → 线程池 imdecode → BGR Mat
-WebRenderDataModel::publishPendingFrame（GUI 线程）
-  ImageFrame::fromMat → pushFrame
-m_outImage ──→ Image Display / Window Display / …
-m_outInfo  ──→ Data Info（loaded / updates / url / title / error …）
+  Page.navigate / Page.reload(ignoreCache)
+  Page.startScreencast（JPEG quality 70，Ack 背压，按 Max FPS 丢帧）
+       ↓ JPEG → 线程池 imdecode（同时最多 2 帧，再来的丢掉）
+WebRenderDataModel::publishPendingFrame
+  ImageFrame::fromMat → GPU → pushFrame
+IMAGE ──→ Image Display / Window Display / …
+Info  ──→ 状态（loaded / url / title / error / updates_per_second …）
 ```
 
-> 性能提示：TD 用 CEF 共享纹理零拷贝；本节点仍经 JPEG→CPU→GPU。已开浏览器 GPU + screencast，30fps 应明显顺滑；若仍卡可降分辨率或 Max FPS。
+浏览器开了 GPU 合成（Windows 上 `--use-angle=d3d11`）。帧仍要 JPEG 解码再上传，不是共享纹理零拷贝。卡的时候先降分辨率或 Max FPS。
 
 ## 3. 端口说明
 
@@ -34,66 +37,72 @@ m_outInfo  ──→ Data Info（loaded / updates / url / title / error …）
 
 | 端口 | 类型 | 说明 |
 |------|------|------|
-| Active | Variable | 启停渲染（对齐 TD `active`） |
-| URL | Variable | 覆盖面板 URL（`url` 源模式下生效） |
-| Reload | Variable | 脉冲为 true 时执行一键重载（见 Reload 按钮） |
+| Active | Variable | 布尔启停。`true` 启动浏览器，`false` 停掉。与面板 Active、OSC `/active` 同步 |
+| URL | Variable | 写入 URL。只在 Source 为 `URL or File` 且 CDP 已连接时立刻导航。OSC `/url` 同步 |
+| Reload | Variable | 值为 `true` 时执行一次 Reload。Active 未勾选时无效 |
 
 ### 输出
 
 | 端口 | 类型 | 说明 |
 |------|------|------|
-| IMAGE | ImageData | 共享 ring buffer |
-| Info | Variable | `loaded`、`num_handle_updates`、`url`、`title`、`error`、`process_id`、`updates_per_second` 等 |
+| IMAGE | ImageData | 共享 ring buffer。只在新帧上传成功后更新 |
+| Info | Variable | 见下表。状态变化时更新；渲染中大约每秒刷新一次帧率 |
 
-## 4. 界面参数（对齐 TD）
+Info 字段：
 
-全部参数平铺显示（无折叠）。
+| 字段 | 说明 |
+|------|------|
+| `loaded` | 当前页面是否已 load |
+| `num_handle_updates` | CDP 收到的页面更新次数 |
+| `url` | 当前页地址；还没导航时用面板里的 URL |
+| `title` | 页面标题 |
+| `error` | 最近一次错误，没有则为空 |
+| `process_id` | 浏览器进程 PID |
+| `debug_port` | CDP 端口 |
+| `updates_per_second` | 实际上传到图像输出的帧率 |
+| `active` | 是否处于启动状态 |
+| `browser` | 实际启动的 Edge/Chrome 路径 |
 
-| 参数 | 对应 TD | 说明 |
-|------|---------|------|
-| Active | Active | 启停 |
-| Source | Source | `URL or File` / `HTML (DAT)` |
-| URL | URL or File | `http(s)://`、`file:///`，运行中修改即实时导航 |
-| HTML | DAT | 写入临时 HTML 后以 `file://` 打开 |
-| Resolution | Custom Resolution | 视口宽高，停止调整 500ms 后自动重启浏览器进程（防抖） |
-| Max FPS | Maximum Render Frame Rate | CDP 截图上限 |
-| DPI Scale | DPI Scaling Factor | `Emulation.setDeviceMetricsOverride`，即时生效无需重启 |
-| Advanced ▸ Only Update when Loaded | Only Update when Loaded | 未 load 完成前不截图（导航 15s 超时后自动恢复推流） |
-| Advanced ▸ Restart if Process Died | Restart if Process Died | 子进程异常退出后自动拉起 |
-| Reload | Reload Source / Reload / Restart | 一键重载：按状态自动选最轻量方式；**Shift+点击 = 强制重启进程** |
+## 4. 界面参数
 
-每个节点实例使用**唯一** `user-data-dir`（TD 同样要求不可共享）。
+参数全部平铺，没有折叠。
 
-### Reload 按钮的合并逻辑
+| 参数 | 默认 | 说明 |
+|------|------|------|
+| Active | 关 | 启停。打开工程时若保存为开，延迟约 600ms 再启动，避免一加载就拉浏览器 |
+| Source | URL or File | `URL or File` 或 `HTML (DAT)`。切换后若已连接，立即按新源加载 |
+| URL | `https://example.com` | `http(s)://` 或 `file:///`。运行中改完并结束编辑会马上导航 |
+| HTML | 一段示例页 | 只在 HTML 源下显示。改文字不会自动刷新，要点 Reload |
+| Resolution | 1280 × 720 | 宽 16–7680，高 16–4320。改完先更新视口，停止调整 500ms 后再重启浏览器 |
+| Max FPS | 15 | 0.5–60。立刻作用到截图节流，不用重启 |
+| DPI Scale | 1.00 | 0.25–4。`Emulation.setDeviceMetricsOverride`，立刻生效 |
+| Only Update when Loaded | 开 | load 完成前不推帧。导航超过 15 秒仍未 load，自动恢复推流 |
+| Restart if Process Died | 开 | 子进程异常退出约 800ms 后重新拉起 |
+| Reload | — | 按当前状态选最轻的恢复方式。按住 Shift 再点 = 强制重启进程 |
+
+启动失败（找不到浏览器、进程拉起失败）会自动取消 Active。
+
+### Reload
+
+Active 未勾选时，Reload 和 Shift+Reload 都不做事。
 
 | 当前状态 | 行为 |
 |----------|------|
-| 浏览器进程未运行 | 拉起浏览器（等价原 Restart） |
-| 进程在但 CDP 未连接 | 重连调试端口；端口未就绪则重启进程 |
-| CDP 就绪 + HTML 源 | 重写临时 HTML 并加载（等价原 Reload Source） |
-| CDP 就绪 + 页面已被站内跳转 | 导航回配置 URL（等价原 Reload Source） |
-| CDP 就绪 + 页面仍在配置 URL 上 | 轻量 `Page.reload`（等价原 Reload Page） |
-| Shift+点击 | 无条件重启浏览器进程 |
+| Active 已开，浏览器未运行 | 拉起浏览器 |
+| 进程在，CDP 未连接 | 用已有调试端口重连；端口还没有则重新拉起 |
+| CDP 已连接，HTML 源 | 重写临时 HTML 再打开 |
+| CDP 已连接，页面已跳到别的地址 | 导航回面板里的 URL |
+| CDP 已连接，页面仍停在配置 URL | `Page.reload`，忽略缓存 |
+| Shift+点击 | 停掉进程再拉起 |
 
 ## 5. 使用说明
 
-1. 添加 **Web Render**，勾选 Active，默认打开 `https://example.com`。
-2. 输出接到 **Image Display** 或 **Window Display**。
-3. Info 可接 Data Info 查看 `loaded` / `updates_per_second`。
-4. 本地文件：`file:///D:/path/page.html`；或切到 HTML 源直接贴内容。
-5. 需能访问目标页（内网仪表盘、本机 WebInterface 等填 `http://127.0.0.1:…` 即可）。
+1. 添加 **Web Render**，勾选 Active。默认打开 `https://example.com`。
+2. IMAGE 接到 **Image Display** 或 **Window Display**。
+3. Info 可接到 Data Info，看 `loaded` 和 `updates_per_second`。
+4. 本地文件填 `file:///D:/path/page.html`。或把 Source 改成 HTML，贴内容后点 Reload。
+5. 本机页面直接填 `http://127.0.0.1:…`。
 
-## 6. 实现要点
+## 6. 保存内容
 
-| 项目 | 说明 |
-|------|------|
-| 浏览器 | 优先 Edge，其次 Chrome；启用 GPU（ANGLE/D3D11） |
-| 取帧 | `Page.startScreencast` JPEG，勿用轮询 PNG `captureScreenshot` |
-| 解码 | `QtConcurrent` 后台 `imdecode`，积压丢帧 |
-| 帧合并 | pending Mat + `publishPendingFrame`，与 Camera/RTSP 一致 |
-| 时间戳 | `TimestampGenerator::getCurrentFrameCount()` |
-| 共享纹理 | 仍非零拷贝；要对齐 TD 流畅度上限需 D3D/GL 共享纹理 |
-
-## 7. 示例
-
-Web Render（Active，URL=`http://127.0.0.1:8080`）→ Image Scale → Window Display，将 Web 仪表盘投到辅屏。
+工程里保存：`active`、`sourceMode`、`url`、`html`、`width`、`height`、`maxFps`、`dpiScale`、`updateWhenLoaded`、`autoRestart`。不保存浏览器进程和临时目录。

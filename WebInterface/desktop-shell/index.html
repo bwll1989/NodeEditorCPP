@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>FlowViewer</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #1a1a1e;
+      color: #d4d4dc;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    main {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .panel {
+      width: 440px;
+      background: #25252b;
+      border: 1px solid #3a3a44;
+      border-radius: 8px;
+      padding: 20px;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #4fc3f7;
+    }
+    .hint {
+      margin: 0 0 14px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #8888a0;
+    }
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin: 0 0 8px;
+      font-size: 11px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: #8888a0;
+    }
+    .section-title button {
+      width: auto;
+      margin: 0;
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+    #endpoint-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .endpoint {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #3a3a44;
+      border-radius: 4px;
+      background: #1a1a1e;
+      color: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+    .endpoint:hover { border-color: #2a7da8; }
+    .endpoint .meta { flex: 1; min-width: 0; }
+    .endpoint .title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .endpoint .sub {
+      margin-top: 2px;
+      font-size: 11px;
+      color: #8888a0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .badge {
+      flex-shrink: 0;
+      padding: 2px 6px;
+      border-radius: 999px;
+      font-size: 10px;
+      border: 1px solid #3a3a44;
+      color: #8888a0;
+    }
+    .badge.online {
+      border-color: #2a7da8;
+      color: #4fc3f7;
+    }
+    .empty {
+      padding: 12px;
+      border: 1px dashed #3a3a44;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #8888a0;
+      margin-bottom: 10px;
+    }
+    details.manual {
+      border-top: 1px solid #3a3a44;
+      padding-top: 8px;
+    }
+    details.manual > summary {
+      list-style: none;
+      cursor: pointer;
+      user-select: none;
+      font-size: 11px;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: #8888a0;
+      padding: 4px 0;
+    }
+    details.manual > summary::-webkit-details-marker { display: none; }
+    details.manual > summary::after {
+      content: "展开";
+      float: right;
+      color: #4fc3f7;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    details.manual[open] > summary::after { content: "收起"; }
+    .manual-body { padding-top: 10px; }
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-size: 12px;
+      color: #8888a0;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 110px;
+      gap: 8px;
+    }
+    input {
+      display: block;
+      width: 100%;
+      margin-top: 4px;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      border: 1px solid #3a3a44;
+      border-radius: 4px;
+      background: #1a1a1e;
+      color: #d4d4dc;
+      font: inherit;
+      font-size: 14px;
+    }
+    input:focus { outline: 1px solid #2a7da8; }
+    button {
+      width: 100%;
+      margin-top: 4px;
+      padding: 8px 12px;
+      border: 1px solid #2a7da8;
+      border-radius: 4px;
+      background: #2a7da8;
+      color: #fff;
+      font: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: transparent;
+      color: #d4d4dc;
+      border-color: #3a3a44;
+    }
+    button:disabled { opacity: 0.6; cursor: default; }
+    #status {
+      min-height: 18px;
+      margin: 10px 0 0;
+      font-size: 12px;
+      color: #ffb74d;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="panel">
+      <h1>FlowViewer</h1>
+      <p class="hint">扫描局域网中的 Flow，点列表进入。手填地址默认折叠。</p>
+
+      <div class="section-title">
+        <span>可用 Flow</span>
+        <button id="refresh" class="secondary" type="button">重新扫描</button>
+      </div>
+      <div id="endpoint-list"></div>
+      <div id="endpoint-empty" class="empty" hidden>暂未发现。可点重新扫描，或展开下方手填。</div>
+
+      <details class="manual" id="manual-panel">
+        <summary>手动连接</summary>
+        <form id="connect-form" class="manual-body">
+          <div class="row">
+            <label>IP / 主机
+              <input id="host" name="host" autocomplete="off" spellcheck="false" value="127.0.0.1" />
+            </label>
+            <label>端口
+              <input id="port" name="port" inputmode="numeric" autocomplete="off" value="8992" />
+            </label>
+          </div>
+          <button id="connect" type="submit">连接并记住</button>
+        </form>
+      </details>
+      <p id="status"></p>
+    </div>
+  </main>
+  <script>
+    const HOST_KEY = "flowConsoleHost";
+    const PORT_KEY = "flowConsolePort";
+    const SAVED_KEY = "flowViewerSavedEndpoints";
+    const hostInput = document.getElementById("host");
+    const portInput = document.getElementById("port");
+    const status = document.getElementById("status");
+    const connectButton = document.getElementById("connect");
+    const refreshButton = document.getElementById("refresh");
+    const listEl = document.getElementById("endpoint-list");
+    const emptyEl = document.getElementById("endpoint-empty");
+    const manualPanel = document.getElementById("manual-panel");
+
+    let connecting = false;
+    let scanning = false;
+    let discovered = [];
+    let saved = loadSaved();
+
+    function invokeReady() {
+      return window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+    }
+
+    function loadSaved() {
+      try {
+        const raw = localStorage.getItem(SAVED_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list) ? list.filter((item) => item && item.host && item.port) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function persistSaved() {
+      localStorage.setItem(SAVED_KEY, JSON.stringify(saved.slice(0, 20)));
+    }
+
+    function rememberEndpoint(endpoint) {
+      const host = String(endpoint.host || "").trim();
+      const port = Number(endpoint.port);
+      if (!host || !Number.isInteger(port) || port < 1 || port > 65535) return;
+      const next = {
+        host,
+        port,
+        name: endpoint.name || "Flow",
+        version: endpoint.version || "",
+        project: endpoint.project || "",
+        lastUsed: Date.now(),
+      };
+      saved = [next, ...saved.filter((item) => !(item.host === host && Number(item.port) === port))];
+      persistSaved();
+      localStorage.setItem(HOST_KEY, host);
+      localStorage.setItem(PORT_KEY, String(port));
+    }
+
+    function fillDefaults() {
+      const defaults = window.__FLOW_CONSOLE_DEFAULTS || {};
+      const savedHost = localStorage.getItem(HOST_KEY);
+      const savedPort = localStorage.getItem(PORT_KEY);
+      hostInput.value = defaults.hostFromArg
+        ? String(defaults.host || "127.0.0.1")
+        : (savedHost || defaults.host || "127.0.0.1");
+      portInput.value = defaults.portFromArg
+        ? String(defaults.port || 8992)
+        : (savedPort || defaults.port || 8992);
+    }
+
+    function displayTitle(item) {
+      const project = String(item.project || "").trim();
+      if (project) return project;
+      return item.name || "Flow";
+    }
+
+    function mergedEndpoints() {
+      const map = new Map();
+      for (const item of saved) {
+        const key = `${item.host}:${item.port}`;
+        map.set(key, {
+          host: item.host,
+          port: Number(item.port),
+          name: item.name || "Flow",
+          version: item.version || "",
+          project: item.project || "",
+          online: false,
+          remembered: true,
+        });
+      }
+      for (const item of discovered) {
+        const key = `${item.host}:${item.port}`;
+        const prev = map.get(key);
+        map.set(key, {
+          host: item.host,
+          port: Number(item.port),
+          name: item.name || (prev && prev.name) || "Flow",
+          version: item.version || (prev && prev.version) || "",
+          project: item.project || (prev && prev.project) || "",
+          online: true,
+          remembered: !!(prev && prev.remembered),
+        });
+      }
+      return Array.from(map.values()).sort((a, b) => {
+        if (a.online !== b.online) return a.online ? -1 : 1;
+        return displayTitle(a).localeCompare(displayTitle(b), "zh");
+      });
+    }
+
+    function renderList() {
+      const items = mergedEndpoints();
+      listEl.innerHTML = "";
+      emptyEl.hidden = items.length > 0;
+      for (const item of items) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "endpoint";
+        const title = displayTitle(item);
+        const subParts = [
+          `${item.host}:${item.port}`,
+          item.version || "",
+          item.remembered ? "已记住" : "",
+        ].filter(Boolean);
+        button.innerHTML =
+          `<span class="meta">` +
+          `<div class="title">${escapeHtml(title)}</div>` +
+          `<div class="sub">${escapeHtml(subParts.join(" · "))}</div>` +
+          `</span>` +
+          `<span class="badge ${item.online ? "online" : ""}">${item.online ? "在线" : "上次"}</span>`;
+        button.addEventListener("click", () => {
+          hostInput.value = item.host;
+          portInput.value = String(item.port);
+          connectToConsole(item);
+        });
+        listEl.appendChild(button);
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    }
+
+    async function connectToConsole(endpoint) {
+      if (connecting) return;
+      const host = String((endpoint && endpoint.host) || hostInput.value).trim();
+      const port = Number((endpoint && endpoint.port) || portInput.value);
+      if (!host || !Number.isInteger(port) || port < 1 || port > 65535) {
+        status.textContent = "请输入有效的地址和端口。";
+        manualPanel.open = true;
+        return;
+      }
+      const invoke = invokeReady();
+      if (!invoke) {
+        status.textContent = "窗口接口还没准备好，请稍后再试。";
+        return;
+      }
+      connecting = true;
+      connectButton.disabled = true;
+      refreshButton.disabled = true;
+      status.textContent = `正在连接 ${host}:${port}…`;
+      try {
+        await invoke("connect_console", { host, port });
+        rememberEndpoint({
+          host,
+          port,
+          name: (endpoint && endpoint.name) || "Flow",
+          version: (endpoint && endpoint.version) || "",
+          project: (endpoint && endpoint.project) || "",
+        });
+      } catch (error) {
+        connecting = false;
+        connectButton.disabled = false;
+        refreshButton.disabled = false;
+        status.textContent = typeof error === "string" ? error : "连接失败。";
+        manualPanel.open = true;
+        renderList();
+      }
+    }
+
+    async function scanFlows() {
+      if (scanning) return;
+      const invoke = invokeReady();
+      if (!invoke) {
+        status.textContent = "窗口接口还没准备好，请稍后再试。";
+        return;
+      }
+      scanning = true;
+      refreshButton.disabled = true;
+      status.textContent = "正在扫描局域网…";
+      try {
+        discovered = await invoke("discover_flows", { timeoutMs: 900 });
+        if (!Array.isArray(discovered)) discovered = [];
+        status.textContent = discovered.length
+          ? `发现 ${discovered.length} 台 Flow。`
+          : "没有发现在线的 Flow。";
+      } catch (error) {
+        discovered = [];
+        status.textContent = typeof error === "string" ? error : "扫描失败。";
+      } finally {
+        scanning = false;
+        refreshButton.disabled = false;
+        renderList();
+      }
+    }
+
+    window.applyConsoleDefaults = fillDefaults;
+    fillDefaults();
+    renderList();
+
+    async function boot() {
+      for (let i = 0; i < 50; i++) {
+        if (invokeReady()) break;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      fillDefaults();
+
+      const defaults = window.__FLOW_CONSOLE_DEFAULTS || {};
+      if (defaults.hostFromArg && defaults.portFromArg) {
+        status.textContent = "正在连接菜单指定的地址…";
+        await connectToConsole({
+          host: defaults.host,
+          port: defaults.port,
+          name: "Flow",
+          project: "",
+        });
+        if (!connecting) {
+          await scanFlows();
+        }
+        return;
+      }
+
+      await scanFlows();
+    }
+
+    boot();
+
+    document.getElementById("connect-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      connectToConsole();
+    });
+    refreshButton.addEventListener("click", () => {
+      scanFlows();
+    });
+  </script>
+</body>
+</html>

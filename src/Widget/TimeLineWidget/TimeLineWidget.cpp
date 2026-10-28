@@ -134,19 +134,22 @@ private:
                 });
 
         connect(m_model, &QAbstractItemModel::dataChanged,
-                this, [this, refreshTimeline](const QModelIndex& topLeft,
-                                             const QModelIndex&,
-                                             const QList<int>& roles) {
-                    refreshTimeline();
+                this, [this](const QModelIndex& topLeft,
+                             const QModelIndex& bottomRight,
+                             const QList<int>& roles) {
+                    if (topLeft.parent().isValid()) {
+                        if (!m_view) {
+                            return;
+                        }
+                        for (int row = topLeft.row(); row <= bottomRight.row(); ++row) {
+                            m_view->updateClipGeometry(topLeft.sibling(row, topLeft.column()));
+                        }
+                        return;
+                    }
 
                     if (!m_tracklist) {
                         return;
                     }
-
-                    if (topLeft.parent().isValid()) {
-                        return;
-                    }
-
                     const bool rolesUnknown = roles.isEmpty();
                     const bool affectsTrackName = rolesUnknown || roles.contains(QtTimeline::TrackNameRole) || roles.contains(QtTimeline::TrackTypeRole);
                     if (affectsTrackName) {
@@ -154,13 +157,22 @@ private:
                     }
                 });
 
-        connect(m_model, &BaseTimeLineModel::S_LengthChanged, this, refreshTimeline);
+        connect(m_model, &BaseTimeLineModel::S_LengthChanged, this, [this](qint64) {
+            if (!m_view) {
+                return;
+            }
+            // 插入通知可能在总长写入之前就把静态缓存画完了。长度变化必须再标脏，否则要拖一下片段才看得到新总长。
+            m_view->updateScrollBars();
+            m_view->onUpdateViewport();
+        });
 
         connect(m_model, &BaseTimeLineModel::S_playheadMoved,
-                this, [this, refreshTimeline](int) {
-                    refreshTimeline();
+                this, [this](int frame) {
+                    if (m_view) {
+                        m_view->onPlayheadMoved(frame);
+                    }
                     if (m_tracklist) {
-                        m_tracklist->viewport()->update();
+                        m_tracklist->updatePlayheadHeader();
                     }
                 });
     }
@@ -228,8 +240,6 @@ void TimelineWidget::showSettingsDialog()
 }
 
 QJsonObject TimelineWidget::save() {
-    const auto& saved = model->save();
-
     return model->save();
 }
 

@@ -35,6 +35,7 @@ public:
         Vioso,
         ISF,
         ChildFlow,
+        Mpcdi,
         Unknown
     };
     Q_ENUM(Category)

@@ -1,0 +1,23 @@
+[package]
+name = "flow-viewer"
+version = "0.1.0"
+description = "Desktop window for FlowViewer"
+edition = "2024"
+rust-version = "1.90"
+autobins = false
+
+[[bin]]
+name = "FlowViewer"
+path = "src/main.rs"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

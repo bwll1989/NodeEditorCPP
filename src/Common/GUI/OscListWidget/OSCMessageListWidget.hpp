@@ -1,28 +1,30 @@
 #pragma once
 
 #include <QWidget>
-#include <QMenu>
 #include <QJsonObject>
-#include <QJsonArray>
 #include <QVector>
 #include <QPoint>
-#include <QMimeData>
 #include "OSCMessageItemWidget.hpp"
-#include "Elements/QGridView/QGridView.h"
-#include "OSCMessageListModel.hpp"
+
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
+class QMouseEvent;
+class QMimeData;
+class QScrollArea;
+class QVBoxLayout;
 
 #if defined(OSCLISTWIDGET_LIBRARY)
 #define OSCLISTWIDGET_EXPORT Q_DECL_EXPORT
 #else
 #define OSCLISTWIDGET_EXPORT Q_DECL_IMPORT
 #endif
-class OSCLISTWIDGET_EXPORT OSCMessageListWidget : public QGridView {
+class OSCLISTWIDGET_EXPORT OSCMessageListWidget : public QWidget {
     Q_OBJECT
 public:
     /**
      * 函数：OSCMessageListWidget::OSCMessageListWidget
-     * 作用：构造“基于 QGridView 的 OSC 卡片列表”，绑定 OSCMessageListModel，
-     *       使用 indexWidget 承载卡片控件。
+     * 作用：构造纵向排列的 OSC 消息列表，每条消息占一行。
      */
     explicit OSCMessageListWidget(bool onlyInternal = false, QWidget* parent = nullptr);
     explicit OSCMessageListWidget(QWidget* parent);
@@ -68,6 +70,10 @@ public:
      * 作用：获取指定行的卡片控件。
      */
     OSCMessageItemWidget* item(int index) const;
+
+    QSize sizeHint() const override;
+    QSize minimumSizeHint() const override;
+
 protected:
     /**
      * 函数：OSCMessageListWidget::dragEnterEvent
@@ -137,28 +143,29 @@ private:
      */
     static OSCMessage jsonToMessage(const QJsonObject& json);
 
-    // 视图命中测试已移除（未使用）
-
-
     /**
      * 函数：OSCMessageListWidget::removeCard
      * 作用：根据控件定位模型行并删除。
      */
     void removeCard(OSCMessageItemWidget* card);
 
-private:
-    // 新：OSC 列表数据模型
-    OSCMessageListModel* m_model = nullptr;
+    void watchCard(OSCMessageItemWidget* card);
+    void clearItems();
+    void setCurrentCard(OSCMessageItemWidget* card);
+    void startDrag(OSCMessageItemWidget* card);
+    bool acceptOscMime(const QMimeData* mimeData) const;
+    bool handleMimeDrop(const QMimeData* mimeData);
+    OSCMessageItemWidget* cardFromObject(QObject* obj) const;
 
-    // 当前卡片（用于删除、拖拽等）
+    QScrollArea* m_scroll = nullptr;
+    QWidget* m_container = nullptr;
+    QVBoxLayout* m_layout = nullptr;
+    QVector<OSCMessageItemWidget*> m_items;
     OSCMessageItemWidget* m_currentCard = nullptr;
-
-    // 拖拽起点（视图坐标系）
     QPoint dragStartPosition;
-
-    // 移除未使用的拖拽距离常量
+    bool m_dragActive = false;
+    bool m_pressOnCard = false;
 
     // 仅内部（隐藏 host:port，固定到本地）
     bool OnlyInternal = false;
-
 };

@@ -51,3 +51,6 @@ install.iss
 **/node_modules/
 src/Widget/ExternalControl/dashboard/node_modules/
 /sdk
+/Flow_Overview
+/.slidep
+/.workbuddy

@@ -31,6 +31,9 @@
 #include <QMetaType>
 #include <QFileInfo>
 #include <QDir>
+#include <QHostAddress>
+#include <QNetworkInterface>
+#include <QUdpSocket>
 Q_DECLARE_METATYPE(OSCMessage)
 using namespace Poco::Net;
 using namespace Poco;
@@ -1194,6 +1197,120 @@ void NodeHttpServer::stopWsBroadcastThread()
     _wsBroadcastPending.store(0, std::memory_order_relaxed);
 }
 
+void NodeHttpServer::startDiscoveryResponder()
+{
+    if (_discoverySocket) {
+        return;
+    }
+    _discoverySocket = new QUdpSocket(this);
+    const bool bound = _discoverySocket->bind(
+        QHostAddress::AnyIPv4,
+        static_cast<quint16>(AppConfigs::FLOW_DISCOVERY_PORT),
+        QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint);
+    if (!bound) {
+        qWarning() << "Failed to bind Flow discovery UDP port"
+                   << AppConfigs::FLOW_DISCOVERY_PORT
+                   << _discoverySocket->errorString();
+        delete _discoverySocket;
+        _discoverySocket = nullptr;
+        return;
+    }
+    connect(_discoverySocket, &QUdpSocket::readyRead, this, &NodeHttpServer::onDiscoveryDatagram);
+    qInfo() << "Flow discovery UDP listening on" << AppConfigs::FLOW_DISCOVERY_PORT;
+}
+
+void NodeHttpServer::stopDiscoveryResponder()
+{
+    if (!_discoverySocket) {
+        return;
+    }
+    disconnect(_discoverySocket, &QUdpSocket::readyRead, this, &NodeHttpServer::onDiscoveryDatagram);
+    _discoverySocket->close();
+    _discoverySocket->deleteLater();
+    _discoverySocket = nullptr;
+}
+
+QHostAddress NodeHttpServer::pickDiscoveryHost(const QHostAddress& peer) const
+{
+    const QHostAddress peerV4 = peer.toIPv4Address() ? QHostAddress(peer.toIPv4Address()) : peer;
+    if (peerV4.isLoopback() || peerV4 == QHostAddress::LocalHost) {
+        return QHostAddress(QHostAddress::LocalHost);
+    }
+
+    QHostAddress fallback;
+    const auto interfaces = QNetworkInterface::allInterfaces();
+    for (const QNetworkInterface& iface : interfaces) {
+        if (!(iface.flags() & QNetworkInterface::IsUp)
+            || !(iface.flags() & QNetworkInterface::IsRunning)
+            || (iface.flags() & QNetworkInterface::IsLoopBack)) {
+            continue;
+        }
+        for (const QNetworkAddressEntry& entry : iface.addressEntries()) {
+            const QHostAddress ip = entry.ip();
+            if (ip.protocol() != QAbstractSocket::IPv4Protocol || ip.isLoopback()) {
+                continue;
+            }
+            if (fallback.isNull()) {
+                fallback = ip;
+            }
+            if (peerV4.isInSubnet(entry.ip(), entry.prefixLength())) {
+                return ip;
+            }
+        }
+    }
+    return fallback.isNull() ? QHostAddress(QHostAddress::LocalHost) : fallback;
+}
+
+void NodeHttpServer::onDiscoveryDatagram()
+{
+    if (!_discoverySocket || !_running.load(std::memory_order_acquire)) {
+        return;
+    }
+
+    while (_discoverySocket->hasPendingDatagrams()) {
+        QByteArray datagram;
+        datagram.resize(static_cast<int>(_discoverySocket->pendingDatagramSize()));
+        QHostAddress sender;
+        quint16 senderPort = 0;
+        const qint64 read = _discoverySocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        if (read <= 0 || senderPort == 0) {
+            continue;
+        }
+
+        bool isDiscover = false;
+        const QJsonDocument reqDoc = QJsonDocument::fromJson(datagram);
+        if (reqDoc.isObject()) {
+            const QJsonObject obj = reqDoc.object();
+            const QString type = obj.value(QStringLiteral("type")).toString();
+            isDiscover = (type == QLatin1String("flow_discover"));
+        } else {
+            const QByteArray trimmed = datagram.trimmed();
+            isDiscover = (trimmed == "FLOW_DISCOVER" || trimmed.startsWith("FLOW_DISCOVER"));
+        }
+        if (!isDiscover) {
+            continue;
+        }
+
+        const QHostAddress host = pickDiscoveryHost(sender);
+        const QString currentFlowPath = ConfigManager::instance().getCurrentFlowPath();
+        const QString projectName = currentFlowPath.isEmpty()
+            ? QString()
+            : QFileInfo(currentFlowPath).completeBaseName();
+
+        QJsonObject reply;
+        reply.insert(QStringLiteral("type"), QStringLiteral("flow_discover_reply"));
+        reply.insert(QStringLiteral("v"), 1);
+        reply.insert(QStringLiteral("name"), AppConstants::PRODUCT_NAME);
+        reply.insert(QStringLiteral("version"), QStringLiteral(PRODUCT_VERSION));
+        reply.insert(QStringLiteral("host"), host.toString());
+        reply.insert(QStringLiteral("port"), _port);
+        reply.insert(QStringLiteral("project"), projectName);
+
+        const QByteArray payload = QJsonDocument(reply).toJson(QJsonDocument::Compact);
+        _discoverySocket->writeDatagram(payload, sender, senderPort);
+    }
+}
+
 void NodeHttpServer::enqueueWsBroadcast(const QByteArray& jsonUtf8)
 {
     if (!_running.load(std::memory_order_acquire) || !_wsBroadcastWorker) {
@@ -1273,6 +1390,7 @@ bool NodeHttpServer::start(int port) {
         _server = std::make_unique<HTTPServer>(new StaticRequestHandlerFactory(_docRoot, *this), svs, params);
         _server->start();
         startWsBroadcastThread();
+        startDiscoveryResponder();
         _running.store(true, std::memory_order_release);
         emit serverStarted(_port);
         
@@ -1296,6 +1414,8 @@ bool NodeHttpServer::start(int port) {
 void NodeHttpServer::stop() {
     if (!_running.load(std::memory_order_acquire)) return;
     _running.store(false, std::memory_order_release);
+
+    stopDiscoveryResponder();
 
     // 先切断日志广播，避免退出期再入队
     LogRingBuffer::instance().setBroadcastCallback({});

@@ -64,6 +64,8 @@ public:
     QAction *systemInfoAction;
     //artnetrecoder工具
     QAction *ArtnetRecoderToolAction ;
+    // MPCDI 查看器
+    QAction *mpcdiViewerAction;
     //关于菜单
     QMenu *About_menu;
     //关于

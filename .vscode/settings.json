@@ -1,4 +1,7 @@
 {
+    "[bat]": {
+        "files.encoding": "gbk"
+    },
     "files.associations": {
         "unordered_map": "cpp",
         "qtime": "cpp",

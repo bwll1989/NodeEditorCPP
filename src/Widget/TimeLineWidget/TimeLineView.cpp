@@ -3,223 +3,151 @@
 //
 
 #include "TimeLineView.h"
-#include "DefaultTimeLineToolBar.h"
 #include "TimeLineToolbar.h"
 
-TimeLineView::TimeLineView(TimeLineModel* model, QWidget *parent) : BaseTimelineView(model, parent)
+#include <QDataStream>
+#include <QJsonDocument>
+#include <QJsonObject>
+
+namespace {
+
+AbstractClipModel* takeNewlyAddedClip(BaseTimeLineModel* model, const QList<int>& countsBefore)
 {
-    //将时间游标的显示与模型中的时钟相绑定
-    auto* derivedModel = dynamic_cast<TimeLineModel*>(getModel());
-    // 连接时间码生成器信号
-    // 使用lambda表达式来处理时间码变化信号
-    connect(derivedModel->getClock(), &TimeLineClock::currentFrameChanged,
-        [this](int) {
-            scheduleRedraw();
-        });
-
-    setAcceptDrops(true);
-}
-TimeLineView::~TimeLineView() = default;
-
-void TimeLineView::movePlayheadToFrame(int frame)
-{
-    if (auto* derivedModel = dynamic_cast<TimeLineModel*>(getModel()))
-    {
-
-        getModel()->onSetPlayheadPos(frame);
-        scheduleRedraw();
+    if (!model)
+        return nullptr;
+    const QList<TrackData*> tracks = model->getTracks();
+    for (int i = 0; i < tracks.size(); ++i) {
+        TrackData* track = tracks.at(i);
+        const int before = i < countsBefore.size() ? countsBefore.at(i) : 0;
+        if (track && track->clips.size() > before)
+            return track->clips.back();
     }
+    return nullptr;
 }
 
-
-void TimeLineView::mouseMoveEvent(QMouseEvent *event)
+void applyDroppedMedia(AbstractClipModel* clip, const QMimeData* mime)
 {
-    // 处理右键事件
-    if (event->button() == Qt::RightButton) {
-        QAbstractItemView::mouseMoveEvent(event);
+    if (!clip || !mime)
+        return;
+    if (mime->hasFormat("application/x-osc-address")) {
+        QDataStream stream(mime->data("application/x-osc-address"));
+        QString address;
+        QString host;
+        QString type;
+        QVariant value;
+        int port = 0;
+        stream >> host >> port >> address >> type >> value;
+        QJsonObject msg;
+        msg["address"] = address;
+        msg["host"] = host.isEmpty() ? QStringLiteral("127.0.0.1") : host;
+        msg["port"] = port == 0 ? 8991 : port;
+        msg["type"] = type.isEmpty() ? QStringLiteral("Int") : type;
+        msg["value"] = value.isValid() ? value.toString() : QStringLiteral("1");
+        clip->setMedia(msg);
         return;
     }
-
-    // 处理鼠标按住拖动的情况
-    if (mouseHeld) {
-        handleMouseDrag(event);
+    if (!mime->hasFormat("application/media-item"))
+        return;
+    QJsonParseError parseError;
+    const QJsonDocument mimeDoc = QJsonDocument::fromJson(mime->data("application/media-item"), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !mimeDoc.isObject()) {
+        qWarning() << "Invalid media-item mime JSON:" << parseError.errorString();
         return;
     }
-
-    // 处理鼠标悬停状态
-    updateMouseHoverState(event);
-    updateCursorShape();
-
-    QAbstractItemView::mouseMoveEvent(event);
+    clip->setMedia(mimeDoc.object().value("name").toString());
 }
 
+} // namespace
 
 QString TimeLineView::isMimeAcceptable(const QMimeData *Mime) const
 {
-    // 检查是否为 OSC 地址
+    if (!Mime)
+        return {};
     if (Mime->hasFormat("application/x-osc-address"))
-    {
-        return "Trigger";
-    }
-    // 检查是否为自定义媒体库条目
+        return QStringLiteral("Trigger");
     if (Mime->hasFormat("application/media-item")) {
-        const QByteArray raw = Mime->data("application/media-item");
         QJsonParseError parseError;
-        const QJsonDocument doc = QJsonDocument::fromJson(raw, &parseError);
+        const QJsonDocument doc = QJsonDocument::fromJson(Mime->data("application/media-item"), &parseError);
         if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
             qWarning() << "Invalid media-item mime JSON:" << parseError.errorString();
-            return "";
+            return {};
         }
         const QJsonObject obj = doc.object();
-        const QString tag  = obj.value("tag").toString();
+        const QString tag = obj.value("tag").toString();
         const QString name = obj.value("name").toString();
-
         if (tag.isEmpty() || name.isEmpty()) {
             qWarning() << "media-item missing required fields: tag/name";
-            return "";
+            return {};
         }
-
-       if(tag=="DMX") return "Artnet";
-       if (tag=="Video" || tag=="Image" || tag=="Audio") return tag;
+        if (tag == QLatin1String("DMX"))
+            return QStringLiteral("Artnet");
+        if (tag == QLatin1String("Video") || tag == QLatin1String("Image") || tag == QLatin1String("Audio"))
+            return tag;
+        return {};
     }
-    return "";
+    return BaseTimelineView::isMimeAcceptable(Mime);
 }
 
-/**
- * 函数：TimeLineView::dropEvent
- * 作用：处理媒体拖拽到时间线后的新剪辑创建，并构造嵌套的 OSC 消息 JSON：
- *       "messages": { "messages": [ {..value:"1"}, {..value:""} ] }
- * 关键点：
- *  - 正确读取/更新 QJsonObject 与 QJsonArray（取出 -> 修改 -> 写回）
- *  - 生成两条消息（开始播放与清空值），符合期望格式
- */
 void TimeLineView::dropEvent(QDropEvent *event)
 {
-    if(m_isSupportMedia){
-        m_lastDragPos = event->position().toPoint();
-        QModelIndex trackIndex;
-        QRect rullerRect(-m_scrollOffset.x(),0,viewport()->width() + m_scrollOffset.x(),rulerHeight);
-        /* If above or on the ruler drop on the first track*/
-        if(m_lastDragPos.y()<0 || rullerRect.contains(m_lastDragPos)){
-            if(getModel()->rowCount()>0)
-                trackIndex = model()->index(0, 0);
-        }else{
-            /* Find track at drop point */
-            for(int i = 0; i < getModel()->rowCount(); i++){
-                if (visualRect(getModel()->index(i, 0)).contains(m_lastDragPos)){
-                    trackIndex = getModel()->index(i,0);
-                }
-            }
-        }
-        /* If dropped out side of tracks */
-        if(!trackIndex.isValid()){
-            return;
-        }
-        int pos = pointToFrame(m_lastDragPos.x());
-
-        getModel()->onAddClip(trackIndex.row(),pos);
-        scheduleRedraw();
-        if(event->mimeData()->hasFormat("application/x-osc-address")){
-            QDataStream stream(event->mimeData()->data("application/x-osc-address"));
-            QString address, host,type;
-            QVariant value;
-            int port;
-            stream >>  host >> port >> address >>type>>value;
-            QJsonObject msg;
-                msg["address"] = address;
-                msg["host"]    = host.isEmpty() ? "127.0.0.1" : host;
-                msg["port"]    = port == 0 ? 8991 : port;
-                msg["type"]    = type.isEmpty() ? "Int" : type;
-                msg["value"]   = value.isValid() ? value.toString() : "1";
-            getModel()->getTracks()[trackIndex.row()]->clips.back()->setMedia(msg);
-            return;
-        }
-        if(event->mimeData()->hasFormat("application/media-item")){
-            const QByteArray raw = event->mimeData()->data("application/media-item");
-            QJsonParseError parseError;
-            const QJsonDocument mime = QJsonDocument::fromJson(raw, &parseError);
-            if (parseError.error != QJsonParseError::NoError || !mime.isObject()) {
-                qWarning() << "Invalid media-item mime JSON:" << parseError.errorString();
-                return;
-            }
-            const QJsonObject obj = mime.object();
-            const QString name = obj.value("name").toString();
-            getModel()->getTracks()[trackIndex.row()]->clips.back()->setMedia(name);
-
-        }
-            
-    }else{
-        QAbstractItemView::dropEvent(event);
+    QList<int> countsBefore;
+    if (BaseTimeLineModel* timeline = getModel()) {
+        const QList<TrackData*> tracks = timeline->getTracks();
+        countsBefore.reserve(tracks.size());
+        for (TrackData* track : tracks)
+            countsBefore.append(track ? track->clips.size() : 0);
     }
+    BaseTimelineView::dropEvent(event);
+    applyDroppedMedia(takeNewlyAddedClip(getModel(), countsBefore), event ? event->mimeData() : nullptr);
 }
 
 void TimeLineView::initToolBar(BaseTimelineToolbar *toolbar)
 {
-    this->m_toolbar = toolbar;
-    this->m_toolbar->setFixedHeight(toolbarHeight-8);
-    // 设置工具栏位置
-     this->m_toolbar->move(4, 4);
-    // 连接工具栏播放按钮信号
-    connect(dynamic_cast<TimeLineToolBar*>(this->m_toolbar), &TimeLineToolBar::playClicked, [this]() {
+    BaseTimelineView::initToolBar(toolbar);
+    auto* bar = dynamic_cast<TimeLineToolBar*>(m_toolbar);
+    if (!bar)
+        return;
+
+    connect(bar, &TimeLineToolBar::playClicked, this, [this] {
         getModel()->onStartPlay();
     });
-
-    // 连接工具栏停止按钮信号
-    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::stopClicked, [this]() {
+    connect(bar, &TimeLineToolBar::stopClicked, this, [this] {
         getModel()->onStopPlay();
     });
-    // 连接工具栏暂停按钮信号
-    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::pauseClicked, [this]() {
+    connect(bar, &TimeLineToolBar::pauseClicked, this, [this] {
         getModel()->onPausePlay();
     });
-    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar),&TimeLineToolBar::prevFrameClicked,[this](){
-       getModel()->onSetPlayheadPos(qMax(0,getModel()->getPlayheadPos()-1));
+    connect(bar, &TimeLineToolBar::prevFrameClicked, this, [this] {
+        getModel()->onSetPlayheadPos(qMax(0, static_cast<int>(getModel()->getPlayheadPos()) - 1));
     });
-    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar),&TimeLineToolBar::nextFrameClicked,[this](){
-        getModel()->onSetPlayheadPos(getModel()->getPlayheadPos()+1);
+    connect(bar, &TimeLineToolBar::nextFrameClicked, this, [this] {
+        getModel()->onSetPlayheadPos(static_cast<int>(getModel()->getPlayheadPos()) + 1);
     });
-    // 连接移动剪辑按钮信号
-    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::moveClipClicked, [this](int dx) {
-        moveSelectedClip(dx,0,false);
+    connect(bar, &TimeLineToolBar::moveClipClicked, this, [this](int dx) {
+        moveSelectedClip(dx, 0, false);
     });
-    // 连接删除剪辑按钮信号
-    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::deleteClipClicked, [this]() {
-        if(selectionModel()->selectedIndexes().isEmpty())
+    connect(bar, &TimeLineToolBar::deleteClipClicked, this, [this] {
+        if (!selectionModel() || selectionModel()->selectedIndexes().isEmpty())
             return;
-
-        QModelIndex currentIndex = selectionModel()->currentIndex();
-        getModel()->onDeleteClip(currentIndex);
-
-        // 清除选择并发送 nullptr
+        getModel()->onDeleteClip(selectionModel()->currentIndex());
         selectionModel()->clearSelection();
         emit currentClipChanged(nullptr);
-
-        scheduleRedraw();
     });
-
-    // 连接放大按钮信号
-    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::zoomInClicked, [this]() {
-        currentScale = currentScale * 1.1;
-
-                // 允许达到 0.0，从而触达 setScale 的 minTimescale
-        currentScale = qBound(0.0, currentScale, 1.0);
-       setScale(currentScale);
-    });
-    // 连接缩小按钮信号
-    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::zoomOutClicked, [this]() {
-        currentScale = currentScale * 0.9;
-
-        // 允许达到 0.0，从而触达 setScale 的 minTimescale
-        currentScale = qBound(0.0, currentScale, 1.0);
+    connect(bar, &TimeLineToolBar::zoomInClicked, this, [this] {
+        currentScale = qBound(0.0, currentScale * 1.1, 1.0);
         setScale(currentScale);
     });
-    connect( dynamic_cast<TimeLineModel*>(getModel())->getClock(), &TimeLineClock::timecodePlayingChanged,
-       dynamic_cast<TimeLineToolBar*>(this->m_toolbar),&TimeLineToolBar::setPlaybackState);
-
-    // 连接循环按钮信号
-    connect(dynamic_cast<TimeLineToolBar*>(m_toolbar), &TimeLineToolBar::loopToggled, [this](bool loop) {
-        dynamic_cast<TimeLineModel*>(getModel())->onSetLoop(loop);
+    connect(bar, &TimeLineToolBar::zoomOutClicked, this, [this] {
+        currentScale = qBound(0.0, currentScale * 0.9, 1.0);
+        setScale(currentScale);
     });
-    connect( dynamic_cast<TimeLineModel*>(getModel())->getClock(), &TimeLineClock::loopingChanged,
-       dynamic_cast<TimeLineToolBar*>(this->m_toolbar),&TimeLineToolBar::setLoopState);
+
+    auto* timeline = dynamic_cast<TimeLineModel*>(getModel());
+    if (!timeline || !timeline->getClock())
+        return;
+    connect(timeline->getClock(), &TimeLineClock::timecodePlayingChanged, bar, &TimeLineToolBar::setPlaybackState);
+    connect(timeline->getClock(), &TimeLineClock::loopingChanged, bar, &TimeLineToolBar::setLoopState);
+    connect(bar, &TimeLineToolBar::loopToggled, this, [timeline](bool loop) {
+        timeline->onSetLoop(loop);
+    });
 }

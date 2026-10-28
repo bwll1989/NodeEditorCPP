@@ -1,12 +1,8 @@
 #include "OSCMessageItemWidget.hpp"
 
-#include <QLabel>
-#include <QValidator>
+#include <QtMath>
 #include <QRegularExpressionValidator>
-#include <QGridLayout>
-#include <QFrame>
-#include <QGraphicsDropShadowEffect>
-#include <QPushButton>
+#include <QHBoxLayout>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QVariantList>
@@ -22,72 +18,48 @@ OSCMessageItemWidget::OSCMessageItemWidget(bool onlyInternal, QWidget* parent)
 
 void OSCMessageItemWidget::setupUI()
 {
-    /**
-     * 函数：OSCMessageItemWidget::setupUI
-     * 作用：将所有控件直接放置在当前 QWidget 上，移除外层卡片 QFrame；
-     *       仍保留左侧强调条与紧凑的表单布局，并在右上角提供删除按钮。
-     * 关键点：
-     *  - 使用当前 QWidget 作为卡片容器（设置 objectName="oscCard"）
-     *  - 左侧强调条 + 右侧表单的水平布局
-     *  - 收紧边距与间距，统一控件最小高度
-     *  - 标签列最小化，输入列弹性扩展
-     */
-    // 根布局：直接作用于本控件
-    this->setObjectName("oscCard");
-    auto* outer = new QHBoxLayout(this);
-    outer->setContentsMargins(6, 6, 6, 6);
-    outer->setSpacing(8);
+    // 单行：强调条 | 地址 | 类型 | 值（外部模式在地址前加 ip:port）
+    setObjectName("oscCard");
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    // 左侧强调条
+    auto* row = new QHBoxLayout(this);
+    row->setContentsMargins(2, 1, 2, 1);
+    row->setSpacing(4);
+
     m_accentBar = new QFrame(this);
     m_accentBar->setFixedWidth(3);
-    m_accentBar->setStyleSheet(
-    "QFrame{background-color:#00aa00;border-radius:2px;}");
-    outer->addWidget(m_accentBar);
+    m_accentBar->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+    m_accentBar->setStyleSheet("QFrame{background-color:#00aa00;border-radius:1px;}");
+    row->addWidget(m_accentBar);
 
-    // 表单区域（右侧）
-    auto* layout = new QVBoxLayout();
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(4);
-    outer->addLayout(layout, 1);
-
-    // Host（仅外部模式显示）
     if (!OnlyInternal) {
         hostEdit = new QLineEdit(this);
         hostEdit->setPlaceholderText("ip:port");
-        hostEdit->setMinimumHeight(22);
+        hostEdit->setMinimumWidth(88);
         hostEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         QRegularExpression rx(R"(^((\d{1,3}\.){0,3}\d{0,3})(:\d{0,5})?$)");
         hostEdit->setValidator(new QRegularExpressionValidator(rx, this));
+        row->addWidget(hostEdit, 2);
     }
 
-    // Address
     addressEdit = new QLineEdit(this);
     addressEdit->setPlaceholderText("address");
-    addressEdit->setMinimumHeight(22);
+    addressEdit->setMinimumWidth(48);
     addressEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    row->addWidget(addressEdit, 3);
 
-    // Type
     typeCombo = new QComboBox(this);
     typeCombo->addItems({"Int", "Float", "String"});
-    typeCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    typeCombo->setFixedWidth(84);
+    typeCombo->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    row->addWidget(typeCombo);
 
-    // Value
     valueEdit = new QLineEdit(this);
     valueEdit->setPlaceholderText("value 或 [0.1,0.2,0.3]");
-    valueEdit->setMinimumHeight(22);
+    valueEdit->setToolTip("value 或 [0.1,0.2,0.3]");
+    valueEdit->setMinimumWidth(48);
     valueEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-
-    if (!OnlyInternal && hostEdit) {
-        layout->addWidget(hostEdit);
-    }
-    layout->addWidget(addressEdit);
-    layout->addWidget(typeCombo);
-    layout->addWidget(valueEdit);
-
-    layout->addStretch();
-
-
+    row->addWidget(valueEdit, 2);
 }
 
 

@@ -1,4 +1,4 @@
-# CAN Bus (candleLight / gs_usb)
+# CAN Bus
 
 Windows 下通过 WinUSB + candle API 访问 candleLight / CANable 等 gs_usb 设备。
 

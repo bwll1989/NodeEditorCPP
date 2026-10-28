@@ -39,6 +39,7 @@ target_link_libraries(BaseClass
         QtTimeLine::QtTimeLine
         StatusContainer
         PropertyTreeWidget
+        GUIElements
 )
 
 target_compile_definitions(BaseClass

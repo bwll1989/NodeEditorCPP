@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-discover-flows"
+description = "Allow FlowViewer to broadcast a LAN discovery request and collect Flow replies."
+commands.allow = ["discover_flows"]

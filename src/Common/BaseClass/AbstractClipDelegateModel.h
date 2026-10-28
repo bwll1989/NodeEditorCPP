@@ -14,6 +14,7 @@
 #include <unordered_map>
 
 #include "AbstractClipModel.hpp"
+#include "IntDragValueWidget/IntDragValueWidget.hpp"
 #include "Common/BaseClass/BaseClassExport.h"
 #include "Common/Devices/StatusContainer/StatusContainer.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
@@ -90,6 +91,8 @@ public:
                 this->stateFeedBack(rel, QVariant(slider->value()));
             } else if (auto* spinBox = qobject_cast<QSpinBox*>(control)) {
                 this->stateFeedBack(rel, QVariant(spinBox->value()));
+            } else if (auto* dragInt = qobject_cast<IntDragValueWidget*>(control)) {
+                this->stateFeedBack(rel, QVariant(dragInt->value()));
             } else if (auto* lineEdit = qobject_cast<QLineEdit*>(control)) {
                 this->stateFeedBack(rel, QVariant(lineEdit->text()));
             } else if (auto* comboBox = qobject_cast<QComboBox*>(control)) {

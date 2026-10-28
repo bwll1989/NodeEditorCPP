@@ -9,8 +9,9 @@
 class TrackListView: public BaseTracklistView {
 Q_OBJECT
 public:
-    explicit TrackListView(TimeLineModel* model, QWidget *parent = nullptr);
-    ~TrackListView() override;
+    explicit TrackListView(TimeLineModel* model, QWidget *parent = nullptr)
+        : BaseTracklistView(model, parent) {}
+    ~TrackListView() override = default;
 protected:
     void drawTitle(QPainter *painter) override;
     

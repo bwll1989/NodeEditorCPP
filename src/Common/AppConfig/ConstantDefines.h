@@ -57,6 +57,8 @@ namespace AppConfigs {
     constexpr int EXTRA_CONTROL_PORT = 8991;
     // HTTP&WebSocket 服务器端口号
     constexpr int HTTP_SERVER_PORT = 8992;
+    // FlowViewer 局域网发现（UDP）：Viewer 广播请求，Flow 单播回复
+    constexpr int FLOW_DISCOVERY_PORT = 8993;
     // 使用暗色主题
     constexpr bool DEFAULT_DARK_THEME = true;
     // 网页访问密码

@@ -2,6 +2,7 @@
 #include <string>
 #include <memory>
 #include <QObject>
+#include <QUdpSocket>
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/HTTPRequestHandler.h>
 #include <Poco/Net/HTTPRequestHandlerFactory.h>
@@ -188,6 +189,8 @@ namespace Flow {
     public slots:
         // 函数级注释：处理 OSC 消息发送，广播给所有 WebSocket 连接
         void onOscMessageSent(const StatusItem& message);
+        /** @brief 处理 FlowViewer 局域网发现 UDP 请求并单播回复 */
+        void onDiscoveryDatagram();
 
     private:
         std::unique_ptr<Poco::Net::HTTPServer> _server;
@@ -204,9 +207,14 @@ namespace Flow {
         QObject* _wsBroadcastWorker = nullptr; // 广播线程上下文，仅作 QueuedConnection 目标
         std::atomic<int> _wsBroadcastPending{0};
 
+        QUdpSocket* _discoverySocket = nullptr;
+
         void notifyActionsChanged(const QString& action, const QJsonObject& item);
         void enqueueWsBroadcast(const QByteArray& jsonUtf8);
         void startWsBroadcastThread();
         void stopWsBroadcastThread();
+        void startDiscoveryResponder();
+        void stopDiscoveryResponder();
+        QHostAddress pickDiscoveryHost(const QHostAddress& peer) const;
     };
 }

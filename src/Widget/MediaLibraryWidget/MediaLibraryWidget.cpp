@@ -191,7 +191,7 @@ void MediaLibraryWidget::importFiles()
         "*.dmx "
         "*.obj *.fbx *.stl *.gltf *.glb "
         "*.txt *.json *.xml *.cfg *.log *.md *.csv *.ini "
-        "*.vwf *.fs *.childflow"
+        "*.vwf *.fs *.childflow *.mpcdi"
         ");;"
         "视频 (*.mp4 *.mov *.mkv *.avi *.wmv *.flv *.webm);;"
         "音频 (*.wav *.mp3 *.flac *.aac *.ogg *.m4a);;"
@@ -200,6 +200,7 @@ void MediaLibraryWidget::importFiles()
         "3D 模型 (*.obj *.fbx *.stl *.gltf *.glb);;"
         "文档 (*.txt *.json *.xml *.cfg *.log *.md *.csv *.ini);;"
         "Vioso (*.vwf);;"
+        "MPCDI (*.mpcdi);;"
         "ISF (*.fs);;"
         "Child Flow (*.childflow);;"
         "所有文件 (*.*)");
@@ -336,6 +337,7 @@ QIcon MediaLibraryWidget::categoryIcon(int cat) const
     case Cat::Vioso:   return QIcon(":/icons/icons/vioso.png");
     case Cat::ISF:     return QIcon(":/icons/icons/isf.png");
     case Cat::ChildFlow: return QIcon(":/icons/icons/Flow.png");
+    case Cat::Mpcdi:   return QIcon(":/icons/icons/image.png");
     case Cat::Unknown: return QIcon(":/icons/icons/unknown.png");
     default:           return QIcon();
     }

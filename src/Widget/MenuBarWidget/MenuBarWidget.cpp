@@ -139,6 +139,10 @@ void MenuBarWidget::setupMenu() {
     connect(ArtnetRecoderToolAction, &QAction::triggered, this, [this]() {
         openToolWithArgs("ArtnetRecorder.exe", QStringList());
     });
+    mpcdiViewerAction = Tool_menu->addAction(QIcon(":/icons/icons/image.png"), "MPCDI Viewer");
+    connect(mpcdiViewerAction, &QAction::triggered, this, [this]() {
+        openToolWithArgs("mpcdi-viewer.exe", QStringList());
+    });
     systemInfoAction=Tool_menu->addAction(QIcon(":/icons/icons/property.png"),"系统信息");
     connect(systemInfoAction, &QAction::triggered, this, [this]() {
         SystemInfoWidget systemInfoWidget;
@@ -195,10 +199,8 @@ void MenuBarWidget::showHelp() {
     QDesktopServices::openUrl(QUrl::fromLocalFile(helpPath));
 }
 
-// 函数级注释：在默认浏览器中打开本地HTTP服务器页面（Dashboard）
 void MenuBarWidget::openDashboard() {
-    // Use configured port
-    int port = ConfigManager::instance().getHttpServerPort();
+    const int port = ConfigManager::instance().getHttpServerPort();
     const QUrl url(QString("http://127.0.0.1:%1/").arg(port));
     QDesktopServices::openUrl(url);
 }
