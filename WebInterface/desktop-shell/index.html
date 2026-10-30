@@ -91,6 +91,27 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .endpoint .del {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      margin: 0;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      background: transparent;
+      color: #8888a0;
+      font: inherit;
+      font-size: 14px;
+      line-height: 1;
+    }
+    .endpoint .del:hover { color: #ff8a80; border-color: #3a3a44; }
+    .endpoint .del.armed {
+      width: auto;
+      padding: 0 8px;
+      border-color: #c0392b;
+      color: #ff8a80;
+    }
     .badge {
       flex-shrink: 0;
       padding: 2px 6px;
@@ -190,7 +211,7 @@
   <main>
     <div class="panel">
       <h1>FlowViewer</h1>
-      <p class="hint">扫描局域网中的 Flow，点列表进入。手填地址默认折叠。</p>
+      <p class="hint">扫描局域网中的 Flow，点列表进入。已记住的条目可点 × 删除，手填地址默认折叠。</p>
 
       <div class="section-title">
         <span>可用 Flow</span>
@@ -270,6 +291,27 @@
       localStorage.setItem(PORT_KEY, String(port));
     }
 
+    function removeSaved(endpoint) {
+      const host = String(endpoint.host || "");
+      const port = Number(endpoint.port);
+      const remaining = saved.filter(
+        (item) => !(item.host === host && Number(item.port) === port)
+      );
+      if (remaining.length === saved.length) return;
+      saved = remaining;
+      persistSaved();
+      if (
+        localStorage.getItem(HOST_KEY) === host &&
+        localStorage.getItem(PORT_KEY) === String(port)
+      ) {
+        localStorage.removeItem(HOST_KEY);
+        localStorage.removeItem(PORT_KEY);
+        fillDefaults();
+      }
+      renderList();
+      status.textContent = `已删除 ${host}:${port} 的记录。`;
+    }
+
     function fillDefaults() {
       const defaults = window.__FLOW_CONSOLE_DEFAULTS || {};
       const savedHost = localStorage.getItem(HOST_KEY);
@@ -341,6 +383,31 @@
           `<div class="sub">${escapeHtml(subParts.join(" · "))}</div>` +
           `</span>` +
           `<span class="badge ${item.online ? "online" : ""}">${item.online ? "在线" : "上次"}</span>`;
+        if (item.remembered) {
+          const del = document.createElement("button");
+          del.type = "button";
+          del.className = "del";
+          del.textContent = "×";
+          del.title = "删除这条已记住的记录";
+          del.setAttribute("aria-label", `删除 ${title}`);
+          del.addEventListener("click", (event) => {
+            event.stopPropagation();
+            if (del.dataset.armed === "1") {
+              removeSaved(item);
+              return;
+            }
+            del.dataset.armed = "1";
+            del.textContent = "删除?";
+            del.classList.add("armed");
+            setTimeout(() => {
+              if (!del.isConnected) return;
+              del.dataset.armed = "";
+              del.textContent = "×";
+              del.classList.remove("armed");
+            }, 3000);
+          });
+          button.appendChild(del);
+        }
         button.addEventListener("click", () => {
           hostInput.value = item.host;
           portInput.value = String(item.port);
