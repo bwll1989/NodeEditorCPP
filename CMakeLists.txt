@@ -48,8 +48,8 @@ INCLUDE_DIRECTORIES(${Spdlog_INCLUDE_DIRS})
 message("--Found spdlog ${Spdlog_LIBRARIES}")
 
 # 设置QtNodes库
-set(QtNodes_DIR "${DEPENDS_DIR}/nodeeditor/MSVC/include")
-set(QtNodes_LIBRARIES "${DEPENDS_DIR}/nodeeditor/MSVC/lib/QtNodes.lib")
+set(QtNodes_DIR "${DEPENDS_DIR}/nodeeditor/install/include")
+set(QtNodes_LIBRARIES "${DEPENDS_DIR}/nodeeditor/install/lib/QtNodes.lib")
 INCLUDE_DIRECTORIES(${QtNodes_DIR})
 message("-- Found QtNodes ${QtNodes_DIR}")
 # 函数级注释：提供可导出的 IMPORTED 目标，供 BaseClass/DataTypes 与 FlowSDK 使用

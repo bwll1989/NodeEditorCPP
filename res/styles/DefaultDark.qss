@@ -927,7 +927,8 @@ BaseTracklistView {
     qproperty-trackBgColor: #2b2d30;
     qproperty-trackColor: #2b2d30;
     qproperty-trackSelectedColor: #0078d4;
-    qproperty-trackHoverColor: #43454a;
+    qproperty-trackHoverColor: #444648;
+    qproperty-trackTitleColor: #FFFFFF;
 }
 
 /* ======= QWindowKit 无边框标题栏 ======= */
