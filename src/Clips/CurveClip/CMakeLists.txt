@@ -21,7 +21,9 @@ set(SOURCES
     CurvePath.cpp
     CurveViewport.hpp
     CurveViewport.cpp
-    ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
+    # 注意：勿将 QtTimeLine 库头(含 Q_OBJECT)列入 SOURCES——AUTOMOC 只扫描 target
+    # SOURCES 中的头文件，一旦列入便会在插件内重复生成 moc，与 dllimport 的
+    # staticMetaObject 冲突(C2491)。库头经 INCLUDE_DIRECTORIES 提供的路径解析即可。
 )
 
 add_library(CurveClip MODULE ${SOURCES})
@@ -59,5 +61,4 @@ target_include_directories(CurveClip PRIVATE
 
 target_compile_definitions(CurveClip PRIVATE
     NODE_TIMELINE_SHARED
-    NODE_TIMELINE_EXPORTS
 )

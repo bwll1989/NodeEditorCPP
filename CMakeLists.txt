@@ -156,7 +156,7 @@ link_directories("${QMQTT_INSTALL_DIR}/lib")
 #set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
 #set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
 #INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
-set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/MSVC/lib/Qt6PropertyBrowser.lib")
+set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/lib/Qt6PropertyBrowser.lib")
 include_directories("${DEPENDS_DIR}/qtpropertybrowser/src")
 message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
 # 设置QT库

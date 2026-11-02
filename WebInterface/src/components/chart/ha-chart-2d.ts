@@ -7,6 +7,10 @@ import { GridComponent, TooltipComponent } from "echarts/components";
 import { CanvasRenderer } from "echarts/renderers";
 import type { BarItem } from "../../common/chart/chart-bar-entity";
 import type { Point2 } from "../../common/chart/point2d";
+import {
+  observeThemeChanges,
+  readChartThemeColors,
+} from "../../common/chart/chart-theme";
 
 echarts.use([TooltipComponent, GridComponent, CanvasRenderer, LineChart, ScatterChart, BarChart]);
 
@@ -16,10 +20,6 @@ function hasDomSize(el: HTMLElement | null | undefined): boolean {
   return !!el && el.clientWidth > 0 && el.clientHeight > 0;
 }
 
-const AXIS_LINE_COLOR = "rgba(0, 0, 0, 0.2)";
-const AXIS_LABEL_COLOR = "rgba(0, 0, 0, 0.54)";
-const AXIS_NAME_COLOR = "rgba(0, 0, 0, 0.6)";
-const SPLIT_LINE_COLOR = "rgba(0, 0, 0, 0.08)";
 
 @customElement("ha-chart-2d")
 export class HaChart2d extends LitElement {
@@ -33,13 +33,13 @@ export class HaChart2d extends LitElement {
 
   @property({ type: Number }) lineWidth = 2;
 
-  @property({ type: String }) lineColor = "#03a9f4";
+  @property({ type: String }) lineColor = "#79ae31";
 
   @property({ type: Number }) symbolSize = 8;
 
-  @property({ type: String }) pointColor = "#03a9f4";
+  @property({ type: String }) pointColor = "#79ae31";
 
-  @property({ type: String }) barColor = "#03a9f4";
+  @property({ type: String }) barColor = "#79ae31";
 
   @property({ type: String }) xLabel = "X";
 
@@ -70,6 +70,7 @@ export class HaChart2d extends LitElement {
   protected firstUpdated(): void {
     this._setupResizeObserver();
     this._scheduleEnsureChart();
+    observeThemeChanges(this, () => this._renderChart(this._chart ? "full" : "data"));
   }
 
   private _scheduleEnsureChart(): void {
@@ -142,6 +143,7 @@ export class HaChart2d extends LitElement {
   private _buildOption() {
     const showAxes = this._showAxesEnabled();
     const showGrid = this._showGridEnabled();
+    const axisColors = readChartThemeColors(this);
 
     if (this.mode === "bar") {
       const bars = Array.isArray(this.bars) ? this.bars : [];
@@ -160,20 +162,20 @@ export class HaChart2d extends LitElement {
           data: bars.map((bar) => bar.name),
           name: showAxes ? this.xLabel || "" : "",
           show: showAxes,
-          axisLine: { show: showAxes, lineStyle: { color: AXIS_LINE_COLOR } },
-          axisTick: { show: showAxes, lineStyle: { color: AXIS_LINE_COLOR } },
-          axisLabel: { show: showAxes, color: AXIS_LABEL_COLOR },
-          nameTextStyle: { color: AXIS_NAME_COLOR },
+          axisLine: { show: showAxes, lineStyle: { color: axisColors.axisLine } },
+          axisTick: { show: showAxes, lineStyle: { color: axisColors.axisLine } },
+          axisLabel: { show: showAxes, color: axisColors.axisLabel },
+          nameTextStyle: { color: axisColors.axisName },
         },
         yAxis: {
           type: "value" as const,
           name: showAxes ? this.yLabel || "Y" : "",
           show: showAxes,
-          axisLine: { show: showAxes, lineStyle: { color: AXIS_LINE_COLOR } },
-          axisTick: { show: showAxes, lineStyle: { color: AXIS_LINE_COLOR } },
-          axisLabel: { show: showAxes, color: AXIS_LABEL_COLOR },
-          splitLine: { show: showGrid, lineStyle: { color: SPLIT_LINE_COLOR } },
-          nameTextStyle: { color: AXIS_NAME_COLOR },
+          axisLine: { show: showAxes, lineStyle: { color: axisColors.axisLine } },
+          axisTick: { show: showAxes, lineStyle: { color: axisColors.axisLine } },
+          axisLabel: { show: showAxes, color: axisColors.axisLabel },
+          splitLine: { show: showGrid, lineStyle: { color: axisColors.splitLine } },
+          nameTextStyle: { color: axisColors.axisName },
         },
         series: [
           {
@@ -181,7 +183,7 @@ export class HaChart2d extends LitElement {
             data: bars.map((bar) => ({
               value: bar.value,
               itemStyle: {
-                color: bar.color || this.barColor || "#03a9f4",
+                color: bar.color || this.barColor || "#79ae31",
                 borderRadius: [4, 4, 0, 0],
               },
             })),
@@ -198,7 +200,7 @@ export class HaChart2d extends LitElement {
               type: "scatter" as const,
               data,
               symbolSize: Number(this.symbolSize) || 8,
-              itemStyle: { color: this.pointColor || "#03a9f4", opacity: 0.92 },
+              itemStyle: { color: this.pointColor || "#79ae31", opacity: 0.92 },
             },
           ]
         : [
@@ -208,7 +210,7 @@ export class HaChart2d extends LitElement {
               showSymbol: false,
               lineStyle: {
                 width: Number(this.lineWidth) || 2,
-                color: this.lineColor || "#03a9f4",
+                color: this.lineColor || "#79ae31",
               },
             },
           ];
@@ -227,21 +229,21 @@ export class HaChart2d extends LitElement {
         type: "value" as const,
         name: showAxes ? this.xLabel || "X" : "",
         show: showAxes,
-        axisLine: { show: showAxes, lineStyle: { color: AXIS_LINE_COLOR } },
-        axisTick: { show: showAxes, lineStyle: { color: AXIS_LINE_COLOR } },
-        axisLabel: { show: showAxes, color: AXIS_LABEL_COLOR },
-        splitLine: { show: showGrid, lineStyle: { color: SPLIT_LINE_COLOR } },
-        nameTextStyle: { color: AXIS_NAME_COLOR },
+        axisLine: { show: showAxes, lineStyle: { color: axisColors.axisLine } },
+        axisTick: { show: showAxes, lineStyle: { color: axisColors.axisLine } },
+        axisLabel: { show: showAxes, color: axisColors.axisLabel },
+        splitLine: { show: showGrid, lineStyle: { color: axisColors.splitLine } },
+        nameTextStyle: { color: axisColors.axisName },
       },
       yAxis: {
         type: "value" as const,
         name: showAxes ? this.yLabel || "Y" : "",
         show: showAxes,
-        axisLine: { show: showAxes, lineStyle: { color: AXIS_LINE_COLOR } },
-        axisTick: { show: showAxes, lineStyle: { color: AXIS_LINE_COLOR } },
-        axisLabel: { show: showAxes, color: AXIS_LABEL_COLOR },
-        splitLine: { show: showGrid, lineStyle: { color: SPLIT_LINE_COLOR } },
-        nameTextStyle: { color: AXIS_NAME_COLOR },
+        axisLine: { show: showAxes, lineStyle: { color: axisColors.axisLine } },
+        axisTick: { show: showAxes, lineStyle: { color: axisColors.axisLine } },
+        axisLabel: { show: showAxes, color: axisColors.axisLabel },
+        splitLine: { show: showGrid, lineStyle: { color: axisColors.splitLine } },
+        nameTextStyle: { color: axisColors.axisName },
       },
       series,
     };
@@ -263,7 +265,7 @@ export class HaChart2d extends LitElement {
             data: bars.map((bar) => ({
               value: bar.value,
               itemStyle: {
-                color: bar.color || this.barColor || "#03a9f4",
+                color: bar.color || this.barColor || "#79ae31",
                 borderRadius: [4, 4, 0, 0],
               },
             })),

@@ -196,7 +196,7 @@ export class HaControlColorPad extends LitElement {
       box-sizing: border-box;
     }
     .pad:focus-visible {
-      box-shadow: 0 0 0 2px var(--primary-color, #03a9f4);
+      box-shadow: 0 0 0 2px var(--primary-color, #79ae31);
     }
     .spectrum {
       position: absolute;

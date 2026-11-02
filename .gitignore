@@ -54,3 +54,5 @@ src/Widget/ExternalControl/dashboard/node_modules/
 /Flow_Overview
 /.slidep
 /.workbuddy
+/.cache
+/_wc

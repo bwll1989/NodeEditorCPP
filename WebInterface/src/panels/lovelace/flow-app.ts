@@ -1,7 +1,7 @@
 import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { provide } from "@lit/context";
-import { mdiCheck, mdiLanConnect, mdiLanDisconnect, mdiPencil, mdiRedo, mdiUndo } from "@mdi/js";
+import { mdiCheck, mdiLanConnect, mdiLanDisconnect, mdiPencil, mdiRedo, mdiUndo, mdiWeatherNight, mdiWeatherSunny } from "@mdi/js";
 import type { Flow, LovelaceCardConfig, LovelaceConfig, LovelaceSectionConfig, LovelaceViewConfig } from "../../types";
 import { flowContext } from "../../context/flow-context";
 import {
@@ -46,6 +46,12 @@ import { UndoRedoController } from "../../data/undo-redo-controller";
 import { ensureCardLoaded } from "../../registry/card-registry";
 import type { FlowPanel } from "../../components/ha-sidebar";
 import { listenMediaQuery } from "../../common/dom/media_query";
+import {
+  getActiveTheme,
+  initTheme,
+  toggleTheme,
+  type ResolvedTheme,
+} from "../../common/design/theme";
 import "./flow-view";
 import "./components/flow-view-tabs";
 import "./editor/flow-card-editor";
@@ -111,11 +117,14 @@ export class FlowApp extends LitElement {
   /** HA: viewport ≤ 870px uses modal sidebar + top app bar menu button. */
   @state() private _narrow = false;
   @state() private _drawerOpen = false;
-  @state() private _sidebarExpanded = true;
+  @state() private _sidebarExpanded = false;
   @state() private _connected = false;
+  /** Currently effective theme (resolved from auto/light/dark preference). */
+  @state() private _activeTheme: ResolvedTheme = "light";
 
   private _unsubMediaQuery?: () => void;
   private _unsubConnection?: () => void;
+  private _unsubSystemTheme?: () => void;
 
   private _applyingUndoRedo = false;
   private _syncingHash = false;
@@ -180,6 +189,16 @@ export class FlowApp extends LitElement {
     } catch {
       // ignore
     }
+    initTheme();
+    this._activeTheme = getActiveTheme();
+    // Keep the toggle icon in sync when the OS theme changes while in auto mode.
+    const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+    const onSystemThemeChange = (): void => {
+      this._activeTheme = getActiveTheme();
+    };
+    systemDark.addEventListener("change", onSystemThemeChange);
+    this._unsubSystemTheme = () =>
+      systemDark.removeEventListener("change", onSystemThemeChange);
     this._layoutEditEnabled = isLayoutEditEnabled();
     document.addEventListener(LAYOUT_EDIT_ENABLED_EVENT, this._onLayoutEditEnabled);
     this._unsubMediaQuery = listenMediaQuery(NARROW_QUERY, (matches) => {
@@ -210,6 +229,7 @@ export class FlowApp extends LitElement {
   disconnectedCallback(): void {
     this._unsubMediaQuery?.();
     this._unsubConnection?.();
+    this._unsubSystemTheme?.();
     document.removeEventListener("flow-show-confirm", this._onShowConfirm);
     document.removeEventListener("flow-show-delete-card", this._onShowDeleteCard);
     document.removeEventListener("flow-show-badge-card", this._onShowBadgeCard);
@@ -473,6 +493,10 @@ export class FlowApp extends LitElement {
   private _onDockSidebar = (ev: Event): void => {
     const dock = (ev as CustomEvent<{ dock: "docked" | "auto" }>).detail?.dock;
     this._sidebarExpanded = dock === "docked";
+  };
+
+  private _onToggleTheme = (): void => {
+    this._activeTheme = toggleTheme();
   };
 
   private _headerTitle(viewTitle: string): string {
@@ -779,6 +803,14 @@ export class FlowApp extends LitElement {
                     .path=${this._connected ? mdiLanConnect : mdiLanDisconnect}
                   ></ha-svg-icon>
                 </span>
+                <ha-icon-button
+                  class="theme-toggle"
+                  .path=${this._activeTheme === "dark" ? mdiWeatherSunny : mdiWeatherNight}
+                  label=${this._activeTheme === "dark"
+                    ? "当前为暗色主题，点击切换为亮色"
+                    : "当前为亮色主题，点击切换为暗色"}
+                  @click=${this._onToggleTheme}
+                ></ha-icon-button>
                 ${showEditActions && this._layoutEditEnabled
                   ? editMode
                     ? html`
@@ -1044,6 +1076,12 @@ export class FlowApp extends LitElement {
       white-space: nowrap;
       gap: 0;
     }
+    .theme-toggle {
+      color: var(--sidebar-icon-color, var(--secondary-text-color));
+    }
+    .edit-mode .theme-toggle {
+      color: var(--app-header-edit-text-color, #f5f9eb);
+    }
     .conn-status {
       display: inline-flex;
       align-items: center;
@@ -1059,16 +1097,16 @@ export class FlowApp extends LitElement {
       flex-shrink: 0;
     }
     .conn-status.online {
-      color: #2e7d32;
+      color: var(--success-color, #3f6212);
     }
     .conn-status.offline {
-      color: #c62828;
+      color: var(--error-state-color, #c62828);
     }
     .edit-mode .conn-status.online {
-      color: #a5d6a7;
+      color: var(--flow-brand-color-light, #b6d47b);
     }
     .edit-mode .conn-status.offline {
-      color: #ef9a9a;
+      color: #ffccbc;
     }
   `;
 }

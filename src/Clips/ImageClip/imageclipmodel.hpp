@@ -10,6 +10,9 @@
 #include "TimeLineDefines.h"
 #include <QPushButton>
 #include "AbstractClipModel.hpp"
+// 本头内联代码解引用 timeGroupBox（ClipTimePanel*）的成员，需要完整类型；
+// 库头自前置声明化后不再传递提供，必须显式 include。
+#include "ClipTimePanel.hpp"
 #include "TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"

@@ -7,9 +7,29 @@
     <link rel="icon" href="./favicon.png" type="image/png" />
     <link rel="shortcut icon" href="./favicon.ico" />
     <link rel="apple-touch-icon" href="./favicon.png" />
-    <script type="module" crossorigin src="./assets/main-B8_50G4v.js"></script>
+    <script>
+      // 防闪烁：渲染前根据持久化偏好（auto/light/dark）解析并应用主题
+      (function () {
+        try {
+          var mode = localStorage.getItem("flow_theme_mode");
+          if (mode !== "light" && mode !== "dark") mode = "auto";
+          var dark =
+            mode === "dark" ||
+            (mode === "auto" &&
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute(
+            "data-theme",
+            dark ? "dark" : "light"
+          );
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="./assets/main-CIKDZczu.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/mdi-icons-CYzTwnk_.js">
-    <link rel="stylesheet" crossorigin href="./assets/main-mETh-4Qi.css">
+    <link rel="stylesheet" crossorigin href="./assets/main-ED-xLR3U.css">
   </head>
   <body>
     <flow-app></flow-app>

@@ -166,8 +166,8 @@ export class FlowAuthDialog extends LitElement {
     }
     .field input:focus {
       outline: none;
-      border-color: var(--primary-color, #03a9f4);
-      box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.2);
+      border-color: var(--primary-color, #79ae31);
+      box-shadow: 0 0 0 2px rgba(var(--rgb-primary-color), 0.2);
     }
     .error {
       margin-top: 10px;
@@ -197,13 +197,13 @@ export class FlowAuthDialog extends LitElement {
       cursor: default;
     }
     .btn.cancel {
-      color: var(--primary-color, #03a9f4);
+      color: var(--primary-color, #79ae31);
     }
     .btn.cancel:hover:not(:disabled) {
-      background: rgba(3, 169, 244, 0.08);
+      background: rgba(var(--rgb-primary-color), 0.08);
     }
     .btn.confirm {
-      background: var(--primary-color, #03a9f4);
+      background: var(--primary-color, #79ae31);
       color: #fff;
     }
     .btn.confirm:hover:not(:disabled) {

@@ -109,7 +109,7 @@ export class FlowStatusEntitiesEditor extends LitElement {
     .add {
       border: none;
       background: transparent;
-      color: var(--primary-color, #03a9f4);
+      color: var(--primary-color, #79ae31);
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -149,7 +149,7 @@ export class FlowStatusEntitiesEditor extends LitElement {
       border-radius: 8px;
       padding: 0 10px;
       color: var(--primary-text-color);
-      background: #fff;
+      background: var(--card-background-color, #fff);
     }
     .row ha-icon-picker {
       flex: 0 1 108px;

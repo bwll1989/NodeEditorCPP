@@ -440,7 +440,7 @@ export class FlowCardConfigEditor extends LitElement {
       border-radius: 8px;
       padding: 8px 10px;
       color: var(--primary-text-color);
-      background: #fff;
+      background: var(--card-background-color, #fff);
     }
     textarea {
       resize: vertical;

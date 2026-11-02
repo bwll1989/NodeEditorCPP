@@ -19,10 +19,12 @@ set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
 set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
 INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
 # 设置源文件
+# 注意：勿将 QtTimeLine 库头(含 Q_OBJECT)列入 SOURCES——AUTOMOC 只扫描 target
+# SOURCES 中的头文件，一旦列入便会在插件内重复生成 moc，与 dllimport 的
+# staticMetaObject 冲突(C2491)。库头经 INCLUDE_DIRECTORIES 提供的路径解析即可。
 set(SOURCES
     triggerclipmodel.hpp
     triggerclipplugin.hpp
-    ${QtTimeLine_DIR}/install/include/AbstractClipModel.hpp
 )
 
 #    ${Devices_DIR}/OSCSender/OSCSender.h
@@ -72,5 +74,4 @@ target_include_directories(TriggerClip PRIVATE
 # 添加编译定义
 target_compile_definitions(TriggerClip PRIVATE
         NODE_TIMELINE_SHARED
-        NODE_TIMELINE_EXPORTS
 )

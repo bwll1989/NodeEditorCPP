@@ -36,7 +36,7 @@ export class HaColorPicker extends LitElement {
 
   @state() private _open = false;
 
-  @state() private _custom = "#03a9f4";
+  @state() private _custom = "#79ae31";
 
   @state() private _showCustom = false;
 
@@ -135,7 +135,7 @@ export class HaColorPicker extends LitElement {
   }
 
   private _displayColor(): string {
-    if (!this.value) return "var(--primary-color, #03a9f4)";
+    if (!this.value) return "var(--primary-color, #79ae31)";
     return computeCssColor(this.value);
   }
 
@@ -312,7 +312,7 @@ export class HaColorPicker extends LitElement {
       height: 20px;
     }
     .swatch.state {
-      background: linear-gradient(135deg, #bdbdbd 0%, var(--primary-color, #03a9f4) 100%);
+      background: linear-gradient(135deg, #bdbdbd 0%, var(--primary-color, #79ae31) 100%);
     }
     .swatch.default {
       background: var(--ha-section-background-color, var(--secondary-background-color, #e5e5e5));
@@ -341,7 +341,7 @@ export class HaColorPicker extends LitElement {
     }
     .option:hover,
     .option.selected {
-      background: rgba(3, 169, 244, 0.08);
+      background: rgba(var(--rgb-primary-color), 0.08);
     }
     .rainbow {
       width: 22px;

@@ -158,9 +158,9 @@ export class FlowLogHistoryCard extends LitElement {
     }
     button.download {
       min-width: 72px;
-      border-color: rgba(3, 169, 244, 0.35);
+      border-color: rgba(var(--rgb-primary-color), 0.35);
       color: var(--primary-color, #0288d1);
-      background: rgba(3, 169, 244, 0.06);
+      background: rgba(var(--rgb-primary-color), 0.06);
     }
     button:disabled {
       opacity: 0.6;

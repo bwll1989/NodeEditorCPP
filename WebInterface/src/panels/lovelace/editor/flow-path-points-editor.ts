@@ -388,7 +388,7 @@ export class FlowPathPointsEditor extends LitElement {
       height: 22px;
       border-radius: 999px;
       border: 2px solid var(--primary-color);
-      background: white;
+      background: var(--card-background-color, #fff);
       color: var(--primary-color);
       font-size: 11px;
       font-weight: 700;

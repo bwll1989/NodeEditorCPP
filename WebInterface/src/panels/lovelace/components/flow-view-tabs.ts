@@ -194,14 +194,14 @@ export class FlowViewTabs extends LitElement {
 
     .tab:hover {
       opacity: 1;
-      background: rgba(0, 0, 0, 0.04);
+      background: var(--hover-background-color, rgba(0, 0, 0, 0.04));
     }
 
     .tab.active {
       opacity: 1;
       border-bottom-color: var(
         --ha-tab-indicator-color,
-        var(--app-header-edit-text-color, var(--primary-color, #03a9f4))
+        var(--app-header-edit-text-color, var(--primary-color, #79ae31))
       );
     }
 

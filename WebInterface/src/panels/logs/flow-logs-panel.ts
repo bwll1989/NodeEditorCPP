@@ -334,18 +334,18 @@ export class FlowLogsPanel extends LitElement {
       line-height: 1.6;
     }
     .status.live {
-      background: rgba(46, 125, 50, 0.12);
-      color: #2e7d32;
+      background: color-mix(in srgb, var(--success-color, #2e7d32) 14%, transparent);
+      color: var(--success-color, #2e7d32);
     }
     .status.offline {
-      background: rgba(0, 0, 0, 0.06);
+      background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
       color: var(--secondary-text-color, rgba(0, 0, 0, 0.54));
     }
     .resume {
       padding: 2px 10px;
-      border: 1px solid var(--primary-color, #03a9f4);
+      border: 1px solid var(--primary-color, #79ae31);
       border-radius: 999px;
-      background: rgba(3, 169, 244, 0.08);
+      background: rgba(var(--rgb-primary-color), 0.08);
       color: var(--primary-color, #0288d1);
       font-size: 12px;
       cursor: pointer;
@@ -383,8 +383,8 @@ export class FlowLogsPanel extends LitElement {
       overflow: hidden;
       background: linear-gradient(
         180deg,
-        rgba(0, 0, 0, 0.06) 0%,
-        rgba(0, 0, 0, 0.03) 100%
+        color-mix(in srgb, var(--primary-text-color) 6%, transparent) 0%,
+        color-mix(in srgb, var(--primary-text-color) 3%, transparent) 100%
       );
     }
     .log-view {
@@ -395,7 +395,7 @@ export class FlowLogsPanel extends LitElement {
       border-radius: 11px;
       background: var(--log-surface, #f7f9fb);
       border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
-      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.03);
+      box-shadow: inset 0 1px 2px color-mix(in srgb, var(--primary-text-color) 4%, transparent);
       color: var(--primary-text-color, rgba(0, 0, 0, 0.87));
       font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
       font-size: 12px;
@@ -411,7 +411,7 @@ export class FlowLogsPanel extends LitElement {
       transition: background 0.12s ease;
     }
     .log-row:hover {
-      background: rgba(0, 0, 0, 0.03);
+      background: var(--hover-background-color, rgba(0, 0, 0, 0.03));
     }
     .log-row + .log-row {
       margin-top: 2px;
@@ -436,23 +436,23 @@ export class FlowLogsPanel extends LitElement {
     .msg {
       word-break: break-word;
       white-space: pre-wrap;
-      color: rgba(0, 0, 0, 0.78);
+      color: var(--primary-text-color, #1a1a1a);
     }
     .level-debug .lvl {
-      background: rgba(3, 169, 244, 0.12);
-      color: #0277bd;
+      background: rgba(var(--rgb-primary-color), 0.12);
+      color: var(--info-color, #0277bd);
     }
     .level-info .lvl {
-      background: rgba(2, 136, 209, 0.12);
-      color: #01579b;
+      background: color-mix(in srgb, var(--info-color, #0277bd) 14%, transparent);
+      color: var(--info-color, #0277bd);
     }
     .level-warn .lvl {
-      background: rgba(255, 152, 0, 0.14);
-      color: #e65100;
+      background: color-mix(in srgb, var(--warning-color, #e65100) 15%, transparent);
+      color: var(--warning-color, #e65100);
     }
     .level-critical .lvl {
-      background: rgba(211, 47, 47, 0.12);
-      color: #b71c1c;
+      background: color-mix(in srgb, var(--error-color, #b71c1c) 13%, transparent);
+      color: var(--error-color, #b71c1c);
     }
     .empty {
       color: var(--secondary-text-color, rgba(0, 0, 0, 0.45));

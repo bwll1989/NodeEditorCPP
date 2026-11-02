@@ -33,7 +33,8 @@ namespace Clips
         {
             EMBEDWIDGET = false;
             SHOWBORDER = true;
-            ClipColor=QColor("#6a2c70");
+            // 片段默认颜色写入自身（setColor），不再修改全局 ClipColor
+            setColor(QColor("#6a2c70"));
             initPropertyWidget();
             if (!filePath.isEmpty()) {
                 loadAudioInfo(filePath);

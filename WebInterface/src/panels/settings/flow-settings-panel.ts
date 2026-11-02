@@ -436,15 +436,15 @@ export class FlowSettingsPanel extends LitElement {
       width: 100%;
       box-sizing: border-box;
       height: 36px;
-      border: 1px solid #d1d5db;
+      border: 1px solid var(--border-color, rgba(0, 0, 0, 0.15));
       border-radius: 8px;
       padding: 0 12px;
       font: inherit;
     }
     .text-input:focus {
       outline: none;
-      border-color: #03a9f4;
-      box-shadow: 0 0 0 2px rgba(3, 169, 244, 0.15);
+      border-color: var(--primary-color, #79ae31);
+      box-shadow: 0 0 0 2px rgba(var(--rgb-primary-color), 0.15);
     }
     .alert {
       margin-top: 8px;
@@ -453,9 +453,9 @@ export class FlowSettingsPanel extends LitElement {
       font-size: 13px;
     }
     .alert.error {
-      background: #fef2f2;
-      color: #b91c1c;
-      border: 1px solid #fecaca;
+      background: color-mix(in srgb, var(--error-color, #b91c1c) 10%, transparent);
+      color: var(--error-color, #b91c1c);
+      border: 1px solid color-mix(in srgb, var(--error-color, #b91c1c) 30%, transparent);
     }
     .switch-row {
       display: flex;
@@ -470,7 +470,7 @@ export class FlowSettingsPanel extends LitElement {
       width: 18px;
       height: 18px;
       cursor: pointer;
-      accent-color: #03a9f4;
+      accent-color: var(--primary-color, #79ae31);
     }
     .card-body {
       padding: 14px 16px;
@@ -483,7 +483,7 @@ export class FlowSettingsPanel extends LitElement {
     .checking {
       text-align: center;
       padding: 12px 0;
-      color: #64748b;
+      color: var(--secondary-text-color, #6f7364);
     }
     .help {
       margin: 0 0 10px;
@@ -513,9 +513,9 @@ export class FlowSettingsPanel extends LitElement {
       display: block;
     }
     .btn {
-      border: 1px solid #d1d5db;
-      background: #fff;
-      color: #1f2937;
+      border: 1px solid var(--border-color, rgba(0, 0, 0, 0.15));
+      background: var(--card-background-color, #fff);
+      color: var(--primary-text-color, #1a1a1a);
       border-radius: 8px;
       height: 36px;
       padding: 0 14px;
@@ -528,30 +528,30 @@ export class FlowSettingsPanel extends LitElement {
       cursor: default;
     }
     .btn.primary {
-      background: #03a9f4;
-      border-color: #03a9f4;
+      background: var(--primary-color, #79ae31);
+      border-color: var(--primary-color, #79ae31);
       color: #fff;
     }
     .btn.success {
-      background: #22c55e;
-      border-color: #22c55e;
+      background: var(--primary-color, #79ae31);
+      border-color: var(--primary-color, #79ae31);
       color: #fff;
     }
     .dropzone {
       position: relative;
-      border: 1px dashed #c0c4cc;
+      border: 1px dashed var(--border-color, rgba(0, 0, 0, 0.15));
       border-radius: 8px;
-      background: #fafafa;
+      background: var(--primary-background-color, #f7f8fa);
       padding: 16px 12px;
       text-align: center;
-      color: #606266;
+      color: var(--secondary-text-color, #6f7364);
     }
     .dropzone.dragover {
-      border-color: #03a9f4;
-      background: rgba(3, 169, 244, 0.04);
+      border-color: var(--primary-color, #79ae31);
+      background: rgba(var(--rgb-primary-color), 0.04);
     }
     .dropzone em {
-      color: #03a9f4;
+      color: var(--primary-color, #79ae31);
       font-style: normal;
     }
     .file-input {
@@ -575,7 +575,7 @@ export class FlowSettingsPanel extends LitElement {
     .upload-tip {
       margin: 8px 0 0;
       font-size: 12px;
-      color: #909399;
+      color: var(--secondary-text-color, #6f7364);
     }
     .file-list {
       list-style: none;
@@ -592,19 +592,19 @@ export class FlowSettingsPanel extends LitElement {
       gap: 8px;
       padding: 8px 10px;
       border-radius: 8px;
-      background: #f8fafc;
+      background: var(--ha-color-form-background, #f5f5f5);
       font-size: 13px;
     }
     .file-item.success {
-      color: #15803d;
+      color: var(--success-color, #3f6212);
     }
     .file-item.fail {
-      color: #b91c1c;
+      color: var(--error-color, #b91c1c);
     }
     .link-btn {
       border: none;
       background: transparent;
-      color: #03a9f4;
+      color: var(--primary-color, #79ae31);
       cursor: pointer;
       font-size: 12px;
       padding: 0;
@@ -633,28 +633,28 @@ export class FlowSettingsPanel extends LitElement {
       margin-top: 8px;
       padding: 6px 10px;
       border-radius: 8px;
-      background: #f1f5f9;
+      background: var(--ha-color-form-background, #f5f5f5);
       font-size: 13px;
     }
     .file-chip.success {
-      background: #dcfce7;
-      color: #15803d;
+      background: color-mix(in srgb, var(--primary-color, #79ae31) 16%, transparent);
+      color: var(--success-color, #3f6212);
     }
     .file-chip.fail {
-      background: #fee2e2;
-      color: #b91c1c;
+      background: color-mix(in srgb, var(--error-color, #b91c1c) 12%, transparent);
+      color: var(--error-color, #b91c1c);
     }
     .tag {
       display: inline-block;
       padding: 2px 8px;
       border-radius: 6px;
-      background: #f1f5f9;
-      color: #475569;
+      background: var(--ha-color-form-background, #f5f5f5);
+      color: var(--secondary-text-color, #6f7364);
       font-size: 12px;
     }
     .tag.success {
-      background: #dcfce7;
-      color: #15803d;
+      background: color-mix(in srgb, var(--primary-color, #79ae31) 16%, transparent);
+      color: var(--success-color, #3f6212);
     }
     .about-row {
       display: flex;
@@ -668,24 +668,24 @@ export class FlowSettingsPanel extends LitElement {
     }
     .about-meta span {
       margin-left: 8px;
-      color: #64748b;
+      color: var(--secondary-text-color, #6f7364);
     }
     .progress-wrap {
       margin-top: 12px;
     }
     .progress-bar {
       height: 8px;
-      background: #e5e7eb;
+      background: var(--border-color, #e5e7eb);
       border-radius: 999px;
       overflow: hidden;
     }
     .progress-fill {
       height: 100%;
-      background: #03a9f4;
+      background: var(--primary-color, #79ae31);
       transition: width 0.2s ease;
     }
     .progress-fill.success {
-      background: #22c55e;
+      background: var(--primary-color, #79ae31);
     }
     .progress-label {
       display: block;

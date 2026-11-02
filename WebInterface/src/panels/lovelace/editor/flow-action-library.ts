@@ -227,7 +227,7 @@ export class FlowActionLibrary extends LitElement {
       overflow-y: auto;
       border: 1px solid var(--divider-color);
       border-radius: 8px;
-      background: #fafbfc;
+      background: var(--ha-color-form-background, #fafbfc);
     }
     .row {
       display: grid;
@@ -283,12 +283,12 @@ export class FlowActionLibrary extends LitElement {
       white-space: nowrap;
     }
     .tag.used {
-      background: color-mix(in srgb, var(--primary-color, #03a9f4) 18%, transparent);
-      color: var(--primary-color, #03a9f4);
+      background: color-mix(in srgb, var(--primary-color, #79ae31) 18%, transparent);
+      color: var(--primary-color, #79ae31);
     }
     .tag.idle {
       background: color-mix(in srgb, #94a3b8 20%, transparent);
-      color: #64748b;
+      color: var(--secondary-text-color, #6f7364);
     }
     .ops {
       display: flex;
@@ -302,7 +302,7 @@ export class FlowActionLibrary extends LitElement {
       height: 26px;
       border: 1px solid var(--divider-color);
       border-radius: 6px;
-      background: #fff;
+      background: var(--card-background-color, #fff);
       font: inherit;
       line-height: 1;
       cursor: pointer;
@@ -313,10 +313,10 @@ export class FlowActionLibrary extends LitElement {
       padding: 0 8px;
       font-size: 12px;
       font-weight: 600;
-      color: var(--primary-color, #03a9f4);
+      color: var(--primary-color, #79ae31);
     }
     .test:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--primary-color, #03a9f4) 10%, #fff);
+      background: color-mix(in srgb, var(--primary-color, #79ae31) 10%, #fff);
     }
     .remove {
       width: 26px;

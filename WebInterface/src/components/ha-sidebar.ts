@@ -18,7 +18,7 @@ export class HaSidebar extends LitElement {
   /** HA `narrow`: sidebar is shown as a modal drawer. */
   @property({ type: Boolean, reflect: true }) public narrow = false;
 
-  @state() private _expanded = true;
+  @state() private _expanded = false;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -197,7 +197,7 @@ export class HaSidebar extends LitElement {
     }
 
     .menu-toggle:hover {
-      background: rgba(0, 0, 0, 0.04);
+      background: var(--hover-background-color, rgba(0, 0, 0, 0.04));
     }
 
     .menu-toggle ha-svg-icon {
@@ -267,11 +267,11 @@ export class HaSidebar extends LitElement {
     }
 
     .nav-item:hover {
-      background: rgba(0, 0, 0, 0.04);
+      background: var(--hover-background-color, rgba(0, 0, 0, 0.04));
     }
 
     .nav-item.selected {
-      color: var(--sidebar-selected-icon-color, var(--primary-color, #03a9f4));
+      color: var(--sidebar-selected-icon-color, var(--primary-color, #79ae31));
     }
 
     .nav-item.selected::before {
@@ -279,7 +279,7 @@ export class HaSidebar extends LitElement {
       position: absolute;
       inset: 0;
       border-radius: inherit;
-      background: var(--sidebar-selected-icon-color, var(--primary-color, #03a9f4));
+      background: var(--sidebar-selected-icon-color, var(--primary-color, #79ae31));
       opacity: 0.12;
       pointer-events: none;
     }
@@ -317,7 +317,7 @@ export class HaSidebar extends LitElement {
     }
 
     .nav-item.selected .nav-label {
-      color: var(--sidebar-selected-icon-color, var(--primary-color, #03a9f4));
+      color: var(--sidebar-selected-icon-color, var(--primary-color, #79ae31));
     }
 
     .nav-badge {

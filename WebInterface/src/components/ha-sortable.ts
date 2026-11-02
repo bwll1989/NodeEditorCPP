@@ -84,7 +84,7 @@ export class HaSortable extends LitElement {
         }
         .sortable-ghost {
           box-shadow: 0 0 0 2px var(--primary-color);
-          background: rgba(3, 169, 244, 0.2);
+          background: rgba(var(--rgb-primary-color), 0.2);
           border-radius: var(--ha-card-border-radius, 12px);
           opacity: 0.45;
         }

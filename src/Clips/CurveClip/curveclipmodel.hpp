@@ -9,6 +9,9 @@
 #include <QVBoxLayout>
 
 #include "AbstractClipModel.hpp"
+// 本头内联代码解引用 timeGroupBox（ClipTimePanel*）的成员，需要完整类型；
+// 库头自前置声明化后不再传递提供，必须显式 include。
+#include "ClipTimePanel.hpp"
 #include "Common/BaseClass/AbstractClipDelegateModel.h"
 #include "CurveViewport.hpp"
 #include "FloatDragValueWidget/FloatDragValueWidget.hpp"
@@ -28,7 +31,8 @@ public:
         , m_listWidget(new OSCMessageListWidget(true, nullptr))
     {
         m_end = start + 100;
-        ClipColor = QColor("#3a86ff");
+        // 片段默认颜色写入自身（setColor），不再修改全局 ClipColor
+        setColor(QColor("#3a86ff"));
         initPropertyWidget();
         connect(m_path, &CurvePath::curveChanged, this, [this] { republish(); });
         connect(m_path, &CurvePath::selectionChanged, this, [this] { syncEditors(); });

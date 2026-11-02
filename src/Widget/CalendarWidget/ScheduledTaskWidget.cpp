@@ -163,11 +163,22 @@ void ScheduledTaskWidget::openTaskEditor(int sourceRow, const QPoint& globalPos)
     m_popup->editTask(m_model, sourceRow);
     m_popup->adjustSize();
 
-    // 尽量把浮层放在点击点附近，并限制在屏幕可见区域内
+    // 尽量把浮层放在点击点附近，并限制在屏幕可见区域内。
+    // 优先右下；右侧放不下时翻到左侧，避免浮层盖住被点击的任务条
+    // （此前只做屏幕内 clamp，常把相邻/右侧格子的任务条挡住，
+    //  用户点被挡任务条时实际点到浮层，出现"任务条选不中"的观感）。
     QPoint pos = globalPos + QPoint(8, 8);
     if (QScreen* screen = QGuiApplication::screenAt(globalPos)) {
         const QRect ag = screen->availableGeometry();
         const QSize sz = m_popup->size();
+        if (pos.x() + sz.width() + 8 > ag.right()) {
+            // 右侧空间不足：改为浮层右缘贴点击点左侧
+            pos.setX(globalPos.x() - sz.width() - 8);
+        }
+        if (pos.y() + sz.height() + 8 > ag.bottom()) {
+            // 底部空间不足：改为浮层底缘贴屏幕底部（不遮挡点击点上方区域）
+            pos.setY(ag.bottom() - sz.height() - 8);
+        }
         pos.setX(std::clamp(pos.x(), ag.left() + 8, ag.right() - sz.width() - 8));
         pos.setY(std::clamp(pos.y(), ag.top() + 8, ag.bottom() - sz.height() - 8));
     }

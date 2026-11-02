@@ -128,7 +128,7 @@ export class FlowManualActionForm extends LitElement {
       border-radius: 8px;
       padding: 0 8px;
       color: var(--primary-text-color);
-      background: #fff;
+      background: var(--card-background-color, #fff);
     }
     .error,
     .success {
@@ -148,7 +148,7 @@ export class FlowManualActionForm extends LitElement {
     .btn {
       border: 1px solid var(--divider-color);
       border-radius: 8px;
-      background: #fff;
+      background: var(--card-background-color, #fff);
       color: var(--primary-text-color);
       font: inherit;
       font-size: 13px;

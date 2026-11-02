@@ -119,20 +119,20 @@ export class FlowConfirmDialog extends LitElement {
       min-width: 64px;
     }
     .btn.cancel {
-      color: var(--primary-color, #03a9f4);
+      color: var(--primary-color, #79ae31);
     }
     .btn.cancel:hover {
-      background: rgba(3, 169, 244, 0.08);
+      background: rgba(var(--rgb-primary-color), 0.08);
     }
     .btn.confirm {
-      color: var(--primary-color, #03a9f4);
+      color: var(--primary-color, #79ae31);
     }
     .btn.confirm.destructive {
-      background: #f8b4b4;
-      color: #5c1a1a;
+      background: color-mix(in srgb, var(--error-state-color, #c62828) 72%, #fff);
+      color: var(--text-primary-color, #fff);
     }
     .btn.confirm.destructive:hover {
-      background: #f5a3a3;
+      background: var(--error-state-color, #c62828);
     }
   `;
 }

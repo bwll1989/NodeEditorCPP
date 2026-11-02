@@ -209,7 +209,7 @@ export class FlowSectionEditor extends LitElement {
       font-weight: 600;
       cursor: pointer;
       border: 1px solid var(--divider-color);
-      background: #fff;
+      background: var(--card-background-color, #fff);
     }
     button.primary {
       background: var(--primary-color);

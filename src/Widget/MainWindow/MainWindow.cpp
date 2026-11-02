@@ -857,7 +857,7 @@ QMenu* MainWindow::makeOptionsMenu(QWidget* parent, const QList<QAction*>& actio
  * @brief 构建 QWindowKit 无边框标题栏并完成 WindowAgent 绑定
  *
  * 布局结构（自左向右）：
- *   [应用图标] [菜单栏 MenuBarWidget] [居中标题] [最小化] [最大化/还原] [关闭]
+ *   [应用图标] [Flow 品牌文字] [菜单栏 MenuBarWidget] [居中标题] [最小化] [最大化/还原] [关闭]
  *
  * 说明：
  * - 通过 setMenuWidget(windowBar) 将自定义标题栏挂到 QMainWindow 顶部
@@ -872,6 +872,13 @@ void MainWindow::setupFramelessWindow()
 
     // 供 QSS 选择器 QMenuBar#win-menu-bar 定位样式
     menuBar->setObjectName(QStringLiteral("win-menu-bar"));
+
+    // --- 应用图标后侧的品牌文字 ---
+    // 以菜单栏左上角 corner widget 的形式呈现，视觉上紧随应用图标，
+    // 不改动 WindowBar 的内部布局结构；样式见 QSS #win-brand-label
+    auto *brandLabel = new QLabel(QStringLiteral("Flow"), this);
+    brandLabel->setObjectName(QStringLiteral("win-brand-label"));
+    menuBar->setCornerWidget(brandLabel, Qt::TopLeftCorner);
 
     // 居中显示窗口标题（项目名 / 文件名），样式见 QSS #win-title-label
     auto *titleLabel = new QLabel(this);

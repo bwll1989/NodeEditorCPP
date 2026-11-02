@@ -97,7 +97,7 @@ export class HaSelectBox extends LitElement {
       padding: 12px;
       border: 1px solid var(--divider-color);
       border-radius: 12px;
-      background: #fff;
+      background: var(--card-background-color, #fff);
       overflow: hidden;
       cursor: pointer;
       font: inherit;

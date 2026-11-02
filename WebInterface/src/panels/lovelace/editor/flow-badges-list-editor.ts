@@ -734,12 +734,12 @@ export class FlowBadgesListEditor extends LitElement {
       border-radius: 999px;
     }
     .chip.entity .chip-type {
-      color: #0369a1;
-      background: color-mix(in srgb, #0ea5e9 16%, transparent);
+      color: var(--info-color, #0277bd);
+      background: color-mix(in srgb, var(--info-color, #0ea5e9) 16%, transparent);
     }
     .chip.button .chip-type {
-      color: #a16207;
-      background: color-mix(in srgb, #eab308 18%, transparent);
+      color: var(--warning-color, #a16207);
+      background: color-mix(in srgb, var(--warning-color, #eab308) 18%, transparent);
     }
     .chip-name {
       min-width: 0;
@@ -821,7 +821,7 @@ export class FlowBadgesListEditor extends LitElement {
       border-radius: 8px;
       padding: 8px 10px;
       color: var(--primary-text-color);
-      background: #fff;
+      background: var(--card-background-color, #fff);
     }
     .open-card-editor {
       margin-top: 4px;

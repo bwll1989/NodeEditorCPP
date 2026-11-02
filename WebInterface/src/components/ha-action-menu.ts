@@ -266,7 +266,7 @@ export class HaActionMenu extends LitElement {
       text-align: left;
     }
     .item:hover {
-      background: rgba(0, 0, 0, 0.04);
+      background: var(--hover-background-color, rgba(0, 0, 0, 0.04));
     }
     .item.destructive {
       color: var(--error-color, #b91c1c);

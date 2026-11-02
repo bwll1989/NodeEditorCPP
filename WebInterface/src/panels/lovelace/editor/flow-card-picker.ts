@@ -234,8 +234,8 @@ export class FlowCardPickerItem extends LitElement {
     }
     .card:hover,
     .card:focus-visible {
-      border-color: var(--primary-color, #03a9f4);
-      box-shadow: 0 0 0 1px var(--primary-color, #03a9f4);
+      border-color: var(--primary-color, #79ae31);
+      box-shadow: 0 0 0 1px var(--primary-color, #79ae31);
       outline: none;
     }
     .card-header {
@@ -273,8 +273,8 @@ export class FlowCardPickerItem extends LitElement {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(3, 169, 244, 0.08);
-      color: var(--primary-color, #03a9f4);
+      background: rgba(var(--rgb-primary-color), 0.08);
+      color: var(--primary-color, #79ae31);
       --mdc-icon-size: 30px;
     }
     .loading {
@@ -282,7 +282,7 @@ export class FlowCardPickerItem extends LitElement {
       height: 28px;
       border-radius: 50%;
       border: 2px solid var(--divider-color, #e0e0e0);
-      border-top-color: var(--primary-color, #03a9f4);
+      border-top-color: var(--primary-color, #79ae31);
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin {
@@ -642,7 +642,7 @@ export class FlowCardPicker extends LitElement {
     .secondary {
       border: none;
       background: transparent;
-      color: var(--primary-color, #03a9f4);
+      color: var(--primary-color, #79ae31);
       border-radius: 999px;
       height: 36px;
       padding: 0 18px;
@@ -651,7 +651,7 @@ export class FlowCardPicker extends LitElement {
       font-weight: 600;
     }
     .secondary:hover {
-      background: rgba(3, 169, 244, 0.08);
+      background: rgba(var(--rgb-primary-color), 0.08);
     }
   `;
 }

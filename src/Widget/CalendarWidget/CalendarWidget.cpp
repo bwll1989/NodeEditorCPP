@@ -29,7 +29,7 @@ constexpr int kChipGap = 2;
 constexpr int kCellPad = 3;
 constexpr int kMaxChips = 5;
 const char kOscMime[] = "application/x-osc-address";
-const QColor kAccent(0, 120, 212); // 与 QSS #0078d4 一致
+const QColor kAccent(121, 174, 49); // 品牌流动绿 #79AE31（docs/brand 手册），与 QSS 一致
 
 /** 日历绘制用色，按亮/暗主题分支 */
 struct ThemeColors {
@@ -60,22 +60,22 @@ ThemeColors themeColors()
         c.outsideBg = QColor(28, 29, 32);
         c.dayText = QColor(236, 238, 242);
         c.weekendText = QColor(255, 138, 128); // 周末高对比粉红
-        c.selectionFill = QColor(0, 120, 212, 70);
-        c.todayBorder = QColor(100, 181, 246);
+        c.selectionFill = QColor(121, 174, 49, 70);   // 选中底·品牌绿 alpha
+        c.todayBorder = QColor(143, 203, 63);          // 今日边框·亮绿 #8FCB3F
         c.cellBorder = QColor(255, 255, 255, 22);
         c.chipOnceBg = QColor(21, 101, 192);
         c.chipOnceFg = QColor(255, 255, 255);
         c.chipLoopBg = QColor(0, 121, 107);
         c.chipLoopFg = QColor(255, 255, 255);
         c.chipActiveBg = kAccent;
-        c.chipActiveFg = Qt::white;
+        c.chipActiveFg = QColor("#141A0D"); // 品牌规定：流动绿上不用白色小字
         c.moreText = QColor(180, 184, 192);
     } else {
         c.cellBg = QColor(255, 255, 255);
         c.outsideBg = QColor(245, 245, 247);
         c.dayText = QColor(40, 42, 48);
         c.weekendText = QColor(198, 40, 40);
-        c.selectionFill = QColor(0, 120, 212, 28);
+        c.selectionFill = QColor(121, 174, 49, 28);   // 选中底·品牌绿 alpha
         c.todayBorder = kAccent;
         c.cellBorder = QColor(0, 0, 0, 18);
         c.chipOnceBg = QColor(227, 240, 250);
@@ -83,7 +83,7 @@ ThemeColors themeColors()
         c.chipLoopBg = QColor(228, 243, 236);
         c.chipLoopFg = QColor(30, 100, 85);
         c.chipActiveBg = kAccent;
-        c.chipActiveFg = Qt::white;
+        c.chipActiveFg = QColor("#141A0D"); // 品牌规定：流动绿上不用白色小字
         c.moreText = QColor(110, 112, 118);
     }
     return c;
@@ -221,15 +221,34 @@ QDate OscCalendarWidget::dateFromModelIndex(const QModelIndex& index) const
         return date;
     }
 
-    // 兼容：个别环境下 UserRole 无日期时，用显示日 + 当前月推算
-    const int day = index.data(Qt::DisplayRole).toInt();
-    if (day > 0) {
-        const QDate candidate(yearShown(), monthShown(), day);
-        if (candidate.isValid()) {
-            return candidate;
-        }
+    // 不得用"DisplayRole 日号 + 强映射当月"兜底：Qt6 的 QCalendarModel::data()
+    // 不提供 Qt::UserRole 数据，且上/下月灰格的 DisplayRole 同样只有日号，
+    // 强映射会把灰格解析成当月同号日期（如 2026-10 视图中 9/28-9/30 灰格被当作
+    // 10/28-10/30）。cellRectInViewport 从第 0 行遍历会先撞上灰格并返回错误
+    // rect，导致这些日期的任务条/格子点击命中错位（"31" 因上月无此日号而幸免）。
+    // 这里按 QCalendarWidget 的网格结构正向推算真实日期（对齐 Qt 源码
+    // QCalendarModel::dateForCell 的布局逻辑：列 = 星期（firstDayOfWeek 起），
+    // 行 = 周偏移，1 号恰在第 0 列时网格整体上移一周）。
+    const int row = index.row();
+    const int column = index.column();
+    const int firstColumn = (verticalHeaderFormat() == QCalendarWidget::NoVerticalHeader) ? 0 : 1;
+    const int firstRow = (horizontalHeaderFormat() == QCalendarWidget::NoHorizontalHeader) ? 0 : 1;
+    if (row < firstRow || row > firstRow + 5 || column < firstColumn || column > firstColumn + 6) {
+        return {}; // 表头行/列或越界
     }
-    return {};
+
+    const QDate firstOfMonth(yearShown(), monthShown(), 1);
+    if (!firstOfMonth.isValid()) {
+        return {};
+    }
+
+    int daysBack = (firstOfMonth.dayOfWeek() - static_cast<int>(firstDayOfWeek()) + 7) % 7;
+    QDate gridStart = firstOfMonth.addDays(-daysBack);
+    if (daysBack < 1) {
+        // MinimumDayOffset 语义：显示月 1 号恰在第 0 列时，首行改为从上月中旬起
+        gridStart = gridStart.addDays(-7);
+    }
+    return gridStart.addDays((row - firstRow) * 7 + (column - firstColumn));
 }
 
 QDate OscCalendarWidget::dateAtGlobalPos(const QPoint& globalPos) const
@@ -312,6 +331,12 @@ OscCalendarWidget::ChipHit OscCalendarWidget::hitTest(const QPoint& globalPos) c
     ChipHit hit;
     hit.date = dateAtGlobalPos(globalPos);
     if (!hit.date.isValid()) {
+        return hit;
+    }
+
+    // 与 paintCell 对齐：跨月灰显格子不绘制任务条，命中测试也必须跳过，
+    // 否则点击灰格中"看不见的任务条位置"会命中隐藏 chip（有选中却无视觉反馈）。
+    if (hit.date.month() != monthShown() || hit.date.year() != yearShown()) {
         return hit;
     }
 

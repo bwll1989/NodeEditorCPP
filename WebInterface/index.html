@@ -8,6 +8,26 @@
     <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="stylesheet" href="/src/styles/global.css" />
+    <script>
+      // 防闪烁：渲染前根据持久化偏好（auto/light/dark）解析并应用主题
+      (function () {
+        try {
+          var mode = localStorage.getItem("flow_theme_mode");
+          if (mode !== "light" && mode !== "dark") mode = "auto";
+          var dark =
+            mode === "dark" ||
+            (mode === "auto" &&
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.setAttribute(
+            "data-theme",
+            dark ? "dark" : "light"
+          );
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
   </head>
   <body>
     <flow-app></flow-app>

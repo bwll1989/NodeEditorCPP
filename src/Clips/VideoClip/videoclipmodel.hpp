@@ -9,6 +9,9 @@
 #include "TimeLineDefines.h"
 #include <QPushButton>
 #include "AbstractClipModel.hpp"
+// 本头内联代码解引用 timeGroupBox（ClipTimePanel*）的成员，需要完整类型；
+// 库头自前置声明化后不再传递提供，必须显式 include。
+#include "ClipTimePanel.hpp"
 #include "TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
@@ -41,7 +44,8 @@ namespace Clips
             RESIZEABLE = true;
             EMBEDWIDGET = false;
             SHOWBORDER = true;
-            ClipColor=QColor("#6666cc");
+            // 片段默认颜色写入自身（setColor），不再修改全局 ClipColor
+            setColor(QColor("#6666cc"));
             // 初始化 SocketTransmitter，避免后续使用空指针
             m_server = getClientControlInstance();
             // 构造阶段先禁止通知

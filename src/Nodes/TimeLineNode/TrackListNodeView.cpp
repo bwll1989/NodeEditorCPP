@@ -13,7 +13,8 @@ void TrackListNodeView::drawTitle(QPainter *painter)
     painter->setBrush(QBrush(trackBgColor()));
     const QRect ruler(0, 0, viewport()->width(), rulerHeight + toolbarHeight);
     painter->drawRect(ruler);
-    painter->setPen(fontColor);
+    // 标尺时间文字颜色走 QSS 可配置属性（qproperty-timelinePlayheadColor）
+    painter->setPen(timelinePlayheadColor());
     QFont font;
     font.setPixelSize(fontSize);
     painter->setFont(font);

@@ -322,7 +322,7 @@ export class FlowCardLayoutEditor extends LitElement {
       width: 16px;
       height: 16px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--card-background-color, #fff);
       transition: transform 180ms ease;
     }
     .switch-row input[type="checkbox"]:checked {

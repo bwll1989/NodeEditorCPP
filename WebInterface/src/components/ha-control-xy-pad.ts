@@ -213,7 +213,7 @@ export class HaControlXyPad extends LitElement {
       width: 100%;
       height: 100%;
       min-height: 120px;
-      --control-xy-color: var(--feature-color, var(--primary-color, #03a9f4));
+      --control-xy-color: var(--feature-color, var(--primary-color, #79ae31));
       --control-xy-background: color-mix(
         in srgb,
         var(--control-xy-color) 12%,

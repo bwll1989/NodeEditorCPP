@@ -140,7 +140,7 @@ export class HuiSectionEditMode extends LitElement {
     ha-action-menu {
       display: inline-flex;
       --ha-action-menu-trigger-background: transparent;
-      --ha-action-menu-trigger-hover-background: rgba(0, 0, 0, 0.04);
+      --ha-action-menu-trigger-hover-background: var(--hover-background-color, rgba(0, 0, 0, 0.04));
       --ha-action-menu-trigger-size: 36px;
       --ha-action-menu-trigger-radius: 0 var(--ha-section-border-radius, 16px) 0 0;
     }

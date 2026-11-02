@@ -242,7 +242,7 @@ export class FlowSection extends LitElement {
     }
 
     .add-card:hover {
-      background: rgba(3, 169, 244, 0.04);
+      background: rgba(var(--rgb-primary-color), 0.04);
     }
 
     .add-plus {

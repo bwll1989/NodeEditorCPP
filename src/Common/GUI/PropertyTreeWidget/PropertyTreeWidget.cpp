@@ -12,6 +12,7 @@
 #include <QSignalBlocker>
 #include <QScopedValueRollback>
 #include <QTreeWidget>
+#include <QPalette>
 #include <QHash>
 #include <QEvent>
 #include <QSet>
@@ -419,6 +420,12 @@ PropertyTreeWidget::PropertyTreeWidget(QWidget* parent)
     if (m_tree) {
         m_tree->setObjectName("propertyTreeView");
         m_tree->setUniformRowHeights(true);
+        /**
+         * 函数级注释：应用选中/悬停配色（默认品牌绿，QSS qproperty-* 可覆盖）。
+         * 实现说明：颜色可能来自 QSS 注入（polish 时机晚于本构造函数），此处先应用
+         * 默认值兜底；QSS 若到达，随后调用 setter 覆盖为配置值。
+         */
+        applyTreeColors();
     }
 
     auto* layout = new QVBoxLayout(this);
@@ -727,6 +734,62 @@ QtVariantProperty* PropertyTreeWidget::createVariantProperty(const QMetaProperty
         m_manager->setAttribute(property, QStringLiteral("singleStep"), 0.1);
     }
     return property;
+}
+
+// ------- 选中/悬停配色（QSS qproperty-* 可配置，见 PropertyTreeWidget.h 属性注释） -------
+
+QColor PropertyTreeWidget::selectedColor() const { return m_selectedColor; }
+
+void PropertyTreeWidget::setSelectedColor(const QColor& color)
+{
+    if (!color.isValid() || color == m_selectedColor) return;
+    m_selectedColor = color;
+    applyTreeColors();
+}
+
+QColor PropertyTreeWidget::selectedTextColor() const { return m_selectedTextColor; }
+
+void PropertyTreeWidget::setSelectedTextColor(const QColor& color)
+{
+    if (!color.isValid() || color == m_selectedTextColor) return;
+    m_selectedTextColor = color;
+    applyTreeColors();
+}
+
+QColor PropertyTreeWidget::hoverColor() const { return m_hoverColor; }
+
+void PropertyTreeWidget::setHoverColor(const QColor& color)
+{
+    if (!color.isValid() || color == m_hoverColor) return;
+    m_hoverColor = color;
+    applyTreeColors();
+}
+
+/**
+ * 函数级注释：把选中/悬停配色应用到内部 QTreeWidget。
+ * 实现说明：选中色走 QPalette（Highlight/HighlightedText）——palette 是 item
+ * 绘制的最终依据（QItemDelegate/QStyleSheetStyle 回退路径均读取它），不依赖 QSS
+ * 规则能否传播到节点 QGraphicsScene 代理层级；同时写入 viewport 的 palette
+ * （item 渲染时 option.palette 取自 viewport）。悬停无 palette 角色，用控件本地
+ * 样式表尽力覆盖；若本地规则亦不可达，仅失去悬停高亮，选中色仍由 palette 保证。
+ */
+void PropertyTreeWidget::applyTreeColors()
+{
+    if (!m_tree) return;
+
+    QPalette pal = m_tree->palette();
+    pal.setColor(QPalette::Highlight, m_selectedColor);
+    pal.setColor(QPalette::HighlightedText, m_selectedTextColor);
+    m_tree->setPalette(pal);
+    if (m_tree->viewport())
+        m_tree->viewport()->setPalette(pal);
+
+    m_tree->setStyleSheet(QStringLiteral(
+        "QTreeWidget::item:selected { background: %1; color: %2; }"
+        "QTreeWidget::item:hover:!selected { background: %3; }")
+        .arg(m_selectedColor.name(QColor::HexRgb),
+             m_selectedTextColor.name(QColor::HexRgb),
+             m_hoverColor.name(QColor::HexArgb)));
 }
 
 #include "PropertyTreeWidget.moc"

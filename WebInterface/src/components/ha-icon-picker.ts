@@ -281,7 +281,7 @@ export class HaIconPicker extends LitElement {
     }
     .option:hover,
     .option.selected {
-      background: rgba(3, 169, 244, 0.08);
+      background: rgba(var(--rgb-primary-color), 0.08);
     }
     .option ha-svg-icon {
       width: 22px;

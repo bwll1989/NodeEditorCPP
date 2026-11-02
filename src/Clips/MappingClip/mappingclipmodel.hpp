@@ -2,6 +2,9 @@
 #define MAPPINGCLIPMODEL_H
 #include <QPushButton>
 #include "AbstractClipModel.hpp"
+// 本头内联代码解引用 timeGroupBox（ClipTimePanel*）的成员，需要完整类型；
+// 库头自前置声明化后不再传递提供，必须显式 include。
+#include "ClipTimePanel.hpp"
 #include <QJsonArray>
 #include "../../Common/Devices/OSCSender/OSCSender.h"
 #include "OscListWidget/OSCMessageListWidget.hpp"
@@ -19,8 +22,8 @@ namespace Clips
                                     m_listWidget(new OSCMessageListWidget(true,m_editor))
         {
             m_end=start+100;
-            // 片段正常颜色
-            ClipColor=QColor("#b83b5e");
+            // 片段正常颜色：写入自身（setColor），不再修改全局 ClipColor
+            setColor(QColor("#b83b5e"));
             initPropertyWidget();
         }
         ~MappingClipModel() override =default;

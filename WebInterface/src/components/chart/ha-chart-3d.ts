@@ -7,6 +7,10 @@ import { CanvasRenderer } from "echarts/renderers";
 import { Line3DChart, Scatter3DChart } from "echarts-gl/charts";
 import { Grid3DComponent } from "echarts-gl/components";
 import type { Point3 } from "../../common/chart/point3d";
+import {
+  observeThemeChanges,
+  readChartThemeColors,
+} from "../../common/chart/chart-theme";
 
 echarts.use([TooltipComponent, CanvasRenderer, Line3DChart, Scatter3DChart, Grid3DComponent]);
 
@@ -19,11 +23,6 @@ function hasDomSize(el: HTMLElement | null | undefined): boolean {
   return !!el && el.clientWidth > 0 && el.clientHeight > 0;
 }
 
-const AXIS_LINE_COLOR = "rgba(0, 0, 0, 0.2)";
-const AXIS_LABEL_COLOR = "rgba(0, 0, 0, 0.54)";
-const AXIS_NAME_COLOR = "rgba(0, 0, 0, 0.6)";
-const SPLIT_LINE_COLOR = "rgba(0, 0, 0, 0.08)";
-
 @customElement("ha-chart-3d")
 export class HaChart3d extends LitElement {
   @property({ type: String }) mode: ChartMode = "line";
@@ -34,11 +33,11 @@ export class HaChart3d extends LitElement {
 
   @property({ type: Number }) lineWidth = 3;
 
-  @property({ type: String }) lineColor = "#03a9f4";
+  @property({ type: String }) lineColor = "#79ae31";
 
   @property({ type: Number }) symbolSize = 8;
 
-  @property({ type: String }) pointColor = "#03a9f4";
+  @property({ type: String }) pointColor = "#79ae31";
 
   @property({ type: String }) xLabel = "X";
 
@@ -123,6 +122,7 @@ export class HaChart3d extends LitElement {
   protected firstUpdated(): void {
     this._setupResizeObserver();
     this._scheduleEnsureChart();
+    observeThemeChanges(this, () => this._renderChart(this._chart ? "full" : "data"));
   }
 
   private _scheduleEnsureChart(): void {
@@ -190,15 +190,16 @@ export class HaChart3d extends LitElement {
   }
 
   private _axisOptions(showAxes: boolean) {
+    const axisColors = readChartThemeColors(this);
     const axisLine = showAxes
-      ? { show: true, lineStyle: { color: AXIS_LINE_COLOR } }
+      ? { show: true, lineStyle: { color: axisColors.axisLine } }
       : { show: false };
     const axisTick = showAxes
-      ? { show: true, lineStyle: { color: AXIS_LINE_COLOR } }
+      ? { show: true, lineStyle: { color: axisColors.axisLine } }
       : { show: false };
-    const axisLabel = showAxes ? { show: true, color: AXIS_LABEL_COLOR } : { show: false };
+    const axisLabel = showAxes ? { show: true, color: axisColors.axisLabel } : { show: false };
     const splitLine = showAxes
-      ? { show: true, lineStyle: { color: SPLIT_LINE_COLOR } }
+      ? { show: true, lineStyle: { color: axisColors.splitLine } }
       : { show: false };
 
     return {
@@ -217,7 +218,7 @@ export class HaChart3d extends LitElement {
         axisLine,
         axisTick,
         axisLabel,
-        nameTextStyle: { color: AXIS_NAME_COLOR },
+        nameTextStyle: { color: axisColors.axisName },
       },
       yAxis3D: {
         type: "value" as const,
@@ -226,7 +227,7 @@ export class HaChart3d extends LitElement {
         axisLine,
         axisTick,
         axisLabel,
-        nameTextStyle: { color: AXIS_NAME_COLOR },
+        nameTextStyle: { color: axisColors.axisName },
       },
       zAxis3D: {
         type: "value" as const,
@@ -235,7 +236,7 @@ export class HaChart3d extends LitElement {
         axisLine,
         axisTick,
         axisLabel,
-        nameTextStyle: { color: AXIS_NAME_COLOR },
+        nameTextStyle: { color: axisColors.axisName },
       },
     };
   }
@@ -253,7 +254,7 @@ export class HaChart3d extends LitElement {
               silent: true,
               symbolSize: Number(this.symbolSize) || 8,
               itemStyle: {
-                color: this.pointColor || "#03a9f4",
+                color: this.pointColor || "#79ae31",
                 opacity: 0.92,
               },
               emphasis: {
@@ -268,7 +269,7 @@ export class HaChart3d extends LitElement {
               silent: true,
               lineStyle: {
                 width: Number(this.lineWidth) || 3,
-                color: this.lineColor || "#03a9f4",
+                color: this.lineColor || "#79ae31",
                 opacity: 0.95,
               },
             },

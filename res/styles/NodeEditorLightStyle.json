@@ -5,13 +5,13 @@
     "CoarseGridColor": [196, 198, 206],
     "AxisGridColor": [205, 0, 0],
     "AxisLineWidth": 3.0,
-    "BackgroundGrid": true,
+    "BackgroundGrid": false,
     "BackgroundAxis": false
   },
 
   "NodeStyle": {
     "NormalBoundaryColor": [168, 170, 178],
-    "SelectedBoundaryColor": [180, 200, 80],
+    "SelectedBoundaryColor": [121, 174, 49],
 
     "GradientColor0": [250, 250, 252],
     "GradientColor1": [244, 244, 247],
@@ -38,9 +38,9 @@
   "ConnectionStyle": {
     "ConstructionColor": "gray",
     "NormalColor": [80, 80, 80],
-    "SelectedColor": [60, 60, 60],
-    "SelectedHaloColor": "orange",
-    "HoveredColor": "orange",
+    "SelectedColor": [74, 112, 33],
+    "SelectedHaloColor": "#9CC455",
+    "HoveredColor": "#629327",
     "FontColor": [30, 30, 30],
     "LineWidth": 2.0,
     "LineHoverWidth": 4.0,
@@ -57,8 +57,8 @@
     "NormalBoundaryColor": [140, 142, 150],
     "FontColor": [40, 42, 48],
     "NormalColor": [120, 130, 145],
-    "SelectedColor": [255, 165, 0],
-    "SelectedHaloColor": "orange",
+    "SelectedColor": [74, 112, 33],
+    "SelectedHaloColor": "#9CC455",
     "CaptionColor": "darkcyan",
     "PortColor": "gray",
     "PortHeight": 0.6,

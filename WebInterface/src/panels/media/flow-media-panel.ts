@@ -390,15 +390,15 @@ export class FlowMediaPanel extends LitElement {
       color: var(--primary-text-color, rgba(0, 0, 0, 0.87));
     }
     .btn.primary {
-      border-color: rgba(3, 169, 244, 0.35);
+      border-color: rgba(var(--rgb-primary-color), 0.35);
       color: var(--primary-color, #0288d1);
-      background: rgba(3, 169, 244, 0.06);
+      background: rgba(var(--rgb-primary-color), 0.06);
     }
     button.download {
       min-width: 72px;
-      border-color: rgba(3, 169, 244, 0.35);
+      border-color: rgba(var(--rgb-primary-color), 0.35);
       color: var(--primary-color, #0288d1);
-      background: rgba(3, 169, 244, 0.06);
+      background: rgba(var(--rgb-primary-color), 0.06);
     }
     button:disabled {
       opacity: 0.6;
@@ -426,7 +426,7 @@ export class FlowMediaPanel extends LitElement {
     }
     .dropzone.dragover {
       border-color: var(--primary-color, #0288d1);
-      background: rgba(3, 169, 244, 0.06);
+      background: rgba(var(--rgb-primary-color), 0.06);
     }
     .dropzone p {
       margin: 8px 0 0;
@@ -471,7 +471,7 @@ export class FlowMediaPanel extends LitElement {
       color: #2e7d32;
     }
     .pick-item.fail {
-      color: #c62828;
+      color: var(--error-state-color, #c62828);
     }
     .link-btn {
       border: none;
@@ -498,7 +498,7 @@ export class FlowMediaPanel extends LitElement {
     .progress-bar {
       height: 6px;
       border-radius: 999px;
-      background: rgba(0, 0, 0, 0.08);
+      background: var(--hover-background-color, rgba(0, 0, 0, 0.08));
       overflow: hidden;
     }
     .progress-fill {

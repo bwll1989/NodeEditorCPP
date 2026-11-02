@@ -298,7 +298,7 @@ export class FlowViewEditor extends LitElement {
       outline: none;
     }
     input[type="text"]:focus {
-      border-bottom-color: var(--primary-color, #03a9f4);
+      border-bottom-color: var(--primary-color, #79ae31);
       border-bottom-width: 2px;
     }
     input[type="range"] {
@@ -330,12 +330,12 @@ export class FlowViewEditor extends LitElement {
       font-weight: 600;
       cursor: pointer;
       border: 1px solid var(--divider-color);
-      background: #fff;
+      background: var(--card-background-color, #fff);
       color: var(--primary-text-color);
     }
     button.primary {
-      background: var(--primary-color, #03a9f4);
-      border-color: var(--primary-color, #03a9f4);
+      background: var(--primary-color, #79ae31);
+      border-color: var(--primary-color, #79ae31);
       color: #fff;
     }
     button.primary:disabled {

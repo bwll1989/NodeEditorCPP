@@ -54,7 +54,7 @@ export class ChartMultiBarTracker {
 
   private _flow?: Flow;
 
-  private _defaultColor = "#03a9f4";
+  private _defaultColor = "#79ae31";
 
   private _unsubs: Array<() => void> = [];
 
@@ -69,7 +69,7 @@ export class ChartMultiBarTracker {
     this.dispose();
     this._flow = flow;
     this._configs = configs;
-    this._defaultColor = defaultColor || "#03a9f4";
+    this._defaultColor = defaultColor || "#79ae31";
     this._onChange = onChange;
 
     if (!flow) {
