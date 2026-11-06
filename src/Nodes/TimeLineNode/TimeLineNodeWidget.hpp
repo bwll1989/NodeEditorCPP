@@ -6,7 +6,7 @@
 #include <QToolBar>
 
 
-#include "TimeLineStyle.h"
+#include "TimelineEngine.h"
 #include <QWidget>
 #include <QItemSelectionModel>
 #include "TimeLineNodeModel.h"

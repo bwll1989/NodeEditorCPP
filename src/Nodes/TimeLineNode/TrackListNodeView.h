@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "BaseTrackListView.h"
+#include "TimelineEngine.h"
 #include "TimeLineNodeModel.h"
 class TrackListNodeView: public BaseTracklistView {
 Q_OBJECT

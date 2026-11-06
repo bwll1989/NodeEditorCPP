@@ -11,7 +11,15 @@
 
 鉴权：HTTP Basic Auth（界面中的 Username / Password）。
 
-## 2. 端口
+## 2. 端口说明
+
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 2 | 否 | 2 | 2 | —（不可新增） | 无 |
+| 输出 | 2 | 否 | 2 | 2 | —（不可新增） | 无 |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
 
 **输入（2）：** TRIGGER / INDEX  
 **输出（2）：** DONE / CONNECTED
@@ -35,7 +43,7 @@
 
 共用路径：`index → playlistName → playlist/set`。
 
-## 3. 界面
+## 3. 界面与属性
 
 | 控件 | 说明 |
 |------|------|
@@ -50,32 +58,46 @@
 
 无轮询间隔调节、无刷新按钮。
 
-## 4. 属性与 OSC
+## 4. 外部控制（OSC 地址）
 
-对外属性（可走属性树 / OSC，由属性系统发布，无需额外 `stateFeedBack`）：
+地址前缀：`/dataflow/{别名}/{节点ID}/…`
 
-| 属性 | OSC 相对地址 | 说明 |
-|------|----------------|------|
-| `baseUrl` | `/baseUrl` | 设备地址 |
-| `zoneName` | `/zoneName` | 分区 |
-| `index` | `/index` | 排序号；写入会切换播放 |
-| `connected` | `/connected` | 只读连接状态 |
-| （触发） | `/play` | `true` 时按当前 Index 切换 |
+| 地址 | 方向 | 说明 |
+|------|------|------|
+| `/baseUrl` | 读写 | 设备地址；写入后立即重新查询列表。 |
+| `/zoneName` | 读写 | 分区名（空 = 主分区）；写入不触发查询，下次切换生效。 |
+| `/index` | 读写 | 排序号；**写入即切换播放**（同步 Index 控件并 PUT playlist/set）。 |
+| `/connected` | 只读 | 最近一次列表查询结果；变化时自动推送。外部写入无效（属性无 WRITE）。 |
+| `/play` | 写 | `true` 按当前 Index 切换；发起时推送 `/play=true`、请求结束推 `false`。 |
+
+`/baseUrl`、`/zoneName`、`/index`、`/connected` 注册了带属性 member 的绑定：模型就绪时推送初始值、属性变化自动反馈。`/play` 的 member 不是真实属性，仅由节点在请求前后手动推送反馈。
 
 **不进属性系统**（避免默认向外发布）：
 
 | 数据 | 说明 |
 |------|------|
-| Username / Password | 仅界面 + `save`/`load` 本地持久化 |
+| Username / Password | 故意不声明 Q_PROPERTY，仅界面编辑 + `save`/`load` 本地持久化 |
 | 当前播放名（内部） | 仅用于列表高亮与状态文案 |
 
-## 5. 使用提示
+## 5. 行为细节
+
+- 就绪后立即查询一次播放列表，之后固定每 5 秒保活轮询；上一查询未返回时跳过。查询需 HTTP 2xx、返回 JSON 且（若含 `success` 字段）为 true 才算成功并置已连接；列表显示 `[排序号] 名称  路径/类型`。
+- 所有请求带 HTTP Basic Auth（凭据仅本地存盘，不进属性系统）；改账号 / 密码 / Base URL 后立即重新查询。
+- 切换按「排序号 → 名称 → `PUT playlist/set?playlistName=…`（可选 `zoneName`）」；Index 越界时钳回 0。
+- 切换请求在途时新意图排队，完成后自动执行最新意图（后到优先）。
+- 发起切换即记下名称并高亮列表（乐观）；回包 HTTP 2xx 且业务 success 才置 DONE=true，失败显示 HTTP 码或业务失败。
+- 双击列表项切换但**不改** Index 控件；TRIGGER / 播放按钮 / `/index` / `/play` 按 Index 切换并同步控件。
+- INDEX 端口取值支持 `{index: n}` 键或 default 数值（布尔忽略，数字字符串需与解析值一致）；TRIGGER 仅真值（`true`/`1`/`"true"`）触发。
+- 端口连接策略：输入、输出均为 Many；控件面板在右侧属性面板（`WidgetEmbeddable=false`），节点高度可调。
+- 持久化：`values` 子对象 6 键（baseUrl / username / password / playlistName / zoneName / index）；加载只恢复参数与高亮，不触发切换。
+
+## 6. 使用说明与典型接法
 
 1. 填写 Base URL / 账号后等待「连接: 已连接」与列表加载。  
 2. 用 Index 或列表双击选定内容；TRIGGER / 「播放」按 Index 控件值切换。  
 3. 双击不会改动 Index，便于 TRIGGER 始终按控件中的序号触发。
 
-## 6. 与 VLC Remote 的对应关系
+## 7. 与 VLC Remote 的对应关系
 
 交互与端口已对齐：均为 TRIGGER / INDEX → DONE / CONNECTED，5s 轮询保活，Index + 双击（不改 Index）。
 
@@ -86,3 +108,4 @@
 | INDEX | 排序号 → 名称 | 排序号 → playlistId |
 
 详见 `VLC_RemoteNode/Doc.md`。
+

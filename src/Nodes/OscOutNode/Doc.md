@@ -8,6 +8,16 @@ OSC 发送节点（界面标题为「OSC Output」），向指定主机和端口
 
 ## 2. 端口说明
 
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 5 | 否 | 5 | 5 | — | 末端口为 TRIGGER（发送触发） |
+| 输出 | 0 | 否 | 0 | 0 | — | 无 |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
+
+
+
 ### 输入
 
 | 端口 | 名称 | 说明 |
@@ -22,16 +32,45 @@ OSC 发送节点（界面标题为「OSC Output」），向指定主机和端口
 
 本节点无输出端口。
 
-## 3. 界面说明
+## 3. 界面与属性
 
-- **host**：目标 IP，默认 `127.0.0.1`。
-- **port**：目标端口，默认 8000。
-- **address**：OSC 路径，默认 `/test`。
-- **type**：单参数类型 Int、Float 或 String（仅标量时生效；列表发送时忽略）。
-- **value**：参数值；也可直接填 JSON 数组，如 `[0.1,0.2,0.3]`。
-- **Send**：手动发送一次。
+控件面板（`WidgetEmbeddable=false`，显示在右侧属性面板，不嵌入节点体）：
 
-## 4. 使用说明
+| 控件 | 含义 |
+|------|------|
+| host | 目标 IP，默认 `127.0.0.1` |
+| port | 目标端口，默认 8000 |
+| address | OSC 路径，默认 `/test` |
+| type | 单参数类型 Int / Float / String（仅标量时生效；列表发送时忽略） |
+| value | 参数值；也可直接填 JSON 数组，如 `[0.1,0.2,0.3]`（输入即发送） |
+| Send | 手动发送一次 |
+
+可外部控制的属性（Q_PROPERTY）：`host`、`port`、`address`、`value`、`typeIndex`、`send`（脉冲）。
+
+## 4. 外部控制（OSC 地址）
+
+地址前缀：`/dataflow/{别名}/{节点ID}/…`
+
+| 地址 | 方向 | 说明 |
+|------|------|------|
+| `/host` | 读写 | 目标 IP |
+| `/port` | 读写 | 目标端口 |
+| `/address` | 读写 | OSC 地址路径 |
+| `/value` | 读写 | 参数值（可为列表）；外部写值会**立即发送** |
+| `/type` | 读写 | 类型索引：0=Int，1=Float，2=String（标量） |
+| `/send` | 命令 | 触发发送（无 payload 或 `true` 时执行） |
+
+## 5. 行为细节
+
+- **发送路径**：所有发送统一走 `OSCSender` 单例的发送队列（多节点共享，不阻塞界面）。
+- **值解析**：发送前 value 字符串经 `fromDisplay` 解析——形如 `[..]` 的内容转为列表并按 `List` 类型发送（每个元素自动选 `f`/`i`/`s`）；标量按 type 框类型转换（无效转换回退 String）。
+- **端口语义**：HOST/PORT 只更新目标；ADDRESS 更新地址并**立即发送**；VALUE 更新值并立即发送（列表按消费端展示串解析）；TRIGGER 仅在输入为 true 时发送。
+- **send 脉冲**：`/send` 或 Send 按钮触发一次性发送，`send` 属性瞬时置 true 后自动复位。
+- **界面即发**：value 输入框每敲一个字符（textChanged）都会触发发送，调试时可用；不希望逐字符发送请改用端口或 `/send`。
+- **连接策略**：所有输入端口均为 Many。
+- **持久化**：`save()` 将 `Port`、`Host`、`Address`、`Type`、`Value` 写入 `values.*`（键名首字母大写）；`load()` 逐项恢复（恢复 value 会触发一次发送）。
+
+## 6. 使用说明与典型接法
 
 ### 发单个参数
 
@@ -53,22 +92,10 @@ OSC 发送节点（界面标题为「OSC Output」），向指定主机和端口
 | `[0.1, 0.2, 0.3]` | `/vec ,fff 0.1 0.2 0.3` |
 | `[1, 2, "ok"]` | `/mix ,iis 1 2 ok` |
 
-**外部控制路径**（完整地址：`/dataflow/{父级别名}/{节点ID}{相对路径}`）：
-
-| 相对路径 | 作用 |
-|----------|------|
-| `/host` | 目标 IP |
-| `/port` | 目标端口 |
-| `/address` | OSC 地址路径 |
-| `/value` | 参数值（可为列表） |
-| `/type` | 类型索引：0=Int，1=Float，2=String（标量） |
-| `/send` | 触发发送（命令；无 payload 或 `true` 时执行） |
-
-支持 OSC / 全局事件总线命令。
-
-## 5. 示例
+## 7. 示例
 
 - **控制 Resolume**：host 填控台 IP，address `/composition/columns/1/connect`，type String，value `1`。
 - **发三维坐标**：Vec Source（Size=3）→ OscOut **VALUE**，address `/position`。
 - **发颜色**：RGBA Color → OscOut **VALUE**，address `/color`（`ffff`）。
 - **节拍闪灯**：LFO 输出连 **TRIGGER**，address `/light/strobe`，value 交替 0/1。
+

@@ -13,6 +13,14 @@ Condition 使用 **JavaScript** 对输入 `VariableData` 求值（表达式内�
 
 ## 2. 端口说明
 
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 1 | 否 | 1 | 1 | — | 无 |
+| 输出 | 2 | 否 | 2 | 2 | — | 末端口为 DATA（门控透传） |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
+
 ### 输入
 
 | 端口 | 名称 | 数据类型 | 说明 |
@@ -31,17 +39,28 @@ Condition 使用 **JavaScript** 对输入 `VariableData` 求值（表达式内�
 - **CONDITION**：条件为 true 或 false 时都会 `dataUpdated`，下游始终能读到最新布尔状态。
 - **DATA**：条件为 false 时**不**主动推送（门控语义）；适合触发 Inject、Delay TRIGGER 等「仅在成立时执行一次」的下游。
 
-表达式错误时，CONDITION 输出 false；DATA 不触发。
-
-## 3. 界面说明
+## 3. 界面与属性
 
 - **表达式编辑框**（单行）：占位提示 `JS Expression (e.g., "$input['key']")`。
 - 表达式内请使用 `$input` 访问整份输入对象；也可使用 `$input["key"]`、`$input.key` 等写法。
 - 编辑完成（失焦）后，若已有输入数据会重新求值并刷新输出。
 
-无其它控件。
+无其它控件，无公开 Q_PROPERTY。
 
-## 4. 使用说明
+## 4. 外部控制（OSC 地址）
+
+本节点未注册任何专属 OSC 地址（源码无 `Q_PROPERTY` 外部属性、无 `registerExternalBinding` 调用）。
+
+地址前缀：`/dataflow/{别名}/{节点ID}/…`。若节点定义了公开 Q_PROPERTY，框架会自动为其生成默认属性地址；本节点当前无此类属性，表达式请通过界面或工程文件配置。
+
+## 5. 行为细节
+
+- 表达式以 `$input`（输入数据的键值映射）求值；表达式留空时按输入 `default` 键的布尔真值判断。
+- 表达式错误时，CONDITION 输出 false；DATA 不触发。
+- 空数据（断开）或非 VariableData 输入被忽略。
+- 持久化：`values.expression`。
+
+## 6. 使用说明与典型接法
 
 1. 编写返回布尔值的表达式，如 `$input["enabled"] == true`。
 2. **CONDITION** 端口：接到 Switch 的 INDEX、Logic 节点、Data Visual 等，持续反映条件是否成立。
@@ -57,9 +76,7 @@ Condition 使用 **JavaScript** 对输入 `VariableData` 求值（表达式内�
 | `$input.pointId == 5` | 到点判断 |
 | `$input["enabled"] == true` | 显式布尔比较 |
 
-配置保存在 `values.expression`。
-
-## 5. 示例
+## 7. 示例
 
 **门控播放：** 条件 `$input["go"] == true`，**DATA** 接 Inject 的 TRIGGER；条件成立时下游可读取 `scene` 等原输入字段。
 
@@ -87,6 +104,16 @@ Edge Trigger 检测输入信号的**边沿变化**，仅在指定边沿发生时
 
 ## 2. 端口说明
 
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 1 | 否 | 1 | 1 | — | 无 |
+| 输出 | 2 | 否 | 2 | 2 | — | 末端口为 DATA（当前输入值） |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
+
+
+
 ### 输入
 
 | 端口 | 名称 | 数据类型 | 说明 |
@@ -102,27 +129,38 @@ Edge Trigger 检测输入信号的**边沿变化**，仅在指定边沿发生时
 
 首次输入仅记录当前状态，**不产生触发**，避免启动时的误触发。
 
-## 3. 界面说明
+## 3. 界面与属性
 
 - **输入值**：JS 表达式，留空则读取 `default` 键的布尔/真值；示例 `$input["button"]`
 - **触发沿**：
   - **0 → 1 (上升沿)**：信号从 false 变为 true 时触发
   - **1 → 0 (下降沿)**：信号从 true 变为 false 时触发
 
-**外部控制地址：**
+公开属性：`edgeMode`（EdgeMode 枚举，0 = 上升沿，1 = 下降沿）。**注意：该属性未注册外部绑定，无法通过 OSC 设置**，只能通过界面下拉框或工程文件配置。
 
-- `/edgeMode` — 设置触发沿（0 = 上升沿，1 = 下降沿）
+## 4. 外部控制（OSC 地址）
 
-## 4. 使用说明
+本节点未注册任何专属 OSC 地址（源码中 `/edgeMode` 的 `registerExternalBinding` 调用被注释，实际未生效）。
+
+地址前缀：`/dataflow/{别名}/{节点ID}/…`。若节点定义了公开 Q_PROPERTY，框架会自动为其生成默认属性地址；触发沿请通过界面或工程文件配置。
+
+## 5. 行为细节
+
+- 求值规则：表达式留空时取输入 `default` 键的布尔真值；表达式错误按 false 处理并输出日志。
+- 边沿检测：比较本次与上次布尔结果；**首次输入仅记录状态、不产生触发**，避免启动误触发。
+- 边沿命中时：PULSE 输出 `true`，DATA 透传输入数据副本（`default` 置 `true`）；无新边沿不推送。
+- 切换触发沿会重置边沿状态（下次输入重新作为"首次"记录）。
+- 空数据（断开）或非 VariableData 输入被忽略。
+- 持久化：`values.expression`、`values.edgeMode`。
+
+## 6. 使用说明与典型接法
 
 1. 将布尔或真值信号源接到 INPUT。
 2. 选择上升沿或下降沿。
 3. **PULSE** 接 Inject TRIGGER、Delay TRIGGER、Count 等只需「跳变一次」的下游。
 4. **DATA** 接需要同时读取输入字段的下游。
 
-配置保存在 `values.expression`、`values.edgeMode`。
-
-## 5. 示例
+## 7. 示例
 
 **按钮按下触发：** 表达式 `$input["pressed"]`，上升沿，PULSE → Inject TRIGGER。
 

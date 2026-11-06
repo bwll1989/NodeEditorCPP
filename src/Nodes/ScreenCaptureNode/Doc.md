@@ -8,21 +8,17 @@
 
 节点放上画布、或打开已保存的工程后，会自动开始采集。没有保存过捕获源时，采集第一块显示器。
 
-## 2. 数据流
+## 2. 端口说明
 
-```text
-显示器 / 窗口
-       ↓
-Windows Graphics Capture（BGRA，可关黄边、可包含鼠标）
-       ↓ 失败
-PrintWindow（窗口）或 BitBlt（显示器）
-       ↓
-ImageFrame::fromBgra8Mat → GPU → IMAGE
-```
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 0 | 否 | 0 | 0 | — | 无 |
+| 输出 | 1 | 否 | 1 | 1 | — | 无 |
 
-状态栏在采集中显示方式、分辨率，例如 `采集中 · Graphics Capture · 1920×1080`。退回 GDI 时方式显示为 `BitBlt`。
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
 
-## 3. 端口说明
+
 
 ### 输出
 
@@ -30,7 +26,7 @@ ImageFrame::fromBgra8Mat → GPU → IMAGE
 |------|------|------|
 | IMAGE | ImageData | 共享 ring buffer。新帧上传成功后更新 |
 
-## 4. 界面参数
+## 3. 界面与属性
 
 | 参数 | 默认 | 说明 |
 |------|------|------|
@@ -44,7 +40,34 @@ ImageFrame::fromBgra8Mat → GPU → IMAGE
 
 窗口只列出可见、有标题、不是工具窗口、也没有被系统隐藏（cloaked）的顶层窗口。标签是 `标题 — 程序名`，按标题排序。
 
-## 5. 捕获源如何对上
+## 4. 外部控制（OSC 地址）
+
+地址前缀：`/dataflow/{别名}/{节点ID}/…`
+
+本节点未注册任何专属 OSC 地址（源码无 `Q_PROPERTY` 外部属性、无 `registerExternalBinding` 调用），不能通过 OSC / 网页等方式远程读写或控制；捕获源、鼠标光标、帧率等只能在本节点面板中操作，画面经 IMAGE 端口输出。
+
+## 5. 行为细节
+
+```text
+显示器 / 窗口
+       ↓
+Windows Graphics Capture（BGRA，可关黄边、可包含鼠标）
+       ↓ 失败
+PrintWindow（窗口）或 BitBlt（显示器）
+       ↓
+ImageFrame::fromBgra8Mat → GPU → IMAGE
+```
+
+状态栏在采集中显示方式、分辨率，例如 `采集中 · Graphics Capture · 1920×1080`。退回 GDI 时方式显示为 `BitBlt`。
+
+## 6. 使用说明与典型接法
+
+1. 添加 **Screen Capture**。默认采集主显示器，30 fps，包含鼠标。
+2. IMAGE 接到 **Image Display** 或 **Window Display**。
+3. 要采某个程序窗口，把类型改成「窗口」，选中目标。目标窗口不必在最前面。
+4. 窗口标题变了但还是同一个程序、且没有第二个同类窗口时，重新打开工程仍能对上。对不上就点「刷新」再选一次。
+
+## 7. 捕获源如何对上
 
 工程里保存的是稳定 id，不是本次的窗口句柄。
 
@@ -57,19 +80,13 @@ ImageFrame::fromBgra8Mat → GPU → IMAGE
 
 单边超过 16384 像素的画面不会采集。
 
-## 6. 鼠标和黄边
+## 8. 鼠标和黄边
 
 Graphics Capture 用 `IsCursorCaptureEnabled` 控制鼠标。能关掉捕获黄边时会关掉；Windows 10 不允许关时，画面边缘可能仍有黄框。
 
 退回 `PrintWindow` / `BitBlt` 后，鼠标开关不起作用，画面里通常没有光标。
 
-## 7. 保存内容
+## 9. 保存内容
 
 工程里保存：`kind`（`display` / `window`）、`sourceId`、`displayName`、`cursor`、`fps`。打开工程后把这些值写回面板，再开始采集。
 
-## 8. 使用说明
-
-1. 添加 **Screen Capture**。默认采集主显示器，30 fps，包含鼠标。
-2. IMAGE 接到 **Image Display** 或 **Window Display**。
-3. 要采某个程序窗口，把类型改成「窗口」，选中目标。目标窗口不必在最前面。
-4. 窗口标题变了但还是同一个程序、且没有第二个同类窗口时，重新打开工程仍能对上。对不上就点「刷新」再选一次。

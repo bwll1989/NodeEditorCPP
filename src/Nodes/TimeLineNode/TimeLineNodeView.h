@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "BaseTimeLineView.h"
+#include "TimelineEngine.h"
 #include "TimeLineNodeModel.h"
 class TimeLineNodeView:public BaseTimelineView {
     Q_OBJECT

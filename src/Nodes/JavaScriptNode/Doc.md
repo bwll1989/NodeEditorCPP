@@ -8,6 +8,16 @@
 
 ## 2. 端口说明
 
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 4 | 是 | 1 | 不限 | VariableData | 无 |
+| 输出 | 1 | 是 | 1 | 不限 | VariableData | 无 |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
+
+
+
 ### 输入
 
 | 端口 | 类型 | 说明 |
@@ -18,16 +28,32 @@
 
 | 端口 | 类型 | 说明 |
 |------|------|------|
-| OUT 0 … OUT n | VariableData | 脚本通过 `Node.setOutputValue` 写出的数据（默认 1 个，可编辑） |
+| OUT 0 … OUT n | VariableData | 脚本通过 `Node.setOutputValue` 写出的数据（默认 1 个，可编辑增删） |
 
-## 3. 界面说明
+## 3. 界面与属性
+
+控件位于右侧属性面板（`WidgetEmbeddable=false`，不嵌入节点体）：
 
 - **代码编辑器**：编写脚本；**保存** 重新加载代码并重建界面。
 - **上方布局区**：脚本用 `Node.addToLayout` 添加的控件（按钮、滑块等）。
 
 全局可用：`Node` 对象、`SpinBox` / `Button` / `Label` / `HSlider` / `VSlider` / `CheckBox` / `LineEdit` / `ComboBox` / `DoubleSpinBox`，以及 `console`、`Math`、`JSON` 等 QJSEngine 扩展。
 
-## 4. 使用说明
+## 4. 外部控制（OSC 地址）
+
+地址前缀：`/dataflow/{别名}/{节点ID}/…`
+
+本节点未注册任何专属 OSC 地址（源码无 `Q_PROPERTY` 外部属性、无 `registerExternalBinding` 调用）。脚本动态生成的界面控件也不走 OSC 绑定机制，交互只能在节点面板上进行。
+
+## 5. 行为细节
+
+- **执行线程**：脚本始终在 GUI 线程执行；输入到达（`setInData`）即调用 `inputEventHandler(index)`，处理期间新的触发不重入（被忽略）。
+- **保存重建**：点击「保存」→ 清空布局 → 重建 QJSEngine → `evaluate` 脚本 → 成功后调用 `initInterface()`；脚本逻辑应完全在生命周期回调内自建，不依赖上次残留控件引用。
+- **端口读写**：数据为键值对象（`VariableData` 的 map）；`setOutputValue` 传对象按属性展开（函数属性忽略），传标量自动包装为 `{default: value}`；越界或无数据读到空对象。
+- **端口数量持久化**：`InPortCount` / `OutPortCount` 存于工程 JSON **顶层**（非 `values` 子对象），加载时恢复端口数。
+- **脚本文本**：随工程保存，加载后需手动点击保存/重载才会重建引擎（与「保存重建」一致）。
+
+## 6. 使用说明与典型接法
 
 1. 在编辑器中编写 `initInterface` 与 `inputEventHandler`（及自定义函数）。
 2. 点击保存加载脚本并刷新界面。
@@ -35,7 +61,42 @@
 4. 输入变化时会调用 `inputEventHandler(索引)`。
 5. 节点可缩放；端口数量会随工程保存。
 
-## 5. 脚本生命周期回调
+## 7. 示例
+
+### 输入加倍
+
+```javascript
+function initInterface() {}
+
+function inputEventHandler(index) {
+  var v = Node.getInputValue(index)["default"];
+  Node.setOutputValue(0, { default: v * 2 });
+}
+```
+
+上游数值 → IN 0 → 本节点 → OUT 0 输出加倍结果。
+
+### 多路输入合并 + 界面预览
+
+```javascript
+var preview;
+
+function initInterface() {
+  preview = new Label();
+  preview.setText("-");
+  Node.addToLayout(preview, 0, 0);
+}
+
+function inputEventHandler(index) {
+  var a = Node.getInputValue(0)["default"] || 0;
+  var b = Node.getInputValue(1)["default"] || 0;
+  var sum = Number(a) + Number(b);
+  preview.setText(String(sum));
+  Node.setOutputValue(0, { default: sum });
+}
+```
+
+## 8. 脚本生命周期回调
 
 脚本顶层需定义下列函数（可选；未定义则对应阶段不执行）。由引擎在适当时机调用，**不是** `Node` 上的方法。
 
@@ -69,7 +130,7 @@ function inputEventHandler(index) {
 }
 ```
 
-## 6. Node 对象 API
+## 9. Node 对象 API
 
 全局对象 `Node` 绑定当前节点模型，所有方法均在 GUI 线程可用。
 
@@ -146,7 +207,7 @@ function initInterface() {
 }
 ```
 
-## 7. 可用控件类型（简述）
+## 10. 可用控件类型（简述）
 
 在 `initInterface` 中用 `new` 创建，再 `Node.addToLayout`：
 
@@ -163,37 +224,3 @@ function initInterface() {
 
 信号连接示例：`btn.clicked.connect(function () { ... });`
 
-## 8. 示例
-
-### 输入加倍
-
-```javascript
-function initInterface() {}
-
-function inputEventHandler(index) {
-  var v = Node.getInputValue(index)["default"];
-  Node.setOutputValue(0, { default: v * 2 });
-}
-```
-
-上游数值 → IN 0 → 本节点 → OUT 0 输出加倍结果。
-
-### 多路输入合并 + 界面预览
-
-```javascript
-var preview;
-
-function initInterface() {
-  preview = new Label();
-  preview.setText("-");
-  Node.addToLayout(preview, 0, 0);
-}
-
-function inputEventHandler(index) {
-  var a = Node.getInputValue(0)["default"] || 0;
-  var b = Node.getInputValue(1)["default"] || 0;
-  var sum = Number(a) + Number(b);
-  preview.setText(String(sum));
-  Node.setOutputValue(0, { default: sum });
-}
-```

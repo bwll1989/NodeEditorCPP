@@ -1,0 +1,17 @@
+{
+  "appVersion": "1.6.14",
+  "DataFlow": {
+    "scene": {
+      "connections": [],
+      "groups": [],
+      "nodes": []
+    }
+  },
+  "TimeLine": {
+    "clock": { "clockSource": 2, "timecodeType": 4 },
+    "displayFormat": 0,
+    "stage": { "screens": [] },
+    "tracks": []
+  },
+  "ScheduledTasks": {}
+}

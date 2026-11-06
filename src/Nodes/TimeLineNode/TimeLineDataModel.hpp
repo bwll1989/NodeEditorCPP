@@ -14,13 +14,11 @@
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include <QtCore/qglobal.h>
 #include <QToolBox>
-#include "BaseTrackListView.h"
+#include "TimelineEngine.h"
 #include "TimeLineNodeWidget.hpp"
 #include "TimeLineNodeModel.h"
-#include "BasePluginLoader.h"
 #include "TimelineInterface.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
-#include "../../Common/BaseClass/AbstractClipDelegateModel.h"
 using namespace NodeDataTypes;
 using namespace std;
 using QtNodes::NodeData;
@@ -47,6 +45,13 @@ public:
      * 注意：registerOSCControl 只接受 QWidget*，需通过 widgetForAction 将 QAction 转换为控件
      */
     TimeLineDataModel(){
+        // 静态库中的资源必须显式初始化一次（前缀 :/tlnode/icons，与 QtTimeLine.dll 的 :/icons 隔离）
+        static bool s_tlnodeResourcesInitialized = false;
+        if (!s_tlnodeResourcesInitialized) {
+            Q_INIT_RESOURCE(tlnode_resources);
+            s_tlnodeResourcesInitialized = true;
+        }
+
         InPortCount =4;
         OutPortCount=0;
         CaptionVisible=true;
@@ -153,7 +158,9 @@ public:
         for (TrackData* track : model->getTracks()) {
             if (!track) continue;
             for (AbstractClipModel* clip : track->clips) {
-                if (auto* delegate = dynamic_cast<AbstractClipDelegateModel*>(clip)) {
+                // 剪辑代理基类是本节点私有的 NodeClipDelegateModel（继承静态副本
+                // AbstractClipModel），不能用 BaseClass.dll 的 AbstractClipDelegateModel
+                if (auto* delegate = dynamic_cast<NodeClipDelegateModel*>(clip)) {
                     delegate->onModelReady();
                 }
             }

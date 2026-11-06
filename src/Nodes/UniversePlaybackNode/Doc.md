@@ -6,6 +6,16 @@
 
 ## 2. 端口说明
 
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 4 | 否 | 4 | 4 | — | 无 |
+| 输出 | 4 | 是 | 1 | 不限 | VariableData | 输出为 UNIVERSE 1…n，数量由视频高度决定 |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
+
+
+
 ### 输入
 
 | 端口 | 类型 | 说明 |
@@ -21,23 +31,66 @@
 |------|------|------|
 | UNIVERSE1 … UNIVERSEn | VariableData | 各 Universe 的 Art-Net 数据包；数量由视频高度决定，默认 4 个端口可编辑 |
 
-## 3. 界面说明
+## 3. 界面与属性
 
-- **Universe / Subnet / Net**：起始 Universe 编号；多路时按索引递增 Universe（模 16）。
-- **文件**：从媒体库选择 FFV1 视频（512×N）。
-- **播放 / 循环**：控制回放。
-- **清空**：清零 DMX 缓冲。
-- **当前时间**：显示回放进度。
+节点控件面板（`WidgetEmbeddable=false`，显示在右侧属性面板，不嵌入节点体）：
 
-外部控制：`/universe`、`/subnet`、`/net`、`/play`、`/loop`、`/clear`、`/filename`。
+| 控件 | 说明 |
+|------|------|
+| Universe / Subnet / Net（数字拖动框） | 起始 Universe 编号；多路输出时按索引递增 Universe（模 16） |
+| 文件（下拉/选择） | 从媒体库选择 FFV1 视频（512×N）；打开失败节点报错 |
+| 播放按钮 | 开始/暂停回放 |
+| 循环复选框 | 结束后自动回到开头继续 |
+| 清空按钮 | 全部 DMX 通道清零 |
+| 当前时间 | 显示回放进度 |
 
-## 4. 使用说明
+节点公开 6 个 `Q_PROPERTY`：
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `universe` | int | 起始 Universe（0–15） |
+| `subnet` | int | 子网 |
+| `net` | int | Net |
+| `isLooping` | bool | 是否循环 |
+| `isPlaying` | bool | 是否播放（读写即启停） |
+| `fileName` | QString | 媒体库中的文件名（赋值即尝试打开） |
+
+## 4. 外部控制（OSC 地址）
+
+地址前缀：`/dataflow/{别名}/{节点ID}/…`
+
+| 地址 | 方向 | 说明 |
+|------|------|------|
+| `/universe` | 可写（命令） | 整型，改起始 Universe |
+| `/subnet` | 可写（命令） | 整型，改子网 |
+| `/net` | 可写（命令） | 整型，改 Net |
+| `/play` | 可写（命令） | 布尔（member=`isPlaying`），`true` 开始播放、`false` 停止 |
+| `/loop` | 可写（命令） | 布尔，设置循环 |
+| `/clear` | 可写（命令） | 清空所有 DMX 数据；模型回发 `/clear` true→false 脉冲反馈 |
+| `/filename` | 可写（命令） | 字符串，改媒体库文件名并尝试打开 |
+
+全部 7 个地址均通过 `registerExternalBinding` 注册（绑定界面控件）并订阅 Command 事件；**没有 `/stop` 命令地址**（源码中已注释），外部停止用 `/play=false`。
+
+## 5. 行为细节
+
+- **端口语义**：PLAY=布尔直接映射播放/停止（`false` 即暂停/停止）；STOP/CREAL 仅 `true` 时生效；LOOP=布尔设置循环。
+- **文件校验**：仅接受 **FFV1** 编码、宽 **512** 像素、高 ≥1 的视频；打开失败（尺寸/编码不符、文件不存在）→ 节点 Error + 界面提示。Universe 数 = 视频高度，输出端口数量随之动态调整。
+- **像素→DMX 映射**：每行 = 一个 Universe 的 512 通道；GRAY8 直接取字节，其他格式取每像素第 1 字节。
+- **播放调度**：内部 QTimer 以 `Art-Net` 输出帧率（50fps，20ms）驱动，每 tick 解码一帧并重建全部 Universe 输出；**播放按解码帧节拍推进，不按 wall-clock 补帧**。
+- **输出包结构**：每路输出为 Art-Net 变量包 `{protocol:"Art-Net", version:14, opcode:0x5000, universe:(起始+索引) mod 16, subnet, net, fullUniverse:(net<<8)|(subnet<<4)|universe, dmxData:512 字节列表, dataLength:512, activeChannels:0, timestamp}`。
+- **循环与停止**：读到文件尾时循环模式 seek 回 0 继续，否则自动停止；**停止操作也会 seek 回 0**（再次播放从头开始，暂停用 PLAY=false）。
+- **播放前无文件**：`isPlaying=true` 时若视频未打开且 `fileName` 非空，会自动尝试按媒体库路径重新打开再播放。
+- **持久化**：`UniverseSettings` 子对象（**非 values**）：`universe`/`subnet`/`net`/`isLooping`/`videoFilePath`/`isPlaying`（兼容 `play`/`autoPlay` 旧键）；加载后恢复文件与编号，若文件存在则延迟 100ms 按保存状态恢复播放。
+- **析构**：停止定时器、清理 FFmpeg 上下文。
+
+## 6. 使用说明与典型接法
 
 1. 准备 FFV1、分辨率 512×Universe 数量的视频，放入媒体库。
 2. 选择文件后，输出端口数量随视频高度自动调整。
 3. 各 UNIVERSE 输出可接 **Artnet Out**。
 4. 也可用 PLAY / STOP 等输入端口做远程触发。
 
-## 5. 示例
+## 7. 示例
 
 预录灯光秀视频 → 本节点播放 → UNIVERSE1～4 分别接 4 个 Artnet Out 端口或合并后发送。
+

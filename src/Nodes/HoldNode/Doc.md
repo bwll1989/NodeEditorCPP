@@ -8,6 +8,16 @@ Hold 在收到输入信号后，将数据**保持一段时间**再清空输出�
 
 ## 2. 端口说明
 
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 2 | 否 | 2 | 2 | — | 末端口为 HOLD_TIME（保持时长） |
+| 输出 | 1 | 否 | 1 | 1 | — | 无 |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
+
+
+
 ### 输入
 
 | 端口 | 名称 | 数据类型 | 说明 |
@@ -21,16 +31,34 @@ Hold 在收到输入信号后，将数据**保持一段时间**再清空输出�
 |------|------|----------|------|
 | 0 | OUTPUT | VariableData | 保持期间为最近一次输入；到期后变为空 |
 
-## 3. 界面说明
+## 3. 界面与属性
 
-节点**无内嵌面板**。通过节点属性或外部控制配置：
+节点无内嵌控件（`WidgetEmbeddable=false`），两个 Q_PROPERTY 显示在右侧属性面板：
 
-| 参数 | 外部地址 | 说明 |
-|------|----------|------|
-| holdTime | `/time` | 保持时间（毫秒），默认约 1000 |
-| ignoreRepeat | `/ignoreRepeat` | true：保持期间忽略新 INPUT；false：新 INPUT 打断并重新计时 |
+| 属性 | 默认 | 说明 |
+|------|------|------|
+| holdTime | 1000 ms | 保持时间 |
+| ignoreRepeat | false | true：保持期间忽略新 INPUT；false：新 INPUT 打断并重新计时 |
 
-## 4. 使用说明
+## 4. 外部控制（OSC 地址）
+
+地址前缀：`/dataflow/{别名}/{节点ID}/…`
+
+| 地址 | 方向 | 说明 |
+|------|------|------|
+| `/time` | 读/写 | 保持时间（毫秒，Command payload 转 int） |
+| `/ignoreRepeat` | 读/写 | 重复触发策略（payload 转 bool） |
+
+## 5. 行为细节
+
+- **触发流程**：INPUT 到达（非空数据）→ 取当前 `m_holdTime`；≤ 0 时直接把输入赋给输出并刷新（不启动定时器）；> 0 时输出输入数据、置 `isHolding`、启动单发定时器。
+- **重复输入**：保持期间新 INPUT 按 `ignoreRepeat` 处理——true 直接忽略；false 停掉当前定时器后按新数据重新保持。
+- **到期**：定时器超时 → 输出替换为空 VariableData、`isHolding` 复位、emit dataUpdated（下游会收到一次「清空」刷新）。
+- **HOLD_TIME 端口**：取 `asNumber()` 转整型并写入 `holdTime` 属性（等同改属性，影响后续触发）。
+- **空数据**：`setInData` 收到 nullptr 直接忽略，不打断保持。
+- **持久化**：`values.holdTime` / `values.ignoreRepeat`。
+
+## 6. 使用说明与典型接法
 
 1. 将短脉冲或事件接到 INPUT。
 2. 设置保持时间（界面属性、`HOLD_TIME` 端口或 `/time`）。
@@ -44,7 +72,8 @@ Hold 在收到输入信号后，将数据**保持一段时间**再清空输出�
 
 配置保存在 `values.holdTime`、`values.ignoreRepeat`。
 
-## 5. 示例
+## 7. 示例
 
 **按钮去抖延长：** 短按 INPUT 接 Hold，holdTime 500 ms，输出接 Switch，避免机械抖动导致多次切换。  
 **HOLD_TIME 动态化：** 将控台推杆映射到 HOLD_TIME 端口，实现可变长度的「门保持」。
+

@@ -1,6 +1,6 @@
 #include "TimeLineNodeClock.hpp"
 #include <QThread>
-#include "TimeCodeDefines.h"
+#include "TimelineEngine.h"
 TimeLineNodeClock::TimeLineNodeClock(QObject* parent)
     : QObject(parent)
     , m_currentFrame(0)

@@ -3,10 +3,8 @@
 //
 
 #pragma once
-#include "BaseTimeLineModel.h"
-#include  "TimeCodeDefines.h"
+#include "TimelineEngine.h"
 #include "TimeLineNodeClock.hpp"
-#include "TimeLineDefines.h"
 class TimeLineNodeModel : public BaseTimeLineModel {
     Q_OBJECT
 

@@ -13,6 +13,16 @@
 
 ## 2. 端口说明
 
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 2 | 否 | 2 | 2 | — | 无 |
+| 输出 | 2 | 否 | 2 | 2 | — | 无 |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
+
+
+
 ### 输入
 
 - **IMAGE**（ImageData）：输入画面。
@@ -23,7 +33,7 @@
 - **IMAGE 0**（ImageData）：带手部骨架标注的图像（可在面板关闭「绘制手部骨架」以节省 CPU）。
 - **RESULT**（VariableData）：检测数据，结构见下文。
 
-## 3. 面板参数
+## 3. 界面与属性
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -34,7 +44,13 @@
 | 使用 GPU | 开 | OpenCV CUDA DNN；不可用时自动回退 CPU |
 | 绘制手部骨架 | 开 | 是否在输出图像上绘制骨架 |
 
-## 4. RESULT 数据结构
+## 4. 外部控制（OSC 地址）
+
+地址前缀：`/dataflow/{别名}/{节点ID}/…`
+
+本节点未定义专属外部控制参数；框架会为公开属性自动生成默认 OSC 地址，外部系统可通过该地址读写对应属性。
+
+## 5. 行为细节
 
 ```json
 {
@@ -63,7 +79,11 @@
 - `keypoints`：屏幕空间关键点，共 **21** 个，见第 6 节。
 - `world_landmarks`：世界空间关键点，共 **21** 个，见第 7 节。
 
-## 5. keypoints 与 world_landmarks 的区别
+## 6. 使用说明与典型接法
+
+基本用法：将上游节点输出接入本节点输入端口，本节点输出端口连接下游节点的对应输入。
+
+## 9. keypoints 与 world_landmarks 的区别
 
 | | **keypoints**（屏幕关键点） | **world_landmarks**（世界关键点） |
 |---|---|---|
@@ -78,7 +98,7 @@
 - **`keypoints`**：点在**画面上的位置**，适合画骨架、做屏幕交互（例如「食指是否进入某区域」）。
 - **`world_landmarks`**：点在**三维空间中的相对位置**，适合算指节角度、判断握拳 / 张开等姿态。
 
-## 6. 21 个关键点索引
+## 10. 21 个关键点索引
 
 与 [MediaPipe Hands](https://developers.google.com/mediapipe/solutions/vision/hand_landmarker) 一致：
 
@@ -105,7 +125,7 @@
 - 无名指：0→13→14→15→16
 - 小指：0→17→18→19→20
 
-## 7. keypoints 字段说明
+## 11. keypoints 字段说明
 
 每个 `keypoints[i]` 包含：
 
@@ -114,7 +134,7 @@
 | `x`, `y` | 关键点在输入图像中的像素坐标 |
 | `z` | 相对深度；不是米制绝对深度，表示前后相对关系 |
 
-## 8. world_landmarks 字段说明
+## 12. world_landmarks 字段说明
 
 每个 `world_landmarks[i]` 包含：
 
@@ -124,8 +144,9 @@
 
 索引与 `keypoints` 一一对应（同一索引表示同一解剖位置）。
 
-## 9. 参考
+## 13. 参考
 
 - [OpenCV Zoo handpose_estimation_mediapipe](https://github.com/opencv/opencv_zoo/tree/main/models/handpose_estimation_mediapipe)
 - [MediaPipe Hand Landmarker](https://developers.google.com/mediapipe/solutions/vision/hand_landmarker)
 - [MediaPipe Hands 模型说明](https://github.com/google/mediapipe/blob/master/docs/solutions/models.md#hands)
+

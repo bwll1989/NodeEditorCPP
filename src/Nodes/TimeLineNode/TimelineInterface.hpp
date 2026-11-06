@@ -11,7 +11,7 @@
 #include "QFont"
 #include "QEvent"
 #include "QSignalBlocker"
-#include "TimeCodeDefines.h"
+#include "TimelineEngine.h"
 #include "TimeLineNodeWidget.hpp"
 using namespace std;
 namespace Nodes

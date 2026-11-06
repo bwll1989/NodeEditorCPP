@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package control.v1;
+
+option csharp_namespace = "Control.V1";
+
+// Unity world space: Y up, left-handed.
+// euler_degrees uses the same axis order as UnityEngine.Quaternion.Euler (ZXY).
+
+message Vec3 {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message SetCylinderSpeedRequest {
+  // Absolute spin rate around the cylinder's local Y axis, in revolutions per second.
+  // Negative values spin the other way.
+  float revolutions_per_second = 1;
+}
+
+message SetCylinderSpeedResponse {}
+
+message SetCameraPoseRequest {
+  Vec3 position = 1;
+  Vec3 euler_degrees = 2;
+}
+
+message SetCameraPoseResponse {}
+
+message GetStateRequest {}
+
+message ControlState {
+  float revolutions_per_second = 1;
+  Vec3 camera_position = 2;
+  Vec3 camera_euler_degrees = 3;
+}
+
+message GetStateResponse {
+  ControlState state = 1;
+}
+
+service ControlService {
+  rpc SetCylinderSpeed(SetCylinderSpeedRequest) returns (SetCylinderSpeedResponse);
+  rpc SetCameraPose(SetCameraPoseRequest) returns (SetCameraPoseResponse);
+  rpc GetState(GetStateRequest) returns (GetStateResponse);
+}

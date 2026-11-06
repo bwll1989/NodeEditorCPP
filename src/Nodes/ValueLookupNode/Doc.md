@@ -2,11 +2,21 @@
 
 ## 1. 节点说明
 
-Value Lookup 根据输入 VariableData 在**规则表**中查找第一条匹配条件，命中后输出**输入数据的完整副本**，并将 Value 列的结果合并进输出（标量写入 `default`，对象则合并各键）。适合「条件判断 → 输出参数/表达式结果」映射，如状态码转文案、通道号转 DMX 值、按字段计算输出等。
+Value Lookup 根据输入 VariableData 在**规则表**中查找第一条匹配条件，命中后对 Value 列求值，并将**求值结果本身**作为输出 VariableData 推送——结果为对象（Map）时输出整份对象，为标量时输出标量。输出**不包含**输入数据字段。适合「条件判断 → 输出参数/表达式结果」映射，如状态码转文案、通道号转 DMX 值、按字段计算输出等。
 
-无匹配时不推送输出。每次匹配成功会附带 `_matchedRow`（行号）与 `_pulse`（递增）。
+无匹配、或命中行的 Value 为空时，不推送输出（输出缓存被清除，节点输出回落为空 VariableData）。条件、Value 均可用 JS 表达式通过 `$input` 访问输入数据。
 
 ## 2. 端口说明
+
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 1 | 否 | 1 | 1 | — | 无 |
+| 输出 | 1 | 否 | 1 | 1 | — | 无 |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
+
+
 
 ### 输入
 
@@ -18,38 +28,53 @@ Value Lookup 根据输入 VariableData 在**规则表**中查找第一条匹配�
 
 | 端口 | 名称 | 数据类型 | 说明 |
 |------|------|----------|------|
-| 0 | OUTPUT 0 | VariableData | 输入副本 + Value 列结果；附带 `_matchedRow`、`_pulse` |
+| 0 | OUTPUT 0 | VariableData | 命中行 Value 的求值结果（对象或标量），不含输入字段 |
 
-## 3. 界面说明
+## 3. 界面与属性
 
-规则表：
+控件面板（`WidgetEmbeddable=false`，显示在右侧属性面板，不嵌入节点体），主体为一张规则表（QTableView）+ 按钮区：
 
 | 列 | 说明 |
 |----|------|
 | Condition | JS 布尔表达式，通过 `$input` 访问输入；`*` 表示匹配任意输入 |
-| Value | JS 表达式或字面量；表达式结果写入 `default`（标量）或合并进输出（对象） |
-| Action | 删除该行 |
+| Value | JS 表达式或字面量；求值结果即整份输出 |
+| Action | 每行一个 **Delete** 按钮，点击删除该行 |
 
-- 空单元格显示占位提示：`JS Expression (e.g., "input['key']")`。
-- **Add Rule**：新增一行。
+- 双击单元格或按编辑键进入编辑；空单元格显示占位提示：`JS Expression (e.g., "input['key']")`。
+- **Add Rule**：末尾新增一行；初始无规则时自动带一行空白。
 - 按**从上到下**顺序，**第一条**匹配的规则生效。
+- 本节点未定义任何 `Q_PROPERTY` 公开属性，界面即上表，无可联动的外部属性。
 
-## 4. 使用说明
+## 4. 外部控制（OSC 地址）
 
-1. 自上而下填写 Condition 与 Value（更具体的规则放上面）。
+本节点未注册任何专属 OSC 地址（源码无 `Q_PROPERTY` 外部属性、无 `registerExternalBinding` 调用），规则表不暴露给外部控制，只能在本节点界面编辑。
+
+## 5. 行为细节
+
+- **求值时机**：收到 INPUT 数据（`setInData`）或规则表变化（编辑/增删行，且当前有输入缓存）时重新评估，先自上而下扫描 Condition 列。
+- **Condition 规则**：空白视为不匹配；`*` 匹配任意输入；其余作为 JS 表达式求值（全局对象注入 `$input`），表达式出错按不匹配处理并输出调试日志，返回值转布尔。
+- **Value 规则**：空白时该行即使命中也不产生输出；JS 求值成功时取结果；表达式**出错时回退字面量解析**——依次尝试整数、浮点、`true`/`false`（不区分大小写），都不符合则按原字符串输出。
+- **输出构造**：Value 结果为 Map 时输出整份对象 VariableData；其余类型输出标量 VariableData。
+- **无匹配**：清除输出缓存，不发送 `dataUpdated`，下游保持上一次收到的数据。
+- **加载**：读取顶层键 `rules`（`[{ "condition": "...", "value": "..." }, ...]`）重建表格，加载期间阻塞控件信号，不触发重复求值。
+
+## 6. 使用说明与典型接法
+
+1. 自上而下填写 Condition 与 Value（更具体的规则放上面，`*` 兜底行放最后）。
 2. Condition 需返回布尔值，例如 `$input["code"] == 3`、`$input["enabled"]`。
-3. Value 可为 JS 表达式，例如 `$input["value"] * 2`、`"sceneC"`；表达式错误时回退为字面量解析（整数/浮点/布尔/字符串）。
-4. 将待查 VariableData 接到 INPUT，从 OUTPUT 取映射结果及原输入字段。
+3. Value 可为 JS 表达式（如 `$input["value"] * 2`、`"sceneC"`），也可直接写整数/小数/true/false/字符串字面量；需要输出多字段时用 JS 对象字面量，如 `({ "scene": "C", "id": $input["code"] })`（外层括号避免与代码块歧义）。
+4. 将待查 VariableData 接到 INPUT，从 OUTPUT 取映射结果；若下游同时需要输入原字段，需另行分路（如经 Merge 合并）。
 
-规则保存在 `rules`：`[{ "condition": "...", "value": "..." }, ...]`。
+## 7. 示例
 
-## 5. 示例
+输入 `{ "code": 3 }`，规则表：
 
-| Condition | Value | 输入 `{ "code": 3 }` 时输出 |
-|-----------|-------|-----------------------------|
-| `$input["code"] == 1` | `"sceneA"` | — |
-| `$input["code"] == 2` | `"sceneB"` | — |
-| `$input["code"] == 3` | `"sceneC"` | `{ "code": 3, "default": "sceneC", "_matchedRow": 2, "_pulse": 1 }` |
-| `*` | `"default"` | 兜底 |
+| Condition | Value | 输出 |
+|-----------|-------|------|
+| `$input["code"] == 1` | `"sceneA"` | —（不匹配） |
+| `$input["code"] == 2` | `"sceneB"` | —（不匹配） |
+| `$input["code"] == 3` | `"sceneC"` | 标量 `"sceneC"` |
+| `$input["code"] > 0` | `({ "scene": $input["code"], "go": true })` | （示例放第三行时会先命中）对象 `{ "scene": 3, "go": true }` |
+| `*` | `"default"` | 兜底：任何输入都输出 `"default"` |
 
-控台编号接入 INPUT，输出字符串或整份对象接场景加载、Extract 或 OSC 地址生成。
+控台编号接入 INPUT，输出字符串或对象接场景加载、Extract 或 OSC 地址生成；输出需要叠加原输入字段时在 OUTPUT 后接 Merge。

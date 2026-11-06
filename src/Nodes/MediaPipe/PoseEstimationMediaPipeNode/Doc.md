@@ -11,6 +11,16 @@
 
 ## 2. 端口说明
 
+| 方向 | 默认数量 | 可编辑 | 最小 | 最大 | 新增端口类型 | 末端口差异 |
+|------|----------|--------|------|------|--------------|------------|
+| 输入 | 2 | 否 | 2 | 2 | — | 无 |
+| 输出 | 2 | 否 | 2 | 2 | — | 无 |
+
+> 本表对应 .flow 中该节点的 `input-count` / `output-count` / `port-editable` 三个字段：
+> AI 搭图时连接索引不能超过当前端口数，可编辑节点的取值范围由"最小/最大"给出。
+
+
+
 ### 输入
 
 - **IMAGE**（ImageData）：输入画面。
@@ -21,7 +31,21 @@
 - **IMAGE 0**（ImageData）：带骨架标注的图像。
 - **RESULT**（VariableData）：检测数据，结构见下文。
 
-## 3. RESULT 数据结构
+## 3. 界面与属性
+
+- 人体检测阈值、NMS 阈值、姿态置信度
+- 最大帧率（1–30 FPS）
+- **使用 GPU (OpenCV CUDA DNN)**：默认开启；需 OpenCV 编译时启用 CUDA/cuDNN，否则自动回退 CPU
+- 绘制骨架（关闭后仅输出 RESULT，可降低 CPU 占用）
+- 启停按钮
+
+## 4. 外部控制（OSC 地址）
+
+地址前缀：`/dataflow/{别名}/{节点ID}/…`
+
+本节点未定义专属外部控制参数；框架会为公开属性自动生成默认 OSC 地址，外部系统可通过该地址读写对应属性。
+
+## 5. 行为细节
 
 ```json
 {
@@ -45,7 +69,27 @@
 - `keypoints`：屏幕空间关键点，共 **33** 个，见第 5 节。
 - `world_landmarks`：世界空间关键点，共 **33** 个，见第 6 节。
 
-## 4. keypoints 与 world_landmarks 的区别
+### 模型文件
+
+将以下 ONNX 模型放入 `./plugins/Models/`：
+
+- `person_detection_mediapipe_2023mar.onnx`
+- `pose_estimation_mediapipe_2023mar.onnx`
+
+下载地址：[person_detection_mediapipe](https://github.com/opencv/opencv_zoo/tree/main/models/person_detection_mediapipe)、[pose_estimation_mediapipe](https://github.com/opencv/opencv_zoo/tree/main/models/pose_estimation_mediapipe)
+
+## 6. 使用说明与典型接法
+
+1. 连接视频或图像到 IMAGE，并通过 ENABLE 或面板启用检测。
+2. 用 **IMAGE 0** 预览骨架；用 **RESULT** 驱动后续逻辑。
+3. 屏幕交互、热区判断 → 读 `keypoints`；角度 / 3D 姿态 → 读 `world_landmarks`。
+4. 支持 OSC：`/personScore`、`/nms`、`/confidence`、`/enable`。
+
+## 8. 示例
+
+Camera → MediaPipe Body Pose → Spout Out，互动装置人体骨骼可视化。
+
+## 9. keypoints 与 world_landmarks 的区别
 
 | | **keypoints**（屏幕关键点） | **world_landmarks**（世界关键点） |
 |---|---|---|
@@ -88,7 +132,7 @@
 
 同一索引 `i` 在 `keypoints` 与 `world_landmarks` 中对应**同一个解剖学关节**，只是表达方式不同。
 
-## 5. 33 个关键点索引
+## 10. 33 个关键点索引
 
 ![BlazePose 33 关键点示意图](./keyPoints.png)
 
@@ -119,30 +163,3 @@
 - 左/右髋：23 / 24（`world_landmarks` 坐标原点参考）
 - 左/右膝：25 / 26
 
-## 6. 界面说明
-
-- 人体检测阈值、NMS 阈值、姿态置信度
-- 最大帧率（1–30 FPS）
-- **使用 GPU (OpenCV CUDA DNN)**：默认开启；需 OpenCV 编译时启用 CUDA/cuDNN，否则自动回退 CPU
-- 绘制骨架（关闭后仅输出 RESULT，可降低 CPU 占用）
-- 启停按钮
-
-## 7. 模型文件
-
-将以下 ONNX 模型放入 `./plugins/Models/`：
-
-- `person_detection_mediapipe_2023mar.onnx`
-- `pose_estimation_mediapipe_2023mar.onnx`
-
-下载地址：[person_detection_mediapipe](https://github.com/opencv/opencv_zoo/tree/main/models/person_detection_mediapipe)、[pose_estimation_mediapipe](https://github.com/opencv/opencv_zoo/tree/main/models/pose_estimation_mediapipe)
-
-## 8. 使用说明
-
-1. 连接视频或图像到 IMAGE，并通过 ENABLE 或面板启用检测。
-2. 用 **IMAGE 0** 预览骨架；用 **RESULT** 驱动后续逻辑。
-3. 屏幕交互、热区判断 → 读 `keypoints`；角度 / 3D 姿态 → 读 `world_landmarks`。
-4. 支持 OSC：`/personScore`、`/nms`、`/confidence`、`/enable`。
-
-## 9. 示例
-
-Camera → MediaPipe Body Pose → Spout Out，互动装置人体骨骼可视化。

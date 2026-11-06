@@ -9,16 +9,13 @@
 #include <QApplication>
 #include <QSpinBox>
 #include <QLabel>
-#include "OSCMessage.h"
-#include "TimeLineStyle.h"
-#include "TimelineExports.hpp"
+#include "TimelineEngine.h"
 #include <QMimeData>
 #include <QDrag>
 #include <QMimeData>
 #include <QPainter>
 #include <QEvent>
 #include <QMouseEvent>
-#include "BaseTimeLineToolBar.h"
 
 class TimeLineNodeToolBar : public BaseTimelineToolbar{
     Q_OBJECT
