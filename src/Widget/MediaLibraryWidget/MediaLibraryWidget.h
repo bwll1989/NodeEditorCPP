@@ -41,17 +41,20 @@ signals:
 
 private slots:
     /**
-     * @brief 导入多个文件（打开文件对话框）
+     * @brief 导入多个文件（打开文件对话框）。
+     *        若右键选中了某分组/子项，则将该分组的类型过滤器置顶为默认选项；
+     *        入库仍按扩展名自动分类
      */
     void importFiles();
 
     /**
-     * @brief 导入文件夹（仅添加该文件夹下的一层文件）
+     * @brief 导入文件夹（仅添加该文件夹下的一层文件）。
+     *        若右键选中了某分组/子项，则仅导入该分组扩展名匹配的文件
      */
     void importFolder();
 
     /**
-     * @brief 删除复选框选中的条目（多选）
+     * @brief 删除条目：优先右键上下文条目，否则取树视图当前选中项；仅对文件子项生效
      */
     void deleteSelectedItems();
 
@@ -107,6 +110,13 @@ private:
      */
     QIcon categoryIcon(int cat) const;
 
+    /**
+     * @brief 生成指定类别的文件对话框过滤器串（如 "视频 (*.mp4 *.mov ...)"）
+     *        扩展名来自 MediaLibrary::categoryExtensions，与自动分类共用同一数据源；
+     *        类别无扩展名（Unknown）时返回空串
+     */
+    QString categoryDialogFilter(MediaLibrary::Category cat) const;
+
 private:
     MediaLibrary* m_model = nullptr;
     QTreeView* m_tree = nullptr;
@@ -119,6 +129,8 @@ private:
     QAction* m_actToggle = nullptr;
     QAction* m_actReveal = nullptr;
     QModelIndex m_contextIndex;
+    // 右键条目所属的媒体类别（分组指定导入用；空白处为 Unknown）
+    MediaLibrary::Category m_contextCategory = MediaLibrary::Category::Unknown;
 
 protected:
     /**

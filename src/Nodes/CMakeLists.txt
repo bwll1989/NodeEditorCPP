@@ -109,6 +109,7 @@ set(ALL_NODES
     MpcdiNode                               #MPCDI 变形融合
     PosiStageNetClient                      #PosiStageNet数据接收
     ISFNode                                 #ISF数据加载
+    GDTFNode                                #GDTF灯具文件解析
 )
 
 # 根据选项决定构建方式
@@ -233,6 +234,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(MpcdiNode)                             #MPCDI 变形融合
     add_subdirectory(PosiStageNetClient)                    #PosiStageNet(数据接收）
     add_subdirectory(ISFNode)                               #ISF数据加载
+    add_subdirectory(GDTFNode)                              #GDTF灯具文件解析
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()

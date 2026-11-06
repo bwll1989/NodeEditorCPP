@@ -4,7 +4,6 @@
 #include "CurtainDataModel.hpp"
 #include "FTControlBoxDataModel.hpp"
 #include "PeripProtoServerDataModel.hpp"
-#include "GRPC_TEST/GrpcTestDataModel.hpp"
 Plugin *Plugin::_this_plugin = nullptr;
 
 Plugin::Plugin()
@@ -25,5 +24,4 @@ void Plugin::registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegist
     reg->registerModel<Nodes::CurtainDataModel>("FT-CurtainController",tag());
     reg->registerModel<Nodes::FTControlBoxDataModel>("FT-ControlBox", tag());
     reg->registerModel<Nodes::PeripProtoServerDataModel>("FT-LocationProto", tag());
-    reg->registerModel<Nodes::GrpcTestDataModel>("GRPC-TEST", tag());
 }

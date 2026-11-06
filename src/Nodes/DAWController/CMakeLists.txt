@@ -34,16 +34,6 @@ add_library(${Module_Name} SHARED
         PeripProtoServerDataModel.cpp
         perip2s.pb.cc
         perip2s.pb.h
-        GRPC_TEST/control.pb.cc
-        GRPC_TEST/control.pb.h
-        GRPC_TEST/GrpcHuffmanTable.h
-        GRPC_TEST/GrpcStaticTable.h
-        GRPC_TEST/GrpcHpack.h
-        GRPC_TEST/GrpcHpack.cpp
-        GRPC_TEST/GrpcChannel.h
-        GRPC_TEST/GrpcChannel.cpp
-        GRPC_TEST/GrpcTestDataModel.hpp
-        GRPC_TEST/GrpcTestDataModel.cpp
         ../../Common/Devices/TcpClient/TcpClient.h
         ../../Common/Devices/TcpClient/TcpClient.cpp
         ../../Common/Devices/TcpClient/TcpClientWorker.h
@@ -55,7 +45,6 @@ target_include_directories(${Module_Name} BEFORE PRIVATE
 )
 target_include_directories(${Module_Name} PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/GRPC_TEST
         ${PROTOBUF_INSTALL_DIR}/include
 )
 

@@ -36,6 +36,7 @@ public:
         ISF,
         ChildFlow,
         Mpcdi,
+        Fixture,
         Unknown
     };
     Q_ENUM(Category)
@@ -107,6 +108,12 @@ public:
     QStringList allFiles() const;
 
     QStringList getFileList(Category cat) const;
+
+    /**
+     * @brief 返回类别对应的文件扩展名列表（不含点，全小写）
+     *        作为自动分类与导入对话框过滤器的统一数据源，避免两处扩展名不同步
+     */
+    static QStringList categoryExtensions(Category cat);
 
 
     /**

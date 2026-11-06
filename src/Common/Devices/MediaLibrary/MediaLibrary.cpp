@@ -24,6 +24,7 @@ inline QString VideoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-cou
 inline QString ViosoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"values": {"configFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "Vioso"}]})");
 inline QString MpcdiFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"values": {"configFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "MPCDI"}]})");
 inline QString IsfFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"values": {"shaderFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "ISF"}]})");
+inline QString GdtfFileNode  = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"file": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "GDTF Fixture"}]})");
 
 MediaLibrary::MediaLibrary(QObject* parent)
     : QStandardItemModel(parent)
@@ -32,7 +33,7 @@ MediaLibrary::MediaLibrary(QObject* parent)
     // 初始化五个类别为顶层组节点
     for (Category cat : { Category::Video, Category::Audio, Category::DMX, Category::Image,
                           Category::Model, Category::Document, Category::Vioso, Category::ISF,
-                          Category::ChildFlow, Category::Mpcdi, Category::Unknown }) {
+                          Category::ChildFlow, Category::Mpcdi, Category::Fixture, Category::Unknown }) {
         auto* group = new QStandardItem(categoryName(cat));
         group->setEditable(false);
         group->setData(static_cast<int>(cat), CategoryRole);
@@ -314,6 +315,7 @@ QJsonObject MediaLibrary::toJson() const
     collect(Category::ISF,     "ISF");
     collect(Category::ChildFlow, "ChildFlow");
     collect(Category::Mpcdi,   "MPCDI");
+    collect(Category::Fixture, "Fixture");
     collect(Category::Unknown, "Unknown");
     return root;
 }
@@ -340,6 +342,7 @@ bool MediaLibrary::fromJson(const QJsonObject& obj)
     load(Category::ISF,     "ISF");
     load(Category::ChildFlow, "ChildFlow");
     load(Category::Mpcdi,   "MPCDI");
+    load(Category::Fixture, "Fixture");
     load(Category::Unknown, "Unknown");
     emit libraryChanged();
     return true;
@@ -374,39 +377,50 @@ bool MediaLibrary::loadFromFile(const QString& jsonPath)
 }
 
 /**
+ * @brief 返回类别对应的文件扩展名列表（不含点，全小写）
+ *        统一数据源：detectCategory 与 MediaLibraryWidget 导入对话框共用
+ */
+QStringList MediaLibrary::categoryExtensions(Category cat)
+{
+    switch (cat) {
+    case Category::Video:    return { "mp4", "mov", "mkv", "avi", "wmv", "flv", "webm" };
+    case Category::Audio:    return { "wav", "mp3", "flac", "aac", "ogg", "m4a" };
+    case Category::DMX:      return { "dmx" };
+    case Category::Image:    return { "jpg", "jpeg", "png", "bmp", "gif", "webp", "tiff" };
+    case Category::Model:    return { "obj", "fbx", "stl", "gltf", "glb" };
+    case Category::Document: return { "txt", "json", "xml", "cfg", "log", "md", "csv", "ini" };
+    case Category::Vioso:    return { "vwf" };
+    case Category::ISF:      return { "fs" };
+    case Category::ChildFlow: return { "childflow" };
+    case Category::Mpcdi:    return { "mpcdi" };
+    case Category::Fixture:  return { "gdtf" };
+    case Category::Unknown:  break;
+    }
+    return {};
+}
+
+/**
  * @brief 根据扩展名判定类别
  */
 MediaLibrary::Category MediaLibrary::detectCategory(const QString& absPath) const
 {
     const QString ext = QFileInfo(absPath).suffix().toLower();
-    // 视频
-    static const QSet<QString> video = { "mp4", "mov", "mkv", "avi", "wmv", "flv", "webm" };
-    // 音频
-    static const QSet<QString> sound = { "wav", "mp3", "flac", "aac", "ogg", "m4a" };
-    // DMX
-    static const QSet<QString> dmx  = { "dmx" };
-    // 图片
-    static const QSet<QString> pic   = { "jpg", "jpeg", "png", "bmp", "gif", "webp", "tiff" };
-    // 3D 模型（简单示例）
-    static const QSet<QString> model = { "obj", "fbx", "stl", "gltf", "glb" };
-    // other
-    static const QSet<QString> other = { "txt", "json", "xml", "cfg", "log" , "md" , "csv","ini" };
-    static const QSet<QString> vioso = { "vwf" };
-    static const QSet<QString> isf = { "fs" };
-    static const QSet<QString> childFlow = { "childflow" };
-    static const QSet<QString> mpcdi = { "mpcdi" };
-    if (video.contains(ext)) return Category::Video;
-    if (sound.contains(ext)) return Category::Audio;
-    if (dmx.contains(ext))  return Category::DMX;
-    if (pic.contains(ext))   return Category::Image;
-    if (model.contains(ext)) return Category::Model;
-    if (vioso.contains(ext)) return Category::Vioso;
-    if (isf.contains(ext)) return Category::ISF;
-    if (childFlow.contains(ext)) return Category::ChildFlow;
-    if (mpcdi.contains(ext)) return Category::Mpcdi;
-    // 其他文件（如脚本、配置等）
-    if (other.contains(ext)) return Category::Document;
-    return Category::Unknown;
+    // 扩展名→类别映射（与 categoryExtensions 同源，首次调用时构建一次）
+    // 说明：各类别扩展名集合互不相交，判定顺序不影响结果
+    static const QHash<QString, Category> extMap = [] {
+        QHash<QString, Category> map;
+        const QList<Category> cats = { Category::Video, Category::Audio, Category::DMX,
+                                       Category::Image, Category::Model, Category::Vioso,
+                                       Category::ISF, Category::ChildFlow, Category::Mpcdi,
+                                       Category::Fixture, Category::Document };
+        for (Category cat : cats) {
+            for (const QString& e : categoryExtensions(cat)) {
+                map.insert(e, cat);
+            }
+        }
+        return map;
+    }();
+    return extMap.value(ext, Category::Unknown);
 }
 
 /**
@@ -425,6 +439,7 @@ QString MediaLibrary::categoryName(Category cat) const
     case Category::ISF:     return QStringLiteral("ISF");
     case Category::ChildFlow: return QStringLiteral("Child Flows");
     case Category::Mpcdi:   return QStringLiteral("MPCDI");
+    case Category::Fixture: return QStringLiteral("Fixtures");
     case Category::Unknown: return QStringLiteral("Unknown");
     }
     return QStringLiteral("Unknown");
@@ -516,6 +531,7 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
             {Category::ISF,      "ISF"},
             {Category::ChildFlow,"ChildFlow"},
             {Category::Mpcdi,    "MPCDI"},
+            {Category::Fixture,  "Fixture"},
             {Category::Unknown,  "Unknown"}
         };
         const QString tagKey = tagMap.value(cat, "Unknown");
@@ -556,6 +572,11 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
                     break;
                 case Category::Mpcdi:
                     tpl = MpcdiFileNode.arg(fileName);
+                    break;
+                case Category::Fixture:
+                    // 拖拽生成 GDTF Fixture 节点；file 为媒体库文件名（节点内解析到存储目录），
+                    // internal-data 键与 GDTFDataModel::save()/load() 顶层键一致
+                    tpl = GdtfFileNode.arg(fileName);
                     break;
                 case Category::ISF:
                     tpl = IsfFileNode.arg(fileName);

@@ -107,6 +107,9 @@ void MediaLibraryWidget::initializeContextMenu()
     m_actClear         = m_ctxMenu->addAction(QIcon(":/icons/icons/clear.png"),tr("清空"));
     m_actRefresh       = m_ctxMenu->addAction(QIcon(":/icons/icons/reload.png"),tr("刷新"));
     m_ctxMenu->addSeparator();
+    // 初始与"无右键上下文"状态一致：导入/删除仅在右键对应条目时显示
+    // （本组动作同时被 MainWindow 挂到停靠面板标题栏菜单，需同步控制可见性）
+    m_actDeleteChecked->setVisible(false);
     connect(m_actImportFiles,  &QAction::triggered, this, &MediaLibraryWidget::importFiles);
     connect(m_actImportFolder, &QAction::triggered, this, &MediaLibraryWidget::importFolder);
     // 连接“删除选中”到当前选择删除
@@ -177,13 +180,53 @@ void MediaLibraryWidget::setChildrenFlag(QStandardItem* groupItem)
 }
 
 /**
- * @brief 导入多个文件（打开文件对话框）
+ * @brief 类别的中文显示名（仅用于导入对话框过滤器，与树分组名解耦）
+ */
+namespace {
+QString categoryDisplayLabel(MediaLibrary::Category cat)
+{
+    switch (cat) {
+    case MediaLibrary::Category::Video:     return QObject::tr("视频");
+    case MediaLibrary::Category::Audio:     return QObject::tr("音频");
+    case MediaLibrary::Category::DMX:       return QObject::tr("DMX");
+    case MediaLibrary::Category::Image:     return QObject::tr("图片");
+    case MediaLibrary::Category::Model:     return QObject::tr("3D 模型");
+    case MediaLibrary::Category::Document:  return QObject::tr("文档");
+    case MediaLibrary::Category::Vioso:     return QStringLiteral("Vioso");
+    case MediaLibrary::Category::ISF:       return QStringLiteral("ISF");
+    case MediaLibrary::Category::ChildFlow: return QObject::tr("Child Flow");
+    case MediaLibrary::Category::Mpcdi:     return QStringLiteral("MPCDI");
+    case MediaLibrary::Category::Fixture:   return QStringLiteral("Fixture/GDTF");
+    case MediaLibrary::Category::Unknown:   break;
+    }
+    return {};
+}
+} // namespace
+
+/**
+ * @brief 生成指定类别的文件对话框过滤器串；无扩展名的类别（Unknown）返回空串
+ */
+QString MediaLibraryWidget::categoryDialogFilter(MediaLibrary::Category cat) const
+{
+    const QStringList exts = MediaLibrary::categoryExtensions(cat);
+    if (exts.isEmpty()) return {};
+    QStringList patterns;
+    for (const QString& e : exts) {
+        patterns << QStringLiteral("*.") + e;
+    }
+    return QStringLiteral("%1 (%2)").arg(categoryDisplayLabel(cat),
+                                         patterns.join(QLatin1Char(' ')));
+}
+
+/**
+ * @brief 导入多个文件（打开文件对话框）。
+ *        若右键选中了某分组/子项，则把该分组的过滤器置顶作为默认选中项（分组指定导入）；
+ *        选中文件批量入库，仍由 MediaLibrary::detectCategory 按扩展名自动归类
  */
 void MediaLibraryWidget::importFiles()
 {
-    // 函数级注释：打开多文件选择对话框，按媒体库分类提供筛选，把选中路径批量入库
-    // 扩展名与 MediaLibrary::detectCategory 保持一致
-    const QString filter = tr(
+    // 全部支持格式与各分类过滤器；扩展名与 MediaLibrary::categoryExtensions 同源
+    static const QString allFilter = tr(
         "全部支持格式 ("
         "*.mp4 *.mov *.mkv *.avi *.wmv *.flv *.webm "
         "*.wav *.mp3 *.flac *.aac *.ogg *.m4a "
@@ -191,7 +234,7 @@ void MediaLibraryWidget::importFiles()
         "*.dmx "
         "*.obj *.fbx *.stl *.gltf *.glb "
         "*.txt *.json *.xml *.cfg *.log *.md *.csv *.ini "
-        "*.vwf *.fs *.childflow *.mpcdi"
+        "*.vwf *.fs *.childflow *.mpcdi *.gdtf"
         ");;"
         "视频 (*.mp4 *.mov *.mkv *.avi *.wmv *.flv *.webm);;"
         "音频 (*.wav *.mp3 *.flac *.aac *.ogg *.m4a);;"
@@ -203,7 +246,15 @@ void MediaLibraryWidget::importFiles()
         "MPCDI (*.mpcdi);;"
         "ISF (*.fs);;"
         "Child Flow (*.childflow);;"
+        "Fixture/GDTF (*.gdtf);;"
         "所有文件 (*.*)");
+
+    // 分组指定导入：该分组过滤器置顶，对话框默认选中它
+    QString filter = allFilter;
+    const QString catFilter = categoryDialogFilter(m_contextCategory);
+    if (!catFilter.isEmpty()) {
+        filter = catFilter + QStringLiteral(";;") + allFilter;
+    }
 
     const QStringList files = QFileDialog::getOpenFileNames(
         this, tr("导入媒体文件"), QString(), filter);
@@ -212,26 +263,50 @@ void MediaLibraryWidget::importFiles()
 }
 
 /**
- * @brief 导入文件夹（仅添加该文件夹下的一层文件）
+ * @brief 导入文件夹（仅添加该文件夹下的一层文件）。
+ *        若右键选中了某分组/子项，则仅导入该分组扩展名匹配的文件（分组指定导入）
  */
 void MediaLibraryWidget::importFolder()
 {
-    // 函数级注释：选择文件夹并将该目录下一层文件加入模型
+    // 函数级注释：选择文件夹并将该目录下一层文件加入模型；分组上下文下按分组扩展名过滤
     const QString dir = QFileDialog::getExistingDirectory(this, tr("选择文件夹"));
     if (dir.isEmpty()) return;
-    m_model->addFolder(dir);
+
+    const QStringList exts = MediaLibrary::categoryExtensions(m_contextCategory);
+    if (exts.isEmpty()) {
+        // 无分组上下文或 Unknown：保持旧行为，导入全部文件
+        m_model->addFolder(dir);
+        return;
+    }
+
+    const QDir d(dir);
+    const QFileInfoList infos = d.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+    QStringList matched;
+    matched.reserve(infos.size());
+    for (const QFileInfo& fi : infos) {
+        if (exts.contains(fi.suffix().toLower())) {
+            matched << fi.absoluteFilePath();
+        }
+    }
+    if (!matched.isEmpty()) {
+        m_model->addFiles(matched);
+    }
 }
 
 /**
- * @brief 删除当前鼠标选中的条目；删除完成后清空选择高亮
+ * @brief 删除当前条目；删除完成后清空选择高亮。
+ *        优先使用右键所在条目（删除菜单仅对文件子项显示），无右键上下文时
+ *        回退到树视图当前选中项，兼容外部动作触发。
  */
 void MediaLibraryWidget::deleteSelectedItems()
 {
-    // 函数级注释：从树视图当前选择中获取索引，仅对子项执行删除；成功后清空选择
-    QItemSelectionModel* sel = m_tree->selectionModel();
-    if (!sel) return;
-
-    const QModelIndex idx = sel->currentIndex();
+    // 函数级注释：优先取右键上下文条目，否则取树视图当前选择；仅对子项执行删除
+    QModelIndex idx = m_contextIndex;
+    if (!idx.isValid()) {
+        QItemSelectionModel* sel = m_tree->selectionModel();
+        if (!sel) return;
+        idx = sel->currentIndex();
+    }
     if (!idx.isValid()) return;
 
     // 顶层组不删除，仅对子项（有文件路径）进行删除
@@ -288,14 +363,25 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
     // Reset visibility
     m_actToggle->setVisible(false);
     m_actReveal->setVisible(false);
+    m_actDeleteChecked->setVisible(false);
+
+    // 分组指定导入：导入动作仅对有效条目（分组或其子项）显示，空白处隐藏；
+    // 并记录该条目所属类别，供导入对话框过滤器使用
+    const bool hasContextItem = m_contextIndex.isValid();
+    m_actImportFiles->setVisible(hasContextItem);
+    m_actImportFolder->setVisible(hasContextItem);
+    m_contextCategory = hasContextItem
+        ? static_cast<MediaLibrary::Category>(m_contextIndex.data(MediaLibrary::CategoryRole).toInt())
+        : MediaLibrary::Category::Unknown;
 
     if (m_contextIndex.isValid()) {
         if (path.isEmpty()) {
             // Group node: show toggle
             m_actToggle->setVisible(true);
         } else {
-            // Item node: show reveal
+            // Item node: show reveal + delete（删除仅作用于文件条目）
             m_actReveal->setVisible(true);
+            m_actDeleteChecked->setVisible(true);
         }
     }
 
@@ -338,6 +424,7 @@ QIcon MediaLibraryWidget::categoryIcon(int cat) const
     case Cat::ISF:     return QIcon(":/icons/icons/isf.png");
     case Cat::ChildFlow: return QIcon(":/icons/icons/Flow.png");
     case Cat::Mpcdi:   return QIcon(":/icons/icons/image.png");
+    case Cat::Fixture: return QIcon(":/icons/icons/gdtf.png");
     case Cat::Unknown: return QIcon(":/icons/icons/unknown.png");
     default:           return QIcon();
     }

@@ -42,7 +42,10 @@
 #include <QEvent>
 #include <QMouseEvent>
 #include "BaseTimeLineToolBar.h"
-#include "Nodes/TimeLineNode/TimeLineNodeToolBar.h"
+// 注意：不要 include 节点私有头（Nodes/TimeLineNode/...）。
+// 本类继承的是外部 QtTimeLine 的 BaseTimelineToolbar；节点插件有自己同名的
+// 私有类体系（TimelineEngine.h），混入主程序编译单元会与其安装版头文件
+// 发生类/全局量重定义（C2374 / C2011）。
 
 class TimeLineToolBar : public BaseTimelineToolbar{
     Q_OBJECT

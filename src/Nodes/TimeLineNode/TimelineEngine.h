@@ -186,6 +186,9 @@ struct OSCMessage {
 
 
 // ---------- TimeCodeDefines.h ----------
+// 与主工程安装版头共用 guard：同一编译单元内两套头只能展开一份
+#ifndef TIMECODE_FRAME_H
+#define TIMECODE_FRAME_H
 #include <QMetaType>
 #include <QTime>
 /**
@@ -399,8 +402,11 @@ inline TimeCodeFrame qtime_to_timecode_frame(QTime time, TimeCodeType type) {
     int frames = static_cast<int>((ms * fps) / 1000);
     return TimeCodeFrame{time.hour(), time.minute(), time.second(), frames, type};
 }
+#endif // TIMECODE_FRAME_H
 
 // ---------- TimeLineDefines.h ----------
+#ifndef TIMELINETYPES_H
+#define TIMELINETYPES_H
 #include "QString"
 #include <QMetaType>
 #include <QtGlobal>
@@ -484,9 +490,11 @@ Q_NAMESPACE_EXPORT(NODE_TIMELINE_PUBLIC)
         return type;
     }
 }
-
+#endif // TIMELINETYPES_H
 
 // ---------- TimeLineStyle.h ----------
+#ifndef TIMELINESTYLE_H
+#define TIMELINESTYLE_H
 //
 // Created by bwll1 on 2024/5/30.
 //
@@ -574,6 +582,7 @@ inline QColor ClipSelectedColor = QColor("#39571E");           // 片段选中�
 
 // ---- 标尺时间文字颜色（qproperty-timelinePlayheadColor on BaseTracklistView）----
 // 与播放头同色系，标尺中央显示的当前时间文字使用。
+#endif // TIMELINESTYLE_H
 
 
 // ---------- AbstractClipModel.hpp ----------

@@ -25,7 +25,7 @@ namespace Nodes
 /**
  * @brief 可变长度向量源：输出 VariableData，default 为 float 列表。
  * 维数由界面 Size 决定；输入端口可编辑，默认 5 路。
- * 前 n-1 口写对应下标分量；最后一口为 Vec，按当前 Size 截取或补 0。
+ * 前 n-1 口写对应下标分量；最后一口为 Vec，按当前 Size 截取，尾部不足的分量保持原值。
  */
 class VecSourceDataModel : public AbstractDelegateModel
 {
@@ -109,8 +109,8 @@ public:
         }
 
         if (isVecInPort(portIndex)) {
-            // 整段向量：按当前 Size 截取/补 0
-            applyValues(varData->asFloats(m_values.size()), true);
+            // 整段向量：按当前 Size 截取，尾部不足的分量保持原值
+            applyValues(varData->asFloats(), true);
             return;
         }
 
@@ -203,11 +203,20 @@ private:
         Q_EMIT embeddedWidgetSizeUpdated();
     }
 
-    /** 只按当前维数补 0 / 截取，不改控件数量 */
+    /** 按当前维数截取，尾部不足的分量保持原值；不改控件数量 */
     void applyValues(QVector<float> next, bool syncWidget)
     {
         const int size = qMax(1, m_values.size());
-        next.resize(size);
+        if (next.size() < size) {
+            // 短向量：不足的尾部分量沿用原值，不补 0
+            const int keep = next.size();
+            next.resize(size);
+            for (int i = keep; i < size; ++i) {
+                next[i] = m_values.at(i);
+            }
+        } else if (next.size() > size) {
+            next.resize(size);
+        }
 
         if (next == m_values) {
             return;
