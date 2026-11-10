@@ -10,10 +10,10 @@
 #include <QString>
 #include <QtCore/qglobal.h>
 
-#if defined(ARTNETTRANSMITTER_LIBRARY)
-#define ARTNETTRANSMITTER_EXPORT Q_DECL_EXPORT
+#if defined(ARTNETSERVICE_LIBRARY)
+#define ARTNETSERVICE_EXPORT Q_DECL_EXPORT
 #else
-#define ARTNETTRANSMITTER_EXPORT Q_DECL_IMPORT
+#define ARTNETSERVICE_EXPORT Q_DECL_IMPORT
 #endif
 
 /**
@@ -21,7 +21,7 @@
  * 
  * 包含发送Art-Net数据包所需的所有信息
  */
-struct ARTNETTRANSMITTER_EXPORT ArtnetFrame
+struct ARTNETSERVICE_EXPORT ArtnetFrame
 {
     /**
      * @brief 默认构造函数

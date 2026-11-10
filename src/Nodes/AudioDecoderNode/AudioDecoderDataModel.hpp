@@ -51,13 +51,23 @@ namespace Nodes
        * @brief 构造函数，初始化音频解码Node，支持动态多通道分离输出
        */
         AudioDecoderDataModel(){
-            InPortCount = 3;
-            OutPortCount = 2;  // 初始输出端口数，可动态调整
+            InPortCount = 4;
+            OutPortCount = 3;  // 0/1 = 声道输出，2 = SYNC 同步发布
             CaptionVisible = true;
             Caption = "Audio Decoder";
             WidgetEmbeddable = false;
             Resizable = true;
             PortEditable = true;
+
+            // 主机侧：创建发布状态并交给解码器（播放线程每切片写入播放头）
+            m_syncPublisher = std::make_shared<SyncSharedState>(QStringLiteral("AudioDecoder"));
+            player->setSyncPublisher(m_syncPublisher);
+
+            // 从机侧：轮询同步源的播放态，联动本节点启停（位置跟随在解码线程内）
+            m_syncWatcher = new QTimer(this);
+            m_syncWatcher->setInterval(100);
+            connect(m_syncWatcher, &QTimer::timeout, this, &AudioDecoderDataModel::onSyncWatchTick);
+            m_syncWatcher->start();
 
             // 初始化波形异步解码 watcher（生命周期随节点，析构时自动取消等待）
             m_peakWatcher.reset(new QFutureWatcher<std::shared_ptr<AudioWaveformPeaks>>());
@@ -249,9 +259,9 @@ namespace Nodes
         {
             switch (portType) {
             case PortType::In:
-                return VariableData().type();
+                return (portIndex == 3) ? SyncData().type() : VariableData().type();
             case PortType::Out:
-                return AudioData().type();
+                return (portIndex == 2) ? SyncData().type() : AudioData().type();
             case PortType::None:
                 break;
             }
@@ -266,8 +276,11 @@ namespace Nodes
          */
         std::shared_ptr<NodeData> outData(PortIndex port) override
         {
+            // SYNC 发布端口：输出共享同步状态句柄（主机角色）
+            if (port == 2) {
+                return std::make_shared<SyncData>(m_syncPublisher);
+            }
 
-            
             // 创建新的AudioData并设置共享环形缓冲区
             auto audioData = std::make_shared<AudioData>();
             audioData->setSharedAudioBuffer(player->getAudioBuffer(port));
@@ -290,11 +303,14 @@ namespace Nodes
                     return "LOOP";
                 case 2:
                     return "GAIN";
+                case 3:
+                    return "SYNC";
                 default:
                     return "";
                 }
             case PortType::Out:
-                    return "CH "+QString::number(portIndex);
+                    return (portIndex == 2) ? QStringLiteral("SYNC")
+                                            : QStringLiteral("CH ") + QString::number(portIndex);
             default:
                 return "";
             }
@@ -329,6 +345,17 @@ namespace Nodes
                     if (d != nullptr) {
                         setVolumeProperty(d->asNumber());
                     }
+                    return;
+            }
+            case 3:{
+                    // SYNC 输入：绑定从机跟随源（断开时清空）
+                    auto sd = std::dynamic_pointer_cast<SyncData>(data);
+                    if (sd) {
+                        m_syncSource = sd->getSharedState();
+                    } else {
+                        m_syncSource.reset();
+                    }
+                    player->setSyncSource(m_syncSource);
                     return;
             }
             }
@@ -436,6 +463,42 @@ namespace Nodes
         }
 
     public slots:
+        /**
+         * 函数级注释：从机启停联动——轮询同步源播放态
+         * 源开始播放且本节点未播 → 自动起播（位置由解码线程跟随纠偏）；
+         * 源停止且本节点在播 → 自动停止。位置跟随本身在解码线程内完成。
+         */
+    public slots:
+        /**
+         * 函数级注释：从机启停联动——轮询同步源播放态
+         * 源开始播放且本节点未播 → 先定位到源位置再自动起播（避免放一小段开头再纠偏）；
+         * 源停止且本节点在播 → 自动停止。位置跟随本身在解码线程内完成。
+         * **源位置超出本媒体时长时不跟随起播**（定格待命）：否则会陷入
+         * "起播→播到 EOF 停止→又起播"的闪烁循环；源位置回到范围内后自动恢复跟随。
+         */
+        void onSyncWatchTick() {
+            if (!m_syncSource) {
+                return;
+            }
+            const SyncState snap = m_syncSource->read();
+            if (!snap.active) {
+                return;
+            }
+            if (snap.playing != m_playing) {
+                if (snap.playing) {
+                    // 源位置超出本媒体时长：不起播，定格在末尾待命
+                    const double expected = m_syncSource->expectedNowSec();
+                    const double dur = player->durationSec();
+                    if (dur > 0.0 && expected >= dur - 0.05) {
+                        return;
+                    }
+                    // 起播前先定位到源位置（未播放路径 seekTo 直接 seek 文件并记录起点）
+                    player->seekTo(expected);
+                }
+                setPlayingProperty(snap.playing);
+            }
+        }
+
         /**
          * 函数级注释：接收解码器播放进度，同步到波形播放头与 progress 属性
          *  1. progress 属性：按 0.005% 粒度变化判断是否 emit，降低下游压力
@@ -778,6 +841,11 @@ namespace Nodes
         // 波形解码异步对象与当前路径（用于 ABA 检查）
         QScopedPointer<QFutureWatcher<std::shared_ptr<AudioWaveformPeaks>>> m_peakWatcher;
         QString m_peakDecodingPath;
+
+        // ---- 节点间同步（SyncData 体系）----
+        std::shared_ptr<SyncSharedState> m_syncPublisher;  ///< 主机：发布本节点播放头
+        std::shared_ptr<SyncSharedState> m_syncSource;     ///< 从机：外部同步源句柄
+        QTimer* m_syncWatcher = nullptr;                   ///< 源播放态轮询（启停联动）
 
     };
 }

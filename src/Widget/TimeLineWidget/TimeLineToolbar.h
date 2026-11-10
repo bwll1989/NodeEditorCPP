@@ -12,7 +12,7 @@
 #include <QComboBox>
 #include <QSpinBox>
 #include <QLabel>
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 #include "TimeLineStyle.h"
 #include "TimelineExports.hpp"
 #include <QMimeData>
@@ -32,7 +32,7 @@
 #include <QApplication>
 #include <QSpinBox>
 #include <QLabel>
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 #include "TimeLineStyle.h"
 #include "TimelineExports.hpp"
 #include <QMimeData>

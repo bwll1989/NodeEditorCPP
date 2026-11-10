@@ -7,7 +7,7 @@
 #include <QVector>
 #include <QVariant>
 #include <QString>
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 #include "StatusItem.h"
 #include "GlobalEventBus.hpp"
 

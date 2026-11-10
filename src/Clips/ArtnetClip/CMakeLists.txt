@@ -68,7 +68,7 @@ target_link_libraries(ArtnetClip PUBLIC
     swresample
     swscale
     ${QtTimeLine_LIBRARIES}
-    ArtnetTransmitter
+    ArtnetService
         MediaManger
         GUIElements
     StatusContainer

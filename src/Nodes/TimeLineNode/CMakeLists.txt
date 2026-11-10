@@ -105,7 +105,7 @@ target_link_libraries(${Module_Name} PRIVATE
                         ClientController
                         MediaManger
                         AppConfig
-                        ArtnetTransmitter
+                        ArtnetService
 )
 
 # VideoClip/ArtnetClip 需要 FFmpeg（avformat/avcodec/avutil），用全路径避免依赖 link_directories

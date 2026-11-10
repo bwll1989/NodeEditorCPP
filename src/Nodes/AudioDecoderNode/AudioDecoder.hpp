@@ -6,6 +6,7 @@
 #include <QtCore/QObject>
 #include "QJsonObject"
 #include "Common/DataTypes/AudioData.h"  // 确保包含此头文件
+#include "Common/DataTypes/SyncData.h"   // 节点间同步载体（SyncSharedState 共享句柄）
 #include "Common/Devices/TimestampGenerator/TimestampGenerator.hpp"  // 添加时间戳生成器头文件
 extern "C" {
 #include <libavformat/avformat.h>
@@ -93,7 +94,25 @@ public:
      *
      */
     bool getPlaying() const;
-       
+
+    /**
+     * @brief 设置同步源（从机角色）。播放中持续读取共享状态，
+     *        外推期望位置，超出死区时经 pendingSeek 通道纠偏。
+     * @param src 共享同步状态（nullptr 断开从机跟随）
+     */
+    void setSyncSource(std::shared_ptr<NodeDataTypes::SyncSharedState> src);
+
+    /**
+     * @brief 设置同步发布状态（主机角色）。播放中每个固定切片（约40ms）
+     *        将当前播放位置+全局帧锚点写入共享状态，供下游跟随节点读取。
+     * @param pub 共享同步状态（nullptr 关闭发布）
+     */
+    void setSyncPublisher(std::shared_ptr<NodeDataTypes::SyncSharedState> pub);
+
+    /**
+     * @brief 设置从机跟随死区（秒）。估计位置与期望位置偏差小于该值时不纠正。
+     */
+    void setSyncDeadZoneSec(double sec);
 
 signals:
     void audioFrameReady(AudioFrame frame);
@@ -149,6 +168,16 @@ private:
      */
     void clearPcmAndChannelBuffers();
 
+    /**
+     * @brief 从机跟随：读取同步源，外推期望位置，超死区经 pendingSeek 纠偏（播放线程调用）
+     */
+    void pollSyncTarget();
+
+    /**
+     * @brief 主机发布：把当前播放头写入共享状态（播放线程调用）
+     */
+    void publishSyncState(bool playing);
+
  
     
     // 添加新的成员变量
@@ -179,4 +208,16 @@ private:
     double m_durationSec = 0.0;       // 媒体总时长
     double m_startPositionSec = 0.0;  // 下次 startPlay / 当前定位
     double m_pendingSeekSec = -1.0;   // >=0 表示播放线程需执行的 seek
+
+    // ---- 节点间同步（SyncData 体系）----
+    std::shared_ptr<NodeDataTypes::SyncSharedState> syncSource_;     // 从机：外部同步源
+    std::shared_ptr<NodeDataTypes::SyncSharedState> syncPublisher_;  // 主机：对外发布播放头
+    QMutex syncPtrMutex_;             // 保护两个共享状态指针的跨线程交换
+    double syncAnchorSec_ = 0.0;      // 锚定位置：syncAnchorTick_ 时刻解码所处的文件位置（秒）
+    qint64 syncAnchorTick_ = 0;       // 锚定时刻的全局帧计数（与 positionSec 配对外推）
+    double syncDeadZoneSec_ = 0.04;   // 从机纠偏死区（秒）
+    bool m_pendingAnchorRecalib = false; // seek 后待用首个解码 packet.pts 重锚（消除 BACKWARD 落点误差）
+
+    /** @brief 是否已绑定 SYNC 从机源（跟随模式；跨线程安全读取指针） */
+    bool hasSyncSource();
 };

@@ -11,8 +11,6 @@ add_library(${Module_Name} SHARED
         ArtnetInDataModel.hpp
         PluginDefinition.cpp
         PluginDefinition.hpp
-        ../../Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
-        ../../Common/Devices/ArtnetReceiver/ArtnetReceiver.h
         ../../Common/Devices/UdpSocket/UdpSocket.cpp
         ../../Common/Devices/UdpSocket/UdpSocket.h)
 target_link_libraries(${Module_Name} PRIVATE
@@ -24,7 +22,10 @@ target_link_libraries(${Module_Name} PRIVATE
         StatusContainer
         BaseClass
         AppConfig
-        GUIElements)
+        GUIElements
+        ArtnetService)
+# 确保统一 Art-Net 服务先于本插件构建
+add_dependencies(${Module_Name} ArtnetService)
 target_compile_definitions(${Module_Name}  PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES 

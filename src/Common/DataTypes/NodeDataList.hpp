@@ -2,5 +2,6 @@
 #include "ImageData.h"
 #include "ImageTimestampRingQueue.h"
 #include "VariableData.h"
+#include "SyncData.h"
 #include "AudioTimestampRingQueue.h"
 #include "DataConvert.hpp"

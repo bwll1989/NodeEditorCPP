@@ -45,6 +45,12 @@ namespace Nodes
     {
          {
         QMutexLocker locker(&_mutex);
+        // 缓冲区未变化（上游每推一块音频都会重传同一个共享缓冲）→ 直接返回，
+        // 否则每次都会 stop/start：清零 _lastProcessedTimestamp 解码基线，
+        // 并反复 emit processingStatusChanged 导致 UI 在 Decoding/Processing 间跳动
+        if (_audioBuffer == audioBuffer) {
+            return;
+        }
         _audioBuffer = audioBuffer;
         }
         

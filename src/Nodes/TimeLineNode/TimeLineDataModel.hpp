@@ -19,6 +19,9 @@
 #include "TimeLineNodeModel.h"
 #include "TimelineInterface.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/SyncData.h"
+#include "Common/Devices/TimestampGenerator/TimestampGenerator.hpp"
+#include <cmath>
 using namespace NodeDataTypes;
 using namespace std;
 using QtNodes::NodeData;
@@ -52,14 +55,24 @@ public:
             s_tlnodeResourcesInitialized = true;
         }
 
-        InPortCount =4;
-        OutPortCount=0;
+        InPortCount =5;    ///< 0=PLAY 1=STOP 2=PAUSE 3=LOOP 4=SYNC（跟随源）
+        OutPortCount=1;    ///< 0=SYNC 发布（本时间线作为图内时钟源）
         CaptionVisible=true;
         Caption="TimeLineNode";
         Resizable= false;
         WidgetEmbeddable=false;
         PortEditable=false;
         model = new TimeLineNodeModel(this);
+
+        // ── SYNC 双角色 ──
+        // 主机侧：时钟源发布状态（播放头位置 + 全局帧锚点，供下游解码节点跟随）
+        m_syncPublisher = std::make_shared<SyncSharedState>(QStringLiteral("TimeLineNode"));
+
+        // 从机侧：轮询同步源播放态并驱动播放头（时间线作为从机跟随外部时钟）
+        m_syncWatcher = new QTimer(this);
+        m_syncWatcher->setInterval(40);   // 25Hz 轮询，位置纠偏粒度 1 帧
+        connect(m_syncWatcher, &QTimer::timeout, this, &TimeLineDataModel::onSyncWatchTick);
+        m_syncWatcher->start();
 
         widget = new Nodes::TimelineInterface(model);
         if (model && model->getClock()) {
@@ -132,6 +145,7 @@ public:
                 m_playing = isPlaying;
                 emit playingChanged(m_playing);
                 stateFeedBack("/stop", !m_playing);
+                publishSyncState();   // 播放态变化即时发布（恢复/定格）
             });
 
             connect(model->getClock(), &TimeLineNodeClock::loopingChanged, this, [this](bool isLooping) {
@@ -150,6 +164,7 @@ public:
                 m_currentFrame = frame;
                 emit currentFrameChanged(m_currentFrame);
                 stateFeedBack("/currentFrame", m_currentFrame);
+                publishSyncState();   // 主机发布：播放头心跳（tick/拖动/seek 均触发）
             });
         }
 
@@ -215,9 +230,10 @@ public:
                         case 1: return "STOP";
                         case 2: return "PAUSE";
                         case 3: return "LOOP";
+                        case 4: return "SYNC";
                 }
             case PortType::Out:
-                return "OUT";
+                return "SYNC";
             default:
                 break;
         }
@@ -228,29 +244,33 @@ public:
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
     {
-        Q_UNUSED(portIndex)
         switch (portType) {
             case PortType::In:
-                return VariableData().type();
+                return (portIndex == 4) ? SyncData().type() : VariableData().type();
             case PortType::Out:
-                return VariableData().type();
+                return SyncData().type();   ///< Out 0 = SYNC 发布（时钟源）
             case PortType::None:
                 break;
             default:
                 break;
         }
-        // FIXME: control may reach end of non-void function [-Wreturn-type]
 
         return VariableData().type();
-
     }
 
     std::shared_ptr<NodeData> outData(PortIndex const portIndex) override
     {
         Q_UNUSED(portIndex)
-        return std::make_shared<VariableData>();
+        // SYNC 发布端口：输出共享同步状态句柄（时间线作为图内时钟源）
+        return std::make_shared<SyncData>(m_syncPublisher);
     }
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override{
+        // SYNC 输入：绑定从机跟随源（断开时清空，回到本地时钟）
+        if (portIndex == 4) {
+            auto sd = (data != nullptr) ? std::dynamic_pointer_cast<SyncData>(data) : nullptr;
+            m_syncSource = sd ? sd->getSharedState() : nullptr;
+            return;
+        }
         if (data== nullptr){
             return;
         }
@@ -352,6 +372,80 @@ private slots:
     // {
     //     Q_EMIT dataUpdated(0);
     // }
+
+    /**
+     * 函数级注释：主机发布——把时间线播放头写入共享同步状态
+     * currentFrameChanged（tick/拖动/seek）与播放态变化时调用；
+     * 位置=当前帧/帧率，锚点=写入时刻的全局帧计数，跟随端按全局时钟外推。
+     */
+    void publishSyncState() {
+        if (!m_syncPublisher || !model || !model->getClock()) {
+            return;
+        }
+        const double fps = model->getClock()->getFrameRate();
+        if (fps <= 0.0) {
+            return;
+        }
+        const double sec = double(m_currentFrame) / fps;
+        m_syncPublisher->write(sec,
+                               TimestampGenerator::getInstance()->getCurrentFrameCount(),
+                               m_playing);
+    }
+
+private slots:
+    /**
+     * 函数级注释：从机跟随——轮询同步源并驱动时间线播放头
+     * - 源开始播放且本节点未播 → 自动起播；源停止且本节点在播 → 自动停止
+     * - 播放中：源期望位置换算为帧号，与本地播放头差 > 1 帧时 setCurrentFrame 纠偏
+     *   （本地 Internal tick 继续推进填充帧间空隙，外部驱动为主、本地 tick 为辅）
+     */
+    void onSyncWatchTick() {
+        if (!m_syncSource || !model || !model->getClock()) {
+            return;
+        }
+        const SyncState snap = m_syncSource->read();
+        if (!snap.active) {
+            return;
+        }
+        auto* clock = model->getClock();
+        // 播放态联动：源位置已超出时间线时长（非循环）时不起播，定格在末尾待命，
+        // 避免"起播→tick 到末尾停止→又起播"的闪烁循环；源位置回拉后自动恢复跟随
+        if (snap.playing != m_playing) {
+            bool allowStart = true;
+            if (snap.playing) {
+                const qint64 maxFrames = clock->getMaxFrames();
+                const double fps0 = clock->getFrameRate();
+                if (!m_looping && maxFrames > 0 && fps0 > 0.0
+                        && m_syncSource->expectedNowSec() * fps0 >= double(maxFrames)) {
+                    allowStart = false;
+                }
+            }
+            if (allowStart) {
+                setPlaying(snap.playing);
+            }
+        }
+        // 位置跟随（仅源在播时）
+        if (!snap.playing) {
+            return;
+        }
+        const double fps = clock->getFrameRate();
+        if (fps <= 0.0) {
+            return;
+        }
+        qint64 targetFrame = qint64(std::round(m_syncSource->expectedNowSec() * fps));
+        const qint64 maxFrames = clock->getMaxFrames();
+        if (maxFrames > 0) {
+            if (targetFrame > maxFrames) {
+                targetFrame = m_looping ? (targetFrame % (maxFrames + 1)) : maxFrames;
+            }
+        }
+        if (targetFrame < 0) {
+            targetFrame = 0;
+        }
+        if (std::abs(targetFrame - clock->getCurrentFrame()) > 1) {
+            clock->setCurrentFrame(targetFrame);
+        }
+    }
     
     // void onClockPlayingChanged(bool playing) {
     //     if (m_isPlaying != playing) {
@@ -389,6 +483,11 @@ private:
     bool m_playing = false;
     bool m_looping = false;
     qint64 m_currentFrame = 0;
+
+    // ---- 节点间同步（SyncData 体系）----
+    std::shared_ptr<SyncSharedState> m_syncPublisher;  ///< 主机：发布时间线播放头
+    std::shared_ptr<SyncSharedState> m_syncSource;     ///< 从机：外部同步源句柄
+    QTimer* m_syncWatcher = nullptr;                   ///< 源轮询（启停联动 + 位置跟随）
     // unordered_map<unsigned int, QVariant> in_dictionary;
     // unordered_map<unsigned int, QVariant> out_dictionary;
     // QString value;

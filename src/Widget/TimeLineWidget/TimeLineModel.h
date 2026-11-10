@@ -4,7 +4,7 @@
 
 #pragma once
 #include "BaseTimeLineModel.h"
-#include  "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 #include "./TimeLineClock/TimeLineClock.hpp"
 #include "TimeLineDefines.h"
 class TimeLineModel : public BaseTimeLineModel {

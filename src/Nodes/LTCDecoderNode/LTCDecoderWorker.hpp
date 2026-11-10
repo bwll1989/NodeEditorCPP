@@ -7,7 +7,7 @@
 #include <QWaitCondition>
 #include "NodeDataList.hpp"
 #include "Common/Devices/LtcDecoder/ltcdecoder.h"
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 
 namespace Nodes
 {

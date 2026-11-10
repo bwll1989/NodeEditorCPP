@@ -7,7 +7,7 @@
 // 本文件解引用 timeGroupBox（ClipTimePanel*）的成员，需要完整类型；
 // 库头自前置声明化后不再传递提供，必须显式 include。
 #include "ClipTimePanel.hpp"
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 #include "artnetclipmodel.hpp"
 #include "Common/AppConfig/ConfigManager.h"
 #include "../../Common/Devices/StatusContainer/GlobalEventBus.hpp"
@@ -25,8 +25,8 @@ Clips::ArtnetClipModel::ArtnetClipModel(int start,const QString& filePath, QObje
         }
 
         m_canNotify = true;
-        // 初始化 ArtnetTransmitter 单例
-        m_artnetTransmitter = ArtnetTransmitter::getInstance();
+        // 初始化 ArtnetService 单例
+        m_artnetService = ArtnetService::getInstance();
 
         // 异步触发一次初始通知，确保事件循环就绪
         QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
@@ -139,7 +139,7 @@ QWidget* Clips::ArtnetClipModel::clipPropertyWidget() {
          *   1) 打开并定位到对应视频帧（基于 timeline 帧率与 FFmpeg time_base）
          *   2) 提取每一行（universe）的 512 字节 DMX 数据到 m_dmxDataList
          *   3) 构建与 UniversePlaybackDataModel 对齐的 artnetPacket 列表返回
-         *   4) 同步通过 m_artnetTransmitter 将每个 Universe 的帧入队广播
+         *   4) 同步通过 m_artnetService 将每个 Universe 的帧入队广播
          * - 在剪辑开始帧返回 "/file"，结束前一帧返回 "/stop" 以保持与其他 Clip 一致的习惯
          */
 QVariantMap Clips::ArtnetClipModel::currentData(int currentFrame) const {
@@ -477,7 +477,7 @@ void Clips::ArtnetClipModel::extractDMXFromCurrentFrame() {
  * - 通过 m_lastSentFrameIndex 防止 timeline 对同帧的重复调用造成重复发送
  */
 void Clips::ArtnetClipModel::sendArtnetFrames(int baseUniverse, int subnet, int net, int currentFrame) {
-    if (!m_artnetTransmitter) {
+    if (!m_artnetService) {
         return;
     }
     if (m_lastSentFrameIndex == currentFrame) {
@@ -495,7 +495,7 @@ void Clips::ArtnetClipModel::sendArtnetFrames(int baseUniverse, int subnet, int 
         frame.universe = static_cast<quint16>(fullUniverse);
         frame.setDmxData(m_dmxDataList[universeIndex]);
 
-        m_artnetTransmitter->enqueueFrame(frame);
+        m_artnetService->enqueueFrame(frame);
     }
 
     m_lastSentFrameIndex = currentFrame;

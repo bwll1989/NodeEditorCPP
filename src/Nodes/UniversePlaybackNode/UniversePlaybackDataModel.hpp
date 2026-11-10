@@ -20,6 +20,8 @@
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
+#include "Common/DataTypes/SyncData.h"
+#include "Common/Devices/TimestampGenerator/TimestampGenerator.hpp"
 
 // FFmpeg头文件
 extern "C" {
@@ -52,6 +54,7 @@ class UniversePlaybackDataModel : public AbstractDelegateModel
     Q_PROPERTY(bool isLooping READ getIsLooping WRITE setIsLooping NOTIFY isLoopingChanged)
     Q_PROPERTY(bool isPlaying READ getIsPlaying WRITE setIsPlaying NOTIFY isPlayingChanged)
     Q_PROPERTY(QString fileName READ getFileName WRITE setFileName NOTIFY fileNameChanged)
+    Q_PROPERTY(double position READ getPosition WRITE setPosition NOTIFY positionChanged)
 
 public:
     /**
@@ -63,6 +66,10 @@ public:
      * @brief 析构函数
      */
     ~UniversePlaybackDataModel() override {
+        if (m_syncWatcher) {
+            m_syncWatcher->stop();
+            m_syncWatcher->disconnect(this);
+        }
         if (playbackTimer) {
             playbackTimer->stop();
             // 断开定时器与本对象的连接，避免销毁后仍触发槽函数
@@ -136,6 +143,11 @@ public:
     QString getFileName() const { return m_fileName; }
     void setFileName(const QString& fileName);
 
+    /** @brief 当前回放位置（秒），OSC /position 与外部控制读取 */
+    double getPosition() const { return m_currentTimestampMs / 1000.0; }
+    /** @brief 定位到指定秒（OSC /position 远程 seek 入口） */
+    void setPosition(double sec);
+
 signals:
     void errorOccurred(const QString& error);
     void universeChanged(int universe);
@@ -144,6 +156,7 @@ signals:
     void isLoopingChanged(bool looping);
     void isPlayingChanged(bool playing);
     void fileNameChanged(QString fileName);
+    void positionChanged(double position);
 
 public slots:
     void onGlobalEvent(const GlobalEvent& ev);
@@ -151,6 +164,13 @@ public slots:
 private slots:
     void onClearDataClicked();
     void onPlaybackTimer();
+    /**
+     * @brief 从机启停联动——轮询同步源播放态
+     * 源开始播放且本节点未播 → 先定位到源位置再起播；
+     * **源位置超出本媒体时长时不跟随起播**（定格待命），
+     * 否则会陷入"起播→EOF 停止→又起播"的闪烁循环；源回到范围内自动恢复跟随。
+     */
+    void onSyncWatchTick();
 
 private:
     void initializeFFmpeg();
@@ -160,6 +180,10 @@ private:
     bool openVideo(const QString& filename);
     void startPlayback();
     void stopPlayback();
+    /** @brief 定位到指定秒：seek 视频流 + flush 解码器 + 更新时间显示 */
+    void seekToSec(double sec);
+    /** @brief 主机发布——把当前回放位置写入共享同步状态（需已持有 m_mutex） */
+    void publishSyncState();
     bool readNextFrame();
     void extractAndUpdateDmxData();
     void updateAllUniverseData();
@@ -191,6 +215,12 @@ private:
 
     // 播放控制
     QTimer* playbackTimer = nullptr;
+
+    // ---- 节点间同步（SyncData 体系）----
+    std::shared_ptr<SyncSharedState> m_syncPublisher;  ///< 主机：发布本节点回放位置
+    std::shared_ptr<SyncSharedState> m_syncSource;     ///< 从机：外部同步源句柄
+    QTimer* m_syncWatcher = nullptr;                   ///< 源播放态轮询（启停联动）
+    double m_syncDeadZoneSec = 0.04;                   ///< 从机纠偏死区（秒）
     
     // 动态Universe支持
     int currentUniverseCount = 0;  // 当前Universe数量

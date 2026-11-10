@@ -1,6 +1,6 @@
 /**
  * @file NDVController.cpp
- * @brief 对齐 ArtnetTransmitter：常驻单例 + moveToThread，进程退出不主动销毁
+ * @brief 对齐 ArtnetService：常驻单例 + moveToThread，进程退出不主动销毁
  */
 #include "NDVController.h"
 
@@ -119,7 +119,7 @@ NDVController::NDVController(QObject *parent)
     qRegisterMetaType<NDVClientInfo>("NDVClientInfo");
     qRegisterMetaType<QVariantMap>("QVariantMap");
 
-    // 对齐 ArtnetTransmitter：单例自身搬到工作线程，套接字在该线程创建
+    // 对齐 ArtnetService：单例自身搬到工作线程，套接字在该线程创建
     // QThread 不挂 parent，避免 moveToThread 把 QThread 对象迁入自身
     m_thread = new QThread();
     m_heartbeatTimer = new QTimer(this);

@@ -3,7 +3,7 @@
 
 #include <QObject>
 
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 #include "../../Common/Devices/LtcDecoder/ltcdecoder.h"
 #include "portaudio.h"
 #include "pa_asio.h"

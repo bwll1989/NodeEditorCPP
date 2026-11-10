@@ -2,7 +2,7 @@
 #define TIMECODEINTERFACE_H
 
 #include <QWidget>
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 #include <QComboBox>
 #include <QLabel>
 #include <QSpinBox>

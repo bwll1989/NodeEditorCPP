@@ -16,17 +16,17 @@ add_library(${Module_Name} SHARED
         ../../Common/Devices/UdpSocket/UdpSocket.cpp
         ../../Common/Devices/UdpSocket/UdpSocket.h
 )
-# 添加ArtnetTransmitter的头文件路径
+# 添加ArtnetService的头文件路径
 target_include_directories(${Module_Name} PRIVATE
         ../../Common/Devices/ArtnetSender
 )
-# 确保ArtnetTransmitter在ArtnetOutNode之前构建
-add_dependencies(${Module_Name} ArtnetTransmitter)
+# 确保ArtnetService在ArtnetOutNode之前构建
+add_dependencies(${Module_Name} ArtnetService)
 target_link_libraries(${Module_Name} PRIVATE
         Qt${QT_VERSION_MAJOR}::Widgets
         Qt${QT_VERSION_MAJOR}::Network
         ${QtNodes_LIBRARIES}
-        ArtnetTransmitter
+        ArtnetService
         PropertyTreeWidget
         StatusContainer
         BaseClass

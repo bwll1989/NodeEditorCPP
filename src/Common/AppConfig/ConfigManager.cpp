@@ -72,6 +72,8 @@ ConfigManager::ConfigManager()
     , m_autosaveIntervalSeconds(AppConfigs::AUTOSAVE_INTERVAL_SECONDS)
     , m_timestampFrameRate(AppConfigs::TIMESTAMP_FRAME_RATE)
     , m_audioOutputDelayFrames(AppConfigs::AUDIO_OUTPUT_DELAY_FRAMES)
+    , m_artnetMergeMode(AppConfigs::ARTNET_MERGE_MODE)
+    , m_artnetSendFps(AppConfigs::ARTNET_SEND_FPS)
 {
     QString configDir = AppConstants::RECENT_FILES_STORAGE_DIR;
     QDir().mkpath(configDir);
@@ -105,6 +107,8 @@ int ConfigManager::getAutosaveIntervalSeconds() const { return m_autosaveInterva
 double ConfigManager::getTimestampFrameRate() const { return AppConfigs::TIMESTAMP_FRAME_RATE; }
 int ConfigManager::getAudioOutputDelayFrames() const { return m_audioOutputDelayFrames; }
 QString ConfigManager::getLicenseCode() const { return m_licenseCode; }
+int ConfigManager::getArtnetMergeMode() const { return m_artnetMergeMode; }
+int ConfigManager::getArtnetSendFps() const { return m_artnetSendFps; }
 
 void ConfigManager::addRecentFile(const QString& path)
 {
@@ -161,6 +165,10 @@ void ConfigManager::loadConfig()
                                               AppConfigs::AUDIO_OUTPUT_DELAY_FRAMES).toInt();
     m_audioOutputDelayFrames = qBound(0, m_audioOutputDelayFrames, 16);
     m_licenseCode = settings.value("License/Code").toString();
+    // Art-Net 多源合并策略：0=HTP(取大) 1=LTP(后写优先)，越界回退默认值
+    m_artnetMergeMode = qBound(0, settings.value("Network/ArtnetMergeMode", AppConfigs::ARTNET_MERGE_MODE).toInt(), 1);
+    // Art-Net 发送节拍频率（Hz），钳制 1-100
+    m_artnetSendFps = qBound(1, settings.value("Network/ArtnetSendFps", AppConfigs::ARTNET_SEND_FPS).toInt(), 100);
 }
 
 void ConfigManager::createDefaultConfig()
@@ -203,6 +211,10 @@ void ConfigManager::saveConfig()
     settings.setValue("Timestamp/FrameRate", AppConfigs::TIMESTAMP_FRAME_RATE);
     settings.setValue("Timestamp/AudioOutputDelayFrames", m_audioOutputDelayFrames);
     settings.setValue("License/Code", m_licenseCode);
+    // Art-Net 多源合并策略
+    settings.setValue("Network/ArtnetMergeMode", m_artnetMergeMode);
+    // Art-Net 发送节拍频率（Hz）
+    settings.setValue("Network/ArtnetSendFps", m_artnetSendFps);
 
     settings.sync();
 }
@@ -240,6 +252,12 @@ void ConfigManager::updateConfig(const QJsonObject& newConfig)
         m_audioOutputDelayFrames = qBound(0, newConfig["AudioOutputDelayFrames"].toInt(), 16);
     }
     if (newConfig.contains("LicenseCode")) m_licenseCode = newConfig["LicenseCode"].toString();
+    if (newConfig.contains("ArtnetMergeMode")) {
+        m_artnetMergeMode = qBound(0, newConfig["ArtnetMergeMode"].toInt(), 1);
+    }
+    if (newConfig.contains("ArtnetSendFps")) {
+        m_artnetSendFps = qBound(1, newConfig["ArtnetSendFps"].toInt(), 100);
+    }
 
     saveConfig();
 }

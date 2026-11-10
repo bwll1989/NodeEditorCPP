@@ -91,6 +91,18 @@ set(Libltc_LIBRARIES "${Libltc_DIR}/MSVC/lib/libltc.lib")
 INCLUDE_DIRECTORIES("${DEPENDS_DIR}/libltc_cmake/src")
 message("-- Found libltc ${DEPENDS_DIR}/libltc_cmake/src")
 
+# 设置RtMidi库（静态编译，WinMM 后端，供 MTC Receiver/Sender/GeneratorNode 使用）
+set(RtMidi_DIR "${DEPENDS_DIR}/rtmidi")
+add_library(rtmidi STATIC "${RtMidi_DIR}/RtMidi.cpp")
+# RtMidi 6.1 不再自动检测平台后端，必须显式启用 WinMM 后端，否则枚举/收发全部抛"no API support"
+target_compile_definitions(rtmidi PRIVATE RTMIDI_API_WINMM)
+# 关闭"设备名追加端口号"的防重名机制，保持与系统/Reaper 显示一致（本项目 UI 自带 index 前缀区分）
+target_compile_definitions(rtmidi PRIVATE RTMIDI_DO_NOT_ENSURE_UNIQUE_PORTNAMES)
+target_include_directories(rtmidi PUBLIC "${RtMidi_DIR}")
+target_link_libraries(rtmidi PUBLIC winmm)
+target_compile_definitions(rtmidi PRIVATE -DNODE_EDITOR_SHARED)
+message("-- Found RtMidi ${RtMidi_DIR}")
+
 # 设置tinyosc库
 set(tinyosc_DIR "${DEPENDS_DIR}/tinyosc-msvc")
 include_directories(${tinyosc_DIR})
@@ -186,6 +198,22 @@ add_subdirectory(src/Common/Devices/GraphSnapshotBridge)
 add_subdirectory(src/Nodes/BuildInNodes)
 #add_subdirectory(src/Common/GUI/DockHub)
 add_subdirectory(src/Common/DataTypes)
+
+# MTC 设备静态库（Decoder/Receiver/Sender）：主程序与 MTC Generator/Decoder 节点插件共同链接
+# 注意：必须在 find_package(Qt) 与 DataTypes 之后定义（依赖 Qt::Core 与 SyncData）
+set(MtcDevices_DIR "${CMAKE_SOURCE_DIR}/src/Common/Devices")
+add_library(MtcDevices STATIC
+        "${MtcDevices_DIR}/MtcDecoder/mtcdecoder.cpp"
+        "${MtcDevices_DIR}/MtcDecoder/mtcdecoder.h"
+        "${MtcDevices_DIR}/MtcReceiver/mtcreceiver.cpp"
+        "${MtcDevices_DIR}/MtcReceiver/mtcreceiver.h"
+        "${MtcDevices_DIR}/MtcSender/mtcsender.cpp"
+        "${MtcDevices_DIR}/MtcSender/mtcsender.h"
+)
+target_include_directories(MtcDevices PUBLIC
+        "${CMAKE_SOURCE_DIR}"
+        "${MtcDevices_DIR}")
+target_link_libraries(MtcDevices PUBLIC Qt${QT_VERSION_MAJOR}::Core rtmidi DataTypes)
 add_subdirectory(src/Common/Devices/StatusContainer)
 add_subdirectory(src/Common/AppConfig)
 add_subdirectory(src/Common/GUI/PropertyTreeWidget)
@@ -270,8 +298,6 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/WebSocketClient/WebSocketClientWorker.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.cpp
         src/Common/Devices/OSCReceiver/OSCReceiver.h
-        src/Common/Devices/ArtnetReceiver/ArtnetReceiver.cpp
-        src/Common/Devices/ArtnetReceiver/ArtnetReceiver.h
         src/Common/Devices/LTCDecoder/LTCDecoder.cpp
         src/Common/Devices/LTCDecoder/LTCDecoder.h
         src/Common/Devices/LtcReceiver/LtcReceiver.cpp
@@ -405,6 +431,8 @@ target_link_libraries(${ProjectName}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
             ${Libltc_LIBRARIES}
+            rtmidi
+            MtcDevices
             ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}
             ${QtColorWidgets_LIBRARIES}
@@ -475,6 +503,8 @@ target_link_libraries(${HeadlessProjectName}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
             ${Libltc_LIBRARIES}
+            rtmidi
+            MtcDevices
             Eigen3::Eigen
             ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}

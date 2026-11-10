@@ -8,7 +8,7 @@
 #include <QString>
 #include <memory>
 #include "Common/Devices/OSCReceiver/OSCReceiver.h"
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 #include <QWidget>
 #include "Common/Devices/StatusContainer/StatusContainer.h"
 #include <QCoreApplication>

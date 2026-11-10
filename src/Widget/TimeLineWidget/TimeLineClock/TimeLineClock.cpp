@@ -1,6 +1,6 @@
 #include "Widget/TimeLineWidget/TimeLineClock/TimeLineClock.hpp"
 #include <QThread>
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 TimeLineClock::TimeLineClock(QObject* parent)
     : QObject(parent)
     , m_currentFrame(0)
@@ -262,7 +262,7 @@ void TimeLineClock::closeCurrentClockSource()
             closeLTCClock();
             break;
         case ClockSource::MTC:
-            // 如果有 MTC 相关清理代码，在这里添加
+            closeMTCClock();
             break;
     }
 }
@@ -291,6 +291,29 @@ void TimeLineClock::initLTCClock(QString device, int channelIndex)
     }
 }
 
+void TimeLineClock::initMTCClock(QString device)
+{
+    // 确保先清理旧的接收器
+    closeMTCClock();
+
+    // 创建新的接收器：MTC 帧直接驱动时钟时间码
+    m_mtcReceiver = new MtcReceiver(this);
+    if (m_mtcReceiver) {
+        connect(m_mtcReceiver, &MtcReceiver::newFrame,
+                this, &TimeLineClock::setCurrentTimecode, Qt::QueuedConnection);
+        m_mtcReceiver->start(device);
+    }
+}
+
+void TimeLineClock::closeMTCClock()
+{
+    if (m_mtcReceiver) {
+        m_mtcReceiver->stop();
+        delete m_mtcReceiver;
+        m_mtcReceiver = nullptr;
+    }
+}
+
 ClockSource TimeLineClock::getClockSource() const
 { 
     return m_clockSource;
@@ -308,17 +331,20 @@ QJsonObject TimeLineClock::save()
     // 保存 LTC 设置
     if (m_clockSource == ClockSource::LTC) {
         QJsonObject ltcSettings;
-        
-        // 保存 LTC 接收器的设置
-        ltcSettings["device"] = m_ltcReceiver->getDeviceName();
-        ltcSettings["channel"] = m_ltcReceiver->getChannel();
-        
+        if (m_ltcReceiver) {
+            ltcSettings["device"] = m_ltcReceiver->getDeviceName();
+            ltcSettings["channel"] = m_ltcReceiver->getChannel();
+        }
         json["ltcSettings"] = ltcSettings;
     }
     
     // 保存 MTC 设置
     if (m_clockSource == ClockSource::MTC) {
-       json["mtcSettings"] = QJsonObject();
+        QJsonObject mtcSettings;
+        if (m_mtcReceiver) {
+            mtcSettings["device"] = m_mtcReceiver->getDeviceName();
+        }
+        json["mtcSettings"] = mtcSettings;
     }
     
     return json;
@@ -370,8 +396,13 @@ void TimeLineClock::load(const QJsonObject& json)
                 break;
                 
             case ClockSource::MTC:
-                if (json.contains("mtcSettings")) {
-                    // 初始化 MTC 设置
+                if (m_clockSource != ClockSource::MTC) {
+                    closeCurrentClockSource();
+                    if (json.contains("mtcSettings")) {
+                        QJsonObject mtcSettings = json["mtcSettings"].toObject();
+                        m_clockSource = source;
+                        initMTCClock(mtcSettings["device"].toString());
+                    }
                 }
                 break;
         }

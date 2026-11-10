@@ -14,7 +14,8 @@
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/AppConfig/ConstantDefines.h"
 #include "Common/Log/LogRingBuffer.hpp"
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
+#include "Common/Devices/MediaLibrary/MediaLibrary.h"
 #include <Poco/Net/HTTPServerRequest.h>
 #include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/Net/NetException.h>
@@ -980,6 +981,11 @@ void StaticRequestHandler::handleUploadMedia(HTTPServerRequest& request, HTTPSer
         Poco::FileOutputStream fos(absPath, std::ios::out | std::ios::trunc | std::ios::binary);
         Poco::StreamCopier::copyStream(in, fos);
         fos.close();
+        // 上传完成：队列投递到主线程统一处理（刷新媒体库入库 + 视频自动转码），避免 HTTP 线程跨线程操作模型
+        QMetaObject::invokeMethod(MediaLibrary::instance(),
+                                  "handleExternalImport",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(QString, qFilePath));
         // 返回
         std::ostringstream oss;
         oss << "{\"ok\":true,\"path\":\"" << absPath << "\"}";

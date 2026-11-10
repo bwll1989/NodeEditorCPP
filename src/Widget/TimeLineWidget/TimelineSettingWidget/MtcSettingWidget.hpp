@@ -5,9 +5,9 @@
 #include <QLabel>
 #include <QComboBox>
 #include <QPushButton>
-#include "portaudio.h"
 #include <QSet>
 #include <QJsonObject>
+#include "Common/Devices/MtcReceiver/mtcreceiver.h"
 class MtcSettingWidget : public QWidget {
     Q_OBJECT
 public:

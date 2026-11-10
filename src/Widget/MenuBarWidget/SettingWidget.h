@@ -4,6 +4,7 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QLineEdit>
+#include <QComboBox>
 #include <QLabel>
 #include <QDialogButtonBox>
 #include <QListWidget>
@@ -33,6 +34,8 @@ private:
     IntDragValueWidget* m_autosaveIntervalSpin;
     QLabel* m_timestampFrameRateLabel;
     IntDragValueWidget* m_audioOutputDelaySpin;
+    QComboBox* m_artnetMergeCombo; ///< Art-Net 多源合并策略（HTP/LTP）
+    IntDragValueWidget* m_artnetFpsSpin; ///< Art-Net 发送节拍频率（Hz）
 
     // Network Settings
     IntDragValueWidget* m_httpPortSpin;

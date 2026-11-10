@@ -22,14 +22,19 @@ Clips::ArtnetClipModel::ArtnetClipModel(int start,const QString& filePath, QObje
         }
 
         m_canNotify = true;
-        // 初始化 ArtnetTransmitter 单例
-        m_artnetTransmitter = ArtnetTransmitter::getInstance();
+        // 初始化 ArtnetService 单例
+        m_artnetService = ArtnetService::getInstance();
 
         // 异步触发一次初始通知，确保事件循环就绪
         QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
     }
 
-Clips::ArtnetClipModel::~ArtnetClipModel() {}
+Clips::ArtnetClipModel::~ArtnetClipModel() {
+    // 析构时从状态表撤销本片段名下的全部输出桶，避免悬空属主标签残留
+    if (m_artnetService) {
+        m_artnetService->releaseOwner(this);
+    }
+}
 
 // 设置文件路径并加载视频信息
 void Clips::ArtnetClipModel::setMedia(const QVariant& path) {
@@ -136,7 +141,7 @@ QWidget* Clips::ArtnetClipModel::clipPropertyWidget() {
          *   1) 打开并定位到对应视频帧（基于 timeline 帧率与 FFmpeg time_base）
          *   2) 提取每一行（universe）的 512 字节 DMX 数据到 m_dmxDataList
          *   3) 构建与 UniversePlaybackDataModel 对齐的 artnetPacket 列表返回
-         *   4) 同步通过 m_artnetTransmitter 将每个 Universe 的帧入队广播
+         *   4) 同步通过 m_artnetService 将每个 Universe 的帧入队广播
          * - 在剪辑开始帧返回 "/file"，结束前一帧返回 "/stop" 以保持与其他 Clip 一致的习惯
          */
 QVariantMap Clips::ArtnetClipModel::currentData(int currentFrame) const {
@@ -220,6 +225,8 @@ void Clips::ArtnetClipModel::onUniverseChanged(int value)
 {
     // 函数级注释：统一处理起始 Universe 变更并发送状态反馈
     stateFeedBack("/universe", value);
+    // 起始 Universe 变化：撤销旧桶并按新 Universe 重推当前缓存数据
+    refreshOutputs();
 }
 
 void Clips::ArtnetClipModel::onHostChanged(const QString& host)
@@ -231,6 +238,8 @@ void Clips::ArtnetClipModel::onHostChanged(const QString& host)
     }
     m_targetHost = trimmed;
     stateFeedBack("/host", m_targetHost);
+    // 目标主机变化：撤销旧地址下的旧桶，并按新地址重推当前缓存数据
+    refreshOutputs();
 }
 
 void Clips::ArtnetClipModel::onFileChanged(const QString& file)
@@ -385,6 +394,10 @@ void Clips::ArtnetClipModel::ensureVideoOpened(const QString& path) {
 
     m_lastFrameIndex = -1;
     m_openedPath = path;
+
+    // 文件重新打开后 universe 数量可能变化（新文件域数更少时旧槽会残留）：
+    // 撤销本片段全部旧桶，并按新 universe 范围重推（当前为全零，随后由解码帧填充）
+    refreshOutputs();
 }
 
 /**
@@ -468,13 +481,14 @@ void Clips::ArtnetClipModel::extractDMXFromCurrentFrame() {
 
 
 /**
- * 函数级注释：将当前帧的每个 Universe 的 DMX 数据封装为 ArtnetFrame 并入队发送
+ * 函数级注释：将当前帧的每个 Universe 的 DMX 数据写入状态表（50Hz 心跳负责实际发送）
  * - 参考 ArtnetOutDataModel 的发送逻辑
  * - 使用广播地址 `m_targetHost`；可根据需要扩展属性面板增加目标主机设置
- * - 通过 m_lastSentFrameIndex 防止 timeline 对同帧的重复调用造成重复发送
+ * - 通过 m_lastSentFrameIndex 防止 timeline 对同帧的重复调用造成重复写入
+ * - 时间轴暂停后不再调用本函数，但状态表里最后的值仍会被 50Hz 持续重发（保持该帧状态）
  */
 void Clips::ArtnetClipModel::sendArtnetFrames(int baseUniverse, int subnet, int net, int currentFrame) {
-    if (!m_artnetTransmitter) {
+    if (!m_artnetService) {
         return;
     }
     if (m_lastSentFrameIndex == currentFrame) {
@@ -487,15 +501,49 @@ void Clips::ArtnetClipModel::sendArtnetFrames(int baseUniverse, int subnet, int 
 
         ArtnetFrame frame;
         frame.host = m_targetHost;
-        frame.sequence = 0;
+        frame.sequence = 0; // 序号由状态表发送时自增，此字段仅作占位
         frame.timestamp = QDateTime::currentMSecsSinceEpoch();
         frame.universe = static_cast<quint16>(fullUniverse);
         frame.setDmxData(m_dmxDataList[universeIndex]);
 
-        m_artnetTransmitter->enqueueFrame(frame);
+        // 写入状态表（owner = 本片段，供多源 HTP/LTP 合并与释放时定位归属）
+        m_artnetService->updateFrame(frame, this);
     }
 
     m_lastSentFrameIndex = currentFrame;
+}
+
+/**
+ * 函数级注释：刷新本片段在状态表中的全部输出
+ * - 幂等套路：先撤销旧桶，再按当前缓存（m_dmxDataList）重推；用于 Universe/主机配置变更场景
+ * - 同时复位 m_lastSentFrameIndex，放行时间轴下一帧的重新写入
+ */
+void Clips::ArtnetClipModel::refreshOutputs() {
+    if (!m_artnetService) {
+        return;
+    }
+    // 1. 撤销本片段名下的全部旧桶（配置可能已变化，旧位置不应继续输出）
+    m_artnetService->releaseOwner(this);
+    // 2. 允许时间轴下一帧重新写入
+    m_lastSentFrameIndex = -1;
+    // 3. 若已有解码缓存，按当前配置重推（时间轴暂停时也能立即更新到新位置）
+    if (m_dmxDataList.isEmpty() || m_universeCount <= 0) {
+        return;
+    }
+    const int baseUniverse = (m_startUniverse ? m_startUniverse->value() : 0);
+    for (int universeIndex = 0; universeIndex < m_dmxDataList.size(); ++universeIndex) {
+        // subnet/net 在 Timeline 版本中简化为 0，与 sendArtnetFrames 保持一致
+        int currentUniverse = (baseUniverse + universeIndex) % 16;
+
+        ArtnetFrame frame;
+        frame.host = m_targetHost;
+        frame.sequence = 0;
+        frame.timestamp = QDateTime::currentMSecsSinceEpoch();
+        frame.universe = static_cast<quint16>(currentUniverse);
+        frame.setDmxData(m_dmxDataList[universeIndex]);
+
+        m_artnetService->updateFrame(frame, this);
+    }
 }
 
 void Clips::ArtnetClipModel::afterModelReady()

@@ -104,8 +104,8 @@ QWidget* TimeLineSetting::createGeneralTab()
     m_ltcSettingWidget = new LtcSettingWidget(m_inputAudioDeviceList, widget);
     m_clockSettingsStack->addWidget(m_ltcSettingWidget);
 
-    // MTC设置页面
-    m_mtcSettingWidget = new MtcSettingWidget(widget);
+    // MTC设置页面（枚举系统 MIDI 输入端口）
+    m_mtcSettingWidget = new MtcSettingWidget(widget, MtcReceiver::availableDevices());
 
     m_clockSettingsStack->addWidget(m_mtcSettingWidget);
 
@@ -301,6 +301,6 @@ void TimeLineSetting::syncSettings(){
     // m_audioSettingWidget->setAudioSetting(TimeCodeSetting["audioSettings"].toObject());
     // // 同步视频设置
     // m_videoSettingWidget->setVideoSetting(TimeCodeSetting["videoSettings"].toObject());
-    // // 同步MTC设置
-    // m_mtcSettingWidget->setMtcSetting(TimeCodeSetting["mtcSettings"].toObject());
+    // 同步MTC设置
+    m_mtcSettingWidget->setMtcSetting(TimeCodeSetting["mtcSettings"].toObject());
 }

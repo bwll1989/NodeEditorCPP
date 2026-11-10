@@ -40,7 +40,22 @@ namespace AppConstants {
     const QString LIGHT_STYLESHEET = ":/styles/styles/DefaultLight.qss";
 
 }
+
+/**
+ * @brief Art-Net 多源写入同一 universe 时的合并策略
+ * 放在全局作用域：ConfigManager（AppConfig 库）与 ArtnetSender 库双方都依赖此处定义
+ */
+enum class ArtnetMergeMode : int
+{
+    HTP = 0, ///< 逐通道取最大值（Highest Takes Precedence）：强度合并标准做法，多源同写不闪烁，默认值
+    LTP = 1  ///< 后写优先（Latest Takes Precedence）：最近更新的源整包胜出，适合单源活跃的接管场景
+};
+
 namespace AppConfigs {
+    // Art-Net 多源合并策略默认值：0=HTP(取大) 1=LTP(后写优先)
+    constexpr int ARTNET_MERGE_MODE = 0;
+    // Art-Net 发送节拍频率默认值（Hz）：每周期重发所有活跃端点的当前状态
+    constexpr int ARTNET_SEND_FPS = 50;
     // 日志界面显示最多条目数
     constexpr int MAX_LOG_ENTRIES = 200;
     // 日志磁盘最多保存文件数（按天轮转，每天一个 txt）

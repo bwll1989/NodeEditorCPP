@@ -98,6 +98,12 @@ public:
     void clearLibrary();
 
     /**
+     * @brief 外部通道（网页上传等）文件落盘后的统一处理：刷新模型入库，并对视频触发自动转码
+     *        供 HttpServer 线程经 QMetaObject::invokeMethod(QueuedConnection) 调用，实际在主线程执行
+     */
+    Q_INVOKABLE void handleExternalImport(const QString& absPath);
+
+    /**
      * @brief 返回某索引对应的文件路径（若为组节点则返回空）
      */
     QString filePathForIndex(const QModelIndex& index) const;
@@ -166,8 +172,19 @@ private:
      * @brief 判断该类别组内是否存在指定路径的文件（去重）
      */
     bool existsInCategory(QStandardItem* catItem, const QString& absPath) const;
+
+    /**
+     * @brief 若为视频类文件则加入 HAP 自动转码队列（仅显式导入时调用）
+     */
+    void maybeTranscode(const QString& absPath);
 private:
     QHash<Category, QStandardItem*> m_categories;
+
+    /**
+     * @brief 视频转码状态表（key=源文件绝对路径，value=状态文案）
+     *        非空时 renumberCategory 在条目文本后附加【状态】后缀
+     */
+    QHash<QString, QString> m_statusByPath;
     void initializeStorageDir();
     QString uniqueFileNameInStorage(const QString& fileName) const;
     // 新增：判断路径是否位于存储目录

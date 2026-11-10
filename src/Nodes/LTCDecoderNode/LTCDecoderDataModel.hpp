@@ -50,12 +50,31 @@ namespace Nodes {
             , _audioBuffer(nullptr)
         {
             InPortCount = 1;
-            OutPortCount = 5;
+            OutPortCount = 6;
             CaptionVisible = true;
             Resizable = false;
             PortEditable = false;
             WidgetEmbeddable=false;
             Caption = PLUGIN_NAME;
+
+            // 同步源状态：对外以 SyncData（内部秒）发布，图内同步统一走全局时钟
+            m_syncState = std::make_shared<SyncSharedState>(QStringLiteral("LTCDecoder"));
+
+            // TC 失联看门狗：>500ms 无新帧则置无效（跟随端据此联动停止）
+            m_ltcWatchdog = new QTimer(this);
+            m_ltcWatchdog->setInterval(200);
+            connect(m_ltcWatchdog, &QTimer::timeout, this, [this]() {
+                if (m_lastFrameTickMs > 0
+                    && QDateTime::currentMSecsSinceEpoch() - m_lastFrameTickMs > 500) {
+                    m_syncState->setActive(false);
+                    // 边沿触发：LTC 信号丢失时回落到 Listening（音频仍在喍但解不到帧）
+                    if (m_decoding) {
+                        m_decoding = false;
+                        _label->setStatus(false, "Listening");
+                    }
+                }
+            });
+            m_ltcWatchdog->start();
 
             // 设置工作线程
             _worker->moveToThread(_workerThread);
@@ -94,12 +113,11 @@ namespace Nodes {
          */
         NodeDataType dataType(PortType const portType, PortIndex const portIndex) const override
         {
-            Q_UNUSED(portIndex);
             switch (portType) {
                 case PortType::In:
                     return AudioData().type();
                 case PortType::Out:
-                    return VariableData().type();
+                    return (portIndex == 5) ? SyncData().type() : VariableData().type();
                 default:
                     return VariableData().type();
             }
@@ -129,6 +147,8 @@ namespace Nodes {
                             return "HOURS";
                         case 4:
                             return "TOTAL";
+                        case 5:
+                            return "SYNC";
                         default:
                             break;
                         }
@@ -146,6 +166,9 @@ namespace Nodes {
         {
             switch (port)
             {
+            case 5:
+                // SYNC 时钟源输出口：TC 已映射为内部秒（含用户偏移）
+                return std::make_shared<SyncData>(m_syncState);
             case 0:
                 return std::make_shared<VariableData>(_timeCodeFrame.frames);
             case 1:
@@ -170,14 +193,16 @@ namespace Nodes {
             
             auto audioData = std::dynamic_pointer_cast<AudioData>(nodeData);
             if (audioData && audioData->isConnectedToSharedBuffer()) {
-                _audioBuffer = audioData->getSharedAudioBuffer();
-                
-                if (_audioBuffer) {
-                    // 在工作线程中设置音频缓冲区
-                    QMetaObject::invokeMethod(_worker, "setAudioBuffer", 
+                auto buffer = audioData->getSharedAudioBuffer();
+
+                if (buffer && buffer != _audioBuffer) {
+                    // 上游每推一块音频都会触发 setInData：仅在缓冲指针真正变化时
+                    // 重建 worker 缓冲并更新状态，避免 "Connected" 反复覆盖 "Decoding"
+                    _audioBuffer = buffer;
+                    QMetaObject::invokeMethod(_worker, "setAudioBuffer",
                                             Qt::QueuedConnection,
                                             Q_ARG(std::shared_ptr<AudioTimestampRingQueue>, _audioBuffer));
-                    
+
                     _label->setStatus(false, "Connected");
                 }
             } else {
@@ -230,25 +255,48 @@ namespace Nodes {
         {
             _label->setTimeStamp(frame);
             _timeCodeFrame = timecode_frame_add(frame, _label->timeCodeOffsetSpinBox->value());
-            _label->setStatus(false, "Decoding");
-            
+            if (!m_decoding) {
+                m_decoding = true;
+                _label->setStatus(false, "Decoding");
+            }
+
+            // ---- 时钟源发布：TC（含用户偏移）→ 内部秒 → 共享同步状态 ----
+            {
+                const int fps = timecode_frames_per_sec(_timeCodeFrame.type);
+                const double sec = _timeCodeFrame.hours * 3600.0
+                    + _timeCodeFrame.minutes * 60.0
+                    + _timeCodeFrame.seconds
+                    + double(_timeCodeFrame.frames) / double(fps > 0 ? fps : 25);
+                m_syncState->setActive(true);
+                m_syncState->write(sec,
+                                   TimestampGenerator::getInstance()->getCurrentFrameCount(),
+                                   true);
+                m_lastFrameTickMs = QDateTime::currentMSecsSinceEpoch();
+            }
+
             // 通知输出端口数据更新
             emit dataUpdated(0);
             emit dataUpdated(1);
             emit dataUpdated(2);
             emit dataUpdated(3);
             emit dataUpdated(4);
+            emit dataUpdated(5);
         }
         
         /**
          * @brief 处理状态变化槽函数
-         * @param isProcessing 是否正在处理
+         * @param isProcessing 是否正在处理（音频缓冲已就绪）
+         * 注意：这只表示"音频在喍"，不代表已解到 LTC。显示用 Listening，
+         * 且不覆盖 Decoding（后者由真实解出的 LTC 帧驱动），避免状态来回跳动
          */
         void onProcessingStatusChanged(bool isProcessing)
         {
             if (isProcessing) {
-                _label->setStatus(false, "Processing");
+                if (!m_decoding) {
+                    _label->setStatus(false, "Listening");
+                }
             } else {
+                m_decoding = false;
                 _label->setStatus(true, "Idle");
             }
         }
@@ -259,5 +307,11 @@ namespace Nodes {
         LTCDecoderWorker* _worker;                                      ///< 工作线程对象
         QThread* _workerThread;                                         ///< 工作线程
         std::shared_ptr<AudioTimestampRingQueue> _audioBuffer;          ///< 音频缓冲区
+
+        // ---- SyncData 时钟源发布 ----
+        std::shared_ptr<SyncSharedState> m_syncState;                   ///< 对外发布的同步状态（TC→内部秒）
+        QTimer* m_ltcWatchdog = nullptr;                                ///< TC 失联看门狗
+        qint64 m_lastFrameTickMs = 0;                                   ///< 最后收到 TC 帧的时刻（ms）
+        bool m_decoding = false;                                        ///< 正在解到 LTC 帧（状态栏边沿去重）
     };
 }

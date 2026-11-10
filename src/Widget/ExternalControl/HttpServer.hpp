@@ -21,7 +21,7 @@
 #include <QByteArray>
 #include <QJsonArray>
 #include <QJsonObject>
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 #include "Poco/Net/HTTPResponse.h"
 #include "StatusContainer/StatusItem.h"
 #include "ActionRegistry.h"

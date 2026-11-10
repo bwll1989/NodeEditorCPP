@@ -3,7 +3,7 @@
 //
 
 #include "TrackListView.h"
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 
 void TrackListView::drawTitle(QPainter *painter)
 {

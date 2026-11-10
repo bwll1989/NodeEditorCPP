@@ -7,7 +7,7 @@
 #include <QQueue>
 #include <QTimer>
 #include <QVariant>
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 
 #ifdef OSCTRANSMITTER_LIBRARY
 #define OSCTRANSMITTER_EXPORT Q_DECL_EXPORT

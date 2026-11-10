@@ -249,7 +249,6 @@ namespace Nodes
     {
         QMutexLocker locker(&_mutex);
         _volumeDb = db;
-        
         // Reset debug print flag when volume changes significantly
         static float lastVol = -999.0f;
         if (std::abs(db - lastVol) > 1.0f) {
@@ -258,6 +257,103 @@ namespace Nodes
             // Let's add a simple debug here
             // qDebug() << "LTC Volume set to:" << db << "dB";
             lastVol = db;
+        }
+    }
+
+    /**
+     * @brief 绑定同步源（跨线程，经 functor 队列调用）
+     */
+    void LTCGeneratorWorker::setSyncSource(std::shared_ptr<NodeDataTypes::SyncSharedState> src)
+    {
+        QMutexLocker locker(&_mutex);
+        _syncSource = std::move(src);
+        // 状态切换：清 hold 标记，让下一轮 followSync 重新对齐
+        _syncHold = false;
+    }
+
+    void LTCGeneratorWorker::setSyncOffsetSec(double sec)
+    {
+        QMutexLocker locker(&_mutex);
+        _syncOffsetSec = sec;
+    }
+
+    /**
+     * @brief 秒 → SMPTETimecode（按当前编码器帧率；24h 环回）
+     */
+    void LTCGeneratorWorker::secToSmpteLocked(double sec, SMPTETimecode& out) const
+    {
+        if (sec < 0.0) {
+            sec = 0.0;
+        }
+        const int ifps = int(std::floor(_fps + 0.5));
+        qint64 totalFrames = llround(sec * double(ifps > 0 ? ifps : 25));
+
+        out.frame = int(totalFrames % ifps);
+        qint64 s = totalFrames / ifps;
+        out.secs = int(s % 60); s /= 60;
+        out.mins = int(s % 60); s /= 60;
+        out.hours = int(s % 24);
+    }
+
+    /**
+     * @brief SMPTETimecode → 总帧数（与 secToSmpteLocked 互逆，用于帧差比较）
+     */
+    qint64 LTCGeneratorWorker::smpteToTotalFramesLocked(const SMPTETimecode& t) const
+    {
+        const int ifps = int(std::floor(_fps + 0.5));
+        if (ifps <= 0) {
+            return 0;
+        }
+        return (qint64(t.hours) * 3600 + qint64(t.mins) * 60 + qint64(t.secs)) * ifps + t.frame;
+    }
+
+    /**
+     * @brief SYNC→LTC 跟随：读源快照，帧差超死区（1帧）时重置编码器时间码
+     * 源暂停/失效时切静音定格；恢复后自动重新对齐。仅生成线程调用（持锁）。
+     */
+    void LTCGeneratorWorker::followSyncLocked()
+    {
+        std::shared_ptr<NodeDataTypes::SyncSharedState> src = _syncSource;
+        if (!src) {
+            _syncHold = false;
+            return;
+        }
+
+        const NodeDataTypes::SyncState snap = src->read();
+        const bool active = snap.active && snap.playing;
+
+        if (!active) {
+            if (!_syncHold) {
+                // 首次进入定格：时间码对齐到源位置并清缓冲，随后输出静音
+                const double targetSec = src->expectedNowSec() + _syncOffsetSec;
+                secToSmpteLocked(targetSec, _timecode);
+                syncEncoderFromTimecodeLocked();
+                _pendingSamples.clear();
+                _pendingReadOffset = 0;
+                _frameSampleCounts.clear();
+                _frameTimecodes.clear();
+                _frameQueueHead = 0;
+                _frameHeadConsumed = 0;
+                _syncHold = true;
+            }
+            return;
+        }
+        _syncHold = false;
+
+        // 外推期望位置 → 目标帧号，与编码器当前帧号比较
+        const double targetSec = src->expectedNowSec() + _syncOffsetSec;
+        const qint64 targetFrames = llround(targetSec * double(int(std::floor(_fps + 0.5)) > 0 ? int(std::floor(_fps + 0.5)) : 25));
+        const qint64 curFrames = smpteToTotalFramesLocked(_timecode);
+
+        if (std::abs(targetFrames - curFrames) > 1) { // 死区：1 个 LTC 帧
+            secToSmpteLocked(targetSec, _timecode);
+            syncEncoderFromTimecodeLocked();
+            _pendingSamples.clear();
+            _pendingReadOffset = 0;
+            _frameSampleCounts.clear();
+            _frameTimecodes.clear();
+            _frameQueueHead = 0;
+            _frameHeadConsumed = 0;
         }
     }
 
@@ -404,7 +500,8 @@ namespace Nodes
             return;
         }
 
-        if (!_enabled) {
+        if (!_enabled || _syncHold) {
+            // 手动禁用，或 SYNC 源暂停/失效：输出静音（时间戳仍推进，保持下游节拍）
             std::fill(out.begin(), out.end(), 0.0f);
             return;
         }
@@ -481,6 +578,8 @@ namespace Nodes
             {
                 QMutexLocker locker(&_mutex);
                 if (_isProcessing) {
+                    // ---- SYNC→LTC 跟随：对齐源位置（未绑定则无操作）----
+                    followSyncLocked();
                     ensureEncoderLocked();
                     // 预填缓冲：按 TimestampGenerator 每块采样数（如 2048@23.4375fps）保持约 1 块余量
                     const int pendingTarget = getBufferSize();

@@ -1,6 +1,8 @@
 #include "CurveViewport.hpp"
+#include "CurvePalette.hpp"
 
 #include <QFont>
+#include <QImage>
 #include <QKeyEvent>
 #include <QMenu>
 #include <QMouseEvent>
@@ -135,7 +137,7 @@ CurveViewport::CurveViewport(QWidget* parent)
     setMinimumHeight(280);
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);
-    setToolTip(QStringLiteral("左键拖动控制点，按住 X/Y/Z 锁定轴向；右键旋转，中键或 Shift+左键平移，滚轮缩放，双击地面或曲线添加点"));
+    setToolTip(QStringLiteral("左键拖动控制点，按住 X/Y/Z 锁定轴向；单击曲线或图例切换编辑目标；双击曲线插入点、双击地面加点；右键旋转，中键或 Shift+左键平移，滚轮缩放"));
 }
 
 CurveViewport::~CurveViewport()
@@ -170,7 +172,7 @@ void CurveViewport::releaseResources()
     }
 }
 
-void CurveViewport::setPath(CurvePath* path)
+void CurveViewport::setPath(CurvePath* path, bool frame)
 {
     if (m_path == path) {
         return;
@@ -183,7 +185,84 @@ void CurveViewport::setPath(CurvePath* path)
         connect(m_path, &CurvePath::curveChanged, this, qOverload<>(&CurveViewport::update));
         connect(m_path, &CurvePath::selectionChanged, this, qOverload<>(&CurveViewport::update));
     }
-    frameAll(true);
+    if (frame) {
+        frameAll(true);
+    } else {
+        update();   // 保持当前相机，仅重绘新主路径
+    }
+}
+
+void CurveViewport::setOverlayPaths(const QList<CurvePath*>& paths)
+{
+    for (const QPointer<CurvePath>& old : m_overlayPaths) {
+        if (old && old != m_path) {
+            disconnect(old, nullptr, this, nullptr);
+        }
+    }
+    m_overlayPaths.clear();
+    for (CurvePath* path : paths) {
+        if (!path || path == m_path) {
+            continue;   // 主路径自行高亮渲染，不进幽灵列表
+        }
+        m_overlayPaths.append(path);
+        connect(path, &CurvePath::curveChanged, this, qOverload<>(&CurveViewport::update));
+    }
+    update();
+}
+
+QList<CurvePath*> CurveViewport::overlayPaths() const
+{
+    QList<CurvePath*> result;
+    for (const QPointer<CurvePath>& path : m_overlayPaths) {
+        if (path) {
+            result.append(path);
+        }
+    }
+    return result;
+}
+
+/** 把 m_activeIndex 应用为主路径 + 幽灵集（setPaths/setActiveIndex 共用，保持相机）。 */
+void CurveViewport::applyActiveSelection()
+{
+    CurvePath* active = (m_activeIndex >= 0 && m_activeIndex < m_paths.size())
+                            ? m_paths.at(m_activeIndex).data() : nullptr;
+    setPath(active, false);
+    QList<CurvePath*> overlays;
+    for (int i = 0; i < m_paths.size(); ++i) {
+        if (i != m_activeIndex && m_paths.at(i)) {
+            overlays.append(m_paths.at(i).data());
+        }
+    }
+    setOverlayPaths(overlays);
+}
+
+void CurveViewport::setPaths(const QList<CurvePath*>& paths)
+{
+    m_paths.clear();
+    for (CurvePath* path : paths) {
+        if (path) {
+            m_paths.append(path);
+        }
+    }
+    if (m_activeIndex >= m_paths.size() || (m_activeIndex < 0 && !m_paths.isEmpty())) {
+        m_activeIndex = m_paths.isEmpty() ? -1 : 0;
+    }
+    m_hoverIndex = -1;
+    applyActiveSelection();
+    update();
+}
+
+void CurveViewport::setActiveIndex(int index)
+{
+    index = (index >= 0 && index < m_paths.size()) ? index : -1;
+    if (m_activeIndex == index) {
+        return;
+    }
+    m_activeIndex = index;
+    m_hoverIndex = -1;
+    applyActiveSelection();
+    update();
+    Q_EMIT activeIndexChanged(m_activeIndex);
 }
 
 void CurveViewport::setPlaybackFraction(double fraction)
@@ -193,6 +272,25 @@ void CurveViewport::setPlaybackFraction(double fraction)
         return;
     }
     m_fraction = fraction;
+    update();
+}
+
+void CurveViewport::setReadOnly(bool readOnly)
+{
+    if (m_readOnly == readOnly) {
+        return;
+    }
+    m_readOnly = readOnly;
+    setFocusPolicy(readOnly ? Qt::NoFocus : Qt::StrongFocus);
+    setToolTip(readOnly
+        ? QStringLiteral("三维曲线预览（只读）：点击「编辑曲线」打开编辑窗口修改")
+        : QStringLiteral("左键拖动控制点，按住 X/Y/Z 锁定轴向；单击曲线或图例切换编辑目标；双击曲线插入点、双击地面加点；右键旋转，中键或 Shift+左键平移，滚轮缩放"));
+    m_draggingPoint = false;
+    m_orbiting = false;
+    m_panning = false;
+    m_hoverIndex = -1;
+    m_navHover = -1;
+    setCursor(Qt::ArrowCursor);
     update();
 }
 
@@ -290,13 +388,19 @@ void CurveViewport::paintGL()
     glClearColor(0.10f, 0.11f, 0.13f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    Mesh mesh;
-    appendGrid(&mesh);
-    appendCurve(&mesh);
-    drawMesh(mesh, m_projection * m_view);
+    Mesh baseMesh;
+    appendGrid(&baseMesh);
+    appendOverlayCurves(&baseMesh);
+    drawMesh(baseMesh, m_projection * m_view, 1.0f);
+
+    // 主曲线（选中）：更粗的线宽突出高亮
+    Mesh curveMesh;
+    appendCurve(&curveMesh);
+    drawMesh(curveMesh, m_projection * m_view, 3.0f);
     painter.endNativePainting();
     paintNavigationGizmo(&painter);
     paintReadout(&painter);
+    paintLegend(&painter);
 }
 
 void CurveViewport::updateCamera()
@@ -360,6 +464,33 @@ void CurveViewport::appendAxes(Mesh* mesh, const QVector3D& origin, float length
     mesh->addLine(origin, origin + QVector3D(0, 0, length), rgb(96, 160, 230));
 }
 
+void CurveViewport::appendOverlayCurves(Mesh* mesh) const
+{
+    // 幽灵曲线：各自调色板暗色细线（与图例色带对应），仅形状提示，不参与编辑与进度染色
+    for (const QPointer<CurvePath>& overlay : m_overlayPaths) {
+        if (!overlay || overlay == m_path) {
+            continue;
+        }
+        const int globalIndex = m_paths.indexOf(overlay);
+        const QColor ghost = globalIndex >= 0 ? curveGhostColor(globalIndex) : QColor(76, 82, 96);
+        const QVector3D overlayColor(float(ghost.red()) / 255.0f,
+                                     float(ghost.green()) / 255.0f,
+                                     float(ghost.blue()) / 255.0f);
+        const QList<CurvePath::Sample>& samples = overlay->samples();
+        if (samples.size() >= 2) {
+            QVector3D previous = samples.first().position;
+            for (int i = 1; i < samples.size(); ++i) {
+                const QVector3D current = samples.at(i).position;
+                mesh->addLine(previous, current, overlayColor);
+                previous = current;
+            }
+        }
+        if (overlay->isClosed() && overlay->points().size() >= 3) {
+            mesh->addLine(overlay->points().last(), overlay->points().first(), overlayColor);
+        }
+    }
+}
+
 void CurveViewport::appendCurve(Mesh* mesh) const
 {
     if (!m_path) {
@@ -376,21 +507,23 @@ void CurveViewport::appendCurve(Mesh* mesh) const
 
     const QList<CurvePath::Sample>& samples = m_path->samples();
     if (samples.size() >= 2) {
+        const QVector3D playedColor = rgb(255, 184, 40);   // 已播：亮橙
+        const QVector3D pendingColor = rgb(96, 186, 255);  // 未播：亮蓝
         const double playDistance = std::clamp(m_fraction, 0.0, 1.0) * m_path->arcLength();
         QVector3D previous = samples.first().position;
         for (int i = 1; i < samples.size(); ++i) {
             const CurvePath::Sample& sample = samples.at(i);
             const QVector3D current = sample.position;
             if (sample.distance <= playDistance) {
-                mesh->addLine(previous, current, rgb(240, 186, 78));
+                mesh->addLine(previous, current, playedColor);
             } else if (samples.at(i - 1).distance >= playDistance) {
-                mesh->addLine(previous, current, rgb(118, 156, 196));
+                mesh->addLine(previous, current, pendingColor);
             } else {
                 const double span = sample.distance - samples.at(i - 1).distance;
                 const float weight = span > 1.0e-8 ? float((playDistance - samples.at(i - 1).distance) / span) : 0.0f;
                 const QVector3D tip = previous * (1.0f - weight) + current * weight;
-                mesh->addLine(previous, tip, rgb(240, 186, 78));
-                mesh->addLine(tip, current, rgb(118, 156, 196));
+                mesh->addLine(previous, tip, playedColor);
+                mesh->addLine(tip, current, pendingColor);
             }
             previous = current;
         }
@@ -433,7 +566,7 @@ void CurveViewport::appendCurve(Mesh* mesh) const
     }
 }
 
-void CurveViewport::drawMesh(const Mesh& mesh, const QMatrix4x4& mvp)
+void CurveViewport::drawMesh(const Mesh& mesh, const QMatrix4x4& mvp, float lineWidth)
 {
     if (!m_program || (mesh.lines.isEmpty() && mesh.triangles.isEmpty())) {
         return;
@@ -442,6 +575,7 @@ void CurveViewport::drawMesh(const Mesh& mesh, const QMatrix4x4& mvp)
     packed += mesh.triangles;
     m_program->bind();
     m_program->setUniformValue(m_mvpLocation, mvp);
+    glLineWidth(std::clamp(lineWidth, 0.1f, 10.0f));
     m_vao.bind();
     m_vbo.bind();
     m_vbo.allocate(packed.constData(), int(packed.size() * sizeof(float)));
@@ -500,6 +634,110 @@ void CurveViewport::paintReadout(QPainter* painter) const
             .arg(double(position.z()), 0, 'f', 3));
 }
 
+/** 左上角图例：色带 + 曲线名，点击行切换编辑目标（对齐 Curve1DEditor/2D）。 */
+void CurveViewport::paintLegend(QPainter* painter)
+{
+    m_legendRects.clear();
+    if (m_paths.isEmpty()) {
+        return;
+    }
+    QFont font = painter->font();
+    font.setPointSizeF(8.5);
+    // QOpenGLWidget 的 GL 绘制引擎对 CJK 的度量与渲染都不可靠（advance 偏小/字形空白，
+    // 拉丁字形正常）：整行图例（高亮背景+色带+曲线名）用 raster 引擎预渲染进 QImage，
+    // 度量用独立 QFontMetrics（raster 默认设备），GL 侧只做一次 drawImage 贴图。
+    const QFontMetrics fm(font);
+    const qreal dpr = devicePixelRatioF();
+
+    int y = 8;
+    for (int i = 0; i < m_paths.size(); ++i) {
+        CurvePath* path = m_paths.at(i).data();
+        if (!path) {
+            m_legendRects.append(QRect());
+            continue;
+        }
+        const bool active = (i == m_activeIndex);
+        const QColor color = curvePaletteColor(i);
+        const QString name = QStringLiteral("曲线 %1").arg(i + 1);
+        const int nameW = fm.horizontalAdvance(name);
+        const int rowH = fm.height() + 6;
+        const int rowW = 4 + 6 + nameW + 8;
+        const QRect rowRect(10, y, rowW, rowH);
+
+        QImage rowImg(QSize(int(std::ceil(rowW * dpr)), int(std::ceil(rowH * dpr))),
+                      QImage::Format_ARGB32_Premultiplied);
+        rowImg.setDevicePixelRatio(dpr);
+        rowImg.fill(Qt::transparent);
+        {
+            QPainter rowPainter(&rowImg);
+            if (active) {
+                rowPainter.fillRect(QRectF(0, 0, rowW, rowH), QColor(255, 255, 255, 24));
+            }
+            rowPainter.fillRect(QRectF(0, 3, 4, rowH - 6), color);
+            rowPainter.setFont(font);
+            rowPainter.setPen(active ? QColor(238, 241, 247) : QColor(178, 184, 196));
+            rowPainter.drawText(QPoint(10, 3 + fm.ascent()), name);
+        }
+        painter->drawImage(rowRect.topLeft(), rowImg);
+
+        m_legendRects.append(rowRect);
+        y += rowH + 2;
+    }
+}
+
+int CurveViewport::legendAt(const QPoint& position) const
+{
+    for (int i = 0; i < m_legendRects.size() && i < m_paths.size(); ++i) {
+        if (m_legendRects.at(i).contains(position) && m_paths.at(i)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/** 命中任意曲线（含幽灵线）：返回在全部曲线中的索引，未命中 -1（点选切换用）。 */
+int CurveViewport::pickCurveIndex(const QPoint& position) const
+{
+    const QPointF click(position);
+    int bestIndex = -1;
+    float bestDistance = 10.0f;
+    constexpr int kSteps = 16;
+    for (int i = 0; i < m_paths.size(); ++i) {
+        CurvePath* path = m_paths.at(i).data();
+        if (!path || path->segmentCount() <= 0) {
+            continue;
+        }
+        for (int segment = 0; segment < path->segmentCount(); ++segment) {
+            QPointF previous;
+            bool hasPrevious = false;
+            for (int step = 0; step <= kSteps; ++step) {
+                const float u = float(step) / float(kSteps);
+                QPointF screen;
+                if (!projectToScreen(path->segmentPoint(segment, u), &screen)) {
+                    hasPrevious = false;
+                    continue;
+                }
+                if (hasPrevious) {
+                    const QPointF delta = screen - previous;
+                    const float lengthSquared = float(QPointF::dotProduct(delta, delta));
+                    float along = 0.0f;
+                    if (lengthSquared > 1.0e-4f) {
+                        along = std::clamp(float(QPointF::dotProduct(click - previous, delta) / lengthSquared), 0.0f, 1.0f);
+                    }
+                    const float distance = screenDistance(click, previous + delta * along);
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        bestIndex = i;
+                    }
+                }
+                previous = screen;
+                hasPrevious = true;
+            }
+        }
+    }
+    return bestIndex;
+}
+
 void CurveViewport::frameAll(bool resetAngles)
 {
     if (resetAngles) {
@@ -507,15 +745,25 @@ void CurveViewport::frameAll(bool resetAngles)
         m_pitch = 28.0f;
         m_upHint = QVector3D(0, 0, 1);
     }
-    if (!m_path || m_path->points().isEmpty()) {
+    // 包围盒合并主路径与全部幽灵曲线，适应视图覆盖所有曲线
+    QList<QVector3D> allPoints;
+    if (m_path) {
+        allPoints += m_path->points();
+    }
+    for (const QPointer<CurvePath>& overlay : m_overlayPaths) {
+        if (overlay) {
+            allPoints += overlay->points();
+        }
+    }
+    if (allPoints.isEmpty()) {
         m_target = QVector3D(0, 0, 0);
         m_distance = 8.0f;
         update();
         return;
     }
-    QVector3D minPoint = m_path->points().first();
+    QVector3D minPoint = allPoints.first();
     QVector3D maxPoint = minPoint;
-    for (const QVector3D& position : m_path->points()) {
+    for (const QVector3D& position : allPoints) {
         minPoint.setX(std::min(minPoint.x(), position.x()));
         minPoint.setY(std::min(minPoint.y(), position.y()));
         minPoint.setZ(std::min(minPoint.z(), position.z()));
@@ -777,6 +1025,10 @@ bool CurveViewport::dragPosition(const QPoint& position, QVector3D* result) cons
 
 void CurveViewport::mousePressEvent(QMouseEvent* event)
 {
+    if (m_readOnly) {
+        event->accept();
+        return;
+    }
     updateCamera();
     m_lastMouse = event->pos();
     setFocus(Qt::MouseFocusReason);
@@ -805,7 +1057,25 @@ void CurveViewport::mousePressEvent(QMouseEvent* event)
         event->accept();
         return;
     }
-    if (event->button() != Qt::LeftButton || !m_path) {
+    if (event->button() != Qt::LeftButton) {
+        QOpenGLWidget::mousePressEvent(event);
+        return;
+    }
+    // 图例行点击 → 切换编辑目标曲线（对齐 Curve1D/2D）
+    const int legend = legendAt(event->pos());
+    if (legend >= 0) {
+        setActiveIndex(legend);
+        event->accept();
+        return;
+    }
+    if (!m_path) {
+        // 尚无编辑目标：点击某条曲线直接切换到它
+        const int curveHit = pickCurveIndex(event->pos());
+        if (curveHit >= 0) {
+            setActiveIndex(curveHit);
+            event->accept();
+            return;
+        }
         QOpenGLWidget::mousePressEvent(event);
         return;
     }
@@ -813,6 +1083,13 @@ void CurveViewport::mousePressEvent(QMouseEvent* event)
     const AxisLock axis = pickAxis(event->pos());
     const int index = axis == AxisLock::None ? pickPoint(event->pos()) : m_path->selectedIndex();
     if (index < 0) {
+        // 单击其它曲线 → 切换编辑目标（对齐 Curve1D/2D）
+        const int curveHit = pickCurveIndex(event->pos());
+        if (curveHit >= 0 && curveHit != m_activeIndex) {
+            setActiveIndex(curveHit);
+            event->accept();
+            return;
+        }
         m_path->setSelectedIndex(-1);
         return;
     }
@@ -847,6 +1124,10 @@ void CurveViewport::mousePressEvent(QMouseEvent* event)
 
 void CurveViewport::mouseMoveEvent(QMouseEvent* event)
 {
+    if (m_readOnly) {
+        event->accept();
+        return;
+    }
     updateCamera();
     const QPoint delta = event->pos() - m_lastMouse;
     m_lastMouse = event->pos();
@@ -895,6 +1176,10 @@ void CurveViewport::mouseMoveEvent(QMouseEvent* event)
         setCursor(Qt::PointingHandCursor);
         return;
     }
+    if (legendAt(event->pos()) >= 0) {
+        setCursor(Qt::PointingHandCursor);
+        return;
+    }
     const int hover = pickPoint(event->pos());
     const AxisLock axis = hover < 0 ? pickAxis(event->pos()) : AxisLock::None;
     if (hover != m_hoverIndex) {
@@ -906,6 +1191,10 @@ void CurveViewport::mouseMoveEvent(QMouseEvent* event)
 
 void CurveViewport::mouseReleaseEvent(QMouseEvent* event)
 {
+    if (m_readOnly) {
+        event->accept();
+        return;
+    }
     if (m_draggingPoint && event->button() == Qt::LeftButton) {
         m_draggingPoint = false;
         m_dragAxis = AxisLock::None;
@@ -933,11 +1222,24 @@ void CurveViewport::mouseReleaseEvent(QMouseEvent* event)
 
 void CurveViewport::mouseDoubleClickEvent(QMouseEvent* event)
 {
-    if (event->button() != Qt::LeftButton || (event->modifiers() & (Qt::AltModifier | Qt::ShiftModifier)) || !m_path) {
+    if (m_readOnly) {
+        event->accept();
+        return;
+    }
+    if (event->button() != Qt::LeftButton || (event->modifiers() & (Qt::AltModifier | Qt::ShiftModifier))) {
         return;
     }
     updateCamera();
-    if (navigationAt(event->pos()) >= 0 || pickPoint(event->pos()) >= 0 || pickAxis(event->pos()) != AxisLock::None) {
+    if (navigationAt(event->pos()) >= 0 || legendAt(event->pos()) >= 0
+        || (m_path && (pickPoint(event->pos()) >= 0 || pickAxis(event->pos()) != AxisLock::None))) {
+        return;
+    }
+    if (!m_path) {
+        // 尚无编辑目标：双击某条曲线直接切换到它
+        const int curveHit = pickCurveIndex(event->pos());
+        if (curveHit >= 0) {
+            setActiveIndex(curveHit);
+        }
         return;
     }
     int insertIndex = 0;
@@ -946,11 +1248,20 @@ void CurveViewport::mouseDoubleClickEvent(QMouseEvent* event)
         m_path->insertPoint(insertIndex, point);
         return;
     }
+    const int curveHit = pickCurveIndex(event->pos());
+    if (curveHit >= 0 && curveHit != m_activeIndex) {
+        setActiveIndex(curveHit);   // 双击其它曲线：先切换选中，再次双击插点
+        return;
+    }
     addPointOnGround(event->pos());
 }
 
 void CurveViewport::wheelEvent(QWheelEvent* event)
 {
+    if (m_readOnly) {
+        event->accept();
+        return;
+    }
     const float steps = event->angleDelta().y() / 120.0f;
     m_distance = std::clamp(m_distance * std::pow(0.85f, steps), 0.4f, 300.0f);
     update();
@@ -958,6 +1269,10 @@ void CurveViewport::wheelEvent(QWheelEvent* event)
 
 void CurveViewport::keyPressEvent(QKeyEvent* event)
 {
+    if (m_readOnly) {
+        event->accept();
+        return;
+    }
     if (event->key() == Qt::Key_X || event->key() == Qt::Key_Y || event->key() == Qt::Key_Z) {
         m_axis = event->key() == Qt::Key_X ? AxisLock::X : event->key() == Qt::Key_Y ? AxisLock::Y : AxisLock::Z;
         if (m_draggingPoint && m_dragAxis == AxisLock::None) {
@@ -979,6 +1294,10 @@ void CurveViewport::keyPressEvent(QKeyEvent* event)
 
 void CurveViewport::keyReleaseEvent(QKeyEvent* event)
 {
+    if (m_readOnly) {
+        event->accept();
+        return;
+    }
     if (event->key() == Qt::Key_X || event->key() == Qt::Key_Y || event->key() == Qt::Key_Z) {
         m_axis = AxisLock::None;
         if (m_draggingPoint) {

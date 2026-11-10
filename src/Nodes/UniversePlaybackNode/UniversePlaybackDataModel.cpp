@@ -7,8 +7,8 @@ using namespace Nodes;
 
 UniversePlaybackDataModel::UniversePlaybackDataModel()
 {
-    InPortCount = 4;   // 无输入端口，从视频文件读取
-    OutPortCount = 4;   // 初始1个输出端口，会根据视频动态调整
+    InPortCount = 5;   // 0=PLAY 1=LOOP 2=STOP 3=CLEAR 4=SYNC（从机跟随源）
+    OutPortCount = 5;  // 初始 4 个 Universe 输出 + 末端口 SYNC 发布；openVideo 后按视频高度调整
     PortEditable = true;
     CaptionVisible = true;
     Caption = "Universe Playback";
@@ -20,6 +20,15 @@ UniversePlaybackDataModel::UniversePlaybackDataModel()
     playbackTimer = new QTimer(this);
     playbackTimer->setInterval(1000 / AppConstants::ARTNET_OUTPUT_FPS); // 50fps
     connect(playbackTimer, &QTimer::timeout, this, &UniversePlaybackDataModel::onPlaybackTimer);
+
+    // ── SYNC 双角色 ──
+    // 主机侧：发布本节点回放位置（每帧心跳 + 停止定格），供下游节点跟随
+    m_syncPublisher = std::make_shared<SyncSharedState>(QStringLiteral("UniversePlayback"));
+    // 从机侧：轮询同步源播放态，联动启停（位置纠偏在播放定时器内完成）
+    m_syncWatcher = new QTimer(this);
+    m_syncWatcher->setInterval(100);
+    connect(m_syncWatcher, &QTimer::timeout, this, &UniversePlaybackDataModel::onSyncWatchTick);
+    m_syncWatcher->start();
 
     // 连接界面信号
     connect(widget->universeSpinBox, &IntDragValueWidget::valueChanged,
@@ -105,6 +114,7 @@ void UniversePlaybackDataModel::afterModelReady() {
     // GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
     GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/filename"), this, SLOT(onGlobalEvent(GlobalEvent)));
+    GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/position"), this, SLOT(onGlobalEvent(GlobalEvent)));
 }
 
 void UniversePlaybackDataModel::setUniverse(int universe) {
@@ -219,12 +229,14 @@ void UniversePlaybackDataModel::onGlobalEvent(const GlobalEvent& ev) {
         // else if (localPath == "stop") setIsPlaying(false);
         else if (localPath == "clear") onClearDataClicked();
         else if (localPath == "filename") setFileName(ev.payload.toString());
+        else if (localPath == "position") setPosition(ev.payload.toDouble());
     }
 }
 
 QString UniversePlaybackDataModel::portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const
 {
     if (portType == PortType::Out) {
+        if (portIndex + 1 >= OutPortCount) return "SYNC";  // 末端口 = 同步发布
         return QString("UNIVERSE%1").arg(portIndex + 1);  // UNIVERSE1, UNIVERSE2, ...
     }
     else if (portType == PortType::In) {
@@ -233,6 +245,7 @@ QString UniversePlaybackDataModel::portCaption(QtNodes::PortType portType, QtNod
             case 1: return "LOOP";
             case 2: return "STOP";
             case 3: return "CLEAR";
+            case 4: return "SYNC";
             default: return "";
         }
     }
@@ -241,14 +254,22 @@ QString UniversePlaybackDataModel::portCaption(QtNodes::PortType portType, QtNod
 
 NodeDataType UniversePlaybackDataModel::dataType(PortType portType, PortIndex portIndex) const
 {
-    Q_UNUSED(portIndex)
-    Q_UNUSED(portType)
+    if (portType == PortType::In) {
+        return (portIndex == 4) ? SyncData().type() : VariableData().type();
+    }
+    if (portType == PortType::Out) {
+        return (portIndex + 1 >= OutPortCount) ? SyncData().type() : VariableData().type();
+    }
     return VariableData().type();
 }
 
 std::shared_ptr<NodeData> UniversePlaybackDataModel::outData(PortIndex const port)
 {
     QMutexLocker locker(&m_mutex);
+    // SYNC 发布端口（末端口）：输出共享同步状态句柄（主机角色）
+    if (port + 1 >= OutPortCount) {
+        return std::make_shared<SyncData>(m_syncPublisher);
+    }
     if (port >= 0 && port < universeOutputs.size()) {
         return universeOutputs[port];
     }
@@ -257,6 +278,13 @@ std::shared_ptr<NodeData> UniversePlaybackDataModel::outData(PortIndex const por
 
 void UniversePlaybackDataModel::setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex)
 {
+    // SYNC 输入：绑定从机跟随源（断开时 data 为空 → 清源，停止跟随）
+    if (portIndex == 4) {
+        auto sd = std::dynamic_pointer_cast<SyncData>(data);
+        m_syncSource = sd ? sd->getSharedState() : nullptr;
+        return;
+    }
+
     if (!data) return;
 
     auto variableData = std::dynamic_pointer_cast<VariableData>(data);
@@ -402,6 +430,22 @@ void UniversePlaybackDataModel::onPlaybackTimer() {
         return;
     }
 
+    // ── 从机纠偏（跟随模式）──
+    // 源位置已达/超出媒体末尾 → 停止定格（不本地回绕，等源回拉后由 watcher 恢复）；
+    // 偏差超过 1.5 帧时长 → 直接 seek 对齐（落后或超前均纠）。
+    if (m_syncSource) {
+        const double expected = m_syncSource->expectedNowSec();
+        const double current = m_currentTimestampMs / 1000.0;
+        const double frameDur = (m_fps > 0.0) ? 1.0 / m_fps : m_syncDeadZoneSec;
+        if (m_duration > 0.0 && expected >= m_duration - frameDur) {
+            setIsPlaying(false);   // 递归锁：本函数已持锁
+            return;
+        }
+        if (std::abs(expected - current) > frameDur * 1.5) {
+            seekToSec(expected);
+        }
+    }
+
     if (readNextFrame()) {
         extractAndUpdateDmxData();
         if (m_frame) {
@@ -413,8 +457,9 @@ void UniversePlaybackDataModel::onPlaybackTimer() {
                 widget->currentTimeEdit->setTime(QTime(0,0,0,0).addMSecs(static_cast<int>(m_currentTimestampMs)));
             }
         }
+        publishSyncState();   // 主机发布：每帧心跳（位置 + 全局帧锚点）
     } else {
-        if (m_isLooping) {
+        if (m_isLooping && !m_syncSource) {
             if (av_seek_frame(m_formatContext, m_videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD) >= 0) {
                 avcodec_flush_buffers(m_codecContext);
                 m_currentTimestampMs = 0;
@@ -423,6 +468,7 @@ void UniversePlaybackDataModel::onPlaybackTimer() {
                 setIsPlaying(false);
             }
         } else {
+            // EOF：自然结束（从机模式下不本地回绕，等源回拉后由 watcher 自动恢复）
             setIsPlaying(false);
         }
     }
@@ -488,6 +534,8 @@ void UniversePlaybackDataModel::adjustUniverseCount(int videoHeight)
         }
 
         currentUniverseCount = newUniverseCount;
+        // 输出端口数 = Universe 数 + 1（末端口固定为 SYNC 发布端口）
+        OutPortCount = newUniverseCount + 1;
     }
 }
 
@@ -597,8 +645,8 @@ void UniversePlaybackDataModel::startPlayback() {
 
     m_isPlaying = true;
     widget->updatePlaybackState(true);
-    m_currentTimestampMs = 0;
-    widget->currentTimeEdit->setTime(QTime(0,0,0,0));
+    // 位置显示保留当前值：从机由 watcher 先定位到源位置再起播，避免显示跳 0
+    publishSyncState();   // 主机发布：起播即发一次快照
     playbackTimer->start();
 }
 
@@ -606,10 +654,75 @@ void UniversePlaybackDataModel::stopPlayback() {
     // Expects mutex to be locked
     m_isPlaying = false;
     playbackTimer->stop();
+    publishSyncState();   // 定格快照：位置=当前值、playing=false，跟随端联动停止
     widget->updatePlaybackState(false);
 
-    if (m_formatContext) {
+    if (m_formatContext && !m_syncSource) {
+        // 非从机：回卷到起点（从机以源为准，保持当前定格位置待命）
         av_seek_frame(m_formatContext, m_videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
+        m_currentTimestampMs = 0;
+        widget->currentTimeEdit->setTime(QTime(0,0,0,0));
+    }
+}
+
+void UniversePlaybackDataModel::seekToSec(double sec) {
+    QMutexLocker locker(&m_mutex);
+    if (!m_formatContext || m_videoStreamIndex < 0 || m_timeBase <= 0.0) {
+        return;
+    }
+    if (m_duration > 0.0) {
+        sec = qBound(0.0, sec, m_duration);
+    }
+    if (sec < 0.0) sec = 0.0;
+
+    if (av_seek_frame(m_formatContext, m_videoStreamIndex,
+                      static_cast<int64_t>(sec / m_timeBase), AVSEEK_FLAG_BACKWARD) >= 0) {
+        if (m_codecContext) {
+            avcodec_flush_buffers(m_codecContext);
+        }
+    }
+    m_currentTimestampMs = static_cast<qint64>(sec * 1000.0);
+    widget->currentTimeEdit->setTime(QTime(0,0,0,0).addMSecs(static_cast<int>(m_currentTimestampMs)));
+    emit positionChanged(sec);
+}
+
+void UniversePlaybackDataModel::setPosition(double sec)
+{
+    seekToSec(sec);
+}
+
+void UniversePlaybackDataModel::publishSyncState()
+{
+    // Expects mutex to be locked (timer / start / stop paths)
+    if (!m_syncPublisher) {
+        return;
+    }
+    m_syncPublisher->write(m_currentTimestampMs / 1000.0,
+                           TimestampGenerator::getInstance()->getCurrentFrameCount(),
+                           m_isPlaying);
+}
+
+void UniversePlaybackDataModel::onSyncWatchTick()
+{
+    if (!m_syncSource) {
+        return;
+    }
+    const SyncState snap = m_syncSource->read();
+    if (!snap.active) {
+        return;
+    }
+    if (snap.playing != m_isPlaying) {
+        if (snap.playing) {
+            // 源位置超出本媒体时长：不起播，定格待命（防止起播/EOF 停止闪烁循环）
+            const double expected = m_syncSource->expectedNowSec();
+            if (m_duration > 0.0 && expected >= m_duration - 0.05) {
+                return;
+            }
+            seekToSec(expected);   // 先定位到源位置再起播，避免从文件头开始
+            setIsPlaying(true);
+        } else {
+            setIsPlaying(false);
+        }
     }
 }
 

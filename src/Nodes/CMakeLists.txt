@@ -21,7 +21,8 @@ set(ALL_NODES
     LogicOperationNode                        #逻辑操作模块
     MathOperationNode                         #数学操作模块
     LFONode                                   #LFO模块
-    CurveNode                               #曲线模块
+#    CurveNode                               #曲线模块
+    CurvesNode                                #曲线家族（Curve1D/2D/3D 三子节点合一插件）
     AudioDecoderNode                          #音频解码模块
     AudioListDecoderNode                      #音频播放列表解码
     AudioDeviceOutNode                        #音频输出模块
@@ -74,6 +75,8 @@ set(ALL_NODES
     MqttClientNode                              #Mqtt客户端节点
     LTCDecoderNode                              #LTC时间码解析节点
     LTCGeneratorNode                            #LTC时间码生成节点
+    MTCGeneratorNode                            #MTC时间码生成节点
+    MTCDecoderNode                              #MTC时间码解码节点
     AudioMatrixNode                             #音频矩阵节点
     AudioAnalysisNode                           #音频分析节点
     DAWController                          #DAW控制器节点
@@ -146,6 +149,7 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(MathOperationNode)                         #数学操作模块
     add_subdirectory(LFONode)                                   #LFO模块
     add_subdirectory(CurveNode)                                #曲线模块
+    add_subdirectory(CurvesNode)                               #曲线家族（Curve1D/2D/3D 三子节点合一插件）
     add_subdirectory(AudioDecoderNode)                          #音频解码模块
     add_subdirectory(AudioListDecoderNode)                      #音频播放列表解码
     add_subdirectory(AudioDeviceOutNode)                        #音频输出模块
@@ -199,6 +203,8 @@ elseif(BUILD_NODES_INDIVIDUALLY)
     add_subdirectory(MqttClientNode)                              #Mqtt客户端节点
     add_subdirectory(LTCDecoderNode)                            #LTC时间码解析节点
     add_subdirectory(LTCGeneratorNode)                          #LTC时间吗生成节点
+    add_subdirectory(MTCGeneratorNode)                          #MTC时间码生成节点
+    add_subdirectory(MTCDecoderNode)                            #MTC时间码解码节点
     add_subdirectory(AudioMatrixNode)                           #音频矩阵节点
     add_subdirectory(DataVisualNode)                            #数据可视化节点
     add_subdirectory(FileLoadNode)                             #文档导入节点

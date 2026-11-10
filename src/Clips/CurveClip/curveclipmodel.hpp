@@ -15,7 +15,7 @@
 #include "Common/BaseClass/AbstractClipDelegateModel.h"
 #include "CurveViewport.hpp"
 #include "FloatDragValueWidget/FloatDragValueWidget.hpp"
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 #include "OscListWidget/OSCMessageListWidget.hpp"
 #include "OscListWidget/OSCMessageItemWidget.hpp"
 

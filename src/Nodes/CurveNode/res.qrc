@@ -1,6 +1,0 @@
-<RCC>
-  <qresource prefix="qml">
-    <file>content/main.qml</file>
-    <file>content/TimelineEditor.qml</file>
-  </qresource>
-</RCC>

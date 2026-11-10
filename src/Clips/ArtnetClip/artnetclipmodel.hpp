@@ -8,13 +8,13 @@
 #include "TimeLineDefines.h"
 #include <QPushButton>
 
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
 #include "../../Common/BaseClass/AbstractClipDelegateModel.h"
 #include "Common/AppConfig/ConfigManager.h"
 #include "../../Common/Devices/ClientController/SocketTransmitter.h"
-#include "ArtnetSender/ArtnetTransmitter.h"
+#include "ArtnetSender/ArtnetService.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 
 extern "C" {
@@ -53,7 +53,7 @@ namespace Clips
          *   1) 打开并定位到对应视频帧（基于 timeline 帧率与 FFmpeg time_base）
          *   2) 提取每一行（universe）的 512 字节 DMX 数据到 m_dmxDataList
          *   3) 构建与 UniversePlaybackDataModel 对齐的 artnetPacket 列表返回
-         *   4) 同步通过 m_artnetTransmitter 将每个 Universe 的帧入队广播
+         *   4) 同步通过 m_artnetService 将每个 Universe 的帧入队广播
          * - 在剪辑开始帧返回 "/file"，结束前一帧返回 "/stop" 以保持与其他 Clip 一致的习惯
          */
         QVariantMap currentData(int currentFrame) const override ;
@@ -156,7 +156,7 @@ namespace Clips
         QList<QByteArray> m_dmxDataList;
 
         bool m_canNotify = false;
-        ArtnetTransmitter* m_artnetTransmitter;  // ArtnetTransmitter单例
+        ArtnetService* m_artnetService;  // ArtnetService单例
         QString m_targetHost = "192.168.1.255";  // 目标主机地址（默认广播）
         int m_lastSentFrameIndex {-1};           // 已发送的最后帧号，避免重复发送
         

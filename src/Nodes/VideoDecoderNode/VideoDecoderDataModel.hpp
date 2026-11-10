@@ -15,6 +15,7 @@
 #include "QThread"
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/DataTypes/SyncData.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 #include "Common/DataTypes/ImageGpuUpload.h"
 
@@ -43,8 +44,10 @@ namespace Nodes
      * | In   | 1    | Variable    | STOP（bool，true 则停止）     |
      * | In   | 2    | Variable    | LOOP                          |
      * | In   | 3    | Variable    | GAIN（dB）                    |
+     * | In   | 4    | Sync        | SYNC 跟随源（从机角色）       |
      * | Out  | 0    | ImageData   | 视频帧（共享 Image ring buffer）|
      * | Out  | 1..N | AudioData   | 各声道（共享 Audio ring buffer）|
+     * | Out  | N+1  | Sync        | SYNC 发布（主机角色，播放头） |
      *
      * ## 视频数据流（与 ImageLoader / Capture 一致）
      *
@@ -67,11 +70,12 @@ namespace Nodes
      */
     class VideoDecoderDataModel : public AbstractDelegateModel
     {
-        Q_OBJECT
-        Q_PROPERTY(QString fileName READ getFileName WRITE setFileName NOTIFY fileNameChanged)
-        Q_PROPERTY(bool loop READ getLoop WRITE setLoop NOTIFY loopChanged)
-        Q_PROPERTY(double volume READ getVolume WRITE setVolume NOTIFY volumeChanged)
-        Q_PROPERTY(bool play READ getPlay WRITE setPlay NOTIFY playChanged)
+    Q_OBJECT
+    Q_PROPERTY(QString fileName READ getFileName WRITE setFileName NOTIFY fileNameChanged)
+    Q_PROPERTY(bool loop READ getLoop WRITE setLoop NOTIFY loopChanged)
+    Q_PROPERTY(double volume READ getVolume WRITE setVolume NOTIFY volumeChanged)
+    Q_PROPERTY(bool play READ getPlay WRITE setPlay NOTIFY playChanged)
+    Q_PROPERTY(double position READ getPosition WRITE setPosition NOTIFY positionChanged)
 
     public:
         /**
@@ -83,8 +87,8 @@ namespace Nodes
          * - playbackProgress / playbackFinished 使用 QueuedConnection 更新 UI
          */
         VideoDecoderDataModel(){
-            InPortCount = 4;
-            OutPortCount = 3;  ///< 初始 1 视频 + 2 音频；loadVideoFile 后按实际声道数调整
+            InPortCount = 5;   ///< 0=PLAY 1=STOP 2=LOOP 3=GAIN 4=SYNC（从机跟随源）
+            OutPortCount = 4;  ///< 初始 1 视频 + 2 音频 + 1 SYNC（与媒体库拖拽模板一致）；loadVideoFile 后按实际声道数调整
             CaptionVisible = true;
             Caption = "Video Decoder";
             WidgetEmbeddable = false;
@@ -117,11 +121,29 @@ namespace Nodes
                 AbstractDelegateModel::registerExternalBinding("/play", this, b);
             }
 
+            // ── SYNC 双角色 ──
+            // 主机侧：创建发布状态并交给解码器（播放线程每视频帧/音频切片写入播放头）
+            m_syncPublisher = std::make_shared<SyncSharedState>(QStringLiteral("VideoDecoder"));
+            player->setSyncPublisher(m_syncPublisher);
+
+            // 从机侧：轮询同步源播放态，联动本节点启停（位置跟随在解码线程内）
+            m_syncWatcher = new QTimer(this);
+            m_syncWatcher->setInterval(100);
+            connect(m_syncWatcher, &QTimer::timeout, this, &VideoDecoderDataModel::onSyncWatchTick);
+            m_syncWatcher->start();
+
             // ── UI 事件 → 模型属性 ──
             connect(widget->fileSelectComboBox, &SelectorComboBox::textChanged, this, &VideoDecoderDataModel::setFileName);
             connect(widget->playButton, &QPushButton::clicked, this, &VideoDecoderDataModel::setPlay);
             connect(widget->volumeSlider, &FloatDragValueWidget::valueChanged, this, &VideoDecoderDataModel::setVolume);
             connect(widget->loopCheckBox, &QCheckBox::toggled, this, &VideoDecoderDataModel::setLoop);
+
+            // 进度条拖动定位：松手时按比例 seek（拖动过程只更新显示，避免 seek 风暴）
+            connect(widget->progressSlider, &QSlider::sliderReleased, this, [this]() {
+                if (m_totalSec > 0.0) {
+                    setPosition(widget->progressSlider->value() / 1000.0 * m_totalSec);
+                }
+            });
 
             // ── 视频输出：共享 Image ring buffer ──
             ensureImageDataBuffer(m_outImageData, m_outputBuffer);
@@ -186,25 +208,27 @@ namespace Nodes
             emit volumeChanged(m_volume);
         }
         
-        /** @brief 订阅 GlobalEventBus，支持 OSC 远程控制 file / loop / volume / play */
+        /** @brief 订阅 GlobalEventBus，支持 OSC 远程控制 file / loop / volume / play / position */
         void afterModelReady() override {
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/fileName"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/loop"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/volume"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/play"), this, SLOT(onGlobalEvent(GlobalEvent)));
             GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/stop"), this, SLOT(onGlobalEvent(GlobalEvent)));
+            GlobalEventBus::instance()->subscribe(AbstractDelegateModel::makeFullOscAddress("/position"), this, SLOT(onGlobalEvent(GlobalEvent)));
         }
 
         NodeDataType dataType(PortType portType, PortIndex portIndex) const override
         {
             switch (portType) {
             case PortType::In:
-                return VariableData().type();
+                return (portIndex == 4) ? SyncData().type() : VariableData().type();
             case PortType::Out:
                     if (portIndex == 0)
                         return ImageData().type();
-                    else
-                        return AudioData().type();
+                    if (portIndex + 1 >= OutPortCount)
+                        return SyncData().type();   // 末端口 = SYNC 发布
+                    return AudioData().type();
                 default:
                     return VariableData().type();
             }
@@ -225,7 +249,12 @@ namespace Nodes
             if (port == 0) {
                 return m_outImageData;
             }
-            
+
+            // SYNC 发布端口（末端口）：输出共享同步状态句柄（主机角色）
+            if (port + 1 >= OutPortCount) {
+                return std::make_shared<SyncData>(m_syncPublisher);
+            }
+
             auto audioData = std::make_shared<AudioData>();
             audioData->setSharedAudioBuffer(player->getAudioBuffer(port - 1));
 
@@ -247,11 +276,14 @@ namespace Nodes
                     return "LOOP";
                 case 3:
                     return "GAIN";
+                case 4:
+                    return "SYNC";
                 default:
                     return "";
                 }
             case PortType::Out:
                     if (portIndex == 0) return "Image";
+                    if (portIndex + 1 >= OutPortCount) return "SYNC";
                     return "CH "+QString::number(portIndex);
             default:
                 return "";
@@ -260,9 +292,17 @@ namespace Nodes
 
         }
 
-        /** @brief 外部 Variable 端口驱动播放控制 */
+        /** @brief 外部 Variable 端口驱动播放控制；In 4 为 SYNC 跟随源绑定 */
         void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
         {
+            // SYNC 输入：绑定从机跟随源（断开时清空，停止跟随）
+            if (portIndex == 4) {
+                auto sd = std::dynamic_pointer_cast<SyncData>(data);
+                m_syncSource = sd ? sd->getSharedState() : nullptr;
+                player->setSyncSource(m_syncSource);
+                return;
+            }
+
             auto d = std::dynamic_pointer_cast<VariableData>(data);
             if (d == nullptr) return;
 
@@ -361,6 +401,7 @@ namespace Nodes
                 else if (localPath == "loop") setLoop(ev.payload.toBool());
                 else if (localPath == "volume") setVolume(ev.payload.toDouble());
                 else if (localPath == "play") setPlay(ev.payload.toBool());
+                else if (localPath == "position") setPosition(ev.payload.toDouble());
 
             }
         }
@@ -396,9 +437,9 @@ namespace Nodes
                 }
                 delete res;
 
-                // 按实际声道数调整 Out 端口：port0=视频，port1..N=各声道
+                // 按实际声道数调整 Out 端口：port0=视频，port1..N=各声道，末端口=SYNC
                 unsigned int channels = player->getChannels();
-                unsigned int newOutPortCount = 1 + channels;
+                unsigned int newOutPortCount = 1 + channels + 1; // 视频 + 声道 + SYNC 发布
 
                 if (newOutPortCount != OutPortCount) {
                     if (newOutPortCount > OutPortCount) {
@@ -454,18 +495,70 @@ namespace Nodes
             return isPlaying;
         }
 
+        /** @brief 当前播放头（秒）；来自解码引擎最近已知位置 */
+        double getPosition() const {
+            return player->getPositionSec();
+        }
+
+        /**
+         * @brief 定位播放头（秒）
+         * OSC /position、属性树、进度条拖动共用入口；播放中经 pendingSeek 通道
+         * 由解码线程执行（音/视频双路同目标 seek），未播放时直接定位文件。
+         */
+        void setPosition(double sec) {
+            player->seekTo(sec);
+            emit positionChanged(sec);
+        }
+
         /** @brief 更新进度条与时间标签（由 playbackProgress 信号驱动） */
         void onPlaybackProgress(double currentSec, double totalSec) {
+            m_currentSec = currentSec;
+            m_totalSec = totalSec;
             if (totalSec > 0) {
                 int value = static_cast<int>((currentSec / totalSec) * 1000);
                 widget->progressSlider->blockSignals(true);
                 widget->progressSlider->setValue(value);
                 widget->progressSlider->blockSignals(false);
             }
-            
+
             QString currentTimeStr = formatTime(currentSec);
             QString totalTimeStr = formatTime(totalSec);
             widget->timeLabel->setText(currentTimeStr + " / " + totalTimeStr);
+        }
+
+    public slots:
+        /**
+         * @brief 从机启停联动——轮询同步源播放态
+         * 源开始播放且本节点未播 → 先定位到源位置再自动起播（避免从文件头闪帧）；
+         * 源停止且本节点在播 → 自动停止。
+         * **源位置超出本媒体时长时不跟随起播**（定格待命）：否则会陷入
+         * "起播→播到 EOF 停止→又起播"的闪烁循环；源位置回到范围内后自动恢复跟随。
+         * 位置跟随本身在解码线程内完成。
+         */
+        void onSyncWatchTick() {
+            if (!m_syncSource) {
+                return;
+            }
+            const SyncState snap = m_syncSource->read();
+            if (!snap.active) {
+                return;
+            }
+            if (snap.playing != isPlaying) {
+                if (snap.playing) {
+                    // 源位置超出本媒体时长：不起播，定格在末尾待命
+                    const double expected = m_syncSource->expectedNowSec();
+                    const double dur = player->getDurationSec();
+                    if (dur > 0.0 && expected >= dur - 0.05) {
+                        return;
+                    }
+                    // 未播放路径的 seekTo 直接定位双 formatContext，
+                    // startPlay 从该位置起播，避免闪首帧后再纠偏
+                    player->seekTo(expected);
+                    setPlay(true);
+                } else {
+                    setPlay(false);
+                }
+            }
         }
 
     signals:
@@ -473,6 +566,7 @@ namespace Nodes
         void loopChanged(bool loop);
         void volumeChanged(double volume);
         void playChanged(bool playing);
+        void positionChanged(double position);
 
     private:
         QString formatTime(double seconds) {
@@ -496,6 +590,13 @@ namespace Nodes
         bool autoPlay=false;      ///< load 后是否自动播放
         bool isReady= false;      ///< initializeFFmpeg 是否成功
         bool isPlaying= false;    ///< 与 UI playButton 同步的播放状态
+        double m_currentSec = 0.0; ///< 最近进度（秒）
+        double m_totalSec = 0.0;   ///< 媒体总时长（进度条 seek 换算用）
+
+        // ---- 节点间同步（SyncData 体系）----
+        std::shared_ptr<SyncSharedState> m_syncPublisher;  ///< 主机：发布本节点播放头
+        std::shared_ptr<SyncSharedState> m_syncSource;     ///< 从机：外部同步源句柄
+        QTimer* m_syncWatcher = nullptr;                   ///< 源播放态轮询（启停联动）
 
     };
 }

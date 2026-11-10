@@ -5,7 +5,7 @@
 #include <QtCore/QObject>
 #include <iostream>
 #include <QtCore/qglobal.h>
-#include "ArtnetTransmitter.h"
+#include "ArtnetService.h"
 #include "ArtnetFrame.h"
 // #include "ArtnetOutInterface.hpp"
 #include <QVariantMap>
@@ -39,11 +39,13 @@ public:
     QString targetHost() const { return m_targetHost; }
     bool isReady() const { return m_isReady; }
 
-public Q_SLOTS:
+    public Q_SLOTS:
     void setTargetHost(const QString &host) {
         if (m_targetHost == host) return;
         m_targetHost = host;
         Q_EMIT targetHostChanged(m_targetHost);
+        // 目标地址变化：撤销旧 host 下本节点的全部状态桶，并按新 host 重推当前缓存数据
+        refreshOutputs();
     }
 
 public:
@@ -61,9 +63,9 @@ public:
         PortEditable=true;
         m_outData = std::make_shared<VariableData>();
         
-        // 获取ArtnetTransmitter单例
-        m_artnetTransmitter = ArtnetTransmitter::getInstance();
-        setIsReady(m_artnetTransmitter != nullptr);
+        // 获取ArtnetService单例
+        m_artnetService = ArtnetService::getInstance();
+        setIsReady(m_artnetService != nullptr);
 
         {
             NodeDelegateModel::ExternalBinding b;
@@ -76,10 +78,10 @@ public:
             AbstractDelegateModel::registerExternalBinding("/isReady", this, b);
         }
 
-        // 连接ArtnetTransmitter信号
-        if (m_artnetTransmitter) {
-            connect(m_artnetTransmitter, &ArtnetTransmitter::frameSent, this, &ArtnetOutDataModel::onFrameSent);
-            connect(m_artnetTransmitter, &ArtnetTransmitter::frameSendFailed, this, &ArtnetOutDataModel::onFrameSendFailed);
+        // 连接ArtnetService信号
+        if (m_artnetService) {
+            connect(m_artnetService, &ArtnetService::frameSent, this, &ArtnetOutDataModel::onFrameSent);
+            connect(m_artnetService, &ArtnetService::frameSendFailed, this, &ArtnetOutDataModel::onFrameSendFailed);
         }
         
         // 设置默认值
@@ -90,9 +92,13 @@ public:
     }
 
     /**
-     * 析构函数 - 清理资源
+     * 析构函数 - 清理资源：从状态表撤销本节点名下的全部输出桶，
+     * 避免悬空属主标签残留（默认保持最后状态可改用 releaseOwner(this, true) 归零）
      */
     ~ArtnetOutDataModel() override {
+        if (m_artnetService) {
+            m_artnetService->releaseOwner(this);
+        }
     }
 
 
@@ -154,8 +160,10 @@ public:
     void setInData(std::shared_ptr<NodeData> data, PortIndex const portIndex) override
     {
         if (data == nullptr) {
-            // 如果数据为空，移除对应的Universe缓存
+            // 如果数据为空，移除对应的Universe缓存，
+            // 并从状态表撤销本节点旧桶后按剩余缓存重推（幂等，无需新旧值 diff）
             m_universeCache.remove(portIndex);
+            refreshOutputs();
             return;
         }
         
@@ -183,7 +191,7 @@ public:
         // 缓存Universe数据
         m_universeCache[portIndex] = artnetPacket;
         
-        // 自动发送该Universe的数据
+        // 写入状态表（50Hz 心跳负责实际发送，这里只报最新值）
         sendUniverseData(artnetPacket);
     }
 
@@ -239,7 +247,7 @@ public:
     //         }
     //
     //         if (!m_isReady) {
-    //             widget->setStatus("ArtnetTransmitter未初始化", false);
+    //             widget->setStatus("ArtnetService未初始化", false);
     //         }
     //
     //         connect(widget, &ArtnetOutInterface::TargetHostChanged, this, &ArtnetOutDataModel::setTargetHost);
@@ -273,28 +281,37 @@ private slots:
     
     /**
      * 数据帧发送成功处理
+     *
+     * 50Hz 固定重发模式下本槽会高频触发（且单例 frameSent 是广播，
+     * 所有 ArtnetOutNode 实例都会收到所有帧事件），
+     * 因此成功状态最多每 500ms 汇总推送一次，避免下游图被刷爆；
+     * 失败事件不受节流，立即推送。
      * @param frame 发送成功的数据帧
      * @param bytesWritten 发送的字节数
      */
     void onFrameSent(const ArtnetFrame &frame, qint64 bytesWritten) {
+        setIsReady(true);
+
+        // 状态推送节流：距上次推送不足 500ms 则丢弃本次成功事件
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (now - m_lastStatusEmitMs < 500) {
+            return;
+        }
+        m_lastStatusEmitMs = now;
+
         QVariantMap statusData;
         statusData["status"] = "success";
         statusData["universe"] = frame.universe;
         statusData["host"] = frame.host;
         statusData["bytesWritten"] = bytesWritten;
         statusData["timestamp"] = QDateTime::currentDateTime().toString();
-        
+
         m_outData = std::make_shared<VariableData>(statusData);
         Q_EMIT dataUpdated(0);
-
-        setIsReady(true);
-        // if (widget) {
-        //     widget->setStatus(QString("Universe %1 发送成功").arg(frame.universe), true);
-        // }
     }
     
     /**
-     * 数据帧发送失败处理
+     * 数据帧发送失败处理（不受节流，立即推送，便于及时发现网络问题）
      * @param frame 发送失败的数据帧
      * @param error 错误信息
      */
@@ -309,22 +326,34 @@ private slots:
         m_outData = std::make_shared<VariableData>(statusData);
         Q_EMIT dataUpdated(0);
 
+        m_lastStatusEmitMs = QDateTime::currentMSecsSinceEpoch(); // 失败后重置节流窗口，后续成功状态可及时反馈恢复
         setIsReady(false);
-        // if (widget) {
-        //     widget->setStatus(QString("Universe %1 发送失败: %2").arg(frame.universe).arg(error), false);
-        // }
     }
     
 private:
     /**
-     * 发送指定的Universe数据
+     * 刷新本节点在状态表中的全部输出：先撤销旧桶，再按当前缓存重推
+     * 幂等套路：用于 targetHost 变化、端口断开等配置变更场景，无需新旧值 diff
+     */
+    void refreshOutputs() {
+        if (!m_artnetService) {
+            return;
+        }
+        m_artnetService->releaseOwner(this);
+        for (auto it = m_universeCache.constBegin(); it != m_universeCache.constEnd(); ++it) {
+            sendUniverseData(it.value());
+        }
+    }
+
+    /**
+     * 将指定的Universe数据写入状态表（由 50Hz 心跳负责实际发送）
      * @param artnetPacket ArtnetUniverseNode输出的数据包
      */
     void sendUniverseData(const QVariantMap &artnetPacket) {
-        if (!m_artnetTransmitter) {
+        if (!m_artnetService) {
             setIsReady(false);
             // if (widget) {
-            //     widget->setStatus("ArtnetTransmitter未初始化", false);
+            //     widget->setStatus("ArtnetService未初始化", false);
             // }
             return;
         }
@@ -342,8 +371,8 @@ private:
         QByteArray dmxData = convertArtnetPacketToDmx(artnetPacket);
         frame.setDmxData(dmxData);
         
-        // 发送数据帧
-        m_artnetTransmitter->enqueueFrame(frame);
+        // 写入状态表（owner = 本节点，供多源合并与释放时定位归属）
+        m_artnetService->updateFrame(frame, this);
 
     }
     
@@ -385,7 +414,8 @@ private:
 private:
     std::shared_ptr<VariableData> m_outData;
     
-    ArtnetTransmitter* m_artnetTransmitter;  // ArtnetTransmitter单例
+    ArtnetService* m_artnetService;  // ArtnetService单例
+    qint64 m_lastStatusEmitMs = 0;           // 上次 STATUS 状态推送时间（节流用，避免 50Hz 刷爆下游）
     // ArtnetOutInterface* widget = nullptr;  // 界面控件（懒加载）
     
     // 配置参数

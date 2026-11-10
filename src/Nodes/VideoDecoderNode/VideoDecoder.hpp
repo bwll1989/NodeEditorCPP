@@ -7,6 +7,7 @@
 #include "QJsonObject"
 
 #include "NodeDataList.hpp"
+#include "Common/DataTypes/SyncData.h"   // 节点间同步载体（SyncSharedState 共享句柄）
 #include "Common/Devices/TimestampGenerator/TimestampGenerator.hpp"
 
 extern "C" {
@@ -128,6 +129,41 @@ public:
      */
     void setVideoImageBuffer(std::shared_ptr<NodeDataTypes::ImageTimestampRingQueue> buffer);
 
+    // ── 节点间同步（SyncData 体系）────────────────────────────────────────
+
+    /**
+     * @brief 设置同步源（从机角色）。视频播放中每解码一帧读取共享状态，
+     *        外推期望位置，超出死区时经 pendingSeek 通道对音/视频双路纠偏。
+     * @param src 共享同步状态（nullptr 断开从机跟随）
+     */
+    void setSyncSource(std::shared_ptr<NodeDataTypes::SyncSharedState> src);
+
+    /**
+     * @brief 设置同步发布状态（主机角色）。视频播放中每解码一帧将当前
+     *        播放头（帧 pts）+ 全局帧锚点写入共享状态；纯音频文件时由
+     *        音频切片节奏发布。
+     * @param pub 共享同步状态（nullptr 关闭发布）
+     */
+    void setSyncPublisher(std::shared_ptr<NodeDataTypes::SyncSharedState> pub);
+
+    /** @brief 设置从机跟随死区（秒）。估计位置与期望位置偏差小于该值时不纠正。 */
+    void setSyncDeadZoneSec(double sec);
+
+    /**
+     * @brief 定位播放头（秒）。播放中写 pendingSeek 通道由解码线程执行
+     *        （音/视频双路 seek + 清缓冲）；未播放时直接定位文件指针。
+     */
+    void seekTo(double sec);
+
+    /** @brief 最近已知播放头位置（秒）；视频轨存在时为最近解码帧 pts，否则为音频锚点外推 */
+    double getPositionSec() const;
+
+    /** @brief 媒体总时长（秒）；未成功加载时为 0（watcher 超限判断用） */
+    double getDurationSec() const { return m_durationSec; }
+
+    /** @brief 是否绑定了外部同步源（从机角色；从机模式下本地 Loop 回绕失效） */
+    bool hasSyncSource();
+
 signals:
     /** @brief 音频固定帧块就绪；DirectConnection 到 handleAudioFrame 做声道分离 */
     void audioFrameReady(AudioFrame frame);
@@ -186,6 +222,46 @@ private:
 
     /** @brief 【std::thread】视频读包/解码/PTS 同步/processVideoFrame 主循环 */
     void videoLoop();
+
+    // ── 节点间同步（SyncData 体系，播放线程内调用）──────────────────────
+
+    /**
+     * @brief 从机跟随（视频侧）：以最近解码帧 pts 为本地播放头估计，
+     *        与同步源期望位置比较，超死区写 pendingSeek 通道（音/视频双路纠偏）
+     * @param curPtsSec 本帧的 pts（秒）
+     */
+    void pollSyncTargetVideo(double curPtsSec);
+
+    /**
+     * @brief 从机跟随（音频侧，仅纯音频文件使用）：以音频切片锚点外推本地播放头
+     */
+    void pollSyncTargetAudio();
+
+    /**
+     * @brief 主机发布（视频侧）：将当前帧 pts + 全局帧计数写入共享状态
+     */
+    void publishVideoPts(double ptsSec, bool playing);
+
+    /**
+     * @brief 主机发布（音频侧，仅纯音频文件）：切片锚点外推播放头写入共享状态
+     */
+    void publishAudioAnchor(bool playing);
+
+    /**
+     * @brief 消费 pendingSeek（audioLoop 循环头调用）：音轨 seek + flush + 清 PCM 累积 + 重锚
+     * @return true 表示本次执行了一次 seek（调用方应重置相关节奏状态）
+     */
+    bool executePendingSeekAudio();
+
+    /**
+     * @brief 消费 pendingSeek（videoLoop 循环头调用）：视频轨 seek + flush + 重置 PTS 计时
+     * @param started videoLoop 的计时基准标志，seek 后置 false 以重设 firstPts
+     * @return true 表示本次执行了一次 seek
+     */
+    bool executePendingSeekVideo(bool &started);
+
+    /** @brief 发布定格快照（位置=最后已知播放头，playing=false） */
+    void publishHeldState();
 
     /** @brief 将 dB 音量转为线性增益并削波到 [-1, 1] */
     void applyVolume(uint8_t* data, int sampleCount, int channels);
@@ -271,4 +347,24 @@ private:
     // ── 时间戳 ─────────────────────────────────────────────────────────────
     TimestampGenerator* timestampGenerator_;  ///< 全局 tick；视频 pending / 音频 frame 对齐用
     uint64_t lastTimestamp_ = 0;              ///< 音频 emit 递增帧号基准
+
+    // ── 节点间同步（SyncData 体系）────────────────────────────────────────
+    std::shared_ptr<NodeDataTypes::SyncSharedState> syncSource_;     ///< 从机：外部同步源
+    std::shared_ptr<NodeDataTypes::SyncSharedState> syncPublisher_;  ///< 主机：对外发布播放头
+    QMutex syncPtrMutex_;             ///< 保护两个共享状态指针的跨线程交换
+    double syncDeadZoneSec_ = 0.04;   ///< 从机纠偏死区（秒）
+    double m_durationSec = 0.0;       ///< 媒体总时长（initializeFFmpeg 时记录，钳制 seek 范围）
+    double m_startPositionSec = 0.0;  ///< startPlay 定位起点（seekTo 未播放时记录，默认 0 从头）
+
+    /// seek 通道：目标秒 + 版本号。双解码循环各自记录已见版本，版本变化即执行 seek。
+    /// （音/视频两条线程都要响应同一次 seek，故不能用"读后清零"的单消费模型）
+    std::atomic<double> m_pendingSeekSec{-1.0};  ///< >=0 表示待执行的目标位置（秒）
+    std::atomic<qint64> m_seekVersion{0};        ///< 每次 seekTo 自增
+    std::atomic<bool> m_audioPendingRecalib{false}; ///< 音频 seek 后用首个 packet.pts 重锚
+
+    /// 最近已知播放头（跨线程读写，GUI 线程 getPositionSec / stopPlay 定格发布用）
+    std::atomic<double> m_lastKnownSec{0.0};
+    /// 音频锚点（仅 audioLoop 线程访问）：切片序号锚点，仿 AudioDecoder
+    double audioAnchorSec_ = 0.0;
+    qint64 audioAnchorTick_ = 0;
 };

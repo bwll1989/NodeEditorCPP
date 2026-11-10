@@ -19,6 +19,8 @@ set(AppConfig_sources
         ProjectPersistence.h
         AutosaveManager.cpp
         AutosaveManager.h
+        TimeCodeDefines.h
+        OSCMessage.h
 )
 
 #target_link_libraries(MYLIBRARY_LIBRARY PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::WebSockets)

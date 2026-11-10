@@ -244,6 +244,25 @@ QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
     res->insert("has_audio", hasAudioStream());
     res->insert("has_video", hasVideoStream());
 
+    // 记录媒体总时长（优先视频流，其次音频流，最后容器级），供 seek 钳制
+    m_durationSec = 0.0;
+    if (hasVideoStream() && formatContextVideo->streams[videoStreamIndex]->duration > 0) {
+        const AVRational tb = formatContextVideo->streams[videoStreamIndex]->time_base;
+        m_durationSec = static_cast<double>(formatContextVideo->streams[videoStreamIndex]->duration)
+                        * tb.num / tb.den;
+    } else if (hasVideoStream() && formatContextVideo->duration != AV_NOPTS_VALUE) {
+        m_durationSec = formatContextVideo->duration / static_cast<double>(AV_TIME_BASE);
+    } else if (hasAudioStream() && formatContext && formatContext->duration != AV_NOPTS_VALUE) {
+        m_durationSec = formatContext->duration / static_cast<double>(AV_TIME_BASE);
+    }
+    if (m_durationSec < 0.0) m_durationSec = 0.0;
+    m_lastKnownSec.store(0.0);
+    m_startPositionSec = 0.0;
+    m_pendingSeekSec.store(-1.0);
+    m_seekVersion.store(0);
+
+    audioAnchorSec_ = 0.0;
+
     if (hasAudioStream()) {
         res->insert("bit_rate", QString::number(codecContext->bit_rate));
         res->insert("sample_fmt", codecContext->sample_fmt);
@@ -264,16 +283,22 @@ QJsonObject* VideoDecoder::initializeFFmpeg(const QString &filePath){
 
 /**
  * @brief 启动播放
- * 1. 重置音频和视频的解码状态（seek到0，清空buffer）
+ * 1. 定位到 m_startPositionSec（默认 0；从机起播前 DataModel 已 seekTo 源位置）
  * 2. 启动音频解码线程和视频解码线程
  * 3. 两个线程独立运行，互不阻塞
  */
 void VideoDecoder::startPlay(){
     QMutexLocker locker(&mutex);
 
-    // 重置文件指针到开始位置（音频，纯视频文件跳过）
+    double startPos = m_startPositionSec;
+    if (startPos < 0.0) startPos = 0.0;
+    if (m_durationSec > 0.0 && startPos > m_durationSec) startPos = m_durationSec;
+
+    // 定位文件指针（音频，纯视频文件跳过）
     if (hasAudioStream()) {
-        av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
+        const AVRational tb = formatContext->streams[audioStreamIndex]->time_base;
+        av_seek_frame(formatContext, audioStreamIndex,
+                      static_cast<int64_t>(startPos / av_q2d(tb)), AVSEEK_FLAG_BACKWARD);
 
         if (codecContext) {
             avcodec_flush_buffers(codecContext);
@@ -289,9 +314,11 @@ void VideoDecoder::startPlay(){
             }
         }
     }
-    // 重置文件指针到开始位置（视频）
+    // 定位文件指针（视频）
     if (formatContextVideo && videoStreamIndex >= 0) {
-        av_seek_frame(formatContextVideo, videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
+        const AVRational tb = formatContextVideo->streams[videoStreamIndex]->time_base;
+        av_seek_frame(formatContextVideo, videoStreamIndex,
+                      static_cast<int64_t>(startPos / av_q2d(tb)), AVSEEK_FLAG_BACKWARD);
         if (videoCodecContext) {
             avcodec_flush_buffers(videoCodecContext);
         }
@@ -325,6 +352,7 @@ void VideoDecoder::stopPlay() {
             return;
         }
         isPlaying.store(false);
+        m_pendingSeekSec.store(-1.0);   // 作废未执行的 seek
         condition.wakeAll();
     }
 
@@ -391,6 +419,9 @@ void VideoDecoder::stopPlay() {
             }
         }
     }
+
+    // 定格发布：位置=最后已知播放头，playing=false（跟随端据此联动停止）
+    publishHeldState();
 }
 
 void VideoDecoder::setVolume(double vol) {
@@ -550,6 +581,278 @@ void VideoDecoder::setVideoImageBuffer(std::shared_ptr<NodeDataTypes::ImageTimes
     videoImageBuffer_ = std::move(buffer);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 节点间同步（SyncData 体系）：从机跟随 / 主机发布 / seek 通道
+// ═══════════════════════════════════════════════════════════════════════════
+
+void VideoDecoder::setSyncSource(std::shared_ptr<NodeDataTypes::SyncSharedState> src)
+{
+    QMutexLocker locker(&syncPtrMutex_);
+    syncSource_ = std::move(src);
+}
+
+void VideoDecoder::setSyncPublisher(std::shared_ptr<NodeDataTypes::SyncSharedState> pub)
+{
+    QMutexLocker locker(&syncPtrMutex_);
+    syncPublisher_ = std::move(pub);
+}
+
+void VideoDecoder::setSyncDeadZoneSec(double sec)
+{
+    // 钳制到 [10ms, 500ms]，避免极端值导致纠偏失效或 seek 风暴
+    syncDeadZoneSec_ = qBound(0.01, sec, 0.5);
+}
+
+double VideoDecoder::getPositionSec() const
+{
+    return m_lastKnownSec.load();
+}
+
+/**
+ * @brief 定位播放头（秒）
+ * 播放中：写 pendingSeek 通道并递增版本号，音/视频双解码循环各自检测版本
+ *         变化后执行 seek（同目标双路 seek，落点天然对齐）。
+ * 未播放：直接在 GUI 线程定位两条 formatContext（与解码线程无竞态）。
+ */
+void VideoDecoder::seekTo(double sec)
+{
+    double v = sec;
+    if (v < 0.0) v = 0.0;
+    if (m_durationSec > 0.0 && v > m_durationSec) v = m_durationSec;
+
+    if (isPlaying.load()) {
+        m_pendingSeekSec.store(v);
+        m_seekVersion.fetch_add(1);
+
+        m_audioPendingRecalib.store(true);
+        m_lastKnownSec.store(v);
+    } else {
+        // 未播放：直接定位（视频轨与音频轨各自 seek + flush）
+        if (formatContextVideo && videoStreamIndex >= 0) {
+            const AVRational tb = formatContextVideo->streams[videoStreamIndex]->time_base;
+            av_seek_frame(formatContextVideo, videoStreamIndex,
+                          static_cast<int64_t>(v / av_q2d(tb)), AVSEEK_FLAG_BACKWARD);
+            if (videoCodecContext) {
+                avcodec_flush_buffers(videoCodecContext);
+            }
+        }
+        if (hasAudioStream() && formatContext) {
+            const AVRational tb = formatContext->streams[audioStreamIndex]->time_base;
+            av_seek_frame(formatContext, audioStreamIndex,
+                          static_cast<int64_t>(v / av_q2d(tb)), AVSEEK_FLAG_BACKWARD);
+            if (codecContext) {
+                avcodec_flush_buffers(codecContext);
+            }
+        }
+        m_startPositionSec = v;
+        m_lastKnownSec.store(v);
+    }
+}
+
+bool VideoDecoder::hasSyncSource()
+{
+    std::shared_ptr<NodeDataTypes::SyncSharedState> src;
+    {
+        QMutexLocker locker(&syncPtrMutex_);
+        src = syncSource_;
+    }
+    return src != nullptr;
+}
+
+/**
+ * @brief 从机跟随（视频侧）：以本帧 pts 为本地播放头，与源期望位置比较
+ * 在 videoLoop 线程、每个解码帧后调用；超死区写 pendingSeek 通道（双路纠偏）
+ */
+void VideoDecoder::pollSyncTargetVideo(double curPtsSec)
+{
+    std::shared_ptr<NodeDataTypes::SyncSharedState> src;
+    {
+        QMutexLocker locker(&syncPtrMutex_);
+        src = syncSource_;
+    }
+    if (!src) {
+        return;
+    }
+    const NodeDataTypes::SyncState snap = src->read();
+    if (!snap.active || !snap.playing) {
+        return; // 源暂停/失效：保持当前播放状态，由 DataModel 层做启停联动
+    }
+
+    const double targetSec = src->expectedNowSec(); // 源此刻期望位置（读取+按全局时钟外推）
+    if (std::fabs(targetSec - curPtsSec) > syncDeadZoneSec_) {
+        // 源位置已超出媒体末尾：不再反复 seek 到 duration（解码线程每帧空 seek）；
+        // EOF 停止交给主循环，恢复跟随由 DataModel watcher 的超时保护负责
+        if (m_durationSec > 0.0 && targetSec >= m_durationSec - 0.05) {
+            return;
+        }
+        double v = targetSec;
+        if (v < 0.0) v = 0.0;
+        if (m_durationSec > 0.0 && v > m_durationSec) v = m_durationSec;
+        m_pendingSeekSec.store(v);
+        m_seekVersion.fetch_add(1);
+
+        m_audioPendingRecalib.store(true);
+    }
+}
+
+/**
+ * @brief 从机跟随（音频侧，仅纯音频文件）：以音频切片锚点外推本地播放头
+ * 在 audioLoop 线程、每个固定切片发出后调用；模式与 AudioDecoder::pollSyncTarget 相同
+ */
+void VideoDecoder::pollSyncTargetAudio()
+{
+    std::shared_ptr<NodeDataTypes::SyncSharedState> src;
+    {
+        QMutexLocker locker(&syncPtrMutex_);
+        src = syncSource_;
+    }
+    if (!src) {
+        return;
+    }
+    const NodeDataTypes::SyncState snap = src->read();
+    if (!snap.active || !snap.playing) {
+        return;
+    }
+
+    const double chunkSec = double(SAMPLES_PER_CHANNEL) / double(SAMPLE_RATE);
+    const double targetSec = src->expectedNowSec();
+    const double curSec = audioAnchorSec_
+        + double(lastTimestamp_ - audioAnchorTick_) * chunkSec;
+
+    // 至少已发出一个切片再判，避免启动瞬间的锚点噪声
+    if (qint64(lastTimestamp_) <= audioAnchorTick_) {
+        return;
+    }
+    if (std::fabs(targetSec - curSec) > syncDeadZoneSec_) {
+        // 源位置已超出媒体末尾：不再反复 seek 到 duration（同 pollSyncTargetVideo）
+        if (m_durationSec > 0.0 && targetSec >= m_durationSec - 0.05) {
+            return;
+        }
+        double v = targetSec;
+        if (v < 0.0) v = 0.0;
+        if (m_durationSec > 0.0 && v > m_durationSec) v = m_durationSec;
+        m_pendingSeekSec.store(v);
+        m_seekVersion.fetch_add(1);
+
+        m_audioPendingRecalib.store(true);
+    }
+}
+
+/**
+ * @brief 主机发布（视频侧）：当前帧 pts + 全局帧计数写入共享状态
+ * 在 videoLoop 线程、每个解码帧后调用（帧率级心跳）
+ */
+void VideoDecoder::publishVideoPts(double ptsSec, bool playing)
+{
+    std::shared_ptr<NodeDataTypes::SyncSharedState> pub;
+    {
+        QMutexLocker locker(&syncPtrMutex_);
+        pub = syncPublisher_;
+    }
+    if (!pub) {
+        return;
+    }
+    m_lastKnownSec.store(ptsSec);
+    pub->write(ptsSec, timestampGenerator_->getCurrentFrameCount(), playing);
+}
+
+/**
+ * @brief 主机发布（音频侧，仅纯音频文件）：切片锚点外推播放头写入共享状态
+ * 在 audioLoop 线程、每个固定切片发出后调用
+ */
+void VideoDecoder::publishAudioAnchor(bool playing)
+{
+    std::shared_ptr<NodeDataTypes::SyncSharedState> pub;
+    {
+        QMutexLocker locker(&syncPtrMutex_);
+        pub = syncPublisher_;
+    }
+    if (!pub) {
+        return;
+    }
+    const double chunkSec = double(SAMPLES_PER_CHANNEL) / double(SAMPLE_RATE);
+    const double curSec = audioAnchorSec_
+        + double(lastTimestamp_ - audioAnchorTick_) * chunkSec;
+    m_lastKnownSec.store(curSec);
+    pub->write(curSec, lastTimestamp_, playing);
+}
+
+/**
+ * @brief 消费 pendingSeek（audioLoop 循环头调用）
+ * 检测 seek 版本变化 → 音轨 seek + flush + 清 PCM 累积 + 锚点重置
+ */
+bool VideoDecoder::executePendingSeekAudio()
+{
+    static thread_local qint64 lastSeenSeekVersion = -1; // audioLoop 单线程，thread_local 安全
+    const qint64 version = m_seekVersion.load();
+    if (version == lastSeenSeekVersion) {
+        return false;
+    }
+    lastSeenSeekVersion = version;
+    const double target = m_pendingSeekSec.load();
+    if (target < 0.0 || !hasAudioStream() || !formatContext) {
+        return false;
+    }
+
+    const AVRational tb = formatContext->streams[audioStreamIndex]->time_base;
+    av_seek_frame(formatContext, audioStreamIndex,
+                  static_cast<int64_t>(target / av_q2d(tb)), AVSEEK_FLAG_BACKWARD);
+    if (codecContext) {
+        avcodec_flush_buffers(codecContext);
+    }
+    pendingInterleavedPcm_.clear();
+    pendingSamplesPerChannel_ = 0;
+    lastChannels_ = 0;
+    // 锚点重置：以 seek 目标为基准，等首个 packet.pts 再精锚（recalib）
+    audioAnchorSec_ = target;
+    audioAnchorTick_ = lastTimestamp_;
+    return true;
+}
+
+/**
+ * @brief 消费 pendingSeek（videoLoop 循环头调用）
+ * 检测 seek 版本变化 → 视频轨 seek + flush + 重置 PTS 计时基准
+ */
+bool VideoDecoder::executePendingSeekVideo(bool &started)
+{
+    static thread_local qint64 lastSeenSeekVersion = -1; // videoLoop 单线程，thread_local 安全
+    const qint64 version = m_seekVersion.load();
+    if (version == lastSeenSeekVersion) {
+        return false;
+    }
+    lastSeenSeekVersion = version;
+    const double target = m_pendingSeekSec.load();
+    if (target < 0.0 || !formatContextVideo || videoStreamIndex < 0) {
+        return false;
+    }
+
+    const AVRational tb = formatContextVideo->streams[videoStreamIndex]->time_base;
+    av_seek_frame(formatContextVideo, videoStreamIndex,
+                  static_cast<int64_t>(target / av_q2d(tb)), AVSEEK_FLAG_BACKWARD);
+    if (videoCodecContext) {
+        avcodec_flush_buffers(videoCodecContext);
+    }
+    started = false; // 首个解码帧重设 firstPtsSec / timer，从新位置起算节奏
+    return true;
+}
+
+/**
+ * @brief 发布定格快照：位置=最近已知播放头，playing=false
+ * 在 stopPlay / 自然结束时调用，跟随端据此联动停止
+ */
+void VideoDecoder::publishHeldState()
+{
+    std::shared_ptr<NodeDataTypes::SyncSharedState> pub;
+    {
+        QMutexLocker locker(&syncPtrMutex_);
+        pub = syncPublisher_;
+    }
+    if (!pub) {
+        return;
+    }
+    pub->write(m_lastKnownSec.load(), timestampGenerator_->getCurrentFrameCount(), false);
+}
+
 /**
  * @brief 向 GUI 事件队列投递一次 uploadPendingVideoFrame
  *
@@ -705,10 +1008,10 @@ void VideoDecoder::audioLoop() {
     int frameCount = 0;
     double lastEmitTime = -1.0;
 
-    // 循环播放的主循环
+    // 循环播放的主循环（从机模式下本地回绕失效，跟随纠偏为准）
     do {
         // 重置文件指针到开始位置（用于循环播放）
-        if (frameCount > 0 && isLooping.load()) {
+        if (frameCount > 0 && isLooping.load() && !hasSyncSource()) {
             av_seek_frame(formatContext, audioStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
             if (codecContext) {
                 avcodec_flush_buffers(codecContext);
@@ -721,18 +1024,27 @@ void VideoDecoder::audioLoop() {
         }
 
         while (audioRunning.load() && isPlaying.load() && av_read_frame(formatContext, &packet) >= 0) {
-            // 发送播放进度信号
+            // ---- SYNC/用户 seek：音轨 seek + flush + 清 PCM 累积 + 锚点重置 ----
+            executePendingSeekAudio();
+
             if (packet.stream_index == audioStreamIndex) {
                  double currentSec = 0.0;
                  if (packet.pts != AV_NOPTS_VALUE) {
                      currentSec = packet.pts * av_q2d(formatContext->streams[packet.stream_index]->time_base);
                  }
-                 
+
+                 // seek 落点校准：用首个真实 packet.pts 重锚音频同步外推基准
+                 if (m_audioPendingRecalib.load() && currentSec > 0.0) {
+                     audioAnchorSec_ = currentSec;
+                     audioAnchorTick_ = lastTimestamp_;
+                     m_audioPendingRecalib.store(false);
+                 }
+
                  double totalSec = 0.0;
                  if (formatContext->duration != AV_NOPTS_VALUE) {
                      totalSec = formatContext->duration / (double)AV_TIME_BASE;
                  }
-                 
+
                  // 限制发送频率，避免UI刷新过快 (例如每0.1秒刷新一次)
                  if (std::abs(currentSec - lastEmitTime) >= 0.1) {
                      emit playbackProgress(currentSec, totalSec);
@@ -838,9 +1150,15 @@ void VideoDecoder::audioLoop() {
                     }
                 }
             }
+
+            // 纯音频文件：由音频切片驱动 SYNC 发布与从机对齐（有视频时发布由 videoLoop 负责）
+            if (!hasVideoStream() && packet.stream_index == audioStreamIndex) {
+                pollSyncTargetAudio();
+                publishAudioAnchor(true);
+            }
             av_packet_unref(&packet);
         }
-    } while (audioRunning.load() && isPlaying.load() && isLooping.load()); // 循环播放条件
+    } while (audioRunning.load() && isPlaying.load() && isLooping.load() && !hasSyncSource()); // 循环播放条件（从机模式除外）
 
     // 清理资源
     if (audioFrame) {
@@ -849,11 +1167,15 @@ void VideoDecoder::audioLoop() {
     if (outputBuffer) {
         av_freep(&outputBuffer);
     }
-    const bool finishedNaturally = audioRunning.load() && isPlaying.load() && !isLooping.load();
+    const bool endedByEof = audioRunning.load() && isPlaying.load();
+    // 从机模式下即使 Loop 开启，EOF 也按自然结束处理（跟随启停联动接管后续行为）
+    const bool finishedNaturally = endedByEof && (!isLooping.load() || hasSyncSource());
     audioRunning.store(false);
     if (finishedNaturally) {
         isPlaying.store(false);
         videoRunning.store(false);
+        m_startPositionSec = 0.0;   // 自然播完回到起点，下次 Play 从头
+        publishHeldState();
         Q_EMIT playbackFinished();
     }
 }
@@ -878,9 +1200,14 @@ void VideoDecoder::videoLoop() {
     double lastEmitTime = -1.0;
     // 主循环：按 PTS 节奏输出，避免解码速度远快于实时导致 pending/GPU 积压
     while (videoRunning.load() && isPlaying.load()) {
+        // ---- SYNC/用户 seek：版本变化即执行（音/视频双路同目标 seek）----
+        executePendingSeekVideo(started);
+
         int ret = av_read_frame(formatContextVideo, &packet);
         if (ret < 0) {
-            if (isLooping.load()) {
+            // 本地 Loop 回绕仅在自由播放（无非机同步源）时生效：
+            // 从机模式下回绕会与跟随纠偏互相打架（跳回开头闪帧），EOF 直接结束、交给启停联动
+            if (isLooping.load() && !hasSyncSource()) {
                 av_seek_frame(formatContextVideo, videoStreamIndex, 0, AVSEEK_FLAG_BACKWARD);
                 if (videoCodecContext) {
                     avcodec_flush_buffers(videoCodecContext);
@@ -894,10 +1221,11 @@ void VideoDecoder::videoLoop() {
         if (packet.stream_index == videoStreamIndex) {
             if (avcodec_send_packet(videoCodecContext, &packet) == 0) {
                 while (videoRunning.load() && isPlaying.load() && avcodec_receive_frame(videoCodecContext, videoFrame) >= 0) {
+                    double ptsSec = -1.0;
                     int64_t ts = (videoFrame->best_effort_timestamp != AV_NOPTS_VALUE) ? videoFrame->best_effort_timestamp : videoFrame->pts;
                     if (ts != AV_NOPTS_VALUE) {
                         const AVRational tb = formatContextVideo->streams[videoStreamIndex]->time_base;
-                        const double ptsSec = ts * av_q2d(tb);
+                        ptsSec = ts * av_q2d(tb);
                         if (!started) {
                             started = true;
                             firstPtsSec = ptsSec;
@@ -924,6 +1252,13 @@ void VideoDecoder::videoLoop() {
                             }
                         }
                     }
+
+                    // ---- 节点间同步：从机跟随 + 主机发布（每个解码帧，帧率级心跳）----
+                    if (ptsSec >= 0.0) {
+                        pollSyncTargetVideo(ptsSec);
+                        publishVideoPts(ptsSec, true);
+                    }
+
                     processVideoFrame();
                 }
             }
@@ -933,11 +1268,14 @@ void VideoDecoder::videoLoop() {
     if (videoFrame) {
         av_frame_free(&videoFrame);
     }
-    const bool finishedNaturally = videoRunning.load() && isPlaying.load() && !isLooping.load();
+    const bool endedByEof = videoRunning.load() && isPlaying.load();
+    // 从机模式下即使 Loop 开启，EOF 也按自然结束处理（跟随启停联动接管后续行为）
+    const bool finishedNaturally = endedByEof && (!isLooping.load() || hasSyncSource());
     videoRunning.store(false);
     // 纯视频：播放结束时由 videoLoop 发出 finished（有音频时由 audioLoop 负责）
     if (finishedNaturally && !hasAudioStream()) {
         isPlaying.store(false);
+        publishHeldState();
         Q_EMIT playbackFinished();
     }
 }

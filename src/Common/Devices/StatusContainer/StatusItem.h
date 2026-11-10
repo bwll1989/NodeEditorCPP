@@ -7,7 +7,7 @@
 #include <QVariant>
 #include <QJsonObject>
 #include <QMetaType>
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 class QWidget;
 
 #ifdef STATUSCONTAINER_LIBRARY

@@ -2,7 +2,7 @@
  * @file NDVController.h
  * @brief NDV 全局 TCP 服务端单例（握手/心跳/组包/状态解析）
  *
- * 生命周期对齐 ArtnetTransmitter：
+ * 生命周期对齐 ArtnetService：
  * - getInstance() 进程内常驻，节点析构不 delete 单例
  * - 自身 moveToThread，网络对象在工作线程创建
  * - 进程退出交给 OS 回收，避免退出期主动拆套接字触发 __fastfail
@@ -47,7 +47,7 @@ class NDVController_EXPORT NDVController : public QObject
     Q_OBJECT
 
 public:
-    /** 对齐 ArtnetTransmitter::getInstance：进程内唯一，永不因节点析构而销毁 */
+    /** 对齐 ArtnetService::getInstance：进程内唯一，永不因节点析构而销毁 */
     static NDVController *getInstance();
     /** 兼容旧 API，等同 getInstance() */
     static NDVController *instance();

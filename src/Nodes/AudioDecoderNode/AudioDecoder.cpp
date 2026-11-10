@@ -1,5 +1,6 @@
 #pragma once
 #include <QDebug>
+#include <cmath>
 #include <queue>
 #include <mutex>
 #include <condition_variable>
@@ -277,6 +278,7 @@ void AudioDecoder::seekTo(double sec)
     if (isPlaying) {
         // 播放中：交给解码线程尽快执行，避免在主线程 seek 与解码竞态
         m_pendingSeekSec = sec;
+        m_pendingAnchorRecalib = true;
     } else if (formatContext) {
         seekFileToSec(sec);
     }
@@ -290,6 +292,12 @@ double AudioDecoder::startPositionSec() const
 double AudioDecoder::durationSec() const
 {
     return m_durationSec;
+}
+
+bool AudioDecoder::hasSyncSource()
+{
+    QMutexLocker locker(&syncPtrMutex_);
+    return syncSource_ != nullptr;
 }
 
 void AudioDecoder::startPlay(){
@@ -361,6 +369,9 @@ void AudioDecoder::stopPlay(bool resetPosition) {
         }
         m_pendingSeekSec = -1.0;
     }
+
+    // 定格发布（锁外）：位置=最后切片处，playing=false
+    publishSyncState(false);
 }
 
 void AudioDecoder::setVolume(double vol) {
@@ -388,6 +399,88 @@ bool AudioDecoder::getLooping() const {
 bool AudioDecoder::getPlaying() const
 {
     return isPlaying;
+}
+
+void AudioDecoder::setSyncSource(std::shared_ptr<NodeDataTypes::SyncSharedState> src)
+{
+    QMutexLocker locker(&syncPtrMutex_);
+    syncSource_ = std::move(src);
+}
+
+void AudioDecoder::setSyncPublisher(std::shared_ptr<NodeDataTypes::SyncSharedState> pub)
+{
+    QMutexLocker locker(&syncPtrMutex_);
+    syncPublisher_ = std::move(pub);
+}
+
+void AudioDecoder::setSyncDeadZoneSec(double sec)
+{
+    // 钳制到 [10ms, 500ms]，避免极端值导致纠偏失效或 seek 风暴
+    syncDeadZoneSec_ = qBound(0.01, sec, 0.5);
+}
+
+/**
+ * @brief 从机跟随：读取同步源快照，外推期望位置，超出死区时经 pendingSeek 纠偏
+ * 在播放线程调用；复用 m_pendingSeekSec 通道（含清 PCM 缓冲），与用户拖拽 seek 共用执行路径
+ */
+void AudioDecoder::pollSyncTarget()
+{
+    std::shared_ptr<NodeDataTypes::SyncSharedState> src;
+    {
+        QMutexLocker locker(&syncPtrMutex_);
+        src = syncSource_;
+    }
+    if (!src) {
+        return;
+    }
+    const NodeDataTypes::SyncState snap = src->read();
+    if (!snap.active || !snap.playing) {
+        return; // 源暂停/失效：保持当前播放状态，由 DataModel 层做启停联动
+    }
+
+    const double chunkSec = double(samplesPerChannelForTimestampFrame()) / double(SAMPLE_RATE);
+    const double targetSec = src->expectedNowSec(); // 源此刻期望位置（读取+按全局时钟外推）
+    const double curSec = syncAnchorSec_
+        + double(lastTimestamp_ - syncAnchorTick_) * chunkSec; // 本机播放头估计
+
+    // 至少已发出一个切片再判，避免启动瞬间的锚点噪声
+    if (lastTimestamp_ <= syncAnchorTick_) {
+        return;
+    }
+    if (std::fabs(targetSec - curSec) > syncDeadZoneSec_) {
+        QMutexLocker locker(&mutex);
+        // 源位置已超出媒体末尾：不再反复 seek 到 duration（否则源每外推一步就空 seek 一次）；
+        // 停止动作交给 DataModel 层 EOF 联动 / watcher 超时保护
+        if (m_durationSec > 0.0 && targetSec >= m_durationSec - 0.05) {
+            return;
+        }
+        double v = targetSec;
+        if (v < 0.0) v = 0.0;
+        if (m_durationSec > 0.0 && v > m_durationSec) v = m_durationSec;
+        m_startPositionSec = v;
+        m_pendingSeekSec = m_startPositionSec;
+        // seek 执行后用实际解码出的 packet.pts 重锚，消除 BACKWARD 落点回退误差
+        m_pendingAnchorRecalib = true;
+    }
+}
+
+/**
+ * @brief 主机发布：将当前播放头（锚点外推值）+ 全局帧计数写入共享状态
+ * 在播放线程、每个固定切片（约40ms）发出后调用，心跳随切片节奏自然更新
+ */
+void AudioDecoder::publishSyncState(bool playing)
+{
+    std::shared_ptr<NodeDataTypes::SyncSharedState> pub;
+    {
+        QMutexLocker locker(&syncPtrMutex_);
+        pub = syncPublisher_;
+    }
+    if (!pub) {
+        return;
+    }
+    const double chunkSec = double(samplesPerChannelForTimestampFrame()) / double(SAMPLE_RATE);
+    const double curSec = syncAnchorSec_ + double(lastTimestamp_ - syncAnchorTick_) * chunkSec;
+    pub->write(curSec, lastTimestamp_, playing);
 }
        
 
@@ -462,6 +555,10 @@ void AudioDecoder::playAudio() {
     int outputBufferSize = 0;
     lastTimestamp_=timestampGenerator_->getCurrentFrameCount();
 
+    // 同步锚点初始化：启动位置 + 当前全局帧计数（后续随 seek/回卷更新）
+    syncAnchorSec_ = m_startPositionSec;
+    syncAnchorTick_ = lastTimestamp_;
+
     // 重置累积缓冲区，防止上次播放残留
     pendingInterleavedPcm_.clear();
     pendingSamplesPerChannel_ = 0;
@@ -483,12 +580,16 @@ void AudioDecoder::playAudio() {
     // 循环播放的主循环
     do {
         // 重置文件指针到开始位置（用于循环播放；无额外间隔，避免听感中断）
-        if (frameCount > 0 && isLooping) {
+        // 从机模式禁用本地回绕：以同步源为准，EOF 按自然结束处理
+        if (frameCount > 0 && isLooping && !hasSyncSource()) {
             double loopTotalSec = 0.0;
             {
                 QMutexLocker locker(&mutex);
                 seekFileToSec(0.0);
                 m_startPositionSec = 0.0;
+                // 同步锚点重置：回卷到 0
+                syncAnchorSec_ = 0.0;
+                syncAnchorTick_ = lastTimestamp_;
                 lastEmitTime = -1.0;
                 loopTotalSec = m_durationSec > 0.0 ? m_durationSec
                     : (formatContext && formatContext->duration != AV_NOPTS_VALUE
@@ -498,6 +599,9 @@ void AudioDecoder::playAudio() {
         }
 
         while (isPlaying) {
+            // ---- 从机跟随：先检查同步源是否要求纠偏（写入 m_pendingSeekSec）----
+            pollSyncTarget();
+
             // 处理拖拽 seek（播放中）
             double seekProgressSec = -1.0;
             double seekProgressTotal = 0.0;
@@ -509,6 +613,9 @@ void AudioDecoder::playAudio() {
                     seekFileToSec(seekSec);
                     lastEmitTime = -1.0;
                     clearPcmAndChannelBuffers();
+                    // 同步锚点重置：从新位置继续外推
+                    syncAnchorSec_ = seekSec;
+                    syncAnchorTick_ = lastTimestamp_;
                     seekProgressSec = seekSec;
                     seekProgressTotal = m_durationSec > 0.0 ? m_durationSec
                         : (formatContext && formatContext->duration != AV_NOPTS_VALUE
@@ -528,6 +635,14 @@ void AudioDecoder::playAudio() {
                  double currentSec = 0.0;
                  if (packet.pts != AV_NOPTS_VALUE) {
                      currentSec = packet.pts * av_q2d(formatContext->streams[packet.stream_index]->time_base);
+                 }
+
+                 // seek 落点校准：首个解码出的 packet 实际位置可能与 seekSec 有
+                 // BACKWARD 关键帧回退差，用真实 pts 重锚同步外推基准
+                 if (m_pendingAnchorRecalib && currentSec > 0.0) {
+                     syncAnchorSec_ = currentSec;
+                     syncAnchorTick_ = lastTimestamp_;
+                     m_pendingAnchorRecalib = false;
                  }
 
                  double totalSec = m_durationSec;
@@ -643,10 +758,12 @@ void AudioDecoder::playAudio() {
             av_packet_unref(&packet);
         }
 
-        if (isPlaying && !isLooping) {
+        if (isPlaying && (!isLooping || hasSyncSource())) {
+            // 从机模式下禁用本地回绕：EOF 按"自然结束"处理，
+            // 否则从机 + Loop 会卡死在 isPlaying=true 但解码线程已退出
             endedByEof = true;
         }
-    } while (isPlaying && isLooping); // 循环播放条件
+    } while (isPlaying && isLooping && !hasSyncSource()); // 循环播放条件
 
     if (endedByEof) {
         const double totalSec = m_durationSec > 0.0 ? m_durationSec
@@ -660,6 +777,8 @@ void AudioDecoder::playAudio() {
             m_startPositionSec = 0.0;
             m_pendingSeekSec = -1.0;
         }
+        // 定格发布：源侧播放结束（跟随端据此联动停止）
+        publishSyncState(false);
         emit playbackFinished();
     }
 
@@ -767,6 +886,10 @@ int AudioDecoder::processPcmAndEmitFixedFrames(const uint8_t* interleavedPcm,
 
         emit audioFrameReady(frame);
         emitted++;
+
+        // ---- 主机发布：把播放头写入共享同步状态（跟随端在别处读取）----
+        publishSyncState(true);
+
 
         // 与 TimestampGenerator 同速：等 clock 追到 lastTimestamp_，
         // 使 stamp(=lastTimestamp_+FIXED_DELAY) 相对 clock 稳定在约 +FIXED_DELAY，

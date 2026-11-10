@@ -9,7 +9,7 @@
 #include "TimeLineDefines.h"
 #include <QPushButton>
 #include "AbstractClipModel.hpp"
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 #include <QSlider>
 // #include "BaseTimeLineModel.h"
 #include "ConstantDefines.h"

@@ -16,7 +16,7 @@
 #include <QComboBox>
 #include <QTextEdit>
 #include <QLineEdit>
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 #include <QToolButton>
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/Devices/MqttClient/MqttClient.h"

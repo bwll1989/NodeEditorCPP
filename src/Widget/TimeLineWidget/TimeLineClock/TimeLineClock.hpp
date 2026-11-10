@@ -6,8 +6,9 @@
 #include <QMutex>
 #include <QAtomicInteger>
 #include "TimeLineDefines.h"
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 #include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
+#include "../../Common/Devices/MtcReceiver/mtcreceiver.h"
 #include <QJsonObject>
 #include "TimeSyncServer.hpp"
 using namespace QtTimeline;
@@ -61,6 +62,10 @@ public:
     void initLTCClock(QString device,int channelIndex);
 
     void closeLTCClock();
+
+    void initMTCClock(QString device);
+
+    void closeMTCClock();
 
     QJsonObject save();
 
@@ -158,6 +163,10 @@ private:
      * LTC接收器
      */
     LTCReceiver* m_ltcReceiver {nullptr};
+    /**
+     * MTC接收器
+     */
+    MtcReceiver* m_mtcReceiver {nullptr};
 };
 
 #endif // TIMECODEGENERATOR_HPP 

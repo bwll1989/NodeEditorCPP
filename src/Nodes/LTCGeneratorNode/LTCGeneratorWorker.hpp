@@ -6,7 +6,7 @@
 #include <thread>
 #include <atomic>
 #include "NodeDataList.hpp"
-#include "TimeCodeDefines.h"
+#include "Common/AppConfig/TimeCodeDefines.h"
 #include "TimestampGenerator/TimestampGenerator.hpp"
 #include <ltc.h>
 static const int SAMPLE_RATE = 48000;
@@ -37,6 +37,20 @@ namespace Nodes
         void setTimeCodeType(TimeCodeType type);
         void setVolume(float db);
 
+    public:
+        /**
+         * @brief 绑定同步源（SYNC→LTC 跟随模式）
+         * 生成循环每轮读取源快照：源播放中按全局时钟外推期望位置，
+         * 帧差超过死区（1帧）时重置编码器时间码；源暂停/失效时输出静音定格。
+         * 未绑定则保持原有自由生成行为。
+         */
+        void setSyncSource(std::shared_ptr<NodeDataTypes::SyncSharedState> src);
+
+        /**
+         * @brief 设置 SYNC 秒 → LTC 时间码的映射偏移（秒，可负）
+         */
+        void setSyncOffsetSec(double sec);
+
     signals:
         void timeCodeFrameGenerated(TimeCodeFrame frame);
         void processingStatusChanged(bool isProcessing);
@@ -53,6 +67,9 @@ namespace Nodes
         int getBufferSize() const;
         void syncEncoderFromTimecodeLocked();
         void applyDropFrameFlagLocked();
+        void followSyncLocked();
+        void secToSmpteLocked(double sec, SMPTETimecode& out) const;
+        qint64 smpteToTotalFramesLocked(const SMPTETimecode& t) const;
 
         std::shared_ptr<AudioTimestampRingQueue> _outputBuffer;
         mutable QMutex _mutex;
@@ -81,5 +98,10 @@ namespace Nodes
         std::atomic<bool> _stopTickRequested{false};
         std::thread _tickThread;
         qint64 _lastOutputTimestamp = 0;
+
+        // ---- SYNC→LTC 跟随（SyncData 体系）----
+        std::shared_ptr<NodeDataTypes::SyncSharedState> _syncSource; ///< 外部同步源（未绑定=自由生成）
+        double _syncOffsetSec = 0.0;      ///< SYNC 秒 → LTC 时间码偏移
+        bool _syncHold = false;           ///< 源暂停/失效：输出静音、时间码定格（仅生成线程访问）
     };
 }

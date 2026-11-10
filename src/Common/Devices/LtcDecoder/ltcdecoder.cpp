@@ -36,9 +36,9 @@ LtcDecoder::~LtcDecoder()
 qint64 LtcDecoder::writeData(const char *data, qint64 len)
 {
 
-  static int last_frame = 0;
-  static int frame_rate_g = 0;
-  static int frame_rate = 0;
+  int &last_frame = m_lastFrame;        // 实例成员（原为函数级 static，多实例互相污染）
+  int &frame_rate_g = m_frameRateGuess;
+  int &frame_rate = m_frameRate;
 
   LTCDecoder *ltc = GETLTC;
   LTCFrameExt ltc_frame;

@@ -12,6 +12,8 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
 set(MediaManger_sources
         MediaLibrary.cpp
         MediaLibrary.h
+        VideoTranscoder.cpp
+        VideoTranscoder.h
         )
 
 #target_link_libraries(MYLIBRARY_LIBRARY PRIVATE Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::WebSockets)

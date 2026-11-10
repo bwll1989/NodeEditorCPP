@@ -48,6 +48,16 @@ public:
     int getAudioOutputDelayFrames() const;
     QString getLicenseCode() const;
     /**
+     * @brief 获取 Art-Net 多源合并策略（0=HTP 取大，1=LTP 后写优先）
+     * @return int ArtnetMergeMode 枚举值
+     */
+    int getArtnetMergeMode() const;
+    /**
+     * @brief 获取 Art-Net 发送节拍频率（Hz，每周期重发所有活跃端点的当前状态）
+     * @return int 频率值，钳制范围 1-100
+     */
+    int getArtnetSendFps() const;
+    /**
      * 函数级注释：将新路径加入最近文件列表
      * - 规则：去重后插入到首位；保留最多 MaxRecentFiles 个
      * - 同步写入配置文件
@@ -97,6 +107,8 @@ private:
     double m_timestampFrameRate;
     int m_audioOutputDelayFrames;
     QString m_licenseCode;
+    int m_artnetMergeMode; ///< Art-Net 多源合并策略（ArtnetMergeMode 枚举值）
+    int m_artnetSendFps;   ///< Art-Net 发送节拍频率（Hz）
     QStringList m_recentFiles;
     QString m_currentFlowPath;
 };

@@ -12,7 +12,7 @@
 // #include "BaseTimeLineModel.h"
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/Devices/ClientController/SocketTransmitter.h"
-#include "ArtnetSender/ArtnetTransmitter.h"
+#include "ArtnetSender/ArtnetService.h"
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 
 extern "C" {
@@ -51,7 +51,7 @@ namespace Clips
          *   1) 打开并定位到对应视频帧（基于 timeline 帧率与 FFmpeg time_base）
          *   2) 提取每一行（universe）的 512 字节 DMX 数据到 m_dmxDataList
          *   3) 构建与 UniversePlaybackDataModel 对齐的 artnetPacket 列表返回
-         *   4) 同步通过 m_artnetTransmitter 将每个 Universe 的帧入队广播
+         *   4) 同步通过 m_artnetService 将每个 Universe 的帧入队广播
          * - 在剪辑开始帧返回 "/file"，结束前一帧返回 "/stop" 以保持与其他 Clip 一致的习惯
          */
         QVariantMap currentData(int currentFrame) const override ;
@@ -106,12 +106,18 @@ namespace Clips
          */
         void extractDMXFromCurrentFrame() ;
         /**
-         * 函数级注释：将当前帧的每个 Universe 的 512 字节 DMX 数据封装为 ArtnetFrame 并入队发送
+         * 函数级注释：将当前帧的每个 Universe 的 DMX 数据写入状态表（50Hz 心跳负责实际发送）
          * - 参考 ArtnetOutDataModel 的发送逻辑
          * - 使用广播地址 `m_targetHost`；可根据需要扩展属性面板增加目标主机设置
-         * - 通过 m_lastSentFrameIndex 防止 timeline 对同帧的重复调用造成重复发送
+         * - 通过 m_lastSentFrameIndex 防止 timeline 对同帧的重复调用造成重复写入
          */
         void sendArtnetFrames(int baseUniverse, int subnet, int net, int currentFrame) ;
+
+        /**
+         * 函数级注释：刷新本片段在状态表中的全部输出（幂等）
+         * - Universe/目标主机等配置变化时调用：撤销旧桶后按当前缓存重推
+         */
+        void refreshOutputs() ;
 
         /**
          * 更新文件信息
@@ -154,7 +160,7 @@ namespace Clips
         QList<QByteArray> m_dmxDataList;
 
         bool m_canNotify = false;
-        ArtnetTransmitter* m_artnetTransmitter;  // ArtnetTransmitter单例
+        ArtnetService* m_artnetService;  // ArtnetService单例
         QString m_targetHost = "192.168.1.255";  // 目标主机地址（默认广播）
         int m_lastSentFrameIndex {-1};           // 已发送的最后帧号，避免重复发送
         

@@ -5,7 +5,7 @@
 #include <QtCore/QObject>
 #include <iostream>
 #include <QtCore/qglobal.h>
-#include "Common/Devices/ArtnetReceiver/ArtnetReceiver.h"
+#include "Common/Devices/ArtnetSender/ArtnetService.h"
 #include <QVariantMap>
 #include "QThread"
 #include "Common/BaseClass/AbstractDelegateModel.h"
@@ -58,14 +58,15 @@ public:
             AbstractDelegateModel::registerExternalBinding("/filter", this, b);
         }
 
-        connect(artnet_Receiver, &ArtnetReceiver::receiveArtnet, this, &ArtnetInDataModel::getArtnet);
-        connect(this, &ArtnetInDataModel::universeChanged, artnet_Receiver, &ArtnetReceiver::universeFilter);
+        // 订阅统一 ArtnetService 的输入分发（全进程唯一 socket，不再每节点自建接收器）
+        connect(ArtnetService::getInstance(), &ArtnetService::receiveArtnet,
+                this, &ArtnetInDataModel::getArtnet);
+        // 订阅只用于收包侧"是否有感兴趣者"旁路判断；universe 过滤在 getArtnet 内完成
+        ArtnetService::getInstance()->subscribeInput(this, -1);
     }
 
     ~ArtnetInDataModel() override {
-//        artnet_Receiver->deleteLater();
-        // delete artnet_Receiver;
-
+        // 输入订阅随对象销毁由 ArtnetService 的 destroyed 连接自动退订，无需手动清理
     }
 
     QString portCaption(QtNodes::PortType portType, QtNodes::PortIndex portIndex) const override
@@ -182,6 +183,15 @@ public Q_SLOTS:
             return;
         }
         m_universe = universe;
+        // 同步输入过滤 universe（复刻原 ArtnetReceiver::universeFilter 的更新时机：
+        // 仅在值变化时更新；初始 -1 = 不过滤，收全部 universe）
+        m_inputFilterUniverse = universe;
+        // 同步输入订阅：从通配（-1）收敛到具体 universe，
+        // 既让收包旁路判断更精准，也让 ArtPollReply 的输入口（SwIn）能上报真实 universe
+        if (ArtnetService* svc = ArtnetService::getInstance()) {
+            svc->unsubscribeInput(this);
+            svc->subscribeInput(this, universe);
+        }
         Q_EMIT universeChanged(m_universe);
     }
 
@@ -249,6 +259,11 @@ private Q_SLOTS:
      * 函数级注释：处理接收到的 Artnet 数据，根据当前属性进行过滤并输出
      */
     void getArtnet(const QVariantMap &data) {
+        // 复刻原 ArtnetReceiver 的 universe 过滤：-1 = 收全部，否则只收匹配包
+        if (m_inputFilterUniverse != -1 && data.contains("universe") &&
+            data["universe"].toInt() != m_inputFilterUniverse) {
+            return;
+        }
         if (m_filterEnabled) {
             if (data.contains("universe") && data["universe"].toInt() == m_universe) {
                 if (!m_channelsFilter.isEmpty() && data.contains("default")) {
@@ -341,5 +356,6 @@ private:
     bool m_filterEnabled = false;
     QList<int> m_channelsFilter;
 
-    ArtnetReceiver * artnet_Receiver = new ArtnetReceiver();
+    // 输入过滤 universe（复刻原 ArtnetReceiver 的内部过滤器：初始 -1 = 收全部）
+    int m_inputFilterUniverse = -1;
 };

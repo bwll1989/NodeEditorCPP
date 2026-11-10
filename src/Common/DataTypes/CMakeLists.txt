@@ -35,6 +35,8 @@ set(DataTypes_sources
         NodeDataList.hpp
         VariableData.h
         VariableData.cpp
+        SyncData.h
+        SyncData.cpp
         DataConvert.hpp
         DataTypesExport.h
 

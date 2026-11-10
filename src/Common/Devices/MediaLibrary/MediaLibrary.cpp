@@ -1,4 +1,5 @@
 #include "MediaLibrary.h"
+#include "VideoTranscoder.h"
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -17,9 +18,9 @@
 inline QString ImageFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"path": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "Image File"}]})");
 inline QString JsonFileNode  = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"path": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "JSON File"}]})");
 inline QString IniFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"path": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "INI File"}]})");
-inline QString DmxFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 4, "internal-data": {"UniverseSettings": { "isLooping": false, "net": 0, "subnet": 0, "universe": 0, "videoFilePath": "%1" } }, "output-count": 4, "port-editable": true, "position": {"x": %2, "y": %3}, "remarks": "Universe Playback", "type": "Universe Playback"}]})");
-inline QString AudioFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 3, "internal-data": {"autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 2, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Audio Decoder", "type": "Audio Decoder" } ] })");
-inline QString VideoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 4, "internal-data": {"autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 3, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Video Decoder", "type": "Video Decoder" } ] })");
+inline QString DmxFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 5, "internal-data": {"UniverseSettings": { "isLooping": false, "net": 0, "subnet": 0, "universe": 0, "videoFilePath": "%1" } }, "output-count": 5, "port-editable": true, "position": {"x": %2, "y": %3}, "remarks": "Universe Playback", "type": "Universe Playback"}]})");
+inline QString AudioFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 4, "internal-data": {"autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 3, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Audio Decoder", "type": "Audio Decoder" } ] })");
+inline QString VideoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 5, "internal-data": {"autoPlay": false, "filePath": "%1", "isLoop": false, "volume": 0 }, "output-count": 4, "port-editable": true, "position": {"x": %2, "y": %3},  "remarks": "Video Decoder", "type": "Video Decoder" } ] })");
 // internal-data 须与节点 save()/load() 一致：属性在 values 下；坐标占位符由画布 drop 填入
 inline QString ViosoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"values": {"configFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "Vioso"}]})");
 inline QString MpcdiFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"values": {"configFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "MPCDI"}]})");
@@ -43,6 +44,34 @@ MediaLibrary::MediaLibrary(QObject* parent)
     }
     // 新增：初始化存储目录（Windows 文档库下），并扫描已有文件入库
     initializeStorageDir();
+
+    // 连接视频自动转码器：条目状态后缀显示“转码中/进度/失败”，成功后自动入库 HAP 版本
+    auto* transcoder = VideoTranscoder::instance();
+    connect(transcoder, &VideoTranscoder::transcodeStarted, this,
+            [this](const QString& src) {
+        m_statusByPath[src] = QStringLiteral("[loading]");
+        renumberCategory(m_categories.value(Category::Video));
+    });
+    connect(transcoder, &VideoTranscoder::transcodeProgress, this,
+            [this](const QString& src, int percent) {
+        m_statusByPath[src] = percent < 0
+            ? QStringLiteral("[loading]")
+            : QStringLiteral("[loading %1%]").arg(percent);
+        renumberCategory(m_categories.value(Category::Video));
+    });
+    connect(transcoder, &VideoTranscoder::transcodeFinished, this,
+            [this](const QString& src, const QString& out, bool success, const QString& msg) {
+        m_statusByPath.remove(src);
+        if (success && !out.isEmpty()) {
+            addFile(out);  // HAP 版本入库（原始文件已被删除并改名为最终名）
+            refresh();     // 清除指向已删除原文件的条目；mov 源条目路径==最终名会保留
+        } else if (!success) {
+            m_statusByPath[src] = QStringLiteral("【转码失败】");
+            qCWarning(logTranscoder) << "转码失败:" << src << msg;
+        }
+        // 跳过（已是 HAP）时仅清除状态，无额外动作
+        renumberCategory(m_categories.value(Category::Video));
+    });
 }
 
 /**
@@ -110,6 +139,7 @@ void MediaLibrary::addFiles(const QStringList& absPaths)
         // 若源文件已在存储目录中，直接入库
         if (isInStorageDir(fi.absoluteFilePath())) {
             addFile(fi.absoluteFilePath());
+            maybeTranscode(fi.absoluteFilePath());
             continue;
         }
 
@@ -129,6 +159,7 @@ void MediaLibrary::addFiles(const QStringList& absPaths)
         // 复制到存储目录
         if (QFile::copy(fi.absoluteFilePath(), targetPath)) {
             addFile(targetPath);
+            maybeTranscode(targetPath);
         } else {
             // 复制失败：如果你希望弹窗提示，请告知；当前策略为跳过，不入库
             // 可改为 QMessageBox::warning(...) 提示复制失败
@@ -139,6 +170,19 @@ void MediaLibrary::addFiles(const QStringList& absPaths)
     }
 }
 
+
+void MediaLibrary::maybeTranscode(const QString& absPath)
+{
+    if (detectCategory(absPath) != Category::Video) return;
+    VideoTranscoder::instance()->enqueue(absPath);
+}
+
+void MediaLibrary::handleExternalImport(const QString& absPath)
+{
+    // 刷新模型（扫描存储目录，把新落盘文件入库），再对视频类文件触发自动转码
+    refresh();
+    maybeTranscode(absPath);
+}
 
 /**
  * @brief 添加文件夹（仅添加该文件夹下的一层文件）
@@ -456,9 +500,15 @@ void MediaLibrary::renumberCategory(QStandardItem* catItem)
         if (!item) continue;
         const int ordinal = r + 1;
         item->setData(ordinal, OrdinalRole);
-        // 在显示名左侧添加序号（示例：1  filename.ext）
-        const QString baseName = QFileInfo(item->data(PathRole).toString()).fileName();
-        item->setText(QString::number(ordinal) + QStringLiteral("  ") + baseName);
+        // 在显示名左侧添加序号（示例：1  filename.ext）；转码中的视频追加状态后缀
+        const QString path = item->data(PathRole).toString();
+        const QString baseName = QFileInfo(path).fileName();
+        QString text = QString::number(ordinal) + QStringLiteral("  ") + baseName;
+        const QString status = m_statusByPath.value(path);
+        if (!status.isEmpty()) {
+            text += QStringLiteral("  ") + status;
+        }
+        item->setText(text);
     }
 }
 

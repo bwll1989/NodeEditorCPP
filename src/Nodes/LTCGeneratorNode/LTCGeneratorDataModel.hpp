@@ -45,7 +45,7 @@ namespace Nodes {
             , _workerThread(new QThread(this))
         {
             qRegisterMetaType<TimeCodeType>("TimeCodeType");
-            InPortCount = 3;   // START, VOLUME, RESET
+            InPortCount = 4;   // START, VOLUME, RESET, SYNC
             OutPortCount = 3;  // AUDIO, START, VOLUME
             CaptionVisible = true;
             WidgetEmbeddable = false;
@@ -179,7 +179,7 @@ namespace Nodes {
         {
             switch (portType) {
                 case PortType::In:
-                    return VariableData().type();
+                    return (portIndex == 3) ? SyncData().type() : VariableData().type();
                 case PortType::Out:
                     if (portIndex == 0) {
                         return AudioData().type();
@@ -197,6 +197,7 @@ namespace Nodes {
                     if (portIndex == 0) return QStringLiteral("START");
                     if (portIndex == 1) return QStringLiteral("VOLUME");
                     if (portIndex == 2) return QStringLiteral("RESET");
+                    if (portIndex == 3) return QStringLiteral("SYNC");
                     return {};
                 case PortType::Out:
                     if (portIndex == 0) return QStringLiteral("AUDIO");
@@ -227,6 +228,19 @@ namespace Nodes {
 
         void setInData(std::shared_ptr<NodeData> nodeData, PortIndex const port) override
         {
+            // SYNC 输入：绑定/解绑跟随源（跨线程经 functor 队列投递，避免注册 metatype）
+            if (port == 3) {
+                auto sd = std::dynamic_pointer_cast<SyncData>(nodeData);
+                std::shared_ptr<SyncSharedState> src = sd ? sd->getSharedState() : nullptr;
+                LTCGeneratorWorker *w = _worker;
+                QMetaObject::invokeMethod(_worker, [w, src]() {
+                    if (w) {
+                        w->setSyncSource(src);
+                    }
+                }, Qt::QueuedConnection);
+                return;
+            }
+
             if (!nodeData) {
                 return;
             }

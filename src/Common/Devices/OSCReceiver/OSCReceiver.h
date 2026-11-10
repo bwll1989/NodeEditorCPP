@@ -7,7 +7,7 @@
 #include <QObject>
 #include "QThread"
 #include <QtNetwork/QUdpSocket>
-#include "OSCMessage.h"
+#include "Common/AppConfig/OSCMessage.h"
 #include "tinyosc.h"
 class OSCReceiver:public QObject {
     Q_OBJECT

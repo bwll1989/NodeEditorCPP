@@ -46,6 +46,7 @@ SettingWidget::SettingWidget(QWidget* parent)
             QStringLiteral("WEB设置"),
             QStringLiteral("OSC设置"),
             QStringLiteral("MQTT设置"),
+            QStringLiteral("Artnet设置"),
             QStringLiteral("日志设置"),
             QStringLiteral("License"),
         };
@@ -68,6 +69,9 @@ SettingWidget::SettingWidget(QWidget* parent)
         auto* itMqtt = new QListWidgetItem(QStringLiteral("MQTT设置"));
         itMqtt->setSizeHint(QSize(0, rowHeight));
         m_listWidget->addItem(itMqtt);
+        auto* itArtnet = new QListWidgetItem(QStringLiteral("Artnet设置"));
+        itArtnet->setSizeHint(QSize(0, rowHeight));
+        m_listWidget->addItem(itArtnet);
         auto* it3 = new QListWidgetItem(QStringLiteral("日志设置"));
         it3->setSizeHint(QSize(0, rowHeight));
         m_listWidget->addItem(it3);
@@ -215,6 +219,33 @@ SettingWidget::SettingWidget(QWidget* parent)
     layoutMqtt->addStretch();
     m_stackedWidget->addWidget(pageMqtt);
 
+    // --- Artnet 设置（独立页；合并策略与发送频率均运行期即时生效） ---
+    auto* pageArtnet = new QWidget();
+    auto* layoutArtnet = new QVBoxLayout(pageArtnet);
+    addPageTitle(layoutArtnet, QStringLiteral("Artnet 设置（即时生效）"));
+    auto* formArtnet = new QFormLayout();
+    formArtnet->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    m_artnetMergeCombo = new QComboBox(this);
+    // 与 ArtnetMergeMode 枚举值顺序保持一致：0=HTP 1=LTP
+    m_artnetMergeCombo->addItem(QStringLiteral("HTP（取大，强度合并，多源同写不闪烁）"));
+    m_artnetMergeCombo->addItem(QStringLiteral("LTP（后写优先，最近更新的源整包胜出）"));
+    m_artnetMergeCombo->setToolTip(QStringLiteral(
+        "多个节点同时向同一 universe 写入数据时的合并策略。\n"
+        "HTP：逐通道取最大值，适合强度合并；\n"
+        "LTP：最近更新的源整包胜出，适合单源活跃的接管场景。"));
+    formArtnet->addRow(QStringLiteral("合并策略:"), m_artnetMergeCombo);
+
+    m_artnetFpsSpin = new IntDragValueWidget(this);
+    m_artnetFpsSpin->setRange(1, 100);
+    m_artnetFpsSpin->setSuffix(QStringLiteral(" Hz"));
+    m_artnetFpsSpin->setToolTip(QStringLiteral(
+        "Art-Net 发送节拍频率：发送器以固定频率重发所有活跃端点的最后状态。\n"
+        "默认 50 Hz（20ms）；降低可减小网络流量，升高可降低控制延迟。"));
+    formArtnet->addRow(QStringLiteral("发送频率:"), m_artnetFpsSpin);
+    layoutArtnet->addLayout(formArtnet);
+    layoutArtnet->addStretch();
+    m_stackedWidget->addWidget(pageArtnet);
+
     // --- 页面 3: 日志设置 ---
     auto* pageLog = new QWidget();
     auto* layoutLog = new QVBoxLayout(pageLog);
@@ -320,6 +351,9 @@ void SettingWidget::loadCurrentSettings() {
         m_timestampFrameRateLabel->setText(QStringLiteral("%1 Hz").arg(fps, 0, 'f', 0));
     }
     m_audioOutputDelaySpin->setValue(config.getAudioOutputDelayFrames());
+    // Art-Net 合并策略（下拉框索引与 ArtnetMergeMode 枚举值一致）与发送频率
+    m_artnetMergeCombo->setCurrentIndex(qBound(0, config.getArtnetMergeMode(), 1));
+    m_artnetFpsSpin->setValue(config.getArtnetSendFps());
 
     m_httpPortSpin->setValue(config.getHttpServerPort());
     m_extraFeedbackHostEdit->setText(config.getExtraFeedbackHost());
@@ -354,6 +388,8 @@ void SettingWidget::saveSettings() {
     obj["AutosaveEnabled"] = m_autosaveEnabledCheck->isChecked();
     obj["AutosaveIntervalSeconds"] = m_autosaveIntervalSpin->value();
     obj["AudioOutputDelayFrames"] = m_audioOutputDelaySpin->value();
+    obj["ArtnetMergeMode"] = m_artnetMergeCombo->currentIndex();
+    obj["ArtnetSendFps"] = m_artnetFpsSpin->value();
     obj["OscEnabled"] = m_oscEnabledCheck->isChecked();
     obj["MqttEnabled"] = m_mqttEnabledCheck->isChecked();
     obj["MqttHost"] = m_mqttHostEdit->text();
