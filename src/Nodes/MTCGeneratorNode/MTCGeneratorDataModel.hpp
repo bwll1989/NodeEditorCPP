@@ -14,7 +14,7 @@
 #include "PluginDefinition.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "StatusContainer/GlobalEventBus.hpp"
-#include "Common/Devices/MtcSender/mtcsender.h"
+#include "Common/Devices/MtcDevices/mtcsender.h"
 
 using QtNodes::NodeData;
 using QtNodes::NodeDataType;

@@ -24,6 +24,8 @@ namespace AppConstants {
     const QString OBJECT_TRACK_REFS_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cache/ObjectTrackRefs";
     // 音频波形峰值缓存
     const QString AUDIO_PEAKS_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cache/Peaks";
+    // 模拟器 ROM 运行时缓存（LibretroNode：从媒体库拷贝到此目录后加载）
+    const QString GAME_ROM_CACHE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cache/GBARoms";
     // FLOW文件存储目录
     const QString MEDIA_LIBRARY_FLOW_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Flows";
     // 最近打开文件存储路径
@@ -100,7 +102,5 @@ namespace AppConfigs {
     constexpr int AUDIO_OUTPUT_DELAY_FRAMES = 0;
     // 生产者（音/视频）写出 timestamp 相对 TimestampGenerator 的固定超前帧数
     constexpr int FIXED_DELAY_FRAMES = 5;
-    // 内部授权码
-    constexpr const char* InternalAuthorization = "FLOW-INTL-AUTH-KEY1";
 
 }

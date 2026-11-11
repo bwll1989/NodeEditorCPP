@@ -26,6 +26,8 @@ inline QString ViosoFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-cou
 inline QString MpcdiFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"values": {"configFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "MPCDI"}]})");
 inline QString IsfFileNode   = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"values": {"shaderFile": "%1"}}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "ISF"}]})");
 inline QString GdtfFileNode  = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 1, "internal-data": {"file": "%1"}, "output-count": 1, "position": {"x": %2, "y": %3}, "type": "GDTF Fixture"}]})");
+// 拖拽 Game 文件 → Libretro（GBA）节点；romName 为媒体库文件名，节点内反查媒体库全路径
+inline QString GameFileNode  = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 12, "internal-data": {"values": {"romName": "%1"}}, "output-count": 3, "position": {"x": %2, "y": %3}, "type": "Libretro"}]})");
 
 MediaLibrary::MediaLibrary(QObject* parent)
     : QStandardItemModel(parent)
@@ -34,7 +36,8 @@ MediaLibrary::MediaLibrary(QObject* parent)
     // 初始化五个类别为顶层组节点
     for (Category cat : { Category::Video, Category::Audio, Category::DMX, Category::Image,
                           Category::Model, Category::Document, Category::Vioso, Category::ISF,
-                          Category::ChildFlow, Category::Mpcdi, Category::Fixture, Category::Unknown }) {
+                          Category::ChildFlow, Category::Mpcdi, Category::Fixture, Category::Game,
+                          Category::Unknown }) {
         auto* group = new QStandardItem(categoryName(cat));
         group->setEditable(false);
         group->setData(static_cast<int>(cat), CategoryRole);
@@ -360,6 +363,7 @@ QJsonObject MediaLibrary::toJson() const
     collect(Category::ChildFlow, "ChildFlow");
     collect(Category::Mpcdi,   "MPCDI");
     collect(Category::Fixture, "Fixture");
+    collect(Category::Game, "Game");
     collect(Category::Unknown, "Unknown");
     return root;
 }
@@ -387,6 +391,7 @@ bool MediaLibrary::fromJson(const QJsonObject& obj)
     load(Category::ChildFlow, "ChildFlow");
     load(Category::Mpcdi,   "MPCDI");
     load(Category::Fixture, "Fixture");
+    load(Category::Game, "Game");
     load(Category::Unknown, "Unknown");
     emit libraryChanged();
     return true;
@@ -438,6 +443,7 @@ QStringList MediaLibrary::categoryExtensions(Category cat)
     case Category::ChildFlow: return { "childflow" };
     case Category::Mpcdi:    return { "mpcdi" };
     case Category::Fixture:  return { "gdtf" };
+    case Category::Game:     return { "gba", "gb", "gbc" };
     case Category::Unknown:  break;
     }
     return {};
@@ -456,7 +462,7 @@ MediaLibrary::Category MediaLibrary::detectCategory(const QString& absPath) cons
         const QList<Category> cats = { Category::Video, Category::Audio, Category::DMX,
                                        Category::Image, Category::Model, Category::Vioso,
                                        Category::ISF, Category::ChildFlow, Category::Mpcdi,
-                                       Category::Fixture, Category::Document };
+                                       Category::Fixture, Category::Game, Category::Document };
         for (Category cat : cats) {
             for (const QString& e : categoryExtensions(cat)) {
                 map.insert(e, cat);
@@ -484,6 +490,7 @@ QString MediaLibrary::categoryName(Category cat) const
     case Category::ChildFlow: return QStringLiteral("Child Flows");
     case Category::Mpcdi:   return QStringLiteral("MPCDI");
     case Category::Fixture: return QStringLiteral("Fixtures");
+    case Category::Game:    return QStringLiteral("Games");
     case Category::Unknown: return QStringLiteral("Unknown");
     }
     return QStringLiteral("Unknown");
@@ -582,6 +589,7 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
             {Category::ChildFlow,"ChildFlow"},
             {Category::Mpcdi,    "MPCDI"},
             {Category::Fixture,  "Fixture"},
+            {Category::Game,     "Game"},
             {Category::Unknown,  "Unknown"}
         };
         const QString tagKey = tagMap.value(cat, "Unknown");
@@ -627,6 +635,10 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
                     // 拖拽生成 GDTF Fixture 节点；file 为媒体库文件名（节点内解析到存储目录），
                     // internal-data 键与 GDTFDataModel::save()/load() 顶层键一致
                     tpl = GdtfFileNode.arg(fileName);
+                    break;
+                case Category::Game:
+                    // 拖拽生成 Libretro（GBA）节点；romName 为媒体库文件名（节点内反查）
+                    tpl = GameFileNode.arg(fileName);
                     break;
                 case Category::ISF:
                     tpl = IsfFileNode.arg(fileName);

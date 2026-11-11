@@ -7,7 +7,14 @@
 #include <RtMidi.h>
 
 #include "Common/AppConfig/TimeCodeDefines.h"
-#include "../MtcDecoder/mtcdecoder.h"
+#include "mtcdecoder.h"
+
+// MtcDevices 以 DLL 形式提供（与其他设备库一致）：编译本 DLL 时导出，使用者导入
+#if defined(MTCDEVICES_LIBRARY)
+#define MTCDEVICES_EXPORT Q_DECL_EXPORT
+#else
+#define MTCDEVICES_EXPORT Q_DECL_IMPORT
+#endif
 
 /**
  * @brief MTC 接收器：封装 RtMidiIn，把指定 MIDI 输入设备的字节流喂给 MtcDecoder
@@ -15,7 +22,7 @@
  * 设备名格式与 LTCReceiver 一致："索引: 名称"（如 "0: loopMIDI Port"）。
  * RtMidiIn 回调运行在其内部输入线程，字节经 Qt 队列信号投递到解码器（主线程）。
  */
-class MtcReceiver : public QObject {
+class MTCDEVICES_EXPORT MtcReceiver : public QObject {
     Q_OBJECT
 
 public:

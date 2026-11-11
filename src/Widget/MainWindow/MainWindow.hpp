@@ -68,6 +68,11 @@ Q_SIGNALS:
     void initStatus(const QString &message);
 public Q_SLOTS:
     /**
+     * @brief 授权状态变化后刷新应用图标（未授权红色警示，授权后品牌绿）
+     * 函数级注释：同步 QApplication 图标、窗口图标与自定义标题栏的图标按钮。
+     */
+    void refreshAppIcon();
+    /**
      * @brief 初始化主窗口与各功能模块
      * 函数级注释：创建 DockManager 与各 DockWidget，初始化菜单栏、日志、节点编辑器、时间线、舞台、媒体库、外部控制与 HTTP 服务等。
      */

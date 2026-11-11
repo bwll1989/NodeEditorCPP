@@ -6,6 +6,13 @@
 
 #include "Common/AppConfig/TimeCodeDefines.h"
 
+// MtcDevices 以 DLL 形式提供（与其他设备库一致）：编译本 DLL 时导出，使用者导入
+#if defined(MTCDEVICES_LIBRARY)
+#define MTCDEVICES_EXPORT Q_DECL_EXPORT
+#else
+#define MTCDEVICES_EXPORT Q_DECL_IMPORT
+#endif
+
 /**
  * @brief MTC（MIDI Time Code）解码器
  *
@@ -21,7 +28,7 @@
  * 该类只做解析，不持有任何设备 —— 字节由 MtcReceiver（RtMidiIn 回调线程）
  * 经 Qt 信号队列投递到 feedMidi()。
  */
-class MtcDecoder : public QObject {
+class MTCDEVICES_EXPORT MtcDecoder : public QObject {
     Q_OBJECT
 
 public:

@@ -64,8 +64,6 @@ public:
     QAction *systemInfoAction;
     //artnetrecoder工具
     QAction *ArtnetRecoderToolAction ;
-    // MPCDI 查看器
-    QAction *mpcdiViewerAction;
     //关于菜单
     QMenu *About_menu;
     //关于
@@ -81,6 +79,8 @@ public:
 
 Q_SIGNALS:
     void recentFileTriggered(const QString& path);
+    /// 设置对话框关闭后发出（授权状态可能已变：导入授权/清除激活），主窗口据此刷新图标
+    void licenseStateChanged();
 private slots:
     void openToolWithArgs(const QString& exePath, const QStringList& args);
     //软件关于

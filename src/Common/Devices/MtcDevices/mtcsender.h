@@ -13,6 +13,13 @@
 #include "Common/AppConfig/TimeCodeDefines.h"
 #include "Common/DataTypes/SyncData.h"
 
+// MtcDevices 以 DLL 形式提供（与其他设备库一致）：编译本 DLL 时导出，使用者导入
+#if defined(MTCDEVICES_LIBRARY)
+#define MTCDEVICES_EXPORT Q_DECL_EXPORT
+#else
+#define MTCDEVICES_EXPORT Q_DECL_IMPORT
+#endif
+
 /**
  * @brief MTC 生成器：封装 RtMidiOut，按 4×帧率 发送 Quarter-Frame 消息
  *
@@ -21,7 +28,7 @@
  *   不依赖 Windows 定时器精度，长期走带不漂移
  * - QF piece 0~3 携带 2 帧窗口起始时间，piece 4~7 携带 +1 帧时间（按 MTC 规范）
  */
-class MtcSender : public QObject {
+class MTCDEVICES_EXPORT MtcSender : public QObject {
     Q_OBJECT
 
 public:

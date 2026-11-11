@@ -47,6 +47,8 @@ public:
     double getTimestampFrameRate() const;
     int getAudioOutputDelayFrames() const;
     QString getLicenseCode() const;
+    /// 激活码（生成 .ft 激活请求用，填写一次后持久化显示）
+    QString getActivationCode() const;
     /**
      * @brief 获取 Art-Net 多源合并策略（0=HTP 取大，1=LTP 后写优先）
      * @return int ArtnetMergeMode 枚举值
@@ -107,6 +109,7 @@ private:
     double m_timestampFrameRate;
     int m_audioOutputDelayFrames;
     QString m_licenseCode;
+    QString m_activationCode; ///< 激活码（设置页填写后持久化）
     int m_artnetMergeMode; ///< Art-Net 多源合并策略（ArtnetMergeMode 枚举值）
     int m_artnetSendFps;   ///< Art-Net 发送节拍频率（Hz）
     QStringList m_recentFiles;

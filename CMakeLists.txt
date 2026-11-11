@@ -199,21 +199,10 @@ add_subdirectory(src/Nodes/BuildInNodes)
 #add_subdirectory(src/Common/GUI/DockHub)
 add_subdirectory(src/Common/DataTypes)
 
-# MTC 设备静态库（Decoder/Receiver/Sender）：主程序与 MTC Generator/Decoder 节点插件共同链接
-# 注意：必须在 find_package(Qt) 与 DataTypes 之后定义（依赖 Qt::Core 与 SyncData）
-set(MtcDevices_DIR "${CMAKE_SOURCE_DIR}/src/Common/Devices")
-add_library(MtcDevices STATIC
-        "${MtcDevices_DIR}/MtcDecoder/mtcdecoder.cpp"
-        "${MtcDevices_DIR}/MtcDecoder/mtcdecoder.h"
-        "${MtcDevices_DIR}/MtcReceiver/mtcreceiver.cpp"
-        "${MtcDevices_DIR}/MtcReceiver/mtcreceiver.h"
-        "${MtcDevices_DIR}/MtcSender/mtcsender.cpp"
-        "${MtcDevices_DIR}/MtcSender/mtcsender.h"
-)
-target_include_directories(MtcDevices PUBLIC
-        "${CMAKE_SOURCE_DIR}"
-        "${MtcDevices_DIR}")
-target_link_libraries(MtcDevices PUBLIC Qt${QT_VERSION_MAJOR}::Core rtmidi DataTypes)
+# MTC 设备库子项目（SHARED DLL）：MtcDecoder / MtcReceiver / MtcSender 统一封装于
+# src/Common/Devices/MtcDevices/（含独立 CMakeLists.txt），与其他设备库结构一致。
+# 注意：必须在 find_package(Qt)、rtmidi 与 DataTypes target 之后添加（依赖传播）
+add_subdirectory(src/Common/Devices/MtcDevices)
 add_subdirectory(src/Common/Devices/StatusContainer)
 add_subdirectory(src/Common/AppConfig)
 add_subdirectory(src/Common/GUI/PropertyTreeWidget)
@@ -396,6 +385,7 @@ else()
     endif()
 endif()
 
+set(LicenseSDK_RUNTIME_DLL "${DEPENDS_DIR}/license-sdk-c-windows-1.0.0/lib/win-x64/licensingclient.dll")
 set(QRC_FILES
         resources.qrc
         timelineResource.qrc

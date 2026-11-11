@@ -14,6 +14,8 @@ set(AppConfig_sources
         ConfigManager.h
         LicenseManager.cpp
         LicenseManager.h
+        LicenseClientSdk.cpp
+        LicenseClientSdk.h
         ConstantDefines.h
         ProjectPersistence.cpp
         ProjectPersistence.h
@@ -36,22 +38,3 @@ target_include_directories(AppConfig PUBLIC
 target_link_libraries(AppConfig PUBLIC Qt${QT_VERSION_MAJOR}::Core)
 
 target_compile_definitions(AppConfig PRIVATE APPCONFIG_LIBRARY)
-
-set(LICENSE_ICON_PATH "${CMAKE_SOURCE_DIR}/res/icons/license.ico")
-string(REPLACE "\\" "/" LICENSE_ICON_PATH "${LICENSE_ICON_PATH}")
-configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/LicenseGenerator.rc.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/LicenseGenerator.rc"
-    @ONLY
-)
-
-add_executable(LicenseGenerator
-    LicenseGenerator.cpp
-    LicenseGenerator.qrc
-    "${CMAKE_CURRENT_BINARY_DIR}/LicenseGenerator.rc"
-)
-target_link_libraries(LicenseGenerator PRIVATE AppConfig Qt${QT_VERSION_MAJOR}::Widgets)
-set_target_properties(LicenseGenerator PROPERTIES
-    OUTPUT_NAME "LicenseGenerator"
-    WIN32_EXECUTABLE TRUE
-)

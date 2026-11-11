@@ -8,7 +8,7 @@
 #include "TimeLineDefines.h"
 #include "Common/AppConfig/TimeCodeDefines.h"
 #include "../../Common/Devices/LtcReceiver/ltcreceiver.h"
-#include "../../Common/Devices/MtcReceiver/mtcreceiver.h"
+#include "../../Common/Devices/MtcDevices/mtcreceiver.h"
 #include <QJsonObject>
 #include "TimeSyncServer.hpp"
 using namespace QtTimeline;

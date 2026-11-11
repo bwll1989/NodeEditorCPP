@@ -6,6 +6,7 @@
 #include "MainWindow.hpp"
 #include "FramelessConfirmDialog.hpp"
 #include "Common/AppConfig/ConstantDefines.h"
+#include "Common/AppConfig/LicenseManager.h"
 #include "Nodes/NodeEditorStyle.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "QFile"
@@ -50,13 +51,21 @@ static bool startHttpServerWithRetry(Flow::NodeHttpServer* server, int port, int
     return false;
 }
 
+/** @brief 按授权状态取应用图标：未授权用红色警示，授权后为品牌绿 */
+static QIcon licensedAppIcon()
+{
+    return LicenseManager::isAuthorized()
+        ? QIcon(QStringLiteral(":/icons/icons/Flow.png"))
+        : QIcon(QStringLiteral(":/icons/icons/FlowRed.png"));
+}
+
 /** @brief 获取应用图标（优先 QApplication，回退到 Flow 资源） */
 static QIcon applicationIcon()
 {
     if (!QApplication::windowIcon().isNull()) {
         return QApplication::windowIcon();
     }
-    return QIcon(QStringLiteral(":/icons/icons/Flow.png"));
+    return licensedAppIcon();
 }
 
 /**
@@ -120,6 +129,19 @@ MainWindow::MainWindow(QWidget *parent): QMainWindow(parent) {
     ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasTabsMenuButton, true);
 }
 
+void MainWindow::refreshAppIcon()
+{
+    // 授权状态变化（设置页导入/清除激活）后调用：任务栏、窗口、标题栏图标同步换色
+    const QIcon appIcon = licensedAppIcon();
+    QApplication::setWindowIcon(appIcon);
+    setWindowIcon(appIcon);
+    if (windowBar) {
+        if (auto *iconBtn = qobject_cast<QWK::WindowButton *>(windowBar->iconButton())) {
+            iconBtn->setIconNormal(appIcon);
+        }
+    }
+}
+
 MainWindow::~MainWindow()
 {
     if (httpServer) {
@@ -146,6 +168,9 @@ void MainWindow::init()
     menuBar=new MenuBarWidget(this);
     connect(menuBar, &MenuBarWidget::recentFileTriggered,
              this, &MainWindow::openRecentFile);
+    // 设置对话框关闭后检查授权状态变化，刷新应用图标（未授权红色/授权绿色）
+    connect(menuBar, &MenuBarWidget::licenseStateChanged,
+            this, &MainWindow::refreshAppIcon);
      // 初始化时刷新最近文件菜单
     menuBar->updateRecentFileActions(ConfigManager::instance().getRecentFiles());
     setupFramelessWindow();

@@ -9,6 +9,8 @@
 #include <QDialogButtonBox>
 #include <QListWidget>
 #include <QStackedWidget>
+#include <QString>
+
 #include "../GUI/Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 class SettingWidget : public QDialog {
     Q_OBJECT
@@ -53,10 +55,12 @@ private:
     QLineEdit* m_mqttFeedbackTopicEdit;
     QLineEdit* m_webPasswordEdit;
 
-    // License
-    QLineEdit* m_machineCodeEdit;
-    QLineEdit* m_licenseCodeEdit;
-    QLabel* m_licenseStatusLabel;
+    // 授权（LicenseClient SDK：激活码生成 .ft 请求 → 导入 .lic → 状态展示）
+    QLineEdit* m_activationCodeEdit;   ///< 激活码输入（持久化，生成 .ft 加密请求用）
+    QLabel* m_licenseStatusLabel;      ///< 激活状态（载荷摘要 / 未授权 / 无效原因）
+    QLabel* m_sdkStatusLabel;          ///< SDK 原生库缺失时的诊断提示
+
+    void refreshLicenseStatus();       ///< 刷新激活状态显示（配置令牌 > exe 旁 license.lic）
 
     // Log Settings
     IntDragValueWidget* m_maxLogEntriesSpin;

@@ -15,6 +15,7 @@
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "Common/DataTypes/NodeDataList.hpp"
 #include "QtNodes/NodeStyle"
+#include <QSet>
 using QtNodes::InvalidNodeId;
 using QtNodes::ConnectionPolicy;
 using QtNodes::NodeDataType;
@@ -202,7 +203,7 @@ void CustomDataFlowGraphModel::addGroup(GroupId const groupId)
         //qDebug() << "Group not added: Less than 2 nodes";
         return;
     }
-    
+
     // 妫€鏌ユ槸鍚﹀凡缁忓瓨鍦ㄥ畬鍏ㄧ浉鍚岀殑缁?
      for (const auto& existingGroup : _groups) {
         // 棣栧厛姣旇緝鑺傜偣鏁伴噺鏄惁鐩稿悓

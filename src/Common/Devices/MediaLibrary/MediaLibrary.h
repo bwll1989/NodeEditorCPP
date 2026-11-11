@@ -37,6 +37,7 @@ public:
         ChildFlow,
         Mpcdi,
         Fixture,
+        Game,
         Unknown
     };
     Q_ENUM(Category)

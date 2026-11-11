@@ -197,6 +197,7 @@ QString categoryDisplayLabel(MediaLibrary::Category cat)
     case MediaLibrary::Category::ChildFlow: return QObject::tr("Child Flow");
     case MediaLibrary::Category::Mpcdi:     return QStringLiteral("MPCDI");
     case MediaLibrary::Category::Fixture:   return QStringLiteral("Fixture/GDTF");
+    case MediaLibrary::Category::Game:      return QObject::tr("游戏 ROM");
     case MediaLibrary::Category::Unknown:   break;
     }
     return {};
@@ -234,7 +235,8 @@ void MediaLibraryWidget::importFiles()
         "*.dmx "
         "*.obj *.fbx *.stl *.gltf *.glb "
         "*.txt *.json *.xml *.cfg *.log *.md *.csv *.ini "
-        "*.vwf *.fs *.childflow *.mpcdi *.gdtf"
+        "*.vwf *.fs *.childflow *.mpcdi *.gdtf "
+        "*.gba *.gb *.gbc"
         ");;"
         "视频 (*.mp4 *.mov *.mkv *.avi *.wmv *.flv *.webm);;"
         "音频 (*.wav *.mp3 *.flac *.aac *.ogg *.m4a);;"
@@ -247,6 +249,7 @@ void MediaLibraryWidget::importFiles()
         "ISF (*.fs);;"
         "Child Flow (*.childflow);;"
         "Fixture/GDTF (*.gdtf);;"
+        "游戏 ROM (*.gba *.gb *.gbc);;"
         "所有文件 (*.*)");
 
     // 分组指定导入：该分组过滤器置顶，对话框默认选中它
@@ -425,6 +428,7 @@ QIcon MediaLibraryWidget::categoryIcon(int cat) const
     case Cat::ChildFlow: return QIcon(":/icons/icons/Flow.png");
     case Cat::Mpcdi:   return QIcon(":/icons/icons/image.png");
     case Cat::Fixture: return QIcon(":/icons/icons/gdtf.png");
+    case Cat::Game: return QIcon(":/icons/icons/games.png");
     case Cat::Unknown: return QIcon(":/icons/icons/unknown.png");
     default:           return QIcon();
     }

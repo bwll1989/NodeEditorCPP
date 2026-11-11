@@ -31,6 +31,7 @@ set(ALL_NODES
     CameraNode                                #摄像头输入
     ScreenCaptureNode                         #显示器/窗口捕获
     WebRenderNode                             #网页离屏渲染（TD Web Render TOP 模式）
+    LibretroNode                              #Libretro 模拟器节点（mGBA core：图像/音频/手柄）
     CaptureNode                               #图像捕获
     ROINode                                   #交互式 ROI 裁剪
     ImageConstNode                            #图像常量
@@ -113,6 +114,7 @@ set(ALL_NODES
     PosiStageNetClient                      #PosiStageNet数据接收
     ISFNode                                 #ISF数据加载
     GDTFNode                                #GDTF灯具文件解析
+
 )
 
 # 根据选项决定构建方式

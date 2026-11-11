@@ -16,6 +16,11 @@
 #include <QGuiApplication>
 #include <QClipboard>
 #include <QPushButton>
+#include <QFileDialog>
+#include <QDir>
+#include <QFile>
+#include <QStandardPaths>
+#include <QCoreApplication>
 
 #include "PushButton.h"
 
@@ -48,7 +53,7 @@ SettingWidget::SettingWidget(QWidget* parent)
             QStringLiteral("MQTT设置"),
             QStringLiteral("Artnet设置"),
             QStringLiteral("日志设置"),
-            QStringLiteral("License"),
+            QStringLiteral("授权"),
         };
         QFontMetrics fm(m_listWidget->font());
         int maxTextW = 0;
@@ -75,7 +80,7 @@ SettingWidget::SettingWidget(QWidget* parent)
         auto* it3 = new QListWidgetItem(QStringLiteral("日志设置"));
         it3->setSizeHint(QSize(0, rowHeight));
         m_listWidget->addItem(it3);
-        auto* it4 = new QListWidgetItem(QStringLiteral("License"));
+        auto* it4 = new QListWidgetItem(QStringLiteral("授权"));
         it4->setSizeHint(QSize(0, rowHeight));
         m_listWidget->addItem(it4);
         m_listWidget->setCurrentRow(0);
@@ -278,7 +283,7 @@ SettingWidget::SettingWidget(QWidget* parent)
     auto* pageLicense = new QWidget();
     auto* layoutLicense = new QVBoxLayout(pageLicense);
 
-    auto* lblLicense = new QLabel(QStringLiteral("License"));
+    auto* lblLicense = new QLabel(QStringLiteral("授权"));
     lblLicense->setFont(titleFont);
     layoutLicense->addWidget(lblLicense);
 
@@ -290,35 +295,130 @@ SettingWidget::SettingWidget(QWidget* parent)
     auto* formLicense = new QFormLayout();
     formLicense->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
 
-    m_machineCodeEdit = new QLineEdit(this);
-    m_machineCodeEdit->setReadOnly(true);
-    m_machineCodeEdit->setText(LicenseManager::machineCode());
-    auto* machineRow = new QHBoxLayout();
-    machineRow->addWidget(m_machineCodeEdit, 1);
-    auto* copyMachineButton = new QPushButton(QStringLiteral("复制"), this);
-    machineRow->addWidget(copyMachineButton);
-    connect(copyMachineButton, &QPushButton::clicked, this, [this]() {
-        if (auto* clipboard = QGuiApplication::clipboard()) {
-            clipboard->setText(m_machineCodeEdit->text());
-        }
-    });
-    formLicense->addRow(QStringLiteral("Machine Code:"), machineRow);
+    // 激活闭环：激活码（填写一次后持久化到配置）+ 生成加密请求 .ft → 平台离线激活 → 签发令牌
+    m_activationCodeEdit = new QLineEdit(this);
+    m_activationCodeEdit->setPlaceholderText(QStringLiteral("向运营索取的激活码"));
+    auto* activationRow = new QHBoxLayout();
+    activationRow->addWidget(m_activationCodeEdit, 1);
+    auto* generateRequestButton = new QPushButton(QStringLiteral("生成激活请求(.ft)"), this);
+    activationRow->addWidget(generateRequestButton);
+    formLicense->addRow(QStringLiteral("激活码:"), activationRow);
 
-    m_licenseCodeEdit = new QLineEdit(this);
-    m_licenseCodeEdit->setPlaceholderText(QStringLiteral("XXXX-XXXX-XXXX-XXXX"));
-    formLicense->addRow(QStringLiteral("License Code:"), m_licenseCodeEdit);
+    // 导入平台签发的授权文件（LP1. 令牌）：导入即验签并写入配置立即生效；清除激活可撤销
+    auto* importLicenseButton = new QPushButton(QStringLiteral("导入授权文件(.lic)..."), this);
+    auto* clearAuthButton = new QPushButton(QStringLiteral("清除激活"), this);
+    auto* authButtonRow = new QHBoxLayout();
+    authButtonRow->addWidget(importLicenseButton, 1);
+    authButtonRow->addWidget(clearAuthButton);
+    formLicense->addRow(QStringLiteral("授权文件:"), authButtonRow);
+    connect(importLicenseButton, &QPushButton::clicked, this, [this]() {
+        const QString path = QFileDialog::getOpenFileName(
+            this, QStringLiteral("选择授权文件"),
+            QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+            QStringLiteral("授权文件 (*.lic);;所有文件 (*)"));
+        if (path.isEmpty()) {
+            return;
+        }
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QMessageBox::warning(this, QStringLiteral("导入授权"),
+                                 QStringLiteral("无法读取文件：\n%1").arg(path));
+            return;
+        }
+        // 剥除全部空白与 BOM（令牌本身只含 base64url 与 "."）
+        QString token;
+        const QString content = QString::fromUtf8(file.readAll());
+        token.reserve(content.size());
+        for (const QChar& c : content) {
+            if (!c.isSpace() && c != QChar::ByteOrderMark) {
+                token += c;
+            }
+        }
+        if (token.isEmpty()) {
+            QMessageBox::warning(this, QStringLiteral("导入授权"),
+                                 QStringLiteral("文件内容为空：%1").arg(path));
+            return;
+        }
+        if (LicenseManager::isCodeValid(token)) {
+            // 验签通过立即写入配置（updateConfig 内部 saveConfig 落盘），不依赖底部 OK
+            QJsonObject patch;
+            patch["LicenseCode"] = token;
+            ConfigManager::instance().updateConfig(patch);
+        } else {
+            QMessageBox::warning(this, QStringLiteral("导入授权"),
+                                 QStringLiteral("授权文件无效：\n%1")
+                                     .arg(LicenseManager::verifyMessage(token)));
+        }
+        refreshLicenseStatus();
+    });
+    connect(clearAuthButton, &QPushButton::clicked, this, [this]() {
+        if (QMessageBox::question(this, QStringLiteral("清除激活"),
+                                  QStringLiteral("确定清除本机授权吗？\n清除后 Advanced 插件不再加载，需重新导入授权文件。"))
+            != QMessageBox::Yes) {
+            return;
+        }
+        QJsonObject patch;
+        patch["LicenseCode"] = QString();
+        ConfigManager::instance().updateConfig(patch);
+        // exe 旁 license.lic（运维放置的第二授权来源）一并删除
+        const QString licPath = LicenseManager::licenseFilePath();
+        if (!licPath.isEmpty() && QFile::exists(licPath)) {
+            QFile::remove(licPath);
+        }
+        refreshLicenseStatus();
+    });
 
     m_licenseStatusLabel = new QLabel(this);
-    formLicense->addRow(QStringLiteral("Status:"), m_licenseStatusLabel);
-    connect(m_licenseCodeEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
-        const bool valid = LicenseManager::isCodeValid(text);
-        m_licenseStatusLabel->setText(valid ? QStringLiteral("Advanced License") : QStringLiteral("Basic License"));
-        m_licenseStatusLabel->setStyleSheet(valid ? QStringLiteral("color: green;") : QStringLiteral("color: red;"));
-    });
+    formLicense->addRow(QStringLiteral("状态:"), m_licenseStatusLabel);
 
     layoutLicense->addLayout(formLicense);
+
+    // SDK 原生库缺失诊断（fail-closed：此时授权恒为无效）
+    m_sdkStatusLabel = new QLabel(this);
+    m_sdkStatusLabel->setWordWrap(true);
+    m_sdkStatusLabel->setStyleSheet(QStringLiteral("color: #d85a30;"));
+    m_sdkStatusLabel->setText(LicenseManager::sdkStatusText());
+    m_sdkStatusLabel->setVisible(!LicenseManager::sdkAvailable());
+    layoutLicense->addWidget(m_sdkStatusLabel);
+
     layoutLicense->addStretch();
     m_stackedWidget->addWidget(pageLicense);
+
+    // 生成 .ft 加密激活请求（内含机器码，交运营上传平台离线激活）
+    connect(generateRequestButton, &QPushButton::clicked, this, [this]() {
+        const QString code = m_activationCodeEdit->text().trimmed();
+        if (code.isEmpty()) {
+            QMessageBox::warning(this, QStringLiteral("激活请求"), QStringLiteral("请先填写激活码。"));
+            return;
+        }
+        if (!LicenseManager::sdkAvailable()) {
+            QMessageBox::warning(this, QStringLiteral("激活请求"), LicenseManager::sdkStatusText());
+            return;
+        }
+        // 默认存到"文档"目录，文件名带机器码（多机收集请求文件时不混淆）
+        const QString machine = LicenseManager::machineCode();
+        const QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+        const QString defaultPath =
+            QDir(docsDir.isEmpty() ? QDir::homePath() : docsDir)
+                .filePath(machine.isEmpty() ? QStringLiteral("Flow_激活请求.ft")
+                                            : QStringLiteral("Flow_激活请求_%1.ft").arg(machine));
+        const QString path = QFileDialog::getSaveFileName(
+            this, QStringLiteral("保存激活请求"), defaultPath, QStringLiteral("激活请求 (*.ft)"));
+        if (path.isEmpty()) {
+            return;
+        }
+        QString error;
+        if (LicenseManager::generateActivationRequest(code, path, &error)) {
+            QMessageBox::information(
+                this, QStringLiteral("激活请求"),
+                QStringLiteral("已生成加密激活请求文件：\n%1\n\n机器码：%2\n\n"
+                               "请将该文件提交给运营平台完成离线激活，下载授权文件(.lic)后，"
+                               "在此页点击\"导入授权文件(.lic)...\"导入即可完成授权。")
+                    .arg(path, LicenseManager::machineCode()));
+        } else {
+            QMessageBox::warning(this, QStringLiteral("激活请求"), error);
+        }
+    });
 
     // 连接列表与页面切换
     connect(m_listWidget, &QListWidget::currentRowChanged, m_stackedWidget, &QStackedWidget::setCurrentIndex);
@@ -372,7 +472,35 @@ void SettingWidget::loadCurrentSettings() {
     // Log Settings
     m_maxLogEntriesSpin->setValue(config.getMaxLogEntries());
     m_maxLogSaveEntriesSpin->setValue(config.getMaxLogSaveEntries());
-    m_licenseCodeEdit->setText(config.getLicenseCode());
+    m_activationCodeEdit->setText(config.getActivationCode());
+    refreshLicenseStatus();
+}
+
+void SettingWidget::refreshLicenseStatus() {
+    // 展示优先级：配置中的令牌 > exe 旁 license.lic
+    const QString token = ConfigManager::instance().getLicenseCode();
+    if (!token.trimmed().isEmpty() && LicenseManager::isCodeValid(token)) {
+        const QString summary = LicenseManager::tokenSummary(token);
+        m_licenseStatusLabel->setText(summary.isEmpty() ? QStringLiteral("已授权") : summary);
+        m_licenseStatusLabel->setStyleSheet(QStringLiteral("color: green;"));
+        m_licenseStatusLabel->setToolTip(QString());
+        return;
+    }
+    if (LicenseManager::isAuthorized()) {
+        m_licenseStatusLabel->setText(QStringLiteral("已授权（license.lic）"));
+        m_licenseStatusLabel->setStyleSheet(QStringLiteral("color: green;"));
+        m_licenseStatusLabel->setToolTip(QString());
+        return;
+    }
+    if (!token.trimmed().isEmpty()) {
+        m_licenseStatusLabel->setText(QStringLiteral("授权无效"));
+        m_licenseStatusLabel->setStyleSheet(QStringLiteral("color: red;"));
+        m_licenseStatusLabel->setToolTip(LicenseManager::verifyMessage(token));
+        return;
+    }
+    m_licenseStatusLabel->setText(QStringLiteral("未授权"));
+    m_licenseStatusLabel->setStyleSheet(QString());
+    m_licenseStatusLabel->setToolTip(QString());
 }
 
 void SettingWidget::saveSettings() {
@@ -402,13 +530,14 @@ void SettingWidget::saveSettings() {
     // Log Settings
     obj["MaxLogEntries"] = m_maxLogEntriesSpin->value();
     obj["MaxLogSaveEntries"] = m_maxLogSaveEntriesSpin->value();
-    obj["LicenseCode"] = m_licenseCodeEdit->text().trimmed();
+    obj["ActivationCode"] = m_activationCodeEdit->text().trimmed();
+    // LicenseCode 不在此处覆盖：由"导入授权文件/清除激活"即时写入配置（updateConfig 为按键合并）
 
     ConfigManager::instance().updateConfig(obj);
 
     const QString licenseHint = LicenseManager::isAuthorized()
-        ? QStringLiteral("License有效，重启后将加载外部插件。")
-        : QStringLiteral("License无效，Advanced插件不会加载。");
+        ? QStringLiteral("授权有效，重启后将加载外部插件。")
+        : QStringLiteral("授权无效，Advanced 插件不会加载。");
     QMessageBox::information(this, "设置",
                              QStringLiteral("设置已保存，部分更改将在重启后生效。\n%1").arg(licenseHint));
     accept();

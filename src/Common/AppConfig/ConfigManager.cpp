@@ -107,6 +107,7 @@ int ConfigManager::getAutosaveIntervalSeconds() const { return m_autosaveInterva
 double ConfigManager::getTimestampFrameRate() const { return AppConfigs::TIMESTAMP_FRAME_RATE; }
 int ConfigManager::getAudioOutputDelayFrames() const { return m_audioOutputDelayFrames; }
 QString ConfigManager::getLicenseCode() const { return m_licenseCode; }
+QString ConfigManager::getActivationCode() const { return m_activationCode; }
 int ConfigManager::getArtnetMergeMode() const { return m_artnetMergeMode; }
 int ConfigManager::getArtnetSendFps() const { return m_artnetSendFps; }
 
@@ -165,6 +166,7 @@ void ConfigManager::loadConfig()
                                               AppConfigs::AUDIO_OUTPUT_DELAY_FRAMES).toInt();
     m_audioOutputDelayFrames = qBound(0, m_audioOutputDelayFrames, 16);
     m_licenseCode = settings.value("License/Code").toString();
+    m_activationCode = settings.value("License/ActivationCode").toString();
     // Art-Net 多源合并策略：0=HTP(取大) 1=LTP(后写优先)，越界回退默认值
     m_artnetMergeMode = qBound(0, settings.value("Network/ArtnetMergeMode", AppConfigs::ARTNET_MERGE_MODE).toInt(), 1);
     // Art-Net 发送节拍频率（Hz），钳制 1-100
@@ -211,6 +213,7 @@ void ConfigManager::saveConfig()
     settings.setValue("Timestamp/FrameRate", AppConfigs::TIMESTAMP_FRAME_RATE);
     settings.setValue("Timestamp/AudioOutputDelayFrames", m_audioOutputDelayFrames);
     settings.setValue("License/Code", m_licenseCode);
+    settings.setValue("License/ActivationCode", m_activationCode);
     // Art-Net 多源合并策略
     settings.setValue("Network/ArtnetMergeMode", m_artnetMergeMode);
     // Art-Net 发送节拍频率（Hz）
@@ -252,6 +255,7 @@ void ConfigManager::updateConfig(const QJsonObject& newConfig)
         m_audioOutputDelayFrames = qBound(0, newConfig["AudioOutputDelayFrames"].toInt(), 16);
     }
     if (newConfig.contains("LicenseCode")) m_licenseCode = newConfig["LicenseCode"].toString();
+    if (newConfig.contains("ActivationCode")) m_activationCode = newConfig["ActivationCode"].toString();
     if (newConfig.contains("ArtnetMergeMode")) {
         m_artnetMergeMode = qBound(0, newConfig["ArtnetMergeMode"].toInt(), 1);
     }

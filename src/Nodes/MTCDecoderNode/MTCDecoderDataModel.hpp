@@ -16,7 +16,7 @@
 #include <QJsonObject>
 #include "PluginDefinition.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
-#include "Common/Devices/MtcReceiver/mtcreceiver.h"
+#include "Common/Devices/MtcDevices/mtcreceiver.h"
 #include "StatusContainer/GlobalEventBus.hpp"
 
 using QtNodes::NodeData;

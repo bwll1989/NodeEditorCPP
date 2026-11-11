@@ -4,7 +4,7 @@
 #include <QSignalBlocker>
 #include <QSpacerItem>
 #include <QVBoxLayout>
-#include "Common/Devices/MtcReceiver/mtcreceiver.h"
+#include "Common/Devices/MtcDevices/mtcreceiver.h"
 
 using namespace Nodes;
 

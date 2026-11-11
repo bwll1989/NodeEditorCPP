@@ -139,10 +139,6 @@ void MenuBarWidget::setupMenu() {
     connect(ArtnetRecoderToolAction, &QAction::triggered, this, [this]() {
         openToolWithArgs("ArtnetRecorder.exe", QStringList());
     });
-    mpcdiViewerAction = Tool_menu->addAction(QIcon(":/icons/icons/image.png"), "MPCDI Viewer");
-    connect(mpcdiViewerAction, &QAction::triggered, this, [this]() {
-        openToolWithArgs("mpcdi-viewer.exe", QStringList());
-    });
     systemInfoAction=Tool_menu->addAction(QIcon(":/icons/icons/property.png"),"系统信息");
     connect(systemInfoAction, &QAction::triggered, this, [this]() {
         SystemInfoWidget systemInfoWidget;
@@ -250,4 +246,6 @@ void MenuBarWidget::updateRecentFileActions(const QStringList& files) {
 void MenuBarWidget::showSetting() {
     SettingWidget settingWidget(this);
     settingWidget.exec();
+    // 授权状态可能已变（导入授权/清除激活），通知主窗口刷新应用图标
+    emit licenseStateChanged();
 }

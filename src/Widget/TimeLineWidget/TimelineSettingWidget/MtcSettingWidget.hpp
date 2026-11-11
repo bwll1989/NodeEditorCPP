@@ -7,7 +7,7 @@
 #include <QPushButton>
 #include <QSet>
 #include <QJsonObject>
-#include "Common/Devices/MtcReceiver/mtcreceiver.h"
+#include "Common/Devices/MtcDevices/mtcreceiver.h"
 class MtcSettingWidget : public QWidget {
     Q_OBJECT
 public:
