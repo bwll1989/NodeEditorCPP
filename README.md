@@ -14,7 +14,7 @@
 | 音视频 | 摄像头 / NDI / Spout / RTSP 采集，解码播放，VST3 / FMOD，LTC 时间码；**ISF** 着色器特效、**Vioso** 投影 Warp+Blend |
 | 设备通信 | 串口、TCP/UDP、WebSocket、HTTP、OSC、MQTT、Modbus TCP、CAN、PJLink、Q-SYS |
 | 现场自动化 | 热键触发、条件分支、边沿检测、延迟队列、值查表、Snapshot 切场、脚本扩展 |
-| AI 视觉 | YOLO 目标/姿态/人脸检测（ONNX）、MediaPipe 手势/姿态/分割、风格迁移 |
+| AI 视觉 | YOLO 目标/姿态/人脸检测（ONNX）、MediaPipe 手势/姿态/分割、**零训练手势动作匹配**（GestureRecorder 录制 → Gesture 节点识别）、风格迁移 |
 | 远程控制 | 内置 HTTP 网页控制台、全局 OSC 地址树、计划任务 |
 
 ---
@@ -118,8 +118,9 @@ flowchart TB
 | **Vioso** | `.vwf`（投影校准） |
 | **ISF** | `.fs`（Interactive Shader Format） |
 | Child Flows | `.childflow` |
+| **Gestures** | `.gesture`（手势动作库） |
 
-导入对话框按上述分类提供筛选；可将文件拖入画布创建对应节点（如 Video Decoder、Vioso、ISF、Container 等）。存储目录默认：`文档/Flow/Medias`。
+导入对话框按上述分类提供筛选；可将文件拖入画布创建对应节点（如 Video Decoder、Vioso、ISF、Gesture、Container 等）。存储目录默认：`文档/Flow/Medias`。
 
 ### 3. 时间轴
 
@@ -263,7 +264,9 @@ Mpv Controller、VLC Remote、NDV Server / Player、PLC ModBus、Modbus Master /
 
 ### ONNX — AI 推理
 
-Object Detection、Pose Detection、Face Detection、Style Transfer（YOLO v11n）、MediaPipe 手部 / 姿态 / 人体分割。
+Object Detection、Pose Detection、Face Detection、Style Transfer（YOLO v11n）、MediaPipe 手部 / 姿态 / 人体分割、**Gesture**（手势识别：加载 `.gesture` 动作库做零训练模板匹配，每个手势一个动态输出口；配套独立录制工具 **GestureRecorder**，见 [`tools/GestureRecorder/README.md`](tools/GestureRecorder/README.md)）。
+
+详见 [`src/Nodes/GestureNode/Doc.md`](src/Nodes/GestureNode/Doc.md)。
 
 ### 未纳入默认构建的节点
 
@@ -355,6 +358,7 @@ npm run build
 ```
 build/bin/Flow.exe
 build/bin/FlowRuntime.exe
+build/bin/GestureRecorder.exe    # 手势动作库录制工具（放在 bin 下运行，复用 plugins/Models）
 build/bin/www/                  # WebInterface 静态资源（需手动或脚本部署）
 build/bin/plugins/DataFlow/*.node
 ```
@@ -455,7 +459,8 @@ NodeEditorCPP/
 - [ ] 继续扩展节点类型（音频 / 视频 / 控制 / 设备对接）
 - [ ] 增强时间轴功能（编辑体验、同步精度）
 - [x] 重构 Dashboard / 网页控制台（WebInterface，Lit + Lovelace 布局）
-- [x] 媒体库分类细化（含 Vioso / ISF / Documents，分组默认折叠）
+- [x] 媒体库分类细化（含 Vioso / ISF / Documents / Gestures，分组默认折叠）
+- [x] 零训练手势识别（Gesture 节点 + GestureRecorder 录制工具，模板匹配）
 - [ ] 统一节点 `save()/load()` 与 Snapshot 兼容性
 - [ ] 优化交互与文档体系
 

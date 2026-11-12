@@ -38,6 +38,7 @@ public:
         Mpcdi,
         Fixture,
         Game,
+        Gesture,
         Unknown
     };
     Q_ENUM(Category)

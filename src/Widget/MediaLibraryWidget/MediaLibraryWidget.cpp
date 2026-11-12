@@ -198,6 +198,7 @@ QString categoryDisplayLabel(MediaLibrary::Category cat)
     case MediaLibrary::Category::Mpcdi:     return QStringLiteral("MPCDI");
     case MediaLibrary::Category::Fixture:   return QStringLiteral("Fixture/GDTF");
     case MediaLibrary::Category::Game:      return QObject::tr("游戏 ROM");
+    case MediaLibrary::Category::Gesture:   return QObject::tr("手势库");
     case MediaLibrary::Category::Unknown:   break;
     }
     return {};

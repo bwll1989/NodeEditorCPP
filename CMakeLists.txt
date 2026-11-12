@@ -207,6 +207,7 @@ add_subdirectory(src/Common/Devices/StatusContainer)
 add_subdirectory(src/Common/AppConfig)
 # 手势动作库录制工具（独立 exe，与 Flow 共用 bin 目录下的 MediaPipe 模型）
 add_subdirectory(tools/GestureRecorder)
+add_subdirectory(tools/ArtnetRecorder)
 add_subdirectory(src/Common/GUI/PropertyTreeWidget)
 add_subdirectory(src/Common/BaseClass)
 set(CALC_SOURCE_FILES

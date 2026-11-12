@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>ArtNet.png</file>
+    </qresource>
+</RCC>

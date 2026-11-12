@@ -1,0 +1,6 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="/recorder">
+        <file alias="finger.png">../../res/icons/finger.png</file>
+    </qresource>
+</RCC>

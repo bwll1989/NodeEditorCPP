@@ -74,8 +74,6 @@ set(ALL_NODES
     NDIOutNode                                #NDI输出节点
     PJLinkNode                                #PJLink输出节点
     MqttClientNode                              #Mqtt客户端节点
-    OpcUaClientNode                             #OPC UA 客户端节点（open62541，读取/写入 Variable）
-    OpcUaServerNode                             #OPC UA 服务器节点（open62541，暴露 8 个 Tag 变量）
     LTCDecoderNode                              #LTC时间码解析节点
     LTCGeneratorNode                            #LTC时间码生成节点
     MTCGeneratorNode                            #MTC时间码生成节点
@@ -98,11 +96,11 @@ set(ALL_NODES
     PoseDetectionNode                            #Yolo v11n 姿态
     ObjectDetectionNode                         #Yolo v11n 检测
     ObjectTrackNode                             #YOLOE 参考图跟踪
-    GestureNode                                 #手势动作库模板匹配（.gesture）
     FaceDetectionNode                              #人脸检测
     MediaPipe/HandPoseEstimationMediaPipeNode      #MediaPipe 手部关节点
     MediaPipe/PoseEstimationMediaPipeNode          #MediaPipe 人体姿态
     MediaPipe/HumanSegmentationPPHumanSegNode      #MediaPipe 人体分割
+    MediaPipe/GestureNode                          #手势动作库模板匹配（.gesture）
     VideoDecoderNode                              #视频解码器节点
     PLC-ModBus                                  #modbus控制PLC
     ModBusSlave                                 #Modbus从机节点
