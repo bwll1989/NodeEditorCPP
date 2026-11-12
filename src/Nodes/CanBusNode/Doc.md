@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 Windows 下通过 WinUSB + candle API 访问 candleLight / CANable 等 gs_usb 设备，收发原始 CAN 帧（2.0A/B）。典型用途：控制/读取 CAN 总线设备（底盘、灯控、PLC 网关等）。只控制单个 CAN 设备用专用节点（如 Ranger Mini）更方便；需要收发任意原始帧时用本节点。
 
 ## 2. 端口说明

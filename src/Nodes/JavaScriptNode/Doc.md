@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 在节点内编写 **JavaScript** 脚本，处理多路输入并写出多路输出。脚本可通过全局对象 `Node` 读写端口、用 Qt 控件 API 动态生成界面；支持 `initInterface` 初始化 UI、`inputEventHandler` 响应输入变化。
 
 脚本始终在 GUI 线程中执行。点击「保存」会重建引擎并重新调用 `initInterface`。

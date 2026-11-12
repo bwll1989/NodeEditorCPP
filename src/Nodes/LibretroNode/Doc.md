@@ -1,5 +1,7 @@
 # LibretroNode（GBA 专用精简版）
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 把 mGBA 模拟器 core 作为节点运行：输出游戏画面与音频，输入手柄按键。
 Core 固定为随主程序分发的 `bin/mgba_libretro.dll`（强制 GBA，不可更换）。
 

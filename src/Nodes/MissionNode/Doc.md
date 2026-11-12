@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 面板分类：**Controls → Nav Missions**
 
 航点任务层：根据 **Nav 的 ARRIVED** 推进步骤，向 **Nav Controller** 下发目标点；定位只进 Nav，本节点不吃 POSITION。

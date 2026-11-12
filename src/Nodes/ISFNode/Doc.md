@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 使用 [VVISF-GL](https://github.com/mrRay/VVISF-GL) 加载 `.fs`（[ISF](https://github.com/mrRay/ISF_Spec)）着色器，按 **Resolume Wire** 风格把 `INPUTS` **动态映射为输入端口**。
 
 依赖：`3rdParty/VVISF-GL`（构建 VVGL / VVISF，运行时需 `glew32.dll`）。

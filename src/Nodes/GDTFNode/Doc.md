@@ -1,5 +1,7 @@
 # GDTF Fixture（灯具文件解析节点）
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 解析 **GDTF（General Device Type Format）** 灯具描述文件（`.gdtf`，DIN SPEC 15800），
 提取灯具元数据、DMX 模式/通道表、几何结构与色轮/轮片信息，以 VariableData 输出供下游节点消费。
 

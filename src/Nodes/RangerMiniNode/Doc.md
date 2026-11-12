@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 AgileX **RANGER MINI 3.0** 底盘控制节点。通过 candleLight / gs_usb（WinUSB）USB-CAN 适配器，按官方 CAN 协议控制四轮四转底盘运动，并回读状态与运动反馈。
 
 - 通信：**CAN 2.0B，500 kbps，大端（Motorola）**

@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 加载 FMOD Studio 导出的 **Bank 目录**，枚举其中事件并播放，最多 **12** 路音频输出。支持多事件叠播、同事件多层叠发（实例上限与偷换由 FMOD Studio 的 Max Instances / Stealing 决定）。适合游戏音效、互动装置等场景。
 
 Core 使用 `NOSOUND`，经 DSP 捕获后走节点图输出；可用 FMOD Studio **Live Update** 连到本进程实时调参。

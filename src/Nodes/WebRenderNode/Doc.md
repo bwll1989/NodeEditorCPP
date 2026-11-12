@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 把网页离屏渲染成图像，模式对齐 TouchDesigner **Web Render TOP**。
 
 - 每个节点拉起自己的浏览器进程（本机 Microsoft Edge，没有则用 Google Chrome，`--headless=new`）

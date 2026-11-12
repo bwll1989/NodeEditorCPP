@@ -48,6 +48,7 @@ public:
     QString tag() const override { return PLUGIN_TAG; }
 
     /** @brief 向注册表添加 VlcRemoteDataModel 节点类型 */
+    bool NeedAuthorized() const override { return true; }
     void registerDataModels(std::shared_ptr<QtNodes::NodeDelegateModelRegistry> &reg) override;
 
 private:

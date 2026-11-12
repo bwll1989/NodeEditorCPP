@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 基于 [OpenCV Zoo MediaPipe Hand Pose](https://github.com/opencv/opencv_zoo/tree/main/models/handpose_estimation_mediapipe) 实现的手部关节点预测节点。采用两阶段推理：
 
 1. **手掌检测**（`palm_detection_mediapipe_2023feb.onnx`）

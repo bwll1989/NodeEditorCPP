@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 从指定 MIDI 输入设备接收 MTC（MIDI Time Code），解码为时间码输出，用于同步时间轴或显示。
 
 同时是 **SYNC 体系的输入边界节点**（与 LTC Decoder 镜像）：把外部 MTC 时间码转换为图内同步时钟（SyncData，TC→内部秒），供 Audio/Video Decoder、时间线等节点跟随——图内同步不绑定 SMPTE 语义，TC 只在边界转换。

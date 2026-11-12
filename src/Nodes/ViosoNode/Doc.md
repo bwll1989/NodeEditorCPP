@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 使用 [VIOSO WarpBlend API](https://github.com/vioso/VIOSO_API) 加载 `.vwf`，对输入图像做 Warp + Blend。按文件内通道数自动展开多路输出（单机即为 1 路）。
 
 依赖：`3rdParty/VIOSO_API`（构建时拷贝 `VIOSOWarpBlend64.dll` 到 `bin/`）。

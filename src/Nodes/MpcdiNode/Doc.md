@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 用 Scalable Display 的 MPCDI 参考实现读取 `.mpcdi`，对输入图像做几何变形（geometry warp）和边缘融合（alpha map）。按所选 buffer 里的 region 数自动展开多路输出，一路对应一台投影机。
 
 依赖：`3rdParty/Scalable Display Reference Implementation`（静态编进插件，不另带 DLL）。该库实现的是 MPCDI 1.0；更高版本会关掉版本检查后尽量读。

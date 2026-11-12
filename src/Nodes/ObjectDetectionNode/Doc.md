@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 基于 **YOLO11n** ONNX 模型做通用目标检测，覆盖 **COCO 80 类**（person、car 等）。可按类别与置信度过滤，输出标注图与检测列表。
 
 模型路径：`./plugins/Models/yolo11n-Detection.onnx`

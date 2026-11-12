@@ -2,6 +2,8 @@
 
 ## 1. 节点说明
 
+> ⚠️ **版本要求**：本节点为 **Advance（进阶版）** 功能，需有效授权后才能加载使用。
+
 基于 [OpenCV Zoo MediaPipe Pose](https://github.com/opencv/opencv_zoo/tree/main/models/pose_estimation_mediapipe) 实现的人体关节点预测节点。采用两阶段推理：
 
 1. **人体检测**（`person_detection_mediapipe_2023mar.onnx`）
