@@ -13,6 +13,8 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QStandardPaths>
+
+#include "Common/ProcessGuard/JobGuard.hpp"
 #include <QDebug>
 
 #include <opencv2/core.hpp>
@@ -412,6 +414,8 @@ static QString runAndCapture(const QString& program, const QStringList& args, in
         }
         return QString();
     }
+    // 【幽灵 socket 治本 2026-11-13】短命命令也纳入陪葬 job（纵深防御）
+    ms::assignChildToJob(static_cast<unsigned long>(proc.processId()));
     if (!proc.waitForFinished(timeoutMs)) {
         proc.kill();
         proc.waitForFinished(1000);

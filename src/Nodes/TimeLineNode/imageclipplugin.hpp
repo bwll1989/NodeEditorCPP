@@ -16,7 +16,7 @@ public:
         return "Image";
     }
 
-    AbstractClipModel* createModel(int start) override {
+    TimeLineClipModel* createModel(int start) override {
         return new Clips::ImageClipModel(start);
     }
 

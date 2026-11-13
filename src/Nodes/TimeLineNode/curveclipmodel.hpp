@@ -65,7 +65,7 @@ public:
 
     QJsonObject save() const override
     {
-        QJsonObject json = AbstractClipModel::save();
+        QJsonObject json = TimeLineClipModel::save();
         json["points"] = m_path->toJson();
         json["closed"] = m_path->isClosed();
         json["messages"] = m_listWidget->save().value(QStringLiteral("messages")).toArray();
@@ -74,7 +74,7 @@ public:
 
     void load(const QJsonObject& json) override
     {
-        AbstractClipModel::load(json);
+        TimeLineClipModel::load(json);
         if (json.contains(QStringLiteral("messages"))) {
             m_listWidget->load(json);
         } else if (json.contains(QStringLiteral("address"))) {
@@ -98,9 +98,9 @@ public:
     QVariant data(int role) const override
     {
         if (role == TimelineRoles::ClipModelRole) {
-            return QVariant::fromValue(static_cast<AbstractClipModel*>(const_cast<CurveClipModel*>(this)));
+            return QVariant::fromValue(static_cast<TimeLineClipModel*>(const_cast<CurveClipModel*>(this)));
         }
-        return AbstractClipModel::data(role);
+        return TimeLineClipModel::data(role);
     }
 
     QVariantMap currentData(int currentFrame) const override

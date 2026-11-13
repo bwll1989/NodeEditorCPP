@@ -14,7 +14,7 @@ public:
     QString clipType() const override {
         return "Trigger";
     }
-    AbstractClipModel* createModel(int start) override {
+    TimeLineClipModel* createModel(int start) override {
         return new Clips::TriggerClipModel(start);
     }
 };

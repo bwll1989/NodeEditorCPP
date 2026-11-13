@@ -11,7 +11,7 @@
 
 namespace {
 
-AbstractClipModel* takeNewlyAddedClip(BaseTimeLineModel* model, const QList<int>& countsBefore)
+TimeLineClipModel* takeNewlyAddedClip(BaseTimeLineModel* model, const QList<int>& countsBefore)
 {
     if (!model)
         return nullptr;
@@ -25,7 +25,7 @@ AbstractClipModel* takeNewlyAddedClip(BaseTimeLineModel* model, const QList<int>
     return nullptr;
 }
 
-void applyDroppedMedia(AbstractClipModel* clip, const QMimeData* mime)
+void applyDroppedMedia(TimeLineClipModel* clip, const QMimeData* mime)
 {
     if (!clip || !mime)
         return;

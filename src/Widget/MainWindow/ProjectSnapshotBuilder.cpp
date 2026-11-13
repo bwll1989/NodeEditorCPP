@@ -9,13 +9,15 @@
 #include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
 #include "Widget/ExternalControl/HttpServer.hpp"
 #include "Widget/NodeWidget/DataflowViewsManger.hpp"
-#include "Widget/TimeLineWidget/TimeLineModel.h"
-#include "Widget/TimeLineWidget/TimeLineWidget.hpp"
+// 【2026-11-12 第二步】新 MediaServer 时间轴工程序列化：pb/base64 转换在
+// C++20 侧桥（本 TU 为 C++17，只 include 桥头——纯 C++ 声明 + Qt 类型）
+#include "Widget/TimeLineWidget/MsRuntimeBridge.hpp"
 
 #include "DockManager.h"
 
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QMessageBox>
@@ -49,13 +51,48 @@ QJsonObject buildProjectSnapshot(const ProjectSnapshotSources& sources, ProjectS
     if (sources.dataflowViewsManger) {
         flowJson[QStringLiteral("DataFlow")] = sources.dataflowViewsManger->save();
     }
-    if (sources.timeline) {
-        flowJson[QStringLiteral("TimeLine")] = sources.timeline->save();
+    // 【2026-11-12】TimeLine 段退役（旧时间轴下线，新 MediaServer 时间轴
+    // 的工程序列化后续迭代接入）——快照不再写出 TimeLine 键。
+    // 【2026-11-12 第二步】新 MediaServer 时间轴段：ms::Scene 整体 pb →
+    // base64（含素材表/轨道/片段/变换/tween 全量；R1 校验在反解侧）。
+    // 空场景也写出（加载端区分"无段=旧文件"与"空段=空场景"）。
+    if (sources.msScene) {
+        QString err;
+        const QString b64 = ms::MsRuntimeBridge::sceneToBase64(
+            *sources.msScene, &err);
+        if (!b64.isEmpty()) {
+            QJsonObject mediaTimeline;
+            mediaTimeline[QStringLiteral("format")] =
+                QStringLiteral("pb-base64-v1");
+            mediaTimeline[QStringLiteral("scene")] = b64;
+            flowJson[QStringLiteral("mediaTimeline")] = mediaTimeline;
+        } else {
+            qWarning() << "[project] mediaTimeline 序列化失败（跳过该段）:"
+                       << err;
+        }
     }
     if (sources.scheduledTaskWidget) {
         flowJson[QStringLiteral("ScheduledTasks")] = sources.scheduledTaskWidget->save();
     } else if (sources.scheduledTaskModel) {
         flowJson[QStringLiteral("ScheduledTasks")] = sources.scheduledTaskModel->toJson();
+    }
+    // 【2026-11-12 统一入口】显示端登记段：桥非空时把登记态（id/host/
+    // port/enabled/pairingCode）随工程持久化——加载时恢复，免去每次打开
+    // 工程手动重加显示端。空表也写出（与 mediaTimeline 同理：加载端区分
+    // "无段=旧文件"与"空段=清空登记"）。
+    if (sources.msRuntime) {
+        QJsonArray displays;
+        const auto rows = sources.msRuntime->displayRows();
+        for (const auto& r : rows) {
+            QJsonObject d;
+            d[QStringLiteral("id")]         = r.id;
+            d[QStringLiteral("host")]       = r.host;
+            d[QStringLiteral("port")]       = r.port;
+            d[QStringLiteral("enabled")]    = r.enabled;
+            d[QStringLiteral("pairingCode")] = r.pairingCode;
+            displays.append(d);
+        }
+        flowJson[QStringLiteral("mediaDisplays")] = displays;
     }
     if (sources.dockManager) {
         const QByteArray layoutBytes = sources.dockManager->saveState();
@@ -239,25 +276,83 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
         QObject::disconnect(dfConn);
     }
 
-    report(QObject::tr("Load the timeline model ..."));
-    if (!targets.timeline && !targets.timelineModel) {
-        return fail(QObject::tr("Timeline is null"));
+    report(QObject::tr("Skip timeline model ..."));
+    // 【2026-11-12】旧 TimeLine 段不再解析（旧时间轴已下线；用户拍板
+    // 不做旧文件兼容——字段直接忽略）。
+
+    // 【2026-11-12 第二步】新 MediaServer 时间轴段反解：无段 = 旧文件
+    //（跳过，工作副本保持空场景）；有段但反解失败 = 数据损坏（整体
+    // fail——静默丢场景会让用户误以为工程是空的）。
+    if (targets.msScene) {
+        const QJsonValue mtValue = root.value(QStringLiteral("mediaTimeline"));
+        if (!mtValue.isUndefined() && !mtValue.isNull()) {
+            if (!mtValue.isObject()) {
+                return fail(QObject::tr("mediaTimeline 数据格式错误"));
+            }
+            const QJsonObject mt = mtValue.toObject();
+            const QString b64 = mt.value(QStringLiteral("scene")).toString();
+            QString err;
+            if (b64.isEmpty() ||
+                !ms::MsRuntimeBridge::sceneFromBase64(b64, *targets.msScene,
+                                                      err)) {
+                return fail(QObject::tr("加载 mediaTimeline 失败: %1").arg(
+                    err.isEmpty() ? QStringLiteral("场景数据为空") : err));
+            }
+            // 【2026-11-13 修复】canvas 钳制：旧工程/异常数据可能 canvas=0，
+            // 而画布全链（滚轮缩放/resetView/绘制）以 canvas>0 为有效性闸
+            //——0 画布 = 滚轮无反应 + 视图无界。与 MainWindow 空场景默认
+            // 1920×1080 同口径。
+            if (targets.msScene->canvas_w <= 0.0)
+                targets.msScene->canvas_w = 1920.0;
+            if (targets.msScene->canvas_h <= 0.0)
+                targets.msScene->canvas_h = 1080.0;
+            report(QObject::tr("MediaServer timeline loaded"));
+        }
     }
-    try {
-        const QJsonValue timelineValue = root.value(QStringLiteral("TimeLine"));
-        if (!timelineValue.isObject()) {
-            return fail(QObject::tr("TimeLine 数据缺失或格式错误"));
+
+    // 【2026-11-12 统一入口】显示端登记段回灌：无段 = 旧文件（跳过，
+    // 运行期已登记的显示端保持原样）；有段 = 工程权威登记——先清空现有
+    // 登记再逐条恢复（addDisplay 后 Connector 写死 enabled=true，禁用项
+    // 补 setDisplayEnabled(false)）。单条失败（id 重复/参数非法）仅留痕
+    // 不 fail 整体——外设登记缺失不应阻断节点图/场景加载。
+    if (targets.msRuntime) {
+        const QJsonValue mdValue = root.value(QStringLiteral("mediaDisplays"));
+        if (!mdValue.isUndefined() && !mdValue.isNull()) {
+            if (!mdValue.isArray()) {
+                return fail(QObject::tr("mediaDisplays 数据格式错误"));
+            }
+            report(QObject::tr("Load the display registry ..."));
+            // 清空现有登记（removeDisplay 同时断 TCP + 清注册表条目）
+            const auto existing = targets.msRuntime->displayRows();
+            for (const auto& r : existing) {
+                targets.msRuntime->removeDisplay(r.id);
+            }
+            const QJsonArray displays = mdValue.toArray();
+            for (const auto& v : displays) {
+                if (!v.isObject()) continue;
+                const QJsonObject d = v.toObject();
+                const QString id    = d.value(QStringLiteral("id")).toString().trimmed();
+                const QString host  = d.value(QStringLiteral("host")).toString().trimmed();
+                const int port      = d.value(QStringLiteral("port")).toInt(17100);
+                const bool enabled  = d.value(QStringLiteral("enabled")).toBool(true);
+                const QString pairing =
+                    d.value(QStringLiteral("pairingCode")).toString();
+                if (id.isEmpty() || host.isEmpty()) {
+                    qWarning() << "[project] mediaDisplays 条目缺 id/host，跳过";
+                    continue;
+                }
+                if (!targets.msRuntime->addDisplay(id, host, port, pairing)) {
+                    qWarning() << "[project] 显示端恢复失败（ID 重复或参数无效）:"
+                               << id << host << port;
+                    continue;
+                }
+                if (!enabled) {
+                    targets.msRuntime->setDisplayEnabled(id, false);
+                }
+            }
+            report(QObject::tr("Display registry loaded (%1 entries)")
+                       .arg(displays.size()));
         }
-        const QJsonObject timelineJson = timelineValue.toObject();
-        if (targets.timeline) {
-            targets.timeline->load(timelineJson);
-        } else {
-            targets.timelineModel->load(timelineJson);
-        }
-    } catch (const std::exception& e) {
-        return fail(QObject::tr("加载 TimeLine 失败: %1").arg(QString::fromUtf8(e.what())));
-    } catch (...) {
-        return fail(QObject::tr("加载 TimeLine 失败"));
     }
 
     report(QObject::tr("Load the scheduled tasks model ..."));

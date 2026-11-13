@@ -60,6 +60,11 @@ public:
      */
     int getArtnetSendFps() const;
     /**
+     * @brief 获取场景自动下发节流间隔（ms）——sceneEdited 后每隔该间隔
+     *        广播一拍最新场景到显示端（编辑中持续跟手）。钳制范围 20-2000
+     */
+    int getSceneAutoPublishMs() const;
+    /**
      * 函数级注释：将新路径加入最近文件列表
      * - 规则：去重后插入到首位；保留最多 MaxRecentFiles 个
      * - 同步写入配置文件
@@ -112,6 +117,7 @@ private:
     QString m_activationCode; ///< 激活码（设置页填写后持久化）
     int m_artnetMergeMode; ///< Art-Net 多源合并策略（ArtnetMergeMode 枚举值）
     int m_artnetSendFps;   ///< Art-Net 发送节拍频率（Hz）
+    int m_sceneAutoPublishMs; ///< 场景自动下发节流间隔（ms，Network/SceneAutoPublishMs）
     QStringList m_recentFiles;
     QString m_currentFlowPath;
 };

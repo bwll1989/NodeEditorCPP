@@ -15,7 +15,7 @@ public:
         return "Artnet";
     }
 
-    AbstractClipModel* createModel(int start) override {
+    TimeLineClipModel* createModel(int start) override {
         return new  Clips::ArtnetClipModel(start);
     }
 

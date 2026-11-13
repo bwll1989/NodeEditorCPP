@@ -124,24 +124,24 @@ flowchart TB
 
 ### 3. 时间轴
 
-基于 [QtTimeLine](https://github.com/bwll1989/QtTimeLine) 的非线性时间编排：
+非线性时间编排（时间轴组件收编自 [QtTimeLine](https://github.com/bwll1989/QtTimeLine)，现为内置静态库 `src/Widget/Timeline`，clip 基类在 `src/Common/BaseClass`）：
 
 - 多轨道、多片段、缩放与播放控制
 - 支持 **LTC / MTC / 音频 / 视频** 等同步方式
 - 与 TimeLineNode 及 GlobalEventBus 联动
 - 可通过 WebSocket 远程控制 NodePlayer
 
-**当前启用的 Clip 插件**（见 `src/Clips/CMakeLists.txt`）：
+**当前启用的 Clip 插件**（媒体片段插件头，见 `src/clip/`，基类在 `src/Common/BaseClass`）：
 
 | Clip | 说明 |
 |------|------|
 | VideoClip | 视频片段播放 |
 | ImageClip | 图片序列 / 静态图 |
-| ArtnetClip | Art-Net 数据发送 |
-| MappingClip | 数据映射片段 |
-| TriggerClip | 触发类事件 |
+| TextClip | 文本片段 |
+| AudioClip | 音频片段 |
+| LiveClip | 实时源（NDI/Spout 等）片段 |
 
-> AudioClip、PlayerClip 源码存在，默认未纳入构建。
+> 新增媒体类型 = 在 `src/clip/` 加一个插件头（继承 SceneClipModel）+ 加载器注册一行。
 
 ### 4. 外部控制与网页控制台
 

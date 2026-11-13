@@ -17,7 +17,7 @@ public:
         return QStringLiteral("Curve");
     }
 
-    AbstractClipModel* createModel(int start) override
+    TimeLineClipModel* createModel(int start) override
     {
         return new Clips::CurveClipModel(start);
     }

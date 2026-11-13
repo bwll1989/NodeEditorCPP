@@ -1,0 +1,5 @@
+// media_display 应用图标资源
+// 图标：M 折线 + 取景框（品牌绿 #7AAE30）
+// 源图 = 同目录 display.png（512×512）；display.ico 为其多尺寸导出
+//（256/128/64/48/32/24/16，Pillow 生成——rc 的 ICON 条目只认 .ico 格式）
+IDI_ICON1 ICON "display.ico"

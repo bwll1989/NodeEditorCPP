@@ -3,21 +3,21 @@
 // ============================================================================
 #include "TimelineEngine.h"
 
-// ---------- AbstractClipModel.cpp ----------
+// ---------- 片段模型基类实现段（源自旧 QtTimeLine AbstractClipModel.cpp；类已改名 TimeLineClipModel）----------
 //
 // Created by WuBin on 2026/10/30.
-// AbstractClipModel 的库内实现。
+// TimeLineClipModel（原 AbstractClipModel）的库内实现。
 //
 // 说明：initPropertyWidget / showPropertyWidget 原先是头文件内联实现。
 // 由于它们会直接构造 ClipTimePanel / ClipAppearancePanel 等 Q_OBJECT 窗口类，
 // 宿主插件（.node/.plugin 动态库）在内联展开时会实例化这些面板类的
 // tr() / staticMetaObject 等符号——其中 staticMetaObject 是静态数据符号，
 // 无法通过导入库解析，导致插件链接失败（LNK2019）。
-// 因此将实现移入库内（QtTimeLine.dll），宿主仅按普通导出函数调用。
+// 因此将实现移入库内，宿主仅按普通导出函数调用。
 //
 
 
-// 面板类完整定义只在库内使用（头文件中仅为前置声明，见 AbstractClipModel.hpp）
+// 面板类完整定义只在库内使用（头文件中仅为前置声明，见本头文件片段模型基类段）
 // startDrag 中 qobject_cast<IntDragValueWidget*> 需要宿主控件完整类型，仅库内使用
 #include "IntDragValueWidget/IntDragValueWidget.hpp"
 
@@ -29,7 +29,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-void AbstractClipModel::initPropertyWidget()
+void TimeLineClipModel::initPropertyWidget()
 {
     m_standardPropertyWidget = new QWidget();
     m_layout = new QVBoxLayout(m_standardPropertyWidget);
@@ -64,7 +64,7 @@ void AbstractClipModel::initPropertyWidget()
     m_standardPropertyWidget->setWindowFlags(Qt::WindowStaysOnTopHint);
 }
 
-void AbstractClipModel::showPropertyWidget()
+void TimeLineClipModel::showPropertyWidget()
 {
     if (m_clipPropertyWidget) {
         m_standardPropertyWidget->show();
@@ -79,7 +79,7 @@ void AbstractClipModel::showPropertyWidget()
 // 实现说明：原为头文件内联实现；因 qobject_cast<IntDragValueWidget*> 需要控件完整类型，
 // 而该控件属于宿主 GUIElements 库，公共头不得引入（会连带展开其 Q_OBJECT 符号，
 // 导致消费方链接失败 LNK2019），故移入库内实现。
-void AbstractClipModel::startDrag(QWidget* widget)
+void TimeLineClipModel::startDrag(QWidget* widget)
 {
         // 找到对应的OSC地址
         QString oscAddress;
@@ -165,12 +165,12 @@ void AbstractClipModel::startDrag(QWidget* widget)
 // 函数说明：实现 ClipTimePanel 构造逻辑，布局“时间属性”控件并保持原有功能：
 // - 显示为 00:00:00:000（毫秒格式）
 // - 文本框 textChanged 与 spinbox 一样调用 setStart/setEnd
-// - 响应 AbstractClipModel 的 timelinePositionChanged/lengthChanged 信号更新 UI
+// - 响应 TimeLineClipModel 的 timelinePositionChanged/lengthChanged 信号更新 UI
 
 #include <QObject>
 #include <QString>
 
-ClipTimePanel::ClipTimePanel(AbstractClipModel* owner, QWidget* parent)
+ClipTimePanel::ClipTimePanel(TimeLineClipModel* owner, QWidget* parent)
     : m_owner(owner),
     QGroupBox(parent)
 {
@@ -220,11 +220,11 @@ void ClipTimePanel::initSignalConnections() {
     connect(m_endTimeCodeLineEdit,&QTimeEdit::timeChanged,this,&ClipTimePanel::updateEndTimeCode);
     connect(m_positionFrameSpinBox,&IntDragValueWidget::valueChanged,this,&ClipTimePanel::updatePositionFrame);
     connect(m_positionTimeLineEdit,&QTimeEdit::timeChanged,this,&ClipTimePanel::updatePositionTimeCode);
-    connect(m_owner, &AbstractClipModel::timelinePositionChanged, this, [this](int frames){
+    connect(m_owner, &TimeLineClipModel::timelinePositionChanged, this, [this](int frames){
         updateStartFrame(frames);
         updatePositionFrame(frames);
     });
-    connect(m_owner, &AbstractClipModel::lengthChanged, this, [this](int frames){
+    connect(m_owner, &TimeLineClipModel::lengthChanged, this, [this](int frames){
        updateEndFrame(frames);
     });
 
@@ -372,7 +372,7 @@ bool sameRgb(const QColor& a, const QColor& b)
 }
 }
 
-ClipAppearancePanel::ClipAppearancePanel(AbstractClipModel* owner, QWidget* parent)
+ClipAppearancePanel::ClipAppearancePanel(TimeLineClipModel* owner, QWidget* parent)
     : QGroupBox(parent)
     , m_owner(owner)
 {
@@ -424,7 +424,7 @@ ClipAppearancePanel::ClipAppearancePanel(AbstractClipModel* owner, QWidget* pare
         m_owner->setNoteName(text);
     });
     if (m_owner) {
-        connect(m_owner, &AbstractClipModel::appearanceChanged, this, [this]() {
+        connect(m_owner, &TimeLineClipModel::appearanceChanged, this, [this]() {
             syncFromOwner();
         });
     }
@@ -497,8 +497,8 @@ void ClipAppearancePanel::syncFromOwner()
 
 
 // TimeLineNode 私有副本：内置剪辑工厂（静态注册，替代 QPluginLoader 动态加载）。
-// 这些 clip 继承本目录静态副本的 AbstractClipModel / NodeClipDelegateModel，
-// 与宿主 plugins/TimeLine/*.plugin（继承 QtTimeLine.dll 的类）互不兼容，
+// 这些 clip 继承本目录静态副本的 TimeLineClipModel / NodeClipDelegateModel，
+// 与宿主 plugins/TimeLine/*.plugin（继承旧 QtTimeLine 的类）互不兼容，
 // 因此 loadPlugins() 不再扫描磁盘目录。
 #include "artnetclipplugin.hpp"
 #include "curveclipplugin.hpp"
@@ -529,7 +529,7 @@ void ClipAppearancePanel::syncFromOwner()
 
     void BasePluginLoader::loadPlugins() {
         // TimeLineNode 私有副本：clip 全部静态注册，绝不加载宿主 plugins/TimeLine 目录
-        //（那里的 .plugin 继承 QtTimeLine.dll 的类，与静态副本 ABI 不兼容）。
+        //（那里的 .plugin 继承旧 QtTimeLine 的类，与静态副本 ABI 不兼容）。
         m_pluginsByType.clear();
         m_loadedPlugins.clear();
         registerPlugin(new ArtnetClipPlugin());
@@ -553,7 +553,7 @@ void ClipAppearancePanel::syncFromOwner()
         return m_pluginsByType.value(type, nullptr);
     }
 
-    AbstractClipModel* BasePluginLoader::createModelForType(const QString& type, int start) const {
+    TimeLineClipModel* BasePluginLoader::createModelForType(const QString& type, int start) const {
         ClipPlugInterface* plugin = getPluginByType(type);
         if (plugin) {
             return plugin->createModel(start);
@@ -623,7 +623,7 @@ QModelIndex BaseTimeLineModel::parent(const QModelIndex &child) const
     if (!ptr || isTrackPointer(ptr))
         return {};
 
-    const auto it = m_clipLocation.find(static_cast<AbstractClipModel*>(ptr));
+    const auto it = m_clipLocation.find(static_cast<TimeLineClipModel*>(ptr));
     if (it == m_clipLocation.end())
         return {};
 
@@ -673,7 +673,7 @@ QVariant BaseTimeLineModel::data(const QModelIndex &index, int role) const
         return {};
 
     if (!isTrackPointer(ptr)) {
-        AbstractClipModel* clip = static_cast<AbstractClipModel*>(ptr);
+        TimeLineClipModel* clip = static_cast<TimeLineClipModel*>(ptr);
         if (!clip)
             return {};
         switch (role) {
@@ -866,7 +866,7 @@ bool BaseTimeLineModel::setData(const QModelIndex &index, const QVariant &value,
     }
     if (index.parent().isValid()){
         //如果索引是剪辑
-        AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
+        TimeLineClipModel* clip = static_cast<TimeLineClipModel*>(index.internalPointer());
 
         if (!clip)
             return false;
@@ -890,14 +890,14 @@ bool BaseTimeLineModel::setData(const QModelIndex &index, const QVariant &value,
                 emit dataChanged(index, index, {TimelineRoles::ClipIdRole});
                 return true;
             }
-            // 设置剪辑是否显示小部件（AbstractClipModel::setEmbedWidget 不发信号，需要 Model 主动通知）
+            // 设置剪辑是否显示小部件（TimeLineClipModel::setEmbedWidget 不发信号，需要 Model 主动通知）
             case TimelineRoles::ClipShowWidgetRole: {
                 const bool newShowWidget = value.toBool();
                 clip->setEmbedWidget(newShowWidget);
                 emit dataChanged(index, index, {TimelineRoles::ClipShowWidgetRole});
                 return true;
             }
-            // 设置剪辑是否可调整大小（AbstractClipModel::setResizable 不发信号，需要 Model 主动通知）
+            // 设置剪辑是否可调整大小（TimeLineClipModel::setResizable 不发信号，需要 Model 主动通知）
             case TimelineRoles::ClipResizableRole: {
                 const bool newResizable = value.toBool();
                 clip->setResizable(newResizable);
@@ -916,7 +916,7 @@ bool BaseTimeLineModel::setData(const QModelIndex &index, const QVariant &value,
                 clip->setEnd(clip->start()+newLength);
                 return true;
             }
-            // 设置剪辑是否显示边框（AbstractClipModel::setShowBorder 不发信号，需要 Model 主动通知）
+            // 设置剪辑是否显示边框（TimeLineClipModel::setShowBorder 不发信号，需要 Model 主动通知）
             case TimelineRoles::ClipShowBorderRole: {
                 const bool newShowBorder = value.toBool();
                 clip->setShowBorder(newShowBorder);
@@ -1006,7 +1006,7 @@ QJsonObject BaseTimeLineModel::save() const {
         QJsonObject trackJson = track->save();
         QJsonArray clipArray;
         // 修正: 使用 const_reference 遍历避免拷贝，直接访问智能指针
-        for (const AbstractClipModel* clip : track->clips) {
+        for (const TimeLineClipModel* clip : track->clips) {
             clipArray.append(clip->save());
         }
         trackJson["clips"] = clipArray;
@@ -1034,7 +1034,7 @@ void BaseTimeLineModel::load(const QJsonObject &modelJson) {
     // 1) 释放旧数据（不走 onDeleteTrack，避免导入过程中发射大量自定义信号）
     for (TrackData* track : m_tracks) {
         if (!track) continue;
-        for (AbstractClipModel* clip : track->clips) {
+        for (TimeLineClipModel* clip : track->clips) {
             delete clip;
         }
         track->clips.clear();
@@ -1068,7 +1068,7 @@ void BaseTimeLineModel::load(const QJsonObject &modelJson) {
         for (const QJsonValue &clipValue : clipArray) {
             const QJsonObject clipJson = clipValue.toObject();
 
-            AbstractClipModel* clip = getPluginLoader()->createModelForType(
+            TimeLineClipModel* clip = getPluginLoader()->createModelForType(
                 clipJson["type"].toString(),
                 clipJson["start"].toInt()
             );
@@ -1137,7 +1137,7 @@ void BaseTimeLineModel::onDeleteTrack(int trackIndex) {
     TrackData* track = m_tracks[trackIndex];
     if (track) {
         // 释放该轨道上的所有片段
-        for (AbstractClipModel* clip : track->clips) {
+        for (TimeLineClipModel* clip : track->clips) {
             delete clip;
         }
         track->clips.clear();
@@ -1215,7 +1215,7 @@ void BaseTimeLineModel::onAddClip(int trackIndex, int startFrame) {
         return;
     }
 
-    AbstractClipModel* newClip = getPluginLoader()->createModelForType(track->type, startFrame);
+    TimeLineClipModel* newClip = getPluginLoader()->createModelForType(track->type, startFrame);
     if (!newClip) {
         qDebug() << "Failed to create clip model";
         return;
@@ -1257,7 +1257,7 @@ void BaseTimeLineModel::onDeleteClip(QModelIndex clipIndex){
 
     // 获取要删除的片段
     if(clipIndex.row() < track->clips.size()) {
-        AbstractClipModel* clip = track->clips[clipIndex.row()];
+        TimeLineClipModel* clip = track->clips[clipIndex.row()];
         // 从轨道中移除片段
         track->clips.erase(track->clips.begin() + clipIndex.row());
         m_clipLocation.erase(clip);
@@ -1276,7 +1276,7 @@ void BaseTimeLineModel::onDeleteClip(QModelIndex clipIndex){
  * @param clip 片段指针
  * @return clip 对应的 QModelIndex；若未找到返回无效索引
  */
-QModelIndex BaseTimeLineModel::indexForClip(AbstractClipModel* clip) const
+QModelIndex BaseTimeLineModel::indexForClip(TimeLineClipModel* clip) const
 {
     if (!clip)
         return {};
@@ -1309,7 +1309,7 @@ void BaseTimeLineModel::rebuildIndex()
             continue;
         m_trackSet.insert(track);
         for (int clipRow = 0; clipRow < track->clips.size(); ++clipRow) {
-            AbstractClipModel* clip = track->clips[clipRow];
+            TimeLineClipModel* clip = track->clips[clipRow];
             if (!clip)
                 continue;
             m_clipLocation[clip] = ClipLocation{trackRow, clipRow, clip->end()};
@@ -1325,7 +1325,7 @@ void BaseTimeLineModel::rebuildTrackClipOrder(TrackData* track)
     track->clipsByStart.clear();
     track->maxClipSpan = 0;
     for (int row = 0; row < track->clips.size(); ++row) {
-        AbstractClipModel* clip = track->clips[row];
+        TimeLineClipModel* clip = track->clips[row];
         if (!clip)
             continue;
         track->clipsByStart.push_back(row);
@@ -1340,7 +1340,7 @@ void BaseTimeLineModel::rebuildTrackClipOrder(TrackData* track)
     });
 }
 
-void BaseTimeLineModel::beginInteractiveGeometryChange(AbstractClipModel* clip)
+void BaseTimeLineModel::beginInteractiveGeometryChange(TimeLineClipModel* clip)
 {
     if (!clip)
         return;
@@ -1352,7 +1352,7 @@ void BaseTimeLineModel::beginInteractiveGeometryChange(AbstractClipModel* clip)
 
 void BaseTimeLineModel::endInteractiveGeometryChange()
 {
-    AbstractClipModel* clip = m_interactiveClip;
+    TimeLineClipModel* clip = m_interactiveClip;
     const int originalEnd = m_interactiveOriginalEnd;
     m_interactiveClip = nullptr;
     m_deferGeometryNotify = false;
@@ -1382,17 +1382,17 @@ void BaseTimeLineModel::syncInteractiveClipOrder()
         noteClipGeometryChanged(m_interactiveClip);
 }
 
-void BaseTimeLineModel::watchClip(AbstractClipModel* clip)
+void BaseTimeLineModel::watchClip(TimeLineClipModel* clip)
 {
     if (!clip)
         return;
-    connect(clip, &AbstractClipModel::lengthChanged, this, [this, clip](int) {
+    connect(clip, &TimeLineClipModel::lengthChanged, this, [this, clip](int) {
         queueClipGeometryNotify(clip);
     });
-    connect(clip, &AbstractClipModel::timelinePositionChanged, this, [this, clip](int) {
+    connect(clip, &TimeLineClipModel::timelinePositionChanged, this, [this, clip](int) {
         queueClipGeometryNotify(clip);
     });
-    connect(clip, &AbstractClipModel::appearanceChanged, this, [this, clip]() {
+    connect(clip, &TimeLineClipModel::appearanceChanged, this, [this, clip]() {
         if (m_clipLocation.find(clip) == m_clipLocation.end())
             return;
         const QModelIndex idx = indexForClip(clip);
@@ -1402,7 +1402,7 @@ void BaseTimeLineModel::watchClip(AbstractClipModel* clip)
     });
 }
 
-void BaseTimeLineModel::queueClipGeometryNotify(AbstractClipModel* clip)
+void BaseTimeLineModel::queueClipGeometryNotify(TimeLineClipModel* clip)
 {
     if (!clip || m_deferGeometryNotify)
         return;
@@ -1420,9 +1420,9 @@ void BaseTimeLineModel::queueClipGeometryNotify(AbstractClipModel* clip)
 void BaseTimeLineModel::flushClipGeometryNotify()
 {
     m_geometryNotifyQueued = false;
-    const QList<AbstractClipModel*> clips = m_pendingGeometryClips;
+    const QList<TimeLineClipModel*> clips = m_pendingGeometryClips;
     m_pendingGeometryClips.clear();
-    for (AbstractClipModel* clip : clips) {
+    for (TimeLineClipModel* clip : clips) {
         const auto located = m_clipLocation.find(clip);
         if (located == m_clipLocation.end())
             continue;
@@ -1454,7 +1454,7 @@ void BaseTimeLineModel::applyLengthChange(int oldEnd, int newEnd)
         onUpdateTimeLineLength();
 }
 
-void BaseTimeLineModel::noteClipGeometryChanged(AbstractClipModel* clip)
+void BaseTimeLineModel::noteClipGeometryChanged(TimeLineClipModel* clip)
 {
     if (!clip)
         return;
@@ -1472,7 +1472,7 @@ bool BaseTimeLineModel::isTrackPointer(void* ptr) const
     return ptr && m_trackSet.find(static_cast<TrackData*>(ptr)) != m_trackSet.end();
 }
 
-TrackData* BaseTimeLineModel::findParentTrackOfClip(AbstractClipModel* clip) const {
+TrackData* BaseTimeLineModel::findParentTrackOfClip(TimeLineClipModel* clip) const {
     if (!clip)
         return nullptr;
     const auto it = m_clipLocation.find(clip);
@@ -1487,9 +1487,9 @@ TrackData* BaseTimeLineModel::findParentTrackOfClip(AbstractClipModel* clip) con
 int BaseTimeLineModel::findTrackRow(TrackData* track) const {
     // 错误: 直接比较智能指针是不正确的
     // 修正: 需要比较指针值
-    for (size_t i = 0; i < m_tracks.size(); ++i) {
+    for (int i = 0; i < m_tracks.size(); ++i) {
         if (m_tracks[i] == track) {
-            return static_cast<int>(i);
+            return i;
         }
     }
     return -1;
@@ -1513,14 +1513,14 @@ BaseTimeLineModel::~BaseTimeLineModel()
     /**
      * @brief 析构函数
      * @details
-     * 当前数据结构使用裸指针（TrackData* / AbstractClipModel*），因此必须显式释放。
+     * 当前数据结构使用裸指针（TrackData* / TimeLineClipModel*），因此必须显式释放。
      * 旧代码仅 m_tracks.clear() 会导致轨道与片段全部泄漏。
      */
     m_clipLocation.clear();
     m_trackSet.clear();
     for (TrackData* track : m_tracks) {
         if (!track) continue;
-        for (AbstractClipModel* clip : track->clips) {
+        for (TimeLineClipModel* clip : track->clips) {
             delete clip;
         }
         track->clips.clear();
@@ -1557,7 +1557,7 @@ void clipRowsInFrameRange(const TrackData* track, int frameLo, int frameHi, QLis
         return;
 
     auto overlaps = [&](int row) {
-        AbstractClipModel* clip = track->clips[row];
+        TimeLineClipModel* clip = track->clips[row];
         return clip && clip->end() >= frameLo && clip->start() <= frameHi;
     };
 
@@ -1572,11 +1572,11 @@ void clipRowsInFrameRange(const TrackData* track, int frameLo, int frameHi, QLis
     const int minStart = frameLo - qMax(0, track->maxClipSpan);
     const QList<int>& order = track->clipsByStart;
     const auto first = std::lower_bound(order.begin(), order.end(), minStart, [track](int row, int value) {
-        const AbstractClipModel* clip = track->clips[row];
+        const TimeLineClipModel* clip = track->clips[row];
         return (clip ? clip->start() : 0) < value;
     });
     const auto last = std::upper_bound(order.begin(), order.end(), frameHi, [track](int value, int row) {
-        const AbstractClipModel* clip = track->clips[row];
+        const TimeLineClipModel* clip = track->clips[row];
         return value < (clip ? clip->start() : 0);
     });
     for (auto it = first; it != last; ++it) {
@@ -1726,7 +1726,7 @@ QRect BaseTimelineView::itemRect(const QModelIndex &index) const
      // 如果剪辑索引
     else{
         // 获取剪辑
-        AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
+        TimeLineClipModel* clip = static_cast<TimeLineClipModel*>(index.internalPointer());
         if (clip) {
             // 获取剪辑开始帧
             int startFrame = clip->start();
@@ -1866,7 +1866,7 @@ void BaseTimelineView::ensureStaticCache()
     m_staticCacheDirty = false;
 }
 
-QRect BaseTimelineView::clipContentBounds(AbstractClipModel* clip, int trackRow) const
+QRect BaseTimelineView::clipContentBounds(TimeLineClipModel* clip, int trackRow) const
 {
     if (!clip)
         return {};
@@ -1881,7 +1881,7 @@ void BaseTimelineView::updateClipGeometry(const QModelIndex& index)
 {
     if (!index.isValid() || !index.parent().isValid() || !viewport())
         return;
-    auto* clip = static_cast<AbstractClipModel*>(index.internalPointer());
+    auto* clip = static_cast<TimeLineClipModel*>(index.internalPointer());
     if (!clip)
         return;
     if (!staticCacheReady()) {
@@ -2417,7 +2417,7 @@ void BaseTimelineView::handleMouseDrag(QMouseEvent *event)
         return;
 
     const QModelIndex clipIndex = selectedIndexes.first();
-    auto* clip = static_cast<AbstractClipModel*>(clipIndex.internalPointer());
+    auto* clip = static_cast<TimeLineClipModel*>(clipIndex.internalPointer());
     if (!clip)
         return;
 
@@ -2450,7 +2450,7 @@ void BaseTimelineView::handleMouseDrag(QMouseEvent *event)
     viewport()->update(oldRect.united(nextRect));
 }
 
-void BaseTimelineView::beginClipDrag(AbstractClipModel* clip, const QModelIndex& index)
+void BaseTimelineView::beginClipDrag(TimeLineClipModel* clip, const QModelIndex& index)
 {
     if (!clip || !index.isValid() || !Model || m_interactiveDrag)
         return;
@@ -2493,7 +2493,7 @@ void BaseTimelineView::updateMouseHoverState(QMouseEvent *event)
     if (m_hoverIndex.isValid() && m_hoverIndex.parent().isValid())
      {
         // 获取片段对象
-        AbstractClipModel* clip = static_cast<AbstractClipModel*>(m_hoverIndex.internalPointer());
+        TimeLineClipModel* clip = static_cast<TimeLineClipModel*>(m_hoverIndex.internalPointer());
         if (!clip) {
             return;
         }
@@ -3003,11 +3003,11 @@ void BaseTimelineView::drawTracks(QPainter* painter)
     const bool clipped = painter->hasClipping();
     const QRect clipBounds = clipped ? painter->clipBoundingRect().toAlignedRect() : QRect();
     const int top = contentTop();
-    const AbstractClipModel* selectedClip = nullptr;
+    const TimeLineClipModel* selectedClip = nullptr;
     if (selectionModel()) {
         const QModelIndex current = selectionModel()->currentIndex();
         if (current.parent().isValid())
-            selectedClip = static_cast<AbstractClipModel*>(current.internalPointer());
+            selectedClip = static_cast<TimeLineClipModel*>(current.internalPointer());
     }
     QList<int> clipRows;
 
@@ -3024,7 +3024,7 @@ void BaseTimelineView::drawTracks(QPainter* painter)
         for (int clipRow : clipRows) {
             if (clipRow < 0 || clipRow >= track->clips.size())
                 continue;
-            AbstractClipModel* clip = track->clips.at(clipRow);
+            TimeLineClipModel* clip = track->clips.at(clipRow);
             if (!clip || (m_interactiveDrag && clip == m_dragClip))
                 continue;
 
@@ -3053,7 +3053,7 @@ void BaseTimelineView::selectionChanged(const QItemSelection &selected, const QI
     
     // 发送选中片段变化信号
     if (currentIndex.isValid() && currentIndex.parent().isValid()) {
-        auto* clip = static_cast<AbstractClipModel*>(currentIndex.internalPointer());
+        auto* clip = static_cast<TimeLineClipModel*>(currentIndex.internalPointer());
         emit currentClipChanged(clip);
     } else {
         emit currentClipChanged(nullptr);
@@ -3122,7 +3122,7 @@ void BaseTimelineView::showClipProperty(const QModelIndex& index)
         return;
     }
     //获取片段
-    AbstractClipModel* clip = static_cast<AbstractClipModel*>(index.internalPointer());
+    TimeLineClipModel* clip = static_cast<TimeLineClipModel*>(index.internalPointer());
     if (!clip) return;
         //获取属性窗口
         clip->showPropertyWidget();
@@ -3543,7 +3543,7 @@ void BaseTracklistView::mouseMoveEvent(QMouseEvent *event) {
 
     // 拖拽预览底色使用视图成员颜色（QSS 可配置），不再直读全局变量
     QColor fillColor = m_trackSelectedColor;
-    fillColor.setAlphaF(0.8);
+    fillColor.setAlphaF(0.8f);
     pixmap.fill(fillColor);
 
     // 将热点设置为鼠标相对于轨道的位置

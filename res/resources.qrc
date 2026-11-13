@@ -18,6 +18,7 @@
     <file>icons/saveAs.png</file>
     <file>icons/bug.png</file>
     <file>icons/trash.png</file>
+    <file>icons/location.png</file>
     <file>icons/model_1.png</file>
     <file>icons/add.png</file>
     <file>icons/remove.png</file>
@@ -88,6 +89,7 @@
     <file>icons/license.png</file>
     <file>icons/gdtf.png</file>
     <file>icons/games.png</file>
+    <file>icons/finger.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>

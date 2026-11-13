@@ -22,6 +22,7 @@
 #include <QVBoxLayout>
 
 #include "Common/AppConfig/ConfigManager.h"
+#include "Common/AppConfig/OscAddressMimeUtil.hpp"
 
 namespace {
 QPoint mouseGlobalPos(const QMouseEvent* event)
@@ -213,18 +214,15 @@ bool OSCMessageListWidget::acceptOscMime(const QMimeData* mimeData) const
 
 bool OSCMessageListWidget::handleMimeDrop(const QMimeData* mimeData)
 {
-    if (!mimeData || !mimeData->hasFormat("application/x-osc-address")) {
-        return false;
-    }
-
     OSCMessage message;
-    QByteArray data = mimeData->data("application/x-osc-address");
-    QDataStream stream(data);
     if (OnlyInternal) {
         message.host = "127.0.0.1";
         message.port = ConfigManager::instance().getExtraControlPort();
     }
-    stream >> message.host >> message.port >> message.address >> message.type >> message.value;
+    // 五元组解码走 OscAddressMimeUtil（与生产端同源，字段序契约单点维护）
+    if (!OscAddressMime::decode(mimeData, message)) {
+        return false;
+    }
     addOSCMessage(message);
     return true;
 }
@@ -289,16 +287,14 @@ void OSCMessageListWidget::startDrag(OSCMessageItemWidget* widget)
     }
 
     OSCMessage message = widget->getMessage();
-    QByteArray itemData;
-    QDataStream dataStream(&itemData, QIODevice::WriteOnly);
     if (OnlyInternal) {
         message.host = "127.0.0.1";
         message.port = ConfigManager::instance().getExtraControlPort();
     }
-    dataStream << message.host << message.port << message.address << message.type << message.value;
 
-    QMimeData* mimeData = new QMimeData;
-    mimeData->setData("application/x-osc-address", itemData);
+    auto* mimeData = new QMimeData;
+    OscAddressMime::encode(mimeData, message.host, message.port,
+                           message.address, message.type, message.value);
 
     QDrag* drag = new QDrag(this);
     drag->setMimeData(mimeData);
@@ -307,22 +303,8 @@ void OSCMessageListWidget::startDrag(OSCMessageItemWidget* widget)
     if (hint.width() < 40 || hint.height() < 16) {
         hint = QSize(200, 28);
     }
-    QPixmap pixmap(hint);
-    pixmap.fill(Qt::transparent);
-
-    QPainter painter(&pixmap);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setBrush(QColor(40, 40, 40, 200));
-    painter.setPen(Qt::NoPen);
-    painter.drawRoundedRect(pixmap.rect(), 4, 4);
-    painter.setPen(Qt::white);
-    QFont font = painter.font();
-    font.setPointSize(9);
-    painter.setFont(font);
-    painter.drawText(pixmap.rect().adjusted(8, 0, -6, 0), Qt::AlignVCenter | Qt::AlignLeft, message.address);
-
-    drag->setPixmap(pixmap);
-    drag->setHotSpot(QPoint(pixmap.width() / 2, pixmap.height() / 2));
+    drag->setPixmap(OscAddressMime::addressPixmap(message.address, hint, 8));
+    drag->setHotSpot(QPoint(hint.width() / 2, hint.height() / 2));
     drag->exec(Qt::CopyAction, Qt::CopyAction);
 }
 

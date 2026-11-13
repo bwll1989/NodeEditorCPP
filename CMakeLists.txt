@@ -13,15 +13,19 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 # 设置插件的输出目录
 set(PLUGIN_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/plugins/DataFlow")
+# 媒体片段（时间轴 clip）插件输出目录（2026-11-13 用户定案：bin/plugins/TimeLine，
+# 对齐 DataFlow 先例——节点插件=plugins/DataFlow、片段插件=plugins/TimeLine）
+set(TIMELINE_PLUGIN_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/plugins/TimeLine")
 
 # 确保插件目录存在
 file(MAKE_DIRECTORY ${PLUGIN_OUTPUT_DIRECTORY})
+file(MAKE_DIRECTORY ${TIMELINE_PLUGIN_OUTPUT_DIRECTORY})
 
 set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/install")
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_language(C)
 set(DEPENDS_DIR "${CMAKE_SOURCE_DIR}/3rdParty")
@@ -31,7 +35,7 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Gui)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Devices)
 #INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/DataTypes)
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Clips)
+# 【2026-11-12】src/Clips 全局 include 已删（旧帧基 clip 插件目录退役，实现迁 src/Clips）
 add_definitions(-DQT_MESSAGELOGCONTEXT)
 
 # 设置Qt MSVC版本的路径
@@ -114,8 +118,8 @@ set(FFMPEG_ROOT "${DEPENDS_DIR}/ffmpeg-8.1.1-full_build-shared")
 set(FFMPEG_INCLUDE_DIRS "${FFMPEG_ROOT}/include")
 set(FFMPEG_LIB_DIRS "${FFMPEG_ROOT}/lib")
 include_directories(${FFMPEG_INCLUDE_DIRS})
-message(STATUS "FFmpeg include: ${FFMPEG_INCLUDE_DIRS}")
-message(STATUS "FFmpeg lib dir: ${FFMPEG_LIB_DIRS}")
+message("-- Found FFmpeg : ${FFMPEG_INCLUDE_DIRS}")
+
 
 # 设置Eigen3库
 set(Eigen3_DIR "${DEPENDS_DIR}/eigen-3.4.0/INSTALL/share/eigen3/cmake")
@@ -131,25 +135,6 @@ find_package(OpenCV REQUIRED)	# 找到opencv库
 include_directories(${OpenCV_INCLUDE_DIRS})
 message("-- Found OpenCV ${OpenCV_DIR}")
 
-# 设置QtTimeLine库
-set(QtTimeLine_DIR "${DEPENDS_DIR}/QtTimeLine")
-set(QtTimeLine_LIBRARIES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
-INCLUDE_DIRECTORIES("${QtTimeLine_DIR}/install/include")
-# 函数级注释：QtTimeLine IMPORTED 目标（BaseClass / Clip / FlowSDK）
-if(NOT TARGET QtTimeLine::QtTimeLine)
-    add_library(QtTimeLine::QtTimeLine SHARED IMPORTED GLOBAL)
-    set(_qtl_dll "${QtTimeLine_DIR}/install/bin/QtTimeLine.dll")
-    if(NOT EXISTS "${_qtl_dll}")
-        set(_qtl_dll "${QtTimeLine_DIR}/install/QtTimeLine.dll")
-    endif()
-    set_target_properties(QtTimeLine::QtTimeLine PROPERTIES
-        IMPORTED_IMPLIB "${QtTimeLine_LIBRARIES}"
-        IMPORTED_LOCATION "${_qtl_dll}"
-        INTERFACE_INCLUDE_DIRECTORIES "${QtTimeLine_DIR}/install/include"
-        INTERFACE_COMPILE_DEFINITIONS "NODE_TIMELINE_SHARED"
-    )
-endif()
-
 # 设置QtColorWidgets库
 set(QtColorWidgets_DIR "${DEPENDS_DIR}/Qt-Color-Widgets")
 set(QtColorWidgets_LIBRARIES "${QtColorWidgets_DIR}/install/lib/QtColorWidgets.lib")
@@ -164,21 +149,41 @@ message("-- Found Poco ${Poco_DIR}")
 set(QMQTT_INSTALL_DIR "${DEPENDS_DIR}/qmqtt/install")
 include_directories("${QMQTT_INSTALL_DIR}/include")
 link_directories("${QMQTT_INSTALL_DIR}/lib")
-## 设置TabToolbar库
-#set(TabToolbar_DIR "${DEPENDS_DIR}/TabToolbar")
-#set(TabToolbar_LIBRARIES "${TabToolbar_DIR}/install/bin/TabToolbar.lib")
-#INCLUDE_DIRECTORIES("${TabToolbar_DIR}/include")
+# NDI 6 SDK
+add_library(ms_ndi SHARED IMPORTED)
+set_target_properties(ms_ndi PROPERTIES
+        IMPORTED_LOCATION   "${DEPENDS_DIR}/NDI 6 SDK/Bin/x64/Processing.NDI.Lib.x64.dll"
+        IMPORTED_IMPLIB     "${DEPENDS_DIR}/NDI 6 SDK/Lib/x64/Processing.NDI.Lib.x64.lib"
+        INTERFACE_INCLUDE_DIRECTORIES "${DEPENDS_DIR}/NDI 6 SDK/Include")
+# Spout2 SDK 包装静态库（2026-11-13 更名 SpoutBase，与 BaseClass/TimeLineBase
+# 命名逻辑统一；帕斯卡 + Base 后缀，勿再用 ms_ 前缀）
+add_library(SpoutBase STATIC
+        "${DEPENDS_DIR}/Spout2-2.007.017/SPOUTSDK/SpoutGL/SpoutDirectX.cpp"
+        "${DEPENDS_DIR}/Spout2-2.007.017/SPOUTSDK/SpoutGL/SpoutSenderNames.cpp"
+        "${DEPENDS_DIR}/Spout2-2.007.017/SPOUTSDK/SpoutGL/SpoutSharedMemory.cpp"
+        "${DEPENDS_DIR}/Spout2-2.007.017/SPOUTSDK/SpoutGL/SpoutFrameCount.cpp"
+        "${DEPENDS_DIR}/Spout2-2.007.017/SPOUTSDK/SpoutGL/SpoutUtils.cpp")
+target_include_directories(SpoutBase PUBLIC
+        "${DEPENDS_DIR}/Spout2-2.007.017/SPOUTSDK/SpoutGL")
+target_link_libraries(SpoutBase PUBLIC d3d11 dxgi)
+target_compile_options(SpoutBase PRIVATE /w)
+
+## 设置Qtpropertybrowser库
 set(Qtpropertybrowser_LIBRARIES "${DEPENDS_DIR}/qtpropertybrowser/lib/Qt6PropertyBrowser.lib")
 include_directories("${DEPENDS_DIR}/qtpropertybrowser/src")
 message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
+
 # 设置QT库
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets Graphs)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
         QmlWorkerScript
         QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets Graphs SerialPort)
-#分组模块
+# ============ 子项目引入总表（顺序保持原样，仅补分组注释） ============
+# ---- Clips：媒体 Clip 插件（磁盘 .plugin 形态，纯磁盘驱动无兜底；
+#      输出=bin/plugins/TimeLine/，WorkScenePluginLoader 按 exe 相对目录扫描） ----
 # 添加Clips模块
 add_subdirectory(src/Clips)
+# ---- Nodes：数据流节点插件（foreach 驱动 ALL_NODES 单一清单） ----
 # 添加Nodes模块
 add_subdirectory(src/Nodes)
 add_subdirectory(src/Common/Devices/OSCSender)
@@ -195,21 +200,35 @@ add_subdirectory(src/Common/Devices/MediaLibrary)
 #add_subdirectory(src/Common/Devices/ModelDataBridge)
 add_subdirectory(src/Common/Devices/GraphSnapshotBridge)
 #add_subdirectory(src/Common/GUI/DelayListWidget)
-add_subdirectory(src/Nodes/BuildInNodes)
+add_subdirectory(src/Nodes/BuildInNodes)   # 内置节点插件（与 src/Nodes 的 ALL_NODES 清单并列、独立引入）
 #add_subdirectory(src/Common/GUI/DockHub)
 add_subdirectory(src/Common/DataTypes)
 
-# MTC 设备库子项目（SHARED DLL）：MtcDecoder / MtcReceiver / MtcSender 统一封装于
-# src/Common/Devices/MtcDevices/（含独立 CMakeLists.txt），与其他设备库结构一致。
-# 注意：必须在 find_package(Qt)、rtmidi 与 DataTypes target 之后添加（依赖传播）
+# MTC 设备库子项目
 add_subdirectory(src/Common/Devices/MtcDevices)
 add_subdirectory(src/Common/Devices/StatusContainer)
 add_subdirectory(src/Common/AppConfig)
+# ---- tools：独立工具子项目（与主程序解耦，各自自洽） ----
 # 手势动作库录制工具（独立 exe，与 Flow 共用 bin 目录下的 MediaPipe 模型）
 add_subdirectory(tools/GestureRecorder)
+# Artnet 录制工具（独立 exe，Qt Widgets + FFmpeg）
 add_subdirectory(tools/ArtnetRecorder)
 add_subdirectory(src/Common/GUI/PropertyTreeWidget)
 add_subdirectory(src/Common/BaseClass)
+# TimeLineBase：时间轴视图 DLL（原 ms_qttimeline，2026-11-13 更名与 BaseClass
+# 命名逻辑统一；迁 src/Common 并由静态库升级 SHARED，BaseClass.dll 同款导出
+# 模式；Flow 特有适配层 QtTimelineModelAdapter 等仍留 src/Widget/Timeline
+# （时间轴桥）直接编进主程序源列表——通用片段 UI 已迁 Common/ClipPanelBase、
+# 片段专属编辑区随片段插件走，2026-11-13 片段插件化）
+add_subdirectory(src/Common/TimeLineBase)
+add_subdirectory(src/Common/MediaCore)
+# ClipPanelBase：通用片段 UI 框架 DLL（2026-11-13 片段插件化——片段属性
+# 面板 + Tween 合并区自主程序迁入；依赖 MediaCore/MediaManger/GUIElements/
+# BaseClass，必须在四者之后）
+add_subdirectory(src/Common/ClipPanelBase)
+# media_display：显示端独立程序
+add_subdirectory(tools/MediaDisplay)
+
 set(CALC_SOURCE_FILES
         main.cpp
         3rdParty/tinyosc-msvc/tinyosc.c
@@ -219,7 +238,6 @@ set(CALC_SOURCE_FILES
         src/Widget/NodeWidget/CustomGraphicsView.h
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.cpp
         src/Widget/PluginsMangerWidget/PluginsManagerWidget.hpp
-        src/Widget/TimeLineWidget/TimeLineResource.qrc
         src/Widget/NodeWidget/CustomDataFlowGraphModel.h
         src/Widget/NodeWidget/CustomDataFlowGraphModel.cpp
         src/Widget/NodeWidget/CustomFlowGraphicsScene.cpp
@@ -300,26 +318,6 @@ set(CALC_SOURCE_FILES
         src/Common/GUI/DataTreeModel/DataTreeModel.cpp
         src/Common/GUI/DataTreeModel/QmlDataBrowser.h
         src/Common/GUI/DataTreeModel/QmlDataBrowser.cpp
-        src/Widget/TimeLineWidget/timelinewidget.cpp
-        src/Widget/TimeLineWidget/timelinewidget.hpp
-        src/Widget/TimeLineWidget/TimelineSettingWidget/LtcSettingWidget.hpp
-        src/Widget/TimeLineWidget/TimelineSettingWidget/MtcSettingWidget.hpp
-        src/Widget/TimeLineWidget/TimelineSettingWidget/AudioSettingWidget.hpp
-        src/Widget/TimeLineWidget/TimelineSettingWidget/VideoSettingWidget.hpp
-        src/Widget/TimeLineWidget/TimelineSettingWidget/TimeLineSetting.hpp
-        src/Widget/TimeLineWidget/TimelineSettingWidget/TimeLineSetting.cpp
-        src/Widget/TimeLineWidget/TimeLineToolbar.h
-        src/Widget/TimeLineWidget/TimeLineToolbar.cpp
-        src/Widget/TimeLineWidget/TimeLineClock/TimeLineClock.hpp
-        src/Widget/TimeLineWidget/TimeLineClock/TimeLineClock.cpp
-        src/Widget/TimeLineWidget/TimeLineClock/TimeSyncServer.hpp
-        src/Widget/TimeLineWidget/TimeLineClock/TimeSyncServer.cpp
-        src/Widget/TimeLineWidget/TimeLineModel.cpp
-        src/Widget/TimeLineWidget/TimeLineModel.h
-        src/Widget/TimeLineWidget/TimeLineView.cpp
-        src/Widget/TimeLineWidget/TimeLineView.h
-        src/Widget/TimeLineWidget/TrackListView.cpp
-        src/Widget/TimeLineWidget/TrackListView.h
         src/Widget/CalendarWidget/CalendarWidget.cpp
         src/Widget/CalendarWidget/CalendarWidget.hpp
         src/Widget/CalendarWidget/ScheduledTaskWidget.cpp
@@ -340,6 +338,36 @@ set(CALC_SOURCE_FILES
         src/Widget/ExternalControl/ActionRegistry.h
         src/Widget/ExternalControl/ExportActionDialog.cpp
         src/Widget/ExternalControl/ExportActionDialog.h
+        src/Widget/TimeLineWidget/QtTimelineModelAdapter.cpp
+        # 【2026-11-13 片段插件化】通用片段 UI 迁 Common/ClipPanelBase.dll、
+        # 片段专属编辑区随片段插件走（src/Clips/Text|Live/，编进 .plugin）
+        # ——主程序不再含任何片段 UI 源码，改片段 UI 只重编对应插件。
+        # 下发运行时桥（EditorRuntime/ClockProvider PIMPL——Flow 主程序 C++17
+        # TU 不可直接 include 运行时头，探测/运行时细节一律经桥 C++20 侧）
+        src/Widget/TimeLineWidget/MsRuntimeBridge.cpp
+        src/Widget/TimeLineWidget/MsRuntimeBridge.hpp
+        # PreviewCanvas：预览画布 + 渲染器 + 屏幕 warp + 屏幕属性对话框
+        src/Widget/PreviewCanvasWidget/SceneCanvasWidget.cpp
+        src/Widget/PreviewCanvasWidget/PreviewRenderer.cpp
+        src/Widget/PreviewCanvasWidget/ScreenWarpPanel.cpp
+        src/Widget/PreviewCanvasWidget/ScreenPropertyDialog.cpp
+        # SceneTree：场景树
+        src/Widget/SceneTreeWidget/SceneTreeWidget.cpp
+
+        # GL 直通预览（复用 display 端 GL 合成后端；CUDA 缺失走桩回退）
+        # 2026-11-12 display 已迁至 tools/MediaDisplay 子项目
+        src/Widget/TimeLineWidget/QtTimelineModelAdapter.hpp
+        src/Widget/PreviewCanvasWidget/SceneCanvasWidget.hpp
+        src/Widget/PreviewCanvasWidget/PreviewRenderer.hpp
+        src/Widget/SceneTreeWidget/SceneTreeWidget.hpp
+        # 【2026-11-13 彻底解耦】主程序源列表不含任何片段插件头——
+        # 类型表完全由磁盘 plugin/*.plugin 驱动（QPluginLoader 运行时加载），
+        # 没有对应 .plugin 文件 = 该片段类型不存在，Add Track 菜单不露项。
+        # GL 直通后端实现（Flow 侧定义 MS_GL_NO_CUDA 走恒失败桩，
+        # 不编 GlCudaInterop.cpp——CUDA 互操作仅 display 端启用）
+        tools/MediaDisplay/GlRenderer.cpp
+        tools/MediaDisplay/GlContextWGL.cpp
+        tools/MediaDisplay/GlLoader.cpp
 )
 # 函数级注释：定义 Headless 版本源文件（用 headless_main.cpp 替换 main.cpp）
 set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES})
@@ -389,17 +417,22 @@ else()
 endif()
 
 set(LicenseSDK_RUNTIME_DLL "${DEPENDS_DIR}/license-sdk-c-windows-1.0.0/lib/win-x64/licensingclient.dll")
-set(QRC_FILES
-        resources.qrc
-        timelineResource.qrc
-        )
-target_compile_definitions(${ProjectName} PRIVATE -DNODE_EDITOR_SHARED NODE_TIMELINE_SHARED)
+target_compile_definitions(${ProjectName} PRIVATE -DNODE_EDITOR_SHARED)
+# GL 直通预览走恒失败桩（CUDA 互操作仅 display 端启用；GlRenderer.cpp 内部按此宏裁剪）
+target_compile_definitions(${ProjectName} PRIVATE MS_GL_NO_CUDA)
 target_compile_definitions(${ProjectName} PRIVATE CLIENTCONTROLLER_LIBRARY)
 target_compile_definitions(${ProjectName} PRIVATE OSCLISTWIDGET_LIBRARY)
 #target_compile_definitions(${ProjectName} PRIVATE OSCTRANSMITTER_LIBRARY)
 # 设置QWindowKit的示例共享文件路径
 target_include_directories(${ProjectName} PRIVATE
-        "${DEPENDS_DIR}/qwindowkit/examples/shared")
+        "${DEPENDS_DIR}/qwindowkit/examples/shared"
+        # 【2026-11-13 CMake 重整补链】主程序源直接引用的两处头目录
+        #（替代旧全局 INCLUDE_DIRECTORIES(src/Clips)，头路径不外泄给其他 target；
+        #  彻底解耦后主程序不再 include 任何片段插件头，src/Clips 无需任何条目）：
+        "${CMAKE_SOURCE_DIR}/src/Widget/PreviewCanvasWidget"   # SceneCanvasWidget.hpp（MainWindow 裸名 include）
+        "${CMAKE_SOURCE_DIR}/tools/MediaDisplay"         # GlRenderer.hpp（GL 直通预览复用 display 合成后端）
+        "${CMAKE_SOURCE_DIR}/src/Widget/SceneTreeWidget"       # SceneTreeWidget.hpp（场景树，MainWindow 裸名 include）
+)
 target_link_libraries(${ProjectName}
         PUBLIC
             Qt${QT_VERSION_MAJOR}::Widgets
@@ -426,7 +459,6 @@ target_link_libraries(${ProjectName}
             ${Libltc_LIBRARIES}
             rtmidi
             MtcDevices
-            ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}
             ${QtColorWidgets_LIBRARIES}
         ${Qtpropertybrowser_LIBRARIES}
@@ -452,13 +484,27 @@ target_link_libraries(${ProjectName}
             StatusContainer
             AppConfig
             PropertyTreeWidget
-            BaseClass
+            BaseClass       # 节点委托 + 片段基类层（SceneClipModel/TimeLineStyle 符号源）
             MqttClient
             QWindowKit::Widgets
+            MediaCore
+            TimeLineBase    # 时间轴视图 DLL（PUBLIC NODE_TIMELINE_SHARED 随链接传播=dllimport，缺宏 TimelineExports.hpp 直接 #error）
+            ClipPanelBase   # 通用片段 UI 框架 DLL（片段属性面板 + Tween 合并区；2026-11-13 片段插件化）
 )
+# MediaCore 依赖的 protobuf/abseil 运行时 DLL 随主程序分发（prebuilt DLL 模式必需）
+mc_copy_runtime_dlls(${ProjectName} "${DEPENDS_DIR}/protobuf-35.1/install_msvc_prebuilt")
 
 # 为 Headless 目标定义编译宏（与主程序一致）
-target_compile_definitions(${HeadlessProjectName} PRIVATE -DNODE_EDITOR_SHARED NODE_TIMELINE_SHARED)
+target_compile_definitions(${HeadlessProjectName} PRIVATE -DNODE_EDITOR_SHARED)
+# 与 Flow 一致：GL 直通桩模式（不编 CUDA 互操作）
+target_compile_definitions(${HeadlessProjectName} PRIVATE MS_GL_NO_CUDA)
+# 与 Flow 一致的头目录（Headless 源列表同样含 QtTimelineModelAdapter/SceneCanvasWidget；
+# src/Clips 条目 2026-11-13 片段插件化后删除——插件头经全局 src 根解析）
+target_include_directories(${HeadlessProjectName} PRIVATE
+        "${CMAKE_SOURCE_DIR}/src/Widget/PreviewCanvasWidget"
+        "${CMAKE_SOURCE_DIR}/tools/MediaDisplay"
+        "${CMAKE_SOURCE_DIR}/src/Widget/SceneTreeWidget"
+)
 target_compile_definitions(${HeadlessProjectName} PRIVATE CLIENTCONTROLLER_LIBRARY)
 target_compile_definitions(${HeadlessProjectName} PRIVATE OSCLISTWIDGET_LIBRARY)
 # 为 Headless 目标链接与主程序一致的库（不含 FFmpeg，FFmpeg 由插件按需链接）
@@ -499,7 +545,6 @@ target_link_libraries(${HeadlessProjectName}
             rtmidi
             MtcDevices
             Eigen3::Eigen
-            ${QtTimeLine_LIBRARIES}
             ${OpenCV_LIBRARIES}
             ClientController
             OscListWidget
@@ -514,6 +559,9 @@ target_link_libraries(${HeadlessProjectName}
             PropertyTreeWidget
             BaseClass
             MqttClient
+            MediaCore
+            TimeLineBase    # 与 Flow 一致：时间轴视图 DLL（NODE_TIMELINE_SHARED 随链接传播）
+            ClipPanelBase   # 与 Flow 一致：通用片段 UI 框架 DLL（2026-11-13）
 )
 # 设置主程序属性
 set_target_properties(${ProjectName} PROPERTIES

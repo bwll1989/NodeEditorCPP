@@ -118,132 +118,25 @@ set(ALL_NODES
 
 )
 
-# 根据选项决定构建方式
-if(BUILD_ALL_NODES)
-    message(STATUS "Building all nodes at once...")
-    
-    # 批量添加所有节点子目录
+# 根据选项决定构建方式（2026-11-13 CMake 重整：两种模式共用 ALL_NODES 单一清单，
+# EXISTS 检查兜底目录缺失——清单与磁盘目录永远一致，只维护一处）。
+# 旧 BUILD_NODES_INDIVIDUALLY 分支的手写 add_subdirectory 列表已删——其中含
+# 已不存在目录的死引用（CurveNode/VLC_RemoteNode）、showStoreGBxNode 重复
+# 条目，且长期缺新节点（AudioAnalysisNode、MediaPipe/GestureNode 等）。
+if(BUILD_ALL_NODES OR BUILD_NODES_INDIVIDUALLY)
+    if(BUILD_ALL_NODES)
+        set(NODE_BUILD_MODE "All Nodes")
+    else()
+        set(NODE_BUILD_MODE "Individually (shared ALL_NODES list)")
+    endif()
     foreach(NODE_NAME ${ALL_NODES})
-        # 检查节点目录是否存在
+        # 检查节点目录是否存在（缺失只告警，不中断 configure）
         if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${NODE_NAME}")
             add_subdirectory(${NODE_NAME})
-            message(STATUS "Added node: ${NODE_NAME}")
         else()
             message(WARNING "Node directory not found: ${NODE_NAME}")
         endif()
     endforeach()
-    
-elseif(BUILD_NODES_INDIVIDUALLY)
-    message(STATUS "Building nodes individually (default behavior)...")
-    
-    # 原有的单独添加方式
-    add_subdirectory(VST3PluginNode)
-    add_subdirectory(DataInfoNode)                              #数据显示
-    add_subdirectory(TCPServerNode)                             #TCP服务器模块
-    add_subdirectory(TCPClientNode)                             #TCP客户端模块
-    add_subdirectory(TimeLineNode)                              #时间轴模块
-    add_subdirectory(UDPSocketNode)                             #UDP模块
-    add_subdirectory(SerialPortNode)                            #串口模块
-    add_subdirectory(CanBusNode)                                #CAN (candleLight/gs_usb)
-    add_subdirectory(RangerMiniNode)                            #AgileX Ranger Mini 3.0 (+ Nav Controller)
-    add_subdirectory(MissionNode)                               #导航任务 Nav Missions
-    add_subdirectory(DelayNode)                                 #延迟模块
-    add_subdirectory(LogicOperationNode)                        #逻辑操作模块
-    add_subdirectory(MathOperationNode)                         #数学操作模块
-    add_subdirectory(LFONode)                                   #LFO模块
-    add_subdirectory(CurveNode)                                #曲线模块
-    add_subdirectory(CurvesNode)                               #曲线家族（Curve1D/2D/3D 三子节点合一插件）
-    add_subdirectory(AudioDecoderNode)                          #音频解码模块
-    add_subdirectory(AudioListDecoderNode)                      #音频播放列表解码
-    add_subdirectory(AudioDeviceOutNode)                        #音频输出模块
-    add_subdirectory(HotKeyNode)                                #热键模块
-    add_subdirectory(ExtractNode)                               #数据分离模块
-    add_subdirectory(CameraNode)                                #摄像头输入
-    add_subdirectory(ScreenCaptureNode)                         #显示器/窗口捕获
-    add_subdirectory(WebRenderNode)                             #网页离屏渲染
-    add_subdirectory(CaptureNode)                               #图像捕获
-    add_subdirectory(ROINode)                                   #交互式 ROI 裁剪
-    add_subdirectory(ImageConstNode)                            #图像常量
-    add_subdirectory(CountNode)                                 #条件计数
-    add_subdirectory(MergeNode)                                 #数据合并
-    add_subdirectory(OscInNode)                                 #OSC输入
-    add_subdirectory(OscOutNode)                                #OSC输出
-    add_subdirectory(SyncNode)                                  #跨主机 Variable 同步
-    add_subdirectory(ArtnetInNode)                              #Arnet输入
-    add_subdirectory(MpvControllerNode)                         #mpv控制
-    add_subdirectory(PingNode)                                  #ICMP ping 连通性
-    add_subdirectory(VLC_ControllerNode)                            #VLC远程控制
-    add_subdirectory(SPlayControllerNode)                       #ENTTEC S-Play 多 playlist 控制
-    add_subdirectory(QSysQrcNode)                               #Q-SYS ECP（Extract Named Controls XML）
-    add_subdirectory(SwitchNode)                                #输入切换
-    add_subdirectory(ConditionNode)                             #条件判断
-    add_subdirectory(WebSocketServerNode)                       #WebSocket服务器
-    add_subdirectory(WebSocketClientNode)                       #WebSocket客户端
-    add_subdirectory(HttpClientNode)                              #HTTP客户端
-    add_subdirectory(SlideShowNode)                             #SlideShow 数字标牌控制
-    add_subdirectory(JavaScriptNode)                            #JavaScript脚本
-    add_subdirectory(InternalCommandsNode)                       #内部控制
-    add_subdirectory(ImageOperates)                             #图像操作集合
-    add_subdirectory(showStoreGBxNode)                          #ELC showStoreGBx 控制器
-    add_subdirectory(USR_IO808Node)                             #基于Modbus Master实现与USR-IO808 控制器对接
-    add_subdirectory(TSETLNode)                                 #对接TSETL
-    add_subdirectory(AuroraSNode)                               #Aurora S 设备状态
-    add_subdirectory(HoldNode)                                  #信号保持
-    add_subdirectory(SpoutInNode)                               #Spout输入
-    add_subdirectory(RTSPNode)                                #RTSP拉流输入
-    add_subdirectory(SpoutOutNode)                              #Spout输出
-    add_subdirectory(NDVPlayerNode)                             #NDV player
-    add_subdirectory(DMXDeviceNode)                             #DMX 设备
-    add_subdirectory(DMXUniverseNode)                           #DMX Universe 数据
-    add_subdirectory(ArtnetOutNode)                             #Artnet输出
-    add_subdirectory(UniversePlaybackNode)                       #DMX Universe 数据回放
-    add_subdirectory(CustomScriptNode)                          #自定义js节点
-    add_subdirectory(AudioDeviceInNode)                         #音频输入节点
-    add_subdirectory(NoiseGeneratorNode)                        #噪声生成器节点
-    add_subdirectory(NDIInNode)                                 #NDI输入节点
-    add_subdirectory(NDIOutNode)                                #NDI输出节点
-    add_subdirectory(PJLinkNode)                                #PJLink输出节点
-    add_subdirectory(MqttClientNode)                              #Mqtt客户端节点
-    add_subdirectory(LTCDecoderNode)                            #LTC时间码解析节点
-    add_subdirectory(LTCGeneratorNode)                          #LTC时间吗生成节点
-    add_subdirectory(MTCGeneratorNode)                          #MTC时间码生成节点
-    add_subdirectory(MTCDecoderNode)                            #MTC时间码解码节点
-    add_subdirectory(AudioMatrixNode)                           #音频矩阵节点
-    add_subdirectory(DataVisualNode)                            #数据可视化节点
-    add_subdirectory(FileLoadNode)                             #文档导入节点
-    add_subdirectory(ToFiles)                                #文件导出节点
-    add_subdirectory(ColorNode)                                 #颜色节点
-    add_subdirectory(FmodNode)                                  #Fmod 节点
-    add_subdirectory(AudioDuckingNode)                          #音频闪避
-    add_subdirectory(AudioCrossFaderNode)                       #音频交叉淡化过渡
-    add_subdirectory(AudioPriorityNode)                         #音频优先级
-    add_subdirectory(WebMicNode)                                #网页对讲麦克风
-    add_subdirectory(AudioGate)                                 #噪声门
-    add_subdirectory(AudioDelayNode)                            #音频延时
-    add_subdirectory(PoseDetectionNode)                        #动作识别
-    add_subdirectory(ObjectDetectionNode)                       #对象识别
-    add_subdirectory(ObjectTrackNode)                           #参考图多目标跟踪
-    add_subdirectory(FaceDetectionNode)                            #人脸检测
-    add_subdirectory(MediaPipe/HandPoseEstimationMediaPipeNode)    #MediaPipe 手部关节点
-    add_subdirectory(MediaPipe/PoseEstimationMediaPipeNode)        #MediaPipe 人体姿态
-    add_subdirectory(MediaPipe/HumanSegmentationPPHumanSegNode)    #MediaPipe 人体分割
-    add_subdirectory(VideoDecoderNode)                          #视频解码器节点
-    add_subdirectory(DAWController)                          #DAW控制器节点
-    add_subdirectory(PLC-ModBus)                                #Modbus控制PLC节点
-    add_subdirectory(VLC_RemoteNode)                            #VLC远程控制
-    add_subdirectory(StyleTransferONNXNode)                      #神经网络风格迁移
-    add_subdirectory(ModBusSlave)                              #Modbus从机节点
-    add_subdirectory(ModBusMaster)                             #Modbus主机节点
-    add_subdirectory(showStoreGBxNode)
-    add_subdirectory(InjectNode)                                #数据注入节点
-    add_subdirectory(ValueLookupNode)                        #值查表 Value Lookup
-    add_subdirectory(FT_C040ANode)                          #触摸屏
-    add_subdirectory(FT_AJTNode)                            #AJT Node + AJT Gateway 六路调光
-    add_subdirectory(ViosoNode)                              #Vioso节点
-    add_subdirectory(MpcdiNode)                             #MPCDI 变形融合
-    add_subdirectory(PosiStageNetClient)                    #PosiStageNet(数据接收）
-    add_subdirectory(ISFNode)                               #ISF数据加载
-    add_subdirectory(GDTFNode)                              #GDTF灯具文件解析
 else()
     message(STATUS "No nodes will be built. Enable BUILD_ALL_NODES or BUILD_NODES_INDIVIDUALLY.")
 endif()
@@ -258,10 +151,11 @@ foreach(NODE_NAME ${ALL_NODES})
 endforeach()
 
 # 打印构建信息
-if(BUILD_ALL_NODES)
+if(BUILD_ALL_NODES OR BUILD_NODES_INDIVIDUALLY)
+    list(LENGTH ALL_NODES NODE_COUNT)
     message(STATUS "=== Node Build Configuration ===")
-    message(STATUS "Build Mode: All Nodes")
-    message(STATUS "Total Nodes: ${CMAKE_LIST_LENGTH}")
+    message(STATUS "Build Mode: ${NODE_BUILD_MODE}")
+    message(STATUS "Total Nodes: ${NODE_COUNT}")
     message(STATUS "Output Directory: ${PLUGIN_OUTPUT_DIRECTORY}")
     message(STATUS "================================")
 endif()

@@ -24,19 +24,19 @@ namespace Clips
             SHOWBORDER = false;
             // 默认颜色写在片段自己身上，避免改掉全局 ClipColor
             setColor(QColor("#f08a5d"));
-            AbstractClipModel::initPropertyWidget();
+            TimeLineClipModel::initPropertyWidget();
         }
         ~TriggerClipModel() override =default;
         // 重写保存和加载函数
         QJsonObject save() const override {
-            QJsonObject json = AbstractClipModel::save();
+            QJsonObject json = TimeLineClipModel::save();
             auto arr = m_listWidget->save()["messages"].toArray();
             json["messages"] = arr;
             return json;
         }
 
         void load(const QJsonObject& json) override {
-            AbstractClipModel::load(json);
+            TimeLineClipModel::load(json);
             m_listWidget->load(json);
            
         }
@@ -52,9 +52,9 @@ namespace Clips
         QVariant data(int role) const override {
             switch (role) {
             case TimelineRoles::ClipModelRole:
-                return QVariant::fromValue(static_cast<AbstractClipModel*>(const_cast<TriggerClipModel*>(this)));
+                return QVariant::fromValue(static_cast<TimeLineClipModel*>(const_cast<TriggerClipModel*>(this)));
             default:
-                return AbstractClipModel::data(role);
+                return TimeLineClipModel::data(role);
             }
         }
 

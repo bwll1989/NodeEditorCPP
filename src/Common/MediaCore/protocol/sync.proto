@@ -1,0 +1,178 @@
+// ============================================================================
+//  sync.proto —— 同步控制协议消息（TCP 控制通道）
+//
+//  设计依据：《media-server-sync-design.md》§6（协议与通道）§6.1（anchor_time 调度）
+//    * 结构化消息用 Protobuf；传输帧格式为【4 字节长度前缀 + Envelope】，
+//      解析在 ControlServer/ControlClient（core/sync/）；
+//    * 素材文件不走本协议（HTTP 裸字节，Phase 2 后续任务）；
+//    * 高频心跳走 UDP 极简二进制（SyncFrame，core/sync/SyncFrame.hpp），
+//      不用 Protobuf（省打包开销，§6 表格"高频同步帧用极简二进制"）。
+//
+//  核心原则（§6.1）：不要"收到命令就执行"，而是"在约定的未来 NTP 时刻
+//  anchor_time 执行"。同步 = 共享时钟 + 全场引用同一未来时刻。
+// ============================================================================
+
+syntax = "proto3";
+
+package ms_proto;
+
+// ---------------------------------------------------------------------------
+// Player → Editor：启动注册（§6.2）
+// player_id 由启动参数指定；screen 绑定关系在 Scene.screens 中预配置
+// （screen.player_id == 此处上报的 player_id），Editor 据此知道谁渲染哪块屏。
+// ---------------------------------------------------------------------------
+message MsgRegister {
+  string player_id = 1;   // 全局唯一 Player 标识
+  string version   = 2;   // 引擎版本（兼容性检查用）
+  // Player 的 UDP 心跳上报端口（Player 在注册前先绑定自己的 UDP socket）。
+  // Editor 据此得到「player_id → UDP 地址（TCP 对端 IP + 此端口）」映射，
+  // 用于主动单播心跳（§6：学到注册时的来源地址）；Player 上报帧的
+  // 源地址也会被 Editor 记录，两者相互印证。0 = 未启用 UDP 上报。
+  uint32 udp_report_port = 3;
+}
+
+// Editor → Player：注册应答
+// session_id 为本次编辑会话标识；Player 丢弃旧会话的心跳/消息。
+// udp_host/udp_port 为 Editor 的 UDP 心跳地址——Player 收到后 set_remote，
+// 后续上报帧即发往此处（地址互相学习：Editor 学 Player 的 udp_report_port，
+// Player 学 Editor 的应答内端口，§6）。
+// http_port 为 Editor 的素材 HTTP 分发端口（Player 据此拉取 Asset 表；
+// host 复用 udp_host；0 = 未启用素材分发）。
+// assigned_player_id（2026-11-06 指派模型）：Editor 把工程槽位绑定的
+// player_id 下发给显示端——连接靠 ip:port，身份由 Editor 指派、显示端
+// 采用（非空且 ≠ 自报 id 时，显示端改用指派 id 并重新注册）。显示端
+// 自报的 --id 退化为本地标签；同一屏接错配置也能自愈。
+message MsgRegisterAck {
+  bool   accepted   = 1;
+  string session_id = 2;  // Editor 分配（"s-" + 序号）
+  string reason     = 3;  // 拒绝原因（accepted=false 时）
+  string udp_host   = 4;  // Editor 心跳监听地址（对端 TCP 来源 IP，同网段可达）
+  uint32 udp_port   = 5;  // Editor 的 UDP 心跳端口（0 = 未启用）
+  uint32 http_port  = 6;  // Editor 的素材 HTTP 分发端口（0 = 未启用）
+  optional string assigned_player_id = 7; // Editor 指派的屏 id（空 = 不指派）
+}
+
+// ---------------------------------------------------------------------------
+// Editor → Player：场景下发（全量；第七迭代起为场景同步唯一路径——
+// 广播实时全量，无增量补丁；version 仅作日志/展示标识，无比对语义）
+// payload 为 core/protocol/scene.proto 的 Scene 序列化字节（SceneLoader 解析）。
+// ---------------------------------------------------------------------------
+message MsgScene {
+  string scene_id = 1;
+  string version  = 2;    // 场景版本号（实现计划 P3：PATCH 版本机制）
+  bytes  payload  = 3;    // Scene.pb 二进制
+}
+
+// ---------------------------------------------------------------------------
+// Editor → Player：重锚命令 —— 全文档最核心的同步原语（§6.1）
+//
+// 语义：**不要在"收到时"执行**，而是等本机对齐时钟走到 anchor_time_us
+// 这个"全场约定的未来时刻"才应用：
+//      session_start = anchor_time_us - anchored_session_time_us
+// 应用后 session_time = aligned_now - session_start 恒等于
+// anchored_session_time_us（+ 迟到时长），全场在同一物理瞬间切换。
+//
+// cmd 语义（应用时同时设置播放状态）：
+//   CMD_PLAY  ：从 anchored_session_time 继续推进
+//   CMD_PAUSE ：冻结于 anchored_session_time
+//   CMD_SEEK  ：跳转（等效于先 PAUSE 再 PLAY 的时间设定）
+//   CMD_STOP  ：停止并清空调度队列
+// ---------------------------------------------------------------------------
+message MsgReAnchor {
+  enum Cmd {
+    CMD_NONE  = 0;
+    CMD_PLAY  = 1;
+    CMD_PAUSE = 2;
+    CMD_SEEK  = 3;
+    CMD_STOP  = 4;
+  }
+  int64 anchor_time_us          = 1; // 未来 NTP 时刻（全场统一应用点）
+  int64 anchored_session_time_us = 2; // 该时刻播放头应处的位置（us）
+  Cmd   cmd                      = 3;
+  string session_id              = 4;
+}
+
+// Player → Editor：命令确认（调试/超时检测用）
+message MsgAck {
+  int64  anchor_time_us = 1;
+  bool   ok             = 2;
+  string detail         = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Editor → Player：配对认证（连接建立后 Editor 发出的第一帧，可选）
+//
+// 【为什么需要】display 监听模式下任何 TCP 客户端都能连上 17100 并伪装
+// Editor 下发场景；多 Editor 同网段运行时还会互相"抢"显示端（后连上的
+// 覆盖先连上的会话）。配对码 = 双方约定的共享口令：display 配置了
+// pairing_code 时，Editor 必须在首帧 MsgAuth 携带正确配对码，否则该
+// 连接被 display 拒绝（踢除 + 警告日志）。
+//
+// 时序（与既有握手兼容）：TCP 连接 → display 立即上报 Register（身份
+// 先行，不构成信任）→ Editor 发 MsgAuth（配对证明）→ display 校验：
+//   * 码正确   → 放行，此后该连接的 Ack/Scene/ReAnchor 正常处理；
+//   * 码错误   → 立即断开该连接（ControlServer::close），stderr 警告；
+//   * 未发 Auth | display 未配码 → 向后兼容（display 未配码 = 不校验，
+//     所有帧照常处理；display 配码而 Editor 未发 Auth = 帧静默丢弃）。
+// ---------------------------------------------------------------------------
+message MsgAuth {
+  string pairing_code = 1; // 显示端 config.ini [display] pairing_code 的期望值
+}
+
+// ---------------------------------------------------------------------------
+// Editor → Player：素材清单推送（推模型触发帧，2026-11-04）
+//
+// 【推模型语义】"何时取文件"的发起权在 Editor：素材在分发侧注册/变化时，
+// Editor 主动向在线显示端推送最新清单（非文件字节——大文件仍走 HTTP 拉，
+// 见 AssetHttpServer 头注释）。Player 收到后与本地文件比对（存在+大小+
+// CRC），缺失/不一致的立即拉取，失败项后台指数退避重试直至就绪。
+//
+// 【解决什么】旧模型素材拉取只在收到 MsgScene 时触发一次，404 即放弃、
+// 无补拉——注册稍晚/文件未就位时显示端永久占位，需手动"下发场景"制造
+// 重拉机会。清单推送独立于场景版本：注册即推、重发即推，显示端"重新
+// 拉取"不再依赖场景广播。
+// ---------------------------------------------------------------------------
+message MsgAssetSync {
+  message Entry {
+    string asset_id = 1;  // 素材 ID（HTTP 分发注册表键）
+    string path     = 2;  // 相对路径（与 Asset.path 一致，诊断用）
+    uint64 size_bytes = 3; // 文件大小（幂等快判）
+    string checksum = 4;  // "crc32:xxxxxxxx"（空 = 只比长度，与场景同规则）
+  }
+  repeated Entry entries     = 1; // 本批素材清单（display 端自行按依赖过滤）
+  string scene_version       = 2; // 关联场景版本（仅日志/诊断，无比对语义）
+}
+
+// ---------------------------------------------------------------------------
+// Player → Editor：素材同步进度上报（2026-11-04）
+// 拉取线程节流后发送（≥300ms 或完成数/结束标志变化才发）——editor 场景树
+// 据此在屏幕节点上标注"⤓ 同步 N/M · P%"。纯观测帧，丢失无害（下一拍
+// 覆盖），不参与任何同步语义。
+// ---------------------------------------------------------------------------
+message MsgAssetProgress {
+  uint32 done          = 1; // 已完成素材数（成功/幂等/失败都计，同本地 UI 口径）
+  uint32 total         = 2; // 本轮素材总数（依赖过滤后）
+  string current_path  = 3; // 正在拉取的素材（Asset.path，诊断/tooltip）
+  uint64 current_bytes = 4; // 当前文件已传字节（含续传已有）
+  uint64 current_total = 5; // 当前文件总字节（0 = 服务端未知）
+  bool   finished      = 6; // 本轮全部结束（UI 收口：显示 ✓ 已完成）
+}
+
+// ---------------------------------------------------------------------------
+// 封包 —— TCP 通道唯一传输单元（长度前缀帧的 payload）
+// 【第七迭代】MsgPatch 增量补丁退役：场景同步一律 MsgScene 全量广播
+// （全量自描述，无版本连续性依赖；漏收端由下一次广播直接追平）。
+// protobuf 只承担"控制信令 + 场景字节信封"两个薄用途。
+// ---------------------------------------------------------------------------
+message Envelope {
+  oneof body {
+    MsgRegister    register     = 1; // P → E
+    MsgRegisterAck register_ack = 2; // E → P
+    MsgScene       scene        = 3; // E → P
+    MsgReAnchor    re_anchor    = 4; // E → P
+    MsgAck         ack          = 5; // P → E
+    MsgAuth        auth         = 6; // E → P 配对认证（连接后首帧，可选）
+    MsgAssetSync   asset_sync   = 7; // E → P 素材清单推送（推模型触发）
+    MsgAssetProgress asset_progress = 8; // P → E 素材同步进度（纯观测）
+  }
+}

@@ -9,13 +9,18 @@
 #include <QJsonDocument>
 #include <QtCore/qglobal.h>
 
+// 【2026-11-13】专用导出宏：原 DLL_EXPORT 是各节点插件 PluginDefinition.hpp
+// 的通用宏名——插件的 #ifndef DLL_EXPORT 抢注会让本头在插件 TU 内错误展开为
+// dllexport（TimeLineNode 首编 LNK2019 staticMetaObject 即此因），改专有名隔离。
+#ifndef CLIENTCONTROLLER_EXPORT
 #if defined(CLIENTCONTROLLER_LIBRARY)
-#define DLL_EXPORT Q_DECL_EXPORT
+#define CLIENTCONTROLLER_EXPORT Q_DECL_EXPORT
 #else
-#define DLL_EXPORT Q_DECL_IMPORT
+#define CLIENTCONTROLLER_EXPORT Q_DECL_IMPORT
+#endif
 #endif
 
-class DLL_EXPORT SocketTransmitter : public QObject
+class CLIENTCONTROLLER_EXPORT SocketTransmitter : public QObject
 {
     Q_OBJECT
 public:
@@ -68,6 +73,6 @@ public slots:
 };
 
 // 导出获取单例实例的函数
-DLL_EXPORT SocketTransmitter* getClientControlInstance();
+CLIENTCONTROLLER_EXPORT SocketTransmitter* getClientControlInstance();
 
 #endif // SOCKETTRANSMITTER_H

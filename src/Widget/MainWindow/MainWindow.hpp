@@ -6,14 +6,20 @@
 
 #include <QJsonObject>
 #include <QMainWindow>
+#include <QElapsedTimer>
 #include <optional>
+#include <set>
+#include <string>
 #include "Widget/ConsoleWidget/LogWidget.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 // #include "DockHub/DockHub.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/MenuBarWidget/MenuBarWidget.h"
-#include "Widget/TimeLineWidget/TimeLineWidget.hpp"
-#include "Widget/TimeLineWidget/TimeLineModel.h"
+#include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
+#include "Widget/MenuBarWidget/MenuBarWidget.h"
+// 【2026-11-12】旧时间轴（TimelineWidget/TimeLineModel）退役——
+// 主窗口改挂 MediaServer 编辑器组件（场景树/预览画布/时间轴），
+// 完整类型仅在 MainWindow.cpp 中 include（本头只留前置声明）。
 #include "Widget/ExternalControl/ExternalControler.hpp"
 #include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
 #include "Widget/MediaLibraryWidget/MediaLibraryWidget.h"
@@ -30,6 +36,17 @@ namespace QWK {
 
 class AutosaveManager;
 #include "ProjectSnapshotBuilder.hpp"
+
+// ---- MediaServer 编辑器组件（2026-11-12 第二步：UI 挂载 + 动作联动）--------
+namespace ms {
+struct Scene;                // core/model（header-only；struct——与定义同形防 C4099）
+class PreviewRenderer;       // editor/（本地预览渲染器）
+class QtTimelineModelAdapter;// editor/（Scene↔帧模型适配器）
+class SceneCanvasWidget;     // editor/（预览画布）
+class SceneTreeWidget;       // editor/（场景树）
+class MsRuntimeBridge;       // timeline/（EditorRuntime 桥接壳；PIMPL 隔离 C++20）
+}
+class BaseTimelineWidget;    // MediaServer 收编版 QtTimeLine 控件
 
 class MainWindow : public QMainWindow
 {
@@ -51,10 +68,50 @@ public:
     PluginsManagerWidget *pluginsManagerDlg=nullptr;
     // 锁定状态
     bool isLocked= false;
-    // 时间线
-    TimelineWidget *timeline     = nullptr;
-    // 时间线模型
-    TimeLineModel *timelineModel=nullptr;
+    // ---- MediaServer 编辑器组件（2026-11-12 第二步：UI 挂载 + 动作联动）----
+    // 工作副本（ms 默认空场景）：画布/场景树/时间轴适配器共享同一实例；
+    // 动作联动已接入（EditorWindow 同款装配）：import_media 素材导入钩子
+    // （属性面板/拖拽导入落点）+ seek/sceneEdited/导入失败三信号 + 工具栏
+    // 播放 → PreviewRenderer 状态机（33ms tick 回显播放头）。
+    // 播放定时器与接线均在 init() 装配段局部完成（无成员）；
+    // 下发到显示端已接入（第三步 2026-11-12）：msRuntime_ 桥接
+    // EditorRuntime（显示端连接/场景下发/素材 HTTP 分发/锚点命令）——
+    // 场景树"下发/同步素材/重载/添加显示端"四动作 + 200ms UI 拍回显
+    // 连接与素材同步进度；播放权威时钟=桥会话时钟（Playing 时优先）。
+    ms::Scene* msScene_ = nullptr;
+    ms::PreviewRenderer* msPreview_ = nullptr;          // 预览渲染器（空素材根=全占位降级）
+    ms::QtTimelineModelAdapter* msTimelineAdapter_ = nullptr;
+    ms::SceneCanvasWidget* msCanvas_ = nullptr;         // 预览画布 dock
+    ms::SceneTreeWidget* msSceneTree_ = nullptr;        // 场景树 dock
+    BaseTimelineWidget* msTimeline_ = nullptr;          // 时间轴 dock
+    ms::MsRuntimeBridge* msRuntime_ = nullptr;          // 下发运行时桥（PIMPL；C++17 TU 安全）
+    // 【StatusContainer 集成 2026-11-12 第四步】参照旧 TimeLineWidget 的
+    // TimelineBindingsController 模式：时间轴 OSC 地址树（/timeline/master/
+    // ...）注册进 StatusContainer/GlobalEventBus——外部 OSC/MQTT/HTTP 控制
+    // play/pause/stop/seek，播放态与播放头帧号经 statusUpdated 出站反馈。
+    // tick 定时器成员化（槽方法与工具栏 lambda 同源复用）。
+    QTimer* msPlayTimer_ = nullptr;
+    // 【场景自动追平 2026-11-13】sceneEdited（时间轴/画布/属性面板）→
+    // 节流 200ms（单参数）：首次编辑立即发、编辑中每 200ms 发一拍（当下
+    // 状态）、停手由挂起拍兜底——编辑过程 display 持续跟手，无"停手才发"
+    // 的不连续感。收编恢复链路（原 EditorWindow 有此行为，收编时只留
+    // 注释丢了实现）——修复"每次动作都要手动下发场景才生效"。播放中
+    // 发布不打断播放（display 换场景不重置会话时钟，2026-11-13 实测）；
+    // 0 端在线 = 零成本合法。display 渲染端实测 50Hz 发布满速合成（单帧
+    // 0.1~0.7ms）、发送线程零节流——200ms 节流速率零压力。
+    QTimer* msAutoPublishTimer_ = nullptr;
+    // 节流间隔（ms）——构造时读 Settings.ini Network/SceneAutoPublishMs
+    //（默认 200，钳制 20-2000；改 ini 重启生效）
+    int msAutoPublishIntervalMs_ = 200;
+    // 上次发布时刻（节流基准：距此满间隔才发下一拍）
+    QElapsedTimer msLastPublishSince_;
+    // sceneEdited 三路统一入口（节流决策，见 cpp 实现）
+    void requestMsAutoPublish();
+    // 立即发布（syncModelToWorkScene + publishScene；节流到点与立即路径
+    // 共用，末尾打点节流基准）
+    void publishMsSceneNow();
+    // 上一拍在线显示端集合（msUiTimer 拍内对比检出"新上线"→ 自动追平下发）
+    std::set<std::string> msLastConnected_;
     // osc 日历控件
     ScheduledTaskWidget *scheduledTaskWidget=nullptr;
     // 媒体库
@@ -145,6 +202,28 @@ public Q_SLOTS:
      * 函数级注释：统一走“重启打开”，保证与拖拽/文件对话框行为一致。
      */
     void openRecentFile(const QString& path);
+
+    // ---- MediaServer 时间轴 OSC 集成（2026-11-12 第四步）--------------------
+    // 参照旧 TimeLineWidget 的 TimelineBindingsController 模式：
+    //   工具栏播放三动作 → 统一处理方法（GlobalEventBus 命令同源复用）；
+    //   /timeline/master/{play,pause,stop,currentFrame} 注册进全局事件
+    //   总线（控制入站）+ StatusContainer（状态出站镜像）。
+private:
+    /// 播放（工具栏点击与外部 /play 命令同源）：会话广播 + 本地预览 + tick 启动
+    void msHandlePlay();
+    /// 暂停（同上双源）：会话冻结 + 预览暂停 + tick 停止
+    void msHandlePause();
+    /// 停止（同上双源）：会话回 Idle + 预览归零 + 播放头回显起点
+    void msHandleStop();
+    /// 播放态反馈推送（/play /stop /currentFrame → StatusContainer 出站镜像）
+    void msPublishPlaybackState();
+    /// OSC 绑定入口：订阅命令地址 + 注册控件 + 推送初始状态（构造期一次）
+    void msBindTimelineOsc();
+
+public Q_SLOTS:
+    /// GlobalEventBus 命令分发入口（/timeline/master/* 订阅槽；旧
+    /// TimeLineToolBar::onGlobalEvent 同构：单槽按地址分发 + 回执反馈）
+    void msOnTimelineCommand(const GlobalEvent& ev);
 
 protected:
     bool event(QEvent *event) override;

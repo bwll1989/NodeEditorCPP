@@ -27,23 +27,23 @@ namespace Clips
         ~MappingClipModel() override =default;
         // 重写保存和加载函数
         QJsonObject save() const override {
-            QJsonObject json = AbstractClipModel::save();
+            QJsonObject json = TimeLineClipModel::save();
             auto arr = m_listWidget->save()["messages"].toArray();
             json["messages"] = arr;
             return json;
         }
 
         void load(const QJsonObject& json) override {
-            AbstractClipModel::load(json);
+            TimeLineClipModel::load(json);
              m_listWidget->load(json);
         }
 
         QVariant data(int role) const override {
             switch (role) {
             case TimelineRoles::ClipModelRole:
-                return QVariant::fromValue(static_cast<AbstractClipModel*>(const_cast<MappingClipModel*>(this)));
+                return QVariant::fromValue(static_cast<TimeLineClipModel*>(const_cast<MappingClipModel*>(this)));
             default:
-                return AbstractClipModel::data(role);
+                return TimeLineClipModel::data(role);
             }
         }
 

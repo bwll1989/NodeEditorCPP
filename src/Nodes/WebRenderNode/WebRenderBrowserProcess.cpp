@@ -7,6 +7,8 @@
 #include <QStandardPaths>
 #include <QTextStream>
 
+#include "Common/ProcessGuard/JobGuard.hpp"
+
 WebRenderBrowserProcess::WebRenderBrowserProcess(QObject* parent)
     : QObject(parent)
     , m_process(new QProcess(this))
@@ -203,6 +205,11 @@ bool WebRenderBrowserProcess::launch(const QString& userDataDir, int width, int 
 
 void WebRenderBrowserProcess::onProcessStarted()
 {
+    // 【幽灵 socket 治本 2026-11-13】纳入陪葬 job：Flow 崩溃/退出时内核自动
+    // 杀光浏览器进程树，防止孤儿续命 8992/17002 等监听 socket（析构兜底
+    // 在崩溃路径不会执行，job 是内核级兜底）。
+    ms::assignChildToJob(static_cast<unsigned long>(m_process->processId()));
+
     m_portPollAttempts = 0;
     m_killUpgradeTimer->stop();
     m_portPollTimer->start();

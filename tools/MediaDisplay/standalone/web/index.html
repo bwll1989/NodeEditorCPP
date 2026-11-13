@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MediaServer 节点编排台</title>
+<link rel="stylesheet" href="lib/vis-timeline-graph2d.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- 全局 JS 错误条（在 #app 之外：Vue 自身崩溃时也要可见；headless 排障） -->
+<div id="err-bar" hidden></div>
+<!-- 瞬时操作反馈 toast（[W12]：不占用保存状态流，2.6s 自动消退） -->
+<div id="toast" hidden></div>
+
+<!-- Vue 3 挂载根（vue.global.prod.js 内置模板编译器；全响应式声明式渲染） -->
+<div id="app" v-cloak>
+  <header id="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span>MediaServer <span class="sub">节点编排台</span></div>
+    <div id="transport">
+      <span id="active-name" title="当前激活（播放中）的时间轴">{{ activeName }}</span>
+      <span class="sep">·</span>
+      <span class="mono playhead-time">{{ playheadText }}</span> /
+      <span class="mono">{{ durationText }}</span>
+      <span class="chip" :class="{ playing: status && status.state === 1, paused: status && status.state === 2 }">{{ stateName }}</span>
+    </div>
+    <div id="conn" class="chip" :class="{ ok: connOk === true, bad: connOk === false }">{{ connText }}</div>
+    <button id="btn-mpcdi" class="chip" :class="{ 'warp-on': mpcdiWarpOn }"
+            :title="mpcdiWarpOn ? '输出校准启用中（变形融合生效中，输出画面已被变形）— 点击管理'
+                                : '输出校准（MPCDI 变形融合，两模式均可用）— 未启用'"
+            @click="ui.mpcdi = true; refreshMpcdi()">▣ 输出校准<span
+            v-if="mpcdiWarpOn" class="warp-tag">启用中</span></button>
+    <button id="btn-settings" class="chip" title="显示设置（模式切换/端口/渲染/素材根）"
+            @click="ui.settings = true; loadSettings()">⚙ 设置</button>
+  </header>
+
+  <main id="layout" :class="{ 'mode-sync': modeIsSync }">
+    <!-- 左栏：时间轴列表 + 媒体库（可折叠；仅独立模式——sync 下编排面被门禁） -->
+    <aside id="sidebar" v-show="!modeIsSync" :class="{ collapsed: ui.left }">
+      <div class="side-inner">
+        <section class="panel">
+          <div class="panel-head">
+            <h2>时间轴</h2>
+            <button title="新建空白时间轴" @click="newTimeline">＋新建</button>
+            <label class="upload-btn" title="导入 .show 工程（编辑器工程文件，独立模式）">导入<input type="file" accept=".show,application/json" hidden @change="importShow"></label>
+          </div>
+          <ul id="tl-list">
+            <li v-if="!timelines.length" class="empty-hint">暂无时间轴——点击「＋新建」或导入 .show 工程</li>
+            <li v-for="t in timelines" :key="t.id" :class="{ sel: t.id === currentId }"
+                @click="openTimeline(t.id)">
+              <span class="tl-name" :title="t.id + '（双击重命名）'"
+                    @dblclick.stop="startRenameTimeline(t)">
+                <input v-if="renamingTl === t.id" class="inline-rename" v-model="renameDraft"
+                       title="Enter 确认 · Esc 或点击其他位置取消"
+                       @keyup.enter="commitRenameTimeline" @keyup.esc="cancelRenameTimeline"
+                       @blur="cancelRenameTimeline" @click.stop @dblclick.stop>
+                <template v-else>{{ t.name || t.id }}</template>
+              </span>
+              <span class="tl-badges">
+                <button class="mini" title="重命名" @click.stop="startRenameTimeline(t)">✎</button>
+                <button class="mini" title="设为开机默认" @click.stop="setDefault(t.id)">★</button>
+                <button class="mini" title="导出为 .show 工程（编辑器可打开）" @click.stop="exportShow(t)">⤓</button>
+                <button class="mini danger" title="删除" @click.stop="deleteTimeline(t)">✕</button>
+                <span v-if="t.loop" class="badge" title="循环播放">循</span>
+                <span v-if="t.is_default" class="badge" title="开机默认">默认</span>
+                <span v-if="t.is_active" class="badge act" title="播放中">播</span>
+              </span>
+            </li>
+          </ul>
+        </section>
+        <section class="panel">
+          <div class="panel-head">
+            <h2>媒体库</h2>
+            <button title="添加字幕片段到选中轨道（默认 5s，属性面板可改内容/位置）" @click="addTextClip()">＋字幕</button>
+            <button title="重新扫描素材目录" @click="refreshLibrary">⟳</button>
+            <label class="upload-btn">上传<input type="file" multiple hidden @change="uploadFiles"></label>
+          </div>
+          <input id="lib-search" type="search" placeholder="搜索素材…" v-model="libQuery">
+          <ul id="lib-list">
+            <li v-if="!library.length" class="empty-hint">{{ libQuery ? '没有匹配的素材——换个关键词试试' : '素材库为空——点击「上传」添加素材' }}</li>
+            <li v-for="it in library" :key="it.id"
+                :title="'拖拽到轨道任意位置放置（落点=片段起点）· 双击=追加到选中轨道末尾\n' + it.path"
+                @mousedown="onLibMouseDown($event, it)"
+                @dblclick="appendClipFromLibrary(it)">
+              <span class="kind" :class="it.kind">{{ it.kind }}</span>
+              <span class="name">{{ it.name }}</span>
+              <span class="size">{{ it.duration_us > 0 ? fmtTime(it.duration_us) + ' · ' : '' }}{{ fmtSize(it.size) }}</span>
+            </li>
+          </ul>
+          <div class="hint">拖拽素材到轨道任意位置放置；双击=追加到选中轨道末尾</div>
+        </section>
+      </div>
+    </aside>
+
+    <!-- 左栏折叠手柄（竖条；⟫=可收起 ⟪=可展开） -->
+    <button class="fold-bar" v-show="!modeIsSync" :title="ui.left ? '展开左栏' : '收起左栏'"
+            @click="ui.left = !ui.left">{{ ui.left ? '⟩' : '⟨' }}</button>
+
+    <!-- 中栏：轨道编排区（#vis-timeline 为静态子树，Vue 不 patch 内部；
+         vis-timeline 接管：标尺/多轨道/滚轮缩放/片段拖拽/播放头游标） -->
+    <section id="editor">
+      <!-- [R8-1] 乐观锁冲突"过期"态横幅：常驻醒目，一键重载云端最新；
+           期间本地编辑标记未同步（save-hint 红色），禁止继续 PUT -->
+      <div id="stale-banner" v-if="docStale">
+        <span class="msg">⚠ 云端内容已被其他窗口修改——本地编辑未同步，继续修改不会保存</span>
+        <button @click="reloadStaleDoc">刷新加载最新</button>
+      </div>
+      <!-- 工具条（2026-11-12 按功能重排）：文档信息 │ 播放 │ 结构与属性 │ 视图 │
+           持久化（右端）；组间分隔线 .tb-sep；保存反馈与交互说明移至底部状态栏 -->
+      <div id="editor-head">
+        <span id="tl-title" :title="doc ? (doc.name || currentId) : '未选择时间轴'">{{ doc ? (doc.name || currentId) : '未选择时间轴' }}</span>
+        <span class="mono tb-dim">{{ doc ? doc.scene.canvas_w + '×' + doc.scene.canvas_h : '' }}</span>
+        <span class="tb-sep" aria-hidden="true"></span>
+        <!-- 播放控制（2026-11-12 用户定案：播放/暂停合并为单切换键，三键减两键）；
+             连体按钮组 .play-group（相邻按钮去左边框+左圆角=无缝衔接）；
+             图标 = 内联 SVG（播放三角/暂停双条/停止圆角方块，fill=currentColor） -->
+        <span class="play-group">
+          <button class="play-ctl" :disabled="!doc"
+                  :title="status?.state === 1 ? '暂停（冻结于当前播放头）'
+                        : status?.state === 2 ? '继续播放' : '播放当前时间轴'"
+                  @click="doPlayPause">
+            <svg v-if="status?.state === 1" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><rect x="2.2" y="1.5" width="2.9" height="9" rx="0.9" fill="currentColor"/><rect x="6.9" y="1.5" width="2.9" height="9" rx="0.9" fill="currentColor"/></svg>
+            <svg v-else viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.8 1.4 L10.6 6 L2.8 10.6 Z" fill="currentColor"/></svg>
+          </button>
+          <button class="play-ctl" :disabled="!doc" title="停止播放（回待机）" @click="doStop">
+            <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><rect x="1.9" y="1.9" width="8.2" height="8.2" rx="1.4" fill="currentColor"/></svg>
+          </button>
+        </span>
+        <span class="tb-sep" aria-hidden="true"></span>
+        <!-- 轨道结构与时间轴属性 -->
+        <button :disabled="!doc" title="在末尾添加一条轨道" @click="addTrackUi">＋轨道</button>
+        <label class="chk" title="到达时间轴末尾后自动从头重播（改动自动保存）">
+          <input type="checkbox" :checked="doc ? !!doc.loop : false" :disabled="!doc" @change="toggleLoop">循环
+        </label>
+        <span class="tb-sep" aria-hidden="true"></span>
+        <!-- 视图缩放（－ 全览 ＋：全览居中为主操作） -->
+        <button title="缩小（围绕播放头）" @click="zoomOut">－</button>
+        <button title="缩放视图至全片长" @click="fitAll">⛶ 全览</button>
+        <button title="放大（围绕播放头）" @click="zoomIn">＋</button>
+        <span class="grow"></span>
+        <!-- 持久化（最右；所有修改本就自动实时生效，此为强制保存） -->
+        <button :disabled="!doc" title="所有修改已自动实时生效；此按钮=立即强制保存" @click="forceSave">保存</button>
+      </div>
+      <div id="vis-timeline"></div>
+      <!-- 编辑区底部状态栏：保存反馈（左）+ 交互说明（右） -->
+      <div id="editor-status">
+        <span id="save-hint" :class="{ stale: docStale }">{{ saveHint }}</span>
+        <span class="grow"></span>
+        <span class="hint-keys" title="时间轴交互说明">空格=播放/暂停 · Delete=删除选中片段 · 滚轮缩放（围绕鼠标）· 拖动=平移 · 拖游标=播放头 · 点标尺=定位 · 素材拖入轨道（Esc 取消）· 双击素材=追加末尾 · 轨道/时间轴名双击重命名</span>
+      </div>
+      <div v-if="modeIsSync" class="sync-note">
+        <div class="glyph">⇄</div>
+        <div>当前为<b>同步模式</b>（Editor 受控）<br>时间轴/媒体库/播放控制已关闭</div>
+        <div class="hint">在 <a href="#" @click.prevent="ui.settings = true; loadSettings()">设置</a>
+        中切换为独立模式（保存后自动重启生效）</div>
+      </div>
+    </section>
+
+    <!-- 右栏折叠手柄 -->
+    <button class="fold-bar" v-show="!modeIsSync" :title="ui.right ? '展开属性栏' : '收起属性栏'"
+            @click="ui.right = !ui.right">{{ ui.right ? '⟨' : '⟩' }}</button>
+
+    <!-- 右栏：属性面板（可折叠） -->
+    <aside id="props" v-show="!modeIsSync" :class="{ collapsed: ui.right }">
+      <div class="side-inner">
+        <h2>片段属性</h2>
+        <div v-if="!selClipData" class="prop-empty">
+          <div class="glyph">⎔</div>
+          <div class="hint">点击时间轴上的片段<br>查看 / 编辑属性</div>
+        </div>
+        <form id="prop-form" v-else @submit.prevent>
+          <div class="pgroup">来源</div>
+          <label>文件<input name="file" readonly :value="draft.file"></label>
+          <label>文本内容<input name="text" :value="draft.text" @input="onProp('text', $event)"></label>
+          <div class="pgroup">时间</div>
+          <label>开始 (s)<input name="start_s" type="number" step="0.01" min="0" :value="draft.start_s" @input="onProp('start_s', $event)"></label>
+          <label>时长 (s)<input name="duration_s" type="number" step="0.01" min="0" :value="draft.duration_s" @input="onProp('duration_s', $event)"></label>
+          <label>入点 (s)<input name="in_s" type="number" step="0.01" min="0" :value="draft.in_s" @input="onProp('in_s', $event)"></label>
+          <div class="pgroup">几何与变换</div>
+          <label title="画布像素（左上角为原点，画布尺寸见顶栏）">X (px)<input name="x" type="number" step="1" placeholder="0=左上" :value="draft.x" @input="onProp('x', $event)"></label>
+          <label title="画布像素（左上角为原点）">Y (px)<input name="y" type="number" step="1" placeholder="0=左上" :value="draft.y" @input="onProp('y', $event)"></label>
+          <label title="绘制宽度（画布像素）；留空 = 素材自然尺寸">宽 (px)<input name="w" type="number" step="1" min="0" placeholder="自动" :value="draft.w" @input="onProp('w', $event)"></label>
+          <label title="绘制高度（画布像素）；留空 = 素材自然尺寸">高 (px)<input name="h" type="number" step="1" min="0" placeholder="自动" :value="draft.h" @input="onProp('h', $event)"></label>
+          <label title="旋转角度（度，顺时针，绕片段中心）">旋转 (°)<input name="rotation" type="number" step="1" :value="draft.rotation" @input="onProp('rotation', $event)"></label>
+          <label title="不透明度 0~1">不透明度 <input name="opacity" type="number" step="0.05" min="0" max="1" :value="draft.opacity" @input="onProp('opacity', $event)"></label>
+          <label title="同一轨道内多个片段的叠放次序（0~999，大者在上）；跨轨道层次由轨道上下移（▲▼）决定">轨内层级 <input name="z" type="number" step="1" min="0" max="999" :value="draft.z" @input="onProp('z', $event)"></label>
+          <div class="pgroup">裁剪</div>
+          <label title="从左边缘向内裁掉的宽度（画布像素）">左 (px)<input name="crop_l" type="number" step="1" min="0" :value="draft.crop_l" @input="onProp('crop_l', $event)"></label>
+          <label title="从右边缘向内裁掉的宽度（画布像素）">右 (px)<input name="crop_r" type="number" step="1" min="0" :value="draft.crop_r" @input="onProp('crop_r', $event)"></label>
+          <label title="从上边缘向内裁掉的高度（画布像素）">上 (px)<input name="crop_t" type="number" step="1" min="0" :value="draft.crop_t" @input="onProp('crop_t', $event)"></label>
+          <label title="从下边缘向内裁掉的高度（画布像素）">下 (px)<input name="crop_b" type="number" step="1" min="0" :value="draft.crop_b" @input="onProp('crop_b', $event)"></label>
+          <div class="pgroup">淡变</div>
+          <label>淡入 (s)<input name="fade_in_s" type="number" step="0.1" min="0" :value="draft.fade_in_s" @input="onProp('fade_in_s', $event)"></label>
+          <label>淡出 (s)<input name="fade_out_s" type="number" step="0.1" min="0" :value="draft.fade_out_s" @input="onProp('fade_out_s', $event)"></label>
+          <button type="button" class="danger" @click="delClip">删除片段</button>
+        </form>
+      </div>
+    </aside>
+  </main>
+
+  <!-- 设置浮层（⚙ 打开；sync 模式自动展开为唯一功能面）。
+       分组禁用按【运行模式】：独立模式组只在 standalone 下可编辑、
+       同步组只在 sync 下可编辑（2026-11-11 定案）；通用组恒可用。 -->
+  <div id="settings-overlay" v-if="ui.settings" @click.self="ui.settings = false">
+    <div id="settings-card">
+      <div class="set-head">
+        <h2>设置</h2>
+        <span class="mode-chip" :class="modeIsSync ? 'sync' : 'std'">
+          运行中：{{ modeIsSync ? '同步模式' : '独立模式' }}
+        </span>
+        <span class="grow"></span>
+        <button class="mini" title="关闭" @click="ui.settings = false">✕</button>
+      </div>
+
+      <div class="set-groups" @submit.prevent>
+        <!-- ============ 通用（恒可编辑） ============ -->
+        <fieldset>
+          <legend>通用</legend>
+          <label title="独立模式=本机播放器（网页全功能）；同步模式=Editor 受控（网页仅设置）。
+切换后保存即自动重启 display 生效（M5 接力，网页自动重连）">
+            运行模式
+            <select v-model="st.node.mode">
+              <option value="" disabled>（当前未设置）</option>
+              <option value="standalone">独立模式（本机播放器）</option>
+              <option value="sync">同步模式（Editor 受控）</option>
+            </select>
+          </label>
+          <label>节点 ID<input v-model.trim="st.display.player_id" placeholder="player-1"></label>
+          <label title="素材库根目录（网页媒体库扫描/上传/片段寻址基准）">
+            素材根目录<input v-model.trim="st.display.assets_root" placeholder="空 = exe 目录"></label>
+          <label>渲染帧率<input v-model.number="st.display.render_fps" type="number" min="0" max="240" step="5"></label>
+          <label title="gl=GPU shader 合成（推荐）；d3d11=Direct3D 11 直绘（远程桌面/锁屏可靠上屏）">
+            合成后端
+            <select v-model="st.display.render_backend">
+              <option value="" disabled>（当前未设置）</option>
+              <option value="gl">gl（GPU 合成）</option>
+              <option value="d3d11">d3d11（远程会话可靠）</option>
+            </select>
+          </label>
+          <label>硬解
+            <select v-model="st.display.hw_accel">
+              <option value="" disabled>（当前未设置）</option>
+              <option value="cuda">cuda</option><option value="d3d11va">d3d11va</option>
+              <option value="nvdec">nvdec</option><option value="auto">auto</option>
+              <option value="soft">软解</option>
+            </select>
+          </label>
+          <label class="inline"><input type="checkbox" :true-value="1" :false-value="0" v-model="st.display.borderless">无边框输出窗</label>
+          <label class="inline"><input type="checkbox" :true-value="1" :false-value="0" v-model="st.display.fullscreen">全屏输出</label>
+          <!-- 显示器选择（2026-11-13）：screen=-1 系统默认主屏；0..N-1 =
+               EnumDisplayMonitors 枚举序（GET /settings 的 screens 数组），
+               与 CLI --screen=N / 预览窗口定位同序。重启 display 后生效 -->
+          <label class="inline">显示器<select v-model.number="st.display.screen">
+            <option :value="-1">主屏（系统默认）</option>
+            <option v-for="sc in screens" :key="sc.index" :value="sc.index">
+              显示器 {{ sc.index + 1 }}（{{ sc.w }}×{{ sc.h }}{{ sc.primary ? '，主屏' : '' }}）
+            </option>
+          </select></label>
+          <div class="row4">
+            <label>窗 X<input v-model.number="st.display.window_x" type="number" step="1"></label>
+            <label>窗 Y<input v-model.number="st.display.window_y" type="number" step="1"></label>
+            <label>窗宽<input v-model.number="st.display.window_w" type="number" step="10"></label>
+            <label>窗高<input v-model.number="st.display.window_h" type="number" step="10"></label>
+          </div>
+        </fieldset>
+
+        <!-- ============ 独立模式（仅 standalone 运行中可编辑） ============ -->
+        <fieldset :disabled="!modeIsStandalone">
+          <legend>独立模式{{ modeIsStandalone ? '' : '（非独立模式下只读）' }}</legend>
+          <label title="网页编排台/REST API 端口；0=禁用 HTTP 控制面">
+            控制面端口<input v-model.number="st.standalone.http_port" type="number" min="0" max="65535" step="1"></label>
+          <label title="开机自动播放的时间轴 id（列表 ★ 设默认即写此键）">
+            开机自动播放<input v-model.trim="st.standalone.default_timeline" placeholder="空 = 待机"></label>
+          <label>时间轴文档目录<input v-model.trim="st.standalone.timelines_dir" placeholder="空 = exe/timelines"></label>
+          <label>上传上限 (MB)<input v-model.number="st.standalone.max_upload_mb" type="number" min="0" step="64"></label>
+        </fieldset>
+
+        <!-- ============ 同步模式（仅 sync 运行中可编辑） ============ -->
+        <fieldset :disabled="!modeIsSync">
+          <legend>同步模式{{ modeIsSync ? '' : '（非同步模式下只读）' }}</legend>
+          <label title="等待 Editor 接入的 TCP 监听端口">
+            Editor 监听端口<input v-model.number="st.display.listen_port" type="number" min="0" max="65535" step="1"></label>
+          <label title="局域网发现应答端口（编辑器扫描添加显示端）；0=禁用">
+            发现端口<input v-model.number="st.display.discovery_port" type="number" min="0" max="65535" step="1"></label>
+          <label title="多 Editor 隔离：非空时只接受携带同配对码的 Editor">
+            配对码<input v-model.trim="st.display.pairing_code" placeholder="空 = 不校验"></label>
+        </fieldset>
+      </div>
+
+      <div class="set-foot">
+        <button class="primary" :disabled="restarting" @click="saveSettings">保存设置</button>
+        <button :disabled="restarting" title="重启 display 进程使已保存的配置生效（M5 接力：优雅退出后自动拉新实例，网页自动重连）"
+                @click="restartDisplay">⟳ 重启 display</button>
+        <span class="hint">{{ restarting ? '⏳ display 正在重启，页面将自动恢复…' : settingsHint }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 输出校准 MPCDI 独立页（顶栏"▣ 输出校准"打开；两模式均可用；M4）。
+       上下横贯 + 中间两栏：状态条 / 左=校准包+region / 右=变形选项+包详情 /
+       底部固定操作栏——独立出设置浮层以获得完整排布空间（2026-11-12 用户定案）。 -->
+  <div id="mpcdi-overlay" v-if="ui.mpcdi" @click.self="ui.mpcdi = false">
+    <div id="mpcdi-card">
+      <div class="set-head">
+        <h2>输出校准（MPCDI）</h2>
+        <span class="hint">投影边缘融合与几何变形校正</span>
+        <span class="grow"></span>
+        <button class="mini" title="关闭" @click="ui.mpcdi = false">✕</button>
+      </div>
+
+      <div class="m-body">
+        <!-- 状态条（横贯） -->
+        <div class="m-status">
+          <span class="chip" :class="mpcdi.status && mpcdi.status.enabled ? 'ok' : ''"
+                title="变形融合当前状态">{{ mpcdi.status && mpcdi.status.enabled ? '已启用' : '未启用' }}</span>
+          <span v-if="mpcdi.status && mpcdi.status.enabled" class="mono small">
+            包 {{ mpcdi.status.package_id }} · {{ mpcdi.status.region }}
+          </span>
+          <span class="grow"></span>
+          <button class="mini" title="刷新状态/包列表" @click="refreshMpcdi">⟳ 刷新</button>
+        </div>
+
+        <!-- 校准任务三步流（2026-11-12 二次精简：参与勾选步并入布局——
+             region 摆进格子本身就是选择，勾选与摆放语义重复；自定义摆放
+             下后端本就以 slots 推导参与集（mpcdi_service.cpp slots 优先），
+             勾选在自定义模式是死代码。region 目录改为只读信息并入步骤 1） -->
+        <div class="m-step">
+          <h3><i>1</i>校准源</h3>
+          <div class="m-row">
+            <label class="m-grow" title="已上传的包（current = 最近上传）">
+              选择包
+              <select v-model="mpcdi.sel" @change="onMpcdiPackageChange">
+                <option v-for="p in mpcdi.packages" :key="p.id" :value="p.id">
+                  {{ p.name }}（{{ fmtSize(p.size) }}）
+                </option>
+              </select>
+            </label>
+            <label class="upload-btn" title="选择本地 .mpcdi 校准包上传（单槽存储：新包替换 current）">
+              上传包文件…<input type="file" accept=".mpcdi,.zip" hidden @change="uploadMpcdi" :disabled="mpcdi.uploading">
+            </label>
+          </div>
+          <div v-if="mpcdi.uploading" class="hint">上传中…</div>
+          <!-- 包内 region 目录（只读信息：参与集合由下方布局摆放决定） -->
+          <div class="r-pills" v-if="mpcdi.regions.length">
+            <span v-for="r in mpcdi.regions" :key="r.key" class="r-pill"
+                  :title="r.id + '：' + r.xResolution + '×' + r.yResolution + (r.has_warp ? '（含 warp）' : '（无 warp）')">
+              <span>{{ r.id }}<em>{{ r.xResolution }}×{{ r.yResolution }}</em></span>
+            </span>
+          </div>
+          <div v-else class="hint">先选择校准包，region 目录将显示在此</div>
+        </div>
+
+        <div class="m-step">
+          <h3><i>2</i>拼接布局</h3>
+          <div class="m-row">
+            <!-- 拼接布局：自动排列=预设模式；自定义摆放=网格编辑器
+                 （mosaic：每格下拉选 region，空格留白，同 region 可多格） -->
+            <div class="m-kind">
+              <button type="button" :class="{ on: mpcdi.layoutKind === 'auto' }"
+                      :title="'包内全部 ' + mpcdi.regions.length + ' 个 region 按预设方式排列'"
+                      @click="mpcdi.layoutKind = 'auto'">自动排列</button>
+              <button type="button" :class="{ on: mpcdi.layoutKind === 'custom' }"
+                      :title="'逐格摆放 region；未摆入格子的 region 不参与投影'"
+                      @click="mpcdi.layoutKind = 'custom'">自定义摆放</button>
+            </div>
+            <template v-if="mpcdi.layoutKind === 'auto'">
+              <label class="m-grow" title="多 region 拼接布局：grid=自动网格；row/column=单行/单列">
+                排列方式
+                <select v-model="mpcdi.layout">
+                  <option value="grid">grid（自动网格）</option>
+                  <option value="row">row（单行）</option>
+                  <option value="column">column（单列）</option>
+                  <option value="cols2">cols2（两列）</option>
+                  <option value="cols3">cols3（三列）</option>
+                  <option value="cols4">cols4（四列）</option>
+                </select>
+              </label>
+            </template>
+            <template v-else>
+              <div class="m-grid-ctl">
+                <label>列 <input type="number" min="1" max="6" step="1" v-model.number="mpcdi.mosaicCols"></label>
+                <label>行 <input type="number" min="1" max="4" step="1" v-model.number="mpcdi.mosaicRows"></label>
+                <button type="button" class="mini" :disabled="!mpcdi.regions.length"
+                        title="按包内 region 顺序行优先填入网格"
+                        @click="fillMosaicAuto">自动填充</button>
+                <span class="hint" v-if="mosaicRes">拼接输出 ≈ {{ mosaicRes }}</span>
+              </div>
+            </template>
+          </div>
+          <template v-if="mpcdi.layoutKind === 'custom' && mpcdi.regions.length">
+            <div class="m-grid"
+                 :style="{ gridTemplateColumns: 'repeat(' + Math.max(1, mpcdi.mosaicCols) + ', 1fr)' }">
+              <div v-for="(s, i) in mosaicCells" :key="i" class="m-cell" :class="{ empty: !s }">
+                <select v-model="mpcdi.mosaicSlots[i]" :title="'网格位置（行优先第 ' + (i + 1) + ' 格）'">
+                  <option value="">（空）</option>
+                  <option v-for="r in mpcdi.regions" :key="r.key" :value="r.key">{{ r.id }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="hint">同一 region 可摆多格（复制到多屏）；（空）格留白不投影</div>
+          </template>
+        </div>
+
+        <div class="m-step">
+          <h3><i>3</i>融合选项</h3>
+          <div class="m-opts">
+            <label class="inline" title="alphaMap 融合按 gamma 2.2 线性化（包标注 gammaEmbedded 时）">
+              <input type="checkbox" v-model="mpcdi.opts.alpha_linearize">alpha 线性化</label>
+            <label class="inline" title="源内容上下镜像（warp 输出 uv.y 取反）">
+              <input type="checkbox" v-model="mpcdi.opts.flip_y">内容翻转</label>
+            <label class="inline" title="变形整体上下翻转（warp 查表 y 镜像）">
+              <input type="checkbox" v-model="mpcdi.opts.flip_screen_y">屏幕翻转</label>
+            <label class="inline" title="关闭后不乘 alphaMap（用全 1 占位）">
+              <input type="checkbox" v-model="mpcdi.opts.blend_enabled">启用融合</label>
+          </div>
+        </div>
+
+        <!-- 包详情：参考信息，默认折叠 -->
+        <details class="m-details" v-if="mpcdi.meta">
+          <summary>包详情（profile: {{ mpcdi.meta.profile }} · {{ mpcdi.meta.regions.length }} region）</summary>
+          <div class="mpcdi-meta mono small">
+            <div>profile: {{ mpcdi.meta.profile }} · version: {{ mpcdi.meta.version }}</div>
+            <div v-for="r in mpcdi.meta.regions" :key="r.key">
+              {{ r.id }}: warp {{ r.warp.available ? (r.warp.width + '×' + r.warp.height +
+                (r.warp.normalized ? ' 归一化' : ' 绝对像素') +
+                (r.warp.nan_count ? ' · 无效 ' + r.warp.nan_count : '')) : '无' }}
+              <span v-if="r.alpha && r.alpha.available"> · alpha {{ r.alpha.width }}×{{ r.alpha.height }}</span>
+            </div>
+          </div>
+        </details>
+      </div>
+
+      <div class="m-foot">
+        <button class="primary" :disabled="!mpcdiCanEnable || mpcdiWarpOn"
+                @click="enableMpcdi">{{ mpcdiWarpOn ? '✓ 变形融合生效中' : '启用变形融合' }}</button>
+        <button class="danger" :disabled="!mpcdiWarpOn"
+                @click="disableMpcdi">停用变形融合</button>
+        <span class="hint">{{ mpcdi.hint }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="lib/vue.global.prod.js"></script>
+<script src="lib/vis-timeline-graph2d.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

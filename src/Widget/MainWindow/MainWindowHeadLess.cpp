@@ -4,6 +4,8 @@
 
 #include "MainWindowHeadLess.hpp"
 
+#include "Common/ProcessGuard/SpawnNoInherit.hpp"  // bInheritHandles=FALSE 派生（幽灵 socket 修复）
+
 #include "ProjectSnapshotBuilder.hpp"
 #include "Widget/ConsoleWidget/LogHandler.hpp"
 #include "Widget/ExternalControl/ExternalControler.hpp"
@@ -12,7 +14,7 @@
 #include "Widget/CalendarWidget/ScheduledTaskModel.hpp"
 #include "Widget/PluginsMangerWidget/PluginsManagerWidget.hpp"
 #include "Widget/SplashWidget/CustomSplashScreen.hpp"
-#include "Widget/TimeLineWidget/TimeLineModel.h"
+// 【2026-11-12】旧时间轴退役——headless 不再创建 TimeLineModel
 #include "Widget/NodeWidget/DataflowViewsManger.hpp"
 #include "../../Common/AppConfig/ConfigManager.h"
 #include "../../Common/AppConfig/ProjectPersistence.h"
@@ -106,8 +108,7 @@ void MainWindowHeadLess::init()
     dataflowViewsManger = new DataflowViewsManger(nullptr, this, DataflowPresentationMode::ModelOnly);
     emit initStatus(tr("Initialization dataflow views success"));
 
-    timelineModel = new TimeLineModel(this);
-    emit initStatus(tr("Initialization timeline success"));
+    // 【2026-11-12】TimeLineModel 创建退役（旧时间轴下线）
 
     scheduledTaskModel = new ScheduledTaskModel(this);
     scheduledTaskManager = new ScheduledTaskManager(scheduledTaskModel, this);
@@ -178,7 +179,6 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
 
     ProjectLoadTargets targets;
     targets.dataflowViewsManger = dataflowViewsManger;
-    targets.timelineModel = timelineModel;
     targets.scheduledTaskModel = scheduledTaskModel;
     targets.httpServer = httpServer;
 
@@ -245,11 +245,12 @@ void MainWindowHeadLess::restartAndOpenFlow(const QString& path)
         return;
     }
 
-    QStringList args;
-    args << QStringLiteral("--restart-delay-ms=200");
-    args << abs;
-
-    const bool started = QProcess::startDetached(exe, args);
+    // 【幽灵 socket 修复 2026-11-13】同 MainWindow::restartAndOpenFlow——
+    // QProcess::startDetached 会继承全部句柄（UDP/HTTP 监听 socket 被
+    // "幽灵化"劫持端口流量），改走 bInheritHandles=FALSE 派生。
+    const QString rawArgs = QStringLiteral("--restart-delay-ms=200 \"%1\"")
+                                .arg(QDir::toNativeSeparators(abs));
+    const bool started = ms::spawnNoInherit(exe, rawArgs);
     if (!started) {
         emit initStatus(tr("重启打开失败：无法启动新进程"));
         return;

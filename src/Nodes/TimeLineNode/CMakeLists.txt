@@ -11,20 +11,21 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 # 内置时间线引擎（原 QtTimeLine 与 6 种 clip 已打散融入本节点，并合并为单头/单实现）
 #
 # 设计要点：
-#  - 与主 timeline（3rdParty/QtTimeLine.dll + plugins/TimeLine/*.plugin）完全隔离：
+#  - 与主 timeline（原 QtTimeLine 体系 + plugins/TimeLine/*.plugin）完全隔离：
 #    主 timeline 后续升级不影响本节点功能。
 #  - TimelineEngine.h/.cpp 由原引擎的 18 个头 + 9 个实现合并而成，含
-#    Model/View/TrackList/Delegate/Toolbar、clip 基类（AbstractClipModel）、
+#    Model/View/TrackList/Delegate/Toolbar、clip 基类（TimeLineClipModel，原
+#    AbstractClipModel——2026-11-13 改名以与 BaseClass.dll 的同名基类区分）、
 #    剪辑工厂接口、代理基类（NodeClipDelegateModel）与两个属性面板。
 #  - 以 NODE_TIMELINE_STATIC 编译，NODE_TIMELINE_PUBLIC 展开为空，
-#    不依赖 QtTimeLine.lib（dllimport）。
+#    不依赖旧 QtTimeLine 库（dllimport）。
 #  - 资源前缀 :/tlnode/icons（tlnode_resources.qrc，prefix "tlnode"），
-#    与 QtTimeLine.dll 的 :/icons 资源树隔离；静态资源需在
+#    与旧 QtTimeLine 的 :/icons 资源树隔离；静态资源需在
 #    TimeLineDataModel 构造函数中 Q_INIT_RESOURCE(tlnode_resources)。
 #  - clip 不走 QPluginLoader：BasePluginLoader::loadPlugins() 静态注册
 #    内置的 6 个剪辑工厂（实现位于 TimelineEngine.cpp）。
-#  - 剪辑代理基类 NodeClipDelegateModel 继承本节点内的 AbstractClipModel，
-#    绝不与 BaseClass.dll 的 AbstractClipDelegateModel 混用（继承链不同，
+#  - 剪辑代理基类 NodeClipDelegateModel 继承本节点内的 TimeLineClipModel，
+#    绝不与 BaseClass.dll 的 AbstractClipModel 混用（继承链不同，
 #    混用必崩）。
 # ----------------------------------------------------------------------------
 
@@ -117,7 +118,7 @@ target_link_libraries(${Module_Name} PRIVATE
 )
 
 # 内置引擎以静态方式编入本节点（副本头 NODE_TIMELINE_PUBLIC 为空），
-# 不定义 NODE_TIMELINE_SHARED，也不链接 install/lib/QtTimeLine.lib。
+# 不定义 NODE_TIMELINE_SHARED，也不链接旧 QtTimeLine 库。
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED NODE_TIMELINE_STATIC)
 SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${PLUGIN_OUTPUT_DIRECTORY}"

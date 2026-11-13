@@ -74,6 +74,7 @@ ConfigManager::ConfigManager()
     , m_audioOutputDelayFrames(AppConfigs::AUDIO_OUTPUT_DELAY_FRAMES)
     , m_artnetMergeMode(AppConfigs::ARTNET_MERGE_MODE)
     , m_artnetSendFps(AppConfigs::ARTNET_SEND_FPS)
+    , m_sceneAutoPublishMs(AppConfigs::SCENE_AUTO_PUBLISH_MS)
 {
     QString configDir = AppConstants::RECENT_FILES_STORAGE_DIR;
     QDir().mkpath(configDir);
@@ -106,6 +107,7 @@ bool ConfigManager::isAutosaveEnabled() const { return m_autosaveEnabled; }
 int ConfigManager::getAutosaveIntervalSeconds() const { return m_autosaveIntervalSeconds; }
 double ConfigManager::getTimestampFrameRate() const { return AppConfigs::TIMESTAMP_FRAME_RATE; }
 int ConfigManager::getAudioOutputDelayFrames() const { return m_audioOutputDelayFrames; }
+int ConfigManager::getSceneAutoPublishMs() const { return m_sceneAutoPublishMs; }
 QString ConfigManager::getLicenseCode() const { return m_licenseCode; }
 QString ConfigManager::getActivationCode() const { return m_activationCode; }
 int ConfigManager::getArtnetMergeMode() const { return m_artnetMergeMode; }
@@ -171,6 +173,10 @@ void ConfigManager::loadConfig()
     m_artnetMergeMode = qBound(0, settings.value("Network/ArtnetMergeMode", AppConfigs::ARTNET_MERGE_MODE).toInt(), 1);
     // Art-Net 发送节拍频率（Hz），钳制 1-100
     m_artnetSendFps = qBound(1, settings.value("Network/ArtnetSendFps", AppConfigs::ARTNET_SEND_FPS).toInt(), 100);
+    // 场景自动下发节流间隔（ms），钳制 20-2000——低于 20 失去聚合意义
+    //（拖拽 mousemove 频率全量广播），高于 2000 跟手感尽失
+    m_sceneAutoPublishMs = qBound(20, settings.value("Network/SceneAutoPublishMs",
+                                                     AppConfigs::SCENE_AUTO_PUBLISH_MS).toInt(), 2000);
 }
 
 void ConfigManager::createDefaultConfig()
@@ -218,6 +224,8 @@ void ConfigManager::saveConfig()
     settings.setValue("Network/ArtnetMergeMode", m_artnetMergeMode);
     // Art-Net 发送节拍频率（Hz）
     settings.setValue("Network/ArtnetSendFps", m_artnetSendFps);
+    // 场景自动下发节流间隔（ms）
+    settings.setValue("Network/SceneAutoPublishMs", m_sceneAutoPublishMs);
 
     settings.sync();
 }

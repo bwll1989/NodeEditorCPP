@@ -277,7 +277,18 @@ void PageWebSocketHandler::handleRequest(HTTPServerRequest& request,
                         msg.host = "127.0.0.1";
                         msg.port = ConfigManager::instance().getExtraControlPort();
                         msg.address = addr;
-                        msg.value = obj["value"].toVariant();
+                        // 【缺省值语义对齐 OSC（2026-11-12 WS 实测修复）】
+                        // value 键缺失或显式 null 时不赋值，保持 OSCMessage
+                        // 默认 invalid QVariant——与 OSC UDP 无参消息同语义。
+                        // 此前 obj["value"] 走 non-const operator[]：缺失键
+                        // 插入 QJsonValue(Type=Null)（QJsonValue 默认构造
+                        // 是 Null 非 Undefined），toVariant() 返回
+                        // QVariant::fromValue(nullptr)——isValid()==true 但
+                        // toBool()==false，把 /play 无参命令打成 /stop 分支
+                        //（msOnTimelineCommand 的 !payload.isValid() 判断
+                        // 落空，播放命令静默变停止）。
+                        if (obj.contains("value") && !obj["value"].isNull())
+                            msg.value = obj["value"].toVariant();
                         QMetaObject::invokeMethod(StatusContainer::instance(),
                                                   "parseOSC",
                                                   Qt::QueuedConnection,

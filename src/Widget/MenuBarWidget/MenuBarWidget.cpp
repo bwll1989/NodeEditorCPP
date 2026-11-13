@@ -11,6 +11,7 @@
 #include "AboutWidget.hpp"
 #include "SystemInfoWidget.h"
 #include "Common/AppConfig/ConfigManager.h"
+#include "Common/ProcessGuard/JobGuard.hpp"
 
 namespace {
 
@@ -172,7 +173,13 @@ void MenuBarWidget::openToolWithArgs(const QString& exePath, const QStringList& 
 
     connect(process, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             process, &QProcess::deleteLater);
-    
+
+    // 【幽灵 socket 治本 2026-11-13】工具进程纳入陪葬 job：Flow 崩溃时工具
+    // 不再孤儿续命本进程的 8992/8991/17001/17002 等监听 socket。
+    connect(process, &QProcess::started, process, [process]() {
+        ms::assignChildToJob(static_cast<unsigned long>(process->processId()));
+    });
+
     if (QFile::exists(fullPath)) {
         process->start(fullPath, args);
     } else {

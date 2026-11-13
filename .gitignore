@@ -57,3 +57,6 @@ src/Widget/ExternalControl/dashboard/node_modules/
 /.cache
 /_wc
 /mcp/backups
+/Temp
+/tests
+/assets

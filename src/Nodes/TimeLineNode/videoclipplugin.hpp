@@ -13,7 +13,7 @@ public:
         return "Video";
     }
 
-    AbstractClipModel* createModel(int start) override {
+    TimeLineClipModel* createModel(int start) override {
         return new  Clips::VideoClipModel(start);
     }
 

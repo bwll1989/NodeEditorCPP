@@ -23,6 +23,7 @@ set(_FLOW_SDK_EXPORT_TARGETS
     OSCTransmitter
     MediaManger
     TimestampGenerator
+    TimeLineBase
 )
 
 set(_FLOW_SDK_RUNTIME_TARGETS)
@@ -57,9 +58,34 @@ endforeach()
 # ---------------------------------------------------------------------------
 install(FILES
     "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/AbstractDelegateModel.h"
-    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/AbstractClipDelegateModel.h"
     "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/BaseClassExport.h"
     DESTINATION include/Common/BaseClass
+    COMPONENT FlowSDK
+)
+
+# 时间轴 clip 基类层（2026-11-13 回归合并 BaseClass.dll；第三方 Clip 开发继承用）
+install(FILES
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/AbstractClipModel.hpp"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/AbstractClipInterface.h"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/SceneClipModel.hpp"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TweenDots.h"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TweenPalette.h"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TimeLineDefines.h"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TimeLineStyle.h"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TimeLineStyle.cpp"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/ClipTimePanel.hpp"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/ClipAppearancePanel.hpp"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/BasePluginLoader.h"
+    DESTINATION include/Common/BaseClass
+    COMPONENT FlowSDK
+)
+
+# 时间码定义（2026-11-12 与 AppConfig 原有定义合并，单副本在
+# src/Common/AppConfig/TimeCodeDefines.h；AbstractClipModel.hpp 引用
+# "Common/AppConfig/TimeCodeDefines.h"，安装树经 include/ 根解析）
+install(FILES
+    "${CMAKE_SOURCE_DIR}/src/Common/AppConfig/TimeCodeDefines.h"
+    DESTINATION include/Common/AppConfig
     COMPONENT FlowSDK
 )
 
@@ -125,18 +151,7 @@ install(FILES
     COMPONENT FlowSDK
 )
 
-# StatusContainer 依赖的 OSCMessage（来自 QtTimeLine）
-if(EXISTS "${QtTimeLine_DIR}/install/include/OSCMessage.h")
-    install(FILES "${QtTimeLine_DIR}/install/include/OSCMessage.h"
-        DESTINATION include
-        COMPONENT FlowSDK
-    )
-elseif(EXISTS "${CMAKE_SOURCE_DIR}/3rdParty/QtTimeLine/OSCMessage.h")
-    install(FILES "${CMAKE_SOURCE_DIR}/3rdParty/QtTimeLine/OSCMessage.h"
-        DESTINATION include
-        COMPONENT FlowSDK
-    )
-endif()
+# 【2026-11-12】旧 QtTimeLine 安装段已删；【2026-11-13】clip 基类随 BaseClass.dll 分发。
 
 # QtNodes 公共头 + 必要 internal（AbstractDelegateModel 仍引用 internal/NodeDelegateModel.hpp）
 if(EXISTS "${QtNodes_DIR}/QtNodes")
@@ -158,33 +173,19 @@ if(EXISTS "${DEPENDS_DIR}/nodeeditor/MSVC/bin/QtNodes.dll")
     )
 endif()
 
-# QtTimeLine（BaseClass 含 AbstractClipDelegateModel，Node/Clip 均需要）
-if(EXISTS "${QtTimeLine_DIR}/install/include")
-    install(DIRECTORY "${QtTimeLine_DIR}/install/include/"
-        DESTINATION include
-        COMPONENT FlowSDK
-        FILES_MATCHING
-            PATTERN "*.h"
-            PATTERN "*.hpp"
-    )
-endif()
-if(EXISTS "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib")
-    install(FILES "${QtTimeLine_DIR}/install/lib/QtTimeLine.lib"
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        COMPONENT FlowSDK
-    )
-endif()
-if(EXISTS "${QtTimeLine_DIR}/install/bin/QtTimeLine.dll")
-    install(FILES "${QtTimeLine_DIR}/install/bin/QtTimeLine.dll"
-        DESTINATION ${CMAKE_INSTALL_BINDIR}
-        COMPONENT FlowSDK
-    )
-elseif(EXISTS "${QtTimeLine_DIR}/install/QtTimeLine.dll")
-    install(FILES "${QtTimeLine_DIR}/install/QtTimeLine.dll"
-        DESTINATION ${CMAKE_INSTALL_BINDIR}
-        COMPONENT FlowSDK
-    )
-endif()
+# 【2026-11-12】旧 QtTimeLine 安装段已删；【2026-11-13】clip 基类随 BaseClass.dll 分发。
+
+# 时间轴视图库（2026-11-13 迁 src/Common 并 DLL 化并入 SDK：第三方扩展
+# 继承 BaseTimelineWidget/BaseTimeLineModel/BaseTrackDelegate 等自定义
+# 时间轴 UI/交互，经 Flow::TimeLineBase 链接，头树随本段分发）
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/src/Common/TimeLineBase/"
+    DESTINATION include/Common/TimeLineBase
+    COMPONENT FlowSDK
+    FILES_MATCHING
+        PATTERN "*.h"
+        PATTERN "*.hpp"
+        PATTERN "CMakeLists.txt" EXCLUDE
+)
 
 # ---------------------------------------------------------------------------
 # CMake 包配置
@@ -298,6 +299,7 @@ add_dependencies(install-FlowSDK
     OSCTransmitter
     MediaManger
     TimestampGenerator
+    TimeLineBase
 )
 
 message(STATUS "FlowSDK install rules enabled (component FlowSDK, version ${FLOW_SDK_VERSION})")

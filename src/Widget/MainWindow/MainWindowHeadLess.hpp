@@ -12,7 +12,6 @@
 
 class LogHandler;
 class ExternalControler;
-class TimeLineModel;
 class ScheduledTaskModel;
 class ScheduledTaskManager;
 class DataflowViewsManger;
@@ -48,7 +47,7 @@ protected:
 
 private:
     DataflowViewsManger* dataflowViewsManger = nullptr;
-    TimeLineModel* timelineModel = nullptr;
+    // 【2026-11-12】TimeLineModel 成员退役（旧时间轴下线）
     ScheduledTaskModel* scheduledTaskModel = nullptr;
     ScheduledTaskManager* scheduledTaskManager = nullptr;
     Flow::NodeHttpServer* httpServer = nullptr;

@@ -1,7 +1,9 @@
 // class MediaLibraryWidget
 #include "MediaLibraryWidget.h"
+#include "Common/ProcessGuard/SpawnNoInherit.hpp"  // bInheritHandles=FALSE 派生（幽灵 socket 修复）
 #include <QStandardItem>
 #include <QApplication>
+#include <QMessageBox>
 #include <qevent.h>
 #include <QHeaderView>
 #include <QFileInfo>
@@ -136,10 +138,13 @@ void MediaLibraryWidget::initializeContextMenu()
         if (m_contextIndex.isValid()) {
             QString path = m_model->filePathForIndex(m_contextIndex);
             if (!path.isEmpty()) {
-                QString cmd = "explorer";
-                QStringList args;
-                args << "/select," << QDir::toNativeSeparators(path);
-                QProcess::startDetached(cmd, args);
+                // 【幽灵 socket 修复 2026-11-13】explorer 常驻桌面进程——
+                // startDetached 句柄继承会把本进程 socket 句柄复制给
+                // explorer 并长期存活（Flow 退出后端口仍被幽灵句柄占据）。
+                // 统一走 bInheritHandles=FALSE 派生。
+                const QString rawArgs = QStringLiteral("/select,\"%1\"")
+                                            .arg(QDir::toNativeSeparators(path));
+                ms::spawnNoInherit(QStringLiteral("explorer.exe"), rawArgs);
             }
         }
     });
@@ -332,7 +337,17 @@ void MediaLibraryWidget::deleteSelectedItems()
  */
 void MediaLibraryWidget::clearLibrary()
 {
-    // 函数级注释：调用模型清空，同时重置所有复选框
+    // 函数级注释：清空媒体库会同步删除存储目录中的文件，必须先弹窗确认
+    const QMessageBox::StandardButton ret = QMessageBox::question(
+        this,
+        tr("清空媒体库"),
+        tr("确定要清空媒体库吗？\n\n存储目录中的媒体文件将被一并删除，此操作不可撤销。"),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No);
+    if (ret != QMessageBox::Yes) {
+        return;
+    }
+    // 调用模型清空，同时重置所有复选框
     m_model->clearLibrary();
     // initCheckableForAll();
 }
@@ -430,6 +445,7 @@ QIcon MediaLibraryWidget::categoryIcon(int cat) const
     case Cat::Mpcdi:   return QIcon(":/icons/icons/image.png");
     case Cat::Fixture: return QIcon(":/icons/icons/gdtf.png");
     case Cat::Game: return QIcon(":/icons/icons/games.png");
+    case Cat::Gesture: return QIcon(":/icons/icons/finger.png");
     case Cat::Unknown: return QIcon(":/icons/icons/unknown.png");
     default:           return QIcon();
     }

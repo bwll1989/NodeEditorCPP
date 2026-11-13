@@ -10,21 +10,29 @@
 class DataflowViewsManger;
 class ScheduledTaskWidget;
 class ScheduledTaskModel;
-class TimelineWidget;
-class TimeLineModel;
+// 【2026-11-12】旧时间轴（TimelineWidget/TimeLineModel）退役——
+// .flow 快照不再包含旧 TimeLine 段（用户拍板：不做旧文件兼容）。
+// 【2026-11-12 第二步】新 MediaServer 时间轴工程序列化接入：快照携带
+// "mediaTimeline" 段（ms::Scene pb 的 base64——pb 转换在 C++20 侧
+// MsRuntimeBridge，本头仅前置声明）。
 namespace ads { class CDockManager; }
 namespace Flow { class NodeHttpServer; }
+namespace ms { struct Scene; class MsRuntimeBridge; }
 
 /**
  * @brief 构建项目快照所需的各模块指针
  */
 struct ProjectSnapshotSources {
     DataflowViewsManger* dataflowViewsManger = nullptr;
-    TimelineWidget* timeline = nullptr;
     ScheduledTaskWidget* scheduledTaskWidget = nullptr;
     ScheduledTaskModel* scheduledTaskModel = nullptr;
     ads::CDockManager* dockManager = nullptr;
     Flow::NodeHttpServer* httpServer = nullptr;
+    ms::Scene* msScene = nullptr;   ///< MediaServer 时间轴工作副本（可空）
+    // 【2026-11-12 统一入口】显示端登记桥（可空）：非空时快照携带
+    // "mediaDisplays" 段（登记态 id/host/port/enabled/pairingCode），
+    // 使 .flow 一个文件恢复"节点图 + 场景 + 显示端登记"全部工作状态。
+    ms::MsRuntimeBridge* msRuntime = nullptr;
 };
 
 /** @brief 项目快照写入来源（写入 meta.savedBy，便于追溯） */
@@ -44,12 +52,16 @@ bool saveProjectSnapshotAtomic(const QString& path, const QJsonObject& json);
  */
 struct ProjectLoadTargets {
     DataflowViewsManger* dataflowViewsManger = nullptr;
-    TimelineWidget* timeline = nullptr;
-    TimeLineModel* timelineModel = nullptr;
     ScheduledTaskWidget* scheduledTaskWidget = nullptr;
     ScheduledTaskModel* scheduledTaskModel = nullptr;
     ads::CDockManager* dockManager = nullptr;
     Flow::NodeHttpServer* httpServer = nullptr;
+    ms::Scene* msScene = nullptr;   ///< MediaServer 时间轴工作副本（可空；
+                                    ///< 非空时 "mediaTimeline" 段反解入此）
+    // 【2026-11-12 统一入口】显示端登记回灌落点（可空；headless 无桥
+    // 实例传空即跳过段）。非空时 "mediaDisplays" 段先清空现有登记再
+    // 逐条恢复（addDisplay + setDisplayEnabled）。
+    ms::MsRuntimeBridge* msRuntime = nullptr;
 };
 
 /**

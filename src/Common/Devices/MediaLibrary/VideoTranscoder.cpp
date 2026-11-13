@@ -7,6 +7,8 @@
 #include <QJsonArray>
 #include <QLoggingCategory>
 
+#include "Common/ProcessGuard/JobGuard.hpp"
+
 #ifdef Q_OS_WIN
 #define NOMINMAX
 #include <windows.h>
@@ -15,6 +17,24 @@
 Q_LOGGING_CATEGORY(logTranscoder, "flow.medialibrary.transcoder")
 
 namespace {
+
+/**
+ * @brief 判断 ffmpeg 像素格式名是否含 alpha 分量
+ *        覆盖常见家族：rgba/bgra/argb/abgr（含 64 位变体）、yuva*、gbrap*、ya8/ya16
+ */
+bool pixFmtHasAlpha(const QString& pixFmt)
+{
+    if (pixFmt.isEmpty()) return false;
+    static const QStringList markers = {
+        QStringLiteral("rgba"), QStringLiteral("bgra"), QStringLiteral("argb"),
+        QStringLiteral("abgr"), QStringLiteral("yuva"), QStringLiteral("gbrap"),
+        QStringLiteral("ya8"), QStringLiteral("ya16"),
+    };
+    for (const QString& m : markers) {
+        if (pixFmt.contains(m)) return true;
+    }
+    return false;
+}
 
 /**
  * @brief 按候选路径列表定位可执行文件
@@ -134,6 +154,7 @@ void VideoTranscoder::startNext()
     m_durationSec = 0.0;
     m_lastPercent = -1;
     m_audioCopyAttempted = false;
+    m_sourceHasAlpha = false;
     m_progressBuf.clear();
 
     // 无 ffprobe：跳过探测，直接转码（无跳过检测与进度百分比）
@@ -156,7 +177,7 @@ void VideoTranscoder::startProbe(const Job& job)
         QStringLiteral("-v"), QStringLiteral("error"),
         QStringLiteral("-select_streams"), QStringLiteral("v:0"),
         QStringLiteral("-show_entries"),
-        QStringLiteral("stream=codec_name:format=duration"),
+        QStringLiteral("stream=codec_name,pix_fmt:format=duration"),
         QStringLiteral("-of"), QStringLiteral("json"),
         job.src,
     });
@@ -172,12 +193,15 @@ void VideoTranscoder::startProbe(const Job& job)
 
         bool ok = (status == QProcess::NormalExit && exitCode == 0);
         QString codecName;
+        QString pixFmt;
         double duration = 0.0;
         if (ok) {
             const QJsonObject root = QJsonDocument::fromJson(out.toUtf8()).object();
             const QJsonArray streams = root.value(QStringLiteral("streams")).toArray();
             if (!streams.isEmpty()) {
-                codecName = streams.at(0).toObject().value(QStringLiteral("codec_name")).toString();
+                const QJsonObject st = streams.at(0).toObject();
+                codecName = st.value(QStringLiteral("codec_name")).toString();
+                pixFmt = st.value(QStringLiteral("pix_fmt")).toString();
             }
             duration = root.value(QStringLiteral("format")).toObject()
                            .value(QStringLiteral("duration")).toString().toDouble();
@@ -200,8 +224,18 @@ void VideoTranscoder::startProbe(const Job& job)
         }
 
         m_durationSec = duration;
+        m_sourceHasAlpha = pixFmtHasAlpha(pixFmt);
+        qCInfo(logTranscoder) << "探测完成:" << src << "codec=" << codecName
+                              << "pix_fmt=" << pixFmt << "alpha=" << m_sourceHasAlpha;
         emit transcodeStarted(src);
         startTranscode(m_current, true);
+    });
+
+    // 【幽灵 socket 治本 2026-11-13】ffmpeg/ffprobe 纳入陪葬 job
+    connect(m_process, &QProcess::started, m_process, [this]() {
+        if (m_process) {
+            ms::assignChildToJob(static_cast<unsigned long>(m_process->processId()));
+        }
     });
 
     m_process->start();
@@ -225,7 +259,9 @@ void VideoTranscoder::startTranscode(const Job& job, bool audioCopy)
          // DXT 纹理要求宽高为 4 的倍数；已是 4 倍数时该滤镜为无操作
          << QStringLiteral("-vf") << QStringLiteral("scale=trunc(iw/4)*4:trunc(ih/4)*4")
          << QStringLiteral("-c:v") << QStringLiteral("hap")
-         << QStringLiteral("-format") << QStringLiteral("hap_q");
+         << QStringLiteral("-format") << (m_sourceHasAlpha
+             ? QStringLiteral("hap_alpha")   // DXT5 含 alpha（本构建不支持 hap_q_alpha）
+             : QStringLiteral("hap_q"));     // DXT5-YCoCg 高质量
     if (audioCopy) {
         args << QStringLiteral("-c:a") << QStringLiteral("copy");
     } else {
@@ -283,6 +319,13 @@ void VideoTranscoder::startTranscode(const Job& job, bool audioCopy)
         }
         finishCurrent(false, QString(),
                       errTail.isEmpty() ? QStringLiteral("ffmpeg 退出码 %1").arg(exitCode) : errTail);
+    });
+
+    // 【幽灵 socket 治本 2026-11-13】ffmpeg 纳入陪葬 job（同 startProbe）
+    connect(m_process, &QProcess::started, m_process, [this]() {
+        if (m_process) {
+            ms::assignChildToJob(static_cast<unsigned long>(m_process->processId()));
+        }
     });
 
     // qCInfo(logTranscoder) << "开始转码:" << m_current.src << "->" << m_current.out;

@@ -53,7 +53,7 @@ namespace Clips
             array.append(command);
             doc.setObject(QJsonObject{{"fileList", array}}); // 正确设置JSON文档的根对象
             m_server->enqueueJson(doc);
-            // AbstractClipModel::~AbstractClipModel();
+            // TimeLineClipModel::~TimeLineClipModel();
 
 
         };
@@ -71,13 +71,13 @@ namespace Clips
         }
 
         void setStart(int start) override  {
-            AbstractClipModel::setStart(start);
+            TimeLineClipModel::setStart(start);
             if (m_canNotify) {
                 QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
             }
         }
         void setEnd(int end) override  {
-            AbstractClipModel::setEnd(end);
+            TimeLineClipModel::setEnd(end);
             if (m_canNotify) {
                 QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
             }
@@ -85,7 +85,7 @@ namespace Clips
 
         // 重写保存和加载函数
         QJsonObject save() const override {
-            QJsonObject json = AbstractClipModel::save();
+            QJsonObject json = TimeLineClipModel::save();
             json["file"] = m_filePath;
             json["type"] = "Image";
             // json["startTime"] = timecode_frame_to_time(frames_to_timecode_frame(start(), m_timecodeType), m_timecodeType);
@@ -109,7 +109,7 @@ namespace Clips
         }
 
         void load(const QJsonObject& json) override {
-            AbstractClipModel::load(json);
+            TimeLineClipModel::load(json);
             m_filePath = json["file"].toString();
             {
                 QSignalBlocker blocker(mediaSelector);
@@ -138,9 +138,9 @@ namespace Clips
             case Qt::DisplayRole:
                 return m_filePath;
             case TimelineRoles::ClipModelRole:
-                return QVariant::fromValue(static_cast<AbstractClipModel*>(const_cast<ImageClipModel*>(this)));
+                return QVariant::fromValue(static_cast<TimeLineClipModel*>(const_cast<ImageClipModel*>(this)));
             default:
-                return AbstractClipModel::data(role);
+                return TimeLineClipModel::data(role);
             }
         }
 

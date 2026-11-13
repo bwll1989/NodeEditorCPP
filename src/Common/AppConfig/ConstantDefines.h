@@ -6,7 +6,7 @@
 #include <QStandardPaths>
 // 产品版本号（关于窗口、工程元数据、QApplication::applicationVersion 等共用）
 #ifndef PRODUCT_VERSION
-#define PRODUCT_VERSION "1.7.07"
+#define PRODUCT_VERSION "1.8.01"
 #endif
 // 应用程序常量定义
 namespace AppConstants {
@@ -74,6 +74,9 @@ namespace AppConfigs {
     constexpr int EXTRA_CONTROL_PORT = 8991;
     // HTTP&WebSocket 服务器端口号
     constexpr int HTTP_SERVER_PORT = 8992;
+    // 【场景自动下发节流间隔 2026-11-13】sceneEdited → 每 N ms 广播一拍
+    // 最新场景到显示端（编辑中持续跟手；可配 Settings.ini Network 键覆盖）
+    constexpr int SCENE_AUTO_PUBLISH_MS = 200;
     // FlowViewer 局域网发现（UDP）：Viewer 广播请求，Flow 单播回复
     constexpr int FLOW_DISCOVERY_PORT = 8993;
     // 使用暗色主题

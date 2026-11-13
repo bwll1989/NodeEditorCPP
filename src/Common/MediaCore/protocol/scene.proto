@@ -1,0 +1,339 @@
+// ============================================================================
+//  scene.proto —— 场景/时间轴数据模型（序列化格式）
+//
+//  设计依据：《media-server-sync-design.md》§3（数据模型）
+//    * Scene 描述与平台无关，Protobuf 序列化，是 Editor→Player 的"通用语言"；
+//    * 本文件是 §3 结构的落地：Scene / Screen / Timeline / Track / Clip / Asset；
+//    * 时间单位全线统一为【微秒 us】（设计文档 §6.1 补丁：禁止 ns/us 混用）；
+//    * 坐标系：虚拟大画布坐标（双精度浮点），各 Player 的 ScreenMapper 负责把
+//      画布矩形映射到本机 screen 输出（§5.6）；
+//    * 扩展新媒体类型（§4.7）：Asset.kind 加枚举 + Asset.payload 加 oneof 变体
+//      + MediaFactory 注册一行，Player 数据驱动零改动。
+//
+//  语法：proto3；生成方式见 core/CMakeLists.txt 中的 protoc 自定义命令。
+// ============================================================================
+
+syntax = "proto3";
+
+// 命名空间约定：protobuf 生成类型位于 ms_proto，
+// 与运行时内存模型（ms::，SceneModel.hpp）严格分离，避免同名类型冲突。
+package ms_proto;
+
+// ---------------------------------------------------------------------------
+// 素材种类 —— 与 MediaFactory 的注册键一一对应（§4.7 工厂注册表）
+// 约定：0 必须是 UNKNOWN（proto3 枚举首值默认 0，解析未知枚举会落回 0）
+// ---------------------------------------------------------------------------
+enum AssetKind {
+  ASSET_UNKNOWN = 0;  // 未知/未设置（解析容错用）
+  ASSET_VIDEO   = 1;  // 视频文件（FfmpegMediaSource 实现）
+  ASSET_IMAGE   = 2;  // 静态图片（FfmpegMediaSource 实现）
+  ASSET_TEXT    = 3;  // 文本（TextMediaSource 实现，Phase 4）
+  ASSET_AUDIO   = 4;  // 音频（Player 端仅消费时间信息，不出声，§4.4）
+  ASSET_LIVE    = 5;  // 实时源（LiveHub：NDI/窗口捕获/Spout/网络流）——
+                      // 无文件、随场景 pb 分发（同文本模式）；display 端
+                      // 统一经 LiveMediaSource 消费 editor 再发布的流
+  ASSET_CONTROL = 6;  // 控制指令（2026-11-13 Control 片段）——无媒体文件、
+                      // 无画布呈现；指令表在 Clip.control_messages（JSON）。
+                      // 仅编辑器端消费：播放头上升沿进片段 → 逐条灌
+                      // StatusContainer（合并前 Trigger 片段的语义后继）
+}
+
+// ---------------------------------------------------------------------------
+// 变换 —— Clip 在虚拟画布上的几何/合成属性
+// 坐标单位：虚拟画布像素（double）；透明度 [0,1]
+// ---------------------------------------------------------------------------
+message Transform {
+  double x = 1;        // 画布坐标 X（左上角）
+  double y = 2;        // 画布坐标 Y（左上角）
+  double w = 3;        // 绘制宽度（<=0 表示使用素材原始宽度）
+  double h = 4;        // 绘制高度（<=0 表示使用素材原始高度）
+  double rotation = 5; // 旋转角度（度，顺时针，绕中心）
+  // 【optional 语义（2026-11-05）】普通 proto3 标量缺席时反序列化为 0.0，
+  // 会把内存模型的业务默认 1.0 覆盖成全透明（旧场景/手工场景即黑屏）。
+  // optional 提供 has_opacity()：loader 读侧缺席回填 1.0、显式 0 照常保留；
+  // wire 格式与普通标量完全一致，前后版本互通无影响。
+  optional double opacity = 6;  // 不透明度 [0,1]，1.0 为完全不透明
+  int32  z = 7;        // 叠放层级：小值先绘制（在底层），大值后绘制（在顶层）
+  // 锚点（2026-11-09）：旋转/缩放的枢轴。0=中心（默认）/ 1=左上 / 2=右上 /
+  // 3=右下 / 4=左下。普通标量"缺席 = 0 = 业务默认"（中心 = 历史行为），
+  // 无 optional 陷阱。
+  int32  anchor = 8;
+  // 四角点位移（2026-11-09 corner pin，画布域 px）：8 值定长，序 =
+  // 左上(dx,dy)/右上(dx,dy)/右下(dx,dy)/左下(dx,dy)。全 0 = 无变形
+  //（写侧省略不写，保持 wire 兼容）；读侧长度非 0 非 8 时整体丢弃
+  //（数据损坏宁缺勿错，不 fail 整个场景）。
+  repeated double corner = 9;
+  // ---- 姿态与裁切（2026-11-09 v3，DaVinci Resolve Inspector 分组扩展）----
+  // 全部为"缺席 = 0 = 业务默认（无旋转/无裁切）"的普通标量，无 optional
+  // 陷阱；写端非 0 才写（wire 兼容——旧读端遇未知字段自动忽略）。
+  // rot_x/rot_y：俯仰/偏航旋转（度；渲染端绕锚点做 3D 旋转 + 透视投影
+  // 推算四角，走既有变形 quad 管线——片上近似为两三角仿射，见
+  // CanvasGeometry::quadCorners3D 注释）。rot_x=俯仰（绕画布 X 轴），
+  // rot_y=偏航（绕画布 Y 轴）；rotation（5 号位）= 偏转/滚转（绕画布
+  // Z 轴，2D 旋转）。
+  double rot_x = 10;   // 俯仰旋转 X（度）
+  double rot_y = 11;   // 偏航旋转 Y（度）
+  // 裁切（画布 px，相对【未裁切】名义矩形边缘向内收）：被裁区域不显示，
+  // 内容不缩放不回写（与角点同"末端修正"哲学——四边各自独立）。
+  double crop_l = 12;  // 左侧裁切 px
+  double crop_r = 13;  // 右侧裁切 px
+  double crop_t = 14;  // 顶部裁切 px
+  double crop_b = 15;  // 底部裁切 px
+}
+
+// ---------------------------------------------------------------------------
+// Tween 关键帧动画（2026-11-05 建立对标 WATCHOUT 通道体系；
+// 2026-11-09 v2 重构为 DaVinci Resolve Inspector 打包属性模式）
+//
+// 模型定位（用户拍板的"3D 合成器"分层）：变换曲线定义住在 Clip（条目）上，
+// 随场景文档一次性分发；运行时只流动播放头 t，参数值是每帧本地插值结果，
+// 永不在线传输。
+//
+// v2 打包属性（用户定案）：二维值（位置/尺寸/角点位移）打包成一条属性——
+// 每条属性单独打键（一个键携带 v0/v1 两分量），时间轴片段带上的关键帧
+// 菱形不分属性、样式统一。旧 v1 标量通道格式（X/Y/W/H/Corner*_X/_Y 独立
+// 打键）不兼容——Clip.tween_ver < 2 的场景加载时整段清空 tweens（变换
+// 回落静态基准值），编辑器保存后即为 v2 格式。
+// v3（2026-11-09）：Position 升三维（v0/v1/v2=x/y/z，独立 Z=5 通道退役，
+// ver==2 读入后迁移合并）；新增姿态 X/Y 与裁切四边。
+// v4（2026-11-09，用户定案"姿态合并一行按轴命名"）：Rotation=3 升三维
+//（v0=俯仰/v1=偏航/v2=滚转，UI 分量名 X/Y/Z），独立俯仰/偏航通道
+//（ROTATION_X/Y=10/11）退役——ver≤3 读入后迁移合并，保存即为 v4。
+// ---------------------------------------------------------------------------
+enum TweenProp {
+  TWEEN_PROP_UNKNOWN   = 0;  // 未知/未设置（proto3 枚举首值，解析容错）
+  TWEEN_PROP_POSITION  = 1;  // 三维打包（v3）：v0=画布 X，v1=画布 Y，v2=Z
+  TWEEN_PROP_SIZE      = 2;  // 二维打包：v0=绘制宽度 W，v1=绘制高度 H
+  TWEEN_PROP_ROTATION  = 3;  // 三维打包（v4）：v0=俯仰（绕画布 X 轴，正=
+                             // 顶边后仰）、v1=偏航（绕画布 Y 轴，正=右缘
+                             // 远离）、v2=滚转（绕画布 Z 轴，2D 旋转顺时针）
+  TWEEN_PROP_OPACITY   = 4;  // 标量：不透明度 [0,1]
+  TWEEN_PROP_Z         = 5;  // 【v3 退役】v2 独立 Z 通道——读端（ver==2）
+                             // 迁移进 Position 的 v2 分量；枚举值保留不重用
+  // 角点位移（每角一条二维打包属性；画布 px 末端修正偏移量，作用在
+  // 旋转后的角上）
+  TWEEN_PROP_CORNER_LT = 6;  // 左上角 (v0=dx, v1=dy)
+  TWEEN_PROP_CORNER_RT = 7;  // 右上角 (v0=dx, v1=dy)
+  TWEEN_PROP_CORNER_RB = 8;  // 右下角 (v0=dx, v1=dy)
+  TWEEN_PROP_CORNER_LB = 9;  // 左下角 (v0=dx, v1=dy)
+  // ---- v3 扩展（2026-11-09，DaVinci 五分组）----
+  // 【v4 退役】独立俯仰/偏航通道——读端（ver≤3）迁移合并进 Rotation=3
+  // 的 v0/v1 分量（migrateV3PoseChannel）；枚举值保留不重用（旧文件判据
+  // 安全）。写端不再产出。
+  TWEEN_PROP_ROTATION_X = 10; // 俯仰（绕画布 X 轴）
+  TWEEN_PROP_ROTATION_Y = 11; // 偏航（绕画布 Y 轴）
+  // 裁切（标量，画布 px，向内收；用户行序"上下左右"映射 UI，数据序 LRTB）
+  TWEEN_PROP_CROP_LEFT   = 12;
+  TWEEN_PROP_CROP_RIGHT  = 13;
+  TWEEN_PROP_CROP_TOP    = 14;
+  TWEEN_PROP_CROP_BOTTOM = 15;
+  // 音频增益（2026-11-10，标量线性增益）：v0 = gain（1.0=不衰减，0=静音，
+  // >1 允许增益提升）；无音频通道的片段此通道无效果（音频链路 P2 后生效）
+  TWEEN_PROP_AUDIO_GAIN  = 16;
+}
+
+// 关键帧间插值方式（对应 WATCHOUT 的 Tween 类型）
+enum TweenInterp {
+  TWEEN_INTERP_LINEAR = 0;  // 线性（默认，proto3 缺席 = 0 = 线性）
+  TWEEN_INTERP_HOLD   = 1;  // 阶跃：保持本关键帧值直到下一关键帧
+  TWEEN_INTERP_SMOOTH = 2;  // 平滑缓动：3t²-2t³（Hermite 零端斜率）
+}
+
+// 单个关键帧（v2 打包属性：一个键携带该属性全部分量；v3 三维打包：
+// Position 键携带 v0/v1/v2 三分量——x/y/z，2026-11-09 v3 定案）
+message Keyframe {
+  int64 t_us = 1;           // 相对 clip.start_us 的局部时间 ∈ [0, duration_us]
+  double v0 = 2;            // 标量值 / 向量第一分量（按 prop 解释单位）
+  double v1 = 3;            // 向量第二分量（二维/三维属性用；标量属性忽略）
+  TweenInterp interp = 4;   // 从本关键帧到下一关键帧的插值方式（整键统一，
+                            // 作用到全部分量）
+  double v2 = 5;            // 向量第三分量（v3 Position 的 z；其余属性忽略）
+}
+
+// 一条 tween 通道 = 某个属性随时间的关键帧序列（keys 按 t_us 升序）
+message TweenChannel {
+  TweenProp prop = 1;       // 动画属性
+  repeated Keyframe keys = 2; // 关键帧序列（加载期校验排序/合法性）
+}
+
+// ---------------------------------------------------------------------------
+// 文本载荷 —— TextMediaSource 的渲染参数（2026-11-05 文本片段完整化）
+// 新增字段全部为"缺席 = 业务默认"的普通标量（默认 0 恰是业务默认：
+// 非粗斜/左上对齐/无背景），无 opacity 类"缺席覆盖非零默认"陷阱。
+// ---------------------------------------------------------------------------
+message TextPayload {
+  string content   = 1; // 文本内容（UTF-8；'\n' 分行，无自动折行）
+  string font      = 2; // 字体显示名（映射系统字体表；空 = 默认雅黑）
+  int32  font_size = 3; // 字号（像素）
+  uint32 color     = 4; // 文本颜色 0xRRGGBB
+  bool   bold      = 5; // 粗体（映射粗体字体文件；缺文件仿粗叠加）
+  bool   italic    = 6; // 斜体（仿斜 ≈12°，两端同源）
+  int32  h_align   = 7; // 水平对齐：0=左 1=中 2=右（多行行间对齐；帧为
+                         // 自然尺寸故垂直方向无对齐自由度）
+  uint32 bg_color  = 9; // 背景色 0xRRGGBB；0 = 无背景（透明底）
+  // 字号 8 号位预留（曾拟 v_align 垂直对齐——自然尺寸模式下无自由度，
+  // 未实装；未来"固定框排版"模式可启用）
+}
+
+// ---------------------------------------------------------------------------
+// 实时载荷 —— LiveHub 实时源的接入参数（2026-11-08 Live Hub）
+// 语义分工：editor 端 LiveHub 按 ingest 类型用对应采集器（Ingest 注册表：
+// NdiIngest/WgcIngest/SpoutIngest，见 core/live/LiveIngest.hpp）收源并
+// NDI re-publish；display 端消费再发布流或同机直收（LiveMediaSource 同表
+// 装配）。
+// ---------------------------------------------------------------------------
+message LivePayload {
+  string source_name = 1; // 源标识（按 ingest 解释：NDI 源名 / sender 名 /
+                          // "标题 [hwnd:hex]" / "显示器 N [hmon:hex]"）
+  string url         = 2; // 网络流 URL（rtsp:// srt:// udp://；ingest=network）
+  int32  ingest      = 3; // 采集器类型：0=ndi 1=window 2=spout 3=network 4=monitor
+                          // 5=camera（枚举与 SceneModel::LiveIngest 一一对应）
+  int32  latency     = 4; // 延迟模式：0=最低（帧到即显，默认）1=同步
+                          // （保持源节奏，缓冲 2~3 帧）——对齐 WATCHOUT
+                          // Sync Mode Off/Maintain 语义
+}
+
+// ---------------------------------------------------------------------------
+// 素材 —— 媒体文件的元数据描述；文件本体经 HTTP 分发（§5.5 Distributor）
+// ---------------------------------------------------------------------------
+message Asset {
+  string id         = 1;  // 全局唯一 ID（uuid）
+  AssetKind kind    = 2;  // 素材种类
+  string path       = 3;  // 相对素材根目录的路径（跨平台用 '/' 分隔）
+  uint64 size_bytes = 4;  // 文件大小（字节；分发完整性校验用）
+  string checksum   = 5;  // 校验和（CRC32/MD5，"算法:hex" 格式）
+  int64  duration_us = 6; // 视频/音频时长（us）；图片/文本为 0
+  int32  width      = 7;  // 像素宽（视频/图片）
+  int32  height     = 8;  // 像素高（视频/图片）
+  double fps        = 9;  // 帧率（视频），图片/文本为 0
+
+  // 类型专属载荷（扩展点，§4.7）
+  oneof payload {
+    TextPayload text = 20; // kind == ASSET_TEXT 时有效
+    LivePayload live = 21; // kind == ASSET_LIVE 时有效（无文件，path 恒空）
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 片段 —— 时间轴上的最小编排单元
+// 时间约定【前闭后开】：t ∈ [start_us, start_us + duration_us) 时活跃
+// （t == start 活跃，t == end 不活跃；保证相邻片段在切换点不重叠）
+// ---------------------------------------------------------------------------
+message Clip {
+  string id       = 1; // 全局唯一 ID
+  string asset_id = 2; // 引用 Scene.assets 中的素材（校验：必须存在且类型匹配轨道）
+  int64  start_us    = 3; // 时间轴起点（us，>= 0）
+  int64  duration_us = 4; // 播放时长（us，> 0）
+  int64  in_us       = 5; // 素材内部入点（us，>= 0）：t 时刻取素材的 in_us + (t - start_us) 处
+  Transform transform = 6; // 画布变换属性（静态基准值；有 tween 通道的属性
+                           // 每帧被通道值覆写，无通道的属性恒用基准值）
+  // Tween 关键帧通道（2026-11-05 建立；2026-11-09 v2 打包属性重构）：
+  // 声明式变换动画，定义随场景分发，运行时只流动播放头 t
+  // （evaluate 内逐帧插值，见 TweenEngine）
+  repeated TweenChannel tweens = 7;
+  // Tween 格式版本（打包属性判据）：写端恒为 3（v3）；读端 < 2 = 旧 v1
+  // 标量通道格式（整段清空）；== 2 = v2 打包（读入后 Z 通道迁移进
+  // Position 的 v2 分量——2026-11-09 v3 定案）。
+  // proto3 缺席 = 0 < 2，旧文件天然命中重置分支。
+  uint32 tween_ver = 8;
+  // 音频增益静态基准（2026-11-10）：线性增益（1.0=不衰减）。【optional
+  // 语义（opacity 类先例）】普通标量缺席反序列化 0.0 = 静音——会把所有
+  // 旧工程打哑；必须 optional + has_ 判定，loader 读侧缺席回填 1.0、
+  // 显式 0（静音）照常保留。有 AudioGain tween 通道时被通道整条接管。
+  optional double audio_gain = 9;
+  // Control 片段的触发指令表（2026-11-13 Control 片段）：JSON 文本——
+  // OSCMessageListWidget 的 save/load 格式（{"messages":[{address/type/
+  // value...},...]}）。仅 kind=Control 轨道的片段使用；其余类型恒空。
+  // 播放头上升沿进入片段时由编辑器触发引擎逐条灌入 StatusContainer
+  // （statusUpdated → WS 8992 广播 / GlobalEventBus 控件联动）。
+  string control_messages = 10;
+}
+
+// ---------------------------------------------------------------------------
+// 轨道 —— 同类片段的容器，带类型约束（§4.2：轨道→类型约束）
+// ---------------------------------------------------------------------------
+message Track {
+  string id   = 1; // 全局唯一 ID
+  string name = 2; // 显示名
+  AssetKind kind = 3; // 轨道类型约束：本轨上的 Clip 引用素材必须为此类型
+  repeated Clip clips = 4; // 片段列表（时间上允许任意排布，允许同轨交叠：交叠时后绘制属性由 z 决定）
+}
+
+// ---------------------------------------------------------------------------
+// 时间轴 —— 播放头驱动的编排数据（evaluate(t) 纯函数的输入）
+// ---------------------------------------------------------------------------
+message Timeline {
+  int64 duration_us = 1; // 时间轴总时长（us；0 表示按片段自动推算）
+  repeated Track tracks = 2;
+}
+
+// ---------------------------------------------------------------------------
+// 屏幕输出变形（2026-11-09，WATCHOUT 式网格变形）
+// 节点目标位置为输出归一化坐标 [0,1]（y 向下、行主序）——display 端
+// 合成后按网格把 1:1 画布内容贴到物理输出（两段式渲染）。
+// mode=2 为 MPCDI 预留位（本轮不实装）；融合/blending 后续接入。
+// ---------------------------------------------------------------------------
+message ScreenWarp {
+  int32 mode = 1;              // 0=无变形 1=手动网格 2=MPCDI（预留）
+  int32 cols = 2;              // 网格列数（节点数，含边界；[2,16]）
+  int32 rows = 3;              // 网格行数（同上）
+  repeated double pts = 4;     // 节点位置 x,y 交错，size = cols*rows*2
+}
+
+// ---------------------------------------------------------------------------
+// 屏幕 —— 虚拟画布中的一个物理输出区域，绑定到某个 Player（§2.1 渲染形态）
+// 旋转语义：屏是画布上可旋转的取景窗（竖屏/异形拼接），内容方向跟随画布
+// ---------------------------------------------------------------------------
+message Screen {
+  string id        = 1; // 全局唯一 ID
+  string player_id = 2; // 绑定的 Player 标识（注册时上报，§6.2 MsgRegister）
+  double x = 3;  // 在虚拟画布中的矩形（画布坐标）
+  double y = 4;
+  double w = 5;  // 宽高（> 0）
+  double h = 6;
+  double rotation = 7; // 旋转角度（度，顺时针，绕矩形中心）
+  int32  z        = 8; // 叠放层级：多屏重叠时小值先绘（底层），大值后绘
+  ScreenWarp warp = 9; // 输出变形网格（message 缺席 = 无变形，自带 has_warp）
+}
+
+// ---------------------------------------------------------------------------
+// 场景 —— 顶层容器，Editor 编辑/分发的完整单元
+// version 字段仅作日志/展示标识（第七迭代：全量广播无版本比对语义）
+// ---------------------------------------------------------------------------
+message Scene {
+  string id      = 1; // 全局唯一 ID
+  string version = 2; // 场景版本号（每次编辑递增）
+  double canvas_w = 3; // 虚拟画布宽（像素，> 0）
+  double canvas_h = 4; // 虚拟画布高（像素，> 0）
+  repeated Screen screens  = 5; // 输出屏幕布局
+  Timeline timeline        = 6; // 时间轴编排
+  repeated Asset assets    = 7; // 素材表（clip 通过 asset_id 引用）
+}
+
+// ---------------------------------------------------------------------------
+// 显示端登记 —— 第五迭代（.show 项目文件 / editor 主动连接显示端）
+//
+// 显示端（media_display）启动后自动监听 TCP 端口零操作等待；Editor 端
+// 按「显示端登记列表」逐个主动连接并同步数据（WATCHOUT 模型）。
+// display_id 与 Scene.screens[].player_id 对应（Screen 绑定显示端的键）。
+// ---------------------------------------------------------------------------
+message DisplayEntry {
+  string display_id = 1; // 显示端标识（= Register.player_id = screen.player_id）
+  string host       = 2; // 显示端主机（IP/主机名）
+  uint32 port       = 3; // 显示端监听端口（默认 17100）
+  bool   enabled    = 4; // 停用后 Editor 不再连接/同步该端
+  // 配对码（2026-11-03 多 Editor 隔离）：非空 = 连接后先发 MsgAuth 配对帧，
+  // 显示端校验通过才接受本 Editor 的场景/命令（须与显示端 config.ini 的
+  // [display] pairing_code 一致）。空 = 不认证（显示端也未配码时零配置互通）。
+  string pairing_code = 5;
+}
+
+// ---------------------------------------------------------------------------
+// 项目文档 —— .show 文件的完整内容（第五迭代：完整序列化/反序列化）
+// 一个 .show = 一个场景（Scene）+ 显示端登记列表（displays）。
+// Scene 的解析校验复用 SceneLoader::fromProto（引用完整性 fail-fast）。
+// ---------------------------------------------------------------------------
+message ShowDocument {
+  Scene scene = 1;                       // 场景（画布即预览画布本身）
+  repeated DisplayEntry displays = 2;    // 显示端登记列表
+}

@@ -12,7 +12,7 @@ Flow / FlowRuntime 在开发与分发过程中使用了以下第三方开源项�
 - [QtNodes](https://github.com/bwll1989/nodeeditor) — 可视化节点图编辑器
 - [Qt Advanced Docking System](https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System) — 可停靠面板布局
 - [QWindowKit](https://github.com/stdware/qwindowkit) — 无边框窗口
-- [QtTimeLine](https://github.com/bwll1989/QtTimeLine) — 时间轴组件
+- [QtTimeLine](https://github.com/bwll1989/QtTimeLine) — 时间轴组件（已收编为内置静态库）
 - [Qt Color Widgets](https://github.com/mbasaglia/Qt-Color-Widgets) — 颜色选择控件
 - Qt Property Browser（源自 Qt Solutions） — 属性编辑控件
 - [QScintilla](https://www.riverbankcomputing.com/software/qscintilla/)（2.14.1） — 代码编辑器组件

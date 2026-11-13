@@ -15,7 +15,7 @@ public:
         return "Mapping";
     }
 
-    AbstractClipModel* createModel(int start) override {
+    TimeLineClipModel* createModel(int start) override {
         return new Clips::MappingClipModel(start);
     }
 };

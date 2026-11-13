@@ -48,7 +48,7 @@ public:
      * 注意：registerOSCControl 只接受 QWidget*，需通过 widgetForAction 将 QAction 转换为控件
      */
     TimeLineDataModel(){
-        // 静态库中的资源必须显式初始化一次（前缀 :/tlnode/icons，与 QtTimeLine.dll 的 :/icons 隔离）
+        // 静态库中的资源必须显式初始化一次（前缀 :/tlnode/icons，与旧 QtTimeLine 的 :/icons 隔离）
         static bool s_tlnodeResourcesInitialized = false;
         if (!s_tlnodeResourcesInitialized) {
             Q_INIT_RESOURCE(tlnode_resources);
@@ -172,9 +172,9 @@ public:
 
         for (TrackData* track : model->getTracks()) {
             if (!track) continue;
-            for (AbstractClipModel* clip : track->clips) {
+            for (TimeLineClipModel* clip : track->clips) {
                 // 剪辑代理基类是本节点私有的 NodeClipDelegateModel（继承静态副本
-                // AbstractClipModel），不能用 BaseClass.dll 的 AbstractClipDelegateModel
+                // TimeLineClipModel），不能用 BaseClass.dll 的 AbstractClipModel
                 if (auto* delegate = dynamic_cast<NodeClipDelegateModel*>(clip)) {
                     delegate->onModelReady();
                 }

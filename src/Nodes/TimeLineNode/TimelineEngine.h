@@ -2,7 +2,7 @@
 // TimelineEngine.h —— TimeLineNode 内置时间线引擎（单头版）
 //
 // 本文件由原 QtTimeLine 副本的 18 个头文件合并而成（TimeLineDefines/TimeLineStyle/
-// AbstractClipModel/AbstractClipInterface/NodeClipDelegateModel/
+// AbstractClipModel[现名 TimeLineClipModel]/AbstractClipInterface/NodeClipDelegateModel/
 // BasePluginLoader/BaseTimeLineModel/BaseTimeLineView/BaseTrackDelegate/
 // BaseTrackListView/BaseTimeLineToolBar/ClipTimePanel/ClipAppearancePanel），
 // 实现在 TimelineEngine.cpp（原 9 个 .cpp 合并）。
@@ -10,7 +10,7 @@
 // OSCMessage/TimeCodeDefines 改为引用 src/Common/AppConfig/ 的全软件唯一版本。
 //
 // 设计要点：
-//  - 与主 timeline（3rdParty/QtTimeLine.dll + plugins/TimeLine/*.plugin）完全
+//  - 与主 timeline（原 QtTimeLine 体系 + plugins/TimeLine/*.plugin）完全
 //    隔离，主 timeline 升级不影响本节点。
 //  - 以 NODE_TIMELINE_STATIC 编译，NODE_TIMELINE_PUBLIC 展开为空；
 //    即使 BaseClass 经 INTERFACE 传入 NODE_TIMELINE_SHARED 也以 STATIC 优先。
@@ -147,7 +147,7 @@ Q_NAMESPACE_EXPORT(NODE_TIMELINE_PUBLIC)
 //      - QSS 通过 qproperty- 覆盖成员值（见 BaseTimeLineView.h / BaseTrackListView.h）。
 // 3. 标注 [clip-sync] 的变量是绘制桥接缓存：
 //      BaseTimelineView::applyStyleFromProperties() 会在 QSS 生效/变化时，
-//      把视图成员颜色同步到这些全局量，供片段(AbstractClipModel 子类)的
+//      把视图成员颜色同步到这些全局量，供片段(TimeLineClipModel 子类)的
 //      paint() 代码读取——片段模型不是 QWidget，无法直接被 QSS qproperty- 定向。
 //      除该同步函数外，任何代码都不应再写这些全局量。
 //
@@ -222,7 +222,7 @@ inline QColor ClipSelectedColor = QColor("#39571E");           // 片段选中�
 #endif // TIMELINESTYLE_H
 
 
-// ---------- AbstractClipModel.hpp ----------
+// ---------- 片段模型基类段（源自旧 QtTimeLine AbstractClipModel.hpp；类已改名 TimeLineClipModel）----------
 #include <QtCore/QObject>
 #include <QtCore/QString>
 #include <QtCore/QJsonObject>
@@ -258,10 +258,10 @@ inline QColor ClipSelectedColor = QColor("#39571E");           // 片段选中�
 class ClipTimePanel;
 class ClipAppearancePanel;
 using namespace QtTimeline;
-class NODE_TIMELINE_PUBLIC AbstractClipModel : public QObject {
+class NODE_TIMELINE_PUBLIC TimeLineClipModel : public QObject {
     Q_OBJECT
 public:
-    explicit AbstractClipModel(int start,const QString& type, QObject* parent=nullptr): QObject(parent),
+    explicit TimeLineClipModel(int start,const QString& type, QObject* parent=nullptr): QObject(parent),
     m_type(type),
     m_start(start),
     m_end(start+100),
@@ -278,7 +278,7 @@ public:
     /**
      * 析构函数
      */
-~AbstractClipModel() override 
+~TimeLineClipModel() override 
 {
     // 关闭并删除属性窗口
     if (m_standardPropertyWidget && m_standardPropertyWidget->isVisible()) {
@@ -469,7 +469,7 @@ virtual QJsonObject save() const {
 virtual QVariant data(int role) const {
     switch (role) {
         case TimelineRoles::ClipModelRole:
-            return QVariant::fromValue<AbstractClipModel*>(const_cast<AbstractClipModel*>(this));
+            return QVariant::fromValue<TimeLineClipModel*>(const_cast<TimeLineClipModel*>(this));
         case TimelineRoles::TrackNameRole:
             return QVariant::fromValue<QString>(m_type);
         case TimelineRoles::ClipNoteRole:
@@ -501,7 +501,7 @@ virtual QWidget* clipPropertyWidget(){return nullptr;};
      * 生成标准属性窗口，其中包含自定义的属性
      * @return QWidget* 属性窗口
      */
-// 实现位于 AbstractClipModel.cpp（保持与 initPropertyWidget 一致的非内联导出方式）
+// 实现位于 TimelineEngine.cpp（保持与 initPropertyWidget 一致的非内联导出方式）
 void showPropertyWidget();
     /**
      * 绘制片段
@@ -509,11 +509,11 @@ void showPropertyWidget();
      * @param const QRect& rect 绘制区域
      * @param bool selected 是否被选中
      */
-// AbstractClipModel::initPropertyWidget
+// TimeLineClipModel::initPropertyWidget（原 AbstractClipModel::initPropertyWidget）
 // 函数说明：初始化属性面板，此处将“时间属性”界面独立为 ClipTimePanel，并保持原有功能与信号连接。
 // 实现说明：本函数创建 ClipTimePanel / ClipAppearancePanel 等 Q_OBJECT 窗口，
 // 为避免宿主插件在内联展开时引用面板的 staticMetaObject 数据符号（数据符号无法
-// 从导入库解析），实现已移至 AbstractClipModel.cpp，此处仅保留声明。
+// 从导入库解析），实现已移至 TimelineEngine.cpp，此处仅保留声明。
 virtual void initPropertyWidget();
 
 virtual void paint(QPainter* painter, const QRect& rect, bool selected) const {
@@ -734,11 +734,10 @@ virtual void drawTitle(QPainter* painter, const QRect& rect) const {
 
 };
 
-Q_DECLARE_METATYPE(AbstractClipModel*)
+Q_DECLARE_METATYPE(TimeLineClipModel*)
 
 // ---------- AbstractClipInterface.h ----------
 #include <QtPlugin>
-// #include "Widget/TimeLineWidget/TimelineAbstract/AbstractClipDelegate.hpp"
 
 class ClipPlugInterface
 {
@@ -755,9 +754,9 @@ public:
     /**
      * 创建模型
      * @param int start 开始
-     * @return AbstractClipModel* 模型
+     * @return TimeLineClipModel* 模型
      */
-    virtual AbstractClipModel* createModel(int start) = 0;
+    virtual TimeLineClipModel* createModel(int start) = 0;
     /**
      * 创建代理
      * @return AbstractClipDelegate* 代理
@@ -775,11 +774,15 @@ Q_DECLARE_INTERFACE(ClipPlugInterface, ClipPlugInterface_iid)
 //
 // NodeClipDelegateModel —— TimeLineNode 私有版剪辑代理基类。
 //
-// 说明：主工程的 AbstractClipDelegateModel（Common/BaseClass.dll）继承的是
-// QtTimeLine.dll 的 AbstractClipModel；而本节点将 QtTimeLine 静态私有化后，
-// 剪辑必须继承"本目录静态副本"的 AbstractClipModel，二者不能混用
-// （同一 clip 对象出现两条不同 vtable 链会导致崩溃）。
-// 本类完整复刻 AbstractClipDelegateModel 的对外行为：
+// 说明：【2026-11-13 两套片段基类已各自归位、名字不再撞车】
+//   * 编辑器时间轴体系：AbstractClipModel（src/Common/BaseClass.dll 导出，
+//     随 SceneClipModel/ClipPlugInterface 供 Flow 主 timeline 用）；
+//   * 本节点引擎体系：TimeLineClipModel（本头文件内置静态副本，原同名
+//     AbstractClipModel 改名以消除混淆），剪辑必须继承本目录的
+//     NodeClipDelegateModel → TimeLineClipModel 链，绝不可混入
+//     BaseClass.dll 的 AbstractClipModel——两条继承链 vtable 不同，
+//     同一 clip 对象跨链使用必崩。
+// 本类完整复刻主工程 AbstractDelegateModel 的对外行为：
 //   registerExternalControl / makeFullOscAddress / stateFeedBack /
 //   onModelReady / afterModelReady，但基类换成静态副本。
 //
@@ -798,17 +801,17 @@ Q_DECLARE_INTERFACE(ClipPlugInterface, ClipPlugInterface_iid)
 #include "Common/Devices/StatusContainer/StatusContainer.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 
-class NodeClipDelegateModel : public AbstractClipModel {
+class NodeClipDelegateModel : public TimeLineClipModel {
     Q_OBJECT
 public:
     explicit NodeClipDelegateModel(int start, const QString& filePath = QString(), QObject* parent = nullptr)
-        : AbstractClipModel(start, filePath, parent) {}
+        : TimeLineClipModel(start, filePath, parent) {}
 
     ~NodeClipDelegateModel() override = default;
 
     void setId(ClipId id) override {
         // 函数级注释：设置剪辑 ID 后触发一次统一的控件注册与状态推送
-        AbstractClipModel::setId(id);
+        TimeLineClipModel::setId(id);
         onModelReady();
     }
 
@@ -910,7 +913,7 @@ public:
     /**
      * 函数级注释：静态注册一个内置剪辑工厂（TimeLineNode 私有副本专用）
      * - 本节点不再从 bin/plugins/TimeLine 动态加载插件（那些插件继承
-     *   QtTimeLine.dll 的类，与静态副本不兼容），clip 一律静态注册。
+     *   旧 QtTimeLine 的类，与静态副本不兼容），clip 一律静态注册。
      * @param ClipPlugInterface* plugin 剪辑工厂（所有权由加载器接管）
      */
     virtual void registerPlugin(ClipPlugInterface* plugin);
@@ -938,7 +941,7 @@ public:
      * @param const QString& type 类型
      * @param int start 开始
     */      
-    virtual AbstractClipModel* createModelForType(const QString& type, int start) const ;
+    virtual TimeLineClipModel* createModelForType(const QString& type, int start) const ;
     /**
      * 创建指定类型的代理
      * @param const QString& type 类型
@@ -980,9 +983,9 @@ using namespace QtTimeline;
 struct TrackData {
     QString type;
     QString name;
-    // 修改前: QVector<std::unique_ptr<AbstractClipModel>> clips;
+    // 修改前: QVector<std::unique_ptr<TimeLineClipModel>> clips;
     // 修改后: 使用 QList 替代 QVector
-    QList<AbstractClipModel*> clips;
+    QList<TimeLineClipModel*> clips;
     // 按 start 排序的片段下标。只用于视口裁剪，不改变 clips 的绘制顺序。
     QList<int> clipsByStart;
     int maxClipSpan = 0;
@@ -1161,7 +1164,7 @@ public slots:
     virtual void onMoveTrack(int sourceRow, int targetRow);
 
     // 拖拽期间只改片段几何，松手后再排序、重算长度并发出 dataChanged
-    void beginInteractiveGeometryChange(AbstractClipModel* clip);
+    void beginInteractiveGeometryChange(TimeLineClipModel* clip);
     void endInteractiveGeometryChange();
     void syncInteractiveClipOrder();
 
@@ -1169,11 +1172,11 @@ protected:
     /**
      * @brief 通过 clip 指针反查其在模型中的索引
      * @details
-     * ClipTimePanel 会直接调用 AbstractClipModel::setStart/setEnd 等修改片段。
+     * ClipTimePanel 会直接调用 TimeLineClipModel::setStart/setEnd 等修改片段。
      * 为了让 View 能走 Qt 标准路径刷新，这里提供从 clip 指针构建 QModelIndex 的能力，
      * 以便在监听到 clip 的信号后发出 dataChanged。
      */
-    QModelIndex indexForClip(AbstractClipModel* clip) const;
+    QModelIndex indexForClip(TimeLineClipModel* clip) const;
 
     struct ClipLocation {
         int trackRow = -1;
@@ -1184,16 +1187,16 @@ protected:
     // 增删轨道或片段后重建，供 parent/data/indexForClip 做 O(1) 查询
     void rebuildIndex();
     void rebuildTrackClipOrder(TrackData* track);
-    void noteClipGeometryChanged(AbstractClipModel* clip);
-    void watchClip(AbstractClipModel* clip);
-    void queueClipGeometryNotify(AbstractClipModel* clip);
+    void noteClipGeometryChanged(TimeLineClipModel* clip);
+    void watchClip(TimeLineClipModel* clip);
+    void queueClipGeometryNotify(TimeLineClipModel* clip);
     void flushClipGeometryNotify();
     // 新终点超过当前总长时直接更新。只有原来的最大终点变小才重扫。
     void applyLengthChange(int oldEnd, int newEnd);
     bool isTrackPointer(void* ptr) const;
 
     // 查找片段所在轨道
-    TrackData* findParentTrackOfClip(AbstractClipModel* clip) const ;
+    TrackData* findParentTrackOfClip(TimeLineClipModel* clip) const ;
     // 查找轨道行
     int findTrackRow(TrackData* track) const ;
 
@@ -1209,13 +1212,13 @@ protected:
     // 修改前: QVector<std::unique_ptr<TrackData>> m_tracks;
     // 修改后: 使用 QList 替代 QVector
     QList<TrackData*> m_tracks;
-    std::unordered_map<AbstractClipModel*, ClipLocation> m_clipLocation;
+    std::unordered_map<TimeLineClipModel*, ClipLocation> m_clipLocation;
     std::unordered_set<TrackData*> m_trackSet;
     bool m_deferGeometryNotify = false;
-    AbstractClipModel* m_interactiveClip = nullptr;
+    TimeLineClipModel* m_interactiveClip = nullptr;
     int m_interactiveOriginalEnd = 0;
     bool m_geometryNotifyQueued = false;
-    QList<AbstractClipModel*> m_pendingGeometryClips;
+    QList<TimeLineClipModel*> m_pendingGeometryClips;
 
     qint64 m_currentFrame = 0; // 当前帧
 
@@ -1295,9 +1298,9 @@ signals:
     void scrolled(int dx,int dy);
     /**
      * 当前剪辑改变信号
-     * @param AbstractClipModel* clip 当前剪辑
+     * @param TimeLineClipModel* clip 当前剪辑
      */
-    void currentClipChanged(AbstractClipModel* clip);
+    void currentClipChanged(TimeLineClipModel* clip);
 public slots:
     /**
      * 更新可视区域（原方法）
@@ -1611,7 +1614,7 @@ protected:
      * @param event 鼠标事件对象
      */
     virtual void handleMouseDrag(QMouseEvent *event);
-    void beginClipDrag(AbstractClipModel* clip, const QModelIndex& index);
+    void beginClipDrag(TimeLineClipModel* clip, const QModelIndex& index);
     void finishClipDrag();
 
     /**
@@ -1728,7 +1731,7 @@ protected:
     // 鼠标是否按下
     bool mouseHeld = false;
     bool m_interactiveDrag = false;
-    AbstractClipModel* m_dragClip = nullptr;
+    TimeLineClipModel* m_dragClip = nullptr;
     QPersistentModelIndex m_dragIndex;
     // 播放头是否选中
     bool m_playheadSelected = false;
@@ -1760,7 +1763,7 @@ protected:
     // 滚动时平移已有缓存，只重画新露出来的条带。平移失败时返回 false，调用方整页重建。
     bool shiftStaticCache(int dx, int dy);
     void repaintStaticCache(const QRegion& region);
-    QRect clipContentBounds(AbstractClipModel* clip, int trackRow) const;
+    QRect clipContentBounds(TimeLineClipModel* clip, int trackRow) const;
     QRect playheadDirtyRect(int frame) const;
 
     // 合并重绘用的定时器（单次触发）
@@ -1774,7 +1777,7 @@ protected:
     bool m_staticCacheDirty = true;
     int m_paintedPlayheadFrame = -1;
     // 片段在内容坐标中的上次绘制范围，供局部刷新擦掉旧位置。
-    std::unordered_map<AbstractClipModel*, QRect> m_clipContentRects;
+    std::unordered_map<TimeLineClipModel*, QRect> m_clipContentRects;
     // ========== 新增结束 ==========
     /**
      * 画布平移状态
@@ -2213,7 +2216,7 @@ private:
 
 // ---------- ClipTimePanel.hpp ----------
 // ClipTimeGroupBox
-// 类说明：封装“时间属性”界面，将原先 AbstractClipModel::initPropertyWidget 中的 timeGroupBox 独立为 QGroupBox 子类。
+// 类说明：封装“时间属性”界面，将原先 TimeLineClipModel::initPropertyWidget 中的 timeGroupBox 独立为 QGroupBox 子类。
 // 职责：构建开始/结束/总长的控件，统一显示为绝对时间（毫秒）00:00:00:000；
 //       管理信号连接：文本框修改触发 setStart/setEnd，与 spinbox 行为一致；响应模型的时间/长度变化信号同步更新 UI。
 
@@ -2224,12 +2227,12 @@ private:
 #include <QLineEdit>
 #include <QCheckBox>
 #include <QTimeEdit>
-class AbstractClipModel;
+class TimeLineClipModel;
 class NODE_TIMELINE_PUBLIC ClipTimePanel : public QGroupBox {
     Q_OBJECT
 public:
-    // 构造函数：创建并布置 UI，连接信号到 AbstractClipModel，保持原有功能
-    explicit ClipTimePanel(AbstractClipModel* owner, QWidget* parent = nullptr);
+    // 构造函数：创建并布置 UI，连接信号到 TimeLineClipModel，保持原有功能
+    explicit ClipTimePanel(TimeLineClipModel* owner, QWidget* parent = nullptr);
     void initSignalConnections();
 public:
     IntDragValueWidget* m_startFrameSpinBox {nullptr};
@@ -2257,8 +2260,8 @@ private:
     int clampEndFrame(int frames) const;
     void refreshFrameRanges();
 private:
-    AbstractClipModel* m_owner {nullptr};
-    // 本地控件（不强制写回到 AbstractClipModel 的成员，避免循环依赖）
+    TimeLineClipModel* m_owner {nullptr};
+    // 本地控件（不强制写回到 TimeLineClipModel 的成员，避免循环依赖）
     QGridLayout* m_timeLayout {nullptr};
     QLabel*      m_startFrameLabel {nullptr};
     QLabel*      m_lengthFrameLabel {nullptr};
@@ -2271,7 +2274,7 @@ private:
 #include <QColor>
 #include <QList>
 
-class AbstractClipModel;
+class TimeLineClipModel;
 class QButtonGroup;
 class QLineEdit;
 class QLabel;
@@ -2312,7 +2315,7 @@ class NODE_TIMELINE_PUBLIC ClipAppearancePanel : public QGroupBox {
     // 当前颜色指示块边框
     Q_PROPERTY(QColor currentColorBorderColor READ currentColorBorderColor WRITE setCurrentColorBorderColor)
 public:
-    explicit ClipAppearancePanel(AbstractClipModel* owner, QWidget* parent = nullptr);
+    explicit ClipAppearancePanel(TimeLineClipModel* owner, QWidget* parent = nullptr);
 
     QColor swatchBorderColor() const { return m_swatchBorderColor; }
     void setSwatchBorderColor(const QColor& color) { m_swatchBorderColor = color; }
@@ -2332,7 +2335,7 @@ protected:
 private:
     void syncFromOwner();
 
-    AbstractClipModel* m_owner {nullptr};
+    TimeLineClipModel* m_owner {nullptr};
     QButtonGroup* m_colors {nullptr};
     QLineEdit* m_noteEdit {nullptr};
     QLabel* m_currentColor {nullptr};

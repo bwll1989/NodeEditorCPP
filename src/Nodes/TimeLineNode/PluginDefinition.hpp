@@ -5,10 +5,12 @@
 #include <QtNodes/PluginInterface>
 
 // This needs to be the same as the name of your project file ${PROJECT_NAME}
+#ifndef DLL_EXPORT
 #ifdef TimeLineNode_EXPORTS
 #define DLL_EXPORT Q_DECL_EXPORT
 #else
 #define DLL_EXPORT Q_DECL_IMPORT
+#endif
 #endif
 
 #define PLUGIN_NAME "TimeLineNode"

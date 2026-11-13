@@ -16,7 +16,7 @@ Clips::ArtnetClipModel::ArtnetClipModel(int start,const QString& filePath, QObje
         SHOWBORDER = true;
         // 片段默认颜色写入自身（setColor），不再修改全局 ClipColor
         setColor(QColor("#66cccc"));
-        AbstractClipModel::initPropertyWidget();
+        TimeLineClipModel::initPropertyWidget();
         if (!filePath.isEmpty()) {
             loadArtnetInfo(filePath);
         }
@@ -43,17 +43,17 @@ void Clips::ArtnetClipModel::setMedia(const QVariant& path) {
 }
 
 void Clips::ArtnetClipModel::setStart(int start)  {
-    AbstractClipModel::setStart(start);
+    TimeLineClipModel::setStart(start);
     QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
 }
 void Clips::ArtnetClipModel::setEnd(int end)   {
-    AbstractClipModel::setEnd(end);
+    TimeLineClipModel::setEnd(end);
     QMetaObject::invokeMethod(this, "onPropertyChanged", Qt::QueuedConnection);
 }
 
 // 重写保存和加载函数
 QJsonObject Clips::ArtnetClipModel::save() const  {
-    QJsonObject json = AbstractClipModel::save();
+    QJsonObject json = TimeLineClipModel::save();
     json["file"] = m_filePath;
     json["type"] = "Artnet";
     json["targetHost"]=m_targetHost;
@@ -73,7 +73,7 @@ void Clips::ArtnetClipModel::load(const QJsonObject& json)  {
         QSignalBlocker blocker(mediaSelector);
         mediaSelector->setText(m_filePath);
     }
-    AbstractClipModel::load(json);
+    TimeLineClipModel::load(json);
     m_startUniverse->setValue(json["startUniverse"].toInt());
     targetHostEdit->setText( json["targetHost"].toString());
 
@@ -84,9 +84,9 @@ QVariant Clips::ArtnetClipModel::data(int role) const {
     case Qt::DisplayRole:
         return m_filePath;
     case TimelineRoles::ClipModelRole:
-        return QVariant::fromValue(static_cast<AbstractClipModel*>(const_cast< ArtnetClipModel*>(this)));
+        return QVariant::fromValue(static_cast<TimeLineClipModel*>(const_cast< ArtnetClipModel*>(this)));
     default:
-        return AbstractClipModel::data(role);
+        return TimeLineClipModel::data(role);
     }
 }
 

@@ -93,6 +93,7 @@ private:
     QProcess* m_process = nullptr;
     Phase m_phase = Phase::Probe;
     Job m_current;
+    bool m_sourceHasAlpha = false;      // ffprobe 探测到的源是否带 alpha 通道（决定 Hap 变体）
     bool m_audioCopyAttempted = false;  // 当前任务是否已尝试过音频 copy
     double m_durationSec = 0.0;         // ffprobe 探测到的时长（秒），<=0 表示未知
     int m_lastPercent = -1;
