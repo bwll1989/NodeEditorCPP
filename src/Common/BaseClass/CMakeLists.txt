@@ -25,18 +25,27 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
 #      合并关键帧带；全工程唯一 staticMetaObject）
 #    * AbstractClipInterface        —— clip 插件工厂接口（ClipPlugInterface）
 #    * ClipTimePanel/ClipAppearancePanel —— 片段属性通用面板
-#    * TimeLineDefines/TimeLineStyle —— 时间轴共享定义/全局样式
-#      （TimeLineStyle 全局量 extern 化：跨 DLL 单实例，保 [clip-sync]；
-#       TimeCodeDefines 不在本库——与 AppConfig 原有定义合并，引用
+#    * ClipTimePanel/ClipAppearancePanel —— 片段属性通用面板
+#    * TimeLineDefines             —— 时间轴共享定义（hoverState/TimelineRoles/
+#      μs 换算/媒体类型表；AbstractClipModel 接口签名组成部分，随片段基类）
+#    * ClipPaintStyle              —— [clip-sync] 片段绘制桥接量
+#      （ClipColor/ClipBorderColour/ClipBorderWidth/clipround：本库定义唯
+#      一实例，视图 QSS 经 TimeLineBase applyStyleFromProperties 写、片段
+#      paint 读；视图专属样式已迁 ../TimeLineBase/TimeLineStyle）
+#      （TimeCodeDefines 不在本库——与 AppConfig 原有定义合并，引用
 #       "Common/AppConfig/TimeCodeDefines.h"，防双副本漂移）
 #    * TweenDots/TweenPalette       —— Tween 关键帧镜像数据/色表
-#    * BasePluginLoader             —— clip 插件加载器（磁盘 .plugin 扫描 +
-#      进程内注册；时间轴经 setPluginLoader 注入使用）
+#
+#  【2026-11-13 迁移】BasePluginLoader 已迁 ../TimeLineBase/（宿主侧片段
+#  类型注册表/装载器基类，非片段作者引用的基类，随唯一消费者
+#  BaseTimeLineModel 走；导出宏换 NODE_TIMELINE_PUBLIC）。
+#  TimeLineStyle.h/.cpp 同迁 ../TimeLineBase/（视图样式非片段基类）——
+#  片段绘制读取的 4 个桥接量拆出留本库 ClipPaintStyle.h/.cpp。
 #
 #  新片段类型扩展方式（src/Clips/）：
 #    class XxxClipModel : public SceneClipModel { ... };          // 模型
 #    class XxxClipPlugin : public QObject, public ClipPlugInterface { ... }; // 工厂
-#    一个媒体类型一个头文件，经 BasePluginLoader 注册（磁盘 .plugin 或进程内）。
+#    一个媒体类型一个头文件，经类型注册表登记（磁盘 .plugin 或进程内）。
 #
 #  导出：BASECLASS_EXPORT（BaseClassExport.h，PRIVATE BASECLASS_LIBRARY）。
 #  时间轴视图库见 ../TimeLineBase/（NODE_TIMELINE_* 宏体系不变）。
@@ -55,15 +64,12 @@ set(BaseClass_sources
         TweenDots.h
         TweenPalette.h
         TimeLineDefines.h
-        TimeLineStyle.h
-        TimeLineStyle.cpp
+        ClipPaintStyle.h
+        ClipPaintStyle.cpp
         ClipTimePanel.hpp
         ClipTimePanel.cpp
         ClipAppearancePanel.hpp
         ClipAppearancePanel.cpp
-        # ---- clip 插件加载器 ----
-        BasePluginLoader.h
-        BasePluginLoader.cpp
 )
 
 add_library(BaseClass SHARED ${BaseClass_sources})

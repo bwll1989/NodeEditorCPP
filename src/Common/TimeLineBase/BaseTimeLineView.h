@@ -14,6 +14,7 @@
 #include <QMimeData>
 #include "BaseTimeLineModel.h"
 #include "TimeLineStyle.h"
+#include "ClipPaintStyle.h" // [clip-sync] 片段桥接量（m_clipFillColor/m_clipBorderColor 初始化 + applyStyleFromProperties 写回；2026-11-13 自 TimeLineStyle 拆出，定义在 BaseClass.dll）
 #include "BaseTrackDelegate.h"
 #include "DefaultTimeLineToolBar.h"
 #include "QMenu"

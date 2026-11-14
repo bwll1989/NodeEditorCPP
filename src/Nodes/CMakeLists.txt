@@ -26,6 +26,7 @@ set(ALL_NODES
     AudioDecoderNode                          #音频解码模块
     AudioListDecoderNode                      #音频播放列表解码
     AudioDeviceOutNode                        #音频输出模块
+    TimeLineAudioBusNode                      #时间线音频总线（timeline→节点图入口）
     HotKeyNode                                #热键模块
     ExtractNode                               #数据分离模块
     CameraNode                                #摄像头输入

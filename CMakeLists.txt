@@ -346,6 +346,11 @@ set(CALC_SOURCE_FILES
         # TU 不可直接 include 运行时头，探测/运行时细节一律经桥 C++20 侧）
         src/Widget/TimeLineWidget/MsRuntimeBridge.cpp
         src/Widget/TimeLineWidget/MsRuntimeBridge.hpp
+        # timeline 音频 bus 宿主（T1 2026-11-13）：runtime 混音 → 注册表
+        # 环形队列 → TimeLineAudioBus 节点（include MediaCore audio 头，
+        # C++20 TU——同 MsRuntimeBridge 先例）
+        src/Widget/TimeLineWidget/TimelineAudioBusHost.cpp
+        src/Widget/TimeLineWidget/TimelineAudioBusHost.hpp
         # PreviewCanvas：预览画布 + 渲染器 + 屏幕 warp + 屏幕属性对话框
         src/Widget/PreviewCanvasWidget/SceneCanvasWidget.cpp
         src/Widget/PreviewCanvasWidget/PreviewRenderer.cpp

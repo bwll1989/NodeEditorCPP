@@ -8,6 +8,7 @@
 #include <QVariant>
 #include "Common/AppConfig/ConfigManager.h"
 #include "Common/AppConfig/OscAddressMimeUtil.hpp"
+#include "AudioLevelMeter.hpp" // 右缘电平表（内置挂载 2026-11-14）
 
 DefaultTimeLineToolBar::DefaultTimeLineToolBar(QWidget* parent)
     : QToolBar(parent)
@@ -66,6 +67,22 @@ void DefaultTimeLineToolBar::setupUI()
     addAction(m_stopAction);
     setMovable(false);
     setIconSize(QSize(toolbarButtonWidth, toolbarButtonWidth));
+
+    // ---- 右缘音频电平表（2026-11-14 收编恢复+内置）------------------------
+    // 弹簧推播放/停止到左缘、电平表贴内容右缘（合并前 EditorWindow 同款
+    // 组合）。注：本 toolbar 为视图浮层（BaseTimelineView::initToolBar 内
+    // move(4,4) 定位、宽度=内容宽）——弹簧当前不扩展，视觉=电平表紧随
+    // 停止钮（与合并前实测同位）；toolbar 若日后进布局占满行则自动生效。
+    auto* spring = new QWidget(this);
+    spring->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    addWidget(spring);
+    m_levelMeter = new AudioLevelMeter(this);
+    addWidget(m_levelMeter);
+}
+
+void DefaultTimeLineToolBar::setAudioLevel(float rms)
+{
+    if (m_levelMeter) m_levelMeter->setLevel(rms);
 }
 
 void DefaultTimeLineToolBar::setPlaybackState(bool isPlaying)

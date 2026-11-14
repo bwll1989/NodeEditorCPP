@@ -18,6 +18,10 @@ OSCReceiver::OSCReceiver(quint16 port, QObject *parent)
     , m_ownerThread(nullptr)
 {
     qRegisterMetaType<QVariantMap>("QVariantMap&");
+    // 【跨线程信号必需（2026-11-13 修）】receiveOSCMessage(const OSCMessage&)
+    // 从收包线程 queued 投递到主线程 parseOSC——未注册 metatype 时 Qt 静默
+    // 丢弃（警告被 LogHandler 重定向，stderr 不可见）→ OSC 8991 入站整链失效。
+    qRegisterMetaType<OSCMessage>("OSCMessage");
 
     m_ownerThread = QThread::currentThread();
     mThread = new QThread();

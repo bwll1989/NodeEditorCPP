@@ -5,7 +5,7 @@
 #include <QtCore/QJsonObject>
 #include <QAbstractItemModel>
 #include "TimeLineDefines.h"
-#include "TimeLineStyle.h"
+#include "ClipPaintStyle.h" // [clip-sync] 片段绘制桥接量（ClipColor/ClipBorderColour/…；2026-11-13 自 TimeLineStyle 拆出，随片段基类留本库）
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QSpinBox>

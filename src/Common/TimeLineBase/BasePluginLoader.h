@@ -7,8 +7,14 @@
 #include <QDebug>
 #include <QApplication>
 #include "AbstractClipInterface.h"
-#include "BaseClassExport.h"
-class BASECLASS_EXPORT BasePluginLoader : public QObject
+#include "TimelineExports.hpp"
+
+// 【2026-11-13 迁移】原在 BaseClass（BASECLASS_EXPORT）——职责重定位：
+// 本类是「宿主侧片段类型注册表/装载器基类」（BaseTimeLineModel 构造占位
+// 默认 + 宿主 WorkScenePluginLoader 磁盘装载链的基类），不是片段作者实现
+// 时引用的基类（片段作者只用 ClipPlugInterface/AbstractClipModel/
+// SceneClipModel）——故随唯一库内消费者 BaseTimeLineModel 迁入 TimeLineBase。
+class NODE_TIMELINE_PUBLIC BasePluginLoader : public QObject
 {
     Q_OBJECT
 public:

@@ -31,6 +31,9 @@
 #include <vector>
 
 #include "audio/AudioTypes.hpp"       // IAudioSource/AudioPoolEntry
+#include "audio/AudioEngine.hpp"      // AudioVoice（本头 signature 消费；
+                                       // 此前靠调用方先 include——主程序
+                                       // TU 先 include 本头即 C2955，2026-11-13 补自足）
 #include "audio/AudioMediaSource.hpp"
 #include "audio/SineAudioSource.hpp"
 #include "engine/TimelineEngine.hpp" // isActive（与视频取帧同一活跃判定）
@@ -48,6 +51,10 @@ inline constexpr std::size_t kAudioPoolLimit = 64;
 //   \param assets_root 素材根目录（透传 AudioMediaSource）
 //   \param pool     跨拍音源池（clip id → 条目；调用方持有）
 //   \param out      本拍混音输入（调用方复用缓冲；先清空）
+//   \param track_index 轨道过滤（-1 = 全部轨道；>=0 = 只取该轨道的片段）。
+//   【按轨道分 bus（2026-11-13 用户定案）】TimelineAudioBusHost 每轨一个
+//   混音引擎（轨道 N → BUS N+1），同一选源规则按轨道切片——选源语义仍
+//   本函数单一出口，不另持副本（防两端口径漂移）。
 // 【池清空铁律】池超限清空必须在取声源指针之前——unique_ptr 清空会使
 // 早先 voices 里的裸指针悬垂（本拍内只允许一次、且在循环外）。
 //
@@ -60,14 +67,20 @@ inline constexpr std::size_t kAudioPoolLimit = 64;
 inline void buildVoices(const Scene& scene, std::int64_t t_us,
                         const std::string& assets_root,
                         std::map<std::string, AudioPoolEntry>& pool,
-                        std::vector<AudioVoice>& out) {
+                        std::vector<AudioVoice>& out,
+                        int track_index = -1) {
     if (pool.size() > kAudioPoolLimit) pool.clear();
     out.clear();
     static const bool kForceSine = [] {
         const char* e = std::getenv("MS_AUDIO_SINE");
         return e && std::string_view(e) == "1";
     }();
-    for (const auto& track : scene.timeline.tracks)
+    int track_idx = 0;
+    for (const auto& track : scene.timeline.tracks) {
+        const bool track_selected =
+            (track_index < 0 || track_idx == track_index);
+        ++track_idx;
+        if (!track_selected) continue;
         for (const auto& c : track.clips) {
             if (!TimelineEngine::isActive(c, t_us)) continue;
             // 素材路径指纹（空 = 未绑定素材/强制正弦诊断）——池命中还须
@@ -155,7 +168,8 @@ inline void buildVoices(const Scene& scene, std::int64_t t_us,
                  // 素材内时间与视频取帧同口径：in_us + (t - start)——
                  // 裁剪片段音画同点位；read 对前后跳自消化 drop/seek
                  c.in_us + (t_us - c.start_us)});
-        }
+        } // clips
+    } // tracks
 }
 
 } // namespace ms::audio

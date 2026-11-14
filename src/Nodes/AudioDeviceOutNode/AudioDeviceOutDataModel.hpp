@@ -97,7 +97,7 @@ namespace Nodes
                     if (timestampQueue) {
                         inputTimestampQueues[portIndex] = timestampQueue;
                     }
-                    
+
                     // 自动开始播放
                     if (!isPlaying) {
                         startAudioOutput();

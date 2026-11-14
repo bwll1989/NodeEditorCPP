@@ -6,6 +6,7 @@
 #include <QHash>
 #include "TimeLineStyle.h"
 #include "TimelineExports.hpp"
+#include "AudioLevelMeter.hpp" // 同目录（总输出电平表，工具栏右缘内置）
 
 /**
  * @brief 时间轴工具栏（2026-11-10 结构简化）：
@@ -54,6 +55,11 @@ public slots:
     /// 外部播放状态回显（图标/tooltip 与实际播放态对齐）
     void setPlaybackState(bool isPlaying);
 
+    /// 【音频电平 2026-11-14 内置】灌入 timeline 混音 RMS——宿主 33ms 拍
+    /// 轮询调用（数据源=TimelineAudioBusHost 混音引擎电平快照；非播放拍
+    /// 宿主灌 0，表归零回落）。控件内置本工具栏右缘，宿主零 UI 组装。
+    void setAudioLevel(float rms);
+
     /// 【StatusContainer 集成 2026-11-12】动作访问器：宿主（MainWindow）
     /// 把播放/停止按钮控件注册到 StatusContainer（地址→控件反查，
     /// 对齐旧 TimeLineToolBar::registerOSCControl 的登记语义）。
@@ -76,6 +82,7 @@ private:
     QAction* m_playAction {nullptr};
     QAction* m_stopAction {nullptr};
     bool m_isPlaying = false;
+    AudioLevelMeter* m_levelMeter {nullptr}; ///< 右缘电平表（setupUI 内置）
 
     // ---- OSC 地址拖拽状态（旧 TimeLineToolBar 同构）-------------------------
     QString m_oscBase;                      ///< 地址前缀（空 = 禁用拖拽）

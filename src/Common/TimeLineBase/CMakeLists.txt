@@ -20,9 +20,15 @@ project(TimeLineBase LANGUAGES CXX)
 #    - NODE_TIMELINE_STATIC：保留给 TimeLineNode 内置引擎私有副本
 #      （副本头与主 timeline 完全隔离，勿混用）
 #
-#  片段模型层（AbstractClipModel/SceneClipModel/ClipPlugInterface/
-#  TimeLineStyle/BasePluginLoader 等）不在本库——在 BaseClass.dll
-#  （2026-11-13 回归合并）；本库链接 BaseClass 取头与符号。
+#  片段模型基类层（AbstractClipModel/SceneClipModel/ClipPlugInterface/
+#  TimeLineDefines 等）不在本库——在 BaseClass.dll（2026-11-13 回归合并）；
+#  本库链接 BaseClass 取头与符号。
+#  BasePluginLoader 已迁入本库（2026-11-13）：宿主侧片段类型注册表/装载器
+#  基类（非片段作者引用的基类），随唯一库内消费者 BaseTimeLineModel 走。
+#  TimeLineStyle 已迁入本库（2026-11-13 拆分迁移）：视图样式/度量/缩放参数
+#  仅本库视图类读写；片段绘制桥接量（ClipColor/ClipBorderColour/…）拆留
+#  BaseClass ClipPaintStyle.h——[clip-sync] 协议（本库 QSS 写、片段 paint
+#  读）必须全进程单实例，定义在下游库才不循环依赖。
 # ============================================================================
 
 set(TimeLineBase_sources
@@ -38,6 +44,15 @@ set(TimeLineBase_sources
         BaseTrackDelegate.h
         BaseTrackListView.h
         DefaultTimeLineToolBar.h
+        BasePluginLoader.h
+        BasePluginLoader.cpp
+        TimeLineStyle.h
+        TimeLineStyle.cpp
+        # 音频电平表（2026-11-14 收编恢复+内置）：时间轴工具栏右缘的总输出
+        # 电平表（原 editor 层 AudioLevelMeter）——宿主经 setAudioLevel()
+        # 灌值（数据源=TimelineAudioBusHost 混音 RMS，控件零业务依赖）
+        AudioLevelMeter.hpp
+        AudioLevelMeter.cpp
         TimelineExports.hpp
 )
 

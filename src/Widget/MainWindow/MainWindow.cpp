@@ -51,6 +51,7 @@
                                          // 成员（C++20 TU 内编译）。
 // ---- MediaServer 下发运行时（2026-11-12 第三步）----------------------------
 #include "Widget/TimeLineWidget/MsRuntimeBridge.hpp"   // EditorRuntime 桥接壳（PIMPL：
+#include "Widget/TimeLineWidget/TimelineAudioBusHost.hpp" // timeline 混音写入宿主（T1 2026-11-13）
                                         // EditorRuntime/ClockProvider 住
                                         // C++20 TU，本 TU 只见 Qt 类型）
 // ---- MediaServer 时间轴 OSC 集成（2026-11-12 第四步）------------------------
@@ -255,6 +256,10 @@ MainWindow::~MainWindow()
     // （停 recv/看门狗/发送线程），避免半析构期仍在下发/回调。
     delete msRuntime_;
     msRuntime_ = nullptr;
+    // timeline 音频 bus 宿主先停（worker 线程访问注册表/时钟单例，
+    // 须早于静态单例析构）
+    delete msAudioBusHost_;
+    msAudioBusHost_ = nullptr;
     // MediaServer 组件回收（dock widget 经 Qt 父子链随 m_DockManager 销毁；
     // preview_ 与 scene_ 是裸借用宿主——须在 dock children 之前删除，
     // SceneCanvasWidget 析构不反查这两个指针，顺序安全）
@@ -412,6 +417,8 @@ void MainWindow::init()
             this, [this](std::int64_t us) {
                 if (msRuntime_ && msRuntime_->running())
                     msRuntime_->cmdSeekToUs(us);
+                // timeline 音频 bus：播放中重锚（flush+重定位；暂停态忽略）
+                if (msAudioBusHost_) msAudioBusHost_->commandSeek(us);
                 if (msPreview_) msPreview_->seekTo(us);
             });
     // 时间轴有本地修改（拖拽/面板写回/增删片段轨道）→ 场景树全量重建
@@ -486,6 +493,19 @@ void MainWindow::init()
         qWarning() << "[MediaServer] 下发运行时启动失败（端口占用？）——"
                       "本地编辑可用，显示端下发不可用";
     }
+    // ---- timeline 音频 bus 宿主（T1 2026-11-13）----
+    // 按轨道分 bus：轨道 N 的活跃片段混音后写 "BUS N+1"（注册表队列），
+    // TimeLineAudioBus 节点按同一全局帧计数读取。启动失败不阻断 GUI。
+    msAudioBusHost_ = new ms::TimelineAudioBusHost();
+    msAudioBusHost_->start();
+    // ---- 电平表数据泵（2026-11-14 二次收编：泵内置 host）--------------------
+    // 电平表已内置 DefaultTimeLineToolBar 右缘（库内自挂），33ms 采样拍亦
+    // 内置 TimelineAudioBusHost（setLevelPumpSink，采样节奏归音频宿主管）——
+    // 本类只注入转发 sink；非播放拍 host 内部已归零，无需判播放态。
+    msAudioBusHost_->setLevelPumpSink([this](float v) {
+        if (msTimeline_ && msTimeline_->toolbar)
+            msTimeline_->toolbar->setAudioLevel(v);
+    });
     // ---- 场景自动追平（2026-11-13；收编恢复链路）------------------------
     // sceneEdited（时间轴/画布/属性面板三路）→ requestMsAutoPublish()
     // （200ms 节流）→ 自动 syncModelToWorkScene + publishScene 全量广播。
@@ -516,6 +536,7 @@ void MainWindow::init()
                 if (!msRuntime_ || !msRuntime_->running() || !msScene_) return;
                 msTimelineAdapter_->syncModelToWorkScene();
                 msRuntime_->publishScene(*msScene_);
+                if (msAudioBusHost_) msAudioBusHost_->updateScene(*msScene_);
             });
     // 同步媒体：注册素材 + 推清单（在线端比对拉取，幂等）。
     // 【2026-11-13 补反馈】对齐合并前 EditorWindow::onSyncMedia——此前接线
@@ -568,6 +589,7 @@ void MainWindow::init()
                 msTimelineAdapter_->loadSceneToModel(*msScene_);
                 msSceneTree_->rebuild(msScene_);
                 msPreview_->invalidate();
+                if (msAudioBusHost_) msAudioBusHost_->updateScene(*msScene_);
             });
     // 视图复位：场景树"适配窗口"动作 → 画布 resetView。
     connect(msSceneTree_, &ms::SceneTreeWidget::fitViewRequested, this, [this] {
@@ -850,6 +872,7 @@ void MainWindow::init()
         if (newcomer && msScene_) {
             msTimelineAdapter_->syncModelToWorkScene();
             msRuntime_->publishScene(*msScene_);
+            if (msAudioBusHost_) msAudioBusHost_->updateScene(*msScene_); // host 快照同步追平（同 1266 行修）
             std::fprintf(stderr, "[ms-main] 显示端上线 → 场景已自动追平下发\n");
             std::fflush(stderr);
         }
@@ -1251,6 +1274,12 @@ void MainWindow::loadFileFromPath(const QString &path)
         //（此前打开项目后必须先右键"下发场景"，否则 display 永远空场景）。
         if (msRuntime_ && msRuntime_->running()) {
             msRuntime_->publishScene(*msScene_);
+            // 【tl-audio-bus 场景快照 2026-11-13 修】加载完成路径同样要
+            // 刷新 host 场景快照——此前只有 publishMsSceneNow 挂了
+            // updateScene，直接打开存档后 host 的 scene 永远为空 →
+            // 不混音 → timeline 音频全静音（「加载存档无声/重建有声」
+            // 分流行为的根因）
+            if (msAudioBusHost_) msAudioBusHost_->updateScene(*msScene_);
             std::fprintf(stderr, "[ms-main] 项目加载完成 → 场景已自动下发\n");
             std::fflush(stderr);
         }
@@ -1363,8 +1392,12 @@ void MainWindow::requestMsAutoPublish() {
  *            末尾打点节流基准（下次编辑距此满 200ms 才发下一拍）。
  */
 void MainWindow::publishMsSceneNow() {
-    if (!msRuntime_ || !msRuntime_->running() || !msScene_) return;
+    if (!msScene_) return;
     msTimelineAdapter_->syncModelToWorkScene();
+    // timeline 音频 bus 场景快照（不依赖下发运行时——桥启动失败也刷新，
+    // 节点图音频照常工作；必须在 syncModelToWorkScene 之后取值）
+    if (msAudioBusHost_) msAudioBusHost_->updateScene(*msScene_);
+    if (!msRuntime_ || !msRuntime_->running()) return;
     msRuntime_->publishScene(*msScene_);
     msLastPublishSince_.restart();
     std::fprintf(stderr, "[ms-main] 场景自动追平：已同步发布到显示端\n");
@@ -1383,6 +1416,15 @@ void MainWindow::msHandlePlay() {
         msTimeline_->toolbar->setPlaybackState(true); // 按钮态同步（OSC 命令不经动作触发）
     if (!msPreview_) return;
     msPreview_->play();     // Idle→从头 / Paused→续播（状态机幂等）
+    // timeline 音频 bus 起播锚定（T1）：位置取双权威当前值——会话播放中
+    // 用锚定会话时间（cmdPlay 锚点值），否则预览播放头
+    if (msAudioBusHost_) {
+        std::int64_t t0 = -1;
+        if (msRuntime_ && msRuntime_->running())
+            t0 = msRuntime_->sessionTimeUs();
+        if (t0 < 0 && msPreview_) t0 = msPreview_->playheadUs();
+        msAudioBusHost_->commandPlay(t0 < 0 ? 0 : t0);
+    }
     if (msPlayTimer_) msPlayTimer_->start(33); // tick 节奏对齐画布 pull 泵
     msPublishPlaybackState();
 }
@@ -1395,6 +1437,7 @@ void MainWindow::msHandlePause() {
     if (msRuntime_ && msRuntime_->running()) msRuntime_->cmdPause();
     if (msTimeline_ && msTimeline_->toolbar)
         msTimeline_->toolbar->setPlaybackState(false);
+    if (msAudioBusHost_) msAudioBusHost_->commandPause(); // 停写（下游自然静音）
     if (!msPreview_) return;
     msPreview_->pause();
     if (msPlayTimer_) msPlayTimer_->stop();
@@ -1410,6 +1453,7 @@ void MainWindow::msHandleStop() {
     if (msRuntime_ && msRuntime_->running()) msRuntime_->cmdStop();
     if (msTimeline_ && msTimeline_->toolbar)
         msTimeline_->toolbar->setPlaybackState(false);
+    if (msAudioBusHost_) msAudioBusHost_->commandStop();
     if (!msPreview_) return;
     msPreview_->stop(); // 归零回 Idle
     if (msPlayTimer_) msPlayTimer_->stop();

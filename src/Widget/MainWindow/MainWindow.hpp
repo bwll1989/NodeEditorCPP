@@ -45,6 +45,7 @@ class QtTimelineModelAdapter;// editor/（Scene↔帧模型适配器）
 class SceneCanvasWidget;     // editor/（预览画布）
 class SceneTreeWidget;       // editor/（场景树）
 class MsRuntimeBridge;       // timeline/（EditorRuntime 桥接壳；PIMPL 隔离 C++20）
+class TimelineAudioBusHost;  // timeline/（timeline 混音写入宿主；非 QObject）
 }
 class BaseTimelineWidget;    // MediaServer 收编版 QtTimeLine 控件
 
@@ -85,6 +86,14 @@ public:
     ms::SceneTreeWidget* msSceneTree_ = nullptr;        // 场景树 dock
     BaseTimelineWidget* msTimeline_ = nullptr;          // 时间轴 dock
     ms::MsRuntimeBridge* msRuntime_ = nullptr;          // 下发运行时桥（PIMPL；C++17 TU 安全）
+    // 【timeline 音频 bus（T1 2026-11-13）】runtime 混音写入宿主：按轨道
+    // 分 bus（轨道 N → BUS N+1）经注册表环形队列进节点图（TimeLineAudioBus
+    // 节点读）。播放命令由 msHandlePlay/Pause/Stop + seek 接线驱动；场景
+    // 快照随发布/装载点刷新（updateScene）。
+    ms::TimelineAudioBusHost* msAudioBusHost_ = nullptr;
+    // 【timeline 音频电平 2026-11-14】电平表已内置 DefaultTimeLineToolBar
+    // 右缘（TimeLineBase 库内自挂）；33ms 数据泵亦内置 TimelineAudioBusHost
+    // （setLevelPumpSink 注入转发，采样节奏归音频宿主管）——本类零泵代码。
     // 【StatusContainer 集成 2026-11-12 第四步】参照旧 TimeLineWidget 的
     // TimelineBindingsController 模式：时间轴 OSC 地址树（/timeline/master/
     // ...）注册进 StatusContainer/GlobalEventBus——外部 OSC/MQTT/HTTP 控制

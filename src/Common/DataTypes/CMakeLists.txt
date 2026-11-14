@@ -37,6 +37,8 @@ set(DataTypes_sources
         VariableData.cpp
         SyncData.h
         SyncData.cpp
+        TimelineAudioBusRegistry.h
+        TimelineAudioBusRegistry.cpp
         DataConvert.hpp
         DataTypesExport.h
 

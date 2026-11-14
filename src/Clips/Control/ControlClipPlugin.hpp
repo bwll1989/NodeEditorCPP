@@ -31,7 +31,7 @@
 #include "SceneClipModel.hpp"
 #include "AbstractClipInterface.h"
 
-#include "TimeLineStyle.h" // ClipBorderColour（左侧竖线色，旧 Trigger 同源）
+#include "ClipPaintStyle.h" // ClipBorderColour（左侧竖线色，旧 Trigger 同源；[clip-sync] 桥接量 2026-11-13 自 TimeLineStyle 拆出）
 
 // 专属编辑区（随本插件分发）：ControlClipSection 的实现（含 moc 槽符号）
 // 只在 control.plugin 内，主程序不含任何片段实现。
