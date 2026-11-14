@@ -76,7 +76,7 @@ namespace cg = canvas_geometry;
 namespace {
 // ---------------------------------------------------------------------------
 // 轨道类型色（3D 标注层与 2D drawClip 两处同源共用——2026-11-06 收敛原
-// 两份相同 switch；色值与媒体插件 *ClipPlugin.hpp 的 setColor 同组，视觉
+// 两份相同 switch；色值与媒体插件 */*ClipModel.hpp 的 setColor 同组，视觉
 // 分组统一：插件侧属插件 API 不便引用，改色时仍需两处同步，画布内部已单源）
 // ---------------------------------------------------------------------------
 QColor trackKindColor(AssetKind kind) {
