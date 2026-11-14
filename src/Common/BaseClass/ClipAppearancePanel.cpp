@@ -1,4 +1,11 @@
+// ============================================================================
+//  ClipAppearancePanel.cpp —— 片段外观属性通用面板实现
+//  （收编自合并前 QtTimeLine 体系；2026-11-15 成员命名现代化对齐新风格，
+//   行为逐行保持原实现）
+// ============================================================================
+
 #include "ClipAppearancePanel.hpp"
+
 #include "AbstractClipModel.hpp"
 
 #include <QButtonGroup>
@@ -18,7 +25,7 @@ bool sameRgb(const QColor& a, const QColor& b)
 
 ClipAppearancePanel::ClipAppearancePanel(AbstractClipModel* owner, QWidget* parent)
     : QGroupBox(parent)
-    , m_owner(owner)
+    , owner_(owner)
 {
     setTitle(tr("片段属性"));
     setFlat(true); // 带文字的分割线（2026-11-13 用户定案：四区块统一去框）
@@ -31,12 +38,12 @@ ClipAppearancePanel::ClipAppearancePanel(AbstractClipModel* owner, QWidget* pare
     colorRow->setSpacing(4);
     colorRow->addWidget(new QLabel(tr("颜色:"), this));
 
-    m_currentColor = new QLabel(this);
-    m_currentColor->setFixedSize(22, 22);
-    colorRow->addWidget(m_currentColor);
+    current_color_ = new QLabel(this);
+    current_color_->setFixedSize(22, 22);
+    colorRow->addWidget(current_color_);
 
-    m_colors = new QButtonGroup(this);
-    m_colors->setExclusive(true);
+    colors_ = new QButtonGroup(this);
+    colors_->setExclusive(true);
     const QList<QColor> presets = titleColorPresets();
     for (int i = 0; i < presets.size(); ++i) {
         const QColor preset = presets.at(i);
@@ -44,12 +51,12 @@ ClipAppearancePanel::ClipAppearancePanel(AbstractClipModel* owner, QWidget* pare
         button->setCheckable(true);
         button->setFixedSize(22, 22);
         button->setToolTip(preset.name(QColor::HexRgb));
-        m_colors->addButton(button, i);
+        colors_->addButton(button, i);
         colorRow->addWidget(button);
         connect(button, &QToolButton::clicked, this, [this, preset]() {
-            if (m_syncing || !m_owner)
+            if (syncing_ || !owner_)
                 return;
-            m_owner->setColor(preset);
+            owner_->setColor(preset);
         });
     }
     colorRow->addStretch(1);
@@ -58,18 +65,18 @@ ClipAppearancePanel::ClipAppearancePanel(AbstractClipModel* owner, QWidget* pare
     auto* noteRow = new QHBoxLayout();
     noteRow->setSpacing(4);
     noteRow->addWidget(new QLabel(tr("备注名:"), this));
-    m_noteEdit = new QLineEdit(this);
-    m_noteEdit->setPlaceholderText(tr("留空则显示类型名"));
-    noteRow->addWidget(m_noteEdit, 1);
+    note_edit_ = new QLineEdit(this);
+    note_edit_->setPlaceholderText(tr("留空则显示类型名"));
+    noteRow->addWidget(note_edit_, 1);
     layout->addLayout(noteRow);
 
-    connect(m_noteEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
-        if (m_syncing || !m_owner)
+    connect(note_edit_, &QLineEdit::textChanged, this, [this](const QString& text) {
+        if (syncing_ || !owner_)
             return;
-        m_owner->setNoteName(text);
+        owner_->setNoteName(text);
     });
-    if (m_owner) {
-        connect(m_owner, &AbstractClipModel::appearanceChanged, this, [this]() {
+    if (owner_) {
+        connect(owner_, &AbstractClipModel::appearanceChanged, this, [this]() {
             syncFromOwner();
         });
     }
@@ -87,32 +94,32 @@ void ClipAppearancePanel::changeEvent(QEvent* event)
 
 void ClipAppearancePanel::syncFromOwner()
 {
-    if (!m_owner)
+    if (!owner_)
         return;
-    m_syncing = true;
+    syncing_ = true;
 
-    const QColor current = m_owner->color();
+    const QColor current = owner_->color();
 
     // 当前颜色指示块：背景为片段颜色数据，边框样式来自 QSS 可配置属性
-    m_currentColor->setStyleSheet(QStringLiteral(
+    current_color_->setStyleSheet(QStringLiteral(
         "background-color: %1; border: 1px solid %2; border-radius: 2px;")
         .arg(current.name(QColor::HexRgb),
-             m_currentColorBorderColor.name(QColor::HexRgb)));
+             current_color_border_color_.name(QColor::HexRgb)));
 
     // 预设色块：背景为预设颜色数据，边框样式来自 QSS 可配置属性
     const QList<QColor> presets = titleColorPresets();
-    const QList<QAbstractButton*> buttons = m_colors->buttons();
+    const QList<QAbstractButton*> buttons = colors_->buttons();
     for (int i = 0; i < buttons.size() && i < presets.size(); ++i) {
         buttons.at(i)->setStyleSheet(QStringLiteral(
             "QToolButton { background-color: %1; border: 1px solid %2; border-radius: 2px; }"
             "QToolButton:checked { border: 2px solid %3; }")
             .arg(presets.at(i).name(QColor::HexRgb),
-                 m_swatchBorderColor.name(QColor::HexRgb),
-                 m_swatchCheckedBorderColor.name(QColor::HexRgb)));
+                 swatch_border_color_.name(QColor::HexRgb),
+                 swatch_checked_border_color_.name(QColor::HexRgb)));
     }
 
     int matched = -1;
-    if (m_owner->hasCustomColor()) {
+    if (owner_->hasCustomColor()) {
         for (int i = 0; i < presets.size(); ++i) {
             if (sameRgb(presets.at(i), current)) {
                 matched = i;
@@ -120,19 +127,19 @@ void ClipAppearancePanel::syncFromOwner()
             }
         }
     }
-    m_colors->setExclusive(false);
+    colors_->setExclusive(false);
     for (QAbstractButton* button : buttons)
         button->setChecked(false);
     if (matched >= 0) {
-        if (QAbstractButton* button = m_colors->button(matched))
+        if (QAbstractButton* button = colors_->button(matched))
             button->setChecked(true);
     }
-    m_colors->setExclusive(true);
+    colors_->setExclusive(true);
 
     {
-        QSignalBlocker blocker(m_noteEdit);
-        if (m_noteEdit->text() != m_owner->noteName())
-            m_noteEdit->setText(m_owner->noteName());
+        QSignalBlocker blocker(note_edit_);
+        if (note_edit_->text() != owner_->noteName())
+            note_edit_->setText(owner_->noteName());
     }
-    m_syncing = false;
+    syncing_ = false;
 }

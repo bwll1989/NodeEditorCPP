@@ -1,3 +1,32 @@
+// ============================================================================
+//  ClipAppearancePanel —— 片段外观属性通用面板（「通用」页的颜色/备注区块）
+//
+//  出处：收编自合并前 QtTimeLine 体系（原 AbstractClipModel::initPropertyWidget
+//  内嵌 appearanceGroupBox 独立成类；2026-11-15 注释/命名现代化对齐新风格
+//  ——成员 m_xxx → 尾下划线，注释统一 ==== 框）。
+//
+//  职责（「通用」页外观区块两行）：
+//    * 颜色行：当前色指示块 + 8 预设色块（titleColorPresets 单源）——
+//      点选即 setColor 写回模型；
+//    * 备注名行：留空显示类型名（displayText 的备注名优先语义）——
+//      textChanged 即 setNoteName 写回；
+//    * 双向同步：模型 appearanceChanged → syncFromOwner 灌显示
+//     （syncing_ 防回环）；
+//    * 挂接方式 = AbstractClipModel::initPropertyWidget 构造（owner 指针
+//      直连模型信号——与 ClipTimePanel 同款，11-13 判定保持项）。
+//
+//  样式约定：
+//  - 色块的动态背景色来自片段颜色数据（titleColorPresets / owner->color()），
+//    属于数据而非样式；
+//  - 边框等装饰样式通过 Q_PROPERTY 暴露，可被 QSS 覆盖：
+//      ClipAppearancePanel {
+//          qproperty-swatchBorderColor: #666666;
+//          qproperty-swatchCheckedBorderColor: #ffffff;
+//          qproperty-currentColorBorderColor: #888888;
+//      }
+//  - 主题切换（QEvent::StyleChange）时自动重建色块样式。
+// ============================================================================
+
 #pragma once
 
 #include "BaseClassExport.h"
@@ -10,6 +39,7 @@ class QButtonGroup;
 class QLineEdit;
 class QLabel;
 
+/// 标题颜色预设表（8 色；画布/时间轴/面板三处配色视觉分组同源）
 inline QList<QColor> titleColorPresets()
 {
     return {
@@ -24,19 +54,7 @@ inline QList<QColor> titleColorPresets()
     };
 }
 
-/**
- * @brief 片段外观面板（颜色/备注名）
- * @details
- * 样式约定：
- * - 色块的动态背景色来自片段颜色数据（titleColorPresets / owner->color()），属于数据而非样式；
- * - 边框等装饰样式通过 Q_PROPERTY 暴露，可被 QSS 覆盖：
- *     ClipAppearancePanel {
- *         qproperty-swatchBorderColor: #666666;
- *         qproperty-swatchCheckedBorderColor: #ffffff;
- *         qproperty-currentColorBorderColor: #888888;
- *     }
- * - 主题切换（QEvent::StyleChange）时自动重建色块样式。
- */
+/// 片段外观属性通用面板（颜色/备注名；owner 指针直连模型信号）
 class BASECLASS_EXPORT ClipAppearancePanel : public QGroupBox {
     Q_OBJECT
     // 颜色预设按钮边框（未选中）
@@ -48,32 +66,30 @@ class BASECLASS_EXPORT ClipAppearancePanel : public QGroupBox {
 public:
     explicit ClipAppearancePanel(AbstractClipModel* owner, QWidget* parent = nullptr);
 
-    QColor swatchBorderColor() const { return m_swatchBorderColor; }
-    void setSwatchBorderColor(const QColor& color) { m_swatchBorderColor = color; }
+    QColor swatchBorderColor() const { return swatch_border_color_; }
+    void setSwatchBorderColor(const QColor& color) { swatch_border_color_ = color; }
 
-    QColor swatchCheckedBorderColor() const { return m_swatchCheckedBorderColor; }
-    void setSwatchCheckedBorderColor(const QColor& color) { m_swatchCheckedBorderColor = color; }
+    QColor swatchCheckedBorderColor() const { return swatch_checked_border_color_; }
+    void setSwatchCheckedBorderColor(const QColor& color) { swatch_checked_border_color_ = color; }
 
-    QColor currentColorBorderColor() const { return m_currentColorBorderColor; }
-    void setCurrentColorBorderColor(const QColor& color) { m_currentColorBorderColor = color; }
+    QColor currentColorBorderColor() const { return current_color_border_color_; }
+    void setCurrentColorBorderColor(const QColor& color) { current_color_border_color_ = color; }
 
 protected:
-    /**
-     * 样式变化事件：QSS 重新生效后重建色块样式，保证 qproperty- 新值即时生效
-     */
+    /// 样式变化事件：QSS 重新生效后重建色块样式，保证 qproperty- 新值即时生效
     void changeEvent(QEvent* event) override;
 
 private:
     void syncFromOwner();
 
-    AbstractClipModel* m_owner {nullptr};
-    QButtonGroup* m_colors {nullptr};
-    QLineEdit* m_noteEdit {nullptr};
-    QLabel* m_currentColor {nullptr};
-    bool m_syncing {false};
+    AbstractClipModel* owner_ {nullptr};
+    QButtonGroup* colors_ {nullptr};
+    QLineEdit* note_edit_ {nullptr};
+    QLabel* current_color_ {nullptr};
+    bool syncing_ {false};
 
     // 边框样式默认值，可被 QSS qproperty- 覆盖
-    QColor m_swatchBorderColor {QColor(102, 102, 102)};        // #666666
-    QColor m_swatchCheckedBorderColor {Qt::white};             // 选中描边
-    QColor m_currentColorBorderColor {QColor(136, 136, 136)};  // #888888
+    QColor swatch_border_color_ {QColor(102, 102, 102)};        // #666666
+    QColor swatch_checked_border_color_ {Qt::white};            // 选中描边
+    QColor current_color_border_color_ {QColor(136, 136, 136)}; // #888888
 };

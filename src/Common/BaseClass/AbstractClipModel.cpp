@@ -86,12 +86,12 @@ void AbstractClipModel::initPropertyWidget()
     // 【2026-11-12 恢复】时间属性 6 控件登记 OSC 外部控制（相对地址），
     // 随后统一推送初始状态（StatusContainer 登记 + 初始值反馈）。
     // 此处为双触发之一（另一处在 setId——控件通常先于/晚于 setId 创建均覆盖）。
-    registerExternalControl(QStringLiteral("/start_frame"), timeGroupBox->m_startFrameSpinBox);
-    registerExternalControl(QStringLiteral("/end_frame"), timeGroupBox->m_endFrameSpinBox);
-    registerExternalControl(QStringLiteral("/position_frame"), timeGroupBox->m_positionFrameSpinBox);
-    registerExternalControl(QStringLiteral("/start_time_code"), timeGroupBox->m_startTimeCodeLineEdit);
-    registerExternalControl(QStringLiteral("/end_time_code"), timeGroupBox->m_endTimeCodeLineEdit);
-    registerExternalControl(QStringLiteral("/position_time_code"), timeGroupBox->m_positionTimeLineEdit);
+    registerExternalControl(QStringLiteral("/start_frame"), timeGroupBox->start_frame_spin_);
+    registerExternalControl(QStringLiteral("/end_frame"), timeGroupBox->end_frame_spin_);
+    registerExternalControl(QStringLiteral("/position_frame"), timeGroupBox->position_frame_spin_);
+    registerExternalControl(QStringLiteral("/start_time_code"), timeGroupBox->start_time_code_);
+    registerExternalControl(QStringLiteral("/end_time_code"), timeGroupBox->end_time_code_);
+    registerExternalControl(QStringLiteral("/position_time_code"), timeGroupBox->position_time_);
     pushOscInitialState();
 
     // 添加代理编辑器的占位符（三页式时 = QTabWidget 页容器）

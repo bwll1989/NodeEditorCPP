@@ -1,9 +1,33 @@
-// ClipTimeGroupBox
-// 类说明：封装“时间属性”界面，将原先 AbstractClipModel::initPropertyWidget 中的 timeGroupBox 独立为 QGroupBox 子类。
-// 职责：构建开始/结束/总长的控件，统一显示为绝对时间（毫秒）00:00:00:000；
-//       管理信号连接：文本框修改触发 setStart/setEnd，与 spinbox 行为一致；响应模型的时间/长度变化信号同步更新 UI。
+// ============================================================================
+//  ClipTimePanel —— 片段时间属性通用面板（属性面板「通用」页的时间区块）
+//
+//  出处：收编自合并前 QtTimeLine 体系（原 AbstractClipModel::initPropertyWidget
+//  内嵌 timeGroupBox 独立成类，原类名 ClipTimeGroupBox——文件名已随
+//  「XxxPanel」通用页组件命名定稿；2026-11-15 注释/命名现代化对齐新风格）。
+//
+//  职责（「通用」页时间区块三行——帧数 + 多制式时间码双视图）：
+//    * 开始帧 / 片段位置 / 结束帧编辑——任一控件变更即时写回模型
+//     （帧级 UI ↔ 模型 μs 经 framesToUs/usToFrames 显示层换算）；
+//    * 双向同步：模型 timelinePositionChanged/lengthChanged → 灌显示
+//     （QSignalBlocker 防回环）；start/end 互夹（RESIZEABLE 时）；
+//    * 挂接方式 = AbstractClipModel::initPropertyWidget 构造（owner 指针
+//      直连模型信号——11-13 判定保持项：本组件与库内构造链强耦合，与
+//      ClipPropertyPanel/XxxClipSection 的回调注入式解耦不同层）；
+//    * 公开控件成员 = OSC 外部控制注册表 API（AbstractClipModel 构造时
+//      registerExternalControl("/start_frame", ...) 等六项注册）。
+//
+//  【2026-11-15 现代化（用户定案「片段面板对齐工程统一风格」）】收编残留
+//  清理：删除三个死信号（startFrameChanged/positionChanged/endFrameChanged
+//  ——全工程零 emit 零 connect，且原文件无 Q_OBJECT 宏它们本就不是真信号）
+//  与三个死成员（*_frame_label_——声明后从未赋值，构造用的是局部变量）；
+//  补 Q_OBJECT 对齐工程惯例；成员命名 m_xxx → 尾下划线（对齐
+//  ClipPropertyPanel/TweenSection/XxxClipSection 体系）；头注释统一
+//  ==== 框新风格。src/Nodes/TimeLineNode/ 的同名内嵌副本（TimelineEngine.h）
+//  为节点引擎冻结胶囊，按既定铁律独立演化、不同步本改动。
+// ============================================================================
 
 #pragma once
+
 #include "BaseClassExport.h"
 #include "IntDragValueWidget/IntDragValueWidget.hpp"
 #include <QGroupBox>
@@ -13,26 +37,28 @@
 #include <QCheckBox>
 #include "Common/AppConfig/TimeCodeDefines.h"
 #include <QTimeEdit>
+
 class AbstractClipModel;
+
+/// 片段时间属性通用面板（「通用」页时间区块；owner 指针直连模型信号）
 class BASECLASS_EXPORT ClipTimePanel : public QGroupBox {
+    Q_OBJECT
 public:
-    // 构造函数：创建并布置 UI，连接信号到 AbstractClipModel，保持原有功能
     explicit ClipTimePanel(AbstractClipModel* owner, QWidget* parent = nullptr);
+    /// 控件 ↔ 槽接线（构造尾调用；模型信号连接独立成方法供测试复用）
     void initSignalConnections();
-public:
-    IntDragValueWidget* m_startFrameSpinBox {nullptr};
-    QTimeEdit*  m_startTimeCodeLineEdit {nullptr};
 
-    IntDragValueWidget* m_positionFrameSpinBox {nullptr};
-    QTimeEdit*  m_positionTimeLineEdit {nullptr};
+    // ---- 控件成员（OSC 外部控制注册 API；公开=AbstractClipModel 注册引用）--
+    //  帧数（IntDragValueWidget）+ 时间码（QTimeEdit）成对
+    IntDragValueWidget* start_frame_spin_ {nullptr};
+    QTimeEdit*  start_time_code_ {nullptr};
 
-    IntDragValueWidget* m_endFrameSpinBox {nullptr};
-    QTimeEdit*  m_endTimeCodeLineEdit {nullptr};
+    IntDragValueWidget* position_frame_spin_ {nullptr};
+    QTimeEdit*  position_time_ {nullptr};
 
-Q_SIGNALS:
-    void startFrameChanged(int value);
-    void positionChanged(int value);
-    void endFrameChanged(int value);
+    IntDragValueWidget* end_frame_spin_ {nullptr};
+    QTimeEdit*  end_time_code_ {nullptr};
+
 public Q_SLOTS:
     void updateStartFrame(int frames);
     void updateStartTimeCode(const QTime& tc);
@@ -40,16 +66,13 @@ public Q_SLOTS:
     void updateEndTimeCode(const QTime& tc);
     void updatePositionFrame(int frames);
     void updatePositionTimeCode(const QTime& tc);
+
 private:
     int clampStartFrame(int frames) const;
     int clampEndFrame(int frames) const;
     void refreshFrameRanges();
-private:
-    AbstractClipModel* m_owner {nullptr};
-    // 本地控件（不强制写回到 AbstractClipModel 的成员，避免循环依赖）
-    QGridLayout* m_timeLayout {nullptr};
-    QLabel*      m_startFrameLabel {nullptr};
-    QLabel*      m_lengthFrameLabel {nullptr};
-    QLabel*      m_endFrameLabel {nullptr};
 
+private:
+    AbstractClipModel* owner_ {nullptr};
+    QGridLayout* time_layout_ {nullptr};
 };
