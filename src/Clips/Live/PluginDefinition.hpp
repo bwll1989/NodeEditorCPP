@@ -19,14 +19,18 @@
 
 #include "AbstractClipInterface.h"
 
+// ---- 插件元数据宏区（布局对齐节点 PLUGIN_*；详见 Video/PluginDefinition.hpp）----
+#define CLIP_TYPE "Live"
+#define CLIP_DESCRIBE "实时源媒体片段"
+
 class Plugin : public QObject, public ClipPlugInterface {
     Q_OBJECT
     Q_PLUGIN_METADATA(IID ClipPlugInterface_iid)
     Q_INTERFACES(ClipPlugInterface)
 public:
-    explicit Plugin(QObject* parent = nullptr);
+    Plugin();
 
-    /// 类型串（Add Track 菜单/场景存储/工厂表键，与目录名一致）
+    /// 类型串（返回 CLIP_TYPE；Add Track 菜单/场景存储/工厂表键）
     QString clipType() const override;
 
     /// 片段模型工厂（parent 由适配器随后 setParent）

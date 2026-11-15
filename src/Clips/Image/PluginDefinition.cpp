@@ -6,9 +6,9 @@
 
 #include "ImageClipModel.hpp"
 
-Plugin::Plugin(QObject* parent) : QObject(parent) {}
+Plugin::Plugin() = default; // 无参：QPluginLoader 实例化（对齐节点构造签名）
 
-QString Plugin::clipType() const { return "Image"; }
+QString Plugin::clipType() const { return CLIP_TYPE; }
 
 AbstractClipModel* Plugin::createModel(qint64 startUs) {
     return new ImageClipModel(startUs);
