@@ -231,6 +231,18 @@ public slots:
     /// \return 面板已弹出返回 true；下标越界/模型片段缺失/hooks 未注入返回 false
     bool showClipOwnPanel(int track_idx, int clip_idx, QWidget* parent);
 
+    // ---- 时间轴选中 → 画布高亮（2026-11-15 画布选中分工配套）---------------
+    // 【分工定案】画布只选 screen（"只显当前"舞台快照非素材清单），
+    // clip 选中唯一入口 = 时间轴；画布对时间轴已选中的片段只承担空间
+    // 编辑（"时间轴选谁，画布摆哪"）。本映射是直连链的反向半边：
+    /// 时间轴片段模型索引 → 工作副本 (track, clip) 下标（currentChanged
+    /// → 画布 highlight 用）。轨道行走「模型轨 row = work 轨 row」不变量；
+    /// 片段按 clipAnchor（= ms clip id，2026-11-15 与备注名分离）在工作
+    /// 副本同轨检索——对增删/跨轨搬移稳定，不信任两边下标一致。
+    /// 非片段行（轨道行/无效索引/装载清空）= false。
+    bool workClipIndices(const QModelIndex& clip_index,
+                         int* track_idx, int* clip_idx) const;
+
 private:
     /// clip 信号（timelinePositionChanged/lengthChanged）→ 工作副本回写
     void onClipGeometryChanged(AbstractClipModel* clip);
@@ -284,6 +296,11 @@ private:
     /// 时间轴真正改过的片段（noteName=ms clip id）。拖拽/面板改帧 → 记入；
     /// 面板→模型推送 → 移出（面板值对本 clip 保持权威）；sync 后清空。
     std::unordered_set<std::string> dirty_clips_;
+    /// 【2026-11-15 性能】locateWorkClip 的上次命中下标（O(1) 快路径锚）：
+    /// 只存下标不存指针（vector 搬移安全）——下标处 id 失配即回退全扫并
+    /// 更新，语义与全扫一致。拖拽会话高频回写的线性扫描消除。
+    int m_lastLocateTrack = -1;
+    int m_lastLocateClip  = -1;
     /// 已打开片段属性面板注册表（clip id → 面板列表）：双向同步的广播
     /// 目标。登记点 = makeClipPropertyPanel（timeline 组合面板自定义区与
     /// 画布双击对话框两条入口同源经过）；面板销毁经 QPointer 失效感知，

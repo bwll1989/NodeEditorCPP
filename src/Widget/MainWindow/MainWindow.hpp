@@ -43,7 +43,6 @@ struct Scene;                // core/model（header-only；struct——与定义
 class PreviewRenderer;       // editor/（本地预览渲染器）
 class QtTimelineModelAdapter;// editor/（Scene↔帧模型适配器）
 class SceneCanvasWidget;     // editor/（预览画布）
-class SceneTreeWidget;       // editor/（场景树）
 class MsRuntimeBridge;       // timeline/（EditorRuntime 桥接壳；PIMPL 隔离 C++20）
 class TimelineAudioBusHost;  // timeline/（timeline 混音写入宿主；非 QObject）
 }
@@ -77,13 +76,15 @@ public:
     // 播放定时器与接线均在 init() 装配段局部完成（无成员）；
     // 下发到显示端已接入（第三步 2026-11-12）：msRuntime_ 桥接
     // EditorRuntime（显示端连接/场景下发/素材 HTTP 分发/锚点命令）——
-    // 场景树"下发/同步素材/重载/添加显示端"四动作 + 200ms UI 拍回显
-    // 连接与素材同步进度；播放权威时钟=桥会话时钟（Playing 时优先）。
+    // 【2026-11-15 场景树退役】下发/同步媒体在 timeline 工具栏按钮，
+    // 断开/连接显示端在画布银幕右键；200ms UI 拍回显在线状态（画布角标）；
+    // 播放权威时钟=桥会话时钟（Playing 时优先）。
     ms::Scene* msScene_ = nullptr;
     ms::PreviewRenderer* msPreview_ = nullptr;          // 预览渲染器（空素材根=全占位降级）
     ms::QtTimelineModelAdapter* msTimelineAdapter_ = nullptr;
     ms::SceneCanvasWidget* msCanvas_ = nullptr;         // 预览画布 dock
-    ms::SceneTreeWidget* msSceneTree_ = nullptr;        // 场景树 dock
+    // 【2026-11-15 场景树退役】SceneTreeWidget 移除：徽标/场景动作/银幕管理
+    // 分流至画布（setDisplayOnlineStates + 右键）与 timeline 工具栏。
     BaseTimelineWidget* msTimeline_ = nullptr;          // 时间轴 dock
     ms::MsRuntimeBridge* msRuntime_ = nullptr;          // 下发运行时桥（PIMPL；C++17 TU 安全）
     // 【timeline 音频 bus（T1 2026-11-13）】runtime 混音写入宿主：按轨道

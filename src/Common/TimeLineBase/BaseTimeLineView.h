@@ -65,18 +65,11 @@ public:
     DefaultTimeLineToolBar* m_toolbar = nullptr;
 
     // ---- 片段拖拽磁性吸附（2026-11-09 用户需求）--------------------------
-    /// 开/关磁性吸附（默认开）：拖动或裁边片段时，被拖边缘接近其他片段
-    /// 的入/出点或时间线原点（阈值内）即自动对齐，并显示对齐参考线。
-    void setSnapEnabled(bool on) { m_snapEnabled = on; }
-    bool snapEnabled() const { return m_snapEnabled; }
-    /// 当前对齐参考线的帧位置（-1 = 未吸附；测试与调试观察锚）
-    int snapLineFrame() const { return m_snapLineFrame; }
-    /// 当前像素/帧（视图实例时间刻度；测试做帧↔像素换算用，避免复制公式）。
-    /// 命名避让 TimeLineStyle.h 的全局变量 timescale（同名方法会让成员
-    /// 初始化 m_timescale = timescale 解析成成员函数指针 → C3867）。
-    double pxPerFrame() const { return m_timescale; }  // 【2026-11-10 微秒原生】语义 = 像素/μs（名字保留避免波及）
-    // ---- 外控/测试辅助（2026-11-10 滚动探针；只读，不破坏"滚动条唯一真值"纪律）
-    double currentScaleRatio() const { return currentScale; }
+    /// 吸附开关/参考线状态经 m_snapEnabled / m_snapLineFrame 内部使用；
+    /// 2026-11-15 清理：无消费者的 public 访问器（setSnapEnabled/snapEnabled/
+    /// snapLineFrame/pxPerFrame/currentScaleRatio，均为"测试锚"但测试不存在）
+    /// 已删除——需要时随测试一并加回。
+    // ---- 外控/滚动探针（只读，不破坏"滚动条唯一真值"纪律）-----------------
     QPoint scrollOffset() const { return m_scrollOffset; }
     /// 滚动偏移访问器（P7 统一绘制路径：直接读滚动条真值，替代散落的
     /// horizontalScrollBar()->value()/verticalScrollBar()->value() 直呼与

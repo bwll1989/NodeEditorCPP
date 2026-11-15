@@ -901,14 +901,62 @@ bool QtTimelineModelAdapter::showClipOwnPanel(int track_idx, int clip_idx,
 }
 
 // ---------------------------------------------------------------------------
+// 模型索引 → 工作副本下标（2026-11-15 选中分工：时间轴选中的 clip 高亮到
+// 画布空间域用）。按 clipAnchor（ms clip id）匹配，返回 work 轨/片段下标，
+// 供 MainWindow 直接 msCanvas_->highlight(4, tr, cl)。失败返回 false。
+// ---------------------------------------------------------------------------
+bool QtTimelineModelAdapter::workClipIndices(const QModelIndex& clip_index,
+                                             int* track_idx,
+                                             int* clip_idx) const {
+    if (!work_ || !clip_index.isValid() || !clip_index.parent().isValid())
+        return false;
+    const int trackRow = clip_index.parent().row();
+    if (trackRow < 0 || trackRow >= (int)m_tracks.size()) return false;
+    TrackData* td = m_tracks[trackRow];
+    if (!td || clip_index.row() < 0 ||
+        clip_index.row() >= (int)td->clips.size())
+        return false;
+    AbstractClipModel* clip = td->clips[clip_index.row()];
+    if (!clip) return false;
+    const std::string id = clip->clipAnchor().toStdString();
+    if (trackRow >= (int)work_->timeline.tracks.size()) return false;
+    const auto& wclips = work_->timeline.tracks[trackRow].clips;
+    for (int i = 0; i < (int)wclips.size(); ++i) {
+        if (wclips[i].id != id) continue;
+        if (track_idx) *track_idx = trackRow;
+        if (clip_idx)  *clip_idx  = i;
+        return true;
+    }
+    return false;
+}
+
+// ---------------------------------------------------------------------------
 // 回写定位：clipAnchor（ms clip id）→ 工作副本 Clip*
+// 【2026-11-15 性能】拖拽/裁边会话中 onClipGeometryChanged 以 mouse-move
+// 频率触发，全轨×全片段线性扫描（std::string 逐个比对）成为每帧开销。
+// 加"上次命中下标"O(1) 快路径：clip id 全局唯一 → 下标处 id 比对成功即
+// 命中；增删/换轨/vector 搬移使下标处 id 失配 → 回退全扫并更新（缓存只存
+// 下标不存指针，搬移安全；语义与全扫完全一致）。
 // ---------------------------------------------------------------------------
 Clip* QtTimelineModelAdapter::locateWorkClip(const QString& note) {
     if (!work_) return nullptr;
     const std::string id = note.toStdString();
-    for (auto& tr : work_->timeline.tracks)
-        for (auto& c : tr.clips)
-            if (c.id == id) return &c;
+    auto& tracks = work_->timeline.tracks;
+    if (m_lastLocateTrack >= 0 && m_lastLocateTrack < (int)tracks.size()) {
+        auto& clips = tracks[m_lastLocateTrack].clips;
+        if (m_lastLocateClip >= 0 && m_lastLocateClip < (int)clips.size() &&
+            clips[m_lastLocateClip].id == id)
+            return &clips[m_lastLocateClip];
+    }
+    for (int tr = 0; tr < (int)tracks.size(); ++tr) {
+        auto& clips = tracks[tr].clips;
+        for (int ci = 0; ci < (int)clips.size(); ++ci) {
+            if (clips[ci].id != id) continue;
+            m_lastLocateTrack = tr; // 命中：更新快路径锚（非 const 路径）
+            m_lastLocateClip  = ci;
+            return &clips[ci];
+        }
+    }
     return nullptr;
 }
 

@@ -16,7 +16,7 @@
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QMimeData>
-#include <QStatusBar> // statusBar()->showMessage（添加屏幕/属性写回提示）
+#include <QStatusBar> // statusBar()->showMessage（添加屏幕提示；同步媒体反馈已改 qDebug）
 
 #include <QWKWidgets/widgetwindowagent.h>
 #include <widgetframe/windowbar.h>
@@ -32,10 +32,10 @@
 #include <QTimer>
 // ---- MediaServer 编辑器组件（2026-11-12 第一步：UI 挂载）--------------------
 #include "Common/TimeLineBase/BaseTimeLineWidget.h"  // TimeLineBase（原 ms_qttimeline）：时间轴视图 DLL
+#include <QItemSelectionModel>  // 【2026-11-15 选中分工】时间轴选中模型 → 画布高亮单向链
 #include "../TimeLineWidget/QtTimelineModelAdapter.hpp"    // Scene↔帧模型适配器
 #include "SceneCanvasWidget.hpp"         // 预览画布
 #include "ScreenPropertyDialog.hpp"     // 屏幕属性对话框（2026-11-13 接通）
-#include "SceneTreeWidget.hpp"           // 场景树
 #include "PreviewRenderer.hpp"           // 本地预览渲染器
 // ---- MediaServer 动作联动（2026-11-12 第二步）--------------------------------
 #include "model/SceneModel.hpp"          // ms::Asset/AssetKind（钩子签名；
@@ -391,20 +391,15 @@ void MainWindow::init()
                                       qOverload<>(&QWidget::update),
                                       Qt::QueuedConnection);
     });
-    msSceneTree_ = new ms::SceneTreeWidget(this);
-    msSceneTree_->rebuild(msScene_);
+    // 【2026-11-15 场景树退役】SceneTreeWidget 控件移除：屏幕在线徽标改由
+    // 画布（setDisplayOnlineStates）承担、场景级动作迁 timeline 工具栏、
+    // 银幕操作全在画布右键——三控件选中/管理分工见画布头注释。
     // 预览画布 dock（右）
     auto *previewDockWidget = m_DockManager->createDockWidget(QStringLiteral("预览画布"));
     previewDockWidget->setObjectName(QStringLiteral("ms_preview"));
     previewDockWidget->setIcon(QIcon(":/icons/icons/timeline.png"));
     previewDockWidget->setWidget(msCanvas_);
     m_DockManager->addDockWidget(ads::RightDockWidgetArea, previewDockWidget);
-    // 场景树 dock（左）
-    auto *sceneTreeDockWidget = m_DockManager->createDockWidget(QStringLiteral("场景树"));
-    sceneTreeDockWidget->setObjectName(QStringLiteral("ms_scene_tree"));
-    sceneTreeDockWidget->setIcon(QIcon(":/icons/icons/timeline.png"));
-    sceneTreeDockWidget->setWidget(msSceneTree_);
-    m_DockManager->addDockWidget(ads::LeftDockWidgetArea, sceneTreeDockWidget);
     // 时间轴 dock（底部；objectName 沿用 "timeline"）
     auto *timelineDockWidget = m_DockManager->createDockWidget(QStringLiteral("时间轴"));
     timelineDockWidget->setObjectName(QStringLiteral("timeline"));
@@ -428,10 +423,26 @@ void MainWindow::init()
     //（展开态/滚动位置树内部保持）+ 预览内容失效进下一帧提交。
     connect(msTimelineAdapter_, &ms::QtTimelineModelAdapter::sceneEdited,
             this, [this] {
-                if (msSceneTree_) msSceneTree_->rebuild(msScene_);
                 if (msPreview_)   msPreview_->invalidate();
                 requestMsAutoPublish();
             });
+    // 【2026-11-15 选中分工定案】时间轴 = clip 选中唯一入口；画布 = screen
+    // 选中 + 已选 clip 的空间域编辑（"时间轴选谁，画布摆哪"）。单向链：
+    // 时间轴 currentChanged → 画布 highlight(4,tr,cl)（高亮 + 可拖动/缩放/
+    // 打键）；画布不回写时间轴选中（画布只显播放头时刻的 clip，全量选中
+    // 在画布不可见——空间快照不是素材清单）。locateWorkClip 换轨透明，
+    // 此处下标仅用于高亮定位，workClipIndices 按 clipAnchor 匹配。
+    if (msTimeline_ && msTimeline_->sharedSelectionModel()) {
+        connect(msTimeline_->sharedSelectionModel(),
+                &QItemSelectionModel::currentChanged, this,
+                [this](const QModelIndex& cur, const QModelIndex&) {
+                    if (!msCanvas_ || !msTimelineAdapter_) return;
+                    int tr = -1, cl = -1;
+                    if (!msTimelineAdapter_->workClipIndices(cur, &tr, &cl))
+                        return;
+                    msCanvas_->highlight(4, tr, cl);
+                });
+    }
     // 拖入导入失败 → 日志表可见提示（qWarning 经 LogHandler 进终端 dock）；
     // [E1] 语义：适配器已保证本次拖入不留 1 帧空占位，此处仅提示。
     connect(msTimelineAdapter_, &ms::QtTimelineModelAdapter::mediaImportFailed,
@@ -465,7 +476,6 @@ void MainWindow::init()
             us = msPreview_->playheadUs();
         }
         msTimelineAdapter_->setPlayheadFromRuntimeUs(us);
-        if (msSceneTree_) msSceneTree_->markPlayhead(us);
         // 播放头帧号反馈（PAL 25fps 四舍五入；旧 TimeLineToolBar::
         // publishCurrentFrame 同语义——StatusContainer 镜像后经
         // statusUpdated 出站到 OSC/MQTT/WS 反馈端口）
@@ -532,27 +542,32 @@ void MainWindow::init()
     connect(msAutoPublishTimer_, &QTimer::timeout, this, [this] {
         publishMsSceneNow();
     });
-    // 场景树右键动作 → 桥命令（只入队，GUI 零阻塞）
+    // ---- 画布银幕右键场景级动作（2026-11-15 二次定稿）-----------------------
+    // 下发场景/同步媒体从 timeline 工具栏改挂画布银幕右键（工具栏版撤销）；
+    // 状态反馈改 qDebug（状态栏输出退役，用户要求）。原场景树右键
+    // 「重载场景」「适配窗口」随树退役（适配窗口画布双击/右键复位已有）。
     // 下发场景：模型→工作场景兜底同步（防面板改动未写回）后全量广播。
-    connect(msSceneTree_, &ms::SceneTreeWidget::publishSceneRequested, this,
+    connect(msCanvas_, &ms::SceneCanvasWidget::publishSceneRequested, this,
             [this] {
-                if (!msRuntime_ || !msRuntime_->running() || !msScene_) return;
+                if (!msRuntime_ || !msRuntime_->running() || !msScene_) {
+                    qDebug() << "[ms-main] 下发场景：下发运行时未启动，忽略";
+                    return;
+                }
                 msTimelineAdapter_->syncModelToWorkScene();
                 msRuntime_->publishScene(*msScene_);
                 if (msAudioBusHost_) msAudioBusHost_->updateScene(*msScene_);
+                qDebug() << "[ms-main] 场景已全量下发到显示端";
             });
     // 同步媒体：注册素材 + 推清单（在线端比对拉取，幂等）。
-    // 【2026-11-13 补反馈】对齐合并前 EditorWindow::onSyncMedia——此前接线
-    // 静默执行（display 离线时清单未发出也零提示），用户观感"同步无效"。
-    // 在线数口径 = connected && enabled（与清单广播的目标过滤同源）。
-    connect(msSceneTree_, &ms::SceneTreeWidget::syncMediaRequested, this,
+    // 【2026-11-13 补反馈】静默执行（display 离线时清单未发出也零提示）
+    // 用户观感"同步无效"。在线数口径 = connected && enabled（与清单广播
+    // 的目标过滤同源）。
+    connect(msCanvas_, &ms::SceneCanvasWidget::syncMediaRequested, this,
             [this] {
                 if (!msScene_) return;
                 if (!msRuntime_ || !msRuntime_->running()) {
-                    statusBar()->showMessage(
-                        QStringLiteral("同步媒体：下发运行时未启动（端口占用？）"
-                                       "——素材无法分发"),
-                        5000);
+                    qDebug() << "[ms-main] 同步媒体：下发运行时未启动"
+                                "（端口占用？）——素材无法分发";
                     return;
                 }
                 msTimelineAdapter_->syncModelToWorkScene();
@@ -561,53 +576,34 @@ void MainWindow::init()
                 const auto rows = msRuntime_->displayRows();
                 for (const auto& r : rows)
                     if (r.connected && r.enabled) ++online;
-                statusBar()->showMessage(
-                    online == 0
-                        ? QStringLiteral("已注册 %1 个素材——当前无在线显示端，"
-                                         "清单未送达（显示端上线后请再次同步）")
-                              .arg(static_cast<int>(n))
-                        : (n == 0
-                               ? QStringLiteral("已推送素材清单到 %1 个在线显示端"
-                                                "（无新增文件，全部已就位）")
-                                     .arg(static_cast<int>(online))
-                               : QStringLiteral("已注册 %1 个素材并推送清单到 %2 "
-                                                "个在线显示端（缺失文件由显示"
-                                                "端自动拉取）")
-                                     .arg(static_cast<int>(n))
-                                     .arg(static_cast<int>(online))),
-                    5000);
+                qDebug() << QStringLiteral(
+                                "[ms-main] 同步媒体：注册 %1 个素材 / 在线显示"
+                                "端 %2 个%3")
+                                .arg(static_cast<int>(n))
+                                .arg(static_cast<int>(online))
+                                .arg(online == 0
+                                         ? QStringLiteral("——清单未送达（显示"
+                                                          "端上线后请再次同"
+                                                          "步）")
+                                         : QStringLiteral(""));
             });
-    // 重载场景：显示端权威快照（最后一次下发）→ 写回工作副本 → 全链
-    // 刷新（时间轴模型重建/场景树重建/预览失效）。无发布记录 = 忽略。
-    connect(msSceneTree_, &ms::SceneTreeWidget::reloadSceneRequested, this,
-            [this] {
-                if (!msRuntime_ || !msScene_) return;
-                ms::Scene snap;
-                if (!msRuntime_->authoritySnapshot(snap)) return;
-                *msScene_ = std::move(snap);
-                // 【2026-11-13】canvas 钳制（口径同工程回灌）：0 画布会让
-                // 画布全链（滚轮缩放/fit/绘制）失效。
-                if (msScene_->canvas_w <= 0.0) msScene_->canvas_w = 1920.0;
-                if (msScene_->canvas_h <= 0.0) msScene_->canvas_h = 1080.0;
-                msTimelineAdapter_->loadSceneToModel(*msScene_);
-                msSceneTree_->rebuild(msScene_);
-                msPreview_->invalidate();
-                if (msAudioBusHost_) msAudioBusHost_->updateScene(*msScene_);
-            });
-    // 视图复位：场景树"适配窗口"动作 → 画布 resetView。
-    connect(msSceneTree_, &ms::SceneTreeWidget::fitViewRequested, this, [this] {
-        if (msCanvas_) msCanvas_->resetView();
-    });
     // 【单入口约定（对齐合并前 EditorWindow）】添加显示端的独立入口已退役
     //（2026-11-13 用户要求场景树不提供添加 display 功能）——屏幕与显示端
     // 一一对应，画布右键「添加屏幕」内自动连带登记本机显示端
     //（display_id = screen.player_id）；改绑走屏幕属性对话框「绑定」页
     //（UDP 扫描选设备 + 手填兜底）。
+    // 画布银幕右键「断开/连接显示端」（2026-11-15 场景树退役分流）：
     // 连接/断开 = 槽位启停（停用立即断开；启用交看门狗重连）。
-    connect(msSceneTree_, &ms::SceneTreeWidget::displayConnectRequested, this,
-            [this](const QString& display_id, bool connect_) {
-                if (msRuntime_)
-                    msRuntime_->setDisplayEnabled(display_id, connect_);
+    // display_id 解析 = screen.player_id（登记键，同单入口约定）。
+    connect(msCanvas_, &ms::SceneCanvasWidget::screenDisplayConnectRequested,
+            this, [this](int screen_idx, bool connect_) {
+                if (!msScene_ || !msRuntime_ || screen_idx < 0 ||
+                    screen_idx >= static_cast<int>(msScene_->screens.size()))
+                    return;
+                msRuntime_->setDisplayEnabled(
+                    QString::fromStdString(
+                        msScene_->screens[screen_idx].player_id),
+                    connect_);
             });
     // ---- 画布信号接线（2026-11-13 修复）--------------------------------------
     // 收编时原 EditorWindow 随迁丢失，msCanvas_ 全部信号悬空：
@@ -649,7 +645,6 @@ void MainWindow::init()
                                    QStringLiteral("127.0.0.1"), 17100);
 
         msScene_->screens.push_back(scr);
-        if (msSceneTree_) msSceneTree_->rebuild(msScene_);
         if (msPreview_)   msPreview_->invalidate();
         if (msCanvas_) {
             msCanvas_->update();
@@ -666,7 +661,7 @@ void MainWindow::init()
         std::fflush(stderr);
     });
     // 删除屏幕（画布右键菜单）：从工作副本移除 + 全链刷新。显示端登记不
-    // 连带删除（登记无害可复用，管理入口在场景树右键）。
+    // 连带删除（登记无害可复用；改绑/断开走画布银幕右键与属性对话框）。
     connect(msCanvas_, &ms::SceneCanvasWidget::screenDeleteRequested, this,
             [this](int screen_idx) {
                 if (!msScene_ || screen_idx < 0 ||
@@ -674,7 +669,6 @@ void MainWindow::init()
                     return;
                 const std::string id = msScene_->screens[screen_idx].id;
                 msScene_->screens.erase(msScene_->screens.begin() + screen_idx);
-                if (msSceneTree_) msSceneTree_->rebuild(msScene_);
                 if (msPreview_)   msPreview_->invalidate();
                 if (msCanvas_)    msCanvas_->update();
                 std::fprintf(stderr, "[ms-main] 删除屏幕 %s\n", id.c_str());
@@ -688,7 +682,6 @@ void MainWindow::init()
     // "拖画布打键后时间轴看不到菱形"（#89 修复收编时调用方丢失）。
     connect(msCanvas_, &ms::SceneCanvasWidget::sceneEdited, this, [this] {
         if (msTimelineAdapter_) msTimelineAdapter_->syncAllClipTweenDots();
-        if (msSceneTree_) msSceneTree_->rebuild(msScene_);
         if (msPreview_)   msPreview_->invalidate();
         requestMsAutoPublish();
     });
@@ -712,7 +705,6 @@ void MainWindow::init()
     // 编辑中即时写工作副本并刷新视图，取消 = 还原打开时备份；OK = applyTo
     // + 显示端登记同步（改绑注销旧条目；同 id 地址/配对码变化重登记）。
     auto refreshMsViews = [this] {
-        if (msSceneTree_) msSceneTree_->rebuild(msScene_);
         if (msPreview_)   msPreview_->invalidate();
         if (msCanvas_)    msCanvas_->update();
         requestMsAutoPublish();
@@ -834,7 +826,7 @@ void MainWindow::init()
         }
         refreshMsViews();
         statusBar()->showMessage(
-            QStringLiteral("屏幕 %1 已修改（绑定 %2@%3:%4；场景树右键"
+            QStringLiteral("屏幕 %1 已修改（绑定 %2@%3:%4；画布银幕右键"
                            "「下发场景」后生效）")
                 .arg(QString::fromStdString(scr.id),
                      QString::fromStdString(new_pid),
@@ -844,27 +836,23 @@ void MainWindow::init()
     };
     connect(msCanvas_, &ms::SceneCanvasWidget::screenDoubleClicked, this,
             openScreenProperty);
-    connect(msSceneTree_, &ms::SceneTreeWidget::propertiesRequested, this,
-            [openScreenProperty](int kind, int a, int b) {
-                if (kind == 1) openScreenProperty(a); // 1=screen（b 未用）
-            });
-    // 200ms UI 拍：显示端在线状态 + 素材同步进度 → 场景树轻量刷新
-    //（refreshDisplayStatuses/updateSyncProgress 幂等：状态不变零重绘；
-    // 编辑触发的 rebuild 未带状态表，本拍 200ms 内补回标注）。
+    // （2026-11-15 场景树退役：树侧 propertiesRequested 入口随树移除——
+    //   屏幕属性唯一入口 = 画布双击/右键，clip 属性唯一入口 = timeline 双击）
+    // 200ms UI 拍：显示端在线状态 → 画布屏幕角标（场景树退役后由画布
+    // 承担；setDisplayOnlineStates 幂等：状态不变零重绘）+ display 上线
+    // 自动追平下发。在线口径 = connected && enabled（与同步媒体在线数
+    // /追平判断同源；角标即"可用性"语义）。
     auto* msUiTimer = new QTimer(this);
     msUiTimer->setTimerType(Qt::CoarseTimer);
     connect(msUiTimer, &QTimer::timeout, this, [this] {
-        if (!msRuntime_ || !msRuntime_->running() || !msSceneTree_) return;
-        ms::SceneTreeWidget::DisplayStates states;
+        if (!msRuntime_ || !msRuntime_->running()) return;
         const auto rows = msRuntime_->displayRows();
-        for (const auto& r : rows) {
-            ms::SceneTreeWidget::DisplayState s;
-            s.online    = r.connected && r.registered;
-            s.enabled   = r.enabled;
-            s.connected = r.connected;
-            states.emplace(r.id.toStdString(), s);
+        if (msCanvas_) {
+            std::map<std::string, bool> states;
+            for (const auto& r : rows)
+                if (r.enabled) states.emplace(r.id.toStdString(), r.connected);
+            msCanvas_->setDisplayOnlineStates(states);
         }
-        msSceneTree_->refreshDisplayStatuses(states);
         // 【display 上线追平 2026-11-13】对比上一拍在线集合，新上线端自动
         // 发布当前场景（幂等广播）——覆盖"display 晚于项目打开上线"路径：
         // 注册应答只在有权威快照时单发，且此前编辑改动不会因 display 上线
@@ -884,11 +872,7 @@ void MainWindow::init()
             std::fflush(stderr);
         }
         msLastConnected_ = std::move(cur_conn);
-        std::map<QString, QString> syncTexts;
-        const auto texts = msRuntime_->assetSyncTexts(); // QMap
-        for (auto it = texts.constBegin(); it != texts.constEnd(); ++it)
-            syncTexts.emplace(it.key(), it.value());
-        msSceneTree_->updateSyncProgress(syncTexts);
+        // （素材同步进度条随场景树退役——同步媒体结果由状态栏消息即时反馈）
     });
     msUiTimer->start(200);
 
@@ -1274,7 +1258,6 @@ void MainWindow::loadFileFromPath(const QString &path)
         && (!msScene_->timeline.tracks.empty() || !msScene_->screens.empty()
             || !msScene_->assets.empty())) {
         msTimelineAdapter_->loadSceneToModel(*msScene_);
-        msSceneTree_->rebuild(msScene_);
         msPreview_->invalidate();
         // 【打开即追平 2026-11-13】加载项目后立即建立显示端权威快照并
         // 广播——display 端注册应答/上线追平才有场景可发，用户零手动动作
@@ -1466,7 +1449,6 @@ void MainWindow::msHandleStop() {
     if (msPlayTimer_) msPlayTimer_->stop();
     // 播放头回显起点（画布 pull 泵检测变化自动重绘首帧）
     if (msTimelineAdapter_) msTimelineAdapter_->setPlayheadFromRuntimeUs(0);
-    if (msSceneTree_) msSceneTree_->markPlayhead(0);
     msPublishPlaybackState();
 }
 

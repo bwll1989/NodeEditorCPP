@@ -127,9 +127,16 @@ signals:
     /// 【片段双击弹面板已移除（2026-11-05 用户定案：属性面板唯一入口 =
     /// timeline 双击，画布双击不再弹——两处并存易歧义）】
     void screenDoubleClicked(int screen_idx);
-    /// 删除请求（菜单发起；删除动作在 EditorWindow——需同步时间轴模型）
-    void clipDeleteRequested(int track_idx, int clip_idx);
+    /// 删除屏幕请求（画布银幕右键菜单；删除动作在宿主——需同步时间轴）
     void screenDeleteRequested(int screen_idx);
+    /// 【2026-11-15 场景树退役分流】银幕右键「断开/连接显示端」：槽位启停
+    ///（停用立即断开；启用交看门狗重连）。宿主按 screen_idx 解析
+    /// display_id = screen.player_id 后 setDisplayEnabled。
+    void screenDisplayConnectRequested(int screen_idx, bool connect_);
+    /// 【2026-11-15 二次定稿】场景级动作挂银幕右键（timeline 工具栏版撤销）
+    /// ——下发场景/同步媒体，无参（场景级语义，与银幕索引无关）。
+    void publishSceneRequested();
+    void syncMediaRequested();
     /// 添加屏幕请求（右键空白处；工具条按钮已退役——入口唯一化）。
     /// 显示端登记由 EditorWindow 在 onAddScreen 内自动连带完成（单入口）。
     void screenAddRequested();
@@ -186,8 +193,16 @@ private:
     QRectF screenRect(int i) const;
     /// 片段 (track,clip) 的控件矩形（transform.w/h<=0 回退素材宽高再回退 640x360）
     QRectF clipRect(int track_idx, int clip_idx) const;
-    /// 命中测试：优先顶层片段（z 大者优先），其次 screen；未命中返回空选中
+    /// 命中测试【2026-11-15 选中分工】screen-only：画布只选 screen（z 大者
+    /// 优先 / 3D 视深最近）；clip 选中唯一入口 = 时间轴（画布"只显当前"
+    /// 是舞台快照，非素材清单——快照上做全量选择必产生"找不到"困惑）。
+    /// 未命中返回空选中。
     Selection hitTest(const QPointF& widget_pos) const;
+    /// 点击点是否落在【当前已选中片段】（时间轴选中经直连高亮而来）的
+    /// 变形感知矩形内：命中 = 画布承担该 clip 的空间编辑（拖动/手柄，
+    /// "时间轴选谁，画布摆哪"）；不命中 = 按 screen 命中处理。
+    /// 只显当前口径：片段此刻不活跃（画布不可见）= 不可编辑目标。
+    bool hitSelectedClip(const QPointF& widget_pos) const;
     /// 片段画布矩形（画布坐标；含 w/h 兜底逻辑；内部经 clipResolvedTransform
     /// ——tween 通道在播放头时刻的求值结果直接体现为绘制/命中矩形）
     QRectF clipCanvasRect(const Clip& c) const;

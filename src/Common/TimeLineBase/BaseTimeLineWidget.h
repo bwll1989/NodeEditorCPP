@@ -44,6 +44,16 @@ public:
     // 默认工具栏（控制播放等）
     DefaultTimeLineToolBar* toolbar;
 
+    /**
+     * @brief 共享选择模型访问器（2026-11-15 画布选中分工配套）
+     * @details
+     * 选中状态唯一来源 = m_sharedSelectionModel（构造时创建，生命周期同
+     * 本控件）。宿主（EditorWindow）经此访问器监听 currentChanged，实现
+     * "时间轴选中片段 → 画布高亮该片段（活跃可见时画布可拖动/打键）"。
+     * createComponents 在构造函数内完成，返回值恒非空（模型非空时）。
+     */
+    QItemSelectionModel* sharedSelectionModel() const { return m_sharedSelectionModel; }
+
 private:
     /**
      * @brief 两个视图共享的选择模型

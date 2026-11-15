@@ -356,15 +356,15 @@ set(CALC_SOURCE_FILES
         src/Widget/PreviewCanvasWidget/PreviewRenderer.cpp
         src/Widget/PreviewCanvasWidget/ScreenWarpPanel.cpp
         src/Widget/PreviewCanvasWidget/ScreenPropertyDialog.cpp
-        # SceneTree：场景树
-        src/Widget/SceneTreeWidget/SceneTreeWidget.cpp
+        # 【2026-11-15 场景树退役】SceneTreeWidget 源文件从构建移除
+        #（UI 控件已在 MainWindow 移除；文件保留在磁盘可随时恢复）
 
         # GL 直通预览（复用 display 端 GL 合成后端；CUDA 缺失走桩回退）
         # 2026-11-12 display 已迁至 tools/MediaDisplay 子项目
         src/Widget/TimeLineWidget/QtTimelineModelAdapter.hpp
         src/Widget/PreviewCanvasWidget/SceneCanvasWidget.hpp
         src/Widget/PreviewCanvasWidget/PreviewRenderer.hpp
-        src/Widget/SceneTreeWidget/SceneTreeWidget.hpp
+        # 【2026-11-15 场景树退役】SceneTreeWidget.hpp 移出构建
         # 【2026-11-13 彻底解耦】主程序源列表不含任何片段插件头——
         # 类型表完全由磁盘 plugin/*.plugin 驱动（QPluginLoader 运行时加载），
         # 没有对应 .plugin 文件 = 该片段类型不存在，Add Track 菜单不露项。
@@ -436,7 +436,6 @@ target_include_directories(${ProjectName} PRIVATE
         #  彻底解耦后主程序不再 include 任何片段插件头，src/Clips 无需任何条目）：
         "${CMAKE_SOURCE_DIR}/src/Widget/PreviewCanvasWidget"   # SceneCanvasWidget.hpp（MainWindow 裸名 include）
         "${CMAKE_SOURCE_DIR}/tools/MediaDisplay"         # GlRenderer.hpp（GL 直通预览复用 display 合成后端）
-        "${CMAKE_SOURCE_DIR}/src/Widget/SceneTreeWidget"       # SceneTreeWidget.hpp（场景树，MainWindow 裸名 include）
 )
 target_link_libraries(${ProjectName}
         PUBLIC
@@ -508,7 +507,6 @@ target_compile_definitions(${HeadlessProjectName} PRIVATE MS_GL_NO_CUDA)
 target_include_directories(${HeadlessProjectName} PRIVATE
         "${CMAKE_SOURCE_DIR}/src/Widget/PreviewCanvasWidget"
         "${CMAKE_SOURCE_DIR}/tools/MediaDisplay"
-        "${CMAKE_SOURCE_DIR}/src/Widget/SceneTreeWidget"
 )
 target_compile_definitions(${HeadlessProjectName} PRIVATE CLIENTCONTROLLER_LIBRARY)
 target_compile_definitions(${HeadlessProjectName} PRIVATE OSCLISTWIDGET_LIBRARY)

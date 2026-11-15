@@ -907,9 +907,6 @@ void BaseTimelineView::resizeEvent(QResizeEvent *event)
 {
     scheduleRedraw();
     QAbstractItemView::resizeEvent(event);
-
-    // 更新ZoomController
-    // emit timelineInfoChanged(getTrackWdith(), viewport()->width(), m_scrollOffset.x());
 }
 
 void BaseTimelineView::rowsAboutToBeRemoved(const QModelIndex& parent, int start, int end)

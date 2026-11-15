@@ -95,8 +95,70 @@ QColor trackKindColor(AssetKind kind) {
 inline bool trackInvisibleOnCanvas(AssetKind kind) {
     return kind == AssetKind::Audio || kind == AssetKind::Control;
 }
-/// z 排序哨兵下限（命中测试"尚无候选"初值；原两处独立硬编码收敛）
-constexpr int kZOrderMin = -1'000'000'00;
+/// 片段矩形变形感知命中（2026-11-09 锚点/角点改造；原 hitTest 内联 lambda
+/// 提升为文件级【2026-11-15 选中分工】——hitTest（screen-only）与"点击
+/// 已选中 clip 进拖动"特判两处共用同一几何判定，防两处漂移）：
+///   * 默认（中心锚无位移）→ rotatedRectContains（逐位不变）；
+///   * 仅锚点变化 → 点绕锚点逆旋转回未旋转矩形局部系再判包含
+///     （数学 = rotatedRectContains 平移锚点版）；
+///   * 角点位移 / 3D 姿态 → 位移后四角 AABB（四边形可能非凸，AABB
+///     简单可靠；编辑器命中精度足够——绘制边框仍是四边形本体）
+inline bool clipRectContains(const QRectF& r, const Transform& tf,
+                             const QPointF& p) {
+    if (r.width() <= 0 || r.height() <= 0) return false;
+    if (tf.poseActive()) {
+        // 3D 姿态（2026-11-10）：quadCorners3D 预投影四角 AABB——
+        // 透视四边形可能非凸，AABB 简单可靠（与角点位移分支同策略）；
+        // quadCorners3D 内含滚转/锚点/位移全部语义，姿态存在时优先
+        double wx[4], wy[4];
+        cg::quadCorners3D(r.x(), r.y(), r.width(), r.height(),
+                          tf.rotation, tf.rot_x, tf.rot_y, tf.anchor,
+                          tf.corner, wx, wy);
+        double minx = wx[0], miny = wy[0], maxx = wx[0], maxy = wy[0];
+        for (int i = 1; i < 4; ++i) {
+            minx = std::min(minx, wx[i]);
+            maxx = std::max(maxx, wx[i]);
+            miny = std::min(miny, wy[i]);
+            maxy = std::max(maxy, wy[i]);
+        }
+        return p.x() >= minx && p.x() <= maxx && p.y() >= miny &&
+               p.y() <= maxy;
+    }
+    if (tf.anchor == 0 && !tf.cornerActive())
+        return cg::rotatedRectContains(r.x(), r.y(), r.width(),
+                                       r.height(), tf.rotation, p.x(),
+                                       p.y());
+    double au = 0.5, av = 0.5;
+    Transform::anchorUV(tf.anchor, au, av);
+    if (tf.cornerActive()) {
+        // 位移后四角 AABB——四角生成走 cg::quadCornersWithAnchor
+        //（唯一真相，2026-11-09 X 形根治：此前手写副本 bit 模式
+        // zigzag + i*2 直索引把 RB/LB 位移互换，拖右下角命中框错
+        // 跟左下角）。四边形可能非凸，AABB 简单可靠。
+        double wx[4], wy[4];
+        cg::quadCornersWithAnchor(r.x(), r.y(), r.width(), r.height(),
+                                  tf.rotation, tf.anchor, tf.corner,
+                                  wx, wy);
+        double minx = wx[0], miny = wy[0], maxx = wx[0], maxy = wy[0];
+        for (int i = 1; i < 4; ++i) {
+            minx = std::min(minx, wx[i]);
+            maxx = std::max(maxx, wx[i]);
+            miny = std::min(miny, wy[i]);
+            maxy = std::max(maxy, wy[i]);
+        }
+        return p.x() >= minx && p.x() <= maxx && p.y() >= miny &&
+               p.y() <= maxy;
+    }
+    // 仅锚点：local = R(-θ)·(p − anchorPos) + anchorLocal ∈ [0,w]×[0,h]
+    const double rad = tf.rotation * 3.14159265358979323846 / 180.0;
+    const double ct = std::cos(rad), stn = std::sin(rad);
+    const double dx = p.x() - (r.x() + au * r.width());
+    const double dy = p.y() - (r.y() + av * r.height());
+    const double lx = ct * dx + stn * dy + au * r.width();
+    const double ly = -stn * dx + ct * dy + av * r.height();
+    return lx >= 0.0 && ly >= 0.0 && lx <= r.width() &&
+           ly <= r.height();
+}
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -695,126 +757,32 @@ QRectF SceneCanvasWidget::clipRect(int track_idx, int clip_idx) const {
 }
 
 // ---------------------------------------------------------------------------
-// 命中测试
-//   * 2D：片段取 z 最大者（顶层优先），其次 screen——旋转对象把点相对
-//     中心逆旋转后判未旋转矩形；
-//   * 3D：鼠标视线与每个对象所在高度平面求交后做同样的画布域包含测试
-//     （片段平面 h=transform.z，屏幕恒地面 h=0）；多个平面都命中时取
-//     视深最近者——正交投影下"离相机近 = 视觉遮挡在上"，与 2D 的
-//     "z 大者在上的叠放语义"统一为同一视觉直觉
+// 命中测试【2026-11-15 选中分工定案】screen-only：画布只选 screen。
+//
+// 分工依据：画布"只显当前"（播放头时刻活跃素材的舞台快照，WATCHOUT
+// Stage 语义）后，画布不是素材资源清单——在快照上做全量选择会让使用者
+// 点到"此刻不存在"的对象而毫无反馈（"找不到"的根源）。片段是时间实体，
+// 选中唯一入口 = 时间轴（永远找得到）；画布 = 空间域，只管恒存在恒显示
+// 的 screen + 承担"时间轴已选中片段"的空间编辑（hitSelectedClip 特判，
+// 见 mousePressEvent——时间轴选谁，画布摆哪）。
+//
+// 屏幕命中：z 大者优先（多屏重叠取上层；同 z 取数组序靠后）；3D 取视深
+// 最近者（正交投影下"离相机近 = 视觉遮挡在上"）。
 // ---------------------------------------------------------------------------
 SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
         const QPointF& widget_pos) const {
     if (!scene_ || scene_->canvas_w <= 0 || scene_->canvas_h <= 0) return {};
 
-    // 统一换算到画布域（一次 fit 换算；旋转发生在对象局部，画布域判定
-    // 与控件缩放无关）。旋转判定经 CanvasGeometry 共享实现（与 core_tests
-    // 验证的数学逐位一致）
+    // 画布域判定（旋转发生在对象局部，与控件缩放无关；CanvasGeometry
+    // 共享实现，与 core_tests 验证的数学逐位一致）
     const auto rectHit = [](const QRectF& r, double rot_deg,
                             const QPointF& p) -> bool {
         return cg::rotatedRectContains(r.x(), r.y(), r.width(), r.height(),
                                        rot_deg, p.x(), p.y());
     };
-    // 片段命中（变形感知，2026-11-09 锚点/角点改造）：
-    //   * 默认（中心锚无位移）→ 原 rotatedRectContains（逐位不变）；
-    //   * 仅锚点变化 → 点绕锚点逆旋转回未旋转矩形局部系再判包含
-    //     （数学 = rotatedRectContains 平移锚点版）；
-    //   * 角点位移 → 位移后四角 AABB（四边形可能非凸，AABB 简单可靠；
-    //     编辑器命中精度足够——绘制边框仍是四边形本体）
-    const auto clipHit = [](const QRectF& r, const Transform& tf,
-                            const QPointF& p) -> bool {
-        if (r.width() <= 0 || r.height() <= 0) return false;
-        if (tf.poseActive()) {
-            // 3D 姿态（2026-11-10）：quadCorners3D 预投影四角 AABB——
-            // 透视四边形可能非凸，AABB 简单可靠（与角点位移分支同策略）；
-            // quadCorners3D 内含滚转/锚点/位移全部语义，姿态存在时优先
-            double wx[4], wy[4];
-            cg::quadCorners3D(r.x(), r.y(), r.width(), r.height(),
-                              tf.rotation, tf.rot_x, tf.rot_y, tf.anchor,
-                              tf.corner, wx, wy);
-            double minx = wx[0], miny = wy[0], maxx = wx[0], maxy = wy[0];
-            for (int i = 1; i < 4; ++i) {
-                minx = std::min(minx, wx[i]);
-                maxx = std::max(maxx, wx[i]);
-                miny = std::min(miny, wy[i]);
-                maxy = std::max(maxy, wy[i]);
-            }
-            return p.x() >= minx && p.x() <= maxx && p.y() >= miny &&
-                   p.y() <= maxy;
-        }
-        if (tf.anchor == 0 && !tf.cornerActive())
-            return cg::rotatedRectContains(r.x(), r.y(), r.width(),
-                                           r.height(), tf.rotation, p.x(),
-                                           p.y());
-        double au = 0.5, av = 0.5;
-        Transform::anchorUV(tf.anchor, au, av);
-        if (tf.cornerActive()) {
-            // 位移后四角 AABB——四角生成走 cg::quadCornersWithAnchor
-            //（唯一真相，2026-11-09 X 形根治：此前手写副本 bit 模式
-            // zigzag + i*2 直索引把 RB/LB 位移互换，拖右下角命中框错
-            // 跟左下角）。四边形可能非凸，AABB 简单可靠。
-            double wx[4], wy[4];
-            cg::quadCornersWithAnchor(r.x(), r.y(), r.width(), r.height(),
-                                      tf.rotation, tf.anchor, tf.corner,
-                                      wx, wy);
-            double minx = wx[0], miny = wy[0], maxx = wx[0], maxy = wy[0];
-            for (int i = 1; i < 4; ++i) {
-                minx = std::min(minx, wx[i]);
-                maxx = std::max(maxx, wx[i]);
-                miny = std::min(miny, wy[i]);
-                maxy = std::max(maxy, wy[i]);
-            }
-            return p.x() >= minx && p.x() <= maxx && p.y() >= miny &&
-                   p.y() <= maxy;
-        }
-        // 仅锚点：local = R(-θ)·(p − anchorPos) + anchorLocal ∈ [0,w]×[0,h]
-        const double rad = tf.rotation * 3.14159265358979323846 / 180.0;
-        const double ct = std::cos(rad), stn = std::sin(rad);
-        const double dx = p.x() - (r.x() + au * r.width());
-        const double dy = p.y() - (r.y() + av * r.height());
-        const double lx = ct * dx + stn * dy + au * r.width();
-        const double ly = -stn * dx + ct * dy + av * r.height();
-        return lx >= 0.0 && ly >= 0.0 && lx <= r.width() &&
-               ly <= r.height();
-    };
 
     if (view3d_) {
-        // ---- 3D 拾取：逐对象高度平面反投影 → 画布域包含 → 视深最近 ----
-        // 视深 = dot(对象中心−注视点, F)（Camera3D::depthOf）——同一鼠标
-        // 射线命中的两个对象，平面离相机近者深度小（视觉在上）。
-        Selection best{};
-        double best_depth = 0.0;
-        for (int tr = 0; tr < (int)scene_->timeline.tracks.size(); ++tr) {
-            const auto& clips = scene_->timeline.tracks[tr].clips;
-            for (int cl = 0; cl < (int)clips.size(); ++cl) {
-                const Clip& c = clips[cl];
-                // 【只显当前】不活跃片段不可命中——所见即所得（画布上
-                // 看不见的隐形框若可命中会"挡住"别的对象）
-                if (!clipActiveAtPlayhead(c)) continue;
-                // 【音频/Control 片段不命中】无图像（画布不画）——命中同
-                // 口径跳过，防止隐形框拦截点击
-                if (trackInvisibleOnCanvas(scene_->timeline.tracks[tr].kind))
-                    continue;
-                const QRectF r = clipCanvasRect(c);
-                if (r.width() <= 0 || r.height() <= 0) continue;
-                const double h = (double)c.transform.z;
-                const QPointF cp =
-                    widgetToCanvasAt(widget_pos, h); // 该片段高度平面
-                // rotation/anchor/corner 走统一求值入口（tween 通道接管
-                // 语义 + 2026-11-09 变形感知命中）
-                if (!clipHit(r, clipResolvedTransform(c), cp))
-                    continue;
-                const double d =
-                    cam3d_.depthOf(r.center().x(), h, r.center().y());
-                // 同深度（同平面）取数组序靠后者——与 2D 叠放次序一致
-                if (best.kind != 4 || d <= best_depth) {
-                    best = Selection{4, tr, cl};
-                    best_depth = d;
-                }
-            }
-        }
-        if (best.kind == 4) return best;
-
+        // ---- 3D：屏幕贴地平面反投影 → 画布域包含 → 视深最近 ----
         int best_scr = -1;
         double best_scr_depth = 0.0;
         for (int i = 0; i < (int)scene_->screens.size(); ++i) {
@@ -835,33 +803,9 @@ SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
 
     const QPointF cp = widgetToCanvas(widget_pos);
 
-    // ---- 片段：z 最大者优先（同 z 取数组序靠后者——绘制次序中在上层，
-    //      与 z 升序 stable_sort 的绘制层级一致）----
-    Selection best{};
-    int best_z = kZOrderMin;
-    for (int tr = 0; tr < (int)scene_->timeline.tracks.size(); ++tr) {
-        const auto& clips = scene_->timeline.tracks[tr].clips;
-        for (int cl = 0; cl < (int)clips.size(); ++cl) {
-            // 【只显当前】不活跃片段不可命中（与 3D 视图/绘制同口径）
-            if (!clipActiveAtPlayhead(clips[cl])) continue;
-            // 【音频/Control 片段不命中】无图像（画布不画）——同口径跳过
-            if (trackInvisibleOnCanvas(scene_->timeline.tracks[tr].kind))
-                continue;
-            if (!clipHit(clipCanvasRect(clips[cl]),
-                         clipResolvedTransform(clips[cl]), cp))
-                continue;
-            const int z = clips[cl].transform.z;
-            if (best.kind != 4 || z >= best_z) {
-                best = Selection{4, tr, cl};
-                best_z = z;
-            }
-        }
-    }
-    if (best.kind == 4) return best;
-
-    // ---- 屏幕：z 大者优先（多屏重叠取上层；同 z 取数组序靠后）----
+    // ---- 2D 屏幕：z 大者优先（多屏重叠取上层；同 z 取数组序靠后）----
     int best_scr = -1;
-    int best_scr_z = kZOrderMin;
+    int best_scr_z = -1'000'000'00;
     for (int i = 0; i < (int)scene_->screens.size(); ++i) {
         const Screen& s = scene_->screens[i];
         if (!rectHit(QRectF(s.x, s.y, s.w, s.h), s.rotation, cp)) continue;
@@ -873,6 +817,31 @@ SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
     if (best_scr >= 0) return Selection{1, best_scr, -1};
 
     return {};
+}
+
+// ---------------------------------------------------------------------------
+// 已选中片段命中特判（2026-11-15 选中分工）：点击点落在当前选中 clip 的
+// 变形感知矩形内 = 画布进"空间编辑"角色（拖动/角点缩放/旋转手柄全走
+// 既有会话逻辑，不依赖 hitTest）。片段此刻不活跃（画布不可见）= 不可
+// 编辑目标——"画布摆哪"的前提是画布看得见。
+// 3D 模式：片段所在高度平面反投影后判定（与绘制/原 clip 命中同口径）。
+// ---------------------------------------------------------------------------
+bool SceneCanvasWidget::hitSelectedClip(const QPointF& widget_pos) const {
+    if (sel_.kind != 4 || !scene_ || scene_->canvas_w <= 0 ||
+        scene_->canvas_h <= 0)
+        return false;
+    if (sel_.a < 0 || sel_.a >= (int)scene_->timeline.tracks.size())
+        return false;
+    const auto& clips = scene_->timeline.tracks[sel_.a].clips;
+    if (sel_.b < 0 || sel_.b >= (int)clips.size()) return false;
+    const Clip& c = clips[sel_.b];
+    if (!clipActiveAtPlayhead(c)) return false; // 不可见 = 不可编辑
+    const QRectF r = clipCanvasRect(c);
+    if (r.width() <= 0 || r.height() <= 0) return false;
+    const QPointF cp =
+        view3d_ ? widgetToCanvasAt(widget_pos, (double)c.transform.z)
+                : widgetToCanvas(widget_pos);
+    return clipRectContains(r, clipResolvedTransform(c), cp);
 }
 
 // ---------------------------------------------------------------------------
@@ -2224,8 +2193,13 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         return;
     }
 
-    // ---- 常规命中：选中 + 进入位置拖动 ----
-    applySelection(hitTest(wp));
+    // ---- 常规命中【2026-11-15 选中分工】---------------------------------
+    // 画布只选 screen（hitTest screen-only）；时间轴选中的 clip 例外——
+    // 点击落在其变形矩形内 = 保持选中直接进拖动会话（"时间轴选谁，画布
+    // 摆哪"：换选归时间轴，编辑归画布）。其余情况按 screen 命中处理
+    //（选中最上层 screen / 空白清选进平移）。
+    if (!hitSelectedClip(wp))
+        applySelection(hitTest(wp));
     resizing_ = false; // 未进入缩放会话（命中对象走移动）
     rotating_ = false;
     resize_corner_ = -1;
@@ -2514,10 +2488,12 @@ void SceneCanvasWidget::mouseDoubleClickEvent(QMouseEvent* ev) {
         return;
     }
     const Selection hit = hitTest(ev->position());
-    if (hit.kind == 4) {
-        // 片段双击 = 仅选中（applySelection）；不再弹属性面板——2026-11-05
-        // 用户定案：属性面板唯一入口 = timeline 双击（画布/场景树双击弹
-        // 面板与 timeline 组合面板并存易歧义，全部收敛）。
+    // 【选中分工 2026-11-15】双击落在已选中片段（时间轴选中）身上 = 无
+    // 动作：画布对 clip 无双击语义（属性面板唯一入口 = timeline 双击，
+    // 2026-11-05 定案；hitTest 已不返回 clip）——特判防落到下方"空白
+    // 双击复位视图"分支误触发。
+    if (hitSelectedClip(ev->position())) return;
+    if (hit.kind == 4) { // 理论不可达（hitTest screen-only）；防御保留
         applySelection(hit);
         return;
     }
@@ -2546,31 +2522,48 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
         return;
     }
     if (!scene_) return;
+    // 【2026-11-15 选中分工+菜单收敛】画布右键菜单只服务银幕——片段无
+    // 菜单（删除/属性等片段操作唯一入口 = timeline；此前「删除片段」项
+    // 信号无消费者属死菜单）。已选片段的右键落空即无菜单，不误弹银幕菜单。
     const Selection hit = hitTest(ev->pos());
     QMenu menu(this);
 
-    if (hit.kind == 4) {
-        // 片段菜单：只留删除（2026-11-05 用户定案：右键"片段属性…"与画布
-        // 双击弹面板一并移除——属性面板唯一入口 = timeline 双击；删除动作
-        // 在 EditorWindow——需同步时间轴）
-        QAction* act_del = menu.addAction("删除片段");
-        if (QAction* chosen = menu.exec(ev->globalPos())) {
-            if (chosen == act_del) {
-                emit clipDeleteRequested(hit.a, hit.b);
+    if (hit.kind == 1) {
+        // 【2026-11-15 三次定稿】菜单序=场景动作置顶（高频优先）→ 银幕操作
+        // → 删除屏幕殿后（危险操作惯例）。
+        QAction* act_pub  = menu.addAction("下发场景");
+        QAction* act_sync = menu.addAction("同步媒体");
+        menu.addSeparator();
+        QAction* act_prop = menu.addAction("屏幕属性…");
+        // 【2026-11-15 场景树退役分流】断开/连接显示端（原场景树右键动作
+        // 迁入）：槽位启停——停用立即断开，启用交看门狗重连。状态口径 =
+        // display_online_（宿主 200ms 拍推送 connected&&enabled）。
+        bool online = false;
+        bool has_display = false;
+        if (hit.a >= 0 && hit.a < (int)scene_->screens.size()) {
+            const auto& s = scene_->screens[hit.a];
+            has_display = !s.player_id.empty();
+            if (has_display) {
+                auto it = display_online_.find(s.player_id);
+                online = it != display_online_.end() && it->second;
             }
         }
-        return;
-    }
-    if (hit.kind == 1) {
-        QAction* act_prop = menu.addAction("屏幕属性…");
+        QAction* act_conn = menu.addAction(online ? "断开显示端" : "连接显示端");
+        act_conn->setEnabled(has_display); // 未绑定显示端无动作可做
         menu.addSeparator();
         QAction* act_del = menu.addAction("删除屏幕");
         if (QAction* chosen = menu.exec(ev->globalPos())) {
             if (chosen == act_prop) {
                 applySelection(hit);
                 emit screenDoubleClicked(hit.a);
+            } else if (chosen == act_conn) {
+                emit screenDisplayConnectRequested(hit.a, !online);
             } else if (chosen == act_del) {
                 emit screenDeleteRequested(hit.a);
+            } else if (chosen == act_pub) {
+                emit publishSceneRequested();
+            } else if (chosen == act_sync) {
+                emit syncMediaRequested();
             }
         }
         return;
