@@ -340,7 +340,12 @@ inline bool operator==(const Asset& a, const Asset& b) {
 // ---------------------------------------------------------------------------
 struct Clip {
     std::string id;        ///< 全局唯一 ID
-    std::string asset_id;  ///< 引用素材表（加载时校验存在性 + 类型匹配）
+    std::string asset_id;  ///< 引用素材表（加载时校验存在性；Control 片段恒空）
+    // 片段插件类型（2026-11-15 轨道去类型化）：与宿主 clip 插件 clipType
+    // 一致（"Video"/"Image"/"Text"/"Audio"/"Live"/"Control"…）。类型跟片段
+    // 走——轨道不再约束类型后此字段是唯一持久化事实；空 = 旧文件，装载按
+    // 轨道 kind 推断（向后兼容）
+    std::string type;
     std::int64_t start_us    = 0; ///< 时间轴起点（us，>= 0）
     std::int64_t duration_us = 0; ///< 播放时长（us，> 0）
     std::int64_t in_us       = 0; ///< 素材内部入点（us，>= 0）
@@ -359,7 +364,7 @@ struct Clip {
 };
 
 inline bool operator==(const Clip& a, const Clip& b) {
-    return a.id == b.id && a.asset_id == b.asset_id &&
+    return a.id == b.id && a.asset_id == b.asset_id && a.type == b.type &&
            a.start_us == b.start_us && a.duration_us == b.duration_us &&
            a.in_us == b.in_us && a.transform == b.transform &&
            a.tweens == b.tweens && a.audio_gain == b.audio_gain &&
@@ -367,12 +372,15 @@ inline bool operator==(const Clip& a, const Clip& b) {
 }
 
 // ---------------------------------------------------------------------------
-// 轨道 —— 同类片段容器，带类型约束（§4.2：轨道→类型约束）
+// 轨道 —— 片段的时间容器（2026-11-15 去类型化：轨道不再约束片段类型，
+// 片段类型由 Clip.type 声明；kind 降级为可选显示提示）
 // ---------------------------------------------------------------------------
 struct Track {
     std::string id;    ///< 全局唯一 ID
     std::string name;  ///< 显示名
-    AssetKind kind = AssetKind::Unknown; ///< 类型约束：本轨 clip 的素材须为此类型
+    AssetKind kind = AssetKind::Unknown; ///< 可选类型提示（hint）：Unknown =
+                                         ///< 无约束混合轨道；仅显示参考，不
+                                         ///< 据此拒绝片段
     std::vector<Clip> clips; ///< 片段列表（允许同轨交叠，绘制次序由 z 决定）
 };
 

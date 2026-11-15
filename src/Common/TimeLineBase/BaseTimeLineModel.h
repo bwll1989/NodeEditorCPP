@@ -166,8 +166,12 @@ public slots:
     virtual qint64 onUpdateTimeLineLength();
     //设置播放头位置槽函数
     virtual void onSetPlayheadPos(qint64 newPlayheadPos);
-    //通过轨道索引和开始帧添加片段
-    virtual void onAddClip(int trackIndex,qint64 startUs);
+    //通过轨道索引和开始帧添加片段。【2026-11-15 轨道去类型化】type 参数：
+    //显式指定片段插件类型（"Video"…，来自 Add Item 子菜单选择）；空 =
+    //旧行为，回退轨道类型串 track->type（轨道类型约束已退役，装载旧场景
+    //时轨道仍带类型提示，兼容不受影响）
+    virtual void onAddClip(int trackIndex,qint64 startUs,
+                           const QString& type = QString());
     // 拖入媒体文件（资源管理器拖拽 dropEvent 唯一入口）。默认实现=纯占位
     // 片段（忽略文件——与旧 dropEvent 行为一致）；适配层覆写完成
     // "导入素材+绑定+按素材时长设长"（2026-11-11 音频片段时长联动）。

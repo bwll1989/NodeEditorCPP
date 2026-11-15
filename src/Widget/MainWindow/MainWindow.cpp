@@ -147,7 +147,10 @@ static bool msProbeMediaFile(const QString& file, ms::AssetKind kind,
         err = "不识别的文件类型: ." + ext.toStdString();
         return false;
     }
-    if (ext_kind != kind) { // 类型校验（钩子语义：须匹配轨道 kind）
+    // 类型校验（钩子语义）：kind 非空时须与期望匹配；kind = Unknown（2026-11-15
+    // 轨道去类型化——拖入任意轨道不做轨道匹配）时跳过，素材种类以扩展名
+    // 推断 ext_kind 为唯一事实
+    if (kind != ms::AssetKind::Unknown && ext_kind != kind) {
         auto name = [](ms::AssetKind k) -> const char* {
             switch (k) {
                 case ms::AssetKind::Video:  return "video";

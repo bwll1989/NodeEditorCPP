@@ -140,17 +140,14 @@ void BaseTracklistView::onDeleteTrack() {
 void BaseTracklistView::contextMenuEvent(QContextMenuEvent* event) {
         QMenu contextMenu(this);
         //qDebug()<<"contextMenuEvent";
-        // Add track creation submenu
-        QMenu* addTrackMenu = contextMenu.addMenu("Add Track ");
-        addTrackMenu->setIcon(QIcon(":/icons/icons/add.png"));
-        // Get available track types from BasePluginLoader
-        QStringList availableTypes = Model->getPluginLoader()->getAvailableTypes();
-        for (const QString& type : availableTypes) {
-            QAction* addTrackAction = addTrackMenu->addAction("Add " + type + " Track");
-            connect(addTrackAction, &QAction::triggered, [this, type]() {
-                Model->onAddTrack(type);
-            });
-        }
+        // Add track creation action.【2026-11-15 轨道去类型化】轨道不再
+        // 按类型分类——单项 "Add Track" 创建无类型轨道（onAddTrack 空串），
+        // 片段类型在 Add Item 时显式选择；不再遍历插件类型表生成子菜单。
+        QAction* addTrackAction = contextMenu.addAction("Add Track");
+        addTrackAction->setIcon(QIcon(":/icons/icons/add.png"));
+        connect(addTrackAction, &QAction::triggered, [this]() {
+            Model->onAddTrack(QString());
+        });
 
         // Add delete track option if a track is selected
         QModelIndex index = indexAt(event->pos());

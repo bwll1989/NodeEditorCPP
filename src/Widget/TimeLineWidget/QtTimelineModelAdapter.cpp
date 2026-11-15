@@ -164,7 +164,10 @@ QString QtTimelineModelAdapter::typeForKind(AssetKind kind) {
         case AssetKind::Audio: return "Audio";
         case AssetKind::Live:  return "Live";
         case AssetKind::Control: return "Control";
-        default:               return "Unknown";
+        // 【2026-11-15 去类型化】无类型轨道返回空串（非 "Unknown"）——
+        // TrackData.type 语义 = 类型提示，空 = 无提示；Add Item 回退路径
+        // 只对旧场景（kind 非空）有意义
+        default:               return QString();
     }
 }
 
@@ -197,7 +200,7 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
 
     for (const auto& tr : scene.timeline.tracks) {
         auto* td = new TrackData;
-        td->type = typeForKind(tr.kind);
+        td->type = typeForKind(tr.kind); // 显示提示（去类型化后轨道 kind 仅 hint）
         td->name = tr.name.empty() ? QString::fromStdString(tr.id)
                                    : QString::fromStdString(tr.name);
         m_tracks.push_back(td);
@@ -205,13 +208,18 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
 
         for (const auto& c : tr.clips) {
             // 片段模型经插件工厂创建（类型专属模型：VideoClipModel…，
-            // 类型色由插件内定）；start 直传（μs 同基，2026-11-10 微秒原生）
+            // 类型色由插件内定）；start 直传（μs 同基，2026-11-10 微秒原生）。
+            // 【2026-11-15 轨道去类型化】片段类型 = Clip.type（唯一持久化
+            // 事实）优先，空 = 旧文件按轨道 kind 提示推断（向后兼容）
+            const QString clip_type =
+                !QString::fromStdString(c.type).isEmpty()
+                    ? QString::fromStdString(c.type) : td->type;
             const qint64 start_us = std::max<std::int64_t>(0, c.start_us);
             AbstractClipModel* clip = nullptr;
             if (auto* loader = getPluginLoader())
-                clip = loader->createModelForType(td->type, start_us);
+                clip = loader->createModelForType(clip_type, start_us);
             if (!clip) // 防御：类型未注册时退回基类骨架
-                clip = new AbstractClipModel(start_us, td->type);
+                clip = new AbstractClipModel(start_us, clip_type);
             clip->setParent(this); // 生命周期统一挂适配器
             clip->setId(++m_clipNextId);          // 控件侧 id 只需唯一
             clip->setTimelineModel(this);
@@ -224,7 +232,7 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
             // 值；素材 id 对既有素材表防重）。work_ 与 scene 同指针时二者
             // 同一实体（198 行仅异指针拷贝），索引对齐回绑两侧一致。
             std::string bound_asset = c.asset_id;
-            if (tr.kind == AssetKind::Live && bound_asset.empty() && work_) {
+            if (clip_type == "Live" && bound_asset.empty() && work_) {
                 Asset la;
                 la.kind             = AssetKind::Live;
                 la.live_source_name = "";  // 空 = 未选源（实况区选择）
@@ -260,7 +268,7 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
                 // + 值域计算需要画布尺寸）
                 sc->setTweenChannels(buildTweenDots(c, scene.canvas_w,
                                                     scene.canvas_h));
-                configureClipPanel(sc, c.id, td->type);
+                configureClipPanel(sc, c.id, clip_type); // 片段类型（跟片段走）
             }
             // 时长直传；不足 1μs 的片段钳到 1μs（零长片段无编辑意义）
             const qint64 end_us = c.start_us + c.duration_us;
@@ -1004,9 +1012,11 @@ void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
     if (loading_ || !work_) return;           // 装载期只建基线
     for (TrackData* td : m_tracks) {
         if (!td) continue;
-        if (kindForType(td->type) != AssetKind::Control) continue;
+        // 【2026-11-15 轨道去类型化】指令片段判断跟片段走（轨道不再约束
+        // 类型，指令片段可与媒体片段同轨）
         for (AbstractClipModel* clip : td->clips) {
             if (!clip) continue;
+            if (clip->type() != "Control") continue;
             const qint64 st = clip->start();
             if (!(prev < st && now_us >= st)) continue; // 非上升沿
             Clip* c = locateWorkClip(clip->noteName());
@@ -1040,11 +1050,11 @@ namespace {
 
 /// 宿主媒体类型白名单（与 QtTimelineModelAdapter::kindForType/typeForKind
 /// 同步维护）。磁盘 plugin/ 目录可能混入 QtTimeLine 示例插件（Trigger 等）
-/// ——它们能被 QPluginLoader 正常加载并注册进类型表（轨道右键菜单随之
-/// 出现 "Add Trigger Track"），但宿主业务模型（AssetKind 六类、ms 回写、
-/// 画布渲染）不支持：kindForType 映射为 Unknown 后轨道类型串被改写为
-/// "Unknown"，Add Item 时 createModelForType("Unknown") 必然落空，报
-/// "Failed to create clip model"。故在注册前按白名单拦截。
+/// ——它们能被 QPluginLoader 正常加载并注册进类型表（Add Item 子菜单随之
+/// 出现 "Add Trigger Clip"），但宿主业务模型（AssetKind 六类、ms 回写、
+/// 画布渲染）不支持：createModelForType 能造出片段却无业务闭环。故在注册
+/// 前按白名单拦截。【2026-11-15 轨道去类型化】轨道不再按类型分立，此白
+/// 名单的职责收敛为「Add Item 子菜单/类型表的宿主适配过滤」，与轨道无关。
 /// Control（2026-11-13）：指令片段入列宿主类型——无媒体文件/无画布呈现，
 /// 仅时间轴存在；消息列表存 Clip.control_messages（片段域，随场景 pb 分发）。
 inline bool isHostMediaType(const QString& type) {
@@ -1218,20 +1228,12 @@ static QString kindDisplayName(AssetKind kind) {
 }
 
 // ---------------------------------------------------------------------------
-// 新增轨道（场景树按钮 / 时间轴右键共用）：工作副本 + 模型 双写
+// 新增轨道（场景树按钮 / 时间轴右键共用）：工作副本 + 模型 双写。
+// 【2026-11-15 轨道去类型化】kind = Unknown 合法（无类型轨道——Add Track
+// 单项入口）；kind 仅作显示提示，不再拒绝任何取值
 // ---------------------------------------------------------------------------
 int QtTimelineModelAdapter::addTrackWithKind(AssetKind kind) {
     if (!work_) return -1;
-    // 防御：未知类型拒绝建轨（否则轨道类型串 typeForKind→"Unknown"，
-    // 片段工厂 createModelForType("Unknown") 落空——"Failed to create
-    // clip model" 的间接来源；正常入口已被插件白名单拦截，此处兜底）
-    if (kind == AssetKind::Unknown) {
-        std::fprintf(stderr,
-                     "[adapter] 拒绝创建未知类型轨道（宿主仅支持 "
-                     "Video/Image/Text/Audio）\n");
-        std::fflush(stderr);
-        return -1;
-    }
 
     // ---- 工作副本：追加 ms::Track（id 唯一化，防删轨后重名）----
     const std::string base = std::string("t-") + kindShortName(kind);
@@ -1265,10 +1267,12 @@ int QtTimelineModelAdapter::addTrackWithKind(AssetKind kind) {
 }
 
 // ---------------------------------------------------------------------------
-// 时间轴原生入口：右键 "Add Track" / 删除轨道 → 同步工作副本
+// 时间轴原生入口：右键 "Add Track"（单项，2026-11-15 去类型化）→ 无类型
+// 轨道；type 非空 = 旧场景兼容路径（按类型建轨，仍双写 kind 提示）
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::onAddTrack(const QString& type) {
-    addTrackWithKind(kindForType(type)); // 类型串 → AssetKind → 双写
+    addTrackWithKind(type.isEmpty() ? AssetKind::Unknown // 无类型轨道
+                                    : kindForType(type)); // 兼容：显式类型
 }
 
 void QtTimelineModelAdapter::onDeleteTrack(int trackIndex) {
@@ -1297,7 +1301,8 @@ void QtTimelineModelAdapter::onDeleteTrack(int trackIndex) {
 //     不含 onClipGeometryChanged 的双写联动）。
 // 用户随后【双击片段】在属性面板中点「指定媒体文件…」完成素材绑定。
 // ---------------------------------------------------------------------------
-void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs) {
+void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
+                                       const QString& type) {
     // 防御：未挂工作副本时基类造的片段会成"孤儿"（回写无门）→ 拒绝并引导
     if (!work_) {
         std::fprintf(stderr, "[adapter] 原生添加片段失败：工作副本未挂载\n");
@@ -1307,10 +1312,13 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs) {
     TrackData* td = (trackIndex >= 0 && trackIndex < (int)m_tracks.size())
                         ? m_tracks[trackIndex] : nullptr;
     if (!td) return; // 越界：交给基类打 qDebug（行为一致）
+    // 片段类型：显式参数优先（Add Item 子菜单），回退轨道类型提示（旧场景
+    // 兼容——去类型化轨道 type 串为空，此时两者皆空由基类报创建失败）
+    const QString clip_type = !type.isEmpty() ? type : td->type;
     const int prev_cnt = (int)td->clips.size();
 
     // 基类：插件工厂造片段 + beginInsertRows/endInsertRows + ClipIdRole
-    BaseTimeLineModel::onAddClip(trackIndex, startUs);
+    BaseTimeLineModel::onAddClip(trackIndex, startUs, clip_type);
 
     // 基类失败路径（插件缺失/类型未注册）不产生新行——静默放弃（无业务可写）
     if ((int)td->clips.size() <= prev_cnt) return;
@@ -1324,13 +1332,14 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs) {
     // 面板工厂注入：基类造的片段同样要带自定义面板（否则双击报
     // "Cannot add a null widget"——三条创建路径统一约定）。
 
-    // ---- Text 轨道：自动创建默认文本素材并绑定（2026-11-05）----------------
-    // 文本随场景 pb 分发（无文件），"双击指定媒体文件"交互对文本轨不适用
+    // ---- Text 片段：自动创建默认文本素材并绑定（2026-11-05）----------------
+    // 文本随场景 pb 分发（无文件），"双击指定媒体文件"交互对文本片段不适用
     // ——Add Item 即自动生成默认文本素材（雅黑 48px 白字"字幕文本"），
     // 用户在片段属性面板的文本区改内容/样式（写回 → sceneEdited → 下发）。
-    // 非文本轨道保持既有占位语义（asset_id 空，双击绑文件）。
+    // 【2026-11-15 去类型化】判断跟片段类型走（原按轨道类型）；其余片段
+    // 保持既有占位语义（asset_id 空，双击绑文件）。
     std::string text_asset_id;
-    if (kindForType(td->type) == AssetKind::Text) {
+    if (clip_type == "Text") {
         Asset ta;
         ta.kind           = AssetKind::Text;
         ta.text_content   = "字幕文本";
@@ -1362,13 +1371,13 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs) {
         std::fflush(stderr);
     }
 
-    // ---- Live 轨道：自动创建默认实况素材并绑定（2026-11-06）----------------
+    // ---- Live 片段：自动创建默认实况素材并绑定（2026-11-06）----------------
     // 实时源与文本同款"无文件素材"（随场景 pb 分发）——"双击指定媒体
-    // 文件"交互对实况轨不适用：Add Item 即自动生成默认 Live 素材（源名
+    // 文件"交互对实况片段不适用：Add Item 即自动生成默认 Live 素材（源名
     // 空 = 等待用户在片段属性面板实况区选 NDI 源），1280x720 默认布局
     // 尺寸（画布占位；连接后用户可改片段变换适配真实分辨率）。
     std::string live_asset_id;
-    if (kindForType(td->type) == AssetKind::Live) {
+    if (clip_type == "Live") {
         Asset la;
         la.kind             = AssetKind::Live;
         la.live_source_name = "";      // 空 = 未选源（占位语义，produce 无帧）
@@ -1400,13 +1409,15 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs) {
             sc->setAssetId(QString::fromStdString(text_asset_id));
         if (!live_asset_id.empty())
             sc->setAssetId(QString::fromStdString(live_asset_id));
-        configureClipPanel(sc, id, td->type);
+        configureClipPanel(sc, id, clip_type); // 片段类型（跟片段走）
     }
 
     // ---- 工作副本同步：占位片段（起点/时长按模型帧域换算回微秒）----
     Track& tr = work_->timeline.tracks[trackIndex];
     ms::Clip c;
     c.id          = id;
+    // 片段插件类型（2026-11-15 去类型化）：类型跟片段走，随场景 pb 分发
+    c.type        = clip_type.toStdString();
     // 素材绑定：Text/Live 轨道=Add Item 自动创建的素材（2026-11-09 修：
     // 此前只回填 text_asset_id，live_asset_id 漏绑——工作副本 asset_id 空
     // → 双击面板 findAsset 落空 → 实况区不追加 + 实况写回链路断裂）；
@@ -1467,10 +1478,13 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
     if (!td) return; // 越界（视图已校验落点在轨道上；防御）
 
     // ---- 导入素材（面板导入钩子同源；失败回退占位）-----------------------
+    // 【2026-11-15 轨道去类型化】kind 传 Unknown = 不做轨道匹配校验，
+    // 素材种类由文件扩展名推断（探针 ext_kind 唯一事实）——任意媒体可落
+    // 任意轨道；片段类型随后按素材种类映射
     Asset a;
     if (hooks_.import_media) {
         std::string err;
-        a = hooks_.import_media(file, kindForType(td->type), err);
+        a = hooks_.import_media(file, AssetKind::Unknown, err);
         if (a.id.empty()) {
             // [E1] 导入失败：不再静默留 1 帧空占位（用户误以为导入成功，
             // 播放时才发现黑屏）——发可见提示信号（宿主状态栏弹示）并放弃
@@ -1483,13 +1497,15 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
     }
     if (a.id.empty()) {
         // 钩子未注入（遗留路径）：保留原占位语义（不阻断拖入流程）
-        onAddClip(trackIndex, startUs); // 纯占位（原语义）
+        onAddClip(trackIndex, startUs); // 纯占位（原语义；无类型信息，回退轨道提示）
         return;
     }
 
     // ---- 占位片段创建（模型行 + 工作副本 push + 面板工厂 + 信号接线）----
+    // 片段类型 = 素材种类映射（typeForKind：Video→"Video"…）
+    const QString drop_clip_type = typeForKind(a.kind);
     const int prev_cnt = (int)td->clips.size();
-    onAddClip(trackIndex, startUs);
+    onAddClip(trackIndex, startUs, drop_clip_type);
     if ((int)td->clips.size() <= prev_cnt) return; // 基类失败（插件缺失等）
     AbstractClipModel* mc = td->clips.back();
     const QString note = mc->noteName();

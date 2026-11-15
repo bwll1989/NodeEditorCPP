@@ -636,14 +636,29 @@ void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
     });
     contextMenu.addAction(focusCursorAction);
 
-    // 如果点击在轨道（无父）上，添加“Add Item”
+    // 如果点击在轨道（无父）上，添加"Add Item"子菜单。【2026-11-15 轨道
+    // 去类型化】片段类型不再由轨道决定——子菜单列出插件类型表，用户显式
+    // 选择要创建的片段类型（onAddClip 的 type 参数）。
     if (index.isValid() && !index.parent().isValid()) {
-        QAction* addClipAction = new QAction("Add Item", this);
-        addClipAction->setIcon(QIcon(":/icons/icons/add.png"));
-        connect(addClipAction, &QAction::triggered, [this, index, event]() {
-            addClipAtPosition(index, event->pos());
-        });
-        contextMenu.addAction(addClipAction);
+        QMenu* addItemMenu = contextMenu.addMenu("Add Item");
+        addItemMenu->setIcon(QIcon(":/icons/icons/add.png"));
+        const int trackIndex = index.row();
+        const qint64 startFrame =
+            pointToFrame(event->pos().x() + m_scrollOffset.x());
+        const QStringList itemTypes =
+            getModel()->getPluginLoader()
+                ? getModel()->getPluginLoader()->getAvailableTypes()
+                : QStringList();
+        if (itemTypes.isEmpty()) {
+            QAction* disabled = addItemMenu->addAction("（无可用片段插件）");
+            disabled->setEnabled(false);
+        }
+        for (const QString& type : itemTypes) {
+            QAction* addItemAction = addItemMenu->addAction("Add " + type + " Clip");
+            connect(addItemAction, &QAction::triggered, [this, trackIndex, startFrame, type]() {
+                getModel()->onAddClip(trackIndex, startFrame, type);
+            });
+        }
     }
 
     // 如果点击在已选中的剪辑上，添加“Delete Clip”
@@ -1622,20 +1637,18 @@ void BaseTimelineView::dragMoveEvent(QDragMoveEvent *event)
     }
     if (onTrack) {
 
-        // 获取文件类型
+        // 获取文件类型。【2026-11-15 轨道去类型化】不再与轨道类型比较——
+        // 任意可识别媒体可落任意轨道，片段类型跟片段走（由素材种类映射）
         QString fileType = isMimeAcceptable(event->mimeData());
-        // 获取轨道类型
-        QString trackType = getModel()->data(trackIndex, TimelineRoles::TrackTypeRole).toString();
 
-        // 判断文件类型和轨道类型是否匹配
-        if (!fileType.isEmpty() && fileType == trackType) {
-            // 类型匹配时接受拖动
+        // 文件类型可识别即接受拖动
+        if (!fileType.isEmpty()) {
             m_isSupportMedia = true;
             event->acceptProposedAction();
 
         }
         else {
-            // 类型不匹配时拒绝拖动
+            // 不可识别（非媒体文件）拒绝拖动
             m_isSupportMedia = false;
             event->ignore();
             unsetCursor();

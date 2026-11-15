@@ -446,14 +446,18 @@ void BaseTimeLineModel::onDeleteTrack(int trackIndex) {
 
     endRemoveRows();
 }  
-// 通过类型名创建轨道
+// 通过类型名创建轨道。【2026-11-15 轨道去类型化】type 允许空串 = 无类型
+// 轨道（Add Track 单项入口），名称退回 "Track N"；type 非空保持旧行为
+// （装载旧场景轨道仍带类型提示，兼容不受影响）
 void BaseTimeLineModel::onAddTrack(const QString& type) {
     if (!m_pluginLoader) return;
-        
+
     beginInsertRows(QModelIndex(), m_tracks.size(), m_tracks.size());
     auto track = new TrackData();
     track->type = type;
-    track->name = type+" " + QString::number(m_tracks.size());
+    track->name = type.isEmpty()
+        ? QString("Track %1").arg(m_tracks.size())
+        : type+" " + QString::number(m_tracks.size());
     m_tracks.push_back(std::move(track));
     invalidateRowPrefix(); // P4：行数变化，前缀和失效
     rebuildIndex();
@@ -489,13 +493,16 @@ void BaseTimeLineModel::onMoveTrack(int sourceRow, int targetRow) {
 
 }
 
-void BaseTimeLineModel::onAddClip(int trackIndex, qint64 startUs) {
+void BaseTimeLineModel::onAddClip(int trackIndex, qint64 startUs,
+                                  const QString& type) {
     /**
      * @brief 在指定轨道添加片段
      * @details
      * 本次重构的核心目标是“让 Qt Model/View 的绑定回到标准路径”：
      * - 插入子项必须使用 beginInsertRows/endInsertRows 通知视图，而不是仅依赖自定义信号全局刷新。
      * - index/createIndex 的 row 必须是“片段行号”，旧代码用 trackIndex 作为 row 创建 clip 索引，会造成索引语义错误。
+     * 【2026-11-15 轨道去类型化】片段类型优先取显式 type 参数（Add Item
+     * 子菜单选择），空则回退轨道类型串 track->type（旧场景兼容）。
      */
 
     if (trackIndex < 0 || trackIndex >= m_tracks.size()) {
@@ -513,7 +520,10 @@ void BaseTimeLineModel::onAddClip(int trackIndex, qint64 startUs) {
         return;
     }
 
-    AbstractClipModel* newClip = getPluginLoader()->createModelForType(track->type, startUs);
+    // 片段类型：显式参数优先，回退轨道类型串（去类型化轨道为空串时两者
+    // 皆空 → createModelForType 必然落空，调用方应显式传类型）
+    const QString clipType = !type.isEmpty() ? type : track->type;
+    AbstractClipModel* newClip = getPluginLoader()->createModelForType(clipType, startUs);
     if (!newClip) {
         qDebug() << "Failed to create clip model";
         return;

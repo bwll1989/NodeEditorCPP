@@ -467,6 +467,10 @@ ms_proto::Track SceneLoader::toProtoTrack(const Track& t) {
         // 缺席 = 读端空串；非 Control 类型恒空）
         if (!c.control_messages.empty())
             pc->set_control_messages(c.control_messages);
+        // 片段插件类型（2026-11-15 轨道去类型化）：空串不写（wire 兼容——
+        // 缺席 = 读端空串 = 旧文件语义，按轨道 kind 推断）
+        if (!c.type.empty())
+            pc->set_type(c.type);
         auto* tr = pc->mutable_transform();
         tr->set_x(c.transform.x);
         tr->set_y(c.transform.y);
@@ -547,6 +551,9 @@ Track SceneLoader::fromProtoTrack(const ms_proto::Track& pt) {
         // Control 片段触发指令表（2026-11-13）：JSON 原文直读（空串 =
         // 无指令；解析校验在消费端——编辑器触发引擎/编辑区控件容错）
         c.control_messages = pc.control_messages();
+        // 片段插件类型（2026-11-15 轨道去类型化）：空串 = 旧文件（类型由
+        // 轨道 kind 推断，装载侧回退兼容）
+        c.type = pc.type();
         c.transform.z        = pc.transform().z();
         // 锚点（2026-11-09）：缺席 = 0 = 中心（业务默认）；越界值钳到
         // 中心（渲染端 anchorUV 越界兜底同口径，数据损坏安全降级）
@@ -807,21 +814,19 @@ bool SceneLoader::validateScene(const Scene& scene, std::string& err) {
                     return false;
                 }
 
-                // R2：轨道类型约束（clip 素材种类必须等于轨道 kind，且两者
-                // 均不得为 Unknown——未知 proto 枚举值不得进入内存模型）
-                if (asset->kind == AssetKind::Unknown ||
-                    t.kind == AssetKind::Unknown) {
-                    err = "R2: clip '" + c.id + "' 素材类型或轨道 '" + t.id +
-                          "' 约束类型为 Unknown（未知枚举值，拒绝进入模型）";
-                    return false;
-                }
-                if (asset->kind != t.kind) {
-                    err = "R2: clip '" + c.id + "' 素材类型(" +
-                          std::to_string(static_cast<int>(asset->kind)) +
-                          ")与轨道 '" + t.id + "' 约束类型(" +
-                          std::to_string(static_cast<int>(t.kind)) + ")不符";
-                    return false;
-                }
+            // R2：轨道类型校验（2026-11-15 轨道去类型化后降级为「可选
+            // hint 校验」——仅当轨道带显式 kind 提示时才校验相等；
+            // Unknown 轨道 = 无约束混合轨道，合法（对齐 SceneAssembler
+            // 的混合轨语义）。素材种类 Unknown 仍拒绝（枚举白名单防御：
+            // 未知 proto 枚举值不得进入内存模型）。
+            if (t.kind != AssetKind::Unknown &&
+                asset->kind != t.kind) {
+                err = "R2: clip '" + c.id + "' 素材类型(" +
+                      std::to_string(static_cast<int>(asset->kind)) +
+                      ")与轨道 '" + t.id + "' 提示类型(" +
+                      std::to_string(static_cast<int>(t.kind)) + ")不符";
+                return false;
+            }
             }
         }
     }

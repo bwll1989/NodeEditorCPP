@@ -176,10 +176,13 @@ public slots:
     void onAddTrack(const QString& type) override;
     /// 时间轴删除轨道 → 基类删模型行 + 工作副本删 ms::Track
     void onDeleteTrack(int trackIndex) override;
-    /// 原生"添加片段"（时间轴右键 "Add Item"）→ 基类造占位片段 + 工作副本
-    /// 同步 push（asset_id 置空）。用户双击片段在属性对话框「指定媒体文件…」
+    /// 原生"添加片段"（时间轴右键 "Add Item" 子菜单）→ 基类按显式 type 造
+    /// 片段 + 工作副本同步 push（asset_id 置空）。type 来自子菜单选择的片段
+    /// 插件类型（2026-11-15 轨道去类型化：片段类型不再由轨道决定）；空 =
+    /// 旧语义回退轨道类型串（兼容装载旧场景路径）。用户双击片段在属性面板
     /// 完成绑定；下发场景前由 EditorWindow 做 R1 前置提示（空绑定拦截）。
-    void onAddClip(int trackIndex, qint64 startUs) override;
+    void onAddClip(int trackIndex, qint64 startUs,
+                   const QString& type = QString()) override;
     /// 拖入媒体文件（资源管理器拖拽 → 视图 dropEvent）：导入素材（复用
     /// 面板导入钩子 hooks_.import_media——扩展名推断/入路径策略/元数据
     /// 探测/轨道类型校验/入表）→ 占位片段创建（onAddClip 同链）→ 素材
@@ -223,7 +226,8 @@ private:
     void onClipGeometryChanged(AbstractClipModel* clip);
     /// 按片段显示名（noteName = ms clip id）在工作副本中定位；未找到返回 nullptr
     Clip* locateWorkClip(const QString& note);
-    /// ms::Track.kind → QtTimeLine 轨道类型串（同名即约束语义）
+    /// ms::Track.kind → QtTimeLine 轨道类型串（2026-11-15 去类型化后仅作
+    /// 显示提示/旧场景兼容，不再承担类型约束）
     static QString typeForKind(AssetKind kind);
     /// QtTimeLine 轨道类型串 → ms::AssetKind（typeForKind 逆映射）
     static AssetKind kindForType(const QString& type);
@@ -240,10 +244,11 @@ private:
     /// addClipOnTrack（素材树添加）/ onAddClip（时间轴右键 Add Item）——
     /// 漏注入的路径其片段双击时 clipPropertyWidget() 返回 null，
     /// 库面板附加点会报 "Cannot add a null widget to QVBoxLayout"。
+    /// type = 片段插件类型（2026-11-15 去类型化：跟片段走，不再取轨道）。
     void configureClipPanel(SceneClipModel* sc, const std::string& clip_id,
                             const QString& type);
     /// 组装片段自定义面板（SceneClipModel::clipPropertyWidget 的工厂体）：
-    /// 打开时实时取工作副本快照 + 按轨道类型过滤候选 + 接写回/导入钩子。
+    /// 打开时实时取工作副本快照 + 按片段类型定制编辑区 + 接写回/导入钩子。
     /// 宿主未注入 hooks_ 时返回 nullptr（组合面板仅通用区）。
     QWidget* makeClipPropertyPanel(const std::string& clip_id,
                                    const QString& type);

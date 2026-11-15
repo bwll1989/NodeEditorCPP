@@ -221,7 +221,7 @@ message Asset {
 // ---------------------------------------------------------------------------
 message Clip {
   string id       = 1; // 全局唯一 ID
-  string asset_id = 2; // 引用 Scene.assets 中的素材（校验：必须存在且类型匹配轨道）
+  string asset_id = 2; // 引用 Scene.assets 中的素材（校验：必须存在；Control 片段恒空）
   int64  start_us    = 3; // 时间轴起点（us，>= 0）
   int64  duration_us = 4; // 播放时长（us，> 0）
   int64  in_us       = 5; // 素材内部入点（us，>= 0）：t 时刻取素材的 in_us + (t - start_us) 处
@@ -247,15 +247,22 @@ message Clip {
   // 播放头上升沿进入片段时由编辑器触发引擎逐条灌入 StatusContainer
   // （statusUpdated → WS 8992 广播 / GlobalEventBus 控件联动）。
   string control_messages = 10;
+  // 片段插件类型（2026-11-15 轨道去类型化）：与宿主 clip 插件 clipType 一致
+  // （"Video"/"Image"/"Text"/"Audio"/"Live"/"Control"…）。类型跟片段走——
+  // 轨道不再约束类型后，此字段是片段类型的唯一持久化事实；空 = 旧文件，
+  // 读侧按轨道 kind 推断（向后兼容）。
+  string type = 11;
 }
 
 // ---------------------------------------------------------------------------
-// 轨道 —— 同类片段的容器，带类型约束（§4.2：轨道→类型约束）
+// 轨道 —— 片段的时间容器（2026-11-15 去类型化：轨道不再约束片段类型，
+// 片段类型由 Clip.type 声明；kind 降级为可选显示提示）
 // ---------------------------------------------------------------------------
 message Track {
   string id   = 1; // 全局唯一 ID
   string name = 2; // 显示名
-  AssetKind kind = 3; // 轨道类型约束：本轨上的 Clip 引用素材必须为此类型
+  AssetKind kind = 3; // 可选类型提示（hint）：Unknown/缺省 = 无约束混合轨道；
+                      // 仅作旧场景兼容与显示参考，装载/校验不据此拒绝片段
   repeated Clip clips = 4; // 片段列表（时间上允许任意排布，允许同轨交叠：交叠时后绘制属性由 z 决定）
 }
 
