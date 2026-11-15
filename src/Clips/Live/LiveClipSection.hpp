@@ -78,6 +78,11 @@ private:
     const Asset* boundAsset() const;
     Asset* writableAsset();
 
+    /// 【2026-11-15 悬垂修复】工作副本片段现查（与 TextClipSection 同；
+    /// clip 存于 vector<Clip>，工厂时刻指针会因片段增删失效）
+    Clip* boundClip();
+    const Clip* boundClip() const;
+
     /// 任一控件变更 → 直写素材 live_* 全字段 + ctx.on_edited 落定回调
     ///（原适配器 applyClipLiveEdit 职责内化，2026-11-13 片段插件化）
     void onEdited();

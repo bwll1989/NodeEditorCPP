@@ -45,13 +45,13 @@ bool isApplicationRunning(QSharedMemory& sharedMemory) {
         sharedMemory.detach();
         return true;
     }
-    
+
     // 创建1byte大小的共享内存段
     if (!sharedMemory.create(1)) {
         qWarning() << "Failed to create shared memory:" << sharedMemory.errorString();
         return true; // 如果创建失败，也认为应用程序已经在运行
     }
-    
+
     return false;
 }
 

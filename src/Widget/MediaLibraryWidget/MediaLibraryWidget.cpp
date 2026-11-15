@@ -1,5 +1,6 @@
 // class MediaLibraryWidget
 #include "MediaLibraryWidget.h"
+#include "MediaLibraryTree.h"
 #include "Common/ProcessGuard/SpawnNoInherit.hpp"  // bInheritHandles=FALSE 派生（幽灵 socket 修复）
 #include <QStandardItem>
 #include <QApplication>
@@ -17,8 +18,9 @@ MediaLibraryWidget::MediaLibraryWidget(QWidget* parent)
     // 模型
     m_model =MediaLibrary::instance();
 
-    // 树视图
-    m_tree = new QTreeView(this);
+    // 树视图（2026-11-15：MediaLibraryTree 子类——startDrag 产 urls mime，
+    // 文件条目可直接拖到时间轴轨道落片段，与资源管理器拖入同一链路）
+    m_tree = new MediaLibraryTree(this);
     m_tree->setModel(m_model);
     initializeTreeView();
 

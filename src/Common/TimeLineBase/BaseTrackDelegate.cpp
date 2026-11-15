@@ -83,15 +83,13 @@ QWidget *BaseTrackDelegate::createEditor(QWidget *parent, const QStyleOptionView
 
 void BaseTrackDelegate::updateEditorGeometry(QWidget *editor, const QStyleOptionViewItem &option, const QModelIndex &index) const {
 
-    // 编辑器对齐轨道名文本区（行内顶部 52px，2026-11-06 用户定案"三行
-    // 顶对齐"）：展开行的 option.rect 是全行高（52+附加高度），旧几何让
-    // editor QWidget 全高透明、内部 layout 把 lineEdit 垂直居中 → 编辑框
-    // "跳到轨道行中间"，与顶部绘制的轨道名错位（用户报告）。固定高 50
-    // （=52−上下各 1）：普通行与原 adjusted(5,1,0,-1) 逐像素一致（零回
-    // 归），展开行压回顶部 52px 区与轨道名同位。右缘不动——编辑器自带
-    // moveLabel 把手继续覆盖 paint grip 位置。
+    // 编辑器对齐轨道名文本区（行内顶部 trackHeight，2026-11-06 用户定案
+    // "三行顶对齐"）：固定高 trackHeight−2（上下各 1 与原 adjusted(5,1,0,-1)
+    // 逐像素一致，零回归）——行高恒定（2026-11-15 折叠退役），编辑器与轨道
+    // 名/grip 同位。右缘不动——编辑器自带 moveLabel 把手继续覆盖 paint
+    // grip 位置。
     editor->setGeometry(option.rect.left() + 5, option.rect.top() + 1,
-                        option.rect.width() - 5, 50);
+                        option.rect.width() - 5, trackHeight - 2);
     editor->clearMask();
 };
 

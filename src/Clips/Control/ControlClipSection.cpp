@@ -30,6 +30,25 @@
 namespace ms {
 
 // ---------------------------------------------------------------------------
+// 【2026-11-15 悬垂修复】工作副本片段现查：优先宿主注入的 clip_lookup
+//（按 clip_id 实时 locateWorkClip，vector 搬移安全），无 lookup 兜底
+// 工厂时刻指针（旧宿主场景）。
+// ---------------------------------------------------------------------------
+Clip* ControlClipSection::boundClip() {
+    if (ctx_.clip_lookup) {
+        if (Clip* c = ctx_.clip_lookup()) return c;
+    }
+    return ctx_.clip;
+}
+
+const Clip* ControlClipSection::boundClip() const {
+    if (ctx_.clip_lookup) {
+        if (Clip* c = ctx_.clip_lookup()) return c;
+    }
+    return ctx_.clip;
+}
+
+// ---------------------------------------------------------------------------
 // 构造：控件树 + 预填 + 轮询启动（预填在轮询启动之前——首帧 diff 无变化）
 // ---------------------------------------------------------------------------
 ControlClipSection::ControlClipSection(const ClipSectionContext& ctx,
@@ -71,7 +90,7 @@ ControlClipSection::ControlClipSection(const ClipSectionContext& ctx,
     root->addWidget(box);
 
     // ---- 预填（片段域 control_messages → 列表）------------------------------
-    if (ctx_.clip) refreshFrom(ctx_.clip->control_messages);
+    if (const Clip* c = boundClip()) refreshFrom(c->control_messages);
 
     // ---- 信号连接 ------------------------------------------------------------
     connect(send_btn_, &QPushButton::clicked,
@@ -113,10 +132,11 @@ void ControlClipSection::refreshFromClip(const void* clip) {
 // StatusContainer → 广播链；解析逻辑与触发引擎同源）。
 // ---------------------------------------------------------------------------
 void ControlClipSection::onSendTest() {
-    if (!ctx_.clip) return;
+    Clip* c = boundClip();
+    if (!c) return;
     const QString now = currentJson();
     if (now != last_json_) { // 编辑未落定：先写回（不经 on_edited 二次 diff）
-        ctx_.clip->control_messages = now.toStdString();
+        c->control_messages = now.toStdString();
         last_json_ = now;
         if (ctx_.on_edited) ctx_.on_edited();
     }
@@ -150,10 +170,11 @@ void ControlClipSection::refreshFrom(const std::string& json) {
 // 轮询落点：列表 JSON ≠ 快照 → 直写片段域 + on_edited 落定
 // ---------------------------------------------------------------------------
 void ControlClipSection::onEdited() {
-    if (!ctx_.clip) return;
+    Clip* c = boundClip();
+    if (!c) return;
     const QString now = currentJson();
     if (now == last_json_) return; // 无变化
-    ctx_.clip->control_messages = now.toStdString();
+    c->control_messages = now.toStdString();
     last_json_ = now;
     if (ctx_.on_edited) ctx_.on_edited(); // 宿主落定：sceneEdited + 广播
 }

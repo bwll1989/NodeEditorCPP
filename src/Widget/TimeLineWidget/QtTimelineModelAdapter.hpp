@@ -39,6 +39,7 @@
 #include <vector>
 
 #include "Common/TimeLineBase/BaseTimeLineModel.h"
+#include "Common/AppConfig/OSCMessage.h" // OSC drag → Control 片段（onDropOscAddress 参数）
 #include "model/SceneModel.hpp"
 
 class AbstractClipModel;
@@ -185,6 +186,13 @@ public slots:
     ///（与未注入钩子时同语义，不阻断拖入）。
     void onDropMediaFile(int trackIndex, qint64 startUs,
                          const QString& file) override;
+    /// OSC 地址拖拽落轨（OSCMessageListWidget 卡片 / DefaultTimeLineToolBar
+    /// 控件拖出 → 视图 dropEvent，2026-11-15 恢复）：onAddClip("Control")
+    /// 创建片段 → 定位链尾新片段把 OSC 五元组写入工作副本
+    /// control_messages（{"messages":[…]} 与 OSCMessageListWidget::save()
+    /// 同构；host/port/type/value 空缺按旧 applyDroppedMedia 语义兜底）。
+    void onDropOscAddress(int trackIndex, qint64 startUs,
+                          const OSCMessage& msg) override;
     /// 时间轴删除片段 → 工作副本先删（按 noteName 定位）+ 基类删模型行
     void onDeleteClip(QModelIndex clipIndex) override;
     /// 轨道重排 → 工作副本轨道序同步（维持「模型轨 row = work_ 轨 row」

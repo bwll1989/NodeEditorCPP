@@ -97,7 +97,11 @@ public:
     }
 
     // ---- 合并关键帧显示带（Resolve 模式；2026-11-09）------------------------
-    /// 键显示带高度（px，片段绘制矩形底部向上）——绘制与命中共用
+    /// 键显示带期望高度（px，片段绘制矩形底部向上）——绘制与命中共用。
+    /// 实际高度经 keyStripHeight() 自适应钳制（不超过片段高一半）：
+    /// kKeyStripHeight=30 是 52px 行高时代的标定，2026-11-15 行高回归 40 后
+    /// 30px 带会把标题区压到 ~6px（文字不可见，用户反馈）——带取 min(30, h/2)，
+    /// 40px 行下带 18px / 标题 18px，8pt 标题与菱形（直径 ≤8px）都放得下。
     static constexpr int kKeyStripHeight = 30;
     /// 命中半径（px，欧氏距离；菱形绘制半径 3~4，命中放宽保证好抓）
     static constexpr double kKeyHitRadiusPx = 6.0;
@@ -177,8 +181,10 @@ public:
         }
         // 标题最后画（永远在键带之上）；矩形限制在键带上方，基类
         // drawTitle 的 AlignCenter 于是落在上部标题区而非键带中间。
+        //（键带高度自适应：keyStripHeight 钳制后低行高下标题区仍有半格）
         const QRect titleRect = paintable
-            ? QRect(rect.left(), rect.top(), rect.width(), rect.height() - kKeyStripHeight)
+            ? QRect(rect.left(), rect.top(), rect.width(),
+                    rect.height() - keyStripHeight(rect))
             : rect;
         drawTitle(painter, titleRect);
     }
@@ -367,6 +373,11 @@ private:
     }
 
 private:
+    /// 键带实际高度：min(期望高度, 片段高一半)——标题区永远 ≥ 半个片段高，
+    /// 低行高下文字不再被键带挤压（paint/hit 同源，勿在调用点各自钳）。
+    static int keyStripHeight(const QRect& rect) {
+        return qMin(kKeyStripHeight, rect.height() / 2);
+    }
     /// 曲线编辑带几何（片段绘制矩形 → 底部带）。paint/hit/add 共用同源公式。
     /// 【坐标系铁律（2026-11-05 探针实证）】band 一律是【相对片段矩形左上角】
     /// 的局部坐标——hitKeyframe/addKeyframeAt/moveKeyframe 收到的 local/
@@ -376,12 +387,13 @@ private:
     /// 错位：单测用 (0,0) 原点矩形恰好两系重合恒绿，真实视图（rect.top≠0）
     /// 命中/加键/拖值全部静默失效——探针网格扫描抓出。
     static QRect keyBand(const QRect& rect) {
-        return QRect(1, rect.height() - kKeyStripHeight,
-                     qMax(1, rect.width() - 2), kKeyStripHeight);
+        const int h = keyStripHeight(rect);
+        return QRect(1, rect.height() - h,
+                     qMax(1, rect.width() - 2), h);
     }
     /// 命中/加键的前置条件（带存在 + 几何足够）
     static bool canHitKeys(const QRect& rect) {
-        return rect.width() >= 12 && rect.height() > kKeyStripHeight + 2;
+        return rect.width() >= 12 && rect.height() > keyStripHeight(rect) + 2;
     }
     /// 关键帧 x 坐标（相对 rect.left 的偏移，帧→带内线性映射）。
     /// paint 与 hitKeyframe/addKeyframeAt 必须同用此函数——两端各写一份一旦

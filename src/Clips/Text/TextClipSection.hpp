@@ -83,6 +83,13 @@ private:
     const Asset* boundAsset() const;
     Asset* writableAsset();
 
+    /// 【2026-11-15 悬垂修复】工作副本片段现查：clip 存于 vector<Clip>，
+    /// 片段增删会搬移元素——工厂时刻的 ctx.clip 失效后 asset_id 读取
+    /// 悬垂。优先走宿主注入的 clip_lookup 实时定位，无 lookup 时兜底
+    /// 工厂时刻指针。
+    Clip* boundClip();
+    const Clip* boundClip() const;
+
     /// 任一控件变更 → 直写素材 text_* + 测量回填自然尺寸（与
     /// makeAssetFromFile/TextMediaSource::prepare 同一渲染入口测量——
     /// 三处同源无漂移）+ ctx.on_edited 落定回调

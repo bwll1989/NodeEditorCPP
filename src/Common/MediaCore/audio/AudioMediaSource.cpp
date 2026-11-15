@@ -8,7 +8,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
+#include <string_view>
 #include <system_error>
 #include <thread>
 
@@ -36,6 +38,15 @@ std::int64_t nowMs() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::steady_clock::now().time_since_epoch())
         .count();
+}
+
+/// seek 全链诊断开关（MS_AUDIO_SEEK_DBG=1；定位跳转定位问题用）
+bool seekDbg() {
+    static const bool on = [] {
+        const char* e = std::getenv("MS_AUDIO_SEEK_DBG");
+        return e && std::string_view(e) == "1";
+    }();
+    return on;
 }
 } // namespace
 
@@ -148,11 +159,24 @@ void AudioMediaSource::decodeLoop() {
     std::uint32_t my_gen = gen_.load(std::memory_order_relaxed);
     for (;;) {
         if (stop_.load(std::memory_order_relaxed)) return;
+        // gen 快照同步 + 补 ack（doSeek 抬 gen 后读侧等待的握手应答）。
+        // 【启动竞态修复 2026-11-15】编辑器跳转路径 pool.clear→新建源→
+        // 同拍 read→doSeek——解码线程可能尚未调度，首条 my_gen=gen_.load()
+        // 会读到 doSeek 抬高后的值 → gen==my_gen 恒成立 → 旧判据下
+        // handleSeek 永不执行、seek_req_ 无人消费 → 解码从素材 0 推环
+        // = 跳转必重头播（ack 全超时 + handleSeek 零日志实锤）。
+        // 故 seek 判据改为【直接消费 seek_req_】（doSeek 顺序保证：
+        // store(req) 先于 fetch_add(gen)，exchange 到 -1 ⇒ gen 未抬，
+        // req 不会丢；每轮 exchange，单消费者）。gen 仅用于在途推送
+        // 中止（pushFrame/abort_fn 捕获旧快照）与此处补 ack。
         if (gen_.load(std::memory_order_relaxed) != my_gen) {
-            // acquire 与 doSeek 的 release store 配对：构成 happens-before，
-            // 请求值必然完整可见（不依赖 x86 TSO 的碰巧正确）
-            const std::int64_t req =
+            my_gen = gen_.load(std::memory_order_relaxed);
+            ack_gen_.store(my_gen, std::memory_order_relaxed);
+        }
+        if (const std::int64_t req =
                 seek_req_.exchange(-1, std::memory_order_acquire);
+            req >= 0) {
+            // acquire 与 doSeek 的 release store 配对：请求值完整可见
             handleSeek(req < 0 ? 0 : req);
             my_gen = gen_.load(std::memory_order_relaxed);
             ack_gen_.store(my_gen, std::memory_order_relaxed);
@@ -160,8 +184,7 @@ void AudioMediaSource::decodeLoop() {
         }
         if (eof_.load(std::memory_order_relaxed)) {
             // 【2026-11-13 性能】EOF 待命轮询 20ms→200ms——多声源场景下
-            // 每秒数千次无谓唤醒；seek 走 gen 握手（decodeLoop 顶部），
-            // 不依赖本轮询的及时性
+            // 每秒数千次无谓唤醒；seek 走顶部 req 消费，不依赖本轮询
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
             continue;
         }
@@ -273,15 +296,28 @@ void AudioMediaSource::pushFrame(std::uint32_t my_gen) {
         }
     }
     std::uint64_t skip = 0;
-    if (frame_start < next_push_) // seek 落点前重叠：跳过前缀
+    if (frame_start < next_push_) { // seek 落点前重叠：裁掉前缀
         skip = static_cast<std::uint64_t>(
             std::min<std::int64_t>(next_push_ - frame_start, converted));
+        // 【游标回漂 BUG 修复 2026-11-15】重叠量≥一帧（skip=converted，
+        // 整帧丢弃）时游标不得跟随素材位置前进——否则落点距目标超过
+        // 一帧的场景（AAC 粒度边界/rescale 取整/seek 落点偏差）中，一帧
+        // 整丢后 next_push_ 被拉回素材早期位置，下一帧 frame_start==
+        // next_push_ 判定"无重叠"全量推环 = 跳转后从素材头附近播出
+        //（「重头开始播、没有重定位」实锤机制，实测电平序列与起播逐点
+        // 相同）。裁齐语义：游标单调，只被"推了数据"推进，整丢不推进。
+        if (skip >= static_cast<std::uint64_t>(converted))
+            ring_->clear(); // 整帧皆旧：清掉环内可能残留的更早位置样本
+    }
     const std::uint64_t usable =
         static_cast<std::uint64_t>(converted) - skip;
     if (usable > 0)
         ring_->pushBlocking(scratch_.data() + skip * channels_, usable,
                             abort_fn);
-    next_push_ = frame_start + converted;
+    next_push_ = std::max<std::uint64_t>(
+        next_push_,
+        static_cast<std::uint64_t>(frame_start) +
+            static_cast<std::uint64_t>(converted));
 }
 
 // ---------------------------------------------------------------------------
@@ -296,18 +332,39 @@ void AudioMediaSource::doSeek(std::int64_t target_sample) {
     const std::uint32_t g = gen_.fetch_add(1) + 1; // 在途推送全部中止
     ring_->clear(); // 丢弃旧代次样本 + 唤醒阻塞中的 push
     cursor_ = target_sample;
-    const std::int64_t deadline = nowMs() + 200;
+    // ack 等待上限 50ms（2026-11-15 从 200ms 收紧）：握手语义 = 环内保证
+    // 只含新代次数据；等不到也只是极短窗口残留已被 abort 中止的旧代次
+    // 推送（环已 clear），本拍音质可能瑕疵、下拍自愈。跳转风暴下多源
+    // 逐源串行等待，200ms/源 会把混音拍拖垮（5 源最坏 1s/拍）。
+    const std::int64_t deadline = nowMs() + 50;
     while (ack_gen_.load(std::memory_order_relaxed) != g &&
            nowMs() < deadline)
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    if (seekDbg())
+        std::fprintf(stderr,
+                     "[audio][seek] doSeek target=%lld ack=%s\n",
+                     static_cast<long long>(target_sample),
+                     ack_gen_.load(std::memory_order_relaxed) == g
+                         ? "ok" : "超时(50ms)");
 }
 
 void AudioMediaSource::handleSeek(std::int64_t target_sample) {
     avcodec_flush_buffers(codec_);
-    av_seek_frame(fmt_, stream_idx_,
-                  av_rescale_q(target_sample, kSampleTb,
-                               AVRational{tb_num_, tb_den_}),
-                  AVSEEK_FLAG_BACKWARD);
+    const std::int64_t st =
+        av_rescale_q(target_sample, kSampleTb,
+                     AVRational{tb_num_, tb_den_});
+    const int sret = av_seek_frame(fmt_, stream_idx_, st,
+                                   AVSEEK_FLAG_BACKWARD);
+    if (sret < 0)
+        std::fprintf(stderr,
+                     "[audio][seek] av_seek_frame 失败 ret=%d "
+                     "target=%lld(ts=%lld) —— 解码将从此前位置继续\n",
+                     sret, static_cast<long long>(target_sample),
+                     static_cast<long long>(st));
+    if (seekDbg())
+        std::fprintf(stderr,
+                     "[audio][seek] handleSeek target=%lld ret=%d\n",
+                     static_cast<long long>(target_sample), sret);
     ring_->clear();
     // 解码侧推进游标同步重置到目标：BACKWARD 落点 L ≤ target 的重叠
     // 帧由 pushFrame 的前缀跳过逻辑裁齐（不重置则旧游标把整帧吞掉，
@@ -343,13 +400,23 @@ std::uint32_t AudioMediaSource::read(float* dst, std::int64_t media_us,
     // 回退（超过容差）：seek 重灌（LOOP/scrub 场景）
     if (cursor_ - target > kBackwardTolSamples) doSeek(target);
 
-    // 前向跳变：drop 追赶（等解码供给，30ms 上限——追不平则本拍静音）。
-    // 【等待上限评估（[S3] 2026-11-11）】原 200ms 超 33ms 拍预算（冷盘/
-    // 供给停滞时单拍卡 UI 半秒级）。等待条件为轮询驱动（read 侧 5ms 睡眠
-    // × 解码侧持续推环），非 cv 一次性唤醒——缩短 deadline 无损自愈：
-    // cursor_ < target 状态跨拍持久，未追平部分由后续拍分摊消化（seek
-    // 风暴下每拍推进一点，不比长等一拍更差，且 UI 不再被单拍钉死）。
-    if (target > cursor_) {
+    // 前向大跳：直接 seek 定位（2026-11-15）——此前一律 drop 追赶：解码器
+    // 从当前位置连续解码途经全部数据被丢弃，听感"快速快进一段才到位"；
+    // 且编辑器跳转每次都清音源池（锚点代际），新源 cursor_=0 首拍 target
+    // 即跳转落点 → 每次跳转必触发全程快进，多源并发快进 + 每拍 30ms 忙等
+    // 叠加 = 跳转风暴的卡顿/失稳主源。小前跳（≤0.5s，拍抖动/正常推进）
+    // 仍走 drop 追赶（无缝、免 seek 重灌）；大跳 seek 后由 BACKWARD 落点
+    // 邻近性保证几乎立即对位（音频包粒度 ~20-40ms，pushFrame 前缀裁齐）。
+    constexpr std::int64_t kForwardSeekTolSamples = 24'000; // 0.5s@48k
+    if (target - cursor_ > kForwardSeekTolSamples) {
+        doSeek(target);
+    } else if (target > cursor_) {
+        // 小前跳：drop 追赶（等解码供给，30ms 上限——追不平则本拍静音）。
+        // 【等待上限评估（[S3] 2026-11-11）】原 200ms 超 33ms 拍预算（冷盘/
+        // 供给停滞时单拍卡 UI 半秒级）。等待条件为轮询驱动（read 侧 5ms 睡眠
+        // × 解码侧持续推环），非 cv 一次性唤醒——缩短 deadline 无损自愈：
+        // cursor_ < target 状态跨拍持久，未追平部分由后续拍分摊消化（seek
+        // 风暴下每拍推进一点，不比长等一拍更差，且 UI 不再被单拍钉死）。
         const std::int64_t deadline = nowMs() + 30;
         while (cursor_ < target) {
             const std::uint64_t d = ring_->drop(

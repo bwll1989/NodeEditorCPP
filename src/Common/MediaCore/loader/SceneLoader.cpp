@@ -471,6 +471,9 @@ ms_proto::Track SceneLoader::toProtoTrack(const Track& t) {
         // 缺席 = 读端空串 = 旧文件语义，按轨道 kind 推断）
         if (!c.type.empty())
             pc->set_type(c.type);
+        // 片段备注名（2026-11-15）：空不写（wire 兼容——缺席 = 读端空串）
+        if (!c.note.empty())
+            pc->set_note(c.note);
         auto* tr = pc->mutable_transform();
         tr->set_x(c.transform.x);
         tr->set_y(c.transform.y);
@@ -554,6 +557,8 @@ Track SceneLoader::fromProtoTrack(const ms_proto::Track& pt) {
         // 片段插件类型（2026-11-15 轨道去类型化）：空串 = 旧文件（类型由
         // 轨道 kind 推断，装载侧回退兼容）
         c.type = pc.type();
+        // 片段备注名（2026-11-15）：空串 = 未起名（显示回退 clip id）
+        c.note = pc.note();
         c.transform.z        = pc.transform().z();
         // 锚点（2026-11-09）：缺席 = 0 = 中心（业务默认）；越界值钳到
         // 中心（渲染端 anchorUV 越界兜底同口径，数据损坏安全降级）

@@ -13,9 +13,8 @@
 #include <QFileInfo>
 #include <QHash>
 #include <QHeaderView>
+#include <QIcon>
 #include <QMenu>
-#include <QPainter>
-#include <QPixmap>
 #include <QScrollBar>
 
 #include <algorithm>
@@ -44,90 +43,14 @@ constexpr int kKindClip   = 4;
 /// 编号取 5（画布选中码 1=screen 4=clip，scene 根不可选中画布对象不冲突）
 constexpr int kKindScene  = 5;
 
-/// 轨道类型中文名（与时间轴插件类型一致）
-const char* trackKindName(AssetKind k) {
-    switch (k) {
-        case AssetKind::Video: return "视频";
-        case AssetKind::Image: return "图片";
-        case AssetKind::Text:  return "文本";
-        case AssetKind::Audio: return "音频";
-        case AssetKind::Live:  return "实况";
-        case AssetKind::Control: return "指令";
-        default:               return "未知";
-    }
-}
-
-/// 轨道类型色（与画布片段边框同组色值——视觉分组统一，改动两处同步）
-QColor trackKindColor(AssetKind k) {
-    switch (k) {
-        case AssetKind::Video: return QColor(0xE6, 0x8A, 0x33); // 橙
-        case AssetKind::Image: return QColor(0x33, 0xB2, 0xA6); // 青
-        case AssetKind::Text:  return QColor(0xD9, 0xC2, 0x3C); // 黄
-        case AssetKind::Audio: return QColor(0x9B, 0x6F, 0xD1); // 紫
-        case AssetKind::Live:  return QColor(0x3C, 0xC4, 0xD9); // 亮青（实时源）
-        case AssetKind::Control: return QColor(0xF0, 0x8A, 0x5D); // 橙（指令，同插件色）
-        default:               return QColor(0x88, 0x88, 0x88);
-    }
-}
-
 /// ---------------------------------------------------------------------------
-/// 【显示优化 2026-11-13】代码绘制节点小图标（无资源文件依赖，深浅主题
-/// 均适口；rebuild 由编辑动作 50ms 防抖驱动，按 (色值, 形状) 缓存 QPixmap）：
-///   * kindDotIcon  —— 实心圆点（轨道分组/片段行，色 = 轨道类型色）
-///   * screenIcon   —— 横放圆角矩形（屏幕行/屏幕分组，色 = 运行状态色，
-///                     在线绿/离线红/未登记灰——图标颜色随状态即读）
-///   * sceneIcon    —— 空心圆角矩形（场景根，中性描边）
+/// 【图标极简 2026-11-15 用户定案】三类节点各一个图标，不再区分素材类型：
+///   * 场景根 → stage.png   * 屏幕 → screen.png
+///   * 轨道   → timeline.png（纯时间容器，去类型化后无类型语义）
+///   * 片段/素材 → media_mange.png（媒体素材，统一一个）
 /// ---------------------------------------------------------------------------
-QPixmap kindDotIcon(const QColor& color) {
-    static QHash<quint32, QPixmap> cache;
-    const quint32 key = color.rgba();
-    const auto it = cache.find(key);
-    if (it != cache.end()) return *it;
-    QPixmap pm(16, 16);
-    pm.fill(Qt::transparent);
-    QPainter p(&pm);
-    p.setRenderHint(QPainter::Antialiasing);
-    p.setPen(Qt::NoPen);
-    p.setBrush(color);
-    p.drawEllipse(4, 4, 8, 8);
-    p.end();
-    cache.insert(key, pm);
-    return pm;
-}
-
-QPixmap screenIcon(const QColor& color) {
-    static QHash<quint32, QPixmap> cache;
-    const quint32 key = color.rgba();
-    const auto it = cache.find(key);
-    if (it != cache.end()) return *it;
-    QPixmap pm(16, 16);
-    pm.fill(Qt::transparent);
-    QPainter p(&pm);
-    p.setRenderHint(QPainter::Antialiasing);
-    p.setPen(Qt::NoPen);
-    p.setBrush(color);
-    p.drawRoundedRect(2, 4, 12, 8, 2, 2); // 横放"显示器"轮廓
-    p.end();
-    cache.insert(key, pm);
-    return pm;
-}
-
-QPixmap sceneIcon() {
-    static const QPixmap pm = [] {
-        QPixmap pm(16, 16);
-        pm.fill(Qt::transparent);
-        QPainter p(&pm);
-        p.setRenderHint(QPainter::Antialiasing);
-        QPen pen(QColor(0x9A, 0x9A, 0x9A));
-        pen.setWidthF(1.4);
-        p.setPen(pen);
-        p.setBrush(Qt::NoBrush);
-        p.drawRoundedRect(2, 3, 12, 10, 2, 2); // 舞台轮廓（空心）
-        p.drawLine(5, 15, 11, 15);             // 台口基线
-        p.end();
-        return pm;
-    }();
-    return pm;
+QIcon resIcon(const char* name) {
+    return QIcon(QStringLiteral(":/icons/icons/%1").arg(QLatin1String(name)));
 }
 
 /// 分组行加粗字体（场景根/屏幕组/轨道组——层次一眼分明）
@@ -183,9 +106,11 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent) : QTreeWidget(parent) {
     setHeaderHidden(true);          // 列语义随节点类型变化，不设表头
     setRootIsDecorated(true);
     setUniformRowHeights(true);
-    // 【显示优化 2026-11-13】交替行色提升多行可读性（颜色随宿主调色板/
-    // QSS 自适应）；信息列右对齐——数字区间贴边，扫读时间更快
-    setAlternatingRowColors(true);
+    // 【样式优化 2026-11-15】交替行色关闭（用户要求：clip 行深浅相间的
+    // 底色是视觉噪音，层次感交给缩进与图标）；缩进收窄（默认 20px 三层
+    // 结构太深，片段行几乎顶到列尾）；信息列右对齐不变
+    setAlternatingRowColors(false);
+    setIndentation(13);
     setSelectionMode(QAbstractItemView::SingleSelection);
     setExpandsOnDoubleClick(false); // 双击 = 属性（展开交给单击箭头/双击分组）
     setFrameShape(QFrame::NoFrame);
@@ -269,7 +194,7 @@ void SceneTreeWidget::rebuild(const Scene* scene,
                                    .arg((int)scene->screens.size())
                                    .arg((int)scene->timeline.tracks.size())
                                    .arg(fmtTime(scene->timeline.duration_us)));
-        scene_root->setIcon(0, sceneIcon());
+        scene_root->setIcon(0, resIcon("stage"));
         scene_root->setFont(0, boldItemFont(font()));
         scene_root->setFont(1, boldItemFont(font()));
         scene_root->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
@@ -289,7 +214,7 @@ void SceneTreeWidget::rebuild(const Scene* scene,
         // 【层级】挂 scene 根下（第二级）——原来在顶层
         auto* scr_root = new QTreeWidgetItem(scene_root);
         scr_root->setText(0, QString("屏幕 (%1)").arg(scene->screens.size()));
-        scr_root->setIcon(0, screenIcon(QColor(0x88, 0x88, 0x88)));
+        scr_root->setIcon(0, resIcon("screen"));
         scr_root->setFont(0, boldItemFont(font()));
         scr_root->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
         scr_root->setData(0, kRoleKind, kKindGroup); // 分组行：不可选中
@@ -314,7 +239,7 @@ void SceneTreeWidget::rebuild(const Scene* scene,
             // 【信息列】几何直读（旋转/Z 一并列出，tooltip 不再是唯一入口）
             it->setText(1, QString("%1×%2 @(%3,%4)")
                                .arg(s.w).arg(s.h).arg(s.x).arg(s.y));
-            it->setIcon(0, screenIcon(status_color)); // 图标色 = 运行状态色
+            it->setIcon(0, resIcon("screen")); // 图标恒定；状态色由文字承载
             it->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
             it->setForeground(1, QColor(0x88, 0x88, 0x88));
             it->setForeground(0, status_color);
@@ -347,15 +272,16 @@ void SceneTreeWidget::rebuild(const Scene* scene,
         for (int tr = 0; tr < (int)scene->timeline.tracks.size(); ++tr) {
             const Track& t = scene->timeline.tracks[tr];
             auto* tr_root = new QTreeWidgetItem(scene_root);
-            tr_root->setText(0, QString("%1轨 · %2 (%3)")
-                                    .arg(trackKindName(t.kind),
-                                         QString::fromStdString(t.name))
-                                    .arg(t.clips.size()));
+            // 【轨道去类型化 2026-11-15】轨道行只显示「轨道名 (片段数)」——
+            // 轨道是纯时间容器，无类型语义（旧文件的 kind hint 保留在
+            // tooltip，不再上名称/颜色/图标）
+            tr_root->setText(0, QString("%1 (%2)")
+                                  .arg(QString::fromStdString(t.name))
+                                  .arg(t.clips.size()));
             tr_root->setData(0, kRoleKind, kKindGroup);
             tr_root->setData(0, kRoleKey,
                              QString::fromStdString(t.id)); // 展开态 key
-            tr_root->setForeground(0, trackKindColor(t.kind)); // 分组行染类型色
-            tr_root->setIcon(0, kindDotIcon(trackKindColor(t.kind)));
+            tr_root->setIcon(0, resIcon("timeline"));
             tr_root->setFont(0, boldItemFont(font()));
             tr_root->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
             tr_root->setFlags(tr_root->flags() & ~Qt::ItemIsSelectable);
@@ -363,11 +289,16 @@ void SceneTreeWidget::rebuild(const Scene* scene,
                 const Clip& c = t.clips[cl];
                 auto* it = new QTreeWidgetItem(tr_root);
                 // 【名称列 2026-11-05 用户要求】片段行显示绑定的素材名——
-                // "clip-id · 文件名"（素材表命中才追加文件名；未绑定只显
+                // "显示名 · 文件名"（素材表命中才追加文件名；未绑定只显
                 // 示片段 id）。文件名取 path 末段（相对路径 media/xxx.mp4
                 // → xxx.mp4，树列宽友好）——素材才是用户视角的"内容名"。
+                // 【备注名持久化 2026-11-15】用户起过备注名（Clip.note，
+                // 属性面板改 → 工作副本回写 → 本树随 sceneEdited 防抖重建）
+                // 则备注名优先；空回退 clip id（与时间轴 displayText 同序）
                 const Asset* a = scene->findAsset(c.asset_id);
-                it->setText(0, QString::fromStdString(c.id) +
+                const QString disp =
+                    QString::fromStdString(!c.note.empty() ? c.note : c.id);
+                it->setText(0, disp +
                                (a ? QStringLiteral(" · ") +
                                     QFileInfo(QString::fromStdString(a->path))
                                         .fileName()
@@ -378,8 +309,9 @@ void SceneTreeWidget::rebuild(const Scene* scene,
                                    .arg(fmtTime(c.start_us),
                                         fmtTime(c.start_us + c.duration_us)));
                 it->setForeground(1, QColor(0x88, 0x88, 0x88));
-                it->setForeground(0, trackKindColor(t.kind));
-                it->setIcon(0, kindDotIcon(trackKindColor(t.kind)));
+                // 【样式优化 2026-11-15】片段行名称不再染类型色——多行同色
+                // 彩字是主要视觉噪音；类型语义由图标承载，名称用默认前景
+                it->setIcon(0, resIcon("media_mange")); // 素材统一图标
                 it->setTextAlignment(1, Qt::AlignRight | Qt::AlignVCenter);
                 it->setToolTip(0, QString("片段 %1 · 素材 %2 · %3×%4 @(%5,%6)"
                                           "\n区间 %7–%8（时长 %9）\n"
@@ -552,9 +484,8 @@ void SceneTreeWidget::refreshDisplayStatuses(const DisplayStates& states) {
         if (!text_changed && !color_changed) continue; // 无变化：零重写
         if (text_changed) sn.item->setText(0, want);
         sn.item->setForeground(0, color);
-        // 【显示优化 2026-11-13】屏幕图标色随运行状态走（在线绿/离线红/
-        // 未登记灰）——200ms 拍轻量刷新与 rebuild 同一套取色
-        sn.item->setIcon(0, screenIcon(color));
+        // 图标恒定（资源图标不随状态变——状态色由文字后缀承载，
+        // 2026-11-15 图标换资源后不再每拍 setIcon）
         if (s_dbg) {
             std::fprintf(stderr, "[tree] %s 状态刷新: %s\n",
                          sn.player_id.toUtf8().constData(),

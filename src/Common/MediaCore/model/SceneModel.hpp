@@ -346,6 +346,10 @@ struct Clip {
     // 走——轨道不再约束类型后此字段是唯一持久化事实；空 = 旧文件，装载按
     // 轨道 kind 推断（向后兼容）
     std::string type;
+    // 片段备注名（2026-11-15）：用户在属性面板「备注名」起的显示名——
+    // 时间轴片段文字（displayText 备注名优先）与场景树片段行共用；
+    // 空 = 未起名（显示回退 clip id/类型名）；pb note 字段往返
+    std::string note;
     std::int64_t start_us    = 0; ///< 时间轴起点（us，>= 0）
     std::int64_t duration_us = 0; ///< 播放时长（us，> 0）
     std::int64_t in_us       = 0; ///< 素材内部入点（us，>= 0）
@@ -365,6 +369,7 @@ struct Clip {
 
 inline bool operator==(const Clip& a, const Clip& b) {
     return a.id == b.id && a.asset_id == b.asset_id && a.type == b.type &&
+           a.note == b.note &&
            a.start_us == b.start_us && a.duration_us == b.duration_us &&
            a.in_us == b.in_us && a.transform == b.transform &&
            a.tweens == b.tweens && a.audio_gain == b.audio_gain &&

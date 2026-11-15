@@ -38,8 +38,9 @@ float dbToNorm(float db) {
 
 AudioLevelMeter::AudioLevelMeter(QWidget* parent) : QWidget(parent) {
     setObjectName(QStringLiteral("audioLevelMeter"));
-    setToolTip(QStringLiteral("总输出电平（RMS，Gist 检测）：绿 -60~-12dB / 黄 -12~-3dB / 红 -3~0dB；"
-                              "白线 = 峰值保持。timeline 混音（TimelineAudioBusHost）电平可视化"));
+    setToolTip(QStringLiteral("总输出电平（RMS，Gist 检测）：条色随电平渐变 绿→黄→红"
+                              "（-12dB 转黄、-3dB 转红）；白线 = 峰值保持。"
+                              "timeline 混音（TimelineAudioBusHost）电平可视化"));
     setFixedHeight(16);
     setMinimumWidth(90);
 }
@@ -77,22 +78,20 @@ void AudioLevelMeter::paintEvent(QPaintEvent* /*event*/) {
     p.setBrush(QColor(0x2A, 0x2A, 0x2A));
     p.drawRoundedRect(rc, 3, 3);
 
-    // 电平条三段平色（裁剪绘制：整条按 norm_ 宽度，三段各自颜色区域）
+    // 电平条渐变（声压级越高越暖：绿→黄→橙红。渐变坐标锚定整槽宽度——
+    // 颜色随位置固定、条长揭示刻度，对齐专业电平表观感；单矩形替代旧
+    // 三段裁剪绘制，一次 drawRoundedRect 完成）
     if (norm_ > 0.0f) {
-        const float y0 = dbToNorm(kDbYellow);
-        const float yr = dbToNorm(kDbRed);
-        auto seg = [&](float from, float to, QColor col) {
-            const float lo = std::min(from, norm_);
-            const float hi = std::min(to, norm_);
-            if (hi <= lo) return;
-            QRectF r(rc.left() + rc.width() * lo, rc.top() + 2,
-                     rc.width() * (hi - lo), rc.height() - 4);
-            p.setBrush(col);
-            p.drawRoundedRect(r, 2, 2);
-        };
-        seg(0.0f, y0, QColor(0x43, 0xA0, 0x47)); // 绿
-        seg(y0, yr, QColor(0xF3, 0xB0, 0x2C));   // 黄
-        seg(yr, 1.0f, QColor(0xD8, 0x43, 0x3A)); // 红
+        QLinearGradient grad(rc.left(), 0.0, rc.right(), 0.0);
+        grad.setColorAt(0.0,                 QColor(0x43, 0xA0, 0x47)); // 绿（低电平）
+        grad.setColorAt(0.55,                QColor(0x5C, 0xAD, 0x44)); // 绿保持段（避免过早泛黄）
+        grad.setColorAt(dbToNorm(kDbYellow), QColor(0xF3, 0xB0, 0x2C)); // 黄（-12dB 分界）
+        grad.setColorAt(dbToNorm(kDbRed),    QColor(0xE0, 0x5A, 0x2E)); // 橙红（-3dB 分界）
+        grad.setColorAt(1.0,                 QColor(0xD8, 0x33, 0x2A)); // 红（0dB 满）
+        const QRectF bar(rc.left(), rc.top() + 2,
+                         rc.width() * norm_, rc.height() - 4);
+        p.setBrush(grad);
+        p.drawRoundedRect(bar, 2, 2);
     }
 
     // 峰值保持线（白色细线）

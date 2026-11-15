@@ -45,7 +45,8 @@ Q_NAMESPACE_EXPORT(BASECLASS_EXPORT)
         TimeCodeTypeRole,              // 时间码格式
         ClipColorRole,                 // 片段颜色
         ClipNoteRole,                  // 片段备注名
-        TrackExpandedRole,             // 轨道展开态（2026-11-06 轨道展开：true = 行高扩展并内嵌 clip panel）
+        TrackExpandedRole,             // 【退役占位 2026-11-15】轨道折叠功能已移除，
+                                       // 零消费者；枚举值保留防未来增删移位
     };
     Q_ENUM_NS(TimelineRoles)
 

@@ -161,9 +161,6 @@ QVariant BaseTimeLineModel::data(const QModelIndex &index, int role) const
             //获取轨道剪辑列表
             case TrackClipsRole:
                 return QVariant::fromValue(track->clips);
-            //轨道展开态（2026-11-06 轨道展开 + clip 内嵌 panel）
-            case TrackExpandedRole:
-                return QVariant::fromValue(track->expanded);
             default:
                 return QVariant();
         }
@@ -276,18 +273,6 @@ bool BaseTimeLineModel::setData(const QModelIndex &index, const QVariant &value,
                 emit dataChanged(index, index, {role});
                 return true;
             }
-            //设置轨道展开态（2026-11-06 轨道展开 + clip 内嵌 panel）：
-            //dataChanged 通知两视图重绘并按新行高重排（滚动条/附属面板随
-            //performRedraw → layoutClipPanels 统一处理）。
-            case TimelineRoles::TrackExpandedRole: {
-                const bool on = value.toBool();
-                if (track->expanded == on)
-                    return true;
-                track->expanded = on;
-                invalidateRowPrefix(); // P4：行高变化，前缀和失效
-                emit dataChanged(index, index, {TimelineRoles::TrackExpandedRole});
-                return true;
-            }
             default:
                 return false;
         }
@@ -301,20 +286,20 @@ Qt::DropActions BaseTimeLineModel::supportedDropActions() const
     return Qt::MoveAction;
 }
 
-// ---- 轨道行几何（2026-11-06 轨道展开：per-row 行高，两视图同源同规则）----
-// P4（timeline-draw-zoom-review）：前缀和缓存替代逐行累加——行展开/增删/
-// 移动/清空置脏，查询时懒重建一次 O(n)，此后 trackRowY/totalTracksHeight/
-// trackRowAt 均 O(1)。几十轨道无感，百级轨道长工程的全页重建/缩放从
-// O(n²) 行高求值降为线性。
+// ---- 轨道行几何（两视图同源同规则）------------------------------------------
+// P4（timeline-draw-zoom-review）：前缀和缓存替代逐行累加——增删/移动/清空
+// 置脏，查询时懒重建一次 O(n)，此后 trackRowY/totalTracksHeight/trackRowAt
+// 均 O(1)。几十轨道无感，百级轨道长工程的全页重建/缩放从 O(n²) 行高求值
+// 降为线性。
 // 所有视图几何（绘制/命中/滚动）统一经由本组函数取行高与行顶 y，禁止再
-// 直接写 row * trackHeight（否则展开行错位）。
+// 直接写 row * trackHeight——左右对齐由"同一数据源"保证。
+// 【2026-11-15】行高恒 = trackHeight（轨道折叠退役）；per-row 入口保留，
+// 未来若引入可变行高（如轨道分组折叠回归）仍走此处。
 
 int BaseTimeLineModel::trackRowHeight(int row) const
 {
-    if (row < 0 || row >= m_tracks.size())
-        return trackHeight;
-    return m_tracks.at(row)->expanded ? (trackHeight + trackExpandedExtra)
-                                      : trackHeight;
+    Q_UNUSED(row); // 行高恒定，与行号无关
+    return trackHeight;
 }
 
 void BaseTimeLineModel::ensureRowPrefix() const
@@ -357,19 +342,6 @@ int BaseTimeLineModel::totalTracksHeight() const
     return m_rowPrefixY.empty() ? 0 : m_rowPrefixY.back();
 }
 
-bool BaseTimeLineModel::isTrackExpanded(int row) const
-{
-    return row >= 0 && row < m_tracks.size() && m_tracks.at(row)->expanded;
-}
-
-void BaseTimeLineModel::setTrackExpanded(int row, bool on)
-{
-    if (row < 0 || row >= m_tracks.size())
-        return;
-    const QModelIndex idx = index(row, 0);
-    setData(idx, QVariant::fromValue(on), TimelineRoles::TrackExpandedRole);
-}
-
 // 获取项目标志
 Qt::ItemFlags BaseTimeLineModel::flags(const QModelIndex &index) const
 {
@@ -379,13 +351,6 @@ Qt::ItemFlags BaseTimeLineModel::flags(const QModelIndex &index) const
     return flags; 
 }
 
-
-void BaseTimeLineModel::clear(){
-    while(rowCount()>0){
-        onDeleteTrack(0);
-    }
-
-}
 
 // 计算时间线长度
 qint64 BaseTimeLineModel::onUpdateTimeLineLength()
@@ -486,7 +451,7 @@ void BaseTimeLineModel::onMoveTrack(int sourceRow, int targetRow) {
 
     beginMoveRows(QModelIndex(), sourceRow, sourceRow, QModelIndex(), destinationRow);
     m_tracks.move(sourceRow, targetRow);
-    invalidateRowPrefix(); // P4：行序变化（展开行位置改变），前缀和失效
+    invalidateRowPrefix(); // P4：行序变化，前缀和失效
     rebuildIndex();
     endMoveRows();
 

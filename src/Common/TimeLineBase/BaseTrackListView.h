@@ -78,11 +78,10 @@ public:
 
     virtual BaseTimeLineModel * getModel();
 
-    /// 行头展开按钮显隐开关（2026-11-09 合并关键帧模式：clip 内嵌 panel
-    /// 退役后展开行无内容，宿主隐藏按钮——paint 不绘制、命中不拦截，轨道
-    /// 行高恒 52px。默认 true 保持既有行为，宿主显式关闭）。
-    void setExpandButtonVisible(bool on) { m_expandButtonVisible = on; }
-    bool expandButtonVisible() const { return m_expandButtonVisible; }
+    // 行头展开按钮/轨道折叠（2026-11-06 引入，2026-11-15 退役）：clip 内嵌
+    // panel 退役后展开行无内容，折叠功能整体移除——轨道行恒 trackHeight，
+    // 无展开态、无按钮绘制/命中。TrackExpandedRole 枚举值保留占位（防
+    // 枚举移位），零消费者。
 
 public slots:
     /**
@@ -183,13 +182,6 @@ protected:
      */
     virtual QRect itemRect(const QModelIndex &index) const;
     /**
-     * 轨道行头展开按钮矩形（2026-11-06 轨道展开；paintEvent 绘制与
-     * mousePressEvent 命中共用同一公式——同源纪律，否则画在哪、点在哪各说各话）
-     * @param rowRect 轨道行矩形（visualRect）
-     * @return QRect 按钮矩形（行头左侧 18px 方块，对齐 clip 本体行内居中）
-     */
-    QRect trackExpandButtonRect(const QRect& rowRect) const;
-    /**
      * 事件过滤
      * @param QObject *watched 观察对象
      * @param QEvent *event 事件
@@ -257,7 +249,9 @@ private:
     QColor m_trackBgColor       = bgColour;
     QColor m_timelinePlayheadColor = playheadColour; // 标尺时间文字颜色
 
-    // 行头展开按钮显隐（2026-11-09 合并关键帧模式；默认显示保持既有行为）
-    bool m_expandButtonVisible = true;
+    // 拖动 grip 图标缓存（20x20 平滑缩放一次）。【2026-11-15 性能修复】原
+    // paintEvent 每行每次绘制都做资源加载 + SmoothTransformation 缩放——
+    // 滚动/悬停/选中的每一次重画都重复整套开销。资源只读，常驻缓存安全。
+    QPixmap m_gripPixmap;
 };
 

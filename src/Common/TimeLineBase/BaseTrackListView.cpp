@@ -170,22 +170,8 @@ void BaseTracklistView::mousePressEvent(QMouseEvent *event) {
      */
     if (event->button() == Qt::LeftButton) {
         m_dragStartPosition = event->pos();
-        // ---- 展开按钮命中（2026-11-06 轨道展开）：先于行选择判定 ----
-        // 按钮几何与 paintEvent 绘制共用 trackExpandButtonRect（同源纪律）。
-        // 命中即切换 TrackExpandedRole 并消费事件（不改变轨道选中态——
-        // 避免误清当前片段选择）。
-        if (model() && selectionModel()) {
-            const QModelIndex hitTrack = indexAt(event->pos());
-            // 展开按钮隐藏时（2026-11-09 合并关键帧模式）不拦截——点击
-            // 直接走行选择
-            if (hitTrack.isValid() && m_expandButtonVisible &&
-                trackExpandButtonRect(visualRect(hitTrack)).contains(event->pos())) {
-                Model->setTrackExpanded(hitTrack.row(),
-                                        !Model->isTrackExpanded(hitTrack.row()));
-                event->accept();
-                return; // 不进入行选择/拖拽
-            }
-        }
+        // 轨道折叠/展开命中（2026-11-06）已随折叠功能退役（2026-11-15）——
+        // 行头点击直接走行选择。
         if (selectionModel()) {
             QModelIndex item = indexAt(event->pos());
             if (item.isValid()) {
@@ -197,17 +183,6 @@ void BaseTracklistView::mousePressEvent(QMouseEvent *event) {
     }
 
     QAbstractItemView::mousePressEvent(event);
-}
-
-/**
- * @brief 轨道行头展开按钮矩形（paintEvent 绘制与 mousePress 命中共用）
- * @details 2026-11-06 用户定案：名称组【对齐到 clip 本体行】不再全行居中
- * ——clip 本体恒占行内顶部 52px，按钮在其内垂直居中（中心 26）。普通
- * 52px 行 52/2-9=17 同值，两种行态视觉一致。
- */
-QRect BaseTracklistView::trackExpandButtonRect(const QRect& rowRect) const
-{
-    return QRect(rowRect.left() + 6, rowRect.top() + 17, 18, 18);
 }
 
 /**
@@ -591,46 +566,26 @@ void BaseTracklistView::paintEvent(QPaintEvent *event) {
 
         painter.save();
         painter.setPen(m_trackTitleColor);
-        // 轨道名文本区：对齐 clip 本体行（行内顶部 52px 垂直居中，2026-11-06
-        // 用户定案——展开行不再全行居中悬空；左侧留展开按钮、右侧留 grip）
-        const QRect textRect(rowRect.left() + 30, rowRect.top(),
-                             rowRect.width() - 58, 52);
+        // 轨道名文本区：对齐 clip 本体行（行内顶部 trackHeight 垂直居中）。
+        // 左缘 12 / 右缘留 28（grip 占右侧 24px）——展开按钮退役后（2026-11-15）
+        // 行头只剩「名称 + grip」两组件。高度引用 trackHeight（勿硬编码）。
+        const QRect textRect(rowRect.left() + 12, rowRect.top(),
+                             rowRect.width() - 40, trackHeight);
         painter.drawText(textRect, Qt::AlignCenter,
                          trackIndex.data(TimelineRoles::TrackNameRole).toString());
-
-        // ---- 展开按钮（行头左侧 18px 方块）：▸ 折叠 / ▾ 已展开 ----
-        // 几何与 mousePressEvent 命中区共用 trackExpandButtonRect（同源纪律）。
-        // 【2026-11-09】m_expandButtonVisible=false 时不绘制（clip 内嵌
-        // panel 退役，展开行无内容——宿主隐藏入口，轨道行恒 52px）。
-        if (m_expandButtonVisible) {
-            const QRect btnRect = trackExpandButtonRect(rowRect);
-            painter.setBrush(QBrush(m_trackBgColor));
-            painter.setPen(QPen(m_trackTitleColor, 1.2));
-            painter.drawRect(btnRect);
-            const bool expanded = trackIndex.data(TimelineRoles::TrackExpandedRole).toBool();
-            // 手画 chevron（展开 = 向下，折叠 = 向右），绘制与命中同一矩形
-            const QPointF c = btnRect.center();
-            QPolygonF chevron;
-            if (expanded) {
-                chevron << QPointF(c.x() - 4, c.y() - 2)
-                        << QPointF(c.x(), c.y() + 3)
-                        << QPointF(c.x() + 4, c.y() - 2);
-            } else {
-                chevron << QPointF(c.x() - 2, c.y() - 4)
-                        << QPointF(c.x() + 3, c.y())
-                        << QPointF(c.x() - 2, c.y() + 4);
-            }
-            painter.drawPolyline(chevron);
-        }
         painter.restore();
 
-        // 轨道拖动 grip（名称行内右侧，与轨道名/展开按钮同一水平线——
-        // 2026-11-06 用户定案"名称和移动图标一行"，且名称组对齐 clip 本体
-        // 行：y=top+16 即 clip 行内 52px 的垂直居中（中心 26），普通行原值）
+        // 轨道拖动 grip（名称行内右侧，与轨道名同一水平线——名称和移动图标
+        // 一行）。垂直居中由 trackHeight 派生（勿硬编码，2026-11-15 修 40px
+        // 行高下图标偏下——原 +16 是 52px 行的居中值）。图标走成员缓存
+        //（原每行每次绘制都资源加载+平滑缩放，2026-11-15 性能修复）。
+        if (m_gripPixmap.isNull())
+            m_gripPixmap = QPixmap(":/icons/icons/move.png").scaled(
+                20, 20, Qt::KeepAspectRatio, Qt::SmoothTransformation);
         painter.save();
-        const QRect gripRect(rowRect.right() - 24, rowRect.top() + 16, 20, 20);
-        painter.drawPixmap(gripRect, QPixmap(":/icons/icons/move.png").scaled(
-                               gripRect.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        const QRect gripRect(rowRect.right() - 24,
+                             rowRect.top() + (trackHeight - 20) / 2, 20, 20);
+        painter.drawPixmap(gripRect.topLeft(), m_gripPixmap);
         painter.restore();
     }
     }

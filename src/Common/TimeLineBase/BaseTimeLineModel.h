@@ -19,6 +19,9 @@
 #include "TimelineExports.hpp"
 #include "Common/AppConfig/TimeCodeDefines.h"
 using namespace QtTimeline;
+// OSC 地址拖拽落轨钩子参数（AppConfig 轻量 struct；此处前向声明即可——
+// 内联默认实现不解引用，调用方/覆写方各自 include OSCMessage.h 拿完整类型）
+struct OSCMessage;
 struct TrackData {
     QString type;
     QString name;
@@ -28,10 +31,8 @@ struct TrackData {
     // 按 start 排序的片段下标。只用于视口裁剪，不改变 clips 的绘制顺序。
     QList<int> clipsByStart;
     int maxClipSpan = 0;
-    // 轨道展开态（2026-11-06 轨道展开 + clip 内嵌 tween panel）：
-    // true = 行高扩展（trackHeight + trackExpandedExtra），展开区按片段
-    // x/宽摆放 clip 面板。UI 内存态，不随 save() 序列化。
-    bool expanded = false;
+    // 轨道展开态 bool expanded（2026-11-06 轨道展开）已退役（2026-11-15
+    // 折叠功能整体移除）：行高恒 trackHeight，无 per-row 展开态。
 };
 // TimelineModel类继承自QAbstractItemModel
 class NODE_TIMELINE_PUBLIC BaseTimeLineModel : public QAbstractItemModel
@@ -98,30 +99,22 @@ public:
     // 获取项目标志
     Qt::ItemFlags flags(const QModelIndex &index) const ;
     /**
-     * 清除
-     */
-    virtual void clear();
-    /**
      * 获取轨道数量
      * @return int 轨道数量
      */
     virtual int getTrackCount() const ;
-    /**
-     * 获取轨道
-     * @return QVector<TrackData> 轨道
-     */
-    QList<TrackData*> getTracks() const { return m_tracks; }
     /**
      * 获取插件加载器
      * @return BasePluginLoader* 插件加载器
      */
     BasePluginLoader* getPluginLoader() const ;
 
-    // ---- 轨道行几何（2026-11-06 轨道展开：per-row 行高，两视图同源同规则）----
-    // 行高唯一权威：展开行 = trackHeight + trackExpandedExtra，否则 trackHeight。
+    // ---- 轨道行几何（两视图同源同规则）--------------------------------------
+    // 行高唯一权威：恒 = trackHeight（2026-11-15 轨道折叠退役，per-row 展开行
+    // 不复存在；前缀和入口保留=行几何唯一权威，未来 per-row 高度仍走此处）。
     // Timeline/TrackList 两视图的绘制/命中/滚动全部经由本组函数，禁止再直接
     // 读写 trackHeight 乘除行号——左右对齐由"同一数据源"保证。
-    /// 行高（展开 = trackHeight + trackExpandedExtra；越界行 = trackHeight）
+    /// 行高（恒 = trackHeight；越界行同值）
     int trackRowHeight(int row) const;
     /// 行顶在【内容坐标】的 y（不含 contentTop；= 前面各行高之和）
     int trackRowY(int row) const;
@@ -129,10 +122,6 @@ public:
     int trackRowAt(int contentY) const;
     /// 全部行高之和（updateScrollBars 用）
     int totalTracksHeight() const;
-    /// 轨道展开态（越界 = false）
-    bool isTrackExpanded(int row) const;
-    /// 设置轨道展开态（发 dataChanged(TrackExpandedRole)，两视图自动重绘/重摆）
-    void setTrackExpanded(int row, bool on);
 
     // 设置插件加载器
     void setPluginLoader(BasePluginLoader* loader) ;
@@ -177,6 +166,17 @@ public slots:
     // "导入素材+绑定+按素材时长设长"（2026-11-11 音频片段时长联动）。
     virtual void onDropMediaFile(int trackIndex, qint64 startUs, const QString& file) {
         onAddClip(trackIndex, startUs); // 基类默认：无导入能力的模型走占位语义
+    }
+    // OSC 地址拖拽落轨（2026-11-15 恢复）：OSCMessageListWidget 卡片 /
+    // DefaultTimeLineToolBar 控件拖出 application/x-osc-address mime →
+    // 时间轴生成 Control 片段（合并前 Trigger 语义）。默认实现=纯占位
+    // Control 片段（忽略消息载荷）；适配层覆写把 OSC 五元组写入片段
+    // control_messages（随场景 pb 分发，OSCMessageListWidget save/load
+    // 兼容格式）。
+    virtual void onDropOscAddress(int trackIndex, qint64 startUs,
+                                  const OSCMessage& msg) {
+        Q_UNUSED(msg);
+        onAddClip(trackIndex, startUs, QStringLiteral("Control"));
     }
     //删除片段槽函数
     virtual void onDeleteClip(QModelIndex clipIndex);

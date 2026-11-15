@@ -82,6 +82,12 @@ private:
     /// on_edited 落定（宿主 sceneEdited + 自动下发 + 广播灌值——广播
     /// 回到本区时 diff 相同跳过，无回环）
     void onEdited();
+    /// 【2026-11-15 悬垂修复】工作副本片段现查：clip 存于 vector<Clip>，
+    /// 片段增删会搬移元素——工厂时刻的 ctx.clip 失效后若继续写回，用户
+    /// 编辑会丢失且宿主灌回旧值（改 0 跳回 1 实证）。优先走宿主注入的
+    /// clip_lookup 实时定位，无 lookup 时兜底工厂时刻指针。
+    Clip* boundClip();
+    const Clip* boundClip() const;
 
     // ---- 控件（objectName = 测试定位锚）--------------------------------------
     OSCMessageListWidget* list_     = nullptr; ///< controlMessages：指令列表
@@ -89,8 +95,8 @@ private:
     QLabel*               hint_     = nullptr; ///< 触发语义说明
 
     // ---- 状态 -----------------------------------------------------------------
-    ClipSectionContext ctx_;   ///< 编辑上下文（clip/on_edited——值拷贝；
-                               ///<  指针语义见 ClipSectionContext 头注释）
+    ClipSectionContext ctx_;   ///< 编辑上下文（clip/clip_lookup/on_edited——
+                               ///<  值拷贝；指针语义见 ClipSectionContext 头注释）
     QString   last_json_;      ///< 上次写回/灌值内容快照（diff 防回环）
     QTimer*   poll_ = nullptr; ///< 800ms 轮询定时器（仅可见时启动）
 };

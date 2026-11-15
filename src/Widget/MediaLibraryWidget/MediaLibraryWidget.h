@@ -11,6 +11,7 @@
 #include <QUrl>
 #include <QProcess>
 #include "MediaLibrary/MediaLibrary.h"
+#include "MediaLibraryTree.h" // 树视图子类：startDrag 产 urls（拖拽到时间轴）
 
 /**
  * @class MediaLibraryWidget
@@ -119,7 +120,7 @@ private:
 
 private:
     MediaLibrary* m_model = nullptr;
-    QTreeView* m_tree = nullptr;
+    MediaLibraryTree* m_tree = nullptr; // 子类视图：文件条目可拖出（urls mime）
     QAction* m_actImportFiles = nullptr;
     QAction* m_actImportFolder = nullptr;
     QAction* m_actDeleteChecked = nullptr;

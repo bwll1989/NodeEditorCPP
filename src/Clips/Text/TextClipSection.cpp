@@ -297,18 +297,35 @@ void TextClipSection::updateSwatches() {
 }
 
 // ---------------------------------------------------------------------------
-// 绑定素材定位：按 ctx.clip->asset_id 现查工作副本素材表（换绑安全——
+// 绑定素材定位：按 clip->asset_id 现查工作副本素材表（换绑安全——
 // 每次现查不缓存；未绑定/类型不符返回 nullptr，写回与灌值统一防御）
+// 【2026-11-15 悬垂修复】clip 本体经 boundClip() 现查（vector 搬移安全）
 // ---------------------------------------------------------------------------
+Clip* TextClipSection::boundClip() {
+    if (ctx_.clip_lookup) {
+        if (Clip* c = ctx_.clip_lookup()) return c;
+    }
+    return ctx_.clip;
+}
+
+const Clip* TextClipSection::boundClip() const {
+    if (ctx_.clip_lookup) {
+        if (Clip* c = ctx_.clip_lookup()) return c;
+    }
+    return ctx_.clip;
+}
+
 const Asset* TextClipSection::boundAsset() const {
-    if (!ctx_.clip || !ctx_.scene || ctx_.clip->asset_id.empty()) return nullptr;
-    return ctx_.scene->findAsset(ctx_.clip->asset_id);
+    const Clip* c = boundClip();
+    if (!c || !ctx_.scene || c->asset_id.empty()) return nullptr;
+    return ctx_.scene->findAsset(c->asset_id);
 }
 
 Asset* TextClipSection::writableAsset() {
-    if (!ctx_.clip || !ctx_.scene || ctx_.clip->asset_id.empty()) return nullptr;
+    const Clip* c = boundClip();
+    if (!c || !ctx_.scene || c->asset_id.empty()) return nullptr;
     for (auto& asset : ctx_.scene->assets)
-        if (asset.id == ctx_.clip->asset_id) return &asset;
+        if (asset.id == c->asset_id) return &asset;
     return nullptr;
 }
 

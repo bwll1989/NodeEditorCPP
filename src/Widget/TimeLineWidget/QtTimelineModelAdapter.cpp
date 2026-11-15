@@ -6,12 +6,12 @@
 //      刷新，无需逐行 beginInsertRows；内部索引（m_clipLocation/m_trackSet/
 //      clipsByStart）统一经 rebuildIndex() 重建（基类 protected，适配器可调）；
 //    * 每个片段 new AbstractClipModel 基类实例（控件允许基类实例化，绘制
-//      data 均有默认实现），noteName 记 ms clip id（回写定位锚点）、
+//      data 均有默认实现），clipAnchor 记 ms clip id（回写定位锚点；2026-11-15 与备注名分离）、
 //      setColor 按轨道类型区分；不使用插件 clip（无插件目录时
 //      BasePluginLoader::createModelForType 返回空，属安全 no-op）。
 //
 //  回写策略（onClipGeometryChanged / syncModelToWorkScene）：
-//    * 按 noteName 定位工作副本 clip（对增删稳定）；写 start_us 与
+//    * 按 clipAnchor 定位工作副本 clip（对增删稳定）；写 start_us 与
 //      duration_us（μs 同基直传，2026-11-10 微秒原生）；出点超过时间线
 //      总时长时兜底拉长（与属性面板 applyPropertyToClip 同规则）；
 //    * dirty_ 置位 + sceneEdited() 信号——状态栏提示"未下发"。
@@ -22,6 +22,10 @@
 // ============================================================================
 
 #include "QtTimelineModelAdapter.hpp"
+
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonDocument> // OSC drag → Control：control_messages JSON 构造
 
 // 片段属性面板（素材绑定 + 画布变换；附加进库组合面板）
 // 【2026-11-13 片段插件化】通用面板/Tween 合并区迁 Common/ClipPanelBase.dll；
@@ -46,7 +50,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
 
 #include "media/TextRasterizer.hpp" // 文本测量回填（onAddClip 自动素材）
 
@@ -224,7 +227,10 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
             clip->setId(++m_clipNextId);          // 控件侧 id 只需唯一
             clip->setTimelineModel(this);
             clip->setTimeCodeType(getTimeCodeType()); // 与模型一致（PAL）
-            clip->setNoteName(QString::fromStdString(c.id)); // ★ 回写定位锚点
+            // 【2026-11-15 锚点/备注名分离】锚点 = ms clip id（回写定位唯一
+            // 依据，用户不可见）；备注名 = 场景装载的用户起名（可空）
+            clip->setClipAnchor(QString::fromStdString(c.id));
+            clip->setNoteName(QString::fromStdString(c.note));
             // ---- Live 轨片段素材缺失自愈（2026-11-09）------------------------
             // Add Item 漏绑 live_asset_id 期间（11-06~11-08）保存的场景里，
             // 实况片段 asset_id 为空 → 实况区不追加/实况写回断裂/display
@@ -280,6 +286,18 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
                     [this, clip](int) { onClipGeometryChanged(clip); });
             connect(clip, &AbstractClipModel::lengthChanged, this,
                     [this, clip](int) { onClipGeometryChanged(clip); });
+            // ---- 外观回写（2026-11-15 备注名持久化）------------------------
+            // 属性面板改备注名/颜色 → 工作副本 note 字段落盘 + 脏置位 +
+            // sceneEdited（EditorWindow 防抖刷新场景树——片段行显示备注名）
+            connect(clip, &AbstractClipModel::appearanceChanged, this,
+                    [this, clip]() {
+                        if (loading_) return;
+                        if (Clip* c = locateWorkClip(clip->clipAnchor()))
+                            c->note = clip->noteName().toStdString();
+                        dirty_clips_.insert(
+                            clip->clipAnchor().toStdString());
+                        emit sceneEdited();
+                    });
             td->clips.push_back(clip);
         }
     }
@@ -300,7 +318,7 @@ void QtTimelineModelAdapter::setClipGeometryFromScene(
     const QString note = QString::fromStdString(clip_id);
     for (TrackData* td : m_tracks) {
         for (AbstractClipModel* clip : td->clips) {
-            if (clip->noteName() != note) continue;
+            if (clip->clipAnchor() != note) continue;
             loading_ = true; // 本路径的 setStart/setEnd 信号不回写（值已同源）
             clip->setStart(start_us);
             clip->setEnd(std::max(start_us + dur_us, start_us + 1)); // 不足 1μs 钳 1μs
@@ -318,7 +336,7 @@ void QtTimelineModelAdapter::setClipAssetFromScene(
     const QString note = QString::fromStdString(clip_id);
     for (TrackData* td : m_tracks) {
         for (AbstractClipModel* clip : td->clips) {
-            if (clip->noteName() != note) continue;
+            if (clip->clipAnchor() != note) continue;
             // 纯镜像更新（无信号、无回写）；动态派生跨 DLL 安全（MSVC /MD
             // 按 type_info 字符串比较——见 SceneClipModel 跨模块 RTTI 注释）
             if (auto* sc = dynamic_cast<SceneClipModel*>(clip))
@@ -519,6 +537,15 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
                 emit sceneEdited();          // "未下发"提示 + 自动下发链路
                 refreshClipPanels(clip_id);  // 广播灌值（区块内焦点保护防打断）
             };
+            // 【2026-11-15 悬垂修复】片段实时定位回调：tr.clips 是
+            // vector<Clip>，片段增删会搬移元素——工厂时刻的 ctx.clip 在
+            // 结构变化后失效。Section 写回/读取统一走本回调现取当前对象
+            //（Control 片段"改 0 跳回 1"：写悬垂丢失 + 灌新位置旧值实证）。
+            ctx.clip_lookup = [aguard, clip_id]() -> Clip* {
+                return aguard
+                    ? aguard->locateWorkClip(QString::fromStdString(clip_id))
+                    : nullptr;
+            };
             if (QWidget* sec = factory->createPropertySection(&ctx, panel)) {
                 panel->appendSection(sec, kindPageName(kind));
                 clip_sections_[clip_id].push_back(sec);
@@ -614,7 +641,7 @@ void QtTimelineModelAdapter::syncClipTweenDots(const std::string& clip_id) {
     for (TrackData* td : m_tracks) {
         if (!td) continue;
         for (AbstractClipModel* clip : td->clips) {
-            if (clip->noteName() != note) continue;
+            if (clip->clipAnchor() != note) continue;
             if (auto* sc = dynamic_cast<SceneClipModel*>(clip))
                 sc->setTweenChannels(buildTweenDots(*c, work_->canvas_w,
                                                     work_->canvas_h));
@@ -635,7 +662,7 @@ void QtTimelineModelAdapter::syncAllClipTweenDots() {
         for (AbstractClipModel* clip : td->clips) {
             auto* sc = dynamic_cast<SceneClipModel*>(clip);
             if (!sc) continue;
-            const Clip* c = locateWorkClip(sc->noteName());
+            const Clip* c = locateWorkClip(sc->clipAnchor());
             if (!c) continue; // 片段已删：模型对象应随重建消失，防御跳过
             sc->setTweenChannels(buildTweenDots(*c, work_->canvas_w,
                                                 work_->canvas_h));
@@ -828,18 +855,18 @@ bool QtTimelineModelAdapter::showClipOwnPanel(int track_idx, int clip_idx,
         clip_idx >= (int)work_->timeline.tracks[track_idx].clips.size())
         return false;
 
-    // 工作副本片段 id（= 模型侧 noteName，回写定位锚点；按下标取 id 后
+    // 工作副本片段 id（= 模型侧 clipAnchor，回写定位锚点；按下标取 id 后
     // 改按 id 定位模型片段——对增删稳定，不信任下标在两边一致）
     const std::string clip_id =
         work_->timeline.tracks[track_idx].clips[clip_idx].id;
     const QString note = QString::fromStdString(clip_id);
 
-    // 在模型中按 noteName 定位片段（找不到 = 已被删/未装载，防御）
+    // 在模型中按 clipAnchor 定位片段（找不到 = 已被删/未装载，防御）
     AbstractClipModel* model_clip = nullptr;
     for (TrackData* td : m_tracks) {
         if (!td) continue;
         for (AbstractClipModel* clip : td->clips) {
-            if (clip->noteName() != note) continue;
+            if (clip->clipAnchor() != note) continue;
             model_clip = clip;
             break;
         }
@@ -874,7 +901,7 @@ bool QtTimelineModelAdapter::showClipOwnPanel(int track_idx, int clip_idx,
 }
 
 // ---------------------------------------------------------------------------
-// 回写定位：noteName（ms clip id）→ 工作副本 Clip*
+// 回写定位：clipAnchor（ms clip id）→ 工作副本 Clip*
 // ---------------------------------------------------------------------------
 Clip* QtTimelineModelAdapter::locateWorkClip(const QString& note) {
     if (!work_) return nullptr;
@@ -891,7 +918,7 @@ Clip* QtTimelineModelAdapter::locateWorkClip(const QString& note) {
 void QtTimelineModelAdapter::onClipGeometryChanged(AbstractClipModel* clip) {
     if (loading_ || !work_ || !clip) return;
 
-    Clip* c = locateWorkClip(clip->noteName());
+    Clip* c = locateWorkClip(clip->clipAnchor());
     if (!c) return; // 模型里的片段不在工作副本（理论不可达；防御）
 
     c->start_us    = clip->start();
@@ -901,7 +928,7 @@ void QtTimelineModelAdapter::onClipGeometryChanged(AbstractClipModel* clip) {
     if (end > work_->timeline.duration_us)
         work_->timeline.duration_us = end;
 
-    dirty_clips_.insert(clip->noteName().toStdString()); // 按片段记脏
+    dirty_clips_.insert(clip->clipAnchor().toStdString()); // 按片段记脏
     emit sceneEdited();
 }
 
@@ -916,9 +943,9 @@ void QtTimelineModelAdapter::syncModelToWorkScene() {
     for (TrackData* td : m_tracks) {
         if (!td) continue;
         for (AbstractClipModel* clip : td->clips) {
-            const std::string id = clip->noteName().toStdString();
+            const std::string id = clip->clipAnchor().toStdString();
             if (!dirty_clips_.count(id)) continue; // 未在时间轴改过，跳过
-            Clip* c = locateWorkClip(clip->noteName());
+            Clip* c = locateWorkClip(clip->clipAnchor());
             if (!c) { dirty_clips_.erase(id); continue; } // 已被删（防御）
             c->start_us    = clip->start();
             c->duration_us = clip->length(); // μs 同基直传
@@ -966,7 +993,7 @@ void QtTimelineModelAdapter::setPlayheadFromRuntimeUs(std::int64_t us_total) {
 // ---------------------------------------------------------------------------
 // Control 触发引擎（2026-11-13）：播放头上升沿 → 逐条发送片段指令。
 // 位置判定取模型（clip->start() 实时——时间轴拖动 dirty 期间也正确），
-// 消息体取工作副本（业务真相源；locateWorkClip 按 noteName 定位）。
+// 消息体取工作副本（业务真相源；locateWorkClip 按 clipAnchor 定位）。
 // 装载期（loading_）只建立基线不触发（模型重建中位置无意义）。
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
@@ -983,7 +1010,7 @@ void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
             if (clip->type() != "Control") continue;
             const qint64 st = clip->start();
             if (!(prev < st && now_us >= st)) continue; // 非上升沿
-            Clip* c = locateWorkClip(clip->noteName());
+            Clip* c = locateWorkClip(clip->clipAnchor());
             if (!c) continue; // 已删（防御）
             ms::fireControlMessages(c->control_messages);
             std::fprintf(stderr,
@@ -1258,7 +1285,7 @@ void QtTimelineModelAdapter::onDeleteTrack(int trackIndex) {
 //   * 调基类完成 Model/View 仪式（插件造片段 + beginInsertRows 加行 +
 //     ClipIdRole 编号）；
 //   * 取回新片段 → 线性探测生成唯一 ms id（clip-N）→ setNoteName 回写
-//     （noteName = ms clip id 是本适配器的标识约定，回写/删除按它定位）；
+//     （clipAnchor = ms clip id 是本适配器的标识约定，回写/删除按它定位）；
 //   * 工作副本同步 push（asset_id 置空 = 未绑定素材占位——下发补丁前由
 //     EditorWindow 做 R1 前置提示，引导用户双击片段绑定媒体）；
 //   * 补接几何信号（拖拽/改长 → 工作副本回写；基类只做了 watchClip，
@@ -1290,7 +1317,7 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
 
     // ---- 唯一 ms id：clip-N 线性探测（nextClipId 单点维护）----
     const std::string id = nextClipId();
-    mc->setNoteName(QString::fromStdString(id)); // ms id ← 模型标识映射
+    mc->setClipAnchor(QString::fromStdString(id)); // 锚点 = ms clip id（与备注名分离 2026-11-15）
     // 生命周期：基类造的片段由基类删除（onDeleteTrack/析构裸 delete），
     // 不做 setParent（避免所有权歧义）。
     // 面板工厂注入：基类造的片段同样要带自定义面板（否则双击报
@@ -1398,6 +1425,16 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
             [this, mc](int) { onClipGeometryChanged(mc); });
     connect(mc, &AbstractClipModel::lengthChanged, this,
             [this, mc](int) { onClipGeometryChanged(mc); });
+    // 外观回写（备注名持久化 2026-11-15）：新增片段同样接——改备注名
+    // → 工作副本 note + 脏置位 + sceneEdited
+    connect(mc, &AbstractClipModel::appearanceChanged, this,
+            [this, mc]() {
+                if (loading_) return;
+                if (Clip* c = locateWorkClip(mc->clipAnchor()))
+                    c->note = mc->noteName().toStdString();
+                dirty_clips_.insert(mc->clipAnchor().toStdString());
+                emit sceneEdited();
+            });
 
     const std::string bound_id =
         !text_asset_id.empty() ? text_asset_id : live_asset_id;
@@ -1471,7 +1508,7 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
     onAddClip(trackIndex, startUs, drop_clip_type);
     if ((int)td->clips.size() <= prev_cnt) return; // 基类失败（插件缺失等）
     AbstractClipModel* mc = td->clips.back();
-    const QString note = mc->noteName();
+    const QString note = mc->clipAnchor();
 
     // ---- 素材绑定 + 时长联动 ---------------------------------------------
     // asset 镜像：纯写无信号（setClipAssetFromScene 同款），工作副本手写；
@@ -1493,18 +1530,61 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
 }
 
 // ---------------------------------------------------------------------------
+// OSC 地址拖拽落轨（2026-11-15 恢复；视图 dropEvent → 基类虚钩子）：
+// onAddClip("Control") 创建片段（面板/工作副本同链）→ 定位链尾新片段把
+// OSC 五元组写入 control_messages（{"messages":[{host,port,address,type,
+// value}]}——OSCMessageListWidget::save() 同构，片段专属编辑区直接可编辑）。
+// 空缺兜底 = 合并前 TimeLineView::applyDroppedMedia 同语义：
+//   host 空 → 127.0.0.1；port 0 → 8991；type 空 → Int；value 无效 → "1"
+// ---------------------------------------------------------------------------
+void QtTimelineModelAdapter::onDropOscAddress(int trackIndex, qint64 startUs,
+                                              const OSCMessage& msg) {
+    onAddClip(trackIndex, startUs, QStringLiteral("Control"));
+    TrackData* td = (trackIndex >= 0 && trackIndex < (int)m_tracks.size())
+                        ? m_tracks[trackIndex] : nullptr;
+    if (!td || td->clips.isEmpty()) return; // 基类失败（插件缺失等）
+    AbstractClipModel* mc = td->clips.back();
+    Clip* c = locateWorkClip(mc->clipAnchor());
+    if (!c) return; // 工作副本未挂载：模型占位片段已在（基类语义兜底）
+
+    QJsonObject m;
+    m["host"]    = msg.host.isEmpty() ? QStringLiteral("127.0.0.1") : msg.host;
+    m["port"]    = msg.port == 0 ? 8991 : msg.port;
+    m["address"] = msg.address;
+    m["type"]    = msg.type.isEmpty() ? QStringLiteral("Int") : msg.type;
+    if (msg.value.typeId() == QMetaType::QVariantList) {
+        m["value"] = QJsonArray::fromVariantList(msg.value.toList());
+    } else {
+        m["value"] = QJsonValue::fromVariant(
+            msg.value.isValid() ? msg.value : QVariant(QStringLiteral("1")));
+    }
+    QJsonArray arr;
+    arr.append(m);
+    QJsonObject root;
+    root["messages"] = arr;
+    c->control_messages =
+        QJsonDocument(root).toJson(QJsonDocument::Compact).toStdString();
+
+    std::fprintf(stderr, "[adapter] OSC 拖入 → Control 片段 %s：%s@%s:%d\n",
+                 c->id.c_str(), msg.address.toStdString().c_str(),
+                 m["host"].toString().toStdString().c_str(), m["port"].toInt());
+    std::fflush(stderr);
+    emit sceneEdited(); // 终态（指令表）补发；onAddClip 已 emit 过占位版本
+}
+
+// ---------------------------------------------------------------------------
 // 原生"删除片段"覆写：工作副本先删（业务真相源）→ 基类删模型行
 // （基类 delete 模型后行号/指针失效，工作副本定位必须在此之前）
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::onDeleteClip(QModelIndex clipIndex) {
-    // 先按 noteName（= ms clip id）解析待删片段（趁模型行还有效）
+    // 先按 clipAnchor（= ms clip id）解析待删片段（趁模型行还有效）
     QString note;
     if (clipIndex.isValid() && clipIndex.parent().isValid()) {
         const int track_row = clipIndex.parent().row();
         if (track_row >= 0 && track_row < (int)m_tracks.size() &&
             m_tracks[track_row] && clipIndex.row() >= 0 &&
             clipIndex.row() < (int)m_tracks[track_row]->clips.size())
-            note = m_tracks[track_row]->clips[clipIndex.row()]->noteName();
+            note = m_tracks[track_row]->clips[clipIndex.row()]->clipAnchor();
     }
 
     if (!note.isEmpty() && work_) {
@@ -1539,7 +1619,7 @@ void QtTimelineModelAdapter::onClipTrackChanged(AbstractClipModel* clip,
     Q_UNUSED(fromTrack); // 摘除按 id 全轨检索（防模型/工作副本轨序漂移误删）
     if (loading_ || !work_ || !clip)
         return;
-    const std::string id = clip->noteName().toStdString();
+    const std::string id = clip->clipAnchor().toStdString();
     if (id.empty() || toTrack < 0 ||
         toTrack >= (int)work_->timeline.tracks.size())
         return;

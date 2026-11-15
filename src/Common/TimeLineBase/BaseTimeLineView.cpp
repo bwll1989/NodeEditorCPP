@@ -7,6 +7,7 @@
 #include <QUrl>
 #include <algorithm>
 #include "DefaultTimeLineToolBar.h"
+#include "Common/AppConfig/OscAddressMimeUtil.hpp" // OSC 地址 mime 编解码（header-only；OSC drag → Control 落轨）
 
 namespace {
 // 2026-11-11 极限缩放加固：frameLo/Hi 是 μs 域时间量（pointToFrame 返回
@@ -708,26 +709,6 @@ void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
     QAbstractItemView::contextMenuEvent(event);
 }
 
-void BaseTimelineView::addClipAtPosition(const QModelIndex& index, const QPoint& pos) {
-    if (!index.isValid() || index.parent().isValid()) {
-        qDebug() << "Invalid index: Click was not on a valid track";
-        return;
-    }
-
-    int trackIndex = index.row();
-    if (trackIndex < 0 || trackIndex >= getModel()->getTrackCount()) {
-        qDebug() << "Invalid track index: " << trackIndex;
-        return;
-    }
-    // Calculate the start frame based on the mouse position
-    int startFrame = pointToFrame(pos.x() + m_scrollOffset.x());
-
-    getModel()->onAddClip(trackIndex,startFrame);
-
-    // 更新视图（优化为合并重绘）
-    scheduleRedraw();
-}
-
 void BaseTimelineView::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::RightButton) {
@@ -962,14 +943,29 @@ void BaseTimelineView::showEvent(QShowEvent *event)
 
     // 独立使用场景：没有 Controller 时，视图需要自己监听模型变化来刷新
     if (!property("qtimeline_managed").toBool() && !property("qtimeline_model_bound").toBool() && Model) {
+        // 结构变化（增删/移动/重置）才全量重建；片段级 dataChanged 走
+        // updateClipGeometry 脏区补绘（与托管路径 BaseTimeLineWidget 同款）。
+        // 【2026-11-15 性能修复】此前 dataChanged 一律 scheduleRedraw 全页
+        // 重建——片段属性/备注/关键帧镜像/几何每次变更都整页重画，令 P7
+        // 脏区路径形同虚设。轨道行 dataChanged（名称等）不参与本视图绘制
+        //（轨道名只在左侧列表），忽略。
         connect(Model, &QAbstractItemModel::modelReset,   this, [this]() { scheduleRedraw(); });
         connect(Model, &QAbstractItemModel::rowsInserted, this, [this]() { scheduleRedraw(); });
         connect(Model, &QAbstractItemModel::rowsRemoved,  this, [this]() { scheduleRedraw(); });
         connect(Model, &QAbstractItemModel::rowsMoved,    this, [this]() { scheduleRedraw(); });
-        connect(Model, &QAbstractItemModel::dataChanged,  this, [this]() { scheduleRedraw(); });
+        connect(Model, &QAbstractItemModel::dataChanged,  this,
+                [this](const QModelIndex& topLeft, const QModelIndex& bottomRight) {
+            if (!topLeft.parent().isValid())
+                return; // 轨道行数据：时间轴视图零消费
+            for (int row = topLeft.row(); row <= bottomRight.row(); ++row)
+                updateClipGeometry(topLeft.sibling(row, topLeft.column()));
+        });
 
         connect(Model, &BaseTimeLineModel::S_playheadMoved, this, [this](qint64 us) { onPlayheadMoved(us); });
-        connect(Model, &BaseTimeLineModel::S_LengthChanged,       this, [this]() { scheduleRedraw(); });
+        // 长度变化只影响滚动范围（缓存按视口尺寸驻留，网格/标尺不依赖长度）
+        // ——更新滚动条即可，无需全页重建。【2026-11-15】此前 scheduleRedraw
+        // 使拖拽延长时间线的每一拍都整页重画。
+        connect(Model, &BaseTimeLineModel::S_LengthChanged, this, [this](qint64) { updateScrollBars(); });
 
         setProperty("qtimeline_model_bound", true);
     }
@@ -1003,9 +999,8 @@ void BaseTimelineView::mousePressEvent(QMouseEvent *event)
     QModelIndex item = indexAt(event->pos());
     //如果点击在轨道上的的空白处
     //【2026-11-06 用户定案】内容区点击/拖拽不再移动播放头——播放头仅
-    // 标尺拖拽生效（上方 y<=rulerHeight+toolbarHeight 分支）。原语义
-    // 会与展开区 TweenPanel 拖键冲突（panel 空白按下冒泡到视图误触
-    // 播放头横移）。内容区空白现在只清除选择（上方已做），不再选播放头。
+    // 标尺拖拽生效（上方 y<=rulerHeight+toolbarHeight 分支）。内容区空白
+    // 现在只清除选择（上方已做），不再选播放头。
     if(item.isValid() && !item.parent().isValid()) {
         m_playheadSelected = false;
         // ---- 片段外缘按下（2026-11-11 "向外判断"定案）----------------------
@@ -1707,6 +1702,18 @@ void BaseTimelineView::dropEvent(QDropEvent *event)
         }
         const qint64 posUs = pointToFrame(m_lastDragPos.x());
 
+        // OSC 地址拖拽 → Control 片段（模型虚钩子；适配层覆写写
+        // control_messages 指令表）。【2026-11-15 恢复】合并前
+        // TimeLineView::dropEvent 的 applyDroppedMedia 同语义后继。
+        if (event->mimeData()->hasFormat(OscAddressMime::kMimeType)) {
+            OSCMessage msg;
+            if (!OscAddressMime::decode(event->mimeData(), msg))
+                return; // mime 存在但解码失败（旧生产端序列化）：防御丢弃
+            getModel()->onDropOscAddress(trackIndex.row(), posUs, msg);
+            viewport()->update();
+            return;
+        }
+
         // 拖入文件 → 模型虚钩子（2026-11-11：文件路径不再丢弃——默认实现
         // 仍建占位片段；适配层覆写完成"导入+绑定+按素材时长设长"）
         // 【2026-11-15 防御】dragEnterEvent 无条件置 m_isSupportMedia=true，
@@ -1796,9 +1803,10 @@ void BaseTimelineView::drawBackground(QPainter* painter, const QRect& rect)
     visibleTrackRange(firstRow, lastRow);
     if (lastRow < firstRow)
         return;
+    auto* tlModel = static_cast<BaseTimeLineModel*>(model());
     for (int i = qMax(0, firstRow - 1); i <= lastRow; ++i) {
-        // 2026-11-06 轨道展开：分隔线 y = 前面各行高之和（展开行使下方行下移）
-        const int trackSplitter = static_cast<BaseTimeLineModel*>(model())->trackRowY(i + 1)
+        // 分隔线 y = 前面各行高之和（前缀和 O(1)；2026-11-15 提升出循环）
+        const int trackSplitter = tlModel->trackRowY(i + 1)
                                   + contentTop() - m_scrollOffset.y();
         if (trackSplitter < contentTop() || trackSplitter > rect.bottom())
             continue;
@@ -2194,13 +2202,16 @@ void BaseTimelineView::drawTracks(QPainter* painter)
         const QModelIndex current = selectionModel()->currentIndex();
         if (current.parent().isValid())
             selectedClip = static_cast<AbstractClipModel*>(current.internalPointer());
+        // 记录本趟实际用于绘制的选中态（selectionChanged 脏区补绘的"旧值"
+        // 来源——全量重建/脏区补绘后保持一致，防止旧选中片段残留高亮）
+        m_paintedCurrentIndex = current;
     }
     QList<int> clipRows;
+    auto* tlModel = static_cast<BaseTimeLineModel*>(model());
 
     for (int i = firstRow; i <= lastRow; ++i) {
-        // 2026-11-06 轨道展开：行顶 y 走前缀和（展开行使下方行下移）；clip
-        // 本体高度仍恒 trackHeight（展开附加区归 clip panel，不参与片段绘制）
-        const int trackTop = static_cast<BaseTimeLineModel*>(model())->trackRowY(i) + top - scrollY;
+        // 行顶 y 走前缀和（O(1)）；clip 本体高度恒 trackHeight
+        const int trackTop = tlModel->trackRowY(i) + top - scrollY;
         if (clipped && (trackTop + trackHeight <= clipBounds.top() || trackTop >= clipBounds.bottom()))
             continue;
 
@@ -2236,8 +2247,47 @@ void BaseTimelineView::selectionChanged(const QItemSelection &selected, const QI
 {
     QAbstractItemView::selectionChanged(selected, deselected);
 
-    m_staticCacheDirty = true;
-    viewport()->update();
+    /**
+     * 【2026-11-15 性能修复】选中态只影响 currentIndex 那一个片段的绘制
+     * （selected 高亮 + 菱形放大，见 drawTracks 的 selectedClip）。旧实现
+     * 全页重建（m_staticCacheDirty + update()）——每次点击选中都整页重画。
+     * 改为脏区补绘：旧选中片段 ∪ 新选中片段两块矩形，走 P7 同一管线
+     *（repaintStaticCache 补缓存 + viewport 局部 update）。缓存不可用
+     *（未建/置脏/尺寸失配）时回退全量，保证正确性。
+     * 轨道行选中不涉及本视图像素（轨道高亮在左侧列表），不产生脏区。
+     */
+    const QModelIndex newCur = selectionModel() ? selectionModel()->currentIndex() : QModelIndex();
+    const QModelIndex oldCur = m_paintedCurrentIndex;
+    m_paintedCurrentIndex = newCur;
+
+    if (!staticCacheReady()) {
+        viewport()->update(); // 缓存未就绪：交由 ensureStaticCache 全量重建
+        return;
+    }
+
+    QRegion dirty;
+    auto addClipRect = [this, &dirty](const QModelIndex& idx) {
+        if (!idx.isValid() || !idx.parent().isValid())
+            return;
+        auto* clip = static_cast<AbstractClipModel*>(idx.internalPointer());
+        if (!clip)
+            return;
+        // 优先用上次绘制的实际矩形（含 ±4/右缘 44 补边）；查不到（从未
+        // 入画，如屏外片段）按现几何现算——updateClipGeometry 同口径。
+        const auto found = m_clipContentRects.find(clip);
+        const QRect bounds = (found != m_clipContentRects.end())
+                                 ? found->second
+                                 : clipContentBounds(clip, idx.parent().row());
+        dirty += bounds.translated(-scrollOffset());
+    };
+    addClipRect(oldCur);
+    addClipRect(newCur);
+
+    dirty &= viewport()->rect();
+    if (dirty.isEmpty())
+        return;
+    repaintStaticCache(dirty);
+    viewport()->update(dirty.boundingRect());
 }
 
 void BaseTimelineView::wheelEvent(QWheelEvent *event){
@@ -2333,6 +2383,11 @@ BaseTimeLineModel* BaseTimelineView::getModel() const
  */
 QString BaseTimelineView::isMimeAcceptable(const QMimeData *Mime) const
 {
+    // OSC 地址拖拽（OSCMessageListWidget 卡片 / DefaultTimeLineToolBar 控件
+    // 拖出 application/x-osc-address）→ Control 片段。【2026-11-15 恢复】
+    // 合并时误删此分支——发送端（startDrag）一直活着，消费端断线是回归。
+    if (Mime->hasFormat(OscAddressMime::kMimeType))
+        return QStringLiteral("Control");
     // 获取拖拽的文件路径
 
     if (Mime->hasUrls())
@@ -2354,7 +2409,5 @@ QString BaseTimelineView::isMimeAcceptable(const QMimeData *Mime) const
             return "Control";
         }
     }
-    // 【2026-11-10 剪裁】上游 OSC 地址拖放分支（application/x-osc-address →
-    // Control）已随 OSC 体系退役——发送端 startDrag 删除后无人产生此 mime。
     return "";
 }

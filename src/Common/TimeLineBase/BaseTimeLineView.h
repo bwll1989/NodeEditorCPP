@@ -125,13 +125,6 @@ public slots:
      */
     virtual void setScaleAtPx(double ratio, int anchorViewportX);
 
-    /**
-     * 在指定位置添加剪辑
-     * @param QModelIndex index 索引
-     * @param QPoint pos 位置
-     */
-    virtual void addClipAtPosition(const QModelIndex& index, const QPoint& pos);
-
 
 protected:
     /**
@@ -626,6 +619,10 @@ protected:
     qint64 m_paintedPlayheadUs = -1; // 上次绘制的播放头位置（μs）
     // 片段在内容坐标中的上次绘制范围，供局部刷新擦掉旧位置。
     std::unordered_map<AbstractClipModel*, QRect> m_clipContentRects;
+    // 上次绘入缓存的 currentIndex（选中态只影响该片段的绘制——selected
+    // 高亮/菱形放大；2026-11-15 selectionChanged 从全页重建改脏区补绘：
+    // 旧选中 ∪ 新选中两块片段矩形，点击选中的开销从 O(全页) 降为 O(两片段)）
+    QPersistentModelIndex m_paintedCurrentIndex;
 
     /**
      * P3（timeline-draw-zoom-review）：标尺刻度文本缓存。

@@ -19,7 +19,7 @@ public:
         : SceneClipModel(startUs, "Audio", {}, parent) {
         RESIZEABLE  = true;
         EMBEDWIDGET = false;
-        SHOWBORDER  = true;
+        SHOWBORDER  = false;
         setColor(QColor(0x9B, 0x6F, 0xD1)); // 紫（音频类型色）
     }
 };

@@ -128,16 +128,8 @@ private:
                     if (!m_tracklist)
                         return;
                     const bool rolesUnknown = roles.isEmpty();
-                    // 轨道展开态变化（2026-11-06 轨道展开）：行高结构变化 →
-                    // 两视图全量重排（滚动条/绘制/展开区 clip 面板随
-                    // performRedraw → layoutClipPanels 统一刷新）
-                    const bool affectsExpansion = rolesUnknown || roles.contains(QtTimeline::TrackExpandedRole);
-                    if (affectsExpansion) {
-                        if (m_view)
-                            m_view->onUpdateViewport();
-                        m_tracklist->onUpdateViewport();
-                        return;
-                    }
+                    // 轨道展开态全量重排分支已随折叠功能退役（2026-11-15，
+                    // 行高恒定无需 per-role 重排）。轨道名/类型变化仅重绘行头。
                     const bool affectsTrackName = rolesUnknown || roles.contains(QtTimeline::TrackNameRole) || roles.contains(QtTimeline::TrackTypeRole);
                     if (affectsTrackName)
                         m_tracklist->viewport()->update();

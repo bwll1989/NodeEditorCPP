@@ -123,6 +123,13 @@ qint64 end() const { return m_end; }
      * @return QString 类型
      */
 QString type() const { return m_type; }
+/// 回写定位锚点（= ms clip id，装载时由适配器写入）。
+/// 【锚点/备注名分离 2026-11-15】原实现借用 m_noteName 兼两职：装载时
+/// setNoteName(clip id) 当锚点，用户改备注名后锚点丢失——所有
+/// noteName()==clip id 的回写定位（时间回写/删除/消息回写）对改过名的
+/// 片段全部失联。现锚点独立字段，noteName 回归纯备注名语义。
+QString clipAnchor() const { return m_anchor; }
+void setClipAnchor(const QString& id) { m_anchor = id; }
 QString noteName() const { return m_noteName; }
 QString displayText() const { return m_noteName.isEmpty() ? m_type : m_noteName; }
 QColor color() const { return m_color.isValid() ? m_color : ClipColor; }
@@ -445,6 +452,7 @@ protected:
     // 片段ID（补初始化：旧版为未初始化垃圾值，会流进 OSC 地址）
     ClipId m_id {0};
     QString m_noteName;
+    QString m_anchor;   ///< 回写定位锚点（ms clip id；与备注名分离 2026-11-15）
     QColor m_color;
 
     QAbstractItemModel* m_timelineModel {nullptr};

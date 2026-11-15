@@ -38,14 +38,10 @@
 // 因此保持为编译期常量，不通过 QSS 配置。
 NODE_TIMELINE_PUBLIC extern int toolbarButtonWidth;  // 工具栏按钮宽度
 NODE_TIMELINE_PUBLIC extern int toolbarHeight;       // 工具栏高度
-NODE_TIMELINE_PUBLIC extern int trackHeight;         // 轨道高度（2026-11-05 40→52：片段底部让位
-                                                     // 给 30px tween 曲线编辑带 + 18px 标题区，
-                                                     // WATCHOUT 式 timeline 内曲线拖值需要竖向空间）
-// 轨道展开附加高度（2026-11-06 轨道展开 + clip 内嵌 tween panel）：
-// 展开行高 = trackHeight + trackExpandedExtra，附加区域按 clip x/宽摆放
-// 宿主注入的 clip 面板（TweenPanel：通道 chips 行 ~22 + 行头 ~20 + 曲线区 ~120）。
-// 结构参数（参与滚动/命中/绘制几何），与 trackHeight 同纪律：编译期常量，不走 QSS。
-NODE_TIMELINE_PUBLIC extern int trackExpandedExtra;
+NODE_TIMELINE_PUBLIC extern int trackHeight;         // 轨道高度（2026-11-05 40→52 为内嵌 tween 曲线带
+                                                     // 让位；2026-11-15 52→40：panel 已退役回归紧凑行高）
+// 轨道展开附加高度 trackExpandedExtra 已随轨道折叠功能退役（2026-11-15）——
+// 行高恒 = trackHeight。
 NODE_TIMELINE_PUBLIC extern int rulerHeight;         // 刻度高度
 NODE_TIMELINE_PUBLIC extern int clipoffset;          // clip 偏移
 NODE_TIMELINE_PUBLIC extern int textoffset;          // 文本偏移
