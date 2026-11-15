@@ -3,7 +3,7 @@
 //
 //  定位（方案 §4.2/§4.4，2026-11-11）：NodeController/注册表/装配器的
 //  HTTP 表面。路由按时间轴/场景语义设计（v2.2 定案）：
-//      GET    /api/v1/status                     —— 模式/活跃/播放头/列表概要
+//      GET    /api/v1/status                     —— 版本/模式/活跃/播放头/列表概要
 //      GET    /api/v1/settings                   —— 设置读（两模式均可）
 //      PUT    /api/v1/settings                   —— 设置写（config.ini 落盘，
 //                                                  端口/模式类需重启生效）
@@ -66,6 +66,13 @@ class NodeController;
 }  // namespace ms
 
 namespace media_api {
+
+/// display 程序版本号（与 Flow 主程序 PRODUCT_VERSION 同步演进）。
+/// 宏 + constexpr 双形态：宏供 printf 字面量拼接（main 启动横幅/用法），
+/// constexpr 供运行时 JSON 输出（GET /api/v1/status → version 字段）。
+/// 网页设置页/顶栏经 status 轮询展示；输出窗口标题同源（main.cpp）。
+#define DISPLAY_VERSION "1.8.01"
+inline constexpr const char* kDisplayVersion = DISPLAY_VERSION;
 
 class MpcdiService;   // M4：MPCDI 校准包服务（Config 指针；完整类型在 cpp）
 

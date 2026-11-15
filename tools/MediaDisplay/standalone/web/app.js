@@ -201,6 +201,41 @@ const app = createApp({
       if (m === "sync" && !ui.settings) ui.settings = true;
     });
 
+    // ---- 授权（加密激活；2026-11-15 UI 先行）----------------------------------
+    // 对齐编辑端「授权」设置页的激活闭环（激活码 → 生成加密请求 .ft →
+    // 平台离线激活 → 导入 .lic）。本期仅网页控件占位：不调后端、不落盘、
+    // 不做加密/验签——licensingclient.dll SDK 接入后在此挂真实现。
+    const lic = reactive({ activationCode: "", licFile: "" });
+    /** 激活状态文案（占位口径：接入 SDK 后替换为载荷摘要/无效原因） */
+    const licStatusText = computed(() => {
+      if (lic.licFile) return `已选择 ${lic.licFile}（校验暂未接入）`;
+      if (lic.activationCode) return "已填写激活码（生成请求暂未接入）";
+      return "未授权（加密功能暂未接入）";
+    });
+    /** 生成加密激活请求(.ft)：占位——SDK 接入后走后端生成并下载 */
+    function generateLicenseRequest() {
+      if (!lic.activationCode) {
+        settingsHint.value = "请先填写激活码";
+        return;
+      }
+      settingsHint.value =
+        "激活请求生成暂未接入（加密链路待 SDK 集成）；激活码已暂存本页";
+    }
+    /** 选择授权文件(.lic)：占位——仅记录文件名，SDK 接入后上传验签生效 */
+    function onLicenseFilePick(e) {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = "";                       // 允许重复选同一文件再触发
+      if (!f) return;
+      lic.licFile = f.name;
+      settingsHint.value = `已选择授权文件 ${f.name}（校验暂未接入，不会生效）`;
+    }
+    /** 清除激活（占位）：清空本页激活码与已选文件 */
+    function clearLicense() {
+      lic.activationCode = "";
+      lic.licFile = "";
+      settingsHint.value = "已清除本页激活信息";
+    }
+
     async function loadSettings() {
       try {
         const s = await api("/api/v1/settings");
@@ -2160,6 +2195,8 @@ const app = createApp({
       // 模式/设置
       st, settingsHint, restarting, modeIsStandalone, modeIsSync, screens,
       loadSettings, saveSettings, restartDisplay,
+      // 授权（加密激活；UI 占位）
+      lic, licStatusText, generateLicenseRequest, onLicenseFilePick, clearLicense,
       // MPCDI 输出校准（M4）
       mpcdi, refreshMpcdi, refreshMpcdiStatus, mpcdiWarpOn, onMpcdiPackageChange,
       uploadMpcdi, enableMpcdi, disableMpcdi,

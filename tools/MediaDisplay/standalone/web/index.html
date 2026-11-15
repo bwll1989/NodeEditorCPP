@@ -16,7 +16,10 @@
 <!-- Vue 3 挂载根（vue.global.prod.js 内置模板编译器；全响应式声明式渲染） -->
 <div id="app" v-cloak>
   <header id="topbar">
-    <div class="brand"><span class="logo" aria-hidden="true"></span>MediaServer <span class="sub">节点编排台</span></div>
+    <div class="brand"><span class="logo" aria-hidden="true"></span>MediaServer <span class="sub">节点编排台</span>
+      <!-- display 版本号（2026-11-15）：GET /api/v1/status 携带，与 Flow 主程序同版本口径 -->
+      <span class="chip ver-chip" v-if="status && status.version" :title="'display 版本 ' + status.version">v{{ status.version }}</span>
+    </div>
     <div id="transport">
       <span id="active-name" title="当前激活（播放中）的时间轴">{{ activeName }}</span>
       <span class="sep">·</span>
@@ -208,6 +211,7 @@
         <span class="mode-chip" :class="modeIsSync ? 'sync' : 'std'">
           运行中：{{ modeIsSync ? '同步模式' : '独立模式' }}
         </span>
+        <span class="hint" v-if="status && status.version">display v{{ status.version }}</span>
         <span class="grow"></span>
         <button class="mini" title="关闭" @click="ui.settings = false">✕</button>
       </div>
@@ -284,6 +288,34 @@
             发现端口<input v-model.number="st.display.discovery_port" type="number" min="0" max="65535" step="1"></label>
           <label title="多 Editor 隔离：非空时只接受携带同配对码的 Editor">
             配对码<input v-model.trim="st.display.pairing_code" placeholder="空 = 不校验"></label>
+        </fieldset>
+
+        <!-- ============ 授权（加密激活；2026-11-15 UI 先行） ============
+             对齐编辑端 LicenseClient 激活闭环（激活码 → 生成加密请求 .ft →
+             平台离线激活 → 导入 .lic → 状态展示）。本期仅实现网页控件与
+             交互占位——加密/验签链路（licensingclient.dll SDK）暂未接入：
+             生成/导入只做前端占位反馈，不落盘、不影响运行。 -->
+        <fieldset>
+          <legend>授权（加密）<span class="lic-tag">待接入</span></legend>
+          <label title="当前授权状态（接入 SDK 后展示载荷摘要/无效原因）">
+            激活状态<input readonly :value="licStatusText"></label>
+          <label title="向运营索取的激活码（填写一次，生成激活请求时使用）">
+            激活码<input v-model.trim="lic.activationCode" placeholder="向运营索取的激活码"></label>
+          <div class="lic-btns">
+            <button type="button" class="mini"
+                    title="生成加密激活请求文件(.ft)（内含机器码，交运营上传平台离线激活）——加密链路暂未接入"
+                    @click="generateLicenseRequest">生成激活请求(.ft)</button>
+            <label class="mini lic-import"
+                   title="导入平台签发的授权文件（LP1. 令牌），导入即验签生效——校验链路暂未接入">
+              导入授权文件(.lic)…<input type="file" accept=".lic" hidden @change="onLicenseFilePick"></label>
+            <button type="button" class="mini danger" :disabled="!lic.licFile && !lic.activationCode"
+                    title="清除本页填写的激活码与已选授权文件（占位交互，不影响后端）"
+                    @click="clearLicense">清除激活</button>
+          </div>
+          <div class="hint" style="grid-column: 1 / -1;">
+            授权界面先行（与编辑端设置「授权」页同闭环）；加密/验签链路接入后开放实际功能
+            <template v-if="lic.licFile">——已选择：{{ lic.licFile }}</template>
+          </div>
         </fieldset>
       </div>
 

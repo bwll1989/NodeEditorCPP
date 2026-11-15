@@ -318,7 +318,7 @@ std::optional<Args> parseArgs(int argc, char** argv, const Args& defaults) {
 
 void printUsage() {
     std::printf(
-        "media_display —— MediaServer 显示端（多屏帧同步播放器）\n"
+        "media_display —— MediaServer 显示端（多屏帧同步播放器）v" DISPLAY_VERSION "\n"
         "【零操作】打开后自动监听端口等待 Editor 接入（无需任何配置）\n"
         "用法:\n"
         "  media_display [--config=<ini>]（启动设置；缺省按 exe 目录 →\n"
@@ -594,6 +594,10 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
     // 都会走过滤器。
     ms::installCrashDump();
 
+    // ---- 版本横幅（2026-11-15 对齐 Flow 版本号口径；status API/网页/窗标题同源）----
+    std::printf("[display] media_display v%s\n", DISPLAY_VERSION);
+    std::fflush(stdout);
+
 #if defined(_WIN32)
     // ---- 自重启接力等待（M5 /api/v1/system/restart）------------------------
     // 旧实例拉起本实例（原样命令行 + --restart-wait-pid）后立即走完退出链；
@@ -808,8 +812,9 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
             std::fprintf(stderr, "[display] 无边框窗口: 开（媒体输出纯净"
                                  "呈现；关闭用 Alt+F4 / 任务栏右键）\n");
         }
-        g.title      = L"media_display 输出（GL）" +
-                       std::wstring(cfg.player_id.begin(), cfg.player_id.end());
+        g.title      = L"media_display 输出（GL）v" +
+                       std::wstring(DISPLAY_VERSION, DISPLAY_VERSION + strlen(DISPLAY_VERSION)) +
+                       L" " + std::wstring(cfg.player_id.begin(), cfg.player_id.end());
         // 协商旗标进闭包（shared_ptr 副本——渲染后端与解码端各持一份）
         auto delivery_flag = gpu_delivery_flag;
         cfg.render_backend_factory = [g, delivery_flag]() {

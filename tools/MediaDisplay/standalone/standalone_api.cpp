@@ -908,7 +908,8 @@ bool StandaloneApi::routeStatus(RouteCtx& ctx) {
     if (ctx.path != "/api/v1/status" || ctx.method != "GET") return false;
 
     std::ostringstream data;
-    data << "{\"mode\":\"" << json_escape(cfg_.mode) << "\","
+    data << "{\"version\":\"" << json_escape(kDisplayVersion) << "\","
+         << "\"mode\":\"" << json_escape(cfg_.mode) << "\","
          << "\"player_id\":\"" << json_escape(player_id_) << "\","
          << "\"active_timeline\":\"" << json_escape(registry_.activeId()) << "\","
          << "\"default_timeline\":\"" << json_escape(registry_.defaultId()) << "\","
