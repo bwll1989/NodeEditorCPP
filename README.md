@@ -28,6 +28,8 @@
 
 两者**互斥单实例**（不可同时运行）。
 
+配套独立工具：**GestureRecorder**（手势动作库录制）、**ArtnetRecorder**（Art-Net 信号录制回放）、**media_display**（显示端，接收场景下发，多屏自含部署）。
+
 ---
 
 ## 核心架构
@@ -58,7 +60,7 @@ flowchart TB
     end
 
     subgraph Plugins["插件体系"]
-        Nodes[".node 节点插件 × 90+"]
+        Nodes[".node 节点插件 × 100+"]
         BuildIn[BuildInNodes 内置节点]
         Clips["时间轴 Clip 插件"]
         JS["CustomScript / QML Script"]
@@ -101,7 +103,7 @@ flowchart TB
 - 多个数据流标签页，每个数据流独立运行
 - 节点内嵌参数面板；部分节点支持动态端口数量
 - **BuildInNodes** 静态库提供 Source / Variable / In / Out / Image Show / Window Display / Container 等基础节点
-- **90+ 个官方节点插件目录**（见 `src/Nodes/CMakeLists.txt` 的 `ALL_NODES`），注册 **110+ 节点模型**（部分插件含多个变体），按类别组织在节点库中
+- **100+ 个官方节点插件目录**（见 `src/Nodes/CMakeLists.txt` 的 `ALL_NODES`，编译产出 108 个 `.node` 插件），连同 23 个内置节点模型与 6 类时间轴片段，共 **130+ 种节点模型**，按类别组织在节点库中
 
 每个节点插件目录下均有面向用户的 **`Doc.md`**（节点说明、端口、界面、用法、示例）。
 
@@ -124,14 +126,15 @@ flowchart TB
 
 ### 3. 时间轴
 
-非线性时间编排（时间轴组件收编自 [QtTimeLine](https://github.com/bwll1989/QtTimeLine)，现为内置静态库 `src/Widget/Timeline`，clip 基类在 `src/Common/BaseClass`）：
+非线性时间编排（时间轴组件收编自 [QtTimeLine](https://github.com/bwll1989/QtTimeLine)，现为分层库：时间轴视图 `src/Common/TimeLineBase`、片段基类 `src/Common/BaseClass`、片段通用 UI `src/Common/ClipPanelBase`）：
 
 - 多轨道、多片段、缩放与播放控制
 - 支持 **LTC / MTC / 音频 / 视频** 等同步方式
 - 与 TimeLineNode 及 GlobalEventBus 联动
+- **时间轴音频总线**（TimeLineAudioBus）：片段音频汇聚输出与预览监听，工具栏内置实时电平表
 - 可通过 WebSocket 远程控制 NodePlayer
 
-**当前启用的 Clip 插件**（媒体片段插件头，见 `src/clip/`，基类在 `src/Common/BaseClass`）：
+**当前启用的 Clip 插件**（片段插件，见 `src/Clips/`，基类在 `src/Common/BaseClass`）：
 
 | Clip | 说明 |
 |------|------|
@@ -140,8 +143,9 @@ flowchart TB
 | TextClip | 文本片段 |
 | AudioClip | 音频片段 |
 | LiveClip | 实时源（NDI/Spout 等）片段 |
+| ControlClip | 控制指令片段（播放头进入区间即逐条发送 OSC 指令） |
 
-> 新增媒体类型 = 在 `src/clip/` 加一个插件头（继承 SceneClipModel）+ 加载器注册一行。
+> 新增媒体类型 = 在 `src/Clips/` 新建一类插件目录（继承 `AbstractClipModel` / `SceneClipModel`）并在清单注册。
 
 ### 4. 外部控制与网页控制台
 
@@ -170,6 +174,7 @@ Flow 通过 **GlobalEventBus** 将节点参数映射为统一的 OSC 风格地�
 | HTTP / WebSocket | 菜单 **工具 → 打开网页控制台**（快捷键 `Ctrl+Alt+H`，默认 `http://127.0.0.1:8992`） |
 | MQTT | 可选启用，主题 `flow/control` / `flow/feedback` |
 | 计划任务 | 日历式定时触发，与时间轴 / 数据流配合 |
+| MCP 桥接器 | Claude 等外部 AI 智能体经 MCP 读写工程参数、触发流程（示例见 `MCPInterfaceTest`） |
 
 #### Flow WebInterface
 
@@ -246,21 +251,21 @@ Serial Port、TCP Server / Client、UDP Socket、WebSocket Server / Client、HTT
 
 ### Image — 图像与视频
 
-Camera、Capture、ROI、Scale / Crop / Threshold / Switch 等 Image Operates 算子集、NDI In / Out、Spout In / Out、RTSP、Color 系列、Video Decoder、Image Const / Text To Image / Image Layout、Rect、Size Var、**Vioso**（`.vwf` Warp+Blend，多投影通道动态输出口）、**ISF**（`.fs` 着色器，INPUTS 动态映射为端口，含 audio / audioFFT）等。
+Camera、Capture、ROI、Scale / Crop / Threshold / Switch 等 Image Operates 算子集、NDI In / Out、Spout In / Out、RTSP、Color 系列、Video Decoder、Image Const / Text To Image / Image Layout、Rect、Size Var、**Vioso**（`.vwf` Warp+Blend，多投影通道动态输出口）、**ISF**（`.fs` 着色器，INPUTS 动态映射为端口，含 audio / audioFFT）、**Libretro**（复古游戏主机模拟，游戏画面作为图像源输出）等。
 
 详见 [`src/Nodes/ViosoNode/Doc.md`](src/Nodes/ViosoNode/Doc.md)、[`src/Nodes/ISFNode/Doc.md`](src/Nodes/ISFNode/Doc.md)。
 
 ### Audio — 音频
 
-Audio Device In / Out、Audio Decoder、Noise Generator、Audio Matrix、Ducking / CrossFader / Priority、LTC Decoder / Generator、Fmod、VST3（动态扫描）、Audio Analysis。
+Audio Device In / Out、Audio Decoder、Noise Generator、Audio Matrix、Ducking / CrossFader / Priority、LTC / MTC Decoder / Generator、Fmod、VST3（动态扫描）、Audio Analysis、WebMic（浏览器麦克风采集）、TimeLineAudioBus（时间轴音频总线）。
 
 ### DMX — 灯光
 
-Artnet In / Out、DMX Device、DMX Universe、Universe Playback。
+Artnet In / Out、DMX Device、DMX Universe、Universe Playback、GDTF（通用灯具描述格式）。
 
 ### Devices — 现场设备
 
-Mpv Controller、VLC Remote、NDV Server / Player、PLC ModBus、Modbus Master / Slave、DAW Controller、TSETL、showStoreGBx、USR-IO808 / USR-IO424、Aurora S、SlideShow 数字标牌、ENTTEC S-Play、FT-C040A 触摸屏、Q-SYS QRC、AgileX Ranger Mini / Nav Controller / Mission 等。
+Mpv Controller、VLC Remote、NDV Server / Player、PLC ModBus、Modbus Master / Slave、DAW Controller、TSETL、showStoreGBx、USR-IO808 / USR-IO424、Aurora S、SlideShow 数字标牌、ENTTEC S-Play、FT-C040A 触摸屏、Q-SYS QRC、AgileX Ranger Mini / Nav Controller / Mission、PosiStageNet（PSN 舞台定位跟踪）等。
 
 ### ONNX — AI 推理
 
@@ -359,6 +364,8 @@ npm run build
 build/bin/Flow.exe
 build/bin/FlowRuntime.exe
 build/bin/GestureRecorder.exe    # 手势动作库录制工具（放在 bin 下运行，复用 plugins/Models）
+build/bin/ArtnetRecorder.exe     # Art-Net 信号录制工具
+build/bin/display/               # media_display 显示端（自含目录，配置见其中 config.ini）
 build/bin/www/                  # WebInterface 静态资源（需手动或脚本部署）
 build/bin/plugins/DataFlow/*.node
 ```
@@ -385,6 +392,9 @@ NodeEditorCPP/
 │   ├── Common/
 │   │   ├── AppConfig/            # 配置、常量、自动保存
 │   │   ├── BaseClass/            # AbstractDelegateModel 等基类
+│   │   ├── TimeLineBase/         # 时间轴视图库
+│   │   ├── ClipPanelBase/        # 时间轴片段通用 UI
+│   │   ├── MediaCore/            # 媒体核心（解码 / 音频 / 显示桥接）
 │   │   ├── DataTypes/            # Image / Audio / Variable 等数据类型
 │   │   ├── Devices/              # 设备驱动与桥接
 │   │   │   ├── StatusContainer/  # 全局事件总线

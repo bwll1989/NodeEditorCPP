@@ -60,3 +60,6 @@ src/Widget/ExternalControl/dashboard/node_modules/
 /Temp
 /tests
 /assets
+
+# 根目录编译探针副产物（AudioMediaSource.obj / probe_*.obj 等）
+/*.obj
