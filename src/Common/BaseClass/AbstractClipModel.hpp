@@ -77,6 +77,9 @@ virtual void setId(ClipId id) {
     // 【2026-11-12 恢复 OSC 外部控制】ID 就绪即统一登记控件并推送初始状态
     //（控件常在 setId 之后才经 initPropertyWidget 创建——那里会再推一次，幂等）
     pushOscInitialState();
+    // 【2026-11-15 对齐节点 afterModelReady 语义】登记/推送完成后通知子类
+    // ——可在此注册类型专属属性绑定或做其余就绪期初始化。
+    afterModelReady();
 }
 
 // ---- OSC 外部控制体系（2026-11-12 恢复，自旧 SDK AbstractClipModel /
@@ -87,6 +90,21 @@ virtual void setId(ClipId id) {
 virtual void registerExternalControl(const QString& oscAddress, QWidget* control);
 QString makeFullOscAddress(const QString& oscAddress) const;
 virtual void stateFeedBack(const QString& oscAddress, QVariant value);
+
+// ---- OSC 属性绑定（2026-11-15 对齐节点 registerExternalBinding 语义）----
+// 控件绑定（上方）依赖控件存在（面板打开期才有效）；属性绑定落【模型自身
+// Q_PROPERTY】：外部命令 → setProperty → WRITE setter（子类业务，如写
+// Asset 域），片段创建即推值（pushOscInitialState 读 property），NOTIFY
+// 自动回推——与节点"地址↔属性"完全对称，面板开与不开控制均可达。类型
+// 专属属性（音量/文本字号等）经此接入；rel 勿与控件绑定重叠
+//（onOscCommand 控件优先命中）。
+struct ClipPropertyBinding {
+    QString member;                 ///< 模型 Q_PROPERTY 名
+    bool feedback = true;           ///< NOTIFY 变化自动回推
+    QMetaObject::Connection notifyConnection; ///< NOTIFY 连接（重登记断旧连新）
+};
+void registerExternalProperty(const QString& oscAddress, const QString& member);
+void unregisterExternalProperty(const QString& oscAddress);
 
 void setTimelineModel(QAbstractItemModel* model) { m_timelineModel = model; }
 QAbstractItemModel* timelineModel() const { return m_timelineModel; }
@@ -371,14 +389,29 @@ public Q_SLOTS:
      * ClipTimePanel 换算链落模型 setter，再由 setter 内 stateFeedBack 出站
      * 反馈形成闭环。进程内 Feedback 不触发 Command 订阅者，无回环。
      * QTimeEdit（时间码控件）无对应分支不驱动（与旧 SDK 行为一致）。
+     * 【2026-11-15 属性绑定】控件映射未命中时反查 _OscPropertyMapping，
+     * setProperty 走 Q_PROPERTY WRITE（子类业务 setter）。
      */
     void onOscCommand(const GlobalEvent& ev);
+
+private Q_SLOTS:
+    /// 【2026-11-15 属性绑定】已登记 Q_PROPERTY 的 NOTIFY 触发：按
+    /// senderSignalIndex 反查绑定并 stateFeedBack（节点 onExternalCommandNotified
+    /// 同款模式）——子类属性变化自动出站，零反馈代码。
+    void onOscPropertyChanged();
 
 protected:
     // ---- OSC 外部控制内部机制（2026-11-12 恢复）----
     // 遍历 _OscMapping：向 StatusContainer 登记完整地址，并按控件类型推送初始值
     //（由 setId 与 initPropertyWidget 双触发，幂等）。
+    // 【2026-11-15 扩展】同时遍历 _OscPropertyMapping：订阅命令入站 + 读
+    // property(member) 推送当前值——属性绑定不依赖控件，片段创建即推。
     void pushOscInitialState();
+    /// 【2026-11-15 对齐节点 afterModelReady 语义】片段 OSC 就绪扩展点：
+    /// setId → pushOscInitialState（统一登记+推送当前值）完成后调用。子类
+    /// 可在此 registerExternalProperty 注册类型专属属性绑定或做其余初始化；
+    /// 构造期注册亦可（rel→full 换算在推送时进行，与 id 时序无关）。
+    virtual void afterModelReady() {}
     // Ctrl+左键拖动 OSC 控件时导出地址（剪贴板 + application/x-osc-address mime）。
     // qobject_cast<IntDragValueWidget*> 需控件完整类型——实现留在库内 .cpp，
     // 防止该 GUIElements 头经本公共头进入消费方（同 ClipTimePanel 的处理纪律）。
@@ -400,6 +433,9 @@ protected:
     // 控件 OSC 相对地址映射（rel → 控件；QPointer 防控件销毁悬空，
     // 遍历/查询时以 data() 判空跳过失效项）
     std::unordered_map<QString, QPointer<QWidget>> _OscMapping;
+    // 属性绑定映射（rel → 绑定；2026-11-15 对齐节点属性语义——命令落
+    // 模型 Q_PROPERTY，面板开关不影响可达性）
+    std::unordered_map<QString, ClipPropertyBinding> _OscPropertyMapping;
     // 片段 OSC 地址前缀（别名）。新时间轴沿用旧面板地址空间 /timeline/master，
     // 外部脚本零迁移；宿主可经 setOscAlias 改写。
     QString m_oscAlias {QStringLiteral("/timeline/master")};

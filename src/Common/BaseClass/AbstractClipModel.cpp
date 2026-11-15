@@ -40,6 +40,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QTabWidget> // 三页式属性面板识别（qobject_cast<QTabWidget*>）
+#include <QMetaProperty> // 属性绑定：notifySignalIndex/hasNotifySignal（qobjectdefs.h 仅前置声明）
 #include <QDrag>
 #include <QPixmap>
 #include <QComboBox>
@@ -126,11 +127,58 @@ void AbstractClipModel::registerExternalControl(const QString& oscAddress, QWidg
     if (!oscAddress.startsWith('/')) return;
     if (!control) return;
     auto it = _OscMapping.find(oscAddress);
-    if (it != _OscMapping.end())
+    if (it != _OscMapping.end()) {
+        // 换绑：解绑旧控件的拖拽过滤器（QPointer 悬空安全，此处仍存活才移除）
+        if (it->second.data())
+            it->second.data()->removeEventFilter(this);
         _OscMapping.erase(it);
+    }
     control->installEventFilter(this);
     control->setMouseTracking(true);
     _OscMapping[oscAddress] = control;
+    // 【对齐 QtNodes 底座语义（外部控制审查 2026-11-15）】控件销毁自动清条目。
+    // QPointer 只保证悬空安全，条目本身会残留在 _OscMapping（onOscCommand/
+    // pushOscInitialState 靠判空跳过）——显式清理保持映射精确；this 析构时
+    // 本连接随 QObject 机制自动断开。
+    connect(control, &QObject::destroyed, this, [this, oscAddress]() {
+        _OscMapping.erase(oscAddress);
+    });
+}
+
+// 函数说明：登记 OSC 属性绑定（rel → 模型 Q_PROPERTY 名；2026-11-15 对齐
+// 节点 registerExternalBinding 语义）。实现说明：feedback=true 时连接属性
+// NOTIFY 信号到 onOscPropertyChanged（变化自动出站，节点 onExternalCommandNotified
+// 同款 senderSignalIndex 反查模式）；重登记断旧连新。rel 勿与控件绑定重叠
+//（onOscCommand 控件优先）。属性不存在时仅登记不连接——推送期 property()
+// 返回无效 QVariant 自然跳过（防御子类笔误，不崩溃）。
+void AbstractClipModel::registerExternalProperty(const QString& oscAddress, const QString& member)
+{
+    if (!oscAddress.startsWith('/') || member.isEmpty()) return;
+    ClipPropertyBinding& b = _OscPropertyMapping[oscAddress];
+    b.member = member;
+    if (b.notifyConnection) {
+        disconnect(b.notifyConnection);
+        b.notifyConnection = QMetaObject::Connection{};
+    }
+    const QMetaObject* mo = metaObject();
+    const int pi = mo->indexOfProperty(member.toUtf8().constData());
+    if (pi < 0) return; // 属性缺失：仅登记（推送期自然跳过），不连接
+    const QMetaProperty prop = mo->property(pi);
+    if (!prop.hasNotifySignal()) return; // 无 NOTIFY：反馈走子类手动 stateFeedBack
+    const int sig = prop.notifySignalIndex();
+    const int slot = metaObject()->indexOfSlot("onOscPropertyChanged()");
+    if (sig >= 0 && slot >= 0)
+        b.notifyConnection = QMetaObject::connect(this, sig, this, slot, Qt::AutoConnection);
+}
+
+// 函数说明：注销属性绑定（断 NOTIFY 连接 + 删条目）。
+void AbstractClipModel::unregisterExternalProperty(const QString& oscAddress)
+{
+    auto it = _OscPropertyMapping.find(oscAddress);
+    if (it == _OscPropertyMapping.end()) return;
+    if (it->second.notifyConnection)
+        disconnect(it->second.notifyConnection);
+    _OscPropertyMapping.erase(it);
 }
 
 // 函数说明：相对地址 → 完整 OSC 地址（/<oscAlias>/<clipId><rel>）。
@@ -156,6 +204,9 @@ void AbstractClipModel::stateFeedBack(const QString& oscAddress, QVariant value)
 // 类型推初始值（与旧 SDK NodeClipDelegateModel::onModelReady 同款 cast 链；
 // QTimeEdit 无对应分支不推初始值，同旧行为）。
 // 幂等：registerWidget 地址已存在仅更新指针，subscribe 同对象同地址同槽去重。
+// 【2026-11-15 属性绑定】同时遍历 _OscPropertyMapping：订阅命令入站 +
+// property(member) 读当前值推送——属性绑定不依赖控件存在，片段创建
+//（setId）即推，与节点 onModelReady 批量推送语义对齐。
 void AbstractClipModel::pushOscInitialState()
 {
     for (auto it = _OscMapping.begin(); it != _OscMapping.end(); ++it) {
@@ -181,6 +232,20 @@ void AbstractClipModel::pushOscInitialState()
         } else if (auto* comboBox = qobject_cast<QComboBox*>(control)) {
             stateFeedBack(rel, QVariant(comboBox->currentIndex()));
         }
+    }
+
+    // 属性绑定：订阅 + 推当前值（模型 Q_PROPERTY 经 property() 读取；与
+    // 控件绑定同款幂等语义）。属性值经 stateFeedBack 进 StatusContainer
+    //（updateState 建地址条目），无需 registerWidget（无控件可挂）。
+    for (const auto& pair : _OscPropertyMapping) {
+        const QString& rel = pair.first;
+        const ClipPropertyBinding& b = pair.second;
+        if (b.member.isEmpty()) continue;
+        const QString full = makeFullOscAddress(rel);
+        GlobalEventBus::instance()->subscribe(full, this, SLOT(onOscCommand(GlobalEvent)));
+        const QVariant v = property(b.member.toUtf8().constData());
+        if (v.isValid())
+            stateFeedBack(rel, v);
     }
 }
 
@@ -228,6 +293,9 @@ bool AbstractClipModel::eventFilter(QObject* watched, QEvent* event)
 // 按类型 setValue——控件信号照常传播（IntDragValueWidget::valueChanged →
 // ClipTimePanel::updateStartFrame → 模型 setStart(framesToUs)），形成
 // OSC → UI → 模型 → OSC 反馈 的完整闭环。
+// 【2026-11-15 属性绑定】控件映射未命中时反查 _OscPropertyMapping：
+// setProperty 走 Q_PROPERTY WRITE（子类业务 setter，如写 Asset 域）——
+// 面板未打开时外部控制同样可达（节点语义：控件只是 UI，命令落模型）。
 void AbstractClipModel::onOscCommand(const GlobalEvent& ev)
 {
     if (ev.kind != GlobalEventKind::Command) return;
@@ -249,7 +317,33 @@ void AbstractClipModel::onOscCommand(const GlobalEvent& ev)
         } else if (auto* lineEdit = qobject_cast<QLineEdit*>(control)) {
             lineEdit->setText(ev.payload.toString());
         }
-        break;
+        return;
+    }
+    // 属性绑定分支：rel 反查 → setProperty（QVariant 自动向属性类型转换；
+    // 无 NOTIFY 的属性由子类 setter 内手动 stateFeedBack）
+    for (const auto& pair : _OscPropertyMapping) {
+        if (pair.second.member.isEmpty()) continue;
+        if (makeFullOscAddress(pair.first) != ev.address) continue;
+        setProperty(pair.second.member.toUtf8().constData(), ev.payload);
+        return;
+    }
+}
+
+// 函数说明：已登记 Q_PROPERTY 的 NOTIFY 触发（registerExternalProperty 连接）：
+// 按 senderSignalIndex 反查绑定并 stateFeedBack——子类属性变化自动出站，
+// 与节点 onExternalCommandNotified 同款模式，零反馈代码。
+void AbstractClipModel::onOscPropertyChanged()
+{
+    const int sig = senderSignalIndex();
+    if (sig < 0) return;
+    const QMetaObject* mo = metaObject();
+    for (const auto& pair : _OscPropertyMapping) {
+        const ClipPropertyBinding& b = pair.second;
+        if (!b.feedback || b.member.isEmpty()) continue;
+        const int pi = mo->indexOfProperty(b.member.toUtf8().constData());
+        if (pi < 0) continue;
+        if (mo->property(pi).notifySignalIndex() != sig) continue;
+        stateFeedBack(pair.first, property(b.member.toUtf8().constData()));
     }
 }
 
