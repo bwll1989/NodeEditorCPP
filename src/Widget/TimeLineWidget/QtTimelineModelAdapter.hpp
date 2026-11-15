@@ -30,7 +30,6 @@
 
 #pragma once
 
-#include <QElapsedTimer>
 #include <QPointer>
 #include <QObject>
 #include <QTimer>
@@ -58,8 +57,10 @@ class TweenSection;
 /// 【2026-11-03 用户约定"绑定控件没意义"】素材候选下拉已移除——当前
 /// 绑定文件名由适配器从工作副本素材表解析后传入面板构造（只读标签），
 /// 不再需要候选列表钩子。
+/// 【2026-11-15 轨道去类型化】import_media 的 kind 实参恒传 Unknown
+///（拖入落轨路径）——轨道类型约束已退役，素材种类由文件扩展名推断。
 struct ClipPanelHooks {
-    /// 指定媒体文件导入：类型校验（须匹配轨道 kind）+ 入表 + 缓存清理；
+    /// 指定媒体文件导入：扩展名推断种类 + 入表 + 缓存清理；
     /// 成功返回新 Asset，失败 id 为空并填 err
     std::function<Asset(const QString& file, AssetKind kind,
                         std::string& err)> import_media;
@@ -95,19 +96,13 @@ public:
     /// 兜底同步：仅回写"时间轴改过"的 clip（按 clip 记脏，见 dirty_clips_）。
     /// 面板精确值（如 1.5s）不能被帧量化值覆盖，故不能全量同步。
     void syncModelToWorkScene();
-    bool isDirty() const { return !dirty_clips_.empty(); } // 时间轴有未下发修改
-    void clearDirty() { dirty_clips_.clear(); }
 
     // ---- Tween 关键帧时间轴镜像（2026-11-09 合并关键帧模式）----------------
-    /// 单键【移动/改值】底层写回：local_us 直通（μs 同基，无量化）+
-    /// 片段区间/邻键升序钳制（双保险）→ 工作副本 keys[key] 的 t_us/value 落值 →
-    /// sceneEdited + 面板广播。公开以便单测直调与联测探针（--auto-tween-
-    /// edit-ms）使用。【2026-11-09】合并关键帧模式后模型拖拽不再走本函数
-    ///（改走 applyTweenKeyFrameMove 全通道联动），保留为底层编辑入口。
-    /// \return 是否被接受（片段/下标非法 = false）
-    bool applyTweenKeyMove(const std::string& clip_id,
-                           int channel, int key, double local_us,
-                           double value);
+    // 【2026-11-15 清理】原单键底层入口 applyTweenKeyMove 已删除——注释
+    // 声称的"联测探针/单测直调"在本仓库从未存在（收编时随旧工程带入，
+    // 零消费者）。合并菱形拖拽走 applyTweenKeyFrameMove，删键走
+    // applyTweenKeyRemove（时间轴右键"按参数删除"），两者均经
+    // configureClipPanel 注入闭包被模型消费。
     /// 时间轴合并菱形【拖拽移动】写回（SceneClipModel::moveKeyframe → 注入
     /// 闭包 → 此处）：把时刻 old_us 处【全部通道】的键移到 new_us
     ///（Resolve 合并关键帧语义——拖一个菱形 = 全参数时间联动）。μs 直通
@@ -143,16 +138,15 @@ public:
     void setPlayheadFromRuntimeUs(std::int64_t us);
 
     // ---- 结构编辑（时间轴右键/场景树按钮 → 模型 + 工作副本同步）--------------
-    /// 新增轨道（按素材类型）：工作副本追加 ms::Track + 模型加行。
-    /// \param kind 轨道素材类型约束（Video/Image/Text/Audio）
+    /// 新增轨道：工作副本追加 ms::Track + 模型加行。
+    /// 【2026-11-15 去类型化】kind = Unknown 合法（Add Track 单项入口 →
+    /// 无类型轨）；kind 仅作显示提示。
     /// \return 新轨道在工作副本中的下标；失败（未挂工作副本）返回 -1
     int  addTrackWithKind(AssetKind kind);
-    /// 给指定轨道新增片段（引用既有素材）：工作副本追加 ms::Clip + 模型加行。
-    /// \param track_idx 工作副本轨道下标（= 模型行号，两边顺序始终一致）
-    /// \param start_us  片段起点（微秒）
-    /// \param asset_id  绑定素材 id（必须已存在于工作副本 assets，且 kind 匹配）
-    /// \param dur_us    片段时长（微秒；<=0 时取素材时长或默认 5s）
-    /// \return 成功返回新片段 id（字符串）；失败返回空
+    /// 【2026-11-15 清理】原 addClipOnTrack（素材树按类型添加片段）声明与
+    /// 实现已随素材树改造删除——注释残留一并清除（本块原文档所述 API 在
+    /// 本仓库从未存在消费者）。片段创建统一走 onAddClip（Add Item 显式
+    /// type）/ onDropMediaFile（拖入按素材种类映射）。
 
     // 时间基已原生 μs（2026-11-10 路线 C）：库模型与 Scene 权威域同基，
     // 原帧↔μs 换算静态函数（framesToUs/usToFrames）已整体退役——显示层
@@ -193,6 +187,14 @@ public slots:
                          const QString& file) override;
     /// 时间轴删除片段 → 工作副本先删（按 noteName 定位）+ 基类删模型行
     void onDeleteClip(QModelIndex clipIndex) override;
+    /// 轨道重排 → 工作副本轨道序同步（维持「模型轨 row = work_ 轨 row」
+    /// 不变量——addTrack/deleteTrack/clip 跨轨搬移都按此索引平行定位）
+    void onMoveTrack(int sourceRow, int targetRow) override;
+    /// 片段跨轨搬移落定（2026-11-15 跨轨拖拽）→ 工作副本把 Clip 从原轨
+    /// clips 搬到目标轨（按 start_us 升序插入保持表序；ms id/业务字段不动）。
+    /// 几何回写链 locateWorkClip 按全局 id 检索，与轨道归属无关。
+    void onClipTrackChanged(AbstractClipModel* clip, int fromTrack,
+                            int toTrack) override;
 
     /// seek 节流定时器到点回调：发送最后一个待发位置（拖动结束后的最终值必达）。
     /// 公开以便测试手动触发（单测不依赖真实定时器事件循环）。
@@ -205,8 +207,8 @@ public slots:
     /// 汇聚点与画布 sceneEdited 两处调用）。面板销毁（组合面板关闭 /
     /// WA_DeleteOnClose）由 QPointer 自动感知，广播时清理失效项。
     void refreshClipPanels(const std::string& clip_id);
-    /// 全量广播：注册表内所有片段逐一 refreshClipPanels（注册表空时零开销）。
-    void refreshAllClipPanels();
+    // 【2026-11-15 清理】refreshAllClipPanels（全量广播变体）已删除——收编
+    // 后零消费者（refreshClipPanels 按 clip 精确广播已覆盖全部触发源）。
     /// 【Tween 专用·播放头驱动刷新】播放头移动（用户拖动/Player 回显）时
     /// 刷新已打开 Tween 区的"播放头处数值显示"（数值框恒显示插值结果——
     /// WATCHOUT 取景语义）。只灌 tween 区显示，不触发通用面板/写回链路
@@ -236,12 +238,12 @@ private:
 
     // ---- 片段属性面板（QtTimeLine 原生附加体系）------------------------------
     /// 唯一片段 id 生成（2026-11-06 收敛原两份同构探测循环）：clip-N 线性
-    /// 探测，与工作副本全表查重。onDuplicateClip / addClipOnTrack 等
-    /// 创建路径共用（单点维护）。
+    /// 探测，与工作副本全表查重。onAddClip / onDropMediaFile 创建路径共用
+    ///（单点维护）。
     std::string nextClipId() const;
     /// 为 SceneClipModel 注入片段自定义面板工厂 + 诊断留痕。
-    /// 【三条片段创建路径必须统一调用】loadSceneToModel（装载场景）/
-    /// addClipOnTrack（素材树添加）/ onAddClip（时间轴右键 Add Item）——
+    /// 【片段创建路径必须统一调用】loadSceneToModel（装载场景）/
+    /// onAddClip（时间轴右键 Add Item / onDropMediaFile 拖入同链）——
     /// 漏注入的路径其片段双击时 clipPropertyWidget() 返回 null，
     /// 库面板附加点会报 "Cannot add a null widget to QVBoxLayout"。
     /// type = 片段插件类型（2026-11-15 去类型化：跟片段走，不再取轨道）。

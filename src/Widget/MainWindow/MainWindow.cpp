@@ -683,7 +683,11 @@ void MainWindow::init()
     // 画布编辑落点（拖拽移动/旋转/缩放/键盘微调已直接写入工作副本）→
     // 场景树重建 + 预览失效（对齐适配器 sceneEdited 联动；画布自绘由
     // 内部 update 覆盖）。
+    // 【2026-11-15 补接线】画布 auto-key（tweenAutoKeyWrite）只写工作副本
+    // ——时间轴菱形镜像（SceneClipModel::tweenChannels）须在此重灌，否则
+    // "拖画布打键后时间轴看不到菱形"（#89 修复收编时调用方丢失）。
     connect(msCanvas_, &ms::SceneCanvasWidget::sceneEdited, this, [this] {
+        if (msTimelineAdapter_) msTimelineAdapter_->syncAllClipTweenDots();
         if (msSceneTree_) msSceneTree_->rebuild(msScene_);
         if (msPreview_)   msPreview_->invalidate();
         requestMsAutoPublish();

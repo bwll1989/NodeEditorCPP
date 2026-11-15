@@ -648,6 +648,57 @@ void BaseTimeLineModel::rebuildTrackClipOrder(TrackData* track)
     });
 }
 
+// ---------------------------------------------------------------------------
+// 片段跨轨搬移（2026-11-15 跨轨拖拽）
+// ---------------------------------------------------------------------------
+// 结构化移动（beginMoveRows 跨 parent）：视图侧 QPersistentModelIndex（拖拽
+// 中的 m_dragIndex）由 Qt 自动重映射到新轨道的子行——拖拽换轨的视觉跟随
+// 零额外偏移逻辑（visualRect 按新索引即目标轨行矩形求值）。
+// 行序 ≠ 时间序：clips 列表只是归属容器，时间序绘制由 clipsByStart 负责
+// （rebuildIndex 内 rebuildTrackClipOrder 全轨重建）。拖拽中跨轨每次越过
+// 边界触发一次；同轨（拖拽中逐事件的常态）为 no-op 快路径。
+// ---------------------------------------------------------------------------
+bool BaseTimeLineModel::moveClipToTrack(AbstractClipModel* clip,
+                                        int targetTrackRow)
+{
+    if (!clip || targetTrackRow < 0 || targetTrackRow >= m_tracks.size())
+        return false;
+
+    const auto it = m_clipLocation.find(clip);
+    if (it == m_clipLocation.end())
+        return false;
+
+    const int sourceTrackRow = it->second.trackRow;
+    if (sourceTrackRow == targetTrackRow)
+        return true; // 同轨：无事发生
+
+    TrackData* srcTrack = m_tracks[sourceTrackRow];
+    TrackData* dstTrack = m_tracks[targetTrackRow];
+    if (!srcTrack || !dstTrack)
+        return false;
+
+    const int clipRow = it->second.clipRow;
+    if (clipRow < 0 || clipRow >= (int)srcTrack->clips.size() ||
+        srcTrack->clips[clipRow] != clip)
+        return false; // 索引失真（防御：m_clipLocation 与 clips 列表失同步）
+
+    const QModelIndex srcParent = index(sourceTrackRow, 0, QModelIndex());
+    const QModelIndex dstParent = index(targetTrackRow, 0, QModelIndex());
+    const int destRow = dstTrack->clips.size(); // 追加目标轨尾部（插入前行号）
+
+    if (!beginMoveRows(srcParent, clipRow, clipRow, dstParent, destRow))
+        return false;
+    srcTrack->clips.erase(srcTrack->clips.begin() + clipRow);
+    dstTrack->clips.push_back(clip);
+    rebuildIndex();
+    endMoveRows();
+
+    // 原轨可能被搬空：总时长兜底重算（多数情况无变化，开销为一次 max 扫描）
+    onUpdateTimeLineLength();
+    onClipTrackChanged(clip, sourceTrackRow, targetTrackRow);
+    return true;
+}
+
 void BaseTimeLineModel::beginInteractiveGeometryChange(AbstractClipModel* clip)
 {
     if (!clip)

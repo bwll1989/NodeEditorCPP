@@ -59,7 +59,7 @@ namespace {
 // ---------------------------------------------------------------------------
 // Tween 关键帧镜像构建（2026-11-05，时间轴曲线编辑带）：ms::Clip.tweens
 //（us 域）→ SceneClipModel 帧域镜像（TweenChannelDots）。通道/关键帧顺序
-// 保持原序（镜像下标 = 工作副本下标，applyTweenKeyMove 据此回写）。
+// 保持原序（镜像下标 = 工作副本下标，写回时据此定位工作副本键）。
 //
 // 值域（vmin/vmax，曲线带 0..1 归一化 ↔ 业务值的双向映射基准）：
 //   * 基础 = 通道键值范围，上下各外扩 25%（曲线/标记不顶带边，且给拖拽
@@ -329,7 +329,7 @@ void QtTimelineModelAdapter::setClipAssetFromScene(
 }
 
 // ---------------------------------------------------------------------------
-// 唯一片段 id 生成（onDuplicateClip 创建路径共用）：
+// 唯一片段 id 生成（onAddClip / onDropMediaFile 创建路径共用）：
 // clip-N 线性探测，与工作副本全表查重（收敛原两份同构探测循环）。
 // ---------------------------------------------------------------------------
 std::string QtTimelineModelAdapter::nextClipId() const {
@@ -646,40 +646,10 @@ void QtTimelineModelAdapter::syncAllClipTweenDots() {
 // ---------------------------------------------------------------------------
 // 时间轴关键帧编辑写回（模型镜像帧域 → 工作副本 clip.tweens us 域）。
 // 2026-11-09 合并关键帧模式：拖拽走 applyTweenKeyFrameMove（全通道桶移动，
-// 通道内升序由模型桶级邻钳保证）；本区块另含单键底层入口 applyTweenKeyMove
-//（联测探针/单测用）与单通道删键 applyTweenKeyRemove（右键"按参数删除"）。
+// 通道内升序由模型桶级邻钳保证）；另有单通道删键 applyTweenKeyRemove
+//（右键"按参数删除"）。（原单键底层入口 applyTweenKeyMove 已删除：
+// 收编后无任何消费者，死代码清理。）
 // ---------------------------------------------------------------------------
-
-/// 移动/改值（底层单键入口，探针/单测直调）。返回是否接受（片段/下标
-/// 非法 = false）。
-bool QtTimelineModelAdapter::applyTweenKeyMove(const std::string& clip_id,
-                                               int channel, int key,
-                                               double local_us,
-                                               double value) {
-    if (!work_) return false;
-    Clip* c = locateWorkClip(QString::fromStdString(clip_id));
-    if (!c) return false; // 片段已删（其他编辑路径同语义）
-    if (channel < 0 || channel >= (int)c->tweens.size()) return false;
-    auto& keys = c->tweens[channel].keys;
-    if (key < 0 || key >= (int)keys.size()) return false;
-
-    // μs 直通（四舍五入整数化，与镜像桶化同口径）；
-    std::int64_t t = (std::int64_t)std::llround(local_us);
-    // 片段区间钳制（关键帧本地时间 ∈ [0, duration_us]，R8 校验不变量）
-    t = std::clamp<std::int64_t>(t, 0, std::max<std::int64_t>(0, c->duration_us));
-    // 邻键升序钳制（双保险；镜像已钳一道）
-    if (key > 0) t = std::max(t, keys[key - 1].t_us);
-    if (key + 1 < (int)keys.size())
-        t = std::min(t, keys[key + 1].t_us);
-    // 时间与值都无变化：不落盘不广播（拖拽静止时的 mousemove 防抖）
-    if (keys[key].t_us == t && keys[key].v0 == value) return true;
-
-    keys[key].t_us   = t;
-    keys[key].v0     = value; // v0 分量（底层单键入口只动第一分量；v1 不变）
-    emit sceneEdited();          // "未下发"提示 + 自动下发链路
-    refreshClipPanels(clip_id);  // Tween 区数值显示跟随（灌值防回环）
-    return true;
-}
 
 /// 右键菜单删键（模型镜像在确认后才删）。空通道连通道一起删（R8 非空
 /// 纪律：空通道不可序列化；镜像侧同步删通道，通道序保持一致）。
@@ -835,12 +805,6 @@ void QtTimelineModelAdapter::refreshClipPanels(const std::string& clip_id) {
             if (auto* ifc = qobject_cast<ClipSectionInterface*>(s.data()))
                 ifc->refreshFromClip(c);
     }
-}
-
-void QtTimelineModelAdapter::refreshAllClipPanels() {
-    // 注册表空 = 无面板打开：一次哈希遍历零实际开销（高频调用安全）
-    for (const auto& kv : clip_panels_)
-        refreshClipPanels(kv.first);
 }
 
 // ---------------------------------------------------------------------------
@@ -1452,9 +1416,8 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
 
 // ---------------------------------------------------------------------------
 // 拖入媒体文件（资源管理器拖拽 → 视图 dropEvent）：
-//   导入素材（hooks_.import_media = importAssetForTrack：扩展名推断/入路径
-//   策略/元数据探测/轨道类型校验/入表——拖入文件类型已由视图
-//   isMimeAcceptable 校验与轨道匹配，kind 取轨道类型双重校验无害）
+//   导入素材（hooks_.import_media：扩展名推断/入路径策略/元数据探测/入表
+//   ——kind 传 Unknown 免轨道匹配【2026-11-15 轨道去类型化】）
 //   → 占位片段创建（onAddClip 同链：模型行 + 工作副本 push + 面板工厂）
 //   → 素材绑定（SceneClipModel 纯镜像 + 工作副本 asset_id 手写）+
 //   时长联动（素材 duration_us >0 时 setEnd 直写——不设 loading_，
@@ -1558,6 +1521,74 @@ void QtTimelineModelAdapter::onDeleteClip(QModelIndex clipIndex) {
         }
     }
     BaseTimeLineModel::onDeleteClip(clipIndex);
+}
+
+// ---------------------------------------------------------------------------
+// 片段跨轨搬移落定（2026-11-15 跨轨拖拽）：工作副本同步
+// ---------------------------------------------------------------------------
+// 模型行结构已由基类 moveClipToTrack 搬移完毕（拖拽中跨轨越界即触发）。
+// 此处把工作副本的 Clip 对象从原轨 clips 搬到目标轨：ms id 与全部业务
+// 字段（start_us/duration_us/z/绑定/控制表）不动，只改轨道归属。
+// 插入按 start_us 升序保持表序（装载语义一致；渲染 z 在片段自身字段，
+// 与表序无关）。几何回写链 locateWorkClip 按全局 id 全轨检索，换轨透明。
+// 注意：vector 搬移会使既有 Clip* 失效——适配器全部按 locateWorkClip
+// 现取指针（与删除路径同款约定），面板闭包在拖拽中不存在。
+// ---------------------------------------------------------------------------
+void QtTimelineModelAdapter::onClipTrackChanged(AbstractClipModel* clip,
+                                                int fromTrack, int toTrack) {
+    Q_UNUSED(fromTrack); // 摘除按 id 全轨检索（防模型/工作副本轨序漂移误删）
+    if (loading_ || !work_ || !clip)
+        return;
+    const std::string id = clip->noteName().toStdString();
+    if (id.empty() || toTrack < 0 ||
+        toTrack >= (int)work_->timeline.tracks.size())
+        return;
+
+    // 原轨摘除（全轨检索定位）
+    Clip moved;
+    bool found = false;
+    for (auto& tr : work_->timeline.tracks) {
+        auto it = std::find_if(tr.clips.begin(), tr.clips.end(),
+                               [&id](const Clip& c) { return c.id == id; });
+        if (it != tr.clips.end()) {
+            moved = std::move(*it);
+            tr.clips.erase(it);
+            found = true;
+            break;
+        }
+    }
+    if (!found)
+        return; // 不在工作副本（防御；理论不可达）
+
+    // 目标轨按 start_us 升序插入
+    auto& dst = work_->timeline.tracks[toTrack];
+    auto pos = std::lower_bound(dst.clips.begin(), dst.clips.end(),
+                                moved.start_us, [](const Clip& c, qint64 s) {
+                                    return c.start_us < s;
+                                });
+    dst.clips.insert(pos, std::move(moved));
+    emit sceneEdited();
+}
+
+// ---------------------------------------------------------------------------
+// 轨道重排 → 工作副本轨道序同步（2026-11-15，跨轨拖拽前置修复）
+// ---------------------------------------------------------------------------
+// 基类 onMoveTrack 只重排模型 m_tracks；工作副本轨道序此前从不跟随——
+// addTrack/deleteTrack/clip 跨轨搬移都按「模型轨 row = work_ 轨 row」
+// 索引平行定位，重排后该不变量断裂（删轨会踩错 work_ 行）。此处补齐：
+// 两表同语义落位（QList::move 与 erase+insert 的落定行号一致）。
+// ---------------------------------------------------------------------------
+void QtTimelineModelAdapter::onMoveTrack(int sourceRow, int targetRow) {
+    if (work_ && sourceRow >= 0 &&
+        sourceRow < (int)work_->timeline.tracks.size() && targetRow >= 0 &&
+        targetRow < (int)work_->timeline.tracks.size() && sourceRow != targetRow) {
+        auto& v     = work_->timeline.tracks;
+        Track moved = std::move(v[sourceRow]);
+        v.erase(v.begin() + sourceRow);
+        v.insert(v.begin() + targetRow, std::move(moved));
+        emit sceneEdited();
+    }
+    BaseTimeLineModel::onMoveTrack(sourceRow, targetRow);
 }
 
 } // namespace ms

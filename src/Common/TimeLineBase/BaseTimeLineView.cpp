@@ -3,6 +3,8 @@
 #include <QAction>
 #include <QtMath>
 #include <QTimer>
+#include <QMimeData>
+#include <QUrl>
 #include <algorithm>
 #include "DefaultTimeLineToolBar.h"
 
@@ -1228,6 +1230,24 @@ void BaseTimelineView::handleMouseDrag(QMouseEvent *event)
             } else {
                 m_snapLineFrame = -1;
             }
+            // 【2026-11-15 跨轨拖拽】鼠标 Y → 目标轨道行（视口→内容坐标，
+            // 与下方右键轨道命中同式）；-1（标尺上方/末轨下方）保持原轨。
+            // 先换轨再改时间：换轨会重排行结构，随后 moveSelectedClip 内部
+            // 从选区现取的索引才是新行。同轨为 no-op；QItemSelectionModel
+            // 对 rowsMoved 的映射不可靠，换轨后显式重选，保证后续事件取到
+            // 正确选区。
+            const int dragContentY = m_mouseEnd.y() + verticalScrollBar()->value()
+                                     - contentTop();
+            const int dragTargetTrack =
+                static_cast<BaseTimeLineModel*>(model())->trackRowAt(dragContentY);
+            if (dragTargetTrack >= 0 &&
+                getModel()->moveClipToTrack(clip, dragTargetTrack)) {
+                // 重选走 m_dragIndex（持久索引，beginMoveRows 已自动重映射
+                // 到新轨道子行）——indexForClip 是模型 protected 成员
+                if (m_dragIndex.isValid() && selectionModel())
+                    selectionModel()->select(m_dragIndex,
+                                             QItemSelectionModel::ClearAndSelect);
+            }
             moveSelectedClip(newStart, m_mouseEnd.y() + m_mouseOffset.y());
             break;
         }
@@ -1269,7 +1289,11 @@ void BaseTimelineView::handleMouseDrag(QMouseEvent *event)
         }
         viewport()->update(strip); // 都为空（-1→-1 不可能；均 <0 越界）时 no-op
     }
-    const QRect nextRect = visualRect(clipIndex).adjusted(-4, -4, 44, 4);
+    // 换轨后 clipIndex 行号失真——脏矩形取持久索引（beginMoveRows 自动
+    // 重映射，恒指向片段当前位置；drag 结束后回退 clipIndex 防御）
+    const QModelIndex liveIndex = m_dragIndex.isValid() ? QModelIndex(m_dragIndex)
+                                                        : clipIndex;
+    const QRect nextRect = visualRect(liveIndex).adjusted(-4, -4, 44, 4);
     viewport()->update(oldRect.united(nextRect));
 }
 
@@ -1685,7 +1709,13 @@ void BaseTimelineView::dropEvent(QDropEvent *event)
 
         // 拖入文件 → 模型虚钩子（2026-11-11：文件路径不再丢弃——默认实现
         // 仍建占位片段；适配层覆写完成"导入+绑定+按素材时长设长"）
-        const QString dropFile = event->mimeData()->urls().first().toLocalFile();
+        // 【2026-11-15 防御】dragEnterEvent 无条件置 m_isSupportMedia=true，
+        // 理论上存在未经 dragMove 媒体校验直达 drop 的路径——urls 空时
+        // .first() 是未定义行为，先验证再取。
+        const QList<QUrl> dropUrls = event->mimeData()->urls();
+        if (dropUrls.isEmpty())
+            return;
+        const QString dropFile = dropUrls.first().toLocalFile();
         getModel()->onDropMediaFile(trackIndex.row(), posUs, dropFile);
         viewport()->update();
 

@@ -799,11 +799,15 @@ bool SceneLoader::validateScene(const Scene& scene, std::string& err) {
             // 恒空）——R1/R2 素材存在性与类型约束不适用；指令表在
             // clip.control_messages（片段自身业务数据，随 pb 分发）。
             // R3/R7/R8 通用约束（时间/transform/tween）照走。
-            if (t.kind == AssetKind::Control) {
+            // 【2026-11-15 去类型化补丁】豁免条件跟片段自身类型走：轨道
+            // 去类型化后 Control 片段可落无类型轨（kind=Unknown），仅按
+            // t.kind 分支会让 else 路径对空 asset_id 误报 R1 拒载整场景。
+            // 保留 t.kind==Control 判断 = 兼容旧文件（Control 轨上 type
+            // 为空的历史 Control 片段）。
+            if (t.kind == AssetKind::Control || c.type == "Control") {
                 if (!c.asset_id.empty()) {
-                    err = "R2: Control 轨道 '" + t.id + "' 的 clip '" +
-                          c.id + "' 不应绑定素材 (asset_id='" +
-                          c.asset_id + "')";
+                    err = "R2: Control 片段 '" + c.id + "' 不应绑定素材" +
+                          " (asset_id='" + c.asset_id + "')";
                     return false;
                 }
             } else {

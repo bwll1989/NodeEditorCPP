@@ -187,6 +187,12 @@ public slots:
     //移动轨道槽函数
     virtual void onMoveTrack(int sourceRow, int targetRow);
 
+    // 片段跨轨搬移（2026-11-15 跨轨拖拽）：把 clip 从当前轨道搬到
+    // targetTrackRow（结构化 beginMoveRows 通知，持久索引自动跟随）。
+    // 同轨调用为无害 no-op 返回 true；轨道去类型化后无类型约束，
+    // 任意片段可落任意轨。返回 false = clip 无效/索引失真/参数越界。
+    bool moveClipToTrack(AbstractClipModel* clip, int targetTrackRow);
+
     // 拖拽期间只改片段几何，松手后再排序、重算长度并发出 dataChanged
     void beginInteractiveGeometryChange(AbstractClipModel* clip);
     void endInteractiveGeometryChange();
@@ -211,6 +217,10 @@ protected:
     // 增删轨道或片段后重建，供 parent/data/indexForClip 做 O(1) 查询
     void rebuildIndex();
     void rebuildTrackClipOrder(TrackData* track);
+    // 片段换轨落定后的宿主通知钩子（模型行结构已变更、索引已重建）。
+    // 适配层覆写以同步工作副本轨道归属；同轨调用（no-op）不触发。
+    virtual void onClipTrackChanged(AbstractClipModel* /*clip*/,
+                                    int /*fromTrack*/, int /*toTrack*/) {}
     void noteClipGeometryChanged(AbstractClipModel* clip);
     void watchClip(AbstractClipModel* clip);
     void queueClipGeometryNotify(AbstractClipModel* clip);
