@@ -44,6 +44,10 @@
 #include "model/ClipSectionContext.hpp" // 片段专属区工厂载荷（Clip/Scene/回调）
 #include "ControlMessages.hpp"          // Control 触发引擎（ms::fireControlMessages）
 
+// 场景下发/素材同步编排（publishScene/syncMedia，2026-11-16 收编）
+#include "MsRuntimeBridge.hpp"
+#include "TimelineAudioBusHost.hpp" // 下发伴随副作用：音频 bus 场景快照
+
 #include <QDialog>
 #include <QFileInfo>
 #include <QVBoxLayout>
@@ -167,6 +171,8 @@ QString QtTimelineModelAdapter::typeForKind(AssetKind kind) {
         case AssetKind::Audio: return "Audio";
         case AssetKind::Live:  return "Live";
         case AssetKind::Control: return "Control";
+        case AssetKind::Artnet:  return "Artnet";
+        case AssetKind::Mapping: return "Mapping";
         // 【2026-11-15 去类型化】无类型轨道返回空串（非 "Unknown"）——
         // TrackData.type 语义 = 类型提示，空 = 无提示；Add Item 回退路径
         // 只对旧场景（kind 非空）有意义
@@ -276,6 +282,10 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
                                                     scene.canvas_h));
                 configureClipPanel(sc, c.id, clip_type); // 片段类型（跟片段走）
             }
+            // 业务数据镜像（2026-11-15 片段移植）：clip_data → 模型（先于
+            // setEnd——Artnet 自适应探测若改长，随后的持久化时长覆盖之，
+            // 装载以工作副本为准）
+            clip->setClipPayload(QString::fromStdString(c.clip_data));
             // 时长直传；不足 1μs 的片段钳到 1μs（零长片段无编辑意义）
             const qint64 end_us = c.start_us + c.duration_us;
             clip->setEnd(std::max(end_us, start_us + 1));
@@ -288,7 +298,7 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
                     [this, clip](int) { onClipGeometryChanged(clip); });
             // ---- 外观回写（2026-11-15 备注名持久化）------------------------
             // 属性面板改备注名/颜色 → 工作副本 note 字段落盘 + 脏置位 +
-            // sceneEdited（EditorWindow 防抖刷新场景树——片段行显示备注名）
+            // sceneEdited（宿主置脏 + 防抖自动下发链）
             connect(clip, &AbstractClipModel::appearanceChanged, this,
                     [this, clip]() {
                         if (loading_) return;
@@ -447,9 +457,14 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
     // 引导/仅 id）。Live 素材无文件（path 恒空）——显示实况源状态而非
     // 误导性的"未绑定"：未选源提示去实况区选择，已选源显示源名。
     // Control（2026-11-13）：无媒体绑定语义——恒显示说明文案
+    // Artnet/Mapping（2026-11-15）：无媒体绑定语义——业务数据在专属页
     QString binding_name;
     if (kind == AssetKind::Control) {
         binding_name = QStringLiteral("（指令片段无需媒体文件）");
+    } else if (kind == AssetKind::Artnet) {
+        binding_name = QStringLiteral("（灯光片段：DMX 视频在专属页选择）");
+    } else if (kind == AssetKind::Mapping) {
+        binding_name = QStringLiteral("（映射片段无需媒体文件）");
     } else {
         for (const auto& a : work_->assets)
             if (a.id == c->asset_id) {
@@ -470,8 +485,11 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
     // 专属编辑区，无媒体文件绑定语义
     // Control 片段：隐藏媒体文件区（2026-11-13）——无媒体文件绑定语义，
     // 指令表在「指令」专属页编辑
+    // Artnet/Mapping 片段：隐藏媒体文件区（2026-11-15）——无媒体文件绑定
+    // 语义，业务数据在专属页编辑（DMX 选择/主机/起始域、消息表）
     if (kind == AssetKind::Live || kind == AssetKind::Text ||
-        kind == AssetKind::Control)
+        kind == AssetKind::Control || kind == AssetKind::Artnet ||
+        kind == AssetKind::Mapping)
         panel->setMediaSectionVisible(false);
     // 登记到广播注册表（双向同步）：此后画布拖拽/另一面板写回/时间轴拖动
     // 等一切工作副本变化经 refreshClipPanels 灌进本面板（非焦点控件）。
@@ -534,6 +552,17 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
             QPointer<QtTimelineModelAdapter> aguard(this);
             ctx.on_edited = [this, aguard, clip_id]() {
                 if (!aguard) return;
+                // 【2026-11-15 片段移植】业务 JSON → 模型镜像回推：区块写
+                // 完工作副本 clip_data 后，把最新值灌给模型（setClipPayload
+                // ——Artnet 播放读镜像；幂等 diff 在模型侧）。模型 setEnd
+                // 自适应触发的 lengthChanged → onClipGeometryChanged 会把
+                // 自适应时长写回工作副本（链路闭环）。
+                if (Clip* cc = locateWorkClip(
+                        QString::fromStdString(clip_id))) {
+                    if (AbstractClipModel* m = findClipModelByAnchor(clip_id))
+                        m->setClipPayload(
+                            QString::fromStdString(cc->clip_data));
+                }
                 emit sceneEdited();          // "未下发"提示 + 自动下发链路
                 refreshClipPanels(clip_id);  // 广播灌值（区块内焦点保护防打断）
             };
@@ -837,7 +866,7 @@ void QtTimelineModelAdapter::refreshClipPanels(const std::string& clip_id) {
 // ---------------------------------------------------------------------------
 // 片段自有属性面板独立打开（程序化入口；UI 入口 2026-11-05 收敛）：
 //   timeline 双击 = 库组合面板（原生通用区 + clipPropertyWidget 自定义区）
-//   ——【唯一 UI 入口】（用户定案"画布/场景树双击弹面板与组合面板并存
+//   ——【唯一 UI 入口】（用户定案"画布双击弹面板与组合面板并存
 //   易歧义"，两处入口已移除，画布改为拖拽实时同步面板显示）；
 //   本函数保留：回归测试程序化开面板 + 未来拖拽绑定等交互复用。
 // 实现走 SceneClipModel::clipPropertyWidget() 虚工厂（与库组合面板完全同源）：
@@ -961,6 +990,22 @@ Clip* QtTimelineModelAdapter::locateWorkClip(const QString& note) {
 }
 
 // ---------------------------------------------------------------------------
+// 模型定位：clipAnchor（ms clip id）→ 时间轴片段模型（2026-11-15 片段移植）
+// 面板编辑落定后把工作副本 clip_data 回推给模型（setClipPayload）用；
+// 全轨线性扫（面板编辑低频，O(n) 可接受）。
+// ---------------------------------------------------------------------------
+AbstractClipModel* QtTimelineModelAdapter::findClipModelByAnchor(
+        const std::string& clip_id) {
+    const QString anchor = QString::fromStdString(clip_id);
+    for (TrackData* td : m_tracks) {
+        if (!td) continue;
+        for (AbstractClipModel* clip : td->clips)
+            if (clip && clip->clipAnchor() == anchor) return clip;
+    }
+    return nullptr;
+}
+
+// ---------------------------------------------------------------------------
 // clip 几何变化 → 工作副本回写（实时路径）
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::onClipGeometryChanged(AbstractClipModel* clip) {
@@ -1006,6 +1051,60 @@ void QtTimelineModelAdapter::syncModelToWorkScene() {
 }
 
 // ---------------------------------------------------------------------------
+// 场景下发 / 素材同步（2026-11-16 收编为模型对外接口）：原
+// MainWindow::publishMsSceneNow、msUiTimer 显示端上线追平、项目加载追平、
+// 画布 publishScene/syncMedia 五处两步舞收敛于此（编排单点维护）。
+// ---------------------------------------------------------------------------
+bool QtTimelineModelAdapter::publishScene() {
+    if (!work_) return false;
+    syncModelToWorkScene();
+    // timeline 音频 bus 场景快照（不依赖下发运行时——桥启动失败也刷新，
+    // 节点图音频照常工作；必须在 syncModelToWorkScene 之后取值）
+    if (audio_bus_) audio_bus_->updateScene(*work_);
+    if (!runtime_ || !runtime_->running()) return false;
+    runtime_->publishScene(*work_);
+    return true;
+}
+
+QtTimelineModelAdapter::SyncMediaResult
+QtTimelineModelAdapter::syncMedia() {
+    SyncMediaResult res;
+    if (!work_) return res;
+    syncModelToWorkScene();
+    if (!runtime_ || !runtime_->running()) return res;
+    res.registered = runtime_->syncMedia(*work_);
+    res.ok = true;
+    for (const auto& r : runtime_->displayRows())
+        if (r.connected && r.enabled) ++res.online;
+    return res;
+}
+
+// ---------------------------------------------------------------------------
+// 自动追平节流链（2026-11-16 自 MainWindow requestMsAutoPublish/
+// publishMsSceneNow + 节流三件收编）——"编辑场景自动下发到 display"整链
+// 在模型对外接口内闭环。间隔注入见 setAutoPublishInterval。
+// ---------------------------------------------------------------------------
+void QtTimelineModelAdapter::requestAutoPublish() {
+    if (!auto_publish_timer_) return;
+    const qint64 sinceLast = last_publish_since_.isValid()
+                                 ? last_publish_since_.elapsed()
+                                 : -1; // 从未发过 → 立即
+    if (sinceLast < 0 || sinceLast >= auto_publish_interval_ms_) {
+        publishNow();             // 首发 / 距上次发布已满间隔：立即发
+        return;
+    }
+    if (!auto_publish_timer_->isActive())
+        auto_publish_timer_->start(int(auto_publish_interval_ms_ - sinceLast)); // 对齐下一拍
+    // 已挂起：不动（到点自然发最新状态——发布聚合）
+}
+
+void QtTimelineModelAdapter::publishNow() {
+    if (!publishScene()) return; // 未挂工作副本/runtime 未启动：静默跳过（不打点）
+    last_publish_since_.restart(); // 节流基准（下次编辑距此满间隔才发下一拍）
+    qDebug() << "ms-adapter: 场景自动追平，已同步发布到显示端";
+}
+
+// ---------------------------------------------------------------------------
 // 播放头
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::onSetPlayheadPos(qint64 newPlayheadPos) {
@@ -1043,6 +1142,9 @@ void QtTimelineModelAdapter::setPlayheadFromRuntimeUs(std::int64_t us_total) {
 // 位置判定取模型（clip->start() 实时——时间轴拖动 dirty 期间也正确），
 // 消息体取工作副本（业务真相源；locateWorkClip 按 clipAnchor 定位）。
 // 装载期（loading_）只建立基线不触发（模型重建中位置无意义）。
+// 【2026-11-15 扩展】同链对全部片段调用 onPlayheadAdvanced 虚钩子——
+// Artnet（逐帧解码 DMX → ArtnetService）/Mapping（逐帧 $percent/$frame
+// 求值重发）等类型专属播放逻辑随插件走，宿主零类型知识。
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
     const std::int64_t prev = prev_playhead_us_;
@@ -1055,18 +1157,24 @@ void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
         // 类型，指令片段可与媒体片段同轨）
         for (AbstractClipModel* clip : td->clips) {
             if (!clip) continue;
-            if (clip->type() != "Control") continue;
-            const qint64 st = clip->start();
-            if (!(prev < st && now_us >= st)) continue; // 非上升沿
-            Clip* c = locateWorkClip(clip->clipAnchor());
-            if (!c) continue; // 已删（防御）
-            ms::fireControlMessages(c->control_messages);
-            std::fprintf(stderr,
-                         "[control] 触发 clip=%s msgs=%s\n",
-                         c->id.c_str(),
-                         c->control_messages.empty() ? "(空)"
-                             : c->control_messages.c_str());
-            std::fflush(stderr);
+            if (clip->type() == "Control") {
+                const qint64 st = clip->start();
+                if (prev < st && now_us >= st) { // 上升沿
+                    Clip* c = locateWorkClip(clip->clipAnchor());
+                    if (c) {
+                        ms::fireControlMessages(c->control_messages);
+                        std::fprintf(stderr,
+                                     "[control] 触发 clip=%s msgs=%s\n",
+                                     c->id.c_str(),
+                                     c->control_messages.empty() ? "(空)"
+                                         : c->control_messages.c_str());
+                        std::fflush(stderr);
+                    }
+                }
+            }
+            // 类型专属播放推进（默认空实现零开销；首拍 prev=-1 已被上方
+            // 基线分支挡住，钩子首拍不误触发）
+            clip->onPlayheadAdvanced(prev, now_us);
         }
     }
 }
@@ -1099,7 +1207,7 @@ namespace {
 inline bool isHostMediaType(const QString& type) {
     return type == "Video" || type == "Image" ||
            type == "Text"  || type == "Audio" || type == "Live" ||
-           type == "Control";
+           type == "Control" || type == "Artnet" || type == "Mapping";
 }
 
 /// 媒体插件加载器：纯磁盘驱动（无任何内置兜底——彻底解耦定案）。
@@ -1212,6 +1320,16 @@ QtTimelineModelAdapter::QtTimelineModelAdapter(QObject* parent,
     connect(seek_flush_, &QTimer::timeout,
             this, &QtTimelineModelAdapter::flushPendingSeek);
 
+    // 自动追平节流（2026-11-16 自 MainWindow 收编）：单发定时器到点发最新
+    // 状态（发布聚合）；sceneEdited（时间轴拖拽/面板写回/导入落表等模型侧
+    // 编辑路径）在本类内自连节流入口——画布两路由宿主接入 requestAutoPublish。
+    auto_publish_timer_ = new QTimer(this);
+    auto_publish_timer_->setSingleShot(true);
+    connect(auto_publish_timer_, &QTimer::timeout,
+            this, &QtTimelineModelAdapter::publishNow);
+    connect(this, &QtTimelineModelAdapter::sceneEdited,
+            this, &QtTimelineModelAdapter::requestAutoPublish);
+
     // 媒体插件表（纯磁盘驱动）：loader 与片段模型都挂到适配器下
     setPluginLoader(new WorkScenePluginLoader(this, plugin_dir));
 }
@@ -1226,6 +1344,8 @@ AssetKind QtTimelineModelAdapter::kindForType(const QString& type) {
     if (type == "Audio") return AssetKind::Audio;
     if (type == "Live")  return AssetKind::Live; // 实时源（NDI/窗口/Spout/网络流）
     if (type == "Control") return AssetKind::Control; // 指令片段（无媒体）
+    if (type == "Artnet")  return AssetKind::Artnet;  // 灯控片段（无媒体，2026-11-15 移植）
+    if (type == "Mapping") return AssetKind::Mapping; // 映射片段（无媒体，2026-11-15 移植）
     return AssetKind::Unknown;
 }
 
@@ -1250,6 +1370,8 @@ const char* QtTimelineModelAdapter::kindShortName(AssetKind kind) {
         case AssetKind::Audio: return "audio";
         case AssetKind::Live:  return "live";
         case AssetKind::Control: return "control";
+        case AssetKind::Artnet:  return "artnet";
+        case AssetKind::Mapping: return "mapping";
         default:               return "track";
     }
 }
@@ -1262,12 +1384,14 @@ static QString kindDisplayName(AssetKind kind) {
         case AssetKind::Audio: return "音频轨";
         case AssetKind::Live:  return "实况轨";
         case AssetKind::Control: return "指令轨";
+        case AssetKind::Artnet:  return "灯光轨";
+        case AssetKind::Mapping: return "映射轨";
         default:               return "轨道";
     }
 }
 
 // ---------------------------------------------------------------------------
-// 新增轨道（场景树按钮 / 时间轴右键共用）：工作副本 + 模型 双写。
+// 新增轨道（时间轴右键）：工作副本 + 模型 双写。
 // 【2026-11-15 轨道去类型化】kind = Unknown 合法（无类型轨道——Add Track
 // 单项入口）；kind 仅作显示提示，不再拒绝任何取值
 // ---------------------------------------------------------------------------
@@ -1535,11 +1659,10 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
         a = hooks_.import_media(file, AssetKind::Unknown, err);
         if (a.id.empty()) {
             // [E1] 导入失败：不再静默留 1 帧空占位（用户误以为导入成功，
-            // 播放时才发现黑屏）——发可见提示信号（宿主状态栏弹示）并放弃
-            // 本次拖入；轨道/工作副本零副作用
-            std::fprintf(stderr, "[adapter] 拖入导入失败: %s\n", err.c_str());
-            std::fflush(stderr);
-            emit mediaImportFailed(file, QString::fromStdString(err));
+            // 播放时才发现黑屏）——失败留痕（qWarning；原宿主连接只重复
+            // 打日志，信号已删）并放弃本次拖入；轨道/工作副本零副作用
+            qWarning().noquote() << "[ms-adapter] 拖入导入失败:" << file
+                                 << "-" << QString::fromStdString(err);
             return;
         }
     }

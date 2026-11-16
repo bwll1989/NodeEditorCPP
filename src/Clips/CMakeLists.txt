@@ -43,8 +43,9 @@
 # 每种媒体类型一个插件：目录名（与 clipType() 一致，对齐节点 ALL_NODES
 # 清单模式）。Control（2026-11-13）：指令片段（合并前 Trigger 语义后继）
 # ——无媒体文件、无画布呈现，仅时间轴存在；消息列表存 Clip.control_messages
-#（片段域）。
-set(MS_PLUGIN_TYPES Video Image Text Audio Live Control)
+#（片段域）。Artnet/Mapping（2026-11-15）：自节点体系移植的灯光/映射
+# 片段（业务数据存 Clip.clip_data 片段域，field 13）。
+set(MS_PLUGIN_TYPES Video Image Text Audio Live Control Artnet Mapping)
 
 foreach(_t IN LISTS MS_PLUGIN_TYPES)
     add_subdirectory(${_t})

@@ -118,7 +118,6 @@ void TimelineAudioBusHost::loop() {
     const auto* registry = NodeDataTypes::TimelineAudioBusRegistry::instance();
     qint64 last_anchor_epoch = -1;   ///< 锚点代际（seek 检测 → flush）
     qint64 last_written_clock = -1;  ///< 上一拍帧计数（回退检测）
-    const Scene* last_scene_ptr = nullptr; ///< 场景换发检测（池失效判据）
 
     while (!stopRequested_.load(std::memory_order_relaxed)) {
         if (!tickWaiter_.wait(200)) {
@@ -149,19 +148,20 @@ void TimelineAudioBusHost::loop() {
         // 行）完全自定位，复用条目 = 快路径（与 display 端同款行为）；此前
         // 每次重锚 pool.clear() = 全源重新 avformat_open_input（每源数十至
         // 数百 ms 串行）——display 端跳转后音频很快输出、编辑端"要等一下
-        // 才出声"的根源（display 复用源 doSeek，编辑端重建源）。池失效的
-        // 唯一正确触发点 = 场景快照换发（素材表可能变化），见下方检测。
+        // 才出声"的根源（display 复用源 doSeek，编辑端重建源）。池失效由
+        // buildVoices 逐条目素材路径指纹自愈（换绑/删除素材按条目重建）。
         if (anchor_epoch != last_anchor_epoch || clock <= last_written_clock) {
             flushAllQueues();
             last_anchor_epoch = anchor_epoch;
         }
         last_written_clock = clock;
-        // 场景换发（updateScene 深拷贝换指针）：素材表可能已变 → 池失效
-        //（新快照首次出现也算；首拍 scene 为空不触发）
-        if (scene.get() != last_scene_ptr) {
-            if (last_scene_ptr != nullptr) core_.pool.clear();
-            last_scene_ptr = scene.get();
-        }
+        // 场景换发（updateScene 深拷贝换指针）不整池清空——编辑期每次发布
+        // （含纯几何改动）都会换发快照，整池 clear = 全源重新
+        // avformat_open_input（每源数十至数百 ms 串行）→ voices 空窗，
+        // 听感"改属性时播放声音暂停"。失效判定交给 buildVoices 逐条目
+        // 指纹（池键=clip id + 条目记素材路径，不匹配才 erase 重建）：
+        // 换绑/删除素材按条目自愈，与 display 端（RenderThread 池仅 stop
+        // 时清）及重锚路径同款行为；残留已删 clip 条目由池上限兜底。
 
         // 【诊断期】1s 节流恒打心跳（含非播放态）：playing/scene/buses
         // 状态可见化——定位无声问题必看；定版后移回播放态内

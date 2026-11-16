@@ -54,7 +54,10 @@
 #include <vector>
 
 #include <QImage>
+#include <QPointer>
 #include <QRect>
+
+class QWidget;
 
 #include "engine/MediaFactory.hpp"
 #include "engine/MediaScheduler.hpp"
@@ -186,11 +189,14 @@ public:
     /// 并递增内容版本确保下一帧重建实例
     void clearMediaCache();
 
-    /// 【跨线程】新帧就绪回调——工作线程在合成完成后调用！
-    /// 调用方必须自行排队到 GUI 线程（如 QMetaObject::invokeMethod
-    /// Qt::QueuedConnection），不得在回调内直接操作 QWidget。
-    /// 回调须在析构前可安全置空；本类析构 join 后不再触发。
-    void setFrameReadyCallback(std::function<void()> cb);
+    /// 【跨线程】出帧重绘目标（2026-11-16 自宿主 setFrameReadyCallback
+    /// 收编）：工作线程合成完成后经 QMetaObject::invokeMethod 排队
+    /// QWidget::update（QueuedConnection）——通知 GUI 线程上屏新帧，
+    /// 与画布 33ms 拉帧泵互补（泵保最终一致，本通知保低延迟）。
+    /// 目标由显示其帧的控件自注册（画布 setPreviewRenderer 注入点）；
+    /// QPointer 目标析构自动置空。目标生命周期须覆盖本渲染器
+    ///（析构 join 后不再触发——与原回调同契约）。
+    void setRepaintTarget(QWidget* w);
 
 private:
     // ---- 工作线程消息（锁保护；GUI 写请求 / worker 写结果）----
@@ -271,7 +277,8 @@ private:
     Result   result_;                ///< 最新完成结果
     std::int64_t last_render_cost_us_ = 0; ///< 上轮渲染耗时（worker 写，
                                            ///< pump 自适应节流读；锁内）
-    std::function<void()> frame_ready_cb_; ///< 出帧回调（锁内读写）
+    QPointer<QWidget> repaint_target_; ///< 出帧重绘目标（锁内读写；worker
+                                       ///< 排队 update——见 setRepaintTarget）
 
     std::thread worker_; ///< 工作线程（最后声明：构造完毕再启动）
 };

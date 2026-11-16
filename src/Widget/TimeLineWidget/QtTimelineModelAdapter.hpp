@@ -9,10 +9,12 @@
 //        [权威场景] → scene_work_(EditorWindow 拥有) ──load──► 本模型(视图)
 //            ▲                                                │
 //            │        clip 拖拽/属性面板改时间（模型先行）◄────┘
-//            └── EditorWindow::onPublishScene 前先 syncModelToWorkScene()
-//    * 本类只做"模型态"工作（装载/换算/回写），不持有网络与广播逻辑；
-//      播放控制由 EditorWindow 直连工具栏信号（2026-11-10 遗留清理：
-//      playRequested 三跳转发链退役）。
+//            └── 下发前先 syncModelToWorkScene()（已封装进 publishScene）
+//    * 本类做"模型态"工作（装载/换算/回写）+ 场景下发/素材同步复合
+//      操作编排（2026-11-16 用户定案：本类是模型对外的接口，下发分工
+//      在此）；网络细节仍在 MsRuntimeBridge，本类只做编排。播放控制由
+//      EditorWindow 直连工具栏信号（2026-11-10 遗留清理：playRequested
+//      三跳转发链退役）。
 //
 //  时间基准：固定 PAL 25fps（timecode 亦随 PAL 显示）。帧↔us 换算取
 //  四舍五入：1 帧 = 40ms = 40000us；编辑精度受帧量化限制属预期行为。
@@ -30,6 +32,7 @@
 
 #pragma once
 
+#include <QElapsedTimer>
 #include <QPointer>
 #include <QObject>
 #include <QTimer>
@@ -51,6 +54,8 @@ namespace ms {
 
 class ClipPropertyPanel;
 class TweenSection;
+class MsRuntimeBridge;      // 下发运行时桥（MsRuntimeBridge.hpp；仅指针成员）
+class TimelineAudioBusHost; // 音频 bus 宿主（TimelineAudioBusHost.hpp；同上）
 
 /// 片段属性面板宿主钩子（EditorWindow 注入；面板导入时回调）。
 /// 面板本身不依赖 EditorWindow——素材导入能力经此注入，
@@ -98,6 +103,38 @@ public:
     /// 面板精确值（如 1.5s）不能被帧量化值覆盖，故不能全量同步。
     void syncModelToWorkScene();
 
+    // ---- 场景下发 / 素材同步（2026-11-16 收编为模型对外接口）----------------
+    /// 场景下发复合操作（原 MainWindow::publishMsSceneNow / msUiTimer 显示端
+    /// 上线追平 / 画布 publishScene 四处两步舞收敛于此）：兜底同步 →
+    /// 音频 bus 场景快照（不依赖下发运行时——桥启动失败也刷新，否则打开
+    /// 存档后 host 场景为空 → 不混音 → timeline 音频全静音；必须在
+    /// syncModelToWorkScene 之后取值）→ runtime 在线检查 → 全量广播。
+    /// \return true = 已广播；false = 未挂工作副本或 runtime 未启动
+    ///（同步与音频快照仍已完成——调用方据返回值只决定提示语/节流打点）
+    bool publishScene();
+    /// 素材同步复合操作（原画布 syncMedia 收编）：兜底同步 → runtime 素材
+    /// 清单分发 → 统计在线显示端数（口径 connected && enabled，与下发一致）。
+    struct SyncMediaResult {
+        bool        ok         = false; ///< true = 清单已分发
+        std::size_t registered = 0;     ///< 注册素材数
+        std::size_t online     = 0;     ///< 在线显示端数
+    };
+    SyncMediaResult syncMedia();
+    /// 注入下发运行时桥 + 音频 bus 宿主（借用指针，不拥有；构造序晚于本
+    /// 适配器，宿主 init() 装配点注入。桥未注入/未启动时 publishScene
+    /// 返回 false，音频快照照常刷新）
+    void setRuntimeBridge(MsRuntimeBridge* rt)       { runtime_ = rt; }
+    void setAudioBusHost(TimelineAudioBusHost* host) { audio_bus_ = host; }
+
+    // ---- 自动追平节流链（2026-11-16 自 MainWindow 收编）---------------------
+    /// 配置节流间隔（Settings.ini Network/SceneAutoPublishMs；默认 200，
+    /// 配置侧钳制 20-2000）。宿主 init 装配点调用一次；未注入时用默认值。
+    void setAutoPublishInterval(int ms) { auto_publish_interval_ms_ = ms; }
+    /// 编辑→下发节流决策统一入口（sceneEdited/sceneEditedLive 各路汇入）：
+    /// 距上次发布满间隔立即发布，否则挂起单发定时器对齐下一拍（发布聚合：
+    /// 到点自然发最新状态）。O(1)，可直连高频信号（如画布 sceneEditedLive）。
+    void requestAutoPublish();
+
     // ---- Tween 关键帧时间轴镜像（2026-11-09 合并关键帧模式）----------------
     // 【2026-11-15 清理】原单键底层入口 applyTweenKeyMove 已删除——注释
     // 声称的"联测探针/单测直调"在本仓库从未存在（收编时随旧工程带入，
@@ -138,7 +175,7 @@ public:
     /// 否则会反向触发 seekRequestedUs 形成回环。
     void setPlayheadFromRuntimeUs(std::int64_t us);
 
-    // ---- 结构编辑（时间轴右键/场景树按钮 → 模型 + 工作副本同步）--------------
+    // ---- 结构编辑（时间轴右键 → 模型 + 工作副本同步）--------------
     /// 新增轨道：工作副本追加 ms::Track + 模型加行。
     /// 【2026-11-15 去类型化】kind = Unknown 合法（Add Track 单项入口 →
     /// 无类型轨）；kind 仅作显示提示。
@@ -155,10 +192,10 @@ public:
 
 signals:
     void seekRequestedUs(std::int64_t us); // 播放头拖动/程序化 seek → cmdSeek
-    void sceneEdited();               // 时间轴有本地修改（状态栏"未下发"提示）
-    /// [E1] 拖入媒体导入失败（钩子注入且失败）：宿主弹可见提示，且本次
-    /// 拖入不留 1 帧空占位片段（原实现静默占位——用户以为导入成功）
-    void mediaImportFailed(const QString& file, const QString& reason);
+    void sceneEdited();               // 时间轴有本地修改（编辑→节流下发汇入）
+    /// 【2026-11-16 删除 mediaImportFailed 信号】唯一消费者是宿主一条
+    /// qWarning（与适配器 emit 点的 stderr 日志重复）——按死信号判据
+    /// 删除，失败留痕内化为适配器 qWarning（file+err 一条）。
 
 public slots:
     /// 播放头变化入口（视图拖动 / 外部调槽）：更新模型+视图，并排队 seek 转发
@@ -223,7 +260,7 @@ public slots:
     /// （内容未变，仅观测点移动）。注册表空时零开销（播放期高频调用安全）。
     void refreshTweenPanelsPlayhead();
 
-    /// 片段自有属性面板独立打开（画布/场景树双击入口，2026-11-04 用户约定）：
+    /// 片段自有属性面板独立打开（程序化入口；UI 唯一入口 = timeline 双击）：
     /// 按工作副本 (track, clip) 下标定位模型片段 → clipPropertyWidget()
     /// （工厂闭包 = makeClipPropertyPanel：媒体绑定 + 画布变换区，与时间轴
     /// 双击组合面板的"片段自有区"完全同源）→ 包非模态对话框显示。
@@ -292,6 +329,9 @@ private:
 
     // ---- 状态 ---------------------------------------------------------------
     Scene* work_   = nullptr;  // 编辑工作副本（不拥有）
+    /// 下发运行时桥 + 音频 bus 宿主（均不拥有；publishScene/syncMedia 消费）
+    MsRuntimeBridge*      runtime_   = nullptr;
+    TimelineAudioBusHost* audio_bus_ = nullptr;
     bool   loading_ = false;   // 装载/程序化写模型中：屏蔽 clip 信号的回写
     /// 时间轴真正改过的片段（noteName=ms clip id）。拖拽/面板改帧 → 记入；
     /// 面板→模型推送 → 移出（面板值对本 clip 保持权威）；sync 后清空。
@@ -328,6 +368,14 @@ private:
     QTimer*    seek_flush_      = nullptr;
     std::int64_t pending_seek_us_ = -1;  // -1 = 无待发
 
+    // ---- 自动追平节流三件（2026-11-16 自 MainWindow msAutoPublish* 收编）----
+    /// 立即发布（publishScene 复合操作 + 节流打点 + 日志留痕；立即路径与
+    /// 定时器到点路径共用）
+    void publishNow();
+    QTimer* auto_publish_timer_ = nullptr; // 单发对齐定时器（挂起时只重算时长）
+    int  auto_publish_interval_ms_ = 200;  // 节流间隔（宿主经 setAutoPublishInterval 注入）
+    QElapsedTimer last_publish_since_;     // 上次发布时刻（节流基准；isValid=发过）
+
     // ---- Control 触发引擎（2026-11-13）--------------------------------------
     /// 播放头上升沿检测（Control 片段语义，2026-11-13 用户定案「时间到
     /// 那个地方了发送指令」）：prev < start && now >= start 的跨入瞬间，
@@ -336,9 +384,16 @@ private:
     /// 挂在播放头两落点（onSetPlayheadPos 手动 seek / setPlayheadFromRuntimeUs
     /// 播放回显）——同一检测保证 scrub 与播放语义一致。同区间内持续推进
     /// 不重触发（prev 已 >= start）；后退跨出后再次进入重新武装。
+    /// 【2026-11-15 扩展】同链对全部片段调用 onPlayheadAdvanced 虚钩子
+    ///（Artnet 逐帧解码/Mapping 逐帧求值的类型专属播放挂点，见 BaseClass）。
     void updateControlTriggers(std::int64_t now_us);
     /// 上一拍播放头（μs；-1 = 未初始化——首拍只建立基线不触发）
     std::int64_t prev_playhead_us_ = -1;
+
+    // ---- 片段业务数据镜像（2026-11-15 片段移植）------------------------------
+    /// 按锚点（ms clip id）定位时间轴片段模型（全轨线性扫；面板编辑落点
+    /// 低频）。用于把工作副本 clip_data 推给模型（setClipPayload）。
+    AbstractClipModel* findClipModelByAnchor(const std::string& clip_id);
 };
 
 } // namespace ms

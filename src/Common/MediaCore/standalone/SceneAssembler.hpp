@@ -128,9 +128,9 @@ public:
     /// 单文件探测（编辑器 import_media 钩子共用，2026-11-12 动作联动）：
     /// 与成员 probeAsset 同口径但独立于 assets_root——full_utf8 即寻址
     /// 路径（编辑器空素材根语义：Asset.path = 绝对路径）。
-    /// 【为何是本类的静态成员】FfmpegMediaSource.hpp 含
-    /// atomic<shared_ptr>（C++20）——C++17 编译的宿主 TU（Flow 主程序）
-    /// 不能直接 include，探测体必须住在 MediaCore（C++20）内。
+    /// 【为何是本类的静态成员】探测体住 MediaCore：口径与 standalone
+    /// 装配单一真相，且 FfmpegMediaSource.hpp（含 atomic<shared_ptr> 与
+    /// FFmpeg 全套头）不必拖进宿主 TU 的 include 图。
     /// \param kind 由调用方按扩展名推断的素材种类（本函数不做类型裁决；
     ///        支持探 Text：读文件内容 + measure 回填自然尺寸）
     /// \param out 成功时填充 kind/path/size_bytes/duration/width/height

@@ -35,18 +35,23 @@
 #include "PreviewRenderer.hpp" // 预览渲染器（DeliverItem 嵌套类型随此公开）
 #include "Camera3D.hpp"        // 3D 视口正交轨道相机（画布 3D 化 2026-11-05）
 
+class QItemSelectionModel;
 class QMenu;
 class QTimer;
 class QWheelEvent;
+class BaseTimelineWidget; // MediaServer 收编版 QtTimeLine 控件（全局命名空间；
+                          // TimeLineBase/BaseTimeLineWidget.h——选中联动信号源）
 
 namespace ms {
 
 class GlRenderer;      ///< GL 合成后端（ExternalCtx 模式；GL 直通路径用）
+class MsRuntimeBridge; ///< 下发运行时桥（不拥有；宿主注入——银幕操作执行通道）
+class QtTimelineModelAdapter; ///< 模型对外接口（不拥有；下发/同步委托目标）
 
 class SceneCanvasWidget : public QOpenGLWidget {
     Q_OBJECT
 public:
-    /// 选中引用（画布/场景树/EditorWindow 共用编码）：
+    /// 选中引用（画布/宿主共用编码）：
     /// kind 0=无 1=screen 4=clip；a=screen 下标或轨道下标；b=clip 下标
     struct Selection {
         int kind = 0;
@@ -83,21 +88,45 @@ public:
     bool tweenAutoKeyWrite(Clip& c, TweenProp prop, double v0,
                            double v1 = 0.0, double v2 = 0.0);
 
-    /// 外部选中联动（场景树点击等）：高亮对应对象并重绘
+    /// 外部选中联动（宿主：timeline 选中同步等）：高亮对应对象并重绘
     /// \param kind 1=screen 4=clip；a=screen 下标或轨道下标；b=clip 下标
     void highlight(int kind, int a, int b = -1);
 
     /// 视图复位：缩放回 100%（fit 适配）+ 平移归零（"回家"）。
-    /// 入口：场景加载/切换（setScene 自动）、场景树面板"适应窗口"、
-    /// 双击空白处、画布右键菜单"重置视图"（Ctrl+滚轮/中键浏览后回家）
+    /// 入口：场景加载/切换（setScene 自动）、双击空白处、
+    /// 画布右键菜单"重置视图"（Ctrl+滚轮/中键浏览后回家）
     void resetView();
 
-    /// 场景树同步：画布当前选中（无选中 kind=0）。场景树据此高亮对应节点
-    Selection currentSelection() const { return sel_; }
+    /// 绑定下发运行时桥（借用指针，不拥有；构造序晚于本控件，宿主建桥后
+    /// 注入）。银幕操作（添加/删除/属性/连接断开）画布内闭环执行；下发/
+    /// 同步菜单项委托时间轴适配器复合方法（薄壳 + statusTip 反馈）。
+    void setRuntimeBridge(MsRuntimeBridge* rt) { runtime_ = rt; }
+    /// 绑定时间轴适配器（模型对外接口；「下发场景」「同步媒体」委托目标。
+    /// 借用指针，不拥有；仅注入一次——重复注入会叠加信号连接）。
+    /// 注入即建立画布编辑→适配器的自发自收闭环（原宿主接线收编，
+    /// 2026-11-16——信号的发射者与消费者都是本控件已持有的对象，
+    /// 宿主只负责注入、不再中转）：
+    ///  * sceneEdited（拖拽/银幕编辑落定）→ syncAllClipTweenDots（画布
+    ///    auto-key 只写工作副本，时间轴菱形镜像须在此重灌）+ 预览失效 +
+    ///    requestAutoPublish（节流下发汇入）；
+    ///  * sceneEditedLive（拖拽会话中高频）→ requestAutoPublish（O(1)）；
+    ///  * adapter sceneEdited（时间轴模型侧编辑，工作副本已变）→ 预览
+    ///    失效（不落 PR——渲染器只认 Scene，不认识"模型"概念）。
+    /// 实现在 .cpp（lambda 调适配器方法需完整类型，前向声明不够）。
+    void setTimelineAdapter(QtTimelineModelAdapter* a);
+
+    /// 绑定时间轴控件（选中联动信号源；借用指针，不拥有，不存成员——
+    /// 仅取其 sharedSelectionModel 建立连接）。时间轴选中变化 → 适配器
+    /// 换算工作副本坐标 → 本画布 highlight(4, tr, cl) 高亮（单向；画布
+    /// →时间轴方向不存在——原 selectionChanged 死信号已删）。原宿主接线
+    /// 收编（2026-11-16）：发射源/换算/接收端三方，画布持有其二，时间轴
+    /// 经本注入补齐。实现在 .cpp。
+    void setTimelineWidget(BaseTimelineWidget* tw);
 
     /// 显示端在线状态（连接测试联动）：player_id → TCP 在线。画布据此在
     /// screen 标签旁画在线圆点（●绿在线 / ●红离线；未出现 = 离线）。
-    /// EditorWindow::onRefresh 周期推送（200ms；displayStatusSnapshot）。
+    /// 【2026-11-16 收编】由本控件 200ms UI 拍（ui_timer_）自拉 displayRows
+    /// 推送（原宿主 msUiTimer 迁入）；保留公开入口便于测试注入。
     void setDisplayOnlineStates(const std::map<std::string, bool>& states);
 
     // ---- 画布 ↔ 控件坐标换算 --------------------------------------------
@@ -110,40 +139,13 @@ public:
 signals:
     /// 拖动落点/右键删除等已直接写入工作副本（EditorWindow 置脏提示）
     void sceneEdited();
-    /// 【画布→面板实时同步 2026-11-05】片段拖动/缩放/旋转会话中 mouse-move
-    /// 实时发出（工作副本 transform 已同步写入）——EditorWindow 据此广播
-    /// 刷新打开中的片段属性面板（面板数字跟手）。高频信号（mouse-move
-    /// 频率），接收端只做轻量灌值（refreshFrom 内 QSignalBlocker 防回环）。
-    /// 置脏/自动下发仍由松开时的 sceneEdited 承担——本信号不触发下发。
-    void clipTransformLiveChanged();
     /// 【画布 live 编辑→display 节流下发 2026-11-13】拖动/旋转/缩放会话中
-    /// mouse-move 实时发出（工作副本已写）——EditorWindow 接入
-    /// requestMsAutoPublish 节流链（200ms 一拍），编辑过程中 display 持续
-    /// 跟手。此前 live 中零信号、松手才 sceneEdited → display "停手才动"
-    /// 的不连续感。screen 与 clip 会话都发（clipTransformLiveChanged 只
-    /// 覆盖 clip）。高频信号，接收端只做节流决策（O(1)）。
+    /// mouse-move 实时发出（工作副本已写）——经 setTimelineAdapter 注入时
+    /// 建立的自连汇入适配器 requestAutoPublish 节流链（200ms 一拍），编辑
+    /// 过程中 display 持续跟手。此前 live 中零信号、松手才 sceneEdited →
+    /// display "停手才动"的不连续感。screen 与 clip 会话都发。高频信号，
+    /// 接收端只做节流决策（O(1)）。
     void sceneEditedLive();
-    /// 双击屏幕 → EditorWindow 弹 ScreenPropertyDialog
-    /// 【片段双击弹面板已移除（2026-11-05 用户定案：属性面板唯一入口 =
-    /// timeline 双击，画布双击不再弹——两处并存易歧义）】
-    void screenDoubleClicked(int screen_idx);
-    /// 删除屏幕请求（画布银幕右键菜单；删除动作在宿主——需同步时间轴）
-    void screenDeleteRequested(int screen_idx);
-    /// 【2026-11-15 场景树退役分流】银幕右键「断开/连接显示端」：槽位启停
-    ///（停用立即断开；启用交看门狗重连）。宿主按 screen_idx 解析
-    /// display_id = screen.player_id 后 setDisplayEnabled。
-    void screenDisplayConnectRequested(int screen_idx, bool connect_);
-    /// 【2026-11-15 二次定稿】场景级动作挂银幕右键（timeline 工具栏版撤销）
-    /// ——下发场景/同步媒体，无参（场景级语义，与银幕索引无关）。
-    void publishSceneRequested();
-    void syncMediaRequested();
-    /// 添加屏幕请求（右键空白处；工具条按钮已退役——入口唯一化）。
-    /// 显示端登记由 EditorWindow 在 onAddScreen 内自动连带完成（单入口）。
-    void screenAddRequested();
-    /// 状态栏提示（选中/拖动信息）
-    void statusMessage(const QString& text);
-    /// 选中变化（画布交互选中/清空/外部 highlight 后发出）——场景树同步高亮
-    void selectionChanged(int kind, int a, int b);
 
 protected:
     /// 【GL 直通（2026-11-04）】基类换 QOpenGLWidget——绘制入口从
@@ -181,7 +183,7 @@ protected:
 
 private:
     // ---- 命中与几何 ---------------------------------------------------------
-    // （Selection 结构已上移至 public——场景树/EditorWindow 需要该编码）
+    // （Selection 结构已上移至 public——宿主高亮联动需要该编码）
 
     /// fit 适配比例（控件像素/画布单位；不含用户缩放 view_zoom_）
     double fitScale() const;
@@ -219,8 +221,8 @@ private:
     /// 运行时，纯静态查看）恒 true——无时间上下文保持全部显示。
     bool clipActiveAtPlayhead(const Clip& c) const;
 
-    // ---- 选中统一入口（赋值 + 重绘 + selectionChanged 通知场景树）---------
-    /// 值未变化时静默返回（防重复 emit 让场景树无谓刷新）
+    // ---- 选中统一入口（赋值 + 重绘）--------------------------------------
+    /// 值未变化时静默返回（press 高频路径防重复重绘）
     void applySelection(const Selection& s);
 
     // ---- 自动吸附对齐（拖动时贴齐其他图元的边缘/中心线）---------------------
@@ -315,12 +317,44 @@ private:
     int  hitAxisGizmo(const QPointF& wp) const;
     /// 跳转标准视角（保持注视点与缩放；仅改 yaw/pitch）
     void applyStandardView(int axis_end);
+    /// 银幕右键「连接/断开显示端」执行：按 screen_idx 解析
+    /// display_id = screen.player_id → 桥 setDisplayEnabled（停用立即断开；
+    /// 启用交看门狗重连；在线角标随宿主 200ms 拍推送刷新）
+    void setDisplayConnect(int screen_idx, bool connect_);
+    /// 右键空白「添加屏幕」（单入口；工具条按钮已退役）：id/player_id 自动
+    /// 化（scr-N 线性探测防删屏重名 / player-N 与屏号对齐）+ 默认几何
+    /// 960×540 阶梯排布 + 显示端自动连带登记（已登记同名沿用——幂等）。
+    /// 写工作副本 + 全链刷新 + qDebug 留痕。改绑/远程显示端走屏幕属性对话框。
+    void addScreen();
+    /// 银幕右键「删除屏幕」：从工作副本移除 + 全链刷新。显示端登记不连带
+    /// 删除（登记无害可复用；改绑/断开走银幕右键与属性对话框）。
+    void deleteScreen(int screen_idx);
+    /// 交互提示统一出口（状态栏已退役——qDebug 直印对接 spdlog 日志存留）
+    void statusTip(const QString& text);
+    /// 银幕右键「下发场景」：委托适配器 publishScene 复合操作（兜底同步 →
+    /// 音频快照 → 全量广播），失败仅留痕忽略。
+    void publishScene();
+    /// 银幕右键「同步媒体」：委托适配器 syncMedia 复合操作（兜底同步 →
+    /// 素材清单分发）；注册数/在线显示端数经 statusTip 反馈。
+    void syncMedia();
+    /// 屏幕属性对话框（银幕双击/右键「屏幕属性…」唯一入口）：模态 exec +
+    /// WATCHOUT 式三页（通用/几何结构/绑定）。实时预览两条链（warp + 几何
+    /// 六字段）编辑中即时写工作副本并刷新视图，取消 = 还原打开时备份；
+    /// OK = applyTo + 显示端登记同步（改绑注销旧条目；变化重登记）。
+    void openScreenProperty(int screen_idx);
+    /// 视图刷新 + display 节流下发（sceneEditedLive 走适配器 requestAutoPublish 节流链）
+    void refreshViews();
 
     // ---- 状态 ---------------------------------------------------------------
     Scene* scene_ = nullptr;   // 工作副本（不拥有；EditorWindow 拥有）
     PreviewRenderer* preview_ = nullptr; // 预览渲染器（不拥有；可空=占位画法）
-    /// 显示端在线状态（player_id → TCP 在线；连接测试联动，EditorWindow 推送）
+    MsRuntimeBridge* runtime_ = nullptr; // 下发运行时桥（不拥有；银幕操作执行通道）
+    QtTimelineModelAdapter* adapter_ = nullptr; // 模型对外接口（不拥有；下发/同步委托目标）
+    /// 显示端在线状态（player_id → TCP 在线；ui_timer_ 200ms 拍自拉刷新）
     std::map<std::string, bool> display_online_;
+    /// 上一拍在线显示端集合（connected && enabled 口径）：与当拍对比检出
+    /// "新上线"→ 自动追平下发场景（覆盖 display 晚于项目打开上线路径）
+    std::set<std::string> last_connected_;
     // ---- 视图缩放/平移（用户浏览操作；不写场景数据）----
     /// 用户缩放系数（1.0 = fit 适配 100%；0.1~16.0）。叠加在 fit 比例上：
     /// 实际比例 = fitScale() × view_zoom_（fitScale 随窗口自适应，zoom 保值）
@@ -358,6 +392,10 @@ private:
     // 【第八迭代：拉帧泵】预览窗口定时从引擎拉最新帧（对齐 display 端
     // "渲染循环独立、窗口只拉帧"）——paintEvent 不再驱动渲染、不管时间
     QTimer*  pull_timer_  = nullptr; ///< ~33ms 拉帧泵（tick+pump+pull）
+    /// 200ms UI 拍（2026-11-16 自宿主 msUiTimer 收编）：拉 displayRows →
+    /// 在线角标刷新 + 新上线 display 检出自动追平下发。runtime_ 未注入/
+    /// 未启动时空转（一行判空）。
+    QTimer*  ui_timer_    = nullptr;
     QImage   latest_frame_;          ///< 最近拉到的合成帧（paint 直接画）
     qint64   latest_frame_key_ = 0;  ///< 帧变化检测（QImage::cacheKey）
     /// 最近帧的内容域（画布坐标；预览虚拟屏=内容包围盒，起点可为负——

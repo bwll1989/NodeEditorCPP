@@ -9,8 +9,8 @@
 #include "Widget/CalendarWidget/ScheduledTaskWidget.hpp"
 #include "Widget/ExternalControl/HttpServer.hpp"
 #include "Widget/NodeWidget/DataflowViewsManger.hpp"
-// 【2026-11-12 第二步】新 MediaServer 时间轴工程序列化：pb/base64 转换在
-// C++20 侧桥（本 TU 为 C++17，只 include 桥头——纯 C++ 声明 + Qt 类型）
+// 新 MediaServer 时间轴工程序列化：pb/base64 转换住桥（本 TU 只 include
+// 桥头——纯 C++ 声明 + Qt 类型，不拖 Poco/protobuf 头图）
 #include "Widget/TimeLineWidget/MsRuntimeBridge.hpp"
 
 #include "DockManager.h"

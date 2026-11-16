@@ -7,12 +7,11 @@
 //    * ClockProvider（全场对齐时钟——命令 now 注入与播放权威时钟）；
 //    * SceneLoader（Scene pb ↔ base64——.flow 工程内嵌场景段）。
 //
-//  【为何需要本壳——C++ 标准分界】Flow 主程序按 C++17 编译，而
-//  EditorRuntime.hpp 的 include 链（AssetHttpServer/ControlClient…）带
-//  Poco/protobuf 与 C++20 特性（同 FfmpegMediaSource 的 atomic<shared_ptr>
-//  先例）——C++17 TU 不可 include。本壳住 ms_editor_ui（C++20），对外
-//  头文件只暴露 SceneModel 纯结构 + Qt 类型，MainWindow（C++17）可安全
-//  include；运行时全部细节走 PIMPL（Impl 在 .cpp）。
+//  【为何需要本壳——编译依赖隔离】EditorRuntime.hpp 的 include 链
+//  （AssetHttpServer/ControlClient…）拖 Poco/protobuf 重头图，主窗口
+//  TU 不可直接 include（每个含入者都重解析全链）。本壳对外头文件只
+//  暴露 SceneModel 纯结构 + Qt 类型，MainWindow 可安全 include；运行时
+//  全部细节走 PIMPL（Impl 在 .cpp）。
 //
 //  线程模型：EditorRuntime 内部自管 recv/看门狗/发送线程；本桥方法全部
 //  GUI 线程调用（rt 的 cmd*/add 等仅入队，天然线程安全）。displayRows 等
@@ -26,7 +25,7 @@
 #include <QString>
 #include <memory>
 
-#include "model/SceneModel.hpp" // ms::Scene/Asset（纯 C++ 结构，C++17 兼容）
+#include "model/SceneModel.hpp" // ms::Scene/Asset（纯 C++ 结构；C++17 TU 亦可 include）
 
 namespace ms {
 
@@ -34,7 +33,7 @@ class MsRuntimeBridge : public QObject {
     Q_OBJECT
 
 public:
-    /// 显示端登记行（POD；GUI 侧转 SceneTreeWidget::DisplayState）。
+    /// 显示端登记行（POD；GUI 侧消费：画布在线角标/属性对话框预填/同步统计）。
     /// 【2026-11-12 统一入口】.flow 工程的 mediaDisplays 段以此为准：
     /// id/host/port/enabled/pairingCode 为登记态（随工程持久化），
     /// connected/registered 为运行态（不持久化）。
@@ -84,7 +83,7 @@ public:
     bool addDisplay(const QString& id, const QString& host, int port,
                     const QString& pairing_code = {});
     bool removeDisplay(const QString& id);
-    /// 启停：停用立即断开，启用交看门狗重连（场景树右键"连接/断开"）
+    /// 启停：停用立即断开，启用交看门狗重连（画布银幕右键"连接/断开"）
     bool setDisplayEnabled(const QString& id, bool enabled);
     QList<DisplayRow> displayRows() const;
 

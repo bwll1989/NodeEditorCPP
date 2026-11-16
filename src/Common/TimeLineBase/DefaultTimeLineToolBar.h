@@ -18,12 +18,19 @@
  *   抽象层一起退役，宿主如需同功能经自有 UI 承担。
  *
  * 【OSC 地址拖拽 2026-11-12 保留旧 TimeLineToolBar 能力】
- * - 宿主 setOscBase("/timeline/master") 后，播放/停止按钮支持
+ * - 宿主 setOscBase("/timeline/master") 后，播放/停止按钮与当前帧入口支持
  *   Ctrl+左键拖动：地址复制进剪贴板 + 产出 "application/x-osc-address"
  *   拖拽 mime（可落到 OSCMessageListWidget/日历/时间轴 Trigger 剪辑）；
  * - mime 字段序对齐消费端（OSCMessageListWidget::handleMimeDrop 与
  *   TimeLineView::applyDroppedMedia 的读取序）：host >> port >>
  *   address >> type >> value（旧生产端 value/type 错位为历史缺陷，不沿袭）。
+ *
+ * 【当前帧拖拽入口 2026-11-16 对齐节点体系 TimeLineNodeToolBar】
+ * - cursor 图标动作（点击无操作——纯地址载体，节点工具栏同口径）：
+ *   Ctrl+拖出 "/currentFrame"（完整地址 = base + rel，如
+ *   /timeline/master/currentFrame）——落 OSC 消息卡即绑定该地址；
+ *   该地址双向贯通：MainWindow tick 发布播放头帧号（usToFrames），
+ *   命令写入跳转播放头（cue 链）。
  */
 class NODE_TIMELINE_PUBLIC DefaultTimeLineToolBar : public QToolBar {
     Q_OBJECT
@@ -81,6 +88,7 @@ private:
 
     QAction* m_playAction {nullptr};
     QAction* m_stopAction {nullptr};
+    QAction* m_currentFrameAction {nullptr}; ///< 当前帧拖拽入口（纯地址载体）
     bool m_isPlaying = false;
     AudioLevelMeter* m_levelMeter {nullptr}; ///< 右缘电平表（setupUI 内置）
 

@@ -622,22 +622,10 @@ int BaseTimelineView::frameToPoint(qint64 frame) const
 
 void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
     // 构建并弹出右键菜单（统一一个 QMenu 实例）
+    // 【2026-11-16 用户拍板】"Focus cursor"（滚动视图到播放头）菜单项及
+    // 其功能移除——空白区右键零项时不再弹空菜单（exec 前 isEmpty 守卫）。
     QModelIndex index = indexAt(event->pos());
     QMenu contextMenu(this);
-
-    // Focus cursor：滚动视图到播放头位置（尽量居中）
-    QAction* focusCursorAction = new QAction("Focus cursor", this);
-    focusCursorAction->setIcon(QIcon(":/icons/icons/location.png"));
-    connect(focusCursorAction, &QAction::triggered, [this]() {
-        const int playheadX = frameToPoint(getModel()->getPlayheadPos());
-        const int viewWidth = viewport()->width();
-        const int maxScroll = horizontalScrollBar()->maximum();
-        int targetScroll = playheadX - viewWidth / 2;
-        targetScroll = qBound(0, targetScroll, maxScroll);
-        // 滚动条变化会进入 scrollContentsBy，在那里平移缓存。
-        horizontalScrollBar()->setValue(targetScroll);
-    });
-    contextMenu.addAction(focusCursorAction);
 
     // 如果点击在轨道（无父）上，添加"Add Item"子菜单。【2026-11-15 轨道
     // 去类型化】片段类型不再由轨道决定——子菜单列出插件类型表，用户显式
@@ -702,8 +690,9 @@ void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
         contextMenu.addAction(deleteClipAction);
     }
 
-    // 统一显示菜单
-    contextMenu.exec(event->globalPos());
+    // 统一显示菜单（空菜单不弹——右键空白区（轨道外/无项）静默忽略）
+    if (!contextMenu.isEmpty())
+        contextMenu.exec(event->globalPos());
 
     // 调用基类处理（保持与原逻辑一致）
     QAbstractItemView::contextMenuEvent(event);

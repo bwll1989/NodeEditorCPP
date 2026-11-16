@@ -10,6 +10,7 @@
 #include <utility>
 
 #include <QImage>
+#include <QWidget>   // 出帧重绘目标：qOverload<>(&QWidget::update) 排队上屏
 
 #include "media/FfmpegMediaSource.hpp" // Video/Image creator 装配（FFmpeg 解码）
 #include "media/TextMediaSource.hpp"   // Text 注册（无条件，无文件依赖）
@@ -200,9 +201,9 @@ void PreviewRenderer::clearMediaCache() {
     ++rev_; // 内容版本递增 → 下一帧重建绘制列表与解码实例
 }
 
-void PreviewRenderer::setFrameReadyCallback(std::function<void()> cb) {
+void PreviewRenderer::setRepaintTarget(QWidget* w) {
     std::lock_guard<std::mutex> lock(mutex_);
-    frame_ready_cb_ = std::move(cb);
+    repaint_target_ = w;
 }
 
 // ---------------------------------------------------------------------------
@@ -630,8 +631,8 @@ void PreviewRenderer::workerLoop() {
                                            render_t0).count();
             rendered_epoch = job.epoch;
 
-            // ---- 交付 + 触发出帧回调（回调在锁外调用——GUI 排队重绘）----
-            std::function<void()> cb;
+            // ---- 交付 + 通知重绘（跨线程：QueuedConnection 排队到 GUI）----
+            QWidget* target = nullptr;
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 result_.frame        = QImage();  // 双形态互斥：清软帧
@@ -644,7 +645,7 @@ void PreviewRenderer::workerLoop() {
                 result_.dom_w        = job.dom_w;
                 result_.dom_h        = job.dom_h;
                 last_render_cost_us_ = render_cost_us;
-                cb                   = frame_ready_cb_;
+                target               = repaint_target_;
                 // 【诊断 MS_CANVAS_DBG=1】worker 轮耗时（自适应节流数据源）
                 // ——cost 即 pump 提交间隔下限（max(33ms, cost)）：cost
                 // 200ms 级 = 解码/合成慢 → 预览帧率 1000/cost 直接跌落。
@@ -665,7 +666,11 @@ void PreviewRenderer::workerLoop() {
                     }
                 }
             }
-            if (cb) cb(); // 跨线程回调：调用方负责排队到 GUI 线程
+            // 新帧上屏通知：排队 update 到 GUI 线程（与 33ms 拉帧泵互补）
+            if (target)
+                QMetaObject::invokeMethod(
+                    target, qOverload<>(&QWidget::update),
+                    Qt::QueuedConnection);
             continue;
         }
 
@@ -698,8 +703,8 @@ void PreviewRenderer::workerLoop() {
         }
         rendered_epoch = job.epoch;
 
-        // ---- 交付 + 触发出帧回调（回调在锁外调用——GUI 排队重绘）----
-        std::function<void()> cb;
+        // ---- 交付 + 通知重绘（跨线程：QueuedConnection 排队到 GUI）----
+        QWidget* target = nullptr;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             result_.frame        = std::move(frame);
@@ -710,9 +715,12 @@ void PreviewRenderer::workerLoop() {
             result_.dom_w        = job.dom_w;
             result_.dom_h        = job.dom_h;
             last_render_cost_us_ = render_cost_us;
-            cb                   = frame_ready_cb_;
+            target               = repaint_target_;
         }
-        if (cb) cb(); // 跨线程回调：调用方负责排队到 GUI 线程
+        // 新帧上屏通知：排队 update 到 GUI 线程（与 33ms 拉帧泵互补）
+        if (target)
+            QMetaObject::invokeMethod(target, qOverload<>(&QWidget::update),
+                                      Qt::QueuedConnection);
     }
 }
 

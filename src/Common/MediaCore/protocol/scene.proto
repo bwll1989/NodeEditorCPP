@@ -36,6 +36,14 @@ enum AssetKind {
                       // 无画布呈现；指令表在 Clip.control_messages（JSON）。
                       // 仅编辑器端消费：播放头上升沿进片段 → 逐条灌
                       // StatusContainer（合并前 Trigger 片段的语义后继）
+  ASSET_ARTNET  = 7;  // 灯控（2026-11-15 Artnet 片段移植）——DMX 视频逐帧
+                      // 解码 → ArtnetService 状态表 50Hz 广播；配置在
+                      // Clip.clip_data（JSON）。仅编辑器端消费（播放头推进
+                      // 钩子驱动）；无素材绑定、无画布呈现
+  ASSET_MAPPING = 8;  // 映射（2026-11-15 Mapping 片段移植）——消息表逐帧
+                      // 按 $percent/$frame 求值重发（StatusContainer）；消息
+                      // 表在 Clip.clip_data（JSON）。仅编辑器端消费；无素材
+                      // 绑定、无画布呈现
 }
 
 // ---------------------------------------------------------------------------
@@ -253,9 +261,16 @@ message Clip {
   // 读侧按轨道 kind 推断（向后兼容）。
   string type = 11;
   // 片段备注名（2026-11-15）：用户在属性面板「备注名」起的显示名——
-  // 时间轴片段文字（displayText 备注名优先）与场景树片段行共用。空 =
+  // 时间轴片段文字（displayText 备注名优先）。空 =
   // 未起名（显示回退 clip id/类型名）；缺席 = 旧文件 = 无备注名。
   string note = 12;
+  // 类型专属业务数据（2026-11-15 片段移植）：JSON 文本，形状由片段类型
+  // 自描述（编辑器端消费，display/runtime 不解读）——
+  //   * Artnet：{"file":媒体库相对路径,"targetHost":"...","startUniverse":N}
+  //   * Mapping：{"messages":[...]}（OSCMessageListWidget save/load 兼容，
+  //     value 为表达式原文；$percent/$frame 播放期求值）
+  // Control 的指令表仍走 control_messages（field 10），不迁移。
+  string clip_data = 13;
 }
 
 // ---------------------------------------------------------------------------

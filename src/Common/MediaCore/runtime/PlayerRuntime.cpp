@@ -1033,10 +1033,10 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
             // 触发 asset_progress_fn(finished)，display 终端反复打
             // "[媒体同步] 完成 N/N"、窗口进度条反复闪现（用户报
             // "老是打印同步媒体"的根因）。真实拉取完成时的 finished
-            // 打印不受影响（那是实际发生的事件）。editor 场景树的
+            // 打印不受影响（那是实际发生的事件）。editor 侧的
             // "同步中"收口仍需 finished 上报，故仅保留下方 send_to。
             // 【进度上报 2026-11-04】本路径不经拉取线程（emit/report 不可
-            // 达）——直接补一帧 finished 上报，editor 场景树的"同步中"
+            // 达）——直接补一帧 finished 上报，editor 侧的"同步中"
             // 标注得以收口（就绪表命中是常规路径：场景重发后素材已在盘上）。
             {
                 const auto cid = editor_conn_.load();

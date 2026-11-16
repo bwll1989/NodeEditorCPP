@@ -181,7 +181,7 @@ public:
                     const std::string& pairing_code = {});
     /// 注销并断开（UI 线程调用；其下连接与注册表条目一并清理）
     bool removeDisplay(const std::string& display_id);
-    /// 单显示端启用/禁用（场景树右键"连接/断开"入口，2026-11-04）：
+    /// 单显示端启用/禁用（画布银幕右键"连接/断开"入口，2026-11-04）：
     /// 禁用 = 立即断开该端 TCP 且看门狗不再自动重连（多屏演出中临时
     /// 摘除单屏，其余端不受影响）；启用 = 恢复 watchdog 自动连接。
     /// \return false = display_id 未登记
@@ -199,7 +199,7 @@ public:
         return displays_.snapshot();
     }
     /// 【素材同步进度 2026-11-04】各显示端拉取进度快照（锁内值拷贝）：
-    /// display_id → 进度视图；场景树屏幕节点标注"⤓ 同步 N/M · P%"。
+    /// display_id → 进度视图；供 GUI 侧观测标注"⤓ 同步 N/M · P%"。
     /// display 断连时条目在 onDisplayState 清除；UI 侧另有时间老化
     /// （last_update_us 距今 >10s 且未 finished 视为停滞不显示）。
     struct AssetSyncView {

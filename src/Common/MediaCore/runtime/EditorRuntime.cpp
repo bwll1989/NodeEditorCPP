@@ -343,7 +343,7 @@ void EditorRuntime::onDisplayEnvelope(const std::string& display_id,
         return;
     }
 
-    // ---- 【素材同步进度 2026-11-04】纯观测帧：存快照供场景树标注 ----
+    // ---- 【素材同步进度 2026-11-04】纯观测帧：存快照供 GUI 观测 ----
     if (env.has_asset_progress()) {
         handleAssetProgress(display_id, env.asset_progress());
         return;

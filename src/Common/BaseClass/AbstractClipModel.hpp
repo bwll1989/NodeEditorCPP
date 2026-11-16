@@ -518,6 +518,28 @@ virtual void drawTitle(QPainter* painter, const QRect& rect) const {
 
 }
 
+// ---- 播放头推进钩子（2026-11-15 片段移植；【ABI 纪律】虚函数尾部追加，
+//      不得插到既有虚函数之前——旧插件二进制按声明序布 vtable）--------
+// 【public 段标记】宿主（适配器/装载链）跨库调用的入口面——访问限定是
+// 编译期概念，此处切换段不改对象布局/vtable，对既有插件零 ABI 影响。
+public:
+// 适配器播放头推进链（手动 seek onSetPlayheadPos + 播放回显
+// setPlayheadFromRuntimeUs）每拍对本时间轴全部片段调用；默认空实现
+//（零开销）。类型专属播放逻辑挂点：
+//   * Artnet —— 区间内逐帧解码 DMX → ArtnetService 状态表；
+//   * Mapping —— 区间内逐帧按 $percent/$frame 求值重发消息表。
+// \param prev_us 上一播放头位置（μs；首拍为 -1 基线）
+// \param now_us  当前播放头位置（μs）
+virtual void onPlayheadAdvanced(qint64 prev_us, qint64 now_us) {
+    Q_UNUSED(prev_us);
+    Q_UNUSED(now_us);
+}
+/// 工作副本业务数据镜像（2026-11-15 片段移植）：适配器在装载与面板写回
+/// 后把 Clip.clip_data（类型专属 JSON）灌给模型——类型子类解析为自己的
+/// 业务字段（播放期读镜像，不回查工作副本）。默认忽略（无业务数据的
+/// 类型）。幂等性由子类负责（内容未变化时不重置播放状态）。
+virtual void setClipPayload(const QString& json) { Q_UNUSED(json); }
+
 };
 
 Q_DECLARE_METATYPE(AbstractClipModel*)

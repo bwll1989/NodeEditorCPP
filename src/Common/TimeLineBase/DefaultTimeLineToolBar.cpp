@@ -25,6 +25,13 @@ DefaultTimeLineToolBar::DefaultTimeLineToolBar(QWidget* parent)
         if (auto* w = widgetForAction(m_stopAction))
             installOscDrag(w, QStringLiteral("/stop"));
     }
+    // 【当前帧拖拽入口 2026-11-16】"/currentFrame"——宿主 setOscBase
+    // ("/timeline/master") 后完整地址 = /timeline/master/currentFrame
+    //（MainWindow tick 发布播放头帧号 / 命令写入跳转——地址树既有成员）
+    if (m_currentFrameAction) {
+        if (auto* w = widgetForAction(m_currentFrameAction))
+            installOscDrag(w, QStringLiteral("/currentFrame"));
+    }
 }
 
 DefaultTimeLineToolBar::~DefaultTimeLineToolBar() = default;
@@ -59,12 +66,23 @@ void DefaultTimeLineToolBar::createActions()
         }
         emit stopClicked();
     });
+
+    // 当前帧拖拽入口（2026-11-16 对齐节点 TimeLineNodeToolBar::currentFrame）：
+    // 点击无操作（不 connect——纯地址载体，节点工具栏同口径）；拖拽在
+    // 构造尾 installOscDrag 登记（Ctrl+拖出 "/currentFrame"）。图标用主
+    // 程序资源 cursor.png（I 型光标夹两块 = 播放头定位语义；节点版引用
+    // 的 :/tlnode/icons/cursor.png 不存在，实为空图标——本版纠正）。
+    m_currentFrameAction = new QAction(this);
+    m_currentFrameAction->setIcon(QIcon(":/icons/icons/cursor.png"));
+    m_currentFrameAction->setToolTip(tr("Current Frame (Ctrl+拖拽绑定地址)"));
 }
 
 void DefaultTimeLineToolBar::setupUI()
 {
     addAction(m_playAction);
     addAction(m_stopAction);
+    // 当前帧拖拽入口（停止钮右侧；spring 之前——左簇=播放控制+拖拽源）
+    addAction(m_currentFrameAction);
     setMovable(false);
     setIconSize(QSize(toolbarButtonWidth, toolbarButtonWidth));
 

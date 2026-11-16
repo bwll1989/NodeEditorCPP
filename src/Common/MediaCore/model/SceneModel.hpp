@@ -46,6 +46,15 @@ enum class AssetKind : int {
                  ///< Clip.control_messages（JSON），仅编辑器端消费：播放头
                  ///< 上升沿进入片段 → 逐条灌 StatusContainer（statusUpdated
                  ///< → WS 8992 广播 / GlobalEventBus 控件联动）
+    Artnet  = 7, ///< 灯控（2026-11-15 Artnet 片段移植，节点体系同源）——
+                 ///< DMX 视频（宽 512×高=域数）逐帧解码 → ArtnetService
+                 ///< 状态表（50Hz 泵广播）；配置存 Clip.clip_data（JSON）。
+                 ///< 仅编辑器端消费：播放头推进钩子驱动；无素材绑定、无画布
+                 ///< 呈现（与 Control 同口径）
+    Mapping = 8, ///< 映射（2026-11-15 Mapping 片段移植）——消息表逐帧按
+                 ///< $percent/$frame（JS 表达式）求值重发 StatusContainer；
+                 ///< 消息表存 Clip.clip_data（JSON，表达式原文）。仅编辑器
+                 ///< 端消费；无素材绑定、无画布呈现
 };
 
 // ---------------------------------------------------------------------------
@@ -347,7 +356,7 @@ struct Clip {
     // 轨道 kind 推断（向后兼容）
     std::string type;
     // 片段备注名（2026-11-15）：用户在属性面板「备注名」起的显示名——
-    // 时间轴片段文字（displayText 备注名优先）与场景树片段行共用；
+    // 时间轴片段文字（displayText 备注名优先）的来源；
     // 空 = 未起名（显示回退 clip id/类型名）；pb note 字段往返
     std::string note;
     std::int64_t start_us    = 0; ///< 时间轴起点（us，>= 0）
@@ -365,6 +374,11 @@ struct Clip {
     // 编辑区控件直接 load/save 此串）；仅 kind=Control 轨道片段使用，
     // 其余类型恒空（proto 缺席 = 空串，零回填需求）
     std::string control_messages;
+    // 类型专属业务数据（2026-11-15 片段移植）：JSON 文本，形状由片段类型
+    // 自描述（编辑器端消费）——Artnet 配置 {"file","targetHost",
+    // "startUniverse"}；Mapping 消息表 {"messages":[...]}（value 为表达式
+    // 原文，$percent/$frame 播放期求值）。其余类型恒空
+    std::string clip_data;
 };
 
 inline bool operator==(const Clip& a, const Clip& b) {
@@ -373,7 +387,8 @@ inline bool operator==(const Clip& a, const Clip& b) {
            a.start_us == b.start_us && a.duration_us == b.duration_us &&
            a.in_us == b.in_us && a.transform == b.transform &&
            a.tweens == b.tweens && a.audio_gain == b.audio_gain &&
-           a.control_messages == b.control_messages;
+           a.control_messages == b.control_messages &&
+           a.clip_data == b.clip_data;
 }
 
 // ---------------------------------------------------------------------------

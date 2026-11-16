@@ -342,29 +342,30 @@ set(CALC_SOURCE_FILES
         # 【2026-11-13 片段插件化】通用片段 UI 迁 Common/ClipPanelBase.dll、
         # 片段专属编辑区随片段插件走（src/Clips/Text|Live/，编进 .plugin）
         # ——主程序不再含任何片段 UI 源码，改片段 UI 只重编对应插件。
-        # 下发运行时桥（EditorRuntime/ClockProvider PIMPL——Flow 主程序 C++17
-        # TU 不可直接 include 运行时头，探测/运行时细节一律经桥 C++20 侧）
+        # 下发运行时桥（EditorRuntime/ClockProvider PIMPL——运行时头 include
+        # 链拖 Poco/protobuf 重头图，主窗口 TU 经桥隔离，细节一律桥内编译）
         src/Widget/TimeLineWidget/MsRuntimeBridge.cpp
         src/Widget/TimeLineWidget/MsRuntimeBridge.hpp
-        # timeline 音频 bus 宿主（T1 2026-11-13）：runtime 混音 → 注册表
-        # 环形队列 → TimeLineAudioBus 节点（include MediaCore audio 头，
-        # C++20 TU——同 MsRuntimeBridge 先例）
+        # timeline 音频 bus 宿主：runtime 混音 → 注册表环形队列 →
+        # TimeLineAudioBus 节点（include MediaCore audio 头——重头图
+        # 集中本 TU，消费方只见面头）
         src/Widget/TimeLineWidget/TimelineAudioBusHost.cpp
         src/Widget/TimeLineWidget/TimelineAudioBusHost.hpp
+        # 时间轴播放总控（2026-11-16 自 MainWindow 提取）：工具栏三动作 +
+        # 33ms tick 播放头回显 + OSC 地址树绑定/出站反馈状态机（依赖注入）
+        src/Widget/TimeLineWidget/TimelinePlaybackController.cpp
+        src/Widget/TimeLineWidget/TimelinePlaybackController.hpp
         # PreviewCanvas：预览画布 + 渲染器 + 屏幕 warp + 屏幕属性对话框
         src/Widget/PreviewCanvasWidget/SceneCanvasWidget.cpp
         src/Widget/PreviewCanvasWidget/PreviewRenderer.cpp
         src/Widget/PreviewCanvasWidget/ScreenWarpPanel.cpp
         src/Widget/PreviewCanvasWidget/ScreenPropertyDialog.cpp
-        # 【2026-11-15 场景树退役】SceneTreeWidget 源文件从构建移除
-        #（UI 控件已在 MainWindow 移除；文件保留在磁盘可随时恢复）
 
         # GL 直通预览（复用 display 端 GL 合成后端；CUDA 缺失走桩回退）
         # 2026-11-12 display 已迁至 tools/MediaDisplay 子项目
         src/Widget/TimeLineWidget/QtTimelineModelAdapter.hpp
         src/Widget/PreviewCanvasWidget/SceneCanvasWidget.hpp
         src/Widget/PreviewCanvasWidget/PreviewRenderer.hpp
-        # 【2026-11-15 场景树退役】SceneTreeWidget.hpp 移出构建
         # 【2026-11-13 彻底解耦】主程序源列表不含任何片段插件头——
         # 类型表完全由磁盘 plugin/*.plugin 驱动（QPluginLoader 运行时加载），
         # 没有对应 .plugin 文件 = 该片段类型不存在，Add Track 菜单不露项。
@@ -383,6 +384,8 @@ list(REMOVE_ITEM HEADLESS_SOURCE_FILES
         src/Widget/MainWindow/MainWindow.hpp
         src/Widget/MainWindow/FramelessConfirmDialog.cpp
         src/Widget/MainWindow/FramelessConfirmDialog.hpp
+        src/Widget/TimeLineWidget/TimelinePlaybackController.cpp
+        src/Widget/TimeLineWidget/TimelinePlaybackController.hpp
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.cpp
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.h
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar_p.h

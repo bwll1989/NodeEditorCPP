@@ -47,6 +47,8 @@ static AssetKind FromProtoKind(ms_proto::AssetKind k) noexcept {
         case ms_proto::ASSET_AUDIO: return AssetKind::Audio;
         case ms_proto::ASSET_LIVE:  return AssetKind::Live;
         case ms_proto::ASSET_CONTROL: return AssetKind::Control;
+        case ms_proto::ASSET_ARTNET: return AssetKind::Artnet;
+        case ms_proto::ASSET_MAPPING: return AssetKind::Mapping;
         default:                    return AssetKind::Unknown;
     }
 }
@@ -59,6 +61,8 @@ static ms_proto::AssetKind ToProtoKind(AssetKind k) noexcept {
         case AssetKind::Audio: return ms_proto::ASSET_AUDIO;
         case AssetKind::Live:  return ms_proto::ASSET_LIVE;
         case AssetKind::Control: return ms_proto::ASSET_CONTROL;
+        case AssetKind::Artnet: return ms_proto::ASSET_ARTNET;
+        case AssetKind::Mapping: return ms_proto::ASSET_MAPPING;
         default:               return ms_proto::ASSET_UNKNOWN;
     }
 }
@@ -474,6 +478,10 @@ ms_proto::Track SceneLoader::toProtoTrack(const Track& t) {
         // 片段备注名（2026-11-15）：空不写（wire 兼容——缺席 = 读端空串）
         if (!c.note.empty())
             pc->set_note(c.note);
+        // 类型专属业务数据（2026-11-15 片段移植）：空串不写（wire 兼容——
+        // 缺席 = 读端空串；Artnet 配置/Mapping 消息表）
+        if (!c.clip_data.empty())
+            pc->set_clip_data(c.clip_data);
         auto* tr = pc->mutable_transform();
         tr->set_x(c.transform.x);
         tr->set_y(c.transform.y);
@@ -559,6 +567,9 @@ Track SceneLoader::fromProtoTrack(const ms_proto::Track& pt) {
         c.type = pc.type();
         // 片段备注名（2026-11-15）：空串 = 未起名（显示回退 clip id）
         c.note = pc.note();
+        // 类型专属业务数据（2026-11-15 片段移植）：JSON 原文直读（空串 =
+        // 无业务数据；解析校验在消费端——插件模型/编辑区容错）
+        c.clip_data = pc.clip_data();
         c.transform.z        = pc.transform().z();
         // 锚点（2026-11-09）：缺席 = 0 = 中心（业务默认）；越界值钳到
         // 中心（渲染端 anchorUV 越界兜底同口径，数据损坏安全降级）
@@ -809,10 +820,16 @@ bool SceneLoader::validateScene(const Scene& scene, std::string& err) {
             // t.kind 分支会让 else 路径对空 asset_id 误报 R1 拒载整场景。
             // 保留 t.kind==Control 判断 = 兼容旧文件（Control 轨上 type
             // 为空的历史 Control 片段）。
-            if (t.kind == AssetKind::Control || c.type == "Control") {
+            // 【2026-11-15 扩展】Artnet/Mapping 同为无素材片段（业务数据在
+            // clip_data，非 asset 域）——同口径豁免。
+            const bool no_media_clip =
+                t.kind == AssetKind::Control || c.type == "Control" ||
+                t.kind == AssetKind::Artnet  || c.type == "Artnet"  ||
+                t.kind == AssetKind::Mapping || c.type == "Mapping";
+            if (no_media_clip) {
                 if (!c.asset_id.empty()) {
-                    err = "R2: Control 片段 '" + c.id + "' 不应绑定素材" +
-                          " (asset_id='" + c.asset_id + "')";
+                    err = "R2: 无媒体片段 '" + c.id + "' (type=" + c.type +
+                          ") 不应绑定素材 (asset_id='" + c.asset_id + "')";
                     return false;
                 }
             } else {

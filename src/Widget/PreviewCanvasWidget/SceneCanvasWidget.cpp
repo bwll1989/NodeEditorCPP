@@ -35,11 +35,10 @@
 //      Shift = 等比约束（新框与原框相似，比例取包住鼠标的大轴）；
 //    * 旋转拖柄：选中对象顶中外延圆点（随对象旋转）——拖动按"方向角
 //      增量"实时改 rotation，Shift 吸附 15°；
-//    * 松开：sceneEdited 信号（EditorWindow 置脏，补丁统一下发）；
-//    * 拖动/缩放/旋转会话中：clipTransformLiveChanged 高频广播（片段）——
-//      属性面板数字跟手（2026-11-05 画布→面板实时同步）；
+//    * 松开：sceneEdited 信号（宿主置脏 + 自动下发链）；
+//    * 拖动/缩放/旋转会话中：sceneEditedLive 高频（display 节流下发持续跟手）；
 //    * 双击：片段 = 仅选中（弹属性面板已移除，2026-11-05 用户定案——
-//      属性面板唯一入口 = timeline 双击）/ 屏幕 → screenDoubleClicked；
+//      属性面板唯一入口 = timeline 双击）/ 屏幕 → 属性对话框（openScreenProperty）；
 //    * 右键：3D 模式 = 拖拽旋转视角（真位移）/ 无位移弹菜单；2D = 菜单；
 //      菜单内容：空白 = 添加屏幕；屏幕 = 属性/删除；片段 = 删除（单动作）。
 // ============================================================================
@@ -47,6 +46,7 @@
 #include "SceneCanvasWidget.hpp"
 
 #include <QContextMenuEvent>
+#include <QDebug>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
@@ -66,6 +66,11 @@
 #include "model/CanvasGeometry.hpp" // 角点缩放/旋转命中纯函数（core 共享）
 #include "engine/TweenEngine.hpp" // tween 通道求值纯函数（画布跟随曲线）
 #include "GlRenderer.hpp"   // GL 合成后端（ExternalCtx 模式；GL 直通路径）
+#include "../TimeLineWidget/MsRuntimeBridge.hpp" // 下发运行时桥（银幕操作执行通道）
+#include "../TimeLineWidget/QtTimelineModelAdapter.hpp" // 模型对外接口（下发/同步委托目标）
+#include "Common/TimeLineBase/BaseTimeLineWidget.h" // 时间轴控件（选中联动信号源；setTimelineWidget）
+#include <QItemSelectionModel> // 时间轴选中 currentChanged（QModelIndex 换算入参）
+#include "ScreenPropertyDialog.hpp" // 屏幕属性对话框（银幕右键/双击直调）
 // 注：本 TU 不 include GlLoader.hpp——Qt GL 头（QOpenGLWidget→qopengl.h）
 // 已定义 GL_* 宏，与 GlLoader 的常量枚举冲突；GL 诊断在 GlRenderer 内部做。
 
@@ -92,8 +97,15 @@ QColor trackKindColor(AssetKind kind) {
 /// 【画布隐形轨道】音频/Control 无图像（WATCHOUT Stage 语义：声音对象/
 /// 指令片段不占视觉位）——绘制、3D prim 收集、命中测试四处同口径跳过
 ///（Control 2026-11-13 加入，与 Audio 同口径：画布完全隐形防挡点击）。
-inline bool trackInvisibleOnCanvas(AssetKind kind) {
-    return kind == AssetKind::Audio || kind == AssetKind::Control;
+/// 【2026-11-15 片段类型感知】轨道去类型化后 track.kind 只是可选 hint
+///（无类型轨恒 Unknown）——判定跟片段自身类型串走（kind 仅作旧文件兼容
+/// 兜底）；Artnet/Mapping 同为无图像片段（2026-11-15 移植）一并隐形。
+inline bool trackInvisibleOnCanvas(AssetKind kind,
+                                   const std::string& clip_type = {}) {
+    return kind == AssetKind::Audio || kind == AssetKind::Control ||
+           kind == AssetKind::Artnet || kind == AssetKind::Mapping ||
+           clip_type == "Audio" || clip_type == "Control" ||
+           clip_type == "Artnet" || clip_type == "Mapping";
 }
 /// 片段矩形变形感知命中（2026-11-09 锚点/角点改造；原 hitTest 内联 lambda
 /// 提升为文件级【2026-11-15 选中分工】——hitTest（screen-only）与"点击
@@ -257,6 +269,37 @@ SceneCanvasWidget::SceneCanvasWidget(QWidget* parent) : QOpenGLWidget(parent) {
     });
     pull_timer_->start(33);
 
+    // 【200ms UI 拍（2026-11-16 自宿主 msUiTimer 收编）】显示端状态心跳：
+    //   ① displayRows → setDisplayOnlineStates 角标刷新（幂等，状态不变
+    //      零重绘）；② 与上一拍在线集合（last_connected_）对比检出"新上
+    //      线"→ 自动追平下发当前场景——覆盖"display 晚于项目打开上线"路
+    //      径：注册应答只在有权威快照时单发，且此前编辑改动不会因 display
+    //      上线而自动补发。广播对老端无害（同内容幂等）。
+    //   runtime_/adapter_ 后注入（构造序晚于本控件）——未注入或 runtime
+    //   未启动时空转（首行判空）。
+    ui_timer_ = new QTimer(this);
+    ui_timer_->setTimerType(Qt::CoarseTimer);
+    connect(ui_timer_, &QTimer::timeout, this, [this] {
+        if (!runtime_ || !runtime_->running()) return;
+        const auto rows = runtime_->displayRows();
+        std::map<std::string, bool> states;
+        std::set<std::string> cur_conn;
+        for (const auto& r : rows) {
+            if (r.enabled)
+                states.emplace(r.id.toStdString(), r.connected);
+            if (r.connected && r.enabled)
+                cur_conn.insert(r.id.toStdString());
+        }
+        setDisplayOnlineStates(states);
+        bool newcomer = false;
+        for (const auto& id : cur_conn)
+            if (!last_connected_.count(id)) { newcomer = true; break; }
+        if (newcomer && scene_ && adapter_ && adapter_->publishScene())
+            statusTip("显示端上线，场景已自动追平下发");
+        last_connected_ = std::move(cur_conn);
+    });
+    ui_timer_->start(200);
+
     // 【诊断 MS_CANVAS_SHOT=path】进程内抓帧：启动 3 秒后把 FBO 内容存为
     // PNG。此前用屏幕截图验证标注层绘制，但 editor 由后台进程启动时无法
     // 抢前台（Windows SetForegroundWindow 限制），ImageGrab 截到的是遮在
@@ -315,7 +358,7 @@ SceneCanvasWidget::~SceneCanvasWidget() = default;
 
 void SceneCanvasWidget::setScene(Scene* s) {
     scene_ = s;
-    applySelection(Selection{}); // 场景指针切换，选中态作废（通知场景树清高亮）
+    applySelection(Selection{}); // 场景指针切换，选中态作废
     dragging_ = false;
     resizing_ = false;    // 进行中的缩放/旋转会话同样作废（对象可能已不存在）
     rotating_ = false;
@@ -329,6 +372,12 @@ void SceneCanvasWidget::setScene(Scene* s) {
 
 void SceneCanvasWidget::setPreviewRenderer(PreviewRenderer* r) {
     preview_ = r; // 借用指针（EditorWindow 拥有；nullptr = 回退占位画法）
+    // 【出帧重绘目标自注册（2026-11-16 自宿主回调收编）】本控件就是显示
+    // 该渲染器帧的窗口——worker 出帧经 QMetaObject::invokeMethod 排队本
+    // 控件 update（低延迟上屏；与 pull_timer_ 33ms 拉帧泵互补）。原宿主
+    // setFrameReadyCallback 闭包捕获裸指针跨线程调用，现由渲染器内置
+    // QPointer 目标托管。
+    if (r) r->setRepaintTarget(this);
     // 【3D 模式贴图协商】3D 视口用 QPainter 逐片段贴 QImage 源帧——CUDA
     // 0 拷贝发布的 native AVFrame（显存指针）无法进 QPainter。协商机制：
     // 与解码端共享的 gpu_delivery_ok 旗标翻 false → FfmpegMediaSource
@@ -350,18 +399,17 @@ void SceneCanvasWidget::refresh() {
 }
 
 void SceneCanvasWidget::highlight(int kind, int a, int b) {
-    applySelection(Selection{kind, a, b}); // 统一入口（含场景树通知）
+    applySelection(Selection{kind, a, b}); // 统一入口
 }
 
 // ---------------------------------------------------------------------------
-// 选中统一入口：赋值 + 重绘 + selectionChanged（场景树同步高亮）
-// 值未变化时静默返回——press 高频路径/外部 highlight 重复调用不刷树
+// 选中统一入口：赋值 + 重绘。值未变化时静默返回——press 高频路径/外部
+// highlight 重复调用不重复刷。
 // ---------------------------------------------------------------------------
 void SceneCanvasWidget::applySelection(const Selection& s) {
     if (s == sel_) return;
     sel_ = s;
     update();
-    emit selectionChanged(sel_.kind, sel_.a, sel_.b);
 }
 
 // ---------------------------------------------------------------------------
@@ -502,29 +550,75 @@ void SceneCanvasWidget::applyStandardView(int axis_end) {
     switch (axis_end) {
     case 0:  // +X 右视（相机在画布 +x 侧，向 −x 看）
         cam3d_.yaw_deg = 90.0;  cam3d_.pitch_deg = Camera3D::kPitchMin;
-        emit statusMessage("右视图（轴球 +X）· 双击空白复位");
+        statusTip("右视图（轴球 +X）· 双击空白复位");
         break;
     case 1:  // −X 左视
         cam3d_.yaw_deg = 270.0; cam3d_.pitch_deg = Camera3D::kPitchMin;
-        emit statusMessage("左视图（轴球 −X）· 双击空白复位");
+        statusTip("左视图（轴球 −X）· 双击空白复位");
         break;
     case 2:  // +Z 顶视（沿高度轴正俯视画布——与 2D 回退视图同向无镜像；
              // 高度轴即属性面板"Z 位置"）
         cam3d_.yaw_deg = 0.0;   cam3d_.pitch_deg = Camera3D::kPitchMax;
-        emit statusMessage("顶视图（轴球 +Z）· 双击空白复位");
+        statusTip("顶视图（轴球 +Z）· 双击空白复位");
         break;
     case 3:  // +Y 正视（贴地平视画布正面——画布 y 轴方向）
         cam3d_.yaw_deg = 0.0;   cam3d_.pitch_deg = Camera3D::kPitchMin;
-        emit statusMessage("正视图（轴球 +Y）· 双击空白复位");
+        statusTip("正视图（轴球 +Y）· 双击空白复位");
         break;
     case 4:  // −Y 背视
         cam3d_.yaw_deg = 180.0; cam3d_.pitch_deg = Camera3D::kPitchMin;
-        emit statusMessage("背视图（轴球 −Y）· 双击空白复位");
+        statusTip("背视图（轴球 −Y）· 双击空白复位");
         break;
     default:
         return;
     }
     update();
+}
+
+// ---------------------------------------------------------------------------
+// 时间轴适配器注入（仅一次）：建立画布编辑→适配器的自发自收闭环——
+// sceneEdited/sceneEditedLive 的发射者与消费者（adapter_/preview_）都是
+// 本控件已持有的对象，宿主只负责注入、不中转（2026-11-16 自 MainWindow
+// 接线收编）。lambda 调适配器方法需完整类型，故实现落 .cpp。
+// ---------------------------------------------------------------------------
+void SceneCanvasWidget::setTimelineAdapter(QtTimelineModelAdapter* a) {
+    adapter_ = a;
+    // 编辑落定（拖拽松手/银幕编辑/键盘微调）：菱形镜像重灌（画布 auto-key
+    // 只写工作副本，时间轴 SceneClipModel::tweenChannels 须重灌否则看不到
+    // 菱形）+ 预览失效 + 节流下发汇入。
+    connect(this, &SceneCanvasWidget::sceneEdited, this, [this] {
+        if (adapter_) adapter_->syncAllClipTweenDots();
+        if (preview_) preview_->invalidate();
+        if (adapter_) adapter_->requestAutoPublish();
+    });
+    // live 编辑（拖拽会话 mouse-move 高频）：只做节流决策（O(1)）——预览
+    // 失效不由本信号承担（会话中画布内部 update + invalidate 已自理）。
+    connect(this, &SceneCanvasWidget::sceneEditedLive, this, [this] {
+        if (adapter_) adapter_->requestAutoPublish();
+    });
+    // 时间轴模型侧编辑（拖拽/面板写回/导入落表——工作副本已变）→ 预览
+    // 失效：画布显示的就是工作副本，下一拍拉帧即反映改动（下发汇入已由
+    // 适配器构造内自连 requestAutoPublish，此处不重复）。
+    connect(adapter_, &QtTimelineModelAdapter::sceneEdited, this, [this] {
+        if (preview_) preview_->invalidate();
+    });
+}
+
+// ---------------------------------------------------------------------------
+// 时间轴选中联动（2026-11-16 自宿主接线收编）：发射源=时间轴控件共享选中
+// 模型、换算=适配器 workClipIndices、接收端=本画布 highlight——三方中画布
+// 持有 adapter_，时间轴经本注入补齐（仅取其 selectionModel 建立连接，
+// 不存成员；receiver=this，画布销毁连接自动断）。
+// ---------------------------------------------------------------------------
+void SceneCanvasWidget::setTimelineWidget(BaseTimelineWidget* tw) {
+    if (!tw || !tw->sharedSelectionModel()) return;
+    connect(tw->sharedSelectionModel(), &QItemSelectionModel::currentChanged,
+            this, [this](const QModelIndex& cur, const QModelIndex&) {
+        if (!adapter_) return;
+        int tr = -1, cl = -1;
+        if (!adapter_->workClipIndices(cur, &tr, &cl)) return;
+        highlight(4, tr, cl);
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -537,6 +631,219 @@ void SceneCanvasWidget::setDisplayOnlineStates(
     if (states == display_online_) return;
     display_online_ = states;
     update();
+}
+
+void SceneCanvasWidget::setDisplayConnect(int screen_idx, bool connect_) {
+    if (!runtime_ || !scene_ || screen_idx < 0 ||
+        screen_idx >= static_cast<int>(scene_->screens.size()))
+        return;
+    runtime_->setDisplayEnabled(
+        QString::fromStdString(scene_->screens[screen_idx].player_id),
+        connect_);
+}
+
+void SceneCanvasWidget::statusTip(const QString& text) {
+    qDebug().noquote() << "ms-canvas: " << text;
+}
+
+void SceneCanvasWidget::refreshViews() {
+    if (preview_) preview_->invalidate();
+    update();
+    // 内容已变 → display 节流下发（sceneEditedLive 走适配器 requestAutoPublish 节流链）
+    emit sceneEditedLive();
+}
+
+void SceneCanvasWidget::publishScene() {
+    // 复合操作（兜底同步 → 音频快照 → 广播）已封装进适配器（模型对外接口）
+    if (!adapter_ || !adapter_->publishScene()) {
+        statusTip("下发场景：下发运行时未启动，忽略");
+        return;
+    }
+    statusTip("场景已全量下发到显示端");
+}
+
+void SceneCanvasWidget::syncMedia() {
+    if (!scene_ || !adapter_) return;
+    const auto res = adapter_->syncMedia();
+    if (!res.ok) {
+        statusTip("同步媒体：下发运行时未启动（端口占用？）——素材无法分发");
+        return;
+    }
+    statusTip(QStringLiteral("同步媒体：注册 %1 个素材 / 在线显示端 %2 个%3")
+                  .arg(static_cast<int>(res.registered))
+                  .arg(static_cast<int>(res.online))
+                  .arg(res.online == 0
+                           ? QStringLiteral("——清单未送达（显示端上线后请再次"
+                                            "同步）")
+                           : QStringLiteral("")));
+}
+
+void SceneCanvasWidget::openScreenProperty(int screen_idx) {
+    if (!scene_ || screen_idx < 0 ||
+        screen_idx >= static_cast<int>(scene_->screens.size()))
+        return;
+    Screen& scr = scene_->screens[screen_idx];
+    // 当前显示端登记（属性对话框绑定区预填；未登记给本机默认地址）
+    std::string cur_host   = "127.0.0.1";
+    std::uint16_t cur_port = 17100;
+    std::string cur_pairing;
+    if (runtime_) {
+        const auto rows = runtime_->displayRows();
+        for (const auto& r : rows) {
+            if (r.id.toStdString() == scr.player_id) {
+                cur_host    = r.host.toStdString();
+                cur_port    = static_cast<std::uint16_t>(r.port);
+                cur_pairing = r.pairingCode.toStdString();
+                break;
+            }
+        }
+    }
+    const std::string old_pid = scr.player_id;
+    // warp 取消还原基准（实时预览：编辑中会先写工作副本）
+    const ScreenWarp warp_backup = scr.warp;
+    // 几何取消还原基准（同 warp 语义——取消时还原六字段）
+    const double geo_backup[6] = {
+        scr.x, scr.y, scr.w, scr.h, scr.rotation,
+        static_cast<double>(scr.z)};
+
+    ScreenPropertyDialog dlg(scr, cur_host, cur_port, cur_pairing, this);
+    dlg.setWindowTitle(QStringLiteral("屏幕属性：%1")
+                           .arg(QString::fromStdString(scr.id)));
+    const std::string sid = scr.id;
+    // 【实时预览·变形】编辑中每次变化 → 写工作副本 + 视图刷新
+    dlg.setWarpLiveApply([this, sid](const ScreenWarp& w) {
+        for (auto& s : scene_->screens)
+            if (s.id == sid) { s.warp = w; break; }
+        refreshViews();
+    });
+    // 【实时预览·几何六字段】同链——编辑器画布即时可见
+    dlg.setGeometryLiveApply([this, sid](const Screen& g) {
+        for (auto& s : scene_->screens)
+            if (s.id == sid) {
+                s.x = g.x; s.y = g.y; s.w = g.w; s.h = g.h;
+                s.rotation = g.rotation; s.z = g.z;
+                break;
+            }
+        refreshViews();
+    });
+    if (dlg.exec() != QDialog::Accepted) {
+        // 取消 = 还原打开时 warp + 几何六字段（两条实时链路可能已把
+        // 中间态写进工作副本；未动过时为幂等写）。绑定字段只在 OK 时
+        // applyTo 写回，无需还原。
+        for (auto& s : scene_->screens) {
+            if (s.id != sid) continue;
+            const bool warp_changed =
+                s.warp.mode != warp_backup.mode ||
+                s.warp.cols != warp_backup.cols ||
+                s.warp.rows != warp_backup.rows ||
+                s.warp.pts  != warp_backup.pts;
+            const bool geo_changed =
+                s.x != geo_backup[0] || s.y != geo_backup[1] ||
+                s.w != geo_backup[2] || s.h != geo_backup[3] ||
+                s.rotation != geo_backup[4] ||
+                s.z != static_cast<int>(geo_backup[5]);
+            if (warp_changed) s.warp = warp_backup;
+            if (geo_changed) {
+                s.x = geo_backup[0]; s.y = geo_backup[1];
+                s.w = geo_backup[2]; s.h = geo_backup[3];
+                s.rotation = geo_backup[4];
+                s.z = static_cast<int>(geo_backup[5]);
+            }
+            if (warp_changed || geo_changed) refreshViews();
+            break;
+        }
+        return;
+    }
+    dlg.applyTo(scr);
+
+    // ---- 显示端登记同步 -------------------------------------------------
+    // 绑定页可改 player_id + host + port + 配对码：改绑注销旧条目；同 id
+    // 登记三要素任一变化（含配对码）触发重登记（先 remove 再 add，看门狗
+    // 按新地址重连）；无变化不动（避免播放中连接闪断）。
+    const std::string new_pid     = scr.player_id;
+    const std::string new_host    = dlg.displayHost();
+    const std::uint16_t new_port  = dlg.displayPort();
+    const std::string new_pairing = dlg.displayPairingCode();
+    if (runtime_ && runtime_->running()) {
+        if (!old_pid.empty() && old_pid != new_pid)
+            runtime_->removeDisplay(
+                QString::fromStdString(old_pid)); // 幂等：未登记忽略
+        if (!new_pid.empty()) {
+            bool same = false;
+            const auto rows = runtime_->displayRows();
+            for (const auto& r : rows) {
+                if (r.id.toStdString() == new_pid) {
+                    same = r.host.toStdString() == new_host &&
+                           r.port == static_cast<int>(new_port) &&
+                           r.pairingCode.toStdString() == new_pairing;
+                    break;
+                }
+            }
+            if (!same) {
+                runtime_->removeDisplay(QString::fromStdString(new_pid));
+                runtime_->addDisplay(
+                    QString::fromStdString(new_pid),
+                    QString::fromStdString(new_host),
+                    static_cast<int>(new_port),
+                    QString::fromStdString(new_pairing));
+            }
+        }
+    }
+    refreshViews();
+    statusTip(QStringLiteral("屏幕 %1 已修改（绑定 %2@%3:%4；画布银幕右键"
+                             "「下发场景」后生效）")
+                  .arg(QString::fromStdString(scr.id),
+                       QString::fromStdString(new_pid),
+                       QString::fromStdString(new_host))
+                  .arg(new_port));
+}
+
+void SceneCanvasWidget::addScreen() {
+    if (!scene_) return;
+    Screen scr;
+    // id 自动化：scr-N 线性探测（防删屏后重名；对齐原版命名）
+    int n = static_cast<int>(scene_->screens.size()) + 1;
+    auto idClash = [this](const std::string& v) {
+        for (const auto& s : scene_->screens)
+            if (s.id == v) return true;
+        return false;
+    };
+    scr.id = "scr-" + std::to_string(n);
+    while (idClash(scr.id)) scr.id = "scr-" + std::to_string(++n);
+    // 默认几何：960×540，阶梯排布（避免完全重叠）
+    scr.x = 60.0 * ((n - 1) % 4) + 20.0;
+    scr.y = 60.0 * (((n - 1) / 4) % 4) + 20.0;
+    scr.w = 960;
+    scr.h = 540;
+    // 显示端自动连带登记：player-N（编号与屏幕对齐）；已登记同名沿用
+    //（幂等——addDisplay 返回 false 属正常态，静默忽略）
+    scr.player_id = "player-" + std::to_string(n);
+    if (runtime_ && runtime_->running())
+        runtime_->addDisplay(QString::fromStdString(scr.player_id),
+                             QStringLiteral("127.0.0.1"), 17100);
+
+    scene_->screens.push_back(scr);
+    if (preview_) preview_->invalidate();
+    update();
+    highlight(1, static_cast<int>(scene_->screens.size()) - 1);
+    // 提示走 qDebug（对接 spdlog 日志存留；几何并入同条）。
+    qDebug() << QStringLiteral("屏幕 %1 已加入（显示端 %2 已登记 @127.0.0.1:17100）——"
+                               "显示端程序以 --id=%2 启动后自动接入；960x540@%3,%4")
+                    .arg(QString::fromStdString(scr.id),
+                         QString::fromStdString(scr.player_id))
+                    .arg(scr.x, 0, 'f', 0).arg(scr.y, 0, 'f', 0);
+}
+
+void SceneCanvasWidget::deleteScreen(int screen_idx) {
+    if (!scene_ || screen_idx < 0 ||
+        screen_idx >= static_cast<int>(scene_->screens.size()))
+        return;
+    const std::string id = scene_->screens[screen_idx].id;
+    scene_->screens.erase(scene_->screens.begin() + screen_idx);
+    if (preview_) preview_->invalidate();
+    update();
+    qDebug() << QStringLiteral("[ms-canvas] 删除屏幕 %1")
+                .arg(QString::fromStdString(id));
 }
 
 // ---------------------------------------------------------------------------
@@ -1343,11 +1650,13 @@ void SceneCanvasWidget::paintGL3D(
     }
     for (int tr = 0; tr < (int)scene_->timeline.tracks.size(); ++tr) {
         const auto& clips = scene_->timeline.tracks[tr].clips;
-        // 【音频/Control 片段不画】无图像数据——3D 视图同样不产面片（与
-        // 2D drawClip / 命中测试同口径）
-        if (trackInvisibleOnCanvas(scene_->timeline.tracks[tr].kind)) continue;
         for (int cl = 0; cl < (int)clips.size(); ++cl) {
             const Clip&   c = clips[cl];
+            // 【音频/Control 片段不画】无图像数据——3D 视图同样不产面片
+            //（与 2D drawClip / 命中测试同口径；2026-11-15 改片段级判定，
+            // 轨道去类型化后无类型轨上的隐形片段不再漏网）
+            if (trackInvisibleOnCanvas(scene_->timeline.tracks[tr].kind,
+                                       c.type)) continue;
             // 【只显当前】播放头不活跃的片段不画（连方框占位也无——
             // WATCHOUT Stage 语义；命中同口径过滤见 hitTest）
             if (!clipActiveAtPlayhead(c)) continue;
@@ -1875,7 +2184,10 @@ void SceneCanvasWidget::drawClip(QPainter& p, int tr, int cl,
     // 【音频/Control 片段不画】无图像数据（WATCHOUT Stage 语义：声音对象
     // /指令片段不占视觉位）——连"方框+棋盘格"占位、标签与选中标注一并
     // 跳过，画布上完全隐形（命中测试同口径跳过，防止隐形框挡住别的对象）。
-    if (trackInvisibleOnCanvas(scene_->timeline.tracks[tr].kind)) return;
+    // 【2026-11-15 片段类型感知】判定跟片段类型串走（轨道 kind 仅兜底）；
+    // Artnet/Mapping 同口径隐形。
+    if (trackInvisibleOnCanvas(scene_->timeline.tracks[tr].kind, c.type))
+        return;
     const Transform tf = clipResolvedTransform(c); // tween 求值统一入口
 
     // 【诊断 MS_CANVAS_DBG=1】标注框控件坐标 dump（与 GL quad 对照——
@@ -2168,7 +2480,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         drag_start_canvas_ = canvasFromScreen(wp);
         moved_ = false;
         update();
-        emit statusMessage("拖动旋转（Shift 吸附 15°）");
+        statusTip("拖动旋转（Shift 吸附 15°）");
         return;
     }
 
@@ -2189,7 +2501,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         drag_start_canvas_ = canvasFromScreen(wp);
         moved_ = false; // 新会话：位移标志复位
         update();
-        emit statusMessage("拖动角点调整大小（对角固定）");
+        statusTip("拖动角点调整大小（对角固定）");
         return;
     }
 
@@ -2219,7 +2531,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
             pan_start_view_ = view_pan_;
         setCursor(Qt::ClosedHandCursor);
         update();
-        emit statusMessage("拖动平移视图（左键空白/中键；双击空白复位）");
+        statusTip("拖动平移视图（左键空白/中键；双击空白复位）");
         return;
     }
     // 记录拖动基准（画布坐标 + 对象原始 x/y）。3D：反投影平面 = 被拖
@@ -2234,7 +2546,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         const Screen& s = scene_->screens[sel_.a];
         drag_orig_x_ = s.x;
         drag_orig_y_ = s.y;
-        emit statusMessage(QString("已选中屏幕 %1（拖动改位置）")
+        statusTip(QString("已选中屏幕 %1（拖动改位置）")
                                .arg(QString::fromStdString(s.id)));
     } else {
         const auto& c =
@@ -2245,7 +2557,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         const Transform rt = clipResolvedTransform(c);
         drag_orig_x_ = rt.x;
         drag_orig_y_ = rt.y;
-        emit statusMessage(
+        statusTip(
             QString("已选中片段 %1（拖动改画布位置 · Z=%2）")
                 .arg(QString::fromStdString(c.id))
                 .arg(rt.z));
@@ -2338,7 +2650,6 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
         // 下一拍提交新合成请求（播放态靠播放头推进自然触发，暂停态唯一
         // 触发源就是这里；缺它则合成帧冻结在拖动前位置，标注层先行）
         if (preview_) preview_->invalidate();
-        if (sel_.kind == 4) emit clipTransformLiveChanged(); // 面板实时跟手
         emit sceneEditedLive(); // display 节流下发（编辑中 display 持续跟手）
         update();
         return;
@@ -2391,7 +2702,6 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
         }
         moved_ = true; // 缩放即编辑（与拖动同策略：真实变更才上报）
         if (preview_) preview_->invalidate(); // 暂停态缩放跟手（同位置拖动）
-        if (sel_.kind == 4) emit clipTransformLiveChanged(); // 面板实时跟手
         emit sceneEditedLive(); // display 节流下发（同旋转会话）
         update();
         return;
@@ -2432,11 +2742,8 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
     // 几何重新合成（此前只在松开时经 sceneEdited 链路间接刷新——暂停态
     // 播放头不动，拖动全程合成帧停在按下前，仅标注层移动）
     if (preview_) preview_->invalidate();
-    // 【画布→面板实时同步】拖动中工作副本已写（t.x/y 在上方落定）——
-    // mouse-move 频率广播，属性面板数字跟手；同时进 display 节流下发链
-    //（requestMsAutoPublish 侧 200ms 一拍——live 中 display 持续跟手，
-    // 不再"松手才动"）
-    if (sel_.kind == 4) emit clipTransformLiveChanged();
+    // live 编辑→display 节流下发（适配器 requestAutoPublish 侧 200ms 一拍——
+    // live 中 display 持续跟手，不再"松手才动"）
     emit sceneEditedLive();
     update();
 }
@@ -2499,14 +2806,14 @@ void SceneCanvasWidget::mouseDoubleClickEvent(QMouseEvent* ev) {
     }
     if (hit.kind == 1) {
         applySelection(hit);
-        emit screenDoubleClicked(hit.a);
+        openScreenProperty(hit.a);
         return;
     }
     // ---- 空白双击 = 视图复位（滚轮/右键旋转/中键浏览后的快捷"回家"；
     //      原空白双击走 QWidget 默认（无副作用），行为叠加安全）----
     if (!viewIsHome()) {
         resetView();
-        emit statusMessage(view3d_ ? "视图已复位（缺省视角，画布居中）"
+        statusTip(view3d_ ? "视图已复位（缺省视角，画布居中）"
                                    : "视图已复位（100%，适配窗口）");
         return;
     }
@@ -2535,9 +2842,9 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
         QAction* act_sync = menu.addAction("同步媒体");
         menu.addSeparator();
         QAction* act_prop = menu.addAction("屏幕属性…");
-        // 【2026-11-15 场景树退役分流】断开/连接显示端（原场景树右键动作
-        // 迁入）：槽位启停——停用立即断开，启用交看门狗重连。状态口径 =
-        // display_online_（宿主 200ms 拍推送 connected&&enabled）。
+        // 断开/连接显示端：画布内直接执行（setDisplayConnect）——停用立即
+        // 断开，启用交看门狗重连。状态口径 = display_online_（宿主 200ms
+        // 拍推送 connected&&enabled）。
         bool online = false;
         bool has_display = false;
         if (hit.a >= 0 && hit.a < (int)scene_->screens.size()) {
@@ -2555,22 +2862,22 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
         if (QAction* chosen = menu.exec(ev->globalPos())) {
             if (chosen == act_prop) {
                 applySelection(hit);
-                emit screenDoubleClicked(hit.a);
+                openScreenProperty(hit.a);
             } else if (chosen == act_conn) {
-                emit screenDisplayConnectRequested(hit.a, !online);
+                setDisplayConnect(hit.a, !online);
             } else if (chosen == act_del) {
-                emit screenDeleteRequested(hit.a);
+                deleteScreen(hit.a);
             } else if (chosen == act_pub) {
-                emit publishSceneRequested();
+                publishScene();
             } else if (chosen == act_sync) {
-                emit syncMediaRequested();
+                syncMedia();
             }
         }
         return;
     }
     // 空白：添加屏幕（单入口——自动连带登记本机显示端，用户约定"只要一个"：
-    // 屏幕与显示端一一对应，分开两个入口徒增困惑。显示端登记由 EditorWindow
-    // 在 onAddScreen 内完成：display_id = screen.player_id，本机默认端口）
+    // 屏幕与显示端一一对应，分开两个入口徒增困惑。登记在 addScreen 内完成：
+    // display_id = screen.player_id，本机默认端口）
     QAction* act_add = menu.addAction("添加屏幕");
     // 吸附对齐开关（拖动时贴齐其他图元的边缘/中心；默认开启）
     QAction* act_snap = menu.addAction("吸附对齐（边缘/中心）");
@@ -2582,14 +2889,14 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
         act_reset = menu.addAction(view3d_ ? "重置视图（缺省视角）"
                                            : "重置视图（100%）");
     QAction* chosen = menu.exec(ev->globalPos());
-    if (chosen == act_add) emit screenAddRequested();
+    if (chosen == act_add) addScreen();
     else if (chosen == act_snap) {
         snapping_ = act_snap->isChecked();
-        emit statusMessage(snapping_ ? "吸附对齐已开启" : "吸附对齐已关闭");
+        statusTip(snapping_ ? "吸附对齐已开启" : "吸附对齐已关闭");
     }
     else if (chosen == act_reset) {
         resetView();
-        emit statusMessage(view3d_ ? "视图已复位（缺省视角，画布居中）"
+        statusTip(view3d_ ? "视图已复位（缺省视角，画布居中）"
                                    : "视图已复位（100%，适配窗口）");
     }
 }
@@ -2648,7 +2955,7 @@ void SceneCanvasWidget::wheelEvent(QWheelEvent* ev) {
         cam3d_.scale = (fs > 0 ? fs : 1.0) * view3d_zoom_; // 同步后才能反投影
         panAnchorTo(ev->position(), anchor); // 光标下地面点保持不动
         update();
-        emit statusMessage(
+        statusTip(
             QString("视图 %1%（3D · 右键拖拽旋转 · 左键空白/中键平移 · "
                     "双击空白复位）")
                 .arg((int)std::lround(view3d_zoom_ * 100.0)));
@@ -2673,7 +2980,7 @@ void SceneCanvasWidget::wheelEvent(QWheelEvent* ev) {
     view_pan_.setY(ev->position().y() - cp.y() * k -
                    (height() - scene_->canvas_h * k) / 2.0);
     update();
-    emit statusMessage(QString("视图 %1%（滚轮缩放 · 左键空白/中键拖拽平移 · "
+    statusTip(QString("视图 %1%（滚轮缩放 · 左键空白/中键拖拽平移 · "
                                "双击空白/「适应窗口」复位）")
                            .arg((int)std::lround(view_zoom_ * 100.0)));
 }
@@ -2741,7 +3048,7 @@ void SceneCanvasWidget::keyPressEvent(QKeyEvent* ev) {
     if (preview_) preview_->invalidate(); // 暂停态键盘微调跟手（同拖动路径）
     update();
     emit sceneEdited(); // 与鼠标拖动同链路（置脏 + 50ms 防抖自动下发）
-    emit statusMessage(QString("%1：%2 %3%4（Shift 大步进 · Alt 切移动）")
+    statusTip(QString("%1：%2 %3%4（Shift 大步进 · Alt 切移动）")
                            .arg(sel_.kind == 1 ? "屏幕" : "片段",
                                 move_mode ? "移动" : "大小")
                            .arg(dx != 0 ? (dx > 0 ? "→" : "←")
