@@ -24,8 +24,8 @@ namespace AppConstants {
     const QString OBJECT_TRACK_REFS_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cache/ObjectTrackRefs";
     // 音频波形峰值缓存
     const QString AUDIO_PEAKS_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cache/Peaks";
-    // 模拟器 ROM 运行时缓存（LibretroNode：从媒体库拷贝到此目录后加载）
-    const QString GAME_ROM_CACHE_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cache/GBARoms";
+    // 模拟器存档落盘目录（LibretroNode：游戏内 SRAM 与即时存档 <ROM 文件名>.state）
+    const QString GAME_SAVES_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Cache/GameSaves";
     // FLOW文件存储目录
     const QString MEDIA_LIBRARY_FLOW_DIR = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)+"/Flow/Flows";
     // 最近打开文件存储路径

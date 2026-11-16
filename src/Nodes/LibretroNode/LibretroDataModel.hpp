@@ -6,8 +6,8 @@
  *
  * 架构：
  * - Core 固定为随主程序分发的 bin/cores/mgba_libretro.dll（不可更换，强制 GBA）。
- * - ROM 从媒体库 Game 分类选择（文件名）；启动时解析出全路径并拷贝到
- *   Documents/Flow/Cache/GBARoms（同大小复用），从缓存副本加载，
+ * - ROM 从媒体库 Game 分类选择（文件名）；启动时解析出全路径**原地读取**，
+ *   整个 ROM 一次性读入内存（m_romData，core 经 retro_game_info.data 加载），
  *   演出中媒体库文件变动不影响运行中的模拟器。
  * - 模拟线程按 core 报告的刷新率（GBA=59.7275Hz）驱动 retro_run：
  *   video 回调把 RGB565 转 cv::Mat(BGR) 暂存最新帧；
@@ -19,7 +19,8 @@
  * - 手柄三路掩码合并：面板按键 + OSC（/up /a ...）→ m_panelMask；
  *   12 个输入端口的电平语义 → m_portMask；
  *   每帧喂给 retro_run 的 = m_panelMask | m_portMask。
- * - Save/Load State：命令化转发到模拟线程执行（libretro 单线程约束）。
+ * - Save/Load State：命令化转发到模拟线程执行（libretro 单线程约束），
+ *   即时存档即时落盘到 GAME_SAVES_DIR/<ROM 文件名>.state，跨启动有效。
  *
  * In 端口（12，均 VariableData，电平语义）：
  *   0 Active / 1 Reset / 2 Up / 3 Down / 4 Left / 5 Right /
@@ -463,9 +464,9 @@ private Q_SLOTS:
     void saveStateNow()
     {
         if (submitCommand(Cmd::Save)) {
-            setStatus(QStringLiteral("状态: 存档点已保存"), true);
+            setStatus(QStringLiteral("状态: 存档点已保存到磁盘"), true);
         } else {
-            setStatus(QStringLiteral("状态: 存档点保存失败"), false);
+            setStatus(QStringLiteral("状态: 存档点保存失败（磁盘写入）"), false);
         }
         publishInfo();
         Q_EMIT dataUpdated(InfoPort);
@@ -476,7 +477,7 @@ private Q_SLOTS:
         if (submitCommand(Cmd::Load)) {
             setStatus(QStringLiteral("状态: 存档点已恢复"), true);
         } else {
-            setStatus(QStringLiteral("状态: 存档点恢复失败（先 Save）"), false);
+            setStatus(QStringLiteral("状态: 存档点恢复失败（无存档文件，先 Save）"), false);
         }
         publishInfo();
         Q_EMIT dataUpdated(InfoPort);
@@ -580,34 +581,6 @@ private:
         return {};
     }
 
-    /**
-     * @brief 把媒体库源 ROM 拷贝到运行缓存目录（同大小复用），返回缓存路径
-     *        拷贝失败时回退直接用源路径（可用性优先）
-     */
-    QString ensureRomCache(const QString& sourcePath)
-    {
-        if (sourcePath.isEmpty()) {
-            return {};
-        }
-        QDir().mkpath(AppConstants::GAME_ROM_CACHE_DIR);
-        const QString target = AppConstants::GAME_ROM_CACHE_DIR + QLatin1Char('/')
-            + QFileInfo(sourcePath).fileName();
-
-        QFileInfo srcInfo(sourcePath);
-        QFileInfo dstInfo(target);
-        if (dstInfo.exists() && dstInfo.size() == srcInfo.size()) {
-            return target; // 缓存命中
-        }
-        if (dstInfo.exists()) {
-            QFile::remove(target);
-        }
-        if (QFile::copy(sourcePath, target)) {
-            return target;
-        }
-        qWarning() << "LibretroNode: ROM 缓存拷贝失败，直接使用媒体库源文件" << sourcePath;
-        return sourcePath;
-    }
-
     // ---------------- 模拟管线 ----------------
 
     void startEmulation()
@@ -622,32 +595,27 @@ private:
             return;
         }
 
-        const QString source = resolveRomSource();
-        if (source.isEmpty()) {
+        // 原地读取：媒体库源路径直接加载，不落磁盘副本（整个 ROM 读入内存，
+        // core 经 retro_game_info.data 使用，演出中源文件变动不影响运行）
+        const QString rom = resolveRomSource();
+        if (rom.isEmpty()) {
             failStart(QStringLiteral("媒体库中未找到 ROM: %1").arg(m_romName));
             return;
         }
-        const QString rom = ensureRomCache(source);
-        if (rom.isEmpty() || !QFileInfo::exists(rom)) {
-            failStart(QStringLiteral("ROM 缓存失败: %1").arg(source));
-            return;
-        }
-        m_romCachePath = rom;
+        m_romPath = rom;
 
         m_romData.clear();
         {
             QFile f(rom);
             if (!f.open(QIODevice::ReadOnly)) {
-                failStart(QStringLiteral("ROM 读取失败"));
+                failStart(QStringLiteral("ROM 读取失败: %1").arg(rom));
                 return;
             }
             m_romData = f.readAll();
         }
 
-        // system/save 目录（SRAM/即时存档落盘位置）
-        const QString coreStem = QFileInfo(core).completeBaseName();
-        const QString sysDir = QCoreApplication::applicationDirPath()
-            + QStringLiteral("/saves/") + coreStem;
+        // 存档目录（游戏内 SRAM + 即时存档统一落盘；路径在 ConstantDefines.h 可改）
+        const QString sysDir = AppConstants::GAME_SAVES_DIR;
         QDir().mkpath(sysDir);
 
         std::string err;
@@ -745,7 +713,6 @@ private:
             m_fifoPrimed = false;
             m_readPos = 0.0;
         }
-        m_hasState.store(false, std::memory_order_relaxed);
         setStatus(QStringLiteral("状态: 未启动"), false);
         m_infoTimer.stop();
     }
@@ -813,8 +780,8 @@ private:
         if (!m_emuRunning.load() || !m_core.isGameLoaded()) {
             return false;
         }
-        // m_stateBlob 由模拟线程写，主线程只看 m_hasState 原子标志，严禁跨线程读 blob
-        if (cmd == Cmd::Load && !m_hasState.load(std::memory_order_relaxed)) {
+        // 读档前先确认磁盘上有存档文件（Save 时由模拟线程落盘）
+        if (cmd == Cmd::Load && !QFileInfo::exists(stateFilePath())) {
             return false;
         }
         QMutexLocker l(&m_cmdMutex);
@@ -831,6 +798,53 @@ private:
         return ok;
     }
 
+    /** @brief 当前 ROM 的即时存档文件路径（GAME_SAVES_DIR/<ROM 文件名>.state） */
+    QString stateFilePath() const
+    {
+        if (m_romPath.isEmpty()) {
+            return {};
+        }
+        return AppConstants::GAME_SAVES_DIR + QLatin1Char('/')
+            + QFileInfo(m_romPath).fileName() + QStringLiteral(".state");
+    }
+
+    /** @brief 把存档 blob 落盘（模拟线程调用；QFile 走 UTF-16，中文路径安全） */
+    bool writeStateFile()
+    {
+        const QString path = stateFilePath();
+        if (path.isEmpty() || m_stateBlob.empty()) {
+            return false;
+        }
+        QDir().mkpath(AppConstants::GAME_SAVES_DIR);
+        QFile f(path);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            return false;
+        }
+        return f.write(reinterpret_cast<const char*>(m_stateBlob.data()),
+                       qint64(m_stateBlob.size())) == qint64(m_stateBlob.size());
+    }
+
+    /** @brief 从磁盘读存档到 blob（模拟线程调用） */
+    bool readStateFile()
+    {
+        const QString path = stateFilePath();
+        if (path.isEmpty()) {
+            return false;
+        }
+        QFile f(path);
+        if (!f.open(QIODevice::ReadOnly)) {
+            return false;
+        }
+        const QByteArray blob = f.readAll();
+        if (blob.isEmpty()) {
+            return false;
+        }
+        m_stateBlob.assign(reinterpret_cast<const uint8_t*>(blob.constData()),
+                           reinterpret_cast<const uint8_t*>(blob.constData())
+                               + blob.size());
+        return true;
+    }
+
     /** @brief 模拟线程帧间执行存档/读档/复位命令 */
     void processCommand()
     {
@@ -845,13 +859,11 @@ private:
         bool ok = false;
         switch (c) {
         case Cmd::Save:
-            ok = m_core.serialize(m_stateBlob);
-            if (ok) {
-                m_hasState.store(true, std::memory_order_relaxed);
-            }
+            // 序列化到内存后立即落盘：<ROM 文件名>.state，跨启动有效
+            ok = m_core.serialize(m_stateBlob) && writeStateFile();
             break;
         case Cmd::Load:
-            ok = m_core.unserialize(m_stateBlob);
+            ok = readStateFile() && m_core.unserialize(m_stateBlob);
             break;
         case Cmd::Reset:
             m_core.resetGame();
@@ -1066,7 +1078,7 @@ private:
         m_outInfo->insert(QStringLiteral("video_frames"), int(m_videoFrames.load()));
         m_outInfo->insert(QStringLiteral("audio_frames"), int(m_audioFramesTotal.load()));
         m_outInfo->insert(QStringLiteral("rom"), m_romName);
-        m_outInfo->insert(QStringLiteral("rom_path"), m_romCachePath);
+        m_outInfo->insert(QStringLiteral("rom_path"), m_romPath);
         m_outInfo->insert(QStringLiteral("active"), m_active);
         m_outInfo->insert(QStringLiteral("error"), m_lastError);
     }
@@ -1104,8 +1116,7 @@ private:
     Cmd m_cmd = Cmd::None;
     bool m_cmdDone = false;
     bool m_cmdResult = false;
-    std::vector<uint8_t> m_stateBlob;                       // 模拟线程读写
-    std::atomic<bool> m_hasState{false};                    // 主线程只读此标志，避免跨线程访问 blob
+    std::vector<uint8_t> m_stateBlob;  // 存档 blob（模拟线程独占读写；Save 落盘 / Load 读盘）
 
     QMutex m_errorMutex;
     QString m_lastError;
@@ -1122,7 +1133,7 @@ private:
     bool m_active = false;
     bool m_lastResetState = false;
     QString m_romName;      // 媒体库 Game 分类中的文件名
-    QString m_romCachePath; // 最近一次启动用的缓存副本路径（Info 输出）
+    QString m_romPath; // 最近一次启动加载的 ROM 源路径（媒体库原地读取；Info 输出 + 存档命名）
     double m_volume = 0.8;
 
     QTimer m_infoTimer;

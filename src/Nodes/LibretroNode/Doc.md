@@ -31,12 +31,15 @@ Core 固定为随主程序分发的 `bin/mgba_libretro.dll`（强制 GBA，不�
 
 1. 面板 ROM 下拉框列出媒体库 **Game 分类**（`.gba/.gb/.gbc`）；
 2. 模型按文件名在媒体库 `allFiles()` 反查全路径（兜底 `Documents/Flow/Medias`）；
-3. 启动时把源 ROM 拷贝到运行缓存 **`Documents/Flow/Cache/GBARoms`**
-   （同大小复用，拷贝失败回退直接读源文件）；
-4. 从缓存副本加载 core —— 演出中媒体库文件变动不影响运行中的模拟器；
-5. 运行中切换 ROM：自动热重启（停旧模拟线程 → 新 ROM 重新拉起）。
+3. 启动时**原地读取**：整个 ROM 一次性读入内存（core 经 `retro_game_info.data`
+   加载，不落磁盘副本）——演出中媒体库文件变动不影响运行中的模拟器；
+4. 运行中切换 ROM：自动热重启（停旧模拟线程 → 新 ROM 重新拉起）。
 
-存档（SRAM/即时存档）目录：`bin/saves/<core 名>/`。
+存档（SRAM/即时存档）统一落盘到 **`Documents/Flow/Cache/GameSaves`**
+（常量 `AppConstants::GAME_SAVES_DIR`，ConstantDefines.h 可改）：
+
+- 游戏内存档 SRAM：mGBA 写 `<ROM 名>.sav`；
+- 即时存档 Save State：写 `<ROM 文件名>.state`，跨启动/跨会话有效（Load 前无需先 Save）。
 
 ## 属性（OSC 可控）
 
@@ -68,7 +71,8 @@ Reset / Save State / Load State；状态行。
   图像 = 最新帧 → GPU 上传 → `ImageTimestampRingQueue`；
   音频 = FIFO 线性重采样到 48kHz → 960 采样/帧 → `AudioTimestampRingQueue`
   （timestamp = clock + FIXED_DELAY_FRAMES）。
-- Save/Load State 走命令化转发，在模拟线程帧间执行 `retro_serialize/unserialize`。
+- Save/Load State 走命令化转发，在模拟线程帧间执行 `retro_serialize/unserialize`，
+  blob 即时落盘为 `<ROM 文件名>.state`（即存即持久，重启程序后 Load 直接从磁盘恢复）。
 
 ## 随构建部署
 
