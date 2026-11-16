@@ -2,6 +2,7 @@
 
 #include <QAbstractItemView>
 #include <QPointer>
+#include <QtMath> // qLn：对数缩放映射的 currentScale 反推（2026-11-16）
 #include <functional>
 #include <unordered_map>
 #include "TimeLineDefines.h"
@@ -463,10 +464,15 @@ protected:
 
     /**
      * 当前缩放归一化比例（0~1）：与本实例的 m_timescale 保持一致
-     * 公式：ratio = (m_timescale - m_minTimescale) / (m_baseTimeScale - m_minTimescale)
-     * 这样首次滚轮缩放不会跳变
+     * 2026-11-16 映射改对数（与 setScaleAt/setScaleAtPx 同式）：
+     *   timescale = minTimescale × (baseTimeScale/minTimescale)^ratio
+     * 反推：ratio = ln(timescale/minTimescale) / ln(baseTimeScale/minTimescale)
+     * 线性映射跨多个数量级时低端被 minTimescale 垫底稀释成亚像素死区
+     *（缩到最小附近回滚长时间无可见变化）；对数映射每步缩放视觉变化
+     * 恒定，无死区，钳制 [0,1] 即朴素两端限制。
      */
-    double currentScale = (m_timescale - m_minTimescale) / (m_baseTimeScale - m_minTimescale);
+    double currentScale = qLn(m_timescale / m_minTimescale)
+        / qLn(m_baseTimeScale / m_minTimescale);
     // 时间线模型
     BaseTimeLineModel *Model;
     /**
@@ -551,6 +557,13 @@ protected:
     // 与否由模型自决（SceneClipModel 按 hasTweenKeys 命中，无键片段恒不命中）。
     // 播放头是否选中
     bool m_playheadSelected = false;
+    // ---- U1 边沿跟随（2026-11-16 抢视口修复）----
+    // 播放头跟随由电平触发改「边沿触发 + 视口主权」：页翻只在播放头从视口
+    // 内越到右缘外的瞬间触发一次；本基线记录上拍播放头是否在右缘外。
+    bool m_playheadOutside = false;
+    // 上拍跟随逻辑见到的 scrollX：与本值不等 = 用户动了视口（拖滚动条/滚轮/
+    // 缩放锚点平移）→ 该拍只刷新越界基线不跟随，视口主权归用户。
+    int m_lastFollowScrollX = -1;
     // 是否正在拖放媒体
     bool m_isSupportMedia = false;
     // 鼠标最后拖动位置
@@ -596,11 +609,15 @@ protected:
     int m_edgeScrollDir {0}; // U5：带符号步长 px/tick（±12 外带 / ±24 中带 / ±36 压边），0 停
 
     // ---- P5（timeline-draw-zoom-review）：连续滚轮缩放合并 ----
-    // 60ms 窗口内的后续滚轮只累计 ratio，窗口到期一次 setScaleAtPx——
+    // 60ms 窗口内的后续滚轮只累计步数，窗口到期一次 setScaleAtPx——
     // 大工程全页重建从每事件一次降为每 60ms 一次。首事件立即应用开窗
     //（合成事件不进事件循环 → 探针/测试零干扰）。
+    // 2026-11-16 缩放语义改对数域加法步进：每步 ratio 步长恒定（视觉倍率
+    // 恒定 ×1.1），合并量从"倍率连乘"改为"步数累加"——乘法累积会把缩过头
+    // 的输入存成隐藏乘积，钳制后回滚要按距离爬行（"动的越多回来越慢"）；
+    // 加法步进下钳住即丢弃多余输入，回滚从钳制值恒定步长开始。
     QTimer* m_zoomCoalesceTimer {nullptr};
-    double m_pendingZoomRatio {1.0};  // 窗口内累计的缩放倍率（连乘）
+    double m_pendingSteps {0.0};      // 窗口内累计的缩放步数（对数域加法）
     int m_pendingZoomAnchorPx {0};    // 窗口内最后一次事件的锚点视口像素
 
     // 防重入标志：防止 performRedraw 期间再次触发 performRedraw

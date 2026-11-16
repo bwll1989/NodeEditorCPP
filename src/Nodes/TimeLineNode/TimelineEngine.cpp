@@ -3075,9 +3075,12 @@ void BaseTimelineView::wheelEvent(QWheelEvent *event){
         double delta = event->angleDelta().y() / 120.0; // 标准滚轮步长
         double scaleChange = (delta > 0 ? 1.1 : 0.9);    // 每次滚动的缩放倍率
 
-        // 允许达到指定下限，从而触达 setScale 的最小可见缩放
-        const double minNormalized = minTimescale; // 与 setScale 保持一致
-        currentScale = qBound(minNormalized, currentScale * scaleChange, 1.0);
+        // 钳制下限说明（2026-11-16）：本域 minTimescale=0.005px/帧、
+        // baseTimeScale=10px/帧，无感死区阈值 = minTimescale/Δ ≈ 0.0005，
+        // 钳制下限 0.005 在死区上方——回滚每步 ~9% 变化，无 BaseTimeLineView
+        // 的"缩到最小后回滚无反应"问题（该处 Δ 跨数量级，死区在 0.004）。
+        // 注意 minTimescale 量纲是 px/帧、此处作归一化下限属历史口径，值恰好安全。
+        currentScale = qBound(minTimescale, currentScale * scaleChange, 1.0);
 
         setScale(currentScale);
     } else {

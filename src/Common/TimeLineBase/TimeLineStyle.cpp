@@ -31,8 +31,8 @@ int playheadCornerHeight = playheadheight / 4; // 播放头圆角高度
 
 // ===================== 时间刻度（缩放参数，μs 原生） =====================
 double timescale = 1.25e-5;    // 时间刻度(像素/μs) = 旧 0.5 px/帧
-double minTimescale = 1e-5;    // 最小缩放(像素/μs) = 旧 0.4 px/帧（1.25e-7→1e-5，2026-11-11）
-double baseTimeScale = 2.5e-3; // 缩放上限(像素/μs)（U3：2.5e-4→2.5e-3，1帧=100px）
+double minTimescale = 1e-6;    // 最小缩放(像素/μs)：1s=1px，视口≈20min（1e-5→1e-6，2026-11-16 用户反馈要缩更小）
+double baseTimeScale = 1e-3;   // 缩放上限(像素/μs)：1ms=1px，25fps 1帧=40px（2.5e-3→1e-3，放大无需过深，子帧/波形仍有空间）
 
 // ===================== 颜色默认值（均可被 QSS qproperty- 覆盖） =====================
 // 颜色取值遵循 docs/brand/Flow-Brand-Visual-Identity-Manual.html（流动绿 #79AE31）：

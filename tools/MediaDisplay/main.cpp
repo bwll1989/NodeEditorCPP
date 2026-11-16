@@ -587,12 +587,7 @@ void registerDemoTimeline(ms::standalone::TimelineRegistry& registry,
 // ---------------------------------------------------------------------------
 int runDisplay(const Args& args, const ms::config::IniConfig& ini,
                const std::string& config_write_path) {
-    // 【崩溃现场捕获 2026-11-06】高频场景下发闪退排障基建（editor 端
-    // CrashDump 平移至 core/platform 两端共用）——未处理异常 → exe 旁
-    // crash-<时间戳>.dmp（线程栈+异常上下文+模块表），用户侧复现的闪退
-    // 靠 dump 一锤定音。进程级一次；任意线程的硬件异常（GL 驱动 AV 等）
-    // 都会走过滤器。
-    ms::installCrashDump();
+    // 崩溃捕获已前移至 main 首行（覆盖 INI/路径加载盲区）。
 
     // ---- 版本横幅（2026-11-15 对齐 Flow 版本号口径；status API/网页/窗标题同源）----
     std::printf("[display] media_display v%s\n", DISPLAY_VERSION);
@@ -1268,6 +1263,14 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
 // main：display 端入口（编辑端见 media_editor.exe / src/editor）
 // ---------------------------------------------------------------------------
 int main(int argc, char** argv) {
+    // 【崩溃现场捕获 2026-11-06 / 前移 2026-11-16】必须最先安装——进程级
+    // 一次；任意线程的硬件异常（GL 驱动 AV 等）都走过滤器，未处理异常 →
+    // exe 旁 crash-<时间戳>.dmp（线程栈+异常上下文+模块表）。原装在
+    // runDisplay 开头，main 前半段（INI 加载 / filesystem 路径操作——
+    // 窄串非 UTF-8 路径抛 system_error 的高危区）处于无防护盲区，前移
+    // 到 main 首行全覆盖（与 Flow 端同位同语义）。
+    installCrashDump();
+
     // 控制台代码页 → UTF-8：源码 /utf-8 编译输出 UTF-8 字节流，Windows
     // 控制台默认 GBK(936) 按其解释必乱码（详见 platform/ConsoleUtf8.hpp）
     ms::platform::setupConsoleUtf8();

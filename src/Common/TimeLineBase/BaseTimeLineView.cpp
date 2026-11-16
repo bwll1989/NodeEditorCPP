@@ -132,11 +132,17 @@ BaseTimelineView::BaseTimelineView(BaseTimeLineModel *viewModel, QWidget *parent
         m_zoomCoalesceTimer->setSingleShot(true);
         m_zoomCoalesceTimer->setInterval(60);
         connect(m_zoomCoalesceTimer, &QTimer::timeout, this, [this]() {
-            if (m_pendingZoomRatio == 1.0)
+            if (m_pendingSteps == 0.0)
                 return;
-            const double merged = qBound(0.0, currentScale * m_pendingZoomRatio, 1.0);
-            setScaleAtPx(merged, m_pendingZoomAnchorPx);
-            m_pendingZoomRatio = 1.0;
+            // 2026-11-16 终版缩放语义：对数域加法步进——每步 ratio 步长恒定
+            //（视觉倍率恒定 ×1.1），钳制 [0,1] 即两端限制；钳住后多余步数
+            // 直接丢弃，回滚从钳制值正常步进（乘法累积的"缩过头隐藏乘积"
+            // 导致的"动的越多回来越慢"根除）。
+            const double step = qLn(1.1)
+                / qLn(static_cast<double>(m_baseTimeScale) / m_minTimescale);
+            currentScale = qBound(0.0, currentScale + m_pendingSteps * step, 1.0);
+            setScaleAtPx(currentScale, m_pendingZoomAnchorPx);
+            m_pendingSteps = 0.0;
         });
         // ========== 新增结束 ==========
 
@@ -274,7 +280,14 @@ int BaseTimelineView::getTrackWdith() const
     if (timelineLength <= 0) {
         return viewport()->width();  // 如果没有片段，返回视口宽度
     }
-    return frameToPoint(timelineLength + 1);  // 否则返回基于时间轴长度的宽度（+1μs 防零宽）
+    // 尾部余量（2026-11-16 用户反馈）：旧实现滚动到最右时最后一个片段的
+    // 右缘贴死视口右缘，右缘拉伸线（±4px 命中带）一半压在视口外很难点中。
+    // 内容宽追加固定 96px 尾余量——滚到最右时片段右缘距视口右缘恒 96 物理
+    // 像素，任何缩放级别下都好点。余量随本函数对滚动条 range / 画布平移
+    // clamp / wheelEvent 步长三处同步生效（同源天然一致）；itemRect 轨道
+    // 底色亦随余量延伸，空白区不露底。缩放锚点钳制仍按内容 μs 域（语义：
+    // 锚点在空白区缩放时内容末端保持锚点屏幕位置），不采样余量。
+    return frameToPoint(timelineLength + 1) + 96;  // 基于时间轴长度的宽度（+1μs 防零宽）+ 尾余量
 }
 
 // 移动选定的剪辑
@@ -344,18 +357,51 @@ void BaseTimelineView::onPlayheadMoved(qint64 us)
 
     /**
      * U1（timeline-draw-zoom-review）：播放头跟随页翻。
-     * 回放时播放头越出视口右缘 → 水平滚动一整页把它带回视口（播放头
-     * 贴左缘，主流 NLE 语义）。仅在"旁观"状态生效：用户正在拖播放头
-     * （m_playheadSelected）或拖片段（m_interactiveDrag）时不抢滚动，
-     * 避免与手部操作打架；向左回退不跟随（手动 seek 定位不被干扰）。
+     * 2026-11-16 电平触发改「边沿触发 + 视口主权」（对齐 Premiere/Resolve）。
+     * 旧实现只要播放头持续在右缘外就每拍（~33ms）强制页翻——播放中拖滚动
+     * 条回看、Ctrl+滚轮缩放的锚点定位都会在下一拍被拽回（缩放与游标抢视口）。
+     * 新语义三规则：
+     *  1) 页翻只在播放头「从视口内越到右缘外」的瞬间触发一次（边沿非电平）；
+     *  2) scrollX 与上拍不同 = 用户动了视口（拖滚动条/滚轮/缩放锚点平移）
+     *     → 该拍只刷新越界基线不跟随，此后视口归用户，直到下次真实越界
+     *     或 seek（缩放把播放头"挤出"右缘属锚点数学结果，被本规则挡住）；
+     *  3) seek 大跳变（位移 > 一整屏对应 μs）且新位置不在视口内 = 跟随
+     *     接管，视口对齐播放头（跳时间码/循环回绕后回到播放头）。可见性
+     *     判据必带：暂停时点击视口内标尺 jump 同样超一屏，对齐会把点击处
+     *     从屏幕原位拽到左缘（视口无谓跳动）——只有目标不可见才接管。
+     *     小步回退（jump < 一屏）不受扰。
+     * 豁免保留：拖播放头（m_playheadSelected）/ 拖片段（m_interactiveDrag）
+     * 不参与判定；缩放路径（setScaleAtPx/setScaleAt）零改动——scrollX 变化
+     * 被规则 2 天然覆盖，无需各自重置基线。
      */
     if (!m_playheadSelected && !m_interactiveDrag && viewport() && us >= 0) {
-        const int x = frameToPoint(us) - scrollX();
-        if (x >= viewport()->width()) {
-            QScrollBar* hb = horizontalScrollBar();
-            // 播放头贴视口左缘；range 落后时（拖拽 defer）由 clamp 兜住
-            hb->setValue(qBound(hb->minimum(), frameToPoint(us), hb->maximum()));
+        QScrollBar* hb = horizontalScrollBar();
+        const int vw = viewport()->width();
+        const int scrollNow = hb->value();
+        const int headPx = frameToPoint(us);
+        const int headX = headPx - scrollNow;
+        const bool outsideRight = headX >= vw;              // 右缘外（规则 1 用）
+        const bool inView = headX >= 0 && headX < vw;       // 可见（规则 3 用）
+        const qint64 jump = (previous >= 0) ? qAbs(us - previous) : 0;
+        const double ts = m_timescale;
+        const qint64 viewportUs = (ts > 0.0)
+            ? static_cast<qint64>(vw / ts) : 0;
+
+        if (scrollNow != m_lastFollowScrollX) {
+            // 规则 2：用户动了视口——只刷新基线，本拍不跟随
+            m_playheadOutside = outsideRight;
+        } else if (jump > viewportUs && !inView) {
+            // 规则 3：seek 大跳变且新位置不可见——跟随接管（clamp 兜底）
+            hb->setValue(qBound(hb->minimum(), headPx, hb->maximum()));
+            m_playheadOutside = false;
+        } else if (outsideRight && !m_playheadOutside) {
+            // 规则 1：边沿越界——页翻一次（播放头贴左缘）
+            hb->setValue(qBound(hb->minimum(), headPx, hb->maximum()));
+            m_playheadOutside = false;
+        } else {
+            m_playheadOutside = outsideRight;
         }
+        m_lastFollowScrollX = hb->value(); // 记录页翻/对齐后的实际位置
     }
 
     if (previous >= 0 && previous != us)
@@ -779,8 +825,13 @@ void BaseTimelineView::setScaleAt(double value, qint64 anchorUs)
     // 1. 旧刻度保存 + 输入钳制 + 无变化短路（避免同值重算引发闪烁）
     const double oldTimescale = m_timescale;
     const double ratio = qBound(0.0, value, 1.0);
+    // 2026-11-16 缩放映射改对数：timescale = minTs × (baseTs/minTs)^ratio。
+    // 线性映射跨 2.5 个数量级，低端每步缩放被 minTs 垫底稀释成亚像素
+    //（乘法 0.9^n 渐近 0 永不到达）——缩到最小附近后回滚要爬百余步
+    //（用户报"回滚长时间不动"）。对数映射每步视觉变化恒定，钳制 [0,1]
+    // 即朴素两端限制，无死区。
     const double newTimescale = m_minTimescale
-        + ratio * (static_cast<double>(m_baseTimeScale) - m_minTimescale);
+        * qPow(static_cast<double>(m_baseTimeScale) / m_minTimescale, ratio);
     if (newTimescale == oldTimescale)
         return;
     m_timescale = newTimescale;
@@ -831,8 +882,10 @@ void BaseTimelineView::setScaleAtPx(double value, int anchorViewportX)
      */
     const double oldTs = m_timescale;
     const double ratio = qBound(0.0, value, 1.0);
+    // 2026-11-16 缩放映射改对数（与 setScaleAt 同式）：每步视觉变化恒定，
+    // 线性映射的低端死区（回滚爬行）消除，钳制 [0,1] 即两端限制。
     const double newTs = m_minTimescale
-        + ratio * (static_cast<double>(m_baseTimeScale) - m_minTimescale);
+        * qPow(static_cast<double>(m_baseTimeScale) / m_minTimescale, ratio);
     if (newTs == oldTs)
         return;
 
@@ -853,6 +906,9 @@ void BaseTimelineView::setScaleAtPx(double value, int anchorViewportX)
 
     m_staticCacheDirty = true;
     currentScale = ratio;
+    // 注意：此处不同步 m_zoomTarget——本函数只被滚轮路径调用（wheelEvent
+    // 直通 / P5 合并回调），调用方已把过冲累积在 m_zoomTarget 里，同步会把
+    // 过冲抹掉导致边界死锁回归。外部显式设置走 setScaleAt（那里同步）。
     m_clipContentRects.clear(); // P6：缩放改变所有片段像素几何
 
     updateScrollBars();
@@ -1827,7 +1883,7 @@ void BaseTimelineView::drawVerticalTimeLines(QPainter* painter, const QRect& rec
 
     // 绘制垂直时间线（整数 tick 序号步进，消浮点累加的累积误差）
     // U7（timeline-draw-zoom-review）：主格像素间距足够宽时（与标尺文本
-    // 同阈值），每主格内画 1/5 分格淡线——深放大（U3 上限 2.5e-3）时
+    // 同阈值），每主格内画 1/5 分格淡线——深放大（上限 1e-3）时
     // 帧级/子帧级编辑的定位参照。子格 = 分隔色 40% 透明度。
     const double pxStep = m_timescale * static_cast<double>(stepUs);
     const bool drawSubTicks = pxStep >= 80.0;
@@ -2279,26 +2335,31 @@ void BaseTimelineView::selectionChanged(const QItemSelection &selected, const QI
 void BaseTimelineView::wheelEvent(QWheelEvent *event){
     /**
      * 函数说明：支持 Ctrl+滚轮进行缩放；否则进行水平滚动
-     * - 缩放使用乘法步进，并钳制到 [minNormalized, 1.0]，避免无限缩小
-     * - 缩放锚点 = 鼠标位置下的时刻（setScaleAt）——鼠标指哪放大哪，
-     *   旧实现锚点恒为播放头且滚动条 range 未刷新，导致缩放焦点漂移
+     * - 2026-11-16 缩放语义：对数域加法步进（每步视觉倍率恒定 ×1.1），
+     *   钳制到 [0.0, 1.0] 两端限制；钳住后多余滚动直接丢弃，回滚立即跟手
+     * - 缩放锚点 = 鼠标位置下的时刻（setScaleAtPx）——鼠标指哪放大哪
      */
     if (event->modifiers() & Qt::ControlModifier) {
         const QPoint pos = event->position().toPoint();
-        const double delta = event->angleDelta().y() / 120.0; // 标准滚轮步长
-        const double scaleChange = (delta > 0 ? 1.1 : 0.9);   // 每次滚动的缩放倍率
+        const double delta = event->angleDelta().y() / 120.0; // 标准滚轮步长（±1/格，快滚可为小数倍）
 
         // P5（timeline-draw-zoom-review）：60ms 窗口合并连续滚轮缩放——
-        // 首事件立即应用并开窗（体感零延迟），窗口内后续事件只累计倍率，
+        // 首事件立即应用并开窗（体感零延迟），窗口内后续事件只累计步数，
         // 到期一次 setScaleAtPx。大工程全页重建从每事件一次降为每 60ms
         // 一次；合成事件不进事件循环 → 定时器不触发，首事件直通（测试零干扰）。
         if (m_zoomCoalesceTimer && m_zoomCoalesceTimer->isActive()) {
-            m_pendingZoomRatio *= scaleChange;
+            m_pendingSteps += delta; // 对数域加法步进：累计步数（可为小数）
             m_pendingZoomAnchorPx = pos.x();
         } else {
             // U6：像素锚点直传（消 μs 中间取整的连续缩放蠕动）
-            setScaleAtPx(qBound(0.0, currentScale * scaleChange, 1.0), pos.x());
-            m_pendingZoomRatio = 1.0;
+            // 2026-11-16 终版缩放语义（与合并回调同式）：ratio 对数域加法
+            // 步进（每步视觉倍率恒定 ×1.05）+ 朴素两端钳制——钳住即丢弃
+            // 多余输入，回滚立即从钳制值以恒定步长开始（无隐藏累积）。
+            const double step = qLn(1.05)
+                / qLn(static_cast<double>(m_baseTimeScale) / m_minTimescale);
+            currentScale = qBound(0.0, currentScale + delta * step, 1.0);
+            setScaleAtPx(currentScale, pos.x());
+            m_pendingSteps = 0.0;
             m_pendingZoomAnchorPx = pos.x();
             if (m_zoomCoalesceTimer)
                 m_zoomCoalesceTimer->start();

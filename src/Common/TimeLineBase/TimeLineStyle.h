@@ -57,10 +57,13 @@ NODE_TIMELINE_PUBLIC extern int playheadCornerHeight; // 播放头圆角高度
  * - 作用：被用于 pointToFrame/frameToPoint、刻度绘制、剪辑位置与宽度计算等所有横向度量相关的逻辑
  *   （pointToFrame 返回 μs，与库内时间基同域）。
  * - 缩放行为：timescale 越大，时间轴越“放大”（每 μs 越宽）；timescale 越小，时间轴越“缩小”。
- * - 取值范围：通常应在 [minTimescale, baseTimeScale] 之间；UI 层通过 currentScale（0~1）线性映射到此范围。
- *   映射示例：timescale = minTimescale + currentScale * (baseTimeScale - minTimescale)
+ * - 取值范围：通常应在 [minTimescale, baseTimeScale] 之间；UI 层通过 currentScale（0~1）
+ *   对数映射到此范围（2026-11-16，原为线性）。
+ *   映射：timescale = minTimescale × (baseTimeScale/minTimescale)^currentScale
+ *   ——线性映射跨数量级时低端被 minTimescale 垫底稀释成亚像素死区（缩到
+ *   最小附近回滚长时间无可见变化）；对数映射每步缩放视觉变化恒定、无死区。
  * - 初始化建议：若修改 timescale 的默认值，建议同步更新 BaseTimeLineView.h 中 currentScale 的初始值为
- *   (timescale - minTimescale) / (baseTimeScale - minTimescale)，避免程序第一次滚轮缩放出现“跳变”。
+ *   ln(timescale/minTimescale) / ln(baseTimeScale/minTimescale)，避免程序第一次滚轮缩放出现“跳变”。
  * - 换算基准：kFrameUs = 40'000（PAL 25fps），旧 px/frame 值 ÷ 40000 = px/μs 值。
  */
 NODE_TIMELINE_PUBLIC extern double timescale; // 时间刻度(像素/μs) = 旧 0.5 px/帧
@@ -73,11 +76,14 @@ NODE_TIMELINE_PUBLIC extern double timescale; // 时间刻度(像素/μs) = 旧 
  *   值超出 int 域引发截断）：
  *   1e-5 px/μs = 旧 0.4 px/帧 —— 60s 工程缩到最小约 600px（可整体入画），
  *   10min 工程约 6000px（一次滚动可达），1h 工程 36000px（分段滚动浏览）。
+ * - 调参（2026-11-16 用户反馈：还要能缩更小）：1e-5→1e-6 px/μs（1s=1px）——
+ *   视口 1200px ≈ 20min 全入画，1h 工程 3600px（一次滚动可达）；
+ *   放大上限同轮回调 2.5e-3→1e-3（25fps 1帧 100px→40px，1ms=1px）。
  * - 与 currentScale 的关系：当 currentScale=0 时应映射到 minTimescale，以保证最小缩放可达。
  */
-NODE_TIMELINE_PUBLIC extern double minTimescale; // 最小缩放(像素/μs) = 旧 0.4 px/帧（1.25e-7→1e-5，2026-11-11）
+NODE_TIMELINE_PUBLIC extern double minTimescale; // 最小缩放(像素/μs)（1.25e-7→1e-5→1e-6，1s=1px）
 
-NODE_TIMELINE_PUBLIC extern double baseTimeScale; // 缩放上限(像素/μs)（U3：2.5e-4→2.5e-3，1帧=100px，音频波形对齐/子帧操作有空间）
+NODE_TIMELINE_PUBLIC extern double baseTimeScale; // 缩放上限(像素/μs)（2.5e-4→2.5e-3→1e-3，25fps 1帧=40px）
 
 // ===================== 颜色默认值（均可被 QSS qproperty- 覆盖） =====================
 // 颜色取值遵循 docs/brand/Flow-Brand-Visual-Identity-Manual.html（流动绿 #79AE31）：

@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
     // 【崩溃现场捕获 2026-11-13】必须最先安装——SetUnhandledExceptionFilter +
     // std::set_terminate 双钩子（terminate 类退出 SEH 抓不到，此前症状：
     // 无 dmp、无 WER 对话框的瞬时闪退）。dump 落 exe 同目录 crash-*.dmp。
-    ms::installCrashDump();
+    installCrashDump();
 
     // 设置Qt属性，禁用原生小部件兄弟关系创建
     QCoreApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);

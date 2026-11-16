@@ -210,8 +210,8 @@ void TimeLineNodeClock::onStart()
     }
     emit resumePlay();
     emit timecodePlayingChanged(true);
-  
-    
+
+
 }
 
 void TimeLineNodeClock::onPause()
