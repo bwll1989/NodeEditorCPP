@@ -32,6 +32,12 @@ DefaultTimeLineToolBar::DefaultTimeLineToolBar(QWidget* parent)
         if (auto* w = widgetForAction(m_currentFrameAction))
             installOscDrag(w, QStringLiteral("/currentFrame"));
     }
+    // 【循环 2026-11-16】"/loop"——checkable 开关地址拖出（与 /play /stop
+    // 同构；宿主 TimelinePlaybackController 订阅同名地址双向贯通）
+    if (m_loopAction) {
+        if (auto* w = widgetForAction(m_loopAction))
+            installOscDrag(w, QStringLiteral("/loop"));
+    }
 }
 
 DefaultTimeLineToolBar::~DefaultTimeLineToolBar() = default;
@@ -75,13 +81,27 @@ void DefaultTimeLineToolBar::createActions()
     m_currentFrameAction = new QAction(this);
     m_currentFrameAction->setIcon(QIcon(":/icons/icons/cursor.png"));
     m_currentFrameAction->setToolTip(tr("Current Frame (Ctrl+拖拽绑定地址)"));
+
+    // 【循环 2026-11-16 接线回归】checkable 开关（repeat.png 旧资源复用）：
+    // 点击翻转 → loopToggled(宿主 TimelinePlaybackController 接管：播放头
+    // 到头回零续播 + /loop OSC 反馈)；外部命令经 setLoopState 回显无回环。
+    m_loopAction = new QAction(this);
+    m_loopAction->setIcon(QIcon(":/icons/icons/repeat.png"));
+    m_loopAction->setToolTip(tr("Loop"));
+    m_loopAction->setCheckable(true);
+    connect(m_loopAction, &QAction::triggered, [this]() {
+        m_isLooping = m_loopAction->isChecked();
+        emit loopToggled(m_isLooping);
+    });
 }
 
 void DefaultTimeLineToolBar::setupUI()
 {
     addAction(m_playAction);
     addAction(m_stopAction);
-    // 当前帧拖拽入口（停止钮右侧；spring 之前——左簇=播放控制+拖拽源）
+    // 循环开关（停止钮右侧；checkable——点亮=播放到头回零续播）
+    addAction(m_loopAction);
+    // 当前帧拖拽入口（spring 之前——左簇=播放控制+拖拽源）
     addAction(m_currentFrameAction);
     setMovable(false);
     setIconSize(QSize(toolbarButtonWidth, toolbarButtonWidth));
@@ -108,6 +128,14 @@ void DefaultTimeLineToolBar::setPlaybackState(bool isPlaying)
     m_isPlaying = isPlaying;
     m_playAction->setIcon(QIcon(m_isPlaying ? ":/icons/icons/pause.png" : ":/icons/icons/play.png"));
     m_playAction->setToolTip(m_isPlaying ? tr("Pause") : tr("Play"));
+}
+
+void DefaultTimeLineToolBar::setLoopState(bool on)
+{
+    // 【循环 2026-11-16】外部回显（OSC /loop 命令同源）——只置勾选态，
+    // setChecked 不触发 triggered，无信号回环。
+    m_isLooping = on;
+    if (m_loopAction) m_loopAction->setChecked(on);
 }
 
 // ============================================================================

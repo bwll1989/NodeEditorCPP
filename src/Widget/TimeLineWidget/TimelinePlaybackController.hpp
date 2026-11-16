@@ -55,8 +55,13 @@ private:
     void handlePause();
     /// 停止（同上双源）：会话回 Idle + 预览归零 + 播放头回显起点
     void handleStop();
+    /// 【循环 2026-11-16】loop 开关（工具栏点击与外部 /loop 命令同源）：
+    /// 状态翻转 + /loop 反馈；生效点在 33ms tick 到头检查（回零续播/停止）。
+    void handleLoop(bool on);
     /// 播放态反馈推送（/play /stop /currentFrame → StatusContainer 出站镜像）
     void publishPlaybackState();
+    /// 循环态反馈推送（/loop → StatusContainer 出站镜像；含构造初始推送）
+    void publishLoopState();
     /// OSC 绑定入口：订阅命令地址 + 注册控件 + 推送初始状态（构造期一次）
     void bindOsc();
     /// 地址拼装："/timeline/master" + rel（rel 带不带首 '/' 皆可）
@@ -70,6 +75,8 @@ private:
     BaseTimelineWidget* timeline_ = nullptr;
 
     QTimer* tick_ = nullptr; ///< 33ms 播放期 tick（播放头回显 + /currentFrame 反馈）
+
+    bool looping_ = false; ///< 循环模式（2026-11-16）：到头回零续播而非停止
 };
 
 } // namespace ms

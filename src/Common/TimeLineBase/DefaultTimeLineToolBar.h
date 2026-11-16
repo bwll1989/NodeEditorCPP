@@ -57,10 +57,16 @@ signals:
     void pauseClicked();
     /// 停止按钮
     void stopClicked();
+    /// 【循环 2026-11-16】loop 开关翻转（用户点击；宿主接 TimelinePlaybackController）
+    void loopToggled(bool on);
 
 public slots:
     /// 外部播放状态回显（图标/tooltip 与实际播放态对齐）
     void setPlaybackState(bool isPlaying);
+
+    /// 【循环 2026-11-16】外部循环状态回显（OSC /loop 命令同源；只置勾选
+    /// 态不发 triggered——无回环）
+    void setLoopState(bool on);
 
     /// 【音频电平 2026-11-14 内置】灌入 timeline 混音 RMS——宿主 33ms 拍
     /// 轮询调用（数据源=TimelineAudioBusHost 混音引擎电平快照；非播放拍
@@ -72,6 +78,7 @@ public slots:
     /// 对齐旧 TimeLineToolBar::registerOSCControl 的登记语义）。
     QAction* playAction() const { return m_playAction; }
     QAction* stopAction() const { return m_stopAction; }
+    QAction* loopAction() const { return m_loopAction; }
 
 protected:
     /// 【OSC 拖拽】对登记控件启动地址拖拽（剪贴板 + x-osc-address mime）
@@ -88,8 +95,10 @@ private:
 
     QAction* m_playAction {nullptr};
     QAction* m_stopAction {nullptr};
+    QAction* m_loopAction {nullptr};        ///< 循环开关（2026-11-16 接线回归）
     QAction* m_currentFrameAction {nullptr}; ///< 当前帧拖拽入口（纯地址载体）
     bool m_isPlaying = false;
+    bool m_isLooping = false;               ///< 循环模式（回显态与 m_loopAction 同步）
     AudioLevelMeter* m_levelMeter {nullptr}; ///< 右缘电平表（setupUI 内置）
 
     // ---- OSC 地址拖拽状态（旧 TimeLineToolBar 同构）-------------------------

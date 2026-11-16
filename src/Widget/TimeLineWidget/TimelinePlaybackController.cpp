@@ -50,6 +50,27 @@ TimelinePlaybackController::TimelinePlaybackController(const Deps& deps, QObject
             if (!preview_->tick()) return; // 非播放态/播放头未推进
             us = preview_->playheadUs();
         }
+        // ---- 到头停止 / 循环（2026-11-16，对齐节点时间轴时钟语义）----
+        // 播放头越过时间轴总长（TimelineLengthRole = m_lengthFrame = 最后
+        // 片段末端，μs）时：loop 关 → 全链停止（handleStop：会话停+预览归
+        // 零+tick 停+播放头回零，其内部 tick_->stop() 防重入）；loop 开 →
+        // 全链回零续播（会话 seek + 音频 bus 重锚 + 预览回零，本拍按 0 回
+        // 显，下一 tick 从头推进）。总长 ≤0（空时间轴）不设限保持旧行为。
+        if (adapter_) {
+            const qint64 totalUs = adapter_->data(
+                QModelIndex(), TimelineRoles::TimelineLengthRole).toLongLong();
+            if (totalUs > 0 && us > totalUs) {
+                if (!looping_) {
+                    handleStop();
+                    return;
+                }
+                if (runtime_ && runtime_->running())
+                    runtime_->cmdSeekToUs(0); // 会话播放头回零（display 跟随）
+                if (audioBus_) audioBus_->commandSeek(0); // 音频重锚
+                if (preview_) preview_->seekTo(0);        // 预览回零续播
+                us = 0; // 本拍按回零后位置回显
+            }
+        }
         adapter_->setPlayheadFromRuntimeUs(us);
         // 播放头帧号反馈（PAL 25fps 四舍五入；经 StatusContainer 镜像后
         // statusUpdated 出站到 OSC/MQTT/WS 反馈端口）
@@ -67,6 +88,9 @@ TimelinePlaybackController::TimelinePlaybackController(const Deps& deps, QObject
                 [this] { handlePause(); });
         connect(timeline_->toolbar, &DefaultTimeLineToolBar::stopClicked, this,
                 [this] { handleStop(); });
+        // 【循环 2026-11-16】工具栏 loop 开关（点击翻转）→ 状态 + 反馈
+        connect(timeline_->toolbar, &DefaultTimeLineToolBar::loopToggled, this,
+                [this](bool on) { handleLoop(on); });
     }
     // ---- seek 全链联动 ------------------------------------------------------
     // 视图拖播放头（适配器 80ms 节流后）/ OSC /currentFrame 命令跳转 →
@@ -128,6 +152,16 @@ void TimelinePlaybackController::handlePlay() {
 }
 
 /**
+ * @brief 循环开关（工具栏点击与外部 /loop 命令同源）
+ * 函数级注释：记录模式 + 推送 /loop 反馈（工具栏勾选态由调用方/命令链
+ *           setLoopState 回显，此处不反向驱动 UI——避免回环）。
+ */
+void TimelinePlaybackController::handleLoop(bool on) {
+    looping_ = on;
+    publishLoopState();
+}
+
+/**
  * @brief 暂停（工具栏点击与外部 /pause 命令同源）
  * 函数级注释：会话冻结于锚点 + 预览暂停 + tick 停止，末尾推送播放态反馈。
  */
@@ -172,9 +206,19 @@ void TimelinePlaybackController::publishPlaybackState() {
     auto* bus = GlobalEventBus::instance();
     bus->publishState(address(QStringLiteral("/play")), playing);
     bus->publishState(address(QStringLiteral("/stop")), !playing);
+    publishLoopState();
     if (!playing) {
         bus->publishState(address(QStringLiteral("/currentFrame")), 0);
     }
+}
+
+/**
+ * @brief 循环态反馈推送（/loop → StatusContainer 出站镜像）
+ * 函数级注释：与播放态反馈同链（构造初始推送 + handleLoop 翻转时推送）。
+ */
+void TimelinePlaybackController::publishLoopState() {
+    GlobalEventBus::instance()->publishState(
+        address(QStringLiteral("/loop")), looping_);
 }
 
 /**
@@ -193,6 +237,9 @@ void TimelinePlaybackController::bindOsc() {
                    SLOT(onTimelineCommand(GlobalEvent)));
     bus->subscribe(address(QStringLiteral("/currentFrame")), this,
                    SLOT(onTimelineCommand(GlobalEvent)));
+    // 【循环 2026-11-16】/loop 订阅（payload bool；true=循环回零续播）
+    bus->subscribe(address(QStringLiteral("/loop")), this,
+                   SLOT(onTimelineCommand(GlobalEvent)));
     // 【OSC 地址拖拽】启用工具栏按钮 Ctrl+拖出地址（/play /stop）——
     // 地址入剪贴板 + x-osc-address mime 可落 OSCMessageListWidget 等既有
     // 拖放目标。base 与 address() helper 同源（/timeline/master）。
@@ -210,6 +257,12 @@ void TimelinePlaybackController::bindOsc() {
                 timeline_->toolbar->stopAction())) {
             StatusContainer::instance()->registerWidget(
                 w, address(QStringLiteral("/stop")));
+        }
+        // 【循环 2026-11-16】loop 按钮控件注册（地址树/反查 UI 同口径）
+        if (auto* w = timeline_->toolbar->widgetForAction(
+                timeline_->toolbar->loopAction())) {
+            StatusContainer::instance()->registerWidget(
+                w, address(QStringLiteral("/loop")));
         }
     }
     // 初始状态推送（/play=false /stop=true /currentFrame=0）
@@ -242,6 +295,15 @@ void TimelinePlaybackController::onTimelineCommand(const GlobalEvent& ev) {
     }
     if (ev.address == address(QStringLiteral("/stop"))) {
         handleStop();
+        return;
+    }
+    // 【循环 2026-11-16】/loop 命令（payload bool）→ 工具栏勾选态回显
+    //（setChecked 不触发 triggered，无回环）+ 状态与 /loop 反馈
+    if (ev.address == address(QStringLiteral("/loop"))) {
+        const bool on = ev.payload.isValid() ? ev.payload.toBool() : false;
+        if (timeline_ && timeline_->toolbar)
+            timeline_->toolbar->setLoopState(on);
+        handleLoop(on);
         return;
     }
     if (ev.address == address(QStringLiteral("/currentFrame"))) {
