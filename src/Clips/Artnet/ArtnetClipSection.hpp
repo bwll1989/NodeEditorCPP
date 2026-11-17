@@ -62,7 +62,7 @@ public:
     /// 【ClipSectionInterface】宿主广播灌值（模型→面板向）：\p clip 为
     /// const ms::Clip*（经 void* 穿越基类边界）——按其 clip_data 现灌
     /// 控件。与轮询共用 diff 快照：内容相同即跳过（防回环）。
-    void refreshFromClip(const void* clip) override;
+    void refreshFromClip(const ms::Clip* clip) override; // P3-B 类型化签名
 
 protected:
     /// 可见性驱动轮询：显示启动 / 隐藏停止 + 隐藏前冲掉未落定编辑

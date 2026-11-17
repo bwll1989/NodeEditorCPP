@@ -5,31 +5,17 @@
 //  内嵌 appearanceGroupBox 独立成类；2026-11-15 注释/命名现代化对齐新风格
 //  ——成员 m_xxx → 尾下划线，注释统一 ==== 框）。
 //
-//  职责（「通用」页外观区块两行）：
-//    * 颜色行：当前色指示块 + 8 预设色块（titleColorPresets 单源）——
-//      点选即 setColor 写回模型；
-//    * 备注名行：留空显示类型名（displayText 的备注名优先语义）——
-//      textChanged 即 setNoteName 写回；
-//    * 双向同步：模型 appearanceChanged → syncFromOwner 灌显示
-//     （syncing_ 防回环）；
-//    * 挂接方式 = AbstractClipModel::initPropertyWidget 构造（owner 指针
-//      直连模型信号——与 ClipTimePanel 同款，11-13 判定保持项）。
-//
-//  样式约定：
-//  - 色块的动态背景色来自片段颜色数据（titleColorPresets / owner->color()），
-//    属于数据而非样式；
-//  - 边框等装饰样式通过 Q_PROPERTY 暴露，可被 QSS 覆盖：
-//      ClipAppearancePanel {
-//          qproperty-swatchBorderColor: #666666;
-//          qproperty-swatchCheckedBorderColor: #ffffff;
-//          qproperty-currentColorBorderColor: #888888;
-//      }
-//  - 主题切换（QEvent::StyleChange）时自动重建色块样式。
+//  【P3 面板迁库 2026-11-17】自 BaseClass 迁入 ClipPanelBase（通用片段 UI
+//  框架库）——BaseClass 回归零 UI 纯模型/接口库；导出宏换
+//  CLIPPANELBASE_EXPORT。
+//  （src/Nodes/TimeLineNode/TimelineEngine.h 的 titleColorPresets 内嵌副本
+//   为节点引擎冻结胶囊，独立演化不同步。）
 // ============================================================================
+//  样式约定（QSS qproperty-* 可配置项）见 .cpp 同名类注释。
 
 #pragma once
 
-#include "BaseClassExport.h"
+#include "ClipPanelBaseExport.h"
 #include <QGroupBox>
 #include <QColor>
 #include <QList>
@@ -55,7 +41,17 @@ inline QList<QColor> titleColorPresets()
 }
 
 /// 片段外观属性通用面板（颜色/备注名；owner 指针直连模型信号）
-class BASECLASS_EXPORT ClipAppearancePanel : public QGroupBox {
+///  样式约定：
+///  - 色块的动态背景色来自片段颜色数据（titleColorPresets / owner->color()），
+///    属于数据而非样式；
+///  - 边框等装饰样式通过 Q_PROPERTY 暴露，可被 QSS 覆盖：
+///      ClipAppearancePanel {
+///          qproperty-swatchBorderColor: #666666;
+///          qproperty-swatchCheckedBorderColor: #ffffff;
+///          qproperty-currentColorBorderColor: #888888;
+///      }
+///  - 主题切换（QEvent::StyleChange）时自动重建色块样式。
+class CLIPPANELBASE_EXPORT ClipAppearancePanel : public QGroupBox {
     Q_OBJECT
     // 颜色预设按钮边框（未选中）
     Q_PROPERTY(QColor swatchBorderColor READ swatchBorderColor WRITE setSwatchBorderColor)

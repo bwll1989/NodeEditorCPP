@@ -17,10 +17,10 @@ AbstractClipModel* Plugin::createModel(qint64 startUs) {
     return new LiveClipModel(startUs);
 }
 
-QWidget* Plugin::createPropertySection(void* ctx, QWidget* parent) {
-    auto* c = static_cast<ms::ClipSectionContext*>(ctx);
-    if (!c || !c->clip || !c->scene) return nullptr;
-    const ms::Asset* a = c->scene->findAsset(c->clip->asset_id);
+QWidget* Plugin::createPropertySection(ms::ClipSectionContext* ctx,
+                                       QWidget* parent) {
+    if (!ctx || !ctx->clip || !ctx->scene) return nullptr; // ctx 已类型化（P3-B）
+    const ms::Asset* a = ctx->scene->findAsset(ctx->clip->asset_id);
     if (!a || a->kind != ms::AssetKind::Live) return nullptr; // 未绑定实况素材
-    return new ms::LiveClipSection(*c, parent);
+    return new ms::LiveClipSection(*ctx, parent);
 }

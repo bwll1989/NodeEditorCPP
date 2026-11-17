@@ -25,6 +25,10 @@
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
+#include "AbstractClipModel.hpp" // owner_model 信号连接（ClipTimePanel/Appearance 内部）
+#include "ClipTimePanel.hpp"         // 页 1 时间属性区块（P3 迁入库内）
+#include "ClipAppearancePanel.hpp"   // 页 1 片段属性区块（P3 迁入库内）
+
 #include "Elements/SelectorComboBox/SelectorComboBox.hpp"
 #include "model/SceneModel.hpp"
 
@@ -33,20 +37,33 @@ namespace ms {
 ClipPropertyPanel::ClipPropertyPanel(const Clip& clip,
                                      MediaLibrary::Category media_category,
                                      const QString& binding_name,
+                                     AbstractClipModel* owner_model,
                                      QWidget* parent)
     : QTabWidget(parent),
       current_asset_id_(clip.asset_id),
       current_binding_name_(binding_name),
-      snapshot_(clip),
       effective_duration_us_(clip.duration_us) {
     // 【2026-11-13 三页式改版（用户定案）】本面板即 QTabWidget 页容器：
-    //   第 1 页「通用」= 媒体文件区（库通用面板的时间属性/片段属性由
-    //   BaseClass initPropertyWidget 识别 Tab 结构后插入本页开头）；
+    //   第 1 页「通用」= 时间属性（ClipTimePanel）+ 片段属性
+    //  （ClipAppearancePanel）+ 媒体文件区——【P3 装配收拢 2026-11-17】
+    //   库通用面板迁入本库，随本构造自治装配（owner_model 非空即建；
+    //   原 P2 时代经 ClipPageHost 接口由 BaseClass 插入的协议随迁库退役
+    //   ——装配点与页结构同库，无需再协商）；
     //   第 2 页「动画」/第 3 页专属区由适配器经 appendSection 追加。
     general_page_ = new QWidget(this);
     auto* lay = new QVBoxLayout(general_page_);
     lay->setContentsMargins(4, 4, 4, 4);
     lay->setSpacing(6);
+
+    // ---- 页 1 通用区：时间属性 + 片段属性（P3 迁库自治；owner_model 为空
+    //      = 无模型场景，只建媒体区）-------------------------------------
+    // ClipTimePanel 构造尾自治登记 OSC 外控（6 控件 registerExternalControl
+    // + pushOscInitialState——原 AbstractClipModel::initPropertyWidget 尾部
+    // 注册块收编入面板构造，独立打开路径不再漏登记）。
+    if (owner_model) {
+        lay->addWidget(new ClipTimePanel(owner_model, general_page_));
+        lay->addWidget(new ClipAppearancePanel(owner_model, general_page_));
+    }
 
     // ---- 媒体文件（2026-11-12 用户定案：文件选择经媒体库 SelectorComboBox，
     // 替换原 QFileDialog 任意路径选择——素材统一走媒体库管理）--------------
@@ -78,7 +95,7 @@ ClipPropertyPanel::ClipPropertyPanel(const Clip& clip,
     connect(media_selector_, &SelectorComboBox::selectionChanged,
             this, &ClipPropertyPanel::onMediaSelected);
     lay->addWidget(asset_box);
-    lay->addStretch(1); // 页内容不足时余量沉底（时间属性等插入后仍在尾部）
+    lay->addStretch(1); // 页内容不足时余量沉底（通用区在上，媒体区随内容贴顶）
     addTab(general_page_, tr("通用")); // 第 1 页（this 即页容器）
 
     // 【画布变换区已退役（2026-11-06 方案 A）】七属性编辑并入 TweenSection

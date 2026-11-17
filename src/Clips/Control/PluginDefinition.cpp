@@ -17,8 +17,8 @@ AbstractClipModel* Plugin::createModel(qint64 startUs) {
     return new ControlClipModel(startUs);
 }
 
-QWidget* Plugin::createPropertySection(void* ctx, QWidget* parent) {
-    auto* c = static_cast<ms::ClipSectionContext*>(ctx);
-    if (!c || !c->clip) return nullptr;
-    return new ms::ControlClipSection(*c, parent);
+QWidget* Plugin::createPropertySection(ms::ClipSectionContext* ctx,
+                                       QWidget* parent) {
+    if (!ctx || !ctx->clip) return nullptr; // ctx 已类型化（P3-B），直用成员
+    return new ms::ControlClipSection(*ctx, parent);
 }

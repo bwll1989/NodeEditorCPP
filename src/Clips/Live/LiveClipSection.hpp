@@ -59,7 +59,7 @@ public:
     /// const ms::Clip*（经 void* 穿越基类边界）——按其当前绑定现查素材
     /// （换绑安全）→ refreshFrom。QSignalBlocker 防回环；源下拉有焦点
     ///（正在挑源/键入）时跳过。
-    void refreshFromClip(const void* clip) override;
+    void refreshFromClip(const ms::Clip* clip) override; // P3-B 类型化签名
 
 private slots:
     /// 「刷新」：当前接入方式注册表 list_sources 重灌源下拉（保留当前选择）

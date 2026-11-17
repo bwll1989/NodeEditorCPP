@@ -69,6 +69,8 @@
 class QComboBox;
 class QToolButton;
 class FloatDragValueWidget; // 全局命名空间类（GUIElements）——前向声明必须在 namespace 外
+struct ClipTweenExposure;   // 全局命名空间类（BaseClass 动画页暴露面 schema，
+                            // P4-A 2026-11-17）——完整定义 .cpp 侧 include
 
 namespace ms {
 
@@ -85,8 +87,13 @@ public:
     using PlayheadFn = std::function<std::int64_t()>;
 
     /// \param clip   当前片段快照（通道/静态值初值来源；写回走 applier）
+    /// \param expo   暴露面 schema（P4-A 2026-11-17：插件 tweenExposure()
+    ///               声明）——未暴露属性行【不生成】控件（Row 骨架仍占
+    ///               rows_ 13 行定长契约，控件全 nullptr），空组整组隐藏，
+    ///               锚点随组 0（变换域）同进退；空白名单 = 全暴露
     /// \param parent Qt 父控件（= 承载面板 ClipPropertyPanel）
-    explicit TweenSection(const Clip& clip, QWidget* parent = nullptr);
+    explicit TweenSection(const Clip& clip, const ClipTweenExposure& expo,
+                          QWidget* parent = nullptr);
 
     /// 注入写回回调（构造后立即设置；未设置时控件只改显示不写回）。
     void setApplier(std::function<void()> applier) {
@@ -195,6 +202,11 @@ private:
     std::vector<Row> rows_;   ///< 固定 13 行（kPropOrder 表序：位置/尺寸/
                               ///<  旋转/裁切×4/角点×4/不透明度/音频增益——
                               ///<  v4 五分组定案；Z 行与俯仰/偏航行退役合并）
+    bool row_exposed_[13] = {}; ///< 暴露面 schema 位（P4-A）：true = 行控件
+                                ///<  生成；false = 只留 Row 骨架（widget 全
+                                ///<  nullptr——propCount()/valueSpin()/
+                                ///<  cornerSpin 定长契约不变，测试遍历安全
+                                ///<  得 nullptr 而非越界）
 
     // ---- 折叠组（v3 五分组，DaVinci Inspector 同构；行连续切分）------------
     // 0=变换（锚点+位置/尺寸，默认展开）/ 1=姿态（旋转三轴一行）/

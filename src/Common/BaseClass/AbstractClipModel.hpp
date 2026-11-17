@@ -30,13 +30,10 @@
 #include <QPointer>
 #include <QVariant>
 #include <unordered_map>
-// 注意：不要在本头文件 include ClipTimePanel.hpp / ClipAppearancePanel.hpp。
-// 本类持有它们的指针成员（timeGroupBox），用前置声明即可；若在此 include，
-// 所有 include 本头的消费方（宿主/插件）TU 都会连带展开面板类的
-// tr() / staticMetaObject 符号——后者是静态数据符号，无法通过导入库解析，
-// 将导致消费方链接失败（LNK2019）。完整定义只在库内 .cpp 中使用。
-class ClipTimePanel;
-class ClipAppearancePanel;
+// 【P3 面板迁库 2026-11-17】本类不再持有任何面板指针成员（原 timeGroupBox
+// 与前置声明 class ClipTimePanel/ClipAppearancePanel 一并退役）——通用面板
+// 迁 ClipPanelBase（通用片段 UI 框架库），initPropertyWidget 只装配对话框
+// 壳与工厂产物；BaseClass 回归零 UI 纯模型/接口库。
 class QMenu; // appendKeyframeContextMenu 形参（引用传递，前置声明足够）
 using namespace QtTimeline;
 class BASECLASS_EXPORT AbstractClipModel : public QObject {
@@ -90,6 +87,14 @@ virtual void setId(ClipId id) {
 virtual void registerExternalControl(const QString& oscAddress, QWidget* control);
 QString makeFullOscAddress(const QString& oscAddress) const;
 virtual void stateFeedBack(const QString& oscAddress, QVariant value);
+
+/**
+ * 【P3 面板迁库 2026-11-17 提为 public，原 protected】ID/控件就绪后的统一
+ * 推送点——遍历 _OscMapping 向 StatusContainer 登记完整地址并按控件类型
+ * 推初始值 + 遍历 _OscPropertyMapping 订阅/推值（幂等，双触发：
+ * setId 与 ClipTimePanel 构造自治登记后各一次）。
+ */
+void pushOscInitialState();
 
 // ---- OSC 属性绑定（2026-11-15 对齐节点 registerExternalBinding 语义）----
 // 控件绑定（上方）依赖控件存在（面板打开期才有效）；属性绑定落【模型自身
@@ -278,10 +283,11 @@ void showPropertyWidget();
      * @param bool selected 是否被选中
      */
 // AbstractClipModel::initPropertyWidget
-// 函数说明：初始化属性面板，此处将“时间属性”界面独立为 ClipTimePanel，并保持原有功能与信号连接。
-// 实现说明：本函数创建 ClipTimePanel / ClipAppearancePanel 等 Q_OBJECT 窗口，
-// 为避免宿主插件在内联展开时引用面板的 staticMetaObject 数据符号（数据符号无法
-// 从导入库解析），实现已移至 AbstractClipModel.cpp，此处仅保留声明。
+// 函数说明：【P3 面板迁库 2026-11-17】初始化属性面板 = 对话框壳
+//（FramelessDialog）+ 工厂闭包产物嵌入——通用区（时间/片段/媒体）装配
+// 已收拢进 ClipPropertyPanel 构造（面板迁 ClipPanelBase），本类零 UI。
+// 实现说明：实现留在库内 .cpp（FramelessDialog 等完整类型不进公共头），
+// 此处仅保留声明。
 virtual void initPropertyWidget();
 
 // ---- 关键帧子元素通用扩展点（2026-11-05 Tween 时间轴集成）----------------
@@ -409,11 +415,8 @@ private Q_SLOTS:
 
 protected:
     // ---- OSC 外部控制内部机制（2026-11-12 恢复）----
-    // 遍历 _OscMapping：向 StatusContainer 登记完整地址，并按控件类型推送初始值
-    //（由 setId 与 initPropertyWidget 双触发，幂等）。
-    // 【2026-11-15 扩展】同时遍历 _OscPropertyMapping：订阅命令入站 + 读
-    // property(member) 推送当前值——属性绑定不依赖控件，片段创建即推。
-    void pushOscInitialState();
+    // pushOscInitialState 已提为 public（见上方声明）——【P3 面板迁库】
+    // ClipTimePanel 构造自治登记后需外部调用。
     /// 【2026-11-15 对齐节点 afterModelReady 语义】片段 OSC 就绪扩展点：
     /// setId → pushOscInitialState（统一登记+推送当前值）完成后调用。子类
     /// 可在此 registerExternalProperty 注册类型专属属性绑定或做其余初始化；
@@ -457,15 +460,14 @@ protected:
 
     QAbstractItemModel* m_timelineModel {nullptr};
 
-    // 布局
-    QVBoxLayout* m_layout;
-    // //开始帧
+    // 【P3 面板迁库 2026-11-17】原 m_layout（对话框体布局）与 timeGroupBox
+    //（ClipTimePanel*）成员删除——面板装配收拢进 ClipPropertyPanel（迁
+    // ClipPanelBase），本类只装配壳与工厂产物，布局为局部变量。
 
     // 代理窗口
     QWidget* m_clipPropertyWidget;
     //时间码类型
     TimeCodeType m_timeCodeType;
-    ClipTimePanel *timeGroupBox;
     /**
 
      * 绘制背景

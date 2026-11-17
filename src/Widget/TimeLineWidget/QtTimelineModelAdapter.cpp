@@ -26,6 +26,8 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonDocument> // OSC drag → Control：control_messages JSON 构造
+#include <QDebug>
+#include <QElapsedTimer> // panel-timing 排查埋点（临时）
 
 // 片段属性面板（素材绑定 + 画布变换；附加进库组合面板）
 // 【2026-11-13 片段插件化】通用面板/Tween 合并区迁 Common/ClipPanelBase.dll；
@@ -380,19 +382,10 @@ std::string QtTimelineModelAdapter::nextClipId() const {
 // ---------------------------------------------------------------------------
 static MediaLibrary::Category categoryForKind(AssetKind kind);
 
-// AssetKind → 专属页页签中文名（2026-11-13 三页式：第 3 页=片段专属属性页；
-// 与 kindDisplayName「轨道名」区分——页签是片段语义，不带「轨」字）
-static QString kindPageName(AssetKind kind) {
-    switch (kind) {
-        case AssetKind::Video: return QStringLiteral("视频");
-        case AssetKind::Image: return QStringLiteral("图片");
-        case AssetKind::Text:  return QStringLiteral("文本");
-        case AssetKind::Audio: return QStringLiteral("音频");
-        case AssetKind::Live:  return QStringLiteral("实况");
-        case AssetKind::Control: return QStringLiteral("指令");
-        default:               return QStringLiteral("属性");
-    }
-}
+// 【P2-B 元数据下放 2026-11-17】原 kindPageName 表（AssetKind → 专属页
+// 页签中文名）删除——页签名归插件声明 ClipPlugInterface::clipDisplayName
+//（该表曾漂移：Artnet/Mapping 缺失落兜底「属性」，11-17 实证；类型显示
+// 知识留宿主即会再漂，与轨道去类型化同原则下放类型跟片段走）。
 
 
 // ---------------------------------------------------------------------------
@@ -436,6 +429,10 @@ void QtTimelineModelAdapter::configureClipPanel(SceneClipModel* sc,
 // ---------------------------------------------------------------------------
 QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
         const std::string& clip_id, const QString& type) {
+    // 【panel-timing 2026-11-17】双击卡顿排查埋点（临时）：分阶段耗时落
+    // qDebug，定位卡顿段后移除。
+    QElapsedTimer _pt;
+    _pt.start();
     // 出口 1：宿主未注入 hooks（单测环境/时序异常）——退化为纯通用区
     if (!hooks_.import_media) {
         std::fprintf(stderr,
@@ -453,49 +450,59 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
         std::fflush(stderr);
         return nullptr;
     }
+    const qint64 _t_locate = _pt.elapsed();
     const AssetKind kind = kindForType(type);
+    // 【P2-B 元数据下放 2026-11-17】插件工厂查询前置：页 3 专属区工厂与
+    // 类型显示元数据（clipDisplayName/hasMediaBinding/bindingHint）同源
+    // ——类型显示知识归插件声明，宿主 if 链退役（新类型零宿主改动）。
+    // factory 空 = 插件缺位（.plugin 被删/未装载）：页 3 不加（同现状），
+    // 媒体区显隐保守回退为显示（基类默认语义）。
+    ClipPlugInterface* factory = nullptr;
+    if (BasePluginLoader* pl = getPluginLoader())
+        factory = pl->getPluginByType(type);
     // 当前绑定展示名：从工作副本素材表解析（找不到 = 空 → 面板显示未绑定
     // 引导/仅 id）。Live 素材无文件（path 恒空）——显示实况源状态而非
-    // 误导性的"未绑定"：未选源提示去实况区选择，已选源显示源名。
-    // Control（2026-11-13）：无媒体绑定语义——恒显示说明文案
-    // Artnet/Mapping（2026-11-15）：无媒体绑定语义——业务数据在专属页
+    // 误导性的"未绑定"：未选源提示去实况区选择，已选源显示源名
+    //（素材域动态知识，仍归宿主）。
     QString binding_name;
-    if (kind == AssetKind::Control) {
-        binding_name = QStringLiteral("（指令片段无需媒体文件）");
-    } else if (kind == AssetKind::Artnet) {
-        binding_name = QStringLiteral("（灯光片段：DMX 视频在专属页选择）");
-    } else if (kind == AssetKind::Mapping) {
-        binding_name = QStringLiteral("（映射片段无需媒体文件）");
+    if (kind == AssetKind::Live) {
+        for (const auto& a : work_->assets)
+            if (a.id == c->asset_id) {
+                binding_name = a.live_source_name.empty()
+                    ? QStringLiteral("（实况源未选——在下方实况区选择）")
+                    : QString::fromStdString(a.live_source_name);
+                break;
+            }
     } else {
         for (const auto& a : work_->assets)
             if (a.id == c->asset_id) {
-                if (a.kind == AssetKind::Live)
-                    binding_name = a.live_source_name.empty()
-                        ? QStringLiteral("（实况源未选——在下方实况区选择）")
-                        : QString::fromStdString(a.live_source_name);
-                else
-                    binding_name =
-                        QFileInfo(QString::fromStdString(a.path)).fileName();
+                binding_name =
+                    QFileInfo(QString::fromStdString(a.path)).fileName();
                 break;
             }
     }
-    auto* panel = new ClipPropertyPanel(*c, categoryForKind(kind), binding_name);
-    // Live 片段：隐藏媒体文件区（2026-11-09 用户定案）——「指定媒体文件…」
-    // 与实况区的源选择功能重复，绑定/选择入口统一归实况区
-    // Text 片段：隐藏媒体文件区（2026-11-13 用户定案）——文本内容走文本
-    // 专属编辑区，无媒体文件绑定语义
-    // Control 片段：隐藏媒体文件区（2026-11-13）——无媒体文件绑定语义，
-    // 指令表在「指令」专属页编辑
-    // Artnet/Mapping 片段：隐藏媒体文件区（2026-11-15）——无媒体文件绑定
-    // 语义，业务数据在专属页编辑（DMX 选择/主机/起始域、消息表）
-    if (kind == AssetKind::Live || kind == AssetKind::Text ||
-        kind == AssetKind::Control || kind == AssetKind::Artnet ||
-        kind == AssetKind::Mapping)
+    // 无媒体绑定语义类型：插件声明的说明文案覆盖（原宿主 AssetKind if 链
+    // 硬编码文案——Control/Artnet/Mapping——下放插件 bindingHint；文案空
+    // 的类型如 Text 保持宿主解析结果，与原行为一致）
+    if (factory && !factory->hasMediaBinding()) {
+        const QString hint = factory->bindingHint();
+        if (!hint.isEmpty()) binding_name = hint;
+    }
+    // 【P3 装配收拢 2026-11-17】owner_model 注入：页 1 顶部自治装配库通用
+    // 区（ClipTimePanel 时间属性 + ClipAppearancePanel 片段属性，OSC 外控
+    // 登记随 ClipTimePanel 构造自治）——原 BaseClass initPropertyWidget 的
+    // 通用区装配职责随面板迁库收拢进构造。
+    auto* panel = new ClipPropertyPanel(*c, categoryForKind(kind), binding_name,
+                                        findClipModelByAnchor(clip_id));
+    const qint64 _t_panel = _pt.elapsed();
+    // 【P2-B】媒体区显隐 = 插件声明（原 Live/Text/Control/Artnet/Mapping
+    // 五类型 if 链退役——声明在各自插件 hasMediaBinding()）
+    if (factory && !factory->hasMediaBinding())
         panel->setMediaSectionVisible(false);
     // 登记到广播注册表（双向同步）：此后画布拖拽/另一面板写回/时间轴拖动
     // 等一切工作副本变化经 refreshClipPanels 灌进本面板（非焦点控件）。
     // 面板销毁由 QPointer 自动感知，广播时惰性清理，无需关闭回调。
-    clip_panels_[clip_id].push_back(panel);
+    panel_refs_[clip_id].push_back({panel, PanelRef::Kind::Generic});
     // 写回闭包：QPointer 守护（组合面板/面板可能先于适配器销毁）
     QPointer<ClipPropertyPanel> guard(panel);
     panel->setApplier([this, clip_id, guard]() {
@@ -510,79 +517,116 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
     // 【2026-11-13 三页式改版】先追加 = 第 2 页「动画」（页序：通用 → 动画
     // → 专属）。X/Y/Z/宽/高/旋转/不透明度七属性唯一编辑区（2026-11-06 用户
     // 拍板：原画布变换区退役——值恒显示播放头处最终结果，通道启用=改值即
-    // 打键 auto-key / 未启用=静态基准）。登记进 tween_panels_ 广播注册表；
+    // 打键 auto-key / 未启用=静态基准）。登记进 panel_refs_ 统一广播注册表
+    //（Kind::Tween，P1-A1 三表合一）；
     // 写回经 applyClipTweenEdit（按 clip id 定位 → clip.tweens 无条件覆盖 +
     // transform 静态脏字段合并 + sceneEdited）；播放头注入使值框恒显示播放
     // 头处结果（WATCHOUT 语义）。
     {
-        auto* tsec = new TweenSection(*c, panel); // panel 拥有
-        panel->appendSection(tsec, QStringLiteral("动画"));
-        tween_panels_[clip_id].push_back(tsec);
-        QPointer<TweenSection> wguard(tsec);
-        tsec->setPlayheadFn([this]() {
-            return getPlayheadPos(); // 播放头（μs；库与 Scene 同基直传）
-        });
-        // 尺寸行 ⟲ 默认值（2026-11-09 补设）：绑定素材的原始像素宽高
-        //（无绑定素材/宽高 0 如 Live 不注入——⟲ 点击不动作）
-        if (const Asset* sa = work_->findAsset(c->asset_id);
-            sa && sa->width > 0 && sa->height > 0)
-            tsec->setSizeDefaultHint(sa->width, sa->height);
-        tsec->setApplier([this, clip_id, wguard]() {
-            if (!wguard) return; // 区块已销毁（信号队列残留），忽略
-            applyClipTweenEdit(clip_id, wguard.data());
-        });
-        // 播放头钩子/写回钩子就位后重灌一次：打开即显示当前播放头处的
-        // 插值值（构造时钩子未注入，数值是静态基准兜底）
-        tsec->refreshFrom(*c);
+        // 【P4-A 暴露面 schema 化 2026-11-17】动画页 = 插件声明
+        //（tweenExposure）：page_visible=false 整页不加（Control/Artnet
+        // 无 transform 语义）；exposed_keys 白名单过滤属性行（Audio=仅
+        // audio_gain，行不生成）。factory 缺失 = 默认全暴露（保守兜底，
+        // 与基类虚默认一致——不因插件加载失败而丢失动画能力）
+        const ClipTweenExposure expo =
+            factory ? factory->tweenExposure() : ClipTweenExposure{};
+        if (expo.page_visible) {
+            auto* tsec = new TweenSection(*c, expo, panel); // panel 拥有
+            panel->appendSection(tsec, QStringLiteral("动画"));
+            panel_refs_[clip_id].push_back({tsec, PanelRef::Kind::Tween});
+            QPointer<TweenSection> wguard(tsec);
+            tsec->setPlayheadFn([this]() {
+                return getPlayheadPos(); // 播放头（μs；库与 Scene 同基直传）
+            });
+            // 尺寸行 ⟲ 默认值（2026-11-09 补设）：绑定素材的原始像素宽高
+            //（无绑定素材/宽高 0 如 Live 不注入——⟲ 点击不动作）
+            if (const Asset* sa = work_->findAsset(c->asset_id);
+                sa && sa->width > 0 && sa->height > 0)
+                tsec->setSizeDefaultHint(sa->width, sa->height);
+            tsec->setApplier([this, clip_id, wguard]() {
+                if (!wguard) return; // 区块已销毁（信号队列残留），忽略
+                applyClipTweenEdit(clip_id, wguard.data());
+            });
+            // 播放头钩子/写回钩子就位后重灌一次：打开即显示当前播放头处的
+            // 插值值（构造时钩子未注入，数值是静态基准兜底）
+            tsec->refreshFrom(*c);
+        }
     }
+    const qint64 _t_tween = _pt.elapsed();
 
     // ---- 片段专属编辑区（2026-11-13 片段插件化）= 第 3 页 ------------------
     // 宿主不持有任何具体 Section 类型——按片段类型从插件表取工厂，经
     // ClipPlugInterface::createPropertySection 扩展点加载（文本区随
     // text.plugin、实况区随 live.plugin）；未绑定对应素材/插件未供给时
     // 返回 nullptr——页不加（用户定案「没有的话就不嵌入」）。区块实现
-    // ClipSectionInterface 的登记 clip_sections_ 广播注册表；字段写回已
+    // ClipSectionInterface 的登记 panel_refs_ 统一广播注册表（Kind::Section，
+    // P1-A1 三表合一）；字段写回已
     // 内化进区块（直接写绑定素材），编辑落定经 ctx.on_edited 回调
-    //（sceneEdited + 广播）。页签 = 类型中文名（kindDisplayName）。
-    if (BasePluginLoader* pl = getPluginLoader()) {
-        if (ClipPlugInterface* factory = pl->getPluginByType(type)) {
-            ms::ClipSectionContext ctx;
-            ctx.clip  = c;
-            ctx.scene = work_;
-            // 编辑落定闭包：QPointer 守护适配器（面板/区块可能先于适配器销毁）
-            QPointer<QtTimelineModelAdapter> aguard(this);
-            ctx.on_edited = [this, aguard, clip_id]() {
-                if (!aguard) return;
-                // 【2026-11-15 片段移植】业务 JSON → 模型镜像回推：区块写
-                // 完工作副本 clip_data 后，把最新值灌给模型（setClipPayload
-                // ——Artnet 播放读镜像；幂等 diff 在模型侧）。模型 setEnd
-                // 自适应触发的 lengthChanged → onClipGeometryChanged 会把
-                // 自适应时长写回工作副本（链路闭环）。
-                if (Clip* cc = locateWorkClip(
-                        QString::fromStdString(clip_id))) {
-                    if (AbstractClipModel* m = findClipModelByAnchor(clip_id))
-                        m->setClipPayload(
-                            QString::fromStdString(cc->clip_data));
-                }
-                emit sceneEdited();          // "未下发"提示 + 自动下发链路
-                refreshClipPanels(clip_id);  // 广播灌值（区块内焦点保护防打断）
-            };
-            // 【2026-11-15 悬垂修复】片段实时定位回调：tr.clips 是
-            // vector<Clip>，片段增删会搬移元素——工厂时刻的 ctx.clip 在
-            // 结构变化后失效。Section 写回/读取统一走本回调现取当前对象
-            //（Control 片段"改 0 跳回 1"：写悬垂丢失 + 灌新位置旧值实证）。
-            ctx.clip_lookup = [aguard, clip_id]() -> Clip* {
-                return aguard
-                    ? aguard->locateWorkClip(QString::fromStdString(clip_id))
-                    : nullptr;
-            };
-            if (QWidget* sec = factory->createPropertySection(&ctx, panel)) {
-                panel->appendSection(sec, kindPageName(kind));
-                clip_sections_[clip_id].push_back(sec);
-            }
+    //（sceneEdited + 广播）。页签 = 插件声明 clipDisplayName（P2-B 下放）。
+    if (factory) {
+        ms::ClipSectionContext ctx;
+        ctx.clip  = c;
+        ctx.scene = work_;
+        // 编辑落定闭包：QPointer 守护适配器（面板/区块可能先于适配器销毁）
+        // 【P1-A2 收编】三腿编排收口进 notifyClipEdited（镜像回推 +
+        // sceneEdited + 广播），与通用/Tween 写回路径同构。
+        QPointer<QtTimelineModelAdapter> aguard(this);
+        ctx.on_edited = [this, aguard, clip_id]() {
+            if (!aguard) return;
+            // 【2026-11-15 片段移植】业务 JSON → 模型镜像回推：区块写
+            // 完工作副本 clip_data 后，把最新值灌给模型（setClipPayload
+            // ——Artnet 播放读镜像；幂等 diff 在模型侧）。模型 setEnd
+            // 自适应触发的 lengthChanged → onClipGeometryChanged 会把
+            // 自适应时长写回工作副本（链路闭环）。
+            notifyClipEdited(clip_id, /*mirror_payload=*/true);
+        };
+        // 【2026-11-15 悬垂修复】片段实时定位回调：tr.clips 是
+        // vector<Clip>，片段增删会搬移元素——工厂时刻的 ctx.clip 在
+        // 结构变化后失效。Section 写回/读取统一走本回调现取当前对象
+        //（Control 片段"改 0 跳回 1"：写悬垂丢失 + 灌新位置旧值实证）。
+        ctx.clip_lookup = [aguard, clip_id]() -> Clip* {
+            return aguard
+                ? aguard->locateWorkClip(QString::fromStdString(clip_id))
+                : nullptr;
+        };
+        if (QWidget* sec = factory->createPropertySection(&ctx, panel)) {
+            // 页签 = 插件声明 clipDisplayName（P2-B 下放；未声明类型 =
+            // clipType() 英文兜底，一眼可见漏声明）
+            panel->appendSection(sec, factory->clipDisplayName());
+            panel_refs_[clip_id].push_back({sec, PanelRef::Kind::Section});
         }
     }
+    qDebug() << "[panel-timing] makeClipPropertyPanel" << type
+             << "总" << _pt.elapsed() << "ms（定位" << _t_locate
+             << "/通用面板" << (_t_panel - _t_locate)
+             << "/动画区" << (_t_tween - _t_panel)
+             << "/专属区" << (_pt.elapsed() - _t_tween) << "）";
     return panel;
+}
+
+// ---------------------------------------------------------------------------
+// 编辑落定统一编排（P1-A2 收编 2026-11-17）：所有"工作副本片段字段被
+// 编辑"路径的公共尾部。
+//   * mirror_payload（按需）：工作副本 clip_data → 模型镜像回推
+//    （setClipPayload——插件专属区编辑路径专用；Artnet 播放读镜像，
+//     幂等 diff 在模型侧。模型 setEnd 自适应触发的 lengthChanged →
+//     onClipGeometryChanged 会把自适应时长写回工作副本，链路闭环）；
+//   * sceneEdited："未下发"提示 + 自动下发链路（EditorWindow 挂接）；
+//   * refreshClipPanels：广播灌值（各区块 QSignalBlocker 防回环 +
+//     焦点保护自治，广播 → 灌显示 → 不写回）。
+// 【不对称修复】原 applyClipPanelMerge 尾缺广播腿（靠间接链兜底），
+// 本函数使四条写回路径（通用合并 / Tween 区 / 专属区 on_edited /
+// 时间轴键编辑）机制性同腿。
+// ---------------------------------------------------------------------------
+void QtTimelineModelAdapter::notifyClipEdited(const std::string& clip_id,
+                                              bool mirror_payload) {
+    if (mirror_payload) {
+        if (Clip* cc = locateWorkClip(QString::fromStdString(clip_id)))
+            if (AbstractClipModel* m = findClipModelByAnchor(clip_id))
+                m->setClipPayload(QString::fromStdString(cc->clip_data));
+    }
+    emit sceneEdited();
+    refreshClipPanels(clip_id);
 }
 
 // ---------------------------------------------------------------------------
@@ -625,7 +669,9 @@ void QtTimelineModelAdapter::applyClipPanelMerge(
     // 时长若被面板改动（素材联动），时间轴片段长度跟随（loading_ 屏蔽回写）
     setClipGeometryFromScene(clip_id, c->start_us, c->duration_us);
 
-    emit sceneEdited(); // 状态栏"未下发"提示（EditorWindow 挂接）
+    // 【P1-A2】落定编排收口：sceneEdited + 广播（原只 emit 不广播——
+    // 靠 refreshSceneViews 间接链兜底的不对称在此补齐）
+    notifyClipEdited(clip_id);
 }
 
 // ---------------------------------------------------------------------------
@@ -654,8 +700,7 @@ void QtTimelineModelAdapter::applyClipTweenEdit(const std::string& clip_id,
     //（appearanceChanged → dataChanged → updateClipGeometry 局部刷新）
     syncClipTweenDots(clip_id);
 
-    emit sceneEdited();  // "未下发"提示 + 自动下发（EditorWindow 挂接）
-    refreshClipPanels(clip_id); // 广播灌值（区块内 QSignalBlocker 防回环）
+    notifyClipEdited(clip_id); // 【P1-A2】sceneEdited + 广播统一收口
 }
 
 // ---------------------------------------------------------------------------
@@ -722,8 +767,7 @@ bool QtTimelineModelAdapter::applyTweenKeyRemove(const std::string& clip_id,
     keys.erase(keys.begin() + key);
     if (keys.empty())
         c->tweens.erase(c->tweens.begin() + channel);
-    emit sceneEdited();
-    refreshClipPanels(clip_id);
+    notifyClipEdited(clip_id); // 【P1-A2】sceneEdited + 广播统一收口
     return true;
 }
 
@@ -751,33 +795,39 @@ bool QtTimelineModelAdapter::applyTweenKeyFrameMove(const std::string& clip_id,
         for (auto& k : tw.keys)
             if (k.t_us == old_t) { k.t_us = new_t; any = true; }
     if (!any) return false; // 该时刻无键（镜像/副本短暂漂移防御）
-    emit sceneEdited();          // "未下发"提示 + 自动下发链路
-    refreshClipPanels(clip_id);  // Tween 区数值显示跟随（灌值防回环）
+    notifyClipEdited(clip_id); // 【P1-A2】sceneEdited + 广播统一收口
     return true;
 }
 
 // ---------------------------------------------------------------------------
 // 【Tween 专用·播放头驱动刷新】播放头移动 → 已打开 Tween 区的"播放头处
-// 数值显示"重灌。只遍历 tween_panels_（注册表空 = 零开销，播放期每帧
-// echo seekTo 驱动下高频调用安全）；每区块独立定位片段（删除/重载后
-// locateWorkClip 落空即跳过，QPointer 失效项跳过——惰性清理交给
-// refreshClipPanels 的常规路径）。只动显示：refreshFrom 内 QSignalBlocker
-// 防回环，不产生写回/sceneEdited。
+// 数值显示"重灌。遍历统一注册表 panel_refs_ 过滤 Tween 类（注册表空 =
+// 零开销，播放期每帧 echo seekTo 驱动下高频调用安全）；每区块独立定位
+// 片段（删除/重载后 locateWorkClip 落空即跳过，QPointer 失效项跳过——
+// 惰性清理交给 refreshClipPanels 的常规路径）。只动显示：refreshFrom 内
+// QSignalBlocker 防回环，不产生写回/sceneEdited。
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::refreshTweenPanelsPlayhead() {
-    if (tween_panels_.empty() || !work_) return; // 常态零开销
-    for (auto& kv : tween_panels_) {
-        // 惰性清理已销毁区块（随宿主面板关闭销毁）
-        auto& vec = kv.second;
-        vec.erase(std::remove_if(vec.begin(), vec.end(),
-                                 [](const QPointer<TweenSection>& s) {
-                                     return s.isNull();
-                                 }),
-                  vec.end());
-        if (vec.empty()) continue;
+    if (panel_refs_.empty() || !work_) return; // 常态零开销
+    for (auto& kv : panel_refs_) {
+        bool has_tween = false;
+        for (const PanelRef& e : kv.second)
+            if (e.kind == PanelRef::Kind::Tween && !e.w.isNull())
+                has_tween = true;
+        if (!has_tween) continue;
+        // 惰性清理已销毁区块（随宿主面板关闭销毁；死项任意 Kind 一并清）
+        kv.second.erase(std::remove_if(kv.second.begin(), kv.second.end(),
+                                       [](const PanelRef& e) {
+                                           return e.w.isNull();
+                                       }),
+                        kv.second.end());
         Clip* c = locateWorkClip(QString::fromStdString(kv.first));
         if (!c) continue; // 片段已删：显示冻结在最后状态（同既有语义）
-        for (auto& s : vec) s->refreshFrom(*c);
+        for (const PanelRef& e : kv.second) {
+            if (e.kind != PanelRef::Kind::Tween) continue;
+            if (auto* s = qobject_cast<TweenSection*>(e.w.data()))
+                s->refreshFrom(*c);
+        }
     }
 }
 
@@ -787,42 +837,26 @@ void QtTimelineModelAdapter::refreshTweenPanelsPlayhead() {
 // 防回环——广播链路：本函数 → refreshFrom，不会重新触发 sceneEdited）。
 // 触发源（EditorWindow 挂接）：refreshSceneViews 汇聚点（时间轴拖动/面板
 // 写回/装载等一切内容变化）+ 画布 sceneEdited（画布拖拽/方向键）。
+// 【P1-A1 收编】三张注册表合一后 = 单表惰性清理 + Kind 分派一次遍历；
+// 各 Kind 灌值语义逐条不变：
+//   Generic → ClipPropertyPanel::refreshFrom（Clip 域 + 绑定展示名）；
+//   Tween   → TweenSection::refreshFrom（Clip 域 tweens，全类型片段）；
+//   Section → ClipSectionInterface::refreshFromClip（实现侧按 clip->
+//             asset_id 现查绑定素材 + 焦点保护/防回环自治）。
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::refreshClipPanels(const std::string& clip_id) {
-    auto it  = clip_panels_.find(clip_id);
-    auto wit = tween_panels_.find(clip_id);
-    auto sit = clip_sections_.find(clip_id);
-    const bool has_generic  = it != clip_panels_.end();
-    const bool has_tween    = wit != tween_panels_.end();
-    const bool has_sections = sit != clip_sections_.end();
-    if (!has_generic && !has_tween && !has_sections)
-        return; // 该片段无打开面板（常态：零开销）
     if (!work_) return;
-
+    auto it = panel_refs_.find(clip_id);
+    if (it == panel_refs_.end())
+        return; // 该片段无打开面板（常态：零开销）
+    auto& vec = it->second;
     // 惰性清理已销毁面板（组合面板关闭 / 对话框 WA_DeleteOnClose）
-    if (has_generic) {
-        auto& vec = it->second;
-        vec.erase(std::remove_if(vec.begin(), vec.end(),
-                                 [](const QPointer<ClipPropertyPanel>& p) {
-                                     return p.isNull();
-                                 }),
-                  vec.end());
-    }
-    if (has_tween) {
-        auto& wv = wit->second;
-        wv.erase(std::remove_if(wv.begin(), wv.end(),
-                                [](const QPointer<TweenSection>& s) {
-                                    return s.isNull();
-                                }),
-                 wv.end());
-    }
-    if (has_sections) {
-        auto& sv = sit->second;
-        sv.erase(std::remove_if(sv.begin(), sv.end(),
-                                [](const QPointer<QWidget>& s) {
-                                    return s.isNull();
-                                }),
-                 sv.end());
+    vec.erase(std::remove_if(vec.begin(), vec.end(),
+                             [](const PanelRef& e) { return e.w.isNull(); }),
+              vec.end());
+    if (vec.empty()) { // 区块全关：表项摘除（注册表随 UI 收缩）
+        panel_refs_.erase(it);
+        return;
     }
 
     // 工作副本已无此片段（时间轴删除/场景重载）：旧面板停止刷新——显示
@@ -830,37 +864,30 @@ void QtTimelineModelAdapter::refreshClipPanels(const std::string& clip_id) {
     Clip* c = locateWorkClip(QString::fromStdString(clip_id));
     if (!c) return;
 
-    // ---- 通用区广播（既有逻辑：Clip 域灌值）----
-    if (has_generic) {
-        auto& vec = it->second;
-        if (!vec.empty()) {
-            // 绑定展示名：从工作副本素材表解析（与工厂同逻辑；空 = 未绑定）
-            QString binding_name;
-            for (const auto& a : work_->assets)
-                if (a.id == c->asset_id) {
-                    binding_name =
-                        QFileInfo(QString::fromStdString(a.path)).fileName();
-                    break;
-                }
-            for (auto& p : vec) p->refreshFrom(*c, binding_name);
+    // 绑定展示名：从工作副本素材表解析一次（与工厂同逻辑；空 = 未绑定）
+    QString binding_name;
+    for (const auto& a : work_->assets)
+        if (a.id == c->asset_id) {
+            binding_name =
+                QFileInfo(QString::fromStdString(a.path)).fileName();
+            break;
         }
-    }
-    // ---- Tween 区广播（2026-11-05；Clip 域 tweens 灌值，全类型片段）--------
-    // 区块随宿主面板销毁（QPointer 失效项已在上方清理）；灌值含播放头处
-    // 数值显示（refreshFrom 内 TweenEngine 解算）——内容变化与播放头移动
-    // 两条触发源共用同一灌值入口。
-    if (has_tween) {
-        auto& wv = wit->second;
-        for (auto& s : wv) s->refreshFrom(*c);
-    }
-    // ---- 片段专属区广播（2026-11-13 片段插件化；经 ClipSectionInterface）----
-    // 专属区块随片段插件走（宿主无具体类型）——qobject_cast 到接口灌值；
-    // 实现侧按 clip 当前绑定现查素材（换绑安全）+ 焦点保护/防回环自治。
-    if (has_sections) {
-        auto& sv = sit->second;
-        for (auto& s : sv)
-            if (auto* ifc = qobject_cast<ClipSectionInterface*>(s.data()))
-                ifc->refreshFromClip(c);
+
+    for (const PanelRef& e : vec) {
+        switch (e.kind) {
+        case PanelRef::Kind::Generic:
+            if (auto* p = qobject_cast<ClipPropertyPanel*>(e.w.data()))
+                p->refreshFrom(*c, binding_name);
+            break;
+        case PanelRef::Kind::Tween:
+            if (auto* s = qobject_cast<TweenSection*>(e.w.data()))
+                s->refreshFrom(*c);
+            break;
+        case PanelRef::Kind::Section:
+            if (auto* ifc = qobject_cast<ClipSectionInterface*>(e.w.data()))
+                ifc->refreshFromClip(c); // 实现侧现查素材/焦点保护自治
+            break;
+        }
     }
 }
 

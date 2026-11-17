@@ -31,4 +31,8 @@ public:
 
     /// 片段模型工厂（parent 由适配器随后 setParent）
     AbstractClipModel* createModel(qint64 startUs) override;
+
+    // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
+    /// 页 3 页签名（原宿主 kindPageName 表下放）
+    QString clipDisplayName() const override { return QStringLiteral("图片"); }
 };

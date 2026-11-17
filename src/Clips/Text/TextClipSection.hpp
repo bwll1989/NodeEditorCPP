@@ -61,7 +61,7 @@ public:
     /// const ms::Clip*（经 void* 穿越基类边界）——按其当前绑定现查素材
     ///（换绑安全）→ refreshFrom。QSignalBlocker 防回环 + 内容框焦点
     /// 保护（正在打字不灌——"正在编辑的字段用户说了算"）。
-    void refreshFromClip(const void* clip) override;
+    void refreshFromClip(const ms::Clip* clip) override; // P3-B 类型化签名
 
 private slots:
     /// 「文字颜色…」：QColorDialog 选色 → 成员 + 色块 → 写回

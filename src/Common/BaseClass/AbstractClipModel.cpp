@@ -3,11 +3,12 @@
 // AbstractClipModel 的库内实现。
 //
 // 说明：initPropertyWidget / showPropertyWidget 原先是头文件内联实现。
-// 由于它们会直接构造 ClipTimePanel / ClipAppearancePanel 等 Q_OBJECT 窗口类，
-// 宿主插件（.node/.plugin 动态库）在内联展开时会实例化这些面板类的
+// 由于它们会直接构造 Q_OBJECT 窗口类（历史上为 ClipTimePanel /
+// ClipAppearancePanel，【P3 面板迁库 2026-11-17】已迁 ClipPanelBase），
+// 宿主插件（.node/.plugin 动态库）在内联展开时会实例化这些窗口类的
 // tr() / staticMetaObject 等符号——其中 staticMetaObject 是静态数据符号，
 // 无法通过导入库解析，导致插件链接失败（LNK2019）。
-// 因此将实现移入库内。
+// 因此实现留在库内（现仅构造 FramelessDialog 壳 + 嵌入工厂产物）。
 //
 // 【2026-11-10 剪裁→2026-11-12 恢复】上游 OSC 外部控制体系（控件地址注册/
 // Ctrl 拖拽出 OSC mime/stateFeedBack 反向驱动）曾随原宿主工程退役剪裁；
@@ -16,7 +17,7 @@
 // 收编：registerExternalControl（StatusContainer 登记 + eventFilter Ctrl 拖拽）
 // / makeFullOscAddress（m_oscAlias 默认 "/timeline/master"）/ stateFeedBack
 //（GlobalEventBus::publishState）/ pushOscInitialState（setId 与
-// initPropertyWidget 双触发）。mime 五元组按消费端读序写
+// ClipTimePanel 构造自治登记【P3 后】双触发）。mime 五元组按消费端读序写
 //（host>>port>>address>>type>>value，OSCMessageListWidget::handleMimeDrop）。
 //
 // 【2026-11-12 收编 Common/BaseClass】随 BaseClass.dll 导出（SHARED），
@@ -26,12 +27,12 @@
 
 #include "AbstractClipModel.hpp"
 
-// 面板类完整定义只在库内使用（头文件中仅为前置声明，见 AbstractClipModel.hpp）
-#include "ClipTimePanel.hpp"
-#include "ClipAppearancePanel.hpp"
+// 【P3 面板迁库 2026-11-17】原 include 的 ClipTimePanel.hpp /
+// ClipAppearancePanel.hpp 随面板迁出（→ ClipPanelBase）——本库回归零 UI，
+// 面板装配收拢进 ClipPropertyPanel，本类只装配壳与工厂产物。
 
 // startDrag / pushOscInitialState 中 qobject_cast<IntDragValueWidget*> 需要控件完整类型，
-// 仅库内使用（ClipTimePanel.hpp 已间接 include，显式声明依赖）
+// 仅库内使用（原经 ClipTimePanel.hpp 间接 include，迁库后显式声明依赖）
 #include "IntDragValueWidget/IntDragValueWidget.hpp"
 #include "Common/Devices/StatusContainer/StatusContainer.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
@@ -40,7 +41,6 @@
 
 #include <QVBoxLayout>
 #include <QWidget>
-#include <QTabWidget> // 三页式属性面板识别（qobject_cast<QTabWidget*>）
 #include <QMetaProperty> // 属性绑定：notifySignalIndex/hasNotifySignal（qobjectdefs.h 仅前置声明）
 #include <QDrag>
 #include <QPixmap>
@@ -48,8 +48,18 @@
 #include <QAbstractButton>
 #include <QAbstractSlider>
 
+// 【P3 面板迁库 2026-11-17】原 include "ClipPageHost.h"（P2 页容器装配
+// 接口）随装配收拢退役——通用区装配内化进 ClipPropertyPanel，无需再协商。
+
+#include <QDebug>
+#include <QElapsedTimer> // panel-timing 排查埋点（临时）
+
 void AbstractClipModel::initPropertyWidget()
 {
+    // 【panel-timing 2026-11-17】双击卡顿排查埋点（临时）：分阶段耗时落
+    // qDebug（对接 spdlog）。定位后移除。
+    QElapsedTimer _pt;
+    _pt.start();
     // 【2026-11-17 统一无边框弹窗】宿主从裸 QWidget（Qt::WindowStaysOnTopHint
     // 置顶、无标题栏、无关闭钮）改为 FramelessDialog（GUIElements 统一弹窗
     // 基类：标题栏拖拽 / Esc / 标题栏关闭钮 / 统一 QSS）。非模态交互不变
@@ -60,60 +70,36 @@ void AbstractClipModel::initPropertyWidget()
     prop_dialog->setModal(false);
     prop_dialog->setCloseButtonVisible(false); // 标题栏 × = 关闭面板
     prop_dialog->setDialogTitle(displayText()); // 备注名优先，类型兜底
-    m_layout = prop_dialog->bodyLayout();
-    m_layout->setSpacing(4);
+    QVBoxLayout* body_layout = prop_dialog->bodyLayout();
+    body_layout->setSpacing(4);
+    const qint64 _t_dialog = _pt.elapsed();
 
-    // 创建一个容器 widget 来放置主要内容
-    auto contentWidget = new QWidget(m_standardPropertyWidget);
-    auto contentLayout = new QVBoxLayout(contentWidget);
-    contentLayout->setContentsMargins(0, 0, 0, 0);
-    contentLayout->setSpacing(4);
-
-    // 1. 时间属性组（重构后：由 ClipTimePanel 管理）+ 片段属性面板。
-    // 【2026-11-13 三页式改版（用户定案）】适配器工厂若返回 QTabWidget
-    // （ClipPropertyPanel 页容器：页 1 通用=媒体文件区），库通用面板
-    // （时间属性/片段属性）插进第 1 页开头——页序：通用（时间/片段/文件）
-    // → 动画 → 专属（用户定案「片段只要着重实现专属页，没有就不嵌入」）。
-    // 工厂返回非 Tab 结构（旧式片段模型/退化路径）→ 保持原平铺不变。
-    timeGroupBox = new ClipTimePanel(this, m_standardPropertyWidget);
-    auto* appearancePanel = new ClipAppearancePanel(this, m_standardPropertyWidget);
+    // 【P3 面板迁库（2026-11-17）】本函数瘦身为「壳 + 工厂 + 嵌入」：
+    //   * 壳 = FramelessDialog（统一无边框风格，非模态，置顶语义保留）；
+    //   * 内容 = 工厂闭包产物（适配器注入的 ClipPropertyPanel 三页式页
+    //     容器——通用区时间/片段/媒体 + 动画页 + 专属页全在页容器内自治；
+    //     库通用面板 ClipTimePanel/ClipAppearancePanel 迁 ClipPanelBase，
+    //     经面板构造参数 owner_model 自装配进页 1，OSC 外控登记随面板构造
+    //     自治——原本函数的 6× registerExternalControl + pushOscInitialState
+    //     块随之退役）；
+    //   * 退化路径行为变化：工厂未返回产物（hooks 未注入/工作副本缺片段）
+    //     时原平铺库通用面板兜底——面板迁出本库后无 UI 可兜底，对话框
+    //     空壳留痕（qWarning）。
     if (!m_clipPropertyWidget)
         m_clipPropertyWidget = clipPropertyWidget(); // 工厂闭包（适配器注入）
-    if (auto* tabs = qobject_cast<QTabWidget*>(m_clipPropertyWidget);
-        tabs && tabs->widget(0)) {
-        if (auto* gl = qobject_cast<QBoxLayout*>(tabs->widget(0)->layout())) {
-            gl->insertWidget(0, timeGroupBox);      // 时间属性（页首）
-            gl->insertWidget(1, appearancePanel);   // 片段属性
-        } else { // 页布局类型不符（协议断裂防御）——兜底平铺
-            m_layout->addWidget(timeGroupBox);
-            m_layout->addWidget(appearancePanel);
-        }
-    } else {
-        m_layout->addWidget(timeGroupBox);
-        m_layout->addWidget(appearancePanel);
-    }
-
-    // 【2026-11-12 恢复】时间属性 6 控件登记 OSC 外部控制（相对地址），
-    // 随后统一推送初始状态（StatusContainer 登记 + 初始值反馈）。
-    // 此处为双触发之一（另一处在 setId——控件通常先于/晚于 setId 创建均覆盖）。
-    registerExternalControl(QStringLiteral("/start_frame"), timeGroupBox->start_frame_spin_);
-    registerExternalControl(QStringLiteral("/end_frame"), timeGroupBox->end_frame_spin_);
-    registerExternalControl(QStringLiteral("/position_frame"), timeGroupBox->position_frame_spin_);
-    registerExternalControl(QStringLiteral("/start_time_code"), timeGroupBox->start_time_code_);
-    registerExternalControl(QStringLiteral("/end_time_code"), timeGroupBox->end_time_code_);
-    registerExternalControl(QStringLiteral("/position_time_code"), timeGroupBox->position_time_);
-    pushOscInitialState();
-
-    // 添加代理编辑器的占位符（三页式时 = QTabWidget 页容器）
+    if (!m_clipPropertyWidget)
+        qWarning() << "[clip-panel] 属性面板工厂未返回产物（宿主未注入或"
+                      "片段缺位）——对话框空壳";
     if (m_clipPropertyWidget)
-        contentLayout->addWidget(m_clipPropertyWidget);
+        body_layout->addWidget(m_clipPropertyWidget);
 
-    // 将内容 widget 添加到主布局
-    m_layout->addWidget(contentWidget);
     // 置顶语义保留（原 Qt::WindowStaysOnTopHint）：叠加在 FramelessDialog
     // 既有 flags（Qt::Dialog|FramelessWindowHint）之上，勿整体覆盖。
     prop_dialog->setWindowFlags(prop_dialog->windowFlags() |
                                 Qt::WindowStaysOnTopHint);
+    qDebug() << "[panel-timing] initPropertyWidget 总" << _pt.elapsed()
+             << "ms（壳" << _t_dialog << "+ 工厂/装配"
+             << (_pt.elapsed() - _t_dialog) << "）";
 }
 
 void AbstractClipModel::showPropertyWidget()

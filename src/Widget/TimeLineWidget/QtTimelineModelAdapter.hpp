@@ -326,6 +326,17 @@ private:
     /// 正交：通道启用的属性每帧被 TweenEngine 插值覆写。
     void applyClipTweenEdit(const std::string& clip_id,
                             TweenSection* section);
+    /// 编辑落定统一编排（P1-A2 收编 2026-11-17）：模型镜像回推（按需）+
+    /// sceneEdited + 面板广播——三条写回路径（通用面板合并
+    /// applyClipPanelMerge / Tween 区 applyClipTweenEdit / 插件专属区
+    /// ctx.on_edited / 时间轴键编辑 applyTweenKey*）统一收口。
+    /// 【不对称修复】原 applyClipPanelMerge 尾只 emit sceneEdited 不广播
+    ///（靠 EditorWindow refreshSceneViews 间接链兜底），其余路径双调——
+    /// 收口后广播成为机制而非约定。
+    /// \param mirror_payload true = 工作副本 clip_data → 模型镜像回推
+    ///（setClipPayload，插件专属区编辑路径；幂等 diff 在模型侧）
+    void notifyClipEdited(const std::string& clip_id,
+                          bool mirror_payload = false);
 
     // ---- 状态 ---------------------------------------------------------------
     Scene* work_   = nullptr;  // 编辑工作副本（不拥有）
@@ -341,26 +352,18 @@ private:
     /// 更新，语义与全扫一致。拖拽会话高频回写的线性扫描消除。
     int m_lastLocateTrack = -1;
     int m_lastLocateClip  = -1;
-    /// 已打开片段属性面板注册表（clip id → 面板列表）：双向同步的广播
-    /// 目标。登记点 = makeClipPropertyPanel（timeline 组合面板自定义区与
-    /// 画布双击对话框两条入口同源经过）；面板销毁经 QPointer 失效感知，
-    /// 广播时惰性清理（不依赖关闭回调——库组合面板的销毁时机不可控）。
-    std::unordered_map<std::string,
-                       std::vector<QPointer<ClipPropertyPanel>>> clip_panels_;
-    /// 片段专属编辑区注册表（clip id → 区块列表，2026-11-13 片段插件化）：
-    /// 广播目标，经 ClipSectionInterface 灌值（宿主无具体区块类型——区块
-    /// 随片段插件走）。登记点 = makeClipPropertyPanel（工厂加载处）；销毁
-    /// 经 QPointer 失效感知 + 广播时惰性清理。区块是 ClipPropertyPanel 的
-    /// 子控件（appendSection 追加），面板关闭随其销毁。
-    std::unordered_map<std::string,
-                       std::vector<QPointer<QWidget>>> clip_sections_;
-    /// Tween 关键帧动画区注册表（clip id → 区块列表，2026-11-05）：广播
-    /// 目标（Clip 域 tweens 灌值，全类型片段），与 clip_panels_ 同生命
-    /// 周期语义——登记点 = makeClipPropertyPanel（所有片段挂接处）；
-    /// 销毁经 QPointer 失效感知 + 广播时惰性清理。区块是 ClipPropertyPanel
-    /// 的子控件（appendSection 追加），面板关闭随其销毁。
-    std::unordered_map<std::string,
-                       std::vector<QPointer<TweenSection>>> tween_panels_;
+    /// 属性面板区注册表（P1 收编 2026-11-17：原 clip_panels_ / tween_panels_
+    /// / clip_sections_ 三张同构表合一——三者生命周期语义完全相同（QPointer
+    /// 失效感知 + 广播时惰性清理），一张表 + Kind 标记分派即可。登记点 =
+    /// makeClipPropertyPanel（timeline 组合面板自定义区与画布双击对话框
+    /// 两条入口同源经过）。宿主仍不持有专属区块具体类型——广播分派经
+    /// qobject_cast（Generic/Tween 直接还原，Section 经 ClipSectionInterface）。
+    struct PanelRef {
+        enum class Kind { Generic, Tween, Section };
+        QPointer<QWidget> w;
+        Kind              kind;
+    };
+    std::unordered_map<std::string, std::vector<PanelRef>> panel_refs_;
     /// 片段属性面板宿主钩子（EditorWindow 注入；空 = 无自定义面板）
     ClipPanelHooks hooks_;
 

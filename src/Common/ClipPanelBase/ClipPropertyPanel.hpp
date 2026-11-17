@@ -43,6 +43,8 @@
 
 #include "ClipPanelBaseExport.h" // CLIPPANELBASE_EXPORT（2026-11-13 迁入本 DLL）
 
+class AbstractClipModel; // 全局命名空间类（BaseClass）——页 1 自治装配通用
+                         // 区时构造 ClipTimePanel/ClipAppearancePanel 所需
 class QGroupBox;
 class QLabel;
 class SelectorComboBox; // 全局命名空间类（GUIElements）——前向声明必须在 namespace 外
@@ -50,11 +52,13 @@ class SelectorComboBox; // 全局命名空间类（GUIElements）——前向声
 namespace ms {
 
 /// 片段属性面板（2026-11-13 三页式：本面板即 QTabWidget 页容器）——
-/// 页 1「通用」= 媒体文件区（库通用面板的时间属性/片段属性由 BaseClass
-/// initPropertyWidget qobject_cast<QTabWidget*> 识别后插入本页）；
+/// 页 1「通用」= 时间属性（ClipTimePanel）+ 片段属性（ClipAppearancePanel）
+/// + 媒体文件区：【P3 装配收拢 2026-11-17】库通用面板迁入本库并随本面板
+/// 构造自治装配（构造参数 owner_model 非空即建，顺序 = 时间 → 片段 → 媒体
+/// ——与 P2 时代经 ClipPageHost 接口插入的落位一致，接口随迁库退役）；
 /// 页 2「动画」/页 3 专属区由适配器经 appendSection 追加（顺序即页序）。
 /// 生命周期：由库组合面板（或独立宿主窗口）作为普通子控件管理；
-/// 面板不持有模型指针——写回只依赖注入的回调（按 clip id 定位，稳定）。
+/// 面板不持有快照——写回只依赖注入的回调（按 clip id 定位，稳定）。
 ///
 /// 【字段级脏标记】组合面板场景下，同一片段的 start/end 由库通用面板
 /// （ClipTimePanel）与时间轴拖拽实时维护——本面板的快照随时可能过期。
@@ -80,10 +84,16 @@ public:
     ///                       适配器按 AssetKind 映射，Unknown = 不限分类候选）
     /// \param binding_name   当前绑定素材的展示名（文件名；调用方从工作副本
     ///                       素材表解析，空 = 显示未绑定引导/仅 id）
+    /// \param owner_model    片段模型（【P3 装配收拢 2026-11-17】非空 = 页 1
+    ///                       顶部自治装配库通用区——ClipTimePanel 时间属性 +
+    ///                       ClipAppearancePanel 片段属性，OSC 外控登记随
+    ///                       ClipTimePanel 构造自治；空 = 不建通用区，页 1
+    ///                       只含媒体文件区，供无模型场景测试用）
     /// \param parent         Qt 父控件（库组合面板/独立窗口）
     explicit ClipPropertyPanel(const Clip& clip,
                                MediaLibrary::Category media_category,
                                const QString& binding_name = QString(),
+                               AbstractClipModel* owner_model = nullptr,
                                QWidget* parent = nullptr);
 
     /// 注入写回回调（构造后立即设置；未设置时控件只读展示）。
@@ -92,8 +102,8 @@ public:
     void setImporter(ImportFn importer) { importer_ = std::move(importer); }
 
     /// 附加一页到面板（2026-11-13 三页式改版）：本面板即 QTabWidget 页容器
-    /// ——构造时已有第 1 页「通用」（媒体文件区；库通用面板的时间属性/
-    /// 片段属性由 BaseClass initPropertyWidget 识别 Tab 结构后插入本页），
+    /// ——构造时已有第 1 页「通用」（【P3 装配收拢 2026-11-17】时间属性/
+    /// 片段属性/媒体文件三区随构造自治，owner_model 非空即建），
     /// 追加顺序即页序：适配器先追加「动画」页（TweenSection，全类型恒有）
     /// 再追加专属页（片段插件工厂供给；无则不加——用户定案「没有的话就
     /// 不嵌入」）。所有权随页转移（子控件，随面板销毁）。
@@ -101,6 +111,8 @@ public:
     /// 此追加（文本区 TextClipSection / 实况区随插件），不揉进、不重排
     /// 既有控件。
     void appendSection(QWidget* section, const QString& title);
+
+    /// 媒体绑定区可见性（2026-11-09 用户定案：Live 片段隐藏——「指定媒体
 
     /// 媒体绑定区可见性（2026-11-09 用户定案：Live 片段隐藏——「指定媒体
     /// 文件…」与实况区的源选择功能重复，绑定/选择入口统一归实况区；
@@ -157,10 +169,12 @@ private:
     QString current_binding_name_;      ///< 当前绑定展示名（文件名；导入后更新）
 
     // ---- 快照与回调 ----------------------------------------------------------
-    Clip     snapshot_;   // 打开时的片段快照（只读初值来源）
     std::int64_t effective_duration_us_ = 0; // 生效时长（素材切换自动联动媒体
                                              // 时长；面板无时长编辑控件——归库
                                              // 通用面板，联动值经此透传到写回）
+    // 【P1-A3 死重清理 2026-11-17】原 Clip snapshot_ 成员移除——构造后零
+    // 读取（预填只取构造参数），写回本就走"工作副本当前值打底 + dirty 位
+    // 合并"（applyClipPanelMerge），面板不留存快照。
     std::uint32_t dirty_mask_ = 0; // 用户动过的字段位图（applyTo 覆盖范围）
     ApplyFn  applier_;   // 表单值写回（适配器按 noteName 定位）
     ImportFn importer_; // 素材导入（EditorWindow 侧类型校验/入表）

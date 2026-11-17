@@ -59,9 +59,10 @@ public:
                                 QWidget* parent = nullptr);
 
     /// 【ClipSectionInterface】宿主广播灌值（模型→面板向）：\p clip 为
-    /// const ms::Clip*（经 void* 穿越基类边界）——按其 control_messages
-    /// 现灌列表。与轮询共用 diff 快照：内容相同即跳过（防回环）。
-    void refreshFromClip(const void* clip) override;
+    /// const ms::Clip*（【P3-B 2026-11-17 类型化签名，原 void* 穿越退役】）
+    /// ——按其 control_messages 现灌列表。与轮询共用 diff 快照：内容相同
+    /// 即跳过（防回环）。
+    void refreshFromClip(const ms::Clip* clip) override;
 
 private slots:
     /// 「测试发送」：先 diff 写回落定，再按当前列表逐条 parseOSC

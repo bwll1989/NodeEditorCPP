@@ -39,3 +39,8 @@
 ## 遗留 / 暂缓
 - **GlobalEventBus 外部控制**（旧 `afterModelReady` 订阅 `/start_frame` `/end_frame` `/position_frame`）：本体系属性绑定体系未覆盖片段业务字段——暂缓，与 Artnet 的 /universe /host /file 订阅同批处理。
 - host/port 字段仅随 save() 往返持久化，发送不参与（本地状态容器口径，旧版一致）。
+
+---
+
+## 属性面板
+三页式面板装配与 schema 化设计见 [`../../Common/ClipPanelBase/Doc.md`](../../Common/ClipPanelBase/Doc.md)。场景全量下发、display 端无渲染 creator（执行在宿主 onPlayheadAdvanced）；动画页含映射插值域（P4 schema 化）。

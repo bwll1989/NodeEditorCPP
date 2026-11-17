@@ -34,3 +34,8 @@ Artnet 灯光片段（时间轴片段类型，type = `"Artnet"`）——节点�
 | save()/load() 节点文档 JSON | `Clip.clip_data`（场景 pb 分发） |
 | GlobalEventBus 订阅 /universe /host /file | **暂缓**（本体系属性绑定未覆盖片段业务字段） |
 | "/file" "/stop" OSC 标记 | 不再产生（本体系无消费者） |
+
+---
+
+## 属性面板
+三页式面板装配与 schema 化设计见 [`../../Common/ClipPanelBase/Doc.md`](../../Common/ClipPanelBase/Doc.md)。场景全量下发、display 端无渲染 creator（执行在宿主 onPlayheadAdvanced）；动画页按 schema 可见性隐藏。

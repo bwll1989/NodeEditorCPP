@@ -5,16 +5,22 @@
 //  内嵌 timeGroupBox 独立成类，原类名 ClipTimeGroupBox——文件名已随
 //  「XxxPanel」通用页组件命名定稿；2026-11-15 注释/命名现代化对齐新风格）。
 //
+//  【P3 面板迁库 2026-11-17】自 BaseClass 迁入 ClipPanelBase（通用片段 UI
+//  框架库）——BaseClass 回归零 UI 纯模型/接口库；导出宏换
+//  CLIPPANELBASE_EXPORT。OSC 外控登记随面板自治（见下）。
+//
 //  职责（「通用」页时间区块三行——帧数 + 多制式时间码双视图）：
 //    * 开始帧 / 片段位置 / 结束帧编辑——任一控件变更即时写回模型
 //     （帧级 UI ↔ 模型 μs 经 framesToUs/usToFrames 显示层换算）；
 //    * 双向同步：模型 timelinePositionChanged/lengthChanged → 灌显示
 //     （QSignalBlocker 防回环）；start/end 互夹（RESIZEABLE 时）；
-//    * 挂接方式 = AbstractClipModel::initPropertyWidget 构造（owner 指针
-//      直连模型信号——11-13 判定保持项：本组件与库内构造链强耦合，与
-//      ClipPropertyPanel/XxxClipSection 的回调注入式解耦不同层）；
-//    * 公开控件成员 = OSC 外部控制注册表 API（AbstractClipModel 构造时
-//      registerExternalControl("/start_frame", ...) 等六项注册）。
+//    * 挂接方式 = 构造即自治（owner 指针直连模型信号——11-13 判定保持
+//      项：本组件与构造链强耦合，与 ClipPropertyPanel/XxxClipSection 的
+//      回调注入式解耦不同层）；构造尾完成 OSC 外控登记（原
+//      AbstractClipModel::initPropertyWidget 尾部 6× registerExternalControl
+//      + pushOscInitialState 收编入构造——面板在哪装配，外控注册就在哪，
+//      独立打开路径不再漏登记）；
+//    * 公开控件成员 = OSC 外部控制注册表 API。
 //
 //  【2026-11-15 现代化（用户定案「片段面板对齐工程统一风格」）】收编残留
 //  清理：删除三个死信号（startFrameChanged/positionChanged/endFrameChanged
@@ -28,7 +34,7 @@
 
 #pragma once
 
-#include "BaseClassExport.h"
+#include "ClipPanelBaseExport.h"
 #include "IntDragValueWidget/IntDragValueWidget.hpp"
 #include <QGroupBox>
 #include <QGridLayout>
@@ -41,7 +47,7 @@
 class AbstractClipModel;
 
 /// 片段时间属性通用面板（「通用」页时间区块；owner 指针直连模型信号）
-class BASECLASS_EXPORT ClipTimePanel : public QGroupBox {
+class CLIPPANELBASE_EXPORT ClipTimePanel : public QGroupBox {
     Q_OBJECT
 public:
     explicit ClipTimePanel(AbstractClipModel* owner, QWidget* parent = nullptr);

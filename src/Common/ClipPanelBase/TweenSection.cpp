@@ -22,11 +22,14 @@
 
 #include "TweenSection.hpp"
 
+#include "AbstractClipInterface.h" // ClipTweenExposure 完整定义（P4-A 暴露面 schema）
+
 #include <algorithm>
 #include <cmath> // std::lround（Z 静态层级写回取整）
 #include <cstdint>
 
 #include <QComboBox>
+#include <QDebug> // qWarning 流式（暴露面未知 key 漂移告警）
 #include <QFontMetrics>
 #include <QGridLayout>
 #include <QLabel>
@@ -59,6 +62,10 @@ namespace {
 // ---------------------------------------------------------------------------
 struct PropDef {
     TweenProp   prop;       ///< v3 打包属性（Position/Size/…/CropB）
+    const char* key;        ///< 暴露面 schema key（P4-A：插件
+                            ///< tweenExposure() 白名单词汇，对齐 P4 终态
+                            ///< FieldDef.key；跨 DLL 字符串而非枚举——
+                            ///< plugin_audio 只链 BaseClass 不链 MediaCore）
     const char* name;       ///< 显示名
     const char* obj_suffix; ///< objectName 后缀（tween<suffix><分量>）
     double      vmin, vmax, step; ///< 分量级值域/步长
@@ -76,37 +83,37 @@ constexpr PropDef kPropOrder[13] = {
     // Pos 行 decimals=2（2026-11-06 方案 A 回归修正：适配器广播跟随用例
     // 断言 105.07 精确显示——1 位小数会把 0.07px 取整掉）；v3 三分量
     // X/Y/Z（Z=悬浮高度 + 2D 叠放次序，动画中逐帧取整）
-    {TweenProp::Position,  "位置",    "Pos",  -100000.0, 100000.0, 10.0, 2, " px", 3, {"X", "Y", "Z"}, true},
+    {TweenProp::Position,  "position",  "位置",    "Pos",  -100000.0, 100000.0, 10.0, 2, " px", 3, {"X", "Y", "Z"}, true},
     // Size 行 = 画布绝对 px（与 Pos 同参照系；0 下限——宽高非负）；
     // 分量名 W/H（沿用 2026-11-09 v1 用户定案行名 Size_W/Size_H 锚）。
     // ⟲ 重置语义 = 恢复素材原始尺寸（2026-11-09 用户反馈补设）：默认值
     // 不走 propDefault 的 0，取适配器注入的绑定素材像素宽高（hint 缺失
     // ——Live/未绑定素材——点击不动作）
-    {TweenProp::Size,      "尺寸",    "Size",   0.0, 100000.0, 10.0, 2, " px", 2, {"W", "H", ""}, true},
+    {TweenProp::Size,      "size",      "尺寸",    "Size",   0.0, 100000.0, 10.0, 2, " px", 2, {"W", "H", ""}, true},
     // 旋转（v4 三维打包，用户定案"合并一行按轴命名"）：分量 X=俯仰（绕
     // 画布 X 轴）/Y=偏航（绕画布 Y 轴）/Z=滚转（绕画布 Z 轴 2D 旋转）。
     // 透视轴（X/Y）值域 ±89°——90° 起画面翻面透视退化（值框创建处
     // 特判 setRange）；Z 滚转 ±3600° 同历史。一条通道一键携三分量
-    {TweenProp::Rotation,  "旋转",    "Rot", -3600.0,  3600.0,   5.0, 2, "°",   3, {"X", "Y", "Z"}, true},
+    {TweenProp::Rotation,  "rotation",  "旋转",    "Rot", -3600.0,  3600.0,   5.0, 2, "°",   3, {"X", "Y", "Z"}, true},
     // 裁切四边（v3）：向内收的画布 px（0 下限——只收不放）；
     // 行序按用户定案「上下左右」
-    {TweenProp::CropT,     "裁切 上", "CropT",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
-    {TweenProp::CropB,     "裁切 下", "CropB",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
-    {TweenProp::CropL,     "裁切 左", "CropL",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
-    {TweenProp::CropR,     "裁切 右", "CropR",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
+    {TweenProp::CropT,     "crop_top",    "裁切 上", "CropT",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
+    {TweenProp::CropB,     "crop_bottom", "裁切 下", "CropB",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
+    {TweenProp::CropL,     "crop_left",   "裁切 左", "CropL",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
+    {TweenProp::CropR,     "crop_right",  "裁切 右", "CropR",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
     // 角点 4 行（每角一条二维属性，每角单独打键）：偏移量语义（相对
     // 未变形位置的末端修正，画布 px；旋转 ≠0 时位移恒沿屏幕方向不随
     // 画面转）。step 1.0（单像素步进——角点校正常为小位移）
-    {TweenProp::CornerLT,  "角点 LT", "CornerLT", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
-    {TweenProp::CornerRT,  "角点 RT", "CornerRT", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
-    {TweenProp::CornerRB,  "角点 RB", "CornerRB", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
-    {TweenProp::CornerLB,  "角点 LB", "CornerLB", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
-    {TweenProp::Opacity,   "不透明度","Opa",      0.0, 1.0, 0.05, 2, "", 1, {"", "", ""},    true},
+    {TweenProp::CornerLT,  "corner_lt", "角点 LT", "CornerLT", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
+    {TweenProp::CornerRT,  "corner_rt", "角点 RT", "CornerRT", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
+    {TweenProp::CornerRB,  "corner_rb", "角点 RB", "CornerRB", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
+    {TweenProp::CornerLB,  "corner_lb", "角点 LB", "CornerLB", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
+    {TweenProp::Opacity,   "opacity",    "不透明度","Opa",      0.0, 1.0, 0.05, 2, "", 1, {"", "", ""},    true},
     // 音频增益（2026-11-10 追加，标量线性增益）：1.0=不衰减/0=静音/[0,2]
     //（上限 2 防增益曲线异常把混音推入持续削波）；有 AudioGain tween
     // 通道时整条接管静态基准（与不透明度同语义）。音频链路消费端 =
     // AudioEngine::resolveGain（解耦验证期只驱动电平表，P2 后出声）
-    {TweenProp::AudioGain, "音频增益","Gain",    0.0, 2.0, 0.05, 2, "", 1, {"", "", ""},    true},
+    {TweenProp::AudioGain, "audio_gain", "音频增益","Gain",    0.0, 2.0, 0.05, 2, "", 1, {"", "", ""},    true},
 };
 /// 行首槽位表（静态暂存 static_vals_ 与脏位的槽位基准——行槽数 =
 /// components，数据槽 0..21 共 22 个；末项 = 总槽数哨兵；锚点脏位
@@ -240,13 +247,38 @@ inline void setDiamondVisual(QToolButton* b, int st) {
 
 // ---------------------------------------------------------------------------
 // 构造：五折叠组（变换 锚点+2 行展开 / 其余四组收）+ 预填 + 信号连接
-//（预填在 connect 之前，不触发写回）
+//（预填在 connect 之前，不触发写回）。P4-A：暴露面 schema（插件
+// tweenExposure() 声明）过滤属性行——未暴露行【不生成】（Row 骨架仍占
+// 13 行定长契约），空组整组隐藏，锚点随组 0 同进退。
 // ---------------------------------------------------------------------------
-TweenSection::TweenSection(const Clip& clip, QWidget* parent)
+TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
+                           QWidget* parent)
     : QWidget(parent) {
     clip_start_us_ = clip.start_us;
     clip_dur_us_   = clip.duration_us;
     channels_      = clip.tweens;
+
+    // ---- 暴露面 schema（P4-A）：白名单 → 13 行暴露位 ----------------------
+    // 空白名单 = 全暴露（既有 13 行行为，Video/Image/Text/Live/Mapping 零
+    // 改动）；page_visible=false 防御性同义化全不暴露——适配器已在构造前
+    // 整页拦截，此处兜底防直构出满页控件。未知 key = schema 漂移信号。
+    if (expo.page_visible && expo.exposed_keys.isEmpty()) {
+        for (bool& e : row_exposed_) e = true;
+    } else {
+        for (bool& e : row_exposed_) e = false;
+        for (const QString& k : expo.exposed_keys) {
+            bool matched = false;
+            for (int i = 0; i < 13; ++i)
+                if (k == QLatin1String(kPropOrder[i].key)) {
+                    row_exposed_[i] = true;
+                    matched = true;
+                    break;
+                }
+            if (!matched)
+                qWarning() << "[tween-schema] 插件暴露面含未知 key（schema "
+                              "漂移？）" << k;
+        }
+    }
 
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
@@ -360,16 +392,37 @@ TweenSection::TweenSection(const Clip& clip, QWidget* parent)
         lay->addWidget(host);
         grp_rows_[g].push_back(host);
     };
+    // 【P4-A 暴露面】空组隐藏：组内零暴露行 → 标题+容器都不占版面（标题
+    // 钮仍创建——grp_btn_ 定长契约与折叠联动 connect 不感知可见性；
+    // 隐藏钮永不 toggled，行为安全）
+    auto hideGroupIfEmpty = [&](int g, int placed_rows) {
+        if (placed_rows > 0) return;
+        grp_btn_[g]->setVisible(false);
+        for (auto* w : grp_rows_[g]) w->setVisible(false);
+    };
 
     // ---- 每属性一行：[名] [数值...] [◆] [⟲]（v3 行布局定案：菱形移行
     //      尾 + 重置钮）。14 属性行同构共用 lambda；控件加入【调用方提供
-    //     的组共享网格】（见下 makeRowGrid——同组同网格才跨行真对齐）----
-    auto buildRow = [&](int i, QGridLayout* grid, int row) {
+    //     的组共享网格】（见下 makeRowGrid——同组同网格才跨行真对齐）。
+    //      返回 bool = 行已落网格（P4-A 暴露面过滤：未暴露行只推 Row
+    //      骨架即返 false，调用方行号不自增）----
+    auto buildRow = [&](int i, QGridLayout* grid, int row) -> bool {
         const PropDef& def = kPropOrder[i];
         Row r;
         r.prop       = def.prop;
         r.name       = QString::fromUtf8(def.name);
         r.components = def.components;
+
+        // 【P4-A 暴露面过滤】schema 未暴露的属性行【不生成】（2026-11-17
+        // 用户定案：不是隐藏而是不生成——Row 骨架仍入 rows_ 保持 13 行
+        // 定长契约，控件全 nullptr；网格不落位）。既有读侧护栏覆盖：
+        // refreshFrom 灌值/updateRowState 菱形三态均判空；applyTo 静态
+        // 脏位驱动（退役行永不置位）；recordKeyframe 值框判空（P4-A 新增
+        // ——公开 API，测试/快捷键可直达）。
+        if (!row_exposed_[i]) {
+            rows_.push_back(r);
+            return false;
+        }
 
         // 菱形打键钮（2026-11-09 用户定案改版：打键/删键切换——DaVinci
         // 语义；QIcon pixmap 三态——2026-11-09 用户三轮反馈根治"行尾两钮
@@ -506,6 +559,7 @@ TweenSection::TweenSection(const Clip& clip, QWidget* parent)
         if (r.reset) grid->addWidget(r.reset, row, kColReset, Qt::AlignVCenter);
 
         rows_.push_back(r);
+        return true;
     };
     // ---- 五组装配（v4 五分组，DaVinci Inspector 同构；行连续切分）：
     //      组 0「变换」锚点+位置+尺寸（默认展开）/ 组 1「姿态」行 2 / 
@@ -520,6 +574,12 @@ TweenSection::TweenSection(const Clip& clip, QWidget* parent)
     {
         auto* g0 = makeRowGrid();
 
+        // 【P4-A 暴露面】组 0 是否有暴露行（位置/尺寸）——锚点属变换域，
+        // 随组 0 同进退（Audio 片段 g0_has=false：锚点也不生成）
+        const bool g0_has = row_exposed_[0] || row_exposed_[1];
+        int gr = 0; // 运行网格行号（未暴露行不落位——行号收紧无空洞）
+
+        if (g0_has) {
         // ---- 锚点行（组 0 首行——2026-11-09 用户指令"锚点选项移到位置
         //      之上"：锚点是旋转/缩放的枢轴，语义先于位置/尺寸）。静态属
         //      性非 tween：列 4 空（无菱形），⟲ 在列 5 与属性行右端对齐
@@ -564,13 +624,16 @@ TweenSection::TweenSection(const Clip& clip, QWidget* parent)
             static_dirty_ |= kSAnchor;
             if (applier_) applier_();
         });
-        g0->addWidget(lbl, 0, 0);
-        g0->addWidget(anchor_combo_, 0, kColVal, 1, 3); // combo 跨值区三列
-        g0->addWidget(rst, 0, kColReset, Qt::AlignVCenter);
+        g0->addWidget(lbl, gr, 0);
+        g0->addWidget(anchor_combo_, gr, kColVal, 1, 3); // combo 跨值区三列
+        g0->addWidget(rst, gr, kColReset, Qt::AlignVCenter);
+        ++gr;
+        } // if (g0_has)
 
-        buildRow(0, g0, 1); // 位置（X/Y/Z）
-        buildRow(1, g0, 2); // 尺寸
+        if (buildRow(0, g0, gr)) ++gr; // 位置（X/Y/Z）
+        if (buildRow(1, g0, gr)) ++gr; // 尺寸
         finishGroup(0, g0);
+        hideGroupIfEmpty(0, gr);
     }
 
     // ---- 组 1「姿态」：旋转一行三维打包（v4 合并；行 2）--------------------
@@ -584,8 +647,10 @@ TweenSection::TweenSection(const Clip& clip, QWidget* parent)
     lay->addWidget(grp_btn_[1]);
     {
         auto* g1 = makeRowGrid();
-        buildRow(2, g1, 0);
+        int gr = 0;
+        if (buildRow(2, g1, gr)) ++gr;
         finishGroup(1, g1);
+        hideGroupIfEmpty(1, gr);
     }
 
     // ---- 组 2「裁切」：上下左右（v3 数据链：可见矩形收缩 + 帧采样窗）------
@@ -597,8 +662,10 @@ TweenSection::TweenSection(const Clip& clip, QWidget* parent)
     lay->addWidget(grp_btn_[2]);
     {
         auto* g2 = makeRowGrid();
-        for (int i = 3; i < 7; ++i) buildRow(i, g2, i - 3);
+        int gr = 0;
+        for (int i = 3; i < 7; ++i) if (buildRow(i, g2, gr)) ++gr;
         finishGroup(2, g2);
+        hideGroupIfEmpty(2, gr);
     }
 
     // ---- 组 3「形变」：角点 4 行（每角一条二维属性，每角单独打键）----------
@@ -612,8 +679,10 @@ TweenSection::TweenSection(const Clip& clip, QWidget* parent)
     lay->addWidget(grp_btn_[3]);
     {
         auto* g3 = makeRowGrid();
-        for (int i = 7; i < 11; ++i) buildRow(i, g3, i - 7);
+        int gr = 0;
+        for (int i = 7; i < 11; ++i) if (buildRow(i, g3, gr)) ++gr;
         finishGroup(3, g3);
+        hideGroupIfEmpty(3, gr);
     }
 
     // ---- 组 4「合成」：不透明度 + 音频增益（2026-11-10 追加行 12）--------
@@ -625,9 +694,11 @@ TweenSection::TweenSection(const Clip& clip, QWidget* parent)
     lay->addWidget(grp_btn_[4]);
     {
         auto* g4 = makeRowGrid();
-        buildRow(11, g4, 0);
-        buildRow(12, g4, 1);
+        int gr = 0;
+        if (buildRow(11, g4, gr)) ++gr;
+        if (buildRow(12, g4, gr)) ++gr;
         finishGroup(4, g4);
+        hideGroupIfEmpty(4, gr);
     }
 
     // 初始折叠态：组 0 展开（构造时 checked=true）、组 1..4 收起——直接
@@ -722,6 +793,8 @@ int TweenSection::keyIndexAtPlayhead(const TweenChannel& ch) const {
 void TweenSection::recordKeyframe(int i) {
     if (i < 0 || i >= (int)rows_.size()) return;
     Row& r = rows_[i];
+    if (!r.value[0]) return; // P4-A：未暴露行无控件（schema 外属性不参与
+                             // 动画编辑；公开 API 直达时静默忽略）
     const std::int64_t t = localPlayheadUs();
     // 行显示值即数据层值（绝对 px 直通——显示/数据一个口径）
     const double v0 = r.value[0]->value();

@@ -24,8 +24,6 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
 #    * SceneClipModel               —— 场景片段业务基类（素材镜像 +
 #      合并关键帧带；全工程唯一 staticMetaObject）
 #    * AbstractClipInterface        —— clip 插件工厂接口（ClipPlugInterface）
-#    * ClipTimePanel/ClipAppearancePanel —— 片段属性通用面板
-#    * ClipTimePanel/ClipAppearancePanel —— 片段属性通用面板
 #    * TimeLineDefines             —— 时间轴共享定义（hoverState/TimelineRoles/
 #      μs 换算/媒体类型表；AbstractClipModel 接口签名组成部分，随片段基类）
 #    * ClipPaintStyle              —— [clip-sync] 片段绘制桥接量
@@ -56,7 +54,7 @@ set(BaseClass_sources
         # ---- 节点委托基类 ----
         AbstractDelegateModel.h
         AbstractDelegateModel.cpp
-        # ---- 时间轴片段基类层 ----
+        # ---- 时间轴片段基类层（零 UI 纯模型/接口库）----
         AbstractClipModel.hpp
         AbstractClipModel.cpp
         AbstractClipInterface.h
@@ -66,10 +64,6 @@ set(BaseClass_sources
         TimeLineDefines.h
         ClipPaintStyle.h
         ClipPaintStyle.cpp
-        ClipTimePanel.hpp
-        ClipTimePanel.cpp
-        ClipAppearancePanel.hpp
-        ClipAppearancePanel.cpp
 )
 
 add_library(BaseClass SHARED ${BaseClass_sources})

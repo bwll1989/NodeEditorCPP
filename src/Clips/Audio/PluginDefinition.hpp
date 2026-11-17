@@ -31,4 +31,16 @@ public:
 
     /// 片段模型工厂（parent 由适配器随后 setParent）
     AbstractClipModel* createModel(qint64 startUs) override;
+
+    // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
+    /// 页 3 页签名（原宿主 kindPageName 表下放；Audio 无专属区，本名
+    /// 暂不显示但声明齐备——插件声明面向未来页面）
+    QString clipDisplayName() const override { return QStringLiteral("音频"); }
+
+    // ---- 动画页暴露面（P4-A schema 化 2026-11-17）----
+    /// 音频片段动画页只暴露音频增益（用户定案：画布变换/合成域属性对纯
+    /// 音频无意义，不生成）；key 词汇对齐 P4 终态 FieldDef.key
+    ClipTweenExposure tweenExposure() const override {
+        return {true, {QStringLiteral("audio_gain")}};
+    }
 };

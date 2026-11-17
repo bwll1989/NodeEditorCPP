@@ -256,10 +256,10 @@ Asset* LiveClipSection::writableAsset() {
 // 【ClipSectionInterface】宿主广播灌值：const ms::Clip* 经 void* 穿越 →
 // 按其当前绑定现查素材 → refreshFrom（焦点保护 + 防回环见 refreshFrom）
 // ---------------------------------------------------------------------------
-void LiveClipSection::refreshFromClip(const void* clip) {
-    auto* c = static_cast<const ms::Clip*>(clip);
-    if (!c || !ctx_.scene || c->asset_id.empty()) return;
-    const Asset* a = ctx_.scene->findAsset(c->asset_id);
+void LiveClipSection::refreshFromClip(const ms::Clip* clip) {
+    // 签名已类型化（P3-B），无需 static_cast 还原
+    if (!clip || !ctx_.scene || clip->asset_id.empty()) return;
+    const Asset* a = ctx_.scene->findAsset(clip->asset_id);
     if (!a || a->kind != AssetKind::Live) return;
     refreshFrom(*a);
 }

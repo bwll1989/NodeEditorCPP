@@ -18,3 +18,8 @@
 ## 加载（磁盘驱动，零内置兜底）
 
 `WorkScenePluginLoader` 扫描 `bin/plugins/TimeLine/*.plugin`——删 `image.plugin` = Image 类型不存在。构建/输出约定详见 `../Video/Doc.md`。
+
+---
+
+## 属性面板
+三页式面板装配与 schema 化设计见 [`../../Common/ClipPanelBase/Doc.md`](../../Common/ClipPanelBase/Doc.md)。Image 无专属页；动画页 = 变换七属性。

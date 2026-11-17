@@ -41,5 +41,23 @@ public:
 
     /// 片段属性面板专属编辑区工厂：Control 无素材（asset_id 恒空），
     /// 只校验片段上下文存在即建区（与 Text/Live 的素材校验不同）。
-    QWidget* createPropertySection(void* ctx, QWidget* parent) override;
+    /// 【P3-B 协议类型化 2026-11-17】ctx = ms::ClipSectionContext*（原
+    /// void* + static_cast 还原退役）。
+    QWidget* createPropertySection(ms::ClipSectionContext* ctx,
+                                   QWidget* parent) override;
+
+    // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
+    /// 页 3 页签名（原宿主 kindPageName 表下放）
+    QString clipDisplayName() const override { return QStringLiteral("指令"); }
+    /// 无媒体绑定语义：指令表在「指令」专属页编辑（媒体区隐藏 +
+    /// 绑定行说明文案，原宿主硬编码文案下放）
+    bool hasMediaBinding() const override { return false; }
+    QString bindingHint() const override {
+        return QStringLiteral("（指令片段无需媒体文件）");
+    }
+
+    // ---- 动画页暴露面（P4-A schema 化 2026-11-17）----
+    /// 指令片段无画布呈现（无 transform 语义）——动画页整页不加（Doc.md
+    /// 「实现期二选一，默认隐藏」定案；占位版待 P4 后续切片）
+    ClipTweenExposure tweenExposure() const override { return {false, {}}; }
 };

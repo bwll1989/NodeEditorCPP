@@ -45,5 +45,21 @@ public:
 
     /// 片段属性面板专属编辑区工厂：Artnet 无素材（asset_id 恒空），
     /// 只校验片段上下文存在即建区（与 Control 同口径）。
-    QWidget* createPropertySection(void* ctx, QWidget* parent) override;
+    QWidget* createPropertySection(ms::ClipSectionContext* ctx,
+                                   QWidget* parent) override;
+
+    // ---- 类型显示元数据（P2-B 下放 2026-11-17）----
+    /// 页 3 页签名（原宿主 kindPageName 表漏本类型落兜底「属性」——
+    /// 表漂移实证，P2-B 下放后由本声明纠回）
+    QString clipDisplayName() const override { return QStringLiteral("灯光"); }
+    /// 无媒体绑定语义：DMX 视频在专属页选择（媒体区隐藏 + 绑定行说明）
+    bool hasMediaBinding() const override { return false; }
+    QString bindingHint() const override {
+        return QStringLiteral("（灯光片段：DMX 视频在专属页选择）");
+    }
+
+    // ---- 动画页暴露面（P4-A schema 化 2026-11-17）----
+    /// 灯光片段无画布呈现（无 transform 语义）——动画页整页不加（与
+    /// Control 同口径；Doc.md「实现期二选一，默认隐藏」定案）
+    ClipTweenExposure tweenExposure() const override { return {false, {}}; }
 };

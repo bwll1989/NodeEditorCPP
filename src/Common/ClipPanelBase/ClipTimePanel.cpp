@@ -63,6 +63,19 @@ ClipTimePanel::ClipTimePanel(AbstractClipModel* owner, QWidget* parent)
     updateEndFrame(usToFrames(owner_->end()));
     updatePositionFrame(usToFrames(owner_->start()));
     initSignalConnections();
+
+    // 【P3 面板迁库 2026-11-17】时间属性 6 控件登记 OSC 外部控制（相对地址）
+    // 随面板自治——原 AbstractClipModel::initPropertyWidget 尾部注册块收编
+    // 入构造（面板在哪装配，外控注册就在哪，独立打开路径不再漏登记）。
+    // 此处为双触发之一（另一处在 setId——控件先于/晚于 setId 创建均覆盖；
+    // pushOscInitialState 幂等，重复触发无害）。
+    owner_->registerExternalControl(QStringLiteral("/start_frame"), start_frame_spin_);
+    owner_->registerExternalControl(QStringLiteral("/end_frame"), end_frame_spin_);
+    owner_->registerExternalControl(QStringLiteral("/position_frame"), position_frame_spin_);
+    owner_->registerExternalControl(QStringLiteral("/start_time_code"), start_time_code_);
+    owner_->registerExternalControl(QStringLiteral("/end_time_code"), end_time_code_);
+    owner_->registerExternalControl(QStringLiteral("/position_time_code"), position_time_);
+    owner_->pushOscInitialState();
 }
 
 void ClipTimePanel::initSignalConnections() {

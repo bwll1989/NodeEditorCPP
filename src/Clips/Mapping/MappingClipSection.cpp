@@ -102,10 +102,9 @@ void MappingClipSection::hideEvent(QHideEvent* e) {
 // ---------------------------------------------------------------------------
 // 【ClipSectionInterface】宿主广播灌值（模型→面板向）
 // ---------------------------------------------------------------------------
-void MappingClipSection::refreshFromClip(const void* clip) {
-    auto* c = static_cast<const ms::Clip*>(clip);
-    if (!c) return;
-    refreshFrom(c->clip_data);
+void MappingClipSection::refreshFromClip(const ms::Clip* clip) {
+    if (!clip) return; // 签名已类型化（P3-B），无需 static_cast 还原
+    refreshFrom(clip->clip_data);
 }
 
 // ---------------------------------------------------------------------------
