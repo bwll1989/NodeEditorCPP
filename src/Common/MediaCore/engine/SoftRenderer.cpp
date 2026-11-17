@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "model/CanvasGeometry.hpp" // homographyMapPoint（屏姿态单应逆）
+
 namespace ms {
 
 // ---------------------------------------------------------------------------
@@ -103,11 +105,13 @@ bool SoftRenderer::draw(const DrawItem& di, const FrameView& frame) {
         di.canvas_w <= 0.0 || di.canvas_h <= 0.0)
         return false;
 
-    // ---- 四角点位移分流（2026-11-09 corner pin）：任一角位移非 0 →
-    //      目标不再是仿射像（四边形两三角）——走 drawQuadSampling 专用
-    //      内核（三角分解与 GL 条带同构，对拍逐像素可比）；全 0 → 原单
-    //      仿射路径（历史行为逐位不变）----
-    if (di.cornerActive()) {
+    // ---- 四边形分流（2026-11-09 corner pin；2026-11-17 屏姿态）：----
+    // 任一角位移非 0 / clip 姿态透视（pose3d——quad 预投影四角）/ 屏姿态
+    //（screen_posed——output→canvas 需单应逆）→ 目标不再是单仿射像，走
+    // drawQuadSampling 专用内核（三角分解与 GL 条带同构，对拍逐像素可
+    // 比；pose3d 补分流修复"无角位移姿态漏透视"缺口）；全 0 → 原单仿射
+    // 路径（历史行为逐位不变）。
+    if (di.cornerActive() || di.pose3d || di.screen_posed) {
         drawQuadSampling(di, frame, x0, y0, x1, y1, clip_a);
         return true;
     }
@@ -276,9 +280,16 @@ void SoftRenderer::drawQuadSampling(const DrawItem& di, const FrameView& frame,
             const double pcy = py + 0.5;
             for (int px = x0; px < x1; ++px) {
                 const double pcx = px + 0.5;
-                // output → canvas（与单仿射路径同一逆映射）
-                const double cxp = ia * pcx + ib * pcy + ic;
-                const double cyp = id * pcx + ie * pcy + iff;
+                // output → canvas（屏姿态单应 / 仿射逆——ScreenMapper 按
+                // 所属屏 rot_x/rot_y 分派；inv_map 在屏姿态时恒等占位）
+                double cxp, cyp;
+                if (di.screen_posed) {
+                    canvas_geometry::homographyMapPoint(
+                        di.screen_inv_h, pcx, pcy, &cxp, &cyp);
+                } else {
+                    cxp = ia * pcx + ib * pcy + ic;
+                    cyp = id * pcx + ie * pcy + iff;
+                }
                 // 重心坐标判定（canvas 域，容差 1e-9 相对面积）
                 const double w0 = ((x1c - cxp) * (y2c - cyp) -
                                    (x2c - cxp) * (y1c - cyp)) * inv_area;

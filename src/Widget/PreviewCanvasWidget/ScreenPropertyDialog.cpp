@@ -89,11 +89,28 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     rotation_->setWrapping(true);
     rotation_->setValue(screen.rotation);
 
+    // ---- 屏姿态（2026-11-17 阶段2）：俯仰/偏航（度；与 clip Transform
+    // 同构语义）——屏取景窗带 3D 姿态，画布→屏映射升级单应。±89° 防过
+    // 畸（透视焦距 f=2·长边下 90° 附近四角翻转）；步进 5 便于粗调
+    rot_x_ = new QDoubleSpinBox(form_box);
+    rot_x_->setRange(-89.0, 89.0);
+    rot_x_->setDecimals(1);
+    rot_x_->setSingleStep(5.0);
+    rot_x_->setValue(screen.rot_x);
+
+    rot_y_ = new QDoubleSpinBox(form_box);
+    rot_y_->setRange(-89.0, 89.0);
+    rot_y_->setDecimals(1);
+    rot_y_->setSingleStep(5.0);
+    rot_y_->setValue(screen.rot_y);
+
     z_ = new QSpinBox(form_box);
     z_->setRange(-1000, 1000);
     z_->setValue(screen.z);
 
     form->addRow("旋转°：", rotation_);
+    form->addRow("俯仰°：", rot_x_);
+    form->addRow("偏航°：", rot_y_);
     form->addRow("层级 z：", z_);
 
     // ---- 几何六字段实时预览（2026-11-11 用户需求：调属性即时可见）--------
@@ -110,6 +127,8 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
             g.w        = w_->value();
             g.h        = h_->value();
             g.rotation = rotation_->value();
+            g.rot_x    = rot_x_->value();
+            g.rot_y    = rot_y_->value();
             g.z        = z_->value();
             geometry_live_(g);
         };
@@ -118,6 +137,8 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
         connect(w_,        &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
         connect(h_,        &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
         connect(rotation_, &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
+        connect(rot_x_,    &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
+        connect(rot_y_,    &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
         connect(z_,        &QSpinBox::valueChanged,       this, emitGeometryLive);
     }
 
@@ -201,6 +222,8 @@ void ScreenPropertyDialog::applyTo(Screen& s) const {
     s.w         = w_->value();
     s.h         = h_->value();
     s.rotation  = rotation_->value();
+    s.rot_x     = rot_x_->value();
+    s.rot_y     = rot_y_->value();
     s.z         = z_->value();
     s.player_id = player_id_->text().toStdString();
     // 输出变形 = 「几何结构」页内嵌面板的当前编辑状态（2026-11-11 内嵌化：

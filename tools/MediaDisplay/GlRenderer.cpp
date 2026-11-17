@@ -13,6 +13,8 @@
 
 #include "GlLoader.hpp"
 
+#include "model/CanvasGeometry.hpp" // homographyMapPoint（屏姿态单应正向）
+
 extern "C" {
 #include <libavutil/frame.h> // AVFrame（GpuCudaNv12 域的 native 句柄实体）
 }
@@ -720,8 +722,15 @@ bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
                     + di.corner[kVtxToCorner[i] * 2 + 1];
         }
         const double dx = wx - ic, dy = wy - iff;
-        const double ox = ( ie * dx - ib * dy) / det;  // comp 域角
-        const double oy = (-id * dx + ia * dy) / det;
+        double ox, oy; // comp 域角（=输出像素域；屏姿态时经单应正向）
+        if (di.screen_posed) {
+            // 屏姿态（2026-11-17 阶段2）：canvas→output 单应正向（透视
+            // 保直线——clip 四角直映输出四角；inv_map 恒等占位不消费）
+            canvas_geometry::homographyMapPoint(di.screen_h, wx, wy, &ox, &oy);
+        } else {
+            ox = ( ie * dx - ib * dy) / det;  // comp 域角（仿射逆）
+            oy = (-id * dx + ia * dy) / det;
+        }
         verts[i][0] = static_cast<float>(ox);
         verts[i][1] = static_cast<float>(canvas_h_) -
                       static_cast<float>(oy);          // y 翻转

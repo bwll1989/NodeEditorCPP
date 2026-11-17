@@ -29,9 +29,23 @@
 
 #include "engine/TimelineEngine.hpp"
 #include "model/AssetDeps.hpp"
+#include "model/CanvasGeometry.hpp" // quadCorners3D/solveHomography（唯一真相）
 #include "model/SceneModel.hpp"
 
 namespace ms {
+
+// ---------------------------------------------------------------------------
+// 3×3 行主序矩阵乘（单应复合小工具；posed 分支专用）
+// ---------------------------------------------------------------------------
+inline void mat3Mul(const double m[9], const double n[9], double out[9]) {
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c) {
+            double acc = 0.0;
+            for (int k = 0; k < 3; ++k)
+                acc += m[r * 3 + k] * n[k * 3 + c];
+            out[r * 3 + c] = acc;
+        }
+}
 
 // ---------------------------------------------------------------------------
 // 映射模式（§5.2 的两种选项）
@@ -59,11 +73,52 @@ struct ScreenTransform {
     double d = 0.0, e = 1.0, f = 0.0; ///< 输出 y = d*cx + e*cy + f
     bool   rotated = false;           ///< 屏旋转标记（true 时 DrawItem 走仿射路径）
 
+    // ---- 屏姿态单应（2026-11-17 阶段2；rot_x/rot_y 非 0 时有效）----------
+    // 语义：取景窗带 3D 姿态——屏归一化 (u,v) 经姿态单应 H 映到画布点
+    //（屏四角 = cg::quadCorners3D 预投影，滚转/姿态全烘焙）。像素网格 ↔
+    // 画布经单应（每个屏像素都有内容——LED 屏无留白概念，与 rotation-only
+    // 的"等比居中"分支语义不同属：姿态屏 = 透视取景窗）。
+    //   正向 canvas→output = (H∘S)⁻¹（S = 输出像素→归一化缩放）；
+    //   逆向 output→canvas = H∘S。
+    //   两者均为单应；posed 时仿射字段 a..f 不参与（mapPoint 分派）。
+    bool   posed = false;
+    double h_c2o[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}; ///< canvas→output 单应正向
+    double h_o2c[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}; ///< output→canvas 单应逆向
+
     /// 由 screen 画布矩形 + 本机输出分辨率构造映射
     static ScreenTransform make(const Screen& scr, int out_w, int out_h,
                                 FitMode mode = FitMode::Stretch) {
         ScreenTransform t;
         if (scr.w <= 0 || scr.h <= 0 || out_w <= 0 || out_h <= 0) return t; // 退化
+
+        // 屏姿态（俯仰/偏航非 0）：单应映射（优先级高于 rotation-only——
+        // 滚转已在 quadCorners3D 内烘焙）
+        if (scr.rot_x != 0.0 || scr.rot_y != 0.0) {
+            double qx[4], qy[4];
+            canvas_geometry::quadCorners3D(scr.x, scr.y, scr.w, scr.h,
+                                           scr.rotation, scr.rot_x, scr.rot_y,
+                                           0 /*锚=中心：屏无锚点 UI*/,
+                                           nullptr, qx, qy);
+            // 屏归一化 (u,v)（CornerIdx 序 ↔ (0,0)(1,0)(1,1)(0,1)）→ 画布
+            const double dst[8] = {qx[0], qy[0], qx[1], qy[1],
+                                   qx[2], qy[2], qx[3], qy[3]};
+            double h_uv2c[9];
+            if (!canvas_geometry::solveHomography(dst, h_uv2c))
+                return t; // 退化（共线/近奇异）：恒等仿射防御（宁缺勿错）
+            // output→canvas = H ∘ S（px→u=px/ow 先归一化，再映画布）
+            const double s_mat[9] = {
+                1.0 / out_w, 0, 0,
+                0, 1.0 / out_h, 0,
+                0, 0, 1};
+            mat3Mul(h_uv2c, s_mat, t.h_o2c);
+            // canvas→output = 逆（解析 3×3 逆；S⁻¹∘H⁻¹ 等价合成一步到位）
+            double inv[9];
+            if (!canvas_geometry::homographyInverse(t.h_o2c, inv))
+                return t; // 不可逆防御（solveHomography 产物理论上恒可逆）
+            for (int i = 0; i < 9; ++i) t.h_c2o[i] = inv[i];
+            t.posed = true;
+            return t;
+        }
 
         // 旋转屏：等比缩放 + 居中；屏中心 → 输出中心，屏局部轴逆旋转
         // 对齐输出轴（内容方向跟随画布——取景窗语义，见结构注释）
@@ -106,8 +161,12 @@ struct ScreenTransform {
         return t;
     }
 
-    /// 画布点 → 本机坐标（通用：含旋转）
+    /// 画布点 → 本机坐标（通用：含旋转/屏姿态单应分派）
     void mapPoint(double cx, double cy, double& ox, double& oy) const noexcept {
+        if (posed) {
+            canvas_geometry::homographyMapPoint(h_c2o, cx, cy, &ox, &oy);
+            return;
+        }
         ox = a * cx + b * cy + c;
         oy = d * cx + e * cy + f;
     }
@@ -195,6 +254,17 @@ struct DrawItem {
                                                            ///< pose3d 时有效）
     double crop_u0 = 0.0, crop_v0 = 0.0; ///< 裁切采样窗左上（归一化）
     double crop_u1 = 1.0, crop_v1 = 1.0; ///< 裁切采样窗右下（1,1=未裁切）
+
+    // ---- 屏姿态单应（2026-11-17 阶段2；所属屏 rot_x/rot_y 非 0 时）------
+    // 屏取景窗带俯仰/偏航 → 画布↔输出映射是单应（非仿射）。渲染端采样
+    // 链 output→canvas 第一步按 screen_posed 分派：
+    //   * false：inv_map 仿射（历史行为逐位不变）；
+    //   * true ：screen_inv_h 单应（inv_map 恒等占位——防仿射误用）；
+    // clip 的 pose3d/quad/corner 语义与此正交复合（两级单应：clip 姿态
+    // 烘焙在 quad，屏姿态烘焙在 screen_*_h）。
+    bool   screen_posed  = false; ///< 所属屏带姿态（单应映射判定）
+    double screen_inv_h[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}; ///< output→canvas
+    double screen_h[9]     = {1, 0, 0, 0, 1, 0, 0, 0, 1}; ///< canvas→output 正向
 
     /// 任一角点位移非 0（渲染端快速路径判定；与 Transform::cornerActive
     /// 同义——DrawItem 侧独立副本，NaN 视作非 0 走保守路径）

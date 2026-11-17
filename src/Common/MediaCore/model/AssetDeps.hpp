@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "model/SceneModel.hpp"
+#include "model/CanvasGeometry.hpp" // quadCorners3D（屏姿态外接圆）
 
 namespace ms {
 
@@ -50,16 +51,33 @@ inline bool clipCoversScreen(const Transform& clip_t, const Screen& scr) {
     double hw = clip_t.w / 2.0;
     double hh = clip_t.h / 2.0;
 
-    // ---- screen 旋转：圆-圆保守判定（宁多拉不漏拉）----
+    // ---- screen 旋转/姿态：圆-圆保守判定（宁多拉不漏拉）----
     // 旋转屏的区域是斜矩形，精确多边形裁剪超出 P2 精度需求——clip 与
     // screen 都取各自外接圆（clip 圆已含其旋转；screen 圆含屏旋转），
     // 圆心距 ≤ 半径和即判相交。保守方向安全：多拉素材只是多一次下载，
     // 漏拉则 Player 黑屏。
-    if (scr.rotation != 0.0) {
+    if (scr.rotation != 0.0 || scr.rot_x != 0.0 || scr.rot_y != 0.0) {
         const double scx = scr.x + scr.w / 2.0;
         const double scy = scr.y + scr.h / 2.0;
         const double r_clip   = std::sqrt(hw * hw + hh * hh);
-        const double r_screen = std::sqrt(scr.w * scr.w + scr.h * scr.h) / 2.0;
+        // 屏姿态（2026-11-17 阶段2）：透视预投影四角可能外扩（z<0 时
+        // s>1）——半径取【姿态四角到屏中心的最大距离】（含滚转，保守
+        // 精确）；纯旋转时与对角线一半逐位一致（quadCorners3D 快路径
+        // 退化为 2D 四角，四角到中心距离恒 = 对角线一半）
+        double r_screen = std::sqrt(scr.w * scr.w + scr.h * scr.h) / 2.0;
+        if (scr.rot_x != 0.0 || scr.rot_y != 0.0) {
+            double qx[4], qy[4];
+            canvas_geometry::quadCorners3D(
+                scr.x, scr.y, scr.w, scr.h, scr.rotation, scr.rot_x,
+                scr.rot_y, 0, nullptr, qx, qy);
+            double r2max = 0.0;
+            for (int i = 0; i < 4; ++i) {
+                const double dx = qx[i] - scx, dy = qy[i] - scy;
+                const double r2 = dx * dx + dy * dy;
+                if (r2 > r2max) r2max = r2;
+            }
+            r_screen = std::sqrt(r2max);
+        }
         const double dx = cx - scx, dy = cy - scy;
         const double rr = r_clip + r_screen;
         return dx * dx + dy * dy <= rr * rr;

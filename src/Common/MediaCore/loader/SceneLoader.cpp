@@ -407,6 +407,10 @@ ms_proto::Screen SceneLoader::toProtoScreen(const Screen& s) {
     ps.set_h(s.h);
     ps.set_rotation(s.rotation); // 屏旋转（取景窗语义）与叠放层级随场景分发
     ps.set_z(s.z);
+    // 屏姿态（2026-11-17 阶段2）：非 0 才写——无姿态 screen 的 wire 格式
+    // 与旧版本完全一致（proto3 普通标量 0 反序列化等价缺席）
+    if (s.rot_x != 0.0) ps.set_rot_x(s.rot_x);
+    if (s.rot_y != 0.0) ps.set_rot_y(s.rot_y);
     // 输出变形（2026-11-09）：仅 mode 非 0 时写入——保持"无变形 screen"
     // 的 wire 格式与旧版本完全一致（message 缺席 = has_warp()==false）
     if (s.warp.active()) {
@@ -429,6 +433,9 @@ Screen SceneLoader::fromProtoScreen(const ms_proto::Screen& ps) {
     s.h = ps.h();
     s.rotation = ps.rotation();
     s.z        = ps.z();
+    // 屏姿态（2026-11-17 阶段2）：缺席 = 0 = 无姿态（业务默认，无陷阱）
+    s.rot_x = ps.rot_x();
+    s.rot_y = ps.rot_y();
     // 输出变形（2026-11-09）：缺席 = 无变形（默认构造 mode=0）；存在则
     // 拷贝后经 normalize() 收口信任边界（尺寸/坐标钳制）——长度根本
     // 不匹配（节点数对不上 cols*rows）时整份丢弃，回退无变形。

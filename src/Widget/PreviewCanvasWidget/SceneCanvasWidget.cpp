@@ -714,10 +714,10 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
     const std::string old_pid = scr.player_id;
     // warp 取消还原基准（实时预览：编辑中会先写工作副本）
     const ScreenWarp warp_backup = scr.warp;
-    // 几何取消还原基准（同 warp 语义——取消时还原六字段）
-    const double geo_backup[6] = {
+    // 几何取消还原基准（同 warp 语义——取消时还原八字段，含屏姿态）
+    const double geo_backup[8] = {
         scr.x, scr.y, scr.w, scr.h, scr.rotation,
-        static_cast<double>(scr.z)};
+        static_cast<double>(scr.z), scr.rot_x, scr.rot_y};
 
     // 登记执行体（OK 对账用；2026-11-17 绑定简化为纯确认制）：prev_pid
     // 非空且 ≠ 新 pid 时注销旧条目（改绑清理）；同 id 登记三要素任一变化
@@ -760,18 +760,20 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
             if (s.id == sid) { s.warp = w; break; }
         refreshViews();
     });
-    // 【实时预览·几何六字段】同链——编辑器画布即时可见
+    // 【实时预览·几何八字段】同链——编辑器画布即时可见（含屏姿态
+    // rot_x/rot_y——2026-11-17 阶段2，display 透视取景窗实时预览）
     dlg.setGeometryLiveApply([this, sid](const Screen& g) {
         for (auto& s : scene_->screens)
             if (s.id == sid) {
                 s.x = g.x; s.y = g.y; s.w = g.w; s.h = g.h;
                 s.rotation = g.rotation; s.z = g.z;
+                s.rot_x = g.rot_x; s.rot_y = g.rot_y;
                 break;
             }
         refreshViews();
     });
     if (dlg.exec() != QDialog::Accepted) {
-        // 取消 = 还原打开时的 warp + 几何六字段（两条实时链路可能已把
+        // 取消 = 还原打开时的 warp + 几何八字段（两条实时链路可能已把
         // 中间态写进工作副本；未动过时为幂等写）。绑定是纯确认制（OK
         // 才写回），取消无需处理。
         for (auto& s : scene_->screens) {
@@ -785,13 +787,15 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
                 s.x != geo_backup[0] || s.y != geo_backup[1] ||
                 s.w != geo_backup[2] || s.h != geo_backup[3] ||
                 s.rotation != geo_backup[4] ||
-                s.z != static_cast<int>(geo_backup[5]);
+                s.z != static_cast<int>(geo_backup[5]) ||
+                s.rot_x != geo_backup[6] || s.rot_y != geo_backup[7];
             if (warp_changed) s.warp = warp_backup;
             if (geo_changed) {
                 s.x = geo_backup[0]; s.y = geo_backup[1];
                 s.w = geo_backup[2]; s.h = geo_backup[3];
                 s.rotation = geo_backup[4];
                 s.z = static_cast<int>(geo_backup[5]);
+                s.rot_x = geo_backup[6]; s.rot_y = geo_backup[7];
             }
             if (warp_changed || geo_changed) refreshViews();
             break;
@@ -1701,8 +1705,23 @@ void SceneCanvasWidget::paintGL3D(
     for (int i = 0; i < (int)scene_->screens.size(); ++i) {
         const Screen& s = scene_->screens[i];
         if (s.w <= 0 || s.h <= 0) continue;
-        screen_quads.push_back(
-            {i, projectQuad(QRectF(s.x, s.y, s.w, s.h), s.rotation, 0.0)});
+        // 屏姿态（2026-11-17 阶段2）：俯仰/偏航非 0 → 取景框 = 姿态四角
+        //（cg::quadCorners3D 预投影——滚转/姿态烘焙，与 clip pose3d 同源
+        // 唯一真相）逐角提升到 z=0 地面平面（display 取景器无高度语义）；
+        // 无姿态 → 历史 projectQuad 逐位（纯滚转含锚点/位移同路径）。
+        if (s.rot_x != 0.0 || s.rot_y != 0.0) {
+            double wx[4], wy[4];
+            cg::quadCorners3D(
+                s.x, s.y, s.w, s.h, s.rotation, s.rot_x, s.rot_y,
+                0 /*锚=中心*/, nullptr, wx, wy);
+            QPolygonF q(4);
+            for (int k = 0; k < 4; ++k)
+                q[k] = project3(wx[k], 0.0, wy[k]);
+            screen_quads.push_back({i, q});
+        } else {
+            screen_quads.push_back(
+                {i, projectQuad(QRectF(s.x, s.y, s.w, s.h), s.rotation, 0.0)});
+        }
     }
     for (int tr = 0; tr < (int)scene_->timeline.tracks.size(); ++tr) {
         const auto& clips = scene_->timeline.tracks[tr].clips;

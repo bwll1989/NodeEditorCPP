@@ -76,10 +76,10 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
         di.crop_u0 = cu0; di.crop_v0 = cv0;
         di.crop_u1 = cu1; di.crop_v1 = cv1;
 
-        if (st.rotated || judge.rotation != 0.0 || judge.cornerActive() ||
-            judge.poseActive()) {
+        if (st.rotated || st.posed || judge.rotation != 0.0 ||
+            judge.cornerActive() || judge.poseActive()) {
             // ---- 变形路径：本机矩形不再是轴对齐目标 ----
-            // （clip 旋转 / 屏旋转 / 四角位移 / 俯仰偏航任一触发）
+            // （clip 旋转 / 屏旋转 / 屏姿态 / 四角位移 / 俯仰偏航任一触发）
             // 1) 目标四角（画布域）：2D = 绕【锚点】R(θ) + 位移（唯一真相
             //    cg::quadCornersWithAnchor）；俯仰/偏航非 0 →
             //    cg::quadCorners3D（3D 旋转 + 透视投影 + 滚转，无姿态时
@@ -125,16 +125,24 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
             di.w = max_x - min_x;
             di.h = max_y - min_y;
 
-            // 2) output→canvas 逆仿射（屏旋转在此还原；预条件 st 可逆——
-            //    make 产物缩放恒正，数据损坏时 inverse 已安全兜底恒等）
-            const ScreenTransform inv = st.inverse();
+            // 2) output→canvas 逆映射（屏旋转仿射还原；屏姿态走单应——
+            //    inv_map 恒等占位防仿射误用，渲染端按 screen_posed 分派；
+            //    预条件 st 可逆——make 产物缩放恒正，数据损坏时安全兜底）
+            if (st.posed) {
+                di.screen_posed = true;
+                for (int i = 0; i < 9; ++i) di.screen_inv_h[i] = st.h_o2c[i];
+                for (int i = 0; i < 9; ++i) di.screen_h[i] = st.h_c2o[i];
+                // inv_map 恒等占位（渲染端 screen_posed 分派后不消费）
+            } else {
+                const ScreenTransform inv = st.inverse();
+                di.inv_map[0] = inv.a;
+                di.inv_map[1] = inv.b;
+                di.inv_map[2] = inv.c;
+                di.inv_map[3] = inv.d;
+                di.inv_map[4] = inv.e;
+                di.inv_map[5] = inv.f;
+            }
             di.affine   = true;
-            di.inv_map[0] = inv.a;
-            di.inv_map[1] = inv.b;
-            di.inv_map[2] = inv.c;
-            di.inv_map[3] = inv.d;
-            di.inv_map[4] = inv.e;
-            di.inv_map[5] = inv.f;
 
             // 3) clip 有效矩形（画布域，未旋转框架；裁切后 = 可见矩形）
             //    ——渲染器绕其中心做 clip 旋转的逆变换后按轴对齐矩形采样

@@ -519,12 +519,19 @@ struct Screen {
     int32_t z = 0;           ///< 叠放层级：多屏重叠时小值先绘（底层），
                              ///< 大值后绘（顶层）；单屏独占时无视觉差异
     ScreenWarp warp;         ///< 输出变形网格（WATCHOUT 式；mode=0 无变形）
+    /// 屏姿态（2026-11-17 阶段2，与 Clip Transform::rot_x/rot_y 同构）：
+    /// 俯仰/偏航旋转（度）——屏取景窗带 3D 姿态，画布→屏映射升级单应
+    ///（ScreenTransform pose3d 分支经 cg::quadCorners3D 预投影）。0 = 无
+    /// 姿态（历史仿射映射逐位不变）。
+    double rot_x = 0.0;      ///< 俯仰旋转 X（度，正=顶边后仰）
+    double rot_y = 0.0;      ///< 偏航旋转 Y（度，正=右缘远离）
 };
 
 inline bool operator==(const Screen& a, const Screen& b) {
     return a.id == b.id && a.player_id == b.player_id && a.x == b.x &&
            a.y == b.y && a.w == b.w && a.h == b.h &&
-           a.rotation == b.rotation && a.z == b.z && a.warp == b.warp;
+           a.rotation == b.rotation && a.z == b.z && a.warp == b.warp &&
+           a.rot_x == b.rot_x && a.rot_y == b.rot_y;
 }
 
 // ---------------------------------------------------------------------------

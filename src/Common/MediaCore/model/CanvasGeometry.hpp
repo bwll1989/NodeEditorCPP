@@ -175,6 +175,101 @@ struct ResizeResult {
     double h = 0.0;
 };
 
+// ---------------------------------------------------------------------------
+// 单应（2026-11-17 阶段2 屏姿态）：4 点对解 3×3 投影映射——屏取景窗带
+// 俯仰/偏航时画布↔输出的映射从仿射升级单应（透视除法保直线，clip 姿态
+// 透视与屏姿态透视两级单应复合的数学根基）。
+//   * 顶点约定与 quadCorners3D 同源：单位方 (0,0)(1,0)(1,1)(0,1) 依序
+//     对应 CornerIdx [LT,RT,RB,LB] 目标点；
+//   * 解法 = 8×9 增广矩阵 + 部分主元消元（与编辑器 Canvas3DGl::solveHomography
+//     同一实现——三处（编辑器 3D 贴图/屏映射/对拍）同一数学）；
+//   * 退化（共线/重复点/近奇异）返回 false——数据损坏宁缺勿错。
+// ---------------------------------------------------------------------------
+
+/// 4 点对解单应：单位方四角 → dst 八元组（x0,y0,…,x3,y3，CornerIdx 序）
+/// \param h9 输出 3×3 行主序（h9[8]=1）：单位方 (u,v) → 目标 (x,y)
+inline bool solveHomography(const double dst[8], double h9[9]) noexcept {
+    // 增广矩阵 A[8][9]：每点两行——
+    //   x = h0·u + h1·v + h2 − h6·u·x − h7·v·x
+    //   y = h3·u + h4·v + h5 − h6·u·y − h7·v·y
+    static const double U[4] = {0.0, 1.0, 1.0, 0.0};
+    static const double V[4] = {0.0, 0.0, 1.0, 1.0};
+    double A[8][9];
+    for (int i = 0; i < 4; ++i) {
+        const double u = U[i], v = V[i];
+        const double x = dst[i * 2 + 0], y = dst[i * 2 + 1];
+        double* rx = A[i * 2 + 0];     // x 方程行
+        rx[0] = u; rx[1] = v; rx[2] = 1.0;
+        rx[3] = rx[4] = rx[5] = 0.0;
+        rx[6] = -u * x; rx[7] = -v * x; rx[8] = x;
+        double* ry = A[i * 2 + 1];     // y 方程行
+        ry[0] = ry[1] = ry[2] = 0.0;
+        ry[3] = u; ry[4] = v; ry[5] = 1.0;
+        ry[6] = -u * y; ry[7] = -v * y; ry[8] = y;
+    }
+    // 部分主元消元 → 上三角
+    for (int col = 0; col < 8; ++col) {
+        int piv = col;
+        double best = std::fabs(A[col][col]);
+        for (int r = col + 1; r < 8; ++r) {
+            const double m = std::fabs(A[r][col]);
+            if (m > best) { best = m; piv = r; }
+        }
+        if (best < 1e-12) return false; // 奇异（共线/重复点）
+        if (piv != col)
+            for (int c = col; c < 9; ++c)
+                std::swap(A[col][c], A[piv][c]);
+        for (int r = col + 1; r < 8; ++r) {
+            const double k = A[r][col] / A[col][col];
+            if (k == 0.0) continue;
+            for (int c = col; c < 9; ++c) A[r][c] -= k * A[col][c];
+        }
+    }
+    // 回代
+    double s[8] = {};
+    for (int row = 7; row >= 0; --row) {
+        double acc = A[row][8];
+        for (int c = row + 1; c < 8; ++c) acc -= A[row][c] * s[c];
+        s[row] = acc / A[row][row];
+        if (!std::isfinite(s[row])) return false;
+    }
+    for (int i = 0; i < 8; ++i) h9[i] = s[i];
+    h9[8] = 1.0;
+    return true;
+}
+
+/// 单应映射点：[x; y; 1] → H·[x; y; 1]，除 w 分量（透视核心）
+inline void homographyMapPoint(const double h9[9], double x, double y,
+                               double* ox, double* oy) noexcept {
+    const double w = h9[6] * x + h9[7] * y + h9[8];
+    if (!(std::fabs(w) > 1e-12)) { *ox = x; *oy = y; return; } // 退化防御：恒等
+    *ox = (h9[0] * x + h9[1] * y + h9[2]) / w;
+    *oy = (h9[3] * x + h9[4] * y + h9[5]) / w;
+}
+
+/// 3×3 行主序单应逆（伴随/行列式解析逆）；奇异返回 false（调用方兜底）
+inline bool homographyInverse(const double h9[9], double inv[9]) noexcept {
+    const double a = h9[0], b = h9[1], c = h9[2];
+    const double d = h9[3], e = h9[4], f = h9[5];
+    const double g = h9[6], hh = h9[7], i = h9[8];
+    const double A =  (e * i - f * hh);
+    const double B = -(d * i - f * g);
+    const double C =  (d * hh - e * g);
+    const double D = -(b * i - c * hh);
+    const double E =  (a * i - c * g);
+    const double F = -(a * hh - b * g);
+    const double G =  (b * f - c * e);
+    const double H = -(a * f - c * d);
+    const double I =  (a * e - b * d);
+    const double det = a * A + b * B + c * C;
+    if (!std::isfinite(det) || std::fabs(det) < 1e-12) return false;
+    const double k = 1.0 / det;
+    inv[0] = A * k; inv[1] = D * k; inv[2] = G * k;
+    inv[3] = B * k; inv[4] = E * k; inv[5] = H * k;
+    inv[6] = C * k; inv[7] = F * k; inv[8] = I * k; // 伴随 = cofactor 转置
+    return true;
+}
+
 /// 矩形绕中心旋转 rotation 度后，局部角 corner 的画布坐标
 /// \param x,y,w,h  未旋转外接框；\param rotation_deg 顺时针度数
 inline void rotatedCorner(double x, double y, double w, double h,

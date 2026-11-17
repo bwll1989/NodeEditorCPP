@@ -76,10 +76,10 @@ public:
     }
 
     /// 【实时预览（2026-11-11 用户需求：几何调整 editor/display 即时可见）】
-    /// 注入几何六字段（x/y/w/h/rotation/z）实时回调——通用页 spinbox 每次变化
-    /// （点箭头/步进/键入提交）立即转发，宿主只取六字段写回工作副本走自动
-    /// 下发链路。回调收到的 Screen 仅几何字段有效（warp/绑定不在实时链内）。
-    /// 空 = 不实时应用（纯确认制，旧语义）。
+    /// 注入几何八字段（x/y/w/h/rotation/rot_x/rot_y/z）实时回调——通用页
+    /// spinbox 每次变化（点箭头/步进/键入提交）立即转发，宿主只取几何字段
+    /// 写回工作副本走自动下发链路。回调收到的 Screen 仅几何字段有效
+    ///（warp/绑定不在实时链内）。空 = 不实时应用（纯确认制，旧语义）。
     void setGeometryLiveApply(std::function<void(const Screen&)> fn) {
         geometry_live_ = std::move(fn);
     }
@@ -90,6 +90,8 @@ private:
     QDoubleSpinBox* w_ = nullptr; ///< 显示宽度
     QDoubleSpinBox* h_ = nullptr; ///< 显示高度
     QDoubleSpinBox* rotation_ = nullptr; ///< 旋转角度（度，顺时针绕中心）
+    QDoubleSpinBox* rot_x_ = nullptr; ///< 俯仰姿态 X（度；屏取景窗 3D 姿态）
+    QDoubleSpinBox* rot_y_ = nullptr; ///< 偏航姿态 Y（度；屏取景窗 3D 姿态）
     QSpinBox*       z_ = nullptr;        ///< 叠放层级（多屏重叠绘制次序）
     QLineEdit*      player_id_ = nullptr; ///< 绑定的显示端（player id；
                                           ///  连接成功后 display 自动采用）
