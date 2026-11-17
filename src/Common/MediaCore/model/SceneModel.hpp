@@ -90,6 +90,15 @@ struct Transform {
     double rot_x = 0.0; ///< 俯仰旋转（度，绕画布 X 轴；正=顶边后仰）
     double rot_y = 0.0; ///< 偏航旋转（度，绕画布 Y 轴；正=右边缘远离）
 
+    // ---- 几何深度（2026-11-17 素材 3D 化阶段①，对齐 WATCHOUT cue Z）-----
+    // 画布域 Z 位移（px，正 = 远离观察者 → 全局透视下缩小、向消隐点收敛）。
+    // 【命名纪律】本字段是几何深度（position_z），与上方 z（叠放层级 /
+    // render_order）是两种语义——严禁混用（路线文档三·0 语义链定案）。
+    // 0 = 历史行为逐位不变；投影消费见 CanvasGeometry::quadCorners3DP。
+    // 注意：不接入 Tween 通道（TweenProp::Position 的 v2=z 语义是叠放层
+    // 级，TweenSection 13 行定长契约不因 3D 化扩表——tween 化留待后续）。
+    double pos_z = 0.0;
+
     // ---- 裁切（2026-11-09 v3，画布 px）------------------------------------
     // 相对【未裁切】名义矩形边缘向内收：被裁区域不显示、内容不缩放，
     // 不回写 Pos/Size（与角点同"末端修正"哲学）。下标 = CropIdx。
@@ -118,6 +127,12 @@ struct Transform {
     /// 任一姿态分量（俯仰/偏航）非 0（v3 渲染分流判定；同 cornerActive 纪律）
     bool poseActive() const noexcept {
         return rot_x != 0.0 || rot_y != 0.0;
+    }
+
+    /// 任一 3D 位姿分量（俯仰/偏航/几何深度）非 0（素材 3D 化阶段①；
+    /// 渲染端透视路径判定——pos_z 非 0 时即使无姿态也须走透视投影）
+    bool pose3DActive() const noexcept {
+        return rot_x != 0.0 || rot_y != 0.0 || pos_z != 0.0;
     }
 
     /// 任一裁切边非 0（v3；NaN 视作非 0 走保守路径）
@@ -173,7 +188,7 @@ inline bool operator==(const Transform& a, const Transform& b) {
            a.anchor == b.anchor &&
            std::equal(std::begin(a.corner), std::end(a.corner),
                       std::begin(b.corner)) &&
-           a.rot_x == b.rot_x && a.rot_y == b.rot_y &&
+           a.rot_x == b.rot_x && a.rot_y == b.rot_y && a.pos_z == b.pos_z &&
            std::equal(std::begin(a.crop), std::end(a.crop),
                       std::begin(b.crop));
 }
@@ -554,6 +569,20 @@ struct Scene {
     Timeline timeline;            ///< 时间轴编排
     std::vector<Asset> assets;    ///< 素材表
 
+    // ---- Show 级全局透视参数（2026-11-17 素材 3D 化阶段①，对齐 WATCHOUT
+    // 5.2 Perspective 滑杆 + Vanishing Point / 7 的 Eye point）--------------
+    // 语义链（路线文档三·0）：全场唯一一次透视投影发生在"素材 3D 位姿 →
+    // 成品画面"环节；本参数是该投影的全部——焦距（小=广角透视强，大=长焦
+    // ≈正交）+ 消隐点（素材沿 Z 远去时向其收敛）。
+    // 【解耦契约】display 取景窗（Screen x/y/w/h）不消费本参数——调透视
+    // 不改取景、移取景窗不改透视（白名单 5.1 Z 平移禁止的数学依据）。
+    // focal <= 0 = 未配置：各片段走既有"锚点透视"（焦距 = 2×max(w,h)，
+    // 消隐点 = 锚点——CanvasGeometry::perspectiveFocal 现状），旧工程逐位
+    // 不变；focal > 0 = 全场统一投影（消隐点全局，深度含 clip pos_z）。
+    double persp_focal = 0.0; ///< 全局透视焦距（px；>0 启用，<=0 未配置）
+    double persp_vp_x  = 0.0; ///< 消隐点 X（画布 px；focal>0 时消费）
+    double persp_vp_y  = 0.0; ///< 消隐点 Y（画布 px；focal>0 时消费）
+
     /// 按素材 ID 查找素材（线性查找；素材量级小，可接受。
     /// 若未来素材量大，可在 SceneLoader 加载时建 unordered_map 索引）
     const Asset* findAsset(const std::string& asset_id) const noexcept {
@@ -566,7 +595,9 @@ struct Scene {
 inline bool operator==(const Scene& a, const Scene& b) {
     return a.id == b.id && a.version == b.version && a.canvas_w == b.canvas_w &&
            a.canvas_h == b.canvas_h && a.screens == b.screens &&
-           a.timeline == b.timeline && a.assets == b.assets;
+           a.timeline == b.timeline && a.assets == b.assets &&
+           a.persp_focal == b.persp_focal && a.persp_vp_x == b.persp_vp_x &&
+           a.persp_vp_y == b.persp_vp_y;
 }
 
 // （第七迭代：ScenePatch 增量补丁内存结构已随增量机制退役——场景同步

@@ -87,6 +87,11 @@ message Transform {
   double crop_r = 13;  // 右侧裁切 px
   double crop_t = 14;  // 顶部裁切 px
   double crop_b = 15;  // 底部裁切 px
+  // 几何深度（2026-11-17 素材 3D 化阶段①，对齐 WATCHOUT cue Z）：
+  // 画布域 Z 位移（px，正 = 远离观察者 → 全局透视下缩小、向消隐点收敛）。
+  // 【命名纪律】与 7 号位 z（叠放层级 / render_order）是两种语义，严禁
+  // 混用。"缺席 = 0 = 历史行为"普通标量；写端非 0 才写（wire 兼容）。
+  double pos_z = 16;   // 几何深度 Z（px，正 = 远离）
 }
 
 // ---------------------------------------------------------------------------
@@ -344,6 +349,14 @@ message Scene {
   repeated Screen screens  = 5; // 输出屏幕布局
   Timeline timeline        = 6; // 时间轴编排
   repeated Asset assets    = 7; // 素材表（clip 通过 asset_id 引用）
+  // Show 级全局透视参数（2026-11-17 素材 3D 化阶段①，对齐 WATCHOUT
+  // 5.2 Perspective + Vanishing Point / 7 的 Eye point）：全场唯一一次
+  // 透视投影（素材 3D 位姿 → 成品画面）的全部参数。focal <= 0 = 未配置
+  //（各片段走锚点透视现状，旧工程逐位不变）；focal > 0 = 全场统一投影。
+  // 【解耦契约】display 取景窗（Screen）不消费本参数——调透视不改取景。
+  double perspective_focal = 8;  // 全局透视焦距（px；>0 启用）
+  double perspective_vp_x  = 9;  // 消隐点 X（画布 px）
+  double perspective_vp_y  = 10; // 消隐点 Y（画布 px）
 }
 
 // ---------------------------------------------------------------------------

@@ -509,6 +509,9 @@ ms_proto::Track SceneLoader::toProtoTrack(const Track& t) {
         // 0 = 无俯仰偏航/无裁切，业务默认与旧读端语义一致）
         if (c.transform.rot_x != 0.0) tr->set_rot_x(c.transform.rot_x);
         if (c.transform.rot_y != 0.0) tr->set_rot_y(c.transform.rot_y);
+        // 几何深度（2026-11-17 素材 3D 化阶段①）：非 0 才写（wire 兼容——
+        // 缺席 = 0 = 历史行为；与 7 号位叠放层级 z 语义分离，见 proto 注释）
+        if (c.transform.pos_z != 0.0) tr->set_pos_z(c.transform.pos_z);
         if (c.transform.cropActive())
             for (int i = 0; i < 4; ++i)
                 if (c.transform.crop[i] != 0.0) {
@@ -601,6 +604,10 @@ Track SceneLoader::fromProtoTrack(const ms_proto::Track& pt) {
                                 ? pc.transform().rot_x() : 0.0;
         c.transform.rot_y = std::isfinite(pc.transform().rot_y())
                                 ? pc.transform().rot_y() : 0.0;
+        // 几何深度（2026-11-17 素材 3D 化阶段①）：缺席 = 0 = 历史行为；
+        // NaN/Inf 钳 0（同姿态纪律——数据损坏宁缺勿错）
+        c.transform.pos_z = std::isfinite(pc.transform().pos_z())
+                                ? pc.transform().pos_z() : 0.0;
         c.transform.crop[kCropL] = std::isfinite(pc.transform().crop_l())
                                        ? pc.transform().crop_l() : 0.0;
         c.transform.crop[kCropR] = std::isfinite(pc.transform().crop_r())
@@ -665,6 +672,12 @@ ms_proto::Scene SceneLoader::toProto(const Scene& scene) {
     pb.set_version(scene.version);
     pb.set_canvas_w(scene.canvas_w);
     pb.set_canvas_h(scene.canvas_h);
+    // Show 级全局透视参数（2026-11-17 素材 3D 化阶段①）：focal>0 = 启用
+    // 才写（wire 兼容——缺席 = 0 = 未配置，各片段锚点透视现状）；vp 非零
+    // 才写（0 也是合法消隐点值，但与"未配置"组合时读端不消费，无歧义）
+    if (scene.persp_focal > 0.0) pb.set_perspective_focal(scene.persp_focal);
+    if (scene.persp_vp_x != 0.0) pb.set_perspective_vp_x(scene.persp_vp_x);
+    if (scene.persp_vp_y != 0.0) pb.set_perspective_vp_y(scene.persp_vp_y);
 
     // ---- 素材表 ----
     for (const auto& a : scene.assets) *pb.add_assets() = toProtoAsset(a);
@@ -884,6 +897,16 @@ std::optional<Scene> SceneLoader::fromProto(const ms_proto::Scene& pb,
     scene.version  = pb.version();
     scene.canvas_w = pb.canvas_w();
     scene.canvas_h = pb.canvas_h();
+    // Show 级全局透视参数（2026-11-17 素材 3D 化阶段①）：缺席 = 0 =
+    // 未配置（历史行为）；focal 非 >0 值（含缺席 0）钳回未配置；NaN/Inf
+    // 钳 0（同 R3 纪律——数据损坏宁缺勿错）
+    scene.persp_focal = std::isfinite(pb.perspective_focal()) &&
+                                pb.perspective_focal() > 0.0
+                            ? pb.perspective_focal() : 0.0;
+    scene.persp_vp_x  = std::isfinite(pb.perspective_vp_x())
+                            ? pb.perspective_vp_x() : 0.0;
+    scene.persp_vp_y  = std::isfinite(pb.perspective_vp_y())
+                            ? pb.perspective_vp_y() : 0.0;
 
     // ---- 素材表 ----
     for (const auto& pa : pb.assets())
