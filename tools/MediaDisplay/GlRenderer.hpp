@@ -194,11 +194,12 @@ private:
 #endif
 
     /// 单帧绘制项的顶点构造（RGBA/NV12 双路径共用；失败 = 防御拒绝）
-    /// \param verts 输出 {glx, gly, u, v}×4 条带序（左上→左下→右上→右下）
+    /// \param verts 输出 {glx, gly, u·q, v·q, q}×4 条带序（左上→左下→
+    ///              右上→右下；阶段②透视校正插值——FS 采样 uv/v_q）
     bool buildVerts(const DrawItem& di, int frame_w, int frame_h,
-                    float verts[4][4]);
+                    float verts[4][5]);
 
-    void drawQuad(const float verts[4][4]); ///< 顶点上传 + 条带绘制
+    void drawQuad(const float verts[4][5]); ///< 顶点上传 + 条带绘制
 
     // ---- 输出变形（两段式渲染：FBO 离屏合成 + mesh 贴图；2026-11-09）-----
     /// 变形管线是否应激活（warp 有效 && 非 External && FBO 未失败）。

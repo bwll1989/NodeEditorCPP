@@ -33,16 +33,19 @@ namespace {
 constexpr char kVertexShader[] = R"(
 #version 330 core
 layout(location = 0) in vec2 a_pos;   // GL 窗口像素坐标（y 向上）
-layout(location = 1) in vec2 a_uv;    // 帧纹理坐标（归一化）
+layout(location = 1) in vec2 a_uv;    // 帧纹理坐标×q（归一化；见 a_q）
 layout(location = 2) in float a_alpha; // 逐顶点融合（quad 路径常量 1）
+layout(location = 3) in float a_q;    // 透视权重 q（阶段②；quad 路径常量 1）
 uniform vec2 u_outSize;               // 画布尺寸（像素）——像素→NDC 基准
 out vec2 v_uv;
 out float v_alpha;
+out float v_q;
 void main() {
     vec2 ndc = a_pos / u_outSize * 2.0 - 1.0;
     gl_Position = vec4(ndc, 0.0, 1.0);
     v_uv = a_uv;
     v_alpha = a_alpha;
+    v_q = a_q;
 }
 )";
 
@@ -55,16 +58,21 @@ constexpr char kFragmentShader[] = R"(
 #version 330 core
 in vec2 v_uv;
 in float v_alpha;
+in float v_q;
 uniform sampler2D u_tex;
 uniform vec2 u_frameSize;
 uniform float u_opacity;
 out vec4 fragColor;
 void main() {
-    vec2 px = v_uv * u_frameSize;
+    // 透视校正采样（阶段②）：顶点传 (uv·q, q)，屏幕空间线性插值后
+    // uv/v_q = Σλᵢ·uvᵢ·qᵢ / Σλᵢ·qᵢ —— 精确复现平面单应的有理插值；
+    // q≡1（无姿态/quad 直通）时除以 1.0 逐位还原历史仿射采样。
+    vec2 uv = v_uv / v_q;
+    vec2 px = uv * u_frameSize;
     if (px.x < -0.5 || px.y < -0.5 ||
         px.x > u_frameSize.x + 0.5 || px.y > u_frameSize.y + 0.5)
         discard;                       // 旋转角区域：露画布底色
-    vec4 c = texture(u_tex, v_uv);
+    vec4 c = texture(u_tex, uv);
     fragColor = vec4(c.rgb * v_alpha, c.a * u_opacity);
 }
 )";
@@ -83,21 +91,24 @@ constexpr char kFragmentShaderNv12[] = R"(
 #version 330 core
 in vec2 v_uv;
 in float v_alpha;
+in float v_q;
 uniform sampler2D u_tex_y;   // 亮度平面（R8，w×h）
 uniform sampler2D u_tex_uv;  // 色度平面（RG8，w/2×h/2，UV 交错）
 uniform vec2 u_frameSize;
 uniform float u_opacity;
 out vec4 fragColor;
 void main() {
-    vec2 px = v_uv * u_frameSize;
+    // 透视校正采样（阶段②；同 RGBA FS——q≡1 逐位退化）
+    vec2 uv = v_uv / v_q;
+    vec2 px = uv * u_frameSize;
     if (px.x < -0.5 || px.y < -0.5 ||
         px.x > u_frameSize.x + 0.5 || px.y > u_frameSize.y + 0.5)
         discard;                       // 旋转角区域：露画布底色
-    float y = texture(u_tex_y, v_uv).r;
-    vec2 uv = texture(u_tex_uv, v_uv).rg;
+    float y = texture(u_tex_y, uv).r;
+    vec2 uvw = texture(u_tex_uv, uv).rg;
     float yy = y - (16.0 / 255.0);
-    float uu = uv.x - 0.5;
-    float vv = uv.y - 0.5;
+    float uu = uvw.x - 0.5;
+    float vv = uvw.y - 0.5;
     float r = 1.164 * yy + 1.596 * vv;
     float g = 1.164 * yy - 0.391 * uu - 0.813 * vv;
     float b = 1.164 * yy + 2.018 * uu;
@@ -620,7 +631,7 @@ void GlRenderer::disableGpuDelivery(const char* why) {
 //   与 CPU RGBA 帧走同一套顶点（防上下反推导与对拍结论在此统一收口）。
 // ---------------------------------------------------------------------------
 bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
-                            float verts[4][4]) {
+                            float verts[4][5]) {
     (void)frame_w; // uv 为归一化裁切窗（v3）后帧尺寸不参与顶点构造；
     (void)frame_h; // 参数保留：签名稳定 + 轴对齐/仿射共用调用点不动
     if (!di.affine) {
@@ -628,7 +639,8 @@ bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
         // 轴对齐路径：目标矩形 top-down → gl_y = H − y 翻转；
         // uv：顶边（画面顶）v=crop_v0、底边 v=crop_v1，左边 u=crop_u0、
         // 右边 u=crop_u1（v3 裁切采样窗；未裁切窗=0/1 → 历史直通
-        // 逐位一致，与 SoftRenderer 的 (px+0.5−x)×su 采样逐点对齐）
+        // 逐位一致，与 SoftRenderer 的 (px+0.5−x)×su 采样逐点对齐）。
+        // q 恒 1（轴对齐无透视；u·1=u 浮点精确——历史逐位不变）
         // ================================================================
         const float x0 = static_cast<float>(di.x);
         const float y0 = static_cast<float>(di.y);
@@ -639,15 +651,19 @@ bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
         verts[0][0] = x0;  verts[0][1] = gtop;
         verts[0][2] = static_cast<float>(di.crop_u0);
         verts[0][3] = static_cast<float>(di.crop_v0);
+        verts[0][4] = 1.0f;
         verts[1][0] = x0;  verts[1][1] = gbot;
         verts[1][2] = static_cast<float>(di.crop_u0);
         verts[1][3] = static_cast<float>(di.crop_v1);
+        verts[1][4] = 1.0f;
         verts[2][0] = x1;  verts[2][1] = gtop;
         verts[2][2] = static_cast<float>(di.crop_u1);
         verts[2][3] = static_cast<float>(di.crop_v0);
+        verts[2][4] = 1.0f;
         verts[3][0] = x1;  verts[3][1] = gbot;
         verts[3][2] = static_cast<float>(di.crop_u1);
         verts[3][3] = static_cast<float>(di.crop_v1);
+        verts[3][4] = 1.0f;
         return true;
     }
 
@@ -702,12 +718,17 @@ bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
     static constexpr int kVtxToCorner[4] = {0, 1, 3, 2}; // 顶点 i → CornerIdx
     for (int i = 0; i < 4; ++i) {
         double wx, wy; // canvas 域角
+        float  q  = 1.0f; // 透视权重（阶段②；无姿态恒 1 → 逐位退化）
         if (di.pose3d) {
-            // 俯仰/偏航（v3 透视）：四角已由 cg::quadCorners3D 预投影
-            // （ScreenMapper 填 di.quad，画布域 CornerIdx 序——滚转/
-            // 锚点/角位移/透视缩放已烘焙），此处仅顶点序重排 + comp 映射。
+            // 俯仰/偏航（v3 透视）：四角已由 cg::quadCorners3DP 预投影
+            // （ScreenMapper 填 di.quad/di.quad_q，画布域 CornerIdx 序——
+            // 滚转/锚点/角位移/透视缩放已烘焙），此处仅顶点序重排 +
+            // comp 映射；q = 该角投影权重 s=F/(F+Z)（顶点传 uv·q，FS
+            // 采样 uv/v_q 精确复现平面单应——屏幕空间线性插值）。
             wx = di.quad[kVtxToCorner[i]][0];
             wy = di.quad[kVtxToCorner[i]][1];
+            q  = static_cast<float>(di.quad_q[kVtxToCorner[i]]);
+            if (!(q > 0.0f)) q = 1e-6f; // 防御（与几何端 1e-6 钳制同口径）
         } else {
             // 2D 路径（原实现）：未旋转角 → 相对【锚点】偏移 → R(θ) →
             // + 锚点（p' = R·(p−A)+A，anchor=中心时与历史"绕中心"逐位
@@ -734,10 +755,11 @@ bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
         verts[i][0] = static_cast<float>(ox);
         verts[i][1] = static_cast<float>(canvas_h_) -
                       static_cast<float>(oy);          // y 翻转
-        // uv 采样窗（v3 裁切）：bit0 选窗右、bit1 选窗下；未裁切窗=
-        // 全帧 → 历史 0/1 直通逐位一致
-        verts[i][2] = static_cast<float>((i & 1) ? di.crop_u1 : di.crop_u0);
-        verts[i][3] = static_cast<float>((i & 2) ? di.crop_v1 : di.crop_v0);
+        // uv 采样窗（v3 裁切）×q：bit0 选窗右、bit1 选窗下；未裁切窗=
+        // 全帧 → 历史 0/1 直通逐位一致（q=1 时 ×1 精确）
+        verts[i][2] = static_cast<float>((i & 1) ? di.crop_u1 : di.crop_u0) * q;
+        verts[i][3] = static_cast<float>((i & 2) ? di.crop_v1 : di.crop_v0) * q;
+        verts[i][4] = q;
     }
     return true;
 }
@@ -757,7 +779,7 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
     if (di.w <= 0 || di.h <= 0) return false;
 
     // ---- 顶点构造（域无关；含仿射防御）-----------------------------------
-    float verts[4][4];
+    float verts[4][5];
     if (!buildVerts(di, frame.width, frame.height, verts)) return false;
 
     // 【诊断 MS_CANVAS_DBG=1】仿射 UV 追踪（内容偏移定位）：顶点=合成域
@@ -1047,7 +1069,7 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
 //   VAO 绑定收口在此（RGBA/NV12 双路径共用；幂等——core profile 下
 //   VAO=0 非法，不能依赖"别处已绑"的隐式状态）
 // ---------------------------------------------------------------------------
-void GlRenderer::drawQuad(const float verts[4][4]) {
+void GlRenderer::drawQuad(const float verts[4][5]) {
     gl::glBindVertexArray(vao_);
     gl::glBindBuffer(gl::GL_ARRAY_BUFFER, vbo_);
     // 【共享上下文防御 2026-11-05 —— 二次 paint 黑屏根因】ExternalCtx 下
@@ -1059,21 +1081,27 @@ void GlRenderer::drawQuad(const float verts[4][4]) {
     // 重合一点 → 零像素：无 GL 错误、glValidateProgram 通过、画面黑（本
     // 会话编辑器联测实证）。故 attrib 配置从 ensureInit 一次性改为每帧
     // 幂等重配（顶点布局常量，开销可忽略）。
+    // 【阶段② 5-float 布局】stride 20：pos2+uv2+q1；attrib3=a_q 幂等
+    // enable（warpBlit 会 disable 残留——互串防御双向幂等）。
     gl::glEnableVertexAttribArray(0); // a_pos（2 float，偏移 0）
     gl::glVertexAttribPointer(0, 2, gl::GL_FLOAT, gl::GL_FALSE,
-                              4 * sizeof(float),
+                              5 * sizeof(float),
                               reinterpret_cast<const void*>(0));
     gl::glEnableVertexAttribArray(1); // a_uv（2 float，偏移 8 字节）
     gl::glVertexAttribPointer(1, 2, gl::GL_FLOAT, gl::GL_FALSE,
-                              4 * sizeof(float),
+                              5 * sizeof(float),
                               reinterpret_cast<const void*>(8));
+    gl::glEnableVertexAttribArray(3); // a_q（1 float，偏移 16 字节）
+    gl::glVertexAttribPointer(3, 1, gl::GL_FLOAT, gl::GL_FALSE,
+                              5 * sizeof(float),
+                              reinterpret_cast<const void*>(16));
     // attrib2（a_alpha）：quad 直通无逐顶点 alpha——disable + 常量 1.0。
     // 必须每帧幂等执行：warpBlit（同 VAO）会 enable attrib2 指向 5-float
     // mesh 布局，状态残留在 VAO 内（同 QPainter 泄漏教训——attrib 状态存
     // 于 VAO 对象，重绑不恢复），缺省值 0 会把 quad 内容乘成黑。
     gl::glDisableVertexAttribArray(2);
     gl::glVertexAttrib1f(2, 1.0f);
-    gl::glBufferData(gl::GL_ARRAY_BUFFER, 4 * 4 * sizeof(float), verts,
+    gl::glBufferData(gl::GL_ARRAY_BUFFER, 4 * 5 * sizeof(float), verts,
                      gl::GL_DYNAMIC_DRAW); // 孤儿式重分配（驱动端异步安全）
     // （2026-11-06 去冗余：此处原连续两次相同 glBufferData——第二次把刚
     // 孤儿化的存储再次孤儿化，纯复制粘贴残留；每帧热路径省一次上传。）
@@ -1349,6 +1377,10 @@ void GlRenderer::warpBlit() {
     gl::glVertexAttribPointer(2, 1, gl::GL_FLOAT, gl::GL_FALSE,
                               5 * sizeof(float),
                               reinterpret_cast<const void*>(16));
+    // attrib3（a_q）：mesh 无透视权重——disable（幂等；drawQuad 残留的
+    // enabled 状态会把本 mesh 偏移 16 的 alpha 读成 q，MPCDI alpha<1 时
+    // uv 被错误放大——互串防御同 attrib2 纪律）
+    gl::glDisableVertexAttribArray(3);
     gl::glBufferData(gl::GL_ARRAY_BUFFER,
                      static_cast<ptrdiff_t>(warp_mesh_.size() * sizeof(float)),
                      warp_mesh_.data(), gl::GL_DYNAMIC_DRAW);
@@ -1546,20 +1578,20 @@ void GlRenderer::drawOsdOverlay() {
     }
 
     // ---- quad 绘制（最终输出域：底部居中；复用 RGBA 程序与管线）---------
-    // 顶点 {glx, gly, u, v} 条带序（左上→左下→右上→右下）；gl_y = H −
+    // 顶点 {glx, gly, u, v, q} 条带序（左上→左下→右上→右下）；gl_y = H −
     // y_topdown（防上下反链条见头文件注释）。u_frameSize = OSD 尺寸，
-    // 出界 discard 不会误伤（uv ∈ [0,1] 全幅采样）。
+    // 出界 discard 不会误伤（uv ∈ [0,1] 全幅采样）；q=1 无透视。
     const int x0 = (canvas_w_ - bar_w) / 2;
     const int y0 = canvas_h_ - bar_h - canvas_h_ / 18; // 底部留 5.5% 边距
-    const float verts[4][4] = {
+    const float verts[4][5] = {
         {static_cast<float>(x0),
-         static_cast<float>(canvas_h_ - y0), 0.f, 0.f},
+         static_cast<float>(canvas_h_ - y0), 0.f, 0.f, 1.f},
         {static_cast<float>(x0),
-         static_cast<float>(canvas_h_ - y0 - bar_h), 0.f, 1.f},
+         static_cast<float>(canvas_h_ - y0 - bar_h), 0.f, 1.f, 1.f},
         {static_cast<float>(x0 + bar_w),
-         static_cast<float>(canvas_h_ - y0), 1.f, 0.f},
+         static_cast<float>(canvas_h_ - y0), 1.f, 0.f, 1.f},
         {static_cast<float>(x0 + bar_w),
-         static_cast<float>(canvas_h_ - y0 - bar_h), 1.f, 1.f},
+         static_cast<float>(canvas_h_ - y0 - bar_h), 1.f, 1.f, 1.f},
     };
     gl::glBindVertexArray(vao_);
     gl::glActiveTexture(gl::GL_TEXTURE0);

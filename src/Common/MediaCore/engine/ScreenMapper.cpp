@@ -77,7 +77,7 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
         di.crop_u1 = cu1; di.crop_v1 = cv1;
 
         if (st.rotated || st.posed || judge.rotation != 0.0 ||
-            judge.cornerActive() || judge.poseActive()) {
+            judge.cornerActive() || judge.pose3DActive()) {
             // ---- 变形路径：本机矩形不再是轴对齐目标 ----
             // （clip 旋转 / 屏旋转 / 屏姿态 / 四角位移 / 俯仰偏航任一触发）
             // 1) 目标四角（画布域）：2D = 绕【锚点】R(θ) + 位移（唯一真相
@@ -90,11 +90,17 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
             //    矩形）——uv 窗把帧纹理对应区域映射进来（di.crop_u/v）。
             double min_x = 0.0, min_y = 0.0, max_x = 0.0, max_y = 0.0;
             double wx[4], wy[4];
-            if (judge.poseActive()) {
-                canvas_geometry::quadCorners3D(
-                    judge.x, judge.y, judge.w, judge.h, judge.rotation,
-                    judge.rot_x, judge.rot_y, judge.anchor, judge.corner,
-                    wx, wy);
+            if (judge.pose3DActive()) {
+                // 3D 位姿（素材 3D 化阶段②）：cg::quadCorners3DP 统一投影
+                // ——几何深度 pos_z + Show 级透视参数（scene.persp_*，
+                // focal<=0 时函数内部退化为片段锚点透视现状）+ 俯仰/偏航/
+                // 滚转/锚点/角位移。q4 = 每次投影权重 s=F/(F+Z)（渲染端
+                // 顶点 (uv·q, q) + FS 采样 uv/q 精确复现平面单应）。
+                canvas_geometry::quadCorners3DP(
+                    judge.x, judge.y, judge.w, judge.h, judge.pos_z,
+                    judge.rotation, judge.rot_x, judge.rot_y, judge.anchor,
+                    judge.corner, scene.persp_focal, scene.persp_vp_x,
+                    scene.persp_vp_y, wx, wy, di.quad_q);
                 di.pose3d = true;
                 for (int i = 0; i < 4; ++i) { // CornerIdx 序预投影四角
                     di.quad[i][0] = wx[i];

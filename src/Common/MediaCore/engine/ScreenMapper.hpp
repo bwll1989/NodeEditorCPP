@@ -252,6 +252,11 @@ struct DrawItem {
     double quad[4][2] = {{0, 0}, {0, 0}, {0, 0}, {0, 0}}; ///< 画布域四角
                                                            ///<（CornerIdx 序；
                                                            ///< pose3d 时有效）
+    // 透视权重 q（2026-11-17 阶段②；CornerIdx 序，与 quad 同序）：每次投影
+    // s=F/(F+Z)（quadCorners3DP 输出）。渲染端顶点属性传 (uv·q, q)、FS 采样
+    // uv/v_q——屏幕空间线性插值下精确复现平面单应（q≡1 时逐位退化历史
+    // 仿射采样）。无姿态恒 1。
+    double quad_q[4] = {1.0, 1.0, 1.0, 1.0};
     double crop_u0 = 0.0, crop_v0 = 0.0; ///< 裁切采样窗左上（归一化）
     double crop_u1 = 1.0, crop_v1 = 1.0; ///< 裁切采样窗右下（1,1=未裁切）
 
