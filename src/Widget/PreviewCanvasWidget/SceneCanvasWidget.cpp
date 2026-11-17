@@ -1149,11 +1149,30 @@ SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
     const QPointF cp = widgetToCanvas(widget_pos);
 
     // ---- 2D 屏幕：z 大者优先（多屏重叠取上层；同 z 取数组序靠后）----
+    // 姿态屏（俯仰/偏航非 0）：quadCorners3D 预投影四角 AABB——透视四边形
+    // 可能非凸，AABB 简单可靠（与 clipRectContains 姿态分支同策略同源）
     int best_scr = -1;
     int best_scr_z = -1'000'000'00;
     for (int i = 0; i < (int)scene_->screens.size(); ++i) {
         const Screen& s = scene_->screens[i];
-        if (!rectHit(QRectF(s.x, s.y, s.w, s.h), s.rotation, cp)) continue;
+        bool hit;
+        if (s.rot_x != 0.0 || s.rot_y != 0.0) {
+            double wx[4], wy[4];
+            cg::quadCorners3D(s.x, s.y, s.w, s.h, s.rotation, s.rot_x,
+                              s.rot_y, 0, nullptr, wx, wy);
+            double minx = wx[0], miny = wy[0], maxx = wx[0], maxy = wy[0];
+            for (int k = 1; k < 4; ++k) {
+                minx = std::min(minx, wx[k]);
+                maxx = std::max(maxx, wx[k]);
+                miny = std::min(miny, wy[k]);
+                maxy = std::max(maxy, wy[k]);
+            }
+            hit = cp.x() >= minx && cp.x() <= maxx && cp.y() >= miny &&
+                  cp.y() <= maxy;
+        } else {
+            hit = rectHit(QRectF(s.x, s.y, s.w, s.h), s.rotation, cp);
+        }
+        if (!hit) continue;
         if (best_scr < 0 || s.z >= best_scr_z) {
             best_scr = i;
             best_scr_z = s.z;
@@ -1226,6 +1245,12 @@ int SceneCanvasWidget::hitResizeHandle(const QPointF& widget_pos) const {
         const Transform tf = clipResolvedTransform(c);
         if (tf.anchor != 0 || tf.cornerActive()) return -1;
     }
+    // 姿态屏（俯仰/偏航非 0）：柄随绘制同隐（透视四边形无矩形柄语义，
+    // 与 drawScreen 姿态分支同现同隐；拖动平移不受影响）
+    if (sel_.kind == 1) {
+        const Screen& s = scene_->screens[sel_.a];
+        if (s.rot_x != 0.0 || s.rot_y != 0.0) return -1;
+    }
     // 容差用控件像素（视觉恒定，不随画布 fit 缩放变化）：手柄方块 6px，
     // 命中半径 5px 略大于半块，点击手感宽松
     const double tol = 5.0;
@@ -1253,6 +1278,11 @@ bool SceneCanvasWidget::hitRotateHandle(const QPointF& widget_pos) const {
         const Clip& c = scene_->timeline.tracks[sel_.a].clips[sel_.b];
         const Transform tf = clipResolvedTransform(c);
         if (tf.anchor != 0 || tf.cornerActive()) return false;
+    }
+    // 姿态屏：旋转柄同缩放柄一起隐藏（见 hitResizeHandle）
+    if (sel_.kind == 1) {
+        const Screen& s = scene_->screens[sel_.a];
+        if (s.rot_x != 0.0 || s.rot_y != 0.0) return false;
     }
     // 柄外延量用控件像素（视觉恒定）→ 换算成画布单位传给几何函数
     const double k = view3d_ ? cam3d_.scale
@@ -2268,13 +2298,28 @@ void SceneCanvasWidget::drawScreen(QPainter& p, int i, bool selected,
     if (!r.isValid()) return;
     const Screen& s = scene_->screens[i];
 
+    // 3D 姿态屏（俯仰/偏航非 0）：透视四边形取景框（唯一真相
+    // CanvasGeometry::quadCorners3D——与 3D 视口 screen_quads /
+    // ScreenMapper 屏姿态单应同源同参序；2D 视口与 3D/输出一致体感）
+    const bool posed = (s.rot_x != 0.0 || s.rot_y != 0.0);
+    QPolygonF poly; // 控件域四角（姿态分支；序 LT RT RB LB）
+    if (posed) {
+        double wx[4], wy[4];
+        cg::quadCorners3D(s.x, s.y, s.w, s.h, s.rotation, s.rot_x, s.rot_y,
+                          0, nullptr, wx, wy);
+        for (int k = 0; k < 4; ++k)
+            poly << canvasToWidget(QPointF(wx[k], wy[k]));
+    }
+
     // ---- 屏体：绕中心顺时针旋转绘制（screen.rotation 语义；Qt y 向下
-    //      坐标系中正角度即顺时针，与画布语义一致）----
+    //      坐标系中正角度即顺时针，与画布语义一致）；姿态屏画透视四边形 ----
     p.save();
     p.setBrush(show_body ? QBrush(QColor(0x14, 0x14, 0x14)) : Qt::NoBrush);
     p.setPen(QPen(selected ? QColor(0xE8, 0xE8, 0xE8) : QColor(0x8A, 0x8A, 0x8A),
                   selected ? 1.8 : 1.0));
-    if (s.rotation != 0.0) {
+    if (posed) {
+        p.drawPolygon(poly);
+    } else if (s.rotation != 0.0) {
         p.translate(r.center());
         p.rotate(s.rotation);
         p.drawRect(QRectF(-r.width() / 2.0, -r.height() / 2.0,
@@ -2285,10 +2330,11 @@ void SceneCanvasWidget::drawScreen(QPainter& p, int i, bool selected,
     p.restore();
 
     // 标签："id → player"（AABB 左上角，restore 后画保持水平可读——
-    // 标签是编辑器标注而非屏内容，不随屏旋转）。
+    // 标签是编辑器标注而非屏内容，不随屏旋转；姿态屏取四角 AABB）。
     // 【连接测试联动】已绑定的屏在标签行画在线圆点：●绿 = TCP 在线、
     // ●红 = 离线（状态来自 display_online_，EditorWindow 周期推送）——
     // 未绑定显示端的屏不画圆点（无从谈起在线与否）。
+    const QRectF label_r = posed ? poly.boundingRect() : r;
     p.setPen(QColor(0xC8, 0xC8, 0xC8));
     QFont f = p.font();
     f.setPointSize(9);
@@ -2300,7 +2346,8 @@ void SceneCanvasWidget::drawScreen(QPainter& p, int i, bool selected,
         p.setPen(Qt::NoPen);
         p.setBrush(online ? QBrush(QColor(0x33, 0xB2, 0x6E))
                           : QBrush(QColor(0xE0, 0x55, 0x55)));
-        p.drawEllipse(QPointF(r.left() + 9.0, r.top() + 9.0), 3.0, 3.0);
+        p.drawEllipse(QPointF(label_r.left() + 9.0, label_r.top() + 9.0),
+                      3.0, 3.0);
         p.setPen(QColor(0xC8, 0xC8, 0xC8)); // 恢复标签文字色
         p.setBrush(Qt::NoBrush);
         label_left = 17; // 让位圆点（9px 圆心 + 3px 半径 + 余量）
@@ -2310,17 +2357,26 @@ void SceneCanvasWidget::drawScreen(QPainter& p, int i, bool selected,
             .arg(QString::fromStdString(s.id),
                  s.player_id.empty() ? QString("(未绑定)")
                                      : QString::fromStdString(s.player_id));
-    p.drawText(r.adjusted(label_left, 4, -6, 0), Qt::AlignLeft | Qt::AlignTop,
-               label);
+    p.drawText(label_r.adjusted(label_left, 4, -6, 0),
+               Qt::AlignLeft | Qt::AlignTop, label);
 
     if (selected) { // 选中标注：随旋转的虚线框 + 四角手柄 + 旋转拖柄
-        drawSelectionBox(p, r, s.rotation);
-        // 【画布域入参】手柄/拖柄内部对角点做 canvasToWidget 换算（与
-        // 命中测试 selectionCanvasRect 同一坐标系）——此前误传控件域 r
-        // 导致双重换算：画布非 1:1 缩放时柄飞离对象（红框在对象上、柄
-        // 漂浮在别处）；1:1 时映射恒等故长期未暴露。
-        drawResizeHandles(p, QRectF(s.x, s.y, s.w, s.h), s.rotation);
-        drawRotateHandle(p, QRectF(s.x, s.y, s.w, s.h), s.rotation);
+        if (posed) {
+            // 姿态屏：红虚线沿透视四边形；缩放/旋转柄隐藏（透视四边形
+            // 无法用矩形柄编辑——同 drawClip 姿态分支口径；拖动仍走
+            // geo_backup 会话平移 s.x/s.y 不受影响）
+            p.setPen(QPen(QColor(0xFF, 0x33, 0x33), 1.6, Qt::DashLine));
+            p.setBrush(Qt::NoBrush);
+            p.drawPolygon(poly);
+        } else {
+            drawSelectionBox(p, r, s.rotation);
+            // 【画布域入参】手柄/拖柄内部对角点做 canvasToWidget 换算（与
+            // 命中测试 selectionCanvasRect 同一坐标系）——此前误传控件域 r
+            // 导致双重换算：画布非 1:1 缩放时柄飞离对象（红框在对象上、柄
+            // 漂浮在别处）；1:1 时映射恒等故长期未暴露。
+            drawResizeHandles(p, QRectF(s.x, s.y, s.w, s.h), s.rotation);
+            drawRotateHandle(p, QRectF(s.x, s.y, s.w, s.h), s.rotation);
+        }
     }
 }
 

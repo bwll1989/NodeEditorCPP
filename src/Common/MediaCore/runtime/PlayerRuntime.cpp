@@ -561,11 +561,21 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
                 snapshot = scene_;
             }
             if (snapshot) {
-                for (const auto& scr : snapshot->screens)
+                for (const auto& scr : snapshot->screens) {
+                    // 屏姿态标注（阶段2c）：滚转/俯仰/偏航任一非 0 即追加——
+                    // 屏姿态排障第一证据（display 收到的姿态值直接可见）
+                    char pose[72] = "";
+                    if (scr.rotation != 0.0 || scr.rot_x != 0.0 ||
+                        scr.rot_y != 0.0)
+                        std::snprintf(pose, sizeof(pose),
+                                      " 姿态(滚%.0f° 俯%.0f° 偏%.0f°)",
+                                      scr.rotation, scr.rot_x, scr.rot_y);
                     std::fprintf(stderr,
-                                 "  [scene] 屏 %s → %s 画布(%.0f,%.0f %.0fx%.0f)\n",
+                                 "  [scene] 屏 %s → %s 画布(%.0f,%.0f "
+                                 "%.0fx%.0f)%s\n",
                                  scr.id.c_str(), scr.player_id.c_str(),
-                                 scr.x, scr.y, scr.w, scr.h);
+                                 scr.x, scr.y, scr.w, scr.h, pose);
+                }
                 for (const auto& tk : snapshot->timeline.tracks)
                     for (const auto& c : tk.clips)
                         std::fprintf(stderr,
