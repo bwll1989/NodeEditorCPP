@@ -276,6 +276,10 @@ message Clip {
   //     value 为表达式原文；$percent/$frame 播放期求值）
   // Control 的指令表仍走 control_messages（field 10），不迁移。
   string clip_data = 13;
+  // per-cue 深度遮挡模式（2026-11-17 素材 3D 化阶段③；WO7 Stacking 对标）：
+  // 0 = By Layer（叠放层级 z——历史行为）；1 = By Z（几何深度 pos_z，
+  // 远先绘近后绘）。缺席 = 旧文件 = By Layer；0/1 之外读侧钳回 0。
+  int32 stacking = 14;
 }
 
 // ---------------------------------------------------------------------------

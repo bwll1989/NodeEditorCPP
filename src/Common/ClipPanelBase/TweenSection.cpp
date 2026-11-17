@@ -140,6 +140,10 @@ constexpr std::uint32_t sBit(int row, int comp) {
 }
 /// 锚点（追加区静态属性）脏位——避开 22 个分量槽位
 constexpr std::uint32_t kSAnchor = 1u << 22;
+/// 深度 Z（2026-11-17 阶段③追加区静态属性）脏位——避开 22 槽 + 锚点位
+constexpr std::uint32_t kSPosZ = 1u << 23;
+/// 遮挡次序（2026-11-17 阶段③追加区静态属性）脏位
+constexpr std::uint32_t kSStacking = 1u << 24;
 
 /// 重置默认值（v3 ⟲ 语义）：位置 (0,0,0)、旋转三轴 0、裁切 0、
 /// 角点 0、不透明度 1（DaVinci「恢复默认值」；锚点=中心在重置钮单独
@@ -631,6 +635,90 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         } // if (g0_has)
 
         if (buildRow(0, g0, gr)) ++gr; // 位置（X/Y/Z）
+
+        // ---- 深度 Z 行（2026-11-17 素材 3D 化阶段③；组 0 内位置行后——
+        //      平面位置 → 深度语义顺承）。静态属性非 tween：列 4 空无
+        //      菱形，⟲ 列 5 与属性行右端对齐（同锚点行规格）。与位置行
+        //      Z（悬浮高度/叠放层级）是两个概念——本值只进透视投影
+        //      s=F/(F+Z)（quadCorners3DP），不进 tween 不打包。
+        {
+            auto* zlbl = new QLabel(QStringLiteral("深度 Z"), box);
+            zlbl->setToolTip(
+                QStringLiteral("几何深度（素材 3D 化阶段③）：透视投影权重"
+                               " s=F/(F+Z)——正 = 远离投影仪（画面收缩）、"
+                               "负 = 朝向投影仪（画面放大）。0 = 无透视"
+                               "（历史行为逐位）。与位置行的 Z（悬浮高度/"
+                               "叠放层级）相互独立；本值不参与关键帧"
+                               "动画"));
+            pos_z_spin_ = new FloatDragValueWidget(box);
+            pos_z_spin_->setObjectName(QStringLiteral("tweenPosZ"));
+            pos_z_spin_->setRange(-100000.0, 100000.0);
+            pos_z_spin_->setDecimals(2);
+            pos_z_spin_->setSingleStep(10.0);
+            pos_z_spin_->setSuffix(QStringLiteral(" px"));
+            // 预填在 connect 之前（不触发写回）
+            pos_z_val_ = clip.transform.pos_z;
+            pos_z_spin_->setValue(pos_z_val_);
+            connect(pos_z_spin_, &FloatDragValueWidget::valueChanged, this,
+                    [this](double v) {
+                        pos_z_val_ = v;
+                        static_dirty_ |= kSPosZ;
+                        if (applier_) applier_();
+                    });
+            // ⟲ 重置（恢复 0 = 无透视；静态直写同锚点行）
+            auto* zrst = new QToolButton(box);
+            zrst->setObjectName(QStringLiteral("tweenResetPosZ"));
+            zrst->setFixedSize(kTailBtnPx, kTailBtnPx);
+            zrst->setIconSize(QSize(kTailIconPx, kTailIconPx));
+            zrst->setIcon(resetGlyphIcon(zrst->devicePixelRatioF()));
+            zrst->setToolTip(QStringLiteral("恢复默认深度（0 = 无透视）——"
+                                           "静态属性无动画通道，直接写回"
+                                           "静态基准"));
+            zrst->setStyleSheet(tailBtnQss);
+            connect(zrst, &QToolButton::clicked, this, [this] {
+                pos_z_val_ = 0.0;
+                {
+                    const QSignalBlocker b(pos_z_spin_);
+                    pos_z_spin_->setValue(0.0);
+                }
+                static_dirty_ |= kSPosZ;
+                if (applier_) applier_();
+            });
+            g0->addWidget(zlbl, gr, 0);
+            g0->addWidget(pos_z_spin_, gr, kColVal, 1, 3); // 标量跨值区三列
+            g0->addWidget(zrst, gr, kColReset, Qt::AlignVCenter);
+            ++gr;
+        }
+
+        // ---- 遮挡次序行（2026-11-17 阶段③ per-cue stacking；WO7 对标
+        //      ——By Layer=图层级 z（历史）/ By Z=几何深度 pos_z 远先绘
+        //      近后绘）。静态属性非 tween（列 4 空无菱形；无 ⟲——
+        //      模式枚举无"默认值重置"语义，历史默认即图层级）。
+        {
+            auto* slbl = new QLabel(QStringLiteral("遮挡次序"), box);
+            slbl->setToolTip(
+                QStringLiteral("本片段参与渲染排序的键（WATCHOUT Stacking "
+                               "语义）：图层次序 = 按位置行 Z 升序（历史行"
+                               "为）；深度次序 = 按几何深度 Z 升序（远的先"
+                               "画、近的遮挡远的——透视场景物理遮挡）"));
+            stacking_combo_ = new QComboBox(box);
+            stacking_combo_->setObjectName(QStringLiteral("tweenStacking"));
+            stacking_combo_->addItem(QStringLiteral("图层次序")); // 0=默认
+            stacking_combo_->addItem(QStringLiteral("深度次序")); // 1
+            stacking_val_ = clip.stacking == kStackingPositionZ ? 1 : 0;
+            stacking_combo_->setCurrentIndex(stacking_val_);
+            connect(stacking_combo_,
+                    QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this, [this](int idx) {
+                        stacking_val_ = idx;
+                        static_dirty_ |= kSStacking;
+                        if (applier_) applier_();
+                    });
+            g0->addWidget(slbl, gr, 0);
+            g0->addWidget(stacking_combo_, gr, kColVal, 1, 3);
+            ++gr;
+        }
+
         if (buildRow(1, g0, gr)) ++gr; // 尺寸
         finishGroup(0, g0);
         hideGroupIfEmpty(0, gr);
@@ -1002,6 +1090,14 @@ void TweenSection::applyTo(Clip& c) const {
     if (static_dirty_ & sBit(12, 0)) c.audio_gain = static_vals_[21];
     // 锚点（追加区：静态属性直写 transform）
     if (static_dirty_ & kSAnchor) c.transform.anchor = anchor_val_;
+    // 深度 Z（2026-11-17 阶段③追加区：静态属性直写 transform.pos_z——
+    // 透视投影几何深度，非叠放层级）
+    if (static_dirty_ & kSPosZ) c.transform.pos_z = pos_z_val_;
+    // 遮挡次序（2026-11-17 阶段③追加区：直写 clip.stacking——渲染排序
+    // 键模式，TimelineEngine 消费；非 transform 域属性）
+    if (static_dirty_ & kSStacking)
+        c.stacking = stacking_val_ == 1 ? kStackingPositionZ
+                                        : kStackingRenderOrder;
 }
 
 // ---------------------------------------------------------------------------
@@ -1081,6 +1177,22 @@ void TweenSection::refreshFrom(const Clip& c) {
         anchor_val_ = shown.anchor;
         anchor_combo_->setCurrentIndex(
             std::clamp(shown.anchor, 0, 4));
+    }
+
+    // ---- 深度 Z 灌值（2026-11-17 阶段③；静态属性同锚点纪律——pos_z
+    //      不进 tween，shown.pos_z 恒等于静态基准）------------------------
+    if (pos_z_spin_) {
+        const QSignalBlocker b(pos_z_spin_);
+        pos_z_val_ = shown.pos_z;
+        pos_z_spin_->setValue(shown.pos_z);
+    }
+
+    // ---- 遮挡次序灌值（2026-11-17 阶段③；clip.stacking 非 transform 域
+    //      ——resolveTransform 不覆盖，直接取工作副本）--------------------
+    if (stacking_combo_) {
+        const QSignalBlocker b(stacking_combo_);
+        stacking_val_ = c.stacking == kStackingPositionZ ? 1 : 0;
+        stacking_combo_->setCurrentIndex(stacking_val_);
     }
 }
 

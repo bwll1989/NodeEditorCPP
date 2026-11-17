@@ -489,6 +489,10 @@ ms_proto::Track SceneLoader::toProtoTrack(const Track& t) {
         // 缺席 = 读端空串；Artnet 配置/Mapping 消息表）
         if (!c.clip_data.empty())
             pc->set_clip_data(c.clip_data);
+        // per-cue 深度遮挡模式（2026-11-17 阶段③）：By Layer(0) 不写
+        //（wire 兼容——缺席 = 读端 0 = 历史行为）；By Z 才写出
+        if (c.stacking != kStackingRenderOrder)
+            pc->set_stacking(c.stacking);
         auto* tr = pc->mutable_transform();
         tr->set_x(c.transform.x);
         tr->set_y(c.transform.y);
@@ -580,6 +584,10 @@ Track SceneLoader::fromProtoTrack(const ms_proto::Track& pt) {
         // 类型专属业务数据（2026-11-15 片段移植）：JSON 原文直读（空串 =
         // 无业务数据；解析校验在消费端——插件模型/编辑区容错）
         c.clip_data = pc.clip_data();
+        // per-cue 深度遮挡模式（2026-11-17 阶段③）：缺席 = 0 = By Layer
+        //（历史行为）；0/1 之外的损坏值钳回 By Layer（宁退回历史勿乱序）
+        c.stacking = (pc.stacking() == kStackingPositionZ)
+                         ? kStackingPositionZ : kStackingRenderOrder;
         c.transform.z        = pc.transform().z();
         // 锚点（2026-11-09）：缺席 = 0 = 中心（业务默认）；越界值钳到
         // 中心（渲染端 anchorUV 越界兜底同口径，数据损坏安全降级）

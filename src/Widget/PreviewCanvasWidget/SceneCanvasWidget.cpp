@@ -118,17 +118,23 @@ inline bool trackInvisibleOnCanvas(AssetKind kind,
 ///     （数学 = rotatedRectContains 平移锚点版）；
 ///   * 角点位移 / 3D 姿态 → 位移后四角 AABB（四边形可能非凸，AABB
 ///     简单可靠；编辑器命中精度足够——绘制边框仍是四边形本体）
+/// 【阶段③ 命中精确化 2026-11-17】判定升级 pose3DActive（含 pos_z）+
+/// quadCorners3DP 统一投影（几何深度 + 全场透视参数——命中框与绘制/
+/// display 同源唯一真相；persp 三参由调用方从 Scene 透传）
 inline bool clipRectContains(const QRectF& r, const Transform& tf,
-                             const QPointF& p) {
+                             const QPointF& p, double persp_focal,
+                             double persp_vp_x, double persp_vp_y) {
     if (r.width() <= 0 || r.height() <= 0) return false;
-    if (tf.poseActive()) {
-        // 3D 姿态（2026-11-10）：quadCorners3D 预投影四角 AABB——
-        // 透视四边形可能非凸，AABB 简单可靠（与角点位移分支同策略）；
-        // quadCorners3D 内含滚转/锚点/位移全部语义，姿态存在时优先
+    if (tf.pose3DActive()) {
+        // 3D 位姿（2026-11-10 姿态；2026-11-17 阶段③含 pos_z）：quadCorners3DP
+        // 预投影四角 AABB——透视四边形可能非凸，AABB 简单可靠（与角点
+        // 位移分支同策略）；内含滚转/锚点/位移/深度/全场透视全部语义
         double wx[4], wy[4];
-        cg::quadCorners3D(r.x(), r.y(), r.width(), r.height(),
-                          tf.rotation, tf.rot_x, tf.rot_y, tf.anchor,
-                          tf.corner, wx, wy);
+        cg::quadCorners3DP(r.x(), r.y(), r.width(), r.height(),
+                           tf.pos_z, tf.rotation, tf.rot_x, tf.rot_y,
+                           tf.anchor, tf.corner,
+                           persp_focal, persp_vp_x, persp_vp_y, wx, wy,
+                           nullptr);
         double minx = wx[0], miny = wy[0], maxx = wx[0], maxy = wy[0];
         for (int i = 1; i < 4; ++i) {
             minx = std::min(minx, wx[i]);
@@ -1205,7 +1211,9 @@ bool SceneCanvasWidget::hitSelectedClip(const QPointF& widget_pos) const {
     const QPointF cp =
         view3d_ ? widgetToCanvasAt(widget_pos, (double)c.transform.z)
                 : widgetToCanvas(widget_pos);
-    return clipRectContains(r, clipResolvedTransform(c), cp);
+    return clipRectContains(r, clipResolvedTransform(c), cp,
+                            scene_->persp_focal, scene_->persp_vp_x,
+                            scene_->persp_vp_y);
 }
 
 // ---------------------------------------------------------------------------
@@ -1769,26 +1777,40 @@ void SceneCanvasWidget::paintGL3D(
             if (r.width() <= 0 || r.height() <= 0) continue;
             const Transform tf = clipResolvedTransform(c); // tween 求值
             const double h = (double)c.transform.z; // Z 无 tween 通道（静态）
-            // 变形片段（2026-11-09 锚点/角点；2026-11-10 姿态 3D）：四角
-            // 绕锚点 + 位移（非平行四边形）；俯仰/偏航非 0 = 透视四边形
-            //（quadCorners3D 预投影——含滚转/锚点/位移/透视缩放全部语义，
-            // 与 display ScreenMapper pose3d 链同源唯一真相）；默认中心锚
-            // 无姿态无位移走历史路径（projectQuad 逐位）。
+            // 变形片段（2026-11-09 锚点/角点；2026-11-10 姿态 3D；阶段③
+            // 透视）：四角绕锚点 + 位移（非平行四边形）；3D 位姿 = 透视
+            // 四边形（quadCorners3DP 预投影——含滚转/锚点/位移/深度/全场
+            // 透视全部语义，与 display ScreenMapper pose3d 链同源唯一
+            // 真相）；默认中心锚无姿态无位移走历史路径（projectQuad 逐位）。
             // 【画布↔display 一致性】此前 deformed 漏判 posed——俯仰/偏航
             // 只进 display（ScreenMapper pose3d 链），3D 视图画面恒为
             // 2D 矩形（用户体感"XY 旋转无效"）；deformed 含 posed 后
             // 贴图/棋盘格/边框/选中框自动走四边形本体路径（pr.quad）。
-            const bool posed = tf.poseActive();
+            // 【预览透视开关】关 = quadCorners3D 旧式（pos_z/全场透视
+            // 视作未配置的回退查看）；开 = quadCorners3DP 全参数（默认）。
+            const bool posed = preview_perspective_
+                                   ? tf.pose3DActive() : tf.poseActive();
             const bool deformed =
                 posed || tf.anchor != 0 || tf.cornerActive();
             QPolygonF q(4);
             if (posed) {
                 double wx[4], wy[4];
-                cg::quadCorners3D(r.x(), r.y(), r.width(), r.height(),
-                                  tf.rotation, tf.rot_x, tf.rot_y,
-                                  tf.anchor,
-                                  tf.cornerActive() ? tf.corner : nullptr,
-                                  wx, wy);
+                if (preview_perspective_) {
+                    cg::quadCorners3DP(r.x(), r.y(), r.width(), r.height(),
+                                       tf.pos_z, tf.rotation, tf.rot_x,
+                                       tf.rot_y, tf.anchor,
+                                       tf.cornerActive() ? tf.corner
+                                                         : nullptr,
+                                       scene_->persp_focal,
+                                       scene_->persp_vp_x,
+                                       scene_->persp_vp_y, wx, wy, nullptr);
+                } else {
+                    cg::quadCorners3D(r.x(), r.y(), r.width(), r.height(),
+                                      tf.rotation, tf.rot_x, tf.rot_y,
+                                      tf.anchor,
+                                      tf.cornerActive() ? tf.corner : nullptr,
+                                      wx, wy);
+                }
                 // 画布域四角（z=0 域透视）→ 逐角提升到片段所在高度平面
                 //（cam3d 正交投影——场景层相机与片段姿态两层语义正交）
                 for (int i = 0; i < 4; ++i)
@@ -2429,25 +2451,38 @@ void SceneCanvasWidget::drawClip(QPainter& p, int tr, int cl,
     // 色源在媒体插件，画布内经 trackKindColor 单点维护——改动时与插件同步）
     const QColor border = trackKindColor(scene_->timeline.tracks[tr].kind);
 
-    // 变形片段（2026-11-09 锚点/角点；2026-11-10 姿态 3D）：四角 = 绕锚点
-    // 旋转 + 位移（2D）或 quadCorners3D 透视预投影（俯仰/偏航非 0）——
-    // 画布域计算 → 控件域换算，本体绘制走多边形；默认中心锚无姿态无位移
-    // = 历史路径逐位不变。【画布↔合成一致性】预览合成帧已按透视绘制
-    //（ScreenMapper pose3d 链），标注层若只画 2D 矩形则改 X/Y 画面纹丝
-    // 不动（用户体感"俯仰/偏航无效"）——此处与 ScreenMapper 同源唯一真相
-    const bool posed    = tf.poseActive(); // 俯仰/偏航非 0（3D 透视）
+    // 变形片段（2026-11-09 锚点/角点；2026-11-10 姿态 3D；2026-11-17 阶段③
+    // 透视）：四角 = 绕锚点旋转 + 位移（2D）或 quadCorners3DP 透视预投影
+    //（3D 位姿——含滚转/锚点/角位移/深度/全场透视，与 ScreenMapper 预投影
+    // 同式同参序）——画布域计算 → 控件域换算，本体绘制走多边形；默认中心
+    // 锚无姿态无位移 = 历史路径逐位不变。【画布↔合成一致性】预览合成帧已
+    // 按透视绘制（ScreenMapper pose3d 链），标注层若只画 2D 矩形则改 X/Y
+    // 画面纹丝不动（用户体感"俯仰/偏航无效"）——同源唯一真相。
+    // 【预览透视开关】关 = quadCorners3D 旧调用（pos_z/全场透视视作未配置
+    // 的回退查看）；开 = quadCorners3DP 全参数（默认——display 已透视）。
+    const bool posed = preview_perspective_
+                           ? tf.pose3DActive() : tf.poseActive();
     const bool deformed = posed || tf.anchor != 0 || tf.cornerActive();
     QPolygonF poly; // 控件域四角（变形分支；序 LT RT RB LB）
     if (deformed) {
         const QRectF cr = clipCanvasRect(c); // 画布域（角点数学所在域）
         double wx[4], wy[4];
         if (posed) {
-            // 3D 姿态：quadCorners3D（唯一真相 CanvasGeometry——含滚转/
-            // 锚点/角位移/透视缩放，与 ScreenMapper 预投影同式同参序）
-            cg::quadCorners3D(cr.x(), cr.y(), cr.width(), cr.height(),
-                              tf.rotation, tf.rot_x, tf.rot_y, tf.anchor,
-                              tf.cornerActive() ? tf.corner : nullptr, wx,
-                              wy);
+            // 3D 位姿：透视开 = quadCorners3DP（唯一真相 CanvasGeometry
+            // ——含深度/全场透视全部语义）；关 = quadCorners3D 旧式回退
+            if (preview_perspective_) {
+                cg::quadCorners3DP(cr.x(), cr.y(), cr.width(), cr.height(),
+                                   tf.pos_z, tf.rotation, tf.rot_x,
+                                   tf.rot_y, tf.anchor,
+                                   tf.cornerActive() ? tf.corner : nullptr,
+                                   scene_->persp_focal, scene_->persp_vp_x,
+                                   scene_->persp_vp_y, wx, wy, nullptr);
+            } else {
+                cg::quadCorners3D(cr.x(), cr.y(), cr.width(), cr.height(),
+                                  tf.rotation, tf.rot_x, tf.rot_y, tf.anchor,
+                                  tf.cornerActive() ? tf.corner : nullptr, wx,
+                                  wy);
+            }
         } else {
             QPointF cs[4];
             clipQuadCorners(cr, tf.rotation, tf.anchor,
@@ -2933,6 +2968,25 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
                sel_.b >= 0 &&
                sel_.b < (int)scene_->timeline.tracks[sel_.a].clips.size()) {
         auto& c = scene_->timeline.tracks[sel_.a].clips[sel_.b];
+        // 【阶段③ 拖拽透视修正 2026-11-17】3D 位姿 clip 的画面在显示域
+        // 按 s=F/(F+pos_z) 收缩——鼠标画布 delta 直接加 x/y 会让画面移动
+        // delta·s（跟不上手）。锚点处 Z=pos_z（锚点局部 (0,0) 旋转不变
+        // ——z1=z2=0），s_a = F/(F+pos_z)；delta ÷ s_a 写入 → 显示移动
+        // delta·s·(1/s)=delta 精确跟手。F 取值与 quadCorners3DP 内部同源
+        // （全局透视配置优先，否则片段隐含焦距 2×max(w,h)）；吸附仍按
+        // clip 域历史语义（透视模式吸附精度轻微偏差可接受）。
+        const Transform drag_tf = clipResolvedTransform(c);
+        if (drag_tf.pose3DActive()) {
+            const QRectF dr = clipCanvasRect(c);
+            const double F  = scene_->persp_focal > 0.0
+                                  ? scene_->persp_focal
+                                  : 2.0 * std::max(dr.width(), dr.height());
+            const double s_a = F / (F + drag_tf.pos_z);
+            if (s_a > 1e-6) {
+                nx = drag_orig_x_ + (nx - drag_orig_x_) / s_a;
+                ny = drag_orig_y_ + (ny - drag_orig_y_) / s_a;
+            }
+        }
         // 方案 A auto-key（2026-11-06 用户报告"打过 K 帧后画布拖不动"；
         // 2026-11-09 v3 三维打包：位置一键携带 x/y/z 三分量——z 取播放头
         // 当前值防拖拽把悬浮高度键成 0；无通道写静态基准
@@ -3087,6 +3141,12 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
     QAction* act_snap = menu.addAction("吸附对齐（边缘/中心）");
     act_snap->setCheckable(true);
     act_snap->setChecked(snapping_);
+    // 预览透视开关（2026-11-17 阶段③）：画布消费 pos_z/全场透视参数——
+    // 与 display 同源所见即所得；关闭 = 旧 2D 观感回退查看。pos_z=0 且
+    // 透视未配置时两态画面逐位一致（默认开零漂移）
+    QAction* act_persp = menu.addAction("预览透视（深度/全场投影）");
+    act_persp->setCheckable(true);
+    act_persp->setChecked(preview_perspective_);
     // 视图已缩放/平移/旋转时提供复位入口（与双击空白同效；可发现性）
     QAction* act_reset = nullptr;
     if (!viewIsHome())
@@ -3097,6 +3157,13 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
     else if (chosen == act_snap) {
         snapping_ = act_snap->isChecked();
         statusTip(snapping_ ? "吸附对齐已开启" : "吸附对齐已关闭");
+    }
+    else if (chosen == act_persp) {
+        preview_perspective_ = act_persp->isChecked();
+        update(); // 立即重绘（透视/回退两态切换可见）
+        statusTip(preview_perspective_
+                      ? "预览透视已开启（深度/全场投影，与 display 同源）"
+                      : "预览透视已关闭（旧 2D 观感回退查看）");
     }
     else if (chosen == act_reset) {
         resetView();

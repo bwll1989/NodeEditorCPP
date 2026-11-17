@@ -66,6 +66,8 @@
 
 #include "ClipPanelBaseExport.h" // CLIPPANELBASE_EXPORT（2026-11-13 迁入本 DLL）
 
+class FloatDragValueWidget; // 全局命名空间（GUI/Elements；深度 Z 行值框）
+
 class QComboBox;
 class QToolButton;
 class FloatDragValueWidget; // 全局命名空间类（GUIElements）——前向声明必须在 namespace 外
@@ -241,6 +243,18 @@ private:
     // ---- 锚点（2026-11-09 追加区；静态属性非 tween 通道）--------------------
     QComboBox* anchor_combo_ = nullptr;  ///< tweenAnchor：锚点选择（中心/四角）
     int        anchor_val_ = 0;          ///< 锚点编辑值（0中心 1左上 2右上 3右下 4左下）
+
+    // ---- 深度 Z（2026-11-17 素材 3D 化阶段③追加区；静态属性非 tween）----
+    /// 几何深度 pos_z：透视投影权重 s=F/(F+Z) 的输入（正 = 远离投影仪）。
+    /// 与位置行 Z（悬浮高度+叠放层级）是两个概念：本行只进透视几何，
+    /// 不进 tween（13 行契约不动）。
+    FloatDragValueWidget* pos_z_spin_ = nullptr; ///< tweenPosZ
+    double      pos_z_val_ = 0.0;                 ///< 深度编辑值（画布 px 域）
+
+    /// 遮挡次序（per-cue stacking；0=By Layer 图层级 1=By Z 深度——
+    /// WO7 Stacking 对标；TimelineEngine 排序键消费）
+    QComboBox*  stacking_combo_ = nullptr;       ///< tweenStacking
+    int         stacking_val_ = 0;
 };
 
 } // namespace ms

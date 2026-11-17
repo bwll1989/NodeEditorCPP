@@ -394,7 +394,19 @@ struct Clip {
     // "startUniverse"}；Mapping 消息表 {"messages":[...]}（value 为表达式
     // 原文，$percent/$frame 播放期求值）。其余类型恒空
     std::string clip_data;
+    // per-cue 深度遮挡模式（2026-11-17 素材 3D 化阶段③；WO7 Stacking 对标
+    // ——cue_properties.html："By Layer…Layer N is rendered before layer
+    // N+1 / By Z means that the cue surface depth defines the render
+    // order"）：0 = By Layer（叠放层级 z，历史行为逐位）；1 = By Z（几何
+    // 深度 pos_z，远先绘近后绘）。TimelineEngine 排序键 = stacking 决定
+    // （标量键全序，混合模式确定有序）；缺席 = 旧文件 = By Layer。
+    // 0/1 之外的值装载时钳回 0（宁退回历史勿乱序）。
+    int stacking = 0;
 };
+
+// Clip::stacking 取值常量（proto int32 往返；0 缺席即 By Layer）
+inline constexpr int kStackingRenderOrder = 0; ///< By Layer（叠放层级 z）
+inline constexpr int kStackingPositionZ   = 1; ///< By Z（几何深度 pos_z）
 
 inline bool operator==(const Clip& a, const Clip& b) {
     return a.id == b.id && a.asset_id == b.asset_id && a.type == b.type &&
@@ -403,7 +415,7 @@ inline bool operator==(const Clip& a, const Clip& b) {
            a.in_us == b.in_us && a.transform == b.transform &&
            a.tweens == b.tweens && a.audio_gain == b.audio_gain &&
            a.control_messages == b.control_messages &&
-           a.clip_data == b.clip_data;
+           a.clip_data == b.clip_data && a.stacking == b.stacking;
 }
 
 // ---------------------------------------------------------------------------

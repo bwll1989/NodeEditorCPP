@@ -436,6 +436,12 @@ private:
     std::vector<double> snap_ref_y_;    ///< 参考线 y 集合（画布坐标，升序）
     std::vector<double> guide_x_;       ///< 本次命中的吸附线 x（绘制品红竖线）
     std::vector<double> guide_y_;       ///< 本次命中的吸附线 y（绘制品红横线）
+    // ---- 预览透视（2026-11-17 素材 3D 化阶段③；右键菜单可切换）----
+    /// true（默认）= 画布绘制/命中消费 pos_z + Scene 级透视参数
+    ///（quadCorners3DP——与 display ScreenMapper 同源）；false = 强制
+    /// 旧 2D 观感回退查看（quadCorners3D——pos_z/透视视作未配置）。
+    /// pos_z=0 且 persp 未配置时两态逐位同画面（开关默认开零漂移）。
+    bool preview_perspective_ = true;
 };
 
 } // namespace ms

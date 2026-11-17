@@ -98,9 +98,20 @@ EvalResult TimelineEngine::evaluate(std::int64_t t_us) const {
     // 与遍历顺序配合实现跨端一致的绘制次序（见文件头说明）。
     // 按 resolved.z 排序（Tween 不开放 z 通道时 resolved.z == 静态 z；
     // 未来开放 z 通道后自动获得逐帧重排能力，无需改这里）。
+    // 【per-cue 深度遮挡（2026-11-17 阶段③；WO7 Stacking 对标）】stacking
+    // = By Z 的 clip 用几何深度 pos_z 当排序键（远先绘近后绘），By Layer
+    // 用叠放层级 z（历史行为）。标量键全序（混合模式确定有序、无非传递
+    // 风险）；默认（全 By Layer）与历史逐位一致。pos_z 不进 tween，
+    // resolved.pos_z 恒等于静态基准。
     std::stable_sort(result.active.begin(), result.active.end(),
                      [](const ActiveClip& a, const ActiveClip& b) {
-                         return a.resolved.z < b.resolved.z;
+                         const double ka =
+                             a.clip->stacking == kStackingPositionZ
+                                 ? a.resolved.pos_z : a.resolved.z;
+                         const double kb =
+                             b.clip->stacking == kStackingPositionZ
+                                 ? b.resolved.pos_z : b.resolved.z;
+                         return ka < kb;
                      });
 
     return result;
