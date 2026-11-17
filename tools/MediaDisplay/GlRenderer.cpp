@@ -4,6 +4,7 @@
 
 #include "GlRenderer.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstring>
@@ -141,6 +142,7 @@ GlRenderer::~GlRenderer() {
     if (program_nv12_)  gl::glDeleteProgram(program_nv12_);
 #endif
     if (tex_)     gl::glDeleteTextures(1, &tex_);
+    if (osd_tex_) gl::glDeleteTextures(1, &osd_tex_); // 素材同步 OSD 纹理
     if (vbo_)     gl::glDeleteBuffers(1, &vbo_);
     if (vao_)     gl::glDeleteVertexArrays(1, &vao_);
     if (program_) gl::glDeleteProgram(program_);
@@ -1239,6 +1241,218 @@ void GlRenderer::warpBlit() {
 }
 
 // ---------------------------------------------------------------------------
+// setOsd —— 本帧素材同步 OSD 内容（渲染线程；契约见 IComposeRenderer）
+//   只做内容比对与脏标记；栅格化/纹理上传统一在 drawOsdOverlay（endFrame
+//   呈现点，GL 上下文 current 且视口状态确定）。ExternalCtx（编辑器预览
+//   宿主）无此需求——与 setWarp 同语义静默忽略。
+// ---------------------------------------------------------------------------
+void GlRenderer::setOsd(const char* utf8_text, float frac) {
+    if (external_) return;
+    const std::string text = utf8_text ? utf8_text : "";
+    if (text == osd_text_ && frac == osd_frac_) return; // 未变化：零成本
+    osd_text_ = text;
+    osd_frac_ = frac;
+    osd_dirty_ = true;
+}
+
+// ---------------------------------------------------------------------------
+// drawOsdOverlay —— OSD 栅格化 + 纹理上传 + quad 绘制（endFrame 呈现前）
+//
+//   【绘制域】调用点在 warpBlit 之后 = 最终后备缓冲域（变形输出之上），
+//   演出画面无论怎么变形 OSD 恒正立居中。顶点按 canvas_w_/canvas_h_ 投影
+//   （与 drawQuad 其余调用同域），底部居中放置。
+//
+//   【文字栅格化】GDI DrawTextW → 内存 DIB（32bpp top-down BGRA）。GDI
+//   不写可靠 alpha → 栅格化后一次像素循环统一转 RGBA + alpha=255（不透
+//   明黑条白字；半透明底需要逐像素按亮度算 alpha，演出场景不值得）。
+//   内容变化（osd_dirty_）才重栅格化 + 上传（进度文本变化频率 ≤10Hz），
+//   其余帧只重贴缓存纹理（60fps 热路径零上传）。
+// ---------------------------------------------------------------------------
+void GlRenderer::drawOsdOverlay() {
+    if (osd_text_.empty()) return;
+    if (!inited_ || failed_) return;
+    // 【诊断 MS_OSD_DBG=1】首次绘制打点（栅格化/纹理链路自证）
+    {
+        static const bool s_osd_dbg = std::getenv("MS_OSD_DBG") != nullptr;
+        static bool s_first = true;
+        if (s_osd_dbg && s_first) {
+            s_first = false;
+            std::fprintf(stderr,
+                         "[osd] GL overlay 首绘: text='%s' canvas=%dx%d\n",
+                         osd_text_.c_str(), canvas_w_, canvas_h_);
+            std::fflush(stderr);
+        }
+    }
+
+    // ---- 栅格化（dirty 时）：DIB 尺寸按输出宽比例，resize 自动跟随 ------
+    const int bar_w = std::clamp(canvas_w_ * 34 / 100, 320, 760);
+    const int bar_h = std::clamp(bar_w * 16 / 100, 56, 116);
+    if (osd_dirty_ || osd_tex_ == 0 ||
+        bar_w != osd_tex_w_ || bar_h != osd_tex_h_) {
+        osd_tex_w_ = bar_w;
+        osd_tex_h_ = bar_h;
+
+        BITMAPV5HEADER bi = {};
+        bi.bV5Size        = sizeof(bi);
+        bi.bV5Width       = bar_w;
+        bi.bV5Height      = -bar_h; // 负高 = top-down（行序与 GL v0=顶一致）
+        bi.bV5Planes      = 1;
+        bi.bV5BitCount    = 32;
+        bi.bV5Compression = BI_BITFIELDS;
+        bi.bV5RedMask     = 0x00FF0000;
+        bi.bV5GreenMask   = 0x0000FF00;
+        bi.bV5BlueMask    = 0x000000FF;
+        void* bits = nullptr;
+        HDC hdc = GetDC(nullptr);
+        HBITMAP dib = CreateDIBSection(hdc, reinterpret_cast<BITMAPINFO*>(&bi),
+                                       DIB_RGB_COLORS, &bits, nullptr, 0);
+        // 【DC 生命周期 2026-11-16 首绘灰块根因】兼容 DC 必须在 ReleaseDC
+        // 【之前】创建——先释放屏幕 DC 再 CreateCompatibleDC(失效句柄) 返回
+        // 无效 DC，后续 SelectObject/DrawTextW 全部静默无效 → DIB 只剩预填
+        // 底色（黑背景上"隐隐约约的灰块、文字全无"的实测症状）。
+        HDC mdc = dib ? CreateCompatibleDC(hdc) : nullptr;
+        ReleaseDC(nullptr, hdc);
+        if (!dib || !bits || !mdc) {
+            if (dib) DeleteObject(dib);
+            if (mdc) DeleteDC(mdc);
+            return; // 栅格化失败：本帧无 OSD（下帧重试）
+        }
+        // 栅格化画布预填：不透明深蓝灰底（黑背景演出环境下的可读性下限——
+        // 纯黑底与播放黑场不可区分；GDI 后续绘制覆盖 RGB，alpha 统一后置）
+        auto* px = static_cast<std::uint8_t*>(bits);
+        for (int i = 0; i < bar_w * bar_h; ++i) {
+            px[i * 4 + 0] = 32;  // B
+            px[i * 4 + 1] = 28;  // G
+            px[i * 4 + 2] = 26;  // R
+            px[i * 4 + 3] = 255; // A
+        }
+        auto old_bm = static_cast<HBITMAP>(SelectObject(mdc, dib));
+        // 1px 亮边框：黑场上勾出 OSD 条轮廓（FillRect 后描边——Rectangle
+        // 会连填充带边一次画，这里用纯描边避免覆盖文字区）
+        {
+            auto old_brush = static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
+            auto old_pen   = static_cast<HPEN>(GetStockObject(DC_PEN));
+            SetDCPenColor(mdc, RGB(96, 96, 102));
+            RECT edge{0, 0, bar_w - 1, bar_h - 1};
+            Rectangle(mdc, edge.left, edge.top, edge.right + 1,
+                      edge.bottom + 1);
+            SelectObject(mdc, old_pen);
+            SelectObject(mdc, old_brush);
+        }
+        // 字体：微软雅黑（中文 raster 必经——GL 无法直接画非 ASCII）
+        const int font_h = std::max(20, bar_h * 42 / 100);
+        HFONT font = CreateFontW(
+            -font_h, 0, 0, 0, FW_BOLD, FALSE, FALSE, 0,
+            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+            L"Microsoft YaHei UI");
+        auto old_font = static_cast<HFONT>(SelectObject(mdc, font));
+        SetBkMode(mdc, TRANSPARENT);
+        // UTF-8 → UTF-16（DrawTextW 宽字符）
+        const int wlen = MultiByteToWideChar(CP_UTF8, 0, osd_text_.c_str(),
+                                             -1, nullptr, 0);
+        std::wstring wtext(static_cast<std::size_t>(wlen), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, osd_text_.c_str(), -1,
+                            wtext.data(), wlen);
+        // 文本区占条上部 ~70%，进度条占下部
+        const int text_h = bar_h * 70 / 100;
+        RECT tr{0, 0, bar_w, text_h};
+        // 【黑场可读性】黑色偏移描边 + 纯白主字（1px 右下阴影勾边——
+        // 深底上白字无衬线也清晰；单遍细字在视频亮场同样会糊）
+        SetTextColor(mdc, RGB(0, 0, 0));
+        RECT tr_sh = tr;
+        OffsetRect(&tr_sh, 2, 2);
+        DrawTextW(mdc, wtext.c_str(), wlen - 1, &tr_sh,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        SetTextColor(mdc, RGB(250, 250, 250));
+        DrawTextW(mdc, wtext.c_str(), wlen - 1, &tr,
+                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+        // 进度条（osd_frac_ ∈ [0,1]；<0 不画）
+        if (osd_frac_ >= 0.0f) {
+            const int bar_margin = bar_w / 24;
+            const int bar_y = text_h + (bar_h - text_h) / 4;
+            const int bar_bh = std::max(4, (bar_h - text_h) / 2);
+            RECT bg{bar_margin, bar_y, bar_w - bar_margin, bar_y + bar_bh};
+            auto old_brush = static_cast<HBRUSH>(GetStockObject(DC_BRUSH));
+            // 【FrameRect 形参=HBRUSH 2026-11-16】描边直取 GRAY_BRUSH——
+            // HPEN 传 HBRUSH 形参编译必报 C2664（上一轮改写遗留）
+            FrameRect(mdc, &bg,
+                      static_cast<HBRUSH>(GetStockObject(GRAY_BRUSH)));
+            SetDCBrushColor(mdc, RGB(52, 52, 56));
+            RECT bg_in{bg.left + 1, bg.top + 1, bg.right - 1, bg.bottom - 1};
+            FillRect(mdc, &bg_in, old_brush);
+            const int fw = static_cast<int>(
+                (bg_in.right - bg_in.left) *
+                std::clamp(osd_frac_, 0.0f, 1.0f));
+            if (fw > 0) {
+                RECT fg{bg_in.left, bg_in.top, bg_in.left + fw, bg_in.bottom};
+                SetDCBrushColor(mdc, RGB(64, 200, 84)); // 亮绿（同步进行）
+                FillRect(mdc, &fg, old_brush);
+            }
+        }
+        // ---- DIB (BGRA) → RGBA + alpha 统一 255（GDI alpha 不可靠）------
+        thread_local std::vector<std::uint8_t> rgba;
+        rgba.resize(static_cast<std::size_t>(bar_w) * bar_h * 4);
+        for (int i = 0; i < bar_w * bar_h; ++i) {
+            rgba[i * 4 + 0] = px[i * 4 + 2]; // R
+            rgba[i * 4 + 1] = px[i * 4 + 1]; // G
+            rgba[i * 4 + 2] = px[i * 4 + 0]; // B
+            rgba[i * 4 + 3] = 255;           // A
+        }
+        SelectObject(mdc, old_font);
+        SelectObject(mdc, old_bm);
+        DeleteObject(font);
+        DeleteObject(dib);
+        DeleteDC(mdc);
+
+        // ---- 纹理上传（独立单槽；尺寸变化重建存储）----------------------
+        if (osd_tex_ == 0) {
+            gl::glGenTextures(1, &osd_tex_);
+            gl::glBindTexture(gl::GL_TEXTURE_2D, osd_tex_);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MIN_FILTER,
+                                gl::GL_LINEAR);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MAG_FILTER,
+                                gl::GL_LINEAR);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_S,
+                                gl::GL_CLAMP_TO_EDGE);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_T,
+                                gl::GL_CLAMP_TO_EDGE);
+        } else {
+            gl::glBindTexture(gl::GL_TEXTURE_2D, osd_tex_);
+        }
+        gl::glTexImage2D(gl::GL_TEXTURE_2D, 0, gl::GL_RGBA, bar_w, bar_h, 0,
+                         gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, rgba.data());
+        osd_dirty_ = false;
+    }
+
+    // ---- quad 绘制（最终输出域：底部居中；复用 RGBA 程序与管线）---------
+    // 顶点 {glx, gly, u, v} 条带序（左上→左下→右上→右下）；gl_y = H −
+    // y_topdown（防上下反链条见头文件注释）。u_frameSize = OSD 尺寸，
+    // 出界 discard 不会误伤（uv ∈ [0,1] 全幅采样）。
+    const int x0 = (canvas_w_ - bar_w) / 2;
+    const int y0 = canvas_h_ - bar_h - canvas_h_ / 18; // 底部留 5.5% 边距
+    const float verts[4][4] = {
+        {static_cast<float>(x0),
+         static_cast<float>(canvas_h_ - y0), 0.f, 0.f},
+        {static_cast<float>(x0),
+         static_cast<float>(canvas_h_ - y0 - bar_h), 0.f, 1.f},
+        {static_cast<float>(x0 + bar_w),
+         static_cast<float>(canvas_h_ - y0), 1.f, 0.f},
+        {static_cast<float>(x0 + bar_w),
+         static_cast<float>(canvas_h_ - y0 - bar_h), 1.f, 1.f},
+    };
+    gl::glBindVertexArray(vao_);
+    gl::glActiveTexture(gl::GL_TEXTURE0);
+    gl::glBindTexture(gl::GL_TEXTURE_2D, osd_tex_);
+    gl::glUseProgram(program_);
+    gl::glUniform2f(loc_frame_size_, static_cast<float>(bar_w),
+                    static_cast<float>(bar_h));
+    gl::glUniform1f(loc_opacity_, 1.0f);
+    drawQuad(verts);
+    gl::glActiveTexture(gl::GL_TEXTURE0); // 活动单元复位（RGBA 路径约定）
+}
+
+// ---------------------------------------------------------------------------
 // endFrame —— 呈现 + 消息泵
 // ---------------------------------------------------------------------------
 void GlRenderer::endFrame() {
@@ -1322,6 +1536,10 @@ void GlRenderer::endFrame() {
     // ---- 输出变形呈现：FBO 内容按 mesh 贴到后备缓冲（SwapBuffers 前）----
     // warp 未激活/已贴图（readPixels 先到）时内部幂等跳过。
     warpBlit();
+    // ---- 素材同步 OSD（2026-11-16）：最终输出域（变形之后）--------------
+    // 绘制点在 warpBlit 之后 = OSD 恒正立居中不受网格变形影响；诊断导帧
+    // （readPixels）也读不到 OSD——导帧核对的是"合成内容"语义。
+    drawOsdOverlay();
     if (!geom_.hidden && ctx_.alive()) {
         // 可见模式：呈现（DC 为 create 时持有的 CS_OWNDC，恒定句柄无泄漏）。
         // alive 检查：用户关窗后窗口/DC 已销毁，SwapBuffers 无谓失败。

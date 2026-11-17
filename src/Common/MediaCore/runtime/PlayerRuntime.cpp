@@ -51,6 +51,126 @@ long long tsMs() {
 /// frame_index() 三处同源——2026-11-06 收敛原三处独立硬编码 16667）。
 constexpr std::int64_t kFrameSlotUs = 1'000'000 / 60;
 
+// ---- 端间时钟校准探测参数（2026-11-16；SNTP 式 4 时间戳法）--------------
+// 每轮 kProbeCount 个样本取 RTT 最小者（排队/重传污染最小的测量最可信）；
+// 轮间隔跟踪时钟漂移；采纳阈值防抖（offset 微动不写，免得播放头反复微跳）。
+constexpr int         kProbeCount         = 8;
+constexpr std::int64_t kProbeIntervalUs   = 100'000;     // 请求间隔 100ms
+constexpr std::int64_t kProbeRoundUs      = 30'000'000;  // 重测周期 30s
+constexpr std::int64_t kProbeTimeoutUs    = 5'000'000;   // 单轮截止 5s
+constexpr int         kProbeMinSamples    = 3;           // 最低采纳样本数
+constexpr std::int64_t kOffsetAdoptDeltaUs = 50'000;     // 采纳阈值 50ms
+} // namespace（文件局部常量到此；成员函数不可定义于匿名命名空间）
+
+using ms_proto::Envelope;
+
+/// 端间时钟校准探测（SNTP 式，2026-11-16）——原理与线程模型见头文件。
+/// tick 末尾驱动：开轮 / 按间隔发请求 / 收满或超时结算。
+void PlayerRuntime::maybeProbeTick(std::int64_t now_us) {
+    if (cfg_.standalone || !registered_.load()) return; // 本机模式 / 未注册
+
+    SyncFrame probe;
+    bool send_now = false;
+    bool settle   = false;
+    {
+        std::lock_guard<std::mutex> lock(probe_mutex_);
+        if (!probing_) {
+            // 轮节流：距上轮结算不足 30s 不开新轮（首轮 last=0 立即开）
+            if (last_probe_round_us_ != 0 &&
+                now_us - last_probe_round_us_ < kProbeRoundUs)
+                return;
+            probing_   = true;
+            probe_sent_ = 0;
+            probe_recv_ = 0;
+            probe_samples_.clear();
+            ++probe_seq_; // 轮序号（int32 溢出 ≈ 2000 年，无忧）
+            probe_next_us_     = now_us;
+            probe_deadline_us_ = now_us + kProbeTimeoutUs;
+        }
+        if (probe_recv_ >= kProbeCount || now_us >= probe_deadline_us_) {
+            settle = true; // 结算在锁外（内部重拿 probe_mutex_）
+        } else if (probe_sent_ < kProbeCount && now_us >= probe_next_us_) {
+            probe.kind       = SyncKind::TimeProbeReq;
+            probe.role       = SyncRole::Player;
+            probe.t1_us      = now_us; // T1：本机对齐时钟（tick 粒度 ±10ms）
+            probe.delta_us   = probe_seq_; // 轮序号（响应回传匹配）
+            send_now = true;
+            ++probe_sent_;
+            probe_next_us_ = now_us + kProbeIntervalUs;
+        }
+    }
+    if (settle) {
+        settleProbe(now_us);
+    } else if (send_now) {
+        udp_.send(probe); // 锁外 IO
+    }
+}
+
+/// 采样结算（tick 主循环上下文）：RTT 最小样本 = 排队污染最小的测量。
+/// offset 写入 clock_ 后本机对齐时钟即进入 Editor 时钟域——正在播放时
+/// alignedNow 突变直接体现为下一拍 dt（跳进/不推进各方向均正确），纠偏环
+/// target 同源突变，播放头一步到位，无需额外重锚。
+/// 【锁内绝不做 I/O（2026-11-16 校准打印卡死实测）】原实现在 probe_mutex_
+/// 临界区内 printf——Windows 控制台是同步阻塞 I/O，QuickEdit 拖选/管道
+/// 满时打印无限期挂起，主线程持锁挂死 → recv 线程 onProbeResponse 抢
+/// probe_mutex_ 连锁挂死 → UDP 心跳链冻结（与下方诊断日志"锁内快照 +
+/// 锁外打印"同一纪律）。数据结算与 offset 写入在锁内完成，打印移出。
+void PlayerRuntime::settleProbe(std::int64_t now_us) {
+    std::int64_t offset = 0, rtt = 0, cur_off = 0;
+    int       received = 0;
+    bool      adopt    = false;
+    {
+        std::lock_guard<std::mutex> lock(probe_mutex_);
+        last_probe_round_us_ = now_us;
+        probing_             = false;
+        if (static_cast<int>(probe_samples_.size()) < kProbeMinSamples) {
+            // 样本不足（丢包严重）：放弃本轮等下轮，不动 offset
+            probe_samples_.clear();
+            return;
+        }
+        const auto best = std::min_element(
+            probe_samples_.begin(), probe_samples_.end(),
+            [](const auto& a, const auto& b) { return a.second < b.second; });
+        offset   = best->first;
+        rtt      = best->second;
+        cur_off  = clock_.offsetUs();
+        received = probe_recv_; // 结算前留存（下面 clear）
+        probe_samples_.clear();
+        // 首次（offset==0）必采纳；此后仅显著变化才写（±50ms 防抖，避免
+        // 测量噪声反复微调播放头）
+        adopt = (cur_off == 0 ||
+                 std::llabs(offset - cur_off) > kOffsetAdoptDeltaUs);
+    }
+    if (adopt) {
+        clock_.setOffsetUs(offset); // 原子量，锁外写安全（tick 单写者）
+        // stderr 通道（项目日志纪律：无缓冲即时落盘，stdout 重定向为全缓冲）
+        std::fprintf(stderr,
+                     "[player] 时钟校准: offset=%+.3fs rtt=%.1fms"
+                     "（旧 offset=%+.3fs；samples=%d/%d）\n",
+                     static_cast<double>(offset) / 1e6,
+                     static_cast<double>(rtt) / 1e3,
+                     static_cast<double>(cur_off) / 1e6,
+                     received, kProbeCount);
+    }
+}
+
+/// 探测响应（UDP recv 线程上下文）：SNTP 四时间戳算本样本 offset/rtt。
+/// T1/T4 同含当前生效 offset，相减抵消——测量与既有 offset 数学解耦，
+/// 反复校准无反馈发散。
+void PlayerRuntime::onProbeResponse(const SyncFrame& f,
+                                    std::int64_t t4_us) {
+    std::lock_guard<std::mutex> lock(probe_mutex_);
+    if (!probing_) return;                       // 无进行中的采样轮
+    if (f.delta_us != probe_seq_) return;        // 过期/伪造轮序号
+    if (f.t1_us == 0 || f.t3_us < f.t2_us) return; // 字段合理性防御
+    const std::int64_t offset =
+        ((f.t2_us - f.t1_us) + (f.t3_us - t4_us)) / 2;
+    const std::int64_t rtt = (t4_us - f.t1_us) - (f.t3_us - f.t2_us);
+    if (rtt < 0 || rtt > kProbeTimeoutUs) return; // 负 RTT/超时样本丢弃
+    probe_samples_.emplace_back(offset, rtt);
+    ++probe_recv_;
+}
+
 /// 素材本地寻址（2026-11-13 归集改造收敛进 runtime/AssetPath.hpp——原
 /// 本文件内 assetLocalPath（盘符绝对路径直通）退役：绝对路径素材此前
 /// "直读原路径 + 下载保存回原路径"，display 的 assets_root 完全无效
@@ -60,9 +180,6 @@ constexpr std::int64_t kFrameSlotUs = 1'000'000 / 60;
 /// 同机原文件在时零下载直读，文件缺失才拉取归集）。
 /// 调用点：① 就绪 stat（原 assetLocalPath→assetResolvePath）；
 /// ② 拉取保存（原 assetLocalPath→assetStorePath）。
-} // namespace
-
-using ms_proto::Envelope;
 
 // ---------------------------------------------------------------------------
 // 构造 / 生命周期
@@ -227,6 +344,18 @@ void PlayerRuntime::startRenderThread() {
     rcfg.backend_factory = cfg_.render_backend_factory; // GL 后端注入透传
     rcfg.audio_enable  = cfg_.audio_enable; // P3：音频输出（随渲染拍）
     rcfg.audio_device  = cfg_.audio_device; // 音频设备（空=默认）
+    // 【素材同步 OSD 2026-11-16】原子量采样注入（零锁）——active 期间
+    // GL 输出画面底部叠"素材同步中 n/m · xx%"，就绪后自动消失
+    rcfg.asset_osd_provider = [this]() {
+        RenderThread::AssetOsdState s;
+        s.active  = !assets_ready_.load(std::memory_order_relaxed);
+        s.done    = static_cast<int>(assets_ready_cnt_.load(
+                        std::memory_order_relaxed));
+        s.total   = static_cast<int>(assets_total_.load(
+                        std::memory_order_relaxed));
+        s.file_percent = asset_file_percent_.load(std::memory_order_relaxed);
+        return s;
+    };
     render_ = std::make_unique<RenderThread>(
         std::move(rcfg),
         [this]() { return sceneSnapshot(); },     // 场景快照（锁内拷贝）
@@ -457,29 +586,37 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
         // 【场景内容摘要 2026-11-13】"display 收到的到底是什么"一线可见——
         //  两端场景脱节（编辑后未下发/下发旧状态）排障的显示端证据链：
         //  屏（id@player + 画布矩形）+ 每 clip（时间域 + asset_id + 矩形）
+        // 【锁内绝不做 I/O 2026-11-16】锁内只拷贝 shared_ptr 快照（原子
+        //  引用计数，零内容拷贝），遍历打印全部在锁外——QuickEdit 拖选
+        //  挂起打印时不再持 state_mutex_ 连锁冻结渲染线程。
         {
-            std::lock_guard<std::mutex> lock(state_mutex_);
-            const Scene& s = *scene_;
-            for (const auto& scr : s.screens)
-                std::fprintf(stderr,
-                             "  [scene] 屏 %s → %s 画布(%.0f,%.0f %.0fx%.0f)\n",
-                             scr.id.c_str(), scr.player_id.c_str(),
-                             scr.x, scr.y, scr.w, scr.h);
-            for (const auto& tk : s.timeline.tracks)
-                for (const auto& c : tk.clips)
+            std::shared_ptr<const Scene> snapshot;
+            {
+                std::lock_guard<std::mutex> lock(state_mutex_);
+                snapshot = scene_;
+            }
+            if (snapshot) {
+                for (const auto& scr : snapshot->screens)
                     std::fprintf(stderr,
-                                 "  [scene] 轨'%s' clip=%s asset=%s "
-                                 "域[%.2f,%.2f)s 矩形(%.1f,%.1f %.1fx%.1f)\n",
-                                 tk.id.c_str(), c.id.c_str(),
-                                 c.asset_id.c_str(),
-                                 static_cast<double>(c.start_us) / 1e6,
-                                 static_cast<double>(c.start_us + c.duration_us) / 1e6,
-                                 c.transform.x, c.transform.y,
-                                 c.transform.w, c.transform.h);
-            for (const auto& a : s.assets)
-                std::fprintf(stderr, "  [scene] 素材 %s kind=%d path=%s\n",
-                             a.id.c_str(), static_cast<int>(a.kind),
-                             a.path.c_str());
+                                 "  [scene] 屏 %s → %s 画布(%.0f,%.0f %.0fx%.0f)\n",
+                                 scr.id.c_str(), scr.player_id.c_str(),
+                                 scr.x, scr.y, scr.w, scr.h);
+                for (const auto& tk : snapshot->timeline.tracks)
+                    for (const auto& c : tk.clips)
+                        std::fprintf(stderr,
+                                     "  [scene] 轨'%s' clip=%s asset=%s "
+                                     "域[%.2f,%.2f)s 矩形(%.1f,%.1f %.1fx%.1f)\n",
+                                     tk.id.c_str(), c.id.c_str(),
+                                     c.asset_id.c_str(),
+                                     static_cast<double>(c.start_us) / 1e6,
+                                     static_cast<double>(c.start_us + c.duration_us) / 1e6,
+                                     c.transform.x, c.transform.y,
+                                     c.transform.w, c.transform.h);
+                for (const auto& a : snapshot->assets)
+                    std::fprintf(stderr, "  [scene] 素材 %s kind=%d path=%s\n",
+                                 a.id.c_str(), static_cast<int>(a.kind),
+                                 a.path.c_str());
+            }
         }
         std::fflush(stderr);
 
@@ -565,31 +702,47 @@ void PlayerRuntime::onUdpFrame(const SyncFrame& f,
                                const Poco::Net::SocketAddress& /*from*/) {
     if (f.role != SyncRole::Editor) return; // 只关心 Editor 下行心跳
 
-    std::lock_guard<std::mutex> lock(state_mutex_);
-
-    // 会话过滤：已入会话后，其他会话的心跳一律丢弃（§6.2）
-    if (!session_id_.empty() && f.session_id != session_id_) return;
-
-    // ---- 迟到加入软对齐：Idle 时收到 Playing 心跳 → 直接开播 ----
-    // session_start 为全场共享值（Editor 心跳帧里带着），抄过来即对齐；
-    // current 以 Editor 的 session_time 为初值（误差 = 单向网络延迟，
-    // 由纠偏环吸收）。
-    // 【防御】负播放头 = Editor 已广播 play 但锚点未到——不接受，
-    // 否则会"提前开播"破坏 §6.1 到点执行语义。
-    if (state_ == PlayState::Idle && f.state == PlayState::Playing &&
-        f.session_time_us >= 0) {
-        session_id_       = f.session_id;
-        session_start_us_ = f.session_start_us;
-        current_us_       = f.session_time_us;
-        ticking_          = false; // 下个 tick 重新锚定 dt 基准
-        state_            = PlayState::Playing;
-        std::printf("[player] 心跳软对齐（迟到加入）: session=%s t=%lldus\n",
-                    f.session_id.c_str(),
-                    static_cast<long long>(current_us_));
+    // ---- 时钟校准探测响应（2026-11-16）：独立路径，不入会话状态机 ----
+    // 探测是会话无关的基础设施（probe_mutex_，不碰 state_mutex_）；
+    // T4 在 recv 线程即时取——对齐时钟实时读数是 SNTP 的 T4 语义。
+    if (f.kind == SyncKind::TimeProbeResp) {
+        onProbeResponse(f, clock_.alignedNowUs());
+        return;
     }
-    // Playing/Paused 中的心跳：不直接改播放头——纠偏环（tick 内）以共享
-    // 时钟公式为准；心跳仅作为"Editor 存活"旁证，两端残余偏差由 Editor
-    // 比对我方上报帧集中观测（§7.1①）。
+
+    std::string  aligned_session; // 【锁内绝不做 I/O】锁内改状态，
+    std::int64_t aligned_t = 0;   // 出锁后打印（同 settleProbe/诊断日志纪律）
+    {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+
+        // 会话过滤：已入会话后，其他会话的心跳一律丢弃（§6.2）
+        if (!session_id_.empty() && f.session_id != session_id_) return;
+
+        // ---- 迟到加入软对齐：Idle 时收到 Playing 心跳 → 直接开播 ----
+        // session_start 为全场共享值（Editor 心跳帧里带着），抄过来即对齐；
+        // current 以 Editor 的 session_time 为初值（误差 = 单向网络延迟，
+        // 由纠偏环吸收）。
+        // 【防御】负播放头 = Editor 已广播 play 但锚点未到——不接受，
+        // 否则会"提前开播"破坏 §6.1 到点执行语义。
+        if (state_ == PlayState::Idle && f.state == PlayState::Playing &&
+            f.session_time_us >= 0) {
+            session_id_       = f.session_id;
+            session_start_us_ = f.session_start_us;
+            current_us_       = f.session_time_us;
+            ticking_          = false; // 下个 tick 重新锚定 dt 基准
+            state_            = PlayState::Playing;
+            aligned_session   = f.session_id;
+            aligned_t         = current_us_;
+        }
+        // Playing/Paused 中的心跳：不直接改播放头——纠偏环（tick 内）以共享
+        // 时钟公式为准；心跳仅作为"Editor 存活"旁证，两端残余偏差由 Editor
+        // 比对我方上报帧集中观测（§7.1①）。
+    }
+    if (!aligned_session.empty())
+        std::fprintf(stderr,
+                     "[player] 心跳软对齐（迟到加入）: session=%s t=%lldus\n",
+                     aligned_session.c_str(),
+                     static_cast<long long>(aligned_t));
 }
 
 // ---------------------------------------------------------------------------
@@ -663,11 +816,14 @@ void PlayerRuntime::applyAnchorLocked(const Anchor& a,
 // ---------------------------------------------------------------------------
 
 void PlayerRuntime::applyLocalScene(std::shared_ptr<const Scene> s) {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    scene_ = std::move(s);
-    ++scene_serial_; // 渲染线程据 sceneSerial() 判新 → 重建媒体源
-    std::printf("[player] 本机场景注入: serial=%llu\n",
-                static_cast<unsigned long long>(scene_serial_));
+    unsigned long long serial = 0;
+    {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        scene_ = std::move(s);
+        serial = static_cast<unsigned long long>(++scene_serial_); // 渲染线程据 sceneSerial() 判新 → 重建媒体源
+    }
+    // 锁外打印（锁内绝不做 I/O）：QuickEdit 拖选挂起时不持锁冻结渲染线程
+    std::fprintf(stderr, "[player] 本机场景注入: serial=%llu\n", serial);
 }
 
 void PlayerRuntime::localPlay(std::int64_t from_us) {
@@ -713,17 +869,40 @@ void PlayerRuntime::localStop() {
 // ---------------------------------------------------------------------------
 void PlayerRuntime::tick(std::int64_t aligned_now_us) {
     // ---- 1. 应用所有"到点"锚点（积压多个时循环取空，最早优先）----
-    std::vector<std::int64_t> applied_anchors; // 锁外回发 Ack 用
+    // 【锁外日志 2026-11-17】应用详情收集，出锁打印——"停止后画面迟迟不
+    // 切"的日志时间线锚点：收到重锚（recv 线程）→ 本条（tick 应用）两
+    // 个时戳一减即命令链耗时；state/t 应用后值直接可见（不用猜）。
+    // 【锁内只收 POD】字符串格式化挪到锁外（锁内分配违背临界区最小化
+    // 纪律——同 sendAck/打印的锁外原则）；与 Ack 回发共用一次遍历。
+    struct AppliedInfo {
+        std::int64_t anchor_time_us;
+        AnchorCmd    cmd;
+        PlayState    state;
+        std::int64_t current_us;
+    };
+    std::vector<AppliedInfo> applied; // 锁内收集 POD，锁外打印+回 Ack
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
         while (auto a = scheduler_.poll(aligned_now_us)) {
             applyAnchorLocked(*a, aligned_now_us);
-            applied_anchors.push_back(a->anchor_time_us);
+            applied.push_back({a->anchor_time_us, a->cmd, state_, current_us_});
         }
     }
-    // Ack 回发（协议 §6：调试/超时检测用；锁外发送，listener_.send_to 线程安全）
-    for (const auto t : applied_anchors)
-        sendAck(t, true, "applied");
+    for (const auto& ai : applied) {
+        const char* name = ai.cmd == AnchorCmd::Play   ? "Play"
+                           : ai.cmd == AnchorCmd::Pause ? "Pause"
+                           : ai.cmd == AnchorCmd::Seek  ? "Seek"
+                                                        : "Stop";
+        std::fprintf(stderr,
+                     "[%lld][player] 锚点已应用: cmd=%s → state=%d "
+                     "current_us=%lld\n",
+                     tsMs(), name,
+                     static_cast<int>(ai.state),
+                     static_cast<long long>(ai.current_us));
+        std::fflush(stderr);
+        // Ack 回发（协议 §6：调试/超时检测用；listener_.send_to 线程安全）
+        sendAck(ai.anchor_time_us, true, "applied");
+    }
 
     // ---- 2. 播放头推进 + 纠偏（仅 Playing；锁内完成保证一致性）----
     {
@@ -769,7 +948,13 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
         // 恒判环内 None，无害保留。
         if (!cfg_.standalone) {
             std::lock_guard<std::mutex> lock(state_mutex_);
-            if (aligned_now_us - last_report_us_ >= cfg_.report_interval_us) {
+            // 【负差防护 2026-11-16 实测校准卡死 40s】SNTP 校准写入 offset
+            // 瞬间对齐时钟整段回拨（实测 -40.2s）→ aligned_now - last_report_
+            // 变负 → 原判定不 due → 上报停摆 |offset| 秒，Editor 端视为
+            // display 掉线。负差 = 时钟被回拨过的痕迹，强制立即上报并重锚
+            // 簿记（对齐新时钟域）。
+            const std::int64_t since = aligned_now_us - last_report_us_;
+            if (since < 0 || since >= cfg_.report_interval_us) {
                 last_report_us_ = aligned_now_us;
                 due = true;
             }
@@ -839,6 +1024,11 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
                          static_cast<long long>(session_time_us()));
         }
     }
+
+    // ---- 6. 端间时钟校准探测（2026-11-16；详见头文件注释）----
+    // 任意状态（Idle/Playing/Paused）都校——时钟差是基础设施问题，
+    // 播放中修正（播放头跳到正确位置）比入会前修正更符合用户预期。
+    maybeProbeTick(aligned_now_us);
 }
 
 // ---------------------------------------------------------------------------
@@ -941,6 +1131,12 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                     diag_id.c_str(), diag_path.c_str());
     const std::size_t total_assets = list.size(); // 本机相关素材总数（含就绪跳过项）
     assets_total_.store(total_assets);
+    // 【OSD/进度会话重置 2026-11-16】新清单到达 = 新同步会话开始——
+    // assets_ready_ 此前无任何重置点：首轮同步完成后恒 true，第二轮
+    // "同步媒体"（新素材加入）时渲染 OSD 的 active 判定恒 false（进度
+    // 永不显示）。此处重置；若下方就绪表全命中/无素材路径会立刻重新
+    // 置 true（几 ms 窗口，渲染帧间隔 16~500ms，肉眼无感）。
+    assets_ready_.store(false);
     if (list.empty()) { // 场景无素材：无需拉取，直接就绪
         // 【2026-11-13 修正】早退前作废并回收旧拉取线程——原逻辑只在新清单
         // 待拉路径接管（bump+join），此早退会让旧循环对已失效清单无限退避
@@ -1106,6 +1302,18 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                 last_report_ms   = now;
                 last_report_done = done;
                 last_report_fin  = finished;
+                // 【诊断 MS_OSD_DBG=1】上报发送打点（链路自证第一段）
+                {
+                    static const bool s_osd_dbg =
+                        std::getenv("MS_OSD_DBG") != nullptr;
+                    if (s_osd_dbg)
+                        std::fprintf(stderr,
+                                     "[osd] report: done=%zu total=%zu "
+                                     "fin=%d bytes=%llu/%llu\n",
+                                     done, total_assets, finished ? 1 : 0,
+                                     static_cast<unsigned long long>(bytes),
+                                     static_cast<unsigned long long>(total));
+                }
                 const auto cid = editor_conn_.load();
                 if (cid == 0) return; // 尚无 editor 连接：无从上报
                 Envelope env;
@@ -1131,6 +1339,13 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                             bool finished) {
                 std::lock_guard<std::mutex> lk(emit_mx);
                 report(done, path, bytes, total, finished); // → editor（节流）
+                // 【渲染 OSD 2026-11-16】当前文件字节百分比（渲染线程采样）
+                asset_file_percent_.store(
+                    finished || total == 0
+                        ? -1
+                        : static_cast<int>(std::min<std::uint64_t>(
+                              100, bytes * 100 / total)),
+                    std::memory_order_relaxed);
                 if (!has_cb) return;
                 AssetProgress p;
                 p.done          = done;

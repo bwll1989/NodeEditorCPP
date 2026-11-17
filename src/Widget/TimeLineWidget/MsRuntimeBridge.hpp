@@ -87,9 +87,6 @@ public:
     bool setDisplayEnabled(const QString& id, bool enabled);
     QList<DisplayRow> displayRows() const;
 
-    // ---- 素材同步进度（200ms UI 拍；display_id → "⤓ 同步 N/M · P%"）--------
-    QMap<QString, QString> assetSyncTexts() const;
-
     // ---- .flow 工程序列化（静态；SceneLoader pb ↔ base64）-------------------
     /// Scene → base64（pb 字节）。失败返回空串并填 err。
     static QString sceneToBase64(const Scene& scene, QString* err = nullptr);

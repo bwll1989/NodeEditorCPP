@@ -589,6 +589,27 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
                const std::string& config_write_path) {
     // 崩溃捕获已前移至 main 首行（覆盖 INI/路径加载盲区）。
 
+#if defined(_WIN32)
+    // ---- 禁用控制台 QuickEdit（2026-11-17 停止后画面冻结头号嫌疑）--------
+    // 渲染线程（audio lvl 1s 心跳）/tick/recv 线程全程写 stderr——Windows
+    // 控制台是同步阻塞 I/O，一旦用户在控制台窗口点过鼠标（进入选择态，
+    // QuickEdit 默认开启），所有写 stderr 的线程被无限期挂起：渲染线程
+    // 冻结 → 输出表面停在最后一帧。命令链（TCP/tick）日志少不受影响
+    // ——恰好构成"锚点已应用 state=0，但画面迟迟不切"的现象组合。
+    // 禁用 QuickEdit = 鼠标点控制台不再进入选择态（滚动查看仍可用滚轮）。
+    {
+        const HANDLE hin = ::GetStdHandle(STD_INPUT_HANDLE);
+        DWORD mode = 0;
+        if (hin != INVALID_HANDLE_VALUE && ::GetConsoleMode(hin, &mode)) {
+            ::SetConsoleMode(hin, (mode & ~ENABLE_QUICK_EDIT_MODE) |
+                                      ENABLE_EXTENDED_FLAGS);
+            std::printf("[display] 控制台 QuickEdit 已禁用（防选择态挂起"
+                        "写日志线程）\n");
+            std::fflush(stdout);
+        }
+    }
+#endif
+
     // ---- 版本横幅（2026-11-15 对齐 Flow 版本号口径；status API/网页/窗标题同源）----
     std::printf("[display] media_display v%s\n", DISPLAY_VERSION);
     std::fflush(stdout);
@@ -1112,10 +1133,17 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
     while (true) {
         // 【standalone 分派】NodeController 包装 tick：player 推进 + 出点
         // 行为（loop 回头 / 停止归零）；sync 模式直驱 player（历史路径）
+        //
+        // 【tick 时钟同源（2026-11-16 SNTP 校准配套）】tick 参数必须取
+        // player.renderClockNow()（内部 clock_ 域）而非本文件 main() 里的
+        // 独立 clock 实例——SNTP 端间校准把 offset 写进 PlayerRuntime::clock_
+        // （setOffsetUs），只有 tick 与渲染线程同读 clock_，offset 突变才能
+        // 一步传导到播放头推进与纠偏环 target；用外部实例则 offset 永不生效
+        // （端间 OS 时钟差 4s+ 实证的根因之一）。standalone 分支同改统一域。
         if (node_ctl)
-            node_ctl->tick(clock.alignedNowUs());
+            node_ctl->tick(player.renderClockNow());
         else
-            player.tick(clock.alignedNowUs());
+            player.tick(player.renderClockNow());
 
 #if defined(_WIN32)
         // 【指派 id 标题跟随】生效 id 变化（Editor 指派采用）→ 更新预览窗
@@ -1276,6 +1304,22 @@ int main(int argc, char** argv) {
     ms::platform::setupConsoleUtf8();
 
 #ifdef _WIN32
+    // 【QuickEdit 禁用 2026-11-16】Windows 控制台默认 QuickEdit 模式：
+    // 鼠标拖选文本即进入选择模式，此后**所有写控制台的 I/O 无限期挂起**
+    // 直至用户按键取消选择（本文件下方 2026-11-05 注释已实锤该机制）。
+    // 实测触发链：用户看到"时钟校准"日志 → 拖选复制 → 主线程 settleProbe
+    // 的 printf 挂在控制台写 + 持有 probe_mutex_ → recv 线程 onProbeResponse
+    // 抢锁连锁挂死 → UDP 心跳停摆，整个 display 表现为"打印时钟校准时卡死"。
+    // 禁用后拖选不再冻结程序（ENABLE_EXTENDED_FLAGS 必须同设，否则
+    // quick-edit 位不生效——Win32 文档要求）。
+    {
+        HANDLE cin = ::GetStdHandle(STD_INPUT_HANDLE);
+        DWORD mode = 0;
+        if (cin != INVALID_HANDLE_VALUE && ::GetConsoleMode(cin, &mode))
+            ::SetConsoleMode(cin, (mode & ~ENABLE_QUICK_EDIT_MODE) |
+                                      ENABLE_EXTENDED_FLAGS);
+    }
+
     // 【注入噪音防御 2026-11-05】display 是纯显示进程，没有任何文本输入
     // ——显式禁用主线程输入法（IME）。动机：部分国产输入法的广告同步
     // 组件（AdSync，log4cplus 打点、自带老版 Qt）会随窗口创建被系统

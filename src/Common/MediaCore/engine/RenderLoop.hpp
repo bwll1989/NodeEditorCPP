@@ -177,6 +177,21 @@ FrameStats composeFrame(const Scene& scene,
             continue;
         }
 
+        // ---- 【未来帧拒绝 2026-11-17】解码目标回退后的"旧画面滞留"修复 --
+        // 发布帧 pts 超前渲染目标 100ms 以上 = 解码目标发生过回退（STOP 归
+        // 零/seek 回退/重锚倒回）而 DecodeDriver 尚未发布回退后的目标帧——
+        // 此帧属于"未来"，画出来就是用户报告的"停止后长时间显示最后一帧"
+        // （远程慢磁盘上 seek 回 in 点+首帧解码秒级，旧帧一直占着发布槽）。
+        // 拒绝本帧绘制（露出背景），解码线程发布目标时刻帧后自动恢复。
+        // 【为何安全】正常前向播放发布帧恒滞后/等于目标（produce 补齐语义
+        // 只发布目标帧，pts ≤ media_us）；EOF 末帧停留（pts 滞后目标）不受
+        // 影响；慢解码追赶同向滞后；Text/Live 静态帧 pts 恒 0 天然豁免；
+        // 容差 100ms 覆盖帧跨度+驱动拍间隔（8ms）的正常抖动。
+        if (fv.pts_us > di.media_us + 100'000) {
+            ++stats.no_frame; // 未来帧：拒绝（跳回过渡期，目标帧未解出）
+            continue;
+        }
+
         if (renderer.draw(di, fv)) ++stats.drawn;
         else                       ++stats.invalid;
         const auto draw_us = std::chrono::duration_cast<

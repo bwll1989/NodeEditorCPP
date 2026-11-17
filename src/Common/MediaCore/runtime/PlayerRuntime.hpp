@@ -289,6 +289,27 @@ private:
     void onUdpFrame(const SyncFrame& f,
                     const Poco::Net::SocketAddress& from); // Editor 心跳
 
+    // ---- 端间时钟校准（SNTP 式探测，2026-11-16）----------------------------
+    ///
+    /// 【动机】跨机同步的时钟基准 = 各端 OS 系统墙钟（anchor_time 是 Editor
+    /// 墙钟域的"全场约定时刻"，各端用本机 ClockProvider 解释）。局域网机器
+    /// 无 NTP 对齐时系统钟可差数秒（实测 4s+）——纠偏环内部自洽（delta=0）
+    /// 却纠不了 OS 时钟差。本探测用 ClockProvider 预留的 offset 注入点
+    /// （设计 §4.4 Phase-2）把本机时钟拉进 Editor 域。
+    ///
+    /// 【协议】tick 驱动发探测请求（t1=本机对齐时钟，delta_us=轮序号）→
+    /// Editor 即刻回响应（t1 回传 + t2/t3=Editor 对齐时钟）→ recv 线程记
+    /// T4 并按 SNTP 公式算 offset/rtt 入样本表 → tick 结算取 RTT 最小样本
+    /// 写入 clock_.setOffsetUs()。轮间隔 30s 跟踪时钟漂移。
+    ///
+    /// 【线程模型】样本表/轮状态 = probe_mutex_（tick 与 UDP recv 两条线
+    /// 程）；clock_.setOffsetUs 原子写，渲染线程无感生效。结算在 tick
+    /// （主循环）上下文——写 offset 引发的 alignedNow 突变直接体现在下一
+    /// 拍 dt（负 dt 不推进/正 dt 跳进），与纠偏环 target 公式同源自洽。
+    void maybeProbeTick(std::int64_t aligned_now_us); ///< tick 末尾驱动
+    void onProbeResponse(const SyncFrame& f, std::int64_t t4_us); ///< recv 线程
+    void settleProbe(std::int64_t now_us); ///< 采样轮结算（tick 上下文，RTT 最小样本写 clock_）
+
     /// 发送注册帧（连接建立时经 on_connected 触发；§6.2）
     bool sendRegister();
 
@@ -412,6 +433,23 @@ private:
     std::atomic<bool> assets_ready_{false}; ///< 全部素材就绪（无素材恒 true）
     std::atomic<std::size_t> assets_ready_cnt_{0};
     std::atomic<std::size_t> assets_total_{0};
+    /// 当前文件字节百分比（0-100；-1 = 无文件级进度/整轮结束）。emit 汇聚
+    /// 点写入（拉取线程），渲染线程 OSD 采样读——零锁观测
+    std::atomic<int> asset_file_percent_{-1};
+
+    // ---- 端间时钟校准状态（probe_mutex_ 保护；独立于 state_mutex_——
+    //      探测是会话无关的基础设施，不应与会话状态锁互相牵连）--------------
+    std::mutex probe_mutex_;
+    bool       probing_          = false;   ///< 采样轮进行中
+    int        probe_sent_       = 0;       ///< 本轮已发请求数（≤8）
+    int        probe_recv_       = 0;       ///< 本轮已收响应数
+    std::int32_t probe_seq_      = 0;       ///< 轮序号（请求 delta_us 携带，
+                                            ///< 响应回传匹配——过期轮响应拒绝）
+    std::int64_t probe_next_us_   = 0;       ///< 下一请求发送时刻（对齐时钟域）
+    std::int64_t probe_deadline_us_ = 0;     ///< 本轮截止（超时用已收样本结算）
+    std::int64_t last_probe_round_us_ = 0;   ///< 上轮结算时刻（30s 重测节流）
+    /// 采样表 (offset_us, rtt_us)——recv 线程填，tick 结算取 RTT 最小
+    std::vector<std::pair<std::int64_t, std::int64_t>> probe_samples_;
 };
 
 } // namespace ms

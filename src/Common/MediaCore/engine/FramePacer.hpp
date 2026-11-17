@@ -76,11 +76,22 @@ public:
     /// 阻塞等待到目标时刻（真实主循环用；now_fn 返回对齐时钟 us）
     /// 策略：剩余 >2ms 先 sleep 让出 CPU，最后 2ms 自旋——
     /// 规避 Windows sleep 精度（1~15ms）导致的系统性迟到
+    ///
+    /// 【时钟回拨防护 2026-11-16 实测校准卡死 40s】target 由主循环在本拍
+    /// 开始时按对齐时钟推导（旧域），等待中 SNTP 校准写入 offset（实测
+    /// -40.2s）→ 对齐时钟整段回拨 → 旧栅格点落在新时钟读数前方 |offset|
+    /// 处 → 原实现按 remain 一次 sleep 到点，渲染循环冻结 |offset| 秒后
+    /// "自愈"（用户实测卡死≈40s）。语义上本等待只服务"下一帧 present"
+    /// （正常剩余 ≤1 帧 ≈17ms），剩余超过 100ms 即认定时钟域跳变，立即
+    /// 返回——主循环下一拍按新域时钟重新推导帧号/栅格（提前 present 一
+    /// 两个相位无碍，随即对齐新栅格）。时钟前拨方向 remain<0 本就立即
+    /// 返回，无需防护。
     template <typename NowFn>
     void waitUntil(NowFn now, std::int64_t target_us) const {
         for (;;) {
             const std::int64_t remain = target_us - now();
             if (remain <= 0) return;
+            if (remain > 100'000) return; // >100ms ≈ 6 帧 = 时钟域跳变
             if (remain > 2'000)
                 std::this_thread::sleep_for(
                     std::chrono::microseconds(remain - 2'000));

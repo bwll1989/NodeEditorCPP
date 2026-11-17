@@ -25,6 +25,7 @@
 #include <QOpenGLWidget>
 
 #include <QImage>
+#include <QMap>
 #include <QPolygonF>
 #include <map>
 #include <memory>

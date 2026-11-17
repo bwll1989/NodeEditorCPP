@@ -295,9 +295,6 @@ std::vector<DisplayEntry> EditorRuntime::displayEntries() const {
 /// （一次广播入队——快照 1 份、serialize 1 次，投递逐台在线槽位）。
 /// 用途：新项目加载/新建后（场景 id 或画布变更，不可增量）让已接入的
 /// 显示端整体切换到新项目内容，无需等显示端重新注册。
-/// 全量场景重发（第五迭代）：对全部在线显示端重发当前权威场景。
-/// 用途：新项目加载/新建后（场景 id 或画布变更，不可增量）让已接入的
-/// 显示端整体切换到新项目内容，无需等显示端重新注册。
 std::size_t EditorRuntime::resendSceneToDisplays() {
     std::size_t online = 0;
     for (const auto& e : displays_.snapshot())
@@ -345,6 +342,19 @@ void EditorRuntime::onDisplayEnvelope(const std::string& display_id,
 
     // ---- 【素材同步进度 2026-11-04】纯观测帧：存快照供 GUI 观测 ----
     if (env.has_asset_progress()) {
+        // 【诊断 MS_OSD_DBG=1】接收打点（链路自证第二段：上报是否到达）
+        {
+            static const bool s_osd_dbg =
+                std::getenv("MS_OSD_DBG") != nullptr;
+            if (s_osd_dbg) {
+                const auto& ap = env.asset_progress();
+                std::fprintf(stderr,
+                             "[osd] editor 收到进度: display=%s done=%u "
+                             "total=%u fin=%d\n",
+                             display_id.c_str(), ap.done(), ap.total(),
+                             ap.finished() ? 1 : 0);
+            }
+        }
         handleAssetProgress(display_id, env.asset_progress());
         return;
     }
@@ -415,6 +425,7 @@ void EditorRuntime::handleRegister(
     // 【注意】必须把会话号写回 session_id_，否则每个 Player 各得独立会话号。
     std::string sid;
     bool is_reconnect = false; // 重连识别（§7.1④：同一 player_id 二次注册）
+    std::vector<std::string> evicted; // 【锁内绝不做 I/O】换键清理记录，出锁后打印
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
         if (session_id_.empty())
@@ -436,10 +447,7 @@ void EditorRuntime::handleRegister(
                     else
                         ++uit;
                 }
-                std::printf("[editor] 换键清理: 移除同槽位旧条目 player=%s"
-                            "（槽位=%s 已改用 %s）\n",
-                            it->first.c_str(), display_slot.c_str(),
-                            pid.c_str());
+                evicted.push_back(it->first);
                 it = players_.erase(it);
             } else {
                 ++it;
@@ -456,6 +464,10 @@ void EditorRuntime::handleRegister(
         e.offline    = false; // 重连即恢复健康观测窗口
         e.last_beat_us = -1;  // 重置观测窗口（等待新连接的上报）
     }
+    for (const auto& old_pid : evicted)
+        std::fprintf(stderr, "[editor] 换键清理: 移除同槽位旧条目 player=%s"
+                            "（槽位=%s 已改用 %s）\n",
+                     old_pid.c_str(), display_slot.c_str(), pid.c_str());
 
     // ---- Ack（含会话号 + Editor 的 UDP 心跳地址 + 素材 HTTP 端口 + 指派 id）----
     // ack_udp_host = 连接的本端 IP（Editor 主动方，最准确）
@@ -633,6 +645,10 @@ void EditorRuntime::onUdpFrame(const SyncFrame& f,
                                const Poco::Net::SocketAddress& from) {
     if (f.role != SyncRole::Player) return; // 只关心 Player 上行
 
+    // T2 = 收到请求的时刻（函数入口即取——后续反查锁的耗时计入 T3-T2，
+    // display 端 RTT 公式 (T4-T1)-(T3-T2) 会将其正确扣除）
+    const std::int64_t probe_recv_us = probeNowUs();
+
     // ---- 按"来源 ip:port"反查 player_id（§6 来源地址学习）----
     const std::string key = from.host().toString() + ":" +
                             std::to_string(from.port());
@@ -649,6 +665,12 @@ void EditorRuntime::onUdpFrame(const SyncFrame& f,
         const auto it = players_.find(it_id->second);
         if (it == players_.end()) return;
 
+        // ---- 时钟校准探测请求（2026-11-16）：纯时钟基建帧，不入观测表、
+        // 不回应心跳；响应构造在锁外（T3 = 响应构造时刻，与 T2 的差 =
+        // 反查锁耗时，被 display 端 RTT 公式扣除）
+        if (f.kind == SyncKind::TimeProbeReq) {
+            known = true;
+        } else {
         // ---- 更新观测表（status 面板 / 失同步检测的数据源）----
         auto& e      = it->second;
         e.state      = f.state;
@@ -668,8 +690,28 @@ void EditorRuntime::onUdpFrame(const SyncFrame& f,
         st    = state_;
         start = session_start_us_;
         known = true;
+        }
     }
     if (!known) return; // 不可达（防御性：上面两分支已 return）
+
+    // ---- 时钟校准探测请求：即刻构造响应（走发送队列，UDP sendTo 本身
+    //      微秒级，队列等待进 RTT 被 display 端最小值筛选排除）----
+    if (f.kind == SyncKind::TimeProbeReq) {
+        SyncFrame resp;
+        resp.role       = SyncRole::Editor;
+        resp.kind       = SyncKind::TimeProbeResp;
+        resp.session_id = f.session_id;
+        resp.t1_us      = f.t1_us;      // 回传（display 端匹配样本）
+        resp.t2_us      = probe_recv_us; // T2 = 收到请求时刻（入口已取）
+        resp.t3_us      = probeNowUs();  // T3 = 响应构造时刻
+        resp.delta_us   = f.delta_us;   // 轮序号回传（过期响应匹配）
+        SendTask t;
+        t.kind   = SendTask::Kind::UdpSend;
+        t.beat   = std::move(resp);
+        t.udp_to = from;
+        enqueueSend(std::move(t));
+        return;
+    }
 
     SyncFrame beat;
     beat.role             = SyncRole::Editor;
@@ -1368,13 +1410,20 @@ void EditorRuntime::sendWorkerLoop() {
 PlayState EditorRuntime::state() const {
     // 【诊断 MS_CANVAS_DBG=1】锁等待计时——echo 每拍调 state()，若本锁
     // 被其它线程长持 ~200ms，这里直接量出等待时长与发生时刻（配合
-    // probe/worker 日志的 wall 对齐，锁定持锁者身份）
+    // probe/worker 日志的 wall 对齐，锁定持锁者身份）。
+    // 【锁内绝不做 I/O 2026-11-16】锁内只测量 + 读状态，>10ms 的打印在
+    // 锁外——系统本已拥堵时持锁写控制台会进一步冻结所有 state() 读者，
+    // 让诊断自身加剧它要观测的卡顿（自我应验）。
     const auto lk_t0 = std::chrono::steady_clock::now();
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    const auto lk_us = std::chrono::duration_cast<
-        std::chrono::microseconds>(
-        std::chrono::steady_clock::now() - lk_t0).count();
-    if (lk_us > 10000) { // 等待 >10ms：异常，逐次打印
+    long long  lk_us = 0;
+    PlayState  st    = PlayState::Idle;
+    {
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        lk_us = std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - lk_t0).count();
+        st = state_;
+    }
+    if (lk_us > 10000) { // 等待 >10ms：异常，逐次打印（锁外）
         static int s_n = 0;
         if (++s_n <= 200) {
             const auto wall = std::chrono::duration_cast<
@@ -1382,11 +1431,11 @@ PlayState EditorRuntime::state() const {
                 std::chrono::steady_clock::now().time_since_epoch()).count();
             std::fprintf(stderr,
                          "[rt-dbg] stateLockWait#%d %lldus wall=%lld\n",
-                         s_n, (long long)lk_us, (long long)wall);
+                         s_n, lk_us, (long long)wall);
             std::fflush(stderr);
         }
     }
-    return state_;
+    return st;
 }
 
 std::string EditorRuntime::session_id() const {

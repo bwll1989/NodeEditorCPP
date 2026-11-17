@@ -39,10 +39,19 @@
 
 namespace ms {
 
+namespace {
+
+// 【排障】stderr 时戳（毫秒）：渲染线程状态沿打点与 [player]/[editor]
+// 日志对齐时间线（2026-11-17 停止后画面延迟二分定位）
+long long tsMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
 // ---------------------------------------------------------------------------
 // BMP 小端写入辅助（头字段逐字节拼装，天然小端，跨平台一致）
 // ---------------------------------------------------------------------------
-namespace {
 
 void put16(std::vector<std::uint8_t>& v, std::uint32_t x) {
     v.push_back(static_cast<std::uint8_t>(x & 0xFF));
@@ -400,6 +409,51 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
     // 后下一帧立即跟随），未注入退回 cfg_.player_id（测试/旧调用方）。
     // 每帧取一次供全函数使用（含 ensureOutputSize/composeFrame/诊断）。
     const std::string my_id = effectiveId();
+
+    // ---- 素材同步 OSD 采样（2026-11-16；三个呈现路径共用）----------------
+    // 每帧采样一次 PlayerRuntime 原子量（零锁）→ setOsd 交给后端（内部
+    // 内容比对去重，未变化的帧零成本）。active=false 时显式清 OSD——
+    // 就绪瞬间起下一帧呈现即无叠字。静帧节流跳过的帧不重画：上一次的
+    // OSD 留在呈现面上（DWM 保持），更新滞后 ≤500ms 无碍。
+    if (backend_ && cfg_.asset_osd_provider) {
+        const auto osd = cfg_.asset_osd_provider();
+        // 【诊断 MS_OSD_DBG=1】OSD 状态变化打点（链路自证：active 判定/
+        // done/total/percent 是否如预期推进）
+        {
+            static const bool s_osd_dbg =
+                std::getenv("MS_OSD_DBG") != nullptr;
+            static bool s_last_active = false;
+            static int  s_last_done   = -1;
+            if (s_osd_dbg &&
+                (osd.active != s_last_active || osd.done != s_last_done)) {
+                s_last_active = osd.active;
+                s_last_done   = osd.done;
+                std::fprintf(stderr,
+                             "[osd] state: active=%d done=%d total=%d "
+                             "file%%=%d\n",
+                             osd.active ? 1 : 0, osd.done, osd.total,
+                             osd.file_percent);
+                std::fflush(stderr);
+            }
+        }
+        if (osd.active && osd.total > 0) {
+            char txt[96];
+            if (osd.file_percent >= 0)
+                std::snprintf(txt, sizeof(txt),
+                              "素材同步中 %d/%d · %d%%", osd.done,
+                              osd.total, osd.file_percent);
+            else
+                std::snprintf(txt, sizeof(txt), "素材同步中 %d/%d",
+                              osd.done, osd.total);
+            backend_->setOsd(
+                txt, static_cast<float>(osd.done) /
+                         static_cast<float>(osd.total));
+        } else {
+            backend_->setOsd(nullptr, -1.0f); // 就绪/无素材：撤销 OSD
+        }
+    } else if (backend_) {
+        backend_->setOsd(nullptr, -1.0f); // 未配 provider：确保无残留
+    }
     {
         const auto snap_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - snap_t0).count();
@@ -442,12 +496,14 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
     // 完成后的下一个节流点自动换真画面，避免满帧率空转烧 CPU）。
     const bool idle_static =
         (ph.state != PlayState::Playing && ph.state != PlayState::Paused);
-    // 【静帧节流放行 2026-11-05】场景刚换过（编辑下发）时跳过节流窗口：
-    // 否则"停着编辑"的每一次改动画面上限是 500ms 一拍——用户观感就是
-    // "editor 已经改了、display 半天不动"。编辑期场景变化频率有上限（
-    // 防抖 50ms ⇒ ≤20 次/秒，实测发布 50Hz 时 display 仍满速合成 —— 单帧
-    // 成本 0.1~0.7ms），放行不带来空转成本；画面真静止时仍按 500ms 节流
-    // （省 GPU/CPU）。
+    // 【静帧节流撤销 2026-11-17】Idle/Paused 静帧不再 500ms 一拍——持续
+    // 满帧率合成+呈现。撤销依据（用户实测实锤）：停止后画面滞留几百 ms
+    // ~3s 随机，**窗口最大化/最小化一下立即切黑**——渲染/命令链日志全部
+    // 同 ms 完成（状态沿帧已合成+swap），低频呈现（2fps）下 DWM 对 GL
+    // 窗口的合成更新不可靠（呈现表面停在旧帧，强制重绘立即更新）。空
+    // 场景/静帧合成成本实测 0.1~0.7ms（本文件 11-05 注释自证）——满帧率
+    // 空转成本可忽略，换呈现链持续提交（与 2026-11-04"无场景也持续上屏
+    // 黑帧"的 MMC 对齐原则同一逻辑：呈现不能空窗/降频）。
     // 【场景判新 2026-11-05】优先用 PlayerRuntime 的单调场景序号；未装配
     // 序号提供者（测试直构）时退回对象地址比较。地址回退不安全：上一帧的
     // shared_ptr 释放后 make_shared 常复用同一块内存，地址相等 ≠ 场景相同
@@ -456,16 +512,26 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
     const bool scene_changed =
         serial_fn_ ? (scene_serial != last_composed_serial_)
                    : (scene.get() != last_composed_scene_);
-    if (idle_static && !scene_changed) {
-        const std::int64_t now_ms = now_us / 1000;
-        if (now_ms - last_idle_render_ms_ < 500)
-            return stats; // 节流窗口内：画面不动，跳过
-        last_idle_render_ms_ = now_ms;
+    // 【状态沿打点 2026-11-17】播放状态切换的第一帧标记（原"状态沿放行"
+    // 节流豁免——节流已整体撤销，本标记仅保留诊断打点用途）。
+    const bool state_edge = (ph.state != last_render_state_);
+    const PlayState prev_render_state = last_render_state_;
+    last_render_state_    = ph.state;
+    if (state_edge) {
+        std::fprintf(stderr,
+                     "[%lld][render:%s] 状态沿 %d→%d：本帧放行合成"
+                     "（idle_static=%d scene_changed=%d）\n",
+                     tsMs(),
+                     cfg_.player_id.c_str(),
+                     static_cast<int>(prev_render_state),
+                     static_cast<int>(ph.state),
+                     idle_static ? 1 : 0,
+                     scene_changed ? 1 : 0);
+        std::fflush(stderr);
     }
     // 记录本帧消费的场景（变化检测基准）
     last_composed_serial_ = scene_serial;
     last_composed_scene_  = scene.get();
-    last_idle_render_ms_  = now_us / 1000;
 
     // ---- 帧栅格：epoch 跟随 session_start（重锚/seek 后自动换轴）----
     // FramePacer 不可变对象 → epoch 变化时整体重建（极低频，播放会话切换）
@@ -637,6 +703,23 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
             std::chrono::steady_clock::now() - cost_t0)
             .count());
     last_compose_cost_us_.store(cost_us, std::memory_order_relaxed);
+    // 【状态沿帧完成打点 2026-11-17】与"状态沿…本帧放行合成"配对：两条
+    // 时戳一减 = 该帧从放行到合成+呈现完成的全程耗时；stats 直接可见
+    // （items=0 应黑屏 / items>0 画了什么）。配合末段 swap 耗时定位
+    // "状态沿放行了但画面迟迟不切"的卡点（合成 vs 呈现 vs 显示设备）。
+    if (state_edge) {
+        std::fprintf(stderr,
+                     "[%lld][render:%s] 状态沿帧完成: compose=%lluus "
+                     "swap=%lluus items=%zu drawn=%zu no_frame=%zu t=%.3fs\n",
+                     tsMs(),
+                     cfg_.player_id.c_str(),
+                     static_cast<unsigned long long>(cost_us),
+                     static_cast<unsigned long long>(
+                         last_swap_cost_us_.load(std::memory_order_relaxed)),
+                     stats.items, stats.drawn, stats.no_frame,
+                     static_cast<double>(session_t) / 1e6);
+        std::fflush(stderr);
+    }
     // EMA(α=1/16)：ema += (cost - ema)/16（首样本直接取值——避免从 0 缓升）
     const std::uint64_t prev = ema_compose_cost_us_.load(std::memory_order_relaxed);
     ema_compose_cost_us_.store(

@@ -73,6 +73,17 @@ struct AudioVoice;
 class RenderThread {
 public:
     // -----------------------------------------------------------------------
+    // 素材同步 OSD 快照（asset_osd_provider 返回值；PlayerRuntime 注入）
+    // 【定义先于 Config】Config::asset_osd_provider 的签名引用本类型。
+    // -----------------------------------------------------------------------
+    struct AssetOsdState {
+        bool active = false;      ///< true = 叠加显示（素材未全部就绪）
+        int  done = 0;            ///< 已就绪素材数
+        int  total = 0;           ///< 素材总数
+        int  file_percent = -1;   ///< 当前文件字节百分比（-1 = 无文件级进度）
+    };
+
+    // -----------------------------------------------------------------------
     // 启动配置
     // -----------------------------------------------------------------------
     struct Config {
@@ -120,6 +131,13 @@ public:
         /// 空 = 真实 AudioOut）。工厂产出 open 失败 → 自动回退 Null
         /// （电平/混音链路照常，行为永远有兜底）。
         std::function<std::unique_ptr<IAudioOutput>()> audio_output_factory;
+
+        // ---- 素材同步 OSD（2026-11-16；输出画面叠进度）-------------------
+        /// 素材同步状态采样（渲染线程每帧调用一次，读 PlayerRuntime 原子量
+        /// ——零锁）。空 = 无 OSD（行为与旧版一致）。active 期间 GL 后端在
+        /// 每帧呈现前把"素材同步中 n/m · xx%"叠在最终输出上（不受输出变形
+        /// 影响——绘制点在 warpBlit 之后）；就绪后 active=false 自动消失。
+        std::function<AssetOsdState()> asset_osd_provider;
     };
 
     /// 对齐时钟读取函数（返回对齐时钟 us；PlayerRuntime 注入 ClockProvider）
@@ -323,15 +341,16 @@ private:
         return cfg_.player_id;
     }
     std::int64_t last_capture_us_ = 0; ///< 上次导帧时刻（渲染线程独占，免原子）
-    /// Idle 静帧上一次渲染时刻（ms，渲染线程独占免原子）：静帧节流窗口锚点
-    /// （初值极小 → 收到场景后首帧立即渲染，不等 500ms）
-    std::int64_t last_idle_render_ms_ = -1'000'000'000;
     /// 上一次【已合成】的场景序号（渲染线程独占）：静帧节流的变化检测基准
     /// ——序号变化 = 收到新 MsgScene（编辑下发），本次必须立即合成，不受
     /// 500ms 静帧节流窗口约束（2026-11-05 编辑期"display 慢半拍"修复）。
     /// 用序号而非对象地址：上一帧 shared_ptr 释放后 make_shared 会复用同一
     /// 块地址 → 地址相等 → 误判"没换场景" → 节流重新生效（今日复测发现）。
     std::uint64_t last_composed_serial_ = 0;
+    /// 上一次渲染帧的播放状态（渲染线程独占）：状态沿检测基准——播放态
+    /// 切换第一帧打诊断打点（2026-11-17），配合 [player] 锚点应用时戳
+    /// 二分"停止后画面迟迟不切"类问题的卡点（命令链 vs 渲染 loop）。
+    PlayState last_render_state_ = PlayState::Idle;
     /// 指针判新的回退基准（只在未装配 serial_fn_ 的测试路径使用）
     const void* last_composed_scene_ = nullptr;
     /// "场景无本 display 的 screen"上次告警时刻（ms，渲染线程独占）：

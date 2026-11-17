@@ -894,6 +894,7 @@ bool FfmpegMediaSource::frameView(FrameView& out) const {
     out.height = pf->height;
     out.stride = pf->stride;
     out.domain = pf->domain;
+    out.pts_us = pf->pts_us; // 帧时刻导出（渲染端未来帧拒绝判据，2026-11-17）
     out.keep   = pf; // 保活：draw 期间快照引用计数 ≥ 1
     if (pf->domain == FrameDomain::CpuRgba) {
         if (pf->rgba.empty()) return false;

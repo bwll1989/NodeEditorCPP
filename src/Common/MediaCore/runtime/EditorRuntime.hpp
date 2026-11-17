@@ -52,6 +52,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -59,6 +60,7 @@
 #include <string>
 #include <vector>
 
+#include "clock/ClockProvider.hpp" // 时钟探测响应的 T2/T3 读数（2026-11-16）
 #include "loader/SceneLoader.hpp"
 #include "loader/ShowFileIO.hpp" // DisplayEntry（第五迭代显示端登记）
 #include "model/SceneModel.hpp"
@@ -444,6 +446,20 @@ private:
     bool                    crc_push_pending_ = false; ///< 待补推事件（有新 CRC 就绪）
     std::atomic<bool>       crc_push_quit_{false};     ///< 退出标志（stop 置位）
     std::thread             crc_push_thread_;          ///< 防抖补推线程（start 启动）
+
+    // ---- 端间时钟探测响应（2026-11-16；SNTP 式，display 发起）--------------
+    /// 响应的 T2/T3 需要 Editor 对齐时钟读数。头注"本类不持有时钟"原则的
+    /// 唯一例外：时钟校准是会话无关基建，响应帧直接回读。默认用内部
+    /// ClockProvider 兜底（与 main 供数的 clock 同为本机墙钟单调外推域，
+    /// 读数差 = 构造时刻差，μs 级）；测试可经 set_clock_fn 注入手工序列。
+    void set_clock_fn(std::function<std::int64_t()> fn) {
+        clock_fn_ = std::move(fn);
+    }
+    std::int64_t probeNowUs() const {
+        return clock_fn_ ? clock_fn_() : probe_clock_.alignedNowUs();
+    }
+    std::function<std::int64_t()> clock_fn_; ///< 时钟注入（测试用；空 = 兜底）
+    ClockProvider probe_clock_;              ///< 兜底时钟（构造时自锚定）
 
     std::atomic<bool> running_{false};
 };

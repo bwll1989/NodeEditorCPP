@@ -23,6 +23,7 @@ std::size_t SyncFrameCodec::encode(const SyncFrame& f, void* out) noexcept {
     raw.magic   = kMagic;
     raw.version = kVersion;
     raw.role    = static_cast<std::uint8_t>(f.role);
+    raw.kind    = static_cast<std::uint8_t>(f.kind);
     copySessionId(raw.session_id, f.session_id);
     raw.state           = static_cast<std::uint8_t>(f.state);
     raw.session_start_us = f.session_start_us;
@@ -30,6 +31,9 @@ std::size_t SyncFrameCodec::encode(const SyncFrame& f, void* out) noexcept {
     raw.wall_us          = f.wall_us;
     raw.frame_index      = f.frame_index;
     raw.delta_us         = f.delta_us;
+    raw.t1_us            = f.t1_us;
+    raw.t2_us            = f.t2_us;
+    raw.t3_us            = f.t3_us;
     std::memcpy(out, &raw, sizeof(raw));
     return sizeof(raw);
 }
@@ -42,16 +46,19 @@ std::optional<SyncFrame> SyncFrameCodec::decode(const void* data,
     std::memcpy(&raw, data, sizeof(raw));
     if (raw.magic != kMagic)   return std::nullopt; // 非本协议包（静默丢弃）
     if (raw.version != kVersion) return std::nullopt; // 版本不兼容
-    // 【值域校验】state/role 超出枚举定义域的帧拒绝——裸 UDP 可被任意
+    // 【值域校验】state/role/kind 超出枚举定义域的帧拒绝——裸 UDP 可被任意
     // 伪造，非法枚举值进入 switch/比较是未定义行为源
     if (raw.state > static_cast<std::uint8_t>(PlayState::Paused))
         return std::nullopt;
     if (raw.role != static_cast<std::uint8_t>(SyncRole::Editor) &&
         raw.role != static_cast<std::uint8_t>(SyncRole::Player))
         return std::nullopt;
+    if (raw.kind > static_cast<std::uint8_t>(SyncKind::TimeProbeResp))
+        return std::nullopt;
 
     SyncFrame f;
     f.role = static_cast<SyncRole>(raw.role);
+    f.kind = static_cast<SyncKind>(raw.kind);
     raw.session_id[sizeof(raw.session_id) - 1] = '\0'; // 防御：保证截断
     f.session_id = raw.session_id;
     f.state      = static_cast<PlayState>(raw.state);
@@ -60,6 +67,9 @@ std::optional<SyncFrame> SyncFrameCodec::decode(const void* data,
     f.wall_us          = raw.wall_us;
     f.frame_index      = raw.frame_index;
     f.delta_us         = raw.delta_us;
+    f.t1_us            = raw.t1_us;
+    f.t2_us            = raw.t2_us;
+    f.t3_us            = raw.t3_us;
     return f;
 }
 

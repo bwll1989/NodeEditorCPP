@@ -8,6 +8,7 @@
 #include <QStandardPaths>
 
 #include "clock/ClockProvider.hpp"   // 对齐时钟（命令 now 注入）
+#include "live/LiveHub.hpp"          // Live Hub 进程角色（editor 端启用）
 #include "loader/SceneLoader.hpp"    // Scene pb serialize/parse（R1 校验）
 #include "runtime/EditorRuntime.hpp" // 下发运行时（连接/命令/分发）
 
@@ -47,6 +48,16 @@ bool MsRuntimeBridge::start() {
     EditorRuntime::Config cfg;          // 默认：UDP 17001 / HTTP 17002 /
                                         // lead 10ms / beat 250ms
     cfg.assets_root = root.toStdString();
+    // 【Live Hub 角色接线 2026-11-16 实测跨主机 live 黑屏根因】设计好的
+    // 跨主机 live 分发链（场景下发时 prepareLiveForDisplay：ensureAsset
+    // 建 Ingest+Feed+NDI 再发布 sender + 快照改写 ms-live/<project>/<id>
+    // + live_ingest 归一 NDI）全部以 hub.enabled() 为前提，但 enabled_
+    // 默认 false 且全库无任何置位点 → 归一化从未生效 → display 拿原始
+    // monitor/camera 源名在本机直开设备（HWND/HMONITOR 句柄不跨机、
+    // 采集设备被 editor 收端独占）→ "设备找不到"黑屏。editor 主程序恒
+    // editor 角色（本桥仅主程序装配；display 的 media_display 不经过
+    // 此桥，保持默认 false = 纯 NDI 直收，不误建采集/sender）。
+    LiveHub::instance().setEnabled(true);
     impl_ = std::make_unique<Impl>(std::move(cfg));
     if (!impl_->rt.start()) {           // 空场景模式（场景经 publishScene 注入）
         std::fprintf(stderr,
@@ -158,35 +169,6 @@ QList<MsRuntimeBridge::DisplayRow> MsRuntimeBridge::displayRows() const {
         r.connected = it != conn.end() && it->second.connected;
         r.registered = it != conn.end() && it->second.registered;
         out.push_back(r);
-    }
-    return out;
-}
-
-QMap<QString, QString> MsRuntimeBridge::assetSyncTexts() const {
-    QMap<QString, QString> out;
-    if (!impl_) return out;
-    for (const auto& [id, v] : impl_->rt.assetSyncSnapshot()) {
-        QString text;
-        if (v.finished) {
-            text = QStringLiteral("✓ 已同步");
-        } else if (v.total > 0) {
-            const int done = (int)v.done;
-            if (v.current_total > 0) {
-                const int percent = (int)qBound<qint64>(
-                    qint64(0),
-                    (qint64)v.current_bytes * 100 / (qint64)v.current_total,
-                    qint64(100));
-                text = QStringLiteral("⤓ 同步 %1/%2 · %3%")
-                           .arg(done)
-                           .arg((int)v.total)
-                           .arg(percent);
-            } else {
-                text = QStringLiteral("⤓ 同步 %1/%2")
-                           .arg(done)
-                           .arg((int)v.total);
-            }
-        }
-        out.insert(QString::fromStdString(id), text);
     }
     return out;
 }

@@ -166,6 +166,12 @@ public:
         vp_h_ = h;
     }
 
+    // ---- 素材同步 OSD（2026-11-16；setOsd 契约见 IComposeRenderer）-------
+    /// 本帧 OSD 内容（endFrame 呈现前绘制在最终输出上——warpBlit 之后，
+    /// 恒不受变形影响）。文本/进度变化时经 GDI DrawTextW 栅格化到内存
+    /// DIB（32bpp BGRA top-down）→ 上传纹理；未变化帧只重贴缓存纹理。
+    void setOsd(const char* utf8_text, float frac) override;
+
 private:
     /// 懒初始化：窗口+上下文+程序+VAO/VBO+纹理（首次 beginFrame 调用）
     bool ensureInit();
@@ -291,6 +297,17 @@ private:
     std::int64_t swap_ema_us_   = 0; ///< swap 耗时 EMA（α=1/16；0=无样本）
     long long    swap_samples_  = 0; ///< 累计样本数（<30 不判定，避开启动抖动）
     bool         vsync_downgraded_ = false; ///< 已自动降级（一次性）
+
+    // ---- 素材同步 OSD（渲染线程独占；懒创建）------------------------------
+    std::string osd_text_;          ///< 当前 OSD 文本（空 = 无）
+    float       osd_frac_   = -1.0f; ///< 进度条比例（<0 = 不画条）
+    bool        osd_dirty_  = false; ///< 内容变化标记（endFrame 重栅格化）
+    unsigned int osd_tex_  = 0;     ///< OSD 纹理（BGRA；懒创建）
+    int          osd_tex_w_ = 0;    ///< 纹理分配尺寸（=栅格化画布宽/高，变化时重建）
+    int          osd_tex_h_ = 0;
+    /// OSD 栅格化 + 纹理上传（osd_dirty_ 时执行）+ 绘制 quad。
+    /// 调用点：endFrame（warpBlit 之后、SwapBuffers 之前——最终输出域）。
+    void drawOsdOverlay();
 
     // ---- uniform location 缓存（程序链接成功时查询一次）-----------------
     // 【性能】glGetUniformLocation 是字符串查找，draw 热路径逐帧逐项调用

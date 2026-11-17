@@ -61,6 +61,12 @@ struct FrameView {
     /// GPU 原生帧句柄（GpuCudaNv12 域有效；shared_ptr 保活到绘制结束——
     /// 渲染线程 draw 完成后解码端缓冲可复用）
     std::shared_ptr<const void> native;
+    /// 帧时间戳（素材内部时间，us）——发布槽帧的 pts，供渲染端做
+    /// "未来帧拒绝"（解码目标回退<停止归零/seek 回退>后，发布槽里
+    /// 仍是回退前的帧，pts 超前渲染目标——画出来即"跳回后旧画面滞留"，
+    /// 拒绝绘制等解码线程发布目标时刻帧，2026-11-17）。无时间轴的源
+    /// （Text 静态帧/Live 实时帧）恒 0 ——永不超前，天然豁免。
+    std::int64_t pts_us = 0;
 
     /// 是否持有有效载荷（CPU 像素 或 GPU 原生帧二选一）
     bool valid() const noexcept {
