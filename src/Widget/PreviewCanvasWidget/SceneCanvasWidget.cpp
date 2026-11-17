@@ -68,6 +68,7 @@
 #include "engine/TweenEngine.hpp" // tween 通道求值纯函数（画布跟随曲线）
 #include "GlRenderer.hpp"   // GL 合成后端（ExternalCtx 模式；GL 直通路径）
 #include "Canvas3DGl.hpp"   // 3D 视口贴图层（阶段1 GL化：DXT 直传+透视校正）
+#include "media/DxtDecode.hpp" // DXT 现场解码（QPainter 回退路径兜底；软解退役）
 #include "../TimeLineWidget/MsRuntimeBridge.hpp" // 下发运行时桥（银幕操作执行通道）
 #include "../TimeLineWidget/QtTimelineModelAdapter.hpp" // 模型对外接口（下发/同步委托目标）
 #include "Common/TimeLineBase/BaseTimeLineWidget.h" // 时间轴控件（选中联动信号源；setTimelineWidget）
@@ -1341,7 +1342,7 @@ void SceneCanvasWidget::paintGL() {
             if (++s_cnt <= 30) {  // 前 30 帧逐帧打印（点击选中只触发少数 repaint，30 拍限频会全吞）
                 int nn = 0;
                 for (const auto& it : gpu_items)
-                    if (!it.frame.isNull()) ++nn;
+                    if (!it.frame.isNull() || it.dxt) ++nn;
                 std::fprintf(stderr,
                              "[canvas-dbg] paint#%d pull=%d composed=%d "
                              "items=%zu withFrame=%d comp=%dx%d dom=(%.0f,%.0f "
@@ -1401,7 +1402,23 @@ void SceneCanvasWidget::paintGL() {
                 const double sy = gpu_dom.height() / gpu_h;
                 p.setRenderHint(QPainter::SmoothPixmapTransform, true);
                 for (const auto& it : gpu_items) {
-                    if (it.frame.isNull()) continue;
+                    // 【DXT 软解退役 2026-11-17】worker 只交裸块（GL 路径
+                    // 直传）；QPainter 回退（GL 判死异常态）在此现场解码
+                    // 兜底——dxtref 标准算法，≈1-3ms/帧@1080p 可接受
+                    QImage lazy;
+                    if (it.frame.isNull() && it.dxt) {
+                        lazy = QImage(it.gpu_w, it.gpu_h,
+                                      QImage::Format_RGBA8888);
+                        if (!lazy.isNull())
+                            dxtref::decodeToRgba(
+                                it.gpu_w, it.gpu_h, it.dxt,
+                                /*dxt5=*/it.dxt_format == 0x83F3,
+                                lazy.bits(),
+                                static_cast<std::size_t>(lazy.bytesPerLine()));
+                    }
+                    const QImage& f =
+                        !it.frame.isNull() ? it.frame : lazy;
+                    if (f.isNull()) continue;
                     // 绘制项合成域坐标 → 画布坐标：域原点 + 坐标×域缩放
                     const double cx = gpu_dom.x() + it.item.x * sx;
                     const double cy = gpu_dom.y() + it.item.y * sy;
@@ -1421,14 +1438,14 @@ void SceneCanvasWidget::paintGL() {
                         p.drawImage(QRectF(-it.item.canvas_w * k / 2.0,
                                            -it.item.canvas_h * k / 2.0,
                                            it.item.canvas_w * k,
-                                           it.item.canvas_h * k), it.frame);
+                                           it.item.canvas_h * k), f);
                         p.restore();
                     } else {
                         // 轴对齐：输出矩形 → 画布 → 控件直接映射
                         const QRectF target(cr.left() + cx * k,
                                             cr.top() + cy * k,
                                             cw * k, chh * k);
-                        p.drawImage(target, it.frame);
+                        p.drawImage(target, f);
                     }
                 }
                 p.setOpacity(1.0);
@@ -1891,10 +1908,27 @@ void SceneCanvasWidget::paintGL3D(
                     p.endNativePainting();
                 }
             }
+            // ---- QPainter 回退贴图源：DXT 项现场解码（软解退役兜底）----
+            // worker 只交裸块；GL 判死（S3TC 不支持/初始化失败）时在此
+            // 解码出 RGBA——回退异常态每帧每片段 1-3ms 可接受
+            QImage face_lazy;
+            if (!gl_drawn && pr.it && pr.it->dxt && !pr.img) {
+                face_lazy = QImage((int)pr.it->gpu_w, (int)pr.it->gpu_h,
+                                   QImage::Format_RGBA8888);
+                if (!face_lazy.isNull())
+                    dxtref::decodeToRgba(
+                        pr.it->gpu_w, pr.it->gpu_h, pr.it->dxt,
+                        /*dxt5=*/pr.it->dxt_format == 0x83F3,
+                        face_lazy.bits(),
+                        static_cast<std::size_t>(face_lazy.bytesPerLine()));
+            }
+            const QImage* face_img =
+                pr.img ? pr.img
+                       : (!face_lazy.isNull() ? &face_lazy : nullptr);
             if (!gl_drawn &&
-                pr.img && !pr.img->isNull() && r.width() > 0 && r.height() > 0) {
-                const double sx = r.width()  / pr.img->width();
-                const double sy = r.height() / pr.img->height();
+                face_img && !face_img->isNull() && r.width() > 0 && r.height() > 0) {
+                const double sx = r.width()  / face_img->width();
+                const double sy = r.height() / face_img->height();
                 if (pr.deformed) {
                     // ---- 变形四边形：两三角仿射分块贴图 ----------------
                     // 对角线 LB→RT 分解（三角 A=RT,RB,LB / B=RT,LB,LT）
@@ -1944,7 +1978,7 @@ void SceneCanvasWidget::paintGL3D(
                         p.setTransform(QTransform::fromScale(sx, sy) * tri);
                         p.setOpacity(std::clamp(tf.opacity, 0.0, 1.0));
                         p.setRenderHint(QPainter::SmoothPixmapTransform, true);
-                        p.drawImage(QPointF(0, 0), *pr.img);
+                        p.drawImage(QPointF(0, 0), *face_img);
                         p.setRenderHint(QPainter::SmoothPixmapTransform, false);
                         p.restore();
                     }
@@ -1957,7 +1991,7 @@ void SceneCanvasWidget::paintGL3D(
                 p.setTransform(QTransform::fromScale(sx, sy) * pr.tex);
                 p.setOpacity(std::clamp(tf.opacity, 0.0, 1.0));
                 p.setRenderHint(QPainter::SmoothPixmapTransform, true);
-                p.drawImage(QPointF(0, 0), *pr.img);
+                p.drawImage(QPointF(0, 0), *face_img);
                 p.setRenderHint(QPainter::SmoothPixmapTransform, false);
                 p.setOpacity(1.0);
                 }

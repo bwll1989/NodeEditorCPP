@@ -144,6 +144,8 @@ public:
     ///   * GPU 域（③阶段 cuda 硬解 0 拷贝，2026-11-05 第三步）：native
     ///     携带 AVFrame 保活引用（data[] = CUDA 显存指针），frame 为空
     ///     ——paintGL 内 interop D2D 直进纹理，零下载。
+    ///   * DXT 域（2026-11-17 软解退役）：worker 恒不填 frame——裸块
+    ///     直透 GL 压缩纹理；QPainter 回退由消费端现场解码兜底。
     struct DeliverItem {
         DrawItem item;  ///< 绘制项（合成域坐标；见 Request.w/h）
         /// clip 身份（对应请求 clip_ids[i]）：paintGL3D 贴图按 id 精确
@@ -155,8 +157,8 @@ public:
         std::shared_ptr<const void> native;
         int gpu_w = 0, gpu_h = 0; ///< GPU 帧尺寸（native/dxt 非空时有效）
         /// DXT 压缩帧（CpuDxt 域；frame/native 均空且 dxt 非空时有效）——
-        /// HAP 裸块直透 paintGL 的 GlRenderer（其 CpuDxt 段压缩纹理直传，
-        /// 采样时硬件解压）；keep 保活 PublishedFrame 到绘制结束。
+        /// HAP 裸块直透 2D composeGpuFrame 与 3D Canvas3DGl（压缩纹理
+        /// 直传，采样时硬件解压）；keep 保活 PublishedFrame 到绘制结束。
         std::shared_ptr<const void> dxt_keep;
         const std::uint8_t* dxt = nullptr;   ///< 裸 DXT 块流（行主序 4×4 块）
         std::uint32_t dxt_format = 0;        ///< GL 内部格式（0x83F0/0x83F3）
