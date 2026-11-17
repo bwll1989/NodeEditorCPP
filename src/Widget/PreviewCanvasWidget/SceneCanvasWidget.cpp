@@ -706,6 +706,37 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
         scr.x, scr.y, scr.w, scr.h, scr.rotation,
         static_cast<double>(scr.z)};
 
+    // 登记执行体（OK 对账用；2026-11-17 绑定简化为纯确认制）：prev_pid
+    // 非空且 ≠ 新 pid 时注销旧条目（改绑清理）；同 id 登记三要素任一变化
+    //（含配对码）触发重登记（先 remove 再 add，看门狗按新地址重连）；
+    // 无变化不动（避免播放中连接闪断）。
+    const auto applyBinding = [this](const std::string& prev_pid,
+                                     const std::string& pid,
+                                     const std::string& host,
+                                     std::uint16_t    port,
+                                     const std::string& pairing) {
+        if (!runtime_ || !runtime_->running()) return;
+        if (!prev_pid.empty() && prev_pid != pid)
+            runtime_->removeDisplay(
+                QString::fromStdString(prev_pid)); // 幂等：未登记忽略
+        if (pid.empty()) return;
+        const auto rows = runtime_->displayRows();
+        for (const auto& r : rows) {
+            if (r.id.toStdString() == pid) {
+                if (r.host.toStdString() == host &&
+                    r.port == static_cast<int>(port) &&
+                    r.pairingCode.toStdString() == pairing)
+                    return; // 无变化：不动（防闪断）
+                break;
+            }
+        }
+        runtime_->removeDisplay(QString::fromStdString(pid)); // 幂等
+        runtime_->addDisplay(QString::fromStdString(pid),
+                             QString::fromStdString(host),
+                             static_cast<int>(port),
+                             QString::fromStdString(pairing));
+    };
+
     ScreenPropertyDialog dlg(scr, cur_host, cur_port, cur_pairing, this);
     dlg.setWindowTitle(QStringLiteral("屏幕属性：%1")
                            .arg(QString::fromStdString(scr.id)));
@@ -727,9 +758,9 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
         refreshViews();
     });
     if (dlg.exec() != QDialog::Accepted) {
-        // 取消 = 还原打开时 warp + 几何六字段（两条实时链路可能已把
-        // 中间态写进工作副本；未动过时为幂等写）。绑定字段只在 OK 时
-        // applyTo 写回，无需还原。
+        // 取消 = 还原打开时的 warp + 几何六字段（两条实时链路可能已把
+        // 中间态写进工作副本；未动过时为幂等写）。绑定是纯确认制（OK
+        // 才写回），取消无需处理。
         for (auto& s : scene_->screens) {
             if (s.id != sid) continue;
             const bool warp_changed =
@@ -756,46 +787,36 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
     }
     dlg.applyTo(scr);
 
-    // ---- 显示端登记同步 -------------------------------------------------
-    // 绑定页可改 player_id + host + port + 配对码：改绑注销旧条目；同 id
-    // 登记三要素任一变化（含配对码）触发重登记（先 remove 再 add，看门狗
-    // 按新地址重连）；无变化不动（避免播放中连接闪断）。
+    // ---- 显示端登记对账（改绑注销旧条目；三要素变化重登记；无变化不动）--
     const std::string new_pid     = scr.player_id;
     const std::string new_host    = dlg.displayHost();
     const std::uint16_t new_port  = dlg.displayPort();
     const std::string new_pairing = dlg.displayPairingCode();
-    if (runtime_ && runtime_->running()) {
-        if (!old_pid.empty() && old_pid != new_pid)
-            runtime_->removeDisplay(
-                QString::fromStdString(old_pid)); // 幂等：未登记忽略
-        if (!new_pid.empty()) {
-            bool same = false;
-            const auto rows = runtime_->displayRows();
-            for (const auto& r : rows) {
-                if (r.id.toStdString() == new_pid) {
-                    same = r.host.toStdString() == new_host &&
-                           r.port == static_cast<int>(new_port) &&
-                           r.pairingCode.toStdString() == new_pairing;
-                    break;
-                }
-            }
-            if (!same) {
-                runtime_->removeDisplay(QString::fromStdString(new_pid));
-                runtime_->addDisplay(
-                    QString::fromStdString(new_pid),
-                    QString::fromStdString(new_host),
-                    static_cast<int>(new_port),
-                    QString::fromStdString(new_pairing));
-            }
-        }
-    }
+    const bool bind_changed =
+        old_pid != new_pid || cur_host != new_host ||
+        cur_port != new_port || cur_pairing != new_pairing;
+    if (runtime_ && runtime_->running())
+        applyBinding(old_pid, new_pid, new_host, new_port, new_pairing);
     refreshViews();
-    statusTip(QStringLiteral("屏幕 %1 已修改（绑定 %2@%3:%4；画布银幕右键"
-                             "「下发场景」后生效）")
-                  .arg(QString::fromStdString(scr.id),
-                       QString::fromStdString(new_pid),
-                       QString::fromStdString(new_host))
-                  .arg(new_port));
+    if (bind_changed && runtime_ && runtime_->running()) {
+        // 【绑定收尾（2026-11-17）】绑定有变 → 自动下发场景（无需确认）：
+        // 已连入的 display 立即收到新场景；尚未连入的 display 在注册时
+        // 由 EditorRuntime::handleRegister 自动补发。手动路径仍保留
+        // （画布银幕右键「下发场景」）。
+        publishScene();
+        statusTip(QStringLiteral("屏幕 %1 已修改（绑定 %2@%3:%4）；场景已自动下发")
+                      .arg(QString::fromStdString(scr.id),
+                           QString::fromStdString(new_pid),
+                           QString::fromStdString(new_host))
+                      .arg(new_port));
+    } else {
+        statusTip(QStringLiteral("屏幕 %1 已修改（绑定 %2@%3:%4；运行时未运行，"
+                                 "启动后经画布银幕右键「下发场景」生效）")
+                      .arg(QString::fromStdString(scr.id),
+                           QString::fromStdString(new_pid),
+                           QString::fromStdString(new_host))
+                      .arg(new_port));
+    }
 }
 
 void SceneCanvasWidget::addScreen() {
@@ -2071,7 +2092,7 @@ bool SceneCanvasWidget::composeGpuFrame(
     gl_->setExternalViewport(vx, vy, vw, vh);
     gl_->beginFrame(comp_w, comp_h); // 清屏 + 帧状态（视口=子矩形）
     for (const auto& it : items) {
-        if (it.frame.isNull() && !it.native) continue; // 双形态域防御
+        if (it.frame.isNull() && !it.native && !it.dxt) continue; // 三形态域防御
         FrameView fv;
         if (it.native) {
             // ---- GPU 域（③阶段 cuda 硬解 0 拷贝；2026-11-05 第三步）----
@@ -2082,6 +2103,17 @@ bool SceneCanvasWidget::composeGpuFrame(
             fv.native = it.native;
             fv.width  = it.gpu_w;
             fv.height = it.gpu_h;
+        } else if (it.dxt) {
+            // ---- DXT 压缩域（HAP 直传；GlRenderer CpuDxt 段消费）--------
+            // 裸块指针 + GL 格式 + 块行距直透；dxt_keep 保活 PublishedFrame
+            //（draw 同步完成，交付项生命周期覆盖绘制全程）。
+            fv.domain     = FrameDomain::CpuDxt;
+            fv.dxt        = it.dxt;
+            fv.dxt_format = it.dxt_format;
+            fv.stride     = it.dxt_stride;
+            fv.width      = it.gpu_w;
+            fv.height     = it.gpu_h;
+            fv.keep       = it.dxt_keep;
         } else {
             // ---- CPU 域（软解 / 硬解下载回退）----------------------------
             fv.width  = it.frame.width();

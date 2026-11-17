@@ -1,21 +1,25 @@
 #pragma once
 
-#include <QDialog>
+#include "FramelessDialog/FramelessDialog.hpp"
+
 #include <QString>
 
-class QKeyEvent;
 class QPushButton;
 
 /**
- * @brief 无边框三按钮确认框，样式对齐 ExportActionDialog
+ * @brief 无边框三按钮确认框（继承统一弹窗基类 FramelessDialog）
  *
  * Result 语义由调用方按钮文案决定（如「最小化到托盘 / 退出程序 / 取消」）。
+ * 按钮样式与交互（拖拽 / Esc / 模态）全部由基类提供：
+ * - cancel  → ButtonRole::Reject（次要样式，自动 reject()）
+ * - secondary → ButtonRole::Plain（中性样式，调用方决定语义）
+ * - primary → ButtonRole::Accept（绿色主样式）
  */
-class FramelessConfirmDialog final : public QDialog {
+class FramelessConfirmDialog final : public FramelessDialog {
     Q_OBJECT
 public:
     enum class Result {
-        Primary,   ///< 主操作按钮（蓝色）
+        Primary,   ///< 主操作按钮（绿色主样式）
         Secondary, ///< 次操作按钮
         Cancel
     };
@@ -39,12 +43,8 @@ public:
                            const ButtonTexts& buttons = {},
                            Result defaultButton = Result::Cancel);
 
-protected:
-    void keyPressEvent(QKeyEvent* event) override;
-
 private:
-    void buildUi(const QString& title,
-                 const QString& message,
+    void buildUi(const QString& message,
                  const ButtonTexts& buttons,
                  Result defaultButton);
 

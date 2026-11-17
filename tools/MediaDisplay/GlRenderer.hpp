@@ -241,6 +241,19 @@ private:
     int          tex_w_ = 0;   ///< 纹理当前分配宽（变化时重建）
     int          tex_h_ = 0;
 
+    // ---- HAP DXT 直传（CpuDxt 域；2026-11-17 阶段2）------------------------
+    // 压缩纹理独立槽（与 RGBA 的 tex_ 分离——内部格式不同互斥重建）。
+    // 采样与 RGBA 共用 program_/sampler2D：GL 压缩纹理经普通采样器访问，
+    // 硬件在采样点解压（对 shader 透明）——零新着色器。
+    unsigned int tex_dxt_ = 0;  ///< DXT 压缩纹理（单槽复用，每 draw 全量上传）
+    int          dxt_w_   = 0;  ///< 压缩纹理分配宽（变化时重建存储）
+    int          dxt_h_   = 0;
+    unsigned int dxt_fmt_  = 0; ///< 压缩纹理当前内部格式（0x83F0/0x83F3；
+                                ///<  变化时重建——Hap1/Hap5 素材混排）
+    bool         dxt_dead_ = false; ///< S3TC 运行时探测失败（永久跳过，
+                                    ///< 一次性日志；对齐 GPU 域拒绝语义）
+    bool         dxt_probed_ = false; ///< S3TC 支持已探测（首次上传查错误码）
+
     // ---- NV12 GPU 帧路径（③阶段 0 拷贝；惰性创建；MS_GL_NO_CUDA 编译掉）--
 #ifndef MS_GL_NO_CUDA
     unsigned int program_nv12_ = 0; ///< NV12→RGB 着色器程序（BT.601 limited）

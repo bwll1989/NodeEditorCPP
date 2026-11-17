@@ -15,6 +15,7 @@
 #include "media/FfmpegMediaSource.hpp" // Video/Image creator 装配（FFmpeg 解码）
 #include "media/TextMediaSource.hpp"   // Text 注册（无条件，无文件依赖）
 #include "media/LiveMediaSource.hpp"   // Live 注册（无条件：NDI 实时源）
+#include "media/DxtDecode.hpp"         // HAP CpuDxt 帧预览软解（3D 视口/软路径贴图）
 
 namespace ms {
 
@@ -620,6 +621,28 @@ void PreviewRenderer::workerLoop() {
                     it.native = fv.native;
                     it.gpu_w  = fv.width;
                     it.gpu_h  = fv.height;
+                } else if (fv.domain == FrameDomain::CpuDxt && fv.dxt) {
+                    // 【DXT 预览软解 2026-11-17】HAP 压缩帧：编辑器预览的
+                    // 3D 视口（QPainter 贴图）与 SoftCompose 软合成只能
+                    // 消费 CPU RGBA——在此解压成 QImage 走 frame 通道
+                    //（一条通道覆盖 paintGL3D 贴图/软路径/2D GL 全消费点；
+                    // worker 线程解压 ≈1-3ms/帧@1080p，可接受）。
+                    // 同时保留 dxt 直透字段：2D GL 直通模式（composeGpuFrame）
+                    // 走压缩纹理直传省 8.3MB 级上传。
+                    QImage img(fv.width, fv.height, QImage::Format_RGBA8888);
+                    if (img.isNull()) continue;
+                    dxtref::decodeToRgba(
+                        fv.width, fv.height, fv.dxt,
+                        /*dxt5=*/fv.dxt_format == 0x83F3 /*RGBA_DXT5*/,
+                        img.bits(), static_cast<std::size_t>(img.bytesPerLine()));
+                    it.frame = std::move(img); // 解码直写位图，自持零再拷贝
+                    // 直透载荷（keep 保活 PublishedFrame 到绘制结束）
+                    it.dxt_keep   = fv.keep;
+                    it.dxt        = fv.dxt;
+                    it.dxt_format = fv.dxt_format;
+                    it.dxt_stride = fv.stride;
+                    it.gpu_w      = fv.width;
+                    it.gpu_h      = fv.height;
                 } else {
                     continue; // 未知域防御（与 display 端语义一致）
                 }

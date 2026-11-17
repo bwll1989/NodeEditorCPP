@@ -44,6 +44,8 @@ add_library(${Module_Name} SHARED
     AudioWaveformWidget/AudioWaveformPeaks.hpp
     AudioWaveformWidget/AudioWaveformWidget.cpp
     AudioWaveformWidget/AudioWaveformWidget.hpp
+    FramelessDialog/FramelessDialog.cpp
+    FramelessDialog/FramelessDialog.hpp
 )
 
 target_include_directories(${Module_Name} PUBLIC

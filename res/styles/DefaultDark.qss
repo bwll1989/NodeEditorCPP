@@ -650,57 +650,50 @@ QCalendarWidget QAbstractItemView {
      background-color: rgba(255,138,128,30);
  }
 
- /* 导出到网页控制台 */
- #exportActionDialog {
-     background-color: #39571E;
+ /* ======= 统一无边框弹窗（GUIElements/FramelessDialog） ======= */
+ #framelessDialog {
+     background-color: #2b2d30;
      border: 1px solid rgba(255,255,255,40);
  }
- #exportActionDialogTitle {
+ #framelessDialogHeader {
+     background: transparent;
+ }
+ #framelessDialogTitle {
      color: #fafafa;
      background: transparent;
  }
- #exportActionDialogHeader {
+ #framelessDialogMessage {
+     color: #DDDDDD;
      background: transparent;
  }
+ #framelessDialogClose {
+     background: transparent;
+     border: none;
+     border-radius: 3px;
+     color: #AAAAAA;
+     font-weight: bold;
+ }
+ #framelessDialogClose:hover {
+     background-color: rgba(255,255,255,30);
+     color: #FFFFFF;
+ }
+ #framelessDialogPrimary {
+     background-color: #79AE31;
+     border: 1px solid #79AE31;
+     color: #FFFFFF;
+ }
+ #framelessDialogPrimary:hover {
+     background-color: #629327;
+     border-color: #629327;
+ }
+ #framelessDialogSecondary {
+     color: #DDDDDD;
+ }
+ /* 导出到网页控制台的只读地址输入框 */
  #exportActionDialogAddress {
      color: #AAAAAA;
      background-color: #25262a;
      border: 1px solid rgba(255,255,255,20);
- }
- #exportActionDialogOk {
-     background-color: #79AE31;
-     border: 1px solid #79AE31;
- }
- #exportActionDialogOk:hover {
-     background-color: #629327;
-     border-left-color: #629327;
-     border-left-width: 1px;
- }
-
- /* 无边框确认框（退出等到托盘等） */
- #framelessConfirmDialog {
-     background-color: #2b2d30;
-     border: 1px solid rgba(255,255,255,40);
- }
- #framelessConfirmDialogTitle {
-     color: #fafafa;
-     background: transparent;
- }
- #framelessConfirmDialogHeader {
-     background: transparent;
- }
- #framelessConfirmDialogMessage {
-     color: #DDDDDD;
-     background: transparent;
- }
- #framelessConfirmDialogYes {
-     background-color: #79AE31;
-     border: 1px solid #79AE31;
- }
- #framelessConfirmDialogYes:hover {
-     background-color: #629327;
-     border-left-color: #629327;
-     border-left-width: 1px;
  }
 
  /* ======= TableWidget控件样式 ======= */

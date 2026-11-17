@@ -103,8 +103,6 @@ struct Args {
     long diag_interval_ms = 5000;           ///< [display] 同步诊断日志周期
                                             ///<   （0=关闭——日常使用静默，
                                             ///<   联测保持默认或调小采样）
-    long discovery_port = 17610;            ///< [display] 局域网发现应答端口
-                                            ///<   （editor 扫描添加显示端；0=禁用）
     long screen = -1;                       ///< [display] 预览窗口定位到第 N 块
                                             ///<   显示器（0=第一块；-1=系统默认；
                                             ///<   多实例各占一屏互不遮挡）
@@ -196,7 +194,6 @@ Args loadDefaultsFromIni(const ms::config::IniConfig& ini) {
     a.render_out        = ini.getStr("display", "render_out");
     a.report_interval_ms = ini.getLong("display", "report_interval_ms", 250);
     a.diag_interval_ms  = ini.getLong("display", "diag_interval_ms", 5000);
-    a.discovery_port    = ini.getLong("display", "discovery_port", 17610);
     a.screen            = ini.getLong("display", "screen", -1);
     a.fullscreen        = ini.getLong("display", "fullscreen", 0) != 0;
     a.window_x          = ini.getLong("display", "window_x", -1);
@@ -252,7 +249,6 @@ std::optional<Args> parseArgs(int argc, char** argv, const Args& defaults) {
         } else if (arg == "--no-preview") {
             args.no_preview = true; // 无值开关：命令行强制关预览
         } else if (value_num("port", args.listen_port)) {
-        } else if (value_num("discovery-port", args.discovery_port)) {
         } else if (value_num("screen", args.screen)) {
         } else if (arg == "--fullscreen") {
             args.fullscreen = true; // 无值开关：预览窗口铺满目标屏
@@ -323,12 +319,11 @@ void printUsage() {
         "用法:\n"
         "  media_display [--config=<ini>]（启动设置；缺省按 exe 目录 →\n"
         "      工作目录查找 config.ini，模板见 config.display.example.ini）\n"
-        "      [--id=player-1] [--port=17100] [--discovery-port=17610]\n"
-        "      （--id：本地标签（发现应答自报/预览窗初显）；连接 Editor 后\n"
+        "      [--id=player-1] [--port=17100]\n"
+        "      （--id：本地标签（预览窗初显）；连接 Editor 后\n"
         "      采用其指派的屏 id（RegisterAck 下发），无需与工程绑定一致；\n"
         "      指派 id 自动写回 config.ini [display].player_id 持久保存，\n"
         "      下次启动即沿用（--id 显式项仍优先于配置文件））\n"
-        "      （--discovery-port：局域网发现应答端口，供编辑器扫描；0=禁用）\n"
         "      [--assets-root=<dir>]  （素材落盘目录，收场景后自动拉取；\n"
         "      同机多开请各实例指定不同目录，避免并发拉取互相干扰）\n"
         "      [--asset-workers=3]    （素材并发拉取 worker 数；1=串行。\n"
@@ -743,11 +738,6 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
         static_cast<std::int64_t>(args.report_interval_ms) * 1000;
     cfg.diag_interval_us =
         static_cast<std::int64_t>(args.diag_interval_ms) * 1000; // <=0=关闭诊断心跳
-    // 局域网发现应答（editor 扫描添加显示端的数据源；0 = 禁用）
-    cfg.discovery_port = static_cast<std::uint16_t>(args.discovery_port);
-    // 发现应答自报运行模式（M5 编辑器互通）：editor 扫描列表徽标，
-    // 提示该端可否导入/导出 .show 工程（仅 standalone 开放）
-    cfg.discovery_mode = standalone_mode ? 1 : 2;
     // ---- standalone 本机模式（v2.2 §4.1）：PlayerRuntime 关网络三件套，
     // 场景/播放控制经 NodeController 本机注入口（本机 = 立即锚点走同一
     // 状态机）。渲染线程/音频/硬解/GL 全链照常。

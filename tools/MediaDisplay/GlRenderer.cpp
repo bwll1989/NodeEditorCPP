@@ -142,6 +142,7 @@ GlRenderer::~GlRenderer() {
     if (program_nv12_)  gl::glDeleteProgram(program_nv12_);
 #endif
     if (tex_)     gl::glDeleteTextures(1, &tex_);
+    if (tex_dxt_) gl::glDeleteTextures(1, &tex_dxt_); // HAP DXT 压缩纹理
     if (osd_tex_) gl::glDeleteTextures(1, &osd_tex_); // 素材同步 OSD 纹理
     if (vbo_)     gl::glDeleteBuffers(1, &vbo_);
     if (vao_)     gl::glDeleteVertexArrays(1, &vao_);
@@ -419,6 +420,8 @@ bool GlRenderer::ensureInit() {
 
     // 帧纹理单槽（首次 draw 时按帧尺寸分配）
     gl::glGenTextures(1, &tex_);
+    // HAP DXT 压缩纹理单槽（首次 CpuDxt draw 时按帧尺寸+格式分配）
+    gl::glGenTextures(1, &tex_dxt_);
 
     // 【core profile 纪律】此处不解绑 VAO（glBindVertexArray(0) 在 3.3
     // core 非法——会静默报 INVALID_OPERATION 且绑定保持）。VAO 绑定留给
@@ -866,7 +869,115 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
         return true;
     }
 #endif // !MS_GL_NO_CUDA
-    if (frame.domain != FrameDomain::CpuRgba) return false; // 未知域防御
+    if (frame.domain != FrameDomain::CpuRgba &&
+        frame.domain != FrameDomain::CpuDxt) return false; // 未知域防御
+
+    // ========================================================================
+    // CpuDxt 域（HAP DXT 直传；2026-11-17 阶段2）
+    //   裸 DXT 块经 glCompressedTexImage2D/SubImage2D 直进 GPU 压缩纹理
+    //   （CPU 零像素解压；PCIe 上传量为 RGBA 的 1/4~1/8），采样复用现有
+    //   program_/sampler2D——GL 压缩纹理经普通采样器访问，硬件在采样点
+    //   解压（对 shader 透明），零新着色器。
+    //   【S3TC 运行时探测】首次上传后查 glGetError：INVALID_ENUM/VALUE =
+    //   驱动不支持 S3TC 或参数错——dxt_dead_ 永久跳过（比扩展字符串匹配
+    //   更可信：错误码是最终真相）。桌面 GL（NV/AMD/Intel）S3TC 标配，
+    //   实际缺失概率≈0，不做 CPU 解码兜底；回退解码路径用
+    //   MS_DXT_PASSTHROUGH=0（环境变量，重启生效）。
+    //   【范围】仅标准 S3TC（Hap1=0x83F0/Hap5=0x83F3）；Hap Q
+    //   （YCoCg_DXT5=0x01 非真 GL 格式）与 HapM 双纹理属阶段 3，拒绝。
+    // ========================================================================
+    if (frame.domain == FrameDomain::CpuDxt) {
+        // 载荷有效性已由入口 frame.valid()（CpuDxt 分支：dxt/format/宽高）
+        // 与 dxt_dead_ 探测覆盖；此处只判本阶段支持的格式白名单
+        if (dxt_dead_) return false; // 已判死：快速失败（日志已打）
+        const bool is_dxt1 =
+            frame.dxt_format == gl::GL_COMPRESSED_RGB_S3TC_DXT1;
+        const bool is_dxt5 =
+            frame.dxt_format == gl::GL_COMPRESSED_RGBA_S3TC_DXT5;
+        if (!is_dxt1 && !is_dxt5) {
+            // 未知/非本阶段格式（Hap Q 的 0x01、未来 BPTC 等）：
+            // 一次性日志（避免逐帧刷屏），跳过绘制（占位语义）
+            static bool s_unknown_logged = false;
+            if (!s_unknown_logged) {
+                s_unknown_logged = true;
+                std::fprintf(stderr,
+                             "[gl] CpuDxt 未知压缩格式 0x%X（Hap Q/HapM 属阶段3）"
+                             "——跳过绘制\n", frame.dxt_format);
+                std::fflush(stderr);
+            }
+            return false;
+        }
+        // 压缩块几何：4×4 像素/块；整帧紧排行主序（发布端 dxt_stride_
+        // = blocks_x×bytes_per_block，与驱动对压缩上传的紧凑假定一致）
+        const int blocks_x = (frame.width + 3) / 4;
+        const int blocks_y = (frame.height + 3) / 4;
+        const int bytes_per_block = is_dxt1 ? 8 : 16;
+        const int image_bytes = blocks_x * blocks_y * bytes_per_block;
+
+        // S3TC 探测前置（首次 draw）：上传前清空错误队列——保证探测读到的
+        // 错误必属本次上传（否则 beginFrame 等既有路径的积压错误会被误判
+        // 为 S3TC 失败 → 永久错杀直传路径）
+        const bool probing = !dxt_probed_;
+        if (probing) {
+            while (gl::glGetError() != gl::GL_NO_ERROR) {}
+        }
+        gl::glBindVertexArray(vao_);
+        gl::glActiveTexture(gl::GL_TEXTURE0);
+        gl::glBindTexture(gl::GL_TEXTURE_2D, tex_dxt_);
+        if (frame.width != dxt_w_ || frame.height != dxt_h_ ||
+            frame.dxt_format != dxt_fmt_) {
+            // 存储重建（首帧/尺寸/格式变化）：分配+首帧数据一次完成
+            gl::glCompressedTexImage2D(gl::GL_TEXTURE_2D, 0,
+                                       frame.dxt_format,
+                                       frame.width, frame.height, 0,
+                                       image_bytes, frame.dxt);
+            // 滤波/包裹（同 RGBA 语义：双线性 + 边缘钳制；S3TC 支持线性滤波）
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MIN_FILTER,
+                                gl::GL_LINEAR);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MAG_FILTER,
+                                gl::GL_LINEAR);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_S,
+                                gl::GL_CLAMP_TO_EDGE);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_T,
+                                gl::GL_CLAMP_TO_EDGE);
+            dxt_w_   = frame.width;
+            dxt_h_   = frame.height;
+            dxt_fmt_ = frame.dxt_format;
+        } else {
+            // 逐帧更新（全量；压缩纹理无 ROW_LENGTH 解包控制——数据恒
+            // 紧凑布局，无行尾填充）
+            gl::glCompressedTexSubImage2D(gl::GL_TEXTURE_2D, 0, 0, 0,
+                                          frame.width, frame.height,
+                                          frame.dxt_format, image_bytes,
+                                          frame.dxt);
+        }
+        // S3TC 支持判定（probing 时本次上传已隔离错误源）：INVALID_ENUM /
+        // INVALID_VALUE = 驱动不支持 S3TC 或参数错——dxt_dead_ 永久跳过
+        if (probing) {
+            dxt_probed_ = true;
+            const unsigned int err = gl::glGetError();
+            if (err != gl::GL_NO_ERROR) {
+                dxt_dead_ = true;
+                std::fprintf(stderr,
+                             "[gl] DXT 压缩纹理上传失败(err=0x%X %dx%d "
+                             "fmt=0x%X bytes=%d)——S3TC 不支持？回退："
+                             "MS_DXT_PASSTHROUGH=0 重启\n",
+                             err, frame.width, frame.height,
+                             frame.dxt_format, image_bytes);
+                std::fflush(stderr);
+                return false;
+            }
+        }
+
+        // ---- 绘制（复用 RGBA 程序/uniform；同 CpuRgba 尾段）---------------
+        gl::glUseProgram(program_);
+        gl::glUniform2f(loc_frame_size_,
+                        static_cast<float>(frame.width),
+                        static_cast<float>(frame.height));
+        gl::glUniform1f(loc_opacity_, static_cast<float>(op));
+        drawQuad(verts);
+        return true;
+    }
 
     // ========================================================================
     // CPU RGBA 域（②阶段既有语义；软解/硬解下载回退统一入口）

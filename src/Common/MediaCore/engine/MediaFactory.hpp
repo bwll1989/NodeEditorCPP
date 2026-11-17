@@ -46,17 +46,28 @@ namespace ms {
 enum class FrameDomain : std::uint8_t {
     CpuRgba    = 0, ///< 系统内存 RGBA（行主序；既有语义）
     GpuCudaNv12 = 1, ///< 显存 NV12（CUDA 帧引用；GL 后端 interop 消费）
+    CpuDxt     = 2, ///< 系统内存压缩纹理（DXT1/DXT5 裸块，HAP DXT 直传
+                     ///< 2026-11-17；glCompressedTexSubImage2D 直传 GPU，
+                     ///< 采样时硬件解压——CPU 侧零像素解压工作）
 };
 
 struct FrameView {
     int             width  = 0;   ///< 像素宽
     int             height = 0;   ///< 像素高
-    std::uint32_t   stride = 0;   ///< 行字节数（= width * 4，无填充）
-    const std::uint8_t* rgba = nullptr; ///< RGBA 数据指针（CPU 域；可空）
+    std::uint32_t   stride = 0;   ///< 行字节数（CpuRgba = width*4，无填充；
+                                  ///< CpuDxt = 压缩块行距，即块行数×块字节）
+    const std::uint8_t* rgba = nullptr; ///< RGBA 数据指针（CpuRgba 域；可空）
+    /// DXT 压缩纹理载荷指针（CpuDxt 域有效；rgba 为空）。裸 DXT 块流，
+    /// 行主序块排列（每块 4×4 像素；DXT1 8B/块、DXT5 16B/块）。
+    const std::uint8_t* dxt = nullptr;
+    /// DXT 纹理格式（CpuDxt 域有效；值=GL 常量：0x83F0=RGB_DXT1、
+    /// 0x83F3=RGBA_DXT5——与 GL_EXT_texture_compression_s3tc 同值，
+    /// int 存储避免本公共头依赖 GL）
+    std::uint32_t dxt_format = 0;
     /// 帧缓冲保活（类型擦除的共享快照）：渲染线程 draw 期间保持像素缓冲
     /// 存活；单线程同步路径为空（源实例自身存活已足够）
     std::shared_ptr<const void> keep;
-    /// 帧域（CPU RGBA / GPU 原生）
+    /// 帧域（CPU RGBA / GPU 原生 / CPU DXT）
     FrameDomain domain = FrameDomain::CpuRgba;
     /// GPU 原生帧句柄（GpuCudaNv12 域有效；shared_ptr 保活到绘制结束——
     /// 渲染线程 draw 完成后解码端缓冲可复用）
@@ -68,10 +79,12 @@ struct FrameView {
     /// （Text 静态帧/Live 实时帧）恒 0 ——永不超前，天然豁免。
     std::int64_t pts_us = 0;
 
-    /// 是否持有有效载荷（CPU 像素 或 GPU 原生帧二选一）
+    /// 是否持有有效载荷（CPU 像素 / GPU 原生帧 / CPU DXT 块 三选一）
     bool valid() const noexcept {
         if (domain == FrameDomain::CpuRgba)
             return rgba != nullptr && width > 0 && height > 0;
+        if (domain == FrameDomain::CpuDxt)
+            return dxt != nullptr && dxt_format != 0 && width > 0 && height > 0;
         return native != nullptr && width > 0 && height > 0;
     }
 };

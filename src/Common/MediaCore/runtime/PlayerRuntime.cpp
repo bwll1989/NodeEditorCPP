@@ -205,12 +205,6 @@ bool PlayerRuntime::start() {
                     "（本机控制，NodeController 装配）id=%s\n",
                     cfg_.player_id.c_str());
         assets_ready_.store(true); // 本地素材无需拉取 = 视为就绪
-        // 【M5 编辑器互通 2026-11-11】独立模式同样参与局域网发现：
-        // editor 扫描列表要能看到本端（mode=standalone 徽标提示"该端
-        // 由网页控制台管理，.show 导入导出开放"）。无 TCP 监听 →
-        // listen_port 传 0（应答帧 state=Unknown，editor 侧按 mode
-        // 徽标区分，不引导 TCP 绑定）。
-        startDiscovery(0);
         startRenderThread();
         return true;
     }
@@ -287,43 +281,15 @@ bool PlayerRuntime::start() {
     // 端口变化显著提示（多实例部署的登记依据）
     if (listener_.port() != cfg_.listen_port)
         std::printf("[player] 注意: 实际监听端口 %u ≠ 配置端口 %u"
-                    "（Editor 端请用\"扫描局域网显示端\"自动带出新端口）\n",
+                    "（Editor 端请按实际端口登记显示端）\n",
                     listener_.port(), cfg_.listen_port);
 
-    // ---- 4. 局域网发现应答（2026-11-03：editor 扫描添加显示端）-----------
-    // editor 广播查询 → 本端应答身份/监听端口/接入状态，屏幕属性面板
-    // 扫描列表的数据源。同机多 display 经 SO_REUSEADDR 共享绑定同端口，
-    // 每个实例都被扫描到；仅绑定失败（罕见）时提示不阻断。
-    startDiscovery(listener_.port());
-
-    // ---- 5. 渲染线程（§5.6）：render_fps>0 启用；providers 全部经
+    // ---- 4. 渲染线程（§5.6）：render_fps>0 启用；providers 全部经
     // 成员函数快照（内部持 state_mutex_），渲染线程与网络线程零竞争 ----
     startRenderThread();
     return true;
 }
 
-// ---------------------------------------------------------------------------
-// 局域网发现应答装配（§start 步骤 4；两模式共用——standalone 也参与发现，
-// M5 mode 自报让 editor 扫描列表区分独立/同步端）
-// ---------------------------------------------------------------------------
-void PlayerRuntime::startDiscovery(std::uint16_t tcp_port) {
-    if (cfg_.discovery_port == 0) return; // 0 = 禁用发现（不参与局域网扫描）
-    // 报实际端口 + 精确接入状态（editor_conn_；standalone 恒未接入）
-    DiscoveryResponder::BoundFn bound_fn =
-        [this] { return editor_conn_.load() != 0; };
-    if (discovery_.start(cfg_.player_id, tcp_port, std::move(bound_fn),
-                         cfg_.discovery_port,
-                         static_cast<DiscoveryFrame::PlayerMode>(
-                             cfg_.discovery_mode))) {
-        std::printf("[player] 发现应答已启动: port=%u id=%s\n",
-                    cfg_.discovery_port, cfg_.player_id.c_str());
-    } else {
-        std::fprintf(stderr,
-                     "[player] 发现端口 %u 绑定失败（本实例不参与"
-                     "局域网发现，控制通道不受影响）\n",
-                     cfg_.discovery_port);
-    }
-}
 
 // ---------------------------------------------------------------------------
 // 渲染线程装配（§5.6；standalone 与受控模式共用——2026-11-11 从 start() 提取）
@@ -397,7 +363,6 @@ void PlayerRuntime::stop() {
     // spawn 源头，再 join，消除"join 与线程对象重新赋值"的竞态窗口
     listener_.stop(); // 关监听 + 断开 Editor 连接（幂等）
     udp_.stop();      // 关 UDP + join 接收线程（幂等）
-    discovery_.stop(); // 关发现应答 + join 接收线程（幂等）
     // 素材自愈循环快速退出标志（2026-11-04）：轮间休眠 200ms 粒度检查，
     // join 不再被退避 sleep 卡住（旧实现最长等 3×500ms 重试链）
     asset_quit_.store(true);

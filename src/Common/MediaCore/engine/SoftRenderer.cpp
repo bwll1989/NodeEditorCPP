@@ -22,6 +22,11 @@ namespace ms {
 // ---------------------------------------------------------------------------
 bool SoftRenderer::draw(const DrawItem& di, const FrameView& frame) {
     if (!frame.valid() || width_ <= 0 || height_ <= 0) return false;
+    // 【域防御】软合成只消费 CPU RGBA 像素：GpuCudaNv12（native 句柄）与
+    // CpuDxt（裸 DXT 块，rgba 为空）均无 rgba 载荷——不查域直接解引用
+    // frame.rgba 即空指针崩溃。按"未知/不支持的域跳过绘制"兜底（占位，
+    // 与 GlRenderer 域拒绝语义对齐；HAP DXT 走 GL 后端消费）。
+    if (frame.domain != FrameDomain::CpuRgba) return false;
     // 【入口防御】NaN/Inf 矩形拒绘——double→int 转换的 UB 源（ScreenMapper
     // 正常有界，此处兜底异常变换数据，如素材 w=0 除零、场景数据损坏）
     if (!std::isfinite(di.x) || !std::isfinite(di.y) ||

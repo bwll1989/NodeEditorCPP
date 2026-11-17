@@ -36,6 +36,7 @@
 #include "Common/Devices/StatusContainer/StatusContainer.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "Common/AppConfig/OscAddressMimeUtil.hpp"
+#include "FramelessDialog/FramelessDialog.hpp" // 属性弹窗宿主（统一无边框风格）
 
 #include <QVBoxLayout>
 #include <QWidget>
@@ -49,9 +50,17 @@
 
 void AbstractClipModel::initPropertyWidget()
 {
-    m_standardPropertyWidget = new QWidget();
-    m_layout = new QVBoxLayout(m_standardPropertyWidget);
-    m_layout->setContentsMargins(4, 4, 4, 4);
+    // 【2026-11-17 统一无边框弹窗】宿主从裸 QWidget（Qt::WindowStaysOnTopHint
+    // 置顶、无标题栏、无关闭钮）改为 FramelessDialog（GUIElements 统一弹窗
+    // 基类：标题栏拖拽 / Esc / 标题栏关闭钮 / 统一 QSS）。非模态交互不变
+    //（FramelessDialog 构造默认 modal，此处显式关闭——面板开着仍可操作
+    // 画布/时间轴，与原版一致）。
+    auto* prop_dialog = new FramelessDialog();
+    m_standardPropertyWidget = prop_dialog;
+    prop_dialog->setModal(false);
+    prop_dialog->setCloseButtonVisible(false); // 标题栏 × = 关闭面板
+    prop_dialog->setDialogTitle(displayText()); // 备注名优先，类型兜底
+    m_layout = prop_dialog->bodyLayout();
     m_layout->setSpacing(4);
 
     // 创建一个容器 widget 来放置主要内容
@@ -101,17 +110,20 @@ void AbstractClipModel::initPropertyWidget()
 
     // 将内容 widget 添加到主布局
     m_layout->addWidget(contentWidget);
-    m_standardPropertyWidget->setWindowFlags(Qt::WindowStaysOnTopHint);
+    // 置顶语义保留（原 Qt::WindowStaysOnTopHint）：叠加在 FramelessDialog
+    // 既有 flags（Qt::Dialog|FramelessWindowHint）之上，勿整体覆盖。
+    prop_dialog->setWindowFlags(prop_dialog->windowFlags() |
+                                Qt::WindowStaysOnTopHint);
 }
 
 void AbstractClipModel::showPropertyWidget()
 {
-    if (m_clipPropertyWidget) {
-        m_standardPropertyWidget->show();
-    } else {
+    if (!m_clipPropertyWidget)
         initPropertyWidget();
-        m_standardPropertyWidget->show();
-    }
+    // 标题随显示刷新（id/备注名可能晚于面板创建才就绪）
+    if (auto* dlg = qobject_cast<FramelessDialog*>(m_standardPropertyWidget))
+        dlg->setDialogTitle(displayText());
+    m_standardPropertyWidget->show();
 }
 
 // ============================================================================

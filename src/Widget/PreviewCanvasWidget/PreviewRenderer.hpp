@@ -153,7 +153,14 @@ public:
         QImage   frame; ///< CPU 源帧（Format_RGBA8888；行距=width*4 无填充）
         /// GPU 域句柄（AVFrame 引用计数保活；非空 = GpuCudaNv12 交付）
         std::shared_ptr<const void> native;
-        int gpu_w = 0, gpu_h = 0; ///< GPU 帧尺寸（native 非空时有效）
+        int gpu_w = 0, gpu_h = 0; ///< GPU 帧尺寸（native/dxt 非空时有效）
+        /// DXT 压缩帧（CpuDxt 域；frame/native 均空且 dxt 非空时有效）——
+        /// HAP 裸块直透 paintGL 的 GlRenderer（其 CpuDxt 段压缩纹理直传，
+        /// 采样时硬件解压）；keep 保活 PublishedFrame 到绘制结束。
+        std::shared_ptr<const void> dxt_keep;
+        const std::uint8_t* dxt = nullptr;   ///< 裸 DXT 块流（行主序 4×4 块）
+        std::uint32_t dxt_format = 0;        ///< GL 内部格式（0x83F0/0x83F3）
+        std::uint32_t dxt_stride = 0;        ///< 块行字节距
     };
     /// 【拉帧·GL 直通】取最新逐项交付（与 pull 同一"新帧才拷出"语义）：
     /// \param out_items 本帧全部可绘片段（z 序=合成序，逐项 draw 即可）

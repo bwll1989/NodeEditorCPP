@@ -68,14 +68,22 @@ namespace ms {
 struct PublishedFrame {
     std::vector<std::uint8_t> rgba;   ///< RGBA 像素（行主序，stride 行距；
                                       ///< 仅 CpuRgba 域使用）
+    std::vector<std::uint8_t> dxt;    ///< DXT 压缩纹理裸块（行主序块排列；
+                                      ///< 仅 CpuDxt 域使用，HAP DXT 直传
+                                      ///< 2026-11-17——GPU 侧
+                                      ///< glCompressedTexSubImage2D 直传，
+                                      ///< 采样时硬件解压，CPU 零像素工作）
     int           width  = 0;         ///< 像素宽
     int           height = 0;         ///< 像素高
     std::uint32_t stride = 0;         ///< 行字节数（CpuRgba = width*4；
-                                      ///< GpuCudaNv12 = 亮度平面行距）
+                                      ///< GpuCudaNv12 = 亮度平面行距；
+                                      ///< CpuDxt = 压缩块行距）
+    std::uint32_t dxt_format = 0;     ///< DXT 纹理格式（CpuDxt 域有效；
+                                      ///< GL 常量 0x83F0/0x83F3）
     std::int64_t  pts_us = 0;         ///< 帧时间戳（素材内部时间，us）
 
     // ---- 帧域（第③阶段 GPU 帧交付）---------------------------------------
-    FrameDomain domain = FrameDomain::CpuRgba; ///< CPU RGBA / GPU NV12
+    FrameDomain domain = FrameDomain::CpuRgba; ///< CPU RGBA / GPU NV12 / CPU DXT
     /// GPU 原生帧引用持有者（GpuCudaNv12 域有效）：类型擦除的 shared_ptr，
     /// 实际指向 AVFrame（av_frame_clone 引用 +1 的硬件帧容器，像素留显存；
     /// shared_ptr 释构时 av_frame_free 引用归零 → 解码器可复用该表面）。
@@ -156,6 +164,10 @@ public:
     /// 诊断：实际生效的硬解后端（hw_active() 为 true 时有意义）
     HwAccelType hwBackend() const noexcept { return hw_type_; }
 
+    /// 诊断：HAP DXT 直传是否实际生效（prepare 后可查——HAP 素材 + 开关
+    /// 开启时为 true；false = 行为与既有 avcodec 全解压路径完全一致）
+    bool dxt_active() const noexcept { return hap_active_; }
+
 private:
     /// 解码下一帧并转换为 RGBA 缓存；\return false 表示流结束/解码失败
     ///（EOF 时置 at_eof_，produce 据此扩展缓存命中区间到播尾）
@@ -169,10 +181,39 @@ private:
     /// \return false = 转换器创建/像素转换失败（当前帧不可用）
     bool convertToRgba();
 
+    /// 当前帧补发布（produce/seekTo 的重发布点统一入口，域分发）：
+    /// HAP 直传帧在 dxt_ 工作缓冲（HapDecode 无 AVFrame 可回溯，重发布=
+    /// 重发 dxt_ 拷贝）；avcodec 路径帧在 frame_（重转换写 rgba_ 再发布）。
+    /// \return false = 发布失败（HAP 恒成功；RGBA 路径=转换失败）
+    bool publishCurrentFrame();
+
     /// 第①阶段硬解：按 hw_cfg_.type 探测并挂接硬解设备（在 avcodec_open2
     /// 之前调用）。任一步失败静默清理并保持软解路径（不改变既有行为）。
     /// \param dec 已找到的解码器（枚举其 hw_configs 判定后端支持）
     void tryEnableHwAccel(const AVCodec* dec);
+
+    // ---- HAP DXT 直传（2026-11-17 阶段1）-----------------------------------
+    // HAP 全 I 帧 + GPU 压缩纹理：av_read_frame 的包即 HAP 帧比特流，
+    // Vidvox HapDecode() 直接产出裸 DXT 块（跳过 avcodec_open2/解码器/
+    // sws 全链），渲染端 glCompressedTexSubImage2D 直传 GPU。解码侧
+    // 收益实测 8.6~15.6×（2026-11-17 阶段 0 对拍验证，工具已移除）。
+    //
+    /// 把当前 packet（HAP 帧比特流）经 HapDecode 解到 dxt_ 工作缓冲。
+    /// \return false = HapDecode 失败（坏帧/缓冲不足；调用方按解码失败处理）
+    bool hapDecodePacket();
+
+    /// 发布当前 HAP 帧（dxt_ 工作缓冲 → 发布槽；拷贝语义——HAP 帧数据
+    /// 小（~0.3-1.6MB），拷贝 <0.3ms，保留源侧数据供 produce 补发布重发，
+    /// 与 rgba 路径的 move 语义不同：HapDecode 无 AVFrame 可回溯重转换）
+    void publishDxtFrame();
+
+    /// HAP 直传开关（静态）：环境变量 MS_DXT_PASSTHROUGH=0 关闭（部署端
+    /// 零配置默认开启；出问题设 0 回退既有 avcodec 全解压路径）。
+    /// 【静态】环境读取一次缓存——所有实例同策略，避免逐实例 getenv。
+    static bool dxtPassthroughEnabled();
+    // 注：HapDecode 的 chunk 回调（串行同步执行）为纯实现细节，类型
+    // HapDecodeWorkFunction 是第三方 typedef——按本头"FFmpeg 等第三方 C 头
+    // 只进 .cpp"的卫生原则，回调为 .cpp 内 static 自由函数，不入头文件。
 
     // ---- 装配参数 ----
     std::string assets_root_;   ///< 素材根目录（UTF-8；空 = 直接用 asset.path）
@@ -195,6 +236,16 @@ private:
                                          ///< （AVPixelFormat，int 存储保持头文件干净）
     bool hw_active_ = false;             ///< 硬解是否实际生效（探测失败=软解）
     HwAccelType hw_type_ = HwAccelType::Soft; ///< 实际生效的后端
+
+    // ---- HAP DXT 直传状态（hap_active_ = true 时启用；互斥于 hw/软解路径）----
+    bool hap_active_ = false;            ///< HAP 直传生效（prepare 探测置位；
+                                         ///< 解码走 HapDecode 旁路，不建
+                                         ///< avcodec 解码器上下文）
+    std::vector<std::uint8_t> dxt_;      ///< 当前帧裸 DXT 块工作缓冲
+                                         ///<（发布为拷贝语义，常驻复用）
+    std::uint32_t dxt_format_ = 0;       ///< 当前帧 DXT 纹理格式（GL 常量）
+    std::uint32_t dxt_stride_ = 0;       ///< 压缩块行距（字节）
+    std::size_t   dxt_max_bytes_ = 0;    ///< 输出缓冲容量（块数×16B 上限）
 
     // ---- 流元数据（prepare 时填充）----
     int stream_index_ = -1;      ///< 视频流在容器中的索引

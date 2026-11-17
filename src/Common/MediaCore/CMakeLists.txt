@@ -84,7 +84,6 @@ add_library(MediaCore SHARED
     net/ControlClient.cpp
     net/DisplayConnector.cpp
     net/SyncUdp.cpp
-    net/Discovery.cpp
     net/AssetHttpServer.cpp
     net/AssetReceiver.cpp
     # ---- runtime（P2 运行时装配）----
@@ -143,6 +142,8 @@ add_custom_command(TARGET MediaCore PRE_LINK
             "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/MediaCore.dir"
             "${MC_DUMPBIN}"
             "${MC_AUTO_DEF}"
+            "${CMAKE_BINARY_DIR}/build.ninja"
+            "$<TARGET_FILE_NAME:MediaCore>"
     VERBATIM)
 target_link_options(MediaCore PRIVATE "/DEF:${MC_AUTO_DEF}")
 
@@ -192,6 +193,7 @@ target_link_libraries(MediaCore
             ms_ndi
             SpoutBase
             mc_mpcdi_libs
+            hap_codec   # HAP DXT 直传（2026-11-17 阶段1）：Vidvox HapDecode 出裸 DXT
             ${portaudio_LIBRARIES}
             windowsapp dwmapi
             mfplat mf mfuuid)

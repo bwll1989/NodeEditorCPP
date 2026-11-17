@@ -43,6 +43,11 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+// Vidvox HapCodecSDK（HAP DXT 直传，2026-11-17 阶段1）：hap.h 已自带
+// extern "C" 包裹，直接 include。HapDecode 输出裸 DXT 块（GL 压缩纹理格式
+// 常量），渲染端 glCompressedTexSubImage2D 直传 GPU。
+#include "hap.h"
+
 namespace ms {
 
 // 前向顺序解码的最大跨度（帧数）：media_us 距当前帧 ≤12 帧时直接顺序解码
@@ -300,53 +305,82 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
         return release(), false;
     }
 
-    // ---- 4. 选最优视频流（多视频流时取缺省首选）并查找解码器 ----
-    const AVCodec* dec = nullptr;
-    stream_index_ = av_find_best_stream(fmt_, AVMEDIA_TYPE_VIDEO, -1, -1, &dec, 0);
-    if (stream_index_ < 0 || !dec) {
-        std::fprintf(stderr, "[media] 无可用视频流/解码器: %s\n", full.c_str());
+    // ---- 4. 选最优视频流（多视频流时取缺省首选）+ HAP 直传探测（阶段1）----
+    // av_find_best_stream 不带解码器出参：无 hapdec 的 FFmpeg 构建不应
+    // 拦住 DXT 直传路径（直传不需要 avcodec 解码器）；非 HAP 流再手动
+    // 查找解码器（选流已由本调用完成，行为与带出参时等价）。
+    stream_index_ = av_find_best_stream(fmt_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
+    if (stream_index_ < 0) {
+        std::fprintf(stderr, "[media] 无可用视频流: %s\n", full.c_str());
         return release(), false;
     }
     const AVStream* st = fmt_->streams[stream_index_];
 
-    // ---- 5. 建解码上下文：参数从流 side-data 拷贝（extradata 等自动带上）----
-    codec_ = avcodec_alloc_context3(dec);
-    if (!codec_) return release(), false;
-    if (avcodec_parameters_to_context(codec_, st->codecpar) < 0) {
-        std::fprintf(stderr, "[media] 解码器参数拷贝失败(%s): %s\n",
-                     dec->name, full.c_str());
-        return release(), false;
-    }
+    // HAP 探测：codec_id 命中 AV_CODEC_ID_HAP（MOV codec_tag 任意 Hap 变体
+    // Hap1/Hap5/HapY/HapM 皆映射此 ID）且开关开启 → DXT 直传，跳过
+    // avcodec 解码器/sws 全链。开关关闭时走既有全解压路径（行为不变）。
+    hap_active_ = (st->codecpar->codec_id == AV_CODEC_ID_HAP) &&
+                  dxtPassthroughEnabled();
 
-    // ---- 4.6 硬解探测与挂接（第①阶段硬解抽象层；失败静默回退软解）----
-    // 在 avcodec_open2 之前：向解码上下文挂 hw_device_ctx + get_format 回调。
-    // 任一步失败（无独显/驱动旧/后端不支持该 codec）均清理干净，保持与
-    // 既有软解路径逐位一致的行为。
-    tryEnableHwAccel(dec);
+    const AVCodec* dec = nullptr;
+    if (!hap_active_) {
+        // ---- 5. 建解码上下文：参数从流 side-data 拷贝（extradata 等自动带上）----
+        dec = avcodec_find_decoder(st->codecpar->codec_id);
+        if (!dec) {
+            std::fprintf(stderr, "[media] 无可用解码器(codec_id=%d): %s\n",
+                         static_cast<int>(st->codecpar->codec_id), full.c_str());
+            return release(), false;
+        }
+        codec_ = avcodec_alloc_context3(dec);
+        if (!codec_) return release(), false;
+        if (avcodec_parameters_to_context(codec_, st->codecpar) < 0) {
+            std::fprintf(stderr, "[media] 解码器参数拷贝失败(%s): %s\n",
+                         dec->name, full.c_str());
+            return release(), false;
+        }
 
-    // ---- 4.7 多线程软解（2026-11-05 seek 跳帧修复）----------------------
-    // 跳转/暂停的"停顿后瞬移"体感 = 从关键帧顺序补齐到目标帧的真实耗时
-    // （1080p GOP 250 实测 224~237ms/次——单帧 2~4ms × 最多百余帧补齐）。
-    // frame-level 多线程把补齐流水线并行化（4~6× 吞吐），跳转停顿等比
-    // 缩短，是"跳帧感"的最大单项改善。
-    //   * 仅软解路径启用：硬解（hw_active_）由 GPU 解码（单帧微秒级）无
-    //     此瓶颈，且 FFmpeg 硬解与 frame-threading 不兼容（open2 直接拒绝）；
-    //   * thread_count=0 = 按 CPU 核数自动；FF_THREAD_FRAME 对"从关键帧
-    //     连续补齐"的 seek 场景收益最大，代价 n-1 帧流水线延迟——补齐
-    //     循环按 pts 判断收尾、输出帧序与串行一致，语义零变化。
-    if (!hw_active_) {
-        codec_->thread_count = 0; // 0 = 自动（按 CPU 核数）
-        codec_->thread_type  = FF_THREAD_FRAME;
-    }
+        // ---- 4.6 硬解探测与挂接（第①阶段硬解抽象层；失败静默回退软解）----
+        // 在 avcodec_open2 之前：向解码上下文挂 hw_device_ctx + get_format 回调。
+        // 任一步失败（无独显/驱动旧/后端不支持该 codec）均清理干净，保持与
+        // 既有软解路径逐位一致的行为。
+        tryEnableHwAccel(dec);
 
-    if (avcodec_open2(codec_, dec, nullptr) < 0) {
-        std::fprintf(stderr, "[media] 解码器初始化失败(%s): %s\n", dec->name, full.c_str());
-        return release(), false;
+        // ---- 4.7 多线程软解（2026-11-05 seek 跳帧修复）----------------------
+        // 跳转/暂停的"停顿后瞬移"体感 = 从关键帧顺序补齐到目标帧的真实耗时
+        // （1080p GOP 250 实测 224~237ms/次——单帧 2~4ms × 最多百余帧补齐）。
+        // frame-level 多线程把补齐流水线并行化（4~6× 吞吐），跳转停顿等比
+        // 缩短，是"跳帧感"的最大单项改善。
+        //   * 仅软解路径启用：硬解（hw_active_）由 GPU 解码（单帧微秒级）无
+        //     此瓶颈，且 FFmpeg 硬解与 frame-threading 不兼容（open2 直接拒绝）；
+        //   * thread_count=0 = 按 CPU 核数自动；FF_THREAD_FRAME 对"从关键帧
+        //     连续补齐"的 seek 场景收益最大，代价 n-1 帧流水线延迟——补齐
+        //     循环按 pts 判断收尾、输出帧序与串行一致，语义零变化。
+        if (!hw_active_) {
+            codec_->thread_count = 0; // 0 = 自动（按 CPU 核数）
+            codec_->thread_type  = FF_THREAD_FRAME;
+        }
+
+        if (avcodec_open2(codec_, dec, nullptr) < 0) {
+            std::fprintf(stderr, "[media] 解码器初始化失败(%s): %s\n", dec->name, full.c_str());
+            return release(), false;
+        }
+    } else {
+        // HAP 直传输出缓冲：按 16B/块上限预分配（DXT5 布局；DXT1 实际
+        // 8B/块——容量按上限保证任何单纹理 Hap 变体都放得下；后续帧
+        // HapDecode 复用此缓冲，实际长度由 outputBufferBytesUsed 返回）。
+        const int bx = (st->codecpar->width + 3) / 4;
+        const int by = (st->codecpar->height + 3) / 4;
+        dxt_max_bytes_ = static_cast<std::size_t>(bx) * by * 16;
+        dxt_.assign(dxt_max_bytes_, 0);
+        std::fprintf(stderr,
+                     "[media] 解码路径: HAP DXT 直传（%dx%d，跳过 avcodec 全解压链）\n",
+                     st->codecpar->width, st->codecpar->height);
     }
 
     // ---- 6. 提取流元数据（尺寸/时间基/帧率/时长/媒体起点）----
-    width_  = codec_->width;
-    height_ = codec_->height;
+    // HAP 直传不建解码上下文：尺寸取自流 codecpar（find_stream_info 后可信）
+    width_  = hap_active_ ? st->codecpar->width  : codec_->width;
+    height_ = hap_active_ ? st->codecpar->height : codec_->height;
     tb_num_ = st->time_base.num;
     tb_den_ = st->time_base.den;
     if (width_ <= 0 || height_ <= 0 || tb_den_ <= 0) {
@@ -446,7 +480,7 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
 //   逐帧索引的复杂度）。
 // ---------------------------------------------------------------------------
 bool FfmpegMediaSource::produce(std::int64_t media_us) {
-    if (!fmt_ || !codec_) return false; // 未 prepare
+    if (!fmt_ || (!codec_ && !hap_active_)) return false; // 未 prepare
 
     // 越界钳制到 [0, duration)：正常路径由 TimelineEngine 保证在 clip 区间内，
     // 此处防御调用方越界时退化为播尾帧而非返回失败。
@@ -521,7 +555,7 @@ bool FfmpegMediaSource::produce(std::int64_t media_us) {
             }
             probeSummaryTick();
         }
-        if (has_frame_) convertToRgba(); // 目标帧（最后解出的帧）补发布
+        if (has_frame_) publishCurrentFrame(); // 目标帧（最后解出的帧）补发布（域分发）
         return has_frame_;
     }
 
@@ -572,7 +606,7 @@ bool FfmpegMediaSource::produce(std::int64_t media_us) {
         // ① 关键帧先行发布：复位抑制 → 转换+发布 GOP 头帧（渲染端立即
         // 可见）；再置抑制保护后续补齐循环的中间帧。
         suppress_publish_ = false;
-        convertToRgba();
+        publishCurrentFrame(); // 关键帧先行发布（域分发）
         suppress_publish_ = true;
     }
     std::int64_t probe_seek_frames = 0; // 探针：seek 后补齐帧数
@@ -603,7 +637,7 @@ bool FfmpegMediaSource::produce(std::int64_t media_us) {
         }
         probeSummaryTick();
     }
-    if (has_frame_) convertToRgba(); // 目标帧补发布
+    if (has_frame_) publishCurrentFrame(); // 目标帧补发布（域分发）
     return has_frame_;
 }
 
@@ -611,7 +645,7 @@ bool FfmpegMediaSource::produce(std::int64_t media_us) {
 // seekTo —— 回退到 target_us 前最近关键帧并冲洗解码器
 // ---------------------------------------------------------------------------
 bool FfmpegMediaSource::seekTo(std::int64_t target_us) {
-    if (!fmt_ || !codec_) return false;
+    if (!fmt_ || (!codec_ && !hap_active_)) return false;
     const AVRational tb{tb_num_, tb_den_};
 
     // 素材内部时间 → 流时间戳（补媒体起点偏移）
@@ -628,7 +662,8 @@ bool FfmpegMediaSource::seekTo(std::int64_t target_us) {
     if (av_seek_frame(fmt_, stream_index_, target_ts, AVSEEK_FLAG_BACKWARD) < 0)
         return false; // seek 本身失败：旧帧未动，produce 层续用
     // 冲洗解码器内部缓冲（丢弃 seek 点前的旧参考帧/缓存帧）
-    avcodec_flush_buffers(codec_);
+    // HAP 直传无解码器内部状态（包即帧），跳过冲洗
+    if (codec_) avcodec_flush_buffers(codec_);
     flushed_   = false;     // 重开输入流：flush 标志复位
     at_eof_    = false;     // 新位置重新解码：EOF 状态作废
     has_frame_ = false;     // 旧帧作废（解出新帧前 frameView 不可用）
@@ -650,6 +685,48 @@ bool FfmpegMediaSource::seekTo(std::int64_t target_us) {
 // decodeNext —— 解码下一帧并转 RGBA；false = 流结束或解码失败
 // ---------------------------------------------------------------------------
 bool FfmpegMediaSource::decodeNext() {
+    // ---- HAP DXT 直传分支（2026-11-17 阶段1）--------------------------------
+    // HAP 全 I 帧：av_read_frame 的包即一帧 HAP 比特流，HapDecode() 直接
+    // 产出裸 DXT 块——无解码器 EAGAIN/drain 状态机，无 avcodec_open2 上下文。
+    // 时间戳语义与 convertToRgba 同源（packet pts → 素材内部 us，扣媒体
+    // 起点；无 PTS 退化递推：seek 后首帧锚 seek_base_us_，其余按帧时长顺延）。
+    // 发布走 publishDxtFrame（拷贝语义，保留 dxt_ 供 produce 补发布重发）；
+    // suppress_publish_ 期间只推进时间轴不发布（与前向补齐"不闪快进"一致）。
+    if (hap_active_) {
+        while (true) {
+            if (av_read_frame(fmt_, pkt_) < 0) {
+                at_eof_ = true; // 流尾（produce 据此扩展缓存命中区间）
+                return false;
+            }
+            // 非视频流的包（音轨等）直接跳过
+            if (pkt_->stream_index != stream_index_) {
+                av_packet_unref(pkt_);
+                continue;
+            }
+            const std::int64_t pkt_ts = pkt_->pts; // unref 前取（数据归 FFmpeg）
+            const bool ok = hapDecodePacket();
+            av_packet_unref(pkt_);
+            if (!ok) return false;
+
+            // 帧时间戳（流时间基 → 素材内部 us；同 convertToRgba 语义）
+            const AVRational tb{tb_num_, tb_den_};
+            if (pkt_ts != AV_NOPTS_VALUE && tb.den > 0) {
+                frame_pts_us_ =
+                    av_rescale_q(pkt_ts, tb, AVRational{1, AV_TIME_BASE}) -
+                    av_rescale_q(start_pts_, tb, AVRational{1, AV_TIME_BASE});
+                seek_pending_ = false;
+            } else {
+                frame_pts_us_ = has_frame_ ? frame_pts_us_ + frame_span_us_
+                                           : (seek_pending_ ? seek_base_us_ : 0);
+                seek_pending_ = false;
+            }
+            has_frame_ = true;
+            ++decoded_count_;
+            if (!suppress_publish_) publishDxtFrame();
+            return true;
+        }
+    }
+
     while (true) {
         // ① 先尝试取帧（多数调用直接命中：解码器已有产出）
         int ret = avcodec_receive_frame(codec_, frame_);
@@ -691,6 +768,79 @@ bool FfmpegMediaSource::decodeNext() {
         if (ret < 0 && ret != AVERROR(EAGAIN)) return false;
         // EAGAIN 属正常背压：回到 ① 先收帧再喂数
     }
+}
+
+// ---------------------------------------------------------------------------
+// HAP DXT 直传（2026-11-17 阶段1）—— HapDecode 出裸 DXT 块 + 发布
+// ---------------------------------------------------------------------------
+
+// 开关：MS_DXT_PASSTHROUGH=0 关闭（默认开启）。进程级缓存——所有源实例
+// 同策略；部署端零配置启用，异常时设环境变量回退既有 avcodec 全解压路径。
+bool FfmpegMediaSource::dxtPassthroughEnabled() {
+    static const bool enabled = [] {
+        const char* env = std::getenv("MS_DXT_PASSTHROUGH");
+        return !(env != nullptr && std::strcmp(env, "0") == 0);
+    }();
+    return enabled;
+}
+
+// 串行同步执行全部 chunk（HapDecode 回调；阶段 0 实测：多线程 chunk 收益
+// 有限，先串行——1080p 0.8~0.9ms/帧已远低于 60fps 帧预算 16.7ms；阶段 3
+// 如需再挂线程池）。文件内 static：第三方 typedef 不入公共头。
+static void hapSyncDecodeCallback(HapDecodeWorkFunction fn, void* p,
+                                  unsigned int count, void* /*info*/) {
+    for (unsigned int i = 0; i < count; ++i) fn(p, i);
+}
+
+// 当前 packet（HAP 帧比特流）→ 裸 DXT 块（写入 dxt_ 工作缓冲，记录格式/行距）
+bool FfmpegMediaSource::hapDecodePacket() {
+    // 缓冲就绪判定用 dxt_max_bytes_（prepare HAP 分支分配的真实容量标志）
+    // 而非 dxt_.empty()——后者在 resize(used) 后语义变为"无数据"，会误拒
+    if (pkt_ == nullptr || pkt_->data == nullptr || dxt_max_bytes_ == 0)
+        return false;
+    unsigned long used = 0;
+    unsigned int  tex  = 0;
+    // 纹理索引恒 0：单纹理 Hap1/Hap5/HapY；HapM 双纹理留待阶段 3（本批
+    // 素材库无 HapM，texture count 实测均 1）
+    const unsigned int rc = HapDecode(pkt_->data,
+                                      static_cast<unsigned long>(pkt_->size),
+                                      0, hapSyncDecodeCallback, nullptr,
+                                      dxt_.data(),
+                                      static_cast<unsigned long>(dxt_max_bytes_),
+                                      &used, &tex);
+    if (rc != HapResult_No_Error) {
+        std::fprintf(stderr, "[media] HapDecode 失败(rc=%u size=%d)\n",
+                     rc, pkt_->size);
+        return false;
+    }
+    dxt_format_ = tex;
+    // 压缩块行距：块列数 × 每块字节（DXT1 8B，其余 DXT5 系 16B）。
+    // resize 到实际长度：发布拷贝按实际块数（容量不变，复用缓冲）
+    const std::size_t bytes_per_block =
+        (tex == static_cast<unsigned int>(HapTextureFormat_RGB_DXT1)) ? 8 : 16;
+    dxt_stride_ = static_cast<std::uint32_t>(
+        static_cast<std::size_t>((width_ + 3) / 4) * bytes_per_block);
+    dxt_.resize(used);
+    return true;
+}
+
+// 当前帧补发布（域分发；调用点=produce/seekTo 的抑制期外重发布）
+bool FfmpegMediaSource::publishCurrentFrame() {
+    if (hap_active_) { publishDxtFrame(); return true; }
+    return convertToRgba();
+}
+
+// 当前 HAP 帧发布到槽（拷贝语义：dxt_ 保留在源侧，produce 补发布可重发）
+void FfmpegMediaSource::publishDxtFrame() {
+    auto pf = std::make_shared<PublishedFrame>();
+    pf->domain     = FrameDomain::CpuDxt;
+    pf->dxt        = dxt_; // vector 拷贝（~0.3-1.6MB，<0.3ms，远低于 sws 代价）
+    pf->width      = width_;
+    pf->height     = height_;
+    pf->stride     = dxt_stride_;
+    pf->dxt_format = dxt_format_;
+    pf->pts_us     = frame_pts_us_;
+    published_.store(std::move(pf), std::memory_order_release);
 }
 
 // ---------------------------------------------------------------------------
@@ -900,6 +1050,13 @@ bool FfmpegMediaSource::frameView(FrameView& out) const {
         if (pf->rgba.empty()) return false;
         out.rgba   = pf->rgba.data();
         out.native = nullptr;
+    } else if (pf->domain == FrameDomain::CpuDxt) {
+        // HAP DXT 直传域：裸 DXT 块流（渲染端 glCompressedTexSubImage2D 消费）
+        if (pf->dxt.empty()) return false;
+        out.dxt        = pf->dxt.data();
+        out.dxt_format = pf->dxt_format;
+        out.rgba       = nullptr;
+        out.native     = nullptr;
     } else {
         // GPU 原生帧域：rgba 为空，native 持有 AVFrame 引用（GL interop 消费）
         out.rgba   = nullptr;
@@ -921,6 +1078,13 @@ void FfmpegMediaSource::release() {
     hw_pix_fmt_ = 0;
     hw_active_  = false;
     hw_type_    = HwAccelType::Soft;
+    // HAP DXT 直传状态复位（工作缓冲随上下文一起作废）
+    hap_active_    = false;
+    dxt_format_    = 0;
+    dxt_stride_    = 0;
+    dxt_max_bytes_ = 0;
+    dxt_.clear();
+    dxt_.shrink_to_fit();
     if (fmt_)   avformat_close_input(&fmt_);
     if (sws_)   { sws_freeContext(sws_); sws_ = nullptr; }
     sws_src_fmt_ = -1;

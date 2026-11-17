@@ -52,7 +52,6 @@
 //   Editor 侧主动连接显示端复用 ControlClient，但那是 DisplayConnector 的
 //   内部依赖，本头文件无感知）
 #include "net/ControlServer.hpp"
-#include "net/Discovery.hpp"
 #include "net/SyncUdp.hpp"
 #include "runtime/RenderThread.hpp"
 #include "sync/AnchorScheduler.hpp"
@@ -115,15 +114,6 @@ public:
         /// 通过前一律静默丢弃）。空（缺省）= 不校验，任何 Editor 都可接入
         /// （向后兼容）。Editor 侧同码配置在显示端登记（.show DisplayEntry）。
         std::string pairing_code;
-
-        // ---- 局域网发现应答（2026-11-03：editor 扫描添加显示端）--------
-        /// 绑定此端口应答 editor 的 UDP 发现查询（ DiscoveryCodec::
-        /// kDefaultPort=17610）；0 = 禁用发现（不参与局域网扫描）。
-        /// 同机多 display 各实例经 SO_REUSEADDR 共享同端口，都被扫描到。
-        std::uint16_t discovery_port = DiscoveryCodec::kDefaultPort;
-        /// 发现应答自报运行模式（M5 编辑器互通）：0=Unknown 1=standalone
-        /// 2=sync——editor 扫描列表显示徽标，提示 .show 导入导出可用性。
-        std::uint8_t discovery_mode = 0;
 
         // ---- 渲染线程（§5.6；对应 --render-fps / --render-out 参数）----
         /// 目标帧率：>0 启用渲染线程（60fps present 相位对齐）；
@@ -321,11 +311,6 @@ private:
     /// 【从 start() 提取 2026-11-11】standalone 与受控两种模式的网络装配
     /// 分叉，渲染装配共用——提取成函数消除分支重复。
     void startRenderThread();
-    /// 局域网发现应答装配（M5 两模式共用）：startDiscovery(实际 TCP 端口)。
-    /// standalone 分支传 0（无 TCP 监听）——discovery_port=0 禁用发现；
-    /// 绑定失败仅告警不阻断（控制通道不受影响）。mode 自报经
-    /// cfg_.discovery_mode 透传（editor 扫描列表徽标）。
-    void startDiscovery(std::uint16_t tcp_port);
 
     // ---- 素材拉取（后台线程；§5.5）------------------------------------------
     /// 收到场景后启动：按 Asset 表逐个从 Editor HTTP 拉取（幂等/续传/CRC）。
@@ -354,10 +339,6 @@ private:
     std::mutex pending_mutex_;
     std::deque<std::pair<std::uint64_t, ms_proto::Envelope>> pending_frames_;
     SyncUdp       udp_;
-    /// 局域网发现应答器（editor 扫描"谁在线"时自报身份/端口/接入状态；
-    /// 2026-11-03。start 成功后运行，stop 关闭。同机多实例经 SO_REUSEADDR
-    /// 共享发现端口，各实例独立应答）
-    DiscoveryResponder discovery_;
 
     // 同步核心（纯内存组件）
     AnchorScheduler  scheduler_;   ///< 到点执行的锚点队列

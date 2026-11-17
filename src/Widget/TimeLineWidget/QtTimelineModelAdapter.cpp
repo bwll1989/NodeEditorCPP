@@ -51,6 +51,7 @@
 #include <QDialog>
 #include <QFileInfo>
 #include <QVBoxLayout>
+#include "FramelessDialog/FramelessDialog.hpp" // 片段属性弹窗宿主（统一无边框风格）
 
 #include <algorithm>
 #include <cmath>
@@ -914,17 +915,18 @@ bool QtTimelineModelAdapter::showClipOwnPanel(int track_idx, int clip_idx,
         return false;
     }
 
-    // 包非模态对话框：关窗即销毁（WA_DeleteOnClose，面板随布局为
-    // dialog 子对象一并释放）；无 OK/Cancel——控件变更即时写回，
-    // 与 timeline 组合浮窗同为"开着就能继续操作画布/时间轴"的交互。
-    auto* dlg = new QDialog(parent);
+    // 包非模态对话框（2026-11-17 统一无边框风格 FramelessDialog）：关窗
+    // （标题栏 ×/Esc）即销毁（WA_DeleteOnClose，面板随布局为 dialog 子对象
+    // 一并释放）；无 OK/Cancel——控件变更即时写回，与 timeline 组合浮窗
+    // 同为"开着就能继续操作画布/时间轴"的交互。
+    auto* dlg = new FramelessDialog(parent);
     dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->setWindowTitle(QString("片段属性：%1（轨道 %2）")
+    dlg->setModal(false); // FramelessDialog 构造默认模态——本入口非模态
+    dlg->setCloseButtonVisible(true);
+    dlg->setDialogTitle(QString("片段属性：%1（轨道 %2)")
                             .arg(note, QString::fromStdString(
                                      work_->timeline.tracks[track_idx].id)));
-    auto* lay = new QVBoxLayout(dlg);
-    lay->setContentsMargins(6, 6, 6, 6);
-    lay->addWidget(panel);
+    dlg->bodyLayout()->addWidget(panel);
     dlg->show();
     return true;
 }

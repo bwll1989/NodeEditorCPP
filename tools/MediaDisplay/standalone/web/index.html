@@ -284,8 +284,6 @@
           <legend>同步模式{{ modeIsSync ? '' : '（非同步模式下只读）' }}</legend>
           <label title="等待 Editor 接入的 TCP 监听端口">
             Editor 监听端口<input v-model.number="st.display.listen_port" type="number" min="0" max="65535" step="1"></label>
-          <label title="局域网发现应答端口（编辑器扫描添加显示端）；0=禁用">
-            发现端口<input v-model.number="st.display.discovery_port" type="number" min="0" max="65535" step="1"></label>
           <label title="多 Editor 隔离：非空时只接受携带同配对码的 Editor">
             配对码<input v-model.trim="st.display.pairing_code" placeholder="空 = 不校验"></label>
         </fieldset>

@@ -221,6 +221,10 @@ add_subdirectory(src/Common/BaseClass)
 # （时间轴桥）直接编进主程序源列表——通用片段 UI 已迁 Common/ClipPanelBase、
 # 片段专属编辑区随片段插件走，2026-11-13 片段插件化）
 add_subdirectory(src/Common/TimeLineBase)
+# HAP DXT 直传（2026-11-17 阶段1）：hap_codec（Vidvox HapCodecSDK + snappy
+# vendored 直编）共享静态库——【必须先于 MediaCore】挂载，其
+# target_link_libraries(hap_codec) 引用该目标（晚于定义挂载会被当字面库名）
+add_subdirectory(3rdparty/hap)
 add_subdirectory(src/Common/MediaCore)
 # ClipPanelBase：通用片段 UI 框架 DLL（2026-11-13 片段插件化——片段属性
 # 面板 + Tween 合并区自主程序迁入；依赖 MediaCore/MediaManger/GUIElements/

@@ -118,6 +118,13 @@ namespace gl {
     X(glActiveTexture,         void, (unsigned int))                            \
     X(glBlendFuncSeparate,     void, (unsigned int, unsigned int,              \
                                       unsigned int, unsigned int))             \
+    /* 1.3 压缩纹理（HAP DXT 直传 2026-11-17：裸 DXT 块直进 GPU—— */           \
+    /*  1.3 核心函数但 opengl32.dll 不导出，走 wglGetProcAddress）*/            \
+    X(glCompressedTexImage2D,    void, (unsigned int, int, unsigned int,       \
+                                        int, int, int, int, const void*))      \
+    X(glCompressedTexSubImage2D, void, (unsigned int, int, int, int,           \
+                                        int, int, unsigned int, int,           \
+                                        const void*))                          \
     /* 对象存活检查（诊断：QPainter glyph cache 生命周期误删实证）*/            \
     X(glIsBuffer,              unsigned char, (unsigned int))                   \
     X(glIsProgram,             unsigned char, (unsigned int))                   \
@@ -224,6 +231,14 @@ enum : unsigned int {
     GL_RG8                     = 0x822B, // 色度纹理内部格式（双通道 8bit）
     GL_RG                      = 0x8227, // 色度纹理上传格式（UV 交错）
     GL_TEXTURE1                = 0x84C1, // 色度采样器绑定单元
+    // ---- HAP DXT 直传（压缩纹理；值=GL_EXT_texture_compression_s3tc，----
+    // ---- 与 HapTextureFormat 枚举同值——FrameView.dxt_format 直传）----
+    GL_COMPRESSED_RGB_S3TC_DXT1 = 0x83F0, // DXT1（无 alpha；Hap1）
+    GL_COMPRESSED_RGBA_S3TC_DXT5 = 0x83F3, // DXT5（带 alpha；Hap5）
+    GL_NO_ERROR                = 0,       // glGetError 无错误
+    GL_INVALID_ENUM            = 0x0500,  // 不支持的压缩格式（S3TC 缺失表现）
+    GL_INVALID_VALUE           = 0x0501,  // imageSize 等参数非法
+    GL_INVALID_OPERATION       = 0x0502,
 };
 
 enum : int {

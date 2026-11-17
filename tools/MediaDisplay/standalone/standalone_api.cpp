@@ -941,7 +941,7 @@ settingSchema() {
         {"node", {{"mode", false}}},
         {"display",
          {{"player_id", false},    {"listen_port", true},
-          {"discovery_port", true},{"assets_root", false},
+          {"assets_root", false},
           {"asset_workers", true}, {"render_fps", true},
           {"render_backend", false},{"hw_accel", false},
           {"screen", true},        {"fullscreen", true},
@@ -1081,7 +1081,6 @@ bool StandaloneApi::routeSettings(RouteCtx& ctx) {
         // display（数值缺键默认与 main Args 内置默认同源）
         data << "\"display\":{";
         emit_str("display", "player_id");   emit_long("display", "listen_port", 17100);
-        emit_long("display", "discovery_port", 17610);
         emit_str("display", "assets_root"); emit_long("display", "asset_workers", 3);
         emit_long("display", "render_fps", 60);
         emit_str("display", "render_backend"); emit_str("display", "hw_accel");
