@@ -1377,10 +1377,15 @@ void GlRenderer::warpBlit() {
     gl::glVertexAttribPointer(2, 1, gl::GL_FLOAT, gl::GL_FALSE,
                               5 * sizeof(float),
                               reinterpret_cast<const void*>(16));
-    // attrib3（a_q）：mesh 无透视权重——disable（幂等；drawQuad 残留的
-    // enabled 状态会把本 mesh 偏移 16 的 alpha 读成 q，MPCDI alpha<1 时
-    // uv 被错误放大——互串防御同 attrib2 纪律）
+    // attrib3（a_q）：mesh 无透视权重——disable + 常量 1.0（幂等；同
+    // attrib2 纪律：disabled attrib 读当前常量值，默认 0 会让 FS 的
+    // uv/v_q 除零 → ±Inf → discard 几乎全部像素 = MPCDI 变形输出整体
+    // 黑屏【2026-11-17 代码审查发现——阶段② 引入，warp 默认不激活故
+    // 未暴露】。常量 1.0 → q≡1 逐位退化历史仿射采样）。drawQuad 残留
+    // 的 enabled 状态若不 disable，会把本 mesh 偏移 16 的 alpha 读成
+    // q，MPCDI alpha<1 时 uv 被错误放大——互串防御双向幂等。
     gl::glDisableVertexAttribArray(3);
+    gl::glVertexAttrib1f(3, 1.0f);
     gl::glBufferData(gl::GL_ARRAY_BUFFER,
                      static_cast<ptrdiff_t>(warp_mesh_.size() * sizeof(float)),
                      warp_mesh_.data(), gl::GL_DYNAMIC_DRAW);

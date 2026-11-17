@@ -120,21 +120,33 @@ inline bool trackInvisibleOnCanvas(AssetKind kind,
 ///     简单可靠；编辑器命中精度足够——绘制边框仍是四边形本体）
 /// 【阶段③ 命中精确化 2026-11-17】判定升级 pose3DActive（含 pos_z）+
 /// quadCorners3DP 统一投影（几何深度 + 全场透视参数——命中框与绘制/
-/// display 同源唯一真相；persp 三参由调用方从 Scene 透传）
+/// display 同源唯一真相；persp 三参由调用方从 Scene 透传）。
+/// 【persp_on】预览透视开关联动（2026-11-17 代码审查补）：false = 与
+/// 绘制端回退完全对称（poseActive 不含 pos_z + quadCorners3D 旧式）——
+/// 否则开关关闭时命中框（3D 投影 AABB）与绘制框（2D 矩形）不一致。
 inline bool clipRectContains(const QRectF& r, const Transform& tf,
                              const QPointF& p, double persp_focal,
-                             double persp_vp_x, double persp_vp_y) {
+                             double persp_vp_x, double persp_vp_y,
+                             bool persp_on = true) {
     if (r.width() <= 0 || r.height() <= 0) return false;
-    if (tf.pose3DActive()) {
+    if (persp_on ? tf.pose3DActive() : tf.poseActive()) {
         // 3D 位姿（2026-11-10 姿态；2026-11-17 阶段③含 pos_z）：quadCorners3DP
         // 预投影四角 AABB——透视四边形可能非凸，AABB 简单可靠（与角点
-        // 位移分支同策略）；内含滚转/锚点/位移/深度/全场透视全部语义
+        // 位移分支同策略）；内含滚转/锚点/位移/深度/全场透视全部语义。
+        // 开关关 = quadCorners3D 旧式（pos_z/全场透视视作未配置——
+        // 与 drawClip/paintGL3D 的回退路径同参同源）
         double wx[4], wy[4];
-        cg::quadCorners3DP(r.x(), r.y(), r.width(), r.height(),
-                           tf.pos_z, tf.rotation, tf.rot_x, tf.rot_y,
-                           tf.anchor, tf.corner,
-                           persp_focal, persp_vp_x, persp_vp_y, wx, wy,
-                           nullptr);
+        if (persp_on) {
+            cg::quadCorners3DP(r.x(), r.y(), r.width(), r.height(),
+                               tf.pos_z, tf.rotation, tf.rot_x, tf.rot_y,
+                               tf.anchor, tf.corner,
+                               persp_focal, persp_vp_x, persp_vp_y, wx, wy,
+                               nullptr);
+        } else {
+            cg::quadCorners3D(r.x(), r.y(), r.width(), r.height(),
+                              tf.rotation, tf.rot_x, tf.rot_y, tf.anchor,
+                              tf.corner, wx, wy);
+        }
         double minx = wx[0], miny = wy[0], maxx = wx[0], maxy = wy[0];
         for (int i = 1; i < 4; ++i) {
             minx = std::min(minx, wx[i]);
@@ -1213,7 +1225,7 @@ bool SceneCanvasWidget::hitSelectedClip(const QPointF& widget_pos) const {
                 : widgetToCanvas(widget_pos);
     return clipRectContains(r, clipResolvedTransform(c), cp,
                             scene_->persp_focal, scene_->persp_vp_x,
-                            scene_->persp_vp_y);
+                            scene_->persp_vp_y, preview_perspective_);
 }
 
 // ---------------------------------------------------------------------------
