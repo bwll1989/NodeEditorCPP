@@ -237,15 +237,32 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
         gl::glBindTexture(gl::GL_TEXTURE_2D, tex);
         if (is_dxt) {
             if (dxt_dead_) return false; // 已判死：快速失败（日志已打）
-            // 压缩块几何：4×4 像素/块；发布端 dxt_stride = blocks_x×块字节
-            //（紧凑布局，压缩上传无 ROW_LENGTH 解包控制——同 GlRenderer）
+            // 压缩块几何：4×4 像素/块；imageSize 必须 = 块行数×块列数×
+            // 块字节【精确匹配】——错传像素行数（d.height）时 GL 判
+            // INVALID_VALUE 整次拒绝更新（首版实证：HAP 首帧后画面冻结）
             const int blocks_x = (d.width + 3) / 4;
+            const int blocks_y = (d.height + 3) / 4;
             const int bytes_per_block =
                 fmt == gl::GL_COMPRESSED_RGB_S3TC_DXT1 ? 8 : 16;
             gl::glCompressedTexSubImage2D(gl::GL_TEXTURE_2D, 0, 0, 0,
                                           d.width, d.height, fmt,
-                                          blocks_x * d.height * bytes_per_block,
+                                          blocks_x * blocks_y * bytes_per_block,
                                           d.dxt);
+            // 【首帧冻结防御】错误粘滞排查：上传被拒时清错误位并回退
+            //（否则错误粘滞污染后续 glGetError 探测）
+            const unsigned int err = gl::glGetError();
+            if (err != gl::GL_NO_ERROR) {
+                static bool s_subimg_logged = false;
+                if (!s_subimg_logged) {
+                    s_subimg_logged = true;
+                    // 一次性日志：参数错而非 S3TC 缺失——修数据源而非判死
+                    std::fprintf(stderr,
+                                 "[canvas3d-gl] DXT SubImage 被拒(err=0x%X "
+                                 "%dx%d fmt=0x%X)——检查块几何\n",
+                                 err, d.width, d.height, fmt);
+                    std::fflush(stderr);
+                }
+            }
         } else {
             // 行距解耦（QImage bytesPerLine 允许 ≠ width*4；当前恒等防御性设置）
             gl::glPixelStorei(gl::GL_UNPACK_ROW_LENGTH,

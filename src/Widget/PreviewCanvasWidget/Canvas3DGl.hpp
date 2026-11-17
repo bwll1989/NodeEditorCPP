@@ -103,10 +103,6 @@ private:
     /// 8×8 线性系统 + 部分主元消元；dst 退化（共线/重复点）返回 false
     static bool solveHomography(const double dst[8], double h[8]);
 
-    /// 纹理确保（缓存命中复用；尺寸/格式变化重建；内容全量上传）。
-    /// \return 0 = 上传失败（调用方回退）；否则纹理名
-    unsigned int ensureTexture(const std::string& key, const TexData& d);
-
     struct TexSlot {
         unsigned int  tex = 0;        ///< GL 纹理名（0 = 未建）
         int           w = 0, h = 0;   ///< 分配尺寸（变化 → 重建存储）
