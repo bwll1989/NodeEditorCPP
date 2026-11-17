@@ -45,6 +45,7 @@ class BaseTimelineWidget; // MediaServer 收编版 QtTimeLine 控件（全局命
 
 namespace ms {
 
+class Canvas3DGl;      ///< 3D 视口贴图层（阶段1 GL化：DXT 直传+透视校正贴图）
 class GlRenderer;      ///< GL 合成后端（ExternalCtx 模式；GL 直通路径用）
 class MsRuntimeBridge; ///< 下发运行时桥（不拥有；宿主注入——银幕操作执行通道）
 class QtTimelineModelAdapter; ///< 模型对外接口（不拥有；下发/同步委托目标）
@@ -406,6 +407,11 @@ private:
     // ---- GL 直通（GpuDeliver 模式；paintGL 消费）----------------------------
     std::unique_ptr<GlRenderer> gl_; ///< GL 合成器（ExternalCtx；惰性创建——
                                      ///  须 paintGL 内上下文 current 时构造）
+    /// 3D 视口贴图层（阶段1 GL 化 2026-11-17）：片段面片裸 GL 绘制——
+    /// HAP DXT 压缩直传（worker 软解退役的前提）+ 单应透视校正（真 3D
+    /// 姿态画面）。惰性创建于首个有贴图的面片（上下文 current 时）；
+    /// MS_CANVAS_GL3D=0 会话级禁用（QPainter 原路径兜底）
+    std::unique_ptr<Canvas3DGl> gl3d_;
     Selection sel_;            // 当前选中
     // 拖动状态（press 命中后才激活；缩放/旋转会话 = dragging_ && 对应标志）
     bool   dragging_          = false;

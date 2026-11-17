@@ -364,12 +364,16 @@ set(CALC_SOURCE_FILES
         src/Widget/PreviewCanvasWidget/PreviewRenderer.cpp
         src/Widget/PreviewCanvasWidget/ScreenWarpPanel.cpp
         src/Widget/PreviewCanvasWidget/ScreenPropertyDialog.cpp
+        # 3D 视口贴图层（阶段1 GL 化：HAP DXT 压缩直传 + 单应透视校正；
+        # 复用 tools/MediaDisplay 的 GlLoader 函数表——零新依赖）
+        src/Widget/PreviewCanvasWidget/Canvas3DGl.cpp
 
         # GL 直通预览（复用 display 端 GL 合成后端；CUDA 缺失走桩回退）
         # 2026-11-12 display 已迁至 tools/MediaDisplay 子项目
         src/Widget/TimeLineWidget/QtTimelineModelAdapter.hpp
         src/Widget/PreviewCanvasWidget/SceneCanvasWidget.hpp
         src/Widget/PreviewCanvasWidget/PreviewRenderer.hpp
+        src/Widget/PreviewCanvasWidget/Canvas3DGl.hpp
         # 【2026-11-13 彻底解耦】主程序源列表不含任何片段插件头——
         # 类型表完全由磁盘 plugin/*.plugin 驱动（QPluginLoader 运行时加载），
         # 没有对应 .plugin 文件 = 该片段类型不存在，Add Track 菜单不露项。

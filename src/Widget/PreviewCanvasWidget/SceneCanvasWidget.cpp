@@ -49,6 +49,7 @@
 #include <QDebug>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QOpenGLContext> // 析构 GL 资源释放前的上下文有效性检查
 #include <QPainter>
 #include <QPainterPath>
 #include <QPaintEvent>
@@ -66,6 +67,7 @@
 #include "model/CanvasGeometry.hpp" // 角点缩放/旋转命中纯函数（core 共享）
 #include "engine/TweenEngine.hpp" // tween 通道求值纯函数（画布跟随曲线）
 #include "GlRenderer.hpp"   // GL 合成后端（ExternalCtx 模式；GL 直通路径）
+#include "Canvas3DGl.hpp"   // 3D 视口贴图层（阶段1 GL化：DXT 直传+透视校正）
 #include "../TimeLineWidget/MsRuntimeBridge.hpp" // 下发运行时桥（银幕操作执行通道）
 #include "../TimeLineWidget/QtTimelineModelAdapter.hpp" // 模型对外接口（下发/同步委托目标）
 #include "Common/TimeLineBase/BaseTimeLineWidget.h" // 时间轴控件（选中联动信号源；setTimelineWidget）
@@ -354,7 +356,17 @@ void SceneCanvasWidget::paintEvent(QPaintEvent* event) {
 // 销毁在本 TU（已含 GlRenderer.hpp）。上下文此时可能已失效：glDelete*
 // 在无 current context 时静默无效，驱动随上下文销毁统一回收，无泄漏。
 // ---------------------------------------------------------------------------
-SceneCanvasWidget::~SceneCanvasWidget() = default;
+SceneCanvasWidget::~SceneCanvasWidget() {
+    // GL 资源释放须在上下文 current 时进行（QOpenGLWidget 析构序列不保证
+    // 上下文仍当前——显式 makeCurrent 兜底；从未显示过的控件无上下文，
+    // 跳过即可：unique_ptr 析构 delete 空对象无害）
+    if (context() && context()->isValid()) {
+        makeCurrent();
+        gl3d_->shutdown(); // 3D 贴图层（纹理缓存/程序/VAO/VBO）
+        gl_.reset();       // 2D GL 直通合成器
+        doneCurrent();
+    }
+}
 
 void SceneCanvasWidget::setScene(Scene* s) {
     scene_ = s;
@@ -1624,19 +1636,23 @@ void SceneCanvasWidget::paintGL3D(
     // 面片（用户实证：clip-6 文本显示别人的画面）。id 匹配未命中 → 棋
     // 盘格占位（宁缺勿错：占位可接受，显示错误内容是完整性事故）。
     struct TexEntry {
-        std::string   clip_id; // 交付项的 clip 身份（空 = 无法匹配）
-        const QImage* img;
+        std::string clip_id; // 交付项的 clip 身份（空 = 无法匹配）
+        const PreviewRenderer::DeliverItem* it; // 三形态域交付项（frame/
+                                                //  dxt 二选一；native 项已滤）
     };
     std::vector<TexEntry> texs;
     texs.reserve(items.size());
     for (const auto& it : items) {
-        if (it.frame.isNull()) continue; // native 项（未协商成功）→ 棋盘格
-        texs.push_back({it.clip_id, &it.frame});
+        // 三形态域防御：frame 与 dxt 均空 = native 项（CUDA 域，3D 视口
+        // 不消费——硬解协商回退下载后 frame 才出现）→ 棋盘格占位
+        if (it.frame.isNull() && !it.dxt) continue;
+        texs.push_back({it.clip_id, &it});
     }
-    auto matchTex = [&texs](const std::string& clip_id) -> const QImage* {
+    auto matchTex = [&texs](const std::string& clip_id)
+            -> const PreviewRenderer::DeliverItem* {
         if (clip_id.empty()) return nullptr;
         for (const auto& t : texs) {
-            if (t.clip_id == clip_id) return t.img; // 同 id 多项取首个
+            if (t.clip_id == clip_id) return t.it; // 同 id 多项取首个
         }
         return nullptr; // 本片段无交付帧（未就绪/出区间）→ 棋盘格
     };
@@ -1650,7 +1666,9 @@ void SceneCanvasWidget::paintGL3D(
                            // Layer 同语义：低层先画、高层后画
         QPolygonF quad;    // 投影四边形（0=TL 1=TR 2=BR 3=BL）
         QTransform tex;    // 画布局部矩形 → 屏幕（仿射；贴图/棋盘共用）
-        const QImage* img; // 匹配源帧（可空 = 棋盘格占位）
+        const QImage* img; // 匹配源帧（可空 = 棋盘格占位；dxt 项 img 为空
+                           //  但 GL 贴图仍可用——QPainter 回退路径专用）
+        const PreviewRenderer::DeliverItem* it; // 三形态域交付（GL 贴图源）
         bool deformed = false; // 变形片段（锚点≠中心或角点位移）——贴图
                                // 改走两三角仿射分块（quad 非平行四边形，
                                // 单仿射 tex 数学前提已破）
@@ -1721,10 +1739,13 @@ void SceneCanvasWidget::paintGL3D(
                          (q[3].x() - q[0].x()) / r.height(),
                          (q[3].y() - q[0].y()) / r.height(),
                          q[0].x(), q[0].y());
+            const PreviewRenderer::DeliverItem* matched = matchTex(c.id);
             prims.push_back({4, tr, cl,
                              cam3d_.depthOf(r.center().x(), h, r.center().y()),
                              h, q, m,
-                             matchTex(c.id), deformed});
+                             (matched && !matched->frame.isNull())
+                                 ? &matched->frame : nullptr,
+                             matched, deformed});
         }
     }
     // 【遮挡排序 2026-11-05 定案】cue 间遮挡纯靠【离地高度 h】（低→高后
@@ -1829,7 +1850,49 @@ void SceneCanvasWidget::paintGL3D(
                             std::fflush(stderr);
                 }
             }
-            if (pr.img && !pr.img->isNull() && r.width() > 0 && r.height() > 0) {
+            // ---- 面片：GL 贴图优先（阶段1 GL 化 2026-11-17）----------------
+            // 裸 GL 画片段面片：HAP DXT 压缩纹理直传（零 CPU 解压——
+            // worker 软解退役的前提）+ 单应透视校正（光栅 /W 插值逐点
+            // 精确，两三角仿射的数学缺陷在 GL 路径根治）。QPainter 夹层
+            // 用官方 begin/endNativePainting 混用模式；GL 失败（初始化/
+            // 上传/退化四边形）或 MS_CANVAS_GL3D=0 → 下方 QPainter 原路径
+            // 逐位兜底（棋盘格/仿射贴图语义不变）。
+            bool gl_drawn = false;
+            {
+                static const bool s_gl3d_on = [] {
+                    const char* e = std::getenv("MS_CANVAS_GL3D");
+                    return e == nullptr || e[0] != '0';
+                }();
+                if (pr.it && (!pr.it->frame.isNull() || pr.it->dxt) &&
+                    s_gl3d_on) {
+                    if (!gl3d_) gl3d_ = std::make_unique<Canvas3DGl>();
+                    gl3d_->frame(width(), height(),
+                                 (float)devicePixelRatioF());
+                    Canvas3DGl::TexData td;
+                    if (pr.it->dxt) { // DXT 域：裸块+格式+尺寸直透
+                        td.dxt        = pr.it->dxt;
+                        td.dxt_format = pr.it->dxt_format;
+                        td.width      = (int)pr.it->gpu_w;
+                        td.height     = (int)pr.it->gpu_h;
+                    } else { // CPU RGBA 域（软解/硬解下载回退）
+                        td.rgba   = pr.it->frame.constBits();
+                        td.stride = (std::uint32_t)pr.it->frame.bytesPerLine();
+                        td.width  = pr.it->frame.width();
+                        td.height = pr.it->frame.height();
+                    }
+                    const double qx[4] = {pr.quad[0].x(), pr.quad[1].x(),
+                                          pr.quad[2].x(), pr.quad[3].x()};
+                    const double qy[4] = {pr.quad[0].y(), pr.quad[1].y(),
+                                          pr.quad[2].y(), pr.quad[3].y()};
+                    p.beginNativePainting();
+                    gl_drawn = gl3d_->drawClipFace(
+                        c.id, td, qx, qy,
+                        (float)std::clamp(tf.opacity, 0.0, 1.0));
+                    p.endNativePainting();
+                }
+            }
+            if (!gl_drawn &&
+                pr.img && !pr.img->isNull() && r.width() > 0 && r.height() > 0) {
                 const double sx = r.width()  / pr.img->width();
                 const double sy = r.height() / pr.img->height();
                 if (pr.deformed) {
@@ -1898,7 +1961,7 @@ void SceneCanvasWidget::paintGL3D(
                 p.setRenderHint(QPainter::SmoothPixmapTransform, false);
                 p.setOpacity(1.0);
                 }
-            } else if (pr.deformed) {
+            } else if (!gl_drawn && pr.deformed) {
                 // 变形占位：棋盘格裁进位移后四边形（AABB 铺底 + clip）
                 QPainterPath clip_path;
                 clip_path.addPolygon(pr.quad);
@@ -1907,7 +1970,7 @@ void SceneCanvasWidget::paintGL3D(
                 p.setClipPath(clip_path);
                 drawChecker(p, pr.quad.boundingRect());
                 p.restore();
-            } else {
+            } else if (!gl_drawn) {
                 p.setTransform(pr.tex);
                 drawChecker(p, QRectF(0, 0, r.width(), r.height()));
             }
