@@ -11,7 +11,13 @@ namespace cefbox {
 namespace {
 // OSR 视图尺寸下限：CEF 要求 GetViewRect 返回正值，否则浏览器创建/合成异常
 constexpr int kMinViewSize = 1;
+
+std::atomic<int> CefOsrBrowser::s_aliveCount{0};
 }  // namespace
+
+int CefOsrBrowser::aliveCount() {
+    return s_aliveCount.load(std::memory_order_relaxed);
+}
 
 CefRefPtr<CefOsrBrowser> CefOsrBrowser::create(int width, int height,
                                                const std::string& urlUtf8,
@@ -32,6 +38,7 @@ CefRefPtr<CefOsrBrowser> CefOsrBrowser::create(int width, int height,
                                        browserSettings, nullptr, nullptr)) {
         return nullptr;
     }
+    s_aliveCount.fetch_add(1, std::memory_order_relaxed);
     return browser;
 }
 
@@ -70,6 +77,18 @@ void CefOsrBrowser::close() {
     m_browser->GetHost()->CloseBrowser(false);  // 不强制；页面 confirm 等已被 OSR 抑制
 }
 
+void CefOsrBrowser::clearCallbacks() {
+    m_onFrame = nullptr;
+    m_onLoad = nullptr;
+}
+
+std::string CefOsrBrowser::currentUrl() const {
+    if (!m_browser)
+        return std::string();
+    CefRefPtr<CefFrame> frame = m_browser->GetMainFrame();
+    return frame ? frame->GetURL().ToString() : std::string();
+}
+
 // ---- CefLifeSpanHandler ----
 
 void CefOsrBrowser::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
@@ -98,6 +117,7 @@ bool CefOsrBrowser::OnBeforePopup(CefRefPtr<CefBrowser> browser,
 void CefOsrBrowser::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     m_browser = nullptr;  // OnBeforeClose 后宿主不得再访问 browser
     m_closed = true;
+    s_aliveCount.fetch_sub(1, std::memory_order_relaxed);
 }
 
 // ---- CefRenderHandler ----
@@ -143,6 +163,10 @@ void CefOsrBrowser::OnLoadError(CefRefPtr<CefBrowser> browser,
                  CefString(failedUrl).ToWString().c_str());
     if (m_onLoad)
         m_onLoad(false);
+}
+
+void CefOsrBrowser::OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString& title) {
+    m_title = title.ToString();
 }
 
 }  // namespace cefbox

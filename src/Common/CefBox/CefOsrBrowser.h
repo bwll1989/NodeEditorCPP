@@ -12,6 +12,7 @@
 
 #include "include/cef_client.h"
 
+#include <atomic>
 #include <functional>
 #include <string>
 
@@ -20,7 +21,8 @@ namespace cefbox {
 class CEFBOX_EXPORT CefOsrBrowser : public CefClient,
                                     public CefLifeSpanHandler,
                                     public CefRenderHandler,
-                                    public CefLoadHandler {
+                                    public CefLoadHandler,
+                                    public CefDisplayHandler {
 public:
     /// BGRA8 预乘 alpha 帧回调；buffer 生命周期仅限回调内（需要保留须拷出）。
     using FrameCallback = std::function<void(const void* bgra, int width, int height)>;
@@ -33,6 +35,9 @@ public:
                                            FrameCallback onFrame,
                                            LoadCallback onLoad = {});
 
+    /// 尚未被 OnBeforeClose 关闭的浏览器数（CefRuntime::shutdown 排空等待用）
+    static int aliveCount();
+
     /// 导航到新 URL（UTF-8）
     void loadUrl(const std::string& urlUtf8);
     /// 在主 frame 执行 JS（UTF-8）
@@ -41,14 +46,21 @@ public:
     void resize(int width, int height);
     /// 优雅关闭（等 OnBeforeClose 后宿主即可丢弃引用）
     void close();
+    /// 摘除全部回调（节点析构路径用——保证此后 OnPaint 不再触达节点）
+    void clearCallbacks();
     bool isClosed() const { return m_closed; }
     int width() const { return m_width; }
     int height() const { return m_height; }
+    /// 页面标题（OnTitleChange 累积，UTF-8；主 frame 才更新）
+    const std::string& title() const { return m_title; }
+    /// 当前主 frame URL（UTF-8；浏览器未就绪返回空）
+    std::string currentUrl() const;
 
     // ---- CefClient ----
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
     CefRefPtr<CefRenderHandler> GetRenderHandler() override { return this; }
     CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
+    CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
 
     // ---- CefLifeSpanHandler ----
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override;
@@ -86,6 +98,10 @@ public:
                      const CefString& errorText,
                      const CefString& failedUrl) override;
 
+    // ---- CefDisplayHandler ----
+    void OnTitleChange(CefRefPtr<CefBrowser> browser,
+                       const CefString& title) override;
+
 private:
     CefOsrBrowser(int width, int height, FrameCallback onFrame, LoadCallback onLoad);
     ~CefOsrBrowser() override;
@@ -96,6 +112,9 @@ private:
     int m_width;
     int m_height;
     bool m_closed = false;
+    std::string m_title;
+
+    static std::atomic<int> s_aliveCount;
 
     IMPLEMENT_REFCOUNTING(CefOsrBrowser);
     DISALLOW_COPY_AND_ASSIGN(CefOsrBrowser);

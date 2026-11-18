@@ -1,12 +1,16 @@
 #include "CefRuntime.h"
 
+#include "CefOsrBrowser.h"
 #include "include/cef_app.h"
 #include "include/cef_browser.h"
 #include "include/wrapper/cef_helpers.h"
 
 #include <windows.h>
 
+#include <chrono>
+#include <cstdio>
 #include <filesystem>
+#include <thread>
 
 namespace cefbox {
 
@@ -156,6 +160,23 @@ void CefRuntime::shutdown() {
     HWND wnd = (HWND)m_pumpWnd;
     KillTimer(wnd, kHeartbeatTimerId);
     KillTimer(wnd, kScheduleTimerId);
+
+    // 排空等待：调用方（节点 dtor）已对每个浏览器发起 close()，
+    // 这里手动泵驱动 OnBeforeClose 全部送达后再 CefShutdown——
+    // 否则 CefShutdown 遇未关浏览器会挂起（Flow 退出秒退的关键路径）。
+    constexpr int kDrainTimeoutMs = 3000;
+    auto t0 = std::chrono::steady_clock::now();
+    while (CefOsrBrowser::aliveCount() > 0) {
+        CefDoMessageLoopWork();
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - t0)
+                .count() > kDrainTimeoutMs) {
+            std::fprintf(stderr, "[CefRuntime] shutdown drain timeout, alive=%d\n",
+                         CefOsrBrowser::aliveCount());
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
 
     CefShutdown();
 
