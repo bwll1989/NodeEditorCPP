@@ -25,6 +25,7 @@
 #include "ScreenWarpPanel.hpp" // 输出变形编辑面板（「几何结构」页内嵌）
 
 #include <QFormLayout>
+#include <QComboBox>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -46,6 +47,23 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
 
     auto* form_box = new QGroupBox("画布位置与显示大小（像素）", this);
     auto* form     = new QFormLayout(form_box);
+
+    // ---- 投影模式（2026-11-18 Display 统一模型阶段1：数据先行）----------
+    // Framed = 取景窗（默认，历史行为——引用 Show 全局 Eye 的成品画面
+    // 取景窗）；Mapped = 投影映射（3D mapping 预留——屏将持有自己的
+    // 投影仪 Eye，内容按视锥投到网格面片；渲染路径后续阶段接入，
+    // 本阶段切到 Mapped 仅持久化数据，输出仍走 Framed 链）。
+    projection_mode_ = new QComboBox(form_box);
+    projection_mode_->addItem(QStringLiteral("取景窗（Framed）"));    // 0
+    projection_mode_->addItem(QStringLiteral("投影映射（Mapped）"));  // 1
+    projection_mode_->setCurrentIndex(
+        screen.projectionMode == 1 ? 1 : 0);
+    projection_mode_->setToolTip(tr(
+        "投影模式：\n"
+        "· 取景窗（默认）：Display = 全局成品画面上的取景窗；\n"
+        "· 投影映射：3D mapping 用——Display 持有自己的投影仪视角，\n"
+        "  内容按视锥投到网格面片（渲染路径后续版本接入）。"));
+    form->addRow("投影模式：", projection_mode_);
 
     // ---- 位置/大小：允许负坐标（画布外扩屏）与 1~8192 尺寸 --------------
     // 【2026-11-18 控件风格统一】全部 spinbox → FloatDragValueWidget/
@@ -238,6 +256,7 @@ void ScreenPropertyDialog::applyTo(Screen& s) const {
     s.rot_x     = rot_x_->value();
     s.rot_y     = rot_y_->value();
     // s.z 不写回（层级行退役——保留场景既有值兼容老工程）
+    s.projectionMode = projection_mode_->currentIndex() == 1 ? 1 : 0;
     s.player_id = player_id_->text().toStdString();
     // 输出变形 = 「几何结构」页内嵌面板的当前编辑状态（2026-11-11 内嵌化：
     // 面板即唯一真值——无变形时写默认清空值，与旧弹窗 OK 语义一致）

@@ -49,13 +49,19 @@
 
 #include <QContextMenuEvent>
 #include <QDebug>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QLabel>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QOpenGLContext> // 析构 GL 资源释放前的上下文有效性检查
 #include <QPainter>
 #include <QPainterPath>
 #include <QPaintEvent>
+#include <QPushButton>
 #include <QTimer>
+#include <QVBoxLayout>
 #include <QWheelEvent>
 
 #include <algorithm>
@@ -72,6 +78,7 @@
 #include "Canvas3DGl.hpp"   // 3D 视口贴图层（阶段1 GL化：DXT 直传+透视校正）
 #include "media/DxtDecode.hpp" // DXT 现场解码（QPainter 回退路径兜底；软解退役）
 #include "../TimeLineWidget/MsRuntimeBridge.hpp" // 下发运行时桥（银幕操作执行通道）
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp" // Eye 对话框数值控件
 #include "../TimeLineWidget/QtTimelineModelAdapter.hpp" // 模型对外接口（下发/同步委托目标）
 #include "Common/TimeLineBase/BaseTimeLineWidget.h" // 时间轴控件（选中联动信号源；setTimelineWidget）
 #include <QItemSelectionModel> // 时间轴选中 currentChanged（QModelIndex 换算入参）
@@ -1046,6 +1053,71 @@ double SceneCanvasWidget::selectionPlaneH() const {
                                                    //  层级 transform.z 非
                                                    //  空间坐标）
     return 0.0; // 屏幕/无选中：地面（屏幕是物理输出平面，恒贴地）
+}
+
+bool SceneCanvasWidget::vpHandleHit(const QPointF& wp) const {
+    // VP 手柄仅在手动 Eye 已配置时存在（persp_focal<=0 时 VP 走画布
+    // 派生默认——拖动无意义；配置入口 = 右键菜单「全局透视（Eye 点）」）
+    if (!view3d_ || !scene_ || scene_->persp_focal <= 0.0) return false;
+    const QPointF vp =
+        project3(scene_->persp_vp_x, 0.0, scene_->persp_vp_y);
+    return (vp - wp).manhattanLength() <= 10.0;
+}
+
+void SceneCanvasWidget::openEyeDialog() {
+    if (!scene_) return;
+    QDialog dlg(this);
+    dlg.setWindowTitle(tr("全局透视（Eye 点）"));
+    auto* lay  = new QVBoxLayout(&dlg);
+    auto* form = new QFormLayout;
+    // 焦距 F：0 = 未配置（画布派生默认 F=2×对角线、VP=画布中心——
+    // Scene::effectivePersp 语义）；>0 = 手动 Eye 生效
+    auto* focal = new FloatDragValueWidget(&dlg);
+    focal->setRange(0.0, 200000.0);
+    focal->setDecimals(0);
+    focal->setSingleStep(100.0);
+    focal->setValue(scene_->persp_focal);
+    focal->setToolTip(tr(
+        "全局透视焦距 F（px）。\n0 = 未配置——全场透视走画布派生默认\n"
+        "（F = 2×画布对角线，消隐点 = 画布中心）；\n>0 = 手动 Eye 生效，"
+        "3D 视口出现可拖动的 VP 标记。"));
+    auto* vpx = new FloatDragValueWidget(&dlg);
+    vpx->setRange(-8192.0, 16384.0);
+    vpx->setDecimals(1);
+    vpx->setSingleStep(10.0);
+    vpx->setValue(scene_->persp_vp_x);
+    auto* vpy = new FloatDragValueWidget(&dlg);
+    vpy->setRange(-8192.0, 16384.0);
+    vpy->setDecimals(1);
+    vpy->setSingleStep(10.0);
+    vpy->setValue(scene_->persp_vp_y);
+    form->addRow(tr("焦距 F："), focal);
+    form->addRow(tr("消隐点 X："), vpx);
+    form->addRow(tr("消隐点 Y："), vpy);
+    lay->addLayout(form);
+    auto* hint = new QLabel(
+        tr("消隐点也可在 3D 视口直接拖动橙色 VP 标记（需先配置焦距）。"
+           "透视只影响素材投影，不改 Display 取景窗。"), &dlg);
+    hint->setWordWrap(true);
+    hint->setStyleSheet("color: gray; font-size: 11px;");
+    lay->addWidget(hint);
+    auto* reset = new QPushButton(tr("恢复默认（画布派生）"), &dlg);
+    connect(reset, &QPushButton::clicked, &dlg, [focal] {
+        focal->setValue(0.0); // F=0 = 未配置 → effectivePersp 画布派生
+    });
+    lay->addWidget(reset);
+    auto* btns = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    lay->addWidget(btns);
+    if (dlg.exec() != QDialog::Accepted) return;
+    scene_->persp_focal = focal->value();
+    scene_->persp_vp_x  = vpx->value();
+    scene_->persp_vp_y  = vpy->value();
+    if (preview_) preview_->invalidate(); // 透视参数变更重合成
+    emit sceneEdited();
+    update();
 }
 
 QPolygonF SceneCanvasWidget::projectQuad(const QRectF& r, double rotation_deg,
@@ -2462,6 +2534,24 @@ void SceneCanvasWidget::paintGL3D(
             p.drawLine(project3(gx0, 0, gy), project3(gx1, 0, gy));
     }
 
+    // ---- 6b. 全局消隐点 VP 标记（Eye 点可视化；仅手动 Eye 已配置）--------
+    // 橙色十字圆标：透视投影的唯一消隐点，可直接拖动（对齐 WATCHOUT
+    // Stage Perspective 的 Vanishing Point 语义）。未配置时不画——
+    // 派生默认 VP 无编辑意义（避免误导）。
+    if (scene_->persp_focal > 0.0) {
+        const QPointF vp =
+            project3(scene_->persp_vp_x, 0.0, scene_->persp_vp_y);
+        p.setPen(QPen(QColor(0xE8, 0x9C, 0x28), 1.4));
+        p.setBrush(QColor(0xE8, 0x9C, 0x28, 40));
+        p.drawEllipse(vp, 6.0, 6.0);
+        p.setBrush(Qt::NoBrush);
+        p.drawLine(vp + QPointF(-11, 0), vp + QPointF(-4, 0));
+        p.drawLine(vp + QPointF(4, 0), vp + QPointF(11, 0));
+        p.drawLine(vp + QPointF(0, -11), vp + QPointF(0, -4));
+        p.drawLine(vp + QPointF(0, 4), vp + QPointF(0, 11));
+        p.drawText(vp + QPointF(10, -8), QStringLiteral("VP"));
+    }
+
     // ---- 7. HUD（左上操作提示 + 右上相机读数）------------------------------
     p.setPen(QColor(0xB8, 0xB8, 0xB8));
     {
@@ -2969,6 +3059,17 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
     QRectF sel_rect;
     double sel_rot = 0.0;
 
+    // ---- 全局消隐点 VP 手柄（3D，优先于对象交互——地面标记易被覆盖）：
+    //      按下即进拖动会话，实时改 persp_vp_x/y（透视参数）-----------
+    if (view3d_ && vpHandleHit(wp)) {
+        dragging_vp_ = true;
+        moved_       = false;
+        setCursor(Qt::ClosedHandCursor);
+        statusTip("拖动全局消隐点（Eye 点）——Shift 吸附 10px");
+        ev->accept();
+        return;
+    }
+
     // ---- 旋转拖柄最优先：柄在对象"头顶"外延处，压柄按下必进旋转会话
     //      （先于角点手柄与 hitTest——三者互斥，柄离角点更近易误触）----
     if (hitRotateHandle(wp) && selectionCanvasRect(&sel_rect, &sel_rot)) {
@@ -3110,6 +3211,8 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
             // 3D 轴球（端点/球体）→ 张开手（可点跳视角/可拖拽 orbit）
             if (cursor().shape() != Qt::OpenHandCursor)
                 setCursor(Qt::OpenHandCursor);
+        } else if (view3d_ && vpHandleHit(ev->position())) {
+            setCursor(Qt::SizeAllCursor); // VP 手柄 → 移动光标
         } else if (hitRotateHandle(ev->position())) {
             setCursor(Qt::CrossCursor); // 旋转：十字光标（无原生旋转光标）
         } else {
@@ -3122,6 +3225,27 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
                 unsetCursor(); // 离开手柄恢复箭头（只在状态变化时调用，免抖动）
             }
         }
+    }
+
+    // ---- VP 拖动会话：光标在地面平面的交点 → persp_vp_x/y（透视参数
+    //      实时生效——合成/标注/命中同源）；Shift 吸附 10px ----
+    if (dragging_vp_) {
+        if (scene_) {
+            const QPointF cp = widgetToCanvasAt(ev->position(), 0.0);
+            double vx = cp.x(), vy = cp.y();
+            if (ev->modifiers() & Qt::ShiftModifier) {
+                vx = std::round(vx / 10.0) * 10.0;
+                vy = std::round(vy / 10.0) * 10.0;
+            }
+            scene_->persp_vp_x = vx;
+            scene_->persp_vp_y = vy;
+            moved_ = true;
+            if (preview_) preview_->invalidate(); // 透视参数变更重合成
+            emit sceneEditedLive();               // display 节流下发
+        }
+        update();
+        ev->accept();
+        return;
     }
 
     if (!dragging_ || sel_.kind == 0 || !scene_) {
@@ -3305,6 +3429,14 @@ void SceneCanvasWidget::mouseReleaseEvent(QMouseEvent* ev) {
         ev->accept();
         return;
     }
+    if (ev->button() == Qt::LeftButton && dragging_vp_) {
+        dragging_vp_ = false;
+        unsetCursor();
+        if (moved_) emit sceneEdited(); // VP 落点已写入工作副本
+        moved_ = false;
+        ev->accept();
+        return;
+    }
     if (ev->button() == Qt::LeftButton && dragging_) {
         dragging_ = false;
         resizing_ = false;      // 缩放/旋转/移动会话统一在此收尾
@@ -3420,6 +3552,10 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
     QAction* act_snap = menu.addAction("吸附对齐（边缘/中心）");
     act_snap->setCheckable(true);
     act_snap->setChecked(snapping_);
+    // 全局透视（Eye 点）编辑入口（仅 3D 视口——2D 取景不受透视影响；
+    // 对标 WATCHOUT Stage Perspective 命令）
+    QAction* act_eye = nullptr;
+    if (view3d_) act_eye = menu.addAction("全局透视（Eye 点）...");
     // 【正交视图开关已退役 2026-11-18】功能及其函数全删——当初为预览
     // 画面而做，现 display 面片已在 3D 视口常驻贴图，预览合成恒与
     // display 同源（透视）。
@@ -3433,6 +3569,9 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
     else if (chosen == act_snap) {
         snapping_ = act_snap->isChecked();
         statusTip(snapping_ ? "吸附对齐已开启" : "吸附对齐已关闭");
+    }
+    else if (chosen == act_eye) {
+        openEyeDialog();
     }
     else if (chosen == act_reset) {
         resetView();

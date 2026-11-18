@@ -411,6 +411,9 @@ ms_proto::Screen SceneLoader::toProtoScreen(const Screen& s) {
     // 与旧版本完全一致（proto3 普通标量 0 反序列化等价缺席）
     if (s.rot_x != 0.0) ps.set_rot_x(s.rot_x);
     if (s.rot_y != 0.0) ps.set_rot_y(s.rot_y);
+    // 投影模式（2026-11-18 阶段1 数据先行）：非 0 才写——Framed 屏的
+    // wire 格式与旧版本完全一致（proto3 普通标量 0 反序列化等价缺席）
+    if (s.projectionMode != 0) ps.set_projection_mode(s.projectionMode);
     // 输出变形（2026-11-09）：仅 mode 非 0 时写入——保持"无变形 screen"
     // 的 wire 格式与旧版本完全一致（message 缺席 = has_warp()==false）
     if (s.warp.active()) {
@@ -436,6 +439,10 @@ Screen SceneLoader::fromProtoScreen(const ms_proto::Screen& ps) {
     // 屏姿态（2026-11-17 阶段2）：缺席 = 0 = 无姿态（业务默认，无陷阱）
     s.rot_x = ps.rot_x();
     s.rot_y = ps.rot_y();
+    // 投影模式（2026-11-18 阶段1）：缺席 = 0 = Framed；非 0/1 钳 0
+    //（信任边界——未知模式宁回退取景窗勿误投）
+    s.projectionMode =
+        (ps.projection_mode() == 1) ? 1 : 0;
     // 输出变形（2026-11-09）：缺席 = 无变形（默认构造 mode=0）；存在则
     // 拷贝后经 normalize() 收口信任边界（尺寸/坐标钳制）——长度根本
     // 不匹配（节点数对不上 cols*rows）时整份丢弃，回退无变形。

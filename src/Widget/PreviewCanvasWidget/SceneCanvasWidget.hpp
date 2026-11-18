@@ -248,14 +248,20 @@ private:
     /// 选中对象的画布外接框与旋转角（kind==0 返回 false）
     bool selectionCanvasRect(QRectF* r, double* rotation_deg) const;
     /// 当前选中对象所在的高度平面（画布域 h；3D 反投影/手柄投影共用）：
-    /// 片段 = transform.z（Z 位置即悬浮高度）；屏幕 = 地面 0（屏幕是
-    /// 物理输出平面，始终贴地——z 仍是 2D 叠放语义不参与高度）
+    /// 片段 = pos_z（深度 Z——三维空间真实 z 位置，2026-11-18 语义终定）；
+    /// 屏幕 = 地面 0（屏幕是物理输出平面，始终贴地）
     double selectionPlaneH() const;
     /// 命中选中对象的角点缩放手柄（控件域 ~5px 容差）
     /// \return 局部角编码 0..3（CanvasGeometry::Corner）；未命中 -1
     int hitResizeHandle(const QPointF& widget_pos) const;
     /// 命中选中对象的旋转拖柄（顶边中点外延；控件域 ~6px 容差）
     bool hitRotateHandle(const QPointF& widget_pos) const;
+    /// 命中全局消隐点 VP 手柄（3D 视口地面标记；仅 persp_focal>0 时
+    /// 存在——未配置时 VP 走画布派生默认，拖动无意义）
+    bool vpHandleHit(const QPointF& widget_pos) const;
+    /// 全局透视（Eye 点）编辑对话框：焦距 F + 消隐点 X/Y（对标
+    /// WATCHOUT Stage Perspective）——OK 写回 Scene + 重合成 + sceneEdited
+    void openEyeDialog();
 
     // ---- 绘制子过程 ---------------------------------------------------------
     /// 【GL 直通合成】GpuDeliver 交付帧经 GlRenderer(ExternalCtx) 合成进
@@ -405,6 +411,8 @@ private:
                                          ///  contextMenuEvent（Windows 右键
                                          ///  松开即发菜单事件，不吞则拖完弹菜单）
     QPointF  orbit_last_pos_{0, 0};     ///< 轨道会话上一点（增量计算）
+    bool     dragging_vp_  = false;    ///< 全局消隐点 VP 拖动会话进行中
+                                     ///  （3D 视口地面标记；改 persp_vp_x/y）
     double   drag_plane_h_ = 0.0;       ///< 拖动会话高度平面（画布域 h；
                                          ///  按下时冻结=对象所在平面，全程
                                          ///  反投影到该平面求画布坐标）

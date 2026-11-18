@@ -578,13 +578,19 @@ struct Screen {
     /// 姿态（历史仿射映射逐位不变）。
     double rot_x = 0.0;      ///< 俯仰旋转 X（度，正=顶边后仰）
     double rot_y = 0.0;      ///< 偏航旋转 Y（度，正=右缘远离）
+    /// 投影模式（2026-11-18 Display 统一模型阶段1，数据先行）：
+    /// 0=Framed 取景窗（默认，历史行为——引用 Show 全局 Eye 的取景窗）；
+    /// 1=Mapped 投影映射（3D mapping 预留——屏持有自己的投影仪 Eye，
+    /// 内容按视锥投到网格面片；渲染路径后续接入）。非 0/1 读端钳 0。
+    int projectionMode = 0;
 };
 
 inline bool operator==(const Screen& a, const Screen& b) {
     return a.id == b.id && a.player_id == b.player_id && a.x == b.x &&
            a.y == b.y && a.w == b.w && a.h == b.h &&
            a.rotation == b.rotation && a.z == b.z && a.warp == b.warp &&
-           a.rot_x == b.rot_x && a.rot_y == b.rot_y;
+           a.rot_x == b.rot_x && a.rot_y == b.rot_y &&
+           a.projectionMode == b.projectionMode;
 }
 
 // ---------------------------------------------------------------------------
