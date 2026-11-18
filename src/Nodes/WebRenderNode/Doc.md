@@ -18,7 +18,8 @@ CEF 运行时（`libcef.dll`、`icudtl.dat`、`v8_context_snapshot.bin`、`local
 
 缓存目录是系统临时目录下的 `NodeEditorWebRender/`：`cef/` 为全进程共享的 CEF profile（多节点共用），HTML 源写成同目录的 `html_<uuid>.html` 再以 `file://` 打开。首个节点启动前整目录清扫（顺带收掉旧版 Edge 后端遗留的 UUID profile 孤儿）。
 
-> ⚠️ **管理员权限**：Windows 提权运行 Flow 时，CEF 会触发 auto de-elevation 导致初始化失败（Web Render 报「CEF 运行时初始化失败」）。请以普通权限启动，或命令行加 `--do-not-de-elevate`。
+> ⚠️ **管理员权限**：Windows 管理员权限运行 Flow 时，CEF 的 auto de-elevation 会导致初始化失败（Web Render 报「CEF 运行时初始化失败」）。请以**普通权限**启动 Flow（双击默认即为普通权限）。
+> 注意：不要试图给 Flow.exe 传 `--do-not-de-elevate`——主程序的命令行解析器不认识该开关，会直接退出。
 
 ## 2. 端口说明
 
