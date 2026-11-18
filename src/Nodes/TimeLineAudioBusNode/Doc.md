@@ -18,6 +18,8 @@
 | `positionSec` | timeline 播放头（秒）——runtime 写入真实时间轴位置的入口 |
 | `playing` | 播放态（进 SyncState.playing） |
 
+**播放态发布面（2026-11-17 T3 落地）**：编辑器宿主（`TimelineAudioBusHost`）在线时（`Registry.playbackActive=true`），`publishSync` 的播放头/播放态以 Host 发布面为准——命令面（play/pause/seek/stop）即时写、worker 每播放拍连续写会话秒 + 写入时刻全局帧锚点。节点本地 `playing`/`positionSec`/`followClock` 属性仅在无宿主（节点单独联调）时兜底生效。此修复解决：SyncData 接 LTCGenerator 不出时间码（playing 恒 false → 下游 hold 定格静音）。
+
 ## 驱动权约定（单写者铁律）
 
 - `driveMode=external`：节点不写队列；runtime（后续接入）是唯一写者。

@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <atomic>
 #include <map>
 #include <memory>
 
@@ -57,6 +58,30 @@ public:
     /// bus 驱动模式（未登记 = "external"）
     QString busDriveMode(const QString& busName) const;
 
+    /// -----------------------------------------------------------------------
+    /// 播放态发布面（2026-11-17 T3 落地，原诊断根因修复）
+    ///   * 背景：runtime host（TimelineAudioBusHost）此前只写音频队列，
+    ///     节点 publishSync 的 playing 恒 false → 下游 LTCGenerator 等
+    ///     SyncData 消费端判"源暂停"进入定格静音（hold）。
+    ///   * 写侧 = Host：命令面（commandPlay/Pause/Seek/Stop，GUI 线程）
+    ///     即时写播放态/定位点；worker 每播放拍连续写播放头（会话秒）
+    ///     + 写入时刻全局帧计数锚点（与 SyncSharedState 外推口径一致）。
+    ///   * 读侧 = TimeLineAudioBus 节点 worker：publishSync 每拍轮询。
+    ///   * playbackActive：Host start/stop 置位——节点据此裁决"听 Host
+    ///     还是回退本地属性兜底"（节点单独联调/无编辑器宿主场景）。
+    ///   * 原子量免锁：单标量无复合不变量；读侧 50fps 轮询开销可忽略。
+    /// -----------------------------------------------------------------------
+    void setPlaybackActive(bool active);
+    void setPlaybackPlaying(bool playing);
+    /// 写播放头：positionSec = 会话时间（秒）；anchorFrame = 写入时刻全局帧计数
+    void setPlaybackPosition(double positionSec, qint64 anchorFrame);
+
+    /// Host 存活标志（决定节点消费路径：Host 发布 vs 本地属性兜底）
+    bool playbackActive() const;
+    bool playbackPlaying() const;
+    double playbackPositionSec() const;
+    qint64 playbackAnchorFrame() const;
+
 private:
     explicit TimelineAudioBusRegistry();
 
@@ -65,6 +90,12 @@ private:
     /// bus 名 → 驱动模式（"external"/"test"/"silence"；节点 setDriveMode
     /// 时同步写——host 写侧据此跳过非 external 的队列，单写者不破）
     std::map<QString, QString> driveModes_;
+
+    /// 播放态发布面（Host 写 / 节点读；语义见上方方法注释）
+    std::atomic<bool>    playback_active_{false};
+    std::atomic<bool>    playback_playing_{false};
+    std::atomic<double>  playback_position_sec_{0.0};
+    std::atomic<qint64>  playback_anchor_frame_{0};
 };
 
 } // namespace NodeDataTypes

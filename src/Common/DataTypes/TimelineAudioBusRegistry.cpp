@@ -68,4 +68,46 @@ QString TimelineAudioBusRegistry::busDriveMode(const QString& busName) const
                                      : QStringLiteral("external");
 }
 
+// ---------------------------------------------------------------------------
+// 播放态发布面（Host 写 / 节点 worker 读；免锁原子——单标量无复合不变量）
+// ---------------------------------------------------------------------------
+void TimelineAudioBusRegistry::setPlaybackActive(bool active)
+{
+    // release：保证 Host 先写的 position/playing 对读侧 acquire 可见
+    playback_active_.store(active, std::memory_order_release);
+}
+
+void TimelineAudioBusRegistry::setPlaybackPlaying(bool playing)
+{
+    playback_playing_.store(playing, std::memory_order_release);
+}
+
+void TimelineAudioBusRegistry::setPlaybackPosition(double positionSec,
+                                                   qint64 anchorFrame)
+{
+    // 先锚点后位置：读侧即便撕裂到中间态，误差也 ≤1 拍（外推口径自愈）
+    playback_anchor_frame_.store(anchorFrame, std::memory_order_relaxed);
+    playback_position_sec_.store(positionSec, std::memory_order_release);
+}
+
+bool TimelineAudioBusRegistry::playbackActive() const
+{
+    return playback_active_.load(std::memory_order_acquire);
+}
+
+bool TimelineAudioBusRegistry::playbackPlaying() const
+{
+    return playback_playing_.load(std::memory_order_acquire);
+}
+
+double TimelineAudioBusRegistry::playbackPositionSec() const
+{
+    return playback_position_sec_.load(std::memory_order_acquire);
+}
+
+qint64 TimelineAudioBusRegistry::playbackAnchorFrame() const
+{
+    return playback_anchor_frame_.load(std::memory_order_relaxed);
+}
+
 } // namespace NodeDataTypes

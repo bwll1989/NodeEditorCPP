@@ -216,11 +216,21 @@ void TimeLineAudioBusWorker::publishSync(qint64 clockFrameCount)
     if (!syncPublisher_) {
         return;
     }
-    // followClock：播放头 = 全局时钟换算秒（时间轴与全局时钟同锚的默认约定）；
-    // runtime 接入后经属性写入真实时间轴位置（followClock=false）。
     double position = 0.0;
+    qint64 anchorFrame = clockFrameCount;
     bool playing = false;
-    {
+    auto* registry = TimelineAudioBusRegistry::instance();
+    if (registry->playbackActive()) {
+        // T3（2026-11-17）：runtime host 在线——播放头/播放态以 Host 发布面
+        // 为准（会话秒 + 写入时刻全局帧锚点）。此前本地 playing 属性无人写
+        // 恒 false，下游 LTCGenerator 判"源暂停"进 hold 定格静音（根因）。
+        position = registry->playbackPositionSec();
+        anchorFrame = registry->playbackAnchorFrame();
+        playing = registry->playbackPlaying();
+    } else {
+        // 无宿主（节点单独联调）：本地属性兜底（原行为）
+        // followClock：播放头 = 全局时钟换算秒（时间轴与全局时钟同锚的默认约定）；
+        // runtime 接入后经属性写入真实时间轴位置（followClock=false）。
         std::lock_guard<std::mutex> locker(propsMutex_);
         if (followClock_) {
             const double frameInterval = TimestampGenerator::getInstance()->getFrameInterval();
@@ -228,9 +238,10 @@ void TimeLineAudioBusWorker::publishSync(qint64 clockFrameCount)
         } else {
             position = positionSec_;
         }
+        anchorFrame = clockFrameCount;
         playing = playing_;
     }
-    syncPublisher_->write(position, clockFrameCount, playing);
+    syncPublisher_->write(position, anchorFrame, playing);
 }
 
 } // namespace Nodes

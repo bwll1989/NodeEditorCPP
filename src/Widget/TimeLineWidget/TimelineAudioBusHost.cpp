@@ -35,6 +35,9 @@ void TimelineAudioBusHost::start() {
     if (running_.load(std::memory_order_acquire)) return;
     stopRequested_.store(false, std::memory_order_relaxed);
     running_.store(true, std::memory_order_release);
+    // T3（2026-11-17）：Host 存活即接管播放态发布面——节点 worker 据此
+    // 从"本地属性兜底"切到"听 Host"（修复 SyncData playing 恒 false）
+    NodeDataTypes::TimelineAudioBusRegistry::instance()->setPlaybackActive(true);
     thread_ = std::thread([this] { loop(); });
 }
 
@@ -44,6 +47,10 @@ void TimelineAudioBusHost::stop() {
     tickWaiter_.requestStop();
     if (thread_.joinable()) thread_.join();
     running_.store(false, std::memory_order_release);
+    // 退出发布面：节点回退本地属性兜底；播放态清 false（下游定格而非失联误判）
+    auto* reg = NodeDataTypes::TimelineAudioBusRegistry::instance();
+    reg->setPlaybackPlaying(false);
+    reg->setPlaybackActive(false);
 }
 
 // ---------------------------------------------------------------------------
@@ -75,11 +82,18 @@ void TimelineAudioBusHost::commandPlay(std::int64_t start_us) {
     anchor_clock_      = TimestampGenerator::getInstance()->getCurrentFrameCount();
     ++anchor_epoch_;   // 起播代际推进：worker 检测到即 flush（清旧会话残留）
     playing_           = true;
+    // T3：播放态即时发布（不等下一拍）——先定位点后 playing，下游读侧
+    // 即便读到中间态也只是晚一拍起播
+    auto* reg = NodeDataTypes::TimelineAudioBusRegistry::instance();
+    reg->setPlaybackPosition(anchor_session_us_ / 1e6, anchor_clock_);
+    reg->setPlaybackPlaying(true);
 }
 
 void TimelineAudioBusHost::commandPause() {
     std::lock_guard<std::mutex> lk(cmd_mutex_);
     playing_ = false;
+    // T3：立即失播——播放头原子保留最后一拍值（节点外推随 playing=false 定格）
+    NodeDataTypes::TimelineAudioBusRegistry::instance()->setPlaybackPlaying(false);
 }
 
 void TimelineAudioBusHost::commandSeek(std::int64_t session_us) {
@@ -89,11 +103,16 @@ void TimelineAudioBusHost::commandSeek(std::int64_t session_us) {
     anchor_session_us_ = std::max<std::int64_t>(0, session_us);
     anchor_clock_      = TimestampGenerator::getInstance()->getCurrentFrameCount();
     ++anchor_epoch_;
+    // T3：同步发布面重锚——否则下游 SyncData 外推继续用旧定位点滑向错位
+    NodeDataTypes::TimelineAudioBusRegistry::instance()->setPlaybackPosition(
+        anchor_session_us_ / 1e6, anchor_clock_);
 }
 
 void TimelineAudioBusHost::commandStop() {
     std::lock_guard<std::mutex> lk(cmd_mutex_);
     playing_ = false;
+    // T3：同 pause——播放头保留、播放态清 false（定位归零交 commandPlay 携带）
+    NodeDataTypes::TimelineAudioBusRegistry::instance()->setPlaybackPlaying(false);
 }
 
 void TimelineAudioBusHost::updateScene(const Scene& scene) {
@@ -115,7 +134,7 @@ void TimelineAudioBusHost::loop() {
     auto* gen = TimestampGenerator::getInstance();
     gen->registerAudioTickWaiter(&tickWaiter_);
 
-    const auto* registry = NodeDataTypes::TimelineAudioBusRegistry::instance();
+    auto* registry = NodeDataTypes::TimelineAudioBusRegistry::instance();
     qint64 last_anchor_epoch = -1;   ///< 锚点代际（seek 检测 → flush）
     qint64 last_written_clock = -1;  ///< 上一拍帧计数（回退检测）
 
@@ -193,6 +212,9 @@ void TimelineAudioBusHost::loop() {
             static_cast<std::int64_t>(std::llround(1'000'000.0 / fps));
         const std::int64_t t_us = anchor_us +
             (clock - anchor_clock) * frame_interval_us;
+        // T3：播放头连续发布（会话秒 + 本拍全局帧锚点）——节点 worker
+        // 每拍轮询读出，经 SyncData 外推供 LTCGenerator 等下游跟随
+        registry->setPlaybackPosition(t_us / 1e6, clock);
         const qint64 timestamp =
             clock + AppConfigs::FIXED_DELAY_FRAMES;
         const int frames = gen->getSamplesPerFrame(48000);
@@ -331,7 +353,7 @@ void TimelineAudioBusHost::pushSilence(
 }
 
 void TimelineAudioBusHost::flushAllQueues() {
-    const auto* registry = NodeDataTypes::TimelineAudioBusRegistry::instance();
+    auto* registry = NodeDataTypes::TimelineAudioBusRegistry::instance();
     for (const QString& name : registry->buses()) {
         if (registry->busDriveMode(name) != QStringLiteral("external")) continue;
         if (auto q = registry->acquire(name)) q->clear();
