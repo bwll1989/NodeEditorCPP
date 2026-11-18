@@ -13,10 +13,27 @@
 #include "include/cef_client.h"
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <string>
 
 namespace cefbox {
+
+/// 共享纹理帧信息（OnAcceleratedPaint 的 POD 镜像；句柄仅回调内有效）
+/// CEF 156 契约：shared_handle 无 keyed mutex，回调返回后即失效归还池，
+/// 消费方须在回调内重开资源并拷贝到自有纹理。
+struct SharedFrameInfo {
+    void* sharedHandle = nullptr;  ///< NT handle（仅回调内有效，用后 CloseHandle）
+    int codedWidth = 0;            ///< 完整帧尺寸
+    int codedHeight = 0;
+    int visibleX = 0;              ///< 可见区（通常 == 全帧）
+    int visibleY = 0;
+    int visibleWidth = 0;
+    int visibleHeight = 0;
+    std::uint64_t timestampUs = 0;     ///< 距采集开始的微秒
+    std::uint64_t captureCounter = 0;  ///< 帧递增计数
+    int colorBgra = 1;                 ///< 1=BGRA8（CEF 默认），0=RGBA8
+};
 
 class CEFBOX_EXPORT CefOsrBrowser : public CefClient,
                                     public CefLifeSpanHandler,
@@ -34,6 +51,14 @@ public:
                                            const std::string& urlUtf8,
                                            FrameCallback onFrame,
                                            LoadCallback onLoad = {});
+
+    /// P2：共享纹理路径（OnAcceleratedPaint）。
+    /// 需宿主具备 D3D11+WGL_NV_DX_interop2；失败应由宿主降级 create()。
+    using AcceleratedFrameCallback = std::function<void(const SharedFrameInfo&)>;
+    static CefRefPtr<CefOsrBrowser> createAccelerated(int width, int height,
+                                                      const std::string& urlUtf8,
+                                                      AcceleratedFrameCallback onAccelFrame,
+                                                      LoadCallback onLoad = {});
 
     /// 尚未被 OnBeforeClose 关闭的浏览器数（CefRuntime::shutdown 排空等待用）
     static int aliveCount();
@@ -89,6 +114,10 @@ public:
                  const void* buffer,
                  int width,
                  int height) override;
+    void OnAcceleratedPaint(CefRefPtr<CefBrowser> browser,
+                            PaintElementType type,
+                            const RectList& dirtyRects,
+                            const CefAcceleratedPaintInfo& info) override;
 
     // ---- CefLoadHandler ----
     void OnLoadEnd(CefRefPtr<CefBrowser> browser,
@@ -110,6 +139,7 @@ private:
 
     CefRefPtr<CefBrowser> m_browser;
     FrameCallback m_onFrame;
+    AcceleratedFrameCallback m_onAccelFrame;
     LoadCallback m_onLoad;
     int m_width;
     int m_height;

@@ -11,6 +11,8 @@ string(TIMESTAMP BUILD_TS "%Y%m%d")
 add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 
 add_library(${Module_Name} SHARED
+        CefD3dTextureBridge.h
+        CefD3dTextureBridge.cpp
         WebRenderBrowserProcess.h
         WebRenderBrowserProcess.cpp
         WebRenderCdpClient.h
@@ -34,7 +36,9 @@ target_link_libraries(${Module_Name}
         DataTypes
         TimestampGenerator
         GUIElements
-        CefBox)  # CEF OSR 后端（P1；旧 Edge/CDP 文件 P4 删）
+        CefBox  # CEF OSR 后端（P1；旧 Edge/CDP 文件 P4 删）
+        d3d11   # CefD3dTextureBridge: D3D11CreateDevice / OpenSharedResource1（P2）
+        opengl32)  # wglGetProcAddress / wglGetCurrentDC（WGL_NV_DX_interop2 手动绑定）
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED
         NOMINMAX WIN32_LEAN_AND_MEAN)  # CEF 头带入 windows.h，压掉 min/max 宏

@@ -42,6 +42,31 @@ CefRefPtr<CefOsrBrowser> CefOsrBrowser::create(int width, int height,
     return browser;
 }
 
+CefRefPtr<CefOsrBrowser> CefOsrBrowser::createAccelerated(int width, int height,
+                                                          const std::string& urlUtf8,
+                                                          AcceleratedFrameCallback onAccelFrame,
+                                                          LoadCallback onLoad) {
+    CEF_REQUIRE_UI_THREAD();
+    if (width < 1 || height < 1 || !onAccelFrame)
+        return nullptr;
+
+    CefRefPtr<CefOsrBrowser> browser =
+        new CefOsrBrowser(width, height, FrameCallback(), std::move(onLoad));
+    browser->m_onAccelFrame = std::move(onAccelFrame);
+
+    CefWindowInfo windowInfo;
+    windowInfo.SetAsWindowless(kNullWindowHandle);
+    windowInfo.shared_texture_enabled = TRUE;  // OnAcceleratedPaint 通道
+
+    CefBrowserSettings browserSettings;
+    if (!CefBrowserHost::CreateBrowser(windowInfo, browser.get(), urlUtf8,
+                                       browserSettings, nullptr, nullptr)) {
+        return nullptr;
+    }
+    s_aliveCount.fetch_add(1, std::memory_order_relaxed);
+    return browser;
+}
+
 CefOsrBrowser::CefOsrBrowser(int width, int height, FrameCallback onFrame, LoadCallback onLoad)
     : m_onFrame(std::move(onFrame)),
       m_onLoad(std::move(onLoad)),
@@ -85,6 +110,7 @@ void CefOsrBrowser::close() {
 
 void CefOsrBrowser::clearCallbacks() {
     m_onFrame = nullptr;
+    m_onAccelFrame = nullptr;
     m_onLoad = nullptr;
 }
 
@@ -142,6 +168,29 @@ void CefOsrBrowser::OnPaint(CefRefPtr<CefBrowser> browser,
         return;  // 弹窗层已阻断，忽略 PET_POPUP 兜底
     if (m_onFrame)
         m_onFrame(buffer, width, height);
+}
+
+void CefOsrBrowser::OnAcceleratedPaint(CefRefPtr<CefBrowser> browser,
+                                       PaintElementType type,
+                                       const RectList& dirtyRects,
+                                       const CefAcceleratedPaintInfo& info) {
+    if (type != PET_VIEW || !info.shared_texture_handle || !m_onAccelFrame)
+        return;
+    if (info.size < sizeof(CefAcceleratedPaintInfo))
+        return;  // 版本守卫
+
+    SharedFrameInfo out;
+    out.sharedHandle = info.shared_texture_handle;
+    out.colorBgra = (info.format == CEF_COLOR_TYPE_BGRA_8888) ? 1 : 0;
+    out.codedWidth = info.extra.coded_size.width;
+    out.codedHeight = info.extra.coded_size.height;
+    out.visibleX = info.extra.visible_rect.x;
+    out.visibleY = info.extra.visible_rect.y;
+    out.visibleWidth = info.extra.visible_rect.width;
+    out.visibleHeight = info.extra.visible_rect.height;
+    out.timestampUs = info.extra.timestamp;
+    out.captureCounter = info.extra.capture_counter;
+    m_onAccelFrame(out);
 }
 
 // ---- CefLoadHandler ----
