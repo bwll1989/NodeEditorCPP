@@ -469,6 +469,8 @@ void SceneCanvasWidget::highlight(int kind, int a, int b) {
 void SceneCanvasWidget::applySelection(const Selection& s) {
     if (s == sel_) return;
     sel_ = s;
+    vp_selected_ = false; // 对象选中收口：任何选中变化都让 VP Gizmo 退位
+                          //（单选语义——时间轴联动/点对象/点空白同一入口）
     update();
 }
 
@@ -1064,6 +1066,15 @@ bool SceneCanvasWidget::vpHandleHit(const QPointF& wp) const {
     return (vp - wp).manhattanLength() <= 10.0;
 }
 
+bool SceneCanvasWidget::eyeHandleHit(const QPointF& wp) const {
+    // Eye 环与 VP 十字同一全局透视参数：点 Eye = 选中 VP（拖动归 VP 自由拖）
+    if (!view3d_ || !scene_ || scene_->persp_focal <= 0.0) return false;
+    const QPointF eye = project3(scene_->persp_vp_x, scene_->persp_focal,
+                                 scene_->persp_vp_y);
+    const double er = 6.0 + std::min(6.0, scene_->persp_focal / 20000.0);
+    return (eye - wp).manhattanLength() <= er + 5.0;
+}
+
 void SceneCanvasWidget::openEyeDialog() {
     if (!scene_) return;
     QDialog dlg(this);
@@ -1194,13 +1205,20 @@ QPointF SceneCanvasWidget::moveGizmoAxisVec(int axis, double cx, double h,
 }
 
 int SceneCanvasWidget::hitMoveGizmo(const QPointF& wp) const {
-    // 轴命中：沿轴距离 ∈ [-10, L+16] 且垂距 ≤ 10px（轴杆+锥一体宽容域，
-    // 中心圈归自由拖不参与）；投影退化（|v|<0.5 轴正对相机）不可选——
-    // Blender 同规则
+    if (!view3d_) return -1;
     double cx = 0, h = 0, cy = 0;
-    if (!view3d_ || !moveGizmoAnchor(cx, h, cy)) return -1;
-    const QPointF o = project3(cx, h, cy);
+    if (!moveGizmoAnchor(cx, h, cy)) return -1;
     const int max_axis = (sel_.kind == 4) ? 2 : 1; // 屏幕无高度轴
+    return hitGizmoAxes(wp, cx, h, cy, max_axis, -10.0);
+}
+
+int SceneCanvasWidget::hitGizmoAxes(const QPointF& wp, double cx, double h,
+                                    double cy, int max_axis,
+                                    double min_t) const {
+    // 轴命中：沿轴距离 ∈ [min_t, L+16] 且垂距 ≤ 10px（轴杆+锥一体宽容
+    // 域，中心圈归自由拖不参与）；投影退化（|v|<1e-3 轴正对相机）不可
+    // 选——Blender 同规则
+    const QPointF o = project3(cx, h, cy);
     for (int axis = 0; axis <= max_axis; ++axis) {
         const QPointF v = moveGizmoAxisVec(axis, cx, h, cy);
         const double len = std::hypot(v.x(), v.y());
@@ -1214,7 +1232,7 @@ int SceneCanvasWidget::hitMoveGizmo(const QPointF& wp) const {
         const double t = QPointF::dotProduct(rel, n);
         const double perp =
             std::hypot(rel.x() - n.x() * t, rel.y() - n.y() * t);
-        if (t >= -10.0 && t <= 74.0 && perp <= 10.0) return axis;
+        if (t >= min_t && t <= 74.0 && perp <= 10.0) return axis;
     }
     return -1;
 }
@@ -1224,6 +1242,14 @@ void SceneCanvasWidget::drawMoveGizmo(QPainter& p) const {
     //（HUD 前——选中对象的位移手柄优先可见，不做深度遮挡）
     double cx = 0, h = 0, cy = 0;
     if (!moveGizmoAnchor(cx, h, cy)) return;
+    const int max_axis = (sel_.kind == 4) ? 2 : 1; // 屏幕恒贴地无高度轴
+    drawGizmoAxes(p, cx, h, cy, max_axis, gizmo_drag_axis_,
+                  gizmo_hover_axis_);
+}
+
+void SceneCanvasWidget::drawGizmoAxes(QPainter& p, double cx, double h,
+                                      double cy, int max_axis, int drag_axis,
+                                      int hover_axis) const {
     const QPointF o = project3(cx, h, cy);
     struct AxisDef {
         int         id;
@@ -1241,14 +1267,13 @@ void SceneCanvasWidget::drawMoveGizmo(QPainter& p) const {
     f.setBold(true);
     constexpr double L = 58.0; // 轴长（屏幕 px，恒定）
     for (const auto& ax : kAxes) {
-        if (ax.id == 2 && sel_.kind != 4) continue; // 屏幕恒贴地无高度轴
+        if (ax.id > max_axis) continue; // 屏幕恒贴地无高度轴（VP 仅 X/Y）
         const QPointF v = moveGizmoAxisVec(ax.id, cx, h, cy);
         const double len = std::hypot(v.x(), v.y());
         if (len < 1e-3) continue; // 近正对相机（投影趋零）才退化——阈值
-                                  // 宁低勿误杀（同 hitMoveGizmo 注释）
+                                  // 宁低勿误杀（同 hitGizmoAxes 注释）
         const QPointF n = v / len; // 屏幕单位方向
-        const bool   hot =
-            ax.id == gizmo_drag_axis_ || ax.id == gizmo_hover_axis_;
+        const bool   hot = ax.id == drag_axis || ax.id == hover_axis;
         const QColor   col = hot ? ax.hot : ax.base;
         const QPointF  tip = o + n * L;
         const QPointF  pv(-n.y(), n.x()); // 垂直方向（锥底宽）
@@ -1275,6 +1300,29 @@ void SceneCanvasWidget::drawMoveGizmo(QPainter& p) const {
     p.setBrush(QColor(0xF2, 0xF2, 0xF2));
     p.drawEllipse(o, 1.6, 1.6);
     p.setBrush(Qt::NoBrush);
+}
+
+// ---------------------------------------------------------------------------
+// VP Gizmo（2026-11-18）：用户反馈"VP 的移动没有这个 Gizmo"——对象位移
+// 有三轴箭头，VP 拖动却只有一个小十字，方向感缺失。VP 恒贴地（画布域
+// 透视参数），只画红 X/绿 Y 双轴；F>0 且 3D 视口恒显（VP 全局唯一，不
+// 与选中对象 Gizmo 混淆）。压轴杆 = 单轴约束会话，压中心圈 = 自由拖。
+// ---------------------------------------------------------------------------
+
+int SceneCanvasWidget::hitVpGizmo(const QPointF& wp) const {
+    // 选中 VP 后才可命中（与其他对象 Gizmo 同规则）；蓝 Z = Eye 高度 F
+    if (!view3d_ || !scene_ || scene_->persp_focal <= 0.0 || !vp_selected_)
+        return -1;
+    // min_t=9：中心圈半径外才算轴命中——VP 中心 10px 归 vpHandleHit 自由拖
+    return hitGizmoAxes(wp, scene_->persp_vp_x, 0.0, scene_->persp_vp_y,
+                        2, 9.0);
+}
+
+void SceneCanvasWidget::drawVpGizmo(QPainter& p) const {
+    if (!view3d_ || !scene_ || scene_->persp_focal <= 0.0 || !vp_selected_)
+        return;
+    drawGizmoAxes(p, scene_->persp_vp_x, 0.0, scene_->persp_vp_y, 2,
+                  vp_drag_axis_, vp_hover_axis_);
 }
 
 QPolygonF SceneCanvasWidget::projectQuad(const QRectF& r, double rotation_deg,
@@ -2698,16 +2746,22 @@ void SceneCanvasWidget::paintGL3D(
     // Eye 放大、远离缩小）。未配置时不画——派生默认 VP 无编辑意义
     //（避免误导）。改 F 的可视反馈 = Eye 环随焦距升降。
     if (scene_->persp_focal > 0.0) {
+        // 【2026-11-18 用户定案】VP Gizmo 选中制：点 VP/Eye 选中（与对象
+        // 选中互斥，applySelection 统一收口）——Gizmo 三轴仅选中时显示；
+        // 选中态 VP/Eye 标记提亮（与选中框同语义）
+        const bool vp_hot = vp_selected_;
+        const QColor vpc  = vp_hot ? QColor(0xFF, 0xC2, 0x5C)
+                                   : QColor(0xE8, 0x9C, 0x28);
         const QPointF vp =
             project3(scene_->persp_vp_x, 0.0, scene_->persp_vp_y);
         // Eye 点 = VP 正上方 F 高度（光轴竖直向下穿过 VP）
         const QPointF eye = project3(scene_->persp_vp_x,
                                      scene_->persp_focal,
                                      scene_->persp_vp_y);
-        p.setPen(QPen(QColor(0xE8, 0x9C, 0x28), 1, Qt::DotLine));
+        p.setPen(QPen(vpc, 1, Qt::DotLine));
         p.setBrush(Qt::NoBrush);
         p.drawLine(vp, eye); // 光轴（VP→Eye 竖直连线）
-        p.setPen(QPen(QColor(0xE8, 0x9C, 0x28), 1.4));
+        p.setPen(QPen(vpc, vp_hot ? 2.0 : 1.4));
         p.setBrush(QColor(0xE8, 0x9C, 0x28, 40));
         p.drawEllipse(vp, 6.0, 6.0);
         p.setBrush(Qt::NoBrush);
@@ -2718,8 +2772,9 @@ void SceneCanvasWidget::paintGL3D(
         p.drawText(vp + QPointF(10, -8), QStringLiteral("VP"));
         // Eye 环（区别于 VP 十字；半径随 F 轻微呼吸——高度感）
         const double er = 6.0 + std::min(6.0, scene_->persp_focal / 20000.0);
+        p.setPen(QPen(vpc, vp_selected_ ? 2.0 : 1.4));
         p.drawEllipse(eye, er, er);
-        p.setBrush(QColor(0xE8, 0x9C, 0x28));
+        p.setBrush(vpc);
         p.drawEllipse(eye, 1.8, 1.8); // 中心实点
         p.setBrush(Qt::NoBrush);
         p.drawText(eye + QPointF(10, -8), QStringLiteral("Eye"));
@@ -2727,6 +2782,7 @@ void SceneCanvasWidget::paintGL3D(
 
     // ---- 6c. 移动 Gizmo（Blender 式三轴箭头；选中对象锚点，恒最上层）----
     if (sel_.kind != 0) drawMoveGizmo(p);
+    drawVpGizmo(p); // VP 三轴（选中 VP 且 F>0 时；蓝 Z = Eye 高度 F）
 
     // ---- 7. HUD（左上操作提示 + 右上相机读数）------------------------------
     p.setPen(QColor(0xB8, 0xB8, 0xB8));
@@ -3235,15 +3291,47 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
     QRectF sel_rect;
     double sel_rot = 0.0;
 
-    // ---- 全局消隐点 VP 手柄（3D，优先于对象交互——地面标记易被覆盖）：
-    //      按下即进拖动会话，实时改 persp_vp_x/y（透视参数）-----------
-    if (view3d_ && vpHandleHit(wp)) {
-        dragging_vp_ = true;
-        moved_       = false;
-        setCursor(Qt::ClosedHandCursor);
-        statusTip("拖动全局消隐点（Eye 点）——Shift 吸附 10px");
-        ev->accept();
-        return;
+    // ---- 全局消隐点 VP（3D，优先于对象交互——地面标记易被覆盖）：
+    //      点 VP 十字/Eye 环 = 选中 VP（清对象选中）+ 即进自由拖会话；
+    //      已选中时压 Gizmo 轴（含蓝 Z=Eye 高度 F）= 单轴约束会话。
+    //      实时改 persp_vp_x/y（蓝轴改 persp_focal）--------------------
+    if (view3d_ && scene_ && scene_->persp_focal > 0.0) {
+        const int vaxis = hitVpGizmo(wp); // 前提=vp_selected_（内部判）
+        const bool vp_center = vpHandleHit(wp);
+        const bool vp_eye    = eyeHandleHit(wp);
+        if (vaxis >= 0) {
+            vp_drag_axis_    = vaxis;
+            vp_orig_x_       = scene_->persp_vp_x;
+            vp_orig_y_       = scene_->persp_vp_y;
+            vp_orig_f_       = scene_->persp_focal;
+            gizmo_press_widget_ = wp; // 复用会话按下点（对象 Gizmo 互斥）
+            gizmo_axis_scr_  = moveGizmoAxisVec(
+                vaxis, scene_->persp_vp_x, 0.0, scene_->persp_vp_y);
+            dragging_vp_ = true;
+            moved_       = false;
+            setCursor(Qt::ClosedHandCursor);
+            statusTip(vaxis == 2 ? "沿蓝 Z 轴拖动 Eye 高度（焦距 F）"
+                     : vaxis == 0 ? "沿红 X 轴拖动全局消隐点（VP）"
+                                  : "沿绿 Y 轴拖动全局消隐点（VP）");
+            update();
+            ev->accept();
+            return;
+        }
+        if (vp_center || vp_eye) {
+            // 单击 VP/Eye = 选中（Gizmo 显示）+ 自由拖会话一步到位
+            if (!vp_selected_) {
+                sel_ = Selection{}; // VP 选中让位对象选中（互斥单选）
+                vp_selected_ = true;
+                update(); // Gizmo/VP 标记高亮立即呈现
+            }
+            dragging_vp_ = true;
+            vp_drag_axis_ = -1; // 中心圈/Eye 自由拖
+            moved_       = false;
+            setCursor(Qt::ClosedHandCursor);
+            statusTip("已选中 VP（拖动自由移动；Shift 吸附 10px）");
+            ev->accept();
+            return;
+        }
     }
 
     // ---- 移动 Gizmo 三轴手柄（3D，Blender 式；优先于对象整体拖动）：
@@ -3337,6 +3425,10 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
     // 点击落在其变形矩形内 = 保持选中直接进拖动会话（"时间轴选谁，画布
     // 摆哪"：换选归时间轴，编辑归画布）。其余情况按 screen 命中处理
     //（选中最上层 screen / 空白清选进平移）。
+    // 点击画布对象/空白 = VP Gizmo 一律退位（选中制——VP 自身的选中
+    // 在上方 VP 分支处理；不在此处清则 sel_ 已空时 applySelection 提前
+    // 返回会残留 VP 选中，点空白 Gizmo 不消失）
+    vp_selected_ = false;
     if (!hitSelectedClip(wp))
         applySelection(hitTest(wp));
     resizing_ = false; // 未进入缩放会话（命中对象走移动）
@@ -3423,22 +3515,27 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
     // ---- 悬停光标反馈（非拖动时）：旋转柄 → 十字；角点手柄 → 对角缩放。
     //      Qt 无任意角度光标，旋转对象的视觉方向差异在此简化为同一组
     //      对角光标（局部 0/2 ↔ 主对角线、1/3 ↔ 副对角线）----
-    if (!dragging_ && scene_) {
-        // 移动 Gizmo 悬停（3D；与 press 优先级同序——轴球之后 VP 之前）
+    if (!dragging_ && !dragging_vp_ && scene_) {
+        // 移动 Gizmo/VP Gizmo 悬停（3D；与 press 优先级同序——轴球之后
+        // VP 之前；VP 会话中不重复判定免高亮抖动）
         int hg = -1;
         if (view3d_ && sel_.kind != 0) hg = hitMoveGizmo(ev->position());
-        if (gizmo_hover_axis_ != hg) {
+        int vg = -1;
+        if (hg < 0 && view3d_) vg = hitVpGizmo(ev->position());
+        if (gizmo_hover_axis_ != hg || vp_hover_axis_ != vg) {
             gizmo_hover_axis_ = hg;
+            vp_hover_axis_    = vg;
             update(); // 高亮态重绘（粗杆亮色）
         }
         if (view3d_ && hitAxisGizmo(ev->position()) != -1) {
             // 3D 轴球（端点/球体）→ 张开手（可点跳视角/可拖拽 orbit）
             if (cursor().shape() != Qt::OpenHandCursor)
                 setCursor(Qt::OpenHandCursor);
-        } else if (hg >= 0) {
-            setCursor(Qt::SizeAllCursor); // 移动 Gizmo 轴 → 移动光标
-        } else if (view3d_ && vpHandleHit(ev->position())) {
-            setCursor(Qt::SizeAllCursor); // VP 手柄 → 移动光标
+        } else if (hg >= 0 || vg >= 0) {
+            setCursor(Qt::SizeAllCursor); // Gizmo 轴 → 移动光标
+        } else if (view3d_ && (vpHandleHit(ev->position()) ||
+                                eyeHandleHit(ev->position()))) {
+            setCursor(Qt::SizeAllCursor); // VP 手柄/Eye 环 → 移动光标（点击=选中 VP）
         } else if (hitRotateHandle(ev->position())) {
             setCursor(Qt::CrossCursor); // 旋转：十字光标（无原生旋转光标）
         } else {
@@ -3453,21 +3550,42 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
         }
     }
 
-    // ---- VP 拖动会话：光标在地面平面的交点 → persp_vp_x/y（透视参数
-    //      实时生效——合成/标注/命中同源）；Shift 吸附 10px ----
+    // ---- VP 拖动会话：轴约束（红 X/绿 Y 改 vp_x/y；蓝 Z 改 Eye 高度
+    //      F——钳制 ≥1 防 Eye 沉入地面）或自由拖（光标在地面平面的交点
+    //      → persp_vp_x/y）；Shift 吸附 10px（仅自由拖）----
     if (dragging_vp_) {
         if (scene_) {
-            const QPointF cp = widgetToCanvasAt(ev->position(), 0.0);
-            double vx = cp.x(), vy = cp.y();
-            if (ev->modifiers() & Qt::ShiftModifier) {
-                vx = std::round(vx / 10.0) * 10.0;
-                vy = std::round(vy / 10.0) * 10.0;
+            if (vp_drag_axis_ >= 0) {
+                // 单轴约束：与对象 Gizmo 同公式 t=(Δmouse·v)/|v|²
+                const QPointF dw = ev->position() - gizmo_press_widget_;
+                const double len2 = gizmo_axis_scr_.x() * gizmo_axis_scr_.x() +
+                                    gizmo_axis_scr_.y() * gizmo_axis_scr_.y();
+                if (len2 > 1e-6) {
+                    const double t =
+                        QPointF::dotProduct(dw, gizmo_axis_scr_) / len2;
+                    if (vp_drag_axis_ == 0)
+                        scene_->persp_vp_x = vp_orig_x_ + t;
+                    else if (vp_drag_axis_ == 1)
+                        scene_->persp_vp_y = vp_orig_y_ + t;
+                    else
+                        scene_->persp_focal = std::max(1.0, vp_orig_f_ + t);
+                    moved_ = true;
+                    if (preview_) preview_->invalidate();
+                    emit sceneEditedLive();
+                }
+            } else {
+                const QPointF cp = widgetToCanvasAt(ev->position(), 0.0);
+                double vx = cp.x(), vy = cp.y();
+                if (ev->modifiers() & Qt::ShiftModifier) {
+                    vx = std::round(vx / 10.0) * 10.0;
+                    vy = std::round(vy / 10.0) * 10.0;
+                }
+                scene_->persp_vp_x = vx;
+                scene_->persp_vp_y = vy;
+                moved_ = true;
+                if (preview_) preview_->invalidate(); // 透视参数变更重合成
+                emit sceneEditedLive();               // display 节流下发
             }
-            scene_->persp_vp_x = vx;
-            scene_->persp_vp_y = vy;
-            moved_ = true;
-            if (preview_) preview_->invalidate(); // 透视参数变更重合成
-            emit sceneEditedLive();               // display 节流下发
         }
         update();
         ev->accept();
@@ -3722,7 +3840,8 @@ void SceneCanvasWidget::mouseReleaseEvent(QMouseEvent* ev) {
         return;
     }
     if (ev->button() == Qt::LeftButton && dragging_vp_) {
-        dragging_vp_ = false;
+        dragging_vp_  = false;
+        vp_drag_axis_ = -1; // VP Gizmo 轴约束会话复位
         unsetCursor();
         if (moved_) emit sceneEdited(); // VP 落点已写入工作副本
         moved_ = false;

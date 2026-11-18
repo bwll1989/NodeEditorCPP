@@ -259,6 +259,9 @@ private:
     /// 命中全局消隐点 VP 手柄（3D 视口地面标记；仅 persp_focal>0 时
     /// 存在——未配置时 VP 走画布派生默认，拖动无意义）
     bool vpHandleHit(const QPointF& widget_pos) const;
+    /// 命中 Eye 圆环（VP 正上方 F 高度处；点它 = 选中 VP——Eye 与 VP
+    /// 是同一全局透视参数的两个伴生标记，拖动归 VP 自由拖会话）
+    bool eyeHandleHit(const QPointF& widget_pos) const;
 
     // ---- 移动 Gizmo（Blender 式三轴箭头；3D 视口选中对象位移）----------
     /// 选中对象名义矩形中心（画布域）+ 高度（clip=pos_z，screen=0 贴地）。
@@ -271,6 +274,22 @@ private:
     int     hitMoveGizmo(const QPointF& widget_pos) const;
     /// 绘制三轴箭头（paintGL3D 尾段调用；恒最上层，hover/拖动轴高亮）
     void    drawMoveGizmo(QPainter& p) const;
+    /// Gizmo 通用命中核心（对象 Gizmo 与 VP Gizmo 共用轴域判定）——
+    /// 沿轴距离 ∈ [min_t, 74] 且垂距 ≤ 10px；min_t = 中心让位半径
+    ///（对象版 -10 全域、VP 版 9 = 中心圈归自由拖）
+    int     hitGizmoAxes(const QPointF& widget_pos, double cx, double h,
+                         double cy, int max_axis, double min_t) const;
+    /// Gizmo 通用绘制核心（轴杆+锥形箭头+标签+中心圈；轴向量经
+    /// moveGizmoAxisVec 以锚点求取，退化轴跳过）
+    void    drawGizmoAxes(QPainter& p, double cx, double h, double cy,
+                          int max_axis, int drag_axis, int hover_axis) const;
+    /// VP Gizmo 轴命中（2026-11-18 用户反馈“VP 的移动没有这个 Gizmo”）
+    /// ——锚点 = VP 地面标记，X/Y 两轴 + 蓝 Z（Eye 高度 F，VP 贴地无 Z
+    /// 而 Eye 有——蓝轴拖 F 与 Eye 环升降闭环）；**选中 VP 后才显示/可
+    /// 命中**（与其他对象 Gizmo 同规则，2026-11-18 用户定案）
+    int     hitVpGizmo(const QPointF& widget_pos) const;
+    /// 绘制 VP 三轴 Gizmo（选中 VP 且 F>0 时；蓝 Z 轴拖动 = Eye 高度 F）
+    void    drawVpGizmo(QPainter& p) const;
     /// 全局透视（Eye 点）编辑对话框：焦距 F + 消隐点 X/Y（对标
     /// WATCHOUT Stage Perspective）——OK 写回 Scene + 重合成 + sceneEdited
     void openEyeDialog();
@@ -434,6 +453,16 @@ private:
                                      ///  （按下时冻结；拖动全程相机不变）
     QPointF gizmo_press_widget_{0, 0}; ///< 会话按下点（widget 域——屏幕
                                        ///  delta 投影到轴方向的基准）
+    // ---- VP Gizmo（VP 选中态三轴；轴约束会话与对象 Gizmo 互斥）---------
+    bool    vp_selected_   = false; ///< VP 选中态（点 VP 十字/Eye 环选中；
+                                    ///  点对象/空白/时间轴换选取消）——Gizmo
+                                    ///  仅选中时显示（与其他对象同规则）
+    int     vp_drag_axis_  = -1;   ///< VP 轴约束会话轴（0=画布X 1=画布Y
+                                    ///  2=Eye 高度 F；-1 = 中心圈自由拖）
+    int     vp_hover_axis_ = -1;   ///< VP Gizmo 悬停高亮轴（非会话时）
+    double  vp_orig_x_     = 0.0;  ///< VP 会话起始 persp_vp_x（轴约束基准）
+    double  vp_orig_y_     = 0.0;  ///< VP 会话起始 persp_vp_y
+    double  vp_orig_f_     = 0.0;  ///< 蓝轴会话起始 persp_focal（Eye 高度）
     double   drag_plane_h_ = 0.0;       ///< 拖动会话高度平面（画布域 h；
                                          ///  按下时冻结=对象所在平面，全程
                                          ///  反投影到该平面求画布坐标）
