@@ -2,7 +2,6 @@
 
 #include <QCheckBox>
 #include <QComboBox>
-#include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -11,9 +10,11 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
-#include <QSpinBox>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 
 namespace Nodes
 {
@@ -46,21 +47,25 @@ public:
         m_htmlEdit->setMaximumHeight(90);
         m_htmlEdit->setVisible(false);
 
-        m_widthSpin = new QSpinBox(this);
+        // ---- 数值控件统一 DragValue 族（2026-11-18 用户定案，对齐
+        //      TweenSection/屏幕属性对话框：拖拽步进、滚轮、双击精确输入）----
+        m_widthSpin = new IntDragValueWidget(this);
         m_widthSpin->setRange(16, 7680);
+        m_widthSpin->setSingleStep(8); // 拖拽步长 8px（H.264 对齐）；双击精确输入
         m_widthSpin->setValue(1280);
-        m_heightSpin = new QSpinBox(this);
+        m_heightSpin = new IntDragValueWidget(this);
         m_heightSpin->setRange(16, 4320);
+        m_heightSpin->setSingleStep(8);
         m_heightSpin->setValue(720);
 
         // ---- 进阶参数（始终显示）----
-        m_fpsSpin = new QDoubleSpinBox(this);
+        m_fpsSpin = new FloatDragValueWidget(this);
         m_fpsSpin->setRange(0.5, 60.0);
         m_fpsSpin->setDecimals(1);
         m_fpsSpin->setSingleStep(1.0);
         m_fpsSpin->setValue(15.0);
 
-        m_dpiSpin = new QDoubleSpinBox(this);
+        m_dpiSpin = new FloatDragValueWidget(this);
         m_dpiSpin->setRange(0.25, 4.0);
         m_dpiSpin->setDecimals(2);
         m_dpiSpin->setSingleStep(0.25);
@@ -121,10 +126,10 @@ public:
         connect(m_htmlEdit, &QPlainTextEdit::textChanged, this, [this]() {
             emit htmlChanged(m_htmlEdit->toPlainText());
         });
-        connect(m_widthSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, &WebRenderInterface::widthChanged);
-        connect(m_heightSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, &WebRenderInterface::heightChanged);
-        connect(m_fpsSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &WebRenderInterface::maxFpsChanged);
-        connect(m_dpiSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &WebRenderInterface::dpiScaleChanged);
+        connect(m_widthSpin, &IntDragValueWidget::valueChanged, this, &WebRenderInterface::widthChanged);
+        connect(m_heightSpin, &IntDragValueWidget::valueChanged, this, &WebRenderInterface::heightChanged);
+        connect(m_fpsSpin, &FloatDragValueWidget::valueChanged, this, &WebRenderInterface::maxFpsChanged);
+        connect(m_dpiSpin, &FloatDragValueWidget::valueChanged, this, &WebRenderInterface::dpiScaleChanged);
         connect(m_updateWhenLoadedCheck, &QCheckBox::toggled, this, &WebRenderInterface::updateWhenLoadedChanged);
         connect(m_autoRestartCheck, &QCheckBox::toggled, this, &WebRenderInterface::autoRestartChanged);
         connect(m_reloadBtn, &QPushButton::clicked, this, &WebRenderInterface::reloadRequested);
@@ -164,10 +169,10 @@ public:
     QComboBox* m_sourceCombo = nullptr;
     QLineEdit* m_urlEdit = nullptr;
     QPlainTextEdit* m_htmlEdit = nullptr;
-    QSpinBox* m_widthSpin = nullptr;
-    QSpinBox* m_heightSpin = nullptr;
-    QDoubleSpinBox* m_fpsSpin = nullptr;
-    QDoubleSpinBox* m_dpiSpin = nullptr;
+    IntDragValueWidget* m_widthSpin = nullptr;
+    IntDragValueWidget* m_heightSpin = nullptr;
+    FloatDragValueWidget* m_fpsSpin = nullptr;
+    FloatDragValueWidget* m_dpiSpin = nullptr;
     QCheckBox* m_updateWhenLoadedCheck = nullptr;
     QCheckBox* m_autoRestartCheck = nullptr;
     QPushButton* m_reloadBtn = nullptr;

@@ -32,7 +32,8 @@ target_link_libraries(${Module_Name}
         StatusContainer
         BaseClass
         DataTypes
-        TimestampGenerator)
+        TimestampGenerator
+        GUIElements)
 
 target_compile_definitions(${Module_Name} PRIVATE UNTITLED_LIBRARY -DNODE_EDITOR_SHARED)
 

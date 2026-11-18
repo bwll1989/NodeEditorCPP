@@ -20,6 +20,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFileInfo>
 #include <QJsonObject>
 #include <QMutex>
 #include <QPointer>
@@ -152,14 +153,19 @@ public:
     ~WebRenderDataModel() override
     {
         m_shuttingDown.store(true);
-        setActive(false);
+        // 【关闭挂起修复 2026-11-18】原 dtor 同步做两件重活：
+        //  ① setActive(false) 被 m_shuttingDown 闸拦成空操作（stopPipeline 未走）；
+        //  ② QDir::removeRecursively() 在 GUI 线程删整个 Edge profile——数千
+        //     缓存文件，且此刻浏览器进程尚未死透、文件仍被锁（terminate 对
+        //     headless 无效，kill 在更晚的 ~WebRenderBrowserProcess 兜底）：
+        //     既卡秒级又删不干净。多节点叠加=关闭明显挂起。
+        //  现改为：dtor 只做零阻塞停链，profile 目录交给 makeUniqueUserDir()
+        //  的启动期孤儿清扫（下次会话浏览器必已死透、文件无锁，一次删净）。
+        //  浏览器进程的硬杀兜底在 ~WebRenderBrowserProcess（kill+限时等待）。
+        m_restartDebounce.stop();
+        m_cdp->setCapturing(false);
         m_cdp->disconnectFromDebugger();
         m_browser->stop();
-
-        // 清理本实例缓存目录
-        if (!m_userDataDir.isEmpty()) {
-            QDir(m_userDataDir).removeRecursively();
-        }
     }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -840,6 +846,14 @@ private:
         const QString base = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
             + QStringLiteral("/NodeEditorWebRender");
         QDir().mkpath(base);
+        // 【孤儿 profile 清扫 2026-11-18】上会话残留目录（原 dtor 同步删除
+        // 已移除——关闭挂起主因）。此时点安全：单实例互斥保证无并发 Flow，
+        // JobGuard 陪葬保证上会话浏览器进程树必已死，文件锁全部释放。
+        // 构建新 UUID 目录前先清扫，磁盘不泄漏、启动多花几十毫秒可接受。
+        const QFileInfoList orphans = QDir(base).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
+        for (const QFileInfo& orphan : orphans) {
+            QDir(orphan.absoluteFilePath()).removeRecursively();
+        }
         return base + QLatin1Char('/') + QUuid::createUuid().toString(QUuid::WithoutBraces);
     }
 
