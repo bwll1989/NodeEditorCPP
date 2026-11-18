@@ -59,9 +59,6 @@ public:
         }
     }
 
-    /// 设置清屏色（0xRRGGBBAA，默认不透明黑）
-    void setClearColor(std::uint32_t rgba) noexcept { clear_color_ = rgba; }
-
     /// 合成一个绘制项：把 frame 按 DrawItem 矩形采样写入画布
     /// \return false = 矩形与画布不相交或帧非法（调用方计为跳过）
     bool draw(const DrawItem& di, const FrameView& frame);

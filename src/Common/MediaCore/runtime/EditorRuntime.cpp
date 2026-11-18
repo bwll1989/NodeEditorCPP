@@ -1516,11 +1516,4 @@ std::vector<std::string> EditorRuntime::player_ids() const {
     return ids;
 }
 
-bool EditorRuntime::sceneSnapshot(Scene& out) const {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    if (!scene_) return false;
-    out = *scene_; // 值语义深拷贝（UI 编辑工作副本，与权威解耦）
-    return true;
-}
-
 } // namespace ms

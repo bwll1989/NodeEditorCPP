@@ -16,7 +16,7 @@
 //  纯函数——两端对同一 (scene, t) 解出同一绘制列表，解码目标严格对齐
 //  渲染取样时刻（时间轴对齐仍由统一时钟驱动，素材不各自跑时钟）。
 //
-//  【为什么要独立线程】此前解码嵌在渲染循环里（renderFrame→produce 同步
+//  【为什么要独立线程】此前解码嵌在渲染循环里（compose 编排内 produce 同步
 //  解码）：一路 1080p 软解 ~10ms，prepare（open+探测）数百 ms——多路/高分
 //  辨率素材时渲染帧率崩塌、首帧延迟秒级，显示端"迟迟无画面"的结构性根因。
 //  拆分后渲染帧率与解码吞吐解耦：解码慢时画面"略旧"（最近已发布帧），
@@ -94,11 +94,6 @@ public:
     /// 唤醒驱动线程立即跑一拍（场景更新/seek 后调用——新素材立即
     /// prepare、新时刻立即解码，不等下一节拍；非阻塞）
     void poke() { cv_.notify_all(); }
-
-    /// 上一拍耗时（us；诊断观测——解码压力的直接指标）
-    std::int64_t lastBeatCostUs() const noexcept {
-        return beat_cost_us_.load(std::memory_order_relaxed);
-    }
 
 private:
     /// 驱动主循环：解算 → 逐项驱动解码 → 自适应等待

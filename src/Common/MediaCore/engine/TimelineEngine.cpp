@@ -41,17 +41,6 @@ std::int64_t TimelineEngine::mediaTimeUs(const Clip& c,
 }
 
 // ---------------------------------------------------------------------------
-// 静态纯函数：片段局部进度 [0,1)
-//   progress = (t - start) / duration
-//   duration <= 0（非法配置）时按 0 处理，避免除零（防御式编程）。
-// ---------------------------------------------------------------------------
-double TimelineEngine::localProgress(const Clip& c, std::int64_t t_us) noexcept {
-    if (c.duration_us <= 0) return 0.0;
-    const double elapsed = static_cast<double>(t_us - c.start_us);
-    return elapsed / static_cast<double>(c.duration_us);
-}
-
-// ---------------------------------------------------------------------------
 // 推算时间轴总时长：max(所有片段的 end)；显式 duration_us 为 0 时调用方可用
 // 此结果回填（SceneLoader 加载阶段自动推算，见 loader/SceneLoader.cpp）
 // ---------------------------------------------------------------------------
@@ -84,7 +73,6 @@ EvalResult TimelineEngine::evaluate(std::int64_t t_us) const {
             ActiveClip ac;
             ac.clip           = &clip;
             ac.media_us       = mediaTimeUs(clip, t_us);
-            ac.local_progress = localProgress(clip, t_us);
             // 【Tween 集成点（唯一）】逐帧解算完整变换：无 tween 通道时
             // resolved == clip.transform（零开销语义），有通道时被覆写。
             // 排序/绘制/可见性全部改用 resolved（见下方排序与本文件头说明）。

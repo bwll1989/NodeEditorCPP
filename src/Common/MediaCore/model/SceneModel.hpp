@@ -128,11 +128,6 @@ struct Transform {
         return false;
     }
 
-    /// 任一姿态分量（俯仰/偏航）非 0（v3 渲染分流判定；同 cornerActive 纪律）
-    bool poseActive() const noexcept {
-        return rot_x != 0.0 || rot_y != 0.0;
-    }
-
     /// 任一 3D 位姿分量（俯仰/偏航/几何深度）非 0（素材 3D 化阶段①；
     /// 渲染端透视路径判定——pos_z 非 0 时即使无姿态也须走透视投影）
     bool pose3DActive() const noexcept {
@@ -238,34 +233,6 @@ enum class TweenProp : int {
     AudioGain = 16, ///< 标量：音频增益（线性，1.0=不衰减，0=静音，>1 提升；
                     ///< 2026-11-10 追加——音频域属性随 tween 体系走关键帧）
 };
-
-/// 打包属性分量数（1=标量 / 2=二维向量 / 3=三维向量）——UI 行构造、
-/// auto-key 打包、求值共用同一真相（勿在各处手写 switch）
-inline constexpr int tweenPropComponents(TweenProp p) noexcept {
-    switch (p) {
-        case TweenProp::Position:
-            return 3; // v3 三维打包 (x, y, z)
-        case TweenProp::Rotation:
-            return 3; // v4 三维打包 (俯仰绕X, 偏航绕Y, 滚转绕Z)
-        case TweenProp::Size:
-        case TweenProp::CornerLT:
-        case TweenProp::CornerRT:
-        case TweenProp::CornerRB:
-        case TweenProp::CornerLB:
-            return 2;
-        case TweenProp::RotationX: // v4 退役（迁移期读入兼容）
-        case TweenProp::RotationY: // v4 退役（迁移期读入兼容）
-        case TweenProp::Opacity:
-        case TweenProp::Z:
-        case TweenProp::CropL:
-        case TweenProp::CropR:
-        case TweenProp::CropT:
-        case TweenProp::CropB:
-        case TweenProp::AudioGain:
-        default:
-            return 1;
-    }
-}
 
 enum class TweenInterp : int {
     Linear = 0, ///< 线性（默认）

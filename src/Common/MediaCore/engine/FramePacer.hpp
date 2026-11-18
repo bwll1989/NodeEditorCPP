@@ -40,7 +40,6 @@ public:
         : epoch_us_(epoch_us),
           fps_(fps > 0 ? fps : 30) {}
 
-    int  fps() const noexcept { return fps_; }
     std::int64_t epoch() const noexcept { return epoch_us_; }
 
     /// 帧序号 i 的栅格时刻（对齐时钟域，us）：g(i) = epoch + i*1e6/fps

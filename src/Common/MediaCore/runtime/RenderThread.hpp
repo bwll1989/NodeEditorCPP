@@ -11,7 +11,7 @@
 //          scene = scene_provider()               （场景快照，锁内拷 shared_ptr）
 //          ph    = playhead_provider()            （播放头快照，锁内拷贝）
 //          session_t = pacer.frameSessionTimeUs(now)   ← 共享时钟栅格推导
-//          renderFrame(scene, id, ow, oh, session_t, sched, renderer)
+//          composeFrame(scene, id, ow, oh, session_t, sched, renderer)
 //          pacer.waitUntil(clock, nextPresentTime)   ← present 相位对齐
 //
 //  【时间语义】（与 PlayerRuntime 播放头状态机的关系）：
@@ -53,7 +53,7 @@
 #include "engine/FramePacer.hpp"
 #include "engine/IComposeRenderer.hpp" // 合成后端接口（②阶段 GL 管线注入点）
 #include "engine/MediaScheduler.hpp"
-#include "engine/RenderLoop.hpp"     // renderFrame/composeFrame + FrameStats
+#include "engine/RenderLoop.hpp"     // composeFrame + FrameStats
 #include "engine/SoftRenderer.hpp"
 #include "audio/AudioTypes.hpp"     // AudioPoolEntry（音源池条目）
 #include "engine/TimelineEngine.hpp" // isActive（音频片段活跃判定，P3）

@@ -260,13 +260,6 @@ public slots:
     /// （内容未变，仅观测点移动）。注册表空时零开销（播放期高频调用安全）。
     void refreshTweenPanelsPlayhead();
 
-    /// 片段自有属性面板独立打开（程序化入口；UI 唯一入口 = timeline 双击）：
-    /// 按工作副本 (track, clip) 下标定位模型片段 → clipPropertyWidget()
-    /// （工厂闭包 = makeClipPropertyPanel：媒体绑定 + 画布变换区，与时间轴
-    /// 双击组合面板的"片段自有区"完全同源）→ 包非模态对话框显示。
-    /// 面板控件即时写回工作副本（sceneEdited 信号闭环已有，无需调用方善后）。
-    /// \return 面板已弹出返回 true；下标越界/模型片段缺失/hooks 未注入返回 false
-    bool showClipOwnPanel(int track_idx, int clip_idx, QWidget* parent);
 
     // ---- 时间轴选中 → 画布高亮（2026-11-15 画布选中分工配套）---------------
     // 【分工定案】画布只选 screen（"只显当前"舞台快照非素材清单），
@@ -298,6 +291,10 @@ private:
     /// 探测，与工作副本全表查重。onAddClip / onDropMediaFile 创建路径共用
     ///（单点维护）。
     std::string nextClipId() const;
+    /// 唯一素材 id 生成（2026-11-18 收敛原三份同构探测循环——loadSceneToModel
+    /// Live 自愈 / onAddClip Text / onAddClip Live）：prefix-N 线性探测，
+    /// 与工作副本素材全表查重。
+    std::string uniqueAssetId(const char* prefix) const;
     /// 为 SceneClipModel 注入片段自定义面板工厂 + 诊断留痕。
     /// 【片段创建路径必须统一调用】loadSceneToModel（装载场景）/
     /// onAddClip（时间轴右键 Add Item / onDropMediaFile 拖入同链）——

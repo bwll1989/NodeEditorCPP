@@ -184,14 +184,16 @@ bool BaseTimeLineModel::setData(const QModelIndex &index, const QVariant &value,
 
         switch (role) {
             // 设置剪辑开始时间
+            //【μs 域 qint64 2026-11-18】start/end 是 μs 域 qint64（视图
+            // handleMouseDrag 直传 qint64）——toInt() 在 >35.8min 时回绕
+            //（同 359 行 onUpdateTimeLineLength 已修的同族雷）
             case TimelineRoles::ClipInRole: {
-                int newStart = value.toInt();
-                clip->setStart(newStart);
+                clip->setStart(value.toLongLong());
                 return true;
             }
             case TimelineRoles::ClipPosRole:{
-                int newPos=value.toInt();
-                int clipLength = clip->length();
+                const qint64 newPos = value.toLongLong();
+                const qint64 clipLength = clip->length();
                 clip->setStart(newPos);
                 clip->setEnd(newPos+clipLength);
                 return true;
@@ -217,13 +219,13 @@ bool BaseTimeLineModel::setData(const QModelIndex &index, const QVariant &value,
             }
             // 设置剪辑结束时间（clip->setEnd 会触发 lengthChanged，Model 已监听并转为 dataChanged）
             case TimelineRoles::ClipOutRole: {
-                const int newEnd = value.toInt();
+                const qint64 newEnd = value.toLongLong();
                 clip->setEnd(newEnd);
                 return true;
             }
             // 设置剪辑长度（clip->setEnd 会触发 lengthChanged，Model 已监听并转为 dataChanged）
             case TimelineRoles::ClipLengthRole: {
-                const int newLength = value.toInt();
+                const qint64 newLength = value.toLongLong();
                 clip->setEnd(clip->start()+newLength);
                 return true;
             }
@@ -602,11 +604,13 @@ void BaseTimeLineModel::rebuildTrackClipOrder(TrackData* track)
         if (!clip)
             continue;
         track->clipsByStart.push_back(row);
+        // 【2026-11-18 μs 截断修复】maxClipSpan/排序键 qint64——int 在
+        // >35.8min 片段回绕为负（排序错乱→视口裁剪窗口失真）
         track->maxClipSpan = qMax(track->maxClipSpan, clip->end() - clip->start());
     }
     std::sort(track->clipsByStart.begin(), track->clipsByStart.end(), [track](int a, int b) {
-        const int sa = track->clips[a] ? track->clips[a]->start() : 0;
-        const int sb = track->clips[b] ? track->clips[b]->start() : 0;
+        const qint64 sa = track->clips[a] ? track->clips[a]->start() : 0;
+        const qint64 sb = track->clips[b] ? track->clips[b]->start() : 0;
         if (sa != sb)
             return sa < sb;
         return a < b;
@@ -677,7 +681,7 @@ void BaseTimeLineModel::beginInteractiveGeometryChange(AbstractClipModel* clip)
 void BaseTimeLineModel::endInteractiveGeometryChange()
 {
     AbstractClipModel* clip = m_interactiveClip;
-    const int originalEnd = m_interactiveOriginalEnd;
+    const qint64 originalEnd = m_interactiveOriginalEnd;
     m_interactiveClip = nullptr;
     m_deferGeometryNotify = false;
     if (!clip)
@@ -750,8 +754,8 @@ void BaseTimeLineModel::flushClipGeometryNotify()
         const auto located = m_clipLocation.find(clip);
         if (located == m_clipLocation.end())
             continue;
-        const int oldEnd = located->second.end;
-        const int newEnd = clip->end();
+        const qint64 oldEnd = located->second.end;
+        const qint64 newEnd = clip->end();
         located->second.end = newEnd;
         noteClipGeometryChanged(clip);
         applyLengthChange(oldEnd, newEnd);
@@ -767,7 +771,7 @@ void BaseTimeLineModel::flushClipGeometryNotify()
     }
 }
 
-void BaseTimeLineModel::applyLengthChange(int oldEnd, int newEnd)
+void BaseTimeLineModel::applyLengthChange(qint64 oldEnd, qint64 newEnd)
 {
     if (newEnd > m_lengthFrame) {
         m_lengthFrame = newEnd;
@@ -831,10 +835,6 @@ BaseTimeLineModel::~BaseTimeLineModel()
 
     delete m_pluginLoader;
     m_pluginLoader = nullptr;
-}
-
-int BaseTimeLineModel::getTrackCount() const {
-    return m_tracks.size();
 }
 
 

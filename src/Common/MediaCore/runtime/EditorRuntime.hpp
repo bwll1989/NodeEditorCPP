@@ -255,10 +255,6 @@ public:
     /// 全部已注册 player_id（观测表 UI 遍历用；含已断开条目）
     std::vector<std::string> player_ids() const;
 
-    /// 权威场景快照（锁内深拷贝；UI 回显/编辑工作副本初始化用）。
-    /// \return false = 无场景（未加载 / 未 start）
-    bool sceneSnapshot(Scene& out) const;
-
 private:
     // ---- 网络回调（recv 线程上下文）----------------------------------------
     void onUdpFrame(const SyncFrame& f, const Poco::Net::SocketAddress& from);

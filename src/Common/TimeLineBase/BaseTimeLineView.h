@@ -380,7 +380,7 @@ protected:
      * @param int dy 垂直移动
      * @param bool isMouse 是否鼠标移动
      */
-    virtual void moveSelectedClip(int dx, int dy,bool isMouse = true);
+    virtual void moveSelectedClip(qint64 dx, int dy,bool isMouse = true); ///< dx μs 域（2026-11-18 int 截断修复）
     /**
      * 移动播放头到指定时刻
      * @param qint64 us 微秒

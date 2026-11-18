@@ -291,19 +291,21 @@ int BaseTimelineView::getTrackWdith() const
 }
 
 // 移动选定的剪辑
-void BaseTimelineView::moveSelectedClip(int dx, int dy, bool isMouse)
+void BaseTimelineView::moveSelectedClip(qint64 dx, int dy, bool isMouse)
 {
     QModelIndexList list = selectionModel()->selectedIndexes();
     if(list.isEmpty())
         return;
-    int newPos;
+    // 【2026-11-18 μs 截断修复】μs 域 qint64——int 在 >35.8min 回绕
+    //（同 1097 行鼠标路径已修的同族问题；本函数覆盖键盘方向键 + 跨轨拖拽）
+    qint64 newPos;
     if(isMouse){
         newPos = dx;
     }else{
-        newPos = model()->data(list[0],TimelineRoles::ClipInRole).toInt() + dx;
+        newPos = model()->data(list[0],TimelineRoles::ClipInRole).toLongLong() + dx;
     }
     // 确保不会移动到负值位置
-    newPos = std::max(0, newPos);
+    newPos = std::max<qint64>(0, newPos);
     // 更新模型数据
     // 非拖拽时 dataChanged 会局部刷新。拖拽期间模型先不发通知，由鼠标移动自己脏矩形。
     getModel()->setData(list.first(), newPos, TimelineRoles::ClipPosRole);
@@ -1742,7 +1744,10 @@ void BaseTimelineView::dropEvent(QDropEvent *event)
         if(!trackIndex.isValid()){
             return;
         }
-        const qint64 posUs = pointToFrame(m_lastDragPos.x());
+        // 【2026-11-18 修】pointToFrame 参数是内容坐标——视口 x 须加水平
+        // 滚动偏移（同 684/1292 等调用点；漏加则向右滚动后拖入落点
+        // 系统性偏早滚动量/timescale）
+        const qint64 posUs = pointToFrame(m_lastDragPos.x() + m_scrollOffset.x());
 
         // OSC 地址拖拽 → Control 片段（模型虚钩子；适配层覆写写
         // control_messages 指令表）。【2026-11-15 恢复】合并前
@@ -1777,36 +1782,37 @@ void BaseTimelineView::dropEvent(QDropEvent *event)
  {
       if (event->type() == QEvent::KeyPress) {
           QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
-          QModelIndexList list = selectionModel()->selectedIndexes();
-          BaseTimeLineModel* timelinemodel = (BaseTimeLineModel*)model();
-          if (watched == this) {
-              switch (keyEvent->key()){
-                  case Qt::Key_Right :
-                      moveSelectedClip(1,0,false);
-                      return true;  // 统一返回 true
-                  case Qt::Key_Left:
-                      moveSelectedClip(-1,0,false);
-                      return true;
-                  case Qt::Key_Delete: {
-                      QModelIndex currentIndex = selectionModel()->currentIndex();
-                      getModel()->onDeleteClip(currentIndex);
-                      // 清除选择并发送 nullptr
-                      selectionModel()->clearSelection();
-                      viewport()->update();
-                      return true;
-                  }
-                  case Qt::Key_Home:
-                      // 一键回片头（2026-11-10 滚动体感修复："拉不回来"的兜底）
-                      horizontalScrollBar()->setValue(0);
-                      return true;
-                  case Qt::Key_End:
-                      // 一键跳内容末端
-                      horizontalScrollBar()->setValue(
-                          horizontalScrollBar()->maximum());
-                      return true;
-                  default:
-                      break;
+          // 【2026-11-18 修】selectionModel 在 showEvent 才兜底创建——
+          // 未 show 前收到按键事件此处解引用必空崩（同 1031 判空纪律）；
+          // 原处声明的 list 全函数零使用，一并删除
+          if (watched != this || selectionModel() == nullptr)
+              return QObject::eventFilter(watched, event);
+          switch (keyEvent->key()){
+              case Qt::Key_Right :
+                  moveSelectedClip(1,0,false);
+                  return true;  // 统一返回 true
+              case Qt::Key_Left:
+                  moveSelectedClip(-1,0,false);
+                  return true;
+              case Qt::Key_Delete: {
+                  QModelIndex currentIndex = selectionModel()->currentIndex();
+                  getModel()->onDeleteClip(currentIndex);
+                  // 清除选择并发送 nullptr
+                  selectionModel()->clearSelection();
+                  viewport()->update();
+                  return true;
               }
+              case Qt::Key_Home:
+                  // 一键回片头（2026-11-10 滚动体感修复："拉不回来"的兜底）
+                  horizontalScrollBar()->setValue(0);
+                  return true;
+              case Qt::Key_End:
+                  // 一键跳内容末端
+                  horizontalScrollBar()->setValue(
+                      horizontalScrollBar()->maximum());
+                  return true;
+              default:
+                  break;
           }
       }
       return QObject::eventFilter(watched, event);
@@ -2353,9 +2359,11 @@ void BaseTimelineView::wheelEvent(QWheelEvent *event){
         } else {
             // U6：像素锚点直传（消 μs 中间取整的连续缩放蠕动）
             // 2026-11-16 终版缩放语义（与合并回调同式）：ratio 对数域加法
-            // 步进（每步视觉倍率恒定 ×1.05）+ 朴素两端钳制——钳住即丢弃
+            // 步进（每步视觉倍率恒定）+ 朴素两端钳制——钳住即丢弃
             // 多余输入，回滚立即从钳制值以恒定步长开始（无隐藏累积）。
-            const double step = qLn(1.05)
+            // 【2026-11-18 修】步长与合并回调统一 ×1.1——原直通 ×1.05
+            // 合并 ×1.1，同一次手势首步与后续步视觉倍率不一致。
+            const double step = qLn(1.1)
                 / qLn(static_cast<double>(m_baseTimeScale) / m_minTimescale);
             currentScale = qBound(0.0, currentScale + delta * step, 1.0);
             setScaleAtPx(currentScale, pos.x());

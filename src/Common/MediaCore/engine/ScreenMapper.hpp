@@ -48,12 +48,12 @@ inline void mat3Mul(const double m[9], const double n[9], double out[9]) {
 }
 
 // ---------------------------------------------------------------------------
-// 映射模式（§5.2 的两种选项）
+// 映射模式（§5.2；正交预览退役后 Stretch 为唯一消费选项，2026-11-18）
 // ---------------------------------------------------------------------------
 enum class FitMode {
     Stretch = 0, ///< 拉伸铺满：s_x=ow/sw、s_y=oh/sh——LED 拼接屏各屏独立
-                 ///< 分辨率时的像素级对位（多屏拼接默认）
-    Fit     = 1, ///< 等比适配：s=min(ow/sw, oh/sh)，居中留白——Editor 预览窗
+                 ///< 分辨率时的像素级对位（多屏拼接默认；也是当前唯一
+                 ///< 消费模式——等比适配分支已随正交预览退役，2026-11-18）
 };
 
 // ---------------------------------------------------------------------------
@@ -142,22 +142,11 @@ struct ScreenTransform {
             return t;
         }
 
-        if (mode == FitMode::Fit) {
-            // 等比：统一缩放比取两轴较小者，屏幕完整可见、居中留白
-            const double s = out_w / scr.w < out_h / scr.h
-                                 ? out_w / scr.w : out_h / scr.h;
-            t.a = t.e = s;
-            const double pad_x = (static_cast<double>(out_w) - scr.w * s) / 2.0;
-            const double pad_y = (static_cast<double>(out_h) - scr.h * s) / 2.0;
-            t.c = pad_x - scr.x * s;
-            t.f = pad_y - scr.y * s;
-        } else {
-            // 拉伸：各轴独立缩放，铺满输出（无留白）
-            t.a = static_cast<double>(out_w) / scr.w;
-            t.e = static_cast<double>(out_h) / scr.h;
-            t.c = -scr.x * t.a;
-            t.f = -scr.y * t.e;
-        }
+        // 拉伸：各轴独立缩放，铺满输出（无留白；唯一消费模式）
+        t.a = static_cast<double>(out_w) / scr.w;
+        t.e = static_cast<double>(out_h) / scr.h;
+        t.c = -scr.x * t.a;
+        t.f = -scr.y * t.e;
         return t;
     }
 
@@ -232,7 +221,6 @@ struct DrawItem {
     double canvas_x = 0.0, canvas_y = 0.0;  ///< clip 有效矩形左上（画布域，
                                             ///< 未旋转框架——affine 路径用）
     double canvas_w = 0.0, canvas_h = 0.0;  ///< clip 有效尺寸（画布域）
-    double screen_rotation = 0.0;           ///< 所属屏旋转角（度；标注/GL 后端用）
 
     // ---- 锚点 + 四角点位移（2026-11-09，画布域；两端同源几何）-------------
     // anchor：Transform 透传（0=中心默认——历史"绕中心"行为逐位一致）；

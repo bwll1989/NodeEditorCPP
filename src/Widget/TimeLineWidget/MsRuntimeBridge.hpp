@@ -64,8 +64,6 @@ public:
     /// 同步媒体：注册素材 + 推清单（display 收到即比对拉取，幂等）。
     /// 返回本次新注册素材数（0 = 无新增文件，全部已就位；宿主状态栏反馈用）
     std::size_t syncMedia(const Scene& scene);
-    /// 权威场景快照（最后一次发布的；锁内深拷贝）。false = 尚无发布
-    bool authoritySnapshot(Scene& out) const;
 
     // ---- 播放控制（对齐时钟内部注入；语义对齐原 EditorRuntime::cmd*）--------
     void cmdPlay();                     // 从头/续播（锚点 = now + lead）

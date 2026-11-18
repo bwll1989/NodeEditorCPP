@@ -53,6 +53,23 @@ public:
     explicit MediaScheduler(MediaFactory& factory = MediaFactory::instance()) noexcept
         : factory_(factory) {}
 
+    /// FNV-1a 64 字节馈送内核（指纹两函数共用——原两处逐字重复的循环
+    /// 收口于此；2026-11-18 整理）
+    struct Fnv1a64 {
+        std::uint64_t h = 1469598103934665603ull; // offset basis
+        void feed(const void* p, std::size_t n) noexcept {
+            const auto* b = static_cast<const std::uint8_t*>(p);
+            for (std::size_t i = 0; i < n; ++i) {
+                h ^= b[i];
+                h *= 1099511628211ull; // FNV prime
+            }
+        }
+        void feed(const std::string& s) noexcept { feed(s.data(), s.size()); }
+        template <typename T> void feed(const T& v) noexcept {
+            feed(&v, sizeof(v));
+        }
+    };
+
     /// Text 素材内容指纹（FNV-1a 64；非 Text 恒 0）。
     /// 【同 id 内容变更失效（2026-11-05 文本片段完整化）】文本随场景 pb
     /// 分发、path 恒空——既有"path 变化重建"判定对文本永远不触发，用户
@@ -60,23 +77,16 @@ public:
     /// （content/font/size/color/bold/italic/align/bg），内容变 → 失效。
     static std::uint64_t textFingerprint(const Asset& a) {
         if (a.kind != AssetKind::Text) return 0;
-        std::uint64_t h = 1469598103934665603ull; // FNV-1a 64 offset basis
-        const auto feed = [&h](const void* p, std::size_t n) {
-            const auto* b = static_cast<const std::uint8_t*>(p);
-            for (std::size_t i = 0; i < n; ++i) {
-                h ^= b[i];
-                h *= 1099511628211ull;
-            }
-        };
-        feed(a.text_content.data(), a.text_content.size());
-        feed(a.text_font.data(), a.text_font.size());
-        feed(&a.text_font_size, sizeof(a.text_font_size));
-        feed(&a.text_color, sizeof(a.text_color));
-        feed(&a.text_bold, sizeof(a.text_bold));
-        feed(&a.text_italic, sizeof(a.text_italic));
-        feed(&a.text_h_align, sizeof(a.text_h_align));
-        feed(&a.text_bg_color, sizeof(a.text_bg_color));
-        return h;
+        Fnv1a64 f;
+        f.feed(a.text_content);
+        f.feed(a.text_font);
+        f.feed(a.text_font_size);
+        f.feed(a.text_color);
+        f.feed(a.text_bold);
+        f.feed(a.text_italic);
+        f.feed(a.text_h_align);
+        f.feed(a.text_bg_color);
+        return f.h;
     }
 
     /// Live 素材接入指纹（FNV-1a 64；非 Live 恒 0）。
@@ -84,23 +94,15 @@ public:
     /// 源名/URL/采集器/延迟模式任一变化（用户换了源）即失效重建。
     static std::uint64_t liveFingerprint(const Asset& a) {
         if (a.kind != AssetKind::Live) return 0;
-        std::uint64_t h = 1469598103934665603ull; // FNV-1a 64 offset basis
-        const auto feed = [&h](const void* p, std::size_t n) {
-            const auto* b = static_cast<const std::uint8_t*>(p);
-            for (std::size_t i = 0; i < n; ++i) {
-                h ^= b[i];
-                h *= 1099511628211ull;
-            }
-        };
-        feed(a.live_source_name.data(), a.live_source_name.size());
-        feed(a.live_url.data(), a.live_url.size());
-        feed(&a.live_ingest, sizeof(a.live_ingest));
-        feed(&a.live_latency, sizeof(a.live_latency));
-        return h;
+        Fnv1a64 f;
+        f.feed(a.live_source_name);
+        f.feed(a.live_url);
+        f.feed(a.live_ingest);
+        f.feed(a.live_latency);
+        return f.h;
     }
 
-    /// 无文件素材的统一内容指纹（Text/Live 分派；文件类素材恒 0——
-    /// 其失效判定走既有 path 比较）。调用方用本函数替代原 textFingerprint。
+    /// 无文件素材的统一内容指纹
     static std::uint64_t contentFingerprint(const Asset& a) {
         if (a.kind == AssetKind::Text) return textFingerprint(a);
         if (a.kind == AssetKind::Live) return liveFingerprint(a);
@@ -256,12 +258,6 @@ public:
     }
 
     // ---- 诊断 ----
-
-    /// 当前缓存的源实例数
-    std::size_t source_count() const noexcept {
-        std::shared_lock<std::shared_mutex> lock(table_mutex_);
-        return sources_.size();
-    }
 
     /// 查找已缓存的源实例（不触发创建；渲染线程取帧入口，读锁）
     /// 【shared_ptr 保活】返回值持引用：换表（releaseSource/clear）期间

@@ -177,8 +177,6 @@ public:
         return true;
     }
 
-    SoftRenderer& impl() noexcept { return soft_; } ///< 底层画布访问
-
 private:
     SoftRenderer& soft_; ///< 画布实体（RenderThread 持有，生命周期覆盖）
 };

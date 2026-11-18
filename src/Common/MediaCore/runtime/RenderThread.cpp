@@ -3,7 +3,7 @@
 //
 //  职责链（每帧）：
 //    快照场景/播放头 → FramePacer 栅格解算会话时刻（§5.6 相位对齐）→
-//    renderFrame（映射/取帧/合成编排）→ 节流导出诊断 BMP →
+//    composeFrame（映射/读帧/合成编排）→ 节流导出诊断 BMP →
 //    waitUntil 下一栅格点（present 对齐提交）
 //
 //  诊断 BMP 格式说明（writeBmp）：
@@ -774,7 +774,7 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
     // ---- 帧输出回调（显示端预览窗口/平台 present 钩子）----
     // 仅软渲染基线路径回调：GL 后端画面已在 endFrame（SwapBuffers）直上
     // 窗口，再拷贝一份走 GDI 反而多一次全帧拷贝（性能反优化）。
-    // 位置约定：renderFrame 返回后画布必为完整帧（beginFrame 清屏 + 逐项
+    // 位置约定：composeFrame 返回后画布必为完整帧（beginFrame 清屏 + 逐项
     // 绘制已结束）——早退路径（无场景/未绑定 screen/Idle 节流跳过）不会
     // 走到这里。同步调用：回调实现须只做快照拷贝（见 Config.frame_sink 注释）。
     if (!backend_ && cfg_.frame_sink) {

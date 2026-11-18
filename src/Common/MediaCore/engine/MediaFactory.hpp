@@ -147,19 +147,13 @@ public:
 
     /// 注册某类型的构造器
     /// \return false 表示该类型已注册过（重复注册被拒绝——避免装配期
-    ///         静默覆盖导致难以排查的行为差异；需要替换时请显式 unregister）
+    ///         静默覆盖导致难以排查的行为差异）
     bool registerCreator(AssetKind kind, Creator creator) {
         std::lock_guard<std::mutex> lock(mutex_);
         const auto key = static_cast<std::uint32_t>(kind);
         if (creators_.count(key) != 0) return false; // 已存在 → 拒绝
         creators_.emplace(key, std::move(creator));
         return true;
-    }
-
-    /// 注销（供测试与运行期重装配使用）
-    bool unregisterCreator(AssetKind kind) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return creators_.erase(static_cast<std::uint32_t>(kind)) > 0;
     }
 
     /// 按素材种类创建媒体源实例
@@ -170,12 +164,6 @@ public:
         const auto it = creators_.find(static_cast<std::uint32_t>(asset.kind));
         if (it == creators_.end()) return nullptr;
         return it->second(asset); // 委托构造器创建实例
-    }
-
-    /// 查询某类型是否已注册（诊断/测试用）
-    bool hasCreator(AssetKind kind) const {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return creators_.count(static_cast<std::uint32_t>(kind)) != 0;
     }
 
     /// 全局默认工厂（运行期装配入口；测试请构造局部实例以隔离状态）

@@ -30,7 +30,7 @@ struct TrackData {
     QList<AbstractClipModel*> clips;
     // 按 start 排序的片段下标。只用于视口裁剪，不改变 clips 的绘制顺序。
     QList<int> clipsByStart;
-    int maxClipSpan = 0;
+    qint64 maxClipSpan = 0; ///< μs 域（>35.8min 片段 int 回绕为负——2026-11-18 修）
     // 轨道展开态 bool expanded（2026-11-06 轨道展开）已退役（2026-11-15
     // 折叠功能整体移除）：行高恒 trackHeight，无 per-row 展开态。
 };
@@ -102,7 +102,6 @@ public:
      * 获取轨道数量
      * @return int 轨道数量
      */
-    virtual int getTrackCount() const ;
     /**
      * 获取插件加载器
      * @return BasePluginLoader* 插件加载器
@@ -226,7 +225,7 @@ protected:
     void queueClipGeometryNotify(AbstractClipModel* clip);
     void flushClipGeometryNotify();
     // 新终点超过当前总长时直接更新。只有原来的最大终点变小才重扫。
-    void applyLengthChange(int oldEnd, int newEnd);
+    void applyLengthChange(qint64 oldEnd, qint64 newEnd);
     bool isTrackPointer(void* ptr) const;
 
     //插件加载器
@@ -255,7 +254,7 @@ protected:
     std::unordered_set<TrackData*> m_trackSet;
     bool m_deferGeometryNotify = false;
     AbstractClipModel* m_interactiveClip = nullptr;
-    int m_interactiveOriginalEnd = 0;
+    qint64 m_interactiveOriginalEnd = 0; ///< μs 域（2026-11-18 int 截断修复）
     bool m_geometryNotifyQueued = false;
     QList<AbstractClipModel*> m_pendingGeometryClips;
 

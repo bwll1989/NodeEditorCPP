@@ -161,7 +161,6 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
             di.canvas_y = judge.y;
             di.canvas_w = judge.w;
             di.canvas_h = judge.h;
-            di.screen_rotation = scr.rotation;
         } else {
             // ---- 轴对齐快速路径（裁切 = 可见矩形直绘；uv 窗渲染端处理）----
             di.x = st.mapX(judge.x);

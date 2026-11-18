@@ -30,7 +30,6 @@ namespace ms {
 struct ActiveClip {
     const Clip*  clip  = nullptr; ///< 命中的片段（借用指针，指向 Scene 内部）
     std::int64_t media_us = 0;    ///< 素材内部时间：in_us + (t - start_us)
-    double local_progress = 0.0;  ///< 片段局部进度 [0,1)：(t - start)/duration
     // 【2026-11-05 Tween】解算后的完整变换：静态 transform 被该片段的
     // tween 通道逐帧覆写后的结果（TweenEngine::resolveTransform 纯函数）。
     // 下游（ScreenMapper/渲染端）一律消费 resolved，不再直读 clip->transform。
@@ -66,9 +65,6 @@ public:
 
     /// t 时刻应取素材的内部时间（us）：in_us + (t - start_us)
     static std::int64_t mediaTimeUs(const Clip& c, std::int64_t t_us) noexcept;
-
-    /// 片段局部进度 [0,1)：(t - start) / duration（duration<=0 视为 0）
-    static double localProgress(const Clip& c, std::int64_t t_us) noexcept;
 
     /// 推算时间轴总时长（us）：所有片段 end 的最大值；空时间轴返回 0
     static std::int64_t computeDurationUs(const Timeline& tl) noexcept;

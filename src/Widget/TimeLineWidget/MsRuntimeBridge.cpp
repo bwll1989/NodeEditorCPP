@@ -93,11 +93,6 @@ std::size_t MsRuntimeBridge::syncMedia(const Scene& scene) {
     return impl_->rt.cmdSyncMedia(scene); // 注册 + 推清单（推模型）
 }
 
-bool MsRuntimeBridge::authoritySnapshot(Scene& out) const {
-    if (!impl_) return false;
-    return impl_->rt.sceneSnapshot(out);
-}
-
 // ---- 播放控制 ---------------------------------------------------------------
 void MsRuntimeBridge::cmdPlay() {
     if (!impl_) return;

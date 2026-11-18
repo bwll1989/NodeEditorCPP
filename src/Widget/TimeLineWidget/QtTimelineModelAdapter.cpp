@@ -255,14 +255,7 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
                 la.live_latency     = 0;
                 la.width            = 1280;
                 la.height           = 720;
-                int  next  = 1;
-                bool clash = true;
-                while (clash) {
-                    clash = false;
-                    la.id = "live-" + std::to_string(next++);
-                    for (const auto& x : work_->assets)
-                        if (x.id == la.id) { clash = true; break; }
-                }
+                la.id = uniqueAssetId("live");
                 work_->assets.push_back(la);
                 bound_asset = la.id;
                 // 回绑工作副本侧（work_==&scene 时 c 即同一元素，无碍）
@@ -371,6 +364,21 @@ std::string QtTimelineModelAdapter::nextClipId() const {
         for (const auto& t : work_->timeline.tracks)
             for (const auto& c : t.clips)
                 if (c.id == cand) { clash = true; break; }
+        if (!clash) return cand;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 唯一素材 id 生成（2026-11-18 收敛原三份同构探测循环）：prefix-N 线性
+// 探测，与工作副本素材全表查重（自动建素材三路径共用，单点维护）。
+// ---------------------------------------------------------------------------
+std::string QtTimelineModelAdapter::uniqueAssetId(const char* prefix) const {
+    int next = 1; // 起点任意，靠查重推进
+    for (;;) {
+        const std::string cand = std::string(prefix) + "-" + std::to_string(next++);
+        bool clash = false;
+        for (const auto& a : work_->assets)
+            if (a.id == cand) { clash = true; break; }
         if (!clash) return cand;
     }
 }
@@ -889,73 +897,6 @@ void QtTimelineModelAdapter::refreshClipPanels(const std::string& clip_id) {
             break;
         }
     }
-}
-
-// ---------------------------------------------------------------------------
-// 片段自有属性面板独立打开（程序化入口；UI 入口 2026-11-05 收敛）：
-//   timeline 双击 = 库组合面板（原生通用区 + clipPropertyWidget 自定义区）
-//   ——【唯一 UI 入口】（用户定案"画布双击弹面板与组合面板并存
-//   易歧义"，两处入口已移除，画布改为拖拽实时同步面板显示）；
-//   本函数保留：回归测试程序化开面板 + 未来拖拽绑定等交互复用。
-// 实现走 SceneClipModel::clipPropertyWidget() 虚工厂（与库组合面板完全同源）：
-//   * 工厂每次调用新建面板实例（SceneClipModel 覆写不缓存），与已打开的
-//     timeline 组合面板互不 reparent——两面板并存安全；
-//   * 面板写回 setApplier → applyClipPanelMerge（合并语义，只覆盖脏字段）
-//     → sceneEdited 信号 → EditorWindow 侧 refreshSceneViews +
-//     scheduleAutoPublish（既有闭环），本函数弹出后无需任何善后。
-// ---------------------------------------------------------------------------
-bool QtTimelineModelAdapter::showClipOwnPanel(int track_idx, int clip_idx,
-                                              QWidget* parent) {
-    // 出口 1：未挂工作副本 / 下标越界（画布双击传入的工作副本下标）
-    if (!work_ || track_idx < 0 || clip_idx < 0 ||
-        track_idx >= (int)work_->timeline.tracks.size() ||
-        clip_idx >= (int)work_->timeline.tracks[track_idx].clips.size())
-        return false;
-
-    // 工作副本片段 id（= 模型侧 clipAnchor，回写定位锚点；按下标取 id 后
-    // 改按 id 定位模型片段——对增删稳定，不信任下标在两边一致）
-    const std::string clip_id =
-        work_->timeline.tracks[track_idx].clips[clip_idx].id;
-    const QString note = QString::fromStdString(clip_id);
-
-    // 在模型中按 clipAnchor 定位片段（找不到 = 已被删/未装载，防御）
-    AbstractClipModel* model_clip = nullptr;
-    for (TrackData* td : m_tracks) {
-        if (!td) continue;
-        for (AbstractClipModel* clip : td->clips) {
-            if (clip->clipAnchor() != note) continue;
-            model_clip = clip;
-            break;
-        }
-        if (model_clip) break;
-    }
-    if (!model_clip) return false;
-
-    // 虚工厂取片段自有面板：媒体绑定 + 画布变换区。
-    // 返回 null 的情形：hooks 未注入（makeClipPropertyPanel 出口 1）/
-    // 工作副本缺片段（出口 2）/ 基类骨架兜底（未走插件工厂）——留痕后失败。
-    QWidget* panel = model_clip->clipPropertyWidget();
-    if (!panel) {
-        std::fprintf(stderr, "[clip-panel] %s：自有面板不可用（工厂未注入或"
-                             "非 SceneClipModel 骨架）\n", clip_id.c_str());
-        std::fflush(stderr);
-        return false;
-    }
-
-    // 包非模态对话框（2026-11-17 统一无边框风格 FramelessDialog）：关窗
-    // （标题栏 ×/Esc）即销毁（WA_DeleteOnClose，面板随布局为 dialog 子对象
-    // 一并释放）；无 OK/Cancel——控件变更即时写回，与 timeline 组合浮窗
-    // 同为"开着就能继续操作画布/时间轴"的交互。
-    auto* dlg = new FramelessDialog(parent);
-    dlg->setAttribute(Qt::WA_DeleteOnClose);
-    dlg->setModal(false); // FramelessDialog 构造默认模态——本入口非模态
-    dlg->setCloseButtonVisible(true);
-    dlg->setDialogTitle(QString("片段属性：%1（轨道 %2)")
-                            .arg(note, QString::fromStdString(
-                                     work_->timeline.tracks[track_idx].id)));
-    dlg->bodyLayout()->addWidget(panel);
-    dlg->show();
-    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1538,17 +1479,8 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
         ta.text_font      = "MicrosoftYaHei"; // 默认字体（映射表中文兜底）
         ta.text_font_size = 48;
         ta.text_color     = 0xFFFFFF;
-        // id：text-1、text-2…线性探测（对既有素材表防重）
-        {
-            int  next  = 1;
-            bool clash = true;
-            while (clash) {
-                clash = false;
-                ta.id = "text-" + std::to_string(next++);
-                for (const auto& x : work_->assets)
-                    if (x.id == ta.id) { clash = true; break; }
-            }
-        }
+        // id：text-1、text-2…线性探测（对既有素材表防重；探测内核收敛）
+        ta.id = uniqueAssetId("text");
         // 测量回填自然尺寸（与 makeAssetFromFile/TextMediaSource 同一
         // 渲染入口测量——三处同源，无漂移）
         const TextLayout lay =
@@ -1577,17 +1509,8 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
         la.live_latency     = 0;       // 最低延迟
         la.width            = 1280;    // 默认布局尺寸（画布占位）
         la.height           = 720;
-        // id：live-1、live-2…线性探测（对既有素材表防重）
-        {
-            int  next  = 1;
-            bool clash = true;
-            while (clash) {
-                clash = false;
-                la.id = "live-" + std::to_string(next++);
-                for (const auto& x : work_->assets)
-                    if (x.id == la.id) { clash = true; break; }
-            }
-        }
+        // id：live-1、live-2…线性探测（对既有素材表防重；探测内核收敛）
+        la.id = uniqueAssetId("live");
         work_->assets.push_back(la);
         live_asset_id = la.id;
         std::fprintf(stderr,
@@ -1605,6 +1528,17 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
     }
 
     // ---- 工作副本同步：占位片段（起点/时长按模型帧域换算回微秒）----
+    // 【2026-11-18 修】trackIndex 此前只对 m_tracks 校验（1504 行）——
+    // 两表同步靠各覆写路径手工双写保持，任一未来路径漏同步即越界写。
+    // 改按 work_ 自身尺寸再校验（不一致时防御跳过，UI 侧不受影响）。
+    if (trackIndex < 0 || trackIndex >= (int)work_->timeline.tracks.size()) {
+        std::fprintf(stderr,
+                     "[adapter] onAddClip 工作副本同步跳过：trackIndex=%d "
+                     "越界（work tracks=%zu——双表失步信号）\n",
+                     trackIndex, (int)work_->timeline.tracks.size());
+        std::fflush(stderr);
+        return;
+    }
     Track& tr = work_->timeline.tracks[trackIndex];
     ms::Clip c;
     c.id          = id;
