@@ -96,7 +96,7 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
                 // 2026-11-18】Scene::effectivePersp——persp_* 未配置时
                 // 画布派生默认 F=2×对角线/vp=画布中心，全场共享同一投影
                 // 仪；画布无效才退片段隐含焦距）+ 俯仰/偏航/滚转/锚点/
-                // 角位移。q4 = 每次投影权重 s=F/(F+Z)（渲染端顶点
+                // 角位移。q4 = 每次投影权重 s=F/(F−Z)（渲染端顶点
                 // (uv·q, q) + FS 采样 uv/q 精确复现平面单应）。
                 double ef = 0.0, evx = 0.0, evy = 0.0;
                 scene.effectivePersp(ef, evx, evy);

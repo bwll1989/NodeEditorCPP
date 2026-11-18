@@ -1078,9 +1078,10 @@ void SceneCanvasWidget::openEyeDialog() {
     focal->setSingleStep(100.0);
     focal->setValue(scene_->persp_focal);
     focal->setToolTip(tr(
-        "全局透视焦距 F（px）。\n0 = 未配置——全场透视走画布派生默认\n"
+        "全局透视焦距 F（px）——观察眼点 Eye 在消隐点正上方 F 高度处。\n"
+        "0 = 未配置——全场透视走画布派生默认\n"
         "（F = 2×画布对角线，消隐点 = 画布中心）；\n>0 = 手动 Eye 生效，"
-        "3D 视口出现可拖动的 VP 标记。"));
+        "3D 视口出现可拖动的 VP 标记与 Eye 圆环。"));
     auto* vpx = new FloatDragValueWidget(&dlg);
     vpx->setRange(-8192.0, 16384.0);
     vpx->setDecimals(1);
@@ -1095,15 +1096,38 @@ void SceneCanvasWidget::openEyeDialog() {
     form->addRow(tr("消隐点 X："), vpx);
     form->addRow(tr("消隐点 Y："), vpy);
     lay->addLayout(form);
+    // 【2026-11-18 用户反馈"改 Eye 无效果"根治】F=0（未配置）时 VP 根本
+    // 不参与投影计算（effectivePersp 走画布派生默认）——VP 字段灰化 +
+    // 动态提示当前模式，消除"改了没反应"的困惑。
+    auto* mode_hint = new QLabel(&dlg);
+    mode_hint->setWordWrap(true);
+    mode_hint->setStyleSheet("color: #C8781C; font-size: 11px;");
+    lay->addWidget(mode_hint);
+    auto update_vp = [this, focal, vpx, vpy, mode_hint] {
+        const bool on = focal->value() > 0.0;
+        vpx->setEnabled(on);
+        vpy->setEnabled(on);
+        mode_hint->setText(
+            on ? tr("手动 Eye 已生效：眼点悬浮于消隐点 VP 正上方高度 F=%1 px 处。"
+                     "修改 F / VP 立即影响成品合成画面（素材升向 Eye 放大、远"
+                     "离缩小）与 3D 视口 Eye 圆环。")
+                   .arg(focal->value(), 0, 'f', 0)
+               : tr("F=0 = 未配置：全场透视走画布派生默认（F=2×画布对角线，"
+                     "消隐点 = 画布中心）——此时改 VP 无效果，请先把焦距 F "
+                     "设为大于 0 的值。"));
+    };
+    update_vp();
+    connect(focal, &FloatDragValueWidget::valueChanged, &dlg, update_vp);
     auto* hint = new QLabel(
-        tr("消隐点也可在 3D 视口直接拖动橙色 VP 标记（需先配置焦距）。"
-           "透视只影响素材投影，不改 Display 取景窗。"), &dlg);
+        tr("消隐点也可在 3D 视口直接拖动橙色 VP 标记（需先配置焦距），"
+           "Eye 圆环随焦距升降。透视只影响素材投影，不改 Display 取景窗。"), &dlg);
     hint->setWordWrap(true);
     hint->setStyleSheet("color: gray; font-size: 11px;");
     lay->addWidget(hint);
     auto* reset = new QPushButton(tr("恢复默认（画布派生）"), &dlg);
-    connect(reset, &QPushButton::clicked, &dlg, [focal] {
+    connect(reset, &QPushButton::clicked, &dlg, [focal, update_vp] {
         focal->setValue(0.0); // F=0 = 未配置 → effectivePersp 画布派生
+        update_vp();
     });
     lay->addWidget(reset);
     auto* btns = new QDialogButtonBox(
@@ -2033,8 +2057,8 @@ void SceneCanvasWidget::paintGL3D(
                                                          : nullptr,
                                        wx, wy, wz);
                 // 画布域 XY + 悬浮高度 → 舞台空间逐角投影：wz 已含
-                // pos_z 与旋转诱导深度（正 = 远离画布正面观察者 =
-                // 舞台向上），不再另加基准高度
+                // pos_z 与旋转诱导深度（正 = 朝上方 Eye = 舞台向上，
+                // 2026-11-18 翻转定案），不再另加基准高度
                 for (int i = 0; i < 4; ++i)
                     q[i] = project3(wx[i], wz[i], wy[i]);
             } else {
@@ -2534,13 +2558,22 @@ void SceneCanvasWidget::paintGL3D(
             p.drawLine(project3(gx0, 0, gy), project3(gx1, 0, gy));
     }
 
-    // ---- 6b. 全局消隐点 VP 标记（Eye 点可视化；仅手动 Eye 已配置）--------
-    // 橙色十字圆标：透视投影的唯一消隐点，可直接拖动（对齐 WATCHOUT
-    // Stage Perspective 的 Vanishing Point 语义）。未配置时不画——
-    // 派生默认 VP 无编辑意义（避免误导）。
+    // ---- 6b. 全局消隐点 VP + 观察眼点 Eye 标记（仅手动 Eye 已配置）--------
+    // 橙色十字圆标 = 透视投影的唯一消隐点，可直接拖动（对齐 WATCHOUT
+    // Stage Perspective 的 Vanishing Point 语义）；其正上方 F 高度处的
+    // 圆环 = 针孔模型观察眼点 Eye（s=F/(F−Z) 的物理出处——素材升向
+    // Eye 放大、远离缩小）。未配置时不画——派生默认 VP 无编辑意义
+    //（避免误导）。改 F 的可视反馈 = Eye 环随焦距升降。
     if (scene_->persp_focal > 0.0) {
         const QPointF vp =
             project3(scene_->persp_vp_x, 0.0, scene_->persp_vp_y);
+        // Eye 点 = VP 正上方 F 高度（光轴竖直向下穿过 VP）
+        const QPointF eye = project3(scene_->persp_vp_x,
+                                     scene_->persp_focal,
+                                     scene_->persp_vp_y);
+        p.setPen(QPen(QColor(0xE8, 0x9C, 0x28), 1, Qt::DotLine));
+        p.setBrush(Qt::NoBrush);
+        p.drawLine(vp, eye); // 光轴（VP→Eye 竖直连线）
         p.setPen(QPen(QColor(0xE8, 0x9C, 0x28), 1.4));
         p.setBrush(QColor(0xE8, 0x9C, 0x28, 40));
         p.drawEllipse(vp, 6.0, 6.0);
@@ -2550,6 +2583,13 @@ void SceneCanvasWidget::paintGL3D(
         p.drawLine(vp + QPointF(0, -11), vp + QPointF(0, -4));
         p.drawLine(vp + QPointF(0, 4), vp + QPointF(0, 11));
         p.drawText(vp + QPointF(10, -8), QStringLiteral("VP"));
+        // Eye 环（区别于 VP 十字；半径随 F 轻微呼吸——高度感）
+        const double er = 6.0 + std::min(6.0, scene_->persp_focal / 20000.0);
+        p.drawEllipse(eye, er, er);
+        p.setBrush(QColor(0xE8, 0x9C, 0x28));
+        p.drawEllipse(eye, 1.8, 1.8); // 中心实点
+        p.setBrush(Qt::NoBrush);
+        p.drawText(eye + QPointF(10, -8), QStringLiteral("Eye"));
     }
 
     // ---- 7. HUD（左上操作提示 + 右上相机读数）------------------------------
@@ -3363,9 +3403,10 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
                sel_.b < (int)scene_->timeline.tracks[sel_.a].clips.size()) {
         auto& c = scene_->timeline.tracks[sel_.a].clips[sel_.b];
         // 【阶段③ 拖拽透视修正 2026-11-17】3D 位姿 clip 的画面在显示域
-        // 按 s=F/(F+pos_z) 收缩——鼠标画布 delta 直接加 x/y 会让画面移动
-        // delta·s（跟不上手）。锚点处 Z=pos_z（锚点局部 (0,0) 旋转不变
-        // ——z1=z2=0），s_a = F/(F+pos_z)；delta ÷ s_a 写入 → 显示移动
+        // 按 s=F/(F−pos_z) 缩放（深度正=朝 Eye=放大，2026-11-18 翻转）
+        // ——鼠标画布 delta 直接加 x/y 会让画面移动 delta·s（跟不上手）。
+        // 锚点处 Z=pos_z（锚点局部 (0,0) 旋转不变——z1=z2=0），
+        // s_a = F/(F−pos_z)；delta ÷ s_a 写入 → 显示移动
         // delta·s·(1/s)=delta 精确跟手。F 取值与 quadCorners3DP 内部同源
         // （全局透视配置优先，否则片段隐含焦距 2×max(w,h)）；吸附仍按
         // clip 域历史语义（透视模式吸附精度轻微偏差可接受）。
@@ -3379,7 +3420,8 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
             const double F = ef > 0.0
                                  ? ef
                                  : 2.0 * std::max(dr.width(), dr.height());
-            const double s_a = F / (F + drag_tf.pos_z);
+            const double den_a = F - drag_tf.pos_z;
+            const double s_a = den_a > 1e-9 ? F / den_a : 1e-6;
             if (s_a > 1e-6) {
                 nx = drag_orig_x_ + (nx - drag_orig_x_) / s_a;
                 ny = drag_orig_y_ + (ny - drag_orig_y_) / s_a;

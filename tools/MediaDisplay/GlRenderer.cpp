@@ -723,7 +723,7 @@ bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
             // 俯仰/偏航（v3 透视）：四角已由 cg::quadCorners3DP 预投影
             // （ScreenMapper 填 di.quad/di.quad_q，画布域 CornerIdx 序——
             // 滚转/锚点/角位移/透视缩放已烘焙），此处仅顶点序重排 +
-            // comp 映射；q = 该角投影权重 s=F/(F+Z)（顶点传 uv·q，FS
+            // comp 映射；q = 该角投影权重 s=F/(F−Z)（顶点传 uv·q，FS
             // 采样 uv/v_q 精确复现平面单应——屏幕空间线性插值）。
             wx = di.quad[kVtxToCorner[i]][0];
             wy = di.quad[kVtxToCorner[i]][1];

@@ -253,7 +253,7 @@ struct DrawItem {
                                                            ///<（CornerIdx 序；
                                                            ///< pose3d 时有效）
     // 透视权重 q（2026-11-17 阶段②；CornerIdx 序，与 quad 同序）：每次投影
-    // s=F/(F+Z)（quadCorners3DP 输出）。渲染端顶点属性传 (uv·q, q)、FS 采样
+    // s=F/(F−Z)（quadCorners3DP 输出；深度正=朝 Eye=放大，2026-11-18 翻转）。渲染端顶点属性传 (uv·q, q)、FS 采样
     // uv/v_q——屏幕空间线性插值下精确复现平面单应（q≡1 时逐位退化历史
     // 仿射采样）。无姿态恒 1。
     double quad_q[4] = {1.0, 1.0, 1.0, 1.0};

@@ -475,8 +475,8 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         if (def.prop == TweenProp::Position)
             name_lbl->setToolTip(
                 QStringLiteral("位置 = 画布坐标 X/Y + 深度 Z（第三值位，3D "
-                               "空间真实位置）：深度走透视投影 s=F/(F+Z)，"
-                               "正 = 远离（画面收缩）。三维打包一条属性："
+                               "空间真实位置）：深度走透视投影 s=F/(F−Z)，"
+                               "正 = 朝观察者 Eye/舞台向上（画面放大）。三维打包一条属性："
                                "一个键携带 X/Y 全部分量（深度 Z 为静态属"
                                "性不参与关键帧；叠放层级在下方「层级 Z」行）"));
         if (def.prop == TweenProp::Rotation)
@@ -665,9 +665,10 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
             pos_z_spin_->setSuffix(QStringLiteral(" px"));
             pos_z_spin_->setToolTip(
                 QStringLiteral("深度 Z（3D 空间位置第三分量）：素材在三维"
-                               "中的真实 z 位置——透视投影权重 s=F/(F+Z)，"
-                               "正 = 远离（画面收缩）、负 = 朝向（画面放"
-                               "大）。0 = 无透视（历史行为逐位）。静态属性"
+                               "中的真实 z 位置——透视投影权重 s=F/(F−Z)，"
+                               "正 = 朝观察者 Eye/舞台向上（画面放大、与 3D "
+                               "视口面片升高同向）、负 = 远离（画面收缩）。"
+                               "0 = 无透视（历史行为逐位）。静态属性"
                                "不参与关键帧（恢复 0 双击输入）"));
             // 预填在 connect 之前（不触发写回）
             pos_z_val_ = clip.transform.pos_z;
