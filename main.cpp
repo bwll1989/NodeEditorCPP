@@ -36,11 +36,15 @@ void setupAppInfo() {
 }
 
 /**
- * @brief 检查应用程序是否已经在运行
+ * @brief 检查应用程序是否已经在运行并占有单实例段
  * @param sharedMemory 共享内存对象的引用
+ * @param[out] segmentOurs 本次调用是否成功创建了本进程自己的共享内存段
  * @return bool 如果应用程序已经在运行则返回true
+ * @note attach 成功 = 已有实例（探测后立即 detach）；attach 失败则尝试
+ *       create(1) 占坑，创建失败（并发竞争）同样视同"已在运行"
  */
-bool isApplicationRunning(QSharedMemory& sharedMemory) {
+bool isApplicationRunning(QSharedMemory& sharedMemory, bool* segmentOurs = nullptr) {
+    if (segmentOurs) *segmentOurs = false;
     if (sharedMemory.attach()) {
         sharedMemory.detach();
         return true;
@@ -51,7 +55,7 @@ bool isApplicationRunning(QSharedMemory& sharedMemory) {
         qWarning() << "Failed to create shared memory:" << sharedMemory.errorString();
         return true; // 如果创建失败，也认为应用程序已经在运行
     }
-
+    if (segmentOurs) *segmentOurs = true;
     return false;
 }
 
@@ -161,8 +165,20 @@ int main(int argc, char *argv[])
     }
 
     // 检查应用程序是否已经在运行（GUI 与 headless 互斥）
+    // 【重启竞态防御 2026-11-18】--restart-delay-ms 场景 = restartAndOpenFlow
+    // 自重启链路的子进程：旧进程可能仍在退出中（旧版崩溃后 WER 收尾会拖住
+    // 进程数秒，QSharedMemory 随进程存活）——若立即判"已在运行"会弹模态框
+    // 等用户点击，重启链路僵死，任务栏留下第二个 0.3MB 的"僵尸 Flow.exe"
+    // （2026-11-18 崩溃实证的另一半现象）。现改为：重启场景下有限轮询
+    // （最多 4s）等旧进程释放，超时才判"已在运行"。
     QSharedMemory sharedMemory(makeSingleInstanceKey());
-    if (isApplicationRunning(sharedMemory)) {
+    bool segmentOurs = false;
+    bool alreadyRunning = isApplicationRunning(sharedMemory, &segmentOurs);
+    for (int i = 0; alreadyRunning && restartDelayMs > 0 && i < 40; ++i) {
+        QThread::msleep(100); // 40×100ms = 4s 上限
+        alreadyRunning = isApplicationRunning(sharedMemory, &segmentOurs);
+    }
+    if (alreadyRunning || !segmentOurs) {
         QMessageBox::warning(nullptr, "", "应用程序已经在运行中。");
         return 1;
     }

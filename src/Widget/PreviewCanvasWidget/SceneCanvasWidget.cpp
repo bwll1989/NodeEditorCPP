@@ -440,7 +440,12 @@ SceneCanvasWidget::~SceneCanvasWidget() {
     // 跳过即可：unique_ptr 析构 delete 空对象无害）
     if (context() && context()->isValid()) {
         makeCurrent();
-        gl3d_->shutdown(); // 3D 贴图层（纹理缓存/程序/VAO/VBO）
+        // 【崩溃修复 2026-11-18】gl3d_ 惰性创建（仅 3D 绘制路径 ever new），
+        // 2D 会话析构时为空——此前无判空调用 shutdown() 读 [this+0xBC]
+        // 直接 AV（崩溃 dmp 实证：~SceneCanvasWidget → Canvas3DGl::shutdown，
+        // rip=+0x122106 rcx=0 fault=读 0xBC）。空 unique_ptr 跳过即可，
+        // GL 资源本就未分配，无泄漏。
+        if (gl3d_) gl3d_->shutdown(); // 3D 贴图层（纹理缓存/程序/VAO/VBO）
         gl_.reset();       // 2D GL 直通合成器
         doneCurrent();
     }
