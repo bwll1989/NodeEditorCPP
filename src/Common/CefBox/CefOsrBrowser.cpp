@@ -11,9 +11,9 @@ namespace cefbox {
 namespace {
 // OSR 视图尺寸下限：CEF 要求 GetViewRect 返回正值，否则浏览器创建/合成异常
 constexpr int kMinViewSize = 1;
+}  // namespace
 
 std::atomic<int> CefOsrBrowser::s_aliveCount{0};
-}  // namespace
 
 int CefOsrBrowser::aliveCount() {
     return s_aliveCount.load(std::memory_order_relaxed);
@@ -54,6 +54,12 @@ void CefOsrBrowser::loadUrl(const std::string& urlUtf8) {
     if (!m_browser)
         return;
     m_browser->GetMainFrame()->LoadURL(urlUtf8);
+}
+
+void CefOsrBrowser::reloadPage() {
+    if (!m_browser)
+        return;
+    m_browser->Reload();
 }
 
 void CefOsrBrowser::executeJavaScript(const std::string& jsUtf8) {

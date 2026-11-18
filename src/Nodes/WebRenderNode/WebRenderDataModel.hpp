@@ -2,38 +2,47 @@
 
 /**
  * @file WebRenderDataModel.hpp
- * @brief Web Render 节点 — 对齐 TouchDesigner Web Render TOP 模式
+ * @brief Web Render 节点 — CEF OSR 后端（CefRefactorPlan P1）
  *
- * 独立 Edge/Chrome 进程离屏渲染 → CDP 截图 → ImageTimestampRingQueue → ImageData。
- * 下游按 TimestampGenerator tick 取帧，不每帧 dataUpdated。
+ * CefOsrBrowser 无窗口渲染（OnPaint BGRA 软件帧）→ ImageFrame::fromBgra8Mat
+ * → ImageTimestampRingQueue → ImageData。下游按 TimestampGenerator tick 取帧。
+ *
+ * 与 Edge/CDP 旧后端（WebRenderBrowserProcess/WebRenderCdpClient，P4 删）的
+ * 兼容契约：端口 3进/2出、Info 键名不变（debug_port 退役=0，新增 engine/
+ * frame_path）、save/load 10 键不变。
+ *
+ * 【与旧后端的本质差异】
+ * - 无外部浏览器进程：无 launcher 模型 → 重启死循环/"自动重启中"病灶消失；
+ * - 分辨率变更走 WasResized，不再重启任何进程；
+ * - CEF 运行时 init-once：全进程 CefInitialize 一次，多节点共享；
+ * - 退出路径：节点 dtor 仅 close 浏览器（零阻塞），qAddPostRoutine 统一
+ *   排空 OnBeforeClose 后 CefShutdown → Flow 关闭秒退。
  */
 
-#include "WebRenderBrowserProcess.h"
-#include "WebRenderCdpClient.h"
-#include "WebRenderInterface.hpp"
-
 #include "Common/BaseClass/AbstractDelegateModel.h"
+#include "Common/CefBox/CefOsrBrowser.h"
+#include "Common/CefBox/CefRuntime.h"
 #include "Common/DataTypes/ImageGpuUpload.h"
 #include "Common/DataTypes/NodeDataList.hpp"
 #include "TimestampGenerator/TimestampGenerator.hpp"
+#include "WebRenderInterface.hpp"
 
 #include <QApplication>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QFileInfo>
 #include <QJsonObject>
 #include <QMutex>
 #include <QPointer>
-#include <QProcess>
 #include <QSignalBlocker>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QUuid>
-#include <QThreadPool>
+#include <QUrl>
 
 #include <atomic>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/imgproc.hpp>
+#include <opencv2/core/mat.hpp>
 
 using QtNodes::NodeData;
 using QtNodes::PortIndex;
@@ -66,8 +75,6 @@ class WebRenderDataModel final : public AbstractDelegateModel
 public:
     WebRenderDataModel()
         : m_widget(new WebRenderInterface())
-        , m_browser(new WebRenderBrowserProcess(this))
-        , m_cdp(new WebRenderCdpClient(this))
     {
         InPortCount = 3;
         OutPortCount = 2;
@@ -77,12 +84,9 @@ public:
         Resizable = false;
         PortEditable = false;
 
-        qRegisterMetaType<cv::Mat>("cv::Mat");
         ensureImageDataBuffer(m_outImage, m_outputBuffer);
         m_outInfo = std::make_shared<VariableData>();
         publishInfo();
-
-        m_userDataDir = makeUniqueUserDir();
 
         ImageGpuUpload::instance().warmup();
 
@@ -111,61 +115,21 @@ public:
         connect(m_widget, &WebRenderInterface::autoRestartChanged, this, [this](bool v) { m_autoRestart = v; });
         connect(m_widget, &WebRenderInterface::reloadRequested, this, &WebRenderDataModel::reloadNow);
 
-        connect(m_browser, &WebRenderBrowserProcess::ready, this, &WebRenderDataModel::onBrowserReady);
-        connect(m_browser, &WebRenderBrowserProcess::processDied, this, &WebRenderDataModel::onBrowserDied);
-        connect(m_browser, &WebRenderBrowserProcess::errorOccurred, this, &WebRenderDataModel::onBrowserError);
-        connect(m_browser, &WebRenderBrowserProcess::startFailed, this, [this]() {
-            if (m_shuttingDown.load()) {
-                return;
-            }
-            // 异步启动失败：回滚 Active，与同步参数校验失败行为一致
-            m_active = false;
-            if (m_widget) {
-                m_widget->setActiveChecked(false);
-            }
-            publishInfo();
-            Q_EMIT dataUpdated(InfoPort);
-        });
-
-        // 分辨率变更防抖：停止拖动 500ms 后才重启浏览器进程，避免连环重启卡顿
-        m_restartDebounce.setSingleShot(true);
-        m_restartDebounce.setInterval(500);
-        connect(&m_restartDebounce, &QTimer::timeout, this, [this]() {
-            if (m_active && !m_shuttingDown.load()) {
-                restartBrowser();
-            }
-        });
-
-        connect(m_cdp, &WebRenderCdpClient::connected, this, &WebRenderDataModel::onCdpConnected);
-        connect(m_cdp, &WebRenderCdpClient::disconnected, this, &WebRenderDataModel::onCdpDisconnected);
-        connect(m_cdp, &WebRenderCdpClient::loadedChanged, this, &WebRenderDataModel::onLoadedChanged);
-        connect(m_cdp, &WebRenderCdpClient::pageInfoChanged, this, &WebRenderDataModel::onPageInfoChanged);
-        connect(m_cdp, &WebRenderCdpClient::frameCaptured, this, &WebRenderDataModel::onFrameCaptured, Qt::QueuedConnection);
-        connect(m_cdp, &WebRenderCdpClient::errorOccurred, this, &WebRenderDataModel::onCdpError);
-
-        m_cdp->setMaxRenderRate(m_maxFps);
-        m_cdp->setUpdateWhenLoaded(m_updateWhenLoaded);
-        m_cdp->setViewport(m_width, m_height, m_dpiScale);
-
         m_fpsTimer.start();
+        m_acceptClock.start();
     }
 
     ~WebRenderDataModel() override
     {
         m_shuttingDown.store(true);
-        // 【关闭挂起修复 2026-11-18】原 dtor 同步做两件重活：
-        //  ① setActive(false) 被 m_shuttingDown 闸拦成空操作（stopPipeline 未走）；
-        //  ② QDir::removeRecursively() 在 GUI 线程删整个 Edge profile——数千
-        //     缓存文件，且此刻浏览器进程尚未死透、文件仍被锁（terminate 对
-        //     headless 无效，kill 在更晚的 ~WebRenderBrowserProcess 兜底）：
-        //     既卡秒级又删不干净。多节点叠加=关闭明显挂起。
-        //  现改为：dtor 只做零阻塞停链，profile 目录交给 makeUniqueUserDir()
-        //  的启动期孤儿清扫（下次会话浏览器必已死透、文件无锁，一次删净）。
-        //  浏览器进程的硬杀兜底在 ~WebRenderBrowserProcess（kill+限时等待）。
-        m_restartDebounce.stop();
-        m_cdp->setCapturing(false);
-        m_cdp->disconnectFromDebugger();
-        m_browser->stop();
+        // 零阻塞退出：摘回调（保证此后 OnPaint 不触达已亡节点）+ 优雅关闭，
+        // OnBeforeClose 由退出钩子（qAddPostRoutine）的排空泵收尾。
+        // CefRuntime 为进程级单例，此处不 shutdown。
+        if (m_cefBrowser) {
+            m_cefBrowser->clearCallbacks();
+            m_cefBrowser->close();
+            m_cefBrowser = nullptr;
+        }
     }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -326,7 +290,6 @@ public:
         if (m_active) {
             startPipeline();
         } else {
-            m_restartDebounce.stop();
             stopPipeline();
         }
         Q_EMIT activeChanged(m_active);
@@ -351,8 +314,8 @@ public:
             m_widget->m_urlEdit->setVisible(!htmlMode);
             m_widget->m_htmlEdit->setVisible(htmlMode);
         }
-        if (m_active && m_cdp->isConnected()) {
-            reloadSource();
+        if (m_active && m_cefBrowser && !m_cefBrowser->isClosed()) {
+            m_cefBrowser->loadUrl(currentSourceUrl().toStdString());
         }
     }
 
@@ -368,8 +331,8 @@ public:
             m_widget->m_urlEdit->setText(m_url);
         }
         Q_EMIT urlChanged(m_url);
-        if (m_active && m_sourceMode == QLatin1String("url") && m_cdp->isConnected()) {
-            m_cdp->navigate(m_url);
+        if (m_active && m_sourceMode == QLatin1String("url") && m_cefBrowser && !m_cefBrowser->isClosed()) {
+            m_cefBrowser->loadUrl(currentSourceUrl().toStdString());
         }
         publishInfo();
         Q_EMIT dataUpdated(InfoPort);
@@ -401,12 +364,9 @@ public:
             QSignalBlocker b(m_widget->m_widthSpin);
             m_widget->m_widthSpin->setValue(m_width);
         }
-        m_cdp->setViewport(m_width, m_height, m_dpiScale);
         Q_EMIT widthChanged(m_width);
-        // 分辨率变化需重启浏览器窗口尺寸才稳定（防抖后执行，拖动不卡顿）
-        if (m_active) {
-            m_restartDebounce.start();
-        }
+        // 分辨率变更不再重启进程：WasResized 直达（CEF 后端核心改进）
+        applyViewportToBrowser();
     }
 
     void setHeight(int value)
@@ -420,11 +380,8 @@ public:
             QSignalBlocker b(m_widget->m_heightSpin);
             m_widget->m_heightSpin->setValue(m_height);
         }
-        m_cdp->setViewport(m_width, m_height, m_dpiScale);
         Q_EMIT heightChanged(m_height);
-        if (m_active) {
-            m_restartDebounce.start();
-        }
+        applyViewportToBrowser();
     }
 
     void setMaxFps(double value)
@@ -438,7 +395,7 @@ public:
             QSignalBlocker b(m_widget->m_fpsSpin);
             m_widget->m_fpsSpin->setValue(m_maxFps);
         }
-        m_cdp->setMaxRenderRate(m_maxFps);
+        m_lastFrameAcceptMs = -1;  // 新节流窗立即可接收一帧
         Q_EMIT maxFpsChanged(m_maxFps);
     }
 
@@ -453,13 +410,12 @@ public:
             QSignalBlocker b(m_widget->m_dpiSpin);
             m_widget->m_dpiSpin->setValue(m_dpiScale);
         }
-        m_cdp->setViewport(m_width, m_height, m_dpiScale);
+        applyViewportToBrowser();
     }
 
     void setUpdateWhenLoaded(bool value)
     {
         m_updateWhenLoaded = value;
-        m_cdp->setUpdateWhenLoaded(value);
         if (m_widget) {
             QSignalBlocker b(m_widget->m_updateWhenLoadedCheck);
             m_widget->m_updateWhenLoadedCheck->setChecked(value);
@@ -473,149 +429,7 @@ signals:
     void heightChanged(int height);
     void maxFpsChanged(double fps);
 
-protected:
-    void afterModelReady() override
-    {
-        AbstractDelegateModel::afterModelReady();
-        ImageGpuUpload::instance().warmup();
-    }
-
 private Q_SLOTS:
-    void onBrowserReady(int debugPort)
-    {
-        if (m_shuttingDown.load() || !m_active) {
-            return;
-        }
-        setStatus(QStringLiteral("状态: CDP 连接中…"), false);
-        m_cdp->connectToDebugger(debugPort);
-        publishInfo();
-        Q_EMIT dataUpdated(InfoPort);
-    }
-
-    void onBrowserDied(int, QProcess::ExitStatus)
-    {
-        if (m_shuttingDown.load()) {
-            return;
-        }
-        m_cdp->disconnectFromDebugger();
-        setStatus(QStringLiteral("状态: 浏览器进程已退出"), false);
-        publishInfo();
-        Q_EMIT dataUpdated(InfoPort);
-
-        if (m_active && m_autoRestart) {
-            setStatus(QStringLiteral("状态: 正在自动重启…"), false);
-            QTimer::singleShot(800, this, [self = QPointer<WebRenderDataModel>(this)]() {
-                if (self && self->m_active && !self->m_shuttingDown.load()) {
-                    self->startPipeline();
-                }
-            });
-        }
-    }
-
-    void onBrowserError(const QString& message)
-    {
-        setStatus(QStringLiteral("状态: %1").arg(message), false);
-        m_lastError = message;
-        publishInfo();
-        Q_EMIT dataUpdated(InfoPort);
-    }
-
-    void onCdpConnected()
-    {
-        setStatus(QStringLiteral("状态: 已连接，加载页面…"), true);
-        m_cdp->setViewport(m_width, m_height, m_dpiScale);
-        m_cdp->setMaxRenderRate(m_maxFps);
-        m_cdp->setUpdateWhenLoaded(m_updateWhenLoaded);
-        reloadSource();
-        m_cdp->setCapturing(true);
-        publishInfo();
-        Q_EMIT dataUpdated(InfoPort);
-    }
-
-    void onCdpDisconnected()
-    {
-        if (!m_shuttingDown.load()) {
-            setStatus(QStringLiteral("状态: CDP 已断开"), false);
-        }
-        publishInfo();
-        Q_EMIT dataUpdated(InfoPort);
-    }
-
-    void onLoadedChanged(bool loaded)
-    {
-        if (loaded) {
-            setStatus(QStringLiteral("状态: 已加载 / 渲染中"), true);
-        }
-        publishInfo();
-        Q_EMIT dataUpdated(InfoPort);
-    }
-
-    void onPageInfoChanged(const QString&, const QString&)
-    {
-        publishInfo();
-        Q_EMIT dataUpdated(InfoPort);
-    }
-
-    void onFrameCaptured(const QByteArray& imageBytes)
-    {
-        if (m_shuttingDown.load() || !m_active || imageBytes.isEmpty()) {
-            return;
-        }
-
-        // 解码积压时直接丢帧，避免线程池排队越来越长
-        if (m_decodeInFlight.load() >= 2) {
-            return;
-        }
-        m_decodeInFlight.fetch_add(1);
-
-        const QByteArray bytes = imageBytes;
-        QThreadPool::globalInstance()->start([self = QPointer<WebRenderDataModel>(this), bytes]() {
-            std::vector<uchar> buf(bytes.begin(), bytes.end());
-            cv::Mat decoded = cv::imdecode(buf, cv::IMREAD_COLOR);
-            if (!self) {
-                return;
-            }
-            if (decoded.empty()) {
-                self->m_decodeInFlight.fetch_sub(1);
-                return;
-            }
-            // QueuedConnection 把 Mat 投递回 GUI 线程上传 GPU
-            QMetaObject::invokeMethod(self.data(), "onFrameDecoded", Qt::QueuedConnection,
-                                      Q_ARG(cv::Mat, decoded));
-        });
-    }
-
-    void onFrameDecoded(cv::Mat mat)
-    {
-        m_decodeInFlight.fetch_sub(1);
-        if (m_shuttingDown.load() || !m_active || mat.empty()) {
-            return;
-        }
-
-        {
-            QMutexLocker locker(&m_pendingMutex);
-            m_pendingFrame = std::move(mat);
-        }
-        scheduleUploadIfNeeded();
-
-        ++m_framesSinceFpsSample;
-        if (m_fpsTimer.elapsed() >= 1000) {
-            m_updatesPerSecond = m_framesSinceFpsSample * 1000.0 / double(m_fpsTimer.elapsed());
-            m_framesSinceFpsSample = 0;
-            m_fpsTimer.restart();
-            publishInfo();
-            Q_EMIT dataUpdated(InfoPort);
-        }
-    }
-
-    void onCdpError(const QString& message)
-    {
-        m_lastError = message;
-        setStatus(QStringLiteral("状态: %1").arg(message), false);
-        publishInfo();
-        Q_EMIT dataUpdated(InfoPort);
-    }
-
     void publishPendingFrame()
     {
         m_uploadScheduled.store(false);
@@ -635,11 +449,13 @@ private Q_SLOTS:
         ensureImageDataBuffer(m_outImage, m_outputBuffer);
         const qint64 timestamp = mediaOutputTimestamp(
             TimestampGenerator::getInstance()->getCurrentFrameCount());
-        ImageFrame imageFrame = ImageFrame::fromMat(std::move(mat), timestamp);
+        // BGRA8 快路径：跳过色彩转换直传 GPU（CPU 副本同步保留）
+        ImageFrame imageFrame = ImageFrame::fromBgra8Mat(std::move(mat), timestamp);
         if (!imageFrame.texture.valid()) {
             qWarning() << "Web Render: GPU upload failed";
             return;
         }
+        ++m_totalFrames;
         pushFrameToImageBufferDedup(m_outputBuffer, std::move(imageFrame), m_lastPushedTimestamp);
 
         bool hasPending = false;
@@ -652,7 +468,67 @@ private Q_SLOTS:
         }
     }
 
+protected:
+    void afterModelReady() override
+    {
+        AbstractDelegateModel::afterModelReady();
+        ImageGpuUpload::instance().warmup();
+    }
+
 private:
+    // ---- CEF 帧回调（全部在 GUI 主线程：external_message_pump 契约）----
+
+    void onCefFrame(const void* bgra, int width, int height)
+    {
+        if (m_shuttingDown.load() || !m_active || !bgra || width < 1 || height < 1) {
+            return;
+        }
+        // updateWhenLoaded：页面加载完成前不出帧（对齐旧 CDP 语义）
+        if (m_updateWhenLoaded && !m_loaded) {
+            return;
+        }
+        // maxFps 节流（CEF 以 windowless_frame_rate≈30 推帧，按需丢弃）
+        const qint64 nowMs = m_acceptClock.elapsed();
+        const qint64 minIntervalMs = qRound64(1000.0 / m_maxFps);
+        if (m_lastFrameAcceptMs >= 0 && nowMs - m_lastFrameAcceptMs < minIntervalMs) {
+            return;
+        }
+        m_lastFrameAcceptMs = nowMs;
+
+        // OnPaint buffer 仅回调内有效，必须拷出（BGRA8 预乘 alpha）
+        cv::Mat wrapped(height, width, CV_8UC4, const_cast<void*>(bgra));
+        {
+            QMutexLocker locker(&m_pendingMutex);
+            m_pendingFrame = wrapped.clone();
+        }
+        scheduleUploadIfNeeded();
+
+        ++m_framesSinceFpsSample;
+        if (m_fpsTimer.elapsed() >= 1000) {
+            m_updatesPerSecond = m_framesSinceFpsSample * 1000.0 / double(m_fpsTimer.elapsed());
+            m_framesSinceFpsSample = 0;
+            m_fpsTimer.restart();
+            publishInfo();
+            Q_EMIT dataUpdated(InfoPort);
+        }
+    }
+
+    void onCefLoad(bool ok)
+    {
+        if (m_shuttingDown.load()) {
+            return;
+        }
+        if (ok) {
+            m_loaded = true;
+            setStatus(QStringLiteral("状态: 已加载 / 渲染中"), true);
+        } else {
+            m_lastError = QStringLiteral("页面加载失败");
+            setStatus(QStringLiteral("状态: 页面加载失败"), false);
+        }
+        publishInfo();
+        Q_EMIT dataUpdated(InfoPort);
+    }
+
     void scheduleUploadIfNeeded()
     {
         if (m_shuttingDown.load() || !m_active) {
@@ -663,30 +539,62 @@ private:
         }
     }
 
+    // ---- 生命周期 ----
+
     void startPipeline()
     {
         m_lastError.clear();
-        if (m_userDataDir.isEmpty()) {
-            m_userDataDir = makeUniqueUserDir();
-        }
-        QDir().mkpath(m_userDataDir);
+        setStatus(QStringLiteral("状态: 初始化 CEF…"), false);
+        sweepOrphanCache();  // 首节点启动时清扫孤儿缓存（init 后为 no-op）
 
-        setStatus(QStringLiteral("状态: 启动浏览器…"), false);
-        if (!m_browser->start(m_userDataDir, m_width, m_height)) {
+        cefbox::CefRuntime::Settings rs;
+        rs.cacheDir = cefCacheDir().toStdString();  // 全进程共享一份 CEF profile
+        if (!cefbox::CefRuntime::instance().initialize(rs)) {
             m_active = false;
             if (m_widget) {
                 m_widget->setActiveChecked(false);
             }
+            m_lastError = QStringLiteral("CEF 运行时初始化失败");
+            setStatus(m_lastError, false);
+            publishInfo();
+            Q_EMIT dataUpdated(InfoPort);
+            return;
         }
+        ensureRuntimeExitHook();
+
+        setStatus(QStringLiteral("状态: 创建离屏浏览器…"), false);
+        m_loaded = false;
+        const int vw = qMax(1, qRound(m_width * m_dpiScale));
+        const int vh = qMax(1, qRound(m_height * m_dpiScale));
+        auto browser = cefbox::CefOsrBrowser::create(
+            vw, vh, currentSourceUrl().toStdString(),
+            [this](const void* bgra, int w, int h) { onCefFrame(bgra, w, h); },
+            [this](bool ok) { onCefLoad(ok); });
+        if (!browser) {
+            m_active = false;
+            if (m_widget) {
+                m_widget->setActiveChecked(false);
+            }
+            m_lastError = QStringLiteral("离屏浏览器创建失败");
+            setStatus(m_lastError, false);
+            publishInfo();
+            Q_EMIT dataUpdated(InfoPort);
+            return;
+        }
+        m_cefBrowser = browser;
+
         publishInfo();
         Q_EMIT dataUpdated(InfoPort);
     }
 
     void stopPipeline()
     {
-        m_cdp->setCapturing(false);
-        m_cdp->disconnectFromDebugger();
-        m_browser->stop();
+        if (m_cefBrowser) {
+            m_cefBrowser->clearCallbacks();
+            m_cefBrowser->close();  // 优雅关闭；OnBeforeClose 由排空泵送达
+            m_cefBrowser = nullptr;
+        }
+        m_loaded = false;
 
         m_uploadScheduled.store(false);
         {
@@ -702,64 +610,8 @@ private:
         Q_EMIT dataUpdated(InfoPort);
     }
 
-    void reloadSource()
-    {
-        if (!m_cdp->isConnected()) {
-            return;
-        }
-        if (m_sourceMode == QLatin1String("html")) {
-            m_cdp->loadHtml(m_html, m_userDataDir);
-        } else {
-            m_cdp->navigate(m_url);
-        }
-    }
-
-    /**
-     * @brief 一键重载（原 Reload Source / Reload Page / Restart 三按钮合并）
-     *
-     * 按当前状态自动选择最轻量的恢复路径，GUI 线程零阻塞：
-     * - Shift+点击：强制重启浏览器进程
-     * - 进程未运行：拉起浏览器
-     * - CDP 未连接：重连调试端口；端口未就绪则重启进程
-     * - CDP 就绪：HTML 模式重写临时文件并加载；
-     *   URL 模式导航回配置地址（页面仍停在配置地址上时用轻量的 Page.reload）
-     */
-    void reloadNow()
-    {
-        if (m_shuttingDown.load()) {
-            return;
-        }
-        if (QApplication::keyboardModifiers().testFlag(Qt::ShiftModifier)) {
-            restartBrowser();
-            return;
-        }
-        if (!m_active) {
-            return;
-        }
-        if (!m_browser->isRunning()) {
-            startPipeline();
-            return;
-        }
-        if (!m_cdp->isConnected()) {
-            const int port = m_browser->debugPort();
-            if (port > 0) {
-                setStatus(QStringLiteral("状态: 重新连接 CDP…"), false);
-                m_cdp->connectToDebugger(port);
-            } else {
-                startPipeline();
-            }
-            return;
-        }
-        if (m_sourceMode == QLatin1String("html")) {
-            m_cdp->loadHtml(m_html, m_userDataDir);
-        } else if (m_cdp->currentUrl().trimmed() == m_url) {
-            m_cdp->reload();
-        } else {
-            m_cdp->navigate(m_url);
-        }
-    }
-
-    void restartBrowser()
+    /// Shift+点击强制重建浏览器（旧「Restart」语义）
+    void recreateBrowser()
     {
         if (!m_active) {
             return;
@@ -772,21 +624,129 @@ private:
         startPipeline();
     }
 
+    /// 一键重载：Shift+点击=重建浏览器；否则按当前源导航/重载
+    void reloadNow()
+    {
+        if (m_shuttingDown.load()) {
+            return;
+        }
+        if (QApplication::keyboardModifiers().testFlag(Qt::ShiftModifier)) {
+            recreateBrowser();
+            return;
+        }
+        if (!m_active) {
+            return;
+        }
+        if (!m_cefBrowser || m_cefBrowser->isClosed()) {
+            startPipeline();
+            return;
+        }
+        const std::string target = currentSourceUrl().toStdString();
+        if (m_cefBrowser->currentUrl() == target) {
+            m_cefBrowser->reloadPage();
+        } else {
+            m_cefBrowser->loadUrl(target);
+        }
+    }
+
+    void applyViewportToBrowser()
+    {
+        if (m_active && m_cefBrowser && !m_cefBrowser->isClosed()) {
+            const int vw = qMax(1, qRound(m_width * m_dpiScale));
+            const int vh = qMax(1, qRound(m_height * m_dpiScale));
+            m_cefBrowser->resize(vw, vh);
+        }
+    }
+
+    // ---- 源定位 ----
+
+    /// 当前应加载的 URL：html 模式=临时文件 file:///；url 模式=QUrl 归一化
+    /// （裸路径/无 scheme 域名统一补全——顺带解决旧后端裸路径问题）
+    QString currentSourceUrl()
+    {
+        if (m_sourceMode == QLatin1String("html")) {
+            return writeHtmlTemp();
+        }
+        const QString raw = m_url.trimmed().isEmpty() ? QStringLiteral("https://example.com") : m_url.trimmed();
+        return QUrl::fromUserInput(raw).toString();
+    }
+
+    /// 把 m_html 写进本节点临时文件，返回 file:/// URL（reloadNow 时重写）
+    QString writeHtmlTemp()
+    {
+        const QString base = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+            + QStringLiteral("/NodeEditorWebRender");
+        QDir().mkpath(base);
+        if (m_htmlPath.isEmpty()) {
+            m_htmlPath = base + QLatin1String("/html_")
+                + QUuid::createUuid().toString(QUuid::WithoutBraces) + QStringLiteral(".html");
+        }
+        QFile f(m_htmlPath);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            f.write(m_html.toUtf8());
+        }
+        return QUrl::fromLocalFile(m_htmlPath).toString();
+    }
+
+    /// 进程级共享 CEF profile 目录（首次 initialize 前清扫孤儿）
+    static QString cefCacheDir()
+    {
+        return QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+            + QStringLiteral("/NodeEditorWebRender/cef");
+    }
+
+    /// 首次初始化前清扫孤儿缓存（单实例互斥保证无并发 Flow；仅首节点执行）
+    static void sweepOrphanCache()
+    {
+        if (cefbox::CefRuntime::instance().isInitialized()) {
+            return;  // 已有节点初始化过 CEF，目录正被使用
+        }
+        const QString base = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
+            + QStringLiteral("/NodeEditorWebRender");
+        QDir(base + QStringLiteral("/cef")).removeRecursively();
+        // 历史孤儿：html 临时文件（旧 CDP 后端与本后端都可能残留）
+        const QFileInfoList htmlOrphans =
+            QDir(base).entryInfoList(QStringList{QStringLiteral("html_*.html")}, QDir::Files);
+        for (const QFileInfo& orphan : htmlOrphans) {
+            QFile::remove(orphan.absoluteFilePath());
+        }
+    }
+
+    /// 进程退出钩子（仅注册一次）：排空 OnBeforeClose → CefShutdown → 秒退
+    static void ensureRuntimeExitHook()
+    {
+        static const bool registered = [] {
+            qAddPostRoutine([]() {
+                cefbox::CefRuntime::instance().shutdown();
+            });
+            return true;
+        }();
+        Q_UNUSED(registered);
+    }
+
+    // ---- Info / 状态 ----
+
     void publishInfo()
     {
         if (!m_outInfo) {
             m_outInfo = std::make_shared<VariableData>();
         }
-        m_outInfo->insert(QStringLiteral("loaded"), m_cdp->isLoaded());
-        m_outInfo->insert(QStringLiteral("num_handle_updates"), qint64(m_cdp->handleUpdates()));
-        m_outInfo->insert(QStringLiteral("url"), m_cdp->currentUrl().isEmpty() ? m_url : m_cdp->currentUrl());
-        m_outInfo->insert(QStringLiteral("title"), m_cdp->pageTitle());
-        m_outInfo->insert(QStringLiteral("error"), m_lastError.isEmpty() ? m_cdp->lastError() : m_lastError);
-        m_outInfo->insert(QStringLiteral("process_id"), m_browser->processId());
-        m_outInfo->insert(QStringLiteral("debug_port"), m_browser->debugPort());
+        const QString currentUrl = (m_cefBrowser && !m_cefBrowser->isClosed())
+            ? QString::fromStdString(m_cefBrowser->currentUrl()) : QString();
+        m_outInfo->insert(QStringLiteral("loaded"), m_loaded);
+        m_outInfo->insert(QStringLiteral("num_handle_updates"), qint64(m_totalFrames));
+        m_outInfo->insert(QStringLiteral("url"), currentUrl.isEmpty() ? m_url : currentUrl);
+        m_outInfo->insert(QStringLiteral("title"),
+                          m_cefBrowser ? QString::fromStdString(m_cefBrowser->title()) : QString());
+        m_outInfo->insert(QStringLiteral("error"), m_lastError);
+        m_outInfo->insert(QStringLiteral("process_id"), QCoreApplication::applicationPid());
+        m_outInfo->insert(QStringLiteral("debug_port"), 0);  // CEF 后端无 CDP 端口（兼容保留）
         m_outInfo->insert(QStringLiteral("updates_per_second"), m_updatesPerSecond);
         m_outInfo->insert(QStringLiteral("active"), m_active);
-        m_outInfo->insert(QStringLiteral("browser"), m_browser->browserPath());
+        m_outInfo->insert(QStringLiteral("browser"),
+                          QStringLiteral("FlowCefHelper (libcef 156.0.8078.100)"));
+        m_outInfo->insert(QStringLiteral("engine"), QStringLiteral("cef"));
+        m_outInfo->insert(QStringLiteral("frame_path"), QStringLiteral("cpu"));
     }
 
     void setStatus(const QString& text, bool ok)
@@ -841,25 +801,8 @@ private:
         m_widget->m_htmlEdit->setVisible(htmlMode);
     }
 
-    static QString makeUniqueUserDir()
-    {
-        const QString base = QStandardPaths::writableLocation(QStandardPaths::TempLocation)
-            + QStringLiteral("/NodeEditorWebRender");
-        QDir().mkpath(base);
-        // 【孤儿 profile 清扫 2026-11-18】上会话残留目录（原 dtor 同步删除
-        // 已移除——关闭挂起主因）。此时点安全：单实例互斥保证无并发 Flow，
-        // JobGuard 陪葬保证上会话浏览器进程树必已死，文件锁全部释放。
-        // 构建新 UUID 目录前先清扫，磁盘不泄漏、启动多花几十毫秒可接受。
-        const QFileInfoList orphans = QDir(base).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot);
-        for (const QFileInfo& orphan : orphans) {
-            QDir(orphan.absoluteFilePath()).removeRecursively();
-        }
-        return base + QLatin1Char('/') + QUuid::createUuid().toString(QUuid::WithoutBraces);
-    }
-
     QPointer<WebRenderInterface> m_widget;
-    WebRenderBrowserProcess* m_browser = nullptr;
-    WebRenderCdpClient* m_cdp = nullptr;
+    CefRefPtr<cefbox::CefOsrBrowser> m_cefBrowser;
 
     std::shared_ptr<ImageData> m_outImage;
     std::shared_ptr<ImageTimestampRingQueue> m_outputBuffer;
@@ -870,9 +813,9 @@ private:
     cv::Mat m_pendingFrame;
     std::atomic<bool> m_uploadScheduled{false};
     std::atomic<bool> m_shuttingDown{false};
-    std::atomic<int> m_decodeInFlight{0};
 
     bool m_active = false;
+    bool m_loaded = false;
     QString m_sourceMode = QStringLiteral("url");
     QString m_url = QStringLiteral("https://example.com");
     QString m_html = QStringLiteral("<html><body style='font-family:sans-serif;background:#111;color:#eee;'>"
@@ -882,14 +825,15 @@ private:
     double m_maxFps = 15.0;
     double m_dpiScale = 1.0;
     bool m_updateWhenLoaded = true;
-    bool m_autoRestart = true;
-    QString m_userDataDir;
+    bool m_autoRestart = true;  // CEF 后端渲染进程自愈，此开关仅存档兼容
+    QString m_htmlPath;
     QString m_lastError;
 
     QElapsedTimer m_fpsTimer;
+    QElapsedTimer m_acceptClock;
+    qint64 m_lastFrameAcceptMs = -1;
     int m_framesSinceFpsSample = 0;
+    qint64 m_totalFrames = 0;
     double m_updatesPerSecond = 0.0;
-
-    QTimer m_restartDebounce; // 分辨率变更防抖重启
 };
 } // namespace Nodes

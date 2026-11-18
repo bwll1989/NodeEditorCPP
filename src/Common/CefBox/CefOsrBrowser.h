@@ -40,6 +40,8 @@ public:
 
     /// 导航到新 URL（UTF-8）
     void loadUrl(const std::string& urlUtf8);
+    /// 重载当前页（等价 CDP Page.reload）
+    void reloadPage();
     /// 在主 frame 执行 JS（UTF-8）
     void executeJavaScript(const std::string& jsUtf8);
     /// 改变视图尺寸（触发 WasResized → 新帧）
