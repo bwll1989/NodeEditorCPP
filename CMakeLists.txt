@@ -184,6 +184,9 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Wi
 # 添加Clips模块
 add_subdirectory(src/Clips)
 # ---- Nodes：数据流节点插件（foreach 驱动 ALL_NODES 单一清单） ----
+# ---- CefBox：CEF OSR 运行时底座（Qt-free；Web Render 节点重构 P0，
+#      必须先于 src/Nodes 引入——WebRender 插件将链接它） ----
+add_subdirectory(src/Common/CefBox)
 # 添加Nodes模块
 add_subdirectory(src/Nodes)
 add_subdirectory(src/Common/Devices/OSCSender)
