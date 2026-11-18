@@ -1,5 +1,11 @@
 # Web Render 节点 CEF OSR 重构实现规划
 
+> **状态：已完成（2026-11-18）**。P0 `fb83b30b`（CefBox 底座）→ P1 `4e2207d0`
+> （节点切换 OnPaint BGRA）→ P2 `9e622a43`（OnAcceleratedPaint GPU 共享纹理 +
+> CPU 兜底熔断降级）→ P4 `8d8805de`（删 Edge/CDP 旧后端 + Doc.md 重写）。
+> P3（音频捕获/交互注入）按用户拍板暂缓。真机验收清单见
+> `.workbuddy/memory/2026-11-18.md`（用户不在电脑前，明示跳过测试）。
+
 > 规划稿 2026-11-18。决策链背景（WebView2+WGC / CEF OSR / OGraf / 数据边界对照评估）见
 > `.workbuddy/memory/2026-11-18.md`。用户拍板：按 CEF 模式重构。
 > 本文档是实施蓝图，动手前不需再评审结构，只需按阶段推进。
