@@ -259,6 +259,18 @@ private:
     /// 命中全局消隐点 VP 手柄（3D 视口地面标记；仅 persp_focal>0 时
     /// 存在——未配置时 VP 走画布派生默认，拖动无意义）
     bool vpHandleHit(const QPointF& widget_pos) const;
+
+    // ---- 移动 Gizmo（Blender 式三轴箭头；3D 视口选中对象位移）----------
+    /// 选中对象名义矩形中心（画布域）+ 高度（clip=pos_z，screen=0 贴地）。
+    /// 无效选中返回 false。
+    bool    moveGizmoAnchor(double& cx, double& h, double& cy) const;
+    /// 轴"世界 1 单位"的屏幕投影向量（正交轨道相机仿射——长度即灵敏度）。
+    /// 轴向：0=+画布X（红） 1=+画布Y（绿，轴球绿球同标签） 2=+高度（蓝）
+    QPointF moveGizmoAxisVec(int axis, double cx, double h, double cy) const;
+    /// 移动 Gizmo 轴命中（返回轴 0/1/2，未中 -1；屏幕恒长轴杆+锥一域）
+    int     hitMoveGizmo(const QPointF& widget_pos) const;
+    /// 绘制三轴箭头（paintGL3D 尾段调用；恒最上层，hover/拖动轴高亮）
+    void    drawMoveGizmo(QPainter& p) const;
     /// 全局透视（Eye 点）编辑对话框：焦距 F + 消隐点 X/Y（对标
     /// WATCHOUT Stage Perspective）——OK 写回 Scene + 重合成 + sceneEdited
     void openEyeDialog();
@@ -413,6 +425,15 @@ private:
     QPointF  orbit_last_pos_{0, 0};     ///< 轨道会话上一点（增量计算）
     bool     dragging_vp_  = false;    ///< 全局消隐点 VP 拖动会话进行中
                                      ///  （3D 视口地面标记；改 persp_vp_x/y）
+    // ---- 移动 Gizmo（Blender 式；3D 视口轴约束拖动会话/悬停态）----------
+    int     gizmo_drag_axis_  = -1; ///< 轴约束拖动会话轴（0=画布X 1=画布Y
+                                    ///  2=高度 pos_z；-1=无会话）
+    int     gizmo_hover_axis_ = -1; ///< 悬停高亮轴（非会话时；重绘加粗）
+    double  gizmo_orig_z_     = 0.0; ///< 高度轴会话起始 pos_z
+    QPointF gizmo_axis_scr_{0, 0};   ///< 被拖轴"世界 1 单位"屏幕向量
+                                     ///  （按下时冻结；拖动全程相机不变）
+    QPointF gizmo_press_widget_{0, 0}; ///< 会话按下点（widget 域——屏幕
+                                       ///  delta 投影到轴方向的基准）
     double   drag_plane_h_ = 0.0;       ///< 拖动会话高度平面（画布域 h；
                                          ///  按下时冻结=对象所在平面，全程
                                          ///  反投影到该平面求画布坐标）

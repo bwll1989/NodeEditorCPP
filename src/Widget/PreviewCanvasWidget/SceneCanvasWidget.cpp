@@ -1144,6 +1144,139 @@ void SceneCanvasWidget::openEyeDialog() {
     update();
 }
 
+// ---------------------------------------------------------------------------
+// 移动 Gizmo（2026-11-18，Blender 式三轴箭头）--------------------------------
+// 用户反馈"位移很难操作"：自由拖在 3D 视口里要脑补高度平面，单轴精调更
+// 是只能去属性面板输数字。Blender 的 Move Gizmo 把三轴可视化在对象锚点
+// 上（红 X / 绿 Y / 蓝 Z=高度，与轴球/地面三轴线/属性面板同色同标签），
+// 点轴=单轴约束拖动、拖中心区域=自由拖（走既有路径）。
+// 轴向量 = 相机正交仿射映射下"世界 1 单位"的屏幕投影（按下冻结——拖动
+// 全程视图不变），屏幕恒长轴杆不随缩放/距离变化（Blender 同风格）。
+// ---------------------------------------------------------------------------
+
+bool SceneCanvasWidget::moveGizmoAnchor(double& cx, double& h,
+                                        double& cy) const {
+    // 选中对象名义矩形中心（与 selectionCanvasRect/选中框同源——不受
+    // 旋转/角位移影响，锚点稳定）；高度 = 片段 pos_z（屏幕恒贴地 h=0）
+    if (!scene_ || sel_.kind == 0) return false;
+    if (sel_.kind == 1 && sel_.a >= 0 &&
+        sel_.a < (int)scene_->screens.size()) {
+        const Screen& s = scene_->screens[sel_.a];
+        cx = s.x + s.w * 0.5;
+        cy = s.y + s.h * 0.5;
+        h  = 0.0; // 屏幕是物理输出平面，恒贴地
+        return true;
+    }
+    if (sel_.kind == 4 && sel_.a >= 0 &&
+        sel_.a < (int)scene_->timeline.tracks.size() && sel_.b >= 0 &&
+        sel_.b < (int)scene_->timeline.tracks[sel_.a].clips.size()) {
+        // 播放头求值（tween 接管 x/y 时静态基准与画面分叉——与拖动基
+        // 准同源 clipResolvedTransform，Gizmo 跟随画面不跳变）
+        const Transform rt =
+            clipResolvedTransform(scene_->timeline.tracks[sel_.a]
+                                      .clips[sel_.b]);
+        cx = rt.x + rt.w * 0.5;
+        cy = rt.y + rt.h * 0.5;
+        h  = rt.pos_z;
+        return true;
+    }
+    return false;
+}
+
+QPointF SceneCanvasWidget::moveGizmoAxisVec(int axis, double cx, double h,
+                                            double cy) const {
+    // 轴"世界 1 单位"的屏幕投影向量；轴向 0=+画布X（红） 1=+画布Y（绿）
+    // 2=+高度（蓝）——与地面三轴线/轴球绿球蓝球同标签同色系
+    const double dx = (axis == 0) ? 1.0 : 0.0;
+    const double dh = (axis == 2) ? 1.0 : 0.0;
+    const double dz = (axis == 1) ? 1.0 : 0.0; // 画布 y = 世界 Z 轴向
+    return project3(cx + dx, h + dh, cy + dz) - project3(cx, h, cy);
+}
+
+int SceneCanvasWidget::hitMoveGizmo(const QPointF& wp) const {
+    // 轴命中：沿轴距离 ∈ [-10, L+16] 且垂距 ≤ 10px（轴杆+锥一体宽容域，
+    // 中心圈归自由拖不参与）；投影退化（|v|<0.5 轴正对相机）不可选——
+    // Blender 同规则
+    double cx = 0, h = 0, cy = 0;
+    if (!view3d_ || !moveGizmoAnchor(cx, h, cy)) return -1;
+    const QPointF o = project3(cx, h, cy);
+    const int max_axis = (sel_.kind == 4) ? 2 : 1; // 屏幕无高度轴
+    for (int axis = 0; axis <= max_axis; ++axis) {
+        const QPointF v = moveGizmoAxisVec(axis, cx, h, cy);
+        const double len = std::hypot(v.x(), v.y());
+        // 退化判定宁低勿误杀：低倍率下 1 画布 px 的投影 ~0.5px 也完全
+        // 可归一化（方向精确）——只拦近正对相机的趋零轴（2026-11-18
+        // 首次实测：阈值 0.5 恰好卡在 scale=0.61×cos35°≈0.50 上，蓝
+        // Z 高度轴被误跳过）
+        if (len < 1e-3) continue;
+        const QPointF n = v / len;
+        const QPointF rel = wp - o;
+        const double t = QPointF::dotProduct(rel, n);
+        const double perp =
+            std::hypot(rel.x() - n.x() * t, rel.y() - n.y() * t);
+        if (t >= -10.0 && t <= 74.0 && perp <= 10.0) return axis;
+    }
+    return -1;
+}
+
+void SceneCanvasWidget::drawMoveGizmo(QPainter& p) const {
+    // 三轴箭头（屏幕恒长 58px；hover/拖动轴高亮加粗）。恒最上层绘制
+    //（HUD 前——选中对象的位移手柄优先可见，不做深度遮挡）
+    double cx = 0, h = 0, cy = 0;
+    if (!moveGizmoAnchor(cx, h, cy)) return;
+    const QPointF o = project3(cx, h, cy);
+    struct AxisDef {
+        int         id;
+        QColor      base;
+        QColor      hot;
+        const char* label;
+    };
+    static const AxisDef kAxes[] = {
+        {0, QColor(0xE0, 0x48, 0x48), QColor(0xFF, 0x74, 0x74), "X"},
+        {1, QColor(0x52, 0xA0, 0x5E), QColor(0x74, 0xD4, 0x7C), "Y"},
+        {2, QColor(0x55, 0x78, 0xC0), QColor(0x88, 0xAC, 0xFF), "Z"},
+    };
+    QFont f = p.font();
+    f.setPointSize(7);
+    f.setBold(true);
+    constexpr double L = 58.0; // 轴长（屏幕 px，恒定）
+    for (const auto& ax : kAxes) {
+        if (ax.id == 2 && sel_.kind != 4) continue; // 屏幕恒贴地无高度轴
+        const QPointF v = moveGizmoAxisVec(ax.id, cx, h, cy);
+        const double len = std::hypot(v.x(), v.y());
+        if (len < 1e-3) continue; // 近正对相机（投影趋零）才退化——阈值
+                                  // 宁低勿误杀（同 hitMoveGizmo 注释）
+        const QPointF n = v / len; // 屏幕单位方向
+        const bool   hot =
+            ax.id == gizmo_drag_axis_ || ax.id == gizmo_hover_axis_;
+        const QColor   col = hot ? ax.hot : ax.base;
+        const QPointF  tip = o + n * L;
+        const QPointF  pv(-n.y(), n.x()); // 垂直方向（锥底宽）
+        p.setPen(QPen(col, hot ? 3.2 : 2.2, Qt::SolidLine, Qt::RoundCap));
+        p.setBrush(col);
+        p.drawLine(o + n * 9.0, tip - n * 12.0); // 轴杆（离心让位中心圈）
+        // 锥形箭头（Blender 同款实心三角；沿 n 长 14、底宽 11）
+        QPolygonF cone;
+        cone << (tip + n * 2.0)
+             << (tip - n * 12.0 + pv * 5.5)
+             << (tip - n * 12.0 - pv * 5.5);
+        p.drawPolygon(cone);
+        p.setBrush(Qt::NoBrush);
+        p.setFont(f);
+        p.setPen(QPen(col, 1));
+        p.drawText(tip + n * 9.0 + QPointF(-4.0, 4.0),
+                   QLatin1String(ax.label));
+    }
+    // 中心锚（白圈 + 深底实点——Blender object origin 风格；点它附近
+    // = 走既有自由拖路径）
+    p.setPen(QPen(QColor(0xF2, 0xF2, 0xF2), 1.6));
+    p.setBrush(QColor(0x30, 0x30, 0x30, 200));
+    p.drawEllipse(o, 5.5, 5.5);
+    p.setBrush(QColor(0xF2, 0xF2, 0xF2));
+    p.drawEllipse(o, 1.6, 1.6);
+    p.setBrush(Qt::NoBrush);
+}
+
 QPolygonF SceneCanvasWidget::projectQuad(const QRectF& r, double rotation_deg,
                                          double h, int anchor,
                                          const double* corner) const {
@@ -2592,6 +2725,9 @@ void SceneCanvasWidget::paintGL3D(
         p.drawText(eye + QPointF(10, -8), QStringLiteral("Eye"));
     }
 
+    // ---- 6c. 移动 Gizmo（Blender 式三轴箭头；选中对象锚点，恒最上层）----
+    if (sel_.kind != 0) drawMoveGizmo(p);
+
     // ---- 7. HUD（左上操作提示 + 右上相机读数）------------------------------
     p.setPen(QColor(0xB8, 0xB8, 0xB8));
     {
@@ -3110,6 +3246,47 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         return;
     }
 
+    // ---- 移动 Gizmo 三轴手柄（3D，Blender 式；优先于对象整体拖动）：
+    //      命中轴 = 单轴约束会话——屏幕 delta 在轴方向上的投影 → 世界
+    //      位移（轴向可视化位移的主入口；拖中心区域/对象本体 = 自由拖
+    //      走既有路径）------------------------------------------------
+    if (view3d_ && sel_.kind != 0) {
+        const int axis = hitMoveGizmo(wp);
+        if (axis >= 0) {
+            double cx = 0, gh = 0, cy = 0;
+            moveGizmoAnchor(cx, gh, cy); // 命中前提=锚点有效
+            gizmo_drag_axis_    = axis;
+            gizmo_press_widget_ = wp;
+            gizmo_axis_scr_     = moveGizmoAxisVec(axis, cx, gh, cy);
+            if (sel_.kind == 1) {
+                const Screen& s = scene_->screens[sel_.a];
+                drag_orig_x_ = s.x;
+                drag_orig_y_ = s.y;
+            } else {
+                const Transform rt = clipResolvedTransform(
+                    scene_->timeline.tracks[sel_.a].clips[sel_.b]);
+                drag_orig_x_ = rt.x;
+                drag_orig_y_ = rt.y;
+                gizmo_orig_z_ = rt.pos_z; // 高度轴起始（tween 基准求值）
+            }
+            drag_plane_h_  = selectionPlaneH();
+            dragging_      = true;
+            rotating_      = false;
+            resizing_      = false;
+            resize_corner_ = -1;
+            moved_         = false;
+            guide_x_.clear();
+            guide_y_.clear();
+            setCursor(Qt::ClosedHandCursor);
+            statusTip(axis == 2 ? "沿高度轴（蓝 Z）拖动 pos_z"
+                     : axis == 0 ? "沿红 X 轴拖动画布 X"
+                                 : "沿绿 Y 轴拖动画布 Y");
+            update();
+            ev->accept();
+            return;
+        }
+    }
+
     // ---- 旋转拖柄最优先：柄在对象"头顶"外延处，压柄按下必进旋转会话
     //      （先于角点手柄与 hitTest——三者互斥，柄离角点更近易误触）----
     if (hitRotateHandle(wp) && selectionCanvasRect(&sel_rect, &sel_rot)) {
@@ -3247,10 +3424,19 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
     //      Qt 无任意角度光标，旋转对象的视觉方向差异在此简化为同一组
     //      对角光标（局部 0/2 ↔ 主对角线、1/3 ↔ 副对角线）----
     if (!dragging_ && scene_) {
+        // 移动 Gizmo 悬停（3D；与 press 优先级同序——轴球之后 VP 之前）
+        int hg = -1;
+        if (view3d_ && sel_.kind != 0) hg = hitMoveGizmo(ev->position());
+        if (gizmo_hover_axis_ != hg) {
+            gizmo_hover_axis_ = hg;
+            update(); // 高亮态重绘（粗杆亮色）
+        }
         if (view3d_ && hitAxisGizmo(ev->position()) != -1) {
             // 3D 轴球（端点/球体）→ 张开手（可点跳视角/可拖拽 orbit）
             if (cursor().shape() != Qt::OpenHandCursor)
                 setCursor(Qt::OpenHandCursor);
+        } else if (hg >= 0) {
+            setCursor(Qt::SizeAllCursor); // 移动 Gizmo 轴 → 移动光标
         } else if (view3d_ && vpHandleHit(ev->position())) {
             setCursor(Qt::SizeAllCursor); // VP 手柄 → 移动光标
         } else if (hitRotateHandle(ev->position())) {
@@ -3282,6 +3468,70 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
             moved_ = true;
             if (preview_) preview_->invalidate(); // 透视参数变更重合成
             emit sceneEditedLive();               // display 节流下发
+        }
+        update();
+        ev->accept();
+        return;
+    }
+
+    // ---- 移动 Gizmo 轴约束会话：屏幕 delta 投影到被拖轴方向 → 世界位移
+    //      （t = (Δmouse·v)/|v|²，v = 按下冻结的"世界 1 单位"屏幕向量）。
+    //      注：不套自由拖的合成域 s_a 修正——Gizmo 交互以 3D 视口内精确
+    //      跟手为目标（正交轨道相机仿射映射天然 1:1）；高度轴直写 pos_z
+    //      （静态属性，无 tween 通道）---------------------------------
+    if (dragging_ && gizmo_drag_axis_ >= 0 && sel_.kind != 0 && scene_) {
+        const QPointF dw = ev->position() - gizmo_press_widget_;
+        const double len2 = gizmo_axis_scr_.x() * gizmo_axis_scr_.x() +
+                            gizmo_axis_scr_.y() * gizmo_axis_scr_.y();
+        if (len2 > 1e-6) {
+            const double t =
+                QPointF::dotProduct(dw, gizmo_axis_scr_) / len2;
+            if (gizmo_drag_axis_ == 2) {
+                // 高度轴（仅片段）：直写 pos_z——静态属性，无 tween 通道
+                if (sel_.kind == 4 && sel_.a >= 0 &&
+                    sel_.a < (int)scene_->timeline.tracks.size() &&
+                    sel_.b >= 0 && sel_.b <
+                        (int)scene_->timeline.tracks[sel_.a].clips.size()) {
+                    scene_->timeline.tracks[sel_.a].clips[sel_.b]
+                        .transform.pos_z = gizmo_orig_z_ + t;
+                    moved_ = true;
+                    if (preview_) preview_->invalidate();
+                    emit sceneEditedLive();
+                }
+            } else {
+                // X/Y 轴：与自由拖同写回路径（tween auto-key + 静态兑底；
+                // 屏幕无透视缩放直写）
+                double nx = drag_orig_x_;
+                double ny = drag_orig_y_;
+                if (gizmo_drag_axis_ == 0)
+                    nx += t;
+                else
+                    ny += t;
+                if (sel_.kind == 1 && sel_.a >= 0 &&
+                    sel_.a < (int)scene_->screens.size()) {
+                    scene_->screens[sel_.a].x = nx;
+                    scene_->screens[sel_.a].y = ny;
+                    moved_ = true;
+                    emit sceneEditedLive();
+                } else if (sel_.kind == 4 && sel_.a >= 0 &&
+                           sel_.a < (int)scene_->timeline.tracks.size() &&
+                           sel_.b >= 0 &&
+                           sel_.b <
+                               (int)scene_->timeline.tracks[sel_.a]
+                                   .clips.size()) {
+                    auto& c =
+                        scene_->timeline.tracks[sel_.a].clips[sel_.b];
+                    const double cur_z = clipResolvedTransform(c).z;
+                    if (!tweenAutoKeyWrite(c, TweenProp::Position, nx, ny,
+                                           cur_z)) {
+                        c.transform.x = nx;
+                        c.transform.y = ny;
+                    }
+                    moved_ = true;
+                    if (preview_) preview_->invalidate();
+                    emit sceneEditedLive();
+                }
+            }
         }
         update();
         ev->accept();
@@ -3484,6 +3734,7 @@ void SceneCanvasWidget::mouseReleaseEvent(QMouseEvent* ev) {
         resizing_ = false;      // 缩放/旋转/移动会话统一在此收尾
         rotating_ = false;
         resize_corner_ = -1;
+        gizmo_drag_axis_ = -1;  // 移动 Gizmo 轴约束会话复位
         guide_x_.clear();       // 吸附参考线显示随会话结束清除
         guide_y_.clear();
         // 【仅真实拖动才上报】单击选中（无位移）不算编辑——假脏会让
