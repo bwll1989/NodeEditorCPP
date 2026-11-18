@@ -175,6 +175,14 @@ public:
     /// 交付模式（装配只读；worker 按模式走不同产出分支）
     DeliverMode deliverMode() const noexcept { return mode_; }
 
+    /// 【阶段2 面片精确化】最近交付帧对应的播放头（pullGpu 出新帧时与
+    /// items 同步更新）——逐屏 buildDrawList 的解算时刻必须与交付帧的
+    /// 素材帧同源（同一 t），否则播放中几何与内容错位一拍。
+    /// 尚无交付帧时 0（调用方以 pullGpu 返回值为准决定是否消费）。
+    std::int64_t deliveredPlayheadUs() const noexcept {
+        return delivered_playhead_;
+    }
+
     /// 【CUDA 0 拷贝协商旗标】GpuDeliver 模式下构造时乐观置位（与解码源
     /// 共享同一 shared_ptr——interop 探测失败渲染端翻 false，解码端下一帧
     /// 自动回退下载路径）。nullptr = 硬解未启用（SoftCompose/MS_PREVIEW_HW
@@ -224,6 +232,10 @@ private:
                                          ///< computeContentRect）
         double dom_w = 0.0, dom_h = 0.0;
         std::uint64_t epoch = 0;      ///< 单调递增；worker 只渲染最新
+        std::int64_t playhead_us = 0; ///< 请求对应的播放头（【阶段2 面片
+                                      ///<  精确化】透传到 Result——GUI 侧
+                                      ///<  逐屏 buildDrawList 须与交付帧
+                                      ///<  同一时刻，几何/帧不脱拍）
     };
     struct Result {
         QImage frame;                 ///< 深拷贝合成帧（SoftCompose 产出）
@@ -232,6 +244,7 @@ private:
         std::uint64_t epoch = 0;      ///< 对应请求的代数
         double dom_x = 0.0, dom_y = 0.0; ///< 请求内容域透传（贴图映射用）
         double dom_w = 0.0, dom_h = 0.0;
+        std::int64_t playhead_us = 0; ///< 对应请求的播放头（透传）
     };
 
     /// 合成尺寸解算（内容域钳制 8192 + setTargetSize 等比降采样；GUI 线程）
@@ -276,6 +289,8 @@ private:
     QImage        delivered_frame_;      ///< 最近交付帧（SoftCompose；GUI 读取）
     std::vector<DeliverItem> delivered_items_; ///< 最近逐项交付（GpuDeliver）
     int           delivered_w_ = 0, delivered_h_ = 0; ///< GpuDeliver 合成域
+    std::int64_t  delivered_playhead_ = 0; ///< 最近交付帧的播放头（Request
+                                           ///  透传；逐屏解算同时刻依据）
     std::chrono::steady_clock::time_point last_submit_tp_{}; ///< 上次提交时刻
                                                              ///< （自适应节流）
 

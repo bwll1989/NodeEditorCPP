@@ -2595,30 +2595,112 @@ void SceneCanvasWidget::paintGL3D(
         const bool sel  = (sel_.kind == 1 && sel_.a == sq.first);
         p.setTransform(QTransform());
 
-        // ---- 屏幕面片贴图（GL 优先 / QPainter 兜底）------------------------
-        if (!canvas_frame.isNull() && dom.width() > 0 && dom.height() > 0 &&
-            sq.second.size() == 4) {
+        // ---- 屏幕面片贴图（阶段2 精确路径优先 → 全局帧兜底 → QPainter）----
+        // 【阶段2 2026-11-18】绑定屏：屏本地位专属离屏 FBO——逐屏绘制项
+        // 由 display 端同一 buildDrawList 纯函数解算（同 (scene,t,尺寸)
+        // 恒同列表），经 GlRenderer(ExternalCtx) 画进 FBO（同 buildVerts/
+        // 着色器——display 怎么画，面片就是那张画），再单应贴投影四边形。
+        // 取代旧"全局总画面 UV 线性裁切"（透视合成下窗口→UV 非线性失真
+        // ——两段单应被拍扁的语义缺口）。
+        double qx[4] = {0, 0, 0, 0}, qy[4] = {0, 0, 0, 0};
+        if (sq.second.size() == 4) {
+            for (int k = 0; k < 4; ++k) { // CornerIdx 序 TL TR BR BL
+                qx[k] = sq.second[k].x();
+                qy[k] = sq.second[k].y();
+            }
+        }
+        const float face_opa = sel ? 1.0f : 0.88f;
+        // GL 贴图总闸（MS_CANVAS_GL3D=0 = 会话级回退 QPainter；回归对照）
+        static const bool s_gl3d_on = [] {
+            const char* e = std::getenv("MS_CANVAS_GL3D");
+            return e == nullptr || e[0] != '0';
+        }();
+        bool face_gl = false;
+        if (s_gl3d_on && sq.second.size() == 4 && !s.player_id.empty() &&
+            preview_ && s.w > 0.0 && s.h > 0.0) {
+            if (!gl3d_) gl3d_ = std::make_unique<Canvas3DGl>();
+            gl3d_->frame(width(), height(), (float)devicePixelRatioF());
+            if (!gl3d_->failed()) {
+                if (!gl_) {
+                    gl_ = std::make_unique<GlRenderer>(
+                        GlRenderer::ExternalCtxTag{},
+                        preview_->gpuDeliveryFlag());
+                }
+                if (!gl_->failed()) {
+                    const int sw = (int)std::lround(s.w);
+                    const int sh = (int)std::lround(s.h);
+                    // 屏本地位绘制列表（display 端同一解算纯函数）；t 取
+                    // 交付帧播放头——几何解算与素材帧同拍不脱节
+                    const std::vector<DrawItem> scr_items = buildDrawList(
+                        *scene_, s.player_id, sw, sh,
+                        preview_->deliveredPlayheadUs());
+                    p.beginNativePainting();
+                    if (gl3d_->beginScreenFace("__screen_fbo_" + s.id,
+                                               sw, sh)) {
+                        gl_->setExternalViewport(0, 0, sw, sh);
+                        gl_->beginFrame(sw, sh); // 清屏黑 + 帧状态（FBO 上）
+                        for (const auto& di : scr_items) {
+                            // 交付帧按 clip 身份精确匹配（同 5a 贴图表；
+                            // 未就绪项跳过——区域露 FBO 底色黑，与 display
+                            // "素材缺失渲染黑"语义一致）
+                            const PreviewRenderer::DeliverItem* d =
+                                matchTex(di.clip ? di.clip->id
+                                                 : std::string());
+                            if (!d) continue;
+                            FrameView fv;
+                            if (d->native) {
+                                // CUDA native 域：matchTex 已滤（3D 视口
+                                // 不消费）——防御分支，理论不可达
+                                continue;
+                            } else if (d->dxt) {
+                                // DXT 域：裸块直透（GlRenderer CpuDxt 段
+                                // 消费；keep 保活到 draw 同步完成）
+                                fv.domain     = FrameDomain::CpuDxt;
+                                fv.dxt        = d->dxt;
+                                fv.dxt_format = d->dxt_format;
+                                fv.stride     = d->dxt_stride;
+                                fv.width      = d->gpu_w;
+                                fv.height     = d->gpu_h;
+                                fv.keep       = d->dxt_keep;
+                            } else if (!d->frame.isNull()) {
+                                // CPU 域（软解/硬解下载回退）：RGBA8888
+                                // 内存序 = GL_RGBA 直传
+                                fv.width  = d->frame.width();
+                                fv.height = d->frame.height();
+                                fv.stride =
+                                    static_cast<std::uint32_t>(
+                                        d->frame.bytesPerLine());
+                                fv.rgba   = d->frame.constBits();
+                                fv.domain = FrameDomain::CpuRgba;
+                            } else {
+                                continue;
+                            }
+                            gl_->draw(di, fv);
+                        }
+                        gl_->endFrame();
+                        gl3d_->endScreenFace(); // 恢复宿主绑定（Qt FBO）
+                        face_gl = gl3d_->drawScreenFaceTex(
+                            "__screen_fbo_" + s.id, qx, qy, face_opa);
+                    }
+                    p.endNativePainting();
+                }
+            }
+        }
+        if (!face_gl && !canvas_frame.isNull() && dom.width() > 0 &&
+            dom.height() > 0 && sq.second.size() == 4) {
+            // ---- 兜底：全局 Eye 总画面窗口 UV 裁切（未绑定屏 / FBO 链失败）
             // 窗口 (s.x/y/w/h) → 合成帧归一化 UV（内容域线性映射；
             // 与 composeCanvasFrame 的 item 合成域同基准）
             const double u0 = (s.x - dom.x()) / dom.width();
             const double v0 = (s.y - dom.y()) / dom.height();
             const double u1 = (s.x + s.w - dom.x()) / dom.width();
             const double v1 = (s.y + s.h - dom.y()) / dom.height();
-            // 面片四边形（CornerIdx 序 TL TR BR BL）
-            const double qx[4] = {sq.second[0].x(), sq.second[1].x(),
-                                  sq.second[2].x(), sq.second[3].x()};
-            const double qy[4] = {sq.second[0].y(), sq.second[1].y(),
-                                  sq.second[2].y(), sq.second[3].y()};
-            bool face_gl = false;
             {
-                static const bool s_gl3d_on = [] {
-                    const char* e = std::getenv("MS_CANVAS_GL3D");
-                    return e == nullptr || e[0] != '0';
-                }();
-                if (s_gl3d_on) {
-                    if (!gl3d_) gl3d_ = std::make_unique<Canvas3DGl>();
-                    gl3d_->frame(width(), height(),
-                                 (float)devicePixelRatioF());
+                // GL 单应贴图（全局帧窗口——未绑定屏 / FBO 链失败时保留
+                // GL 透视校正质量，再落 QPainter 两三角）
+                if (!gl3d_) gl3d_ = std::make_unique<Canvas3DGl>();
+                gl3d_->frame(width(), height(), (float)devicePixelRatioF());
+                if (!gl3d_->failed()) {
                     Canvas3DGl::TexData td;
                     td.rgba   = canvas_frame.constBits();
                     td.stride = (std::uint32_t)canvas_frame.bytesPerLine();
@@ -2626,8 +2708,7 @@ void SceneCanvasWidget::paintGL3D(
                     td.height = canvas_frame.height();
                     p.beginNativePainting();
                     face_gl = gl3d_->drawClipFace(
-                        "__screen_face_" + s.id, td, qx, qy,
-                        /*opacity=*/sel ? 1.0f : 0.88f,
+                        "__screen_face_" + s.id, td, qx, qy, face_opa,
                         (float)u0, (float)v0, (float)u1, (float)v1);
                     p.endNativePainting();
                 }

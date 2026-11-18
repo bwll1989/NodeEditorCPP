@@ -275,6 +275,23 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
         }
     }
 
+    // ---- 单应贴图提交（与 FBO 屏幕面片共用尾段；纹理已建/已传）-----------
+    return submitFace(tex, sx, sy, opacity, u0, v0, u1, v1);
+}
+
+// ---------------------------------------------------------------------------
+// submitFace —— 单应解算 + 透视 w 顶点 + 状态重配 + 绘制（共用尾段）
+// （drawClipFace 尾段提炼——调用方负责纹理已建并绑定 GL_TEXTURE0）
+// ---------------------------------------------------------------------------
+bool Canvas3DGl::submitFace(unsigned int tex, const double sx[4],
+                            const double sy[4], float opacity,
+                            float u0, float v0, float u1, float v1) {
+    if (failed_ || !ensure()) return false;
+    if (lw_ <= 0 || lh_ <= 0) return false;
+    if (tex == 0) return false;
+    gl::glActiveTexture(gl::GL_TEXTURE0);
+    gl::glBindTexture(gl::GL_TEXTURE_2D, tex);
+
     // ---- 单应解算：单位方 → 屏幕四角（TL TR BR BL ↔ uv 同序）--------------
     double h[8] = {};
     const double dst[8] = {sx[0], sy[0], sx[1], sy[1],
@@ -342,6 +359,116 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
 }
 
 // ---------------------------------------------------------------------------
+// beginScreenFace —— 逐屏离屏会话：建/复用 FBO 并绑定（保存宿主状态）
+// ---------------------------------------------------------------------------
+bool Canvas3DGl::beginScreenFace(const std::string& key, int w, int h) {
+    if (failed_ || !ensure()) return false;
+    if (w <= 0 || h <= 0) return false;
+    if (fbo_session_) endScreenFace(); // 防御：前会话未配对先收尾
+
+    // ---- 宿主状态保存（恢复基准 = 本次绑定前；Qt FBO id 非 0 恒有效）----
+    gl::glGetIntegerv(gl::GL_DRAW_FRAMEBUFFER_BINDING, &saved_fbo_);
+    gl::glGetIntegerv(0x0BA2, saved_vp_); // GL_VIEWPORT（数值字面量防宏污染）
+
+    // 容量逐出（>16 屏清最久未用）：屏删除后残留 FBO 的 GPU 泄漏防御
+    if (screen_fbos_.size() > 16) {
+        auto oldest = screen_fbos_.end();
+        for (auto it = screen_fbos_.begin(); it != screen_fbos_.end(); ++it) {
+            if (it->first == key) continue; // 本帧仍要用，不逐出
+            if (oldest == screen_fbos_.end() ||
+                it->second.last_used < oldest->second.last_used)
+                oldest = it;
+        }
+        if (oldest != screen_fbos_.end()) {
+            if (oldest->second.fbo != 0)
+                gl::glDeleteFramebuffers(1, &oldest->second.fbo);
+            if (oldest->second.tex != 0)
+                gl::glDeleteTextures(1, &oldest->second.tex);
+            screen_fbos_.erase(oldest);
+        }
+    }
+
+    ScreenFbo& f = screen_fbos_[key];
+    f.last_used = frame_no_;
+    if (f.fbo == 0 || f.w != w || f.h != h) {
+        // （重）建：屏分辨率低频变化——对象级重建（对齐 GlRenderer::ensureFbo：
+        // RGBA + 双线性 + CLAMP；display 端同构存储）
+        if (f.fbo != 0) gl::glDeleteFramebuffers(1, &f.fbo);
+        if (f.tex != 0) gl::glDeleteTextures(1, &f.tex);
+        f.fbo = 0;
+        f.tex = 0;
+        gl::glGenTextures(1, &f.tex);
+        gl::glBindTexture(gl::GL_TEXTURE_2D, f.tex);
+        gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MIN_FILTER,
+                            gl::GL_LINEAR);
+        gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MAG_FILTER,
+                            gl::GL_LINEAR);
+        gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_S,
+                            gl::GL_CLAMP_TO_EDGE);
+        gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_T,
+                            gl::GL_CLAMP_TO_EDGE);
+        gl::glTexImage2D(gl::GL_TEXTURE_2D, 0, gl::GL_RGBA, w, h, 0,
+                         gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, nullptr);
+        gl::glGenFramebuffers(1, &f.fbo);
+        gl::glBindFramebuffer(gl::GL_FRAMEBUFFER, f.fbo);
+        gl::glFramebufferTexture2D(gl::GL_FRAMEBUFFER, gl::GL_COLOR_ATTACHMENT0,
+                                   gl::GL_TEXTURE_2D, f.tex, 0);
+        const unsigned int st = gl::glCheckFramebufferStatus(gl::GL_FRAMEBUFFER);
+        gl::glBindTexture(gl::GL_TEXTURE_2D, 0); // 建存储期绑定复位
+        if (st != gl::GL_FRAMEBUFFER_COMPLETE) {
+            // FBO 不可用（驱动异常）：本会话回退全局帧路径——面片绝不黑屏
+            static bool s_logged = false;
+            if (!s_logged) {
+                s_logged = true;
+                std::fprintf(stderr,
+                             "[canvas3d-gl] 屏幕离屏 FBO 创建失败"
+                             "(status=0x%X)——回退全局帧路径\n", st);
+                std::fflush(stderr);
+            }
+            gl::glDeleteFramebuffers(1, &f.fbo);
+            gl::glDeleteTextures(1, &f.tex);
+            screen_fbos_.erase(key);
+            return false;
+        }
+        f.w = w;
+        f.h = h;
+    } else {
+        gl::glBindFramebuffer(gl::GL_FRAMEBUFFER, f.fbo);
+    }
+
+    gl::glViewport(0, 0, w, h); // 合成域 = 屏本地位（GlRenderer 顶点同域）
+    fbo_session_ = true;
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// endScreenFace —— 会话收尾：恢复宿主 draw framebuffer 与视口
+// ---------------------------------------------------------------------------
+void Canvas3DGl::endScreenFace() {
+    if (!fbo_session_) return;
+    gl::glBindFramebuffer(gl::GL_FRAMEBUFFER,
+                          static_cast<unsigned int>(saved_fbo_));
+    gl::glViewport(saved_vp_[0], saved_vp_[1], saved_vp_[2], saved_vp_[3]);
+    fbo_session_ = false;
+}
+
+// ---------------------------------------------------------------------------
+// drawScreenFaceTex —— FBO 产物贴投影四边形（v 惯例反接；全窗采样）
+// ---------------------------------------------------------------------------
+bool Canvas3DGl::drawScreenFaceTex(const std::string& key,
+                                   const double sx[4], const double sy[4],
+                                   float opacity) {
+    auto it = screen_fbos_.find(key);
+    if (it == screen_fbos_.end() || it->second.tex == 0) return false;
+    it->second.last_used = frame_no_;
+    // FBO 渲染产物 GL 底向上（GlRenderer 顶点构造 H−y 翻转）——内容顶在
+    // v=1，与 drawClipFace 的视频帧惯例（row0=顶=v=0）相反：v 窗倒传，
+    // 调用方恒传屏幕四角即可（几何/采样语义其余全同 drawClipFace）
+    return submitFace(it->second.tex, sx, sy, opacity,
+                      0.0f, 1.0f, 1.0f, 0.0f);
+}
+
+// ---------------------------------------------------------------------------
 // solveHomography —— 4 点 DLT：单位方 (0,0)(1,0)(1,1)(0,1) → dst 四角。
 // x = (h0·u + h1·v + h2) / (h6·u + h7·v + 1)，y 同理。8 未知数 8 方程，
 // 部分主元高斯消元；dst 退化（共线/重复）时主元消失 → false。
@@ -401,6 +528,12 @@ void Canvas3DGl::shutdown() {
         if (kv.second.tex != 0) gl::glDeleteTextures(1, &kv.second.tex);
     }
     cache_.clear();
+    for (auto& kv : screen_fbos_) {
+        if (kv.second.fbo != 0) gl::glDeleteFramebuffers(1, &kv.second.fbo);
+        if (kv.second.tex != 0) gl::glDeleteTextures(1, &kv.second.tex);
+    }
+    screen_fbos_.clear();
+    fbo_session_ = false;
     if (vbo_)     gl::glDeleteBuffers(1, &vbo_);
     if (vao_)     gl::glDeleteVertexArrays(1, &vao_);
     if (program_) gl::glDeleteProgram(program_);

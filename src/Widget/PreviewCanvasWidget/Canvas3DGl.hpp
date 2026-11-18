@@ -101,6 +101,32 @@ public:
                       float u0 = 0.0f, float v0 = 0.0f,
                       float u1 = 1.0f, float v1 = 1.0f);
 
+    // ---- 逐屏离屏 FBO（阶段2 面片精确化；配 GlRenderer ExternalCtx）------
+    // 【语义】绑定屏的 display 输出预览不再裁全局总画面（线性 UV 窗在
+    // 透视合成下非线性失真），改为把 display 端同一 buildDrawList 的
+    // 屏本地位绘制项经 GlRenderer(ExternalCtx) 画进本屏专属 FBO——
+    // display 怎么画，预览面片就是那张画（同 buildVerts/着色器，像素级
+    // 同源）。会话三步：
+    //   beginScreenFace(key,w,h)   建/复用 FBO 并绑定（保存宿主绑定+视口）
+    //   GlRenderer::beginFrame/draw/endFrame
+    //       逐屏绘制项画进 FBO（宿主先 setExternalViewport(0,0,w,h)）
+    //   endScreenFace()            恢复宿主绑定与视口
+    //   drawScreenFaceTex(key,…)   FBO 纹理单应贴到投影四边形
+    // 【v 惯例】FBO 渲染产物 GL 底向上（GlRenderer 顶点构造 y 翻转）——
+    // 内容顶在 v=1，与 drawClipFace 的视频帧惯例（row0=顶=v=0）相反；
+    // drawScreenFaceTex 内部已反接，调用方恒传屏幕四角即可。
+    /// \return false = FBO 创建/完整性校验失败（调用方回退全局帧路径；
+    ///         本会话该 key 不再重试——避免日志刷屏）
+    bool beginScreenFace(const std::string& key, int w, int h);
+    /// 恢复宿主 draw framebuffer 与视口（beginScreenFace 配对收尾；
+    /// 无会话时调用无操作）
+    void endScreenFace();
+    /// 把 beginScreenFace 会话产出的 FBO 纹理贴到投影四边形（全窗采样）
+    /// \return false = 会话/FBO 不存在（调用方回退全局帧路径）
+    bool drawScreenFaceTex(const std::string& key,
+                           const double sx[4], const double sy[4],
+                           float opacity);
+
     /// 显式释放全部 GL 资源（owner 析构中 makeCurrent 后调用；幂等）
     void shutdown();
 
@@ -108,6 +134,23 @@ private:
     /// 4 点单应解算（单位方 (0,0)(1,0)(1,1)(0,1) → dst 八元组）：
     /// 8×8 线性系统 + 部分主元消元；dst 退化（共线/重复点）返回 false
     static bool solveHomography(const double dst[8], double h[8]);
+
+    /// 单应贴图提交（drawClipFace/drawScreenFaceTex 共用尾段）：
+    /// 解算单位方→四角单应、构造透视 w 顶点、幂等重配状态并绘制。
+    /// 调用前纹理须已绑定 GL_TEXTURE0（本函数只设采样窗不改绑定）。
+    bool submitFace(unsigned int tex, const double sx[4], const double sy[4],
+                    float opacity, float u0, float v0, float u1, float v1);
+
+    /// 逐屏离屏会话资源（beginScreenFace 建；key = "__screen_fbo_"+屏id）。
+    /// FBO 渲染坐标 GL 底向上——GlRenderer 顶点构造已做 H−y 翻转，
+    /// 采样时内容顶 = v=1（drawScreenFaceTex 内部反接）。
+    struct ScreenFbo {
+        unsigned int  fbo = 0;        ///< 帧缓冲对象（0 = 未建）
+        unsigned int  tex = 0;        ///< 颜色纹理（RGBA；合成画布 1:1）
+        int           w = 0, h = 0;   ///< 分配尺寸（变化 → 重建）
+        std::uint64_t last_used = 0;  ///< 逐出依据（frame 计数；屏删除后
+                                      ///  残留会话的 GPU 泄漏防御）
+    };
 
     struct TexSlot {
         unsigned int  tex = 0;        ///< GL 纹理名（0 = 未建）
@@ -117,6 +160,11 @@ private:
     };
 
     std::unordered_map<std::string, TexSlot> cache_;
+    std::unordered_map<std::string, ScreenFbo> screen_fbos_;
+    int saved_fbo_ = 0;                    ///< beginScreenFace 保存的宿主
+                                           ///<  draw framebuffer 绑定
+    int saved_vp_[4] = {0, 0, 0, 0};       ///< 同上（宿主视口矩形）
+    bool fbo_session_ = false;             ///< begin/endScreenFace 会话标记
     unsigned int program_ = 0;  ///< 贴图着色器程序（透视 w 顶点 + 采样片元）
     unsigned int vao_ = 0;      ///< 顶点数组（6 顶点 × {pos3,uv2}）
     unsigned int vbo_ = 0;      ///< 顶点缓冲（每 draw 孤儿式重分配 120B）

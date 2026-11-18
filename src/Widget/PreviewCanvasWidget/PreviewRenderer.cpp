@@ -371,6 +371,7 @@ void PreviewRenderer::pump() {
     r.w     = w;
     r.h     = h;
     r.epoch = ++next_epoch_;
+    r.playhead_us = playhead_us_; // 逐屏解算同时刻依据（阶段2）
     r.dom_x = content_rect_.x();
     r.dom_y = content_rect_.y();
     r.dom_w = content_rect_.width();
@@ -497,6 +498,7 @@ bool PreviewRenderer::pullGpu(std::vector<DeliverItem>& out_items,
             delivered_w_     = result_.comp_w;
             delivered_h_     = result_.comp_h;
             delivered_epoch_ = result_.epoch;
+            delivered_playhead_ = result_.playhead_us; // 逐屏解算同时刻
             delivered_domain_ = QRectF(result_.dom_x, result_.dom_y,
                                        result_.dom_w, result_.dom_h);
             // 【诊断 MS_CANVAS_DBG=1】新 epoch 交付探针（限频）：验证
@@ -656,6 +658,7 @@ void PreviewRenderer::workerLoop() {
                 result_.comp_w       = job.w;
                 result_.comp_h       = job.h;
                 result_.epoch        = rendered_epoch;
+                result_.playhead_us  = job.playhead_us; // 同时刻透传
                 result_.dom_x        = job.dom_x; // 内容域透传
                 result_.dom_y        = job.dom_y;
                 result_.dom_w        = job.dom_w;
@@ -726,6 +729,7 @@ void PreviewRenderer::workerLoop() {
             result_.frame        = std::move(frame);
             result_.items.clear();           // 双形态互斥：清逐项交付
             result_.epoch        = rendered_epoch;
+            result_.playhead_us  = job.playhead_us; // 同时刻透传
             result_.dom_x        = job.dom_x; // 内容域透传（画布贴图映射用）
             result_.dom_y        = job.dom_y;
             result_.dom_w        = job.dom_w;
