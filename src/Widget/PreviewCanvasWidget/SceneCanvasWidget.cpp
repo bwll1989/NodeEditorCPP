@@ -221,6 +221,36 @@ inline bool clipCropApply(const Transform& tf, QRectF& r, double uv[4]) {
                std::max(eh - ct - cb, 1.0));
     return true;
 }
+
+/// 交付项 → GL 帧视图双域填充（DXT/CPU；GpuCuda 域由调用方特判——合成
+/// FBO 路径 native 前置分支，屏 FBO 路径上流已滤 native）。消重自
+/// composeGpuFrame / paintGL3D 屏面片两处同构填充（2026-11-18 整理）。
+/// \return true = fv 已填充（调用方可 draw）；false = native 域（frame
+///         与 dxt 均空，调用方跳过或占位）
+inline bool deliverFrameView(const PreviewRenderer::DeliverItem& d,
+                             FrameView& fv) {
+    if (d.dxt) {
+        // ---- DXT 压缩域（HAP 直传；GlRenderer CpuDxt 段消费）------------
+        // 裸块指针 + GL 格式 + 块行距直透；dxt_keep 保活 PublishedFrame
+        //（draw 同步完成，交付项生命周期覆盖绘制全程）。
+        fv.domain     = FrameDomain::CpuDxt;
+        fv.dxt        = d.dxt;
+        fv.dxt_format = d.dxt_format;
+        fv.stride     = d.dxt_stride;
+        fv.width      = d.gpu_w;
+        fv.height     = d.gpu_h;
+        fv.keep       = d.dxt_keep;
+        return true;
+    }
+    if (d.frame.isNull()) return false;
+    // ---- CPU 域（软解 / 硬解下载回退）：RGBA8888 内存序 = GL_RGBA 直传
+    fv.width  = d.frame.width();
+    fv.height = d.frame.height();
+    fv.stride = static_cast<std::uint32_t>(d.frame.bytesPerLine());
+    fv.rgba   = d.frame.constBits();
+    fv.domain = FrameDomain::CpuRgba;
+    return true;
+}
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -2646,35 +2676,10 @@ void SceneCanvasWidget::paintGL3D(
                             const PreviewRenderer::DeliverItem* d =
                                 matchTex(di.clip ? di.clip->id
                                                  : std::string());
-                            if (!d) continue;
+                            // native 域理论不可达（texs 构建已滤）——防御
+                            if (!d || d->native) continue;
                             FrameView fv;
-                            if (d->native) {
-                                // CUDA native 域：matchTex 已滤（3D 视口
-                                // 不消费）——防御分支，理论不可达
-                                continue;
-                            } else if (d->dxt) {
-                                // DXT 域：裸块直透（GlRenderer CpuDxt 段
-                                // 消费；keep 保活到 draw 同步完成）
-                                fv.domain     = FrameDomain::CpuDxt;
-                                fv.dxt        = d->dxt;
-                                fv.dxt_format = d->dxt_format;
-                                fv.stride     = d->dxt_stride;
-                                fv.width      = d->gpu_w;
-                                fv.height     = d->gpu_h;
-                                fv.keep       = d->dxt_keep;
-                            } else if (!d->frame.isNull()) {
-                                // CPU 域（软解/硬解下载回退）：RGBA8888
-                                // 内存序 = GL_RGBA 直传
-                                fv.width  = d->frame.width();
-                                fv.height = d->frame.height();
-                                fv.stride =
-                                    static_cast<std::uint32_t>(
-                                        d->frame.bytesPerLine());
-                                fv.rgba   = d->frame.constBits();
-                                fv.domain = FrameDomain::CpuRgba;
-                            } else {
-                                continue;
-                            }
+                            if (!deliverFrameView(*d, fv)) continue;
                             gl_->draw(di, fv);
                         }
                         gl_->endFrame();
@@ -2697,20 +2702,24 @@ void SceneCanvasWidget::paintGL3D(
             const double v1 = (s.y + s.h - dom.y()) / dom.height();
             {
                 // GL 单应贴图（全局帧窗口——未绑定屏 / FBO 链失败时保留
-                // GL 透视校正质量，再落 QPainter 两三角）
-                if (!gl3d_) gl3d_ = std::make_unique<Canvas3DGl>();
-                gl3d_->frame(width(), height(), (float)devicePixelRatioF());
-                if (!gl3d_->failed()) {
-                    Canvas3DGl::TexData td;
-                    td.rgba   = canvas_frame.constBits();
-                    td.stride = (std::uint32_t)canvas_frame.bytesPerLine();
-                    td.width  = canvas_frame.width();
-                    td.height = canvas_frame.height();
-                    p.beginNativePainting();
-                    face_gl = gl3d_->drawClipFace(
-                        "__screen_face_" + s.id, td, qx, qy, face_opa,
-                        (float)u0, (float)v0, (float)u1, (float)v1);
-                    p.endNativePainting();
+                // GL 透视校正质量，再落 QPainter 两三角；s_gl3d_on=0 时
+                // 本块整跳——会话级回退 QPainter，与精确路径同一总闸）
+                if (s_gl3d_on) {
+                    if (!gl3d_) gl3d_ = std::make_unique<Canvas3DGl>();
+                    gl3d_->frame(width(), height(),
+                                 (float)devicePixelRatioF());
+                    if (!gl3d_->failed()) {
+                        Canvas3DGl::TexData td;
+                        td.rgba   = canvas_frame.constBits();
+                        td.stride = (std::uint32_t)canvas_frame.bytesPerLine();
+                        td.width  = canvas_frame.width();
+                        td.height = canvas_frame.height();
+                        p.beginNativePainting();
+                        face_gl = gl3d_->drawClipFace(
+                            "__screen_face_" + s.id, td, qx, qy, face_opa,
+                            (float)u0, (float)v0, (float)u1, (float)v1);
+                        p.endNativePainting();
+                    }
                 }
             }
             if (!face_gl) {
@@ -2952,24 +2961,10 @@ bool SceneCanvasWidget::composeGpuFrame(
             fv.native = it.native;
             fv.width  = it.gpu_w;
             fv.height = it.gpu_h;
-        } else if (it.dxt) {
-            // ---- DXT 压缩域（HAP 直传；GlRenderer CpuDxt 段消费）--------
-            // 裸块指针 + GL 格式 + 块行距直透；dxt_keep 保活 PublishedFrame
-            //（draw 同步完成，交付项生命周期覆盖绘制全程）。
-            fv.domain     = FrameDomain::CpuDxt;
-            fv.dxt        = it.dxt;
-            fv.dxt_format = it.dxt_format;
-            fv.stride     = it.dxt_stride;
-            fv.width      = it.gpu_w;
-            fv.height     = it.gpu_h;
-            fv.keep       = it.dxt_keep;
+        } else if (deliverFrameView(it, fv)) {
+            // DXT/CPU 双域（deliverFrameView 统一填充——屏面片路径同源）
         } else {
-            // ---- CPU 域（软解 / 硬解下载回退）----------------------------
-            fv.width  = it.frame.width();
-            fv.height = it.frame.height();
-            fv.stride = static_cast<std::uint32_t>(it.frame.bytesPerLine());
-            fv.rgba   = it.frame.constBits();
-            fv.domain = FrameDomain::CpuRgba; // RGBA8888 内存序 = GL_RGBA 直传
+            continue; // 帧空且无压缩块（防御，理论不可达）
         }
         gl_->draw(it.item, fv);
     }

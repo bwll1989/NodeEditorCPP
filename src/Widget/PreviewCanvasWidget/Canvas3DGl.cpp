@@ -275,13 +275,13 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
         }
     }
 
-    // ---- 单应贴图提交（与 FBO 屏幕面片共用尾段；纹理已建/已传）-----------
+    // ---- 单应贴图提交（与 FBO 屏幕面片共用尾段；纹理已建并传给本函数）--
     return submitFace(tex, sx, sy, opacity, u0, v0, u1, v1);
 }
 
 // ---------------------------------------------------------------------------
 // submitFace —— 单应解算 + 透视 w 顶点 + 状态重配 + 绘制（共用尾段）
-// （drawClipFace 尾段提炼——调用方负责纹理已建并绑定 GL_TEXTURE0）
+// （drawClipFace 尾段提炼——tex 自行绑定 GL_TEXTURE0，幂等）
 // ---------------------------------------------------------------------------
 bool Canvas3DGl::submitFace(unsigned int tex, const double sx[4],
                             const double sy[4], float opacity,
@@ -290,7 +290,7 @@ bool Canvas3DGl::submitFace(unsigned int tex, const double sx[4],
     if (lw_ <= 0 || lh_ <= 0) return false;
     if (tex == 0) return false;
     gl::glActiveTexture(gl::GL_TEXTURE0);
-    gl::glBindTexture(gl::GL_TEXTURE_2D, tex);
+    gl::glBindTexture(gl::GL_TEXTURE_2D, tex); // 幂等绑定（调用方免预绑定）
 
     // ---- 单应解算：单位方 → 屏幕四角（TL TR BR BL ↔ uv 同序）--------------
     double h[8] = {};
@@ -370,8 +370,9 @@ bool Canvas3DGl::beginScreenFace(const std::string& key, int w, int h) {
     gl::glGetIntegerv(gl::GL_DRAW_FRAMEBUFFER_BINDING, &saved_fbo_);
     gl::glGetIntegerv(0x0BA2, saved_vp_); // GL_VIEWPORT（数值字面量防宏污染）
 
-    // 容量逐出（>16 屏清最久未用）：屏删除后残留 FBO 的 GPU 泄漏防御
-    if (screen_fbos_.size() > 16) {
+    // 容量逐出（>16 屏清最久未用至阈值内）：屏删除后残留 FBO 的 GPU
+    // 泄漏防御（while 一次清够——异常膨胀不拖帧）
+    while (screen_fbos_.size() > 16) {
         auto oldest = screen_fbos_.end();
         for (auto it = screen_fbos_.begin(); it != screen_fbos_.end(); ++it) {
             if (it->first == key) continue; // 本帧仍要用，不逐出
@@ -379,13 +380,12 @@ bool Canvas3DGl::beginScreenFace(const std::string& key, int w, int h) {
                 it->second.last_used < oldest->second.last_used)
                 oldest = it;
         }
-        if (oldest != screen_fbos_.end()) {
-            if (oldest->second.fbo != 0)
-                gl::glDeleteFramebuffers(1, &oldest->second.fbo);
-            if (oldest->second.tex != 0)
-                gl::glDeleteTextures(1, &oldest->second.tex);
-            screen_fbos_.erase(oldest);
-        }
+        if (oldest == screen_fbos_.end()) break; // 只剩本 key（防御）
+        if (oldest->second.fbo != 0)
+            gl::glDeleteFramebuffers(1, &oldest->second.fbo);
+        if (oldest->second.tex != 0)
+            gl::glDeleteTextures(1, &oldest->second.tex);
+        screen_fbos_.erase(oldest);
     }
 
     ScreenFbo& f = screen_fbos_[key];

@@ -137,7 +137,7 @@ private:
 
     /// 单应贴图提交（drawClipFace/drawScreenFaceTex 共用尾段）：
     /// 解算单位方→四角单应、构造透视 w 顶点、幂等重配状态并绘制。
-    /// 调用前纹理须已绑定 GL_TEXTURE0（本函数只设采样窗不改绑定）。
+    /// 本函数自行把 tex 绑到 GL_TEXTURE0（幂等——调用方无需预绑定）。
     bool submitFace(unsigned int tex, const double sx[4], const double sy[4],
                     float opacity, float u0, float v0, float u1, float v1);
 
