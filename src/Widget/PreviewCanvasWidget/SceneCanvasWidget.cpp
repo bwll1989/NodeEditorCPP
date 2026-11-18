@@ -73,6 +73,7 @@
 
 #include "PreviewRenderer.hpp" // 预览渲染（render 成功 → 真实合成帧上屏）
 #include "model/CanvasGeometry.hpp" // 角点缩放/旋转命中纯函数（core 共享）
+#include "model/MeshLoader.hpp" // 3D mapping 素模（阶段 3A：Mapped 屏绑定模型线框；Assimp 后端）
 #include "engine/TweenEngine.hpp" // tween 通道求值纯函数（画布跟随曲线）
 #include "GlRenderer.hpp"   // GL 合成后端（ExternalCtx 模式；GL 直通路径）
 #include "Canvas3DGl.hpp"   // 3D 视口贴图层（阶段1 GL化：DXT 直传+透视校正）
@@ -1065,6 +1066,68 @@ QPointF SceneCanvasWidget::canvasFromScreen(const QPointF& wp) const {
 QPointF SceneCanvasWidget::project3(double x, double h, double z) const {
     if (width() <= 0 || height() <= 0) return QPointF(x, z);
     return cam3d_.project(x, h, z, width() / 2.0, height() / 2.0);
+}
+
+void SceneCanvasWidget::drawMeshWireframe(QPainter& p, const Screen& s,
+                                          bool selected) const {
+    // 【阶段 3A 素模 2026-11-18】Mapped 屏绑定模型 → 舞台线框。顶点经
+    // ms::loadMesh（Assimp 解析+轴变换+落地归一化，display 端 3B 共用同一解析）后
+    // 施加 placement（offset + 等比 scale），project3 逐三角描边。
+    // 【进程级缓存】key = 资产路径：同一文件只解析一次（编辑器会话内）；
+    // 解析失败同样缓存（空结果）——坏模型不逐帧重试刷日志。模型文件
+    // 变更需重启编辑器（第一版语义，注释留档）。
+    const Asset* ma = s.model_asset_id.empty()
+                          ? nullptr
+                          : scene_->findAsset(s.model_asset_id);
+    if (!ma || ma->kind != AssetKind::Mesh || ma->path.empty()) return;
+
+    static std::map<std::string, std::pair<bool, MeshData>> s_meshes;
+    auto it = s_meshes.find(ma->path);
+    if (it == s_meshes.end()) {
+        MeshData md;
+        std::string merr;
+        const bool ok = loadMesh(ma->path, md, &merr);
+        if (!ok)
+            qDebug() << "[ms-mesh] OBJ 加载失败" << ma->path.c_str() << ":"
+                     << merr.c_str();
+        it = s_meshes
+                 .emplace(ma->path,
+                          std::make_pair(ok, ok ? std::move(md) : MeshData{}))
+                 .first;
+    }
+    if (!it->second.first) return; // 加载失败：素模跳过（足迹框照旧）
+    const MeshData& mesh = it->second.second;
+
+    const double sc = s.model_scale > 0.0 ? s.model_scale : 1.0;
+    const float ox = (float)s.model_offset_x;
+    const float oy = (float)s.model_offset_y;
+    const float oz = (float)s.model_offset_z;
+
+    p.setPen(QPen(selected ? QColor(0x50, 0xE0, 0xC0) : QColor(0x3A, 0x8A, 0x7C),
+                  selected ? 1.4 : 0.8));
+    p.setBrush(Qt::NoBrush);
+    // 【性能兜底】QPainter 逐线段开销线性于三角数——>2 万三角抽稀描边
+    //（保留整体轮廓观感；3B 换 GL 管线后此限退役）
+    const size_t ntri = mesh.triangleCount();
+    const size_t step = ntri > 20000 ? ntri / 20000 + 1 : 1;
+    for (size_t t = 0; t < ntri; t += step) {
+        QPointF sp[3];
+        bool offscreen = true;
+        for (int k = 0; k < 3; ++k) {
+            const uint32_t vi = mesh.indices[t * 3 + k];
+            const float x = mesh.pos[vi * 3 + 0] * (float)sc + ox;
+            const float y = mesh.pos[vi * 3 + 1] * (float)sc + oy;
+            const float z = mesh.pos[vi * 3 + 2] * (float)sc + oz;
+            sp[k] = project3(x, z, y); // (画布x, 高度, 画布y)
+            if (sp[k].x() > -50 && sp[k].x() < width() + 50 &&
+                sp[k].y() > -50 && sp[k].y() < height() + 50)
+                offscreen = false;
+        }
+        if (offscreen) continue;
+        p.drawLine(sp[0], sp[1]);
+        p.drawLine(sp[1], sp[2]);
+        p.drawLine(sp[2], sp[0]);
+    }
 }
 
 void SceneCanvasWidget::panAnchorTo(const QPointF& widget_pos,
@@ -2629,6 +2692,11 @@ void SceneCanvasWidget::paintGL3D(
         const Screen& s = scene_->screens[sq.first];
         const bool sel  = (sel_.kind == 1 && sel_.a == sq.first);
         p.setTransform(QTransform());
+
+        // ---- 3D mapping 素模（阶段 3A）：Mapped 屏绑定模型 → 舞台线框 ----
+        // 画在 display 面片之下（面片=输出画面预览恒最上层；素模=被投影
+        // 的舞台物体）。drawMeshWireframe 内部自带"未绑模型/加载失败"跳过
+        drawMeshWireframe(p, s, sel);
 
         // ---- 屏幕面片贴图（阶段2 精确路径优先 → 全局帧兜底 → QPainter）----
         // 【阶段2 2026-11-18】绑定屏：屏本地位专属离屏 FBO——逐屏绘制项

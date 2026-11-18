@@ -56,6 +56,11 @@ enum class AssetKind : int {
                  ///< $percent/$frame（JS 表达式）求值重发 StatusContainer；
                  ///< 消息表存 Clip.clip_data（JSON，表达式原文）。仅编辑器
                  ///< 端消费；无素材绑定、无画布呈现
+    Mesh    = 9  ///< 3D 模型（2026-11-18 阶段 3A，3D mapping 地基）——
+                 ///< Wavefront OBJ（v/vt/f 最小集）；不建片段、不上画布，
+                 ///< 唯一消费方 = Screen.model_asset_id（Mapped 投影映射
+                 ///< 屏绑定模型作投影表面）；两端共用 ms::loadMesh 解析（Assimp 后端）
+                 ///<（同一文件恒得同一顶点数据）
 };
 
 // ---------------------------------------------------------------------------
@@ -553,6 +558,38 @@ struct Screen {
     /// 1=Mapped 投影映射（3D mapping 预留——屏持有自己的投影仪 Eye，
     /// 内容按视锥投到网格面片；渲染路径后续接入）。非 0/1 读端钳 0。
     int projectionMode = 0;
+
+    // ---- 3D mapping 投影表面（2026-11-18 阶段 3A 数据先行）----------------
+    // 仅 projectionMode=1 时消费。模型坐标 = 舞台空间（画布 px + Z 向上），
+    // 经 ms::loadMesh 加载（Y-up→Z-up 轴变换 + 落地归一化：包围盒 XY 中心
+    // 归原点、底面贴 z=0）后再施加 placement——摆位语义与 Watchout 3D
+    // mapping 对齐：模型即投影对象，取景窗语义（x/y/w/h/rotation）在此
+    // 退化为表面足迹参考框（2D 画布上仍画框，3D 视口画模型本体）。
+    std::string model_asset_id; ///< 绑定的 Mesh 资产（Asset.kind==Mesh；空 =
+                                ///< 未绑模型——Mapped 屏退化为单四边形表面，
+                                ///< 走屏姿态单应快路径，3B 起接入）
+    double model_offset_x = 0.0; ///< 模型平移 X（舞台域 px；默认 0 = 画布原点）
+    double model_offset_y = 0.0; ///< 模型平移 Y（同上）
+    double model_offset_z = 0.0; ///< 模型平移 Z（高度；0 = 底面贴地）
+    double model_scale    = 0.0; ///< 模型等比缩放（<=0 派生 1.0——proto3 缺席
+                                 ///< = 0 陷阱，读端语义"未设置 = 原尺寸"）
+    // ---- 投影仪 Eye（阶段 3B 消费；此处数据先行一次申请字段号）----------
+    // 独立于 Show 全局 Eye（四种相机角色定稿：投影仪 Eye 每屏一台）。
+    // 单位 = 舞台域（画布 px / Z 高度 px，同全局 Eye 惯例）。全部字段
+    // "缺席 = 0"，focal <= 0 = 未配置走派生默认（Eye=表面中心正上方
+    // D=2×max(w,h)、Target=表面中心、F 铺满输出——新建 Mapped 屏开箱
+    // 即用，再微调出真实透视）。
+    double proj_eye_x = 0.0;    ///< 投影仪光心 X（舞台域）
+    double proj_eye_y = 0.0;    ///< 投影仪光心 Y
+    double proj_eye_z = 0.0;    ///< 投影仪光心 Z（高度；派生默认 >0）
+    double proj_tgt_x = 0.0;    ///< 注视点 X（派生默认 = 表面中心）
+    double proj_tgt_y = 0.0;    ///< 注视点 Y
+    double proj_tgt_z = 0.0;    ///< 注视点 Z
+    double proj_focal = 0.0;    ///< 焦距 px（<=0 = 派生默认铺满输出）
+    double proj_shift_x = 0.0;  ///< Lens Shift X（输出域归一化 [-0.5,0.5]）
+    double proj_shift_y = 0.0;  ///< Lens Shift Y（同上）
+    double proj_roll    = 0.0;  ///< 投影仪滚转（度；防 up 向量退化，垂直
+                                ///< 俯仰照射地面屏时必需）
 };
 
 inline bool operator==(const Screen& a, const Screen& b) {
@@ -560,7 +597,17 @@ inline bool operator==(const Screen& a, const Screen& b) {
            a.y == b.y && a.w == b.w && a.h == b.h &&
            a.rotation == b.rotation && a.z == b.z && a.warp == b.warp &&
            a.rot_x == b.rot_x && a.rot_y == b.rot_y &&
-           a.projectionMode == b.projectionMode;
+           a.projectionMode == b.projectionMode &&
+           a.model_asset_id == b.model_asset_id &&
+           a.model_offset_x == b.model_offset_x &&
+           a.model_offset_y == b.model_offset_y &&
+           a.model_offset_z == b.model_offset_z &&
+           a.model_scale == b.model_scale &&
+           a.proj_eye_x == b.proj_eye_x && a.proj_eye_y == b.proj_eye_y &&
+           a.proj_eye_z == b.proj_eye_z && a.proj_tgt_x == b.proj_tgt_x &&
+           a.proj_tgt_y == b.proj_tgt_y && a.proj_tgt_z == b.proj_tgt_z &&
+           a.proj_focal == b.proj_focal && a.proj_shift_x == b.proj_shift_x &&
+           a.proj_shift_y == b.proj_shift_y && a.proj_roll == b.proj_roll;
 }
 
 // ---------------------------------------------------------------------------

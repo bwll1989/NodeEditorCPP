@@ -163,6 +163,12 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
         g.rot_x    = rot_x_->value();
         g.rot_y    = rot_y_->value();
         // g.z 不再提供——宿主侧不拷贝 z（层级行已退役）
+        // 【阶段 3A】placement 四字段同走实时链（3D 视口素模拖拽跟手）；
+        // model_asset_id 不实时（下拉切换走 OK 确认制）
+        g.model_offset_x = model_off_x_->value();
+        g.model_offset_y = model_off_y_->value();
+        g.model_offset_z = model_off_z_->value();
+        g.model_scale    = model_scale_->value();
         geometry_live_(g);
     };
     connect(x_,        &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
@@ -172,6 +178,8 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     connect(rotation_, &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
     connect(rot_x_,    &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
     connect(rot_y_,    &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    // 【阶段 3A】placement 四字段同链——connect 在 3D mapping 块内补挂
+    //（控件在该块才创建，此处 connect 会是空指针）
 
     // ---- 输出变形（2026-11-11 WATCHOUT 式内嵌）----------------------------
     // 编辑面板直接内嵌「几何结构」页（用户需求：不要弹窗）——模式/密度/
@@ -182,6 +190,85 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     warp_panel_->setLiveApply([this](const ScreenWarp& w) {
         if (warp_live_) warp_live_(w);
     });
+
+    // ---- 3D mapping 投影表面（阶段 3A 2026-11-18）------------------------
+    // 模型下拉 + placement 四字段；仅投影模式=Mapped 时启用（Framed 屏无
+    // 投影表面概念——置灰提示模式）。placement 编辑实时预览（同几何八字段
+    // 链——宿主写工作副本 refreshViews，3D 视口素模跟手）。
+    auto* map_box = new QGroupBox("3D mapping 投影表面", this);
+    auto* map_form = new QFormLayout(map_box);
+    model_combo_ = new QComboBox(map_box);
+    model_combo_->addItem(QStringLiteral("（无 —— 单四边形表面）"), QString());
+    for (const auto& id_name : mesh_choices_)
+        model_combo_->addItem(
+            QString::fromStdString(id_name.second),
+            QString::fromStdString(id_name.first));
+    {
+        int cur = 0; // 预填：匹配 model_asset_id
+        for (int i = 0; i < model_combo_->count(); ++i)
+            if (model_combo_->itemData(i).toString().toStdString() ==
+                screen.model_asset_id) { cur = i; break; }
+        model_combo_->setCurrentIndex(cur);
+    }
+    model_combo_->setToolTip(tr(
+        "投影表面 3D 模型（素材库导入的 .obj）：\n"
+        "· 未选 = 单四边形表面（屏矩形带姿态，阶段 3B 接入渲染）；\n"
+        "· 选中 = 网格表面（任意异形物体，阶段 3B 投影渲染）。\n"
+        "模型坐标 = 舞台空间（画布 px，Z 向上）；加载时自动\n"
+        "Y-up→Z-up 轴变换 + 落地归一化（包围盒底面贴地、中心归零）。"));
+    map_form->addRow("3D 模型：", model_combo_);
+
+    model_off_x_ = new FloatDragValueWidget(map_box);
+    model_off_x_->setRange(-1000000.0, 1000000.0);
+    model_off_x_->setDecimals(1);
+    model_off_x_->setSingleStep(10.0);
+    model_off_x_->setValue(screen.model_offset_x);
+    model_off_x_->setToolTip(tr("模型平移 X（舞台域 px；0 = 画布原点）"));
+
+    model_off_y_ = new FloatDragValueWidget(map_box);
+    model_off_y_->setRange(-1000000.0, 1000000.0);
+    model_off_y_->setDecimals(1);
+    model_off_y_->setSingleStep(10.0);
+    model_off_y_->setValue(screen.model_offset_y);
+    model_off_y_->setToolTip(tr("模型平移 Y（舞台域 px）"));
+
+    model_off_z_ = new FloatDragValueWidget(map_box);
+    model_off_z_->setRange(-1000000.0, 1000000.0);
+    model_off_z_->setDecimals(1);
+    model_off_z_->setSingleStep(10.0);
+    model_off_z_->setValue(screen.model_offset_z);
+    model_off_z_->setToolTip(tr("模型平移 Z（高度 px；0 = 底面贴地）"));
+
+    model_scale_ = new FloatDragValueWidget(map_box);
+    model_scale_->setRange(0.01, 100000.0);
+    model_scale_->setDecimals(2);
+    model_scale_->setSingleStep(0.5);
+    model_scale_->setValue(screen.model_scale > 0.0 ? screen.model_scale : 1.0);
+    model_scale_->setToolTip(tr("等比缩放（模型单位 = 画布 px；加载后已落地归一化）"));
+
+    map_form->addRow("平移 X：", model_off_x_);
+    map_form->addRow("平移 Y：", model_off_y_);
+    map_form->addRow("平移 Z：", model_off_z_);
+    map_form->addRow("缩放：", model_scale_);
+
+    // 模式联动：Mapped 才启用（Framed 屏无投影表面概念）
+    auto syncMappingEnabled = [this]() {
+        const bool mapped = projection_mode_->currentIndex() == 1;
+        model_combo_->setEnabled(mapped);
+        model_off_x_->setEnabled(mapped);
+        model_off_y_->setEnabled(mapped);
+        model_off_z_->setEnabled(mapped);
+        model_scale_->setEnabled(mapped);
+    };
+    connect(projection_mode_, &QComboBox::currentIndexChanged, this,
+            [this, syncMappingEnabled](int) { syncMappingEnabled(); });
+    syncMappingEnabled();
+    // placement 四字段接实时链（控件已创建于上方；素模实时跟手，
+    // 未绑模型时宿主侧字段拷贝空转无副作用）
+    connect(model_off_x_, &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(model_off_y_, &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(model_off_z_, &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(model_scale_, &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
 
     // ---- 绑定显示端（2026-11-17 简化：纯手输四字段表单）------------------
     // 设备发现（UDP 扫描）已整体退役：广播类发现在防火墙/多网卡/跨网段
@@ -226,7 +313,13 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     // 对齐 WATCHOUT 显示设置对话框的页组织：第一页通用（位置/大小/旋转/
     // 屏姿态），第二页几何结构（内嵌输出变形网格编辑，不弹窗），第三页绑定
     //（显示端手输登记——WATCHOUT 通用页"计算机"字段同型）。
+    // 【阶段 3A】第四页 "3D mapping"：投影表面模型选择 + placement（仅
+    // Mapped 模式启用——投影仪 Eye/Target/Lens Shift 字段阶段 3B 补 UI）。
     auto* tabs = new QTabWidget(this);
+    auto* mapping_page = new QWidget(tabs);
+    auto* mapping_lay  = new QVBoxLayout(mapping_page);
+    mapping_lay->addWidget(map_box);
+    mapping_lay->addStretch(1);
     {
         auto* general_page = new QWidget(tabs);
         auto* general_lay  = new QVBoxLayout(general_page);
@@ -237,6 +330,8 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
         auto* geom_lay  = new QVBoxLayout(geom_page);
         geom_lay->addWidget(warp_panel_);
         tabs->addTab(geom_page, "几何结构");
+
+        tabs->addTab(mapping_page, "3D mapping");
 
         auto* bind_page = new QWidget(tabs);
         auto* bind_lay  = new QVBoxLayout(bind_page);
@@ -257,6 +352,14 @@ void ScreenPropertyDialog::applyTo(Screen& s) const {
     s.rot_y     = rot_y_->value();
     // s.z 不写回（层级行退役——保留场景既有值兼容老工程）
     s.projectionMode = projection_mode_->currentIndex() == 1 ? 1 : 0;
+    // 3D mapping 投影表面（阶段 3A）：下拉 userData = asset id；首项
+    // "（无）" = 空串（未绑——Mapped 屏退化为单四边形表面）
+    s.model_asset_id =
+        model_combo_->currentData().toString().toStdString();
+    s.model_offset_x = model_off_x_->value();
+    s.model_offset_y = model_off_y_->value();
+    s.model_offset_z = model_off_z_->value();
+    s.model_scale    = model_scale_->value();
     s.player_id = player_id_->text().toStdString();
     // 输出变形 = 「几何结构」页内嵌面板的当前编辑状态（2026-11-11 内嵌化：
     // 面板即唯一真值——无变形时写默认清空值，与旧弹窗 OK 语义一致）

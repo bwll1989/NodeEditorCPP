@@ -49,6 +49,7 @@ static AssetKind FromProtoKind(ms_proto::AssetKind k) noexcept {
         case ms_proto::ASSET_CONTROL: return AssetKind::Control;
         case ms_proto::ASSET_ARTNET: return AssetKind::Artnet;
         case ms_proto::ASSET_MAPPING: return AssetKind::Mapping;
+        case ms_proto::ASSET_MESH:   return AssetKind::Mesh;
         default:                    return AssetKind::Unknown;
     }
 }
@@ -63,6 +64,7 @@ static ms_proto::AssetKind ToProtoKind(AssetKind k) noexcept {
         case AssetKind::Control: return ms_proto::ASSET_CONTROL;
         case AssetKind::Artnet: return ms_proto::ASSET_ARTNET;
         case AssetKind::Mapping: return ms_proto::ASSET_MAPPING;
+        case AssetKind::Mesh:   return ms_proto::ASSET_MESH;
         default:               return ms_proto::ASSET_UNKNOWN;
     }
 }
@@ -414,6 +416,24 @@ ms_proto::Screen SceneLoader::toProtoScreen(const Screen& s) {
     // 投影模式（2026-11-18 阶段1 数据先行）：非 0 才写——Framed 屏的
     // wire 格式与旧版本完全一致（proto3 普通标量 0 反序列化等价缺席）
     if (s.projectionMode != 0) ps.set_projection_mode(s.projectionMode);
+    // 3D mapping 投影表面（2026-11-18 阶段 3A）：非 0/非空才写——Framed 屏
+    // 与未绑模型的 Mapped 屏 wire 格式与旧版本完全一致（proto3 普通标量
+    // 0 反序列化等价缺席；model_scale 缺席 = 读端派生 1.0）
+    if (!s.model_asset_id.empty()) ps.set_model_asset_id(s.model_asset_id);
+    if (s.model_offset_x != 0.0) ps.set_model_offset_x(s.model_offset_x);
+    if (s.model_offset_y != 0.0) ps.set_model_offset_y(s.model_offset_y);
+    if (s.model_offset_z != 0.0) ps.set_model_offset_z(s.model_offset_z);
+    if (s.model_scale    != 0.0) ps.set_model_scale(s.model_scale);
+    if (s.proj_eye_x != 0.0) ps.set_proj_eye_x(s.proj_eye_x);
+    if (s.proj_eye_y != 0.0) ps.set_proj_eye_y(s.proj_eye_y);
+    if (s.proj_eye_z != 0.0) ps.set_proj_eye_z(s.proj_eye_z);
+    if (s.proj_tgt_x != 0.0) ps.set_proj_tgt_x(s.proj_tgt_x);
+    if (s.proj_tgt_y != 0.0) ps.set_proj_tgt_y(s.proj_tgt_y);
+    if (s.proj_tgt_z != 0.0) ps.set_proj_tgt_z(s.proj_tgt_z);
+    if (s.proj_focal != 0.0) ps.set_proj_focal(s.proj_focal);
+    if (s.proj_shift_x != 0.0) ps.set_proj_shift_x(s.proj_shift_x);
+    if (s.proj_shift_y != 0.0) ps.set_proj_shift_y(s.proj_shift_y);
+    if (s.proj_roll    != 0.0) ps.set_proj_roll(s.proj_roll);
     // 输出变形（2026-11-09）：仅 mode 非 0 时写入——保持"无变形 screen"
     // 的 wire 格式与旧版本完全一致（message 缺席 = has_warp()==false）
     if (s.warp.active()) {
@@ -443,6 +463,24 @@ Screen SceneLoader::fromProtoScreen(const ms_proto::Screen& ps) {
     //（信任边界——未知模式宁回退取景窗勿误投）
     s.projectionMode =
         (ps.projection_mode() == 1) ? 1 : 0;
+    // 3D mapping 投影表面（2026-11-18 阶段 3A）：缺席 = 空串/0 = 业务默认
+    //（未绑模型/零 placement/投影仪未配置走派生默认）；model_scale 缺席
+    // = 0 读端语义"原尺寸"（消费方派生 1.0）
+    s.model_asset_id = ps.model_asset_id();
+    s.model_offset_x = ps.model_offset_x();
+    s.model_offset_y = ps.model_offset_y();
+    s.model_offset_z = ps.model_offset_z();
+    s.model_scale    = ps.model_scale();
+    s.proj_eye_x   = ps.proj_eye_x();
+    s.proj_eye_y   = ps.proj_eye_y();
+    s.proj_eye_z   = ps.proj_eye_z();
+    s.proj_tgt_x   = ps.proj_tgt_x();
+    s.proj_tgt_y   = ps.proj_tgt_y();
+    s.proj_tgt_z   = ps.proj_tgt_z();
+    s.proj_focal   = ps.proj_focal();
+    s.proj_shift_x = ps.proj_shift_x();
+    s.proj_shift_y = ps.proj_shift_y();
+    s.proj_roll    = ps.proj_roll();
     // 输出变形（2026-11-09）：缺席 = 无变形（默认构造 mode=0）；存在则
     // 拷贝后经 normalize() 收口信任边界（尺寸/坐标钳制）——长度根本
     // 不匹配（节点数对不上 cols*rows）时整份丢弃，回退无变形。

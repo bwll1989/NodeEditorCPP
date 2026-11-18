@@ -104,10 +104,14 @@ static bool msProbeMediaFile(const QString& file, ms::AssetKind kind,
                                    "gif", "webp"};
     static const char* kAudio[] = {"wav", "mp3", "aac", "flac",
                                    "ogg", "m4a", "wma"};
+    static const char* kMesh[]  = {"obj", "glb", "gltf", "fbx", "dae",
+                                   "ply", "stl"}; // 3D mapping（阶段 3A；
+                // Assimp 后端按扩展名自动识别；未编译 importer 报"不支持"）
     ms::AssetKind ext_kind = ms::AssetKind::Unknown;
     for (const char* e : kVideo) if (ext == QLatin1String(e)) { ext_kind = ms::AssetKind::Video; break; }
     for (const char* e : kImage) if (ext == QLatin1String(e)) { ext_kind = ms::AssetKind::Image; break; }
     for (const char* e : kAudio) if (ext == QLatin1String(e)) { ext_kind = ms::AssetKind::Audio; break; }
+    for (const char* e : kMesh) if (ext == QLatin1String(e)) { ext_kind = ms::AssetKind::Mesh; break; }
     if (ext == QLatin1String("txt")) ext_kind = ms::AssetKind::Text;
     if (ext_kind == ms::AssetKind::Unknown) {
         err = "不识别的文件类型: ." + ext.toStdString();
@@ -124,6 +128,7 @@ static bool msProbeMediaFile(const QString& file, ms::AssetKind kind,
                 case ms::AssetKind::Text:   return "text";
                 case ms::AssetKind::Audio:  return "audio";
                 case ms::AssetKind::Live:   return "live";
+                case ms::AssetKind::Mesh:   return "mesh";
                 default:                    return "unknown";
             }
         };
