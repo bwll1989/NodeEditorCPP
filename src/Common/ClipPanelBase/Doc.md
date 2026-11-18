@@ -135,7 +135,7 @@ applyTweenKeyRemove / KeyFrameMove      → notifyClipEdited(id)
 | **P1 收编** | A1 三张注册表合一 `panel_refs_`；A2 写回编排收口 `notifyClipEdited`（补齐 applyClipPanelMerge 缺失的广播腿）；A3 死重清理（snapshot_） | **零**（不动 BaseClass 头，只重编 ClipPanelBase + 主程序适配器所在 target） | ✅ 2026-11-17 已实施 |
 | **P2 装配收拢** | A: 壳协议接口化——BaseClass 新增 `ClipPageHost` 接口（insertHostWidgets），ClipPropertyPanel 实现之（页 1 自治装配），initPropertyWidget 双 duck-typing 退役为单次接口识别（退化平铺保留）；B: 类型元数据下放——ClipPlugInterface 追加 clipDisplayName/hasMediaBinding/bindingHint 三个可选虚，8 插件声明，宿主 kindPageName 漂移表（Artnet/Mapping 缺失落兜底，实证）与媒体区 if 链删除 | BaseClass 头变更 → **Clips 全量重编**（构建铁律，已执行） | ✅ 2026-11-17 已实施 |
 | **P3 面板迁库** | ClipPropertyPanel / TweenSection 收拢为唯一装配中心；BaseClass 内 UI 类（ClipTimePanel/ClipAppearancePanel）迁入 ClipPanelBase，BaseClass 回归零 UI 纯模型/接口库；`void* ctx` 换类型化协议（BaseClass 层前置声明 + MediaCore 侧实现） | 接口协议变更，插件 createPropertySection/refreshFromClip 签名升级 | ✅ 2026-11-17 已实施（见 §9） |
-| **P4 schema 化** | ClipStore / ClipSchema / Inspector 三件套落地；TweenSection kPropOrder 泛化；各片段专属区逐步换 FieldDef 声明（可按片段逐个迁移，长期共存）。**P4-A 动画页暴露面 schema 化已实施**（见 §10）：ClipTweenExposure 声明 + TweenSection 白名单过滤 | P4-A：BaseClass 头 vtable 尾部追加 → Clips 全量重编（已执行）；后续切片：片段插件逐个升级 | P4-A ✅ 2026-11-17；其余待办 |
+| **P4 schema 化** | ClipStore / ClipSchema / Inspector 三件套落地；TweenSection kPropOrder 泛化；各片段专属区逐步换 FieldDef 声明（可按片段逐个迁移，长期共存）。**P4-A 动画页暴露面 schema 化已实施**（见 §10）：ClipTweenExposure 声明 + TweenSection 白名单过滤。**P4-B schema 事实源已落地**（BaseClass `ClipSchema.h`，见 §11）；**P4-D TweenSection 泛化已实施**（kPropOrder 瘦身为通道映射+测试锚，声明性数据改读 schema，见 §11）；**P4-C ClipStore 已落地**（key 寻址 get/set WATCHOUT 双模直写，见 §11）；**P4-E ClipInspector 已落地**（FieldDef 列表+ClipStore → 声明式行渲染，见 §11） | P4-A：BaseClass 头 vtable 尾部追加 → Clips 全量重编（已执行）；P4-B：纯新增头零 ABI 影响；P4-C/E：ClipPanelBase 新增文件零既有 ABI 影响 | P4-A ✅ 2026-11-17；P4-B/C/D/E ✅ 2026-11-18（见 §11）；片段专属区逐个迁移待办 |
 
 ### 负范围（明确不做）
 
@@ -290,4 +290,81 @@ applyTweenKeyRemove / KeyFrameMove      → notifyClipEdited(id)
 全链重编零错误（52 targets）。行为矩阵：Video/Image/Text/Live/Mapping
 逐像素等价（空白名单全暴露）；Audio 动画页只剩音频增益一行（合成组，
 其余四组隐藏）；Control/Artnet 无动画页。
+
+## 11. P4-B/C/D/E 实施记录：三件套 + TweenSection 泛化（2026-11-18，全链重编验证通过）
+
+**P4-B `src/Common/BaseClass/ClipSchema.h`（纯新增头，零 ABI 影响）**
+- `ms::FieldType` 枚举（Double/Int/Enum/Bool/String/Color——词汇对齐
+  Doc.md §3 终态；vec3 用 Double+components=3 表达）+ 折叠组常量
+  `kFieldGroupXform/Pose/Crop/Corner/Comp`（v3 五组序号）。
+- `ms::FieldDef`（声明式属性行，16 字段）：key（协议寻址词汇，跨 DLL
+  字符串）/label/type/components/comp_names[3]/vmin/vmax/step/decimals/
+  unit/default_value[3]/resettable/tweenable/group/page/visible（尾部
+  追加，聚合初始化缺省零破坏）。**数据事实的唯一事实源**——插件作者
+  今后只写 FieldDef 表。
+- `ms::kTweenSchema[13]` inline constexpr tween 行表（数据自
+  TweenSection kPropOrder 原型逐字段迁入，行序=UI 行序=prop_index）；
+  `findTweenField(const char*|QString)` + `tweenFieldAt(row)` 查找。
+  原 kPropOrder 行注释的语义定案（位置行 UI 两分量三分量数据契约、
+  尺寸重置=素材原始尺寸 hint、旋转透视轴 ±89° 控件层特判、裁切行序
+  上下左右、角点偏移量语义、音频增益 [0,2]）全部随迁为表注释。
+- **BaseClass 不引 TweenProp**（铁律保持）：schema 纯数据零 MediaCore
+  依赖；inline constexpr 每 TU 一份副本（trivially copyable 只读数据，
+  无 ODR 风险），零导出符号零 .cpp。
+- CMakeLists：ClipSchema.h 入 BaseClass_sources（BaseClass.dll 内容
+  不变——纯头无消费者时零 ABI 影响）。
+
+**P4-D TweenSection 泛化（kPropOrder 瘦身，两表契约锁定）**
+- `PropDef` 12 字段 → **3 字段** `{prop, key, obj_suffix}`：保留的
+  全是【本地知识】——TweenProp 通道映射（MediaCore 域，BaseClass schema
+  不可达）、schema join 键、objectName 测试锚后缀（UI 域词汇）。
+  显示名/值域/步长/decimals/后缀/分量名/默认值/resettable 消费点
+  全部改经 `tweenFieldAt(i)` 读 schema。
+- `propDefault` 表退役 → 重置路径读 `fd->default_value[c]`（默认值
+  唯一事实同步收敛；opacity/audio_gain 默认 1.0 已在 schema 行内）。
+- **两表漂移护栏**：`static_assert(schemaKeysAligned())`——constexpr
+  逐字符比较 kPropOrder 与 kTweenSchema 的 13 行 key（自写循环，
+  qstrcmp 非 constexpr）；行下标同时索引两表的隐式契约升级为编译期
+  断言。
+- 行为等价性：13 行行序/值域/步长/decimals/后缀/分量名/默认值逐项
+  与原表一致（数据迁移非重构）；objectName（tween<suffix><分量> 测试
+  锚）与 tooltip 全不变。
+
+**P4-C `src/Common/ClipPanelBase/ClipStore.hpp/.cpp`（key 寻址存储端）**
+- 构造收 `ClipSectionContext`（闭包**值拷贝**——适配器栈上 ctx 可先于
+  store 销毁）+ PlayheadFn；`locateClip()` 每现查（vector 搬移悬垂
+  防御纪律）。
+- **get(key, comp, t_us=-1)** = 播放头处 WATCHOUT 终值——tween 域走
+  `TweenEngine::resolveTransform` 整条解算（通道覆写+静态基准，与
+  渲染端恒同口径），audio_gain 走 `resolveGain`（钳 [0,2]）；静态扩展
+  anchor/depth_z/stacking 直读 Clip/Transform 字段。path 重载：
+  `"key"` / `"key.分量名"`（schema comp_names）/ `"key.2"` 数字。
+- **set(key, comp, value)** = 双模直写：通道存在 → auto-key 打包写键
+  （编辑分量新值 + 其余分量播放头插值终值——与画布拖拽/值框同构；
+  Position v2 携当前基准层级防老工程打零）；无通道 → 静态基准分量写
+  （audio_gain 基准在 Clip 级；stacking 写入钳 [0,1]）。成功后
+  `on_edited`（宿主 notifyClipEdited 三腿编排，与插件专属区同构）。
+- **通道生命周期**：`hasChannel`（菱形三态后端）/ `toggleKey`（无通道
+  建通道打首键；命中 ±20ms 删键、删空连通道删 R8 纪律；未命中打键
+  ——TweenSection onDiamondClicked 同款）/ `removeChannel`（⟲ 重置的
+  动画侧）。key→TweenProp 映射表落本库（kTweenKeys[13]，BaseClass
+  schema 不引 TweenProp 边界保持）。
+
+**P4-E `src/Common/ClipPanelBase/ClipInspector.hpp/.cpp`（通用渲染器）**
+- 输入 = `std::vector<FieldDef>`（值语义）+ `setStore(ClipStore*)`——
+  渲染端零类型知识。行 = 标签 + components×FloatDragValueWidget；
+  type=Int 走 decimals=0；Enum/Bool/String/Color 第一版 qWarning 留痕
+  （待消费者需要时分派专用控件）；visible=false 整行不生成。
+- 灌值 `refresh()` = QSignalBlocker + 焦点保护（正在编辑分量跳过，
+  TweenSection 同纪律）；写回 = valueChanged → `ClipStore::set`（双模
+  直写 + 落定在 store 内收口——渲染端零编排知识）。objectName =
+  `insp<key><分量名>` 测试锚。
+- 首消费者待接入：片段专属区 FieldDef 化迁移（Text/Live/Control/
+  Artnet/Mapping 逐插件，长期共存不强制）；TweenSection 换底后续评估。
+
+**验证**：BaseClass → ClipPanelBase → Flow 全链重编零错误
+（中间 LNK1104 ×2 均系 Flow.exe 进程占用 DLL，杀进程后过；修复：
+ClipStore.cpp 成员名笔误 playhead_fn_→playhead_、ClipInspector.cpp
+重复 onEdited 定义与漏 include、FieldDef 补尾部 visible 字段）。
+片段专属区换 FieldDef 后续逐插件迁移——长期共存不强制（绞杀者模式）。
 

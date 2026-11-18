@@ -33,6 +33,10 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets)
 #      （TimeCodeDefines 不在本库——与 AppConfig 原有定义合并，引用
 #       "Common/AppConfig/TimeCodeDefines.h"，防双副本漂移）
 #    * TweenDots/TweenPalette       —— Tween 关键帧镜像数据/色表
+#    * ClipSchema（P4-B 2026-11-18）—— 片段属性行声明式 schema
+#      （FieldDef + 13 行 tween 表；面板三件套之 schema 层——Inspector/
+#      ClipStore 消费的声明性事实源，插件作者只写 FieldDef 表；纯头
+#      inline constexpr，零 TweenProp 依赖）
 #
 #  【2026-11-13 迁移】BasePluginLoader 已迁 ../TimeLineBase/（宿主侧片段
 #  类型注册表/装载器基类，非片段作者引用的基类，随唯一消费者
@@ -64,6 +68,7 @@ set(BaseClass_sources
         TimeLineDefines.h
         ClipPaintStyle.h
         ClipPaintStyle.cpp
+        ClipSchema.h
 )
 
 add_library(BaseClass SHARED ${BaseClass_sources})

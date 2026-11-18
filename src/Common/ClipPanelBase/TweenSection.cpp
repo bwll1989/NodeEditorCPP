@@ -42,6 +42,7 @@
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
 #include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #include "engine/TweenEngine.hpp"
+#include "ClipSchema.h"    // P4-D：声明性数据唯一事实源（ms::kTweenSchema）
 #include "TweenPalette.h" // tweenPropColor（行指示色与曲线同源；经 BaseClass include 根解析）
 
 namespace ms {
@@ -49,77 +50,53 @@ namespace ms {
 namespace {
 
 // ---------------------------------------------------------------------------
-// 属性行定义表（行序即 UI 行序，也是 prop_index 语义）。13 行全部可 tween
-//（2026-11-09 v4 五分组定案，参照 DaVinci Resolve Inspector；2026-11-10
-// 追加音频增益行——音频域属性走同一 tween 体系）：位置三维
-// 打包 X/Y/Z（Z 行退役合并）、旋转三维打包 X/Y/Z（v4 姿态三行合并——
-// RotationX/Y 行退役）、裁切四边行；角点每角一条（四行）；不透明度与
-// 音频增益归「合成」组。Z=5 / RotationX=10 / RotationY=11 枚举保留不重用
-//（旧文件判据）。
-// objectName 后缀：tweenPosX/Y/Z、tweenSizeW/H、tweenRotX/Y/Z、
-// tweenCropT/B/L/R、tweenCornerLTX/Y…、tweenGain；菱形 tweenEnable<suffix>、
-// 重置 tweenReset<suffix>（尺寸行重置语义 = 恢复素材原始尺寸，hint 由适配器
-// 注入——hint 缺失时点击不动作）。
+// 属性行定义表（行序即 UI 行序，也是 prop_index 语义）。
+// 【P4-D 泛化 2026-11-18】声明性数据（显示名/值域/步长/decimals/后缀/
+// 分量名/默认值/分组）已迁 BaseClass ms::kTweenSchema 唯一事实源——本表
+// 瘦身为【通道映射 + UI 测试锚】三层本地知识：
+//   * prop        = v3 打包属性（MediaCore TweenProp——通道寻址；
+//                   BaseClass schema 不引 MediaCore，映射只能留本表）
+//   * key         = schema join 键（ms::kTweenSchema 同行 key，static_assert
+//                   锁两表行序与词汇不漂移）
+//   * obj_suffix  = objectName 后缀（tween<suffix><分量>——QTest/UI
+//                   定位锚，纯 UI 域词汇不进 schema）
+// 行注释的行语义（打包分量构成/值域特判/重置语义）见原 kPropOrder 全表
+// 注释（git 历史）与 ms::kTweenSchema 行注释（ClipSchema.h）。
 // ---------------------------------------------------------------------------
 struct PropDef {
     TweenProp   prop;       ///< v3 打包属性（Position/Size/…/CropB）
-    const char* key;        ///< 暴露面 schema key（P4-A：插件
-                            ///< tweenExposure() 白名单词汇，对齐 P4 终态
-                            ///< FieldDef.key；跨 DLL 字符串而非枚举——
-                            ///< plugin_audio 只链 BaseClass 不链 MediaCore）
-    const char* name;       ///< 显示名
+    const char* key;        ///< schema join 键（对齐 ms::kTweenSchema）
     const char* obj_suffix; ///< objectName 后缀（tween<suffix><分量>）
-    double      vmin, vmax, step; ///< 分量级值域/步长
-    int         decimals;
-    const char* suffix_str; ///< 数值框后缀（""/px/°）
-    int         components; ///< 分量数（1=标量 2=二维 3=三维——
-                            ///< tweenPropComponents 同源）
-    const char* comp_names[3]; ///< 分量名（值框 objectName = tween<suffix>
-                               ///<  <comp>：位置 X/Y/Z、尺寸 W/H、角点 X/Y；
-                               ///<  标量行 [0]=""——objectName 无分量段）
-    bool        resettable; ///< ⟲ 重置钮（尺寸行重置语义 = 素材原始
-                            ///<  尺寸，默认值取 setSizeDefaultHint 注入）
 };
 constexpr PropDef kPropOrder[13] = {
-    // Pos 行 decimals=2（2026-11-06 方案 A 回归修正：适配器广播跟随用例
-    // 断言 105.07 精确显示——1 位小数会把 0.07px 取整掉）；
-    // 【2026-11-18 语义终定】UI 两分量 X/Y：第三数据槽（v2=叠放层级）
-    // 独立「层级 Z」行写同槽（z_layer_spin_），深度 Z 静态框占位置行
-    // 第三值位（pos_z_spin_）——components 仍 3（22 槽/13 行契约不动），
-    // buildRow 特判 UI 分量数、recordKeyframe v2 改携当前基准层级
-    // （防老工程打零）
-    {TweenProp::Position,  "position",  "位置",    "Pos",  -100000.0, 100000.0, 10.0, 2, " px", 3, {"X", "Y", "Z"}, true},
-    // Size 行 = 画布绝对 px（与 Pos 同参照系；0 下限——宽高非负）；
-    // 分量名 W/H（沿用 2026-11-09 v1 用户定案行名 Size_W/Size_H 锚）。
-    // ⟲ 重置语义 = 恢复素材原始尺寸（2026-11-09 用户反馈补设）：默认值
-    // 不走 propDefault 的 0，取适配器注入的绑定素材像素宽高（hint 缺失
-    // ——Live/未绑定素材——点击不动作）
-    {TweenProp::Size,      "size",      "尺寸",    "Size",   0.0, 100000.0, 10.0, 2, " px", 2, {"W", "H", ""}, true},
-    // 旋转（v4 三维打包，用户定案"合并一行按轴命名"）：分量 X=俯仰（绕
-    // 画布 X 轴）/Y=偏航（绕画布 Y 轴）/Z=滚转（绕画布 Z 轴 2D 旋转）。
-    // 透视轴（X/Y）值域 ±89°——90° 起画面翻面透视退化（值框创建处
-    // 特判 setRange）；Z 滚转 ±3600° 同历史。一条通道一键携三分量
-    {TweenProp::Rotation,  "rotation",  "旋转",    "Rot", -3600.0,  3600.0,   5.0, 2, "°",   3, {"X", "Y", "Z"}, true},
-    // 裁切四边（v3）：向内收的画布 px（0 下限——只收不放）；
-    // 行序按用户定案「上下左右」
-    {TweenProp::CropT,     "crop_top",    "裁切 上", "CropT",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
-    {TweenProp::CropB,     "crop_bottom", "裁切 下", "CropB",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
-    {TweenProp::CropL,     "crop_left",   "裁切 左", "CropL",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
-    {TweenProp::CropR,     "crop_right",  "裁切 右", "CropR",  0.0, 100000.0, 1.0, 2, " px", 1, {"", "", ""},   true},
-    // 角点 4 行（每角一条二维属性，每角单独打键）：偏移量语义（相对
-    // 未变形位置的末端修正，画布 px；旋转 ≠0 时位移恒沿屏幕方向不随
-    // 画面转）。step 1.0（单像素步进——角点校正常为小位移）
-    {TweenProp::CornerLT,  "corner_lt", "角点 LT", "CornerLT", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
-    {TweenProp::CornerRT,  "corner_rt", "角点 RT", "CornerRT", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
-    {TweenProp::CornerRB,  "corner_rb", "角点 RB", "CornerRB", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
-    {TweenProp::CornerLB,  "corner_lb", "角点 LB", "CornerLB", -100000.0, 100000.0, 1.0, 2, " px", 2, {"X", "Y", ""}, true},
-    {TweenProp::Opacity,   "opacity",    "不透明度","Opa",      0.0, 1.0, 0.05, 2, "", 1, {"", "", ""},    true},
-    // 音频增益（2026-11-10 追加，标量线性增益）：1.0=不衰减/0=静音/[0,2]
-    //（上限 2 防增益曲线异常把混音推入持续削波）；有 AudioGain tween
-    // 通道时整条接管静态基准（与不透明度同语义）。音频链路消费端 =
-    // AudioEngine::resolveGain（解耦验证期只驱动电平表，P2 后出声）
-    {TweenProp::AudioGain, "audio_gain", "音频增益","Gain",    0.0, 2.0, 0.05, 2, "", 1, {"", "", ""},    true},
+    {TweenProp::Position,   "position",   "Pos"},
+    {TweenProp::Size,       "size",       "Size"},
+    {TweenProp::Rotation,   "rotation",   "Rot"},
+    {TweenProp::CropT,      "crop_top",   "CropT"},
+    {TweenProp::CropB,      "crop_bottom", "CropB"},
+    {TweenProp::CropL,      "crop_left",  "CropL"},
+    {TweenProp::CropR,      "crop_right", "CropR"},
+    {TweenProp::CornerLT,   "corner_lt",  "CornerLT"},
+    {TweenProp::CornerRT,   "corner_rt",  "CornerRT"},
+    {TweenProp::CornerRB,   "corner_rb",  "CornerRB"},
+    {TweenProp::CornerLB,   "corner_lb",  "CornerLB"},
+    {TweenProp::Opacity,    "opacity",    "Opa"},
+    {TweenProp::AudioGain,  "audio_gain", "Gain"},
 };
+/// 【两表对齐护栏】kPropOrder 行序/key 必须与 ms::kTweenSchema 逐行一致
+///（buildRow 以行下标同时索引两表——漂移即静默错行）。constexpr 自写
+/// 逐字符比较（qstrcmp 非 constexpr；字面量编译期可读）。
+constexpr bool schemaKeysAligned() {
+    for (int i = 0; i < 13; ++i) {
+        const char* a = kPropOrder[i].key;
+        const char* b = ms::kTweenSchema[i].key;
+        while (*a != '\0' && *b != '\0' && *a == *b) { ++a; ++b; }
+        if (*a != *b) return false;
+    }
+    return true;
+}
+static_assert(schemaKeysAligned(),
+              "kPropOrder 与 ms::kTweenSchema 行序/key 漂移（P4-D 两表契约）");
 /// 行首槽位表（静态暂存 static_vals_ 与脏位的槽位基准——行槽数 =
 /// components，数据槽 0..21 共 22 个；末项 = 总槽数哨兵；锚点脏位
 /// 避开全部数据槽，见 kSAnchor）
@@ -153,12 +130,9 @@ constexpr std::uint32_t kSStacking = 1u << 24;
 
 /// 重置默认值（v3 ⟲ 语义）：位置 (0,0,0)、旋转三轴 0、裁切 0、
 /// 角点 0、不透明度 1（DaVinci「恢复默认值」；锚点=中心在重置钮单独
-/// 处理；尺寸行不走本表——语义=素材原始尺寸，见 onResetClicked 特判）
-constexpr double propDefault(TweenProp p, int comp) {
-    (void)comp; // 各分量同值（不透明度/音频增益标量 1.0；位置三分量全 0）
-    return (p == TweenProp::Opacity || p == TweenProp::AudioGain) ? 1.0
-                                                                  : 0.0;
-}
+/// 处理；尺寸行不走本表——语义=素材原始尺寸，见 onResetClicked 特判）。
+/// 【P4-D 迁移 2026-11-18】默认值事实已迁 ms::FieldDef::default_value
+///（ClipSchema.h）——本表退役，重置路径改读 schema 行。
 
 /// 关键帧删除/编辑的"播放头处"判定容差（±半帧 @25fps = 20ms）——播放头
 /// 帧量化（40000us/帧）与场景文件任意 us 关键帧之间的编辑容差
@@ -418,10 +392,14 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
     //      骨架即返 false，调用方行号不自增）----
     auto buildRow = [&](int i, QGridLayout* grid, int row) -> bool {
         const PropDef& def = kPropOrder[i];
+        // 【P4-D】声明性数据行（显示名/值域/步长/decimals/后缀/分量名/
+        // 默认值/resettable）经行下标直达 schema——行序对齐由
+        // schemaKeysAligned static_assert 锁定
+        const ms::FieldDef* fd = tweenFieldAt(i);
         Row r;
         r.prop       = def.prop;
-        r.name       = QString::fromUtf8(def.name);
-        r.components = def.components;
+        r.name       = QString::fromUtf8(fd ? fd->label : def.key);
+        r.components = fd ? fd->components : 1;
         // 【2026-11-18 语义终定】位置行 UI 两分量（X/Y）——第三数据槽
         //（v2=叠放层级）独立「层级 Z」行写同槽 static_vals_[2]（applyTo
         // 路径不变）、深度 Z 静态框占位置行第三值位（pos_z_spin_，装配
@@ -521,16 +499,18 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         for (int c = 0; c < r.components; ++c) {
             FloatDragValueWidget* sp = new FloatDragValueWidget(box);
             sp->setObjectName(QStringLiteral("tween%1%2")
-                                  .arg(def.obj_suffix, def.comp_names[c]));
-            sp->setRange(def.vmin, def.vmax);
+                                  .arg(def.obj_suffix,
+                                       fd ? fd->comp_names[c] : ""));
+            sp->setRange(fd ? fd->vmin : 0.0, fd ? fd->vmax : 0.0);
             // 旋转行透视轴分量（X 俯仰/Y 偏航）独立值域 ±89°——90° 起画面
             // 翻面透视退化（Z 滚转保持行值域 ±3600°）
             if (def.prop == TweenProp::Rotation && c < 2)
                 sp->setRange(-89.0, 89.0);
-            sp->setDecimals(def.decimals);
-            sp->setSingleStep(def.step);
-            if (def.suffix_str && def.suffix_str[0])
-                sp->setSuffix(QString::fromUtf8(def.suffix_str));
+            sp->setDecimals(fd ? fd->decimals : 2);
+            sp->setSingleStep(fd ? fd->step : 1.0);
+            const char* unit_str = fd ? fd->unit : "";
+            if (unit_str && unit_str[0])
+                sp->setSuffix(QString::fromUtf8(unit_str));
             sp->setToolTip(
                 QStringLiteral("播放头处 %1 的%2%3（通道 = 插值结果；未启用"
                                " = 静态基准）。通道启用时修改任一分量即在播"
@@ -540,7 +520,8 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
                              ? QStringLiteral("分量 ")
                              : QStringLiteral(""),
                          r.components >= 2
-                             ? QString::fromUtf8(def.comp_names[c])
+                             ? QString::fromUtf8(fd ? fd->comp_names[c]
+                                                    : "")
                              : QString()));
             connect(sp, &FloatDragValueWidget::valueChanged, this,
                     [this, i, c](double v) { onValueEdited(i, c, v); });
@@ -548,7 +529,7 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         }
 
         // ⟲ 重置钮（尺寸行 nullptr——无默认值语义）
-        if (def.resettable) {
+        if (!fd || fd->resettable) {
             r.reset = makeResetButton(def);
             connect(r.reset, &QToolButton::clicked, this,
                     [this, i] { onResetClicked(i); });
@@ -1062,7 +1043,7 @@ void TweenSection::onValueEdited(int i, int comp, double v) {
 // 插进动画中间会把曲线拉直成"跳到默认再回来"的假动画，且用户体感
 // reset 应该是"清掉这个属性的动画"。
 // 尺寸行特判（2026-11-09 补设 ⟲）：恢复目标 = 素材原始尺寸——默认值取
-// 适配器注入的素材宽高 hint（propDefault(Size)=0 无意义）；hint 缺失
+// 适配器注入的素材宽高 hint（schema 默认 0 无意义）；hint 缺失
 //（Live/未绑定素材）无默认可恢复，点击不动作。
 // ---------------------------------------------------------------------------
 void TweenSection::onResetClicked(int i) {
@@ -1070,10 +1051,12 @@ void TweenSection::onResetClicked(int i) {
     Row& r = rows_[i];
     const bool is_size = (r.prop == TweenProp::Size);
     if (is_size && size_hint_w_ <= 0.0 && size_hint_h_ <= 0.0) return;
-    // 分量默认值：尺寸行取注入 hint（W/H），其余行走 propDefault 表
+    // 分量默认值：尺寸行取注入 hint（W/H），其余行走 schema 行
+    // default_value（P4-D：默认值唯一事实在 ms::kTweenSchema）
+    const ms::FieldDef* fd = tweenFieldAt(i);
     auto defVal = [&](int c) {
         return is_size ? (c == 0 ? size_hint_w_ : size_hint_h_)
-                       : propDefault(r.prop, c);
+                       : (fd ? fd->default_value[c] : 0.0);
     };
     for (int c = 0; c < r.components; ++c) {
         if (r.value[c]) {

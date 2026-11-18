@@ -60,6 +60,12 @@ set(ClipPanelBase_sources
         ClipTimePanel.cpp
         ClipAppearancePanel.hpp
         ClipAppearancePanel.cpp
+        # ---- 三件套之存储端（P4-C 2026-11-18）----
+        ClipStore.hpp
+        ClipStore.cpp
+        # ---- 三件套之渲染端（P4-E 2026-11-18）----
+        ClipInspector.hpp
+        ClipInspector.cpp
 )
 
 add_library(ClipPanelBase SHARED ${ClipPanelBase_sources})
