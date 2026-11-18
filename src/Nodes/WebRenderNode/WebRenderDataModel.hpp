@@ -4,17 +4,19 @@
  * @file WebRenderDataModel.hpp
  * @brief Web Render 节点 — CEF OSR 后端（CefRefactorPlan P1）
  *
- * CefOsrBrowser 无窗口渲染（OnPaint BGRA 软件帧）→ ImageFrame::fromBgra8Mat
+ * CefOsrBrowser 无窗口渲染（GPU 共享纹理 / OnPaint BGRA 兜底）→ ImageFrame
  * → ImageTimestampRingQueue → ImageData。下游按 TimestampGenerator tick 取帧。
  *
- * 与 Edge/CDP 旧后端（WebRenderBrowserProcess/WebRenderCdpClient，P4 删）的
- * 兼容契约：端口 3进/2出、Info 键名不变（debug_port 退役=0，新增 engine/
+ * 契约：端口 3进/2出、Info 键名不变（debug_port 退役=0，新增 engine/
  * frame_path）、save/load 10 键不变。
  *
- * 【与旧后端的本质差异】
- * - 无外部浏览器进程：无 launcher 模型 → 重启死循环/"自动重启中"病灶消失；
+ * 【架构（CefRefactorPlan P0-P2 已落地）】
+ * - 无外部浏览器进程：CEF 多进程由 libcef 托管（FlowCefHelper 子进程宿主），
+ *   重启死循环/"自动重启中"病灶消失；
  * - 分辨率变更走 WasResized，不再重启任何进程；
  * - CEF 运行时 init-once：全进程 CefInitialize 一次，多节点共享；
+ * - 帧路径：GPU 共享纹理（OnAcceleratedPaint→D3D11→WGL interop）优先，
+ *   探测/运行失败自动降级 CPU OnPaint（Info frame_path=cpu/gpu 可观测）；
  * - 退出路径：节点 dtor 仅 close 浏览器（零阻塞），qAddPostRoutine 统一
  *   排空 OnBeforeClose 后 CefShutdown → Flow 关闭秒退。
  */

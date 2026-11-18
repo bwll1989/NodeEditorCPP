@@ -13,10 +13,6 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 add_library(${Module_Name} SHARED
         CefD3dTextureBridge.h
         CefD3dTextureBridge.cpp
-        WebRenderBrowserProcess.h
-        WebRenderBrowserProcess.cpp
-        WebRenderCdpClient.h
-        WebRenderCdpClient.cpp
         WebRenderDataModel.hpp
         WebRenderInterface.hpp
         PluginDefinition.hpp
@@ -36,7 +32,7 @@ target_link_libraries(${Module_Name}
         DataTypes
         TimestampGenerator
         GUIElements
-        CefBox  # CEF OSR 后端（P1；旧 Edge/CDP 文件 P4 删）
+        CefBox  # CEF OSR 后端
         d3d11   # CefD3dTextureBridge: D3D11CreateDevice / OpenSharedResource1（P2）
         opengl32)  # wglGetProcAddress / wglGetCurrentDC（WGL_NV_DX_interop2 手动绑定）
 
