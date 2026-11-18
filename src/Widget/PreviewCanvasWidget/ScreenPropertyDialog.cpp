@@ -198,18 +198,8 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     auto* map_box = new QGroupBox("3D mapping 投影表面", this);
     auto* map_form = new QFormLayout(map_box);
     model_combo_ = new QComboBox(map_box);
-    model_combo_->addItem(QStringLiteral("（无 —— 单四边形表面）"), QString());
-    for (const auto& id_name : mesh_choices_)
-        model_combo_->addItem(
-            QString::fromStdString(id_name.second),
-            QString::fromStdString(id_name.first));
-    {
-        int cur = 0; // 预填：匹配 model_asset_id
-        for (int i = 0; i < model_combo_->count(); ++i)
-            if (model_combo_->itemData(i).toString().toStdString() ==
-                screen.model_asset_id) { cur = i; break; }
-        model_combo_->setCurrentIndex(cur);
-    }
+    mesh_prefill_id_ = screen.model_asset_id; // 预填 id 快照（清单构造后注入，setter 重建时按此预填）
+    model_combo_->addItem(QStringLiteral("（无 —— 单四边形表面）"), QString()); // 兜底：宿主未注入清单时至少可用
     model_combo_->setToolTip(tr(
         "投影表面 3D 模型（素材库导入的 .obj）：\n"
         "· 未选 = 单四边形表面（屏矩形带姿态，阶段 3B 接入渲染）；\n"
@@ -340,6 +330,28 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     }
 
     bodyLayout()->addWidget(tabs); // 内容进统一弹窗内容区（按钮行基类已建）
+}
+
+void ScreenPropertyDialog::setMeshChoices(
+        const std::vector<std::pair<std::string, std::string>>& id_name) {
+    mesh_choices_ = id_name;
+    if (!model_combo_) return; // 构造前注入：仅存清单（构造时兜底消费）
+    // 【2026-11-18 修】注入时重建下拉：构造时清单尚空，原实现只存向量
+    // 不动 UI——下拉永远只有"（无）"（用户实证"无法选择"）。blockSignals
+    // 防重建触发 currentIndexChanged 联动置灰链。
+    model_combo_->blockSignals(true);
+    model_combo_->clear();
+    model_combo_->addItem(QStringLiteral("（无 —— 单四边形表面）"), QString());
+    for (const auto& id_name : mesh_choices_)
+        model_combo_->addItem(
+            QString::fromStdString(id_name.second),
+            QString::fromStdString(id_name.first));
+    int cur = 0; // 预填：匹配 model_asset_id（构造时快照 mesh_prefill_id_）
+    for (int i = 0; i < model_combo_->count(); ++i)
+        if (model_combo_->itemData(i).toString().toStdString() ==
+            mesh_prefill_id_) { cur = i; break; }
+    model_combo_->setCurrentIndex(cur);
+    model_combo_->blockSignals(false);
 }
 
 void ScreenPropertyDialog::applyTo(Screen& s) const {

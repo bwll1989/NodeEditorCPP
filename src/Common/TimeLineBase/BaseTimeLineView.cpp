@@ -2463,6 +2463,12 @@ QString BaseTimelineView::isMimeAcceptable(const QMimeData *Mime) const
         else if(ControlTypes.contains(suffix, Qt::CaseInsensitive)) {
             return "Control";
         }
+        // 【阶段 3A】3D mapping 模型可拖入（导入钩子按扩展名识别为
+        // Mesh 素材入库；Mesh 无片段类型，拖入后不留片段——绑定银幕走
+        // 屏幕属性"3D mapping"页）
+        else if(MeshTypes.contains(suffix, Qt::CaseInsensitive)) {
+            return "Mesh";
+        }
     }
     return "";
 }

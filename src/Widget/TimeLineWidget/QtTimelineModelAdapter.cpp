@@ -176,6 +176,7 @@ QString QtTimelineModelAdapter::typeForKind(AssetKind kind) {
         case AssetKind::Control: return "Control";
         case AssetKind::Artnet:  return "Artnet";
         case AssetKind::Mapping: return "Mapping";
+        case AssetKind::Mesh:  return "Mesh"; // 3D 模型片段（阶段 3A 2026-11-18）
         // 【2026-11-15 去类型化】无类型轨道返回空串（非 "Unknown"）——
         // TrackData.type 语义 = 类型提示，空 = 无提示；Add Item 回退路径
         // 只对旧场景（kind 非空）有意义
@@ -1177,7 +1178,8 @@ namespace {
 inline bool isHostMediaType(const QString& type) {
     return type == "Video" || type == "Image" ||
            type == "Text"  || type == "Audio" || type == "Live" ||
-           type == "Control" || type == "Artnet" || type == "Mapping";
+           type == "Control" || type == "Artnet" || type == "Mapping" ||
+           type == "Mesh"; // 3D 模型片段（阶段 3A 2026-11-18）
 }
 
 /// 媒体插件加载器：纯磁盘驱动（无任何内置兜底——彻底解耦定案）。
@@ -1316,6 +1318,7 @@ AssetKind QtTimelineModelAdapter::kindForType(const QString& type) {
     if (type == "Control") return AssetKind::Control; // 指令片段（无媒体）
     if (type == "Artnet")  return AssetKind::Artnet;  // 灯控片段（无媒体，2026-11-15 移植）
     if (type == "Mapping") return AssetKind::Mapping; // 映射片段（无媒体，2026-11-15 移植）
+    if (type == "Mesh")    return AssetKind::Mesh;    // 3D 模型片段（阶段 3A）
     return AssetKind::Unknown;
 }
 
