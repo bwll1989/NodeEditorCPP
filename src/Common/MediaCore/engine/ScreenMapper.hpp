@@ -304,6 +304,8 @@ std::vector<DrawItem> buildDrawList(const Scene& scene,
 /// \param preview_scr 调用方持有的虚拟屏（DrawItem.screen 借用其地址，
 ///        须在返回列表使用期间存活；通常 x=0,y=0,w=canvas_w,h=canvas_h）
 /// \param out_w/out_h 预览输出分辨率（建议=画布尺寸 1:1，widget 端再缩放）
+/// 【2026-11-18】ortho_preview 参数已删除——预览正交模式退役，合成恒与
+/// display 同源（透视）。
 std::vector<DrawItem> buildPreviewDrawList(const Scene& scene,
                                            const Screen& preview_scr,
                                            int out_w, int out_h,

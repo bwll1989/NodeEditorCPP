@@ -143,7 +143,8 @@ bool Canvas3DGl::ensure() {
 // ---------------------------------------------------------------------------
 bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
                               const double sx[4], const double sy[4],
-                              float opacity) {
+                              float opacity, float u0, float v0,
+                              float u1, float v1) {
     if (failed_ || !ensure()) return false;
     if (lw_ <= 0 || lh_ <= 0) return false;
     if (d.width <= 0 || d.height <= 0) return false;
@@ -292,11 +293,15 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
         const double nx = h[0] * u + h[1] * v + h[2];
         const double ny = h[3] * u + h[4] * v + h[5];
         if (!std::isfinite(nx) || !std::isfinite(ny)) return false;
+        // 采样 uv 映进裁切窗（位置插值仍用单位方——窗只改采样不改几何，
+        // 未裁切 = 恒等映射逐位历史路径）
+        const double uu = u0 + (u1 - u0) * u;
+        const double vv = v0 + (v1 - v0) * v;
         verts[k * 5 + 0] = static_cast<float>(nx);
         verts[k * 5 + 1] = static_cast<float>(ny);
         verts[k * 5 + 2] = static_cast<float>(w);
-        verts[k * 5 + 3] = static_cast<float>(u);
-        verts[k * 5 + 4] = static_cast<float>(v);
+        verts[k * 5 + 3] = static_cast<float>(uu);
+        verts[k * 5 + 4] = static_cast<float>(vv);
     }
 
     // ---- 状态与绘制（每 draw 幂等重配；零依赖残留状态）---------------------

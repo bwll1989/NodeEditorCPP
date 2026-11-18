@@ -33,11 +33,13 @@
 //    * 双向同步：refreshFrom（适配器广播灌值：内容变化广播 + 播放头移动
 //      专用刷新），QSignalBlocker 防回环 + 焦点保护（正在输入的数值框
 //      不被灌值打断）。
-//  测试定位锚：objectName 前缀 tween*（tweenPosX/tweenPosY/tweenPosZ/
+//  测试定位锚：objectName 前缀 tween*（tweenPosX/tweenPosY/
 //  tweenSizeW/tweenSizeH/tweenRotX/tweenRotY/tweenRotZ/tweenCropT/B/L/R/
-//  tweenCornerLTX…/tweenGain + tweenEnable<同后缀> + tweenReset<同后缀>）；
-//  行序 = kPropOrder 表（位置/尺寸/旋转/裁切×4/角点×4/不透明度/音频增益，
-//  13 行）。
+//  tweenCornerLTX…/tweenGain + tweenEnable<同后缀> + tweenReset<同后缀>）。
+//  【2026-11-18 语义终定】tweenPosZ 退役（位置行 UI 减为 X/Y——深度 Z
+//  静态框 tweenDepthZ 占位置行第三值位 = 素材在三维中的真实 z 位置；
+//  叠放层级 tweenLayerZ 独立行，纯遮挡键非空间坐标）；行序 = kPropOrder
+//  表（位置/尺寸/旋转/裁切×4/角点×4/不透明度/音频增益，13 行）。
 //  折叠组标题钮：tweenGroupXform / tweenGroupPose / tweenGroupCrop /
 //  tweenGroupCorner / tweenGroupComp（v3 五分组——DaVinci Inspector 档：
 //  默认只展开「变换」，其余收起）。
@@ -71,6 +73,7 @@ class FloatDragValueWidget; // 全局命名空间（GUI/Elements；深度 Z 行�
 class QComboBox;
 class QToolButton;
 class FloatDragValueWidget; // 全局命名空间类（GUIElements）——前向声明必须在 namespace 外
+class IntDragValueWidget;   // 全局命名空间类（GUIElements；层级行值框，2026-11-18）
 struct ClipTweenExposure;   // 全局命名空间类（BaseClass 动画页暴露面 schema，
                             // P4-A 2026-11-17）——完整定义 .cpp 侧 include
 
@@ -244,11 +247,21 @@ private:
     QComboBox* anchor_combo_ = nullptr;  ///< tweenAnchor：锚点选择（中心/四角）
     int        anchor_val_ = 0;          ///< 锚点编辑值（0中心 1左上 2右上 3右下 4左下）
 
-    // ---- 深度 Z（2026-11-17 素材 3D 化阶段③追加区；静态属性非 tween）----
-    /// 几何深度 pos_z：透视投影权重 s=F/(F+Z) 的输入（正 = 远离投影仪）。
-    /// 与位置行 Z（悬浮高度+叠放层级）是两个概念：本行只进透视几何，
-    /// 不进 tween（13 行契约不动）。
-    FloatDragValueWidget* pos_z_spin_ = nullptr; ///< tweenPosZ
+    // ---- 层级 Z（2026-11-18 语义终定：纯遮挡/叠放键，独立静态行）--------
+    /// 叠放层级 transform.z：渲染绘制先后（整数，无单位——非空间坐标）。
+    /// 遮挡次序=图层次序时的排序键。3D 视口/渲染端一律不把它当高度轴
+    /// 使用（3D z 位置 = 位置行「深度 Z」pos_z）。tween 打包 v2 保留
+    /// （新键携带当前基准层级，老工程 Z 通道求值不变）。
+    IntDragValueWidget* z_layer_spin_ = nullptr; ///< tweenLayerZ（独立行）
+    double      z_shown_ = 0.0;                  ///< 最近刷新的显示层级
+                                                  ///  （recordKeyframe
+                                                  ///  Position v2 携带源）
+
+    // ---- 深度 Z（2026-11-17 素材 3D 化阶段③；2026-11-18 语义终定）--------
+    /// 几何深度 pos_z：素材在三维中的真实 z 位置（透视投影权重
+    /// s=F/(F+Z) 的输入，正 = 远离）。UI 占位置行第三值位（仍独立静态
+    /// 属性：不进 tween 不打包）。
+    FloatDragValueWidget* pos_z_spin_ = nullptr; ///< tweenDepthZ（位置行内）
     double      pos_z_val_ = 0.0;                 ///< 深度编辑值（画布 px 域）
 
     /// 遮挡次序（per-cue stacking；0=By Layer 图层级 1=By Z 深度——

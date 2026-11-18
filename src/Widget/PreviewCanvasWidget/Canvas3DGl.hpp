@@ -90,10 +90,16 @@ public:
     /// \param key     纹理缓存键（clip_id）
     /// \param sx/sy   屏幕逻辑坐标四角（序 TL TR BR BL，与 Prim.quad 同序）
     /// \param opacity 片段透明度（tween 求值后；[0,1] 外钳制）
+    /// \param u0/v0/u1/v1 裁切采样窗（归一化 [0,1]；0/1 全窗 = 未裁切逐位
+    ///        历史路径）。顶点【位置】仍由单位方解单应，仅【采样 uv】映进
+    ///        窗——与 display ScreenMapper crop_u/v 同式（2026-11-17 预览
+    ///        裁切对齐：几何按裁后可见矩形解算 + 内容不缩放）
     /// \return false = GL 未能绘制（退化四边形/上传失败）——调用方走
     ///         QPainter 原路径兜底（占位/棋盘语义自动接住）
     bool drawClipFace(const std::string& key, const TexData& d,
-                      const double sx[4], const double sy[4], float opacity);
+                      const double sx[4], const double sy[4], float opacity,
+                      float u0 = 0.0f, float v0 = 0.0f,
+                      float u1 = 1.0f, float v1 = 1.0f);
 
     /// 显式释放全部 GL 资源（owner 析构中 makeCurrent 后调用；幂等）
     void shutdown();

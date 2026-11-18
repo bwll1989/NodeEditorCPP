@@ -250,6 +250,8 @@ private:
     DeliverMode   mode_;       ///< 交付模式（构造传入；只读）
     HwAccelConfig hw_cfg_;     ///< 硬解配置（构造装配；creator 闭包捕获）
     Screen        preview_scr_; ///< 预览虚拟屏（内容包围盒；buildPreviewDrawList 用）
+    // 【ortho_preview_ 已删除 2026-11-18】预览正交模式退役——合成恒与
+    // display 同源（透视）。
     QRectF        content_rect_{0, 0, 0, 0}; ///< 内容域画布矩形（GUI 线程
                                              ///< computeContentRect 维护）
     QRectF delivered_domain_{0, 0, 0, 0}; ///< 最近交付帧的内容域（pull 出参）

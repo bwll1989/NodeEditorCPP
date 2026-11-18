@@ -30,8 +30,8 @@
 #include <functional>
 
 class QComboBox;
-class QSpinBox;
 class QPushButton;
+class IntDragValueWidget; ///< 网格密度控件（2026-11-18 与属性框同风格）
 
 namespace ms {
 
@@ -72,8 +72,8 @@ private:
     void emitLive();
 
     QComboBox*   mode_  = nullptr; ///< 变形模式（无/手动网格/MPCDI 禁用）
-    QSpinBox*    cols_  = nullptr; ///< 网格列数（节点数，2..16）
-    QSpinBox*    rows_  = nullptr; ///< 网格行数（同上）
+    IntDragValueWidget* cols_  = nullptr; ///< 网格列数（节点数，2..16）
+    IntDragValueWidget* rows_  = nullptr; ///< 网格行数（同上）
     QPushButton* reset_btn_ = nullptr; ///< 恒等重置
 
     /// 实时应用回调（宿主注入；拖拽/密度/重置/模式变化时触发）

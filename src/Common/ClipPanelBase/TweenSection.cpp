@@ -40,6 +40,7 @@
 #include <QtMath> // qDegreesToRadians（⟲ 弧端点/箭头三角计算）
 
 #include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #include "engine/TweenEngine.hpp"
 #include "TweenPalette.h" // tweenPropColor（行指示色与曲线同源；经 BaseClass include 根解析）
 
@@ -81,8 +82,12 @@ struct PropDef {
 };
 constexpr PropDef kPropOrder[13] = {
     // Pos 行 decimals=2（2026-11-06 方案 A 回归修正：适配器广播跟随用例
-    // 断言 105.07 精确显示——1 位小数会把 0.07px 取整掉）；v3 三分量
-    // X/Y/Z（Z=悬浮高度 + 2D 叠放次序，动画中逐帧取整）
+    // 断言 105.07 精确显示——1 位小数会把 0.07px 取整掉）；
+    // 【2026-11-18 语义终定】UI 两分量 X/Y：第三数据槽（v2=叠放层级）
+    // 独立「层级 Z」行写同槽（z_layer_spin_），深度 Z 静态框占位置行
+    // 第三值位（pos_z_spin_）——components 仍 3（22 槽/13 行契约不动），
+    // buildRow 特判 UI 分量数、recordKeyframe v2 改携当前基准层级
+    // （防老工程打零）
     {TweenProp::Position,  "position",  "位置",    "Pos",  -100000.0, 100000.0, 10.0, 2, " px", 3, {"X", "Y", "Z"}, true},
     // Size 行 = 画布绝对 px（与 Pos 同参照系；0 下限——宽高非负）；
     // 分量名 W/H（沿用 2026-11-09 v1 用户定案行名 Size_W/Size_H 锚）。
@@ -119,7 +124,8 @@ constexpr PropDef kPropOrder[13] = {
 /// components，数据槽 0..21 共 22 个；末项 = 总槽数哨兵；锚点脏位
 /// 避开全部数据槽，见 kSAnchor）
 constexpr int kRowSlot[14] = {
-    0,  // 行 0 位置 (x,y,z)        → 0..2
+    0,  // 行 0 位置 (x,y,z)        → 0..2（UI 两框 X/Y；槽 2 = 层级，
+        //                          独立「层级 Z」行写同槽——applyTo 路径不变）
     3,  // 行 1 尺寸 (w,h)         → 3..4
     5,  // 行 2 旋转 (俯仰,偏航,滚转) → 5..7（v4 三维打包）
     8,  // 行 3 裁切上             → 8
@@ -416,6 +422,12 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         r.prop       = def.prop;
         r.name       = QString::fromUtf8(def.name);
         r.components = def.components;
+        // 【2026-11-18 语义终定】位置行 UI 两分量（X/Y）——第三数据槽
+        //（v2=叠放层级）独立「层级 Z」行写同槽 static_vals_[2]（applyTo
+        // 路径不变）、深度 Z 静态框占位置行第三值位（pos_z_spin_，装配
+        // 处特判）。打键 v2 改携当前基准层级——老工程 Z 通道求值不变、
+        // 新键不打零。
+        if (def.prop == TweenProp::Position) r.components = 2;
 
         // 【P4-A 暴露面过滤】schema 未暴露的属性行【不生成】（2026-11-17
         // 用户定案：不是隐藏而是不生成——Row 骨架仍入 rows_ 保持 13 行
@@ -462,10 +474,11 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         auto* name_lbl = new QLabel(r.name, box);
         if (def.prop == TweenProp::Position)
             name_lbl->setToolTip(
-                QStringLiteral("位置 = 画布坐标 X/Y + 悬浮高度 Z（3D 视图"
-                               "纵轴；同时决定 2D 叠放次序，数值大者在更上"
-                               "层，动画中逐帧取整为整数层级）。三维打包一"
-                               "条属性：一个键携带 X/Y/Z 全部分量"));
+                QStringLiteral("位置 = 画布坐标 X/Y + 深度 Z（第三值位，3D "
+                               "空间真实位置）：深度走透视投影 s=F/(F+Z)，"
+                               "正 = 远离（画面收缩）。三维打包一条属性："
+                               "一个键携带 X/Y 全部分量（深度 Z 为静态属"
+                               "性不参与关键帧；叠放层级在下方「层级 Z」行）"));
         if (def.prop == TweenProp::Rotation)
             name_lbl->setToolTip(
                 QStringLiteral("三轴旋转（v4 合并打包，一键携 X/Y/Z 三分"
@@ -570,92 +583,92 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
     //      组 2「裁切」行 3..6 / 组 3「形变」行 7..10 / 组 4「合成」行 11
     //      ——除组 0 外默认收（零值噪音收进折叠，与 v2 渐进折叠同精神）
     grp_btn_[0] = makeGroupHeader(
-        "tweenGroupXform", QStringLiteral("变换（锚点 / 位置 / 尺寸）"),
-        "旋转缩放锚点 + 位置（X/Y/Z 三维打包）与尺寸（画布 px）：改值即"
-        "编辑画面；配合菱形开关关键帧动画",
+        "tweenGroupXform", QStringLiteral("变换（锚点 / 位置 / 层级 / 尺寸）"),
+        "旋转缩放锚点 + 位置（X/Y/深度 Z，3D 空间真实位置）+ 叠放层级与"
+        "尺寸（画布 px）：改值即编辑画面；配合菱形开关关键帧动画",
         true);
     lay->addWidget(grp_btn_[0]);
     {
         auto* g0 = makeRowGrid();
 
         // 【P4-A 暴露面】组 0 是否有暴露行（位置/尺寸）——锚点属变换域，
-        // 随组 0 同进退（Audio 片段 g0_has=false：锚点也不生成）
+        // 随组 0 同进退（Audio 片段 g0_has=false：锚点也不生成）。
+        // 【2026-11-18 语义终定】深度 Z / 遮挡次序同属变换域静态行，
+        // 一并纳入组 0 门控——组 0 零暴露行时（Audio）整组不生成，
+        // 维持「Audio 动画页仅音频增益」定案（透视/遮挡对纯音频无意义）。
         const bool g0_has = row_exposed_[0] || row_exposed_[1];
         int gr = 0; // 运行网格行号（未暴露行不落位——行号收紧无空洞）
 
         if (g0_has) {
-        // ---- 锚点行（组 0 首行——2026-11-09 用户指令"锚点选项移到位置
-        //      之上"：锚点是旋转/缩放的枢轴，语义先于位置/尺寸）。静态属
-        //      性非 tween：列 4 空（无菱形），⟲ 在列 5 与属性行右端对齐
-        auto* lbl = new QLabel(QStringLiteral("锚点"), box);
-        lbl->setToolTip(
-            QStringLiteral("旋转与缩放的枢轴：中心或四个角点。改变锚点不"
-                           "补偿位置——旋转/缩放非恒等时画面会绕新枢轴"
-                           "重排（再调位置分量对位即可）"));
-        anchor_combo_ = new QComboBox(box);
-        anchor_combo_->setObjectName(QStringLiteral("tweenAnchor"));
-        anchor_combo_->addItem(QStringLiteral("中心")); // 0 = 默认（历史行为）
-        anchor_combo_->addItem(QStringLiteral("左上")); // 1
-        anchor_combo_->addItem(QStringLiteral("右上")); // 2
-        anchor_combo_->addItem(QStringLiteral("右下")); // 3
-        anchor_combo_->addItem(QStringLiteral("左下")); // 4
-        // 预填在 connect 之前（不触发写回）
-        anchor_val_ = std::clamp(clip.transform.anchor, 0, 4);
-        anchor_combo_->setCurrentIndex(anchor_val_);
-        connect(anchor_combo_,
-                QOverload<int>::of(&QComboBox::currentIndexChanged),
-                this, [this](int idx) {
-                    anchor_val_ = idx;
-                    static_dirty_ |= kSAnchor;
-                    if (applier_) applier_();
-                });
-        // ⟲ 重置（恢复中心；静态直写——锚点非 tween 属性）。
-        // 18x18 占位 + 同规格 pixmap 图标（与属性行两钮统一——同轮反馈）
-        auto* rst = new QToolButton(box);
-        rst->setObjectName(QStringLiteral("tweenResetAnchor"));
-        rst->setFixedSize(kTailBtnPx, kTailBtnPx);
-        rst->setIconSize(QSize(kTailIconPx, kTailIconPx)); // 防 16px 默认放大
-        rst->setIcon(resetGlyphIcon(rst->devicePixelRatioF()));
-        rst->setToolTip(QStringLiteral("恢复默认锚点（中心）——静态属性"
-                                       "无动画通道，直接写回静态基准"));
-        rst->setStyleSheet(tailBtnQss);
-        connect(rst, &QToolButton::clicked, this, [this] {
-            anchor_val_ = 0;
-            {
-                const QSignalBlocker b(anchor_combo_);
-                anchor_combo_->setCurrentIndex(0);
-            }
-            static_dirty_ |= kSAnchor;
-            if (applier_) applier_();
-        });
-        g0->addWidget(lbl, gr, 0);
-        g0->addWidget(anchor_combo_, gr, kColVal, 1, 3); // combo 跨值区三列
-        g0->addWidget(rst, gr, kColReset, Qt::AlignVCenter);
-        ++gr;
+            // ---- 锚点行（组 0 首行——2026-11-09 用户指令"锚点选项移到位置
+            //      之上"：锚点是旋转/缩放的枢轴，语义先于位置/尺寸）。静态属
+            //      性非 tween：列 4 空（无菱形），⟲ 在列 5 与属性行右端对齐
+            auto* lbl = new QLabel(QStringLiteral("锚点"), box);
+            lbl->setToolTip(
+                QStringLiteral("旋转与缩放的枢轴：中心或四个角点。改变锚点不"
+                               "补偿位置——旋转/缩放非恒等时画面会绕新枢轴"
+                               "重排（再调位置分量对位即可）"));
+            anchor_combo_ = new QComboBox(box);
+            anchor_combo_->setObjectName(QStringLiteral("tweenAnchor"));
+            anchor_combo_->addItem(QStringLiteral("中心")); // 0 = 默认（历史行为）
+            anchor_combo_->addItem(QStringLiteral("左上")); // 1
+            anchor_combo_->addItem(QStringLiteral("右上")); // 2
+            anchor_combo_->addItem(QStringLiteral("右下")); // 3
+            anchor_combo_->addItem(QStringLiteral("左下")); // 4
+            // 预填在 connect 之前（不触发写回）
+            anchor_val_ = std::clamp(clip.transform.anchor, 0, 4);
+            anchor_combo_->setCurrentIndex(anchor_val_);
+            connect(anchor_combo_,
+                    QOverload<int>::of(&QComboBox::currentIndexChanged),
+                    this, [this](int idx) {
+                        anchor_val_ = idx;
+                        static_dirty_ |= kSAnchor;
+                        if (applier_) applier_();
+                    });
+            // ⟲ 重置（恢复中心；静态直写——锚点非 tween 属性）。
+            // 18x18 占位 + 同规格 pixmap 图标（与属性行两钮统一——同轮反馈）
+            auto* rst = new QToolButton(box);
+            rst->setObjectName(QStringLiteral("tweenResetAnchor"));
+            rst->setFixedSize(kTailBtnPx, kTailBtnPx);
+            rst->setIconSize(QSize(kTailIconPx, kTailIconPx)); // 防 16px 默认放大
+            rst->setIcon(resetGlyphIcon(rst->devicePixelRatioF()));
+            rst->setToolTip(QStringLiteral("恢复默认锚点（中心）——静态属性"
+                                           "无动画通道，直接写回静态基准"));
+            rst->setStyleSheet(tailBtnQss);
+            connect(rst, &QToolButton::clicked, this, [this] {
+                anchor_val_ = 0;
+                {
+                    const QSignalBlocker b(anchor_combo_);
+                    anchor_combo_->setCurrentIndex(0);
+                }
+                static_dirty_ |= kSAnchor;
+                if (applier_) applier_();
+            });
+            g0->addWidget(lbl, gr, 0);
+            g0->addWidget(anchor_combo_, gr, kColVal, 1, 3); // combo 跨值区三列
+            g0->addWidget(rst, gr, kColReset, Qt::AlignVCenter);
+            ++gr;
         } // if (g0_has)
 
-        if (buildRow(0, g0, gr)) ++gr; // 位置（X/Y/Z）
-
-        // ---- 深度 Z 行（2026-11-17 素材 3D 化阶段③；组 0 内位置行后——
-        //      平面位置 → 深度语义顺承）。静态属性非 tween：列 4 空无
-        //      菱形，⟲ 列 5 与属性行右端对齐（同锚点行规格）。与位置行
-        //      Z（悬浮高度/叠放层级）是两个概念——本值只进透视投影
-        //      s=F/(F+Z)（quadCorners3DP），不进 tween 不打包。
-        {
-            auto* zlbl = new QLabel(QStringLiteral("深度 Z"), box);
-            zlbl->setToolTip(
-                QStringLiteral("几何深度（素材 3D 化阶段③）：透视投影权重"
-                               " s=F/(F+Z)——正 = 远离投影仪（画面收缩）、"
-                               "负 = 朝向投影仪（画面放大）。0 = 无透视"
-                               "（历史行为逐位）。与位置行的 Z（悬浮高度/"
-                               "叠放层级）相互独立；本值不参与关键帧"
-                               "动画"));
+        // ---- 位置行（【2026-11-18 语义终定】UI 两分量 X/Y；第三值位 =
+        //      深度 Z 静态框 pos_z（浮点 px——素材在三维中的真实 z 位置），
+        //      位置 = 3D 空间真实位置（X/Y/深度）。层级框不参与关键帧：
+        //      列 4 菱形只键 X/Y，数据层 v2 由 recordKeyframe 携带当前
+        //      基准层级——老工程 Z 通道求值不变、新键不打零）--------------
+        const int pos_row = gr;
+        if (buildRow(0, g0, gr)) {
             pos_z_spin_ = new FloatDragValueWidget(box);
-            pos_z_spin_->setObjectName(QStringLiteral("tweenPosZ"));
+            pos_z_spin_->setObjectName(QStringLiteral("tweenDepthZ"));
             pos_z_spin_->setRange(-100000.0, 100000.0);
             pos_z_spin_->setDecimals(2);
             pos_z_spin_->setSingleStep(10.0);
             pos_z_spin_->setSuffix(QStringLiteral(" px"));
+            pos_z_spin_->setToolTip(
+                QStringLiteral("深度 Z（3D 空间位置第三分量）：素材在三维"
+                               "中的真实 z 位置——透视投影权重 s=F/(F+Z)，"
+                               "正 = 远离（画面收缩）、负 = 朝向（画面放"
+                               "大）。0 = 无透视（历史行为逐位）。静态属性"
+                               "不参与关键帧（恢复 0 双击输入）"));
             // 预填在 connect 之前（不触发写回）
             pos_z_val_ = clip.transform.pos_z;
             pos_z_spin_->setValue(pos_z_val_);
@@ -665,42 +678,69 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
                         static_dirty_ |= kSPosZ;
                         if (applier_) applier_();
                     });
-            // ⟲ 重置（恢复 0 = 无透视；静态直写同锚点行）
-            auto* zrst = new QToolButton(box);
-            zrst->setObjectName(QStringLiteral("tweenResetPosZ"));
-            zrst->setFixedSize(kTailBtnPx, kTailBtnPx);
-            zrst->setIconSize(QSize(kTailIconPx, kTailIconPx));
-            zrst->setIcon(resetGlyphIcon(zrst->devicePixelRatioF()));
-            zrst->setToolTip(QStringLiteral("恢复默认深度（0 = 无透视）——"
-                                           "静态属性无动画通道，直接写回"
-                                           "静态基准"));
-            zrst->setStyleSheet(tailBtnQss);
-            connect(zrst, &QToolButton::clicked, this, [this] {
-                pos_z_val_ = 0.0;
-                {
-                    const QSignalBlocker b(pos_z_spin_);
-                    pos_z_spin_->setValue(0.0);
-                }
-                static_dirty_ |= kSPosZ;
-                if (applier_) applier_();
-            });
-            g0->addWidget(zlbl, gr, 0);
-            g0->addWidget(pos_z_spin_, gr, kColVal, 1, 3); // 标量跨值区三列
-            g0->addWidget(zrst, gr, kColReset, Qt::AlignVCenter);
+            g0->addWidget(pos_z_spin_, pos_row, kColVal + 2); // 第三值位
             ++gr;
         }
 
-        // ---- 遮挡次序行（2026-11-17 阶段③ per-cue stacking；WO7 对标
-        //      ——By Layer=图层级 z（历史）/ By Z=几何深度 pos_z 远先绘
-        //      近后绘）。静态属性非 tween（列 4 空无菱形；无 ⟲——
-        //      模式枚举无"默认值重置"语义，历史默认即图层级）。
-        {
+        // ---- 层级 Z 行（【2026-11-18 语义终定】纯遮挡/叠放键，非空间
+        //      坐标——3D 视口与渲染端一律不再把它当高度轴使用）：叠放
+        //      层级 transform.z（整数无单位），遮挡次序=图层次序时的排
+        //      序键。写同槽 static_vals_[2]（sBit(0,2)）——applyTo →
+        //      transform.z 路径不变。静态属性：列 4 空无菱形，⟲ 列 5 与
+        //      属性行右端对齐（同锚点行规格）。【P4-A 门控】随组 0 同进
+        //      退（g0_has=false 不生成）--------------------------------------
+        if (g0_has) {
+            auto* llbl = new QLabel(QStringLiteral("层级 Z"), box);
+            llbl->setToolTip(
+                QStringLiteral("叠放层级（整数，无单位——不是空间坐标）：多"
+                               "片段重叠时的绘制先后——小值先绘（底层）、"
+                               "大值后绘（顶层）；遮挡次序=图层次序时的排"
+                               "序键。素材在三维中的 z 位置在位置行「深度"
+                               " Z」，两者互不相干"));
+            z_layer_spin_ = new IntDragValueWidget(box);
+            z_layer_spin_->setObjectName(QStringLiteral("tweenLayerZ"));
+            z_layer_spin_->setRange(-1000, 1000);
+            // 预填在 connect 之前（不触发写回）
+            z_layer_spin_->setValue(std::clamp(clip.transform.z, -1000, 1000));
+            connect(z_layer_spin_, &IntDragValueWidget::valueChanged, this,
+                    [this](int v) {
+                        static_vals_[2] = v; // 槽 2 = 位置行 v2 槽（层级）
+                        static_dirty_ |= sBit(0, 2);
+                        if (applier_) applier_(); // applyTo → transform.z
+                    });
+            // ⟲ 重置（恢复 0；静态直写同锚点行纪律）
+            auto* lrst = new QToolButton(box);
+            lrst->setObjectName(QStringLiteral("tweenResetLayerZ"));
+            lrst->setFixedSize(kTailBtnPx, kTailBtnPx);
+            lrst->setIconSize(QSize(kTailIconPx, kTailIconPx));
+            lrst->setIcon(resetGlyphIcon(lrst->devicePixelRatioF()));
+            lrst->setToolTip(QStringLiteral("恢复默认层级（0）——静态属性"
+                                           "无动画通道，直接写回静态基准"));
+            lrst->setStyleSheet(tailBtnQss);
+            connect(lrst, &QToolButton::clicked, this, [this] {
+                {
+                    const QSignalBlocker b(z_layer_spin_);
+                    z_layer_spin_->setValue(0);
+                }
+                static_vals_[2] = 0.0;
+                static_dirty_ |= sBit(0, 2);
+                if (applier_) applier_();
+            });
+            g0->addWidget(llbl, gr, 0);
+            g0->addWidget(z_layer_spin_, gr, kColVal, 1, 3); // 标量跨值区三列
+            g0->addWidget(lrst, gr, kColReset, Qt::AlignVCenter);
+            ++gr;
+
+            // ---- 遮挡次序行（阶段③ per-cue stacking；WO7 对标——
+            //      By Layer=层级 Z（历史）/ By Z=几何深度 pos_z 远先绘
+            //      近后绘）。静态属性非 tween（列 4 空无菱形；无 ⟲——
+            //      模式枚举无"默认值重置"语义，历史默认即图层级）。
             auto* slbl = new QLabel(QStringLiteral("遮挡次序"), box);
             slbl->setToolTip(
                 QStringLiteral("本片段参与渲染排序的键（WATCHOUT Stacking "
-                               "语义）：图层次序 = 按位置行 Z 升序（历史行"
-                               "为）；深度次序 = 按几何深度 Z 升序（远的先"
-                               "画、近的遮挡远的——透视场景物理遮挡）"));
+                               "语义）：图层次序 = 按上方「层级 Z」升序（历"
+                               "史行为）；深度次序 = 按位置行「深度 Z」升序"
+                               "（远的先画、近的遮挡远的——透视场景物理遮挡）"));
             stacking_combo_ = new QComboBox(box);
             stacking_combo_->setObjectName(QStringLiteral("tweenStacking"));
             stacking_combo_->addItem(QStringLiteral("图层次序")); // 0=默认
@@ -717,7 +757,7 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
             g0->addWidget(slbl, gr, 0);
             g0->addWidget(stacking_combo_, gr, kColVal, 1, 3);
             ++gr;
-        }
+        } // if (g0_has)
 
         if (buildRow(1, g0, gr)) ++gr; // 尺寸
         finishGroup(0, g0);
@@ -887,7 +927,12 @@ void TweenSection::recordKeyframe(int i) {
     // 行显示值即数据层值（绝对 px 直通——显示/数据一个口径）
     const double v0 = r.value[0]->value();
     const double v1 = r.components >= 2 ? r.value[1]->value() : 0.0;
-    const double v2 = r.components >= 3 ? r.value[2]->value() : 0.0;
+    // v2 携带源（2026-11-18 Z 语义归位）：位置行 UI 减为 X/Y 后第三分量
+    // 无行内值框——新键携带当前基准层级（z_shown_，refreshFrom 持续校准）
+    // 而非打零：老工程 Z 通道求值不变，动画中打键不突变
+    double v2 = 0.0;
+    if (r.components >= 3 && r.value[2]) v2 = r.value[2]->value();
+    else if (r.prop == TweenProp::Position) v2 = z_shown_;
 
     TweenChannel* ch = findChannel(r.prop);
     if (!ch) {
@@ -946,7 +991,10 @@ void TweenSection::onDiamondClicked(int i) {
         c.keys.push_back(Keyframe{
             localPlayheadUs(), r.value[0]->value(),
             r.components >= 2 ? r.value[1]->value() : 0.0,
-            r.components >= 3 ? r.value[2]->value() : 0.0,
+            // 位置行 v2 携带基准层级（UI 无第三框——防老工程 Z 通道打零）
+            r.components >= 3 ? r.value[2]->value()
+                              : (r.prop == TweenProp::Position ? z_shown_
+                                                               : 0.0),
             TweenInterp::Linear});
         channels_.push_back(std::move(c));
         updateRowState(i);
@@ -968,7 +1016,11 @@ void TweenSection::onDiamondClicked(int i) {
         const std::int64_t t = localPlayheadUs();
         const Keyframe k{t, r.value[0]->value(),
                          r.components >= 2 ? r.value[1]->value() : 0.0,
-                         r.components >= 3 ? r.value[2]->value() : 0.0,
+                         // 同建通道：位置 v2 携带基准层级
+                         r.components >= 3 ? r.value[2]->value()
+                                           : (r.prop == TweenProp::Position
+                                                  ? z_shown_
+                                                  : 0.0),
                          TweenInterp::Linear};
         auto& keys = ch->keys;
         keys.insert(
@@ -1128,7 +1180,7 @@ void TweenSection::refreshFrom(const Clip& c) {
         // 数值框：播放头处当前分量值（焦点保护：用户正在输入不灌）。
         // 全部行显示值 = 数据层值直通（绝对 px——显示/编辑一个口径）。
         // 行序直取（v4 五分组序 + 2026-11-10 音频增益追加）：
-        //   0=位置(x,y,z) 1=尺寸(w,h) 2=旋转(俯仰,偏航,滚转)
+        //   0=位置(x,y；槽 2=层级→独立「层级 Z」行) 1=尺寸(w,h) 2=旋转(俯仰,偏航,滚转)
         //   3..6=裁切 上/下/左/右 7..10=角点（corner[(i-7)*2+分量]）
         //   11=不透明度 12=音频增益（resolveGain 独立解算）
         double v[3] = {0.0, 0.0, 0.0};
@@ -1136,7 +1188,8 @@ void TweenSection::refreshFrom(const Clip& c) {
             case 0:
                 v[0] = shown.x;
                 v[1] = shown.y;
-                v[2] = (double)shown.z; // 层级整数 → double 显示
+                // 【2026-11-18】v[2]（层级）不再灌位置行——层级行独立灌
+                // 静态基准（见下方层级行灌值块）；槽 2 对齐同处处理
                 break;
             case 1:  v[0] = shown.w; v[1] = shown.h;      break;
             case 2: // 旋转三维打包：X 俯仰/Y 偏航/Z 滚转
@@ -1179,8 +1232,22 @@ void TweenSection::refreshFrom(const Clip& c) {
             std::clamp(shown.anchor, 0, 4));
     }
 
-    // ---- 深度 Z 灌值（2026-11-17 阶段③；静态属性同锚点纪律——pos_z
-    //      不进 tween，shown.pos_z 恒等于静态基准）------------------------
+    // ---- 层级 Z / 深度 Z 灌值（2026-11-18 语义终定）------------------------
+    // 层级框恒显静态基准 c.transform.z（层级行无动画入口——与“静态属性”
+    // 定位一致；老工程若有层级 tween，时间轴仍按通道动画，本框显示基准）。
+    // 深度 Z 同锚点纪律——pos_z 不进 tween，shown.pos_z 恒等于静态基准。
+    z_shown_ = shown.z; // Position 打键 v2 携带源（通道启用时 = 插值层级）
+    if (z_layer_spin_) {
+        const QSignalBlocker b(z_layer_spin_);
+        z_layer_spin_->setValue(
+            std::clamp((int)c.transform.z, -1000, 1000));
+    }
+    // 槽 2 对齐（原行循环口径迁移）：位置通道未启用时跟随工作副本
+    {
+        const TweenChannel* pos_ch = findChannel(TweenProp::Position);
+        if (!(pos_ch && !pos_ch->keys.empty()))
+            static_vals_[2] = shown.z;
+    }
     if (pos_z_spin_) {
         const QSignalBlocker b(pos_z_spin_);
         pos_z_val_ = shown.pos_z;

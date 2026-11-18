@@ -24,7 +24,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
-#include <QSpinBox>
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
 #include <QVBoxLayout>
 
 #include "model/SceneModel.hpp"
@@ -243,13 +243,13 @@ ScreenWarpPanel::ScreenWarpPanel(const ScreenWarp& initial,
     mode_->setItemData(2, 0, Qt::UserRole - 1);
     mode_->setCurrentIndex(seed_mode);
 
-    cols_ = new QSpinBox(form_box);
+    cols_ = new IntDragValueWidget(form_box);
     cols_->setObjectName("warp_cols");
     cols_->setRange(2, 16);
     cols_->setValue(seed.cols);
     cols_->setToolTip("网格列数（控制点列数）；变更时按曲面保形重采样");
 
-    rows_ = new QSpinBox(form_box);
+    rows_ = new IntDragValueWidget(form_box);
     rows_->setObjectName("warp_rows");
     rows_->setRange(2, 16);
     rows_->setValue(seed.rows);
@@ -287,9 +287,9 @@ ScreenWarpPanel::ScreenWarpPanel(const ScreenWarp& initial,
     // ---- 信号（值回填完成后连接）------------------------------------------
     connect(mode_, &QComboBox::currentIndexChanged,
             this, &ScreenWarpPanel::onModeChanged);
-    connect(cols_, &QSpinBox::valueChanged,
+    connect(cols_, &IntDragValueWidget::valueChanged,
             this, &ScreenWarpPanel::onDensityChanged);
-    connect(rows_, &QSpinBox::valueChanged,
+    connect(rows_, &IntDragValueWidget::valueChanged,
             this, &ScreenWarpPanel::onDensityChanged);
     connect(reset_btn_, &QPushButton::clicked,
             this, &ScreenWarpPanel::onReset);

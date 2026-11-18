@@ -92,15 +92,19 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
             double wx[4], wy[4];
             if (judge.pose3DActive()) {
                 // 3D 位姿（素材 3D 化阶段②）：cg::quadCorners3DP 统一投影
-                // ——几何深度 pos_z + Show 级透视参数（scene.persp_*，
-                // focal<=0 时函数内部退化为片段锚点透视现状）+ 俯仰/偏航/
-                // 滚转/锚点/角位移。q4 = 每次投影权重 s=F/(F+Z)（渲染端
-                // 顶点 (uv·q, q) + FS 采样 uv/q 精确复现平面单应）。
+                // ——几何深度 pos_z + Show 级透视参数（【单一透视
+                // 2026-11-18】Scene::effectivePersp——persp_* 未配置时
+                // 画布派生默认 F=2×对角线/vp=画布中心，全场共享同一投影
+                // 仪；画布无效才退片段隐含焦距）+ 俯仰/偏航/滚转/锚点/
+                // 角位移。q4 = 每次投影权重 s=F/(F+Z)（渲染端顶点
+                // (uv·q, q) + FS 采样 uv/q 精确复现平面单应）。
+                double ef = 0.0, evx = 0.0, evy = 0.0;
+                scene.effectivePersp(ef, evx, evy);
                 canvas_geometry::quadCorners3DP(
                     judge.x, judge.y, judge.w, judge.h, judge.pos_z,
                     judge.rotation, judge.rot_x, judge.rot_y, judge.anchor,
-                    judge.corner, scene.persp_focal, scene.persp_vp_x,
-                    scene.persp_vp_y, wx, wy, di.quad_q);
+                    judge.corner, ef, evx,
+                    evy, wx, wy, di.quad_q);
                 di.pose3d = true;
                 for (int i = 0; i < 4; ++i) { // CornerIdx 序预投影四角
                     di.quad[i][0] = wx[i];

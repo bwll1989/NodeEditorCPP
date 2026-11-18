@@ -24,14 +24,12 @@
 
 #include "ScreenWarpPanel.hpp" // 输出变形编辑面板（「几何结构」页内嵌）
 
-#include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QSpinBox>
 #include <QTabWidget>
 #include <QVBoxLayout>
 
@@ -43,32 +41,37 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
                                            const std::string& cur_pairing_code,
                                            QWidget* parent)
     : FramelessDialog(parent) { // 预填直接读入参引用
-    setDialogTitle(tr("屏幕属性"));
+    setDialogTitle(tr("Display 属性"));
     setCloseButtonVisible(true); // 标题栏 × = 取消（reject）
 
     auto* form_box = new QGroupBox("画布位置与显示大小（像素）", this);
     auto* form     = new QFormLayout(form_box);
 
     // ---- 位置/大小：允许负坐标（画布外扩屏）与 1~8192 尺寸 --------------
-    x_ = new QDoubleSpinBox(form_box);
+    // 【2026-11-18 控件风格统一】全部 spinbox → FloatDragValueWidget/
+    // IntDragValueWidget（与节点属性面板同风格：横向拖拽调值/双击键入/
+    // 修饰键步进 Shift×0.1 Ctrl×10）。valueChanged 信号同型，实时链
+    // connect 写法不变；FloatDrag 无环绕——rotation 到 ±3600° 边界停住
+    //（原 QDoubleSpinBox wrapping 退役，影响可忽略）
+    x_ = new FloatDragValueWidget(form_box);
     x_->setRange(-8192.0, 8192.0);
     x_->setDecimals(1);
     x_->setSingleStep(10.0);
     x_->setValue(screen.x);
 
-    y_ = new QDoubleSpinBox(form_box);
+    y_ = new FloatDragValueWidget(form_box);
     y_->setRange(-8192.0, 8192.0);
     y_->setDecimals(1);
     y_->setSingleStep(10.0);
     y_->setValue(screen.y);
 
-    w_ = new QDoubleSpinBox(form_box);
+    w_ = new FloatDragValueWidget(form_box);
     w_->setRange(1.0, 8192.0);
     w_->setDecimals(1);
     w_->setSingleStep(10.0);
     w_->setValue(screen.w > 0 ? screen.w : 960.0);
 
-    h_ = new QDoubleSpinBox(form_box);
+    h_ = new FloatDragValueWidget(form_box);
     h_->setRange(1.0, 8192.0);
     h_->setDecimals(1);
     h_->setSingleStep(10.0);
@@ -82,65 +85,75 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     // ---- 旋转/层级：与 clip transform 同域（度/整数 z）------------------
     // 旋转：±3600°（10 圈）覆盖竖屏 90/270 与异形拼接任意角；步进 90 便于
     // 常见竖屏场景一键到达，细角度仍可直接键入
-    rotation_ = new QDoubleSpinBox(form_box);
+    rotation_ = new FloatDragValueWidget(form_box);
     rotation_->setRange(-3600.0, 3600.0);
     rotation_->setDecimals(1);
     rotation_->setSingleStep(90.0);
-    rotation_->setWrapping(true);
     rotation_->setValue(screen.rotation);
 
     // ---- 屏姿态（2026-11-17 阶段2）：俯仰/偏航（度；与 clip Transform
-    // 同构语义）——屏取景窗带 3D 姿态，画布→屏映射升级单应。±89° 防过
-    // 畸（透视焦距 f=2·长边下 90° 附近四角翻转）；步进 5 便于粗调
-    rot_x_ = new QDoubleSpinBox(form_box);
-    rot_x_->setRange(-89.0, 89.0);
+    // 同构语义）——斜装屏（地面屏/斜幕/非正交安装）取景姿态，非 0 时
+    // 画布→屏映射升级单应；0 = 历史仿射逐位不变。【2026-11-18 对齐 2D
+    // display 定案】钳 ±85°：89° 时单应已近奇异（用户实证画面异常拉扯
+    // ——数学未翻面但透视极端），85° 留安全边距且覆盖一切真实安装角；
+    // ScreenMapper 端另有 solveHomography 失败→恒等仿射防御兜底。步进 5
+    rot_x_ = new FloatDragValueWidget(form_box);
+    rot_x_->setRange(-85.0, 85.0);
     rot_x_->setDecimals(1);
     rot_x_->setSingleStep(5.0);
     rot_x_->setValue(screen.rot_x);
+    rot_x_->setToolTip(tr("斜装屏取景姿态：俯仰（度）。\n"
+                          "服务地面屏/斜幕等非正交安装；0 = 无姿态（仿射映射）。"));
 
-    rot_y_ = new QDoubleSpinBox(form_box);
-    rot_y_->setRange(-89.0, 89.0);
+    rot_y_ = new FloatDragValueWidget(form_box);
+    rot_y_->setRange(-85.0, 85.0);
     rot_y_->setDecimals(1);
     rot_y_->setSingleStep(5.0);
     rot_y_->setValue(screen.rot_y);
+    rot_y_->setToolTip(tr("斜装屏取景姿态：偏航（度）。\n"
+                          "非 0 时取景走透视单应（内容不缩放语义不变）。"));
 
-    z_ = new QSpinBox(form_box);
-    z_->setRange(-1000, 1000);
-    z_->setValue(screen.z);
-
+    // 【2026-11-18 定案】层级 z 行移除：Screen = 取景窗（零姿态时即旧
+    // 2D 平面屏），无叠放语义（模型字段+SceneLoader 保留兼容老工程；
+    // 编辑器多屏重叠命中序回退到场景追加序）；未来 Z-buffer 接管。
     form->addRow("旋转°：", rotation_);
     form->addRow("俯仰°：", rot_x_);
     form->addRow("偏航°：", rot_y_);
-    form->addRow("层级 z：", z_);
 
-    // ---- 几何六字段实时预览（2026-11-11 用户需求：调属性即时可见）--------
+    // 字段语义提示（2026-11-18 Display 统一模型定案）
+    rotation_->setToolTip(tr("面内旋转（度，顺时针绕中心）——竖屏/异形拼接取景窗。"));
+
+    // ---- 几何八字段实时预览（2026-11-11 用户需求：调属性即时可见）--------
     // 旧语义只有 OK 才写回——editor 画布/display 输出都要等确认。现与 warp
     // 实时链同构：spinbox 每次值变化（点箭头/步进/键入后提交）即把表单几何
-    // 发给宿主回调（写工作副本 + refreshSceneViews + scheduleAutoPublish
-    // 20ms 节流下发）。回调收到的 Screen 仅几何字段有效。
-    if (geometry_live_) {
-        auto emitGeometryLive = [this]() {
-            if (!geometry_live_) return;
-            Screen g; // 仅几何字段有效（其余字段宿主不取）
-            g.x        = x_->value();
-            g.y        = y_->value();
-            g.w        = w_->value();
-            g.h        = h_->value();
-            g.rotation = rotation_->value();
-            g.rot_x    = rot_x_->value();
-            g.rot_y    = rot_y_->value();
-            g.z        = z_->value();
-            geometry_live_(g);
-        };
-        connect(x_,        &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
-        connect(y_,        &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
-        connect(w_,        &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
-        connect(h_,        &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
-        connect(rotation_, &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
-        connect(rot_x_,    &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
-        connect(rot_y_,    &QDoubleSpinBox::valueChanged, this, emitGeometryLive);
-        connect(z_,        &QSpinBox::valueChanged,       this, emitGeometryLive);
-    }
+    // 发给宿主回调（写工作副本 + refreshViews → sceneEditedLive → 适配器
+    // requestAutoPublish 200ms 节流下发）。回调收到的 Screen 仅几何字段有效。
+    // 【2026-11-18 修复】原外层 if(geometry_live_) 恒 false——宿主在构造
+    // 之后才经 setGeometryLiveApply 注入回调（本类 setter 只存函数无补连
+    // 逻辑），8 个 connect 从未建立，实时链整个死亡（调参必须 OK 才生效，
+    // 用户实证）。改无条件 connect：lambda 内已有空回调防御，未注入时
+    // 零开销空转；注入时机无关紧要（与 warp 链同构——面板信号构造时接、
+    // 运行时查回调）。
+    auto emitGeometryLive = [this]() {
+        if (!geometry_live_) return;
+        Screen g; // 仅几何字段有效（其余字段宿主不取）
+        g.x        = x_->value();
+        g.y        = y_->value();
+        g.w        = w_->value();
+        g.h        = h_->value();
+        g.rotation = rotation_->value();
+        g.rot_x    = rot_x_->value();
+        g.rot_y    = rot_y_->value();
+        // g.z 不再提供——宿主侧不拷贝 z（层级行已退役）
+        geometry_live_(g);
+    };
+    connect(x_,        &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(y_,        &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(w_,        &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(h_,        &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(rotation_, &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(rot_x_,    &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(rot_y_,    &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
 
     // ---- 输出变形（2026-11-11 WATCHOUT 式内嵌）----------------------------
     // 编辑面板直接内嵌「几何结构」页（用户需求：不要弹窗）——模式/密度/
@@ -167,7 +180,7 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     host_ = new QLineEdit(QString::fromStdString(cur_host), bind_box);
     host_->setPlaceholderText("显示端 IP（display 所在主机）");
     bind_form->addRow("主机：", host_);
-    port_ = new QSpinBox(bind_box);
+    port_ = new IntDragValueWidget(bind_box);
     port_->setRange(1, 65535);
     port_->setValue(cur_port);
     bind_form->addRow("端口：", port_);
@@ -193,7 +206,7 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
 
     // ---- WATCHOUT 式分页（2026-11-11）：通用 / 几何结构 / 绑定 ------------
     // 对齐 WATCHOUT 显示设置对话框的页组织：第一页通用（位置/大小/旋转/
-    // 层级），第二页几何结构（内嵌输出变形网格编辑，不弹窗），第三页绑定
+    // 屏姿态），第二页几何结构（内嵌输出变形网格编辑，不弹窗），第三页绑定
     //（显示端手输登记——WATCHOUT 通用页"计算机"字段同型）。
     auto* tabs = new QTabWidget(this);
     {
@@ -224,7 +237,7 @@ void ScreenPropertyDialog::applyTo(Screen& s) const {
     s.rotation  = rotation_->value();
     s.rot_x     = rot_x_->value();
     s.rot_y     = rot_y_->value();
-    s.z         = z_->value();
+    // s.z 不写回（层级行退役——保留场景既有值兼容老工程）
     s.player_id = player_id_->text().toStdString();
     // 输出变形 = 「几何结构」页内嵌面板的当前编辑状态（2026-11-11 内嵌化：
     // 面板即唯一真值——无变形时写默认清空值，与旧弹窗 OK 语义一致）

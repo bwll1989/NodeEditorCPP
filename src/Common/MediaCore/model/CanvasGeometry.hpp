@@ -123,33 +123,36 @@ inline double perspectiveFocal(double w, double h) noexcept {
 // 素材 3D 化阶段①泛化投影（2026-11-17）：三轴旋转 + 几何深度 + Show 级
 // 全局透视——语义链"全场唯一一次透视投影"的数学真相（路线文档三·0）。
 //
+// 【单一透视（2026-11-18 二次定案：对齐 Watchout Preferences→3D Perspective
+// 模型）】旋转扭曲与 Z 缩放共用同一组全局透视参数（WO 文档："Images rotated
+// around the X or Y axes appear distorted according to the perspective"——
+// 同一 Perspective 值既控旋转透视又控 Z 缩放；消隐点全局唯一，默认舞台
+// 中心）。此前的两级拆分（旋转恒对象镜头）已按用户拍板退役。
+//
 // 统一模型（画布域，y 向下；深度 z 正 = 远离观察者）：
 //   局部 p = 角 − 锚点（z=0 平面）；
 //   俯仰 Rx：y1 = y·cos(p)，z1 = −y·sin(p)；
 //   偏航 Ry：x2 = x·cos(w) + z1·sin(w)，z2 = −x·sin(w) + z1·cos(w)
-//            （复合序 Rx→Ry，滚转最后 = 世界轴 Z——与既有 v3 行为一致，
-//            单测钉死；roll 语义 = 投影后画布面内旋转，DaVinci roll）；
+//            （复合序 Rx→Ry，滚转最后 = 世界轴 Z——与既有 v3 行为一致）；
 //   世界：  X = 锚x + x2，Y = 锚y + y1，Z = pos_z + z2；
-//   透视：  s = F/(F + Z)——F = 全局焦距（persp_focal>0）或片段隐含
-//           2×max(w,h)（未配置，现状）；防御钳正（越焦平面宁缩勿翻）；
-//   投影：  P = vp + (W − vp)·s——vp = 全局消隐点（persp_vp）或锚点
-//           （未配置，现状）。素材沿 Z 远去时向消隐点收敛（WO5.2 语义）。
+//   透视：  s = F/(F + Z)——调用方经 Scene::effectivePersp 传参
+//           （persp_focal>0 用户配置 / 未配置 = 画布派生 F=2×对角线、
+//           vp=画布中心）；防御钳正（越焦平面宁缩勿翻）；
+//   投影：  P = vp + (W − vp)·s（素材沿 Z/旋转远去时向消隐点收敛）；
 //   滚转：  绕【投影后锚点】P_a = vp + (A − vp)·s_a 做 2D 旋转 + 角位移
-//           （未配置时 P_a = 锚点 = 现状逐位）。
-//   q：     q_i = s_i——GL 透视校正采样因子（顶点属性 uv·s / s，屏幕空间
-//           线性插值 1/w 对平面片单应精确；见 GlRenderer 阶段②）。
+//           （pos_z=0 时 s_a=1 → P_a = 锚点 = 现状逐位）。
+//   q：     q_i = s_i——GL 透视校正采样因子（屏幕空间线性插值 1/w 对
+//           平面片单应精确；见 GlRenderer 阶段②）。
 //
-// 【兼容矩阵】（旧工程逐位不变的证明结构，单测 clip3d_math_test 钉死）：
-//   pos_z=0 + persp 未配置 + pitch=yaw=0 → 快路径 quadCornersWithAnchor；
-//   pos_z=0 + persp 未配置 + 姿态非 0    → 与旧 quadCorners3D 逐位一致
-//    （旧式 = 本式在 vp=锚点、F=2×max(w,h)、pos_z=0 下的特例——投影
-//     项 P = 锚 + 旋转量·s 与旧 px/py 同式，滚转中心 P_a = 锚点同位）；
-//   focal>0 全局模式 → 所有片段统一投影（Z 含 pos_z，vp 全局）。
+// 【兼容矩阵】（单测 clip3d_math_test 钉死）：
+//   pos_z=0 + 姿态=0 → 快路径 quadCornersWithAnchor（s≡1 恒等）；
+//   focal<=0（画布无效防御）→ 片段隐含对象透视回退（F=2×max(w,h)、
+//   vp=锚点）——数据损坏防御，正常路径调用方恒传 effectivePersp 值。
 // ---------------------------------------------------------------------------
 
 /// 三轴旋转 + 几何深度 + 全局透视四角（输出序 = CornerIdx [LT,RT,RB,LB]）
 /// \param pos_z   几何深度（画布域 px，正 = 远离；Transform::pos_z 透传）
-/// \param persp_focal 全局透视焦距（<=0 = 未配置 → 片段锚点透视现状）
+/// \param persp_focal 全局透视焦距（px；<=0 = 未配置 → 片段隐含透视防御回退）
 /// \param persp_vp_x/y 全局消隐点（画布 px；focal>0 时消费）
 /// \param q4      输出每角缩放因子 s（CornerIdx 序；可空 = 不需要——
 ///                GL 透视校正采样用，轴对齐/2D 仿射路径恒 1）
@@ -161,8 +164,7 @@ inline void quadCorners3DP(double x, double y, double w, double h,
                            double* q4) noexcept {
     if (pitch_deg == 0.0 && yaw_deg == 0.0 && pos_z == 0.0) {
         // 快路径：无俯仰偏航且无深度 → 历史 2D 公式逐位直通（含滚转/
-        // 锚点/位移；全局透视未生效项 s≡1——focal>0 时投影 P = vp+(W−vp)
-        // = W 恒等，与 2D 公式同值，见兼容矩阵第一行）
+        // 锚点/位移；透视未生效项 s≡1——pos_z=0 时锚点 s=1、投影恒等）
         quadCornersWithAnchor(x, y, w, h, roll_deg, anchor, corner8, ox, oy);
         if (q4) {
             q4[0] = q4[1] = q4[2] = q4[3] = 1.0;
@@ -174,8 +176,8 @@ inline void quadCorners3DP(double x, double y, double w, double h,
     const double acx = x + au * w; // 锚点（画布域）
     const double acy = y + av * h;
 
-    // 投影仪（Show 级唯一一次透视——语义链 A 环）：未配置 = 片段锚点透视
-    //（现状特例：消隐点 = 锚点、焦距 = 片段长边 2 倍）；配置 = 全场统一
+    // 单一透视仪（对齐 Watchout：旋转与 Z 共用一组全局参数）：调用方传
+    // effectivePersp 值；focal<=0（画布无效数据损坏防御）退片段隐含透视
     const bool   global = persp_focal > 0.0;
     const double F      = global ? persp_focal : perspectiveFocal(w, h);
     const double vpx    = global ? persp_vp_x : acx;
@@ -189,8 +191,8 @@ inline void quadCorners3DP(double x, double y, double w, double h,
     const double rad = roll_deg * kDegToRad;
     const double ct = std::cos(rad), st = std::sin(rad);
 
-    // 滚转中心 = 投影后锚点（锚点自身深度 = pos_z；未配置时 s_a=1 →
-    // P_a = 锚点 = 现状"绕锚点"逐位）
+    // 滚转中心 = 投影后锚点（锚点自身深度 = pos_z；pos_z=0 → P_a = 锚点
+    // = 现状"绕锚点"逐位）
     double s_a = F / (F + pos_z);
     if (!(s_a > 0.0)) s_a = 1e-6;
     const double pax = vpx + (acx - vpx) * s_a;
@@ -206,15 +208,15 @@ inline void quadCorners3DP(double x, double y, double w, double h,
         // Ry(yaw)：x'' = x·cos + z'·sin；z'' = −x·sin + z'·cos（正=右缘远离）
         const double x2 = lx * cy + z1 * sy;
         const double z2 = -lx * sy + z1 * cy;
-        // 世界点（画布 XY + 深度 Z 含 pos_z）→ 透视：s = F/(F+Z)
+        // 世界点（画布 XY + 深度 Z 含 pos_z + 旋转诱导 z2）→ 透视 s = F/(F+Z)
         const double Z = pos_z + z2;
         double s = F / (F + Z);
         if (!(s > 0.0)) s = 1e-6;
         const double X = acx + x2, Y = acy + y1;
-        // 投影（向消隐点收敛；未配置 vp=锚点 → P = 锚 + 旋转量·s = 现状式）
+        // 投影（向消隐点收敛）
         const double px = vpx + (X - vpx) * s;
         const double py = vpy + (Y - vpy) * s;
-        // 滚转（绕投影后锚点 2D，未配置 = 绕锚点现状逐位）+ 角位移（沿画布轴）
+        // 滚转（绕投影后锚点 2D）+ 角位移（沿画布轴）
         const double rx = px - pax, ry = py - pay;
         ox[i] = pax + ct * rx - st * ry + (corner8 ? corner8[i * 2 + 0] : 0.0);
         oy[i] = pay + st * rx + ct * ry + (corner8 ? corner8[i * 2 + 1] : 0.0);
@@ -234,6 +236,69 @@ inline void quadCorners3D(double x, double y, double w, double h,
                           double* oy) noexcept {
     quadCorners3DP(x, y, w, h, 0.0, roll_deg, pitch_deg, yaw_deg, anchor,
                    corner8, 0.0, 0.0, 0.0, ox, oy, nullptr);
+}
+
+// ---------------------------------------------------------------------------
+// 真 3D 世界四角（素材真 3D 化 2026-11-18，Watchout Stage 语义）------------
+//
+// quadCorners3DP 输出的是【针孔压扁后】的画布平面四角（display 取景的
+// 数学真相——投影到画布平面再被取景窗采样）；本函数输出【投影前】的
+// 三维世界坐标——同一旋转链（Rx→Ry，滚转 = 绕画布法线面内旋转），但不
+// 做针孔压扁。消费方 = 编辑器 3D 舞台视口：面片以其真实三维形状立在
+// 舞台空间里（俯仰/偏航让面片离开画布平面"站立/倾斜"，正交轨道相机
+// 从任意角度都能看到空间厚度），而非把透视画贴在平行画布的悬浮薄片上
+//（旧实现：压扁四角逐角提升到高度平面——掠射角下恒为薄片，用户实证）。
+//
+//   输出：ox/oy = 画布域 XY（含滚转 + 角位移，同 quadCornersWithAnchor 域）；
+//         oz    = 深度轴偏移 = pos_z + 旋转诱导深度 z2（正 = 远离画布
+//                 正面观察者——3D 舞台视口的高度轴同向）。
+// 兼容：pitch=yaw=pos_z=0 → 2D 公式逐位直通 + oz 恒 0。
+// ---------------------------------------------------------------------------
+
+/// 真 3D 世界四角（画布 XY + 深度轴；输出序 = CornerIdx [LT,RT,RB,LB]）
+inline void quadCorners3DWorld(double x, double y, double w, double h,
+                               double pos_z, double roll_deg,
+                               double pitch_deg, double yaw_deg, int anchor,
+                               const double* corner8, double* ox, double* oy,
+                               double* oz) noexcept {
+    if (pitch_deg == 0.0 && yaw_deg == 0.0 && pos_z == 0.0) {
+        // 快路径：无 3D 位姿 → 历史 2D 公式逐位直通（深度恒 0）
+        quadCornersWithAnchor(x, y, w, h, roll_deg, anchor, corner8, ox, oy);
+        if (oz) oz[0] = oz[1] = oz[2] = oz[3] = 0.0;
+        return;
+    }
+    double au = 0.5, av = 0.5;
+    Transform::anchorUV(anchor, au, av);
+    const double acx = x + au * w; // 锚点（画布域）
+    const double acy = y + av * h;
+
+    // 旋转系数（与 quadCorners3DP 同链：俯仰 Rx → 偏航 Ry；滚转 = 绕画布
+    // 法线面内旋转——作用于旋转后的画布平面投影 (x2, y1)，深度分量不变）
+    const double pr = pitch_deg * kDegToRad;
+    const double cp = std::cos(pr), sp = std::sin(pr);
+    const double yw = yaw_deg * kDegToRad;
+    const double cy = std::cos(yw), sy = std::sin(yw);
+    const double rad = roll_deg * kDegToRad;
+    const double ct = std::cos(rad), st = std::sin(rad);
+
+    for (int i = 0; i < 4; ++i) {
+        const double vx = x + ((i == 1 || i == 2) ? w : 0.0); // 顺时针生成
+        const double vy = y + ((i >= 2) ? h : 0.0);
+        const double lx = vx - acx, ly = vy - acy; // 局部（z=0 平面）
+        // Rx(pitch)：y' = y·cos(p)，z' = −y·sin(p)（正=顶边远离）
+        const double y1 = ly * cp;
+        const double z1 = -ly * sp;
+        // Ry(yaw)：x'' = x·cos + z'·sin；z'' = −x·sin + z'·cos（正=右缘远离）
+        const double x2 = lx * cy + z1 * sy;
+        const double z2 = -lx * sy + z1 * cy;
+        // 滚转（画布面内 R(θ)，绕锚点）+ 角位移（沿画布轴）
+        ox[i] = acx + ct * x2 - st * y1 +
+                (corner8 ? corner8[i * 2 + 0] : 0.0);
+        oy[i] = acy + st * x2 + ct * y1 +
+                (corner8 ? corner8[i * 2 + 1] : 0.0);
+        // 深度轴 = 画布法线（3D 舞台视口的高度轴）：几何深度 + 旋转诱导
+        if (oz) oz[i] = pos_z + z2;
+    }
 }
 
 /// 缩放结果（新外接框左上角 + 尺寸；rotation 不变由调用方保留）

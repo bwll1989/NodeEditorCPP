@@ -22,6 +22,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -540,6 +541,23 @@ inline bool operator==(const ScreenWarp& a, const ScreenWarp& b) {
 // ---------------------------------------------------------------------------
 // 屏幕 —— 虚拟画布中的一个物理输出区域，绑定到某个 Player（§2.1）
 //
+// 【Display 统一模型定案（2026-11-18）】——不再有 2D/3D 两种类型：
+//   * 本结构 = 画布上的【取景窗】+ 可选 3D 姿态（统一的一种 Screen）。
+//     素材默认铺在画布 XY 平面（可经 Transform::pos_z 离面，走全局透视
+//     persp_focal/vp 缩放）；在指定范围经 Show 级透视相机取景输出——
+//     "正交视图"只是焦距无穷大的兜底特例。零姿态 = 旧 2D 平面屏行为，
+//     rot_x/rot_y 非 0 = 斜装/立面屏——同一结构的两档预设，不是两类；
+//   * z = 仅编辑器内多屏取景窗重叠的绘制先后，不下发显示端（display
+//     单机单屏，无叠放概念）；未来 Z-buffer 接管后本字段退役；
+//   * rot_x/rot_y = 斜装屏（地面屏/斜幕/非正交安装）取景姿态，WATCHOUT
+//     投影仪模型的轻量替身：0 = 历史仿射逐位不变；UI 钳 ±85°（90° 单应
+//     奇异，89° 已近边——2026-11-18 收紧，原 ±89°）；ScreenMapper 端
+//     solveHomography 失败另有恒等仿射防御（宁缺勿错）；
+//   * 投影仪视锥（Eye/Target/Lens Shift）与曲面 surface 作为本结构的
+//     字段扩展在统一模型上做（不另立类型——两套类型是兼容性历史包袱，
+//     Flow 无历史 show 负担无需继承）；届时 Surface/View/Device 分层
+//     中本结构升格为 Surface，字段全部可复用（见 2026-11-18 分析结论）。
+//
 // 旋转语义：screen 是画布上的一块【可旋转取景窗】（物理 LED 异形拼接/
 // 竖屏安装时，屏在画布上以任意角度摆放）。渲染时取该旋转矩形围住的画布
 // 内容输出到本机，内容方向【跟随画布】而非屏体——输出像素与画布点的
@@ -588,12 +606,33 @@ struct Scene {
     // ≈正交）+ 消隐点（素材沿 Z 远去时向其收敛）。
     // 【解耦契约】display 取景窗（Screen x/y/w/h）不消费本参数——调透视
     // 不改取景、移取景窗不改透视（白名单 5.1 Z 平移禁止的数学依据）。
-    // focal <= 0 = 未配置：各片段走既有"锚点透视"（焦距 = 2×max(w,h)，
-    // 消隐点 = 锚点——CanvasGeometry::perspectiveFocal 现状），旧工程逐位
-    // 不变；focal > 0 = 全场统一投影（消隐点全局，深度含 clip pos_z）。
+    // focal <= 0 = 未配置：渲染端经 effectivePersp() 取画布派生默认
+    //（F=2×画布对角线、vp=画布中心——2026-11-18 单一透视定案：旋转扭曲
+    // 与 Z 缩放共用本参数，对齐 Watchout Preferences→3D Perspective 模型；
+    // 此前的两级拆分已退役）。focal > 0 = 用户配置全场统一投影。
+    // 非 3D 片段两种模式逐位一致（quadCorners3DP 快路径 s≡1）。
     double persp_focal = 0.0; ///< 全局透视焦距（px；>0 启用，<=0 未配置）
     double persp_vp_x  = 0.0; ///< 消隐点 X（画布 px；focal>0 时消费）
     double persp_vp_y  = 0.0; ///< 消隐点 Y（画布 px；focal>0 时消费）
+
+    /// 有效透视参数（2026-11-18 单一透视定案，对齐 Watchout：旋转扭曲与
+    /// Z 缩放共用一组全局透视参数）：渲染端统一入口——persp_focal>0 =
+    /// 用户配置直通；未配置（<=0）= 画布派生默认：F = 2×画布对角线、
+    /// 消隐点 = 画布中心（全场共享同一投影仪——素材沿 Z/旋转远去时向
+    /// 画布中心收敛、同深度等比，WO 语义）。
+    /// 非 3D 片段（pos_z=0 且无俯仰偏航）在 quadCorners3DP 快路径 s≡1
+    /// 恒等——默认值切换对历史画面零影响（逐位不变）。
+    /// 画布无效（<=0）输出 focal=0：调用方保留对象级回退（数据损坏防御）。
+    void effectivePersp(double& F, double& vpx, double& vpy) const noexcept {
+        if (persp_focal > 0.0) {
+            F = persp_focal; vpx = persp_vp_x; vpy = persp_vp_y;
+            return;
+        }
+        if (!(canvas_w > 0.0) || !(canvas_h > 0.0)) { F = 0.0; return; }
+        F   = 2.0 * std::sqrt(canvas_w * canvas_w + canvas_h * canvas_h);
+        vpx = canvas_w * 0.5;
+        vpy = canvas_h * 0.5;
+    }
 
     /// 按素材 ID 查找素材（线性查找；素材量级小，可接受。
     /// 若未来素材量大，可在 SceneLoader 加载时建 unordered_map 索引）

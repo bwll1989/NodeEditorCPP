@@ -117,6 +117,14 @@ public:
     /// 实现在 .cpp（lambda 调适配器方法需完整类型，前向声明不够）。
     void setTimelineAdapter(QtTimelineModelAdapter* a);
 
+    /// 【画布编辑→属性面板联动 2026-11-18】当前选中片段（sel_.kind==4）
+    /// 的工作副本编辑广播给其所有打开中的属性面板（refreshClipPanels 按
+    /// clip 精确广播、非焦点控件灌值+焦点保护自治）——补齐 2026-11-16
+    /// 接线收编时丢失的腿（注释承诺"画布拖拽实时同步面板显示"但
+    /// sceneEdited 处理只做了菱形重灌+下发，面板从不刷新）。
+    /// 非 clip 选中/越界 = 零开销直返。实现在 .cpp。
+    void notifySelectedClipPanels();
+
     /// 绑定时间轴控件（选中联动信号源；借用指针，不拥有，不存成员——
     /// 仅取其 sharedSelectionModel 建立连接）。时间轴选中变化 → 适配器
     /// 换算工作副本坐标 → 本画布 highlight(4, tr, cl) 高亮（单向；画布
@@ -292,7 +300,11 @@ private:
     void panAnchorTo(const QPointF& widget_pos, const QPointF& world);
     /// 3D 渲染主路径（paintGL 分派；items = GpuDeliver 逐项交付，可空——
     /// 空则全片段棋盘格占位，布局与标注照常）
-    void paintGL3D(const std::vector<PreviewRenderer::DeliverItem>& items);
+    /// \param comp_w/comp_h/dom 合成域尺寸 + 画布域矩形（仅用于给 Display
+    ///        面片贴"全局 Eye 总画面"——把交付项合成一张 QImage，各屏按
+    ///        窗口 UV 裁切；与片段面片贴图链正交）
+    void paintGL3D(const std::vector<PreviewRenderer::DeliverItem>& items,
+                   int comp_w, int comp_h, const QRectF& dom);
     /// 3D 图元四角（画布域，绕中心转 rotation 后）投影成屏幕四边形。
     /// \param anchor 锚点编码（Transform.anchor：0=中心默认——历史路径
     ///               逐位不变；1=左上 2=右上 3=右下 4=左下）
@@ -323,10 +335,15 @@ private:
     /// display_id = screen.player_id → 桥 setDisplayEnabled（停用立即断开；
     /// 启用交看门狗重连；在线角标随宿主 200ms 拍推送刷新）
     void setDisplayConnect(int screen_idx, bool connect_);
-    /// 右键空白「添加屏幕」（单入口；工具条按钮已退役）：id/player_id 自动
+    /// 右键空白「添加屏幕」（唯一入口；工具条按钮已退役）：
+    /// id/player_id 自动
     /// 化（scr-N 线性探测防删屏重名 / player-N 与屏号对齐）+ 默认几何
     /// 960×540 阶梯排布 + 显示端自动连带登记（已登记同名沿用——幂等）。
     /// 写工作副本 + 全链刷新 + qDebug 留痕。改绑/远程显示端走屏幕属性对话框。
+    /// 【2026-11-18 统一】2D/3D 降格为创建预设而非类型——底层只有一种
+    /// Screen（取景窗 + 可选 3D 姿态 rot_x/rot_y）；新建默认零姿态 = 旧
+    /// 2D 行为，斜装/立面在属性对话框调俯仰/偏航。投影仪视锥（Eye/Target/
+    /// Lens Shift）作为字段扩展在统一模型上做，不另立 3D 类型。
     void addScreen();
     /// 银幕右键「删除屏幕」：从工作副本移除 + 全链刷新。显示端登记不连带
     /// 删除（登记无害可复用；改绑/断开走银幕右键与属性对话框）。
@@ -436,12 +453,9 @@ private:
     std::vector<double> snap_ref_y_;    ///< 参考线 y 集合（画布坐标，升序）
     std::vector<double> guide_x_;       ///< 本次命中的吸附线 x（绘制品红竖线）
     std::vector<double> guide_y_;       ///< 本次命中的吸附线 y（绘制品红横线）
-    // ---- 预览透视（2026-11-17 素材 3D 化阶段③；右键菜单可切换）----
-    /// true（默认）= 画布绘制/命中消费 pos_z + Scene 级透视参数
-    ///（quadCorners3DP——与 display ScreenMapper 同源）；false = 强制
-    /// 旧 2D 观感回退查看（quadCorners3D——pos_z/透视视作未配置）。
-    /// pos_z=0 且 persp 未配置时两态逐位同画面（开关默认开零漂移）。
-    bool preview_perspective_ = true;
+    // 【预览透视开关 preview_perspective_ 已删除 2026-11-18】正交视图
+    // 功能及其函数全退役——预览恒与 display 同源（透视），3D 视口恒
+    // 真 3D 世界四角（quadCorners3DWorld）。
 };
 
 } // namespace ms

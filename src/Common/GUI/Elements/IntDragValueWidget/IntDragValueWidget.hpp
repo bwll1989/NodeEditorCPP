@@ -42,6 +42,11 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    /// 【布局契约 2026-11-18】裸 QWidget sizeHint 无效——QFormLayout
+    /// Windows 默认 FieldsStayAtSizeHint 下会被压成 0 宽（什么都不画，
+    /// ScreenWarpPanel 网格密度实证）。与 FloatDragValueWidget 同式覆写。
+    QSize sizeHint() const override { return QSize(60, 25); }
+    QSize minimumSizeHint() const override { return QSize(40, 25); }
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;

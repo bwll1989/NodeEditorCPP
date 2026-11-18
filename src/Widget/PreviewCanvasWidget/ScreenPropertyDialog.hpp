@@ -29,14 +29,19 @@
 
 #include "FramelessDialog/FramelessDialog.hpp" // 统一无边框弹窗基类（2026-11-17）
 
+#include "Elements/FloatDragValueWidget/FloatDragValueWidget.hpp"
+#include "Elements/IntDragValueWidget/IntDragValueWidget.hpp"
+
 #include <cstdint>
 #include <functional>
 
 #include "model/SceneModel.hpp"
 
 class QLineEdit;
-class QSpinBox;
-class QDoubleSpinBox;
+
+class FloatDragValueWidget; ///< 拖拽数值控件（2026-11-18 全量替换 spinbox；
+                           ///  与节点属性面板同风格）
+class IntDragValueWidget;  ///< 整数族（端口）
 
 namespace ms {
 
@@ -85,18 +90,19 @@ public:
     }
 
 private:
-    QDoubleSpinBox* x_ = nullptr; ///< 画布坐标 X
-    QDoubleSpinBox* y_ = nullptr; ///< 画布坐标 Y
-    QDoubleSpinBox* w_ = nullptr; ///< 显示宽度
-    QDoubleSpinBox* h_ = nullptr; ///< 显示高度
-    QDoubleSpinBox* rotation_ = nullptr; ///< 旋转角度（度，顺时针绕中心）
-    QDoubleSpinBox* rot_x_ = nullptr; ///< 俯仰姿态 X（度；屏取景窗 3D 姿态）
-    QDoubleSpinBox* rot_y_ = nullptr; ///< 偏航姿态 Y（度；屏取景窗 3D 姿态）
-    QSpinBox*       z_ = nullptr;        ///< 叠放层级（多屏重叠绘制次序）
+    FloatDragValueWidget* x_ = nullptr; ///< 画布坐标 X
+    FloatDragValueWidget* y_ = nullptr; ///< 画布坐标 Y
+    FloatDragValueWidget* w_ = nullptr; ///< 显示宽度
+    FloatDragValueWidget* h_ = nullptr; ///< 显示高度
+    FloatDragValueWidget* rotation_ = nullptr; ///< 旋转角度（度，顺时针绕中心）
+    FloatDragValueWidget* rot_x_ = nullptr; ///< 俯仰姿态 X（度；屏取景窗 3D 姿态）
+    FloatDragValueWidget* rot_y_ = nullptr; ///< 偏航姿态 Y（度；屏取景窗 3D 姿态）
+    // z_ 已退役（2026-11-18）：Screen 取景窗无叠放语义，层级行移除；
+    // 模型字段保留兼容老工程
     QLineEdit*      player_id_ = nullptr; ///< 绑定的显示端（player id；
                                           ///  连接成功后 display 自动采用）
     QLineEdit*      host_ = nullptr;      ///< 显示端主机（登记用）
-    QSpinBox*       port_ = nullptr;      ///< 显示端监听端口（登记用）
+    IntDragValueWidget* port_ = nullptr; ///< 显示端监听端口（登记用）
     QLineEdit*      pairing_code_ = nullptr; ///< 配对码（空=不认证）
 
     // ---- 输出变形（2026-11-11 内嵌「几何结构」页，不再弹窗）--------------
