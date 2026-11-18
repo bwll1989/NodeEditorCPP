@@ -134,6 +134,8 @@ public:
             m_cefBrowser->close();
             m_cefBrowser = nullptr;
         }
+        // 显式释放 GPU 桥（GL interop 资源须在 GL 上下文存活期内注销）
+        m_bridge.reset();
     }
 
     NodeDataType dataType(PortType portType, PortIndex portIndex) const override
@@ -472,13 +474,6 @@ private Q_SLOTS:
         }
     }
 
-protected:
-    void afterModelReady() override
-    {
-        AbstractDelegateModel::afterModelReady();
-        ImageGpuUpload::instance().warmup();
-    }
-
 private:
     // ---- CEF 帧回调（全部在 GUI 主线程：external_message_pump 契约）----
 
@@ -539,6 +534,9 @@ private:
     {
         if (m_shuttingDown.load() || !m_active) {
             return;
+        }
+        if (info.colorBgra != 1) {
+            return;  // GPU 链路仅支持 BGRA8（防御 RGBA 情形；CEF 默认即 BGRA）
         }
         if (m_updateWhenLoaded && !m_loaded) {
             return;

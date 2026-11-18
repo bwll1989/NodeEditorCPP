@@ -23,7 +23,7 @@ namespace Nodes
  *
  * 原 Reload Source / Reload Page / Restart 三个按钮合并为一个 Reload：
  * 按当前状态自动选择最轻量的恢复路径（见 WebRenderDataModel::reloadNow），
- * Shift+点击 = 强制重启浏览器进程。
+ * Shift+点击 = 重建浏览器实例（GL/D3D 资源全新创建）。
  */
 class WebRenderInterface : public QGroupBox
 {
@@ -79,7 +79,7 @@ public:
         m_reloadBtn = new QPushButton(QStringLiteral("Reload"), this);
         m_reloadBtn->setToolTip(QStringLiteral(
             "重新加载内容（按当前状态自动选择最轻量方式；进程异常时自动重启）\n"
-            "按住 Shift 点击 = 强制重启浏览器进程"));
+            "按住 Shift 点击 = 重建浏览器实例"));
 
         m_statusLabel = new QLabel(QStringLiteral("状态: 未启动"), this);
         m_statusLabel->setWordWrap(true);

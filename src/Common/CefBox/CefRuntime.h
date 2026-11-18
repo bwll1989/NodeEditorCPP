@@ -58,7 +58,6 @@ private:
     bool m_initialized = false;
     bool m_shutdown = false;
     void* m_pumpWnd = nullptr;  ///< message-only 泵窗口 HWND（类型隔离在 .cpp）
-    void* m_mainThreadToken = nullptr;  ///< 主线程标识（诊断断言用）
 };
 
 }  // namespace cefbox

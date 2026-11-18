@@ -9,7 +9,6 @@
 #include <d3d11_1.h>
 
 #include <cstring>
-#include <string>
 
 using namespace NodeDataTypes;
 
@@ -31,11 +30,6 @@ constexpr GLuint kWglAccessReadOnlyNv = 0x00000000;
 
 /// 进程级探测缓存：-1 未探测，0 不支持，1 支持
 std::atomic<int> s_probeResult{-1};
-
-template <typename T>
-T wglProc(const char* name) {
-    return reinterpret_cast<T>(wglGetProcAddress(name));
-}
 
 }  // namespace
 

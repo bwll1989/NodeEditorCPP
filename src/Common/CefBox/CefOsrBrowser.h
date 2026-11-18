@@ -2,8 +2,10 @@
 // =============================================================================
 // CefOsrBrowser — 无窗口（OSR）浏览器
 //
-// - 帧输出：OnPaint → BGRA8（预乘 alpha）软件位图 → FrameCallback
-//   （P2 升级 OnAcceleratedPaint 共享纹理时在此类内切换，对节点层透明）
+// - 帧输出双路径（由宿主按能力选择，本类不自动降级）：
+//   软件 create()   → OnPaint → BGRA8（预乘 alpha）位图 → FrameCallback
+//   GPU createAccelerated() → OnAcceleratedPaint → SharedFrameInfo（NT handle）
+//     → AcceleratedFrameCallback（宿主须在回调内拷贝，见 SharedFrameInfo 契约）
 // - 弹窗策略：全部阻断（OnBeforePopup 返回 true）
 // - 线程约定：全部方法在 CEF 主线程（= CefRuntime::initialize() 线程）调用。
 //   external_message_pump=true 时 CEF 的 UI 线程即主线程，回调天然同步。
