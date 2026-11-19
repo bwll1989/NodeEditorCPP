@@ -182,8 +182,8 @@
           <div class="pgroup">几何与变换</div>
           <label title="画布像素（左上角为原点，画布尺寸见顶栏）">X (px)<input name="x" type="number" step="1" placeholder="0=左上" :value="draft.x" @input="onProp('x', $event)"></label>
           <label title="画布像素（左上角为原点）">Y (px)<input name="y" type="number" step="1" placeholder="0=左上" :value="draft.y" @input="onProp('y', $event)"></label>
-          <label title="绘制宽度（画布像素）；留空 = 素材自然尺寸">宽 (px)<input name="w" type="number" step="1" min="0" placeholder="自动" :value="draft.w" @input="onProp('w', $event)"></label>
-          <label title="绘制高度（画布像素）；留空 = 素材自然尺寸">高 (px)<input name="h" type="number" step="1" min="0" placeholder="自动" :value="draft.h" @input="onProp('h', $event)"></label>
+          <label title="绘制宽度（画布像素）；视频/图片留空 = 自动等比适配画布并居中，其余素材 = 自然尺寸">宽 (px)<input name="w" type="number" step="1" min="0" placeholder="自动" :value="draft.w" @input="onProp('w', $event)"></label>
+          <label title="绘制高度（画布像素）；视频/图片留空 = 自动等比适配画布并居中，其余素材 = 自然尺寸">高 (px)<input name="h" type="number" step="1" min="0" placeholder="自动" :value="draft.h" @input="onProp('h', $event)"></label>
           <label title="旋转角度（度，顺时针，绕片段中心）">旋转 (°)<input name="rotation" type="number" step="1" :value="draft.rotation" @input="onProp('rotation', $event)"></label>
           <label title="不透明度 0~1">不透明度 <input name="opacity" type="number" step="0.05" min="0" max="1" :value="draft.opacity" @input="onProp('opacity', $event)"></label>
           <label title="同一轨道内多个片段的叠放次序（0~999，大者在上）；跨轨道层次由轨道上下移（▲▼）决定">轨内层级 <input name="z" type="number" step="1" min="0" max="999" :value="draft.z" @input="onProp('z', $event)"></label>

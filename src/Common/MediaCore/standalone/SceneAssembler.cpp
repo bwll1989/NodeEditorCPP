@@ -244,10 +244,50 @@ std::shared_ptr<const Scene> SceneAssembler::assemble(
             c.start_us    = cs.start_us;
             c.duration_us = dur;
             c.in_us       = cs.in_us;
-            c.transform.x       = cs.x;
-            c.transform.y       = cs.y;
-            c.transform.w       = cs.w;
-            c.transform.h       = cs.h;
+
+            // 【画布适配 2026-11-19】Video/Image 未指定绘制尺寸（w=h=0）时
+            // 装配端按画布 contain 等比适配 + 居中——standalone/MPCDI 播放
+            // 场景"任意分辨率输入自动满屏"语义。原语义（0 = 素材自然尺寸、
+            // 画布原点摆放）在素材 ≠ 画布时三态失衡（MPCDI 校准实测）：
+            //   素材=画布 → 恰好铺满（正常，掩盖问题）；
+            //   素材 > 画布（如 4K → 1920×1200 屏）→ 出画布被裁，只见左上
+            //     一角（用户报"只显示一部分"）；
+            //   素材 ≪ 画布 → 缩在左上角（用户报"压缩的很小"）。
+            // MPCDI warp 链路（region pos/uv 画布归一化 + FBO 全域采样）
+            // 本就正确——装不满的是 FBO 内容：素材没先进画布，warp 忠实
+            // 把"裁过的画布"变形上屏。修复落点 = 装配端唯一真相：探测出
+            // 素材像素尺寸后立即换算绘制矩形，渲染端不再依赖自然尺寸回退。
+            //   * contain（等比取 min，不裁内容）而非 cover——校准/演出
+            //     内容裁切是灾难；黑边属正确行为（想铺满显式给 w/h）；
+            //   * 只给一边（w>0 或 h>0）保持原语义：给的边生效、另一边
+            //     渲染端自然尺寸回退；
+            //   * x/y 全 0 视作未指定 → 画布居中；显式位置原样保留；
+            //   * Text 保持自然尺寸（字幕放大满屏无意义）；Audio 无宽高。
+            // 编辑器工程路径（adoptForStandalone）不经过本函数，所见即
+            // 所得语义不受影响；渲染端 ScreenMapper 自然尺寸回退保留
+            //（兜底语义不变，只是装配产物不再依赖它）。
+            double draw_x = cs.x;
+            double draw_y = cs.y;
+            double draw_w = cs.w;
+            double draw_h = cs.h;
+            if ((a.kind == AssetKind::Video || a.kind == AssetKind::Image) &&
+                draw_w <= 0.0 && draw_h <= 0.0 &&
+                a.width > 0.0 && a.height > 0.0 &&
+                spec.canvas_w > 0.0 && spec.canvas_h > 0.0) {
+                const double s = std::min(spec.canvas_w / a.width,
+                                          spec.canvas_h / a.height);
+                draw_w = a.width * s;
+                draw_h = a.height * s;
+                if (draw_x == 0.0 && draw_y == 0.0) {
+                    draw_x = (spec.canvas_w - draw_w) / 2.0;
+                    draw_y = (spec.canvas_h - draw_h) / 2.0;
+                }
+            }
+
+            c.transform.x       = draw_x;
+            c.transform.y       = draw_y;
+            c.transform.w       = draw_w;
+            c.transform.h       = draw_h;
             c.transform.opacity = cs.opacity;
             c.transform.rotation = cs.rotation; // 度，顺时针，绕锚点（引擎 v3 已消费）
             c.transform.crop[kCropL] = (std::max)(cs.crop_l, 0.0); // 裁剪透传
