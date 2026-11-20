@@ -27,7 +27,9 @@
 //        "scene": { canvas_w, canvas_h, tracks:[{ name, clips:[{
 //          file, text, start_us, duration_us, in_us,
 //          x,y,w,h(画布 px 绝对值), opacity, z(轨内层级 0~999),
-//          rotation(度), crop_l/r/t/b(px 向内收), fade_in_us, fade_out_us }] }] } }
+//          rotation(度), crop_l/r/t/b(px 向内收), fade_in_us, fade_out_us,
+//          rgb_gain:[R,G,B](逐通道线性增益 [0,2]，缺省 1,1,1),
+//          gamma(伽马 [0.1,4]，缺省 1；渲染端 pow(c,1/γ)) }] }] } }
 //    播放时实时 SceneAssembler::assemble 成 Scene（运行态产物不落盘）；
 //    文档落盘 <timelines_dir>/<id>.json（id=文件名，稳定标识）。
 //    .show 工程导入（ini timeline.N.*）走 main 的 fillStandaloneRegistry，

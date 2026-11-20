@@ -45,6 +45,9 @@ inline QColor tweenPropColor(int prop) {
         case 14: return QColor(0x9C, 0xCC, 0x65); // 裁切上·黄绿
         case 15: return QColor(0x00, 0x89, 0x5C); // 裁切下·蓝绿
         case 16: return QColor(0x26, 0xA6, 0x9A); // 音频增益·青绿（2026-11-10）
+        // ---- 颜色合成（2026-11-20 追加：调色紫红系两档）----
+        case 17: return QColor(0xBA, 0x68, 0xC8); // RGB 增益·亮紫
+        case 18: return QColor(0x7E, 0x57, 0xC2); // Gamma·深紫
         default: return QColor(0xB0, 0xB0, 0xB0); // 未知·灰（防御）
     }
 }
@@ -71,6 +74,8 @@ inline const char* tweenPropShortName(int prop) {
         case 14: return "裁切 上";
         case 15: return "裁切 下";
         case 16: return "音频增益"; // 2026-11-10（漏项修复：右键菜单曾显"?"）
+        case 17: return "RGB 增益"; // 2026-11-20 颜色合成追加
+        case 18: return "Gamma";
         default: return "?";
     }
 }

@@ -68,7 +68,7 @@ struct PropDef {
     const char* key;        ///< schema join 键（对齐 ms::kTweenSchema）
     const char* obj_suffix; ///< objectName 后缀（tween<suffix><分量>）
 };
-constexpr PropDef kPropOrder[13] = {
+constexpr PropDef kPropOrder[15] = {
     {TweenProp::Position,   "position",   "Pos"},
     {TweenProp::Size,       "size",       "Size"},
     {TweenProp::Rotation,   "rotation",   "Rot"},
@@ -82,12 +82,14 @@ constexpr PropDef kPropOrder[13] = {
     {TweenProp::CornerLB,   "corner_lb",  "CornerLB"},
     {TweenProp::Opacity,    "opacity",    "Opa"},
     {TweenProp::AudioGain,  "audio_gain", "Gain"},
+    {TweenProp::RgbGain,    "rgb_gain",   "RgbGain"},
+    {TweenProp::Gamma,      "gamma",      "Gamma"},
 };
 /// 【两表对齐护栏】kPropOrder 行序/key 必须与 ms::kTweenSchema 逐行一致
 ///（buildRow 以行下标同时索引两表——漂移即静默错行）。constexpr 自写
 /// 逐字符比较（qstrcmp 非 constexpr；字面量编译期可读）。
 constexpr bool schemaKeysAligned() {
-    for (int i = 0; i < 13; ++i) {
+    for (int i = 0; i < 15; ++i) {
         const char* a = kPropOrder[i].key;
         const char* b = ms::kTweenSchema[i].key;
         while (*a != '\0' && *b != '\0' && *a == *b) { ++a; ++b; }
@@ -98,9 +100,9 @@ constexpr bool schemaKeysAligned() {
 static_assert(schemaKeysAligned(),
               "kPropOrder 与 ms::kTweenSchema 行序/key 漂移（P4-D 两表契约）");
 /// 行首槽位表（静态暂存 static_vals_ 与脏位的槽位基准——行槽数 =
-/// components，数据槽 0..21 共 22 个；末项 = 总槽数哨兵；锚点脏位
+/// components，数据槽 0..25 共 26 个；末项 = 总槽数哨兵；锚点脏位
 /// 避开全部数据槽，见 kSAnchor）
-constexpr int kRowSlot[14] = {
+constexpr int kRowSlot[16] = {
     0,  // 行 0 位置 (x,y,z)        → 0..2（UI 两框 X/Y；槽 2 = 层级，
         //                          独立「层级 Z」行写同槽——applyTo 路径不变）
     3,  // 行 1 尺寸 (w,h)         → 3..4
@@ -115,18 +117,20 @@ constexpr int kRowSlot[14] = {
     18, // 行 10 角点LB (2)        → 18..19
     20, // 行 11 不透明度          → 20
     21, // 行 12 音频增益（2026-11-10） → 21
-    22, // 哨兵 = 总槽数
+    22, // 行 13 RGB 增益 (R,G,B)（2026-11-20） → 22..24
+    25, // 行 14 Gamma（2026-11-20）   → 25
+    26, // 哨兵 = 总槽数
 };
 /// 行序+分量 → 静态脏位（槽位即位号）
 constexpr std::uint32_t sBit(int row, int comp) {
     return 1u << (kRowSlot[row] + comp);
 }
-/// 锚点（追加区静态属性）脏位——避开 22 个分量槽位
-constexpr std::uint32_t kSAnchor = 1u << 22;
-/// 深度 Z（2026-11-17 阶段③追加区静态属性）脏位——避开 22 槽 + 锚点位
-constexpr std::uint32_t kSPosZ = 1u << 23;
+/// 锚点（追加区静态属性）脏位——避开 26 个分量槽位
+constexpr std::uint32_t kSAnchor = 1u << 26;
+/// 深度 Z（2026-11-17 阶段③追加区静态属性）脏位——避开 26 槽 + 锚点位
+constexpr std::uint32_t kSPosZ = 1u << 27;
 /// 遮挡次序（2026-11-17 阶段③追加区静态属性）脏位
-constexpr std::uint32_t kSStacking = 1u << 24;
+constexpr std::uint32_t kSStacking = 1u << 28;
 
 /// 重置默认值（v3 ⟲ 语义）：位置 (0,0,0)、旋转三轴 0、裁切 0、
 /// 角点 0、不透明度 1（DaVinci「恢复默认值」；锚点=中心在重置钮单独
@@ -252,7 +256,7 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         for (bool& e : row_exposed_) e = false;
         for (const QString& k : expo.exposed_keys) {
             bool matched = false;
-            for (int i = 0; i < 13; ++i)
+            for (int i = 0; i < 15; ++i)
                 if (k == QLatin1String(kPropOrder[i].key)) {
                     row_exposed_[i] = true;
                     matched = true;
@@ -459,13 +463,12 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
                                "性不参与关键帧；叠放层级在下方「层级 Z」行）"));
         if (def.prop == TweenProp::Rotation)
             name_lbl->setToolTip(
-                QStringLiteral("三轴旋转（v4 合并打包，一键携 X/Y/Z 三分"
-                               "量）：X = 俯仰绕画布 X 轴（正 = 顶边后"
-                               "仰）、Y = 偏航绕画布 Y 轴（正 = 右缘远"
-                               "离）、Z = 滚转绕画布 Z 轴（2D 旋转，顺时"
-                               "针）；透视投影按画幅焦距（2×长边）近大远"
-                               "小，绕锚点旋转，渲染为两三角形分片线性近"
-                               "似。透视轴 X/Y 值域 ±89°（90° 起画面翻面）"));
+                QStringLiteral("三轴旋转（一键携 X/Y/Z 三分量）：X = 俯仰绕"
+                               "画布 X 轴（正 = 顶边后仰）、Y = 偏航绕画布 "
+                               "Y 轴（正 = 右缘远离）、Z = 滚转绕画布 Z 轴"
+                               "（2D 旋转，顺时针）——三轴旋转【应用完成后】"
+                               "透视投影到 XY 平面（针孔压扁，近大远小），"
+                               "绕锚点旋转。透视轴值域 ±89°"));
         if (def.prop >= TweenProp::CropT && def.prop <= TweenProp::CropR)
             name_lbl->setToolTip(
                 QStringLiteral("裁切：可见矩形各边向内收（画布 px，内容不"
@@ -492,6 +495,18 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
                                "线异常把混音推入持续削波）。有 AudioGain 通"
                                "道时整条接管静态 audio_gain；消费端 = 混音"
                                "引擎 resolveGain，支持关键帧做音量自动化"));
+        if (def.prop == TweenProp::RgbGain)
+            name_lbl->setToolTip(
+                QStringLiteral("RGB 增益 [0,2]（三通道线性倍率，2026-11-20 追加）："
+                               "采样后逐通道相乘（1=不变，0=该通道压黑，>1 "
+                               "提升亮度/调色）。三通道打包一条属性：一个键携带 R/G/B "
+                               "全部分量。偏色校正/色彩氛围动画用，支持关键帧"));
+        if (def.prop == TweenProp::Gamma)
+            name_lbl->setToolTip(
+                QStringLiteral("Gamma 伽马校正 [0.1,4]（2026-11-20 追加）："
+                               "渲染端 pow(颜色, 1/γ)——γ>1 提亮中间调、"
+                               "<1 压暗；1.0 = 不校正（零开销）。支持关键帧"
+                               "做曝光/氛围渐变"));
 
         // 值框（三维行三框 / 二维行双框 / 标量行单框）；编辑 → 打包双模直写
         // （2026-11-12 用户定案：面板数值控件统一 DragValue——拖拽/滚轮步进、
@@ -631,36 +646,13 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
             ++gr;
         } // if (g0_has)
 
-        // ---- 位置行（【2026-11-18 语义终定】UI 两分量 X/Y；第三值位 =
-        //      深度 Z 静态框 pos_z（浮点 px——素材在三维中的真实 z 位置），
-        //      位置 = 3D 空间真实位置（X/Y/深度）。层级框不参与关键帧：
-        //      列 4 菱形只键 X/Y，数据层 v2 由 recordKeyframe 携带当前
-        //      基准层级——老工程 Z 通道求值不变、新键不打零）--------------
+        // ---- 位置行（【2026-11-20 2D 化】位置 = 两分量 X/Y——第三值位
+        //      "深度 Z" 框退役不再生成（pos_z_spin_ 恒空，更新/写回路径
+        //      均判空安全）。数据字段 transform.pos_z 保留：旧工程加载时
+        //      统一归零（ProjectSnapshotBuilder / EditorRuntime），UI 无
+        //      任何 Z 编辑/显示入口 --------------------------------------
         const int pos_row = gr;
         if (buildRow(0, g0, gr)) {
-            pos_z_spin_ = new FloatDragValueWidget(box);
-            pos_z_spin_->setObjectName(QStringLiteral("tweenDepthZ"));
-            pos_z_spin_->setRange(-100000.0, 100000.0);
-            pos_z_spin_->setDecimals(2);
-            pos_z_spin_->setSingleStep(10.0);
-            pos_z_spin_->setSuffix(QStringLiteral(" px"));
-            pos_z_spin_->setToolTip(
-                QStringLiteral("深度 Z（3D 空间位置第三分量）：素材在三维"
-                               "中的真实 z 位置——透视投影权重 s=F/(F−Z)，"
-                               "正 = 朝观察者 Eye/舞台向上（画面放大、与 3D "
-                               "视口面片升高同向）、负 = 远离（画面收缩）。"
-                               "0 = 无透视（历史行为逐位）。静态属性"
-                               "不参与关键帧（恢复 0 双击输入）"));
-            // 预填在 connect 之前（不触发写回）
-            pos_z_val_ = clip.transform.pos_z;
-            pos_z_spin_->setValue(pos_z_val_);
-            connect(pos_z_spin_, &FloatDragValueWidget::valueChanged, this,
-                    [this](double v) {
-                        pos_z_val_ = v;
-                        static_dirty_ |= kSPosZ;
-                        if (applier_) applier_();
-                    });
-            g0->addWidget(pos_z_spin_, pos_row, kColVal + 2); // 第三值位
             ++gr;
         }
 
@@ -746,13 +738,12 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         hideGroupIfEmpty(0, gr);
     }
 
-    // ---- 组 1「姿态」：旋转一行三维打包（v4 合并；行 2）--------------------
-    //      X=俯仰（绕画布 X 轴）/ Y=偏航（绕画布 Y 轴）/ Z=滚转（绕画布
-    //      Z 轴 2D）——一条通道一键携三分量（同位置行打包语义）
+    // ---- 组 1「姿态」：旋转一行三维打包（2026-11-20 修订：三轴旋转
+    //      应用完成后透视投影到 XY 平面——近大远小）------------------------
     grp_btn_[1] = makeGroupHeader(
         "tweenGroupPose", QStringLiteral("姿态（绕 X / Y / Z 轴旋转）"),
-        "三轴旋转一条通道：X = 俯仰（正=顶边后仰）、Y = 偏航（正=右缘远"
-        "离）、Z = 滚转（2D 旋转）——透视近大远小，绕锚点旋转。点击标题展开",
+        "三轴旋转一条通道：X = 俯仰、Y = 偏航、Z = 滚转（2D 旋转）——应用"
+        "完成后透视投影到 XY 平面（针孔压扁，近大远小）。点击标题展开",
         false);
     lay->addWidget(grp_btn_[1]);
     {
@@ -795,11 +786,14 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         hideGroupIfEmpty(3, gr);
     }
 
-    // ---- 组 4「合成」：不透明度 + 音频增益（2026-11-10 追加行 12）--------
+    // ---- 组 4「合成」：不透明度 + 音频增益（行 12）+ 颜色合成（行 13/14，
+    //      2026-11-20 追加 RGB 增益/Gamma——schema/写回/读回同轮就绪，
+    //      组装配漏 buildRow 导致用户"合成组看不到颜色设置"，补上）----
     grp_btn_[4] = makeGroupHeader(
-        "tweenGroupComp", QStringLiteral("合成（不透明度 / 音频增益）"),
-        "不透明度 [0,1]（与素材自身 alpha 相乘）；音频增益 [0,2]（线性，"
-        "1.0=不衰减，0=静音）——点击标题展开",
+        "tweenGroupComp", QStringLiteral("合成（不透明度 / 颜色 / 音频增益）"),
+        "不透明度 [0,1]（与素材自身 alpha 相乘）；RGB 增益 [0,2]（R/G/B "
+        "线性增益，1.0=不变）；Gamma [0.1,4]（1.0=不校正，pow(c,1/γ)）；"
+        "音频增益 [0,2]（线性，1.0=不衰减，0=静音）——点击标题展开",
         false);
     lay->addWidget(grp_btn_[4]);
     {
@@ -807,6 +801,8 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
         int gr = 0;
         if (buildRow(11, g4, gr)) ++gr;
         if (buildRow(12, g4, gr)) ++gr;
+        if (buildRow(13, g4, gr)) ++gr; // RGB 增益（三维 R/G/B 打包打键）
+        if (buildRow(14, g4, gr)) ++gr; // Gamma 伽马校正（标量打键）
         finishGroup(4, g4);
         hideGroupIfEmpty(4, gr);
     }
@@ -843,7 +839,7 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
 // ---------------------------------------------------------------------------
 // 行访问器（越界防御返回 nullptr——测试下标错误快速暴露而非崩溃）
 // ---------------------------------------------------------------------------
-int TweenSection::propCount() { return 13; } // v4 五分组 13 属性行（+音频增益；Z 行/俯仰/偏航行退役合并）
+int TweenSection::propCount() { return 15; } // v4 五分组 13 属性 + 2026-11-20 颜色合成追加 2 行（rgb_gain/gamma；Z 行/俯仰/偏航退役合并）
 
 FloatDragValueWidget* TweenSection::valueSpin(int i, int component) const {
     if (i < 0 || i >= (int)rows_.size()) return nullptr;
@@ -1124,6 +1120,13 @@ void TweenSection::applyTo(Clip& c) const {
     // 音频增益静态基准（行 12，2026-11-10）：直写 clip.audio_gain（非
     // transform 域属性；有 AudioGain 通道时本值被通道整条接管）
     if (static_dirty_ & sBit(12, 0)) c.audio_gain = static_vals_[21];
+    // 颜色合成静态基准（行 13/14，2026-11-20）：直写 transform 颜色域
+    // 字段（有 RgbGain/Gamma 通道时被通道整条接管——resolveTransform
+    // 同一 switch 语义）
+    if (static_dirty_ & sBit(13, 0)) c.transform.rgb_gain[0] = static_vals_[22];
+    if (static_dirty_ & sBit(13, 1)) c.transform.rgb_gain[1] = static_vals_[23];
+    if (static_dirty_ & sBit(13, 2)) c.transform.rgb_gain[2] = static_vals_[24];
+    if (static_dirty_ & sBit(14, 0)) c.transform.gamma = static_vals_[25];
     // 锚点（追加区：静态属性直写 transform）
     if (static_dirty_ & kSAnchor) c.transform.anchor = anchor_val_;
     // 深度 Z（2026-11-17 阶段③追加区：静态属性直写 transform.pos_z——
@@ -1191,6 +1194,12 @@ void TweenSection::refreshFrom(const Clip& c) {
                 break;
             case 11: v[0] = shown.opacity;                break;
             case 12: v[0] = gain_shown;                   break;
+            case 13: // RGB 增益三维打包：R/G/B 线性增益
+                v[0] = shown.rgb_gain[0];
+                v[1] = shown.rgb_gain[1];
+                v[2] = shown.rgb_gain[2];
+                break;
+            case 14: v[0] = shown.gamma;                  break;
         }
         for (int comp = 0; comp < r.components; ++comp) {
             if (r.value[comp] && !r.value[comp]->hasFocus()) {

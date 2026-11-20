@@ -161,6 +161,16 @@ Transform TweenEngine::resolveTransform(const Clip& clip,
             case TweenProp::CornerRT: out.corner[2] = v.v0; out.corner[3] = v.v1; break;
             case TweenProp::CornerRB: out.corner[4] = v.v0; out.corner[5] = v.v1; break;
             case TweenProp::CornerLB: out.corner[6] = v.v0; out.corner[7] = v.v1; break;
+            // 颜色合成通道（2026-11-20 片段级）：RgbGain 三维打包 v0/v1/v2
+            // = R/G/B 增益（钳 [0,2] 同 audio_gain 上限口径——防异常键把
+            // 画面推爆）；Gamma 标量（钳 [0.1,4]——下限防除零 pow(c,1/γ)
+            // 指数发散，上限防全白）。渲染端仅在偏离 1.0 时才走 pow 路径。
+            case TweenProp::RgbGain:
+                out.rgb_gain[0] = std::clamp(v.v0, 0.0, 2.0);
+                out.rgb_gain[1] = std::clamp(v.v1, 0.0, 2.0);
+                out.rgb_gain[2] = std::clamp(v.v2, 0.0, 2.0);
+                break;
+            case TweenProp::Gamma: out.gamma = std::clamp(v.v0, 0.1, 4.0); break;
             case TweenProp::Unknown:
             default:
                 break; // 未知属性（新版本协议向下兼容）不覆写任何字段

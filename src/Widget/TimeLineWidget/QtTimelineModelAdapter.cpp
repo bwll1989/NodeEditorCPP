@@ -120,6 +120,8 @@ std::vector<TweenChannelDots> buildTweenDots(const Clip& c,
                 case 6: case 7: case 8: case 9: // 角点位移（画布 px）
                     step = 100.0;
                     break;
+                case 17: step = 0.25; break; // RGB 增益（倍率，2026-11-20）
+                case 18: step = 0.25; break; // Gamma 伽马指数
                 default: break;
             }
             vmin -= step;
@@ -134,6 +136,14 @@ std::vector<TweenChannelDots> buildTweenDots(const Clip& c,
             vmin = std::max(0.0, vmin);
             vmax = std::min(1.0, vmax);
             if (vmax - vmin < 1e-9) { vmin = 0.0; vmax = 1.0; } // 退化兜底
+        }
+        if (d.prop == 17) { // RGB 增益 [0,2]（2026-11-20）
+            vmin = std::max(0.0, vmin);
+            vmax = std::min(2.0, vmax);
+        }
+        if (d.prop == 18) { // Gamma [0.1,4]（下限防 pow 指数发散）
+            vmin = std::max(0.1, vmin);
+            vmax = std::min(4.0, vmax);
         }
         if (d.prop == 2) // 尺寸下限 0（负尺寸未定义）
             vmin = std::max(0.0, vmin);

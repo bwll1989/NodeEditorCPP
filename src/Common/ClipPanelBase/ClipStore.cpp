@@ -32,7 +32,7 @@ struct KeyEntry {
     const char* key;
     TweenProp   prop;
 };
-constexpr KeyEntry kTweenKeys[13] = {
+constexpr KeyEntry kTweenKeys[15] = {
     {"position",    TweenProp::Position},
     {"size",        TweenProp::Size},
     {"rotation",    TweenProp::Rotation},
@@ -46,6 +46,8 @@ constexpr KeyEntry kTweenKeys[13] = {
     {"corner_lb",   TweenProp::CornerLB},
     {"opacity",     TweenProp::Opacity},
     {"audio_gain",  TweenProp::AudioGain},
+    {"rgb_gain",    TweenProp::RgbGain},
+    {"gamma",       TweenProp::Gamma},
 };
 
 TweenProp propForKey(const QString& key) {
@@ -113,6 +115,13 @@ bool transformGet(const Transform& tf, TweenProp prop, int comp, double& out) {
         case TweenProp::CornerLB:
             if (comp >= 0 && comp < 2) { out = tf.corner[3 * 2 + comp]; return true; }
             return false;
+        // 颜色合成（2026-11-20）：RgbGain 三维打包（v0/v1/v2 = R/G/B）
+        case TweenProp::RgbGain:
+            if (comp >= 0 && comp < 3) { out = tf.rgb_gain[comp]; return true; }
+            return false;
+        case TweenProp::Gamma:
+            if (comp == 0) { out = tf.gamma; return true; }
+            return false;
         default:
             return false;
     }
@@ -161,6 +170,13 @@ bool transformSet(Transform& tf, TweenProp prop, int comp, double v) {
             return false;
         case TweenProp::CornerLB:
             if (comp >= 0 && comp < 2) { tf.corner[3 * 2 + comp] = v; return true; }
+            return false;
+        // 颜色合成（2026-11-20）：写侧钳制对齐 TweenEngine 解算口径
+        case TweenProp::RgbGain:
+            if (comp >= 0 && comp < 3) { tf.rgb_gain[comp] = std::clamp(v, 0.0, 2.0); return true; }
+            return false;
+        case TweenProp::Gamma:
+            if (comp == 0) { tf.gamma = std::clamp(v, 0.1, 4.0); return true; }
             return false;
         default:
             return false;

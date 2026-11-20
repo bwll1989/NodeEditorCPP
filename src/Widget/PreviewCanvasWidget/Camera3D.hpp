@@ -55,8 +55,10 @@ namespace ms {
 
 struct Camera3D {
     // ---- 轨道参数（见文件头）------------------------------------------------
-    double yaw_deg   = 0.0;   ///< 方位角（0 = 画布正面；右键拖拽 orbit）
-    double pitch_deg = 35.0;  ///< 俯仰角（kPitchMin..kPitchMax；缺省 35°）
+    double yaw_deg   = 0.0;   ///< 方位角（0 = 画布正面；orbit 已屏蔽——2D 化）
+    double pitch_deg = 0.0;   ///< 俯仰角（0 = 正俯视：画布 x 向屏幕右、y 向
+                              ///  屏幕下，与 2D fit 逐点同向无镜像——2026-11-20
+                              ///  2D 化定案；orbit 屏蔽后恒此值）
     double scale     = 1.0;   ///< 视口比例（控件像素/画布单位；resetView=fit）
     double tx        = 0.0;   ///< 注视点 x（画布域）
     double tz        = 0.0;   ///< 注视点 y（画布域）
@@ -64,8 +66,8 @@ struct Camera3D {
     /// 俯仰钳制（下限 8°：正弦过小会让地面反投影发散到无穷远）
     static constexpr double kPitchMin = 8.0;
     static constexpr double kPitchMax = 89.0;
-    /// 缺省俯仰（resetView 归位值；Blender 缺省视角的观感）
-    static constexpr double kPitchHome = 35.0;
+    /// 缺省俯仰（resetView 归位值；0 = 正俯视 = 2D 视图——2026-11-20 2D 化）
+    static constexpr double kPitchHome = 0.0;
 
     // ---- 派生基向量（每次现算：6 次三角函数，paint 期可忽略）----------------
     void basis(double* rx, double* rz,          ///< 屏幕右 R（y 分量恒 0）

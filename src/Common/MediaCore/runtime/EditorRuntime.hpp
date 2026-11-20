@@ -266,7 +266,10 @@ private:
 
     // ---- 注册 / Ack 公共处理（display 通道专用；recv 线程上下文）------------
     /// 注册处理：建注册表条目 → 回 Ack（含会话号/UDP 心跳地址/HTTP 端口）→
-    /// 下发场景 → UDP 反查表登记 → 重连并入锚点（§7.1④）。
+    /// 下发场景 → UDP 反查表登记 → 注册状态对账（§7.1④升级，2026-11-20：
+    /// 任意注册即单播当前权威状态——Idle→STOP / Playing→PLAY(外推) /
+    /// Paused→PAUSE(paused_time_us_)；根治断连错过 STOP 的永久失控与
+    /// Editor 重启后旧会话状态残留）。
     /// \param pid              显示端上报的 player_id
     /// \param udp_report_port  其 UDP 上报端口（0=未启用）
     /// \param player_udp_host  该端 IP（心跳单播目标；连接记录的对端 IP）

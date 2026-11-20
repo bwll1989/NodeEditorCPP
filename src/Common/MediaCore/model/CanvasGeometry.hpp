@@ -234,6 +234,17 @@ inline void quadCorners3DP(double x, double y, double w, double h,
     }
 }
 
+/// 三轴旋转透视四角（2026-11-20 修订定案，素材旋转唯一真相）：
+/// XYZ 三轴旋转照常应用（局部 z=0 平面的面片，俯仰 Rx → 偏航 Ry，滚转
+/// 最后 = 世界轴 Z），旋转完成后再【透视投影】到 XY 平面（针孔压扁，
+/// 近大远小——2026-11-20 曾短暂改走正交扁平化（丢 Z 无透视），用户目验
+/// 旋转观感后拍板恢复透视）。透视仪 = Scene::effectivePersp（persp_* 未
+/// 配置 = 画布派生默认 F=2×对角线、vp=画布中心，全场共享同一投影仪）；
+/// 深度 Z = pos_z + 旋转诱导 z2（EditorRuntime 加载归零 pos_z——透视
+/// 效果仅由旋转诱导）。屏幕（Screen）斜装姿态单应同走 quadCorners3DP
+/// 透视链（合成端分治：素材 judge 与屏 st 各自投影）。
+/// quadCornersOrthoFlat（正交扁平化，同日废弃）已删除——勿再引用。
+
 /// 三轴旋转四角（画布域，输出序 = CornerIdx [LT,RT,RB,LB]——与
 /// quadCornersWithAnchor 同约定；消费方 GL/Soft 顶点序经 kVtxToCorner 映射）
 /// \param pitch_deg rot_x（俯仰，绕画布 X 轴；正=顶边后仰）
@@ -251,10 +262,18 @@ inline void quadCorners3D(double x, double y, double w, double h,
 // ---------------------------------------------------------------------------
 // 真 3D 世界四角（素材真 3D 化 2026-11-18，Watchout Stage 语义）------------
 //
+// 【退役 2026-11-20 用户拍板】2D 取景范式定案后，素材三轴旋转的预览
+// 语义 = 透视投影压平到 XY 平面（quadCorners3DP + Scene::effectivePersp，
+// 与 display ScreenMapper 完全同源）——站立路径在正交轨道相机下旋转观感
+// 为平行四边形（无近大远小），用户目验不认可。最后消费者
+//（SceneCanvasWidget paintGL3D posed 分支）已改走 quadCorners3DP 压平。
+// 本函数保留（backup-stage-paradigm-1120 归档纪律：3D 舞台链可从
+// backup 分支回收），勿再新增引用。
+//
 // quadCorners3DP 输出的是【针孔压扁后】的画布平面四角（display 取景的
 // 数学真相——投影到画布平面再被取景窗采样）；本函数输出【投影前】的
 // 三维世界坐标——同一旋转链（Rx→Ry，滚转 = 绕画布法线面内旋转），但不
-// 做针孔压扁。消费方 = 编辑器 3D 舞台视口：面片以其真实三维形状立在
+// 做针孔压扁。原消费方 = 编辑器 3D 舞台视口：面片以其真实三维形状立在
 // 舞台空间里（俯仰/偏航让面片离开画布平面"站立/倾斜"，正交轨道相机
 // 从任意角度都能看到空间厚度），而非把透视画贴在平行画布的悬浮薄片上
 //（旧实现：压扁四角逐角提升到高度平面——掠射角下恒为薄片，用户实证）。

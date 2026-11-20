@@ -101,6 +101,8 @@ static TweenProp FromProtoTweenProp(ms_proto::TweenProp p) noexcept {
         case ms_proto::TWEEN_PROP_CROP_TOP:   return TweenProp::CropT;
         case ms_proto::TWEEN_PROP_CROP_BOTTOM: return TweenProp::CropB;
         case ms_proto::TWEEN_PROP_AUDIO_GAIN: return TweenProp::AudioGain;
+        case ms_proto::TWEEN_PROP_RGB_GAIN:   return TweenProp::RgbGain;
+        case ms_proto::TWEEN_PROP_GAMMA:      return TweenProp::Gamma;
         default:                              return TweenProp::Unknown;
     }
 }
@@ -123,6 +125,8 @@ static ms_proto::TweenProp ToProtoTweenProp(TweenProp p) noexcept {
         case TweenProp::CropT:     return ms_proto::TWEEN_PROP_CROP_TOP;
         case TweenProp::CropB:     return ms_proto::TWEEN_PROP_CROP_BOTTOM;
         case TweenProp::AudioGain: return ms_proto::TWEEN_PROP_AUDIO_GAIN;
+        case TweenProp::RgbGain:   return ms_proto::TWEEN_PROP_RGB_GAIN;
+        case TweenProp::Gamma:     return ms_proto::TWEEN_PROP_GAMMA;
         default:                   return ms_proto::TWEEN_PROP_UNKNOWN;
     }
 }
@@ -411,9 +415,14 @@ ms_proto::Screen SceneLoader::toProtoScreen(const Screen& s) {
     // 与旧版本完全一致（proto3 普通标量 0 反序列化等价缺席）
     if (s.rot_x != 0.0) ps.set_rot_x(s.rot_x);
     if (s.rot_y != 0.0) ps.set_rot_y(s.rot_y);
-    // 投影模式（2026-11-18 阶段1 数据先行）：非 0 才写——Framed 屏的
-    // wire 格式与旧版本完全一致（proto3 普通标量 0 反序列化等价缺席）
-    if (s.projectionMode != 0) ps.set_projection_mode(s.projectionMode);
+    // 输出校色（2026-11-20 Display 级 RGB 增益 + Gamma）：全默认省略——
+    // 默认屏的 wire 格式与旧版本完全一致（repeated 全缺席 + gamma 0 等
+    // 价缺席；读端缺席 = 业务默认 1）
+    if (!(s.rgb_gain[0] == 1.0 && s.rgb_gain[1] == 1.0 &&
+          s.rgb_gain[2] == 1.0)) {
+        for (int i = 0; i < 3; ++i) ps.add_rgb_gain(s.rgb_gain[i]);
+    }
+    if (s.gamma != 1.0) ps.set_gamma(s.gamma);
     // 输出变形（2026-11-09）：仅 mode 非 0 时写入——保持"无变形 screen"
     // 的 wire 格式与旧版本完全一致（message 缺席 = has_warp()==false）
     if (s.warp.active()) {
@@ -439,10 +448,19 @@ Screen SceneLoader::fromProtoScreen(const ms_proto::Screen& ps) {
     // 屏姿态（2026-11-17 阶段2）：缺席 = 0 = 无姿态（业务默认，无陷阱）
     s.rot_x = ps.rot_x();
     s.rot_y = ps.rot_y();
-    // 投影模式（2026-11-18 阶段1）：缺席 = 0 = Framed；非 0/1 钳 0
-    //（信任边界——未知模式宁回退取景窗勿误投）
-    s.projectionMode =
-        (ps.projection_mode() == 1) ? 1 : 0;
+    // 输出校色（2026-11-20 Display 级 RGB 增益 + Gamma）：缺席 = 默认
+    //（1,1,1 / 1.0，历史行为）。repeated 走 corner 先例"全默认省略"：
+    // 不足 3 个按 1 填充、超 3 个截断；值非有限（NaN/Inf）钳 1。
+    // gamma≤0 或非有限钳 1（信任边界——除零/数学域防御，宁不校正勿炸）。
+    {
+        const int n = ps.rgb_gain_size();
+        for (int i = 0; i < 3; ++i) {
+            const double v = (i < n) ? ps.rgb_gain(i) : 1.0;
+            s.rgb_gain[i] = std::isfinite(v) ? v : 1.0;
+        }
+        s.gamma = (std::isfinite(ps.gamma()) && ps.gamma() > 0.0)
+                      ? ps.gamma() : 1.0;
+    }
     // 输出变形（2026-11-09）：缺席 = 无变形（默认构造 mode=0）；存在则
     // 拷贝后经 normalize() 收口信任边界（尺寸/坐标钳制）——长度根本
     // 不匹配（节点数对不上 cols*rows）时整份丢弃，回退无变形。
@@ -533,6 +551,15 @@ ms_proto::Track SceneLoader::toProtoTrack(const Track& t) {
                         case kCropB: tr->set_crop_b(c.transform.crop[i]); break;
                     }
                 }
+        // 颜色合成（2026-11-20 片段级 RGB 增益 + Gamma）：全默认省略不写
+        //（wire 兼容——rgb_gain 走 corner 先例"全默认省略"，gamma 走
+        // opacity 先例"optional + 缺席回填 1.0"，旧读端遇未知字段自动忽略）
+        if (!(c.transform.rgb_gain[0] == 1.0 && c.transform.rgb_gain[1] == 1.0 &&
+              c.transform.rgb_gain[2] == 1.0)) {
+            for (int i = 0; i < 3; ++i)
+                tr->add_rgb_gain(c.transform.rgb_gain[i]);
+        }
+        if (c.transform.gamma != 1.0) tr->set_gamma(c.transform.gamma);
         // ---- Tween 通道（2026-11-05 建立；2026-11-09 v4 打包属性）----
         // v4 格式版本号恒写 4（读端 <2 清空；==2 迁移 Z；≤3 迁移姿态三通道）
         pc->set_tween_ver(kTweenVersion);
@@ -631,6 +658,22 @@ Track SceneLoader::fromProtoTrack(const ms_proto::Track& pt) {
                                        ? pc.transform().crop_t() : 0.0;
         c.transform.crop[kCropB] = std::isfinite(pc.transform().crop_b())
                                        ? pc.transform().crop_b() : 0.0;
+        // 颜色合成（2026-11-20 片段级）：定长 3 校验——长度非 0 非 3 视作
+        // 数据损坏整体丢弃置 1（corner 同款"非法丢弃"哲学，颜色绝不黑屏）；
+        // NaN/Inf 钳回 1。gamma optional 缺席回填 1.0（opacity 同款缺席陷阱
+        // ——普通标量缺席=0 会让 pow(c, 1/0) 全白）；NaN/Inf 同钳回 1。
+        if (const int n = pc.transform().rgb_gain_size(); n > 0) {
+            if (n == 3) {
+                for (int i = 0; i < 3; ++i) {
+                    const double v = pc.transform().rgb_gain(i);
+                    c.transform.rgb_gain[i] = std::isfinite(v) ? v : 1.0;
+                }
+            }
+        }
+        c.transform.gamma = pc.transform().has_gamma() &&
+                                    std::isfinite(pc.transform().gamma())
+                                ? pc.transform().gamma()
+                                : 1.0;
         // ---- Tween 通道（2026-11-05 建立；2026-11-09 v3 打包属性重构）----
         // 升序不变量（TweenEngine 二分定位的前置条件）在加载期统一建立：
         // 稳定排序宽容手工场景/旧数据的乱序关键帧；排序后 validateScene

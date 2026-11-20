@@ -25,7 +25,6 @@
 #include "ScreenWarpPanel.hpp" // 输出变形编辑面板（「几何结构」页内嵌）
 
 #include <QFormLayout>
-#include <QComboBox>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -48,22 +47,9 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     auto* form_box = new QGroupBox("画布位置与显示大小（像素）", this);
     auto* form     = new QFormLayout(form_box);
 
-    // ---- 投影模式（2026-11-18 Display 统一模型阶段1：数据先行）----------
-    // Framed = 取景窗（默认，历史行为——引用 Show 全局 Eye 的成品画面
-    // 取景窗）；Mapped = 投影映射（3D mapping 预留——屏将持有自己的
-    // 投影仪 Eye，内容按视锥投到网格面片；渲染路径后续阶段接入，
-    // 本阶段切到 Mapped 仅持久化数据，输出仍走 Framed 链）。
-    projection_mode_ = new QComboBox(form_box);
-    projection_mode_->addItem(QStringLiteral("取景窗（Framed）"));    // 0
-    projection_mode_->addItem(QStringLiteral("投影映射（Mapped）"));  // 1
-    projection_mode_->setCurrentIndex(
-        screen.projectionMode == 1 ? 1 : 0);
-    projection_mode_->setToolTip(tr(
-        "投影模式：\n"
-        "· 取景窗（默认）：Display = 全局成品画面上的取景窗；\n"
-        "· 投影映射：3D mapping 用——Display 持有自己的投影仪视角，\n"
-        "  内容按视锥投到网格面片（渲染路径后续版本接入）。"));
-    form->addRow("投影模式：", projection_mode_);
+    // ---- 投影模式行+字段退役（2026-11-20 用户定案，不考虑兼容）：纯 2D
+    // 取景范式下 Display 恒为取景窗（Framed），模式选择无意义；模型/
+    // proto 字段 projectionMode 与渲染分支一并删除（渲染端本就未消费）。
 
     // ---- 位置/大小：允许负坐标（画布外扩屏）与 1~8192 尺寸 --------------
     // 【2026-11-18 控件风格统一】全部 spinbox → FloatDragValueWidget/
@@ -100,27 +86,20 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     form->addRow("宽度：", w_);
     form->addRow("高度：", h_);
 
-    // ---- 旋转/层级：与 clip transform 同域（度/整数 z）------------------
-    // 旋转：±3600°（10 圈）覆盖竖屏 90/270 与异形拼接任意角；步进 90 便于
-    // 常见竖屏场景一键到达，细角度仍可直接键入
-    rotation_ = new FloatDragValueWidget(form_box);
-    rotation_->setRange(-3600.0, 3600.0);
-    rotation_->setDecimals(1);
-    rotation_->setSingleStep(90.0);
-    rotation_->setValue(screen.rotation);
-
-    // ---- 屏姿态（2026-11-17 阶段2）：俯仰/偏航（度；与 clip Transform
-    // 同构语义）——斜装屏（地面屏/斜幕/非正交安装）取景姿态，非 0 时
-    // 画布→屏映射升级单应；0 = 历史仿射逐位不变。【2026-11-18 对齐 2D
-    // display 定案】钳 ±85°：89° 时单应已近奇异（用户实证画面异常拉扯
-    // ——数学未翻面但透视极端），85° 留安全边距且覆盖一切真实安装角；
-    // ScreenMapper 端另有 solveHomography 失败→恒等仿射防御兜底。步进 5
+    // ---- 三轴旋转（2026-11-20 用户定案：标题按轴命名 X/Y/Z，全 float）--
+    // 轴语义与片段 Tween 旋转三维打包一致（ClipSchema v4 / TweenSection）：
+    // X = 俯仰（绕画布 X 轴，正=顶边后仰）、Y = 偏航（绕画布 Y 轴，
+    // 正=右缘远离）、Z = 滚转（绕画布 Z 轴面内旋转，顺时针）。
+    // 步进统一 5°（原 Z 滚转 90° 步进退役——用户反馈步进幅度太大）。
+    // X/Y 钳 ±85°：89° 时单应已近奇异（用户实证画面异常拉扯——数学未
+    // 翻面但透视极端），85° 留安全边距；ScreenMapper 端另有
+    // solveHomography 失败→恒等仿射防御兜底。Z 滚转 ±3600°（10 圈）。
     rot_x_ = new FloatDragValueWidget(form_box);
     rot_x_->setRange(-85.0, 85.0);
     rot_x_->setDecimals(1);
     rot_x_->setSingleStep(5.0);
     rot_x_->setValue(screen.rot_x);
-    rot_x_->setToolTip(tr("斜装屏取景姿态：俯仰（度）。\n"
+    rot_x_->setToolTip(tr("取景窗姿态：旋转 X = 俯仰（度，绕画布 X 轴）。\n"
                           "服务地面屏/斜幕等非正交安装；0 = 无姿态（仿射映射）。"));
 
     rot_y_ = new FloatDragValueWidget(form_box);
@@ -128,18 +107,66 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     rot_y_->setDecimals(1);
     rot_y_->setSingleStep(5.0);
     rot_y_->setValue(screen.rot_y);
-    rot_y_->setToolTip(tr("斜装屏取景姿态：偏航（度）。\n"
+    rot_y_->setToolTip(tr("取景窗姿态：旋转 Y = 偏航（度，绕画布 Y 轴）。\n"
                           "非 0 时取景走透视单应（内容不缩放语义不变）。"));
+
+    rotation_ = new FloatDragValueWidget(form_box);
+    rotation_->setRange(-3600.0, 3600.0);
+    rotation_->setDecimals(1);
+    rotation_->setSingleStep(5.0);
+    rotation_->setValue(screen.rotation);
+    rotation_->setToolTip(tr("取景窗姿态：旋转 Z = 滚转（度，面内顺时针绕中心）\n"
+                             "——竖屏/异形拼接取景窗。"));
+
+    form->addRow("旋转X：", rot_x_);
+    form->addRow("旋转Y：", rot_y_);
+    form->addRow("旋转Z：", rotation_);
 
     // 【2026-11-18 定案】层级 z 行移除：Screen = 取景窗（零姿态时即旧
     // 2D 平面屏），无叠放语义（模型字段+SceneLoader 保留兼容老工程；
     // 编辑器多屏重叠命中序回退到场景追加序）；未来 Z-buffer 接管。
-    form->addRow("旋转°：", rotation_);
-    form->addRow("俯仰°：", rot_x_);
-    form->addRow("偏航°：", rot_y_);
 
-    // 字段语义提示（2026-11-18 Display 统一模型定案）
-    rotation_->setToolTip(tr("面内旋转（度，顺时针绕中心）——竖屏/异形拼接取景窗。"));
+    // ---- 输出校色（2026-11-20 Display 级 RGB 增益 + Gamma）--------------
+    // 本屏输出环节的最终校色：素材采样后逐通道乘增益，gamma≠1 再
+    // pow(c,1/γ)。与片段级（片段属性面板 rgb_gain/gamma 行）在解算层
+    // 合成（增益相乘、gamma 相乘）。1=默认（逐位历史行为）；gain=0 =
+    // 该通道压黑；>1 提亮。实时链与几何字段同构（变化即下发）。
+    auto* grade_box = new QGroupBox("输出校色", this);
+    auto* grade_form = new QFormLayout(grade_box);
+
+    gain_r_ = new FloatDragValueWidget(grade_box);
+    gain_r_->setRange(0.0, 2.0);
+    gain_r_->setDecimals(2);
+    gain_r_->setSingleStep(0.05);
+    gain_r_->setValue(screen.rgb_gain[0]);
+    gain_r_->setToolTip(tr("R 通道线性增益：1=不变，0=压黑，>1 提升。"));
+
+    gain_g_ = new FloatDragValueWidget(grade_box);
+    gain_g_->setRange(0.0, 2.0);
+    gain_g_->setDecimals(2);
+    gain_g_->setSingleStep(0.05);
+    gain_g_->setValue(screen.rgb_gain[1]);
+    gain_g_->setToolTip(tr("G 通道线性增益：1=不变，0=压黑，>1 提升。"));
+
+    gain_b_ = new FloatDragValueWidget(grade_box);
+    gain_b_->setRange(0.0, 2.0);
+    gain_b_->setDecimals(2);
+    gain_b_->setSingleStep(0.05);
+    gain_b_->setValue(screen.rgb_gain[2]);
+    gain_b_->setToolTip(tr("B 通道线性增益：1=不变，0=压黑，>1 提升。"));
+
+    gamma_ = new FloatDragValueWidget(grade_box);
+    gamma_->setRange(0.1, 4.0);
+    gamma_->setDecimals(2);
+    gamma_->setSingleStep(0.05);
+    gamma_->setValue(screen.gamma);
+    gamma_->setToolTip(tr("伽马指数：1.0=不校正；<1 画面变亮，>1 画面变暗\n"
+                          "（c' = c^(1/γ)——补正显示端物理屏伽马偏差）。"));
+
+    grade_form->addRow("R 增益：", gain_r_);
+    grade_form->addRow("G 增益：", gain_g_);
+    grade_form->addRow("B 增益：", gain_b_);
+    grade_form->addRow("Gamma：", gamma_);
 
     // ---- 几何八字段实时预览（2026-11-11 用户需求：调属性即时可见）--------
     // 旧语义只有 OK 才写回——editor 画布/display 输出都要等确认。现与 warp
@@ -154,7 +181,7 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     // 运行时查回调）。
     auto emitGeometryLive = [this]() {
         if (!geometry_live_) return;
-        Screen g; // 仅几何字段有效（其余字段宿主不取）
+        Screen g; // 仅几何+校色字段有效（其余字段宿主不取）
         g.x        = x_->value();
         g.y        = y_->value();
         g.w        = w_->value();
@@ -162,6 +189,11 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
         g.rotation = rotation_->value();
         g.rot_x    = rot_x_->value();
         g.rot_y    = rot_y_->value();
+        // 输出校色（2026-11-20）：与几何字段同链实时下发
+        g.rgb_gain[0] = gain_r_->value();
+        g.rgb_gain[1] = gain_g_->value();
+        g.rgb_gain[2] = gain_b_->value();
+        g.gamma       = gamma_->value();
         // g.z 不再提供——宿主侧不拷贝 z（层级行已退役）
         geometry_live_(g);
     };
@@ -172,6 +204,10 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     connect(rotation_, &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
     connect(rot_x_,    &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
     connect(rot_y_,    &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(gain_r_,   &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(gain_g_,   &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(gain_b_,   &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
+    connect(gamma_,    &FloatDragValueWidget::valueChanged, this, emitGeometryLive);
 
     // ---- 输出变形（2026-11-11 WATCHOUT 式内嵌）----------------------------
     // 编辑面板直接内嵌「几何结构」页（用户需求：不要弹窗）——模式/密度/
@@ -231,6 +267,7 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
         auto* general_page = new QWidget(tabs);
         auto* general_lay  = new QVBoxLayout(general_page);
         general_lay->addWidget(form_box);
+        general_lay->addWidget(grade_box); // 输出校色（2026-11-20）
         tabs->addTab(general_page, "通用");
 
         auto* geom_page = new QWidget(tabs);
@@ -255,8 +292,13 @@ void ScreenPropertyDialog::applyTo(Screen& s) const {
     s.rotation  = rotation_->value();
     s.rot_x     = rot_x_->value();
     s.rot_y     = rot_y_->value();
+    // 输出校色（2026-11-20 Display 级）：与几何字段同语义写回
+    s.rgb_gain[0] = gain_r_->value();
+    s.rgb_gain[1] = gain_g_->value();
+    s.rgb_gain[2] = gain_b_->value();
+    s.gamma       = gamma_->value();
     // s.z 不写回（层级行退役——保留场景既有值兼容老工程）
-    s.projectionMode = projection_mode_->currentIndex() == 1 ? 1 : 0;
+    // projectionMode 已退役（2026-11-20 用户定案）——模型字段已删。
     s.player_id = player_id_->text().toStdString();
     // 输出变形 = 「几何结构」页内嵌面板的当前编辑状态（2026-11-11 内嵌化：
     // 面板即唯一真值——无变形时写默认清空值，与旧弹窗 OK 语义一致）

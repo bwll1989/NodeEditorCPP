@@ -62,6 +62,8 @@ in float v_q;
 uniform sampler2D u_tex;
 uniform vec2 u_frameSize;
 uniform float u_opacity;
+uniform vec3 u_rgb_gain;   // R/G/B 线性增益（2026-11-20 片段级；默认 1,1,1）
+uniform float u_gamma;     // 伽马指数（默认 1.0 = 不校正零开销）
 out vec4 fragColor;
 void main() {
     // 透视校正采样（阶段②）：顶点传 (uv·q, q)，屏幕空间线性插值后
@@ -73,7 +75,11 @@ void main() {
         px.x > u_frameSize.x + 0.5 || px.y > u_frameSize.y + 0.5)
         discard;                       // 旋转角区域：露画布底色
     vec4 c = texture(u_tex, uv);
-    fragColor = vec4(c.rgb * v_alpha, c.a * u_opacity);
+    vec3 rgb = c.rgb * u_rgb_gain;     // 增益：1,1,1 时逐位还原历史路径
+    // Gamma 仅在偏离 1.0 时切 pow 路径（uniform 分支全片元统一，无发散）
+    if (abs(u_gamma - 1.0) > 1e-4)
+        rgb = pow(clamp(rgb, 0.0, 1.0), vec3(1.0 / u_gamma));
+    fragColor = vec4(rgb * v_alpha, c.a * u_opacity);
 }
 )";
 
@@ -96,6 +102,8 @@ uniform sampler2D u_tex_y;   // 亮度平面（R8，w×h）
 uniform sampler2D u_tex_uv;  // 色度平面（RG8，w/2×h/2，UV 交错）
 uniform vec2 u_frameSize;
 uniform float u_opacity;
+uniform vec3 u_rgb_gain;     // RGB 增益（2026-11-20 片段级；默认 1,1,1）
+uniform float u_gamma;       // 伽马指数（默认 1.0 = 不校正）
 out vec4 fragColor;
 void main() {
     // 透视校正采样（阶段②；同 RGBA FS——q≡1 逐位退化）
@@ -112,10 +120,13 @@ void main() {
     float r = 1.164 * yy + 1.596 * vv;
     float g = 1.164 * yy - 0.391 * uu - 0.813 * vv;
     float b = 1.164 * yy + 2.018 * uu;
+    vec3 rgb = vec3(clamp(r, 0.0, 1.0), clamp(g, 0.0, 1.0),
+                    clamp(b, 0.0, 1.0));
+    rgb *= u_rgb_gain;                 // 增益：1,1,1 时逐位还原历史路径
+    if (abs(u_gamma - 1.0) > 1e-4)
+        rgb = pow(clamp(rgb, 0.0, 1.0), vec3(1.0 / u_gamma));
     // v_alpha 恒 1（NV12 走 quad 直通路径，attrib2 常量——见 drawQuad）
-    fragColor = vec4(clamp(r, 0.0, 1.0) * v_alpha,
-                     clamp(g, 0.0, 1.0) * v_alpha,
-                     clamp(b, 0.0, 1.0) * v_alpha, u_opacity);
+    fragColor = vec4(rgb * v_alpha, u_opacity);
 }
 )";
 
@@ -472,6 +483,12 @@ bool GlRenderer::buildProgram() {
     loc_tex_        = gl::glGetUniformLocation(program_, "u_tex");
     loc_frame_size_ = gl::glGetUniformLocation(program_, "u_frameSize");
     loc_opacity_    = gl::glGetUniformLocation(program_, "u_opacity");
+    loc_rgb_gain_   = gl::glGetUniformLocation(program_, "u_rgb_gain");
+    loc_gamma_      = gl::glGetUniformLocation(program_, "u_gamma");
+    // 默认 uniform 写入（GL uniform 初始值 = 0：u_rgb_gain 若不初始化，
+    // 任何未显式上传的绘制路径都会全黑——防御性一次写入）
+    gl::glUniform3f(loc_rgb_gain_, 1.0f, 1.0f, 1.0f);
+    gl::glUniform1f(loc_gamma_, 1.0f);
     return true;
 }
 
@@ -511,6 +528,11 @@ bool GlRenderer::ensureNv12Program() {
     loc_nv_out_size_   = gl::glGetUniformLocation(program_nv12_, "u_outSize");
     loc_nv_frame_size_ = gl::glGetUniformLocation(program_nv12_, "u_frameSize");
     loc_nv_opacity_    = gl::glGetUniformLocation(program_nv12_, "u_opacity");
+    loc_nv_rgb_gain_   = gl::glGetUniformLocation(program_nv12_, "u_rgb_gain");
+    loc_nv_gamma_      = gl::glGetUniformLocation(program_nv12_, "u_gamma");
+    // 默认 uniform 写入（同 buildProgram——GL 初始值 0 全黑防御）
+    gl::glUniform3f(loc_nv_rgb_gain_, 1.0f, 1.0f, 1.0f);
+    gl::glUniform1f(loc_nv_gamma_, 1.0f);
     gl::glUseProgram(0);
     return true;
 }
@@ -878,6 +900,12 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
                         static_cast<float>(frame.width),
                         static_cast<float>(frame.height));
         gl::glUniform1f(loc_nv_opacity_, static_cast<float>(op));
+        // 颜色合成（2026-11-20 片段级）：增益/Gamma 全默认时着色器内逐位
+        // 退化（乘 1 / 跳过 pow）
+        gl::glUniform3f(loc_nv_rgb_gain_, static_cast<float>(di.rgb_gain[0]),
+                        static_cast<float>(di.rgb_gain[1]),
+                        static_cast<float>(di.rgb_gain[2]));
+        gl::glUniform1f(loc_nv_gamma_, static_cast<float>(di.gamma));
         drawQuad(verts);
         gl::glActiveTexture(gl::GL_TEXTURE0); // 活动单元复位（RGBA 路径约定 unit0）
         nv_parity_ ^= 1; // 组翻转：下一帧用另一组（双缓冲交替核心）
@@ -1006,6 +1034,10 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
                         static_cast<float>(frame.width),
                         static_cast<float>(frame.height));
         gl::glUniform1f(loc_opacity_, static_cast<float>(op));
+        gl::glUniform3f(loc_rgb_gain_, static_cast<float>(di.rgb_gain[0]),
+                        static_cast<float>(di.rgb_gain[1]),
+                        static_cast<float>(di.rgb_gain[2]));
+        gl::glUniform1f(loc_gamma_, static_cast<float>(di.gamma));
         drawQuad(verts);
         return true;
     }
@@ -1059,6 +1091,11 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
                     static_cast<float>(frame.width),
                     static_cast<float>(frame.height));
     gl::glUniform1f(loc_opacity_, static_cast<float>(op));
+    // 颜色合成（2026-11-20 片段级）：增益/Gamma 上传（全默认时逐位退化）
+    gl::glUniform3f(loc_rgb_gain_, static_cast<float>(di.rgb_gain[0]),
+                    static_cast<float>(di.rgb_gain[1]),
+                    static_cast<float>(di.rgb_gain[2]));
+    gl::glUniform1f(loc_gamma_, static_cast<float>(di.gamma));
 
     drawQuad(verts);
     return true;
@@ -1357,6 +1394,10 @@ void GlRenderer::warpBlit() {
     gl::glUniform2f(loc_frame_size_,
                     static_cast<float>(fbo_w_), static_cast<float>(fbo_h_));
     gl::glUniform1f(loc_opacity_, 1.0f);
+    // 颜色合成复位（2026-11-20）：blit = 纯几何重映射，uniform 残留的最后
+    // 片段增益/Gamma 不得串入（u_rgb_gain/u_gamma 逐帧显式上传的副作用防御）
+    gl::glUniform3f(loc_rgb_gain_, 1.0f, 1.0f, 1.0f);
+    gl::glUniform1f(loc_gamma_, 1.0f);
     gl::glActiveTexture(gl::GL_TEXTURE0);
     gl::glBindTexture(gl::GL_TEXTURE_2D, fbo_tex_);
 
@@ -1605,6 +1646,9 @@ void GlRenderer::drawOsdOverlay() {
     gl::glUniform2f(loc_frame_size_, static_cast<float>(bar_w),
                     static_cast<float>(bar_h));
     gl::glUniform1f(loc_opacity_, 1.0f);
+    // 颜色合成复位（2026-11-20）：OSD 条不吃片段级合成（同 warpBlit 残留防御）
+    gl::glUniform3f(loc_rgb_gain_, 1.0f, 1.0f, 1.0f);
+    gl::glUniform1f(loc_gamma_, 1.0f);
     drawQuad(verts);
     gl::glActiveTexture(gl::GL_TEXTURE0); // 活动单元复位（RGBA 路径约定）
 }

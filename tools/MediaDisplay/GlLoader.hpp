@@ -96,6 +96,7 @@ namespace gl {
     X(glGetUniformLocation,    int,  (unsigned int, const char*))               \
     X(glUniform1f,             void, (int, float))                              \
     X(glUniform2f,             void, (int, float, float))                       \
+    X(glUniform3f,             void, (int, float, float, float))                \
     X(glUniform1i,             void, (int, int))                                \
     /* 3.0 VAO / 1.5 VBO */                                                    \
     X(glGenVertexArrays,       void, (int, unsigned int*))                      \

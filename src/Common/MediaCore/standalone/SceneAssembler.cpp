@@ -294,6 +294,9 @@ std::shared_ptr<const Scene> SceneAssembler::assemble(
             c.transform.crop[kCropR] = (std::max)(cs.crop_r, 0.0); //（负值钳 0，
             c.transform.crop[kCropT] = (std::max)(cs.crop_t, 0.0); //  过裁由
             c.transform.crop[kCropB] = (std::max)(cs.crop_b, 0.0); //  visibleRect 收口）
+            for (int i = 0; i < 3; ++i)  // 颜色合成透传（RGB 增益 + Gamma）
+                c.transform.rgb_gain[i] = std::clamp(cs.rgb_gain[i], 0.0, 2.0);
+            c.transform.gamma     = std::clamp(cs.gamma, 0.1, 4.0);
             // 轨道次序 = 视觉层级（NLE 惯例，2026-11-11 定案）：
             // 面板上面的轨盖住下面的轨（上层=叠加层）。引擎按 z 升序绘制，
             // 故 ti 越小（越靠上）z 越大；×1000 留轨道内 cs.z 微调空间。
@@ -392,6 +395,17 @@ std::shared_ptr<const Scene> SceneAssembler::adoptForStandalone(
     scr.h = s.canvas_h > 0.0 ? s.canvas_h : 1080.0;
     s.canvas_w = scr.w;
     s.canvas_h = scr.h;
+    // ---- Display 输出校色搬运（2026-11-20 Display 级 RGB 增益 + Gamma）----
+    // 场景 screens 即将被虚拟屏替换——绑定本机（player_id 匹配）的 Display
+    // 校色若不搬运会静默丢失（Editor 对话框调的增益到 display 全无效果）。
+    // 取 player_id 匹配的首个 screen 的校色四字段搬到虚拟屏；几何
+    // （x/y/w/h/rotation/rot_*）不搬运——单机渲染恒全画布取景（历史行为）。
+    for (const auto& os : src.screens) {
+        if (os.player_id != player_id) continue;
+        for (int i = 0; i < 3; ++i) scr.rgb_gain[i] = os.rgb_gain[i];
+        scr.gamma = os.gamma;
+        break;
+    }
     s.screens.clear();
     s.screens.push_back(std::move(scr));
     return std::make_shared<const Scene>(std::move(s));

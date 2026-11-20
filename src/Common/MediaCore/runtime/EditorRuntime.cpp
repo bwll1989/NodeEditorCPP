@@ -104,6 +104,17 @@ bool EditorRuntime::start(const std::string& scene_path) {
         }
     }
 
+    // ---- 1.5 姿态兜底：深度 Z 归零（2026-11-20 2D 化定案）------------------
+    // 素材位置 = 两分量 X/Y（深度 Z 字段保留供 pb 兼容，运行态一律置 0——
+    // 正交扁平化后 Z 本就无视觉参与）；旋转 X/Y/Z 三轴保留（应用完成后
+    // 正交映射到 XY 平面，无透视）。Show 级全局透视随「全局透视（Eye 点）」
+    // 编辑入口退役归零（画布 VP 叠加不再出现；字段保留兼容）。
+    if (scene_) {
+        for (auto& tr : scene_->timeline.tracks)
+            for (auto& c : tr.clips) c.transform.pos_z = 0.0;
+        scene_->persp_focal = 0.0;
+    }
+
     // ---- 2. UDP 心跳（收 Player 上报 + 发单播心跳）----
     // 【2026-11-03 兼容通道退役】Editor 不再监听 TCP 入站——display 一律
     // 由 DisplayConnector 主动连接（WATCHOUT 模型），TCP 入站监听已成
@@ -513,52 +524,80 @@ void EditorRuntime::handleRegister(
                 scene_sent ? "（场景已下发）" : "",
                 is_reconnect ? "【重连】" : "");
 
-    // ---- 重连并入（§7.1④"跳到现在"）----
-    // 会话已在播放/暂停时，向重连的 Player 单播当前状态锚点：
-    //   Playing → PLAY（锚点时刻的播放头 → Player 迟到补偿自动落在 target）
-    //   Paused  → PAUSE（冻结于暂停点）
-    // 【2026-11-03 SEEK 语义修订】Playing 并入从 CMD_SEEK 改为 CMD_PLAY：
-    // SEEK 已改为"状态保持"（编辑器定位语义，Idle 中忽略）——重连并入
-    // 需要"无中生有进入播放"，正是 PLAY 的语义（从 anchored 位置起播）。
-    // 二者锚点数学完全等价（session_start = anchor - anchored，迟到补偿
-    // 落在共享时间轴当前位置），只是不依赖 Player 自身既有状态。
-    if (is_reconnect) {
-        // 锁内只读状态并算好锚点，【发送放锁外】——reply 走 TCP 阻塞写，
-        // 持 state_mutex_ 发送会冻结所有状态读者（观测表/补丁/下发）。
-        bool          need_reanchor = false;
-        AnchorCmd     cmd           = AnchorCmd::Pause;
-        std::int64_t  anchor_time   = 0;
-        std::int64_t  anchored      = 0;
-        std::string   ra_sid;
+    // ---- 注册状态对账（§7.1④"跳到现在"升级版，2026-11-20）----
+    // 旧实现只在 is_reconnect 且会话非 Idle 时单播并入，留下三个失控口：
+    //   ① display 断连期间错过 STOP 广播：重连后编辑器是 Idle、无任何修正
+    //     帧 → display 永久失控播放（重启 Display 才能停）；
+    //   ② Editor 进程重启（players_ 已清空 → 判为首次注册不并入）：display
+    //     端 Ack 只换 session 号、保留旧会话 state/session_start → 失控播放
+    //     或错误冻结，两端时间完全脱节；
+    //   ③ Paused 并入若用外推公式（anchor - session_start），暂停期间该值
+    //     持续增长 → 冻结点被推到"假如一直在播"的位置（暂停越久偏越远）。
+    // 现改为：任意注册（无论是否重连）即单播一条当前权威状态对账帧——
+    //   Idle    → CMD_STOP（anchor_time=0 立即到点，错过 STOP 的端归零停播）；
+    //   Playing → CMD_PLAY（anchored = 锚点时刻外推播放头，跳到现在）；
+    //   Paused  → CMD_PAUSE（anchored = paused_time_us_，冻结点权威）。
+    // 首次注册（session_id_ 空）无会话上下文，无需对账。
+    {
+        bool         need_sync   = false;
+        AnchorCmd    sync_cmd    = AnchorCmd::Stop;
+        std::int64_t anchor_time = 0;
+        std::int64_t anchored     = 0;
+        std::string  sync_sid;
         {
             std::lock_guard<std::mutex> lock(state_mutex_);
-            if (state_ != PlayState::Idle && !session_id_.empty()) {
-                need_reanchor = true;
-                cmd = (state_ == PlayState::Playing) ? AnchorCmd::Play
-                                                     : AnchorCmd::Pause;
-                // recv 线程（无调用方注入时钟）→ 用真实对齐时钟（ClockProvider
-                // 复合时钟与 Player 端同域：系统单调钟 + NTP offset）
-                anchor_time = ClockProvider().alignedNowUs() + cfg_.reanchor_lead_us;
-                // 锚点时刻播放头应处的位置（全场同式同值）
-                anchored = ClockProvider::sessionTimeUs(anchor_time,
-                                                        session_start_us_);
-                ra_sid = session_id_;
+            if (!session_id_.empty()) {
+                sync_sid = session_id_;
+                need_sync = true;
+                if (state_ == PlayState::Playing) {
+                    sync_cmd   = AnchorCmd::Play;
+                    // recv 线程（无调用方注入时钟）→ 用真实对齐时钟
+                    //（ClockProvider 复合时钟与 Player 端同域：系统单调钟
+                    // + NTP offset）
+                    anchor_time = ClockProvider().alignedNowUs()
+                                  + cfg_.reanchor_lead_us;
+                    // 锚点时刻播放头应处的位置（全场同式同值）
+                    anchored = ClockProvider::sessionTimeUs(anchor_time,
+                                                            session_start_us_);
+                } else if (state_ == PlayState::Paused) {
+                    // 冻结点权威 = paused_time_us_（cmdPause 记录），绝不
+                    // 用外推值——暂停期间共享公式持续增长，外推会把冻结
+                    // 点推到"假如一直在播"的位置（失控口③）
+                    sync_cmd = AnchorCmd::Pause;
+                    anchored = (paused_time_us_ > 0) ? paused_time_us_
+                                                     : segment_anchored_us_;
+                } else { // Idle：对账帧 = 停止（错过 STOP 的端归零停播）
+                    sync_cmd    = AnchorCmd::Stop;
+                    anchor_time = 0; // 立即到点语义（同 STOP 广播）
+                    anchored    = 0;
+                }
             }
         }
-        if (need_reanchor) {
+        if (need_sync) {
             Envelope ra;
             auto* m = ra.mutable_re_anchor();
             m->set_anchor_time_us(anchor_time);
             m->set_anchored_session_time_us(anchored);
-            m->set_session_id(ra_sid);
-            m->set_cmd(cmd == AnchorCmd::Play
-                           ? ms_proto::MsgReAnchor::CMD_PLAY
-                           : ms_proto::MsgReAnchor::CMD_PAUSE);
+            m->set_session_id(sync_sid);
+            switch (sync_cmd) {
+                case AnchorCmd::Play:
+                    m->set_cmd(ms_proto::MsgReAnchor::CMD_PLAY);
+                    break;
+                case AnchorCmd::Pause:
+                    m->set_cmd(ms_proto::MsgReAnchor::CMD_PAUSE);
+                    break;
+                default:
+                    m->set_cmd(ms_proto::MsgReAnchor::CMD_STOP);
+                    break;
+            }
             reply(ra);
-            std::printf("[editor] 重连并入: player=%s cmd=%s anchored=%lldus "
-                        "（跳到现在，不补放缺失段落）\n",
-                        pid.c_str(), cmd == AnchorCmd::Seek ? "SEEK" : "PAUSE",
-                        static_cast<long long>(anchored));
+            const char* name = sync_cmd == AnchorCmd::Play   ? "PLAY"
+                               : sync_cmd == AnchorCmd::Pause ? "PAUSE"
+                                                              : "STOP";
+            std::printf("[editor] 注册状态对账: player=%s cmd=%s anchored=%lldus"
+                        "%s\n",
+                        pid.c_str(), name, static_cast<long long>(anchored),
+                        is_reconnect ? "【重连】" : "");
         }
     }
 }

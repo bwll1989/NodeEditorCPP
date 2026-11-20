@@ -133,9 +133,13 @@ struct FieldDef {
 //    step 1.0（单像素步进——角点校正常为小位移）；
 //  * 不透明度/音频增益归「合成」组：默认 1.0（表内 default_value 显式
 //    1）；音频增益标量线性 [0,2]（上限 2 防增益曲线异常把混音推入
-//    持续削波；1.0=不衰减/0=静音）。
+//    持续削波；1.0=不衰减/0=静音）；
+//  * 颜色合成（2026-11-20 追加）：RGB 增益三维打包（分量 R/G/B 线性
+//    增益 [0,2]，1=不变；step 0.05 同不透明度粒度）；Gamma 标量伽马
+//    校正 [0.1,4]（1.0=不校正；渲染端 pow(c, 1/γ)，下限 0.1 防除零
+//    指数发散、上限 4 防全白）。
 // ---------------------------------------------------------------------------
-inline constexpr FieldDef kTweenSchema[13] = {
+inline constexpr FieldDef kTweenSchema[15] = {
     // 变换组（组 0）
     {"position",   "位置",     FieldType::Double, 3, {"X", "Y", "Z"},
      -100000.0, 100000.0, 10.0, 2, " px", {0.0, 0.0, 0.0}, true, true,
@@ -179,6 +183,12 @@ inline constexpr FieldDef kTweenSchema[13] = {
      kFieldGroupComp, "tween"},
     {"audio_gain",  "音频增益", FieldType::Double, 1, {"", "", ""},
      0.0, 2.0, 0.05, 2, "", {1.0, 1.0, 1.0}, true, true,
+     kFieldGroupComp, "tween"},
+    {"rgb_gain",    "RGB 增益", FieldType::Double, 3, {"R", "G", "B"},
+     0.0, 2.0, 0.05, 2, "", {1.0, 1.0, 1.0}, true, true,
+     kFieldGroupComp, "tween"},
+    {"gamma",       "Gamma",   FieldType::Double, 1, {"", "", ""},
+     0.1, 4.0, 0.05, 2, "", {1.0, 1.0, 1.0}, true, true,
      kFieldGroupComp, "tween"},
 };
 

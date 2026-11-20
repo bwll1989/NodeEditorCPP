@@ -91,8 +91,13 @@ private:
     /// 重复混合逻辑抽取单源）：dst_row+px 处 ← s 帧像素 × clip_a。
     /// 语义：a=0 保持目标 / a≥255 直接覆盖 / 其余 out = src*a + dst*(1-a)
     ///（四通道 +127 四舍五入；255*255>>8=254 精度坑见 .cpp 注释）。
+    /// 色彩合成（2026-11-20 片段级可选调整）：rgb_gain 非空时采样值先
+    /// 逐通道乘增益（[0,2] 线性）再按 gamma pow(c, 1/γ)（≠1.0 时），
+    /// 结果钳 [0,255]；nullptr 时零开销直通（历史行为逐位一致）。
     void blendPixel(std::uint8_t* dst_row, int px,
-                    const std::uint8_t* s, std::uint32_t clip_a) noexcept;
+                    const std::uint8_t* s, std::uint32_t clip_a,
+                    const double* rgb_gain = nullptr,
+                    double gamma = 1.0) noexcept;
 
     /// 四边形两三角形仿射采样（corner pin 变形路径内核，见 .cpp 注释）——
     /// 三角分解与 GL drawQuad 条带同构，对拍逐像素可比

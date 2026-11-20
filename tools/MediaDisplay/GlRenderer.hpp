@@ -331,10 +331,14 @@ private:
     int loc_tex_           = -1; ///< program_ 采样器（u_tex）
     int loc_frame_size_    = -1; ///< program_ 帧尺寸（u_frameSize）
     int loc_opacity_       = -1; ///< program_ 不透明度（u_opacity）
+    int loc_rgb_gain_      = -1; ///< program_ RGB 增益（u_rgb_gain，2026-11-20）
+    int loc_gamma_         = -1; ///< program_ 伽马指数（u_gamma，2026-11-20）
 #ifndef MS_GL_NO_CUDA
     int loc_nv_out_size_   = -1; ///< program_nv12_ 投影（u_outSize）
     int loc_nv_frame_size_ = -1; ///< program_nv12_ 帧尺寸（u_frameSize）
     int loc_nv_opacity_    = -1; ///< program_nv12_ 不透明度（u_opacity）
+    int loc_nv_rgb_gain_   = -1; ///< program_nv12_ RGB 增益（u_rgb_gain）
+    int loc_nv_gamma_      = -1; ///< program_nv12_ 伽马指数（u_gamma）
 #endif
 
     // ---- 帧状态（beginFrame → endFrame 之间有效）------------------------

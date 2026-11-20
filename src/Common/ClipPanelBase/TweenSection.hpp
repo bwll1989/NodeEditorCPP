@@ -204,10 +204,11 @@ private:
         QString         name;             ///< 显示名（位置/尺寸/旋转/…）
         int             components = 1;   ///< 1=标量 2=二维 3=三维（Position）
     };
-    std::vector<Row> rows_;   ///< 固定 13 行（kPropOrder 表序：位置/尺寸/
-                              ///<  旋转/裁切×4/角点×4/不透明度/音频增益——
-                              ///<  v4 五分组定案；Z 行与俯仰/偏航行退役合并）
-    bool row_exposed_[13] = {}; ///< 暴露面 schema 位（P4-A）：true = 行控件
+    std::vector<Row> rows_;   ///< 固定 15 行（kPropOrder 表序：位置/尺寸/
+                              ///<  旋转/裁切×4/角点×4/不透明度/音频增益/
+                              ///<  RGB 增益/Gamma——v4 五分组 + 2026-11-20
+                              ///<  颜色合成追加；Z 行与俯仰/偏航行退役合并）
+    bool row_exposed_[15] = {}; ///< 暴露面 schema 位（P4-A）：true = 行控件
                                 ///<  生成；false = 只留 Row 骨架（widget 全
                                 ///<  nullptr——propCount()/valueSpin()/
                                 ///<  cornerSpin 定长契约不变，测试遍历安全
@@ -230,9 +231,9 @@ private:
                                          ///<  分量级直接编辑；applyTo 覆盖
                                          ///<  transform 对应字段；位定义见
                                          ///<  .cpp kRowSlot/kSAnchor）
-    double        static_vals_[22] = {}; ///< 静态编辑值暂存（脏字段写回源；
+    double        static_vals_[26] = {}; ///< 静态编辑值暂存（脏字段写回源；
                                          ///<  下标 = kRowSlot[行]+分量
-                                         ///<  （13 行按分量数累计 22 槽）；
+                                         ///<  （15 行按分量数累计 26 槽）；
                                          ///<  存【画布绝对 px】——显示/数据
                                          ///<  一个口径直通）
     std::int64_t clip_start_us_ = 0;     ///< 片段起点（局部时间换算锚）

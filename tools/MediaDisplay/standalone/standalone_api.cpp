@@ -30,6 +30,7 @@
 #include "Poco/Net/PartHandler.h"
 #include "Poco/StreamCopier.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -207,6 +208,27 @@ bool StandaloneApi::parseDoc(const std::string& body, TimelineDoc& doc, std::str
                         if (c.crop_r < 0) c.crop_r = 0;   //（过裁收口在装配端
                         if (c.crop_t < 0) c.crop_t = 0;   //  Transform::visibleRect）
                         if (c.crop_b < 0) c.crop_b = 0;
+                        // 颜色合成（2026-11-20，与 editor Transform v4 同语义）：
+                        // rgb_gain=[R,G,B] 三元素数组——缺省/非法结构整体回
+                        // 默认 1,1,1（不启用）；gamma 标量——缺省/非法回 1。
+                        const auto rgVar = cl->get("rgb_gain");
+                        if (!rgVar.isEmpty()) {
+                            try {
+                                const auto rg = rgVar.extract<Poco::JSON::Array::Ptr>();
+                                if (rg->size() == 3) {
+                                    for (int i = 0; i < 3; ++i)
+                                        c.rgb_gain[i] = rg->get(static_cast<std::size_t>(i)).convert<double>();
+                                }
+                            } catch (...) { /* 非法结构 → 回默认 */ }
+                        }
+                        c.gamma = varNum(cl, "gamma", 1.0);
+                        for (auto& g : c.rgb_gain) {
+                            if (!std::isfinite(g)) g = 1.0;
+                            g = std::clamp(g, 0.0, 2.0);   // 线性增益域
+                        }
+                        if (!std::isfinite(c.gamma) || c.gamma <= 0.0)
+                            c.gamma = 1.0;                 // 0/负/NaN 无意义 → 不启用
+                        c.gamma = std::clamp(c.gamma, 0.1, 4.0);
                         if (c.file.empty() && c.text.empty()) continue;  // 无内容片段丢弃
                         t.clips.push_back(std::move(c));
                     }
@@ -261,6 +283,10 @@ std::string StandaloneApi::docToJson(const std::string& id, const TimelineDoc& d
             cl->set("crop_r", c.crop_r);
             cl->set("crop_t", c.crop_t);
             cl->set("crop_b", c.crop_b);
+            Poco::JSON::Array::Ptr rg = new Poco::JSON::Array;  // 颜色合成
+            for (double g : c.rgb_gain) rg->add(g);
+            cl->set("rgb_gain", rg);
+            cl->set("gamma", c.gamma);
             cl->set("fade_in_us", c.fade_in_us);
             cl->set("fade_out_us", c.fade_out_us);
             clips->add(cl);
@@ -407,6 +433,9 @@ bool StandaloneApi::sceneToDoc(const ms::Scene& scene, TimelineDoc& doc,
             cs.crop_r   = (std::max)(c.transform.crop[ms::kCropR], 0.0);
             cs.crop_t   = (std::max)(c.transform.crop[ms::kCropT], 0.0);
             cs.crop_b   = (std::max)(c.transform.crop[ms::kCropB], 0.0);
+            for (int i = 0; i < 3; ++i)  // 颜色合成反推（v4 起 doc 可承载）
+                cs.rgb_gain[i] = c.transform.rgb_gain[i];
+            cs.gamma    = c.transform.gamma;
             cs.z        = std::clamp(c.transform.z % 1000, 0, 999);
 
             // fade 反推：只认装配端形态——纯首淡（2 key：{0,0}→{fi,head}）/

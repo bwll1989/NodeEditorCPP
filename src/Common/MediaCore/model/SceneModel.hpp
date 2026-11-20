@@ -108,6 +108,15 @@ struct Transform {
     // 不回写 Pos/Size（与角点同"末端修正"哲学）。下标 = CropIdx。
     double crop[4] = {0, 0, 0, 0};
 
+    // ---- 颜色合成（2026-11-20，片段级 RGB 增益 + Gamma 伽马校正）----------
+    // rgb_gain：R/G/B 三通道线性增益 [0,2]（1=不变，0=该通道压黑，>1 提升；
+    // 三通道同值等效亮度缩放）。全 1 = 无调整（历史行为逐位不变）。
+    double rgb_gain[3] = {1, 1, 1};
+    // gamma：伽马校正指数 [0.1,4]——渲染端 pow(color, 1/gamma)，>1 提亮
+    //（提亮中间调）、<1 压暗；1.0 = 幂等不校正。pow 开销大，渲染端仅
+    // 偏离 1.0 时才切 pow 路径（默认逐位退化）。
+    double gamma = 1.0;
+
     /// 锚点局部比例（u/v ∈ {0,0.5,1}，画布域锚点 = (x+u·w, y+v·h)）。
     /// \param a 锚点索引 [0,4]（越界取 0=中心——数据损坏安全兜底）
     /// \return 通过 out 返回 (u, v)
@@ -189,7 +198,10 @@ inline bool operator==(const Transform& a, const Transform& b) {
                       std::begin(b.corner)) &&
            a.rot_x == b.rot_x && a.rot_y == b.rot_y && a.pos_z == b.pos_z &&
            std::equal(std::begin(a.crop), std::end(a.crop),
-                      std::begin(b.crop));
+                      std::begin(b.crop)) &&
+           std::equal(std::begin(a.rgb_gain), std::end(a.rgb_gain),
+                      std::begin(b.rgb_gain)) &&
+           a.gamma == b.gamma;
 }
 
 // ---------------------------------------------------------------------------
@@ -232,6 +244,9 @@ enum class TweenProp : int {
     CropB     = 15, ///< 标量：下裁切
     AudioGain = 16, ///< 标量：音频增益（线性，1.0=不衰减，0=静音，>1 提升；
                     ///< 2026-11-10 追加——音频域属性随 tween 体系走关键帧）
+    // ---- 颜色合成（2026-11-20 追加，片段级合成组）------------------------
+    RgbGain = 17, ///< 三维打包：v0/v1/v2 = R/G/B 线性增益 [0,2]（1=不变）
+    Gamma   = 18, ///< 标量：伽马校正指数 [0.1,4]（1.0=不校正；渲染 pow(c,1/γ)）
 };
 
 enum class TweenInterp : int {
@@ -548,11 +563,15 @@ struct Screen {
     /// 姿态（历史仿射映射逐位不变）。
     double rot_x = 0.0;      ///< 俯仰旋转 X（度，正=顶边后仰）
     double rot_y = 0.0;      ///< 偏航旋转 Y（度，正=右缘远离）
-    /// 投影模式（2026-11-18 Display 统一模型阶段1，数据先行）：
-    /// 0=Framed 取景窗（默认，历史行为——引用 Show 全局 Eye 的取景窗）；
-    /// 1=Mapped 投影映射（3D mapping 预留——屏持有自己的投影仪 Eye，
-    /// 内容按视锥投到网格面片；渲染路径后续接入）。非 0/1 读端钳 0。
-    int projectionMode = 0;
+    // 【投影模式 projectionMode 退役 2026-11-20 用户定案，不考虑兼容】
+    // 纯 2D 取景范式下 Display 恒为取景窗（Framed），渲染端从未消费；
+    // 字段与 proto 12 号位一并删除。
+    // ---- 输出校色（2026-11-20 Display 级 RGB 增益 + Gamma）----
+    // 本屏输出环节的最终校色：采样后逐通道乘 rgb_gain，再
+    // pow(clamp(c,0,1), 1/gamma)。与片段级合成在 ScreenMapper（增益相乘、
+    // gamma 相乘）；全默认 = 逐位历史行为。
+    double rgb_gain[3] = {1, 1, 1}; ///< R/G/B 线性增益（1=不变，0=压黑）
+    double gamma = 1.0;             ///< 伽马指数（1.0=不校正）
 };
 
 inline bool operator==(const Screen& a, const Screen& b) {
@@ -560,7 +579,9 @@ inline bool operator==(const Screen& a, const Screen& b) {
            a.y == b.y && a.w == b.w && a.h == b.h &&
            a.rotation == b.rotation && a.z == b.z && a.warp == b.warp &&
            a.rot_x == b.rot_x && a.rot_y == b.rot_y &&
-           a.projectionMode == b.projectionMode;
+           std::equal(std::begin(a.rgb_gain), std::end(a.rgb_gain),
+                      std::begin(b.rgb_gain)) &&
+           a.gamma == b.gamma;
 }
 
 // ---------------------------------------------------------------------------

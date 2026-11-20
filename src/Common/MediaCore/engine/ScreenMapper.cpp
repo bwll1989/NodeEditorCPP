@@ -67,6 +67,12 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
         di.media_us = ac.media_us;      // 素材内部时间（in_us + 播放头偏移）
         di.rotation = judge.rotation;   // 画布属性透传
         di.opacity  = judge.opacity;
+        // 颜色合成（2026-11-20）：片段级 × 屏幕级（Display 输出校色）——
+        // 增益相乘、gamma 相乘（pow(c,1/g1) 后再 pow(·,1/g2) ≡
+        // pow(c,1/(g1·g2))，忽略中间 clamp 的微差）。合成后下游单一来源，
+        // 渲染端零感知两级来源；两级全默认时渲染端走原快速路径逐位退化。
+        for (int i = 0; i < 3; ++i) di.rgb_gain[i] = judge.rgb_gain[i] * scr.rgb_gain[i];
+        di.gamma    = judge.gamma * scr.gamma;
         di.z        = judge.z;
         // 锚点 + 四角位移透传（2026-11-09；corner 全 0 时渲染端走原快速路径）
         di.anchor   = judge.anchor;

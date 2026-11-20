@@ -306,6 +306,13 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
                 targets.msScene->canvas_w = 1920.0;
             if (targets.msScene->canvas_h <= 0.0)
                 targets.msScene->canvas_h = 1080.0;
+            // 【2026-11-20 2D 化】素材位置两分量 X/Y——深度 Z 归零（UI 已
+            // 屏蔽；字段保留供旧工程 pb 读取兼容）；旋转 X/Y/Z 三轴保留
+            //（应用完成后正交映射到 XY 平面，无透视）；Show 级全局透视随
+            // Eye 入口退役一并归零
+            for (auto& tr : targets.msScene->timeline.tracks)
+                for (auto& c : tr.clips) c.transform.pos_z = 0.0;
+            targets.msScene->persp_focal = 0.0;
             report(QObject::tr("MediaServer timeline loaded"));
         }
     }

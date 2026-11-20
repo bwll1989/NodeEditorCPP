@@ -55,6 +55,13 @@ bool SoftRenderer::draw(const DrawItem& di, const FrameView& frame) {
     const double opacity = std::clamp(di.opacity, 0.0, 1.0);
     if (opacity <= 0.0) return true; // 全透明：无视觉变化，但矩形合法（已绘制）
 
+    // 颜色合成（2026-11-20 片段级）：任一增益偏离 1 或 gamma≠1 时激活
+    //（blendPixel 指针判空直通——默认零开销，历史行为逐位一致）
+    const bool color_active = di.rgb_gain[0] != 1.0 || di.rgb_gain[1] != 1.0 ||
+                              di.rgb_gain[2] != 1.0 || di.gamma != 1.0;
+    const double* const gain_ptr = color_active ? di.rgb_gain : nullptr;
+    const double gamma_v = std::clamp(di.gamma, 0.1, 4.0);
+
     // 整体不透明度的 0~255 整数因子（+0.5 四舍五入）
     const std::uint32_t clip_a =
         static_cast<std::uint32_t>(opacity * 255.0 + 0.5);
@@ -87,7 +94,7 @@ bool SoftRenderer::draw(const DrawItem& di, const FrameView& frame) {
                 int sx = static_cast<int>(fu0 + (px + 0.5 - di.x) * su);
                 sx = std::clamp(sx, 0, frame.width - 1);
                 const std::uint8_t* s = src_row + static_cast<std::size_t>(sx) * 4;
-                blendPixel(dst_row, px, s, clip_a);
+                blendPixel(dst_row, px, s, clip_a, gain_ptr, gamma_v);
             }
         }
         return true;
@@ -175,7 +182,7 @@ bool SoftRenderer::draw(const DrawItem& di, const FrameView& frame) {
             const std::uint8_t* s = frame.rgba +
                 static_cast<std::size_t>(sy) * frame.stride +
                 static_cast<std::size_t>(sx) * 4;
-            blendPixel(dst_row, px, s, clip_a);
+            blendPixel(dst_row, px, s, clip_a, gain_ptr, gamma_v);
         }
     }
     return true;
@@ -308,7 +315,14 @@ void SoftRenderer::drawQuadSampling(const DrawItem& di, const FrameView& frame,
                 const std::uint8_t* s = frame.rgba +
                     static_cast<std::size_t>(sy) * frame.stride +
                     static_cast<std::size_t>(sx) * 4;
-                blendPixel(dst_row, px, s, clip_a);
+                // 色彩合成激活判定同 draw 顶部（drawQuadSampling 独立内核
+                // ——corner pin/透视路径，di 直读）
+                const bool cact = di.rgb_gain[0] != 1.0 ||
+                                  di.rgb_gain[1] != 1.0 ||
+                                  di.rgb_gain[2] != 1.0 || di.gamma != 1.0;
+                blendPixel(dst_row, px, s, clip_a,
+                           cact ? di.rgb_gain : nullptr,
+                           std::clamp(di.gamma, 0.1, 4.0));
             }
         }
     }
@@ -319,8 +333,28 @@ void SoftRenderer::drawQuadSampling(const DrawItem& di, const FrameView& frame,
 // ---------------------------------------------------------------------------
 void SoftRenderer::blendPixel(std::uint8_t* dst_row, int px,
                               const std::uint8_t* s,
-                              std::uint32_t clip_a) noexcept {
+                              std::uint32_t clip_a,
+                              const double* rgb_gain,
+                              double gamma) noexcept {
     std::uint8_t* d = dst_row + static_cast<std::size_t>(px) * 4;
+    // 色彩合成（2026-11-20 片段级，可选）：采样 RGB 先逐通道乘线性增益
+    //（[0,2]），gamma≠1.0 时再 pow(c, 1/γ)；全程钳 [0,1]→[0,255]。
+    // 未激活（rgb_gain==nullptr）零开销直通——历史行为逐位一致。
+    std::uint8_t r = s[0], g = s[1], b = s[2];
+    if (rgb_gain != nullptr) {
+        auto adj = [&](std::uint8_t v, double gain) -> std::uint8_t {
+            double x = (static_cast<double>(v) / 255.0) * gain;
+            if (gamma != 1.0) {
+                x = std::clamp(x, 0.0, 1.0);
+                x = std::pow(x, 1.0 / gamma);
+            }
+            return static_cast<std::uint8_t>(
+                std::clamp(x * 255.0 + 0.5, 0.0, 255.0));
+        };
+        r = adj(s[0], rgb_gain[0]);
+        g = adj(s[1], rgb_gain[1]);
+        b = adj(s[2], rgb_gain[2]);
+    }
     // alpha = 像素 alpha × clip opacity（精确 ÷255 四舍五入；
     // 不能用 >>8 近似——255*255>>8=254，全不透明像素误入混合
     // 分支造成每帧 1/255 亮度衰减，纯色帧合成会肉眼可见变暗）
@@ -328,14 +362,14 @@ void SoftRenderer::blendPixel(std::uint8_t* dst_row, int px,
         (static_cast<std::uint32_t>(s[3]) * clip_a + 127) / 255;
     if (a == 0)   return;              // 全透明：保持目标像素
     if (a >= 255) {                    // 不透明：直接覆盖
-        d[0] = s[0]; d[1] = s[1]; d[2] = s[2]; d[3] = 255;
+        d[0] = r; d[1] = g; d[2] = b; d[3] = 255;
         return;
     }
     // 半透明：out = src*a + dst*(1-a)（四通道，+127 四舍五入）
     const std::uint32_t ia = 255 - a;
-    d[0] = static_cast<std::uint8_t>((s[0] * a + d[0] * ia + 127) / 255);
-    d[1] = static_cast<std::uint8_t>((s[1] * a + d[1] * ia + 127) / 255);
-    d[2] = static_cast<std::uint8_t>((s[2] * a + d[2] * ia + 127) / 255);
+    d[0] = static_cast<std::uint8_t>((r * a + d[0] * ia + 127) / 255);
+    d[1] = static_cast<std::uint8_t>((g * a + d[1] * ia + 127) / 255);
+    d[2] = static_cast<std::uint8_t>((b * a + d[2] * ia + 127) / 255);
     d[3] = static_cast<std::uint8_t>(a + (d[3] * ia + 127) / 255);
 }
 

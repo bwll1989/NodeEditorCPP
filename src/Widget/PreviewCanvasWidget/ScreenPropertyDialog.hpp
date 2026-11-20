@@ -82,10 +82,10 @@ public:
     }
 
     /// 【实时预览（2026-11-11 用户需求：几何调整 editor/display 即时可见）】
-    /// 注入几何八字段（x/y/w/h/rotation/rot_x/rot_y/z）实时回调——通用页
-    /// spinbox 每次变化（点箭头/步进/键入提交）立即转发，宿主只取几何字段
-    /// 写回工作副本走自动下发链路。回调收到的 Screen 仅几何字段有效
-    ///（warp/绑定不在实时链内）。空 = 不实时应用（纯确认制，旧语义）。
+    /// 注入几何+校色实时回调——通用页控件每次变化（拖拽/步进/键入提交）
+    /// 立即转发，宿主只取几何+校色字段写回工作副本走自动下发链路。回调收到
+    /// 的 Screen 仅几何+校色字段有效（warp/绑定不在实时链内）。
+    /// 空 = 不实时应用（纯确认制，旧语义）。
     void setGeometryLiveApply(std::function<void(const Screen&)> fn) {
         geometry_live_ = std::move(fn);
     }
@@ -95,14 +95,18 @@ private:
     FloatDragValueWidget* y_ = nullptr; ///< 画布坐标 Y
     FloatDragValueWidget* w_ = nullptr; ///< 显示宽度
     FloatDragValueWidget* h_ = nullptr; ///< 显示高度
-    FloatDragValueWidget* rotation_ = nullptr; ///< 旋转角度（度，顺时针绕中心）
-    FloatDragValueWidget* rot_x_ = nullptr; ///< 俯仰姿态 X（度；屏取景窗 3D 姿态）
-    FloatDragValueWidget* rot_y_ = nullptr; ///< 偏航姿态 Y（度；屏取景窗 3D 姿态）
+    FloatDragValueWidget* rotation_ = nullptr; ///< 旋转 Z（滚转，度，面内顺时针绕中心）
+    FloatDragValueWidget* rot_x_ = nullptr; ///< 旋转 X（俯仰，度；屏取景窗 3D 姿态）
+    FloatDragValueWidget* rot_y_ = nullptr; ///< 旋转 Y（偏航，度；屏取景窗 3D 姿态）
     // z_ 已退役（2026-11-18）：Screen 取景窗无叠放语义，层级行移除；
     // 模型字段保留兼容老工程
-    QComboBox* projection_mode_ = nullptr; ///< 投影模式（0=Framed 取景窗
-                                          ///  1=Mapped 投影映射；
-                                          ///  3D mapping 数据先行）
+    // ---- 输出校色（2026-11-20 Display 级 RGB 增益 + Gamma）--------------
+    FloatDragValueWidget* gain_r_ = nullptr; ///< R 通道线性增益（1=不变）
+    FloatDragValueWidget* gain_g_ = nullptr; ///< G 通道线性增益
+    FloatDragValueWidget* gain_b_ = nullptr; ///< B 通道线性增益
+    FloatDragValueWidget* gamma_  = nullptr; ///< 伽马指数（1.0=不校正）
+    // projection_mode_ 已退役（2026-11-20 用户定案）：纯 2D 取景范式下
+    // Display 恒为取景窗（Framed）；模型/proto 字段 projectionMode 已删
     QLineEdit*      player_id_ = nullptr; ///< 绑定的显示端（player id；
                                           ///  连接成功后 display 自动采用）
     QLineEdit*      host_ = nullptr;      ///< 显示端主机（登记用）

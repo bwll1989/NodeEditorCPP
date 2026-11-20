@@ -256,6 +256,26 @@ private:
     int hitResizeHandle(const QPointF& widget_pos) const;
     /// 命中选中对象的旋转拖柄（顶边中点外延；控件域 ~6px 容差）
     bool hitRotateHandle(const QPointF& widget_pos) const;
+
+    // ---- 素材画布手柄（2026-11-20 交互优化）：四角 = 角点位移拖拽
+    //      （corner pin，写 Transform.corner）、四边 = 尺寸缩放（写
+    //      w/h，对边固定）——与属性面板数值实时联动 ---------------
+    /// 选中片段的视觉四角（画布域；透视投影含滚转/锚点/角点/深度/
+    /// 全场透视——与绘制/合成同源唯一真相）
+    QPolygonF clipVisualQuadCanvas(const Clip& c, const Transform& tf) const;
+    /// 命中片段角点手柄（控件域 ~8px 容差）\return CornerIdx 0..3，未中 -1
+    int hitClipCornerHandle(const QPointF& widget_pos) const;
+    /// 命中片段边线（控件域 ~6px 容差；角点 14px 让位区除外）
+    /// \return 边编码 0=上 1=右 2=下 3=左，未中 -1
+    int hitClipEdgeHandle(const QPointF& widget_pos) const;
+    /// 片段手柄绘制（四边线 + 四角方块；hover/拖动高亮）
+    void drawClipHandles(QPainter& p, const QPolygonF& quad_widget) const;
+    /// 角点拖拽会话 tick：鼠标画布点 − 基准角 = 新角点位移（auto-key
+    /// 双模；面板「形变」行实时灌值）
+    void tickClipCornerDrag(const QPointF& canvas_pos);
+    /// 边线缩放会话 tick：沿被拖边法向投影增量 → 新 w/h，对边中点回贴
+    /// 锚定（任意旋转/锚点/姿态下对边视觉固定）
+    void tickClipEdgeDrag(const QPointF& canvas_pos);
     /// 命中全局消隐点 VP 手柄（3D 视口地面标记；仅 persp_focal>0 时
     /// 存在——未配置时 VP 走画布派生默认，拖动无意义）
     bool vpHandleHit(const QPointF& widget_pos) const;
@@ -493,6 +513,23 @@ private:
     bool   resizing_          = false;  // true = 角点缩放（false = 位置拖动）
     bool   rotating_          = false;  // true = 旋转拖柄拖拽会话
     int    resize_corner_     = -1;     ///< 被拖角编码（CanvasGeometry 0..3）
+    // ---- 素材手柄会话（2026-11-20）：四角角点位移 / 四边尺寸缩放 -------
+    int    corner_drag_       = -1;     ///< 角点拖拽会话（CornerIdx 0..3）
+    int    edge_drag_         = -1;     ///< 边线缩放会话边（0=上 1=右 2=下
+                                        ///  3=左；-1 = 非边线会话）
+    int    corner_hover_      = -1;     ///< 角点手柄悬停高亮（非会话）
+    int    edge_hover_        = -1;     ///< 边线悬停高亮
+    double edge_orig_x_       = 0.0;    ///< 边线会话冻结的标称矩形（画布域）
+    double edge_orig_y_       = 0.0;
+    double edge_orig_w_       = 0.0;
+    double edge_orig_h_       = 0.0;
+    double edge_orig_rot_     = 0.0;    ///< 会话冻结姿态（滚转/俯仰/偏航/锚点）
+    double edge_orig_rx_      = 0.0;
+    double edge_orig_ry_      = 0.0;
+    int    edge_orig_anchor_  = 0;
+    QPointF edge_dir_x_{0, 0};          ///< 局部 x 轴单位向量（画布域，冻结）
+    QPointF edge_dir_y_{0, 0};          ///< 局部 y 轴（向下）单位向量（冻结）
+    QPointF edge_opp_mid_{0, 0};        ///< 对边中点（画布域，冻结——回贴锚）
     double resize_rotation_   = 0.0;    ///< 缩放会话冻结的旋转角（度）
     double resize_orig_x_     = 0.0;    ///< 会话起始外接框（画布坐标，未旋转）
     double resize_orig_y_     = 0.0;
@@ -512,8 +549,10 @@ private:
     std::vector<double> guide_x_;       ///< 本次命中的吸附线 x（绘制品红竖线）
     std::vector<double> guide_y_;       ///< 本次命中的吸附线 y（绘制品红横线）
     // 【预览透视开关 preview_perspective_ 已删除 2026-11-18】正交视图
-    // 功能及其函数全退役——预览恒与 display 同源（透视），3D 视口恒
-    // 真 3D 世界四角（quadCorners3DWorld）。
+    // 功能及其函数全退役——预览恒与 display 同源（透视）。【2026-11-20
+    // 用户拍板】素材三轴旋转 = 透视投影压平到 XY 平面（quadCorners3DP
+    // + Scene::effectivePersp，与 display ScreenMapper 同源）；站立路径
+    //（quadCorners3DWorld）退役无消费者。
 };
 
 } // namespace ms
