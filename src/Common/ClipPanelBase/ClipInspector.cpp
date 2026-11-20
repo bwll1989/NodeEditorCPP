@@ -81,8 +81,14 @@ ClipInspector::ClipInspector(std::vector<FieldDef> fields, QWidget* parent)
             sp->setSingleStep(fd.step);
             if (fd.unit && fd.unit[0])
                 sp->setSuffix(QString::fromUtf8(fd.unit));
+            // 【下标口径统一 2026-11-20】回调传 rows_ 下标（渲染行序），
+            // 经 Row.fd 反查 key——此前混用 fields_ 下标：fields_ 前部存在
+            // visible=false / 非数值行时 rows_ 与 fields_ 错位，编辑误拒/
+            // refresh 灌错行。rows_ 下标 = 控件数组序，唯一稳定口径。
             connect(sp, &FloatDragValueWidget::valueChanged, this,
-                    [this, i, c](double v) { onEdited(i, c, v); });
+                    [this, rid = static_cast<int>(rows_.size()), c](double v) {
+                        onEdited(rid, c, v);
+                    });
             grid->addWidget(sp, row, 1 + c);
             r.value.push_back(sp);
         }
@@ -97,8 +103,11 @@ ClipInspector::ClipInspector(std::vector<FieldDef> fields, QWidget* parent)
 
 void ClipInspector::onEdited(int row, int comp, double v) {
     if (!store_ || row < 0 || row >= static_cast<int>(rows_.size())) return;
-    // 双模直写（通道打包 auto-key / 静态基准）+ on_edited 落定全在 store
-    store_->set(QString::fromUtf8(fields_[row].key), comp, v);
+    // 双模直写（通道打包 auto-key / 静态基准）+ on_edited 落定全在 store。
+    // row = rows_ 渲染行下标；key 经 Row.fd 反查（Row.fd 指向 fields_ 原
+    // 条目——fields_ 是值语义 vector 且构造后不再变更，指针稳定）。
+    store_->set(QString::fromUtf8(rows_[static_cast<std::size_t>(row)].fd->key),
+                comp, v);
 }
 
 void ClipInspector::refresh() {
@@ -109,7 +118,7 @@ void ClipInspector::refresh() {
             auto* sp = qobject_cast<FloatDragValueWidget*>(r.value[c]);
             if (!sp || sp->hasFocus()) continue; // 焦点保护（编辑中不灌）
             double v = 0.0;
-            if (!store_->get(QString::fromUtf8(fields_[i].key), c, v))
+            if (!store_->get(QString::fromUtf8(r.fd->key), c, v))
                 continue;
             const QSignalBlocker b(sp); // 灌显示不写回
             sp->setValue(v);

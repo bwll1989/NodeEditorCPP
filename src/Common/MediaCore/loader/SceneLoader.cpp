@@ -29,6 +29,8 @@
 #include <sstream>
 #include <unordered_set>
 
+#include "runtime/AssetPath.hpp" // u8Path：场景文件路径可含中文（MSVC 窄串按 ACP 解码，UTF-8 直传会抛 system_error/静默失败）
+
 #include "engine/TimelineEngine.hpp" // R6 总时长推算用 computeDurationUs
 #include "engine/TweenEngine.hpp"    // v2→v3 迁移采样（evalChannel）
 
@@ -835,10 +837,14 @@ bool SceneLoader::validateScene(const Scene& scene, std::string& err) {
             }
 
             // R3：transform 数值合法性（NaN/Inf 拦截）
+            // rot_x/rot_y/pos_z 同样拦截（冻结字段族——旧工程兼容读端保留，
+            // 但非法值进入透视投影链同样是未定义行为源）
             const auto& tr = c.transform;
             if (!std::isfinite(tr.x) || !std::isfinite(tr.y) ||
                 !std::isfinite(tr.w) || !std::isfinite(tr.h) ||
-                !std::isfinite(tr.rotation) || !std::isfinite(tr.opacity)) {
+                !std::isfinite(tr.rotation) || !std::isfinite(tr.opacity) ||
+                !std::isfinite(tr.rot_x) || !std::isfinite(tr.rot_y) ||
+                !std::isfinite(tr.pos_z)) {
                 err = "R3: clip '" + c.id + "' transform 含 NaN/Inf";
                 return false;
             }
@@ -874,7 +880,8 @@ bool SceneLoader::validateScene(const Scene& scene, std::string& err) {
                               std::to_string(k.t_us) + ")";
                         return false;
                     }
-                    if (!std::isfinite(k.v0) || !std::isfinite(k.v1)) {
+                    if (!std::isfinite(k.v0) || !std::isfinite(k.v1) ||
+                        !std::isfinite(k.v2)) {
                         err = "R8: clip '" + c.id + "' tween 关键帧值含 NaN/Inf";
                         return false;
                     }
@@ -1017,7 +1024,7 @@ std::optional<Scene> SceneLoader::parse(const std::string& bytes,
 // ---------------------------------------------------------------------------
 std::optional<Scene> SceneLoader::loadFromFile(const std::string& path,
                                                std::string& err) {
-    std::ifstream file(path, std::ios::binary);
+    std::ifstream file(ms::u8Path(path), std::ios::binary);
     if (!file) {
         err = "无法打开场景文件: " + path;
         return std::nullopt;
@@ -1029,7 +1036,7 @@ std::optional<Scene> SceneLoader::loadFromFile(const std::string& path,
 
 bool SceneLoader::saveToFile(const Scene& scene, const std::string& path,
                              std::string& err) {
-    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    std::ofstream file(ms::u8Path(path), std::ios::binary | std::ios::trunc);
     if (!file) {
         err = "无法写入场景文件: " + path;
         return false;

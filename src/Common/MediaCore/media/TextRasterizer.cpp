@@ -139,6 +139,9 @@ const stbtt_fontinfo* loadFont(const std::string& file) {
     std::replace(dir.begin(), dir.end(), '\\', '/');
     const std::string path = dir + "/Fonts/" + file;
 
+    // 【u8Path 豁免】WINDIR 环境变量与系统字体文件名均为 ACP 窄字节
+    //（英文 Windows 恒 ASCII，中文 Windows 系统目录亦为 ASCII 命名），
+    // 窄串直传与 ACP 语义一致；此处若强转 UTF-8 反而损坏字节。
     std::ifstream f(path, std::ios::binary);
     if (!f) {
         failedCache().insert(file);

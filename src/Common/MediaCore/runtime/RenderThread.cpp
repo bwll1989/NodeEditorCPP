@@ -15,6 +15,8 @@
 
 #include "runtime/RenderThread.hpp"
 
+#include "runtime/AssetPath.hpp" // u8Path：capture_dir/帧文件路径可含中文（MSVC 窄串按 ACP 解码）
+
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -194,7 +196,7 @@ void RenderThread::start() {
     // 捕获目录预先建好（含父目录；失败仅告警——写帧时再报错）
     if (!cfg_.capture_dir.empty()) {
         std::error_code ec;
-        std::filesystem::create_directories(cfg_.capture_dir, ec);
+        std::filesystem::create_directories(ms::u8Path(cfg_.capture_dir), ec);
         if (ec)
             std::fprintf(stderr, "render:%s: 捕获目录创建失败: %s (%s)\n",
                          cfg_.player_id.c_str(), cfg_.capture_dir.c_str(),
@@ -1043,7 +1045,7 @@ void RenderThread::maybeCapture(std::int64_t now_us) {
 
     // 目录保障：renderOnce 确定性测试不经过 start()，此处幂等兜底
     std::error_code ec;
-    std::filesystem::create_directories(cfg_.capture_dir, ec);
+    std::filesystem::create_directories(ms::u8Path(cfg_.capture_dir), ec);
 
     char name[64];
     std::snprintf(name, sizeof(name), "frame_%06llu.bmp",
@@ -1106,7 +1108,7 @@ bool RenderThread::writeBmp(const std::string& path, int w, int h,
     put32(hdr, 0);                                // biClrUsed
     put32(hdr, 0);                                // biClrImportant
 
-    std::ofstream out(path, std::ios::binary);
+    std::ofstream out(ms::u8Path(path), std::ios::binary);
     if (!out) return false;
     out.write(reinterpret_cast<const char*>(hdr.data()),
               static_cast<std::streamsize>(hdr.size()));

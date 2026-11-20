@@ -81,4 +81,5 @@ private:
 private:
     AbstractClipModel* owner_ {nullptr};
     QGridLayout* time_layout_ {nullptr};
+    bool m_connections_inited {false}; ///< 信号接线防重入（重复 connect 防护）
 };

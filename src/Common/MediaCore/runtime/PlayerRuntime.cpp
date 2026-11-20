@@ -1749,19 +1749,9 @@ std::string PlayerRuntime::session_id() const {
     return session_id_;
 }
 
-bool PlayerRuntime::has_scene() const {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    return scene_ != nullptr;
-}
-
 std::int64_t PlayerRuntime::last_delta_us() const {
     std::lock_guard<std::mutex> lock(state_mutex_);
     return last_delta_us_;
-}
-
-std::uint32_t PlayerRuntime::reconnect_count() const {
-    std::lock_guard<std::mutex> lock(state_mutex_);
-    return reconnects_;
 }
 
 // ---------------------------------------------------------------------------

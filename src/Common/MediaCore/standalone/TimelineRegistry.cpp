@@ -103,11 +103,6 @@ void TimelineRegistry::clearActive() {
     active_id_.clear();
 }
 
-std::shared_ptr<const TimelineEntry> TimelineRegistry::active() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return findByIdLocked(active_id_);
-}
-
 std::string TimelineRegistry::activeId() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return active_id_;
@@ -123,19 +118,9 @@ bool TimelineRegistry::setDefault(const std::string& id) {
     return true;
 }
 
-void TimelineRegistry::clearDefault() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    default_id_.clear();
-}
-
 std::string TimelineRegistry::defaultId() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return default_id_;
-}
-
-std::shared_ptr<const TimelineEntry> TimelineRegistry::defaultEntry() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return findByIdLocked(default_id_);
 }
 
 } // namespace ms::standalone

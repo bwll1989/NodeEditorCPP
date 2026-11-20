@@ -101,9 +101,6 @@ public:
     /// 清除活跃（停播时调用；无活跃 = 场景槽保持现状但不再续播）
     void clearActive();
 
-    /// 当前活跃条目（无活跃返回空指针）
-    std::shared_ptr<const TimelineEntry> active() const;
-
     /// 当前活跃 id（空 = 无活跃；HTTP status 报文用）
     std::string activeId() const;
 
@@ -113,15 +110,9 @@ public:
     /// \return false = id 不存在
     bool setDefault(const std::string& id);
 
-    /// 清除默认登记
-    void clearDefault();
-
     /// 默认时间轴 id（空 = 未设置；开机/Editor 断开时 NodeController
     /// 据此恢复自动播放）
     std::string defaultId() const;
-
-    /// 默认时间轴条目（未设置或条目已被删返回空指针）
-    std::shared_ptr<const TimelineEntry> defaultEntry() const;
 
 private:
     /// 锁内线性查找（条目量级小；调用方持锁）

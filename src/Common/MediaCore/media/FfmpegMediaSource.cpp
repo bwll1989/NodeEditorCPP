@@ -439,9 +439,12 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
 
     // 单帧显示时长：avg_frame_rate 优先（反映真实节拍），退化 r_frame_rate；
     // 均无效时按 30fps 兜底（33.3ms）——仅影响缓存命中判断的精度。
-    const AVRational fps = st->avg_frame_rate.num > 0 ? st->avg_frame_rate
-                                                      : st->r_frame_rate;
-    frame_span_us_ = fps.num > 0
+    // 【den 校验 2026-11-20】num>0 而 den<=0 的病态流（封装异常）会让
+    // av_inv_q 产生 0/0 → 除零 UB——num 与 den 同时有效才采用。
+    const AVRational fps = (st->avg_frame_rate.num > 0 && st->avg_frame_rate.den > 0)
+                               ? st->avg_frame_rate
+                               : st->r_frame_rate;
+    frame_span_us_ = (fps.num > 0 && fps.den > 0)
         ? av_rescale_q(1, av_inv_q(fps), AVRational{1, AV_TIME_BASE})
         : 33'333;
 

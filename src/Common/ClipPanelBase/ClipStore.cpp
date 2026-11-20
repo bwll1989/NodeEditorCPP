@@ -231,13 +231,14 @@ void writeKeyAtPlayhead(Clip& c, TweenProp prop, const QString& key,
 ClipStore::ClipStore(const ClipSectionContext& ctx, PlayheadFn playhead)
     : clip_lookup_(ctx.clip_lookup),
       on_edited_(ctx.on_edited),
-      playhead_(std::move(playhead)),
-      ctx_clip_(ctx.clip) {}
+      playhead_(std::move(playhead)) {}
 
 ms::Clip* ClipStore::locateClip() const {
-    // 悬垂防御纪律（2026-11-15）：vector<Clip> 搬移安全——每现查
-    if (clip_lookup_) return clip_lookup_();
-    return ctx_clip_; // 工厂时刻快照兜底（lookup 缺失场合）
+    // 悬垂防御纪律（2026-11-15）：vector<Clip> 搬移安全——每现查。
+    // 【兜底退役 2026-11-20】lookup 缺失时不再回落工厂时刻快照（tr.clips
+    // 结构变化会搬移元素，快照悬垂——2026-11-15 Control 片段"改 0 跳回 1"
+    // 实证）：返回 nullptr 让调用方守卫短路，宁可无编辑不可写悬垂。
+    return clip_lookup_ ? clip_lookup_() : nullptr;
 }
 
 std::int64_t ClipStore::playheadUs(const ms::Clip* c) const {

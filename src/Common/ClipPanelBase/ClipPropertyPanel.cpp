@@ -50,8 +50,8 @@ ClipPropertyPanel::ClipPropertyPanel(const Clip& clip,
     //   原 P2 时代经 ClipPageHost 接口由 BaseClass 插入的协议随迁库退役
     //   ——装配点与页结构同库，无需再协商）；
     //   第 2 页「动画」/第 3 页专属区由适配器经 appendSection 追加。
-    general_page_ = new QWidget(this);
-    auto* lay = new QVBoxLayout(general_page_);
+    auto* general_page = new QWidget(this); // 页所有权随 addTab 转移（成员已降局部）
+    auto* lay = new QVBoxLayout(general_page);
     lay->setContentsMargins(4, 4, 4, 4);
     lay->setSpacing(6);
 
@@ -61,8 +61,8 @@ ClipPropertyPanel::ClipPropertyPanel(const Clip& clip,
     // + pushOscInitialState——原 AbstractClipModel::initPropertyWidget 尾部
     // 注册块收编入面板构造，独立打开路径不再漏登记）。
     if (owner_model) {
-        lay->addWidget(new ClipTimePanel(owner_model, general_page_));
-        lay->addWidget(new ClipAppearancePanel(owner_model, general_page_));
+        lay->addWidget(new ClipTimePanel(owner_model, general_page));
+        lay->addWidget(new ClipAppearancePanel(owner_model, general_page));
     }
 
     // ---- 媒体文件（2026-11-12 用户定案：文件选择经媒体库 SelectorComboBox，
@@ -96,7 +96,7 @@ ClipPropertyPanel::ClipPropertyPanel(const Clip& clip,
             this, &ClipPropertyPanel::onMediaSelected);
     lay->addWidget(asset_box);
     lay->addStretch(1); // 页内容不足时余量沉底（通用区在上，媒体区随内容贴顶）
-    addTab(general_page_, tr("通用")); // 第 1 页（this 即页容器）
+    addTab(general_page, tr("通用")); // 第 1 页（this 即页容器）
 
     // 【画布变换区已退役（2026-11-06 方案 A）】七属性编辑并入 TweenSection
     // 合并区（适配器 makeClipPropertyPanel 统一追加）——此处不再创建任何

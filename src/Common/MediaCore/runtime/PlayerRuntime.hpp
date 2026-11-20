@@ -206,7 +206,6 @@ public:
     double        rate() const;                  ///< 当前纠偏速率
     std::uint32_t frame_index() const;           ///< 推算帧号（current/16.7ms）
     std::string   session_id() const;            ///< Editor 分配的会话
-    bool          has_scene() const;             ///< 场景是否已就绪
     std::int64_t  last_delta_us() const;         ///< 最近一次纠偏 delta（诊断）
 
     // ---- 本机控制（standalone 模式；NodeController 调用，2026-11-11）------
@@ -268,9 +267,6 @@ public:
 
     /// 渲染线程访问（M4 MPCDI 几何投递用；render_fps<=0 / 未启动 = nullptr）
     RenderThread* renderThread() noexcept { return render_.get(); }
-
-    /// 累计重连次数（诊断/联测断言）
-    std::uint32_t reconnect_count() const;
 
 private:
     // ---- 网络回调（recv 线程上下文）----------------------------------------

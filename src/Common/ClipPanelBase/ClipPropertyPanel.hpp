@@ -159,8 +159,8 @@ private:
         kDuration = 1u << 1,
     };
     // ---- 媒体文件绑定（媒体库选择器 + 只读详情；QFileDialog 入口退役）------
-    QWidget*    general_page_ = nullptr; ///< 第 1 页「通用」（媒体区所在；
-                                        ///<  BaseClass 通用面板插入本页）
+    // （general_page_ 已降级为构造局部变量——页所有权随 addTab 转移，
+    //  构造后再无读取，无需成员）
     QGroupBox*  media_box_ = nullptr;   ///< 媒体区容器（Live 片段整体隐藏）
     SelectorComboBox* media_selector_ = nullptr; ///< 媒体库文件选择（候选=
                                                  ///< 对应分类文件名列表）

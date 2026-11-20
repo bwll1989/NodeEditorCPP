@@ -558,8 +558,11 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
                 panel_guard->appendSection(tsec, QStringLiteral("动画"));
                 panel_refs_[clip_id].push_back({tsec, PanelRef::Kind::Tween});
                 QPointer<TweenSection> wguard(tsec);
-                tsec->setPlayheadFn([this]() {
-                    return getPlayheadPos(); // 播放头（μs；同基直传）
+                // 【守卫补齐 2026-11-20】回调捕适配器 QPointer——适配器先亡
+                // 时回调短路（getPlayheadPos/applyClipTweenEdit 都是适配器
+                // 方法，裸 this 捕获是 UAF 面；与 wguard 双守卫同构）。
+                tsec->setPlayheadFn([this, aguard]() {
+                    return aguard ? getPlayheadPos() : qint64{0};
                 });
                 // 尺寸行 ⟲ 默认值（2026-11-09 补设）：绑定素材的原始像素
                 // 宽高（无绑定素材/宽高 0 如 Live 不注入——⟲ 点击不动作）
@@ -567,8 +570,8 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
                                             : nullptr;
                     sa && sa->width > 0 && sa->height > 0)
                     tsec->setSizeDefaultHint(sa->width, sa->height);
-                tsec->setApplier([this, clip_id, wguard]() {
-                    if (!wguard) return; // 区块已销毁（信号队列残留），忽略
+                tsec->setApplier([this, aguard, clip_id, wguard]() {
+                    if (!wguard || !aguard) return; // 区块/适配器已销毁
                     applyClipTweenEdit(clip_id, wguard.data());
                 });
                 // 播放头钩子/写回钩子就位后重灌一次：打开即显示当前播放头

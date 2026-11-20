@@ -32,6 +32,7 @@
 #include <QDebug> // qWarning 流式（暴露面未知 key 漂移告警）
 #include <QFontMetrics>
 #include <QGridLayout>
+#include <QHash> // resetGlyphIcon 按 dpr 缓存（UI 单线程，无锁）
 #include <QLabel>
 #include <QPainter>
 #include <QSignalBlocker>
@@ -188,9 +189,15 @@ inline QIcon diamondIcon(qreal dpr, int st, const QColor& edge) {
 
 /// ⟲ 恢复图标（逆时针开口圆弧 + 实心箭头三角，缺口朝右上——DaVinci
 /// 「恢复默认值」同款观感；灰 #888 与未启用菱形同灰阶）
+/// 【缓存 2026-11-20】结果只依赖 dpr（UI 单线程访问，QHash 无需锁）；
+/// 每面板 3+ 个 ⟲ 钮、每次 refreshFrom 重灌都重画（QPainter 现画约
+/// 0.5ms/个）——按 dpr 缓存 QIcon（隐式共享，返回零成本）后重复装配
+/// 零绘制。键=qreal dpr（实际取值仅 1.0/1.25/1.5 等少数档）。
 inline QIcon resetGlyphIcon(qreal dpr) {
+    static QHash<qreal, QIcon> cache;
+    if (auto it = cache.constFind(dpr); it != cache.cend()) return *it;
     const QColor col(0x88, 0x88, 0x88);
-    return QIcon(tailIconPixmap(dpr, [col](QPainter& p, const QRectF& rc) {
+    QIcon ic(tailIconPixmap(dpr, [col](QPainter& p, const QRectF& rc) {
         p.setBrush(Qt::NoBrush);
         p.setPen(QPen(col, 1.4, Qt::SolidLine, Qt::RoundCap));
         const QRectF arc = rc.adjusted(1.0, 1.0, -1.0, -1.0); // 弧径略缩
@@ -211,6 +218,8 @@ inline QIcon resetGlyphIcon(qreal dpr) {
         p.setPen(Qt::NoPen);
         p.drawPolygon(tri);
     }));
+    cache.insert(dpr, ic);
+    return ic;
 }
 
 /// 菱形开关钮三态视觉（QIcon pixmap 方案，见 tailIconPixmap 注释）：

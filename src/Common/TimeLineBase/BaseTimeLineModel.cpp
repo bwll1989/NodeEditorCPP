@@ -527,24 +527,30 @@ void BaseTimeLineModel::onDeleteClip(QModelIndex clipIndex){
     if (!clipIndex.isValid() || !clipIndex.parent().isValid())
         return;
 
-    // 获取轨道索引和轨道
+    // 获取轨道索引和轨道【越界防御 2026-11-20】行号全部先校验再进
+    // beginRemoveRows——越界行号传给 Qt 视图信号是崩溃源（视图按区间
+    // 反解子索引）。
     QModelIndex trackIndex = clipIndex.parent();
+    if (trackIndex.row() < 0 || trackIndex.row() >= m_tracks.size())
+        return;
     TrackData* track = m_tracks[trackIndex.row()];
     if (!track)
         return;
-        
+    if (clipIndex.row() < 0 || clipIndex.row() >= track->clips.size())
+        return;
+
     // 开始删除行
     beginRemoveRows(trackIndex, clipIndex.row(), clipIndex.row());
 
-    // 获取要删除的片段
-    if(clipIndex.row() < track->clips.size()) {
-        AbstractClipModel* clip = track->clips[clipIndex.row()];
-        // 从轨道中移除片段
-        track->clips.erase(track->clips.begin() + clipIndex.row());
-        m_clipLocation.erase(clip);
-        delete clip;
-
-    }
+    // 获取要删除的片段（行号已校验）
+    AbstractClipModel* clip = track->clips[clipIndex.row()];
+    // 从轨道中移除片段
+    track->clips.erase(track->clips.begin() + clipIndex.row());
+    m_clipLocation.erase(clip);
+    // 【悬垂防御】几何通知待发队列若持有本 clip 裸指针，删除后地址
+    // 复用会让 flush 对错误对象发 dataChanged——删除时同步移除
+    m_pendingGeometryClips.removeAll(clip);
+    delete clip;
 
     rebuildIndex();
     endRemoveRows();
@@ -809,9 +815,11 @@ bool BaseTimeLineModel::isTrackPointer(void* ptr) const
 void BaseTimeLineModel::setPluginLoader(BasePluginLoader* loader) {
     if (m_pluginLoader) {
         delete m_pluginLoader;
+        m_pluginLoader = nullptr; // 【悬垂防御】删除后先置空再接管新指针
     }
     m_pluginLoader = loader;
-    m_pluginLoader->loadPlugins();
+    if (m_pluginLoader)
+        m_pluginLoader->loadPlugins(); // 【空指针防御】null 注入只接管不加载
 }
 
 BasePluginLoader* BaseTimeLineModel::getPluginLoader() const {

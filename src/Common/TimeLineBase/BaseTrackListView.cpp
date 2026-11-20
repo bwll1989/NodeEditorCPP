@@ -462,13 +462,13 @@ bool BaseTracklistView::eventFilter(QObject *watched, QEvent *event)
         QKeyEvent *keyEvent = static_cast<QKeyEvent*>(event);
 
         if (watched == this) {
-            // 处理 view1 的 keyPressEvent
-            // 注意：可以添加其他逻辑来处理特定的键盘输入
-            
+            // 只拦截 Delete（删除轨道快捷键），其余键盘事件放行——
+            // 此前无条件 return true 吞掉全部按键（方向键导航/编辑器快捷
+            // 键全部失效）。
             if(keyEvent->key()==Qt::Key_Delete){
                 onDeleteTrack();
+                return true;  // 表示事件已处理，不再向其他控件传递
             }
-            return true;  // 表示事件已处理，不再向其他控件传递
         }
     }
     return QObject::eventFilter(watched, event);
@@ -657,6 +657,15 @@ void BaseTracklistView::dragMoveEvent(QDragMoveEvent *event) {
 
         }
     }
+}
+
+void BaseTracklistView::dragLeaveEvent(QDragLeaveEvent *event) {
+    // 【悬停残留 2026-11-20】拖拽取消（Esc/拖出视口释放）时 dragMove 置的
+    // m_hoverIndex 高亮不再有 dropEvent 清理——离场即清（与 dropEvent
+    // 686 行同款收尾）。
+    m_hoverIndex = QModelIndex();
+    viewport()->update();
+    QAbstractItemView::dragLeaveEvent(event);
 }
 
 void BaseTracklistView::dropEvent(QDropEvent *event) {

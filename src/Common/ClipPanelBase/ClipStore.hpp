@@ -103,7 +103,6 @@ private:
     std::function<ms::Clip*()> clip_lookup_; ///< 片段实时定位（vector 搬移安全）
     std::function<void()> on_edited_;        ///< 编辑落定回调（宿主镜像+广播）
     PlayheadFn playhead_;                    ///< 播放头拉取（适配器注入）
-    ms::Clip* ctx_clip_ = nullptr;           ///< 工厂时刻快照（lookup 缺失兜底）
 };
 
 } // namespace ms

@@ -727,9 +727,14 @@ void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
                 if (!custom) {
                     QAction* deleteKeyAction = new QAction("Delete Keyframe", this);
                     deleteKeyAction->setIcon(QIcon(":/icons/icons/trash.png"));
-                    connect(deleteKeyAction, &QAction::triggered, [this, index, kfClip, kf]() {
+                    // 【悬垂防御】菜单 exec 是模态事件循环——期间片段可能被
+                    // 其他路径删除，QModelIndex 会失效；持久索引在行删除后
+                    // 自动无效，触发时 hitKeyframe 所指对象已析构则短路。
+                    connect(deleteKeyAction, &QAction::triggered,
+                            [this, idx = QPersistentModelIndex(index), kfClip, kf]() {
+                        if (!idx.isValid()) return;
                         if (kfClip->removeKeyframe(kf.channel, kf.key)) {
-                            updateClipGeometry(index); // 局部重绘（键/曲线消失）
+                            updateClipGeometry(idx); // 局部重绘（键/曲线消失）
                         }
                     });
                     contextMenu.addAction(deleteKeyAction);
@@ -738,8 +743,12 @@ void BaseTimelineView::contextMenuEvent(QContextMenuEvent* event) {
         }
         QAction* deleteClipAction = new QAction("Delete Clip", this);
         deleteClipAction->setIcon(QIcon(":/icons/icons/trash.png"));
-        connect(deleteClipAction, &QAction::triggered, [this, index]() {
-            getModel()->onDeleteClip(index);
+        // 【悬垂防御】同上：模态菜单期间行可能被删——持久索引失效即短路
+        //（onDeleteClip 内部另有行号越界双重防御）。
+        connect(deleteClipAction, &QAction::triggered,
+                [this, idx = QPersistentModelIndex(index)]() {
+            if (!idx.isValid()) return;
+            getModel()->onDeleteClip(idx);
             selectionModel()->clearSelection();
             viewport()->update();
         });
@@ -799,6 +808,11 @@ void BaseTimelineView::leaveEvent(QEvent *event)
     finishClipDrag();
     finishKeyframeDrag(); // 拖拽中鼠标离开视口：同样清态（光标随 updateCursorShape 恢复）
     mouseHeld = false;
+    // 【播放头拖拽残留 2026-11-20】标尺拖播放头中鼠标离窗（未 grabMouse，
+    // 松开事件收不到），回窗后 mouseMove 会以"未按下"状态继续拽播放头
+    //——离窗即收拖拽态，与 mouseHeld/拖拽状态同批清理。
+    m_playheadSelected = false;
+    m_isPanning = false;
     // selectionModel()->clear();
     m_hoverIndex = QModelIndex();
     QAbstractItemView::leaveEvent(event);

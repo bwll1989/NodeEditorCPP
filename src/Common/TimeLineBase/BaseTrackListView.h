@@ -219,6 +219,11 @@ protected slots:
      */
     virtual void dragMoveEvent(QDragMoveEvent *event) override;
     /**
+     * 拖拽离场事件（2026-11-20 补）：拖拽取消时清悬停高亮
+     * @param QDragLeaveEvent *event 拖拽离场事件
+     */
+    virtual void dragLeaveEvent(QDragLeaveEvent *event) override;
+    /**
      * 拖动释放事件
      * @param QDropEvent *event 拖动释放事件
      */
