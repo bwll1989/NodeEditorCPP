@@ -45,9 +45,7 @@
 # ——无媒体文件、无画布呈现，仅时间轴存在；消息列表存 Clip.control_messages
 #（片段域）。Artnet/Mapping（2026-11-15）：自节点体系移植的灯光/映射
 # 片段（业务数据存 Clip.clip_data 片段域，field 13）。
-# Mesh（2026-11-18 阶段 3A）：3D 模型片段——模型素材的时间轴载体
-#（拖入入库+asset_id 绑定），画布隐形，银幕 3D mapping 页消费。
-set(MS_PLUGIN_TYPES Video Image Text Audio Live Control Artnet Mapping Mesh)
+set(MS_PLUGIN_TYPES Video Image Text Audio Live Control Artnet Mapping)
 
 foreach(_t IN LISTS MS_PLUGIN_TYPES)
     add_subdirectory(${_t})

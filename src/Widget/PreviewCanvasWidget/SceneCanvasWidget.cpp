@@ -113,16 +113,12 @@ QColor trackKindColor(AssetKind kind) {
 /// 【2026-11-15 片段类型感知】轨道去类型化后 track.kind 只是可选 hint
 ///（无类型轨恒 Unknown）——判定跟片段自身类型串走（kind 仅作旧文件兼容
 /// 兜底）；Artnet/Mapping 同为无图像片段（2026-11-15 移植）一并隐形。
-/// 【2026-11-18 阶段 3A】Mesh 同口径隐形——模型经银幕 3D 视口素模呈现
-///（Screen.model_asset_id → drawMeshWireframe），不作为画布内容块。
 inline bool trackInvisibleOnCanvas(AssetKind kind,
                                    const std::string& clip_type = {}) {
     return kind == AssetKind::Audio || kind == AssetKind::Control ||
            kind == AssetKind::Artnet || kind == AssetKind::Mapping ||
-           kind == AssetKind::Mesh ||
            clip_type == "Audio" || clip_type == "Control" ||
-           clip_type == "Artnet" || clip_type == "Mapping" ||
-           clip_type == "Mesh";
+           clip_type == "Artnet" || clip_type == "Mapping";
 }
 /// 片段矩形变形感知命中（2026-11-09 锚点/角点改造；原 hitTest 内联 lambda
 /// 提升为文件级【2026-11-15 选中分工】——hitTest（screen-only）与"点击
@@ -823,14 +819,10 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
     const std::string old_pid = scr.player_id;
     // warp 取消还原基准（实时预览：编辑中会先写工作副本）
     const ScreenWarp warp_backup = scr.warp;
-    // 几何取消还原基准（同 warp 语义——取消时还原几何八字段 + 模型
-    // placement 四字段【3A 接线 2026-11-18】：placement 走实时链，取消时
-    // 可能已把中间态写进工作副本，一并还原）
-    const double geo_backup[12] = {
+    // 几何取消还原基准（同 warp 语义——取消时还原八字段，含屏姿态）
+    const double geo_backup[8] = {
         scr.x, scr.y, scr.w, scr.h, scr.rotation,
-        static_cast<double>(scr.z), scr.rot_x, scr.rot_y,
-        scr.model_offset_x, scr.model_offset_y,
-        scr.model_offset_z, scr.model_scale};
+        static_cast<double>(scr.z), scr.rot_x, scr.rot_y};
 
     // 登记执行体（OK 对账用；2026-11-17 绑定简化为纯确认制）：prev_pid
     // 非空且 ≠ 新 pid 时注销旧条目（改绑清理）；同 id 登记三要素任一变化
@@ -866,20 +858,6 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
     ScreenPropertyDialog dlg(scr, cur_host, cur_port, cur_pairing, this);
     dlg.setWindowTitle(QStringLiteral("屏幕属性：%1")
                            .arg(QString::fromStdString(scr.id)));
-    // 【3A 宿主接线 2026-11-18】Mesh 素材清单注入（"3D mapping"页下拉）：
-    // 场景素材表过滤 AssetKind::Mesh；显示名 = 文件名（带扩展名，同名
-    // 不同格式可辨）。空表 = 下拉只有"（无）"。
-    {
-        std::vector<std::pair<std::string, std::string>> mesh_choices;
-        for (const auto& a : scene_->assets) {
-            if (a.kind != AssetKind::Mesh || a.path.empty()) continue;
-            std::string disp = a.path;
-            const auto pos = disp.find_last_of("/\\");
-            if (pos != std::string::npos) disp = disp.substr(pos + 1);
-            mesh_choices.emplace_back(a.id, std::move(disp));
-        }
-        dlg.setMeshChoices(mesh_choices);
-    }
     const std::string sid = scr.id;
     // 【实时预览·变形】编辑中每次变化 → 写工作副本 + 视图刷新
     dlg.setWarpLiveApply([this, sid](const ScreenWarp& w) {
@@ -896,19 +874,14 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
                 s.rotation = g.rotation;
                 // s.z 不拷贝（2026-11-18 层级行退役——对话框不再提供 z）
                 s.rot_x = g.rot_x; s.rot_y = g.rot_y;
-                // 【3A 接线】placement 四字段同链——3D 视口素模实时跟手
-                s.model_offset_x = g.model_offset_x;
-                s.model_offset_y = g.model_offset_y;
-                s.model_offset_z = g.model_offset_z;
-                s.model_scale    = g.model_scale;
                 break;
             }
         refreshViews();
     });
     if (dlg.exec() != QDialog::Accepted) {
-        // 取消 = 还原打开时的 warp + 几何八字段 + placement 四字段（实时
-        // 链路可能已把中间态写进工作副本；未动过时为幂等写）。绑定与
-        // model_asset_id 是纯确认制（OK 才写回），取消无需处理。
+        // 取消 = 还原打开时的 warp + 几何八字段（两条实时链路可能已把
+        // 中间态写进工作副本；未动过时为幂等写）。绑定是纯确认制（OK
+        // 才写回），取消无需处理。
         for (auto& s : scene_->screens) {
             if (s.id != sid) continue;
             const bool warp_changed =
@@ -921,11 +894,7 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
                 s.w != geo_backup[2] || s.h != geo_backup[3] ||
                 s.rotation != geo_backup[4] ||
                 s.z != static_cast<int>(geo_backup[5]) ||
-                s.rot_x != geo_backup[6] || s.rot_y != geo_backup[7] ||
-                s.model_offset_x != geo_backup[8] ||
-                s.model_offset_y != geo_backup[9] ||
-                s.model_offset_z != geo_backup[10] ||
-                s.model_scale != geo_backup[11];
+                s.rot_x != geo_backup[6] || s.rot_y != geo_backup[7];
             if (warp_changed) s.warp = warp_backup;
             if (geo_changed) {
                 s.x = geo_backup[0]; s.y = geo_backup[1];
@@ -933,10 +902,6 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
                 s.rotation = geo_backup[4];
                 s.z = static_cast<int>(geo_backup[5]);
                 s.rot_x = geo_backup[6]; s.rot_y = geo_backup[7];
-                s.model_offset_x = geo_backup[8];
-                s.model_offset_y = geo_backup[9];
-                s.model_offset_z = geo_backup[10];
-                s.model_scale = geo_backup[11];
             }
             if (warp_changed || geo_changed) refreshViews();
             break;
@@ -1123,7 +1088,7 @@ void SceneCanvasWidget::drawMeshWireframe(QPainter& p, const Screen& s,
         std::string merr;
         const bool ok = loadMesh(ma->path, md, &merr);
         if (!ok)
-            qDebug() << "[ms-mesh] 模型加载失败" << ma->path.c_str() << ":"
+            qDebug() << "[ms-mesh] OBJ 加载失败" << ma->path.c_str() << ":"
                      << merr.c_str();
         it = s_meshes
                  .emplace(ma->path,

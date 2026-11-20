@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cmath>
 #include <cstdio>
 #include <system_error>
 
@@ -107,11 +106,8 @@ bool loadMesh(const std::string& utf8_path, MeshData& out, std::string* err) {
 
     // ---- Assimp 导入（层级烘焙 + 三角化；多子网格合并为单网格）----------
     Assimp::Importer imp;
-    // 所有权契约【2026-11-18 崩溃实证】：5.4.3 的 SetIOHandler 会接管
-    // handler 所有权（析构时 delete）——绝不可传静态/栈对象指针，否则
-    // 对非堆内存执行 delete → 堆损坏（0xc0000374，时崩时不崩，LFH 随机
-    // 化掩盖）。U8IOSystem 无状态，每次 new 成本可忽略。
-    imp.SetIOHandler(new U8IOSystem());
+    static U8IOSystem s_io; // 无状态；Importer 不接管外部 IOSystem 所有权
+    imp.SetIOHandler(&s_io);
     const unsigned flags = aiProcess_Triangulate         // 多边形 → 三角
                            | aiProcess_PreTransformVertices; // 节点层级烘焙
     const aiScene* scene = imp.ReadFile(utf8_path, flags);
@@ -198,28 +194,6 @@ bool loadMesh(const std::string& utf8_path, MeshData& out, std::string* err) {
     out.min[0] = bb_min[0] - cx; out.max[0] = bb_max[0] - cx;
     out.min[1] = bb_min[1] - cy; out.max[1] = bb_max[1] - cy;
     out.min[2] = 0.0;            out.max[2] = bb_max[2] - dz;
-
-    // ---- 尺度归一化【2026-11-18 米制资产实测修正】------------------------
-    // 模型文件单位五花八门（米制 DCC 导出为主），而舞台单位=画布 px——
-    // 2m 立方体归一后仅 ±1 单位 ≈ 视口里一个点（用户实测"只有一个点"）。
-    // "1:1 单位语义"对米制资产完全不可用，改为：最大 XY 边归一到
-    // kModelTargetSize（与典型屏幕同量级），placement scale 仍可再调。
-    // 两端共用本加载器，display 3B 自动一致。
-    constexpr double kModelTargetSize = 600.0;
-    const double ex = out.max[0] - out.min[0];
-    const double ey = out.max[1] - out.min[1];
-    const double max_edge = std::max(ex, ey);
-    if (max_edge > 1e-9 && std::abs(max_edge - kModelTargetSize) > 1e-6) {
-        const float k = (float)(kModelTargetSize / max_edge);
-        for (size_t i = 0; i < out.pos.size(); i += 3) {
-            out.pos[i + 0] *= k;
-            out.pos[i + 1] *= k;
-            out.pos[i + 2] *= k;
-        }
-        out.min[0] *= k; out.max[0] *= k;
-        out.min[1] *= k; out.max[1] *= k;
-        out.min[2] *= k; out.max[2] *= k;
-    }
     return true;
 }
 

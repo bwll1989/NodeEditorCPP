@@ -93,11 +93,10 @@ public:
     /// 【3D mapping 素材选择（阶段 3A）】注入 Mesh 资产清单（id → 显示名），
     /// 宿主构造后调用——从 scene_->assets 过滤 AssetKind::Mesh 构建；
     /// 空表 = 下拉只有"（无）"。预填按 screen.model_asset_id 匹配。
-    /// 【2026-11-18 修】构造时 mesh_choices_ 尚空（清单只能构造后注入），
-    /// 构造内建好的下拉会永远只有"（无）"——本 setter 在注入时重建下拉
-    ///（mesh_prefill_id_ 为构造时存的 model_asset_id）。
     void setMeshChoices(
-        const std::vector<std::pair<std::string, std::string>>& id_name);
+        const std::vector<std::pair<std::string, std::string>>& id_name) {
+        mesh_choices_ = id_name;
+    }
 
 private:
     FloatDragValueWidget* x_ = nullptr; ///< 画布坐标 X
@@ -120,7 +119,6 @@ private:
     FloatDragValueWidget* model_off_z_ = nullptr; ///< 模型平移 Z（高度）
     FloatDragValueWidget* model_scale_ = nullptr; ///< 等比缩放（<=0 派生 1.0）
     std::vector<std::pair<std::string, std::string>> mesh_choices_; ///< Mesh 资产清单
-    std::string mesh_prefill_id_; ///< 构造时的 model_asset_id（setter 重建下拉后重预填）
     QLineEdit*      player_id_ = nullptr; ///< 绑定的显示端（player id；
                                           ///  连接成功后 display 自动采用）
     QLineEdit*      host_ = nullptr;      ///< 显示端主机（登记用）

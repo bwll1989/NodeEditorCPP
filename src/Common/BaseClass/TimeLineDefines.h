@@ -85,10 +85,6 @@ Q_NAMESPACE_EXPORT(BASECLASS_EXPORT)
     inline QStringList AudioTypes = {"mp3", "wav", "aac", "ogg", "flac"};
     inline QStringList ImageTypes = {"jpg", "jpeg", "png", "bmp", "gif", "tiff"};
     inline QStringList ControlTypes = {"ilk"};
-    // 3D mapping 模型（阶段 3A）：与 MainWindow::msProbeMediaFile 的 kMesh
-    // 同表——时间轴拖放 gate（isMimeAcceptable）与导入钩子同一白名单口径
-    inline QStringList MeshTypes = {"obj", "glb", "gltf", "fbx", "dae",
-                                    "ply", "stl"};
     // 将track类型转换为字符串
     static QString TrackTypeString(const QString& type) {
         return type;
