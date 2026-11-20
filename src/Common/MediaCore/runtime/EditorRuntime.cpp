@@ -70,7 +70,7 @@ bool EditorRuntime::start(const std::string& scene_path) {
             std::string err;
             auto doc = ShowFileIO::loadFromFile(scene_path, err);
             if (!doc) {
-                std::fprintf(stderr, "[editor] 项目加载失败: %s\n",
+                std::fprintf(stderr, "editor: 项目加载失败: %s\n",
                              err.c_str());
                 return false;
             }
@@ -82,10 +82,10 @@ bool EditorRuntime::start(const std::string& scene_path) {
                 if (!addDisplay(d.display_id, d.host, d.port,
                                 d.pairing_code))
                     std::fprintf(stderr,
-                                 "[editor] 显示端登记冲突: %s（跳过）\n",
+                                 "editor: 显示端登记冲突: %s（跳过）\n",
                                  d.display_id.c_str());
             }
-            std::printf("[editor] 项目已加载: %s（%zu 屏 / %zu 轨 / %zu 显示端）\n",
+            std::printf("editor: 项目已加载: %s（%zu 屏 / %zu 轨 / %zu 显示端）\n",
                         scene_path.c_str(), scene_->screens.size(),
                         scene_->timeline.tracks.size(),
                         doc->displays.size());
@@ -93,12 +93,12 @@ bool EditorRuntime::start(const std::string& scene_path) {
             std::string err;
             auto scene = SceneLoader::loadFromFile(scene_path, err);
             if (!scene) {
-                std::fprintf(stderr, "[editor] 场景加载失败: %s\n",
+                std::fprintf(stderr, "editor: 场景加载失败: %s\n",
                              err.c_str());
                 return false;
             }
             scene_ = std::move(scene);
-            std::printf("[editor] 场景已加载: %s（%zu 屏 / %zu 轨）\n",
+            std::printf("editor: 场景已加载: %s（%zu 屏 / %zu 轨）\n",
                         scene_path.c_str(), scene_->screens.size(),
                         scene_->timeline.tracks.size());
         }
@@ -121,7 +121,7 @@ bool EditorRuntime::start(const std::string& scene_path) {
     // 死路径（display 入口硬编码 listen_mode=true），连同 Config.tcp_port
     // 一并移除。
     if (!udp_.start(cfg_.udp_port)) {
-        std::fprintf(stderr, "[editor] UDP 绑定失败\n");
+        std::fprintf(stderr, "editor: UDP 绑定失败\n");
         return false;
     }
     udp_.set_on_frame([this](const SyncFrame& f,
@@ -149,7 +149,7 @@ bool EditorRuntime::start(const std::string& scene_path) {
         // 显示端不再因"空 checksum 窗口"重传已就绪文件（重复同步修复链①）
         assets_http_->enableCacheFile(cfg_.assets_root + "/.crc_cache.tsv");
         if (!assets_http_->start(cfg_.http_port)) {
-            std::fprintf(stderr, "[editor] 素材 HTTP 监听失败 port=%u\n",
+            std::fprintf(stderr, "editor: 素材 HTTP 监听失败 port=%u\n",
                          cfg_.http_port);
             udp_.stop();
             return false;
@@ -180,12 +180,12 @@ bool EditorRuntime::start(const std::string& scene_path) {
                         a.checksum.clear(); // CRC 未就绪：宁可空值不过期值
                 } else
                     std::fprintf(stderr,
-                                 "[editor] 警告: 素材文件缺失 %s (id=%s)\n",
+                                 "editor: 警告: 素材文件缺失 %s (id=%s)\n",
                                  full.c_str(), a.id.c_str());
             }
         }
         std::printf(
-            "[editor] 素材分发: http=%u 注册 %zu/%zu 个%s\n",
+            "editor: 素材分发: http=%u 注册 %zu/%zu 个%s\n",
             assets_http_->port(), ok_cnt, total,
             scene_ ? "（Text 素材随场景下发不占文件）"
                    : "（启动时无场景，待发布场景/同步媒体时注册）");
@@ -223,7 +223,7 @@ bool EditorRuntime::start(const std::string& scene_path) {
     // 只入队（微秒级），socket 阻塞写全部离场 GUI（见 sendWorkerLoop）。
     send_thread_ = std::thread([this] { sendWorkerLoop(); });
 
-    std::printf("[editor] 已启动: udp=%u 显示端=登记制 场景=%s\n",
+    std::printf("editor: 已启动: udp=%u 显示端=登记制 场景=%s\n",
                 udp_.port(),
                 scene_ ? "已加载" : "无");
     return true;
@@ -326,7 +326,7 @@ std::size_t EditorRuntime::resendSceneToDisplays() {
     t.kind = SendTask::Kind::ScenePrepare; // display_id 空 = 广播在线槽位
     t.scene = std::move(snap);
     enqueueSend(std::move(t));
-    std::printf("[editor] 全量场景重发 → 已提交 %zu 个在线显示端"
+    std::printf("editor: 全量场景重发 → 已提交 %zu 个在线显示端"
                 "（发送线程异步投递）\n", online);
     return online;
 }
@@ -360,7 +360,7 @@ void EditorRuntime::onDisplayEnvelope(const std::string& display_id,
             if (s_osd_dbg) {
                 const auto& ap = env.asset_progress();
                 std::fprintf(stderr,
-                             "[osd] editor 收到进度: display=%s done=%u "
+                             "osd: editor 收到进度: display=%s done=%u "
                              "total=%u fin=%d\n",
                              display_id.c_str(), ap.done(), ap.total(),
                              ap.finished() ? 1 : 0);
@@ -380,7 +380,7 @@ void EditorRuntime::onDisplayEnvelope(const std::string& display_id,
     displays_.setRegistered(display_id, true);
     if (reg.player_id() != display_id)
         std::fprintf(stderr,
-                     "[editor] 显示端身份指派: 槽位=%s 注册自报=%s"
+                     "editor: 显示端身份指派: 槽位=%s 注册自报=%s"
                      " → Ack 下发指派 id，display 采用后自动换 id 重注册\n",
                      display_id.c_str(), reg.player_id().c_str());
     // Ack.udp_host：Editor 侧本端 IP（DisplayConnector 连接成功时从本地
@@ -409,7 +409,7 @@ void EditorRuntime::onDisplayState(const std::string& display_id, bool up) {
         asset_sync_.erase(display_id);
     }
     // 【走 stderr】连接状态变化是关键事件，不能被 stdout 全缓冲延迟
-    std::fprintf(stderr, "[editor] 显示端 %s: %s\n", display_id.c_str(),
+    std::fprintf(stderr, "editor: 显示端 %s: %s\n", display_id.c_str(),
                  up ? "已连接（等待其上报注册）" : "连接断开");
     std::fflush(stderr);
 }
@@ -476,7 +476,7 @@ void EditorRuntime::handleRegister(
         e.last_beat_us = -1;  // 重置观测窗口（等待新连接的上报）
     }
     for (const auto& old_pid : evicted)
-        std::fprintf(stderr, "[editor] 换键清理: 移除同槽位旧条目 player=%s"
+        std::fprintf(stderr, "editor: 换键清理: 移除同槽位旧条目 player=%s"
                             "（槽位=%s 已改用 %s）\n",
                      old_pid.c_str(), display_slot.c_str(), pid.c_str());
 
@@ -516,7 +516,7 @@ void EditorRuntime::handleRegister(
         log_udp_port = e.udp_port;
     }
 
-    std::printf("[editor] 注册: player=%s udp=%s:%u session=%s%s%s\n",
+    std::printf("editor: 注册: player=%s udp=%s:%u session=%s%s%s\n",
                 pid.c_str(),
                 log_udp_host.empty() ? "?" : log_udp_host.c_str(),
                 static_cast<unsigned>(log_udp_port),
@@ -594,7 +594,7 @@ void EditorRuntime::handleRegister(
             const char* name = sync_cmd == AnchorCmd::Play   ? "PLAY"
                                : sync_cmd == AnchorCmd::Pause ? "PAUSE"
                                                               : "STOP";
-            std::printf("[editor] 注册状态对账: player=%s cmd=%s anchored=%lldus"
+            std::printf("editor: 注册状态对账: player=%s cmd=%s anchored=%lldus"
                         "%s\n",
                         pid.c_str(), name, static_cast<long long>(anchored),
                         is_reconnect ? "【重连】" : "");
@@ -613,7 +613,7 @@ void EditorRuntime::handleAck(
     // 【第七迭代】场景全量广播无 Ack 应答语义——增量补丁的"失败补发"
     // 机制已随补丁退役；漏收场景的显示端由下一次广播直接追平（全量
     // 自描述，无版本连续性依赖）。
-    std::printf("[editor] Ack: anchor=%lldus ok=%d %s\n",
+    std::printf("editor: Ack: anchor=%lldus ok=%d %s\n",
                 static_cast<long long>(a.anchor_time_us()),
                 a.ok(), a.detail().c_str());
 }
@@ -862,7 +862,7 @@ bool EditorRuntime::cmdPublishScene(const Scene& next) {
     td.scene = next;
     enqueueSend(std::move(td));
     std::printf(
-        "[editor] 场景发布: id=%s version=%s（%zu 屏 / %zu 素材 / "
+        "editor: 场景发布: id=%s version=%s（%zu 屏 / %zu 素材 / "
         "%zu 轨）→ 已提交发送线程\n",
         next.id.c_str(), next.version.c_str(),
         next.screens.size(), next.assets.size(),
@@ -931,11 +931,11 @@ std::size_t EditorRuntime::ensureAssetsRegistered(Scene& target) {
                 a.checksum = "crc32:" + fresh.crc32_hex;
             else
                 a.checksum.clear(); // CRC 未就绪：先降级，下一次注册回填
-            std::printf("[editor] 素材就位: 已注册 %s (%s)\n",
+            std::printf("editor: 素材就位: 已注册 %s (%s)\n",
                         a.path.c_str(), a.id.c_str());
         } else {
             std::fprintf(stderr,
-                         "[editor] 警告: 素材注册失败（文件缺失？）"
+                         "editor: 警告: 素材注册失败（文件缺失？）"
                          "%s (id=%s)\n",
                          full.c_str(), a.id.c_str());
             a.checksum.clear();
@@ -1027,7 +1027,7 @@ std::size_t EditorRuntime::pushAssetSync(const Scene& source) {
     td.kind = SendTask::Kind::DisplayBroadcast;
     td.env  = std::move(env);
     enqueueSend(std::move(td));
-    std::printf("[editor] 素材清单推送: %zu 项 → 已广播给在线显示端\n", n);
+    std::printf("editor: 素材清单推送: %zu 项 → 已广播给在线显示端\n", n);
     return n;
 }
 
@@ -1089,7 +1089,7 @@ void EditorRuntime::crcPushLoop() {
         }
         ensureAssetsRegistered(probe); // 幂等 + 缓存命中：刚算完的 CRC 此时可得
         pushAssetSync(probe);
-        std::printf("[editor] CRC 就绪，已补推素材清单\n");
+        std::printf("editor: CRC 就绪，已补推素材清单\n");
     }
 }
 
@@ -1109,7 +1109,7 @@ bool EditorRuntime::broadcastReAnchor(std::int64_t now_us, AnchorCmd cmd,
                                    : cmd == AnchorCmd::Seek  ? "Seek"
                                                              : "Stop";
                 std::fprintf(stderr,
-                             "[rt-dbg] reAnchor#%d cmd=%s t=%lldus\n", s_n,
+                             "rt-dbg: reAnchor#%d cmd=%s t=%lldus\n", s_n,
                              name, (long long)anchored_session_time_us);
                 std::fflush(stderr);
             }
@@ -1242,7 +1242,7 @@ void EditorRuntime::tick(std::int64_t now_us) {
         if (!s_no_beat) sendBeat(now_us);
     }
     for (const auto& pid : newly_offline)
-        std::printf("[editor] 心跳超时: player=%s（>%lldus 无上报 → OFFLINE）\n",
+        std::printf("editor: 心跳超时: player=%s（>%lldus 无上报 → OFFLINE）\n",
                     pid.c_str(),
                     static_cast<long long>(cfg_.player_timeout_us));
 }
@@ -1307,7 +1307,7 @@ void EditorRuntime::sendBeat(std::int64_t now_us) {
                         std::chrono::microseconds>(b - a).count();
                 };
                 std::fprintf(stderr,
-                             "[rt-dbg] beat#%d total=%lldus snap=%lldus "
+                             "rt-dbg: beat#%d total=%lldus snap=%lldus "
                              "targets=%zu\n",
                              s_n, (long long)us(beat_t0,
                                                 std::chrono::steady_clock::now()),
@@ -1432,13 +1432,13 @@ void EditorRuntime::sendWorkerLoop() {
                     if (t.display_id.empty()) {
                         displays_.broadcast(env);
                         std::printf(
-                            "[editor] 场景下发(全量): id=%s version=%s（%zu 字节）"
+                            "editor: 场景下发(全量): id=%s version=%s（%zu 字节）"
                             "→ 已广播在线显示端\n",
                             snap.id.c_str(), snap.version.c_str(), pub_bytes);
                     } else {
                         displays_.sendTo(t.display_id, env);
                         std::printf(
-                            "[editor] 场景下发(全量): id=%s version=%s（%zu 字节）"
+                            "editor: 场景下发(全量): id=%s version=%s（%zu 字节）"
                             "→ 单播 %s\n",
                             snap.id.c_str(), snap.version.c_str(), pub_bytes,
                             t.display_id.c_str());
@@ -1458,10 +1458,10 @@ void EditorRuntime::sendWorkerLoop() {
                         ser_ms - prep_ms, tsMs() - ser_ms, pub_bytes);
                     std::fflush(stderr);
                 } catch (const std::exception& e) {
-                    std::printf("[editor] 场景下发失败（已丢弃本帧）: %s\n",
+                    std::printf("editor: 场景下发失败（已丢弃本帧）: %s\n",
                                 e.what());
                 } catch (...) {
-                    std::printf("[editor] 场景下发失败（未知异常，已丢弃本帧）\n");
+                    std::printf("editor: 场景下发失败（未知异常，已丢弃本帧）\n");
                 }
                 break;
             }
@@ -1495,7 +1495,7 @@ PlayState EditorRuntime::state() const {
                 std::chrono::milliseconds>(
                 std::chrono::steady_clock::now().time_since_epoch()).count();
             std::fprintf(stderr,
-                         "[rt-dbg] stateLockWait#%d %lldus wall=%lld\n",
+                         "rt-dbg: stateLockWait#%d %lldus wall=%lld\n",
                          s_n, lk_us, (long long)wall);
             std::fflush(stderr);
         }

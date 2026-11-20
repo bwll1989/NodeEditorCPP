@@ -73,9 +73,8 @@ TimelinePlaybackController::TimelinePlaybackController(const Deps& deps, QObject
         }
         // 【2026-11-18 修】补守卫——同函数前后均判空 adapter_，此处裸解
         // 引用是唯一缺口（Deps.adapter 允许为空时每 33ms 必崩）
-        if (adapter_)
-            adapter_->setPlayheadFromRuntimeUs(us);
         if (adapter_) {
+            adapter_->setPlayheadFromRuntimeUs(us);
             // 播放头帧号反馈（PAL 25fps 四舍五入；经 StatusContainer 镜像后
             // statusUpdated 出站到 OSC/MQTT/WS 反馈端口）
             GlobalEventBus::instance()->publishState(

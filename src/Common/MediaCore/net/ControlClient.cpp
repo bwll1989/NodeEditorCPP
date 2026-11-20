@@ -41,7 +41,7 @@ bool ControlClient::connect(const std::string& host, std::uint16_t port) {
     } catch (const Poco::Exception& e) {
         // 【排障走 stderr】connect 失败原因必须留痕（联测出现过"看门狗
         // 疑似从未发起连接"的悬案——失败原因/次数是定位关键）
-        std::fprintf(stderr, "[ctrl-client] connect %s:%u 失败: %s\n",
+        std::fprintf(stderr, "ctrl-client: connect %s:%u 失败: %s\n",
                      host.c_str(), (unsigned)port, e.displayText().c_str());
         // 连接失败可能留下半初始化 socket：显式关闭复位，供看门狗下轮
         // 重试在干净对象上进行（Poco connect 失败不保证 socket 可复用）
@@ -119,7 +119,7 @@ void ControlClient::recv_loop() {
                                     Poco::Net::Socket::SELECT_READ);
         } catch (const Poco::Exception& e) {
             // 【排障】poll 异常退出路径（display 断连诊断关键线索）
-            std::fprintf(stderr, "[ctrl-client] poll 异常: %s\n",
+            std::fprintf(stderr, "ctrl-client: poll 异常: %s\n",
                          e.displayText().c_str());
             break;
         }
@@ -134,14 +134,14 @@ void ControlClient::recv_loop() {
                 n = socket_.receiveBytes(buf, sizeof(buf));
             } catch (const Poco::Exception& e) {
                 // 【排障】接收异常退出路径
-                std::fprintf(stderr, "[ctrl-client] receive 异常: %s\n",
+                std::fprintf(stderr, "ctrl-client: receive 异常: %s\n",
                              e.displayText().c_str());
                 break;
             }
         }
         if (n <= 0) {
             // 【排障】对端关闭（0=优雅关闭；<0=异常）
-            std::fprintf(stderr, "[ctrl-client] 对端关闭 (n=%d)\n", n);
+            std::fprintf(stderr, "ctrl-client: 对端关闭 (n=%d)\n", n);
             break;
         }
 
@@ -153,7 +153,7 @@ void ControlClient::recv_loop() {
             if (r == 0) break;  // 半包
             if (r < 0) {        // 协议错误：断开（Editor 行为异常，不应容忍）
                 // 【排障】协议错误退出路径（帧长度非法/魔数不符）
-                std::fprintf(stderr, "[ctrl-client] 协议错误 (r=%d，缓冲 %zu 字节)\n",
+                std::fprintf(stderr, "ctrl-client: 协议错误 (r=%d，缓冲 %zu 字节)\n",
                              r, recv_buf_.size());
                 std::lock_guard<std::mutex> lock(socket_mutex_);
                 try { socket_.close(); } catch (...) {}

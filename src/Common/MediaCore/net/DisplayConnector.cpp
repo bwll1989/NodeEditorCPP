@@ -107,7 +107,7 @@ bool DisplayConnector::add(const std::string& display_id,
     slots_[display_id] = std::move(slot);
     // 【排障走 stderr】登记成功留痕（"自动添加显示端"只代表 UI 调用，
     // 真正入表在此——联测定位"看门狗不动"必须知道登记是否成功）
-    std::fprintf(stderr, "[displays] 已登记: %s@%s:%u（看门狗 ≤400ms 内首连）\n",
+    std::fprintf(stderr, "displays: 已登记: %s@%s:%u（看门狗 ≤400ms 内首连）\n",
                  display_id.c_str(), host.c_str(),
                  (unsigned)(port ? port : 17100));
     std::fflush(stderr);
@@ -248,7 +248,7 @@ void DisplayConnector::watchdogLoop() {
     constexpr long kBackoffMaxMs   = 5000;
 
     // 【排障走 stderr】看门狗启动留痕（线程死亡/未启动的一锤定音证据）
-    std::fprintf(stderr, "[displays] 看门狗已启动（400ms 巡检）\n");
+    std::fprintf(stderr, "displays: 看门狗已启动（400ms 巡检）\n");
     std::fflush(stderr);
 
     while (running_.load()) {
@@ -280,7 +280,7 @@ void DisplayConnector::watchdogLoop() {
 
             // 【排障走 stderr】connect 发起留痕（netstat 级别的证据：
             // "看门狗是否尝试过连接"由此行直接回答）
-            std::fprintf(stderr, "[displays] connect 尝试: %s → %s:%u\n",
+            std::fprintf(stderr, "displays: connect 尝试: %s → %s:%u\n",
                          t.id.c_str(), t.host.c_str(), (unsigned)t.port);
             std::fflush(stderr);
 
@@ -350,7 +350,7 @@ void DisplayConnector::watchdogLoop() {
                     auth.mutable_auth()->set_pairing_code(t.pairing_code);
                     if (!client->send(auth))
                         std::fprintf(stderr,
-                                     "[displays] 配对帧发送失败: %s"
+                                     "displays: 配对帧发送失败: %s"
                                      "（display 端将丢弃业务帧直至重连）\n",
                                      t.id.c_str());
                     else

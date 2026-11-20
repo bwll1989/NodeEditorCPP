@@ -100,9 +100,6 @@ public:
     /** @brief 是否处于播放状态（isPlaying 原子标志） */
     bool getPlaying() const;
 
-    /** @brief 兼容旧接口，等同 startPlay() */
-    void playAudio();
-
     /** @brief 返回音频流声道数；无音频轨或未初始化时返回 0 */
     int getChannels() const {
         if (codecContext) {

@@ -342,7 +342,7 @@ void AudioMediaSource::doSeek(std::int64_t target_sample) {
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     if (seekDbg())
         std::fprintf(stderr,
-                     "[audio][seek] doSeek target=%lld ack=%s\n",
+                     "audio:[seek] doSeek target=%lld ack=%s\n",
                      static_cast<long long>(target_sample),
                      ack_gen_.load(std::memory_order_relaxed) == g
                          ? "ok" : "超时(50ms)");
@@ -357,13 +357,13 @@ void AudioMediaSource::handleSeek(std::int64_t target_sample) {
                                    AVSEEK_FLAG_BACKWARD);
     if (sret < 0)
         std::fprintf(stderr,
-                     "[audio][seek] av_seek_frame 失败 ret=%d "
+                     "audio:[seek] av_seek_frame 失败 ret=%d "
                      "target=%lld(ts=%lld) —— 解码将从此前位置继续\n",
                      sret, static_cast<long long>(target_sample),
                      static_cast<long long>(st));
     if (seekDbg())
         std::fprintf(stderr,
-                     "[audio][seek] handleSeek target=%lld ret=%d\n",
+                     "audio:[seek] handleSeek target=%lld ret=%d\n",
                      static_cast<long long>(target_sample), sret);
     ring_->clear();
     // 解码侧推进游标同步重置到目标：BACKWARD 落点 L ≤ target 的重叠

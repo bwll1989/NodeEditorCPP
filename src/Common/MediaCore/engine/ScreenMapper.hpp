@@ -29,7 +29,7 @@
 
 #include "engine/TimelineEngine.hpp"
 #include "model/AssetDeps.hpp"
-#include "model/CanvasGeometry.hpp" // quadCorners3D/solveHomography（唯一真相）
+#include "model/CanvasGeometry.hpp" // quadCorners3DP/solveHomography（唯一真相）
 #include "model/SceneModel.hpp"
 
 namespace ms {
@@ -75,7 +75,7 @@ struct ScreenTransform {
 
     // ---- 屏姿态单应（2026-11-17 阶段2；rot_x/rot_y 非 0 时有效）----------
     // 语义：取景窗带 3D 姿态——屏归一化 (u,v) 经姿态单应 H 映到画布点
-    //（屏四角 = cg::quadCorners3D 预投影，滚转/姿态全烘焙）。像素网格 ↔
+    //（屏四角 = cg::quadCorners3DP 预投影，滚转/姿态全烘焙）。像素网格 ↔
     // 画布经单应（每个屏像素都有内容——LED 屏无留白概念，与 rotation-only
     // 的"等比居中"分支语义不同属：姿态屏 = 透视取景窗）。
     //   正向 canvas→output = (H∘S)⁻¹（S = 输出像素→归一化缩放）；
@@ -86,19 +86,27 @@ struct ScreenTransform {
     double h_o2c[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}; ///< output→canvas 单应逆向
 
     /// 由 screen 画布矩形 + 本机输出分辨率构造映射
+    /// \param persp_focal/vp_x/vp_y Show 全局透视仪（Scene::effectivePersp）
+    ///        ——屏姿态四角与素材 judge/编辑器预览走同一条投影链（单一透视
+    ///        2026-11-20 统一）；缺省 0 = 对象隐含透视回退（数据损坏防御）
     static ScreenTransform make(const Screen& scr, int out_w, int out_h,
-                                FitMode mode = FitMode::Stretch) {
+                                FitMode mode = FitMode::Stretch,
+                                double persp_focal = 0.0,
+                                double persp_vp_x = 0.0,
+                                double persp_vp_y = 0.0) {
         ScreenTransform t;
         if (scr.w <= 0 || scr.h <= 0 || out_w <= 0 || out_h <= 0) return t; // 退化
 
         // 屏姿态（俯仰/偏航非 0）：单应映射（优先级高于 rotation-only——
-        // 滚转已在 quadCorners3D 内烘焙）
+        // 滚转已在 quadCorners3DP 内烘焙）；取景窗无深度语义 pos_z=0，
+        // 四角 = quadCorners3DP 全局仪透视压平（与预览端同源）
         if (scr.rot_x != 0.0 || scr.rot_y != 0.0) {
             double qx[4], qy[4];
-            canvas_geometry::quadCorners3D(scr.x, scr.y, scr.w, scr.h,
-                                           scr.rotation, scr.rot_x, scr.rot_y,
-                                           0 /*锚=中心：屏无锚点 UI*/,
-                                           nullptr, qx, qy);
+            canvas_geometry::quadCorners3DP(
+                scr.x, scr.y, scr.w, scr.h, 0.0 /*取景窗无深度*/,
+                scr.rotation, scr.rot_x, scr.rot_y,
+                0 /*锚=中心：屏无锚点 UI*/, nullptr,
+                persp_focal, persp_vp_x, persp_vp_y, qx, qy, nullptr);
             // 屏归一化 (u,v)（CornerIdx 序 ↔ (0,0)(1,0)(1,1)(0,1)）→ 画布
             const double dst[8] = {qx[0], qy[0], qx[1], qy[1],
                                    qx[2], qy[2], qx[3], qy[3]};
@@ -239,7 +247,7 @@ struct DrawItem {
 
     // ---- 姿态（v3）+ 裁切 uv 窗（2026-11-09 v3）---------------------------
     // rot_x/rot_y：俯仰/偏航（度；非 0 时 ScreenMapper 经
-    // cg::quadCorners3D 预投影四角到 quad[4][2]（画布域 CornerIdx 序），
+    // cg::quadCorners3DP 预投影四角到 quad[4][2]（画布域 CornerIdx 序），
     // 渲染端直接消费——跳过内联 2D 角生成）；
     // crop_u/v 窗口：裁切后帧纹理的采样窗（归一化 [0,1]，u1>u0、v1>v0），
     // 全 1 = 未裁切（渲染端各路径逐位退回全幅采样）。

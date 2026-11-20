@@ -122,9 +122,8 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     form->addRow("旋转Y：", rot_y_);
     form->addRow("旋转Z：", rotation_);
 
-    // 【2026-11-18 定案】层级 z 行移除：Screen = 取景窗（零姿态时即旧
-    // 2D 平面屏），无叠放语义（模型字段+SceneLoader 保留兼容老工程；
-    // 编辑器多屏重叠命中序回退到场景追加序）；未来 Z-buffer 接管。
+    // 【2026-11-18 定案】层级 z 行移除：Screen = 取景窗，无叠放语义
+    //（模型字段已随 2026-11-20 清理删除；多屏重叠命中序 = 场景追加序）。
 
     // ---- 输出校色（2026-11-20 Display 级 RGB 增益 + Gamma）--------------
     // 本屏输出环节的最终校色：素材采样后逐通道乘增益，gamma≠1 再
@@ -297,7 +296,7 @@ void ScreenPropertyDialog::applyTo(Screen& s) const {
     s.rgb_gain[1] = gain_g_->value();
     s.rgb_gain[2] = gain_b_->value();
     s.gamma       = gamma_->value();
-    // s.z 不写回（层级行退役——保留场景既有值兼容老工程）
+    // s.z 已随模型字段删除（层级行 2026-11-18 退役）
     // projectionMode 已退役（2026-11-20 用户定案）——模型字段已删。
     s.player_id = player_id_->text().toStdString();
     // 输出变形 = 「几何结构」页内嵌面板的当前编辑状态（2026-11-11 内嵌化：

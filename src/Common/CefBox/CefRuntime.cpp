@@ -171,7 +171,7 @@ void CefRuntime::shutdown() {
         if (std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::steady_clock::now() - t0)
                 .count() > kDrainTimeoutMs) {
-            std::fprintf(stderr, "[CefRuntime] shutdown drain timeout, alive=%d\n",
+            std::fprintf(stderr, "CefRuntime: shutdown drain timeout, alive=%d\n",
                          CefOsrBrowser::aliveCount());
             break;
         }

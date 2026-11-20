@@ -199,7 +199,7 @@ void NdiIngest::recvLoop() {
             NDIlib_recv_connect(static_cast<NDIlib_recv_instance_t>(recv_), hit);
             connected_.store(true, std::memory_order_release);
             std::fprintf(stderr,
-                         "[live-ingest] %p 已连接 NDI 源 '%s'（latency=%d）\n",
+                         "live-ingest: %p 已连接 NDI 源 '%s'（latency=%d）\n",
                          static_cast<void*>(this), hit->p_ndi_name,
                          latency_mode_);
             std::fflush(stderr);
@@ -236,7 +236,7 @@ void NdiIngest::recvLoop() {
             if (drained == 0)
                 std::this_thread::sleep_for(std::chrono::milliseconds(6));
             if (last == NDIlib_frame_type_error) {
-                std::fprintf(stderr, "[live-ingest] 连接断开，重连 '%s'\n",
+                std::fprintf(stderr, "live-ingest: 连接断开，重连 '%s'\n",
                              source_ref_.c_str());
                 std::fflush(stderr);
                 NDIlib_recv_destroy(static_cast<NDIlib_recv_instance_t>(recv_));
@@ -253,7 +253,7 @@ void NdiIngest::recvLoop() {
                 NDIlib_recv_free_video_v2(
                     static_cast<NDIlib_recv_instance_t>(recv_), &v);
             } else if (t == NDIlib_frame_type_error) {
-                std::fprintf(stderr, "[live-ingest] 连接断开，重连 '%s'\n",
+                std::fprintf(stderr, "live-ingest: 连接断开，重连 '%s'\n",
                              source_ref_.c_str());
                 std::fflush(stderr);
                 NDIlib_recv_destroy(static_cast<NDIlib_recv_instance_t>(recv_));

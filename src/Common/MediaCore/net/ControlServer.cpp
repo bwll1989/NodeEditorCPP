@@ -62,7 +62,7 @@ bool ControlServer::start(std::uint16_t port, bool exclusive_bind) {
         // 端口占用等：交给调用方决定（打日志/退出）。
         // 【诊断留痕】显示端多实例 fallback 依赖"bind 失败的真实原因"——
         // 端口占用/权限不足在此一律可辨
-        std::fprintf(stderr, "[ctrl-server] 监听绑定失败 port=%u: %s\n",
+        std::fprintf(stderr, "ctrl-server: 监听绑定失败 port=%u: %s\n",
                      static_cast<unsigned>(port), e.displayText().c_str());
         return false;
     }

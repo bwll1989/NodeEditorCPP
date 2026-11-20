@@ -968,13 +968,6 @@ void VideoDecoder::run()  {
 
 
 /**
- * @brief 启动播放（向后兼容），等同于 startPlay()
- */
-void VideoDecoder::playAudio() {
-    startPlay();
-}
-
-/**
  * @brief 音频解码主循环（std::thread / audioThread）
  *
  * 职责：

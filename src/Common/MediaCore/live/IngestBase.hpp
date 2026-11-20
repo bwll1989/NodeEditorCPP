@@ -60,7 +60,7 @@ protected:
     virtual const char* logTag() const noexcept = 0;
 
     // ---- 子类工具 ----
-    /// 限频日志（接收线程专用；输出 "[<tag>] <msg>"）
+    /// 限频日志（接收线程专用；输出 "<tag>: <msg>"）
     void logThrottled(const std::string& msg, std::int64_t& last_ms,
                       std::int64_t gap_ms) const noexcept;
     /// 帧出口：sink 上抛 + 收帧计数（接收线程调用）

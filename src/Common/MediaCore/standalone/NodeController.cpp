@@ -66,7 +66,7 @@ bool NodeController::play(const std::string& id, std::string& err) {
                        : entry->scene->timeline.duration_us);
     player_.localPlay(0); // 4. 播放头归零起播
 
-    std::printf("[standalone] 启动时间轴: id=%s name=%s 时长=%.2fs %s\n",
+    std::printf("standalone: 启动时间轴: id=%s name=%s 时长=%.2fs %s\n",
                 id.c_str(), entry->name.c_str(),
                 static_cast<double>(effectiveStopUs()) / 1e6,
                 entry->loop ? "(循环)" : "");
@@ -81,7 +81,7 @@ void NodeController::stop() {
     player_.localStop();
     registry_.clearActive();
     snapshotParams(false, 0);
-    std::printf("[standalone] 停止播放\n");
+    std::printf("standalone: 停止播放\n");
 }
 
 bool NodeController::playDefault(const std::string& fallback_id,
@@ -127,7 +127,7 @@ void NodeController::tick(std::int64_t aligned_now_us) {
         // 循环：回头重播（localPlay(0) 重锚——session_start = now，current
         // 从 0 重新推进；纠偏环在重锚后速率复位，无残余调速）
         player_.localPlay(0);
-        std::printf("[standalone] 循环回头: t=%.2fs >= 出点 %.2fs\n",
+        std::printf("standalone: 循环回头: t=%.2fs >= 出点 %.2fs\n",
                     static_cast<double>(t) / 1e6,
                     static_cast<double>(stop_us) / 1e6);
     } else {
@@ -135,7 +135,7 @@ void NodeController::tick(std::int64_t aligned_now_us) {
         player_.localStop();
         registry_.clearActive();
         snapshotParams(false, 0);
-        std::printf("[standalone] 播到出点 %.2fs，停止\n",
+        std::printf("standalone: 播到出点 %.2fs，停止\n",
                     static_cast<double>(stop_us) / 1e6);
     }
 }

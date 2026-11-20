@@ -108,7 +108,7 @@ static void probeSummaryTick() {
     const std::uint64_t f = g_prod_fwd.exchange(0, std::memory_order_relaxed);
     const std::uint64_t s = g_prod_seek.exchange(0, std::memory_order_relaxed);
     std::fprintf(stderr,
-                 "[probe] 5s产出分支: cache=%llu fwd=%llu seek=%llu%s\n",
+                 "probe: 5s产出分支: cache=%llu fwd=%llu seek=%llu%s\n",
                  static_cast<unsigned long long>(c),
                  static_cast<unsigned long long>(f),
                  static_cast<unsigned long long>(s),
@@ -259,7 +259,7 @@ void FfmpegMediaSource::tryEnableHwAccel(const AVCodec* dec) {
         codec_->get_format      = pickHwPixFmt;
         codec_->opaque = reinterpret_cast<void*>(
             static_cast<intptr_t>(hw_pix_fmt_));
-        std::fprintf(stderr, "[media] 解码路径: %s 硬解（%s）\n",
+        std::fprintf(stderr, "media: 解码路径: %s 硬解（%s）\n",
                      HwAccelConfig::typeName(hw_type_),
                      av_hwdevice_get_type_name(dev));
         return;
@@ -267,7 +267,7 @@ void FfmpegMediaSource::tryEnableHwAccel(const AVCodec* dec) {
 
     // 全部候选失败：保持软解（行为与未配置硬解完全一致）——
     // 日志带具体原因 + 配置值，用户一眼可辨"格式不支持"还是"环境不支持"
-    std::fprintf(stderr, "[media] 解码路径: 软解（%s；当前 hw_accel=%s）\n",
+    std::fprintf(stderr, "media: 解码路径: 软解（%s；当前 hw_accel=%s）\n",
                  why, HwAccelConfig::typeName(hw_cfg_.type));
 }
 
@@ -302,7 +302,7 @@ void FfmpegMediaSource::handleHwFailure(const char* why) {
     Asset a = last_asset_;                         // 值拷贝快照（release 不触碰）
     release();
     if (!prepare(a)) {
-        std::fprintf(stderr, "[media] 软解重建失败（素材不可用？）: %s\n",
+        std::fprintf(stderr, "media: 软解重建失败（素材不可用？）: %s\n",
                      a.path.c_str());
         std::fflush(stderr);
     }
@@ -335,7 +335,7 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
     const std::filesystem::path fsp(reinterpret_cast<const char8_t*>(full.c_str()));
     std::error_code ec;
     if (!std::filesystem::exists(fsp, ec) || ec) {
-        std::fprintf(stderr, "[media] 素材文件不存在: %s\n", full.c_str());
+        std::fprintf(stderr, "media: 素材文件不存在: %s\n", full.c_str());
         return false;
     }
 
@@ -344,11 +344,11 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
     if (ret < 0) {
         char err[128];
         av_strerror(ret, err, sizeof(err));
-        std::fprintf(stderr, "[media] 打开容器失败(%s): %s\n", err, full.c_str());
+        std::fprintf(stderr, "media: 打开容器失败(%s): %s\n", err, full.c_str());
         return release(), false;
     }
     if (avformat_find_stream_info(fmt_, nullptr) < 0) {
-        std::fprintf(stderr, "[media] 流信息探测失败: %s\n", full.c_str());
+        std::fprintf(stderr, "media: 流信息探测失败: %s\n", full.c_str());
         return release(), false;
     }
 
@@ -358,7 +358,7 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
     // 查找解码器（选流已由本调用完成，行为与带出参时等价）。
     stream_index_ = av_find_best_stream(fmt_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
     if (stream_index_ < 0) {
-        std::fprintf(stderr, "[media] 无可用视频流: %s\n", full.c_str());
+        std::fprintf(stderr, "media: 无可用视频流: %s\n", full.c_str());
         return release(), false;
     }
     const AVStream* st = fmt_->streams[stream_index_];
@@ -374,14 +374,14 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
         // ---- 5. 建解码上下文：参数从流 side-data 拷贝（extradata 等自动带上）----
         dec = avcodec_find_decoder(st->codecpar->codec_id);
         if (!dec) {
-            std::fprintf(stderr, "[media] 无可用解码器(codec_id=%d): %s\n",
+            std::fprintf(stderr, "media: 无可用解码器(codec_id=%d): %s\n",
                          static_cast<int>(st->codecpar->codec_id), full.c_str());
             return release(), false;
         }
         codec_ = avcodec_alloc_context3(dec);
         if (!codec_) return release(), false;
         if (avcodec_parameters_to_context(codec_, st->codecpar) < 0) {
-            std::fprintf(stderr, "[media] 解码器参数拷贝失败(%s): %s\n",
+            std::fprintf(stderr, "media: 解码器参数拷贝失败(%s): %s\n",
                          dec->name, full.c_str());
             return release(), false;
         }
@@ -408,7 +408,7 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
         }
 
         if (avcodec_open2(codec_, dec, nullptr) < 0) {
-            std::fprintf(stderr, "[media] 解码器初始化失败(%s): %s\n", dec->name, full.c_str());
+            std::fprintf(stderr, "media: 解码器初始化失败(%s): %s\n", dec->name, full.c_str());
             return release(), false;
         }
     } else {
@@ -420,7 +420,7 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
         dxt_max_bytes_ = static_cast<std::size_t>(bx) * by * 16;
         dxt_.assign(dxt_max_bytes_, 0);
         std::fprintf(stderr,
-                     "[media] 解码路径: HAP DXT 直传（%dx%d，跳过 avcodec 全解压链）\n",
+                     "media: 解码路径: HAP DXT 直传（%dx%d，跳过 avcodec 全解压链）\n",
                      st->codecpar->width, st->codecpar->height);
     }
 
@@ -431,7 +431,7 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
     tb_num_ = st->time_base.num;
     tb_den_ = st->time_base.den;
     if (width_ <= 0 || height_ <= 0 || tb_den_ <= 0) {
-        std::fprintf(stderr, "[media] 流元数据非法(w=%d h=%d tb=%d/%d)\n",
+        std::fprintf(stderr, "media: 流元数据非法(w=%d h=%d tb=%d/%d)\n",
                      width_, height_, tb_num_, tb_den_);
         return release(), false;
     }
@@ -501,7 +501,7 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
             ok = decodeNext(); // 转换 + 发布（suppress_publish_ 未置位）
         }
         if (!ok) {
-            std::fprintf(stderr, "[media] 图片首帧解码失败: %s\n",
+            std::fprintf(stderr, "media: 图片首帧解码失败: %s\n",
                          full.c_str());
             return release(), false;
         }
@@ -592,7 +592,7 @@ bool FfmpegMediaSource::produce(std::int64_t media_us) {
                 if (now - prev >= 500 &&
                     s_last.compare_exchange_strong(prev, now)) {
                     std::fprintf(stderr,
-                                 "[probe] 前向补齐 %lld 帧（>2 = 解码追不上"
+                                 "probe: 前向补齐 %lld 帧（>2 = 解码追不上"
                                  "实时，差 %lldus）\n",
                                  static_cast<long long>(probe_frames),
                                  static_cast<long long>(media_us -
@@ -631,7 +631,7 @@ bool FfmpegMediaSource::produce(std::int64_t media_us) {
         if (now_ms0 - prev_ms0 >= 200 &&
             s_enter_last_ms.compare_exchange_strong(prev_ms0, now_ms0)) {
             std::fprintf(stderr,
-                         "[probe] →seekTo 进入: media_us=%lld pts=%lld "
+                         "probe: →seekTo 进入: media_us=%lld pts=%lld "
                          "跳差=%lldus has_frame=%d span=%lldus\n",
                          static_cast<long long>(media_us),
                          static_cast<long long>(frame_pts_us_),
@@ -671,7 +671,7 @@ bool FfmpegMediaSource::produce(std::int64_t media_us) {
             const std::int64_t diff =
                 probe_had_frame ? media_us - probe_old_pts : 0;
             std::fprintf(stderr,
-                         "[probe] seekTo: 跳差=%+lldms 补齐=%lld 帧 "
+                         "probe: seekTo: 跳差=%+lldms 补齐=%lld 帧 "
                          "耗时=%lldms (media=%lldms pts=%s)\n",
                          static_cast<long long>(probe_had_frame
                                                     ? diff / 1000
@@ -790,7 +790,7 @@ bool FfmpegMediaSource::decodeNext() {
         if (ret != AVERROR(EAGAIN)) {       // 真实解码错误
             char err[128];
             av_strerror(ret, err, sizeof(err));
-            std::fprintf(stderr, "[media] 解码错误(%d %s) fmt=%d %dx%d\n",
+            std::fprintf(stderr, "media: 解码错误(%d %s) fmt=%d %dx%d\n",
                          ret, err, frame_->format, width_, height_);
             // 硬解生效期间的真实解码错误计入自愈计数（持续失败=硬解环境
             // 坏，达阈值自动降级软解重建——2026-11-20）
@@ -864,7 +864,7 @@ bool FfmpegMediaSource::hapDecodePacket() {
                                       static_cast<unsigned long>(dxt_max_bytes_),
                                       &used, &tex);
     if (rc != HapResult_No_Error) {
-        std::fprintf(stderr, "[media] HapDecode 失败(rc=%u size=%d)\n",
+        std::fprintf(stderr, "media: HapDecode 失败(rc=%u size=%d)\n",
                      rc, pkt_->size);
         return false;
     }
@@ -975,7 +975,7 @@ bool FfmpegMediaSource::convertToRgba() {
                     if (f != nullptr) av_frame_free(&f);
                 });
             if (!pf->native) {
-                std::fprintf(stderr, "[media] GPU 帧引用克隆失败（本帧丢弃）\n");
+                std::fprintf(stderr, "media: GPU 帧引用克隆失败（本帧丢弃）\n");
                 return false;
             }
             has_frame_ = true;
@@ -997,7 +997,7 @@ bool FfmpegMediaSource::convertToRgba() {
         if (sw_frame_ == nullptr) sw_frame_ = av_frame_alloc(); // 复用缓冲
         av_frame_unref(sw_frame_); // 释放上一帧残留引用
         if (av_hwframe_transfer_data(sw_frame_, frame_, 0) < 0) {
-            std::fprintf(stderr, "[media] 硬解帧下载失败（本帧丢弃）\n");
+            std::fprintf(stderr, "media: 硬解帧下载失败（本帧丢弃）\n");
             // 下载持续失败 = 硬解环境坏（驱动/跨 GPU 总线）：计入自愈计数，
             // 达阈值自动降级软解重建——不再永久停帧（2026-11-20）
             handleHwFailure("硬解帧下载失败");
@@ -1029,7 +1029,7 @@ bool FfmpegMediaSource::convertToRgba() {
                               w, h, AV_PIX_FMT_RGBA,
                               SWS_BILINEAR, nullptr, nullptr, nullptr);
         if (!sws_) {
-            std::fprintf(stderr, "[media] 像素转换器创建失败(fmt=%d %dx%d)\n",
+            std::fprintf(stderr, "media: 像素转换器创建失败(fmt=%d %dx%d)\n",
                          src->format, w, h);
             return false; // 旧帧保留（has_frame_ 不动），本帧不可用
         }
@@ -1046,7 +1046,7 @@ bool FfmpegMediaSource::convertToRgba() {
     std::uint8_t* dst[4]  = { rgba_.data(), nullptr, nullptr, nullptr };
     int           dls[4]  = { static_cast<int>(stride_), 0, 0, 0 };
     if (sws_scale(sws_, src->data, src->linesize, 0, h, dst, dls) < 0) {
-        std::fprintf(stderr, "[media] 像素转换失败(fmt=%d %dx%d)\n",
+        std::fprintf(stderr, "media: 像素转换失败(fmt=%d %dx%d)\n",
                      src->format, w, h);
         return false;
     }
@@ -1182,7 +1182,7 @@ std::int64_t FfmpegMediaSource::probeDurationUs(const std::string& utf8_path) {
     if (ret < 0) {
         char err[128];
         av_strerror(ret, err, sizeof(err));
-        std::fprintf(stderr, "[media] 时长探测打开容器失败(%s): %s\n",
+        std::fprintf(stderr, "media: 时长探测打开容器失败(%s): %s\n",
                      err, utf8_path.c_str());
         return 0;
     }
@@ -1192,7 +1192,7 @@ std::int64_t FfmpegMediaSource::probeDurationUs(const std::string& utf8_path) {
         dur = fmt->duration;
     else
         std::fprintf(stderr,
-                     "[media] 时长探测失败(ret=%d duration=%lld): %s\n",
+                     "media: 时长探测失败(ret=%d duration=%lld): %s\n",
                      ret, (long long)fmt->duration, utf8_path.c_str());
     avformat_close_input(&fmt);
     return dur;

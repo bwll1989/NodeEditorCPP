@@ -50,7 +50,7 @@ bool AudioOut::open(const AudioSpec& spec) {
 
     const PaError err0 = Pa_Initialize();
     if (err0 != paNoError) {
-        std::fprintf(stderr, "[audio] open 失败 @Pa_Initialize: %s\n",
+        std::fprintf(stderr, "audio: open 失败 @Pa_Initialize: %s\n",
                      Pa_GetErrorText(err0));
         return false;
     }
@@ -74,7 +74,7 @@ bool AudioOut::open(const AudioSpec& spec) {
         }
         if (dev == paNoDevice) {
             std::fprintf(stderr,
-                         "[audio] W-未找到包含 \"%s\" 的播放设备，回退默认设备\n",
+                         "audio: W-未找到包含 \"%s\" 的播放设备，回退默认设备\n",
                          dev_req_.c_str());
             dev = Pa_GetDefaultOutputDevice();
         }
@@ -82,7 +82,7 @@ bool AudioOut::open(const AudioSpec& spec) {
     const PaDeviceInfo* di = (dev != paNoDevice) ? Pa_GetDeviceInfo(dev)
                                                  : nullptr;
     if (!di) {
-        std::fprintf(stderr, "[audio] open 失败 @设备枚举（无可用播放设备）\n");
+        std::fprintf(stderr, "audio: open 失败 @设备枚举（无可用播放设备）\n");
         Pa_Terminate();
         pa_inited_ = false;
         return false;
@@ -123,7 +123,7 @@ bool AudioOut::open(const AudioSpec& spec) {
                       &AudioOut::paCallbackTrampoline, this);
     if (err1 != paNoError) {
         std::fprintf(stderr,
-                     "[audio] open 失败 @Pa_OpenStream"
+                     "audio: open 失败 @Pa_OpenStream"
                      "（fmt=float32 %dch %dHz dev=%s）: %s\n",
                      sp.channelCount, static_cast<int>(spec.sample_rate),
                      dev_name_.c_str(), Pa_GetErrorText(err1));
@@ -134,7 +134,7 @@ bool AudioOut::open(const AudioSpec& spec) {
     }
     const PaError err2 = Pa_StartStream(stream_);
     if (err2 != paNoError) {
-        std::fprintf(stderr, "[audio] open 失败 @Pa_StartStream: %s\n",
+        std::fprintf(stderr, "audio: open 失败 @Pa_StartStream: %s\n",
                      Pa_GetErrorText(err2));
         Pa_CloseStream(stream_);
         stream_ = nullptr;

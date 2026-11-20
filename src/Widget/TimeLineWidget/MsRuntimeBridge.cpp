@@ -61,13 +61,13 @@ bool MsRuntimeBridge::start() {
     impl_ = std::make_unique<Impl>(std::move(cfg));
     if (!impl_->rt.start()) {           // 空场景模式（场景经 publishScene 注入）
         std::fprintf(stderr,
-                     "[ms-bridge] 下发运行时启动失败（端口占用？）——"
+                     "ms-bridge: 下发运行时启动失败（端口占用？）——"
                      "GUI 继续可用，仅无下发\n");
         std::fflush(stderr);
         impl_.reset();
         return false;
     }
-    std::fprintf(stderr, "[ms-bridge] 下发运行时就绪：UDP %u / HTTP %u\n",
+    std::fprintf(stderr, "ms-bridge: 下发运行时就绪：UDP %u / HTTP %u\n",
                  (unsigned)impl_->rt.udp_port(),
                  (unsigned)impl_->rt.http_port());
     std::fflush(stderr);

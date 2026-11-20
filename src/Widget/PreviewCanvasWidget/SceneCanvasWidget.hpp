@@ -548,11 +548,9 @@ private:
     std::vector<double> snap_ref_y_;    ///< 参考线 y 集合（画布坐标，升序）
     std::vector<double> guide_x_;       ///< 本次命中的吸附线 x（绘制品红竖线）
     std::vector<double> guide_y_;       ///< 本次命中的吸附线 y（绘制品红横线）
-    // 【预览透视开关 preview_perspective_ 已删除 2026-11-18】正交视图
-    // 功能及其函数全退役——预览恒与 display 同源（透视）。【2026-11-20
-    // 用户拍板】素材三轴旋转 = 透视投影压平到 XY 平面（quadCorners3DP
-    // + Scene::effectivePersp，与 display ScreenMapper 同源）；站立路径
-    //（quadCorners3DWorld）退役无消费者。
+    // 【2026-11-20 用户拍板】素材三轴旋转 = 透视投影压平到 XY 平面
+    //（quadCorners3DP + Scene::effectivePersp，与 display ScreenMapper
+    // 同源）；预览恒与 display 同源（透视）。
 };
 
 } // namespace ms

@@ -159,7 +159,7 @@ public:
                 doomed = std::move(it->second.src);
                 sources_.erase(it);
                 std::fprintf(stderr,
-                             "[sched] 素材变化，重建源实例: %s (path=%s)\n",
+                             "sched: 素材变化，重建源实例: %s (path=%s)\n",
                              asset.id.c_str(), asset.path.c_str());
             }
         }
@@ -182,7 +182,7 @@ public:
             }
             if (first_warn) {
                 std::fprintf(stderr,
-                             "[sched] 素材类型未注册，跳过（本素材仅提示一次）: "
+                             "sched: 素材类型未注册，跳过（本素材仅提示一次）: "
                              "%s (kind=%d)\n",
                              asset.id.c_str(), static_cast<int>(asset.kind));
             }
@@ -208,7 +208,7 @@ public:
             }
             if (should_warn) {
                 std::fprintf(stderr,
-                             "[sched] 素材 prepare 失败，稍后重试（5s 限频）: "
+                             "sched: 素材 prepare 失败，稍后重试（5s 限频）: "
                              "%s (%s)\n",
                              asset.id.c_str(), asset.path.c_str());
             }

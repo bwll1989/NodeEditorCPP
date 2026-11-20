@@ -99,7 +99,7 @@ inline void buildVoices(const Scene& scene, std::int64_t t_us,
                     if (!s_missing_logged.count(c.asset_id)) {
                         s_missing_logged[c.asset_id] = true;
                         std::fprintf(stderr,
-                                     "[audio] clip=%s 引用素材缺失: "
+                                     "audio: clip=%s 引用素材缺失: "
                                      "asset_id='%s' t=%.2fs → 无声（查场景"
                                      "素材表/asset_id 链）\n",
                                      c.id.c_str(), c.asset_id.c_str(),
@@ -129,7 +129,7 @@ inline void buildVoices(const Scene& scene, std::int64_t t_us,
                         if (!s_openfail_logged.count(asset_path)) {
                             s_openfail_logged[asset_path] = true;
                             std::fprintf(stderr,
-                                         "[audio] 音频源打开失败: %s"
+                                         "audio: 音频源打开失败: %s"
                                          "（clip=%s，本拍无声，落盘/修复后"
                                          "下拍自动接管）\n",
                                          asset_path.c_str(), c.id.c_str());
@@ -155,7 +155,7 @@ inline void buildVoices(const Scene& scene, std::int64_t t_us,
                 if (e.source &&
                     e.source->channelCount() > kMaxSourceChannels)
                     std::fprintf(stderr,
-                                 "[audio] 契约违约：源声道数 %u > "
+                                 "audio: 契约违约：源声道数 %u > "
                                  "kMaxSourceChannels=%u（按上限截断）"
                                  "clip=%s\n",
                                  e.source->channelCount(),

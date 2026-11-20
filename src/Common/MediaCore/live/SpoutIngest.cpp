@@ -48,7 +48,7 @@ void SpoutIngest::recvLoop() {
     // —— DX11 设备（线程私有；默认 adapter——与 Spout 官方接收器同行为）——
     spoutDirectX dx;
     if (!dx.OpenDirectX11()) {
-        std::fprintf(stderr, "[spout] DX11 设备创建失败（Ingest 退出）\n");
+        std::fprintf(stderr, "spout: DX11 设备创建失败（Ingest 退出）\n");
         std::fflush(stderr);
         return;
     }
@@ -117,7 +117,7 @@ void SpoutIngest::recvLoop() {
             connected_.store(true, std::memory_order_release);
             D3D11_TEXTURE2D_DESC td{};
             shared_tex->GetDesc(&td);
-            std::fprintf(stderr, "[spout] 已连接 '%s' (%ux%u 格式 %d)\n",
+            std::fprintf(stderr, "spout: 已连接 '%s' (%ux%u 格式 %d)\n",
                          name, td.Width, td.Height, static_cast<int>(td.Format));
             std::fflush(stderr);
         }

@@ -503,7 +503,7 @@ void ColorEditorWidget::connectSignals()
         !slideBlue || !spinBlue ||
         !slideAlpha || !spinAlpha)
     {
-        qWarning() << "[ColorEditorWidget] connectSignals: null widget detected. "
+        qWarning() << "ColorEditorWidget: connectSignals: null widget detected. "
                    << "Ensure buildUI() instantiated all controls before connecting.";
         return;
     }

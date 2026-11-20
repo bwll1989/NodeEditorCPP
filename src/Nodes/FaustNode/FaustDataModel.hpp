@@ -234,7 +234,7 @@ public slots:
         QFile f(path);
         if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) {
             setStatus(QStringLiteral("无法打开: %1").arg(path), true);
-            qWarning() << "[FaustNode] cannot open" << path;
+            qWarning() << "FaustNode: cannot open" << path;
             return false;
         }
         const QByteArray source = f.readAll();
@@ -332,7 +332,7 @@ private:
             setStatus(QStringLiteral("编译失败: %1")
                           .arg(err.isEmpty() ? QStringLiteral("未知错误") : err),
                       true);
-            qWarning() << "[FaustNode] JIT compile failed:" << err;
+            qWarning() << "FaustNode: JIT compile failed:" << err;
             applyPortCount(PortType::In, 0, true);
             applyPortCount(PortType::Out, 0, true);
             Q_EMIT embeddedWidgetSizeUpdated();
@@ -342,7 +342,7 @@ private:
         m_dsp = m_factory->createDSPInstance();
         if (!m_dsp) {
             setStatus(QStringLiteral("编译成功但无法创建 DSP 实例"), true);
-            qWarning() << "[FaustNode] createDSPInstance failed";
+            qWarning() << "FaustNode: createDSPInstance failed";
             deleteDSPFactory(m_factory);
             m_factory = nullptr;
             applyPortCount(PortType::In, 0, true);
@@ -380,7 +380,7 @@ private:
         const int params = m_paramUi->paramCount();
         setStatus(QStringLiteral("已加载 %1 · %2 参数 · %3 入 %4 出")
                       .arg(displayPath).arg(params).arg(inputCount).arg(outputCount), false);
-        qDebug() << "[FaustNode] loaded" << displayPath
+        qDebug() << "FaustNode: loaded" << displayPath
                  << "inputs=" << inputCount
                  << "outputs=" << outputCount
                  << "params=" << params;

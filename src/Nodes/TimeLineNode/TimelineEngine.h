@@ -91,6 +91,31 @@ Q_NAMESPACE_EXPORT(NODE_TIMELINE_PUBLIC)
     Q_ENUM_NS(TimelineRoles)
 
     using ClipId = unsigned int;
+
+    // μs → 易读时刻串（2026-11-20 tooltip 人话化，同步库版 TimeLineDefines.h）：
+    // 小时为 0 时省略——"mm:ss.mmm"；≥1h 进位——"hh:mm:ss.mmm"。
+    inline QString usToClockString(qint64 us)
+    {
+        const qint64 totalMs = us < 0 ? 0 : us / 1000;
+        const qint64 ms = totalMs % 1000;
+        const qint64 s = (totalMs / 1000) % 60;
+        const qint64 totalMin = totalMs / 60000;
+        const qint64 m = totalMin % 60;
+        const qint64 h = totalMin / 60;
+        if (h > 0)
+            return QString::asprintf("%02lld:%02lld:%02lld.%03lld", h, m, s, ms);
+        return QString::asprintf("%02lld:%02lld.%03lld", m, s, ms);
+    }
+
+    // μs → 易读时长串：短时长（<1 分钟）"X.XXXs"；长时长进位时钟串。
+    inline QString usToDurationString(qint64 us)
+    {
+        const qint64 totalMs = us < 0 ? 0 : us / 1000;
+        if (totalMs < 60000)
+            return QString::asprintf("%.3fs", totalMs / 1000.0);
+        return usToClockString(totalMs * 1000);
+    }
+
     // namespace TimecodeFormat {
     //     // 标准电影帧率
     //     constexpr int FILM = 24;           // 24 fps - 标准电影

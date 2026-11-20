@@ -28,7 +28,7 @@
 #include <vector>
 
 #include "model/SceneModel.hpp"
-#include "model/CanvasGeometry.hpp" // quadCorners3D（屏姿态外接圆）
+#include "model/CanvasGeometry.hpp" // quadCorners3DP（屏姿态外接圆）
 
 namespace ms {
 
@@ -37,12 +37,18 @@ namespace ms {
 ///
 /// \param clip_t clip 的变换属性（x/y/w/h 为画布坐标绘制矩形；rotation 顺时针度）
 /// \param scr    目标 screen（画布坐标矩形）
+/// \param persp_focal/vp_x/vp_y Show 全局透视仪（Scene::effectivePersp）——
+///        屏姿态四角与渲染端同一条投影链（2026-11-20 单一透视统一）；缺省
+///        0 = 对象隐含透视回退（防御路径，判定仍保守安全）
 /// \return true = 覆盖（含部分重叠）；false = 不覆盖（贴边共线不算）
 ///
 /// 旋转处理：不做精确多边形裁剪（P2 无渲染管线依赖此精度）——旋转后
 /// AABB 的对角线长度不变，用外接圆半径 r = √(hw²+hh²) 同时扩展两个轴，
 /// 等价于"旋转后 AABB 的最大可能范围"，方向保守（多判相交）。
-inline bool clipCoversScreen(const Transform& clip_t, const Screen& scr) {
+inline bool clipCoversScreen(const Transform& clip_t, const Screen& scr,
+                             double persp_focal = 0.0,
+                             double persp_vp_x = 0.0,
+                             double persp_vp_y = 0.0) {
     if (clip_t.w <= 0 || clip_t.h <= 0 || scr.w <= 0 || scr.h <= 0)
         return false; // 退化矩形（未设置尺寸）不参与依赖判定
 
@@ -62,14 +68,16 @@ inline bool clipCoversScreen(const Transform& clip_t, const Screen& scr) {
         const double r_clip   = std::sqrt(hw * hw + hh * hh);
         // 屏姿态（2026-11-17 阶段2）：透视预投影四角可能外扩（z<0 时
         // s>1）——半径取【姿态四角到屏中心的最大距离】（含滚转，保守
-        // 精确）；纯旋转时与对角线一半逐位一致（quadCorners3D 快路径
-        // 退化为 2D 四角，四角到中心距离恒 = 对角线一半）
+        // 精确）；四角走 quadCorners3DP 全局仪（与渲染端同链——2026-11-20
+        // 统一；纯旋转时快路径退化为 2D 四角，四角到中心距离恒 = 对角线
+        // 一半）
         double r_screen = std::sqrt(scr.w * scr.w + scr.h * scr.h) / 2.0;
         if (scr.rot_x != 0.0 || scr.rot_y != 0.0) {
             double qx[4], qy[4];
-            canvas_geometry::quadCorners3D(
-                scr.x, scr.y, scr.w, scr.h, scr.rotation, scr.rot_x,
-                scr.rot_y, 0, nullptr, qx, qy);
+            canvas_geometry::quadCorners3DP(
+                scr.x, scr.y, scr.w, scr.h, 0.0, scr.rotation, scr.rot_x,
+                scr.rot_y, 0, nullptr, persp_focal, persp_vp_x,
+                persp_vp_y, qx, qy, nullptr);
             double r2max = 0.0;
             for (int i = 0; i < 4; ++i) {
                 const double dx = qx[i] - scx, dy = qy[i] - scy;
@@ -134,6 +142,10 @@ inline std::vector<std::string> computeAssetDeps(const Scene& scene,
         return a.kind == AssetKind::Text || a.kind == AssetKind::Live;
     };
 
+    // Show 全局透视仪（场景级常量——循环外求值一次，覆盖判定复用）
+    double pef = 0.0, pevx = 0.0, pevy = 0.0;
+    scene.effectivePersp(pef, pevx, pevy);
+
     for (const auto& scr : scene.screens) {
         if (scr.player_id != player_id) continue; // 只看本机绑定的 screen
 
@@ -158,7 +170,7 @@ inline std::vector<std::string> computeAssetDeps(const Scene& scene,
                 Transform judge = clip.transform;
                 judge.w = eff_w;
                 judge.h = eff_h;
-                if (!clipCoversScreen(judge, scr)) continue;
+                if (!clipCoversScreen(judge, scr, pef, pevx, pevy)) continue;
                 // 去重后加入（跨屏共享素材只记一次）
                 push_unique(clip.asset_id);
             }

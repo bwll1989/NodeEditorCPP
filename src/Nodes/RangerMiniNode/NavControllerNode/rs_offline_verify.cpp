@@ -267,7 +267,7 @@ int main(int argc, char **argv)
             ++fail;
         }
 
-        std::cout << (pass ? "[PASS] " : "[FAIL] ") << r.name
+        std::cout << (pass ? "PASS: " : "FAIL: ") << r.name
                   << "  plan=" << (r.planOk ? "ok" : "NO")
                   << "  types=" << (r.types.empty() ? "-" : r.types)
                   << "  len=" << r.pathLen << "m"

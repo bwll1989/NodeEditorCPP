@@ -56,7 +56,7 @@ ClipInspector::ClipInspector(std::vector<FieldDef> fields, QWidget* parent)
         if (!fd.visible) continue;
         // 控件分派（第一版：数值域行；其余类型待消费者需要时扩展）
         if (fd.type != FieldType::Double && fd.type != FieldType::Int) {
-            qWarning() << "[inspector] schema 行类型暂无控件分派（待消费"
+            qWarning() << "inspector: schema 行类型暂无控件分派（待消费"
                           "者需要时扩展）" << fd.key << (int)fd.type;
             continue;
         }

@@ -194,7 +194,7 @@ bool SoftRenderer::draw(const DrawItem& di, const FrameView& frame) {
 // 目标四边形（canvas 域）顶点：
 //   * 2D（pose3d=false）：未旋转角绕【锚点】R(θ) + Transform::corner 位移；
 //   * 3D（pose3d=true，v3 俯仰/偏航）：ScreenMapper 已用
-//     cg::quadCorners3D 预投影填 di.quad（画布域 CornerIdx 序——滚转/
+//     cg::quadCorners3DP 预投影填 di.quad（画布域 CornerIdx 序——滚转/
 //     锚点/角位移/透视缩放全部烘焙在内），此处仅顶点序重排。
 // 顶点序 [LT, RT, LB, RB]（i bit0=右→u、bit1=下→v——与 GlRenderer
 // drawQuad 的 GL 顶点序逐一同构——三角分解 {0,1,2}+{1,2,3}、对角线

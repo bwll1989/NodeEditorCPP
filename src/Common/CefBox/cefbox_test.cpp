@@ -95,10 +95,10 @@ int main() {
     cefbox::CefRuntime::Settings rs;
     rs.cacheDir = wideToUtf8(cacheDir.wstring());
     if (!cefbox::CefRuntime::instance().initialize(rs)) {
-        std::fprintf(stderr, "[test] CefRuntime initialize FAILED\n");
+        std::fprintf(stderr, "test: CefRuntime initialize FAILED\n");
         return 2;
     }
-    std::fprintf(stderr, "[test] runtime initialized\n");
+    std::fprintf(stderr, "test: runtime initialized\n");
 
     std::atomic<int> frames{0};
     std::atomic<bool> loaded{false};
@@ -116,9 +116,9 @@ int main() {
             if (n == 1) {
                 firstW = w;
                 firstH = h;
-                std::fprintf(stderr, "[frame #1] %dx%d @%lldms\n", w, h, (long long)ms);
+                std::fprintf(stderr, "frame #1: %dx%d @%lldms\n", w, h, (long long)ms);
             } else if (n % 60 == 0) {
-                std::fprintf(stderr, "[frame #%d] %dx%d @%lldms\n", n, w, h, (long long)ms);
+                std::fprintf(stderr, "frame #%d: %dx%d @%lldms\n", n, w, h, (long long)ms);
             }
             lastPaintMs = ms;
             (void)bgra;
@@ -128,18 +128,18 @@ int main() {
             auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                           std::chrono::steady_clock::now() - t0)
                           .count();
-            std::fprintf(stderr, "[load] %s @%lldms\n", ok ? "ok" : "fail", (long long)ms);
+            std::fprintf(stderr, "load: %s @%lldms\n", ok ? "ok" : "fail", (long long)ms);
         });
 
     if (!browser) {
-        std::fprintf(stderr, "[test] browser create FAILED\n");
+        std::fprintf(stderr, "test: browser create FAILED\n");
         return 3;
     }
 
     pumpForMs(10000);  // 跑 10 秒
 
     const int frameCount = frames.load();
-    std::fprintf(stderr, "[result] frames=%d loaded=%d size=%dx%d lastPaint@%lldms\n",
+    std::fprintf(stderr, "result: frames=%d loaded=%d size=%dx%d lastPaint@%lldms\n",
                  frameCount, (int)loaded.load(), firstW, firstH, lastPaintMs);
 
     // 优雅关闭链：close → 等 OnBeforeClose → CefShutdown → 进程自然结束
@@ -156,12 +156,12 @@ int main() {
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(2));
     }
-    std::fprintf(stderr, "[test] browser closed=%d\n", (int)browser->isClosed());
+    std::fprintf(stderr, "test: browser closed=%d\n", (int)browser->isClosed());
 
     cefbox::CefRuntime::instance().shutdown();
-    std::fprintf(stderr, "[test] runtime shutdown done\n");
+    std::fprintf(stderr, "test: runtime shutdown done\n");
 
     const bool pass = frameCount > 100 && loaded.load() && browser->isClosed();
-    std::fprintf(stderr, pass ? "[PASS]\n" : "[FAIL]\n");
+    std::fprintf(stderr, pass ? "PASS\n" : "FAIL\n");
     return pass ? 0 : 1;
 }

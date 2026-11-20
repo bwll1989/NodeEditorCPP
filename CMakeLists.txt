@@ -37,6 +37,11 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/Common/Devices)
 #INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/src/DataTypes)
 # 【2026-11-12】src/Clips 全局 include 已删（旧帧基 clip 插件目录退役，实现迁 src/Clips）
 add_definitions(-DQT_MESSAGELOGCONTEXT)
+# 【2026-11-20】压制 getenv C4996：全项目 39 处调用均为进程启动时读一次的
+# 诊断开关/环境配置（MS_CANVAS_DBG 等），零竞态风险；_dupenv_s 会给诊断
+# 代码引入 free 管理噪音，全局压制是对应此用例的标准做法（CRT 专属定义，
+# 不影响非 MSVC 构建）
+add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
 # 设置Qt MSVC版本的路径
 set(CMAKE_PREFIX_PATH "C:/Qt/6.5.3/msvc2019_64") # 请根据实际安装路径修改此处

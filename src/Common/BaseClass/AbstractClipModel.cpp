@@ -52,14 +52,10 @@
 // 接口）随装配收拢退役——通用区装配内化进 ClipPropertyPanel，无需再协商。
 
 #include <QDebug>
-#include <QElapsedTimer> // panel-timing 排查埋点（临时）
+#include <QTimer>        // 拆帧显示（2026-11-20）：装配延迟一帧填入
 
 void AbstractClipModel::initPropertyWidget()
 {
-    // 【panel-timing 2026-11-17】双击卡顿排查埋点（临时）：分阶段耗时落
-    // qDebug（对接 spdlog）。定位后移除。
-    QElapsedTimer _pt;
-    _pt.start();
     // 【2026-11-17 统一无边框弹窗】宿主从裸 QWidget（Qt::WindowStaysOnTopHint
     // 置顶、无标题栏、无关闭钮）改为 FramelessDialog（GUIElements 统一弹窗
     // 基类：标题栏拖拽 / Esc / 标题栏关闭钮 / 统一 QSS）。非模态交互不变
@@ -72,7 +68,6 @@ void AbstractClipModel::initPropertyWidget()
     prop_dialog->setDialogTitle(displayText()); // 备注名优先，类型兜底
     QVBoxLayout* body_layout = prop_dialog->bodyLayout();
     body_layout->setSpacing(4);
-    const qint64 _t_dialog = _pt.elapsed();
 
     // 【P3 面板迁库（2026-11-17）】本函数瘦身为「壳 + 工厂 + 嵌入」：
     //   * 壳 = FramelessDialog（统一无边框风格，非模态，置顶语义保留）；
@@ -88,7 +83,7 @@ void AbstractClipModel::initPropertyWidget()
     if (!m_clipPropertyWidget)
         m_clipPropertyWidget = clipPropertyWidget(); // 工厂闭包（适配器注入）
     if (!m_clipPropertyWidget)
-        qWarning() << "[clip-panel] 属性面板工厂未返回产物（宿主未注入或"
+        qWarning() << "clip-panel: 属性面板工厂未返回产物（宿主未注入或"
                       "片段缺位）——对话框空壳";
     if (m_clipPropertyWidget)
         body_layout->addWidget(m_clipPropertyWidget);
@@ -97,15 +92,53 @@ void AbstractClipModel::initPropertyWidget()
     // 既有 flags（Qt::Dialog|FramelessWindowHint）之上，勿整体覆盖。
     prop_dialog->setWindowFlags(prop_dialog->windowFlags() |
                                 Qt::WindowStaysOnTopHint);
-    qDebug() << "[panel-timing] initPropertyWidget 总" << _pt.elapsed()
-             << "ms（壳" << _t_dialog << "+ 工厂/装配"
-             << (_pt.elapsed() - _t_dialog) << "）";
 }
 
 void AbstractClipModel::showPropertyWidget()
 {
-    if (!m_clipPropertyWidget)
-        initPropertyWidget();
+    // 【拆帧显示 2026-11-20】实测（panel-timing 埋点）：构造 27ms +
+    // show+polish 18ms = 双击路径 45ms 同步阻塞——预览画布 33ms 节拍被
+    // 推迟一拍（用户体感"卡顿一下"）。改为两帧：
+    //   帧 1（双击当拍）：壳构造 + 立即 show——顶层窗口创建与 QSS polish
+    //        只含空壳，双击反馈 <15ms，画布不丢拍；
+    //   帧 2（下一事件循环）：工厂/装配（17-27ms）完成后内容填入——面板
+    //        先现、内容一帧后呈现（肉眼无感），重装配被拆出反馈关键路径。
+    // 二次打开：close=hide 协议（壳与内容均存活，deleteLater 只在模型
+    // 析构），缓存复用直接 show。
+    // 实现注：壳构造/装配逻辑内联于此（与 initPropertyWidget 同款），
+    // 不动头文件——BaseClass 头变更会强制 src/Clips 全量重编（铁律）。
+    if (!m_standardPropertyWidget) {
+        // ---- 帧 1：壳构造 + show ----
+        auto* prop_dialog = new FramelessDialog();
+        m_standardPropertyWidget = prop_dialog;
+        prop_dialog->setModal(false);
+        prop_dialog->setCloseButtonVisible(false); // 标题栏 × = 关闭面板
+        prop_dialog->setDialogTitle(displayText()); // 备注名优先，类型兜底
+        prop_dialog->bodyLayout()->setSpacing(4);
+        // 置顶语义保留（原 Qt::WindowStaysOnTopHint）
+        prop_dialog->setWindowFlags(prop_dialog->windowFlags() |
+                                    Qt::WindowStaysOnTopHint);
+        prop_dialog->show();
+        // ---- 帧 2：工厂/装配延迟填充 ----
+        // 防御：singleShot context=this（模型析构自动取消回调）+
+        // shell_guard（壳被 deleteLater 的理论窗口）。lambda 定义于成员
+        // 函数体内——捕获 this 拥有类内访问权限。
+        QPointer<QWidget> shell_guard(prop_dialog);
+        QTimer::singleShot(0, this, [this, shell_guard]() {
+            if (!shell_guard) return; // 壳已销毁（防御）
+            if (!m_clipPropertyWidget)
+                m_clipPropertyWidget = clipPropertyWidget(); // 工厂闭包
+            if (!m_clipPropertyWidget) {
+                qWarning() << "clip-panel 属性面板工厂未返回产物（宿主未"
+                              "注入或片段缺位）——对话框空壳";
+                return;
+            }
+            if (auto* dlg = qobject_cast<FramelessDialog*>(shell_guard.data()))
+                dlg->bodyLayout()->addWidget(m_clipPropertyWidget);
+        });
+        return;
+    }
+    // ---- 二次打开：缓存复用，直接 show ----
     // 标题随显示刷新（id/备注名可能晚于面板创建才就绪）
     if (auto* dlg = qobject_cast<FramelessDialog*>(m_standardPropertyWidget))
         dlg->setDialogTitle(displayText());

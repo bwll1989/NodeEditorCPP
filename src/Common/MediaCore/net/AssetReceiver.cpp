@@ -309,7 +309,7 @@ AssetReceiver::Result AssetReceiver::fetch(const std::string& host,
             return Result::BadResponse;
         }
         if (!out && status != HTTPResponse::HTTP_REQUESTED_RANGE_NOT_SATISFIABLE) {
-            std::fprintf(stderr, "[asset] 本地临时文件打开失败: %s\n",
+            std::fprintf(stderr, "asset: 本地临时文件打开失败: %s\n",
                          part_dbg.c_str());
             return Result::NetworkError; // 本地文件打不开
         }
@@ -361,7 +361,7 @@ AssetReceiver::Result AssetReceiver::fetch(const std::string& host,
             // 【诊断留痕】期望/实际 CRC + 期望口径（场景/服务端）+ 落盘
             // 大小——联测期 CRC 排障唯一线索（内容不一致必然有源头）
             std::fprintf(stderr,
-                         "[asset] CRC 不符: %s\n  期望(checksum参数)=%s\n"
+                         "asset: CRC 不符: %s\n  期望(checksum参数)=%s\n"
                          "  实际=%s  server头=%s\n  落盘=%lluB server_size=%lluB\n",
                          part_dbg.c_str(), checksum.c_str(),
                          final_full.c_str(),
@@ -412,11 +412,11 @@ AssetReceiver::Result AssetReceiver::fetch(const std::string& host,
                     std::error_code rem_ec;
                     std::filesystem::remove(part, rem_ec); // 清场：part 无保留价值
                     std::fprintf(stderr,
-                                 "[asset] 目标被占用但内容与下载一致，"
+                                 "asset: 目标被占用但内容与下载一致，"
                                  "视为已上位: %s\n", save_path.c_str());
                 } else {
                     std::fprintf(stderr,
-                                 "[asset] 落盘改名失败: %s → %s (%s)\n",
+                                 "asset: 落盘改名失败: %s → %s (%s)\n",
                                  part_dbg.c_str(), save_path.c_str(),
                                  rsec.message().c_str());
                     return Result::NetworkError;
@@ -432,7 +432,7 @@ AssetReceiver::Result AssetReceiver::fetch(const std::string& host,
 
     } catch (const Poco::Exception& e) {
         // 网络/超时异常：part 保留（下次 fetch 从 part 尾续传）
-        std::fprintf(stderr, "[asset] HTTP 异常: %s\n", e.displayText().c_str());
+        std::fprintf(stderr, "asset: HTTP 异常: %s\n", e.displayText().c_str());
         return Result::NetworkError;
     }
 }

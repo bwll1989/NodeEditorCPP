@@ -27,7 +27,6 @@
 #include <QJsonObject>
 #include <QJsonDocument> // OSC drag → Control：control_messages JSON 构造
 #include <QDebug>
-#include <QElapsedTimer> // panel-timing 排查埋点（临时）
 
 // 片段属性面板（素材绑定 + 画布变换；附加进库组合面板）
 // 【2026-11-13 片段插件化】通用面板/Tween 合并区迁 Common/ClipPanelBase.dll；
@@ -273,7 +272,7 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
                     for (auto& wc : wt.clips)
                         if (wc.id == c.id) { wc.asset_id = la.id; break; }
                 std::fprintf(stderr,
-                             "[adapter] 实况片段 %s 素材缺失（历史漏绑），"
+                             "adapter: 实况片段 %s 素材缺失（历史漏绑），"
                              "装载自愈补建 %s\n", c.id.c_str(), la.id.c_str());
                 std::fflush(stderr);
             }
@@ -434,7 +433,7 @@ void QtTimelineModelAdapter::configureClipPanel(SceneClipModel* sc,
         [this, clip_id](int channel, int key) -> bool {
             return applyTweenKeyRemove(clip_id, channel, key);
         });
-    std::fprintf(stderr, "[clip-panel] 工厂已注入 clip=%s type=%s\n",
+    std::fprintf(stderr, "clip-panel: 工厂已注入 clip=%s type=%s\n",
                  clip_id.c_str(), type.toUtf8().constData());
     std::fflush(stderr);
 }
@@ -447,14 +446,10 @@ void QtTimelineModelAdapter::configureClipPanel(SceneClipModel* sc,
 // ---------------------------------------------------------------------------
 QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
         const std::string& clip_id, const QString& type) {
-    // 【panel-timing 2026-11-17】双击卡顿排查埋点（临时）：分阶段耗时落
-    // qDebug，定位卡顿段后移除。
-    QElapsedTimer _pt;
-    _pt.start();
     // 出口 1：宿主未注入 hooks（单测环境/时序异常）——退化为纯通用区
     if (!hooks_.import_media) {
         std::fprintf(stderr,
-                     "[clip-panel] %s：hooks 未注入，无自定义区\n",
+                     "clip-panel: %s：hooks 未注入，无自定义区\n",
                      clip_id.c_str());
         std::fflush(stderr);
         return nullptr;
@@ -463,12 +458,11 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
     Clip* c = locateWorkClip(QString::fromStdString(clip_id));
     if (!c) {
         std::fprintf(stderr,
-                     "[clip-panel] %s：工作副本中未定位到片段，无自定义区\n",
+                     "clip-panel: %s：工作副本中未定位到片段，无自定义区\n",
                      clip_id.c_str());
         std::fflush(stderr);
         return nullptr;
     }
-    const qint64 _t_locate = _pt.elapsed();
     const AssetKind kind = kindForType(type);
     // 【P2-B 元数据下放 2026-11-17】插件工厂查询前置：页 3 专属区工厂与
     // 类型显示元数据（clipDisplayName/hasMediaBinding/bindingHint）同源
@@ -512,7 +506,6 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
     // 通用区装配职责随面板迁库收拢进构造。
     auto* panel = new ClipPropertyPanel(*c, categoryForKind(kind), binding_name,
                                         findClipModelByAnchor(clip_id));
-    const qint64 _t_panel = _pt.elapsed();
     // 【P2-B】媒体区显隐 = 插件声明（原 Live/Text/Control/Artnet/Mapping
     // 五类型 if 链退役——声明在各自插件 hasMediaBinding()）
     if (factory && !factory->hasMediaBinding())
@@ -548,29 +541,42 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
         // 与基类虚默认一致——不因插件加载失败而丢失动画能力）
         const ClipTweenExposure expo =
             factory ? factory->tweenExposure() : ClipTweenExposure{};
+        // 【拆帧·页级 2026-11-20】装配帧实测 20ms（通用面板 8 + 动画区
+        // 12）——通用页本帧装配先行，动画页下一帧追加（singleShot）：
+        // 任何一帧阻塞 <15ms，预览画布 33ms 节拍不再被推迟。防御：QPointer
+        // 双守卫 + locateWorkClip 现取（片段可能在帧间被删）。
         if (expo.page_visible) {
-            auto* tsec = new TweenSection(*c, expo, panel); // panel 拥有
-            panel->appendSection(tsec, QStringLiteral("动画"));
-            panel_refs_[clip_id].push_back({tsec, PanelRef::Kind::Tween});
-            QPointer<TweenSection> wguard(tsec);
-            tsec->setPlayheadFn([this]() {
-                return getPlayheadPos(); // 播放头（μs；库与 Scene 同基直传）
+            QPointer<ClipPropertyPanel> panel_guard(panel);
+            QPointer<QtTimelineModelAdapter> aguard(this);
+            QTimer::singleShot(0, this, [this, aguard, panel_guard,
+                                         clip_id, expo]() {
+                if (!aguard || !panel_guard) return; // 适配器/面板已销毁
+                Clip* cc =
+                    locateWorkClip(QString::fromStdString(clip_id));
+                if (!cc) return; // 帧间被删（防御）
+                auto* tsec = new TweenSection(*cc, expo, panel_guard.data());
+                panel_guard->appendSection(tsec, QStringLiteral("动画"));
+                panel_refs_[clip_id].push_back({tsec, PanelRef::Kind::Tween});
+                QPointer<TweenSection> wguard(tsec);
+                tsec->setPlayheadFn([this]() {
+                    return getPlayheadPos(); // 播放头（μs；同基直传）
+                });
+                // 尺寸行 ⟲ 默认值（2026-11-09 补设）：绑定素材的原始像素
+                // 宽高（无绑定素材/宽高 0 如 Live 不注入——⟲ 点击不动作）
+                if (const Asset* sa = work_ ? work_->findAsset(cc->asset_id)
+                                            : nullptr;
+                    sa && sa->width > 0 && sa->height > 0)
+                    tsec->setSizeDefaultHint(sa->width, sa->height);
+                tsec->setApplier([this, clip_id, wguard]() {
+                    if (!wguard) return; // 区块已销毁（信号队列残留），忽略
+                    applyClipTweenEdit(clip_id, wguard.data());
+                });
+                // 播放头钩子/写回钩子就位后重灌一次：打开即显示当前播放头
+                // 处的插值值（构造时钩子未注入，数值是静态基准兜底）
+                tsec->refreshFrom(*cc);
             });
-            // 尺寸行 ⟲ 默认值（2026-11-09 补设）：绑定素材的原始像素宽高
-            //（无绑定素材/宽高 0 如 Live 不注入——⟲ 点击不动作）
-            if (const Asset* sa = work_->findAsset(c->asset_id);
-                sa && sa->width > 0 && sa->height > 0)
-                tsec->setSizeDefaultHint(sa->width, sa->height);
-            tsec->setApplier([this, clip_id, wguard]() {
-                if (!wguard) return; // 区块已销毁（信号队列残留），忽略
-                applyClipTweenEdit(clip_id, wguard.data());
-            });
-            // 播放头钩子/写回钩子就位后重灌一次：打开即显示当前播放头处的
-            // 插值值（构造时钩子未注入，数值是静态基准兜底）
-            tsec->refreshFrom(*c);
         }
     }
-    const qint64 _t_tween = _pt.elapsed();
 
     // ---- 片段专属编辑区（2026-11-13 片段插件化）= 第 3 页 ------------------
     // 宿主不持有任何具体 Section 类型——按片段类型从插件表取工厂，经
@@ -614,11 +620,6 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
             panel_refs_[clip_id].push_back({sec, PanelRef::Kind::Section});
         }
     }
-    qDebug() << "[panel-timing] makeClipPropertyPanel" << type
-             << "总" << _pt.elapsed() << "ms（定位" << _t_locate
-             << "/通用面板" << (_t_panel - _t_locate)
-             << "/动画区" << (_t_tween - _t_panel)
-             << "/专属区" << (_pt.elapsed() - _t_tween) << "）";
     return panel;
 }
 
@@ -1081,7 +1082,7 @@ void QtTimelineModelAdapter::requestAutoPublish() {
 void QtTimelineModelAdapter::publishNow() {
     if (!publishScene()) return; // 未挂工作副本/runtime 未启动：静默跳过（不打点）
     last_publish_since_.restart(); // 节流基准（下次编辑距此满间隔才发下一拍）
-    qDebug() << "ms-adapter: 场景自动追平，已同步发布到显示端";
+    // 自动追平为高频常规路径，不打点（2026-11-20 用户要求取消打印）
 }
 
 // ---------------------------------------------------------------------------
@@ -1144,7 +1145,7 @@ void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
                     if (c) {
                         ms::fireControlMessages(c->control_messages);
                         std::fprintf(stderr,
-                                     "[control] 触发 clip=%s msgs=%s\n",
+                                     "control: 触发 clip=%s msgs=%s\n",
                                      c->id.c_str(),
                                      c->control_messages.empty() ? "(空)"
                                          : c->control_messages.c_str());
@@ -1245,7 +1246,7 @@ public:
                     loader->deleteLater();
                 };
                 if (!clip_plugin) {
-                    skip("[plugins] 跳过 %s：%s\n",
+                    skip("plugins: 跳过 %s：%s\n",
                          qPrintable(fname),
                          qPrintable(loader->errorString()));
                     continue;
@@ -1257,18 +1258,18 @@ public:
                 // 不支持，Add Item 必然失败（"Failed to create clip
                 // model"）。跳过并留痕，插件文件保留在磁盘无副作用。
                 if (!isHostMediaType(type)) {
-                    skip("[plugins] 跳过 %s：类型 %s 非宿主媒体类型"
+                    skip("plugins: 跳过 %s：类型 %s 非宿主媒体类型"
                          "（示例/第三方插件，宿主业务不适用）\n",
                          qPrintable(fname), qPrintable(type));
                     continue;
                 }
                 if (getAvailableTypes().contains(type)) {
-                    skip("[plugins] 跳过 %s：类型 %s 已加载\n",
+                    skip("plugins: 跳过 %s：类型 %s 已加载\n",
                          qPrintable(fname), qPrintable(type));
                     continue;
                 }
                 registerPlugin(clip_plugin); // 归基类类型表（同官方磁盘插件）
-                std::fprintf(stderr, "[plugins] 已加载 %s（type=%s，%s）\n",
+                std::fprintf(stderr, "plugins: 已加载 %s（type=%s，%s）\n",
                              qPrintable(fname), qPrintable(type),
                              qPrintable(full));
                 std::fflush(stderr);
@@ -1448,7 +1449,7 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
                                        const QString& type) {
     // 防御：未挂工作副本时基类造的片段会成"孤儿"（回写无门）→ 拒绝并引导
     if (!work_) {
-        std::fprintf(stderr, "[adapter] 原生添加片段失败：工作副本未挂载\n");
+        std::fprintf(stderr, "adapter: 原生添加片段失败：工作副本未挂载\n");
         std::fflush(stderr);
         return;
     }
@@ -1500,7 +1501,7 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
         work_->assets.push_back(ta);
         text_asset_id = ta.id;
         std::fprintf(stderr,
-                     "[adapter] 文本轨自动创建默认文本素材: %s（在片段属"
+                     "adapter: 文本轨自动创建默认文本素材: %s（在片段属"
                      "性面板文本区改内容/样式）\n", ta.id.c_str());
         std::fflush(stderr);
     }
@@ -1524,7 +1525,7 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
         work_->assets.push_back(la);
         live_asset_id = la.id;
         std::fprintf(stderr,
-                     "[adapter] 实况轨自动创建默认实况素材: %s（在片段属"
+                     "adapter: 实况轨自动创建默认实况素材: %s（在片段属"
                      "性面板实况区选 NDI 源）\n", la.id.c_str());
         std::fflush(stderr);
     }
@@ -1543,8 +1544,8 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
     // 改按 work_ 自身尺寸再校验（不一致时防御跳过，UI 侧不受影响）。
     if (trackIndex < 0 || trackIndex >= (int)work_->timeline.tracks.size()) {
         std::fprintf(stderr,
-                     "[adapter] onAddClip 工作副本同步跳过：trackIndex=%d "
-                     "越界（work tracks=%zu——双表失步信号）\n",
+                     "adapter: onAddClip 工作副本同步跳过：trackIndex=%d "
+                     "越界（work tracks=%d——双表失步信号）\n",
                      trackIndex, (int)work_->timeline.tracks.size());
         std::fflush(stderr);
         return;
@@ -1585,11 +1586,11 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
         !text_asset_id.empty() ? text_asset_id : live_asset_id;
     if (bound_id.empty()) {
         std::fprintf(stderr,
-                     "[adapter] 时间轴新增占位片段 %s（轨道 %d）：未绑定素材"
+                     "adapter: 时间轴新增占位片段 %s（轨道 %d）：未绑定素材"
                      "——双击片段指定媒体文件\n", id.c_str(), trackIndex);
     } else {
         std::fprintf(stderr,
-                     "[adapter] 时间轴新增片段 %s（轨道 %d）：绑定 %s\n",
+                     "adapter: 时间轴新增片段 %s（轨道 %d）：绑定 %s\n",
                      id.c_str(), trackIndex, bound_id.c_str());
     }
     std::fflush(stderr);
@@ -1614,7 +1615,7 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
                                              const QString& file) {
     // 防御：与 onAddClip 同款（工作副本未挂载时无法导入/绑定）
     if (!work_) {
-        std::fprintf(stderr, "[adapter] 拖入导入失败：工作副本未挂载\n");
+        std::fprintf(stderr, "adapter: 拖入导入失败：工作副本未挂载\n");
         std::fflush(stderr);
         return;
     }
@@ -1634,7 +1635,7 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
             // [E1] 导入失败：不再静默留 1 帧空占位（用户误以为导入成功，
             // 播放时才发现黑屏）——失败留痕（qWarning；原宿主连接只重复
             // 打日志，信号已删）并放弃本次拖入；轨道/工作副本零副作用
-            qWarning().noquote() << "[ms-adapter] 拖入导入失败:" << file
+            qWarning().noquote() << "ms-adapter: 拖入导入失败:" << file
                                  << "-" << QString::fromStdString(err);
             return;
         }
@@ -1666,7 +1667,7 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
         c->asset_id = a.id;
 
     std::fprintf(stderr,
-                 "[adapter] 拖入片段 %s（轨道 %d）：导入 %s（时长 %lld us）\n",
+                 "adapter: 拖入片段 %s（轨道 %d）：导入 %s（时长 %lld us）\n",
                  note.toStdString().c_str(), trackIndex, a.id.c_str(),
                  (long long)a.duration_us);
     std::fflush(stderr);
@@ -1709,7 +1710,7 @@ void QtTimelineModelAdapter::onDropOscAddress(int trackIndex, qint64 startUs,
     c->control_messages =
         QJsonDocument(root).toJson(QJsonDocument::Compact).toStdString();
 
-    std::fprintf(stderr, "[adapter] OSC 拖入 → Control 片段 %s：%s@%s:%d\n",
+    std::fprintf(stderr, "adapter: OSC 拖入 → Control 片段 %s：%s@%s:%d\n",
                  c->id.c_str(), msg.address.toStdString().c_str(),
                  m["host"].toString().toStdString().c_str(), m["port"].toInt());
     std::fflush(stderr);

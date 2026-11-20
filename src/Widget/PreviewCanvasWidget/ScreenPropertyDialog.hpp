@@ -98,8 +98,7 @@ private:
     FloatDragValueWidget* rotation_ = nullptr; ///< 旋转 Z（滚转，度，面内顺时针绕中心）
     FloatDragValueWidget* rot_x_ = nullptr; ///< 旋转 X（俯仰，度；屏取景窗 3D 姿态）
     FloatDragValueWidget* rot_y_ = nullptr; ///< 旋转 Y（偏航，度；屏取景窗 3D 姿态）
-    // z_ 已退役（2026-11-18）：Screen 取景窗无叠放语义，层级行移除；
-    // 模型字段保留兼容老工程
+    // z_ 已删除（2026-11-18 层级行退役；2026-11-20 模型/proto 字段一并删除）
     // ---- 输出校色（2026-11-20 Display 级 RGB 增益 + Gamma）--------------
     FloatDragValueWidget* gain_r_ = nullptr; ///< R 通道线性增益（1=不变）
     FloatDragValueWidget* gain_g_ = nullptr; ///< G 通道线性增益

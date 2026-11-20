@@ -87,7 +87,7 @@ struct Transform {
     // rotation（上方）= 偏转/滚转（绕画布 Z 轴，2D 旋转）；rot_x = 俯仰
     //（绕画布 X 轴）、rot_y = 偏航（绕画布 Y 轴）。渲染端绕锚点做 3D
     // 旋转 + 透视投影推算四角（走既有变形 quad 管线；透视焦距与近似
-    // 语义见 CanvasGeometry::quadCorners3D）。全 0 = 历史行为逐位不变。
+    // 语义见 CanvasGeometry::quadCorners3DP）。全 0 = 历史行为逐位不变。
     double rot_x = 0.0; ///< 俯仰旋转（度，绕画布 X 轴；正=顶边后仰）
     double rot_y = 0.0; ///< 偏航旋转（度，绕画布 Y 轴；正=右边缘远离）
 
@@ -532,8 +532,7 @@ inline bool operator==(const ScreenWarp& a, const ScreenWarp& b) {
 //     persp_focal/vp 缩放）；在指定范围经 Show 级透视相机取景输出——
 //     "正交视图"只是焦距无穷大的兜底特例。零姿态 = 旧 2D 平面屏行为，
 //     rot_x/rot_y 非 0 = 斜装/立面屏——同一结构的两档预设，不是两类；
-//   * z = 仅编辑器内多屏取景窗重叠的绘制先后，不下发显示端（display
-//     单机单屏，无叠放概念）；未来 Z-buffer 接管后本字段退役；
+//   * 多屏取景窗重叠时绘制先后 = 数组序（旧叠放层级 z 已退役删除）；
 //   * rot_x/rot_y = 斜装屏（地面屏/斜幕/非正交安装）取景姿态，WATCHOUT
 //     投影仪模型的轻量替身：0 = 历史仿射逐位不变；UI 钳 ±85°（90° 单应
 //     奇异，89° 已近边——2026-11-18 收紧，原 ±89°）；ScreenMapper 端
@@ -554,12 +553,10 @@ struct Screen {
     double x = 0.0, y = 0.0; ///< 画布中的矩形位置（未旋转时左上角）
     double w = 0.0, h = 0.0; ///< 画布中的矩形尺寸（> 0）
     double rotation = 0.0;   ///< 旋转角度（度，顺时针，绕矩形中心）
-    int32_t z = 0;           ///< 叠放层级：多屏重叠时小值先绘（底层），
-                             ///< 大值后绘（顶层）；单屏独占时无视觉差异
     ScreenWarp warp;         ///< 输出变形网格（WATCHOUT 式；mode=0 无变形）
     /// 屏姿态（2026-11-17 阶段2，与 Clip Transform::rot_x/rot_y 同构）：
     /// 俯仰/偏航旋转（度）——屏取景窗带 3D 姿态，画布→屏映射升级单应
-    ///（ScreenTransform pose3d 分支经 cg::quadCorners3D 预投影）。0 = 无
+    ///（ScreenTransform pose3d 分支经 cg::quadCorners3DP 预投影）。0 = 无
     /// 姿态（历史仿射映射逐位不变）。
     double rot_x = 0.0;      ///< 俯仰旋转 X（度，正=顶边后仰）
     double rot_y = 0.0;      ///< 偏航旋转 Y（度，正=右缘远离）
@@ -577,7 +574,7 @@ struct Screen {
 inline bool operator==(const Screen& a, const Screen& b) {
     return a.id == b.id && a.player_id == b.player_id && a.x == b.x &&
            a.y == b.y && a.w == b.w && a.h == b.h &&
-           a.rotation == b.rotation && a.z == b.z && a.warp == b.warp &&
+           a.rotation == b.rotation && a.warp == b.warp &&
            a.rot_x == b.rot_x && a.rot_y == b.rot_y &&
            std::equal(std::begin(a.rgb_gain), std::end(a.rgb_gain),
                       std::begin(b.rgb_gain)) &&

@@ -95,7 +95,7 @@ void LiveHub::ensureAsset(const Asset& asset, const std::string& project_name) {
         (entry->ingest_source != asset.live_source_name ||
          entry->ingest_latency != asset.live_latency ||
          entry->ingest_kind != asset.live_ingest)) {
-        std::fprintf(stderr, "[live-hub] %s: 源变化（'%s' → '%s'），重建收端\n",
+        std::fprintf(stderr, "live-hub: %s: 源变化（'%s' → '%s'），重建收端\n",
                      asset.id.c_str(), entry->ingest_source.c_str(),
                      asset.live_source_name.c_str());
         std::fflush(stderr);
@@ -110,7 +110,7 @@ void LiveHub::ensureAsset(const Asset& asset, const std::string& project_name) {
         if (desc == nullptr || !desc->implemented ||
             asset.live_source_name.empty()) {
             std::fprintf(stderr,
-                         "[live-hub] %s: ingest=%d 不受支持或源名为空，跳过 "
+                         "live-hub: %s: ingest=%d 不受支持或源名为空，跳过 "
                          "Ingest（仅建发布器占位）\n",
                          asset.id.c_str(), asset.live_ingest);
             std::fflush(stderr);
@@ -146,7 +146,7 @@ void LiveHub::ensureAsset(const Asset& asset, const std::string& project_name) {
             desc.clock_audio = false;
             entry->sender = NDIlib_send_create(&desc);
             if (entry->sender == nullptr) {
-                std::fprintf(stderr, "[live-hub] %s: 发布器创建失败 (%s)\n",
+                std::fprintf(stderr, "live-hub: %s: 发布器创建失败 (%s)\n",
                              asset.id.c_str(), pub.c_str());
                 std::fflush(stderr);
                 ndiRelease();
@@ -161,7 +161,7 @@ void LiveHub::ensureAsset(const Asset& asset, const std::string& project_name) {
             } catch (...) {
                 entry->sender_run.store(false, std::memory_order_release);
             }
-            std::fprintf(stderr, "[live-hub] %s: 再发布 '%s'\n",
+            std::fprintf(stderr, "live-hub: %s: 再发布 '%s'\n",
                          asset.id.c_str(), pub.c_str());
             std::fflush(stderr);
         }

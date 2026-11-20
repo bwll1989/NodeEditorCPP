@@ -191,7 +191,7 @@ void TimelineAudioBusHost::loop() {
             for (const QString& n : registry->buses())
                 if (registry->busDriveMode(n) == QStringLiteral("external")) ++nb;
             std::fprintf(stderr,
-                         "[tl-audio-bus] tick playing=%d scene=%d buses=%zu "
+                         "tl-audio-bus: tick playing=%d scene=%d buses=%zu "
                          "clock=%lld\n",
                          playing ? 1 : 0, scene ? 1 : 0, nb,
                          static_cast<long long>(clock));
@@ -239,7 +239,7 @@ void TimelineAudioBusHost::loop() {
             core_.engine->start(spec);
             core_.started = true;
             std::fprintf(stderr,
-                         "[tl-audio-bus] 混音引擎启动：48k/%dch/%d帧/拍\n",
+                         "tl-audio-bus: 混音引擎启动：48k/%dch/%d帧/拍\n",
                          kMixChannels, frames);
             std::fflush(stderr);
         }
@@ -280,7 +280,7 @@ void TimelineAudioBusHost::loop() {
             && s_empty_diag < 3) {
             ++s_empty_diag;
             std::fprintf(stderr,
-                         "[tl-audio-bus][诊断] voices=0 但场景有轨道："
+                         "tl-audio-bus:[诊断] voices=0 但场景有轨道："
                          "t_us=%lld tracks=%zu\n",
                          static_cast<long long>(t_us),
                          scene->timeline.tracks.size());
@@ -320,7 +320,7 @@ void TimelineAudioBusHost::loop() {
             static_cast<qint64>(std::llround(fps))) {
             last_voice_diag_clock_ = clock;
             std::fprintf(stderr,
-                         "[tl-audio-bus] t=%.2fs voices=%zu buses=%d "
+                         "tl-audio-bus: t=%.2fs voices=%zu buses=%d "
                          "ts=%lld lvl=%.3f\n",
                          static_cast<double>(t_us) / 1e6,
                          voices_.size(),

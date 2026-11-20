@@ -350,7 +350,7 @@ SceneCanvasWidget::SceneCanvasWidget(QWidget* parent) : QOpenGLWidget(parent) {
                 const auto us = std::chrono::duration_cast<
                     std::chrono::microseconds>(
                     std::chrono::steady_clock::now() - pump_t0).count();
-                std::fprintf(stderr, "[canvas-dbg] pumpTick cost=%lldus\n",
+                std::fprintf(stderr, "canvas-dbg: pumpTick cost=%lldus\n",
                              (long long)us);
                 std::fflush(stderr);
             }
@@ -375,7 +375,7 @@ SceneCanvasWidget::SceneCanvasWidget(QWidget* parent) : QOpenGLWidget(parent) {
                         std::chrono::milliseconds>(
                         std::chrono::steady_clock::now().time_since_epoch() -
                         std::chrono::microseconds(enq_us)).count();
-                    std::fprintf(stderr, "[canvas-dbg] loopLag=%lldms\n",
+                    std::fprintf(stderr, "canvas-dbg: loopLag=%lldms\n",
                                  (long long)lag_ms);
                     std::fflush(stderr);
                 });
@@ -426,11 +426,11 @@ SceneCanvasWidget::SceneCanvasWidget(QWidget* parent) : QOpenGLWidget(parent) {
         QTimer::singleShot(3000, this, [this, path] {
             const QImage img = grabFramebuffer();
             if (img.save(path))
-                std::fprintf(stderr, "[canvas-shot] 已保存 %s (%dx%d)\n",
+                std::fprintf(stderr, "canvas-shot: 已保存 %s (%dx%d)\n",
                              path.toLocal8Bit().constData(), img.width(),
                              img.height());
             else
-                std::fprintf(stderr, "[canvas-shot] 保存失败: %s\n",
+                std::fprintf(stderr, "canvas-shot: 保存失败: %s\n",
                              path.toLocal8Bit().constData());
             std::fflush(stderr);
         });
@@ -457,7 +457,7 @@ void SceneCanvasWidget::paintEvent(QPaintEvent* event) {
                 std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - pe_t0).count();
             std::fprintf(stderr,
-                         "[canvas-dbg] paintEvent#%d cost=%lldus wall=%lld\n",
+                         "canvas-dbg: paintEvent#%d cost=%lldus wall=%lld\n",
                          s_n, (long long)us, (long long)wall);
             std::fflush(stderr);
         }
@@ -772,7 +772,13 @@ void SceneCanvasWidget::setTimelineWidget(BaseTimelineWidget* tw) {
             this, [this](const QModelIndex& cur, const QModelIndex&) {
         if (!adapter_) return;
         int tr = -1, cl = -1;
-        if (!adapter_->workClipIndices(cur, &tr, &cl)) return;
+        // current 离开片段（清空/轨道行/无效）→ 画布选中同步作废
+        //（【2026-11-20 单片段选中卡死修复】配对时间轴端 mousePress
+        // 显式清 current——否则画布/属性面板残留旧片段选中）
+        if (!adapter_->workClipIndices(cur, &tr, &cl)) {
+            highlight(0, -1);
+            return;
+        }
         highlight(4, tr, cl);
     });
 }
@@ -799,7 +805,9 @@ void SceneCanvasWidget::setDisplayConnect(int screen_idx, bool connect_) {
 }
 
 void SceneCanvasWidget::statusTip(const QString& text) {
-    qDebug().noquote() << "ms-canvas: " << text;
+    // 画布操作提示静默（2026-11-20 用户要求取消 qDebug 打印）——
+    // 调用点保留作提示汇聚点，未来接状态栏时可一处启用
+    Q_UNUSED(text);
 }
 
 void SceneCanvasWidget::refreshViews() {
@@ -857,11 +865,11 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
     const std::string old_pid = scr.player_id;
     // warp 取消还原基准（实时预览：编辑中会先写工作副本）
     const ScreenWarp warp_backup = scr.warp;
-    // 几何取消还原基准（同 warp 语义——取消时还原十二字段：几何八字段
+    // 几何取消还原基准（同 warp 语义——取消时还原十一字段：几何八字段
     // 含屏姿态 + 输出校色四字段 2026-11-20）
-    const double geo_backup[12] = {
+    const double geo_backup[11] = {
         scr.x, scr.y, scr.w, scr.h, scr.rotation,
-        static_cast<double>(scr.z), scr.rot_x, scr.rot_y,
+        scr.rot_x, scr.rot_y,
         scr.rgb_gain[0], scr.rgb_gain[1], scr.rgb_gain[2], scr.gamma};
 
     // 登记执行体（OK 对账用；2026-11-17 绑定简化为纯确认制）：prev_pid
@@ -936,22 +944,20 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
                 s.x != geo_backup[0] || s.y != geo_backup[1] ||
                 s.w != geo_backup[2] || s.h != geo_backup[3] ||
                 s.rotation != geo_backup[4] ||
-                s.z != static_cast<int>(geo_backup[5]) ||
-                s.rot_x != geo_backup[6] || s.rot_y != geo_backup[7] ||
-                s.rgb_gain[0] != geo_backup[8] ||
-                s.rgb_gain[1] != geo_backup[9] ||
-                s.rgb_gain[2] != geo_backup[10] ||
-                s.gamma != geo_backup[11];
+                s.rot_x != geo_backup[5] || s.rot_y != geo_backup[6] ||
+                s.rgb_gain[0] != geo_backup[7] ||
+                s.rgb_gain[1] != geo_backup[8] ||
+                s.rgb_gain[2] != geo_backup[9] ||
+                s.gamma != geo_backup[10];
             if (warp_changed) s.warp = warp_backup;
             if (geo_changed) {
                 s.x = geo_backup[0]; s.y = geo_backup[1];
                 s.w = geo_backup[2]; s.h = geo_backup[3];
                 s.rotation = geo_backup[4];
-                s.z = static_cast<int>(geo_backup[5]);
-                s.rot_x = geo_backup[6]; s.rot_y = geo_backup[7];
+                s.rot_x = geo_backup[5]; s.rot_y = geo_backup[6];
                 for (int i = 0; i < 3; ++i)
-                    s.rgb_gain[i] = geo_backup[8 + i];
-                s.gamma = geo_backup[11];
+                    s.rgb_gain[i] = geo_backup[7 + i];
+                s.gamma = geo_backup[10];
             }
             if (warp_changed || geo_changed) refreshViews();
             break;
@@ -1036,7 +1042,7 @@ void SceneCanvasWidget::deleteScreen(int screen_idx) {
     scene_->screens.erase(scene_->screens.begin() + screen_idx);
     if (preview_) preview_->invalidate();
     update();
-    qDebug() << QStringLiteral("[ms-canvas] 删除屏幕 %1")
+    qDebug() << QStringLiteral("ms-canvas: 删除屏幕 %1")
                 .arg(QString::fromStdString(id));
 }
 
@@ -1551,7 +1557,7 @@ QRectF SceneCanvasWidget::clipRect(int track_idx, int clip_idx) const {
 // 的 screen + 承担"时间轴已选中片段"的空间编辑（hitSelectedClip 特判，
 // 见 mousePressEvent——时间轴选谁，画布摆哪）。
 //
-// 屏幕命中：z 大者优先（多屏重叠取上层；同 z 取数组序靠后）；3D 取视深
+// 屏幕命中：多屏重叠取数组序靠后者（数组序 = 绘制序，覆盖关系一致）；
 // 最近者（正交投影下"离相机近 = 视觉遮挡在上"）。
 // ---------------------------------------------------------------------------
 SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
@@ -1588,22 +1594,22 @@ SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
 
     const QPointF cp = widgetToCanvas(widget_pos);
 
-    // ---- 2D 屏幕：z 大者优先（多屏重叠取上层；同 z 取数组序靠后）----
+    // ---- 2D 屏幕：重叠取数组序靠后（与绘制序一致）----
     // 姿态屏（俯仰/偏航非 0）：quadCorners3DP 透视压平四角 AABB（2026-11-20
     // 与素材统一走全局仪）——透视四边形可能非凸，AABB 简单可靠（与
     // clipRectContains 姿态分支同策略同源）
     int best_scr = -1;
-    int best_scr_z = -1'000'000'00;
+    // Show 全局透视仪（场景级常量——循环外求值一次）
+    double hit_ef = 0.0, hit_evx = 0.0, hit_evy = 0.0;
+    scene_->effectivePersp(hit_ef, hit_evx, hit_evy);
     for (int i = 0; i < (int)scene_->screens.size(); ++i) {
         const Screen& s = scene_->screens[i];
         bool hit;
         if (s.rot_x != 0.0 || s.rot_y != 0.0) {
-            double ef = 0.0, evx = 0.0, evy = 0.0;
-            scene_->effectivePersp(ef, evx, evy);
             double wx[4], wy[4];
             cg::quadCorners3DP(s.x, s.y, s.w, s.h, 0.0, s.rotation,
                                s.rot_x, s.rot_y, 0, nullptr,
-                               ef, evx, evy, wx, wy, nullptr);
+                               hit_ef, hit_evx, hit_evy, wx, wy, nullptr);
             double minx = wx[0], miny = wy[0], maxx = wx[0], maxy = wy[0];
             for (int k = 1; k < 4; ++k) {
                 minx = std::min(minx, wx[k]);
@@ -1617,10 +1623,7 @@ SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
             hit = rectHit(QRectF(s.x, s.y, s.w, s.h), s.rotation, cp);
         }
         if (!hit) continue;
-        if (best_scr < 0 || s.z >= best_scr_z) {
-            best_scr = i;
-            best_scr_z = s.z;
-        }
+        best_scr = i; // 重叠取数组序靠后（后命中者覆盖前者）
     }
     if (best_scr >= 0) return Selection{1, best_scr, -1};
 
@@ -1686,18 +1689,12 @@ int SceneCanvasWidget::hitResizeHandle(const QPointF& widget_pos) const {
     // 只对"已选中对象"生效：手柄语义 = 操作当前选中（与选中框同现同隐）
     // 【2026-11-20 交互优化】素材四角手柄改义为角点位移拖拽（hitClipCorner
     // Handle）——矩形角点缩放仅保留银幕（Screen 无角点位移语义）
-    if (sel_.kind == 4) return -1;
+    if (sel_.kind == 4) return -1; // 素材缩放柄退役恒 -1（角点/边线柄见
+                                   // hitClipCornerHandle/hitClipEdgeHandle）
     QRectF r;
     double rot = 0.0;
     if (!selectionCanvasRect(&r, &rot)) return -1;
     if (r.width() <= 0 || r.height() <= 0) return -1;
-    // 变形片段（锚点/角点）手柄隐藏：角点缩放语义在变形四边形上未定义
-    //（手柄画在未位移角会与边框分离——宁缺勿错，角点拖拽后续版本实现）
-    if (sel_.kind == 4) {
-        const Clip& c = scene_->timeline.tracks[sel_.a].clips[sel_.b];
-        const Transform tf = clipResolvedTransform(c);
-        if (tf.anchor != 0 || tf.cornerActive()) return -1;
-    }
     // 姿态屏（俯仰/偏航非 0）：柄随绘制同隐（透视四边形无矩形柄语义，
     // 与 drawScreen 姿态分支同现同隐；拖动平移不受影响）
     if (sel_.kind == 1) {
@@ -1986,7 +1983,7 @@ void SceneCanvasWidget::paintGL() {
                 const auto us = std::chrono::duration_cast<
                     std::chrono::microseconds>(
                     std::chrono::steady_clock::now() - t0).count();
-                std::fprintf(stderr, "[canvas-dbg] paintGL cost=%lldus\n",
+                std::fprintf(stderr, "canvas-dbg: paintGL cost=%lldus\n",
                              (long long)us);
                 std::fflush(stderr);
             }
@@ -2036,7 +2033,7 @@ void SceneCanvasWidget::paintGL() {
                 for (const auto& it : gpu_items)
                     if (!it.frame.isNull() || it.dxt) ++nn;
                 std::fprintf(stderr,
-                             "[canvas-dbg] paint#%d pull=%d composed=%d "
+                             "canvas-dbg: paint#%d pull=%d composed=%d "
                              "items=%zu withFrame=%d comp=%dx%d dom=(%.0f,%.0f "
                              "%+.0fx%+.0f)\n",
                              s_cnt, preview_ ? 1 : 0, (int)composed,
@@ -2057,7 +2054,7 @@ void SceneCanvasWidget::paintGL() {
         if (s_nomark && composed) {
             static int s_n = 0;
             if (++s_n <= 10)
-                std::fprintf(stderr, "[canvas-dbg] paint#%d 标注层跳过（诊断）\n",
+                std::fprintf(stderr, "canvas-dbg: paint#%d 标注层跳过（诊断）\n",
                              s_n), std::fflush(stderr);
             return;
         }
@@ -2176,17 +2173,9 @@ void SceneCanvasWidget::paintGL() {
     // screens：输出区域标注（真实帧模式下不填屏体底色——避免遮住画面）。
     // 按 z 升序绘制（多屏重叠时大 z 在上层，与叠放语义一致）
     {
-        std::vector<int> scr_order;
-        scr_order.reserve(scene_->screens.size());
-        for (int i = 0; i < (int)scene_->screens.size(); ++i)
-            scr_order.push_back(i);
-        std::stable_sort(scr_order.begin(), scr_order.end(),
-                         [this](int a, int b) {
-                             return scene_->screens[a].z <
-                                    scene_->screens[b].z;
-                         });
+        // 绘制序 = 数组序（多屏重叠时靠后者覆盖靠前者，与命中一致）
         const bool no_frame = latest_frame_.isNull() && !composed;
-        for (int i : scr_order)
+        for (int i = 0; i < (int)scene_->screens.size(); ++i)
             drawScreen(p, i, sel_.kind == 1 && sel_.a == i, no_frame);
     }
 
@@ -2280,60 +2269,6 @@ void SceneCanvasWidget::paintGL() {
 // ---------------------------------------------------------------------------
 // 【Display 面片贴图 2026-11-18 → 退役 2026-11-20 用户定案】曾把
 // GpuDeliver 逐项交付合成"全局 Eye 总画面" QImage，供 3D 视口屏幕面片
-// 按各自窗口 UV 裁切贴图。用户定案：display 在预览中不显示任何画面，
-// 只是银幕位置的取景框——面片贴图链整体退役，本函数已无消费者
-//（保留归档勿再引用；backup-stage-paradigm-1120 纪律）。
-[[maybe_unused]] static QImage composeCanvasFrame(
-        const std::vector<PreviewRenderer::DeliverItem>& items,
-        int comp_w, int comp_h, const QRectF& dom) {
-    QImage out;
-    if (comp_w <= 0 || comp_h <= 0 || dom.width() <= 0 || dom.height() <= 0)
-        return out;
-    // RGBA8888 字节序（小端 = R,G,B,A）——与 Canvas3DGl TexData.rgba
-    // 及 GlRenderer CpuRgba 契约一致（ARGB32_Premultiplied 在 x86 是
-    // BGRA 内存序，直传会红蓝互换）
-    out = QImage(comp_w, comp_h, QImage::Format_RGBA8888);
-    out.fill(QColor(0x1A, 0x1A, 0x1A, 0xFF));
-    QPainter cp(&out);
-    cp.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    for (const auto& it : items) {
-        QImage lazy;
-        if (it.frame.isNull() && it.dxt) {
-            lazy = QImage((int)it.gpu_w, (int)it.gpu_h,
-                          QImage::Format_RGBA8888);
-            if (!lazy.isNull())
-                dxtref::decodeToRgba(
-                    (int)it.gpu_w, (int)it.gpu_h, it.dxt,
-                    /*dxt5=*/it.dxt_format == 0x83F3, lazy.bits(),
-                    static_cast<std::size_t>(lazy.bytesPerLine()));
-        }
-        const QImage& f = !it.frame.isNull() ? it.frame : lazy;
-        if (f.isNull()) continue;
-        const QRectF src(
-            it.item.crop_u0 * f.width(),
-            it.item.crop_v0 * f.height(),
-            (it.item.crop_u1 - it.item.crop_u0) * f.width(),
-            (it.item.crop_v1 - it.item.crop_v0) * f.height());
-        // 合成域坐标 → 图像像素（item.x/y/w/h 已在合成域 0..comp_w）
-        const QRectF dst(it.item.x, it.item.y, it.item.w, it.item.h);
-        cp.setOpacity(std::clamp(it.item.opacity, 0.0, 1.0));
-        if (it.item.affine && it.item.canvas_w > 0 && it.item.canvas_h > 0) {
-            const QPointF c(dst.center());
-            cp.save();
-            cp.translate(c);
-            cp.rotate(it.item.rotation);
-            cp.drawImage(QRectF(-dst.width() / 2.0, -dst.height() / 2.0,
-                                dst.width(), dst.height()), f, src);
-            cp.restore();
-        } else {
-            cp.drawImage(dst, f, src);
-        }
-    }
-    cp.setOpacity(1.0);
-    cp.end();
-    return out;
-}
-
 void SceneCanvasWidget::paintGL3D(
         const std::vector<PreviewRenderer::DeliverItem>& items,
         int comp_w, int comp_h, const QRectF& dom) {
@@ -2341,8 +2276,7 @@ void SceneCanvasWidget::paintGL3D(
     p.setRenderHint(QPainter::Antialiasing, true);
 
     // 【Display 面片贴图源退役 2026-11-20 用户定案】不再合成全局 Eye 总
-    // 画面——display 在预览中不显示任何画面，只是银幕位置的取景框
-    //（composeCanvasFrame 链已退役，见其函数头注释）。
+    // 画面——display 在预览中不显示任何画面，只是银幕位置的取景框。
     // comp_w/comp_h/dom 参数保留（接口稳定，当前无消费者）。
 
     // ---- 0. 每帧同步绝对比例 = fitScale × view3d_zoom_ ----------------------
@@ -2462,6 +2396,9 @@ void SceneCanvasWidget::paintGL3D(
         double cuv[4] = {0, 0, 1, 1}; // 帧采样 UV 窗 {u0,v0,u1,v1}（归一化；
                                       // 全 0/1 = 未裁切——GL/QPainter 两
                                       // 路同消费，与 display 同式）
+        Transform tf;          // tween 解算快照（收集期求值一次——绘制期
+                               // 透明度/调色/吊线/选中标注直接复用，消除
+                               // 每帧每片段多次全通道重解算）
     };
     // 【display/cue 关系 2026-11-05 用户定案】display 是"取景器"而非实体：
     // 没有 Z 设置、不参与 cue 遮挡排序、无颜色填充只画边框、恒绘制在
@@ -2471,6 +2408,9 @@ void SceneCanvasWidget::paintGL3D(
     // display 投影四边形（收集后于所有 cue 绘制完再画——恒最上层）
     std::vector<std::pair<int, QPolygonF>> screen_quads;
     screen_quads.reserve(scene_->screens.size());
+    // Show 全局透视仪（场景级常量——循环外求值一次）
+    double quad_ef = 0.0, quad_evx = 0.0, quad_evy = 0.0;
+    scene_->effectivePersp(quad_ef, quad_evx, quad_evy);
     for (int i = 0; i < (int)scene_->screens.size(); ++i) {
         const Screen& s = scene_->screens[i];
         if (s.w <= 0 || s.h <= 0) continue;
@@ -2478,17 +2418,14 @@ void SceneCanvasWidget::paintGL3D(
         // 非 0 → 取景框 = quadCorners3DP 透视压平四角（与素材 posed 分支
         // 完全同模式同源：针孔压扁近大远小 + 滚转 + Show 全局透视仪
         // Scene::effectivePersp 全部烘焙，压平后画布域四角逐角贴地
-        // z=0——display 取景器无高度语义）；旧 quadCorners3D 兼容转发
-        //（隐含对象透视、不消费全局仪）退役。
+        // z=0——display 取景器无高度语义）。
         // 无姿态 → 历史 projectQuad 逐位（纯滚转含锚点/位移同路径）。
         if (s.rot_x != 0.0 || s.rot_y != 0.0) {
-            double ef = 0.0, evx = 0.0, evy = 0.0;
-            scene_->effectivePersp(ef, evx, evy);
             double wx[4], wy[4];
             cg::quadCorners3DP(
                 s.x, s.y, s.w, s.h, 0.0 /*取景窗无深度*/, s.rotation,
                 s.rot_x, s.rot_y, 0 /*锚=中心*/, nullptr,
-                ef, evx, evy, wx, wy, nullptr);
+                quad_ef, quad_evx, quad_evy, wx, wy, nullptr);
             QPolygonF q(4);
             for (int k = 0; k < 4; ++k)
                 q[k] = project3(wx[k], 0.0, wy[k]);
@@ -2530,9 +2467,8 @@ void SceneCanvasWidget::paintGL3D(
             // 只进 display（ScreenMapper pose3d 链），3D 视图画面恒为
             // 2D 矩形（用户体感"XY 旋转无效"）；deformed 含 posed 后
             // 贴图/棋盘格/边框/选中框自动走四边形本体路径（pr.quad）。
-            // 【2026-11-18 正交开关退役】3D 视口恒真 3D 世界四角站立
-            //（quadCorners3DWorld——空间真相，Watchout Stage 观感）；
-            // 成品画面预览由 display 面片常驻贴图承担，压扁薄片路径删除。
+            // 【2026-11-20 透视压平统一】3D 视口素材四角 = quadCorners3DP
+            // 透视压平（与 display ScreenMapper 同源）。
             const bool posed  = tf.pose3DActive();
             const bool deformed =
                 posed || tf.anchor != 0 || tf.cornerActive();
@@ -2546,17 +2482,15 @@ void SceneCanvasWidget::paintGL3D(
                 // 呈梯形（近大远小）；内容透视压缩由 GL 贴图路径
                 //（Canvas3DGl::drawClipFace 屏幕四点单应）精确复现，
                 // QPainter 兜底为两三角仿射分块（与 SoftRenderer 同构）。
-                // 正交站立路径（quadCorners3DWorld——正交轨道相机下旋转
-                // 观感为平行四边形，用户目验不认可）退役；该函数已无
-                // 消费者。
-                double ef = 0.0, evx = 0.0, evy = 0.0;
-                scene_->effectivePersp(ef, evx, evy);
+                // 【性能】effectivePersp 是场景级常量（循环外已求值一次
+                // ——quad_ef/quad_evx/quad_evy），此处直接复用。
                 double wx[4], wy[4];
                 cg::quadCorners3DP(r.x(), r.y(), r.width(), r.height(),
                                    tf.pos_z, tf.rotation, tf.rot_x,
                                    tf.rot_y, tf.anchor,
                                    tf.cornerActive() ? tf.corner : nullptr,
-                                   ef, evx, evy, wx, wy, nullptr);
+                                   quad_ef, quad_evx, quad_evy, wx, wy,
+                                   nullptr);
                 for (int i = 0; i < 4; ++i)
                     q[i] = project3(wx[i], 0.0, wy[i]); // 压平贴地 → 舞台相机
             } else {
@@ -2565,12 +2499,16 @@ void SceneCanvasWidget::paintGL3D(
             }
             // 仿射（画布局部 (0,0)-(w,h) → 投影平行四边形）：三对应点。
             // 列向量 = (P1−P0)/w 与 (P3−P0)/h——正交投影保平行性，此
-            // 变换精确（无透视分量），QTransform 仿射足够
-            QTransform m((q[1].x() - q[0].x()) / r.width(),
-                         (q[1].y() - q[0].y()) / r.width(),
-                         (q[3].x() - q[0].x()) / r.height(),
-                         (q[3].y() - q[0].y()) / r.height(),
-                         q[0].x(), q[0].y());
+            // 变换精确（无透视分量），QTransform 仿射足够。
+            // 【条件化】变形片段贴图走两三角分块（pr.tex 不消费），恒等
+            // 占位即可（调试探针的 mapRect 读数对 deformed 无意义）
+            QTransform m = deformed
+                ? QTransform()
+                : QTransform((q[1].x() - q[0].x()) / r.width(),
+                             (q[1].y() - q[0].y()) / r.width(),
+                             (q[3].x() - q[0].x()) / r.height(),
+                             (q[3].y() - q[0].y()) / r.height(),
+                             q[0].x(), q[0].y());
             const PreviewRenderer::DeliverItem* matched = matchTex(c.id);
             // 视觉高度：透视压平后旋转诱导深度已烘焙进四角几何（近大
             // 远小由四角位置表达），面片贴地无空间高度——pos_z 恒 0，
@@ -2583,7 +2521,7 @@ void SceneCanvasWidget::paintGL3D(
                              (matched && !matched->frame.isNull())
                                  ? &matched->frame : nullptr,
                              matched, deformed, r,
-                             {cuv[0], cuv[1], cuv[2], cuv[3]}});
+                             {cuv[0], cuv[1], cuv[2], cuv[3]}, tf});
         }
     }
     // 【遮挡排序 2026-11-18 语义终定】cue 间遮挡主键 = 叠放层级 transform.z
@@ -2607,14 +2545,14 @@ void SceneCanvasWidget::paintGL3D(
             for (const auto& t : scene_->timeline.tracks)
                 nclip += (int)t.clips.size();
             std::fprintf(stderr,
-                         "[canvas-3d] paint#%d tracks=%d clips=%d prims=%zu "
+                         "canvas-3d: paint#%d tracks=%d clips=%d prims=%zu "
                          "scale=%.3f t=(%.0f,%.0f) items=%zu\n",
                          s_n, (int)scene_->timeline.tracks.size(), nclip,
                          prims.size(), cam3d_.scale, cam3d_.tx, cam3d_.tz,
                          items.size());
             for (size_t ti = 0; ti < items.size() && ti < 4; ++ti) {
                 std::fprintf(stderr,
-                             "[canvas-3d]   item#%zu frame_null=%d "
+                             "canvas-3d:   item#%zu frame_null=%d "
                              "native=%d gpu=%dx%d z=%d\n",
                              ti, (int)items[ti].frame.isNull(),
                              (int)(items[ti].native != nullptr),
@@ -2625,7 +2563,7 @@ void SceneCanvasWidget::paintGL3D(
                     const QRgb   px  = f.pixel(0, 0);
                     const QRgb   px2 = f.pixel(f.width() / 2, f.height() / 2);
                     std::fprintf(stderr,
-                                 "[canvas-3d]     frame %dx%d fmt=%d "
+                                 "canvas-3d:     frame %dx%d fmt=%d "
                                  "px(0,0)=(%d,%d,%d,a%d) px(mid)=(%d,%d,%d,a%d)\n",
                                  f.width(), f.height(), (int)f.format(),
                                  qRed(px), qGreen(px), qBlue(px), qAlpha(px),
@@ -2636,7 +2574,7 @@ void SceneCanvasWidget::paintGL3D(
             for (const Prim& q : prims) {
                 if (q.kind != 4) continue;
                 std::fprintf(stderr,
-                             "[canvas-3d]   clip prim depth=%.0f "
+                             "canvas-3d:   clip prim depth=%.0f "
                              "center=(%.0f,%.0f)\n",
                              q.depth, q.quad[0].x(), q.quad[0].y());
             }
@@ -2651,8 +2589,9 @@ void SceneCanvasWidget::paintGL3D(
             const Clip&   c = scene_->timeline.tracks[pr.a].clips[pr.b];
             const QRectF r = pr.vis; // 裁切后可见矩形（构建期已解算——
                                      // 与面片几何/贴图同源）
-            // tween 求值统一入口（本片段绘制全程共用：透明度/选中标注）
-            const Transform tf = clipResolvedTransform(c);
+            // tween 求值统一入口：读收集期快照（Prim.tf——本片段绘制全程
+            // 共用：透明度/调色/吊线/选中标注，不再全通道重解算）
+            const Transform& tf = pr.tf;
             const bool    sel = (sel_.kind == 4 && sel_.a == pr.a &&
                                  sel_.b == pr.b);
             // 类型色（与 2D 路径/时间轴同组色源——trackKindColor 单点维护）
@@ -2681,7 +2620,7 @@ void SceneCanvasWidget::paintGL3D(
                     QRectF mb = pr.tex.mapRect(QRectF(0, 0, r.width(),
                                                       r.height()));
                     std::fprintf(stderr,
-                                 "[canvas-3d] draw#%d clip=(%s) img=%s(%dx%d) "
+                                 "canvas-3d: draw#%d clip=(%s) img=%s(%dx%d) "
                                  "texs=%zu z=%d texmap=(%.0f,%.0f %.0fx%.0f) "
                                  "opa=%.2f\n",
                                  s_n, c.id.c_str(),
@@ -2954,13 +2893,12 @@ void SceneCanvasWidget::paintGL3D(
                 p.setPen(QPen(QColor(0xFF, 0x33, 0x33), 1.6, Qt::DashLine));
                 p.setBrush(Qt::NoBrush);
                 if (s.rot_x != 0.0 || s.rot_y != 0.0) {
-                    double ef = 0.0, evx = 0.0, evy = 0.0;
-                    scene_->effectivePersp(ef, evx, evy);
+                    // effectivePersp 场景级常量复用（循环外 quad_* 已求值）
                     double wx[4], wy[4];
                     cg::quadCorners3DP(
                         s.x - 2.5, s.y - 2.5, s.w + 5.0, s.h + 5.0,
                         0.0, s.rotation, s.rot_x, s.rot_y, 0, nullptr,
-                        ef, evx, evy, wx, wy, nullptr);
+                        quad_ef, quad_evx, quad_evy, wx, wy, nullptr);
                     QPolygonF box(4);
                     for (int k = 0; k < 4; ++k)
                         box[k] = project3(wx[k], 0.0, wy[k]);
@@ -3040,7 +2978,7 @@ void SceneCanvasWidget::paintGL3D(
         p.setFont(f);
     }
     p.drawText(QRectF(8, 6, width() - 16, 16), Qt::AlignLeft | Qt::AlignTop,
-               "2D 视图 · Ctrl+滚轮缩放 · 左键空白/中键平移 · 双击空白复位");
+               "滚轮缩放 · 左键空白/中键平移 · 双击空白复位");
 }
 
 // ---------------------------------------------------------------------------
@@ -3071,7 +3009,7 @@ bool SceneCanvasWidget::composeGpuFrame(
         gl_ = std::make_unique<GlRenderer>(
             GlRenderer::ExternalCtxTag{},
             preview_ ? preview_->gpuDeliveryFlag() : nullptr);
-        std::fprintf(stderr, "[canvas] 预览 GL 合成器创建（ExternalCtx）\n");
+        std::fprintf(stderr, "canvas: 预览 GL 合成器创建（ExternalCtx）\n");
         std::fflush(stderr);
     }
     if (gl_->failed()) return false; // 初始化失败：调用方走 QPainter 回退
@@ -3125,7 +3063,7 @@ bool SceneCanvasWidget::composeGpuFrame(
             static int s_cnt = 0;
             if (++s_cnt % 30 == 1)
                 std::fprintf(stderr,
-                             "[canvas-dbg] compose#%d items=%zu "
+                             "canvas-dbg: compose#%d items=%zu "
                              "vp=(%d,%d %dx%d) comp=%dx%d fbo=%dx%d "
                              "dpr=%.2f dom=(%.0f,%.0f %.0fx%.0f)\n",
                              s_cnt, items.size(), vx, vy, vw, vh,
@@ -3257,7 +3195,7 @@ void SceneCanvasWidget::drawClip(QPainter& p, int tr, int cl,
                 const QPointF ctr = r.center();
                 const double hw = r.width() / 2.0, hh = r.height() / 2.0;
                 std::fprintf(stderr,
-                             "[clip-dbg] drawClip#%d id=%s r=(%.1f,%.1f %.1fx%.1f) "
+                             "clip-dbg: drawClip#%d id=%s r=(%.1f,%.1f %.1fx%.1f) "
                              "rot=%.1f corners=", s_cnt, c.id.c_str(),
                              r.x(), r.y(), r.width(), r.height(),
                              tf.rotation);
@@ -3358,10 +3296,10 @@ void SceneCanvasWidget::drawClip(QPainter& p, int tr, int cl,
                QString::fromStdString(c.id));
 
     if (selected) { // 选中标注：素材手柄（2026-11-20 统一交互优化）
-        // 视觉四角/边线 = 正交扁平化投影（与画面同源不分离——变形片段
-        // 手柄跟随位移四角）：四角 = 角点位移拖拽、四边 = 尺寸缩放（实
-        // 线可抓）。原「红虚线+隐藏手柄」与「标称虚线框+矩形缩放柄」
-        // 两条分叉在此收敛为一条。
+        // 视觉四角/边线 = clipVisualQuadCanvas 透视投影（2026-11-20 定案；
+        // 与画面同源不分离——变形片段手柄跟随位移四角）：四角 = 角点位移
+        // 拖拽、四边 = 尺寸缩放（实线可抓）。原「红虚线+隐藏手柄」与
+        // 「标称虚线框+矩形缩放柄」两条分叉在此收敛为一条。
         QPolygonF quad_c = clipVisualQuadCanvas(c, tf);
         QPolygonF quad_w;
         quad_w.reserve(4);
@@ -4301,7 +4239,7 @@ void SceneCanvasWidget::wheelEvent(QWheelEvent* ev) {
             static int s_cnt = 0;
             if (++s_cnt <= 20)
                 std::fprintf(stderr,
-                             "[canvas-dbg] wheel#%d mods=0x%x "
+                             "canvas-dbg: wheel#%d mods=0x%x "
                              "dy=%d pos=(%.0f,%.0f)\n",
                              s_cnt, (unsigned)ev->modifiers(),
                              ev->angleDelta().y(), ev->position().x(),
@@ -4332,8 +4270,7 @@ void SceneCanvasWidget::wheelEvent(QWheelEvent* ev) {
         panAnchorTo(ev->position(), anchor); // 光标下地面点保持不动
         update();
         statusTip(
-            QString("视图 %1%（3D · 右键拖拽旋转 · 左键空白/中键平移 · "
-                    "双击空白复位）")
+            QString("视图 %1%（滚轮缩放 · 左键空白/中键平移 · 双击空白复位）")
                 .arg((int)std::lround(view3d_zoom_ * 100.0)));
         return;
     }

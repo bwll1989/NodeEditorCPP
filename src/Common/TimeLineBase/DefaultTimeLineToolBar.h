@@ -59,6 +59,9 @@ signals:
     void stopClicked();
     /// 【循环 2026-11-16】loop 开关翻转（用户点击；宿主接 TimelinePlaybackController）
     void loopToggled(bool on);
+    /// 【Add Track 2026-11-20】新增无类型轨道（宿主/视图接
+    /// BaseTimeLineModel::onAddTrack(QString())——轨道列表右键菜单同接口）
+    void addTrackClicked();
 
 public slots:
     /// 外部播放状态回显（图标/tooltip 与实际播放态对齐）
@@ -96,6 +99,7 @@ private:
     QAction* m_playAction {nullptr};
     QAction* m_stopAction {nullptr};
     QAction* m_loopAction {nullptr};        ///< 循环开关（2026-11-16 接线回归）
+    QAction* m_addTrackAction {nullptr};    ///< 新增轨道（2026-11-20 接线在视图 initToolBar）
     QAction* m_currentFrameAction {nullptr}; ///< 当前帧拖拽入口（纯地址载体）
     bool m_isPlaying = false;
     bool m_isLooping = false;               ///< 循环模式（回显态与 m_loopAction 同步）

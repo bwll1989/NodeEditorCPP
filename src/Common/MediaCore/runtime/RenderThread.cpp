@@ -156,14 +156,14 @@ RenderThread::RenderThread(Config cfg, SceneProvider scene_fn,
         if (!audio_engine_->start(ms::AudioSpec{})) {
             // 真实输出打开失败（设备被独占/无设备）→ Null 兑底重试
             std::fprintf(stderr,
-                         "[render:%s] W-音频输出打开失败，回退静音输出"
+                         "render:%s: W-音频输出打开失败，回退静音输出"
                          "（电平链路照常）\n",
                          cfg_.player_id.c_str());
             audio_engine_->attach(std::make_unique<NullAudioOutput>());
             if (!audio_engine_->start(ms::AudioSpec{}))
                 audio_engine_.reset(); // 连 Null 都失败 = 放弃音频
         } else {
-            std::printf("[render:%s] 音频输出: %s\n",
+            std::printf("render:%s: 音频输出: %s\n",
                         cfg_.player_id.c_str(),
                         audio_engine_->outputName());
         }
@@ -196,7 +196,7 @@ void RenderThread::start() {
         std::error_code ec;
         std::filesystem::create_directories(cfg_.capture_dir, ec);
         if (ec)
-            std::fprintf(stderr, "[render:%s] 捕获目录创建失败: %s (%s)\n",
+            std::fprintf(stderr, "render:%s: 捕获目录创建失败: %s (%s)\n",
                          cfg_.player_id.c_str(), cfg_.capture_dir.c_str(),
                          ec.message().c_str());
     }
@@ -236,7 +236,7 @@ void RenderThread::loop() {
     if (cfg_.backend_factory)
         backend_ = cfg_.backend_factory();
     if (backend_)
-        std::printf("[render:%s] 合成后端: %s\n", cfg_.player_id.c_str(),
+        std::printf("render:%s: 合成后端: %s\n", cfg_.player_id.c_str(),
                     typeid(*backend_).name());
 
     // ---- 启动即建窗（2026-11-04 回归修复）----------------------------------
@@ -249,10 +249,10 @@ void RenderThread::loop() {
     // 失败仅留日志——后端内部 failed_ 让后续 beginFrame 走各自降级路径。
     if (backend_) {
         if (backend_->ensureReady())
-            std::printf("[render:%s] 输出窗口已就绪（等待 Editor 下发场景）\n",
+            std::printf("render:%s: 输出窗口已就绪（等待 Editor 下发场景）\n",
                         cfg_.player_id.c_str());
         else
-            std::fprintf(stderr, "[render:%s] 合成后端就绪化失败（输出窗口"
+            std::fprintf(stderr, "render:%s: 合成后端就绪化失败（输出窗口"
                                  "未创建；可回退 --render-backend=soft）\n",
                          cfg_.player_id.c_str());
     }
@@ -292,7 +292,7 @@ void RenderThread::loop() {
                             // 两者都小 → 时间耗在 pump/调度/锁（待细分）。
                             std::fprintf(
                                 stderr,
-                                "[render-probe] 帧间隔 %lld.%lldms"
+                                "render-probe: 帧间隔 %lld.%lldms"
                                 "（>25ms 丢帧）compose=%lluus swap=%lluus\n",
                                 static_cast<long long>(gap / 1000),
                                 static_cast<long long>((gap / 100) % 10),
@@ -355,7 +355,7 @@ void RenderThread::loop() {
                 if (now_ms - s_t0_ms >= 5000) {
                     std::fprintf(
                         stderr,
-                        "[render-probe] 5s 吞吐: 出帧=%lld 拍数=%lld"
+                        "render-probe: 5s 吞吐: 出帧=%lld 拍数=%lld"
                         " 平均拍耗时=%.1fms compose=%lluus swap=%lluus\n",
                         s_frames, s_n,
                         s_n ? static_cast<double>(s_cost_us) / s_n / 1000.0 : 0.0,
@@ -429,7 +429,7 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
                 s_last_active = osd.active;
                 s_last_done   = osd.done;
                 std::fprintf(stderr,
-                             "[osd] state: active=%d done=%d total=%d "
+                             "osd: state: active=%d done=%d total=%d "
                              "file%%=%d\n",
                              osd.active ? 1 : 0, osd.done, osd.total,
                              osd.file_percent);
@@ -467,7 +467,7 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
             if (now_ms - s_last_log_ms > 500) {
                 s_last_log_ms = now_ms;
                 std::fprintf(stderr,
-                             "[render-probe] 快照锁耗时 %lldus（>5ms——"
+                             "render-probe: 快照锁耗时 %lldus（>5ms——"
                              "state_mutex_ 被长持）\n",
                              static_cast<long long>(snap_us));
                 std::fflush(stderr);
@@ -495,7 +495,7 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
             if (now_ms - s_last_warn_ms >= 3000) {
                 s_last_warn_ms = now_ms;
                 std::fprintf(stderr,
-                             "[render:%s] 早退: scene=null（无场景可画）\n",
+                             "render:%s: 早退: scene=null（无场景可画）\n",
                              cfg_.player_id.c_str());
                 std::fflush(stderr);
             }
@@ -605,7 +605,7 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
             if (now_ms - s_last_domain_warn_ms >= 3000) {
                 s_last_domain_warn_ms = now_ms;
                 std::fprintf(stderr,
-                             "[render:%s] W-时钟域差: 本机时钟落后锚点轴原点"
+                             "render:%s: W-时钟域差: 本机时钟落后锚点轴原点"
                              " %.3fs → 渲染兜底跟随本机播放头（锚点轴修复后"
                              "自动回归共享域）\n",
                              cfg_.player_id.c_str(),
@@ -726,7 +726,7 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
                 if (now_ms - s_last_log_ms > 500) {
                     s_last_log_ms = now_ms;
                     std::fprintf(stderr,
-                                 "[render-probe] SwapBuffers 耗时 %lldus"
+                                 "render-probe: SwapBuffers 耗时 %lldus"
                                  "（>25ms 呈现层丢帧）\n",
                                  static_cast<long long>(sw_us));
                     std::fflush(stderr);
@@ -773,7 +773,7 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
         if (now_ms - s_last_hb_ms >= 5000) {
             s_last_hb_ms = now_ms;
             std::fprintf(stderr,
-                         "[render:%s] 帧心跳: t=%.3fs items=%zu drawn=%zu"
+                         "render:%s: 帧心跳: t=%.3fs items=%zu drawn=%zu"
                          " no_frame=%zu state=%d\n",
                          cfg_.player_id.c_str(),
                          static_cast<double>(session_t) / 1e6,
@@ -947,7 +947,7 @@ void RenderThread::audioTick(const Scene& scene, std::int64_t session_t,
     if (audio_voices_.size() != last_voice_cnt_) {
         last_voice_cnt_ = audio_voices_.size();
         std::fprintf(stderr,
-                     "[render] audio voices=%zu t=%.2fs playing=%d\n",
+                     "render: audio voices=%zu t=%.2fs playing=%d\n",
                      audio_voices_.size(),
                      static_cast<double>(session_t) / 1e6,
                      playing ? 1 : 0);
@@ -955,7 +955,7 @@ void RenderThread::audioTick(const Scene& scene, std::int64_t session_t,
         audio_log_div_ = 0;
     } else if (++audio_log_div_ >= 60) { // ≈1s@60fps：电平心跳
         audio_log_div_ = 0;
-        std::fprintf(stderr, "[render] audio lvl=%.4f t=%.2fs\n",
+        std::fprintf(stderr, "render: audio lvl=%.4f t=%.2fs\n",
                      audio_engine_ ? audio_engine_->level() : 0.0f,
                      static_cast<double>(session_t) / 1e6);
         std::fflush(stderr);
@@ -1002,7 +1002,7 @@ bool RenderThread::ensureOutputSize(const Scene& scene,
                     now_ms - last_ratio_warn_ms_ >= 10'000) {
                     last_ratio_warn_ms_ = now_ms;
                     std::fprintf(stderr,
-                                 "[render:%s] 提示: 取景矩形 %.0fx%.0f"
+                                 "render:%s: 提示: 取景矩形 %.0fx%.0f"
                                  "（比例 %.2f）与输出光栅 %dx%d（比例 "
                                  "%.2f）不一致——内容将拉伸铺满（取景只"
                                  "管内容，输出恒 1:1；等比请调整取景矩"
@@ -1070,10 +1070,10 @@ void RenderThread::maybeCapture(std::int64_t now_us) {
     }
     if (have_px && writeBmp(path, cap_w, cap_h, px.data(), stride)) {
         captured_.fetch_add(1, std::memory_order_relaxed);
-        std::printf("[render:%s] 诊断帧: %s\n", cfg_.player_id.c_str(),
+        std::printf("render:%s: 诊断帧: %s\n", cfg_.player_id.c_str(),
                     path.c_str());
     } else {
-        std::fprintf(stderr, "[render:%s] 诊断帧写入失败: %s\n",
+        std::fprintf(stderr, "render:%s: 诊断帧写入失败: %s\n",
                      cfg_.player_id.c_str(), path.c_str());
     }
 }

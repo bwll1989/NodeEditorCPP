@@ -93,6 +93,15 @@ void DefaultTimeLineToolBar::createActions()
         m_isLooping = m_loopAction->isChecked();
         emit loopToggled(m_isLooping);
     });
+
+    // 【Add Track 2026-11-20】新增无类型轨道——点击仅发信号，接线在
+    // BaseTimelineView::initToolBar（getModel()->onAddTrack(QString())，
+    // 轨道列表右键菜单同接口；add.png 资源与该菜单共用）。
+    m_addTrackAction = new QAction(this);
+    m_addTrackAction->setIcon(QIcon(":/icons/icons/add.png"));
+    m_addTrackAction->setToolTip(tr("Add Track"));
+    connect(m_addTrackAction, &QAction::triggered, this,
+            [this]() { emit addTrackClicked(); });
 }
 
 void DefaultTimeLineToolBar::setupUI()
@@ -101,7 +110,9 @@ void DefaultTimeLineToolBar::setupUI()
     addAction(m_stopAction);
     // 循环开关（停止钮右侧；checkable——点亮=播放到头回零续播）
     addAction(m_loopAction);
-    // 当前帧拖拽入口（spring 之前——左簇=播放控制+拖拽源）
+    // 新增轨道（编辑操作簇：点击即建无类型轨道，走模型虚钩子）
+    addAction(m_addTrackAction);
+    // 当前帧拖拽入口（spring 之前——左簇=播放控制+编辑+拖拽源）
     addAction(m_currentFrameAction);
     setMovable(false);
     setIconSize(QSize(toolbarButtonWidth, toolbarButtonWidth));

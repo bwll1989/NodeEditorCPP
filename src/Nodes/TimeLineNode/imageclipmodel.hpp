@@ -244,7 +244,7 @@ namespace Clips
     public Q_SLOTS:
         void onPropertyChanged(){
             if (!m_server) {
-                qWarning() << "[VideoClipModel] SocketTransmitter not ready, skip onPropertyChanged";
+                qWarning() << "VideoClipModel: SocketTransmitter not ready, skip onPropertyChanged";
                 return;
             }
             QJsonDocument doc;

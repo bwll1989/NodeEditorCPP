@@ -133,7 +133,7 @@ WgcIngest::~WgcIngest() = default;
 
 bool WgcIngest::onStart() {
     if (!wgc::GraphicsCaptureSession::IsSupported()) {
-        std::fprintf(stderr, "[wgc] 本系统不支持 Windows.Graphics.Capture\n");
+        std::fprintf(stderr, "wgc: 本系统不支持 Windows.Graphics.Capture\n");
         std::fflush(stderr);
         return false;
     }
@@ -150,7 +150,7 @@ void WgcIngest::recvLoop() {
     // —— DX11 设备（线程私有）→ WinRT IDirect3DDevice ——
     ComPtr<ID3D11Device> device = createD3DDevice();
     if (device == nullptr) {
-        std::fprintf(stderr, "[wgc] DX11 设备创建失败（Ingest 退出）\n");
+        std::fprintf(stderr, "wgc: DX11 设备创建失败（Ingest 退出）\n");
         std::fflush(stderr);
         return;
     }
@@ -159,7 +159,7 @@ void WgcIngest::recvLoop() {
     winrt::com_ptr<::IInspectable> inspectable;
     if (FAILED(CreateDirect3D11DeviceFromDXGIDevice(dxgi.Get(),
                                                     inspectable.put()))) {
-        std::fprintf(stderr, "[wgc] WinRT 设备包装失败（Ingest 退出）\n");
+        std::fprintf(stderr, "wgc: WinRT 设备包装失败（Ingest 退出）\n");
         std::fflush(stderr);
         return;
     }
@@ -229,7 +229,7 @@ void WgcIngest::recvLoop() {
         }
 
         connected_.store(true, std::memory_order_release);
-        std::fprintf(stderr, "[wgc] 开始捕获 %s (%dx%d)\n",
+        std::fprintf(stderr, "wgc: 开始捕获 %s (%dx%d)\n",
                      source_ref_.c_str(), size.Width, size.Height);
         std::fflush(stderr);
 

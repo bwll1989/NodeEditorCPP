@@ -172,7 +172,7 @@ std::shared_ptr<AudioWaveformPeaks> AudioPeakDecoder::decodeSync(const QString& 
 {
     const auto setErr = [&](const QString& s) {
         if (outErrorMsg) *outErrorMsg = s;
-        qWarning() << "[AudioPeakDecoder]" << s << absoluteFilePath;
+        qWarning() << "AudioPeakDecoder:" << s << absoluteFilePath;
     };
     QFileInfo fi(absoluteFilePath);
     if (!fi.exists() || !fi.isFile()) {

@@ -72,7 +72,7 @@ bool compileShader(unsigned int type, const char* src, unsigned int& out) {
     if (!ok) {
         char log[1024] = "";
         gl::glGetShaderInfoLog(out, sizeof(log), nullptr, log);
-        std::fprintf(stderr, "[canvas3d-gl] 着色器编译失败: %s\n", log);
+        std::fprintf(stderr, "canvas3d-gl: 着色器编译失败: %s\n", log);
         std::fflush(stderr);
         return false;
     }
@@ -92,7 +92,7 @@ bool Canvas3DGl::ensure() {
     static bool s_loaded = false;
     if (!s_loaded) {
         if (!gl::loadGl()) {
-            std::fprintf(stderr, "[canvas3d-gl] GL 函数表加载失败——3D 贴图"
+            std::fprintf(stderr, "canvas3d-gl: GL 函数表加载失败——3D 贴图"
                                  "回退 QPainter（会话内永久）\n");
             std::fflush(stderr);
             failed_ = true;
@@ -123,7 +123,7 @@ bool Canvas3DGl::ensure() {
     if (!ok) {
         char log[1024] = "";
         gl::glGetProgramInfoLog(program_, sizeof(log), nullptr, log);
-        std::fprintf(stderr, "[canvas3d-gl] 程序链接失败: %s\n", log);
+        std::fprintf(stderr, "canvas3d-gl: 程序链接失败: %s\n", log);
         std::fflush(stderr);
         failed_ = true;
         return false;
@@ -181,7 +181,7 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
     TexSlot& s = cache_[key];
     s.last_used = frame_no_;
     const unsigned int fmt = is_dxt ? d.dxt_format : 0;
-    unsigned int tex = s.tex;
+    unsigned int tex = 0;  // 新建句柄（重建分支生成；直传分支见下方赋值）
     bool rebuilt = false; // 重建帧已随 TexImage2D 带首帧数据（DXT 路径）
     if (s.tex == 0 || s.w != d.width || s.h != d.height || s.fmt != fmt) {
         // （重）建存储：DXT 压缩存储与 RGBA 可变存储互斥不可原地切换，
@@ -222,7 +222,7 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
                 if (err != gl::GL_NO_ERROR) {
                     dxt_dead_ = true;
                     std::fprintf(stderr,
-                                 "[canvas3d-gl] DXT 直传失败(err=0x%X "
+                                 "canvas3d-gl: DXT 直传失败(err=0x%X "
                                  "%dx%d fmt=0x%X)——S3TC 不支持？"
                                  "回退 QPainter\n",
                                  err, d.width, d.height, fmt);
@@ -269,7 +269,7 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
                     s_subimg_logged = true;
                     // 一次性日志：参数错而非 S3TC 缺失——修数据源而非判死
                     std::fprintf(stderr,
-                                 "[canvas3d-gl] DXT SubImage 被拒(err=0x%X "
+                                 "canvas3d-gl: DXT SubImage 被拒(err=0x%X "
                                  "%dx%d fmt=0x%X)——检查块几何\n",
                                  err, d.width, d.height, fmt);
                     std::fflush(stderr);
@@ -363,8 +363,7 @@ bool Canvas3DGl::submitFace(unsigned int tex, const double sx[4],
                     -2.0f / static_cast<float>(lh_));
     gl::glUniform1f(loc_opacity_, opacity);
     // 片段级调色（2026-11-20 预览对齐）：nullptr = 默认 1,1,1/1.0 逐位
-    // 历史路径；屏幕 FBO 面片链（drawScreenFaceTex）恒传默认——FBO 画面
-    // 已在 GlRenderer 阶段消费过片段调色，二次应用会双重叠加
+    // 历史路径
     if (rgb_gain != nullptr) {
         if (loc_gain_ >= 0)
             gl::glUniform3f(loc_gain_, (float)rgb_gain[0], (float)rgb_gain[1],
@@ -383,116 +382,6 @@ bool Canvas3DGl::submitFace(unsigned int tex, const double sx[4],
     gl::glBindTexture(gl::GL_TEXTURE_2D, 0);
     gl::glUseProgram(0);
     return true;
-}
-
-// ---------------------------------------------------------------------------
-// beginScreenFace —— 逐屏离屏会话：建/复用 FBO 并绑定（保存宿主状态）
-// ---------------------------------------------------------------------------
-bool Canvas3DGl::beginScreenFace(const std::string& key, int w, int h) {
-    if (failed_ || !ensure()) return false;
-    if (w <= 0 || h <= 0) return false;
-    if (fbo_session_) endScreenFace(); // 防御：前会话未配对先收尾
-
-    // ---- 宿主状态保存（恢复基准 = 本次绑定前；Qt FBO id 非 0 恒有效）----
-    gl::glGetIntegerv(gl::GL_DRAW_FRAMEBUFFER_BINDING, &saved_fbo_);
-    gl::glGetIntegerv(0x0BA2, saved_vp_); // GL_VIEWPORT（数值字面量防宏污染）
-
-    // 容量逐出（>16 屏清最久未用至阈值内）：屏删除后残留 FBO 的 GPU
-    // 泄漏防御（while 一次清够——异常膨胀不拖帧）
-    while (screen_fbos_.size() > 16) {
-        auto oldest = screen_fbos_.end();
-        for (auto it = screen_fbos_.begin(); it != screen_fbos_.end(); ++it) {
-            if (it->first == key) continue; // 本帧仍要用，不逐出
-            if (oldest == screen_fbos_.end() ||
-                it->second.last_used < oldest->second.last_used)
-                oldest = it;
-        }
-        if (oldest == screen_fbos_.end()) break; // 只剩本 key（防御）
-        if (oldest->second.fbo != 0)
-            gl::glDeleteFramebuffers(1, &oldest->second.fbo);
-        if (oldest->second.tex != 0)
-            gl::glDeleteTextures(1, &oldest->second.tex);
-        screen_fbos_.erase(oldest);
-    }
-
-    ScreenFbo& f = screen_fbos_[key];
-    f.last_used = frame_no_;
-    if (f.fbo == 0 || f.w != w || f.h != h) {
-        // （重）建：屏分辨率低频变化——对象级重建（对齐 GlRenderer::ensureFbo：
-        // RGBA + 双线性 + CLAMP；display 端同构存储）
-        if (f.fbo != 0) gl::glDeleteFramebuffers(1, &f.fbo);
-        if (f.tex != 0) gl::glDeleteTextures(1, &f.tex);
-        f.fbo = 0;
-        f.tex = 0;
-        gl::glGenTextures(1, &f.tex);
-        gl::glBindTexture(gl::GL_TEXTURE_2D, f.tex);
-        gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MIN_FILTER,
-                            gl::GL_LINEAR);
-        gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MAG_FILTER,
-                            gl::GL_LINEAR);
-        gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_S,
-                            gl::GL_CLAMP_TO_EDGE);
-        gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_T,
-                            gl::GL_CLAMP_TO_EDGE);
-        gl::glTexImage2D(gl::GL_TEXTURE_2D, 0, gl::GL_RGBA, w, h, 0,
-                         gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, nullptr);
-        gl::glGenFramebuffers(1, &f.fbo);
-        gl::glBindFramebuffer(gl::GL_FRAMEBUFFER, f.fbo);
-        gl::glFramebufferTexture2D(gl::GL_FRAMEBUFFER, gl::GL_COLOR_ATTACHMENT0,
-                                   gl::GL_TEXTURE_2D, f.tex, 0);
-        const unsigned int st = gl::glCheckFramebufferStatus(gl::GL_FRAMEBUFFER);
-        gl::glBindTexture(gl::GL_TEXTURE_2D, 0); // 建存储期绑定复位
-        if (st != gl::GL_FRAMEBUFFER_COMPLETE) {
-            // FBO 不可用（驱动异常）：本会话回退全局帧路径——面片绝不黑屏
-            static bool s_logged = false;
-            if (!s_logged) {
-                s_logged = true;
-                std::fprintf(stderr,
-                             "[canvas3d-gl] 屏幕离屏 FBO 创建失败"
-                             "(status=0x%X)——回退全局帧路径\n", st);
-                std::fflush(stderr);
-            }
-            gl::glDeleteFramebuffers(1, &f.fbo);
-            gl::glDeleteTextures(1, &f.tex);
-            screen_fbos_.erase(key);
-            return false;
-        }
-        f.w = w;
-        f.h = h;
-    } else {
-        gl::glBindFramebuffer(gl::GL_FRAMEBUFFER, f.fbo);
-    }
-
-    gl::glViewport(0, 0, w, h); // 合成域 = 屏本地位（GlRenderer 顶点同域）
-    fbo_session_ = true;
-    return true;
-}
-
-// ---------------------------------------------------------------------------
-// endScreenFace —— 会话收尾：恢复宿主 draw framebuffer 与视口
-// ---------------------------------------------------------------------------
-void Canvas3DGl::endScreenFace() {
-    if (!fbo_session_) return;
-    gl::glBindFramebuffer(gl::GL_FRAMEBUFFER,
-                          static_cast<unsigned int>(saved_fbo_));
-    gl::glViewport(saved_vp_[0], saved_vp_[1], saved_vp_[2], saved_vp_[3]);
-    fbo_session_ = false;
-}
-
-// ---------------------------------------------------------------------------
-// drawScreenFaceTex —— FBO 产物贴投影四边形（v 惯例反接；全窗采样）
-// ---------------------------------------------------------------------------
-bool Canvas3DGl::drawScreenFaceTex(const std::string& key,
-                                   const double sx[4], const double sy[4],
-                                   float opacity) {
-    auto it = screen_fbos_.find(key);
-    if (it == screen_fbos_.end() || it->second.tex == 0) return false;
-    it->second.last_used = frame_no_;
-    // FBO 渲染产物 GL 底向上（GlRenderer 顶点构造 H−y 翻转）——内容顶在
-    // v=1，与 drawClipFace 的视频帧惯例（row0=顶=v=0）相反：v 窗倒传，
-    // 调用方恒传屏幕四角即可（几何/采样语义其余全同 drawClipFace）
-    return submitFace(it->second.tex, sx, sy, opacity,
-                      0.0f, 1.0f, 1.0f, 0.0f);
 }
 
 // ---------------------------------------------------------------------------
@@ -555,12 +444,6 @@ void Canvas3DGl::shutdown() {
         if (kv.second.tex != 0) gl::glDeleteTextures(1, &kv.second.tex);
     }
     cache_.clear();
-    for (auto& kv : screen_fbos_) {
-        if (kv.second.fbo != 0) gl::glDeleteFramebuffers(1, &kv.second.fbo);
-        if (kv.second.tex != 0) gl::glDeleteTextures(1, &kv.second.tex);
-    }
-    screen_fbos_.clear();
-    fbo_session_ = false;
     if (vbo_)     gl::glDeleteBuffers(1, &vbo_);
     if (vao_)     gl::glDeleteVertexArrays(1, &vao_);
     if (program_) gl::glDeleteProgram(program_);

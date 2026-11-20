@@ -51,7 +51,7 @@ void LiveMediaSource::storeFrame(LiveFramePtr frame) {
 bool LiveMediaSource::prepare(const Asset& asset) {
     if (asset.kind != AssetKind::Live) return false; // 装配错位防御
     if (asset.id.empty()) {
-        std::fprintf(stderr, "[live] 素材 id 为空，无法装配\n");
+        std::fprintf(stderr, "live: 素材 id 为空，无法装配\n");
         std::fflush(stderr);
         return false;
     }
@@ -64,7 +64,7 @@ bool LiveMediaSource::prepare(const Asset& asset) {
         if (auto feed = LiveHub::probeFeed(asset.id)) {
             hub_feed_  = std::move(feed);
             connected_ = true; // 进程内源：无网络连接语义，恒"已连接"
-            std::fprintf(stderr, "[live] %s: Hub 进程内模式（预览直用）\n",
+            std::fprintf(stderr, "live: %s: Hub 进程内模式（预览直用）\n",
                          asset.id.c_str());
             std::fflush(stderr);
             return true;
@@ -78,14 +78,14 @@ bool LiveMediaSource::prepare(const Asset& asset) {
     const IngestDesc* desc = findIngest(asset.live_ingest);
     if (desc == nullptr || !desc->implemented) {
         std::fprintf(stderr,
-                     "[live] ingest=%d 暂未支持（等待 Live Hub Ingest "
+                     "live: ingest=%d 暂未支持（等待 Live Hub Ingest "
                      "注册表实现）: %s\n", asset.live_ingest,
                      asset.live_source_name.c_str());
         std::fflush(stderr);
         return false;
     }
     if (asset.live_source_name.empty()) {
-        std::fprintf(stderr, "[live] live_source_name 为空，无法连接\n");
+        std::fprintf(stderr, "live: live_source_name 为空，无法连接\n");
         std::fflush(stderr);
         return false;
     }
@@ -103,7 +103,7 @@ bool LiveMediaSource::prepare(const Asset& asset) {
         [this](LiveFramePtr frame) { storeFrame(std::move(frame)); });
     if (ingest_ == nullptr || !ingest_->start()) {
         ingest_.reset();
-        std::fprintf(stderr, "[live] %s 运行时初始化失败\n", desc->name);
+        std::fprintf(stderr, "live: %s 运行时初始化失败\n", desc->name);
         std::fflush(stderr);
         return false;
     }

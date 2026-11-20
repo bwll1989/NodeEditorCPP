@@ -4,10 +4,10 @@
 #include <QtMath>
 #include <QTimer>
 #include <QMimeData>
-#include <QUrl>
 #include <algorithm>
 #include "DefaultTimeLineToolBar.h"
 #include "Common/AppConfig/OscAddressMimeUtil.hpp" // OSC 地址 mime 编解码（header-only；OSC drag → Control 落轨）
+#include "Common/AppConfig/MediaImportMimeUtil.hpp" // 媒体库导入 mime（header-only；2026-11-20 拖拽通道收口）
 
 namespace {
 // 2026-11-11 极限缩放加固：frameLo/Hi 是 μs 域时间量（pointToFrame 返回
@@ -164,6 +164,14 @@ void BaseTimelineView::initToolBar(DefaultTimeLineToolBar* new_toolbar)
     m_toolbar->setFixedHeight(toolbarHeight-6);
     // 设置工具栏位置
     m_toolbar->move(4, 4);
+
+    // 【Add Track 2026-11-20】工具栏新增轨道按钮 → 模型虚钩子（无类型
+    // 轨道，轨道列表右键菜单同接口）。点击时现取 getModel()——本调用点
+    // 构造序上 model 已传入；空指针防御只为视图复用安全。
+    connect(m_toolbar, &DefaultTimeLineToolBar::addTrackClicked, this, [this]() {
+        if (BaseTimeLineModel* model = getModel())
+            model->onAddTrack(QString());
+    });
 
 }
 
@@ -1030,8 +1038,16 @@ void BaseTimelineView::mousePressEvent(QMouseEvent *event)
     mouseHeld = true;
 
     // 清除当前选择（selectionModel 可能由外部注入；兜底情况也可能尚未创建）
+    // 【2026-11-20 单片段选中卡死修复】clearSelection 只清高亮、不动
+    // currentIndex（不发 currentChanged）——跨组件同步（画布高亮/属性
+    // 面板）只挂 currentChanged，会整体残留旧片段选中。显式清 current
+    //（Current flag 只换 current 不碰 selection）：每次按下必发
+    // currentChanged，"取消→重选同一片段"链路贯通（多片段时靠
+    // "选另一个"天然自愈，单片段场景为唯一路径——BUG 恰在此显形）。
     if (selectionModel()) {
         selectionModel()->clearSelection();
+        selectionModel()->setCurrentIndex(QModelIndex(),
+                                          QItemSelectionModel::Current);
     }
 
     //鼠标点击位置在标尺上就移动播放头
@@ -1666,21 +1682,28 @@ void BaseTimelineView::updateCursorShape()
 
 void BaseTimelineView::dragEnterEvent(QDragEnterEvent *event)
 {
-
+    // 【2026-11-20 通道收口】只接受两类合法拖拽：OSC 地址（工具栏/消息
+    // 列表拖出）与媒体库媒体导入（自有 mime）。资源管理器直拖 urls 不
+    // 再放行——媒体必须先入库再拖出，时间轴无法区分 urls 来源是本关闭
+    // 通道的根因。
+    const QMimeData* mime = event->mimeData();
+    const bool acceptable = mime->hasFormat(OscAddressMime::kMimeType)
+                         || mime->hasFormat(MediaImportMime::kMimeType);
+    if (acceptable) {
         event->acceptProposedAction();
         m_isSupportMedia = true;
-        // QAbstractItemView::dragEnterEvent(event);
-
+    } else {
+        event->ignore();
+        m_isSupportMedia = false;
+    }
 }
 
 void BaseTimelineView::dragMoveEvent(QDragMoveEvent *event)
 {
-
     m_lastDragPos = event->position().toPoint();
 
     // 检查当前位置是否在轨道上
     QModelIndex trackIndex;
-
 
     // 排除工具栏和标尺区域
     if (m_lastDragPos.y() < rulerHeight + toolbarHeight) {
@@ -1763,13 +1786,12 @@ void BaseTimelineView::dropEvent(QDropEvent *event)
 
         // 拖入文件 → 模型虚钩子（2026-11-11：文件路径不再丢弃——默认实现
         // 仍建占位片段；适配层覆写完成"导入+绑定+按素材时长设长"）
-        // 【2026-11-15 防御】dragEnterEvent 无条件置 m_isSupportMedia=true，
-        // 理论上存在未经 dragMove 媒体校验直达 drop 的路径——urls 空时
-        // .first() 是未定义行为，先验证再取。
-        const QList<QUrl> dropUrls = event->mimeData()->urls();
-        if (dropUrls.isEmpty())
+        // 【2026-11-20 通道收口】路径从自有 mime 解码——资源管理器直拖
+        // urls 已被 dragEnter 拒收，此处只处理媒体库拖出的合法载荷；
+        // 空载荷（mime 在但路径空）防御丢弃。
+        const QString dropFile = MediaImportMime::decodePath(event->mimeData());
+        if (dropFile.isEmpty())
             return;
-        const QString dropFile = dropUrls.first().toLocalFile();
         getModel()->onDropMediaFile(trackIndex.row(), posUs, dropFile);
         viewport()->update();
 
@@ -2438,31 +2460,32 @@ BaseTimeLineModel* BaseTimelineView::getModel() const
  */
 QString BaseTimelineView::isMimeAcceptable(const QMimeData *Mime) const
 {
+    if (!Mime)
+        return {};
     // OSC 地址拖拽（OSCMessageListWidget 卡片 / DefaultTimeLineToolBar 控件
     // 拖出 application/x-osc-address）→ Control 片段。【2026-11-15 恢复】
     // 合并时误删此分支——发送端（startDrag）一直活着，消费端断线是回归。
     if (Mime->hasFormat(OscAddressMime::kMimeType))
         return QStringLiteral("Control");
-    // 获取拖拽的文件路径
-
-    if (Mime->hasUrls())
-    {
-        QString filePath = Mime->urls().first().toLocalFile();
-        QFileInfo fileInfo(filePath);
-        QString suffix = fileInfo.suffix().toLower();
-        // 根据后缀判断文件类型
-        if(VideoTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Video";
-        }
-        else if(AudioTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Audio";
-        }
-        else if(ImageTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Image";
-        }
-        else if(ControlTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Control";
-        }
+    // 【2026-11-20 通道收口】媒体库拖拽产自有 mime（路径内嵌）；资源
+    // 管理器直拖 urls 不再识别——媒体必须先入库。
+    const QString filePath = MediaImportMime::decodePath(Mime);
+    if (filePath.isEmpty())
+        return {};
+    QFileInfo fileInfo(filePath);
+    const QString suffix = fileInfo.suffix().toLower();
+    // 根据后缀判断文件类型
+    if (VideoTypes.contains(suffix, Qt::CaseInsensitive)) {
+        return "Video";
+    }
+    else if (AudioTypes.contains(suffix, Qt::CaseInsensitive)) {
+        return "Audio";
+    }
+    else if (ImageTypes.contains(suffix, Qt::CaseInsensitive)) {
+        return "Image";
+    }
+    else if (ControlTypes.contains(suffix, Qt::CaseInsensitive)) {
+        return "Control";
     }
     return "";
 }

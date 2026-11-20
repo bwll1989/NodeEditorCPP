@@ -263,7 +263,7 @@ TweenSection::TweenSection(const Clip& clip, const ClipTweenExposure& expo,
                     break;
                 }
             if (!matched)
-                qWarning() << "[tween-schema] 插件暴露面含未知 key（schema "
+                qWarning() << "tween-schema: 插件暴露面含未知 key（schema "
                               "漂移？）" << k;
         }
     }
@@ -1178,7 +1178,16 @@ void TweenSection::refreshFrom(const Clip& c) {
                 // 【2026-11-18】v[2]（层级）不再灌位置行——层级行独立灌
                 // 静态基准（见下方层级行灌值块）；槽 2 对齐同处处理
                 break;
-            case 1:  v[0] = shown.w; v[1] = shown.h;      break;
+            case 1: // 尺寸行显示兜底（2026-11-20）：transform.w/h 未设（<=0，
+                    // 新建/拖入片段默认态）且无 Size 通道时，显示素材原始
+                    // 宽高（size_hint_，适配器从绑定素材注入）——与画布
+                    // clipCanvasRect auto-size 兜底同源同值，属性面板不再
+                    // 显示 0×0。数据层保持 0：display 端 SceneAssembler 对
+                    // w=h=0 的画布 contain 适配语义不变；用户改值即双模
+                    // 直写落 transform，自然显式化。
+                v[0] = shown.w > 0 ? shown.w : (has ? 0.0 : size_hint_w_);
+                v[1] = shown.h > 0 ? shown.h : (has ? 0.0 : size_hint_h_);
+                break;
             case 2: // 旋转三维打包：X 俯仰/Y 偏航/Z 滚转
                 v[0] = shown.rot_x;
                 v[1] = shown.rot_y;

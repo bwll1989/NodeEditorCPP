@@ -67,7 +67,7 @@ QJsonObject buildProjectSnapshot(const ProjectSnapshotSources& sources, ProjectS
             mediaTimeline[QStringLiteral("scene")] = b64;
             flowJson[QStringLiteral("mediaTimeline")] = mediaTimeline;
         } else {
-            qWarning() << "[project] mediaTimeline 序列化失败（跳过该段）:"
+            qWarning() << "project: mediaTimeline 序列化失败（跳过该段）:"
                        << err;
         }
     }
@@ -345,11 +345,11 @@ bool loadProjectModulesFromJson(const QJsonObject& root,
                 const QString pairing =
                     d.value(QStringLiteral("pairingCode")).toString();
                 if (id.isEmpty() || host.isEmpty()) {
-                    qWarning() << "[project] mediaDisplays 条目缺 id/host，跳过";
+                    qWarning() << "project: mediaDisplays 条目缺 id/host，跳过";
                     continue;
                 }
                 if (!targets.msRuntime->addDisplay(id, host, port, pairing)) {
-                    qWarning() << "[project] 显示端恢复失败（ID 重复或参数无效）:"
+                    qWarning() << "project: 显示端恢复失败（ID 重复或参数无效）:"
                                << id << host << port;
                     continue;
                 }

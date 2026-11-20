@@ -64,7 +64,7 @@ void IngestBase::recvLoopShell() {
     try {
         recvLoop();
     } catch (...) {
-        std::fprintf(stderr, "[%s] 接收线程异常退出（兜底捕获）\n", logTag());
+        std::fprintf(stderr, "%s: 接收线程异常退出（兜底捕获）\n", logTag());
         std::fflush(stderr);
     }
     connected_.store(false, std::memory_order_release);
@@ -80,7 +80,7 @@ void IngestBase::logThrottled(const std::string& msg, std::int64_t& last_ms,
         std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
     if (last_ms >= 0 && cur - last_ms < gap_ms) return;
     last_ms = cur;
-    std::fprintf(stderr, "[%s] %s\n", logTag(), msg.c_str());
+    std::fprintf(stderr, "%s: %s\n", logTag(), msg.c_str());
     std::fflush(stderr);
 }
 

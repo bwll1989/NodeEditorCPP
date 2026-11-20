@@ -409,8 +409,7 @@ ms_proto::Screen SceneLoader::toProtoScreen(const Screen& s) {
     ps.set_y(s.y);
     ps.set_w(s.w);
     ps.set_h(s.h);
-    ps.set_rotation(s.rotation); // 屏旋转（取景窗语义）与叠放层级随场景分发
-    ps.set_z(s.z);
+    ps.set_rotation(s.rotation); // 屏旋转（取景窗语义）随场景分发
     // 屏姿态（2026-11-17 阶段2）：非 0 才写——无姿态 screen 的 wire 格式
     // 与旧版本完全一致（proto3 普通标量 0 反序列化等价缺席）
     if (s.rot_x != 0.0) ps.set_rot_x(s.rot_x);
@@ -444,7 +443,6 @@ Screen SceneLoader::fromProtoScreen(const ms_proto::Screen& ps) {
     s.w = ps.w();
     s.h = ps.h();
     s.rotation = ps.rotation();
-    s.z        = ps.z();
     // 屏姿态（2026-11-17 阶段2）：缺席 = 0 = 无姿态（业务默认，无陷阱）
     s.rot_x = ps.rot_x();
     s.rot_y = ps.rot_y();

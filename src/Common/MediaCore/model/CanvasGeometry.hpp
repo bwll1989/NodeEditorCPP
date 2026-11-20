@@ -244,94 +244,9 @@ inline void quadCorners3DP(double x, double y, double w, double h,
 /// 效果仅由旋转诱导）。屏幕（Screen）斜装姿态单应同走 quadCorners3DP
 /// 透视链（合成端分治：素材 judge 与屏 st 各自投影）。
 /// quadCornersOrthoFlat（正交扁平化，同日废弃）已删除——勿再引用。
-
-/// 三轴旋转四角（画布域，输出序 = CornerIdx [LT,RT,RB,LB]——与
-/// quadCornersWithAnchor 同约定；消费方 GL/Soft 顶点序经 kVtxToCorner 映射）
-/// \param pitch_deg rot_x（俯仰，绕画布 X 轴；正=顶边后仰）
-/// \param yaw_deg   rot_y（偏航，绕画布 Y 轴；正=右边缘远离）
-/// \note 素材 3D 化阶段①后为本文件 quadCorners3DP 的兼容转发（pos_z=0、
-///       全局透视未配置——历史行为逐位不变）；新调用方请用 3DP 版本。
-inline void quadCorners3D(double x, double y, double w, double h,
-                          double roll_deg, double pitch_deg, double yaw_deg,
-                          int anchor, const double* corner8, double* ox,
-                          double* oy) noexcept {
-    quadCorners3DP(x, y, w, h, 0.0, roll_deg, pitch_deg, yaw_deg, anchor,
-                   corner8, 0.0, 0.0, 0.0, ox, oy, nullptr);
-}
-
-// ---------------------------------------------------------------------------
-// 真 3D 世界四角（素材真 3D 化 2026-11-18，Watchout Stage 语义）------------
-//
-// 【退役 2026-11-20 用户拍板】2D 取景范式定案后，素材三轴旋转的预览
-// 语义 = 透视投影压平到 XY 平面（quadCorners3DP + Scene::effectivePersp，
-// 与 display ScreenMapper 完全同源）——站立路径在正交轨道相机下旋转观感
-// 为平行四边形（无近大远小），用户目验不认可。最后消费者
-//（SceneCanvasWidget paintGL3D posed 分支）已改走 quadCorners3DP 压平。
-// 本函数保留（backup-stage-paradigm-1120 归档纪律：3D 舞台链可从
-// backup 分支回收），勿再新增引用。
-//
-// quadCorners3DP 输出的是【针孔压扁后】的画布平面四角（display 取景的
-// 数学真相——投影到画布平面再被取景窗采样）；本函数输出【投影前】的
-// 三维世界坐标——同一旋转链（Rx→Ry，滚转 = 绕画布法线面内旋转），但不
-// 做针孔压扁。原消费方 = 编辑器 3D 舞台视口：面片以其真实三维形状立在
-// 舞台空间里（俯仰/偏航让面片离开画布平面"站立/倾斜"，正交轨道相机
-// 从任意角度都能看到空间厚度），而非把透视画贴在平行画布的悬浮薄片上
-//（旧实现：压扁四角逐角提升到高度平面——掠射角下恒为薄片，用户实证）。
-//
-//   输出：ox/oy = 画布域 XY（含滚转 + 角位移，同 quadCornersWithAnchor 域）；
-//         oz    = 深度轴偏移 = pos_z + 旋转诱导深度 z2（正 = 朝观察者
-//                 Eye = 舞台向上——3D 舞台视口高度轴同向、与合成链
-//                 quadCorners3DP 透视语义统一，2026-11-18 翻转定案）。
-// 兼容：pitch=yaw=pos_z=0 → 2D 公式逐位直通 + oz 恒 0。
-// ---------------------------------------------------------------------------
-
-/// 真 3D 世界四角（画布 XY + 深度轴；输出序 = CornerIdx [LT,RT,RB,LB]）
-inline void quadCorners3DWorld(double x, double y, double w, double h,
-                               double pos_z, double roll_deg,
-                               double pitch_deg, double yaw_deg, int anchor,
-                               const double* corner8, double* ox, double* oy,
-                               double* oz) noexcept {
-    if (pitch_deg == 0.0 && yaw_deg == 0.0 && pos_z == 0.0) {
-        // 快路径：无 3D 位姿 → 历史 2D 公式逐位直通（深度恒 0）
-        quadCornersWithAnchor(x, y, w, h, roll_deg, anchor, corner8, ox, oy);
-        if (oz) oz[0] = oz[1] = oz[2] = oz[3] = 0.0;
-        return;
-    }
-    double au = 0.5, av = 0.5;
-    Transform::anchorUV(anchor, au, av);
-    const double acx = x + au * w; // 锚点（画布域）
-    const double acy = y + av * h;
-
-    // 旋转系数（与 quadCorners3DP 同链：俯仰 Rx → 偏航 Ry；滚转 = 绕画布
-    // 法线面内旋转——作用于旋转后的画布平面投影 (x2, y1)，深度分量不变）
-    const double pr = pitch_deg * kDegToRad;
-    const double cp = std::cos(pr), sp = std::sin(pr);
-    const double yw = yaw_deg * kDegToRad;
-    const double cy = std::cos(yw), sy = std::sin(yw);
-    const double rad = roll_deg * kDegToRad;
-    const double ct = std::cos(rad), st = std::sin(rad);
-
-    for (int i = 0; i < 4; ++i) {
-        const double vx = x + ((i == 1 || i == 2) ? w : 0.0); // 顺时针生成
-        const double vy = y + ((i >= 2) ? h : 0.0);
-        const double lx = vx - acx, ly = vy - acy; // 局部（z=0 平面）
-        // Rx(pitch)：y' = y·cos(p)，z' = −y·sin(p)（正=顶边翘起朝 Eye）
-        const double y1 = ly * cp;
-        const double z1 = -ly * sp;
-        // Ry(yaw)：x'' = x·cos + z'·sin；z'' = −x·sin + z'·cos（正=右缘
-        //          下沉远离）
-        const double x2 = lx * cy + z1 * sy;
-        const double z2 = -lx * sy + z1 * cy;
-        // 滚转（画布面内 R(θ)，绕锚点）+ 角位移（沿画布轴）
-        ox[i] = acx + ct * x2 - st * y1 +
-                (corner8 ? corner8[i * 2 + 0] : 0.0);
-        oy[i] = acy + st * x2 + ct * y1 +
-                (corner8 ? corner8[i * 2 + 1] : 0.0);
-        // 深度轴 = 画布法线（正 = 朝观察者 Eye = 舞台向上，3D 舞台视口
-        // 高度轴同向）：几何深度 + 旋转诱导
-        if (oz) oz[i] = pos_z + z2;
-    }
-}
+/// quadCorners3D 兼容转发与 quadCorners3DWorld 真 3D 世界四角均已删除
+///（2026-11-20 用户授权清理：消费者全部迁 3DP+effectivePersp，归档在
+/// backup-stage-paradigm-1120 可回收）。
 
 /// 缩放结果（新外接框左上角 + 尺寸；rotation 不变由调用方保留）
 struct ResizeResult {
@@ -345,7 +260,7 @@ struct ResizeResult {
 // 单应（2026-11-17 阶段2 屏姿态）：4 点对解 3×3 投影映射——屏取景窗带
 // 俯仰/偏航时画布↔输出的映射从仿射升级单应（透视除法保直线，clip 姿态
 // 透视与屏姿态透视两级单应复合的数学根基）。
-//   * 顶点约定与 quadCorners3D 同源：单位方 (0,0)(1,0)(1,1)(0,1) 依序
+//   * 顶点约定与 quadCorners3DP 同源：单位方 (0,0)(1,0)(1,1)(0,1) 依序
 //     对应 CornerIdx [LT,RT,RB,LB] 目标点；
 //   * 解法 = 8×9 增广矩阵 + 部分主元消元（与编辑器 Canvas3DGl::solveHomography
 //     同一实现——三处（编辑器 3D 贴图/屏映射/对拍）同一数学）；

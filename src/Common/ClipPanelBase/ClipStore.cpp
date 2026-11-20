@@ -26,7 +26,7 @@ namespace ms {
 
 namespace {
 
-/// 13 tween key → TweenProp 映射（ClipPanelBase 链 MediaCore，映射本域；
+/// 15 tween key → TweenProp 映射（ClipPanelBase 链 MediaCore，映射本域；
 /// BaseClass schema 不引 TweenProp——跨 DLL 边界保持字符串词汇）
 struct KeyEntry {
     const char* key;

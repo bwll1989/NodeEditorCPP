@@ -156,7 +156,8 @@ bool LogHandler::initLogHandler()
         logger->flush_on(spdlog::level::debug);
         // 写失败不抛到业务/QML（记事本长时间占用日志文件时只丢本条）
         spdlog::set_error_handler([](const std::string &) {});
-        logger->set_pattern("[%Y-%m-%d %H:%M:%S] [%l] %v");
+        // 【2026-11-20】pattern 去方括号——[] 会被终端控件转义；级别后缀冒号
+        logger->set_pattern("%Y-%m-%d %H:%M:%S %l: %v");
 
         return true;
     } catch (const spdlog::spdlog_ex &ex) {
@@ -176,7 +177,8 @@ void LogHandler::customMessageHandler(QtMsgType type,
     std::lock_guard<std::mutex> lock(log_mutex);
 
     const QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("HH:mm:ss.zzz"));
-    const QString logMessage = QStringLiteral("[%1:%2] %3")
+    // 【2026-11-20】前缀去方括号——[] 会被终端控件转义
+    const QString logMessage = QStringLiteral("%1:%2: %3")
                                    .arg(context.function)
                                    .arg(context.line)
                                    .arg(msg);

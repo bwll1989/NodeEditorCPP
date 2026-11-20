@@ -141,7 +141,7 @@ bool CefOsrBrowser::OnBeforePopup(CefRefPtr<CefBrowser> browser,
                                   CefRefPtr<CefDictionaryValue>& extra_info,
                                   bool* no_javascript_access) {
     // 弹窗一律阻断（Web Render 节点无 UI 承载弹窗）
-    std::fprintf(stderr, "[CefOsrBrowser] popup blocked: %ls\n",
+    std::fprintf(stderr, "CefOsrBrowser: popup blocked: %ls\n",
                  CefString(target_url).ToWString().c_str());
     return true;
 }
@@ -213,7 +213,7 @@ void CefOsrBrowser::OnLoadError(CefRefPtr<CefBrowser> browser,
         return;
     if (!frame->IsMain())
         return;
-    std::fprintf(stderr, "[CefOsrBrowser] load error %d: %ls (%ls)\n", (int)errorCode,
+    std::fprintf(stderr, "CefOsrBrowser: load error %d: %ls (%ls)\n", (int)errorCode,
                  CefString(errorText).ToWString().c_str(),
                  CefString(failedUrl).ToWString().c_str());
     if (m_onLoad)

@@ -372,7 +372,7 @@ std::shared_ptr<const Scene> SceneAssembler::assemble(
     if (!skipped.empty())
         err = "部分片段已跳过:\n" + skipped; // 非致命：err 作诊断说明
 
-    std::printf("[standalone] 场景装配: 轨道=%zu 片段=%zu 素材=%zu "
+    std::printf("standalone: 场景装配: 轨道=%zu 片段=%zu 素材=%zu "
                 "时长=%.2fs\n",
                 scene->timeline.tracks.size(), clip_total,
                 scene->assets.size(),

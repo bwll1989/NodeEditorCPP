@@ -21,6 +21,10 @@
 // startDrag 中 qobject_cast<IntDragValueWidget*> 需要宿主控件完整类型，仅库内使用
 #include "IntDragValueWidget/IntDragValueWidget.hpp"
 
+// 媒体库导入 mime（header-only；2026-11-20 拖拽通道收口——资源管理器
+// 直拖 urls 不再进入时间轴，媒体必须先入库）
+#include "Common/AppConfig/MediaImportMimeUtil.hpp"
+
 #include <QClipboard>
 #include <QDataStream>
 #include <QDrag>
@@ -678,7 +682,13 @@ QVariant BaseTimeLineModel::data(const QModelIndex &index, int role) const
             return {};
         switch (role) {
             case Qt::ToolTipRole:
-                return QVariant::fromValue(QString(clip->type()+ ":%1 to %2").arg(clip->start()).arg(clip->end()));
+                // 【2026-11-20 人话化】（插件版副本同步库版）μs 原值改易读
+                // 时间区间 + 时长。
+                return QVariant::fromValue(QStringLiteral("%1: %2 → %3（时长 %4）")
+                    .arg(clip->type(),
+                         QtTimeline::usToClockString(clip->start()),
+                         QtTimeline::usToClockString(clip->end()),
+                         QtTimeline::usToDurationString(clip->length())));
             //获取剪辑模型
             case TimelineRoles::ClipModelRole:
                 return QVariant::fromValue(clip);
@@ -2547,11 +2557,21 @@ void BaseTimelineView::updateCursorShape()
 
 void BaseTimelineView::dragEnterEvent(QDragEnterEvent *event)
 {
-
+    // 【2026-11-20 通道收口】（插件版副本）接受三类合法拖拽：media-item
+    // JSON（节点图拖入节点内时间轴的原有链）、OSC 地址（工具栏/消息列
+    // 表拖出）与媒体库媒体导入（自有 mime）。资源管理器直拖 urls 不再
+    // 放行——媒体必须先入库再拖出。
+    const QMimeData* mime = event->mimeData();
+    const bool acceptable = mime->hasFormat("application/x-osc-address")
+                         || mime->hasFormat(MediaImportMime::kMimeType)
+                         || mime->hasFormat("application/media-item");
+    if (acceptable) {
         event->acceptProposedAction();
         m_isSupportMedia = true;
-        // QAbstractItemView::dragEnterEvent(event);
-
+    } else {
+        event->ignore();
+        m_isSupportMedia = false;
+    }
 }
 
 void BaseTimelineView::dragMoveEvent(QDragMoveEvent *event)
@@ -3143,30 +3163,33 @@ BaseTimeLineModel* BaseTimelineView::getModel() const
  */
 QString BaseTimelineView::isMimeAcceptable(const QMimeData *Mime) const
 {
-    // 获取拖拽的文件路径
-
-    if (Mime->hasUrls())
+    if (!Mime)
+        return {};
+    // 【2026-11-20 通道收口】（插件版副本）媒体库拖拽产自有 mime（路径
+    // 内嵌）；资源管理器直拖 urls 不再识别——媒体必须先入库。
+    const QString filePath = MediaImportMime::decodePath(Mime);
+    if (!filePath.isEmpty())
     {
-        QString filePath = Mime->urls().first().toLocalFile();
         QFileInfo fileInfo(filePath);
-        QString suffix = fileInfo.suffix().toLower();
+        const QString suffix = fileInfo.suffix().toLower();
         // 根据后缀判断文件类型
-        if(VideoTypes.contains(suffix, Qt::CaseInsensitive)) {
+        if (VideoTypes.contains(suffix, Qt::CaseInsensitive)) {
             return "Video";
         }
-        else if(AudioTypes.contains(suffix, Qt::CaseInsensitive)) {
+        else if (AudioTypes.contains(suffix, Qt::CaseInsensitive)) {
             return "Audio";
         }
-        else if(ImageTypes.contains(suffix, Qt::CaseInsensitive)) {
+        else if (ImageTypes.contains(suffix, Qt::CaseInsensitive)) {
             return "Image";
         }
-        else if(ControlTypes.contains(suffix, Qt::CaseInsensitive)) {
+        else if (ControlTypes.contains(suffix, Qt::CaseInsensitive)) {
             return "Control";
         }
-    }else if (Mime->hasFormat("application/x-osc-address"))
-        {
-            return "Control";
-        }
+    }
+    else if (Mime->hasFormat("application/x-osc-address"))
+    {
+        return "Control";
+    }
     return "";
 }
 

@@ -76,7 +76,7 @@ message Transform {
   // 陷阱；写端非 0 才写（wire 兼容——旧读端遇未知字段自动忽略）。
   // rot_x/rot_y：俯仰/偏航旋转（度；渲染端绕锚点做 3D 旋转 + 透视投影
   // 推算四角，走既有变形 quad 管线——片上近似为两三角仿射，见
-  // CanvasGeometry::quadCorners3D 注释）。rot_x=俯仰（绕画布 X 轴），
+  // CanvasGeometry::quadCorners3DP 注释）。rot_x=俯仰（绕画布 X 轴），
   // rot_y=偏航（绕画布 Y 轴）；rotation（5 号位）= 偏转/滚转（绕画布
   // Z 轴，2D 旋转）。
   double rot_x = 10;   // 俯仰旋转 X（度）
@@ -341,11 +341,11 @@ message Screen {
   double w = 5;  // 宽高（> 0）
   double h = 6;
   double rotation = 7; // 旋转角度（度，顺时针，绕矩形中心）
-  int32  z        = 8; // 叠放层级：多屏重叠时小值先绘（底层），大值后绘
+  reserved 8;          // 旧"叠放层级 z"（2026-11-20 退役删除，号码禁复用）
   ScreenWarp warp = 9; // 输出变形网格（message 缺席 = 无变形，自带 has_warp）
   // ---- 屏姿态（2026-11-17 阶段2，与 Clip Transform rot_x/rot_y 同构）----
   // 俯仰/偏航旋转（度）：屏取景窗带 3D 姿态——物理 LED 屏倾斜安装/投影
-  // 侧投时，屏内 (u,v) → 画布点的映射由【单应】描述（cg::quadCorners3D
+  // 侧投时，屏内 (u,v) → 画布点的映射由【单应】描述（cg::quadCorners3DP
   // 预投影四角 + 透视除 s=f/(f+z)，语义与 Clip pose3d 链同源唯一真相）。
   // 全部为"缺席 = 0 = 业务默认（无姿态）"的普通标量，无 optional 陷阱；
   // 写端非 0 才写（wire 兼容——旧读端遇未知字段自动忽略）。

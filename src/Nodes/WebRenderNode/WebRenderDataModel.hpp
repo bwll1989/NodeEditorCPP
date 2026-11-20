@@ -522,7 +522,7 @@ private:
         }
         scheduleUploadIfNeeded();
         if (m_totalFrames == 0 && m_framesSinceFpsSample == 0) {
-            qDebug() << "[WebRender] first CPU frame" << width << "x" << height;
+            qDebug() << "WebRender: first CPU frame" << width << "x" << height;
         }
 
         countFrameTick();
@@ -553,7 +553,7 @@ private:
             // GPU 拷贝失败：连续 5 帧 → 禁用 GPU 路径，延迟到事件循环重建浏览器
             // 降级 CPU OnPaint（不可在 CEF 泵回调内同步重入）
             if (++m_accelFailCount >= 5 && !m_gpuDisabled) {
-                qWarning() << "[WebRender] gpu push failed x5, degrading to CPU path";
+                qWarning() << "WebRender: gpu push failed x5, degrading to CPU path";
                 m_gpuDisabled = true;
                 m_bridge.reset();
                 m_framePathGpu = false;
@@ -567,7 +567,7 @@ private:
         }
         m_accelFailCount = 0;
         if (m_totalFrames == 0) {
-            qDebug() << "[WebRender] first GPU frame" << handle.width << "x" << handle.height
+            qDebug() << "WebRender: first GPU frame" << handle.width << "x" << handle.height
                      << "tex=" << handle.textureId;
         }
 
@@ -588,7 +588,7 @@ private:
         if (m_shuttingDown.load()) {
             return;
         }
-        qDebug() << "[WebRender] onLoad ok=" << ok;
+        qDebug() << "WebRender: onLoad ok=" << ok;
         if (ok) {
             m_loaded = true;
             setStatus(QStringLiteral("状态: 已加载 / 渲染中"), true);
@@ -648,7 +648,7 @@ private:
                 m_bridge = std::move(bridge);
             }
         }
-        qDebug() << "[WebRender] runtime ready, bridge=" << (m_bridge != nullptr)
+        qDebug() << "WebRender: runtime ready, bridge=" << (m_bridge != nullptr)
                  << "gpuDisabled=" << m_gpuDisabled << "viewport=" << vw << "x" << vh;
 
         auto onLoad = [this](bool ok) { onCefLoad(ok); };
@@ -681,7 +681,7 @@ private:
             return;
         }
         m_cefBrowser = browser;
-        qDebug() << "[WebRender] browser created, frame_path="
+        qDebug() << "WebRender: browser created, frame_path="
                  << (m_framePathGpu ? "gpu" : "cpu");
 
         publishInfo();

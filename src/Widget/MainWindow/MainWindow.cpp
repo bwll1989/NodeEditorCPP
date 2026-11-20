@@ -308,7 +308,7 @@ void MainWindow::init()
             }
             msScene_->assets.push_back(a);
             if (msPreview_) msPreview_->clearMediaCache();
-            qDebug() << QStringLiteral("[ms-main] 导入素材 %1 ← %2（时长 %3 us %4x%5）")
+            qDebug() << QStringLiteral("ms-main: 导入素材 %1 ← %2（时长 %3 us %4x%5）")
                         .arg(QString::fromStdString(a.id), file)
                         .arg(static_cast<long long>(a.duration_us))
                         .arg(a.width).arg(a.height);
@@ -344,7 +344,7 @@ void MainWindow::init()
     //实例化运行时桥接壳，用于将场景下发到display，而且作为主时中与Display的时钟同步器
     msRuntime_ = new ms::MsRuntimeBridge(this);
     if (!msRuntime_->start()) {
-        qWarning() << "[MediaServer] 下发运行时启动失败（端口占用？）——"
+        qWarning() << "MediaServer: 下发运行时启动失败（端口占用？）——"
                       "本地编辑可用，显示端下发不可用";
     }
     // 实例化音频总线宿主，用于将音频数据写入注册表环形队列,用于和Node进行音频数据交换

@@ -20,7 +20,12 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
                                     FitMode mode, std::vector<DrawItem>& items) {
     if (scr.w <= 0 || scr.h <= 0) return; // 退化 screen 防御
 
-    const ScreenTransform st = ScreenTransform::make(scr, out_w, out_h, mode);
+    // Show 全局透视仪（单一透视）：屏姿态单应与素材 3D 投影共用同一条
+    // 投影链（提前一次求值，循环内复用）
+    double ef = 0.0, evx = 0.0, evy = 0.0;
+    scene.effectivePersp(ef, evx, evy);
+    const ScreenTransform st =
+        ScreenTransform::make(scr, out_w, out_h, mode, ef, evx, evy);
 
     for (const auto& ac : eval.active) {
         const Clip& c = *ac.clip;
@@ -57,7 +62,7 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
         judge.y = vis_y;
         judge.w = vis_w;
         judge.h = vis_h;
-        if (!clipCoversScreen(judge, scr)) continue;
+        if (!clipCoversScreen(judge, scr, ef, evx, evy)) continue;
 
         // ---- 组装绘制项 ----
         DrawItem di;
@@ -88,7 +93,7 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
             // （clip 旋转 / 屏旋转 / 屏姿态 / 四角位移 / 俯仰偏航任一触发）
             // 1) 目标四角（画布域）：2D = 绕【锚点】R(θ) + 位移（唯一真相
             //    cg::quadCornersWithAnchor）；俯仰/偏航非 0 →
-            //    cg::quadCorners3D（3D 旋转 + 透视投影 + 滚转，无姿态时
+            //    cg::quadCorners3DP（3D 旋转 + 透视投影 + 滚转，无姿态时
             //    逐位退化 2D 公式）。
             //    外接 AABB：SoftRenderer 只在 AABB 内逐像素逆采样（位移
             //    后的角参与 AABB——变形出界部分不丢）。
@@ -104,8 +109,7 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
                 // 仪；画布无效才退片段隐含焦距）+ 俯仰/偏航/滚转/锚点/
                 // 角位移。q4 = 每次投影权重 s=F/(F−Z)（渲染端顶点
                 // (uv·q, q) + FS 采样 uv/q 精确复现平面单应）。
-                double ef = 0.0, evx = 0.0, evy = 0.0;
-                scene.effectivePersp(ef, evx, evy);
+                // ef/evx/evy 已在函数头求值（屏姿态单应共用）
                 canvas_geometry::quadCorners3DP(
                     judge.x, judge.y, judge.w, judge.h, judge.pos_z,
                     judge.rotation, judge.rot_x, judge.rot_y, judge.anchor,

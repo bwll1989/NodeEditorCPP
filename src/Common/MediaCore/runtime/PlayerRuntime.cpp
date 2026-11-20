@@ -168,7 +168,7 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
         clock_.setOffsetUs(offset); // 原子量，锁外写安全（tick 单写者）
         // stderr 通道（项目日志纪律：无缓冲即时落盘，stdout 重定向为全缓冲）
         std::fprintf(stderr,
-                     "[player] 时钟校准: offset=%+.3fs rtt=%.1fms"
+                     "player: 时钟校准: offset=%+.3fs rtt=%.1fms"
                      "（旧 offset=%+.3fs；samples=%d/%d）\n",
                      static_cast<double>(offset) / 1e6,
                      static_cast<double>(rtt) / 1e3,
@@ -237,7 +237,7 @@ void PlayerRuntime::passiveCalibrateTick(std::int64_t editor_aligned_now_us) {
     clock_.setOffsetUs(median);
     ++passive_adopted_;
     std::fprintf(stderr,
-                 "[player] 心跳被动校准: offset=%+.3fs（SNTP 未生效期"
+                 "player: 心跳被动校准: offset=%+.3fs（SNTP 未生效期"
                  "粗修，主动探测收敛后精修；adopted=%d）\n",
                  static_cast<double>(median) / 1e6, passive_adopted_);
     std::fflush(stderr);
@@ -273,7 +273,7 @@ bool PlayerRuntime::start() {
     // 照常装配。素材本地就绪（NodeController 负责 assets_root 相对路径
     // 装配），无需网络拉取 → 素材就绪旗标直接置位。
     if (cfg_.standalone) {
-        std::printf("[player] standalone 模式: 网络通道关闭"
+        std::printf("player: standalone 模式: 网络通道关闭"
                     "（本机控制，NodeController 装配）id=%s\n",
                     cfg_.player_id.c_str());
         assets_ready_.store(true); // 本地素材无需拉取 = 视为就绪
@@ -283,7 +283,7 @@ bool PlayerRuntime::start() {
 
     // ---- 1. 先绑 UDP：注册帧要携带 udp_report_port ----
     if (!udp_.start(0)) { // 随机端口（P2 MVP；固定端口留给防火墙友好部署）
-        std::fprintf(stderr, "[player] UDP 绑定失败\n");
+        std::fprintf(stderr, "player: UDP 绑定失败\n");
         return false;
     }
 
@@ -306,7 +306,7 @@ bool PlayerRuntime::start() {
         // 连接建立即上报身份（§6.2）：player_id + version + UDP 上报端口。
         // Editor 收到后回 Ack（含其 UDP 心跳地址）+ 下发场景。
         if (!sendRegister())
-            std::fprintf(stderr, "[player] 注册帧发送失败\n");
+            std::fprintf(stderr, "player: 注册帧发送失败\n");
     });
     listener_.set_on_envelope([this](std::uint64_t cid,
                                      const Envelope& env) {
@@ -319,7 +319,7 @@ bool PlayerRuntime::start() {
         if (editor_conn_.load() == cid) {
             editor_conn_.store(0);
             registered_.store(false);
-            std::printf("[player] Editor 连接断开（等待重连，本端配置零改动）\n");
+            std::printf("player: Editor 连接断开（等待重连，本端配置零改动）\n");
         }
         if (authed_conn_.load() == cid) authed_conn_.store(0);
     });
@@ -335,24 +335,24 @@ bool PlayerRuntime::start() {
     if (!listener_.start(cfg_.listen_port, /*exclusive_bind=*/true)) {
         if (cfg_.listen_port == 0) {
             std::fprintf(stderr,
-                         "[player] 监听失败（系统分配端口不可用？）\n");
+                         "player: 监听失败（系统分配端口不可用？）\n");
             udp_.stop();
             return false;
         }
         std::fprintf(stderr,
-                     "[player] 监听 port=%u 被占用（同机多 display？），"
+                     "player: 监听 port=%u 被占用（同机多 display？），"
                      "改用系统分配端口\n", cfg_.listen_port);
         if (!listener_.start(0, /*exclusive_bind=*/true)) {
-            std::fprintf(stderr, "[player] 系统分配端口监听失败\n");
+            std::fprintf(stderr, "player: 系统分配端口监听失败\n");
             udp_.stop();
             return false;
         }
     }
-    std::printf("[player] 监听模式: tcp=%u（等待 Editor 接入）id=%s udp=%u\n",
+    std::printf("player: 监听模式: tcp=%u（等待 Editor 接入）id=%s udp=%u\n",
                 listener_.port(), cfg_.player_id.c_str(), udp_.port());
     // 端口变化显著提示（多实例部署的登记依据）
     if (listener_.port() != cfg_.listen_port)
-        std::printf("[player] 注意: 实际监听端口 %u ≠ 配置端口 %u"
+        std::printf("player: 注意: 实际监听端口 %u ≠ 配置端口 %u"
                     "（Editor 端请按实际端口登记显示端）\n",
                     listener_.port(), cfg_.listen_port);
 
@@ -402,7 +402,7 @@ void PlayerRuntime::startRenderThread() {
         [this]() { return sceneSerial(); },       // 场景序号（判"已换"）
         [this]() { return effectiveId(); });      // 生效 id（指派模型）
     render_->start();
-    std::printf("[player] 渲染线程已启动: %dfps 输出=%dx%d 捕获=%s\n",
+    std::printf("player: 渲染线程已启动: %dfps 输出=%dx%d 捕获=%s\n",
                 cfg_.render_fps,
                 render_->outWidth(), render_->outHeight(),
                 cfg_.render_capture_dir.empty() ? "关"
@@ -477,7 +477,7 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
         if (env.has_auth()) {
             if (env.auth().pairing_code() == cfg_.pairing_code) {
                 authed_conn_.store(conn_id);
-                std::printf("[player] 配对认证通过 conn=%llu\n",
+                std::printf("player: 配对认证通过 conn=%llu\n",
                             (unsigned long long)conn_id);
                 // 回放认证前缓存的业务帧（FIFO；帧内已无 Auth 帧）
                 std::vector<Envelope> replay;
@@ -496,7 +496,7 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
                 for (auto& e : replay) onEnvelope(e, conn_id); // 重入门卫放行
             } else {
                 std::fprintf(stderr,
-                             "[player] 配对码校验失败，踢除连接 conn=%llu"
+                             "player: 配对码校验失败，踢除连接 conn=%llu"
                              "（对端可能不是本项目 Editor）\n",
                              (unsigned long long)conn_id);
                 listener_.close(conn_id); // 异步踢除（recv 线程上下文安全）
@@ -526,7 +526,7 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
     if (env.has_register_ack()) {
         const auto& ack = env.register_ack();
         if (!ack.accepted()) {
-            std::fprintf(stderr, "[player] 注册被拒: %s\n",
+            std::fprintf(stderr, "player: 注册被拒: %s\n",
                          ack.reason().c_str());
             return;
         }
@@ -585,7 +585,7 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
         // 素材就绪不依赖下一次编辑器动作（清单已被丢弃，不能再等推送）。
         if (refetch_on_port) {
             std::fprintf(stderr,
-                         "[player] HTTP 端口首次学到（%u）→ 补触发素材拉取\n",
+                         "player: HTTP 端口首次学到（%u）→ 补触发素材拉取\n",
                          static_cast<unsigned>(http_port));
             fetchAssetsAsync(editor_host_learned_, http_port);
         }
@@ -608,7 +608,7 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
         std::string err;                       // parse 含引用完整性校验
         auto scene = SceneLoader::parse(msg.payload(), err);
         if (!scene) {
-            std::fprintf(stderr, "[player] 场景解析失败: %s\n", err.c_str());
+            std::fprintf(stderr, "player: 场景解析失败: %s\n", err.c_str());
             return;
         }
         std::uint16_t http_port = 0;
@@ -705,7 +705,7 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
         // 服务就绪会拿到 0——重新注册换取带端口的 Ack（自愈端口竞态）。
         if (http_port == 0) {
             std::fprintf(stderr,
-                         "[player] 素材清单到达但 HTTP 端口未就绪 → 重新注册\n");
+                         "player: 素材清单到达但 HTTP 端口未就绪 → 重新注册\n");
             sendRegister();
             return;
         }
@@ -802,7 +802,7 @@ void PlayerRuntime::onUdpFrame(const SyncFrame& f,
     }
     if (!aligned_session.empty())
         std::fprintf(stderr,
-                     "[player] 心跳软对齐（迟到加入）: session=%s t=%lldus\n",
+                     "player: 心跳软对齐（迟到加入）: session=%s t=%lldus\n",
                      aligned_session.c_str(),
                      static_cast<long long>(aligned_t));
 
@@ -916,7 +916,7 @@ void PlayerRuntime::applyLocalScene(std::shared_ptr<const Scene> s) {
         serial = static_cast<unsigned long long>(++scene_serial_); // 渲染线程据 sceneSerial() 判新 → 重建媒体源
     }
     // 锁外打印（锁内绝不做 I/O）：QuickEdit 拖选挂起时不持锁冻结渲染线程
-    std::fprintf(stderr, "[player] 本机场景注入: serial=%llu\n", serial);
+    std::fprintf(stderr, "player: 本机场景注入: serial=%llu\n", serial);
 }
 
 void PlayerRuntime::localPlay(std::int64_t from_us) {
@@ -1174,10 +1174,10 @@ void PlayerRuntime::sendAck(std::int64_t anchor_time_us, bool ok,
     const auto cid = editor_conn_.load();
     if (cid != 0) {
         if (!listener_.send_to(cid, env))
-            std::fprintf(stderr, "[player] Ack 发送失败 cid=%llu\n",
+            std::fprintf(stderr, "player: Ack 发送失败 cid=%llu\n",
                          (unsigned long long)cid);
     } else {
-        std::fprintf(stderr, "[player] Ack 未发送：无 Editor 连接\n");
+        std::fprintf(stderr, "player: Ack 未发送：无 Editor 连接\n");
     }
 }
 
@@ -1229,7 +1229,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
     }
     // 诊断：列出被依赖过滤跳过的素材（联测可核对多屏各取所需）——锁外打印
     for (const auto& [diag_id, diag_path] : skipped_diag)
-        std::printf("[player] 素材不在本机依赖内，跳过: %s (%s)\n",
+        std::printf("player: 素材不在本机依赖内，跳过: %s (%s)\n",
                     diag_id.c_str(), diag_path.c_str());
     const std::size_t total_assets = list.size(); // 本机相关素材总数（含就绪跳过项）
     assets_total_.store(total_assets);
@@ -1249,7 +1249,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
             asset_thread_.join();
         }
         assets_ready_.store(true);
-        std::printf("[player] 场景无素材，跳过拉取\n");
+        std::printf("player: 场景无素材，跳过拉取\n");
         return;
     }
 
@@ -1272,7 +1272,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                 asset_done_.emplace(kv.first, kv.second);
             if (!asset_done_.empty())
                 std::printf(
-                    "[player] 就绪表已恢复: %zu 项（%s）\n",
+                    "player: 就绪表已恢复: %zu 项（%s）\n",
                     asset_done_.size(), ".asset_state.tsv");
         }
     }
@@ -1313,7 +1313,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
             // skipped/list 恒定，逐次打印即用户看到的"老是打印同步媒体"。
             if (list.size() != last_pending_assets_) {
                 std::printf(
-                    "[player] 素材去重: %zu 项已就绪跳过，待拉 %zu 项\n",
+                    "player: 素材去重: %zu 项已就绪跳过，待拉 %zu 项\n",
                     skipped, list.size());
                 last_pending_assets_ = list.size();
             }
@@ -1370,7 +1370,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
             std::filesystem::create_directories(ms::u8Path(cfg_.assets_root),
                                                 ec);
             if (ec)
-                std::fprintf(stderr, "[player] 素材目录创建失败: %s (%s)\n",
+                std::fprintf(stderr, "player: 素材目录创建失败: %s (%s)\n",
                              cfg_.assets_root.c_str(), ec.message().c_str());
 
             // ---- 【进度上报 2026-11-04】素材同步进度 → editor -------------
@@ -1410,7 +1410,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                         std::getenv("MS_OSD_DBG") != nullptr;
                     if (s_osd_dbg)
                         std::fprintf(stderr,
-                                     "[osd] report: done=%zu total=%zu "
+                                     "osd: report: done=%zu total=%zu "
                                      "fin=%d bytes=%llu/%llu\n",
                                      done, total_assets, finished ? 1 : 0,
                                      static_cast<unsigned long long>(bytes),
@@ -1507,7 +1507,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                         std::filesystem::remove(entry.path(), rm_ec);
                         if (!rm_ec)
                             std::fprintf(stderr,
-                                         "[player] 清理孤儿下载残件: %s"
+                                         "player: 清理孤儿下载残件: %s"
                                          "（%.1f MB）\n",
                                          name.c_str(),
                                          static_cast<double>(bytes) /
@@ -1643,7 +1643,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                             assets_ready_cnt_.store(done_now,
                                                     std::memory_order_relaxed);
                             std::printf(
-                                "[player] 素材就绪 %zu/%zu: %s → %s (%llu 字节%s)\n",
+                                "player: 素材就绪 %zu/%zu: %s → %s (%llu 字节%s)\n",
                                 done_now, total_assets, a.id.c_str(),
                                 save.c_str(),
                                 static_cast<unsigned long long>(
@@ -1693,7 +1693,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                     ok_cnt += d.load(std::memory_order_relaxed);
                 if (ok_cnt == reps.size()) {
                     assets_ready_.store(true);
-                    std::printf("[player] 全部素材就绪: %zu/%zu\n",
+                    std::printf("player: 全部素材就绪: %zu/%zu\n",
                                 ok_total.load(std::memory_order_relaxed),
                                 total_assets);
                     emit(total_assets, {}, 0, 0, true); // 含跳过项，口径统一
@@ -1705,7 +1705,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                 const int wait_ms =
                     std::min(2000 * (1 << std::min<unsigned>(round, 3)), 10000);
                 std::fprintf(stderr,
-                             "[player] 素材未全部就绪 %zu/%zu（第 %u 轮自愈，"
+                             "player: 素材未全部就绪 %zu/%zu（第 %u 轮自愈，"
                              "%dms 后重试: %s）\n",
                              ok_total.load(std::memory_order_relaxed),
                              total_assets, round + 1, wait_ms,

@@ -124,7 +124,7 @@ private:
                 if (s_dbg && now - s_last > 500) {
                     s_last = now;
                     std::fprintf(stderr,
-                                 "[decode] 拍耗时 %lldus（超 60fps 预算，"
+                                 "decode: 拍耗时 %lldus（超 60fps 预算，"
                                  "解码压力大）\n",
                                  static_cast<long long>(
                                      beat_cost_us_.load(
@@ -193,7 +193,7 @@ private:
                         if (now - prev_ms >= 200 &&
                             s_last_ms.compare_exchange_strong(prev_ms, now)) {
                             std::fprintf(stderr,
-                                         "[probe] media_us 跳变 %+.3lldms"
+                                         "probe: media_us 跳变 %+.3lldms"
                                          " (asset=%s %lld→%lld)\n",
                                          static_cast<long long>(d / 1000),
                                          di.asset->id.c_str(),

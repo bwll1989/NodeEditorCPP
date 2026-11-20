@@ -87,7 +87,7 @@ FrameStats composeFrame(const Scene& scene,
             if (now_ms - s_last_log_ms > 500) {
                 s_last_log_ms = now_ms;
                 std::fprintf(stderr,
-                             "[compose-probe] beginFrame %lldus（>8ms）\n",
+                             "compose-probe: beginFrame %lldus（>8ms）\n",
                              static_cast<long long>(begin_us));
                 std::fflush(stderr);
             }
@@ -153,7 +153,7 @@ FrameStats composeFrame(const Scene& scene,
             if (now_ms - s_last_log_ms > 500) {
                 s_last_log_ms = now_ms;
                 std::fprintf(stderr,
-                             "[compose-probe] draw %lldus find %lldus"
+                             "compose-probe: draw %lldus find %lldus"
                              "（>8ms 项内慢）\n",
                              static_cast<long long>(draw_us),
                              static_cast<long long>(find_us));

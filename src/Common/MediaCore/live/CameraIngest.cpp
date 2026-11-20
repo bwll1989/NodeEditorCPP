@@ -164,7 +164,7 @@ void dumpNativeFormats(IMFSourceReader* reader) {
         if (FAILED(reader->GetNativeMediaType(
                 MF_SOURCE_READER_FIRST_VIDEO_STREAM, i, t.GetAddressOf()))) {
             if (i == 0)
-                std::fprintf(stderr, "[camera] 原生档枚举失败\n");
+                std::fprintf(stderr, "camera: 原生档枚举失败\n");
             break;
         }
         GUID sub = {};
@@ -178,10 +178,10 @@ void dumpNativeFormats(IMFSourceReader* reader) {
         }
         UINT32 w32 = 0, h32 = 0;
         MFGetAttributeSize(t.Get(), MF_MT_FRAME_SIZE, &w32, &h32);
-        std::fprintf(stderr, "[camera-diag] 原生档#%u: %.4s %ux%u\n", i, cc,
+        std::fprintf(stderr, "camera-diag: 原生档#%u: %.4s %ux%u\n", i, cc,
                      w32, h32);
         if (i >= 7) { // 防刷屏：只列前 8 档
-            std::fprintf(stderr, "[camera-diag] …（其余省略）\n");
+            std::fprintf(stderr, "camera-diag: …（其余省略）\n");
             break;
         }
     }
@@ -272,7 +272,7 @@ void CameraIngest::recvLoop() {
     // ---- 线程级 COM + MF 初始化（守卫析构逆序清理；失败即退出）----
     MfThreadGuard guard;
     if (!guard.init()) {
-        std::fprintf(stderr, "[camera] MF 初始化失败（Ingest 退出）\n");
+        std::fprintf(stderr, "camera: MF 初始化失败（Ingest 退出）\n");
         std::fflush(stderr);
         return;
     }
@@ -301,7 +301,7 @@ void CameraIngest::recvLoop() {
         }
 
         connected_.store(true, std::memory_order_release);
-        std::fprintf(stderr, "[camera] 开始采集 %s (%dx%d, stride=%d)\n",
+        std::fprintf(stderr, "camera: 开始采集 %s (%dx%d, stride=%d)\n",
                      source_ref_.c_str(), w, h, stride);
         std::fflush(stderr);
 

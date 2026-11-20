@@ -103,7 +103,13 @@ QVariant BaseTimeLineModel::data(const QModelIndex &index, int role) const
             return {};
         switch (role) {
             case Qt::ToolTipRole:
-                return QVariant::fromValue(QString(clip->type()+ ":%1 to %2").arg(clip->start()).arg(clip->end()));
+                // 【2026-11-20 人话化】原 "%1 to %2" 直接拼 μs 原值（如
+                // "Video:40000 to 1204000"）不可读——改易读时间区间 + 时长。
+                return QVariant::fromValue(QStringLiteral("%1: %2 → %3（时长 %4）")
+                    .arg(clip->type(),
+                         QtTimeline::usToClockString(clip->start()),
+                         QtTimeline::usToClockString(clip->end()),
+                         QtTimeline::usToDurationString(clip->length())));
             //获取剪辑模型
             case TimelineRoles::ClipModelRole:
                 return QVariant::fromValue(clip);

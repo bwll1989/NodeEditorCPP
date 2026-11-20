@@ -65,7 +65,7 @@ PreviewRenderer::PreviewRenderer(std::string assets_root,
             // 自动回退 av_hwframe_transfer_data 下载（无黑屏自愈）。
             hw_cfg_.gpu_delivery_ok = std::make_shared<std::atomic_bool>(true);
             std::fprintf(stderr,
-                         "[preview] 硬解装配：type=cuda gpu_delivery=on "
+                         "preview: 硬解装配：type=cuda gpu_delivery=on "
                          "（MS_PREVIEW_HW=none 可关）\n");
         }
     }
@@ -160,7 +160,7 @@ void PreviewRenderer::seekTo(std::int64_t us) {
         if (s_dbg) {
             static int s_n = 0;
             if (++s_n <= 300) {
-                std::fprintf(stderr, "[preview-dbg] seekTo#%d us=%lld\n",
+                std::fprintf(stderr, "preview-dbg: seekTo#%d us=%lld\n",
                              s_n, (long long)us);
                 std::fflush(stderr);
             }
@@ -397,6 +397,7 @@ void PreviewRenderer::pump() {
     for (std::size_t i = 0; i < r.items.size(); ++i) {
         r.items[i].asset = r.items[i].asset ? &r.assets[i] : nullptr;
     }
+    const auto submitted_epoch = r.epoch; // move 前快照（下方诊断探针读取）
     {
         std::lock_guard<std::mutex> lock(mutex_);
         req_ = std::move(r); // 覆盖旧请求：worker 永远只渲最新
@@ -411,9 +412,9 @@ void PreviewRenderer::pump() {
             static int s_scnt = 0;
             if (++s_scnt <= 200) {
                 std::fprintf(stderr,
-                             "[preview-dbg] submit#%d epoch=%llu "
+                             "preview-dbg: submit#%d epoch=%llu "
                              "playhead=%lldus",
-                             s_scnt, (unsigned long long)r.epoch,
+                             s_scnt, (unsigned long long)submitted_epoch,
                              (long long)playhead_us_);
                 for (size_t i = 0; i < items.size() && i < 3; ++i)
                     std::fprintf(stderr, " m%zu=%lld", i,
@@ -435,9 +436,9 @@ void PreviewRenderer::pump() {
             static int s_pcnt = 0;
             if (++s_pcnt <= 60) {
                 std::fprintf(stderr,
-                             "[preview-dbg] pump#%d rev-submit epoch=%llu "
+                             "preview-dbg: pump#%d rev-submit epoch=%llu "
                              "items=%zu",
-                             s_pcnt, (unsigned long long)r.epoch,
+                             s_pcnt, (unsigned long long)submitted_epoch,
                              items.size());
                 for (size_t i = 0; i < items.size() && i < 3; ++i)
                     std::fprintf(stderr,
@@ -508,7 +509,7 @@ bool PreviewRenderer::pullGpu(std::vector<DeliverItem>& out_items,
                 static int s_gcnt = 0;
                 if (++s_gcnt <= 60) {
                     std::fprintf(stderr,
-                                 "[preview-dbg] pull#%d epoch=%llu items=%zu",
+                                 "preview-dbg: pull#%d epoch=%llu items=%zu",
                                  s_gcnt, (unsigned long long)delivered_epoch_,
                                  delivered_items_.size());
                     for (size_t i = 0; i < delivered_items_.size() && i < 3;
@@ -676,7 +677,7 @@ void PreviewRenderer::workerLoop() {
                         static int s_w = 0;
                         if (++s_w <= 400)
                             std::fprintf(stderr,
-                                         "[preview-dbg] worker#%d cost=%lldus "
+                                         "preview-dbg: worker#%d cost=%lldus "
                                          "epoch=%llu items=%zu\n",
                                          s_w, (long long)render_cost_us,
                                          (unsigned long long)rendered_epoch,

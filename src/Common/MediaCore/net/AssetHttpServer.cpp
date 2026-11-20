@@ -194,7 +194,7 @@ void AssetHttpServer::crcWorkerLoop() {
         if (!f) {
             // 【2026-11-13 修正】打开失败（注册与计算间被删/被独占）留痕——
             // 原先静默丢弃导致该条目 crc_pending 永久滞留且排障无据
-            std::fprintf(stderr, "[asset] CRC 打开失败（跳过本任务）: %s\n",
+            std::fprintf(stderr, "asset: CRC 打开失败（跳过本任务）: %s\n",
                          task.path.c_str());
         } else {
             f.seekg(0, std::ios::end);
@@ -204,7 +204,7 @@ void AssetHttpServer::crcWorkerLoop() {
             const auto raw_sz = f.tellg();
             if (raw_sz < 0) {
                 std::fprintf(stderr,
-                             "[asset] CRC tellg 失败（跳过本任务）: %s\n",
+                             "asset: CRC tellg 失败（跳过本任务）: %s\n",
                              task.path.c_str());
             } else {
             const auto sz = static_cast<std::uint64_t>(raw_sz);
