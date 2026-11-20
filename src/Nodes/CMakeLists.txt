@@ -116,6 +116,7 @@ set(ALL_NODES
     PosiStageNetClient                      #PosiStageNet数据接收
     ISFNode                                 #ISF数据加载
     GDTFNode                                #GDTF灯具文件解析
+    FaustNode                               #Faust DSP：加载用户 .dsp 文件
 
 )
 
