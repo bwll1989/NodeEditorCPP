@@ -107,6 +107,7 @@ add_library(MediaCore SHARED
     media/TextRasterizer.cpp
     media/TextMediaSource.cpp
     media/LiveMediaSource.cpp
+    media/PreviewSourceAssembly.cpp
     # ---- live（实时源接入）----
     live/LiveIngest.cpp
     live/IngestBase.cpp

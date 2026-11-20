@@ -12,9 +12,9 @@
 #include <QImage>
 #include <QWidget>   // 出帧重绘目标：qOverload<>(&QWidget::update) 排队上屏
 
-#include "media/FfmpegMediaSource.hpp" // Video/Image creator 装配（FFmpeg 解码）
-#include "media/TextMediaSource.hpp"   // Text 注册（无条件，无文件依赖）
-#include "media/LiveMediaSource.hpp"   // Live 注册（无条件：NDI 实时源）
+#include "media/PreviewSourceAssembly.hpp" // 四类媒体源 creator 装配（归口收编 2026-11-20）
+// 【归口铁律】主程序严禁 include FfmpegMediaSource.hpp 等具体源头——
+// 构造知识归 MediaCore 单点维护（PreviewSourceAssembly）
 // 【软解退役 2026-11-17】DxtDecode 迁出 worker——裸块直透 GL，回退解码
 // 归消费端（SceneCanvasWidget QPainter 路径现场 decodeToRgba）
 
@@ -69,38 +69,13 @@ PreviewRenderer::PreviewRenderer(std::string assets_root,
                          "（MS_PREVIEW_HW=none 可关）\n");
         }
     }
-    // 【空根目录也注册（2026-11-12 视频测试实证修复）】FfmpegMediaSource
-    // 对空 assets_root 有明确语义：full = asset.path 直通（绝对路径寻址，
-    // 见 FfmpegMediaSource.cpp openInput 的空根分支）。此前"空根 = 不注册
-    // 解码器"把这条合法路径挡死——编辑器端（MainWindow）以空根装配 +
-    // 素材绝对路径入库，视频/图片片段全部占位降级、预览永远无画面。
-    // creator 闭包值拷贝 root（可为空），路径语义由媒体源端裁决。
-    {
-        const std::string root = assets_root_;
-        // creator 值拷贝根目录 + 硬解配置：生命周期与工厂一致，避免悬垂
-        factory_.registerCreator(
-            AssetKind::Video, [root, hw = hw_cfg_](const Asset&) {
-                return std::make_unique<FfmpegMediaSource>(root,
-                                                           AssetKind::Video,
-                                                           hw);
-            });
-        factory_.registerCreator(
-            AssetKind::Image, [root](const Asset&) {
-                return std::make_unique<FfmpegMediaSource>(root, AssetKind::Image);
-            });
-    }
-    // ---- 文本源注册【无条件】------------------------------------------------
-    // 文本随场景 pb 分发（无文件、不依赖 assets_root）——预览永远可渲染
-    // 文本片段（与 TextMediaSource 在 display 端 RenderThread 的注册同源）
-    factory_.registerCreator(AssetKind::Text, [](const Asset&) {
-        return std::make_unique<TextMediaSource>();
-    });
-    // ---- 实时源注册【无条件】------------------------------------------------
-    // Live 与 Text 同款"无文件素材"：随场景 pb 分发，预览端 NDI 直收
-    // （与 display 端 RenderThread 注册同源——两端同源渲染铁律）
-    factory_.registerCreator(AssetKind::Live, [](const Asset&) {
-        return std::make_unique<LiveMediaSource>();
-    });
+    // ---- 媒体源装配（归口收编 2026-11-20）--------------------------------
+    // 四类 creator（Video/Image/Text/Live）注册知识归 MediaCore 单点维护。
+    // 【空根目录也注册（2026-11-12 视频测试实证修复）】FfmpegMediaSource 对
+    // 空 assets_root 有明确语义：full = asset.path 直通（绝对路径寻址）。
+    // 编辑器端（MainWindow）以空根装配 + 素材绝对路径入库，空根挡注册 =
+    // 视频/图片片段全部占位降级、预览永远无画面。
+    ms::registerPreviewMediaSources(factory_, assets_root_, hw_cfg_);
     // 【卡死终修】解码+合成全部移入工作线程——GUI 线程（paintEvent）只做
     // 请求提交与最新帧取用，时间轴拖动/片段拖拽/窗口缩放再无解码阻塞。
     worker_ = std::thread([this] { workerLoop(); });
