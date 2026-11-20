@@ -835,11 +835,17 @@ bool FfmpegMediaSource::decodeNext() {
 // 开关：MS_DXT_PASSTHROUGH=0 关闭（默认开启）。进程级缓存——所有源实例
 // 同策略；部署端零配置启用，异常时设环境变量回退既有 avcodec 全解压路径。
 bool FfmpegMediaSource::dxtPassthroughEnabled() {
+#ifdef __ANDROID__
+    // GLES 3.1 无 S3TC/DXT 压缩纹理：直传的 DXT 帧渲染端只能 CPU 解码再上传，
+    // 直传毫无收益还多一次拷贝——解码端直接禁用（渲染端 dxt_dead_ 运行时探测为双保险）。
+    return false;
+#else
     static const bool enabled = [] {
         const char* env = std::getenv("MS_DXT_PASSTHROUGH");
         return !(env != nullptr && std::strcmp(env, "0") == 0);
     }();
     return enabled;
+#endif
 }
 
 // 串行同步执行全部 chunk（HapDecode 回调；阶段 0 实测：多线程 chunk 收益
