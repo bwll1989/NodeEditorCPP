@@ -63,6 +63,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <timeapi.h> // timeBeginPeriod/timeEndPeriod（winmm；高精度定时器）
 #include "GlContextWGL.hpp"       // 关窗即退出旗标（GlContextWGL::userClosed）
 #include "GlRenderer.hpp"         // GL 合成后端（第②阶段渲染管线）
 #include "PreviewWindowWin32.hpp" // Win32 GDI 输出预览窗口（soft 后端用）
@@ -1203,7 +1204,9 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
                 (clock.alignedNowUs() - t0) / 1000;
             if (elapsed_ms >= args.quit_after_ms) break;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        // 主循环节拍 5ms（timeBeginPeriod(1) 后 sleep 精度 ~1-2ms）：
+        // 锚点应用最坏滞后从 15.6ms 降到 ~6ms，播放/暂停体感"跟手"
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
     // 退出前状态快照（联测脚本核对；rendered=渲染线程累计帧数）
@@ -1316,6 +1319,17 @@ int main(int argc, char** argv) {
             ::SetConsoleMode(cin, (mode & ~ENABLE_QUICK_EDIT_MODE) |
                                       ENABLE_EXTENDED_FLAGS);
     }
+
+    // 【高精度定时器 2026-11-20】Windows 默认定时粒度 15.6ms——主循环
+    // sleep(10ms) 实际 15.6±ms 抖动（锚点应用延迟、播放头推进 dt、SNTP
+    // probe 节奏全部被钉在这个粒度上）。timeBeginPeriod(1) 进程级生效：
+    // tick 间隔接近真实 10ms，重锚命令"TCP 送达 → 下一 tick 应用"的最坏
+    // 滞后从 ~16ms 降到 ~5ms（配合主循环保守 10ms 睡眠，CPU 占用无感）。
+    // winmm 直链（见 CMake target_link_libraries）；进程退出统一恢复。
+    ::timeBeginPeriod(1);
+    struct TimerResolutionGuard {
+        ~TimerResolutionGuard() { ::timeEndPeriod(1); }
+    } timer_resolution_guard;
 
     // 【注入噪音防御 2026-11-05】display 是纯显示进程，没有任何文本输入
     // ——显式禁用主线程输入法（IME）。动机：部分国产输入法的广告同步

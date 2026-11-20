@@ -300,6 +300,17 @@ private:
     void onProbeResponse(const SyncFrame& f, std::int64_t t4_us); ///< recv 线程
     void settleProbe(std::int64_t now_us); ///< 采样轮结算（tick 上下文，RTT 最小样本写 clock_）
 
+    /// 心跳被动粗校准（2026-11-20；recv 线程）——SNTP 主动探测的冷启动
+    /// 补充通道。Editor 心跳帧 wall_us = Editor 对齐时钟读数；与本机
+    /// 对齐时钟比对得 raw = editor - local（含单向网络延迟 ±5ms LAN）。
+    /// 仅在 offset 未生效（==0，SNTP 未收敛/UDP 单向不通）时评估：滑窗
+    /// 5 拍取中位数，|中位数| > 250ms 才采纳（只修秒级裸差，亚百 ms 交给
+    /// probe 精确通道）——采纳后 offset 非零，本通道自锁，主动探测收敛
+    /// 后以其为准（30s 轮可把粗值精修到亚毫秒）。
+    /// \note 只在 recv 线程调用（滑窗字段无锁）；setOffsetUs 原子写与
+    ///       settleProbe 竞态无害（后写胜，同为校准值域）。
+    void passiveCalibrateTick(std::int64_t editor_aligned_now_us);
+
     /// 发送注册帧（连接建立时经 on_connected 触发；§6.2）
     bool sendRegister();
 
@@ -429,8 +440,17 @@ private:
     std::int64_t probe_next_us_   = 0;       ///< 下一请求发送时刻（对齐时钟域）
     std::int64_t probe_deadline_us_ = 0;     ///< 本轮截止（超时用已收样本结算）
     std::int64_t last_probe_round_us_ = 0;   ///< 上轮结算时刻（30s 重测节流）
+    int          probe_fail_streak_ = 0;     ///< 连续样本不足轮数（3 轮起
+                                            ///  节流告警——UDP 单向不通指认）
+    std::int64_t last_probe_fail_warn_ms_ = 0; ///< 上次告警时刻（60s 节流；
+                                            ///  仅 tick/settle 线程 touch）
     /// 采样表 (offset_us, rtt_us)——recv 线程填，tick 结算取 RTT 最小
     std::vector<std::pair<std::int64_t, std::int64_t>> probe_samples_;
+
+    // ---- 心跳被动粗校准（无锁：仅 recv 线程 touch）--------------------------
+    std::int64_t passive_off_win_[5] = {0, 0, 0, 0, 0}; ///< raw 观测滑窗（us）
+    int          passive_off_n_   = 0;                  ///< 窗口填充数（≤5）
+    int          passive_adopted_ = 0;                  ///< 采纳次数（诊断日志）
 };
 
 } // namespace ms

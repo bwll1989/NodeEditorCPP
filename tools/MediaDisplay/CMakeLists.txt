@@ -65,6 +65,7 @@ target_link_libraries(media_display
         StandaloneBase  # standalone 控制面（引擎链经其 PUBLIC 传播）
         MediaCore       # 模型/时钟/网络/运行时（与编辑端同源）
         opengl32        # GL 1.1 经典函数直链（1.2+ 经 wglGetProcAddress）
+        winmm           # timeBeginPeriod(1) 高精度定时器（同步 tick 节拍）
 )
 # include 歧义保险：本地 standalone/（REST 控制面）必须先于 MediaCore 的
 # standalone/（PlayerRuntime 侧装配）——"standalone/xxx" 前缀两目录同名，

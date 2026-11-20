@@ -757,7 +757,10 @@ void EditorRuntime::onUdpFrame(const SyncFrame& f,
     beat.session_id       = sid;
     beat.state            = st;
     beat.session_start_us = start;
-    beat.wall_us          = 0; // 回应帧不带墙钟（Player 不消费此字段）
+    // 【被动粗校准数据源 2026-11-20】回应帧带 Editor 对齐时钟读数——
+    // display 端与本机时钟比对（含单向网络延迟），多拍一致才粗修大差
+    //（秒级裸差冷启动空窗的消解通道；SNTP 主动探测仍是精确基准）
+    beat.wall_us          = probeNowUs();
     // 【发送解耦】UDP 发送也走队列（UDP sendTo 虽非阻塞语义，统一走
     // 发送线程——出站路径单一化，排查/限流/日志都只在一处）
     SendTask t;
@@ -1347,6 +1350,11 @@ void EditorRuntime::enqueueSend(SendTask&& t) {
 }
 
 void EditorRuntime::sendWorkerLoop() {
+    // 控制任务判定（出队插队用；ScenePrepare 是队列中唯一"大任务"）
+    const auto is_control = [](const SendTask& k) {
+        return k.kind == SendTask::Kind::DisplayBroadcast || // 重锚广播
+               k.kind == SendTask::Kind::UdpSend;            // 心跳/应答
+    };
     for (;;) {
         SendTask t;
         {
@@ -1358,8 +1366,26 @@ void EditorRuntime::sendWorkerLoop() {
                 if (send_quit_) return;
                 continue; // 空转唤醒：无任务，回去等
             }
-            t = std::move(send_queue_.front());
-            send_queue_.pop_front();
+            // 【控制优先 2026-11-20】ScenePrepare（素材注册 stat×N + 大场景
+            // serialize，实测可达百 ms 级）处理期间到达的播放/暂停命令与
+            // 心跳若按 FIFO 排队，指令延迟被拖到秒级（"点播放没反应"形态）。
+            // 队头是大任务时先跳过它取第一个控制任务；无控制任务才发大任务。
+            // 【保序评估】重锚可先于场景送达（场景全量自描述、无版本连续
+            // 性依赖——display 先应用锚点后收场景，毫秒级差渲染以锚点为
+            // 准）；DisplayUnicast（注册应答链）不插队，Ack→Scene 顺序
+            // 契约不动。队列深度正常 <100，线性扫描纳秒级。
+            std::size_t idx = 0;
+            if (send_queue_.front().kind == SendTask::Kind::ScenePrepare) {
+                for (std::size_t i = 1; i < send_queue_.size(); ++i) {
+                    if (is_control(send_queue_[i])) {
+                        idx = i;
+                        break;
+                    }
+                }
+            }
+            t = std::move(send_queue_[idx]);
+            send_queue_.erase(send_queue_.begin() +
+                              static_cast<std::ptrdiff_t>(idx));
         }
         // 锁外发送：序列化 + socket 写（阻塞/慢连接只影响本线程，
         // 调用方与接收路径全部不受影响）

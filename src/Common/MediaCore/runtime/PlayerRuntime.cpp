@@ -22,6 +22,7 @@
 #include <atomic>
 #include <chrono>
 #include <cctype>
+#include <cstring>
 #include <unordered_set>
 #include <cstdio>
 #include <cstdlib>
@@ -92,7 +93,11 @@ void PlayerRuntime::maybeProbeTick(std::int64_t now_us) {
         } else if (probe_sent_ < kProbeCount && now_us >= probe_next_us_) {
             probe.kind       = SyncKind::TimeProbeReq;
             probe.role       = SyncRole::Player;
-            probe.t1_us      = now_us; // T1：本机对齐时钟（tick 粒度 ±10ms）
+            // T1：发送前即时取对齐时钟（【精度 2026-11-20】原取 tick 时戳
+            // now_us——粒度 ±10ms 直接成为 offset 误差上限；即时读数亚毫秒，
+            // 与 T4 的 recv 线程即时取对等。时戳到 sendTo 的 CPU 时间进
+            // RTT，被"RTT 最小样本"筛选排除，无系统性偏差）
+            probe.t1_us      = clock_.alignedNowUs();
             probe.delta_us   = probe_seq_; // 轮序号（响应回传匹配）
             send_now = true;
             ++probe_sent_;
@@ -119,6 +124,7 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
     std::int64_t offset = 0, rtt = 0, cur_off = 0;
     int       received = 0;
     bool      adopt    = false;
+    int       fail_streak = 0; // 本轮失败连击（0 = 成功轮；锁外告警判定）
     {
         std::lock_guard<std::mutex> lock(probe_mutex_);
         last_probe_round_us_ = now_us;
@@ -126,21 +132,38 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
         if (static_cast<int>(probe_samples_.size()) < kProbeMinSamples) {
             // 样本不足（丢包严重）：放弃本轮等下轮，不动 offset
             probe_samples_.clear();
-            return;
+            fail_streak = ++probe_fail_streak_; // 锁内簿记（打印挪锁外）
+        } else {
+            probe_fail_streak_ = 0; // 成功轮清零连击
+            const auto best = std::min_element(
+                probe_samples_.begin(), probe_samples_.end(),
+                [](const auto& a, const auto& b) { return a.second < b.second; });
+            offset   = best->first;
+            rtt      = best->second;
+            cur_off  = clock_.offsetUs();
+            received = probe_recv_; // 结算前留存（下面 clear）
+            probe_samples_.clear();
+            // 首次（offset==0）必采纳；此后仅显著变化才写（±50ms 防抖，避免
+            // 测量噪声反复微调播放头）
+            adopt = (cur_off == 0 ||
+                     std::llabs(offset - cur_off) > kOffsetAdoptDeltaUs);
         }
-        const auto best = std::min_element(
-            probe_samples_.begin(), probe_samples_.end(),
-            [](const auto& a, const auto& b) { return a.second < b.second; });
-        offset   = best->first;
-        rtt      = best->second;
-        cur_off  = clock_.offsetUs();
-        received = probe_recv_; // 结算前留存（下面 clear）
-        probe_samples_.clear();
-        // 首次（offset==0）必采纳；此后仅显著变化才写（±50ms 防抖，避免
-        // 测量噪声反复微调播放头）
-        adopt = (cur_off == 0 ||
-                 std::llabs(offset - cur_off) > kOffsetAdoptDeltaUs);
     }
+    // 锁外打印（锁内绝不做 I/O 纪律；now_us/now_ms 仅 tick 线程 touch）
+    if (fail_streak >= 3) {
+        const std::int64_t now_ms = now_us / 1000;
+        if (now_ms - last_probe_fail_warn_ms_ >= 60'000) {
+            last_probe_fail_warn_ms_ = now_ms;
+            std::fprintf(stderr,
+                         "\n[player] W-时钟探测持续失败（连续 %d 轮样本<%d）"
+                         "——检查 display→editor 的 UDP 单向连通（防火墙/路由）"
+                         "；期间心跳被动校准兜底（若 Editor 心跳可达）\n\n",
+                         fail_streak, kProbeMinSamples);
+            std::fflush(stderr);
+        }
+        return;
+    }
+    if (fail_streak > 0) return; // 失败但未到告警阈值：静默等下轮
     if (adopt) {
         clock_.setOffsetUs(offset); // 原子量，锁外写安全（tick 单写者）
         // stderr 通道（项目日志纪律：无缓冲即时落盘，stdout 重定向为全缓冲）
@@ -169,6 +192,55 @@ void PlayerRuntime::onProbeResponse(const SyncFrame& f,
     if (rtt < 0 || rtt > kProbeTimeoutUs) return; // 负 RTT/超时样本丢弃
     probe_samples_.emplace_back(offset, rtt);
     ++probe_recv_;
+}
+
+// ---------------------------------------------------------------------------
+// 心跳被动粗校准（recv 线程；无锁——滑窗字段仅本线程 touch）
+//
+// 【为什么需要】SNTP 主动探测有冷启动空窗（注册后首轮 8×100ms≈0.7s 才
+// 结算）与失败态（UDP 单向被防火墙拦截时样本永远不足 3 个）——期间
+// offset==0，锚点 time戳走裸墙钟域，跨机秒级差直接触发域差兜底（画面
+// 不冻结但端间各按单向延迟重表达）。本通道从 Editor 心跳帧免费拿
+// Editor 域时戳：raw = editor - local，多拍中位数过滤网络抖动后粗修
+// 大差（>250ms 才动），把"秒级裸差"在 1-2s 内消掉；probe 收敛后以其
+// 亚毫秒值为准（30s 轮自动精修）。
+// ---------------------------------------------------------------------------
+void PlayerRuntime::passiveCalibrateTick(std::int64_t editor_aligned_now_us) {
+    if (editor_aligned_now_us == 0) return;      // 无数据源帧（旧版 Editor）
+    if (cfg_.standalone) return;                 // 本机模式无 Editor 域概念
+    if (clock_.offsetUs() != 0) {                // 已有生效 offset：通道自锁
+        passive_off_n_ = 0;                      // 清窗（下次 offset 归零重开）
+        return;
+    }
+    const std::int64_t raw =
+        editor_aligned_now_us - clock_.alignedNowUs();
+    // 滑窗 5 拍：FIFO 推进（环形不必——5 元素 memmove 纳秒级）
+    if (passive_off_n_ < 5)
+        passive_off_win_[passive_off_n_++] = raw;
+    else {
+        std::memmove(passive_off_win_, passive_off_win_ + 1,
+                     sizeof(passive_off_win_) - sizeof(std::int64_t));
+        passive_off_win_[4] = raw;
+    }
+    if (passive_off_n_ < 5) return;              // 窗未满：先观测
+    // 中位数（5 元素，小数组插排即可）
+    std::int64_t sorted[5];
+    std::copy(std::begin(passive_off_win_), std::end(passive_off_win_),
+              std::begin(sorted));
+    std::sort(std::begin(sorted), std::end(sorted));
+    const std::int64_t median = sorted[2];
+    constexpr std::int64_t kPassiveAdoptUs = 250'000;  // 只修秒级裸差
+    // 一致性：中位数显著 + 各拍与中位差 < 200ms（抖动过大 = 网络污染，弃）
+    if (std::llabs(median) < kPassiveAdoptUs) return;
+    for (const auto v : sorted)
+        if (std::llabs(v - median) > 200'000) return;
+    clock_.setOffsetUs(median);
+    ++passive_adopted_;
+    std::fprintf(stderr,
+                 "[player] 心跳被动校准: offset=%+.3fs（SNTP 未生效期"
+                 "粗修，主动探测收敛后精修；adopted=%d）\n",
+                 static_cast<double>(median) / 1e6, passive_adopted_);
+    std::fflush(stderr);
 }
 
 /// 素材本地寻址（2026-11-13 归集改造收敛进 runtime/AssetPath.hpp——原
@@ -733,6 +805,10 @@ void PlayerRuntime::onUdpFrame(const SyncFrame& f,
                      "[player] 心跳软对齐（迟到加入）: session=%s t=%lldus\n",
                      aligned_session.c_str(),
                      static_cast<long long>(aligned_t));
+
+    // ---- 心跳被动粗校准（SNTP 冷启动空窗/失败态的消解通道；recv 线程）--
+    // f.wall_us = Editor 对齐时钟读数（主动单播 + 逐帧回应帧均携带）
+    passiveCalibrateTick(f.wall_us);
 }
 
 // ---------------------------------------------------------------------------
@@ -957,12 +1033,17 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
     }
 
     // ---- 3. UDP 上报（节流；锁外发送——避免锁内做 IO）----
-    if (state() == PlayState::Playing) {
+    // 【全状态上报 2026-11-20】原仅 Playing 上报——Idle/Paused 的 display
+    // 在 Editor 观测表无 UDP 心迹（半开连接/网络单向故障不可见：心跳
+    // 超时扫描只对收到过上报的 Player 生效）。改 Playing 按周期（250ms）、
+    // 其它态低频（1s）上报——在线观测全覆盖，带宽每端 +1 包/s 可忽略。
+    // 【standalone】udp_ 未启动，跳过上报与节流簿记（下方诊断日志
+    // 保留——本机模式同样需要播放头观察）；纠偏环在本模式下
+    // target=current（同源时钟同式推算）delta≈0，DriftController
+    // 恒判环内 None，无害保留。
+    {
+        const bool playing = state() == PlayState::Playing;
         bool due = false;
-        // 【standalone】udp_ 未启动，跳过上报与节流簿记（下方诊断日志
-        // 保留——本机模式同样需要播放头观察）；纠偏环在本模式下
-        // target=current（同源时钟同式推算）delta≈0，DriftController
-        // 恒判环内 None，无害保留。
         if (!cfg_.standalone) {
             std::lock_guard<std::mutex> lock(state_mutex_);
             // 【负差防护 2026-11-16 实测校准卡死 40s】SNTP 校准写入 offset
@@ -970,8 +1051,10 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
             // 变负 → 原判定不 due → 上报停摆 |offset| 秒，Editor 端视为
             // display 掉线。负差 = 时钟被回拨过的痕迹，强制立即上报并重锚
             // 簿记（对齐新时钟域）。
+            const std::int64_t interval = playing ? cfg_.report_interval_us
+                                                  : 1'000'000;
             const std::int64_t since = aligned_now_us - last_report_us_;
-            if (since < 0 || since >= cfg_.report_interval_us) {
+            if (since < 0 || since >= interval) {
                 last_report_us_ = aligned_now_us;
                 due = true;
             }
@@ -994,7 +1077,9 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
         // 控制台 = 渲染/解码线程锁等待 = 用户实测"瞬时卡顿总出现在
         // 诊断日志打印前后"（每 5s 一次）。与上方 UDP 上报"锁外发送"
         // 同一原则：临界区内绝不做 I/O。
-        {
+        // 【仅播放期】Idle/Paused 的低频上报已承担在线观测，诊断日志
+        // 静默降噪（停止后不再每 5s 刷一条零信息行）。
+        if (playing) {
             std::int64_t cur = 0, delta = 0;
             double rate = 1.0;
             std::uint32_t recon = 0;
