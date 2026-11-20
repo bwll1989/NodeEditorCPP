@@ -465,7 +465,17 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
             std::lock_guard<std::mutex> lock(state_mutex_);
             if (session_id_ != ack.session_id()) {
                 scheduler_.clear(); // 新会话：未应用的旧锚点全部作废（§6.2）
-                session_id_ = ack.session_id();
+                // 旧会话的播放状态一并作废（2026-11-20 注册状态对账配套）：
+                // session 号更替 = Editor 进程重启，旧 state/session_start
+                // 已无权威来源——保持播放会让 display 失控跑旧内容、两端
+                // 时间完全脱节。归零后由紧跟本 Ack 的注册状态对账帧
+                //（Editor 单播）恢复权威播放状态。
+                state_            = PlayState::Idle;
+                session_start_us_ = 0;
+                current_us_       = 0;
+                rate_             = 1.0;
+                ticking_          = false;
+                session_id_       = ack.session_id();
             }
             // 学习素材分发端口（§6 地址互相学习）：0 = Editor 未启用分发
             http_port = static_cast<std::uint16_t>(ack.http_port());
@@ -702,7 +712,12 @@ void PlayerRuntime::onUdpFrame(const SyncFrame& f,
         if (state_ == PlayState::Idle && f.state == PlayState::Playing &&
             f.session_time_us >= 0) {
             session_id_       = f.session_id;
-            session_start_us_ = f.session_start_us;
+            // 【域差兜底 2026-11-20】轴原点本机化重表达：本机对齐时钟读数
+            // - 会话时刻，替代直接抄 Editor 域的 f.session_start_us——两端
+            // 墙钟裸差（SNTP 未校准）会让抄来的轴原点落在本机"未来"，
+            // 渲染 FramePacer 钳 0 → 播放画面冻结（与 applyAnchorLocked
+            // 同根因）。本机化误差=单向网络延迟，纠偏环吸收。
+            session_start_us_ = clock_.alignedNowUs() - f.session_time_us;
             current_us_       = f.session_time_us;
             ticking_          = false; // 下个 tick 重新锚定 dt 基准
             state_            = PlayState::Playing;
@@ -740,6 +755,33 @@ void PlayerRuntime::applyAnchorLocked(const Anchor& a,
     // PLAY/SEEK 应用后 session_time(now) = anchored + (now - anchor)，
     // 迟到时自动落在"anchored + 迟到量"——正确的追帧语义。
     session_start_us_ = a.anchor_time_us - a.anchored_session_time_us;
+
+    // ---- 跨机时钟域差兜底（2026-11-20，"播放画面冻结不刷新"根因修复）----
+    // 【域差形态】anchor_time 是 Editor 域时戳；display 本机对齐时钟若未
+    // 与 Editor 校准（SNTP 未收敛 / UDP 响应被防火墙拦 / 旧版 exe 无
+    // probe），裸差 = 两机墙钟原始偏差（秒级常态，可达分钟级）。此时
+    // session_start 落在本机时钟"未来"→ 渲染线程 FramePacer 对
+    // now<epoch 钳 0 → 播放画面永久冻结在第一帧；暂停分支直通
+    // current_us_ 却正常 → "播放不刷新、暂停会跳"的现场形态。
+    // 【区分合法未来锚点】协议 §6.1 支持预约式锚点，但当前全部调用方
+    // （cmdPlay/cmdPause/cmdSeek）都是立即锚点（anchor≈now）；预约开播
+    // 尚无调用方。故 >2s 的"未来"判为域差（网络延迟亚秒不可能 2s+）。
+    // 若未来引入预约开播，需在协议加显式 delay 字段，不可依赖裸时戳。
+    // 【兜底语义】本机化重表达轴原点：session_start = 本机现在 - anchored
+    // ——误差=单向网络延迟（局域网 <5ms），画面立即正常；多端端间差
+    // = 各自单向延迟差（亚 10ms），远优于"整端冻结"。SNTP 正常时
+    // 偏差亚秒不触发，共享轴精确语义不受影响（分层防御）。
+    if (a.anchor_time_us - aligned_now_us > 2'000'000) {
+        const std::int64_t domain_gap_us = a.anchor_time_us - aligned_now_us;
+        session_start_us_ = aligned_now_us - a.anchored_session_time_us;
+        std::fprintf(stderr,
+                     "\n[player] W-时钟域差兜底: 锚点在本机时钟未来 %.3fs"
+                     "（两端墙钟未校准，SNTP offset=%.3fs）→ 已按本机时钟"
+                     "重表达轴原点（画面不冻结；建议检查 UDP 双向连通）\n\n",
+                     static_cast<double>(domain_gap_us) / 1e6,
+                     static_cast<double>(clock_.offsetUs()) / 1e6);
+        std::fflush(stderr);
+    }
     rate_             = 1.0;   // 重锚后速率复位（残留调速不叠加）
     ticking_          = false; // 重新锚定 dt 基准，避免旧 dt 造成突变
 

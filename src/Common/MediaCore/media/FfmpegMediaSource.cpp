@@ -175,9 +175,13 @@ void FfmpegMediaSource::tryEnableHwAccel(const AVCodec* dec) {
     int chain_n = 0;
     if (hw_cfg_.type == HwAccelType::Auto) {
 #if defined(_WIN32)
-        // Windows：D3D11VA（全厂商）优先，NVIDIA 机器再试 CUDA/NVDEC
-        chain[chain_n++] = HwAccelType::D3D11VA;
+        // Windows：NVIDIA 机器优先 CUDA/NVDEC（GL 0 拷贝互操作唯一后端），
+        // 非 NVIDIA 机器 CUDA 设备创建失败（毫秒级）落 D3D11VA（全厂商硬解
+        // 兜底）。【2026-11-20 顺序修订】旧链 D3D11VA→CUDA 会让 N 卡机器
+        // 恒命中 D3D11VA（硬解下载路径，GPU→CPU 读回比软解还慢）永远拿
+        // 不到 0 拷贝；CUDA 失败代价仅毫秒级设备创建尝试，先试 CUDA 无损。
         chain[chain_n++] = HwAccelType::Cuda;
+        chain[chain_n++] = HwAccelType::D3D11VA;
 #elif defined(__ANDROID__)
         chain[chain_n++] = HwAccelType::MediaCodec; // Android 唯一系统后端
 #else
@@ -268,10 +272,53 @@ void FfmpegMediaSource::tryEnableHwAccel(const AVCodec* dec) {
 }
 
 // ---------------------------------------------------------------------------
+// handleHwFailure —— 硬解连续失败自愈（2026-11-20 display 视频不刷新修复）
+//
+// 【动机】现场实锤"display 视频不刷新但音频正常、机器相关"的解码侧形态
+// 之一：硬解设备创建成功（探测通过）但逐帧产出持续失败——驱动异常 /
+// NVDEC surface 池损坏 / 双显卡跨总线拷贝坏 / 远程会话渲染链异常等。
+// 旧实现单帧失败仅丢弃重试，若失败持续则**永久停帧**（发布槽滞留旧画面
+// 或空），音频链完全独立照常出声——用户观感"视频不刷新音频正常"。
+//
+// 【语义】hw_active_ 期间连续失败计数（成功一帧清零）；达 90 帧（60fps
+// 约 1.5s / 30fps 约 3s——远超瞬时抖动、又不至于长时间黑屏）即判定
+// 硬解环境坏：硬解意图改 Soft → release + prepare(last_asset_) 重建
+// 软解上下文（FF_THREAD_FRAME 多线程），此后播放自愈。软解路径不计数
+// ——软解坏（坏碟/CPU 满载）换后端无意义，维持既有单帧丢弃语义。
+// prepare 重入安全：降级后 hw_cfg_.type=Soft，重建期再失败不会二次触发。
+// ---------------------------------------------------------------------------
+void FfmpegMediaSource::handleHwFailure(const char* why) {
+    if (!hw_active_) return;                       // 软解/HAP 不计数
+    if (++hw_fail_streak_ < 90) return;            // 阈值内：按既有语义重试
+    hw_fail_streak_ = 0;
+    const std::string backend = HwAccelConfig::typeName(hw_type_);
+    std::fprintf(stderr,
+                 "\n[media] 硬解连续失败 90 帧（%s；后端 %s）——判定硬解环境"
+                 "损坏，自动降级软解并重建解码上下文（播放将自愈，无需重启）\n\n",
+                 why, backend.c_str());
+    std::fflush(stderr);
+    hw_cfg_.type = HwAccelType::Soft;              // 降级意图：重建不再探测
+    if (!has_last_asset_) { release(); return; }   // 无快照（理论不可达）：兜底停机
+    Asset a = last_asset_;                         // 值拷贝快照（release 不触碰）
+    release();
+    if (!prepare(a)) {
+        std::fprintf(stderr, "[media] 软解重建失败（素材不可用？）: %s\n",
+                     a.path.c_str());
+        std::fflush(stderr);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // prepare —— 打开素材并建立解码上下文（可重复调用：先释放旧上下文）
 // ---------------------------------------------------------------------------
 bool FfmpegMediaSource::prepare(const Asset& asset) {
     release(); // 幂等重置（AVFrame/AVPacket 复用缓冲随上下文一起重建）
+
+    // 自愈重建快照（2026-11-20 硬解失败自愈降级）：保存素材副本供
+    // handleHwFailure 运行中重建软解上下文（Asset 是纯值类型，拷贝安全）。
+    last_asset_    = asset;
+    has_last_asset_ = true;
+    hw_fail_streak_ = 0; // 重建即新会话：自愈计数清零（防跨重建残留误触发）
 
     // ---- 1. 拼接完整路径：素材根目录 + 相对路径（'/' 在 Windows 下通用）----
     // 【2026-11-13 归集寻址】收敛进 runtime/AssetPath.hpp::assetResolvePath
@@ -733,6 +780,7 @@ bool FfmpegMediaSource::decodeNext() {
         if (ret == 0) {
             if (!convertToRgba()) return false; // 像素转换失败：按解码失败处理
             ++decoded_count_;
+            hw_fail_streak_ = 0; // 成功一帧：自愈计数清零（2026-11-20）
             return true;
         }
         if (ret == AVERROR_EOF) {           // 已 drain 完毕：流尾
@@ -744,6 +792,9 @@ bool FfmpegMediaSource::decodeNext() {
             av_strerror(ret, err, sizeof(err));
             std::fprintf(stderr, "[media] 解码错误(%d %s) fmt=%d %dx%d\n",
                          ret, err, frame_->format, width_, height_);
+            // 硬解生效期间的真实解码错误计入自愈计数（持续失败=硬解环境
+            // 坏，达阈值自动降级软解重建——2026-11-20）
+            handleHwFailure("解码错误");
             return false;
         }
 
@@ -765,7 +816,11 @@ bool FfmpegMediaSource::decodeNext() {
         }
         ret = avcodec_send_packet(codec_, pkt_);
         av_packet_unref(pkt_); // 引用计数归零（packet 数据归 FFmpeg 内部所有）
-        if (ret < 0 && ret != AVERROR(EAGAIN)) return false;
+        if (ret < 0 && ret != AVERROR(EAGAIN)) {
+            // 真实喂包错误（硬解坏流/解码器状态坏）：计入自愈计数
+            handleHwFailure("喂包错误");
+            return false;
+        }
         // EAGAIN 属正常背压：回到 ① 先收帧再喂数
     }
 }
@@ -943,6 +998,9 @@ bool FfmpegMediaSource::convertToRgba() {
         av_frame_unref(sw_frame_); // 释放上一帧残留引用
         if (av_hwframe_transfer_data(sw_frame_, frame_, 0) < 0) {
             std::fprintf(stderr, "[media] 硬解帧下载失败（本帧丢弃）\n");
+            // 下载持续失败 = 硬解环境坏（驱动/跨 GPU 总线）：计入自愈计数，
+            // 达阈值自动降级软解重建——不再永久停帧（2026-11-20）
+            handleHwFailure("硬解帧下载失败");
             return false; // 单帧下载失败按解码失败处理（下一帧重试）
         }
         // 【关键坑】transfer 只搬像素不搬属性——PTS/best_effort_timestamp

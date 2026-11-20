@@ -125,13 +125,16 @@ struct Args {
     /// ——非 Windows 本就 headless）。默认开预览（用户反馈：只有终端没画面）
     bool no_preview = false;
     /// [display] hw_accel：视频硬解后端（d3d11va/cuda/nvdec/vaapi/mediacodec/
-    /// auto/soft）。【默认 cuda（2026-11-05 修订）】render_backend=gl 下
-    /// cuda 走 CUDA-GL interop 0 拷贝（实测 1080p60 满帧）；d3d11va 只能
-    /// 走硬解下载路径（GPU→CPU 读回 8.8ms/帧，比软解 4.7ms 还慢 1.9×，
-    /// ③阶段基准实证）——用户实测 d3d11va 机器 H.264 卡顿、editor 预览
-    /// （默认 cuda）流畅即此差异。无 N 卡机器 cuda 探测失败运行时自动
-    /// 回退软解（多线程提速），不影响可用性。
-    std::string hw_accel = "cuda";
+    /// auto/soft）。【默认 auto（2026-11-20 修订）】按平台探测链逐个尝试：
+    /// Windows = CUDA→D3D11VA——N 卡机器拿 CUDA-GL interop 0 拷贝（实测
+    /// 1080p60 满帧），非 N 卡机器 CUDA 设备创建失败（毫秒级）落 D3D11VA
+    /// 硬解（全厂商兜底，走硬解下载路径），两者都不可用才软解。
+    /// 【修订原因】旧默认 cuda 是"显式单候选链"：无 N 卡机器 CUDA 探测
+    /// 失败后直接静默回退软解，不会尝试 D3D11VA——AMD/Intel 机器全员
+    /// 软解，弱 CPU 上视频解码吞吐追不上实时（追帧恶性循环），现场表现
+    /// 即"display 视频不刷新但音频正常、不同电脑不一样"（音频解码完全
+    /// 独立且轻量）。auto 让所有机器优先拿到本机最优硬解后端。
+    std::string hw_accel = "auto";
     /// [display] audio_enable：音频输出开关（P3，2026-11-10）。默认开
     /// （display 出声是音频链路的交付目标；无声卡/独占占用时自动回退
     /// 静音输出，不影响视频链路）。--no-audio / ini audio_enable=0 关闭。
@@ -207,7 +210,7 @@ Args loadDefaultsFromIni(const ms::config::IniConfig& ini) {
     // d3d11va——键不存在时把结构体的 cuda 修订静默覆盖回 d3d11va（无
     // ini 用户永远走下载路径）。无 N 卡机器 cuda 探测失败运行时自动
     // 回退软解，无黑屏风险；与结构体默认/注释三处对齐。
-    a.hw_accel          = ini.getStr("display", "hw_accel", "cuda");
+    a.hw_accel          = ini.getStr("display", "hw_accel", "auto");
     a.render_backend    = ini.getStr("display", "render_backend", "gl");
     a.audio_enable      = ini.getLong("display", "audio_enable", 1) != 0;
     a.audio_device      = ini.getStr("display", "audio_device");
@@ -789,11 +792,15 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
         // ③阶段基准 8.8ms vs 4.7ms/帧）——用户反馈"editor 预览流畅、
         // display 卡顿"的典型根因。提示改配置，不改行为（用户显式选择
         // 尊重之；如 d3d11va 在无 N 卡且软解吃力时的折中）。
-        std::fprintf(stderr,
-                     "[display] 性能提示: hw_accel=%s + gl 合成走硬解下载"
-                     "路径（比软解慢）——建议 hw_accel=cuda（N 卡 0 拷贝）"
-                     "或 soft（软解多线程）\n",
-                     ms::HwAccelConfig::typeName(cfg.hw_accel.type));
+        // 【auto 不断言 2026-11-20】auto 的最终后端由媒体源运行时探测
+        // （N 卡→CUDA 0 拷贝 / 非 N 卡→D3D11VA 下载路径），此处不预判。
+        if (cfg.hw_accel.type != ms::HwAccelType::Auto) {
+            std::fprintf(stderr,
+                         "[display] 性能提示: hw_accel=%s + gl 合成走硬解下载"
+                         "路径（比软解慢）——建议 hw_accel=cuda（N 卡 0 拷贝）"
+                         "或 auto（按机器自动选最优后端）\n",
+                         ms::HwAccelConfig::typeName(cfg.hw_accel.type));
+        }
     }
 
     if (use_gl_backend) {

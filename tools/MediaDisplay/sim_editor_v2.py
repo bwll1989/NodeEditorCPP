@@ -21,7 +21,7 @@ import socket, struct, sys, os, time, threading, zlib, subprocess
 import http.server
 
 BIN     = r"D:\19_NodeEditorCPP\NodeEditorCPP\build\bin"
-EXE     = os.path.join(BIN, "media_display.exe")
+EXE     = os.path.join(BIN, "display", "media_display.exe")  # bin/display 全自含布局（2026-11-20 修正）
 WORK    = r"D:\19_NodeEditorCPP\NodeEditorCPP\build\test_asset_sync"
 ASSETS  = os.path.join(WORK, "display_assets")
 CFG_INI = os.path.join(BIN, "config.ini")

@@ -13,7 +13,9 @@
 //                     第③阶段 0 拷贝依赖它）
 //        Vaapi      → AV_PIX_FMT_VAAPI   （Linux Intel/AMD）
 //        MediaCodec → AV_PIX_FMT_MEDIACODEC（Android）
-//        Auto       → 按平台探测链逐个尝试（Windows: D3D11VA→CUDA）
+//        Auto       → 按平台探测链逐个尝试（Windows: CUDA→D3D11VA，
+//                     2026-11-20 修订——N 卡优先拿 0 拷贝最优路径，非 N 卡
+//                     CUDA 创建失败毫秒级落 D3D11VA 硬解兜底）
 //        Soft       → 强制软解（诊断/对比基准）
 //    * 【默认值分层】库层默认 Soft（现有测试/Editor 预览行为完全不变）；
 //      display 端装配层从 config.ini 读，产品默认 D3D11VA（配置与库

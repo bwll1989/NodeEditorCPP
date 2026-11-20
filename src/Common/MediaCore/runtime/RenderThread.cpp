@@ -483,6 +483,23 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
     // ensureReady 幂等（已就绪时 = beginFrame 清屏黑 + endFrame 呈现），
     // 每轮空场景都持续上屏黑帧。
     if (!scene) {
+        // 【停摆取证 2026-11-20】无场景早退静默——渲染线程"拍了不画"的
+        // 隐形路径（拍照转、compose=0、出帧=0 的全零吞吐形态）。节流打点
+        // 暴露该路径被走了（正常部署场景到达后不再进入）。
+        {
+            static std::int64_t s_last_warn_ms = 0;
+            const std::int64_t now_ms =
+                std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now().time_since_epoch())
+                    .count();
+            if (now_ms - s_last_warn_ms >= 3000) {
+                s_last_warn_ms = now_ms;
+                std::fprintf(stderr,
+                             "[render:%s] 早退: scene=null（无场景可画）\n",
+                             cfg_.player_id.c_str());
+                std::fflush(stderr);
+            }
+        }
         if (backend_) backend_->ensureReady();
         return stats;
     }
@@ -574,10 +591,32 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
     //          时刻 → 各端渲染同一画面（与本地 tick 状态机解耦）；
     // Paused：直接用播放头冻结值——暂停画面静止；
     // Idle：静帧时刻（未播放时播放头快照为 0 → 场景 0 时刻画面）。
-    const std::int64_t session_t =
-        (ph.state == PlayState::Playing)
-            ? pacer_->frameSessionTimeUs(now_us)
-            : ph.session_time_us;
+    // 【最后防线 2026-11-20】Playing 且时钟落后锚点轴原点 2s+ = 跨机时钟
+    // 域差未被校准（两端墙钟裸差；applyAnchorLocked 的本机化兜底未覆盖
+    // 旧会话/异常链路时）——FramePacer 对 now<epoch 钳 0 会把画面永久
+    // 冻在第一帧。改直通 tick 域播放头（钳 0 防负值黑屏），画面跟随播放
+    // 头走（单端正确优先于端间同步），节流警告直接指认根因。
+    std::int64_t session_t = ph.session_time_us;
+    if (ph.state == PlayState::Playing) {
+        if (pacer_->epoch() - now_us > 2'000'000) {
+            session_t = std::max<std::int64_t>(0, ph.session_time_us);
+            static std::int64_t s_last_domain_warn_ms = 0;
+            const std::int64_t now_ms = now_us / 1000;
+            if (now_ms - s_last_domain_warn_ms >= 3000) {
+                s_last_domain_warn_ms = now_ms;
+                std::fprintf(stderr,
+                             "[render:%s] W-时钟域差: 本机时钟落后锚点轴原点"
+                             " %.3fs → 渲染兜底跟随本机播放头（锚点轴修复后"
+                             "自动回归共享域）\n",
+                             cfg_.player_id.c_str(),
+                             static_cast<double>(pacer_->epoch() - now_us) /
+                                 1e6);
+                std::fflush(stderr);
+            }
+        } else {
+            session_t = pacer_->frameSessionTimeUs(now_us);
+        }
+    }
     // 共享给解码驱动线程：解码目标帧 = 本帧渲染取样时刻（同源对齐）
     session_time_shared_.store(session_t, std::memory_order_relaxed);
 
@@ -726,6 +765,23 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
         prev == 0 ? cost_us : prev - prev / 16 + cost_us / 16,
         std::memory_order_relaxed);
     frames_.fetch_add(1, std::memory_order_relaxed);
+    // 【停摆取证 2026-11-20】正常帧心跳（5s 节流）——渲染线程活着且到过
+    // 函数末段的直接证据（异常态另有 2s 重复提醒，此处补"正常也在转"）。
+    {
+        static std::int64_t s_last_hb_ms = 0;
+        const std::int64_t now_ms = now_us / 1000;
+        if (now_ms - s_last_hb_ms >= 5000) {
+            s_last_hb_ms = now_ms;
+            std::fprintf(stderr,
+                         "[render:%s] 帧心跳: t=%.3fs items=%zu drawn=%zu"
+                         " no_frame=%zu state=%d\n",
+                         cfg_.player_id.c_str(),
+                         static_cast<double>(session_t) / 1e6,
+                         stats.items, stats.drawn, stats.no_frame,
+                         static_cast<int>(ph.state));
+            std::fflush(stderr);
+        }
+    }
 
     // ---- 合成诊断（2026-11-04 黑屏排查定位器）------------------------------
     // FrameStats 四计数直接区分黑屏层级（此前 stats 被静默丢弃，排查全靠猜）：
@@ -768,6 +824,43 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
                              total_clips);
             }
             std::fflush(stderr);
+        }
+    }
+
+    // ---- 播放冻结兜底日志（2026-11-20 display 视频不刷新现场诊断）--------
+    // 现场实锤症状："很多电脑上 display 视频不刷新但音频正常"。正常播放
+    // 应每帧 drawn==items>0；Playing 且 items>0 但连续 5s 零绘制 = 视频
+    // 链停摆（解码未发布帧 / prepare 持续失败 / 硬解持续失败 / 未来帧
+    // 拒绝全拦）。此前该状态只有 MS_CANVAS_DBG=1 才有细分证据——现场
+    // 部署多不开调试开关，无从下手。本日志无门控自释（60s 限频周期提醒
+    // 防滚出可视区），直接告知停摆事实 + 归档取证路径。
+    {
+        const bool playing_now = (ph.state == PlayState::Playing);
+        const bool frozen =
+            playing_now && stats.items > 0 && stats.drawn == 0;
+        const std::int64_t now_ms = now_us / 1000;
+        if (frozen) {
+            if (frozen_since_ms_ == 0) frozen_since_ms_ = now_ms;
+            if (now_ms - frozen_since_ms_ >= 5'000 &&
+                now_ms - last_frozen_warn_ms_ >= 60'000) {
+                last_frozen_warn_ms_ = now_ms;
+                std::fprintf(
+                    stderr,
+                    "\n[render:%s] F-播放停摆: 已 %llds 无一帧绘制"
+                    "（呈现链正常，视频链停摆）items=%zu drawn=%zu "
+                    "no_frame=%zu invalid=%zu t=%.3fs\n"
+                    "  常见成因：视频解码未发布帧（素材未同步/prepare 失败/"
+                    "解码吞吐追不上/硬解持续失败/未来帧拒绝）。"
+                    "请设 MS_CANVAS_DBG=1 重启收集 [probe]/[decode]/[sched]/"
+                    "[media]/[sched] 日志反馈定位。\n\n",
+                    my_id.c_str(),
+                    static_cast<long long>((now_ms - frozen_since_ms_) / 1000),
+                    stats.items, stats.drawn, stats.no_frame, stats.invalid,
+                    static_cast<double>(session_t) / 1e6);
+                std::fflush(stderr);
+            }
+        } else {
+            frozen_since_ms_ = 0; // 恢复绘制（或非播放态）：检测复位
         }
     }
 

@@ -192,6 +192,14 @@ private:
     /// \param dec 已找到的解码器（枚举其 hw_configs 判定后端支持）
     void tryEnableHwAccel(const AVCodec* dec);
 
+    /// 硬解连续失败自愈（2026-11-20 视频不刷新排查）：硬解生效期间解码/
+    /// 下载连续失败达阈值 → 禁用硬解（意图改 Soft）并用保存的素材重建
+    /// 解码上下文（软解自愈）——覆盖驱动持续 transfer 失败 / NVDEC 表面
+    /// 池异常 / 跨 GPU 拷贝坏等机器相关问题（软解多线程永远能跑）。
+    /// 软解/HAP 路径不计数不触发；阈值内单帧失败仍按既有语义丢弃重试。
+    /// \param why 触发原因（日志归因）
+    void handleHwFailure(const char* why);
+
     // ---- HAP DXT 直传（2026-11-17 阶段1）-----------------------------------
     // HAP 全 I 帧 + GPU 压缩纹理：av_read_frame 的包即 HAP 帧比特流，
     // Vidvox HapDecode() 直接产出裸 DXT 块（跳过 avcodec_open2/解码器/
@@ -219,6 +227,12 @@ private:
     std::string assets_root_;   ///< 素材根目录（UTF-8；空 = 直接用 asset.path）
     AssetKind   kind_;          ///< 素材种类（工厂注册键；Video/Image 共用本解码器）
     HwAccelConfig hw_cfg_;      ///< 硬解意图（实际生效见 hw_active_）
+
+    // ---- 硬解失败自愈状态（2026-11-20；仅解码驱动线程触碰，无锁）----
+    Asset last_asset_;         ///< 最近一次 prepare 的素材（自愈降级重建快照）
+    bool has_last_asset_ = false; ///< last_asset_ 是否有效（prepare 后为 true）
+    int  hw_fail_streak_ = 0;  ///< 硬解生效期间连续解码/下载失败计数
+                               ///<（成功一帧清零；软解路径恒 0 不触发）
 
     // ---- FFmpeg 上下文（句柄，完整类型仅 .cpp 可见）----
     AVFormatContext* fmt_ = nullptr;     ///< 容器封装上下文
