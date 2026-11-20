@@ -67,4 +67,24 @@ private:
     std::atomic<std::int64_t> offset_us_; ///< NTP 修正量（us），原子读写
 };
 
+// ============================================================================
+//  进程级权威对齐时钟（帧同步戳域，2026-11-20）
+//
+//  背景：SNTP offset 只写入 PlayerRuntime::clock_（display 端单点）——
+//  Ingest 打戳 / LiveMediaSource 排程若各自 new ClockProvider 则永远
+//  0 offset（历史教训：display 主循环必须 renderClockNow() 同源）。
+//  本组函数给"无时钟上下文的模块"一个进程级统一读取入口：
+//    * 持有 offset 的宿主（PlayerRuntime）构造时注册自己的 clock_；
+//    * 未注册（editor 端无软重锚，系统 NTP 已对齐墙钟）退化为本地
+//      锚点复合时钟（offset=0）——同机进程锚点差毫秒级，语义正确。
+//  多端帧同步的前提（系统 NTP / 软重锚）由既有基础设施承担，本组件
+//  只保证"同进程一个域"。
+// ============================================================================
+
+/// 注册进程权威时钟（PlayerRuntime 构造时调用；nullptr = 恢复兜底）
+void setProcessAlignedClock(ClockProvider* provider) noexcept;
+
+/// 进程统一对齐时钟当前值（us）——帧戳打点 / display 排程统一走这里
+std::int64_t processAlignedNowUs() noexcept;
+
 } // namespace ms

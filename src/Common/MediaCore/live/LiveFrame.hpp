@@ -24,6 +24,12 @@ struct LiveFrame {
     int                       w = 0; ///< 帧宽（px）
     int                       h = 0; ///< 帧高（px）
     std::vector<std::uint8_t> rgba;  ///< RGBA 像素（行主序，stride = w*4）
+
+    // 【帧同步 2026-11-20】到达时刻戳（进程级对齐时钟，Unix 纪元 μs）：
+    // Ingest 接收线程产出帧时打（收端接收时刻语义，含采集+传输管道延迟
+    // ——多端同步只要求同戳同延迟，绝对值不要求精确）。display 端按
+    // "pts + target_latency" 排程显示，排程独立于播放头（暂停继续流动）。
+    std::int64_t              pts_us = 0;
 };
 
 using LiveFramePtr = std::shared_ptr<const LiveFrame>;

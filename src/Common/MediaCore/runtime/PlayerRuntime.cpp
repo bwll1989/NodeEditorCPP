@@ -259,6 +259,11 @@ void PlayerRuntime::passiveCalibrateTick(std::int64_t editor_aligned_now_us) {
 PlayerRuntime::PlayerRuntime(Config cfg) : cfg_(std::move(cfg)) {
     // 生效 id 初值 = 本地标签（指派模型 2026-11-06：连接后被 Ack 指派覆盖）
     effective_id_ = cfg_.player_id;
+    // 注册进程级权威对齐时钟（帧同步戳域，2026-11-21）：
+    // 本实例的 clock_ 持有 SNTP offset（display 端主动探测/心跳被动校准
+    // 写入），Ingest 层打 LiveFrame.pts_us 时经 processAlignedNowUs 读取
+    // ——各模块不得自建 ClockProvider（自建实例 offset 永远 0）。
+    setProcessAlignedClock(&clock_);
 }
 
 std::string PlayerRuntime::effectiveId() const {

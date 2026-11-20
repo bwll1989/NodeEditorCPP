@@ -19,6 +19,17 @@
 //      （零颜色空间转换）、latency=0 drain（宁丢勿延迟）/ latency=1 直通
 //      （SDK 队列缓冲 2~3 帧）、不插帧。
 //
+//  帧同步排程（2026-11-21 定稿，仅 display 直收模式生效）：
+//    * 每帧在 Ingest 产出点打接收戳 pts_us（进程对齐时钟域，
+//      clock/ClockProvider.hpp processAlignedNowUs——display 端含 SNTP
+//      offset，editor 端 fallback offset=0）；
+//    * live_target_latency_us > 0 时按 "target = now - target_latency"
+//      选帧：取 pts <= target 的最大 pts 帧（固定延迟回放语义）——多
+//      display 同戳同延迟 → 跨机帧同步自动成立；排程独立于播放头
+//      （时间轴暂停画面继续流动）；
+//    * =0 时退化 latest 直显（监视语义，与旧行为完全一致，零开销）。
+//    * 缓冲按时间窗 + 帧数硬顶裁剪（storeFrame），内存有界。
+//
 //  线程契约：prepare/release 在调度器线程；NDI 模式接收线程在 NdiIngest
 //  内部（sink 回调写 latest_）；frameView 在渲染线程——latest_/Feed 帧均为
 //  shared_ptr 快照，渲染端 keep 保活本帧缓冲，接收端发布新帧不悬垂旧帧
@@ -29,6 +40,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -77,14 +89,28 @@ private:
     // ---- 直收模式（内嵌收端核心；类型由 Ingest 注册表分派）----
     std::unique_ptr<ILiveIngest> ingest_; ///< 收端（sink 回调写 latest_）
 
-    // ---- 帧快照（NDI 模式：sink 在接收线程发布 / 渲染线程读取）----
+    // ---- 帧快照（直收模式：sink 在接收线程发布 / 渲染线程读取）----
     mutable std::mutex              snap_mutex_;
     LiveFramePtr                    latest_;
+    /// 帧同步排程缓冲（target_latency>0 时使用；按到达序 = pts 升序）。
+    /// 与 latest_ 同锁保护；latest_ 恒 = 最新帧（监视语义直读用）。
+    std::deque<LiveFramePtr>        sync_buffer_;
+    /// 最近一次排程选中帧（frameView 排程选帧结果缓存；与 sync_buffer_
+    /// 同锁 snap_mutex_ 保护——const 方法内更新故 mutable）。
+    mutable LiveFramePtr            last_shown_;
     void storeFrame(LiveFramePtr frame); ///< sink 回调（接收线程）
 
     // ---- 配置（prepare 期固定）----
     std::string source_name_;  ///< NDI 源名（诊断/重连日志用）
     int         latency_mode_ = 0;
+    /// 帧同步目标延迟（微秒；0 = 监视语义 latest 直显）。>0 时 frameView
+    /// 按 "now - target_latency" 选帧（见头注释帧同步排程节）。
+    std::int64_t target_latency_us_ = 0;
+    /// 排程缓冲容量（帧数，prepare 期按 target_latency 动态计算）：
+    /// 必须 ≥ target_latency 对应的历史帧数，否则"未到期帧被容量裁剪"
+    /// → 选帧恒空 → 永久占位黑屏（审查修复 2026-11-21）。按 30fps 保守
+    /// 估计所需历史 + 8 帧余量，clamp [16, 48]（48×8.3MB≈400MB 极限）。
+    std::size_t sync_capacity_ = 16;
 
     // ---- 诊断 ----
     std::atomic<bool>          connected_{false};

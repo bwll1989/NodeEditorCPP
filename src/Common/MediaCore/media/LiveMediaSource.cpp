@@ -9,6 +9,7 @@
 
 #include <cstdio>
 
+#include "clock/ClockProvider.hpp"
 #include "live/LiveHub.hpp"
 
 namespace ms {
@@ -34,13 +35,35 @@ LiveMediaSource::~LiveMediaSource() {
 }
 
 // ---------------------------------------------------------------------------
-// sink 回调（Ingest 接收线程执行）：快照发布
+// sink 回调（Ingest 接收线程执行）：快照发布 + 排程缓冲管理
+//
+// 裁剪策略（帧同步排程启用时）：
+//   * 时间窗：保留 pts 在 [newest_pts - keep_window, newest_pts] 内的帧
+//     （keep_window = target_latency + 500ms 网络抖动余量）——排程窗外的
+//     老帧渲染端永远不会选（选帧只取 pts <= now-target），留之无益；
+//   * 帧数容量 sync_capacity_：prepare 期按 target_latency 动态计算
+//     （clamp [16,48]，保证 ≥ target_latency 历史帧数——容量不足会把
+//     未到期帧裁掉 → 选帧恒空 → 永久占位黑屏），同时防异常高频源
+//     （如 120fps 捕获）内存膨胀（48 帧 ≈ 400MB/源 极限）。
+// 监视语义（target_latency=0）不进缓冲：latest_ 直读零开销。
 // ---------------------------------------------------------------------------
 void LiveMediaSource::storeFrame(LiveFramePtr frame) {
     if (!frame || frame->w <= 0 || frame->h <= 0) return;
+    const bool sync_on = target_latency_us_ > 0;
     {
         std::lock_guard<std::mutex> lock(snap_mutex_);
         latest_ = std::move(frame); // 旧快照由渲染端 keep 接管
+        if (sync_on) {
+            sync_buffer_.push_back(latest_); // 到达序 = pts 单调（单收线程）
+            const std::int64_t keep_window =
+                target_latency_us_ + 500'000; // 500ms 抖动余量
+            const std::int64_t newest_pts = latest_->pts_us;
+            while (!sync_buffer_.empty() &&
+                   (newest_pts - sync_buffer_.front()->pts_us > keep_window ||
+                    sync_buffer_.size() > sync_capacity_)) {
+                sync_buffer_.pop_front();
+            }
+        }
     }
     frames_received_.fetch_add(1, std::memory_order_relaxed);
 }
@@ -95,6 +118,23 @@ bool LiveMediaSource::prepare(const Asset& asset) {
 
     source_name_  = asset.live_source_name;
     latency_mode_ = asset.live_latency == 1 ? 1 : 0; // 非 0/1 一律 0（保守低延迟）
+    // 帧同步目标延迟（2026-11-21）：仅 display 直收模式消费；Hub 模式
+    // （预览）恒监视语义。直传——storeFrame/frameView 以 >0 判定启用。
+    target_latency_us_ = asset.live_target_latency_us;
+    if (target_latency_us_ > 0) {
+        // 容量必须覆盖 target_latency 的历史（30fps 保守估计 + 8 帧余量）：
+        // 容量不足时未到期帧被裁 → 选帧恒空 → 永久占位黑屏（审查修复）。
+        const std::size_t need =
+            static_cast<std::size_t>(target_latency_us_ / 33'333) + 8;
+        sync_capacity_ = need < 16 ? 16 : (need > 48 ? 48 : need);
+        std::fprintf(stderr,
+                     "live: %s 帧同步排程启用: target_latency=%.1fms"
+                     "（按帧接收戳 + 固定延迟显示; buffer_capacity=%zu 帧）\n",
+                     asset.id.c_str(),
+                     static_cast<double>(target_latency_us_) / 1e3,
+                     sync_capacity_);
+        std::fflush(stderr);
+    }
 
     // sink 弱捕获：release join 后回调不再触发；shared_ptr 直捕亦安全
     //（ingest_ 先于 latest_ 销毁，回调与析构无并发窗口）——直捕简洁
@@ -143,11 +183,30 @@ bool LiveMediaSource::frameView(FrameView& out) const {
         out.native = nullptr;
         return true;
     }
-    // NDI 模式：本地快照
+    // 直收模式：排程选帧 / 监视直显（同一把锁内完成选帧 + last_shown_ 更新）
     LiveFramePtr snap;
     {
         std::lock_guard<std::mutex> lock(snap_mutex_);
-        snap = latest_;
+        if (target_latency_us_ > 0 && !sync_buffer_.empty()) {
+            // 帧同步排程：target = now - target_latency（进程对齐时钟域，
+            // display 端含 SNTP offset——多 display 同戳同延迟 → 跨机同步）。
+            // 取 pts <= target 的最大 pts 帧；全未到期 → 保持上一帧
+            // （"等"语义：固定延迟回放，不跳不催）。
+            const std::int64_t target =
+                processAlignedNowUs() - target_latency_us_;
+            LiveFramePtr chosen;
+            for (auto it = sync_buffer_.rbegin();
+                 it != sync_buffer_.rend(); ++it) {
+                if ((*it)->pts_us <= target) { // 缓冲 pts 单调：首个即最大
+                    chosen = *it;
+                    break;
+                }
+            }
+            if (chosen) last_shown_ = chosen;
+            snap = last_shown_; // 首帧未到期时为空 → 占位（同步从启动生效）
+        } else {
+            snap = latest_; // 监视语义（target=0）/ 缓冲空
+        }
     }
     if (!snap || snap->w <= 0 || snap->h <= 0 || snap->rgba.empty())
         return false;
@@ -155,9 +214,13 @@ bool LiveMediaSource::frameView(FrameView& out) const {
     out.height = snap->h;
     out.stride = static_cast<std::uint32_t>(snap->w) * 4;
     out.rgba   = snap->rgba.data();
-    out.keep   = snap; // shared_ptr 保活快照（含像素 vector）
+    out.keep   = snap; // shared_ptr 保活快照（含像素向量）
     out.domain = FrameDomain::CpuRgba;
     out.native = nullptr;
+    // 【刻意不填 out.pts_us】FrameView.pts_us = 素材内部 pts（RenderLoop
+    // "未来帧拒绝"用，恒 0 = Live 天然豁免）；LiveFrame.pts_us = 帧接收戳
+    // （进程对齐时钟域，排程专用）。两者命名同、域不同——若把接收戳填进
+    // out.pts_us（Unix 微秒级巨大值），未来帧拒绝恒触发 = 全 Live 黑屏。
     return true;
 }
 
@@ -173,6 +236,8 @@ void LiveMediaSource::release() {
     {
         std::lock_guard<std::mutex> lock(snap_mutex_);
         latest_.reset();
+        sync_buffer_.clear();
+        last_shown_.reset();
     }
     connected_.store(false, std::memory_order_release);
 }

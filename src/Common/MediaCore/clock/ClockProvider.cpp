@@ -74,4 +74,33 @@ std::int64_t ClockProvider::wallNowUs() const noexcept {
     return wallNowRawUs();
 }
 
+// ---------------------------------------------------------------------------
+// 进程级权威对齐时钟（帧同步戳域）
+//   * authoritative_：PlayerRuntime 构造时注册（持有 SNTP offset 的实例）；
+//     竞态：注册/注销仅发生在 PlayerRuntime 构造/析构（进程生命周期单次），
+//     其余模块只读——普通指针 + 顺序约束足够，不加锁。
+//   * fallback_：函数级静态兜底（首次调用构造）——editor 端等无软重锚
+//     进程直接用它（offset=0，系统 NTP 已对齐墙钟；同机各进程锚点差
+//     毫秒级，帧同步多端对齐前提由系统 NTP 承担）。
+// ---------------------------------------------------------------------------
+namespace {
+
+ClockProvider* authoritative_ = nullptr;
+
+ClockProvider& fallbackClock() noexcept {
+    static ClockProvider fallback;
+    return fallback;
+}
+
+} // namespace
+
+void setProcessAlignedClock(ClockProvider* provider) noexcept {
+    authoritative_ = provider;
+}
+
+std::int64_t processAlignedNowUs() noexcept {
+    const ClockProvider* p = authoritative_;
+    return p != nullptr ? p->alignedNowUs() : fallbackClock().alignedNowUs();
+}
+
 } // namespace ms

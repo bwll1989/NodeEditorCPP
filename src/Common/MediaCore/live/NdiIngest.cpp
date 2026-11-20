@@ -13,6 +13,8 @@
 #include "Processing.NDI.Find.h"
 #include "Processing.NDI.Recv.h"
 
+#include "clock/ClockProvider.hpp"
+
 namespace ms {
 
 namespace {
@@ -298,6 +300,9 @@ void NdiIngest::publishNdiFrame(const void* ndi_video_frame) {
     frame->w   = v->xres;
     frame->h   = v->yres;
     frame->rgba.resize(static_cast<std::size_t>(v->xres) * v->yres * 4);
+    // 帧同步戳：SDK 交付本帧的接收时刻（进程对齐时钟域）。display 端按
+    // "pts + target_latency" 排程，多端同戳同延迟 → 自动帧同步。
+    frame->pts_us = processAlignedNowUs();
 
     const int          w      = v->xres;
     const int          h      = v->yres;

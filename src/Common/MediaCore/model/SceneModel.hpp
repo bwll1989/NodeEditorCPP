@@ -319,6 +319,10 @@ struct Asset {
     std::string  live_url;         ///< 网络流 URL（ingest=network 时有效）
     std::int32_t live_ingest  = 0; ///< 采集器：0=ndi 1=window 2=spout 3=network 4=monitor 5=camera
     std::int32_t live_latency = 0; ///< 0=最低（帧到即显，默认）1=同步（缓冲 2~3 帧）
+    /// 帧同步目标延迟（微秒，2026-11-21）：>0 时 display 端按"帧接收戳
+    /// pts + 本延迟"排程显示（多 display 跨机帧同步）；=0 最新帧直显
+    /// （监视语义）。消费端以 >0 判定。建议 80000~200000。
+    std::int64_t live_target_latency_us = 0;
 };
 
 /// 实时源采集器类型（与 proto LivePayload.ingest 一一对应；
@@ -342,7 +346,8 @@ inline bool operator==(const Asset& a, const Asset& b) {
            a.text_bold == b.text_bold && a.text_italic == b.text_italic &&
            a.text_h_align == b.text_h_align && a.text_bg_color == b.text_bg_color &&
            a.live_source_name == b.live_source_name && a.live_url == b.live_url &&
-           a.live_ingest == b.live_ingest && a.live_latency == b.live_latency;
+           a.live_ingest == b.live_ingest && a.live_latency == b.live_latency &&
+           a.live_target_latency_us == b.live_target_latency_us;
 }
 
 // ---------------------------------------------------------------------------

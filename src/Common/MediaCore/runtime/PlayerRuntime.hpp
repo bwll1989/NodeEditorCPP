@@ -162,7 +162,12 @@ public:
 
     explicit PlayerRuntime(Config cfg);
 
-    ~PlayerRuntime() { stop(); }
+    ~PlayerRuntime() {
+        stop();
+        // 注销进程级权威时钟（帧同步戳域）；clock_ 随本对象析构，残留
+        // 悬垂指针会被 processAlignedNowUs 的 fallback 分支接住。
+        setProcessAlignedClock(nullptr);
+    }
     PlayerRuntime(const PlayerRuntime&) = delete;
     PlayerRuntime& operator=(const PlayerRuntime&) = delete;
 

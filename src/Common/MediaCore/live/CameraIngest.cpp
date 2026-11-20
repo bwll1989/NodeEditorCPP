@@ -17,6 +17,8 @@
 
 #include <wrl/client.h>
 
+#include "clock/ClockProvider.hpp"
+
 namespace ms {
 
 namespace {
@@ -212,6 +214,7 @@ LiveFramePtr frameFromSample(IMFSample* sample, int w, int h, int stride) {
     f->w    = w;
     f->h    = h;
     f->rgba.resize(static_cast<std::size_t>(w) * h * 4);
+    f->pts_us = processAlignedNowUs(); // 帧同步戳：MF 交付本帧的接收时刻
 
     const auto base = reinterpret_cast<std::uintptr_t>(data);
     if ((base & 3) == 0) {

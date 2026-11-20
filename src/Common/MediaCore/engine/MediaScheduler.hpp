@@ -99,6 +99,7 @@ public:
         f.feed(a.live_url);
         f.feed(a.live_ingest);
         f.feed(a.live_latency);
+        f.feed(a.live_target_latency_us); // 帧同步延迟变化 → 失效重建（2026-11-21）
         return f.h;
     }
 

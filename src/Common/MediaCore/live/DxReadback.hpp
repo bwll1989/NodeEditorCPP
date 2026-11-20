@@ -19,6 +19,7 @@
 
 #include <d3d11.h>
 
+#include "clock/ClockProvider.hpp"
 #include "live/LiveFrame.hpp"
 
 namespace ms {
@@ -82,6 +83,8 @@ public:
         frame->w = static_cast<int>(td.Width);
         frame->h = static_cast<int>(td.Height);
         frame->rgba.resize(static_cast<std::size_t>(td.Width) * td.Height * 4);
+        // 帧同步戳：GPU 读回（内容已就绪）的接收时刻，Spout/WGC 共用。
+        frame->pts_us = processAlignedNowUs();
         const auto* src_px = static_cast<const std::uint8_t*>(mapped.pData);
         auto* dst = frame->rgba.data();
         const std::uint32_t dst_stride =
