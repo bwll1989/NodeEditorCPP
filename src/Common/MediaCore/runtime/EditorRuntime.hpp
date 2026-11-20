@@ -72,29 +72,34 @@
 
 namespace ms {
 
+// -----------------------------------------------------------------------
+// 启动配置（对应 app/main.cpp 参数）
+// 【clang 兼容 2026-11-21】NSDMI 默认值不可在包容类定义体内作构造函数
+// 默认实参（clang 拒绝 MSVC/GCC 接受的写法）——Config 提到类外，类内
+// using 别名保持 EditorRuntime::Config 消费面不变。
+// -----------------------------------------------------------------------
+struct EditorRuntimeConfig {
+    std::uint16_t udp_port = 17001;   ///< UDP 心跳端口（0=随机，测试用）
+    std::uint16_t http_port = 17002;  ///< 素材 HTTP 分发端口（0=随机）
+    /// 素材根目录（空 = 不启用素材分发）。注册素材时按
+    /// assets_root + "/" + Asset.path 拼绝对路径（Asset.path 为
+    /// '/' 分隔的相对路径，见 SceneModel）
+    std::string assets_root;
+    /// 重锚提前量（us）：anchor_time = now + lead——预留命令传播 +
+    /// 调度抖动余量（§6.1；过大增加操作延迟，过小跨机时易错过锚点）。
+    /// 【2026-11-03 用户调优】500ms 起播/停止延迟体感明显，默认收紧
+    /// 到 10ms（本机/低延迟局域网部署；跨高延迟广域网可经 ini 调回）
+    std::int64_t reanchor_lead_us = 10'000;
+    /// Editor → Player 心跳单播周期（us）
+    std::int64_t beat_interval_us = 250'000;
+    /// Player 心跳超时（us）：超过此间隔无 UDP 上报 → 标 OFFLINE
+    /// （§7.1③ 半开连接检测；TCP 断开是另一条独立检测路径）
+    std::int64_t player_timeout_us = 3'000'000;
+};
+
 class EditorRuntime {
 public:
-    // -----------------------------------------------------------------------
-    // 启动配置（对应 app/main.cpp 参数）
-    // -----------------------------------------------------------------------
-    struct Config {
-        std::uint16_t udp_port = 17001;   ///< UDP 心跳端口（0=随机，测试用）
-        std::uint16_t http_port = 17002;  ///< 素材 HTTP 分发端口（0=随机）
-        /// 素材根目录（空 = 不启用素材分发）。注册素材时按
-        /// assets_root + "/" + Asset.path 拼绝对路径（Asset.path 为
-        /// '/' 分隔的相对路径，见 SceneModel）
-        std::string assets_root;
-        /// 重锚提前量（us）：anchor_time = now + lead——预留命令传播 +
-        /// 调度抖动余量（§6.1；过大增加操作延迟，过小跨机时易错过锚点）。
-        /// 【2026-11-03 用户调优】500ms 起播/停止延迟体感明显，默认收紧
-        /// 到 10ms（本机/低延迟局域网部署；跨高延迟广域网可经 ini 调回）
-        std::int64_t reanchor_lead_us = 10'000;
-        /// Editor → Player 心跳单播周期（us）
-        std::int64_t beat_interval_us = 250'000;
-        /// Player 心跳超时（us）：超过此间隔无 UDP 上报 → 标 OFFLINE
-        /// （§7.1③ 半开连接检测；TCP 断开是另一条独立检测路径）
-        std::int64_t player_timeout_us = 3'000'000;
-    };
+    using Config = EditorRuntimeConfig;
 
     explicit EditorRuntime(Config cfg = {});
 

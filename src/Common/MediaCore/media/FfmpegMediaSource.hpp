@@ -37,6 +37,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -304,7 +305,30 @@ private:
     // store(release) / load(acquire) 无锁交接快照所有权。
     // 解码状态成员（rgba_/frame_pts_us_/has_frame_ 等）仅写端线程触碰，
     // 与本槽无共享（发布 = 所有权 move，写端不再读已发布缓冲）。
+    // 【Android 兼容 2026-11-21】NDK libc++ 未实现 std::atomic<shared_ptr>
+    // （P0718，非 trivially copyable 直接 static_assert 拒绝）——退化为
+    // 互斥保护的快照槽，接口兼容（order 参数收下但由锁保证序）。
+#ifdef __ANDROID__
+    class AtomicSharedSlotPub {
+    public:
+        void store(std::shared_ptr<const PublishedFrame> v,
+                   std::memory_order = std::memory_order_release) {
+            std::lock_guard<std::mutex> lk(m_);
+            v_ = std::move(v);
+        }
+        std::shared_ptr<const PublishedFrame> load(
+            std::memory_order = std::memory_order_acquire) const {
+            std::lock_guard<std::mutex> lk(m_);
+            return v_;
+        }
+    private:
+        mutable std::mutex m_;
+        std::shared_ptr<const PublishedFrame> v_;
+    };
+    AtomicSharedSlotPub published_;
+#else
     std::atomic<std::shared_ptr<const PublishedFrame>> published_;
+#endif
 };
 
 } // namespace ms

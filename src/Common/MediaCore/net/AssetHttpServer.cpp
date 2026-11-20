@@ -296,7 +296,9 @@ void AssetHttpServer::saveCacheFile(
         if (!f) return;
         for (const auto& kv : cache) {
             f << kv.first << '\t' << kv.second.size << '\t'
-              << kv.second.mtime.time_since_epoch().count() << '\t'
+              // 【clang 兼容】file_time_type 的 rep 在 clang 为 __int128，
+              // operator<< 歧义——显式收窄到 long long
+              << static_cast<long long>(kv.second.mtime.time_since_epoch().count()) << '\t'
               << kv.second.hex << '\n';
         }
         if (!f.good()) {
