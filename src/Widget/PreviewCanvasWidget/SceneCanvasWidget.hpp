@@ -318,12 +318,6 @@ private:
     /// \param plane_h 柄所在高度平面（3D 投影用；2D 恒 0）
     void drawRotateHandle(QPainter& p, const QRectF& r,
                           double rotation_deg, double plane_h = 0.0) const;
-    /// 3D mapping 素模线框（2026-11-18 阶段 3A）：Mapped 屏绑定模型 →
-    /// 舞台空间线框（placement offset/scale 变换后；project3 投影）。
-    /// 模型经 ms::loadMesh 加载（进程内按路径缓存；失败缓存空结果不重试）。
-    /// 仅 3D 视口消费；画在 display 面片之下、cue 之上（模型=被投影的
-    /// 舞台物体，面片=该屏输出画面预览恒最上层）。
-    void drawMeshWireframe(QPainter& p, const Screen& s, bool selected) const;
 
     // ---- 3D 视口（2026-11-05 画布 3D 化；MS_CANVAS_3D=0 回退 2D）------------
     /// 3D 换算：画布点 p（位于高度 h 平面）→ 控件点。

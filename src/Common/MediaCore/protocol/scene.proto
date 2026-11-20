@@ -44,10 +44,6 @@ enum AssetKind {
                       // 按 $percent/$frame 求值重发（StatusContainer）；消息
                       // 表在 Clip.clip_data（JSON）。仅编辑器端消费；无素材
                       // 绑定、无画布呈现
-  ASSET_MESH    = 9;  // 3D 模型（2026-11-18 阶段 3A，3D mapping 地基）——
-                      // Wavefront OBJ（v/vt/f 最小集）；不建片段、不上画布，
-                      // 唯一消费方 = Screen.model_asset_id（Mapped 屏绑定
-                      // 作投影表面）；两端共用 ms::loadMesh 解析（Assimp 后端）
 }
 
 // ---------------------------------------------------------------------------
@@ -353,31 +349,6 @@ message Screen {
   //     网格面片——渲染路径后续阶段接入，本字段先立数据结构。
   // 非 0/1 值读端钳为 0（信任边界；旧读端遇未知字段自动忽略）。
   int32 projection_mode = 12;
-  // ---- 3D mapping 投影表面（2026-11-18 阶段 3A 数据先行）------------
-  // 仅 projection_mode=1 消费。模型坐标 = 舞台空间（画布 px + Z 向上），
-  // 经 ms::loadMesh 加载（Y-up→Z-up 轴变换 + 落地归一化，两端共用同代码）
-  // 后再施加 placement。全部为"缺席 = 0 = 业务默认"普通标量，无 optional
-  // 陷阱；写端非 0 才写（string 缺席 = 空 = 未绑模型；wire 兼容——旧读端
-  // 遇未知字段自动忽略）。model_scale 缺席 = 0 读端派生 1.0（原尺寸）。
-  string model_asset_id  = 13; // 绑定的 Mesh 资产（空 = 未绑，单四边形表面）
-  double model_offset_x  = 14; // 模型平移 X（舞台域 px）
-  double model_offset_y  = 15; // 模型平移 Y
-  double model_offset_z  = 16; // 模型平移 Z（高度）
-  double model_scale     = 17; // 等比缩放（<=0 派生 1.0）
-  // ---- 投影仪 Eye（阶段 3B 消费；字段号一次申请到位）------------------
-  // 独立于 Show 全局 Eye（四种相机角色定稿：投影仪 Eye 每屏一台）。
-  // 单位 = 舞台域 px。focal <= 0 = 未配置走派生默认（Eye=表面中心正上方
-  // D=2×max(w,h)、Target=表面中心、F 铺满输出）。
-  double proj_eye_x   = 18; // 光心 X
-  double proj_eye_y   = 19; // 光心 Y
-  double proj_eye_z   = 20; // 光心 Z（高度）
-  double proj_tgt_x   = 21; // 注视点 X
-  double proj_tgt_y   = 22; // 注视点 Y
-  double proj_tgt_z   = 23; // 注视点 Z
-  double proj_focal   = 24; // 焦距 px（<=0 = 派生默认）
-  double proj_shift_x = 25; // Lens Shift X（输出域归一化 [-0.5,0.5]）
-  double proj_shift_y = 26; // Lens Shift Y
-  double proj_roll    = 27; // 滚转（度；防 up 向量退化）
 }
 
 // ---------------------------------------------------------------------------

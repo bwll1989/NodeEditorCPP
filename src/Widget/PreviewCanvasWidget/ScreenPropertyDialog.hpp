@@ -90,14 +90,6 @@ public:
         geometry_live_ = std::move(fn);
     }
 
-    /// 【3D mapping 素材选择（阶段 3A）】注入 Mesh 资产清单（id → 显示名），
-    /// 宿主构造后调用——从 scene_->assets 过滤 AssetKind::Mesh 构建；
-    /// 空表 = 下拉只有"（无）"。预填按 screen.model_asset_id 匹配。
-    void setMeshChoices(
-        const std::vector<std::pair<std::string, std::string>>& id_name) {
-        mesh_choices_ = id_name;
-    }
-
 private:
     FloatDragValueWidget* x_ = nullptr; ///< 画布坐标 X
     FloatDragValueWidget* y_ = nullptr; ///< 画布坐标 Y
@@ -111,14 +103,6 @@ private:
     QComboBox* projection_mode_ = nullptr; ///< 投影模式（0=Framed 取景窗
                                           ///  1=Mapped 投影映射；
                                           ///  3D mapping 数据先行）
-
-    // ---- 3D mapping 投影表面（阶段 3A；仅 Mapped 启用）--------------------
-    QComboBox* model_combo_ = nullptr;      ///< 绑定 Mesh 资产（userData=asset id）
-    FloatDragValueWidget* model_off_x_ = nullptr; ///< 模型平移 X（舞台域）
-    FloatDragValueWidget* model_off_y_ = nullptr; ///< 模型平移 Y
-    FloatDragValueWidget* model_off_z_ = nullptr; ///< 模型平移 Z（高度）
-    FloatDragValueWidget* model_scale_ = nullptr; ///< 等比缩放（<=0 派生 1.0）
-    std::vector<std::pair<std::string, std::string>> mesh_choices_; ///< Mesh 资产清单
     QLineEdit*      player_id_ = nullptr; ///< 绑定的显示端（player id；
                                           ///  连接成功后 display 自动采用）
     QLineEdit*      host_ = nullptr;      ///< 显示端主机（登记用）

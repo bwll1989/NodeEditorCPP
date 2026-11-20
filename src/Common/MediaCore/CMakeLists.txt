@@ -76,9 +76,6 @@ add_library(MediaCore SHARED
     config/IniConfig.cpp
     loader/SceneLoader.cpp
     loader/ShowFileIO.cpp
-    # ---- 3D mapping 模型加载（阶段 3A；Assimp 后端——头 MeshLoader.hpp
-    #      只暴露 MeshData+声明，assimp 头/库均 PRIVATE 不传染消费方）----
-    model/MeshLoader.cpp
     # ---- sync（P2 同步）----
     sync/SyncFrame.cpp
     # ---- net（P2 网络传输）----
@@ -183,10 +180,6 @@ target_compile_definitions(MediaCore PUBLIC PROTOBUF_USE_DLLS ABSL_CONSUME_DLL)
 #   PRIVATE —— DLL 内部实现消费：Eigen 几何、NDI/Spout 接收、mpcdi 底层件、
 #              PortAudio、MF 采集、WGC 系统库
 # ---------------------------------------------------------------------------
-# assimp 静态库路径（重建命令见下方 assimp 段注释；set 必须在
-# target_link_libraries 引用之前——CMake 变量顺序执行）
-set(MC_ASSIMP_BUILD "${CMAKE_BINARY_DIR}/assimp")
-
 target_link_libraries(MediaCore
     PUBLIC  mc_protobuf mc_abseil
             ${Spdlog_LIBRARIES}
@@ -201,8 +194,6 @@ target_link_libraries(MediaCore
             SpoutBase
             mc_mpcdi_libs
             hap_codec   # HAP DXT 直传（2026-11-17 阶段1）：Vidvox HapDecode 出裸 DXT
-            "${MC_ASSIMP_BUILD}/lib/assimp-vc143-mt.lib"      # 3D mapping 阶段 3A
-            "${MC_ASSIMP_BUILD}/contrib/zlib/zlibstatic.lib"  # assimp 静态伴随依赖
             ${portaudio_LIBRARIES}
             windowsapp dwmapi
             mfplat mf mfuuid)
@@ -211,24 +202,6 @@ target_link_libraries(MediaCore
 
 # portaudio include（Flow 的 portaudio_LIBRARIES 只有 lib 路径）
 target_include_directories(MediaCore PRIVATE "${portaudio_DIR}")
-
-# ---------------------------------------------------------------------------
-#  assimp include（3D mapping 阶段 3A；库链接在 target_link_libraries PRIVATE 段）
-#  重建命令（一次性，需 MSVC 环境变量会话）：
-#    cmake -S 3rdParty/assimp-src -B build/assimp -G Ninja \
-#      -DCMAKE_MAKE_PROGRAM=<ninja> -DCMAKE_C_COMPILER=<cl> -DCMAKE_CXX_COMPILER=<cl> \
-#      -DCMAKE_MT=<mt.exe> -DCMAKE_RC_COMPILER=<rc.exe> -DCMAKE_BUILD_TYPE=Release \
-#      -DBUILD_SHARED_LIBS=OFF -DASSIMP_BUILD_TESTS=OFF -DASSIMP_BUILD_ASSIMP_TOOLS=OFF \
-#      -DASSIMP_WARNINGS_AS_ERRORS=OFF -DASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT=OFF \
-#      -DASSIMP_BUILD_OBJ_IMPORTER=ON -DASSIMP_BUILD_GLTF_IMPORTER=ON \
-#      -DASSIMP_BUILD_FBX_IMPORTER=ON -DASSIMP_BUILD_COLLADA_IMPORTER=ON \
-#      -DASSIMP_BUILD_PLY_IMPORTER=ON -DASSIMP_BUILD_STL_IMPORTER=ON \
-#      -DASSIMP_NO_EXPORT=ON -DASSIMP_INSTALL=OFF
-# ---------------------------------------------------------------------------
-set(MC_ASSIMP_BUILD "${CMAKE_BINARY_DIR}/assimp")
-target_include_directories(MediaCore PRIVATE
-    "${CMAKE_SOURCE_DIR}/3rdParty/assimp-src/include"
-    "${MC_ASSIMP_BUILD}/include")          # config.h / revision.h 生成物
 
 # ---------------------------------------------------------------------------
 #  mpcdi-libs（MPCDI 包解析底层件）：minizip/zlib 精简集/tinyxml2 源码静态编译
