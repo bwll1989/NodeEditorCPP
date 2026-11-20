@@ -94,12 +94,18 @@ public:
     ///        历史路径）。顶点【位置】仍由单位方解单应，仅【采样 uv】映进
     ///        窗——与 display ScreenMapper crop_u/v 同式（2026-11-17 预览
     ///        裁切对齐：几何按裁后可见矩形解算 + 内容不缩放）
+    /// \param rgb_gain 片段级 RGB 线性增益（2026-11-20 预览调色；nullptr =
+    ///        默认 1,1,1 逐位历史路径）；gamma 伽马指数（1.0 = 不校正）。
+    ///        shader 段与 display GlRenderer 同式：先乘增益、γ≠1 再
+    ///        pow(clamp(c,0,1), 1/γ) —— 预览与输出像素级同源
     /// \return false = GL 未能绘制（退化四边形/上传失败）——调用方走
     ///         QPainter 原路径兜底（占位/棋盘语义自动接住）
     bool drawClipFace(const std::string& key, const TexData& d,
                       const double sx[4], const double sy[4], float opacity,
                       float u0 = 0.0f, float v0 = 0.0f,
-                      float u1 = 1.0f, float v1 = 1.0f);
+                      float u1 = 1.0f, float v1 = 1.0f,
+                      const double rgb_gain[3] = nullptr,
+                      double gamma = 1.0);
 
     // ---- 逐屏离屏 FBO（阶段2 面片精确化；配 GlRenderer ExternalCtx）------
     // 【语义】绑定屏的 display 输出预览不再裁全局总画面（线性 UV 窗在
@@ -138,8 +144,11 @@ private:
     /// 单应贴图提交（drawClipFace/drawScreenFaceTex 共用尾段）：
     /// 解算单位方→四角单应、构造透视 w 顶点、幂等重配状态并绘制。
     /// 本函数自行把 tex 绑到 GL_TEXTURE0（幂等——调用方无需预绑定）。
+    /// rgb_gain/gamma 仅 drawClipFace 链消费（屏幕 FBO 画面已在
+    /// GlRenderer 阶段调色，二次应用会错）；nullptr = 默认直通。
     bool submitFace(unsigned int tex, const double sx[4], const double sy[4],
-                    float opacity, float u0, float v0, float u1, float v1);
+                    float opacity, float u0, float v0, float u1, float v1,
+                    const double rgb_gain[3] = nullptr, double gamma = 1.0);
 
     /// 逐屏离屏会话资源（beginScreenFace 建；key = "__screen_fbo_"+屏id）。
     /// FBO 渲染坐标 GL 底向上——GlRenderer 顶点构造已做 H−y 翻转，
@@ -171,6 +180,8 @@ private:
     int loc_scale_ = -1;        ///< u_scale（逻辑→NDC 系数；链接后缓存）
     int loc_tex_ = -1;          ///< u_tex 采样器
     int loc_opacity_ = -1;      ///< u_opacity
+    int loc_gain_ = -1;         ///< u_rgb_gain（片段级调色；链接后缓存）
+    int loc_gamma_ = -1;        ///< u_gamma（片段级调色；链接后缓存）
     int lw_ = 0, lh_ = 0;       ///< 本帧逻辑尺寸（frame 注入）
     float dpr_ = 1.0f;
     bool  inited_ = false;      ///< ensure 完成（程序/VAO/VBO 就绪）

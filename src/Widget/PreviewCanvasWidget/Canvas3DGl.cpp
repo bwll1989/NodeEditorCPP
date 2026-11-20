@@ -38,8 +38,11 @@ void main() {
 }
 )";
 
-/// 片元着色器：纹理采样 + 不透明度。uv 由光栅透视校正插值（四角恒在
-/// [0,1] 域内，无需出界 discard——CLAMP_TO_EDGE 兜底插值浮点抖动）。
+/// 片元着色器：纹理采样 + 不透明度 + 片段级调色（2026-11-20 预览对齐）。
+/// uv 由光栅透视校正插值（四角恒在 [0,1] 域内，无需出界 discard——
+/// CLAMP_TO_EDGE 兜底插值浮点抖动）。调色与 display GlRenderer /
+/// SoftRenderer 同式：先逐通道乘线性增益，γ≠1 再 pow(clamp(c,0,1), 1/γ)
+/// ——默认 1,1,1/1.0 时逐位还原历史路径（uniform 分支全片元统一无发散）。
 /// out.a = c.a·opa（glBlendFuncSeparate 的 A 链——与 GlRenderer /
 /// SoftRenderer 同公式，Qt 标注层叠加语义一致）。
 constexpr char kFragmentShader[] = R"(
@@ -47,10 +50,15 @@ constexpr char kFragmentShader[] = R"(
 in vec2 v_uv;
 uniform sampler2D u_tex;
 uniform float u_opacity;
+uniform vec3 u_rgb_gain;
+uniform float u_gamma;
 out vec4 fragColor;
 void main() {
     vec4 c = texture(u_tex, v_uv);
-    fragColor = vec4(c.rgb, c.a * u_opacity);
+    vec3 rgb = c.rgb * u_rgb_gain;
+    if (abs(u_gamma - 1.0) > 1e-4)
+        rgb = pow(clamp(rgb, 0.0, 1.0), vec3(1.0 / u_gamma));
+    fragColor = vec4(rgb, c.a * u_opacity);
 }
 )";
 
@@ -124,6 +132,8 @@ bool Canvas3DGl::ensure() {
     loc_scale_    = gl::glGetUniformLocation(program_, "u_scale");
     loc_opacity_  = gl::glGetUniformLocation(program_, "u_opacity");
     loc_tex_      = gl::glGetUniformLocation(program_, "u_tex");
+    loc_gain_     = gl::glGetUniformLocation(program_, "u_rgb_gain");
+    loc_gamma_    = gl::glGetUniformLocation(program_, "u_gamma");
     gl::glUseProgram(program_);
     gl::glUniform1i(loc_tex_, 0); // 采样器绑定单元 0（一次性）
     gl::glUseProgram(0);
@@ -144,7 +154,8 @@ bool Canvas3DGl::ensure() {
 bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
                               const double sx[4], const double sy[4],
                               float opacity, float u0, float v0,
-                              float u1, float v1) {
+                              float u1, float v1,
+                              const double rgb_gain[3], double gamma) {
     if (failed_ || !ensure()) return false;
     if (lw_ <= 0 || lh_ <= 0) return false;
     if (d.width <= 0 || d.height <= 0) return false;
@@ -276,7 +287,7 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
     }
 
     // ---- 单应贴图提交（与 FBO 屏幕面片共用尾段；纹理已建并传给本函数）--
-    return submitFace(tex, sx, sy, opacity, u0, v0, u1, v1);
+    return submitFace(tex, sx, sy, opacity, u0, v0, u1, v1, rgb_gain, gamma);
 }
 
 // ---------------------------------------------------------------------------
@@ -285,7 +296,8 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
 // ---------------------------------------------------------------------------
 bool Canvas3DGl::submitFace(unsigned int tex, const double sx[4],
                             const double sy[4], float opacity,
-                            float u0, float v0, float u1, float v1) {
+                            float u0, float v0, float u1, float v1,
+                            const double rgb_gain[3], double gamma) {
     if (failed_ || !ensure()) return false;
     if (lw_ <= 0 || lh_ <= 0) return false;
     if (tex == 0) return false;
@@ -350,6 +362,21 @@ bool Canvas3DGl::submitFace(unsigned int tex, const double sx[4],
                     2.0f / static_cast<float>(lw_),
                     -2.0f / static_cast<float>(lh_));
     gl::glUniform1f(loc_opacity_, opacity);
+    // 片段级调色（2026-11-20 预览对齐）：nullptr = 默认 1,1,1/1.0 逐位
+    // 历史路径；屏幕 FBO 面片链（drawScreenFaceTex）恒传默认——FBO 画面
+    // 已在 GlRenderer 阶段消费过片段调色，二次应用会双重叠加
+    if (rgb_gain != nullptr) {
+        if (loc_gain_ >= 0)
+            gl::glUniform3f(loc_gain_, (float)rgb_gain[0], (float)rgb_gain[1],
+                            (float)rgb_gain[2]);
+        if (loc_gamma_ >= 0)
+            gl::glUniform1f(loc_gamma_, (float)gamma);
+    } else {
+        if (loc_gain_ >= 0)
+            gl::glUniform3f(loc_gain_, 1.0f, 1.0f, 1.0f);
+        if (loc_gamma_ >= 0)
+            gl::glUniform1f(loc_gamma_, 1.0f);
+    }
     gl::glDrawArrays(gl::GL_TRIANGLES, 0, 6);
     // 解绑（QPainter 接管落在缺省 VAO——attrib 改写不触及本类对象）
     gl::glBindVertexArray(0);

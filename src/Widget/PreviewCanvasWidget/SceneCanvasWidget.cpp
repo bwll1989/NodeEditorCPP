@@ -252,6 +252,40 @@ inline bool deliverFrameView(const PreviewRenderer::DeliverItem& d,
     fv.domain = FrameDomain::CpuRgba;
     return true;
 }
+
+/// 片段级调色（2026-11-20 预览对齐；QPainter 回退路径专用——GL 主路径
+/// 在 Canvas3DGl shader / 2D 路径 GlRenderer uniform 里消费）。
+/// 与 display 端 GlRenderer / SoftRenderer 同式：先逐通道乘线性增益
+/// [0,2]，γ≠1 再 pow(clamp(c,0,1), 1/γ)（>1 提亮中间调、<1 压暗）。
+/// 256 项 per-channel LUT 预解算（pow 每像素一次降为每帧 768 次）。
+/// 调用方已过滤全默认——本函数恒产出独占副本（快照 QImage 被贴图表/
+/// worker 共享，严禁原地改写）。
+inline QImage applyFaceColor(const QImage& src, const double rgb_gain[3],
+                             double gamma) {
+    QImage out = src.format() == QImage::Format_RGBA8888
+                     ? src
+                     : src.convertToFormat(QImage::Format_RGBA8888);
+    out.detach();
+    std::uint8_t lut[3][256];
+    const bool g_corr = std::fabs(gamma - 1.0) > 1e-6;
+    for (int c = 0; c < 3; ++c)
+        for (int v = 0; v < 256; ++v) {
+            double x = (v / 255.0) * rgb_gain[c]; // 增益
+            if (g_corr)
+                x = std::pow(std::clamp(x, 0.0, 1.0), 1.0 / gamma); // 伽马
+            lut[c][v] = static_cast<std::uint8_t>(
+                std::clamp(x * 255.0 + 0.5, 0.0, 255.0));
+        }
+    for (int y = 0; y < out.height(); ++y) {
+        auto* row = out.scanLine(y); // RGBA8888 恒 4B/px
+        for (int x = 0; x < out.width(); ++x, row += 4) {
+            row[0] = lut[0][row[0]];
+            row[1] = lut[1][row[1]];
+            row[2] = lut[2][row[2]];
+        }
+    }
+    return out;
+}
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -2699,7 +2733,8 @@ void SceneCanvasWidget::paintGL3D(
                         c.id, td, qx, qy,
                         (float)std::clamp(tf.opacity, 0.0, 1.0),
                         (float)pr.cuv[0], (float)pr.cuv[1],
-                        (float)pr.cuv[2], (float)pr.cuv[3]);
+                        (float)pr.cuv[2], (float)pr.cuv[3],
+                        tf.rgb_gain, tf.gamma);
                     p.endNativePainting();
                 }
             }
@@ -2720,6 +2755,17 @@ void SceneCanvasWidget::paintGL3D(
             const QImage* face_img =
                 pr.img ? pr.img
                        : (!face_lazy.isNull() ? &face_lazy : nullptr);
+            // ---- 片段级调色（QPainter 回退路径；GL 主路径 shader 已消费）--
+            // 与 display 同式（增益→clamp→pow(1/γ)）；全默认零开销跳过，
+            // 快照 QImage 共享不改写（副本进 face_tinted 持有）。
+            QImage face_tinted;
+            if (!gl_drawn && face_img &&
+                (tf.rgb_gain[0] != 1.0 || tf.rgb_gain[1] != 1.0 ||
+                 tf.rgb_gain[2] != 1.0 || tf.gamma != 1.0)) {
+                face_tinted =
+                    applyFaceColor(*face_img, tf.rgb_gain, tf.gamma);
+                face_img = &face_tinted;
+            }
             if (!gl_drawn &&
                 face_img && !face_img->isNull() && r.width() > 0 && r.height() > 0) {
                 const double sx = r.width()  / face_img->width();
