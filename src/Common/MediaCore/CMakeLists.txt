@@ -115,6 +115,8 @@ add_library(MediaCore SHARED
     live/SpoutIngest.cpp
     live/WgcIngest.cpp
     live/CameraIngest.cpp
+    live/NetworkIngest.cpp
+    live/MpegTsSender.cpp
     live/LiveHub.cpp
     # ---- platform ----
     platform/CrashDump.cpp

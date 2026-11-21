@@ -17,6 +17,7 @@
 #include "live/SpoutIngest.hpp"
 #include "live/WgcIngest.hpp"
 #include "live/CameraIngest.hpp"
+#include "live/NetworkIngest.hpp"
 
 namespace ms {
 
@@ -59,6 +60,13 @@ std::unique_ptr<ILiveIngest> makeSpout(std::string source_name, int latency_mode
                            std::move(sink));
 }
 
+/// Network 工厂包装（组播/rtsp/srt URL 直开——2026-11-21 组播转发转正）
+std::unique_ptr<ILiveIngest> makeNetwork(std::string source_name, int latency_mode,
+                                         ILiveIngest::FrameSink sink) {
+    return std::make_unique<NetworkIngest>(std::move(source_name), latency_mode,
+                                           std::move(sink));
+}
+
 /// 注册表（顺序 = UI 下拉顺序；未实现条目保留占位——UI 置灰可见）
 const std::vector<IngestDesc> kRegistry = {
     {LiveIngest::Ndi,     "NDI 源",     true, listNdi,              makeNdi},
@@ -66,7 +74,10 @@ const std::vector<IngestDesc> kRegistry = {
     {LiveIngest::Spout,   "Spout 纹理", true, listSpoutSources,     makeSpout},
     {LiveIngest::Monitor, "显示器捕获", true, listWgcMonitorSources, makeWgcMonitor},
     {LiveIngest::Camera,  "摄像头",    true, listCameraSources,     makeCamera},
-    {LiveIngest::Network, "网络流",     false, nullptr, nullptr}, // 远期 FFmpeg
+    // 网络流（udp 组播/rtsp/srt）：不进 UI 下拉源选择（组播转发由
+    // LiveClipSection 勾选自动生成 URL，display 端按 live_url 分派）——
+    // list_sources 恒空（无"发现"语义）
+    {LiveIngest::Network, "网络流",     true, nullptr,              makeNetwork},
 };
 
 } // namespace

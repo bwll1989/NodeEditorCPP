@@ -95,10 +95,21 @@ bool LiveMediaSource::prepare(const Asset& asset) {
     }
 
     // ---- 直收模式（display 端 / Hub 未命中兜底）----
-    // 类型按 Ingest 注册表分派：NDI/Spout/窗口/显示器捕获已实现协议均可
-    // 直收（同机路径）；未实现/未知 ingest 拒绝（editor 端 Live Hub 会把
-    // 未实现类型归一为 NDI 再发布后到达本源）
-    const IngestDesc* desc = findIngest(asset.live_ingest);
+    // 【2026-11-21 组播转发分派】NDI 源 + live_url 非空 = editor 组播转发生效
+    // ——display 收 editor 的 MPEG-TS 组播流（多 display 共享一路入网带宽，
+    // 替代 NDI 单播 ×N）；URL 经注册表 Network 条目（udp/rtsp/srt 通吃）。
+    // 其余（同机源 Spout/窗口/显示器/摄像头，或未启用组播）按原注册表直收。
+    IngestDesc desc_copy;
+    const IngestDesc* desc = nullptr;
+    std::string connect_ref;
+    if (asset.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi) &&
+        !asset.live_url.empty()) {
+        desc = findIngest(static_cast<std::int32_t>(LiveIngest::Network));
+        connect_ref = asset.live_url;
+    } else {
+        desc = findIngest(asset.live_ingest);
+        connect_ref = asset.live_source_name;
+    }
     if (desc == nullptr || !desc->implemented) {
         std::fprintf(stderr,
                      "live: ingest=%d 暂未支持（等待 Live Hub Ingest "
@@ -107,8 +118,8 @@ bool LiveMediaSource::prepare(const Asset& asset) {
         std::fflush(stderr);
         return false;
     }
-    if (asset.live_source_name.empty()) {
-        std::fprintf(stderr, "live: live_source_name 为空，无法连接\n");
+    if (connect_ref.empty()) {
+        std::fprintf(stderr, "live: 连接串为空（源名/URL），无法连接\n");
         std::fflush(stderr);
         return false;
     }
@@ -116,7 +127,7 @@ bool LiveMediaSource::prepare(const Asset& asset) {
     // 幂等：已在运行（重复 ensure）直接成功
     if (ingest_ != nullptr) return true;
 
-    source_name_  = asset.live_source_name;
+    source_name_  = connect_ref;
     latency_mode_ = asset.live_latency == 1 ? 1 : 0; // 非 0/1 一律 0（保守低延迟）
     // 帧同步目标延迟（2026-11-21）：仅 display 直收模式消费；Hub 模式
     // （预览）恒监视语义。直传——storeFrame/frameView 以 >0 判定启用。

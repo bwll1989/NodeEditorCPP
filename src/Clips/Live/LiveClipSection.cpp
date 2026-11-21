@@ -4,6 +4,7 @@
 
 #include "LiveClipSection.hpp"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -15,6 +16,7 @@
 
 #include <limits>
 
+#include "live/LiveHub.hpp" // multicastUrlFor（组播 URL 确定性生成）
 #include "live/LiveIngest.hpp" // Ingest 注册表（接入方式/源枚举唯一数据源）
 
 namespace ms {
@@ -161,6 +163,20 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     sync_row->addWidget(sync_latency_, /*stretch=*/1);
     lay->addLayout(sync_row);
 
+    // ---- 组播转发（仅 NDI 源：跨机带宽收敛——多 display 共享一路）---------
+    mcast_ = new QCheckBox(QStringLiteral("组播转发（多台 display 共享一路带宽）"), box);
+    mcast_->setObjectName("liveMcast");
+    mcast_->setToolTip(QStringLiteral(
+        "editor 把本源编码一次（H.264）后组播分发：display 端按组播地址接收，"
+        "入网带宽恒一份（替代 NDI 单播按台数放大）。需交换机支持 IGMP。"));
+    lay->addWidget(mcast_);
+    mcast_url_ = new QLabel(box);
+    mcast_url_->setObjectName("liveMcastUrl");
+    mcast_url_->setStyleSheet(QStringLiteral("color: gray; font-size: 11px;"));
+    mcast_url_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    mcast_url_->setVisible(false);
+    lay->addWidget(mcast_url_);
+
     root->addWidget(box);
 
     // ---- 即时生效：任一控件变更 → applier 写回 -------------------------------
@@ -177,6 +193,7 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
             this, [this](int) { onEdited(); });
     connect(sync_latency_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { onEdited(); });
+    connect(mcast_, &QCheckBox::toggled, this, [this](bool) { onEdited(); });
     connect(refresh_, &QPushButton::clicked,
             this, &LiveClipSection::onRefreshSources);
 }
@@ -208,6 +225,12 @@ void LiveClipSection::applyTo(Asset& a) const {
     a.live_latency = latency_->currentIndex() == 1 ? 1 : 0;
     // 帧同步目标延迟（μs；档位 currentData 直传——无精度损失）
     a.live_target_latency_us = sync_latency_->currentData().toLongLong();
+    // 组播转发：仅 NDI 源可启用（跨机带宽收敛；同机源 display 直收豁免）。
+    // 勾选 → live_url = 确定性组播地址（multicastUrlFor；用户不经 UI 改）；
+    // 取消/非 NDI → 清空（display 端回 NDI 单播直收语义）
+    const bool mcast_on = mcast_->isChecked() &&
+                          a.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi);
+    a.live_url = mcast_on ? multicastUrlFor(a.id) : std::string();
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +244,7 @@ void LiveClipSection::refreshFrom(const Asset& a) {
     const QSignalBlocker b1(source_);
     const QSignalBlocker b2(latency_);
     const QSignalBlocker b3(sync_latency_);
+    const QSignalBlocker b4(mcast_);
     // 接入方式：按注册表下标回选
     const auto& reg = ingestRegistry();
     for (std::size_t i = 0; i < reg.size(); ++i) {
@@ -244,6 +268,14 @@ void LiveClipSection::refreshFrom(const Asset& a) {
     latency_->setCurrentIndex(a.live_latency == 1 ? 1 : 0);
     sync_latency_->setCurrentIndex(
         nearestSyncIndex(sync_latency_, a.live_target_latency_us));
+    // 组播转发：回灌勾选态 + URL 展示（仅 NDI 源可见；live_url 非空 = 启用）
+    const bool is_ndi =
+        a.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi);
+    mcast_->setVisible(is_ndi);
+    mcast_->setChecked(is_ndi && !a.live_url.empty());
+    mcast_url_->setVisible(is_ndi && !a.live_url.empty());
+    mcast_url_->setText(QStringLiteral("组播地址: ") +
+                        QString::fromStdString(a.live_url));
 }
 
 // ---------------------------------------------------------------------------

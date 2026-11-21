@@ -40,6 +40,10 @@
 
 namespace ms {
 
+class MpegTsSender; // 组播发送器（前向声明——Entry 持 unique_ptr，析构
+                    // 在 cpp 实例化；本头不 include 它：MpegTsSender.hpp
+                    // 反向 include 本头取 Feed 嵌套类型，防循环包含）
+
 class LiveHub {
 public:
     // ------------------------------------------------------------------------
@@ -128,6 +132,11 @@ private:
         std::thread                sender_thread; ///< Feed → NDIlib_send 转发
         std::string                pub_name;      ///< ms-live/<project>/<asset_id>
         std::atomic<bool>          sender_run{false};
+        /// 组播发送器（2026-11-21 组播转发）：live_url 非空时启动——
+        /// Feed → H.264(NVENC/x264) → MPEG-TS → UDP 组播（多 display
+        /// 共享一路入网带宽，替代 NDI 单播 ×N）
+        std::unique_ptr<MpegTsSender> mcast;
+        std::string                   mcast_url; ///< 装配指纹（URL 变化重建）
         // ---- ingest 装配指纹（2026-11-10 源切换检测）----
         // 用户在编辑端换源（源名/延迟/接入方式任一变化）→ ensureAsset
         // 停旧建新；旧版只在 ingest 为空时创建 = 切换后永远转发旧源

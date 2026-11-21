@@ -10,6 +10,8 @@
 #include "Processing.NDI.Lib.h"
 #include "Processing.NDI.Send.h"
 
+#include "live/MpegTsSender.hpp" // 组播发送器完整定义（Entry 析构需要）
+
 namespace ms {
 
 namespace {
@@ -131,6 +133,32 @@ void LiveHub::ensureAsset(const Asset& asset, const std::string& project_name) {
         }
     }
 
+    // ---- 组播 sender（2026-11-21 组播转发）：live_url 非空 = 启用 ----
+    // 与 NDI 再发布并存（NDI 供无 IGMP 环境兜底，组播为多 display 主路；
+    // 阶段二 NDI 分发退役后组播成为唯一通道）。URL 变化 → 停旧建新。
+    if (entry->mcast_url != asset.live_url) {
+        if (entry->mcast != nullptr) {
+            entry->mcast->stop();
+            entry->mcast.reset();
+            entry->mcast_url.clear();
+        }
+        if (!asset.live_url.empty()) {
+            entry->mcast = std::make_unique<MpegTsSender>(
+                asset.live_url, entry->feed);
+            if (entry->mcast->start()) {
+                entry->mcast_url = asset.live_url;
+                std::fprintf(stderr, "live-hub: %s: 组播转发 '%s'（%s）\n",
+                             asset.id.c_str(), asset.live_url.c_str(),
+                             entry->mcast->encoderName().c_str());
+            } else {
+                entry->mcast.reset(); // 线程创建失败：下次 ensure 重试
+                std::fprintf(stderr, "live-hub: %s: 组播转发启动失败 (%s)\n",
+                             asset.id.c_str(), asset.live_url.c_str());
+            }
+            std::fflush(stderr);
+        }
+    }
+
     // ---- 再发布 sender：发布名变化（project 改名）→ 重建 ----
     if (entry->pub_name != pub) {
         stopEntry(*entry);
@@ -215,6 +243,11 @@ void LiveHub::senderLoop(Entry& entry) {
 // stopEntry：停转发线程 + 销毁 sender（调用方持 mutex_）
 // ---------------------------------------------------------------------------
 void LiveHub::stopEntry(Entry& entry) {
+    if (entry.mcast != nullptr) { // 组播发送器（join 后线程绝迹）
+        entry.mcast->stop();
+        entry.mcast.reset();
+        entry.mcast_url.clear();
+    }
     if (entry.sender_run.load(std::memory_order_acquire)) {
         entry.sender_run.store(false, std::memory_order_release);
         if (entry.sender_thread.joinable()) entry.sender_thread.join();

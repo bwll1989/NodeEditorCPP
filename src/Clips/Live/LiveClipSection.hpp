@@ -33,6 +33,7 @@
 #include "model/ClipSectionContext.hpp" // ms::ClipSectionContext（编辑上下文）
 #include "model/SceneModel.hpp"
 
+class QCheckBox;
 class QComboBox;
 class QLabel;
 class QPushButton;
@@ -97,6 +98,10 @@ private:
     QComboBox*   latency_ = nullptr; ///< liveLatency：0=最低 1=同步
     QComboBox*   sync_latency_ = nullptr; ///< liveSyncLatency：帧同步目标延迟
                                          ///< （档位 currentData 存 μs；0=监视）
+    /// liveMcast：组播转发开关（仅 NDI 源可见——跨机带宽收敛；勾选即
+    /// live_url = 组播 URL，display 端按 live_url 分派收流）
+    QCheckBox*   mcast_ = nullptr;
+    QLabel*      mcast_url_ = nullptr; ///< 组播 URL 展示（multicastUrlFor 生成）
 
     ClipSectionContext ctx_; ///< 编辑上下文（clip/scene/on_edited——值拷贝）
 };
