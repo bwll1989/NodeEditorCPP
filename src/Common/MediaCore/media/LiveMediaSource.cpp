@@ -101,7 +101,6 @@ bool LiveMediaSource::prepare(const Asset& asset) {
     // 多 display 共享一路入网带宽）。未启用组播 → 拒绝装配并提示
     //（不再退回 NDI 直收——display 端 NDI 接收路径已删除）。
     // 其余同机源（Spout/窗口/显示器/摄像头）按原注册表直收。
-    IngestDesc desc_copy;
     const IngestDesc* desc = nullptr;
     std::string connect_ref;
     if (asset.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi)) {

@@ -23,8 +23,9 @@ namespace ms {
 
 namespace {
 
-/// 自家再发布标记（LiveHub::ensureAsset 的发布名前缀）——源下拉过滤，
-/// 防把 Hub 转发流当采集源（自环：自己发自己收）
+/// 自家再发布标记——源下拉过滤，防把转发流当采集源（自环：自己发自己收）。
+/// NDI 分发退役（2026-11-21）后本机不再发布 ms-live 源；过滤保留为
+/// 旧版本 Flow 实例仍在同一网络发布时的防御。
 constexpr const char* kRepublishMark = "ms-live";
 
 /// 帧同步目标延迟档位（μs）——display 端按"帧接收戳 + 本延迟"排程，
@@ -227,7 +228,8 @@ void LiveClipSection::applyTo(Asset& a) const {
     a.live_target_latency_us = sync_latency_->currentData().toLongLong();
     // 组播转发：仅 NDI 源可启用（跨机带宽收敛；同机源 display 直收豁免）。
     // 勾选 → live_url = 确定性组播地址（multicastUrlFor；用户不经 UI 改）；
-    // 取消/非 NDI → 清空（display 端回 NDI 单播直收语义）
+    // 取消/非 NDI → 清空（NDI 分发退役后 display 拒收并提示——组播是
+    // NDI 源唯一分发通道）
     const bool mcast_on = mcast_->isChecked() &&
                           a.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi);
     a.live_url = mcast_on ? multicastUrlFor(a.id) : std::string();

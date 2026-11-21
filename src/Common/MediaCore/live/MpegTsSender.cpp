@@ -30,6 +30,7 @@ struct MpegTsSender::Av {
     AVFormatContext*           mux     = nullptr;
     SwsContext*                sws     = nullptr;
     AVFrame*                   yuv     = nullptr; ///< 编码输入帧（YUV420P）
+    AVPacket*                  pkt     = nullptr; ///< 编码输出包（会话内复用）
     std::int64_t               pts     = 0;       ///< 递增 PTS（编码时基）
 };
 
@@ -100,7 +101,7 @@ bool MpegTsSender::setupEncoder(int w, int h) {
     const int eh = (h / 2) * 2;
 
     auto* a = new Av();
-    av_ = a;
+    av_.reset(a);
     av_ok_ = false; // 致命失败路径 teardown 时据此区分释放
 
     // ---- 码率：1080p60 ≈ 16Mbps 基准，按像素量/帧率缩放，clamp 4~40M ----
@@ -154,6 +155,8 @@ bool MpegTsSender::setupEncoder(int w, int h) {
     a->yuv->width  = ew;
     a->yuv->height = eh;
     if (av_frame_get_buffer(a->yuv, 0) < 0) return false;
+    a->pkt = av_packet_alloc(); // 编码输出包（会话内复用——unref 复位语义）
+    if (a->pkt == nullptr) return false;
 
     // ---- RGBA → YUV420P 转换器（BT.709 色彩域——视频标准）----
     a->sws = sws_getContext(w, h, AV_PIX_FMT_RGBA,
@@ -201,13 +204,16 @@ bool MpegTsSender::setupEncoder(int w, int h) {
 // encodeAndSend：RGBA → YUV420P → 编码 → muxer
 // ---------------------------------------------------------------------------
 bool MpegTsSender::encodeAndSend(const LiveFrame& frame) {
-    auto* a = static_cast<Av*>(av_);
+    Av* a = av_.get();
 
-    // PTS = 帧接收戳换算到编码时基（首帧锚定——同戳同延迟多端一致）
-    if (first_pts_us_ == 0) first_pts_us_ = frame.pts_us != 0 ? frame.pts_us : av_gettime();
-    const std::int64_t rel_us =
-        (frame.pts_us != 0 ? frame.pts_us : av_gettime()) - first_pts_us_;
-    a->pts = av_rescale_q(rel_us, AVRational{1, 1000000}, a->enc->time_base);
+    // PTS = 帧接收戳换算到编码时基（首帧锚定——同戳同延迟多端一致）。
+    // pts_us==0（异常帧）回退本地时钟作戳——与排程端语义一致。
+    if (first_pts_us_ == 0)
+        first_pts_us_ = frame.pts_us != 0 ? frame.pts_us : av_gettime();
+    const std::int64_t stamp =
+        frame.pts_us != 0 ? frame.pts_us : av_gettime();
+    a->pts = av_rescale_q(stamp - first_pts_us_,
+                          AVRational{1, 1000000}, a->enc->time_base);
 
     // RGBA → YUV420P（源 stride = w*4）
     const uint8_t* src_slice[1] = {frame.rgba.data()};
@@ -217,15 +223,14 @@ bool MpegTsSender::encodeAndSend(const LiveFrame& frame) {
     a->yuv->pts = a->pts;
 
     if (avcodec_send_frame(a->enc, a->yuv) < 0) return false;
-    AVPacket* pkt = av_packet_alloc();
     bool ok = true;
-    while (avcodec_receive_packet(a->enc, pkt) == 0) {
-        av_packet_rescale_ts(pkt, a->enc->time_base, a->vs->time_base);
-        pkt->stream_index = a->vs->index;
-        if (av_interleaved_write_frame(a->mux, pkt) < 0) ok = false;
-        av_packet_unref(pkt);
+    while (avcodec_receive_packet(a->enc, a->pkt) == 0) {
+        av_packet_rescale_ts(a->pkt, a->enc->time_base, a->vs->time_base);
+        a->pkt->stream_index = a->vs->index;
+        if (av_interleaved_write_frame(a->mux, a->pkt) < 0) ok = false;
+        av_packet_unref(a->pkt);
     }
-    av_packet_free(&pkt);
+    av_packet_unref(a->pkt); // 收尾复位（下次 receive 前无脏状态）
     return ok;
 }
 
@@ -234,8 +239,8 @@ bool MpegTsSender::encodeAndSend(const LiveFrame& frame) {
 // ---------------------------------------------------------------------------
 void MpegTsSender::run() {
     std::shared_ptr<LiveHub::Feed> feed;
-    last_version_ = 0;
     bool setup_tried = false;
+    std::int64_t last_try = 0; // 装配失败限频（线程栈变量——本线程独占）
 
     while (running_.load(std::memory_order_acquire)) {
         feed = feed_.lock();
@@ -254,7 +259,6 @@ void MpegTsSender::run() {
         // 被其他进程占用后释放）
         if (av_ == nullptr || !av_ok_) {
             const std::int64_t now = av_gettime();
-            static thread_local std::int64_t last_try = 0;
             if (setup_tried && now - last_try < 2'000'000) continue;
             last_try = now;
             setup_tried = true;
@@ -276,7 +280,7 @@ void MpegTsSender::run() {
 // ---------------------------------------------------------------------------
 void MpegTsSender::teardown() {
     if (av_ == nullptr) return;
-    auto* a = static_cast<Av*>(av_);
+    Av* a = av_.get();
     if (a->mux != nullptr) {
         if (av_ok_ && (a->mux->oformat->flags & AVFMT_NOFILE) == 0)
             av_write_trailer(a->mux); // TS 尾包（尽力——组播无连接语义）
@@ -286,9 +290,9 @@ void MpegTsSender::teardown() {
     }
     if (a->sws != nullptr) { sws_freeContext(a->sws); a->sws = nullptr; }
     if (a->yuv != nullptr) av_frame_free(&a->yuv);
+    if (a->pkt != nullptr) av_packet_free(&a->pkt);
     if (a->enc != nullptr) avcodec_free_context(&a->enc);
-    delete a;
-    av_ = nullptr;
+    av_.reset(); // delete Av（unique_ptr 管理）
     av_ok_ = false;
     first_pts_us_ = 0;
 }

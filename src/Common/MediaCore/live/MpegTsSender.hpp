@@ -68,15 +68,16 @@ private:
 
     // ---- FFmpeg 装配（转发线程独占，无锁）----
     struct Av;                     ///< FFmpeg 句柄集合（cpp 内定义，头零泄漏）
-    Av*                av_     = nullptr;
+    std::unique_ptr<Av> av_;       ///< 空或装配中（setupEncoder 建 / teardown 清）
     bool               av_ok_  = false; ///< setupEncoder 成功旗标
     std::uint64_t      last_version_ = 0;
     std::int64_t       first_pts_us_ = 0; ///< 首帧接收戳（PTS 锚）
 };
 
 /// 组播 URL 确定性分配（editor/display 同算无需存储）：FNV-1a(asset_id)
-/// → 239.100.x.x : 50000+N。同 id 恒同址；碰撞概率低（随机 65536 选址 ×
-/// Live 素材数），碰撞时用户改 URL 即可（display 端照收）。
+/// → 239.100.x.x : 50000+N。同 id 恒同址；选址空间 ≈163k 组合
+///（奇数主机位 127×127 × 端口 10000），素材数 <100 时碰撞概率 ~3%，
+/// 碰撞时用户改 URL 即可（display 端照收）。
 std::string multicastUrlFor(const std::string& asset_id);
 
 } // namespace ms

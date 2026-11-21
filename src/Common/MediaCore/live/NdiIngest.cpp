@@ -160,7 +160,7 @@ void NdiIngest::recvLoop() {
         if (recv_ == nullptr) {
             if (finder_ == nullptr) {
                 NDIlib_find_create_t find_desc{};
-                find_desc.show_local_sources = true; // 本机源（Hub 再发布在同机）
+                find_desc.show_local_sources = true; // 本机源（本机其他应用的 NDI 输出）
                 finder_ = NDIlib_find_create_v2(&find_desc);
                 if (finder_ == nullptr) {
                     logThrottled("NDI 发现器创建失败", last_find_log, 5000);
@@ -191,7 +191,7 @@ void NdiIngest::recvLoop() {
             desc.color_format         = NDIlib_recv_color_format_RGBX_RGBA;
             desc.bandwidth            = NDIlib_recv_bandwidth_highest;
             desc.allow_video_fields   = false;
-            desc.p_ndi_recv_name      = "MediaServer-Hub";
+            desc.p_ndi_recv_name      = "Flow-Hub";
             recv_ = NDIlib_recv_create_v3(&desc);
             if (recv_ == nullptr) {
                 logThrottled("NDI 接收器创建失败", last_find_log, 5000);

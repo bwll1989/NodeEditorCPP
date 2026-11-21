@@ -1,23 +1,23 @@
 // ============================================================================
 //  LiveMediaSource —— 实时源媒体（IMediaSource 实现；Live Hub 消费端）
 //
-//  双模式（架构定稿 2026-11-06"源统一接收转发"）：
+//  双模式（架构定稿 2026-11-06"源统一接收转发"；NDI 分发退役 2026-11-21）：
 //    * Hub 模式（editor 预览进程内）：prepare 探针 LiveHub::probeFeed
-//      命中 → 帧直接取自 Hub 进程内缓冲（零中间拷贝、零再发布代损——
+//      命中 → 帧直接取自 Hub 进程内缓冲（零中间拷贝——
 //      架构③路径"预览进程内直用"）；
-//    * NDI 模式（display 端 / Hub 未就绪的兜底）：内嵌收端核心
+//    * 直收模式（display 端 / Hub 未就绪的兜底）：内嵌收端核心
 //      （display 端 LiveMediaSource 是唯一 Live 实现——"display 端
-//      除固定媒体外全部抽象成统一 LiveHubMedia"的用户定案落点），按
-//      asset.live_source_name 直连源（收 Hub 再发布流 ms-live/...
-//      或测试直收外部源）。直收类型按 Ingest 注册表分派——NDI/Spout/
-//      窗口/显示器捕获已实现协议均可直收（同机低延迟路径）。
+//      除固定媒体外全部抽象成统一 LiveHubMedia"的用户定案落点）。
+//      直收类型按 Ingest 注册表分派：NDI 源唯一通道 = 编辑端组播转发
+//      （live_url → Network 收流）；同机源（Spout/窗口/显示器/摄像头）
+//      按注册表直收（同机低延迟路径）。
 //
 //  定位：
 //    * produce(media_us) 恒给最新帧（实时源无时间轴语义，media_us 占位）
 //      ——【首次 produce(t>0) 直达】天然满足：无 seek 分支、无 GOP 依赖；
-//    * 质量五原则：NDI 模式带宽恒 highest（不降分辨率）、RGBX_RGBA 直出
-//      （零颜色空间转换）、latency=0 drain（宁丢勿延迟）/ latency=1 直通
-//      （SDK 队列缓冲 2~3 帧）、不插帧。
+//    * 质量五原则：带宽恒 highest（不降分辨率）、RGBA 直出（转换仅
+//      RGBA→YUV→RGBA 编解码一代）、latency=0 drain（宁丢勿延迟）/
+//      latency=1 直通（SDK 队列缓冲 2~3 帧）、不插帧。
 //
 //  帧同步排程（2026-11-21 定稿，仅 display 直收模式生效）：
 //    * 每帧在 Ingest 产出点打接收戳 pts_us（进程对齐时钟域，
@@ -30,7 +30,7 @@
 //    * =0 时退化 latest 直显（监视语义，与旧行为完全一致，零开销）。
 //    * 缓冲按时间窗 + 帧数硬顶裁剪（storeFrame），内存有界。
 //
-//  线程契约：prepare/release 在调度器线程；NDI 模式接收线程在 NdiIngest
+//  线程契约：prepare/release 在调度器线程；直收模式接收线程在 Ingest
 //  内部（sink 回调写 latest_）；frameView 在渲染线程——latest_/Feed 帧均为
 //  shared_ptr 快照，渲染端 keep 保活本帧缓冲，接收端发布新帧不悬垂旧帧
 //  （与解码线程化后的 FrameView.keep 同一模式）。
@@ -80,7 +80,6 @@ public:
     // ---- 诊断 ----
     bool          connected()      const noexcept { return connected_; }
     std::uint64_t framesReceived() const noexcept { return frames_received_.load(std::memory_order_relaxed); }
-    std::uint64_t framesDropped()  const noexcept { return frames_dropped_.load(std::memory_order_relaxed); }
 
 private:
     // ---- Hub 模式（editor 预览进程内直用）----
@@ -115,7 +114,6 @@ private:
     // ---- 诊断 ----
     std::atomic<bool>          connected_{false};
     std::atomic<std::uint64_t> frames_received_{0};
-    std::atomic<std::uint64_t> frames_dropped_{0};
 };
 
 } // namespace ms

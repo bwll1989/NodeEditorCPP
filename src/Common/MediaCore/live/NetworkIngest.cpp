@@ -35,6 +35,9 @@ void NetworkIngest::recvLoop() {
     AVCodecContext*  dec = nullptr;
     SwsContext*      sws = nullptr;
     int              vs_index = -1;
+    std::int64_t     last_log_ms = 0;
+    int sws_w = 0, sws_h = 0;          // sws 转换器当前目标尺寸（变化重建判据）
+    enum AVPixelFormat sws_fmt = AV_PIX_FMT_NONE; // 源像素格式（同上）
 
     auto closeAll = [&]() {
         if (dec != nullptr) avcodec_free_context(&dec);
@@ -42,11 +45,10 @@ void NetworkIngest::recvLoop() {
         if (sws != nullptr) { sws_freeContext(sws); sws = nullptr; }
         dec_desc = nullptr;
         vs_index = -1;
+        sws_w = 0; sws_h = 0; sws_fmt = AV_PIX_FMT_NONE;
         connected_.store(false, std::memory_order_release);
     };
 
-    std::int64_t last_log_ms = 0;
-    int sws_w = 0, sws_h = 0; // sws 转换器当前目标尺寸（变化重建判据）
     while (running_.load(std::memory_order_acquire)) {
         // ---- 打开（低延迟选项组）----
         AVDictionary* opts = nullptr;
@@ -123,9 +125,10 @@ void NetworkIngest::recvLoop() {
                 if (rr == AVERROR(EAGAIN) || rr == AVERROR_EOF) break;
                 if (rr < 0) { stream_ok = false; break; } // 解码异常 → 重开
 
-                // 帧尺寸/格式变化 → sws 重建（组播源切分辨率自愈）
+                // 帧尺寸/格式变化 → sws 重建（组播源切分辨率/格式自愈）
                 if (sws == nullptr || fr->width != sws_w ||
-                    fr->height != sws_h) {
+                    fr->height != sws_h ||
+                    fr->format != sws_fmt) {
                     if (sws != nullptr) sws_freeContext(sws);
                     sws = sws_getContext(fr->width, fr->height,
                                          static_cast<AVPixelFormat>(fr->format),
@@ -134,6 +137,7 @@ void NetworkIngest::recvLoop() {
                                          SWS_BILINEAR, nullptr, nullptr, nullptr);
                     sws_w = fr->width;
                     sws_h = fr->height;
+                    sws_fmt = static_cast<AVPixelFormat>(fr->format);
                     if (sws == nullptr) { stream_ok = false; break; }
                 }
 

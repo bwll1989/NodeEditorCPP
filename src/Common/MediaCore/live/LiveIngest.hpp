@@ -9,7 +9,7 @@
 //      LiveClipSection 三个接入点全部查表，零分支改动。
 //
 //  三接入点（全部只依赖本头，不依赖任何具体实现头）：
-//    * LiveHub::ensureAsset        —— editor 端收源 → Feed → NDI 再发布；
+//    * LiveHub::ensureAsset        —— editor 端收源 → Feed → 组播转发；
 //    * LiveMediaSource::prepare    —— display/预览端直收（Hub 未命中时）；
 //    * LiveClipSection             —— UI 接入方式下拉 + 源列表刷新。
 //
@@ -22,7 +22,8 @@
 //    * Monitor  —— "显示器 N [hmon:十六进制]"（HMONITOR 句柄同理）；
 //    * Camera   —— 设备 SymbolicLink（MFEnumDeviceSources 生成，收端按它
 //                  重建设备源；label=FriendlyName 仅显示用）；
-//    * Network  —— 流 URL（rtsp:// srt:// udp://…，待实现）。
+//    * Network  —— 流 URL（udp:// 组播 rtsp:// srt://…——组播转发的
+//                  live_url 承载通道，2026-11-21 转正）。
 // ============================================================================
 
 #pragma once
