@@ -1,8 +1,9 @@
 // ============================================================================
-//  LiveMediaSource 实现 —— 双模式消费端（Hub 进程内 / NDI 直收）
+//  LiveMediaSource 实现 —— 双模式消费端（Hub 进程内 / Network 直收）
 //
-//  收端逻辑唯一实现在 NdiIngest（core/live/）——本类只做模式分派与
-//  快照缓冲，NDI API 不在本 TU 出现（公共头与实现均零 NDI 依赖）。
+//  收端逻辑唯一实现在 core/live/（NdiIngest=采集、NetworkIngest=组播收流）
+//  ——本类只做模式分派与快照缓冲，NDI API 不在本 TU 出现（公共头与实现
+//  均零 NDI 依赖）。
 // ============================================================================
 
 #include "media/LiveMediaSource.hpp"
@@ -83,7 +84,7 @@ bool LiveMediaSource::prepare(const Asset& asset) {
     // 惰性 ensure：首个消费者装配时建 Ingest+Feed+再发布 sender（幂等），
     // Hub 生命周期独立于源实例（display 侧收流中不随预览 release 中断）
     if (LiveHub::instance().enabled()) {
-        LiveHub::instance().ensureAsset(asset, LiveHub::instance().projectName());
+        LiveHub::instance().ensureAsset(asset);
         if (auto feed = LiveHub::probeFeed(asset.id)) {
             hub_feed_  = std::move(feed);
             connected_ = true; // 进程内源：无网络连接语义，恒"已连接"
@@ -95,15 +96,23 @@ bool LiveMediaSource::prepare(const Asset& asset) {
     }
 
     // ---- 直收模式（display 端 / Hub 未命中兜底）----
-    // 【2026-11-21 组播转发分派】NDI 源 + live_url 非空 = editor 组播转发生效
-    // ——display 收 editor 的 MPEG-TS 组播流（多 display 共享一路入网带宽，
-    // 替代 NDI 单播 ×N）；URL 经注册表 Network 条目（udp/rtsp/srt 通吃）。
-    // 其余（同机源 Spout/窗口/显示器/摄像头，或未启用组播）按原注册表直收。
+    // 【2026-11-21 NDI 分发退役】NDI 源唯一接收通道 = 编辑端组播转发
+    // （live_url 非空 → MPEG-TS 组播；display 端 NetworkIngest 收流，
+    // 多 display 共享一路入网带宽）。未启用组播 → 拒绝装配并提示
+    //（不再退回 NDI 直收——display 端 NDI 接收路径已删除）。
+    // 其余同机源（Spout/窗口/显示器/摄像头）按原注册表直收。
     IngestDesc desc_copy;
     const IngestDesc* desc = nullptr;
     std::string connect_ref;
-    if (asset.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi) &&
-        !asset.live_url.empty()) {
+    if (asset.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi)) {
+        if (asset.live_url.empty()) {
+            std::fprintf(stderr,
+                         "live: %s: NDI 源未启用组播转发，无法接收"
+                         "（在编辑端 Live 片段属性勾选组播）\n",
+                         asset.id.c_str());
+            std::fflush(stderr);
+            return false;
+        }
         desc = findIngest(static_cast<std::int32_t>(LiveIngest::Network));
         connect_ref = asset.live_url;
     } else {

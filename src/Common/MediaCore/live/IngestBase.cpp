@@ -7,7 +7,9 @@
 #include <chrono>
 #include <cstdio>
 
+#ifdef _WIN32
 #include <windows.h> // WideCharToMultiByte / MultiByteToWideChar
+#endif
 
 namespace ms {
 
@@ -91,8 +93,9 @@ void IngestBase::emitFrame(LiveFramePtr f) {
 }
 
 // ---------------------------------------------------------------------------
-// 编码工具（wide ↔ UTF-8；各 Ingest 枚举/连接共用）
+// 编码工具（wide ↔ UTF-8；WGC/Camera 等 Win32 Ingest 枚举/连接共用）
 // ---------------------------------------------------------------------------
+#ifdef _WIN32
 std::string utf8Of(const wchar_t* w) {
     if (w == nullptr) return {};
     const int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, nullptr, 0,
@@ -113,5 +116,6 @@ std::wstring wideOf(const std::string& u8) {
                                    static_cast<int>(u8.size()), w.data(), n);
     return w;
 }
+#endif // _WIN32
 
 } // namespace ms

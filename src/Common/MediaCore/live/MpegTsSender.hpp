@@ -14,7 +14,7 @@
 //    * 码率：按分辨率/帧率缩放（1080p60 ≈ 16Mbps 基准，clamp 4~40M）。
 //
 //  线程契约：单转发线程（构造后 start 启动；持 weak_ptr<Feed> 轮询
-//  version——与 LiveHub NDI senderLoop 同款模式）；stop join 后线程绝迹。
+//  version——与原 LiveHub NDI 转发线程同款模式）；stop join 后线程绝迹。
 //  FFmpeg 网络层需进程内 avformat_network_init 一次（本类惰性调用）。
 // ============================================================================
 

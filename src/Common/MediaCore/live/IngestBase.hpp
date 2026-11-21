@@ -87,11 +87,14 @@ private:
     void recvLoopShell();
 };
 
+#ifdef _WIN32
 /// wide → UTF-8（Ingest 枚举/连接共用；合并自 WgcIngest/CameraIngest 的
-/// 重复匿名副本。wchar_t 是 C++ 核心类型——头文件不引 windows.h）
+/// 重复匿名副本。wchar_t 是 C++ 核心类型——头文件不引 windows.h）。
+/// Win32 专属（WGC/Camera 的宽字符 API；NDI/Network 全平台 UTF-8 直用）
 std::string utf8Of(const wchar_t* w);
 
 /// UTF-8 → wide（同上；实现文件含 windows.h，头保持平台中立）
 std::wstring wideOf(const std::string& u8);
+#endif // _WIN32
 
 } // namespace ms

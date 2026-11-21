@@ -113,8 +113,8 @@ add_custom_command(TARGET media_display POST_BUILD
         "${DEPENDS_DIR}/ffmpeg-8.1.1-full_build-shared/bin/swscale-9.dll"
         # 音频输出（PortAudio MME）
         "${DEPENDS_DIR}/portaudio/build/MSVC/lib/portaudio.dll"
-        # NDI 6（网络接收）
-        "${DEPENDS_DIR}/NDI 6 SDK/Bin/x64/Processing.NDI.Lib.x64.dll"
+        # NDI DLL 不再随 display 部署（2026-11-21 NDI 分发退役：display
+        # 无 NDI 调用路径 + MediaCore /DELAYLOAD 延迟加载=永不加载）
         "${MS_DISPLAY_RUNTIME_DIR}"
     COMMENT "deploy media_display runtime DLLs -> bin/display/"
     VERBATIM)

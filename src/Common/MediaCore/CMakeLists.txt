@@ -207,6 +207,21 @@ target_link_libraries(MediaCore
 target_include_directories(MediaCore PRIVATE "${portaudio_DIR}")
 
 # ---------------------------------------------------------------------------
+#  NDI 延迟加载（2026-11-21 NDI 分发退役配套）
+#  运行时首次调用 NDI 函数才加载 Processing.NDI.Lib.x64.dll：
+#    * display 进程已无 NDI 调用路径（display 直收 NDI 已随分发退役删除）
+#      → NDI DLL 永不加载 → display 部署包可甩掉该 DLL（见
+#      tools/MediaDisplay/CMakeLists.txt 部署清单）；
+#    * editor 采集不受影响：首次收 NDI 源时自动加载（NDI DLL 在 Flow
+#      主程序部署链内恒在）；
+#    * display 包若不带 DLL 且未来代码误引入 NDI 调用 → 延迟加载失败
+#      抛异常（进程终止）——当前 MediaCore 全部 NDI 调用点均在 NdiIngest
+#      （采集路径，display 不触碰），风险受控。
+# ---------------------------------------------------------------------------
+target_link_options(MediaCore PRIVATE "/DELAYLOAD:Processing.NDI.Lib.x64.dll")
+target_link_libraries(MediaCore PRIVATE delayimp)
+
+# ---------------------------------------------------------------------------
 #  mpcdi-libs（MPCDI 包解析底层件）：minizip/zlib 精简集/tinyxml2 源码静态编译
 #  （2026-11-12 从 MediaServer 3rdparty 收编入 Flow 3rdParty）
 # ---------------------------------------------------------------------------

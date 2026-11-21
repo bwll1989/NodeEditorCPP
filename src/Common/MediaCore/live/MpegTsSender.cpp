@@ -230,7 +230,7 @@ bool MpegTsSender::encodeAndSend(const LiveFrame& frame) {
 }
 
 // ---------------------------------------------------------------------------
-// run：Feed version 轮询 → 编码发送（与 LiveHub NDI senderLoop 同款节拍）
+// run：Feed version 轮询 → 编码发送（与原 LiveHub NDI 转发线程同款节拍）
 // ---------------------------------------------------------------------------
 void MpegTsSender::run() {
     std::shared_ptr<LiveHub::Feed> feed;

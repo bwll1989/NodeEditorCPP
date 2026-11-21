@@ -966,36 +966,37 @@ void EditorRuntime::backfillAssetChecksums(const Scene& snap) {
 }
 
 // ---------------------------------------------------------------------------
-// 【Live 分发归一化 2026-11-10】display 下发前把 Live 素材改写为 Hub 再发布流
+// 【Live 分发归一化 2026-11-10 / NDI 分发退役 2026-11-21】display 下发前
+// 装配 Hub 素材（收端 + 组播发送器），快照载荷不再改写
 //
-// 架构定稿（LiveHub.hpp 头注释）的最后一环：display 端 LiveMediaSource 恒
-// NDI 直收角色（Hub 不启用），收到的 live_source_name 若指向本机独占资源
+// 架构定稿（LiveHub.hpp 头注释）的最后一环：display 端 LiveMediaSource 是
+// 纯接收角色（Hub 不启用），收到的 live_source_name 若指向本机独占资源
 // （摄像头/窗口/显示器捕获）则直开必失败——设备已被 editor 进程的 Hub 收端
 // 占用（MF Source Reader 独占）、HWND/HMONITOR 句柄不跨机。此前场景广播
 // 从未改写 Live 载荷，display 拿原始源名直连本机资源 = 摄像头/窗口捕获
 // display 黑屏根因（预览端走 Hub Feed 进程内直用，不受影响）。
 //
-// 归一化（发送线程上下文；只改快照——权威场景不动，编辑端预览/.show 持久化
-// 仍按原始源）：
-//   1) ensureAsset：保证素材的 Ingest + Feed + NDI 再发布 sender 就位
-//      （幂等；源变化指纹检测在此触发收端重建——低频发布路径，锁内
-//      join ≤500ms 可接受）；
-//   2) live_source_name ← "ms-live/<project>/<asset_id>"（与 LiveHub
-//      发布名同源同格式；display 端 NdiIngest 归一化匹配可命中）；
-//   3) live_ingest ← Ndi(0)（display 按 NDI 收再发布流）。
-// Hub 未启用（单测直构 EditorRuntime）保持原样 = 旧直连语义，存量测试不破。
+// 2026-11-10 归一化方案：改写快照 live_source_name ← ms-live/<project>/...，
+// live_ingest ← Ndi（display 按 NDI 收再发布流）——单播 ×N 带宽问题的根源。
+//
+// 2026-11-21 NDI 分发退役：组播（asset.live_url）成为唯一分发通道——
+// display 按 live_url 收 MPEG-TS 组播（同机源 Camera/Spout/窗口的素材，
+// 其 live_ingest 保持原值、live_url 为空 → display 端拒绝装配并提示，
+// 不再误开本机独占资源）；NDI 改写整段删除。NDI 采集（editor 收外部
+// NDI 源）不受影响。
+//
+// 装配（发送线程上下文；只 ensure Hub 侧资源——权威场景不动，编辑端
+// 预览/.show 持久化仍按原始源）：
+//   ensureAsset：保证素材的 Ingest + Feed + 组播 sender 就位（幂等；
+//   源变化指纹检测在此触发收端重建——低频发布路径，锁内 join ≤500ms
+//   可接受）。
 // ---------------------------------------------------------------------------
 void prepareLiveForDisplay(Scene& snap) {
     LiveHub& hub = LiveHub::instance();
     if (!hub.enabled()) return;
-    const std::string& project = hub.projectName();
     for (auto& a : snap.assets) {
         if (a.kind != AssetKind::Live) continue;
-        hub.ensureAsset(a, project); // 收端/发布器统一由 editor Hub 持有
-        a.live_source_name = "ms-live/" +
-            (project.empty() ? std::string("project") : project) +
-            "/" + a.id;
-        a.live_ingest = static_cast<std::int32_t>(LiveIngest::Ndi);
+        hub.ensureAsset(a); // 收端/组播发送器统一由 editor Hub 持有
     }
 }
 
