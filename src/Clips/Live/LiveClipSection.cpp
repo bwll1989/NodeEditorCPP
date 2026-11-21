@@ -13,6 +13,8 @@
 #include <QStandardItemModel>
 #include <QVBoxLayout>
 
+#include <limits>
+
 #include "live/LiveIngest.hpp" // Ingest 注册表（接入方式/源枚举唯一数据源）
 
 namespace ms {
@@ -22,6 +24,36 @@ namespace {
 /// 自家再发布标记（LiveHub::ensureAsset 的发布名前缀）——源下拉过滤，
 /// 防把 Hub 转发流当采集源（自环：自己发自己收）
 constexpr const char* kRepublishMark = "ms-live";
+
+/// 帧同步目标延迟档位（μs）——display 端按"帧接收戳 + 本延迟"排程，
+/// 多 display 跨机帧同步（LiveMediaSource 排程引擎，2026-11-21）。
+/// 档位化防呆：0=监视（最新帧直显）；上限 500ms 在引擎缓冲容量
+/// （clamp [16,48] 帧 @30fps ≈ 1.6s）的安全域内。
+struct SyncLatencyPreset {
+    const char* label;
+    std::int64_t us;
+};
+constexpr SyncLatencyPreset kSyncLatencyPresets[] = {
+    {"监视（最新帧直显）", 0},
+    {"40 ms",  40'000},
+    {"80 ms",  80'000},
+    {"120 ms", 120'000},
+    {"200 ms", 200'000},
+    {"500 ms", 500'000},
+};
+
+/// 下拉中按值就近选档（模型值非档位精确值时取差最小者——
+/// 外部构造的 pb / 旧工程值也能回灌到合理档位）
+int nearestSyncIndex(const QComboBox* box, std::int64_t us) {
+    int best = 0;
+    std::int64_t best_diff = std::numeric_limits<std::int64_t>::max();
+    for (int i = 0; i < box->count(); ++i) {
+        const std::int64_t v = box->itemData(i).toLongLong();
+        const std::int64_t d = v > us ? v - us : us - v;
+        if (d < best_diff) { best_diff = d; best = i; }
+    }
+    return best;
+}
 
 /// 源名是否自家再发布流。归一化比对：NDI 发现列表会把源名中的 '/'
 /// 等非法字符替换为空格（"ms-live/qa/live-qa" → "ms-live qa live-qa"），
@@ -112,6 +144,23 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     latency_->setCurrentIndex(asset.live_latency == 1 ? 1 : 0);
     lay->addWidget(latency_);
 
+    // ---- 帧同步目标延迟（跨机帧同步排程；display 端消费）---------------------
+    auto* sync_row = new QHBoxLayout();
+    auto* sync_label = new QLabel(QStringLiteral("帧同步"), box);
+    sync_row->addWidget(sync_label);
+    sync_latency_ = new QComboBox(box);
+    sync_latency_->setObjectName("liveSyncLatency");
+    sync_latency_->setToolTip(QStringLiteral(
+        "按帧接收时间戳 + 本延迟排程显示：多台 display 同值即可跨机帧同步；"
+        "监视 = 保持最新帧直显（原行为）。建议 80~200ms。"));
+    for (const auto& p : kSyncLatencyPresets)
+        sync_latency_->addItem(QString::fromUtf8(p.label),
+                               QVariant(static_cast<qlonglong>(p.us)));
+    sync_latency_->setCurrentIndex(
+        nearestSyncIndex(sync_latency_, asset.live_target_latency_us));
+    sync_row->addWidget(sync_latency_, /*stretch=*/1);
+    lay->addLayout(sync_row);
+
     root->addWidget(box);
 
     // ---- 即时生效：任一控件变更 → applier 写回 -------------------------------
@@ -125,6 +174,8 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     connect(source_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { onEdited(); });
     connect(latency_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int) { onEdited(); });
+    connect(sync_latency_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { onEdited(); });
     connect(refresh_, &QPushButton::clicked,
             this, &LiveClipSection::onRefreshSources);
@@ -155,6 +206,8 @@ void LiveClipSection::applyTo(Asset& a) const {
         ? data.toString().toStdString()
         : source_->currentText().toStdString();
     a.live_latency = latency_->currentIndex() == 1 ? 1 : 0;
+    // 帧同步目标延迟（μs；档位 currentData 直传——无精度损失）
+    a.live_target_latency_us = sync_latency_->currentData().toLongLong();
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +220,7 @@ void LiveClipSection::refreshFrom(const Asset& a) {
     const QSignalBlocker b0(ingest_);
     const QSignalBlocker b1(source_);
     const QSignalBlocker b2(latency_);
+    const QSignalBlocker b3(sync_latency_);
     // 接入方式：按注册表下标回选
     const auto& reg = ingestRegistry();
     for (std::size_t i = 0; i < reg.size(); ++i) {
@@ -188,6 +242,8 @@ void LiveClipSection::refreshFrom(const Asset& a) {
         }
     }
     latency_->setCurrentIndex(a.live_latency == 1 ? 1 : 0);
+    sync_latency_->setCurrentIndex(
+        nearestSyncIndex(sync_latency_, a.live_target_latency_us));
 }
 
 // ---------------------------------------------------------------------------

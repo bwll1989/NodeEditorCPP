@@ -22,7 +22,7 @@
 //      ——防自环；core 注册表 listNdi 已滤，此处第二道防线）。可编辑：
 //      发现列表没有的源标识可直接键入（跨网段手动指定）。
 //  测试定位锚：objectName 前缀 live*（liveIngest/liveSource/liveLatency/
-//  liveRefresh）。
+//  liveSyncLatency/liveRefresh）。
 // ============================================================================
 
 #pragma once
@@ -95,6 +95,8 @@ private:
     QComboBox*   source_  = nullptr; ///< liveSource：源标识（可编辑）
     QPushButton* refresh_ = nullptr; ///< liveRefresh：刷新发现列表
     QComboBox*   latency_ = nullptr; ///< liveLatency：0=最低 1=同步
+    QComboBox*   sync_latency_ = nullptr; ///< liveSyncLatency：帧同步目标延迟
+                                         ///< （档位 currentData 存 μs；0=监视）
 
     ClipSectionContext ctx_; ///< 编辑上下文（clip/scene/on_edited——值拷贝）
 };
