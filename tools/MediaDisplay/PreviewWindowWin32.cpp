@@ -41,7 +41,7 @@ int                       g_w = 0;  ///< 快照宽（>0 = 已收到过帧）
 int                       g_h = 0;  ///< 快照高
 std::thread               g_thread; ///< 消息泵线程
 HWND                      g_hwnd = nullptr; ///< 窗口句柄（窗口线程内创建）
-std::wstring              g_title = L"media_display 输出预览"; // 内部拷贝
+std::wstring              g_title = L"FlowDisplay 输出预览"; // 内部拷贝
 int                       g_screen_index = -1; ///< 目标显示器（-1=系统默认）
 bool                      g_fullscreen   = false; ///< 无边框铺满目标屏
 int                       g_win_x = -1, g_win_y = -1; ///< 窗口位置（<0=居中/默认）
@@ -461,6 +461,6 @@ void PreviewWindowWin32::setAssetProgress(bool active, int done, int total,
 
 } // namespace ms
 
-#else // 非 Windows：空翻译单元（media_display 不含预览逻辑，保持 headless）
+#else // 非 Windows：空翻译单元（FlowDisplay 不含预览逻辑，保持 headless）
 typedef int ms_preview_window_win32_unused_t;
 #endif // _WIN32

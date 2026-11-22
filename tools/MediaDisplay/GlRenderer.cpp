@@ -168,6 +168,7 @@ GlRenderer::~GlRenderer() {
     if (tex_)     gl::glDeleteTextures(1, &tex_);
     if (tex_dxt_) gl::glDeleteTextures(1, &tex_dxt_); // HAP DXT 压缩纹理
     if (osd_tex_) gl::glDeleteTextures(1, &osd_tex_); // 素材同步 OSD 纹理
+    if (standby_tex_) gl::glDeleteTextures(1, &standby_tex_); // 待机卡纹理
     if (vbo_)     gl::glDeleteBuffers(1, &vbo_);
     if (vao_)     gl::glDeleteVertexArrays(1, &vao_);
     if (program_) gl::glDeleteProgram(program_);
@@ -1454,6 +1455,20 @@ void GlRenderer::setOsd(const char* utf8_text, float frac) {
 }
 
 // ---------------------------------------------------------------------------
+// setStandby —— 无场景待机卡内容（渲染线程；契约见 IComposeRenderer）。
+// 与 setOsd 同款：只做内容比对与脏标记；栅格化/纹理上传统一在
+// drawStandbyCard（endFrame 呈现点）。ExternalCtx（编辑器预览宿主）无此
+// 需求——与 setOsd 同语义静默忽略。
+// ---------------------------------------------------------------------------
+void GlRenderer::setStandby(const char* utf8_addr) {
+    if (external_) return;
+    const std::string text = utf8_addr ? utf8_addr : "";
+    if (text == standby_text_) return;          // 未变化：零成本
+    standby_text_ = text;
+    standby_dirty_ = true;
+}
+
+// ---------------------------------------------------------------------------
 // drawOsdOverlay —— OSD 栅格化 + 纹理上传 + quad 绘制（endFrame 呈现前）
 //
 //   【绘制域】调用点在 warpBlit 之后 = 最终后备缓冲域（变形输出之上），
@@ -1654,6 +1669,215 @@ void GlRenderer::drawOsdOverlay() {
 }
 
 // ---------------------------------------------------------------------------
+// drawStandbyCard —— 无场景待机画面（居中两行：播放器图标 + 控制面地址）
+//
+//   【为什么要有】display 开机待机（无场景）时输出窗原本恒黑（建窗首帧
+//   清屏黑、每轮空场景持续黑帧）——现场分不清"待机还是故障"，也拿不到
+//   编排页入口。待机画面给出直接答案：播放器应用图标（display.exe 同款
+//   任务栏/桌面图标）+ 控制面地址（浏览器手输即达网页编排台；
+//   2026-11-22 用户需求）。
+//
+//   【与素材同步 OSD 的关系】OSD = 底部条（底边 5.5% 边距），待机内容 =
+//   正中——同帧出现也不重叠（用户要求"错开，不要重叠"）。
+//
+//   【透明底 2026-11-22 用户定案】不要实底色块：绿图标 + 白字直接浮在
+//   输出黑场上（card_w/card_h 仅作布局网格，不再可见）。实现 = premultiplied
+//   alpha：DIB 以纯黑为底栅格化（GDI 输出天然 premultiplied 语义），
+//   A=max(R,G,B) 推导覆盖率，GL 侧 (GL_ONE, 1-srcA) 混合——黑场上精确
+//   原样还原，且透明像素（RGB=0 → A=0）零污染。
+//
+//   【栅格化】GDI（RoundRect/Polygon/DrawTextW）→ 内存 DIB（32bpp BGRA
+//   top-down）→ RGBA 换序上传——与 drawOsdOverlay 同一套技术，零新依赖
+//   （图标用纯图元不用"▶"字形：跨机器字体不可控）。内容变化或输出尺寸
+//   变化才重栅格化；其余帧只重贴缓存纹理（60fps 热路径零上传）。
+// ---------------------------------------------------------------------------
+void GlRenderer::drawStandbyCard() {
+    if (standby_text_.empty()) return;
+    if (!inited_ || failed_) return;
+
+    // ---- 卡片尺寸：输出宽比例（720p 笔记本到 4K 大屏都居中可读）---------
+    const int card_w = std::clamp(canvas_w_ * 42 / 100, 380, 760);
+    const int card_h = std::clamp(card_w * 40 / 100, 190, 330);
+    if (standby_dirty_ || standby_tex_ == 0 ||
+        card_w != standby_tex_w_ || card_h != standby_tex_h_) {
+        standby_tex_w_ = card_w;
+        standby_tex_h_ = card_h;
+
+        BITMAPV5HEADER bi = {};
+        bi.bV5Size        = sizeof(bi);
+        bi.bV5Width       = card_w;
+        bi.bV5Height      = -card_h; // 负高 = top-down（行序与 GL v0=顶一致）
+        bi.bV5Planes      = 1;
+        bi.bV5BitCount    = 32;
+        bi.bV5Compression = BI_BITFIELDS;
+        bi.bV5RedMask     = 0x00FF0000;
+        bi.bV5GreenMask   = 0x0000FF00;
+        bi.bV5BlueMask    = 0x000000FF;
+        void* bits = nullptr;
+        HDC hdc = GetDC(nullptr);
+        HBITMAP dib = CreateDIBSection(hdc, reinterpret_cast<BITMAPINFO*>(&bi),
+                                       DIB_RGB_COLORS, &bits, nullptr, 0);
+        // DC 生命周期纪律同 drawOsdOverlay：兼容 DC 必须在 ReleaseDC 之前
+        // 创建（失效句柄上 SelectObject/绘图全部静默无效 → 只剩预填底色）
+        HDC mdc = dib ? CreateCompatibleDC(hdc) : nullptr;
+        ReleaseDC(nullptr, hdc);
+        if (!dib || !bits || !mdc) {
+            if (dib) DeleteObject(dib);
+            if (mdc) DeleteDC(mdc);
+            return; // 栅格化失败：本帧无待机卡（下帧重试）
+        }
+        // 透明底（2026-11-22 用户定案：不要实底色块——绿图标 + 白字直接
+        // 浮在输出黑场上）。DIB 预填全 0：GDI 不写 alpha 字节，栅格化以
+        // 纯黑为混合底（GDI 抗锯齿输出天然 premultiplied 语义），alpha 在
+        // 换序段按 A=max(R,G,B) 推导（见下）。
+        std::memset(bits, 0, static_cast<std::size_t>(card_w) * card_h * 4);
+        auto old_bm = static_cast<HBITMAP>(SelectObject(mdc, dib));
+        // ---- 第一行：播放器应用图标（display.exe 同款——任务栏/桌面所见
+        // 即待机画面所示，"这就是那台播放器"的认知零歧义；2026-11-22 定案）
+        {
+            const int side = card_w * 17 / 100;      // 图标边长
+            const int ix = (card_w - side) / 2;
+            const int iy = card_h * 15 / 100;
+            // 从 exe 资源按名加载（display.rc: IDI_ICON1 ICON display.ico，
+            // 多尺寸 256..16；请求 side×side 系统自动选最近档缩放）。
+            // 黑底栅格化 + A=max(R,G,B) 推导对带 alpha 的 32bpp 图标天然
+            // 兼容：透明区画到黑底 = 黑，图标色保留。
+            HICON icon = static_cast<HICON>(LoadImageW(
+                GetModuleHandleW(nullptr), L"IDI_ICON1", IMAGE_ICON,
+                side, side, LR_DEFAULTCOLOR));
+            if (icon) {
+                DrawIconEx(mdc, ix, iy, icon, side, side, 0, nullptr,
+                           DI_NORMAL);
+                DestroyIcon(icon);
+            } else {
+                // 兜底：资源缺失（非 display 宿主编译）时手绘播放键
+                HBRUSH gr_brush = CreateSolidBrush(RGB(121, 174, 49));
+                HGDIOBJ old_pen2 = SelectObject(mdc,
+                                                GetStockObject(NULL_PEN));
+                HGDIOBJ old_br2  = SelectObject(mdc, gr_brush);
+                Ellipse(mdc, ix, iy, ix + side, iy + side);
+                POINT tri[3] = {
+                    {ix + side * 36 / 100, iy + side * 26 / 100},
+                    {ix + side * 36 / 100, iy + side * 74 / 100},
+                    {ix + side * 75 / 100, iy + side * 50 / 100},
+                };
+                SelectObject(mdc, GetStockObject(WHITE_BRUSH));
+                SetPolyFillMode(mdc, WINDING);
+                Polygon(mdc, tri, 3);
+                SelectObject(mdc, old_br2);
+                SelectObject(mdc, old_pen2);
+                DeleteObject(gr_brush);
+            }
+        }
+        // ---- 第二行：地址行（白字；透明底上黑描边 RGB=0 → A=0 自动隐没，
+        // 代码保留——将来底色非黑时可读性兜底仍生效）-------
+        {
+            const int font_h = std::clamp(card_h * 17 / 100, 18, 34);
+            // ANTIALIASED（灰度 AA）而非 CLEARTYPE：透明底 alpha 按
+            // A=max(R,G,B) 推导，ClearType 亚像素彩边会被误读为彩色内容；
+            // 灰度 AA 在黑底上的边缘 = 源色×覆盖率，premultiplied 语义精确。
+            HFONT font = CreateFontW(
+                -font_h, 0, 0, 0, FW_BOLD, FALSE, FALSE, 0,
+                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+                ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+                L"Microsoft YaHei UI");
+            auto old_font = static_cast<HFONT>(SelectObject(mdc, font));
+            SetBkMode(mdc, TRANSPARENT);
+            const int wlen = MultiByteToWideChar(CP_UTF8, 0,
+                                                 standby_text_.c_str(), -1,
+                                                 nullptr, 0);
+            std::wstring wtext(static_cast<std::size_t>(wlen), L'\0');
+            MultiByteToWideChar(CP_UTF8, 0, standby_text_.c_str(), -1,
+                                wtext.data(), wlen);
+            RECT tr{0, card_h * 62 / 100, card_w, card_h * 92 / 100};
+            RECT sh = tr;                 // 1px 右下偏移描边（同 OSD 手法）
+            OffsetRect(&sh, 1, 1);
+            SetTextColor(mdc, RGB(0, 0, 0));
+            DrawTextW(mdc, wtext.c_str(), wlen - 1, &sh,
+                      DT_CENTER | DT_VCENTER | DT_SINGLELINE |
+                          DT_END_ELLIPSIS);
+            SetTextColor(mdc, RGB(255, 255, 255));
+            DrawTextW(mdc, wtext.c_str(), wlen - 1, &tr,
+                      DT_CENTER | DT_VCENTER | DT_SINGLELINE |
+                          DT_END_ELLIPSIS);
+            SelectObject(mdc, old_font);
+            DeleteObject(font);
+        }
+        // ---- BGRA → RGBA 换序 + premultiplied alpha 推导 -------------------
+        // 黑底栅格化使 GDI 输出天然 premultiplied（实心像素 = 源色本身，
+        // 抗锯齿边缘 = 源色×覆盖率 与黑混合）；A=max(R,G,B) 还原覆盖率，
+        // GL 侧 (GL_ONE, 1-srcA) 混合精确叠加（黑场上 = 原样还原）。
+        auto* px = static_cast<std::uint8_t*>(bits);
+        std::vector<std::uint8_t> rgba(static_cast<std::size_t>(card_w) *
+                                       card_h * 4);
+        for (int i = 0; i < card_w * card_h; ++i) {
+            const std::uint8_t r = px[i * 4 + 2];
+            const std::uint8_t g = px[i * 4 + 1];
+            const std::uint8_t b = px[i * 4 + 0];
+            rgba[i * 4 + 0] = r;
+            rgba[i * 4 + 1] = g;
+            rgba[i * 4 + 2] = b;
+            rgba[i * 4 + 3] = std::max({r, g, b}); // 黑底推导覆盖率
+        }
+        SelectObject(mdc, old_bm);
+        DeleteObject(dib);
+        DeleteDC(mdc);
+
+        // ---- 纹理上传（独立单槽；尺寸变化重建存储）----------------------
+        if (standby_tex_ == 0) {
+            gl::glGenTextures(1, &standby_tex_);
+            gl::glBindTexture(gl::GL_TEXTURE_2D, standby_tex_);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MIN_FILTER,
+                                gl::GL_LINEAR);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_MAG_FILTER,
+                                gl::GL_LINEAR);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_S,
+                                gl::GL_CLAMP_TO_EDGE);
+            gl::glTexParameteri(gl::GL_TEXTURE_2D, gl::GL_TEXTURE_WRAP_T,
+                                gl::GL_CLAMP_TO_EDGE);
+        } else {
+            gl::glBindTexture(gl::GL_TEXTURE_2D, standby_tex_);
+        }
+        gl::glTexImage2D(gl::GL_TEXTURE_2D, 0, gl::GL_RGBA, card_w, card_h,
+                         0, gl::GL_RGBA, gl::GL_UNSIGNED_BYTE, rgba.data());
+        standby_dirty_ = false;
+    }
+
+    // ---- quad 绘制（最终输出域：正中；复用 RGBA 程序与管线）--------------
+    // 顶点模式同 drawOsdOverlay：{glx, gly, u, v, q} 条带序，gl_y = H − y。
+    const int x0 = (canvas_w_ - card_w) / 2;
+    const int y0 = (canvas_h_ - card_h) / 2;  // 正中（与底部 OSD 天然错开）
+    const float verts[4][5] = {
+        {static_cast<float>(x0),
+         static_cast<float>(canvas_h_ - y0), 0.f, 0.f, 1.f},
+        {static_cast<float>(x0),
+         static_cast<float>(canvas_h_ - y0 - card_h), 0.f, 1.f, 1.f},
+        {static_cast<float>(x0 + card_w),
+         static_cast<float>(canvas_h_ - y0), 1.f, 0.f, 1.f},
+        {static_cast<float>(x0 + card_w),
+         static_cast<float>(canvas_h_ - y0 - card_h), 1.f, 1.f, 1.f},
+    };
+    gl::glBindVertexArray(vao_);
+    gl::glActiveTexture(gl::GL_TEXTURE0);
+    gl::glBindTexture(gl::GL_TEXTURE_2D, standby_tex_);
+    gl::glUseProgram(program_);
+    gl::glUniform2f(loc_frame_size_, static_cast<float>(card_w),
+                    static_cast<float>(card_h));
+    gl::glUniform1f(loc_opacity_, 1.0f);
+    // 颜色合成复位（同 OSD：叠层不吃片段级合成——warpBlit 残留防御）
+    gl::glUniform3f(loc_rgb_gain_, 1.0f, 1.0f, 1.0f);
+    gl::glUniform1f(loc_gamma_, 1.0f);
+    // 透明卡混合：源为 premultiplied（见换序段）→ rgb 因子 GL_ONE；
+    // 画完立即恢复帧级契约（SRC_ALPHA）——同帧后续 OSD 绘制不吃污染。
+    gl::glBlendFuncSeparate(gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA,
+                            gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
+    drawQuad(verts);
+    gl::glBlendFuncSeparate(gl::GL_SRC_ALPHA, gl::GL_ONE_MINUS_SRC_ALPHA,
+                            gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
+    gl::glActiveTexture(gl::GL_TEXTURE0); // 活动单元复位（RGBA 路径约定）
+}
+
+// ---------------------------------------------------------------------------
 // endFrame —— 呈现 + 消息泵
 // ---------------------------------------------------------------------------
 void GlRenderer::endFrame() {
@@ -1737,6 +1961,10 @@ void GlRenderer::endFrame() {
     // ---- 输出变形呈现：FBO 内容按 mesh 贴到后备缓冲（SwapBuffers 前）----
     // warp 未激活/已贴图（readPixels 先到）时内部幂等跳过。
     warpBlit();
+    // ---- 待机卡（2026-11-22）：最终输出域（变形之后）居中两行卡----------
+    // 无场景待机时由 RenderThread 持续送帧；卡居中、素材同步 OSD 贴底，
+    // 同帧出现也不重叠；卡先画 → OSD 保持最上层惯例。
+    drawStandbyCard();
     // ---- 素材同步 OSD（2026-11-16）：最终输出域（变形之后）--------------
     // 绘制点在 warpBlit 之后 = OSD 恒正立居中不受网格变形影响；诊断导帧
     // （readPixels）也读不到 OSD——导帧核对的是"合成内容"语义。

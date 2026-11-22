@@ -1,5 +1,5 @@
 import { css, html, LitElement, nothing } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { customElement, property } from "lit/decorators.js";
 import { mdiClipboardTextOutline, mdiCog, mdiHome, mdiLightningBolt, mdiMenu, mdiMenuOpen, mdiPlayBoxMultipleOutline } from "@mdi/js";
 import { fireEvent } from "../common/dom/fire_event";
 import "./ha-icon";
@@ -7,7 +7,6 @@ import "./ha-icon";
 export type FlowPanel = "home" | "actions" | "logs" | "media" | "config";
 
 const SIDEBAR_TITLE = "Flow Dashboard";
-const SIDEBAR_EXPANDED_KEY = "flow_sidebar_expanded";
 
 @customElement("ha-sidebar")
 export class HaSidebar extends LitElement {
@@ -18,20 +17,11 @@ export class HaSidebar extends LitElement {
   /** HA `narrow`: sidebar is shown as a modal drawer. */
   @property({ type: Boolean, reflect: true }) public narrow = false;
 
-  @state() private _expanded = false;
-
-  connectedCallback(): void {
-    super.connectedCallback();
-    try {
-      const stored = localStorage.getItem(SIDEBAR_EXPANDED_KEY);
-      if (stored !== null) this._expanded = stored === "true";
-    } catch {
-      // ignore
-    }
-  }
+  /** 受控展开态——由 flow-app 单一状态源注入（含持久化）。 */
+  @property({ type: Boolean }) public expanded = false;
 
   private get _isExpanded(): boolean {
-    return this.narrow || this._expanded;
+    return this.narrow || this.expanded;
   }
 
   private _toggleExpanded(): void {
@@ -39,14 +29,9 @@ export class HaSidebar extends LitElement {
       fireEvent(this, "hass-toggle-menu", { open: false });
       return;
     }
-    this._expanded = !this._expanded;
-    try {
-      localStorage.setItem(SIDEBAR_EXPANDED_KEY, String(this._expanded));
-    } catch {
-      // ignore
-    }
+    // 只发意图事件，展开状态由父级（flow-app）更新后经 property 回流。
     fireEvent(this, "hass-dock-sidebar", {
-      dock: this._expanded ? "docked" : "auto",
+      dock: this.expanded ? "auto" : "docked",
     });
   }
 
@@ -101,7 +86,8 @@ export class HaSidebar extends LitElement {
           <button
             type="button"
             class="menu-toggle"
-            aria-label=${this._expanded ? "收起侧边栏" : "展开侧边栏"}
+            aria-label=${this._isExpanded ? "收起侧边栏" : "展开侧边栏"}
+            aria-expanded=${this._isExpanded ? "true" : "false"}
             @click=${this._toggleExpanded}
           >
             <ha-svg-icon .path=${menuIcon}></ha-svg-icon>
@@ -200,6 +186,12 @@ export class HaSidebar extends LitElement {
       background: var(--hover-background-color, rgba(0, 0, 0, 0.04));
     }
 
+    .menu-toggle:focus-visible,
+    .nav-item:focus-visible {
+      outline: 2px solid var(--primary-color, #79ae31);
+      outline-offset: -2px;
+    }
+
     .menu-toggle ha-svg-icon {
       width: 24px;
       height: 24px;
@@ -250,7 +242,7 @@ export class HaSidebar extends LitElement {
       display: flex;
       align-items: center;
       width: var(--sidebar-item-width);
-      min-height: 40px;
+      min-height: 44px;
       margin: 0 4px;
       padding: 0 12px;
       border: none;
@@ -259,7 +251,7 @@ export class HaSidebar extends LitElement {
       color: var(--sidebar-icon-color, rgba(0, 0, 0, 0.54));
       cursor: pointer;
       text-align: left;
-      transition: width 0.2s ease;
+      transition: width 0.2s ease, background 0.15s ease;
     }
 
     .sidebar.expanded .nav-item {

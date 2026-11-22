@@ -17,7 +17,7 @@ import socket, struct, sys, os, time, json, threading, zlib, subprocess
 import http.server, http.client
 
 BIN     = r"D:\19_NodeEditorCPP\NodeEditorCPP\build\bin"
-EXE     = os.path.join(BIN, "media_display.exe")
+EXE     = os.path.join(BIN, "display", "FlowDisplay.exe")  # bin/display 布局（2026-11-20 起）
 WORK    = r"D:\19_NodeEditorCPP\NodeEditorCPP\build\test_serial"
 LIB     = os.path.join(WORK, "library")
 TLDIR   = os.path.join(WORK, "timelines")

@@ -1,7 +1,7 @@
 import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { provide } from "@lit/context";
-import { mdiCheck, mdiLanConnect, mdiLanDisconnect, mdiPencil, mdiRedo, mdiUndo, mdiWeatherNight, mdiWeatherSunny } from "@mdi/js";
+import { mdiCheck, mdiLanConnect, mdiLanDisconnect, mdiPageLayoutSidebarRight, mdiPencil, mdiRedo, mdiUndo, mdiWeatherNight, mdiWeatherSunny } from "@mdi/js";
 import type { Flow, LovelaceCardConfig, LovelaceConfig, LovelaceSectionConfig, LovelaceViewConfig } from "../../types";
 import { flowContext } from "../../context/flow-context";
 import {
@@ -67,12 +67,14 @@ import "../../dialogs/flow-delete-card-dialog";
 import "../../dialogs/flow-badge-card-dialog";
 import "../../components/ha-sidebar";
 import "../../components/ha-drawer";
+import "../../components/flow-aside";
 import "../../components/ha-menu-button";
 import "../../components/ha-icon-button";
 import "../../components/ha-icon";
 import "../../components/ha-card";
 
 const SIDEBAR_EXPANDED_KEY = "flow_sidebar_expanded";
+const ASIDE_EXPANDED_KEY = "flow_aside_expanded";
 const NARROW_QUERY = "(max-width: 870px)";
 
 interface CardEditTarget {
@@ -118,6 +120,9 @@ export class FlowApp extends LitElement {
   @state() private _narrow = false;
   @state() private _drawerOpen = false;
   @state() private _sidebarExpanded = false;
+  /** 右侧信息栏：桌面为常驻折叠态，窄屏为右侧抽屉。 */
+  @state() private _asideExpanded = true;
+  @state() private _asideDrawerOpen = false;
   @state() private _connected = false;
   /** Currently effective theme (resolved from auto/light/dark preference). */
   @state() private _activeTheme: ResolvedTheme = "light";
@@ -186,6 +191,8 @@ export class FlowApp extends LitElement {
     try {
       const stored = localStorage.getItem(SIDEBAR_EXPANDED_KEY);
       if (stored !== null) this._sidebarExpanded = stored === "true";
+      const asideStored = localStorage.getItem(ASIDE_EXPANDED_KEY);
+      if (asideStored !== null) this._asideExpanded = asideStored === "true";
     } catch {
       // ignore
     }
@@ -203,7 +210,10 @@ export class FlowApp extends LitElement {
     document.addEventListener(LAYOUT_EDIT_ENABLED_EVENT, this._onLayoutEditEnabled);
     this._unsubMediaQuery = listenMediaQuery(NARROW_QUERY, (matches) => {
       this._narrow = matches;
-      if (!matches) this._drawerOpen = false;
+      if (!matches) {
+        this._drawerOpen = false;
+        this._asideDrawerOpen = false;
+      }
     });
     document.addEventListener("flow-show-confirm", this._onShowConfirm);
     document.addEventListener("flow-show-delete-card", this._onShowDeleteCard);
@@ -221,6 +231,7 @@ export class FlowApp extends LitElement {
     this.addEventListener("ll-delete-section", this._onDeleteSection);
     this.addEventListener("hass-toggle-menu", this._onToggleMenu as EventListener);
     this.addEventListener("hass-dock-sidebar", this._onDockSidebar as EventListener);
+    this.addEventListener("flow-toggle-aside", this._onToggleAside as EventListener);
     window.addEventListener("keydown", this._onKeyDown);
     window.addEventListener("hashchange", this._onHashChange);
     this._syncViewFromHash();
@@ -247,6 +258,7 @@ export class FlowApp extends LitElement {
     this.removeEventListener("ll-delete-section", this._onDeleteSection);
     this.removeEventListener("hass-toggle-menu", this._onToggleMenu as EventListener);
     this.removeEventListener("hass-dock-sidebar", this._onDockSidebar as EventListener);
+    this.removeEventListener("flow-toggle-aside", this._onToggleAside as EventListener);
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("hashchange", this._onHashChange);
     super.disconnectedCallback();
@@ -255,6 +267,7 @@ export class FlowApp extends LitElement {
   protected updated(changed: PropertyValues): void {
     this.toggleAttribute("expanded", this._sidebarExpanded && !this._narrow);
     this.toggleAttribute("modal", this._narrow);
+    this.toggleAttribute("aside-expanded", this._asideExpanded && !this._narrow);
     if (changed.has("flow")) {
       this._bindConnection();
     }
@@ -470,7 +483,10 @@ export class FlowApp extends LitElement {
       this._undoRedo.reset();
     }
     this._panel = ev.detail.panel;
-    if (this._narrow) this._drawerOpen = false;
+    if (this._narrow) {
+      this._drawerOpen = false;
+      this._asideDrawerOpen = false;
+    }
     if (this._panel === "home") {
       this._writeViewHash(this._activeView, true);
     }
@@ -493,6 +509,54 @@ export class FlowApp extends LitElement {
   private _onDockSidebar = (ev: Event): void => {
     const dock = (ev as CustomEvent<{ dock: "docked" | "auto" }>).detail?.dock;
     this._sidebarExpanded = dock === "docked";
+    try {
+      localStorage.setItem(SIDEBAR_EXPANDED_KEY, String(this._sidebarExpanded));
+    } catch {
+      // ignore
+    }
+  };
+
+  private _setAside(open: boolean): void {
+    if (this._narrow) {
+      this._asideDrawerOpen = open;
+      return;
+    }
+    this._asideExpanded = open;
+    try {
+      localStorage.setItem(ASIDE_EXPANDED_KEY, String(open));
+    } catch {
+      // ignore
+    }
+  }
+
+  private _asideVisible(): boolean {
+    return this._narrow ? this._asideDrawerOpen : this._asideExpanded;
+  }
+
+  /** 抽屉手势（ha-drawer 冒泡的 flow-toggle-aside）。 */
+  private _onToggleAside = (ev: Event): void => {
+    const detail = (ev as CustomEvent<{ open?: boolean }>).detail;
+    const next = detail?.open ?? !this._asideVisible();
+    this._setAside(next);
+  };
+
+  /** header 切换按钮。 */
+  private _onAsideToggleClick = (): void => {
+    this._setAside(!this._asideVisible());
+  };
+
+  private _onAsideClosed = (): void => {
+    this._asideDrawerOpen = false;
+  };
+
+  private _onAsideViewSelected = (ev: CustomEvent<{ index: number; path?: string }>): void => {
+    this._onViewSelected(ev);
+    if (this._narrow) this._asideDrawerOpen = false;
+  };
+
+  private _onAsideToggleEdit = (): void => {
+    if (this._editMode) this._exitEditMode();
+    else this._enterEditMode();
   };
 
   private _onToggleTheme = (): void => {
@@ -751,23 +815,43 @@ export class FlowApp extends LitElement {
     const editMode = showEditActions && this._editMode;
     const hasTabViews = views.length > 1;
     const showViewTabs = showEditActions && (editMode || hasTabViews);
+    const asideVisible = this._asideVisible();
 
     return html`
       <ha-drawer
         class="shell"
         .type=${this._narrow ? "modal" : ""}
         .open=${this._drawerOpen}
+        .asideOpen=${this._asideDrawerOpen}
         @hass-drawer-closed=${() => {
           this._drawerOpen = false;
         }}
+        @flow-aside-closed=${this._onAsideClosed}
       >
         <ha-sidebar
           slot="sidebar"
           .activePanel=${this._panel}
           .connected=${this._connected}
           .narrow=${this._narrow}
+          .expanded=${this._sidebarExpanded}
           @panel-selected=${this._onPanelSelected}
         ></ha-sidebar>
+
+        <flow-aside
+          slot="aside"
+          .connected=${this._connected}
+          .views=${views}
+          .activeView=${this._activeView}
+          .panel=${this._panel}
+          .editMode=${editMode}
+          .canEdit=${showEditActions && this._layoutEditEnabled}
+          .narrow=${this._narrow}
+          ?inert=${!asideVisible}
+          @view-selected=${this._onAsideViewSelected}
+          @panel-selected=${this._onPanelSelected}
+          @toggle-edit=${this._onAsideToggleEdit}
+          @close=${() => this._setAside(false)}
+        ></flow-aside>
 
         <div class="main ${this._narrow ? "narrow" : ""} ${editMode ? "edit-mode" : ""}">
           <header class="header">
@@ -793,6 +877,13 @@ export class FlowApp extends LitElement {
                     `}
               </div>
               <div class="action-items">
+                <ha-icon-button
+                  class="aside-toggle"
+                  .path=${mdiPageLayoutSidebarRight}
+                  label=${asideVisible ? "收起信息栏" : "展开信息栏"}
+                  aria-pressed=${asideVisible ? "true" : "false"}
+                  @click=${this._onAsideToggleClick}
+                ></ha-icon-button>
                 <span
                   class="conn-status ${this._connected ? "online" : "offline"}"
                   title=${this._connected ? "已连接到 Flow" : "未连接到 Flow（演示模式）"}
@@ -965,19 +1056,26 @@ export class FlowApp extends LitElement {
     :host {
       display: block;
       height: 100vh;
+      height: 100dvh;
       min-height: 100vh;
+      min-height: 100dvh;
       overflow: hidden;
       background: var(--primary-background-color, #fafafa);
       color: var(--primary-text-color, #1e293b);
       font-family: var(--ha-font-family, "Segoe UI", system-ui, sans-serif);
       --ha-sidebar-width: calc(56px + var(--safe-area-inset-left, 0px));
+      --ha-aside-width: 0px;
       --ha-top-app-bar-width: calc(100% - var(--ha-sidebar-width));
     }
     :host([expanded]) {
       --ha-sidebar-width: calc(256px + var(--safe-area-inset-left, 0px));
     }
+    :host([aside-expanded]) {
+      --ha-aside-width: calc(288px + var(--safe-area-inset-right, 0px));
+    }
     :host([modal]) {
       --ha-sidebar-width: 0px;
+      --ha-aside-width: 0px;
       --ha-top-app-bar-width: 100%;
     }
     ha-drawer {
@@ -1075,6 +1173,16 @@ export class FlowApp extends LitElement {
       flex-shrink: 0;
       white-space: nowrap;
       gap: 0;
+    }
+    .aside-toggle {
+      color: var(--sidebar-icon-color, var(--secondary-text-color));
+      transition: transform 0.2s ease;
+    }
+    .aside-toggle[aria-pressed="true"] {
+      color: var(--primary-color, #79ae31);
+    }
+    .edit-mode .aside-toggle {
+      color: var(--app-header-edit-text-color, #f5f9eb);
     }
     .theme-toggle {
       color: var(--sidebar-icon-color, var(--secondary-text-color));

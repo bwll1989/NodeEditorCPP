@@ -238,7 +238,7 @@ add_subdirectory(src/Common/MediaCore)
 # 面板 + Tween 合并区自主程序迁入；依赖 MediaCore/MediaManger/GUIElements/
 # BaseClass，必须在四者之后）
 add_subdirectory(src/Common/ClipPanelBase)
-# media_display：显示端独立程序
+# FlowDisplay：显示端独立程序
 add_subdirectory(tools/MediaDisplay)
 
 set(CALC_SOURCE_FILES

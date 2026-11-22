@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Flow Dashboard</title>
     <link rel="icon" href="/favicon.png" type="image/png" />
     <link rel="shortcut icon" href="/favicon.ico" />
@@ -23,6 +23,11 @@
             "data-theme",
             dark ? "dark" : "light"
           );
+          // 浏览器地址栏/状态栏跟随主题色（移动端观感）
+          var meta = document.createElement("meta");
+          meta.name = "theme-color";
+          meta.content = dark ? "#1e1d23" : "#f7f8fa";
+          document.head.appendChild(meta);
         } catch (e) {
           document.documentElement.setAttribute("data-theme", "light");
         }

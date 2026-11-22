@@ -1,5 +1,5 @@
 // ============================================================================
-//  display/main.cpp —— 显示端主程序入口（media_display.exe）
+//  display/main.cpp —— 显示端主程序入口（FlowDisplay.exe）
 //
 //  角色模型（设计文档 §2.1 + 第五迭代"显示端极简"改造）：
 //    Player = 引擎 SLAVE 角色：监听端口等待 Editor 接入 → 上报身份 →
@@ -11,7 +11,7 @@
 //    engine_core 静态库，但本程序为独立 exe（无 Qt 依赖）。
 //
 //  用法：
-//    media_display [--config=config.ini]（启动设置见 config.display.example.ini）
+//    FlowDisplay [--config=config.ini]（启动设置见 config.display.example.ini）
 //                  [--id=player-1] [--port=17100]
 //                  [--assets-root=<dir>]  （素材落盘目录，收场景后自动拉取）
 //                  [--render-fps=60] [--render-out=<dir>]
@@ -62,6 +62,12 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
+// 【待机卡 2026-11-22】本机 IPv4 枚举——winsock2 必须先于任何 windows.h
+// （同 TU 内 include 顺序铁律）；iphlpapi 运行期动态加载，不新增链接依赖
+// （GetAdaptersAddresses 结构来自头文件，函数指针运行期取）。
+#include <winsock2.h>
+#include <iphlpapi.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <timeapi.h> // timeBeginPeriod/timeEndPeriod（winmm；高精度定时器）
 #include "GlContextWGL.hpp"       // 关窗即退出旗标（GlContextWGL::userClosed）
@@ -84,6 +90,72 @@ __declspec(dllexport) int NvOptimusEnablement = 0x00000001;
 #endif
 
 namespace {
+
+#if defined(_WIN32)
+// ---------------------------------------------------------------------------
+// localIpv4ForStandby —— 本机 IPv4（待机卡地址行；2026-11-22）
+//   动态加载 iphlpapi（不新增链接依赖）：枚举 AF_INET 单播地址，私有网段
+//   （RFC1918：10/8、172.16/12、192.168/16）优先——现场部署恒在局域网；
+//   无私有地址取首个非回环；全无返回 127.0.0.1（本机自测编排页仍可达）。
+//   结果静态缓存：网卡变更需重启 display（待机卡地址与控制面端口同义
+//   ——重启本就是配置生效的既有语义）。
+// ---------------------------------------------------------------------------
+std::string localIpv4ForStandby() {
+    static std::string cached;
+    static bool probed = false;
+    if (probed) return cached;
+    probed = true;
+    cached = "127.0.0.1";
+    typedef ULONG(WINAPI* GetAdaptersAddressesFn)(
+        ULONG, ULONG, PVOID, PIP_ADAPTER_ADDRESSES, PULONG);
+    HMODULE lib = LoadLibraryW(L"iphlpapi.dll");
+    if (!lib) return cached;
+    auto fn = reinterpret_cast<GetAdaptersAddressesFn>(
+        GetProcAddress(lib, "GetAdaptersAddresses"));
+    if (fn) {
+        const ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
+                            GAA_FLAG_SKIP_DNS_SERVER;
+        ULONG len = 16 * 1024;
+        std::vector<std::uint8_t> buf;
+        for (int i = 0; i < 3; ++i) {           // BUFFER_OVERFLOW 重试
+            buf.assign(len, 0);
+            auto* aa = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data());
+            const ULONG r = fn(AF_INET, flags, nullptr, aa, &len);
+            if (r == NO_ERROR) break;
+            buf.clear();
+            if (r != ERROR_BUFFER_OVERFLOW) break;
+        }
+        if (!buf.empty()) {
+            auto* aa = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data());
+            std::string fallback;
+            for (auto* a = aa; a; a = a->Next) {
+                if (a->OperStatus != IfOperStatusUp) continue;
+                if (a->IfType == IF_TYPE_SOFTWARE_LOOPBACK) continue;
+                for (auto* u = a->FirstUnicastAddress; u; u = u->Next) {
+                    auto* sa = reinterpret_cast<sockaddr_in*>(
+                        u->Address.lpSockaddr);
+                    if (!sa || sa->sin_family != AF_INET) continue;
+                    char ip[64] = {};
+                    if (!InetNtopA(AF_INET, &sa->sin_addr, ip, sizeof(ip)))
+                        continue;
+                    const unsigned int n =
+                        ntohl(sa->sin_addr.s_addr); // 主机序网段判定
+                    const bool private_v4 =
+                        (n >> 24) == 10 ||                        // 10/8
+                        (n & 0xFFF00000u) == 0xAC100000u ||       // 172.16/12
+                        (n >> 16) == 0xC0A8u;                     // 192.168/16
+                    if (private_v4) { cached = ip; goto done; }
+                    if (fallback.empty()) fallback = ip;
+                }
+            }
+        done:;
+            if (!fallback.empty() && cached == "127.0.0.1") cached = fallback;
+        }
+    }
+    FreeLibrary(lib);
+    return cached;
+}
+#endif // _WIN32
 
 // ---------------------------------------------------------------------------
 // 启动参数（display 端专用子集——编辑器参数见 src/editor/main.cpp）
@@ -318,10 +390,10 @@ std::optional<Args> parseArgs(int argc, char** argv, const Args& defaults) {
 
 void printUsage() {
     std::printf(
-        "media_display —— MediaServer 显示端（多屏帧同步播放器）v" DISPLAY_VERSION "\n"
+        "FlowDisplay —— MediaServer 显示端（多屏帧同步播放器）v" DISPLAY_VERSION "\n"
         "【零操作】打开后自动监听端口等待 Editor 接入（无需任何配置）\n"
         "用法:\n"
-        "  media_display [--config=<ini>]（启动设置；缺省按 exe 目录 →\n"
+        "  FlowDisplay [--config=<ini>]（启动设置；缺省按 exe 目录 →\n"
         "      工作目录查找 config.ini，模板见 config.display.example.ini）\n"
         "      [--id=player-1] [--port=17100]\n"
         "      （--id：本地标签（预览窗初显）；连接 Editor 后\n"
@@ -610,7 +682,7 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
 #endif
 
     // ---- 版本横幅（2026-11-15 对齐 Flow 版本号口径；status API/网页/窗标题同源）----
-    std::printf("[display] media_display v%s\n", DISPLAY_VERSION);
+    std::printf("[display] FlowDisplay v%s\n", DISPLAY_VERSION);
     std::fflush(stdout);
 
 #if defined(_WIN32)
@@ -826,7 +898,7 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
             std::fprintf(stderr, "[display] 无边框窗口: 开（媒体输出纯净"
                                  "呈现；关闭用 Alt+F4 / 任务栏右键）\n");
         }
-        g.title      = L"media_display 输出（GL）v" +
+        g.title      = L"FlowDisplay 输出（GL）v" +
                        std::wstring(DISPLAY_VERSION, DISPLAY_VERSION + strlen(DISPLAY_VERSION)) +
                        L" " + std::wstring(cfg.player_id.begin(), cfg.player_id.end());
         // 协商旗标进闭包（shared_ptr 副本——渲染后端与解码端各持一份）
@@ -909,6 +981,19 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
             last_line = line;
             last_tp   = now;
         }
+    };
+
+    // ---- 待机卡地址行（2026-11-22）----
+    // 无场景待机时居中卡显示控制面地址：HTTP 控制面启用 → "http://<本机
+    // IPv4>:<port>/"（现场用浏览器直开编排页）；未启用 → player id 兜底。
+    // 每帧调用（RenderThread !scene 分支）：localIpv4ForStandby 内部有
+    // 静态缓存，适配器枚举只做一次，热路径零开销。
+    cfg.standby_provider = [&args, &cfg]() -> std::string {
+        if (args.http_port > 0) {
+            return "http://" + localIpv4ForStandby() + ":" +
+                   std::to_string(args.http_port) + "/";
+        }
+        return cfg.player_id;
     };
 
     ms::PlayerRuntime player(cfg);
@@ -1071,7 +1156,7 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
     if (want_preview) {
         // 窗口标题带实例身份（同机多开时窗口可辨认；id 通常为 ASCII，
         // 逐字节扩展转换足够——非 ASCII 字符显示不完美但不影响功能）
-        std::wstring title = L"media_display 输出预览";
+        std::wstring title = L"FlowDisplay 输出预览";
         if (!cfg.player_id.empty()) {
             title += L"  [" + std::wstring(cfg.player_id.begin(),
                                            cfg.player_id.end()) + L"]";
@@ -1169,7 +1254,7 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
                 }
                 std::fflush(stdout);
                 if (want_preview) {
-                    std::wstring title = L"media_display 输出预览  [" +
+                    std::wstring title = L"FlowDisplay 输出预览  [" +
                                          std::wstring(eid.begin(), eid.end()) +
                                          L"]";
                     ms::PreviewWindowWin32::updateTitle(title.c_str());
@@ -1406,7 +1491,7 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    std::printf("[media_display] 显示端 SLAVE 引擎同源构建 EngineCore"
+    std::printf("[FlowDisplay] 显示端 SLAVE 引擎同源构建 EngineCore"
                 "（监听模式：打开即监听，等 Editor 接入）\n");
     return runDisplay(*args, ini, config_write_path);
 }

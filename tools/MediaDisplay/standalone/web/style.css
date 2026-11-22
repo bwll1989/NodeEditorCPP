@@ -46,6 +46,12 @@
   --shadow-md: 0 1px 2px rgba(27, 33, 19, .05), 0 12px 32px -18px rgba(27, 33, 19, .25);
   --focus-ring: 0 0 0 3px rgba(121, 174, 49, .18);   /* 品牌绿聚焦环 */
   --ease: cubic-bezier(.22, 1, .36, 1);              /* 手册标准缓动 */
+  /* ---- 移动端适配（env() 在桌面恒 0；viewport-fit=cover 下刘海/手势条让位）-- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --drawer-w: min(84vw, 320px);                      /* 移动端抽屉宽（≤900px） */
   /* ---- 语义别名（历史引用层；新代码请直接用上方品牌 token）---- */
   --bg: var(--paper-2);
   --panel: var(--paper);
@@ -60,6 +66,9 @@
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+/* 移动端动态视口：dvh 随浏览器地址栏收展，100% 在安卓 Chrome 会裁切底部
+   （不支持 dvh 的旧内核回退上面 100% 声明） */
+@supports (height: 100dvh) { html, body { height: 100dvh; } }
 /* Vue 挂载根：补全百分比高度链（body → #app → #layout）——
    缺这层 #app 高度 auto，#layout 的 calc(100%-52px) 失效，侧栏被内容撑出视窗 */
 #app { height: 100%; }
@@ -70,6 +79,7 @@ body {
         system-ui, sans-serif;
   background: var(--paper-2); color: var(--ink); overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);  /* 触屏点按高亮交给 :hover/:active */
 }
 /* Vue 挂载前模板源码闪烁兜底 */
 [v-cloak] { display: none; }
@@ -79,6 +89,7 @@ body {
 /* ---- 通用控件 -------------------------------------------------------------- */
 button {
   font: inherit; padding: 3px 10px; height: 26px;
+  touch-action: manipulation;   /* 消除触屏双击缩放延迟 */
   border: 1px solid var(--border-strong); border-radius: var(--radius);
   background: var(--panel); color: var(--text);
   cursor: pointer;
@@ -99,6 +110,7 @@ button.primary:hover { background: #3D5D1B; border-color: #3D5D1B; color: #fff; 
   display: inline-flex; align-items: center; gap: 5px;
   padding: 2px 9px; border-radius: 20px; background: var(--accent-soft);
   color: var(--green-ink); font-size: 12px; font-weight: 500; /* [A1] 浅绿底文字用 --green-ink（2.3:1→7:1+） */
+  white-space: nowrap;   /* 窄顶栏被压缩时宁可截断不可竖排破碎 */
 }
 /* 状态芯片指示灯（●伪元素；playing 绿色呼吸，bad 红色） */
 .chip::before {
@@ -115,8 +127,10 @@ button.primary:hover { background: #3D5D1B; border-color: #3D5D1B; color: #fff; 
 
 /* ---- 顶栏 -------------------------------------------------------------- */
 #topbar {
-  display: flex; align-items: center; gap: 14px; height: 52px;
-  padding: 0 16px; background: var(--panel);
+  display: flex; align-items: center; gap: 14px;
+  height: calc(52px + var(--safe-top));
+  padding: var(--safe-top) calc(16px + var(--safe-right)) 0 calc(16px + var(--safe-left));
+  background: var(--panel);
   border-bottom: 1px solid var(--border);
   box-shadow: 0 1px 3px rgba(27, 33, 19, .04);
   position: relative; z-index: 3;
@@ -190,7 +204,7 @@ button.primary:hover { background: #3D5D1B; border-color: #3D5D1B; color: #fff; 
    折叠手柄 = 常驻竖条（18px），点击切换，折叠后仍可展开。 */
 #layout {
   display: flex; align-items: stretch;
-  height: calc(100% - 52px);
+  height: calc(100% - 52px - var(--safe-top));
 }
 #sidebar, #props {
   background: var(--panel); overflow: hidden; flex: none;
@@ -213,6 +227,20 @@ button.primary:hover { background: #3D5D1B; border-color: #3D5D1B; color: #fff; 
   font-size: 13px; cursor: pointer; transition: background .15s, color .15s;
 }
 .fold-bar:hover { color: var(--accent); background: var(--accent-soft); }
+
+/* ---- 顶栏移动端抽屉切换按钮（≤900px 显示；桌面隐藏走 fold-bar）-------------- */
+#topbar .m-nav {
+  display: none;
+  align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; flex: none;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  background: var(--panel); color: var(--ink-2);
+}
+#topbar .m-nav:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+#topbar .m-nav.on { background: var(--green-deep); border-color: var(--green-deep); color: #fff; }
+
+/* ---- 移动端抽屉遮罩（仅 ≤900px 且抽屉开启时显示；点按收抽屉）---------------- */
+#drawer-scrim { display: none; }
 
 .panel { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; }
 .panel-head {
@@ -360,7 +388,7 @@ button.primary:hover { background: #3D5D1B; border-color: #3D5D1B; color: #fff; 
 #editor-head .play-ctl svg { display: block; }
 
 /* ---- vis-timeline 主题（轨道编排区由 vis 接管）----------------------------- */
-#vis-timeline { flex: 1; min-height: 0; border: 0; }
+#vis-timeline { flex: 1; min-height: 0; min-width: 0; border: 0; }
 /* 素材拖放提示：拖到时间轴上方时高亮 */
 #vis-timeline.drop-hint { outline: 2px dashed var(--accent); outline-offset: -2px; }
 #vis-timeline.drop-hint .vis-inner { opacity: 0.75; }
@@ -804,3 +832,98 @@ input.inline-rename {
 ::-webkit-scrollbar-thumb:hover { background-color: rgba(27, 33, 19, .42); }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-corner { background: transparent; }
+
+/* ============================================================================
+   移动端适配（≤900px，与 app.js MOBILE_MQ 严格一致）——左右栏转滑出抽屉
+   桌面折叠语义（width→0 + fold-bar 竖条）在此让位：抽屉显隐走 transform 滑入，
+   不占文档流——vis 编排区恒全宽；开合入口 = 顶栏 ☰/⎔（互斥单开）+ 遮罩点按。
+   ========================================================================== */
+@media (max-width: 900px) {
+  /* 顶栏常驻顶层（45 > 遮罩 40 > 抽屉 41）：抽屉开启时 ☰/⎔/⚙ 仍可点——☰ 即开合开关 */
+  #topbar {
+    z-index: 45; gap: 8px;
+    padding-left: calc(8px + var(--safe-left));
+    padding-right: calc(8px + var(--safe-right));
+  }
+  #topbar .m-nav { display: inline-flex; }
+  #topbar .sub { display: none; }
+  #btn-mpcdi, #btn-settings { height: 34px; }
+
+  /* 侧栏 → 抽屉：fixed 浮层 + transform 滑入；桌面 width 折叠类在此失效化
+     （ui.left/right 的 localStorage 态不再影响移动布局） */
+  #sidebar, #props {
+    position: fixed; top: calc(52px + var(--safe-top)); bottom: 0;
+    width: var(--drawer-w);
+    z-index: 41;
+    transition: transform .24s var(--ease);
+  }
+  #sidebar { left: 0; transform: translateX(-103%); border-right: 1px solid var(--border); }
+  #props   { right: 0; transform: translateX(103%);  border-left: 1px solid var(--border); }
+  #sidebar.collapsed, #props.collapsed {
+    width: var(--drawer-w);
+    border-right-width: 1px; border-left-width: 1px;
+  }
+  #sidebar.m-open, #props.m-open { transform: translateX(0); box-shadow: var(--shadow-md); }
+  .side-inner { width: 100%; }
+  #sidebar .side-inner { padding-bottom: calc(6px + var(--safe-bottom)); }
+  #props  .side-inner { padding: 12px 12px calc(14px + var(--safe-bottom)); }
+
+  /* 遮罩：盖住编排区（z40 < 抽屉 41 < 顶栏 45），点按收抽屉 */
+  #drawer-scrim.on {
+    display: block; position: fixed; inset: 0; z-index: 40;
+    background: rgba(27, 33, 19, .42);
+    animation: overlay-in .15s ease;
+  }
+
+  /* fold-bar 竖条在触屏上目标太小——移动交互改道顶栏按钮 */
+  .fold-bar { display: none; }
+
+  /* 编排区：工具条允许换行（按钮多，窄屏单行装不下）；控件加高易点 */
+  #editor-head { flex-wrap: wrap; row-gap: 6px; padding: 8px 10px; }
+  #editor-head button { height: 32px; }
+  #editor-head .chk { height: 32px; }
+  .play-ctl { padding: 3px 12px; }
+
+  /* 触控目标放大（列表行/迷你按钮）+ 输入 16px 防 iOS 聚焦自动放大 */
+  .panel-head { padding: 10px 10px 8px; }
+  .panel-head button, .panel-head .upload-btn { height: 30px; }
+  #tl-list li { padding: 10px 8px; }
+  #tl-list .mini { height: 26px; padding: 1px 8px; }
+  #lib-list li { padding: 9px 8px; }
+  #lib-search { padding: 9px 10px; font-size: 16px; margin: 0 10px 8px; width: calc(100% - 20px); }
+  #prop-form input { font-size: 16px; padding: 7px 9px; }
+  #prop-form label { grid-template-columns: 76px 1fr; }
+  #prop-form button { height: 34px; }
+
+  /* 底部状态栏：键盘提示对触屏无意义——隐藏；iOS 底部手势条让位 */
+  #editor-status { height: auto; padding: 5px 12px calc(5px + var(--safe-bottom)); }
+  #editor-status .hint-keys { display: none; }
+}
+
+/* 极窄顶栏收敛（≤600px）：输出校准入口/版本号/总时长/品牌文字让位，
+   设置按钮只留 ⚙ 图标——390px 手机竖屏下顶栏不挤压不破碎 */
+@media (max-width: 600px) {
+  .brand .ver-chip, #btn-mpcdi, #transport .tsep, #transport .dur { display: none; }
+  #topbar { gap: 6px; }
+  #topbar .brand { font-size: 0; gap: 0; }   /* 只留 logo（文字节点归零） */
+  #btn-settings .btn-txt { display: none; }
+  #active-name { max-width: 30vw; }
+}
+
+/* 超窄（≤420px）：连间隔符也让位 */
+@media (max-width: 420px) {
+  #transport .sep { display: none; }
+}
+
+/* 设置 / MPCDI 浮层小屏全幅（≤640px）：卡片贴边 + 字段单列 */
+@media (max-width: 640px) {
+  #settings-overlay, #mpcdi-overlay { padding: 12px 10px calc(12px + var(--safe-bottom)); }
+  #settings-card, #mpcdi-card {
+    width: 100%; max-width: 100%;
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 12px;
+  }
+  .set-groups fieldset { grid-template-columns: 1fr; }
+  .set-groups .row4 { grid-template-columns: 1fr 1fr; }
+}

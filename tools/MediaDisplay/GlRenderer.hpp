@@ -172,6 +172,12 @@ public:
     /// DIB（32bpp BGRA top-down）→ 上传纹理；未变化帧只重贴缓存纹理。
     void setOsd(const char* utf8_text, float frac) override;
 
+    // ---- 待机画面（2026-11-22；setStandby 契约见 IComposeRenderer）-------
+    /// 无场景待机内容（居中卡：Flow 播放图标 + 控制面地址行；空 = 不画）。
+    /// 绘制点与素材同步 OSD 同域（warpBlit 之后、SwapBuffers 之前）——
+    /// 卡居中、OSD 贴底，同帧出现也不重叠（2026-11-22 用户要求"错开"）。
+    void setStandby(const char* utf8_addr) override;
+
 private:
     /// 懒初始化：窗口+上下文+程序+VAO/VBO+纹理（首次 beginFrame 调用）
     bool ensureInit();
@@ -322,6 +328,16 @@ private:
     /// OSD 栅格化 + 纹理上传（osd_dirty_ 时执行）+ 绘制 quad。
     /// 调用点：endFrame（warpBlit 之后、SwapBuffers 之前——最终输出域）。
     void drawOsdOverlay();
+
+    // ---- 待机画面（渲染线程独占；懒创建）----------------------------------
+    std::string  standby_text_;        ///< 待机卡地址行（空 = 不画卡）
+    bool         standby_dirty_ = false; ///< 内容变化标记（endFrame 重栅格化）
+    unsigned int standby_tex_  = 0;    ///< 待机卡纹理（懒创建；尺寸变化重建）
+    int          standby_tex_w_ = 0;   ///< 纹理分配宽（=栅格化卡宽）
+    int          standby_tex_h_ = 0;   ///< 纹理分配高
+    /// 待机卡栅格化 + 纹理上传 + quad 绘制（endFrame 呈现点；在
+    /// drawOsdOverlay 之前——卡居中在先，OSD 保持最上层惯例）。
+    void drawStandbyCard();
 
     // ---- uniform location 缓存（程序链接成功时查询一次）-----------------
     // 【性能】glGetUniformLocation 是字符串查找，draw 热路径逐帧逐项调用

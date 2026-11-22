@@ -1,8 +1,8 @@
 // ============================================================================
-//  PreviewWindowWin32 —— 显示端输出预览窗口（Win32 GDI；media_display 专用）
+//  PreviewWindowWin32 —— 显示端输出预览窗口（Win32 GDI；FlowDisplay 专用）
 //
 //  需求背景（用户反馈"显示端打开后只有终端窗口，没有输出画面"）：
-//    显示端 media_display.exe 是无 Qt 的命令行程序，渲染结果原本只有
+//    显示端 FlowDisplay.exe 是无 Qt 的命令行程序，渲染结果原本只有
 //    诊断 BMP 导出（--render-out）可查。本类用纯 Win32 API 画一个独立
 //    预览窗口，把渲染线程合成的每一帧拉伸显示——零新依赖（GDI 系统库），
 //    不影响"显示端无 Qt"的部署约定。
@@ -27,7 +27,7 @@
 
 #include <cstdint>
 
-#if defined(_WIN32) // 非 Windows 平台无本类（media_display 保持 headless）
+#if defined(_WIN32) // 非 Windows 平台无本类（FlowDisplay 保持 headless）
 
 namespace ms {
 
@@ -46,7 +46,7 @@ public:
     /// \param win_w/win_h  窗口客户区尺寸（fullscreen=false 时生效；
     ///                     <=0 = 默认 960×540）
     /// \return false = 窗口创建失败（调用方降级 headless，不影响渲染）
-    static bool start(const wchar_t* title = L"media_display 输出预览",
+    static bool start(const wchar_t* title = L"FlowDisplay 输出预览",
                       int screen_index = -1, bool fullscreen = false,
                       int win_x = -1, int win_y = -1,
                       int win_w = 0, int win_h = 0);

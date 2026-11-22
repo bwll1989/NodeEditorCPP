@@ -14,14 +14,14 @@
 #   D) 指派后重锚链路照旧可用（PLAY/STOP Ack）。
 #
 # 帧格式：4 字节【小端】长度前缀 + sync.proto Envelope（手写 pb wire）。
-# 用法：python sim_editor_v2.py   （先启动 media_display 由本脚本拉起）
+# 用法：python sim_editor_v2.py   （先启动 FlowDisplay 由本脚本拉起）
 # 退出码 0 = 全部通过。
 
 import socket, struct, sys, os, time, threading, zlib, subprocess
 import http.server
 
 BIN     = r"D:\19_NodeEditorCPP\NodeEditorCPP\build\bin"
-EXE     = os.path.join(BIN, "display", "media_display.exe")  # bin/display 全自含布局（2026-11-20 修正）
+EXE     = os.path.join(BIN, "display", "FlowDisplay.exe")  # bin/display 全自含布局（2026-11-20 修正）
 WORK    = r"D:\19_NodeEditorCPP\NodeEditorCPP\build\test_asset_sync"
 ASSETS  = os.path.join(WORK, "display_assets")
 CFG_INI = os.path.join(BIN, "config.ini")
@@ -184,7 +184,7 @@ proc = subprocess.Popen(
     [EXE, "--mode=sync", "--id=player-1", "--port=17100",
      "--assets-root=" + ASSETS, "--no-preview", "--quit-after-ms=60000"],
     stdout=out_log, stderr=err_log, cwd=WORK)
-print("[sim] media_display 已拉起 pid=%d" % proc.pid)
+print("[sim] FlowDisplay 已拉起 pid=%d" % proc.pid)
 
 sock = None
 deadline = time.time() + 20

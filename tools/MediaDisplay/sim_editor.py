@@ -1,4 +1,4 @@
-# sim_editor.py —— 模拟 Editor 与 media_display（sync 模式）全链路握手
+# sim_editor.py —— 模拟 Editor 与 FlowDisplay（sync 模式）全链路握手
 #
 # 帧格式：4 字节大端长度前缀 + sync.proto Envelope（手写 protobuf wire
 # format，零依赖）。验证路径：

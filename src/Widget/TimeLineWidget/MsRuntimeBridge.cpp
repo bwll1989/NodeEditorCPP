@@ -55,7 +55,7 @@ bool MsRuntimeBridge::start() {
     // 默认 false 且全库无任何置位点 → 归一化从未生效 → display 拿原始
     // monitor/camera 源名在本机直开设备（HWND/HMONITOR 句柄不跨机、
     // 采集设备被 editor 收端独占）→ "设备找不到"黑屏。editor 主程序恒
-    // editor 角色（本桥仅主程序装配；display 的 media_display 不经过
+    // editor 角色（本桥仅主程序装配；display 的 FlowDisplay 不经过
     // 此桥，保持默认 false = 纯 NDI 直收，不误建采集/sender）。
     LiveHub::instance().setEnabled(true);
     impl_ = std::make_unique<Impl>(std::move(cfg));

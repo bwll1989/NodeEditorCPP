@@ -2,8 +2,16 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MediaServer 节点编排台</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 移动端浏览器 chrome 配色（与 --paper 一致；安卓 Chrome/WebView 地址栏） -->
+<meta name="theme-color" content="#FAFAF6">
+<title>FlowDisplay 编排台</title>
+    <!-- 网页图标 = FlowDisplay.exe 应用图标（与任务栏/待机画面同一图标源，
+         2026-11-23 用户定案）。PNG 优先：安卓浏览器对 ICO 兼容差（用户报障
+         "网页图标不是程序的图标"）；ICO 留作旧浏览器 fallback。 -->
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="stylesheet" href="lib/vis-timeline-graph2d.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -16,15 +24,22 @@
 <!-- Vue 3 挂载根（vue.global.prod.js 内置模板编译器；全响应式声明式渲染） -->
 <div id="app" v-cloak>
   <header id="topbar">
-    <div class="brand"><span class="logo" aria-hidden="true"></span>MediaServer <span class="sub">节点编排台</span>
+    <!-- 移动端抽屉切换（≤900px 显示，桌面 CSS 隐藏）：左右互斥单开 -->
+    <button class="m-nav" v-show="!modeIsSync" :class="{ on: mobilePanel === 'left' }"
+            title="时间轴 / 媒体库" aria-label="打开时间轴与媒体库抽屉"
+            @click="toggleMobilePanel('left')">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+    </button>
+    <div class="brand"><span class="logo" aria-hidden="true"></span>FlowDisplay <span class="sub">编排台</span>
       <!-- display 版本号（2026-11-15）：GET /api/v1/status 携带，与 Flow 主程序同版本口径 -->
-      <span class="chip ver-chip" v-if="status && status.version" :title="'display 版本 ' + status.version">v{{ status.version }}</span>
+      <span class="chip ver-chip" v-if="status && status.version" :title="'FlowDisplay 版本 ' + status.version">v{{ status.version }}</span>
     </div>
     <div id="transport">
       <span id="active-name" title="当前激活（播放中）的时间轴">{{ activeName }}</span>
       <span class="sep">·</span>
-      <span class="mono playhead-time">{{ playheadText }}</span> /
-      <span class="mono">{{ durationText }}</span>
+      <span class="mono playhead-time">{{ playheadText }}</span>
+      <span class="tsep">/</span>
+      <span class="mono dur">{{ durationText }}</span>
       <span class="chip" :class="{ playing: status && status.state === 1, paused: status && status.state === 2 }">{{ stateName }}</span>
     </div>
     <div id="conn" class="chip" :class="{ ok: connOk === true, bad: connOk === false }">{{ connText }}</div>
@@ -34,12 +49,18 @@
             @click="ui.mpcdi = true; refreshMpcdi()">▣ 输出校准<span
             v-if="mpcdiWarpOn" class="warp-tag">启用中</span></button>
     <button id="btn-settings" class="chip" title="显示设置（模式切换/端口/渲染/素材根）"
-            @click="ui.settings = true; loadSettings()">⚙ 设置</button>
+            @click="ui.settings = true; loadSettings()">⚙<span class="btn-txt">设置</span></button>
+    <button class="m-nav" v-show="!modeIsSync" :class="{ on: mobilePanel === 'right' }"
+            title="片段属性" aria-label="打开片段属性抽屉"
+            @click="toggleMobilePanel('right')">
+      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.2" cy="4" r="2" fill="currentColor"/><circle cx="5.8" cy="8" r="2" fill="currentColor"/><circle cx="10.8" cy="12" r="2" fill="currentColor"/></svg>
+    </button>
   </header>
 
   <main id="layout" :class="{ 'mode-sync': modeIsSync }">
     <!-- 左栏：时间轴列表 + 媒体库（可折叠；仅独立模式——sync 下编排面被门禁） -->
-    <aside id="sidebar" v-show="!modeIsSync" :class="{ collapsed: ui.left }">
+    <aside id="sidebar" v-show="!modeIsSync"
+           :class="{ collapsed: ui.left, 'm-open': mobilePanel === 'left' }">
       <div class="side-inner">
         <section class="panel">
           <div class="panel-head">
@@ -164,7 +185,8 @@
             @click="ui.right = !ui.right">{{ ui.right ? '⟨' : '⟩' }}</button>
 
     <!-- 右栏：属性面板（可折叠） -->
-    <aside id="props" v-show="!modeIsSync" :class="{ collapsed: ui.right }">
+    <aside id="props" v-show="!modeIsSync"
+           :class="{ collapsed: ui.right, 'm-open': mobilePanel === 'right' }">
       <div class="side-inner">
         <h2>片段属性</h2>
         <div v-if="!selClipData" class="prop-empty">
@@ -200,6 +222,9 @@
       </div>
     </aside>
   </main>
+
+  <!-- 移动端抽屉遮罩（≤900px 且抽屉开启时显示；点按收抽屉；桌面恒 display:none） -->
+  <div id="drawer-scrim" :class="{ on: !!mobilePanel }" @click="closeMobilePanel"></div>
 
   <!-- 设置浮层（⚙ 打开；sync 模式自动展开为唯一功能面）。
        分组禁用按【运行模式】：独立模式组只在 standalone 下可编辑、

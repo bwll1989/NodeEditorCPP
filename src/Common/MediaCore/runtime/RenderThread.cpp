@@ -407,6 +407,13 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
     const auto snap_t0 = std::chrono::steady_clock::now();
     const std::shared_ptr<const Scene> scene = scene_fn_();
     const Playhead ph = playhead_fn_();
+    // 【待机画面生命周期 2026-11-23 语义修正】"已播放"判定后移到合成之后
+    // （本文件下方 composeFrame 返回处）：Playing 且 items>0（画面上真的
+    // 有内容）才置位 ever_played_。原实现在此按播放状态置位——standalone
+    // 开机自动播放"空时间轴"（有 clip 但无一可画，items=0）也会置位并
+    // 每帧清卡 → 用户视角"从没播放过却永远黑屏"（模拟器实测复现，用户
+    // 真机同因）。用户定案语义"第一次播放前显示"的判据是观众看到了内容，
+    // 不是状态机进入了 Playing。
     // 【指派模型 2026-11-06】本帧选屏 id：id_fn_ 优先（Editor 指派换 id
     // 后下一帧立即跟随），未注入退回 cfg_.player_id（测试/旧调用方）。
     // 每帧取一次供全函数使用（含 ensureOutputSize/composeFrame/诊断）。
@@ -456,6 +463,10 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
     } else if (backend_) {
         backend_->setOsd(nullptr, -1.0f); // 未配 provider：确保无残留
     }
+    // ---- 待机卡生命周期（2026-11-23 决策点统一重构）-----------------------
+    // 清卡/画卡决策统一后移：!scene 早退分支（下方）按 ever_played_ 决定；
+    // 有场景合成路径在 composeFrame 返回后按 items 判定（见下方）——本处
+    // 不再"有场景即清卡"（旧实现把空时间轴 items=0 的待机卡也清掉了）。
     {
         const auto snap_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - snap_t0).count();
@@ -477,13 +488,33 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
         }
     }
 
-    // 无场景 → 本帧无可画；但呈现链不能空窗（2026-11-04 MMC 对齐）：
-    // MMC（MPV_Media_Console）render_loop 每轮无条件 draw+swap（idle 画黑），
-    // 输出表面持续提交 DWM。display 原实现无场景时完全跳过 beginFrame/
-    // endFrame——建窗首帧后再无任何 present，驱动/DWM 对"一次性呈现后
-    // 永不更新"的窗口可能停止重合成（呈现冻结的成因之一）。现对齐：
-    // ensureReady 幂等（已就绪时 = beginFrame 清屏黑 + endFrame 呈现），
-    // 每轮空场景都持续上屏黑帧。
+    // 无场景 → 本帧无可画内容；但呈现链不能空窗（2026-11-04 MMC 对齐）：
+    // MMC（MPV_Media_Console）render_loop 每轮无条件 draw+swap，输出表面
+    // 持续提交 DWM。display 原实现无场景时完全跳过 beginFrame/endFrame
+    // ——建窗首帧后再无任何 present，驱动/DWM 对"一次性呈现后永不更新"
+    // 的窗口可能停止重合成（呈现冻结的成因之一）。现对齐：每轮空场景都
+    // 持续 beginFrame + endFrame 上屏。
+    // 【待机画面 2026-11-22】空场景上屏内容从恒黑改为居中待机卡（Flow
+    // 图标 + standby_provider 注入的控制面地址）——现场不再面对一块分
+    // 不清"待机还是故障"的黑屏。窗口尺寸每帧查客户区 → resize 自动跟随；
+    // standby_provider 未装配/返回空 = 不画卡（回退清屏黑旧语义）。
+    // 【生命周期定案 2026-11-22】待机卡只出现在"开机后第一次播放前"
+    // （黑屏易被误读为设备未开）；ever_played_ 置位后永久回黑屏——
+    // 显式 setStandby("") 清残留文本（内容比对使后续帧零成本）。
+    // ---- 待机卡决策（!scene / 场景未绑定两条早退路径共用）----------------
+    // 未播过真内容且 provider 已装配 → 画卡；否则清卡回黑（2026-11-22/23
+    // 用户定案：待机卡只出现在"开机后第一次播放前"）。调用方须保证
+    // backend_ 非空；呈现统一由 ensureReady 内部 beginFrame+endFrame 承担
+    // （勿在外层叠加 begin/end——每帧双 swap 且首帧画的是上一帧的卡）。
+    auto applyStandbyDecision = [this]() {
+        if (cfg_.standby_provider &&
+            !ever_played_.load(std::memory_order_relaxed)) {
+            backend_->setStandby(cfg_.standby_provider().c_str());
+        } else {
+            backend_->setStandby("");
+        }
+    };
+
     if (!scene) {
         // 【停摆取证 2026-11-20】无场景早退静默——渲染线程"拍了不画"的
         // 隐形路径（拍照转、compose=0、出帧=0 的全零吞吐形态）。节流打点
@@ -502,7 +533,10 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
                 std::fflush(stderr);
             }
         }
-        if (backend_) backend_->ensureReady();
+        if (backend_) {
+            applyStandbyDecision();
+            backend_->ensureReady();
+        }
         return stats;
     }
 
@@ -583,9 +617,14 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
                          cfg_.player_id.c_str(), bindings.c_str());
             std::fflush(stderr);
         }
-        // 呈现链不能空窗（同无场景路径）：黑帧持续上屏
-        if (backend_) backend_->ensureReady();
-        return stats; // 场景未绑定本机 screen（黑屏待播——见 ensureReady）
+        // 呈现链不能空窗（同无场景路径）：持续上屏。本机视角无内容 =
+        // 待机——同款待机卡决策：未播过真内容画卡（指派往返期不再
+        // 黑屏/残卡），已播过清卡回黑。
+        if (backend_) {
+            applyStandbyDecision();
+            backend_->ensureReady();
+        }
+        return stats; // 场景未绑定本机 screen（待机卡/黑屏待播）
     }
 
     // ---- 会话时刻解算（§5.6 核心语义）----
@@ -691,6 +730,22 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
     if (backend_) {
         stats = composeFrame(*scene, my_id, out_w_, out_h_, session_t,
                              scheduler_, *backend_);
+        // ---- 待机卡合成路径决策（2026-11-23 语义修正；endFrame 前生效）--
+        // items>0 = 画面有内容：清卡；且播放中才记"已播放"（此后撤下
+        // 场景也永久回黑屏——用户定案"开始播放后不再显示"）。
+        // items=0 = 空时间轴/无活跃 clip：用户视角没有内容 = 待机——
+        // 未播过真内容则画待机卡（standby_provider 注入地址），已播过
+        // 则清卡回黑。决策在 endFrame 前 → drawStandbyCard 本帧即生效。
+        if (stats.items > 0) {
+            if (ph.state == PlayState::Playing)
+                ever_played_.store(true, std::memory_order_relaxed);
+            backend_->setStandby("");
+        } else if (cfg_.standby_provider &&
+                   !ever_played_.load(std::memory_order_relaxed)) {
+            backend_->setStandby(cfg_.standby_provider().c_str());
+        } else {
+            backend_->setStandby("");
+        }
         // ---- 【修复 2026-11-05】诊断捕获必须在 endFrame（SwapBuffers）
         //      之前 ------------------------------------------------------
         // GL 后备缓冲在 SwapBuffers 后内容未定义（驱动普遍清空 BACK），

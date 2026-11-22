@@ -1,5 +1,5 @@
 # ============================================================================
-#  MediaDisplay/CMakeLists.txt —— 显示端独立程序 media_display.exe
+#  MediaDisplay/CMakeLists.txt —— 显示端独立程序 FlowDisplay.exe
 #
 #  收编适配（2026-11-12 从 MediaServer 迁入 Flow）：
 #    * engine_core → MediaCore（收编 SHARED DLL，src/Common/MediaCore；
@@ -44,7 +44,7 @@ target_link_libraries(StandaloneBase
 )
 target_include_directories(StandaloneBase PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-add_executable(media_display
+add_executable(FlowDisplay
     main.cpp
     PreviewWindowWin32.cpp  # Win32 GDI 输出预览窗口（soft 后端呈现路径；
                             #  GL 后端有自己的窗口——两窗互斥见 main.cpp）
@@ -56,11 +56,11 @@ add_executable(media_display
                             # 经 Pillow 多尺寸导出；2026-11-13 起 rc 指同目录，
                             # 旧 icons/display.ico 引用指向不存在文件已废弃）
 )
-set_target_properties(media_display PROPERTIES
+set_target_properties(FlowDisplay PROPERTIES
     CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/display"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/display")
-target_link_libraries(media_display
+target_link_libraries(FlowDisplay
     PRIVATE
         StandaloneBase  # standalone 控制面（引擎链经其 PUBLIC 传播）
         MediaCore       # 模型/时钟/网络/运行时（与编辑端同源）
@@ -70,7 +70,7 @@ target_link_libraries(media_display
 # include 歧义保险：本地 standalone/（REST 控制面）必须先于 MediaCore 的
 # standalone/（PlayerRuntime 侧装配）——"standalone/xxx" 前缀两目录同名，
 # 本地目录置前保证 standalone_api/mpcdi_service 解析到本目录。
-target_include_directories(media_display PRIVATE
+target_include_directories(FlowDisplay PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # ---- CUDA Toolkit 可选探测（③阶段 0 拷贝；QUIET=缺失不致命）--------------
@@ -79,20 +79,20 @@ target_include_directories(media_display PRIVATE
 # 协商旗标自动回退 av_hwframe_transfer_data 下载路径（功能无损）。
 find_package(CUDAToolkit QUIET)
 if(CUDAToolkit_FOUND)
-    target_compile_definitions(media_display PRIVATE MS_HAS_CUDA=1)
-    target_link_libraries(media_display PRIVATE CUDA::cudart_static)
-    message(STATUS "media_display: CUDA ${CUDAToolkit_VERSION} interop 已启用（MS_HAS_CUDA）")
+    target_compile_definitions(FlowDisplay PRIVATE MS_HAS_CUDA=1)
+    target_link_libraries(FlowDisplay PRIVATE CUDA::cudart_static)
+    message(STATUS "FlowDisplay: CUDA ${CUDAToolkit_VERSION} interop 已启用（MS_HAS_CUDA）")
 else()
-    message(STATUS "media_display: 未找到 CUDA Toolkit——0 拷贝走桩实现（回退下载路径）")
+    message(STATUS "FlowDisplay: 未找到 CUDA Toolkit——0 拷贝走桩实现（回退下载路径）")
 endif()
 
 # ---- 运行 DLL：display/ 自含部署（2026-11-13 独立布局）----------------------
 # exe 移出 bin/ 后加载器不再搜父目录——POST_BUILD 显式拷贝依赖 DLL（清单 =
-# dumpbin /DEPENDENTS media_display.exe + MediaCore.dll 实测，剔系统 DLL）。
+# dumpbin /DEPENDENTS FlowDisplay.exe + MediaCore.dll 实测，剔系统 DLL）。
 # 全部取 3rdParty 权威源（源文件恒存在，与构建序无关；MediaCore 用生成器
 # 表达式保证拷贝发生在其链接后）。display/ 目录因此可整目录独立分发。
 set(MS_DISPLAY_RUNTIME_DIR "${CMAKE_BINARY_DIR}/bin/display")
-add_custom_command(TARGET media_display POST_BUILD
+add_custom_command(TARGET FlowDisplay POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         # MediaCore（引擎全链；生成器表达式绑定构建序）
         "$<TARGET_FILE:MediaCore>"
@@ -116,15 +116,15 @@ add_custom_command(TARGET media_display POST_BUILD
         # NDI DLL 不再随 display 部署（2026-11-21 NDI 分发退役：display
         # 无 NDI 调用路径 + MediaCore /DELAYLOAD 延迟加载=永不加载）
         "${MS_DISPLAY_RUNTIME_DIR}"
-    COMMENT "deploy media_display runtime DLLs -> bin/display/"
+    COMMENT "deploy FlowDisplay runtime DLLs -> bin/display/"
     VERBATIM)
 
 # ---- standalone 网页（缩水版 Editor：编排/媒体库/播放/设置）→ bin/display/web/
 # StandaloneApi 以 exe 同目录 web/ 为静态根（web_dir=exe_dir+"/web"）——
 # 目标目录跟 RUNTIME_OUTPUT_DIRECTORY 自动落到 display/web/。
-add_custom_command(TARGET media_display POST_BUILD
+add_custom_command(TARGET FlowDisplay POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/standalone/web"
-        "$<TARGET_FILE_DIR:media_display>/web"
+        "$<TARGET_FILE_DIR:FlowDisplay>/web"
     COMMENT "deploy standalone web -> bin/display/web/"
     VERBATIM)

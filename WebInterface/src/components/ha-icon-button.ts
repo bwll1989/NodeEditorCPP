@@ -34,17 +34,22 @@ export class HaIconButton extends LitElement {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       border: none;
       border-radius: 50%;
       background: transparent;
       color: inherit;
       cursor: pointer;
       padding: 0;
+      -webkit-tap-highlight-color: transparent;
     }
     .button:hover:not(:disabled) {
       background: color-mix(in srgb, currentColor 8%, transparent);
+    }
+    .button:focus-visible {
+      outline: 2px solid var(--primary-color, #79ae31);
+      outline-offset: 2px;
     }
     .button:disabled {
       opacity: 0.38;

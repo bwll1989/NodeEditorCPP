@@ -329,7 +329,7 @@ bool PlayerRuntime::start() {
         if (authed_conn_.load() == cid) authed_conn_.store(0);
     });
     // 【同机多实例（2026-11-03）】默认端口被占（典型：同一台电脑开了
-    // 第二个 media_display）时自动改用系统分配端口，第二实例照常服务
+    // 第二个 FlowDisplay）时自动改用系统分配端口，第二实例照常服务
     // 而不是启动失败退出。实际端口两条途径让 Editor 知晓：
     //   1. 局域网发现应答帧 listen_port（屏幕属性面板扫描列表自动带出）；
     //   2. 下面的控制台日志（人工登记兜底）。
@@ -385,6 +385,7 @@ void PlayerRuntime::startRenderThread() {
     rcfg.hw_accel      = cfg_.hw_accel;    // 硬解意图透传（探测失败自动软解）
     rcfg.frame_sink    = cfg_.render_frame_sink; // 预览窗口帧回调透传
     rcfg.backend_factory = cfg_.render_backend_factory; // GL 后端注入透传
+    rcfg.standby_provider = cfg_.standby_provider; // 待机卡地址行透传（2026-11-22）
     rcfg.audio_enable  = cfg_.audio_enable; // P3：音频输出（随渲染拍）
     rcfg.audio_device  = cfg_.audio_device; // 音频设备（空=默认）
     // 【素材同步 OSD 2026-11-16】原子量采样注入（零锁）——active 期间

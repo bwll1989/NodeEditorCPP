@@ -15,7 +15,7 @@
 //      4. 校验：大小 + CRC32（不匹配删 part 返回 CrcMismatch）
 //      5. 原子上位：part rename 覆盖 save_path（同盘 rename 原子）
 //
-//  【多实例并发隔离（2026-11-03）】同一台电脑开多个 media_display 且共享
+//  【多实例并发隔离（2026-11-03）】同一台电脑开多个 FlowDisplay 且共享
 //  assets_root 时，两个实例可能并发拉取同一素材。若直接写 save_path，
 //  交错写会损坏彼此数据；改为各写各的 ".part-<pid>"（按进程隔离），
 //  校验通过后 rename 覆盖目标——同盘 rename 原子，读者（媒体源/校验）

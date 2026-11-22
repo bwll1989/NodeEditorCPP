@@ -129,7 +129,7 @@ public:
         /// 单测注入手工时钟序列，使渲染线程与 tick 驱动时间同域。
         std::function<std::int64_t()> clock_fn;
         /// 帧输出回调（透传 RenderThread::Config.frame_sink）：显示端预览
-        /// 窗口每帧收 RGBA 画面（media_display 装配；其余端留空不回调）
+        /// 窗口每帧收 RGBA 画面（FlowDisplay 装配；其余端留空不回调）
         std::function<void(int, int, const std::uint8_t*, std::uint32_t)>
             render_frame_sink;
         /// 合成后端工厂（透传 RenderThread::Config.backend_factory；第②
@@ -142,6 +142,12 @@ public:
         /// 素材拉取进度回调（"同步媒体"可视化；拉取线程上下文同步调用
         /// ——订阅方自行保证线程安全。留空 = 不上报，行为与旧版一致）
         std::function<void(const AssetProgress&)> asset_progress_fn;
+
+        /// 待机画面地址行（2026-11-22；渲染线程每帧采样，空串=不画卡）。
+        /// display 端注入本机 IPv4 + 控制面端口——无场景待机时输出窗居中
+        /// 显示"Flow 图标 + http://ip:port/"两行卡（不再黑屏），与底部
+        /// 素材同步 OSD 错开（居中 vs 贴底）。留空 = 无待机卡（旧黑屏）。
+        std::function<std::string()> standby_provider;
 
         // ---- 音频输出（P3，2026-11-10）----------------------------------
         /// true = display 渲染拍接真实音频输出（与画面同一 session_t 解算

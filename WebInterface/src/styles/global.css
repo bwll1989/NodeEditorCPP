@@ -123,6 +123,17 @@
   /* 日志/代码表面 */
   --log-surface: #f7f9fb;
   --markdown-code-background-color: rgba(0, 0, 0, 0.06);
+
+  /* 安全区（刘海屏/手势条；未定义 env 的桌面环境回落 0） */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+
+  /* 动效 token */
+  --flow-ease: cubic-bezier(0.2, 0, 0, 1);
+  --flow-duration-fast: 160ms;
+  --flow-duration: 220ms;
 }
 
 /* ============================================
@@ -132,6 +143,7 @@
   color-scheme: light;
 
   --primary-background-color: #f7f8fa;
+  --theme-color: #f7f8fa;
   --secondary-background-color: #eef1e6;
   --card-background-color: #ffffff;
   --primary-text-color: #1a1a1a;
@@ -174,6 +186,7 @@
   color-scheme: dark;
 
   --primary-background-color: #1e1d23;
+  --theme-color: #1e1d23;
   --secondary-background-color: #2b2d30;
   --card-background-color: #2b2d30;
   --primary-text-color: #eceef2;
@@ -239,6 +252,23 @@ body {
   background: var(--primary-background-color);
   color: var(--primary-text-color);
   font-family: var(--ha-font-family);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 触控滚动：惯性 + 防橡皮筋外溢（移动端） */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+::selection {
+  background: rgba(var(--rgb-primary-color), 0.32);
+}
+
+/* 细滚动条（亮/暗自适应） */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--primary-text-color) 24%, transparent) transparent;
 }
 
 flow-app {

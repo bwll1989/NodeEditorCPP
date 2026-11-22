@@ -1,5 +1,5 @@
 /* ============================================================================
-   app.js —— MediaServer 节点编排台（Vue 3 版）
+   app.js —— FlowDisplay 编排台（Vue 3 版）
 
    前端框架 = Vue 3.5（官方 UMD 生产版，web/lib/vue.global.prod.js；MIT）——
    响应式状态 + 模板声明式渲染接管外围 UI（顶栏/左栏/属性面板/折叠分栏）。
@@ -181,6 +181,27 @@ const app = createApp({
       localStorage.setItem("ui.left", ui.left ? "1" : "0");
       localStorage.setItem("ui.right", ui.right ? "1" : "0");
       // vis 只监听 window resize；容器宽度变化须显式重排
+      nextTick(() => { if (visTimeline) visTimeline.redraw(); });
+    });
+
+    // ---- 移动端抽屉（≤900px：左右栏转滑出抽屉，顶栏按钮互斥单开）--------------
+    // 桌面折叠（ui.left/right → width:0 + fold-bar）与移动抽屉（transform 滑入）
+    // 并存：≤900px 时 CSS 接管——抽屉显隐只看 mobilePanel，ui.left/right 失效化
+    //（抽屉不占文档流，vis 编排区恒全宽）。与 style.css 的 900px 断点严格一致。
+    const MOBILE_MQ = "(max-width: 900px)";
+    const mqMobile = window.matchMedia(MOBILE_MQ);
+    const isMobile = ref(mqMobile.matches);
+    const mobilePanel = ref("");               // "" | "left" | "right"（互斥单开）
+    mqMobile.addEventListener("change", (e) => {
+      isMobile.value = e.matches;
+      if (!e.matches) mobilePanel.value = "";  // 回桌面：抽屉态作废（宽度折叠接回）
+    });
+    function toggleMobilePanel(which) {
+      mobilePanel.value = mobilePanel.value === which ? "" : which;
+    }
+    function closeMobilePanel() { mobilePanel.value = ""; }
+    // 断点穿越改变 #editor 容器宽度（抽屉模式=全宽）——vis 需显式重排
+    watch(isMobile, () => {
       nextTick(() => { if (visTimeline) visTimeline.redraw(); });
     });
 
@@ -856,7 +877,11 @@ const app = createApp({
       draft.fade_in_s = (c.fade_in_us / 1e6).toFixed(2);
       draft.fade_out_s = (c.fade_out_us / 1e6).toFixed(2);
     }
-    watch(selectedClip, () => nextTick(syncDraft));
+    watch(selectedClip, () => {
+      nextTick(syncDraft);
+      // 移动端：属性栏平时藏于抽屉——选中片段自动弹出（右栏唯一入口）
+      if (selectedClip.value && isMobile.value) mobilePanel.value = "right";
+    });
 
     /** 草稿 → 片段（坐标/尺寸=画布绝对像素直存直显；w/h 清空 = 0 = 自动适配） */
     function applyDraftToClip() {
@@ -1108,6 +1133,8 @@ const app = createApp({
         if (doc.value.scene.tracks.length === 0) addTrack();
         ensureVis(); rebuildVis();
         refreshTimelines();
+        // 移动端：列表在抽屉里——选中即收起，编排区全宽可见
+        if (isMobile.value) closeMobilePanel();
       } catch (err) {
         // [W3] 失败不再走全局 err-bar 裸文案（bootstrap 路径同样受益）
         saveHint.value = err && err.status === 404
@@ -1443,6 +1470,8 @@ const app = createApp({
         } else if (e.key === "Escape" && dndState) {
           dndCleanup();                         // Esc 取消素材拖拽
           toast("已取消拖拽");                  // [W12] 不占保存状态流
+        } else if (e.key === "Escape" && mobilePanel.value) {
+          closeMobilePanel();                   // Esc 亦可收移动抽屉
         }
       });
       // 调试钩子：#settings=1 / #mpcdi=1 / #mpcdi=custom 启动即展开对应浮层
@@ -1452,6 +1481,8 @@ const app = createApp({
         ui.mpcdi = true; refreshMpcdi();
         if (location.hash === "#mpcdi=custom") mpcdi.layoutKind = "custom";
       }
+      if (location.hash === "#mpanel=left") mobilePanel.value = "left";    // headless 截图
+      if (location.hash === "#mpanel=right") mobilePanel.value = "right";  // 同上
     });
 
     // =========================================================================
@@ -1463,6 +1494,33 @@ const app = createApp({
       const caseName = location.hash.slice(10);
       setTimeout(async () => {
         try {
+          // layout：移动端布局诊断（不依赖后端 doc；输出视口/断点/关键元素宽度）
+          if (caseName === "layout") {
+            const cs = (sel, p) => {
+              const el = document.querySelector(sel);
+              return el ? getComputedStyle(el)[p] : "null";
+            };
+            const w = (sel) => {
+              const el = document.querySelector(sel);
+              return el ? el.clientWidth : -1;
+            };
+            const parts = [
+              "iw=" + window.innerWidth,
+              "sw=" + document.documentElement.scrollWidth,
+              "mq900=" + matchMedia("(max-width: 900px)").matches,
+              "mq420=" + matchMedia("(max-width: 420px)").matches,
+              "brandFs=" + cs("#topbar .brand", "fontSize"),
+              "topbar=" + w("#topbar"),
+              "tbOvf=" + (() => { const el = document.querySelector("#topbar"); return el ? el.scrollWidth + "/" + el.clientWidth : "null"; })(),
+              "mnav=" + w("#topbar .m-nav"),
+              "editor=" + w("#editor"),
+              "vis=" + w("#vis-timeline"),
+              "ehOvf=" + (() => { const el = document.querySelector("#editor-head"); return el ? el.scrollWidth + "/" + el.clientWidth + "/wrap=" + getComputedStyle(el).flexWrap : "null"; })(),
+              "sbCls=" + (document.querySelector("#sidebar")?.className === "" ? "(empty=ok)" : document.querySelector("#sidebar")?.className),
+            ];
+            document.title = "SELFTEST-OK layout | " + parts.join(" ");
+            return;
+          }
           for (let i = 0; i < 40 && !doc.value; i++) await new Promise((r) => setTimeout(r, 250));
           if (!doc.value) { document.title = "SELFTEST-FAIL: no doc opened"; return; }
           const before = doc.value.scene.tracks.map((t) => t.name).join(">");
@@ -2191,6 +2249,8 @@ const app = createApp({
       // 状态/派生
       timelines, currentId, doc, library, status, saveHint, playheadText,
       activeName, durationText, stateName, connText, connOk, ui, draft,
+      // 移动端抽屉（≤900px；与 style.css 断点一致）
+      isMobile, mobilePanel, toggleMobilePanel, closeMobilePanel,
       selClipData, docStale, reloadStaleDoc,
       // 模式/设置
       st, settingsHint, restarting, modeIsStandalone, modeIsSync, screens,

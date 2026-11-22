@@ -36,7 +36,7 @@ namespace ms {
 struct DisplayEntry {
     std::string   display_id;     ///< 显示端标识（= screen.player_id）
     std::string   host;           ///< 显示端主机（IP/主机名）
-    std::uint16_t port = 17100;   ///< 显示端监听端口（media_display 默认 17100）
+    std::uint16_t port = 17100;   ///< 显示端监听端口（FlowDisplay 默认 17100）
     bool          enabled = true; ///< false = editor 不连接/不同步
     /// 配对码（空 = 不认证；非空 = 连接后发 MsgAuth，须与显示端
     /// config.ini [display] pairing_code 一致，否则被显示端踢除）

@@ -285,6 +285,8 @@ declare global {
     "hass-toggle-menu": undefined | { open?: boolean };
     "hass-drawer-closed": undefined;
     "hass-dock-sidebar": { dock: "docked" | "auto" };
+    "flow-toggle-aside": undefined | { open?: boolean };
+    "flow-aside-closed": undefined;
     "picture-element-position": { left: number; top: number };
     "picture-element-select": { index: number };
     "picture-elements-changed": { config: LovelaceCardConfig };
