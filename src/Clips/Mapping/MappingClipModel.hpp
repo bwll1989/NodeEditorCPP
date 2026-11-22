@@ -44,6 +44,7 @@
 #include <QVariant>
 #include <QVariantList>
 #include <QtMath> // M_PI/M_E（QJSEngine 全局常量，OSCMessageItemWidget 同源）
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -78,31 +79,45 @@ public:
     }
 
     /// 【AbstractClipModel】播放头推进（适配器每拍调用）：区间内逐帧求值
-    /// 表达式表 → 逐条 parseOSC。同帧去重（50Hz 泵 vs 25fps 帧域——同一帧
-    /// 多拍只发一次，旧 m_currentFrame 判等同口径）。
+    /// 表达式表 → 逐条 parseOSC。
+    ///
+    /// 【2026-11-20 补帧修复（GUI 饥饿丢发，用户实测 100 帧少收）】播放
+    /// 权威时钟是 wall-clock（session_time_us / 预览 t0 锚点），33ms GUI
+    /// tick 只是采样——界面操作（拖拽/重绘风暴）推迟 tick 派发时，一次
+    /// onPlayheadAdvanced 的 prev→now 会跨多帧。旧行为只发当前帧（绝对帧
+    /// 号判等去重）→ 被跨过帧的指令全部静默丢失。修复：prev→now 跨过的
+    /// 每一帧都补发（$percent/$frame 按各帧代表时刻求值），"每帧一次"语义
+    /// 不再依赖 tick 节奏：
+    ///   * 中间帧代表时刻 = framesToUs(f)（usToFrames 回射恒等，去重键与
+    ///     旧行为同空间；clamp 到 st 防 percent 负值）；末帧沿用 nowUs 本
+    ///     尊——无跳变时旧行为逐位一致；
+    ///   * 跨帧数 > kMaxCatchupFrames（人为 seek 大跳变）放弃补帧只发当
+    ///     前帧——scrub 不该产出指令风暴；
+    ///   * 出区间复位去重：循环回绕/seek 离开再进入 = 重新从首帧触发。
     void onPlayheadAdvanced(qint64 prevUs, qint64 nowUs) override {
-        Q_UNUSED(prevUs);
         const qint64 st = start();
         const qint64 en = end();
-        if (nowUs < st || nowUs > en) return; // 旧口径 [m_start, m_end] 双闭
-        const qint64 frame = QtTimeline::usToFrames(nowUs);
-        if (frame == lastFrame_) return;      // 同帧去重（帧域语义）
-        lastFrame_ = frame;
-
-        // $percent = 区间内归一化进度（旧 (currentFrame-m_start)/(m_end-m_start)）；
-        // $frame = 区间内相对帧号（旧 m_currentFrame-m_start）——注入引擎全局
-        //（表达式经 with(Math) 求值，$percent/$frame/PI/E 全部可见）
-        const qint64 len = length();
-        const double percent = len > 0
-            ? double(nowUs - st) / double(len) : 0.0;
-        const int relFrame = static_cast<int>(QtTimeline::usToFrames(nowUs - st));
-        engine_.globalObject().setProperty(QStringLiteral("$percent"), percent);
-        engine_.globalObject().setProperty(QStringLiteral("$frame"),   relFrame);
-
-        for (const Entry& e : entries_) evaluateAndSend(e);
+        if (nowUs < st || nowUs > en) {       // 旧口径 [m_start, m_end] 双闭
+            lastFrame_ = -1;                  // 出区间复位（再进=重新触发）
+            return;
+        }
+        const qint64 fNow = QtTimeline::usToFrames(nowUs);
+        if (prevUs >= 0 && prevUs < nowUs) {
+            // 补帧迭代：首帧 = prev 之后第一个不早于区间起点的帧
+            const qint64 fFrom = std::max(QtTimeline::usToFrames(prevUs) + 1,
+                                          QtTimeline::usToFrames(st));
+            if (fNow - fFrom < kMaxCatchupFrames)
+                for (qint64 f = fFrom; f < fNow; ++f)
+                    emitForFrame(std::max(QtTimeline::framesToUs(f), st));
+        }
+        emitForFrame(nowUs);                  // 末帧（旧行为）
     }
 
 private:
+    /// 补帧上限（≈4.8s@25fps）：播放期 tick 饥饿的补发窗口远小于此；
+    /// 超过视为人为 seek 大跳变，放弃补帧（防 scrub 指令风暴）。
+    static constexpr qint64 kMaxCatchupFrames = 120;
+
     /// 消息表条目（clip_data 镜像；value 持久化即表达式原文，不求值）
     struct Entry {
         QString address;     ///< OSC 地址
@@ -135,6 +150,27 @@ private:
                                         : QStringLiteral("false");
             entries_.push_back(std::move(e));
         }
+    }
+
+    /// 单帧求值 + 发送（去重 → $percent/$frame 注入 → 全表求值）。
+    /// tUs = 该帧代表时刻（末帧 = nowUs 本尊；补帧 = clamp 后的
+    /// framesToUs(f)）。$percent = 区间内归一化进度（旧
+    /// (currentFrame-m_start)/(m_end-m_start)）；$frame = 区间内相对帧号
+    ///（表达式经 with(Math) 求值，$percent/$frame/PI/E 全部可见）。
+    void emitForFrame(qint64 tUs) {
+        const qint64 frame = QtTimeline::usToFrames(tUs);
+        if (frame == lastFrame_) return;      // 同帧去重（帧域语义）
+        lastFrame_ = frame;
+
+        const qint64 st = start();
+        const qint64 len = length();
+        const double percent = len > 0
+            ? double(tUs - st) / double(len) : 0.0;
+        const int relFrame = static_cast<int>(QtTimeline::usToFrames(tUs - st));
+        engine_.globalObject().setProperty(QStringLiteral("$percent"), percent);
+        engine_.globalObject().setProperty(QStringLiteral("$frame"),   relFrame);
+
+        for (const Entry& e : entries_) evaluateAndSend(e);
     }
 
     /// 单条求值 + 发送（OSCMessageItemWidget::getMessage 逐行复刻——移植

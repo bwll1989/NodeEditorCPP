@@ -62,6 +62,8 @@ public:
 
     /// 【AbstractClipModel】播放头推进（适配器每拍调用）：区间内逐帧解码
     /// → 写状态表；同视频帧去重（50Hz 泵持续重发状态表，无需重复写）。
+    /// 【2026-11-20】prev→now 跨帧补发（GUI 饥饿修复，上限 8 帧——每帧
+    /// seek+decode 成本高；详见 cpp 注释）。
     void onPlayheadAdvanced(qint64 prevUs, qint64 nowUs) override;
 
 private:
@@ -85,11 +87,15 @@ private:
     qint64           lastVideoFrame_ = -1; ///< 去重：上次已发送的视频帧号
 
     // ---- 内部流水（实现在 ArtnetClipModel.cpp）-----------------------------
+    /// 补帧上限（GUI 饥饿补发窗口；readFrameAt 每帧 seek+decode，成本高
+    /// ——比 Mapping 的 120 收紧；超过视为人为 seek 不补帧）。
+    static constexpr qint64 kMaxCatchupFrames = 8;
     void   applyPayload(const QString& json);  ///< 解析 + 差异应用
     void   resetDecoder();                     ///< 关闭并释放解码器全链
     QString absolutePath() const;              ///< 媒体库相对路径 → 绝对路径
     bool   ensureVideoOpened(const QString& absPath); ///< 懒打开 + 校验
     bool   readFrameAt(double seconds);        ///< 定位 + 解码一帧
+    void   emitVideoFrame(double seconds, qint64 vidFrame); ///< 解码→提取→发送→去重
     void   extractDmx();                       ///< 当前帧 → dmx_（512B/域）
     void   sendFrames();                       ///< dmx_ → 状态表（owner=this）
     void   releaseOutputs();                   ///< 撤销状态表属主桶 + 复位去重

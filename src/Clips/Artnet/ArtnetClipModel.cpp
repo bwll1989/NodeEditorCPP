@@ -281,16 +281,35 @@ void ArtnetClipModel::releaseOutputs() {
 // 播放头推进（适配器每拍调用；μs 直算——rel_us/1e6 = 视频秒，去重键 =
 // 视频自身帧号）。区间外不动作（离开不清零：状态表保持最后一帧持续 50Hz
 // 重发——旧口径"时间轴暂停后保持该帧状态"）。
+//
+// 【2026-11-20 补帧修复（GUI 饥饿，同 MappingClipModel）】播放权威时钟是
+// wall-clock，33ms GUI tick 只是采样——界面操作推迟 tick 派发时一次调用
+// 跨多视频帧，旧 Q_UNUSED 只发当前帧 → 中间帧 DMX 状态丢失（灯效跳变）。
+// 补发 prev→now 跨过的帧；readFrameAt 每帧一次 seek+flush+decode，成本
+// 高于表达式求值，上限收紧到 kMaxCatchupFrames=8（≈267ms@30fps 播放期
+// 饥饿足够覆盖；更大跳变视为人为 seek，跳到当前帧即可）。
 // ---------------------------------------------------------------------------
 void ArtnetClipModel::onPlayheadAdvanced(qint64 prevUs, qint64 nowUs) {
-    Q_UNUSED(prevUs);
     const qint64 st = start();
     const qint64 en = end();
     if (nowUs < st || nowUs >= en) return;   // 前闭后开（库时间约定）
     if (file_.isEmpty()) return;
 
-    const double seconds  = double(nowUs - st) / 1e6;
-    const qint64 vidFrame = llround(seconds * videoFps_);
+    if (prevUs >= 0 && prevUs < nowUs && videoFps_ > 0) {
+        const double fps    = videoFps_;
+        const qint64 fPrev  = llround(double(prevUs - st) / 1e6 * fps);
+        const qint64 fNow   = llround(double(nowUs  - st) / 1e6 * fps);
+        if (fNow - fPrev > 1 && fNow - fPrev <= kMaxCatchupFrames)
+            for (qint64 f = fPrev + 1; f < fNow; ++f)
+                emitVideoFrame(double(f) / fps, f);
+    }
+    const double seconds = double(nowUs - st) / 1e6;
+    emitVideoFrame(seconds, llround(seconds * videoFps_));
+}
+
+/// 单视频帧解码 → 提取 → 发送 → 记去重（onPlayheadAdvanced 末帧与补帧
+/// 共用流水；vidFrame 为去重键 = 视频自身帧号）。
+void ArtnetClipModel::emitVideoFrame(double seconds, qint64 vidFrame) {
     if (vidFrame == lastVideoFrame_) return; // 同视频帧去重（泵持续重发）
     if (!ensureVideoOpened(absolutePath())) return;
     if (!readFrameAt(seconds)) return;
