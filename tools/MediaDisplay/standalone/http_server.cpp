@@ -116,10 +116,22 @@ bool HttpServer::start(const std::string& bind, int port, std::string& err) {
         // S2-2 端口独占（2026-11-11 测试清单）：禁止 ServerSocket(addr)
         // 构造直绑——Poco 该构造内部 bind(address, reuse=true)（SO_REUSEADDR
         // 置位），Windows 下第二实例可静默双绑同一端口（请求随机分流，
-        // netstat 实测两行 LISTENING）。改显式 bind(reuse=false) 不落
-        // REUSEADDR 语义，再以"再绑必须失败"自检独占性成立。
+        // netstat 实测两行 LISTENING）。
+        //
+        // 【2026-11-22 Android 重建场景】SO_REUSEADDR 改平台条件编译：
+        //   Windows 保持 reuse=false（双绑分流实测在案，S2-2 防线不动）；
+        //   Linux/Android 开 reuse=true——POSIX 语义只影响 TIME_WAIT 段
+        //   的重绑（进程内 Activity 重建：旧实例退出后 0.5s 内新实例
+        //   bind 撞 TIME_WAIT 失败，实测 "Address already in use"），
+        //   对 LISTENING socket 仍独占（双绑需 SO_REUSEPORT，未用），
+        //   下方的"再绑必须失败"自检在两平台同样成立。
+#ifdef _WIN32
         auto socket = std::make_unique<Poco::Net::ServerSocket>();
         socket->bind(addr, false);
+#else
+        auto socket = std::make_unique<Poco::Net::ServerSocket>();
+        socket->bind(addr, true); // POSIX：仅放行 TIME_WAIT 重绑，LISTENING 仍独占
+#endif
         socket->listen();
         // 独占性自检（实测防线）：对**实际绑定的地址**（port=0 时由系统
         // 分配，须读回 socket->address()）再绑一次必须失败；若成功说明
