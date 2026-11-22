@@ -45,9 +45,13 @@ bool StatusContainer::updateState(const OSCMessage& message) {
     // 暂无已注册控件指针，上层可在注册阶段补齐
     StatusItem item(nullptr, message.address, message.value);
 
+    // 本次写入项（锁内定稿拷贝，锁外发信号用）——【2026-11-22 竞态修复】
+    // 原 emit statusUpdated(_queue.back()) 在锁外读队列：多线程生产者并
+    // 发时可错发他人条目（back() 已是别人的），与 drain() 并发可空队列
+    // UB。改为锁内拷贝本次写入项——语义恒为"本调用写入的那条"。
+    StatusItem finalItem;
     {
         QWriteLocker g(&_lock);
-        StatusItem finalItem;
         auto it = _latest.find(item.address);
         if (it != _latest.end()) {
             StatusItem existing = it.value();
@@ -60,7 +64,8 @@ bool StatusContainer::updateState(const OSCMessage& message) {
         }
         _queue.enqueue(finalItem);
     }
-    emit statusUpdated(_queue.back());
+    // 信号在锁外发（直接连接槽同步执行；持锁 emit 若槽回调进容器会死锁）
+    emit statusUpdated(finalItem);
     return true;
 }
 
