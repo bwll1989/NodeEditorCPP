@@ -47,6 +47,29 @@ std::string mime_for(const std::string& path) {
     if (ends_with_ci(lower, ".png")) return "image/png";
     if (ends_with_ci(lower, ".jpg") || ends_with_ci(lower, ".jpeg")) return "image/jpeg";
     if (ends_with_ci(lower, ".ico")) return "image/x-icon";
+    // 媒体库下载端点（/api/v1/library/{id}/content）——浏览器 <video>/<audio>
+    // 按 mime 决定能否内建解码；视频/音频缺失 mime 会触发下载而非预览
+    if (ends_with_ci(lower, ".webp")) return "image/webp";
+    if (ends_with_ci(lower, ".bmp")) return "image/bmp";
+    if (ends_with_ci(lower, ".gif")) return "image/gif";
+    if (ends_with_ci(lower, ".tif") || ends_with_ci(lower, ".tiff")) return "image/tiff";
+    if (ends_with_ci(lower, ".avif")) return "image/avif";
+    if (ends_with_ci(lower, ".jxl")) return "image/jxl";
+    if (ends_with_ci(lower, ".mp4") || ends_with_ci(lower, ".m4v")) return "video/mp4";
+    if (ends_with_ci(lower, ".webm")) return "video/webm";
+    if (ends_with_ci(lower, ".mkv")) return "video/x-matroska";
+    if (ends_with_ci(lower, ".avi")) return "video/x-msvideo";
+    if (ends_with_ci(lower, ".mov")) return "video/quicktime";
+    if (ends_with_ci(lower, ".ts") || ends_with_ci(lower, ".m2ts")) return "video/mp2t";
+    if (ends_with_ci(lower, ".wmv")) return "video/x-ms-wmv";
+    if (ends_with_ci(lower, ".flv")) return "video/x-flv";
+    if (ends_with_ci(lower, ".mp3")) return "audio/mpeg";
+    if (ends_with_ci(lower, ".wav")) return "audio/wav";
+    if (ends_with_ci(lower, ".flac")) return "audio/flac";
+    if (ends_with_ci(lower, ".aac")) return "audio/aac";
+    if (ends_with_ci(lower, ".m4a")) return "audio/mp4";
+    if (ends_with_ci(lower, ".ogg") || ends_with_ci(lower, ".opus")) return "audio/ogg";
+    if (ends_with_ci(lower, ".wma")) return "audio/x-ms-wma";
     return "application/octet-stream";
 }
 

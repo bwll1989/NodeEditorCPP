@@ -19,6 +19,9 @@
 //      POST   /api/v1/library/refresh            —— 重扫
 //      POST   /api/v1/library/upload             —— 上传（multipart/raw 两路）
 //      GET/DELETE /api/v1/library/{id}           —— 素材详情/删除
+//      GET    /api/v1/library/{id}/content       —— 素材文件内容下载
+//                                                  （公共访问入口；单段 Range，
+//                                                  浏览器 <video> 可直接预览）
 //  模式门禁（2026-11-11 定案）：timelines/playback/library 三组仅在
 //  standalone 模式开放；sync 模式下命中返回 409（网页编排台同步收敛）。
 //
@@ -214,6 +217,8 @@ private:
 
     // ---- 媒体库（收编 MMC MediaLibrary；assets_root 同域）--------------------
     void handleUpload(RouteCtx& ctx);
+    /// 素材文件内容下发（GET /api/v1/library/{id}/content；流式 + 单段 Range）
+    bool serveLibraryContent(RouteCtx& ctx, const std::string& id);
     /// MPCDI 包上传（multipart/raw 两路；三段式 → MpcdiService）
     void handleMpcdiUpload(RouteCtx& ctx);
 

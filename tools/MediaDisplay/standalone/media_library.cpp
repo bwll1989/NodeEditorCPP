@@ -272,6 +272,8 @@ std::string MediaLibrary::item_json(const MediaItem& item) const {
     oss << "{\"id\":\"" << json_escape(item.id) << "\","
         << "\"name\":\"" << json_escape(item.name) << "\","
         << "\"path\":\"" << json_escape(item.path) << "\","
+        // 公共访问入口：经 HTTP 可直接下载/预览的相对 URL（id 需 percent-encode）
+        << "\"url\":\"" << json_escape("/api/v1/library/" + url_encode(item.id) + "/content") << "\","
         << "\"size\":" << item.size << ","
         << "\"mtime\":" << item.mtime << ","
         << "\"duration_us\":" << item.duration_us << ","

@@ -2009,6 +2009,17 @@ bool StandaloneApi::routeLibrary(RouteCtx& ctx) {
 
     static const std::string kPrefix = "/api/v1/library/";
     if (path.rfind(kPrefix, 0) != 0 || path.size() <= kPrefix.size()) return false;
+
+    // ---- 内容下载（公共访问入口）：GET /api/v1/library/{id}/content --------
+    // 后缀判断在 url_decode 之前（id 里的 %2F 展开不受影响；媒体扩展名
+    // 白名单不含 ".content"，不存在合法 id 以 /content 结尾的歧义）。
+    if (path.compare(path.size() - 8, 8, "/content") == 0 &&
+        path.size() > kPrefix.size() + 8) {
+        const std::string content_id =
+            url_decode(path.substr(kPrefix.size(), path.size() - kPrefix.size() - 8));
+        if (!content_id.empty()) return serveLibraryContent(ctx, content_id);
+    }
+
     const std::string id = url_decode(path.substr(kPrefix.size()));
 
     if (method == "GET") {
@@ -2034,6 +2045,111 @@ bool StandaloneApi::routeLibrary(RouteCtx& ctx) {
         return true;
     }
     return false;
+}
+
+// ---------------------------------------------------------------------------
+// 素材文件内容下发（公共访问入口）：
+//   GET /api/v1/library/{id}/content
+// 语义：
+//   · 200 全量 / 206 单段 Range（bytes=a-b / a- / -suffix）——浏览器
+//     <video>/<audio> 预览与拖动进度条依赖 Range；多段 Range 不支持，
+//     回退全量 200（浏览器普遍接受）。
+//   · 流式 64KB 分块拷贝——媒体可达 GB 级，禁止整读进内存。
+//   · Content-Type 按扩展名（mime_for）——缺失 mime 会触发下载而非预览。
+// ---------------------------------------------------------------------------
+bool StandaloneApi::serveLibraryContent(RouteCtx& ctx, const std::string& id) {
+    MediaItem item;
+    if (!library_.find(id, item)) {
+        send_json(ctx.resp, 404, err_json("NOT_FOUND", "media not found"));
+        return true;
+    }
+    // 路径域铁律：UTF-8 路径必经 utf8_to_path（Windows 窄构造按 ACP 解码，
+    // 中文路径 mojibake / system_error）
+    std::ifstream ifs(utf8_to_path(item.path), std::ios::binary);
+    if (!ifs) {
+        send_json(ctx.resp, 404, err_json("NOT_FOUND", "file unreadable"));
+        return true;
+    }
+    ifs.seekg(0, std::ios::end);
+    const long long file_size =
+        ifs.tellg() >= 0 ? static_cast<long long>(ifs.tellg()) : 0;
+    ifs.seekg(0, std::ios::beg);
+
+    // ---- 单段 Range 解析（非法/越界 → 416，带 Content-Range: bytes */size）--
+    long long start = 0;
+    long long end = file_size - 1;  // 闭区间；全量 = 0..size-1
+    bool is_partial = false;
+    std::string range_hdr;
+    if (ctx.req.has("Range")) range_hdr = ctx.req.get("Range");
+    if (!range_hdr.empty()) {
+        const bool well_formed =
+            range_hdr.rfind("bytes=", 0) == 0 &&
+            range_hdr.find(',') == std::string::npos &&
+            range_hdr.find('-') != std::string::npos;
+        if (well_formed) {
+            const std::string spec = range_hdr.substr(6);
+            const auto dash = spec.find('-');
+            const std::string a = spec.substr(0, dash);
+            const std::string b = spec.substr(dash + 1);
+            if (a.empty() && !b.empty()) {
+                // 后缀形式：-N = 最后 N 字节
+                const long long n = std::strtoll(b.c_str(), nullptr, 10);
+                if (n > 0 && file_size > 0) {
+                    start = (std::max)(0LL, file_size - n);
+                    end = file_size - 1;
+                    is_partial = true;
+                }
+            } else if (!a.empty()) {
+                const long long s = std::strtoll(a.c_str(), nullptr, 10);
+                const long long e =
+                    b.empty() ? file_size - 1 : std::strtoll(b.c_str(), nullptr, 10);
+                if (s >= 0 && file_size > 0 && s < file_size && e >= s) {
+                    start = s;
+                    end = (std::min)(e, file_size - 1);
+                    is_partial = true;
+                }
+            }
+        }
+        if (!is_partial) {
+            ctx.resp.setStatus(
+                Poco::Net::HTTPResponse::HTTP_REQUESTED_RANGE_NOT_SATISFIABLE);
+            ctx.resp.set("Content-Range", "bytes */" + std::to_string(file_size));
+            ctx.resp.setContentType("application/json; charset=utf-8");
+            ctx.resp.set("Access-Control-Allow-Origin", "*");
+            ctx.resp.send();
+            return true;
+        }
+    }
+
+    Poco::Net::HTTPServerResponse& resp = ctx.resp;
+    resp.setStatus(is_partial ? Poco::Net::HTTPResponse::HTTP_PARTIAL_CONTENT
+                              : Poco::Net::HTTPResponse::HTTP_OK);
+    resp.setContentType(mime_for(item.name));
+    resp.set("Access-Control-Allow-Origin", "*");
+    resp.set("Accept-Ranges", "bytes");
+    resp.set("Cache-Control", "no-store");
+    if (is_partial) {
+        resp.set("Content-Range", "bytes " + std::to_string(start) + "-" +
+                                      std::to_string(end) + "/" +
+                                      std::to_string(file_size));
+    }
+    resp.setContentLength64(end - start + 1);
+    std::ostream& os = resp.send();
+    if (file_size > 0) {
+        ifs.seekg(start, std::ios::beg);
+        char buf[64 * 1024];
+        long long remaining = end - start + 1;
+        while (remaining > 0 && os.good()) {
+            const auto want = static_cast<std::streamsize>(
+                (std::min)(remaining, static_cast<long long>(sizeof(buf))));
+            ifs.read(buf, want);
+            const auto got = ifs.gcount();
+            if (got <= 0) break;
+            os.write(buf, got);
+            remaining -= got;
+        }
+    }
+    return true;
 }
 
 }  // namespace media_api
