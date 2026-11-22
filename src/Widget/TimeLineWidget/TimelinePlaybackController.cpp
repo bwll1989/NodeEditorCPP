@@ -4,6 +4,7 @@
 
 #include "MsRuntimeBridge.hpp"                            // ms::MsRuntimeBridge（同目录）
 #include "QtTimelineModelAdapter.hpp"                     // ms::QtTimelineModelAdapter
+#include "SendScheduler.hpp"                              // ms::PlaybackSendScheduler（发送调度线程）
 #include "TimelineAudioBusHost.hpp"                       // ms::TimelineAudioBusHost
 #include "../PreviewCanvasWidget/PreviewRenderer.hpp"     // ms::PreviewRenderer
 #include "../../Common/TimeLineBase/BaseTimeLineWidget.h" // BaseTimelineWidget + DefaultTimeLineToolBar
@@ -107,12 +108,35 @@ TimelinePlaybackController::TimelinePlaybackController(const Deps& deps, QObject
                     // timeline 音频 bus：播放中重锚（flush+重定位；暂停态忽略）
                     if (audioBus_) audioBus_->commandSeek(us);
                     if (preview_) preview_->seekTo(us);
+                    // 发送调度线程 seek poke（2026-11-22 治本）：暂停态对该
+                    // 时刻即时求值一帧（旧 updateControlTriggers 同语义），
+                    // 播放态作下一拍提示
+                    if (scheduler_) scheduler_->onSeek(us);
                 });
     }
     // OSC 地址树绑定：/timeline/master/{play,pause,stop,
     // currentFrame} 订阅命令 + 播放控件注册 + 初始状态推送（详见 bindOsc）。
     bindOsc();
 
+    // ---- 时敏指令发送调度线程（2026-11-22 治本）-----------------------------
+    // Mapping/Artnet 逐帧发送独立线程，直读主时钟（不再受 GUI tick 抖动
+    // 影响）。时钟源双域（与 tick lambda 同构）：会话播放优先 sessionTimeUs
+    //（对齐时钟纯计算），否则预览状态机 playheadUs（2026-11-22 纯函数化
+    // 后线程安全）；都不在播返回 -1 = 调度线程空闲休眠（播放状态机仍在
+    // 本控制器——调度线程无 play/pause/stop 命令协议，时钟有无读数即播放
+    // 态）。快照由适配器构建注入（setSendScheduler + rebuildSendSnapshot）。
+    if (adapter_) {
+        scheduler_ = std::make_unique<PlaybackSendScheduler>(
+            [this]() -> std::int64_t {
+                if (runtime_ && runtime_->running() && runtime_->playing())
+                    return runtime_->sessionTimeUs();
+                if (preview_ && preview_->playing())
+                    return preview_->playheadUs();
+                return -1;
+            });
+        adapter_->setSendScheduler(scheduler_.get());
+        adapter_->rebuildSendSnapshot(); // 初始（空/装载后）快照
+    }
     // ---- 电平表数据泵转发 ---------------------------------------------------
     // 电平表已内置 DefaultTimeLineToolBar 右缘（库内自挂），33ms 采样拍亦
     // 内置 TimelineAudioBusHost（setLevelPumpSink 注入即启，采样节奏归音频

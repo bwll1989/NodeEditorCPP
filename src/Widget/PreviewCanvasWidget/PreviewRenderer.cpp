@@ -94,34 +94,51 @@ PreviewRenderer::~PreviewRenderer() {
 }
 
 // ---------------------------------------------------------------------------
-// 场景绑定 + 播放状态机（全部 GUI 线程；只动无锁状态 + 内容版本）
+// 场景绑定 + 播放状态机
+// 【2026-11-22 治本：锚点纯函数化】播放头读数恒为纯函数
+//     playhead = playing ? base + (clock_now − t0) : base
+// 状态转换（本段全部函数）只在 GUI 线程发生；读端开放任意线程
+//（发送调度线程经 playing()/playheadUs() 取时钟）。锁内只快照三状态，
+// clock_fn_ 一律锁外调用——clock lambda 反向回调 playheadUs()，锁内
+// 直调 std::mutex 自锁。
 // ---------------------------------------------------------------------------
 void PreviewRenderer::setScene(const Scene* s) {
     scene_ = s;
     // 场景切换：播放头归零回 Idle（与新场景时间轴对齐；素材缓存保留——
     // 同路径素材换场景仍可命中，删素材路径经 clearMediaCache 显式清理）
-    playing_     = false;
-    playhead_us_ = 0;
+    {
+        std::lock_guard<std::mutex> lock(playhead_mutex_);
+        playing_     = false;
+        playhead_us_ = 0;
+    }
     ++rev_; // 内容版本递增 → 下一次 render 重新解算绘制列表
 }
 
 void PreviewRenderer::play() {
-    if (playing_) return; // 幂等（对齐 EditorRuntime::cmdPlay）
-    // Idle → 从头播；Paused → 从暂停点续播（base=冻结值，非 now 推算）
-    playing_ = false; // 复位后统一走推进锚点重置
-    t0_us_   = clock_fn_();
-    playing_ = true;
+    // 幂等（对齐 EditorRuntime::cmdPlay）。Idle → 从头播；Paused → 从暂停
+    // 点续播（base = 冻结值，非 now 推算）。
+    std::int64_t now = 0;
+    {
+        std::lock_guard<std::mutex> lock(playhead_mutex_);
+        if (playing_) return;
+        now = clock_fn_(); // 锁内快照时钟此刻值即可（clock_fn_ 只读成员；
+                           // 真正的回调重入面在 playheadUs()，读端已锁外）
+        t0_us_   = now;
+        playing_ = true;
+    }
 }
 
 void PreviewRenderer::pause() {
+    // 冻结：把斜线读数精确折叠进 base（防最后一次读数与 pause 之间丢时间）
+    const std::int64_t now = clock_fn_();
+    std::lock_guard<std::mutex> lock(playhead_mutex_);
     if (!playing_) return;
-    // 冻结：playhead 已由 tick 持续刷新，此处按锚点精确收尾（防最后一次
-    // tick 与 pause 之间的间隙丢时间）
-    playhead_us_ += clock_fn_() - t0_us_;
+    playhead_us_ += now - t0_us_;
     playing_ = false;
 }
 
 void PreviewRenderer::stop() {
+    std::lock_guard<std::mutex> lock(playhead_mutex_);
     playing_     = false;
     playhead_us_ = 0; // 对齐 cmdStop：归零回 Idle
 }
@@ -141,13 +158,40 @@ void PreviewRenderer::seekTo(std::int64_t us) {
             }
         }
     }
-    playhead_us_ = us < 0 ? 0 : us;
-    if (playing_) t0_us_ = clock_fn_(); // 播放态跳转：重置推进锚点不中断
+    if (us < 0) us = 0;
+    const std::int64_t now = clock_fn_();
+    std::lock_guard<std::mutex> lock(playhead_mutex_);
+    playhead_us_ = us;
+    if (playing_) t0_us_ = now; // 播放态跳转：重置推进锚点不中断
+}
+
+bool PreviewRenderer::playing() const {
+    std::lock_guard<std::mutex> lock(playhead_mutex_);
+    return playing_;
+}
+
+std::int64_t PreviewRenderer::playheadUs() const {
+    std::int64_t base = 0, t0 = 0;
+    bool playing = false;
+    {
+        std::lock_guard<std::mutex> lock(playhead_mutex_);
+        playing = playing_;
+        base    = playhead_us_;
+        t0      = t0_us_;
+    } // 锁外调时钟：clock lambda 回调 playheadUs() 会重入本锁
+    if (!playing) return base;
+    const std::int64_t now = clock_fn_();
+    return base + (now > t0 ? now - t0 : 0);
 }
 
 bool PreviewRenderer::tick() {
-    if (!playing_) return false;
+    // 治本后职责收缩：把斜线读数折叠进 base（幂等校准）。播放头前进的
+    // 机制已由纯函数承担——读数恒 base + (now − t0)，tick 折叠与否不改变
+    // 读数，只把 base/t0 前滚（保持暂停瞬间精确收尾的旧语义不变）。
+    if (!playing()) return false;
     const std::int64_t now = clock_fn_();
+    std::lock_guard<std::mutex> lock(playhead_mutex_);
+    if (!playing_) return false;   // 折叠前可能已 pause（双检：读态-调钟-写态间隙）
     if (now <= t0_us_) return false; // 时钟未前进（沙箱节流/同毫秒）：跳过
     playhead_us_ += now - t0_us_;
     t0_us_ = now;
@@ -262,16 +306,13 @@ void PreviewRenderer::computeSize(int& out_w, int& out_h) const {
 void PreviewRenderer::pump() {
     if (!scene_ || scene_->canvas_w <= 0 || scene_->canvas_h <= 0) return;
 
-    // 【播放头自推进（2026-11-05 seek 跳帧修复）】播放态下按墙钟推进
-    // playhead（tick 复活——此前从无调用点是死代码）：echo 回显定时器
-    // 的到达率受 GUI 事件循环抖动影响（实测播放期可被拉到 250ms/拍），
-    // 播放头完全依赖 echo 喂值时画面提交率被锁死在 echo 节奏（4fps 自
-    // 锁：echo 慢 → 播放头大步 → produce 走大步/seek 分支 → cost 高 →
-    // pump 节流同步拉长）。tick 按墙钟增量推进后，pump 每拍（33ms）播
-    // 放头都前进真实增量 → input_changed 恒真 → 提交率回归泵节拍；
-    // echo 的 seekTo 每拍仍会校准 playhead 为会话时钟值并重置锚点
-    // （两者同源墙钟，校准间隙漂移≈0），Seek/暂停/跳转语义零变化。
-    tick();
+    // 【播放头读数 = 纯函数（2026-11-22 治本）】不再于泵内 tick() 折叠推进
+    //——旧做法把"画面提交率"绑在泵自推进上（echo 到达率被 GUI 抖动拉低
+    // 时靠画布泵保帧率）。治本后播放头读数恒为 base+(now−t0) 连续斜线，
+    // 每拍读数自然前进 → input_changed 恒真 → 提交率回归泵节拍；echo 的
+    // seekTo 每拍仍校准 base 并重锚 t0（两者同源墙钟，校准间隙漂移≈0）。
+    // pump 本体退化为纯快照提交：谁调用都不再改变播放头状态。
+    const std::int64_t playhead_now = playheadUs();
 
     // ---- 内容域 + 合成尺寸（降采样解算，纯数学）----
     // 内容域每次提交前重算（拖拽/属性编辑会 invalidate → rev_ 变化 →
@@ -282,7 +323,7 @@ void PreviewRenderer::pump() {
 
     // ---- 输入未变化：零成本返回（静态画面零渲染零唤醒）----
     const bool input_changed = rev_ != posted_rev_ ||
-                               playhead_us_ != posted_playhead_ ||
+                               playhead_now != posted_playhead_ ||
                                w != posted_w_ || h != posted_h_;
     if (!input_changed) {
         // 【Live 实时流 2026-11-11 用户定案】暂停态画布照常刷新：Live 是
@@ -338,7 +379,7 @@ void PreviewRenderer::pump() {
     // 绘制列表（可见性/有效尺寸/z 序与 display 端同源）——GUI 线程
     // 读取 Scene 工作副本的【唯一】跨对象路径，纯函数无副作用。
     const std::vector<DrawItem> items =
-        buildPreviewDrawList(*scene_, preview_scr_, w, h, playhead_us_);
+        buildPreviewDrawList(*scene_, preview_scr_, w, h, playhead_now);
 
     // 快照：标量值拷贝 + Asset 值拷贝（不借用 Scene 内部指针——
     // worker 合成期间 GUI 可能并发拖拽/编辑工作副本）。
@@ -346,7 +387,7 @@ void PreviewRenderer::pump() {
     r.w     = w;
     r.h     = h;
     r.epoch = ++next_epoch_;
-    r.playhead_us = playhead_us_; // 逐屏解算同时刻依据（阶段2）
+    r.playhead_us = playhead_now; // 逐屏解算同时刻依据（阶段2）
     r.dom_x = content_rect_.x();
     r.dom_y = content_rect_.y();
     r.dom_w = content_rect_.width();
@@ -390,7 +431,7 @@ void PreviewRenderer::pump() {
                              "preview-dbg: submit#%d epoch=%llu "
                              "playhead=%lldus",
                              s_scnt, (unsigned long long)submitted_epoch,
-                             (long long)playhead_us_);
+                             (long long)playhead_now);
                 for (size_t i = 0; i < items.size() && i < 3; ++i)
                     std::fprintf(stderr, " m%zu=%lld", i,
                                  (long long)items[i].media_us);
@@ -428,7 +469,7 @@ void PreviewRenderer::pump() {
     }
 
     posted_rev_      = rev_;
-    posted_playhead_ = playhead_us_;
+    posted_playhead_ = playhead_now;
     posted_w_        = w;
     posted_h_        = h;
     last_submit_tp_  = now;

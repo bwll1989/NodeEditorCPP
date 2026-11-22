@@ -81,6 +81,11 @@ public:
     /// 【AbstractClipModel】播放头推进（适配器每拍调用）：区间内逐帧求值
     /// 表达式表 → 逐条 parseOSC。
     ///
+    /// 【2026-11-22 退役标注】适配器已停止调用本钩子——逐帧求值发送由
+    /// PlaybackSendScheduler 独立线程承担（时钟 deadline 直读主时钟，语义
+    /// 逐位移植于本实现；见 src/Widget/TimeLineWidget/SendScheduler.cpp）。
+    /// 本实现保留一版作回滚路径，验证稳定后清理。
+    ///
     /// 【2026-11-20 补帧修复（GUI 饥饿丢发，用户实测 100 帧少收）】播放
     /// 权威时钟是 wall-clock（session_time_us / 预览 t0 锚点），33ms GUI
     /// tick 只是采样——界面操作（拖拽/重绘风暴）推迟 tick 派发时，一次

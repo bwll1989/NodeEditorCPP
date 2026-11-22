@@ -56,6 +56,7 @@ class ClipPropertyPanel;
 class TweenSection;
 class MsRuntimeBridge;      // 下发运行时桥（MsRuntimeBridge.hpp；仅指针成员）
 class TimelineAudioBusHost; // 音频 bus 宿主（TimelineAudioBusHost.hpp；同上）
+class PlaybackSendScheduler; // 时敏发送调度线程（SendScheduler.hpp；仅指针）
 
 /// 片段属性面板宿主钩子（EditorWindow 注入；面板导入时回调）。
 /// 面板本身不依赖 EditorWindow——素材导入能力经此注入，
@@ -125,6 +126,17 @@ public:
     /// 返回 false，音频快照照常刷新）
     void setRuntimeBridge(MsRuntimeBridge* rt)       { runtime_ = rt; }
     void setAudioBusHost(TimelineAudioBusHost* host) { audio_bus_ = host; }
+
+    // ---- 时敏发送调度线程（2026-11-22 治本）--------------------------------
+    /// 注入发送调度线程（controller 构造期装配；借用指针不拥有，须先于
+    /// 本适配器析构——controller 析构序满足）。
+    void setSendScheduler(PlaybackSendScheduler* sched) { send_sched_ = sched; }
+    /// 全量重建发送快照并注入调度线程：遍历时间轴片段，Mapping（几何取
+    /// 模型实时 start/end + 表取工作副本 clip_data messages）/ Artnet（配置
+    /// 取工作副本 clip_data + owner 令牌）→ 纯值快照 installSnapshot。
+    /// 调用点 = 装载完成 / notifyClipEdited（编辑漏斗）/ onClipGeometry
+    /// Changed（拖拽回写）/ onDeleteClip（移除序列）。GUI 线程 only。
+    void rebuildSendSnapshot();
 
     // ---- 自动追平节流链（2026-11-16 自 MainWindow 收编）---------------------
     /// 配置节流间隔（Settings.ini Network/SceneAutoPublishMs；默认 200，
@@ -340,6 +352,8 @@ private:
     /// 下发运行时桥 + 音频 bus 宿主（均不拥有；publishScene/syncMedia 消费）
     MsRuntimeBridge*      runtime_   = nullptr;
     TimelineAudioBusHost* audio_bus_ = nullptr;
+    /// 时敏发送调度线程（不拥有；controller 装配注入——2026-11-22 治本）
+    PlaybackSendScheduler* send_sched_ = nullptr;
     bool   loading_ = false;   // 装载/程序化写模型中：屏蔽 clip 信号的回写
     /// 时间轴真正改过的片段（noteName=ms clip id）。拖拽/面板改帧 → 记入；
     /// 面板→模型推送 → 移出（面板值对本 clip 保持权威）；sync 后清空。

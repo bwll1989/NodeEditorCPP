@@ -17,6 +17,7 @@
 #include <QObject>
 #include <QString>
 #include <QTimer>
+#include <memory>
 
 class BaseTimelineWidget;   // TimeLineBase（时间轴视图；全局命名空间）
 struct GlobalEvent;         // GlobalEventBus 事件（全局命名空间；const& 传参，前置即可）
@@ -27,6 +28,7 @@ class MsRuntimeBridge;          // 下发运行时桥（PIMPL 隔离 C++20）
 class PreviewRenderer;          // 本地预览渲染器（状态机）
 class QtTimelineModelAdapter;   // Scene↔帧模型适配器
 class TimelineAudioBusHost;     // timeline 混音写入宿主（非 QObject）
+class PlaybackSendScheduler;    // 时敏指令发送调度线程（SendScheduler.hpp）
 
 class TimelinePlaybackController : public QObject {
     Q_OBJECT
@@ -75,8 +77,18 @@ private:
     BaseTimelineWidget* timeline_ = nullptr;
 
     QTimer* tick_ = nullptr; ///< 33ms 播放期 tick（播放头回显 + /currentFrame 反馈）
+                             ///  【2026-11-22 治本后】仅剩镜像职责：回显视图/
+                             ///  画布跟随/帧号反馈/到头循环检查——逐帧发送已
+                             ///  由 scheduler_ 独立线程直读主时钟承担
 
     bool looping_ = false; ///< 循环模式（2026-11-16）：到头回零续播而非停止
+
+    /// 时敏指令发送调度线程（2026-11-22 治本）：Mapping/Artnet 逐帧发送
+    /// 独立线程；时钟源=本控制器注入的双域 lambda（会话播放优先，预览退
+    /// 路）。拥有（析构先于依赖指针失效——本类析构时 runtime_/preview_/
+    /// adapter_ 仍有效，线程停后无悬垂；完整类型在 cpp，=default 析构在
+    /// cpp 定义）。
+    std::unique_ptr<PlaybackSendScheduler> scheduler_;
 };
 
 } // namespace ms

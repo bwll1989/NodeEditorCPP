@@ -64,6 +64,10 @@ public:
     /// → 写状态表；同视频帧去重（50Hz 泵持续重发状态表，无需重复写）。
     /// 【2026-11-20】prev→now 跨帧补发（GUI 饥饿修复，上限 8 帧——每帧
     /// seek+decode 成本高；详见 cpp 注释）。
+    /// 【2026-11-22 退役标注】适配器已停止调用本钩子——逐帧解码发送由
+    /// PlaybackSendScheduler 独立线程承担（解码栈移植于本实现，按文件
+    /// 路径缓存跨快照复用；见 src/Widget/TimeLineWidget/SendScheduler.cpp）。
+    /// 本实现保留一版作回滚路径，验证稳定后清理。
     void onPlayheadAdvanced(qint64 prevUs, qint64 nowUs) override;
 
 private:

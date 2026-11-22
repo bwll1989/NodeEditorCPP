@@ -106,15 +106,25 @@ public:
     // ---- 场景绑定（工作副本外部拥有；指针须持续有效）----
     void setScene(const Scene* s);
 
-    // ---- 播放状态机（语义对齐 EditorRuntime::cmdPlay/cmdPause/cmdStop）----
+    // ---- 播放状态机（2026-11-22 治本：锚点纯函数化 + 跨线程读）----------
+    // playheadUs() = playing ? base + (now − t0) : base（连续斜线，非阶梯
+    // 折叠）；播放状态转换（play/pause/stop/seekTo/setScene）仍只在 GUI
+    // 线程写，读端开放给任意线程——PlaybackSendScheduler（发送调度线程）
+    // 以 preview_->playing()/playheadUs() 为时钟源之一（会话播放优先，
+    // 无显示端时退预览状态机）。playhead_mutex_ 保护三状态字段；clock_fn_
+    // 构造期定死只读。锁外调时钟：clock lambda 会回调本类 playheadUs()
+    //（controller 双域时钟），锁内直调自锁。
     void play();
     void pause();
     void stop();
     void seekTo(std::int64_t us);
-    bool playing() const noexcept { return playing_; }
-    std::int64_t playheadUs() const noexcept { return playhead_us_; }
+    bool playing() const;
+    std::int64_t playheadUs() const;
 
-    /// 播放中推进播放头（QTimer ~33ms 驱动；非播放态无操作）
+    /// 播放中推进播放头（QTimer ~33ms 驱动；非播放态无操作）。【2026-11-22
+    /// 治本后职责收缩】只做"把斜线读数折叠进 base"（幂等校准），不再是
+    /// 播放头前进的机制——播放头读数恒为纯函数（playheadUs），pump/时钟源
+    /// 直接取纯值。保留给 controller tick（33ms 回显节拍）与状态机测试。
     /// \return 播放头是否发生变化（调用方据此决定是否重绘画布）
     bool tick();
 
@@ -273,9 +283,13 @@ private:
     std::function<std::int64_t()> clock_fn_; ///< 时钟读法（注入对齐同域）
     std::string assets_root_;
 
-    // ---- 播放状态机（仅 GUI 线程触碰，无锁）----
+    // ---- 播放状态机（playhead_mutex_ 保护；写仅 GUI 线程状态转换，读
+    // ---- 开放任意线程——发送调度线程时钟源，见 playheadUs 注释）----
+    mutable std::mutex playhead_mutex_;   ///< 状态三件套锁（mutable：const 读）
     bool         playing_     = false;
-    std::int64_t playhead_us_ = 0; ///< 冻结值/推进基准（Paused/Idle 语义值）
+    std::int64_t playhead_us_ = 0; ///< 冻结值/推进基准（Paused/Idle 语义值；
+                                   ///  播放期 = 本段起点 base，读数恒为
+                                   ///  base + (now − t0) 纯函数）
     std::int64_t t0_us_       = 0; ///< 本段播放的时钟起点（play/seek 时重置）
 
     // ---- 请求去重（仅 GUI 线程触碰，无锁）----

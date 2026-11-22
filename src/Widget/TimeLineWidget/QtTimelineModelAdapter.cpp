@@ -28,6 +28,8 @@
 #include <QJsonDocument> // OSC drag → Control：control_messages JSON 构造
 #include <QDebug>
 
+#include "SendScheduler.hpp" // ms::PlaybackSendScheduler（时敏发送快照构建）
+
 // 片段属性面板（素材绑定 + 画布变换；附加进库组合面板）
 // 【2026-11-13 片段插件化】通用面板/Tween 合并区迁 Common/ClipPanelBase.dll；
 // 片段专属编辑区（Text/Live）随各自片段插件走（src/Clips/，经
@@ -323,6 +325,7 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
 
     loading_ = false;
     dirty_clips_.clear();     // 刚从权威场景对齐，脏片段清单一并作废
+    rebuildSendSnapshot();    // 时敏发送快照全量重建（2026-11-22 治本）
 }
 
 // ---------------------------------------------------------------------------
@@ -649,6 +652,9 @@ void QtTimelineModelAdapter::notifyClipEdited(const std::string& clip_id,
     }
     emit sceneEdited();
     refreshClipPanels(clip_id);
+    rebuildSendSnapshot(); // 编辑漏斗统一挂点（2026-11-22 治本）——面板/
+                           // 专属区/键编辑四条写回路径全过此处，快照随
+                           // 编辑落定换血（worker ≤5ms 采纳）
 }
 
 // ---------------------------------------------------------------------------
@@ -1007,6 +1013,8 @@ void QtTimelineModelAdapter::onClipGeometryChanged(AbstractClipModel* clip) {
 
     dirty_clips_.insert(clip->clipAnchor().toStdString()); // 按片段记脏
     emit sceneEdited();
+    rebuildSendSnapshot(); // 几何回写 → 发送快照换血（拖拽中高频；快照
+                           // 纯值构建微秒级，worker 单槽合并采纳）
 }
 
 // ---------------------------------------------------------------------------
@@ -1122,13 +1130,86 @@ void QtTimelineModelAdapter::setPlayheadFromRuntimeUs(std::int64_t us_total) {
 }
 
 // ---------------------------------------------------------------------------
+// 时敏发送快照（2026-11-22 治本）：全量重建 Mapping/Artnet 序列表并注入
+// 调度线程。几何（start/end）取模型实时值——拖拽中 onClipGeometryChanged
+// 先回写工作副本再走这里，模型即最新；业务数据（Mapping 表 / Artnet 配置）
+// 取工作副本 clip_data（真相源）——与 setClipPayload 镜像同源。owner 令牌
+// 每快照新建（worker 换血时撤销旧桶，新配置下一拍重推——旧 applyPayload
+// releaseOutputs 同口径）。
+// ---------------------------------------------------------------------------
+void QtTimelineModelAdapter::rebuildSendSnapshot() {
+    if (!send_sched_) return; // 未装配（单测/无 controller 路径）：零开销
+    auto snap = std::make_shared<PlaybackSendScheduler::Snapshot>();
+    for (TrackData* td : m_tracks) {
+        if (!td) continue;
+        for (AbstractClipModel* clip : td->clips) {
+            if (!clip) continue;
+            const QString type = clip->type();
+            if (type != "Mapping" && type != "Artnet") continue;
+            Clip* c = locateWorkClip(clip->clipAnchor());
+            if (!c) continue; // 模型在、工作副本已删（删除中）：跳过
+            if (type == "Mapping") {
+                PlaybackSendScheduler::MappingSeq seq;
+                seq.start_us = clip->start();
+                seq.end_us   = clip->end();
+                // 解析 {"messages":[...]}（坏 JSON = 空表——播放路径容错）
+                const QJsonDocument doc =
+                    QJsonDocument::fromJson(c->clip_data.c_str());
+                if (doc.isObject()) {
+                    const QJsonArray arr =
+                        doc.object()[QStringLiteral("messages")].toArray();
+                    seq.entries.reserve(arr.size());
+                    for (const auto& v : arr) {
+                        const QJsonObject o = v.toObject();
+                        PlaybackSendScheduler::MappingEntry e;
+                        e.address = o[QStringLiteral("address")].toString();
+                        e.type    = o[QStringLiteral("type")].toString();
+                        const QJsonValue jv = o[QStringLiteral("value")];
+                        if (jv.isString())      e.expression = jv.toString();
+                        else if (jv.isDouble())
+                            e.expression = QString::number(jv.toDouble());
+                        else if (jv.isBool())
+                            e.expression = jv.toBool()
+                                ? QStringLiteral("true")
+                                : QStringLiteral("false");
+                        seq.entries.push_back(std::move(e));
+                    }
+                }
+                snap->mappings.push_back(std::move(seq));
+            } else { // Artnet
+                PlaybackSendScheduler::ArtnetSeq seq;
+                seq.start_us = clip->start();
+                seq.end_us   = clip->end();
+                const QJsonDocument doc =
+                    QJsonDocument::fromJson(c->clip_data.c_str());
+                if (doc.isObject()) {
+                    const QJsonObject o = doc.object();
+                    seq.file = o[QStringLiteral("file")].toString();
+                    seq.host = o[QStringLiteral("targetHost")]
+                                   .toString(QStringLiteral("192.168.1.255"));
+                    seq.start_universe =
+                        o[QStringLiteral("startUniverse")].toInt(0);
+                }
+                if (seq.host.trimmed().isEmpty())
+                    seq.host = QStringLiteral("192.168.1.255");
+                // 状态表桶令牌（地址唯一稳定；快照持有保活）
+                seq.owner = std::make_shared<int>(0);
+                snap->artnets.push_back(std::move(seq));
+            }
+        }
+    }
+    send_sched_->installSnapshot(std::move(snap));
+}
+
+// ---------------------------------------------------------------------------
 // Control 触发引擎（2026-11-13）：播放头上升沿 → 逐条发送片段指令。
 // 位置判定取模型（clip->start() 实时——时间轴拖动 dirty 期间也正确），
 // 消息体取工作副本（业务真相源；locateWorkClip 按 clipAnchor 定位）。
 // 装载期（loading_）只建立基线不触发（模型重建中位置无意义）。
-// 【2026-11-15 扩展】同链对全部片段调用 onPlayheadAdvanced 虚钩子——
-// Artnet（逐帧解码 DMX → ArtnetService）/Mapping（逐帧 $percent/$frame
-// 求值重发）等类型专属播放逻辑随插件走，宿主零类型知识。
+// 【2026-11-22 治本】类型专属播放推进（onPlayheadAdvanced 虚钩子）退役：
+// Mapping/Artnet 逐帧发送已由 PlaybackSendScheduler 独立线程直读主时钟
+// 承担（SendScheduler——GUI 饥饿不再影响发送时序）；本函数只剩 Control
+// 上升沿（跳变语义无逐帧要求，GUI 采样驱动足够）。
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
     const std::int64_t prev = prev_playhead_us_;
@@ -1156,9 +1237,9 @@ void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
                     }
                 }
             }
-            // 类型专属播放推进（默认空实现零开销；首拍 prev=-1 已被上方
-            // 基线分支挡住，钩子首拍不误触发）
-            clip->onPlayheadAdvanced(prev, now_us);
+            // 【2026-11-22 治本】clip->onPlayheadAdvanced(prev, now_us) 已
+            // 移除——Mapping/Artnet 逐帧播放逻辑随插件迁调度线程（虚钩子
+            // 保留在基类，暂无 GUI 消费者；模型实现保留一版作回滚路径）。
         }
     }
 }
@@ -1744,6 +1825,8 @@ void QtTimelineModelAdapter::onDeleteClip(QModelIndex clipIndex) {
                 tr.clips.erase(it);
                 dirty_clips_.erase(id); // 脏清单同步摘除（防 sync 阶段复活）
                 emit sceneEdited();
+                rebuildSendSnapshot(); // 删除 → 序列出快照（旧 owner 桶由
+                                       // worker 换血撤销，末帧停止重发）
                 break;
             }
         }

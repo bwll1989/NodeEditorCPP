@@ -532,6 +532,11 @@ public:
 //   * Mapping —— 区间内逐帧按 $percent/$frame 求值重发消息表。
 // \param prev_us 上一播放头位置（μs；首拍为 -1 基线）
 // \param now_us  当前播放头位置（μs）
+// 【2026-11-22 退役标注】适配器已停止调用本钩子——Mapping/Artnet 逐帧
+// 发送由 PlaybackSendScheduler 独立线程直读主时钟承担（GUI 饥饿不再影响
+// 发送时序；见 src/Widget/TimeLineWidget/SendScheduler.hpp）。虚函数与两
+// 插件实现保留一版作回滚路径（恢复 = 适配器 updateControlTriggers 补回
+// clip->onPlayheadAdvanced 一行 + 重编），验证稳定后下轮清理。
 virtual void onPlayheadAdvanced(qint64 prev_us, qint64 now_us) {
     Q_UNUSED(prev_us);
     Q_UNUSED(now_us);

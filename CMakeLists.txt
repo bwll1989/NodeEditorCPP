@@ -351,6 +351,11 @@ set(CALC_SOURCE_FILES
         src/Widget/ExternalControl/ExportActionDialog.cpp
         src/Widget/ExternalControl/ExportActionDialog.h
         src/Widget/TimeLineWidget/QtTimelineModelAdapter.cpp
+        # 时敏指令发送调度线程（2026-11-22 治本）：Mapping/Artnet 逐帧发送
+        # 独立线程（时钟 deadline 醒 + 快照交接 + FFmpeg DMX 解码）——
+        # Headless 同编（CALC_SOURCE_FILES），两目标都需补链 FFmpeg/ArtnetService
+        src/Widget/TimeLineWidget/SendScheduler.cpp
+        src/Widget/TimeLineWidget/SendScheduler.hpp
         # 【2026-11-13 片段插件化】通用片段 UI 迁 Common/ClipPanelBase.dll、
         # 片段专属编辑区随片段插件走（src/Clips/Text|Live/，编进 .plugin）
         # ——主程序不再含任何片段 UI 源码，改片段 UI 只重编对应插件。
@@ -513,7 +518,14 @@ target_link_libraries(${ProjectName}
             MediaCore
             TimeLineBase    # 时间轴视图 DLL（PUBLIC NODE_TIMELINE_SHARED 随链接传播=dllimport，缺宏 TimelineExports.hpp 直接 #error）
             ClipPanelBase   # 通用片段 UI 框架 DLL（片段属性面板 + Tween 合并区；2026-11-13 片段插件化）
+            ArtnetService   # 发送调度线程：DMX 状态表写入/50Hz 泵（SendScheduler 2026-11-22）
 )
+# 发送调度线程的 FFmpeg 解码（DMX 视频逐帧）——全路径 .lib，对齐
+# plugin_artnet 同款（SendScheduler 2026-11-22）
+target_link_libraries(${ProjectName} PRIVATE
+        "${FFMPEG_LIB_DIRS}/avformat.lib"
+        "${FFMPEG_LIB_DIRS}/avcodec.lib"
+        "${FFMPEG_LIB_DIRS}/avutil.lib")
 # MediaCore 依赖的 protobuf/abseil 运行时 DLL 随主程序分发（prebuilt DLL 模式必需）
 mc_copy_runtime_dlls(${ProjectName} "${DEPENDS_DIR}/protobuf-35.1/install_msvc_prebuilt")
 
@@ -584,7 +596,13 @@ target_link_libraries(${HeadlessProjectName}
             MediaCore
             TimeLineBase    # 与 Flow 一致：时间轴视图 DLL（NODE_TIMELINE_SHARED 随链接传播）
             ClipPanelBase   # 与 Flow 一致：通用片段 UI 框架 DLL（2026-11-13）
+            ArtnetService   # 与 Flow 一致：发送调度线程状态表（SendScheduler 2026-11-22）
 )
+# 与 Flow 一致：发送调度线程的 FFmpeg 解码（DMX 视频逐帧；SendScheduler 2026-11-22）
+target_link_libraries(${HeadlessProjectName} PRIVATE
+        "${FFMPEG_LIB_DIRS}/avformat.lib"
+        "${FFMPEG_LIB_DIRS}/avcodec.lib"
+        "${FFMPEG_LIB_DIRS}/avutil.lib")
 # 设置主程序属性
 set_target_properties(${ProjectName} PROPERTIES
     WIN32_EXECUTABLE TRUE
