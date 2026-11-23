@@ -464,6 +464,10 @@ private:
     std::int64_t passive_off_win_[5] = {0, 0, 0, 0, 0}; ///< raw 观测滑窗（us）
     int          passive_off_n_   = 0;                  ///< 窗口填充数（≤5）
     int          passive_adopted_ = 0;                  ///< 采纳次数（诊断日志）
+    /// 【冷却 2026-11-23】上次采纳时刻（steady ms）——写入后窗口需 ~5 拍
+    /// （1.25s@4Hz 心跳）才能冲刷掉旧观测，无冷却会在旧 median 上连环
+    /// 重复采纳；30s 冷却同时把优先权让给 30s 轮的主动探测精修。
+    std::int64_t passive_last_adopt_ms_ = 0;
     /// 【时钟差可观测 2026-11-23】上次诊断打点时刻（Editor 域 ms；仅 recv
     /// 线程 touch，无锁）。播放中端间画面差 = 各端对齐时钟差（SNTP offset
     /// 差）——心跳帧 wall_us 与本机对齐读数之差是唯一现成观测源，周期打点

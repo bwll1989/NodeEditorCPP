@@ -209,6 +209,19 @@ void PlayerRuntime::onProbeResponse(const SyncFrame& f,
 // Editor 域时戳：raw = editor - local，多拍中位数过滤网络抖动后粗修
 // 大差（>250ms 才动），把"秒级裸差"在 1-2s 内消掉；probe 收敛后以其
 // 亚毫秒值为准（30s 轮自动精修）。
+//
+// 【去自锁 2026-11-23】原实现 offset!=0 即 return（"已有生效 offset，
+// 本通道让位主动探测"）——但主动探测本身可能永久失败（UDP 单向不通，
+// 连续失败告警只能提示不能自愈），一旦 offset 有过一次写入（可能错的）
+// 或归零后从未再校准，秒级钟差永久固化。实测现场（2026-11-23）：display
+// 机系统钟比 Editor 快 ~9.2s，Play 锚点应用公式 current=aligned_now-
+// session_start 把钟差固化成播放头超前 9.2s（暂停拉回 Editor 值→画面
+// 跳变；恢复播放端间差=各端钟差之差；127.0.0.1 同机恒 0 恒正常）。
+// 【统一修正公式】raw = editor_aligned - local_aligned
+//   = editor_wall - (local_wall + off_cur) = -off_true - off_cur
+//   → off_new = off_cur + median(raw) ≡ -off_true（对 off_cur=0 同式成立）
+// 即 raw 恒等于"当前 offset 的残余误差"：≈0=已对齐（不动）；持续大=
+// offset 错了/没了，直接补上。通道永不自锁，只靠阈值+一致性+冷却防抖。
 // ---------------------------------------------------------------------------
 void PlayerRuntime::passiveCalibrateTick(std::int64_t editor_aligned_now_us) {
     if (editor_aligned_now_us == 0) return;      // 无数据源帧（旧版 Editor）
@@ -220,9 +233,8 @@ void PlayerRuntime::passiveCalibrateTick(std::int64_t editor_aligned_now_us) {
     // 用权威冻结值恒一致，唯独播放画面按各自时钟推算，offset 残差直接变
     // 成端间画面差。"拖动素材后播放不一致、重发场景又好"的排查必须先让
     // 这个差可见：心跳帧 wall_us（Editor 对齐读数）与本机对齐读数之差每
-    // 5s 打一条（不受被动校准的 offset==0 自锁限制——自锁恰是原实现里
-    // 校准收敛后差值不可观测的盲区）。判读：|raw| 持续 >10ms = 本端 offset
-    // 偏斜/漂移（端间画面差同级）；≈0 = 时钟域无嫌疑（转查解码/场景链）。
+    // 5s 打一条（判读：|差| 持续 >10ms = 本端 offset 偏斜/漂移（端间画面
+    // 差同级）；≈0 = 时钟域无嫌疑（转查解码/场景链））。
     {
         const std::int64_t now_ms = editor_aligned_now_us / 1000;
         if (now_ms - last_clk_diag_ms_ >= 5000) {
@@ -235,10 +247,6 @@ void PlayerRuntime::passiveCalibrateTick(std::int64_t editor_aligned_now_us) {
                          static_cast<double>(clock_.offsetUs()) / 1e3);
             std::fflush(stderr);
         }
-    }
-    if (clock_.offsetUs() != 0) {                // 已有生效 offset：通道自锁
-        passive_off_n_ = 0;                      // 清窗（下次 offset 归零重开）
-        return;
     }
     // 滑窗 5 拍：FIFO 推进（环形不必——5 元素 memmove 纳秒级）
     if (passive_off_n_ < 5)
@@ -255,16 +263,27 @@ void PlayerRuntime::passiveCalibrateTick(std::int64_t editor_aligned_now_us) {
               std::begin(sorted));
     std::sort(std::begin(sorted), std::end(sorted));
     const std::int64_t median = sorted[2];
-    constexpr std::int64_t kPassiveAdoptUs = 250'000;  // 只修秒级裸差
+    constexpr std::int64_t kPassiveAdoptUs = 250'000;  // 只修显著差
     // 一致性：中位数显著 + 各拍与中位差 < 200ms（抖动过大 = 网络污染，弃）
     if (std::llabs(median) < kPassiveAdoptUs) return;
     for (const auto v : sorted)
         if (std::llabs(v - median) > 200'000) return;
-    clock_.setOffsetUs(median);
+    // 【冷却】写入后窗口需 ~5 拍冲刷旧观测，且把优先权让给 30s 轮主动
+    // 探测精修——30s 内不再采纳（steady 时戳，本线程单 touch 无锁）。
+    const std::int64_t now_ms_steady = tsMs();
+    if (passive_last_adopt_ms_ != 0 &&
+        now_ms_steady - passive_last_adopt_ms_ < 30'000)
+        return;
+    const std::int64_t cur_off = clock_.offsetUs();
+    const std::int64_t new_off = cur_off + median; // 统一公式（见函数头）
+    clock_.setOffsetUs(new_off);
     ++passive_adopted_;
+    passive_last_adopt_ms_ = now_ms_steady;
     std::fprintf(stderr,
-                 "player: 心跳被动校准: offset=%+.3fs（SNTP 未生效期"
-                 "粗修，主动探测收敛后精修；adopted=%d）\n",
+                 "player: 心跳被动校准: offset %+.3fs → %+.3fs（观测残差"
+                 "%+.3fs；SNTP 未生效期粗修，主动探测收敛后精修；adopted=%d）\n",
+                 static_cast<double>(cur_off) / 1e6,
+                 static_cast<double>(new_off) / 1e6,
                  static_cast<double>(median) / 1e6, passive_adopted_);
     std::fflush(stderr);
 }
@@ -928,24 +947,44 @@ void PlayerRuntime::applyAnchorLocked(const Anchor& a,
     // session_start 落在本机时钟"未来"→ 渲染线程 FramePacer 对
     // now<epoch 钳 0 → 播放画面永久冻结在第一帧；暂停分支直通
     // current_us_ 却正常 → "播放不刷新、暂停会跳"的现场形态。
+    // 【双向化 2026-11-23】原兜底只挡"锚点在未来"（本机钟慢）方向——
+    // 实测现场（display 机系统钟快 ~9.2s）是反方向：锚点在本机"过去"
+    // 9.2s，session_start 照抄 Editor 域值，Play 应用 current=
+    // aligned_now-session_start 把钟差固化成播放头超前 9.2s → 暂停拉回
+    // Editor 权威值（画面跳变 9s）→ 恢复播放端间差=各端钟差之差（"播放
+    // 进度不一致、暂停即一致、127.0.0.1 恒正常"的直接根因）。合法到点
+    // 锚点与本地钟差亚秒（SNTP 校准 + lead 10ms + 网络延迟 <1s），故
+    // |差|>2s 双向都判域差（网络延迟亚秒不可能 2s+）。
+    // 【排除立即锚点】Pause/Stop 的 anchor_time=0 是"立即到点"约定
+    // （EditorRuntime::broadcastReAnchor），非时钟域时戳，不参与判断。
     // 【区分合法未来锚点】协议 §6.1 支持预约式锚点，但当前全部调用方
     // （cmdPlay/cmdPause/cmdSeek）都是立即锚点（anchor≈now）；预约开播
-    // 尚无调用方。故 >2s 的"未来"判为域差（网络延迟亚秒不可能 2s+）。
-    // 若未来引入预约开播，需在协议加显式 delay 字段，不可依赖裸时戳。
+    // 尚无调用方。故 >2s 的"未来"判为域差。若未来引入预约开播，需在
+    // 协议加显式 delay 字段，不可依赖裸时戳。
     // 【兜底语义】本机化重表达轴原点：session_start = 本机现在 - anchored
     // ——误差=单向网络延迟（局域网 <5ms），画面立即正常；多端端间差
     // = 各自单向延迟差（亚 10ms），远优于"整端冻结"。SNTP 正常时
     // 偏差亚秒不触发，共享轴精确语义不受影响（分层防御）。
-    if (a.anchor_time_us - aligned_now_us > 2'000'000) {
+    if (a.anchor_time_us != 0 &&
+        std::llabs(a.anchor_time_us - aligned_now_us) > 2'000'000) {
         const std::int64_t domain_gap_us = a.anchor_time_us - aligned_now_us;
         session_start_us_ = aligned_now_us - a.anchored_session_time_us;
         std::fprintf(stderr,
-                     "\n[player] W-时钟域差兜底: 锚点在本机时钟未来 %.3fs"
-                     "（两端墙钟未校准，SNTP offset=%.3fs）→ 已按本机时钟"
-                     "重表达轴原点（画面不冻结；建议检查 UDP 双向连通）\n\n",
-                     static_cast<double>(domain_gap_us) / 1e6,
+                     "\n[player] W-时钟域差兜底: 锚点在本机时钟%s %.3fs"
+                     "（%s；SNTP offset=%.3fs）→ 已按本机时钟重表达轴原点"
+                     "（画面不冻结不跳变；建议检查 UDP 双向连通/系统时间同步）\n\n",
+                     domain_gap_us > 0 ? "未来" : "过去",
+                     static_cast<double>(std::llabs(domain_gap_us)) / 1e6,
+                     domain_gap_us > 0 ? "本机钟慢于 Editor" : "本机钟快于 Editor",
                      static_cast<double>(clock_.offsetUs()) / 1e6);
         std::fflush(stderr);
+        // 【加速自愈 2026-11-23】域差=校准通道失效的直接证据——立即解锁
+        // 一轮主动探测（不等 30s 节流；tick 线程同 maybeProbeTick 上下文，
+        // probe_mutex_ 锁序 state→probe 唯一，无死锁风险）。
+        {
+            std::lock_guard<std::mutex> lock(probe_mutex_);
+            if (!probing_) last_probe_round_us_ = 0;
+        }
     }
     rate_             = 1.0;   // 重锚后速率复位（残留调速不叠加）
     ticking_          = false; // 重新锚定 dt 基准，避免旧 dt 造成突变
@@ -1072,8 +1111,13 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
             // 差"合法化进播放头（target 与 current 同源推算 → 纠偏环对它
             // 永远盲区）——控制通道被场景大包拥堵时各端迟到量不同，端间
             // 播放头即差。该值是"拖动风暴后播放不一致"的关键证据。
+            // 【立即锚点不算迟到 2026-11-23】Pause/Stop 的 anchor_time=0
+            // 是"立即到点"约定，aligned_now-0=整个对齐钟读数（荒谬值），
+            // 置 0 保持日志可读。
             applied.push_back({a->anchor_time_us, a->cmd, state_, current_us_,
-                               aligned_now_us - a->anchor_time_us});
+                               a->anchor_time_us == 0
+                                   ? 0
+                                   : aligned_now_us - a->anchor_time_us});
         }
     }
     for (const auto& ai : applied) {
@@ -1088,7 +1132,7 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
                      static_cast<int>(ai.state),
                      static_cast<long long>(ai.current_us),
                      static_cast<double>(ai.late_us) / 1e3,
-                     ai.late_us > 50'000 ? "（>50ms：命令链被拥堵，端间播放头差=各端迟到量差）" : "");
+                     ai.late_us > 50'000 ? "（>50ms：命令链拥堵或端间时钟差——对照「时钟差观测」行判定）" : "");
         std::fflush(stderr);
         // Ack 回发（协议 §6：调试/超时检测用；listener_.send_to 线程安全）
         sendAck(ai.anchor_time_us, true, "applied");
