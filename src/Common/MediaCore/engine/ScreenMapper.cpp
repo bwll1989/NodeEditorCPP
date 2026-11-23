@@ -126,6 +126,33 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
                                                        judge.rotation,
                                                        judge.anchor,
                                                        judge.corner, wx, wy);
+                // 【透视校正 2026-11-24 折线根修】corner 拖角产生任意四边形
+                //（非平行四边形 = 平面单应）——渲染端单 quad 两三角形
+                // affine 插值无法复现，对角线处网格折断（display 实测"中间
+                // 有条折线"、编辑器预览 QTransform 单应正确）。解 uv→canvas
+                // 单应取第三行为透视权重 q（顶点 (uv·q, q) + FS 采样 uv/q
+                // 精确复现平面单应——与 pose3d 分支同一消费契约，quad 同
+                // 填渲染端 pose3d 路径直取）。corner 全 0（平行四边形）时
+                // 单应第三行 ≈(0,0,1)、q≡1 逐位退化历史仿射行为。
+                const double dst8[8] = {wx[0], wy[0], wx[1], wy[1],
+                                        wx[2], wy[2], wx[3], wy[3]};
+                double h_uv2c[9];
+                if (canvas_geometry::solveHomography(dst8, h_uv2c)) {
+                    static constexpr double kU[4] = {0.0, 1.0, 1.0, 0.0};
+                    static constexpr double kV[4] = {0.0, 0.0, 1.0, 1.0};
+                    for (int i = 0; i < 4; ++i) {
+                        di.quad[i][0] = wx[i];
+                        di.quad[i][1] = wy[i];
+                        // q = 单应分母 h6·u + h7·v + 1（h8 归一 1——
+                        // solveHomography 约定）；q_i 间比值即透视强度
+                        const double w3 = h_uv2c[6] * kU[i]
+                                        + h_uv2c[7] * kV[i] + 1.0;
+                        di.quad_q[i] = (w3 > 1e-6) ? w3 : 1e-6; // 防御：翻转/退化不渲染黑块
+                    }
+                    di.pose3d = true; // 渲染端走预投影四角 + q 有理插值路径
+                }
+                // 解算失败（共线/近奇异）：保持 quad_q≡1 仿射历史行为
+                //（宁缺勿错同 make 的退化防御口径）
             }
             for (int i = 0; i < 4; ++i) {
                 double ox = 0.0, oy = 0.0;

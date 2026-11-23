@@ -205,7 +205,10 @@ bool SoftRenderer::draw(const DrawItem& di, const FrameView& frame) {
 // 每三角形求 canvas→frame 仿射（3 点对解 6 参），逐像素先 inv_map 到
 // canvas 再判重心归属。零面积三角形防御跳过（退化四边形宁缺勿错）。
 // 【TODO 透视校正】两三角形仿射 = 分片线性近似，大幅 corner pin 时帧
-// 纹理非严格透视（GL 同为仿射条带）——未来 q 坐标插值升级两端同步。
+// 纹理非严格透视。【2026-11-24 折线根修】GL 端已升级：ScreenMapper 对
+// corner 拖角解 uv→canvas 单应填 di.quad_q + pose3d=true，GL FS 用
+// uv/v_q 有理插值精确复现单应；软端此处仍分片线性（q 权重插值升级时
+// 两端同步）——大幅 corner pin 下软端仍有轻微折痕（兜底路径可容忍）。
 // ---------------------------------------------------------------------------
 void SoftRenderer::drawQuadSampling(const DrawItem& di, const FrameView& frame,
                                     int x0, int y0, int x1, int y1,
