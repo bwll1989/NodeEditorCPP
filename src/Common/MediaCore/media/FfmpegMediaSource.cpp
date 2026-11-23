@@ -363,11 +363,29 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
     }
     const AVStream* st = fmt_->streams[stream_index_];
 
-    // HAP 探测：codec_id 命中 AV_CODEC_ID_HAP（MOV codec_tag 任意 Hap 变体
-    // Hap1/Hap5/HapY/HapM 皆映射此 ID）且开关开启 → DXT 直传，跳过
-    // avcodec 解码器/sws 全链。开关关闭时走既有全解压路径（行为不变）。
+    // HAP 探测 + 变体门禁（2026-11-23 花屏根修）：codec_id 命中
+    // AV_CODEC_ID_HAP 的变体有 Hap1/Hap5/HapY/HapM，但 DXT 直传仅对
+    // Hap1（DXT1，RGB 空间）与 Hap5（HAP Alpha，DXT5，RGBA 空间）正确——
+    // HapY（HAP Q）与 HapM（HAP Q Alpha）的 DXT5 块承载 **YCoCg 色彩空间**
+    // 数据，直传后渲染端按 RGBA 采样 = 绿黄噪点马赛克花屏（实测
+    // CrabRave.mov codec_tag=HapY 复现，其余播放器正常）。YCoCg→RGB 需
+    // 渲染端 shader 专用变换（阶段2 待做），在此之前这两变体回落
+    // avcodec 软解：FFmpeg hap 解码器原生支持 HapY/HapM（输出 rgb0），
+    // 走既有 swscale 全链，正确性优先。
+    // codec_tag 值 = AV_RL32(fourcc)：'Hap1'=0x31706148、'Hap5'=0x35706148、
+    // 'HapY'=0x59706148、'HapM'=0x4D706148（实测 ffprobe 与 MKTAG 同序）。
+    const std::uint32_t hap_tag = st->codecpar->codec_tag;
+    const bool hap_variant_dxt_safe =
+        (hap_tag == 0x31706148u) ||  // 'Hap1'
+        (hap_tag == 0x35706148u);    // 'Hap5'
     hap_active_ = (st->codecpar->codec_id == AV_CODEC_ID_HAP) &&
-                  dxtPassthroughEnabled();
+                  hap_variant_dxt_safe && dxtPassthroughEnabled();
+    if (st->codecpar->codec_id == AV_CODEC_ID_HAP && !hap_variant_dxt_safe) {
+        std::fprintf(stderr,
+                     "media: HAP 变体 codec_tag=0x%08X（HapY/HapM，YCoCg 空间）"
+                     "不走 DXT 直传，回落 avcodec 软解\n",
+                     hap_tag);
+    }
 
     const AVCodec* dec = nullptr;
     if (!hap_active_) {
