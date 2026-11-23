@@ -19,6 +19,8 @@ extern "C" {
 
 #include "clock/ClockProvider.hpp"
 
+#include "live/LanProbe.hpp" // join 接口探测（localaddr 钉定，与发送端同构）
+
 namespace ms {
 
 bool NetworkIngest::onStart() {
@@ -51,6 +53,15 @@ void NetworkIngest::recvLoop() {
 
     while (running_.load(std::memory_order_acquire)) {
         // ---- 打开（低延迟选项组）----
+        // 【2026-11-23 双网卡免疫】join 接口钉定：多网卡机器 FFmpeg 默认
+        // join 可能落在 loopback/虚拟网卡 = 永远收不到物理网组播——与发
+        // 送端同构，动态 append 本机 LAN IPv4（FFmpeg localaddr =
+        // IP_ADD_MEMBERSHIP 接口；探测规则见 LanProbe.hpp；空 = 不追加）。
+        std::string open_url = source_ref_;
+        {
+            const std::string lan = probeLanIPv4();
+            if (!lan.empty()) open_url += "&localaddr=" + lan;
+        }
         AVDictionary* opts = nullptr;
         av_dict_set(&opts, "fflags", "nobuffer", 0);
         av_dict_set(&opts, "probesize", "32768", 0);
@@ -59,11 +70,11 @@ void NetworkIngest::recvLoop() {
                                                            // （组播突发削峰）
         av_dict_set(&opts, "timeout", "3000000", 0);        // 3s 断流检测
         av_dict_set(&opts, "reuse", "1", 0);                // 组播端口复用
-        const int ret = avformat_open_input(&fmt, source_ref_.c_str(),
+        const int ret = avformat_open_input(&fmt, open_url.c_str(),
                                             nullptr, &opts);
         av_dict_free(&opts);
         if (ret < 0) {
-            logThrottled("打开失败（2s 重试）: " + source_ref_,
+            logThrottled("打开失败（2s 重试）: " + open_url,
                          last_log_ms, 2000);
             closeAll();
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -93,8 +104,12 @@ void NetworkIngest::recvLoop() {
             continue;
         }
         dec->flags |= AV_CODEC_FLAG_LOW_DELAY; // B帧0 流：低延迟直出
-        dec->thread_count = 1;                 // 软解低延迟（并行线程引入
-                                               // 帧级流水延迟）
+        // 【2026-11-23 2 线程】原单线程（1.5 核@1080p60）是"零帧级延迟"
+        // 刻意决策——但 display 端帧同步排程 target_latency 默认 120ms
+        // （≥7 帧），frame threading 引入的 1 帧流水缓冲（thread_count-1）
+        // 完全被排程窗吸收。2 线程软解省约半核（1080p60 单线程 h264 是
+        // display 端 CPU 大头），延迟语义不变。
+        dec->thread_count = 2;
         if (avcodec_open2(dec, dec_desc, nullptr) < 0) {
             logThrottled("解码器打开失败（重开）", last_log_ms, 2000);
             closeAll();
@@ -102,7 +117,7 @@ void NetworkIngest::recvLoop() {
             continue;
         }
         std::fprintf(stderr, "net: 已连接 %s（%s %dx%d）\n",
-                     source_ref_.c_str(), dec_desc->name,
+                     open_url.c_str(), dec_desc->name,
                      dec->width, dec->height);
         std::fflush(stderr);
 
@@ -141,7 +156,7 @@ void NetworkIngest::recvLoop() {
                     if (sws == nullptr) { stream_ok = false; break; }
                 }
 
-                auto out = std::make_shared<LiveFrame>();
+                auto out = newFrame(); // 池化（rgba 缓冲复用，消逐帧 8MB 分配）
                 out->w = fr->width;
                 out->h = fr->height;
                 out->rgba.resize(static_cast<std::size_t>(fr->width) *

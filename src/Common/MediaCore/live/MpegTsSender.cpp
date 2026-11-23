@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "live/LanProbe.hpp" // 出口接口探测（localaddr 钉定）
+
 extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
@@ -30,8 +32,10 @@ struct MpegTsSender::Av {
     AVFormatContext*           mux     = nullptr;
     SwsContext*                sws     = nullptr;
     AVFrame*                   yuv     = nullptr; ///< 编码输入帧（YUV420P）
+    AVFrame*                   in      = nullptr; ///< RGBA 直喂包装帧（nvenc 专用）
     AVPacket*                  pkt     = nullptr; ///< 编码输出包（会话内复用）
     std::int64_t               pts     = 0;       ///< 递增 PTS（编码时基）
+    bool                       nvenc_rgba = false; ///< true = RGBA 直喂（跳过 sws）
 };
 
 // ---------------------------------------------------------------------------
@@ -111,6 +115,11 @@ bool MpegTsSender::setupEncoder(int w, int h) {
             4'000'000, 40'000'000);
 
     // ---- 编码器探测：nvenc 打开成功才用；否则回退 libx264 ----
+    // 【2026-11-23 性能修复】nvenc 成功路径直接喂 RGBA（enc->pix_fmt=
+    // AV_PIX_FMT_RGBA，内部 GPU 转换）——跳过 CPU sws RGBA→YUV420P
+    //（1080p60 曾恒占约半核）。约束：源尺寸须无裁剪（奇数宽高被偶数
+    // 对齐裁边时回退 yuv 路径走 sws）。色彩域显式 BT.601：与 display
+    // 收端 sws 默认（SWS_CS_DEFAULT=601）闭环一致，颜色不漂移。
     const char* candidates[] = {"h264_nvenc", "libx264"};
     for (const char* name : candidates) {
         a->codec = avcodec_find_encoder_by_name(name);
@@ -119,14 +128,28 @@ bool MpegTsSender::setupEncoder(int w, int h) {
         if (a->enc == nullptr) continue;
         a->enc->width     = ew;
         a->enc->height    = eh;
-        a->enc->pix_fmt   = AV_PIX_FMT_YUV420P;
         a->enc->time_base = AVRational{1, 90000}; // TS 标准时基
         a->enc->framerate = AVRational{30, 1};    // 元数据（实际按 Feed 帧驱动）
         a->enc->bit_rate  = bitrate;
         a->enc->gop_size  = 60;                   // 1s@60p / 2s@30p：新加入
                                                   // display 秒级出画
         a->enc->max_b_frames = 0;                 // 低延迟：解码序=显示序
-        if (std::strcmp(name, "libx264") == 0) {
+        if (std::strcmp(name, "h264_nvenc") == 0) {
+            // NVENC 低延迟 CBR：p1 最快 preset；无 B 帧已由 max_b_frames 保证
+            av_opt_set(a->enc->priv_data, "preset", "p1", 0);
+            av_opt_set(a->enc->priv_data, "rc", "cbr", 0);
+            av_opt_set_int(a->enc->priv_data, "zerolatency", 1, 0);
+            if (w == ew && h == eh) { // 无裁剪才可直喂（奇数宽高走 sws 裁剪）
+                a->enc->pix_fmt     = AV_PIX_FMT_RGBA;
+                a->enc->colorspace  = AVCOL_SPC_SMPTE170M; // BT.601（枚举名
+                // SMPTE170M——与收端 sws 默认 SWS_CS_DEFAULT=601 闭环一致）
+                a->enc->color_range = AVCOL_RANGE_MPEG; // limited（sws 同默认）
+                a->nvenc_rgba       = true;
+            } else {
+                a->enc->pix_fmt = AV_PIX_FMT_YUV420P;
+            }
+        } else {
+            a->enc->pix_fmt = AV_PIX_FMT_YUV420P;
             av_opt_set(a->enc->priv_data, "preset", "ultrafast", 0);
             av_opt_set(a->enc->priv_data, "tune", "zerolatency", 0);
             // 限 2 线程（sliced——zerolatency 禁 frame threading 无帧延迟）：
@@ -134,16 +157,19 @@ bool MpegTsSender::setupEncoder(int w, int h) {
             // ——编码霸核拖累全进程）。2 线程 1080p ultrafast 编码能力
             // ≈50fps，不足帧率时 Feed 取 latest 跳帧，画面仍连续。
             av_opt_set(a->enc->priv_data, "threads", "2", 0);
-        } else {
-            // NVENC 低延迟 CBR：p1 最快 preset；无 B 帧已由 max_b_frames 保证
-            av_opt_set(a->enc->priv_data, "preset", "p1", 0);
-            av_opt_set(a->enc->priv_data, "rc", "cbr", 0);
-            av_opt_set_int(a->enc->priv_data, "zerolatency", 1, 0);
         }
-        if (avcodec_open2(a->enc, a->codec, nullptr) >= 0) {
+        const int open_ret = avcodec_open2(a->enc, a->codec, nullptr);
+        if (open_ret >= 0) {
             encoder_name_ = name;
             break;
         }
+        // 探测失败（无 N 卡/驱动会话超限等）：带原因日志——用户报"CPU 高"
+        // 时可一眼确认是否静默降级到了 x264 软编（霸核大头）
+        char errbuf[AV_ERROR_MAX_STRING_SIZE] = {0};
+        av_strerror(open_ret, errbuf, sizeof(errbuf));
+        std::fprintf(stderr, "mcast: %s 打开失败（%s）→ 尝试下一候选\n",
+                     name, errbuf);
+        std::fflush(stderr);
         avcodec_free_context(&a->enc); // 探测失败（无 N 卡等）→ 下一候选
         a->enc  = nullptr;
         a->codec = nullptr;
@@ -154,23 +180,40 @@ bool MpegTsSender::setupEncoder(int w, int h) {
         return false;
     }
 
-    // ---- 编码输入帧（YUV420P）----
-    a->yuv = av_frame_alloc();
-    a->yuv->format = AV_PIX_FMT_YUV420P;
-    a->yuv->width  = ew;
-    a->yuv->height = eh;
-    if (av_frame_get_buffer(a->yuv, 0) < 0) return false;
+    // ---- 编码输入帧 ----
+    // RGBA 直喂（nvenc）：仅包装帧——data 指向 LiveFrame 像素（不持有），
+    // send_frame 内部同步拷入 GPU pinned 缓冲后即可释放引用；LiveFrame
+    // 帧内存恒不可变快照（新帧新对象永不复用），无悬垂窗口。
+    // YUV 路径（x264 / 奇数裁剪回退）：自持 YUV420P 帧 + sws 转换。
+    if (a->nvenc_rgba) {
+        a->in = av_frame_alloc();
+        if (a->in == nullptr) return false;
+    } else {
+        a->yuv = av_frame_alloc();
+        a->yuv->format = AV_PIX_FMT_YUV420P;
+        a->yuv->width  = ew;
+        a->yuv->height = eh;
+        if (av_frame_get_buffer(a->yuv, 0) < 0) return false;
+        // ---- RGBA → YUV420P 转换器（sws 默认 BT.601——与收端闭环一致）----
+        a->sws = sws_getContext(w, h, AV_PIX_FMT_RGBA,
+                                ew, eh, AV_PIX_FMT_YUV420P,
+                                SWS_BILINEAR, nullptr, nullptr, nullptr);
+        if (a->sws == nullptr) return false;
+    }
     a->pkt = av_packet_alloc(); // 编码输出包（会话内复用——unref 复位语义）
     if (a->pkt == nullptr) return false;
 
-    // ---- RGBA → YUV420P 转换器（BT.709 色彩域——视频标准）----
-    a->sws = sws_getContext(w, h, AV_PIX_FMT_RGBA,
-                            ew, eh, AV_PIX_FMT_YUV420P,
-                            SWS_BILINEAR, nullptr, nullptr, nullptr);
-    if (a->sws == nullptr) return false;
-
     // ---- MPEG-TS muxer over UDP 组播 ----
-    if (avformat_alloc_output_context2(&a->mux, nullptr, "mpegts", url_.c_str()) < 0)
+    // 【2026-11-23 双网卡免疫】组播出口接口钉定：URL 保持场景存储的基础
+    // 形式，发送前动态 append 本机 LAN IPv4（FFmpeg localaddr =
+    // IP_MULTICAST_IF）。Windows 组播 best route 可能命中 127.0.0.1
+    // （系统 224/4→loopback 默认路由 metric 最低）或 WSL 虚拟网卡 → 本机
+    // 回环自收正常、局域网零包（探测规则见 LanProbe.hpp；空 = 不追加）。
+    const std::string lan_ip = probeLanIPv4();
+    std::string open_url = url_;
+    if (!lan_ip.empty()) open_url += "&localaddr=" + lan_ip;
+    if (avformat_alloc_output_context2(&a->mux, nullptr, "mpegts",
+                                       open_url.c_str()) < 0)
         return false;
     a->vs = avformat_new_stream(a->mux, nullptr);
     if (a->vs == nullptr) return false;
@@ -180,8 +223,9 @@ bool MpegTsSender::setupEncoder(int w, int h) {
     av_opt_set_int(a->mux->priv_data, "sdt_period", 0.5 * AV_TIME_BASE, 0);
     av_opt_set_int(a->mux->priv_data, "pat_period",  0.5 * AV_TIME_BASE, 0);
     if (!(a->mux->oformat->flags & AVFMT_NOFILE)) {
-        if (avio_open(&a->mux->pb, url_.c_str(), AVIO_FLAG_WRITE) < 0) {
-            std::fprintf(stderr, "mcast: 组播地址打开失败: %s\n", url_.c_str());
+        if (avio_open(&a->mux->pb, open_url.c_str(), AVIO_FLAG_WRITE) < 0) {
+            std::fprintf(stderr, "mcast: 组播地址打开失败: %s\n",
+                         open_url.c_str());
             std::fflush(stderr);
             return false;
         }
@@ -198,15 +242,17 @@ bool MpegTsSender::setupEncoder(int w, int h) {
         return false;
     }
     av_ok_ = true;
-    std::fprintf(stderr, "mcast: 组播启动 %s（%s %dx%d %.1fMbps）\n",
-                 url_.c_str(), encoder_name_.c_str(), ew, eh,
-                 static_cast<double>(bitrate) / 1e6);
+    std::fprintf(stderr, "mcast: 组播启动 %s（%s %dx%d %.1fMbps%s%s）\n",
+                 open_url.c_str(), encoder_name_.c_str(), ew, eh,
+                 static_cast<double>(bitrate) / 1e6,
+                 a->nvenc_rgba ? "，RGBA 直喂" : "",
+                 lan_ip.empty() ? "" : "，出口已钉定");
     std::fflush(stderr);
     return true;
 }
 
 // ---------------------------------------------------------------------------
-// encodeAndSend：RGBA → YUV420P → 编码 → muxer
+// encodeAndSend：RGBA 直喂（nvenc）/ RGBA→YUV420P→编码（x264），muxer 写出
 // ---------------------------------------------------------------------------
 bool MpegTsSender::encodeAndSend(const LiveFrame& frame) {
     Av* a = av_.get();
@@ -220,14 +266,26 @@ bool MpegTsSender::encodeAndSend(const LiveFrame& frame) {
     a->pts = av_rescale_q(stamp - first_pts_us_,
                           AVRational{1, 1000000}, a->enc->time_base);
 
-    // RGBA → YUV420P（源 stride = w*4）
-    const uint8_t* src_slice[1] = {frame.rgba.data()};
-    const int      src_stride[1] = {frame.w * 4};
-    sws_scale(a->sws, src_slice, src_stride, 0, frame.h,
-              a->yuv->data, a->yuv->linesize);
-    a->yuv->pts = a->pts;
+    if (a->nvenc_rgba) {
+        // RGBA 直喂：包装帧指向源像素（send_frame 同步拷入 GPU——
+        // LiveFrame 快照不可变，消费窗口内数据恒有效）
+        a->in->format      = AV_PIX_FMT_RGBA;
+        a->in->width       = frame.w;
+        a->in->height      = frame.h;
+        a->in->data[0]     = const_cast<std::uint8_t*>(frame.rgba.data());
+        a->in->linesize[0] = frame.w * 4;
+        a->in->pts         = a->pts;
+        if (avcodec_send_frame(a->enc, a->in) < 0) return false;
+    } else {
+        // RGBA → YUV420P（源 stride = w*4）
+        const uint8_t* src_slice[1] = {frame.rgba.data()};
+        const int      src_stride[1] = {frame.w * 4};
+        sws_scale(a->sws, src_slice, src_stride, 0, frame.h,
+                  a->yuv->data, a->yuv->linesize);
+        a->yuv->pts = a->pts;
+        if (avcodec_send_frame(a->enc, a->yuv) < 0) return false;
+    }
 
-    if (avcodec_send_frame(a->enc, a->yuv) < 0) return false;
     bool ok = true;
     while (avcodec_receive_packet(a->enc, a->pkt) == 0) {
         av_packet_rescale_ts(a->pkt, a->enc->time_base, a->vs->time_base);
@@ -296,6 +354,7 @@ void MpegTsSender::teardown() {
         a->mux = nullptr;
     }
     if (a->sws != nullptr) { sws_freeContext(a->sws); a->sws = nullptr; }
+    if (a->in  != nullptr) av_frame_free(&a->in);
     if (a->yuv != nullptr) av_frame_free(&a->yuv);
     if (a->pkt != nullptr) av_packet_free(&a->pkt);
     if (a->enc != nullptr) avcodec_free_context(&a->enc);
