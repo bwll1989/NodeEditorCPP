@@ -22,7 +22,21 @@
 //      ——防自环；core 注册表 listNdi 已滤，此处第二道防线）。可编辑：
 //      发现列表没有的源标识可直接键入（跨网段手动指定）。
 //  测试定位锚：objectName 前缀 live*（liveIngest/liveSource/
-//  liveSyncLatency/liveRefresh/liveMcastUrl）。
+//  liveSyncLatency/liveRefresh/liveMcastUrl/liveEnable）。
+//
+//  【2026-11-23 启用闸（用户定案，替代同日早先纯 UI 锁方案）】
+//    「启用/停止」按钮（liveEnable）= 捕获与下发的唯一运行开关：
+//    * 启用 → asset.live_enabled = true 随场景 pb 分发：editor Hub 开始
+//      采集（Ingest）+ 组播下发（MpegTsSender），display 端收流显示；
+//      同时锁定接入方式/源/刷新/帧同步四控件 + onEdited/onRefreshSources
+//      写回静默忽略（运行中切源 = 调度器指纹失效 → 连接中的源实例析构
+//      重建，接收/渲染线程竞态偶发崩溃——护栏与闸合一）；
+//    * 停止 → live_enabled = false：Hub 拆净收端+发送器、MediaSource 不
+//      装配收流（prepare 恒成功无收端 → 占位），四控件解锁可自由切源。
+//    状态存素材（Asset.live_enabled，SceneModel/proto LivePayload.enabled）：
+//    跨面板重建/重启/.show 持久化/display 下发全程同源——非编辑器本地态。
+//    全链路生效点：LiveHub::ensureAsset（采集+转发）、LiveMediaSource::
+//    prepare（收流装配）、MediaScheduler::liveFingerprint（启停即重建）。
 // ============================================================================
 
 #pragma once
@@ -65,7 +79,20 @@ private slots:
     /// 「刷新」：当前接入方式注册表 list_sources 重灌源下拉（保留当前选择）
     void onRefreshSources();
 
+    /// 「启用/停止」切换（运行闸）：启用 → asset.live_enabled=true 落定
+    /// （Hub 起采集+下发）并锁定编辑控件；停止 → false（拆收端占位）解锁。
+    /// 无绑定素材时状态弹回。经 applyTo 直写 + on_edited 落定（不走
+    /// onEdited——其含"启用中禁写"守卫）。
+    void onEnableToggled(bool on);
+
 private:
+    /// 当前绑定素材是否启用中（读 asset.live_enabled——状态唯一事实源）
+    bool currentEnabled() const;
+
+    /// 使能状态 → 按钮两态文案/样式 + 四个编辑控件的可用性（幂等；
+    /// 构造/广播灌值/切换三处落点——QSignalBlocker 防回环）
+    void syncEnableUi();
+
     /// 控件当前值 → 素材 live_* 全字段（无条件覆盖：Live 域只有本区块
     /// 一个写者）
     void applyTo(Asset& a) const;
@@ -91,6 +118,8 @@ private:
     const IngestDesc* currentDesc() const;
 
     // ---- 控件（objectName = 测试定位锚）---------------------------------------
+    QPushButton* enable_  = nullptr; ///< liveEnable：启用/停止（运行闸 +
+                                     ///< 锁定切换；两态按钮）
     QComboBox*   ingest_  = nullptr; ///< liveIngest：接入方式（注册表驱动）
     QComboBox*   source_ = nullptr;  ///< liveSource：源标识（可编辑）
     QPushButton* refresh_ = nullptr; ///< liveRefresh：刷新发现列表

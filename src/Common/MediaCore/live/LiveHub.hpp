@@ -133,6 +133,9 @@ public:
     /// 确保素材的 Ingest + Feed + 组播 sender 就位（幂等）。ingest 类型
     /// 按 Ingest 注册表（live/LiveIngest.hpp）分派——未实现类型拒绝并
     /// 记日志。组播通道按 asset.live_url（空 = 未启用组播转发）。
+    /// 【启用闸 2026-11-23】asset.live_enabled=false = 停止采集 + 停止
+    /// 组播下发（收端/发送器拆净，Entry/Feed 保留占位）——采集与下发
+    /// 的唯一运行开关，编辑端「启用/停止」按钮经场景 pb 同步到全链路。
     void ensureAsset(const Asset& asset);
     /// 停止并移除素材的全部资源（Ingest/组播线程 join）
     void dropAsset(const std::string& asset_id);

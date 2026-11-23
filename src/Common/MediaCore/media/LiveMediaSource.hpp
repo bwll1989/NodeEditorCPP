@@ -65,6 +65,9 @@ public:
     /// 启动（连接异步；源未上线不算失败——produce 返回 false → 占位）。
     /// 只有参数非法 / NDI 运行时初始化失败才返回 false（调度器 5s 限频
     /// 重试语义与视频源一致）。
+    /// 【启用闸 2026-11-23】asset.live_enabled=false：不进 Hub 不直收，
+    /// prepare 恒成功但无收端（produce 恒空 → 占位）——收流/捕获的唯一
+    /// 运行开关，与 LiveHub::ensureAsset 同源；启停经调度器指纹触发重建。
     bool prepare(const Asset& asset) override;
 
     /// 恒给最新帧（media_us 占位：实时源与时间轴解耦）

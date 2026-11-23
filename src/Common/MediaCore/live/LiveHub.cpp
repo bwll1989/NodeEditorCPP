@@ -49,6 +49,28 @@ void LiveHub::ensureAsset(const Asset& asset) {
     // ---- Feed：预览出口（探针句柄；每素材唯一）----
     if (entry->feed == nullptr) entry->feed = std::make_shared<Feed>();
 
+    // ---- 启用闸（2026-11-23 用户定案「启用才捕获下发」）-----------------
+    // 未启用 = 停止采集 + 停止组播下发（收端/发送器拆净，Entry/Feed 保留
+    // 占位——再次启用时下方装配路径按指纹重建）。这是捕获与下发的唯一
+    // 运行开关：编辑端 Live 片段「启用/停止」按钮 → asset.live_enabled
+    // 随场景 pb 分发，display 端启停与编辑端同源。
+    if (!asset.live_enabled) {
+        if (entry->ingest != nullptr || entry->mcast != nullptr) {
+            std::fprintf(stderr, "live-hub: %s: 未启用，停止采集与组播下发\n",
+                         asset.id.c_str());
+            std::fflush(stderr);
+        }
+        if (entry->ingest) {
+            entry->ingest->stop();
+            entry->ingest.reset();
+        }
+        entry->ingest_source.clear(); // 装配指纹一并清零——重新启用时
+        entry->ingest_latency = -1;   // 即使源未变也走重建（幂等保证）
+        entry->ingest_kind    = -1;
+        stopEntry(*entry); // 停组播线程（调用方持 mutex_，join 后回调绝迹）
+        return;
+    }
+
     // ---- Ingest：收外部源 → Feed（注册表分派；未实现类型仅占位）----
     // 【2026-11-10 源切换修复】ingest 装配指纹（源名/延迟/类型）变化 →
     // 停旧建新——旧版只在 ingest 为空时创建，用户在编辑端切换源后 Hub

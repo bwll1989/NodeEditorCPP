@@ -86,6 +86,13 @@ bool LiveMediaSource::prepare(const Asset& asset) {
         return false;
     }
 
+    // ---- 启用闸（2026-11-23 用户定案「启用才捕获下发」）--------------------
+    // 未启用 = 不进 Hub（不建 Ingest/组播发送器）也不直收：prepare 恒成功
+    // （避免调度器按 prepare 失败 5s 限频重试刷屏），无收端 → produce 恒空
+    // → 占位黑屏。启用时 live_enabled 变化参与调度器指纹 → 失效重建走
+    // 正常装配。与 LiveHub::ensureAsset 的启用闸同源（asset.live_enabled）。
+    if (!asset.live_enabled) return true;
+
     // ---- Hub 模式（editor 预览进程内直用；display 端未启用恒跳过）----
     // 惰性 ensure：首个消费者装配时建 Ingest+Feed+再发布 sender（幂等），
     // Hub 生命周期独立于源实例（display 侧收流中不随预览 release 中断）

@@ -325,6 +325,13 @@ struct Asset {
     /// 本延迟"排程显示（多 display 跨机帧同步）。【2026-11-23 监视档
     /// （0）退役——≤0 存量值在 UI/下发/收流端统一兜底 120ms】
     std::int64_t live_target_latency_us = 0;
+
+    /// 启用闸（2026-11-23 用户定案「启用才捕获下发」）：true = 采集 +
+    /// 组播下发运行（editor Hub 收源+转发 / display 收流）；false = 停止
+    /// （不采集不转发，显示占位，编辑端可自由切源）。唯一写者 = Live
+    /// 片段属性「启用/停止」按钮；随场景 pb 分发（display 同步启停），
+    /// 参与 Asset 相等比较与调度器指纹（切换即失效重建）。
+    bool live_enabled = false;
 };
 
 /// 实时源采集器类型（与 proto LivePayload.ingest 一一对应；
@@ -349,7 +356,8 @@ inline bool operator==(const Asset& a, const Asset& b) {
            a.text_h_align == b.text_h_align && a.text_bg_color == b.text_bg_color &&
            a.live_source_name == b.live_source_name && a.live_url == b.live_url &&
            a.live_ingest == b.live_ingest && a.live_latency == b.live_latency &&
-           a.live_target_latency_us == b.live_target_latency_us;
+           a.live_target_latency_us == b.live_target_latency_us &&
+           a.live_enabled == b.live_enabled;
 }
 
 // ---------------------------------------------------------------------------

@@ -102,6 +102,19 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     lay->setContentsMargins(6, 6, 6, 6);
     lay->setSpacing(4);
 
+    // ---- 启用闸（两态：启用=采集+下发运行并锁定，停止=停采解锁）------------
+    // asset.live_enabled 全链路生效：LiveHub::ensureAsset（采集+组播
+    // 转发拆装）、LiveMediaSource::prepare（收流装配）、MediaScheduler
+    // 指纹（启停即失效重建）。启用中锁定源编辑控件——运行中切源会析构
+    // 重建连接中的源实例（接收/渲染线程竞态偶发崩溃）。
+    enable_ = new QPushButton(QStringLiteral("启用"), box);
+    enable_->setObjectName("liveEnable"); // 测试定位锚
+    enable_->setCheckable(true);
+    enable_->setToolTip(QStringLiteral(
+        "启用：开始采集并组播下发（display 端有画面），同时锁定源选择。\n"
+        "停止：结束采集与下发（display 占位），解锁后可切换源。"));
+    lay->addWidget(enable_);
+
     // ---- 接入方式（Ingest 注册表驱动；未实现协议置灰展示）-------------------
     ingest_ = new QComboBox(box);
     ingest_->setObjectName("liveIngest"); // 测试定位锚
@@ -176,6 +189,10 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
 
     root->addWidget(box);
 
+    // 启用状态按素材现值恢复（面板重建/重新选中后锁定不丢）——
+    // 置于 connect 之前：setChecked 不触发写回
+    syncEnableUi();
+
     // ---- 即时生效：任一控件变更 → applier 写回 -------------------------------
     connect(ingest_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) {
@@ -190,6 +207,60 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
             this, [this](int) { onEdited(); });
     connect(refresh_, &QPushButton::clicked,
             this, &LiveClipSection::onRefreshSources);
+    connect(enable_, &QPushButton::toggled,
+            this, &LiveClipSection::onEnableToggled);
+}
+
+// ---------------------------------------------------------------------------
+// currentEnabled：当前绑定素材是否启用中（读 asset.live_enabled——状态
+// 唯一事实源，跨面板重建/重启/下发全程同源）
+// ---------------------------------------------------------------------------
+bool LiveClipSection::currentEnabled() const {
+    const Asset* a = boundAsset();
+    return a != nullptr && a->kind == AssetKind::Live && a->live_enabled;
+}
+
+// ---------------------------------------------------------------------------
+// syncEnableUi：启用状态 → 按钮两态文案/样式 + 编辑控件可用性（幂等）。
+// 落点：构造恢复 / refreshFromClip 广播 / onEnableToggled 切换。
+// QSignalBlocker 防 setChecked 回环触发 onEnableToggled。
+// ---------------------------------------------------------------------------
+void LiveClipSection::syncEnableUi() {
+    const bool on = currentEnabled();
+    {
+        const QSignalBlocker b(enable_);
+        enable_->setChecked(on);
+    }
+    // 两态按钮：未启用「启用」（默认态）；启用后「停止」（绿底——
+    // 运行中，按下面板即停止采集下发并解锁）
+    enable_->setText(on ? QStringLiteral("停止") : QStringLiteral("启用"));
+    enable_->setStyleSheet(on
+        ? QStringLiteral("QPushButton { background-color: #2E7D32;"
+                         " color: white; font-weight: bold; }")
+        : QString());
+    const bool editable = !on;
+    ingest_->setEnabled(editable);
+    source_->setEnabled(editable);
+    refresh_->setEnabled(editable);
+    sync_latency_->setEnabled(editable);
+}
+
+// ---------------------------------------------------------------------------
+// onEnableToggled：「启用/停止」切换（运行闸）→ 写 asset.live_enabled +
+// 全字段落定（启停经调度器指纹传播：Hub 拆/建收端与组播、display 拆/建
+// 收流）+ 重铺锁定态。无绑定素材（未绑定/已删）：状态弹回。
+// 刻意不走 onEdited（其含"启用中禁写"守卫，会拦掉本次合法写回）。
+// ---------------------------------------------------------------------------
+void LiveClipSection::onEnableToggled(bool on) {
+    Asset* a = writableAsset();
+    if (!a || a->kind != AssetKind::Live) {
+        const QSignalBlocker b(enable_);
+        enable_->setChecked(!on); // 弹回：无素材可写
+        return;
+    }
+    applyTo(*a); // enable_ 已是用户点击后的新态 → live_enabled + 全字段
+    syncEnableUi();
+    if (ctx_.on_edited) ctx_.on_edited(); // 落定：sceneEdited 自动下发
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +295,9 @@ void LiveClipSection::applyTo(Asset& a) const {
     // （multicastUrlFor；用户不经 UI 改）。跨机 display 唯一拿画面通道——
     // 源设备在 display 机器上不存在，按名直收必黑屏。
     a.live_url = multicastUrlFor(a.id);
+    // 启用闸（2026-11-23）：按钮 = 捕获+下发唯一运行开关，随场景 pb
+    // 分发（display 同步启停）；参与相等比较与调度器指纹。
+    a.live_enabled = enable_->isChecked();
 }
 
 // ---------------------------------------------------------------------------
@@ -271,6 +345,10 @@ void LiveClipSection::refreshFrom(const Asset& a) {
 // onRefreshSources：当前接入方式的源列表重灌（保留当前选择；过滤再发布流）
 // ---------------------------------------------------------------------------
 void LiveClipSection::onRefreshSources() {
+    // 【启用闸】运行中不重枚举：clear()/setCurrentIndex() 会触发
+    // currentIndexChanged → onEdited 写回（等同切换源，启用中禁止）
+    if (currentEnabled()) return;
+
     // 当前值快照（ref 语义——见 applyTo 同款取值）
     const QVariant cur_data = source_->currentData();
     const QString   cur_text = source_->currentText();
@@ -338,6 +416,7 @@ void LiveClipSection::refreshFromClip(const ms::Clip* clip) {
     if (!clip || !ctx_.scene || clip->asset_id.empty()) return;
     const Asset* a = ctx_.scene->findAsset(clip->asset_id);
     if (!a || a->kind != AssetKind::Live) return;
+    syncEnableUi(); // 启用状态跟素材走（面板重建/广播灌值后按素材现值恢复）
     refreshFrom(*a);
 }
 
@@ -348,6 +427,12 @@ void LiveClipSection::refreshFromClip(const ms::Clip* clip) {
 void LiveClipSection::onEdited() {
     Asset* a = writableAsset();
     if (!a || a->kind != AssetKind::Live) return; // 已删/未绑定：静默忽略
+
+    // 【启用闸 2026-11-23】运行中禁止任何 live_* 写回（防御纵深：控件虽
+    // 已置灰，信号竞态/程序化触发仍可能到达）——改 live_* 即改素材指纹，
+    // 调度器会析构重建连接中的源实例（偶发崩溃根因）。合法启停写回走
+    // onEnableToggled（直写 applyTo，不经本守卫）。
+    if (currentEnabled()) return;
 
     applyTo(*a); // 控件值 → asset.live_* 全字段
 

@@ -100,6 +100,8 @@ public:
         f.feed(a.live_ingest);
         f.feed(a.live_latency);
         f.feed(a.live_target_latency_us); // 帧同步延迟变化 → 失效重建（2026-11-21）
+        f.feed(a.live_enabled ? 1 : 0); // 启用闸变化 → 失效重建（2026-11-23：
+                                        // 停止=拆收端占位 / 启用=重新装配）
         return f.h;
     }
 

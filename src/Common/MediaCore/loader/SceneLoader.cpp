@@ -358,6 +358,7 @@ ms_proto::Asset SceneLoader::toProtoAsset(const Asset& a) {
         lv->set_ingest(a.live_ingest);
         lv->set_latency(a.live_latency);
         lv->set_target_latency_us(a.live_target_latency_us);
+        lv->set_enabled(a.live_enabled); // 启用闸（2026-11-23）随场景分发
     }
     return pa;
 }
@@ -402,6 +403,9 @@ Asset SceneLoader::fromProtoAsset(const ms_proto::Asset& pa) {
                              ? pa.live().latency() : 0;
         // 帧同步目标延迟：直传（消费端以 >0 判定启用，负/零值天然 = 监视语义）
         a.live_target_latency_us = pa.live().target_latency_us();
+        // 启用闸（2026-11-23）：false = 停止采集/收流（存量工程缺省=false，
+        // 需在编辑端显式「启用」后才有画面——新语义的预期行为）
+        a.live_enabled = pa.live().enabled();
     }
     return a;
 }
