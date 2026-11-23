@@ -50,6 +50,22 @@ public Q_SLOTS:
     /// TimeLineToolBar::onGlobalEvent 同构：单槽按地址分发 + 回执反馈）
     void onTimelineCommand(const GlobalEvent& ev);
 
+    // ---- 程序化播放控制（2026-11-23 headless 集成）--------------------------
+    // 与工具栏/OSC 命令同源（handle* 直通）；宿主（FlowRuntime 无界面，
+    // 加载后只下发不起播）经此或 /timeline/master/* OSC 命令驱动回放。
+    // preview_/audioBus_/timeline_ 允许为 null——headless 装配（无预览/
+    // 无音频总线/无时间轴视图）下全链可用。
+    /// 播放：会话锚点广播 + tick 启动（有预览时含预览/音频锚定）
+    void play();
+    /// 暂停：会话冻结 + tick 停止
+    void pause();
+    /// 停止：会话回 Idle + 播放头回零
+    void stop();
+    /// 循环开关（到头回零续播而非停止；反馈 /loop）
+    void setLoop(bool on);
+    /// 当前循环模式
+    bool looping() const { return looping_; }
+
 private:
     /// 播放（工具栏点击与外部 /play 命令同源）：会话广播 + 本地预览 + tick 启动
     void handlePlay();

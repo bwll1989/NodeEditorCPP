@@ -400,13 +400,14 @@ set(CALC_SOURCE_FILES
 set(HEADLESS_SOURCE_FILES ${CALC_SOURCE_FILES})
 list(REMOVE_ITEM HEADLESS_SOURCE_FILES main.cpp)
 # FlowRuntime 使用 MainWindowHeadLess，无需 GUI 主窗口与 QWindowKit 标题栏源码
+# 【2026-11-23】TimelinePlaybackController 不再剔除——headless 时间轴回放
+# （FlowRuntime 加载含 mediaTimeline 的 .flow 后自动下发+驱动 display 播放）
+# 复用 GUI 同一播放总控（preview_/audioBus_/timeline_ Deps 允许 null）
 list(REMOVE_ITEM HEADLESS_SOURCE_FILES
         src/Widget/MainWindow/MainWindow.cpp
         src/Widget/MainWindow/MainWindow.hpp
         src/Widget/MainWindow/FramelessConfirmDialog.cpp
         src/Widget/MainWindow/FramelessConfirmDialog.hpp
-        src/Widget/TimeLineWidget/TimelinePlaybackController.cpp
-        src/Widget/TimeLineWidget/TimelinePlaybackController.hpp
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.cpp
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar.h
         3rdParty/qwindowkit/examples/shared/widgetframe/windowbar_p.h

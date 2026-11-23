@@ -19,6 +19,11 @@
 #include "../../Common/AppConfig/ConfigManager.h"
 #include "../../Common/AppConfig/ProjectPersistence.h"
 
+// ---- 时间轴回放运行时（2026-11-23 headless 集成；与 MainWindow 同族）----
+#include "../TimeLineWidget/QtTimelineModelAdapter.hpp"     // Scene↔帧模型适配器
+#include "Widget/TimeLineWidget/MsRuntimeBridge.hpp"        // 下发运行时桥
+#include "Widget/TimeLineWidget/TimelinePlaybackController.hpp" // 播放总控
+
 #include <QApplication>
 #include <QCloseEvent>
 #include <QDebug>
@@ -51,6 +56,17 @@ MainWindowHeadLess::MainWindowHeadLess(QWidget *parent)
 MainWindowHeadLess::~MainWindowHeadLess()
 {
     shutdown();
+    // 时间轴回放运行时拆卸：先控制器（内部发送调度线程持有 adapter/桥的
+    // 借用指针——先停线程再拆依赖），桥/适配器虽挂 this 父子仍显式删除
+    // 保证析构序；Scene 纯结构最后。
+    delete msPlayback_;
+    msPlayback_ = nullptr;
+    delete msTimelineAdapter_;
+    msTimelineAdapter_ = nullptr;
+    delete msRuntime_;
+    msRuntime_ = nullptr;
+    delete msScene_;
+    msScene_ = nullptr;
     delete controller;
     controller = nullptr;
     delete log;
@@ -127,6 +143,32 @@ void MainWindowHeadLess::init()
     connect(httpServer, &Flow::NodeHttpServer::flowFileUploaded, this, &MainWindowHeadLess::loadFileFromPath);
     emit initStatus(tr("Initialization Http Server success"));
 
+    // ---- 时间轴回放运行时（headless 回放半边）--------------------------------
+    // GUI 版对应装配 = MainWindow：Scene + 下发桥 + 适配器 + 播放总控；
+    // 刻意不建预览渲染器/音频 bus/时间轴视图/画布（Deps 各指针允许 null）——
+    // 显示端（FlowDisplay）是唯一画面消费方。运行时启动失败仅降级
+    // （时间轴可加载、无下发能力），与 GUI 同语义。
+    msScene_ = new ms::Scene();
+    msScene_->canvas_w = 1920.0;
+    msScene_->canvas_h = 1080.0;
+    msRuntime_ = new ms::MsRuntimeBridge(this);
+    if (!msRuntime_->start()) {
+        qWarning() << "ms-headless: 下发运行时启动失败（端口占用？）——"
+                      "时间轴可加载，display 下发不可用";
+    }
+    msTimelineAdapter_ = new ms::QtTimelineModelAdapter(this);
+    msTimelineAdapter_->attachWorkScene(msScene_);
+    msTimelineAdapter_->setRuntimeBridge(msRuntime_);
+    // 编辑自动追平节流沿用全局配置（headless 无编辑，仅保持同参）
+    msTimelineAdapter_->setAutoPublishInterval(
+        ConfigManager::instance().getSceneAutoPublishMs());
+    msPlayback_ = new ms::TimelinePlaybackController(
+        {msRuntime_, nullptr, nullptr, msTimelineAdapter_, nullptr}, this);
+    // 循环模式按配置（默认开：无人值守播完回零续播；运行中可经
+    // /timeline/master/loop OSC 命令翻转——与 GUI 同源）
+    msPlayback_->setLoop(ConfigManager::instance().isHeadlessTimelineLoop());
+    emit initStatus(tr("Initialization timeline playback runtime success"));
+
     if (QSystemTrayIcon::isSystemTrayAvailable()) {
         trayIcon = new QSystemTrayIcon(this);
         trayIcon->setIcon(QIcon(":/icons/icons/FlowMono.png"));
@@ -181,6 +223,8 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
     targets.dataflowViewsManger = dataflowViewsManger;
     targets.scheduledTaskModel = scheduledTaskModel;
     targets.httpServer = httpServer;
+    targets.msScene = msScene_;     // mediaTimeline 段回灌落点（GUI 同款）
+    targets.msRuntime = msRuntime_; // mediaDisplays 段显示端登记回灌落点
 
     ProjectLoadOptions options;
     options.restoreVisualLayout = false;
@@ -215,6 +259,23 @@ bool MainWindowHeadLess::loadFileFromPath(const QString &path)
 
     ConfigManager::instance().addRecentFile(readResult.absolutePath);
     currentProjectPath = readResult.absolutePath;
+
+    // —— 时间轴段回灌 + 自动下发（headless，2026-11-23 用户定案不自动播放）——
+    // 与 GUI 打开工程同两段：装载模型 → 打开即追平（display 注册应答/
+    // 上线追平有场景可发）。播放不自动驱动——由外部命令起播
+    //（/timeline/master/play 等 OSC 命令，经播放总控与会话链同源生效）。
+    // 旧文件无 mediaTimeline 段或纯数据流工程（场景全空）整块跳过——
+    // 行为与旧版 headless 完全一致。
+    if (msScene_ && msTimelineAdapter_
+        && (!msScene_->timeline.tracks.empty() || !msScene_->screens.empty()
+            || !msScene_->assets.empty())) {
+        msTimelineAdapter_->loadSceneToModel(*msScene_);
+        if (msTimelineAdapter_->publishScene()) {
+            qDebug() << "ms-headless: 时间轴场景已下发（待外部命令起播）";
+        } else {
+            qWarning() << "ms-headless: 时间轴场景未下发（运行时未启动）";
+        }
+    }
 
     reportLoadStatus(tr("Load flow file completed"));
     finishLoadSplash();

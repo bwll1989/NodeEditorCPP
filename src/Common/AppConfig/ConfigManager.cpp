@@ -75,6 +75,7 @@ ConfigManager::ConfigManager()
     , m_artnetMergeMode(AppConfigs::ARTNET_MERGE_MODE)
     , m_artnetSendFps(AppConfigs::ARTNET_SEND_FPS)
     , m_sceneAutoPublishMs(AppConfigs::SCENE_AUTO_PUBLISH_MS)
+    , m_headlessTimelineLoop(true)
 {
     QString configDir = AppConstants::RECENT_FILES_STORAGE_DIR;
     QDir().mkpath(configDir);
@@ -108,6 +109,7 @@ int ConfigManager::getAutosaveIntervalSeconds() const { return m_autosaveInterva
 double ConfigManager::getTimestampFrameRate() const { return AppConfigs::TIMESTAMP_FRAME_RATE; }
 int ConfigManager::getAudioOutputDelayFrames() const { return m_audioOutputDelayFrames; }
 int ConfigManager::getSceneAutoPublishMs() const { return m_sceneAutoPublishMs; }
+bool ConfigManager::isHeadlessTimelineLoop() const { return m_headlessTimelineLoop; }
 QString ConfigManager::getLicenseCode() const { return m_licenseCode; }
 QString ConfigManager::getActivationCode() const { return m_activationCode; }
 int ConfigManager::getArtnetMergeMode() const { return m_artnetMergeMode; }
@@ -177,6 +179,9 @@ void ConfigManager::loadConfig()
     //（拖拽 mousemove 频率全量广播），高于 2000 跟手感尽失
     m_sceneAutoPublishMs = qBound(20, settings.value("Network/SceneAutoPublishMs",
                                                      AppConfigs::SCENE_AUTO_PUBLISH_MS).toInt(), 2000);
+    // headless（FlowRuntime）时间轴自动回放循环开关（默认开：无人值守场景
+    // 播完回零续播；false = 播完停止）
+    m_headlessTimelineLoop = settings.value("Runtime/HeadlessTimelineLoop", true).toBool();
 }
 
 void ConfigManager::createDefaultConfig()
@@ -226,6 +231,8 @@ void ConfigManager::saveConfig()
     settings.setValue("Network/ArtnetSendFps", m_artnetSendFps);
     // 场景自动下发节流间隔（ms）
     settings.setValue("Network/SceneAutoPublishMs", m_sceneAutoPublishMs);
+    // headless 时间轴自动回放循环开关
+    settings.setValue("Runtime/HeadlessTimelineLoop", m_headlessTimelineLoop);
 
     settings.sync();
 }

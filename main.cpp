@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
     // g_previousShutdownWasClean 保持默认 true，shouldOfferRecovery() 直接短路，
     // 启动时不会再弹“检测到上次异常退出”的恢复对话框（无头模式 AutoRestore 同样被闸门拦下）。
     // 恢复方法：取消下一行注释即可。
-    // ProjectPersistence::onApplicationStartup();
+    ProjectPersistence::onApplicationStartup();
 
     // 设置应用程序样式
     QApplication::setStyle(QStyleFactory::create("Fusion"));

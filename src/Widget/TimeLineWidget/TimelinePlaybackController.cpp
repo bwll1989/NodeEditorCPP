@@ -152,6 +152,20 @@ TimelinePlaybackController::TimelinePlaybackController(const Deps& deps, QObject
 
 TimelinePlaybackController::~TimelinePlaybackController() = default;
 
+// ---------------------------------------------------------------------------
+// 程序化播放控制（2026-11-23 headless 集成）：宿主自动起播/外部控制的
+// 正式入口，与工具栏点击、OSC /timeline/master/* 命令同源（handle* 直通，
+// 状态反馈统一回推）。headless 装配（preview_/audioBus_/timeline_ 全空）
+// 下会话广播 + tick + 到头循环检查全链可用。
+// ---------------------------------------------------------------------------
+void TimelinePlaybackController::play()  { handlePlay(); }
+void TimelinePlaybackController::pause() { handlePause(); }
+void TimelinePlaybackController::stop()  { handleStop(); }
+
+void TimelinePlaybackController::setLoop(bool on) {
+    handleLoop(on); // 模式翻转 + /loop 反馈（与 /loop 命令同源）
+}
+
 /**
  * @brief 播放（工具栏点击与外部 /play 命令同源）
  * 函数级注释：会话广播锚点播放 + 本地预览状态机启动 + 33ms tick 启动，
@@ -162,18 +176,23 @@ void TimelinePlaybackController::handlePlay() {
         runtime_->cmdPlay(); // 广播锚点播放（0 端在线 = no-op）
     if (timeline_ && timeline_->toolbar)
         timeline_->toolbar->setPlaybackState(true); // 按钮态同步（OSC 命令不经动作触发）
-    if (!preview_) return;
-    preview_->play();     // Idle→从头 / Paused→续播（状态机幂等）
-    // timeline 音频 bus 起播锚定：位置取双权威当前值——会话播放中
-    // 用锚定会话时间（cmdPlay 锚点值），否则预览播放头
-    if (audioBus_) {
-        std::int64_t t0 = -1;
-        if (runtime_ && runtime_->running())
-            t0 = runtime_->sessionTimeUs();
-        if (t0 < 0 && preview_) t0 = preview_->playheadUs();
+    if (preview_) {
+        preview_->play(); // Idle→从头 / Paused→续播（状态机幂等）
+        // timeline 音频 bus 起播锚定：位置取双权威当前值——会话播放中
+        // 用锚定会话时间（cmdPlay 锚点值），否则预览播放头
+        if (audioBus_) {
+            std::int64_t t0 = -1;
+            if (runtime_ && runtime_->running())
+                t0 = runtime_->sessionTimeUs();
+            if (t0 < 0 && preview_) t0 = preview_->playheadUs();
+            audioBus_->commandPlay(t0 < 0 ? 0 : t0);
+        }
+    } else if (audioBus_) {
+        // headless（无预览）：音频锚定退会话权威，无会话读数从 0 起
+        const std::int64_t t0 = runtime_ ? runtime_->sessionTimeUs() : -1;
         audioBus_->commandPlay(t0 < 0 ? 0 : t0);
     }
-    if (tick_) tick_->start(33); // tick 节奏对齐画布 pull 泵
+    if (tick_) tick_->start(33); // tick 节奏对齐画布 pull 泵（headless：到头检查+控制触发）
     publishPlaybackState();
 }
 
@@ -196,8 +215,7 @@ void TimelinePlaybackController::handlePause() {
     if (timeline_ && timeline_->toolbar)
         timeline_->toolbar->setPlaybackState(false);
     if (audioBus_) audioBus_->commandPause(); // 停写（下游自然静音）
-    if (!preview_) return;
-    preview_->pause();
+    if (preview_) preview_->pause();
     if (tick_) tick_->stop();
     publishPlaybackState();
 }
@@ -212,10 +230,9 @@ void TimelinePlaybackController::handleStop() {
     if (timeline_ && timeline_->toolbar)
         timeline_->toolbar->setPlaybackState(false);
     if (audioBus_) audioBus_->commandStop();
-    if (!preview_) return;
-    preview_->stop(); // 归零回 Idle
+    if (preview_) preview_->stop(); // 归零回 Idle
     if (tick_) tick_->stop();
-    // 播放头回显起点（画布 pull 泵检测变化自动重绘首帧）
+    // 播放头回显起点（画布 pull 泵检测变化自动重绘首帧；headless 仅状态归零）
     if (adapter_) adapter_->setPlayheadFromRuntimeUs(0);
     publishPlaybackState();
 }
@@ -227,8 +244,10 @@ void TimelinePlaybackController::handleStop() {
  *            非播放态补发 /currentFrame=0 归零帧（停止/暂停后反馈收敛）。
  */
 void TimelinePlaybackController::publishPlaybackState() {
-    if (!preview_) return;
-    const bool playing = preview_->playing();
+    // 播放态权威：有预览 = 本地预览状态机（GUI，与 handle 双源同步翻转）；
+    // headless（无预览）= 下发会话播放态（runtime 未运行恒 false）
+    const bool playing = preview_ ? preview_->playing()
+                                  : (runtime_ && runtime_->playing());
     auto* bus = GlobalEventBus::instance();
     bus->publishState(address(QStringLiteral("/play")), playing);
     bus->publishState(address(QStringLiteral("/stop")), !playing);

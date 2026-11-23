@@ -65,6 +65,13 @@ public:
      */
     int getSceneAutoPublishMs() const;
     /**
+     * @brief 获取 headless（FlowRuntime）时间轴自动回放循环开关
+     * @return bool true = 播到时间轴末尾回零续播；false = 播完停止
+     * @note 仅 headless 运行时消费（Settings.ini Runtime/HeadlessTimelineLoop，
+     *       默认开）；GUI 循环态由播放控制器会话内维护，不读此项
+     */
+    bool isHeadlessTimelineLoop() const;
+    /**
      * 函数级注释：将新路径加入最近文件列表
      * - 规则：去重后插入到首位；保留最多 MaxRecentFiles 个
      * - 同步写入配置文件
@@ -118,6 +125,7 @@ private:
     int m_artnetMergeMode; ///< Art-Net 多源合并策略（ArtnetMergeMode 枚举值）
     int m_artnetSendFps;   ///< Art-Net 发送节拍频率（Hz）
     int m_sceneAutoPublishMs; ///< 场景自动下发节流间隔（ms，Network/SceneAutoPublishMs）
+    bool m_headlessTimelineLoop; ///< headless 时间轴回放循环（Runtime/HeadlessTimelineLoop）
     QStringList m_recentFiles;
     QString m_currentFlowPath;
 };
