@@ -138,11 +138,15 @@ bool LiveMediaSource::prepare(const Asset& asset) {
     if (ingest_ != nullptr) return true;
 
     source_name_  = connect_ref;
-    latency_mode_ = asset.live_latency == 1 ? 1 : 0; // 非 0/1 一律 0（保守低延迟）
+    // 【2026-11-23 必须同步】延迟模式恒同步（低延迟丢帧档退役——用户定案）
+    latency_mode_ = 1;
     // 帧同步目标延迟（2026-11-21）：仅 display 直收模式消费；Hub 模式
-    // （预览）恒监视语义。直传——storeFrame/frameView 以 >0 判定启用。
-    target_latency_us_ = asset.live_target_latency_us;
-    if (target_latency_us_ > 0) {
+    // （预览）恒监视语义。≤0（旧"监视"档存量值）兜底 120ms——同步恒
+    // 启用，display 端不再有"最新帧直显"语义。
+    target_latency_us_ = asset.live_target_latency_us > 0
+                             ? asset.live_target_latency_us
+                             : 120'000;
+    {
         // 容量必须覆盖 target_latency 的历史（30fps 保守估计 + 8 帧余量）：
         // 容量不足时未到期帧被裁 → 选帧恒空 → 永久占位黑屏（审查修复）。
         const std::size_t need =

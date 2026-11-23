@@ -316,12 +316,14 @@ struct Asset {
     // 恒空随场景 pb 分发，同文本模式——AssetDeps 已排除拉文件）。字段全部
     // 为"缺席 = 0 = 业务默认"普通标量（proto3 无 has_ 陷阱）。
     std::string  live_source_name; ///< NDI 源名（发现列表选择）
-    std::string  live_url;         ///< 网络流 URL（ingest=network 时有效）
+    std::string  live_url;         ///< 组播 URL（2026-11-23 恒启用——applyTo/
+                                   ///< 下发归一化按 multicastUrlFor 生成）
     std::int32_t live_ingest  = 0; ///< 采集器：0=ndi 1=window 2=spout 3=network 4=monitor 5=camera
-    std::int32_t live_latency = 0; ///< 0=最低（帧到即显，默认）1=同步（缓冲 2~3 帧）
-    /// 帧同步目标延迟（微秒，2026-11-21）：>0 时 display 端按"帧接收戳
-    /// pts + 本延迟"排程显示（多 display 跨机帧同步）；=0 最新帧直显
-    /// （监视语义）。消费端以 >0 判定。建议 80000~200000。
+    std::int32_t live_latency = 0; ///< 0=最低 1=同步【2026-11-23 恒 1——
+                                   ///< 低延迟档退役，「必须同步」用户定案】
+    /// 帧同步目标延迟（微秒，2026-11-21）：display 端按"帧接收戳 pts +
+    /// 本延迟"排程显示（多 display 跨机帧同步）。【2026-11-23 监视档
+    /// （0）退役——≤0 存量值在 UI/下发/收流端统一兜底 120ms】
     std::int64_t live_target_latency_us = 0;
 };
 

@@ -26,6 +26,8 @@
 
 #include "clock/ClockProvider.hpp"
 #include "live/LiveHub.hpp" // Live 分发归一化（display 收 Hub 再发布流）
+#include "live/MpegTsSender.hpp" // multicastUrlFor（组播地址确定性生成——
+                                 // live_url 空的存量素材下发前兜底）
 #include "runtime/AssetPath.hpp" // u8Path：中文素材路径防御（2026-11-13）
 // （第七迭代：增量补丁机制退役——场景同步一律广播全量，无需 diff/merge）
 
@@ -1000,6 +1002,17 @@ void prepareLiveForDisplay(Scene& snap) {
     if (!hub.enabled()) return;
     for (auto& a : snap.assets) {
         if (a.kind != AssetKind::Live) continue;
+        // 【2026-11-23 必须同步 + 组播恒启用】下发前对快照归一化（权威
+        // 场景不动，编辑端预览/.show 持久化仍按原始值；下次 UI applyTo
+        // 会把权威值也写对）：
+        //   * live_url 空（勾选框退役前的存量素材）→ 按确定性地址补齐，
+        //     display 恒有画面（跨机按名直收必黑屏，该分支已淘汰）；
+        //   * live_latency ≠ 1 → 同步（低延迟丢帧档退役）；
+        //   * 帧同步 ≤ 0（旧"监视"档）→ 120ms 默认档。
+        if (a.live_url.empty()) a.live_url = multicastUrlFor(a.id);
+        a.live_latency = 1;
+        if (a.live_target_latency_us <= 0)
+            a.live_target_latency_us = 120'000;
         hub.ensureAsset(a); // 收端/组播发送器统一由 editor Hub 持有
     }
 }

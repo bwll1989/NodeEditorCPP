@@ -4,7 +4,6 @@
 
 #include "LiveClipSection.hpp"
 
-#include <QCheckBox>
 #include <QComboBox>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -33,20 +32,22 @@ constexpr const char* kRepublishMark = "ms-live";
 
 /// 帧同步目标延迟档位（μs）——display 端按"帧接收戳 + 本延迟"排程，
 /// 多 display 跨机帧同步（LiveMediaSource 排程引擎，2026-11-21）。
-/// 档位化防呆：0=监视（最新帧直显）；上限 500ms 在引擎缓冲容量
-/// （clamp [16,48] 帧 @30fps ≈ 1.6s）的安全域内。
+/// 【2026-11-23 用户定案「必须同步」】监视档（0=最新帧直显）退役——
+/// Live 的用途就是跨机分发+帧同步，只留同步档位；上限 500ms 在引擎
+/// 缓冲容量（clamp [16,48] 帧 @30fps ≈ 1.6s）的安全域内。
 struct SyncLatencyPreset {
     const char* label;
     std::int64_t us;
 };
 constexpr SyncLatencyPreset kSyncLatencyPresets[] = {
-    {"监视（最新帧直显）", 0},
     {"40 ms",  40'000},
     {"80 ms",  80'000},
     {"120 ms", 120'000},
     {"200 ms", 200'000},
     {"500 ms", 500'000},
 };
+/// 存量工程兜底：帧同步值非法（≤0 = 旧"监视"档）一律归一到 120ms
+constexpr std::int64_t kSyncLatencyDefaultUs = 120'000;
 
 /// 下拉中按值就近选档（模型值非档位精确值时取差最小者——
 /// 外部构造的 pb / 旧工程值也能回灌到合理档位）
@@ -142,44 +143,35 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     src_row->addWidget(refresh_);
     lay->addLayout(src_row);
 
-    // ---- 延迟模式 -----------------------------------------------------------
-    latency_ = new QComboBox(box);
-    latency_->setObjectName("liveLatency");
-    latency_->addItem(QStringLiteral("最低延迟（帧到即显）")); // index 0 = 默认
-    latency_->addItem(QStringLiteral("同步（缓冲 2~3 帧抗抖动）")); // 1
-    latency_->setCurrentIndex(asset.live_latency == 1 ? 1 : 0);
-    lay->addWidget(latency_);
-
     // ---- 帧同步目标延迟（跨机帧同步排程；display 端消费）---------------------
+    // 【2026-11-23 必须同步】仅同步档位（监视档退役）；延迟模式下拉同日
+    // 退役——恒同步语义，不再暴露选项。
     auto* sync_row = new QHBoxLayout();
     auto* sync_label = new QLabel(QStringLiteral("帧同步"), box);
     sync_row->addWidget(sync_label);
     sync_latency_ = new QComboBox(box);
     sync_latency_->setObjectName("liveSyncLatency");
     sync_latency_->setToolTip(QStringLiteral(
-        "按帧接收时间戳 + 本延迟排程显示：多台 display 同值即可跨机帧同步；"
-        "监视 = 保持最新帧直显（原行为）。建议 80~200ms。"));
+        "按帧接收时间戳 + 本延迟排程显示：多台 display 选同一档即可跨机帧"
+        "同步。建议 80~200ms。"));
     for (const auto& p : kSyncLatencyPresets)
         sync_latency_->addItem(QString::fromUtf8(p.label),
                                QVariant(static_cast<qlonglong>(p.us)));
-    sync_latency_->setCurrentIndex(
-        nearestSyncIndex(sync_latency_, asset.live_target_latency_us));
+    sync_latency_->setCurrentIndex(nearestSyncIndex(
+        sync_latency_,
+        asset.live_target_latency_us > 0 ? asset.live_target_latency_us
+                                         : kSyncLatencyDefaultUs));
     sync_row->addWidget(sync_latency_, /*stretch=*/1);
     lay->addLayout(sync_row);
 
-    // ---- 组播转发（全源类型：跨机画面分发唯一通道——多 display 共享一路）---
-    mcast_ = new QCheckBox(QStringLiteral("组播转发（多台 display 共享一路带宽）"), box);
-    mcast_->setObjectName("liveMcast");
-    mcast_->setToolTip(QStringLiteral(
-        "editor 把本源收进的画面编码一次（H.264）后组播分发：display 端按组播"
-        "地址接收画面，入网带宽恒一份。不勾选 = display 端在本机按源名直收"
-        "（仅源也在 display 本机时可用）。需交换机支持 IGMP。"));
-    lay->addWidget(mcast_);
+    // ---- 组播转发（恒启用——跨机画面分发唯一通道）---------------------------
+    // 【2026-11-23 用户定案】组播不再可选：不勾选 = display 端在本机按名
+    // 直收（跨机必黑屏），该分支是坑，直接消灭——live_url 恒生成（见
+    // applyTo），此处仅展示确定性分配的组播地址（信息性，不可改）。
     mcast_url_ = new QLabel(box);
     mcast_url_->setObjectName("liveMcastUrl");
     mcast_url_->setStyleSheet(QStringLiteral("color: gray; font-size: 11px;"));
     mcast_url_->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    mcast_url_->setVisible(false);
     lay->addWidget(mcast_url_);
 
     root->addWidget(box);
@@ -194,11 +186,8 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
             this, [this](const QString&) { onEdited(); });
     connect(source_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { onEdited(); });
-    connect(latency_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this](int) { onEdited(); });
     connect(sync_latency_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { onEdited(); });
-    connect(mcast_, &QCheckBox::toggled, this, [this](bool) { onEdited(); });
     connect(refresh_, &QPushButton::clicked,
             this, &LiveClipSection::onRefreshSources);
 }
@@ -227,17 +216,14 @@ void LiveClipSection::applyTo(Asset& a) const {
     a.live_source_name = data.isValid()
         ? data.toString().toStdString()
         : source_->currentText().toStdString();
-    a.live_latency = latency_->currentIndex() == 1 ? 1 : 0;
-    // 帧同步目标延迟（μs；档位 currentData 直传——无精度损失）
+    // 【2026-11-23 必须同步】延迟模式恒同步（低延迟档退役）；帧同步值
+    // 从档位取（下拉已无监视档，恒 >0）
+    a.live_latency = 1;
     a.live_target_latency_us = sync_latency_->currentData().toLongLong();
-    // 组播转发：全源类型通用（2026-11-23）——NDI/Spout/摄像头/窗口/显示器
-    // 收进的画面都经 Hub 统一再发布（跨机 display 靠它拿画面；源设备在
-    // display 机器上不存在，按名直收必黑屏）。勾选 → live_url = 确定性
-    // 组播地址（multicastUrlFor；用户不经 UI 改）；取消 → 清空回退本机
-    // 直收语义（display 与 editor 同机时仍有意义；NDI 无本机直收路径，
-    // 清空即拒收——组播是 NDI 源唯一分发通道）。
-    const bool mcast_on = mcast_->isChecked();
-    a.live_url = mcast_on ? multicastUrlFor(a.id) : std::string();
+    // 组播转发恒启用（2026-11-23 用户定案）：live_url = 确定性组播地址
+    // （multicastUrlFor；用户不经 UI 改）。跨机 display 唯一拿画面通道——
+    // 源设备在 display 机器上不存在，按名直收必黑屏。
+    a.live_url = multicastUrlFor(a.id);
 }
 
 // ---------------------------------------------------------------------------
@@ -249,9 +235,7 @@ void LiveClipSection::refreshFrom(const Asset& a) {
     if (source_ && source_->hasFocus()) return; // 用户正在挑源/键入
     const QSignalBlocker b0(ingest_);
     const QSignalBlocker b1(source_);
-    const QSignalBlocker b2(latency_);
     const QSignalBlocker b3(sync_latency_);
-    const QSignalBlocker b4(mcast_);
     // 接入方式：按注册表下标回选
     const auto& reg = ingestRegistry();
     for (std::size_t i = 0; i < reg.size(); ++i) {
@@ -272,12 +256,13 @@ void LiveClipSection::refreshFrom(const Asset& a) {
             if (!ref.isEmpty()) source_->addItem(ref, ref);
         }
     }
-    latency_->setCurrentIndex(a.live_latency == 1 ? 1 : 0);
     sync_latency_->setCurrentIndex(
-        nearestSyncIndex(sync_latency_, a.live_target_latency_us));
-    // 组播转发：回灌勾选态 + URL 展示（全源类型可见；live_url 非空 = 启用）
-    mcast_->setChecked(!a.live_url.empty());
-    mcast_url_->setVisible(!a.live_url.empty());
+        nearestSyncIndex(sync_latency_,
+                         a.live_target_latency_us > 0
+                             ? a.live_target_latency_us
+                             : kSyncLatencyDefaultUs));
+    // 组播地址恒展示（恒启用语义；applyTo 恒生成——此处按资产实际值显示，
+    // 存量空值等下次 applyTo/下发归一化）
     mcast_url_->setText(QStringLiteral("组播地址: ") +
                         QString::fromStdString(a.live_url));
 }

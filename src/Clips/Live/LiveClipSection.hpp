@@ -21,8 +21,8 @@
 //      可接受）。过滤自家再发布前缀 ms-live（Hub 转发流不应作为采集源
 //      ——防自环；core 注册表 listNdi 已滤，此处第二道防线）。可编辑：
 //      发现列表没有的源标识可直接键入（跨网段手动指定）。
-//  测试定位锚：objectName 前缀 live*（liveIngest/liveSource/liveLatency/
-//  liveSyncLatency/liveRefresh）。
+//  测试定位锚：objectName 前缀 live*（liveIngest/liveSource/
+//  liveSyncLatency/liveRefresh/liveMcastUrl）。
 // ============================================================================
 
 #pragma once
@@ -33,7 +33,6 @@
 #include "model/ClipSectionContext.hpp" // ms::ClipSectionContext（编辑上下文）
 #include "model/SceneModel.hpp"
 
-class QCheckBox;
 class QComboBox;
 class QLabel;
 class QPushButton;
@@ -93,15 +92,15 @@ private:
 
     // ---- 控件（objectName = 测试定位锚）---------------------------------------
     QComboBox*   ingest_  = nullptr; ///< liveIngest：接入方式（注册表驱动）
-    QComboBox*   source_  = nullptr; ///< liveSource：源标识（可编辑）
+    QComboBox*   source_ = nullptr;  ///< liveSource：源标识（可编辑）
     QPushButton* refresh_ = nullptr; ///< liveRefresh：刷新发现列表
-    QComboBox*   latency_ = nullptr; ///< liveLatency：0=最低 1=同步
     QComboBox*   sync_latency_ = nullptr; ///< liveSyncLatency：帧同步目标延迟
-                                         ///< （档位 currentData 存 μs；0=监视）
-    /// liveMcast：组播转发开关（全源类型通用——勾选即 live_url = 组播
-    /// URL，display 端按 live_url 纯收流；不勾 = 本机按名直收语义）
-    QCheckBox*   mcast_ = nullptr;
-    QLabel*      mcast_url_ = nullptr; ///< 组播 URL 展示（multicastUrlFor 生成）
+                                         ///< （档位 currentData 存 μs；恒 >0
+                                         ///< ——监视档 2026-11-23 退役，
+                                         ///< 「必须同步」用户定案）
+    /// liveMcastUrl：组播地址展示（组播恒启用 2026-11-23——勾选框退役，
+    /// live_url 由 applyTo 恒生成，此处仅信息性展示）
+    QLabel*      mcast_url_ = nullptr;
 
     ClipSectionContext ctx_; ///< 编辑上下文（clip/scene/on_edited——值拷贝）
 };
