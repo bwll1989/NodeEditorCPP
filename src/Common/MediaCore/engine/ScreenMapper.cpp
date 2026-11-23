@@ -121,68 +121,31 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
                     di.quad[i][1] = wy[i];
                 }
             } else {
+                // 2D 变形（clip 旋转 / 屏旋转 / 四角位移）：四角唯一真相 =
+                // cg::quadCornersWithAnchor（CornerIdx 序）。
                 canvas_geometry::quadCornersWithAnchor(judge.x, judge.y,
                                                        judge.w, judge.h,
                                                        judge.rotation,
                                                        judge.anchor,
                                                        judge.corner, wx, wy);
             }
-            // 【透视校正 2026-11-24 折线根修 v2——两分支统一】corner 拖角/
-            // 姿态投影产生任意四边形（平面单应），渲染端单 quad 两三角形
-            // affine 插值无法复现 → 对角线处内容断裂（display 实测"中间有
-            // 条折线"，编辑器预览 QTransform 单应正确）。
-            // 【v2 关键修正 2026-11-23 单测实证】q 必须取【canvas→uv 逆单应】
-            // 的分母在顶点画布坐标处的值——v1 误填 uv→canvas 正向单应的分母
-            //（h6·u+h7·v+1）：两者相差逐点因子（全局常数可约、逐点不可），
-            // GL 有理插值不复现单应（复现测试 corner_perspective_repro_test
-            // A3 实测偏差达 0.36）。正确推导：屏幕点 p 的内容 uv = K(p)
-            //（K = 最终四角单应之逆，分子/分母均仿射）；GL 条带对属性做
-            // 屏幕仿射插值 → 顶点传 (uv_i·q_i, q_i) 且 q_i = c·D(p_i)
-            //（D = K 分母）⇒ 插值 (Σλ·uv·q)/(Σλ·q) = N(p)/D(p) = K(p)
-            // 逐点精确。四角全仿射（平行四边形）时 D≡const、q≡1 逐位退化。
-            // pose3d 分支保底 = quadCorners3DP 的 s（纯姿态时与逆单应分母
-            // 等价——s 沿屏幕仿射且 ∝ D）；解算失败/扭转四边形（D 异号）
-            // 时保留保底，宁近似勿灾难。
-            {
-                const double dst8[8] = {wx[0], wy[0], wx[1], wy[1],
-                                        wx[2], wy[2], wx[3], wy[3]};
-                double h_uv2c[9], h_c2uv[9];
-                if (canvas_geometry::solveHomography(dst8, h_uv2c) &&
-                    canvas_geometry::homographyInverse(h_uv2c, h_c2uv)) {
-                    double q4[4];
-                    bool usable = true;
-                    for (int i = 0; i < 4; ++i) {
-                        // D(canvas 顶点)——用完整齐次分母（homographyInverse
-                        // 产物为伴随/det 解析逆，h8 不归一，禁用 "+1" 简写，
-                        // v2.1 单测实证残差 2e-2 根因即此）；
-                        // 四角同号才可精确插值（凸四边形内部不变号）；近零 =
-                        // 顶点落在除线上——单应数值已不可信，保底回退
-                        const double d3 = h_c2uv[6] * wx[i]
-                                        + h_c2uv[7] * wy[i] + h_c2uv[8];
-                        if (!(d3 > 1e-9) && !(d3 < -1e-9)) {
-                            usable = false;
-                            break;
-                        }
-                        q4[i] = d3;
-                    }
-                    const bool all_pos = usable && q4[0] > 0.0 && q4[1] > 0.0 &&
-                                         q4[2] > 0.0 && q4[3] > 0.0;
-                    const bool all_neg = usable && q4[0] < 0.0 && q4[1] < 0.0 &&
-                                         q4[2] < 0.0 && q4[3] < 0.0;
-                    if (all_pos || all_neg) {
-                        // 全负 = 全局翻转（除法下常数因子无影响），归正统一
-                        // 渲染端 clamp 口径
-                        for (int i = 0; i < 4; ++i) {
-                            di.quad[i][0] = wx[i];
-                            di.quad[i][1] = wy[i];
-                            di.quad_q[i]  = all_neg ? -q4[i] : q4[i];
-                        }
-                        di.pose3d = true; // 渲染端走预投影四角 + q 有理插值
-                    }
-                    // 异号（扭转四边形）：保留保底 q（pose3d 分支 = s /
-                    // else 分支 = 1）——内容映射近似，不渲染灾难
+            // 【贴图语义定案 2026-11-23 用户拍板：corner 拖角 = 双线性，
+            // 无透视】拖角把素材拉成任意四边形时，内容随四条边【线性】
+            // 拉伸（bilinear 曲面）——非平面单应（单应含透视收敛：对边
+            // 不平行时内容近大远小，用户不要）。渲染端消费 di.quad 四角
+            // 细分 N×N 网格逐格仿射逼近双线性——无透视收敛、无两三角
+            // 方案的对角折痕（细分≥16 时残差 <0.1px）。历史教训：
+            // v1/v2（5edbc057/120f2b6f）曾把该路径修成单应 q 权重——数学
+            // 自洽但语义超纲（用户实测"拖角有透视感/被复杂化"），整链
+            // 撤回；最初"折线"bug 的正确解法就是细分，不是单应。
+            // 3D 姿态分支（pose3d）不受影响：quadCorners3DP 的 s 权重
+            // 保底语义照旧（冻结兼容层，勿扩）。
+            if (!judge.pose3DActive()) {
+                di.bilinear = true; // pose3d=false：渲染端走双线性细分
+                for (int i = 0; i < 4; ++i) { // CornerIdx 序四角
+                    di.quad[i][0] = wx[i];
+                    di.quad[i][1] = wy[i];
                 }
-                // 解算失败（共线/近奇异）：保留保底 q（同 make 退化防御口径）
             }
             for (int i = 0; i < 4; ++i) {
                 double ox = 0.0, oy = 0.0;

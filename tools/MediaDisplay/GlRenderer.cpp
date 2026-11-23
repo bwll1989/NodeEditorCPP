@@ -654,9 +654,97 @@ void GlRenderer::disableGpuDelivery(const char* why) {
 //   与 CPU RGBA 帧走同一套顶点（防上下反推导与对拍结论在此统一收口）。
 // ---------------------------------------------------------------------------
 bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
-                            float verts[4][5]) {
+                            float verts[][5], int& count) {
     (void)frame_w; // uv 为归一化裁切窗（v3）后帧尺寸不参与顶点构造；
     (void)frame_h; // 参数保留：签名稳定 + 轴对齐/仿射共用调用点不动
+
+    // ====================================================================
+    // 双线性细分路径（2026-11-23 用户定案：corner 拖角无透视）
+    //   ScreenMapper corner 拖角路径产 di.quad（CornerIdx [LT,RT,RB,LB]）
+    //   + bilinear=true——内容随四边【线性】拉伸（双线性曲面），非平面
+    //   单应（单应含透视收敛：对边不平行时内容近大远小，用户不要）。
+    //   实现：quad 细分 kMeshSubN×kMeshSubN 网格，每顶点 pos = 四角
+    //   双线性（画布域）→ comp 映射（与 4 顶点路径同式）→ gl_y 翻转；
+    //   uv = crop 窗内线性；q ≡ 1。蛇形单条 TRIANGLE_STRIP（列对交错
+    //   zigzag，转折处顶点重复自动退化——beginFrame 已全局关 cull）。
+    //   逐格仿射逼近双线性：折痕残差 O(1/N²)，N=16 时极端拖角 <0.1px
+    //   ——两三角方案的"对角折线"（最初 bug）与单应方案的"透视感"
+    //   （v1/v2 超纲）同时根治。
+    // ====================================================================
+    if (di.bilinear && !di.pose3d) {
+        // ---- 防御 + output→canvas 逆仿射正向（与 4 顶点路径同式）--------
+        for (int i = 0; i < 6; ++i)
+            if (!std::isfinite(di.inv_map[i])) return false;
+        if (!std::isfinite(di.canvas_x) || !std::isfinite(di.canvas_y) ||
+            !std::isfinite(di.canvas_w) || !std::isfinite(di.canvas_h) ||
+            di.canvas_w <= 0.0 || di.canvas_h <= 0.0)
+            return false;
+        const double ia = di.inv_map[0], ib = di.inv_map[1],
+                     ic = di.inv_map[2], id = di.inv_map[3],
+                     ie = di.inv_map[4], iff = di.inv_map[5];
+        const double det = ia * ie - ib * id;
+        if (!std::isfinite(det) || std::fabs(det) < 1e-12) return false;
+        for (int i = 0; i < 4; ++i) // 四角防御（宁缺勿错，同 SoftRenderer）
+            if (!std::isfinite(di.quad[i][0]) ||
+                !std::isfinite(di.quad[i][1]))
+                return false;
+        int vi = 0;
+        // 单顶点发射：画布域双线性点 → comp 域（屏姿态单应 / 仿射逆，
+        // 与 4 顶点路径 ox/oy 换算同式）→ gl_y 翻转 + crop 窗 uv
+        const auto emit = [&](double cx, double cy, double su, double sv) {
+            const double ddx = cx - ic, ddy = cy - iff;
+            double ox, oy;
+            if (di.screen_posed) {
+                // 屏姿态：canvas→output 单应正向（与 4 顶点路径同式）
+                canvas_geometry::homographyMapPoint(di.screen_h, cx, cy,
+                                                    &ox, &oy);
+            } else {
+                ox = ( ie * ddx - ib * ddy) / det;
+                oy = (-id * ddx + ia * ddy) / det;
+            }
+            verts[vi][0] = static_cast<float>(ox);
+            verts[vi][1] = static_cast<float>(canvas_h_) -
+                           static_cast<float>(oy);
+            verts[vi][2] = static_cast<float>(su);
+            verts[vi][3] = static_cast<float>(sv);
+            verts[vi][4] = 1.0f;
+            ++vi;
+        };
+        for (int c = 0; c < kMeshSubN; ++c) {
+            const double ua = static_cast<double>(c)     / kMeshSubN;
+            const double ub = static_cast<double>(c + 1) / kMeshSubN;
+            const bool fwd  = (c % 2) == 0; // 列对内行方向交替（蛇形）
+            for (int k = 0; k <= kMeshSubN; ++k) {
+                const int    r  = fwd ? k : (kMeshSubN - k);
+                const double vv = static_cast<double>(r) / kMeshSubN;
+                // 双线性权重（u=ua 列与 u=ub 列同行）：CornerIdx
+                // [LT,RT,RB,LB] ↔ (0,0)(1,0)(1,1)(0,1)
+                const double a0 = (1.0 - ua) * (1.0 - vv),
+                             a1 = ua * (1.0 - vv),
+                             a2 = ua * vv,
+                             a3 = (1.0 - ua) * vv;
+                emit(a0 * di.quad[0][0] + a1 * di.quad[1][0] +
+                     a2 * di.quad[2][0] + a3 * di.quad[3][0],
+                     a0 * di.quad[0][1] + a1 * di.quad[1][1] +
+                     a2 * di.quad[2][1] + a3 * di.quad[3][1],
+                     di.crop_u0 + (di.crop_u1 - di.crop_u0) * ua,
+                     di.crop_v0 + (di.crop_v1 - di.crop_v0) * vv);
+                const double b0 = (1.0 - ub) * (1.0 - vv),
+                             b1 = ub * (1.0 - vv),
+                             b2 = ub * vv,
+                             b3 = (1.0 - ub) * vv;
+                emit(b0 * di.quad[0][0] + b1 * di.quad[1][0] +
+                     b2 * di.quad[2][0] + b3 * di.quad[3][0],
+                     b0 * di.quad[0][1] + b1 * di.quad[1][1] +
+                     b2 * di.quad[2][1] + b3 * di.quad[3][1],
+                     di.crop_u0 + (di.crop_u1 - di.crop_u0) * ub,
+                     di.crop_v0 + (di.crop_v1 - di.crop_v0) * vv);
+            }
+        }
+        count = vi;
+        return true;
+    }
+
     if (!di.affine) {
         // ================================================================
         // 轴对齐路径：目标矩形 top-down → gl_y = H − y 翻转；
@@ -687,6 +775,7 @@ bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
         verts[3][2] = static_cast<float>(di.crop_u1);
         verts[3][3] = static_cast<float>(di.crop_v1);
         verts[3][4] = 1.0f;
+        count = 4;
         return true;
     }
 
@@ -784,6 +873,7 @@ bool GlRenderer::buildVerts(const DrawItem& di, int frame_w, int frame_h,
         verts[i][3] = static_cast<float>((i & 2) ? di.crop_v1 : di.crop_v0) * q;
         verts[i][4] = q;
     }
+    count = 4;
     return true;
 }
 
@@ -802,8 +892,10 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
     if (di.w <= 0 || di.h <= 0) return false;
 
     // ---- 顶点构造（域无关；含仿射防御）-----------------------------------
-    float verts[4][5];
-    if (!buildVerts(di, frame.width, frame.height, verts)) return false;
+    // bilinear 细分项顶点数最多 kMeshVertsMax（蛇形网格），常规项 4
+    float verts[kMeshVertsMax][5];
+    int  vtx_n = 0;
+    if (!buildVerts(di, frame.width, frame.height, verts, vtx_n)) return false;
 
     // 【诊断 MS_CANVAS_DBG=1】仿射 UV 追踪（内容偏移定位）：顶点=合成域
     // AABB 角（与标注框同源必然重合），内容偏移只能在 UV=M(角点)——此处
@@ -907,7 +999,7 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
                         static_cast<float>(di.rgb_gain[1]),
                         static_cast<float>(di.rgb_gain[2]));
         gl::glUniform1f(loc_nv_gamma_, static_cast<float>(di.gamma));
-        drawQuad(verts);
+        drawQuad(verts, vtx_n);
         gl::glActiveTexture(gl::GL_TEXTURE0); // 活动单元复位（RGBA 路径约定 unit0）
         nv_parity_ ^= 1; // 组翻转：下一帧用另一组（双缓冲交替核心）
         // 【诊断】着色器段收口计时：upload 与 gl 两段同打，便于对照归因
@@ -1039,7 +1131,7 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
                         static_cast<float>(di.rgb_gain[1]),
                         static_cast<float>(di.rgb_gain[2]));
         gl::glUniform1f(loc_gamma_, static_cast<float>(di.gamma));
-        drawQuad(verts);
+        drawQuad(verts, vtx_n);
         return true;
     }
 
@@ -1098,16 +1190,18 @@ bool GlRenderer::draw(const DrawItem& di, const FrameView& frame) {
                     static_cast<float>(di.rgb_gain[2]));
     gl::glUniform1f(loc_gamma_, static_cast<float>(di.gamma));
 
-    drawQuad(verts);
+    drawQuad(verts, vtx_n);
     return true;
 }
 
 // ---------------------------------------------------------------------------
-// drawQuad —— 顶点上传 + 条带绘制（4 顶点 = 2 三角形）
+// drawQuad —— 顶点上传 + 条带绘制（常规 4 顶点 = 2 三角形；bilinear
+//   细分项 count = kMeshVertsMax 蛇形网格——beginFrame 已全局关 cull，
+//   转折处退化三角形无绕向问题）
 //   VAO 绑定收口在此（RGBA/NV12 双路径共用；幂等——core profile 下
 //   VAO=0 非法，不能依赖"别处已绑"的隐式状态）
 // ---------------------------------------------------------------------------
-void GlRenderer::drawQuad(const float verts[4][5]) {
+void GlRenderer::drawQuad(const float verts[][5], int count) {
     gl::glBindVertexArray(vao_);
     gl::glBindBuffer(gl::GL_ARRAY_BUFFER, vbo_);
     // 【共享上下文防御 2026-11-05 —— 二次 paint 黑屏根因】ExternalCtx 下
@@ -1139,8 +1233,9 @@ void GlRenderer::drawQuad(const float verts[4][5]) {
     // 于 VAO 对象，重绑不恢复），缺省值 0 会把 quad 内容乘成黑。
     gl::glDisableVertexAttribArray(2);
     gl::glVertexAttrib1f(2, 1.0f);
-    gl::glBufferData(gl::GL_ARRAY_BUFFER, 4 * 5 * sizeof(float), verts,
-                     gl::GL_DYNAMIC_DRAW); // 孤儿式重分配（驱动端异步安全）
+    gl::glBufferData(gl::GL_ARRAY_BUFFER,
+                     static_cast<std::size_t>(count) * 5 * sizeof(float),
+                     verts, gl::GL_DYNAMIC_DRAW); // 孤儿式重分配（驱动端异步安全）
     // （2026-11-06 去冗余：此处原连续两次相同 glBufferData——第二次把刚
     // 孤儿化的存储再次孤儿化，纯复制粘贴残留；每帧热路径省一次上传。）
     // 【诊断 MS_CANVAS_DBG=1】绑定生效性确认（bind 调用本身可能无效——
@@ -1181,7 +1276,7 @@ void GlRenderer::drawQuad(const float verts[4][5]) {
             }
         }
     }
-    gl::glDrawArrays(gl::GL_TRIANGLE_STRIP, 0, 4);
+    gl::glDrawArrays(gl::GL_TRIANGLE_STRIP, 0, count);
     // 【诊断 MS_CANVAS_DBG=1】draw 后探针（时点②）——区分"draw 本身没
     // 画出"（此处黑）与"draw 画了但 endFrame 前被改"（此处有色）。
     // 逐项调用（多 item 多行）；探针点 = 内容域 (70%,40%)（clipB 图案区）。
@@ -1662,7 +1757,7 @@ void GlRenderer::drawOsdOverlay() {
     // （对位 drawStandbyCard 1870 段）。
     gl::glBlendFuncSeparate(gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA,
                             gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
-    drawQuad(verts);
+    drawQuad(verts, 4);
     gl::glBlendFuncSeparate(gl::GL_SRC_ALPHA, gl::GL_ONE_MINUS_SRC_ALPHA,
                             gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
     gl::glActiveTexture(gl::GL_TEXTURE0); // 活动单元复位（RGBA 路径约定）
@@ -1871,7 +1966,7 @@ void GlRenderer::drawStandbyCard() {
     // 画完立即恢复帧级契约（SRC_ALPHA）——同帧后续 OSD 绘制不吃污染。
     gl::glBlendFuncSeparate(gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA,
                             gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
-    drawQuad(verts);
+    drawQuad(verts, 4);
     gl::glBlendFuncSeparate(gl::GL_SRC_ALPHA, gl::GL_ONE_MINUS_SRC_ALPHA,
                             gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
     gl::glActiveTexture(gl::GL_TEXTURE0); // 活动单元复位（RGBA 路径约定）

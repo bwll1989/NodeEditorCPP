@@ -2668,12 +2668,16 @@ void SceneCanvasWidget::paintGL3D(
                     const double qy[4] = {pr.quad[0].y(), pr.quad[1].y(),
                                           pr.quad[2].y(), pr.quad[3].y()};
                     p.beginNativePainting();
+                    // 【贴图语义 2026-11-23 用户定案】2D 变形（corner 拖角/
+                    // 锚点）= 双线性细分（无透视，与 display 同构同密度）；
+                    // 3D 姿态压平 = 单应透视 w 顶点（冻结路径）。
                     gl_drawn = gl3d_->drawClipFace(
                         c.id, td, qx, qy,
                         (float)std::clamp(tf.opacity, 0.0, 1.0),
                         (float)pr.cuv[0], (float)pr.cuv[1],
                         (float)pr.cuv[2], (float)pr.cuv[3],
-                        tf.rgb_gain, tf.gamma);
+                        tf.rgb_gain, tf.gamma,
+                        pr.deformed && !tf.pose3DActive());
                     p.endNativePainting();
                 }
             }

@@ -155,7 +155,8 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
                               const double sx[4], const double sy[4],
                               float opacity, float u0, float v0,
                               float u1, float v1,
-                              const double rgb_gain[3], double gamma) {
+                              const double rgb_gain[3], double gamma,
+                              bool bilinear) {
     if (failed_ || !ensure()) return false;
     if (lw_ <= 0 || lh_ <= 0) return false;
     if (d.width <= 0 || d.height <= 0) return false;
@@ -286,7 +287,13 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
         }
     }
 
-    // ---- 单应贴图提交（与 FBO 屏幕面片共用尾段；纹理已建并传给本函数）--
+    // ---- 贴图提交（按语义分派；纹理已建并传给本函数）----------------------
+    // bilinear=true = 双线性细分（corner 拖角 2D 变形——2026-11-23 用户
+    // 定案无透视，与 display 同语义）；false = 单应透视 w 顶点（3D 姿态
+    // 压平路径 + 未变形矩形历史路径）。
+    if (bilinear)
+        return submitFaceBilinear(tex, sx, sy, opacity,
+                                  u0, v0, u1, v1, rgb_gain, gamma);
     return submitFace(tex, sx, sy, opacity, u0, v0, u1, v1, rgb_gain, gamma);
 }
 
@@ -378,6 +385,104 @@ bool Canvas3DGl::submitFace(unsigned int tex, const double sx[4],
     }
     gl::glDrawArrays(gl::GL_TRIANGLES, 0, 6);
     // 解绑（QPainter 接管落在缺省 VAO——attrib 改写不触及本类对象）
+    gl::glBindVertexArray(0);
+    gl::glBindTexture(gl::GL_TEXTURE_2D, 0);
+    gl::glUseProgram(0);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// submitFaceBilinear —— 双线性细分贴图提交（bilinear=true 共用尾段）
+//   四角细分 N×N 蛇形单条 TRIANGLE_STRIP：pos = 四角双线性（屏幕逻辑域）、
+//   W=1（仿射光栅——着色器 w 分量恒 1 退化为标准 2D 映射）、uv = 裁切窗
+//   内线性。逐格仿射逼近双线性曲面：无透视收敛、无两三角方案的对角折痕
+//   （与 display GlRenderer buildVerts bilinear 分支同构同密度——预览=
+//   输出铁律；转折处顶点重复自动退化，cull 已 disable 无绕向问题）。
+// ---------------------------------------------------------------------------
+bool Canvas3DGl::submitFaceBilinear(unsigned int tex, const double sx[4],
+                                    const double sy[4], float opacity,
+                                    float u0, float v0, float u1, float v1,
+                                    const double rgb_gain[3], double gamma) {
+    if (failed_ || !ensure()) return false;
+    if (lw_ <= 0 || lh_ <= 0) return false;
+    if (tex == 0) return false;
+    gl::glActiveTexture(gl::GL_TEXTURE0);
+    gl::glBindTexture(gl::GL_TEXTURE_2D, tex); // 幂等绑定
+
+    for (int i = 0; i < 4; ++i) // 四角防御（宁缺勿错；退化 → QPainter 兜底）
+        if (!std::isfinite(sx[i]) || !std::isfinite(sy[i])) return false;
+
+    float verts[kMeshVertsMax][5]; // {Nx, Ny, W, u, v}（与 submitFace 同布局）
+    int  vi = 0;
+    // 【命名】emit 是 Qt 空宏（信号语法）——禁作标识符（C2513 实证），
+    // 用 emitVtx
+    const auto emitVtx = [&](double u, double v) {
+        const double w0 = (1.0 - u) * (1.0 - v), w1 = u * (1.0 - v),
+                     w2 = u * v, w3 = (1.0 - u) * v;
+        const double nx = w0 * sx[0] + w1 * sx[1] + w2 * sx[2] + w3 * sx[3];
+        const double ny = w0 * sy[0] + w1 * sy[1] + w2 * sy[2] + w3 * sy[3];
+        verts[vi][0] = static_cast<float>(nx);
+        verts[vi][1] = static_cast<float>(ny);
+        verts[vi][2] = 1.0f; // W=1：透视 w 分量退化为仿射
+        verts[vi][3] = static_cast<float>(u0 + (u1 - u0) * u);
+        verts[vi][4] = static_cast<float>(v0 + (v1 - v0) * v);
+        ++vi;
+    };
+    for (int c = 0; c < kMeshSubN; ++c) {
+        const double ua = static_cast<double>(c) / kMeshSubN;
+        const double ub = static_cast<double>(c + 1) / kMeshSubN;
+        const bool fwd  = (c % 2) == 0; // 列对内行方向交替（蛇形）
+        for (int k = 0; k <= kMeshSubN; ++k) {
+            const double v =
+                static_cast<double>(fwd ? k : (kMeshSubN - k)) / kMeshSubN;
+            emitVtx(ua, v);
+            emitVtx(ub, v);
+        }
+    }
+
+    // ---- 状态与绘制（同 submitFace 幂等重配段；条带而非 6 索引三角形）---
+    gl::glViewport(0, 0,
+                   static_cast<int>(static_cast<float>(lw_) * dpr_),
+                   static_cast<int>(static_cast<float>(lh_) * dpr_));
+    gl::glDisable(gl::GL_DEPTH_TEST);
+    gl::glDisable(gl::GL_CULL_FACE);
+    gl::glDisable(gl::GL_SCISSOR_TEST);
+    gl::glDisable(gl::GL_STENCIL_TEST);
+    gl::glColorMask(1, 1, 1, 1);
+    gl::glEnable(gl::GL_BLEND);
+    gl::glBlendFuncSeparate(gl::GL_SRC_ALPHA, gl::GL_ONE_MINUS_SRC_ALPHA,
+                            gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
+    gl::glBindVertexArray(vao_);
+    gl::glBindBuffer(gl::GL_ARRAY_BUFFER, vbo_);
+    gl::glEnableVertexAttribArray(0); // a_pos（3 float，偏移 0）
+    gl::glVertexAttribPointer(0, 3, gl::GL_FLOAT, gl::GL_FALSE,
+                              5 * sizeof(float),
+                              reinterpret_cast<const void*>(0));
+    gl::glEnableVertexAttribArray(1); // a_uv（2 float，偏移 12 字节）
+    gl::glVertexAttribPointer(1, 2, gl::GL_FLOAT, gl::GL_FALSE,
+                              5 * sizeof(float),
+                              reinterpret_cast<const void*>(12));
+    gl::glBufferData(gl::GL_ARRAY_BUFFER,
+                     static_cast<std::size_t>(vi) * 5 * sizeof(float),
+                     verts, gl::GL_DYNAMIC_DRAW);
+    gl::glUseProgram(program_);
+    gl::glUniform2f(loc_scale_,
+                    2.0f / static_cast<float>(lw_),
+                    -2.0f / static_cast<float>(lh_));
+    gl::glUniform1f(loc_opacity_, opacity);
+    if (rgb_gain != nullptr) {
+        if (loc_gain_ >= 0)
+            gl::glUniform3f(loc_gain_, (float)rgb_gain[0], (float)rgb_gain[1],
+                            (float)rgb_gain[2]);
+        if (loc_gamma_ >= 0)
+            gl::glUniform1f(loc_gamma_, (float)gamma);
+    } else {
+        if (loc_gain_ >= 0)
+            gl::glUniform3f(loc_gain_, 1.0f, 1.0f, 1.0f);
+        if (loc_gamma_ >= 0)
+            gl::glUniform1f(loc_gamma_, 1.0f);
+    }
+    gl::glDrawArrays(gl::GL_TRIANGLE_STRIP, 0, vi);
     gl::glBindVertexArray(0);
     gl::glBindTexture(gl::GL_TEXTURE_2D, 0);
     gl::glUseProgram(0);

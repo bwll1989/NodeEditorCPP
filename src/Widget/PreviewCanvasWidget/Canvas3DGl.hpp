@@ -86,7 +86,7 @@ public:
     /// 加载函数表 + 编译程序 + VAO/VBO。失败置 failed_（会话内永久）。
     bool ensure();
 
-    /// 绘制一张透视校正贴图四边形（缓存上传 + 单应解算 + 提交一次完成）。
+    /// 绘制一张贴图四边形（缓存上传 + 提交一次完成）。
     /// \param key     纹理缓存键（clip_id）
     /// \param sx/sy   屏幕逻辑坐标四角（序 TL TR BR BL，与 Prim.quad 同序）
     /// \param opacity 片段透明度（tween 求值后；[0,1] 外钳制）
@@ -98,6 +98,10 @@ public:
     ///        默认 1,1,1 逐位历史路径）；gamma 伽马指数（1.0 = 不校正）。
     ///        shader 段与 display GlRenderer 同式：先乘增益、γ≠1 再
     ///        pow(clamp(c,0,1), 1/γ) —— 预览与输出像素级同源
+    /// \param bilinear true = 双线性细分贴图（2026-11-23 用户定案：corner
+    ///        拖角内容随四边线性拉伸，无透视——与 display 同语义；细分
+    ///        网格逐格仿射逼近，无对角折痕）。false = 单应 w 顶点（3D
+    ///        姿态压平路径透视精确复现——冻结语义）。
     /// \return false = GL 未能绘制（退化四边形/上传失败）——调用方走
     ///         QPainter 原路径兜底（占位/棋盘语义自动接住）
     bool drawClipFace(const std::string& key, const TexData& d,
@@ -105,7 +109,7 @@ public:
                       float u0 = 0.0f, float v0 = 0.0f,
                       float u1 = 1.0f, float v1 = 1.0f,
                       const double rgb_gain[3] = nullptr,
-                      double gamma = 1.0);
+                      double gamma = 1.0, bool bilinear = false);
 
     /// 显式释放全部 GL 资源（owner 析构中 makeCurrent 后调用；幂等）
     void shutdown();
@@ -115,13 +119,27 @@ private:
     /// 8×8 线性系统 + 部分主元消元；dst 退化（共线/重复点）返回 false
     static bool solveHomography(const double dst[8], double h[8]);
 
-    /// 单应贴图提交（drawClipFace 共用尾段）：
+    /// 单应贴图提交（drawClipFace 共用尾段；bilinear=false 路径）：
     /// 解算单位方→四角单应、构造透视 w 顶点、幂等重配状态并绘制。
     /// 本函数自行把 tex 绑到 GL_TEXTURE0（幂等——调用方无需预绑定）。
     /// rgb_gain/gamma 片段级调色；nullptr = 默认直通。
     bool submitFace(unsigned int tex, const double sx[4], const double sy[4],
                     float opacity, float u0, float v0, float u1, float v1,
                     const double rgb_gain[3] = nullptr, double gamma = 1.0);
+
+    /// 双线性细分贴图提交（drawClipFace 共用尾段；bilinear=true 路径）：
+    /// 四角细分 N×N 蛇形条带（pos=四角双线性、W=1、uv=窗内线性），
+    /// 逐格仿射逼近双线性曲面——无透视收敛、无对角折痕（2026-11-23
+    /// 用户定案，与 display GlRenderer kMeshSubN 同构同密度）。
+    bool submitFaceBilinear(unsigned int tex, const double sx[4],
+                            const double sy[4], float opacity,
+                            float u0, float v0, float u1, float v1,
+                            const double rgb_gain[3], double gamma);
+
+    /// 双线性细分密度（与 display 端 GlRenderer::kMeshSubN 同值——
+    /// 预览=输出铁律，两端折痕残差一致；N=32 时极端拖角 <0.08px）
+    static constexpr int kMeshSubN     = 32;
+    static constexpr int kMeshVertsMax = 2 * (kMeshSubN + 1) * kMeshSubN;
 
     struct TexSlot {
         unsigned int  tex = 0;        ///< GL 纹理名（0 = 未建）

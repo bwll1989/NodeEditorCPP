@@ -200,12 +200,21 @@ private:
 #endif
 
     /// 单帧绘制项的顶点构造（RGBA/NV12 双路径共用；失败 = 防御拒绝）
-    /// \param verts 输出 {glx, gly, u·q, v·q, q}×4 条带序（左上→左下→
-    ///              右上→右下；阶段②透视校正插值——FS 采样 uv/v_q）
+    /// \param verts 输出 {glx, gly, u·q, v·q, q}×count 条带序（左上→左下→
+    ///              右上→右下；阶段②透视校正插值——FS 采样 uv/v_q）；
+    ///              di.bilinear 时为双线性细分蛇形条带（见 kMeshVertsMax）
+    /// \param count 实际顶点数（4 = 常规条带；kMeshVertsMax = 细分网格）
     bool buildVerts(const DrawItem& di, int frame_w, int frame_h,
-                    float verts[4][5]);
+                    float verts[][5], int& count);
 
-    void drawQuad(const float verts[4][5]); ///< 顶点上传 + 条带绘制
+    void drawQuad(const float verts[][5], int count); ///< 顶点上传 + 条带绘制
+
+    /// 双线性细分密度（corner 拖角贴图；2026-11-23 用户定案无透视）：
+    /// N×N 网格逐格仿射逼近双线性曲面，折痕残差 O(1/N²)——N=32 时极端
+    /// 拖角 <0.08px（N=16 实测 0.3px，单测 A3 实证后加密）。蛇形单条
+    /// TRIANGLE_STRIP，顶点数 = 2(N+1)N。
+    static constexpr int kMeshSubN     = 32;
+    static constexpr int kMeshVertsMax = 2 * (kMeshSubN + 1) * kMeshSubN;
 
     // ---- 输出变形（两段式渲染：FBO 离屏合成 + mesh 贴图；2026-11-09）-----
     /// 变形管线是否应激活（warp 有效 && 非 External && FBO 未失败）。
