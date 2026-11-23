@@ -16,8 +16,11 @@
 
 #include <limits>
 
-#include "live/LiveHub.hpp" // multicastUrlFor（组播 URL 确定性生成）
+#include "live/LiveHub.hpp" // LiveHub（Ingest 注册表宿主）
 #include "live/LiveIngest.hpp" // Ingest 注册表（接入方式/源枚举唯一数据源）
+#include "live/MpegTsSender.hpp" // multicastUrlFor（组播 URL 确定性生成；
+// LiveHub.hpp 刻意前向声明不 include 本头——2026-11-23 全量重编暴露
+// C3861：此前 Live 插件未重编掩盖三天）
 
 namespace ms {
 
