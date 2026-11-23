@@ -174,7 +174,7 @@ const app = createApp({
     const ui = reactive({
       left: localStorage.getItem("ui.left") === "1",
       right: localStorage.getItem("ui.right") === "1",
-      settings: false,                        // 设置浮层开关（⚙ / sync 强制展开）
+      settings: false,                        // 设置浮层开关（仅 ⚙ 手动开；2026-11-23 用户定案取消 sync 模式自动弹出）
       mpcdi: false,                           // 输出校准独立页开关（▣ 输出校准）
     });
     watch(() => [ui.left, ui.right], () => {
@@ -217,10 +217,9 @@ const app = createApp({
       () => !!status.value && status.value.mode === "standalone");
     const modeIsSync = computed(() =>
       !!status.value && status.value.mode === "sync");
-    /** sync 模式：编排面已被 409 门禁收敛——自动弹设置浮层（唯一功能面） */
-    watch(() => status.value && status.value.mode, (m) => {
-      if (m === "sync" && !ui.settings) ui.settings = true;
-    });
+    // 【2026-11-23 用户定案】取消 sync 模式自动弹设置浮层——设置一律经
+    // ⚙ 按钮手动打开（原 watcher 在 status.mode==sync 时强制展开，页面
+    // 一打开就盖住控制台；调试钩子 #settings=1 与自测用例不受影响）。
 
     // ---- 授权（加密激活；2026-11-15 UI 先行）----------------------------------
     // 对齐编辑端「授权」设置页的激活闭环（激活码 → 生成加密请求 .ft →
