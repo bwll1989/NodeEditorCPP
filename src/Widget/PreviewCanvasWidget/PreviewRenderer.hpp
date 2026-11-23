@@ -163,6 +163,11 @@ public:
         /// 画到 B 的面片上），id 匹配未命中即棋盘格占位（宁缺勿错）
         std::string clip_id;
         QImage   frame; ///< CPU 源帧（Format_RGBA8888；行距=width*4 无填充）
+        /// CPU 域快照保活（2026-11-23 零拷贝）：非空 = frame 包裹源端
+        /// 不可变快照的外部缓冲（Live Feed 快照/视频 PublishedFrame——
+        /// 发布方 move 移交、本槽引用保活到绘制结束），worker 不再深拷贝；
+        /// 空 = frame 自持像素（深拷贝语义，历史行为）。
+        std::shared_ptr<const void> frame_keep;
         /// GPU 域句柄（AVFrame 引用计数保活；非空 = GpuCudaNv12 交付）
         std::shared_ptr<const void> native;
         int gpu_w = 0, gpu_h = 0; ///< GPU 帧尺寸（native/dxt 非空时有效）

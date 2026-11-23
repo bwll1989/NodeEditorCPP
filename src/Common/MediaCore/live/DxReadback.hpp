@@ -18,9 +18,11 @@
 #include <cstdint>
 
 #include <d3d11.h>
+#include <tmmintrin.h> // SSSE3 pshufb（BGRA→RGBA 批量换序）
 
 #include "clock/ClockProvider.hpp"
 #include "live/LiveFrame.hpp"
+#include "live/LiveFramePool.hpp"
 
 namespace ms {
 
@@ -79,7 +81,8 @@ public:
             context->Unmap(staging_, 0);
             return nullptr; // 未知格式（10/16bit 源）——调用方按无帧处理
         }
-        auto* frame = new LiveFrame();
+        // 池化帧（rgba 缓冲复用——消逐帧 8MB 分配+缺页；LiveFramePool.hpp）
+        auto frame = pool_->acquire();
         frame->w = static_cast<int>(td.Width);
         frame->h = static_cast<int>(td.Height);
         frame->rgba.resize(static_cast<std::size_t>(td.Width) * td.Height * 4);
@@ -89,19 +92,42 @@ public:
         auto* dst = frame->rgba.data();
         const std::uint32_t dst_stride =
             static_cast<std::uint32_t>(td.Width) * 4;
+        // 换序拷贝：pshufb 批量（4 像素/拍，原逐像素标量是 WGC/Spout
+        // 路径同款热点）；alpha 语义保留（0→FF，非 0 原样）。
+        // w%4!=0 的非常规宽 → 整行标量回退（防御，视频分辨率恒 4 对齐）。
+        const bool simd = (td.Width % 4) == 0;
+        const __m128i shuf  = _mm_setr_epi8(2, 1, 0, 3, 6, 5, 4, 7,
+                                            10, 9, 8, 11, 14, 13, 12, 15);
+        const __m128i amask = _mm_set1_epi32(static_cast<int>(0xFF000000u));
+        const __m128i zero  = _mm_setzero_si128();
         for (UINT y = 0; y < td.Height; ++y) {
             const std::uint8_t* s =
                 src_px + static_cast<std::size_t>(y) * mapped.RowPitch;
             std::uint8_t* d = dst + static_cast<std::size_t>(y) * dst_stride;
-            for (UINT x = 0; x < td.Width; ++x) {
-                d[x * 4 + 0] = swap_rb ? s[x * 4 + 2] : s[x * 4 + 0]; // R
-                d[x * 4 + 1] = s[x * 4 + 1];                          // G
-                d[x * 4 + 2] = swap_rb ? s[x * 4 + 0] : s[x * 4 + 2]; // B
-                d[x * 4 + 3] = s[x * 4 + 3] ? s[x * 4 + 3] : 0xFF;    // A
+            if (simd) {
+                const auto*  sv = reinterpret_cast<const __m128i*>(s);
+                auto*        dv = reinterpret_cast<__m128i*>(d);
+                for (UINT i = 0; i < td.Width; i += 4, ++sv, ++dv) {
+                    __m128i v = _mm_loadu_si128(sv);
+                    if (swap_rb) v = _mm_shuffle_epi8(v, shuf);
+                    // alpha==0 → 置 FF（原逐像素语义：s[3] ? s[3] : 0xFF）
+                    const __m128i a =
+                        _mm_srli_epi32(v, 24); // alpha 移到每通道低 8 位
+                    const __m128i fix = _mm_and_si128(
+                        _mm_cmpeq_epi32(a, zero), amask);
+                    _mm_storeu_si128(dv, _mm_or_si128(v, fix));
+                }
+            } else {
+                for (UINT x = 0; x < td.Width; ++x) {
+                    d[x * 4 + 0] = swap_rb ? s[x * 4 + 2] : s[x * 4 + 0]; // R
+                    d[x * 4 + 1] = s[x * 4 + 1];                          // G
+                    d[x * 4 + 2] = swap_rb ? s[x * 4 + 0] : s[x * 4 + 2]; // B
+                    d[x * 4 + 3] = s[x * 4 + 3] ? s[x * 4 + 3] : 0xFF;    // A
+                }
             }
         }
         context->Unmap(staging_, 0);
-        return LiveFramePtr(frame);
+        return LiveFramePtr(std::move(frame));
     }
 
     /// 释放 staging（重连/析构）
@@ -125,6 +151,10 @@ private:
     ID3D11Texture2D* staging_ = nullptr;
     UINT             w_ = 0, h_ = 0;
     DXGI_FORMAT      fmt_ = DXGI_FORMAT_UNKNOWN;
+
+    /// 逐帧缓冲池（readback 实例私有——同一源分辨率恒定，rgba 恒命中；
+    /// deleter 归池自持生命周期，rb 析构后仍在外的帧归还依然安全）
+    LiveFramePool::Ptr pool_ = LiveFramePool::create();
 };
 
 } // namespace ms

@@ -194,7 +194,8 @@ void dumpNativeFormats(IMFSourceReader* reader) {
 // 样本 → LiveFrame：BGRA swizzle RGBA + 行序归一（bottom-up 翻转）+
 // alpha 置 0xFF（RGB32 alpha 未定义，与 NDI/WGC 不透明帧对齐契约）
 // ---------------------------------------------------------------------------
-LiveFramePtr frameFromSample(IMFSample* sample, int w, int h, int stride) {
+LiveFramePtr frameFromSample(IMFSample* sample, int w, int h, int stride,
+                             LiveFramePool& pool) {
     ComPtr<IMFMediaBuffer> buf;
     if (FAILED(sample->ConvertToContiguousBuffer(buf.GetAddressOf())))
         return nullptr;
@@ -210,7 +211,7 @@ LiveFramePtr frameFromSample(IMFSample* sample, int w, int h, int stride) {
         return nullptr;
     }
 
-    auto f  = std::make_shared<LiveFrame>();
+    auto f = pool.acquire(); // 池化（rgba 缓冲复用，消逐帧 8MB 分配）
     f->w    = w;
     f->h    = h;
     f->rgba.resize(static_cast<std::size_t>(w) * h * 4);
@@ -325,7 +326,7 @@ void CameraIngest::recvLoop() {
                 Sleep(5);
                 continue;
             }
-            emitFrame(frameFromSample(sample.Get(), w, h, stride));
+            emitFrame(frameFromSample(sample.Get(), w, h, stride, *pool_));
         }
 
         // ---- 本轮清理（设备拔出/停止——重走外层打开循环）----

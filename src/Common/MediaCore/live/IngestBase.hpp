@@ -28,6 +28,7 @@
 #include <string>
 #include <thread>
 
+#include "live/LiveFramePool.hpp"
 #include "live/LiveIngest.hpp"
 
 namespace ms {
@@ -63,6 +64,10 @@ protected:
     /// 限频日志（接收线程专用；输出 "<tag>: <msg>"）
     void logThrottled(const std::string& msg, std::int64_t& last_ms,
                       std::int64_t gap_ms) const noexcept;
+    /// 池化新帧（2026-11-23）：子类逐帧构造统一入口——rgba 缓冲跨帧复用
+    /// （消每帧 8MB 堆分配 + first-touch 缺页；同分辨率恒零 realloc）。
+    /// 填完字段后经 emitFrame 发布（转不可变快照；引用归零自动回池）
+    std::shared_ptr<LiveFrame> newFrame() { return pool_->acquire(); }
     /// 帧出口：sink 上抛 + 收帧计数（接收线程调用）
     void emitFrame(LiveFramePtr f);
     /// 帧丢弃计数
@@ -76,6 +81,11 @@ protected:
     // ---- 运行态（子类循环以 running() 为退出条件）----
     std::thread       worker_;
     std::atomic<bool> running_{false};
+
+    /// 逐帧缓冲池（deleter 归还复用——LiveFramePool.hpp 机制说明；
+    /// shared_ptr 持有：帧活得比 Ingest 久时归池回调依然安全。protected
+    /// ——自由函数辅助如 CameraIngest::frameFromSample 需经子类转传）
+    LiveFramePool::Ptr pool_ = LiveFramePool::create();
 
     // ---- 诊断（子类可直接置位）----
     std::atomic<bool>          connected_{false};

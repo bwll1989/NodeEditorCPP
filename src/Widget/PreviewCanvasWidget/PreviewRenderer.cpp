@@ -621,15 +621,27 @@ void PreviewRenderer::workerLoop() {
                 it.clip_id = (i < job.clip_ids.size()) ? job.clip_ids[i]
                                                        : std::string();
                 if (fv.domain == FrameDomain::CpuRgba) {
-                    // CPU 域（软解 / 硬解下载回退）：源帧深拷贝（借 src
-                    // 内部缓冲必悬垂——下次 produce 复用）；Format_RGBA8888
-                    // 行距恒 width*4（32bit 行对齐零填充），GL 上传
-                    // ROW_LENGTH 语义与 stride 契约一致
+                    // CPU 域（软解 / 硬解下载回退 / Live 快照）。
+                    // Format_RGBA8888 行距恒 width*4（32bit 行对齐零填充），
+                    // GL 上传 ROW_LENGTH 语义与 stride 契约一致
                     QImage img(fv.rgba, fv.width, fv.height,
                                static_cast<qsizetype>(fv.stride),
                                QImage::Format_RGBA8888);
                     if (img.isNull()) continue;
-                    it.frame = std::move(img).copy(); // 深拷贝自持
+                    if (fv.keep) {
+                        // 【2026-11-23 零拷贝】keep 非空 = 不可变快照域
+                        //（Live Feed 快照 / 视频 PublishedFrame——发布方
+                        // move 移交、快照对象保活像素）：QImage 仅包裹
+                        // 外部缓冲不复制，frame_keep 随交付项把快照存活
+                        // 到绘制结束。省每拍一次全帧 memcpy + 8MB 分配
+                        //（live 恒 30fps 提交，原深拷贝持续 250MB/s）。
+                        it.frame      = std::move(img);
+                        it.frame_keep = std::move(fv.keep);
+                    } else {
+                        // keep 空 = 无快照契约（复用内部缓冲的源）：深拷贝
+                        // 自持（历史行为——借内部缓冲必悬垂）
+                        it.frame = std::move(img).copy();
+                    }
                 } else if (fv.domain == FrameDomain::GpuCudaNv12 &&
                            fv.native) {
                     // 【第三步 2026-11-05】GPU 域直通：零下载零拷贝——
