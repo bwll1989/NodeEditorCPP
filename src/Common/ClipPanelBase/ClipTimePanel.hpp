@@ -78,6 +78,15 @@ private:
     int clampEndFrame(int frames) const;
     void refreshFrameRanges();
 
+    // ---- 模型信号灌值（只灌不写，2026-11-23 断环）--------------------------
+    //  模型信号（timelinePositionChanged/lengthChanged）驱动的显示更新：
+    //  blocker 包裹灌控件 + 不回写模型。写回（setStart/setEnd）只属于
+    //  用户控件信号直连的 update* 槽——两者混用会构成 UI↔模型互驱环
+    //  （值经帧量化/clamp 推挤非收敛 → 无限递归 → 栈溢出，实证）。
+    void displayStartFrame(int frames);
+    void displayEndFrame(int frames);
+    void displayPositionFrame(int frames);
+
 private:
     AbstractClipModel* owner_ {nullptr};
     QGridLayout* time_layout_ {nullptr};

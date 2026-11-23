@@ -93,14 +93,53 @@ void ClipTimePanel::initSignalConnections() {
     connect(end_time_code_,&QTimeEdit::timeChanged,this,&ClipTimePanel::updateEndTimeCode);
     connect(position_frame_spin_,&IntDragValueWidget::valueChanged,this,&ClipTimePanel::updatePositionFrame);
     connect(position_time_,&QTimeEdit::timeChanged,this,&ClipTimePanel::updatePositionTimeCode);
-    // 模型信号参数 = μs（微秒原生）→ UI 帧数换算后走同一更新槽
+    // 模型信号参数 = μs（微秒原生）→ UI 帧数换算灌显示。
+    // 【2026-11-23 断环修复】模型信号驱动的灌值「只灌不写」——原实现直接
+    // 调 update*Frame（内含 setStart/setEnd 写回），与模型信号构成互驱环：
+    // 拖拽/面板写回 → setClipPayload 镜像回推 → setEnd 自适应 →
+    // lengthChanged → 灌值 → setEnd（帧量化/clamp 推挤，值非收敛）→
+    // lengthChanged → … 无限递归 → 栈溢出 c00000fd（属性面板打开 + 拖拽
+    // 片段必崩，dump 实测递归 1260 圈）。写回只属于用户控件信号
+    //（valueChanged/timeChanged 直连的 update* 槽——发信号者是人）。
     connect(owner_, &AbstractClipModel::timelinePositionChanged, this, [this](qint64 us){
-        updateStartFrame(usToFrames(us));
-        updatePositionFrame(usToFrames(us));
+        displayStartFrame(usToFrames(us));
+        displayPositionFrame(usToFrames(us));
     });
     connect(owner_, &AbstractClipModel::lengthChanged, this, [this](qint64 usEnd){
-       updateEndFrame(usToFrames(usEnd));
+       displayEndFrame(usToFrames(usEnd));
     });
+}
+
+// ---------------------------------------------------------------------------
+// 模型信号灌值（只灌不写，2026-11-23 断环——语义见 initSignalConnections）
+// ---------------------------------------------------------------------------
+void ClipTimePanel::displayStartFrame(int frames) {
+    if (!owner_) return;
+    QSignalBlocker b1(start_frame_spin_);
+    QSignalBlocker b2(start_time_code_);
+    start_frame_spin_->setValue(frames);
+    const auto tc = frames_to_timecode_frame(frames, owner_->getTimeCodeType());
+    start_time_code_->setTime(timecode_frame_to_qtime(tc, owner_->getTimeCodeType()));
+    refreshFrameRanges();
+}
+
+void ClipTimePanel::displayEndFrame(int frames) {
+    if (!owner_) return;
+    QSignalBlocker b1(end_frame_spin_);
+    QSignalBlocker b2(end_time_code_);
+    end_frame_spin_->setValue(frames);
+    const auto tc = frames_to_timecode_frame(frames, owner_->getTimeCodeType());
+    end_time_code_->setTime(timecode_frame_to_qtime(tc, owner_->getTimeCodeType()));
+    refreshFrameRanges();
+}
+
+void ClipTimePanel::displayPositionFrame(int frames) {
+    if (!owner_) return;
+    QSignalBlocker b1(position_frame_spin_);
+    QSignalBlocker b2(position_time_);
+    position_frame_spin_->setValue(frames);
+    const auto tc = frames_to_timecode_frame(frames, owner_->getTimeCodeType());
+    position_time_->setTime(timecode_frame_to_qtime(tc, owner_->getTimeCodeType()));
 }
 
 int ClipTimePanel::clampStartFrame(int frames) const
