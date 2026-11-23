@@ -1437,23 +1437,67 @@ void GlRenderer::buildWarpMesh(std::vector<float>& out) {
                           std::size_t>(r) * cols + c])
                     : 1.0f;
     };
-    out.reserve(static_cast<std::size_t>(cols - 1) * (rows - 1) * 6 * 5);
+    // 【贴图语义统一 2026-11-23 用户定案】逐格双线性细分——与 clip
+    // corner 拖角同一四边形变换语义（内容随四边线性拉伸，无透视）。
+    // 旧实现逐格两三角：2×2 网格=整幅输出一个四边形拆两三角 → 对角
+    // 折线（与最初 clip"折线"bug 同源）；任意四边形两三角数学上就是
+    // 错的。每格 k×k 细分逐格仿射逼近双线性曲面：节点精确过点、共享
+    // 边=双线性退化为线性 → 跨格 C0 连续；残差 O(1/k²)，k=32 时
+    // <0.1px（与 clip 端 kMeshSubN 同密度同依据）。
+    // 细分密度自适应：全幅每轴 ≈ kMeshSubN 等分——kc=ceil(N/(cols-1))，
+    // 2×2 网格 k=32（单四边形=clip 同款 32×32）；密网格 k 自动收小
+    // （k=1 时即历史两三角），总顶点数恒 ~2N² 量级不随密度爆炸。
+    const auto kAxis = [](int n) {
+        const int cells = n - 1;
+        const int k     = (kMeshSubN + cells - 1) / cells; // ceil
+        return k < 1 ? 1 : k;
+    };
+    const int kc = kAxis(cols);
+    const int kr = kAxis(rows);
+    // 双线性插值一个顶点（5 通道全插：pos/uv/alpha——mode=2 逐场同式；
+    // a=TL(s0,t0) b=TR(s1,t0) c=BR(s1,t1) d=BL(s0,t1)，gl 域 y 已翻转
+    // ——翻转是仿射，与双线性可交换，先翻后插 == 先插后翻）
+    const auto bil = [](const float a[5], const float b[5], const float c5[5],
+                        const float d[5], float s, float t, float o[5]) {
+        const float w00 = (1.0f - s) * (1.0f - t),
+                    w10 = s * (1.0f - t),
+                    w11 = s * t,
+                    w01 = (1.0f - s) * t;
+        for (int i = 0; i < 5; ++i)
+            o[i] = w00 * a[i] + w10 * b[i] + w11 * c5[i] + w01 * d[i];
+    };
+    out.reserve(static_cast<std::size_t>(cols - 1) * (rows - 1) * kc * kr *
+                6 * 5);
     for (int r = 0; r + 1 < rows; ++r) {
         for (int c = 0; c + 1 < cols; ++c) {
-            float tl[5], bl[5], br[5], tr[5];
+            float tl[5], tr[5], bl[5], br[5];
             node(c, r, tl);
+            node(c + 1, r, tr);
             node(c, r + 1, bl);
             node(c + 1, r + 1, br);
-            node(c + 1, r, tr);
-            // 两三角形（CULL 已禁用，绕序不敏感）
-            out.insert(out.end(),
-                       {tl[0], tl[1], tl[2], tl[3], tl[4],
-                        bl[0], bl[1], bl[2], bl[3], bl[4],
-                        br[0], br[1], br[2], br[3], br[4]});
-            out.insert(out.end(),
-                       {tl[0], tl[1], tl[2], tl[3], tl[4],
-                        br[0], br[1], br[2], br[3], br[4],
-                        tr[0], tr[1], tr[2], tr[3], tr[4]});
+            for (int sr = 0; sr < kr; ++sr) {
+                for (int sc = 0; sc < kc; ++sc) {
+                    const float s0 = static_cast<float>(sc) / kc,
+                                s1 = static_cast<float>(sc + 1) / kc,
+                                t0 = static_cast<float>(sr) / kr,
+                                t1 = static_cast<float>(sr + 1) / kr;
+                    float v00[5], v10[5], v01[5], v11[5];
+                    bil(tl, tr, br, bl, s0, t0, v00);
+                    bil(tl, tr, br, bl, s1, t0, v10);
+                    bil(tl, tr, br, bl, s0, t1, v01);
+                    bil(tl, tr, br, bl, s1, t1, v11);
+                    // 子格两三角（CULL 已禁用，绕序不敏感）；顶点序与
+                    // 历史 (tl,bl,br)+(tl,br,tr) 同构
+                    out.insert(out.end(),
+                               {v00[0], v00[1], v00[2], v00[3], v00[4],
+                                v01[0], v01[1], v01[2], v01[3], v01[4],
+                                v11[0], v11[1], v11[2], v11[3], v11[4]});
+                    out.insert(out.end(),
+                               {v00[0], v00[1], v00[2], v00[3], v00[4],
+                                v11[0], v11[1], v11[2], v11[3], v11[4],
+                                v10[0], v10[1], v10[2], v10[3], v10[4]});
+                }
+            }
         }
     }
 }
