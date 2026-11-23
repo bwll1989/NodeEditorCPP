@@ -15,8 +15,7 @@
 //  交互约定（与原对话框同源）：
 //    * 构造预填当前 warp（无变形时以 4×4 恒等网格作为编辑起点，但模式下
 //      拉仍为"无变形"——不写回用户未动过的状态）；
-//    * 模式二选一：无变形（直出）/ 手动网格（拖拽编辑）；MPCDI 项禁用
-//      占位（枚举先立位，本轮不实装）；
+//    * 模式二选一：无变形（直出）/ 手动网格（拖拽编辑）；
 //    * 编辑区自绘：实线 = 变形网格（节点位置的分片双线性曲面）、
 //      虚线 = 恒等参考；拖拽节点即变形；密度变更 = 双线性保形重采样；
 //    * setLiveApply：每次变化（拖拽/密度/重置/切模式）实时回调当前状态。
@@ -71,7 +70,7 @@ private:
     /// 把当前编辑状态经 live_apply_ 实时发出（未注入则空操作）
     void emitLive();
 
-    QComboBox*   mode_  = nullptr; ///< 变形模式（无/手动网格/MPCDI 禁用）
+    QComboBox*   mode_  = nullptr; ///< 变形模式（无/手动网格）
     IntDragValueWidget* cols_  = nullptr; ///< 网格列数（节点数，2..16）
     IntDragValueWidget* rows_  = nullptr; ///< 网格行数（同上）
     QPushButton* reset_btn_ = nullptr; ///< 恒等重置

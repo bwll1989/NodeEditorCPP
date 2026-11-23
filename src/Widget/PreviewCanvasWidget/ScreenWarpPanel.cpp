@@ -227,7 +227,8 @@ ScreenWarpPanel::ScreenWarpPanel(const ScreenWarp& initial,
     // （initial 无变形时显示 4×4 恒等网格作为"切到手动网格"的起点，
     //  但模式下拉仍为"无变形"——写回不清空用户未动过的变形状态）
     ScreenWarp seed = initial;
-    const int seed_mode = (seed.mode == 1) ? 1 : 0; // 2=MPCDI 预留回落 0
+    const int seed_mode = (seed.mode == 1) ? 1 : 0; // 其他枚举值（含历史
+                                                    // mode=2 残值）一律回落无变形
     if (!seed.active()) seed = ScreenWarp::identity(4, 4);
     seed.normalize();
 
@@ -238,9 +239,6 @@ ScreenWarpPanel::ScreenWarpPanel(const ScreenWarp& initial,
     mode_->setObjectName("warp_mode");
     mode_->addItem("无变形（直出）");
     mode_->addItem("手动网格（拖拽控制点）");
-    mode_->addItem("MPCDI（预留）");
-    // MPCDI 禁用占位（本轮不实装；Qt 禁用项 role = Qt::UserRole-1）
-    mode_->setItemData(2, 0, Qt::UserRole - 1);
     mode_->setCurrentIndex(seed_mode);
 
     cols_ = new IntDragValueWidget(form_box);
