@@ -393,10 +393,19 @@ void PlayerRuntime::startRenderThread() {
     rcfg.asset_osd_provider = [this]() {
         RenderThread::AssetOsdState s;
         s.active  = !assets_ready_.load(std::memory_order_relaxed);
-        s.done    = static_cast<int>(assets_ready_cnt_.load(
-                        std::memory_order_relaxed));
-        s.total   = static_cast<int>(assets_total_.load(
-                        std::memory_order_relaxed));
+        // 【2026-11-23 计数修复】OSD 口径 = 已完成 + 传输中（钳到 total）
+        // ——传输中的文件计入显示，"同步第 n 个时显示 n/m"；旧口径只计
+        // 已完成，最后一个文件传输期间恒显 (n-1)/m，且完成后 OSD 随
+        // assets_ready_ 立即消失，n/m 永不可见（用户报障）
+        const std::size_t ready = assets_ready_cnt_.load(
+            std::memory_order_relaxed);
+        const int inflight = std::max(
+            0, assets_inflight_.load(std::memory_order_relaxed));
+        const std::size_t total = assets_total_.load(
+            std::memory_order_relaxed);
+        s.done    = static_cast<int>(
+            std::min(ready + static_cast<std::size_t>(inflight), total));
+        s.total   = static_cast<int>(total);
         s.file_percent = asset_file_percent_.load(std::memory_order_relaxed);
         return s;
     };
@@ -1364,6 +1373,10 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
         asset_gen_.fetch_add(1); // 通知旧循环退出（轮间休眠 ≤200ms 感知）
         asset_thread_.join();
     }
+    // 【2026-11-23 OSD 计数修复】新会话计数基线：join 后旧线程不可能再写
+    // ——重置为就绪跳过数（skipped>0 时与去重段预置值同值幂等；skipped=0
+    // 时清掉上一会话残留——否则 OSD 起始就显示旧会话的完成数）
+    assets_ready_cnt_.store(skipped, std::memory_order_relaxed);
     const auto my_gen = asset_gen_.fetch_add(1) + 1; // 本循环的代数
 
     asset_thread_ = std::thread(
@@ -1577,6 +1590,18 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                         if (pos >= reps.size()) return;
                         const std::size_t idx = reps[pos];
                         const auto& a = list[idx];
+                        // 【2026-11-23 OSD 计数修复】传输中计数 +1（RAII：
+                        // 完成/失败/取消 return 全路径必减）——OSD 口径
+                        // "已完成+传输中"（正在同步第 n 个），最后一个
+                        // 文件传输期间显示 n/n 而非 (n-1)/n
+                        assets_inflight_.fetch_add(1,
+                                                   std::memory_order_relaxed);
+                        struct InflightGuard {
+                            std::atomic<int>& c;
+                            ~InflightGuard() {
+                                c.fetch_sub(1, std::memory_order_relaxed);
+                            }
+                        } inflight_guard{assets_inflight_};
                         // done 语义（2026-11-09）：全局完成计数真值（含跳过
                         // 与跟随折叠），多 worker 并发下比旧"下标+1"近似准确
                         emit(ok_total.load(std::memory_order_relaxed), a.path,
