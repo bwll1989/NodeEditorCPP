@@ -56,8 +56,6 @@ public:
     QAction *createNodeAction;
     //工具菜单
     QMenu *Tool_menu;
-    //格式转化器
-    QAction *FormatConverter ;
     //网页入口
     QAction *WebInterface ;
     //系统信息

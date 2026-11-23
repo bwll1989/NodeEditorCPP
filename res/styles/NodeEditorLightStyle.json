@@ -5,8 +5,8 @@
     "CoarseGridColor": [196, 198, 206],
     "AxisGridColor": [205, 0, 0],
     "AxisLineWidth": 3.0,
-    "BackgroundGrid": false,
-    "BackgroundAxis": false
+    "BackgroundGrid": true,
+    "BackgroundAxis": true
   },
 
   "NodeStyle": {

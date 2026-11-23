@@ -126,12 +126,6 @@ void MenuBarWidget::setupMenu() {
     Tool_menu=this->addMenu("工具");
     Tool_menu->setWindowFlags(Tool_menu->windowFlags() | Qt::NoDropShadowWindowHint);
     Tool_menu->setAttribute(Qt::WA_TranslucentBackground, false);
-    FormatConverter = Tool_menu->addAction(QIcon(":/icons/icons/converty.png"),"视频格式转换器");
-    connect(FormatConverter, &QAction::triggered, this, [this]() {
-
-        openToolWithArgs("FormatConverter.exe", QStringList());
-    });
-
 
     WebInterface = Tool_menu->addAction(QIcon(":/icons/icons/home.png"),"打开网页控制台");
     connect(WebInterface, &QAction::triggered, this, &MenuBarWidget::openDashboard);
