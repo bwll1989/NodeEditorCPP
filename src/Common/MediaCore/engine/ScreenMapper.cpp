@@ -126,33 +126,63 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
                                                        judge.rotation,
                                                        judge.anchor,
                                                        judge.corner, wx, wy);
-                // 【透视校正 2026-11-24 折线根修】corner 拖角产生任意四边形
-                //（非平行四边形 = 平面单应）——渲染端单 quad 两三角形
-                // affine 插值无法复现，对角线处网格折断（display 实测"中间
-                // 有条折线"、编辑器预览 QTransform 单应正确）。解 uv→canvas
-                // 单应取第三行为透视权重 q（顶点 (uv·q, q) + FS 采样 uv/q
-                // 精确复现平面单应——与 pose3d 分支同一消费契约，quad 同
-                // 填渲染端 pose3d 路径直取）。corner 全 0（平行四边形）时
-                // 单应第三行 ≈(0,0,1)、q≡1 逐位退化历史仿射行为。
+            }
+            // 【透视校正 2026-11-24 折线根修 v2——两分支统一】corner 拖角/
+            // 姿态投影产生任意四边形（平面单应），渲染端单 quad 两三角形
+            // affine 插值无法复现 → 对角线处内容断裂（display 实测"中间有
+            // 条折线"，编辑器预览 QTransform 单应正确）。
+            // 【v2 关键修正 2026-11-23 单测实证】q 必须取【canvas→uv 逆单应】
+            // 的分母在顶点画布坐标处的值——v1 误填 uv→canvas 正向单应的分母
+            //（h6·u+h7·v+1）：两者相差逐点因子（全局常数可约、逐点不可），
+            // GL 有理插值不复现单应（复现测试 corner_perspective_repro_test
+            // A3 实测偏差达 0.36）。正确推导：屏幕点 p 的内容 uv = K(p)
+            //（K = 最终四角单应之逆，分子/分母均仿射）；GL 条带对属性做
+            // 屏幕仿射插值 → 顶点传 (uv_i·q_i, q_i) 且 q_i = c·D(p_i)
+            //（D = K 分母）⇒ 插值 (Σλ·uv·q)/(Σλ·q) = N(p)/D(p) = K(p)
+            // 逐点精确。四角全仿射（平行四边形）时 D≡const、q≡1 逐位退化。
+            // pose3d 分支保底 = quadCorners3DP 的 s（纯姿态时与逆单应分母
+            // 等价——s 沿屏幕仿射且 ∝ D）；解算失败/扭转四边形（D 异号）
+            // 时保留保底，宁近似勿灾难。
+            {
                 const double dst8[8] = {wx[0], wy[0], wx[1], wy[1],
                                         wx[2], wy[2], wx[3], wy[3]};
-                double h_uv2c[9];
-                if (canvas_geometry::solveHomography(dst8, h_uv2c)) {
-                    static constexpr double kU[4] = {0.0, 1.0, 1.0, 0.0};
-                    static constexpr double kV[4] = {0.0, 0.0, 1.0, 1.0};
+                double h_uv2c[9], h_c2uv[9];
+                if (canvas_geometry::solveHomography(dst8, h_uv2c) &&
+                    canvas_geometry::homographyInverse(h_uv2c, h_c2uv)) {
+                    double q4[4];
+                    bool usable = true;
                     for (int i = 0; i < 4; ++i) {
-                        di.quad[i][0] = wx[i];
-                        di.quad[i][1] = wy[i];
-                        // q = 单应分母 h6·u + h7·v + 1（h8 归一 1——
-                        // solveHomography 约定）；q_i 间比值即透视强度
-                        const double w3 = h_uv2c[6] * kU[i]
-                                        + h_uv2c[7] * kV[i] + 1.0;
-                        di.quad_q[i] = (w3 > 1e-6) ? w3 : 1e-6; // 防御：翻转/退化不渲染黑块
+                        // D(canvas 顶点)——用完整齐次分母（homographyInverse
+                        // 产物为伴随/det 解析逆，h8 不归一，禁用 "+1" 简写，
+                        // v2.1 单测实证残差 2e-2 根因即此）；
+                        // 四角同号才可精确插值（凸四边形内部不变号）；近零 =
+                        // 顶点落在除线上——单应数值已不可信，保底回退
+                        const double d3 = h_c2uv[6] * wx[i]
+                                        + h_c2uv[7] * wy[i] + h_c2uv[8];
+                        if (!(d3 > 1e-9) && !(d3 < -1e-9)) {
+                            usable = false;
+                            break;
+                        }
+                        q4[i] = d3;
                     }
-                    di.pose3d = true; // 渲染端走预投影四角 + q 有理插值路径
+                    const bool all_pos = usable && q4[0] > 0.0 && q4[1] > 0.0 &&
+                                         q4[2] > 0.0 && q4[3] > 0.0;
+                    const bool all_neg = usable && q4[0] < 0.0 && q4[1] < 0.0 &&
+                                         q4[2] < 0.0 && q4[3] < 0.0;
+                    if (all_pos || all_neg) {
+                        // 全负 = 全局翻转（除法下常数因子无影响），归正统一
+                        // 渲染端 clamp 口径
+                        for (int i = 0; i < 4; ++i) {
+                            di.quad[i][0] = wx[i];
+                            di.quad[i][1] = wy[i];
+                            di.quad_q[i]  = all_neg ? -q4[i] : q4[i];
+                        }
+                        di.pose3d = true; // 渲染端走预投影四角 + q 有理插值
+                    }
+                    // 异号（扭转四边形）：保留保底 q（pose3d 分支 = s /
+                    // else 分支 = 1）——内容映射近似，不渲染灾难
                 }
-                // 解算失败（共线/近奇异）：保持 quad_q≡1 仿射历史行为
-                //（宁缺勿错同 make 的退化防御口径）
+                // 解算失败（共线/近奇异）：保留保底 q（同 make 退化防御口径）
             }
             for (int i = 0; i < 4; ++i) {
                 double ox = 0.0, oy = 0.0;
