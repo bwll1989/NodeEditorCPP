@@ -167,12 +167,13 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     sync_row->addWidget(sync_latency_, /*stretch=*/1);
     lay->addLayout(sync_row);
 
-    // ---- 组播转发（仅 NDI 源：跨机带宽收敛——多 display 共享一路）---------
+    // ---- 组播转发（全源类型：跨机画面分发唯一通道——多 display 共享一路）---
     mcast_ = new QCheckBox(QStringLiteral("组播转发（多台 display 共享一路带宽）"), box);
     mcast_->setObjectName("liveMcast");
     mcast_->setToolTip(QStringLiteral(
-        "editor 把本源编码一次（H.264）后组播分发：display 端按组播地址接收，"
-        "入网带宽恒一份（替代 NDI 单播按台数放大）。需交换机支持 IGMP。"));
+        "editor 把本源收进的画面编码一次（H.264）后组播分发：display 端按组播"
+        "地址接收画面，入网带宽恒一份。不勾选 = display 端在本机按源名直收"
+        "（仅源也在 display 本机时可用）。需交换机支持 IGMP。"));
     lay->addWidget(mcast_);
     mcast_url_ = new QLabel(box);
     mcast_url_->setObjectName("liveMcastUrl");
@@ -229,12 +230,13 @@ void LiveClipSection::applyTo(Asset& a) const {
     a.live_latency = latency_->currentIndex() == 1 ? 1 : 0;
     // 帧同步目标延迟（μs；档位 currentData 直传——无精度损失）
     a.live_target_latency_us = sync_latency_->currentData().toLongLong();
-    // 组播转发：仅 NDI 源可启用（跨机带宽收敛；同机源 display 直收豁免）。
-    // 勾选 → live_url = 确定性组播地址（multicastUrlFor；用户不经 UI 改）；
-    // 取消/非 NDI → 清空（NDI 分发退役后 display 拒收并提示——组播是
-    // NDI 源唯一分发通道）
-    const bool mcast_on = mcast_->isChecked() &&
-                          a.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi);
+    // 组播转发：全源类型通用（2026-11-23）——NDI/Spout/摄像头/窗口/显示器
+    // 收进的画面都经 Hub 统一再发布（跨机 display 靠它拿画面；源设备在
+    // display 机器上不存在，按名直收必黑屏）。勾选 → live_url = 确定性
+    // 组播地址（multicastUrlFor；用户不经 UI 改）；取消 → 清空回退本机
+    // 直收语义（display 与 editor 同机时仍有意义；NDI 无本机直收路径，
+    // 清空即拒收——组播是 NDI 源唯一分发通道）。
+    const bool mcast_on = mcast_->isChecked();
     a.live_url = mcast_on ? multicastUrlFor(a.id) : std::string();
 }
 
@@ -273,12 +275,9 @@ void LiveClipSection::refreshFrom(const Asset& a) {
     latency_->setCurrentIndex(a.live_latency == 1 ? 1 : 0);
     sync_latency_->setCurrentIndex(
         nearestSyncIndex(sync_latency_, a.live_target_latency_us));
-    // 组播转发：回灌勾选态 + URL 展示（仅 NDI 源可见；live_url 非空 = 启用）
-    const bool is_ndi =
-        a.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi);
-    mcast_->setVisible(is_ndi);
-    mcast_->setChecked(is_ndi && !a.live_url.empty());
-    mcast_url_->setVisible(is_ndi && !a.live_url.empty());
+    // 组播转发：回灌勾选态 + URL 展示（全源类型可见；live_url 非空 = 启用）
+    mcast_->setChecked(!a.live_url.empty());
+    mcast_url_->setVisible(!a.live_url.empty());
     mcast_url_->setText(QStringLiteral("组播地址: ") +
                         QString::fromStdString(a.live_url));
 }

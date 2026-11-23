@@ -96,24 +96,26 @@ bool LiveMediaSource::prepare(const Asset& asset) {
     }
 
     // ---- 直收模式（display 端 / Hub 未命中兜底）----
+    // 【2026-11-23 全源组播】组播转发升级为全源类型通用：live_url 非空 =
+    // display 纯收流（不碰本机设备——源设备在 display 机器上根本不存在，
+    // Spout/摄像头按名直收是跨机黑屏根因），editor 端 Hub 统一编码再发布。
     // 【2026-11-21 NDI 分发退役】NDI 源唯一接收通道 = 编辑端组播转发
-    // （live_url 非空 → MPEG-TS 组播；display 端 NetworkIngest 收流，
-    // 多 display 共享一路入网带宽）。未启用组播 → 拒绝装配并提示
-    //（不再退回 NDI 直收——display 端 NDI 接收路径已删除）。
-    // 其余同机源（Spout/窗口/显示器/摄像头）按原注册表直收。
+    // （live_url 空 → 拒绝装配并提示，不再退回 NDI 直收——display 端
+    // NDI 接收路径已删除）。
+    // 未启用组播的其余源（Spout/窗口/显示器/摄像头）保持按注册表本机
+    // 直收（display 与 editor 同机场景仍然有效）。
     const IngestDesc* desc = nullptr;
     std::string connect_ref;
-    if (asset.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi)) {
-        if (asset.live_url.empty()) {
-            std::fprintf(stderr,
-                         "live: %s: NDI 源未启用组播转发，无法接收"
-                         "（在编辑端 Live 片段属性勾选组播）\n",
-                         asset.id.c_str());
-            std::fflush(stderr);
-            return false;
-        }
-        desc = findIngest(static_cast<std::int32_t>(LiveIngest::Network));
+    if (!asset.live_url.empty()) {
+        desc        = findIngest(static_cast<std::int32_t>(LiveIngest::Network));
         connect_ref = asset.live_url;
+    } else if (asset.live_ingest == static_cast<std::int32_t>(LiveIngest::Ndi)) {
+        std::fprintf(stderr,
+                     "live: %s: NDI 源未启用组播转发，无法接收"
+                     "（在编辑端 Live 片段属性勾选组播）\n",
+                     asset.id.c_str());
+        std::fflush(stderr);
+        return false;
     } else {
         desc = findIngest(asset.live_ingest);
         connect_ref = asset.live_source_name;

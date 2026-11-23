@@ -982,10 +982,12 @@ void EditorRuntime::backfillAssetChecksums(const Scene& snap) {
 // live_ingest ← Ndi（display 按 NDI 收再发布流）——单播 ×N 带宽问题的根源。
 //
 // 2026-11-21 NDI 分发退役：组播（asset.live_url）成为唯一分发通道——
-// display 按 live_url 收 MPEG-TS 组播（同机源 Camera/Spout/窗口的素材，
-// 其 live_ingest 保持原值、live_url 为空 → display 端拒绝装配并提示，
-// 不再误开本机独占资源）；NDI 改写整段删除。NDI 采集（editor 收外部
-// NDI 源）不受影响。
+// display 按 live_url 收 MPEG-TS 组播。
+// 2026-11-23 全源组播：组播转发升级为全源类型通用（NDI/Spout/摄像头/
+// 窗口/显示器）——用户在 Live 片段属性勾选组播即生成 live_url，display
+// 端纯收流；未勾选的素材 live_ingest/live_url 保持原值，display 端按
+// 本机直收语义处理（NDI 源 live_url 空 → 拒绝并提示）。NDI 采集
+// （editor 收外部 NDI 源）不受影响。
 //
 // 装配（发送线程上下文；只 ensure Hub 侧资源——权威场景不动，编辑端
 // 预览/.show 持久化仍按原始源）：
