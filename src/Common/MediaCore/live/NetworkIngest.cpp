@@ -60,7 +60,11 @@ void NetworkIngest::recvLoop() {
         std::string open_url = source_ref_;
         {
             const std::string lan = probeLanIPv4();
-            if (!lan.empty()) open_url += "&localaddr=" + lan;
+            if (!lan.empty())
+                open_url += (open_url.find('?') == std::string::npos
+                                 ? "?localaddr="
+                                 : "&localaddr=") +
+                            lan;
         }
         AVDictionary* opts = nullptr;
         av_dict_set(&opts, "fflags", "nobuffer", 0);

@@ -209,9 +209,18 @@ bool MpegTsSender::setupEncoder(int w, int h) {
     // IP_MULTICAST_IF）。Windows 组播 best route 可能命中 127.0.0.1
     // （系统 224/4→loopback 默认路由 metric 最低）或 WSL 虚拟网卡 → 本机
     // 回环自收正常、局域网零包（探测规则见 LanProbe.hpp；空 = 不追加）。
+    // 追加参数防御 URL 无查询串的形态（live_url 允许用户手改——裸地址
+    // 必须用 ? 连接，带 ? 的用 &）。
     const std::string lan_ip = probeLanIPv4();
+    if (lan_ip.empty())
+        std::fprintf(stderr,
+                     "mcast: 出口接口探测失败，交由系统路由（多网卡机器"
+                     "可能选错，跨机收不到流时优先排查）\n");
     std::string open_url = url_;
-    if (!lan_ip.empty()) open_url += "&localaddr=" + lan_ip;
+    if (!lan_ip.empty())
+        open_url += (open_url.find('?') == std::string::npos ? "?localaddr="
+                                                             : "&localaddr=") +
+                    lan_ip;
     if (avformat_alloc_output_context2(&a->mux, nullptr, "mpegts",
                                        open_url.c_str()) < 0)
         return false;
