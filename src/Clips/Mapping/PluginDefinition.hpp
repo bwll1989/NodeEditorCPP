@@ -57,4 +57,15 @@ public:
     QString bindingHint() const override {
         return QStringLiteral("（映射片段无需媒体文件）");
     }
+
+    // ---- 动画页暴露面（P4-A schema 化 2026-11-17）----
+    /// 映射片段无画布呈现（无 transform 语义）——通用动画字段（变换/姿态/
+    /// 裁切/形变/合成）对映射零消费方（display 渲染工厂只注册
+    /// Video/Image/Text/Live creator，Mapping 到达即忽略，改值无任何效果
+    /// ——ClipPanelBase/Doc.md §5 已核实），动画页整页不加（与
+    /// Control/Artnet 同口径；2026-11-23 用户定案「先隐藏无效字段页」）。
+    /// 真正的映射动画 = OSC 值关键帧（映射插值域，设计文档「待后续切片」
+    /// 未实施）；当前动画手段 = 消息表表达式 $percent/$frame（播放期逐帧
+    /// 求值发送）。
+    ClipTweenExposure tweenExposure() const override { return {false, {}}; }
 };

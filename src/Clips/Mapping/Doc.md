@@ -43,4 +43,6 @@
 ---
 
 ## 属性面板
-三页式面板装配与 schema 化设计见 [`../../Common/ClipPanelBase/Doc.md`](../../Common/ClipPanelBase/Doc.md)。场景全量下发、display 端无渲染 creator（执行在宿主 onPlayheadAdvanced）；动画页含映射插值域（P4 schema 化）。
+三页式面板装配与 schema 化设计见 [`../../Common/ClipPanelBase/Doc.md`](../../Common/ClipPanelBase/Doc.md)。场景全量下发、display 端无渲染 creator（执行在宿主 onPlayheadAdvanced）。
+
+**动画页整页隐藏**（2026-11-23 用户定案「先隐藏无效字段页」，与 Control/Artnet 同口径 `tweenExposure(){false,{}}`）：通用动画字段（变换/姿态/裁切/形变/合成）是 transform 域，消费方是画布渲染——Mapping 无画布呈现（display 渲染工厂不注册本类型），字段全部零效果。真正的映射动画 = **OSC 值关键帧（映射插值域）**，设计文档标记「待后续切片」未实施；当前动画手段 = 专属页消息表表达式 `$percent`/`$frame`（播放期逐帧求值发送）。
