@@ -139,9 +139,14 @@ static void buildDrawItemsForScreen(const Scene& scene, const EvalResult& eval,
             // 自洽但语义超纲（用户实测"拖角有透视感/被复杂化"），整链
             // 撤回；最初"折线"bug 的正确解法就是细分，不是单应。
             // 3D 姿态分支（pose3d）不受影响：quadCorners3DP 的 s 权重
-            // 保底语义照旧（冻结兼容层，勿扩）。
-            if (!judge.pose3DActive()) {
-                di.bilinear = true; // pose3d=false：渲染端走双线性细分
+            // 保底语义照旧（冻结兼容层，勿扩；角位移已烘焙进预投影四角）。
+            // 【触发面收紧 2026-11-23 审查】双线性仅 corner 拖角需要：
+            // 纯 clip 旋转/屏旋转（无角位移）= 平行四边形，渲染端 4 顶点
+            // 仿射路径（di.rotation+di.corner 重算四角）数学精确且省
+            // 2112 顶点细分 + 42KB 顶点上传——bilinear 收紧到
+            // cornerActive()（pose3d 优先级不变：两者同开走 pose3d）。
+            if (!judge.pose3DActive() && judge.cornerActive()) {
+                di.bilinear = true; // corner 拖角：渲染端走双线性细分
                 for (int i = 0; i < 4; ++i) { // CornerIdx 序四角
                     di.quad[i][0] = wx[i];
                     di.quad[i][1] = wy[i];

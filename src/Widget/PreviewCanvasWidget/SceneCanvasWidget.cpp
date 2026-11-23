@@ -2668,16 +2668,18 @@ void SceneCanvasWidget::paintGL3D(
                     const double qy[4] = {pr.quad[0].y(), pr.quad[1].y(),
                                           pr.quad[2].y(), pr.quad[3].y()};
                     p.beginNativePainting();
-                    // 【贴图语义 2026-11-23 用户定案】2D 变形（corner 拖角/
-                    // 锚点）= 双线性细分（无透视，与 display 同构同密度）；
-                    // 3D 姿态压平 = 单应透视 w 顶点（冻结路径）。
+                    // 【贴图语义 2026-11-23 用户定案】corner 拖角 = 双线性
+                    // 细分（无透视，与 display 同构同密度）；纯旋转/非中心
+                    // 锚（平行四边形）= submitFace 单应退 W≡1 精确仿射
+                    // （6 顶点，免 2112 细分）；3D 姿态压平 = 单应透视
+                    // w 顶点（冻结路径，角位移已烘焙进 pr.quad）。
                     gl_drawn = gl3d_->drawClipFace(
                         c.id, td, qx, qy,
                         (float)std::clamp(tf.opacity, 0.0, 1.0),
                         (float)pr.cuv[0], (float)pr.cuv[1],
                         (float)pr.cuv[2], (float)pr.cuv[3],
                         tf.rgb_gain, tf.gamma,
-                        pr.deformed && !tf.pose3DActive());
+                        tf.cornerActive() && !tf.pose3DActive());
                     p.endNativePainting();
                 }
             }
