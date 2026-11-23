@@ -76,6 +76,8 @@ bool SyncUdp::send(const SyncFrame& frame) {
 bool SyncUdp::send_to(const SyncFrame& frame, const Poco::Net::SocketAddress& to) {
     unsigned char buf[SyncFrameCodec::kWireSize];
     const std::size_t n = SyncFrameCodec::encode(frame, buf);
+    // 编码在锁外（纯计算）；sendTo 持锁（多线程并发见头文件 send_mutex_ 注）
+    std::lock_guard<std::mutex> lock(send_mutex_);
     try {
         // UDP 单次 sendTo：56B 远小于 MTU，必为原子报文（无分片丢序问题在此层）
         const int sent = socket_.sendTo(buf, static_cast<int>(n), to);

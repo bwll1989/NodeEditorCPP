@@ -75,6 +75,11 @@ private:
     mutable std::mutex remote_mutex_;   // 保护 remote_（set_remote 写 / send 读，跨线程）
     Poco::Net::SocketAddress remote_;   // 默认发送目标（Player 用）
     FrameHandler on_frame_;
+    /// 【发送互斥 2026-11-23】sendTo 被多线程并发调用（Editor：发送线程
+    /// 队列任务 + recv 线程时钟帧直发；Player：tick 探测 + 心跳定时）。
+    /// 内核级单次 sendto 原子，但 Poco 封装层不承诺线程安全——加锁统一
+    /// 保护（UDP sendTo 微秒级，锁开销可忽略）。
+    std::mutex send_mutex_;
 };
 
 } // namespace ms

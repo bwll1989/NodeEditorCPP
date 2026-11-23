@@ -733,8 +733,12 @@ void EditorRuntime::onUdpFrame(const SyncFrame& f,
     }
     if (!known) return; // 不可达（防御性：上面两分支已 return）
 
-    // ---- 时钟校准探测请求：即刻构造响应（走发送队列，UDP sendTo 本身
-    //      微秒级，队列等待进 RTT 被 display 端最小值筛选排除）----
+    // ---- 时钟校准探测请求：【直发 2026-11-23】不走发送队列——队列被
+    //      场景大包（ScenePrepare 素材 stat + 大场景 serialize，百 ms 级/个，
+    //      频繁下发时堆积数秒）拥堵时，响应排队 δ 全额变成 display 端 RTT
+    //      污染（offset 误差=δ/2；δ>5s 的响应直接被丢弃 → 探测轮失败 →
+    //      钟差校准在编辑风暴期系统性失效）。UDP sendTo 微秒级，recv 线程
+    //      直发零压力（SyncUdp::send_to 内部有发送互斥，与发送线程并发安全）。
     if (f.kind == SyncKind::TimeProbeReq) {
         SyncFrame resp;
         resp.role       = SyncRole::Editor;
@@ -742,13 +746,9 @@ void EditorRuntime::onUdpFrame(const SyncFrame& f,
         resp.session_id = f.session_id;
         resp.t1_us      = f.t1_us;      // 回传（display 端匹配样本）
         resp.t2_us      = probe_recv_us; // T2 = 收到请求时刻（入口已取）
-        resp.t3_us      = probeNowUs();  // T3 = 响应构造时刻
+        resp.t3_us      = probeNowUs();  // T3 = 响应构造时刻（紧贴直发）
         resp.delta_us   = f.delta_us;   // 轮序号回传（过期响应匹配）
-        SendTask t;
-        t.kind   = SendTask::Kind::UdpSend;
-        t.beat   = std::move(resp);
-        t.udp_to = from;
-        enqueueSend(std::move(t));
+        udp_.send_to(resp, from);
         return;
     }
 
@@ -760,14 +760,11 @@ void EditorRuntime::onUdpFrame(const SyncFrame& f,
     // 【被动粗校准数据源 2026-11-20】回应帧带 Editor 对齐时钟读数——
     // display 端与本机时钟比对（含单向网络延迟），多拍一致才粗修大差
     //（秒级裸差冷启动空窗的消解通道；SNTP 主动探测仍是精确基准）
+    // 【直发 2026-11-23】同上——回应帧的 wall_us 是 display 被动校准的
+    // 数据源，排队 δ 会让 raw 抖动秒级 → display 端一致性检查（±200ms）
+    // 失败 → 备份校准通道同步失效。低频（每 Player ~4Hz）微秒级直发。
     beat.wall_us          = probeNowUs();
-    // 【发送解耦】UDP 发送也走队列（UDP sendTo 虽非阻塞语义，统一走
-    // 发送线程——出站路径单一化，排查/限流/日志都只在一处）
-    SendTask t;
-    t.kind   = SendTask::Kind::UdpSend;
-    t.beat   = std::move(beat);
-    t.udp_to = from;
-    enqueueSend(std::move(t));
+    udp_.send_to(beat, from);
 }
 
 // ---------------------------------------------------------------------------

@@ -59,13 +59,21 @@ constexpr int         kProbeCount         = 8;
 constexpr std::int64_t kProbeIntervalUs   = 100'000;     // 请求间隔 100ms
 constexpr std::int64_t kProbeRoundUs      = 30'000'000;  // 重测周期 30s
 constexpr std::int64_t kProbeTimeoutUs    = 5'000'000;   // 单轮截止 5s
-constexpr int         kProbeMinSamples    = 3;           // 最低采纳样本数
+// 【kProbeMinSamples 退役 2026-11-23】原"最低 3 样本才结算"防丢包噪声；
+// 干净样本过滤（kProbeCleanRttUs）取代其职责——单条干净样本（RTT≤10ms）
+// 的 offset 噪声在 LAN 亚毫秒，远小于 10ms 采纳阈值，≥1 即可结算。
 // 【采纳阈值 50ms→10ms 2026-11-23】播放中端间画面差 = 各端 offset 差——
 // 原 ±50ms 防抖带内 offset 残差永不修正（死区），两端各偏 30ms 即画面
 // 恒差 60ms 且 30s 轮校准永不收敛（"拖动后画面不一致、重发场景又好"
 // 的时钟域根因候选）。测量噪声已由"RTT 最小样本"筛选控制（LAN 亚毫秒），
 // 10ms 阈值安全：显著偏斜立即修正，微噪不反复写。
 constexpr std::int64_t kOffsetAdoptDeltaUs = 10'000;     // 采纳阈值 10ms
+// 【干净样本上限 2026-11-23】LAN 正常 UDP 往返亚毫秒——RTT>10ms 的样本
+// 必被某处排队污染（Editor 发送队列拥堵/网络抖动），其 offset 误差=排队
+// 延迟的一半，绝不可采纳。8 样本取"干净样本中 RTT 最小者"；全部被污染
+// 则本轮放弃（Editor 端探测响应已改直发，污染源消除后干净率应近 100%；
+// 本过滤是二道防线，同时把"Editor 端拥堵"变成可观测信号）。
+constexpr std::int64_t kProbeCleanRttUs = 10'000;        // 干净样本 RTT 上限
 } // namespace（文件局部常量到此；成员函数不可定义于匿名命名空间）
 
 using ms_proto::Envelope;
@@ -130,25 +138,39 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
     int       received = 0;
     bool      adopt    = false;
     int       fail_streak = 0; // 本轮失败连击（0 = 成功轮；锁外告警判定）
+    int       polluted    = 0; // 被污染样本数（RTT>10ms；诊断打印用）
     {
         std::lock_guard<std::mutex> lock(probe_mutex_);
         last_probe_round_us_ = now_us;
         probing_             = false;
-        if (static_cast<int>(probe_samples_.size()) < kProbeMinSamples) {
-            // 样本不足（丢包严重）：放弃本轮等下轮，不动 offset
+        // 【干净样本过滤 2026-11-23】RTT>10ms = 排队污染样本，其 offset
+        // 误差=排队延迟的一半——先滤除再取 RTT 最小者。全部被污染 =
+        // Editor 端拥堵信号，本轮放弃等下轮（原「样本≥3 即结算」会采纳
+        // 被污染的 offset：场景下发风暴期 Editor 发送队列排队秒级，8 个
+        // 样本可能全部带几百 ms~秒级误差——钟差越修越歪的直接根源）。
+        std::vector<std::pair<std::int64_t, std::int64_t>> clean;
+        clean.reserve(probe_samples_.size());
+        for (const auto& s : probe_samples_) {
+            if (s.second <= kProbeCleanRttUs)
+                clean.push_back(s);
+            else
+                ++polluted;
+        }
+        if (clean.empty()) {
+            // 无干净样本（丢包/全部被排队污染）：放弃本轮等下轮，不动 offset
             probe_samples_.clear();
             fail_streak = ++probe_fail_streak_; // 锁内簿记（打印挪锁外）
         } else {
             probe_fail_streak_ = 0; // 成功轮清零连击
             const auto best = std::min_element(
-                probe_samples_.begin(), probe_samples_.end(),
+                clean.begin(), clean.end(),
                 [](const auto& a, const auto& b) { return a.second < b.second; });
             offset   = best->first;
             rtt      = best->second;
             cur_off  = clock_.offsetUs();
             received = probe_recv_; // 结算前留存（下面 clear）
             probe_samples_.clear();
-            // 首次（offset==0）必采纳；此后仅显著变化才写（±50ms 防抖，避免
+            // 首次（offset==0）必采纳；此后仅显著变化才写（±10ms 防抖，避免
             // 测量噪声反复微调播放头）
             adopt = (cur_off == 0 ||
                      std::llabs(offset - cur_off) > kOffsetAdoptDeltaUs);
@@ -160,10 +182,11 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
         if (now_ms - last_probe_fail_warn_ms_ >= 60'000) {
             last_probe_fail_warn_ms_ = now_ms;
             std::fprintf(stderr,
-                         "\n[player] W-时钟探测持续失败（连续 %d 轮样本<%d）"
-                         "——检查 display→editor 的 UDP 单向连通（防火墙/路由）"
+                         "\n[player] W-时钟探测持续失败（连续 %d 轮无干净样本"
+                         "，本轮收到 %d 个样本其中 %d 个被排队污染 RTT>10ms）"
+                         "——display→editor UDP 连通性 / editor 端发送队列拥堵"
                          "；期间心跳被动校准兜底（若 Editor 心跳可达）\n\n",
-                         fail_streak, kProbeMinSamples);
+                         fail_streak, received, polluted);
             std::fflush(stderr);
         }
         return;
