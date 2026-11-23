@@ -61,7 +61,7 @@ inline std::string probeLanIPv4() {
         const ULONG ret = GetAdaptersAddresses(
             AF_INET,
             GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
-                GAA_FLAG_SKIP_DNS_SERVER,
+                GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_INCLUDE_GATEWAYS,
             nullptr, aa, &size);
         if (ret == ERROR_BUFFER_OVERFLOW)
             continue; // size 已被系统更新为需求值，扩容重试
@@ -83,8 +83,8 @@ inline std::string probeLanIPv4() {
             for (wchar_t& ch : name)
                 ch = static_cast<wchar_t>(::towlower(ch));
             static const wchar_t* kVirtual[] = {
-                L"vethernet", L"wsl",      L"hyper-v",   L"vmware",
-                L"virtualbox", L"virtual", L"loopback", L"pseudo"};
+                L"vethernet", L"wsl",      L"hyper-v", L"vmware",
+                L"virtual",   L"loopback", L"pseudo"}; // virtual 已覆盖 virtualbox
             bool is_virtual = false;
             for (const wchar_t* k : kVirtual) {
                 if (name.find(k) != std::wstring::npos) {
@@ -109,9 +109,11 @@ inline std::string probeLanIPv4() {
                 if (s.rfind("127.", 0) == 0 || s.rfind("169.254.", 0) == 0)
                     break;
 
-                // 有默认网关的接口优先（0.0.0.0 网关 = 无效不认）
+                // 有默认网关的接口优先（仅认 IPv4 网关；0.0.0.0 = 无效不认）
                 if (hit_gw == nullptr && a->FirstGatewayAddress != nullptr &&
-                    a->FirstGatewayAddress->Address.lpSockaddr != nullptr) {
+                    a->FirstGatewayAddress->Address.lpSockaddr != nullptr &&
+                    a->FirstGatewayAddress->Address.lpSockaddr->sa_family ==
+                        AF_INET) {
                     auto* g = reinterpret_cast<const sockaddr_in*>(
                         a->FirstGatewayAddress->Address.lpSockaddr);
                     if (g->sin_addr.S_un.S_addr != 0) {
