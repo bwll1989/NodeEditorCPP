@@ -43,6 +43,7 @@ set(ALL_NODES
     SyncNode                                  #跨主机 Variable 同步 Sync Out/In
     ArtnetInNode                              #Arnet输入
     MpvControllerNode                         #mpv控制
+    FlowDisplayControllerNode                 #FlowDisplay 独立模式控制
     PingNode                                  #ICMP ping 连通性
     VLC_ControllerNode                            #VLC远程控制
     SPlayControllerNode                       #ENTTEC S-Play 多 playlist 控制
