@@ -1476,8 +1476,11 @@ void GlRenderer::setStandby(const char* utf8_addr) {
 //   （与 drawQuad 其余调用同域），底部居中放置。
 //
 //   【文字栅格化】GDI DrawTextW → 内存 DIB（32bpp top-down BGRA）。GDI
-//   不写可靠 alpha → 栅格化后一次像素循环统一转 RGBA + alpha=255（不透
-//   明黑条白字；半透明底需要逐像素按亮度算 alpha，演出场景不值得）。
+//   不写可靠 alpha → 栅格化后换序段按 A=max(R,G,B) 推导覆盖率（与
+//   drawStandbyCard 同一 premultiplied 透明底契约，2026-11-24 用户定案
+//   "透明底白字"：无实底色块，白字/进度条直接浮在输出画面上；黑底栅格化
+//   使 GDI 抗锯齿输出天然 premultiplied 语义）。字体灰度 AA（ClearType
+//   亚像素彩边会被 A=max 误读为彩色内容——同 drawStandbyCard 结论）。
 //   内容变化（osd_dirty_）才重栅格化 + 上传（进度文本变化频率 ≤10Hz），
 //   其余帧只重贴缓存纹理（60fps 热路径零上传）。
 // ---------------------------------------------------------------------------
@@ -1530,34 +1533,20 @@ void GlRenderer::drawOsdOverlay() {
             if (mdc) DeleteDC(mdc);
             return; // 栅格化失败：本帧无 OSD（下帧重试）
         }
-        // 栅格化画布预填：不透明深蓝灰底（黑背景演出环境下的可读性下限——
-        // 纯黑底与播放黑场不可区分；GDI 后续绘制覆盖 RGB，alpha 统一后置）
+        // 栅格化画布预填：纯黑透明底（premultiplied 契约——GDI 输出在黑底
+        // 上天然 premultiplied，换序段 A=max(R,G,B) 推导覆盖率；全 0 区域
+        // 透明零污染，白字/进度条直接浮在输出画面上）
         auto* px = static_cast<std::uint8_t*>(bits);
-        for (int i = 0; i < bar_w * bar_h; ++i) {
-            px[i * 4 + 0] = 32;  // B
-            px[i * 4 + 1] = 28;  // G
-            px[i * 4 + 2] = 26;  // R
-            px[i * 4 + 3] = 255; // A
-        }
+        std::memset(bits, 0, static_cast<std::size_t>(bar_w) * bar_h * 4);
         auto old_bm = static_cast<HBITMAP>(SelectObject(mdc, dib));
-        // 1px 亮边框：黑场上勾出 OSD 条轮廓（FillRect 后描边——Rectangle
-        // 会连填充带边一次画，这里用纯描边避免覆盖文字区）
-        {
-            auto old_brush = static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
-            auto old_pen   = static_cast<HPEN>(GetStockObject(DC_PEN));
-            SetDCPenColor(mdc, RGB(96, 96, 102));
-            RECT edge{0, 0, bar_w - 1, bar_h - 1};
-            Rectangle(mdc, edge.left, edge.top, edge.right + 1,
-                      edge.bottom + 1);
-            SelectObject(mdc, old_pen);
-            SelectObject(mdc, old_brush);
-        }
-        // 字体：微软雅黑（中文 raster 必经——GL 无法直接画非 ASCII）
+        // 字体：微软雅黑（中文 raster 必经——GL 无法直接画非 ASCII）。
+        // 【ANTIALIASED_QUALITY】灰度 AA——ClearType 亚像素彩边会被
+        // A=max(R,G,B) 误读为彩色内容（透明底彩噪，同 drawStandbyCard）。
         const int font_h = std::max(20, bar_h * 42 / 100);
         HFONT font = CreateFontW(
             -font_h, 0, 0, 0, FW_BOLD, FALSE, FALSE, 0,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-            CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+            ANTIALIASED_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
             L"Microsoft YaHei UI");
         auto old_font = static_cast<HFONT>(SelectObject(mdc, font));
         SetBkMode(mdc, TRANSPARENT);
@@ -1570,17 +1559,15 @@ void GlRenderer::drawOsdOverlay() {
         // 文本区占条上部 ~70%，进度条占下部
         const int text_h = bar_h * 70 / 100;
         RECT tr{0, 0, bar_w, text_h};
-        // 【黑场可读性】黑色偏移描边 + 纯白主字（1px 右下阴影勾边——
-        // 深底上白字无衬线也清晰；单遍细字在视频亮场同样会糊）
-        SetTextColor(mdc, RGB(0, 0, 0));
-        RECT tr_sh = tr;
-        OffsetRect(&tr_sh, 2, 2);
-        DrawTextW(mdc, wtext.c_str(), wlen - 1, &tr_sh,
-                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-        SetTextColor(mdc, RGB(250, 250, 250));
+        // 纯白主字（透明底：黑影 pass 在黑底栅格化下 RGB=0→A=0 自动隐没，
+        // 无效果故删除；白字在亮画面上的可读性由 GDI 灰度 AA 边缘 + 输出
+        // 场景多为暗场演出兜底——用户定案"透明底白字"）
+        SetTextColor(mdc, RGB(255, 255, 255));
         DrawTextW(mdc, wtext.c_str(), wlen - 1, &tr,
                   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-        // 进度条（osd_frac_ ∈ [0,1]；<0 不画）
+        // 进度条（osd_frac_ ∈ [0,1]；<0 不画）。透明底下轨道/描边/填充的
+        // 深灰/灰/绿实色经 A=max(R,G,B) 推导自动成为半透明叠加（深灰轨道
+        // A≈56 轻雾化、绿填充 A=200 近实心），无需逐元素 alpha 处理
         if (osd_frac_ >= 0.0f) {
             const int bar_margin = bar_w / 24;
             const int bar_y = text_h + (bar_h - text_h) / 4;
@@ -1603,14 +1590,20 @@ void GlRenderer::drawOsdOverlay() {
                 FillRect(mdc, &fg, old_brush);
             }
         }
-        // ---- DIB (BGRA) → RGBA + alpha 统一 255（GDI alpha 不可靠）------
+        // ---- DIB (BGRA) → RGBA 换序 + premultiplied alpha 推导 -----------
+        // 纯黑底栅格化使 GDI 输出天然 premultiplied（实心像素 = 源色本身，
+        // 抗锯齿边缘 = 源色×覆盖率 与黑混合）；A=max(R,G,B) 还原覆盖率，
+        // GL 侧 (GL_ONE, 1-srcA) 混合精确叠加（与 drawStandbyCard 同契约）。
         thread_local std::vector<std::uint8_t> rgba;
         rgba.resize(static_cast<std::size_t>(bar_w) * bar_h * 4);
         for (int i = 0; i < bar_w * bar_h; ++i) {
-            rgba[i * 4 + 0] = px[i * 4 + 2]; // R
-            rgba[i * 4 + 1] = px[i * 4 + 1]; // G
-            rgba[i * 4 + 2] = px[i * 4 + 0]; // B
-            rgba[i * 4 + 3] = 255;           // A
+            const std::uint8_t r = px[i * 4 + 2];
+            const std::uint8_t g = px[i * 4 + 1];
+            const std::uint8_t b = px[i * 4 + 0];
+            rgba[i * 4 + 0] = r;
+            rgba[i * 4 + 1] = g;
+            rgba[i * 4 + 2] = b;
+            rgba[i * 4 + 3] = std::max({r, g, b}); // 黑底推导覆盖率
         }
         SelectObject(mdc, old_font);
         SelectObject(mdc, old_bm);
@@ -1664,7 +1657,14 @@ void GlRenderer::drawOsdOverlay() {
     // 颜色合成复位（2026-11-20）：OSD 条不吃片段级合成（同 warpBlit 残留防御）
     gl::glUniform3f(loc_rgb_gain_, 1.0f, 1.0f, 1.0f);
     gl::glUniform1f(loc_gamma_, 1.0f);
+    // 透明 OSD 混合（2026-11-24 透明底定案）：源为 premultiplied → rgb 因子
+    // GL_ONE；画完立即恢复帧级契约（SRC_ALPHA）——同帧后续叠层不吃污染
+    // （对位 drawStandbyCard 1870 段）。
+    gl::glBlendFuncSeparate(gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA,
+                            gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
     drawQuad(verts);
+    gl::glBlendFuncSeparate(gl::GL_SRC_ALPHA, gl::GL_ONE_MINUS_SRC_ALPHA,
+                            gl::GL_ONE, gl::GL_ONE_MINUS_SRC_ALPHA);
     gl::glActiveTexture(gl::GL_TEXTURE0); // 活动单元复位（RGBA 路径约定）
 }
 

@@ -108,8 +108,11 @@ void blitFrame(HDC dc, int dst_w, int dst_h) {
 }
 
 // ---------------------------------------------------------------------------
-// 素材同步进度条（WM_PAINT 尾部叠加）：底部黑条 + 状态文本 + 进度填充
+// 素材同步进度条（WM_PAINT 尾部叠加）：透明底 + 白字 + 进度填充
 // 布局（相对客户区底边）：高 44px；条内文本行 20px + 进度槽 6px 居中。
+// 【透明底 2026-11-24 用户定案】与 GL 输出 OSD 同语义：不画实心底，文字/
+// 进度条直接叠在预览画面上（GDI 直画域无 alpha 通道，黑影 = 真实可见的
+// 1px 偏移深色描边，亮暗画面均可读）。
 // ---------------------------------------------------------------------------
 void drawAssetProgress(HDC dc, const RECT& client) {
     bool   active;
@@ -131,13 +134,8 @@ void drawAssetProgress(HDC dc, const RECT& client) {
     const int bar_h = 44;
     RECT bar{client.left, client.bottom - bar_h, client.right, client.bottom};
 
-    // ---- 1. 半透效果（GDI AlphaBlend 需内存 DC + 全条位图，重载不划算
-    //      → 纯深灰实心底，与画面边界分明；每帧叠加在画面之上）----
-    HBRUSH bg = CreateSolidBrush(RGB(0x1C, 0x1C, 0x1C));
-    FillRect(dc, &bar, bg);
-    DeleteObject(bg);
-
-    // ---- 2. 状态文本：同步媒体 2/5 · media/demo.mp4（45.2%）----
+    // ---- 1. 状态文本：同步媒体 2/5 · media/demo.mp4（45.2%）--------------
+    // 透明底可读性：黑影 (+1,+1) 勾边 + 纯白主字（对位输出 OSD 的白字语义）
     wchar_t head[64];
     if (total > 0)
         std::swprintf(head, 64, L"同步媒体 %d/%d", done, total);
@@ -150,17 +148,24 @@ void drawAssetProgress(HDC dc, const RECT& client) {
             line += L"  " + std::to_wstring(int(frac * 100.0 + 0.5)) + L"%";
     }
     SetBkMode(dc, TRANSPARENT);
-    SetTextColor(dc, RGB(0xE8, 0xE8, 0xE8));
     RECT text_rc{bar.left + 12, bar.top + 4, bar.right - 12, bar.top + 26};
+    RECT text_sh = text_rc;
+    OffsetRect(&text_sh, 1, 1);
+    SetTextColor(dc, RGB(0, 0, 0));
+    DrawTextW(dc, line.c_str(), -1, &text_sh,
+              DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS |
+                  DT_NOPREFIX);
+    SetTextColor(dc, RGB(0xFF, 0xFF, 0xFF));
     DrawTextW(dc, line.c_str(), -1, &text_rc,
               DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS |
                   DT_NOPREFIX);
 
-    // ---- 3. 进度槽 + 填充（绿色 = 传输进行中；不定进度 = 全宽暗绿）----
+    // ---- 2. 进度槽 + 填充（绿色 = 传输进行中；不定进度 = 全宽暗绿）-------
+    // 无实心底后槽体提亮一档（0x3A 在亮画面上不可见 → 0x70 中灰可辨）
     const int margin = 12;
     RECT track{bar.left + margin, bar.top + 28,
                bar.right - margin, bar.top + 34};
-    HBRUSH track_br = CreateSolidBrush(RGB(0x3A, 0x3A, 0x3A));
+    HBRUSH track_br = CreateSolidBrush(RGB(0x70, 0x70, 0x70));
     FillRect(dc, &track, track_br);
     DeleteObject(track_br);
     const double slot_w = static_cast<double>(track.right - track.left);
