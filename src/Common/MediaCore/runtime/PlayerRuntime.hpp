@@ -464,6 +464,11 @@ private:
     std::int64_t passive_off_win_[5] = {0, 0, 0, 0, 0}; ///< raw 观测滑窗（us）
     int          passive_off_n_   = 0;                  ///< 窗口填充数（≤5）
     int          passive_adopted_ = 0;                  ///< 采纳次数（诊断日志）
+    /// 【时钟差可观测 2026-11-23】上次诊断打点时刻（Editor 域 ms；仅 recv
+    /// 线程 touch，无锁）。播放中端间画面差 = 各端对齐时钟差（SNTP offset
+    /// 差）——心跳帧 wall_us 与本机对齐读数之差是唯一现成观测源，周期打点
+    /// 让"拖动后画面不一致"的时钟域证据一线可见。
+    std::int64_t last_clk_diag_ms_ = 0;
 };
 
 } // namespace ms

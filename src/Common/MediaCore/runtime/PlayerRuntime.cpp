@@ -60,7 +60,12 @@ constexpr std::int64_t kProbeIntervalUs   = 100'000;     // 请求间隔 100ms
 constexpr std::int64_t kProbeRoundUs      = 30'000'000;  // 重测周期 30s
 constexpr std::int64_t kProbeTimeoutUs    = 5'000'000;   // 单轮截止 5s
 constexpr int         kProbeMinSamples    = 3;           // 最低采纳样本数
-constexpr std::int64_t kOffsetAdoptDeltaUs = 50'000;     // 采纳阈值 50ms
+// 【采纳阈值 50ms→10ms 2026-11-23】播放中端间画面差 = 各端 offset 差——
+// 原 ±50ms 防抖带内 offset 残差永不修正（死区），两端各偏 30ms 即画面
+// 恒差 60ms 且 30s 轮校准永不收敛（"拖动后画面不一致、重发场景又好"
+// 的时钟域根因候选）。测量噪声已由"RTT 最小样本"筛选控制（LAN 亚毫秒），
+// 10ms 阈值安全：显著偏斜立即修正，微噪不反复写。
+constexpr std::int64_t kOffsetAdoptDeltaUs = 10'000;     // 采纳阈值 10ms
 } // namespace（文件局部常量到此；成员函数不可定义于匿名命名空间）
 
 using ms_proto::Envelope;
@@ -208,12 +213,33 @@ void PlayerRuntime::onProbeResponse(const SyncFrame& f,
 void PlayerRuntime::passiveCalibrateTick(std::int64_t editor_aligned_now_us) {
     if (editor_aligned_now_us == 0) return;      // 无数据源帧（旧版 Editor）
     if (cfg_.standalone) return;                 // 本机模式无 Editor 域概念
+    const std::int64_t raw =
+        editor_aligned_now_us - clock_.alignedNowUs();
+    // 【时钟差可观测 2026-11-23】播放中端间画面差 = 各 display 对齐时钟之
+    // 差（SNTP offset 差）——127.0.0.1 与 Editor 同机同钟恒一致、暂停画面
+    // 用权威冻结值恒一致，唯独播放画面按各自时钟推算，offset 残差直接变
+    // 成端间画面差。"拖动素材后播放不一致、重发场景又好"的排查必须先让
+    // 这个差可见：心跳帧 wall_us（Editor 对齐读数）与本机对齐读数之差每
+    // 5s 打一条（不受被动校准的 offset==0 自锁限制——自锁恰是原实现里
+    // 校准收敛后差值不可观测的盲区）。判读：|raw| 持续 >10ms = 本端 offset
+    // 偏斜/漂移（端间画面差同级）；≈0 = 时钟域无嫌疑（转查解码/场景链）。
+    {
+        const std::int64_t now_ms = editor_aligned_now_us / 1000;
+        if (now_ms - last_clk_diag_ms_ >= 5000) {
+            last_clk_diag_ms_ = now_ms;
+            std::fprintf(stderr,
+                         "player: 时钟差观测: editor-本机=%+.3fms "
+                         "offset=%+.3fms（|差|持续>10ms = 端间画面差同级；"
+                         "播放中画面按各自时钟推算）\n",
+                         static_cast<double>(raw) / 1e3,
+                         static_cast<double>(clock_.offsetUs()) / 1e3);
+            std::fflush(stderr);
+        }
+    }
     if (clock_.offsetUs() != 0) {                // 已有生效 offset：通道自锁
         passive_off_n_ = 0;                      // 清窗（下次 offset 归零重开）
         return;
     }
-    const std::int64_t raw =
-        editor_aligned_now_us - clock_.alignedNowUs();
     // 滑窗 5 拍：FIFO 推进（环形不必——5 元素 memmove 纳秒级）
     if (passive_off_n_ < 5)
         passive_off_win_[passive_off_n_++] = raw;
@@ -450,8 +476,9 @@ void PlayerRuntime::stop() {
     // spawn 源头，再 join，消除"join 与线程对象重新赋值"的竞态窗口
     listener_.stop(); // 关监听 + 断开 Editor 连接（幂等）
     udp_.stop();      // 关 UDP + join 接收线程（幂等）
-    // 素材自愈循环快速退出标志（2026-11-04）：轮间休眠 200ms 粒度检查，
-    // join 不再被退避 sleep 卡住（旧实现最长等 3×500ms 重试链）
+    // 素材自愈循环快速退出标志（2026-11-04）：轮间休眠 20ms 粒度检查
+    // （2026-11-23 由 200ms 收紧——fetchAssetsAsync 在 recv 线程同步 join
+    // 旧线程，感知粒度即 join 最坏等待），join 不再被退避 sleep 卡住
     asset_quit_.store(true);
     // 最后 join 素材线程（若在拉取中会等当前 HTTP 超时/完成——避免线程
     // 引用已销毁的成员；正常联测素材早已拉完，join 立即返回）
@@ -648,10 +675,14 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
         // 【场景内容摘要 2026-11-13】"display 收到的到底是什么"一线可见——
         //  两端场景脱节（编辑后未下发/下发旧状态）排障的显示端证据链：
         //  屏（id@player + 画布矩形）+ 每 clip（时间域 + asset_id + 矩形）
-        // 【锁内绝不做 I/O 2026-11-16】锁内只拷贝 shared_ptr 快照（原子
-        //  引用计数，零内容拷贝），遍历打印全部在锁外——QuickEdit 拖选
-        //  挂起打印时不再持 state_mutex_ 连锁冻结渲染线程。
-        {
+        // 【MS_CANVAS_DBG 门控 2026-11-23】编辑自动下发是高频常态路径（拖动
+        //  素材即一包），全量摘要逐行 fprintf 在 Windows 同步 stderr 上
+        //  毫秒级/行——快速拖动风暴时 recv 线程被打印拖慢，同连接后续
+        //  消息（重锚等）队头延迟，且各端解析/打印耗时不同 → 场景切换
+        //  时刻差被放大（端间画面不同步的贡献因子）。常态只留"场景已接收"
+        //  一行（含解析耗时，量级仍可判拥堵），全量摘要调试时开。
+        static const bool s_scene_dump = std::getenv("MS_CANVAS_DBG") != nullptr;
+        if (s_scene_dump) {
             std::shared_ptr<const Scene> snapshot;
             {
                 std::lock_guard<std::mutex> lock(state_mutex_);
@@ -689,8 +720,9 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
                                  a.id.c_str(), static_cast<int>(a.kind),
                                  a.path.c_str());
             }
+            std::fflush(stderr);
         }
-        std::fflush(stderr);
+        std::fflush(stderr); // 「场景已接收」行常态也落盘（stderr 纪律）
 
         // ---- 触发素材拉取（§5.5）：后台线程逐个 HTTP 拉取 ----
         // host 用 Ack 学到的 Editor 地址（编辑器告知）；port 来自 Ack。
@@ -987,13 +1019,19 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
         AnchorCmd    cmd;
         PlayState    state;
         std::int64_t current_us;
+        std::int64_t late_us;   ///< 应用时刻 - 锚点时刻（迟到量）
     };
     std::vector<AppliedInfo> applied; // 锁内收集 POD，锁外打印+回 Ack
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
         while (auto a = scheduler_.poll(aligned_now_us)) {
             applyAnchorLocked(*a, aligned_now_us);
-            applied.push_back({a->anchor_time_us, a->cmd, state_, current_us_});
+            // 【迟到量观测 2026-11-23】Play/Seek 的迟到追帧公式把"应用时刻
+            // 差"合法化进播放头（target 与 current 同源推算 → 纠偏环对它
+            // 永远盲区）——控制通道被场景大包拥堵时各端迟到量不同，端间
+            // 播放头即差。该值是"拖动风暴后播放不一致"的关键证据。
+            applied.push_back({a->anchor_time_us, a->cmd, state_, current_us_,
+                               aligned_now_us - a->anchor_time_us});
         }
     }
     for (const auto& ai : applied) {
@@ -1003,10 +1041,12 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
                                                         : "Stop";
         std::fprintf(stderr,
                      "[%lld][player] 锚点已应用: cmd=%s → state=%d "
-                     "current_us=%lld\n",
+                     "current_us=%lld 迟到=%+.1fms%s\n",
                      tsMs(), name,
                      static_cast<int>(ai.state),
-                     static_cast<long long>(ai.current_us));
+                     static_cast<long long>(ai.current_us),
+                     static_cast<double>(ai.late_us) / 1e3,
+                     ai.late_us > 50'000 ? "（>50ms：命令链被拥堵，端间播放头差=各端迟到量差）" : "");
         std::fflush(stderr);
         // Ack 回发（协议 §6：调试/超时检测用；listener_.send_to 线程安全）
         sendAck(ai.anchor_time_us, true, "applied");
@@ -1260,7 +1300,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
         // 轮询（每轮 stderr+进度上报），且其 assets_ready_cnt_ 写入会覆盖
         // 本路径的口径。
         if (asset_thread_.joinable()) {
-            asset_gen_.fetch_add(1); // 通知旧循环退出（轮间休眠 ≤200ms 感知）
+            asset_gen_.fetch_add(1); // 通知旧循环退出（轮间休眠 ≤20ms 感知）
             asset_thread_.join();
         }
         assets_ready_.store(true);
@@ -1370,7 +1410,7 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
 
     // ---- 作废旧拉取循环 + 接管（场景替换/新清单推送时旧循环让位）----
     if (asset_thread_.joinable()) {
-        asset_gen_.fetch_add(1); // 通知旧循环退出（轮间休眠 ≤200ms 感知）
+        asset_gen_.fetch_add(1); // 通知旧循环退出（轮间休眠 ≤20ms 感知）
         asset_thread_.join();
     }
     // 【2026-11-23 OSD 计数修复】新会话计数基线：join 后旧线程不可能再写
@@ -1741,12 +1781,12 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                              ok_total.load(std::memory_order_relaxed),
                              total_assets, round + 1, wait_ms,
                              round_failed.c_str());
-                for (int slept = 0; slept < wait_ms; slept += 200) {
+                for (int slept = 0; slept < wait_ms; slept += 20) {
                     if (asset_gen_.load() != my_gen ||
                         asset_quit_.load())
                         return; // 新清单/场景接管 或 停止（join 快速返回）
                     std::this_thread::sleep_for(
-                        std::chrono::milliseconds(200));
+                        std::chrono::milliseconds(20));
                 }
             }
         });
