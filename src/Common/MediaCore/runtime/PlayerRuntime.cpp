@@ -664,14 +664,45 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
         }
         // 【下发延迟探针】解析耗时（recv 线程内、锁外）——大场景/素材表
         // 上千项时该值即"display 收到但还没切换"的那段固定成本
+        // 【端间场景对账指纹 2026-11-23】version 编辑期常不变（RenderThread
+        //  判新注释自证）、serial 端间各计不可比——"拖动后端间画面不一致、
+        //  手动重发即愈"要判定是否"端间场景版本差"（丢包/解析积压导致某端
+        //  停在旧 clip 域），需要端间日志可并排对比的内容指纹：clip 数 +
+        //  首个 clip 的时间域常态随行（锁外读快照，O(1)）。
         const auto parse_us = std::chrono::duration_cast<std::chrono::microseconds>(
             std::chrono::steady_clock::now() - parse_t0).count();
-        std::fprintf(stderr,
-                     "[%lld][player] 场景已接收: id=%s version=%s (%zu 字节) "
-                     "解析=%lldus\n",
-                    tsMs(),
-                    msg.scene_id().c_str(), msg.version().c_str(),
-                    msg.payload().size(), static_cast<long long>(parse_us));
+        {
+            char clip0[96] = "无clip";
+            std::size_t clip_cnt = 0;
+            bool clip0_filled = false;
+            std::shared_ptr<const Scene> snap;
+            {
+                std::lock_guard<std::mutex> lock(state_mutex_);
+                snap = scene_;
+            }
+            if (snap) {
+                for (const auto& tk : snap->timeline.tracks) {
+                    clip_cnt += tk.clips.size();
+                    if (!clip0_filled && !tk.clips.empty()) {
+                        const auto& c0 = tk.clips.front();
+                        std::snprintf(clip0, sizeof(clip0),
+                                      "clip0=[%.3f,%.3f)s",
+                                      static_cast<double>(c0.start_us) / 1e6,
+                                      static_cast<double>(c0.start_us +
+                                                          c0.duration_us) / 1e6);
+                        clip0_filled = true;
+                    }
+                }
+            }
+            std::fprintf(stderr,
+                         "[%lld][player] 场景已接收: id=%s version=%s "
+                         "(%zu 字节) 解析=%lldus clips=%zu %s\n",
+                        tsMs(),
+                        msg.scene_id().c_str(), msg.version().c_str(),
+                        msg.payload().size(), static_cast<long long>(parse_us),
+                        clip_cnt, clip0);
+            std::fflush(stderr);
+        }
         // 【场景内容摘要 2026-11-13】"display 收到的到底是什么"一线可见——
         //  两端场景脱节（编辑后未下发/下发旧状态）排障的显示端证据链：
         //  屏（id@player + 画布矩形）+ 每 clip（时间域 + asset_id + 矩形）
