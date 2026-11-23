@@ -35,6 +35,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "live/LiveFrame.hpp"
 #include "live/LiveIngest.hpp" // ILiveIngest（注册表接口——实现头零依赖）
@@ -62,12 +63,37 @@ public:
         std::uint64_t version() const noexcept {
             return version_.load(std::memory_order_relaxed);
         }
+        /// 帧同步排程取帧（2026-11-23 预览对齐）：pts <= target 的最大
+        /// pts 帧（缓冲按产出序即 pts 升序，逆序首个即命中）；全未到期
+        /// 返回空。未开历史（容量 0）恒空——调用方回退 latest()。
+        LiveFramePtr scheduled(std::int64_t target_us) const {
+            std::lock_guard<std::mutex> lock(mutex_);
+            for (auto it = history_.rbegin(); it != history_.rend(); ++it)
+                if ((*it)->pts_us <= target_us) return *it;
+            return nullptr;
+        }
+        /// 排程历史容量（帧数；0 = 不留历史）。消费方 prepare 时按
+        /// target_latency 换算设置（同 display 端 sync_capacity_ 口径）。
+        void setScheduleCapacity(std::size_t frames) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            history_cap_ = frames;
+            while (history_.size() > history_cap_)
+                history_.erase(history_.begin());
+        }
         /// 投递一帧（新帧 = 新对象，不可变语义）。写者约定：Ingest 链
         /// （NdiIngest 回调经 Hub 装配）与单测注入——外部代码不应直接
         /// 持 Feed 投帧（探针 probeFeed 返回值仅供消费 latest）。
         void publish(LiveFramePtr frame) {
             {
                 std::lock_guard<std::mutex> lock(mutex_);
+                // 排程历史（pts 升序——Ingest 顺序产出 + 戳单调）：容量
+                // 裁剪丢最老。pts_us==0（未打戳异常帧）不入史（排程没法
+                // 定位它），仅作 latest 直显。
+                if (history_cap_ > 0 && frame && frame->pts_us != 0) {
+                    history_.push_back(frame);
+                    while (history_.size() > history_cap_)
+                        history_.erase(history_.begin());
+                }
                 latest_ = std::move(frame);
             }
             version_.fetch_add(1, std::memory_order_relaxed);
@@ -77,6 +103,10 @@ public:
         friend class LiveHub;
         mutable std::mutex mutex_;
         LiveFramePtr       latest_;
+        /// 帧同步排程历史（2026-11-23）：预览端与 display 同延迟排程
+        /// （"预览 = display 所见"对齐）；容量 setScheduleCapacity 控制
+        std::vector<LiveFramePtr> history_;
+        std::size_t               history_cap_ = 0;
         std::atomic<std::uint64_t> version_{0};
     };
 

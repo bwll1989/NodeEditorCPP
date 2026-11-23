@@ -129,6 +129,11 @@ bool MpegTsSender::setupEncoder(int w, int h) {
         if (std::strcmp(name, "libx264") == 0) {
             av_opt_set(a->enc->priv_data, "preset", "ultrafast", 0);
             av_opt_set(a->enc->priv_data, "tune", "zerolatency", 0);
+            // 限 2 线程（sliced——zerolatency 禁 frame threading 无帧延迟）：
+            // 默认线程数=核数会把 editor UI/渲染的 CPU 吃穿（用户报"很卡"
+            // ——编码霸核拖累全进程）。2 线程 1080p ultrafast 编码能力
+            // ≈50fps，不足帧率时 Feed 取 latest 跳帧，画面仍连续。
+            av_opt_set(a->enc->priv_data, "threads", "2", 0);
         } else {
             // NVENC 低延迟 CBR：p1 最快 preset；无 B 帧已由 max_b_frames 保证
             av_opt_set(a->enc->priv_data, "preset", "p1", 0);
@@ -247,8 +252,10 @@ void MpegTsSender::run() {
         if (!feed) break; // Hub 条目已亡：线程自退
 
         const std::uint64_t v = feed->version();
-        if (v == last_version_) { // 无新帧：20ms 一拍
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        if (v == last_version_) { // 无新帧：5ms 一拍（2026-11-23 自 20ms
+                                  // 收紧——帧节拍量化抖动降到 1 帧@200fps
+                                  // 轮询上限；空转原子读代价可忽略）
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
             continue;
         }
         const LiveFramePtr frame = feed->latest();

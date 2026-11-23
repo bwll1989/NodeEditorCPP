@@ -15,6 +15,12 @@
 
 namespace ms {
 
+/// 预览排程的组播链路补偿（2026-11-23 预览对齐）：display 显示的帧先经
+/// 编码+组播+解码才上屏（时间轴整体滞后 δ），预览按 target + δ 排程才能
+/// 与 display 同帧。δ 实测随链路 30~100ms，取 60ms 常量吸收大头——残余
+/// 差 = 链路抖动（< 一帧），肉眼基本不可辨。
+constexpr std::int64_t kHubPathLatencyUs = 60'000;
+
 // ---------------------------------------------------------------------------
 // 析构：先停收端再进成员析构（display 直收模式切换崩溃根因修复）
 //
@@ -84,12 +90,27 @@ bool LiveMediaSource::prepare(const Asset& asset) {
     // 惰性 ensure：首个消费者装配时建 Ingest+Feed+再发布 sender（幂等），
     // Hub 生命周期独立于源实例（display 侧收流中不随预览 release 中断）
     if (LiveHub::instance().enabled()) {
+        // 【2026-11-23 预览对齐】Hub 模式同样按帧同步延迟排程（"预览 =
+        // display 所见"）：display 时间轴含组播链路滞后（编码+网络+解码
+        // ≈ 一到两帧），预览排程在其上再补 kHubPathLatencyUs 常量——残余
+        // 差 = 链路抖动，肉眼基本不可辨（此前预览恒最新帧，超前 display
+        // 200ms+，用户报"预览与 display 不对齐"）。
+        target_latency_us_ = asset.live_target_latency_us > 0
+                                 ? asset.live_target_latency_us
+                                 : 120'000; // 旧"监视"档存量兜底（同 display）
         LiveHub::instance().ensureAsset(asset);
         if (auto feed = LiveHub::probeFeed(asset.id)) {
-            hub_feed_  = std::move(feed);
+            hub_feed_ = std::move(feed);
+            // 排程历史容量（30fps 保守 + 8 帧余量，同 display 端口径；
+            // 500ms 上限 ≈ 23 帧 < Feed 历史裁剪安全域）
+            hub_feed_->setScheduleCapacity(
+                static_cast<std::size_t>(target_latency_us_ / 33'333) + 8 +
+                kHubPathLatencyUs / 33'333);
             connected_ = true; // 进程内源：无网络连接语义，恒"已连接"
-            std::fprintf(stderr, "live: %s: Hub 进程内模式（预览直用）\n",
-                         asset.id.c_str());
+            std::fprintf(stderr,
+                         "live: %s: Hub 进程内模式（预览排程延迟 %.0fms）\n",
+                         asset.id.c_str(),
+                         static_cast<double>(target_latency_us_) / 1e3);
             std::fflush(stderr);
             return true;
         }
@@ -194,9 +215,16 @@ bool LiveMediaSource::produce(std::int64_t media_us) {
 // frameView：快照视图（keep 保活——接收端发布新帧不影响本帧缓冲）
 // ---------------------------------------------------------------------------
 bool LiveMediaSource::frameView(FrameView& out) const {
-    // Hub 模式：直读进程内缓冲（零拷贝优势——帧向量即 Hub 收到的原帧）
+    // Hub 模式：帧同步排程（预览对齐 2026-11-23）——与 display 同延迟
+    // 排程再补组播链路补偿，预览显示的帧 ≈ display 同刻显示的帧。
+    // 排程历史空/首帧未到期回退最新帧（预览宁可超前不黑屏——与 display
+    // 的"等语义"刻意不同：编辑端操作反馈优先）。
     if (hub_feed_) {
-        const LiveFramePtr snap = hub_feed_->latest();
+        LiveFramePtr snap;
+        if (target_latency_us_ > 0)
+            snap = hub_feed_->scheduled(processAlignedNowUs() -
+                                        target_latency_us_ - kHubPathLatencyUs);
+        if (!snap) snap = hub_feed_->latest();
         if (!snap || snap->w <= 0 || snap->h <= 0 || snap->rgba.empty())
             return false;
         out.width  = snap->w;
