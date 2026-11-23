@@ -717,9 +717,14 @@ void EditorRuntime::onUdpFrame(const SyncFrame& f,
         e.delta_us   = f.delta_us;
         e.frame_index = f.frame_index;
         ++e.reports;
-        // 健康观测（§7.1③）：wall_us 是 Player 的对齐时钟读数（与 Editor
-        // tick 的 now_us 同域可比）；任何上报都恢复 online
-        e.last_beat_us = f.wall_us;
+        // 【时钟域修复 2026-11-23】超时判定的打点必须用 Editor 本地接收
+        // 时刻（入口 probe_recv_us，Editor 对齐钟域）——原存 f.wall_us
+        // （display 对齐钟读数，display 域）：display 机钟慢于 Editor 时
+        // last_beat 恒落后 → 正常上报的 display 被误判 OFFLINE（tick 的
+        // 超时扫描用 Editor 域 now_us 与之相减）；钟快则超时检测滞后同等
+        // 时长。跨机时钟差实测 9.2s >> player_timeout——必踩。display 的
+        // 钟偏斜观测由 display 端「时钟差观测」行自行打印，此处无需重复。
+        e.last_beat_us = probe_recv_us;
         e.offline      = false;
 
         // 逐帧回应心跳：携带共享 session_start（迟到加入/软重锚的数据源）。
@@ -1210,6 +1215,12 @@ bool EditorRuntime::broadcastReAnchor(std::int64_t now_us, AnchorCmd cmd,
 
 // ---------------------------------------------------------------------------
 // 心跳单播节拍
+// 【当前无调用方 2026-11-23 复查确认】GUI（MsRuntimeBridge）未驱动本 tick
+// ——display 收到的 Editor UDP 帧全部来自 onUdpFrame 的逐帧回应（直发）。
+// 未来接线时必须先处理：sendBeat 的 UdpSend 若走发送队列（enqueueSend），
+// 场景下发风暴期排队秒级 → 单播帧的 wall_us 抖动 → display 端被动校准的
+// raw 一致性检查（±200ms）失败 → 校准失效（与探测响应排队同类，见
+// onUdpFrame 直发注释）。sendBeat 的 sendTo 在 GUI 线程直发即可（微秒级）。
 // ---------------------------------------------------------------------------
 void EditorRuntime::tick(std::int64_t now_us) {
     bool due = false;

@@ -173,7 +173,9 @@ public:
     /// \return 本次实际执行注册动作的素材数（跳过的不计）
     std::size_t cmdSyncMedia(const Scene& source);
 
-    /// 心跳单播节拍（主循环每帧调用；内部按 beat_interval 节流）
+    /// 心跳单播节拍（【当前无调用方 2026-11-23】GUI 未驱动——display 收到的
+    /// Editor UDP 帧全部来自 onUdpFrame 逐帧回应。接线前见 .cpp tick 定义处
+    /// 的 sendBeat 直发警示：排队会污染 display 被动校准）
     void tick(std::int64_t now_us);
 
     // ---- 显示端管理（第五迭代：editor 主动连接显示端）-----------------------
@@ -392,7 +394,11 @@ private:
         std::uint32_t frame_index = 0;
         std::uint64_t reports = 0;
         // 健康检测（§7.1③）
-        std::int64_t  last_beat_us = -1;   ///< 最近上报的对齐时钟（-1=从未收到）
+        std::int64_t  last_beat_us = -1;   ///< 最近一次上报的【Editor 本地接收
+                                          ///  时刻】（Editor 对齐钟域；-1=从未
+                                          ///  收到）。勿存 display 上报的 wall_us
+                                          ///  （display 域）——与超时扫描的
+                                          ///  Editor 域 now_us 相减会混域（2026-11-23）
         bool          offline = false;     ///< 心跳超时标记（恢复上报即清除）
         std::uint32_t reconnects = 0;      ///< 累计重连次数（注册时识别）
     };

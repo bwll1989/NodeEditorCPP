@@ -158,6 +158,8 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
         }
         if (clean.empty()) {
             // 无干净样本（丢包/全部被排队污染）：放弃本轮等下轮，不动 offset
+            received = probe_recv_; // 留存（告警打印用；本轮引入 bug 修复：
+                                    // 原只成功分支赋值，告警里恒显 0 误导）
             probe_samples_.clear();
             fail_streak = ++probe_fail_streak_; // 锁内簿记（打印挪锁外）
         } else {
@@ -193,15 +195,22 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
     }
     if (fail_streak > 0) return; // 失败但未到告警阈值：静默等下轮
     if (adopt) {
-        clock_.setOffsetUs(offset); // 原子量，锁外写安全（tick 单写者）
+        clock_.setOffsetUs(offset); // 原子量，锁外写安全（写者=tick 结算 +
+                                    // recv 被动校准双通道；丢更新无害——
+                                    // 两者都朝真值收敛，下一轮自愈）
         // stderr 通道（项目日志纪律：无缓冲即时落盘，stdout 重定向为全缓冲）
         std::fprintf(stderr,
                      "player: 时钟校准: offset=%+.3fs rtt=%.1fms"
-                     "（旧 offset=%+.3fs；samples=%d/%d）\n",
+                     "（旧 offset=%+.3fs；干净样本=%d/%d%s）\n",
                      static_cast<double>(offset) / 1e6,
                      static_cast<double>(rtt) / 1e3,
                      static_cast<double>(cur_off) / 1e6,
-                     received, kProbeCount);
+                     received - polluted, received,
+                     polluted > 0 ? "，其中被排队污染已滤除数见告警口径" : "");
+        if (polluted > 0)
+            std::fprintf(stderr,
+                         "player:    本轮 %d 个样本被排队污染（RTT>10ms）已滤除"
+                         "——editor 端发送队列拥堵信号\n", polluted);
     }
 }
 
@@ -226,7 +235,7 @@ void PlayerRuntime::onProbeResponse(const SyncFrame& f,
 // 心跳被动粗校准（recv 线程；无锁——滑窗字段仅本线程 touch）
 //
 // 【为什么需要】SNTP 主动探测有冷启动空窗（注册后首轮 8×100ms≈0.7s 才
-// 结算）与失败态（UDP 单向被防火墙拦截时样本永远不足 3 个）——期间
+// 结算）与失败态（UDP 单向被防火墙拦截时响应永远回不来）——期间
 // offset==0，锚点 time戳走裸墙钟域，跨机秒级差直接触发域差兜底（画面
 // 不冻结但端间各按单向延迟重表达）。本通道从 Editor 心跳帧免费拿
 // Editor 域时戳：raw = editor - local，多拍中位数过滤网络抖动后粗修
@@ -938,7 +947,8 @@ void PlayerRuntime::onUdpFrame(const SyncFrame& f,
                      static_cast<long long>(aligned_t));
 
     // ---- 心跳被动粗校准（SNTP 冷启动空窗/失败态的消解通道；recv 线程）--
-    // f.wall_us = Editor 对齐时钟读数（主动单播 + 逐帧回应帧均携带）
+    // f.wall_us = Editor 对齐时钟读数（逐帧回应帧携带；Editor 主动单播
+    // 心跳 tick 当前未接线——见 EditorRuntime::tick 注释）
     passiveCalibrateTick(f.wall_us);
 }
 
@@ -1319,7 +1329,9 @@ void PlayerRuntime::sendReport(std::int64_t aligned_now_us) {
         f.frame_index      = static_cast<std::uint32_t>(current_us_ / kFrameSlotUs);
         ++reports_sent_;
     }
-    f.wall_us = aligned_now_us; // 对齐时钟（诊断：Editor 可比对其自身读数）
+    f.wall_us = aligned_now_us; // 对齐时钟（display 域读数；Editor 端超时
+                                // 判定已改用其本地接收时刻——本字段仅协议
+                                // 保留与人工排查用，2026-11-23）
     udp_.send(f); // 失败静默：UDP 无连接，下个周期即重试
 }
 
