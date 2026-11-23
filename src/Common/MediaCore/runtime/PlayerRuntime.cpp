@@ -817,6 +817,17 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
         }
         {
             std::lock_guard<std::mutex> lock(state_mutex_);
+            // 【立即锚点作废积压 2026-11-23】Pause/Stop 的立即锚点
+            // （anchor_time=0）语义是"现在听我的"——此前发出的、尚未到点
+            // 应用的预约锚点（Play/Seek 的 now+lead）全部作废。原实现只按
+            // anchor_time 排序消费：立即锚点(0)恒排最前先应用，但队列里
+            // 更晚到点的那条 Play 仍会在到点时把刚暂停的本端重新拉起
+            // （Editor=Paused / display=Playing 的状态错乱；频繁暂停/播放
+            // 时各端 tick 相位不同 → 应用锚点组合不同 → 端间 session_start
+            // 分叉 = "播放进度不一致、暂停即一致"的直接根因）。TCP 有序
+            // 保证队列中全是更早的命令，作废无歧义。
+            if (a.cmd == AnchorCmd::Pause || a.cmd == AnchorCmd::Stop)
+                scheduler_.clear();
             scheduler_.post(a);
         }
         std::fprintf(stderr, "[%lld][player] 收到重锚: cmd=%d anchor_time=%lldus anchored=%lldus\n",
