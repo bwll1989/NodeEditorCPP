@@ -8,10 +8,13 @@
 <title>FlowDisplay 编排台</title>
     <!-- 网页图标 = FlowDisplay.exe 应用图标（与任务栏/待机画面同一图标源，
          2026-11-23 用户定案）。PNG 优先：安卓浏览器对 ICO 兼容差（用户报障
-         "网页图标不是程序的图标"）；ICO 留作旧浏览器 fallback。 -->
-    <link rel="icon" type="image/png" sizes="32x32" href="favicon.png">
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+         "网页图标不是程序的图标"）；ICO 留作旧浏览器 fallback。
+         ?v=2 破缓存：浏览器 favicon 缓存独立于页面缓存（Ctrl+F5 不清），
+         换图标时必须递增版本号强制重新拉取（2026-11-24 用户报障"一直没改"）。
+         实际尺寸 256×256，sizes 声明须与之一致。 -->
+    <link rel="icon" type="image/png" sizes="256x256" href="favicon.png?v=2">
+    <link rel="icon" href="favicon.ico?v=2" type="image/x-icon">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
 <link rel="stylesheet" href="lib/vis-timeline-graph2d.min.css">
 <link rel="stylesheet" href="style.css">
 </head>
