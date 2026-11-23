@@ -244,12 +244,15 @@ inline bool deliverFrameView(const PreviewRenderer::DeliverItem& d,
         return true;
     }
     if (d.frame.isNull()) return false;
-    // ---- CPU 域（软解 / 硬解下载回退）：RGBA8888 内存序 = GL_RGBA 直传
+    // ---- CPU 域（软解 / 硬解下载回退 / Live 快照）：RGBA8888 内存序 =
+    // GL_RGBA 直传。keep 透传（零拷贝交付项——frame_keep 保活外部快照
+    // 缓冲到绘制结束；深拷贝交付项为空，QImage 自持无悬垂窗口）
     fv.width  = d.frame.width();
     fv.height = d.frame.height();
     fv.stride = static_cast<std::uint32_t>(d.frame.bytesPerLine());
     fv.rgba   = d.frame.constBits();
     fv.domain = FrameDomain::CpuRgba;
+    fv.keep   = d.frame_keep;
     return true;
 }
 
@@ -1015,23 +1018,50 @@ void SceneCanvasWidget::addScreen() {
     scr.y = 60.0 * (((n - 1) / 4) % 4) + 20.0;
     scr.w = 960;
     scr.h = 540;
-    // 显示端自动连带登记：player-N（编号与屏幕对齐）；已登记同名沿用
-    //（幂等——addDisplay 返回 false 属正常态，静默忽略）
+    // 显示端绑定默认值：player-N（编号与屏幕对齐）@ 本机 17100——仅供
+    // 对话框预填，用户可直接改成远端 IP/端口/配对码
     scr.player_id = "player-" + std::to_string(n);
-    if (runtime_ && runtime_->running())
+
+    // 【2026-11-23 交互改版（用户定案）】添加即弹属性对话框：预填默认值，
+    // OK 才落地 + 按所填参数登记显示端；取消零副作用。取代旧「先添加
+    // 127.0.0.1 默认屏再开属性改绑」两步流（旧流登记/日志恒写本机地址，
+    // 远端接入隐蔽且误导）。新建模式不注入 warp/几何实时回调：屏尚未
+    // 在场景中（回调按 id 查工作副本查不到 = 空操作），纯表单 OK 一次写回。
+    ScreenPropertyDialog dlg(scr, "127.0.0.1", 17100, {}, this);
+    dlg.setWindowTitle(QStringLiteral("添加屏幕：%1").arg(
+        QString::fromStdString(scr.id)));
+    if (dlg.exec() != QDialog::Accepted) return; // 取消 = 不添加
+
+    dlg.applyTo(scr);
+    const std::string     host    = dlg.displayHost();
+    const std::uint16_t   port    = dlg.displayPort();
+    const std::string     pairing = dlg.displayPairingCode();
+
+    // 显示端登记：按对话框三要素（幂等——同名沿用；冲突返回 false 静默，
+    // 与旧 addScreen 同口径；改绑/断开走银幕右键与属性对话框）
+    if (runtime_ && runtime_->running() && !scr.player_id.empty())
         runtime_->addDisplay(QString::fromStdString(scr.player_id),
-                             QStringLiteral("127.0.0.1"), 17100);
+                             QString::fromStdString(host),
+                             static_cast<int>(port),
+                             QString::fromStdString(pairing));
 
     scene_->screens.push_back(scr);
     if (preview_) preview_->invalidate();
     update();
     highlight(1, static_cast<int>(scene_->screens.size()) - 1);
-    // 提示走 qDebug（对接 spdlog 日志存留；几何并入同条）。
-    qDebug() << QStringLiteral("屏幕 %1 已加入（显示端 %2 已登记 @127.0.0.1:17100）——"
-                               "显示端程序以 --id=%2 启动后自动接入；960x540@%3,%4")
+    // 提示走 qDebug（对接 spdlog 日志存留）——如实打印所填绑定地址
+    //（旧文案恒写 127.0.0.1，与实际登记脱节）。
+    qDebug() << QStringLiteral("屏幕 %1 已加入（显示端 %2 @%3:%4）——"
+                               "显示端程序以 --id=%2 启动后自动接入；"
+                               "%5x%6@%7,%8")
                     .arg(QString::fromStdString(scr.id),
-                         QString::fromStdString(scr.player_id))
-                    .arg(scr.x, 0, 'f', 0).arg(scr.y, 0, 'f', 0);
+                         QString::fromStdString(scr.player_id),
+                         QString::fromStdString(host))
+                    .arg(port)
+                    .arg(scr.w)
+                    .arg(scr.h)
+                    .arg(scr.x, 0, 'f', 0)
+                    .arg(scr.y, 0, 'f', 0);
 }
 
 void SceneCanvasWidget::deleteScreen(int screen_idx) {
