@@ -10,7 +10,8 @@
 //  即 MediaServer/src/editor 原版原文，仅路径随迁（include 经 MediaCore
 //  根：model/SceneModel.hpp）。
 //
-//  双击 Scene 预览中的 screen 矩形弹出，编辑：
+//  Scene 预览中 screen 右键「屏幕属性…」弹出（2026-11-25 用户定案：双击
+//  入口取消——与选中交互冲突，属性面板唯一入口 = 右键菜单），编辑：
 //    * 画布位置与显示大小（x/y/w/h，画布像素，左上原点 Y 向下）
 //    * 旋转角度（度，面内顺时针绕中心）+ 屏姿态 rot_x/rot_y（度，
 //      投影字段族——冻结保留不扩）

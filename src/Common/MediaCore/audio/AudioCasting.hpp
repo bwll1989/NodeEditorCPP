@@ -75,10 +75,19 @@ inline void buildVoices(const Scene& scene, std::int64_t t_us,
         const char* e = std::getenv("MS_AUDIO_SINE");
         return e && std::string_view(e) == "1";
     }();
+    // ---- 轨道整轨屏蔽 mute/solo（2026-11-25）-------------------------------
+    // 【整轨语义·用户定案】任一轨 solo → 仅 solo 轨参与（音视频灯光控制
+    // 全部保留，solo 优先于 mute）；无 solo → mute 轨整体屏蔽。本处只承担
+    // 音频选源；画面走 TimelineEngine::evaluate、灯光控制走发送快照/触发，
+    // 全部消费点共用 SceneModel.hpp 的 anySoloTrack/trackFiltered 单源判定。
+    // 编辑器预览（TimelineAudioBusHost）与 display 渲染拍（RenderThread）
+    // 共用本出口——一处判定两端生效，无副本无漂移。
+    const bool any_solo = anySoloTrack(scene.timeline);
     int track_idx = 0;
     for (const auto& track : scene.timeline.tracks) {
+        const bool track_filtered = trackFiltered(any_solo, track);
         const bool track_selected =
-            (track_index < 0 || track_idx == track_index);
+            (track_index < 0 || track_idx == track_index) && !track_filtered;
         ++track_idx;
         if (!track_selected) continue;
         for (const auto& c : track.clips) {

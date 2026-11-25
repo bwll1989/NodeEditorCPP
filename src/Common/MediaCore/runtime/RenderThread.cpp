@@ -544,6 +544,19 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
         }
     };
 
+    // ---- 黑屏切换（2026-11-25）：Editor 银幕右键指令直达（MsgDisplayBlack
+    //      → PlayerRuntime 原子量）——本帧跳过全部内容合成直接上屏黑帧，
+    //      待机卡一并抑制；场景/锚点/播放状态链路照常推进（只挡呈现不挡
+    //      同步），取消后下一帧自然恢复。置于场景判定之前 = 无场景/待机
+    //      态同样生效。音频不受影响（黑屏语义 = 仅视觉）。
+    if (cfg_.black_provider && cfg_.black_provider()) {
+        if (backend_) {
+            backend_->setStandby(""); // 黑屏不画待机卡
+            backend_->ensureReady();  // 内部 beginFrame(黑)+endFrame 呈现
+        }
+        return stats;
+    }
+
     if (!scene) {
         // 【停摆取证 2026-11-20】无场景早退静默——渲染线程"拍了不画"的
         // 隐形路径（拍照转、compose=0、出帧=0 的全零吞吐形态）。节流打点

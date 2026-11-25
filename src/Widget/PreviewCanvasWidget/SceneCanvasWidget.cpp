@@ -39,7 +39,8 @@
 //    * 松开：sceneEdited 信号（宿主置脏 + 自动下发链）；
 //    * 拖动/缩放/旋转会话中：sceneEditedLive 高频（display 节流下发持续跟手）；
 //    * 双击：片段 = 仅选中（弹属性面板已移除，2026-11-05 用户定案——
-//      属性面板唯一入口 = timeline 双击）/ 屏幕 → 属性对话框（openScreenProperty）；
+//      属性面板唯一入口 = timeline 双击）/ 屏幕 = 仅选中（属性对话框
+//      双击入口已移除，2026-11-25 用户定案——唯一入口 = 右键菜单）；
 //    * 右键：3D 模式 = 拖拽旋转视角（真位移）/ 无位移弹菜单；2D = 菜单；
 //      菜单内容：空白 = 添加屏幕（统一 Screen 模型，姿态在属性里调）；屏幕 = 属性/
 //      删除；片段 = 删除（单动作）。
@@ -1737,13 +1738,16 @@ QRectF SceneCanvasWidget::clipRect(int track_idx, int clip_idx) const {
 //
 // 屏幕命中：多屏重叠取数组序靠后者（数组序 = 绘制序，覆盖关系一致）；
 // 最近者（正交投影下"离相机近 = 视觉遮挡在上"）。
-// 【2026-11-25 重叠循环选择】当前选中的 screen 也在命中集合内 → 轮转到
-// 命中集合中的下一个（数组序循环）——连续点击同一重叠区可轮流选中每一
-// 层（Figma/PowerPoint 同款交互）；首点（当前未选中或不在命中集合）仍
-// 选最上层，保持旧习惯。3D 分支同规则（按视深序轮转）。
+// 【重叠拣选三态 2026-11-25 两轮实锤定稿】kCycle=当前选中在命中集合内 →
+// 轮转下一层（左键连点换选，Figma/PowerPoint 同款）；kSticky=命中集合内
+// → 锁定当前选中（右键菜单专属——连点有意选中的下层屏，菜单必须服务它）；
+// kTop=恒最上层（双击/缺省）。演化史：轮转无差别复用 → 右键菜单错层翻转
+// player-1→player-2（真凶：菜单动作把轮转 hit 写回选中，"泄漏"不存在）；
+// 恒最上层 → 连点选中的 player-2 右键又翻回 player-1。三态=两种场景各得
+// 其所：菜单 hit 有状态（延续用户选中）但只延续不轮转。
 // ---------------------------------------------------------------------------
 SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
-        const QPointF& widget_pos) const {
+        const QPointF& widget_pos, HitPick pick) const {
     if (!scene_ || scene_->canvas_w <= 0 || scene_->canvas_h <= 0) return {};
 
     // 画布域判定（旋转发生在对象局部，与控件缩放无关；CanvasGeometry
@@ -1773,10 +1777,15 @@ SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
                           return x.second < y.second; // 视深升序=视觉前→后
                       });
             int chosen = hits.front().first; // 最近（最上层）
-            for (size_t k = 0; k < hits.size(); ++k) {
-                if (hits[k].first == sel_.a && sel_.kind == 1) {
-                    chosen = hits[(k + 1) % hits.size()].first; // 轮转
-                    break;
+            if (pick != HitPick::kTop) {
+                for (size_t k = 0; k < hits.size(); ++k) {
+                    if (hits[k].first == sel_.a && sel_.kind == 1) {
+                        // kCycle=轮转下一层；kSticky=锁定当前选中
+                        chosen = (pick == HitPick::kCycle)
+                                     ? hits[(k + 1) % hits.size()].first
+                                     : sel_.a;
+                        break;
+                    }
                 }
             }
             return Selection{1, chosen, -1};
@@ -1818,10 +1827,13 @@ SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
     }
     if (!hits.empty()) {
         int chosen = hits.back(); // 首点选最上层（旧习惯）
-        if (sel_.kind == 1) {
+        if (pick != HitPick::kTop && sel_.kind == 1) {
             for (size_t k = 0; k < hits.size(); ++k) {
-                if (hits[k] == sel_.a) { // 当前选中命中 → 轮转下一层
-                    chosen = hits[(k + 1) % hits.size()];
+                if (hits[k] == sel_.a) { // 当前选中命中集合
+                    // kCycle=轮转下一层；kSticky=锁定当前选中
+                    chosen = (pick == HitPick::kCycle)
+                                 ? hits[(k + 1) % hits.size()]
+                                 : sel_.a;
                     break;
                 }
             }
@@ -3072,9 +3084,10 @@ void SceneCanvasWidget::paintGL3D(
         p.drawPolygon(sq.second);
         // 在线圆点 + 标签（投影 TL 角旁，屏幕对齐可读）
         double lx = 6;
+        bool online = false; // 中线名随连接状态变色（16:44 用户要求）
         if (!s.player_id.empty()) {
-            const bool online = display_online_.count(s.player_id) != 0 &&
-                                display_online_.at(s.player_id);
+            online = display_online_.count(s.player_id) != 0 &&
+                     display_online_.at(s.player_id);
             p.setPen(Qt::NoPen);
             p.setBrush(online ? QBrush(QColor(0x33, 0xB2, 0x6E))
                               : QBrush(QColor(0xE0, 0x55, 0x55)));
@@ -3086,14 +3099,14 @@ void SceneCanvasWidget::paintGL3D(
         QFont f = p.font();
         f.setPointSize(9);
         p.setFont(f);
+        const QString label =
+            QString("%1 → %2")
+                .arg(QString::fromStdString(s.id),
+                     s.player_id.empty() ? QString("(未绑定)")
+                                         : QString::fromStdString(s.player_id));
         p.drawText(QRectF(sq.second[0].x() + lx, sq.second[0].y() + 3,
                           220, 16),
-                   Qt::AlignLeft | Qt::AlignTop,
-                   QString("%1 → %2")
-                       .arg(QString::fromStdString(s.id),
-                            s.player_id.empty()
-                                ? QString("(未绑定)")
-                                : QString::fromStdString(s.player_id)));
+                   Qt::AlignLeft | Qt::AlignTop, label);
         if (sel) {
             QRectF r;
             double rot = 0.0;
@@ -3124,6 +3137,10 @@ void SceneCanvasWidget::paintGL3D(
                     drawRotateHandle(p, r, rot, 0.0);
                 }
             }
+
+            // 【2026-11-25 选中中线名】投影取景框中央加粗 display 名——
+            // 与 drawScreen 选中分支同款（双路径统一入口 drawCenterName）
+            drawCenterName(p, sq.second.boundingRect(), s.player_id, online);
         }
     }
     p.setTransform(QTransform());
@@ -3342,9 +3359,10 @@ void SceneCanvasWidget::drawScreen(QPainter& p, int i, bool selected,
     f.setPointSize(9);
     p.setFont(f);
     int label_left = 6; // 标签左内边距（有圆点时右移让位）
+    bool online = false; // 中线名随连接状态变色（16:44 用户要求）
     if (!s.player_id.empty()) {
-        const bool online = display_online_.count(s.player_id) != 0 &&
-                            display_online_.at(s.player_id);
+        online = display_online_.count(s.player_id) != 0 &&
+                 display_online_.at(s.player_id);
         p.setPen(Qt::NoPen);
         p.setBrush(online ? QBrush(QColor(0x33, 0xB2, 0x6E))
                           : QBrush(QColor(0xE0, 0x55, 0x55)));
@@ -3371,6 +3389,10 @@ void SceneCanvasWidget::drawScreen(QPainter& p, int i, bool selected,
         p.setPen(Qt::white);
         p.setBrush(Qt::NoBrush);
         p.drawText(text_r, Qt::AlignCenter, label);
+
+        // 【2026-11-25 选中中线名】屏中央加粗名字——左上角小标签在多屏/
+        // 远距时不够醒目，中线大字一眼确认选中了谁（统一入口 drawCenterName）
+        drawCenterName(p, label_r, s.player_id, online);
     } else {
         p.drawText(label_r.adjusted(label_left, 4, -6, 0),
                    Qt::AlignLeft | Qt::AlignTop, label);
@@ -3628,6 +3650,36 @@ void SceneCanvasWidget::drawRotateHandle(QPainter& p, const QRectF& r,
 }
 
 // ---------------------------------------------------------------------------
+// 选中中线名（2026-11-25，双绘制路径统一入口）：取景框中央 11pt 加粗
+// display 名。只显 player_id（"scr-N →" 取景窗内部 id 对识别 display 无
+// 意义，用户定案）；未绑定显 "(未绑定)"。上移 16px 错开中央移动 Gizmo
+//（gizmo 在 6c 段绘制恒压名上，只能挪名字）；柔和黑影保对比度（取景框
+// 无填充、下方是画面内容）；在线=绿 / 离线·未绑定=红（与在线圆点同
+// 事实源 display_online_）。容不下时 ElideMiddle 中部省略。
+// ---------------------------------------------------------------------------
+void SceneCanvasWidget::drawCenterName(QPainter& p, const QRectF& box,
+                                       const std::string& player_id,
+                                       bool online) const {
+    if (box.width() <= 0 || box.height() <= 0) return;
+    QFont cf = p.font();
+    cf.setPointSize(11);
+    cf.setBold(true);
+    const QFontMetrics cfm(cf);
+    const QString name = cfm.elidedText(
+        player_id.empty() ? QString("(未绑定)")
+                          : QString::fromStdString(player_id),
+        Qt::ElideMiddle,
+        qMax(0, static_cast<int>(box.width()) - 12));
+    if (name.isEmpty()) return;
+    p.setFont(cf);
+    const QRectF name_r = box.translated(0, -16.0); // 错开中央 Gizmo
+    p.setPen(QPen(QColor(0, 0, 0, 150)));           // 柔和黑影
+    p.drawText(name_r.translated(1.2, 1.2), Qt::AlignCenter, name);
+    p.setPen(QPen(online ? Qt::green : Qt::red));
+    p.drawText(name_r, Qt::AlignCenter, name);
+}
+
+// ---------------------------------------------------------------------------
 // 鼠标交互
 // 3D 模式：右键 = orbit 旋转会话（真位移旋转视角；无位移松开 = 菜单，
 // contextMenuEvent 由 suppress_menu_ 旗标协调——Windows 右键松开即发菜单
@@ -3876,7 +3928,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
     // 返回会残留 VP 选中，点空白 Gizmo 不消失）
     vp_selected_ = false;
     if (!hitSelectedClip(wp))
-        applySelection(hitTest(wp));
+        applySelection(hitTest(wp, HitPick::kCycle)); // 左键连点=重叠换选
     resizing_ = false; // 未进入缩放会话（命中对象走移动）
     rotating_ = false;
     resize_corner_ = -1;
@@ -4330,7 +4382,8 @@ void SceneCanvasWidget::mouseDoubleClickEvent(QMouseEvent* ev) {
         QWidget::mouseDoubleClickEvent(ev);
         return;
     }
-    const Selection hit = hitTest(ev->position());
+    // 双击屏=精确选中最上层（kTop：轮转属左键连点，双击不走）
+    const Selection hit = hitTest(ev->position(), HitPick::kTop);
     // 【选中分工 2026-11-15】双击落在已选中片段（时间轴选中）身上 = 无
     // 动作：画布对 clip 无双击语义（属性面板唯一入口 = timeline 双击，
     // 2026-11-05 定案；hitTest 已不返回 clip）——特判防落到下方"空白
@@ -4341,8 +4394,9 @@ void SceneCanvasWidget::mouseDoubleClickEvent(QMouseEvent* ev) {
         return;
     }
     if (hit.kind == 1) {
+        // 【2026-11-25 用户定案】双击屏 = 仅选中——属性面板唯一入口 =
+        // 右键菜单「屏幕属性…」（双击弹属性与选中交互冲突，取消双击入口）
         applySelection(hit);
-        openScreenProperty(hit.a);
         return;
     }
     // ---- 空白双击 = 视图复位（滚轮/右键旋转/中键浏览后的快捷"回家"；
@@ -4368,7 +4422,12 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
     // 【2026-11-15 选中分工+菜单收敛】画布右键菜单只服务银幕——片段无
     // 菜单（删除/属性等片段操作唯一入口 = timeline；此前「删除片段」项
     // 信号无消费者属死菜单）。已选片段的右键落空即无菜单，不误弹银幕菜单。
-    const Selection hit = hitTest(ev->pos());
+    // 【kSticky 2026-11-25 两轮实锤定稿】右键菜单禁轮转但延续选中——
+    // 当前选中在命中集合内=用户有意编辑它（含连点轮转选中的下层屏），
+    // 菜单动作必须服务它；选中不在集合/未选中屏=切视觉最上层。
+    // 演化：无差别轮转 → 右键 player-1 翻 player-2；恒最上层 → 连点选中
+    // 的 player-2 右键又翻回 player-1。kSticky=两轮回归的合取。
+    const Selection hit = hitTest(ev->pos(), HitPick::kSticky);
     QMenu menu(this);
 
     if (hit.kind == 1) {
@@ -4393,21 +4452,40 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
         }
         QAction* act_conn = menu.addAction(online ? "断开显示端" : "连接显示端");
         act_conn->setEnabled(has_display); // 未绑定显示端无动作可做
+        // 黑屏切换（2026-11-25）：单 display 正常显示/黑屏——MsgDisplayBlack
+        // 单播直达该端（运行时指令不入场景、不随下发广播）；态镜像在
+        // runtime（display 注册路径补发，重连/重启自愈）。离线端收不到
+        // 指令 → 置灰（未绑定同）。
+        bool black = false;
+        if (has_display && runtime_)
+            black = runtime_->displayBlack(QString::fromStdString(
+                scene_->screens[hit.a].player_id));
+        QAction* act_black = menu.addAction(black ? "取消黑屏" : "黑屏");
+        act_black->setEnabled(has_display && online);
         menu.addSeparator();
         QAction* act_del = menu.addAction("删除屏幕");
-        if (QAction* chosen = menu.exec(ev->globalPos())) {
-            if (chosen == act_prop) {
-                applySelection(hit);
-                openScreenProperty(hit.a);
-            } else if (chosen == act_conn) {
-                setDisplayConnect(hit.a, !online);
-            } else if (chosen == act_del) {
-                deleteScreen(hit.a);
-            } else if (chosen == act_pub) {
-                publishScene();
-            } else if (chosen == act_sync) {
-                syncMedia();
-            }
+        QAction* chosen = menu.exec(ev->globalPos());
+        if (!chosen) return;
+        // 右键菜单动作直接同步分发（kSticky hit=延续当前选中或视觉最上
+        // 层——错层翻转的真凶是 hitTest 轮转复用，已在 hitTest 源头修复
+        // 2026-11-25；历史上的"防泄漏守卫/singleShot 纠正"补丁随之撤除）
+        if (chosen == act_prop) {
+            applySelection(hit);
+            openScreenProperty(hit.a);
+        } else if (chosen == act_conn) {
+            setDisplayConnect(hit.a, !online);
+        } else if (chosen == act_black) {
+            const std::string pid = scene_->screens[hit.a].player_id;
+            runtime_->setDisplayBlack(QString::fromStdString(pid), !black);
+            statusTip(QString("%1 %2")
+                          .arg(QString::fromStdString(pid),
+                               !black ? "已切黑屏" : "已恢复显示"));
+        } else if (chosen == act_del) {
+            deleteScreen(hit.a);
+        } else if (chosen == act_pub) {
+            publishScene();
+        } else if (chosen == act_sync) {
+            syncMedia();
         }
         return;
     }

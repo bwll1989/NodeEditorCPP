@@ -230,6 +230,9 @@ void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
         td->type = typeForKind(tr.kind); // 显示提示（去类型化后轨道 kind 仅 hint）
         td->name = tr.name.empty() ? QString::fromStdString(tr.id)
                                    : QString::fromStdString(tr.name);
+        // 轨道音频 mute/solo 镜像（2026-11-25）：ms::Track → TrackData
+        td->mute = tr.mute;
+        td->solo = tr.solo;
         m_tracks.push_back(td);
         m_trackSet.insert(td);
 
@@ -1056,6 +1059,36 @@ void QtTimelineModelAdapter::syncModelToWorkScene() {
 }
 
 // ---------------------------------------------------------------------------
+// 轨道行数据写（2026-11-25 mute/solo）：基类写 TrackData UI 镜像 + dataChanged
+// → 此处补写 work_（ms::Track 权威事实，随场景 pb 分发）+ sceneEdited。
+// 「模型轨 row = work_ 轨 row」不变量定位轨道（onMoveTrack/onDeleteTrack
+// 双侧同步维护）；越界防御跳过（双表失步信号，与 onAddClip 同款防御）。
+// ---------------------------------------------------------------------------
+bool QtTimelineModelAdapter::setData(const QModelIndex& index,
+                                     const QVariant& value, int role) {
+    const bool ok = BaseTimeLineModel::setData(index, value, role);
+    if (!ok || loading_ || !work_) return ok;
+    if (role != TimelineRoles::TrackMuteRole &&
+        role != TimelineRoles::TrackSoloRole)
+        return ok; // 其余 role：基类已处理，无业务补写
+    if (index.parent().isValid() ||
+        index.row() < 0 ||
+        index.row() >= (int)work_->timeline.tracks.size())
+        return ok; // 非轨道行/越界：防御跳过
+    ms::Track& tr = work_->timeline.tracks[index.row()];
+    if (role == TimelineRoles::TrackMuteRole)
+        tr.mute = value.toBool();
+    else
+        tr.solo = value.toBool();
+    // 发送快照即时换血：被屏蔽轨的 Artnet/Mapping 片段出快照，调度线程
+    // ≤5ms 采纳（与 notifyClipEdited 编辑漏斗同语义；缺此调用 = 屏蔽后
+    // 旧快照持续发送，Control/Mapping/Artnet 呈现"无效"）
+    rebuildSendSnapshot();
+    emit sceneEdited(); // 防抖自动下发（publishScene 内含音频 bus 快照刷新）
+    return ok;
+}
+
+// ---------------------------------------------------------------------------
 // 场景下发 / 素材同步（2026-11-16 收编为模型对外接口）：原
 // MainWindow::publishMsSceneNow、msUiTimer 显示端上线追平、项目加载追平、
 // 画布 publishScene/syncMedia 五处两步舞收敛于此（编排单点维护）。
@@ -1153,8 +1186,15 @@ void QtTimelineModelAdapter::setPlayheadFromRuntimeUs(std::int64_t us_total) {
 void QtTimelineModelAdapter::rebuildSendSnapshot() {
     if (!send_sched_) return; // 未装配（单测/无 controller 路径）：零开销
     auto snap = std::make_shared<PlaybackSendScheduler::Snapshot>();
-    for (TrackData* td : m_tracks) {
+    // 【2026-11-25 整轨屏蔽】mute/solo 轨道的 Artnet/Mapping 片段不入快照
+    // （如同轨道不存在，收端零发送）；判定 helper 与画面/音频同源
+    // （SceneModel.hpp 单源）。行号 = work_ 轨序（双侧同步不变量）。
+    const bool any_solo = work_ ? anySoloTrack(work_->timeline) : false;
+    for (int row = 0; row < m_tracks.size(); ++row) {
+        TrackData* td = m_tracks[row];
         if (!td) continue;
+        if (work_ && row >= 0 && row < (int)work_->timeline.tracks.size() &&
+            trackFiltered(any_solo, work_->timeline.tracks[row])) continue;
         for (AbstractClipModel* clip : td->clips) {
             if (!clip) continue;
             const QString type = clip->type();
@@ -1229,8 +1269,14 @@ void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
     prev_playhead_us_ = now_us;
     if (prev < 0 || now_us == prev) return;   // 首拍基线 / 同值 echo
     if (loading_ || !work_) return;           // 装载期只建基线
-    for (TrackData* td : m_tracks) {
+    // 【2026-11-25 整轨屏蔽】mute/solo 轨道的 Control 片段不触发（如同
+    // 轨道不存在）；判定 helper 与画面/音频同源（SceneModel.hpp 单源）。
+    const bool any_solo = anySoloTrack(work_->timeline);
+    for (int row = 0; row < m_tracks.size(); ++row) {
+        TrackData* td = m_tracks[row];
         if (!td) continue;
+        if (row < (int)work_->timeline.tracks.size() &&
+            trackFiltered(any_solo, work_->timeline.tracks[row])) continue;
         // 【2026-11-15 轨道去类型化】指令片段判断跟片段走（轨道不再约束
         // 类型，指令片段可与媒体片段同轨）
         for (AbstractClipModel* clip : td->clips) {

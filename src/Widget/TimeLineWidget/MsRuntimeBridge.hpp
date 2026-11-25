@@ -83,6 +83,12 @@ public:
     bool removeDisplay(const QString& id);
     /// 启停：停用立即断开，启用交看门狗重连（画布银幕右键"连接/断开"）
     bool setDisplayEnabled(const QString& id, bool enabled);
+    /// 黑屏切换（画布银幕右键"黑屏/取消黑屏"，2026-11-25）：MsgDisplayBlack
+    /// 单播直达该 display——渲染端跳过内容合成直接上屏黑帧。态镜像在
+    /// EditorRuntime（display 注册路径重发，重连自愈）。
+    bool setDisplayBlack(const QString& id, bool black);
+    /// 黑屏态镜像查询（菜单文案用）
+    bool displayBlack(const QString& id) const;
     QList<DisplayRow> displayRows() const;
 
     // ---- .flow 工程序列化（静态；SceneLoader pb ↔ base64）-------------------

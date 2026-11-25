@@ -430,10 +430,21 @@ struct Track {
                                          ///< 无约束混合轨道；仅显示参考，不
                                          ///< 据此拒绝片段
     std::vector<Clip> clips; ///< 片段列表（允许同轨交叠，绘制次序由 z 决定）
+
+    // ---- 轨道整轨屏蔽 mute/solo（2026-11-25）-----------------------------
+    // 【整轨语义·用户定案】mute = 屏蔽该轨全部内容（画面+音频+灯光 Artnet/
+    // Mapping+控制 Control），如同轨道不存在；solo = 只运行 solo 轨道的全部
+    // 内容，其余轨道全部屏蔽，如同只剩这一条轨。存在任一 solo 轨时 solo
+    // 优先于 mute。false = 业务默认（正常参与）。
+    // 判定统一走 anySoloTrack/trackFiltered（见下方 Timeline 后），各消费点
+    // 严禁自行内联判定——保证语义单源。
+    bool mute = false;
+    bool solo = false;
 };
 
 inline bool operator==(const Track& a, const Track& b) {
     return a.id == b.id && a.name == b.name && a.kind == b.kind &&
+           a.mute == b.mute && a.solo == b.solo &&
            a.clips == b.clips;
 }
 
@@ -447,6 +458,28 @@ struct Timeline {
 
 inline bool operator==(const Timeline& a, const Timeline& b) {
     return a.duration_us == b.duration_us && a.tracks == b.tracks;
+}
+
+// ---------------------------------------------------------------------------
+// 轨道屏蔽统一判定（2026-11-25 整轨语义，单一事实源）
+//
+// 所有轨道内容消费点必须经由这两个 helper 判定，保证语义单源：
+//   * 画面：TimelineEngine::evaluate（display 渲染与编辑器预览两端同源）
+//   * 音频：ms::audio::buildVoices（编辑器预览总线与 display 混音同源）
+//   * 灯光/控制：rebuildSendSnapshot（Artnet/Mapping 发送快照）+
+//     updateControlTriggers（Control 上升沿触发）
+// ---------------------------------------------------------------------------
+/// 场景中是否存在任一 solo 轨道（存在时 solo 优先于 mute）
+inline bool anySoloTrack(const Timeline& tl) noexcept {
+    for (const auto& t : tl.tracks)
+        if (t.solo) return true;
+    return false;
+}
+
+/// 该轨是否应视为不存在：任一 solo 存在 → 非 solo 轨全屏蔽；
+/// 无 solo → mute 轨屏蔽，其余正常
+inline bool trackFiltered(bool any_solo, const Track& t) noexcept {
+    return any_solo ? !t.solo : t.mute;
 }
 
 // ---------------------------------------------------------------------------

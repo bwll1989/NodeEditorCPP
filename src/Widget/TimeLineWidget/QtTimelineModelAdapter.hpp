@@ -104,6 +104,13 @@ public:
     /// 面板精确值（如 1.5s）不能被帧量化值覆盖，故不能全量同步。
     void syncModelToWorkScene();
 
+    /// 轨道行数据写（2026-11-25）：先调基类（写 TrackData UI 镜像 +
+    /// dataChanged 刷新），轨道 mute/solo 再补写 work_（ms::Track 权威
+    /// 事实）+ sceneEdited（防抖自动下发——编辑器预览音频 bus 快照与
+    /// display 场景同拍追平）。其余 role 直通基类，零行为变化。
+    bool setData(const QModelIndex& index, const QVariant& value,
+                 int role) override;
+
     // ---- 场景下发 / 素材同步（2026-11-16 收编为模型对外接口）----------------
     /// 场景下发复合操作（原 MainWindow::publishMsSceneNow / msUiTimer 显示端
     /// 上线追平 / 画布 publishScene 四处两步舞收敛于此）：兜底同步 →

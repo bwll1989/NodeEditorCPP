@@ -449,6 +449,11 @@ private:
     /// 而非 (n-1)/n（旧口径传输中不计当前文件，且最后一个完成后 OSD
     /// 随 assets_ready_ 立即消失，n/n 永不可见——用户报障）。
     std::atomic<int> assets_inflight_{0};
+    /// 黑屏切换（2026-11-25，Editor 银幕右键 MsgDisplayBlack 指令）：true =
+    /// 渲染线程跳过内容合成直接上屏黑帧（RenderThread::black_provider 采
+    /// 样）。recv 线程写 / 渲染线程读——原子量零锁。运行时指令不入场景，
+    /// display 重连由 Editor 注册路径重发恢复。
+    std::atomic<bool> black_{false};
 
     // ---- 端间时钟校准状态（probe_mutex_ 保护；独立于 state_mutex_——
     //      探测是会话无关的基础设施，不应与会话状态锁互相牵连）--------------

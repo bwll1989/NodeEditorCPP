@@ -152,6 +152,9 @@ void BaseTracklistView::contextMenuEvent(QContextMenuEvent* event) {
         // Add delete track option if a track is selected
         QModelIndex index = indexAt(event->pos());
         if (index.isValid()) {
+            // ---- mute/solo 菜单项已移除（2026-11-25 用户要求）：轨道行
+            // M/S 按钮是唯一入口（mousePressEvent 命中走同一 setData 链）。
+            contextMenu.addSeparator();
             contextMenu.addAction(m_deleteTrackAction);
         }
 
@@ -170,6 +173,29 @@ void BaseTracklistView::mousePressEvent(QMouseEvent *event) {
      */
     if (event->button() == Qt::LeftButton) {
         m_dragStartPosition = event->pos();
+        // ---- 轨道音频 M/S 按钮命中（2026-11-25）---------------------------
+        // 优先于行选择/拖拽启动：点按钮只 toggle（setData → adapter 补写
+        // work_ + 防抖下发），不触发行选择也不进入拖拽。几何与绘制同源
+        //（trackMsButtonRect）。
+        const QModelIndex hitIdx = indexAt(event->pos());
+        if (hitIdx.isValid()) {
+            const QRect rowRect = visualRect(hitIdx);
+            const int rowH = static_cast<BaseTimeLineModel*>(model())
+                                 ->trackRowHeight(hitIdx.row());
+            const bool onMute =
+                trackMsButtonRect(rowRect, rowH, false).contains(event->pos());
+            const bool onSolo =
+                trackMsButtonRect(rowRect, rowH, true).contains(event->pos());
+            if (onMute || onSolo) {
+                const TimelineRoles role =
+                    onMute ? TimelineRoles::TrackMuteRole
+                           : TimelineRoles::TrackSoloRole;
+                const bool cur = hitIdx.data(role).toBool();
+                Model->setData(hitIdx, !cur, role); // 虚派发 → adapter 补写
+                viewport()->update();
+                return; // 不进入行选择/拖拽
+            }
+        }
         // 轨道折叠/展开命中（2026-11-06）已随折叠功能退役（2026-11-15）——
         // 行头点击直接走行选择。
         if (selectionModel()) {
@@ -496,6 +522,47 @@ void BaseTracklistView::setSelection(const QRect &rect, QItemSelectionModel::Sel
 /**
  * @brief 绘制事件
  */
+// ---------------------------------------------------------------------------
+// 轨道音频 M/S 按钮（2026-11-25）：几何与绘制（paintEvent / mousePressEvent
+// 共用——坐标唯一真相见头文件注释）
+// ---------------------------------------------------------------------------
+QRect BaseTracklistView::trackMsButtonRect(const QRect& rowRect,
+                                           int trackHeight, bool solo)
+{
+    constexpr int kSize = 16;   // 按钮边长（行高 40 下的手感尺寸）
+    // 横向落位：grip 占 [right-24, right-4]，Solo/Mute 依次向左（间隙 4）
+    const int left = solo ? rowRect.right() - 44 : rowRect.right() - 64;
+    const int top  = rowRect.top() + (trackHeight - kSize) / 2;
+    return QRect(left, top, kSize, kSize);
+}
+
+void BaseTracklistView::drawMsButton(QPainter* painter, const QRect& r,
+                                     const QString& label, bool on,
+                                     const QColor& onColor,
+                                     const QColor& onText,
+                                     const QColor& offText)
+{
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, false);
+    QFont f = painter->font();
+    f.setPixelSize(10);
+    f.setBold(on);
+    painter->setFont(f);
+    if (on) {
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(onColor);
+        painter->drawRect(r);
+        painter->setPen(onText);
+    } else {
+        painter->setBrush(Qt::NoBrush);
+        painter->setPen(QPen(offText, 1));
+        painter->drawRect(r);
+        painter->setPen(offText);
+    }
+    painter->drawText(r, Qt::AlignCenter, label);
+    painter->restore();
+}
+
 void BaseTracklistView::paintEvent(QPaintEvent *event) {
     /**
      * @brief 绘制轨道列表
@@ -567,13 +634,26 @@ void BaseTracklistView::paintEvent(QPaintEvent *event) {
         painter.save();
         painter.setPen(m_trackTitleColor);
         // 轨道名文本区：对齐 clip 本体行（行内顶部 trackHeight 垂直居中）。
-        // 左缘 12 / 右缘留 28（grip 占右侧 24px）——展开按钮退役后（2026-11-15）
-        // 行头只剩「名称 + grip」两组件。高度引用 trackHeight（勿硬编码）。
+        // 左缘 12 / 右缘留 80（M/S 按钮 2×16+间隙 2×4 从 right-64 起排 +
+        // grip 24px，2026-11-25 起 M/S 按钮入列）——行头为
+        // 「名称 + M/S + grip」三组件。高度引用 trackHeight（勿硬编码）。
         const QRect textRect(rowRect.left() + 12, rowRect.top(),
-                             rowRect.width() - 40, trackHeight);
+                             rowRect.width() - 80, trackHeight);
         painter.drawText(textRect, Qt::AlignCenter,
                          trackIndex.data(TimelineRoles::TrackNameRole).toString());
         painter.restore();
+
+        // ---- 轨道音频 M/S 按钮（2026-11-25）--------------------------------
+        // Mute=红底白字 / Solo=黄底黑字（激活态；未激活细边框淡字）。
+        // 命中处理在 mousePressEvent（trackMsButtonRect 同一几何）。
+        drawMsButton(&painter, trackMsButtonRect(rowRect, trackHeight, false),
+                     QStringLiteral("M"),
+                     trackIndex.data(TimelineRoles::TrackMuteRole).toBool(),
+                     QColor(192, 57, 43), Qt::white, m_trackTitleColor);
+        drawMsButton(&painter, trackMsButtonRect(rowRect, trackHeight, true),
+                     QStringLiteral("S"),
+                     trackIndex.data(TimelineRoles::TrackSoloRole).toBool(),
+                     QColor(235, 195, 52), QColor(30, 30, 30), m_trackTitleColor);
 
         // 轨道拖动 grip（名称行内右侧，与轨道名同一水平线——名称和移动图标
         // 一行）。垂直居中由 trackHeight 派生（勿硬编码，2026-11-15 修 40px

@@ -467,8 +467,11 @@ QRect BaseTimelineView::clipContentBounds(AbstractClipModel* clip, int trackRow)
     const int width = qMax(1, frameToPoint(clip->end() - clip->start() + 1));
     // 2026-11-06 轨道展开：行顶 y 走模型前缀和（展开行下移）；clip 本体高度仍 trackHeight
     const int y = static_cast<const BaseTimeLineModel*>(model())->trackRowY(trackRow) + contentTop();
-    // 右侧多留一截，盖住画在片段矩形外面的标题。
-    return QRect(x, y, width, trackHeight).adjusted(-4, -4, 44, 4);
+    // 右侧多留一截，盖住画在片段矩形外面的标题（旧 Trigger 文字条右扩
+    // 40 → +44；2026-11-25 Control L 形角标横条按文本宽度延伸上限 120
+    // → +124。外溢超界 = 部分重绘残留旧像素——选中补绘出现亮色残段/文字
+    // 叠加伪影，边距必须 ≥ 全部片段绘制的最大右溢）。
+    return QRect(x, y, width, trackHeight).adjusted(-4, -4, 124, 4);
 }
 
 void BaseTimelineView::updateClipGeometry(const QModelIndex& index)
@@ -1251,7 +1254,7 @@ void BaseTimelineView::handleMouseDrag(QMouseEvent *event)
 
     // Trigger 等固定长度片段会把标题画到几何矩形右侧外（向右约 40px）。
     // 只刷新 visualRect 时，这段旧文字清不掉，拖动就会叠成一串。
-    const QRect oldRect = visualRect(clipIndex).adjusted(-4, -4, 44, 4);
+    const QRect oldRect = visualRect(clipIndex).adjusted(-4, -4, 124, 4);
     // ---- 磁性吸附（2026-11-09）：候选 = 原点 + 他片段入/出点（跨轨道同权）--
     // 移动时拖拽片段的入/出双边缘竞争吸附（像素距离近者胜）；裁边时仅被拖
     // 的边缘参与。命中后在 paintEvent 画对齐参考线，拖离/松手清除。
@@ -1362,7 +1365,7 @@ void BaseTimelineView::handleMouseDrag(QMouseEvent *event)
     // 重映射，恒指向片段当前位置；drag 结束后回退 clipIndex 防御）
     const QModelIndex liveIndex = m_dragIndex.isValid() ? QModelIndex(m_dragIndex)
                                                         : clipIndex;
-    const QRect nextRect = visualRect(liveIndex).adjusted(-4, -4, 44, 4);
+    const QRect nextRect = visualRect(liveIndex).adjusted(-4, -4, 124, 4);
     viewport()->update(oldRect.united(nextRect));
 }
 
@@ -2320,7 +2323,7 @@ void BaseTimelineView::drawTracks(QPainter* painter)
                 continue;
 
             // 与 clipContentBounds 同一套几何，避免再走 visualRect / parent()。
-            m_clipContentRects[clip] = QRect(startX, trackTop + scrollY, paintWidth, trackHeight).adjusted(-4, -4, 44, 4);
+            m_clipContentRects[clip] = QRect(startX, trackTop + scrollY, paintWidth, trackHeight).adjusted(-4, -4, 124, 4);
             const QRect clipRect(startX - scrollX, trackTop + clipoffset, clipWidth, trackHeight - clipoffset * 2);
             clip->paint(painter, clipRect, clip == selectedClip);
         }

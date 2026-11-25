@@ -95,6 +95,24 @@ protected:
      */
     void ensureVisiblePersistentEditors();
 
+    // ---- 轨道音频 M/S 按钮（2026-11-25）-----------------------------------
+    // 自绘 check 按钮（Mute/Solo）：persistent editor 非常开（2026-11-15
+    // 约定轨道行平时只画文字，editor 只在改名时出现），按钮必须常驻 →
+    // paintEvent 绘制 + mousePressEvent 命中。几何唯一真相 = 下方静态
+    // 函数（绘制与命中同源，防点击区错位）。只作用于音频（buildVoices
+    // 选源过滤），画面不受影响；solo 优先于 mute。
+    /// 按钮矩形（solo=false = Mute 钮、true = Solo 钮；行内右上区，
+    /// grip 左侧）。size 16 / 间隙 4，与 paintEvent 的 grip/textRect
+    /// 右缘留白联动修改时必须三处同改。
+    static QRect trackMsButtonRect(const QRect& rowRect, int trackHeight,
+                                   bool solo);
+    /// 绘制一枚 M/S 按钮（onColor=激活底色，onText=激活字色——Mute 红底
+    /// 白字 / Solo 黄底黑字；未激活=细边框淡字融入行头）
+    static void drawMsButton(QPainter* painter, const QRect& r,
+                             const QString& label, bool on,
+                             const QColor& onColor, const QColor& onText,
+                             const QColor& offText);
+
     /**
      * 移动光标
      * @param CursorAction cursorAction 光标动作

@@ -38,8 +38,8 @@
 // 因此保持为编译期常量，不通过 QSS 配置。
 NODE_TIMELINE_PUBLIC extern int toolbarButtonWidth;  // 工具栏按钮宽度
 NODE_TIMELINE_PUBLIC extern int toolbarHeight;       // 工具栏高度
-NODE_TIMELINE_PUBLIC extern int trackHeight;         // 轨道高度（2026-11-05 40→52 为内嵌 tween 曲线带
-                                                     // 让位；2026-11-15 52→40：panel 已退役回归紧凑行高）
+NODE_TIMELINE_PUBLIC extern int trackHeight;         // 轨道高度（历史：40→52（2026-11-05 tween 带）
+                                                     // →40（2026-11-15 panel 退役）→30（2026-11-25 用户要求更紧凑））
 // 轨道展开附加高度 trackExpandedExtra 已随轨道折叠功能退役（2026-11-15）——
 // 行高恒 = trackHeight。
 NODE_TIMELINE_PUBLIC extern int rulerHeight;         // 刻度高度

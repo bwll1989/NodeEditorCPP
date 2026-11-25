@@ -47,6 +47,8 @@ Q_NAMESPACE_EXPORT(BASECLASS_EXPORT)
         ClipNoteRole,                  // 片段备注名
         TrackExpandedRole,             // 【退役占位 2026-11-15】轨道折叠功能已移除，
                                        // 零消费者；枚举值保留防未来增删移位
+        TrackMuteRole,                 // 轨道音频静音（bool；2026-11-25）
+        TrackSoloRole,                 // 轨道音频独奏（bool；2026-11-25）
     };
     Q_ENUM_NS(TimelineRoles)
 

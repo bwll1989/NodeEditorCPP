@@ -506,6 +506,11 @@ void PlayerRuntime::startRenderThread() {
         s.file_percent = asset_file_percent_.load(std::memory_order_relaxed);
         return s;
     };
+    // 【黑屏切换 2026-11-25】原子量采样注入（零锁）——Editor 银幕右键
+    // MsgDisplayBlack 指令置位后，渲染线程跳过内容合成直接上屏黑帧
+    rcfg.black_provider = [this]() {
+        return black_.load(std::memory_order_relaxed);
+    };
     render_ = std::make_unique<RenderThread>(
         std::move(rcfg),
         [this]() { return sceneSnapshot(); },     // 场景快照（锁内拷贝）
@@ -732,6 +737,18 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
                     ack.session_id().c_str(), ack.udp_host().c_str(),
                     ack.udp_port(), ack.udp_host().c_str(),
                     static_cast<unsigned>(ack.http_port()));
+        return;
+    }
+
+    // ---- DisplayBlack：黑屏切换（2026-11-25；Editor 银幕右键单播指令）----
+    // 置原子量即返回——渲染线程下一帧采样生效（RenderThread 黑帧早退）。
+    // 运行时指令与场景无关：场景帧更新不清除黑屏态。
+    if (env.has_display_black()) {
+        const bool black = env.display_black().black();
+        black_.store(black, std::memory_order_relaxed);
+        std::fprintf(stderr, "[%lld][player] 黑屏切换: %s\n",
+                     tsMs(), black ? "ON（黑屏）" : "OFF（恢复正常）");
+        std::fflush(stderr);
         return;
     }
 

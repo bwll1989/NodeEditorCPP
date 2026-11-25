@@ -494,6 +494,10 @@ ms_proto::Track SceneLoader::toProtoTrack(const Track& t) {
     pt.set_id(t.id);
     pt.set_name(t.name);
     pt.set_kind(ToProtoKind(t.kind));
+    // 轨道音频 mute/solo（2026-11-25）：false = 业务默认省略不写（wire
+    // 兼容——缺席 = 读端 false = 正常出声；旧读端遇未知字段自动忽略）
+    if (t.mute) pt.set_mute(true);
+    if (t.solo) pt.set_solo(true);
     for (const auto& c : t.clips) {
         ms_proto::Clip* pc = pt.add_clips();
         pc->set_id(c.id);
@@ -591,6 +595,10 @@ Track SceneLoader::fromProtoTrack(const ms_proto::Track& pt) {
     t.id   = pt.id();
     t.name = pt.name();
     t.kind = FromProtoKind(pt.kind());
+    // 轨道音频 mute/solo（2026-11-25）：proto3 bool 缺席 = false = 业务
+    // 默认（正常出声），无"缺席覆盖非零默认"陷阱，直读即可
+    t.mute = pt.mute();
+    t.solo = pt.solo();
     for (const auto& pc : pt.clips()) {
         Clip c;
         c.id          = pc.id();

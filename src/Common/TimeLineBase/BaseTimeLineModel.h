@@ -33,6 +33,13 @@ struct TrackData {
     qint64 maxClipSpan = 0; ///< μs 域（>35.8min 片段 int 回绕为负——2026-11-18 修）
     // 轨道展开态 bool expanded（2026-11-06 轨道展开）已退役（2026-11-15
     // 折叠功能整体移除）：行高恒 trackHeight，无 per-row 展开态。
+    // ---- 轨道音频 mute/solo（2026-11-25）---------------------------------
+    // 只作用于音频选配（ms::audio::buildVoices 过滤），画面不受影响。
+    // 权威事实在 ms::Track（work_，随场景 pb 分发）——本侧仅 UI 镜像，
+    // 回写链：setData(TrackMuteRole/TrackSoloRole) → adapter 同步 work_。
+    // solo 优先于 mute（任一轨 solo = 仅 solo 轨出声，Premiere 语义）。
+    bool mute = false;
+    bool solo = false;
 };
 // TimelineModel类继承自QAbstractItemModel
 class NODE_TIMELINE_PUBLIC BaseTimeLineModel : public QAbstractItemModel

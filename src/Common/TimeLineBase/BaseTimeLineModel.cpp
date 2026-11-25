@@ -167,6 +167,12 @@ QVariant BaseTimeLineModel::data(const QModelIndex &index, int role) const
             //获取轨道剪辑列表
             case TrackClipsRole:
                 return QVariant::fromValue(track->clips);
+            //轨道音频静音/独奏（2026-11-25）：UI 镜像读（权威事实在
+            // ms::Track；装载/回写同步见 QtTimelineModelAdapter）
+            case TrackMuteRole:
+                return QVariant::fromValue(track->mute);
+            case TrackSoloRole:
+                return QVariant::fromValue(track->solo);
             default:
                 return QVariant();
         }
@@ -278,6 +284,20 @@ bool BaseTimeLineModel::setData(const QModelIndex &index, const QVariant &value,
                  * 导致“重新导入后顺序对但 TrackName 显示错误”。
                  */
                 track->name = value.toString();
+                emit dataChanged(index, index, {role});
+                return true;
+            }
+            //轨道音频静音/独奏（2026-11-25）：写 TrackData UI 镜像 +
+            // dataChanged 刷新轨道行（delegate 按钮态经 setEditorData 跟随）。
+            //work_（ms::Track，场景下发权威事实）由 adapter 覆写 setData
+            //补写 + sceneEdited 触发防抖下发——本基类无 work_ 访问权。
+            case TimelineRoles::TrackMuteRole: {
+                track->mute = value.toBool();
+                emit dataChanged(index, index, {role});
+                return true;
+            }
+            case TimelineRoles::TrackSoloRole: {
+                track->solo = value.toBool();
                 emit dataChanged(index, index, {role});
                 return true;
             }

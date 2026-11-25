@@ -66,7 +66,13 @@ EvalResult TimelineEngine::evaluate(std::int64_t t_us) const {
     result.active.reserve(16); // 典型场景同帧活跃片段个位/十数量级，预留减少重分配
 
     // ---- 1. 线性收集：遍历每条轨道的每个片段，判定活跃并预计算进度 ----
+    // 【2026-11-25 整轨屏蔽】mute/solo 轨道在解算层直接跳过（如同轨道不
+    // 存在）——buildDrawList/buildPreviewDrawList（display 渲染与编辑器
+    // 预览两端同源）都经此处，画面语义单点收口；判定 helper 见
+    // SceneModel.hpp（与音频 buildVoices / 灯光控制发送同源同语义）。
+    const bool any_solo = anySoloTrack(scene_->timeline);
     for (const auto& track : scene_->timeline.tracks) {
+        if (trackFiltered(any_solo, track)) continue; // 整轨屏蔽：如同不存在
         for (const auto& clip : track.clips) {
             if (!isActive(clip, t_us)) continue; // 前闭后开判定
 

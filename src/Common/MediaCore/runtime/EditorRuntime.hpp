@@ -197,6 +197,14 @@ public:
     bool setDisplayEnabled(const std::string& display_id, bool enabled) {
         return displays_.setEnabled(display_id, enabled);
     }
+    /// 单显示端黑屏切换（画布银幕右键"黑屏/取消黑屏"入口，2026-11-25）：
+    /// MsgDisplayBlack 单播直达该 display——渲染端跳过内容合成直接上屏
+    /// 黑帧（只挡呈现不挡同步；音频不受影响）。运行时指令不入场景不持久
+    /// 化：状态镜像存 display_black_，display 注册路径重发（重连自愈）。
+    /// \return false = sendTo 失败（未登记/未在线）——状态镜像已记忆
+    bool setDisplayBlack(const std::string& display_id, bool black);
+    /// 黑屏状态镜像查询（UI 菜单文案用；display 实际态以指令送达为准）
+    bool displayBlack(const std::string& display_id) const;
     /// 全部显示端登记快照（含连接状态；状态栏/UI 遍历用）
     /// 【注意】按值返回（每次调用重建 vector + 逐条 string 拷贝）——
     /// 仅低频 UI 路径使用；高频/只取数量的场景勿在循环内反复调用
@@ -409,6 +417,12 @@ private:
     /// onDisplayState 断连清除）。last_update_us 用 steady_clock（纯本地
     /// 老化判据，不参与同步语义）。
     std::map<std::string, AssetSyncView> asset_sync_;
+
+    /// 黑屏状态镜像（2026-11-25，display_id → 黑屏态；state_mutex_ 保护）：
+    /// setDisplayBlack 写 / displayBlack 读 / handleRegister 注册路径重发
+    /// 读——运行时指令不入场景，重连后由此记忆补发（display 重启/重连
+    /// 丢态的自愈源）。
+    std::map<std::string, bool> display_black_;
 
     /// UDP 来源地址 → player_id 反查表（上报帧无 player_id 字段，
     /// 按 "ip:port" 键归位——设计 §6"学到注册时的来源地址"）

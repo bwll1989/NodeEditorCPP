@@ -288,6 +288,33 @@ bool EditorRuntime::removeDisplay(const std::string& display_id) {
     return true;
 }
 
+// ---------------------------------------------------------------------------
+// 黑屏切换（2026-11-25，画布银幕右键入口）：MsgDisplayBlack 单播直达
+// ---------------------------------------------------------------------------
+bool EditorRuntime::setDisplayBlack(const std::string& display_id,
+                                    bool black) {
+    {
+        // 状态镜像先记账（锁内只做 map 写）——未在线也记忆，注册路径
+        // 补发后生效（display 重启/重连丢态的自愈源）
+        std::lock_guard<std::mutex> lock(state_mutex_);
+        display_black_[display_id] = black;
+    }
+    Envelope out;
+    out.mutable_display_black()->set_black(black);
+    const bool ok = displays_.sendTo(display_id, out);
+    std::printf("editor: 黑屏切换 display=%s → %s%s\n",
+                display_id.c_str(), black ? "ON" : "OFF",
+                ok ? "" : "（未在线，已记忆待其注册时补发）");
+    std::fflush(stdout);
+    return ok;
+}
+
+bool EditorRuntime::displayBlack(const std::string& display_id) const {
+    std::lock_guard<std::mutex> lock(state_mutex_);
+    const auto it = display_black_.find(display_id);
+    return it != display_black_.end() && it->second;
+}
+
 std::vector<DisplayEntry> EditorRuntime::displayEntries() const {
     // DisplayConnector::Entry（含运行状态）→ ms::DisplayEntry（登记数据，
     // .show 保存用）：取登记四字段，运行状态由 UI 另查 displays_online()
@@ -504,6 +531,27 @@ void EditorRuntime::handleRegister(
     // 【与 GUI 分离 2026-11-04】入队 ScenePrepare（快照+serialize+socket
     // 写在发送线程）——recv 线程只做快照，不再被大场景 serialize 阻塞。
     const bool scene_sent = sendSceneToDisplay(display_slot);
+
+    // ---- 黑屏状态补发（2026-11-25）：display 注册（首次/重连）即把
+    //      Editor 记忆的黑屏态单播补发——重连/重启丢态自愈（与下方播放
+    //      状态对账同模式：注册时对齐权威状态）----
+    {
+        bool black = false;
+        {
+            std::lock_guard<std::mutex> lock(state_mutex_);
+            const auto it = display_black_.find(display_slot);
+            black = it != display_black_.end() && it->second;
+        }
+        if (black) {
+            Envelope out;
+            out.mutable_display_black()->set_black(true);
+            reply(out);
+            std::fprintf(stderr,
+                         "editor: 黑屏态补发 → display=%s（注册路径）\n",
+                         display_slot.c_str());
+            std::fflush(stderr);
+        }
+    }
 
     // ---- 记录 UDP 反查表（"ip:port" → player_id；§6 学到的来源地址）----
     // 日志字段一并锁内拷出（players_ 可被其他线程并发修改，禁止无锁读）

@@ -146,6 +146,13 @@ public:
         /// "Flow 图标 + 地址"两行卡，替代恒黑待机屏（现场手输/扫码即达
         /// 网页编排台）。与底部素材同步 OSD 错开（居中 vs 贴底）。
         std::function<std::string()> standby_provider;
+
+        // ---- 黑屏切换（2026-11-25；Editor 右键指令）----------------------
+        /// 黑屏态采样（渲染线程每帧调用一次，读 PlayerRuntime 原子量——
+        /// 零锁）。true = 本帧跳过全部内容合成直接上屏黑帧（待机卡一并
+        /// 抑制）；场景/锚点链路照常推进——只挡呈现不挡同步，取消后
+        /// 下一帧自然回正常画面。空 = 无此能力（旧版行为）。
+        std::function<bool()> black_provider;
     };
 
     /// 对齐时钟读取函数（返回对齐时钟 us；PlayerRuntime 注入 ClockProvider）

@@ -145,6 +145,16 @@ bool MsRuntimeBridge::setDisplayEnabled(const QString& id, bool enabled) {
     return impl_->rt.setDisplayEnabled(id.toStdString(), enabled);
 }
 
+bool MsRuntimeBridge::setDisplayBlack(const QString& id, bool black) {
+    if (!impl_) return false;
+    return impl_->rt.setDisplayBlack(id.toStdString(), black);
+}
+
+bool MsRuntimeBridge::displayBlack(const QString& id) const {
+    if (!impl_) return false;
+    return impl_->rt.displayBlack(id.toStdString());
+}
+
 QList<MsRuntimeBridge::DisplayRow> MsRuntimeBridge::displayRows() const {
     QList<DisplayRow> out;
     if (!impl_) return out;
