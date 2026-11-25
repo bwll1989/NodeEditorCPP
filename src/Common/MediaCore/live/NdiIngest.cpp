@@ -93,6 +93,22 @@ bool sourceNameMatches(const char* ndi_name, const std::string& wanted) {
            full.compare(full.size() - tail.size(), tail.size(), tail) == 0;
 }
 
+/// "host:port" 直连串判定（冒号后纯数字）。命中 → 免发现直连（NDI 6
+/// NDIlib_source_t：p_ndi_name 置空 + p_url_address=host:port，SDK 跳过
+/// mDNS 按 URL 直接建收器）。动机：mDNS 组播在受限网络不可达——安卓
+/// 模拟器 NAT、组播被过滤的 WiFi、跨网段部署；NDI 源名（"MACHINE (名)"
+/// / "ms-live/..."）含 '/' 或机器名，与 "数字端口" 尾天然不冲突。
+/// host 允许 IPv4/主机名；IPv6 字面量含多冒号 → rfind(':') 取最后一段，
+/// 同样要求纯数字尾（含端口的 IPv6 字面量应写成 [::1]:5961，rfind 落在
+/// 端口冒号上，判定仍成立）。
+bool isHostPort(const std::string& s) {
+    const auto pos = s.rfind(':');
+    if (pos == std::string::npos || pos + 1 >= s.size()) return false;
+    for (std::size_t i = pos + 1; i < s.size(); ++i)
+        if (!std::isdigit(static_cast<unsigned char>(s[i]))) return false;
+    return true;
+}
+
 /// 限频日志（5s 一条）——共享实现见 IngestBase::logThrottled
 
 // ---------------------------------------------------------------------------
@@ -183,8 +199,16 @@ std::vector<std::string> NdiIngest::listSources(std::uint32_t wait_ms) {
 // ---------------------------------------------------------------------------
 // 构造 / 析构（线程/诊断继承 IngestBase）
 // ---------------------------------------------------------------------------
-NdiIngest::NdiIngest(std::string source_name, int latency_mode, FrameSink sink)
-    : IngestBase(std::move(source_name), latency_mode, std::move(sink)) {}
+NdiIngest::NdiIngest(std::string source_name, int latency_mode,
+                     std::int64_t schedule_delay_us, FrameSink sink)
+    : IngestBase(std::move(source_name), latency_mode, schedule_delay_us,
+                 std::move(sink)) {
+    // Hub 再发布源标记缓存（构造期判定一次，免去逐帧字符串前缀比较）：
+    // 命中时帧同步排程锚走 NDI timecode（发送端写入的对齐时钟戳，已含
+    // 应显时刻偏移——发送端捕获时已加延迟预算，2026-11-25 定案），
+    // 见 publishNdiFrame。
+    hub_source_ = source_ref_.rfind("ms-live/", 0) == 0;
+}
 
 NdiIngest::~NdiIngest() {
     stop();
@@ -226,32 +250,41 @@ void NdiIngest::recvLoop() {
     while (running_.load(std::memory_order_acquire)) {
         // ---- 无接收器：发现源 → 创建并连接 ----
         if (recv_ == nullptr) {
-            if (finder_ == nullptr) {
-                NDIlib_find_create_t find_desc{};
-                find_desc.show_local_sources = true; // 本机源（本机其他应用的 NDI 输出）
-                finder_ = NDIlib_find_create_v2(&find_desc);
+            NDIlib_source_t      direct_src{};
+            const NDIlib_source_t* hit = nullptr;
+            if (isHostPort(source_ref_)) {
+                // ---- 直连模式：免发现（见 isHostPort 注释）----
+                direct_src.p_ndi_name    = ""; // 置空 → SDK 直用 url_address
+                direct_src.p_url_address = source_ref_.c_str();
+                hit = &direct_src;
+            } else {
+                // ---- 发现模式：mDNS 按名匹配 ----
                 if (finder_ == nullptr) {
-                    logThrottled("NDI 发现器创建失败", last_find_log, 5000);
-                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                    NDIlib_find_create_t find_desc{};
+                    find_desc.show_local_sources = true; // 本机源（本机其他应用的 NDI 输出）
+                    finder_ = NDIlib_find_create_v2(&find_desc);
+                    if (finder_ == nullptr) {
+                        logThrottled("NDI 发现器创建失败", last_find_log, 5000);
+                        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                        continue;
+                    }
+                }
+                NDIlib_find_wait_for_sources(
+                    static_cast<NDIlib_find_instance_t>(finder_), 500);
+                std::uint32_t n = 0;
+                const NDIlib_source_t* sources = NDIlib_find_get_current_sources(
+                    static_cast<NDIlib_find_instance_t>(finder_), &n);
+                for (std::uint32_t i = 0; i < n; ++i) {
+                    if (sourceNameMatches(sources[i].p_ndi_name, source_ref_)) {
+                        hit = &sources[i];
+                        break;
+                    }
+                }
+                if (hit == nullptr) {
+                    logThrottled("等待 NDI 源 '" + source_ref_ + "' 上线…",
+                                 last_find_log, 5000);
                     continue;
                 }
-            }
-            NDIlib_find_wait_for_sources(
-                static_cast<NDIlib_find_instance_t>(finder_), 500);
-            std::uint32_t n = 0;
-            const NDIlib_source_t* sources = NDIlib_find_get_current_sources(
-                static_cast<NDIlib_find_instance_t>(finder_), &n);
-            const NDIlib_source_t* hit = nullptr;
-            for (std::uint32_t i = 0; i < n; ++i) {
-                if (sourceNameMatches(sources[i].p_ndi_name, source_ref_)) {
-                    hit = &sources[i];
-                    break;
-                }
-            }
-            if (hit == nullptr) {
-                logThrottled("等待 NDI 源 '" + source_ref_ + "' 上线…",
-                             last_find_log, 5000);
-                continue;
             }
             // RGBX_RGBA 直出（零颜色转换）+ 最高带宽（不降分辨率）+ 渐进化
             NDIlib_recv_create_v3_t desc{};
@@ -270,7 +303,9 @@ void NdiIngest::recvLoop() {
             connected_.store(true, std::memory_order_release);
             std::fprintf(stderr,
                          "live-ingest: %p 已连接 NDI 源 '%s'（latency=%d）\n",
-                         static_cast<void*>(this), hit->p_ndi_name,
+                         static_cast<void*>(this),
+                         hit->p_ndi_name ? hit->p_ndi_name
+                                         : source_ref_.c_str(),
                          latency_mode_);
             std::fflush(stderr);
         }
@@ -349,6 +384,37 @@ void NdiIngest::publishNdiFrame(const void* ndi_video_frame) {
     if (v == nullptr || v->p_data == nullptr || v->xres <= 0 || v->yres <= 0)
         return;
 
+    // 【2026-11-25 帧率取证】收端实际交付帧率（5s 一条）——用户实测
+    // "NDI 幻灯片"而网络占用仅 5.9Mbps（带宽无关），链路四段（采集→
+    // 再发布→网络→收端）各打速率定位瓶颈段：本行 = 收端交付速率。
+    {
+        using namespace std::chrono;
+        const std::int64_t now_ms =
+            duration_cast<milliseconds>(steady_clock::now().time_since_epoch())
+                .count();
+        static thread_local std::int64_t   s_last_ms = 0;
+        static thread_local std::uint64_t  s_last_n  = 0;
+        if (s_last_ms == 0) {
+            s_last_ms = now_ms;
+            s_last_n  = frames_received_.load(std::memory_order_relaxed);
+        } else if (now_ms - s_last_ms >= 5000) {
+            const std::uint64_t n =
+                frames_received_.load(std::memory_order_relaxed);
+            std::fprintf(stderr,
+                         "live-ingest: 收帧速率 %.1f fps（累计收 %llu 丢 %llu）"
+                         " %dx%d\n",
+                         double(n - s_last_n) / double(now_ms - s_last_ms) *
+                             1000.0,
+                         static_cast<unsigned long long>(n),
+                         static_cast<unsigned long long>(
+                             frames_dropped_.load(std::memory_order_relaxed)),
+                         v->xres, v->yres);
+            std::fflush(stderr);
+            s_last_ms = now_ms;
+            s_last_n  = n;
+        }
+    }
+
     // ---- 布局分派：has_alpha（第 4 字节语义）+ swap_rb（源是否 B 在前）----
     bool has_alpha = false, swap_rb = false;
     switch (v->FourCC) {
@@ -370,9 +436,34 @@ void NdiIngest::publishNdiFrame(const void* ndi_video_frame) {
     frame->w   = v->xres;
     frame->h   = v->yres;
     frame->rgba.resize(static_cast<std::size_t>(v->xres) * v->yres * 4);
-    // 帧同步戳：SDK 交付本帧的接收时刻（进程对齐时钟域）。display 端按
-    // "pts + target_latency" 排程，多端同戳同延迟 → 自动帧同步。
-    frame->pts_us = processAlignedNowUs();
+    // 帧同步戳锚点（2026-11-24 重构）：Hub 再发布源（"ms-live/" 前缀）
+    // 优先用发送端写入的 NDI timecode（编辑端对齐时钟捕获戳，单位
+    // 100ns）——NDI 单播各收端连接交付相位不同（TCP 步调/解压耗时/连接
+    // 时刻），按本地到达时刻排程会把相位差固化成端间画面恒定偏移（实测
+    // 2026-11-24）。timecode 与预览排程同戳同域（SNTP 对齐），收端直接
+    // 换算。旧版发送端（timecode=0）或窗口外异常值退回本地接收戳（原
+    // 语义，外部 NDI 源直收恒走此路径）。
+    const std::int64_t now_us = processAlignedNowUs();
+    bool anchored = false;
+    if (hub_source_ && v->timecode != 0 &&
+        v->timecode != NDIlib_recv_timestamp_undefined) {
+        const std::int64_t tc_us = v->timecode / 10;
+        // 同钟域 sanity：SNTP 正常对齐残差亚毫秒级；网络延迟正常 <1s。
+        // 窗从 ±10s 收紧到 ±2s（2026-11-25）：两机时钟漂移几百 ms~数秒
+        // （SNTP 失效）时 ±10s 窗放行 → 排程恒错位（帧到达即过期/恒未
+        // 到期）= 跨机"幻灯片"根因之一；±2s 外退回本地接收戳（LiveMedia
+        // Source 另有 5s 滑窗自愈覆盖病态中间态）。
+        if (tc_us > now_us - 2'000'000 && tc_us < now_us + 2'000'000) {
+            frame->pts_us = tc_us; // 应显时刻（发送端已加延迟预算），透传
+            anchored      = true;
+        } else {
+            logThrottled("NDI timecode 超出对齐时钟窗口（" +
+                             std::to_string(tc_us) + " vs " +
+                             std::to_string(now_us) + "），退回接收戳",
+                         tc_anchor_log_ms_, 5000);
+        }
+    }
+    if (!anchored) frame->pts_us = now_us + schedule_delay_us_;
 
     const int          w      = v->xres;
     const int          h      = v->yres;

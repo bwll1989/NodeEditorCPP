@@ -49,6 +49,7 @@ class Canvas3DGl;      ///< 3D 视口贴图层（阶段1 GL化：DXT 直传+透�
 class GlRenderer;      ///< GL 合成后端（ExternalCtx 模式；GL 直通路径用）
 class MsRuntimeBridge; ///< 下发运行时桥（不拥有；宿主注入——银幕操作执行通道）
 class QtTimelineModelAdapter; ///< 模型对外接口（不拥有；下发/同步委托目标）
+class ScreenPropertyDialog; ///< 屏幕属性对话框（非模态；2026-11-25）
 
 class SceneCanvasWidget : public QOpenGLWidget {
     Q_OBJECT
@@ -424,11 +425,35 @@ private:
     void openScreenProperty(int screen_idx);
     /// 视图刷新 + display 节流下发（sceneEditedLive 走适配器 requestAutoPublish 节流链）
     void refreshViews();
+    /// 【2026-11-25 双向联动·画布→弹窗】属性对话框开着且正编辑 sid → 把
+    /// 工作副本当前几何+校色刷进控件（拖动/缩放/旋转/gizmo 会话每拍调用；
+    /// 反方向（弹窗→画布）走 geometry_live_ 回调）。屏已删 = 空操作。
+    void syncPropDialog(const std::string& sid);
+    /// 【2026-11-25 display 名称行】按绑定 player_id 组装「通用」页顶部
+    /// 信息行富文本（display 注册帧无独立名称——名称即绑定 id；在线状态
+    /// 取运行时登记快照：在线/离线/未登记/运行时未启动）。ui_timer_ 拍
+    /// 重查以同步弹窗打开期间的连接变化。
+    QString displayInfoLine(const std::string& player_id) const;
+    /// 属性弹窗 destroyed 槽共用体：按 dlg 值精确清除映射项（任一回收路径
+    /// OK/取消/X 最终都走 deleteLater→destroyed；openScreenProperty 与
+    /// addScreen 两处注册的同一逻辑，唯一实现防漂移）。
+    void erasePropDialogEntry(ScreenPropertyDialog* dlg);
+    /// 已开属性框提到前台并激活（同 sid 再点/添加流防重的共用尾段）。
+    void activatePropDialog(ScreenPropertyDialog* dlg);
 
     // ---- 状态 ---------------------------------------------------------------
     Scene* scene_ = nullptr;   // 工作副本（不拥有；EditorWindow 拥有）
     PreviewRenderer* preview_ = nullptr; // 预览渲染器（不拥有；可空=占位画法）
     MsRuntimeBridge* runtime_ = nullptr; // 下发运行时桥（不拥有；银幕操作执行通道）
+    /// 非模态屏幕属性对话框（2026-11-25：exec 模态阻塞画布操作→show 非模态，
+    /// 编辑属性时画布可继续拖动/选中；回收走 accepted/rejected 槽显式
+    /// deleteLater——OK/取消只 hide，X 关闭经 closeEvent→rejected 同链）。
+    /// 【2026-11-25 用户定案：一对一】每个 display 至多一个属性弹窗——
+    /// sid → 弹窗映射；同 sid 重复打开 = raise 已有框，不同 sid 各开各的
+    /// 互不影响（取消还原/OK 写回各按自己的 sid 与备份，互不竞争）。
+    /// 空 key = 「添加屏幕」流（无已存在 sid；同 key 防重 = 同时至多一个
+    /// 添加框）。
+    std::map<std::string, ScreenPropertyDialog*> prop_dlgs_;
     QtTimelineModelAdapter* adapter_ = nullptr; // 模型对外接口（不拥有；下发/同步委托目标）
     /// 显示端在线状态（player_id → TCP 在线；ui_timer_ 200ms 拍自拉刷新）
     std::map<std::string, bool> display_online_;

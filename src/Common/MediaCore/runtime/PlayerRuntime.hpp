@@ -366,6 +366,14 @@ private:
     /// 见 sceneSerial() 注释：替代"指针是否变化"的判新语义
     std::uint64_t    scene_serial_ = 0;
     std::thread      asset_thread_; ///< 素材拉取线程（收场景后启动，stop join）
+    /// 【2026-11-24 闪退修复】fetchAssetsAsync 并发进入防护。多连接并存时
+    /// 各 recv 线程可同时进入（Scene 与 AssetSync 分别到达/重连新旧连接），
+    /// 双方同时 join 同一线程：败者拿已失效 pthread_t 调 pthread_join——
+    /// 新版 bionic 对无效句柄直呼 abort（无打印闪退，addr2line 实证崩溃
+    /// 点=join 调用返回地址、栈为 bionic abort 链）。本锁串行化整个
+    /// fetchAssetsAsync（含两处 join+move 赋值），锁序：本锁 → state_mutex_
+    ///（worker 线程与渲染线程均不取本锁，无反转）。
+    std::mutex       asset_thread_mx_;
     /// 拉取循环代数（自愈信号，2026-11-04）：每次 fetchAssetsAsync 进入时
     /// 递增——进行中的旧循环在轮间休眠里检测到代数变化即退出（≤200ms），
     /// 让位给携带新清单的新循环（场景替换/新清单推送即时接管，旧循环的

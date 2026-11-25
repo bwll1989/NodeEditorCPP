@@ -434,6 +434,13 @@ AssetReceiver::Result AssetReceiver::fetch(const std::string& host,
         // 网络/超时异常：part 保留（下次 fetch 从 part 尾续传）
         std::fprintf(stderr, "asset: HTTP 异常: %s\n", e.displayText().c_str());
         return Result::NetworkError;
+    } catch (const std::exception& e) {
+        // 【2026-11-24 Android 加固】std::filesystem::filesystem_error /
+        // std::bad_alloc 等此前不被捕获——逃逸 worker 线程即 std::terminate
+        // 全进程无日志闪退（卓易通容器"同步视频瞬间崩溃"的形态完全吻合：
+        // 下载/落盘链任何 std 异常都会瞬间杀进程）。part 保留同语义。
+        std::fprintf(stderr, "asset: 异常: %s\n", e.what());
+        return Result::NetworkError;
     }
 }
 

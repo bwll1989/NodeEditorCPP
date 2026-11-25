@@ -106,6 +106,11 @@ void LiveHub::ensureAsset(const Asset& asset) {
             // 析构——weak 捕获双保险）
             entry->ingest = desc->create(
                 asset.live_source_name, asset.live_latency,
+                // 延迟预算随捕获端打戳进 pts（应显时刻 = 捕获 + 预算，
+                // 2026-11-25 用户定案——预览 Hub 模式排程按帧自带 pts 到
+                // 点回放；组播转发由 MpegTsSender 锚 TS PTS 下发）
+                asset.live_target_latency_us > 0 ? asset.live_target_latency_us
+                                                 : 120'000,
                 [weak_feed](LiveFramePtr frame) {
                     if (auto feed = weak_feed.lock()) feed->publish(std::move(frame));
                 });

@@ -43,7 +43,8 @@ public:
     std::uint64_t framesDropped()  const noexcept final;
 
 protected:
-    IngestBase(std::string source_ref, int latency_mode, FrameSink sink);
+    IngestBase(std::string source_ref, int latency_mode,
+               std::int64_t schedule_delay_us, FrameSink sink);
     ~IngestBase() override; // 未 stop 的实例兜底停线程（RAII）
 
     IngestBase(const IngestBase&)            = delete;
@@ -76,6 +77,10 @@ protected:
     // ---- 配置（start 期固定；线程只读）----
     const std::string source_ref_; ///< 连接串（NDI 源名 / sender 名 / SymbolicLink / ref）
     const int         latency_mode_; ///< 0=最低 1=同步（语义按通道解释）
+    /// 应显时刻偏移（延迟预算）：本地打戳 = 采集时刻 + 该值（pts 语义 =
+    /// 应显时刻，2026-11-25 用户定案——延迟预算在捕获端统一加入）；透传
+    /// 上游戳的路径（NdiIngest tc 锚）不适用（上游已含）
+    const std::int64_t schedule_delay_us_;
     FrameSink         sink_;       ///< 帧出口（接收线程调用）
 
     // ---- 运行态（子类循环以 running() 为退出条件）----

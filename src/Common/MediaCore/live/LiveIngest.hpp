@@ -79,8 +79,13 @@ struct IngestDesc {
     /// 源枚举（UI「刷新」按钮；同步阻塞 ≤ wait_ms；未实现/无环境返回空表）
     std::vector<IngestSource> (*list_sources)(std::uint32_t wait_ms);
     /// 工厂（未实现条目为 nullptr；运行时初始化失败返回空指针）
+    /// \param schedule_delay_us 应显时刻偏移（延迟预算，如 120ms）：帧
+    ///   出生即定显示时刻——本地打戳 = 采集时刻 + 该值（"editor 端捕获
+    ///   时就把延迟加上"用户定案 2026-11-25，pts 语义 = 应显时刻）；
+    ///   透传上游戳的路径（NdiIngest tc 锚）不加（上游已含）。
     std::unique_ptr<ILiveIngest> (*create)(std::string source_name,
                                            int        latency_mode,
+                                           std::int64_t schedule_delay_us,
                                            ILiveIngest::FrameSink sink);
 };
 

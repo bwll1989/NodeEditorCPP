@@ -34,7 +34,8 @@ namespace ms {
 
 class SpoutIngest : public IngestBase {
 public:
-    SpoutIngest(std::string sender_name, int latency_mode, FrameSink sink);
+    SpoutIngest(std::string sender_name, int latency_mode,
+                std::int64_t schedule_delay_us, FrameSink sink);
     ~SpoutIngest() override;
 
     SpoutIngest(const SpoutIngest&)            = delete;
@@ -51,6 +52,7 @@ std::vector<IngestSource> listSpoutSources(std::uint32_t wait_ms);
 /// Spout 工厂（注册表 create 包装）
 std::unique_ptr<ILiveIngest> makeSpoutIngest(std::string sender_name,
                                              int        latency_mode,
+                                             std::int64_t schedule_delay_us,
                                              ILiveIngest::FrameSink sink);
 
 } // namespace ms

@@ -37,7 +37,7 @@ public:
     enum class Kind { Window, Monitor };
 
     WgcIngest(Kind kind, std::string source_ref, int latency_mode,
-              FrameSink sink);
+              std::int64_t schedule_delay_us, FrameSink sink);
     ~WgcIngest() override;
 
     WgcIngest(const WgcIngest&)            = delete;
@@ -74,9 +74,11 @@ std::vector<IngestSource> listWgcMonitorSources(std::uint32_t wait_ms);
 /// 工厂（注册表 create 包装；Window/Monitor 各一）
 std::unique_ptr<ILiveIngest> makeWgcWindow(std::string source_name,
                                            int        latency_mode,
+                                           std::int64_t schedule_delay_us,
                                            ILiveIngest::FrameSink sink);
 std::unique_ptr<ILiveIngest> makeWgcMonitor(std::string source_name,
                                             int        latency_mode,
+                                            std::int64_t schedule_delay_us,
                                             ILiveIngest::FrameSink sink);
 
 } // namespace ms

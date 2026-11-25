@@ -22,9 +22,9 @@ class QVBoxLayout;
  *
  * 统一软件内所有弹窗的外观与交互（对齐 ExportActionDialog 的风格）：
  * - 无边框 + 细描边外观（QSS 侧统一 objectName：framelessDialog*）
- * - 标题栏按住左键拖拽移动窗口
+ * - 标题栏按住左键拖拽移动窗口（系统级 startSystemMove——鼠标快速甩动
+ *   不断手，2026-11-25；旧手写 move 因缺 grab 在快速拖动时丢 move 事件）
  * - Esc 关闭（默认 reject()）
- * - 标题栏右上角可选关闭按钮（点击等价 reject()）
  * - bodyLayout() 供子类填充内容；addButton() 生成风格统一的按钮
  *
  * 子类典型用法：
@@ -53,17 +53,9 @@ public:
 
     /** @brief 设置标题（同步到窗口标题与标题栏文字） */
     void setDialogTitle(const QString& title);
-    QString dialogTitle() const;
-
-    /** @brief 标题栏右侧关闭按钮显隐（默认隐藏；点击等价 reject()） */
-    void setCloseButtonVisible(bool visible);
-    bool closeButtonVisible() const;
 
     /** @brief 内容区布局（标题栏之下、按钮行之上），子类往这里放控件 */
     QVBoxLayout* bodyLayout();
-
-    /** @brief 按钮行布局（右对齐；自定义控件可直接 addWidget/addStretch） */
-    QHBoxLayout* buttonLayout();
 
     /**
      * @brief 追加一个风格统一的按钮到按钮行末尾
@@ -79,13 +71,18 @@ public:
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
+    /// 根窗口（主窗）Hide/Show 跟随：主窗隐藏（托盘最小化）→ 弹窗隐藏
+    ///（保编辑态），主窗恢复 → 弹窗还原置前。零布局变更（虚槽覆写）。
+    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
     void buildUi();
+    /// 根窗口（主窗）Hide/Show 跟随挂接（2026-11-25 主程序关闭→弹窗随行，
+    /// 策略见 cpp 实现；根窗 destroyed 路径严禁干预弹窗——cpp 注释有案）
+    void followRootWindow();
 
     QWidget* _titleBar = nullptr;
     QLabel* _titleLabel = nullptr;
-    QPushButton* _closeButton = nullptr;
     QVBoxLayout* _bodyLayout = nullptr;
     QHBoxLayout* _buttonLayout = nullptr;
     QPushButton* _defaultButton = nullptr;

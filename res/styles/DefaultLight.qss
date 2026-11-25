@@ -665,17 +665,6 @@ QCalendarWidget QTableView QTableCornerButton::section {
      color: #333333;
      background: transparent;
  }
- #framelessDialogClose {
-     background: transparent;
-     border: none;
-     border-radius: 3px;
-     color: #666666;
-     font-weight: bold;
- }
- #framelessDialogClose:hover {
-     background-color: rgba(0,0,0,15);
-     color: #1A1A1A;
- }
  #framelessDialogPrimary {
      background-color: #79AE31;
      border: 1px solid #79AE31;

@@ -13,6 +13,7 @@
 
 #include "http_util.hpp"
 #include "json_util.hpp"
+#include "log_hub.hpp"
 #include "mpcdi_service.hpp"
 #include "path_utf8.hpp"
 #include "config/IniConfig.hpp"
@@ -651,6 +652,9 @@ bool StandaloneApi::handle(RouteCtx& ctx) {
     // 系统路由（M5）：进程重启——门禁**前**（两模式均开放；sync 切回
     // standalone 正是靠它，收进门禁内会形成"同步模式下无法切回"死锁）。
     if (routeSystem(ctx)) return true;
+    // 运行日志（2026-11-24）：门禁**前**（两模式均开放——日志是全模式
+    // 排障面，sync 受控下 display 的渲染/连接日志同样要能在网页看到）。
+    if (routeLogs(ctx)) return true;
     // 模式门禁（2026-11-11 手动切换定案）：编排面（时间轴/播放/媒体库）
     // 只在独立模式开放——sync 模式下 HTTP 仅 状态/设置/静态页，编排面
     // 一律 409（网页编排台前端按 status.mode 同步收敛到设置页）。
@@ -1239,6 +1243,48 @@ bool StandaloneApi::routeSystem(RouteCtx& ctx) {
     }
     cfg_.restart_fn();
     send_json(ctx.resp, 200, ok_json("{\"restarting\":true}"));
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// logs —— 运行日志增量拉取（2026-11-24；两模式均可用，门禁前）
+//
+//   GET /api/v1/logs?since=<seq>
+//     → { seq:      当前最大序号（下轮 since 锚点；0=尚未产生日志）,
+//         dropped:  环形缓冲溢出丢弃累计行数（消费落后过多时 >0）,
+//         lines:    [[seq, ts_ms, "level", "text"], ...]（seq 升序，
+//                   数组形态省带宽——text 已 UTF-8 化，见 log_hub.hpp） }
+//   日志源 = 进程全部 stdout/stderr 输出（重定向链见 log_hub.cpp）：
+//   启动横幅/端口状态/渲染心跳/解码告警/异常消息全量，网页「运行日志」
+//   窗口 1s 轮询本接口增量追加。
+// ---------------------------------------------------------------------------
+bool StandaloneApi::routeLogs(RouteCtx& ctx) {
+    if (ctx.path != "/api/v1/logs") return false;
+    if (ctx.method != "GET") {
+        send_json(ctx.resp, 405, err_json("METHOD", "仅支持 GET"));
+        return true;
+    }
+    // since 锚点解析（非法/缺省按 0=全量；u64 防负数回绕）
+    std::uint64_t since = 0;
+    for (const auto& p : ctx.uri.getQueryParameters()) {
+        if (p.first == "since") {
+            try { since = std::stoull(p.second); } catch (...) { since = 0; }
+        }
+    }
+    std::vector<media_api::log_hub::Line> lines;
+    std::uint64_t last_seq = 0, dropped = 0;
+    media_api::log_hub::snapshot(since, lines, last_seq, dropped);
+
+    std::ostringstream data;
+    data << "{\"seq\":" << last_seq << ",\"dropped\":" << dropped << ",\"lines\":[";
+    for (std::size_t i = 0; i < lines.size(); ++i) {
+        const auto& l = lines[i];
+        if (i) data << ',';
+        data << '[' << l.seq << ',' << l.ts_ms << ",\""
+             << l.level << "\",\"" << json_escape(l.text) << "\"]";
+    }
+    data << "]}";
+    send_json(ctx.resp, 200, ok_json(data.str()));
     return true;
 }
 

@@ -13,3 +13,10 @@
 /// 【2026-11-16 去 ms 命名空间】进程级崩溃布防是全局基建，全局名直呼
 /// （main 两端调用不再带 ms:: 前缀）。
 void installCrashDump();
+
+/// 【2026-11-24 Android】注入崩溃现场落盘目录（filesDir 绝对路径）：
+/// 信号 handler 写 <dir>/web/last_crash.txt + <dir>/last_crash.txt——
+/// 前者经 display 自身 HTTP 静态根浏览器可读（卓易通容器内无法用宿主
+/// hdc 读 logcat/tombstone，证据必须自带降落伞）。须在 installCrashDump
+/// 之后、主循环开始前调用。Windows/其余平台空实现。
+void setCrashDumpDir(const char* utf8_dir);

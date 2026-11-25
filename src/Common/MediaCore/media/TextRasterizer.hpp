@@ -5,8 +5,9 @@
 //    * 【两端同源】Editor 预览与 display 输出使用同一实现（engine_core），
 //      相同 TextPayload 在两端产出逐位一致的帧——遵守"两端同源渲染"铁律；
 //    * 光栅化底座 = stb_truetype v1.26（公共域单头库，vendor 于
-//      3rdparty/stb/）：解析 C:\Windows\Fonts 系统字体（.ttf/.ttc），
-//      8bpp 抗锯齿 coverage 光栅化，RGBA 合成由本类完成；
+//      3rdparty/stb/）：解析系统字体（.ttf/.ttc）与内置 OFL 字体
+//      （exe 相对 fonts/，思源黑体），8bpp 抗锯齿 coverage 光栅化，
+//      RGBA 合成由本类完成；
 //    * 排版语义（对标 WATCHOUT 文本 cue 的静态文本能力）：
 //        显式换行 '\n'（不做自动折行——框宽变化由 clip transform.w/h
 //        拉伸承担，文本帧本身恒为"自然尺寸"，与图片素材同构）；
@@ -19,7 +20,8 @@
 //
 //  线程契约：measure/render 为无状态静态接口（字体表只读共享，首次
 //  加载持锁；stbtt 查询函数无共享可变状态，多线程并发安全）。
-//  素材根目录外的文件读取仅限系统字体目录（Windows\Fonts），无 IO 风险。
+//  素材根目录外的文件读取仅限系统字体目录（Windows\Fonts、/system/
+//  fonts）与 exe 相对 fonts/（内置保底字体），无任意 IO 风险。
 // ============================================================================
 
 #pragma once

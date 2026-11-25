@@ -2,8 +2,12 @@
 //  TextRasterizer 实现 —— stb_truetype 光栅化 + 排版（无 Qt / 无平台 API）
 //
 //  实现要点（对照头注释）：
-//    * 字体定位：WINDIR 环境变量 → <WINDIR>/Fonts/（缺省 C:\Windows）；
-//      【显示名 → 文件名】映射表（fontTable）+ 回退链（雅黑→黑体→Arial）；
+//    * 字体定位（2026-11-24 内置保底改造）：候选目录链 = MS_FONT_DIR
+//      注入 → exe 相对 fonts/（内置字体自含分发约定）→ 系统目录
+//      （Windows=WINDIR/Fonts；POSIX=/system/fonts）；【显示名 → 文件名】
+//      映射表（fontTable）+ 名字级回退链（雅黑→黑体→内置思源→Arial）
+//      + 文件级终极保底（内置思源黑体——请求文件在所有目录缺失时的
+//      确定性终点，目标机"必能渲染中文"不再依赖系统字体状态）；
 //    * 进程级字体缓存：文件字节 + stbtt_fontinfo 只读共享（stbtt 查询
 //      无可变全局态，跨线程并发安全）；加载失败记负缓存避免反复磁盘探测；
 //    * 排版：显式 '\n' 分行（\r 忽略、\t 展开 4 空格），不做自动折行
@@ -17,6 +21,8 @@
 // ============================================================================
 
 #include "media/TextRasterizer.hpp"
+
+#include "config/IniConfig.hpp" // exeDirectory（内置字体 exe 相对定位）
 
 #include <algorithm>
 #include <cmath>
@@ -56,6 +62,34 @@ struct FontFiles {
     const char* bold;
 };
 
+#ifdef __ANDROID__
+// ===========================================================================
+// 【Android 字体链 2026-11-24】FlowDisplayer（Pura X 真机联调）：
+// 系统开源字体承接 Windows 字体名——fontTable 键（asset.text_font 值）与
+// Windows 版同源（编辑器下拉同源不动），仅「文件名」换平台实现：
+//   * CJK 名族（雅黑/黑体/宋体…）→ NotoSansCJK（思源黑体同源，观感最
+//     接近黑体/雅黑；Android 7+ 恒有，卓易通容器实测在）；
+//   * Latin 名族 → Roboto（用 Static 实例——可变字体版 stbtt hmtx 读取
+//     失效 advance 全错，模拟器 OSD 实测教训，见 OsdRasterizer.cpp）；
+//   * 请求文件缺失时 loadFont 还有文件级兜底链（kPosixFontFallbacks）。
+// bold = nullptr → 常规文件 + 仿粗叠加（与 Windows 表同语义）。
+const std::map<std::string, FontFiles>& fontTable() {
+    static const std::map<std::string, FontFiles> kTable = {
+        {"MicrosoftYaHei",  {"NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc"}},
+        {"MicrosoftYaHeiUI",{"NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc"}},
+        {"SimHei",          {"NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc"}},
+        {"SimSun",          {"NotoSansCJK-Regular.ttc", nullptr}},
+        {"KaiTi",           {"NotoSansCJK-Regular.ttc", nullptr}},
+        {"FangSong",        {"NotoSansCJK-Regular.ttc", nullptr}},
+        {"SourceHanSansSC", {"SourceHanSansSC-Regular-2.otf", nullptr}},
+        {"Arial",           {"RobotoStatic-Regular.ttf", "Roboto-Bold.ttf"}},
+        {"SegoeUI",         {"RobotoStatic-Regular.ttf", "Roboto-Bold.ttf"}},
+        {"Consolas",        {"DroidSansMono.ttf", nullptr}},
+        {"TimesNewRoman",   {"NotoSerif-Regular.ttf", "NotoSerif-Bold.ttf"}},
+    };
+    return kTable;
+}
+#else
 const std::map<std::string, FontFiles>& fontTable() {
     static const std::map<std::string, FontFiles> kTable = {
         {"MicrosoftYaHei",  {"msyh.ttc", "msyhbd.ttc"}},
@@ -64,6 +98,7 @@ const std::map<std::string, FontFiles>& fontTable() {
         {"SimSun",          {"simsun.ttc", nullptr}},
         {"KaiTi",           {"simkai.ttf", nullptr}},
         {"FangSong",        {"simfang.ttf", nullptr}},
+        {"SourceHanSansSC", {"SourceHanSansSC-Regular-2.otf", nullptr}},
         {"Arial",           {"arial.ttf", "arialbd.ttf"}},
         {"SegoeUI",         {"segoeui.ttf", "segoeuib.ttf"}},
         {"Consolas",        {"consol.ttf", "consolbd.ttf"}},
@@ -71,9 +106,14 @@ const std::map<std::string, FontFiles>& fontTable() {
     };
     return kTable;
 }
+#endif // __ANDROID__
 
-/// 回退顺序（映射表未命中/文件缺失时逐级尝试；雅黑为中文兜底）
-const char* const kFallbackFonts[] = {"MicrosoftYaHei", "SimHei", "Arial"};
+/// 回退顺序（映射表未命中时逐级尝试；雅黑为中文兜底）。内置思源排在
+/// Arial 之前：系统无任何 CJK 字体时（非中文 Windows 精简机/POSIX 极简
+/// 镜像）CJK 内容落内置保底而非 Arial 的豆腐块；Arial 殿后仅防内置
+/// 文件损坏（理论不可达——文件级终极保底见 loadFont）。
+const char* const kFallbackFonts[] = {
+    "MicrosoftYaHei", "SimHei", "SourceHanSansSC", "Arial"};
 
 /// 仿斜体错位系数（≈ tan 12°，观感对齐常见伪斜体）
 constexpr float kItalicSkew = 0.2126f;
@@ -126,51 +166,125 @@ bool resolveFontFile(const std::string& display, bool bold,
     return false;
 }
 
-/// 加载字体文件 + 初始化 stb 上下文（线程安全；失败进负缓存）
-const stbtt_fontinfo* loadFont(const std::string& file) {
-    std::lock_guard<std::mutex> lock(fontMutex());
-    auto& cache = fontCache();
-    auto it = cache.find(file);
-    if (it != cache.end()) return &it->second.info;
-    if (failedCache().count(file)) return nullptr;
-
-    const char* windir = std::getenv("WINDIR");
-    std::string dir = (windir && *windir) ? windir : "C:\\Windows";
-    std::replace(dir.begin(), dir.end(), '\\', '/');
-    const std::string path = dir + "/Fonts/" + file;
-
-    // 【u8Path 豁免】WINDIR 环境变量与系统字体文件名均为 ACP 窄字节
-    //（英文 Windows 恒 ASCII，中文 Windows 系统目录亦为 ASCII 命名），
-    // 窄串直传与 ACP 语义一致；此处若强转 UTF-8 反而损坏字节。
+/// 单文件尝试（调用方持 fontMutex）：读字节 + stbtt 解析；成功填充 lf
+bool readFontFile(const std::string& path, LoadedFont& lf) {
     std::ifstream f(path, std::ios::binary);
-    if (!f) {
-        failedCache().insert(file);
-        return nullptr;
-    }
+    if (!f) return false;
     f.seekg(0, std::ios::end);
     const std::streamoff sz = f.tellg();
     f.seekg(0, std::ios::beg);
-    if (sz <= 0 || sz > (1 << 26)) { // 上限 64MB：防御异常文件
-        failedCache().insert(file);
-        return nullptr;
-    }
-    LoadedFont lf;
+    if (sz <= 0 || sz > (1 << 26)) return false; // 上限 64MB：防御异常文件
     lf.data.resize(static_cast<std::size_t>(sz));
     f.read(reinterpret_cast<char*>(lf.data.data()),
            static_cast<std::streamsize>(sz));
-    if (!f) {
-        failedCache().insert(file);
-        return nullptr;
-    }
+    if (!f) return false;
     // TTC 集合取第 0 个字体（非集合文件该调用返回 0，语义一致）
     const int offset = stbtt_GetFontOffsetForIndex(lf.data.data(), 0);
-    if (offset < 0 || !stbtt_InitFont(&lf.info, lf.data.data(), offset)) {
-        failedCache().insert(file);
-        return nullptr;
+    return offset >= 0 && stbtt_InitFont(&lf.info, lf.data.data(), offset);
+}
+
+#ifdef __ANDROID__
+/// POSIX/Android 文件级兜底链（fontTable 映射后的文件仍缺失时逐个尝试，
+/// 首个 stbtt 可解析的胜出）：CJK 优先（对齐 kFallbackFonts 的中文兜底
+/// 语义），Latin 次之。覆盖厂商裁剪字体/极简镜像——文字片段宁用替代
+/// 字形也绝不静默全灭（Pura X 真机实证：不兜底则黑体/雅黑全不显示）。
+/// 终极保底（内置思源）在 loadFont 统一追加，此处只列系统字体名。
+const char* const kPosixFontFallbacks[] = {
+    "NotoSansCJK-Regular.ttc", "NotoSansCJK-Bold.ttc",
+    "NotoSansSC-Regular.otf",
+    "RobotoStatic-Regular.ttf", "Roboto-Regular.ttf",
+    "DroidSans.ttf",
+};
+#endif
+
+/// 文件级终极保底（内置分发，两端同文件——"目标机必能渲染中文"的
+/// 确定性底座；2026-11-24）。OFL 授权（思源黑体 v2，可随应用分发）；
+/// bold 无独立文件 → 常规文件 + 仿粗叠加（与映射表同语义）。文件由
+/// 分发方放置：编辑器 build/bin/fonts、display bin/display/fonts（或
+/// 上级 bin/fonts 共用一份，exe 相对解析见 fontDirs）。
+const char* const kTerminalFontFile = "SourceHanSansSC-Regular-2.otf";
+
+/// 候选目录（按优先级；2026-11-24 内置保底改造）：
+///   1. MS_FONT_DIR 注入（两端一致；沙箱/容器/测试覆盖——语义自此从
+///      "唯一目录"放宽为"首目录"，注入目录缺失时继续走后续候选，
+///      兜底只会更稳不会更脆）；
+///   2. exe 相对 fonts/ 与 ../fonts（自含分发约定：编辑器 bin/fonts、
+///      display bin/display/fonts 或 bin/display/../fonts 共用 bin/fonts）；
+///   3. 平台系统目录殿后（Windows=WINDIR/Fonts；POSIX=/system/fonts）
+///      ——系统字体风格丰富但目标机不可控（精简 ROM/语言包缺失实证）。
+/// 内置目录排在系统目录之前：同一逻辑名优先解析到同一物理文件，
+/// 两端像素一致（WYSIWYG）；系统目录命中则沿用本机字体观感。
+std::vector<std::string> fontDirs() {
+    std::vector<std::string> dirs;
+    if (const char* env = std::getenv("MS_FONT_DIR"); env && *env)
+        dirs.emplace_back(env);
+#ifdef _WIN32
+    // 【ACP 窄字节豁免，同 WINDIR 语义】exeDirectory 产物（GetModule-
+    // FileNameA）与环境变量均为 ACP 窄字节，窄串直传 ifstream 与 ACP
+    // 语义一致；强转 UTF-8 反而损坏字节（见 WINDIR 豁免注释）。
+    const std::string exe = config::exeDirectory();
+    if (!exe.empty()) {
+        dirs.push_back(exe + "/fonts");
+        dirs.push_back(exe + "/../fonts");
     }
-    auto [pos, inserted] = cache.emplace(file, std::move(lf));
-    (void)inserted;
-    return &pos->second.info;
+    const char* windir = std::getenv("WINDIR");
+    std::string sysdir = (windir && *windir) ? windir : "C:\\Windows";
+    std::replace(sysdir.begin(), sysdir.end(), '\\', '/');
+    dirs.push_back(sysdir + "/Fonts");
+#else
+    const std::string exe = config::exeDirectory();
+    if (!exe.empty()) {
+        dirs.push_back(exe + "/fonts");
+        dirs.push_back(exe + "/../fonts");
+    }
+    dirs.emplace_back("/system/fonts");
+#endif
+    return dirs;
+}
+
+/// 加载字体文件 + 初始化 stb 上下文（线程安全；失败进负缓存）
+///
+/// 文件候选（按序）：主名（fontTable 映射产物）→ 平台文件级兜底链
+///（Android 既有）→ 终极保底 kTerminalFontFile（两端统一；Windows
+/// 2026-11-24 起同享——此前 Windows 单文件单目录，表内字体缺文件即
+/// 渲染失败，名字级回退救不了"表命中但文件缺"，如英文系统 KaiTi）。
+/// 命中后以实际文件名入 cache（下次直接命中）；负缓存只记主名——
+/// 兜底链保留试探（几个 stat 的代价，POSIX 既有语义推广到两端）。
+
+const stbtt_fontinfo* loadFont(const std::string& file) {
+    std::lock_guard<std::mutex> lock(fontMutex());
+    auto& cache = fontCache();
+    if (const auto it = cache.find(file); it != cache.end())
+        return &it->second.info;
+    if (failedCache().count(file)) return nullptr;
+
+    // 文件候选链：主名 → 平台文件级兜底链（Android 既有）→ 终极保底
+    //（两端统一；主名与保底同名时自然去重）
+    std::vector<std::string> candidates{file};
+#ifdef __ANDROID__
+    for (const char* fb : kPosixFontFallbacks) candidates.emplace_back(fb);
+#endif
+    if (file != kTerminalFontFile) candidates.emplace_back(kTerminalFontFile);
+
+    // 目录 × 文件 候选矩阵（目录序见 fontDirs；命中以实际文件名入 cache）
+    // 【u8Path 豁免】目录产物（WINDIR/exe 路径/env）与文件名均为 ACP
+    // 窄字节（英文 Windows 恒 ASCII；中文 Windows 系统目录与常见安装
+    // 目录亦为 ACP 可表示命名），窄串直传 ifstream 与 ACP 语义一致；
+    // 此处若强转 UTF-8 反而损坏字节（同 WINDIR 豁免注释）。
+    const std::vector<std::string> dirs = fontDirs();
+    for (const auto& name : candidates) {
+        if (const auto hit = cache.find(name); hit != cache.end())
+            return &hit->second.info;
+        for (const auto& dir : dirs) {
+            LoadedFont lf;
+            if (!readFontFile(dir + "/" + name, lf)) continue;
+            auto [pos, inserted] = cache.emplace(name, std::move(lf));
+            (void)inserted;
+            return &pos->second.info;
+        }
+    }
+    failedCache().insert(file); // 只负缓存主名：兜底链保留试探
+    return nullptr;
 }
 
 /// 排版上下文（measure / render 共用的字体度量）

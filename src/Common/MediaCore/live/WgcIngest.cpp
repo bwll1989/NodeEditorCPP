@@ -125,8 +125,9 @@ ComPtr<ID3D11Device> createD3DDevice() {
 // 生命周期（线程/诊断/兜底壳继承 IngestBase；构造只落配置）
 // ---------------------------------------------------------------------------
 WgcIngest::WgcIngest(Kind kind, std::string source_ref, int latency_mode,
-                     FrameSink sink)
-    : IngestBase(std::move(source_ref), latency_mode, std::move(sink)),
+                     std::int64_t schedule_delay_us, FrameSink sink)
+    : IngestBase(std::move(source_ref), latency_mode, schedule_delay_us,
+                 std::move(sink)),
       kind_(kind) {}
 
 WgcIngest::~WgcIngest() = default;
@@ -264,13 +265,41 @@ void WgcIngest::recvLoop() {
                         continue;
                     }
                 }
-                f = readback.read(context.Get(), tex);
+                f = readback.read(context.Get(), tex, schedule_delay_us_);
                 tex->Release(); // surface 引用独立——立即释放本指针
             } catch (...) {
                 Sleep(kPollIntervalMs);
                 continue;
             }
-            if (f == nullptr) continue;
+            if (f == nullptr) continue; // 预算已在 read() 内打戳（可变处）
+            // 【2026-11-25 帧率取证】采集端帧率（5s 一条）——链路瓶颈段
+            // 定位第一环：WGC 帧池按内容变化产帧，动态内容应 30-60fps。
+            {
+                using namespace std::chrono;
+                const std::int64_t now_ms =
+                    duration_cast<milliseconds>(
+                        steady_clock::now().time_since_epoch())
+                        .count();
+                static thread_local std::int64_t  s_last_ms = 0;
+                static thread_local std::uint64_t s_last_n  = 0;
+                if (s_last_ms == 0) {
+                    s_last_ms = now_ms;
+                    s_last_n =
+                        frames_received_.load(std::memory_order_relaxed);
+                } else if (now_ms - s_last_ms >= 5000) {
+                    const std::uint64_t n =
+                        frames_received_.load(std::memory_order_relaxed);
+                    std::fprintf(stderr,
+                                 "wgc: 采集帧率 %.1f fps（累计 %llu）%dx%d\n",
+                                 double(n - s_last_n) /
+                                     double(now_ms - s_last_ms) * 1000.0,
+                                 static_cast<unsigned long long>(n),
+                                 f->w, f->h);
+                    std::fflush(stderr);
+                    s_last_ms = now_ms;
+                    s_last_n  = n;
+                }
+            }
             emitFrame(std::move(f));
         }
 
@@ -321,18 +350,20 @@ std::vector<IngestSource> listWgcMonitorSources(std::uint32_t wait_ms) {
 
 std::unique_ptr<ILiveIngest> makeWgcWindow(std::string source_name,
                                            int        latency_mode,
+                                           std::int64_t schedule_delay_us,
                                            ILiveIngest::FrameSink sink) {
     return std::make_unique<WgcIngest>(WgcIngest::Kind::Window,
                                        std::move(source_name), latency_mode,
-                                       std::move(sink));
+                                       schedule_delay_us, std::move(sink));
 }
 
 std::unique_ptr<ILiveIngest> makeWgcMonitor(std::string source_name,
                                             int        latency_mode,
+                                            std::int64_t schedule_delay_us,
                                             ILiveIngest::FrameSink sink) {
     return std::make_unique<WgcIngest>(WgcIngest::Kind::Monitor,
                                        std::move(source_name), latency_mode,
-                                       std::move(sink));
+                                       schedule_delay_us, std::move(sink));
 }
 
 } // namespace ms

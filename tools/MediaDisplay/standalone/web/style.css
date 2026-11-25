@@ -902,6 +902,68 @@ input.inline-rename {
 
 /* 极窄顶栏收敛（≤600px）：输出校准入口/版本号/总时长/品牌文字让位，
    设置按钮只留 ⚙ 图标——390px 手机竖屏下顶栏不挤压不破碎 */
+/* ---- 运行日志浮层（顶栏"▤ 日志"；两模式均可用；2026-11-24）----------------
+   数据源 = /api/v1/logs 增量轮询（display 进程 stdout/stderr 重定向，
+   见 standalone/log_hub.cpp）——FlowDisplay 无黑窗后的日志观看面。 */
+#logs-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(27, 33, 19, .48);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 40px 16px; overflow-y: auto;
+  animation: overlay-in .15s ease;
+}
+#logs-card {
+  background: var(--panel); border-radius: 10px; box-shadow: var(--shadow-md);
+  width: 920px; max-width: 94vw; height: min(78vh, 720px);
+  display: flex; flex-direction: column; padding: 14px 18px;
+  animation: card-in .18s cubic-bezier(.2, .9, .3, 1.2);
+}
+/* 顶栏按钮未读角标（浮层关闭期间到达的行数） */
+.log-badge {
+  display: inline-block; min-width: 16px; margin-left: 5px;
+  padding: 0 5px; border-radius: 9px;
+  background: var(--danger); color: #fff;
+  font-size: 10.5px; font-weight: 700; line-height: 15px; text-align: center;
+}
+#logs-list {
+  flex: 1; min-height: 0; overflow-y: auto;
+  background: var(--paper-2); border: 1px solid var(--border); border-radius: 8px;
+  /* 等宽栈：日志主体（时间戳/级别/文本对齐靠 mono 度量） */
+  font: 11.5px/1.55 Consolas, "Cascadia Mono", "Courier New", monospace;
+  padding: 5px 0; overscroll-behavior: contain;
+}
+.log-empty { padding: 18px 12px; color: var(--ink-3); text-align: center; }
+.log-line {
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 1px 10px; white-space: pre-wrap; word-break: break-all;
+}
+.log-line:hover { background: var(--paper-3); }
+.log-t { flex: none; color: var(--ink-3); font-size: 10.5px; }
+.log-lv {
+  flex: none; width: 40px; text-align: center;
+  font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+  border-radius: 4px; padding: 0 3px;
+  background: var(--paper-3); color: var(--ink-2);
+}
+.log-line.lv-warn .log-lv { background: var(--warning-soft); color: #8A6116; }
+.log-line.lv-error .log-lv { background: var(--danger-soft); color: var(--danger); }
+.log-msg { min-width: 0; color: var(--ink-2); }
+.log-line.lv-warn .log-msg { color: #8A6116; }
+.log-line.lv-error .log-msg { color: var(--danger); }
+.logs-foot {
+  display: flex; align-items: center; gap: 10px; margin-top: 10px;
+  padding-top: 10px; border-top: 1px solid var(--border);
+}
+.logs-foot .hint { flex: none; }
+.logs-foot .hint.bad { color: var(--danger); }   /* 旧版 display（无日志接口）提示 */
+.logs-foot .grow { flex: 1; }
+#log-filter {
+  width: 240px; padding: 4px 8px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); color: var(--ink); font-size: 12px;
+}
+#log-filter:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+
 @media (max-width: 600px) {
   .brand .ver-chip, #btn-mpcdi, #transport .tsep, #transport .dur { display: none; }
   #topbar { gap: 6px; }
@@ -915,15 +977,16 @@ input.inline-rename {
   #transport .sep { display: none; }
 }
 
-/* 设置 / MPCDI 浮层小屏全幅（≤640px）：卡片贴边 + 字段单列 */
+/* 设置 / MPCDI / 运行日志浮层小屏全幅（≤640px）：卡片贴边 + 字段单列 */
 @media (max-width: 640px) {
-  #settings-overlay, #mpcdi-overlay { padding: 12px 10px calc(12px + var(--safe-bottom)); }
-  #settings-card, #mpcdi-card {
+  #settings-overlay, #mpcdi-overlay, #logs-overlay { padding: 12px 10px calc(12px + var(--safe-bottom)); }
+  #settings-card, #mpcdi-card, #logs-card {
     width: 100%; max-width: 100%;
     max-height: calc(100vh - 24px);
     max-height: calc(100dvh - 24px);
     padding: 12px;
   }
+  #logs-card { height: min(80vh, 640px); }
   .set-groups fieldset { grid-template-columns: 1fr; }
   .set-groups .row4 { grid-template-columns: 1fr 1fr; }
 }

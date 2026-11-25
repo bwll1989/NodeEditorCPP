@@ -51,9 +51,11 @@ std::uint64_t IngestBase::framesDropped() const noexcept {
     return frames_dropped_.load(std::memory_order_relaxed);
 }
 
-IngestBase::IngestBase(std::string source_ref, int latency_mode, FrameSink sink)
+IngestBase::IngestBase(std::string source_ref, int latency_mode,
+                       std::int64_t schedule_delay_us, FrameSink sink)
     : source_ref_(std::move(source_ref)),
       latency_mode_(latency_mode),
+      schedule_delay_us_(schedule_delay_us),
       sink_(std::move(sink)) {}
 
 IngestBase::~IngestBase() { stop(); } // 未 stop 的实例兜底停线程

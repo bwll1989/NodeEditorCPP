@@ -666,17 +666,6 @@ QCalendarWidget QAbstractItemView {
      color: #DDDDDD;
      background: transparent;
  }
- #framelessDialogClose {
-     background: transparent;
-     border: none;
-     border-radius: 3px;
-     color: #AAAAAA;
-     font-weight: bold;
- }
- #framelessDialogClose:hover {
-     background-color: rgba(255,255,255,30);
-     color: #FFFFFF;
- }
  #framelessDialogPrimary {
      background-color: #79AE31;
      border: 1px solid #79AE31;

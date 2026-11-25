@@ -1,7 +1,9 @@
 // ============================================================================
 //  LiveMediaSource —— 实时源媒体（IMediaSource 实现；Live Hub 消费端）
 //
-//  双模式（架构定稿 2026-11-06"源统一接收转发"；NDI 分发退役 2026-11-21）：
+//  双模式（架构定稿 2026-11-06"源统一接收转发"；NDI 分发 2026-11-24
+//  短暂复活后于 2026-11-25 再退役——带宽按接收端数放大，跨机 WLAN 卡死；
+//  转发通道回归 MPEG-TS over UDP 组播）：
 //    * Hub 模式（editor 预览进程内）：prepare 探针 LiveHub::probeFeed
 //      命中 → 帧直接取自 Hub 进程内缓冲（零中间拷贝——
 //      架构③路径"预览进程内直用"）；
@@ -19,14 +21,20 @@
 //      RGBA→YUV→RGBA 编解码一代）、latency=0 drain（宁丢勿延迟）/
 //      latency=1 直通（SDK 队列缓冲 2~3 帧）、不插帧。
 //
-//  帧同步排程（2026-11-21 定稿，仅 display 直收模式生效）：
-//    * 每帧在 Ingest 产出点打接收戳 pts_us（进程对齐时钟域，
-//      clock/ClockProvider.hpp processAlignedNowUs——display 端含 SNTP
-//      offset，editor 端 fallback offset=0）；
-//    * live_target_latency_us > 0 时按 "target = now - target_latency"
-//      选帧：取 pts <= target 的最大 pts 帧（固定延迟回放语义）——多
-//      display 同戳同延迟 → 跨机帧同步自动成立；排程独立于播放头
-//      （时间轴暂停画面继续流动）；
+//  帧同步排程（2026-11-25 语义定稿：应显时刻随帧走，仅 display 直收模式生效）：
+//    * 每帧带应显时刻 pts_us（= 帧就绪时刻 + 延迟预算，如 120ms；进程
+//      对齐时钟域，clock/ClockProvider.hpp processAlignedNowUs）：
+//      - editor 捕获类源（WGC/Spout/摄像头）在捕获端打"捕获+预算"（v14g
+//        用户定案"editor 端捕获时就把 120ms 加上"）；
+//      - display 组播收流（NetworkIngest）在解码出画点打"解码+预算"——
+//        组播同流同达，多 display 解码时刻差亚毫秒 → 跨机同步成立；
+//      - editor 预览（Hub 模式）用捕获戳 + 组播链路补偿 kHubPathLatencyUs
+//        （60ms，见 .cpp）与 display 同帧；
+//    * live_target_latency_us > 0 时按 "now ≥ pts" 到点回放：取 pts <=
+//      now 的最大 pts 帧（早到等 / 晚到顺延）——显示节拍钉在打戳节拍上，
+//      网络波动只影响到达早晚、不改节拍；排程独立于播放头（时间轴暂停
+//      画面继续流动）。时钟同域由 display 底层（SNTP/ClockProvider）
+//      保证，片段层零补偿；
 //    * =0 时退化 latest 直显（监视语义，与旧行为完全一致，零开销）。
 //    * 缓冲按时间窗 + 帧数硬顶裁剪（storeFrame），内存有界。
 //
@@ -105,14 +113,26 @@ private:
     // ---- 配置（prepare 期固定）----
     std::string source_name_;  ///< NDI 源名（诊断/重连日志用）
     int         latency_mode_ = 0;
-    /// 帧同步目标延迟（微秒；0 = 监视语义 latest 直显）。>0 时 frameView
-    /// 按 "now - target_latency" 选帧（见头注释帧同步排程节）。
+    /// 帧同步延迟预算（微秒；0 = 监视语义 latest 直显）。帧 pts 已含该
+    /// 预算（捕获端打戳：捕获 + 预算 = 应显时刻）——本类仅用它算排程
+    /// 缓冲容量，排程公式恒 "now"（按帧自带 pts 到点回放）。
     std::int64_t target_latency_us_ = 0;
     /// 排程缓冲容量（帧数，prepare 期按 target_latency 动态计算）：
     /// 必须 ≥ target_latency 对应的历史帧数，否则"未到期帧被容量裁剪"
     /// → 选帧恒空 → 永久占位黑屏（审查修复 2026-11-21）。按 30fps 保守
     /// 估计所需历史 + 8 帧余量，clamp [16, 48]（48×8.3MB≈400MB 极限）。
     std::size_t sync_capacity_ = 16;
+
+    // ---- 帧同步（2026-11-25 语义定稿：应显时刻随帧走）----
+    // 帧的 pts_us = 应显时刻（捕获端统一打戳：捕获时刻 + 延迟预算；
+    // "editor 端捕获时就把 120ms 加上"用户定案）——display 片段层只按
+    // 帧自带 pts 到点回放（now ≥ pts 显示；早到等 / 晚到顺延），不做
+    // 任何钟差补偿（时钟同步归 display 底层 SNTP/ClockProvider——片段
+    // 层越层补偿已撤销：v14f 中位数被排队延迟污染致本机幻灯片）。
+    // target_latency_us_ 仅用于缓冲容量计算（帧早到约一个预算时长，
+    // 缓冲需容纳"未来帧"）。
+    /// 排程健康日志限频（frameView 渲染线程写，snap_mutex_ 内，故 mutable）
+    mutable std::int64_t last_sched_log_us_ = 0;
 
     // ---- 诊断 ----
     std::atomic<bool>          connected_{false};

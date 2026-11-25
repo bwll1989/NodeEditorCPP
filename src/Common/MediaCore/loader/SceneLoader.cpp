@@ -925,10 +925,21 @@ bool SceneLoader::validateScene(const Scene& scene, std::string& err) {
             } else {
                 const Asset* asset = scene.findAsset(c.asset_id);
                 if (asset == nullptr) {
-                    err = "R1: clip '" + c.id + "' 引用的素材不存在 (asset_id='" +
-                          c.asset_id + "')";
-                    return false;
-                }
+                    // 【2026-11-24 Text/Live 空 asset 豁免】两类片段天然可
+                    // 无 asset：Live"无文件随场景 pb 分发"（SceneModel 注释
+                    // 明说）；Text 的内容载体虽是 asset（text_content），
+                    // 但编辑中间态（刚建片段未落内容/asset 未建）asset_id
+                    // 恒空——R1 拒收会拖死整场景下发（渲染端本就该对无
+                    // 内容 Text 显示占位帧）。asset_id 非空但找不到仍拒。
+                    const bool optional_asset =
+                        t.kind == AssetKind::Text || c.type == "Text" ||
+                        t.kind == AssetKind::Live  || c.type == "Live";
+                    if (!optional_asset) {
+                        err = "R1: clip '" + c.id + "' 引用的素材不存在 (asset_id='" +
+                              c.asset_id + "')";
+                        return false;
+                    }
+                } else {
 
             // R2：轨道类型校验（2026-11-15 轨道去类型化后降级为「可选
             // hint 校验」——仅当轨道带显式 kind 提示时才校验相等；
@@ -945,6 +956,7 @@ bool SceneLoader::validateScene(const Scene& scene, std::string& err) {
             }
             }
         }
+    }
     }
     return true;
 }

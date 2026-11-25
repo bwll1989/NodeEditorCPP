@@ -11,9 +11,10 @@
 //  根：model/SceneModel.hpp）。
 //
 //  双击 Scene 预览中的 screen 矩形弹出，编辑：
-//    * 画布位置与显示大小（x/y/w/h，虚拟画布像素）
-//    * 旋转角度（度，顺时针绕中心；竖屏/异形拼接的取景窗语义）
-//    * 叠放层级 z（多屏重叠时的绘制先后）
+//    * 画布位置与显示大小（x/y/w/h，画布像素，左上原点 Y 向下）
+//    * 旋转角度（度，面内顺时针绕中心）+ 屏姿态 rot_x/rot_y（度，
+//      投影字段族——冻结保留不扩）
+//    * 输出校色（RGB 线性增益 + Gamma，2026-11-20 Display 级四字段）
 //    * 输出变形（几何结构页内嵌网格编辑器——拖拽控制点实时预览）
 //    * 绑定的显示端（player_id + host + port + 配对码）：
 //        - 【纯手输（2026-11-17 定案）】UDP 广播发现的可靠性在防火墙/
@@ -38,11 +39,6 @@
 #include "model/SceneModel.hpp"
 
 class QLineEdit;
-class QComboBox;
-
-class FloatDragValueWidget; ///< 拖拽数值控件（2026-11-18 全量替换 spinbox；
-                           ///  与节点属性面板同风格）
-class IntDragValueWidget;  ///< 整数族（端口）
 
 namespace ms {
 
@@ -63,7 +59,8 @@ public:
                                   const std::string& cur_pairing_code = {},
                                   QWidget* parent = nullptr);
 
-    /// 把表单值写回 screen（仅在 exec()==Accepted 后调用有意义）
+    /// 把表单值写回 screen（accepted 槽内调用——OK 写回；非模态后无
+    /// exec 返回值语义）
     void applyTo(Screen& s) const;
 
     /// 绑定的显示端登记地址（显示端 host/port 归 .show 登记不归 Scene——
@@ -89,6 +86,18 @@ public:
     void setGeometryLiveApply(std::function<void(const Screen&)> fn) {
         geometry_live_ = std::move(fn);
     }
+
+    /// 【2026-11-25 双向联动·画布→弹窗】画布拖动/缩放/旋转/gizmo 会话更新
+    /// 工作副本后由宿主调用：把场景当前几何+校色刷进控件。内部
+    /// QSignalBlocker 防回环——setValue 触发 valueChanged 会经
+    /// geometry_live_ 再写回场景，与画布会话形成抖动环。
+    void syncFrom(const Screen& s);
+
+    /// 【2026-11-25 display 名称行 = 弹窗标题（用户定案）】标题栏显示绑定
+    /// id + 在线状态 + 地址（宿主组装富文本；display 注册帧无独立名称——
+    /// 名称即绑定 player_id）。打开时注入一次，运行中随宿主 200ms 拍重设
+    ///（上/下线标题内实时可见）。空 = 回退静态标题"Display 属性"。
+    void setDisplayInfo(const QString& text);
 
 private:
     FloatDragValueWidget* x_ = nullptr; ///< 画布坐标 X
@@ -120,7 +129,8 @@ private:
     /// warp 实时应用回调（宿主注入；编辑中转发，未注入则空操作）
     std::function<void(const ScreenWarp&)> warp_live_;
 
-    /// 几何六字段实时回调（2026-11-11；spinbox 变化即转发，未注入则不转发）
+    /// 几何八字段 + 校色四字段实时回调（2026-11-11 起几何，2026-11-20 并入
+    /// 校色；控件变化即转发，未注入则不转发）
     std::function<void(const Screen&)> geometry_live_;
 };
 

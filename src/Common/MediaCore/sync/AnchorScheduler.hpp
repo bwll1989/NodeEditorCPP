@@ -70,6 +70,25 @@ public:
     /// 清空全部未应用锚点（CMD_STOP / 会话切换时）
     void clear() { pending_.clear(); }
 
+    /// 窥探最早锚点（不弹出；"卡未来"域差检测用——2026-11-24）
+    /// \return nullptr = 队列空
+    const Anchor* peek() const {
+        return pending_.empty() ? nullptr : &pending_.begin()->second;
+    }
+
+    /// 弹出最早锚点（无论是否到点；"卡未来"域差兜底专用——2026-11-24）
+    /// 【背景】poll() 只出"到点"锚点：跨机钟差未校准时 Play 锚点（Editor
+    /// 域时戳）落在本机时钟"未来"，可能远超预约窗口——永远 poll 不出，
+    /// applyAnchorLocked 的 2s 域差兜底（应用时才跑）成盲区，display 端
+    /// 卡死在旧状态（Paused@0 等）直到重启。上层检测到"队头未到点且
+    /// 领先量超过任何合法预约窗口"后用本接口取出重表达。
+    std::optional<Anchor> popFront() {
+        if (pending_.empty()) return std::nullopt;
+        const Anchor a = pending_.begin()->second;
+        pending_.erase(pending_.begin());
+        return a;
+    }
+
     /// 是否有待应用锚点（诊断用）
     bool empty() const { return pending_.empty(); }
 

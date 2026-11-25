@@ -56,25 +56,28 @@ std::vector<IngestSource> listNdi(std::uint32_t wait_ms) {
 
 /// NDI 工厂包装（unique_ptr 装箱进 ILiveIngest 接口）
 std::unique_ptr<ILiveIngest> makeNdi(std::string source_name, int latency_mode,
+                                     std::int64_t schedule_delay_us,
                                      ILiveIngest::FrameSink sink) {
     return std::make_unique<NdiIngest>(std::move(source_name), latency_mode,
-                                       std::move(sink));
+                                       schedule_delay_us, std::move(sink));
 }
 
 #ifdef _WIN32
 /// Spout 工厂包装（makeSpoutIngest 签名适配）
 std::unique_ptr<ILiveIngest> makeSpout(std::string source_name, int latency_mode,
+                                       std::int64_t schedule_delay_us,
                                        ILiveIngest::FrameSink sink) {
     return makeSpoutIngest(std::move(source_name), latency_mode,
-                           std::move(sink));
+                           schedule_delay_us, std::move(sink));
 }
 #endif
 
 /// Network 工厂包装（组播/rtsp/srt URL 直开——2026-11-21 组播转发转正）
 std::unique_ptr<ILiveIngest> makeNetwork(std::string source_name, int latency_mode,
+                                         std::int64_t schedule_delay_us,
                                          ILiveIngest::FrameSink sink) {
     return std::make_unique<NetworkIngest>(std::move(source_name), latency_mode,
-                                           std::move(sink));
+                                           schedule_delay_us, std::move(sink));
 }
 
 /// 注册表（顺序 = UI 下拉顺序；未实现条目保留占位——UI 置灰可见）。

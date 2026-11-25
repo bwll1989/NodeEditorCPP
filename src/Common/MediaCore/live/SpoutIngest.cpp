@@ -36,8 +36,10 @@ constexpr DWORD kPollIntervalMs = 16;
 // ---------------------------------------------------------------------------
 // 生命周期（线程/诊断/兜底壳继承 IngestBase；构造只落配置）
 // ---------------------------------------------------------------------------
-SpoutIngest::SpoutIngest(std::string sender_name, int latency_mode, FrameSink sink)
-    : IngestBase(std::move(sender_name), latency_mode, std::move(sink)) {}
+SpoutIngest::SpoutIngest(std::string sender_name, int latency_mode,
+                         std::int64_t schedule_delay_us, FrameSink sink)
+    : IngestBase(std::move(sender_name), latency_mode, schedule_delay_us,
+                 std::move(sink)) {}
 
 SpoutIngest::~SpoutIngest() = default;
 
@@ -134,9 +136,10 @@ void SpoutIngest::recvLoop() {
 
         // ---- 读回：mutex 防御 → CopyResource+Map（共享工具）→ sink ----
         const bool locked = fcount.CheckTextureAccess(shared_tex);
-        LiveFramePtr frame = readback.read(context, shared_tex);
+        LiveFramePtr frame =
+            readback.read(context, shared_tex, schedule_delay_us_);
         if (locked) fcount.AllowTextureAccess(shared_tex);
-        if (frame == nullptr) continue;
+        if (frame == nullptr) continue; // 预算已在 read() 内打戳（可变处）
         emitFrame(std::move(frame));
     }
 
@@ -159,9 +162,10 @@ std::vector<IngestSource> listSpoutSources(std::uint32_t wait_ms) {
 
 std::unique_ptr<ILiveIngest> makeSpoutIngest(std::string sender_name,
                                              int        latency_mode,
+                                             std::int64_t schedule_delay_us,
                                              ILiveIngest::FrameSink sink) {
     return std::make_unique<SpoutIngest>(std::move(sender_name), latency_mode,
-                                         std::move(sink));
+                                         schedule_delay_us, std::move(sink));
 }
 
 } // namespace ms

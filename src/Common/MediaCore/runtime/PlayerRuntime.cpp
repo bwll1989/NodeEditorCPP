@@ -74,6 +74,12 @@ constexpr std::int64_t kOffsetAdoptDeltaUs = 10'000;     // 采纳阈值 10ms
 // 则本轮放弃（Editor 端探测响应已改直发，污染源消除后干净率应近 100%；
 // 本过滤是二道防线，同时把"Editor 端拥堵"变成可观测信号）。
 constexpr std::int64_t kProbeCleanRttUs = 10'000;        // 干净样本 RTT 上限
+// 【卡未来锚点兜底阈值 2026-11-24】锚点领先本机时钟超过该值 = 跨机钟差
+// 未校准实锤（合法预约窗口 = reanchor_lead，亚秒级；协议当前全部调用方
+// 均为立即锚点，无预约开播调用方）——按本机时钟重表达轴原点立即应用。
+// 覆盖 applyAnchorLocked 2s 域差兜底的盲区：该兜底在"应用时"才跑，而
+// 卡未来的锚点永远 poll 不出（poll 只出到点项）→ 永远轮不到兜底。
+constexpr std::int64_t kAnchorStuckAheadUs = 5'000'000;
 } // namespace（文件局部常量到此；成员函数不可定义于匿名命名空间）
 
 using ms_proto::Envelope;
@@ -172,10 +178,11 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
             cur_off  = clock_.offsetUs();
             received = probe_recv_; // 结算前留存（下面 clear）
             probe_samples_.clear();
-            // 首次（offset==0）必采纳；此后仅显著变化才写（±10ms 防抖，避免
-            // 测量噪声反复微调播放头）
+            // 首次（cur_off==0）必采纳；此后仅残余显著才写（±10ms 防抖，
+            // 避免测量噪声反复微调播放头）。offset 语义 = 残余误差（见
+            // onProbeResponse 与下方写入处注释），≈0 = 已对齐。
             adopt = (cur_off == 0 ||
-                     std::llabs(offset - cur_off) > kOffsetAdoptDeltaUs);
+                     std::llabs(offset) > kOffsetAdoptDeltaUs);
         }
     }
     // 锁外打印（锁内绝不做 I/O 纪律；now_us/now_ms 仅 tick 线程 touch）
@@ -195,14 +202,23 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
     }
     if (fail_streak > 0) return; // 失败但未到告警阈值：静默等下轮
     if (adopt) {
-        clock_.setOffsetUs(offset); // 原子量，锁外写安全（写者=tick 结算 +
-                                    // recv 被动校准双通道；丢更新无害——
-                                    // 两者都朝真值收敛，下一轮自愈）
+        // 【振荡根因修复 2026-11-24】T1/T4 取对齐读数（含 cur_off）→
+        // SNTP 测量值 = 真差 θ − cur_off（残余误差，与被动校准 raw 同构；
+        // 原注释"T1/T4 同含 offset 相减抵消"有误：off_cur 在 (T2-T1) 与
+        // (T3-T4) 中同号不抵消）。覆盖写入构成 x_{n+1} = θ - x_n 的
+        // 2-周期振荡：offset 在 0 ↔ θ 之间每 30s 翻转（实测现场：
+        // +0.002s ↔ -10.687s 拉锯，播放头瞬移 10.7s = "突发性播放几秒
+        // 其他视频，然后又恢复"）。统一公式（与心跳被动校准同构）：
+        // off_new = cur_off + 残余 ≡ θ，不动点唯一，两通道同向收敛。
+        const std::int64_t new_off = cur_off + offset;
+        clock_.setOffsetUs(new_off); // 原子量，锁外写安全（写者=tick 结算 +
+                                     // recv 被动校准双通道；丢更新无害——
+                                     // 两者都朝真值收敛，下一轮自愈）
         // stderr 通道（项目日志纪律：无缓冲即时落盘，stdout 重定向为全缓冲）
         std::fprintf(stderr,
                      "player: 时钟校准: offset=%+.3fs rtt=%.1fms"
                      "（旧 offset=%+.3fs；干净样本=%d/%d%s）\n",
-                     static_cast<double>(offset) / 1e6,
+                     static_cast<double>(new_off) / 1e6,
                      static_cast<double>(rtt) / 1e3,
                      static_cast<double>(cur_off) / 1e6,
                      received - polluted, received,
@@ -215,8 +231,12 @@ void PlayerRuntime::settleProbe(std::int64_t now_us) {
 }
 
 /// 探测响应（UDP recv 线程上下文）：SNTP 四时间戳算本样本 offset/rtt。
-/// T1/T4 同含当前生效 offset，相减抵消——测量与既有 offset 数学解耦，
-/// 反复校准无反馈发散。
+/// 【语义勘误 2026-11-24】T1/T4 均为对齐钟读数（含 cur_off）——测量值
+/// = 真差 θ - cur_off（**残余误差**，与被动校准 raw 同构），并非原注释
+/// 所称"T1/T4 同含 offset 相减抵消"（off_cur 在 (T2-T1) 与 (T3-T4) 中
+/// 同号，不抵消）。因此结算必须累加（cur_off + 测量值 ≡ θ）；覆盖写会
+/// 构成 x↔θ-x 振荡（2026-11-24 实锤：offset 每 30s 在 0↔-10.7s 翻转，
+/// 播放头瞬移）。RTT 公式 (T4-T1)-(T3-T2) 中 offset 恒相减抵消，不受影响。
 void PlayerRuntime::onProbeResponse(const SyncFrame& f,
                                     std::int64_t t4_us) {
     std::lock_guard<std::mutex> lock(probe_mutex_);
@@ -533,7 +553,11 @@ void PlayerRuntime::stop() {
     asset_quit_.store(true);
     // 最后 join 素材线程（若在拉取中会等当前 HTTP 超时/完成——避免线程
     // 引用已销毁的成员；正常联测素材早已拉完，join 立即返回）
-    if (asset_thread_.joinable()) asset_thread_.join();
+    // 【2026-11-24】与 fetchAssetsAsync 同锁：listener_.stop() 已 join 全部
+    // recv 线程（竞态源头已终结），此处加锁仅为锁序完备性——防未来 stop
+    // 提前/recv join 语义变化时重开"双 join 同一线程"窗口。
+    { std::lock_guard<std::mutex> takeover(asset_thread_mx_);
+      if (asset_thread_.joinable()) asset_thread_.join(); }
 }
 
 void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
@@ -649,7 +673,22 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
             editor_http_port_ = http_port;
             // 学习 Editor 主机（§6 地址互相学习；监听模式下本端不配置
             // Editor 地址——素材 HTTP 拉取的主机部分以 Ack 告知为准）
-            if (!ack.udp_host().empty()) editor_host_learned_ = ack.udp_host();
+            // 【Android 模拟器回连适配 2026-11-23】Editor 经 adb forward
+            // 以 127.0.0.1 连入时，Ack.udp_host = Editor 的 socket 本端
+            // 地址 = 127.0.0.1——但 display 侧的 loopback 是模拟器自身，
+            // 直接采用会把 UDP 上报/SNTP 探测/素材 HTTP 全部发给自己。
+            // 模拟器的宿主 loopback 统一走 NAT 网关 10.0.2.2（实测可达：
+            // fake_editor 素材/心跳链即以此地址闭环）。真机场景 Editor
+            // 从局域网连入，Ack 不会携带 loopback，不受影响。
+            {
+                std::string learned = ack.udp_host();
+#ifdef __ANDROID__
+                if (learned == "127.0.0.1" || learned == "localhost" ||
+                    learned == "::1" || learned == "::ffff:127.0.0.1")
+                    learned = "10.0.2.2";
+#endif
+                if (!learned.empty()) editor_host_learned_ = learned;
+            }
             // 【指派 id 2026-11-06】Editor 随 Ack 下发工程槽位 id：连接靠
             // ip:port，屏身份由 Editor 指派、本端采用——非空且 ≠ 生效 id
             // 时覆盖（自报 --id 只是本地标签）。采用后重新注册：Editor
@@ -683,8 +722,10 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
             fetchAssetsAsync(editor_host_learned_, http_port);
         }
         // 学习 Editor 的 UDP 心跳地址（Ack 下发）→ 后续上报帧发往此处
-        if (ack.udp_port() != 0 && !ack.udp_host().empty())
-            udp_.set_remote(ack.udp_host(),
+        //（host 已在上方做过 Android loopback→10.0.2.2 替换，此处用
+        // editor_host_learned_ 保持同源，避免两处判定漂移）
+        if (ack.udp_port() != 0 && !editor_host_learned_.empty())
+            udp_.set_remote(editor_host_learned_,
                             static_cast<std::uint16_t>(ack.udp_port()));
         std::fprintf(stderr, "[%lld][player] 注册成功 session=%s editor_udp=%s:%u http=%s:%u\n",
                     tsMs(),
@@ -747,11 +788,11 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
             }
             std::fprintf(stderr,
                          "[%lld][player] 场景已接收: id=%s version=%s "
-                         "(%zu 字节) 解析=%lldus clips=%zu %s\n",
+                         "(%zu 字节) 解析=%lldus clips=%zu assets=%zu %s\n",
                         tsMs(),
                         msg.scene_id().c_str(), msg.version().c_str(),
                         msg.payload().size(), static_cast<long long>(parse_us),
-                        clip_cnt, clip0);
+                        clip_cnt, snap ? snap->assets.size() : 0, clip0);
             std::fflush(stderr);
         }
         // 【场景内容摘要 2026-11-13】"display 收到的到底是什么"一线可见——
@@ -907,22 +948,33 @@ void PlayerRuntime::onUdpFrame(const SyncFrame& f,
         return;
     }
 
-    std::string  aligned_session; // 【锁内绝不做 I/O】锁内改状态，
-    std::int64_t aligned_t = 0;   // 出锁后打印（同 settleProbe/诊断日志纪律）
+    std::string   aligned_session; // 【锁内绝不做 I/O】锁内改状态，
+    std::int64_t  aligned_t = 0;   // 出锁后打印（同 settleProbe/诊断日志纪律）
+    const char*   rescue_kind = nullptr; // "迟到加入" | "Paused卡死救援"
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
 
         // 会话过滤：已入会话后，其他会话的心跳一律丢弃（§6.2）
         if (!session_id_.empty() && f.session_id != session_id_) return;
 
-        // ---- 迟到加入软对齐：Idle 时收到 Playing 心跳 → 直接开播 ----
+        // ---- 心跳软对齐救援（Idle=迟到加入；Paused=卡死救援 v13）----
         // session_start 为全场共享值（Editor 心跳帧里带着），抄过来即对齐；
         // current 以 Editor 的 session_time 为初值（误差 = 单向网络延迟，
         // 由纠偏环吸收）。
         // 【防御】负播放头 = Editor 已广播 play 但锚点未到——不接受，
         // 否则会"提前开播"破坏 §6.1 到点执行语义。
-        if (state_ == PlayState::Idle && f.state == PlayState::Playing &&
+        // 【Paused 救援 2026-11-24】心跳应答帧的 state 是 Editor 权威状态
+        // （beat.state = Editor state_）：Paused 端收到 Playing 心跳 = Play
+        // 转换确实丢失（重锚卡未来/UDP 丢包/注册对账空窗），照抄 Editor
+        // 位置直接拉起是安全的——纠偏环随后吸收残余偏差。原实现只救 Idle，
+        // "媒体同步后必须重启才能播放"的现场（Paused@0 卡 35~40s）正是
+        // 该盲区：卡未来 Play 锚点 poll 不出、软对齐又不认 Paused。
+        const bool st_rescuable =
+            state_ == PlayState::Idle || state_ == PlayState::Paused;
+        if (st_rescuable && f.state == PlayState::Playing &&
             f.session_time_us >= 0) {
+            rescue_kind = state_ == PlayState::Idle ? "迟到加入"
+                                                    : "Paused卡死救援";
             session_id_       = f.session_id;
             // 【域差兜底 2026-11-20】轴原点本机化重表达：本机对齐时钟读数
             // - 会话时刻，替代直接抄 Editor 域的 f.session_start_us——两端
@@ -942,7 +994,8 @@ void PlayerRuntime::onUdpFrame(const SyncFrame& f,
     }
     if (!aligned_session.empty())
         std::fprintf(stderr,
-                     "player: 心跳软对齐（迟到加入）: session=%s t=%lldus\n",
+                     "player: 心跳软对齐（%s）: session=%s t=%lldus\n",
+                     rescue_kind ? rescue_kind : "未知",
                      aligned_session.c_str(),
                      static_cast<long long>(aligned_t));
 
@@ -1136,6 +1189,7 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
         std::int64_t late_us;   ///< 应用时刻 - 锚点时刻（迟到量）
     };
     std::vector<AppliedInfo> applied; // 锁内收集 POD，锁外打印+回 Ack
+    int stuck_rescued = -1;           // 卡未来兜底触发的 cmd（-1=未触发）
     {
         std::lock_guard<std::mutex> lock(state_mutex_);
         while (auto a = scheduler_.poll(aligned_now_us)) {
@@ -1151,6 +1205,32 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
                                a->anchor_time_us == 0
                                    ? 0
                                    : aligned_now_us - a->anchor_time_us});
+        }
+
+        // ---- 卡未来锚点兜底（v13 2026-11-24）----
+        // poll 只出"到点"项。跨机钟差未校准时（典型：安卓平板走 卓易通
+        // WiFi，SNTP 冷启动空窗被媒体同步流量挤占/污染），Editor 域的
+        // Play 锚点时戳可能落在本机时钟"未来"且领先量远超任何合法预约
+        // 窗口（reanchor_lead 亚秒级；当前协议全部调用方均为立即锚点）
+        // → 永远 poll 不出 → applyAnchorLocked 的 2s 域差兜底（应用时
+        // 才跑）成盲区 → display 卡死在旧状态（如 Paused@0）直到重启
+        // APP。此处检测队头"未到点且领先 > kAnchorStuckAheadUs"后取出、
+        // 按本机时钟重表达立即应用——锚点的"anchored 会话时刻"语义
+        // 不变，applyAnchorLocked 内部公式以 anchor_time 推 session_start，
+        // 把 anchor_time 搬到 now 即"立即从 anchored 接着播"。
+        if (auto head = scheduler_.peek();
+            head && head->anchor_time_us != 0 &&
+            head->anchor_time_us - aligned_now_us > kAnchorStuckAheadUs) {
+            if (auto a = scheduler_.popFront()) {
+                const std::int64_t orig_anchor = a->anchor_time_us;
+                a->anchor_time_us = aligned_now_us; // 轴原点本机化重表达
+                applyAnchorLocked(*a, aligned_now_us);
+                // Ack 携带 Editor 原始 anchor_time（Editor 按它匹配超时）；
+                // 迟到量=本机化前领先量，保留证据
+                applied.push_back({orig_anchor, a->cmd, state_, current_us_,
+                                   orig_anchor - aligned_now_us});
+                stuck_rescued = static_cast<int>(a->cmd);
+            }
         }
     }
     for (const auto& ai : applied) {
@@ -1169,6 +1249,15 @@ void PlayerRuntime::tick(std::int64_t aligned_now_us) {
         std::fflush(stderr);
         // Ack 回发（协议 §6：调试/超时检测用；listener_.send_to 线程安全）
         sendAck(ai.anchor_time_us, true, "applied");
+    }
+    if (stuck_rescued >= 0) {
+        std::fprintf(stderr,
+                     "[%lld][player] ⚠卡未来锚点兜底: cmd=%d 领先本机时钟>"
+                     "%lldms（SNTP 未校准实锤，锚点按本机时钟重表达立即应用）"
+                     "——观察后续「时钟差观测/校准」行\n",
+                     tsMs(), stuck_rescued,
+                     static_cast<long long>(kAnchorStuckAheadUs / 1000));
+        std::fflush(stderr);
     }
 
     // ---- 2. 播放头推进 + 纠偏（仅 Playing；锁内完成保证一致性）----
@@ -1374,6 +1463,14 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
         return;
     }
 
+    // 【2026-11-24 闪退修复】并发进入串行化（机制详见 asset_thread_mx_ 注释）：
+    // 多连接并存（重连新旧连接/多 Editor）时各 recv 线程同时进入本函数，
+    // 对同一 asset_thread_ 双 join——败者持已失效 pthread_t 进 pthread_join，
+    // bionic 判无效句柄直呼 abort（无打印闪退；addr2line 实证崩溃 PC=join
+    // 调用返回地址、栈=bionic abort 链、RSS 仅 246MB 排除 OOM）。排队语义
+    // =后到者接管（与既有序列化行为一致）；锁序 本锁→state_mutex_ 无反转。
+    std::lock_guard<std::mutex> takeover(asset_thread_mx_);
+
     // ---- 拷贝素材表（值语义）+ 依赖过滤：线程只访问拷贝，避免与 scene_
     // 数据竞争（后续场景重发会在锁内覆盖 scene_，而拉取线程生命周期更长）
     // 素材依赖（§5.5 设计补丁）：只拉"clip 绘制矩形 ∩ 本机 screen 矩形
@@ -1543,6 +1640,11 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
     asset_thread_ = std::thread(
         [this, my_gen, list = std::move(list), http_host, http_port,
          skipped, total_assets]() {
+        // 【2026-11-24 Android 兜底】素材线程内任何 std::exception
+        //（filesystem/bad_alloc/...）此前会逃逸线程函数 = std::terminate
+        // 全进程无日志闪退（卓易通容器"同步视频瞬间崩溃"形态吻合）。
+        // 整线程 catch-all：异常转日志，进程保活（下一轮自愈继续）。
+        try {
             // 确保落盘根目录存在（含子目录；幂等）
             // 【u8Path 必经】assets_root 配置可含中文——窄串构造 path
             // 遇非法 GBK 序列即抛（worker 线程内 terminate）
@@ -1910,6 +2012,12 @@ void PlayerRuntime::fetchAssetsAsync(const std::string& http_host,
                         std::chrono::milliseconds(20));
                 }
             }
+        } catch (const std::exception& e) {
+            std::fprintf(stderr,
+                         "player: 素材线程异常退出: %s\n", e.what());
+        } catch (...) {
+            std::fprintf(stderr, "player: 素材线程未知异常退出\n");
+        }
         });
 }
 

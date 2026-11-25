@@ -9,9 +9,9 @@
 //  analyzeduration 0 + 3s 超时断流检测）→ H.264 软解（硬解后续可加）
 //  → sws YUV→RGBA → LiveFrame 打进程对齐接收戳 → sink。
 //
-//  打戳语义：display 端接收/解码完成时刻（processAlignedNowUs，含
-//  SNTP offset）——与帧同步排程（LiveMediaSource pts+target_latency）
-//  无缝衔接：多 display 同戳同延迟 → 跨机帧同步。
+//  打戳语义：display 端解码出画时刻 + 延迟预算（processAlignedNowUs + 
+//  schedule_delay_us，含 SNTP offset；pts 语义 = 应显时刻 2026-11-25）——
+//  组播同流同达 → 多 display 解码时刻差亚毫秒，同戳同延迟 → 跨机帧同步。
 //
 //  自愈：av_read_frame 失败/超时 → 关闭重开（500ms 退避）；源离线
 //  占位语义与 NdiIngest 一致。线程骨架继承 IngestBase（start/stop/
@@ -28,8 +28,10 @@ class NetworkIngest final : public IngestBase {
 public:
     /// \param url 流地址（udp://239.x.x.x:port 组播 / rtsp:// / srt://）
     /// \param latency_mode 0=最低（NOBUFFER 直通）1=同步（稍大缓冲）
-    NetworkIngest(std::string url, int latency_mode, FrameSink sink)
-        : IngestBase(std::move(url), latency_mode, std::move(sink)) {}
+    NetworkIngest(std::string url, int latency_mode,
+                  std::int64_t schedule_delay_us, FrameSink sink)
+        : IngestBase(std::move(url), latency_mode, schedule_delay_us,
+                     std::move(sink)) {}
 
 protected:
     void recvLoop() override;

@@ -293,7 +293,28 @@ void ControlServer::recv_loop(std::uint64_t conn_id, const ConnPtr& conn) {
                 const auto it = conns_.find(conn_id);
                 if (it != conns_.end()) it->second->player_id = env.register_().player_id();
             }
-            if (on_envelope_) on_envelope_(conn_id, env);
+            // 【2026-11-24 Android 加固】信令回调（场景解析/素材拉取
+            // spawn/join 全在 handler 内跑）此前只防 Poco——handler 内
+            // 任何 std::exception（filesystem/bad_alloc/protobuf...）会
+            // 逃逸 recv 线程 = std::terminate 全进程无日志闪退。包兜底：
+            // 异常转日志，连接保持（下帧继续），进程保活。
+            if (on_envelope_) {
+                try {
+                    on_envelope_(conn_id, env);
+                } catch (const std::exception& e) {
+                    std::fprintf(stderr,
+                                 "[%lld][ctrl-server] conn %llu 信令处理"
+                                 "异常: %s\n", tsMs(),
+                                 (unsigned long long)conn_id, e.what());
+                    std::fflush(stderr);
+                } catch (...) {
+                    std::fprintf(stderr,
+                                 "[%lld][ctrl-server] conn %llu 信令处理"
+                                 "未知异常\n", tsMs(),
+                                 (unsigned long long)conn_id);
+                    std::fflush(stderr);
+                }
+            }
         }
         if (!running_.load()) break;
     }

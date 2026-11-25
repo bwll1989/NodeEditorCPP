@@ -2,6 +2,7 @@
 #include "MediaLibraryWidget.h"
 #include "MediaLibraryTree.h"
 #include "Common/ProcessGuard/SpawnNoInherit.hpp"  // bInheritHandles=FALSE 派生（幽灵 socket 修复）
+#include <QDebug>
 #include <QStandardItem>
 #include <QApplication>
 #include <QMessageBox>
@@ -144,9 +145,23 @@ void MediaLibraryWidget::initializeContextMenu()
                 // startDetached 句柄继承会把本进程 socket 句柄复制给
                 // explorer 并长期存活（Flow 退出后端口仍被幽灵句柄占据）。
                 // 统一走 bInheritHandles=FALSE 派生。
+                // 【2026-11-25 修】spawnNoInherit 的 exe 实参走 CreateProcessW
+                // 的 lpApplicationName——部分名只按「当前盘+当前目录」补全、
+                // 不搜 PATH/Windows 目录（MSDN），传 "explorer.exe" 必然
+                // ERROR_FILE_NOT_FOUND（err=2）→ 右键「在资源管理器中显示」
+                // 静默无效（实证：临时探针 ok=0 err=2；改绝对路径 ok=1 且
+                // 资源管理器正常弹出选中）。显式解析 %SystemRoot% 绝对路径。
+                const QString windir = qEnvironmentVariable("SystemRoot");
+                const QString explorer =
+                    QDir(windir.isEmpty() ? QStringLiteral("C:/Windows") : windir)
+                        .absoluteFilePath(QStringLiteral("explorer.exe"));
                 const QString rawArgs = QStringLiteral("/select,\"%1\"")
                                             .arg(QDir::toNativeSeparators(path));
-                ms::spawnNoInherit(QStringLiteral("explorer.exe"), rawArgs);
+                if (!ms::spawnNoInherit(explorer, rawArgs)) {
+                    // 派生失败如实留痕（qDebug → 终端显示/日志，用户定案通道）
+                    qDebug() << "ms-library: 在资源管理器中显示失败（explorer 派生）:"
+                             << path;
+                }
             }
         }
     });

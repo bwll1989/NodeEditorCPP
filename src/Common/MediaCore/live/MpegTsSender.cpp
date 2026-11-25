@@ -229,8 +229,10 @@ bool MpegTsSender::setupEncoder(int w, int h) {
     avcodec_parameters_from_context(a->vs->codecpar, a->enc);
     a->vs->time_base = a->enc->time_base;
     // TS 周期重传 SDT/PAT/PMT + 关键帧前头数据（新加入 display 快速出画）
-    av_opt_set_int(a->mux->priv_data, "sdt_period", 0.5 * AV_TIME_BASE, 0);
-    av_opt_set_int(a->mux->priv_data, "pat_period",  0.5 * AV_TIME_BASE, 0);
+    av_opt_set_int(a->mux->priv_data, "sdt_period",
+                   static_cast<std::int64_t>(0.5 * AV_TIME_BASE), 0);
+    av_opt_set_int(a->mux->priv_data, "pat_period",
+                   static_cast<std::int64_t>(0.5 * AV_TIME_BASE), 0);
     if (!(a->mux->oformat->flags & AVFMT_NOFILE)) {
         if (avio_open(&a->mux->pb, open_url.c_str(), AVIO_FLAG_WRITE) < 0) {
             std::fprintf(stderr, "mcast: 组播地址打开失败: %s\n",
@@ -266,7 +268,7 @@ bool MpegTsSender::setupEncoder(int w, int h) {
 bool MpegTsSender::encodeAndSend(const LiveFrame& frame) {
     Av* a = av_.get();
 
-    // PTS = 帧接收戳换算到编码时基（首帧锚定——同戳同延迟多端一致）。
+    // PTS = 应显时刻戳换算到编码时基（首帧锚定——同戳同延迟多端一致）。
     // pts_us==0（异常帧）回退本地时钟作戳——与排程端语义一致。
     if (first_pts_us_ == 0)
         first_pts_us_ = frame.pts_us != 0 ? frame.pts_us : av_gettime();
@@ -314,6 +316,13 @@ void MpegTsSender::run() {
     bool setup_tried = false;
     std::int64_t last_try = 0; // 装配失败限频（线程栈变量——本线程独占）
 
+    // 转发速率取证（5s 限频，对齐收端 live-ingest 日志模式——editor 端
+    // 发送速率 vs display 端收帧速率对比，定位带宽瓶颈在哪段）；跳 =
+    // Feed 已产但只发最新被跳过的帧数（非零 = 编码/网络跟不上采集节奏）
+    std::int64_t  stat_ms    = 0;
+    std::uint64_t total_sent = 0, win_sent = 0;
+    std::uint64_t total_skip = 0, win_skip = 0;
+
     while (running_.load(std::memory_order_acquire)) {
         feed = feed_.lock();
         if (!feed) break; // Hub 条目已亡：线程自退
@@ -325,6 +334,7 @@ void MpegTsSender::run() {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             continue;
         }
+        const std::uint64_t new_frames = v - last_version_; // ≥1
         const LiveFramePtr frame = feed->latest();
         last_version_ = v;
         if (!frame || frame->w <= 0 || frame->h <= 0) continue;
@@ -339,7 +349,32 @@ void MpegTsSender::run() {
             teardown();
             if (!setupEncoder(frame->w, frame->h)) continue;
         }
-        if (!encodeAndSend(*frame)) {
+        if (encodeAndSend(*frame)) {
+            ++total_sent;
+            ++win_sent;
+            total_skip += new_frames - 1;
+            win_skip   += new_frames - 1;
+            // 5s 限频转发取证（跨机排障：与 display 端收帧速率对读）
+            const std::int64_t now_ms = std::chrono::duration_cast<
+                std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            if (stat_ms == 0) {
+                stat_ms = now_ms;
+            } else if (now_ms - stat_ms >= 5000) {
+                const double secs = double(now_ms - stat_ms) / 1000.0;
+                std::fprintf(stderr,
+                             "mcast: 转发速率 %.1f fps（累计发 %llu 跳 %llu）"
+                             "%dx%d\n",
+                             double(win_sent) / secs,
+                             static_cast<unsigned long long>(total_sent),
+                             static_cast<unsigned long long>(total_skip),
+                             frame->w, frame->h);
+                std::fflush(stderr);
+                stat_ms  = now_ms;
+                win_sent = 0;
+                win_skip = 0;
+            }
+        } else {
             // 写包失败（网络异常）：拆链重装配（下次帧到达重试）
             std::fprintf(stderr, "mcast: 发送失败，重装配 %s\n", url_.c_str());
             std::fflush(stderr);

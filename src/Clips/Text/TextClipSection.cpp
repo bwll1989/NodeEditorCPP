@@ -67,6 +67,7 @@ QString fontDisplayLabel(const std::string& key) {
         {"SimSun",            "宋体"},
         {"KaiTi",             "楷体"},
         {"FangSong",          "仿宋"},
+        {"SourceHanSansSC",   "思源黑体（内置）"},
         {"Arial",             "Arial"},
         {"SegoeUI",           "Segoe UI"},
         {"Consolas",          "Consolas"},

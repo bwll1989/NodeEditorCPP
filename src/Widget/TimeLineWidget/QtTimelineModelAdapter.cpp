@@ -54,7 +54,11 @@
 #include <QDialog>
 #include <QFileInfo>
 #include <QVBoxLayout>
+#include <QElapsedTimer>
 #include "FramelessDialog/FramelessDialog.hpp" // 片段属性弹窗宿主（统一无边框风格）
+
+// 临时诊断探针（2026-11-25 片段面板内容 2-3s 延迟排查，用完即删）
+#include "PanelTimingProbe.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -449,6 +453,7 @@ void QtTimelineModelAdapter::configureClipPanel(SceneClipModel* sc,
 // ---------------------------------------------------------------------------
 QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
         const std::string& clip_id, const QString& type) {
+    QElapsedTimer tp; tp.start(); // 临时埋点（2026-11-25，用完即删）
     // 出口 1：宿主未注入 hooks（单测环境/时序异常）——退化为纯通用区
     if (!hooks_.import_media) {
         std::fprintf(stderr,
@@ -467,6 +472,8 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
         return nullptr;
     }
     const AssetKind kind = kindForType(type);
+    panel_timing::probe(QStringLiteral("clip=%1 工厂进入 定位=%2ms")
+        .arg(QString::fromStdString(clip_id), QString::number(tp.elapsed())));
     // 【P2-B 元数据下放 2026-11-17】插件工厂查询前置：页 3 专属区工厂与
     // 类型显示元数据（clipDisplayName/hasMediaBinding/bindingHint）同源
     // ——类型显示知识归插件声明，宿主 if 链退役（新类型零宿主改动）。
@@ -509,6 +516,8 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
     // 通用区装配职责随面板迁库收拢进构造。
     auto* panel = new ClipPropertyPanel(*c, categoryForKind(kind), binding_name,
                                         findClipModelByAnchor(clip_id));
+    panel_timing::probe(QStringLiteral("clip=%1 通用面板构造 累计=%2ms")
+        .arg(QString::fromStdString(clip_id), QString::number(tp.elapsed())));
     // 【P2-B】媒体区显隐 = 插件声明（原 Live/Text/Control/Artnet/Mapping
     // 五类型 if 链退役——声明在各自插件 hasMediaBinding()）
     if (factory && !factory->hasMediaBinding())
@@ -625,7 +634,11 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
             panel->appendSection(sec, factory->clipDisplayName());
             panel_refs_[clip_id].push_back({sec, PanelRef::Kind::Section});
         }
+        panel_timing::probe(QStringLiteral("clip=%1 专属区装配 累计=%2ms")
+            .arg(QString::fromStdString(clip_id), QString::number(tp.elapsed())));
     }
+    panel_timing::probe(QStringLiteral("clip=%1 工厂返回 总计=%2ms")
+        .arg(QString::fromStdString(clip_id), QString::number(tp.elapsed())));
     return panel;
 }
 

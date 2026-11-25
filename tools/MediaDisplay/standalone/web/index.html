@@ -46,6 +46,9 @@
       <span class="chip" :class="{ playing: status && status.state === 1, paused: status && status.state === 2 }">{{ stateName }}</span>
     </div>
     <div id="conn" class="chip" :class="{ ok: connOk === true, bad: connOk === false }">{{ connText }}</div>
+    <button id="btn-logs" class="chip" :class="{ 'warp-on': logUnread > 0 }"
+            title="运行日志（display 进程 stdout/stderr 重定向；替代终端黑窗）"
+            @click="openLogs()">▤ 日志<span v-if="logUnread > 0" class="log-badge">{{ logUnread > 99 ? '99+' : logUnread }}</span></button>
     <button id="btn-mpcdi" class="chip" :class="{ 'warp-on': mpcdiWarpOn }"
             :title="mpcdiWarpOn ? '输出校准启用中（变形融合生效中，输出画面已被变形）— 点击管理'
                                 : '输出校准（MPCDI 变形融合，两模式均可用）— 未启用'"
@@ -494,6 +497,40 @@
         <button class="danger" :disabled="!mpcdiWarpOn"
                 @click="disableMpcdi">停用变形融合</button>
         <span class="hint">{{ mpcdi.hint }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 运行日志浮层（顶栏"▤ 日志"打开；两模式均可用）。
+       数据源 = GET /api/v1/logs?since=<seq> 1s 增量轮询（app.js pollLogs）；
+       display 进程 stdout/stderr 全量重定向（standalone/log_hub.cpp）——
+       2026-11-24 起 FlowDisplay 转无黑窗 Windows 子系统，本窗口即日志
+       唯一观看面（另有 exe/logs/display.log 文件兜底）。 -->
+  <div id="logs-overlay" v-if="ui.logs" @click.self="closeLogs()">
+    <div id="logs-card">
+      <div class="set-head">
+        <h2>运行日志</h2>
+        <span class="chip" :class="{ ok: connOk === true, bad: connOk === false }">{{ connText }}</span>
+        <span class="grow"></span>
+        <button class="mini" :title="logPaused ? '恢复自动滚动（新行到达时跳到底部）' : '暂停自动滚动（方便向上翻阅）'"
+                @click="logPaused = !logPaused">{{ logPaused ? '▶ 自动滚动' : '⏸ 暂停滚动' }}</button>
+        <button class="mini" title="清空本页显示（不影响进程侧环形缓冲与文件日志）" @click="logLines = []; logUnread = 0">✕ 清屏</button>
+        <button class="mini" title="关闭" @click="closeLogs()">✕</button>
+      </div>
+      <div id="logs-list" ref="logsListEl" @scroll="onLogsScroll">
+        <div v-if="!filteredLogLines.length" class="log-empty">暂无日志（进程输出到达后即时显示）</div>
+        <div v-for="l in filteredLogLines" :key="l.seq" class="log-line" :class="'lv-' + l.level">
+          <span class="log-t">{{ fmtLogTime(l.ts_ms) }}</span>
+          <span class="log-lv">{{ l.level }}</span>
+          <span class="log-msg">{{ l.text }}</span>
+        </div>
+      </div>
+      <div class="logs-foot">
+        <input id="log-filter" type="search" placeholder="过滤关键字（留空 = 全部）" v-model.trim="logFilter">
+        <span class="hint" v-if="logDropped > 0" title="显示端环形缓冲已满，最旧日志被丢弃（容量 4000 行）">⚠ 已丢弃 {{ logDropped }} 行旧日志</span>
+        <span class="hint bad" v-if="logUnavailable" title="此 display 进程为旧版本，编译时无 /api/v1/logs 接口">⚠ display 无日志接口（版本过旧）——重启 display 进程后刷新本页（Ctrl+F5）</span>
+        <span class="grow"></span>
+        <span class="hint">stdout/stderr 全量重定向 · 文件兜底 exe/logs/display.log</span>
       </div>
     </div>
   </div>

@@ -55,6 +55,7 @@
 #include "standalone/standalone_api.hpp"  // M2 控制面 REST API（时间轴文档）
 #include "standalone/mpcdi_service.hpp"   // M4 MPCDI 校准包（上传/enable/会话）
 #include "standalone/http_server.hpp"     // M2 HTTP 骨架（收编 MMC）
+#include "standalone/log_hub.hpp"         // 日志枢纽（stdout/stderr→网页）
 
 #if defined(_WIN32)
 // M5 自重启接力（CreateProcessW/GetCommandLineW/WaitForSingleObject）：
@@ -253,6 +254,11 @@ struct Args {
     /// 新实例启动先等该 pid 的旧实例退出（端口/文件句柄释放）再初始化，
     /// 避免 HTTP 8995/TCP 17100 bind 撞车。正常启动不出现此参数。
     long restart_wait_pid = 0;
+    /// --console（2026-11-24）：挂父控制台回显日志（终端/脚本调试形态）。
+    /// 默认 false——FlowDisplay 已转 Windows 子系统（无终端黑窗），日志
+    /// 经 log_hub 重定向进网页「运行日志」窗口 + exe/logs/display.log；
+    /// 显式 --console 时 AttachConsole(ATTACH_PARENT_PROCESS) 同步回显。
+    bool console = false;
     bool help = false;
 };
 
@@ -324,6 +330,8 @@ std::optional<Args> parseArgs(int argc, char** argv, const Args& defaults) {
             args.help = true;
         } else if (arg == "--no-preview") {
             args.no_preview = true; // 无值开关：命令行强制关预览
+        } else if (arg == "--console") {
+            args.console = true;    // 无值开关：挂父控制台回显日志（log_hub）
         } else if (value_num("port", args.listen_port)) {
         } else if (value_num("screen", args.screen)) {
         } else if (arg == "--fullscreen") {
@@ -419,6 +427,9 @@ void printUsage() {
         "      [--pairing-code=<码>]  （配对码：非空则只接受同码 Editor 连接；\n"
         "                               覆盖 config.ini 的 pairing_code）\n"
         "      [--no-preview]         （关闭输出预览窗口；Windows 默认开启）\n"
+        "      [--console]            （挂父控制台回显运行日志——默认无终端\n"
+        "      黑窗，日志在网页「运行日志」窗口与 exe/logs/display.log；\n"
+        "      终端/脚本排障时加此参数同步回显到控制台）\n"
         "      [--render-backend=gl|soft]（合成后端：gl=GPU shader 合成（默认，\n"
         "      GL 窗口即输出窗口）；soft=CPU 画布 + GDI 预览窗）\n"
         "      [--gl-single-buffer=0|1]（GL 单缓冲兼容模式，默认 1：GL 渲染\n"
@@ -1383,6 +1394,24 @@ int main(int argc, char** argv) {
     // 窄串非 UTF-8 路径抛 system_error 的高危区）处于无防护盲区，前移
     // 到 main 首行全覆盖（与 Flow 端同位同语义）。
     installCrashDump();
+
+    // ---- 日志枢纽安装（2026-11-24；必须先于一切 printf/fprintf）----------
+    // FlowDisplay 已转 Windows 子系统（无终端黑窗）——stdout/stderr 全量
+    // 重定向进 log_hub 环形缓冲（网页「运行日志」窗口 + exe/logs/display.log
+    // 兜底）。--console 显式挂父控制台回显（终端/脚本调试形态）。
+    // argv 预扫：install 必须早于 parseArgs（其报错 fprintf 也须进枢纽），
+    // 而 Args 结构此刻尚未解析——裸扫一遍开关（无值参数，稳定）。
+    // --help 同样回显：帮助文本只打一次即退出，不回显则终端里不可见。
+    {
+        bool console_flag = false;
+        for (int i = 1; i < argc; ++i) {
+            if (std::strcmp(argv[i], "--console") == 0 ||
+                std::strcmp(argv[i], "--help") == 0 ||
+                std::strcmp(argv[i], "-h") == 0)
+                console_flag = true;
+        }
+        media_api::log_hub::install(console_flag);
+    }
 
     // 控制台代码页 → UTF-8：源码 /utf-8 编译输出 UTF-8 字节流，Windows
     // 控制台默认 GBK(936) 按其解释必乱码（详见 platform/ConsoleUtf8.hpp）

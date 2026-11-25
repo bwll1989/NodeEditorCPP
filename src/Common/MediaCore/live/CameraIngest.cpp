@@ -195,7 +195,8 @@ void dumpNativeFormats(IMFSourceReader* reader) {
 // alpha 置 0xFF（RGB32 alpha 未定义，与 NDI/WGC 不透明帧对齐契约）
 // ---------------------------------------------------------------------------
 LiveFramePtr frameFromSample(IMFSample* sample, int w, int h, int stride,
-                             LiveFramePool& pool) {
+                             LiveFramePool& pool,
+                             std::int64_t   schedule_delay_us) {
     ComPtr<IMFMediaBuffer> buf;
     if (FAILED(sample->ConvertToContiguousBuffer(buf.GetAddressOf())))
         return nullptr;
@@ -215,7 +216,9 @@ LiveFramePtr frameFromSample(IMFSample* sample, int w, int h, int stride,
     f->w    = w;
     f->h    = h;
     f->rgba.resize(static_cast<std::size_t>(w) * h * 4);
-    f->pts_us = processAlignedNowUs(); // 帧同步戳：MF 交付本帧的接收时刻
+    // 应显时刻 = MF 交付时刻 + 延迟预算（捕获端统一打戳定案
+    // 2026-11-25——pts 语义 = 应显时刻；在帧仍可变处打戳）
+    f->pts_us = processAlignedNowUs() + schedule_delay_us;
 
     const auto base = reinterpret_cast<std::uintptr_t>(data);
     if ((base & 3) == 0) {
@@ -263,8 +266,9 @@ LiveFramePtr frameFromSample(IMFSample* sample, int w, int h, int stride,
 // 生命周期（配置透传；线程/诊断/兜底全在 IngestBase）
 // ---------------------------------------------------------------------------
 CameraIngest::CameraIngest(std::string source_ref, int latency_mode,
-                           FrameSink sink)
-    : IngestBase(std::move(source_ref), latency_mode, std::move(sink)) {}
+                           std::int64_t schedule_delay_us, FrameSink sink)
+    : IngestBase(std::move(source_ref), latency_mode, schedule_delay_us,
+                 std::move(sink)) {}
 
 CameraIngest::~CameraIngest() = default; // 基类 RAII 兜底停线程
 
@@ -326,7 +330,11 @@ void CameraIngest::recvLoop() {
                 Sleep(5);
                 continue;
             }
-            emitFrame(frameFromSample(sample.Get(), w, h, stride, *pool_));
+            auto cam_frame = frameFromSample(sample.Get(), w, h, stride,
+                                             *pool_, schedule_delay_us_);
+            if (cam_frame) {
+                emitFrame(std::move(cam_frame));
+            }
         }
 
         // ---- 本轮清理（设备拔出/停止——重走外层打开循环）----
@@ -383,9 +391,11 @@ std::vector<IngestSource> listCameraSources(std::uint32_t wait_ms) {
 
 std::unique_ptr<ILiveIngest> makeCamera(std::string source_name,
                                         int        latency_mode,
+                                        std::int64_t schedule_delay_us,
                                         ILiveIngest::FrameSink sink) {
     return std::make_unique<CameraIngest>(std::move(source_name),
-                                          latency_mode, std::move(sink));
+                                          latency_mode, schedule_delay_us,
+                                          std::move(sink));
 }
 
 } // namespace ms

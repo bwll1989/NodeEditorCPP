@@ -31,6 +31,8 @@ add_library(StandaloneBase STATIC
     standalone/http_server.cpp            # 骨架：分发/静态托管/CORS/起停
     standalone/standalone_api.cpp         # REST API：timelines/playback/status/library
     standalone/http_util.cpp              # 响应发送/MIME/请求体
+    standalone/log_hub.cpp                # 日志枢纽（2026-11-24：stdout/stderr
+                                          # 管道重定向→环形缓冲→/api/v1/logs）
     standalone/media_library.cpp          # 媒体库扫描/上传三段式
     standalone/mpcdi_service.cpp          # MPCDI 校准包服务（M4 收编自 MMC）
     standalone/mpcdi_service_session.cpp  # MPCDI 会话持久化/启动恢复
@@ -59,7 +61,16 @@ add_executable(FlowDisplay
 set_target_properties(FlowDisplay PROPERTIES
     CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/display"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/display")
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/display"
+    # Windows 子系统（2026-11-24）：不再弹终端黑窗——全部运行日志经
+    # log_hub（standalone/log_hub.cpp）重定向进网页「运行日志」窗口 +
+    # exe/logs/display.log；终端调试用 --console 显式回显（attach 父控制台）。
+    WIN32_EXECUTABLE TRUE)
+# WIN32_EXECUTABLE 使 MSVC 链接 /SUBSYSTEM:WINDOWS（入口默认找 WinMain），
+# 而本程序保持标准 main() 入口——显式指 CRT 启动入口 mainCRTStartup，
+# main() 签名零改动（与 Flow 主程序 WIN32_EXECUTABLE 同款处理差异：
+# 那边是 Qt 自带 wWinMain，这边纯 CRT）。
+target_link_options(FlowDisplay PRIVATE "/ENTRY:mainCRTStartup")
 target_link_libraries(FlowDisplay
     PRIVATE
         StandaloneBase  # standalone 控制面（引擎链经其 PUBLIC 传播）
@@ -113,8 +124,9 @@ add_custom_command(TARGET FlowDisplay POST_BUILD
         "${DEPENDS_DIR}/ffmpeg-8.1.1-full_build-shared/bin/swscale-9.dll"
         # 音频输出（PortAudio MME）
         "${DEPENDS_DIR}/portaudio/build/MSVC/lib/portaudio.dll"
-        # NDI DLL 不再随 display 部署（2026-11-21 NDI 分发退役：display
-        # 无 NDI 调用路径 + MediaCore /DELAYLOAD 延迟加载=永不加载）
+        # NDI DLL 不随 display 部署（2026-11-25 NDI 分发再退役：display
+        # 无 NDI 调用路径（组播经 NetworkIngest/FFmpeg）+ MediaCore
+        # /DELAYLOAD 延迟加载=永不加载）
         "${MS_DISPLAY_RUNTIME_DIR}"
     COMMENT "deploy FlowDisplay runtime DLLs -> bin/display/"
     VERBATIM)

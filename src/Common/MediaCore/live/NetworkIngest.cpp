@@ -24,7 +24,7 @@ extern "C" {
 namespace ms {
 
 bool NetworkIngest::onStart() {
-    avformat_network_init(); // 进程内幂等（与 MpegTsSender 共享一次）
+    avformat_network_init(); // 进程内幂等（FFmpeg 网络层全局一次）
     return true;
 }
 
@@ -174,9 +174,43 @@ void NetworkIngest::recvLoop() {
                 sws_scale(sws, src, stride, 0, fr->height, dst,
                           const_cast<int*>(dst_stride));
 
-                // 帧同步戳：解码出画时刻（进程对齐时钟域——display 端
-                // 含 SNTP offset；多 display 同戳同延迟 → 跨机同步）
-                out->pts_us = processAlignedNowUs();
+                // 应显时刻 = 解码出画时刻 + 延迟预算（组播链路 display 端
+                // 打戳落点：组播同流同达 → 多 display 解码时刻差亚毫秒，
+                // "解码+预算"即跨机同步戳——pts 语义 = 应显时刻 2026-11-25；
+                // 进程对齐时钟域，display 端含 SNTP offset）
+                out->pts_us = processAlignedNowUs() + schedule_delay_us_;
+
+                // 【2026-11-25 帧率取证】收端实际解码交付帧率（5s 一条，
+                // 与 NdiIngest 同款）——组播链路瓶颈段定位：editor 端采集/
+                // 组播正常而本行低 = 网络段（带宽/组播 join）瓶颈。
+                {
+                    using namespace std::chrono;
+                    const std::int64_t now_ms = duration_cast<milliseconds>(
+                        steady_clock::now().time_since_epoch()).count();
+                    static thread_local std::int64_t  s_last_ms = 0;
+                    static thread_local std::uint64_t s_last_n  = 0;
+                    if (s_last_ms == 0) {
+                        s_last_ms = now_ms;
+                        s_last_n =
+                            frames_received_.load(std::memory_order_relaxed);
+                    } else if (now_ms - s_last_ms >= 5000) {
+                        const std::uint64_t n =
+                            frames_received_.load(std::memory_order_relaxed);
+                        std::fprintf(stderr,
+                                     "live-ingest: 收帧速率 %.1f fps"
+                                     "（累计收 %llu 丢 %llu） %dx%d\n",
+                                     double(n - s_last_n) /
+                                         double(now_ms - s_last_ms) * 1000.0,
+                                     static_cast<unsigned long long>(n),
+                                     static_cast<unsigned long long>(
+                                         frames_dropped_.load(
+                                             std::memory_order_relaxed)),
+                                     out->w, out->h);
+                        std::fflush(stderr);
+                        s_last_ms = now_ms;
+                        s_last_n  = n;
+                    }
+                }
                 connected_.store(true, std::memory_order_release);
                 emitFrame(std::move(out));
             }

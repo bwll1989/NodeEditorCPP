@@ -176,6 +176,7 @@ const app = createApp({
       right: localStorage.getItem("ui.right") === "1",
       settings: false,                        // 设置浮层开关（仅 ⚙ 手动开；2026-11-23 用户定案取消 sync 模式自动弹出）
       mpcdi: false,                           // 输出校准独立页开关（▣ 输出校准）
+      logs: false,                            // 运行日志浮层开关（▤ 日志）
     });
     watch(() => [ui.left, ui.right], () => {
       localStorage.setItem("ui.left", ui.left ? "1" : "0");
@@ -378,9 +379,11 @@ const app = createApp({
     // 轮询只做纠偏（250ms）；两次轮询之间用 requestAnimationFrame 按速率推进
     // 播放头（顶栏时间 + vis 游标），视觉 60fps 平滑且 setCustomTime 限 10Hz。
     // =========================================================================
+    let statusFailCnt = 0;   // 连续失败计数（去抖：单次抖动不闪红，见 catch）
     async function pollStatus() {
       try {
         status.value = await api("/api/v1/status");
+        statusFailCnt = 0;
         connOk.value = true;
         const st = status.value;
         playEst.us = st.playhead_us || 0;
@@ -390,7 +393,10 @@ const app = createApp({
         // 游标只跟随"当前打开的时间轴 = 激活时间轴"；打开别的轴时游标隐藏
         syncPlayheadVisible();
       } catch {
-        connOk.value = false;
+        // [去抖] 单次瞬时失败（服务端 keep-alive 5s 超时 vs 浏览器复用竞态、
+        // WiFi 抖动）不闪红——连续 ≥3 次失败（约 750ms）才判定断连；
+        // 恢复时立即变绿。首次连接失败场景：前 2 次保持"连接中…"，第 3 次红。
+        if (++statusFailCnt >= 3) connOk.value = false;
       }
     }
 
@@ -1447,7 +1453,9 @@ const app = createApp({
       refreshMpcdiStatus();                     // 启动预拉校准状态→顶栏启用态标识
       setInterval(pollStatus, 250);             // 轮询只做纠偏；平滑走 rAF 插值
       setInterval(refreshTimelines, 3000);
+      setInterval(pollLogs, 1000);              // 运行日志增量轮询（恒定；关闭浮层时只累计角标）
       pollStatus();
+      pollLogs();
       requestAnimationFrame(cursorTick);        // 播放头本地插值循环（60fps 平滑）
       runSelftest();
 
@@ -1476,6 +1484,7 @@ const app = createApp({
       // 调试钩子：#settings=1 / #mpcdi=1 / #mpcdi=custom 启动即展开对应浮层
       // （headless 截图/走查用）
       if (location.hash === "#settings=1") { ui.settings = true; loadSettings(); }
+      if (location.hash === "#logs=1") openLogs();                        // headless 截图
       if (location.hash.startsWith("#mpcdi=")) {
         ui.mpcdi = true; refreshMpcdi();
         if (location.hash === "#mpcdi=custom") mpcdi.layoutKind = "custom";
@@ -2151,6 +2160,80 @@ const app = createApp({
       !!mpcdi.sel && !!mpcdi.regions.length &&
       (mpcdi.layoutKind !== "custom" || mosaicCells.value.some(Boolean)));
 
+    // ---- 运行日志窗口（2026-11-24；替代终端黑窗）-----------------------------
+    // 数据源 = GET /api/v1/logs?since=<seq>（后端 log_hub：进程 stdout/stderr
+    // 管道重定向 → 环形缓冲 4000 行）。恒定 1s 增量轮询（增量通常空，开销
+    // 几百字节）；浮层关闭期间只累计未读角标，打开即清零。
+    const logLines = ref([]);          // 渲染行 {seq, ts_ms, level, text}
+    const logFilter = ref("");         // 关键字过滤（大小写不敏感子串）
+    const logPaused = ref(false);      // 自动滚动暂停（上翻阅读时）
+    const logUnread = ref(0);          // 浮层关闭期间到达行数（按钮角标）
+    const logDropped = ref(0);         // 后端环形缓冲丢弃累计（>0 提示）
+    const logUnavailable = ref(false); // display 无 /api/v1/logs（旧版进程）——浮层可见提示
+    const logsListEl = ref(null);      // 滚动容器（模板 ref）
+    let logSince = 0;                  // seq 锚点（轮询游标，非响应式）
+    const kLogDomMax = 1500;           // DOM 行上限（FIFO 截头，防长跑撑爆）
+
+    const filteredLogLines = computed(() => {
+      const f = logFilter.value.toLowerCase();
+      if (!f) return logLines.value;
+      return logLines.value.filter((l) => (l.text || "").toLowerCase().includes(f));
+    });
+
+    /** epoch 毫秒 → 本地 HH:MM:SS.mmm（行前缀时间戳）。 */
+    function fmtLogTime(tsMs) {
+      const d = new Date(tsMs);
+      const p = (n, w = 2) => String(n).padStart(w, "0");
+      return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}.${p(d.getMilliseconds(), 3)}`;
+    }
+
+    async function pollLogs() {
+      try {
+        const s = await api("/api/v1/logs?since=" + logSince);
+        // s = { seq, dropped, lines: [[seq, ts_ms, level, text], ...] }
+        logDropped.value = (s && s.dropped) || 0;
+        logUnavailable.value = false;      // 接口可达 → 清除旧版进程提示
+        const rows = (s && Array.isArray(s.lines)) ? s.lines : [];
+        if (rows.length) {
+          const mapped = rows.map((r) => ({
+            seq: r[0], ts_ms: r[1], level: r[2] || "info", text: r[3] || "",
+          }));
+          logSince = mapped[mapped.length - 1].seq;
+          const arr = logLines.value.concat(mapped);
+          if (arr.length > kLogDomMax) arr.splice(0, arr.length - kLogDomMax);
+          logLines.value = arr;
+          if (!ui.logs) logUnread.value = Math.min(999, logUnread.value + mapped.length);
+          else if (!logPaused.value) scrollLogsBottom();
+        }
+      } catch (e) {
+        // 404 = 旧版 display 进程（无日志接口）——浮层给出可见提示而非静默；
+        // 其余错误仍静默（display 离线由 status 轮询统一报连接条）。
+        if (e && e.status === 404) logUnavailable.value = true;
+      }
+    }
+
+    function scrollLogsBottom() {
+      nextTick(() => {
+        const el = logsListEl.value;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    }
+
+    /** 上翻阅读：距底 >40px 视为手动翻阅暂停自动滚动；滚回底部自动恢复。 */
+    function onLogsScroll() {
+      const el = logsListEl.value;
+      if (!el) return;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+      logPaused.value = !atBottom;
+    }
+
+    function openLogs() {
+      ui.logs = true;
+      logUnread.value = 0;
+      nextTick(scrollLogsBottom);
+    }
+    function closeLogs() { ui.logs = false; }
+
     /** 拉状态 + 包列表；已启用时回填选项（session 侧真相）。 */
     async function refreshMpcdi() {
       try {
@@ -2260,6 +2343,9 @@ const app = createApp({
       mpcdi, refreshMpcdi, refreshMpcdiStatus, mpcdiWarpOn, onMpcdiPackageChange,
       uploadMpcdi, enableMpcdi, disableMpcdi,
       mosaicCells, mosaicRes, fillMosaicAuto, mpcdiCanEnable,
+      // 运行日志窗口（2026-11-24；/api/v1/logs 增量轮询）
+      logLines, filteredLogLines, logFilter, logPaused, logUnread, logDropped, logUnavailable,
+      logsListEl, fmtLogTime, onLogsScroll, openLogs, closeLogs,
       // 工具（模板用）
       fmtTime, fmtSize, enc, escapeHtml,
       // 动作

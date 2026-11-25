@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -65,6 +66,34 @@ void put32(std::vector<std::uint8_t>& v, std::uint32_t x) {
     v.push_back(static_cast<std::uint8_t>((x >> 8) & 0xFF));
     v.push_back(static_cast<std::uint8_t>((x >> 16) & 0xFF));
     v.push_back(static_cast<std::uint8_t>((x >> 24) & 0xFF));
+}
+
+// ---------------------------------------------------------------------------
+// 进程内存水位（KB）：/proc/self/status 的 VmRSS/VmHWM（Android/Linux 有效，
+// 其余平台恒 -1）。【OOM 取证 2026-11-24】「同步媒体闪退」已符号化实锤为
+// 堆耗尽：帧心跳处的无害小字符串分配失败，连 bad_alloc 异常对象都分配不
+// 出 → __cxa_allocate_exception 直呼 terminate（无活动异常签名）——心跳
+// 带出 RSS 曲线，爬升段即元凶活动段。
+// ---------------------------------------------------------------------------
+long procStatusKB(const char* key) {
+#if defined(__ANDROID__) || defined(__linux__)
+    std::FILE* f = std::fopen("/proc/self/status", "r");
+    if (!f) return -1;
+    char line[256];
+    long kb = -1;
+    const std::size_t klen = std::strlen(key);
+    while (std::fgets(line, sizeof(line), f)) {
+        if (std::strncmp(line, key, klen) == 0) {
+            kb = std::strtol(line + klen, nullptr, 10);
+            break;
+        }
+    }
+    std::fclose(f);
+    return kb;
+#else
+    (void)key;
+    return -1;
+#endif
 }
 
 } // namespace
@@ -829,13 +858,18 @@ FrameStats RenderThread::renderOnce(std::int64_t now_us) {
         const std::int64_t now_ms = now_us / 1000;
         if (now_ms - s_last_hb_ms >= 5000) {
             s_last_hb_ms = now_ms;
+            // 【OOM 取证 2026-11-24】心跳带内存水位（5s 一拍足够看趋势）
+            const long rss_kb = procStatusKB("VmRSS:");
+            const long hwm_kb = procStatusKB("VmHWM:");
             std::fprintf(stderr,
                          "render:%s: 帧心跳: t=%.3fs items=%zu drawn=%zu"
-                         " no_frame=%zu state=%d\n",
+                         " no_frame=%zu state=%d rss=%ldMB hwm=%ldMB\n",
                          cfg_.player_id.c_str(),
                          static_cast<double>(session_t) / 1e6,
                          stats.items, stats.drawn, stats.no_frame,
-                         static_cast<int>(ph.state));
+                         static_cast<int>(ph.state),
+                         rss_kb > 0 ? rss_kb / 1024 : -1L,
+                         hwm_kb > 0 ? hwm_kb / 1024 : -1L);
             std::fflush(stderr);
         }
     }

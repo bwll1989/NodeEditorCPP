@@ -211,6 +211,9 @@ private:
     bool routeSettings(RouteCtx& ctx);   ///< 设置读/写（两模式均可用）
     bool routeMpcdi(RouteCtx& ctx);      ///< MPCDI 校准包（M4；两模式均可用）
     bool routeSystem(RouteCtx& ctx);     ///< 进程重启（M5；两模式均可用）
+    /// 运行日志增量拉取（2026-11-24；两模式均可用——日志是全模式排障面：
+    /// GET /api/v1/logs?since=<seq>，stdout/stderr 重定向链见 log_hub.hpp）
+    bool routeLogs(RouteCtx& ctx);
     bool routeTimelines(RouteCtx& ctx);
     bool routePlayback(RouteCtx& ctx);
     bool routeLibrary(RouteCtx& ctx);

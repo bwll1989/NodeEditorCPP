@@ -8,12 +8,12 @@
 //  本机回环自收正常、局域网其他主机零包（「本机能收、远端打不开」签名
 //  症状）。route add 长前缀路由可解，但属系统运维项——每次部署重配。
 //
-//  【方案】发送端（MpegTsSender）与收流端（NetworkIngest）打开 socket 前
-//  各自 probeLanIPv4() 探测本机真实 LAN IPv4，动态 append
-//  "&localaddr=<ip>"——发送侧 = IP_MULTICAST_IF 出口钉定；接收侧 =
-//  IP_ADD_MEMBERSHIP join 接口钉定。URL 本尊（multicastUrlFor 产物）
-//  保持基础形式存场景两端共用——接口是「每台机器自己的运行时事实」，
-//  不落盘、不进场景，部署零配置。
+//  【方案】收流端（NetworkIngest）打开 socket 前 probeLanIPv4() 探测
+//  本机真实 LAN IPv4，动态 append "&localaddr=<ip>"——接收侧 =
+//  IP_ADD_MEMBERSHIP join 接口钉定（组播/UDP 收流的通用手段；NDI 分发
+//  不经此路径——NDI 收端由 SDK 自管 socket）。URL 本尊保持基础形式存
+//  场景两端共用——接口是「每台机器自己的运行时事实」，不落盘、不进
+//  场景，部署零配置。
 //
 //  探测规则（GetAdaptersAddresses，AF_INET）：
 //    * 接口活动（IfOperStatusUp）且非软件 loopback 类型；
@@ -25,8 +25,11 @@
 //    * 全部落空 → 空串（消费端不追加 = 保持系统默认行为；单网卡机器
 //      本就不会选错，探测只服务双/多网卡环境）。
 //
-//  【平台】仅 Windows 实现；非 Windows（Android 等）返回空——单接口
-//  设备默认路由即正确。
+//  【平台】Windows 实现（GetAdaptersAddresses）；Android（getifaddrs，
+//    NDK API 24+，minSdk 26 直接可用）——安卓手机 WiFi+蜂窝并存极常见：
+//    UDP 组播 join 按默认路由可能钉到 rmnet 蜂窝接口（蜂窝不转发 LAN
+//    组播）= 零包，探测把 join 钉到 wlan/eth。其余平台返回空（单接口
+//    设备默认路由即正确）。
 // ============================================================================
 
 #pragma once
@@ -47,6 +50,13 @@
 #include <cwctype>
 #pragma comment(lib, "iphlpapi")
 #pragma comment(lib, "ws2_32")
+#elif defined(__ANDROID__)
+#include <ifaddrs.h>     // getifaddrs（NDK API 24+）
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <net/if.h>      // IFF_UP / IFF_LOOPBACK
+#include <cstring>
 #endif
 
 namespace ms {
@@ -134,10 +144,64 @@ inline std::string probeLanIPv4() {
         char ip[INET_ADDRSTRLEN] = {0};
         if (!inet_ntop(AF_INET, &pick->sin_addr, ip, sizeof(ip))) return {};
         return ip;
-    }
+    } // for(pass)：溢出按系统提示扩容重试
     return {};
+#elif defined(__ANDROID__)
+    // ---- Android：getifaddrs 枚举（WiFi+蜂窝并存免疫）--------------------
+    // 优先级 wlan* > eth* > 其他非蜂窝；排除 loopback / link-local /
+    // 蜂窝数据接口（rmnet*/cc*/ril*/pdp*/wwan*/v4-rmnet*——组播 join
+    // 钉蜂窝 = 现场局域网零包）。蜂窝+WiFi 并存时安卓默认路由可能走
+    // 蜂窝（现场无外网时系统仍倾向数据网络），FFmpeg 无 localaddr 的
+    // join 按 best route 选接口——必须显式钉定。
+    struct ifaddrs* ifs = nullptr;
+    if (getifaddrs(&ifs) != 0) return {};
+
+    const char* wlan_ip = nullptr; char wlan_buf[INET_ADDRSTRLEN] = {0};
+    const char* eth_ip  = nullptr; char eth_buf[INET_ADDRSTRLEN]  = {0};
+    const char* any_ip  = nullptr; char any_buf[INET_ADDRSTRLEN]  = {0};
+
+    for (const struct ifaddrs* ifa = ifs; ifa != nullptr; ifa = ifa->ifa_next) {
+        if (ifa->ifa_addr == nullptr ||
+            ifa->ifa_addr->sa_family != AF_INET) continue;      // 只认 IPv4
+        if (!(ifa->ifa_flags & IFF_UP) ||
+            (ifa->ifa_flags & IFF_LOOPBACK)) continue;
+        auto* sa = reinterpret_cast<const sockaddr_in*>(ifa->ifa_addr);
+        char ip[INET_ADDRSTRLEN] = {0};
+        if (!inet_ntop(AF_INET, &sa->sin_addr, ip, sizeof(ip))) continue;
+        const std::string s = ip;
+        if (s.rfind("127.", 0) == 0 || s.rfind("169.254.", 0) == 0) continue;
+
+        const char* name = ifa->ifa_name != nullptr ? ifa->ifa_name : "";
+        // 蜂窝/隧道接口排除（前缀匹配；clat=IPv4 over IPv6 过渡，同样
+        // 不在局域网链路上）
+        static const char* kCellular[] = {
+            "rmnet", "ccemu", "clat", "ril", "pdp", "wwan", "v4-rmnet",
+            "dummy", "tun", "tap"};
+        bool cellular = false;
+        for (const char* k : kCellular) {
+            if (std::strncmp(name, k, std::strlen(k)) == 0) {
+                cellular = true;
+                break;
+            }
+        }
+        if (cellular) continue;
+
+        if (any_ip == nullptr) std::strncpy(any_buf, ip, sizeof(any_buf) - 1);
+        if (wlan_ip == nullptr && std::strncmp(name, "wlan", 4) == 0) {
+            std::strncpy(wlan_buf, ip, sizeof(wlan_buf) - 1);
+            wlan_ip = wlan_buf;
+        }
+        if (eth_ip == nullptr && std::strncmp(name, "eth", 3) == 0) {
+            std::strncpy(eth_buf, ip, sizeof(eth_buf) - 1);
+            eth_ip = eth_buf;
+        }
+    }
+    freeifaddrs(ifs);
+    if (wlan_ip) return wlan_ip;   // 现场 WiFi（显示节点常态）
+    if (eth_ip)  return eth_ip;    // 盒子/TV 有线
+    return any_ip ? any_ip : "";   // 兜底：首个合法接口（USB 共享网等）
 #else
-    return {}; // 非 Windows：单接口设备默认路由即正确，不追加 localaddr
+    return {}; // 其他平台：单接口设备默认路由即正确，不追加 localaddr
 #endif
 }
 

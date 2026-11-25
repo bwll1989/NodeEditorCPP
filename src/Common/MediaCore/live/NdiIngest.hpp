@@ -33,7 +33,8 @@ class NdiIngest : public IngestBase {
 public:
     using FrameSink = ILiveIngest::FrameSink; // 兼容别名（外部引用点）
 
-    NdiIngest(std::string source_name, int latency_mode, FrameSink sink);
+    NdiIngest(std::string source_name, int latency_mode,
+              std::int64_t schedule_delay_us, FrameSink sink);
     ~NdiIngest() override;
 
     NdiIngest(const NdiIngest&)            = delete;
@@ -61,6 +62,9 @@ private:
 
     // ---- 接收线程私有 ----
     std::int64_t unsupported_log_ms_ = -1; ///< 不支持格式限频日志状态
+    std::int64_t tc_anchor_log_ms_   = -1; ///< timecode 域外退回接收戳（限频日志）
+    bool         hub_source_         = false; ///< Hub 再发布源（构造时判定；
+                                              ///< 帧同步排程锚走 NDI timecode）
 };
 
 } // namespace ms

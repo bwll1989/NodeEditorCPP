@@ -30,6 +30,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QTabWidget>
 #include <QVBoxLayout>
 
@@ -42,7 +43,8 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
                                            QWidget* parent)
     : FramelessDialog(parent) { // 预填直接读入参引用
     setDialogTitle(tr("Display 属性"));
-    setCloseButtonVisible(true); // 标题栏 × = 取消（reject）
+    // 标题栏关闭按钮已随基类移除（2026-11-25 用户定案"彻底去掉"）——
+    // 关闭走 Esc / 取消按钮
 
     auto* form_box = new QGroupBox("画布位置与显示大小（像素）", this);
     auto* form     = new QFormLayout(form_box);
@@ -281,6 +283,34 @@ ScreenPropertyDialog::ScreenPropertyDialog(Screen& screen,
     }
 
     bodyLayout()->addWidget(tabs); // 内容进统一弹窗内容区（按钮行基类已建）
+}
+
+void ScreenPropertyDialog::syncFrom(const Screen& s) {
+    // 【2026-11-25 双向联动·画布→弹窗】QSignalBlocker 包住全部 setValue：
+    // 控件值变化不发 valueChanged → 不触发 geometry_live_ → 不会把画布
+    // 会话刚写入的同一批值再回写场景（拖动会话每拍调用，回环 = 值抖动
+    // + 下发风暴）。几何八字段 + 输出校色四字段全量刷。
+    const QSignalBlocker b1(x_), b2(y_), b3(w_), b4(h_), b5(rotation_),
+        b6(rot_x_), b7(rot_y_), b8(gain_r_), b9(gain_g_), b10(gain_b_),
+        b11(gamma_);
+    x_->setValue(s.x);
+    y_->setValue(s.y);
+    w_->setValue(s.w > 0 ? s.w : 1.0);
+    h_->setValue(s.h > 0 ? s.h : 1.0);
+    rotation_->setValue(s.rotation);
+    rot_x_->setValue(s.rot_x);
+    rot_y_->setValue(s.rot_y);
+    gain_r_->setValue(s.rgb_gain[0]);
+    gain_g_->setValue(s.rgb_gain[1]);
+    gain_b_->setValue(s.rgb_gain[2]);
+    gamma_->setValue(s.gamma);
+}
+
+void ScreenPropertyDialog::setDisplayInfo(const QString& text) {
+    // 【2026-11-25 用户定案】display 名称行 = 弹窗标题：标题栏直接显示
+    // 「绑定 id · 在线状态 · 地址」（宿主组装的富文本；QLabel AutoText
+    // 自动识别渲染）。空 = 回退静态标题（防无标题窗）。
+    setDialogTitle(text.isEmpty() ? tr("Display 属性") : text);
 }
 
 void ScreenPropertyDialog::applyTo(Screen& s) const {

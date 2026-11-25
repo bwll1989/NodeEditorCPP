@@ -35,7 +35,8 @@ class CameraIngest : public IngestBase {
 public:
     /// source_ref = 设备 SymbolicLink（listCameraSources 生成，原样存
     /// asset.live_source_name；收端 UTF-8 → wide 后重建设备源）
-    CameraIngest(std::string source_ref, int latency_mode, FrameSink sink);
+    CameraIngest(std::string source_ref, int latency_mode,
+                 std::int64_t schedule_delay_us, FrameSink sink);
     ~CameraIngest() override;
 
     CameraIngest(const CameraIngest&)            = delete;
@@ -53,6 +54,7 @@ std::vector<IngestSource> listCameraSources(std::uint32_t wait_ms);
 /// 工厂（注册表 create 包装）
 std::unique_ptr<ILiveIngest> makeCamera(std::string source_name,
                                         int        latency_mode,
+                                        std::int64_t schedule_delay_us,
                                         ILiveIngest::FrameSink sink);
 
 } // namespace ms

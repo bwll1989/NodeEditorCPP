@@ -421,7 +421,17 @@ bool FfmpegMediaSource::prepare(const Asset& asset) {
         //     连续补齐"的 seek 场景收益最大，代价 n-1 帧流水线延迟——补齐
         //     循环按 pts 判断收尾、输出帧序与串行一致，语义零变化。
         if (!hw_active_) {
+#ifdef __ANDROID__
+            // 【Android 2026-11-24】容器环境（卓易通/Anco）内存配额紧：
+            // thread_count=0 按宿主核数自动（麒麟 12 核）= 每视频源 n 份
+            // 解码器上下文副本 + n-1 帧流水线缓冲（1080p yuv420p ≈ 36MB
+            // /源），多视频并发直击容器 OOM/低内存击杀（"同步视频即崩、
+            // 删视频即稳"的主嫌疑）。钳到 4：流水线缓冲降到 ~12MB/源，
+            // seek 补齐吞吐仍有 4× 收益；桌面 Windows 保持自动。
+            codec_->thread_count = 4;
+#else
             codec_->thread_count = 0; // 0 = 自动（按 CPU 核数）
+#endif
             codec_->thread_type  = FF_THREAD_FRAME;
         }
 

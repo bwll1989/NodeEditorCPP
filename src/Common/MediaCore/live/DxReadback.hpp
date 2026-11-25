@@ -36,7 +36,11 @@ public:
 
     /// 源纹理 → RGBA LiveFrame（新对象；读回失败返回 nullptr）。
     /// BGRA → swap 换序；R8G8B8A8 → 直拷；其余格式告警丢弃。
-    LiveFramePtr read(ID3D11DeviceContext* context, ID3D11Texture2D* src) {
+    /// schedule_delay_us：应显时刻偏移（延迟预算，捕获端打戳定案
+    /// 2026-11-25）——必须在帧仍可变处打戳（LiveFramePtr 是
+    /// shared_ptr<const LiveFrame>，出手后不可再改）。
+    LiveFramePtr read(ID3D11DeviceContext* context, ID3D11Texture2D* src,
+                      std::int64_t schedule_delay_us = 0) {
         if (context == nullptr || src == nullptr) return nullptr;
 
         D3D11_TEXTURE2D_DESC td{};
@@ -86,8 +90,9 @@ public:
         frame->w = static_cast<int>(td.Width);
         frame->h = static_cast<int>(td.Height);
         frame->rgba.resize(static_cast<std::size_t>(td.Width) * td.Height * 4);
-        // 帧同步戳：GPU 读回（内容已就绪）的接收时刻，Spout/WGC 共用。
-        frame->pts_us = processAlignedNowUs();
+        // 应显时刻 = GPU 读回（内容已就绪）时刻 + 延迟预算，Spout/WGC
+        // 共用（捕获端统一打戳定案 2026-11-25——pts 语义 = 应显时刻）。
+        frame->pts_us = processAlignedNowUs() + schedule_delay_us;
         const auto* src_px = static_cast<const std::uint8_t*>(mapped.pData);
         auto* dst = frame->rgba.data();
         const std::uint32_t dst_stride =
