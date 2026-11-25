@@ -27,9 +27,9 @@
 <!-- Vue 3 挂载根（vue.global.prod.js 内置模板编译器；全响应式声明式渲染） -->
 <div id="app" v-cloak>
   <header id="topbar">
-    <!-- 移动端抽屉切换（≤900px 显示，桌面 CSS 隐藏）：左右互斥单开 -->
+    <!-- 移动端抽屉切换（≤900px 显示，桌面 CSS 隐藏） -->
     <button class="m-nav" v-show="!modeIsSync" :class="{ on: mobilePanel === 'left' }"
-            title="时间轴 / 媒体库" aria-label="打开时间轴与媒体库抽屉"
+            title="时间轴 / 媒体库 / 片段属性" aria-label="打开侧边栏抽屉"
             @click="toggleMobilePanel('left')">
       <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h12" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
     </button>
@@ -39,10 +39,13 @@
     </div>
     <div id="transport">
       <span id="active-name" title="当前激活（播放中）的时间轴">{{ activeName }}</span>
-      <span class="sep">·</span>
-      <span class="mono playhead-time">{{ playheadText }}</span>
-      <span class="tsep">/</span>
-      <span class="mono dur">{{ durationText }}</span>
+      <!-- 时间码块（2026-11-25 用户定案：顶上时间显示更明显）：
+           墨绿黑实底胶囊，当前时刻大号加粗（主）/ 总时长小号弱化（次）；
+           播放中 .live = 当前时刻转流动亮绿 + 外圈绿晕 -->
+      <span class="timecode mono" :class="{ live: status && status.state === 1 }"
+            title="播放头当前时刻 / 时间轴总时长">
+        <span class="t-cur">{{ playheadText }}</span><span class="t-sep">/</span><span class="t-dur">{{ durationText }}</span>
+      </span>
       <span class="chip" :class="{ playing: status && status.state === 1, paused: status && status.state === 2 }">{{ stateName }}</span>
     </div>
     <div id="conn" class="chip" :class="{ ok: connOk === true, bad: connOk === false }">{{ connText }}</div>
@@ -56,68 +59,116 @@
             v-if="mpcdiWarpOn" class="warp-tag">启用中</span></button>
     <button id="btn-settings" class="chip" title="显示设置（模式切换/端口/渲染/素材根）"
             @click="ui.settings = true; loadSettings()">⚙<span class="btn-txt">设置</span></button>
-    <button class="m-nav" v-show="!modeIsSync" :class="{ on: mobilePanel === 'right' }"
-            title="片段属性" aria-label="打开片段属性抽屉"
-            @click="toggleMobilePanel('right')">
-      <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10.2" cy="4" r="2" fill="currentColor"/><circle cx="5.8" cy="8" r="2" fill="currentColor"/><circle cx="10.8" cy="12" r="2" fill="currentColor"/></svg>
-    </button>
   </header>
 
   <main id="layout" :class="{ 'mode-sync': modeIsSync }">
-    <!-- 左栏：时间轴列表 + 媒体库（可折叠；仅独立模式——sync 下编排面被门禁） -->
+    <!-- 左栏：时间轴 / 媒体库 / 片段属性 三面板同一侧边栏（2026-11-25 收拢，
+         各面板点击标题折叠展开，localStorage 记忆；仅独立模式——sync 下编排面被门禁） -->
     <aside id="sidebar" v-show="!modeIsSync"
            :class="{ collapsed: ui.left, 'm-open': mobilePanel === 'left' }">
       <div class="side-inner">
-        <section class="panel">
-          <div class="panel-head">
+        <!-- ===== 面板 1：时间轴列表 ===== -->
+        <section class="panel" :class="{ closed: !ui.secTl }">
+          <div class="panel-head" title="点击折叠 / 展开时间轴面板" @click="ui.secTl = !ui.secTl">
+            <span class="chev" aria-hidden="true">▾</span>
             <h2>时间轴</h2>
-            <button title="新建空白时间轴" @click="newTimeline">＋新建</button>
-            <label class="upload-btn" title="导入 .show 工程（编辑器工程文件，独立模式）">导入<input type="file" accept=".show,application/json" hidden @change="importShow"></label>
+            <button title="新建空白时间轴" @click.stop="newTimeline">＋新建</button>
+            <label class="upload-btn" title="导入 .show 工程（编辑器工程文件，独立模式）" @click.stop>导入<input type="file" accept=".show,application/json" hidden @change="importShow"></label>
           </div>
-          <ul id="tl-list">
-            <li v-if="!timelines.length" class="empty-hint">暂无时间轴——点击「＋新建」或导入 .show 工程</li>
-            <li v-for="t in timelines" :key="t.id" :class="{ sel: t.id === currentId }"
-                @click="openTimeline(t.id)">
-              <span class="tl-name" :title="t.id + '（双击重命名）'"
-                    @dblclick.stop="startRenameTimeline(t)">
-                <input v-if="renamingTl === t.id" class="inline-rename" v-model="renameDraft"
-                       title="Enter 确认 · Esc 或点击其他位置取消"
-                       @keyup.enter="commitRenameTimeline" @keyup.esc="cancelRenameTimeline"
-                       @blur="cancelRenameTimeline" @click.stop @dblclick.stop>
-                <template v-else>{{ t.name || t.id }}</template>
-              </span>
-              <span class="tl-badges">
-                <button class="mini" title="重命名" @click.stop="startRenameTimeline(t)">✎</button>
-                <button class="mini" title="设为开机默认" @click.stop="setDefault(t.id)">★</button>
-                <button class="mini" title="导出为 .show 工程（编辑器可打开）" @click.stop="exportShow(t)">⤓</button>
-                <button class="mini danger" title="删除" @click.stop="deleteTimeline(t)">✕</button>
-                <span v-if="t.loop" class="badge" title="循环播放">循</span>
-                <span v-if="t.is_default" class="badge" title="开机默认">默认</span>
-                <span v-if="t.is_active" class="badge act" title="播放中">播</span>
-              </span>
-            </li>
-          </ul>
+          <div class="panel-body" v-show="ui.secTl">
+            <ul id="tl-list">
+              <li v-if="!timelines.length" class="empty-hint">暂无时间轴——点击「＋新建」或导入 .show 工程</li>
+              <li v-for="t in timelines" :key="t.id" :class="{ sel: t.id === currentId }"
+                  @click="openTimeline(t.id)">
+                <span class="tl-name" :title="t.id + '（双击重命名）'"
+                      @dblclick.stop="startRenameTimeline(t)">
+                  <input v-if="renamingTl === t.id" class="inline-rename" v-model="renameDraft"
+                         title="Enter 确认 · Esc 或点击其他位置取消"
+                         @keyup.enter="commitRenameTimeline" @keyup.esc="cancelRenameTimeline"
+                         @blur="cancelRenameTimeline" @click.stop @dblclick.stop>
+                  <template v-else>{{ t.name || t.id }}</template>
+                </span>
+                <span class="tl-badges">
+                  <button class="mini" title="重命名" @click.stop="startRenameTimeline(t)">✎</button>
+                  <button class="mini" title="设为开机默认" @click.stop="setDefault(t.id)">★</button>
+                  <button class="mini" title="导出为 .show 工程（编辑器可打开）" @click.stop="exportShow(t)">⤓</button>
+                  <button class="mini danger" title="删除" @click.stop="deleteTimeline(t)">✕</button>
+                  <span v-if="t.loop" class="badge" title="循环播放">循</span>
+                  <span v-if="t.is_default" class="badge" title="开机默认">默认</span>
+                  <span v-if="t.is_active" class="badge act" title="播放中">播</span>
+                </span>
+              </li>
+            </ul>
+          </div>
         </section>
-        <section class="panel">
-          <div class="panel-head">
+
+        <!-- ===== 面板 2：媒体库 ===== -->
+        <section class="panel" :class="{ closed: !ui.secLib }">
+          <div class="panel-head" title="点击折叠 / 展开媒体库面板" @click="ui.secLib = !ui.secLib">
+            <span class="chev" aria-hidden="true">▾</span>
             <h2>媒体库</h2>
-            <button title="添加字幕片段到选中轨道（默认 5s，属性面板可改内容/位置）" @click="addTextClip()">＋字幕</button>
-            <button title="重新扫描素材目录" @click="refreshLibrary">⟳</button>
-            <label class="upload-btn">上传<input type="file" multiple hidden @change="uploadFiles"></label>
+            <button title="添加字幕片段到选中轨道（默认 5s，属性面板可改内容/位置）" @click.stop="addTextClip()">＋字幕</button>
+            <button title="重新扫描素材目录" @click.stop="refreshLibrary">⟳</button>
+            <label class="upload-btn" title="上传素材文件到素材根目录" @click.stop>上传<input type="file" multiple hidden @change="uploadFiles"></label>
           </div>
-          <input id="lib-search" type="search" placeholder="搜索素材…" v-model="libQuery">
-          <ul id="lib-list">
-            <li v-if="!library.length" class="empty-hint">{{ libQuery ? '没有匹配的素材——换个关键词试试' : '素材库为空——点击「上传」添加素材' }}</li>
-            <li v-for="it in library" :key="it.id"
-                :title="'拖拽到轨道任意位置放置（落点=片段起点）· 双击=追加到选中轨道末尾\n' + it.path"
-                @mousedown="onLibMouseDown($event, it)"
-                @dblclick="appendClipFromLibrary(it)">
-              <span class="kind" :class="it.kind">{{ it.kind }}</span>
-              <span class="name">{{ it.name }}</span>
-              <span class="size">{{ it.duration_us > 0 ? fmtTime(it.duration_us) + ' · ' : '' }}{{ fmtSize(it.size) }}</span>
-            </li>
-          </ul>
-          <div class="hint">拖拽素材到轨道任意位置放置；双击=追加到选中轨道末尾</div>
+          <div class="panel-body" v-show="ui.secLib">
+            <input id="lib-search" type="search" placeholder="搜索素材…" v-model="libQuery">
+            <ul id="lib-list">
+              <li v-if="!library.length" class="empty-hint">{{ libQuery ? '没有匹配的素材——换个关键词试试' : '素材库为空——点击「上传」添加素材' }}</li>
+              <li v-for="it in library" :key="it.id"
+                  :title="'拖拽到轨道任意位置放置（落点=片段起点）· 双击=追加到选中轨道末尾\n' + it.path"
+                  @mousedown="onLibMouseDown($event, it)"
+                  @dblclick="appendClipFromLibrary(it)">
+                <span class="kind" :class="it.kind">{{ it.kind }}</span>
+                <span class="name">{{ it.name }}</span>
+                <span class="size">{{ it.duration_us > 0 ? fmtTime(it.duration_us) + ' · ' : '' }}{{ fmtSize(it.size) }}</span>
+                <button class="mini lib-del" title="从素材库删除（文件将从磁盘删除，不可恢复）"
+                        @click.stop="deleteLibraryItem(it)" @dblclick.stop>✕</button>
+              </li>
+            </ul>
+            <div class="hint">拖拽素材到轨道任意位置放置；双击=追加到选中轨道末尾</div>
+          </div>
+        </section>
+
+        <!-- ===== 面板 3：片段属性（原右栏收拢；点选时间轴片段自动展开） ===== -->
+        <section class="panel" :class="{ closed: !ui.secProps }">
+          <div class="panel-head" title="点击折叠 / 展开片段属性面板" @click="ui.secProps = !ui.secProps">
+            <span class="chev" aria-hidden="true">▾</span>
+            <h2>片段属性</h2>
+            <span class="ph-sub" v-if="selClipData" :title="clipLabel(selClipData.clip)">{{ clipLabel(selClipData.clip) }}</span>
+          </div>
+          <div class="panel-body props-body" v-show="ui.secProps">
+            <div v-if="!selClipData" class="prop-empty">
+              <div class="glyph">⎔</div>
+              <div class="hint">点击时间轴上的片段<br>查看 / 编辑属性</div>
+            </div>
+            <form id="prop-form" v-else @submit.prevent>
+          <div class="pgroup">来源</div>
+          <label>文件<input name="file" readonly :value="draft.file"></label>
+          <label>文本内容<input name="text" :value="draft.text" @input="onProp('text', $event)"></label>
+          <div class="pgroup">时间</div>
+          <label>开始 (s)<input name="start_s" type="number" step="0.01" min="0" :value="draft.start_s" @input="onProp('start_s', $event)"></label>
+          <label>时长 (s)<input name="duration_s" type="number" step="0.01" min="0" :value="draft.duration_s" @input="onProp('duration_s', $event)"></label>
+          <label>入点 (s)<input name="in_s" type="number" step="0.01" min="0" :value="draft.in_s" @input="onProp('in_s', $event)"></label>
+          <div class="pgroup">几何与变换</div>
+          <label title="画布像素（左上角为原点，画布尺寸见顶栏）">X (px)<input name="x" type="number" step="1" placeholder="0=左上" :value="draft.x" @input="onProp('x', $event)"></label>
+          <label title="画布像素（左上角为原点）">Y (px)<input name="y" type="number" step="1" placeholder="0=左上" :value="draft.y" @input="onProp('y', $event)"></label>
+          <label title="绘制宽度（画布像素）；视频/图片留空 = 自动等比适配画布并居中，其余素材 = 自然尺寸">宽 (px)<input name="w" type="number" step="1" min="0" placeholder="自动" :value="draft.w" @input="onProp('w', $event)"></label>
+          <label title="绘制高度（画布像素）；视频/图片留空 = 自动等比适配画布并居中，其余素材 = 自然尺寸">高 (px)<input name="h" type="number" step="1" min="0" placeholder="自动" :value="draft.h" @input="onProp('h', $event)"></label>
+          <label title="旋转角度（度，顺时针，绕片段中心）">旋转 (°)<input name="rotation" type="number" step="1" :value="draft.rotation" @input="onProp('rotation', $event)"></label>
+          <label title="不透明度 0~1">不透明度 <input name="opacity" type="number" step="0.05" min="0" max="1" :value="draft.opacity" @input="onProp('opacity', $event)"></label>
+          <label title="同一轨道内多个片段的叠放次序（0~999，大者在上）；跨轨道层次由轨道上下移（▲▼）决定">轨内层级 <input name="z" type="number" step="1" min="0" max="999" :value="draft.z" @input="onProp('z', $event)"></label>
+          <div class="pgroup">裁剪</div>
+          <label title="从左边缘向内裁掉的宽度（画布像素）">左 (px)<input name="crop_l" type="number" step="1" min="0" :value="draft.crop_l" @input="onProp('crop_l', $event)"></label>
+          <label title="从右边缘向内裁掉的宽度（画布像素）">右 (px)<input name="crop_r" type="number" step="1" min="0" :value="draft.crop_r" @input="onProp('crop_r', $event)"></label>
+          <label title="从上边缘向内裁掉的高度（画布像素）">上 (px)<input name="crop_t" type="number" step="1" min="0" :value="draft.crop_t" @input="onProp('crop_t', $event)"></label>
+          <label title="从下边缘向内裁掉的高度（画布像素）">下 (px)<input name="crop_b" type="number" step="1" min="0" :value="draft.crop_b" @input="onProp('crop_b', $event)"></label>
+          <div class="pgroup">淡变</div>
+          <label>淡入 (s)<input name="fade_in_s" type="number" step="0.1" min="0" :value="draft.fade_in_s" @input="onProp('fade_in_s', $event)"></label>
+          <label>淡出 (s)<input name="fade_out_s" type="number" step="0.1" min="0" :value="draft.fade_out_s" @input="onProp('fade_out_s', $event)"></label>
+          <button type="button" class="danger" @click="delClip">删除片段</button>
+        </form>
+          </div>
         </section>
       </div>
     </aside>
@@ -172,6 +223,12 @@
         <button :disabled="!doc" title="所有修改已自动实时生效；此按钮=立即强制保存" @click="forceSave">保存</button>
       </div>
       <div id="vis-timeline"></div>
+      <!-- 空时间轴引导（无文档时中栏居中提示；pointer-events:none 不挡操作） -->
+      <div class="editor-empty" v-if="!doc && !modeIsSync">
+        <div class="glyph">⎔</div>
+        <div>新建或选择一个时间轴开始编排</div>
+        <div class="sub">左侧「时间轴」面板 → ＋新建 / 导入 .show 工程</div>
+      </div>
       <!-- 编辑区底部状态栏：保存反馈（左）+ 交互说明（右） -->
       <div id="editor-status">
         <span id="save-hint" :class="{ stale: docStale }">{{ saveHint }}</span>
@@ -185,48 +242,6 @@
         中切换为独立模式（保存后自动重启生效）</div>
       </div>
     </section>
-
-    <!-- 右栏折叠手柄 -->
-    <button class="fold-bar" v-show="!modeIsSync" :title="ui.right ? '展开属性栏' : '收起属性栏'"
-            @click="ui.right = !ui.right">{{ ui.right ? '⟨' : '⟩' }}</button>
-
-    <!-- 右栏：属性面板（可折叠） -->
-    <aside id="props" v-show="!modeIsSync"
-           :class="{ collapsed: ui.right, 'm-open': mobilePanel === 'right' }">
-      <div class="side-inner">
-        <h2>片段属性</h2>
-        <div v-if="!selClipData" class="prop-empty">
-          <div class="glyph">⎔</div>
-          <div class="hint">点击时间轴上的片段<br>查看 / 编辑属性</div>
-        </div>
-        <form id="prop-form" v-else @submit.prevent>
-          <div class="pgroup">来源</div>
-          <label>文件<input name="file" readonly :value="draft.file"></label>
-          <label>文本内容<input name="text" :value="draft.text" @input="onProp('text', $event)"></label>
-          <div class="pgroup">时间</div>
-          <label>开始 (s)<input name="start_s" type="number" step="0.01" min="0" :value="draft.start_s" @input="onProp('start_s', $event)"></label>
-          <label>时长 (s)<input name="duration_s" type="number" step="0.01" min="0" :value="draft.duration_s" @input="onProp('duration_s', $event)"></label>
-          <label>入点 (s)<input name="in_s" type="number" step="0.01" min="0" :value="draft.in_s" @input="onProp('in_s', $event)"></label>
-          <div class="pgroup">几何与变换</div>
-          <label title="画布像素（左上角为原点，画布尺寸见顶栏）">X (px)<input name="x" type="number" step="1" placeholder="0=左上" :value="draft.x" @input="onProp('x', $event)"></label>
-          <label title="画布像素（左上角为原点）">Y (px)<input name="y" type="number" step="1" placeholder="0=左上" :value="draft.y" @input="onProp('y', $event)"></label>
-          <label title="绘制宽度（画布像素）；视频/图片留空 = 自动等比适配画布并居中，其余素材 = 自然尺寸">宽 (px)<input name="w" type="number" step="1" min="0" placeholder="自动" :value="draft.w" @input="onProp('w', $event)"></label>
-          <label title="绘制高度（画布像素）；视频/图片留空 = 自动等比适配画布并居中，其余素材 = 自然尺寸">高 (px)<input name="h" type="number" step="1" min="0" placeholder="自动" :value="draft.h" @input="onProp('h', $event)"></label>
-          <label title="旋转角度（度，顺时针，绕片段中心）">旋转 (°)<input name="rotation" type="number" step="1" :value="draft.rotation" @input="onProp('rotation', $event)"></label>
-          <label title="不透明度 0~1">不透明度 <input name="opacity" type="number" step="0.05" min="0" max="1" :value="draft.opacity" @input="onProp('opacity', $event)"></label>
-          <label title="同一轨道内多个片段的叠放次序（0~999，大者在上）；跨轨道层次由轨道上下移（▲▼）决定">轨内层级 <input name="z" type="number" step="1" min="0" max="999" :value="draft.z" @input="onProp('z', $event)"></label>
-          <div class="pgroup">裁剪</div>
-          <label title="从左边缘向内裁掉的宽度（画布像素）">左 (px)<input name="crop_l" type="number" step="1" min="0" :value="draft.crop_l" @input="onProp('crop_l', $event)"></label>
-          <label title="从右边缘向内裁掉的宽度（画布像素）">右 (px)<input name="crop_r" type="number" step="1" min="0" :value="draft.crop_r" @input="onProp('crop_r', $event)"></label>
-          <label title="从上边缘向内裁掉的高度（画布像素）">上 (px)<input name="crop_t" type="number" step="1" min="0" :value="draft.crop_t" @input="onProp('crop_t', $event)"></label>
-          <label title="从下边缘向内裁掉的高度（画布像素）">下 (px)<input name="crop_b" type="number" step="1" min="0" :value="draft.crop_b" @input="onProp('crop_b', $event)"></label>
-          <div class="pgroup">淡变</div>
-          <label>淡入 (s)<input name="fade_in_s" type="number" step="0.1" min="0" :value="draft.fade_in_s" @input="onProp('fade_in_s', $event)"></label>
-          <label>淡出 (s)<input name="fade_out_s" type="number" step="0.1" min="0" :value="draft.fade_out_s" @input="onProp('fade_out_s', $event)"></label>
-          <button type="button" class="danger" @click="delClip">删除片段</button>
-        </form>
-      </div>
-    </aside>
   </main>
 
   <!-- 移动端抽屉遮罩（≤900px 且抽屉开启时显示；点按收抽屉；桌面恒 display:none） -->

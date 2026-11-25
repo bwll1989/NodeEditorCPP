@@ -19,15 +19,16 @@
      POST /api/v1/playback/pause|resume|seek|stop
      GET  /api/v1/library(?q=)                媒体库
      POST /api/v1/library/upload              上传（multipart）
+     DELETE /api/v1/library/{id}              删除素材（assets_root 内磁盘删文件）
 
    编辑模型：整文档下载 → 本地编辑（doc ref，深度响应式）→ vis 拖拽落定/
    属性面板修改回写 doc → 400ms 防抖整文档 PUT → 后端重装配 + 活跃热更新
    （applyLocalScene + localSeek 回原播放头）→ 画面即时生效。
    时间映射：1 vis 毫秒 = 1 后端微秒（数值直通，无精度损失）。
 
-   可折叠分栏：左栏（时间轴+媒体库）/右栏（属性）可一键收起，宽度过渡动画，
-   状态存 localStorage（ui.left / ui.right）；折叠切换后强制 vis.redraw()
-   （vis 只监听 window resize，容器变宽不自动重排）。
+   侧边栏（2026-11-25 收拢）：时间轴 / 媒体库 / 片段属性三面板同一栏，
+   面板折叠态存 localStorage（ui.secTl / ui.secLib / ui.secProps）；
+   侧栏整体折叠 ui.left；折叠切换后强制 vis.redraw()
    ========================================================================== */
 "use strict";
 
@@ -170,24 +171,30 @@ const app = createApp({
       toastTimer = setTimeout(() => { el.hidden = true; }, ms);
     }
 
-    // ---- 可折叠分栏（localStorage 记忆；true=收起）---------------------------
+    // ---- 可折叠分栏 + 三面板折叠（localStorage 记忆）--------------------------
+    // ui.left = 侧栏整体收起（fold-bar 竖条）；secTl/secLib/secProps =
+    // 时间轴/媒体库/片段属性三面板各自展开态（2026-11-25 收拢同一侧边栏）
     const ui = reactive({
       left: localStorage.getItem("ui.left") === "1",
-      right: localStorage.getItem("ui.right") === "1",
+      secTl: localStorage.getItem("ui.secTl") !== "0",        // 默认全展开
+      secLib: localStorage.getItem("ui.secLib") !== "0",
+      secProps: localStorage.getItem("ui.secProps") !== "0",
       settings: false,                        // 设置浮层开关（仅 ⚙ 手动开；2026-11-23 用户定案取消 sync 模式自动弹出）
       mpcdi: false,                           // 输出校准独立页开关（▣ 输出校准）
       logs: false,                            // 运行日志浮层开关（▤ 日志）
     });
-    watch(() => [ui.left, ui.right], () => {
+    watch(() => [ui.left, ui.secTl, ui.secLib, ui.secProps], () => {
       localStorage.setItem("ui.left", ui.left ? "1" : "0");
-      localStorage.setItem("ui.right", ui.right ? "1" : "0");
+      localStorage.setItem("ui.secTl", ui.secTl ? "1" : "0");
+      localStorage.setItem("ui.secLib", ui.secLib ? "1" : "0");
+      localStorage.setItem("ui.secProps", ui.secProps ? "1" : "0");
       // vis 只监听 window resize；容器宽度变化须显式重排
       nextTick(() => { if (visTimeline) visTimeline.redraw(); });
     });
 
-    // ---- 移动端抽屉（≤900px：左右栏转滑出抽屉，顶栏按钮互斥单开）--------------
-    // 桌面折叠（ui.left/right → width:0 + fold-bar）与移动抽屉（transform 滑入）
-    // 并存：≤900px 时 CSS 接管——抽屉显隐只看 mobilePanel，ui.left/right 失效化
+    // ---- 移动端抽屉（≤900px：侧边栏转滑出抽屉，顶栏按钮单开）------------------
+    // 桌面折叠（ui.left → width:0 + fold-bar）与移动抽屉（transform 滑入）
+    // 并存：≤900px 时 CSS 接管——抽屉显隐只看 mobilePanel，ui.left 失效化
     //（抽屉不占文档流，vis 编排区恒全宽）。与 style.css 的 900px 断点严格一致。
     const MOBILE_MQ = "(max-width: 900px)";
     const mqMobile = window.matchMedia(MOBILE_MQ);
@@ -571,6 +578,8 @@ const app = createApp({
         const [ti, ci] = props.items[0].split(":").map(Number);
         selectedClip.value = [ti, ci];
         selectedTrack.value = ti;
+        // 属性面板收起时自动展开（2026-11-25 并入侧边栏：点选即所见）
+        if (!ui.secProps) ui.secProps = true;
       });
 
       // vis 拖拽/缩放片段落定 → 回写文档（跨轨拖动 = 轨道迁移，id 映射失效须重建）
@@ -1332,6 +1341,21 @@ const app = createApp({
       refreshLibrary();
     }
 
+    /** 删除媒体库素材（2026-11-25）：DELETE /api/v1/library/{id} ——
+     *  后端校验路径在 assets_root 内后从磁盘删除文件（不可恢复），
+     *  前端 confirm 二次确认；404 = 文件已被删除/移走，按已删除处理 */
+    async function deleteLibraryItem(item) {
+      if (!confirm(`从素材库删除「${item.name}」？\n文件将从磁盘删除，不可恢复！`)) return;
+      try {
+        await api(`/api/v1/library/${enc(item.id)}`, { method: "DELETE" });
+        toast(`已删除「${item.name}」`);
+      } catch (err) {
+        if (err && err.status === 404) toast("文件不存在（可能已被删除）");
+        else alert("删除失败：" + humanErr(err && err.message));
+      }
+      refreshLibrary();
+    }
+
     // =========================================================================
     // 自动保存（实时生效）
     // =========================================================================
@@ -1598,9 +1622,9 @@ const app = createApp({
           else if (caseName === "collapse") {
             // 侧栏折叠验证。virtual-time 快进不走 CSS compositor 过渡（宽度冻结
             // 在起点）——临时禁用过渡让 width 立即到位，量得的是布局真值。
+            // 2026-11-25 单侧栏化：#props 已并栏移除，只验 #sidebar。
             const sb = document.querySelector("#sidebar");
-            const pr = document.querySelector("#props");
-            sb.style.transition = "none"; pr.style.transition = "none";
+            sb.style.transition = "none";
             ui.left = true;
             await nextTick();
             await new Promise((r) => setTimeout(r, 80));
@@ -1610,10 +1634,10 @@ const app = createApp({
             await nextTick();
             await new Promise((r) => setTimeout(r, 80));
             const w2 = sb.getBoundingClientRect().width;
-            sb.style.transition = ""; pr.style.transition = "";
+            sb.style.transition = "";
             if (!hasCls || w1 > 30 || w2 < 200)
               throw new Error(`cls=${hasCls} width collapsed=${w1} expanded=${w2}`);
-            document.title = `SELFTEST-OK collapse | left: ${w1}→${w2} | props sync ok`;
+            document.title = `SELFTEST-OK collapse | left: ${w1}→${w2}`;
             return;
           }
           else if (caseName === "layout-probe") {
@@ -1821,8 +1845,8 @@ const app = createApp({
             return;
           }
           else if (caseName === "shot-collapsed") {
-            // 截图专用：双侧栏收起后保持状态（供 headless --screenshot 拍折叠态）
-            ui.left = true; ui.right = true;
+            // 截图专用：侧栏收起后保持状态（供 headless --screenshot 拍折叠态）
+            ui.left = true;
             await nextTick();
             document.title = "SHOT-COLLAPSED";
             return;
@@ -2347,12 +2371,13 @@ const app = createApp({
       logLines, filteredLogLines, logFilter, logPaused, logUnread, logDropped, logUnavailable,
       logsListEl, fmtLogTime, onLogsScroll, openLogs, closeLogs,
       // 工具（模板用）
-      fmtTime, fmtSize, enc, escapeHtml,
+      fmtTime, fmtSize, enc, escapeHtml, clipLabel,
       // 动作
       newTimeline, doPlay, doStop, doPauseToggle, doPlayPause, setDefault, deleteTimeline, openTimeline,
       exportShow, importShow,
       toggleLoop,
       refreshLibrary, onLibMouseDown, appendClipFromLibrary, uploadFiles, addTextClip,
+      deleteLibraryItem,
       addTrackUi, moveTrack, deleteTrack, startRenameTimeline, cancelRenameTimeline,
       commitRenameTimeline, renamingTl, renameDraft, delClip, onProp,
       fitAll, zoomIn, zoomOut, forceSave,
