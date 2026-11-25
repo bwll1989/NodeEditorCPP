@@ -41,6 +41,8 @@
 
 全局可用：`Node` 对象、`SpinBox` / `Button` / `Label` / `HSlider` / `VSlider` / `CheckBox` / `LineEdit` / `ComboBox` / `DoubleSpinBox`，以及 `console`、`Math`、`JSON` 等 QJSEngine 扩展。
 
+代码编辑器支持输入 `.` 自动弹出成员候选、函数签名提示（calltips）和 `Ctrl+Space` 强制补全；`Node.*` 与控件词条由源码元对象动态生成，不再依赖手工维护的 API 文件。
+
 ## 4. 外部控制（OSC 地址）
 
 地址前缀：`/dataflow/{别名}/{节点ID}/…`
@@ -53,7 +55,8 @@
 - **保存重建**：点击「保存」→ 清空布局 → 重建 QJSEngine → `evaluate` 脚本 → 成功后调用 `initInterface()`；脚本逻辑应完全在生命周期回调内自建，不依赖上次残留控件引用。
 - **端口读写**：数据为键值对象（`VariableData` 的 map）；`setOutputValue` 传对象按属性展开（函数属性忽略），传标量自动包装为 `{default: value}`；越界或无数据读到空对象。
 - **端口数量持久化**：`InPortCount` / `OutPortCount` 存于工程 JSON **顶层**（非 `values` 子对象），加载时恢复端口数。
-- **脚本文本**：随工程保存，加载后需手动点击保存/重载才会重建引擎（与「保存重建」一致）。
+- **脚本文本**：随工程保存。`load()` 会自动 `reloadScript()` 重建引擎（旧文档中"加载后需手动保存/重载"的说法已过时）。
+- **控件值持久化**：`save()` 会把当前控件值写入 `values.widgets`（键为脚本设置的 `objectName`，未设置则用 `w0/w1/...` 序号）；`load()` 重建控件后用 `QSignalBlocker` 回填，不会因回填再触发 `onChange`。
 
 ## 6. 使用说明与典型接法
 
@@ -159,6 +162,7 @@ var lastIn = Node.inputIndex();
 | `Node.getInputValue(index)` | `index`: number | object | 读取 IN `index` 的当前值 |
 | `Node.getOutputValue(index)` | `index`: number | object | 读取本节点已写出的 OUT `index` 缓存 |
 | `Node.setOutputValue(index, value)` | `index`: number；`value`: object 或标量 | void | 写入 OUT 并通知下游更新 |
+| `Node.ui(spec)` | `spec`: 控件描述数组或单个描述对象 | void | 按描述创建控件并加入布局，自动连接 `onChange` |
 
 **`setOutputValue` 的 `value` 规则：**
 
@@ -208,6 +212,29 @@ function initInterface() {
   });
 }
 ```
+
+### 声明式构建 UI（推荐）
+
+`Node.ui(spec)` 是 `new + setXxx + addToLayout + connect` 的便捷封装，控件仍由 C++ 持有，生命周期与手工创建方式一致。
+
+```javascript
+function initInterface() {
+  Node.ui([
+    { type: "Label", key: "title", text: "增益", row: 0, col: 0 },
+    { type: "HSlider", key: "gain", min: 0, max: 100, value: 50,
+      row: 0, col: 1,
+      onChange: v => Node.setOutputValue(0, { default: v }) },
+    { type: "CheckBox", key: "auto", text: "自动", checked: false,
+      row: 1, col: 1, onChange: v => console.log(v) }
+  ]);
+}
+```
+
+- `type` 支持 `SpinBox / DoubleSpinBox / Button / Label / LineEdit / CheckBox / ComboBox / HSlider / VSlider`。
+- `key` 写入 `objectName`，同时作为控件值持久化的稳定键；省略时按创建序号 `w0/w1/...` 保存。
+- `min` / `max` 是 `minimum` / `maximum` 的别名；其余字段按同名 Qt 属性设置。
+- `onChange` 回调接收控件当前值（number / string / bool）；不同控件自动接 `valueChanged`、`textChanged`、`toggled`、`currentIndexChanged`、`clicked`。
+- 手工 `new + Node.addToLayout` 的老写法继续可用，两种方式可混用。
 
 ## 10. 可用控件类型（简述）
 

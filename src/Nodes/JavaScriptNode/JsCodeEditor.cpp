@@ -4,9 +4,12 @@
 
 #include "JsCodeEditor.h"
 
+#include "JavaScriptDataModel.hpp"
+#include "JSEngineDefines/SupportWidgets.hpp"
 
 #include "QFrame"
 #include <QShortcut>
+#include <QMetaMethod>
 // Qt
 #include<QFile>
 #include <QComboBox>
@@ -74,6 +77,11 @@ static void registerJsSnippets(QsciAPIs *apis)
     apis->add(QStringLiteral(R"(for (const item of list) {
     // ...
 })"));
+    apis->add(QStringLiteral(R"(Node.ui([
+    { type: "Label", key: "title", text: "标题", row: 0, col: 0 },
+    { type: "HSlider", key: "gain", min: 0, max: 100, value: 50,
+      row: 0, col: 1, onChange: v => Node.setOutputValue(0, { default: v }) }
+]);)"));
 }
 
 /**
@@ -90,6 +98,7 @@ static void registerFallbackJsApis(QsciAPIs *apis)
         QStringLiteral("Node.setOutputValue(index, value)"),
         QStringLiteral("Node.addToLayout(widget, row, column, rowSpan, columnSpan)"),
         QStringLiteral("Node.clearLayout()"),
+        QStringLiteral("Node.ui(spec)"),
         QStringLiteral("function initInterface()"),
         QStringLiteral("function inputEventHandler(index)"),
         QStringLiteral("new SpinBox()"),
@@ -130,6 +139,51 @@ static bool registerApisFromFile(QsciAPIs *apis, const QString &filePath)
     }
     return true;
 }
+
+/**
+ * 从 QMetaObject 中抽取本类自身声明的 Q_INVOKABLE 方法名，避免词表与实现漂移。
+ */
+static void registerMetaMethods(QsciAPIs *apis, const QMetaObject &mo,
+                                const QString &prefix, bool addConstructorCall)
+{
+    if (addConstructorCall) {
+        apis->add(QStringLiteral("new ") + QString::fromLatin1(mo.className()) + QStringLiteral("()"));
+    }
+    for (int i = mo.methodOffset(); i < mo.methodCount(); ++i) {
+        const QMetaMethod method = mo.method(i);
+        if (method.methodType() != QMetaMethod::Method) {
+            continue;
+        }
+        const QString name = QString::fromLatin1(method.name());
+        if (name.isEmpty() || name.startsWith(QStringLiteral("qt_"))) {
+            continue;
+        }
+        apis->add(prefix + name + QStringLiteral("()"));
+    }
+}
+
+/**
+ * Node 与 9 种控件的 API 以源码元对象为准动态生成。
+ */
+static void registerRuntimeApis(QsciAPIs *apis)
+{
+    apis->add(QStringLiteral("Node"));
+    registerMetaMethods(apis, Nodes::JavaScriptDataModel::staticMetaObject,
+                        QStringLiteral("Node."), false);
+    apis->add(QStringLiteral("function initInterface()"));
+    apis->add(QStringLiteral("function inputEventHandler(index)"));
+
+    registerMetaMethods(apis, SpinBox::staticMetaObject, QString(), true);
+    registerMetaMethods(apis, DoubleSpinBox::staticMetaObject, QString(), true);
+    registerMetaMethods(apis, Button::staticMetaObject, QString(), true);
+    registerMetaMethods(apis, Label::staticMetaObject, QString(), true);
+    registerMetaMethods(apis, LineEdit::staticMetaObject, QString(), true);
+    registerMetaMethods(apis, CheckBox::staticMetaObject, QString(), true);
+    registerMetaMethods(apis, ComboBox::staticMetaObject, QString(), true);
+    registerMetaMethods(apis, HSlider::staticMetaObject, QString(), true);
+    registerMetaMethods(apis, VSlider::staticMetaObject, QString(), true);
+}
+
 JsCodeEditor::JsCodeEditor(QString code,QWidget* parent):
         m_code(code),
         m_setupLayout(nullptr),
@@ -206,19 +260,25 @@ void JsCodeEditor::createWidgets()
     m_codeEditor->setTabIndents(true);
     m_codeEditor->setBackspaceUnindents(true);
     
-    // 自动补全：替换单词，大小写敏感，阈值适度，单项不弹窗
+    // 自动补全：输入成员运算符（.）后立即弹出候选，单个候选也提示，忽略大小写
     m_codeEditor->setAutoCompletionReplaceWord(true);
-    m_codeEditor->setAutoCompletionCaseSensitivity(true);
-    m_codeEditor->setAutoCompletionShowSingle(false);
+    m_codeEditor->setAutoCompletionFillups(".");
+    m_codeEditor->setAutoCompletionCaseSensitivity(false);
+    m_codeEditor->setAutoCompletionShowSingle(true);
     m_codeEditor->setAutoCompletionThreshold(1);
-    
+
+    // 函数签名提示：输入左括号后显示参数表
+    m_codeEditor->setCallTipsStyle(QsciScintilla::CallTipsNoContext);
+    m_codeEditor->setCallTipsVisible(0);
+
     // 括号匹配：宽松匹配提高效果
     m_codeEditor->setBraceMatching(QsciScintilla::SloppyBraceMatch);
-    
+
     QsciAPIs *apis = new QsciAPIs(textLexer);
     if (!registerApisFromFile(apis, QStringLiteral(":/JS_API/js_apis.api"))) {
         registerFallbackJsApis(apis);
     }
+    registerRuntimeApis(apis);
     registerJsSnippets(apis);
     apis->prepare();
 
@@ -285,6 +345,11 @@ void JsCodeEditor::performConnections()
         }
     );
     connect(exportJS,&QPushButton::clicked,this,&JsCodeEditor::exportCode);
+
+    auto *completeShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+Space")), m_codeEditor);
+    connect(completeShortcut, &QShortcut::activated, this, [this]() {
+        m_codeEditor->autoCompleteFromAll();
+    });
     // // 绑定 Ctrl+/ 快捷键到内置注释切换
     // auto *m_actionToggleComment = new QShortcut(QKeySequence::fromString("Ctrl+/"), m_codeEditor);
     // connect(m_actionToggleComment, &QShortcut::activated, this, &JsCodeEditor::toggleComment);

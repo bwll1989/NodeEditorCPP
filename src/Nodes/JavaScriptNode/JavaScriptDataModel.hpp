@@ -60,6 +60,7 @@ public:
     Q_INVOKABLE QJSValue getInputValue(int portIndex);
     Q_INVOKABLE QJSValue getOutputValue(int portIndex);
     Q_INVOKABLE void setOutputValue(int portIndex, const QJSValue &value);
+    Q_INVOKABLE void ui(const QJSValue &spec);
 
 private slots:
     void onRunButtonClicked();
@@ -73,6 +74,8 @@ private:
     void takeWidgetOwnership();
     void reloadScript(const QString &code, bool runInitInterface);
     void logJsError(const char *context, const QJSValue &result) const;
+    QVariantMap collectWidgetState() const;
+    void restoreWidgetState();
     static QString defaultScript();
 
     QPointer<JavaScriptInterface> widget;
@@ -89,6 +92,7 @@ private:
     bool m_handlingInput = false;
 
     QString script;
+    QVariantMap m_widgetState;
     mutable QMutex m_dataMutex;
 };
 

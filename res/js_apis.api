@@ -104,6 +104,7 @@ Node.addToLayout(widget)
 Node.addToLayout(widget, row, column)
 Node.addToLayout(widget, row, column, rowSpan, columnSpan)
 Node.clearLayout()
+Node.ui(spec)
 ["default"]
 
 # --- 控件构造（SupportWidgets newQMetaObject） ---
