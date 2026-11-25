@@ -295,7 +295,15 @@ private:
 
     QString displayLabel(const FaustParamDesc& p) const
     {
-        return p.path.isEmpty() ? p.label : p.path + QStringLiteral("/") + p.label;
+        // Faust 生成的 buildUserInterface() 总是把 DSP 名字（JIT 时即传给
+        // createDSPFactoryFromString 的 name，这里是 "FaustNode"）当作最外层
+        // box，显示时剥掉这一层根前缀，避免所有控件都带 "FaustNode/"。
+        // 不依赖 moduleName_（UI::declare 的 "name" 回调未必触发），直接按
+        // 路径第一段剥；用户在 .dsp 里自己写的 open*Box 分组照常显示。
+        QString path = p.path;
+        const int slash = path.indexOf(QLatin1Char('/'));
+        path = (slash < 0) ? QString() : path.mid(slash + 1);
+        return path.isEmpty() ? p.label : path + QStringLiteral("/") + p.label;
     }
 
     QVBoxLayout* root_ = nullptr;

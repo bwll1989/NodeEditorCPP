@@ -2,13 +2,13 @@
 
 用户加载 `.dsp` 文件，用 Faust 语言自定义音频处理算法。
 
-## 功能（2026-11-20，含音频端口）
+## 功能（2026-11-24，媒体库接入 + 音频端口）
 
-- 内嵌 UI：文件路径行 + `...` 选择按钮 + `↻` 重载按钮 + 动态参数面板 + 状态标签
+- 内嵌 UI：媒体库选择器（`SelectorComboBox`）+ 重新编译按钮（`:/icons/icons/reload.png` 图标，重置参数为 .dsp 默认值）+ 动态参数面板 + 状态标签
 - 加载 `.dsp` → libfaust JIT（`createDSPFactoryFromString`，LLVM 后端）编译出 `llvm_dsp` 实例
 - `dsp->buildUserInterface(ui)` 遍历参数 → `FloatDragValueWidget` / `QCheckBox` / bargraph 读数
 - 控件改值 → 直接写 `*zone`（DSP 实例内部变量活指针）→ 参数实时生效
-- 持久化：`save()` 存文件路径 + 内嵌源码 + 参数快照；`load()` 优先用内嵌源码（.flow 自包含）
+- 持久化：`save()` 存**媒体库文件名** + 内嵌源码 + 参数快照；`load()` 优先用内嵌源码（.flow 自包含），文件名经 `allFiles()` 反查绝对路径；兼容旧工程存的绝对路径
 - **音频端口**：端口数 = `dsp->getNumInputs()/getNumOutputs()`；Faust 通道 ↔ 单声道 AudioData 端口一一对应（`In 1/Out 1...`）
 - **音频处理**：`FaustAudioWorker` 独立线程追帧，多输入按时间戳对齐取帧 → **一次 `compute()` 处理全部通道** → 各输出端口 `pushFrame()`（时间戳 = 输入戳 + 全局输出延迟）
 
@@ -31,6 +31,14 @@
 - **中文路径**：`QString` + `QFile` 读取（Qt 内部 UTF-16，不经 filesystem），源码以 UTF-8 `std::string` 传入 JIT，天然绕过 `u8Path` 坑
 - **GUI 线程编译**：加载是低频操作（几十~几百 ms），JIT 在 GUI 线程同步执行；失败时 qWarning + 状态标签红字，端口归零、节点仍在图中
 - **实时线程**：worker 入口 `AudioThreadRealtimeGuard(L"Pro Audio")`（MMCSS）；音频路径无锁分配（缓冲区预分配，短临界区仅拷贝句柄）
+
+## 媒体库接入（2026-11-24）
+
+- `.dsp` 已作为独立类别 `MediaLibrary::Category::Faust` 纳入媒体库：媒体库面板「导入文件」可直接选 `*.dsp`，自动复制到 `Documents/Flow/Medias` 并归类到 **Faust DSP** 组；从资源管理器拖入面板同样入库
+- 节点内不再弹 `QFileDialog`：改用项目通用控件 `SelectorComboBox(Category::Faust)`，右侧 `⋯` 展开库中候选（显示文件名）；候选在展开时自动刷新
+- 从媒体库把 `.dsp` **拖到节点画布**会自动创建 Faust DSP 节点并加载该文件（拖拽模板 `internal-data.faust.file` 与 `save()`/`load()` 键一致）
+- 路径解析沿用 ISF/Gesture 惯例：文件名 → `MediaLibrary::allFiles()` 大小写不敏感反查 → 兜底 `MEDIA_LIBRARY_STORAGE_DIR`；绝不把绝对路径写进 `.flow`
+- 模型→UI 回写必须 `QSignalBlocker` 包裹，否则 `selectionChanged` 回环会反复触发 JIT 重编译
 
 ## 通道语义（重要，易踩坑）
 

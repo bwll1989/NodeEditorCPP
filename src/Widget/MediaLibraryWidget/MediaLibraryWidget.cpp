@@ -206,6 +206,7 @@ QString categoryDisplayLabel(MediaLibrary::Category cat)
     case MediaLibrary::Category::Fixture:   return QStringLiteral("Fixture/GDTF");
     case MediaLibrary::Category::Game:      return QObject::tr("游戏 ROM");
     case MediaLibrary::Category::Gesture:   return QObject::tr("手势库");
+    case MediaLibrary::Category::Faust:     return QStringLiteral("Faust DSP");
     case MediaLibrary::Category::Unknown:   break;
     }
     return {};
@@ -244,7 +245,7 @@ void MediaLibraryWidget::importFiles()
         "*.obj *.fbx *.stl *.gltf *.glb "
         "*.txt *.json *.xml *.cfg *.log *.md *.csv *.ini "
         "*.vwf *.fs *.childflow *.mpcdi *.gdtf "
-        "*.gba *.gb *.gbc"
+        "*.gba *.gb *.gbc *.dsp"
         ");;"
         "视频 (*.mp4 *.mov *.mkv *.avi *.wmv *.flv *.webm);;"
         "音频 (*.wav *.mp3 *.flac *.aac *.ogg *.m4a);;"
@@ -258,6 +259,7 @@ void MediaLibraryWidget::importFiles()
         "Child Flow (*.childflow);;"
         "Fixture/GDTF (*.gdtf);;"
         "游戏 ROM (*.gba *.gb *.gbc);;"
+        "Faust DSP (*.dsp);;"
         "所有文件 (*.*)");
 
     // 分组指定导入：该分组过滤器置顶，对话框默认选中它
@@ -448,6 +450,8 @@ QIcon MediaLibraryWidget::categoryIcon(int cat) const
     case Cat::Fixture: return QIcon(":/icons/icons/gdtf.png");
     case Cat::Game: return QIcon(":/icons/icons/games.png");
     case Cat::Gesture: return QIcon(":/icons/icons/finger.png");
+    // Faust 暂无专属图标，先沿用音频图标（与 DSP 的音频属性一致）
+    case Cat::Faust:   return QIcon(":/icons/icons/audio.png");
     case Cat::Unknown: return QIcon(":/icons/icons/unknown.png");
     default:           return QIcon();
     }

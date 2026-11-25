@@ -30,6 +30,9 @@ inline QString GdtfFileNode  = QStringLiteral(R"({"nodes": [{"id": 1, "input-cou
 inline QString GameFileNode  = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 12, "internal-data": {"values": {"romName": "%1"}}, "output-count": 3, "position": {"x": %2, "y": %3}, "type": "Libretro"}]})");
 // 拖拽 Gesture 文件 → Gesture 手势识别节点；libraryName 为媒体库文件名，节点内反查媒体库全路径（手势端口由节点按库内容动态生成）
 inline QString GestureFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 2, "internal-data": {"values": {"libraryName": "%1"}}, "output-count": 2, "position": {"x": %2, "y": %3}, "type": "Gesture"}]})");
+// 拖拽 Faust 文件 → Faust DSP 节点；file 为媒体库文件名（节点内反查媒体库全路径），
+// internal-data 键与 FaustDataModel::save()/load() 的顶层键一致；端口由节点按 .dsp 动态生成
+inline QString FaustFileNode = QStringLiteral(R"({"nodes": [{"id": 1, "input-count": 0, "internal-data": {"faust": {"file": "%1"}}, "output-count": 0, "position": {"x": %2, "y": %3}, "type": "Faust DSP"}]})");
 
 MediaLibrary::MediaLibrary(QObject* parent)
     : QStandardItemModel(parent)
@@ -39,7 +42,7 @@ MediaLibrary::MediaLibrary(QObject* parent)
     for (Category cat : { Category::Video, Category::Audio, Category::DMX, Category::Image,
                           Category::Model, Category::Document, Category::Vioso, Category::ISF,
                           Category::ChildFlow, Category::Mpcdi, Category::Fixture, Category::Game,
-                          Category::Gesture, Category::Unknown }) {
+                          Category::Gesture, Category::Faust, Category::Unknown }) {
         auto* group = new QStandardItem(categoryName(cat));
         group->setEditable(false);
         group->setData(static_cast<int>(cat), CategoryRole);
@@ -367,6 +370,7 @@ QJsonObject MediaLibrary::toJson() const
     collect(Category::Fixture, "Fixture");
     collect(Category::Game, "Game");
     collect(Category::Gesture, "Gesture");
+    collect(Category::Faust,   "Faust");
     collect(Category::Unknown, "Unknown");
     return root;
 }
@@ -396,6 +400,7 @@ bool MediaLibrary::fromJson(const QJsonObject& obj)
     load(Category::Fixture, "Fixture");
     load(Category::Game, "Game");
     load(Category::Gesture, "Gesture");
+    load(Category::Faust,   "Faust");
     load(Category::Unknown, "Unknown");
     emit libraryChanged();
     return true;
@@ -449,6 +454,7 @@ QStringList MediaLibrary::categoryExtensions(Category cat)
     case Category::Fixture:  return { "gdtf" };
     case Category::Game:     return { "gba", "gb", "gbc" };
     case Category::Gesture:  return { "gesture" };
+    case Category::Faust:    return { "dsp" };
     case Category::Unknown:  break;
     }
     return {};
@@ -468,7 +474,7 @@ MediaLibrary::Category MediaLibrary::detectCategory(const QString& absPath) cons
                                        Category::Image, Category::Model, Category::Vioso,
                                        Category::ISF, Category::ChildFlow, Category::Mpcdi,
                                        Category::Fixture, Category::Game, Category::Gesture,
-                                       Category::Document };
+                                       Category::Faust, Category::Document };
         for (Category cat : cats) {
             for (const QString& e : categoryExtensions(cat)) {
                 map.insert(e, cat);
@@ -498,6 +504,7 @@ QString MediaLibrary::categoryName(Category cat) const
     case Category::Fixture: return QStringLiteral("Fixtures");
     case Category::Game:    return QStringLiteral("Games");
     case Category::Gesture: return QStringLiteral("Gestures");
+    case Category::Faust:   return QStringLiteral("Faust DSP");
     case Category::Unknown: return QStringLiteral("Unknown");
     }
     return QStringLiteral("Unknown");
@@ -598,6 +605,7 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
             {Category::Fixture,  "Fixture"},
             {Category::Game,     "Game"},
             {Category::Gesture,  "Gesture"},
+            {Category::Faust,    "Faust"},
             {Category::Unknown,  "Unknown"}
         };
         const QString tagKey = tagMap.value(cat, "Unknown");
@@ -654,6 +662,10 @@ QMimeData* MediaLibrary::mimeData(const QModelIndexList& indexes) const
                     break;
                 case Category::ISF:
                     tpl = IsfFileNode.arg(fileName);
+                    break;
+                case Category::Faust:
+                    // 拖拽生成 Faust DSP 节点；file 为媒体库文件名（节点内反查）
+                    tpl = FaustFileNode.arg(fileName);
                     break;
                 case Category::ChildFlow: {
                     // 读取 .childflow 场景，包装为 Container 节点供画布 Paste

@@ -2,15 +2,18 @@
  * @file FaustDataModel.hpp
  * @brief FaustNode：加载用户 .dsp 文件 → libfaust JIT 编译 → 动态参数面板 + 音频端口。
  *
- * 功能（2026-11-20）：
- * - 选 .dsp 文件（QFileDialog）→ 读源码 → JIT 编译出 dsp 实例
+ * 功能（2026-11-20，2026-11-24 媒体库改造）：
+ * - 从媒体库选 .dsp 文件（SelectorComboBox / Category::Faust）→ 读源码 → JIT 编译出 dsp 实例
  * - 遍历 dsp->buildUserInterface() → 动态生成节点内嵌参数面板
  * - 控件改值 → 直接写 *zone → DSP 参数实时生效
  * - 音频端口数由 dsp->getNumInputs()/getNumOutputs() 动态决定（单声道端口一一对应）
  * - FaustAudioWorker 独立线程追帧 → 一次 compute() 处理全部通道 → 各输出端口 pushFrame
- * - save/load：存文件路径 + 内嵌源码 + 参数快照（.flow 自包含）
+ * - save/load：存媒体库文件名 + 内嵌源码 + 参数快照（.flow 自包含）
  *
  * 架构记忆：
+ * - 素材统一走媒体库管理（2026-11-12 用户定案）：节点内只存文件名，
+ *   加载时经 allFiles() 反查绝对路径（兜底 Documents/Flow/Medias），不存绝对路径。
+ *   .dsp 由 MediaLibrary::Category::Faust 分类，媒体库面板可直接导入/拖放到画布。
  * - 中文路径：QString → QFile 读取（Qt 内部 UTF-16，不经 filesystem），
  *   源码以 UTF-8 std::string 喂 createDSPFactoryFromString，天然绕开 u8Path 坑。
  * - JIT 符号来自 faust.dll（LLVM 静态链入），链接 faust.lib import lib。
@@ -25,22 +28,27 @@
 #include "FaustParamUI.hpp"
 #include "FaustAudioWorker.hpp"
 
+#include "Common/AppConfig/ConstantDefines.h"
 #include "Common/BaseClass/AbstractDelegateModel.h"
 #include "NodeDataList.hpp"
+#include "Elements/SelectorComboBox/SelectorComboBox.hpp"
+#include "MediaLibrary/MediaLibrary.h"
 
 #include <QtCore/QByteArray>
+#include <QtCore/QDir>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonObject>
 #include <QtCore/QString>
 #include <QtCore/QVariant>
+#include <QtGui/QIcon>
 #include <QtNodes/NodeDelegateModel>
-#include <QtWidgets/QFileDialog>
 #include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QLabel>
-#include <QtWidgets/QLineEdit>
 #include <QtWidgets/QPushButton>
+#include <QtCore/QSignalBlocker>
+#include <QtCore/QSize>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QWidget>
 
@@ -87,12 +95,21 @@ public:
 
         buildUi();
 
-        connect(m_selectButton, &QPushButton::clicked, this, [this]() {
-            const QString path = QFileDialog::getOpenFileName(
-                m_root, QStringLiteral("选择 Faust DSP 文件"),
-                QString(), QStringLiteral("Faust DSP (*.dsp);;所有文件 (*)"));
-            if (!path.isEmpty()) loadFile(path);
-        }, Qt::AutoConnection);
+        // 媒体库选择（SelectorComboBox）：候选项是 Category::Faust 下的 .dsp 文件名。
+        // 模型→UI 写回一律用 QSignalBlocker，避免 selectionChanged 回环重编译。
+        connect(m_fileSelector, &SelectorComboBox::selectionChanged, this,
+                [this](const QString& entered) {
+                    if (m_destructing) return;
+                    const QString name = entered.trimmed();
+                    if (name.isEmpty() || name == m_fileName) return;
+                    const QString abs = resolveMediaFilePath(name);
+                    if (abs.isEmpty()) {
+                        setStatus(QStringLiteral("媒体库中找不到: %1").arg(name), true);
+                        qWarning() << "[FaustNode] media file not found:" << name;
+                        return;
+                    }
+                    loadFile(abs);
+                }, Qt::AutoConnection);
         connect(m_reloadButton, &QPushButton::clicked, this, [this]() {
             reload();
         }, Qt::AutoConnection);
@@ -176,7 +193,8 @@ public:
     {
         QJsonObject modelJson = NodeDelegateModel::save();
         QJsonObject faust;
-        faust[QStringLiteral("file")] = m_filePath;
+        // 只存媒体库文件名（与 ISF/Gesture 等节点一致），不存绝对路径
+        faust[QStringLiteral("file")] = m_fileName;
         faust[QStringLiteral("source")] = QString::fromUtf8(m_source);
 
         QJsonArray params;
@@ -200,14 +218,26 @@ public:
     {
         if (m_destructing) return;
         const QJsonObject faust = data[QStringLiteral("faust")].toObject();
-        m_filePath = faust.value(QStringLiteral("file")).toString().trimmed();
+        const QString rawFile = faust.value(QStringLiteral("file")).toString().trimmed();
+        // 兼容旧工程：旧版存的是绝对路径，这里只取文件名，路径统一由媒体库反查
+        m_fileName = QFileInfo(rawFile).fileName();
         const QByteArray source = faust.value(QStringLiteral("source"))
                                       .toString().toUtf8();
 
+        {
+            QSignalBlocker blocker(m_fileSelector);
+            m_fileSelector->setText(m_fileName);
+            if (!m_fileName.isEmpty()) m_fileSelector->addIfNotExists(m_fileName);
+        }
+        const QString absPath = m_fileName.isEmpty()
+                                    ? QString()
+                                    : resolveMediaFilePath(m_fileName);
+        if (!absPath.isEmpty()) m_filePath = absPath;
+
         if (!source.isEmpty()) {
-            compileSource(source, QStringLiteral("(embedded)"));
-        } else if (!m_filePath.isEmpty() && QFileInfo::exists(m_filePath)) {
-            loadFile(m_filePath);
+            compileSource(source, m_fileName.isEmpty() ? QStringLiteral("(embedded)") : m_fileName);
+        } else if (!absPath.isEmpty()) {
+            loadFile(absPath);
         }
 
         // 参数快照灌回（按 label 匹配，zone 由新 dsp 实例提供）
@@ -242,9 +272,14 @@ public slots:
 
         m_filePath = path;
         const QFileInfo info(path);
-        m_pathEdit->setText(info.fileName());
-        m_pathEdit->setToolTip(path);
-        return compileSource(source, path);
+        m_fileName = info.fileName();
+        {
+            QSignalBlocker blocker(m_fileSelector);
+            m_fileSelector->setText(m_fileName);
+            m_fileSelector->addIfNotExists(m_fileName);
+            m_fileSelector->setToolTip(path);
+        }
+        return compileSource(source, m_fileName);
     }
 
     /** 用当前源码重新编译（Reload 按钮） */
@@ -252,13 +287,43 @@ public slots:
     {
         if (m_destructing) return;
         if (!m_source.isEmpty()) {
-            compileSource(m_source, m_filePath);
+            compileSource(m_source, m_fileName.isEmpty() ? m_filePath : m_fileName);
         } else if (!m_filePath.isEmpty()) {
             loadFile(m_filePath);
+        } else if (!m_fileName.isEmpty()) {
+            const QString abs = resolveMediaFilePath(m_fileName);
+            if (!abs.isEmpty()) loadFile(abs);
         }
     }
 
 private:
+    /** 媒体库文件名（或旧工程里保存的绝对路径）→ 绝对路径，与 ISF/Gesture 惯例一致 */
+    QString resolveMediaFilePath(const QString& value) const
+    {
+        const QString trimmed = value.trimmed();
+        if (trimmed.isEmpty()) return {};
+
+        const QFileInfo directInfo(trimmed);
+        if (directInfo.isAbsolute() && directInfo.exists()) {
+            return directInfo.absoluteFilePath(); // 兼容旧工程存的绝对路径 / 手输路径
+        }
+
+        const QStringList files = MediaLibrary::instance()->allFiles();
+        for (const QString& p : files) {
+            if (QFileInfo(p).fileName().compare(trimmed, Qt::CaseInsensitive) == 0) {
+                return p;
+            }
+        }
+
+        // 兜底：新文件刚入库但模型尚未刷新时，直接拼媒体库存储目录
+        const QString inStorage =
+            QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absoluteFilePath(trimmed);
+        if (QFileInfo::exists(inStorage)) return inStorage;
+
+        if (directInfo.exists()) return directInfo.absoluteFilePath();
+        return {};
+    }
+
     void buildUi()
     {
         m_root = new QWidget();
@@ -271,20 +336,19 @@ private:
         fileLayout->setContentsMargins(0, 0, 0, 0);
         fileLayout->setSpacing(4);
 
-        m_pathEdit = new QLineEdit(fileRow);
-        m_pathEdit->setReadOnly(true);
-        m_pathEdit->setPlaceholderText(QStringLiteral("未加载 .dsp"));
+        // 通用媒体选择控件：候选来自媒体库 Faust 分类，右侧 ⋯ 展开候选列表。
+        // 素材导入统一在媒体库面板完成（本项目 2026-11-12 用户定案）。
+        m_fileSelector = new SelectorComboBox(MediaLibrary::Category::Faust, fileRow);
+        m_fileSelector->setPlaceholderText(QStringLiteral("从媒体库选择 .dsp"));
+        m_fileSelector->setToolTip(QStringLiteral(".dsp 文件在媒体库 Faust DSP 分类中导入"));
 
-        m_selectButton = new QPushButton(QStringLiteral("..."), fileRow);
-        m_selectButton->setToolTip(QStringLiteral("选择 .dsp 文件"));
-        m_selectButton->setMaximumWidth(28);
-
-        m_reloadButton = new QPushButton(QStringLiteral("↻"), fileRow);
-        m_reloadButton->setToolTip(QStringLiteral("重新编译"));
+        m_reloadButton = new QPushButton(fileRow);
+        m_reloadButton->setIcon(QIcon(QStringLiteral(":/icons/icons/reload.png")));
+        m_reloadButton->setIconSize(QSize(18, 18));
+        m_reloadButton->setToolTip(QStringLiteral("重新编译（重置参数）"));
         m_reloadButton->setMaximumWidth(28);
 
-        fileLayout->addWidget(m_pathEdit, 1);
-        fileLayout->addWidget(m_selectButton);
+        fileLayout->addWidget(m_fileSelector, 1);
         fileLayout->addWidget(m_reloadButton);
         layout->addWidget(fileRow);
 
@@ -427,6 +491,10 @@ private:
 
     void disconnectAll()
     {
+        if (m_fileSelector) {
+            m_fileSelector->disconnect(this);
+            this->disconnect(m_fileSelector);
+        }
         if (m_root) {
             m_root->disconnect(this);
             this->disconnect(m_root);
@@ -461,8 +529,7 @@ private:
     FaustAudioWorker* m_worker = nullptr;
 
     QWidget* m_root = nullptr;
-    QLineEdit* m_pathEdit = nullptr;
-    QPushButton* m_selectButton = nullptr;
+    SelectorComboBox* m_fileSelector = nullptr;
     QPushButton* m_reloadButton = nullptr;
     QLabel* m_statusLabel = nullptr;
     FaustParamUI* m_paramUi = nullptr;
@@ -470,7 +537,8 @@ private:
     llvm_dsp_factory* m_factory = nullptr;
     llvm_dsp* m_dsp = nullptr;
 
-    QString m_filePath;
+    QString m_filePath;   // 运行时解析出的绝对路径（不持久化）
+    QString m_fileName;   // 持久化用：媒体库文件名
     QByteArray m_source;
     bool m_destructing = false;
 };

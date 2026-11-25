@@ -39,6 +39,7 @@ public:
         Fixture,
         Game,
         Gesture,
+        Faust,
         Unknown
     };
     Q_ENUM(Category)
