@@ -81,7 +81,9 @@ QString TimeLineNodeView::isMimeAcceptable(const QMimeData *Mime) const
         }
         if (tag == QLatin1String("DMX"))
             return QStringLiteral("Artnet");
-        if (tag == QLatin1String("Video") || tag == QLatin1String("Image") || tag == QLatin1String("Audio"))
+        // 【2026-11-26】Image/Video 片段类型退役——媒体库拖拽不再产出
+        // 这两类片段（注册已摘除，见 TimelineEngine.cpp loadPlugins 注释）。
+        if (tag == QLatin1String("Audio"))
             return tag;
         return {};
     }

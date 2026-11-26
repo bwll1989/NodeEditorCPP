@@ -31,21 +31,18 @@ add_definitions(-DPLUGIN_VERSION="${BUILD_TS}")
 
 set(TL_ENGINE_HEADERS
         TimelineEngine.h
-        # 内置 6 种 clip（静态注册，不再作为外部插件加载）
+        # 内置 clip（静态注册，不再作为外部插件加载）
+        # 【2026-11-26】Image/Video 片段类型退役，模型/工厂已删除
         artnetclipmodel.hpp
         artnetclipplugin.hpp
         curveclipmodel.hpp
         curveclipplugin.hpp
         CurvePath.hpp
         CurveViewport.hpp
-        imageclipmodel.hpp
-        imageclipplugin.hpp
         mappingclipmodel.hpp
         mappingclipplugin.hpp
         triggerclipmodel.hpp
         triggerclipplugin.hpp
-        videoclipmodel.hpp
-        videoclipplugin.hpp
 )
 
 set(TL_ENGINE_SOURCES
@@ -109,7 +106,8 @@ target_link_libraries(${Module_Name} PRIVATE
                         ArtnetService
 )
 
-# VideoClip/ArtnetClip 需要 FFmpeg（avformat/avcodec/avutil），用全路径避免依赖 link_directories
+# ArtnetClip 探测媒体时长需要 FFmpeg（avformat/avcodec/avutil），用全路径避免依赖 link_directories
+# （【2026-11-26】Image/Video 片段退役后，FFmpeg 依赖仅剩 ArtnetClip 一处）
 set(TL_FFMPEG_LIB_DIR "${DEPENDS_DIR}/ffmpeg-8.1.1-full_build-shared/lib")
 target_link_libraries(${Module_Name} PRIVATE
     "${TL_FFMPEG_LIB_DIR}/avformat.lib"

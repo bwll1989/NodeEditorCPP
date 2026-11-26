@@ -506,10 +506,13 @@ void ClipAppearancePanel::syncFromOwner()
 // 因此 loadPlugins() 不再扫描磁盘目录。
 #include "artnetclipplugin.hpp"
 #include "curveclipplugin.hpp"
-#include "imageclipplugin.hpp"
 #include "mappingclipplugin.hpp"
 #include "triggerclipplugin.hpp"
-#include "videoclipplugin.hpp"
+// 【2026-11-26 Image/Video 片段类型退役】2D 取景范式下编辑器时间轴不再
+// 承担媒体编排（媒体走 display 端 mediaTimeline/standalone），注册摘除
+// 后 Add Track 菜单/拖拽/工厂均不再产出 Image/Video；旧工程中的该类
+// 片段经 createModelForType=nullptr 容错链路加载即丢弃（轨道保留）。
+// 对应文件 imageclip*/videoclip*.hpp 已随本次删除。
 
     BasePluginLoader::BasePluginLoader(QObject *parent) : QObject(parent) {}
 
@@ -538,10 +541,8 @@ void ClipAppearancePanel::syncFromOwner()
         m_loadedPlugins.clear();
         registerPlugin(new ArtnetClipPlugin());
         registerPlugin(new CurveClipPlugin());
-        registerPlugin(new ImageClipPlugin());
         registerPlugin(new MappingClipPlugin());
         registerPlugin(new TriggerClipPlugin());
-        registerPlugin(new VideoClipPlugin());
         emit pluginsLoaded();
     }
 
@@ -3173,14 +3174,10 @@ QString BaseTimelineView::isMimeAcceptable(const QMimeData *Mime) const
         QFileInfo fileInfo(filePath);
         const QString suffix = fileInfo.suffix().toLower();
         // 根据后缀判断文件类型
-        if (VideoTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Video";
-        }
-        else if (AudioTypes.contains(suffix, Qt::CaseInsensitive)) {
+        // 【2026-11-26】Image/Video 片段类型退役——不再接受媒体库拖拽的
+        // 视频/图片（isMimeAcceptable 返回空 → 拖放拒绝）；音频/控制不变。
+        if (AudioTypes.contains(suffix, Qt::CaseInsensitive)) {
             return "Audio";
-        }
-        else if (ImageTypes.contains(suffix, Qt::CaseInsensitive)) {
-            return "Image";
         }
         else if (ControlTypes.contains(suffix, Qt::CaseInsensitive)) {
             return "Control";
