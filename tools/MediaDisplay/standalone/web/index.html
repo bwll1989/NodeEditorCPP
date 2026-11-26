@@ -298,6 +298,11 @@
           <label class="inline"><input type="checkbox" :true-value="1" :false-value="0" v-model="st.display.borderless">无边框输出窗</label>
           <label class="inline" title="输出窗压在所有普通窗口之上，不被编辑器/浏览器遮挡（WS_EX_TOPMOST）"><input type="checkbox" :true-value="1" :false-value="0" v-model="st.display.topmost">窗口置顶</label>
           <label class="inline"><input type="checkbox" :true-value="1" :false-value="0" v-model="st.display.fullscreen">全屏输出</label>
+          <!-- 组播收流网卡（2026-11-26）：空 = LanProbe 自动探测；多真实
+               网卡机器探测选错时填本机 IP 显式钉定（IP_ADD_MEMBERSHIP
+               接口）。运行时事实不进场景——换机器改配置，重启 display 生效 -->
+          <label class="inline" title="live 组播收流网卡 IP；多真实网卡机器自动探测选错时显式指定（如 192.168.0.158），空=自动探测">
+            组播网卡<input v-model.trim="st.display.mcast_localaddr" placeholder="空 = 自动探测" style="width:11em"></label>
           <!-- 显示器选择（2026-11-13）：screen=-1 系统默认主屏；0..N-1 =
                EnumDisplayMonitors 枚举序（GET /settings 的 screens 数组），
                与 CLI --screen=N / 预览窗口定位同序。重启 display 后生效 -->

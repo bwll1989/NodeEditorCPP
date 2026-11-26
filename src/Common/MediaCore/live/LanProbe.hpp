@@ -205,4 +205,73 @@ inline std::string probeLanIPv4() {
 #endif
 }
 
+// ---------------------------------------------------------------------------
+// 显式接口钉定（2026-11-26 用户需求：手动指定网卡）
+//
+//   自动探测的残余盲区：多块真实物理网卡分属不同网段，且组播源所在
+//   内网网卡【无默认网关】而外网网卡有——probeLanIPv4 优先取「有默认
+//   网关」接口，会把 join 钉到外网卡 = 内网组播永远收不到。手动指定
+//   是这类现场的确定性手段（用户定案：换机器需重配由用户自己维护，
+//   确定性 > 零配置）。
+//
+//   优先级（appendLanLocaladdr 统一裁决）：
+//     1. URL 手写 localaddr=（live_url 用户可编辑——最高优先）
+//     2. 进程显式配置（setExplicitLanIPv4；display 端 ini/CLI 传入）
+//     3. probeLanIPv4() 自动探测（现状行为）
+//     4. 全部落空 → 不追加（保持系统路由；探测失败打告警）
+// ---------------------------------------------------------------------------
+
+/// 进程级显式出口 IP（空 = 自动探测）。【线程约定】须在任何 live 会话
+/// 开始前设置一次（display main 解析配置后、装配 player 前调用）——
+/// 之后仅读，无锁约定成立。
+inline std::string& explicitLanIPv4() {
+    static std::string s;
+    return s;
+}
+
+/// 显式指定本机出口/加入接口 IPv4（空串 = 撤销，回落自动探测）。
+/// 进程级事实（与 LanProbe 哲学一致：不进场景 URL，每台机器自己配）。
+inline void setExplicitLanIPv4(std::string ip) {
+    // 基础防御：非空且含字母/非法字符直接丢弃（配置手滑不炸链路）
+    if (!ip.empty() &&
+        ip.find_first_not_of("0123456789.") == std::string::npos &&
+        ip.find("..") == std::string::npos) {
+        explicitLanIPv4() = std::move(ip);
+    }
+}
+
+/// 组播 URL 出口/接口钉定（发送端 = IP_MULTICAST_IF，接收端 =
+/// IP_ADD_MEMBERSHIP）：按上方优先级裁决并追加 localaddr 参数。
+/// \param tag  日志前缀（区分 sender/ingest 链路）
+/// \return 追加后的 URL（未追加 = 原样返回；URL 本尊保持基础形式存场景）
+inline std::string appendLanLocaladdr(const std::string& url, const char* tag) {
+    if (url.find("localaddr=") != std::string::npos) {
+        // URL 显式指定最高优先：尊重用户，不追加（规避重复参数的
+        // 未定义覆盖行为——FFmpeg 查询串同名参数以解析序后者生效）
+        std::fprintf(stderr, "%s: localaddr 由 URL 显式指定，跳过接口探测\n",
+                     tag);
+        return url;
+    }
+
+    std::string ip = explicitLanIPv4();
+    const char* how = "配置指定";
+    if (ip.empty()) {
+        how = "自动探测";
+        ip  = probeLanIPv4();
+    }
+    if (ip.empty()) {
+        std::fprintf(stderr,
+                     "%s: 出口接口探测失败，交由系统路由（多网卡机器"
+                     "可能选错，跨机收不到流时优先排查；可用"
+                     " --mcast-localaddr=<ip> 显式指定）\n",
+                     tag);
+        return url;
+    }
+    std::fprintf(stderr, "%s: 组播接口钉定 localaddr=%s（%s）\n",
+                 tag, ip.c_str(), how);
+    return url + (url.find('?') == std::string::npos ? "?localaddr="
+                                                     : "&localaddr=") +
+           ip;
+}
+
 } // namespace ms

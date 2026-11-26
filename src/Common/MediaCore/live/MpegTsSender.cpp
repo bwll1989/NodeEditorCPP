@@ -205,22 +205,15 @@ bool MpegTsSender::setupEncoder(int w, int h) {
 
     // ---- MPEG-TS muxer over UDP 组播 ----
     // 【2026-11-23 双网卡免疫】组播出口接口钉定：URL 保持场景存储的基础
-    // 形式，发送前动态 append 本机 LAN IPv4（FFmpeg localaddr =
+    // 形式，发送前 append 本机 LAN IPv4（FFmpeg localaddr =
     // IP_MULTICAST_IF）。Windows 组播 best route 可能命中 127.0.0.1
     // （系统 224/4→loopback 默认路由 metric 最低）或 WSL 虚拟网卡 → 本机
-    // 回环自收正常、局域网零包（探测规则见 LanProbe.hpp；空 = 不追加）。
-    // 追加参数防御 URL 无查询串的形态（live_url 允许用户手改——裸地址
-    // 必须用 ? 连接，带 ? 的用 &）。
-    const std::string lan_ip = probeLanIPv4();
-    if (lan_ip.empty())
-        std::fprintf(stderr,
-                     "mcast: 出口接口探测失败，交由系统路由（多网卡机器"
-                     "可能选错，跨机收不到流时优先排查）\n");
-    std::string open_url = url_;
-    if (!lan_ip.empty())
-        open_url += (open_url.find('?') == std::string::npos ? "?localaddr="
-                                                             : "&localaddr=") +
-                    lan_ip;
+    // 回环自收正常、局域网零包（探测规则见 LanProbe.hpp）。
+    // 【2026-11-26 手动指定】URL 显式 localaddr > 进程显式配置
+    // （setExplicitLanIPv4，display/编辑器启动时注入）> 自动探测——
+    // 裁决与日志统一在 appendLanLocaladdr。
+    const std::string open_url =
+        appendLanLocaladdr(url_, "mcast:sender");
     if (avformat_alloc_output_context2(&a->mux, nullptr, "mpegts",
                                        open_url.c_str()) < 0)
         return false;
@@ -253,11 +246,10 @@ bool MpegTsSender::setupEncoder(int w, int h) {
         return false;
     }
     av_ok_ = true;
-    std::fprintf(stderr, "mcast: 组播启动 %s（%s %dx%d %.1fMbps%s%s）\n",
+    std::fprintf(stderr, "mcast: 组播启动 %s（%s %dx%d %.1fMbps%s）\n",
                  open_url.c_str(), encoder_name_.c_str(), ew, eh,
                  static_cast<double>(bitrate) / 1e6,
-                 a->nvenc_rgba ? "，RGBA 直喂" : "",
-                 lan_ip.empty() ? "" : "，出口已钉定");
+                 a->nvenc_rgba ? "，RGBA 直喂" : "");
     std::fflush(stderr);
     return true;
 }

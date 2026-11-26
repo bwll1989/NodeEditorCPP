@@ -61,17 +61,10 @@ void NetworkIngest::recvLoop() {
         // ---- 打开（低延迟选项组）----
         // 【2026-11-23 双网卡免疫】join 接口钉定：多网卡机器 FFmpeg 默认
         // join 可能落在 loopback/虚拟网卡 = 永远收不到物理网组播——与发
-        // 送端同构，动态 append 本机 LAN IPv4（FFmpeg localaddr =
-        // IP_ADD_MEMBERSHIP 接口；探测规则见 LanProbe.hpp；空 = 不追加）。
-        std::string open_url = source_ref_;
-        {
-            const std::string lan = probeLanIPv4();
-            if (!lan.empty())
-                open_url += (open_url.find('?') == std::string::npos
-                                 ? "?localaddr="
-                                 : "&localaddr=") +
-                            lan;
-        }
+        // 送端同构。裁决/日志统一在 appendLanLocaladdr（URL 显式 > 进程
+        // 显式配置 > 自动探测；探测规则见 LanProbe.hpp）。
+        const std::string open_url =
+            appendLanLocaladdr(source_ref_, "mcast:ingest");
         AVDictionary* opts = nullptr;
         av_dict_set(&opts, "fflags", "nobuffer", 0);
         av_dict_set(&opts, "probesize", "32768", 0);

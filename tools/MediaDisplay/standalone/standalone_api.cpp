@@ -983,7 +983,8 @@ settingSchema() {
           {"window_y", true},      {"window_w", true},
           {"window_h", true},      {"report_interval_ms", true},
           {"diag_interval_ms", true}, {"pairing_code", false},
-          {"audio_enable", true},  {"audio_device", false}}},
+          {"audio_enable", true},  {"audio_device", false},
+          {"mcast_localaddr", false}}},
         {"standalone",
          {{"http_port", true},    {"max_upload_mb", true},
           {"timelines_dir", false}, {"default_timeline", false}}},
@@ -1127,6 +1128,7 @@ bool StandaloneApi::routeSettings(RouteCtx& ctx) {
         emit_long("display", "diag_interval_ms", 5000);
         emit_str("display", "pairing_code"); emit_long("display", "audio_enable", 1);
         emit_str("display", "audio_device");
+        emit_str("display", "mcast_localaddr");
         data << "\"__stub\":1},";
         // standalone
         data << "\"standalone\":{";

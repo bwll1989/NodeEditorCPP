@@ -74,6 +74,7 @@
 #include "GlContextWGL.hpp"       // 关窗即退出旗标（GlContextWGL::userClosed）
 #include "GlRenderer.hpp"         // GL 合成后端（第②阶段渲染管线）
 #include "PreviewWindowWin32.hpp" // Win32 GDI 输出预览窗口（soft 后端用）
+#include "live/LanProbe.hpp"      // 组播收流接口显式指定（setExplicitLanIPv4）
 #endif
 
 // ---------------------------------------------------------------------------
@@ -239,6 +240,14 @@ struct Args {
     /// （预览窗用于桌面调试时可关）。GL 输出窗与 soft 后端 GDI 预览窗
     /// 同步生效。
     long topmost = 1;
+    /// [display] mcast_localaddr：live 组播收流接口显式指定（2026-11-26
+    /// 用户需求——手动指定网卡的确定性手段）。空 = LanProbe 自动探测
+    /// （现状）；非空 = 覆盖自动探测（IP_ADD_MEMBERSHIP 钉到该接口）。
+    /// 何时需要：机器多块真实物理网卡分属不同网段、且组播源所在内网
+    /// 网卡无默认网关（自动探测优先选有网关的接口 → 会钉错）。这是
+    /// 每台机器自己的运行时事实（不进场景 URL，换机器重配）——live_url
+    /// 手写 localaddr 优先级更高（LanProbe 三级裁决）。
+    std::string mcast_localaddr;
     /// [node] mode：节点模式（2026-11-11 手动切换定案）——
     ///   * standalone：本机播放器（HTTP 控制面全功能：编排/媒体库/播放/设置；
     ///     不监听 17100，NodeController 驱动本机注入）；
@@ -303,6 +312,7 @@ Args loadDefaultsFromIni(const ms::config::IniConfig& ini) {
     a.gl_single_buffer  = ini.getLong("display", "gl_single_buffer", 0);
     a.borderless        = ini.getLong("display", "borderless", 1);
     a.topmost           = ini.getLong("display", "topmost", 1);
+    a.mcast_localaddr   = ini.getStr("display", "mcast_localaddr");
     // ---- 节点模式 + standalone（display×MMC 合并方案 v2.2，§4.1/§4.4）----
     // [node] mode：standalone/sync（auto 已退役——解析兜底见运行段警告）
     a.mode              = ini.getStr("node", "mode", a.mode);
@@ -370,6 +380,9 @@ std::optional<Args> parseArgs(int argc, char** argv, const Args& defaults) {
             // 无边框窗口开关（ini [display].borderless）
         } else if (value_num("topmost", args.topmost)) {
             // 窗口强制置顶开关（ini [display].topmost）
+        } else if (auto v = value_of("mcast-localaddr")) {
+            args.mcast_localaddr = *v; // 组播收流接口 IP（ini
+                                       // [display].mcast_localaddr；空=自动）
         } else if (auto v = value_of("render-out")) {
             args.render_out = *v;
         } else if (arg == "--no-audio") {
@@ -449,6 +462,9 @@ void printUsage() {
         "      窗，几何按 screen/window_* 定位；0 = 保留系统边框）\n"
         "      [--topmost=0|1]（窗口强制置顶，默认 1：输出窗压在所有普通\n"
         "      窗口之上，不被编辑器/浏览器遮挡；0 = 普通 Z 序）\n"
+        "      [--mcast-localaddr=<ip>]（live 组播收流网卡 IP，空=自动探测。\n"
+        "      多真实网卡机器自动探测选错时显式指定，如本机 192.168.0.158；\n"
+        "      ini [display].mcast_localaddr，每台机器各自的运行时事实）\n"
         "      [--mode=standalone|sync]（节点模式，ini [node].mode：\n"
         "      standalone=本机播放器（时间轴自配，HTTP/网页全功能：编排/\n"
         "      媒体库/播放/设置）；sync=等待 Editor 受控（HTTP 仅状态与\n"
@@ -706,6 +722,15 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
 
     // ---- 版本横幅（2026-11-15 对齐 Flow 版本号口径；status API/网页/窗标题同源）----
     std::printf("[display] FlowDisplay v%s\n", DISPLAY_VERSION);
+    std::fflush(stdout);
+
+    // ---- 组播收流接口显式指定（2026-11-26 用户需求：手动指定网卡）--------
+    // 须在 player 装配（任何 live 会话启动）之前注入——LanProbe 进程级
+    // 显式 IP 的无锁约定。空 = 自动探测（现状）；CLI/ini 二选一即可。
+    ms::setExplicitLanIPv4(args.mcast_localaddr);
+    if (!args.mcast_localaddr.empty())
+        std::printf("[display] 组播收流接口: %s（配置指定，覆盖自动探测）\n",
+                    args.mcast_localaddr.c_str());
     std::fflush(stdout);
 
 #if defined(_WIN32)
