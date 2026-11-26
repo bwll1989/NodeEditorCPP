@@ -33,6 +33,7 @@
 #include <string>
 #include <vector>
 
+#include "model/SceneHistory.hpp" // 撤销历史（快照栈；会话/离散收编点经 hist_ 可空借用）
 #include "model/SceneModel.hpp"
 #include "PreviewRenderer.hpp" // 预览渲染器（DeliverItem 嵌套类型随此公开）
 #include "Camera3D.hpp"        // 3D 视口正交轨道相机（画布 3D 化 2026-11-05）
@@ -118,6 +119,22 @@ public:
     ///    失效（不落 PR——渲染器只认 Scene，不认识"模型"概念）。
     /// 实现在 .cpp（lambda 调适配器方法需完整类型，前向声明不够）。
     void setTimelineAdapter(QtTimelineModelAdapter* a);
+
+    /// 场景撤销历史：随 setTimelineAdapter 从适配器取（适配器值成员，
+    /// undo/redo 执行也在适配器 sceneUndo/sceneRedo——画布只做装配枢纽
+    /// 与收编）。收编纪律（SceneHistory 注释「核心不变量」）：
+    ///  * 会话型：左键按下 beginEdit（冻结 before 基线）→ 松手 endEdit
+    ///   （拖动/缩放/旋转/角点/边线/Gizmo/VP 全部左键会话一条历史）；
+    ///  * 离散型：方向键微调/银幕增删/属性对话框确定 → checkpoint。
+    /// 恢复期间 setActive(false) 统一抑制（适配器 sceneUndo/sceneRedo 内）。
+
+    /// 撤销/重做快捷键（Ctrl+Z / Ctrl+Y）执行落点：场景域快捷键挂本控件
+    /// （WindowShortcut=主窗口级，时间轴子树焦点不保证）+ 节点图聚焦动态
+    /// 互斥（构造内 focusChanged 探测 nodeEditorView property）——节点图
+    /// 聚焦走其自身 QUndoStack、文本框走原生文本撤销，互不冲突。执行经
+    /// 适配器 sceneUndo/sceneRedo，收尾统一经 sceneRestored 信号（本控件
+    /// setTimelineAdapter 内接线：清选中/预览失效/重绘）。
+    void execSceneUndoRedo(bool undo);
 
     /// 【画布编辑→属性面板联动 2026-11-18】当前选中片段（sel_.kind==4）
     /// 的工作副本编辑广播给其所有打开中的属性面板（refreshClipPanels 按
@@ -254,6 +271,10 @@ private:
     /// 寻找阈值内的参考线（多候选取差最小者），命中则贴合并记录参考线
     /// \param nx,ny 未吸附的目标位置（画布坐标）→ 原地修正
     void applySnap(double* nx, double* ny);
+    /// 单点吸附（2026-11-26）：素材角点拖拽专用——被拖角是单点语义（无
+    /// 外接框三锚），x/y 各对参考集合找阈值内最近线，命中贴齐并记录
+    /// guide/角点标记（与移动吸附同款视觉）。自包含：每拍重算 guide。
+    void snapPoint(double* px, double* py);
 
     // ---- 角点缩放 / 旋转拖柄（旋转感知；几何下沉 model/CanvasGeometry.hpp）--
     /// 选中对象的画布外接框与旋转角（kind==0 返回 false）
@@ -556,6 +577,8 @@ private:
     /// MS_CANVAS_GL3D=0 会话级禁用（QPainter 原路径兜底）
     std::unique_ptr<Canvas3DGl> gl3d_;
     Selection sel_;            // 当前选中
+    /// 撤销历史（不拥有；setTimelineAdapter 时自适配器取，适配器值成员）
+    SceneHistory* hist_ = nullptr;
     // 拖动状态（press 命中后才激活；缩放/旋转会话 = dragging_ && 对应标志）
     bool   dragging_          = false;
     bool   resizing_          = false;  // true = 角点缩放（false = 位置拖动）
@@ -596,6 +619,12 @@ private:
     std::vector<double> snap_ref_y_;    ///< 参考线 y 集合（画布坐标，升序）
     std::vector<double> guide_x_;       ///< 本次命中的吸附线 x（绘制品红竖线）
     std::vector<double> guide_y_;       ///< 本次命中的吸附线 y（绘制品红横线）
+    /// 角点吸附标记（2026-11-26）：x/y 两轴同时命中**边线级**锚（被拖
+    /// 对象 left/right × top/bottom）→ 交叉点 = 角点与参考对象边线/角点
+    /// 重合，绘制品红实心小方块（区别于边线/中线的贯穿线，"角对角"
+    /// 吸附可感知）。随 applySnap 每拍重算；会话边界随 guide 清理点置 false。
+    QPointF guide_pt_{0, 0};
+    bool    guide_pt_valid_ = false;
     // 【2026-11-20 用户拍板】素材三轴旋转 = 透视投影压平到 XY 平面
     //（quadCorners3DP + Scene::effectivePersp，与 display ScreenMapper
     // 同源）；预览恒与 display 同源（透视）。

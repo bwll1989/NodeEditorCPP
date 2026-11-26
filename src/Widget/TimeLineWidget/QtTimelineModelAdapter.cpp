@@ -204,6 +204,10 @@ QString QtTimelineModelAdapter::typeForKind(AssetKind kind) {
 // 全量装载：Scene → 模型（reset 语义，视图整体刷新）
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::loadSceneToModel(const Scene& scene) {
+    // 非 undo 恢复的装载（首载/打开工程/程序化重灌）= 新的 undo 基线
+    //（SceneHistory::setBase 拒绝会话中调用，安全）。恢复路径由
+    // sceneUndo/sceneRedo 以 undoRestoring_ 绕过——恢复不得抹掉历史。
+    if (!undoRestoring_) hist_.setBase(scene);
     loading_ = true; // 装载期间屏蔽 clip 信号回写（避免把自己刚写的值又写回）
 
     beginResetModel();
@@ -671,6 +675,9 @@ void QtTimelineModelAdapter::notifyClipEdited(const std::string& clip_id,
     rebuildSendSnapshot(); // 编辑漏斗统一挂点（2026-11-22 治本）——面板/
                            // 专属区/键编辑四条写回路径全过此处，快照随
                            // 编辑落定换血（worker ≤5ms 采纳）
+    // 撤销收编（属性面板/Tween 键/插件专属区统一漏斗——一处覆盖全部
+    // 面板类编辑；滑杆连发经合并窗口折叠为一条）
+    undoCheckpoint("修改属性");
 }
 
 // ---------------------------------------------------------------------------
@@ -936,6 +943,19 @@ void QtTimelineModelAdapter::refreshClipPanels(const std::string& clip_id) {
 }
 
 // ---------------------------------------------------------------------------
+// 全部打开中面板广播（undo/redo 恢复后的灌值收口，2026-11-26）：快照重灌
+// 后对象值整体变化，逐 clip 按 panel_refs_ 现存键展开调 refreshClipPanels。
+// 键快照先行——refreshClipPanels 内部惰性清理会摘表项，边迭代边调易踩
+// unordered_map 失效。
+// ---------------------------------------------------------------------------
+void QtTimelineModelAdapter::refreshAllOpenPanels() {
+    std::vector<std::string> ids;
+    ids.reserve(panel_refs_.size());
+    for (const auto& kv : panel_refs_) ids.push_back(kv.first);
+    for (const auto& id : ids) refreshClipPanels(id);
+}
+
+// ---------------------------------------------------------------------------
 // 模型索引 → 工作副本下标（2026-11-15 选中分工：时间轴选中的 clip 高亮到
 // 画布空间域用）。按 clipAnchor（ms clip id）匹配，返回 work 轨/片段下标，
 // 供 MainWindow 直接 msCanvas_->highlight(4, tr, cl)。失败返回 false。
@@ -1031,6 +1051,90 @@ void QtTimelineModelAdapter::onClipGeometryChanged(AbstractClipModel* clip) {
     emit sceneEdited();
     rebuildSendSnapshot(); // 几何回写 → 发送快照换血（拖拽中高频；快照
                            // 纯值构建微秒级，worker 单槽合并采纳）
+    // 撤销收编（时间轴拖拽/改长的每拍落点）：拖拽全程经合并窗口吸收为
+    // 一条（SceneHistory::kMergeMs）；before 取历史基线（写后调用约定）
+    undoCheckpoint("移动片段");
+}
+
+// ---------------------------------------------------------------------------
+// 撤销收编（离散一步式，2026-11-26 撤销机制）：装载中 / 复合操作抑制期 /
+// 恢复抑制期（setActive(false)）→ 静默跳过。写后调用约定见
+// SceneHistory::checkpoint（before 取上一条历史之后的场景——栈顶
+// after ≡ 当前场景不变量）。
+// ---------------------------------------------------------------------------
+void QtTimelineModelAdapter::undoCheckpoint(const char* label) {
+    if (!work_ || loading_ || undo_suppress_ > 0) return;
+    hist_.checkpoint(label, *work_);
+}
+
+// ---------------------------------------------------------------------------
+// 时间轴拖拽真会话（2026-11-26）：基类会话钩子（view beginClipDrag/
+// finishClipDrag 调用）虚分派到此接管撤销历史——此前拖拽每拍落点
+// （onClipGeometryChanged → undoCheckpoint"移动片段"）只靠 400ms 合并
+// 窗口吸收，超窗即裂成多条历史（拖 2 秒 ≈ 4~5 条，Ctrl+Z 碎步回退）。
+// 会话化后：begin 冻结 before 基线（此刻几何未变）+ 置位抑制；end 时
+// *work_ 已被拖拽全程回写为终值（含跨轨/磁吸），一条历史收口。
+// ---------------------------------------------------------------------------
+void QtTimelineModelAdapter::beginInteractiveGeometryChange(
+        AbstractClipModel* clip, const QString& undoLabel) {
+    BaseTimeLineModel::beginInteractiveGeometryChange(clip, undoLabel);
+    if (!work_ || loading_ || !hist_.active()) return; // 不布防（end 对称跳过）
+    ++undo_suppress_;          // 拖拽中每拍 checkpoint 静默（会话代管收编）
+    geo_session_armed_ = true; // 对称撤防标记
+    hist_.beginEdit(undoLabel.toStdString(), *work_); // 冻结 before 基线
+}
+
+void QtTimelineModelAdapter::endInteractiveGeometryChange() {
+    // 基类收口：defer 解除 → 末拍 dataChanged 触发的 geometryChanged 链
+    // 仍在抑制期（undo_suppress_ 未撤）→ 静默，不产生碎条历史。
+    BaseTimeLineModel::endInteractiveGeometryChange();
+    if (!geo_session_armed_) return;
+    geo_session_armed_ = false;
+    --undo_suppress_;          // 恢复离散收编
+    hist_.endEdit(*work_);     // 一条历史收口（无位移 → before==after 丢弃）
+}
+
+// ---------------------------------------------------------------------------
+// 撤销/重做执行（2026-11-26 撤销机制，焦点作用域入口落点）：取快照 →
+// loadSceneToModel 全量重灌（唯一恢复通道，undoRestoring_ 绕过 setBase）→
+// 菱形镜像重灌 + 面板广播 + display 防抖追平。恢复期间 setActive(false)
+// 抑制收编（重灌触发的回写不入栈）。画布侧快捷键（WidgetShortcut）调用；
+// \return true = 已恢复，宿主控件再做自身收尾（清选中/重绘/预览失效）。
+// ---------------------------------------------------------------------------
+bool QtTimelineModelAdapter::sceneUndo() {
+    if (!work_ || hist_.inEdit() || !hist_.active()) return false;
+    const auto snap = hist_.takeUndo(*work_);
+    if (!snap) return false;
+    hist_.setActive(false);
+    undoRestoring_ = true;
+    loadSceneToModel(*snap);   // 全量重灌（含 *work_ 对齐 + 模型重建 + 发送快照）
+    undoRestoring_ = false;
+    syncAllClipTweenDots();    // 菱形镜像重灌
+    refreshAllOpenPanels();    // 打开中属性面板灌值
+    requestAutoPublish();      // display 防抖追平（编辑同链）
+    hist_.setActive(true);
+    qDebug().noquote() << QStringLiteral("ms-adapter: 撤销 → %1")
+                              .arg(QString::fromStdString(hist_.redoLabel()));
+    emit sceneRestored(); // 画布收尾（高亮/预览/重绘，setTimelineAdapter 内接线）
+    return true;
+}
+
+bool QtTimelineModelAdapter::sceneRedo() {
+    if (!work_ || hist_.inEdit() || !hist_.active()) return false;
+    const auto snap = hist_.takeRedo(*work_);
+    if (!snap) return false;
+    hist_.setActive(false);
+    undoRestoring_ = true;
+    loadSceneToModel(*snap);
+    undoRestoring_ = false;
+    syncAllClipTweenDots();
+    refreshAllOpenPanels();
+    requestAutoPublish();
+    hist_.setActive(true);
+    qDebug().noquote() << QStringLiteral("ms-adapter: 重做 → %1")
+                              .arg(QString::fromStdString(hist_.undoLabel()));
+    emit sceneRestored(); // 画布收尾（高亮/预览/重绘，setTimelineAdapter 内接线）
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1085,6 +1189,8 @@ bool QtTimelineModelAdapter::setData(const QModelIndex& index,
     // 旧快照持续发送，Control/Mapping/Artnet 呈现"无效"）
     rebuildSendSnapshot();
     emit sceneEdited(); // 防抖自动下发（publishScene 内含音频 bus 快照刷新）
+    undoCheckpoint(role == TimelineRoles::TrackMuteRole ? "轨道静音"
+                                                        : "轨道独奏");
     return ok;
 }
 
@@ -1550,6 +1656,7 @@ int QtTimelineModelAdapter::addTrackWithKind(AssetKind kind) {
     endInsertRows();
 
     emit sceneEdited();
+    undoCheckpoint("添加轨道"); // 撤销收编（onAddTrack/addTrackWithKind 共同落点）
     return (int)work_->timeline.tracks.size() - 1;
 }
 
@@ -1572,6 +1679,7 @@ void QtTimelineModelAdapter::onDeleteTrack(int trackIndex) {
     onUpdateTimeLineLength();
 
     emit sceneEdited();
+    undoCheckpoint("删除轨道"); // 撤销收编（含被删轨道全部片段）
 }
 
 // ---------------------------------------------------------------------------
@@ -1738,6 +1846,7 @@ void QtTimelineModelAdapter::onAddClip(int trackIndex, qint64 startUs,
     }
     std::fflush(stderr);
     emit sceneEdited();
+    undoCheckpoint("添加片段"); // 撤销收编（Add Item 终态；拖入路径由外层收编）
 }
 
 // ---------------------------------------------------------------------------
@@ -1793,8 +1902,11 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
     // 片段类型 = 素材种类映射（typeForKind：Video→"Video"…）
     const QString drop_clip_type = typeForKind(a.kind);
     const int prev_cnt = (int)td->clips.size();
+    // 【撤销包裹】内层 onAddClip/时长联动的收编点全部抑制，终态只在
+    // 函数尾收编一条「拖入片段」（导入+建片段+绑定+时长一体）
+    ++undo_suppress_;
     onAddClip(trackIndex, startUs, drop_clip_type);
-    if ((int)td->clips.size() <= prev_cnt) return; // 基类失败（插件缺失等）
+    if ((int)td->clips.size() <= prev_cnt) { --undo_suppress_; return; } // 基类失败（插件缺失等）
     AbstractClipModel* mc = td->clips.back();
     const QString note = mc->clipAnchor();
 
@@ -1814,7 +1926,9 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
                  note.toStdString().c_str(), trackIndex, a.id.c_str(),
                  (long long)a.duration_us);
     std::fflush(stderr);
+    --undo_suppress_;
     emit sceneEdited(); // 终态（绑定+时长）补发；onAddClip 已 emit 过占位版本
+    undoCheckpoint("拖入片段"); // 撤销收编（导入+建片段+绑定+时长一条）
 }
 
 // ---------------------------------------------------------------------------
@@ -1827,13 +1941,15 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
 // ---------------------------------------------------------------------------
 void QtTimelineModelAdapter::onDropOscAddress(int trackIndex, qint64 startUs,
                                               const OSCMessage& msg) {
+    // 【撤销包裹】onAddClip 内层收编抑制，终态在函数尾收编一条
+    ++undo_suppress_;
     onAddClip(trackIndex, startUs, QStringLiteral("Control"));
     TrackData* td = (trackIndex >= 0 && trackIndex < (int)m_tracks.size())
                         ? m_tracks[trackIndex] : nullptr;
-    if (!td || td->clips.isEmpty()) return; // 基类失败（插件缺失等）
+    if (!td || td->clips.isEmpty()) { --undo_suppress_; return; } // 基类失败（插件缺失等）
     AbstractClipModel* mc = td->clips.back();
     Clip* c = locateWorkClip(mc->clipAnchor());
-    if (!c) return; // 工作副本未挂载：模型占位片段已在（基类语义兜底）
+    if (!c) { --undo_suppress_; return; } // 工作副本未挂载：模型占位片段已在（基类语义兜底）
 
     QJsonObject m;
     m["host"]    = msg.host.isEmpty() ? QStringLiteral("127.0.0.1") : msg.host;
@@ -1857,7 +1973,9 @@ void QtTimelineModelAdapter::onDropOscAddress(int trackIndex, qint64 startUs,
                  c->id.c_str(), msg.address.toStdString().c_str(),
                  m["host"].toString().toStdString().c_str(), m["port"].toInt());
     std::fflush(stderr);
+    --undo_suppress_;
     emit sceneEdited(); // 终态（指令表）补发；onAddClip 已 emit 过占位版本
+    undoCheckpoint("添加控制片段"); // 撤销收编（建片段+OSC 五元组一条）
 }
 
 // ---------------------------------------------------------------------------
@@ -1891,6 +2009,7 @@ void QtTimelineModelAdapter::onDeleteClip(QModelIndex clipIndex) {
         }
     }
     BaseTimeLineModel::onDeleteClip(clipIndex);
+    undoCheckpoint("删除片段"); // 撤销收编（模型行删除后的终态）
 }
 
 // ---------------------------------------------------------------------------
@@ -1938,6 +2057,7 @@ void QtTimelineModelAdapter::onClipTrackChanged(AbstractClipModel* clip,
                                 });
     dst.clips.insert(pos, std::move(moved));
     emit sceneEdited();
+    undoCheckpoint("跨轨移动"); // 撤销收编（轨道归属变化）
 }
 
 // ---------------------------------------------------------------------------
@@ -1957,6 +2077,7 @@ void QtTimelineModelAdapter::onMoveTrack(int sourceRow, int targetRow) {
         v.erase(v.begin() + sourceRow);
         v.insert(v.begin() + targetRow, std::move(moved));
         emit sceneEdited();
+        undoCheckpoint("移动轨道"); // 撤销收编（轨道重排）
     }
     BaseTimeLineModel::onMoveTrack(sourceRow, targetRow);
 }

@@ -59,6 +59,8 @@
 #include <QOpenGLContext> // 析构 GL 资源释放前的上下文有效性检查
 #include <QPainter>
 #include <QPainterPath>
+#include <QShortcut> // 场景撤销/重做（焦点作用域快捷键，2026-11-26）
+#include <QApplication> // qApp focusChanged：节点图聚焦时禁用场景撤销快捷键（二义互斥）
 #include <QPaintEvent>
 #include <QPushButton>
 #include <QTimer>
@@ -302,6 +304,48 @@ SceneCanvasWidget::SceneCanvasWidget(QWidget* parent) : QOpenGLWidget(parent) {
     // 键盘微调前提：单击画布即获得焦点（方向键调整大小/移动；不抢 Tab 焦点链
     // ——ClickFocus 只在鼠标点击后参与键盘事件分发）
     setFocusPolicy(Qt::ClickFocus);
+
+    // 【场景撤销/重做快捷键（2026-11-26，场景域=时间轴+画布共享）】
+    // WindowShortcut（父控件=画布→窗口=主窗口）：主窗口激活即生效——
+    // 时间轴子树视图不保证持焦点（此前 WidgetShortcut 挂时间轴实测无效）。
+    // ★动态互斥（2026-11-26 二义实测修复）：焦点进入节点图子树时禁用
+    // 本快捷键。Qt 对同键候选不按作用域自动裁决——节点图 undo/redo
+    // QAction（作用域已在源头 3rdParty/nodeeditor/src/GraphicsView.cpp
+    // 补设为 WidgetShortcut）与本 WindowShortcut 快捷键并存时报
+    // "QAction::event: Ambiguous shortcut overload: Ctrl+Z"，两侧都失
+    // 灵。focusChanged 同步 setEnabled 后任意时刻同键只剩一个候选：节点
+    // 图聚焦→节点撤销独占；其余（时间轴/画布/媒体库…）→场景撤销独占。识别节点图
+    // 走 property("nodeEditorView")（CustomGraphicsView 构造时打标，
+    // 画布不 include 节点侧头文件）。文本框聚焦走原生文本撤销
+    // （QLineEdit ShortcutOverride）。执行在适配器 sceneUndo/sceneRedo
+    // （画布装配枢纽：适配器未注入时零动作）。
+    auto* sceneUndoShortcut =
+        new QShortcut(QKeySequence::Undo, this); // Ctrl+Z
+    auto* sceneRedoShortcut =
+        new QShortcut(QKeySequence::Redo, this); // Ctrl+Y / Ctrl+Shift+Z
+    sceneUndoShortcut->setContext(Qt::WindowShortcut);
+    sceneRedoShortcut->setContext(Qt::WindowShortcut);
+    connect(sceneUndoShortcut, &QShortcut::activated, this,
+            [this] { execSceneUndoRedo(true); });
+    connect(sceneRedoShortcut, &QShortcut::activated, this,
+            [this] { execSceneUndoRedo(false); });
+    const auto applyNodeFocusGate = [sceneUndoShortcut,
+                                     sceneRedoShortcut](QWidget* now) {
+        bool inNodeEditor = false;
+        for (QWidget* w = now; w; w = w->parentWidget()) {
+            if (w->property("nodeEditorView").toBool()) {
+                inNodeEditor = true;
+                break;
+            }
+        }
+        sceneUndoShortcut->setEnabled(!inNodeEditor);
+        sceneRedoShortcut->setEnabled(!inNodeEditor);
+    };
+    connect(qApp, &QApplication::focusChanged, this,
+            [applyNodeFocusGate](QWidget*, QWidget* now) {
+                applyNodeFocusGate(now);
+            });
+    applyNodeFocusGate(QApplication::focusWidget()); // 启动即同步一次
 
     // 【3D 视口开关（2026-11-05 画布 3D 化）】缺省开（用户定案"整个画布
     // 预览控件改为三维的"）；MS_CANVAS_3D=0 回退历史 2D fit 视图——
@@ -745,6 +789,7 @@ void SceneCanvasWidget::applyStandardView(int axis_end) {
 // ---------------------------------------------------------------------------
 void SceneCanvasWidget::setTimelineAdapter(QtTimelineModelAdapter* a) {
     adapter_ = a;
+    hist_ = a->undoHistory(); // 场景撤销历史随适配器取（适配器值成员+执行点）
     // 编辑落定（拖拽松手/银幕编辑/键盘微调）：菱形镜像重灌（画布 auto-key
     // 只写工作副本，时间轴 SceneClipModel::tweenChannels 须重灌否则看不到
     // 菱形）+ 预览失效 + 节流下发汇入 + 属性面板联动灌值。
@@ -768,6 +813,26 @@ void SceneCanvasWidget::setTimelineAdapter(QtTimelineModelAdapter* a) {
     connect(adapter_, &QtTimelineModelAdapter::sceneEdited, this, [this] {
         if (preview_) preview_->invalidate();
     });
+    // 场景撤销/恢复落定（2026-11-26）：画布收尾统一挂本信号（执行点在
+    // 适配器 sceneUndo/sceneRedo，入口 = 画布挂的快捷键）——清选中（恢复
+    // 后可能越界/失效）、预览失效、重绘。
+    connect(adapter_, &QtTimelineModelAdapter::sceneRestored, this, [this] {
+        highlight(0, -1);          // 清画布选中（恢复后可能越界/失效）
+        if (preview_) preview_->invalidate();
+        refresh();
+    });
+}
+
+// ---------------------------------------------------------------------------
+// execSceneUndoRedo —— 场景撤销/重做快捷键落点（2026-11-26）：执行在适配器
+// sceneUndo/sceneRedo（loadSceneToModel 全量重灌唯一恢复通道 + 菱形镜像 +
+// 面板广播 + display 防抖追平，恢复抑制在适配器内闭环）。画布收尾统一经
+// sceneRestored 信号（setTimelineAdapter 内 connect）。失败（空栈/会话中/
+// 适配器未注入）静默。
+// ---------------------------------------------------------------------------
+void SceneCanvasWidget::execSceneUndoRedo(bool undo) {
+    if (!adapter_) return;
+    undo ? adapter_->sceneUndo() : adapter_->sceneRedo();
 }
 
 // ---------------------------------------------------------------------------
@@ -1079,6 +1144,9 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
                                   .arg(new_port));
                 }
                 dlg->deleteLater(); // 点 OK 只 hide——显式回收（配合 destroyed）
+                // 撤销会话收口（OK：本框全部实时编辑收编为一条；注意画布
+                // 拖拽会中途 beginEdit 顶掉本会话——彼时已先行收口）
+                if (hist_) hist_->endEdit(*scene_);
             });
 
     // ---- 取消：还原 warp + 几何实时预览中间态（绑定纯确认制不处理）------
@@ -1115,12 +1183,17 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
                 }
                 prop_dlgs_.erase(sid); // 取消即出映射（同屏可立即重开）
                 dlg->deleteLater();
+                // 撤销会话收口（取消：还原后与开启基线一致 → 去重丢弃）
+                if (hist_) hist_->endEdit(*scene_);
             });
 
     prop_dlgs_[sid] = dlg;
     // 【2026-11-25 display 名称行】通用页顶部展示绑定 id + 在线状态
     //（打开期间状态变化由 ui_timer_ 拍重设）
     dlg->setDisplayInfo(displayInfoLine(scr.player_id));
+    // 撤销会话开启（打开即冻结 before 基线——本框实时编辑/取消还原/
+    // OK 写回共用一条历史；非模态期间画布拖拽经 beginEdit 先行顶掉）
+    if (hist_) hist_->beginEdit("屏幕属性", *scene_);
     dlg->show(); // 非模态：编辑期间画布可继续操作（2026-11-25 用户需求）
 }
 
@@ -1183,6 +1256,8 @@ void SceneCanvasWidget::addScreen() {
         if (preview_) preview_->invalidate();
         update();
         highlight(1, static_cast<int>(scene_->screens.size()) - 1);
+        // 撤销收编（离散：新屏落地一条——绑定登记属运行时态不入快照）
+        if (hist_) hist_->checkpoint("添加屏幕", *scene_);
         // 提示走 qDebug（对接 spdlog 日志存留）——如实打印所填绑定地址
         //（旧文案恒写 127.0.0.1，与实际登记脱节）。
         qDebug() << QStringLiteral("屏幕 %1 已加入（显示端 %2 @%3:%4）——"
@@ -1221,6 +1296,7 @@ void SceneCanvasWidget::deleteScreen(int screen_idx) {
         it->second->close(); // rejected → 还原(无效果) + 出映射 + deleteLater
     if (preview_) preview_->invalidate();
     update();
+    if (hist_) hist_->checkpoint("删除屏幕", *scene_); // 撤销收编（离散）
     qDebug() << QStringLiteral("ms-canvas: 删除屏幕 %1")
                 .arg(QString::fromStdString(id));
 }
@@ -2092,8 +2168,21 @@ void SceneCanvasWidget::tickClipCornerDrag(const QPointF& canvas_pos) {
                        tf.pos_z, tf.rotation, tf.rot_x, tf.rot_y, tf.anchor,
                        nullptr, ef, evx, evy, bx, by, nullptr);
     const int k = corner_drag_;
-    const double dx = canvas_pos.x() - bx[k];
-    const double dy = canvas_pos.y() - by[k];
+    double dx = canvas_pos.x() - bx[k];
+    double dy = canvas_pos.y() - by[k];
+    // 角点吸附（2026-11-26）：被拖角落点（基准角+位移）对参考线吸附，
+    // 命中修正位移——「角对边/角对角」贴合（品红方块，与移动会话同款
+    // 视觉）。snapPoint 自包含重算 guide；开关关闭仅清残留显示。
+    if (snapping_) {
+        double tx = bx[k] + dx, ty = by[k] + dy;
+        snapPoint(&tx, &ty);
+        dx = tx - bx[k];
+        dy = ty - by[k];
+    } else {
+        guide_x_.clear();
+        guide_y_.clear();
+        guide_pt_valid_ = false;
+    }
     // auto-key 双模：角点位移通道接管即打包打键（v0=dx v1=dy）；无通道
     // 写静态基准 corner8（其他角偏移天然保留）
     if (!tweenAutoKeyWrite(c, (TweenProp)((int)TweenProp::CornerLT + k),
@@ -2435,6 +2524,14 @@ void SceneCanvasWidget::paintGL() {
         for (double gy : guide_y_) {
             const double wy = canvasToWidget(QPointF(0, gy)).y();
             p.drawLine(QPointF(cr.left(), wy), QPointF(cr.right(), wy));
+        }
+        // 角点吸附标记：x/y 同时命中边线锚的交叉点 = 角对角贴合，品红
+        // 实心小方块（区别于贯穿虚线，一眼可辨"角点吸上了"）。
+        if (guide_pt_valid_) {
+            const QPointF wp = canvasToWidget(guide_pt_);
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(0xE0, 0x40, 0xC0));
+            p.drawRect(QRectF(wp.x() - 3.0, wp.y() - 3.0, 6.0, 6.0));
         }
     }
     // ---- 坐标轴（2026-11-05 用户简化：仅两条线，无刻度无数值）------------
@@ -3153,6 +3250,14 @@ void SceneCanvasWidget::paintGL3D(
             p.drawLine(project3(gx, 0, gz0), project3(gx, 0, gz1));
         for (double gy : guide_y_)
             p.drawLine(project3(gx0, 0, gy), project3(gx1, 0, gy));
+        // 角点吸附标记：交叉点画布坐标 (x, y) 落在地面 y=0（与横线
+        // guide_y 的投影 (·,0,·) 同口径），品红实心小方块。
+        if (guide_pt_valid_) {
+            const QPointF wp = project3(guide_pt_.x(), 0, guide_pt_.y());
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(0xE0, 0x40, 0xC0));
+            p.drawRect(QRectF(wp.x() - 3.0, wp.y() - 3.0, 6.0, 6.0));
+        }
     }
 
     // ---- 6b. 全局消隐点 VP + 观察眼点 Eye 标记（仅手动 Eye 已配置）--------
@@ -3705,6 +3810,13 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
         QWidget::mousePressEvent(ev);
         return;
     }
+
+    // ---- 撤销会话开启（2026-11-26）：左键按下即冻结 before 基线——覆盖
+    //      全部左键会话（对象拖动/角点/边线/旋转/Gizmo/VP/空白平移）。
+    //      松手 endEdit 统一收口；无位移会话（单击选中/平移）由
+    //      SceneHistory 去重丢弃。平移会话也开（含中键分支之外的左键空白
+    //      平移）——空会话零成本丢弃，换取插桩单点全覆盖。----
+    if (hist_) hist_->beginEdit("画布编辑", *scene_);
     const QPointF wp = ev->position();
 
     // ---- 3D 轴球视角控件：已屏蔽（2026-11-20 2D 化——右上角角标退役，
@@ -3788,6 +3900,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
             moved_         = false;
             guide_x_.clear();
             guide_y_.clear();
+            guide_pt_valid_ = false;
             setCursor(Qt::ClosedHandCursor);
             statusTip(axis == 2 ? "沿高度轴（蓝 Z）拖动 pos_z"
                      : axis == 0 ? "沿红 X 轴拖动画布 X"
@@ -3887,6 +4000,10 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
                 gizmo_drag_axis_ = -1;
                 drag_start_canvas_ = canvasFromScreen(wp);
                 moved_ = false;
+                collectSnapReferences(); // 吸附参考集合（角点/边线会话同用）
+                guide_x_.clear();
+                guide_y_.clear();
+                guide_pt_valid_ = false;
                 update();
                 statusTip(chit >= 0
                               ? "拖动角点位移（与属性面板「形变」联动）"
@@ -3936,6 +4053,7 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
     dragging_ = false;
     guide_x_.clear(); // 新会话：上一轮吸附参考线作废
     guide_y_.clear();
+    guide_pt_valid_ = false;
     if (sel_.kind == 0) {
         // ---- 空白处左键 = 平移会话（中键平移保留）----
         // 空白按下即进入平移会话（光标变抓手），拖动 = 移动视图（不改场景
@@ -4289,6 +4407,7 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
     //      命中线供绘制；关闭开关时仅清除上一帧的参考线显示）----
     guide_x_.clear();
     guide_y_.clear();
+    guide_pt_valid_ = false; // snapping_ 关闭时 applySnap 不跑，手动失效
     if (snapping_) applySnap(&nx, &ny);
     if (sel_.kind == 1 && sel_.a >= 0 &&
         sel_.a < (int)scene_->screens.size()) {
@@ -4344,6 +4463,10 @@ void SceneCanvasWidget::mouseReleaseEvent(QMouseEvent* ev) {
         panning_) {
         panning_ = false;
         unsetCursor();
+        // 撤销会话收口（左键平移有会话；中键无——endEdit 幂等无害）。
+        // 视图平移不改场景 → 去重丢弃，不入历史。
+        if (ev->button() == Qt::LeftButton && hist_)
+            hist_->endEdit(*scene_);
         ev->accept();
         return;
     }
@@ -4353,6 +4476,7 @@ void SceneCanvasWidget::mouseReleaseEvent(QMouseEvent* ev) {
         unsetCursor();
         if (moved_) emit sceneEdited(); // VP 落点已写入工作副本
         moved_ = false;
+        if (hist_) hist_->endEdit(*scene_); // 撤销会话收口（VP 位移一条）
         ev->accept();
         return;
     }
@@ -4368,10 +4492,12 @@ void SceneCanvasWidget::mouseReleaseEvent(QMouseEvent* ev) {
         edge_hover_   = -1;
         guide_x_.clear();       // 吸附参考线显示随会话结束清除
         guide_y_.clear();
+        guide_pt_valid_ = false;
         // 【仅真实拖动才上报】单击选中（无位移）不算编辑——假脏会让
         // 用户关窗时被"未保存"询问、下发补丁产生无意义 diff
         if (moved_) emit sceneEdited(); // 拖动落点已写入工作副本
         moved_ = false;
+        if (hist_) hist_->endEdit(*scene_); // 撤销会话收口（拖动一条历史）
         update();
     }
     QWidget::mouseReleaseEvent(ev);
@@ -4673,6 +4799,8 @@ void SceneCanvasWidget::keyPressEvent(QKeyEvent* ev) {
     if (preview_) preview_->invalidate(); // 暂停态键盘微调跟手（同拖动路径）
     update();
     emit sceneEdited(); // 与鼠标拖动同链路（置脏 + 50ms 防抖自动下发）
+    // 撤销收编（离散一步式；自动重复经合并窗口折叠——长按方向键为一条）
+    if (hist_) hist_->checkpoint("方向键微调", *scene_);
     statusTip(QString("%1：%2 %3%4（Shift 大步进 · Alt 切移动）")
                            .arg(sel_.kind == 1 ? "屏幕" : "片段",
                                 move_mode ? "移动" : "大小")
@@ -4741,11 +4869,15 @@ void SceneCanvasWidget::applySnap(double* nx, double* ny) {
 
     // 单轴吸附：对 moving 的 3 锚（left/center/right）找阈值内最近参考线。
     // 命中 → 位置贴齐 + 记录参考线（绘制）。x/y 独立处理（可同时吸附）。
+    // off_out 输出命中的锚偏移（0=左/上边、size/2=中线、size=右/下边），
+    // 供角点交叉判定（x/y 同时命中边线级锚 = 角对角贴合）。
     auto snapAxis = [&](const std::vector<double>& refs, double pos,
-                        double size, std::vector<double>* hit_out) -> double {
+                        double size, std::vector<double>* hit_out,
+                        double* off_out) -> double {
         double best = pos;
         double best_diff = thr;   // 命中上限即阈值（初值保证只收阈值内的）
         double best_ref  = 0.0;   // 命中的参考线值（绘制用）
+        double best_off  = 0.0;   // 命中的锚偏移（角点判定用）
         bool   found = false;
         for (const double ref : refs) {
             for (const double off : {0.0, size / 2.0, size}) { // left/center/right
@@ -4754,17 +4886,71 @@ void SceneCanvasWidget::applySnap(double* nx, double* ny) {
                     best_diff = diff;
                     best  = ref - off; // 贴齐后的位置（锚点落在参考线上）
                     best_ref = ref;
+                    best_off = off;
                     found = true;
                 }
             }
         }
-        if (found) hit_out->push_back(best_ref); // 记录命中的参考线（去重）
+        if (found) {
+            hit_out->push_back(best_ref); // 记录命中的参考线（去重）
+            *off_out = best_off;
+        }
         return best;
     };
     guide_x_.clear();
     guide_y_.clear();
-    *nx = snapAxis(snap_ref_x_, *nx, w, &guide_x_);
-    *ny = snapAxis(snap_ref_y_, *ny, h, &guide_y_);
+    double x_off = 0.0, y_off = 0.0;
+    *nx = snapAxis(snap_ref_x_, *nx, w, &guide_x_, &x_off);
+    *ny = snapAxis(snap_ref_y_, *ny, h, &guide_y_, &y_off);
+
+    // 角点吸附标记（2026-11-26）：x/y 两轴同时命中**边线级**锚（left/right
+    // × top/bottom，即锚偏移 ≠ 中线 size/2）→ 交叉点 = 被拖对象角点与参考
+    // 对象边线/角点重合。角点贴合本就由单轴吸附隐式生效（角点坐标=边线坐
+    // 标），这里只是记下交叉点供绘制实心小方块——"角对角"可感知。
+    guide_pt_valid_ = false;
+    if (!guide_x_.empty() && !guide_y_.empty() &&
+        x_off != w / 2.0 && y_off != h / 2.0) {
+        guide_pt_ = QPointF(*nx + x_off, *ny + y_off);
+        guide_pt_valid_ = true;
+    }
+}
+
+void SceneCanvasWidget::snapPoint(double* px, double* py) {
+    guide_x_.clear();
+    guide_y_.clear();
+    guide_pt_valid_ = false;
+    if (!scene_ || scene_->canvas_w <= 0) return;
+    // 阈值 = 控件 7px 换算画布单位（与 applySnap 同手感）
+    const double k = canvasRect().width() / scene_->canvas_w;
+    if (k <= 0) return;
+    const double thr = 7.0 / k;
+    // 单点语义：无外接框三锚，点本身即锚——各轴找阈值内最近参考线
+    auto nearest = [&](const std::vector<double>& refs, double v,
+                       bool* hit) -> double {
+        double best = v;
+        double best_diff = thr;
+        bool   found = false;
+        for (const double ref : refs) {
+            const double diff = std::fabs(ref - v);
+            if (diff <= best_diff) {
+                best_diff = diff;
+                best  = ref;
+                found = true;
+            }
+        }
+        *hit = found;
+        return best;
+    };
+    bool hit_x = false, hit_y = false;
+    const double sx = nearest(snap_ref_x_, *px, &hit_x);
+    const double sy = nearest(snap_ref_y_, *py, &hit_y);
+    if (hit_x) { *px = sx; guide_x_.push_back(sx); }
+    if (hit_y) { *py = sy; guide_y_.push_back(sy); }
+    // 两轴同中 → 交叉点即被拖角，角点标记与移动会话同款视觉
+    if (hit_x && hit_y) {
+        guide_pt_ = QPointF(*px, *py);
+        guide_pt_valid_ = true;
+    }
 }
 
 } // namespace ms

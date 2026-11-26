@@ -1377,7 +1377,15 @@ void BaseTimelineView::beginClipDrag(AbstractClipModel* clip, const QModelIndex&
     m_dragClip = clip;
     m_dragIndex = index;
     m_snapLineFrame = -1; // 新拖拽开始：清上一轮参考线
-    Model->beginInteractiveGeometryChange(clip);
+    // 撤销会话标签（2026-11-26 拖拽真会话）：按交互语义区分——
+    // CENTER=整段移动、LEFT/RIGHT=入点/出点裁边（m_mouseUnderClipEdge
+    // 在 handleMouseDrag 判定后进入本函数，值已锁定）。标签随会话钩子
+    // 传给模型（adapter 虚分派接管 → SceneHistory::beginEdit 冻结
+    // 基线），拖拽全程一条历史。
+    Model->beginInteractiveGeometryChange(
+        clip, m_mouseUnderClipEdge == hoverState::CENTER
+                  ? QStringLiteral("移动片段")
+                  : QStringLiteral("裁边片段"));
     // 不在 QAbstractScrollArea 上 grabMouse。按下时鼠标已经由视口捕获，
     // 再抢到外层视图会让松手事件到不了 mouseReleaseEvent，拖拽无法结束。
     m_staticCacheDirty = true;

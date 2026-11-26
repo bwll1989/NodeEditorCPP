@@ -8,11 +8,15 @@
 #include <QClipboard>
 #include <QDragEnterEvent>
 #include <QDropEvent>
-#include <QMimeData>
 #include <QFileInfo>
 #include "CustomFlowGraphicsScene.h"
 CustomGraphicsView::CustomGraphicsView(QWidget *parent) {
    setAcceptDrops(true);
+   // 节点图标记（2026-11-26 撤销隔离）：SceneCanvasWidget 经 qApp
+   // focusChanged 沿 parent 链探测本 property——焦点进入节点图子树时
+   // 禁用其 WindowShortcut 场景撤销快捷键（Qt 对同键候选不按作用域
+   // 裁决，并存即报 Ambiguous shortcut overload），节点撤销独占。
+   setProperty("nodeEditorView", true);
 }
 /**
  * @brief 拖拽进入事件：支持库内节点添加与媒体库条目（标签+文件名）

@@ -199,9 +199,14 @@ public slots:
     // 任意片段可落任意轨。返回 false = clip 无效/索引失真/参数越界。
     bool moveClipToTrack(AbstractClipModel* clip, int targetTrackRow);
 
-    // 拖拽期间只改片段几何，松手后再排序、重算长度并发出 dataChanged
-    void beginInteractiveGeometryChange(AbstractClipModel* clip);
-    void endInteractiveGeometryChange();
+    // 拖拽期间只改片段几何，松手后再排序、重算长度并发出 dataChanged。
+    // undoLabel（2026-11-26 拖拽真会话）：本次交互的撤销描述（"移动片段"
+    // /"裁边片段"，view 传参）——基类仅透传；宿主模型（adapter）虚分派
+    // override 后接 SceneHistory 会话（begin 冻结基线/end 一条历史收口）。
+    virtual void beginInteractiveGeometryChange(
+        AbstractClipModel* clip,
+        const QString& undoLabel = QStringLiteral("移动片段"));
+    virtual void endInteractiveGeometryChange();
     void syncInteractiveClipOrder();
 
 protected:

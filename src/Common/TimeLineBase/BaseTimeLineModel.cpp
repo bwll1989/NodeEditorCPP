@@ -700,8 +700,10 @@ bool BaseTimeLineModel::moveClipToTrack(AbstractClipModel* clip,
     return true;
 }
 
-void BaseTimeLineModel::beginInteractiveGeometryChange(AbstractClipModel* clip)
+void BaseTimeLineModel::beginInteractiveGeometryChange(AbstractClipModel* clip,
+                                                        const QString& undoLabel)
 {
+    Q_UNUSED(undoLabel); // 撤销标签由宿主模型（adapter）override 消费
     if (!clip)
         return;
     if (!m_deferGeometryNotify)

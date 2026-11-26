@@ -43,6 +43,7 @@
 
 #include "Common/TimeLineBase/BaseTimeLineModel.h"
 #include "Common/AppConfig/OSCMessage.h" // OSC drag → Control 片段（onDropOscAddress 参数）
+#include "model/SceneHistory.hpp" // 撤销历史（快照栈；收编点经 hist_ 可空借用）
 #include "model/SceneModel.hpp"
 
 class AbstractClipModel;
@@ -133,6 +134,16 @@ public:
     /// 返回 false，音频快照照常刷新）
     void setRuntimeBridge(MsRuntimeBridge* rt)       { runtime_ = rt; }
     void setAudioBusHost(TimelineAudioBusHost* host) { audio_bus_ = host; }
+    /// 场景撤销历史（本类自带值成员，无需外部注入）。结构操作/拖拽回写/
+    /// 属性漏斗各落点以 checkpoint 收编（SceneHistory 注释「核心不变量」
+    /// ——新增编辑入口必须补插桩）。undo/redo 入口在画布侧快捷键
+    ///（焦点作用域），经 sceneUndo/sceneRedo 落到本类执行。
+    SceneHistory* undoHistory() { return &hist_; }
+    /// 撤销/重做：取快照并经 loadSceneToModel 全量重灌（唯一恢复通道），
+    /// 附带菱形镜像重灌 + 面板广播 + display 防抖追平。
+    /// \return true = 已恢复（宿主控件可再做自身收尾：清选中/重绘/预览失效）
+    bool sceneUndo();
+    bool sceneRedo();
 
     // ---- 时敏发送调度线程（2026-11-22 治本）--------------------------------
     /// 注入发送调度线程（controller 构造期装配；借用指针不拥有，须先于
@@ -212,6 +223,10 @@ public:
 signals:
     void seekRequestedUs(std::int64_t us); // 播放头拖动/程序化 seek → cmdSeek
     void sceneEdited();               // 时间轴有本地修改（编辑→节流下发汇入）
+    /// 场景撤销/恢复落定（2026-11-26）：sceneUndo/sceneRedo 成功后 emit——
+    /// 画布 connect 做收尾（选中高亮清空/预览失效/重绘），执行点与收尾解耦
+    ///（入口可来自画布快捷键或宿主）。
+    void sceneRestored();
     /// 【2026-11-16 删除 mediaImportFailed 信号】唯一消费者是宿主一条
     /// qWarning（与适配器 emit 点的 stderr 日志重复）——按死信号判据
     /// 删除，失败留痕内化为适配器 qWarning（file+err 一条）。
@@ -260,6 +275,17 @@ public slots:
     void onClipTrackChanged(AbstractClipModel* clip, int fromTrack,
                             int toTrack) override;
 
+    // ---- 时间轴拖拽真会话（2026-11-26）--------------------------------------
+    // 基类会话钩子（view beginClipDrag/finishClipDrag 调用）虚分派到此处
+    // 接管撤销历史：begin 冻结 SceneHistory 会话基线（此刻几何未变，一次
+    // 深拷贝）+ 置位抑制（拖拽中每拍 onClipGeometryChanged → undoCheckpoint
+    // 静默）；end 先撤抑制再一条历史收口（SceneHistory 内部 before==after
+    // 去重——点选未拖 = 0 条历史）。label 区分移动/裁边（view 传参）。
+    void beginInteractiveGeometryChange(
+        AbstractClipModel* clip,
+        const QString& undoLabel = QStringLiteral("移动片段")) override;
+    void endInteractiveGeometryChange() override;
+
     /// seek 节流定时器到点回调：发送最后一个待发位置（拖动结束后的最终值必达）。
     /// 公开以便测试手动触发（单测不依赖真实定时器事件循环）。
     void flushPendingSeek();
@@ -271,6 +297,10 @@ public slots:
     /// 汇聚点与画布 sceneEdited 两处调用）。面板销毁（组合面板关闭 /
     /// WA_DeleteOnClose）由 QPointer 自动感知，广播时清理失效项。
     void refreshClipPanels(const std::string& clip_id);
+    /// 全部打开中面板广播（undo/redo 恢复后的灌值收口——快照重灌后对象
+    /// 值整体变化，逐 clip 调 refreshClipPanels 按 panel_refs_ 现存键展开；
+    /// 键快照先行，防广播惰性清理与迭代互踩）。
+    void refreshAllOpenPanels();
     // 【2026-11-15 清理】refreshAllClipPanels（全量广播变体）已删除——收编
     // 后零消费者（refreshClipPanels 按 clip 精确广播已覆盖全部触发源）。
     /// 【Tween 专用·播放头驱动刷新】播放头移动（用户拖动/Player 回显）时
@@ -295,6 +325,10 @@ public slots:
 private:
     /// clip 信号（timelinePositionChanged/lengthChanged）→ 工作副本回写
     void onClipGeometryChanged(AbstractClipModel* clip);
+    /// 撤销收编（离散一步式）：loading_ 装载中 / 拖入包裹抑制中 / 未注入
+    /// 历史时静默跳过；否则以 label 把当前工作副本收编进历史（写后调用，
+    /// before 取历史基线，见 SceneHistory::checkpoint）。
+    void undoCheckpoint(const char* label);
     /// 按片段显示名（noteName = ms clip id）在工作副本中定位；未找到返回 nullptr
     Clip* locateWorkClip(const QString& note);
     /// ms::Track.kind → QtTimeLine 轨道类型串（2026-11-15 去类型化后仅作
@@ -362,6 +396,18 @@ private:
     /// 时敏发送调度线程（不拥有；controller 装配注入——2026-11-22 治本）
     PlaybackSendScheduler* send_sched_ = nullptr;
     bool   loading_ = false;   // 装载/程序化写模型中：屏蔽 clip 信号的回写
+    /// 撤销历史（值成员；收编点直用，undo/redo 由 sceneUndo/sceneRedo 执行）
+    SceneHistory hist_;
+    /// 撤销恢复进行中（sceneUndo/sceneRedo 重入 loadSceneToModel 标记——
+    /// 区分"恢复重灌"与"工程装载"：后者才重置 undo 基线 setBase）
+    bool undoRestoring_ = false;
+    /// 撤销收编抑制计数（复合操作包裹内层 checkpoint——onDropMediaFile/
+    /// onDropOscAddress 内部调 onAddClip，终态只在最外层收编一条）
+    int undo_suppress_ = 0;
+    /// 拖拽撤销会话已布防（2026-11-26 拖拽真会话）：beginInteractiveGeometry
+    /// Change 成功接管时置位，endInteractiveGeometryChange 对称撤除——
+    /// begin 条件不满足（装载中/历史未激活）时 end 不误撤抑制计数。
+    bool geo_session_armed_ = false;
     /// 时间轴真正改过的片段（noteName=ms clip id）。拖拽/面板改帧 → 记入；
     /// 面板→模型推送 → 移出（面板值对本 clip 保持权威）；sync 后清空。
     std::unordered_set<std::string> dirty_clips_;
