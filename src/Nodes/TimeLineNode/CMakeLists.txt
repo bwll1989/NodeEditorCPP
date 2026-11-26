@@ -90,7 +90,6 @@ target_link_libraries(${Module_Name} PRIVATE
                         Qt${QT_VERSION_MAJOR}::OpenGL
                         Qt${QT_VERSION_MAJOR}::OpenGLWidgets
                         Qt${QT_VERSION_MAJOR}::Qml
-                        Qt${QT_VERSION_MAJOR}::WebSockets
                         ${QtNodes_LIBRARIES}
                         DataTypes
                         PropertyTreeWidget
@@ -100,7 +99,6 @@ target_link_libraries(${Module_Name} PRIVATE
                         GUIElements
                         OscListWidget
                         OSCTransmitter
-                        ClientController
                         MediaManger
                         AppConfig
                         ArtnetService

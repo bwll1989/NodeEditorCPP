@@ -201,7 +201,6 @@ add_subdirectory(src/Common/Devices/NDVController)
 add_subdirectory(src/Common/Devices/SpoutReceiver)
 add_subdirectory(src/Common/GUI/OscListWidget)
 add_subdirectory(src/Common/GUI/Elements)
-add_subdirectory(src/Common/Devices/ClientController)
 add_subdirectory(src/Common/Devices/ArtnetSender)
 add_subdirectory(src/Common/Devices/TimestampGenerator)
 add_subdirectory(src/Common/Devices/MediaLibrary)
@@ -502,7 +501,6 @@ target_link_libraries(${ProjectName}
             DataTypes
             BuildInNodes
             Eigen3::Eigen
-            ClientController
             OscListWidget
             TimestampGenerator
             MediaManger
@@ -581,7 +579,6 @@ target_link_libraries(${HeadlessProjectName}
             MtcDevices
             Eigen3::Eigen
             ${OpenCV_LIBRARIES}
-            ClientController
             OscListWidget
             TimestampGenerator
             MediaManger
