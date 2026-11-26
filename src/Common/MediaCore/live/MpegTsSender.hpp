@@ -50,9 +50,6 @@ public:
     /// 停线程 + 释放编码器/muxer（幂等；join 后回调绝迹）
     void stop();
 
-    /// 实际使用的编码器名（诊断："h264_nvenc"/"libx264"；启动前为空）
-    const std::string& encoderName() const noexcept { return encoder_name_; }
-
 private:
     /// 转发线程主体（Feed version 轮询 → 编码 → TS 打包发送）
     void run();
@@ -68,7 +65,6 @@ private:
     std::weak_ptr<LiveHub::Feed>   feed_;
     std::thread                    worker_;
     std::atomic<bool>              running_{false};
-    std::string                    encoder_name_; ///< 实际编码器（诊断）
 
     // ---- FFmpeg 装配（转发线程独占，无锁）----
     struct Av;                     ///< FFmpeg 句柄集合（cpp 内定义，头零泄漏）

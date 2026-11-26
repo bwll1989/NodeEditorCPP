@@ -123,21 +123,25 @@ void LiveHub::ensureAsset(const Asset& asset) {
     }
 
     // ---- 组播 sender（2026-11-21 组播转发；NDI 分发已退役——组播为
-    // 唯一分发通道）：live_url 非空 = 启用。URL 变化 → 停旧建新。
-    if (entry->mcast_url != asset.live_url) {
+    // 唯一分发通道）：live_url 非空 = 启用。URL 或发送网卡变化 → 停旧建新
+    //（bind_ip 纳入指纹——原仅比 URL，属性面板改「发送网卡」不生效）。
+    if (entry->mcast_url != asset.live_url ||
+        entry->mcast_bind_ip != asset.live_bind_ip) {
         if (entry->mcast != nullptr) {
             entry->mcast->stop();
             entry->mcast.reset();
             entry->mcast_url.clear();
+            entry->mcast_bind_ip.clear();
         }
         if (!asset.live_url.empty()) {
             entry->mcast = std::make_unique<MpegTsSender>(
                 asset.live_url, entry->feed, asset.live_bind_ip);
             if (entry->mcast->start()) {
-                entry->mcast_url = asset.live_url;
-                std::fprintf(stderr, "live-hub: %s: 组播转发 '%s'（%s）\n",
-                             asset.id.c_str(), asset.live_url.c_str(),
-                             entry->mcast->encoderName().c_str());
+                entry->mcast_url     = asset.live_url;
+                entry->mcast_bind_ip = asset.live_bind_ip;
+                // 编码器名不在此打（惰性装配——首帧后才有值，此处恒空）
+                std::fprintf(stderr, "live-hub: %s: 组播转发 '%s'\n",
+                             asset.id.c_str(), asset.live_url.c_str());
             } else {
                 entry->mcast.reset(); // 线程创建失败：下次 ensure 重试
                 std::fprintf(stderr, "live-hub: %s: 组播转发启动失败 (%s)\n",
@@ -156,6 +160,7 @@ void LiveHub::stopEntry(Entry& entry) {
         entry.mcast->stop();
         entry.mcast.reset();
         entry.mcast_url.clear();
+        entry.mcast_bind_ip.clear();
     }
 }
 

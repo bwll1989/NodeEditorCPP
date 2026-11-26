@@ -15,14 +15,17 @@
 //  场景两端共用——接口是「每台机器自己的运行时事实」，不落盘、不进
 //  场景，部署零配置。
 //
-//  探测规则（GetAdaptersAddresses，AF_INET）：
+//  枚举/过滤规则（GetAdaptersAddresses，AF_INET；单一数据源见
+//  lan_detail::enumerate——2026-11-26 去重：原 listLanIfcs 与
+//  probeLanIPv4 各持一份遍历 + kVirtual 过滤表，改一处漏一处）：
 //    * 接口活动（IfOperStatusUp）且非软件 loopback 类型；
 //    * 单播 IPv4，排除 127.x / 169.254.x（link-local）；
 //    * 排除常见虚拟网卡：FriendlyName（小写化）含 vethernet / wsl /
 //      hyper-v / vmware / virtualbox / virtual / loopback / pseudo——
 //      Hyper-V/WSL 虚拟交换机标准命名 "vEthernet ..."；
-//    * 优先取「有默认网关」的接口（真物理 LAN 强信号）；多候选取首个；
-//    * 全部落空 → 空串（消费端不追加 = 保持系统默认行为；单网卡机器
+//    * 每接口取第一个合法 IPv4；附带「有 IPv4 默认网关」标记
+//      （真物理 LAN 强信号——probeLanIPv4 消费）；
+//    * 全部落空 → 空（消费端不追加 = 保持系统默认行为；单网卡机器
 //      本就不会选错，探测只服务双/多网卡环境）。
 //
 //  【平台】Windows 实现（GetAdaptersAddresses）；Android（getifaddrs，
@@ -34,6 +37,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -67,31 +71,44 @@ struct LanIfc {
     std::string name;
 };
 
-/// 枚举本机全部合法 LAN IPv4 接口（组播 localaddr 下拉候选）。
-/// 过滤规则与 probeLanIPv4 同源：活动 + 非 loopback + 排虚拟网卡
-/// （Windows）/ 排蜂窝隧道（Android）+ 排 link-local。序即枚举序
-/// （Windows 恒定；Android 按 wlan > eth > 其他优先排序——与 probe 的
-/// 钉定优先级一致，下拉第一候选即自动探测会选的那个）。
-inline std::vector<LanIfc> listLanIfcs() {
-    std::vector<LanIfc> out;
+// ---------------------------------------------------------------------------
+// 统一枚举（listLanIfcs / probeLanIPv4 单一数据源——过滤规则只此一份）
+// ---------------------------------------------------------------------------
+namespace lan_detail {
+
+/// 枚举条目：gw = 接口持有效 IPv4 默认网关（真物理 LAN 强信号；
+/// Android getifaddrs 无网关信息恒 false，序即优先级）
+struct Entry {
+    std::string ip;
+    std::string name;
+    bool        gw = false;
+};
+
+/// 枚举本机全部合法 LAN IPv4 接口（活动 + 非 loopback + 排虚拟网卡
+/// Windows / 排蜂窝隧道 Android + 排 link-local；每接口取第一个 IPv4）。
+/// Android 结果按 wlan > eth > 其他稳定排序（下拉首项即自动探测所选）。
+inline std::vector<Entry> enumerate() {
+    std::vector<Entry> out;
 #if defined(_WIN32)
-    ULONG size = 15 * 1024;
+    ULONG size = 15 * 1024; // 起始 15K（典型远小于此；溢出按系统提示重试）
     for (int pass = 0; pass < 4; ++pass) {
         std::vector<char> buf(size);
         auto* aa = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data());
         const ULONG ret = GetAdaptersAddresses(
             AF_INET,
             GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
-                GAA_FLAG_SKIP_DNS_SERVER,
+                GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_INCLUDE_GATEWAYS,
             nullptr, aa, &size);
-        if (ret == ERROR_BUFFER_OVERFLOW) continue;
-        if (ret != NO_ERROR) return out;
+        if (ret == ERROR_BUFFER_OVERFLOW)
+            continue; // size 已被系统更新为需求值，扩容重试
+        if (ret != NO_ERROR)
+            return out;
 
         for (const IP_ADAPTER_ADDRESSES* a = aa; a != nullptr; a = a->Next) {
             if (a->OperStatus != IfOperStatusUp) continue;
             if (a->IfType == IF_TYPE_SOFTWARE_LOOPBACK) continue;
 
-            // 虚拟网卡过滤（FriendlyName 小写化匹配，与 probe 同源）
+            // 虚拟网卡过滤（FriendlyName 小写化后匹配关键词）
             std::wstring wname(a->FriendlyName != nullptr ? a->FriendlyName
                                                           : L"");
             std::wstring lower = wname;
@@ -99,7 +116,7 @@ inline std::vector<LanIfc> listLanIfcs() {
                 ch = static_cast<wchar_t>(::towlower(ch));
             static const wchar_t* kVirtual[] = {
                 L"vethernet", L"wsl",      L"hyper-v", L"vmware",
-                L"virtual",   L"loopback", L"pseudo"};
+                L"virtual",   L"loopback", L"pseudo"}; // virtual 已覆盖 virtualbox
             bool is_virtual = false;
             for (const wchar_t* k : kVirtual) {
                 if (lower.find(k) != std::wstring::npos) {
@@ -109,6 +126,18 @@ inline std::vector<LanIfc> listLanIfcs() {
             }
             if (is_virtual) continue;
 
+            // IPv4 默认网关有效性（0.0.0.0 = 无效不认）
+            bool has_gw = false;
+            if (a->FirstGatewayAddress != nullptr &&
+                a->FirstGatewayAddress->Address.lpSockaddr != nullptr &&
+                a->FirstGatewayAddress->Address.lpSockaddr->sa_family ==
+                    AF_INET) {
+                auto* g = reinterpret_cast<const sockaddr_in*>(
+                    a->FirstGatewayAddress->Address.lpSockaddr);
+                has_gw = g->sin_addr.S_un.S_addr != 0;
+            }
+
+            // 该接口第一个合法 IPv4（每接口只取一个）
             for (const IP_ADAPTER_UNICAST_ADDRESS* u =
                      a->FirstUnicastAddress;
                  u != nullptr; u = u->Next) {
@@ -128,12 +157,12 @@ inline std::vector<LanIfc> listLanIfcs() {
                 WideCharToMultiByte(CP_UTF8, 0, wname.c_str(), -1,
                                     utf8_name, sizeof(utf8_name), nullptr,
                                     nullptr);
-                out.push_back({ip, utf8_name});
-                break; // 每接口只取第一个合法 IPv4
+                out.push_back({ip, utf8_name, has_gw});
+                break;
             }
         }
         return out;
-    }
+    } // for(pass)：溢出按系统提示扩容重试
     return out;
 #elif defined(__ANDROID__)
     struct ifaddrs* ifs = nullptr;
@@ -141,7 +170,7 @@ inline std::vector<LanIfc> listLanIfcs() {
     for (const struct ifaddrs* ifa = ifs; ifa != nullptr;
          ifa = ifa->ifa_next) {
         if (ifa->ifa_addr == nullptr ||
-            ifa->ifa_addr->sa_family != AF_INET) continue;
+            ifa->ifa_addr->sa_family != AF_INET) continue;      // 只认 IPv4
         if (!(ifa->ifa_flags & IFF_UP) ||
             (ifa->ifa_flags & IFF_LOOPBACK)) continue;
         auto* sa = reinterpret_cast<const sockaddr_in*>(ifa->ifa_addr);
@@ -150,7 +179,10 @@ inline std::vector<LanIfc> listLanIfcs() {
         const std::string s = ip;
         if (s.rfind("127.", 0) == 0 || s.rfind("169.254.", 0) == 0)
             continue;
+
         const char* name = ifa->ifa_name != nullptr ? ifa->ifa_name : "";
+        // 蜂窝/隧道接口排除（前缀匹配；clat=IPv4 over IPv6 过渡，同样
+        // 不在局域网链路上——join 钉蜂窝 = 现场局域网零包）
         static const char* kCellular[] = {
             "rmnet", "ccemu", "clat", "ril", "pdp", "wwan", "v4-rmnet",
             "dummy", "tun", "tap"};
@@ -162,13 +194,13 @@ inline std::vector<LanIfc> listLanIfcs() {
             }
         }
         if (cellular) continue;
-        out.push_back({ip, name});
+        out.push_back({ip, name, false});
     }
     freeifaddrs(ifs);
-    // wlan > eth > 其他（与 probeLanIPv4 的钉定优先级一致——下拉首个
-    // 即自动探测会选的接口，用户看到的顺序与行为一致）
+    // wlan > eth > 其他（stable_sort 保枚举序——现场 WiFi 常态、盒子/
+    // TV 有线次之；序即探测优先级，下拉首项与自动探测所选一致）
     std::stable_sort(out.begin(), out.end(),
-                     [](const LanIfc& x, const LanIfc& y) {
+                     [](const Entry& x, const Entry& y) {
                          auto rank = [](const std::string& n) {
                              if (n.rfind("wlan", 0) == 0) return 0;
                              if (n.rfind("eth", 0) == 0) return 1;
@@ -178,152 +210,31 @@ inline std::vector<LanIfc> listLanIfcs() {
                      });
     return out;
 #else
-    return out; // 其他平台：单接口设备，无需下拉候选（返回空）
+    return out; // 其他平台：单接口设备，默认路由即正确（返回空）
 #endif
 }
 
+} // namespace lan_detail
+
+/// 枚举本机全部合法 LAN IPv4 接口（组播 localaddr 下拉候选——editor
+/// LiveClipSection「发送网卡」/ display 网页设置页数据源）。
+inline std::vector<LanIfc> listLanIfcs() {
+    std::vector<LanIfc> out;
+    for (const lan_detail::Entry& e : lan_detail::enumerate())
+        out.push_back({e.ip, e.name});
+    return out;
+}
+
 /// 探测本机真实 LAN IPv4（组播 localaddr 候选）。失败/无候选 = 空串。
+/// 取舍：持有效 IPv4 默认网关的接口优先（真物理 LAN 强信号）——注意
+/// 多真实网卡「内网无网关 + 外网有网关」部署下该优先会钉到外网卡
+///（盲区一，见文件头），此场景须由裁决链上游（场景 bind_ip / 对端
+/// 同网段推断）显式覆盖；无网关候选时取枚举序首个合法接口。
 inline std::string probeLanIPv4() {
-#if defined(_WIN32)
-    ULONG size = 15 * 1024; // 起始 15K（典型远小于此；溢出按系统提示重试）
-    for (int pass = 0; pass < 4; ++pass) {
-        std::vector<char> buf(size);
-        auto* aa = reinterpret_cast<IP_ADAPTER_ADDRESSES*>(buf.data());
-        const ULONG ret = GetAdaptersAddresses(
-            AF_INET,
-            GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
-                GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_INCLUDE_GATEWAYS,
-            nullptr, aa, &size);
-        if (ret == ERROR_BUFFER_OVERFLOW)
-            continue; // size 已被系统更新为需求值，扩容重试
-        if (ret != NO_ERROR)
-            return {};
-
-        const IP_ADAPTER_ADDRESSES* hit_gw   = nullptr; // 有默认网关的候选
-        const sockaddr_in*          addr_gw  = nullptr;
-        const IP_ADAPTER_ADDRESSES* hit_any  = nullptr; // 任意合法候选（兜底）
-        const sockaddr_in*          addr_any = nullptr;
-
-        for (const IP_ADAPTER_ADDRESSES* a = aa; a != nullptr; a = a->Next) {
-            if (a->OperStatus != IfOperStatusUp) continue;
-            if (a->IfType == IF_TYPE_SOFTWARE_LOOPBACK) continue;
-
-            // 虚拟网卡过滤（FriendlyName 小写化后匹配关键词）
-            std::wstring name(a->FriendlyName != nullptr ? a->FriendlyName
-                                                         : L"");
-            for (wchar_t& ch : name)
-                ch = static_cast<wchar_t>(::towlower(ch));
-            static const wchar_t* kVirtual[] = {
-                L"vethernet", L"wsl",      L"hyper-v", L"vmware",
-                L"virtual",   L"loopback", L"pseudo"}; // virtual 已覆盖 virtualbox
-            bool is_virtual = false;
-            for (const wchar_t* k : kVirtual) {
-                if (name.find(k) != std::wstring::npos) {
-                    is_virtual = true;
-                    break;
-                }
-            }
-            if (is_virtual) continue;
-
-            // 该接口第一个合法 IPv4（每接口只取一个）
-            for (const IP_ADAPTER_UNICAST_ADDRESS* u = a->FirstUnicastAddress;
-                 u != nullptr; u = u->Next) {
-                if (u->Address.lpSockaddr == nullptr ||
-                    u->Address.lpSockaddr->sa_family != AF_INET)
-                    continue;
-                auto* sa = reinterpret_cast<const sockaddr_in*>(
-                    u->Address.lpSockaddr);
-                char ip[INET_ADDRSTRLEN] = {0};
-                if (!inet_ntop(AF_INET, &sa->sin_addr, ip, sizeof(ip)))
-                    break;
-                const std::string s = ip;
-                if (s.rfind("127.", 0) == 0 || s.rfind("169.254.", 0) == 0)
-                    break;
-
-                // 有默认网关的接口优先（仅认 IPv4 网关；0.0.0.0 = 无效不认）
-                if (hit_gw == nullptr && a->FirstGatewayAddress != nullptr &&
-                    a->FirstGatewayAddress->Address.lpSockaddr != nullptr &&
-                    a->FirstGatewayAddress->Address.lpSockaddr->sa_family ==
-                        AF_INET) {
-                    auto* g = reinterpret_cast<const sockaddr_in*>(
-                        a->FirstGatewayAddress->Address.lpSockaddr);
-                    if (g->sin_addr.S_un.S_addr != 0) {
-                        hit_gw  = a;
-                        addr_gw = sa;
-                    }
-                }
-                if (hit_any == nullptr) {
-                    hit_any  = a;
-                    addr_any = sa;
-                }
-                break; // 每接口只取第一个合法 IPv4
-            }
-        }
-
-        const sockaddr_in* pick = addr_gw != nullptr ? addr_gw : addr_any;
-        if (pick == nullptr) return {};
-        char ip[INET_ADDRSTRLEN] = {0};
-        if (!inet_ntop(AF_INET, &pick->sin_addr, ip, sizeof(ip))) return {};
-        return ip;
-    } // for(pass)：溢出按系统提示扩容重试
-    return {};
-#elif defined(__ANDROID__)
-    // ---- Android：getifaddrs 枚举（WiFi+蜂窝并存免疫）--------------------
-    // 优先级 wlan* > eth* > 其他非蜂窝；排除 loopback / link-local /
-    // 蜂窝数据接口（rmnet*/cc*/ril*/pdp*/wwan*/v4-rmnet*——组播 join
-    // 钉蜂窝 = 现场局域网零包）。蜂窝+WiFi 并存时安卓默认路由可能走
-    // 蜂窝（现场无外网时系统仍倾向数据网络），FFmpeg 无 localaddr 的
-    // join 按 best route 选接口——必须显式钉定。
-    struct ifaddrs* ifs = nullptr;
-    if (getifaddrs(&ifs) != 0) return {};
-
-    const char* wlan_ip = nullptr; char wlan_buf[INET_ADDRSTRLEN] = {0};
-    const char* eth_ip  = nullptr; char eth_buf[INET_ADDRSTRLEN]  = {0};
-    const char* any_ip  = nullptr; char any_buf[INET_ADDRSTRLEN]  = {0};
-
-    for (const struct ifaddrs* ifa = ifs; ifa != nullptr; ifa = ifa->ifa_next) {
-        if (ifa->ifa_addr == nullptr ||
-            ifa->ifa_addr->sa_family != AF_INET) continue;      // 只认 IPv4
-        if (!(ifa->ifa_flags & IFF_UP) ||
-            (ifa->ifa_flags & IFF_LOOPBACK)) continue;
-        auto* sa = reinterpret_cast<const sockaddr_in*>(ifa->ifa_addr);
-        char ip[INET_ADDRSTRLEN] = {0};
-        if (!inet_ntop(AF_INET, &sa->sin_addr, ip, sizeof(ip))) continue;
-        const std::string s = ip;
-        if (s.rfind("127.", 0) == 0 || s.rfind("169.254.", 0) == 0) continue;
-
-        const char* name = ifa->ifa_name != nullptr ? ifa->ifa_name : "";
-        // 蜂窝/隧道接口排除（前缀匹配；clat=IPv4 over IPv6 过渡，同样
-        // 不在局域网链路上）
-        static const char* kCellular[] = {
-            "rmnet", "ccemu", "clat", "ril", "pdp", "wwan", "v4-rmnet",
-            "dummy", "tun", "tap"};
-        bool cellular = false;
-        for (const char* k : kCellular) {
-            if (std::strncmp(name, k, std::strlen(k)) == 0) {
-                cellular = true;
-                break;
-            }
-        }
-        if (cellular) continue;
-
-        if (any_ip == nullptr) std::strncpy(any_buf, ip, sizeof(any_buf) - 1);
-        if (wlan_ip == nullptr && std::strncmp(name, "wlan", 4) == 0) {
-            std::strncpy(wlan_buf, ip, sizeof(wlan_buf) - 1);
-            wlan_ip = wlan_buf;
-        }
-        if (eth_ip == nullptr && std::strncmp(name, "eth", 3) == 0) {
-            std::strncpy(eth_buf, ip, sizeof(eth_buf) - 1);
-            eth_ip = eth_buf;
-        }
-    }
-    freeifaddrs(ifs);
-    if (wlan_ip) return wlan_ip;   // 现场 WiFi（显示节点常态）
-    if (eth_ip)  return eth_ip;    // 盒子/TV 有线
-    return any_ip ? any_ip : "";   // 兜底：首个合法接口（USB 共享网等）
-#else
-    return {}; // 其他平台：单接口设备默认路由即正确，不追加 localaddr
-#endif
+    const std::vector<lan_detail::Entry> ifcs = lan_detail::enumerate();
+    for (const lan_detail::Entry& e : ifcs)
+        if (e.gw) return e.ip;
+    return ifcs.empty() ? std::string() : ifcs.front().ip;
 }
 
 // ---------------------------------------------------------------------------
@@ -354,12 +265,15 @@ inline std::string& explicitLanIPv4() {
     return s;
 }
 
-/// 显式指定本机出口/加入接口 IPv4（空串 = 撤销，回落自动探测）。
+/// 显式指定本机出口/加入接口 IPv4；空串 = 撤销（回落自动裁决）。
 /// 进程级事实（与 LanProbe 哲学一致：不进场景 URL，每台机器自己配）。
 inline void setExplicitLanIPv4(std::string ip) {
-    // 基础防御：非空且含字母/非法字符直接丢弃（配置手滑不炸链路）
-    if (!ip.empty() &&
-        ip.find_first_not_of("0123456789.") == std::string::npos &&
+    if (ip.empty()) {
+        explicitLanIPv4().clear(); // 空 = 撤销显式指定（此前实现挡掉空串，
+        return;                    // 文档声明的「撤销」语义不可达——修复）
+    }
+    // 基础防御：含字母/非法字符直接丢弃（配置手滑不炸链路）
+    if (ip.find_first_not_of("0123456789.") == std::string::npos &&
         ip.find("..") == std::string::npos) {
         explicitLanIPv4() = std::move(ip);
     }

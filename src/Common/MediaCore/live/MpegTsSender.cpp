@@ -161,10 +161,7 @@ bool MpegTsSender::setupEncoder(int w, int h) {
             av_opt_set(a->enc->priv_data, "threads", "2", 0);
         }
         const int open_ret = avcodec_open2(a->enc, a->codec, nullptr);
-        if (open_ret >= 0) {
-            encoder_name_ = name;
-            break;
-        }
+        if (open_ret >= 0) break;
         // 探测失败（无 N 卡/驱动会话超限等）：带原因日志——用户报"CPU 高"
         // 时可一眼确认是否静默降级到了 x264 软编（霸核大头）
         char errbuf[AV_ERROR_MAX_STRING_SIZE] = {0};
@@ -248,8 +245,9 @@ bool MpegTsSender::setupEncoder(int w, int h) {
         return false;
     }
     av_ok_ = true;
+    // 编码器名用 a->codec->name（探测成功即有效——启动诊断）
     std::fprintf(stderr, "mcast: 组播启动 %s（%s %dx%d %.1fMbps%s）\n",
-                 open_url.c_str(), encoder_name_.c_str(), ew, eh,
+                 open_url.c_str(), a->codec->name, ew, eh,
                  static_cast<double>(bitrate) / 1e6,
                  a->nvenc_rgba ? "，RGBA 直喂" : "");
     std::fflush(stderr);
@@ -315,7 +313,7 @@ void MpegTsSender::run() {
     // Feed 已产但只发最新被跳过的帧数（非零 = 编码/网络跟不上采集节奏）
     std::int64_t  stat_ms    = 0;
     std::uint64_t total_sent = 0, win_sent = 0;
-    std::uint64_t total_skip = 0, win_skip = 0;
+    std::uint64_t total_skip = 0;
     std::int64_t  idle_ms    = 0; // 空闲心跳限频（0 = 发帧中）
 
     while (running_.load(std::memory_order_acquire)) {
@@ -361,7 +359,6 @@ void MpegTsSender::run() {
             ++total_sent;
             ++win_sent;
             total_skip += new_frames - 1;
-            win_skip   += new_frames - 1;
             // 5s 限频转发取证（跨机排障：与 display 端收帧速率对读）
             const std::int64_t now_ms = std::chrono::duration_cast<
                 std::chrono::milliseconds>(
@@ -380,7 +377,6 @@ void MpegTsSender::run() {
                 std::fflush(stderr);
                 stat_ms  = now_ms;
                 win_sent = 0;
-                win_skip = 0;
             }
         } else {
             // 写包失败（网络异常）：拆链重装配（下次帧到达重试）

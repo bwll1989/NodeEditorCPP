@@ -161,7 +161,11 @@ private:
         /// 唯一分发通道）：live_url 非空时启动——Feed → H.264(NVENC/
         /// x264) → MPEG-TS → UDP 组播（多 display 共享一路入网带宽）
         std::unique_ptr<MpegTsSender> mcast;
-        std::string                   mcast_url; ///< 装配指纹（URL 变化重建）
+        std::string                   mcast_url;     ///< 装配指纹（URL 变化重建）
+        std::string                   mcast_bind_ip; ///< 装配指纹（发送网卡
+                                      ///< 变化重建——2026-11-26 修复：原仅
+                                      ///< 比 URL，属性面板改「发送网卡」
+                                      ///< 不生效直到 URL 变化/重启）
         // ---- ingest 装配指纹（2026-11-10 源切换检测）----
         // 用户在编辑端换源（源名/延迟/接入方式任一变化）→ ensureAsset
         // 停旧建新；旧版只在 ingest 为空时创建 = 切换后永远转发旧源
