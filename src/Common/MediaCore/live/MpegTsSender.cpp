@@ -322,6 +322,7 @@ void MpegTsSender::run() {
     std::int64_t  stat_ms    = 0;
     std::uint64_t total_sent = 0, win_sent = 0;
     std::uint64_t total_skip = 0, win_skip = 0;
+    std::int64_t  idle_ms    = 0; // 空闲心跳限频（0 = 发帧中）
 
     while (running_.load(std::memory_order_acquire)) {
         feed = feed_.lock();
@@ -331,9 +332,22 @@ void MpegTsSender::run() {
         if (v == last_version_) { // 无新帧：5ms 一拍（2026-11-23 自 20ms
                                   // 收紧——帧节拍量化抖动降到 1 帧@200fps
                                   // 轮询上限；空转原子读代价可忽略）
+            // 【2026-11-26 空闲心跳】收端 "I/O error" 实锤 = 等不到首包
+            // （FFmpeg rw_timeout 耗尽，socket/join 均成功）——发送端在
+            // 编辑器关闭/源停帧时全部静默，必须可见：5s 一条。
+            const std::int64_t now = av_gettime();
+            if (now - idle_ms >= 5'000'000) {
+                idle_ms = now;
+                std::fprintf(stderr, "mcast: %s %s\n", url_.c_str(),
+                             (av_ != nullptr && av_ok_)
+                                 ? "帧流中断（源停帧，组播停发）"
+                                 : "等待首帧（源未出帧，组播未开始发送）");
+                std::fflush(stderr);
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
             continue;
         }
+        idle_ms = 0; // 恢复发帧：心跳复位
         const std::uint64_t new_frames = v - last_version_; // ≥1
         const LiveFramePtr frame = feed->latest();
         last_version_ = v;

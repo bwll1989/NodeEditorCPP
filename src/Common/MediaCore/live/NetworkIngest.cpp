@@ -12,6 +12,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 #include <libavutil/avutil.h>
+#include <libavutil/log.h>
 #include <libavutil/opt.h>
 #include <libavutil/time.h>
 #include <libswscale/swscale.h>
@@ -25,6 +26,11 @@ namespace ms {
 
 bool NetworkIngest::onStart() {
     avformat_network_init(); // 进程内幂等（FFmpeg 网络层全局一次）
+    // 【2026-11-26 取证放行】udp 组播 open 失败（如 EIO）只有错误码无
+    // syscall 明细，无法分诊——FFmpeg 内部 getaddrinfo/setsockopt/join
+    // 的 av_log(ERROR) 是唯一真相源（默认 ERROR 级已可见，DEBUG 级连
+    // socket 细节一起放行）。进程级一次设置，幂等。
+    av_log_set_level(AV_LOG_DEBUG);
     return true;
 }
 
@@ -74,11 +80,33 @@ void NetworkIngest::recvLoop() {
                                                            // （组播突发削峰）
         av_dict_set(&opts, "timeout", "3000000", 0);        // 3s 断流检测
         av_dict_set(&opts, "reuse", "1", 0);                // 组播端口复用
+        // 【2026-11-26 分诊隔离】Live 组播源恒 MPEG-TS（MpegTsSender 出
+        // 流）——显式指定格式跳过探测层：EIO 若出在探测层（读首包）会转
+        // 移到 find_stream_info 的"流信息探测失败"分支，与 socket 层失败
+        // （getaddrinfo/bind/join）彻底区分 + 省首包等待。
+        const AVInputFormat* ifmt = av_find_input_format("mpegts");
         const int ret = avformat_open_input(&fmt, open_url.c_str(),
-                                            nullptr, &opts);
+                                            ifmt, &opts);
         av_dict_free(&opts);
         if (ret < 0) {
-            logThrottled("打开失败（2s 重试）: " + open_url,
+            // 【2026-11-26 错误码取证】"打开失败"笼统日志无法分诊——udp
+            // 组播 open 内含 bind/join + 格式探测读首包：ETIMEDOUT=探测
+            // 收不到包（组播被滤/发送端未推流/AP 不转发组播）；
+            // EADDRNOTAVAIL=localaddr join 失败（IP 不在本机接口）。
+            char errbuf[AV_ERROR_MAX_STRING_SIZE] = {0};
+            av_strerror(ret, errbuf, sizeof(errbuf));
+            // 分诊提示（2026-11-26 实锤：udp 读持续 EAGAIN 超过 rw_timeout
+            // 时 FFmpeg retry_transfer_wrapper 返回 AVERROR(EIO)——"I/O
+            // error" 与 ETIMEDOUT 同义 = 收不到包，socket/join 均成功（设
+            // 备日志零 FFmpeg 错误行可证）。发送端三静默态：编辑器未运行/
+            // 源无帧未发包/组播被滤）
+            const char* hint = "";
+            if (ret == AVERROR(ETIMEDOUT) || ret == AVERROR(EIO))
+                hint = "（收不到首包：编辑器未运行/源未出帧未发包/组播被滤/AP 不转发）";
+            else if (ret == AVERROR(EADDRNOTAVAIL))
+                hint = "（localaddr 非本机接口，join 失败）";
+            logThrottled("打开失败（2s 重试）[" + std::string(errbuf) +
+                             "]" + hint + " " + open_url,
                          last_log_ms, 2000);
             closeAll();
             std::this_thread::sleep_for(std::chrono::milliseconds(500));

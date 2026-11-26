@@ -1613,6 +1613,46 @@ bool StandaloneApi::routeTimelines(RouteCtx& ctx) {
         const std::string id = rest.substr(0, rest.size() - 5);
         if (method != "POST") return false;
         if (denyBadId(id)) return true;
+        // ---- 【2026-11-26 play 前重装配】文档 = 编辑态真相 ----------------
+        //   registry 缓存的 scene 是创建/保存那一刻的装配快照：先建时间轴
+        //   引用素材（缺失→装配失败 scene=null）再上传媒体的顺序下，缓
+        //   存不感知素材就位，用户传完直接点播放仍报"未装配场景"，被迫
+        //   重新保存或重启（重启=从磁盘重装载的重装配，故表现为"重启才
+        //   能播"）。此处每次 play 前从磁盘 loadDoc 重装配并整体替换条目
+        //   （同 PUT 纪律：更新成功才注场景；装配失败不注空——条目已有
+        //   场景保持旧内容照播，scene=null 时刷新 note 让 play 报错带上
+        //   现因）。无文档（ini/.show 只读条目）→ 缓存场景直出，行为不变。
+        {
+            TimelineDoc doc;
+            std::string derr;
+            if (loadDoc(id, doc, derr)) {
+                std::string assemble_note;
+                auto scene = assembleDoc(doc, assemble_note);
+                const auto cur = registry_.find(id);
+                if (cur != nullptr) {
+                    ms::standalone::TimelineEntry entry;
+                    entry.id = id;
+                    entry.name = doc.name;
+                    entry.loop = doc.loop;
+                    entry.stop_position_us = doc.stop_position_us;
+                    if (scene != nullptr) {
+                        entry.scene = std::move(scene);  // 新快照整体替换
+                        entry.note.clear();              // 旧失败原因随恢复清除
+                    } else {
+                        if (cur->scene == nullptr)       // 依旧播不了：现因写回
+                            entry.note = assemble_note.empty()
+                                ? "时间轴暂无可播放片段（素材须已上传媒体库）"
+                                : assemble_note;
+                        else
+                            entry = *cur;  // 旧场景仍可播：保持原条目不动
+                    }
+                    registry_.update(entry);
+                }
+                // cur == nullptr（磁盘有文档但注册表未登记，异常态）：放行
+                // 走 node_.play 的 NOT_FOUND 报错，不在 play 路由暗自 add。
+            }
+            // loadDoc 失败 = 无文档/文档损坏：保持缓存场景直出（旧行为）
+        }
         std::string err;
         if (!node_.play(id, err)) {
             // 【2026-11-13】find 一次复用（原 find 两次）；错误码语义不变：
