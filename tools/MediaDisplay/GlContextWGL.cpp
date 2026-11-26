@@ -290,7 +290,10 @@ bool GlContextWGL::createRenderWindow() {
                             ? WS_POPUP
                             : (WS_OVERLAPPEDWINDOW | WS_CAPTION);
     // hidden（离屏对拍测试）：不显示窗口，渲染照常（GL 不依赖可见性）
-    const DWORD ex_style = 0;
+    // 【置顶 2026-11-26】topmost=true 时 WS_EX_TOPMOST——输出窗压在所有
+    // 普通窗口之上（编辑器/浏览器不再遮挡输出；运行期 Z 序由系统维持，
+    // beginFrame 的 SetWindowPos 带 SWP_NOZORDER 不受影响）。
+    const DWORD ex_style = geom_.topmost ? WS_EX_TOPMOST : 0;
     hwnd_ = CreateWindowExW(ex_style, kWindowClass,
                             geom_.title.c_str(), style,
                             win_x, win_y, win_w, win_h,

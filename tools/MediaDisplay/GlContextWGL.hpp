@@ -78,6 +78,14 @@ public:
         /// 定位，不强制铺满屏）。关闭靠 Alt+F4 / 任务栏右键（WM_CLOSE）。
         /// 【结构默认 true】与"display 端输出窗无边框"产品语义一致。
         bool        borderless    = true;
+        /// 【窗口置顶 2026-11-26 用户需求】输出窗强制最前（WS_EX_TOPMOST）
+        /// ——现场输出窗常被编辑器/浏览器等普通窗口遮挡（输出窗是 display
+        /// 的唯一交付面，被遮挡=输出中断）。建窗时置 WS_EX_TOPMOST：普通
+        /// 窗口永远压不到它，仅其他 topmost 窗口（多实例各占一屏时互不
+        /// 干扰）按激活序竞争。默认 false（不改变既有行为）；main 按配置
+        /// [display].topmost（默认 1）填入。
+        /// 【置于末尾】本结构多处按位置聚合初始化，新增字段一律尾部追加。
+        bool        topmost       = false;
     };
 
     GlContextWGL() = default;

@@ -978,7 +978,8 @@ settingSchema() {
           {"asset_workers", true}, {"render_fps", true},
           {"render_backend", false},{"hw_accel", false},
           {"screen", true},        {"fullscreen", true},
-          {"borderless", true},    {"window_x", true},
+          {"borderless", true},    {"topmost", true},
+          {"window_x", true},
           {"window_y", true},      {"window_w", true},
           {"window_h", true},      {"report_interval_ms", true},
           {"diag_interval_ms", true}, {"pairing_code", false},
@@ -1119,6 +1120,7 @@ bool StandaloneApi::routeSettings(RouteCtx& ctx) {
         emit_str("display", "render_backend"); emit_str("display", "hw_accel");
         emit_long("display", "screen", -1); emit_long("display", "fullscreen", 0);
         emit_long("display", "borderless", 1);
+        emit_long("display", "topmost", 1);
         emit_long("display", "window_x", -1); emit_long("display", "window_y", -1);
         emit_long("display", "window_w", 0);  emit_long("display", "window_h", 0);
         emit_long("display", "report_interval_ms", 250);

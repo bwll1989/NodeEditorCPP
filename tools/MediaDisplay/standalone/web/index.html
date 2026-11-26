@@ -296,6 +296,7 @@
             </select>
           </label>
           <label class="inline"><input type="checkbox" :true-value="1" :false-value="0" v-model="st.display.borderless">无边框输出窗</label>
+          <label class="inline" title="输出窗压在所有普通窗口之上，不被编辑器/浏览器遮挡（WS_EX_TOPMOST）"><input type="checkbox" :true-value="1" :false-value="0" v-model="st.display.topmost">窗口置顶</label>
           <label class="inline"><input type="checkbox" :true-value="1" :false-value="0" v-model="st.display.fullscreen">全屏输出</label>
           <!-- 显示器选择（2026-11-13）：screen=-1 系统默认主屏；0..N-1 =
                EnumDisplayMonitors 枚举序（GET /settings 的 screens 数组），

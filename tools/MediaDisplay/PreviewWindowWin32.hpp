@@ -45,11 +45,15 @@ public:
     ///                     屏全局坐标；某轴 <0 = 该轴居中/默认
     /// \param win_w/win_h  窗口客户区尺寸（fullscreen=false 时生效；
     ///                     <=0 = 默认 960×540）
+    /// \param topmost      true = WS_EX_TOPMOST 强制置顶（2026-11-26 用户
+    ///                     需求：输出窗被普通窗口遮挡——置顶后普通窗口
+    ///                     永远压不到预览窗）
     /// \return false = 窗口创建失败（调用方降级 headless，不影响渲染）
     static bool start(const wchar_t* title = L"FlowDisplay 输出预览",
                       int screen_index = -1, bool fullscreen = false,
                       int win_x = -1, int win_y = -1,
-                      int win_w = 0, int win_h = 0);
+                      int win_w = 0, int win_h = 0,
+                      bool topmost = false);
 
     /// 提交一帧（渲染线程上下文调用）：互斥拷贝到后备缓冲，供 WM_PAINT
     /// 重绘取用。RGBA 行主序 top-down；\p stride 为源行字节数（= w×4）。

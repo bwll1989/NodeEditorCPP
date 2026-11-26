@@ -232,6 +232,13 @@ struct Args {
     /// screen/window_* 配置定位；关闭靠 Alt+F4 / 任务栏右键。
     /// 【默认 1】与 WATCHOUT 输出窗一致的纯净呈现；0 = 保留系统边框。
     long borderless = 1;
+    /// [display] topmost：输出窗强制置顶（2026-11-26 用户需求——输出窗
+    /// 被编辑器/浏览器等普通窗口遮挡，输出是 display 的唯一交付面）。
+    /// WS_EX_TOPMOST 建窗时设置：普通窗口永远压不到它。默认 1（与
+    /// borderless 同策略——输出窗就该在最前）；0 = 保持普通 Z 序
+    /// （预览窗用于桌面调试时可关）。GL 输出窗与 soft 后端 GDI 预览窗
+    /// 同步生效。
+    long topmost = 1;
     /// [node] mode：节点模式（2026-11-11 手动切换定案）——
     ///   * standalone：本机播放器（HTTP 控制面全功能：编排/媒体库/播放/设置；
     ///     不监听 17100，NodeController 驱动本机注入）；
@@ -295,6 +302,7 @@ Args loadDefaultsFromIni(const ms::config::IniConfig& ini) {
     a.audio_device      = ini.getStr("display", "audio_device");
     a.gl_single_buffer  = ini.getLong("display", "gl_single_buffer", 0);
     a.borderless        = ini.getLong("display", "borderless", 1);
+    a.topmost           = ini.getLong("display", "topmost", 1);
     // ---- 节点模式 + standalone（display×MMC 合并方案 v2.2，§4.1/§4.4）----
     // [node] mode：standalone/sync（auto 已退役——解析兜底见运行段警告）
     a.mode              = ini.getStr("node", "mode", a.mode);
@@ -360,6 +368,8 @@ std::optional<Args> parseArgs(int argc, char** argv, const Args& defaults) {
             // 参数保留仅为兼容旧脚本，配置了只打告警不生效。
         } else if (value_num("borderless", args.borderless)) {
             // 无边框窗口开关（ini [display].borderless）
+        } else if (value_num("topmost", args.topmost)) {
+            // 窗口强制置顶开关（ini [display].topmost）
         } else if (auto v = value_of("render-out")) {
             args.render_out = *v;
         } else if (arg == "--no-audio") {
@@ -437,6 +447,8 @@ void printUsage() {
         "      0 = 双缓冲 flip——正常桌面最低延迟，远程会话可能恒黑）\n"
         "      [--borderless=0|1]（无边框窗口，默认 1：无标题栏边框的输出\n"
         "      窗，几何按 screen/window_* 定位；0 = 保留系统边框）\n"
+        "      [--topmost=0|1]（窗口强制置顶，默认 1：输出窗压在所有普通\n"
+        "      窗口之上，不被编辑器/浏览器遮挡；0 = 普通 Z 序）\n"
         "      [--mode=standalone|sync]（节点模式，ini [node].mode：\n"
         "      standalone=本机播放器（时间轴自配，HTTP/网页全功能：编排/\n"
         "      媒体库/播放/设置）；sync=等待 Editor 受控（HTTP 仅状态与\n"
@@ -900,6 +912,9 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
         // 无边框窗口透传到 GL 建窗（gl_single_buffer 已废弃不透传——
         // 恒双缓冲 + SwapBuffers + vsync(1)，MMC 呈现模型）
         g.borderless = (args.borderless != 0);
+        // 强制置顶透传到 GL 建窗（WS_EX_TOPMOST；默认开——输出窗被遮挡
+        // 即输出中断，2026-11-26 用户需求）
+        g.topmost = (args.topmost != 0);
         if (args.gl_single_buffer != 0) {
             std::fprintf(stderr, "[display] 提示: gl_single_buffer 已废弃"
                                  "（呈现模型已对齐 MMC：恒双缓冲 + SwapBuffers"
@@ -908,6 +923,10 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
         if (args.borderless != 0) {
             std::fprintf(stderr, "[display] 无边框窗口: 开（媒体输出纯净"
                                  "呈现；关闭用 Alt+F4 / 任务栏右键）\n");
+        }
+        if (args.topmost != 0) {
+            std::fprintf(stderr, "[display] 窗口置顶: 开（输出窗压在所有"
+                                 "普通窗口之上；关闭用 --topmost=0）\n");
         }
         g.title      = L"FlowDisplay 输出（GL）v" +
                        std::wstring(DISPLAY_VERSION, DISPLAY_VERSION + strlen(DISPLAY_VERSION)) +
@@ -1195,7 +1214,8 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
                 args.fullscreen, static_cast<int>(args.window_x),
                 static_cast<int>(args.window_y),
                 static_cast<int>(args.window_w),
-                static_cast<int>(args.window_h)))
+                static_cast<int>(args.window_h),
+                args.topmost != 0))
             std::printf("[display] 输出预览窗口已打开%s%s"
                         "（关闭窗口不影响同步输出；--no-preview 可关）\n",
                         where.c_str(), size_note.c_str());

@@ -46,6 +46,7 @@ int                       g_screen_index = -1; ///< 目标显示器（-1=系统�
 bool                      g_fullscreen   = false; ///< 无边框铺满目标屏
 int                       g_win_x = -1, g_win_y = -1; ///< 窗口位置（<0=居中/默认）
 int                       g_win_w = 0,  g_win_h = 0;  ///< 客户区尺寸（<=0=默认）
+bool                      g_topmost     = false; ///< WS_EX_TOPMOST 强制置顶
 /// 【关窗即退出（2026-11-04）】用户点 X/Alt+F4 → WM_CLOSE 置位——display
 /// 主循环轮询此旗标走优雅退出链。旧语义"关预览窗后核心继续运行"废除：
 /// 显示端唯一窗口就是输出/预览窗，用户关窗即预期进程退出（残留进程占
@@ -346,8 +347,11 @@ void previewThreadMain() {
             }
         }
     }
+    // 【置顶 2026-11-26】topmost=true 时 WS_EX_TOPMOST——预览窗压在所有
+    // 普通窗口之上（与 GL 输出窗同语义；WS_EX_TOPMOST 是建窗持久属性，
+    // 运行期无需维护）
     g_hwnd = CreateWindowExW(
-        0, kClassName, g_title.c_str(), style,
+        g_topmost ? WS_EX_TOPMOST : 0, kClassName, g_title.c_str(), style,
         win_x, win_y, win_w, win_h,
         nullptr, nullptr, wc.hInstance, nullptr);
     if (!g_hwnd) return; // 建窗失败（无桌面会话等）→ 同上降级
@@ -371,7 +375,7 @@ void previewThreadMain() {
 // ---------------------------------------------------------------------------
 bool PreviewWindowWin32::start(const wchar_t* title, int screen_index,
                                bool fullscreen, int win_x, int win_y,
-                               int win_w, int win_h) {
+                               int win_w, int win_h, bool topmost) {
     if (g_thread.joinable()) return true; // 幂等：消息泵已在跑
     if (title) g_title = title;           // 内部拷贝（wstring，无生命周期负担）
     g_screen_index = screen_index;        // start 先于线程创建：简单赋值
@@ -380,6 +384,7 @@ bool PreviewWindowWin32::start(const wchar_t* title, int screen_index,
     g_win_y = win_y;
     g_win_w = win_w;
     g_win_h = win_h;
+    g_topmost = topmost;
 
     g_thread = std::thread(&previewThreadMain);
 
