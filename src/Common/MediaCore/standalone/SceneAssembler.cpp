@@ -45,7 +45,7 @@ AssetKind kindFromExt(const std::string& ext) {
     static const char* kVideo[] = {".mp4", ".mov", ".mkv", ".avi",
                                    ".webm", ".m4v", ".ts", ".flv"};
     static const char* kImage[] = {".png", ".jpg", ".jpeg", ".bmp",
-                                   ".gif", ".webp"};
+                                   ".gif", ".webp", ".tif", ".tiff"};
     static const char* kAudio[] = {".wav", ".mp3", ".aac", ".flac",
                                    ".ogg", ".m4a", ".wma"};
     for (const char* e : kVideo) if (ext == e) return AssetKind::Video;

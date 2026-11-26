@@ -145,7 +145,7 @@ Q_NAMESPACE_EXPORT(NODE_TIMELINE_PUBLIC)
     // 定义支持的文件类型列表
     inline QStringList VideoTypes = {"mp4", "avi", "mov", "wmv", "mkv", "flv"};
     inline QStringList AudioTypes = {"mp3", "wav", "aac", "ogg", "flac"};
-    inline QStringList ImageTypes = {"jpg", "jpeg", "png", "bmp", "gif", "tiff"};
+    inline QStringList ImageTypes = {"jpg", "jpeg", "png", "bmp", "gif", "webp", "tif", "tiff"};
     inline QStringList ControlTypes = {"ilk"};
     // 将track类型转换为字符串
     static QString TrackTypeString(const QString& type) {

@@ -444,7 +444,7 @@ QStringList MediaLibrary::categoryExtensions(Category cat)
     case Category::Video:    return { "mp4", "mov", "mkv", "avi", "wmv", "flv", "webm" };
     case Category::Audio:    return { "wav", "mp3", "flac", "aac", "ogg", "m4a" };
     case Category::DMX:      return { "dmx" };
-    case Category::Image:    return { "jpg", "jpeg", "png", "bmp", "gif", "webp", "tiff" };
+    case Category::Image:    return { "jpg", "jpeg", "png", "bmp", "gif", "webp", "tif", "tiff" };
     case Category::Model:    return { "obj", "fbx", "stl", "gltf", "glb" };
     case Category::Document: return { "txt", "json", "xml", "cfg", "log", "md", "csv", "ini" };
     case Category::Vioso:    return { "vwf" };

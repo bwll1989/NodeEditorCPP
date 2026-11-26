@@ -101,7 +101,7 @@ static bool msProbeMediaFile(const QString& file, ms::AssetKind kind,
     static const char* kVideo[] = {"mp4", "mov", "mkv", "avi",
                                    "webm", "m4v", "ts", "flv"};
     static const char* kImage[] = {"png", "jpg", "jpeg", "bmp",
-                                   "gif", "webp"};
+                                   "gif", "webp", "tif", "tiff"};
     static const char* kAudio[] = {"wav", "mp3", "aac", "flac",
                                    "ogg", "m4a", "wma"};
     ms::AssetKind ext_kind = ms::AssetKind::Unknown;
