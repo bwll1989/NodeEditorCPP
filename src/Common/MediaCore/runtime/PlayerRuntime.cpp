@@ -38,6 +38,7 @@
 #include "net/AssetReceiver.hpp"
 #include "runtime/AssetPath.hpp" // 素材归集寻址（2026-11-13：store/resolve）
 #include "runtime/AssetReadyTable.hpp" // 就绪表持久化（2026-11-09）
+#include "live/LanProbe.hpp" // setPeerLanIPv4（组播 join 同网段推断数据源）
 
 namespace ms {
 
@@ -405,6 +406,11 @@ bool PlayerRuntime::start() {
     listener_.set_on_connected([this](std::uint64_t cid) {
         editor_conn_.store(cid);
         authed_conn_.store(0); // 新连接须重新认证（配对码按连接粒度）
+        // 记录 Editor 对端 IP（2026-11-26 组播 join 同网段推断：组播源
+        // 就在 Editor 那台机器，收流 join 应钉在与 Editor 同网段的本机
+        // 接口——多真实网卡机器零配置正解）。断开不清（组播源机器不变，
+        // 断线重连 join 语义不变；重连时同网段判定幂等覆盖）。
+        setPeerLanIPv4(listener_.peer_host_of(cid));
         // 连接建立即上报身份（§6.2）：player_id + version + UDP 上报端口。
         // Editor 收到后回 Ack（含其 UDP 心跳地址）+ 下发场景。
         if (!sendRegister())

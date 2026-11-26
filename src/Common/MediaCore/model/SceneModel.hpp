@@ -332,6 +332,13 @@ struct Asset {
     /// 片段属性「启用/停止」按钮；随场景 pb 分发（display 同步启停），
     /// 参与 Asset 相等比较与调度器指纹（切换即失效重建）。
     bool live_enabled = false;
+
+    /// 发送网卡 IPv4（2026-11-26 用户需求：timeline 端指定组播出口）。
+    /// editor MpegTsSender 的 IP_MULTICAST_IF 钉定——多真实网卡机器
+    /// 自动探测可能选错（内网无网关+外网有网关），live 属性面板下拉
+    /// 枚举本机网卡显式指定。空 = 自动探测（默认）。仅 editor 发送端
+    /// 消费；display 接收按 Editor 对端 IP 自动同网段推断（不走此字段）。
+    std::string live_bind_ip;
 };
 
 /// 实时源采集器类型（与 proto LivePayload.ingest 一一对应；
@@ -357,7 +364,8 @@ inline bool operator==(const Asset& a, const Asset& b) {
            a.live_source_name == b.live_source_name && a.live_url == b.live_url &&
            a.live_ingest == b.live_ingest && a.live_latency == b.live_latency &&
            a.live_target_latency_us == b.live_target_latency_us &&
-           a.live_enabled == b.live_enabled;
+           a.live_enabled == b.live_enabled &&
+           a.live_bind_ip == b.live_bind_ip;
 }
 
 // ---------------------------------------------------------------------------

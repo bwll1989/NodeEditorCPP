@@ -359,6 +359,7 @@ ms_proto::Asset SceneLoader::toProtoAsset(const Asset& a) {
         lv->set_latency(a.live_latency);
         lv->set_target_latency_us(a.live_target_latency_us);
         lv->set_enabled(a.live_enabled); // 启用闸（2026-11-23）随场景分发
+        lv->set_bind_ip(a.live_bind_ip); // 发送网卡（2026-11-26 下拉指定）
     }
     return pa;
 }
@@ -406,6 +407,8 @@ Asset SceneLoader::fromProtoAsset(const ms_proto::Asset& pa) {
         // 启用闸（2026-11-23）：false = 停止采集/收流（存量工程缺省=false，
         // 需在编辑端显式「启用」后才有画面——新语义的预期行为）
         a.live_enabled = pa.live().enabled();
+        // 发送网卡（2026-11-26）：空 = 自动探测（存量工程缺省行为不变）
+        a.live_bind_ip = pa.live().bind_ip();
     }
     return a;
 }

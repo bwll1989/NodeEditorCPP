@@ -221,6 +221,9 @@ const app = createApp({
     // 本机显示器枚举（GET /settings 顶层 screens；序 = EnumDisplayMonitors
     // 与 [display] screen / CLI --screen=N 同源）——设置页"显示器"下拉数据源
     const screens = ref([]);
+    // 本机网卡枚举（GET /settings 顶层 lan_ifaces；2026-11-26）——设置页
+    // "组播网卡"下拉数据源（过滤规则与收流 join 钉定探测同源）
+    const lanIfaces = ref([]);
     const modeIsStandalone = computed(
       () => !!status.value && status.value.mode === "standalone");
     const modeIsSync = computed(() =>
@@ -271,6 +274,7 @@ const app = createApp({
         st.display = s.display || {};
         st.standalone = s.standalone || {};
         screens.value = Array.isArray(s.screens) ? s.screens : [];
+        lanIfaces.value = Array.isArray(s.lan_ifaces) ? s.lan_ifaces : [];
       } catch (e) { settingsHint.value = "读取失败：" + humanErr(e.message); }
     }
 
@@ -2360,7 +2364,7 @@ const app = createApp({
       selClipData, docStale, reloadStaleDoc,
       // 模式/设置
       st, settingsHint, restarting, modeIsStandalone, modeIsSync, screens,
-      loadSettings, saveSettings, restartDisplay,
+      lanIfaces, loadSettings, saveSettings, restartDisplay,
       // 授权（加密激活；UI 占位）
       lic, licStatusText, generateLicenseRequest, onLicenseFilePick, clearLicense,
       // MPCDI 输出校准（M4）

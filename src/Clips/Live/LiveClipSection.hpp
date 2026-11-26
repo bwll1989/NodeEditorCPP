@@ -22,7 +22,7 @@
 //      ——防自环；core 注册表 listNdi 已滤，此处第二道防线）。可编辑：
 //      发现列表没有的源标识可直接键入（跨网段手动指定）。
 //  测试定位锚：objectName 前缀 live*（liveIngest/liveSource/
-//  liveSyncLatency/liveRefresh/liveMcastUrl/liveEnable）。
+//  liveSyncLatency/liveRefresh/liveMcastUrl/liveBindIp/liveEnable）。
 //
 //  【2026-11-23 启用闸（用户定案，替代同日早先纯 UI 锁方案）】
 //    「启用/停止」按钮（liveEnable）= 捕获与下发的唯一运行开关：
@@ -127,6 +127,12 @@ private:
                                          ///< （档位 currentData 存 μs；恒 >0
                                          ///< ——监视档 2026-11-23 退役，
                                          ///< 「必须同步」用户定案）
+    QComboBox*   bind_ip_ = nullptr;  ///< liveBindIp：发送网卡（组播出口
+                                      ///< IP_MULTICAST_IF 钉定；首项
+                                      ///< 「自动」data="" = 不显式指定，
+                                      ///< 接收端/发送端按裁决链回落。
+                                      ///< 2026-11-26 用户定案——多物理
+                                      ///< 网卡组播路由盲区的人工出口）
     /// liveMcastUrl：组播地址展示（组播恒启用 2026-11-23——勾选框退役，
     /// live_url 由 applyTo 恒生成，此处仅信息性展示）
     QLabel*      mcast_url_ = nullptr;

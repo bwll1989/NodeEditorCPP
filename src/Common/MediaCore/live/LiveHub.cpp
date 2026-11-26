@@ -132,7 +132,7 @@ void LiveHub::ensureAsset(const Asset& asset) {
         }
         if (!asset.live_url.empty()) {
             entry->mcast = std::make_unique<MpegTsSender>(
-                asset.live_url, entry->feed);
+                asset.live_url, entry->feed, asset.live_bind_ip);
             if (entry->mcast->start()) {
                 entry->mcast_url = asset.live_url;
                 std::fprintf(stderr, "live-hub: %s: 组播转发 '%s'（%s）\n",

@@ -18,6 +18,7 @@
 #include "path_utf8.hpp"
 #include "config/IniConfig.hpp"
 #include "loader/ShowFileIO.hpp"   // M5 工程互通（.show 导入/导出）
+#include "live/LanProbe.hpp"       // listLanIfcs（网页"组播网卡"下拉数据源）
 // 前置声明类型的完整定义（构造/方法调用必需——hpp 只持引用）
 #include "runtime/PlayerRuntime.hpp"
 #include "standalone/NodeController.hpp"
@@ -1099,6 +1100,20 @@ bool StandaloneApi::routeSettings(RouteCtx& ctx) {
                      << ",\"primary\":" << (monitors[i].primary ? "true"
                                                                : "false")
                      << "}";
+            }
+            data << "],";
+        }
+        // 顶层 lan_ifaces：本机网卡枚举（2026-11-26 网页"组播网卡"下拉
+        // 配套；与 screens 同款先例——数据源 listLanIfcs()，过滤规则与
+        // 收流钉定探测同源，下拉选中项直接可作 mcast_localaddr 值）
+        {
+            data << "\"lan_ifaces\":[";
+            const auto ifcs = ms::listLanIfcs();
+            for (std::size_t i = 0; i < ifcs.size(); ++i) {
+                if (i) data << ",";
+                data << "{\"ip\":\"" << json_escape(ifcs[i].ip)
+                     << "\",\"name\":\"" << json_escape(ifcs[i].name)
+                     << "\"}";
             }
             data << "],";
         }

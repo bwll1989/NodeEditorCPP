@@ -35,7 +35,10 @@ class MpegTsSender {
 public:
     /// \param url  组播输出 URL（udp://239.x.x.x:port?ttl=8&pkt_size=1316）
     /// \param feed 轮询帧源（weak 持有——Hub 条目先亡则线程自退）
-    MpegTsSender(std::string url, std::weak_ptr<LiveHub::Feed> feed);
+    /// \param bind_ip 发送网卡 IPv4（2026-11-26：live 属性下拉指定——
+    ///                多真实网卡机器自动探测可能选错；空 = 自动探测）
+    MpegTsSender(std::string url, std::weak_ptr<LiveHub::Feed> feed,
+                 std::string bind_ip = {});
     ~MpegTsSender(); // stop 兜底（join 后成员析构）
 
     MpegTsSender(const MpegTsSender&)            = delete;
@@ -61,6 +64,7 @@ private:
     void teardown();
 
     std::string                    url_;
+    std::string                    bind_ip_; ///< 发送网卡（空=自动探测）
     std::weak_ptr<LiveHub::Feed>   feed_;
     std::thread                    worker_;
     std::atomic<bool>              running_{false};

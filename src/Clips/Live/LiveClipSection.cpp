@@ -17,6 +17,7 @@
 
 #include "live/LiveHub.hpp" // LiveHub（Ingest 注册表宿主）
 #include "live/LiveIngest.hpp" // Ingest 注册表（接入方式/源枚举唯一数据源）
+#include "live/LanProbe.hpp" // listLanIfcs（发送网卡下拉数据源；与探测同源过滤）
 #include "live/MpegTsSender.hpp" // multicastUrlFor（组播 URL 确定性生成；
 // LiveHub.hpp 刻意前向声明不 include 本头——2026-11-23 全量重编暴露
 // C3861：此前 Live 插件未重编掩盖三天）
@@ -177,6 +178,40 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     sync_row->addWidget(sync_latency_, /*stretch=*/1);
     lay->addLayout(sync_row);
 
+    // ---- 发送网卡（组播出口钉定；2026-11-26 用户定案）------------------------
+    // 多物理网卡机器上系统组播路由盲区（224/4 → loopback / 默认网关接口
+    // ——probeLanIPv4 优先网关接口，多真实网卡内网无网关时钉错）：下拉
+    // 枚举本机合法 LAN 接口显式指定 MpegTsSender 出口（IP_MULTICAST_IF）。
+    // 首项「自动（推荐）」data="" = 不写 live_bind_ip，回落裁决链自动
+    // 裁决（对端同网段 → 自动探测）。数据源 listLanIfcs() 与探测同源。
+    auto* bind_row = new QHBoxLayout();
+    auto* bind_label = new QLabel(QStringLiteral("发送网卡"), box);
+    bind_row->addWidget(bind_label);
+    bind_ip_ = new QComboBox(box);
+    bind_ip_->setObjectName("liveBindIp"); // 测试定位锚
+    bind_ip_->setToolTip(QStringLiteral(
+        "组播流从哪块网卡发出。默认自动探测（单网卡机器无需改动）；\n"
+        "多网卡机器若 display 端收不到流，在此指定与 display 同网段的网卡。"));
+    bind_ip_->addItem(QStringLiteral("自动（推荐）"), QString());
+    for (const auto& ifc : listLanIfcs()) {
+        bind_ip_->addItem(QString::fromUtf8(ifc.name) +
+                              QStringLiteral(" (") +
+                              QString::fromUtf8(ifc.ip) + ')',
+                          QString::fromUtf8(ifc.ip));
+    }
+    // 回灌存量指定（工程换机打开时网卡可能不在本机——保留原值展示防丢）
+    {
+        const QString saved = QString::fromStdString(asset.live_bind_ip);
+        int idx = findIndexByData(bind_ip_, saved);
+        if (idx < 0 && !saved.isEmpty()) {
+            bind_ip_->addItem(saved, saved);
+            idx = bind_ip_->count() - 1;
+        }
+        if (idx >= 0) bind_ip_->setCurrentIndex(idx);
+    }
+    bind_row->addWidget(bind_ip_, /*stretch=*/1);
+    lay->addLayout(bind_row);
+
     // ---- 组播转发（恒启用——跨机画面分发唯一通道）---------------------------
     // 【2026-11-23 用户定案】组播不再可选：不勾选 = display 端在本机按名
     // 直收（跨机必黑屏），该分支是坑，直接消灭——live_url 恒生成（见
@@ -204,6 +239,8 @@ LiveClipSection::LiveClipSection(const ClipSectionContext& ctx, QWidget* parent)
     connect(source_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { onEdited(); });
     connect(sync_latency_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int) { onEdited(); });
+    connect(bind_ip_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this](int) { onEdited(); });
     connect(refresh_, &QPushButton::clicked,
             this, &LiveClipSection::onRefreshSources);
@@ -243,6 +280,7 @@ void LiveClipSection::syncEnableUi() {
     source_->setEnabled(editable);
     refresh_->setEnabled(editable);
     sync_latency_->setEnabled(editable);
+    bind_ip_->setEnabled(editable);
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +333,9 @@ void LiveClipSection::applyTo(Asset& a) const {
     // （multicastUrlFor；用户不经 UI 改）。跨机 display 唯一拿画面通道——
     // 源设备在 display 机器上不存在，按名直收必黑屏。
     a.live_url = multicastUrlFor(a.id);
+    // 发送网卡（2026-11-26）：下拉 data 存接口 IP；空 = 自动（裁决链：
+    // 对端同网段推断 → 自动探测）。随场景 pb 分发（LivePayload.bind_ip）。
+    a.live_bind_ip = bind_ip_->currentData().toString().toStdString();
     // 启用闸（2026-11-23）：按钮 = 捕获+下发唯一运行开关，随场景 pb
     // 分发（display 同步启停）；参与相等比较与调度器指纹。
     a.live_enabled = enable_->isChecked();
@@ -310,6 +351,7 @@ void LiveClipSection::refreshFrom(const Asset& a) {
     const QSignalBlocker b0(ingest_);
     const QSignalBlocker b1(source_);
     const QSignalBlocker b3(sync_latency_);
+    const QSignalBlocker b4(bind_ip_);
     // 接入方式：按注册表下标回选
     const auto& reg = ingestRegistry();
     for (std::size_t i = 0; i < reg.size(); ++i) {
@@ -335,6 +377,16 @@ void LiveClipSection::refreshFrom(const Asset& a) {
                          a.live_target_latency_us > 0
                              ? a.live_target_latency_us
                              : kSyncLatencyDefaultUs));
+    // 发送网卡回选：本机无该接口（工程换机）则保留为附加项防丢写回
+    {
+        const QString saved = QString::fromStdString(a.live_bind_ip);
+        int idx = findIndexByData(bind_ip_, saved);
+        if (idx < 0 && !saved.isEmpty()) {
+            bind_ip_->addItem(saved, saved);
+            idx = bind_ip_->count() - 1;
+        }
+        bind_ip_->setCurrentIndex(idx < 0 ? 0 : idx);
+    }
     // 组播地址恒展示（恒启用语义；applyTo 恒生成——此处按资产实际值显示，
     // 存量空值等下次 applyTo/下发归一化）
     mcast_url_->setText(QStringLiteral("组播地址: ") +

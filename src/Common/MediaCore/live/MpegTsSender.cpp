@@ -71,8 +71,10 @@ bool ffmpegNetInit() {
 }
 } // namespace
 
-MpegTsSender::MpegTsSender(std::string url, std::weak_ptr<LiveHub::Feed> feed)
-    : url_(std::move(url)), feed_(std::move(feed)) {}
+MpegTsSender::MpegTsSender(std::string url, std::weak_ptr<LiveHub::Feed> feed,
+                           std::string bind_ip)
+    : url_(std::move(url)), feed_(std::move(feed)),
+      bind_ip_(std::move(bind_ip)) {}
 
 MpegTsSender::~MpegTsSender() { stop(); }
 
@@ -209,11 +211,11 @@ bool MpegTsSender::setupEncoder(int w, int h) {
     // IP_MULTICAST_IF）。Windows 组播 best route 可能命中 127.0.0.1
     // （系统 224/4→loopback 默认路由 metric 最低）或 WSL 虚拟网卡 → 本机
     // 回环自收正常、局域网零包（探测规则见 LanProbe.hpp）。
-    // 【2026-11-26 手动指定】URL 显式 localaddr > 进程显式配置
-    // （setExplicitLanIPv4，display/编辑器启动时注入）> 自动探测——
-    // 裁决与日志统一在 appendLanLocaladdr。
+    // 【2026-11-26 手动指定】裁决链（appendLanLocaladdr）：URL 显式
+    // localaddr > 场景 bind_ip（live 属性下拉指定，随 pb 分发）>
+    // 进程显式配置 > 自动探测。
     const std::string open_url =
-        appendLanLocaladdr(url_, "mcast:sender");
+        appendLanLocaladdr(url_, "mcast:sender", bind_ip_);
     if (avformat_alloc_output_context2(&a->mux, nullptr, "mpegts",
                                        open_url.c_str()) < 0)
         return false;
