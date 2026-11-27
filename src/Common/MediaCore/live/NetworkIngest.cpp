@@ -26,11 +26,12 @@ namespace ms {
 
 bool NetworkIngest::onStart() {
     avformat_network_init(); // 进程内幂等（FFmpeg 网络层全局一次）
-    // 【2026-11-26 取证放行】udp 组播 open 失败（如 EIO）只有错误码无
-    // syscall 明细，无法分诊——FFmpeg 内部 getaddrinfo/setsockopt/join
-    // 的 av_log(ERROR) 是唯一真相源（默认 ERROR 级已可见，DEBUG 级连
-    // socket 细节一起放行）。进程级一次设置，幂等。
-    av_log_set_level(AV_LOG_DEBUG);
+    // 【M1 2026-11-27 降级】udp 组播分诊取证（2026-11-26）曾临时开
+    // AV_LOG_DEBUG——DEBUG 级连 socket syscall 细节一起放行，进程级
+    // 污染所有 FFmpeg 模块（解码/swscale 海量刷屏）。回落 INFO：open
+    // 失败时 av_log(ERROR) 明细仍可见（分诊足够）；需 syscall 级取证
+    // 时临时改回 DEBUG。
+    av_log_set_level(AV_LOG_INFO);
     return true;
 }
 

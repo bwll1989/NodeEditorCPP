@@ -40,7 +40,10 @@ std::vector<std::uint8_t> g_back;   ///< 后备帧快照（RGBA 原样，行主�
 int                       g_w = 0;  ///< 快照宽（>0 = 已收到过帧）
 int                       g_h = 0;  ///< 快照高
 std::thread               g_thread; ///< 消息泵线程
-HWND                      g_hwnd = nullptr; ///< 窗口句柄（窗口线程内创建）
+/// 窗口句柄（窗口线程内创建/销毁，主线程轮询读）——【B4】atomic：跨线程
+/// 裸读非原子指针是数据竞争 UB（TSan 实报级）；atomic 隐式 load/store 使
+/// 全部既有读写表达式照常编译，仅声明变更。
+std::atomic<HWND>         g_hwnd{nullptr};
 std::wstring              g_title = L"FlowDisplay 输出预览"; // 内部拷贝
 int                       g_screen_index = -1; ///< 目标显示器（-1=系统默认）
 bool                      g_fullscreen   = false; ///< 无边框铺满目标屏
@@ -52,6 +55,10 @@ bool                      g_topmost     = false; ///< WS_EX_TOPMOST 强制置顶
 /// 显示端唯一窗口就是输出/预览窗，用户关窗即预期进程退出（残留进程占
 /// 监听端口，重启必撞端口占用）。
 std::atomic<bool>         g_user_closed{false};
+/// 【D2 双查竞态修复 2026-11-27】stop 请求旗标：stop() 无条件置位，
+/// previewThreadMain 建窗前/建窗后两处检查——封死「stop 在建窗 gap 内
+/// 到达、g_hwnd 为空不投 WM_CLOSE → join 永等」的挂死窗口。
+std::atomic<bool>         g_stop_requested{false};
 
 const wchar_t kClassName[] = L"MediaDisplayPreviewWnd"; // 窗口类名（全局唯一）
 
@@ -69,15 +76,20 @@ std::wstring    g_prog_text;            ///< 当前素材路径（UTF-16 预转�
 
 // ---------------------------------------------------------------------------
 // WM_PAINT 上下文：锁内快照 + RGBA→BGRX + StretchDIBits 拉伸到客户区
+// 返回值：true=已上屏一帧；false=尚无帧（调用方画等待提示）——【F4】
+// 无帧判断收进锁内单一真相源（原 WM_PAINT 锁外裸读 g_w/g_h 对 present
+// 锁内写是数据竞争 UB，判空与取帧间状态翻转还会多画一帧旧提示）。
 // ---------------------------------------------------------------------------
-void blitFrame(HDC dc, int dst_w, int dst_h) {
+bool blitFrame(HDC dc, int dst_w, int dst_h) {
     // ---- 快照（锁内只拷贝；换序在拷贝同时做——960×540 约 2MB，亚毫秒级，
     //      省去"先 memcpy 再换序"的第二次全量遍历）----
-    std::vector<std::uint8_t> bgrx;
+    // 【P2】换序缓冲静态复用——WM_PAINT 恒消息泵单线程，同尺寸 resize
+    // 零重分配（原每帧 2MB 分配+释放纯浪费）
+    static std::vector<std::uint8_t> bgrx;
     int w = 0, h = 0;
     {
         std::lock_guard<std::mutex> lk(g_mu);
-        if (g_w <= 0 || g_h <= 0 || g_back.empty()) return; // 尚无帧
+        if (g_w <= 0 || g_h <= 0 || g_back.empty()) return false; // 尚无帧
         w = g_w;
         h = g_h;
         bgrx.resize(static_cast<std::size_t>(w) * h * 4);
@@ -106,6 +118,7 @@ void blitFrame(HDC dc, int dst_w, int dst_h) {
                   0, 0, dst_w, dst_h,   // 目标：客户区全幅（拉伸适配窗口）
                   0, 0, w, h,           // 源：整帧
                   bgrx.data(), &bmi, DIB_RGB_COLORS, SRCCOPY);
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -197,7 +210,9 @@ LRESULT CALLBACK previewWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         HDC dc = BeginPaint(hwnd, &ps);
         RECT rc;
         GetClientRect(hwnd, &rc);
-        if (!g_w || !g_h) {
+        // 【F4】无帧判断收进 blitFrame 锁内（原此处锁外裸读 g_w/g_h——
+        // 对 present 锁内写是 [intro.races] UB）
+        if (!blitFrame(dc, rc.right - rc.left, rc.bottom - rc.top)) {
             // 尚无帧：黑底 + 居中等待提示（用户反馈"预览窗口完全没动静"——
             // 纯黑窗口无法区分"等待"与"故障"，明确写出激活条件）。
             // DrawTextW DT_WORDBREAK 按客户区宽度自动换行居中，一行搞定。
@@ -213,13 +228,9 @@ LRESULT CALLBACK previewWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             DrawTextW(dc, tip, -1, &tip_rc,
                       DT_CENTER | DT_VCENTER | DT_WORDBREAK |
                           DT_NOPREFIX | DT_END_ELLIPSIS);
-            // 尚无画面也可在同步素材——进度条照常叠加（底部）
-            drawAssetProgress(dc, rc);
-            EndPaint(hwnd, &ps);
-            return 0;
         }
-        blitFrame(dc, rc.right - rc.left, rc.bottom - rc.top);
-        drawAssetProgress(dc, rc); // 底部叠加素材同步进度（非同步时零开销）
+        drawAssetProgress(dc, rc); // 底部叠加素材同步进度（非同步时零开销；
+                                   // 无帧等待页同样叠加）
         EndPaint(hwnd, &ps);
         return 0;
     }
@@ -347,6 +358,9 @@ void previewThreadMain() {
             }
         }
     }
+    // 【D2 第一查】建窗前验 stop——start 立即 stop 时线程在此退出
+    //（g_hwnd 从未置位，与消息循环尾部清句柄语义一致）
+    if (g_stop_requested.load()) return;
     // 【置顶 2026-11-26】topmost=true 时 WS_EX_TOPMOST——预览窗压在所有
     // 普通窗口之上（与 GL 输出窗同语义；WS_EX_TOPMOST 是建窗持久属性，
     // 运行期无需维护）
@@ -356,6 +370,15 @@ void previewThreadMain() {
         nullptr, nullptr, wc.hInstance, nullptr);
     if (!g_hwnd) return; // 建窗失败（无桌面会话等）→ 同上降级
 
+    // 【D2 第二查】建窗成功后、显示前再验 stop——封死「stop 读到 g_hwnd
+    // 为空不投 WM_CLOSE、窗已建无人销毁」的窗口期；DestroyWindow 在建窗
+    // 线程自身调用，合法（WM_DESTROY → PostQuitMessage 随发，队列残留
+    // WM_QUIT 无消费方，线程直接返回无副作用）
+    if (g_stop_requested.load()) {
+        DestroyWindow(g_hwnd);
+        g_hwnd = nullptr;
+        return;
+    }
     ShowWindow(g_hwnd, SW_SHOW);
     UpdateWindow(g_hwnd);
     SetTimer(g_hwnd, 1, 33, nullptr); // ~30fps 重绘节拍
@@ -385,6 +408,7 @@ bool PreviewWindowWin32::start(const wchar_t* title, int screen_index,
     g_win_w = win_w;
     g_win_h = win_h;
     g_topmost = topmost;
+    g_stop_requested.store(false); // 新会话复位（stop 后允许重新 start）
 
     g_thread = std::thread(&previewThreadMain);
 
@@ -415,6 +439,10 @@ void PreviewWindowWin32::present(int w, int h, const std::uint8_t* rgba,
 }
 
 void PreviewWindowWin32::stop() {
+    // 【D2】先置 stop 旗标再取句柄：建窗 gap 内到达的 stop 由
+    // previewThreadMain 双查兜底（旗标已置 → 建窗前退出/建窗后自毁），
+    // 不再依赖「读到非空 g_hwnd 才投 WM_CLOSE」。
+    g_stop_requested.store(true);
     // 唤醒消息循环退出（WM_CLOSE→DestroyWindow→WM_DESTROY→PostQuitMessage）
     const HWND hwnd = g_hwnd;
     if (hwnd) PostMessageW(hwnd, WM_CLOSE, 0, 0);

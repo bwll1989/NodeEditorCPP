@@ -111,6 +111,9 @@ bool EditorRuntime::start(const std::string& scene_path) {
     // 正交扁平化后 Z 本就无视觉参与）；旋转 X/Y/Z 三轴保留（应用完成后
     // 正交映射到 XY 平面，无透视）。Show 级全局透视随「全局透视（Eye 点）」
     // 编辑入口退役归零（画布 VP 叠加不再出现；字段保留兼容）。
+    // 【F7-i 半死边界备案 2026-11-27】此处归一化是「VP 可编辑链」的半死
+    // 边界——VP 可编辑为保留能力（旧文档定案），此归一化为现状兜底；
+    // 整链删除（含画布前端消费点盘点）立独立专项处理，勿在本文件顺手删。
     if (scene_) {
         for (auto& tr : scene_->timeline.tracks)
             for (auto& c : tr.clips) c.transform.pos_z = 0.0;

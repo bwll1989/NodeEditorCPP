@@ -13,6 +13,7 @@
 #include "runtime/RenderThread.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <filesystem>
@@ -377,6 +378,9 @@ bool MpcdiService::metadata_json(const std::string& package_id,
 
 // ---------------------------------------------------------------------------
 // 上传三段（对齐 MMC：begin 建临时文件 → HTTP 层流式写 → finish 落位）
+// 【锁契约】mu_ 只护 packages 目录与内存单槽态；temp 文件生命周期归调用
+// （HTTP 请求）线程独占——upload_begin 生成、请求线程流式写、调用方
+// discard / upload_finish 收尾，全程不经 mu_（大包磁盘 I/O 不持锁）。
 // ---------------------------------------------------------------------------
 bool MpcdiService::upload_begin(const std::string& filename,
                                 std::string& temp_path, std::string& err) {
@@ -389,11 +393,15 @@ bool MpcdiService::upload_begin(const std::string& filename,
     std::error_code ec;
     fs::create_directories(tmp_dir, ec);
     auto name = sanitize_filename(filename);
+    // temp 唯一性双保险：mu_ 只序列化 begin，两个并发上传的 temp 在锁外
+    // 长期并存——steady_clock 同 tick + 同名文件碰撞 = 第二个 trunc 掉
+    // 在途上传。补请求序号（单调递增）保底（F7-g 2026-11-27）。
+    static std::atomic<unsigned long long> s_req_seq{0};
     auto path =
         tmp_dir / (std::to_string(std::chrono::steady_clock::now()
                                       .time_since_epoch()
                                       .count()) +
-                   "_" + name);
+                   "_" + std::to_string(s_req_seq.fetch_add(1)) + "_" + name);
     temp_path = path_to_utf8(path);
     std::ofstream ofs(path, std::ios::binary | std::ios::trunc);
     if (!ofs) {
@@ -412,18 +420,20 @@ void MpcdiService::discard_upload_temp(const std::string& temp_path) const {
 bool MpcdiService::upload_finish(const std::string& temp_path,
                                  const std::string& filename,
                                  std::string& package_id, std::string& err) {
-    std::lock_guard<std::mutex> lock(mu_);
-    auto src = utf8_to_path(temp_path);
-    if (!fs::exists(src)) {
-        err = "temp upload missing";
-        return false;
-    }
-    // [S2] zip 内容校验（round3）：垃圾字节在落位前拦截——原实现只看
-    // 扩展名，垃圾包 200 覆盖 current 单槽后校验拖到 enable 才报错，
-    // 既有可用包已被顶掉。此处用与 enable 同源的装载/解析链探测 temp
-    // 文件：zip 魔数与结构 + mpcdi.xml 可解析，二者缺一即拒绝（temp
-    // 保留由调用方 discard，current 不受影响）。
+    // 【P6】zip 探测不触碰任何共享状态（probe 全局部变量、temp 路径由
+    // upload_begin 唯一生成）——移到锁外执行。原在 mu_ 锁内解压探测：
+    // 包体大时数百 ms 级磁盘 I/O 把 enable/disable 等互斥操作全部阻塞。
     {
+        auto src_probe = utf8_to_path(temp_path);
+        if (!fs::exists(src_probe)) {
+            err = "temp upload missing";
+            return false;
+        }
+        // [S2] zip 内容校验（round3）：垃圾字节在落位前拦截——原实现只看
+        // 扩展名，垃圾包 200 覆盖 current 单槽后校验拖到 enable 才报错，
+        // 既有可用包已被顶掉。此处用与 enable 同源的装载/解析链探测 temp
+        // 文件：zip 魔数与结构 + mpcdi.xml 可解析，二者缺一即拒绝（temp
+        // 保留由调用方 discard，current 不受影响）。
         ms::MpcdiPackageData probe;
         ms::MpcdiInfo probe_info;
         std::string perr;
@@ -433,11 +443,47 @@ bool MpcdiService::upload_finish(const std::string& temp_path,
             return false;
         }
     }
+    std::lock_guard<std::mutex> lock(mu_);
+    auto src = utf8_to_path(temp_path);
     package_id = make_package_id(filename);
     auto packages_root = utf8_to_path(cache_dir_) / "packages";
     auto dest_dir = utf8_to_path(package_dir(package_id));
     std::error_code ec;
-    // 磁盘上只保一个 .mpcdi：清掉其它包槽，再替换 current（单槽语义）
+    fs::create_directories(dest_dir, ec); // 非破坏：既有包不受影响
+    auto safe = sanitize_filename(filename);
+    if (!ci_ends_with(safe, ".mpcdi") && !ci_ends_with(safe, ".zip"))
+        safe += ".mpcdi";
+    auto dest = dest_dir / safe;
+    // 【D1 先落位后清槽 2026-11-27】原顺序先清其它包槽 + remove_all(dest_dir)
+    // 再 rename——rename/copy 双失败时磁盘既有包已被清空（双失败窗口，重启
+    // 丢包）。改为落位成功后才清单槽；任一步失败直接返回，既有包分毫未动。
+    // 包 id 恒为 "current"（make_package_id 单槽语义）；MSVC STL 的 fs::rename
+    // 同卷对已存在目标是原子替换（MoveFileExW REPLACE_EXISTING）。
+    ec.clear();
+    fs::rename(src, dest, ec);
+    if (ec) {
+        // 独立 error_code：原实现 copy_file 后 remove(src) 复用同一 ec，
+        // remove 成功会掩蔽 copy 失败 → 误报成功且包未落位。
+        std::error_code cpy_ec;
+        fs::copy_file(src, dest, fs::copy_options::overwrite_existing, cpy_ec);
+        if (cpy_ec) {
+            // copy 皆失败：清掉 copy_file 半截产物（temp 保留由调用方 discard）
+            std::error_code rm_ec;
+            fs::remove(dest, rm_ec);
+            err = "failed to store package: " + cpy_ec.message();
+            return false;
+        }
+        fs::remove(src, ec); // copy 成功后清 temp（失败仅留孤儿临时文件）
+    }
+    // 【已知边界（第三轮复查备案 2026-11-27）】同名重传 ∧ rename 失败 ∧
+    // copy_file 也失败 的复合场景下，overwrite copy 打开 dest 时已截断
+    // 旧包，下方 remove(dest) 清半截产物 = 旧包同失——双独立小概率
+    //（rename 同卷替换几乎不失败；磁盘满是 copy 失败主因但不影响 rename），
+    // 后果为可恢复的操作性丢失（内存 current/active 仍可用，重传即恢复），
+    // 不引入 staging 两阶段复杂度。若未来出现实际故障再评估。
+    // 落位成功 → 磁盘上只保一个 .mpcdi（单槽语义）：清其它包槽 + dest_dir
+    // 内除新包外的残留（重传文件名可能变化；package_file 按 dir 扫描取
+    // 首个 .mpcdi/.zip，残留旧文件会被误认）。
     if (fs::exists(packages_root, ec)) {
         for (auto& e : fs::directory_iterator(packages_root, ec)) {
             if (!e.is_directory()) continue;
@@ -445,21 +491,13 @@ bool MpcdiService::upload_finish(const std::string& temp_path,
             fs::remove_all(e.path(), ec);
         }
     }
-    fs::remove_all(dest_dir, ec);
-    fs::create_directories(dest_dir, ec);
-    auto safe = sanitize_filename(filename);
-    if (!ci_ends_with(safe, ".mpcdi") && !ci_ends_with(safe, ".zip"))
-        safe += ".mpcdi";
-    auto dest = dest_dir / safe;
-    ec.clear();
-    fs::rename(src, dest, ec);
-    if (ec) {
-        fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
-        fs::remove(src, ec);
-        if (ec) {
-            err = "failed to store package: " + ec.message();
-            return false;
-        }
+    for (auto& e : fs::directory_iterator(dest_dir, ec)) {
+        if (e.path() == dest) continue;
+        std::error_code rm_ec;
+        if (e.is_directory())
+            fs::remove_all(e.path(), rm_ec);
+        else
+            fs::remove(e.path(), rm_ec);
     }
     return true;
 }

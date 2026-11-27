@@ -129,13 +129,15 @@ bool Canvas3DGl::ensure() {
         return false;
     }
     // uniform location 一次性缓存（链接后固定；热路径零查找）
+    // 【2026-11-27】u_tex 采样器一次性绑定单元 0 后不再变——位置取局部
+    // 变量用完即弃（原成员 loc_tex_ 缓存无二次消费，属死状态）
     loc_scale_    = gl::glGetUniformLocation(program_, "u_scale");
     loc_opacity_  = gl::glGetUniformLocation(program_, "u_opacity");
-    loc_tex_      = gl::glGetUniformLocation(program_, "u_tex");
+    const int loc_tex = gl::glGetUniformLocation(program_, "u_tex");
     loc_gain_     = gl::glGetUniformLocation(program_, "u_rgb_gain");
     loc_gamma_    = gl::glGetUniformLocation(program_, "u_gamma");
     gl::glUseProgram(program_);
-    gl::glUniform1i(loc_tex_, 0); // 采样器绑定单元 0（一次性）
+    gl::glUniform1i(loc_tex, 0); // 采样器绑定单元 0（一次性）
     gl::glUseProgram(0);
 
     // ---- VAO/VBO ------------------------------------------------------------
@@ -162,6 +164,12 @@ bool Canvas3DGl::drawClipFace(const std::string& key, const TexData& d,
     if (d.width <= 0 || d.height <= 0) return false;
     const bool is_dxt = d.dxt != nullptr; // DXT 优先（HAP 零解压直传）
     if (!is_dxt && d.rgba == nullptr) return false; // 双域皆空 → 占位
+    // 【2026-11-27 修复】S3TC 判死早退前置——原检查只在内容上传分支内，
+    // 判死后的下一帧仍会走「重建分支」（探测失败帧 s.w/h/fmt 未赋值 →
+    // fmt 失配恒重建）且 rebuilt=true 跳过上传分支（检查被跳过）→
+    // 重复 delete+gen+upload churn + 一帧无效纹理提交；前置后直接快速
+    // 失败回退 QPainter（与 failed_ 同语义位）。
+    if (is_dxt && dxt_dead_) return false;
 
     // ---- 纹理确保（存储命中复用；尺寸/格式变化重建）------------------------
     // 容量逐出（>64 项清最久未用）：clip 删除后缓存残留纹理的 GPU 泄漏防御

@@ -90,11 +90,6 @@ public slots:
     virtual void onUpdateViewport();
     
 protected:
-    /**
-     * @brief 确保可视范围内的轨道行存在 persistent editor
-     */
-    void ensureVisiblePersistentEditors();
-
     // ---- 轨道音频 M/S 按钮（2026-11-25）-----------------------------------
     // 自绘 check 按钮（Mute/Solo）：persistent editor 非常开（2026-11-15
     // 约定轨道行平时只画文字，editor 只在改名时出现），按钮必须常驻 →
@@ -259,9 +254,6 @@ protected:
     QModelIndex m_hoverIndex = QModelIndex();
     //模型
     BaseTimeLineModel *Model;
-
-    // 当前已打开的 persistent editor（用于可视范围内按需开关，避免滚动时只增不减）
-    QVector<QPersistentModelIndex> m_openPersistentEditors;
 
 private:
    // 颜色默认值来自 TimeLineStyle.h，运行时由 QSS qproperty- 覆盖

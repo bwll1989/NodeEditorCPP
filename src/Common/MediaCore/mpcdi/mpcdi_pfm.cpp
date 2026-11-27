@@ -287,7 +287,9 @@ bool compute_warp_stats(const std::vector<std::uint8_t>& pfm_bytes, MpcdiWarpSta
     out.min_v = min_v;
     out.max_v = max_v;
     // 对齐 viewer：maxX<=1.001 && maxY<=1.001 && minX>=-0.001 && minY>=-0.001
-    out.looks_normalized = max_u <= 1.001f && max_v <= 1.001f &&
+    // 【L7】any 守卫：全 NaN 时 min/max 恒 0 会误判"看似归一化"——
+    // 无有效样本时不得给出归一化结论
+    out.looks_normalized = any && max_u <= 1.001f && max_v <= 1.001f &&
                            min_u >= -0.001f && min_v >= -0.001f;
     err.clear();
     return true;

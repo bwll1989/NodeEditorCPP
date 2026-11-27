@@ -15,8 +15,8 @@
 //    * 帧时间戳：优先 best_effort_timestamp（FFmpeg 依容器信息推得的
 //      可靠 PTS），缺失退化 frame_->pts，再缺失按帧时长递推。
 //
-//  日志：诊断统一 fprintf(stderr, "[media] ...")（与 net/asset 层一致；
-//  spdlog 引入后统一迁移）。
+//  日志：诊断统一 fprintf(stderr, "[media] ...")——与 net/asset/display
+//  层同一约定（spdlog 迁移计划已放弃，勿再挂此尾注）。
 // ============================================================================
 
 #include "media/FfmpegMediaSource.hpp"

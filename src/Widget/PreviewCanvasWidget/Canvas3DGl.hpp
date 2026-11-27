@@ -159,7 +159,6 @@ private:
     unsigned int vao_ = 0;      ///< 顶点数组（6 顶点 × {pos3,uv2}）
     unsigned int vbo_ = 0;      ///< 顶点缓冲（每 draw 孤儿式重分配 120B）
     int loc_scale_ = -1;        ///< u_scale（逻辑→NDC 系数；链接后缓存）
-    int loc_tex_ = -1;          ///< u_tex 采样器
     int loc_opacity_ = -1;      ///< u_opacity
     int loc_gain_ = -1;         ///< u_rgb_gain（片段级调色；链接后缓存）
     int loc_gamma_ = -1;        ///< u_gamma（片段级调色；链接后缓存）

@@ -1438,33 +1438,40 @@ void BaseTimelineView::handleMouseDrag(QMouseEvent *event)
                 getModel()->groupMemberIdsOf(clip->clipAnchor());
             if (!groupMembers.isEmpty()) {
                 qint64 delta = newStart - clip->start();
+                // 【2026-11-27 性能】组员索引一轮收集（拖拽高频事件路径：
+                // clipIndexById→全轨线性扫，原 minStart 轮+平移轮每事件
+                // 两轮×组员数次扫描白付）；QPersistentModelIndex 跨 begin/
+                // endReset 自动重映射（换轨安全，与 m_dragIndex 同纪律）。
+                struct MemberRef { QPersistentModelIndex idx; qint64 start; };
+                QVector<MemberRef> members;
+                members.reserve(groupMembers.size());
                 qint64 minStart = clip->start();
                 for (const QString& gid : groupMembers) {
                     const QModelIndex mi = getModel()->clipIndexById(gid);
-                    if (mi.isValid())
-                        minStart = qMin(minStart, mi.data(
-                            TimelineRoles::ClipInRole).toLongLong());
+                    if (!mi.isValid()) continue;
+                    const qint64 st = mi.data(
+                        TimelineRoles::ClipInRole).toLongLong();
+                    minStart = qMin(minStart, st);
+                    members.append({QPersistentModelIndex(mi), st});
                 }
                 delta = qMax(delta, -minStart);
                 newStart = clip->start() + delta; // 组钳制后的实际新起点
                 if (delta != 0) {
                     QRegion memberDirty;
-                    for (const QString& gid : groupMembers) {
-                        const QModelIndex mi = getModel()->clipIndexById(gid);
+                    for (const MemberRef& m : members) {
                         // 指针对比定位被拖片段自身（换轨后行号失真防御）；
                         // 组员与被拖片段同指针即跳过。
-                        if (!mi.isValid() || mi.internalPointer() == clip)
+                        if (m.idx.internalPointer() == clip)
                             continue;
                         const QRect mOldRect =
-                            visualRect(mi).adjusted(-4, -4, 124, 4);
+                            visualRect(m.idx).adjusted(-4, -4, 124, 4);
                         getModel()->setData(
-                            mi,
-                            mi.data(TimelineRoles::ClipInRole).toLongLong() + delta,
+                            m.idx, m.start + delta,
                             TimelineRoles::ClipPosRole);
                         // 组员脏矩形（拖拽中模型 defer 通知，静态缓存补绘
                         // 与被拖片段同口径：旧∪新矩形走 repaintStaticCache）
                         memberDirty += mOldRect.united(
-                            visualRect(mi).adjusted(-4, -4, 124, 4));
+                            visualRect(m.idx).adjusted(-4, -4, 124, 4));
                     }
                     if (!memberDirty.isEmpty()) {
                         repaintStaticCache(memberDirty);
@@ -1988,10 +1995,12 @@ void BaseTimelineView::dropEvent(QDropEvent *event)
               return QObject::eventFilter(watched, event);
           switch (keyEvent->key()){
               case Qt::Key_Right :
-                  moveSelectedClip(1,0,false);
+                  // 【2026-11-27 修复】dx 是 μs 域——原传 ±1（1μs）视觉
+                  // 零位移形同虚设；按帧量化 ±1 帧（kFrameUs=40ms，PAL）
+                  moveSelectedClip(QtTimeline::kFrameUs, 0, false);
                   return true;  // 统一返回 true
               case Qt::Key_Left:
-                  moveSelectedClip(-1,0,false);
+                  moveSelectedClip(-QtTimeline::kFrameUs, 0, false);
                   return true;
               case Qt::Key_G:
                   // 分组（2026-11-27 用户定案 REAPER 式）：Ctrl+G = 选中

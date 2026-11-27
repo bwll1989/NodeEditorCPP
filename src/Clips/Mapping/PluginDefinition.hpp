@@ -3,8 +3,10 @@
 //
 //  【2026-11-15 片段移植】自节点体系 src/Nodes/TimeLineNode/mappingclipmodel
 // （NodeClipDelegateModel 帧域 + currentData 拉取驱动 + 控件内 QJSEngine）
-//  移植为磁盘插件（SceneClipModel μs 域 + onPlayheadAdvanced 推送驱动 +
-//  模型自带 QJSEngine）。文件组织对齐 Control 插件基准
+//  移植为磁盘插件（SceneClipModel μs 域；播放驱动 2026-11-22 起由
+//  PlaybackSendScheduler 独立线程直读工作副本快照并在其 worker 私有
+//  QJSEngine 求值——模型侧 onPlayheadAdvanced 推送钩子与模型自带
+//  QJSEngine 已于 2026-11-27 退役删除）。文件组织对齐 Control 插件基准
 // （PluginDefinition.hpp/.cpp + 类型模型独立头；类名统一 Plugin）。业务
 //  接口 = BaseClass 的 ClipPlugInterface（clipType/createModel/
 //  createPropertySection），Q_PLUGIN_METADATA 供 QPluginLoader 识别——

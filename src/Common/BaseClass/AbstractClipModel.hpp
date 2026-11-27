@@ -7,18 +7,12 @@
 #include "TimeLineDefines.h"
 #include "ClipPaintStyle.h" // [clip-sync] 片段绘制桥接量（ClipColor/ClipBorderColour/…；2026-11-13 自 TimeLineStyle 拆出，随片段基类留本库）
 #include <QWidget>
-#include <QVBoxLayout>
-#include <QSpinBox>
-#include <QLineEdit>
-#include <QMouseEvent>
+// 【2026-11-27 头瘦身】QVBoxLayout/QSpinBox/QLineEdit/QPushButton/QSlider/
+// QGroupBox/QLabel/QApplication/QClipboard/QMouseEvent/QMimeData 共 11 个
+// GUI 头摘除——P3 面板迁库（2026-11-17）后本类零 UI，头里只剩 QEvent
+//（eventFilter override 签名）。这些头曾随本公共头进入全部片段插件的
+// 编译面（每插件白付一遍 QApplication/QClipboard 解析）。
 #include <QEvent>
-#include <QPushButton>
-#include <QSlider>
-#include <QMimeData>
-#include <QGroupBox>
-#include <QLabel>
-#include <QApplication>
-#include <QClipboard>
 #include <QPainter>
 #include <QRect>
 #include <QColor>
@@ -26,7 +20,6 @@
 #include "Common/AppConfig/TimeCodeDefines.h"
 #include "Common/Devices/StatusContainer/GlobalEventBus.hpp"
 #include "BaseClassExport.h"
-#include <QCheckBox>
 #include <QPointer>
 #include <QVariant>
 #include <unordered_map>
@@ -520,31 +513,15 @@ virtual void drawTitle(QPainter* painter, const QRect& rect) const {
 
 }
 
-// ---- 播放头推进钩子（2026-11-15 片段移植；【ABI 纪律】虚函数尾部追加，
-//      不得插到既有虚函数之前——旧插件二进制按声明序布 vtable）--------
-// 【public 段标记】宿主（适配器/装载链）跨库调用的入口面——访问限定是
-// 编译期概念，此处切换段不改对象布局/vtable，对既有插件零 ABI 影响。
-public:
-// 适配器播放头推进链（手动 seek onSetPlayheadPos + 播放回显
-// setPlayheadFromRuntimeUs）每拍对本时间轴全部片段调用；默认空实现
-//（零开销）。类型专属播放逻辑挂点：
-//   * Artnet —— 区间内逐帧解码 DMX → ArtnetService 状态表；
-//   * Mapping —— 区间内逐帧按 $percent/$frame 求值重发消息表。
-// \param prev_us 上一播放头位置（μs；首拍为 -1 基线）
-// \param now_us  当前播放头位置（μs）
-// 【2026-11-22 退役标注】适配器已停止调用本钩子——Mapping/Artnet 逐帧
-// 发送由 PlaybackSendScheduler 独立线程直读主时钟承担（GUI 饥饿不再影响
-// 发送时序；见 src/Widget/TimeLineWidget/SendScheduler.hpp）。虚函数与两
-// 插件实现保留一版作回滚路径（恢复 = 适配器 updateControlTriggers 补回
-// clip->onPlayheadAdvanced 一行 + 重编），验证稳定后下轮清理。
-virtual void onPlayheadAdvanced(qint64 prev_us, qint64 now_us) {
-    Q_UNUSED(prev_us);
-    Q_UNUSED(now_us);
-}
 /// 工作副本业务数据镜像（2026-11-15 片段移植）：适配器在装载与面板写回
 /// 后把 Clip.clip_data（类型专属 JSON）灌给模型——类型子类解析为自己的
-/// 业务字段（播放期读镜像，不回查工作副本）。默认忽略（无业务数据的
-/// 类型）。幂等性由子类负责（内容未变化时不重置播放状态）。
+/// 业务字段。默认忽略（无业务数据的类型）。幂等性由子类负责。
+/// 【2026-11-27】类型专属播放期数据由 PlaybackSendScheduler 直读工作副本
+/// （rebuildSendSnapshot 快照链），模型镜像仅服务编辑期（如 Artnet 时长
+/// 自适应）——不再承担播放驱动。
+/// 【2026-11-27 public 段恢复】宿主（适配器/装载链）跨库调用的入口面；
+/// 访问限定是编译期概念，切换段不改对象布局/vtable，对既有插件零 ABI 影响。
+public:
 virtual void setClipPayload(const QString& json) { Q_UNUSED(json); }
 
 };

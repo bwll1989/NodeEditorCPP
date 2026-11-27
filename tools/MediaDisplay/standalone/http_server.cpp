@@ -184,14 +184,13 @@ bool HttpServer::start(const std::string& bind, int port, std::string& err) {
 }
 
 void HttpServer::stop() {
-    if (!running_.exchange(false)) {
-        if (impl_ && impl_->server) {
-            impl_->server->stop();
-            impl_->server.reset();
-            impl_->socket.reset();
-        }
-        return;
-    }
+    // 【R1】两分支动作原本完全相同（stop + reset 幂等）——合并为单路径。
+    // exchange 仅保留"首次置停"语义标记（外部可轮询 running_）。
+    // 【契约】仅限主（控制）线程串行调用：stop 与 start/在途 handler 共享
+    // impl_ 无锁，跨线程并发 stop/start = UAF。解锁条件：出现任何非主线程
+    // stop() 调用点，届时加锁重构（须连 start 一并纳入——仅锁 stop 拦不住
+    // start-vs-stop，是假安全）。（D3 仲裁 2026-11-27）
+    running_.exchange(false);
     if (impl_ && impl_->server) {
         impl_->server->stop();
         impl_->server.reset();

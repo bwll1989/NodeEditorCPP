@@ -7,8 +7,10 @@
 //  不再参与空间高度，只作遮挡排序键。地面网格 + 三轴参照线。
 //    * 投影：正交（Camera3D.hpp）——水平面矩形投影后仍是平行四边形，
 //      QTransform 仿射即可精确贴片段纹理，零 GL 管线改动；
-//    * 相机：右键拖拽 orbit（yaw/pitch）、滚轮 dolly（光标锚定）、
-//      中键/左键空白平移（光标下世界点跟随）、双击空白复位；
+//    * 相机：滚轮 dolly（光标锚定）、中键/左键空白平移（光标下世界点
+//      跟随）、双击空白复位；右键 orbit 交互链已随 2D 取景范式退役
+//      （2026-11-20 定案，旋转会话处理已删除——右键现为菜单，见
+//      contextMenuEvent 处注）；
 //    * 拾取/拖拽：视线与对象所在高度平面求交反投影回画布域——拖动/
 //      缩放/旋转/吸附的几何数学与 2D 逐位复用（CanvasGeometry）；
 //    * 贴图：GpuDeliver 逐项交付的 QImage 源帧按几何元组匹配片段；
@@ -661,127 +663,6 @@ bool SceneCanvasWidget::viewIsHome() const {
 }
 
 // ---------------------------------------------------------------------------
-// 右上角轴球视角控件（Blender navigation gizmo 同位同交互）：
-//   * 三条属性轴按当前相机姿态投影成屏幕方向——轴球本身就是"现在朝哪看"
-//     的罗盘。轴名与配色沿用【属性面板语义】（X=画布x 红 / Y=画布y 绿 /
-//     Z=高度 蓝——与 ClipPropertyPanel"Z 位置"及地面三轴线同名同色）。
-//     【命名注意 2026-11-05】Camera3D 内部世界系把高度记作 Y（画布 y 记
-//     作 Z，见 Camera3D.hpp 文件头）——那是纯内部数学约定；用户可见的
-//     轴球文案/视角提示一律按属性语义（Z=高度），两套名字差一个互换，
-//     改这里时勿把内部变量名一起"纠正"（投影数学不动）。
-//   * 端点球可点击：+X 右视 / −X 左视 / +Z 顶视（等价 2D 俯视，高度轴）/
-//     +Y 正视 / −Y 背视（−Z 底视无意义不画——地面之下不可见）；
-//   * 球体其它区域按下拖拽 = orbit（与右键拖拽同一会话通道）。
-// 点击只改 yaw/pitch（注视点/缩放保持）——预设视角不破坏用户浏览状态。
-// ---------------------------------------------------------------------------
-void SceneCanvasWidget::drawAxisGizmo(QPainter& p) const {
-    const QPointF c(width() - 52.0, 64.0);   // 控件中心（HUD 文字下方）
-    const double  R = 34.0;                  // 端点半径（球半径 = R+8）
-
-    // 背景圆（半透明深底 + 淡边——与视口深色底协调）
-    p.setPen(QPen(QColor(255, 255, 255, 38), 1.0));
-    p.setBrush(QColor(0, 0, 0, 90));
-    p.drawEllipse(c, R + 9.0, R + 9.0);
-
-    // 三轴屏幕方向：单位轴向量 v 的屏幕 2D = (dot(v,R), −dot(v,U))
-    double rx, rz, ux, uy, uz, fx, fy, fz;
-    cam3d_.basis(&rx, &rz, &ux, &uy, &uz, &fx, &fy, &fz);
-    struct AxisEnd { int id; QColor col; const char* label; QPointF dir; };
-    // 【标签=属性语义】蓝球=高度轴标 "Z"（属性面板"Z 位置"=悬浮高度）、
-    // 绿球=画布 y 标 "Y"——与地面三轴线（红X/绿Y/蓝Z）及 ClipPropertyPanel
-    // 同名同色。dir 公式不变（与投影同源）：端点屏幕方向 = (dot(v,R),−dot(v,U))。
-    const AxisEnd ends[5] = {
-        {0, QColor(0xA8, 0x52, 0x52), "X", QPointF(rx,  -ux)},  // +X 画布右
-        {1, QColor(0xA8, 0x52, 0x52), "",  QPointF(-rx,  ux)},  // −X 画布左
-        {2, QColor(0x55, 0x78, 0xC0), "Z", QPointF(0.0, -uy)},  // +Z 高度（属性"Z 位置"）
-        {3, QColor(0x52, 0xA0, 0x5E), "Y", QPointF(rz,  -uz)},  // +Y 画布下方
-        {4, QColor(0x52, 0xA0, 0x5E), "",  QPointF(-rz,  uz)},  // −Y 画布背面
-    };
-    for (const AxisEnd& e : ends) {
-        const QPointF end = c + e.dir * R;
-        p.setPen(QPen(e.col, 1.6));
-        p.setBrush(Qt::NoBrush);
-        p.drawLine(c, end);
-        if (e.label[0]) {
-            // 正端：实心球 + 轴字母（可点击跳视角）
-            p.setPen(Qt::NoPen);
-            p.setBrush(e.col);
-            p.drawEllipse(end, 8.0, 8.0);
-            QFont f = p.font();
-            f.setPointSize(7);
-            f.setBold(true);
-            p.setFont(f);
-            p.setPen(QColor(255, 255, 255, 235));
-            p.drawText(QRectF(end.x() - 8, end.y() - 8, 16, 16),
-                       Qt::AlignCenter, e.label);
-        } else {
-            // 负端：空心球（同样可点击）
-            p.setPen(QPen(e.col, 1.4));
-            p.setBrush(QColor(30, 30, 30, 160));
-            p.drawEllipse(end, 5.0, 5.0);
-        }
-    }
-}
-
-int SceneCanvasWidget::hitAxisGizmo(const QPointF& wp) const {
-    const QPointF c(width() - 52.0, 64.0);
-    const double  R = 34.0;
-    // 三轴屏幕方向（与绘制同式——命中检测必须与视觉一致；端点编号语义：
-    // 0/1=±X 画布左右，2=+Z 高度顶视，3/4=±Y 画布正/背面）
-    double rx, rz, ux, uy, uz, fx, fy, fz;
-    cam3d_.basis(&rx, &rz, &ux, &uy, &uz, &fx, &fy, &fz);
-    const struct { int id; QPointF dir; } ends[5] = {
-        {0, QPointF(rx,  -ux)}, {1, QPointF(-rx,  ux)},
-        {2, QPointF(0.0, -uy)},
-        {3, QPointF(rz,  -uz)}, {4, QPointF(-rz,  uz)},
-    };
-    // 端点球优先（取最近——低俯角时 +Y/−Z 端点屏幕方向接近，避免
-    // 循环顺序造成的点击歧义）
-    int    best    = -1;
-    double best_d  = 9.0;
-    for (const auto& e : ends) {
-        const double d = QLineF(wp, c + e.dir * R).length();
-        if (d <= best_d) { best_d = d; best = e.id; }
-    }
-    if (best >= 0) return best;
-    if (QLineF(wp, c).length() <= R + 9.0) return -2; // 球内其它区 = 拖拽 orbit
-    return -1;
-}
-
-void SceneCanvasWidget::applyStandardView(int axis_end) {
-    // 端点编号 → 标准视角（只改 yaw/pitch，注视点 (tx,tz) 与 view3d_zoom_
-    // 保持——预设视角不破坏用户浏览状态）。【命名=属性面板语义】Z=高度
-    // （"Z 位置"）、Y=画布 y——与轴球标签/属性面板同名；相机内部仍记
-    // 高度为 Y（Camera3D 世界系），此处只换文案不改数学。
-    switch (axis_end) {
-    case 0:  // +X 右视（相机在画布 +x 侧，向 −x 看）
-        cam3d_.yaw_deg = 90.0;  cam3d_.pitch_deg = Camera3D::kPitchMin;
-        statusTip("右视图（轴球 +X）· 双击空白复位");
-        break;
-    case 1:  // −X 左视
-        cam3d_.yaw_deg = 270.0; cam3d_.pitch_deg = Camera3D::kPitchMin;
-        statusTip("左视图（轴球 −X）· 双击空白复位");
-        break;
-    case 2:  // +Z 顶视（沿高度轴正俯视画布——与 2D 回退视图同向无镜像；
-             // 高度轴即属性面板"Z 位置"）
-        cam3d_.yaw_deg = 0.0;   cam3d_.pitch_deg = Camera3D::kPitchMax;
-        statusTip("顶视图（轴球 +Z）· 双击空白复位");
-        break;
-    case 3:  // +Y 正视（贴地平视画布正面——画布 y 轴方向）
-        cam3d_.yaw_deg = 0.0;   cam3d_.pitch_deg = Camera3D::kPitchMin;
-        statusTip("正视图（轴球 +Y）· 双击空白复位");
-        break;
-    case 4:  // −Y 背视
-        cam3d_.yaw_deg = 180.0; cam3d_.pitch_deg = Camera3D::kPitchMin;
-        statusTip("背视图（轴球 −Y）· 双击空白复位");
-        break;
-    default:
-        return;
-    }
-    update();
-}
-
-// ---------------------------------------------------------------------------
 // 时间轴适配器注入（仅一次）：建立画布编辑→适配器的自发自收闭环——
 // sceneEdited/sceneEditedLive 的发射者与消费者（adapter_/preview_）都是
 // 本控件已持有的对象，宿主只负责注入、不中转（2026-11-16 自 MainWindow
@@ -1071,7 +952,10 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
     // 标题 = display 名称行（setDisplayInfo 内部 setDialogTitle；
     // 2026-11-25 用户定案：标题栏直接展示绑定 id + 在线状态 + 地址）
     // 【实时预览·变形】编辑中每次变化 → 写工作副本 + 视图刷新
+    // 【2026-11-27 防御】非模态对话框生命周期长于场景卸载窗口——三回调
+    // 捕获 scene_ 裸指针，场景卸载后回调被触发即空解引用；入口统一判空
     dlg->setWarpLiveApply([this, sid](const ScreenWarp& w) {
+        if (!scene_) return;
         for (auto& s : scene_->screens)
             if (s.id == sid) { s.warp = w; break; }
         refreshViews();
@@ -1080,6 +964,7 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
     // rot_x/rot_y——2026-11-17 阶段2，display 透视取景窗实时预览；
     // 输出校色 rgb_gain/gamma——2026-11-20 Display 级四字段）
     dlg->setGeometryLiveApply([this, sid](const Screen& g) {
+        if (!scene_) return;
         for (auto& s : scene_->screens)
             if (s.id == sid) {
                 s.x = g.x; s.y = g.y; s.w = g.w; s.h = g.h;
@@ -1101,6 +986,7 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
     connect(dlg, &QDialog::accepted, this,
             [this, sid, old_pid, cur_host, cur_port, cur_pairing,
              applyBinding, dlg] {
+                if (!scene_) { dlg->deleteLater(); return; } // 场景已卸载
                 auto it = std::find_if(
                     scene_->screens.begin(), scene_->screens.end(),
                     [&](const Screen& s) { return s.id == sid; });
@@ -1152,6 +1038,7 @@ void SceneCanvasWidget::openScreenProperty(int screen_idx) {
     // ---- 取消：还原 warp + 几何实时预览中间态（绑定纯确认制不处理）------
     connect(dlg, &QDialog::rejected, this,
             [this, sid, warp_backup, geo_backup, dlg] {
+                if (!scene_) { dlg->deleteLater(); return; } // 场景已卸载
                 for (auto& s : scene_->screens) {
                     if (s.id != sid) continue;
                     const bool warp_changed =
@@ -1420,86 +1307,6 @@ bool SceneCanvasWidget::eyeHandleHit(const QPointF& wp) const {
                                  scene_->persp_vp_y);
     const double er = 6.0 + std::min(6.0, scene_->persp_focal / 20000.0);
     return (eye - wp).manhattanLength() <= er + 5.0;
-}
-
-void SceneCanvasWidget::openEyeDialog() {
-    if (!scene_) return;
-    QDialog dlg(this);
-    dlg.setWindowTitle(tr("全局透视（Eye 点）"));
-    auto* lay  = new QVBoxLayout(&dlg);
-    auto* form = new QFormLayout;
-    // 焦距 F：0 = 未配置（画布派生默认 F=2×对角线、VP=画布中心——
-    // Scene::effectivePersp 语义）；>0 = 手动 Eye 生效
-    auto* focal = new FloatDragValueWidget(&dlg);
-    focal->setRange(0.0, 200000.0);
-    focal->setDecimals(0);
-    focal->setSingleStep(100.0);
-    focal->setValue(scene_->persp_focal);
-    focal->setToolTip(tr(
-        "全局透视焦距 F（px）——观察眼点 Eye 在消隐点正上方 F 高度处。\n"
-        "0 = 未配置——全场透视走画布派生默认\n"
-        "（F = 2×画布对角线，消隐点 = 画布中心）；\n>0 = 手动 Eye 生效，"
-        "3D 视口出现可拖动的 VP 标记与 Eye 圆环。"));
-    auto* vpx = new FloatDragValueWidget(&dlg);
-    vpx->setRange(-8192.0, 16384.0);
-    vpx->setDecimals(1);
-    vpx->setSingleStep(10.0);
-    vpx->setValue(scene_->persp_vp_x);
-    auto* vpy = new FloatDragValueWidget(&dlg);
-    vpy->setRange(-8192.0, 16384.0);
-    vpy->setDecimals(1);
-    vpy->setSingleStep(10.0);
-    vpy->setValue(scene_->persp_vp_y);
-    form->addRow(tr("焦距 F："), focal);
-    form->addRow(tr("消隐点 X："), vpx);
-    form->addRow(tr("消隐点 Y："), vpy);
-    lay->addLayout(form);
-    // 【2026-11-18 用户反馈"改 Eye 无效果"根治】F=0（未配置）时 VP 根本
-    // 不参与投影计算（effectivePersp 走画布派生默认）——VP 字段灰化 +
-    // 动态提示当前模式，消除"改了没反应"的困惑。
-    auto* mode_hint = new QLabel(&dlg);
-    mode_hint->setWordWrap(true);
-    mode_hint->setStyleSheet("color: #C8781C; font-size: 11px;");
-    lay->addWidget(mode_hint);
-    auto update_vp = [this, focal, vpx, vpy, mode_hint] {
-        const bool on = focal->value() > 0.0;
-        vpx->setEnabled(on);
-        vpy->setEnabled(on);
-        mode_hint->setText(
-            on ? tr("手动 Eye 已生效：眼点悬浮于消隐点 VP 正上方高度 F=%1 px 处。"
-                     "修改 F / VP 立即影响成品合成画面（素材升向 Eye 放大、远"
-                     "离缩小）与 3D 视口 Eye 圆环。")
-                   .arg(focal->value(), 0, 'f', 0)
-               : tr("F=0 = 未配置：全场透视走画布派生默认（F=2×画布对角线，"
-                     "消隐点 = 画布中心）——此时改 VP 无效果，请先把焦距 F "
-                     "设为大于 0 的值。"));
-    };
-    update_vp();
-    connect(focal, &FloatDragValueWidget::valueChanged, &dlg, update_vp);
-    auto* hint = new QLabel(
-        tr("消隐点也可在 3D 视口直接拖动橙色 VP 标记（需先配置焦距），"
-           "Eye 圆环随焦距升降。透视只影响素材投影，不改 Display 取景窗。"), &dlg);
-    hint->setWordWrap(true);
-    hint->setStyleSheet("color: gray; font-size: 11px;");
-    lay->addWidget(hint);
-    auto* reset = new QPushButton(tr("恢复默认（画布派生）"), &dlg);
-    connect(reset, &QPushButton::clicked, &dlg, [focal, update_vp] {
-        focal->setValue(0.0); // F=0 = 未配置 → effectivePersp 画布派生
-        update_vp();
-    });
-    lay->addWidget(reset);
-    auto* btns = new QDialogButtonBox(
-        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    connect(btns, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
-    connect(btns, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
-    lay->addWidget(btns);
-    if (dlg.exec() != QDialog::Accepted) return;
-    scene_->persp_focal = focal->value();
-    scene_->persp_vp_x  = vpx->value();
-    scene_->persp_vp_y  = vpy->value();
-    if (preview_) preview_->invalidate(); // 透视参数变更重合成
-    emit sceneEdited();
-    update();
 }
 
 // ---------------------------------------------------------------------------
@@ -1839,11 +1646,14 @@ SceneCanvasWidget::Selection SceneCanvasWidget::hitTest(
         // 【重叠循环选择】命中集合按视深升序（近→远，绘制覆盖序），
         // 当前选中在集合内 → 轮转下一个；否则取最近（=最上层）
         std::vector<std::pair<int, double>> hits; // (下标, 视深)
+        // 【2026-11-27 性能】widgetToCanvasAt 与迭代变量无关——原循环内
+        // 每次重算（每屏一次矩阵反解）；外提一次。
+        const QPointF cp_g = widgetToCanvasAt(widget_pos, 0.0); // 屏幕贴地
         for (int i = 0; i < (int)scene_->screens.size(); ++i) {
             const Screen& s = scene_->screens[i];
             if (s.w <= 0 || s.h <= 0) continue;
-            const QPointF cp = widgetToCanvasAt(widget_pos, 0.0); // 屏幕贴地
-            if (!rectHit(QRectF(s.x, s.y, s.w, s.h), s.rotation, cp)) continue;
+            if (!rectHit(QRectF(s.x, s.y, s.w, s.h), s.rotation, cp_g))
+                continue;
             hits.emplace_back(
                 i, cam3d_.depthOf(s.x + s.w / 2.0, 0.0, s.y + s.h / 2.0));
         }
@@ -2900,6 +2710,10 @@ void SceneCanvasWidget::paintGL3D(
     }
 
     // ---- 5. 图元绘制（仅 cue——遮挡纯靠 Z 轴排序；display 恒最上层见 5b）---
+    // 【2026-11-27 修复】frame()（帧参数注入 + frame_no_ 递增）原在循环内
+    // 每 prim 调用一次——frame_no_ 语义是"帧计数"（纹理逐出时间基准），
+    // 逐 prim 递增使"最久未用"比较基准失真；提出循环外每帧一次。
+    if (gl3d_) gl3d_->frame(width(), height(), (float)devicePixelRatioF());
     for (const Prim& pr : prims) {
         {
             // ---- 片段（悬浮于 pos_z 深度平面）-------------------------
@@ -2966,8 +2780,7 @@ void SceneCanvasWidget::paintGL3D(
                 if (pr.it && (!pr.it->frame.isNull() || pr.it->dxt) &&
                     s_gl3d_on) {
                     if (!gl3d_) gl3d_ = std::make_unique<Canvas3DGl>();
-                    gl3d_->frame(width(), height(),
-                                 (float)devicePixelRatioF());
+                    // frame() 已在循环外每帧注入（frame_no_ = 帧计数）
                     Canvas3DGl::TexData td;
                     if (pr.it->dxt) { // DXT 域：裸块+格式+尺寸直透
                         td.dxt        = pr.it->dxt;
@@ -3786,9 +3599,9 @@ void SceneCanvasWidget::drawCenterName(QPainter& p, const QRectF& box,
 
 // ---------------------------------------------------------------------------
 // 鼠标交互
-// 3D 模式：右键 = orbit 旋转会话（真位移旋转视角；无位移松开 = 菜单，
-// contextMenuEvent 由 suppress_menu_ 旗标协调——Windows 右键松开即发菜单
-// 事件）；中键/左键空白 = 平移（光标下世界点跟随光标，锚定闭式解）。
+// 3D 模式：右键 = 菜单（contextMenuEvent；orbit 旋转会话已退役——2026-11-20
+// 2D 化视角锁定正俯视，2026-11-27 会话死代码整链删除）；
+// 中键/左键空白 = 平移（光标下世界点跟随光标，锚定闭式解）。
 // 2D 模式交互骨架逐字节保留（仅坐标换算分发到 canvasFromScreen）。
 // ---------------------------------------------------------------------------
 void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
@@ -3819,9 +3632,8 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
     if (hist_) hist_->beginEdit("画布编辑", *scene_);
     const QPointF wp = ev->position();
 
-    // ---- 3D 轴球视角控件：已屏蔽（2026-11-20 2D 化——右上角角标退役，
-    //      端点跳视角/球内拖拽 orbit 一并停用；drawAxisGizmo/hitAxisGizmo
-    //      函数保留供回退）--------------------------------------------------
+    // ---- 3D 轴球视角控件：已退役（2026-11-20 2D 化屏蔽，2026-11-27
+    //      drawAxisGizmo/hitAxisGizmo/applyStandardView 死函数删除）-------
 
     QRectF sel_rect;
     double sel_rot = 0.0;
@@ -4099,22 +3911,6 @@ void SceneCanvasWidget::mousePressEvent(QMouseEvent* ev) {
 }
 
 void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
-    // ---- 3D 轨道会话（右键拖拽）：方位角/俯仰角增量（视图操作）----
-    // 俯仰钳制 8°~89°（8° 防地面反投影发散；89° 不越顶防 yaw 翻转跳变）
-    if (orbiting_) {
-        const QPointF d = ev->position() - orbit_last_pos_;
-        orbit_last_pos_ = ev->position();
-        if (std::fabs(d.x()) + std::fabs(d.y()) >= 1.0) orbit_moved_ = true;
-        cam3d_.yaw_deg =
-            std::fmod(cam3d_.yaw_deg + d.x() * 0.3 + 360.0, 360.0);
-        cam3d_.pitch_deg =
-            std::clamp(cam3d_.pitch_deg - d.y() * 0.3, Camera3D::kPitchMin,
-                       Camera3D::kPitchMax);
-        update();
-        ev->accept();
-        return;
-    }
-
     // ---- 平移会话：2D 移 view_pan_；3D 移注视点（世界锚点跟随光标）----
     if (panning_) {
         if (view3d_) {
@@ -4442,19 +4238,6 @@ void SceneCanvasWidget::mouseMoveEvent(QMouseEvent* ev) {
 }
 
 void SceneCanvasWidget::mouseReleaseEvent(QMouseEvent* ev) {
-    // ---- 3D 轨道收尾（右键拖拽 或 轴球球体拖拽）：真位移=旋转结束。
-    // 右键真位移吞掉随后的菜单事件（视图旋转≠菜单意图）；左键球体拖拽
-    // 无菜单语义，纯收尾 ----
-    if (view3d_ && orbiting_ &&
-        (ev->button() == Qt::RightButton ||
-         ev->button() == Qt::LeftButton)) {
-        orbiting_ = false;
-        if (ev->button() == Qt::RightButton && orbit_moved_)
-            suppress_menu_ = true; // 仅右键：真位移=旋转视图（吞菜单）
-        unsetCursor();
-        ev->accept();
-        return;
-    }
     // ---- 平移收尾（中键/左键空白会话；松开即结束，光标恢复箭头）----
     // 【2026-11-05】左键空白拖拽平移加入——两键共用会话标志（按下时
     // 已互斥：对象手柄/命中优先，未命中才进平移）
@@ -4537,13 +4320,6 @@ void SceneCanvasWidget::mouseDoubleClickEvent(QMouseEvent* ev) {
 }
 
 void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
-    // 【3D 轨道旋转协调】Windows 右键【松开】即发 contextMenuEvent——
-    // 刚结束的拖拽旋转会话置 suppress_menu_ 吞掉本次菜单；无位移的右键
-    // 单击不置旗标，菜单照常弹出
-    if (suppress_menu_) {
-        suppress_menu_ = false;
-        return;
-    }
     if (!scene_) return;
     // 【2026-11-15 选中分工+菜单收敛】画布右键菜单只服务银幕——片段无
     // 菜单（删除/属性等片段操作唯一入口 = timeline；此前「删除片段」项
@@ -4602,7 +4378,10 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
             setDisplayConnect(hit.a, !online);
         } else if (chosen == act_black) {
             const std::string pid = scene_->screens[hit.a].player_id;
-            runtime_->setDisplayBlack(QString::fromStdString(pid), !black);
+            // 【2026-11-27 防御】runtime_ 可能未注入（宿主装配前右键）——
+            // 同函数其他 runtime_ 消费点均有守卫，此处补齐同口径
+            if (runtime_)
+                runtime_->setDisplayBlack(QString::fromStdString(pid), !black);
             statusTip(QString("%1 %2")
                           .arg(QString::fromStdString(pid),
                                !black ? "已切黑屏" : "已恢复显示"));
@@ -4629,8 +4408,8 @@ void SceneCanvasWidget::contextMenuEvent(QContextMenuEvent* ev) {
     act_snap->setCheckable(true);
     act_snap->setChecked(snapping_);
     // 【全局透视（Eye 点）入口已退役 2026-11-20 —— 2D 化】视角锁定正俯视、
-    // 素材 pos_z 恒 0，全局透视失去作用对象；openEyeDialog() 函数本体
-    // 保留供回退（对标 drawAxisGizmo 的退役模式）。
+    // 素材 pos_z 恒 0，全局透视失去作用对象；openEyeDialog() 死函数已于
+    // 2026-11-27 删除。
     // 【正交视图开关已退役 2026-11-18】功能及其函数全删——当初为预览
     // 画面而做，现 display 面片已在 3D 视口常驻贴图，预览合成恒与
     // display 同源（透视）。

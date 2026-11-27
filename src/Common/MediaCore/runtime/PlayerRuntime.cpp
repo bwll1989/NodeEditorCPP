@@ -581,18 +581,23 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
     // 第一现场证据（TCP 全双工：只堵这条连接的读，后续帧全排队）。
     {
         static const bool s_dbg = std::getenv("MS_CANVAS_DBG") != nullptr;
-        static long long s_last_ms = 0;
+        // 【L5】atomic——onEnvelope 理论上可多连接并发（每连接一个 recv
+        // 线程），裸 static 竞态；诊断量用 relaxed 原子零成本。语义：多
+        // recv 并发下 last_ms 允许旧值覆盖（丢更）——仅诊断停顿用，非
+        // 因果序/同步依据（F7-j 2026-11-27 确认）。
+        static std::atomic<long long> s_last_ms{0};
         const long long now_ms = tsMs();
-        if (s_dbg && s_last_ms != 0 && now_ms - s_last_ms > 100) {
+        const long long last_ms = s_last_ms.load(std::memory_order_relaxed);
+        if (s_dbg && last_ms != 0 && now_ms - last_ms > 100) {
             std::fprintf(stderr,
                          "[%lld][player] recv 线程停顿 %lldms（本帧含 "
                          "scene=%d ack=%d re_anchor=%d asset_sync=%d）\n",
-                         now_ms, now_ms - s_last_ms,
+                         now_ms, now_ms - last_ms,
                          (int)env.has_scene(), (int)env.has_register_ack(),
                          (int)env.has_re_anchor(), (int)env.has_asset_sync());
             std::fflush(stderr);
         }
-        s_last_ms = now_ms;
+        s_last_ms.store(now_ms, std::memory_order_relaxed);
     }
 
     // ---- 配对认证门卫（cfg_.pairing_code 非空时启用；空 = 全兼容）----
@@ -741,7 +746,7 @@ void PlayerRuntime::onEnvelope(const Envelope& env, std::uint64_t conn_id) {
         std::fprintf(stderr, "[%lld][player] 注册成功 session=%s editor_udp=%s:%u http=%s:%u\n",
                     tsMs(),
                     ack.session_id().c_str(), ack.udp_host().c_str(),
-                    ack.udp_port(), ack.udp_host().c_str(),
+                    ack.udp_port(), editor_host_learned_.c_str(),
                     static_cast<unsigned>(ack.http_port()));
         return;
     }

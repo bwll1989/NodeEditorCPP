@@ -342,9 +342,6 @@ private:
     int     hitVpGizmo(const QPointF& widget_pos) const;
     /// 绘制 VP 三轴 Gizmo（选中 VP 且 F>0 时；蓝 Z 轴拖动 = Eye 高度 F）
     void    drawVpGizmo(QPainter& p) const;
-    /// 全局透视（Eye 点）编辑对话框：焦距 F + 消隐点 X/Y（对标
-    /// WATCHOUT Stage Perspective）——OK 写回 Scene + 重合成 + sceneEdited
-    void openEyeDialog();
 
     // ---- 绘制子过程 ---------------------------------------------------------
     /// 【GL 直通合成】GpuDeliver 交付帧经 GlRenderer(ExternalCtx) 合成进
@@ -417,16 +414,6 @@ private:
                          const double* corner, QPointF out[4]) const;
     /// 视图是否处于"回家"状态（双击空白复位判定 + 右键菜单"重置视图"显隐）
     bool viewIsHome() const;
-    /// 右上角轴球视角控件（Blender navigation gizmo 同位）绘制：
-    /// 三轴投影方向线 + 端点球（正端实心带字母/负端空心），点击端点
-    /// 跳标准视角，球内拖拽 orbit
-    void drawAxisGizmo(QPainter& p) const;
-    /// 轴球命中：返回端点编号 0..4（+X/−X 画布左右、+Z 高度顶视、
-    /// ±Y 画布正/背面——命名=属性面板语义，Z=高度）、球体其它区 = −2、
-    /// 未命中 = −1（编号→视角映射见 applyStandardView）
-    int  hitAxisGizmo(const QPointF& wp) const;
-    /// 跳转标准视角（保持注视点与缩放；仅改 yaw/pitch）
-    void applyStandardView(int axis_end);
     /// 银幕右键「连接/断开显示端」执行：按 screen_idx 解析
     /// display_id = screen.player_id → 桥 setDisplayEnabled（停用立即断开；
     /// 启用交看门狗重连；在线角标随宿主 200ms 拍推送刷新）
@@ -524,13 +511,6 @@ private:
     /// HUD 显示 40% 且视口过挤）。绝对比例 = fitScale × view3d_zoom_，
     /// 每帧 paint/交互前同步进 cam3d_.scale——窗口 resize 自动跟随。
     double   view3d_zoom_  = 1.0;
-    bool     orbiting_      = false;    ///< 右键轨道旋转会话进行中
-    bool     orbit_moved_   = false;    ///< 本次右键会话发生真实位移
-                                         ///  （真位移=旋转视图；无位移=弹菜单）
-    bool     suppress_menu_ = false;    ///< 轨道旋转刚结束 → 吞掉随后的
-                                         ///  contextMenuEvent（Windows 右键
-                                         ///  松开即发菜单事件，不吞则拖完弹菜单）
-    QPointF  orbit_last_pos_{0, 0};     ///< 轨道会话上一点（增量计算）
     bool     dragging_vp_  = false;    ///< 全局消隐点 VP 拖动会话进行中
                                      ///  （3D 视口地面标记；改 persp_vp_x/y）
     // ---- 移动 Gizmo（Blender 式；3D 视口轴约束拖动会话/悬停态）----------

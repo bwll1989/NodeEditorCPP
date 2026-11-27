@@ -47,6 +47,16 @@
 #include <QComboBox>
 #include <QAbstractButton>
 #include <QAbstractSlider>
+// 【2026-11-27 头瘦身配套】pushOscInitialState 控件分支与 Ctrl+左键拖拽
+// eventFilter/剪贴板的完整类型（原来靠 AbstractClipModel.hpp 传递 include，
+// 摘除后本文件自足）
+#include <QSpinBox>
+#include <QLineEdit>
+#include <QLabel>
+#include <QMimeData>
+#include <QMouseEvent>
+#include <QApplication>
+#include <QClipboard>
 
 // 【P3 面板迁库 2026-11-17】原 include "ClipPageHost.h"（P2 页容器装配
 // 接口）随装配收拢退役——通用区装配内化进 ClipPropertyPanel，无需再协商。
@@ -54,9 +64,6 @@
 #include <QDebug>
 #include <QTimer>        // 拆帧显示（2026-11-20）：装配延迟一帧填入
 #include <QElapsedTimer>
-
-// 临时诊断探针（2026-11-25 片段面板内容 2-3s 延迟排查，用完即删）
-#include "PanelTimingProbe.hpp"
 
 void AbstractClipModel::initPropertyWidget()
 {
@@ -126,15 +133,10 @@ void AbstractClipModel::showPropertyWidget()
         // shell_guard（壳被 deleteLater 的理论窗口）。lambda 定义于成员
         // 函数体内——捕获 this 拥有类内访问权限。
         QPointer<QWidget> shell_guard(prop_dialog);
-        QElapsedTimer t_probe; t_probe.start(); // 临时埋点：帧 1 起表
-        QTimer::singleShot(0, this, [this, shell_guard, t_probe]() {
+        QTimer::singleShot(0, this, [this, shell_guard]() {
             if (!shell_guard) return; // 壳已销毁（防御）
-            // 临时埋点：帧 2 被事件循环压后多久（>16ms 即调度延迟非工厂慢）
-            const qint64 loop_ms = t_probe.elapsed();
-            QElapsedTimer tf; tf.start();
             if (!m_clipPropertyWidget)
                 m_clipPropertyWidget = clipPropertyWidget(); // 工厂闭包
-            const qint64 factory_ms = tf.elapsed();
             if (!m_clipPropertyWidget) {
                 qWarning() << "clip-panel 属性面板工厂未返回产物（宿主未"
                               "注入或片段缺位）——对话框空壳";
@@ -142,11 +144,6 @@ void AbstractClipModel::showPropertyWidget()
             }
             if (auto* dlg = qobject_cast<FramelessDialog*>(shell_guard.data()))
                 dlg->bodyLayout()->addWidget(m_clipPropertyWidget);
-            panel_timing::probe(QStringLiteral(
-                "clip=%1 帧2调度延迟=%2ms 工厂+装配=%3ms 合计=%4ms")
-                .arg(displayText(), QString::number(loop_ms),
-                     QString::number(factory_ms),
-                     QString::number(t_probe.elapsed())));
         });
         return;
     }

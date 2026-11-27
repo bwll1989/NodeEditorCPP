@@ -101,7 +101,9 @@ void BaseTracklistView::onDeleteTrack() {
     /**
      * @brief 删除当前选中的轨道
      * @details
-     * persistent editor 的创建/关闭统一收敛到 onUpdateViewport/ensureVisiblePersistentEditors。
+     * persistent editor 的创建/关闭统一收敛到 onUpdateViewport（2026-11-27
+     * 清理：m_openPersistentEditors 缓存从未写入（恒空死机制）已整组删除——
+     * 轨道名平时只画文字，编辑器走 delegate 的临时 editor 语义）。
      */
     if (!Model || !selectionModel()) {
         return;
@@ -120,13 +122,6 @@ void BaseTracklistView::onDeleteTrack() {
     const QModelIndex deleteIndex = Model->index(deleteRow, 0);
     if (indexWidget(deleteIndex)) {
         closePersistentEditor(deleteIndex);
-    }
-
-    // 从缓存中移除该 editor（若启用了可视范围 editor 缓存）
-    for (int i = m_openPersistentEditors.size() - 1; i >= 0; --i) {
-        if (!m_openPersistentEditors[i].isValid() || m_openPersistentEditors[i] == deleteIndex) {
-            m_openPersistentEditors.remove(i);
-        }
     }
 
     Model->onDeleteTrack(deleteRow);
@@ -397,20 +392,7 @@ void BaseTracklistView::onUpdateViewport(){
      * - 对离开可视范围的行按需 closePersistentEditor，避免滚动过程中 editor 只增不减。
      */
     updateScrollBars();
-    ensureVisiblePersistentEditors();
     viewport()->update();
-}
-
-void BaseTracklistView::ensureVisiblePersistentEditors()
-{
-    // 轨道名平时只画文字，不再为可见行打开常驻输入框。
-    // 这里只关掉以前留下的 persistent editor。
-    for (int i = m_openPersistentEditors.size() - 1; i >= 0; --i) {
-        const QPersistentModelIndex& p = m_openPersistentEditors[i];
-        if (p.isValid() && indexWidget(p))
-            closePersistentEditor(p);
-    }
-    m_openPersistentEditors.clear();
 }
 
 /**
@@ -425,7 +407,6 @@ void BaseTracklistView::updatePlayheadHeader()
 void BaseTracklistView::updateScrollBars(){
     if(!model())
         return;
-    int max =0;
     // 2026-11-06 轨道展开：总高 = Σ 各行高（展开行 = trackHeight + 附加高度），
     // 与 TimelineView 同口径（BaseTimeLineModel::totalTracksHeight），保证滚动同步
     verticalScrollBar()->setRange(0, static_cast<BaseTimeLineModel*>(model())->totalTracksHeight()
@@ -758,14 +739,6 @@ void BaseTracklistView::dropEvent(QDropEvent *event) {
         // 只在源和目标不同且都有效时进行移动
         if (sourceRow != targetRow && targetRow >= 0 && sourceRow >= 0) {
             if (Model) {
-                // 移动前关闭当前已打开的 persistent editor（数量应接近可视行数）
-                for (const QPersistentModelIndex& p : m_openPersistentEditors) {
-                    if (p.isValid() && indexWidget(p)) {
-                        closePersistentEditor(p);
-                    }
-                }
-                m_openPersistentEditors.clear();
-
                 Model->onMoveTrack(sourceRow, targetRow);
 
                 // 清除选择和悬停状态（selectionModel 可能由外部注入；兜底情况下也可能为空）

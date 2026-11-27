@@ -37,7 +37,8 @@ namespace ms {
 // ---------------------------------------------------------------------------
 enum class HwAccelType {
     Soft       = 0, ///< 强制软解（诊断基准；库层默认）
-    Auto       = 1, ///< 平台探测链（Windows: D3D11VA→CUDA→Soft）
+    Auto       = 1, ///< 平台探测链（Windows: CUDA→D3D11VA→Soft——2026-11-20
+                    ///  修订 N 卡优先 0 拷贝，见文件头）
     D3D11VA    = 2, ///< Windows D3D11VA（全厂商；产品默认推荐）
     Cuda       = 3, ///< NVIDIA NVDEC/CUDA（可 GL 0 拷贝互操作）
     Vaapi      = 4, ///< Linux VAAPI（Intel/AMD）

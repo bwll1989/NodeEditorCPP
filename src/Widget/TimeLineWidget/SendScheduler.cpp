@@ -211,12 +211,14 @@ bool PlaybackSendScheduler::DmxDecoder::readFrameAt(double seconds) {
 
 /// 当前解码帧 → dmx（ArtnetClipModel::extractDmx 逐行移植）：灰度（GRAY8）
 /// 直读每列像素；非灰度（兼容旧 RGBA 布局）取 R 通道。
+/// 【2026-11-27 性能】复用 dmx[universe] 已分配 QByteArray（ensureOpened
+/// 路径 reserve(h)+push_back 已就位）——原每帧每 universe 新建 512B 满载
+/// 分配，播放期 50Hz×universe 数次堆分配白付。
 void PlaybackSendScheduler::DmxDecoder::extractDmx() {
     if (!frame || !frame->data[0]) return;
     const int usable_width = std::min(w, 512);
     for (int universe = 0; universe < h; ++universe) {
-        QByteArray out;
-        out.resize(512);
+        QByteArray& out = dmx[static_cast<size_t>(universe)]; // 复用缓冲
         out.fill(char(0x00));
         const uint8_t* row = frame->data[0] + universe * frame->linesize[0];
         if (frame->format == AV_PIX_FMT_GRAY8) {
@@ -226,7 +228,6 @@ void PlaybackSendScheduler::DmxDecoder::extractDmx() {
             for (int col = 0; col < usable_width; ++col)
                 out[col] = char(row[col * 4]); // RGBA 步长 4，取 R 通道
         }
-        dmx[static_cast<size_t>(universe)] = out;
     }
 }
 
@@ -324,11 +325,14 @@ void PlaybackSendScheduler::run() {
         ArtnetService* svc = ArtnetService::getInstance();
         const int universe_count = std::min<int>(
             static_cast<int>(run.dec->dmx.size()), run.dec->h);
+        // 【2026-11-27 性能】同拍同帧时间戳一次取值——原每 universe 调一次
+        // QDateTime::currentMSecsSinceEpoch（系统时间调用 ×universe 数）
+        const qint64 now_ms = QDateTime::currentMSecsSinceEpoch();
         for (int idx = 0; idx < universe_count; ++idx) {
             ArtnetFrame f;
             f.host      = seq.host;
             f.sequence  = 0; // 占位——发送侧自增
-            f.timestamp = QDateTime::currentMSecsSinceEpoch();
+            f.timestamp = now_ms;
             f.universe  = static_cast<quint16>(seq.start_universe + idx);
             f.setDmxData(run.dec->dmx[static_cast<size_t>(idx)]);
             svc->updateFrame(f, seq.owner.get());

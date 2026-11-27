@@ -1,5 +1,8 @@
 #include "BaseTrackDelegate.h"
 #include <QTimer>
+// 【2026-11-27 头自足】AbstractClipModel.hpp 摘除 GUI 头后本 TU 需自给
+#include <QHBoxLayout>
+#include <QLineEdit>
 
 BaseTrackDelegate::BaseTrackDelegate(QObject *parent): QAbstractItemDelegate{parent}{};
 

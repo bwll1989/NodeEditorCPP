@@ -460,8 +460,10 @@ private:
     /// 挂在播放头两落点（onSetPlayheadPos 手动 seek / setPlayheadFromRuntimeUs
     /// 播放回显）——同一检测保证 scrub 与播放语义一致。同区间内持续推进
     /// 不重触发（prev 已 >= start）；后退跨出后再次进入重新武装。
-    /// 【2026-11-15 扩展】同链对全部片段调用 onPlayheadAdvanced 虚钩子
-    ///（Artnet 逐帧解码/Mapping 逐帧求值的类型专属播放挂点，见 BaseClass）。
+    /// 【2026-11-15 扩展→2026-11-27 退役】本链曾同调 onPlayheadAdvanced 虚钩子
+    ///（Artnet/Mapping 类型专属播放挂点）；播放驱动已移交 PlaybackSendScheduler
+    /// 独立线程（快照直读工作副本），虚钩子已从 BaseClass 删除，本链只保
+    /// Control 触发检测语义。
     void updateControlTriggers(std::int64_t now_us);
     /// 上一拍播放头（μs；-1 = 未初始化——首拍只建立基线不触发）
     std::int64_t prev_playhead_us_ = -1;

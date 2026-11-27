@@ -167,7 +167,7 @@ bool StandaloneApi::parseDoc(const std::string& body, TimelineDoc& doc, std::str
         if (!tracksVar.isEmpty()) {
             const auto tracks = tracksVar.extract<Poco::JSON::Array::Ptr>();
             for (std::size_t ti = 0; ti < tracks->size(); ++ti) {
-                const auto trVar = tracks->get(ti);
+                const auto trVar = tracks->get(static_cast<unsigned int>(ti));
                 if (trVar.isEmpty()) continue;
                 const auto tr = trVar.extract<Poco::JSON::Object::Ptr>();
                 TrackSpec t;
@@ -176,7 +176,7 @@ bool StandaloneApi::parseDoc(const std::string& body, TimelineDoc& doc, std::str
                 if (!clipsVar.isEmpty()) {
                     const auto clips = clipsVar.extract<Poco::JSON::Array::Ptr>();
                     for (std::size_t ci = 0; ci < clips->size(); ++ci) {
-                        const auto clVar = clips->get(ci);
+                        const auto clVar = clips->get(static_cast<unsigned int>(ci));
                         if (clVar.isEmpty()) continue;
                         const auto cl = clVar.extract<Poco::JSON::Object::Ptr>();
                         ClipSpec c;
@@ -816,38 +816,67 @@ void StandaloneApi::handleMpcdiUpload(RouteCtx& ctx) {
                 }
                 filename_ = filename;   // 落盘名（finish 用）
                 if (!svc_.upload_begin(filename, temp_, err_)) return;
+                // 【F2】句柄外提 + 写失败检查（对齐 raw 路径 :908-938 修法）：
+                // 打开/写失败均为服务端故障 → server_err_（500 INTERNAL）；
+                // 原实现 write 返回值不查，磁盘满静默截断成坏包落位。
+                ofs_.open(temp_, std::ios::binary | std::ios::app);
+                if (!ofs_) {
+                    ofs_.close();
+                    svc_.discard_upload_temp(temp_);
+                    temp_.clear();
+                    err_ = "cannot write temp file";
+                    server_err_ = true;
+                    return;
+                }
                 char buf[64 * 1024];
                 while (stream.good()) {
                     stream.read(buf, sizeof(buf));
                     auto n = stream.gcount();
                     if (n <= 0) break;
                     if (written_ + static_cast<std::size_t>(n) > max_bytes_) {
+                        ofs_.close();
                         svc_.discard_upload_temp(temp_);
                         temp_.clear();
                         err_ = "upload too large";
                         return;
                     }
-                    std::ofstream ofs(
-                        temp_, std::ios::binary | std::ios::app);
-                    if (!ofs) {
+                    ofs_.write(buf, n);
+                    if (!ofs_) {
+                        ofs_.close();
                         svc_.discard_upload_temp(temp_);
                         temp_.clear();
                         err_ = "cannot write temp file";
+                        server_err_ = true;
                         return;
                     }
-                    ofs.write(buf, n);
                     written_ += static_cast<std::size_t>(n);
                 }
+                ofs_.close();
                 got_file_ = true;
             }
 
             MpcdiService& svc_;
             std::size_t max_bytes_;
+            // 【F2】写句柄全程单开——原每 64KB 循环体内重开 ofstream
+            //（open/append/close ×N，2GB = 3 万余次；multipart 是网页上传
+            // 主路径 web/app.js FormData → 本分支，非兜底）。
+            std::ofstream ofs_;
             std::string temp_;
             std::size_t written_ = 0;
             std::string filename_ = "package.mpcdi";
             bool got_file_ = false;
+            bool server_err_ = false;   ///< 打开/写失败 = 服务端故障（500
+                                        ///  INTERNAL；其余 err_ 归客户端 4xx）
             std::string err_;
+
+            ~MpcdiPart() {
+                // 兜底：异常/错误路径未走到显式 discard 时防 temp 孤儿；
+                // Windows 下须先关句柄再删文件（句柄未开时 remove 静默
+                // 失败）。成功路径 temp 已被 finish 改名搬走，remove 为
+                // 无害 no-op。
+                if (ofs_.is_open()) ofs_.close();
+                if (!temp_.empty()) svc_.discard_upload_temp(temp_);
+            }
 
             bool finish(std::string& package_id) {
                 if (!got_file_) return false;
@@ -859,14 +888,21 @@ void StandaloneApi::handleMpcdiUpload(RouteCtx& ctx) {
         try {
             Poco::Net::HTMLForm form(req, req.stream(), part);
         } catch (const Poco::Exception& ex) {
-            if (!part.temp_.empty()) m.discard_upload_temp(part.temp_);
+            // temp 清理由 ~MpcdiPart 兜底（ofs_ 句柄须先关再删，Windows 下
+            // 句柄未关时 discard 静默失败留孤儿临时文件）
             send_json(resp, 400, err_json("BAD_REQUEST", ex.displayText()));
             return;
         }
         if (!part.err_.empty()) {
             if (!part.temp_.empty()) m.discard_upload_temp(part.temp_);
-            send_json(resp, part.err_ == "upload too large" ? 413 : 400,
-                      err_json("BAD_REQUEST", part.err_));
+            if (part.server_err_) {
+                // 服务端故障（打开/写失败）：500 INTERNAL，与 raw 路径语义
+                // 统一（原 400 BAD_REQUEST 误导客户端按请求问题重试）
+                send_json(resp, 500, err_json("INTERNAL", part.err_));
+            } else {
+                send_json(resp, part.err_ == "upload too large" ? 413 : 400,
+                          err_json("BAD_REQUEST", part.err_));
+            }
             return;
         }
         if (!part.got_file_) {
@@ -907,24 +943,35 @@ void StandaloneApi::handleMpcdiUpload(RouteCtx& ctx) {
     }
     char buf[64 * 1024];
     std::size_t written = 0;
+    // 【P1】写句柄提到循环外——原每 64KB 块重开 ofstream（open/append/close
+    // 循环体 ×N 次，2GB 上传 = 3 万余次文件打开）。打开失败/写失败均为
+    // 服务端故障：500 + INTERNAL（原 500+BAD_REQUEST 语义矛盾，B2 修订）。
+    std::ofstream ofs(temp, std::ios::binary | std::ios::app);
+    if (!ofs) {
+        m.discard_upload_temp(temp);
+        send_json(resp, 500, err_json("INTERNAL", "cannot write temp"));
+        return;
+    }
     while (req.stream().good()) {
         req.stream().read(buf, sizeof(buf));
         auto n = req.stream().gcount();
         if (n <= 0) break;
         if (written + static_cast<std::size_t>(n) > max_bytes) {
+            ofs.close();
             m.discard_upload_temp(temp);
             send_json(resp, 413, err_json("BAD_REQUEST", "upload too large"));
             return;
         }
-        std::ofstream ofs(temp, std::ios::binary | std::ios::app);
+        ofs.write(buf, n);
         if (!ofs) {
+            ofs.close();
             m.discard_upload_temp(temp);
-            send_json(resp, 500, err_json("BAD_REQUEST", "cannot write temp"));
+            send_json(resp, 500, err_json("INTERNAL", "cannot write temp"));
             return;
         }
-        ofs.write(buf, n);
         written += static_cast<std::size_t>(n);
     }
+    ofs.close();
     std::string package_id;
     if (!m.upload_finish(temp, filename, package_id, err)) {
         m.discard_upload_temp(temp);
@@ -1003,8 +1050,8 @@ std::string validateSetting(const std::string& sec, const std::string& key,
     if (key == "mode" && value != "standalone" && value != "sync")
         return "仅支持 standalone/sync";
     if (key == "render_backend" && !value.empty() &&
-        value != "gl" && value != "d3d11")
-        return "仅支持 gl/d3d11";
+        value != "gl" && value != "soft")
+        return "仅支持 gl/soft";
     static const char* kAccel[] = {"d3d11va", "cuda", "nvdec", "vaapi",
                                    "mediacodec", "auto", "soft", "off", "none"};
     if (key == "hw_accel") {
@@ -1129,6 +1176,10 @@ bool StandaloneApi::routeSettings(RouteCtx& ctx) {
         emit_str("node", "mode");
         data << "\"__stub\":1},";
         // display（数值缺键默认与 main Args 内置默认同源）
+        // 【F7-f 已知不一致】本段回显 ini 登记值，render_backend/hw_accel
+        // 的运行时回落（如 gl→soft）不在此校准——顶层缺 effective 字段
+        //（修法照上方 node.mode 先例）；解锁=前端消费点确认后下批加，
+        // 勿提前改。
         data << "\"display\":{";
         emit_str("display", "player_id");   emit_long("display", "listen_port", 17100);
         emit_str("display", "assets_root"); emit_long("display", "asset_workers", 3);

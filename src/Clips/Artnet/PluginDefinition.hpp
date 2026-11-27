@@ -3,7 +3,9 @@
 //
 //  【2026-11-15 片段移植】自节点体系 src/Nodes/TimeLineNode/artnetclipmodel
 //  （NodeClipDelegateModel 帧域 + currentData 拉取驱动）移植为磁盘插件
-//  （SceneClipModel μs 域 + onPlayheadAdvanced 推送驱动）。文件组织对齐
+//  （SceneClipModel μs 域；播放驱动 2026-11-22 起由 PlaybackSendScheduler
+//  独立线程直读工作副本快照，模型侧 onPlayheadAdvanced 推送钩子已于
+//  2026-11-27 退役删除）。文件组织对齐
 //  Control 插件基准（PluginDefinition.hpp/.cpp + 类型模型独立头；类名统一
 //  Plugin）。业务接口 = BaseClass 的 ClipPlugInterface
 // （clipType/createModel/createPropertySection），Q_PLUGIN_METADATA 供

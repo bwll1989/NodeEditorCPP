@@ -298,7 +298,8 @@ private:
     // endFrame/readPixels 解绑后按 mesh 把 FBO 纹理贴到后备缓冲 → 呈现。
     // 任何环节失败 → warp_failed_ 永久降级直出（变形绝不黑屏）。
     WarpSpec     warp_;             ///< 当前变形网格（setWarp 注入，渲染线程独占）
-    bool         warp_dirty_ = false; ///< 网格变化标记（首帧激活/更新用）
+    bool         warp_dirty_ = false; ///< 网格变化标记（mesh 缓存失效——
+                                      ///  warpBlit 重填后清除）
     bool         warp_failed_ = false; ///< FBO 创建失败（本会话永久降级直出）
     unsigned int fbo_     = 0;     ///< 离屏帧缓冲对象
     unsigned int fbo_tex_ = 0;     ///< 离屏颜色纹理（合成画布 1:1 内容）
@@ -306,7 +307,12 @@ private:
     int          fbo_h_   = 0;     ///< FBO 当前分配高
     bool warped_this_frame_ = false; ///< 本帧已执行变形呈现（幂等守卫——
                                     ///  readPixels 先到 blit 后 endFrame 不重复）
-    std::vector<float> warp_mesh_;  ///< mesh 顶点缓存（复用容量，逐帧重填）
+    std::vector<float> warp_mesh_;  ///< mesh 顶点缓存（容量复用；仅 dirty 重填）
+    int mesh_client_w_ = 0;         ///< 【F1】mesh 重建时的客户区宽（缓存键
+                                    ///  二元组之二：buildWarpMesh 顶点 =
+                                    ///  归一化 pts × clientW/H，resize 后
+                                    ///  必须失效重填，否则占屏比例错位）
+    int mesh_client_h_ = 0;         ///< 【F1】mesh 重建时的客户区高（同上）
 
     // ---- 实际呈现帧率统计（MS_CANVAS_DBG=1 门控打印；渲染线程独占）----
     // 【2026-11-05 新增】player 诊断心跳的 frame 字段是播放头换算值

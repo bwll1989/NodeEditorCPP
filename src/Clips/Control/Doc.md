@@ -25,4 +25,4 @@ Control 指令片段（时间轴片段类型，type = `"Control"`）——合并
 ---
 
 ## 属性面板
-三页式面板装配与 schema 化设计见 [`../../Common/ClipPanelBase/Doc.md`](../../Common/ClipPanelBase/Doc.md)。场景全量下发、display 端无渲染 creator（执行在宿主 onPlayheadAdvanced）；动画页按 schema 可见性隐藏。
+三页式面板装配与 schema 化设计见 [`../../Common/ClipPanelBase/Doc.md`](../../Common/ClipPanelBase/Doc.md)。场景全量下发、display 端无渲染 creator（执行在宿主适配器 updateControlTriggers 播放头两落点）；动画页按 schema 可见性隐藏。

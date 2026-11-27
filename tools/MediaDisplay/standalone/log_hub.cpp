@@ -317,7 +317,7 @@ void install(bool tee_console) {
     ::_dup2(write_fd, 1);
     ::_dup2(write_fd, 2);
     ::_close(write_fd);
-    // 管道写端默认全缓冲——日志全延迟到 4KB/退出才到读线程， unacceptable；
+    // 管道写端默认全缓冲——日志全延迟到 4KB/退出才到读线程，不可接受；
     // 双双改无缓冲：每条 fprintf 立即到达读线程（日志场景系统调用开销无感）
     ::setvbuf(stdout, nullptr, _IONBF, 0);
     ::setvbuf(stderr, nullptr, _IONBF, 0);

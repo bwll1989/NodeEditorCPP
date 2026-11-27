@@ -60,9 +60,6 @@
 #include <QElapsedTimer>
 #include "FramelessDialog/FramelessDialog.hpp" // 片段属性弹窗宿主（统一无边框风格）
 
-// 临时诊断探针（2026-11-25 片段面板内容 2-3s 延迟排查，用完即删）
-#include "PanelTimingProbe.hpp"
-
 #include <algorithm>
 #include <cmath>
 
@@ -433,22 +430,30 @@ void QtTimelineModelAdapter::configureClipPanel(SceneClipModel* sc,
                                                 const std::string& clip_id,
                                                 const QString& type) {
     if (!sc) return;
-    // 工厂闭包捕获适配器 this、片段 id（回写定位锚）与轨道类型（候选过滤）
+    // 【2026-11-27 UAF 面修复】闭包存进长寿命 SceneClipModel——适配器先亡
+    // 时被调即 UAF。统一 QPointer 守卫（与 572 行 aguard 同构）：适配器
+    // 已亡 → 工厂返回 nullptr（面板退化为库通用区）/写回返回 false（模型
+    // 下一拍 sync 重灌对齐）。
+    QPointer<QtTimelineModelAdapter> aguard(this);
+    // 工厂闭包捕获适配器守卫、片段 id（回写定位锚）与轨道类型（候选过滤）
     sc->setClipPanelFactory(
-        [this, clip_id, type]() -> QWidget* {
-            return makeClipPropertyPanel(clip_id, type);
+        [aguard, clip_id, type]() -> QWidget* {
+            return aguard ? aguard->makeClipPropertyPanel(clip_id, type)
+                          : nullptr;
         });
     // 关键帧写回闭包组：时间轴片段带编辑（合并菱形拖拽/右键删除）→ 模型
     // 镜像先行 → 各自闭包 → applyTweenKey*（us 落盘 + sceneEdited + 面板
-    // 广播）。返回 false = 拒绝（片段已删/无键可动），模型据此在下一拍
-    // sync 重灌对齐；拖拽路径高频调用可忽略返回值。
+    // 广播）。返回 false = 拒绝（片段已删/无键可动/适配器已亡），模型据此
+    // 在下一拍 sync 重灌对齐；拖拽路径高频调用可忽略返回值。
     sc->setTweenKeyFrameMoveHandler(
-        [this, clip_id](double old_frame, double new_frame) -> bool {
-            return applyTweenKeyFrameMove(clip_id, old_frame, new_frame);
+        [aguard, clip_id](double old_frame, double new_frame) -> bool {
+            return aguard &&
+                   aguard->applyTweenKeyFrameMove(clip_id, old_frame, new_frame);
         });
     sc->setTweenKeyRemoveHandler(
-        [this, clip_id](int channel, int key) -> bool {
-            return applyTweenKeyRemove(clip_id, channel, key);
+        [aguard, clip_id](int channel, int key) -> bool {
+            return aguard &&
+                   aguard->applyTweenKeyRemove(clip_id, channel, key);
         });
     std::fprintf(stderr, "clip-panel: 工厂已注入 clip=%s type=%s\n",
                  clip_id.c_str(), type.toUtf8().constData());
@@ -463,7 +468,6 @@ void QtTimelineModelAdapter::configureClipPanel(SceneClipModel* sc,
 // ---------------------------------------------------------------------------
 QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
         const std::string& clip_id, const QString& type) {
-    QElapsedTimer tp; tp.start(); // 临时埋点（2026-11-25，用完即删）
     // 出口 1：宿主未注入 hooks（单测环境/时序异常）——退化为纯通用区
     if (!hooks_.import_media) {
         std::fprintf(stderr,
@@ -482,8 +486,6 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
         return nullptr;
     }
     const AssetKind kind = kindForType(type);
-    panel_timing::probe(QStringLiteral("clip=%1 工厂进入 定位=%2ms")
-        .arg(QString::fromStdString(clip_id), QString::number(tp.elapsed())));
     // 【P2-B 元数据下放 2026-11-17】插件工厂查询前置：页 3 专属区工厂与
     // 类型显示元数据（clipDisplayName/hasMediaBinding/bindingHint）同源
     // ——类型显示知识归插件声明，宿主 if 链退役（新类型零宿主改动）。
@@ -526,8 +528,6 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
     // 通用区装配职责随面板迁库收拢进构造。
     auto* panel = new ClipPropertyPanel(*c, categoryForKind(kind), binding_name,
                                         findClipModelByAnchor(clip_id));
-    panel_timing::probe(QStringLiteral("clip=%1 通用面板构造 累计=%2ms")
-        .arg(QString::fromStdString(clip_id), QString::number(tp.elapsed())));
     // 【P2-B】媒体区显隐 = 插件声明（原 Live/Text/Control/Artnet/Mapping
     // 五类型 if 链退役——声明在各自插件 hasMediaBinding()）
     if (factory && !factory->hasMediaBinding())
@@ -536,14 +536,24 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
     // 等一切工作副本变化经 refreshClipPanels 灌进本面板（非焦点控件）。
     // 面板销毁由 QPointer 自动感知，广播时惰性清理，无需关闭回调。
     panel_refs_[clip_id].push_back({panel, PanelRef::Kind::Generic});
-    // 写回闭包：QPointer 守护（组合面板/面板可能先于适配器销毁）
+    // 写回闭包：QPointer 双守护（组合面板/面板可能先于适配器销毁；
+    // 2026-11-27 补适配器守卫——闭包存进面板，适配器先亡时被调即 UAF）。
+    // 【前提 F7-e】回调恒在 UI 线程触发——QPointer 的悬垂判定依赖所属
+    // 线程的 destroyed 信号，跨线程回调此守卫不成立。
     QPointer<ClipPropertyPanel> guard(panel);
-    panel->setApplier([this, clip_id, guard]() {
-        if (!guard) return; // 面板已销毁（信号队列残留），忽略
+    QPointer<QtTimelineModelAdapter> aguard(this);
+    panel->setApplier([this, aguard, clip_id, guard]() {
+        if (!aguard || !guard) return; // 面板/适配器已销毁（信号队列残留），忽略
         applyClipPanelMerge(clip_id, guard.data());
     });
-    panel->setImporter([this, kind](const QString& file, std::string& err) {
-        return hooks_.import_media(file, kind, err);
+    // 【2026-11-27 UAF 面修复】导入闭包原先裸捕获 this——闭包存进面板
+    // std::function，适配器先亡时被调即 UAF；套 aguard 守卫（与 configure
+    // ClipPanel 修法同构）。
+    QPointer<QtTimelineModelAdapter> iguard(this);
+    panel->setImporter([iguard, kind](const QString& file, std::string& err)
+                           -> Asset {
+        if (!iguard) { err = "timeline adapter destroyed"; return {}; }
+        return iguard->hooks_.import_media(file, kind, err);
     });
 
     // ---- 变换与关键帧合并区（2026-11-06 方案 A，全类型片段追加）------------
@@ -644,11 +654,7 @@ QWidget* QtTimelineModelAdapter::makeClipPropertyPanel(
             panel->appendSection(sec, factory->clipDisplayName());
             panel_refs_[clip_id].push_back({sec, PanelRef::Kind::Section});
         }
-        panel_timing::probe(QStringLiteral("clip=%1 专属区装配 累计=%2ms")
-            .arg(QString::fromStdString(clip_id), QString::number(tp.elapsed())));
     }
-    panel_timing::probe(QStringLiteral("clip=%1 工厂返回 总计=%2ms")
-        .arg(QString::fromStdString(clip_id), QString::number(tp.elapsed())));
     return panel;
 }
 
@@ -1405,9 +1411,10 @@ void QtTimelineModelAdapter::updateControlTriggers(std::int64_t now_us) {
                     }
                 }
             }
-            // 【2026-11-22 治本】clip->onPlayheadAdvanced(prev, now_us) 已
-            // 移除——Mapping/Artnet 逐帧播放逻辑随插件迁调度线程（虚钩子
-            // 保留在基类，暂无 GUI 消费者；模型实现保留一版作回滚路径）。
+            // 【2026-11-22 治本→2026-11-27 退役】clip->onPlayheadAdvanced(prev,
+            // now_us) 已从 BaseClass 删除——Mapping/Artnet 逐帧播放逻辑在
+            // PlaybackSendScheduler 独立线程（快照直读工作副本），本链只保
+            // Control 触发检测语义。
         }
     }
 }

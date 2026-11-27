@@ -13,6 +13,8 @@
 #include <QColor>
 #include <QDataStream>
 #include <QFont>
+#include <QIODevice> // QIODevice::WriteOnly（2026-11-27 头自足——原靠
+                     // AbstractClipModel.hpp 传递 include）
 #include <QPainter>
 #include <QPixmap>
 #include <QMimeData>

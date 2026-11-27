@@ -222,12 +222,6 @@ struct Args {
     /// 旧版 CPU 画布 + GDI 预览窗。默认 gl（GL 初始化失败自动告警，
     /// 可 --render-backend=soft 显式回退）。
     std::string render_backend = "gl";
-    /// [display] gl_single_buffer：【已废弃 2026-11-04】单缓冲兼容模式在
-    /// 呈现冻结排查中实证无效（清屏色循环实验：单/双缓冲窗口均恒首帧色），
-    /// 已按 MMC（MPV_Media_Console）呈现模型移除——恒双缓冲 + SwapBuffers
-    /// + vsync(1)。键保留解析仅为兼容旧 config.ini（配置了也不生效，
-    /// 仅打一条废弃告警），后续版本可移除。
-    long gl_single_buffer = 0;
     /// [display] borderless：无边框窗口（2026-11-04 用户决策——媒体服务
     /// 器输出窗不做系统装饰）。WS_POPUP 无边框无标题栏，几何仍按
     /// screen/window_* 配置定位；关闭靠 Alt+F4 / 任务栏右键。
@@ -301,15 +295,12 @@ Args loadDefaultsFromIni(const ms::config::IniConfig& ini) {
     a.quit_after_ms     = ini.getLong("display", "quit_after_ms", 0);
     a.pairing_code      = ini.getStr("display", "pairing_code");
     a.no_preview        = ini.getLong("display", "no_preview", 0) != 0;
-    // 【默认 cuda（2026-11-05 修订，2026-11-06 落实）】此前此兜底仍写
-    // d3d11va——键不存在时把结构体的 cuda 修订静默覆盖回 d3d11va（无
-    // ini 用户永远走下载路径）。无 N 卡机器 cuda 探测失败运行时自动
-    // 回退软解，无黑屏风险；与结构体默认/注释三处对齐。
+    // 【hw_accel 缺省 auto】ini 键缺失时回落 auto（运行时探测硬解可用性，
+    // 失败自动回退软解——无黑屏风险；与结构体默认/网页选项对齐）。
     a.hw_accel          = ini.getStr("display", "hw_accel", "auto");
     a.render_backend    = ini.getStr("display", "render_backend", "gl");
     a.audio_enable      = ini.getLong("display", "audio_enable", 1) != 0;
     a.audio_device      = ini.getStr("display", "audio_device");
-    a.gl_single_buffer  = ini.getLong("display", "gl_single_buffer", 0);
     a.borderless        = ini.getLong("display", "borderless", 1);
     a.topmost           = ini.getLong("display", "topmost", 1);
     a.mcast_localaddr   = ini.getStr("display", "mcast_localaddr");
@@ -372,10 +363,15 @@ std::optional<Args> parseArgs(int argc, char** argv, const Args& defaults) {
             args.hw_accel = *v; // 硬解后端覆盖（ini [display].hw_accel）
         } else if (auto v = value_of("render-backend")) {
             args.render_backend = *v; // 合成后端覆盖（ini [display].render_backend）
-        } else if (value_num("gl-single-buffer", args.gl_single_buffer)) {
-            // 【已废弃 2026-11-04】GL 单缓冲兼容模式已随 MMC 呈现模型对齐
-            // 移除（单/双缓冲呈现冻结实证，见 GlContextWGL.hpp 注释）——
-            // 参数保留仅为兼容旧脚本，配置了只打告警不生效。
+        } else if (arg.rfind("--gl-single-buffer=", 0) == 0 ||
+                   arg == "--gl-single-buffer") {
+            // 【已废弃 2026-11-04，2026-11-27 字段移除】GL 单缓冲兼容模式
+            // 已随 MMC 呈现模型对齐移除（单/双缓冲呈现冻结实证）——参数
+            // 保留仅打告警（对齐 --editor 废弃模式），旧脚本不炸。
+            // 裸名（无 =值）同样命中告警（F7-b：原先落进未知参数分支，
+            // 与废弃告知意图矛盾）。
+            std::fprintf(stderr, "提示: --gl-single-buffer 已废弃不生效"
+                                 "（呈现模型恒双缓冲 + SwapBuffers + vsync）\n");
         } else if (value_num("borderless", args.borderless)) {
             // 无边框窗口开关（ini [display].borderless）
         } else if (value_num("topmost", args.topmost)) {
@@ -398,7 +394,16 @@ std::optional<Args> parseArgs(int argc, char** argv, const Args& defaults) {
         } else if (value_num("http-port", args.http_port)) {
             // standalone 控制面端口（ini [standalone].http_port；0=不启用）
         } else if (value_num("max-upload-mb", args.max_upload_mb)) {
-            // 网页上传上限（ini [standalone].max_upload_mb）
+            // 网页上传上限（ini [standalone].max_upload_mb；0=不限）
+            // 【D5】负值 fail-fast（对齐未知参数惯例）——显式传错值静默
+            // 回落 ini，会让运维脚本带着非预期限制上线（退出比拒收参数
+            // 更可预期：脚本直接看到非零退出码）。ini 侧负值行为本批不动。
+            if (args.max_upload_mb < 0) {
+                std::fprintf(stderr,
+                             "错误: --max-upload-mb 需 ≥0（0=不限），收到 %ld\n",
+                             args.max_upload_mb);
+                return std::nullopt;
+            }
         } else if (auto v = value_of("timelines-dir")) {
             args.timelines_dir = *v; // 网页编排时间轴文档目录（ini
                                      // [standalone].timelines_dir；空=exe/timelines）
@@ -455,9 +460,6 @@ void printUsage() {
         "      终端/脚本排障时加此参数同步回显到控制台）\n"
         "      [--render-backend=gl|soft]（合成后端：gl=GPU shader 合成（默认，\n"
         "      GL 窗口即输出窗口）；soft=CPU 画布 + GDI 预览窗）\n"
-        "      [--gl-single-buffer=0|1]（GL 单缓冲兼容模式，默认 1：GL 渲染\n"
-        "      直绘主表面，任何观看环境（含远程桌面/锁屏会话）都可靠上屏；\n"
-        "      0 = 双缓冲 flip——正常桌面最低延迟，远程会话可能恒黑）\n"
         "      [--borderless=0|1]（无边框窗口，默认 1：无标题栏边框的输出\n"
         "      窗，几何按 screen/window_* 定位；0 = 保留系统边框）\n"
         "      [--topmost=0|1]（窗口强制置顶，默认 1：输出窗压在所有普通\n"
@@ -698,27 +700,8 @@ void registerDemoTimeline(ms::standalone::TimelineRegistry& registry,
 int runDisplay(const Args& args, const ms::config::IniConfig& ini,
                const std::string& config_write_path) {
     // 崩溃捕获已前移至 main 首行（覆盖 INI/路径加载盲区）。
-
-#if defined(_WIN32)
-    // ---- 禁用控制台 QuickEdit（2026-11-17 停止后画面冻结头号嫌疑）--------
-    // 渲染线程（audio lvl 1s 心跳）/tick/recv 线程全程写 stderr——Windows
-    // 控制台是同步阻塞 I/O，一旦用户在控制台窗口点过鼠标（进入选择态，
-    // QuickEdit 默认开启），所有写 stderr 的线程被无限期挂起：渲染线程
-    // 冻结 → 输出表面停在最后一帧。命令链（TCP/tick）日志少不受影响
-    // ——恰好构成"锚点已应用 state=0，但画面迟迟不切"的现象组合。
-    // 禁用 QuickEdit = 鼠标点控制台不再进入选择态（滚动查看仍可用滚轮）。
-    {
-        const HANDLE hin = ::GetStdHandle(STD_INPUT_HANDLE);
-        DWORD mode = 0;
-        if (hin != INVALID_HANDLE_VALUE && ::GetConsoleMode(hin, &mode)) {
-            ::SetConsoleMode(hin, (mode & ~ENABLE_QUICK_EDIT_MODE) |
-                                      ENABLE_EXTENDED_FLAGS);
-            std::printf("[display] 控制台 QuickEdit 已禁用（防选择态挂起"
-                        "写日志线程）\n");
-            std::fflush(stdout);
-        }
-    }
-#endif
+    // 控制台 QuickEdit 禁用已在 main 流程完成（先于本函数——线程启动前
+    // 生效，见 main 内 2026-11-16 注释）。
 
     // ---- 版本横幅（2026-11-15 对齐 Flow 版本号口径；status API/网页/窗标题同源）----
     std::printf("[display] FlowDisplay v%s\n", DISPLAY_VERSION);
@@ -940,11 +923,6 @@ int runDisplay(const Args& args, const ms::config::IniConfig& ini,
         // 强制置顶透传到 GL 建窗（WS_EX_TOPMOST；默认开——输出窗被遮挡
         // 即输出中断，2026-11-26 用户需求）
         g.topmost = (args.topmost != 0);
-        if (args.gl_single_buffer != 0) {
-            std::fprintf(stderr, "[display] 提示: gl_single_buffer 已废弃"
-                                 "（呈现模型已对齐 MMC：恒双缓冲 + SwapBuffers"
-                                 " + vsync）\n");
-        }
         if (args.borderless != 0) {
             std::fprintf(stderr, "[display] 无边框窗口: 开（媒体输出纯净"
                                  "呈现；关闭用 Alt+F4 / 任务栏右键）\n");
@@ -1465,12 +1443,12 @@ int main(int argc, char** argv) {
 #ifdef _WIN32
     // 【QuickEdit 禁用 2026-11-16】Windows 控制台默认 QuickEdit 模式：
     // 鼠标拖选文本即进入选择模式，此后**所有写控制台的 I/O 无限期挂起**
-    // 直至用户按键取消选择（本文件下方 2026-11-05 注释已实锤该机制）。
-    // 实测触发链：用户看到"时钟校准"日志 → 拖选复制 → 主线程 settleProbe
-    // 的 printf 挂在控制台写 + 持有 probe_mutex_ → recv 线程 onProbeResponse
-    // 抢锁连锁挂死 → UDP 心跳停摆，整个 display 表现为"打印时钟校准时卡死"。
-    // 禁用后拖选不再冻结程序（ENABLE_EXTENDED_FLAGS 必须同设，否则
-    // quick-edit 位不生效——Win32 文档要求）。
+    // 直至用户按键取消选择。实测触发链：用户看到"时钟校准"日志 →
+    // 拖选复制 → 主线程 settleProbe 的 printf 挂在控制台写 + 持有
+    // probe_mutex_ → recv 线程 onProbeResponse 抢锁连锁挂死 → UDP 心跳
+    // 停摆，整个 display 表现为"打印时钟校准时卡死"。禁用后拖选不再
+    // 冻结程序（ENABLE_EXTENDED_FLAGS 必须同设，否则 quick-edit 位不
+    // 生效——Win32 文档要求）。
     {
         HANDLE cin = ::GetStdHandle(STD_INPUT_HANDLE);
         DWORD mode = 0;

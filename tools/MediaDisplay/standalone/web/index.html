@@ -279,12 +279,12 @@
           <label title="素材库根目录（网页媒体库扫描/上传/片段寻址基准）">
             素材根目录<input v-model.trim="st.display.assets_root" placeholder="空 = exe 目录"></label>
           <label>渲染帧率<input v-model.number="st.display.render_fps" type="number" min="0" max="240" step="5"></label>
-          <label title="gl=GPU shader 合成（推荐）；d3d11=Direct3D 11 直绘（远程桌面/锁屏可靠上屏）">
+          <label title="gl=GPU shader 合成（推荐）；soft=CPU 画布 + GDI 预览窗（GL 不可用时的回退）">
             合成后端
             <select v-model="st.display.render_backend">
               <option value="" disabled>（当前未设置）</option>
               <option value="gl">gl（GPU 合成）</option>
-              <option value="d3d11">d3d11（远程会话可靠）</option>
+              <option value="soft">soft（CPU 回退）</option>
             </select>
           </label>
           <label>硬解

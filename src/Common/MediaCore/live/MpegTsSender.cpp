@@ -266,7 +266,12 @@ bool MpegTsSender::encodeAndSend(const LiveFrame& frame) {
         first_pts_us_ = frame.pts_us != 0 ? frame.pts_us : av_gettime();
     const std::int64_t stamp =
         frame.pts_us != 0 ? frame.pts_us : av_gettime();
-    a->pts = av_rescale_q(stamp - first_pts_us_,
+    // 【L6 负 PTS 防御】stamp 早于首帧锚（时钟回拨/乱序历史帧）→ 差为负，
+    // 编码器拒收负 PTS（send_frame 报错）。钳 0 破坏单调性（重复 0 同样
+    // 报错），直接丢帧——live 恒最新帧语义，丢历史帧无害。
+    const std::int64_t delta_us = stamp - first_pts_us_;
+    if (delta_us < 0) return true;
+    a->pts = av_rescale_q(delta_us,
                           AVRational{1, 1000000}, a->enc->time_base);
 
     if (a->nvenc_rgba) {

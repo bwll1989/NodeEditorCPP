@@ -141,6 +141,10 @@ bool compileShader(unsigned int type, const char* src, unsigned int& out) {
         char log[1024] = "";
         gl::glGetShaderInfoLog(out, sizeof(log), nullptr, log);
         std::fprintf(stderr, "[gl] 着色器编译失败: %s\n", log);
+        // 【B3】失败路径删除已建 shader 对象（原泄漏；GL 对象直到上下文
+        // 销毁才被驱动回收）
+        gl::glDeleteShader(out);
+        out = 0;
         return false;
     }
     return true;
@@ -215,7 +219,8 @@ void GlRenderer::beginFrame(int w, int h) {
                          "[gl] 输出变形已启用: mode=%d 网格 %dx%d\n",
                          warp_.mode, warp_.cols, warp_.rows);
             std::fflush(stderr);
-            warp_dirty_ = false;
+            // 【P3】dirty 清位迁至 warpBlit（mesh 重填完成后）——原在此处
+            // 清掉后 warpBlit 仍每帧无条件重建 mesh（参数不变纯浪费）
         }
         if (ensureFbo(w, h))
             gl::glBindFramebuffer(gl::GL_FRAMEBUFFER, fbo_);
@@ -477,6 +482,9 @@ bool GlRenderer::buildProgram() {
         char log[1024] = "";
         gl::glGetProgramInfoLog(program_, sizeof(log), nullptr, log);
         std::fprintf(stderr, "[gl] 程序链接失败: %s\n", log);
+        // 【B3】失败路径删除已建 program 对象（原泄漏）
+        gl::glDeleteProgram(program_);
+        program_ = 0;
         return false;
     }
     // uniform location 一次性缓存（链接后 location 固定，热路径零查找）
@@ -518,6 +526,10 @@ bool GlRenderer::ensureNv12Program() {
         char log[1024] = "";
         gl::glGetProgramInfoLog(program_nv12_, sizeof(log), nullptr, log);
         std::fprintf(stderr, "[gl] NV12 程序链接失败: %s\n", log);
+        // 【B3】失败路径删除已建 program 对象（原泄漏；program_nv12_ 保持
+        // 0 = 下次调用重试构建）
+        gl::glDeleteProgram(program_nv12_);
+        program_nv12_ = 0;
         return false;
     }
 
@@ -1543,7 +1555,22 @@ void GlRenderer::warpBlit() {
 
     // ---- mesh 上传 + 绘制（attrib 幂等重配——同 drawQuad 防御纪律）------
     // 5 float/顶点 = pos2 + uv2 + alpha1（M4 MPCDI：attrib2 逐顶点融合）
-    buildWarpMesh(warp_mesh_);
+    // 【P3】mesh 仅在参数变化（warp_dirty_）时重填——setWarp 已做逐字段
+    // 比对去重，未变化时直接复用缓存顶点（数千顶点 × 每帧重建纯浪费；
+    // dirty 置位链：setWarp 变更 → warpBlit 重填后清除）
+    // 【F1 缓存键 2026-11-27】缓存有效键 = warp 参数 + 客户区尺寸二元组：
+    // buildWarpMesh 顶点 = 归一化 pts × clientW/H，resize 后旧 mesh 占屏
+    // 比例错位（旧宽/新宽）——尺寸比对失效条件必须显式成对（缓存键须
+    // 覆盖全部输入）。
+    const bool mesh_refill =
+        warp_dirty_ || mesh_client_w_ != ctx_.clientW() ||
+        mesh_client_h_ != ctx_.clientH();
+    if (mesh_refill) {
+        buildWarpMesh(warp_mesh_);
+        mesh_client_w_ = ctx_.clientW();
+        mesh_client_h_ = ctx_.clientH();
+        warp_dirty_ = false;
+    }
     gl::glBindVertexArray(vao_);
     gl::glBindBuffer(gl::GL_ARRAY_BUFFER, vbo_);
     gl::glEnableVertexAttribArray(0); // a_pos（2 float，偏移 0）
@@ -1567,9 +1594,14 @@ void GlRenderer::warpBlit() {
     // q，MPCDI alpha<1 时 uv 被错误放大——互串防御双向幂等。
     gl::glDisableVertexAttribArray(3);
     gl::glVertexAttrib1f(3, 1.0f);
-    gl::glBufferData(gl::GL_ARRAY_BUFFER,
-                     static_cast<ptrdiff_t>(warp_mesh_.size() * sizeof(float)),
-                     warp_mesh_.data(), gl::GL_DYNAMIC_DRAW);
+    // 【P2-1】上传只在 mesh 重建帧发生——内容未变时逐位相同，每帧重传
+    // 数千顶点纯浪费（VBO 内容由上一次上传保持）
+    if (mesh_refill) {
+        gl::glBufferData(
+            gl::GL_ARRAY_BUFFER,
+            static_cast<ptrdiff_t>(warp_mesh_.size() * sizeof(float)),
+            warp_mesh_.data(), gl::GL_DYNAMIC_DRAW);
+    }
     gl::glDrawArrays(gl::GL_TRIANGLES, 0,
                      static_cast<int>(warp_mesh_.size() / 5));
 
