@@ -1,6 +1,7 @@
 // class MediaLibraryWidget
 #include "MediaLibraryWidget.h"
 #include "MediaLibraryTree.h"
+#include "MediaProgressDelegate.h"
 #include "Common/ProcessGuard/SpawnNoInherit.hpp"  // bInheritHandles=FALSE 派生（幽灵 socket 修复）
 #include <QDebug>
 #include <QStandardItem>
@@ -10,6 +11,7 @@
 #include <QHeaderView>
 #include <QFileInfo>
 #include <QMimeData>
+#include <QSet>
 
 /**
  * @brief 构造函数：搭建界面、连接信号、初始化树视图
@@ -23,6 +25,8 @@ MediaLibraryWidget::MediaLibraryWidget(QWidget* parent)
     // 文件条目可直接拖到时间轴轨道落片段，与资源管理器拖入同一链路）
     m_tree = new MediaLibraryTree(this);
     m_tree->setModel(m_model);
+    // 条目进度条 delegate（2026-11-27：导入复制/视频转码共用的背景进度显示）
+    m_tree->setItemDelegate(new MediaProgressDelegate(m_tree));
     initializeTreeView();
 
     // [新增] 监听媒体库的整体变更信号，统一刷新视图
@@ -41,9 +45,9 @@ MediaLibraryWidget::MediaLibraryWidget(QWidget* parent)
     connect(m_tree, &QTreeView::doubleClicked,
             this,  &MediaLibraryWidget::onDoubleClicked);
 
-    // 监听模型变化：新增行与整体变更
-    connect(m_model, &QStandardItemModel::rowsInserted,
-            this,    &MediaLibraryWidget::onRowsInserted);
+    // 监听模型变化：行插入（条目图标已在模型侧，此信号仅留作行为扩展点）
+    // 【2026-11-27 移除】原先在此为子项补挂图标——图标已由 MediaLibrary::addFileCore
+    // 写入 DecorationRole（模型数据），refresh() blockSignals 期间也不丢
 
     // 初始化所有标志位
     initAllFlag();
@@ -168,37 +172,21 @@ void MediaLibraryWidget::initializeContextMenu()
 }
 
 /**
- * @brief 初始化所有项的“勾选”状态（已改为无操作：不再使用复选框）
+ * @brief 初始化所有项的“勾选”状态（已彻底废弃：不再使用复选框）
+ * 【2026-11-27 清理】原残留实现在子项 flags 上设 ItemIsUserCheckable（与
+ * "不再使用复选框"的注释矛盾），且为子项补挂图标（图标已模型侧自带）。
+ * 现为空实现，仅保留调用点兼容。
  */
 void MediaLibraryWidget::initAllFlag()
 {
-    // 现在不再使用复选框，保留空实现以兼容既有调用
-    const int topCount = m_model->rowCount();
-    for (int r = 0; r < topCount; ++r) {
-        QStandardItem* group = m_model->item(r);
-        if (!group) continue;
-        // 子项允许勾选
-        setChildrenFlag(group);
-    }
 }
 
 /**
- * @brief 为指定组的子项设置标志位
+ * @brief 为指定组的子项设置标志位（已彻底废弃：不再使用复选框）
  */
 void MediaLibraryWidget::setChildrenFlag(QStandardItem* groupItem)
 {
     Q_UNUSED(groupItem);
-    // 现在不再使用复选框，保留空实现以兼容既有调用
-    if (!groupItem) return;
-    for (int r = 0; r < groupItem->rowCount(); ++r) {
-        QStandardItem* child = groupItem->child(r);
-        if (!child) continue;
-        Qt::ItemFlags flags = child->flags();
-        flags |= Qt::ItemIsUserCheckable;
-        child->setFlags(flags);
-        child->setIcon(categoryIcon(child->data(MediaLibrary::CategoryRole).toInt()));
-
-    }
 }
 
 /**
@@ -427,49 +415,11 @@ void MediaLibraryWidget::onContextMenuRequested(const QPoint& pos)
 }
 
 /**
- * @brief 行插入后：为新子项设置必要的外观（不再设置复选框，补充图标）
- */
-void MediaLibraryWidget::onRowsInserted(const QModelIndex& parent, int first, int last)
-{
-    // 函数级注释：当某个组下增加了子项，为其设置类型图标；不再设置勾选
-    QStandardItem* parentItem = m_model->itemFromIndex(parent);
-    if (!parentItem) return;
-    for (int r = first; r <= last; ++r) {
-        QStandardItem* child = parentItem->child(r);
-        if (!child) continue;
-        // 不再设置 Qt::ItemIsUserCheckable / checkState
-        // 为子项补充类型图标
-        const int cat = child->data(MediaLibrary::CategoryRole).toInt();
-        child->setIcon(categoryIcon(cat));
-
-    }
-}
-
-/**
- * @brief 根据类别值返回组图标（存在则加载）
+ * @brief 根据类别值返回组图标（转发模型侧统一源，消双份 switch 维护）
  */
 QIcon MediaLibraryWidget::categoryIcon(int cat) const
 {
-    using Cat = MediaLibrary::Category;
-    switch (static_cast<Cat>(cat)) {
-    case Cat::Video:   return QIcon(":/icons/icons/video.png");
-    case Cat::Audio:   return QIcon(":/icons/icons/audio.png");
-    case Cat::DMX:     return QIcon(":/icons/icons/stage.png");
-    case Cat::Image: return QIcon(":/icons/icons/image.png");
-    case Cat::Model:   return QIcon(":/icons/icons/model_1.png");
-    case Cat::Document:   return QIcon(":/icons/icons/document.png");
-    case Cat::Vioso:   return QIcon(":/icons/icons/vioso.png");
-    case Cat::ISF:     return QIcon(":/icons/icons/isf.png");
-    case Cat::ChildFlow: return QIcon(":/icons/icons/Flow.png");
-    case Cat::Mpcdi:   return QIcon(":/icons/icons/image.png");
-    case Cat::Fixture: return QIcon(":/icons/icons/gdtf.png");
-    case Cat::Game: return QIcon(":/icons/icons/games.png");
-    case Cat::Gesture: return QIcon(":/icons/icons/finger.png");
-    // Faust 暂无专属图标，先沿用音频图标（与 DSP 的音频属性一致）
-    case Cat::Faust:   return QIcon(":/icons/icons/audio.png");
-    case Cat::Unknown: return QIcon(":/icons/icons/unknown.png");
-    default:           return QIcon();
-    }
+    return MediaLibrary::categoryIcon(cat);
 }
 
 /**
@@ -530,33 +480,53 @@ void MediaLibraryWidget::onLibraryChanged()
 {
     // 函数级注释：
     // 1) refresh() 过程中屏蔽了模型信号，视图未收到 rowsInserted/rowsRemoved，
-    //    因此此处强制重绑模型以刷新显示；
-    // 2) 重新初始化组图标与默认折叠状态；
-    // 3) 为所有子项补充类型图标，避免在刷新过程中遗漏。
+    //    因此此处重绑模型以对齐显示；
+    // 2) 【2026-11-27】重绑前记录展开状态（按类别）与当前条目（按路径），
+    //    重绑后恢复——原先 initializeTreeView 的"全部默认折叠"导致任何变更
+    //    （导入/网页上传/转码完成/手动刷新）都会把用户展开的分组合上；
+    // 3) 组图标/加粗是 QStandardItem 持久数据，重绑不丢，无需重设；
+    //    子项图标已在模型侧（MediaLibrary::addFileCore 写 DecorationRole）。
 
-    // 记录当前选中项（可选）
-    const QModelIndex current = m_tree->currentIndex();
+    // 记录展开状态与当前条目路径
+    QSet<int> expandedCats;
+    for (int r = 0; r < m_model->rowCount(); ++r) {
+        const QStandardItem* group = m_model->item(r);
+        if (group && m_tree->isExpanded(group->index())) {
+            expandedCats.insert(group->data(MediaLibrary::CategoryRole).toInt());
+        }
+    }
+    const QString curPath = m_model->filePathForIndex(m_tree->currentIndex());
 
     // 强制刷新绑定，确保视图重新构建
     m_tree->setModel(nullptr);
     m_tree->setModel(m_model);
 
-    // 重新初始化视图外观（组图标、默认折叠等）
-    initializeTreeView();
-
-    // 为所有组刷新子项图标
-    const int topCount = m_model->rowCount();
-    for (int r = 0; r < topCount; ++r) {
-        QStandardItem* group = m_model->item(r);
+    // 恢复展开状态
+    for (int r = 0; r < m_model->rowCount(); ++r) {
+        const QStandardItem* group = m_model->item(r);
         if (!group) continue;
-        setChildrenFlag(group);
+        if (expandedCats.contains(group->data(MediaLibrary::CategoryRole).toInt())) {
+            m_tree->setExpanded(group->index(), true);
+        }
     }
 
-    // 恢复当前选择（若仍有效）
-    if (current.isValid()) {
-        m_tree->setCurrentIndex(current);
+    // 恢复当前条目（按路径查回；裸 QModelIndex 跨重绑不可靠，路径最稳）
+    if (!curPath.isEmpty()) {
+        bool restored = false;
+        for (int r = 0; r < m_model->rowCount() && !restored; ++r) {
+            const QStandardItem* group = m_model->item(r);
+            if (!group) continue;
+            for (int i = 0; i < group->rowCount(); ++i) {
+                const QStandardItem* child = group->child(i);
+                if (child && m_model->filePathForIndex(child->index()) == curPath) {
+                    m_tree->setCurrentIndex(child->index());
+                    restored = true;
+                    break;
+                }
+            }
+        }
     }
 
-    // 刷新视口以更新绘制
-    m_tree->viewport()->update();
+    // 右键上下文索引跨重绑失效，置空（下次右键重新赋值）
+    m_contextIndex = QModelIndex();
 }

@@ -5,6 +5,8 @@
 #include <QJsonObject>
 #include <QFile>
 #include <QSet>
+#include <QThreadPool>
+#include <functional>
 // 新增：定位 Windows 文档库路径
 #include <QMimeData>
 #include <QStandardPaths>
@@ -12,6 +14,69 @@
 #include "Common/AppConfig/ConstantDefines.h"
 #include <QGuiApplication>
 #include <QClipboard>
+#include <QIcon>
+
+namespace {
+/**
+ * @brief 导入复制的临时文件后缀：先写 xxx.ext.copying，成功后改名回 xxx.ext。
+ *        任何中断（关程序/断电）都不在存储目录留下半截正式名文件——
+ *        否则下次启动 initializeStorageDir 扫描会把半截文件当素材入库。
+ */
+constexpr const char* kCopyTempSuffix = ".copying";
+
+/**
+ * @brief 正在后台复制的目标路径集合（key=targetPath）。
+ *        文件级静态而非成员变量：instance() 内联在头文件、主程序 TU 也展开
+ *        new MediaLibrary()——加成员变量会改变 sizeof，主程序按旧布局分配
+ *        +库内新构造写穿 = 堆损坏（2026-11-25 实锤过的同款模式）。
+ *        仅主线程访问（insert 在提交时、remove 在完成回调里，回调经
+ *        invokeMethod 排回主线程），无锁安全。
+ */
+QSet<QString> s_activeCopies;
+
+/**
+ * @brief 带进度的块拷贝：1MiB 分块读写，percent 变化才回调（≤100 次/文件）。
+ *        目标先写 dstPath（调用方传 .copying 临时名），成功后由调用方改名。
+ */
+bool copyFileWithProgress(const QString& srcPath, const QString& dstPath,
+                          const std::function<void(int)>& onPercent, QString* err)
+{
+    QFile in(srcPath);
+    QFile out(dstPath);
+    if (!in.open(QIODevice::ReadOnly)) {
+        *err = QStringLiteral("无法打开源文件：%1").arg(in.errorString());
+        return false;
+    }
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        *err = QStringLiteral("无法写入目标文件：%1").arg(out.errorString());
+        return false;
+    }
+    const qint64 total = in.size();
+    constexpr qint64 kChunk = 1 << 20; // 1 MiB
+    QByteArray buf(int(kChunk), Qt::Uninitialized);
+    qint64 done = 0;
+    int lastPct = -1;
+    while (!in.atEnd()) {
+        const qint64 n = in.read(buf.data(), kChunk);
+        if (n < 0 || out.write(buf.constData(), n) != n) {
+            *err = QStringLiteral("复制失败：%1").arg(out.errorString());
+            out.close();
+            QFile::remove(dstPath);
+            return false;
+        }
+        done += n;
+        if (total > 0) {
+            const int pct = int(done * 100 / total);
+            if (pct != lastPct) {
+                lastPct = pct;
+                if (onPercent) onPercent(pct);
+            }
+        }
+    }
+    return true;
+}
+} // namespace
+
 /**
  * @brief 构造函数：初始化五个分类的组节点
  */
@@ -53,32 +118,31 @@ MediaLibrary::MediaLibrary(QObject* parent)
     // 新增：初始化存储目录（Windows 文档库下），并扫描已有文件入库
     initializeStorageDir();
 
-    // 连接视频自动转码器：条目状态后缀显示“转码中/进度/失败”，成功后自动入库 HAP 版本
+    // 连接视频自动转码器：条目状态后缀 + ProgressRole 进度条（MediaProgressDelegate 绘制），
+    // 成功后自动入库 HAP 版本
     auto* transcoder = VideoTranscoder::instance();
     connect(transcoder, &VideoTranscoder::transcodeStarted, this,
             [this](const QString& src) {
-        m_statusByPath[src] = QStringLiteral("[loading]");
-        renumberCategory(m_categories.value(Category::Video));
+        setEntryProgress(src, -1, QStringLiteral("[loading]"));
     });
     connect(transcoder, &VideoTranscoder::transcodeProgress, this,
             [this](const QString& src, int percent) {
-        m_statusByPath[src] = percent < 0
-            ? QStringLiteral("[loading]")
-            : QStringLiteral("[loading %1%]").arg(percent);
-        renumberCategory(m_categories.value(Category::Video));
+        setEntryProgress(src, percent,
+                         percent < 0 ? QStringLiteral("[loading]")
+                                     : QStringLiteral("[loading %1%]").arg(percent));
     });
     connect(transcoder, &VideoTranscoder::transcodeFinished, this,
             [this](const QString& src, const QString& out, bool success, const QString& msg) {
-        m_statusByPath.remove(src);
+        // 清源条目进度（无论成败：转码已结束）
+        setEntryProgress(src, -1, QString());
         if (success && !out.isEmpty()) {
             addFile(out);  // HAP 版本入库（原始文件已被删除并改名为最终名）
             refresh();     // 清除指向已删除原文件的条目；mov 源条目路径==最终名会保留
         } else if (!success) {
-            m_statusByPath[src] = QStringLiteral("【转码失败】");
+            setEntryProgress(src, -1, QStringLiteral("【转码失败】"));
             qCWarning(logTranscoder) << "转码失败:" << src << msg;
         }
         // 跳过（已是 HAP）时仅清除状态，无额外动作
-        renumberCategory(m_categories.value(Category::Video));
     });
 }
 
@@ -103,6 +167,19 @@ QStandardItem* MediaLibrary::ensureCategory(Category cat)
  */
 QModelIndex MediaLibrary::addFile(const QString& absPath)
 {
+    const QModelIndex idx = addFileCore(absPath);
+    if (idx.isValid()) {
+        emit libraryChanged();
+    }
+    return idx;
+}
+
+/**
+ * @brief addFile 的静默核心（不 emit libraryChanged）——批量插入统一在调用方
+ *        尾部 emit 一次，避免批量导入期间视图被 libraryChanged 反复触发重绑
+ */
+QModelIndex MediaLibrary::addFileCore(const QString& absPath)
+{
     const QFileInfo fi(absPath);
     if (!fi.exists() || !fi.isFile()) return QModelIndex();
 
@@ -114,68 +191,72 @@ QModelIndex MediaLibrary::addFile(const QString& absPath)
         return QModelIndex(); // 已存在，跳过
     }
 
-    // 创建叶子项
+    // 创建叶子项（图标写进模型数据，见 categoryIcon 头注）
     auto* item = new QStandardItem(fi.fileName());
     item->setEditable(false);
     item->setData(absPath, PathRole);
     item->setData(static_cast<int>(cat), CategoryRole);
     item->setData(group->row(), ParentRowRole); // 叶子项的父组行号
+    item->setData(categoryIcon(static_cast<int>(cat)), Qt::DecorationRole);
     // 暂不设置 OrdinalRole，统一在重排时赋值
     group->appendRow(item);
 
     // 重排序号
     renumberCategory(group);
-
-    emit libraryChanged();
     return item->index();
 }
 
 /**
- * @brief 批量添加文件
- */
-// 属于类 MediaLibrary
-/**
- * @brief 批量添加文件（复制到存储目录，若同名则强制覆盖）
+ * @brief 批量添加文件：库外源文件复制到存储目录（后台线程，条目占位显示进度条），
+ *        库内源文件直接入库。失败项汇总为一次弹窗（不逐个轰炸）。
  */
 void MediaLibrary::addFiles(const QStringList& absPaths)
 {
     QDir storage(QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
+    QStringList failures;
 
     for (const QString& p : absPaths) {
         const QFileInfo fi(p);
-        if (!fi.exists() || !fi.isFile()) continue;
-        // 若源文件已在存储目录中，直接入库
+        if (!fi.exists() || !fi.isFile()) {
+            failures << QStringLiteral("%1：文件不存在或不可访问").arg(p);
+            continue;
+        }
+
+        // 源文件已在存储目录中：直接入库（无需复制）
         if (isInStorageDir(fi.absoluteFilePath())) {
-            addFile(fi.absoluteFilePath());
+            addFileCore(fi.absoluteFilePath());
             maybeTranscode(fi.absoluteFilePath());
             continue;
         }
 
-        // 目标路径为存储目录下同名文件，若存在则先删除以实现强制覆盖
+        // 目标路径为存储目录下同名文件；同名覆盖策略保持既有语义（先删旧文件）
         const QString targetPath = storage.absoluteFilePath(fi.fileName());
+        if (s_activeCopies.contains(targetPath)) {
+            failures << QStringLiteral("%1：同名文件正在导入中，请稍后再试").arg(fi.fileName());
+            continue;
+        }
         if (QFile::exists(targetPath)) {
-            // 尝试删除已有目标文件
             if (!QFile::remove(targetPath)) {
-                // 删除失败：提示并跳过该文件复制，避免不一致
-                QMessageBox::warning(nullptr,
-                                     QStringLiteral("删除失败"),
-                                     QStringLiteral("无法覆盖目标文件（删除失败）：\n%1").arg(targetPath));
+                failures << QStringLiteral("%1：无法覆盖库内同名文件").arg(fi.fileName());
                 continue;
             }
+            removeItemForPath(targetPath); // 旧条目一并移除，新条目重新编号
         }
 
-        // 复制到存储目录
-        if (QFile::copy(fi.absoluteFilePath(), targetPath)) {
-            addFile(targetPath);
-            maybeTranscode(targetPath);
-        } else {
-            // 复制失败：如果你希望弹窗提示，请告知；当前策略为跳过，不入库
-            // 可改为 QMessageBox::warning(...) 提示复制失败
-            QMessageBox::warning(nullptr,
-                                 QStringLiteral("复制失败"),
-                                 QStringLiteral("无法复制文件（复制失败）：\n%1").arg(fi.absoluteFilePath()));
-        }
+        // 条目立即占位（状态"复制中…"），后台线程块拷贝、进度条实时推进
+        addPendingEntry(targetPath);
+        startBackgroundCopy(fi.absoluteFilePath(), targetPath);
     }
+
+    // 全程 addFileCore/addPendingEntry 均不 emit（信号收敛），行级变更经
+    // rowsInserted 实时送达视图（图标在模型数据上，见 addFileCore）；
+    // 批量结束在此统一 emit libraryChanged 一次
+    if (!failures.isEmpty()) {
+        QMessageBox::warning(nullptr,
+                             QStringLiteral("导入失败"),
+                             QStringLiteral("以下文件导入失败：\n\n%1").arg(failures.join(QLatin1Char('\n'))));
+    }
+    emit libraryChanged();
 }
 
 
@@ -384,7 +465,7 @@ bool MediaLibrary::fromJson(const QJsonObject& obj)
     auto load = [&](Category cat, const char* key) {
         const QJsonArray arr = obj.value(QString::fromUtf8(key)).toArray();
         for (const QJsonValue& v : arr) {
-            addFile(v.toString());
+            addFileCore(v.toString());
         }
     };
     load(Category::Video,   "Video");
@@ -486,6 +567,33 @@ MediaLibrary::Category MediaLibrary::detectCategory(const QString& absPath) cons
 }
 
 /**
+ * @brief 类别图标（模型侧统一数据源；MediaLibraryWidget 的组/子项共用）
+ */
+QIcon MediaLibrary::categoryIcon(int cat)
+{
+    using Cat = Category;
+    switch (static_cast<Cat>(cat)) {
+    case Cat::Video:     return QIcon(QStringLiteral(":/icons/icons/video.png"));
+    case Cat::Audio:     return QIcon(QStringLiteral(":/icons/icons/audio.png"));
+    case Cat::DMX:       return QIcon(QStringLiteral(":/icons/icons/stage.png"));
+    case Cat::Image:     return QIcon(QStringLiteral(":/icons/icons/image.png"));
+    case Cat::Model:     return QIcon(QStringLiteral(":/icons/icons/model_1.png"));
+    case Cat::Document:  return QIcon(QStringLiteral(":/icons/icons/document.png"));
+    case Cat::Vioso:     return QIcon(QStringLiteral(":/icons/icons/vioso.png"));
+    case Cat::ISF:       return QIcon(QStringLiteral(":/icons/icons/isf.png"));
+    case Cat::ChildFlow: return QIcon(QStringLiteral(":/icons/icons/Flow.png"));
+    case Cat::Mpcdi:     return QIcon(QStringLiteral(":/icons/icons/image.png"));
+    case Cat::Fixture:   return QIcon(QStringLiteral(":/icons/icons/gdtf.png"));
+    case Cat::Game:      return QIcon(QStringLiteral(":/icons/icons/games.png"));
+    case Cat::Gesture:   return QIcon(QStringLiteral(":/icons/icons/finger.png"));
+    // Faust 暂无专属图标，先沿用音频图标（与 DSP 的音频属性一致）
+    case Cat::Faust:     return QIcon(QStringLiteral(":/icons/icons/audio.png"));
+    case Cat::Unknown:   return QIcon(QStringLiteral(":/icons/icons/unknown.png"));
+    }
+    return QIcon();
+}
+
+/**
  * @brief 类别中文名
  */
 QString MediaLibrary::categoryName(Category cat) const
@@ -519,18 +627,157 @@ void MediaLibrary::renumberCategory(QStandardItem* catItem)
     for (int r = 0; r < catItem->rowCount(); ++r) {
         QStandardItem* item = catItem->child(r);
         if (!item) continue;
-        const int ordinal = r + 1;
-        item->setData(ordinal, OrdinalRole);
-        // 在显示名左侧添加序号（示例：1  filename.ext）；转码中的视频追加状态后缀
-        const QString path = item->data(PathRole).toString();
-        const QString baseName = QFileInfo(path).fileName();
-        QString text = QString::number(ordinal) + QStringLiteral("  ") + baseName;
-        const QString status = m_statusByPath.value(path);
-        if (!status.isEmpty()) {
-            text += QStringLiteral("  ") + status;
-        }
-        item->setText(text);
+        item->setData(r + 1, OrdinalRole);
+        refreshEntryText(item);
     }
+}
+
+/**
+ * @brief 单行文本重排：序号 + 文件名 + 状态后缀（复制中/转码中/失败等）。
+ *        renumberCategory 与 setEntryProgress 共用，保证文本格式单一来源
+ */
+void MediaLibrary::refreshEntryText(QStandardItem* item)
+{
+    if (!item) return;
+    const QString path = item->data(PathRole).toString();
+    const int ordinal = item->data(OrdinalRole).toInt();
+    QString text = QString::number(ordinal) + QStringLiteral("  ") + QFileInfo(path).fileName();
+    const QString status = m_statusByPath.value(path);
+    if (!status.isEmpty()) {
+        text += QStringLiteral("  ") + status;
+    }
+    item->setText(text);
+}
+
+/**
+ * @brief 全库按路径查条目（大小写不敏感，与 existsInCategory 同口径）
+ */
+QStandardItem* MediaLibrary::entryForPath(const QString& absPath) const
+{
+    for (auto it = m_categories.cbegin(); it != m_categories.cend(); ++it) {
+        QStandardItem* group = it.value();
+        if (!group) continue;
+        for (int r = 0; r < group->rowCount(); ++r) {
+            QStandardItem* child = group->child(r);
+            if (child && child->data(PathRole).toString().compare(absPath, Qt::CaseInsensitive) == 0) {
+                return child;
+            }
+        }
+    }
+    return nullptr;
+}
+
+/**
+ * @brief 更新条目进度（ProgressRole 供 MediaProgressDelegate 画背景进度条，
+ *        status 供文本后缀）。percent<0 表示无进度（仅状态文案）。
+ *        复制/转码进度高频更新走这里，只刷新目标条目不重排全组
+ */
+void MediaLibrary::setEntryProgress(const QString& path, int percent, const QString& status)
+{
+    QStandardItem* item = entryForPath(path);
+    if (!item) return;
+    if (status.isEmpty()) {
+        m_statusByPath.remove(path);
+    } else {
+        m_statusByPath[path] = status;
+    }
+    item->setData(percent, ProgressRole);
+    refreshEntryText(item);
+}
+
+/**
+ * @brief 插入"导入复制中"占位条目：目标文件尚未落盘，跳过 addFileCore 的
+ *        磁盘存在性检查；状态与进度挂条目上，完成回调里收尾
+ */
+void MediaLibrary::addPendingEntry(const QString& targetPath)
+{
+    const Category cat = detectCategory(targetPath);
+    QStandardItem* group = ensureCategory(cat);
+    if (!group) return;
+    if (entryForPath(targetPath)) return; // 同路径条目已在（重复提交防御）
+
+    auto* item = new QStandardItem(QFileInfo(targetPath).fileName());
+    item->setEditable(false);
+    item->setData(targetPath, PathRole);
+    item->setData(static_cast<int>(cat), CategoryRole);
+    item->setData(group->row(), ParentRowRole);
+    item->setData(categoryIcon(static_cast<int>(cat)), Qt::DecorationRole);
+    item->setData(-1, ProgressRole);
+    group->appendRow(item);
+    renumberCategory(group);
+
+    m_statusByPath[targetPath] = QStringLiteral("复制中…");
+    refreshEntryText(item);
+}
+
+/**
+ * @brief 移除库内指向指定路径的全部条目（覆盖导入时清旧条目）
+ */
+void MediaLibrary::removeItemForPath(const QString& absPath)
+{
+    for (auto it = m_categories.begin(); it != m_categories.end(); ++it) {
+        QStandardItem* group = it.value();
+        if (!group) continue;
+        for (int r = group->rowCount() - 1; r >= 0; --r) {
+            QStandardItem* child = group->child(r);
+            if (child && child->data(PathRole).toString().compare(absPath, Qt::CaseInsensitive) == 0) {
+                group->removeRow(r);
+            }
+        }
+    }
+}
+
+/**
+ * @brief 提交后台复制任务：QThreadPool 线程块拷贝到 .copying 临时名，
+ *        进度经 invokeMethod 排回主线程（this 析构后自动丢弃），完成后改名收尾
+ */
+void MediaLibrary::startBackgroundCopy(const QString& srcPath, const QString& targetPath)
+{
+    s_activeCopies.insert(targetPath);
+    const QString tmpPath = targetPath + QLatin1String(kCopyTempSuffix);
+    QThreadPool::globalInstance()->start([srcPath, targetPath, tmpPath, this] {
+        QString err;
+        bool ok = copyFileWithProgress(srcPath, tmpPath,
+            [this, targetPath](int percent) {
+                QMetaObject::invokeMethod(this, [this, targetPath, percent] {
+                    if (s_activeCopies.contains(targetPath)) {
+                        setEntryProgress(targetPath, percent,
+                                         QStringLiteral("复制中 %1%").arg(percent));
+                    }
+                }, Qt::QueuedConnection);
+            }, &err);
+        if (ok) {
+            // 复制成功：临时名改回正式名（同卷 rename；target 此刻不存在——
+            // 提交前已删旧文件且 s_activeCopies 拒绝同名并发）
+            if (!QFile::rename(tmpPath, targetPath)) {
+                QFile::remove(tmpPath);
+                err = QStringLiteral("复制完成但落位失败（改名 %1 → %2）").arg(tmpPath, targetPath);
+                ok = false;
+            }
+        } else {
+            QFile::remove(tmpPath);
+        }
+        QMetaObject::invokeMethod(this, [this, targetPath, ok, err] {
+            finishBackgroundCopy(targetPath, ok, err);
+        }, Qt::QueuedConnection);
+    });
+}
+
+/**
+ * @brief 复制完成回调（恒主线程）：成功清状态+触发转码；失败删条目占位挂【复制失败】
+ *        （条目保留可让用户看到哪个失败；下次 refresh 因文件不存在会自然清除）
+ */
+void MediaLibrary::finishBackgroundCopy(const QString& targetPath, bool ok, const QString& err)
+{
+    s_activeCopies.remove(targetPath);
+    if (ok) {
+        setEntryProgress(targetPath, -1, QString());
+        maybeTranscode(targetPath);
+    } else {
+        qCWarning(logTranscoder) << "导入复制失败:" << targetPath << err;
+        setEntryProgress(targetPath, -1, QStringLiteral("【复制失败】"));
+    }
+    emit libraryChanged();
 }
 
 /**
@@ -562,6 +809,7 @@ QHash<int, QByteArray> MediaLibrary::roleNames() const {
     names.insert(CategoryRole,  "category");
     names.insert(OrdinalRole,   "ordinal");
     names.insert(ParentRowRole, "parentRow");
+    names.insert(ProgressRole,  "progress");
     return names;
 }
 
@@ -751,11 +999,18 @@ void MediaLibrary::initializeStorageDir()
     }
 
 
-    // 扫描存储目录中的所有文件（仅一层）
+    // 扫描存储目录中的所有文件（仅一层）；先清掉上次异常退出残留的复制临时文件
     QDir storage(QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
+    const QFileInfoList all = storage.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+    for (const QFileInfo& fi : all) {
+        if (fi.fileName().endsWith(QLatin1String(kCopyTempSuffix), Qt::CaseInsensitive)) {
+            qCWarning(logTranscoder) << "清理上次未完成的导入复制临时文件:" << fi.absoluteFilePath();
+            QFile::remove(fi.absoluteFilePath());
+        }
+    }
     const QFileInfoList infos = storage.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
     for (const QFileInfo& fi : infos) {
-        addFile(fi.absoluteFilePath());
+        addFileCore(fi.absoluteFilePath());
     }
 }
 
@@ -835,12 +1090,12 @@ void MediaLibrary::refresh() {
     if (!QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).exists()) {
         QDir().mkpath(AppConstants::MEDIA_LIBRARY_STORAGE_DIR);
     }
+    // 当前存储目录文件集合（跳过导入复制中的 .copying 临时文件——它们不是素材）
     QDir storage(QDir(AppConstants::MEDIA_LIBRARY_STORAGE_DIR).absolutePath());
-
-    // 当前存储目录文件集合
     const QFileInfoList infos = storage.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
     QSet<QString> storageFiles;
     for (const QFileInfo& fi : infos) {
+        if (fi.fileName().endsWith(QLatin1String(kCopyTempSuffix), Qt::CaseInsensitive)) continue;
         storageFiles.insert(fi.absoluteFilePath());
     }
 
@@ -857,6 +1112,12 @@ void MediaLibrary::refresh() {
             if (!item) continue;
             const QString path = item->data(PathRole).toString();
             if (path.isEmpty()) continue;
+
+            // 正在后台复制的占位条目跳过失效检查（目标文件尚未落盘，非失效）
+            if (s_activeCopies.contains(path)) {
+                modelPaths.insert(path);
+                continue;
+            }
 
             if (!QFileInfo(path).exists()) {
                 group->removeRow(r);
@@ -884,7 +1145,7 @@ void MediaLibrary::refresh() {
         if (modelPaths.contains(entry.second)) {
             continue;
         }
-        if (addFile(entry.second).isValid()) {
+        if (addFileCore(entry.second).isValid()) {
             modelPaths.insert(entry.second);
             anyChange = true;
         }
@@ -893,7 +1154,7 @@ void MediaLibrary::refresh() {
     // 将存储目录中新出现的文件加入模型
     for (const QString& absPath : storageFiles) {
         if (!modelPaths.contains(absPath)) {
-            if (addFile(absPath).isValid()) {
+            if (addFileCore(absPath).isValid()) {
                 anyChange = true;
             }
         }

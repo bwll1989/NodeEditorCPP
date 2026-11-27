@@ -54,7 +54,8 @@ public:
         PathRole     = Qt::UserRole + 1,
         CategoryRole = Qt::UserRole + 2,
         OrdinalRole  = Qt::UserRole + 3,
-        ParentRowRole= Qt::UserRole + 4  // 新增：父组的行号（顶层组为 -1）
+        ParentRowRole= Qt::UserRole + 4,  // 父组的行号（顶层组为 -1）
+        ProgressRole = Qt::UserRole + 5   // 进度百分比 0-100（-1/无效=无进度；导入复制与视频转码共用）
     };
 
     /**
@@ -124,6 +125,14 @@ public:
      */
     static QStringList categoryExtensions(Category cat);
 
+    /**
+     * @brief 类别图标（模型侧统一数据源）。
+     *        addFileCore/addPendingEntry 写入条目 DecorationRole——图标作为模型数据，
+     *        refresh() blockSignals 挡住 rowsInserted 时视图重绑仍能取到
+     *        （原先靠视图侧 onRowsInserted 补挂，该路径被 blockSignals 挡掉即丢图标）
+     */
+    static QIcon categoryIcon(int cat);
+
 
     /**
      * @brief 导出为 JSON 对象
@@ -162,6 +171,13 @@ private:
     Category detectCategory(const QString& absPath) const;
 
     /**
+     * @brief addFile 的静默核心（不 emit libraryChanged）。
+     *        批量导入/refresh/fromJson 用它逐条插入、最后统一 emit 一次，
+     *        避免视图被 libraryChanged 触发 N 次重绑
+     */
+    QModelIndex addFileCore(const QString& absPath);
+
+    /**
      * @brief 类别中文名
      */
     QString categoryName(Category cat) const;
@@ -175,6 +191,46 @@ private:
      * @brief 判断该类别组内是否存在指定路径的文件（去重）
      */
     bool existsInCategory(QStandardItem* catItem, const QString& absPath) const;
+
+    /**
+     * @brief 全库按路径查条目（大小写不敏感）；找不到返回 nullptr
+     *        供复制/转码进度回写定位条目
+     */
+    QStandardItem* entryForPath(const QString& absPath) const;
+
+    /**
+     * @brief 单行文本重排：序号 + 文件名 +（状态后缀）。renumberCategory 的单行版，
+     *        供进度高频更新只刷新目标条目、不重排全组
+     */
+    void refreshEntryText(QStandardItem* item);
+
+    /**
+     * @brief 更新条目进度（ProgressRole + 状态后缀）。status 为空串则清除状态。
+     *        导入复制与视频转码共用；条目不存在时静默返回
+     */
+    void setEntryProgress(const QString& path, int percent, const QString& status);
+
+    /**
+     * @brief 插入"导入复制中"占位条目（不做磁盘存在性检查——目标文件尚未复制完）
+     *        状态挂"复制中…"，复制完成回调里清除状态/转码，失败则挂【复制失败】
+     */
+    void addPendingEntry(const QString& targetPath);
+
+    /**
+     * @brief 移除库内指向指定路径的全部条目（覆盖导入时清旧条目，让新条目重新编号）
+     */
+    void removeItemForPath(const QString& absPath);
+
+    /**
+     * @brief 后台线程块拷贝 srcPath→tmp，成功后改名为 targetPath；
+     *        进度经 invokeMethod 排回主线程 setEntryProgress，完成走 finishBackgroundCopy
+     */
+    void startBackgroundCopy(const QString& srcPath, const QString& targetPath);
+
+    /**
+     * @brief 复制完成回调（恒主线程）：成功清状态+触发转码；失败删临时文件挂【复制失败】
+     */
+    void finishBackgroundCopy(const QString& targetPath, bool ok, const QString& err);
 
     /**
      * @brief 若为视频类文件则加入 HAP 自动转码队列（仅显式导入时调用）

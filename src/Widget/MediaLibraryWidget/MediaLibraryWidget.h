@@ -74,15 +74,13 @@ private slots:
      */
     void onContextMenuRequested(const QPoint& pos);
 
-    /**
-     * @brief 行插入后：为新子项设置复选框
-     */
-    void onRowsInserted(const QModelIndex& parent, int first, int last);
+    // 【2026-11-27 移除】onRowsInserted：子项图标已由 MediaLibrary 写入模型数据
+    // （addFileCore 设 DecorationRole），视图侧补挂不再需要
 
     /**
      * @brief 监听媒体库数据变更并刷新所有显示
-     * 函数级注释：当 MediaLibrary 发出 libraryChanged 时，强制重绑模型以刷新树视图，
-     *            重新设置组图标与默认折叠状态，并为子项补充类型图标，确保 UI 同步。
+     * 函数级注释：当 MediaLibrary 发出 libraryChanged 时，重绑模型对齐显示，
+     *            并恢复展开状态与当前条目（不再强制折叠回默认）。
      */
     void onLibraryChanged();
 
