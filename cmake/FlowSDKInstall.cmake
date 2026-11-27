@@ -64,27 +64,40 @@ install(FILES
 )
 
 # 时间轴 clip 基类层（2026-11-13 回归合并 BaseClass.dll；第三方 Clip 开发继承用）
+# 【2026-11-27 清理】TimeLineStyle（→TimeLineBase）、ClipTimePanel/
+# ClipAppearancePanel（→ClipPanelBase）、BasePluginLoader（→TimeLineBase）
+# 旧路径引用删除——迁移后本段曾指向不存在文件，install-FlowSDK 直接报错。
 install(FILES
     "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/AbstractClipModel.hpp"
     "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/AbstractClipInterface.h"
+    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/ClipPaintStyle.h"
     "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/SceneClipModel.hpp"
     "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TweenDots.h"
     "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TweenPalette.h"
     "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TimeLineDefines.h"
-    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TimeLineStyle.h"
-    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/TimeLineStyle.cpp"
-    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/ClipTimePanel.hpp"
-    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/ClipAppearancePanel.hpp"
-    "${CMAKE_SOURCE_DIR}/src/Common/BaseClass/BasePluginLoader.h"
     DESTINATION include/Common/BaseClass
     COMPONENT FlowSDK
+)
+
+# 片段面板库（2026-11-17 迁 src/Common/ClipPanelBase：通用面板/Inspector/
+# Tween 区——第三方片段插件的属性 UI 基础，头树随本段分发）
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/src/Common/ClipPanelBase/"
+    DESTINATION include/Common/ClipPanelBase
+    COMPONENT FlowSDK
+    FILES_MATCHING
+        PATTERN "*.h"
+        PATTERN "*.hpp"
+        PATTERN "CMakeLists.txt" EXCLUDE
 )
 
 # 时间码定义（2026-11-12 与 AppConfig 原有定义合并，单副本在
 # src/Common/AppConfig/TimeCodeDefines.h；AbstractClipModel.hpp 引用
 # "Common/AppConfig/TimeCodeDefines.h"，安装树经 include/ 根解析）
+# 【2026-11-27 补】OSCMessage.h——StatusContainer.h 头内直接引用
+# （第三方片段插件链 StatusContainer → 头依赖即接口依赖）
 install(FILES
     "${CMAKE_SOURCE_DIR}/src/Common/AppConfig/TimeCodeDefines.h"
+    "${CMAKE_SOURCE_DIR}/src/Common/AppConfig/OSCMessage.h"
     DESTINATION include/Common/AppConfig
     COMPONENT FlowSDK
 )

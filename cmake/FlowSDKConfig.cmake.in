@@ -48,6 +48,7 @@ if(NOT TARGET Flow::NodeSDK)
         "${_FLOW_SDK_ROOT}/include/DataTypes"
         "${_FLOW_SDK_ROOT}/include/Common/Devices"
         "${_FLOW_SDK_ROOT}/include/Common/Gui"
+        "${_FLOW_SDK_ROOT}/include/Common/BaseClass"
     )
 endif()
 
@@ -65,6 +66,7 @@ if(NOT TARGET Flow::ClipSDK)
         "${_FLOW_SDK_ROOT}/include/DataTypes"
         "${_FLOW_SDK_ROOT}/include/Common/Devices"
         "${_FLOW_SDK_ROOT}/include/Common/Gui"
+        "${_FLOW_SDK_ROOT}/include/Common/BaseClass"
     )
 endif()
 
