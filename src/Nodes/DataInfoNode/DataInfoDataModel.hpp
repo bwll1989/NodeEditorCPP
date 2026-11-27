@@ -2,12 +2,11 @@
 
 #include "Common/DataTypes/NodeDataList.hpp"
 #include <QtNodes/NodeDelegateModel>
-#include "Common/GUI/DataTreeModel/QmlDataBrowser.h"
+#include "Common/GUI/DataTreeModel/DataBrowserWidget.h"
 #include <iostream>
 #include <QDockWidget>
 #include <QVBoxLayout>
 #include <QtCore/qglobal.h>
-#include <QtQuickWidgets/QQuickWidget>
 // #include "DockManager.h"
 // #include "DockHub/DockHub.hpp"
 #include "Common/BaseClass/AbstractDelegateModel.h"
@@ -37,16 +36,16 @@ namespace Nodes
             WidgetEmbeddable = true;
             Resizable = false;
             viewButton=new QPushButton("View");
-            // 使用QML版本的数据浏览器
-            qmlWidget = new QmlDataBrowser();
-            qmlWidget->setLazyLoadingEnabled(true);
-            qmlWidget->setMaxVisibleItems(1000);
+            // 【2026-11-26】QWidget 版数据浏览器（替代 QML 版，去 Quick 依赖）
+            browserWidget = new DataBrowserWidget();
+            browserWidget->setLazyLoadingEnabled(true);
+            browserWidget->setMaxVisibleItems(1000);
             connect(viewButton,&QPushButton::clicked,this,&DataInfoDataModel::toggleEditorMode);
         }
          ~DataInfoDataModel() override {
-            if (qmlWidget) {
-                qmlWidget->setParent(nullptr);
-                qmlWidget->deleteLater();
+            if (browserWidget) {
+                browserWidget->setParent(nullptr);
+                browserWidget->deleteLater();
             }
         }
 
@@ -89,9 +88,9 @@ namespace Nodes
 
                 // 使用高性能的增量更新
                 if (model.isEmpty()) {
-                    qmlWidget->buildPropertiesFromMap(newModel);
+                    browserWidget->buildPropertiesFromMap(newModel);
                 } else {
-                    qmlWidget->updatePropertiesIncremental(newModel);
+                    browserWidget->updatePropertiesIncremental(newModel);
                 }
 
                 model = newModel;
@@ -102,33 +101,33 @@ namespace Nodes
     public slots:
         void toggleEditorMode() {
             // // 移除父子关系，使其成为独立窗口
-            qmlWidget->setParent(nullptr);
+            browserWidget->setParent(nullptr);
 
             // 设置为独立窗口
-            qmlWidget->setWindowTitle("Data Info");
+            browserWidget->setWindowTitle("Data Info");
 
             // 设置窗口图标
-            qmlWidget->setWindowIcon(QIcon(":/icons/icons/info.png"));
+            browserWidget->setWindowIcon(QIcon(":/icons/icons/info.png"));
 
             // 设置窗口标志：独立窗口 + 置顶显示 + 关闭按钮
-            qmlWidget->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
+            browserWidget->setWindowFlags(Qt::Window | Qt::WindowStaysOnTopHint | Qt::WindowCloseButtonHint);
 
             // 设置窗口属性：当关闭时自动删除
-            qmlWidget->setAttribute(Qt::WA_DeleteOnClose, false); // 不自动删除，我们手动管理
-            qmlWidget->setAttribute(Qt::WA_QuitOnClose, false);   // 关闭窗口时不退出应用程序
+            browserWidget->setAttribute(Qt::WA_DeleteOnClose, false); // 不自动删除，我们手动管理
+            browserWidget->setAttribute(Qt::WA_QuitOnClose, false);   // 关闭窗口时不退出应用程序
 
             // 设置窗口大小和显示
-            qmlWidget->resize(800, 400);
-            qmlWidget->show();
+            browserWidget->resize(800, 400);
+            browserWidget->show();
             // 激活窗口并置于前台
-            qmlWidget->activateWindow();
-            qmlWidget->raise();
+            browserWidget->activateWindow();
+            browserWidget->raise();
         }
 
     private:
         QPushButton *viewButton;
         QVariantMap model;
-        QmlDataBrowser *qmlWidget;
+        DataBrowserWidget *browserWidget;
         std::shared_ptr<VariableData> inData;
     };
 }

@@ -112,6 +112,10 @@ Q_NAMESPACE_EXPORT(BASECLASS_EXPORT)
     inline QStringList AudioTypes = {"mp3", "wav", "aac", "ogg", "flac"};
     inline QStringList ImageTypes = {"jpg", "jpeg", "png", "bmp", "gif", "webp", "tif", "tiff"};
     inline QStringList ControlTypes = {"ilk"};
+    // Artnet 录制文件（ArtnetRecorder 视频容器，帧像素编码 DMX 512×N）——
+    // 拖拽 drop 前置识别（isMimeAcceptable），探针/probeFile 同表另修
+    //（2026-11-27 .dmx 拖入修复：dragMove 阶段后缀表缺失导致 ignore）
+    inline QStringList ArtnetTypes = {"dmx"};
     // 将track类型转换为字符串
     static QString TrackTypeString(const QString& type) {
         return type;

@@ -457,15 +457,32 @@ inline bool operator==(const Track& a, const Track& b) {
 }
 
 // ---------------------------------------------------------------------------
+// 片段分组（2026-11-27 用户定案：REAPER 式轻量关系语义）——
+// 组不是实体容器，只是片段间的关系表：Ctrl+G 建组/解组、组内选中联动、
+// 拖拽联动（拖一个全组同位移平移）。无时间框/无轨道锚定/无视觉块，
+// 组员可跨轨。仅编辑器端消费；求值/display 零感知。
+// ---------------------------------------------------------------------------
+struct ClipGroup {
+    std::string id;                  ///< 组唯一 id（uuid）
+    std::vector<std::string> member_ids; ///< 组员 clip id（= Clip.id，≥2 有意义）
+};
+
+inline bool operator==(const ClipGroup& a, const ClipGroup& b) {
+    return a.id == b.id && a.member_ids == b.member_ids;
+}
+
+// ---------------------------------------------------------------------------
 // 时间轴 —— evaluate(t) 的编排数据
 // ---------------------------------------------------------------------------
 struct Timeline {
     std::int64_t duration_us = 0; ///< 总时长（us；0 = 按片段自动推算）
     std::vector<Track> tracks;
+    std::vector<ClipGroup> groups; ///< 片段分组表（REAPER 式关系，2026-11-27）
 };
 
 inline bool operator==(const Timeline& a, const Timeline& b) {
-    return a.duration_us == b.duration_us && a.tracks == b.tracks;
+    return a.duration_us == b.duration_us && a.tracks == b.tracks &&
+           a.groups == b.groups;
 }
 
 // ---------------------------------------------------------------------------

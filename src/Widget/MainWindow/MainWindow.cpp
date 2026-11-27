@@ -109,6 +109,10 @@ static bool msProbeMediaFile(const QString& file, ms::AssetKind kind,
     for (const char* e : kImage) if (ext == QLatin1String(e)) { ext_kind = ms::AssetKind::Image; break; }
     for (const char* e : kAudio) if (ext == QLatin1String(e)) { ext_kind = ms::AssetKind::Audio; break; }
     if (ext == QLatin1String("txt")) ext_kind = ms::AssetKind::Text;
+    // .dmx = Artnet 录制产物（ArtnetRecorder 以视频容器承载，帧像素编码
+    // DMX 512×N 通道）——归 Artnet 类，拖入成 Artnet 片段后由
+    // ArtnetClipModel 逐帧提取 DMX（2026-11-27 用户报告修复）
+    if (ext == QLatin1String("dmx")) ext_kind = ms::AssetKind::Artnet;
     if (ext_kind == ms::AssetKind::Unknown) {
         err = "不识别的文件类型: ." + ext.toStdString();
         return false;
@@ -124,6 +128,7 @@ static bool msProbeMediaFile(const QString& file, ms::AssetKind kind,
                 case ms::AssetKind::Text:   return "text";
                 case ms::AssetKind::Audio:  return "audio";
                 case ms::AssetKind::Live:   return "live";
+                case ms::AssetKind::Artnet: return "artnet";
                 default:                    return "unknown";
             }
         };

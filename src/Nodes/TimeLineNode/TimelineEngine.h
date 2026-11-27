@@ -147,6 +147,8 @@ Q_NAMESPACE_EXPORT(NODE_TIMELINE_PUBLIC)
     inline QStringList AudioTypes = {"mp3", "wav", "aac", "ogg", "flac"};
     inline QStringList ImageTypes = {"jpg", "jpeg", "png", "bmp", "gif", "webp", "tif", "tiff"};
     inline QStringList ControlTypes = {"ilk"};
+    // Artnet 录制文件（视频容器，帧像素编码 DMX；对齐 TimeLineDefines 同表）
+    inline QStringList ArtnetTypes = {"dmx"};
     // 将track类型转换为字符串
     static QString TrackTypeString(const QString& type) {
         return type;
@@ -296,8 +298,8 @@ public:
         RESIZEABLE = true;
         // 是否在片段中嵌入编辑器
         EMBEDWIDGET = false;
-        // 是否显示边框
-        SHOWBORDER = true;
+        // 是否显示边框（【2026-11-27 用户定案】所有片段无边框）
+        SHOWBORDER = false;
 
     }
     /**

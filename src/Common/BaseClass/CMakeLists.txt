@@ -83,6 +83,9 @@ target_include_directories(BaseClass
         $<INSTALL_INTERFACE:include>
         $<INSTALL_INTERFACE:include/Common/Devices>
         $<INSTALL_INTERFACE:include/Common/Gui>
+        $<INSTALL_INTERFACE:include/Common/BaseClass>    # clip 基类头树（2026-11-27
+                                                         # 补：SDK 示例 moc 报
+                                                         # Undefined interface 实锤缺失）
 )
 
 # GUIElements（IntDragValueWidget——AbstractClipModel 外控 qobject_cast +

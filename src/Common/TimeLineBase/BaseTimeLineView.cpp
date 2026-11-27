@@ -306,23 +306,97 @@ void BaseTimelineView::moveSelectedClip(qint64 dx, int dy, bool isMouse)
         return;
     // 【2026-11-18 μs 截断修复】μs 域 qint64——int 在 >35.8min 回绕
     //（同 1097 行鼠标路径已修的同族问题；本函数覆盖键盘方向键 + 跨轨拖拽）
-    qint64 newPos;
-    if(isMouse){
-        newPos = dx;
-    }else{
-        newPos = model()->data(list[0],TimelineRoles::ClipInRole).toLongLong() + dx;
+    if (isMouse) {
+        // 【2026-11-27 分组多选修正】绝对定位目标 = 被拖片段（m_dragIndex
+        // 持久索引）——分组选中联动后 selectedIndexes 含全体组员，
+        // list.first() 可能是任一组员，绝不能当拖拽片段用。组员平移由
+        // handleMouseDrag 的分组联动负责，此处只动被拖片段。
+        const QModelIndex dragIdx = m_dragIndex.isValid()
+                                        ? QModelIndex(m_dragIndex)
+                                        : list.first();
+        getModel()->setData(dragIdx, std::max<qint64>(0, dx),
+                            TimelineRoles::ClipPosRole);
+        return;
     }
-    // 确保不会移动到负值位置
-    newPos = std::max<qint64>(0, newPos);
-    // 更新模型数据
-    // 非拖拽时 dataChanged 会局部刷新。拖拽期间模型先不发通知，由鼠标移动自己脏矩形。
-    getModel()->setData(list.first(), newPos, TimelineRoles::ClipPosRole);
+    // 键盘路径（2026-11-27 分组泛化）：全部选中片段各按 dx 微移（选中
+    // 联动后 = 整组微移，REAPER 同语义）；逐片段钳 ≥0。
+    for (const QModelIndex& idx : list) {
+        if (!idx.parent().isValid())
+            continue;
+        const qint64 newPos = std::max<qint64>(
+            0, idx.data(TimelineRoles::ClipInRole).toLongLong() + dx);
+        // 更新模型数据
+        // 非拖拽时 dataChanged 会局部刷新。
+        getModel()->setData(idx, newPos, TimelineRoles::ClipPosRole);
+    }
 }
 
 void BaseTimelineView::movePlayheadToFrame(qint64 us)
 {
     // 直接设置时间码生成器的时刻位置（μs）。S_playheadMoved 会走局部刷新。
     getModel()->onSetPlayheadPos(us);
+}
+
+// ---- 片段分组（2026-11-27 用户定案：REAPER 式轻量关系语义）----------------
+
+/// 点击选中片段后把同组成员一并选入（「分组内选中任意一个，另一个也
+/// 自动选中」）。不在组 = 组员表空 = no-op。select(Select) 不动 currentIndex
+///（current 保持被点的片段——属性面板/画布高亮语义不变，只是多选高亮）。
+void BaseTimelineView::syncGroupSelection(const QModelIndex& clipIndex)
+{
+    if (!selectionModel() || !clipIndex.parent().isValid())
+        return;
+    auto* clip = static_cast<AbstractClipModel*>(clipIndex.internalPointer());
+    if (!clip)
+        return;
+    const QStringList members = getModel()->groupMemberIdsOf(clip->clipAnchor());
+    for (const QString& id : members) {
+        const QModelIndex mi = getModel()->clipIndexById(id);
+        if (mi.isValid() && mi != clipIndex)
+            selectionModel()->select(mi, QItemSelectionModel::Select);
+    }
+}
+
+/// Ctrl+G 切换（REAPER 语义）：收集当前选中的全部片段交给模型——
+/// 均无组 → 合建新组；任一已组 → 全部从所属组摘出（解除）。
+void BaseTimelineView::toggleGroupOnSelection()
+{
+    if (!selectionModel())
+        return;
+    QStringList ids;
+    const QModelIndexList sel = selectionModel()->selectedIndexes();
+    for (const QModelIndex& idx : sel) {
+        if (!idx.parent().isValid())
+            continue;
+        if (auto* c = static_cast<AbstractClipModel*>(idx.internalPointer()))
+            ids << c->clipAnchor();
+    }
+    if (ids.isEmpty())
+        return;
+    getModel()->toggleGroupOfClips(ids);
+    scheduleRedraw(0);
+}
+
+/// 分组徽标（2026-11-27 用户定案终版）：组员片段左上角 res/icons/link.png
+///（链条图标，组关系隐喻）。12×12 平滑缩放，垂直与标题文字墨迹对齐，
+/// 水平贴左缘。
+void BaseTimelineView::drawGroupBadge(QPainter* painter, const QRect& clipRect) const
+{
+    if (!painter)
+        return;
+    painter->save();
+    // 【2026-11-27 用户定案】徽标 = res/icons/link.png（链条图标，组关系
+    // 隐喻；32×32 缩至 12×12 平滑绘制）。垂直沿用文字墨迹对齐：标题
+    // AlignCenter 行盒含 descent 空白，几何中心补偿上移 2px。
+    static const QPixmap badge(QStringLiteral(":/icons/icons/link.png"));
+    if (!badge.isNull()) {
+        constexpr int kSide = 12;
+        const int cy = clipRect.center().y() - 2;
+        painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter->drawPixmap(QRect(clipRect.left() + 3, cy - kSide / 2, kSide, kSide),
+                            badge);
+    }
+    painter->restore();
 }
 
 void BaseTimelineView::onUpdateViewport(){
@@ -1061,10 +1135,20 @@ void BaseTimelineView::mousePressEvent(QMouseEvent *event)
     //（Current flag 只换 current 不碰 selection）：每次按下必发
     // currentChanged，"取消→重选同一片段"链路贯通（多片段时靠
     // "选另一个"天然自愈，单片段场景为唯一路径——BUG 恰在此显形）。
-    if (selectionModel()) {
-        selectionModel()->clearSelection();
+    // 【2026-11-27 分组配套多选】Ctrl+点片段 = 增删选区（REAPER 同款
+    // 手势）——保留现有选择不做按下清空；其余路径维持上述原语义。
+    QModelIndex item = indexAt(event->pos());
+    const bool ctrlOnClip =
+        (event->modifiers() & Qt::ControlModifier) &&
+        item.isValid() && item.parent().isValid();
+    if (!ctrlOnClip && selectionModel()) {
+        // 【2026-11-27 顺序对调·选中残留修复】先清 current、后清 selection：
+        // clearSelection 同步触发 selectionChanged，若此刻 current 未清，
+        // 槽内脏区补绘仍把旧片段当 selectedClip 画加深（点击空白取消选中后
+        // 加深残留）。先清 current 让补绘看到空状态。
         selectionModel()->setCurrentIndex(QModelIndex(),
                                           QItemSelectionModel::Current);
+        selectionModel()->clearSelection();
     }
 
     //鼠标点击位置在标尺上就移动播放头
@@ -1073,7 +1157,6 @@ void BaseTimelineView::mousePressEvent(QMouseEvent *event)
         m_playheadSelected = true;
         return;
     }
-    QModelIndex item = indexAt(event->pos());
     //如果点击在轨道上的的空白处
     //【2026-11-06 用户定案】内容区点击/拖拽不再移动播放头——播放头仅
     // 标尺拖拽生效（上方 y<=rulerHeight+toolbarHeight 分支）。内容区空白
@@ -1101,8 +1184,29 @@ void BaseTimelineView::mousePressEvent(QMouseEvent *event)
 
     // 如果点击到了片段
     if(item.isValid() && item.parent().isValid()) {
-        // 设置当前项和选择
-        selectionModel()->setCurrentIndex(item, QItemSelectionModel::ClearAndSelect);
+        if (ctrlOnClip) {
+            // ---- Ctrl+点选 = 增删选区（2026-11-27 分组配套多选）--------
+            // 不在选区 → 追加；已在 → 摘出。current 跟随被点片段
+            //（属性面板/画布高亮显示交互对象）；摘出后清 current——否则
+            // 绘制把「current 但未选中」的片段仍画高亮，与选区不一致。
+            if (selectionModel()->isSelected(item)) {
+                // 【2026-11-27 顺序对调】先清 current、后摘出：Deselect 的
+                // 同步 selectionChanged 补绘不能看到悬空 current（否则被摘
+                // 片段仍被当 selectedClip 画加深，残留到下一次选中）。
+                selectionModel()->setCurrentIndex(QModelIndex(),
+                                                  QItemSelectionModel::Current);
+                selectionModel()->select(item, QItemSelectionModel::Deselect);
+            } else {
+                selectionModel()->select(item, QItemSelectionModel::Select);
+                selectionModel()->setCurrentIndex(item,
+                                                  QItemSelectionModel::Current);
+            }
+        } else {
+            // 设置当前项和选择
+            selectionModel()->setCurrentIndex(item, QItemSelectionModel::ClearAndSelect);
+            // 分组选中联动（2026-11-27 REAPER 式）：点成员 = 全组选中
+            syncGroupSelection(item);
+        }
         // ---- 关键帧命中优先（2026-11-05；WATCHOUT 式拖拽 > 片段拖拽）----
         // 向模型询问该点是否落在关键帧标记上（默认不命中）；命中则进入
         // 关键帧拖拽状态，不再设置 ClosedHandCursor/片段拖拽偏移。
@@ -1316,9 +1420,57 @@ void BaseTimelineView::handleMouseDrag(QMouseEvent *event)
                 getModel()->moveClipToTrack(clip, dragTargetTrack)) {
                 // 重选走 m_dragIndex（持久索引，beginMoveRows 已自动重映射
                 // 到新轨道子行）——indexForClip 是模型 protected 成员
-                if (m_dragIndex.isValid() && selectionModel())
+                if (m_dragIndex.isValid() && selectionModel()) {
                     selectionModel()->select(m_dragIndex,
                                              QItemSelectionModel::ClearAndSelect);
+                    // 分组选中联动补挂（2026-11-27）：换轨重选清了组员
+                    // 选中，重挂全组（拖拽中组员平移的高亮保持一致）
+                    syncGroupSelection(m_dragIndex);
+                }
+            }
+            // ---- 分组拖拽联动（2026-11-27 用户定案 REAPER 式）--------------
+            // 拖任一成员 = 全组按同一时间偏移平移（组员各自留在原轨——
+            // 跨轨组与 REAPER 同语义；裁边 LEFT/RIGHT 不传播）。delta 以
+            // 被拖片段当前 start 为基准逐拍累计（上一拍已写回双方），组内
+            // 最小 start（含被拖片段）钳制 delta，保证全组不越 0 且相对
+            // 关系不散。吸附作用于被拖片段，全组跟随吸附结果（REAPER 同）。
+            const QStringList groupMembers =
+                getModel()->groupMemberIdsOf(clip->clipAnchor());
+            if (!groupMembers.isEmpty()) {
+                qint64 delta = newStart - clip->start();
+                qint64 minStart = clip->start();
+                for (const QString& gid : groupMembers) {
+                    const QModelIndex mi = getModel()->clipIndexById(gid);
+                    if (mi.isValid())
+                        minStart = qMin(minStart, mi.data(
+                            TimelineRoles::ClipInRole).toLongLong());
+                }
+                delta = qMax(delta, -minStart);
+                newStart = clip->start() + delta; // 组钳制后的实际新起点
+                if (delta != 0) {
+                    QRegion memberDirty;
+                    for (const QString& gid : groupMembers) {
+                        const QModelIndex mi = getModel()->clipIndexById(gid);
+                        // 指针对比定位被拖片段自身（换轨后行号失真防御）；
+                        // 组员与被拖片段同指针即跳过。
+                        if (!mi.isValid() || mi.internalPointer() == clip)
+                            continue;
+                        const QRect mOldRect =
+                            visualRect(mi).adjusted(-4, -4, 124, 4);
+                        getModel()->setData(
+                            mi,
+                            mi.data(TimelineRoles::ClipInRole).toLongLong() + delta,
+                            TimelineRoles::ClipPosRole);
+                        // 组员脏矩形（拖拽中模型 defer 通知，静态缓存补绘
+                        // 与被拖片段同口径：旧∪新矩形走 repaintStaticCache）
+                        memberDirty += mOldRect.united(
+                            visualRect(mi).adjusted(-4, -4, 124, 4));
+                    }
+                    if (!memberDirty.isEmpty()) {
+                        repaintStaticCache(memberDirty);
+                        viewport()->update(memberDirty.boundingRect());
+                    }
+                }
             }
             moveSelectedClip(newStart, m_mouseEnd.y() + m_mouseOffset.y());
             break;
@@ -1841,9 +1993,32 @@ void BaseTimelineView::dropEvent(QDropEvent *event)
               case Qt::Key_Left:
                   moveSelectedClip(-1,0,false);
                   return true;
+              case Qt::Key_G:
+                  // 分组（2026-11-27 用户定案 REAPER 式）：Ctrl+G = 选中
+                  // 片段建组/解组切换（模型 toggleGroupOfClips 判定）
+                  if (keyEvent->modifiers() & Qt::ControlModifier) {
+                      toggleGroupOnSelection();
+                      return true;
+                  }
+                  break;
               case Qt::Key_Delete: {
-                  QModelIndex currentIndex = selectionModel()->currentIndex();
-                  getModel()->onDeleteClip(currentIndex);
+                  // 分组选中联动后 Delete = 删除全部选中片段（组员被联动
+                  // 选中 → 整组删除自然成立；单选行为不变）。持久索引
+                  // 快照先行——行删除后 QPersistentModelIndex 自动重映射，
+                  // 逐个删除仍指向正确片段。
+                  QList<QPersistentModelIndex> doomed;
+                  const QModelIndexList sel = selectionModel()->selectedIndexes();
+                  for (const QModelIndex& idx : sel)
+                      if (idx.parent().isValid())
+                          doomed << idx;
+                  if (doomed.isEmpty()) {
+                      const QModelIndex cur = selectionModel()->currentIndex();
+                      if (cur.isValid() && cur.parent().isValid())
+                          doomed << cur;
+                  }
+                  for (const QPersistentModelIndex& idx : doomed)
+                      if (idx.isValid())
+                          getModel()->onDeleteClip(idx);
                   // 清除选择并发送 nullptr
                   selectionModel()->clearSelection();
                   viewport()->update();
@@ -1878,6 +2053,9 @@ void BaseTimelineView::paintEvent(QPaintEvent *event)
         const QRect clipRect = visualRect(m_dragIndex).adjusted(0, clipoffset, 0, -clipoffset);
         const bool selected = selectionModel() && selectionModel()->isSelected(m_dragIndex);
         m_dragClip->paint(&painter, clipRect, selected);
+        // 分组徽标随拖拽动态层（2026-11-27）：被拖片段是组员则同样标识
+        if (!getModel()->groupMemberIdsOf(m_dragClip->clipAnchor()).isEmpty())
+            drawGroupBadge(&painter, clipRect);
     }
     drawSnapLine(&painter); // 磁性吸附对齐参考线（拖拽且吸附命中时出现）
     drawPlayhead(&painter);
@@ -2295,14 +2473,33 @@ void BaseTimelineView::drawTracks(QPainter* painter)
     const AbstractClipModel* selectedClip = nullptr;
     if (selectionModel()) {
         const QModelIndex current = selectionModel()->currentIndex();
-        if (current.parent().isValid())
+        // 【2026-11-27 选中残留修复】current 必须仍在选区内才画高亮——
+        // clearSelection/Deselect 同步触发 selectionChanged 时 current 尚未
+        // 清空，槽内脏区补绘把已取消选中的片段仍当 selectedClip 画加深
+        //（随后 setCurrentIndex 只发 currentChanged 不再重绘 → 加深残留到
+        // 下一次 selectionChanged）。绘制一律以选区为准："current 但未选中"
+        // 视为无高亮。
+        if (current.parent().isValid() && selectionModel()->isSelected(current))
             selectedClip = static_cast<AbstractClipModel*>(current.internalPointer());
         // 记录本趟实际用于绘制的选中态（selectionChanged 脏区补绘的"旧值"
         // 来源——全量重建/脏区补绘后保持一致，防止旧选中片段残留高亮）
         m_paintedCurrentIndex = current;
     }
+    // 多选高亮集合（2026-11-27 分组选中联动）：selectedIndexes 全量快照，
+    // 绘制判定与 selectionChanged 脏区"旧值"同源。
+    m_paintedSelIdxs.clear();
+    if (selectionModel()) {
+        const QModelIndexList sel = selectionModel()->selectedIndexes();
+        for (const QModelIndex& idx : sel)
+            if (idx.parent().isValid())
+                m_paintedSelIdxs.append(idx);
+    }
     QList<int> clipRows;
     auto* tlModel = static_cast<BaseTimeLineModel*>(model());
+
+    // 分组徽标数据源（2026-11-27 REAPER 式）：一次取全部分组成员 id 并集，
+    // 片段循环内 O(1) 命中判定（避免逐片段跨 DLL 查询）。
+    const QSet<QString> groupedIds = getModel()->groupedClipIds();
 
     for (int i = firstRow; i <= lastRow; ++i) {
         // 行顶 y 走前缀和（O(1)）；clip 本体高度恒 trackHeight
@@ -2333,7 +2530,19 @@ void BaseTimelineView::drawTracks(QPainter* painter)
             // 与 clipContentBounds 同一套几何，避免再走 visualRect / parent()。
             m_clipContentRects[clip] = QRect(startX, trackTop + scrollY, paintWidth, trackHeight).adjusted(-4, -4, 124, 4);
             const QRect clipRect(startX - scrollX, trackTop + clipoffset, clipWidth, trackHeight - clipoffset * 2);
-            clip->paint(painter, clipRect, clip == selectedClip);
+            // 高亮判定（2026-11-27 分组选中联动）：currentIndex 之外，多选
+            // 集合内片段同样画选中态。【选中残留修复】判定 = current(仍在
+            // 选区内) ∪ 选区集合——不再要求 size>1：Ctrl 摘出后仅剩 1 个
+            // 选中片段时，它既非 current（已清）又不满足 size>1，在选区内
+            // 却不亮（与选区不一致）。
+            const bool highlighted =
+                (clip == selectedClip) ||
+                m_paintedSelIdxs.contains(
+                    model()->index(clipRow, 0, trackIndex));
+            clip->paint(painter, clipRect, highlighted);
+            // 分组徽标（2026-11-27 REAPER 式）：组员片段左上角标识
+            if (!groupedIds.isEmpty() && groupedIds.contains(clip->clipAnchor()))
+                drawGroupBadge(painter, clipRect);
         }
     }
 }
@@ -2375,8 +2584,23 @@ void BaseTimelineView::selectionChanged(const QItemSelection &selected, const QI
                                  : clipContentBounds(clip, idx.parent().row());
         dirty += bounds.translated(-scrollOffset());
     };
+    // 多选脏区（2026-11-27 分组选中联动）：点成员 = 全组选中，一次变动
+    // N 个片段的绘制态——旧选中集合 ∪ 新选中集合全量展开（旧/新 currentIndex
+    // 冗余兜底：drawTracks 未跑过的首帧防漏）。
+    QList<QPersistentModelIndex> nowSel;
+    if (selectionModel()) {
+        const QModelIndexList sel = selectionModel()->selectedIndexes();
+        for (const QModelIndex& idx : sel)
+            if (idx.parent().isValid())
+                nowSel.append(idx);
+    }
     addClipRect(oldCur);
     addClipRect(newCur);
+    for (const QPersistentModelIndex& idx : m_paintedSelIdxs)
+        addClipRect(idx);
+    for (const QPersistentModelIndex& idx : nowSel)
+        addClipRect(idx);
+    m_paintedSelIdxs = nowSel;
 
     dirty &= viewport()->rect();
     if (dirty.isEmpty())
@@ -2511,6 +2735,11 @@ QString BaseTimelineView::isMimeAcceptable(const QMimeData *Mime) const
     }
     else if (ControlTypes.contains(suffix, Qt::CaseInsensitive)) {
         return "Control";
+    }
+    else if (ArtnetTypes.contains(suffix, Qt::CaseInsensitive)) {
+        // .dmx（Artnet 录制视频容器）→ Artnet 片段（2026-11-27 拖入修复：
+        // 此表缺失时 dragMove 阶段即 ignore，drop/探针链根本不可达）
+        return "Artnet";
     }
     return "";
 }

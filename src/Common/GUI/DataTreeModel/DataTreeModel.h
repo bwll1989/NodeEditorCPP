@@ -4,16 +4,16 @@
 #include <QVariant>
 #include <QHash>
 #include <QTimer>
-#include <QQmlEngine>
 
 /**
  * @brief 高性能树形数据模型，支持虚拟化和懒加载
  * 专门为大数据量优化，支持增量更新和过滤
+ * 【2026-11-26】QML→QWidget 迁移：DataBrowserWidget（QTreeView）直接消费本模型，
+ * 列语义 0=key 1=valueType 2=displayValue；UserRole 系列角色保持兼容
  */
 class DataTreeModel : public QAbstractItemModel
 {
     Q_OBJECT
-    QML_ELEMENT
     Q_PROPERTY(int totalItems READ totalItems NOTIFY totalItemsChanged)
     Q_PROPERTY(int filteredItems READ filteredItems NOTIFY filteredItemsChanged)
     Q_PROPERTY(bool lazyLoadingEnabled READ lazyLoadingEnabled WRITE setLazyLoadingEnabled NOTIFY lazyLoadingEnabledChanged)

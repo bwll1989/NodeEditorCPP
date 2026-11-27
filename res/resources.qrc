@@ -90,6 +90,7 @@
     <file>icons/gdtf.png</file>
     <file>icons/games.png</file>
     <file>icons/finger.png</file>
+    <file>icons/link.png</file>
   </qresource>
   <qresource prefix="images">
     <file>images/loading.png</file>
@@ -103,12 +104,6 @@
   </qresource>
   <qresource prefix="docs">
     <file>README.md</file>
-  </qresource>
-  <qresource prefix="/qml">
-    <file>qml/LogWidget.qml</file>
-    <file>qml/DataBrowser.qml</file>
-    <file>qml/MediaLibraryView.qml</file>
-    <file>qml/OscMessageList.qml</file>
   </qresource>
   <qresource prefix="/ads_icons">
     <file>ads_icons/close-button.svg</file>

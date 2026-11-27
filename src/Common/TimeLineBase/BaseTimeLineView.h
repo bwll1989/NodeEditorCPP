@@ -400,6 +400,16 @@ protected:
     void beginClipDrag(AbstractClipModel* clip, const QModelIndex& index);
     void finishClipDrag();
 
+    // ---- 片段分组（2026-11-27 用户定案：REAPER 式轻量关系语义）------------
+    /// 点击选中片段后把同组成员一并选入（selectionModel 多选）——
+    /// 「分组内选中任意一个，另一个也自动选中」。不在组 = no-op。
+    void syncGroupSelection(const QModelIndex& clipIndex);
+    /// Ctrl+G 切换：当前选中的片段集合交给模型建组/解组（toggleGroupOfClips）
+    void toggleGroupOnSelection();
+    /// 分组徽标（REAPER 式）：组员片段左上角 12px 绿色小方 + 双环链图形。
+    /// drawTracks（静态缓存）与 paintEvent（拖拽动态层）两处共用。
+    void drawGroupBadge(QPainter* painter, const QRect& clipRect) const;
+
     // ---- 磁性吸附（2026-11-09 用户需求：片段拖拽对齐）--------------------
     /// 收集吸附候选时刻（μs）：时间线原点 + 全部轨道所有片段的入/出点
     /// （排除拖拽片段自身）。跨轨道同权——邻轨片段边缘同样吸附（用户需求）。
@@ -633,6 +643,10 @@ protected:
     // 高亮/菱形放大；2026-11-15 selectionChanged 从全页重建改脏区补绘：
     // 旧选中 ∪ 新选中两块片段矩形，点击选中的开销从 O(全页) 降为 O(两片段)）
     QPersistentModelIndex m_paintedCurrentIndex;
+    // 上趟实际绘入高亮的片段索引全集（2026-11-27 分组选中联动：点成员 =
+    // 全组选中，一次变动 N 个片段的绘制态）——selectionChanged 多选脏区
+    // 的"旧值"来源，drawTracks 每趟按 selectedIndexes 全量重建。
+    QList<QPersistentModelIndex> m_paintedSelIdxs;
 
     /**
      * P3（timeline-draw-zoom-review）：标尺刻度文本缓存。

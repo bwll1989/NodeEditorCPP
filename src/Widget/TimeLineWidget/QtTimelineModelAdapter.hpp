@@ -275,6 +275,15 @@ public slots:
     void onClipTrackChanged(AbstractClipModel* clip, int fromTrack,
                             int toTrack) override;
 
+    // ---- 片段分组（2026-11-27 用户定案：REAPER 式轻量关系语义）----------
+    // 事实源 = work_->timeline.groups（ms::ClipGroup{id, member_ids}）。
+    // toggleGroupOfClips 切换语义：选中片段均无组 → 合建新组；
+    // 任一已组 → 全部从所属组摘出（<2 员的组删除）。收编 undoCheckpoint
+    // + sceneEdited（保存脏标记）；display 快照不重建（组不影响求值输出）。
+    QStringList groupMemberIdsOf(const QString& clipId) const override;
+    void toggleGroupOfClips(const QStringList& clipIds) override;
+    QModelIndex clipIndexById(const QString& clipId) override;
+    QSet<QString> groupedClipIds() const override;
     // ---- 时间轴拖拽真会话（2026-11-26）--------------------------------------
     // 基类会话钩子（view beginClipDrag/finishClipDrag 调用）虚分派到此处
     // 接管撤销历史：begin 冻结 SceneHistory 会话基线（此刻几何未变，一次

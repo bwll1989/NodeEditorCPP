@@ -84,7 +84,6 @@ set(ALL_NODES
     AudioAnalysisNode                           #音频分析节点
     DAWController                          #DAW控制器节点
     StyleTransferONNXNode                       #神经网络风格迁移
-    DataVisualNode                              #数据可视化
     FileLoadNode                                #文件导入
     ToFiles                                     #文件导出（图像/视频/音频）
     ColorNode                                   #颜色节点

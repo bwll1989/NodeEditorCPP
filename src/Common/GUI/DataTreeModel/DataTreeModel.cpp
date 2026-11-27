@@ -74,7 +74,7 @@ int DataTreeModel::rowCount(const QModelIndex &parent) const
 int DataTreeModel::columnCount(const QModelIndex &parent) const
 {
     Q_UNUSED(parent)
-    return 1; // 单列显示
+    return 3; // 【2026-11-26 QWidget 迁移】三列：0=键名 1=类型 2=显示值
 }
 
 QVariant DataTreeModel::data(const QModelIndex &index, int role) const
@@ -88,8 +88,18 @@ QVariant DataTreeModel::data(const QModelIndex &index, int role) const
 
     switch (role) {
     case Qt::DisplayRole:
-        // 返回空字符串，让自定义委托完全控制显示
-        return QString();
+        // 【2026-11-26 QWidget 迁移】按列分派：QTreeView 表格三列显示
+        switch (index.column()) {
+        case 0: return item->key;
+        case 1: return item->valueType;
+        case 2: return item->displayValue;
+        default: return QVariant();
+        }
+    case Qt::ForegroundRole:
+        // 类型列着色（对齐原 QML 委托的类型颜色语义，深色主题下调亮保证可读）
+        if (index.column() == 1)
+            return QColor(128, 148, 170);
+        return QVariant();
     case Qt::UserRole: // key
         return item->key;
     case Qt::UserRole + 1: // value

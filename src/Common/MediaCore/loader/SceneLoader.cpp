@@ -773,6 +773,12 @@ ms_proto::Timeline SceneLoader::toProtoTimeline(const Timeline& tl) {
     ms_proto::Timeline ptl;
     ptl.set_duration_us(tl.duration_us);
     for (const auto& t : tl.tracks) *ptl.add_tracks() = toProtoTrack(t);
+    // 片段分组表（2026-11-27 REAPER 式关系语义；空表省略=旧文件兼容）
+    for (const auto& g : tl.groups) {
+        ms_proto::ClipGroup* pg = ptl.add_groups();
+        pg->set_id(g.id);
+        for (const auto& m : g.member_ids) pg->add_member_ids(m);
+    }
     return ptl;
 }
 
@@ -1012,6 +1018,30 @@ std::optional<Scene> SceneLoader::fromProto(const ms_proto::Scene& pb,
     // ---- 时间轴（轨道 → 片段，纯转换；校验统一走 validateScene）----
     for (const auto& pt : pb.timeline().tracks())
         scene.timeline.tracks.push_back(fromProtoTrack(pt));
+
+    // ---- 片段分组表（2026-11-27 REAPER 式关系语义）----
+    // 清洗纪律：member_id 指向已不存在的片段（陈旧引用）→ 摘除；
+    // 摘后不足 2 员的组整体丢弃（单员组无关系语义，属数据残渣）。
+    // 组不参与 validateScene（无不变量可校验：组员可跨轨、可任意重叠）。
+    if (pb.timeline().groups_size() > 0) {
+        std::unordered_set<std::string> liveClipIds;
+        for (const auto& t : scene.timeline.tracks)
+            for (const auto& c : t.clips)
+                liveClipIds.insert(c.id);
+        std::unordered_set<std::string> seenGroupIds; // 组 id 查重（损坏
+                                                      // 文件同 id 双组防
+                                                      // 查询歧义）
+        for (const auto& pg : pb.timeline().groups()) {
+            if (!seenGroupIds.insert(pg.id()).second)
+                continue; // 同 id 组已收录：跳过后续重复
+            ClipGroup g;
+            g.id = pg.id();
+            for (const auto& m : pg.member_ids())
+                if (liveClipIds.count(m) > 0) g.member_ids.push_back(m);
+            if (g.member_ids.size() >= 2)
+                scene.timeline.groups.push_back(std::move(g));
+        }
+    }
 
     // R1/R2/R3/R7：统一完整性校验（唯一校验入口，任何来源场景不过则拒）
     if (!validateScene(scene, err)) return std::nullopt;

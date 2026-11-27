@@ -62,7 +62,7 @@ public:
         : SceneClipModel(startUs, QStringLiteral("Mapping"), {}, parent) {
         RESIZEABLE  = true;   // 可拖拽调长（时长 = 映射播放区间）
         EMBEDWIDGET = false;
-        SHOWBORDER  = true;
+        SHOWBORDER  = false;  // 【2026-11-27 用户定案】所有片段无边框
         setColor(QColor(0xB8, 0x3B, 0x5E)); // 玫红（节点体系 Mapping 类型色 #b83b5e）
         setEnd(startUs + 100 * QtTimeline::kFrameUs); // 旧 ctor：m_end = m_start + 100 帧
         engine_.globalObject().setProperty(QStringLiteral("PI"), M_PI);

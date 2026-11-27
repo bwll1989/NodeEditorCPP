@@ -48,9 +48,13 @@ AssetKind kindFromExt(const std::string& ext) {
                                    ".gif", ".webp", ".tif", ".tiff"};
     static const char* kAudio[] = {".wav", ".mp3", ".aac", ".flac",
                                    ".ogg", ".m4a", ".wma"};
+    // .dmx = Artnet 录制产物（视频容器，帧像素编码 DMX 512×N；与
+    // 编辑器 msProbeMediaFile 同表 2026-11-27 拖入修复）
+    static const char* kArtnet[] = {".dmx"};
     for (const char* e : kVideo) if (ext == e) return AssetKind::Video;
     for (const char* e : kImage) if (ext == e) return AssetKind::Image;
     for (const char* e : kAudio) if (ext == e) return AssetKind::Audio;
+    for (const char* e : kArtnet) if (ext == e) return AssetKind::Artnet;
     return AssetKind::Unknown;
 }
 
@@ -92,22 +96,27 @@ bool SceneAssembler::probeFile(const std::string& full_utf8, AssetKind kind,
     out.size_bytes = ec ? 0 : static_cast<std::uint64_t>(sz);
 
     // ---- 元数据探测（与 editor 导入链同口径）------------------------------
-    if (kind == AssetKind::Video || kind == AssetKind::Image) {
+    if (kind == AssetKind::Video || kind == AssetKind::Image ||
+        kind == AssetKind::Artnet) {
         // 视频与图片统一 FFmpeg 容器头探测（打开容器即返回，不解码帧）——
         // 图片本质"单帧媒体"，同一解码路径产出宽高；duration：视频取容器
         // 值、图片恒 0（任意时长显示）。
+        // 【.dmx 走此路】Artnet 录制文件 = 视频容器（帧像素编码 DMX 512×N），
+        // 解码路径与视频同源——probe 统一按 Video 打开（Artnet kind 的
+        // FfmpegMediaSource 消费端是逐帧提取，探测侧不需要特化）；
+        // Artnet 时长同视频取容器值（2026-11-27 拖入修复）。
         // 【音频勿走此路】纯音频无视频流，prepare 的 av_find_best_stream
         // (VIDEO) 必失败——下方走静态 probeDurationUs（2026-11-11 修复同源）。
         // assets_root 传空：full_utf8 已是完整路径（本函数独立于实例
         // assets_root_——静态成员无该成员），path 原样寻址。
-        FfmpegMediaSource probe(std::string(), kind);
+        FfmpegMediaSource probe(std::string(), AssetKind::Video);
         if (!probe.prepare(out)) {
             err = "媒体探测失败: " + full_utf8;
             return false;
         }
         out.width  = probe.width();
         out.height = probe.height();
-        if (kind == AssetKind::Video) out.duration_us = probe.duration_us();
+        if (kind != AssetKind::Image) out.duration_us = probe.duration_us();
         probe.release();
     } else if (kind == AssetKind::Audio) {
         // 音频：静态容器探测（不建解码上下文）；UTF-8 路径直通 ffmpeg

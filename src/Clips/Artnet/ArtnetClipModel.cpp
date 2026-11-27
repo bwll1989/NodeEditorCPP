@@ -20,7 +20,7 @@ ArtnetClipModel::ArtnetClipModel(qint64 startUs, QObject* parent)
     : SceneClipModel(startUs, QStringLiteral("Artnet"), {}, parent) {
     RESIZEABLE  = true;   // 可拖拽调长（时长亦由 DMX 视频自适应回填）
     EMBEDWIDGET = false;
-    SHOWBORDER  = true;
+    SHOWBORDER  = false;  // 【2026-11-27 用户定案】所有片段无边框
     setColor(QColor(0x66, 0xCC, 0xCC)); // 青（节点体系 Artnet 类型色 #66cccc）
 }
 

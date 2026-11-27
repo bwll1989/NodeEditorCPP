@@ -18,9 +18,10 @@
 // ===================== 布局度量（结构参数，非颜色） =====================
 int toolbarButtonWidth = 16;  // 工具栏按钮宽度
 int toolbarHeight = 30;       // 工具栏高度
-int trackHeight = 30;         // 轨道高度（历史：40→52（2026-11-05 tween 曲线带让位）→
+int trackHeight = 24;         // 轨道高度（历史：40→52（2026-11-05 tween 曲线带让位）→
                               // 40（2026-11-15 panel 退役回归紧凑）→30（2026-11-25 用户要求更紧凑；
-                              // M/S 按钮 16px / grip 20px 在 30px 内仍垂直居中可点））
+                              // M/S 按钮 16px / grip 20px 在 30px 内仍垂直居中可点）→
+                              // 24（2026-11-27 用户再压缩；clip 本体 20px，M/S 16px 仍居中可点））
 int rulerHeight = 30;         // 刻度高度
 int clipoffset = 2;           // clip 偏移
 int textoffset = 13;          // 文本偏移

@@ -83,11 +83,14 @@ set(PROTOBUF_RUNTIME_DLLS
         "${PROTOBUF_INSTALL_DIR}/bin/libutf8_validity.dll"
         "${PROTOBUF_INSTALL_DIR}/bin/libutf8_range.dll"
 )
+# 【2026-11-27】拷到 bin 根（exe 所在目录）而非插件目录：bin 根已有同版本
+# （主程序/MediaCore.dll 从那里加载），插件目录副本是冗余（md5 实证一致）；
+# QPluginLoader(LOAD_WITH_ALTERED_SEARCH_PATH) 解析不到时会回退 exe 目录
 foreach(_dll IN LISTS PROTOBUF_RUNTIME_DLLS)
     add_custom_command(TARGET ${Module_Name} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${_dll}"
-            "$<TARGET_FILE_DIR:${Module_Name}>"
+            "${CMAKE_BINARY_DIR}/bin"
             COMMENT "Copy protobuf runtime: ${_dll}"
     )
 endforeach()

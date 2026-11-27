@@ -199,6 +199,24 @@ public slots:
     // 任意片段可落任意轨。返回 false = clip 无效/索引失真/参数越界。
     bool moveClipToTrack(AbstractClipModel* clip, int targetTrackRow);
 
+    // ---- 片段分组（2026-11-27 用户定案：REAPER 式轻量关系语义）--------
+    // 组不是实体容器，只是片段间的关系：Ctrl+G 建组/解组、组内选中联动、
+    // 拖拽联动（拖一个全组同位移平移）。无时间框/无视觉块，组员可跨轨。
+    // 三接口默认 no-op（无分组能力的模型自然退化为无组行为）；
+    // 适配层覆写以 ms::Timeline.groups 为唯一事实源。
+    /// clipId 所属组的全体成员 id（含自身）；不在组 = 空表
+    virtual QStringList groupMemberIdsOf(const QString& /*clipId*/) const {
+        return {};
+    }
+    /// Ctrl+G 切换语义：选中片段均无组 → 合建新组；任一已组 → 全部摘出
+    virtual void toggleGroupOfClips(const QStringList& /*clipIds*/) {}
+    /// clip id → 模型索引（组内选中联动/拖拽联动定位组员用）；查无 = 无效索引
+    virtual QModelIndex clipIndexById(const QString& /*clipId*/) {
+        return {};
+    }
+    /// 全部分组成员 id 并集（分组徽标绘制数据源，一次取全体避免逐片段查询）
+    virtual QSet<QString> groupedClipIds() const { return {}; }
+
     // 拖拽期间只改片段几何，松手后再排序、重算长度并发出 dataChanged。
     // undoLabel（2026-11-26 拖拽真会话）：本次交互的撤销描述（"移动片段"
     // /"裁边片段"，view 传参）——基类仅透传；宿主模型（adapter）虚分派

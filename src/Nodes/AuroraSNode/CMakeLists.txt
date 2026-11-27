@@ -44,7 +44,9 @@ SET_TARGET_PROPERTIES(${Module_Name} PROPERTIES
         PREFIX ""
         SUFFIX ".node")
 
+# 【2026-11-27】拷到 bin 根（exe 所在目录）而非插件目录：bin 根已有同版本副本，
+# 插件目录副本冗余；QPluginLoader 解析不到时回退 exe 目录（发布=整个 bin，无单插件部署场景）
 add_custom_command(TARGET ${Module_Name} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${AURORA_LIB_PATH}/slamtec_aurora_remote_sdk.dll"
-        "$<TARGET_FILE_DIR:${Module_Name}>")
+        "${CMAKE_BINARY_DIR}/bin")

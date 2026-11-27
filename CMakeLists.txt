@@ -179,10 +179,15 @@ include_directories("${DEPENDS_DIR}/qtpropertybrowser/src")
 message("-- Found Qtpropertybrowser ${Qtpropertybrowser_DIR}")
 
 # 设置QT库
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Qt6Qml Qt6Quick Concurrent MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets Graphs)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui  QuickWidgets Widgets Network Concurrent Qml
-        QmlWorkerScript
-        QuickControls2 MultimediaWidgets Multimedia OpenGL OpenGLWidgets WebSockets Graphs SerialPort)
+# 【2026-11-26 清理】Multimedia/MultimediaWidgets/Graphs 全工程零链接已移除
+# （CaptureNode/ROINode 插件的 Qt6::Multimedia 死链已同步删除；QML 侧 QtGraphs
+#  由 DataVisualNode 的 qml import 运行时加载，不依赖 C++ find_package）
+# 【2026-11-26 QML→QWidget 迁移】DataBrowser 改纯 QWidget（QTreeView）实现，
+# Quick/QuickWidgets/QuickControls2/QmlWorkerScript 全工程移除；
+# Qml 组件保留——SendScheduler/OscListWidget/多个脚本节点用 QJSEngine（Qt6Qml.dll）
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets Concurrent OpenGL OpenGLWidgets WebSockets)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets Network Concurrent Qml
+        OpenGL OpenGLWidgets WebSockets SerialPort)
 # ============ 子项目引入总表（顺序保持原样，仅补分组注释） ============
 # ---- Clips：媒体 Clip 插件（磁盘 .plugin 形态，纯磁盘驱动无兜底；
 #      输出=bin/plugins/TimeLine/，WorkScenePluginLoader 按 exe 相对目录扫描） ----
@@ -327,8 +332,8 @@ set(CALC_SOURCE_FILES
         src/Common/Devices/JSEngineDefines/SupportWidgets.hpp
         src/Common/GUI/DataTreeModel/DataTreeModel.h
         src/Common/GUI/DataTreeModel/DataTreeModel.cpp
-        src/Common/GUI/DataTreeModel/QmlDataBrowser.h
-        src/Common/GUI/DataTreeModel/QmlDataBrowser.cpp
+        src/Common/GUI/DataTreeModel/DataBrowserWidget.h
+        src/Common/GUI/DataTreeModel/DataBrowserWidget.cpp
         src/Widget/CalendarWidget/CalendarWidget.cpp
         src/Widget/CalendarWidget/CalendarWidget.hpp
         src/Widget/CalendarWidget/ScheduledTaskWidget.cpp
@@ -467,41 +472,24 @@ target_link_libraries(${ProjectName}
             Qt${QT_VERSION_MAJOR}::Gui
             Qt${QT_VERSION_MAJOR}::Core
             Qt${QT_VERSION_MAJOR}::Qml
-            Qt${QT_VERSION_MAJOR}::QmlWorkerScript
-            Qt${QT_VERSION_MAJOR}::QuickControls2
-            Qt${QT_VERSION_MAJOR}::Quick
-            Qt${QT_VERSION_MAJOR}::QuickWidgets
             Qt${QT_VERSION_MAJOR}::Network
             Qt${QT_VERSION_MAJOR}::SerialPort
-            Qt${QT_VERSION_MAJOR}::Concurrent
-            Qt${QT_VERSION_MAJOR}::Multimedia
-            Qt${QT_VERSION_MAJOR}::MultimediaWidgets
             Qt${QT_VERSION_MAJOR}::OpenGL
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
             Qt${QT_VERSION_MAJOR}::WebSockets
-            Qt${QT_VERSION_MAJOR}::Graphs
             ${portaudio_LIBRARIES}
             ${QtNodes_LIBRARIES}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
             ${Libltc_LIBRARIES}
-            rtmidi
-            MtcDevices
             ${OpenCV_LIBRARIES}
-            ${QtColorWidgets_LIBRARIES}
-        ${Qtpropertybrowser_LIBRARIES}
             Poco::Foundation
-            Poco::Util
             Poco::Net
-            Poco::JSON
             GUIElements
             Opengl32
-            glu32
             OSCTransmitter
             DataTypes
-            BuildInNodes
-            Eigen3::Eigen
-            OscListWidget
+            BuildInNodes       # STATIC：PluginsManagerWidget 内置节点清单真实引用（2026-11-26 核查保留）
             TimestampGenerator
             MediaManger
 #            ModelDataBridge
@@ -510,7 +498,6 @@ target_link_libraries(${ProjectName}
 #            DockHub
             StatusContainer
             AppConfig
-            PropertyTreeWidget
             BaseClass       # 节点委托 + 片段基类层（SceneClipModel/TimeLineStyle 符号源）
             MqttClient
             QWindowKit::Widgets
@@ -547,26 +534,15 @@ target_link_libraries(${HeadlessProjectName}
             Qt${QT_VERSION_MAJOR}::Gui
             Qt${QT_VERSION_MAJOR}::Core
             Qt${QT_VERSION_MAJOR}::Qml
-            Qt${QT_VERSION_MAJOR}::QmlWorkerScript
-            Qt${QT_VERSION_MAJOR}::QuickControls2
-            Qt${QT_VERSION_MAJOR}::Quick
-            Qt${QT_VERSION_MAJOR}::QuickWidgets
             Qt${QT_VERSION_MAJOR}::Network
             Qt${QT_VERSION_MAJOR}::SerialPort
-            Qt${QT_VERSION_MAJOR}::Concurrent
-            Qt${QT_VERSION_MAJOR}::Multimedia
-            Qt${QT_VERSION_MAJOR}::MultimediaWidgets
             Qt${QT_VERSION_MAJOR}::OpenGL
             Qt${QT_VERSION_MAJOR}::OpenGLWidgets
             Qt${QT_VERSION_MAJOR}::WebSockets
-            Qt${QT_VERSION_MAJOR}::Graphs
             Poco::Foundation
-            Poco::Util
             Poco::Net
-            Poco::JSON
             GUIElements
             Opengl32
-            glu32
             OSCTransmitter
             DataTypes
             BuildInNodes
@@ -575,11 +551,6 @@ target_link_libraries(${HeadlessProjectName}
             ${Spdlog_LIBRARIES}
             ${ADS_LIBRARIES}
             ${Libltc_LIBRARIES}
-            rtmidi
-            MtcDevices
-            Eigen3::Eigen
-            ${OpenCV_LIBRARIES}
-            OscListWidget
             TimestampGenerator
             MediaManger
 #            ModelDataBridge
@@ -588,7 +559,6 @@ target_link_libraries(${HeadlessProjectName}
 #            DockHub
             StatusContainer
             AppConfig
-            PropertyTreeWidget
             BaseClass
             MqttClient
             MediaCore

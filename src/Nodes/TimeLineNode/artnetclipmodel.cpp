@@ -13,7 +13,7 @@ Clips::ArtnetClipModel::ArtnetClipModel(int start,const QString& filePath, QObje
             : NodeClipDelegateModel(start, "Artnet", parent),m_filePath(filePath),m_editor(nullptr)
     {
         EMBEDWIDGET = false;
-        SHOWBORDER = true;
+        SHOWBORDER = false; // 【2026-11-27 用户定案】所有片段无边框
         // 片段默认颜色写入自身（setColor），不再修改全局 ClipColor
         setColor(QColor("#66cccc"));
         TimeLineClipModel::initPropertyWidget();

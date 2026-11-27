@@ -13,13 +13,12 @@ add_library(${Module_Name} SHARED
         PluginDefinition.hpp
         ../../Common/GUI/DataTreeModel/DataTreeModel.cpp
         ../../Common/GUI/DataTreeModel/DataTreeModel.h
-        ../../Common/GUI/DataTreeModel/QmlDataBrowser.cpp
-        ../../Common/GUI/DataTreeModel/QmlDataBrowser.h
+        ../../Common/GUI/DataTreeModel/DataBrowserWidget.cpp
+        ../../Common/GUI/DataTreeModel/DataBrowserWidget.h
 
 )
+# 【2026-11-26 QML→QWidget 迁移】Qt6::Quick/QuickWidgets 死链已移除
 target_link_libraries(${Module_Name} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
-        Qt${QT_VERSION_MAJOR}::Quick
-        Qt${QT_VERSION_MAJOR}::QuickWidgets
         ${QtNodes_LIBRARIES}
         ${OpenCV_LIBRARIES}
         DataTypes

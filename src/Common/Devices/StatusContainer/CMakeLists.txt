@@ -24,9 +24,12 @@ target_include_directories(StatusContainer PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/Common/Devices>
     $<INSTALL_INTERFACE:include>
     $<INSTALL_INTERFACE:include/Common/Devices>
+    $<INSTALL_INTERFACE:include/Common/AppConfig>   # 【2026-11-27 补】StatusContainer.h
+                                                    # 头内 include OSCMessage.h——头依赖即
+                                                    # 接口依赖（SDK 示例 C1083 实锤）
 )
 
-# GUIElements 对使用自定义控件的节点为传递依赖；AppConfig 仅实现期需要
+# GUIElements 对使用自定义控件的节点为传递依赖；AppConfig 为实现期链接
 target_link_libraries(StatusContainer
     PUBLIC
         Qt${QT_VERSION_MAJOR}::Core

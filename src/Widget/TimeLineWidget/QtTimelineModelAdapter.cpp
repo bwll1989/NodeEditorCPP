@@ -29,6 +29,9 @@
 #include <QDebug>
 
 #include "SendScheduler.hpp" // ms::PlaybackSendScheduler（时敏发送快照构建）
+#include "Common/AppConfig/ConstantDefines.h" // MEDIA_LIBRARY_STORAGE_DIR（Artnet .dmx 拖入相对路径归约）
+#include <QDir>
+#include <QFileInfo>
 
 // 片段属性面板（素材绑定 + 画布变换；附加进库组合面板）
 // 【2026-11-13 片段插件化】通用面板/Tween 合并区迁 Common/ClipPanelBase.dll；
@@ -1437,7 +1440,10 @@ namespace {
 inline bool isHostMediaType(const QString& type) {
     return type == "Video" || type == "Image" ||
            type == "Text"  || type == "Audio" || type == "Live" ||
-           type == "Control" || type == "Artnet" || type == "Mapping";
+           type == "Control" || type == "Artnet" || type == "Mapping" ||
+           type == "Minimal"; // SDK 示例类型（2026-11-27）：无媒体/无画布，
+                              // 纯时间轴片段——与 Control 同口径放行，
+                              // 供 sdk/templates/MinimalClip 验收加载链
 }
 
 /// 媒体插件加载器：纯磁盘驱动（无任何内置兜底——彻底解耦定案）。
@@ -1921,6 +1927,28 @@ void QtTimelineModelAdapter::onDropMediaFile(int trackIndex, qint64 startUs,
     if (Clip* c = locateWorkClip(note))
         c->asset_id = a.id;
 
+    // 【2026-11-27 .dmx 拖入】Artnet 片段消费 clip_data.file（媒体库相对
+    // 路径，ArtnetClipModel::absolutePath = MEDIA_LIBRARY_STORAGE_DIR 拼接
+    // ——非 asset_id 绑定链）。拖入载荷固定来自媒体库（外部 urls 已被
+    // dragEnter 拒收），绝对路径归约库内相对路径灌 payload；模型侧
+    // setClipPayload 链自动重置解码器 + probeAndFitDuration 时长自适应
+    //（lengthChanged → onClipGeometryChanged 回写工作副本）。
+    if (drop_clip_type == QStringLiteral("Artnet")) {
+        const QDir mediaRoot(AppConstants::MEDIA_LIBRARY_STORAGE_DIR);
+        QString rel = mediaRoot.relativeFilePath(file);
+        if (rel.startsWith(QStringLiteral("../"))) // 库外兜底：取文件名
+            rel = QFileInfo(file).fileName();
+        QJsonObject o;
+        o[QStringLiteral("file")]          = rel;
+        o[QStringLiteral("targetHost")]    = QStringLiteral("192.168.1.255");
+        o[QStringLiteral("startUniverse")] = 0;
+        const QString payload = QString::fromUtf8(
+            QJsonDocument(o).toJson(QJsonDocument::Compact));
+        mc->setClipPayload(payload);
+        if (Clip* c = locateWorkClip(note))
+            c->clip_data = payload.toStdString(); // 持久化事实同步
+    }
+
     std::fprintf(stderr,
                  "adapter: 拖入片段 %s（轨道 %d）：导入 %s（时长 %lld us）\n",
                  note.toStdString().c_str(), trackIndex, a.id.c_str(),
@@ -2001,6 +2029,21 @@ void QtTimelineModelAdapter::onDeleteClip(QModelIndex clipIndex) {
             if (it != tr.clips.end()) {
                 tr.clips.erase(it);
                 dirty_clips_.erase(id); // 脏清单同步摘除（防 sync 阶段复活）
+                // 分组关系同步摘除（2026-11-27）：被删片段从所属组摘出，
+                // <2 员的组整体丢弃（残留陈旧 id 会在读侧被清洗，写侧
+                // 主动清保持 save 文件干净）。
+                for (auto& g : work_->timeline.groups) {
+                    auto m = std::find(g.member_ids.begin(),
+                                       g.member_ids.end(), id);
+                    if (m != g.member_ids.end())
+                        g.member_ids.erase(m);
+                }
+                auto& gs = work_->timeline.groups;
+                gs.erase(std::remove_if(gs.begin(), gs.end(),
+                                        [](const ClipGroup& g) {
+                                            return g.member_ids.size() < 2;
+                                        }),
+                         gs.end());
                 emit sceneEdited();
                 rebuildSendSnapshot(); // 删除 → 序列出快照（旧 owner 桶由
                                        // worker 换血撤销，末帧停止重发）
@@ -2058,6 +2101,112 @@ void QtTimelineModelAdapter::onClipTrackChanged(AbstractClipModel* clip,
     dst.clips.insert(pos, std::move(moved));
     emit sceneEdited();
     undoCheckpoint("跨轨移动"); // 撤销收编（轨道归属变化）
+}
+
+// ---------------------------------------------------------------------------
+// 片段分组（2026-11-27 用户定案：REAPER 式轻量关系语义）---------------------
+// 组只是片段间的关系表（无时间框/无视觉块），唯一事实源 = work_->timeline
+// .groups。三消费点：Ctrl+G 切换（本函数）、选中/拖拽联动（视图侧经
+// groupMemberIdsOf/clipIndexById 查询）。组变更走离散收编三连（与删片段
+// 同款）：sceneEdited（保存脏标记）+ rebuildSendSnapshot（快照含 groups
+// 序列化——求值端零感知但快照字段全量重建保持一致）+ undoCheckpoint。
+// ---------------------------------------------------------------------------
+QStringList QtTimelineModelAdapter::groupMemberIdsOf(const QString& clipId) const {
+    QStringList out;
+    if (!work_ || clipId.isEmpty())
+        return out;
+    const std::string id = clipId.toStdString();
+    for (const auto& g : work_->timeline.groups) {
+        if (std::find(g.member_ids.begin(), g.member_ids.end(), id) !=
+            g.member_ids.end()) {
+            for (const auto& m : g.member_ids)
+                out << QString::fromStdString(m);
+            break; // 一片段至多属一组（REAPER 平面分组语义）
+        }
+    }
+    return out;
+}
+
+void QtTimelineModelAdapter::toggleGroupOfClips(const QStringList& clipIds) {
+    if (!work_ || loading_ || clipIds.isEmpty())
+        return;
+
+    // 选中片段 id 表（clipAnchor = ms clip id，与 member_ids 同域）
+    std::vector<std::string> want;
+    want.reserve(clipIds.size());
+    for (const QString& q : clipIds)
+        want.push_back(q.toStdString());
+    // 任一选中片段已属某组 → 本次 Ctrl+G = 解除；全部无组 = 建组
+    auto touchesWant = [&want](const ClipGroup& g) {
+        for (const auto& id : want)
+            if (std::find(g.member_ids.begin(), g.member_ids.end(), id) !=
+                g.member_ids.end())
+                return true;
+        return false;
+    };
+    auto& gs = work_->timeline.groups;
+    const bool anyGrouped = std::any_of(gs.begin(), gs.end(),
+                                        [&touchesWant](const ClipGroup& g) {
+                                            return touchesWant(g);
+                                        });
+
+    if (anyGrouped) {
+        // 解除：选中片段从所属组摘出；未选中的组员保留成组；
+        // 摘后 <2 员的组整体丢弃（单员组无关系语义，等同散组）。
+        for (auto& g : gs) {
+            if (!touchesWant(g)) continue;
+            g.member_ids.erase(
+                std::remove_if(g.member_ids.begin(), g.member_ids.end(),
+                               [&want](const std::string& m) {
+                                   return std::find(want.begin(), want.end(), m) !=
+                                          want.end();
+                               }),
+                g.member_ids.end());
+        }
+        gs.erase(std::remove_if(gs.begin(), gs.end(),
+                                [](const ClipGroup& g) {
+                                    return g.member_ids.size() < 2;
+                                }),
+                 gs.end());
+        emit sceneEdited();
+        rebuildSendSnapshot();
+        undoCheckpoint("解除分组");
+    } else {
+        if (clipIds.size() < 2)
+            return; // 单片段建组无关系语义（REAPER 同款防御）
+        ClipGroup g;
+        int next = 1; // 组 id 查重推进（uniqueAssetId 同款，前缀 group-）
+        for (;;) {
+            const std::string cand = "group-" + std::to_string(next++);
+            bool clash = false;
+            for (const auto& e : gs)
+                if (e.id == cand) { clash = true; break; }
+            if (!clash) { g.id = cand; break; }
+        }
+        g.member_ids = std::move(want);
+        gs.push_back(std::move(g));
+        emit sceneEdited();
+        rebuildSendSnapshot();
+        undoCheckpoint("创建分组");
+    }
+}
+
+QModelIndex QtTimelineModelAdapter::clipIndexById(const QString& clipId) {
+    if (clipId.isEmpty())
+        return {};
+    if (AbstractClipModel* clip = findClipModelByAnchor(clipId.toStdString()))
+        return indexForClip(clip); // 模型内 O(1) 反查；查无 = 无效索引
+    return {};
+}
+
+QSet<QString> QtTimelineModelAdapter::groupedClipIds() const {
+    QSet<QString> out;
+    if (!work_)
+        return out;
+    for (const auto& g : work_->timeline.groups)
+        for (const auto& m : g.member_ids)
+            out.insert(QString::fromStdString(m));
+    return out;
 }
 
 // ---------------------------------------------------------------------------
