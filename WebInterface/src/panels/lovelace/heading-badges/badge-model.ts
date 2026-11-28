@@ -6,6 +6,7 @@ import type {
   LovelacePathBadgeConfig,
   LovelacePictureElementConfig,
 } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 
 /** Parse editor / config text into a write value. */
 export function parseBadgeWriteValue(raw: unknown): FlowValue {
@@ -330,7 +331,7 @@ export function createButtonBadgeStub(
     type: "button",
     entity: "",
     icon: "mdi:gesture-tap-button",
-    text: "触发",
+    text: t("触发"),
     show_name: true,
     tap_action: { action: "trigger" },
     ...extras,

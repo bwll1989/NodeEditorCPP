@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { LovelacePathPoint } from "../../../types";
 import { DEFAULT_FLOORPLAN } from "../picture-elements/default-floorplan";
+import { t, tf } from "../../../common/i18n/i18n";
 
 interface PointsChangedDetail {
   points: LovelacePathPoint[];
@@ -78,7 +79,7 @@ function samplePath(pathData: string, sampleCount = 12): LovelacePathPoint[] {
 
 @customElement("flow-path-points-editor")
 export class FlowPathPointsEditor extends LitElement {
-  @property() public label = "轨迹";
+  @property() public label = t("轨迹");
 
   @property() public helper = "";
 
@@ -211,14 +212,14 @@ export class FlowPathPointsEditor extends LitElement {
         <div class="label-row">
           <span class="label">${this.label}</span>
           <div class="actions">
-            <button type="button" class="link-btn" @click=${this._resetDefault}>默认轨迹</button>
+            <button type="button" class="link-btn" @click=${this._resetDefault}>${t("默认轨迹")}</button>
             <button
               type="button"
               class="link-btn"
               ?disabled=${this._selectedIndex < 0}
               @click=${this._removeSelected}
             >
-              删除点
+              ${t("删除点")}
             </button>
             <button
               type="button"
@@ -226,7 +227,7 @@ export class FlowPathPointsEditor extends LitElement {
               ?disabled=${points.length === 0}
               @click=${this._clear}
             >
-              清空
+              ${t("清空")}
             </button>
           </div>
         </div>
@@ -271,7 +272,7 @@ export class FlowPathPointsEditor extends LitElement {
                 @pointermove=${this._onPointPointerMove}
                 @pointerup=${this._onPointPointerUp}
                 @pointercancel=${this._onPointPointerUp}
-                title=${`点 ${index + 1}`}
+                title=${tf("点 %1", index + 1)}
               >
                 ${index + 1}
               </button>
@@ -279,12 +280,12 @@ export class FlowPathPointsEditor extends LitElement {
           )}
         </div>
         <p class="helper">
-          ${this.helper || "点击底图新增轨迹点，拖动点调整位置；卡片会按这些点自动生成轨迹。"}
+          ${this.helper || t("点击底图新增轨迹点，拖动点调整位置；卡片会按这些点自动生成轨迹。")}
         </p>
         <p class="meta">
           ${points.length > 0
-            ? `当前 ${points.length} 个点，轨迹数据：${path}`
-            : "还没有轨迹点，先在底图上点击开始绘制。"}
+            ? tf("当前 %1 个点，轨迹数据：%2", points.length, path)
+            : t("还没有轨迹点，先在底图上点击开始绘制。")}
         </p>
       </div>
     `;

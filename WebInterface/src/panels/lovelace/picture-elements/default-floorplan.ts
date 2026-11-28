@@ -1,4 +1,6 @@
 /** Offline floor-plan placeholder (HA picture-elements stub equivalent). */
+import { t } from "../../../common/i18n/i18n";
+
 export const DEFAULT_FLOORPLAN = `data:image/svg+xml,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560">
   <rect width="900" height="560" fill="#ead9c2"/>
@@ -13,11 +15,11 @@ export const DEFAULT_FLOORPLAN = `data:image/svg+xml,${encodeURIComponent(`
     <rect x="24" y="24" width="852" height="512" rx="4"/>
   </g>
   <g fill="#6d5644" font-family="Segoe UI, sans-serif" font-size="22" text-anchor="middle">
-    <text x="208" y="164">客厅</text>
-    <text x="634" y="164">厨房</text>
-    <text x="148" y="424">卧室</text>
-    <text x="411" y="424">卫生间</text>
-    <text x="713" y="424">阳台</text>
+    <text x="208" y="164">${t("客厅")}</text>
+    <text x="634" y="164">${t("厨房")}</text>
+    <text x="148" y="424">${t("卧室")}</text>
+    <text x="411" y="424">${t("卫生间")}</text>
+    <text x="713" y="424">${t("阳台")}</text>
   </g>
 </svg>
 `)}`;

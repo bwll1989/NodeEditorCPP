@@ -18,6 +18,7 @@ import {
   type HsvaColor,
   type RgbaColor,
 } from "../../../common/entity/color";
+import { t } from "../../../common/i18n/i18n";
 import { tileCardHostStyle, tileCardStyle } from "../../../styles/tile-card-style";
 import "../../../components/ha-tile-container";
 import "../../../components/ha-tile-icon";
@@ -176,7 +177,7 @@ export abstract class HuiColorCardBase extends LitElement implements LovelaceCar
               ${isRgba
                 ? html`
                     <div class="slider-row">
-                      <span class="slider-label">透明度</span>
+                      <span class="slider-label">${t("透明度")}</span>
                       <ha-control-slider
                         .value=${hsva.a}
                         .min=${0}
@@ -190,7 +191,7 @@ export abstract class HuiColorCardBase extends LitElement implements LovelaceCar
                   `
                 : html`
                     <div class="slider-row">
-                      <span class="slider-label">明度</span>
+                      <span class="slider-label">${t("明度")}</span>
                       <ha-control-slider
                         .value=${hsva.v}
                         .min=${0}

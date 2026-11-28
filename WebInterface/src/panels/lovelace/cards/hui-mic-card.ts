@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import { styleMap } from "lit/directives/style-map.js";
 import type { Flow, LovelaceCard, LovelaceCardConfig, LovelaceGridOptions } from "../../../types";
+import { t, tf } from "../../../common/i18n/i18n";
 import { computeTileColor } from "../../../common/entity/tile-color";
 import { tileCardHostStyle, tileCardStyle } from "../../../styles/tile-card-style";
 import "../../../components/ha-tile-container";
@@ -117,7 +118,7 @@ function resolveGetUserMedia(): { getUserMedia?: GetUserMediaFn; reason?: string
 
   if (typeof window !== "undefined" && window.isSecureContext === false) {
     return {
-      reason: "麦克风需 https 或 localhost（http://局域网IP 不可用）",
+      reason: t("麦克风需 https 或 localhost（http://局域网IP 不可用）"),
     };
   }
 
@@ -135,7 +136,7 @@ function resolveGetUserMedia(): { getUserMedia?: GetUserMediaFn; reason?: string
     };
   }
 
-  return { reason: "浏览器未提供麦克风接口" };
+  return { reason: t("浏览器未提供麦克风接口") };
 }
 
 @customElement("hui-mic-card")
@@ -144,7 +145,7 @@ export class HuiMicCard extends LitElement implements LovelaceCard {
     return {
       type: "mic",
       entity: "/demo/webmic/port",
-      name: "对讲",
+      name: t("对讲"),
       icon: "mdi:microphone",
     };
   }
@@ -268,13 +269,13 @@ export class HuiMicCard extends LitElement implements LovelaceCard {
 
     const mic = resolveGetUserMedia();
     if (!mic.getUserMedia) {
-      this._error = mic.reason ?? "无法访问麦克风";
+      this._error = mic.reason ?? t("无法访问麦克风");
       return;
     }
 
     const port = this._portNumber();
     if (!port) {
-      this._error = "未绑定有效端口";
+      this._error = t("未绑定有效端口");
       return;
     }
 
@@ -305,7 +306,7 @@ export class HuiMicCard extends LitElement implements LovelaceCard {
     } catch (err) {
       const cancelled = err instanceof Error && err.message === "cancelled";
       if (!cancelled && token === this._pressToken) {
-        this._error = err instanceof Error ? err.message : "无法开始对讲";
+        this._error = err instanceof Error ? err.message : t("无法开始对讲");
       }
       await this._stopTalking();
     }
@@ -423,7 +424,7 @@ export class HuiMicCard extends LitElement implements LovelaceCard {
       };
       const onError = () => {
         cleanup();
-        reject(new Error(`无法连接 ws://${this._wsHost()}:${port}`));
+        reject(new Error(tf("无法连接 %1", `ws://${this._wsHost()}:${port}`)));
       };
       const cleanup = () => {
         ws.removeEventListener("open", onOpen);
@@ -641,7 +642,7 @@ export class HuiMicCard extends LitElement implements LovelaceCard {
     const entity = this._config.entity;
     const state = entity && this.flow ? this.flow.states[entity] : undefined;
     const port = this._portNumber();
-    const name = String(this._config.name ?? state?.attributes?.friendly_name ?? "对讲");
+    const name = String(this._config.name ?? state?.attributes?.friendly_name ?? t("对讲"));
     const icon = String(this._config.icon ?? "mdi:microphone");
     const vertical = Boolean(this._config.vertical);
     const ready = this._ready;
@@ -651,14 +652,14 @@ export class HuiMicCard extends LitElement implements LovelaceCard {
     const secondary = this._error
       ? this._error
       : ready
-        ? "可以说话 · 松开结束"
+        ? t("可以说话 · 松开结束")
         : connecting
-          ? "连接中，请稍候…"
+          ? t("连接中，请稍候…")
           : !micOk
-            ? "麦克风不可用"
+            ? t("麦克风不可用")
             : port
-              ? `按住说话 · :${port}`
-              : "请绑定 Web Mic /port";
+              ? tf("按住说话 · :%1", port)
+              : t("请绑定 Web Mic /port");
 
     const colorStyle = styleMap({
       "--tile-color": computeTileColor(ready, this._config.color),

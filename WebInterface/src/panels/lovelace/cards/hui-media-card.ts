@@ -4,6 +4,7 @@ import { classMap } from "lit/directives/class-map.js";
 import { styleMap } from "lit/directives/style-map.js";
 import type { Flow, LovelaceCard, LovelaceCardConfig, LovelaceGridOptions } from "../../../types";
 import type { MediaPlayback } from "../../../common/entity/media";
+import { t } from "../../../common/i18n/i18n";
 import {
   formatMediaSecondary,
   getMediaPlayback,
@@ -24,7 +25,7 @@ export class HuiMediaCard extends LitElement implements LovelaceCard {
     return {
       type: "media",
       entity: "/demo/media",
-      name: "媒体播放器",
+      name: t("媒体播放器"),
       icon: "mdi:cast-audio",
     };
   }
@@ -75,7 +76,7 @@ export class HuiMediaCard extends LitElement implements LovelaceCard {
     const playback = getMediaPlayback(state);
     const vertical = Boolean(this._config.vertical);
     const name = String(
-      this._config.name ?? state?.attributes?.friendly_name ?? entity ?? "媒体播放器",
+      this._config.name ?? state?.attributes?.friendly_name ?? entity ?? t("媒体播放器"),
     );
     const icon = String(this._config.icon ?? state?.attributes?.icon ?? "mdi:cast-audio");
     const tileColor = computeFeatureColor(playing, this._config.color, "primary");

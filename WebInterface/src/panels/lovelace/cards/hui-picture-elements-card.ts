@@ -3,6 +3,7 @@ import { customElement, property, query, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { fireEvent } from "../../../common/dom/fire_event";
+import { t } from "../../../common/i18n/i18n";
 import type {
   Flow,
   LovelaceCard,
@@ -32,15 +33,15 @@ export class HuiPictureElementsCard extends LitElement implements LovelaceCard {
       elements: [
         createEntityBadgeStub({
           entity: "/demo/temperature",
-          name: "温度",
+          name: t("温度"),
           icon: "mdi:thermometer",
           color: "red",
           style: { top: "32%", left: "24%" },
         }),
         createButtonBadgeStub({
           entity: "/demo/trigger",
-          name: "触发",
-          text: "触发",
+          name: t("触发"),
+          text: t("触发"),
           style: { top: "58%", left: "72%" },
         }),
       ],
@@ -202,7 +203,7 @@ export class HuiPictureElementsCard extends LitElement implements LovelaceCard {
         <div class="root" @pointerup=${this._onRootPointerUp}>
           ${image
             ? html`<img alt="" src=${image} draggable="false" />`
-            : html`<div class="placeholder">添加底图后可在图上放置徽章</div>`}
+            : html`<div class="placeholder">${t("添加底图后可在图上放置徽章")}</div>`}
           ${this._elements.map((element, index) => this._renderElement(element, index))}
         </div>
       </ha-card>

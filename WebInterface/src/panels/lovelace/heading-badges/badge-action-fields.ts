@@ -1,5 +1,6 @@
 import { html, nothing, type TemplateResult } from "lit";
 import type { BadgeTapActionConfig, LovelaceCardConfig } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import { getCardEntry, getPickerCards } from "../../../registry/card-registry";
 import { formatBadgeWriteValue } from "./badge-value";
 import {
@@ -140,7 +141,7 @@ export function renderBadgeActionFields(
 
   return html`
     <label class="field">
-      <span>按下行为</span>
+      <span>${t("按下行为")}</span>
       <select
         @change=${(ev: Event) => {
           const next = (ev.target as HTMLSelectElement).value as NormalizedTapActionKind;
@@ -169,27 +170,27 @@ export function renderBadgeActionFields(
           emitAction("trigger", {}, patch);
         }}
       >
-        <option value="trigger" ?selected=${action === "trigger"}>触发（自动弹起）</option>
-        <option value="switch" ?selected=${action === "switch"}>开关（保持按下）</option>
-        <option value="rw" ?selected=${action === "rw"}>读写（保持按下）</option>
-        <option value="open-card" ?selected=${action === "open-card"}>弹出卡片</option>
+        <option value="trigger" ?selected=${action === "trigger"}>${t("触发（自动弹起）")}</option>
+        <option value="switch" ?selected=${action === "switch"}>${t("开关（保持按下）")}</option>
+        <option value="rw" ?selected=${action === "rw"}>${t("读写（保持按下）")}</option>
+        <option value="open-card" ?selected=${action === "open-card"}>${t("弹出卡片")}</option>
       </select>
       <p class="helper">
         ${action === "trigger"
-          ? "单击发送 true，随后自动弹起。读写地址请填「绑定地址」。"
+          ? t("单击发送 true，随后自动弹起。读写地址请填「绑定地址」。")
           : action === "switch"
-            ? "单击切换 true/false；跟随实体状态。读写地址请填「绑定地址」。"
+            ? t("单击切换 true/false；跟随实体状态。读写地址请填「绑定地址」。")
             : action === "rw"
-              ? "单击切换按下/弹起值；接收值匹配时同步外观。读写地址请填「绑定地址」。"
+              ? t("单击切换按下/弹起值；接收值匹配时同步外观。读写地址请填「绑定地址」。")
               : action === "open-card"
-                ? "单击只弹出卡片，不向徽章写值。读写地址请在下方卡片设置中配置。"
+                ? t("单击只弹出卡片，不向徽章写值。读写地址请在下方卡片设置中配置。")
                 : ""}
       </p>
     </label>
     ${action === "rw"
       ? html`
           <label class="field">
-            <span>按下发送值</span>
+            <span>${t("按下发送值")}</span>
             <input
               .value=${formatBadgeWriteValue(tap.press_value, true)}
               placeholder="true"
@@ -205,7 +206,7 @@ export function renderBadgeActionFields(
             />
           </label>
           <label class="field">
-            <span>弹起发送值</span>
+            <span>${t("弹起发送值")}</span>
             <input
               .value=${formatBadgeWriteValue(tap.release_value, false)}
               placeholder="false"
@@ -220,7 +221,7 @@ export function renderBadgeActionFields(
                 )}
             />
             <p class="helper">
-              再点一次发送弹起值。若实体当前值等于按下或弹起值，徽章状态会同步更新。
+              ${t("再点一次发送弹起值。若实体当前值等于按下或弹起值，徽章状态会同步更新。")}
             </p>
           </label>
         `
@@ -228,7 +229,7 @@ export function renderBadgeActionFields(
     ${action === "open-card"
       ? html`
           <label class="field">
-            <span>弹出卡片类型</span>
+            <span>${t("弹出卡片类型")}</span>
             <select
               @change=${(ev: Event) => {
                 const type = (ev.target as HTMLSelectElement).value;
@@ -250,7 +251,7 @@ export function renderBadgeActionFields(
                 : nothing}
             </select>
           </label>
-          <p class="helper">卡片的读写地址、范围与样式只在下方配置，与徽章绑定地址无关。</p>
+          <p class="helper">${t("卡片的读写地址、范围与样式只在下方配置，与徽章绑定地址无关。")}</p>
           <div
             class="open-card-editor"
             @config-changed=${(ev: Event) => {

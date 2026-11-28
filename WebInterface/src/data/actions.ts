@@ -1,3 +1,5 @@
+import { t } from "../common/i18n/i18n";
+
 export type FlowActionAccess = "read" | "write" | "readwrite";
 
 export interface FlowAction {
@@ -31,11 +33,11 @@ export function actionDisplayName(action: FlowAction): string {
 export function actionAccessLabel(access?: FlowActionAccess): string {
   switch (access) {
     case "read":
-      return "只读";
+      return t("只读");
     case "write":
-      return "只写";
+      return t("只写");
     default:
-      return "读写";
+      return t("读写");
   }
 }
 

@@ -1,6 +1,7 @@
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import { actionDisplayName, createAction } from "../../../data/actions";
+import { t, tf } from "../../../common/i18n/i18n";
 
 @customElement("flow-manual-action-form")
 export class FlowManualActionForm extends LitElement {
@@ -23,11 +24,11 @@ export class FlowManualActionForm extends LitElement {
   private async _submit(): Promise<void> {
     const entity = this._entity.trim();
     if (!entity) {
-      this._error = "请输入控制地址";
+      this._error = t("请输入控制地址");
       return;
     }
     if (!entity.startsWith("/")) {
-      this._error = "控制地址应以 / 开头";
+      this._error = t("控制地址应以 / 开头");
       return;
     }
 
@@ -38,20 +39,20 @@ export class FlowManualActionForm extends LitElement {
     const item = await createAction(entity, name);
     this._adding = false;
     if (!item) {
-      this._error = "添加失败，请检查地址是否有效";
+      this._error = t("添加失败，请检查地址是否有效");
       return;
     }
 
-    this._success = `已添加：${actionDisplayName(item)}`;
+    this._success = tf("已添加：%1", actionDisplayName(item));
     this._reset();
   }
 
   protected render() {
     return html`
-      <p class="help">无节点右键导出时，可在此手动登记控制地址。</p>
+      <p class="help">${t("无节点右键导出时，可在此手动登记控制地址。")}</p>
       <div class="form">
         <label class="field">
-          <span class="label">控制地址</span>
+          <span class="label">${t("控制地址")}</span>
           <input
             type="text"
             .value=${this._entity}
@@ -65,11 +66,11 @@ export class FlowManualActionForm extends LitElement {
           />
         </label>
         <label class="field">
-          <span class="label">显示名称</span>
+          <span class="label">${t("显示名称")}</span>
           <input
             type="text"
             .value=${this._name}
-            placeholder="留空则用地址"
+            placeholder=t("留空则用地址")
             ?disabled=${this._adding}
             @input=${(ev: Event) => {
               this._name = (ev.target as HTMLInputElement).value;
@@ -83,7 +84,7 @@ export class FlowManualActionForm extends LitElement {
             ?disabled=${this._adding}
             @click=${() => void this._submit()}
           >
-            ${this._adding ? "添加中…" : "添加"}
+            ${this._adding ? t("添加中…") : t("添加")}
           </button>
         </div>
       </div>

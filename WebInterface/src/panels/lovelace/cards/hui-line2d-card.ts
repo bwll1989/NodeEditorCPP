@@ -1,5 +1,6 @@
 import { customElement } from "lit/decorators.js";
 import type { LovelaceCardConfig } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import { chart2dCardStyles, HuiChart2dCardBase } from "./chart-2d-card-shared";
 
 @customElement("hui-line2d-card")
@@ -8,13 +9,13 @@ export class HuiLine2dCard extends HuiChart2dCardBase {
 
   readonly stubEntity = "/demo/line2d";
 
-  readonly stubName = "2D 折线";
+  readonly stubName = t("2D 折线");
 
   public static getStubConfig(): LovelaceCardConfig {
     return {
       type: "line2d",
       entity: "/demo/line2d",
-      name: "2D 折线",
+      name: t("2D 折线"),
       max_points: 5000,
       line_width: 2,
       show_axes: true,

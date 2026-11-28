@@ -1,6 +1,7 @@
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { LovelaceCardConfig } from "../types";
+import { t } from "../common/i18n/i18n";
 import { createBackdropDismissHandlers } from "../common/dom/modal-backdrop";
 import "../panels/lovelace/hui-card-container";
 
@@ -46,9 +47,9 @@ export class FlowDeleteCardDialog extends LitElement {
               `
             : nothing}
           <div class="footer">
-            <button type="button" class="btn cancel" @click=${this._cancel}>取消</button>
+            <button type="button" class="btn cancel" @click=${this._cancel}>${t("取消")}</button>
             <button type="button" class="btn confirm destructive" @click=${this._confirm}>
-              删除
+              ${t("删除")}
             </button>
           </div>
         </div>

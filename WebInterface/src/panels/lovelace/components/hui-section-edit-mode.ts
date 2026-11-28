@@ -1,6 +1,7 @@
 import { css, html, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { fireEvent } from "../../../common/dom/fire_event";
+import { t } from "../../../common/i18n/i18n";
 import { onEditMenuOpen } from "../../../common/dom/edit-menu-bus";
 import "../../../components/ha-action-menu";
 import type { ActionMenuItem } from "../../../components/ha-action-menu";
@@ -34,10 +35,10 @@ export class HuiSectionEditMode extends LitElement {
 
   private _menuItems(): ActionMenuItem[] {
     return [
-      { value: "edit", label: "编辑", icon: "mdi:pencil" },
-      { value: "duplicate", label: "复制", icon: "mdi:content-copy" },
+      { value: "edit", label: t("编辑"), icon: "mdi:pencil" },
+      { value: "duplicate", label: t("创建副本"), icon: "mdi:content-copy" },
       { value: "divider", label: "", divider: true },
-      { value: "delete", label: "删除", icon: "mdi:delete", destructive: true },
+      { value: "delete", label: t("删除"), icon: "mdi:delete", destructive: true },
     ];
   }
 
@@ -62,7 +63,7 @@ export class HuiSectionEditMode extends LitElement {
     return html`
       <div class="section-header">
         <div class="section-actions">
-          <span class="section-handle handle" title="拖动以调整分区位置">≡</span>
+          <span class="section-handle handle" title=${t("拖动以调整分区位置")}>≡</span>
           <ha-action-menu
             .items=${this._menuItems()}
             @action=${this._onMenuAction}

@@ -1,5 +1,6 @@
 import { customElement } from "lit/decorators.js";
 import type { LovelaceCardConfig } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import { chart2dCardStyles, HuiChart2dCardBase } from "./chart-2d-card-shared";
 
 @customElement("hui-bar-card")
@@ -8,12 +9,12 @@ export class HuiBarCard extends HuiChart2dCardBase {
 
   readonly stubEntity = "";
 
-  readonly stubName = "柱状图";
+  readonly stubName = t("柱状图");
 
   public static getStubConfig(): LovelaceCardConfig {
     return {
       type: "bar",
-      name: "柱状图",
+      name: t("柱状图"),
       entities: [
         { entity: "/demo/power", name: "Power" },
         { entity: "/demo/voltage", name: "Voltage" },

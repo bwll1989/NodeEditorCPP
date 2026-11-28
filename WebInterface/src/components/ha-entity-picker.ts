@@ -5,6 +5,7 @@ import { consume } from "@lit/context";
 import type { Flow } from "../types";
 import { flowContext } from "../context/flow-context";
 import { computeFixedDropdownPosition } from "../common/dom/fixed-dropdown";
+import { t } from "../common/i18n/i18n";
 import {
   actionDisplayName,
   fetchActions,
@@ -32,12 +33,12 @@ export class HaEntityPicker extends LitElement {
   @property({ attribute: false })
   public flow?: Flow;
 
-  @property() public label = "动作";
+  @property() public label = t("动作");
 
   /** 绑定的 OSC 地址（entity） */
   @property() public value = "";
 
-  @property() public placeholder = "搜索动作名";
+  @property() public placeholder = t("搜索动作名");
 
   @property({ type: Boolean }) public optional = false;
 
@@ -261,7 +262,7 @@ export class HaEntityPicker extends LitElement {
           : html`
               <span class="label">
                 ${this.label}
-                ${this.optional ? html`<span class="optional">（可选）</span>` : ""}
+                ${this.optional ? html`<span class="optional">${t("（可选）")}</span>` : ""}
               </span>
             `}
         <div class="input-wrap">
@@ -279,7 +280,7 @@ export class HaEntityPicker extends LitElement {
         ? html`
             <div class="menu" style=${styleMap(this._menuStyle)}>
               <div class="section">
-                <div class="section-title">动作库</div>
+                <div class="section-title">${t("动作库")}</div>
                 ${actionOptions.map((option) => this._renderOption(option))}
               </div>
             </div>
@@ -288,7 +289,7 @@ export class HaEntityPicker extends LitElement {
           ? html`
               <div class="menu" style=${styleMap(this._menuStyle)}>
                 <div class="section empty-hint">
-                  <p>未找到匹配动作，请先在侧边栏「动作库」中添加</p>
+                  <p>${t("未找到匹配动作，请先在侧边栏「动作库」中添加")}</p>
                 </div>
               </div>
             `

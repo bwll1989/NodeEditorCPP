@@ -1,5 +1,6 @@
 import { css, html, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { t } from "../common/i18n/i18n";
 
 /** HA-style +/- stepper for target temperature. */
 @customElement("ha-control-number-buttons")
@@ -53,7 +54,7 @@ export class HaControlNumberButtons extends LitElement {
         <button
           type="button"
           class="btn"
-          aria-label="减少"
+          aria-label=${t("减少")}
           ?disabled=${this.disabled}
           @click=${(ev: Event) => this._change(-this.step, ev)}
         >
@@ -63,7 +64,7 @@ export class HaControlNumberButtons extends LitElement {
         <button
           type="button"
           class="btn"
-          aria-label="增加"
+          aria-label=${t("增加")}
           ?disabled=${this.disabled}
           @click=${(ev: Event) => this._change(this.step, ev)}
         >

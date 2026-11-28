@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { LovelaceViewConfig } from "../../../types";
 import { createBackdropDismissHandlers } from "../../../common/dom/modal-backdrop";
+import { t, tf } from "../../../common/i18n/i18n";
 import "../../../components/ha-icon-picker";
 
 const VALID_PATH_REGEX = /^[a-zA-Z0-9_-]+$/;
@@ -46,7 +47,7 @@ export class FlowViewEditor extends LitElement {
   protected updated(changed: import("lit").PropertyValues): void {
     if ((changed.has("open") || changed.has("config")) && this.open) {
       const cfg = this.config;
-      this._title = cfg?.title ?? (this.isNew ? "新建视图" : "");
+      this._title = cfg?.title ?? (this.isNew ? t("新建视图") : "");
       this._icon = cfg?.icon || "mdi:view-dashboard";
       this._path = cfg?.path ?? "";
       this._maxColumns = Math.max(1, Math.min(10, Number(cfg?.max_columns) || 4));
@@ -75,19 +76,19 @@ export class FlowViewEditor extends LitElement {
 
   private _validatePath(path: string): boolean {
     if (!path) {
-      this._pathError = "网址路径不能为空";
+      this._pathError = t("网址路径不能为空");
       return false;
     }
     if (!VALID_PATH_REGEX.test(path)) {
-      this._pathError = "仅允许字母、数字、下划线和连字符";
+      this._pathError = t("仅允许字母、数字、下划线和连字符");
       return false;
     }
     if (INTEGER_REGEX.test(path)) {
-      this._pathError = "不能是纯数字（会与视图索引冲突）";
+      this._pathError = t("不能是纯数字（会与视图索引冲突）");
       return false;
     }
     if (this.reservedPaths.includes(path)) {
-      this._pathError = "该路径已被其他视图占用";
+      this._pathError = t("该路径已被其他视图占用");
       return false;
     }
     this._pathError = "";
@@ -119,7 +120,7 @@ export class FlowViewEditor extends LitElement {
     if (!this._validatePath(this._path)) return;
     const config: LovelaceViewConfig = {
       ...(this.config ?? { sections: [] }),
-      title: this._title.trim() || "新建视图",
+      title: this._title.trim() || t("新建视图"),
       icon: this._icon || "mdi:view-dashboard",
       path: this._path,
       max_columns: this._maxColumns,
@@ -150,21 +151,21 @@ export class FlowViewEditor extends LitElement {
         @pointercancel=${this._backdropDismiss.onBackdropPointerCancel}
       >
         <div class="dialog" role="dialog" aria-labelledby="view-editor-title">
-          <h3 id="view-editor-title">${this.isNew ? "添加视图" : "配置视图"}</h3>
-          <p class="hint">设置视图标题、图标与网址路径（与 Home Assistant 一致）。</p>
+          <h3 id="view-editor-title">${this.isNew ? t("添加视图") : t("配置视图")}</h3>
+          <p class="hint">${t("设置视图标题、图标与网址路径（与 Home Assistant 一致）。")}</p>
 
           <label>
-            <span>标题</span>
+            <span>${t("标题")}</span>
             <input
               type="text"
               .value=${this._title}
-              placeholder="例如：客厅"
+              placeholder=t("例如：客厅")
               @input=${this._onTitleInput}
             />
           </label>
 
           <ha-icon-picker
-            label="图标"
+            label=t("图标")
             .value=${this._icon}
             @icon-changed=${(ev: CustomEvent<{ value: string }>) => {
               ev.stopPropagation();
@@ -173,7 +174,7 @@ export class FlowViewEditor extends LitElement {
           ></ha-icon-picker>
 
           <label>
-            <span>网址</span>
+            <span>${t("网址")}</span>
             <input
               type="text"
               .value=${this._path}
@@ -182,11 +183,11 @@ export class FlowViewEditor extends LitElement {
             />
             ${this._pathError
               ? html`<span class="error">${this._pathError}</span>`
-              : html`<span class="helper">该值将成为打开此视图的网址路径的一部分（如 #/${this._path || "…"}）。</span>`}
+              : html`<span class="helper">${tf("该值将成为打开此视图的网址路径的一部分（如 #/%1）。", this._path || "…")}</span>`}
           </label>
 
           <label>
-            <span>最大列数: ${this._maxColumns}</span>
+            <span>${tf("最大列数: %1", this._maxColumns)}</span>
             <input
               type="range"
               min="1"
@@ -208,20 +209,20 @@ export class FlowViewEditor extends LitElement {
               }}
             />
             <div>
-              <div class="switch-label">紧凑分区排列</div>
-              <div class="helper">尽量填满空隙放置分区（HA dense_section_placement）。</div>
+              <div class="switch-label">${t("紧凑分区排列")}</div>
+              <div class="helper">${t("尽量填满空隙放置分区（HA dense_section_placement）。")}</div>
             </div>
           </label>
 
           <div class="actions">
-            <button type="button" class="secondary" @click=${this._close}>取消</button>
+            <button type="button" class="secondary" @click=${this._close}>${t("取消")}</button>
             <button
               type="button"
               class="primary"
               ?disabled=${!canSave}
               @click=${this._save}
             >
-              保存
+              ${t("保存")}
             </button>
           </div>
         </div>

@@ -8,6 +8,7 @@ import {
   parseHsvaValue,
   parseRgbaValue,
 } from "../common/entity/color";
+import { t } from "../common/i18n/i18n";
 
 export function createFlow(
   store: FlowStore,
@@ -45,7 +46,7 @@ export function createFlow(
       const state = store.getState(address);
       if (!state) return "—";
       const v = state.state;
-      if (typeof v === "boolean") return v ? "开启" : "关闭";
+      if (typeof v === "boolean") return v ? t("开") : t("关");
       if (Array.isArray(v)) {
         if (address.includes("hsv") && v.length === 3) {
           const hsva = parseHsvaValue(v);

@@ -2,6 +2,7 @@ import { css, html, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import { DEFAULT_COVER_POSITIONS } from "../common/entity/cover";
+import { t } from "../common/i18n/i18n";
 
 /** HA-style segmented cover position control. */
 @customElement("ha-control-cover-position")
@@ -33,7 +34,7 @@ export class HaControlCoverPosition extends LitElement {
     const positions = this.positions?.length ? this.positions : DEFAULT_COVER_POSITIONS;
 
     return html`
-      <div class="container" role="group" aria-label="单选位置">
+      <div class="container" role="group" aria-label=${t("单选位置")}>
         ${positions.map(
           (position) => html`
             <button

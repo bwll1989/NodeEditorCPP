@@ -1,3 +1,5 @@
+import { t } from "../i18n/i18n";
+
 /** Theme color tokens aligned with Home Assistant */
 export const THEME_COLOR_OPTIONS = [
   { value: "primary", label: "主题色" },
@@ -33,5 +35,6 @@ export function computeCssColor(color: string): string {
 }
 
 export function themeColorLabel(value: string): string {
-  return THEME_COLOR_OPTIONS.find((c) => c.value === value)?.label ?? value;
+  const found = THEME_COLOR_OPTIONS.find((c) => c.value === value);
+  return found ? t(found.label) : value;
 }

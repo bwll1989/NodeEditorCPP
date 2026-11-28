@@ -1,6 +1,7 @@
 import { css, html, LitElement } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
+import { t } from "../common/i18n/i18n";
 import {
   hsvaToRgba,
   rgbaToCss,
@@ -148,7 +149,7 @@ export class HaControlColorPad extends LitElement {
         class="pad"
         role="application"
         tabindex=${this.disabled ? -1 : 0}
-        aria-label="颜色触控板"
+        aria-label=${t("颜色触控板")}
         aria-valuetext=${rgbaToCss(this._rgba())}
         aria-disabled=${this.disabled ? "true" : "false"}
         @pointerdown=${this._onPointerDown}

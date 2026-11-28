@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { mdiClipboardTextOutline, mdiCog, mdiHome, mdiLightningBolt, mdiMenu, mdiMenuOpen, mdiPlayBoxMultipleOutline } from "@mdi/js";
 import { fireEvent } from "../common/dom/fire_event";
+import { t } from "../common/i18n/i18n";
 import "./ha-icon";
 
 export type FlowPanel = "home" | "actions" | "logs" | "media" | "config";
@@ -80,13 +81,13 @@ export class HaSidebar extends LitElement {
     return html`
       <aside
         class="sidebar ${expanded ? "expanded" : "collapsed"}"
-        aria-label="主导航"
+        aria-label=${t("主导航")}
       >
         <div class="menu-header">
           <button
             type="button"
             class="menu-toggle"
-            aria-label=${this._isExpanded ? "收起侧边栏" : "展开侧边栏"}
+            aria-label=${this._isExpanded ? t("收起侧边栏") : t("展开侧边栏")}
             aria-expanded=${this._isExpanded ? "true" : "false"}
             @click=${this._toggleExpanded}
           >
@@ -105,17 +106,17 @@ export class HaSidebar extends LitElement {
             ${this._renderNavItem({
               panel: "actions",
               iconPath: mdiLightningBolt,
-              label: "动作库",
+              label: t("动作库"),
             })}
             ${this._renderNavItem({
               panel: "logs",
               iconPath: mdiClipboardTextOutline,
-              label: "日志",
+              label: t("日志"),
             })}
             ${this._renderNavItem({
               panel: "media",
               iconPath: mdiPlayBoxMultipleOutline,
-              label: "媒体",
+              label: t("媒体"),
             })}
           </div>
 
@@ -125,7 +126,7 @@ export class HaSidebar extends LitElement {
             ${this._renderNavItem({
               panel: "config",
               iconPath: mdiCog,
-              label: "设置",
+              label: t("设置"),
               badge: settingsBadge,
             })}
           </div>

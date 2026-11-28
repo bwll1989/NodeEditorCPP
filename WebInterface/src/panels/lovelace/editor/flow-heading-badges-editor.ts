@@ -22,8 +22,8 @@ export class FlowHeadingBadgesEditor extends LitElement {
     return html`
       <flow-badges-list-editor
         mode="heading"
-        label="徽章"
-        emptyText="可添加状态徽章（只读）或控制徽章（点击操作）"
+        label=t("徽章")
+        emptyText=t("可添加状态徽章（只读）或控制徽章（点击操作）")
         .badges=${this.badges}
         @badges-changed=${this._onChanged}
       ></flow-badges-list-editor>

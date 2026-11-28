@@ -6,6 +6,7 @@ import type {
 } from "../../../types";
 import { DEFAULT_SECTION_BACKGROUND_OPACITY } from "../../../data/section-config";
 import { createBackdropDismissHandlers } from "../../../common/dom/modal-backdrop";
+import { t, tf } from "../../../common/i18n/i18n";
 import "../../../components/ha-color-picker";
 
 @customElement("flow-section-editor")
@@ -83,11 +84,11 @@ export class FlowSectionEditor extends LitElement {
         @pointercancel=${this._backdropDismiss.onBackdropPointerCancel}
       >
         <div class="dialog">
-          <h3>分区设置</h3>
-          <p class="hint">标题请在分区内的「Title」卡片中编辑，与 Home Assistant 一致。</p>
+          <h3>${t("分区设置")}</h3>
+          <p class="hint">${t("标题请在分区内的「Title」卡片中编辑，与 Home Assistant 一致。")}</p>
 
           <label>
-            <span>宽度（列数）: ${this._columnSpan}</span>
+            <span>${tf("宽度（列数）: %1", this._columnSpan)}</span>
             <input
               type="range"
               min="1"
@@ -108,17 +109,17 @@ export class FlowSectionEditor extends LitElement {
                 this._backgroundEnabled = (ev.target as HTMLInputElement).checked;
               }}
             />
-            <span>启用背景色</span>
+            <span>${t("启用背景色")}</span>
           </label>
 
           ${this._backgroundEnabled
             ? html`
                 <ha-color-picker
-                  label="背景颜色"
+                  label=t("背景颜色")
                   .value=${this._pickerColor()}
                   ?includeState=${false}
                   ?includeDefault=${true}
-                  defaultLabel="默认"
+                  defaultLabel=t("默认")
                   ?hideHelper=${true}
                   @color-changed=${(ev: CustomEvent<{ value: string }>) => {
                     const value = ev.detail.value;
@@ -126,7 +127,7 @@ export class FlowSectionEditor extends LitElement {
                   }}
                 ></ha-color-picker>
                 <label>
-                  <span>背景不透明度: ${this._backgroundOpacity}%</span>
+                  <span>${tf("背景不透明度: %1%", this._backgroundOpacity)}</span>
                   <input
                     type="range"
                     min="0"
@@ -141,8 +142,8 @@ export class FlowSectionEditor extends LitElement {
               `
             : nothing}
           <div class="actions">
-            <button type="button" class="secondary" @click=${this._close}>取消</button>
-            <button type="button" class="primary" @click=${this._save}>保存</button>
+            <button type="button" class="secondary" @click=${this._close}>${t("取消")}</button>
+            <button type="button" class="primary" @click=${this._save}>${t("保存")}</button>
           </div>
         </div>
       </div>

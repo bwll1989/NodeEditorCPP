@@ -1,6 +1,7 @@
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { mdiCheck, mdiClose, mdiCog, mdiPencil } from "@mdi/js";
+import { t, tf } from "../common/i18n/i18n";
 import type { LovelaceViewConfig } from "../types";
 import { viewUrlPath } from "../data/layout-mutations";
 import type { FlowPanel } from "./ha-sidebar";
@@ -77,14 +78,14 @@ export class FlowAside extends LitElement {
     return html`
       <div class="aside">
         <header class="aside-header">
-          <span class="aside-title">信息栏</span>
+          <span class="aside-title">${t("信息栏")}</span>
           ${this.narrow
             ? html`
                 <button
                   type="button"
                   class="icon-btn"
-                  aria-label="关闭信息栏"
-                  title="关闭信息栏"
+                  aria-label=${t("关闭信息栏")}
+                  title=${t("关闭信息栏")}
                   @click=${this._close}
                 >
                   <ha-svg-icon .path=${mdiClose}></ha-svg-icon>
@@ -99,12 +100,12 @@ export class FlowAside extends LitElement {
               <span class="conn-dot" aria-hidden="true"></span>
               <div class="conn-text">
                 <span class="conn-title">
-                  ${this.connected ? "已连接 Flow" : "未连接 · 演示模式"}
+                  ${this.connected ? t("已连接 Flow") : t("未连接 · 演示模式")}
                 </span>
                 <span class="conn-hint">
                   ${this.connected
-                    ? "实时同步实体状态与控制指令。"
-                    : "未连接到 Flow 主程序，界面数据仅为演示。"}
+                    ? t("实时同步实体状态与控制指令。")
+                    : t("未连接到 Flow 主程序，界面数据仅为演示。")}
                 </span>
               </div>
             </div>
@@ -113,19 +114,19 @@ export class FlowAside extends LitElement {
               : html`
                   <button type="button" class="link-btn" @click=${() => this._selectPanel("config")}>
                     <ha-svg-icon class="link-icon" .path=${mdiCog}></ha-svg-icon>
-                    前往设置
+                    ${t("前往设置")}
                   </button>
                 `}
           </section>
 
           <section class="card">
-            <h3 class="card-title">视图</h3>
+            <h3 class="card-title">${t("视图")}</h3>
             ${this.views.length
               ? html`
                   <div class="view-list">
                     ${this.views.map((view, index) => {
                       const active = onHome && index === this.activeView;
-                      const label = view.title || view.path || `视图 ${index + 1}`;
+                      const label = view.title || view.path || tf("视图 %1", index + 1);
                       return html`
                         <button
                           type="button"
@@ -140,23 +141,23 @@ export class FlowAside extends LitElement {
                     })}
                   </div>
                 `
-              : html`<p class="empty">暂无视图</p>`}
+              : html`<p class="empty">${t("暂无视图")}</p}`}
           </section>
 
           <section class="card">
-            <h3 class="card-title">概览</h3>
+            <h3 class="card-title">${t("概览")}</h3>
             <div class="stats">
               <div class="stat">
                 <span class="stat-value">${stats.views}</span>
-                <span class="stat-label">视图</span>
+                <span class="stat-label">${t("视图")}</span>
               </div>
               <div class="stat">
                 <span class="stat-value">${stats.sections}</span>
-                <span class="stat-label">分区</span>
+                <span class="stat-label">${t("分区")}</span>
               </div>
               <div class="stat">
                 <span class="stat-value">${stats.cards}</span>
-                <span class="stat-label">卡片</span>
+                <span class="stat-label">${t("卡片")}</span>
               </div>
             </div>
             ${this.canEdit && onHome
@@ -167,7 +168,7 @@ export class FlowAside extends LitElement {
                     @click=${this._toggleEdit}
                   >
                     <ha-svg-icon class="edit-icon" .path=${this.editMode ? mdiCheck : mdiPencil}></ha-svg-icon>
-                    ${this.editMode ? "完成编辑" : "编辑仪表盘"}
+                    ${this.editMode ? t("完成编辑") : t("编辑仪表盘")}
                   </button>
                 `
               : nothing}

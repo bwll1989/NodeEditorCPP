@@ -1,4 +1,5 @@
 import type { FlowEntityState } from "../../types";
+import { t } from "../i18n/i18n";
 
 const HVAC_LABELS: Record<string, string> = {
   off: "关闭",
@@ -18,8 +19,9 @@ export function getHvacMode(state?: FlowEntityState): string {
 
 export function formatHvacMode(state?: FlowEntityState): string {
   const mode = getHvacMode(state);
-  if (mode === "on") return "开启";
-  return HVAC_LABELS[mode] ?? mode;
+  if (mode === "on") return t("开启");
+  const label = HVAC_LABELS[mode];
+  return label ? t(label) : mode;
 }
 
 export function climateActive(state?: FlowEntityState): boolean {
@@ -80,7 +82,7 @@ export function formatClimateSecondary(state?: FlowEntityState, unit = ""): stri
   if (current !== undefined) {
     const digits = Number.isInteger(current) ? 0 : 1;
     const modePrefix =
-      hvacMode !== "off" && hvacMode !== "on" && mode !== "关闭" ? `${mode} · ` : "";
+      hvacMode !== "off" && hvacMode !== "on" ? `${mode} · ` : "";
     return `${modePrefix}${current.toFixed(digits)}${suffix}`.trim();
   }
 

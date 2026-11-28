@@ -1,5 +1,6 @@
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
+import { t, tf } from "../../common/i18n/i18n";
 import {
   downloadMediaFile,
   fetchMediaFiles,
@@ -42,7 +43,7 @@ export class FlowMediaPanel extends LitElement {
     const result = await fetchMediaFiles();
     this._loading = false;
     if (!result.ok) {
-      this._error = result.error || "加载失败";
+      this._error = result.error || t("加载失败");
       this._files = [];
       return;
     }
@@ -73,7 +74,7 @@ export class FlowMediaPanel extends LitElement {
   private async _uploadMedia(): Promise<void> {
     const list = this._mediaFiles.map((item) => item.file);
     if (!list.length) {
-      this._mediaStatus = "请选择媒体文件";
+      this._mediaStatus = t("请选择媒体文件");
       return;
     }
 
@@ -86,7 +87,7 @@ export class FlowMediaPanel extends LitElement {
         const file = list[i];
         const label = `${i + 1}/${list.length} ${file.name}`;
         this._mediaProgress = { ...this._mediaProgress, label };
-        this._mediaStatus = `正在上传：${label}`;
+        this._mediaStatus = tf("正在上传：%1", label);
         const url = `/api/upload/media?filename=${encodeURIComponent(file.name)}`;
         try {
           await uploadFileBinary(url, file, (pct) => {
@@ -114,19 +115,20 @@ export class FlowMediaPanel extends LitElement {
       const okCount = results.filter((r) => r.ok).length;
       const failCount = results.length - okCount;
       this._mediaStatus =
-        `完成：成功 ${okCount}，失败 ${failCount}` +
+        tf("完成：成功 %1，失败 %2", okCount, failCount) +
         (failCount
-          ? `；失败：${results
-              .filter((r) => !r.ok)
-              .map((r) => `${r.name}(${r.error})`)
-              .join("；")}`
+          ? tf("；失败：%1",
+              results
+                .filter((r) => !r.ok)
+                .map((r) => `${r.name}(${r.error})`)
+                .join("；"))
           : "");
 
       if (okCount > 0) {
         await this._loadLibrary();
       }
     } catch (e) {
-      this._mediaStatus = `上传异常：${e}`;
+      this._mediaStatus = tf("上传异常：%1", String(e));
     } finally {
       this._mediaUploading = false;
     }
@@ -138,7 +140,7 @@ export class FlowMediaPanel extends LitElement {
     const ok = await downloadMediaFile(file.name);
     this._downloading = "";
     if (!ok) {
-      this._error = `下载失败：${file.name}`;
+      this._error = tf("下载失败：%1", file.name);
     }
   }
 
@@ -162,27 +164,27 @@ export class FlowMediaPanel extends LitElement {
             <div class="card-body">
               <div class="toolbar">
                 <div>
-                  <h2 class="card-title">媒体库</h2>
-                  <p class="help">服务器上已保存的媒体文件，可下载到本地。</p>
+                  <h2 class="card-title">${t("媒体库")}</h2>
+                  <p class="help">${t("服务器上已保存的媒体文件，可下载到本地。")}</p>
                 </div>
                 <button type="button" class="ghost" ?disabled=${this._loading} @click=${() => void this._loadLibrary()}>
-                  刷新列表
+                  ${t("刷新列表")}
                 </button>
               </div>
 
               ${this._error ? html`<p class="error">${this._error}</p>` : nothing}
 
               ${this._loading
-                ? html`<p class="empty">加载中…</p>`
+                ? html`<p class="empty">${t("加载中…")}</p>`
                 : this._files.length === 0
-                  ? html`<p class="empty">暂无媒体文件</p>`
+                  ? html`<p class="empty">${t("暂无媒体文件")}</p>`
                   : html`
                       <div class="file-groups">
                         ${groupMediaFiles(this._files).map(
                           (group) => html`
                             <ha-expandable-panel
                               class="file-group"
-                              .header=${`${group.label} (${group.items.length})`}
+                              .header=${tf("%1 (%2)", group.label, group.items.length)}
                               expanded
                             >
                               <ul class="file-list">
@@ -201,7 +203,7 @@ export class FlowMediaPanel extends LitElement {
                                         ?disabled=${this._downloading === file.name}
                                         @click=${() => void this._download(file)}
                                       >
-                                        ${this._downloading === file.name ? "下载中…" : "下载"}
+                                        ${this._downloading === file.name ? t("下载中…") : t("下载")}
                                       </button>
                                     </li>
                                   `,
@@ -217,8 +219,8 @@ export class FlowMediaPanel extends LitElement {
 
           <ha-card class="upload-card">
             <div class="card-body">
-              <h2 class="card-title">上传媒体</h2>
-              <p class="help">将文件拖拽到下方区域，或点击选择。支持多文件上传。</p>
+              <h2 class="card-title">${t("上传媒体")}</h2>
+              <p class="help">${t("将文件拖拽到下方区域，或点击选择。支持多文件上传。")}</p>
               <div
                 class="dropzone ${this._mediaDragOver ? "dragover" : ""}"
                 @dragover=${(ev: DragEvent) => {
@@ -231,7 +233,7 @@ export class FlowMediaPanel extends LitElement {
                 @drop=${this._onMediaDrop}
               >
                 ${this._renderUploadIcon()}
-                <p>将文件拖到此处，或 <em>点击选择</em></p>
+                <p>${t("将文件拖到此处，或")} <em>${t("点击选择")}</em></p>
                 <input
                   class="file-input"
                   type="file"
@@ -241,7 +243,7 @@ export class FlowMediaPanel extends LitElement {
                   @change=${this._onMediaInput}
                 />
               </div>
-              <p class="upload-tip">支持常见音视频 / 图片，可一次选择多个文件</p>
+              <p class="upload-tip">${t("支持常见音视频 / 图片，可一次选择多个文件")}</p>
               ${this._mediaFiles.length
                 ? html`
                     <ul class="pick-list">
@@ -255,7 +257,7 @@ export class FlowMediaPanel extends LitElement {
                               ?disabled=${this._mediaUploading}
                               @click=${() => this._removeMedia(index)}
                             >
-                              移除
+                              ${t("移除")}
                             </button>
                           </li>
                         `,
@@ -270,7 +272,7 @@ export class FlowMediaPanel extends LitElement {
                   ?disabled=${this._mediaUploading}
                   @click=${() => void this._uploadMedia()}
                 >
-                  ${this._mediaUploading ? "上传中…" : "上传到服务器"}
+                  ${this._mediaUploading ? t("上传中…") : t("上传到服务器")}
                 </button>
                 <span class="status">${this._mediaStatus}</span>
               </div>

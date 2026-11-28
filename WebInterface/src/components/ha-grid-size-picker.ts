@@ -8,6 +8,7 @@ import {
 import "../panels/lovelace/editor/ha-grid-layout-slider";
 import "./ha-icon-button";
 import { mdiRestore } from "@mdi/js";
+import { t } from "../common/i18n/i18n";
 
 function conditionalClamp(value: number, min?: number, max?: number): number {
   let result = value;
@@ -164,7 +165,7 @@ export class HaGridSizePicker extends LitElement {
             ? html`
                 <ha-icon-button
                   .path=${mdiRestore}
-                  label="恢复默认"
+                  label=${t("恢复默认")}
                   @click=${this._reset}
                 ></ha-icon-button>
               `

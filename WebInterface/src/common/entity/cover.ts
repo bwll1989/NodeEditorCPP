@@ -1,5 +1,6 @@
 import type { FlowEntityState } from "../../types";
 import { stateActive } from "./state-active";
+import { t } from "../i18n/i18n";
 
 export const DEFAULT_COVER_POSITION_COUNT = 4;
 
@@ -41,6 +42,6 @@ export function formatCoverSecondary(
 ): string {
   const pos = getCoverPosition(state, positions);
   const closedValue = positions[0] ?? 0;
-  const label = pos > closedValue ? "已打开" : "已关闭";
+  const label = pos > closedValue ? t("已打开") : t("已关闭");
   return `${label} · ${pos}`;
 }

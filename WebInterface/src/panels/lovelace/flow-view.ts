@@ -4,6 +4,7 @@ import { repeat } from "lit/directives/repeat.js";
 import { consume } from "@lit/context";
 import type { Flow, LovelaceSectionConfig, LovelaceViewConfig } from "../../types";
 import { flowContext } from "../../context/flow-context";
+import { t } from "../../common/i18n/i18n";
 import { moveSectionInView } from "../../data/layout-mutations";
 import {
   clampSectionColumnSpan,
@@ -166,7 +167,7 @@ export class FlowView extends LitElement {
           ? html`
               <button type="button" class="create-section" @click=${this._addSection}>
                 <span class="create-icon">▦+</span>
-                <span>拖放卡片到此处以创建新分区</span>
+                <span>${t("拖放卡片到此处以创建新分区")}</span>
               </button>
             `
           : nothing}

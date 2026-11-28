@@ -1,4 +1,5 @@
 import type { FlowEntityState } from "../../types";
+import { t } from "../i18n/i18n";
 
 export const DEFAULT_GAIN_MIN = -60;
 export const DEFAULT_GAIN_MAX = 12;
@@ -48,7 +49,7 @@ export function isMuted(
 }
 
 export function formatGainSecondary(muted: boolean): string {
-  return muted ? "静音" : "开启";
+  return muted ? t("已静音") : t("开");
 }
 
 export function digitsForStep(step: number): number {

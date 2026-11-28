@@ -42,9 +42,9 @@ export class FlowPictureElementsEditor extends LitElement {
     return html`
       <flow-badges-list-editor
         .mode=${this._mode}
-        label="元素"
-        hint="点上方徽章切换编辑；可在右侧预览图上点击或拖动定位。"
-        emptyText="还没有元素。添加后会叠在底图上。"
+        label=t("元素")
+        hint=t("点上方徽章切换编辑；可在右侧预览图上点击或拖动定位。")
+        emptyText=t("还没有元素。添加后会叠在底图上。")
         .badges=${this.elements}
         @badges-changed=${this._onChanged}
       ></flow-badges-list-editor>

@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
 import type { PropertyValues } from "lit";
 import type { FlowLogEntry, LogLevelFilter } from "../../data/logs-api";
+import { t } from "../../common/i18n/i18n";
 import {
   fetchLogTail,
   levelClass,
@@ -63,7 +64,7 @@ export class FlowLogsPanel extends LitElement {
     const result = await fetchLogTail({ limit: 300, level: this._levelFilter });
     this._loading = false;
     if (!result.ok) {
-      this._error = result.error || "加载失败";
+      this._error = result.error || t("加载失败");
       return;
     }
     this._applyEntries(result.items);
@@ -143,43 +144,43 @@ export class FlowLogsPanel extends LitElement {
             <div class="card-body">
               <div class="toolbar">
                 <div class="toolbar-left">
-                  <h2 class="card-title">运行日志</h2>
+                  <h2 class="card-title">${t("运行日志")}</h2>
                   <span class="status ${this.wsConnected ? "live" : "offline"}">
-                    ${this.wsConnected ? "实时" : "离线"}
+                    ${this.wsConnected ? t("实时") : t("离线")}
                   </span>
                   ${!this._autoScroll
                     ? html`
                         <button type="button" class="resume" @click=${this._resumeScroll}>
-                          回到底部
+                          ${t("回到底部")}
                         </button>
                       `
                     : nothing}
                 </div>
                 <div class="toolbar-right">
                   <label class="filter">
-                    <span>级别</span>
+                    <span>${t("级别")}</span>
                     <select .value=${this._levelFilter} @change=${this._onFilterChange}>
                       ${LEVELS.map(
                         (level) => html`<option value=${level}>${level}</option>`,
                       )}
                     </select>
                   </label>
-                  <button type="button" class="ghost" @click=${this._clearDisplay}>清空显示</button>
+                  <button type="button" class="ghost" @click=${this._clearDisplay}>${t("清空显示")}</button>
                   <button type="button" class="ghost" @click=${() => void this._loadInitial()}>
-                    刷新
+                    ${t("刷新")}
                   </button>
                 </div>
               </div>
               <p class="help">
-                与桌面「终端显示」同步；WebSocket 连接时自动追加新日志。向上滚动可暂停自动滚底。
+                ${t("与桌面「终端显示」同步；WebSocket 连接时自动追加新日志。向上滚动可暂停自动滚底。")}
               </p>
               ${this._error ? html`<p class="error">${this._error}</p>` : nothing}
               <div class="log-shell">
                 <div class="log-view" @scroll=${this._onScroll}>
                   ${this._loading
-                    ? html`<p class="empty">加载中…</p>`
+                    ? html`<p class="empty">${t("加载中…")}</p>`
                     : this._entries.length === 0
-                      ? html`<p class="empty">暂无日志</p>`
+                      ? html`<p class="empty">${t("暂无日志")}</p>`
                       : this._entries.map(
                           (entry) => html`
                             <div class="log-row ${levelClass(entry.level)}">

@@ -17,6 +17,7 @@ import {
   verifySettingPassword,
 } from "../../data/setting-auth";
 import "../../components/ha-card";
+import { getLang, setLang, t, tf } from "../../common/i18n/i18n";
 
 const DEFAULT_MAX_COLUMNS = 2;
 interface ListedFile {
@@ -38,7 +39,7 @@ export class FlowSettingsPanel extends LitElement {
 
   @state() private _appName = "Flow";
   @state() private _appVersion = "…";
-  @state() private _currentFlowName = "检测中...";
+  @state() private _currentFlowName = t("检测中...");
 
   @state() private _flowFile: ListedFile | null = null;
   @state() private _flowStatus = "";
@@ -120,7 +121,7 @@ export class FlowSettingsPanel extends LitElement {
         this._authPassword = "";
         return;
       }
-      this._authError = "密码错误，请重试";
+      this._authError = t("密码错误，请重试");
     } finally {
       this._authLoading = false;
     }
@@ -147,17 +148,17 @@ export class FlowSettingsPanel extends LitElement {
     const item = this._flowFile;
     const file = item?.file;
     if (!file) {
-      this._flowStatus = "请选择.flow文件";
+      this._flowStatus = t("请选择.flow文件");
       return;
     }
     if (!file.name.toLowerCase().endsWith(".flow")) {
-      this._flowStatus = "文件扩展名必须为 .flow";
+      this._flowStatus = t("文件扩展名必须为 .flow");
       return;
     }
 
     this._flowUploading = true;
     this._flowProgress = { show: true, percent: 0 };
-    this._flowStatus = "开始上传...";
+    this._flowStatus = t("开始上传...");
 
     try {
       const url = `/api/upload/flow?filename=${encodeURIComponent(file.name)}`;
@@ -165,10 +166,10 @@ export class FlowSettingsPanel extends LitElement {
         this._flowProgress = { show: true, percent: pct };
       });
       this._flowProgress = { show: true, percent: 100 };
-      this._flowStatus = `上传成功：${result.path}`;
+      this._flowStatus = tf("上传成功：%1", result.path);
       this._flowFile = { file, status: "success" };
     } catch (e) {
-      this._flowStatus = `上传失败：${e instanceof Error ? e.message : e}`;
+      this._flowStatus = tf("上传失败：%1", e instanceof Error ? e.message : String(e));
       this._flowFile = { file, status: "fail" };
     } finally {
       this._flowUploading = false;
@@ -176,7 +177,7 @@ export class FlowSettingsPanel extends LitElement {
   }
 
   private async _downloadFlow(): Promise<void> {
-    this._downloadStatus = "正在请求...";
+    this._downloadStatus = t("正在请求...");
     this._downloading = true;
     try {
       const { filename, blob } = await downloadCurrentFlow();
@@ -188,9 +189,9 @@ export class FlowSettingsPanel extends LitElement {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      this._downloadStatus = "下载完成";
+      this._downloadStatus = t("下载完成");
     } catch (e) {
-      this._downloadStatus = `下载失败：${e instanceof Error ? e.message : e}`;
+      this._downloadStatus = tf("下载失败：%1", e instanceof Error ? e.message : String(e));
     } finally {
       this._downloading = false;
     }
@@ -201,19 +202,19 @@ export class FlowSettingsPanel extends LitElement {
       <div class="grid-slot">
         <ha-card>
           <div class="card-body">
-            <h2 class="card-title">访问验证</h2>
+            <h2 class="card-title">${t("访问验证")}</h2>
             ${this._authed
               ? html`
-                  <p class="help auth-ok">已通过验证，可使用下方设置项。</p>
-                  <span class="tag success">已解锁</span>
+                  <p class="help auth-ok">${t("已通过验证，可使用下方设置项。")}</p>
+                  <span class="tag success">${t("已解锁")}</span>
                 `
               : html`
-                  <p class="help">请输入设置密码以解锁上传、下载与编辑模式等操作。</p>
+                  <p class="help">${t("请输入设置密码以解锁上传、下载与编辑模式等操作。")}</p>
                   <input
                     class="text-input"
                     type="password"
                     .value=${this._authPassword}
-                    placeholder="请输入设置页面密码"
+                    placeholder=${t("请输入设置页面密码")}
                     autocomplete="current-password"
                     ?disabled=${this._authLoading}
                     @input=${(ev: Event) => {
@@ -231,13 +232,39 @@ export class FlowSettingsPanel extends LitElement {
                       ?disabled=${this._authLoading}
                       @click=${this._submitAuth}
                     >
-                      ${this._authLoading ? "验证中..." : "验证并解锁"}
+                      ${this._authLoading ? t("验证中...") : t("验证并解锁")}
                     </button>
                   </div>
                 `}
           </div>
         </ha-card>
       </div>
+    `;
+  }
+
+  /** 语言设置：本机偏好，不走验证锁；切换后整页刷新生效 */
+  private _renderLanguageCard() {
+    const lang = getLang();
+    return html`
+      <ha-card>
+        <div class="card-body">
+          <h2 class="card-title">${t("语言")}</h2>
+          <p class="help">${t("切换后立即生效")}</p>
+          <div class="actions">
+            <select
+              class="text-input"
+              style="width:auto"
+              @change=${(ev: Event) => {
+                const v = (ev.target as HTMLSelectElement).value;
+                if (v === "zh" || v === "en") setLang(v);
+              }}
+            >
+              <option value="zh" ?selected=${lang === "zh"}>简体中文</option>
+              <option value="en" ?selected=${lang === "en"}>English</option>
+            </select>
+          </div>
+        </div>
+      </ha-card>
     `;
   }
 
@@ -255,13 +282,15 @@ export class FlowSettingsPanel extends LitElement {
         <div class="grid">
           ${this._passwordRequired ? this._renderAuthCard() : nothing}
 
+          ${this._renderLanguageCard()}
+
           ${this._renderLockedSlot(html`
             <ha-card>
               <div class="card-body">
-                <h2 class="card-title">编辑模式</h2>
-                <p class="help">开启后，仪表盘右上角会出现编辑按钮，可修改布局与卡片。</p>
+                <h2 class="card-title">${t("编辑模式")}</h2>
+                <p class="help">${t("开启后，仪表盘右上角会出现编辑按钮，可修改布局与卡片。")}</p>
                 <label class="switch-row">
-                  <span>允许编辑仪表盘</span>
+                  <span>${t("允许编辑仪表盘")}</span>
                   <input
                     type="checkbox"
                     .checked=${this._layoutEditEnabled}
@@ -276,10 +305,10 @@ export class FlowSettingsPanel extends LitElement {
           ${this._renderLockedSlot(html`
             <ha-card>
               <div class="card-body">
-                <h2 class="card-title">上传项目文件（.flow）</h2>
+                <h2 class="card-title">${t("上传项目文件（.flow）")}</h2>
                 <div class="flow-upload-row">
                   <label class="btn primary file-label">
-                    选择文件
+                    ${t("选择文件")}
                     <input
                       type="file"
                       accept=".flow"
@@ -293,10 +322,10 @@ export class FlowSettingsPanel extends LitElement {
                     ?disabled=${this._flowUploading}
                     @click=${this._uploadFlow}
                   >
-                    ${this._flowUploading ? "上传中..." : "上传到服务器"}
+                    ${this._flowUploading ? t("上传中...") : t("上传到服务器")}
                   </button>
                 </div>
-                <p class="upload-tip">仅允许单个 .flow 项目文件</p>
+                <p class="upload-tip">${t("仅允许单个 .flow 项目文件")}</p>
                 ${this._flowFile
                   ? html`<div class="file-chip ${this._flowFile.status ?? ""}">${this._flowFile.file.name}</div>`
                   : nothing}
@@ -322,10 +351,10 @@ export class FlowSettingsPanel extends LitElement {
           ${this._renderLockedSlot(html`
             <ha-card>
               <div class="card-body">
-                <h2 class="card-title">下载当前项目</h2>
-                <p class="help">下载当前正在运行的项目文件</p>
+                <h2 class="card-title">${t("下载当前项目")}</h2>
+                <p class="help">${t("下载当前正在运行的项目文件")}</p>
                 <p class="help">
-                  当前文件：<span class="tag">${this._currentFlowName}</span>
+                  ${t("当前文件：")}<span class="tag">${this._currentFlowName}</span>
                 </p>
                 <div class="actions">
                   <button
@@ -334,7 +363,7 @@ export class FlowSettingsPanel extends LitElement {
                     ?disabled=${this._downloading}
                     @click=${this._downloadFlow}
                   >
-                    ${this._downloading ? "下载中..." : "下载文件"}
+                    ${this._downloading ? t("下载中...") : t("下载文件")}
                   </button>
                   <span class="status">${this._downloadStatus}</span>
                 </div>
@@ -345,11 +374,11 @@ export class FlowSettingsPanel extends LitElement {
           ${this._renderLockedSlot(html`
             <ha-card>
               <div class="card-body">
-                <h2 class="card-title">关于软件</h2>
+                <h2 class="card-title">${t("关于软件")}</h2>
                 <div class="about-row">
                   <div class="about-meta">
                     <strong>${this._appName}</strong>
-                    <span>版本 ${this._appVersion}</span>
+                    <span>${tf("版本 %1", this._appVersion)}</span>
                   </div>
                   <span class="tag success">v${this._appVersion}</span>
                 </div>
@@ -370,7 +399,7 @@ export class FlowSettingsPanel extends LitElement {
                 <div class="grid-slot">
                   <ha-card>
                     <div class="card-body">
-                      <div class="checking">加载中...</div>
+                      <div class="checking">${t("加载中...")}</div>
                     </div>
                   </ha-card>
                 </div>

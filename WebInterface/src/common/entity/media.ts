@@ -1,4 +1,5 @@
 import type { FlowEntityState, FlowValue } from "../../types";
+import { t } from "../i18n/i18n";
 
 export type MediaPlayback = "play" | "stop";
 
@@ -24,7 +25,7 @@ export function getMediaPlayback(state?: FlowEntityState): MediaPlayback {
 }
 
 export function formatMediaSecondary(state?: FlowEntityState): string {
-  return isMediaPlaying(state) ? "正在播放" : "已停止";
+  return isMediaPlaying(state) ? t("正在播放") : t("已停止");
 }
 
 export function resolveMediaCommand(

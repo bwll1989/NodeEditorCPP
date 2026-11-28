@@ -2,6 +2,7 @@ import { css, html, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { EntityPickerValueChangedDetail } from "../../../components/ha-entity-picker";
 import type { LovelaceStatusEntityConfig } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import "../../../components/ha-entity-picker";
 import "../../../components/ha-icon-picker";
 
@@ -35,11 +36,11 @@ export class FlowStatusEntitiesEditor extends LitElement {
     return html`
       <div class="editor">
         <div class="head">
-          <span class="label">状态项（每项绑定一个动作）</span>
-          <button type="button" class="add" @click=${this._add}>+ 添加状态</button>
+          <span class="label">${t("状态项（每项绑定一个动作）")}</span>
+          <button type="button" class="add" @click=${this._add}>${t("+ 添加状态")}</button>
         </div>
         ${this.entities.length === 0
-          ? html`<p class="empty">添加动作后，每行显示对应动作的实时状态</p>`
+          ? html`<p class="empty">${t("添加动作后，每行显示对应动作的实时状态")}</p>`
           : this.entities.map(
               (item, index) => html`
                 <div class="row">
@@ -47,7 +48,7 @@ export class FlowStatusEntitiesEditor extends LitElement {
                   <ha-entity-picker
                     compact
                     label=""
-                    placeholder="动作"
+                    placeholder=t("动作")
                     .value=${item.entity ?? ""}
                     @value-changed=${(ev: CustomEvent<EntityPickerValueChangedDetail>) => {
                       ev.stopPropagation();
@@ -61,13 +62,13 @@ export class FlowStatusEntitiesEditor extends LitElement {
                     class="name"
                     type="text"
                     .value=${item.name ?? ""}
-                    placeholder="名称"
+                    placeholder=t("名称")
                     @input=${(ev: Event) =>
                       this._patch(index, { name: (ev.target as HTMLInputElement).value })}
                   />
                   <ha-icon-picker
                     compact
-                    label="图标"
+                    label=t("图标")
                     .value=${item.icon ?? ""}
                     @icon-changed=${(ev: CustomEvent<{ value: string }>) => {
                       ev.stopPropagation();
@@ -77,8 +78,8 @@ export class FlowStatusEntitiesEditor extends LitElement {
                   <button
                     type="button"
                     class="remove"
-                    aria-label="删除"
-                    title="删除"
+                    aria-label=t("删除")
+                    title=t("删除")
                     @click=${() => this._remove(index)}
                   >
                     ×

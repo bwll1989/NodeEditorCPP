@@ -2,6 +2,7 @@ import { css, html, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import type { MediaPlayback } from "../common/entity/media";
+import { t } from "../common/i18n/i18n";
 import "./ha-icon";
 
 /** Two-option playback control (play / stop). */
@@ -30,14 +31,14 @@ export class HaControlMediaPlayback extends LitElement {
 
   protected render() {
     return html`
-      <div class="container" role="radiogroup" aria-label="播放控制">
+      <div class="container" role="radiogroup" aria-label=${t("播放控制")}>
         <button
           type="button"
           class=${classMap({ segment: true, selected: this.value === "play" })}
           role="radio"
           aria-checked=${this.value === "play" ? "true" : "false"}
-          aria-label="播放"
-          title="播放"
+          aria-label=${t("播放")}
+          title=${t("播放")}
           ?disabled=${this.disabled}
           @click=${(ev: Event) => this._select("play", ev)}
         >
@@ -48,8 +49,8 @@ export class HaControlMediaPlayback extends LitElement {
           class=${classMap({ segment: true, selected: this.value === "stop" })}
           role="radio"
           aria-checked=${this.value === "stop" ? "true" : "false"}
-          aria-label="停止"
-          title="停止"
+          aria-label=${t("停止")}
+          title=${t("停止")}
           ?disabled=${this.disabled}
           @click=${(ev: Event) => this._select("stop", ev)}
         >

@@ -1,3 +1,5 @@
+import { t, getLang } from "../common/i18n/i18n";
+
 export interface FlowMediaFile {
   name: string;
   size: number;
@@ -75,7 +77,7 @@ export function groupMediaFiles(files: FlowMediaFile[]): MediaFileGroup[] {
   return MEDIA_CATEGORY_ORDER.flatMap((category) => {
     const items = buckets.get(category);
     if (!items?.length) return [];
-    return [{ category, label: MEDIA_CATEGORY_LABELS[category], items }];
+    return [{ category, label: t(MEDIA_CATEGORY_LABELS[category]), items }];
   });
 }
 
@@ -92,11 +94,11 @@ export async function fetchMediaFiles(): Promise<{
       error?: string;
     };
     if (data.ok === false) {
-      return { ok: false, items: [], error: data.error || "加载失败" };
+      return { ok: false, items: [], error: data.error || t("加载失败") };
     }
     return { ok: true, items: Array.isArray(data.items) ? data.items : [] };
   } catch {
-    return { ok: false, items: [], error: "无法连接 Flow 媒体服务" };
+    return { ok: false, items: [], error: t("无法连接 Flow 媒体服务") };
   }
 }
 
@@ -131,7 +133,7 @@ export function formatMediaFileTime(iso?: string): string {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString("zh-CN", {
+  return date.toLocaleString(getLang() === "en" ? "en-US" : "zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

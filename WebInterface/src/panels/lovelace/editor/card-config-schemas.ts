@@ -3,6 +3,7 @@ import { CHART2D_DEFAULTS } from "../../../common/chart/chart-2d-entity";
 import { CHART3D_DEFAULTS } from "../../../common/chart/chart-3d-entity";
 import { XY_PAD_DEFAULTS } from "../../../common/entity/xy-pad";
 import { CONTENT_LAYOUT_FIELD, CARD_CONTENT_SECTION, entityCardSchema } from "./card-common-schemas";
+import { t } from "../../../common/i18n/i18n";
 
 const DEFAULT_PATH_BADGE_POINTS = [
   { x: 10, y: 88 },
@@ -15,7 +16,7 @@ const DEFAULT_PATH_ELEMENT_BADGES = [
   {
     type: "entity",
     entity: "/demo/path_progress",
-    name: "轨迹点 1",
+    name: t("轨迹点 1"),
     icon: "mdi:robot-industrial",
     color: "accent",
     show_icon: true,
@@ -25,43 +26,43 @@ const DEFAULT_PATH_ELEMENT_BADGES = [
 ];
 
 const CHART2D_APPEARANCE_FIELDS: ConfigFieldSchema[] = [
-  { name: "bg_color", label: "背景色", type: "color", optional: true },
+  { name: "bg_color", label: t("背景色"), type: "color", optional: true },
 ];
 
 const CHART2D_AXIS_FIELDS: ConfigFieldSchema[] = [
-  { name: "x_label", label: "X 轴标签", type: "text", optional: true, placeholder: CHART2D_DEFAULTS.x_label },
-  { name: "y_label", label: "Y 轴标签", type: "text", optional: true, placeholder: CHART2D_DEFAULTS.y_label },
-  { name: "show_axes", label: "显示坐标轴", type: "boolean" },
-  { name: "show_grid", label: "显示网格线", type: "boolean" },
+  { name: "x_label", label: t("X 轴标签"), type: "text", optional: true, placeholder: CHART2D_DEFAULTS.x_label },
+  { name: "y_label", label: t("Y 轴标签"), type: "text", optional: true, placeholder: CHART2D_DEFAULTS.y_label },
+  { name: "show_axes", label: t("显示坐标轴"), type: "boolean" },
+  { name: "show_grid", label: t("显示网格线"), type: "boolean" },
 ];
 
 const CHART2D_DATA_FIELDS: ConfigFieldSchema[] = [
   {
     name: "max_points",
-    label: "最大点数",
+    label: t("最大点数"),
     type: "number",
-    helper: "超出后丢弃最旧的数据点",
+    helper: t("超出后丢弃最旧的数据点"),
   },
 ];
 
 const CHART3D_APPEARANCE_FIELDS: ConfigFieldSchema[] = [
-  { name: "bg_color", label: "背景色", type: "color", optional: true },
+  { name: "bg_color", label: t("背景色"), type: "color", optional: true },
 ];
 
 const CHART3D_AXIS_FIELDS: ConfigFieldSchema[] = [
-  { name: "x_label", label: "X 轴标签", type: "text", optional: true, placeholder: CHART3D_DEFAULTS.x_label },
-  { name: "y_label", label: "Y 轴标签", type: "text", optional: true, placeholder: CHART3D_DEFAULTS.y_label },
-  { name: "z_label", label: "Z 轴标签", type: "text", optional: true, placeholder: CHART3D_DEFAULTS.z_label },
-  { name: "show_axes", label: "显示坐标轴", type: "boolean" },
-  { name: "auto_rotate", label: "自动旋转", type: "boolean" },
+  { name: "x_label", label: t("X 轴标签"), type: "text", optional: true, placeholder: CHART3D_DEFAULTS.x_label },
+  { name: "y_label", label: t("Y 轴标签"), type: "text", optional: true, placeholder: CHART3D_DEFAULTS.y_label },
+  { name: "z_label", label: t("Z 轴标签"), type: "text", optional: true, placeholder: CHART3D_DEFAULTS.z_label },
+  { name: "show_axes", label: t("显示坐标轴"), type: "boolean" },
+  { name: "auto_rotate", label: t("自动旋转"), type: "boolean" },
 ];
 
 const CHART3D_DATA_FIELDS: ConfigFieldSchema[] = [
   {
     name: "max_points",
-    label: "最大点数",
+    label: t("最大点数"),
     type: "number",
-    helper: "超出后丢弃最旧的数据点",
+    helper: t("超出后丢弃最旧的数据点"),
   },
 ];
 
@@ -70,36 +71,36 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
   heading: [
     {
       name: "heading_style",
-      label: "样式",
+      label: t("样式"),
       type: "select",
       options: [
         { value: "title", label: "Title" },
-        { value: "subtitle", label: "副标题" },
+        { value: "subtitle", label: t("副标题") },
       ],
     },
-    { name: "heading", label: "标题文字", type: "text", placeholder: "客厅" },
-    { name: "icon", label: "图标", type: "icon", placeholder: "mdi:sofa", optional: true },
-    { name: "badges", label: "徽章", type: "badges" },
+    { name: "heading", label: t("标题文字"), type: "text", placeholder: t("客厅") },
+    { name: "icon", label: t("图标"), type: "icon", placeholder: "mdi:sofa", optional: true },
+    { name: "badges", label: t("徽章"), type: "badges" },
   ],
 
   tile: [
     ...entityCardSchema([
-      { name: "hide_state", label: "隐藏状态", type: "boolean" },
+      { name: "hide_state", label: t("隐藏状态"), type: "boolean" },
       CONTENT_LAYOUT_FIELD,
     ]),
   ],
 
   sensor: [
     ...entityCardSchema([
-      { name: "hide_state", label: "隐藏状态", type: "boolean" },
+      { name: "hide_state", label: t("隐藏状态"), type: "boolean" },
       CONTENT_LAYOUT_FIELD,
     ]),
-    { name: "unit", label: "单位", type: "text", optional: true, placeholder: "°C" },
+    { name: "unit", label: t("单位"), type: "text", optional: true, placeholder: "°C" },
   ],
 
   label: [
     ...entityCardSchema([
-      { name: "hide_state", label: "隐藏状态", type: "boolean" },
+      { name: "hide_state", label: t("隐藏状态"), type: "boolean" },
       CONTENT_LAYOUT_FIELD,
     ]),
   ],
@@ -111,9 +112,9 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
   mic: [
     {
       name: "entity",
-      label: "端口地址",
+      label: t("端口地址"),
       type: "entity",
-      helper: "绑定 Web Mic 节点的 /port（如 /dataflow/<id>/port）",
+      helper: t("绑定 Web Mic 节点的 /port（如 /dataflow/<id>/port）"),
     },
     {
       ...CARD_CONTENT_SECTION,
@@ -121,18 +122,18 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
     },
     {
       name: "host",
-      label: "主机",
+      label: t("主机"),
       type: "text",
       optional: true,
-      placeholder: "留空则用当前页面主机名",
-      helper: "Web Mic 节点所在机器；通常留空",
+      placeholder: t("留空则用当前页面主机名"),
+      helper: t("Web Mic 节点所在机器；通常留空"),
     },
     {
       name: "port",
-      label: "备用端口",
+      label: t("备用端口"),
       type: "number",
       optional: true,
-      helper: "端口地址无值时使用（调试用）",
+      helper: t("端口地址无值时使用（调试用）"),
     },
   ],
 
@@ -140,12 +141,12 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
     ...entityCardSchema([CONTENT_LAYOUT_FIELD]),
     {
       name: "range",
-      label: "范围",
+      label: t("范围"),
       type: "grid",
       schema: [
-        { name: "min", label: "最小值", type: "number" },
-        { name: "max", label: "最大值", type: "number" },
-        { name: "step", label: "步进", type: "number" },
+        { name: "min", label: t("最小值"), type: "number" },
+        { name: "max", label: t("最大值"), type: "number" },
+        { name: "step", label: t("步进"), type: "number" },
       ],
     },
   ],
@@ -154,27 +155,27 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
     ...entityCardSchema([CONTENT_LAYOUT_FIELD]),
     {
       name: "range",
-      label: "范围",
+      label: t("范围"),
       type: "grid",
       schema: [
-        { name: "min", label: "最小值", type: "number" },
-        { name: "max", label: "最大值", type: "number" },
-        { name: "step", label: "步进", type: "number" },
+        { name: "min", label: t("最小值"), type: "number" },
+        { name: "max", label: t("最大值"), type: "number" },
+        { name: "step", label: t("步进"), type: "number" },
       ],
     },
-    { name: "unit", label: "单位", type: "text", optional: true, placeholder: "°C" },
+    { name: "unit", label: t("单位"), type: "text", optional: true, placeholder: "°C" },
   ],
 
   gain: [
     ...entityCardSchema([CONTENT_LAYOUT_FIELD]),
     {
       name: "range",
-      label: "范围 (dB)",
+      label: t("范围 (dB)"),
       type: "grid",
       schema: [
-        { name: "min", label: "最小值", type: "number" },
-        { name: "max", label: "最大值", type: "number" },
-        { name: "step", label: "步进", type: "number" },
+        { name: "min", label: t("最小值"), type: "number" },
+        { name: "max", label: t("最大值"), type: "number" },
+        { name: "step", label: t("步进"), type: "number" },
       ],
     },
   ],
@@ -189,39 +190,39 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
   "multi-fader": [
     ...entityCardSchema([
       CONTENT_LAYOUT_FIELD,
-      { name: "hide_state", label: "隐藏状态", type: "boolean" },
+      { name: "hide_state", label: t("隐藏状态"), type: "boolean" },
     ]),
     {
       name: "count",
-      label: "维度数量",
+      label: t("维度数量"),
       type: "number",
-      helper: "推杆个数（1–16），输出对应长度的数组",
+      helper: t("推杆个数（1–16），输出对应长度的数组"),
     },
     {
       name: "labels",
-      label: "通道标签",
+      label: t("通道标签"),
       type: "text",
       optional: true,
       placeholder: "0,1,2,3",
-      helper: "用逗号分隔，数量不足时从 0 自动补序号",
+      helper: t("用逗号分隔，数量不足时从 0 自动补序号"),
     },
     {
       name: "orientation",
-      label: "推杆方向",
+      label: t("推杆方向"),
       type: "select",
       options: [
-        { value: "vertical", label: "竖直" },
-        { value: "horizontal", label: "水平" },
+        { value: "vertical", label: t("竖直") },
+        { value: "horizontal", label: t("水平") },
       ],
     },
     {
       name: "range",
-      label: "范围",
+      label: t("范围"),
       type: "grid",
       schema: [
-        { name: "min", label: "最小值", type: "number" },
-        { name: "max", label: "最大值", type: "number" },
-        { name: "step", label: "步进", type: "number" },
+        { name: "min", label: t("最小值"), type: "number" },
+        { name: "max", label: t("最大值"), type: "number" },
+        { name: "step", label: t("步进"), type: "number" },
       ],
     },
   ],
@@ -229,25 +230,25 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
   "xy-pad": [
     {
       name: "entity",
-      label: "动作（向量）",
+      label: t("动作（向量）"),
       type: "entity",
       optional: true,
-      helper: "写入 [x, y] 数组；若同时填写 X/Y 动作则优先使用分动作模式",
+      helper: t("写入 [x, y] 数组；若同时填写 X/Y 动作则优先使用分动作模式"),
     },
     {
       name: "axes",
-      label: "分动作（可选）",
+      label: t("分动作（可选）"),
       type: "grid",
       schema: [
         {
           name: "entity_x",
-          label: "X 动作",
+          label: t("X 动作"),
           type: "entity",
           optional: true,
         },
         {
           name: "entity_y",
-          label: "Y 动作",
+          label: t("Y 动作"),
           type: "entity",
           optional: true,
         },
@@ -255,15 +256,15 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
     },
     {
       name: "content",
-      label: "内容",
+      label: t("内容"),
       type: "section",
       schema: [
         {
           name: "name",
-          label: "名称",
+          label: t("名称"),
           type: "text",
           optional: true,
-          helper: "留空则使用地址默认名称",
+          helper: t("留空则使用地址默认名称"),
         },
         {
           name: "",
@@ -271,31 +272,31 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
           type: "grid",
           gridVariant: "appearance",
           schema: [
-            { name: "icon", label: "图标", type: "icon", optional: true, compact: true },
-            { name: "color", label: "颜色", type: "color", compact: true },
+            { name: "icon", label: t("图标"), type: "icon", optional: true, compact: true },
+            { name: "color", label: t("颜色"), type: "color", compact: true },
           ],
         },
         CONTENT_LAYOUT_FIELD,
-        { name: "show_grid", label: "显示十字线", type: "boolean" },
+        { name: "show_grid", label: t("显示十字线"), type: "boolean" },
         {
           name: "invert_y",
-          label: "Y 轴向上为负",
+          label: t("Y 轴向上为负"),
           type: "boolean",
-          helper: "开启后触控板顶部对应 y_min",
+          helper: t("开启后触控板顶部对应 y_min"),
         },
-        { name: "snap_center", label: "松手回中", type: "boolean" },
+        { name: "snap_center", label: t("松手回中"), type: "boolean" },
       ],
     },
     {
       name: "range",
-      label: "范围",
+      label: t("范围"),
       type: "grid",
       schema: [
-        { name: "x_min", label: "X 最小", type: "number" },
-        { name: "x_max", label: "X 最大", type: "number" },
-        { name: "y_min", label: "Y 最小", type: "number" },
-        { name: "y_max", label: "Y 最大", type: "number" },
-        { name: "step", label: "步进", type: "number" },
+        { name: "x_min", label: t("X 最小"), type: "number" },
+        { name: "x_max", label: t("X 最大"), type: "number" },
+        { name: "y_min", label: t("Y 最小"), type: "number" },
+        { name: "y_max", label: t("Y 最大"), type: "number" },
+        { name: "step", label: t("步进"), type: "number" },
       ],
     },
   ],
@@ -304,9 +305,9 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
     ...entityCardSchema([CONTENT_LAYOUT_FIELD]),
     {
       name: "position_count",
-      label: "档位数量",
+      label: t("档位数量"),
       type: "number",
-      helper: "默认生成 0、1、2… 档位；留空自定义 positions 时优先使用 positions",
+      helper: t("默认生成 0、1、2… 档位；留空自定义 positions 时优先使用 positions"),
     },
   ],
 
@@ -314,15 +315,15 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
     ...entityCardSchema([CONTENT_LAYOUT_FIELD]),
     {
       name: "play_value",
-      label: "播放指令",
+      label: t("播放指令"),
       type: "text",
       optional: true,
       placeholder: "true",
-      helper: "写入地址的值，支持 true / false / 数字 / 字符串",
+      helper: t("写入地址的值，支持 true / false / 数字 / 字符串"),
     },
     {
       name: "stop_value",
-      label: "停止指令",
+      label: t("停止指令"),
       type: "text",
       optional: true,
       placeholder: "false",
@@ -330,73 +331,73 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
   ],
 
   clock: [
-    { name: "title", label: "标题", type: "text", optional: true },
+    { name: "title", label: t("标题"), type: "text", optional: true },
     {
       name: "clock_style",
-      label: "样式",
+      label: t("样式"),
       type: "select",
       options: [
-        { value: "digital", label: "数字" },
-        { value: "analog", label: "模拟" },
+        { value: "digital", label: t("数字") },
+        { value: "analog", label: t("模拟") },
       ],
     },
     {
       name: "clock_size",
-      label: "尺寸",
+      label: t("尺寸"),
       type: "select",
       options: [
-        { value: "small", label: "小" },
-        { value: "medium", label: "中" },
-        { value: "large", label: "大" },
+        { value: "small", label: t("小") },
+        { value: "medium", label: t("中") },
+        { value: "large", label: t("大") },
       ],
     },
     {
       name: "time_format",
-      label: "时间格式",
+      label: t("时间格式"),
       type: "select",
       options: [
-        { value: "auto", label: "跟随系统" },
-        { value: "24", label: "24 小时" },
-        { value: "12", label: "12 小时" },
+        { value: "auto", label: t("跟随系统") },
+        { value: "24", label: t("24 小时") },
+        { value: "12", label: t("12 小时") },
       ],
       optional: true,
     },
-    { name: "show_seconds", label: "显示秒", type: "boolean" },
-    { name: "no_background", label: "无背景", type: "boolean" },
+    { name: "show_seconds", label: t("显示秒"), type: "boolean" },
+    { name: "no_background", label: t("无背景"), type: "boolean" },
     {
       name: "time_zone",
-      label: "时区",
+      label: t("时区"),
       type: "text",
       optional: true,
       placeholder: "Asia/Shanghai",
-      helper: "留空则使用浏览器时区",
+      helper: t("留空则使用浏览器时区"),
     },
     {
       name: "analog_border",
-      label: "表盘边框",
+      label: t("表盘边框"),
       type: "boolean",
       visible: { field: "clock_style", operator: "eq", value: "analog" },
     },
     {
       name: "analog_face_style",
-      label: "表盘数字",
+      label: t("表盘数字"),
       type: "select",
       options: [
-        { value: "markers", label: "刻度" },
-        { value: "numbers", label: "阿拉伯数字" },
-        { value: "roman", label: "罗马数字" },
+        { value: "markers", label: t("刻度") },
+        { value: "numbers", label: t("阿拉伯数字") },
+        { value: "roman", label: t("罗马数字") },
       ],
       visible: { field: "clock_style", operator: "eq", value: "analog" },
     },
     {
       name: "analog_ticks",
-      label: "刻度",
+      label: t("刻度"),
       type: "select",
       options: [
-        { value: "hour", label: "小时" },
-        { value: "quarter", label: "一刻钟" },
-        { value: "minute", label: "分钟" },
-        { value: "none", label: "无" },
+        { value: "hour", label: t("小时") },
+        { value: "quarter", label: t("一刻钟") },
+        { value: "minute", label: t("分钟") },
+        { value: "none", label: t("无") },
       ],
       visible: { field: "clock_style", operator: "eq", value: "analog" },
     },
@@ -405,53 +406,53 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
   markdown: [
     {
       name: "style",
-      label: "样式",
+      label: t("样式"),
       type: "select",
       options: [
-        { value: "card", label: "卡片" },
-        { value: "text-only", label: "纯文本" },
+        { value: "card", label: t("卡片") },
+        { value: "text-only", label: t("纯文本") },
       ],
     },
     {
       name: "title",
-      label: "标题",
+      label: t("标题"),
       type: "text",
       optional: true,
       visible: { field: "style", operator: "not_eq", value: "text-only" },
     },
     {
       name: "content",
-      label: "内容",
+      label: t("内容"),
       type: "textarea",
-      helper: "支持 Markdown 语法",
+      helper: t("支持 Markdown 语法"),
     },
   ],
 
   link: [
-    { name: "name", label: "名称", type: "text", placeholder: "文档" },
-    { name: "url", label: "链接地址", type: "text", placeholder: "http://127.0.0.1:8992/" },
-    { name: "icon", label: "图标", type: "icon", optional: true, placeholder: "mdi:link-variant" },
-    { name: "new_tab", label: "新标签页打开", type: "boolean" },
+    { name: "name", label: t("名称"), type: "text", placeholder: t("文档") },
+    { name: "url", label: t("链接地址"), type: "text", placeholder: "http://127.0.0.1:8992/" },
+    { name: "icon", label: t("图标"), type: "icon", optional: true, placeholder: "mdi:link-variant" },
+    { name: "new_tab", label: t("新标签页打开"), type: "boolean" },
   ],
 
   "picture-elements": [
-    { name: "title", label: "标题", type: "text", optional: true, placeholder: "户型图" },
-    { name: "image", label: "底图", type: "image" },
-    { name: "elements", label: "元素", type: "picture_elements" },
+    { name: "title", label: t("标题"), type: "text", optional: true, placeholder: t("户型图") },
+    { name: "image", label: t("底图"), type: "image" },
+    { name: "elements", label: t("元素"), type: "picture_elements" },
   ],
 
   "path-badge": [
-    { name: "title", label: "标题", type: "text", optional: true, placeholder: "" },
-    { name: "image", label: "底图", type: "image", optional: true },
+    { name: "title", label: t("标题"), type: "text", optional: true, placeholder: "" },
+    { name: "image", label: t("底图"), type: "image", optional: true },
     {
       name: "points",
-      label: "轨迹绘制",
+      label: t("轨迹绘制"),
       type: "path_points",
-      helper: "点击底图新增轨迹点，拖动点调整位置；值变化时只会移动徽章，轨迹本身保持不动",
+      helper: t("点击底图新增轨迹点，拖动点调整位置；值变化时只会移动徽章，轨迹本身保持不动"),
     },
     {
       name: "badges",
-      label: "轨迹徽章",
+      label: t("轨迹徽章"),
       type: "path_badges",
     },
     {
@@ -459,8 +460,8 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
       label: "",
       type: "grid",
       schema: [
-        { name: "track_color", label: "轨迹颜色", type: "color" },
-        { name: "track_width", label: "轨迹线宽", type: "number" },
+        { name: "track_color", label: t("轨迹颜色"), type: "color" },
+        { name: "track_width", label: t("轨迹线宽"), type: "number" },
       ],
     },
     {
@@ -470,12 +471,12 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
       schema: [
         {
           name: "progress_min",
-          label: "范围最小值",
+          label: t("范围最小值"),
           type: "number",
         },
         {
           name: "progress_max",
-          label: "范围最大值",
+          label: t("范围最大值"),
           type: "number",
         },
       ],
@@ -485,83 +486,83 @@ export const CARD_CONFIG_SCHEMAS: Record<string, ConfigFieldSchema[]> = {
       label: "",
       type: "grid",
       schema: [
-        { name: "badge_size", label: "徽章尺寸", type: "number" },
-        { name: "caption", label: "说明文字", type: "text", optional: true, placeholder: "可选" },
+        { name: "badge_size", label: t("徽章尺寸"), type: "number" },
+        { name: "caption", label: t("说明文字"), type: "text", optional: true, placeholder: t("可选") },
       ],
     },
   ],
 
   line3d: [
-    { name: "entity", label: "动作", type: "entity" },
-    { name: "name", label: "名称", type: "text", optional: true },
+    { name: "entity", label: t("动作"), type: "entity" },
+    { name: "name", label: t("名称"), type: "text", optional: true },
     ...CHART3D_DATA_FIELDS,
-    { name: "line_width", label: "线宽", type: "number" },
-    { name: "line_color", label: "线条颜色", type: "color", optional: true },
+    { name: "line_width", label: t("线宽"), type: "number" },
+    { name: "line_color", label: t("线条颜色"), type: "color", optional: true },
     ...CHART3D_APPEARANCE_FIELDS,
     ...CHART3D_AXIS_FIELDS,
   ],
 
   scatter3d: [
-    { name: "entity", label: "动作", type: "entity" },
-    { name: "name", label: "名称", type: "text", optional: true },
+    { name: "entity", label: t("动作"), type: "entity" },
+    { name: "name", label: t("名称"), type: "text", optional: true },
     ...CHART3D_DATA_FIELDS,
-    { name: "symbol_size", label: "点大小", type: "number" },
-    { name: "point_color", label: "点颜色", type: "color", optional: true },
+    { name: "symbol_size", label: t("点大小"), type: "number" },
+    { name: "point_color", label: t("点颜色"), type: "color", optional: true },
     ...CHART3D_APPEARANCE_FIELDS,
     ...CHART3D_AXIS_FIELDS,
   ],
 
   line2d: [
-    { name: "entity", label: "动作", type: "entity" },
-    { name: "name", label: "名称", type: "text", optional: true },
+    { name: "entity", label: t("动作"), type: "entity" },
+    { name: "name", label: t("名称"), type: "text", optional: true },
     ...CHART2D_DATA_FIELDS,
-    { name: "line_width", label: "线宽", type: "number" },
-    { name: "line_color", label: "线条颜色", type: "color", optional: true },
+    { name: "line_width", label: t("线宽"), type: "number" },
+    { name: "line_color", label: t("线条颜色"), type: "color", optional: true },
     ...CHART2D_APPEARANCE_FIELDS,
     ...CHART2D_AXIS_FIELDS,
   ],
 
   scatter2d: [
-    { name: "entity", label: "动作", type: "entity" },
-    { name: "name", label: "名称", type: "text", optional: true },
+    { name: "entity", label: t("动作"), type: "entity" },
+    { name: "name", label: t("名称"), type: "text", optional: true },
     ...CHART2D_DATA_FIELDS,
-    { name: "symbol_size", label: "点大小", type: "number" },
-    { name: "point_color", label: "点颜色", type: "color", optional: true },
+    { name: "symbol_size", label: t("点大小"), type: "number" },
+    { name: "point_color", label: t("点颜色"), type: "color", optional: true },
     ...CHART2D_APPEARANCE_FIELDS,
     ...CHART2D_AXIS_FIELDS,
   ],
 
   bar: [
-    { name: "name", label: "名称", type: "text", optional: true },
-    { name: "entities", label: "柱", type: "bar_entities" },
-    { name: "bar_color", label: "默认柱颜色", type: "color", optional: true, helper: "未单独设色的柱使用此颜色" },
+    { name: "name", label: t("名称"), type: "text", optional: true },
+    { name: "entities", label: t("柱"), type: "bar_entities" },
+    { name: "bar_color", label: t("默认柱颜色"), type: "color", optional: true, helper: t("未单独设色的柱使用此颜色") },
     ...CHART2D_APPEARANCE_FIELDS,
     ...CHART2D_AXIS_FIELDS,
   ],
 
   status: [
-    { name: "name", label: "名称", type: "text", optional: true, placeholder: "Flow 连接" },
+    { name: "name", label: t("名称"), type: "text", optional: true, placeholder: t("Flow 连接") },
     {
       name: "",
       label: "",
       type: "grid",
       gridVariant: "appearance",
       schema: [
-        { name: "icon", label: "图标", type: "icon", optional: true, compact: true },
-        { name: "color", label: "正常色", type: "color", compact: true },
+        { name: "icon", label: t("图标"), type: "icon", optional: true, compact: true },
+        { name: "color", label: t("正常色"), type: "color", compact: true },
       ],
     },
     CONTENT_LAYOUT_FIELD,
     {
       name: "list_columns",
-      label: "状态列数",
+      label: t("状态列数"),
       type: "select",
       options: [
-        { value: "1", label: "单列" },
-        { value: "2", label: "双列" },
+        { value: "1", label: t("单列") },
+        { value: "2", label: t("双列") },
       ],
     },
-    { name: "entities", label: "状态项", type: "status_entities" },
+    { name: "entities", label: t("状态项"), type: "status_entities" },
   ],
 };
 
@@ -569,8 +570,8 @@ export function getCardConfigSchema(type: string): ConfigFieldSchema[] {
   const resolved =
     type === "button" ? "trigger" : type === "color" ? "rgba" : type;
   return CARD_CONFIG_SCHEMAS[resolved] ?? [
-    { name: "entity", label: "动作", type: "entity", optional: true },
-    { name: "name", label: "名称", type: "text", optional: true },
+    { name: "entity", label: t("动作"), type: "entity", optional: true },
+    { name: "name", label: t("名称"), type: "text", optional: true },
   ];
 }
 
@@ -800,7 +801,7 @@ export function denormalizeCardConfig(config: Record<string, unknown>): Record<s
 
   if (next.type === "heading") {
     if (!next.heading_style) next.heading_style = "title";
-    if (!next.heading) next.heading = "新建部件";
+    if (!next.heading) next.heading = t("新建部件");
     if (!next.badges) next.badges = [];
   }
 

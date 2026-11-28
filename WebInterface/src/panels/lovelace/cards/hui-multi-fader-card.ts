@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import { styleMap } from "lit/directives/style-map.js";
 import type { Flow, LovelaceCard, LovelaceCardConfig, LovelaceGridOptions } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import {
   clampFaderCount,
   formatVectorDisplay,
@@ -32,7 +33,7 @@ export class HuiMultiFaderCard extends LitElement implements LovelaceCard {
     return {
       type: "multi-fader",
       entity: "/demo/faders",
-      name: "多维推杆",
+      name: t("多维推杆"),
       icon: "mdi:tune-vertical-variant",
       count: MULTI_FADER_DEFAULTS.count,
       min: MULTI_FADER_DEFAULTS.min,
@@ -131,7 +132,7 @@ export class HuiMultiFaderCard extends LitElement implements LovelaceCard {
     const orientation = this._orientation();
     const vertical = Boolean(this._config.vertical);
     const name = String(
-      this._config.name ?? state?.attributes?.friendly_name ?? entity ?? "多维推杆",
+      this._config.name ?? state?.attributes?.friendly_name ?? entity ?? t("多维推杆"),
     );
     const icon = String(
       this._config.icon ?? state?.attributes?.icon ?? "mdi:tune-vertical-variant",

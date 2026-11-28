@@ -8,6 +8,7 @@ import type {
 } from "../../../types";
 import { flowContext } from "../../../context/flow-context";
 import { createBackdropDismissHandlers } from "../../../common/dom/modal-backdrop";
+import { t, tf } from "../../../common/i18n/i18n";
 import "../flow-section";
 import "./flow-card-config-editor";
 import "./flow-card-layout-editor";
@@ -117,24 +118,24 @@ export class FlowCardEditor extends LitElement {
     const names: Record<string, string> = {
       tile: "Toggle",
       heading: "Title",
-      sensor: "数值",
-      switch: "开关",
-      trigger: "触发器",
-      climate: "步进",
-      cover: "单选",
+      sensor: t("数值"),
+      switch: t("开关"),
+      trigger: t("触发器"),
+      climate: t("步进"),
+      cover: t("单选"),
       clock: "Clock",
-      slider: "滑块",
-      gain: "增益",
-      media: "媒体",
+      slider: t("滑块"),
+      gain: t("增益"),
+      media: t("媒体"),
       markdown: "Markdown",
-      link: "超链接",
-      "picture-elements": "图片元素",
-      "path-badge": "轨迹元素",
-      line2d: "2D 折线",
-      scatter2d: "2D 散点",
-      bar: "柱状图",
-      line3d: "3D 折线",
-      scatter3d: "3D 散点",
+      link: t("超链接"),
+      "picture-elements": t("图片元素"),
+      "path-badge": t("轨迹元素"),
+      line2d: t("2D 折线"),
+      scatter2d: t("2D 散点"),
+      bar: t("柱状图"),
+      line3d: t("3D 折线"),
+      scatter3d: t("3D 散点"),
     };
     return names[String(this._draft.type)] ?? String(this._draft.type);
   }
@@ -153,8 +154,8 @@ export class FlowCardEditor extends LitElement {
       >
         <div class="dialog">
           <header class="header">
-            <h3>${this._cardTypeName()} 卡片配置</h3>
-            <button type="button" class="close" @click=${this._close} aria-label="关闭">×</button>
+            <h3>${tf("%1 卡片配置", this._cardTypeName())}</h3>
+            <button type="button" class="close" @click=${this._close} aria-label=t("关闭")>×</button>
           </header>
 
           <nav class="tabs">
@@ -165,7 +166,7 @@ export class FlowCardEditor extends LitElement {
                 this._tab = "config";
               }}
             >
-              配置
+              ${t("配置")}
             </button>
             <button
               type="button"
@@ -174,7 +175,7 @@ export class FlowCardEditor extends LitElement {
                 this._tab = "layout";
               }}
             >
-              布局
+              ${t("布局")}
             </button>
           </nav>
 
@@ -202,7 +203,7 @@ export class FlowCardEditor extends LitElement {
               @picture-element-select=${this._onPictureElementSelect}
               @picture-elements-changed=${this._onPictureElementsChanged}
             >
-              <div class="preview-label">预览</div>
+              <div class="preview-label">${t("预览")}</div>
               <flow-section
                 class="preview-section"
                 style="--column-span: 1;"
@@ -215,8 +216,8 @@ export class FlowCardEditor extends LitElement {
           </div>
 
           <div class="actions">
-            <button type="button" class="secondary" @click=${this._close}>取消</button>
-            <button type="button" class="primary" @click=${this._save}>保存</button>
+            <button type="button" class="secondary" @click=${this._close}>${t("取消")}</button>
+            <button type="button" class="primary" @click=${this._save}>${t("保存")}</button>
           </div>
         </div>
       </div>

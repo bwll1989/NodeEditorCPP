@@ -1,5 +1,6 @@
 import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { t } from "../../../common/i18n/i18n";
 import { computeCssColor } from "../../../common/color/theme-colors";
 import { stateActive } from "../../../common/entity/state-active";
 import type {
@@ -47,7 +48,7 @@ const DEFAULT_BADGES: LovelacePathBadgeConfig[] = [
   serializeBadgeConfig({
     type: "entity",
     entity: "/demo/path_progress",
-    name: "轨迹点 1",
+    name: t("轨迹点 1"),
     icon: "mdi:robot-industrial",
     color: DEFAULT_BADGE_COLOR,
     show_icon: true,
@@ -225,7 +226,7 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
         <div class="root">
           ${image
             ? html`<img class="background" alt="" src=${image} draggable="false" />`
-            : html`<div class="placeholder">添加底图后，可让徽章沿轨迹运动</div>`}
+            : html`<div class="placeholder">${t("添加底图后，可让徽章沿轨迹运动")}</div>`}
 
           <svg class="overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             <path
@@ -242,7 +243,7 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
           ${badges.map((badge) => {
             const state = this.flow?.states[badge.entity];
             const badgeTitle = String(
-              badge.name ?? state?.attributes?.friendly_name ?? badge.entity ?? "轨迹徽章",
+              badge.name ?? state?.attributes?.friendly_name ?? badge.entity ?? t("轨迹徽章"),
             );
             const point = pointAtProgress(pathData, this._progressForBadge(badge));
 
@@ -394,7 +395,7 @@ export class HuiPathBadgeCard extends LitElement implements LovelaceCard {
       badge.unit ?? state.attributes.unit_of_measurement ?? "",
     ).trim();
     if (typeof rawValue === "boolean") {
-      return { value: rawValue ? "开" : "关", unit: "" };
+      return { value: rawValue ? t("开") : t("关"), unit: "" };
     }
     if (rawValue === null || rawValue === undefined || rawValue === "") {
       return { value: "—", unit: "" };

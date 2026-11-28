@@ -4,6 +4,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { computeAnchoredMenuPosition } from "../common/dom/fixed-dropdown";
 import { notifyEditMenuOpen, onEditMenuOpen } from "../common/dom/edit-menu-bus";
+import { t } from "../common/i18n/i18n";
 import "./ha-icon";
 
 export interface ActionMenuItem {
@@ -176,7 +177,7 @@ export class HaActionMenu extends LitElement {
           type="button"
           class="trigger"
           @click=${this._openMenu}
-          aria-label="更多操作"
+          aria-label=${t("更多操作")}
           aria-expanded=${this._open ? "true" : "false"}
         >
           <slot name="trigger">⋮</slot>

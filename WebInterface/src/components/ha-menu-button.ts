@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { mdiMenu } from "@mdi/js";
 import { fireEvent } from "../common/dom/fire_event";
+import { t } from "../common/i18n/i18n";
 import "./ha-icon-button";
 
 /** Port of HA `ha-menu-button` — only visible in narrow / modal sidebar. */
@@ -16,7 +17,7 @@ export class HaMenuButton extends LitElement {
     return html`
       <ha-icon-button
         .path=${mdiMenu}
-        label="菜单"
+        label=${t("菜单")}
         @click=${this._toggleMenu}
       ></ha-icon-button>
       ${this.hasNotifications ? html`<span class="dot"></span>` : nothing}

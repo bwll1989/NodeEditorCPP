@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import { styleMap } from "lit/directives/style-map.js";
 import type { Flow, LovelaceCard, LovelaceCardConfig, LovelaceGridOptions } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import { stateActive, toggleValue } from "../../../common/entity/state-active";
 import { computeSwitchFeatureColor } from "../../../common/entity/tile-color";
 import { tileCardHostStyle, tileCardStyle } from "../../../styles/tile-card-style";
@@ -65,7 +66,7 @@ export class HuiSwitchCard extends LitElement implements LovelaceCard {
     const vertical = Boolean(this._config.vertical);
     const name = String(this._config.name ?? state?.attributes?.friendly_name ?? entity ?? "Switch");
     const icon = String(this._config.icon ?? state?.attributes?.icon ?? "mdi:lightbulb");
-    const stateText = entity && this.flow ? this.flow.formatState(entity) : active ? "开启" : "关闭";
+    const stateText = entity && this.flow ? this.flow.formatState(entity) : active ? t("开") : t("关");
     const tileColor = computeSwitchFeatureColor(active, this._config.color);
     const colorStyle = styleMap({
       "--tile-color": tileColor,

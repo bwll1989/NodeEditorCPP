@@ -6,6 +6,7 @@ import {
   THEME_COLOR_OPTIONS,
   themeColorLabel,
 } from "../common/color/theme-colors";
+import { t } from "../common/i18n/i18n";
 import { computeFixedDropdownPosition } from "../common/dom/fixed-dropdown";
 import { resolveIconPath } from "../common/icons/mdi-registry";
 import "./ha-icon";
@@ -15,7 +16,7 @@ const STATE_COLOR = { value: "", label: "状态颜色" };
 
 @customElement("ha-color-picker")
 export class HaColorPicker extends LitElement {
-  @property() public label = "颜色";
+  @property() public label = t("颜色");
 
   /** Theme token, hex, or empty for state color */
   @property() public value = "";
@@ -30,7 +31,7 @@ export class HaColorPicker extends LitElement {
   /** Show a default / theme-background option instead of state color */
   @property({ type: Boolean }) public includeDefault = false;
 
-  @property() public defaultLabel = "默认";
+  @property() public defaultLabel = t("默认");
 
   @property() public helper = "";
 
@@ -117,7 +118,7 @@ export class HaColorPicker extends LitElement {
 
   private _displayLabel(): string {
     if (!this.value) {
-      return this.includeDefault ? this.defaultLabel : STATE_COLOR.label;
+      return this.includeDefault ? this.defaultLabel : t(STATE_COLOR.label);
     }
     return themeColorLabel(this.value);
   }
@@ -131,7 +132,7 @@ export class HaColorPicker extends LitElement {
   }
 
   private _primaryOptionLabel(): string {
-    return this.includeDefault ? this.defaultLabel : STATE_COLOR.label;
+    return this.includeDefault ? this.defaultLabel : t(STATE_COLOR.label);
   }
 
   private _displayColor(): string {
@@ -230,7 +231,7 @@ export class HaColorPicker extends LitElement {
                       @click=${() => this._select(opt.value)}
                     >
                       ${this._renderSwatch(computeCssColor(opt.value))}
-                      <span>${opt.label}</span>
+                      <span>${t(opt.label)}</span>
                     </button>
                   `,
                 )}
@@ -243,7 +244,7 @@ export class HaColorPicker extends LitElement {
                     }}
                   >
                     <ha-svg-icon class="rainbow" .path=${resolveIconPath("mdi:palette-swatch")}></ha-svg-icon>
-                    <span>自定义颜色</span>
+                    <span>${t("自定义颜色")}</span>
                   </button>
                   ${this._showCustom
                     ? html`
@@ -263,7 +264,7 @@ export class HaColorPicker extends LitElement {
                               this._custom = (ev.target as HTMLInputElement).value;
                             }}
                           />
-                          <button type="button" class="apply" @click=${this._applyCustom}>确定</button>
+                          <button type="button" class="apply" @click=${this._applyCustom}>${t("应用")}</button>
                         </div>
                       `
                     : nothing}
@@ -274,7 +275,7 @@ export class HaColorPicker extends LitElement {
 
         ${this.hideHelper
           ? nothing
-          : html`<p class="helper">${this.helper || "非活动状态（例如关闭或闭合）将不会被着色。"}</p>`}
+          : html`<p class="helper">${this.helper || t("非活动状态（例如关闭或闭合）将不会被着色。")}</p>`}
       </div>
     `;
   }

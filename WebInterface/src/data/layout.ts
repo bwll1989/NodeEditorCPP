@@ -1,13 +1,14 @@
 import type { LovelaceConfig } from "../types";
+import { t } from "../common/i18n/i18n";
 import { migrateConfig } from "./section-config";
 
-const WELCOME_MARKDOWN = `欢迎使用 **Flow Dashboard**。
+const WELCOME_MARKDOWN = t(`欢迎使用 **Flow Dashboard**。
 
 布局采用 Section + Card 结构，仿照 [Home Assistant Sections](https://www.home-assistant.io/dashboards/sections/)。
 
 - 支持 **粗体** / *斜体*
 - 支持列表与链接
-- 可在编辑器中切换卡片 / 纯文本样式`;
+- 可在编辑器中切换卡片 / 纯文本样式`);
 
 /** 与产品演示一致的 Home 默认布局（空白页 / 无布局时回退） */
 function createDefaultHomeLayout(): LovelaceConfig {
@@ -61,7 +62,7 @@ function createDefaultHomeLayout(): LovelaceConfig {
               {
                 type: "media",
                 entity: "/demo/media",
-                name: "媒体播放器",
+                name: t("媒体播放器"),
                 icon: "mdi:cast-audio",
               },
               {
@@ -87,7 +88,7 @@ function createDefaultHomeLayout(): LovelaceConfig {
               {
                 type: "multi-fader",
                 entity: "/demo/faders",
-                name: "多维推杆",
+                name: t("多维推杆"),
                 icon: "mdi:tune-vertical-variant",
                 count: 4,
                 min: 0,
@@ -122,17 +123,17 @@ function createDefaultHomeLayout(): LovelaceConfig {
               {
                 type: "label",
                 entity: "/demo/string",
-                name: "当前素材",
+                name: t("当前素材"),
                 icon: "mdi:filmstrip",
               },
               {
                 type: "status",
-                name: "Flow 连接",
+                name: t("Flow 连接"),
                 icon: "mdi:lan-connect",
                 color: "green",
                 entities: [
                   { entity: "/demo/status_ws", name: "connected", icon: "mdi:lan-connect" },
-                  { entity: "/demo/status_tcp", name: "tcp连接", icon: "mdi:lan-connect" },
+                  { entity: "/demo/status_tcp", name: t("tcp连接"), icon: "mdi:lan-connect" },
                   { entity: "/demo/status_udp", name: "connected", icon: "mdi:lan-connect" },
                   { entity: "/demo/status_osc", name: "connected", icon: "mdi:lan-connect" },
                 ],
@@ -172,7 +173,7 @@ function createDefaultHomeLayout(): LovelaceConfig {
               {
                 type: "gain",
                 entity: "/demo/gain",
-                name: "输入增益",
+                name: t("输入增益"),
                 icon: "mdi:volume-high",
                 min: -60,
                 max: 12,
@@ -183,7 +184,7 @@ function createDefaultHomeLayout(): LovelaceConfig {
         ],
       },
       {
-        title: "设备",
+        title: t("设备"),
         path: "devices",
         icon: "mdi:devices",
         max_columns: 4,
@@ -194,18 +195,18 @@ function createDefaultHomeLayout(): LovelaceConfig {
             cards: [
               {
                 type: "heading",
-                heading: "连接状态",
+                heading: t("连接状态"),
                 icon: "mdi:lan-connect",
               },
               {
                 type: "status",
-                name: "Flow 连接",
+                name: t("Flow 连接"),
                 icon: "mdi:lan-connect",
                 color: "green",
                 list_columns: 2,
                 entities: [
                   { entity: "/demo/status_ws", name: "connected", icon: "mdi:lan-connect" },
-                  { entity: "/demo/status_tcp", name: "tcp连接", icon: "mdi:lan-connect" },
+                  { entity: "/demo/status_tcp", name: t("tcp连接"), icon: "mdi:lan-connect" },
                   { entity: "/demo/status_udp", name: "connected", icon: "mdi:lan-connect" },
                   { entity: "/demo/status_osc", name: "connected", icon: "mdi:lan-connect" },
                 ],
@@ -213,13 +214,13 @@ function createDefaultHomeLayout(): LovelaceConfig {
               {
                 type: "tile",
                 entity: "/demo/lamp",
-                name: "台灯",
+                name: t("台灯"),
                 icon: "mdi:desk-lamp",
               },
               {
                 type: "switch",
                 entity: "/demo/switch",
-                name: "开关",
+                name: t("开关"),
                 icon: "mdi:toggle-switch",
               },
             ],

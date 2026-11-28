@@ -1,4 +1,5 @@
 import type { ConfigFieldSchema } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 
 /** HA tile content-layout preview SVGs (light theme). */
 const TILE_LAYOUT_HORIZONTAL_SVG =
@@ -30,33 +31,33 @@ export const APPEARANCE_GRID: ConfigFieldSchema = {
   type: "grid",
   gridVariant: "appearance",
   schema: [
-    { name: "icon", label: "图标", type: "icon", optional: true, compact: true },
-    { name: "color", label: "颜色", type: "color", compact: true },
+    { name: "icon", label: t("图标"), type: "icon", optional: true, compact: true },
+    { name: "color", label: t("颜色"), type: "color", compact: true },
   ],
 };
 
 /** HA-style content layout box selector (horizontal / vertical). */
 export const CONTENT_LAYOUT_FIELD: ConfigFieldSchema = {
   name: "content_layout",
-  label: "内容布局",
+  label: t("内容布局"),
   type: "select_box",
   options: [
-    { value: "horizontal", label: "水平", image: TILE_LAYOUT_HORIZONTAL_SVG },
-    { value: "vertical", label: "垂直", image: TILE_LAYOUT_VERTICAL_SVG },
+    { value: "horizontal", label: t("水平"), image: TILE_LAYOUT_HORIZONTAL_SVG },
+    { value: "vertical", label: t("垂直"), image: TILE_LAYOUT_VERTICAL_SVG },
   ],
 };
 
 export const CARD_CONTENT_SECTION: ConfigFieldSchema = {
   name: "content",
-  label: "内容",
+  label: t("内容"),
   type: "section",
   schema: [
     {
       name: "name",
-      label: "名称",
+      label: t("名称"),
       type: "text",
       optional: true,
-      helper: "留空则使用动作默认名称",
+      helper: t("留空则使用动作默认名称"),
     },
     APPEARANCE_GRID,
   ],
@@ -64,7 +65,7 @@ export const CARD_CONTENT_SECTION: ConfigFieldSchema = {
 
 export const ENTITY_ADDRESS_FIELD: ConfigFieldSchema = {
   name: "entity",
-  label: "动作",
+  label: t("动作"),
   type: "entity",
 };
 

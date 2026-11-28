@@ -1,6 +1,7 @@
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { Flow, LovelaceCard, LovelaceCardConfig, LovelaceGridOptions } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import { tileCardHostStyle, tileCardStyle } from "../../../styles/tile-card-style";
 import "../../../components/ha-tile-container";
 import "../../../components/ha-tile-icon";
@@ -9,7 +10,7 @@ import "../../../components/ha-card";
 
 function linkSubtitle(url: string): string {
   const text = url.trim();
-  if (!text) return "未设置链接";
+  if (!text) return t("未设置链接");
   try {
     const parsed = new URL(text.includes("://") ? text : `https://${text}`);
     return parsed.hostname + (parsed.pathname !== "/" ? parsed.pathname : "");
@@ -30,7 +31,7 @@ export class HuiLinkCard extends LitElement implements LovelaceCard {
   public static getStubConfig(): LovelaceCardConfig {
     return {
       type: "link",
-      name: "超链接",
+      name: t("超链接"),
       url: "http://127.0.0.1:8992/",
       icon: "mdi:link-variant",
       new_tab: true,
@@ -58,7 +59,7 @@ export class HuiLinkCard extends LitElement implements LovelaceCard {
   protected render() {
     if (!this._config) return nothing;
 
-    const name = String(this._config.name ?? "超链接");
+    const name = String(this._config.name ?? t("超链接"));
     const rawUrl = String(this._config.url ?? "");
     const url = normalizeUrl(rawUrl);
     const icon = String(this._config.icon ?? "mdi:link-variant");

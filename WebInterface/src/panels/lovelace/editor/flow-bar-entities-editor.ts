@@ -2,6 +2,7 @@ import { css, html, LitElement } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import type { EntityPickerValueChangedDetail } from "../../../components/ha-entity-picker";
 import type { LovelaceBarEntityConfig } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import "../../../components/ha-entity-picker";
 import "../../../components/ha-color-picker";
 
@@ -35,11 +36,11 @@ export class FlowBarEntitiesEditor extends LitElement {
     return html`
       <div class="editor">
         <div class="head">
-          <span class="label">柱（每柱绑定一个动作）</span>
-          <button type="button" class="add" @click=${this._add}>+ 添加柱</button>
+          <span class="label">${t("柱（每柱绑定一个动作）")}</span>
+          <button type="button" class="add" @click=${this._add}>${t("+ 添加柱")}</button>
         </div>
         ${this.entities.length === 0
-          ? html`<p class="empty">添加动作后，每根柱显示对应动作的实时数值</p>`
+          ? html`<p class="empty">${t("添加动作后，每根柱显示对应动作的实时数值")}</p>`
           : this.entities.map(
               (item, index) => html`
                 <div class="row">
@@ -47,7 +48,7 @@ export class FlowBarEntitiesEditor extends LitElement {
                   <ha-entity-picker
                     compact
                     label=""
-                    placeholder="动作"
+                    placeholder=t("动作")
                     .value=${item.entity ?? ""}
                     @value-changed=${(ev: CustomEvent<EntityPickerValueChangedDetail>) => {
                       ev.stopPropagation();
@@ -61,14 +62,14 @@ export class FlowBarEntitiesEditor extends LitElement {
                     class="name"
                     type="text"
                     .value=${item.name ?? ""}
-                    placeholder="名称"
+                    placeholder=t("名称")
                     @input=${(ev: Event) =>
                       this._patch(index, { name: (ev.target as HTMLInputElement).value })}
                   />
                   <ha-color-picker
                     compact
                     hideHelper
-                    label="颜色"
+                    label=t("颜色")
                     .value=${item.color ?? ""}
                     @color-changed=${(ev: CustomEvent<{ value: string }>) => {
                       ev.stopPropagation();
@@ -78,8 +79,8 @@ export class FlowBarEntitiesEditor extends LitElement {
                   <button
                     type="button"
                     class="remove"
-                    aria-label="删除"
-                    title="删除"
+                    aria-label=t("删除")
+                    title=t("删除")
                     @click=${() => this._remove(index)}
                   >
                     ×

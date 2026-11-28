@@ -1,3 +1,5 @@
+import { t } from "../common/i18n/i18n";
+
 export interface AppInfo {
   name: string;
   version: string;
@@ -6,28 +8,28 @@ export interface AppInfo {
 export async function fetchAppInfo(): Promise<AppInfo> {
   try {
     const resp = await fetch("/api/info/app");
-    if (!resp.ok) return { name: "Flow", version: "未知" };
+    if (!resp.ok) return { name: "Flow", version: t("未知") };
     const json = (await resp.json()) as { ok?: boolean; name?: string; version?: string };
     if (json.ok) {
       return {
         name: json.name ? String(json.name) : "Flow",
-        version: json.version ? String(json.version) : "未知",
+        version: json.version ? String(json.version) : t("未知"),
       };
     }
-    return { name: "Flow", version: "未知" };
+    return { name: "Flow", version: t("未知") };
   } catch {
-    return { name: "Flow", version: "获取失败" };
+    return { name: "Flow", version: t("获取失败") };
   }
 }
 
 export async function fetchCurrentFlowName(): Promise<string> {
   try {
     const resp = await fetch("/api/info/current_flow");
-    if (!resp.ok) return "获取失败";
+    if (!resp.ok) return t("获取失败");
     const json = (await resp.json()) as { ok?: boolean; filename?: string };
-    return json.ok && json.filename ? String(json.filename) : "无项目运行";
+    return json.ok && json.filename ? String(json.filename) : t("无项目运行");
   } catch {
-    return "连接异常";
+    return t("连接异常");
   }
 }
 

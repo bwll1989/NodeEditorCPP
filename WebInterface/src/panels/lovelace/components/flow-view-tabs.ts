@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
 import { mdiPencil, mdiPlus } from "@mdi/js";
 import type { LovelaceViewConfig } from "../../../types";
+import { t, tf } from "../../../common/i18n/i18n";
 import { viewUrlPath } from "../../../data/layout-mutations";
 import "../../../components/ha-icon";
 
@@ -67,7 +68,7 @@ export class FlowViewTabs extends LitElement {
         <div class="scroll">
           ${this.views.map((view, index) => {
             const active = index === this.activeIndex;
-            const label = view.title || view.path || `视图 ${index + 1}`;
+            const label = view.title || view.path || tf("视图 %1", index + 1);
             const icon = view.icon || "mdi:view-dashboard";
             return html`
               <button
@@ -88,7 +89,7 @@ export class FlowViewTabs extends LitElement {
                   ? html`
                       <span
                         class="tab-edit"
-                        title="编辑视图"
+                        title=${t("编辑视图")}
                         role="button"
                         tabindex="0"
                         @click=${(ev: Event) => this._edit(index, ev)}
@@ -107,7 +108,7 @@ export class FlowViewTabs extends LitElement {
                   ? html`
                       <span
                         class="tab-delete"
-                        title="删除视图"
+                        title=${t("删除视图")}
                         role="button"
                         tabindex="0"
                         @click=${(ev: Event) => this._delete(index, ev)}
@@ -131,8 +132,8 @@ export class FlowViewTabs extends LitElement {
               <button
                 type="button"
                 class="add"
-                title="添加视图"
-                aria-label="添加视图"
+                title=${t("添加视图")}
+                aria-label=${t("添加视图")}
                 @click=${this._add}
               >
                 <ha-svg-icon .path=${mdiPlus}></ha-svg-icon>

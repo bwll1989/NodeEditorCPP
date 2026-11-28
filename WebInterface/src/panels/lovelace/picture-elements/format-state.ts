@@ -1,4 +1,5 @@
 import type { Flow } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 
 export function formatPictureBadgeState(
   flow: Flow | undefined,
@@ -11,7 +12,7 @@ export function formatPictureBadgeState(
   const unit = String(unitOverride ?? state.attributes.unit_of_measurement ?? "").trim();
   const raw = state.state;
   if (typeof raw === "boolean") {
-    return { value: raw ? "开" : "关", unit: "", numeric: false };
+    return { value: raw ? t("开") : t("关"), unit: "", numeric: false };
   }
   if (raw === null || raw === undefined) {
     return { value: "—", unit: "", numeric: false };

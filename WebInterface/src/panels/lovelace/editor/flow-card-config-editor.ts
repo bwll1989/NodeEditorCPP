@@ -28,6 +28,7 @@ import "./flow-picture-elements-editor";
 import "./flow-path-badges-editor";
 import "./flow-path-points-editor";
 import { DEFAULT_FLOORPLAN } from "../picture-elements/default-floorplan";
+import { t } from "../../../common/i18n/i18n";
 
 @customElement("flow-card-config-editor")
 export class FlowCardConfigEditor extends LitElement {
@@ -113,7 +114,7 @@ export class FlowCardConfigEditor extends LitElement {
             ${schema.schema?.map((child) => this._renderField(child, data))}
           </div>
           ${isAppearance
-            ? html`<p class="appearance-helper">非活动状态（例如关闭或闭合）将不会被着色。</p>`
+            ? html`<p class="appearance-helper">${t("非活动状态（例如关闭或闭合）将不会被着色。")}</p>`
             : nothing}
         `;
       }
@@ -181,7 +182,7 @@ export class FlowCardConfigEditor extends LitElement {
           <label class="field">
             <span class="label-text">
               ${schema.label}
-              ${schema.optional ? html`<span class="optional">（可选）</span>` : nothing}
+              ${schema.optional ? html`<span class="optional">${t("（可选）")}</span>` : nothing}
             </span>
             <select
               @change=${(ev: Event) =>
@@ -295,13 +296,13 @@ export class FlowCardConfigEditor extends LitElement {
             <input
               type="text"
               .value=${String(data[schema.name] ?? "")}
-              placeholder="https://… 或选择本地图片"
+              placeholder=t("https://… 或选择本地图片")
               @input=${(ev: Event) =>
                 this._setField(schema.name, (ev.target as HTMLInputElement).value)}
             />
             <div class="image-actions">
               <label class="file-btn">
-                上传图片
+                ${t("上传图片")}
                 <input
                   type="file"
                   accept="image/*"
@@ -321,7 +322,7 @@ export class FlowCardConfigEditor extends LitElement {
                 class="link-btn"
                 @click=${() => this._setField(schema.name, DEFAULT_FLOORPLAN)}
               >
-                使用默认户型图
+                ${t("使用默认户型图")}
               </button>
             </div>
             ${schema.helper ? html`<p class="helper">${schema.helper}</p>` : nothing}
@@ -378,7 +379,7 @@ export class FlowCardConfigEditor extends LitElement {
           <label class="field">
             <span class="label-text">
               ${schema.label}
-              ${schema.optional ? html`<span class="optional">（可选）</span>` : nothing}
+              ${schema.optional ? html`<span class="optional">${t("（可选）")}</span>` : nothing}
             </span>
             <input
               type="text"
@@ -401,7 +402,7 @@ export class FlowCardConfigEditor extends LitElement {
     return html`
       <div class="config-editor">
         <label class="field type-field">
-          <span class="label-text">类型</span>
+          <span class="label-text">${t("类型")}</span>
           <input type="text" .value=${type} disabled />
         </label>
         ${schema.map((field) => this._renderField(field, data))}

@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import { styleMap } from "lit/directives/style-map.js";
 import type { Flow, FlowValue, LovelaceCard, LovelaceCardConfig, LovelaceGridOptions } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import { stateActive } from "../../../common/entity/state-active";
 import { computeTileColor } from "../../../common/entity/tile-color";
 import { tileCardHostStyle, tileCardStyle } from "../../../styles/tile-card-style";
@@ -133,7 +134,7 @@ export class HuiTriggerCard extends LitElement implements LovelaceCard {
     );
     const icon = String(this._config.icon ?? state?.attributes?.icon ?? "mdi:gesture-tap-button");
     const vertical = Boolean(this._config.vertical);
-    const stateText = active ? "已触发" : "未触发";
+    const stateText = active ? t("已触发") : t("未触发");
     const colorStyle = styleMap({
       "--tile-color": computeTileColor(active, this._config.color),
     });

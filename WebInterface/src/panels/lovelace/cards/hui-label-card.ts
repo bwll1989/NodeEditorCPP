@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
 import type { Flow, FlowValue, LovelaceCard, LovelaceCardConfig, LovelaceGridOptions } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import { computeSensorColor } from "../../../common/entity/tile-color";
 import { tileCardHostStyle, tileCardStyle } from "../../../styles/tile-card-style";
 import "../../../components/ha-tile-container";
@@ -12,7 +13,7 @@ import "../../../components/ha-card";
 function formatLabelValue(raw: FlowValue | undefined): string {
   if (raw === undefined || raw === null) return "—";
   if (typeof raw === "string") return raw.trim() ? raw : "—";
-  if (typeof raw === "boolean") return raw ? "是" : "否";
+  if (typeof raw === "boolean") return raw ? t("是") : t("否");
   if (typeof raw === "number") return String(raw);
   if (Array.isArray(raw)) return raw.map((item) => String(item)).join(", ") || "—";
   try {
@@ -29,7 +30,7 @@ export class HuiLabelCard extends LitElement implements LovelaceCard {
     return {
       type: "label",
       entity: "/demo/string",
-      name: "当前素材",
+      name: t("当前素材"),
       icon: "mdi:label-outline",
     };
   }
@@ -60,7 +61,7 @@ export class HuiLabelCard extends LitElement implements LovelaceCard {
     const entity = this._config.entity;
     const state = entity && this.flow ? this.flow.states[entity] : undefined;
     const name = String(
-      this._config.name ?? state?.attributes?.friendly_name ?? entity ?? "标签",
+      this._config.name ?? state?.attributes?.friendly_name ?? entity ?? t("标签"),
     );
     const icon = String(this._config.icon ?? state?.attributes?.icon ?? "mdi:label-outline");
     const hideState = Boolean(this._config.hide_state);

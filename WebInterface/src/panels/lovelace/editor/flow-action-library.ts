@@ -12,6 +12,7 @@ import {
   type FlowAction,
 } from "../../../data/actions";
 import { showConfirmationDialog } from "../../../dialogs/show-confirm-dialog";
+import { t, tf } from "../../../common/i18n/i18n";
 
 function canWriteAction(action: FlowAction): boolean {
   return action.access !== "read";
@@ -73,7 +74,7 @@ export class FlowActionLibrary extends LitElement {
         this.flow.connection.trackAddresses(entities);
       }
     } catch {
-      this._error = "加载动作库失败";
+      this._error = t("加载动作库失败");
       this._actions = [];
     } finally {
       this._loading = false;
@@ -83,13 +84,13 @@ export class FlowActionLibrary extends LitElement {
   private async _remove(action: FlowAction): Promise<void> {
     const name = actionDisplayName(action);
     const usedHint = action.used
-      ? "该动作仍被页面卡片引用，删除后相关控件将失效。"
-      : "删除后可从节点重新导出，或手动重新添加。";
+      ? t("该动作仍被页面卡片引用，删除后相关控件将失效。")
+      : t("删除后可从节点重新导出，或手动重新添加。");
     const confirmed = await showConfirmationDialog({
-      title: "删除动作",
-      text: `确定删除「${name}」（${action.entity}）？ ${usedHint}`,
-      confirmText: "删除",
-      cancelText: "取消",
+      title: t("删除动作"),
+      text: tf("确定删除「%1」（%2）？ %3", name, action.entity, usedHint),
+      confirmText: t("删除"),
+      cancelText: t("取消"),
       destructive: true,
     });
     if (!confirmed) return;
@@ -99,7 +100,7 @@ export class FlowActionLibrary extends LitElement {
     const ok = await deleteAction(action.entity);
     this._busyEntity = "";
     if (!ok) {
-      this._error = `删除失败：${name}`;
+      this._error = tf("删除失败：%1", name);
       return;
     }
     await this._load();
@@ -115,9 +116,9 @@ export class FlowActionLibrary extends LitElement {
     try {
       await this.flow.callService(action.entity, value);
       const shown = typeof value === "boolean" ? (value ? "true" : "false") : String(value);
-      this._testHint = `已测试「${name}」→ ${shown}`;
+      this._testHint = tf("已测试「%1」→ %2", name, shown);
     } catch {
-      this._error = `测试失败：${name}`;
+      this._error = tf("测试失败：%1", name);
     } finally {
       this._testingEntity = "";
     }
@@ -138,25 +139,25 @@ export class FlowActionLibrary extends LitElement {
         <div class="tags">
           <span class="tag">${actionAccessLabel(action.access)}</span>
           ${action.used
-            ? html`<span class="tag used">使用中</span>`
-            : html`<span class="tag idle">未使用</span>`}
+            ? html`<span class="tag used">${t("使用中")}</span>`
+            : html`<span class="tag idle">${t("未使用")}</span>`}
         </div>
         <div class="ops">
           <button
             type="button"
             class="test"
-            title=${writable ? "发送测试值" : "只读动作不可测试"}
-            aria-label=${`测试 ${name}`}
+            title=${writable ? t("发送测试值") : t("只读动作不可测试")}
+            aria-label=${tf("测试 %1", name)}
             ?disabled=${!writable || anyBusy}
             @click=${() => void this._test(action)}
           >
-            ${testing ? "…" : "测试"}
+            ${testing ? "…" : t("测试")}
           </button>
           <button
             type="button"
             class="remove"
-            title="删除"
-            aria-label=${`删除 ${name}`}
+            title=t("删除")
+            aria-label=${tf("删除 %1", name)}
             ?disabled=${anyBusy}
             @click=${() => void this._remove(action)}
           >
@@ -170,15 +171,15 @@ export class FlowActionLibrary extends LitElement {
   protected render() {
     return html`
       <div class="section-head">
-        <span class="section-title">已登记动作</span>
+        <span class="section-title">${t("已登记动作")}</span>
         ${this._loading ? nothing : html`<span class="count">${this._actions.length}</span>`}
       </div>
       ${this._error ? html`<p class="error">${this._error}</p>` : nothing}
       ${this._testHint ? html`<p class="hint">${this._testHint}</p>` : nothing}
       ${this._loading
-        ? html`<p class="empty">加载中…</p>`
+        ? html`<p class="empty">${t("加载中…")}</p>`
         : this._actions.length === 0
-          ? html`<p class="empty">暂无动作。可通过节点右键导出，或在「手动添加」中登记。</p>`
+          ? html`<p class="empty">${t("暂无动作。可通过节点右键导出，或在「手动添加」中登记。")}</p>`
           : html`<div class="list">${this._actions.map((a) => this._renderRow(a))}</div>`}
     `;
   }

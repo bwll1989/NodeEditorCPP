@@ -1,4 +1,5 @@
 import { html, type TemplateResult } from "lit";
+import { t, tf } from "../../../common/i18n/i18n";
 import {
   BADGE_SIZE_PRESETS,
   badgeShowBackground,
@@ -23,7 +24,7 @@ export function renderBadgeAppearanceFields(
     sizeFallback?: number;
   },
 ): TemplateResult {
-  const textLabel = options?.textLabel ?? "显示文字";
+  const textLabel = options?.textLabel ?? t("显示文字");
   const size = badgeVisualSize(config, options?.sizeFallback);
   const preset = nearestBadgeSizePreset(size);
 
@@ -40,7 +41,7 @@ export function renderBadgeAppearanceFields(
       />
     </label>
     <label class="switch-row">
-      <span>显示底色</span>
+      <span>${t("显示底色")}</span>
       <input
         type="checkbox"
         .checked=${badgeShowBackground(config)}
@@ -48,9 +49,9 @@ export function renderBadgeAppearanceFields(
           patch({ show_background: (ev.target as HTMLInputElement).checked })}
       />
     </label>
-    <p class="helper">关闭底色后无胶囊填充；图标颜色随实体/按下状态变化。</p>
+    <p class="helper">${t("关闭底色后无胶囊填充；图标颜色随实体/按下状态变化。")}</p>
     <label class="field">
-      <span>大小</span>
+      <span>${t("大小")}</span>
       <select
         @change=${(ev: Event) =>
           patch({ size: Number((ev.target as HTMLSelectElement).value) })}
@@ -58,7 +59,7 @@ export function renderBadgeAppearanceFields(
         ${BADGE_SIZE_PRESETS.map(
           (item) => html`
             <option value=${item.value} ?selected=${preset === item.value}>
-              ${item.label}（高 ${item.value}px）
+              ${item.label}（${tf("高 %1px", item.value)}）
             </option>
           `,
         )}

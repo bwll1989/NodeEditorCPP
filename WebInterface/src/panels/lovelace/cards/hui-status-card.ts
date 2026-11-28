@@ -10,6 +10,7 @@ import type {
   LovelaceGridOptions,
   LovelaceStatusEntityConfig,
 } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import { stateActive } from "../../../common/entity/state-active";
 import { computeSensorColor } from "../../../common/entity/tile-color";
 import "../../../components/ha-card";
@@ -84,8 +85,8 @@ export function resolveStatusKind(state?: FlowEntityState): StatusKind {
 }
 
 function statusLabel(kind: StatusKind): string {
-  if (kind === "ok") return "正常";
-  if (kind === "error") return "异常";
+  if (kind === "ok") return t("正常");
+  if (kind === "error") return t("异常");
   return "—";
 }
 
@@ -94,12 +95,12 @@ export class HuiStatusCard extends LitElement implements LovelaceCard {
   public static getStubConfig(): LovelaceCardConfig {
     return {
       type: "status",
-      name: "Flow 连接",
+      name: t("Flow 连接"),
       icon: "mdi:lan-connect",
       color: "green",
       entities: [
         { entity: "/demo/status_ws", name: "connected", icon: "mdi:lan-connect" },
-        { entity: "/demo/status_tcp", name: "tcp连接", icon: "mdi:lan-connect" },
+        { entity: "/demo/status_tcp", name: t("tcp连接"), icon: "mdi:lan-connect" },
         { entity: "/demo/status_udp", name: "connected", icon: "mdi:lan-connect" },
         { entity: "/demo/status_osc", name: "connected", icon: "mdi:lan-connect" },
       ],
@@ -174,7 +175,7 @@ export class HuiStatusCard extends LitElement implements LovelaceCard {
     void this.flow?.statesRevision;
 
     const entities = normalizeStatusEntities(this._config.entities);
-    const name = String(this._config.name ?? "状态");
+    const name = String(this._config.name ?? t("状态"));
     const icon = String(this._config.icon ?? "mdi:lan-connect");
     const vertical = Boolean(this._config.vertical);
     const listColumns = Number(this._config.list_columns) === 2 ? 2 : 1;
@@ -192,8 +193,8 @@ export class HuiStatusCard extends LitElement implements LovelaceCard {
       total === 0 ? "unknown" : allOk ? "ok" : anyError ? "error" : "unknown";
     const summaryText =
       total === 0
-        ? "无绑定"
-        : `${okCount}/${total} ${summaryKind === "ok" ? "正常" : summaryKind === "error" ? "异常" : "未知"}`;
+        ? t("无绑定")
+        : `${okCount}/${total} ${summaryKind === "ok" ? t("正常") : summaryKind === "error" ? t("异常") : t("未知")}`;
 
     const accentColor =
       summaryKind === "error"
@@ -227,7 +228,7 @@ export class HuiStatusCard extends LitElement implements LovelaceCard {
           ></ha-tile-info>
           <div slot="features" class=${classMap({ list: true, "cols-2": listColumns === 2 })}>
             ${entities.length === 0
-              ? html`<p class="empty">添加地址后显示各项状态</p>`
+              ? html`<p class="empty">${t("添加地址后显示各项状态")}</p>`
               : entities.map((item, index) => {
                   const state = this.flow?.states[item.entity];
                   const kind = kinds[index] ?? "unknown";

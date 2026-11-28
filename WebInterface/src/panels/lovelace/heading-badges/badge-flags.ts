@@ -1,14 +1,15 @@
 /** Shared visibility / appearance flags for heading + picture / path badges. */
+import { t } from "../../../common/i18n/i18n";
 
 /** 与标题行控制徽章默认高度一致。 */
 export const DEFAULT_BADGE_VISUAL_SIZE = 26;
 
 /** 编辑器可选的徽章高度档位（横向胶囊）。 */
 export const BADGE_SIZE_PRESETS = [
-  { value: 22, label: "小" },
-  { value: 26, label: "中" },
-  { value: 32, label: "大" },
-  { value: 40, label: "更大" },
+  { value: 22, label: t("小") },
+  { value: 26, label: t("中") },
+  { value: 32, label: t("大") },
+  { value: 40, label: t("更大") },
 ] as const;
 
 export function badgeShowIcon(config?: { show_icon?: boolean }): boolean {

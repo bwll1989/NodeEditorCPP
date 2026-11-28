@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { provide } from "@lit/context";
 import { mdiCheck, mdiLanConnect, mdiLanDisconnect, mdiPageLayoutSidebarRight, mdiPencil, mdiRedo, mdiUndo, mdiWeatherNight, mdiWeatherSunny } from "@mdi/js";
 import type { Flow, LovelaceCardConfig, LovelaceConfig, LovelaceSectionConfig, LovelaceViewConfig } from "../../types";
+import { t, tf } from "../../common/i18n/i18n";
 import { flowContext } from "../../context/flow-context";
 import {
   type ConfirmDialogParams,
@@ -441,11 +442,11 @@ export class FlowApp extends LitElement {
     if (this.lovelace.views.length <= 1) return;
     const view = this.lovelace.views[index];
     if (!view) return;
-    const title = view.title || view.path || `视图 ${index + 1}`;
+    const title = view.title || view.path || tf("视图 %1", index + 1);
     const confirmed = await showConfirmationDialog({
-      title: "删除视图",
-      text: `确定删除「${title}」及其所有分区与卡片？`,
-      confirmText: "删除",
+      title: t("删除视图"),
+      text: tf("确定删除「%1」及其所有分区与卡片？", title),
+      confirmText: t("删除"),
       destructive: true,
     });
     if (!confirmed) return;
@@ -564,10 +565,10 @@ export class FlowApp extends LitElement {
   };
 
   private _headerTitle(viewTitle: string): string {
-    if (this._panel === "config") return "设置";
-    if (this._panel === "actions") return "动作库";
-    if (this._panel === "logs") return "运行日志";
-    if (this._panel === "media") return "媒体库";
+    if (this._panel === "config") return t("设置");
+    if (this._panel === "actions") return t("动作库");
+    if (this._panel === "logs") return t("运行日志");
+    if (this._panel === "media") return t("媒体库");
     return viewTitle;
   }
 
@@ -696,9 +697,9 @@ export class FlowApp extends LitElement {
     const cardCount = section.cards?.length ?? 0;
     if (cardCount > 0) {
       const confirmed = await showConfirmationDialog({
-        title: "删除部件",
-        text: "此部件及其所有卡片都将被删除。",
-        confirmText: "删除",
+        title: t("删除部件"),
+        text: t("此部件及其所有卡片都将被删除。"),
+        confirmText: t("删除"),
         destructive: true,
       });
       if (!confirmed) return;
@@ -880,13 +881,13 @@ export class FlowApp extends LitElement {
                 <ha-icon-button
                   class="aside-toggle"
                   .path=${mdiPageLayoutSidebarRight}
-                  label=${asideVisible ? "收起信息栏" : "展开信息栏"}
+                  label=${asideVisible ? t("收起信息栏") : t("展开信息栏")}
                   aria-pressed=${asideVisible ? "true" : "false"}
                   @click=${this._onAsideToggleClick}
                 ></ha-icon-button>
                 <span
                   class="conn-status ${this._connected ? "online" : "offline"}"
-                  title=${this._connected ? "已连接到 Flow" : "未连接到 Flow（演示模式）"}
+                  title=${this._connected ? t("已连接到 Flow") : t("未连接到 Flow（演示模式）")}
                   role="status"
                   aria-live="polite"
                 >
@@ -898,8 +899,8 @@ export class FlowApp extends LitElement {
                   class="theme-toggle"
                   .path=${this._activeTheme === "dark" ? mdiWeatherSunny : mdiWeatherNight}
                   label=${this._activeTheme === "dark"
-                    ? "当前为暗色主题，点击切换为亮色"
-                    : "当前为亮色主题，点击切换为暗色"}
+                    ? t("当前为暗色主题，点击切换为亮色")
+                    : t("当前为亮色主题，点击切换为暗色")}
                   @click=${this._onToggleTheme}
                 ></ha-icon-button>
                 ${showEditActions && this._layoutEditEnabled
@@ -907,26 +908,26 @@ export class FlowApp extends LitElement {
                     ? html`
                         <ha-icon-button
                           .path=${mdiUndo}
-                          label="撤销"
+                          label=${t("撤销")}
                           .disabled=${!this._undoRedo.canUndo}
                           @click=${this._undo}
                         ></ha-icon-button>
                         <ha-icon-button
                           .path=${mdiRedo}
-                          label="重做"
+                          label=${t("重做")}
                           .disabled=${!this._undoRedo.canRedo}
                           @click=${this._redo}
                         ></ha-icon-button>
                         <ha-icon-button
                           .path=${mdiCheck}
-                          label="完成"
+                          label=${t("完成")}
                           @click=${this._exitEditMode}
                         ></ha-icon-button>
                       `
                     : html`
                         <ha-icon-button
                           .path=${mdiPencil}
-                          label="编辑"
+                          label=${t("编辑")}
                           @click=${this._enterEditMode}
                         ></ha-icon-button>
                       `
@@ -1010,7 +1011,7 @@ export class FlowApp extends LitElement {
           .isNew=${this._viewEditorIsNew}
           .config=${this._viewEditorIsNew
             ? generateDefaultView({
-                title: "新建视图",
+                title: t("新建视图"),
                 path: "",
                 icon: "mdi:view-dashboard",
               })
@@ -1030,8 +1031,8 @@ export class FlowApp extends LitElement {
           .open=${this._confirmOpen}
           .title=${this._confirmParams?.title ?? ""}
           .text=${this._confirmParams?.text ?? ""}
-          .confirmText=${this._confirmParams?.confirmText ?? "删除"}
-          .cancelText=${this._confirmParams?.cancelText ?? "取消"}
+          .confirmText=${this._confirmParams?.confirmText ?? t("删除")}
+          .cancelText=${this._confirmParams?.cancelText ?? t("取消")}
           .destructive=${this._confirmParams?.destructive ?? false}
           @dialog-result=${this._onConfirmResult}
         ></flow-confirm-dialog>

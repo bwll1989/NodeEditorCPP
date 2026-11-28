@@ -1,3 +1,5 @@
+import { t, getLang } from "../common/i18n/i18n";
+
 export interface FlowLogEntry {
   seq: number;
   timestamp: string;
@@ -30,12 +32,12 @@ export async function fetchLogTail(options?: {
       error?: string;
     };
     if (data.ok === false) {
-      return { ok: false, items: [], error: data.error || "加载失败" };
+      return { ok: false, items: [], error: data.error || t("加载失败") };
     }
     const items = Array.isArray(data.items) ? data.items : [];
     return { ok: true, items };
   } catch {
-    return { ok: false, items: [], error: "无法连接 Flow 日志服务" };
+    return { ok: false, items: [], error: t("无法连接 Flow 日志服务") };
   }
 }
 
@@ -72,11 +74,11 @@ export async function fetchLogFiles(): Promise<{
       error?: string;
     };
     if (data.ok === false) {
-      return { ok: false, items: [], error: data.error || "加载失败" };
+      return { ok: false, items: [], error: data.error || t("加载失败") };
     }
     return { ok: true, items: Array.isArray(data.items) ? data.items : [] };
   } catch {
-    return { ok: false, items: [], error: "无法连接 Flow 日志服务" };
+    return { ok: false, items: [], error: t("无法连接 Flow 日志服务") };
   }
 }
 
@@ -111,7 +113,7 @@ export function formatLogFileTime(iso?: string): string {
   if (!iso) return "—";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleString("zh-CN", {
+  return date.toLocaleString(getLang() === "en" ? "en-US" : "zh-CN", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

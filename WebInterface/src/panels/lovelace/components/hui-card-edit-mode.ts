@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import { fireEvent } from "../../../common/dom/fire_event";
+import { t } from "../../../common/i18n/i18n";
 import { onEditMenuOpen } from "../../../common/dom/edit-menu-bus";
 import "../../../components/ha-action-menu";
 import "../../../components/ha-icon";
@@ -104,15 +105,15 @@ export class HuiCardEditMode extends LitElement {
   private _menuItems(): ActionMenuItem[] {
     const items: ActionMenuItem[] = [];
     if (!this.noEdit) {
-      items.push({ value: "edit", label: "编辑", icon: "mdi:pencil" });
+      items.push({ value: "edit", label: t("编辑"), icon: "mdi:pencil" });
     }
-    items.push({ value: "duplicate", label: "创建副本", icon: "mdi:plus-circle-multiple-outline" });
-    items.push({ value: "copy", label: "复制", icon: "mdi:content-copy" });
-    items.push({ value: "cut", label: "剪切", icon: "mdi:content-cut" });
+    items.push({ value: "duplicate", label: t("创建副本"), icon: "mdi:plus-circle-multiple-outline" });
+    items.push({ value: "copy", label: t("复制"), icon: "mdi:content-copy" });
+    items.push({ value: "cut", label: t("剪切"), icon: "mdi:content-cut" });
     if (items.length) {
       items.push({ value: "divider", label: "", divider: true });
     }
-    items.push({ value: "delete", label: "删除", icon: "mdi:delete", destructive: true });
+    items.push({ value: "delete", label: t("删除"), icon: "mdi:delete", destructive: true });
     return items;
   }
 
@@ -186,14 +187,14 @@ export class HuiCardEditMode extends LitElement {
           ${overlayHidden || this.noEdit
             ? nothing
             : html`
-                <button type="button" class="control" @click=${this._editOverlay} title="编辑">
+                <button type="button" class="control" @click=${this._editOverlay} title=${t("编辑")}>
                   <div class="control-overlay"></div>
                   <ha-icon class="control-icon" icon="mdi:pencil"></ha-icon>
                 </button>
               `}
           ${this.noEdit && !overlayHidden
             ? html`
-                <div class="control drag-hint" title="拖动以调整位置">
+                <div class="control drag-hint" title=${t("拖动以调整位置")}>
                   <div class="control-overlay"></div>
                   <ha-icon class="control-icon" icon="mdi:cursor-move"></ha-icon>
                 </div>

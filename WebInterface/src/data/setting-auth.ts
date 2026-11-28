@@ -1,3 +1,5 @@
+import { t } from "../common/i18n/i18n";
+
 const AUTH_TS_KEY = "ns_setting_auth_ts";
 /** Session unlock window after a successful password check. */
 const AUTH_TTL_MS = 10 * 60 * 1000;
@@ -96,8 +98,8 @@ export async function requireEditAuth(options?: AuthPromptParams): Promise<boole
   let lastError = options?.error ?? "";
   while (true) {
     const password = await promptSettingPassword({
-      title: options?.title ?? "进入编辑模式",
-      hint: options?.hint ?? "请输入编辑口令。验证通过后，本会话 10 分钟内无需重复输入。",
+      title: options?.title ?? t("进入编辑模式"),
+      hint: options?.hint ?? t("请输入编辑口令。验证通过后，本会话 10 分钟内无需重复输入。"),
       error: lastError,
     });
     if (password === null) return false;
@@ -107,6 +109,6 @@ export async function requireEditAuth(options?: AuthPromptParams): Promise<boole
       markSettingAuthed();
       return true;
     }
-    lastError = "密码错误，请重试";
+    lastError = t("密码错误，请重试");
   }
 }

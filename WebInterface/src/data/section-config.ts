@@ -4,20 +4,21 @@ import type {
   LovelaceSectionConfig,
   LovelaceViewConfig,
 } from "../types";
+import { t } from "../common/i18n/i18n";
 
 export const DEFAULT_SECTION_BACKGROUND_OPACITY = 50;
 
 /** 新建标题卡片的默认配置（与 HA Title 样式一致） */
 export const DEFAULT_HEADING_CARD_CONFIG: LovelaceCardConfig = {
   type: "heading",
-  heading: "新建部件",
+  heading: t("新建部件"),
   heading_style: "title",
   badges: [
     {
       type: "button",
       entity: "",
       icon: "mdi:gesture-tap-button",
-      text: "触发",
+      text: t("触发"),
       show_name: true,
       tap_action: { action: "trigger" },
       action: "trigger",
@@ -49,7 +50,7 @@ export function generateDefaultView(
   options?: { title?: string; path?: string; icon?: string },
 ): LovelaceViewConfig {
   return {
-    title: options?.title ?? "新建视图",
+    title: options?.title ?? t("新建视图"),
     path: options?.path ?? "view",
     icon: options?.icon ?? "mdi:view-dashboard",
     max_columns: 4,
@@ -90,7 +91,7 @@ export function migrateSection(section: LovelaceSectionConfig): LovelaceSectionC
   if (needsHeading && !hasHeading) {
     cards.unshift({
       type: "heading",
-      heading: title || "新建部件",
+      heading: title || t("新建部件"),
       icon,
       badges: badges?.map((b) => ({
         type: b.type ?? "entity",

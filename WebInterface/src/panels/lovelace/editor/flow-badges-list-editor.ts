@@ -19,6 +19,7 @@ import {
   type RawBadgeConfig,
 } from "../heading-badges/badge-model";
 import { parsePercent, withPosition } from "../picture-elements/position";
+import { t, tf } from "../../../common/i18n/i18n";
 import "../../../components/ha-entity-picker";
 import "../../../components/ha-icon-picker";
 import "../../../components/ha-color-picker";
@@ -36,11 +37,11 @@ export class FlowBadgesListEditor extends LitElement {
   /** heading=标题行；picture=图像元素；path=轨迹徽章 */
   @property() public mode: BadgeListMode = "heading";
 
-  @property() public label = "徽章";
+  @property() public label = t("徽章");
 
   @property() public hint = "";
 
-  @property() public emptyText = "可添加状态徽章（只读）或控制徽章（点击操作）";
+  @property() public emptyText = t("可添加状态徽章（只读）或控制徽章（点击操作）");
 
   @property({ attribute: false }) public badges: BadgeItem[] = [];
 
@@ -250,7 +251,7 @@ export class FlowBadgesListEditor extends LitElement {
         index,
         createButtonBadgeStub({
           ...shared,
-          text: String(current.text ?? current.name ?? "触发"),
+          text: String(current.text ?? current.name ?? t("触发")),
           show_name: current.show_name ?? true,
         }),
       );
@@ -283,7 +284,7 @@ export class FlowBadgesListEditor extends LitElement {
   }
 
   private _title(badge: BadgeItem, index: number): string {
-    const role = isButtonBadge(badge) ? "控制徽章" : "状态徽章";
+    const role = isButtonBadge(badge) ? t("控制徽章") : t("状态徽章");
     const name = String(badge.name || badge.text || "").trim();
     if (name) return name;
     return `${role} ${index + 1}`;
@@ -293,11 +294,11 @@ export class FlowBadgesListEditor extends LitElement {
     const tap = normalizeTapAction(badge as RawBadgeConfig);
     if (isButtonBadge(badge) && tap.action === "open-card") {
       const card = tap.card;
-      const cardType = String(card?.type ?? "卡片").trim() || "卡片";
+      const cardType = String(card?.type ?? t("卡片")).trim() || t("卡片");
       const cardEntity = String(card?.entity ?? badge.entity ?? "").trim();
-      return cardEntity ? `弹出 ${cardType} · ${cardEntity}` : `弹出 ${cardType}`;
+      return cardEntity ? tf("弹出 %1 · %2", cardType, cardEntity) : tf("弹出 %1", cardType);
     }
-    return String(badge.entity || badge.text || badge.name || "未选择地址");
+    return String(badge.entity || badge.text || badge.name || t("未选择地址"));
   }
 
   /** 控制徽章的绑定地址；弹出卡片时标题/图像隐藏，轨迹仅保留位置地址 */
@@ -306,7 +307,7 @@ export class FlowBadgesListEditor extends LitElement {
     const isOpenCard = tap?.action === "open-card";
     if (isOpenCard && this.mode !== "path") return nothing;
 
-    const entityLabel = isOpenCard ? "轨迹位置地址" : "绑定地址";
+    const entityLabel = isOpenCard ? t("轨迹位置地址") : t("绑定地址");
     return html`
       <ha-entity-picker
         label=${entityLabel}
@@ -336,7 +337,7 @@ export class FlowBadgesListEditor extends LitElement {
         }}
       ></ha-entity-picker>
       ${isOpenCard
-        ? html`<p class="helper">仅用于徽章在轨迹上的位置，不负责弹出卡片里的读写。</p>`
+        ? html`<p class="helper">${t("仅用于徽章在轨迹上的位置，不负责弹出卡片里的读写。")}</p>`
         : nothing}
     `;
   }
@@ -344,7 +345,7 @@ export class FlowBadgesListEditor extends LitElement {
   private _renderCommonFields(badge: BadgeItem, index: number, type: "entity" | "button") {
     return html`
       <label class="field">
-        <span>类型</span>
+        <span>${t("类型")}</span>
         <select
           @change=${(ev: Event) =>
             this._changeType(
@@ -352,24 +353,24 @@ export class FlowBadgesListEditor extends LitElement {
               (ev.target as HTMLSelectElement).value as "entity" | "button",
             )}
         >
-          <option value="entity" ?selected=${type === "entity"}>状态徽章</option>
-          <option value="button" ?selected=${type === "button"}>控制徽章</option>
+          <option value="entity" ?selected=${type === "entity"}>${t("状态徽章")}</option>
+          <option value="button" ?selected=${type === "button"}>${t("控制徽章")}</option>
         </select>
       </label>
       ${type === "entity" ? this._renderBadgeEntityField(badge, index, type) : nothing}
       ${this.mode === "path"
         ? html`
             <label class="field">
-              <span>名称</span>
+              <span>${t("名称")}</span>
               <input
                 .value=${String(badge.name ?? "")}
-                placeholder="留空则使用实体名"
+                placeholder=t("留空则使用实体名")
                 @input=${(ev: Event) =>
                   this._patch(index, { name: (ev.target as HTMLInputElement).value })}
               />
             </label>
             <label class="field">
-              <span>位置属性名</span>
+              <span>${t("位置属性名")}</span>
               <input
                 .value=${String((badge as LovelacePathBadgeConfig).attribute ?? "")}
                 placeholder="progress"
@@ -378,20 +379,20 @@ export class FlowBadgesListEditor extends LitElement {
                     attribute: (ev.target as HTMLInputElement).value,
                   })}
               />
-              <p class="helper">可选：用该属性值计算轨迹位置；留空则使用实体状态。</p>
+              <p class="helper">${t("可选：用该属性值计算轨迹位置；留空则使用实体状态。")}</p>
             </label>
           `
         : nothing}
       <div class="appearance">
         <ha-icon-picker
-          label="图标"
+          label=t("图标")
           .value=${String(badge.icon ?? "")}
           placeholder=${this._entityIcon(type)}
           @icon-changed=${(ev: CustomEvent<{ value: string }>) =>
             this._patch(index, { icon: ev.detail.value })}
         ></ha-icon-picker>
         <ha-color-picker
-          label="颜色"
+          label=t("颜色")
           .value=${String(badge.color ?? "")}
           ?includeState=${type === "entity"}
           @color-changed=${(ev: CustomEvent<{ value: string }>) =>
@@ -405,7 +406,7 @@ export class FlowBadgesListEditor extends LitElement {
     const showAppearance = this.mode !== "heading";
     return html`
       <label class="switch-row">
-        <span>显示图标</span>
+        <span>${t("显示图标")}</span>
         <input
           type="checkbox"
           .checked=${badge.show_icon !== false}
@@ -417,11 +418,11 @@ export class FlowBadgesListEditor extends LitElement {
       </label>
       ${showAppearance
         ? renderBadgeAppearanceFields(badge, (patch) => this._patch(index, patch), {
-            textLabel: this.mode === "path" ? "显示状态值" : "显示文字",
+            textLabel: this.mode === "path" ? t("显示状态值") : t("显示文字"),
           })
         : html`
             <label class="switch-row">
-              <span>显示文字</span>
+              <span>${t("显示文字")}</span>
               <input
                 type="checkbox"
                 .checked=${badgeShowText(badge)}
@@ -432,7 +433,7 @@ export class FlowBadgesListEditor extends LitElement {
               />
             </label>
             <label class="switch-row">
-              <span>显示底色</span>
+              <span>${t("显示底色")}</span>
               <input
                 type="checkbox"
                 .checked=${badgeShowBackground(badge)}
@@ -446,7 +447,7 @@ export class FlowBadgesListEditor extends LitElement {
       ${this.mode !== "heading"
         ? html`
             <label class="field">
-              <span>单位</span>
+              <span>${t("单位")}</span>
               <input
                 .value=${String(badge.unit ?? "")}
                 placeholder=${this.mode === "path" ? "°C" : "kWh"}
@@ -467,21 +468,21 @@ export class FlowBadgesListEditor extends LitElement {
       ${renderBadgeActionFields(badge, (patch) => this._patch(index, patch))}
       ${this.mode !== "path" ? this._renderBadgeEntityField(badge, index, "button") : nothing}
       <label class="field">
-        <span>文字</span>
+        <span>${t("文字")}</span>
         <input
           .value=${String(badge.text ?? badge.name ?? "")}
-          placeholder="触发"
+          placeholder=t("触发")
           @input=${(ev: Event) =>
             this._patch(index, { text: (ev.target as HTMLInputElement).value })}
         />
       </label>
       ${showAppearance
         ? renderBadgeAppearanceFields(badge, (patch) => this._patch(index, patch), {
-            textLabel: "显示文字",
+            textLabel: t("显示文字"),
           })
         : html`
             <label class="switch-row">
-              <span>显示文字</span>
+              <span>${t("显示文字")}</span>
               <input
                 type="checkbox"
                 .checked=${badgeShowText(badge)}
@@ -492,7 +493,7 @@ export class FlowBadgesListEditor extends LitElement {
               />
             </label>
             <label class="switch-row">
-              <span>显示底色</span>
+              <span>${t("显示底色")}</span>
               <input
                 type="checkbox"
                 .checked=${badgeShowBackground(badge)}
@@ -512,7 +513,7 @@ export class FlowBadgesListEditor extends LitElement {
     return html`
       <div class="pos">
         <label class="field">
-          <span>上 (%)</span>
+          <span>${t("上 (%)")}</span>
           <input
             type="number"
             min="0"
@@ -524,7 +525,7 @@ export class FlowBadgesListEditor extends LitElement {
           />
         </label>
         <label class="field">
-          <span>左 (%)</span>
+          <span>${t("左 (%)")}</span>
           <input
             type="number"
             min="0"
@@ -550,10 +551,10 @@ export class FlowBadgesListEditor extends LitElement {
           <span class="label">${this.label}</span>
           <div class="add-group">
             <button type="button" class="add" @click=${() => this._add("entity")}>
-              + 状态徽章
+              ${t("+ 状态徽章")}
             </button>
             <button type="button" class="add" @click=${() => this._add("button")}>
-              + 控制徽章
+              ${t("+ 控制徽章")}
             </button>
           </div>
         </div>
@@ -576,7 +577,7 @@ export class FlowBadgesListEditor extends LitElement {
                       @click=${() => this._select(index, true)}
                     >
                       <span class="chip-index">${index + 1}</span>
-                      <span class="chip-type">${itemType === "button" ? "控制" : "状态"}</span>
+                      <span class="chip-type">${itemType === "button" ? t("控制") : t("状态")}</span>
                       <span class="chip-name">${this._title(item, index)}</span>
                     </button>
                   `;
@@ -588,12 +589,12 @@ export class FlowBadgesListEditor extends LitElement {
                       <div class="detail-toolbar">
                         <span class="detail-title">
                           #${selected + 1}
-                          · ${type === "button" ? "控制徽章" : "状态徽章"}
+                          · ${type === "button" ? t("控制徽章") : t("状态徽章")}
                         </span>
                         <div class="actions">
                           <button
                             type="button"
-                            title="上移"
+                            title=t("上移")
                             ?disabled=${selected <= 0}
                             @click=${() => this._move(selected, -1)}
                           >
@@ -601,7 +602,7 @@ export class FlowBadgesListEditor extends LitElement {
                           </button>
                           <button
                             type="button"
-                            title="下移"
+                            title=t("下移")
                             ?disabled=${selected >= this.badges.length - 1}
                             @click=${() => this._move(selected, 1)}
                           >
@@ -609,7 +610,7 @@ export class FlowBadgesListEditor extends LitElement {
                           </button>
                           <button
                             type="button"
-                            title="复制"
+                            title=t("复制")
                             @click=${() => this._duplicate(selected)}
                           >
                             <ha-icon icon="mdi:content-copy"></ha-icon>
@@ -617,7 +618,7 @@ export class FlowBadgesListEditor extends LitElement {
                           <button
                             type="button"
                             class="danger"
-                            title="删除"
+                            title=t("删除")
                             @click=${() => this._remove(selected)}
                           >
                             <ha-icon icon="mdi:delete"></ha-icon>

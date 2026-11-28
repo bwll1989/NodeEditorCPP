@@ -1,12 +1,13 @@
 import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, query, state } from "lit/decorators.js";
+import { t } from "../common/i18n/i18n";
 import { createBackdropDismissHandlers } from "../common/dom/modal-backdrop";
 
 @customElement("flow-auth-dialog")
 export class FlowAuthDialog extends LitElement {
   @property({ type: Boolean }) public open = false;
 
-  @property() public title = "身份验证";
+  @property() public title = t("身份验证");
 
   @property() public hint = "";
 
@@ -84,13 +85,13 @@ export class FlowAuthDialog extends LitElement {
           <h2 id="auth-title" class="title">${this.title}</h2>
           ${this.hint ? html`<p class="hint">${this.hint}</p>` : nothing}
           <label class="field">
-            <span>编辑口令</span>
+            <span>${t("编辑口令")}</span>
             <input
               id="auth-password"
               type="password"
               autocomplete="current-password"
               .value=${this._password}
-              placeholder="请输入密码"
+              placeholder=${t("请输入密码")}
               ?disabled=${this._submitting}
               @input=${(ev: Event) => {
                 this._password = (ev.target as HTMLInputElement).value;
@@ -100,10 +101,10 @@ export class FlowAuthDialog extends LitElement {
           ${this.error ? html`<div class="error" role="alert">${this.error}</div>` : nothing}
           <div class="footer">
             <button type="button" class="btn cancel" @click=${this._cancel} ?disabled=${this._submitting}>
-              取消
+              ${t("取消")}
             </button>
             <button type="button" class="btn confirm" @click=${this._submit} ?disabled=${this._submitting}>
-              ${this._submitting ? "验证中…" : "确定"}
+              ${this._submitting ? t("验证中…") : t("确定")}
             </button>
           </div>
         </div>

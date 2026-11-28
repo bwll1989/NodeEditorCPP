@@ -2,6 +2,7 @@ import { css, html, LitElement, nothing } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import { styleMap } from "lit/directives/style-map.js";
 import { computeFixedDropdownPosition } from "../common/dom/fixed-dropdown";
+import { t } from "../common/i18n/i18n";
 import {
   ensureMdiRegistry,
   onMdiRegistryLoaded,
@@ -13,7 +14,7 @@ import "./ha-picker-field";
 
 @customElement("ha-icon-picker")
 export class HaIconPicker extends LitElement {
-  @property() public label = "图标";
+  @property() public label = t("图标");
 
   @property() public value = "";
 
@@ -173,14 +174,14 @@ export class HaIconPicker extends LitElement {
                   <ha-svg-icon class="search-icon" .path=${resolveIconPath("mdi:magnify")}></ha-svg-icon>
                   <input
                     class="search-input"
-                    placeholder="搜索 | 添加自定义项目"
+                    placeholder=${t("搜索 | 添加自定义项目")}
                     .value=${this._filter}
                     @input=${this._onFilterInput}
                   />
                 </div>
                 <ul class="list" role="listbox">
                   ${!this._registryReady
-                    ? html`<li class="empty">正在加载图标库…</li>`
+                    ? html`<li class="empty">${t("正在加载图标库…")}</li>`
                     : this._results.length
                     ? this._results.map(
                         (name) => html`
@@ -196,7 +197,7 @@ export class HaIconPicker extends LitElement {
                           </li>
                         `,
                       )
-                    : html`<li class="empty">未找到匹配的图标</li>`}
+                    : html`<li class="empty">${t("未找到匹配的图标")}</li>`}
                 </ul>
               </div>
             `

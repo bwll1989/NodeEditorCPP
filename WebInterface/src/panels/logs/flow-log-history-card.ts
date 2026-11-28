@@ -1,6 +1,7 @@
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, state } from "lit/decorators.js";
 import type { FlowLogFile } from "../../data/logs-api";
+import { t, tf } from "../../common/i18n/i18n";
 import {
   downloadLogFile,
   fetchLogFiles,
@@ -27,7 +28,7 @@ export class FlowLogHistoryCard extends LitElement {
     const result = await fetchLogFiles();
     this._loading = false;
     if (!result.ok) {
-      this._error = result.error || "加载失败";
+      this._error = result.error || t("加载失败");
       this._files = [];
       return;
     }
@@ -40,7 +41,7 @@ export class FlowLogHistoryCard extends LitElement {
     const ok = await downloadLogFile(file.name);
     this._downloading = "";
     if (!ok) {
-      this._error = `下载失败：${file.name}`;
+      this._error = tf("下载失败：%1", file.name);
     }
   }
 
@@ -50,20 +51,20 @@ export class FlowLogHistoryCard extends LitElement {
         <div class="card-body">
           <div class="toolbar">
             <div>
-              <h2 class="card-title">历史记录</h2>
-              <p class="help">下载磁盘上按天保存的日志文件（Documents/Flow/Logs）。</p>
+              <h2 class="card-title">${t("历史记录")}</h2>
+              <p class="help">${t("下载磁盘上按天保存的日志文件（Documents/Flow/Logs）。")}</p>
             </div>
             <button type="button" class="ghost" ?disabled=${this._loading} @click=${() => void this._load()}>
-              刷新列表
+              ${t("刷新列表")}
             </button>
           </div>
 
           ${this._error ? html`<p class="error">${this._error}</p>` : nothing}
 
           ${this._loading
-            ? html`<p class="empty">加载中…</p>`
+            ? html`<p class="empty">${t("加载中…")}</p>`
             : this._files.length === 0
-              ? html`<p class="empty">暂无历史日志文件</p>`
+              ? html`<p class="empty">${t("暂无历史日志文件")}</p>`
               : html`
                   <ul class="file-list">
                     ${this._files.map(
@@ -81,7 +82,7 @@ export class FlowLogHistoryCard extends LitElement {
                             ?disabled=${this._downloading === file.name}
                             @click=${() => void this._download(file)}
                           >
-                            ${this._downloading === file.name ? "下载中…" : "下载"}
+                            ${this._downloading === file.name ? t("下载中…") : t("下载")}
                           </button>
                         </li>
                       `,

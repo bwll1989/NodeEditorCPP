@@ -1,5 +1,6 @@
 import { css, html, LitElement, nothing } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { t } from "../common/i18n/i18n";
 import { createBackdropDismissHandlers } from "../common/dom/modal-backdrop";
 
 @customElement("flow-confirm-dialog")
@@ -10,9 +11,9 @@ export class FlowConfirmDialog extends LitElement {
 
   @property() public text = "";
 
-  @property() public confirmText = "删除";
+  @property() public confirmText = t("删除");
 
-  @property() public cancelText = "取消";
+  @property() public cancelText = t("取消");
 
   @property({ type: Boolean }) public destructive = false;
 

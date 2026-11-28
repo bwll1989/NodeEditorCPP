@@ -3,6 +3,7 @@ import { customElement, property, state } from "lit/decorators.js";
 import { classMap } from "lit/directives/class-map.js";
 import { styleMap } from "lit/directives/style-map.js";
 import type { Flow, LovelaceCard, LovelaceCardConfig, LovelaceGridOptions } from "../../../types";
+import { t } from "../../../common/i18n/i18n";
 import {
   digitsForStep,
   formatGainSecondary,
@@ -32,7 +33,7 @@ export class HuiGainCard extends LitElement implements LovelaceCard {
     return {
       type: "gain",
       entity: "/demo/gain",
-      name: "输入增益",
+      name: t("输入增益"),
       icon: "mdi:volume-high",
       min: -60,
       max: 12,
@@ -118,7 +119,7 @@ export class HuiGainCard extends LitElement implements LovelaceCard {
     const active = !muted;
     const vertical = Boolean(this._config.vertical);
     const name = String(
-      this._config.name ?? gainState?.attributes?.friendly_name ?? entity ?? "增益",
+      this._config.name ?? gainState?.attributes?.friendly_name ?? entity ?? t("增益"),
     );
     const icon = String(this._config.icon ?? gainState?.attributes?.icon ?? "mdi:volume-high");
     const { min, max, step } = this._range();
@@ -158,8 +159,8 @@ export class HuiGainCard extends LitElement implements LovelaceCard {
               type="button"
               class="mute-btn"
               aria-pressed=${muted ? "true" : "false"}
-              aria-label=${muted ? "取消静音" : "静音"}
-              title=${muted ? "取消静音" : "静音"}
+              aria-label=${muted ? t("取消静音") : t("静音")}
+              title=${muted ? t("取消静音") : t("静音")}
               @click=${this._toggleMute}
             >
               <ha-icon .icon=${muteIcon}></ha-icon>

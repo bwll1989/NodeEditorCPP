@@ -1,5 +1,6 @@
 import { demoLine2dPoints, demoScatter2dPoints } from "../common/chart/point2d";
 import { demoScatterPoints, demoSpiralPoints } from "../common/chart/point3d";
+import { t } from "../common/i18n/i18n";
 import type { FlowStore } from "./flow-store";
 import type { FlowValue } from "../types";
 
@@ -32,7 +33,7 @@ export function seedDemoStates(store: FlowStore): void {
     "/demo/string": {
       value: "Intro_Loop_v3.mp4",
       attributes: {
-        friendly_name: "当前素材",
+        friendly_name: t("当前素材"),
         icon: "mdi:filmstrip",
       },
     },
@@ -40,7 +41,7 @@ export function seedDemoStates(store: FlowStore): void {
     "/demo/path_progress": {
       value: 0.35,
       attributes: {
-        friendly_name: "轨迹进度",
+        friendly_name: t("轨迹进度"),
         icon: "mdi:robot-industrial",
       },
     },
@@ -56,7 +57,7 @@ export function seedDemoStates(store: FlowStore): void {
     "/demo/gain": {
       value: -18,
       attributes: {
-        friendly_name: "输入增益",
+        friendly_name: t("输入增益"),
         unit_of_measurement: "dB",
       },
     },
@@ -77,7 +78,7 @@ export function seedDemoStates(store: FlowStore): void {
     "/demo/faders": {
       value: [0.25, 0.5, 0.75, 0.4],
       attributes: {
-        friendly_name: "多维推杆",
+        friendly_name: t("多维推杆"),
         icon: "mdi:tune-vertical-variant",
       },
     },
@@ -90,7 +91,7 @@ export function seedDemoStates(store: FlowStore): void {
     },
     "/demo/media": {
       value: true,
-      attributes: { friendly_name: "媒体播放器" },
+      attributes: { friendly_name: t("媒体播放器") },
     },
     "/demo/status_ws": {
       value: true,
@@ -98,7 +99,7 @@ export function seedDemoStates(store: FlowStore): void {
     },
     "/demo/status_tcp": {
       value: true,
-      attributes: { friendly_name: "tcp连接", icon: "mdi:lan-connect" },
+      attributes: { friendly_name: t("tcp连接"), icon: "mdi:lan-connect" },
     },
     "/demo/status_udp": {
       value: true,

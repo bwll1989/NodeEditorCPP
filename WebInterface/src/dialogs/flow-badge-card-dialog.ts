@@ -1,5 +1,6 @@
 import { css, html, LitElement, nothing, type PropertyValues } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
+import { t } from "../common/i18n/i18n";
 import { createBackdropDismissHandlers } from "../common/dom/modal-backdrop";
 import { collectCardEntityAddresses } from "../data/flow";
 import type { Flow, LovelaceCard, LovelaceCardConfig } from "../types";
@@ -94,7 +95,7 @@ export class FlowBadgeCardDialog extends LitElement {
     if (!config) {
       this._clearEntitySubscriptions();
       this._card = undefined;
-      this._error = "未配置弹出卡片";
+      this._error = t("未配置弹出卡片");
       return;
     }
     const token = ++this._loadToken;
@@ -122,7 +123,7 @@ export class FlowBadgeCardDialog extends LitElement {
   protected render() {
     if (!this.open) return nothing;
     void this._statesRevision;
-    const heading = this.title.trim() || String(this.cardConfig?.name ?? "控制");
+    const heading = this.title.trim() || String(this.cardConfig?.name ?? t("控制"));
 
     return html`
       <div
@@ -134,14 +135,14 @@ export class FlowBadgeCardDialog extends LitElement {
         <div class="dialog" role="dialog" aria-modal="true" aria-label=${heading}>
           <header class="header">
             <h2 class="title">${heading}</h2>
-            <button type="button" class="close" aria-label="关闭" @click=${this._close}>×</button>
+            <button type="button" class="close" aria-label=${t("关闭")} @click=${this._close}>×</button>
           </header>
           <div class="body">
             ${this._error
               ? html`<p class="error">${this._error}</p>`
               : this._card
                 ? this._card
-                : html`<p class="loading">加载中…</p>`}
+                : html`<p class="loading">${t("加载中…")}</p>`}
           </div>
         </div>
       </div>

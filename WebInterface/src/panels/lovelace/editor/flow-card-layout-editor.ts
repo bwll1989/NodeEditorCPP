@@ -14,6 +14,7 @@ import {
   type CardGridSize,
 } from "../common/compute-card-grid-size";
 import { createCardElement } from "../create-element/create-card-element";
+import { t } from "../../../common/i18n/i18n";
 import "../../../components/ha-grid-size-picker";
 
 /** Port of HA `hui-card-layout-editor` */
@@ -202,7 +203,7 @@ export class FlowCardLayoutEditor extends LitElement {
       ${noGridSupport
         ? html`
             <div class="alert">
-              此卡片未声明网格尺寸默认值，布局调整可能不完全生效。
+              ${t("此卡片未声明网格尺寸默认值，布局调整可能不完全生效。")}
             </div>
           `
         : nothing}
@@ -223,8 +224,8 @@ export class FlowCardLayoutEditor extends LitElement {
 
       <label class="switch-row">
         <div>
-          <div class="switch-label">自动高度</div>
-          <div class="switch-hint">根据卡片内容调整卡片高度</div>
+          <div class="switch-label">${t("自动高度")}</div>
+          <div class="switch-hint">${t("根据卡片内容调整卡片高度")}</div>
         </div>
         <input
           type="checkbox"
@@ -236,8 +237,8 @@ export class FlowCardLayoutEditor extends LitElement {
 
       <label class="switch-row">
         <div>
-          <div class="switch-label">全宽</div>
-          <div class="switch-hint">占据整个部件的宽度，无论其大小</div>
+          <div class="switch-label">${t("全宽")}</div>
+          <div class="switch-hint">${t("占据整个部件的宽度，无论其大小")}</div>
         </div>
         <input
           type="checkbox"
@@ -249,8 +250,8 @@ export class FlowCardLayoutEditor extends LitElement {
 
       <label class="switch-row">
         <div>
-          <div class="switch-label">精确模式</div>
-          <div class="switch-hint">更精确地更改卡片宽度（步进 1 而非 3）</div>
+          <div class="switch-label">${t("精确模式")}</div>
+          <div class="switch-hint">${t("更精确地更改卡片宽度（步进 1 而非 3）")}</div>
         </div>
         <input
           type="checkbox"

@@ -13,6 +13,7 @@ import { ensureCardLoaded, getCardEntry, getPickerCards } from "../../../registr
 import { createBackdropDismissHandlers } from "../../../common/dom/modal-backdrop";
 import { pickerPreviewQueue } from "../../../common/dom/preview-load-queue";
 import { createCardElement } from "../create-element/create-card-element";
+import { t } from "../../../common/i18n/i18n";
 import "../../../components/ha-icon";
 import "../../../components/ha-icon-button";
 import "../../../components/ha-expandable-panel";
@@ -201,7 +202,7 @@ export class FlowCardPickerItem extends LitElement {
           ${this._previewState === "ready"
             ? html`<div class="preview-inner"></div>`
             : this._previewState === "loading"
-              ? html`<div class="loading" aria-label="加载预览"></div>`
+              ? html`<div class="loading" aria-label=t("加载预览")></div>`
               : html`
                   <div class="preview-icon">
                     <ha-icon .icon=${this.icon}></ha-icon>
@@ -415,7 +416,7 @@ export class FlowCardPicker extends LitElement {
     options?: { configForType?: (type: string) => LovelaceCardConfig | undefined; nameForType?: (type: string) => string | undefined },
   ) {
     if (!cards.length) {
-      return html`<div class="empty">没有匹配的卡片</div>`;
+      return html`<div class="empty">${t("没有匹配的卡片")}</div>`;
     }
     return html`
       <div class="cards">
@@ -443,7 +444,7 @@ export class FlowCardPicker extends LitElement {
 
     return this._renderItem(entry, index, {
       config: clipboard,
-      name: `从剪贴板粘贴`,
+      name: t("从剪贴板粘贴"),
     });
   }
 
@@ -464,7 +465,7 @@ export class FlowCardPicker extends LitElement {
     return html`
       ${hasClipboard || suggested.length
         ? html`
-            <ha-expandable-panel .header=${"推荐卡片"} expanded>
+            <ha-expandable-panel .header=${t("推荐卡片")} expanded>
               <div class="cards">
                 ${hasClipboard ? this._renderClipboardCard(index++) : nothing}
                 ${suggested.map((card) => this._renderItem(card, index++))}
@@ -473,7 +474,7 @@ export class FlowCardPicker extends LitElement {
           `
         : nothing}
 
-      <ha-expandable-panel .header=${"核心卡"} expanded>
+      <ha-expandable-panel .header=${t("核心卡")} expanded>
         ${!hasClipboard && !suggested.length
           ? html`<div class="cards">${this._renderClipboardCard(0)}</div>`
           : nothing}
@@ -497,10 +498,10 @@ export class FlowCardPicker extends LitElement {
             <ha-icon-button
               class="close"
               .path=${mdiClose}
-              label="关闭"
+              label=t("关闭")
               @click=${this._close}
             ></ha-icon-button>
-            <h2>添加到仪表板</h2>
+            <h2>${t("添加到仪表板")}</h2>
           </header>
 
           <div class="search-wrap">
@@ -508,7 +509,7 @@ export class FlowCardPicker extends LitElement {
               <ha-svg-icon class="search-icon" .path=${mdiMagnify}></ha-svg-icon>
               <input
                 type="search"
-                placeholder="搜索卡片"
+                placeholder=t("搜索卡片")
                 .value=${this._query}
                 @input=${this._onSearchInput}
               />
@@ -520,7 +521,7 @@ export class FlowCardPicker extends LitElement {
           </div>
 
           <footer class="actions">
-            <button type="button" class="secondary" @click=${this._close}>取消</button>
+            <button type="button" class="secondary" @click=${this._close}>${t("取消")}</button>
           </footer>
         </div>
       </div>
